@@ -1,0 +1,41 @@
+<span class="flex flex-wrap gap-1">
+  @if (live()) {
+    <span
+      class="inline-flex items-center gap-1 rounded-sm bg-white px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-900 shadow-[inset_0_0_0_1.5px_var(--zinc-900)]"
+      ><span class="size-1.5 rounded-full bg-zinc-900" aria-hidden="true"></span>上課中</span
+    >
+  }
+  @if (session().status === 'completed') {
+    <span class="text-xs leading-normal font-medium whitespace-nowrap text-zinc-600">已上完</span>
+  }
+  @if (session().status === 'cancelled') {
+    <span
+      class="inline-flex items-center gap-1 rounded-[2px] px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-500)]"
+      ><i class="pi pi-times text-[10px]" aria-hidden="true"></i>停課</span
+    >
+  }
+  @if (session().makeupFor) {
+    <span
+      class="inline-flex items-center gap-1 rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800"
+      ><i class="pi pi-link text-[10px]" aria-hidden="true"></i>補課</span
+    >
+  }
+  @if (session().hasChanges && session().status !== 'cancelled') {
+    <span
+      class="inline-flex items-center gap-1 rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800"
+      ><i class="pi pi-arrow-right-arrow-left text-[10px]" aria-hidden="true"></i>有異動</span
+    >
+  }
+  @if (session().assignmentStatus === 'unassigned' && session().status !== 'cancelled') {
+    <span
+      class="inline-flex items-center gap-1 rounded-sm bg-warning-50 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-warning-800 shadow-[inset_0_0_0_1px_var(--warning-200)]"
+      ><i class="pi pi-exclamation-triangle text-[10px]" aria-hidden="true"></i>未指派老師</span
+    >
+  }
+  @if (clash()) {
+    <span
+      class="inline-flex items-center gap-1 rounded-sm bg-error-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-error-700"
+      ><i class="pi pi-exclamation-triangle text-[10px]" aria-hidden="true"></i>撞堂</span
+    >
+  }
+</span>

@@ -9,8 +9,18 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
+import {
+  addDays,
+  endOfMonth,
+  format,
+  isSameDay,
+  parseISO,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { catchError, filter, forkJoin, map, of, switchMap, take } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
@@ -33,7 +43,7 @@ import {
 } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
-import { parseAttendanceQueryParams } from './sessions.util';
+import { parseAttendanceQueryParams, parseClassQueryParams } from './sessions.util';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
@@ -54,19 +64,21 @@ import {
 } from './dialogs/mobile-batch-dialog/mobile-batch-dialog.component';
 import {
   SessionFiltersComponent,
+  ALL_SESSION_STATUSES,
   DEFAULT_STATUSES,
   statusesAreFiltering,
 } from './components/session-filters/session-filters.component';
 import { SessionsHeaderComponent } from './components/sessions-header/sessions-header.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
+import { SessionBatchComponent, type BatchMode } from './components/session-batch/session-batch.component';
 import {
-  SessionsBodyComponent,
-  type SessionsBodyBatchMode,
-  type SessionsBodyContextMenuEvent,
-} from './components/sessions-body/sessions-body.component';
+  ScheduleGanttComponent,
+  type ScheduleMenuRequest,
+} from './components/schedule-gantt/schedule-gantt.component';
+import { ScheduleListComponent } from './components/schedule-list/schedule-list.component';
+import { groupByDate, groupByStart, layoutDay } from './schedule-day.util';
 import { SessionsActionsService } from './services/sessions-actions.service';
 import { todayLocal } from '@shared/utils/session-time.util';
-import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
@@ -76,6 +88,11 @@ interface AttendanceDialogCloseResult {
   readonly onLeaveCount: number;
 }
 
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
+// ponytail: 甘特與篩選結果都不分頁，一次最多 500 堂（一天、一班整期、一個月的未指派都遠低於此）；
+// 超過時色面照實寫總數、清單只畫前 500 —— 真的撞到再改成依日期分段取。
+const FETCH_LIMIT = 500;
+
 @Component({
   selector: 'app-sessions',
   standalone: true,
@@ -83,7 +100,10 @@ interface AttendanceDialogCloseResult {
     ToastModule,
     PopupMenuComponent,
     SessionsHeaderComponent,
-    SessionsBodyComponent,
+    DatePipe,
+    SessionBatchComponent,
+    ScheduleGanttComponent,
+    ScheduleListComponent,
     SessionFiltersComponent,
     LoadFailedComponent,
     PageOpenComponent,
@@ -150,10 +170,9 @@ export class SessionsPage implements OnInit {
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly selectedClassIds = signal<string[]>([]);
   protected readonly selectedStudentIds = signal<string[]>([]);
-  protected readonly selectedStatuses = signal<string[]>([...DEFAULT_STATUSES]);
-  protected readonly currentPage = signal(1);
+  /** 甘特預設**顯示停課**（#1174 Q2：停課是課表的一部分，虛線課塊）；工具列一鍵隱藏 */
+  protected readonly selectedStatuses = signal<string[]>([...ALL_SESSION_STATUSES]);
   protected readonly totalSessions = signal(0);
-  protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
   protected readonly students = signal<Student[]>([]);
   protected readonly studentEnrolledClassIds = signal<Set<string>>(new Set());
   protected readonly studentFilteredEnrollments = signal<Enrollment[]>([]);
@@ -164,16 +183,44 @@ export class SessionsPage implements OnInit {
     endOfMonth(new Date()),
   ]);
   protected readonly listDateRangeModified = signal(false);
+
+  // ── 課表（#1174 G1）：平常是單日甘特；別頁帶範圍條件進來時切「篩選結果」 ──────────
+  /** `day`＝一天的甘特（手機是依開始時間分組的清單）；`results`＝範圍條件的篩選結果（依日期分章） */
+  protected readonly mode = signal<'day' | 'results'>('day');
+  protected readonly day = signal<Date>(startOfDay(new Date()));
+  /** 「現在」：每次取數時更新一次（上課中、現在線用）；不掛計時器 */
+  protected readonly now = signal(new Date());
+  protected readonly isToday = computed(() => isSameDay(this.day(), this.now()));
+  protected readonly dayName = computed(() =>
+    this.isToday() ? '今天' : `週${WEEKDAY[this.day().getDay()]} ${format(this.day(), 'M/d')}`,
+  );
+  protected readonly layout = computed(() => layoutDay(this.displayedSessions()));
+  protected readonly clashIds = computed(() => this.layout()?.clashIds ?? new Set<string>());
+  protected readonly dayGroups = computed(() => groupByStart(this.displayedSessions()));
+  protected readonly resultChapters = computed(() => groupByDate(this.displayedSessions()));
+  /** 一次最多拿幾堂（甘特與篩選結果都不分頁） */
+  protected readonly FETCH_LIMIT = FETCH_LIMIT;
   /** 色面標題用的區間（`10/1–10/31`）；只選了起日時只寫一天 */
   protected readonly rangeLabel = computed(() => {
     const [from, to] = this.listDateRange();
     if (!from) return '';
     return to ? `${format(from, 'M/d')}–${format(to, 'M/d')}` : format(from, 'M/d');
   });
-  protected readonly headline = computed(
-    () =>
-      `${this.rangeLabel()}，${this.hasActiveFilters() ? '符合篩選的 ' : ''}${this.displayedTotal()} 堂課。`,
-  );
+  protected readonly headline = computed(() => {
+    if (this.mode() === 'results') {
+      const range = this.rangeLabel();
+      return `${range ? range + '，' : ''}符合篩選的 ${this.displayedTotal()} 堂課。`;
+    }
+    const all = this.displayedSessions();
+    if (all.length === 0) return `${this.dayName()}沒有排課。`;
+    const live = all.filter((s) => s.status !== 'cancelled').length;
+    if (live === 0) return `${this.dayName()} ${all.length} 堂全部停課。`;
+    const clash = this.clashIds();
+    const changed = all.filter(
+      (s) => s.status === 'cancelled' || s.hasChanges || clash.has(s.id),
+    ).length;
+    return `${this.dayName()} ${live} 堂課，${changed ? `${changed} 堂有異動。` : '沒有異動。'}`;
+  });
 
   /**
    * 有沒有點名過——從別頁（目前是儀表板的未點名卡）連過來時帶的篩選。
@@ -367,7 +414,7 @@ export class SessionsPage implements OnInit {
     this.selectedIds.set(new Set(ids));
   }
 
-  protected onSessionListContextMenu(request: SessionsBodyContextMenuEvent): void {
+  protected onMenuRequested(request: ScheduleMenuRequest): void {
     this.contextSession.set(request.session);
     this.sessionMenuRef()?.toggle(request.event);
   }
@@ -386,7 +433,7 @@ export class SessionsPage implements OnInit {
   }
 
   // ── Batch dialog ───────────────────────────────────────────────────────
-  protected openBatchSheet(initialMode: SessionsBodyBatchMode | null = null): void {
+  protected openBatchSheet(initialMode: BatchMode | null = null): void {
     const data: MobileBatchDialogData = {
       sessionIds: [...this.selectedIds()],
       selectedCount: this.selectedCount(),
@@ -463,8 +510,6 @@ export class SessionsPage implements OnInit {
       if (!result) {
         return;
       }
-
-      this.currentPage.set(1);
       this.selectedCourseIds.set(result.courseIds);
       this.selectedTeacherIds.set(result.teacherIds);
       this.selectedClassIds.set(result.classIds);
@@ -500,7 +545,6 @@ export class SessionsPage implements OnInit {
     });
     ref?.onClose.subscribe((result?: MobileFilterDialogResult) => {
       if (result) {
-        this.currentPage.set(1);
         this.selectedCampusIds.set(result.campusIds);
         this.selectedCourseIds.set(result.courseIds);
         this.selectedTeacherIds.set(result.teacherIds);
@@ -596,7 +640,6 @@ export class SessionsPage implements OnInit {
 
   // ── Filters ────────────────────────────────────────────────────────────
   protected onCampusIdChange(id: string | null): void {
-    this.currentPage.set(1);
     this.selectedCampusIds.set(id ? [id] : []);
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
@@ -605,7 +648,6 @@ export class SessionsPage implements OnInit {
   }
 
   protected onCourseIdsChange(ids: string[]): void {
-    this.currentPage.set(1);
     this.selectedCourseIds.set(ids);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
@@ -613,20 +655,17 @@ export class SessionsPage implements OnInit {
   }
 
   protected onTeacherIdsChange(ids: string[]): void {
-    this.currentPage.set(1);
     this.selectedTeacherIds.set(ids);
     this.loadSessions();
   }
 
   protected onClassChange(classIds: string[]): void {
-    this.currentPage.set(1);
     this.selectedClassIds.set(classIds);
     this.loadSessions();
   }
 
   protected onListDateRangeChange(range: Date[]): void {
     this.listDateRange.set(range);
-    this.currentPage.set(1);
     this.listDateRangeModified.set(true);
     if (range.length >= 1 && range[0]) {
       this.loadSessions();
@@ -634,13 +673,13 @@ export class SessionsPage implements OnInit {
   }
 
   protected onStatusesChange(statuses: string[] | null): void {
-    this.currentPage.set(1);
     this.selectedStatuses.set(statuses ?? []);
     this.loadSessions();
   }
 
   protected onFilterUnassigned(): void {
-    this.currentPage.set(1);
+    this.mode.set('results');
+    this.clearSelection();
     const now = new Date();
     this.listDateRange.set([startOfMonth(now), endOfMonth(now)]);
     this.listDateRangeModified.set(false);
@@ -655,7 +694,8 @@ export class SessionsPage implements OnInit {
   }
 
   protected onFilterPendingAttendance(): void {
-    this.currentPage.set(1);
+    this.mode.set('results');
+    this.clearSelection();
     const today = new Date();
     this.listDateRange.set([today, today]);
     this.listDateRangeModified.set(true);
@@ -675,9 +715,23 @@ export class SessionsPage implements OnInit {
    * 一般從選單點進這頁不會帶這些 query params，維持原本的預設篩選。
    */
   private applyIncomingAttendanceFilter(): void {
-    const incoming = parseAttendanceQueryParams(this.route.snapshot.queryParams);
+    const params = this.route.snapshot.queryParams;
+    const fromClass = parseClassQueryParams(params);
+    if (fromClass) {
+      // 開課班的「看這班的課／看未指派的課」（courses.page）：整期範圍、指定班級
+      this.mode.set('results');
+      this.listDateRange.set(
+        [fromClass.from, fromClass.to].filter((d): d is Date => d !== null),
+      );
+      this.selectedClassIds.set([fromClass.classId]);
+      if (fromClass.courseId) this.selectedCourseIds.set([fromClass.courseId]);
+      if (fromClass.unassigned) this.selectedTeacherIds.set(['__unassigned__']);
+      return;
+    }
+    const incoming = parseAttendanceQueryParams(params);
     if (!incoming) return;
 
+    this.mode.set('results');
     this.listDateRange.set([incoming.dateFrom, incoming.dateTo]);
     this.listDateRangeModified.set(true);
     this.attendanceTakenFilter.set(incoming.attendanceTaken);
@@ -688,17 +742,71 @@ export class SessionsPage implements OnInit {
   }
 
   protected clearFilters(): void {
-    this.currentPage.set(1);
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
     this.selectedStudentIds.set([]);
     this.studentEnrolledClassIds.set(new Set());
     this.studentFilteredEnrollments.set([]);
-    this.selectedStatuses.set([...DEFAULT_STATUSES]);
+    this.selectedStatuses.set([...ALL_SESSION_STATUSES]);
     this.attendanceTakenFilter.set(undefined);
     this.endedOnlyFilter.set(false);
     this.loadSessions();
+  }
+
+  // ── 課表：換天、回到課表 ─────────────────────────────────────────────────
+  protected readonly weekDays = computed(() => {
+    const monday = startOfWeek(this.day(), { weekStartsOn: 1 });
+    return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  });
+
+  protected setDay(d: Date): void {
+    if (isSameDay(d, this.day())) return;
+    this.day.set(startOfDay(d));
+    // 勾選只對畫面上那一天有意義（批次動作是對勾到的課）；換天就放掉，不留看不到的勾
+    this.clearSelection();
+    this.loadSessions();
+  }
+
+  protected shiftWeek(weeks: number): void {
+    this.setDay(addDays(this.day(), weeks * 7));
+  }
+
+  protected goToday(): void {
+    this.setDay(new Date());
+  }
+
+  /** 篩選結果 → 回到課表：放掉範圍條件，回到單日甘特 */
+  protected backToSchedule(): void {
+    this.mode.set('day');
+    this.clearSelection();
+    this.clearFilters();
+  }
+
+  /** 甘特預設顯示停課；這顆把停課收起來（收起後色面出現「已隱藏 N 堂停課 · 點此顯示」） */
+  protected hideCancelled(): void {
+    this.selectedStatuses.set([...DEFAULT_STATUSES]);
+    this.loadSessions();
+  }
+
+  protected weekdayLabel(d: Date | string): string {
+    return WEEKDAY[(typeof d === 'string' ? parseISO(d) : d).getDay()];
+  }
+
+  protected isTodayDate(d: Date): boolean {
+    return isSameDay(d, this.now());
+  }
+
+  /** 狀態篩選目前有沒有包含停課（空陣列＝全部） */
+  protected readonly showsCancelled = computed(() => {
+    const st = this.selectedStatuses();
+    return st.length === 0 || st.includes('cancelled');
+  });
+
+  protected toggleSelect(id: string): void {
+    const next = new Set(this.selectedIds());
+    if (!next.delete(id)) next.add(id);
+    this.selectedIds.set(next);
   }
 
   // ── Detail popup ───────────────────────────────────────────────────────
@@ -780,23 +888,17 @@ export class SessionsPage implements OnInit {
     });
   }
 
-  protected onPageChange(page: number): void {
-    this.currentPage.set(page);
-    this.loadSessions();
-  }
-
   // ── Private ────────────────────────────────────────────────────────────
   /** 頁首那顆「已隱藏 N 堂停課」被按下 —— 把已停課加回狀態篩選 */
   protected onRevealCancelled(): void {
     if (this.selectedStatuses().includes('cancelled')) return;
     this.selectedStatuses.set([...this.selectedStatuses(), 'cancelled']);
-    this.currentPage.set(1);
     this.loadSessions();
   }
 
   private isDefaultStatuses(): boolean {
     const current = [...this.selectedStatuses()].sort().join(',');
-    const def = [...DEFAULT_STATUSES].sort().join(',');
+    const def = [...ALL_SESSION_STATUSES].sort().join(',');
     return current === def;
   }
 
@@ -873,7 +975,8 @@ export class SessionsPage implements OnInit {
   }
 
   protected loadSessions(): void {
-    const range = this.listDateRange();
+    const range = this.mode() === 'day' ? [this.day(), this.day()] : this.listDateRange();
+    this.now.set(new Date());
     const rawIds = this.selectedTeacherIds();
     const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');
     const hasUnassigned = rawIds.includes('__unassigned__');
@@ -924,8 +1027,8 @@ export class SessionsPage implements OnInit {
       attendanceTaken: this.attendanceTakenFilter(),
       endedOnly: this.endedOnlyFilter(),
       statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
-      page: this.currentPage(),
-      pageSize: this.PAGE_SIZE,
+      page: 1,
+      pageSize: FETCH_LIMIT,
     };
 
     this.loading.set(true);

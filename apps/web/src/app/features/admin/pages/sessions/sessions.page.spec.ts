@@ -20,7 +20,6 @@ import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/se
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
 import { SessionMakeupDialogComponent } from './dialogs/session-makeup-dialog/session-makeup-dialog.component';
 import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
-import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('SessionsPage', () => {
   let component: SessionsPage;
@@ -334,7 +333,7 @@ describe('SessionsPage', () => {
     expect(availableTeachers.map((teacher) => teacher.id)).toEqual(['teacher-a', 'teacher-b']);
   });
 
-  it('starts with empty date range and no active filters on init', async () => {
+  it('一進來是今天的課表（單日甘特），沒有任何生效中的條件', async () => {
     await fixture.whenStable();
 
     const listDateRange = (component as unknown as { listDateRange: () => Date[] }).listDateRange();
@@ -346,10 +345,39 @@ describe('SessionsPage', () => {
     ).hasActiveFilters();
 
     expect(listDateRange).toHaveLength(2);
-    // #640：預設狀態（正常, 已完成）**正在濾掉已停課**，所以它是一個生效中的條件。
-    // 這一條原本斷言 0 —— 那把「畫面說沒有條件、而實際上有」寫成了預期行為。
-    expect(activeFilterCount).toBe(1);
+    // #1174 Q2：甘特預設**顯示停課**（三種狀態全選），所以沒有任何東西被濾掉 —— 0 才是真的。
+    // （#640 之前的預設會濾掉停課，那時這裡是 1。）
+    expect(activeFilterCount).toBe(0);
     expect(hasActiveFilters).toBe(false);
+    expect((component as unknown as { mode: () => string }).mode()).toBe('day');
+  });
+
+  it('換天：只查那一天、放掉勾選', () => {
+    const c = component as unknown as {
+      setDay: (d: Date) => void;
+      selectedIds: { set: (v: Set<string>) => void; (): Set<string> };
+    };
+    c.selectedIds.set(new Set(['s1']));
+    c.setDay(new Date(2026, 9, 6));
+    expect(c.selectedIds().size).toBe(0);
+    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: '2026-10-06', to: '2026-10-06' }),
+    );
+  });
+
+  it('隱藏停課：狀態收成正常＋已完成；回到課表時恢復全部', () => {
+    const c = component as unknown as {
+      hideCancelled: () => void;
+      backToSchedule: () => void;
+      selectedStatuses: () => string[];
+      mode: { set: (v: string) => void; (): string };
+    };
+    c.hideCancelled();
+    expect(c.selectedStatuses()).toEqual(['scheduled', 'completed']);
+    c.mode.set('results');
+    c.backToSchedule();
+    expect(c.mode()).toBe('day');
+    expect(c.selectedStatuses()).toEqual(['scheduled', 'completed', 'cancelled']);
   });
 
   // P1-6：從儀表板未點名卡連過來時，這頁要真的套用那組篩選，不是安靜地
@@ -513,10 +541,10 @@ describe('SessionsPage', () => {
     expect(hasActiveFiltersBeforeClear).toBe(true);
     expect(selectedCampusIdsAfterClear).toEqual(['campus-1']);
     expect(listDateRangeAfterClear).toHaveLength(2);
-    // #640：清完之後狀態回到預設，而預設**仍然在濾掉已停課** —— 所以是 1 不是 0。
+    // #1174 Q2：清完之後狀態回到預設＝全部狀態（甘特顯示停課），沒有東西被濾掉 —— 0。
     // `hasActiveFilters` 刻意仍然是 false：它控的是「清除篩選」按鈕，
     // 而已經清乾淨了就不該再出現那顆按鈕。**兩個 signal 回答不同的問題。**
-    expect(activeFilterCountAfterClear).toBe(1);
+    expect(activeFilterCountAfterClear).toBe(0);
     expect(hasActiveFiltersAfterClear).toBe(false);
   });
 
@@ -599,6 +627,8 @@ describe('SessionsPage', () => {
   });
 
   it('treats empty status selection as all statuses', () => {
+    // 日期範圍只在「篩選結果」生效（課表是單日）
+    (component as unknown as { mode: { set: (v: string) => void } }).mode.set('results');
     (
       component as unknown as {
         listDateRange: { set: (value: Date[]) => void };
@@ -622,13 +652,15 @@ describe('SessionsPage', () => {
         to: '2026-03-16',
         statuses: undefined,
         page: 1,
-        pageSize: LIST_PAGE_SIZE,
+        pageSize: 500,
       }),
     );
   });
 
   it('keeps filters in memory without syncing query params', () => {
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    // 日期範圍只在「篩選結果」生效（課表是單日）
+    (component as unknown as { mode: { set: (v: string) => void } }).mode.set('results');
 
     (
       component as unknown as {
@@ -676,7 +708,7 @@ describe('SessionsPage', () => {
       endedOnly: false,
       statuses: undefined,
       page: 1,
-      pageSize: LIST_PAGE_SIZE,
+      pageSize: 500,
     });
   });
 
@@ -1239,23 +1271,6 @@ describe('SessionsPage', () => {
       component as unknown as { selectedTeacherIds: { (): string[] } }
     ).selectedTeacherIds();
     expect(ids).toEqual(['__unassigned__']);
-  });
-
-  it('onPageChange should call sessions API with the new page number', () => {
-    sessionsServiceMock.list.mockClear();
-
-    (component as unknown as { onPageChange: (page: number) => void }).onPageChange(2);
-
-    expect(sessionsServiceMock.list).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 2, pageSize: LIST_PAGE_SIZE }),
-    );
-  });
-
-  it('onPageChange should update currentPage signal', () => {
-    (component as unknown as { onPageChange: (page: number) => void }).onPageChange(3);
-
-    const page = (component as unknown as { currentPage: { (): number } }).currentPage();
-    expect(page).toBe(3);
   });
 
   // #950：出勤摘要、eventId、被藏起來的停課數都跟著 `/api/sessions` 一支回來 ——

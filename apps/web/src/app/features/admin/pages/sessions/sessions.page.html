@@ -2,9 +2,9 @@
 <app-popup-menu #sessionMenu [model]="contextMenuItems()" />
 
 <!--
-  A6 版（#991）：色面 → 灰工具列（日期、分校、篩選、操作紀錄）→ 清單。
-  換版不換資料：A6 稿的「單日甘特（一列一位老師）／週欄」「異動標籤與跑馬燈」要的資料或決定
-  這頁還沒有（見 #991 課表範圍說明），清單、分頁、篩選、批次照舊。
+  A6 課表（#991 外框、#1174 G1 甘特）：色面 → 灰工具列（日期條、分校、篩選）→ 單日甘特（手機是分組清單）。
+  別頁帶範圍條件進來（儀表板未點名、開課班整期、色面計數）時切「篩選結果」：依日期分章的清單。
+  缺資料的（代課原老師、調課細節、跑馬燈）課塊先標「有異動」，見 #1174 後續項。
 -->
 <app-page-open>
   <ng-container openTitle>
@@ -26,6 +26,55 @@
 </app-page-open>
 
 <div class="bg-zinc-100">
+  @if (mode() === 'day') {
+    <!-- 日期條（A6 .dtabs）：一週七天，選中那天橘底線；手機可橫捲 -->
+    <div class="page-wrap flex items-center gap-1 pt-2">
+      <button
+        type="button"
+        class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
+        aria-label="上一週"
+        (click)="shiftWeek(-1)"
+      >
+        <i class="pi pi-chevron-left text-sm" aria-hidden="true"></i>
+      </button>
+      <nav class="flex min-w-0 flex-1 gap-0.5" aria-label="選擇日期">
+        @for (d of weekDays(); track d.getTime()) {
+          <button
+            type="button"
+            class="grid min-h-11 min-w-0 flex-1 cursor-pointer justify-items-center border-0 border-b-2 bg-transparent px-0 py-1.5 leading-tight text-zinc-700 hover:text-zinc-900 md:px-2"
+            [class.border-transparent]="d.getTime() !== day().getTime()"
+            [class.border-accent-vivid]="d.getTime() === day().getTime()"
+            [class.text-zinc-900]="d.getTime() === day().getTime()"
+            [attr.aria-current]="d.getTime() === day().getTime() ? 'date' : null"
+            (click)="setDay(d)"
+          >
+            <span class="text-sm">週{{ weekdayLabel(d) }}</span>
+            <b class="text-base tabular-nums md:text-lg">{{ d | date: 'M/d' }}</b>
+            @if (isTodayDate(d)) {
+              <span class="text-xs font-semibold">今天</span>
+            }
+          </button>
+        }
+      </nav>
+      <button
+        type="button"
+        class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
+        aria-label="下一週"
+        (click)="shiftWeek(1)"
+      >
+        <i class="pi pi-chevron-right text-sm" aria-hidden="true"></i>
+      </button>
+      @if (!isToday()) {
+        <button
+          type="button"
+          class="hidden h-11 shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold text-zinc-900 hover:border-zinc-400 md:inline-flex"
+          (click)="goToday()"
+        >
+          回到今天
+        </button>
+      }
+    </div>
+  }
   <div
     class="page-wrap flex flex-col gap-3 py-3 md:flex-row md:items-end md:gap-4"
     role="search"
@@ -33,6 +82,7 @@
   >
     <app-session-filters
       class="min-w-0 md:flex-1"
+      [showDateRange]="mode() === 'results'"
       [listDateRange]="listDateRange()"
       [campuses]="campuses()"
       [selectedCampusId]="selectedCampusId()"
@@ -43,34 +93,112 @@
       (campusIdChange)="onCampusIdChange($event)"
       (clearFilters)="clearFilters()"
     />
-    <button
-      type="button"
-      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 self-start rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 md:self-end"
-      (click)="openOperationsLog()"
-    >
-      <i class="pi pi-history text-sm" aria-hidden="true"></i>
-      操作紀錄
-    </button>
+    <div class="flex flex-wrap gap-2 md:self-end">
+      @if (mode() === 'day' && !hiddenCancelledCount() && showsCancelled()) {
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          (click)="hideCancelled()"
+        >
+          <i class="pi pi-eye-slash text-sm" aria-hidden="true"></i>
+          隱藏停課
+        </button>
+      }
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        (click)="openOperationsLog()"
+      >
+        <i class="pi pi-history text-sm" aria-hidden="true"></i>
+        操作紀錄
+      </button>
+    </div>
   </div>
 </div>
 
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
   @if (loadFailed()) {
     <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
+  } @else if (loading() && !loadedOnce()) {
+    <div class="skeleton-list" aria-label="課表載入中">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (mode() === 'results') {
+    <div
+      class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-zinc-100 py-1 pr-1 pl-4"
+    >
+      <p class="m-0 text-md text-zinc-700">
+        <b class="text-zinc-900">篩選中</b>
+        @if (rangeLabel()) {
+          · {{ rangeLabel() }}
+        }
+        · {{ displayedTotal() }} 堂
+        @if (displayedTotal() > displayedSessions().length) {
+          （只列出前 {{ displayedSessions().length }} 堂）
+        }
+      </p>
+      <button
+        type="button"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-md font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
+        (click)="backToSchedule()"
+      >
+        <i class="pi pi-times text-sm" aria-hidden="true"></i>
+        回到課表
+      </button>
+    </div>
+    @for (ch of resultChapters(); track ch.date) {
+      <section class="mt-8 first-of-type:mt-0" [attr.aria-label]="ch.date">
+        <h2 class="m-0 mb-2 text-xl font-bold tracking-tight text-zinc-900 tabular-nums">
+          {{ ch.date | date: 'M/d' }} 週{{ weekdayLabel(ch.date) }}
+        </h2>
+        <app-schedule-list
+          [groups]="ch.groups"
+          [selectedIds]="selectedIds()"
+          [now]="now()"
+          (toggle)="toggleSelect($event)"
+          (menu)="onMenuRequested($event)"
+        />
+      </section>
+    } @empty {
+      <p class="m-0 py-8 text-base text-zinc-700">沒有符合條件的課堂。</p>
+    }
+  } @else if (layout(); as l) {
+    @if (l.peak) {
+      <p class="m-0 mb-2 text-md text-zinc-700 tabular-nums">
+        {{ dayName() }}最滿 <b class="text-zinc-900">{{ l.peak.from }}–{{ l.peak.to }}</b> · 同時
+        {{ l.peak.count }} 班
+      </p>
+    }
+    <div class="hidden wide:block">
+      <app-schedule-gantt
+        [layout]="l"
+        [selectedIds]="selectedIds()"
+        [now]="now()"
+        [isToday]="isToday()"
+        (toggle)="toggleSelect($event)"
+        (menu)="onMenuRequested($event)"
+      />
+    </div>
+    <div class="wide:hidden">
+      <app-schedule-list
+        [groups]="dayGroups()"
+        [selectedIds]="selectedIds()"
+        [clashIds]="clashIds()"
+        [now]="now()"
+        (toggle)="toggleSelect($event)"
+        (menu)="onMenuRequested($event)"
+      />
+    </div>
   } @else {
-    <app-sessions-body
-      [loading]="loading()"
-      [sessions]="displayedSessions()"
-      [selectedIds]="selectedIds()"
-      [selectedCount]="selectedCount()"
-      [total]="displayedTotal()"
-      [pageSize]="PAGE_SIZE"
-      [currentPage]="currentPage()"
-      (selectedIdsChange)="onSelectedIdsChange($event)"
-      (contextMenuRequested)="onSessionListContextMenu($event)"
-      (clearSelection)="clearSelection()"
-      (openBatchSheet)="openBatchSheet($event)"
-      (pageChange)="onPageChange($event)"
-    />
+    <p class="m-0 py-8 text-base text-zinc-700">{{ dayName() }}沒有排課。</p>
   }
+
+  <app-session-batch
+    [selectedCount]="selectedCount()"
+    [hasCancelled]="hasCancelledSelection()"
+    (clearSelection)="clearSelection()"
+    (openBatchSheet)="openBatchSheet($event)"
+  />
 </div>
