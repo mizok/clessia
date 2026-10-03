@@ -45,6 +45,15 @@ describe('LoginLinkDialogComponent 的對象措辭（#666）', () => {
     expect(noticeText(f)).not.toContain('請對方用自己的手機');
   });
 
+  // #1127：機台是平板，不叫「同仁」也不叫人綁 LINE
+  it('機台版請人用門口平板掃，不提綁 LINE', async () => {
+    const f = await render({ audience: 'kiosk' });
+
+    expect(noticeText(f)).toContain('門口平板');
+    expect(noticeText(f)).not.toContain('LINE');
+    expect(noticeText(f)).toContain('只能使用一次');
+  });
+
   /**
    * **反向對照 1**：家長版一字不動。
    * 裁定明講那條路是刻意設計的，**不要為了人員流程把它改壞**。

@@ -3,7 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
-export type StaffRole = 'admin' | 'teacher';
+/** `kiosk`＝分校門口的掃碼機台（#1127）：只能單獨存在，建立／編輯走 `kiosk-form-dialog` */
+export type StaffRole = 'admin' | 'teacher' | 'kiosk';
 export type StaffStatus = 'active' | 'inactive' | 'archived';
 
 /**
@@ -93,7 +94,8 @@ export interface StaffQueryParams {
 
 export interface CreateStaffInput {
   displayName: string;
-  email: string;
+  /** 掃碼機台不給，由後端產生佔位值 */
+  email?: string;
   phone?: string | null;
   birthday?: string | null;
   notes?: string | null;

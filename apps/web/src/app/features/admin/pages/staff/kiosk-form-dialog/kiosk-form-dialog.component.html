@@ -1,0 +1,78 @@
+<div>
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__title">{{
+        isEditing ? '編輯掃碼機台' : '新增掃碼機台'
+      }}</span>
+    </div>
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="關閉"
+    >
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="flex flex-col gap-4 p-6">
+    @if (!isEditing) {
+      <p class="text-sm text-zinc-600">
+        放在分校門口給學生打卡的平板。它只能打卡，看不到任何學生或家長資料。建立後會給一個
+        QR，用平板掃它登入。
+      </p>
+    }
+
+    <div class="flex flex-col gap-2">
+      <label for="kiosk-name" class="text-sm font-medium text-zinc-700">名稱</label>
+      <input
+        id="kiosk-name"
+        pInputText
+        class="w-full"
+        placeholder="例如：本校門口"
+        [ngModel]="name()"
+        (ngModelChange)="name.set($event)"
+        [disabled]="loading()"
+        data-testid="kiosk-name"
+      />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <label for="kiosk-campus" class="text-sm font-medium text-zinc-700">分校</label>
+      <p-select
+        inputId="kiosk-campus"
+        [options]="campusOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="選擇分校"
+        styleClass="w-full"
+        appendTo="body"
+        [ngModel]="campusId()"
+        (ngModelChange)="campusId.set($event)"
+        [disabled]="loading()"
+      />
+    </div>
+
+    @if (error(); as message) {
+      <app-inline-notice severity="error" [detail]="message" [dismissible]="false" />
+    }
+
+    <div class="flex justify-end gap-2 pt-2">
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        [disabled]="loading()"
+        (onClick)="cancel()"
+      />
+      <p-button
+        [label]="isEditing ? '儲存' : '建立'"
+        icon="pi pi-check"
+        [loading]="loading()"
+        [disabled]="!canSave()"
+        (onClick)="save()"
+        data-testid="kiosk-save"
+      />
+    </div>
+  </div>
+</div>

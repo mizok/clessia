@@ -24,6 +24,15 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
  * - 掃不到就複製連結用 LINE 傳
  * - 「列印」印的是含 QR 的頁面，不是印那串網址
  */
+export type LoginLinkAudience = 'parent' | 'staff' | 'kiosk';
+
+const NOTICE_BY_AUDIENCE: Record<LoginLinkAudience, string> = {
+  parent: '請對方用自己的手機掃描下方 QR，登入後綁定 LINE。',
+  staff: '請同仁用手機掃描綁定，或複製連結傳給他。',
+  // #1127：機台是門口的平板，不是人 —— 登入後直接進打卡頁，沒有 LINE 要綁
+  kiosk: '請用門口平板的相機掃描，或在平板上打開這條連結；登入後會直接進到班打卡頁。',
+};
+
 @Component({
   selector: 'app-login-link-dialog',
   standalone: true,
@@ -47,9 +56,8 @@ export class LoginLinkDialogComponent {
    * 拿掉它，職員不會知道這條連結 24 小時後就沒用了。
    */
   protected readonly noticeDetail = () =>
-    ((this.config.data?.audience ?? 'parent') === 'staff'
-      ? '請同仁用手機掃描綁定，或複製連結傳給他。'
-      : '請對方用自己的手機掃描下方 QR，登入後綁定 LINE。') + '連結 24 小時內有效、只能使用一次。';
+    NOTICE_BY_AUDIENCE[(this.config.data?.audience ?? 'parent') as LoginLinkAudience] +
+    '連結 24 小時內有效、只能使用一次。';
 
   protected onHide(): void {
     this.ref.close();
