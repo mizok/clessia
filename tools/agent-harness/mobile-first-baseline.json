@@ -1,6 +1,5 @@
 [
   "apps/web/src/app/features/admin/pages/campuses/campuses.page.scss",
-  "apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.scss",
   "apps/web/src/app/features/admin/pages/courses/class-form-dialog/class-form-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/courses/deactivate-class-dialog/deactivate-class-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/courses/generate-sessions-dialog/generate-sessions-dialog.component.scss",

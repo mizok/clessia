@@ -9,20 +9,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ToastModule } from 'primeng/toast';
-import { TabsModule } from 'primeng/tabs';
-import type { TabListPassThrough } from 'primeng/types/tabs';
-import { SkeletonModule } from 'primeng/skeleton';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ClassesService, Class } from '@core/classes.service';
-import {
-  PageBreadcrumbComponent,
-  type BreadcrumbItem,
-} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
   EnrollmentsService,
@@ -37,32 +29,25 @@ import {
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
-import { PageBandComponent } from '@shared/components/page-band/page-band.component';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
 import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dialog.component';
 import { RosterImportDialogComponent } from './roster-import-dialog/roster-import-dialog.component';
 import { EnrollmentBillingDialogComponent } from './enrollment-billing-dialog/enrollment-billing-dialog.component';
-import { personHue } from '@shared/utils/person-hue.util';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 
 @Component({
   selector: 'app-class-detail',
   standalone: true,
   imports: [
-    PageBandComponent,
-    BandAnchorComponent,
-    ButtonModule,
+    PageOpenComponent,
+    RouterLink,
     ToastModule,
-    TabsModule,
-    SkeletonModule,
-    PageBreadcrumbComponent,
     PopupMenuComponent,
     LoadFailedComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './class-detail.page.html',
-  styleUrl: './class-detail.page.scss',
 })
 export class ClassDetailPage implements OnInit {
   private readonly classesService = inject(ClassesService);
@@ -91,15 +76,6 @@ export class ClassDetailPage implements OnInit {
 
   protected readonly cls = signal<Class | null>(null);
 
-  protected readonly breadcrumbItems = computed<BreadcrumbItem[]>(() => {
-    const c = this.cls();
-    return [
-      { label: '課務管理' },
-      { label: '課程', routerLink: '/admin/courses' },
-      { label: c?.courseName ?? '...', routerLink: c ? `/admin/courses/${c.courseId}` : undefined },
-      { label: c?.name ?? '...' },
-    ];
-  });
   protected readonly enrollments = signal<Enrollment[]>([]);
   protected readonly loading = signal(true);
   /** #998：取數失敗要有自己的畫面（同課程列表 #795）—— toast 幾秒就消失，之後只剩麵包屑 */
@@ -107,14 +83,8 @@ export class ClassDetailPage implements OnInit {
   protected readonly enrollmentsLoading = signal(true);
 
   protected readonly statusLabels = ENROLLMENT_STATUS_LABELS;
-  protected readonly tabListPt: TabListPassThrough = {
-    tabList: {
-      style: {
-        padding: '0 var(--space-5)',
-        alignItems: 'center',
-      },
-    },
-  };
+  /** 學生名單｜課表（A6 灰工具列上的兩個分頁） */
+  protected readonly tab = signal<'roster' | 'schedule'>('roster');
 
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
   protected readonly selectedEnrollment = signal<Enrollment | null>(null);
@@ -414,11 +384,6 @@ export class ClassDetailPage implements OnInit {
     });
   }
 
-  /** 見 `personHue` —— 契約是「同一個人到哪一頁都同色」，所以只能有一份實作 */
-  protected getStudentHue(studentId: string): number {
-    return personHue(studentId);
-  }
-
   protected getStatusSeverity(
     status: EnrollmentStatus,
   ): 'success' | 'warn' | 'secondary' | 'danger' {
@@ -438,9 +403,5 @@ export class ClassDetailPage implements OnInit {
 
   protected navigateToStudent(studentId: string): void {
     this.router.navigate(['/admin/students', studentId]);
-  }
-
-  protected goBack(): void {
-    this.router.navigate(['/admin/courses']);
   }
 }

@@ -3,7 +3,6 @@
   "apps/web/src/app/features/admin/pages/campuses/campus-form-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/campuses/campuses.page.scss",
   "apps/web/src/app/features/admin/pages/contact-book/contact-book.page.scss",
-  "apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.scss",
   "apps/web/src/app/features/admin/pages/courses/class-detail/copy-roster-dialog/copy-roster-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/courses/class-detail/enrollment-billing-dialog/enrollment-billing-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/courses/class-detail/enrollment-billing-fields/enrollment-billing-fields.component.scss",

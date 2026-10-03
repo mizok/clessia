@@ -1,240 +1,238 @@
 <p-toast position="top-right" appendTo="body" [baseZIndex]="25000" />
 <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
-<div class="class-detail">
-  <app-page-breadcrumb [items]="breadcrumbItems()" />
+<!--
+  A6 版（#991 courses C2，class.html）：色面（返回、班名＋開班中、課程·分校·適合年級、在籍／上限、時段數）
+  → 灰工具列（學生名單｜課表）→ 名冊（序號、姓名＋狀態、學校·年級、加入日、⋯）。
+  換版不換資料：A6 工具列的「產生課堂」「⋯（班級操作）」這頁本來沒有（在課程列表的班級選單裡），不在這支加。
+-->
+<app-page-open>
+  <a
+    openBack
+    class="mb-2 inline-flex min-h-11 items-center gap-1.5 text-md font-semibold text-band-ink no-underline hover:underline hover:underline-offset-4"
+    routerLink="/admin/courses"
+  >
+    <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>課程管理
+  </a>
+  <ng-container openTitle>
+    @if (cls(); as c) {
+      {{ c.name }}
+      <span
+        class="ml-2.5 inline-block rounded-full border-[1.5px] border-band-ink px-2 align-middle text-sm leading-6 font-bold tracking-normal text-band-ink"
+        >{{ c.isActive ? '開班中' : '已停班' }}</span
+      >
+    } @else if (loading()) {
+      <span
+        class="inline-block h-[1em] w-[6ch] rounded-sm bg-band-rule align-middle opacity-45"
+        aria-label="班級資料載入中"
+      ></span>
+    } @else {
+      找不到這個班
+    }
+  </ng-container>
+  <ng-container openSub>
+    @if (cls(); as c) {
+      {{ c.courseName }}
+      @if (c.campusName) {
+        · {{ c.campusName }}
+      }
+      @if (c.gradeLevels.length) {
+        · 適合年級
+        @for (grade of c.gradeLevels; track grade) {
+          <span data-part="grade">{{ getGradeLabel(grade) + ($last ? '' : '、') }}</span>
+        }
+      }
+    }
+  </ng-container>
+  @if (cls(); as c) {
+    <dl
+      class="m-0 mt-6 flex flex-wrap gap-x-12 gap-y-3 border-t border-band-rule pt-5 text-band-ink"
+    >
+      <div>
+        <dt class="sr-only">在籍人數</dt>
+        <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
+          {{ enrollments().length }}<span class="text-lg font-semibold">／{{ c.maxStudents }}</span>
+        </dd>
+        <p class="m-0 mt-1 text-md" aria-hidden="true">在籍人數</p>
+      </div>
+      <div>
+        <dt class="sr-only">上課時段</dt>
+        <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
+          {{ c.schedules?.length ?? 0 }}
+        </dd>
+        <p class="m-0 mt-1 text-md" aria-hidden="true">
+          個上課時段
+          @if (c.startDate || c.endDate) {
+            · {{ c.startDate ?? '不限' }} ～ {{ c.endDate ?? '不限' }}
+          }
+        </p>
+      </div>
+    </dl>
+  }
+</app-page-open>
 
-  <div class="class-detail__nav">
-    <p-button
-      label="課程列表"
-      icon="pi pi-arrow-left"
-      [text]="true"
-      severity="secondary"
-      (onClick)="goBack()"
-    />
+@if (loadFailed()) {
+  <div class="page-wrap pt-6">
+    <app-load-failed description="沒有讀到這個班的資料，可能是連線問題" (retry)="loadClass()" />
+  </div>
+} @else if (cls(); as c) {
+  <div class="bg-zinc-100">
+    <div class="page-wrap flex gap-6" role="tablist" aria-label="班級內容">
+      <button
+        type="button"
+        role="tab"
+        id="class-tab-roster"
+        aria-controls="class-panel-roster"
+        class="min-h-14 cursor-pointer border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
+        [class.border-zinc-900]="tab() === 'roster'"
+        [class.border-transparent]="tab() !== 'roster'"
+        [class.text-zinc-700]="tab() !== 'roster'"
+        [attr.aria-selected]="tab() === 'roster'"
+        (click)="tab.set('roster')"
+      >
+        學生名單
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="class-tab-schedule"
+        aria-controls="class-panel-schedule"
+        class="min-h-14 cursor-pointer border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
+        [class.border-zinc-900]="tab() === 'schedule'"
+        [class.border-transparent]="tab() !== 'schedule'"
+        [class.text-zinc-700]="tab() !== 'schedule'"
+        [attr.aria-selected]="tab() === 'schedule'"
+        (click)="tab.set('schedule')"
+      >
+        課表
+      </button>
+    </div>
   </div>
 
-  @if (loading()) {
-    <div class="class-detail__loading">
-      <p-skeleton width="100%" height="176px" borderRadius="10px" />
-    </div>
-  } @else if (loadFailed()) {
-    <app-load-failed description="沒有讀到這個班的資料，可能是連線問題" (retry)="loadClass()" />
-  } @else if (cls()) {
-    <!-- 橘帶：班的身分在左，錨點（收了幾人 / 上限）在右。
-         這裡不放頭像圓球 —— 帶本身就是那個色塊，再放一顆是同一件事做兩次。
-         也不放警示色：橘面上讀不出來，缺資料的提醒往下走到工作面（課表 tab 的空狀態）。 -->
-    <app-page-band>
-      <div class="class-detail__band-name-row">
-        <h1 class="class-detail__band-name">{{ cls()!.name }}</h1>
-        <span
-          class="class-detail__band-pill"
-          [class.class-detail__band-pill--off]="!cls()!.isActive"
-        >
-          {{ cls()!.isActive ? '開班中' : '已停班' }}
-        </span>
-      </div>
-      @if (cls()!.courseName) {
-        <p class="class-detail__band-course">{{ cls()!.courseName }}</p>
-      }
-      @if (cls()!.gradeLevels.length) {
-        <div class="class-detail__band-grades">
-          <span class="class-detail__band-grades-label">適合年級</span>
-          @for (grade of cls()!.gradeLevels!; track grade) {
-            <span class="class-detail__band-grade">{{ getGradeLabel(grade) }}</span>
+  <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+    @if (tab() === 'roster') {
+      <section id="class-panel-roster" role="tabpanel" aria-labelledby="class-tab-roster">
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-3 border-b border-zinc-900 pb-3">
+          <h2 class="m-0 text-2xl font-bold tracking-tight tabular-nums">
+            {{ enrollments().length }} 位學生
+          </h2>
+          <span class="text-md text-zinc-600 tabular-nums">上限 {{ c.maxStudents }} 人</span>
+          @if (c.isActive) {
+            <div class="flex w-full flex-wrap gap-2 wide:ml-auto wide:w-auto">
+              <button
+                type="button"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2"
+                (click)="openStudentPicker()"
+              >
+                <i class="pi pi-user-plus text-sm" aria-hidden="true"></i>加入學生
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                (click)="openCopyRoster()"
+              >
+                <i class="pi pi-copy text-sm" aria-hidden="true"></i>複製名單
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                (click)="openRosterImport()"
+              >
+                <i class="pi pi-file-excel text-sm" aria-hidden="true"></i>Excel 匯入
+              </button>
+            </div>
           }
         </div>
-      }
 
-      <div bandAside>
-        <app-band-anchor [value]="enrollments().length" [unit]="'/ ' + cls()!.maxStudents + ' 人'">
-          @if (cls()!.schedules?.length) {
-            <b>{{ cls()!.schedules!.length }}</b> 個時段
-          } @else {
-            尚未設定課表
+        @if (enrollmentsLoading()) {
+          <div class="skeleton-list mt-3" aria-label="名單載入中">
+            @for (i of [1, 2, 3]; track i) {
+              <span class="skeleton-bar"></span>
+            }
+          </div>
+        } @else if (enrollments().length === 0) {
+          <p class="m-0 py-8 text-base text-zinc-700">
+            還沒有學生。{{
+              c.isActive ? '用上面的「加入學生」「複製名單」或「Excel 匯入」加進來。' : ''
+            }}
+          </p>
+        } @else {
+          <!-- 名冊（A6 class.html 的列）：整列可點進學生檔案，⋯ 是在籍狀態的操作 -->
+          @for (enrollment of enrollments(); track enrollment.id; let idx = $index) {
+            <div
+              data-part="student"
+              class="grid min-h-16 cursor-pointer grid-cols-[32px_minmax(0,1fr)_44px] items-center gap-x-3 gap-y-0.5 border-b border-surface-border py-2 hover:bg-zinc-50 wide:grid-cols-[48px_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1fr)_44px] wide:gap-x-6"
+              role="button"
+              tabindex="0"
+              [attr.aria-label]="enrollment.studentName + '：看學生檔案'"
+              (click)="navigateToStudent(enrollment.studentId)"
+              (keydown.enter)="navigateToStudent(enrollment.studentId)"
+              (keydown.space)="navigateToStudent(enrollment.studentId)"
+            >
+              <span class="row-span-2 text-md text-zinc-600 tabular-nums wide:row-span-1">{{
+                idx + 1
+              }}</span>
+              <span class="flex min-w-0 items-center gap-2">
+                <span class="truncate text-lg font-semibold text-zinc-900">{{
+                  enrollment.studentName
+                }}</span>
+                @if (enrollment.status !== 'active') {
+                  <span
+                    class="shrink-0 rounded-full px-2 text-sm leading-6 font-semibold"
+                    [class.bg-warning-50]="enrollment.status === 'pending_payment'"
+                    [class.text-warning-800]="enrollment.status === 'pending_payment'"
+                    [class.bg-zinc-100]="enrollment.status !== 'pending_payment'"
+                    [class.text-zinc-700]="enrollment.status !== 'pending_payment'"
+                    >{{ statusLabels[enrollment.status] }}</span
+                  >
+                }
+              </span>
+              <span class="col-start-2 text-md text-zinc-600 wide:col-start-3 wide:row-start-1">
+                {{ enrollment.studentSchool ?? '學校未填寫' }}
+                @if (enrollment.studentGrade) {
+                  · {{ getGradeLabel(enrollment.studentGrade) }}
+                }
+                <span class="wide:hidden"> · 加入 {{ enrollment.effectiveFrom }}</span>
+              </span>
+              <span
+                class="hidden text-md text-zinc-700 tabular-nums wide:col-start-4 wide:row-start-1 wide:inline"
+                >加入 {{ enrollment.effectiveFrom }}</span
+              >
+              <button
+                type="button"
+                class="col-start-3 row-span-2 row-start-1 inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 wide:col-start-5 wide:row-span-1"
+                [attr.aria-label]="enrollment.studentName + ' 的操作'"
+                (click)="openActionMenu($event, enrollment); $event.stopPropagation()"
+              >
+                <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+              </button>
+            </div>
           }
-          @if (cls()!.startDate || cls()!.endDate) {
-            ・ {{ cls()!.startDate ?? '不限' }} ～ {{ cls()!.endDate ?? '不限' }}
-          }
-        </app-band-anchor>
-      </div>
-    </app-page-band>
-
-    <div class="class-detail__card">
-      <div class="class-detail__tabs-wrapper">
-        <p-tabs value="0">
-          <p-tablist [pt]="tabListPt">
-            <p-tab value="0">學生名單</p-tab>
-            <p-tab value="1">課表</p-tab>
-          </p-tablist>
-
-          <p-tabpanels>
-            <!-- 學生名單 tab -->
-            <p-tabpanel value="0">
-              @if (enrollmentsLoading()) {
-                <div class="class-detail__skeletons">
-                  @for (i of [1, 2, 3]; track i) {
-                    <p-skeleton height="56px" styleClass="mb-1" borderRadius="8px" />
-                  }
-                </div>
-              } @else if (enrollments().length === 0) {
-                <div class="class-detail__empty">
-                  <div class="class-detail__empty-icon">
-                    <i class="pi pi-users"></i>
-                  </div>
-                  <p class="class-detail__empty-title">尚未加入任何學生</p>
-                  <p class="class-detail__empty-desc">將學生加入班級後，可在此管理在籍狀態</p>
-                  @if (cls()!.isActive) {
-                    <div class="class-detail__empty-actions">
-                      <p-button
-                        label="加入第一位學生"
-                        icon="pi pi-user-plus"
-                        [outlined]="true"
-                        (onClick)="openStudentPicker()"
-                      />
-                      <p-button
-                        label="複製名單"
-                        icon="pi pi-copy"
-                        severity="secondary"
-                        [outlined]="true"
-                        (onClick)="openCopyRoster()"
-                      />
-                      <p-button
-                        label="Excel 匯入"
-                        icon="pi pi-file-excel"
-                        severity="secondary"
-                        [outlined]="true"
-                        (onClick)="openRosterImport()"
-                      />
-                    </div>
-                  }
-                </div>
-              } @else {
-                <!-- Section header：人數摘要 + 加入按鈕 -->
-                <div class="class-detail__list-header">
-                  <span class="class-detail__list-count"> {{ enrollments().length }} 位學生 </span>
-                  @if (cls()!.isActive) {
-                    <div class="class-detail__list-actions">
-                      <p-button
-                        label="加入學生"
-                        icon="pi pi-user-plus"
-                        size="small"
-                        [outlined]="true"
-                        (onClick)="openStudentPicker()"
-                      />
-                      <p-button
-                        label="複製名單"
-                        icon="pi pi-copy"
-                        size="small"
-                        severity="secondary"
-                        [outlined]="true"
-                        (onClick)="openCopyRoster()"
-                      />
-                      <p-button
-                        label="Excel 匯入"
-                        icon="pi pi-file-excel"
-                        size="small"
-                        severity="secondary"
-                        [outlined]="true"
-                        (onClick)="openRosterImport()"
-                      />
-                    </div>
-                  }
-                </div>
-                <!-- 花名冊 -->
-                <div class="class-detail__student-list">
-                  @for (enrollment of enrollments(); track enrollment.id; let idx = $index) {
-                    <div
-                      class="class-detail__student-item"
-                      role="button"
-                      tabindex="0"
-                      (click)="navigateToStudent(enrollment.studentId)"
-                      (keydown.enter)="navigateToStudent(enrollment.studentId)"
-                      (keydown.space)="navigateToStudent(enrollment.studentId)"
-                    >
-                      <span class="class-detail__student-index">{{ idx + 1 }}</span>
-                      <div
-                        class="class-detail__student-avatar"
-                        [style.--item-hue]="getStudentHue(enrollment.studentId)"
-                      >
-                        {{ enrollment.studentName[0] }}
-                      </div>
-                      <div class="class-detail__student-info">
-                        <div class="class-detail__student-name-row">
-                          <span class="class-detail__student-name">{{
-                            enrollment.studentName
-                          }}</span>
-                          <div
-                            class="class-detail__student-status"
-                            [attr.data-status]="enrollment.status"
-                          >
-                            <span class="class-detail__status-dot"></span>
-                            <span class="class-detail__status-label">{{
-                              statusLabels[enrollment.status]
-                            }}</span>
-                          </div>
-                        </div>
-                        <span class="class-detail__student-meta">
-                          @if (enrollment.studentSchool) {
-                            <span class="class-detail__student-school">{{
-                              enrollment.studentSchool
-                            }}</span>
-                            <span class="class-detail__meta-sep">·</span>
-                          }
-                          @if (enrollment.studentGrade) {
-                            <span>{{ getGradeLabel(enrollment.studentGrade) }}</span>
-                            <span class="class-detail__meta-sep">·</span>
-                          }
-                          <span>加入 {{ enrollment.effectiveFrom }}</span>
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        class="class-detail__action-btn"
-                        (click)="openActionMenu($event, enrollment); $event.stopPropagation()"
-                        aria-label="操作"
-                      >
-                        <i class="pi pi-ellipsis-v"></i>
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-            </p-tabpanel>
-
-            <!-- 課表 tab -->
-            <p-tabpanel value="1">
-              @if (!cls()!.schedules?.length) {
-                <div class="class-detail__empty">
-                  <div class="class-detail__empty-icon">
-                    <i class="pi pi-calendar"></i>
-                  </div>
-                  <p class="class-detail__empty-title">尚未設定課表</p>
-                  <p class="class-detail__empty-desc">在課堂管理中設定上課時間後會顯示於此</p>
-                </div>
-              } @else {
-                <div class="class-detail__schedules">
-                  @for (schedule of cls()!.schedules ?? []; track schedule.id) {
-                    <div class="class-detail__schedule-item">
-                      <span class="class-detail__schedule-day">{{
-                        getWeekdayLabel(schedule.weekday)
-                      }}</span>
-                      <span class="class-detail__schedule-time">
-                        {{ schedule.startTime.slice(0, 5) }} – {{ schedule.endTime.slice(0, 5) }}
-                      </span>
-                      @if (schedule.teacherName) {
-                        <span class="class-detail__schedule-teacher">{{
-                          schedule.teacherName
-                        }}</span>
-                      }
-                    </div>
-                  }
-                </div>
-              }
-            </p-tabpanel>
-          </p-tabpanels>
-        </p-tabs>
-      </div>
-    </div>
-  }
-</div>
+        }
+      </section>
+    } @else {
+      <section id="class-panel-schedule" role="tabpanel" aria-labelledby="class-tab-schedule">
+        <h2 class="m-0 border-b border-zinc-900 pb-3 text-2xl font-bold tracking-tight">
+          上課時段
+        </h2>
+        @for (schedule of c.schedules ?? []; track schedule.id) {
+          <div
+            class="grid min-h-14 grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 border-b border-surface-border wide:grid-cols-[96px_160px_minmax(0,1fr)]"
+          >
+            <span class="text-lg font-semibold">{{ getWeekdayLabel(schedule.weekday) }}</span>
+            <span class="text-md text-zinc-900 tabular-nums"
+              >{{ schedule.startTime.slice(0, 5) }}–{{ schedule.endTime.slice(0, 5) }}</span
+            >
+            <span class="col-start-2 text-md text-zinc-600 wide:col-start-3 wide:row-start-1">{{
+              schedule.teacherName ?? '還沒指派老師'
+            }}</span>
+          </div>
+        } @empty {
+          <p class="m-0 py-8 text-base text-zinc-700">
+            還沒設定上課時段。到課程列表的班級選單「編輯班級」加時段。
+          </p>
+        }
+      </section>
+    }
+  </div>
+}
