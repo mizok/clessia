@@ -41,6 +41,9 @@ tags: [specs, admin, academic, calendar]
 - `POST /api/sessions/:id/cancel` — 停課
 - `POST /api/sessions/:id/substitute` — 代課
 - `POST /api/sessions/:id/reschedule` — 調課
+- `PATCH /api/sessions/batch-substitute` — 批次代課（#1110）：逐堂寫 `substitute` 異動（原老師、`operation_source=batch`），
+  `dryRun` 預設 true。代課老師不合格整批 409；逐堂不符（非 scheduled、未指派、同一人、科目／分校不符、時段衝突）列在 `conflicts`。
+  有任一堂不在呼叫者分校範圍 → 整批 403（`batch-assign-teacher` 同）
 
 ## 資料庫
 
