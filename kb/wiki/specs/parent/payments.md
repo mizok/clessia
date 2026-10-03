@@ -3,7 +3,7 @@ title: 繳費紀錄
 summary: 查看繳費單和繳費紀錄。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-10-03
 tags: [specs, parent, payments]
 ---
 
@@ -56,7 +56,8 @@ tags: [specs, parent, payments]
 
 - 付款日期
 - 付款方式
-- 確認人
+
+> 2026-10-03 使用者裁（#1074）：**不顯示確認人**。家長不需要知道是哪位行政確認的；API（`routes/parent/billing.ts`）本來就刻意不回 `recordedBy`。
 
 ## 資料依賴
 
