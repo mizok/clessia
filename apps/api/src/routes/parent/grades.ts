@@ -112,12 +112,10 @@ app.openapi(
 
     const childDb = c.get('childDb');
 
-    let academyQuery = childDb
+    const academyQuery = childDb
       .from('academy_scores', 'student_id')
       .select(ACADEMY_SCORE_SELECT)
       .eq('student_id', childId);
-    if (dateFrom) academyQuery = academyQuery.gte('academy_exams.exam_date', dateFrom);
-    if (dateTo) academyQuery = academyQuery.lte('academy_exams.exam_date', dateTo);
 
     const schoolQuery = childDb
       .from('school_scores', 'student_id')
@@ -159,10 +157,13 @@ app.openapi(
     const academyRows = (academyResult.data ?? []) as unknown[];
     const schoolRows = (schoolResult.data ?? []) as unknown[];
 
+    // 日期篩選照**回應裡的 examDate** 做，兩種成績同一條規則（#1167）：段考沒填考試日期時
+    // examDate 退回建立日（mapSchoolScoreRow），DB 層篩 `school_exams.exam_date` 會把那些整批漏掉。
+    // 一個孩子的成績本來就全撈回來在這裡分頁，篩在這裡不多撈。
     const results = [
       ...academyRows.map((row) => mapAcademyScoreRow(row)),
       ...schoolRows.map((row) => mapSchoolScoreRow(row)),
-    ];
+    ].filter((r) => (!dateFrom || r.examDate >= dateFrom) && (!dateTo || r.examDate <= dateTo));
     results.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
 
     const total = results.length;

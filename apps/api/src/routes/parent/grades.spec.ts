@@ -173,3 +173,34 @@ describe('GET /api/me/grades', () => {
     ]);
   });
 });
+
+// #1167：dateFrom/dateTo 原本只套在校內考的查詢上，段考整批不篩
+describe('GET /api/me/grades —— dateFrom/dateTo 兩種成績都篩（#1167）', () => {
+  const NO_DATE_SCHOOL_ROW = {
+    ...SCHOOL_ROW,
+    id: 'sc3',
+    // 段考沒填考試日期時，畫面顯示的是建立日（mapSchoolScoreRow 的退路）—— 篩選要照同一個日期
+    school_exams: { label: '模擬考', exam_date: null, created_at: '2026-09-10T00:00:00Z' },
+  };
+  const ids = async (query: string) => {
+    const res = await appWith(
+      ['parent'],
+      [CHILD_ID],
+      fakeChildDb([ACADEMY_ROW], [SCHOOL_ROW, NO_DATE_SCHOOL_ROW], 0, 0),
+    ).request(`/?childId=${CHILD_ID}${query}`);
+    const body = (await res.json()) as { data: Array<{ id: string }>; meta: { total: number } };
+    return { ids: body.data.map((d) => d.id), total: body.meta.total };
+  };
+
+  it('dateFrom 擋掉之前的段考', async () => {
+    expect(await ids('&dateFrom=2026-08-25')).toEqual({ ids: ['sc3', 'sc1'], total: 2 });
+  });
+
+  it('dateTo 擋掉之後的段考與校內考', async () => {
+    expect(await ids('&dateTo=2026-08-25')).toEqual({ ids: ['sc2'], total: 1 });
+  });
+
+  it('沒填考試日期的段考照建立日篩（跟畫面上顯示的日期一致）', async () => {
+    expect(await ids('&dateFrom=2026-09-05&dateTo=2026-09-30')).toEqual({ ids: ['sc3'], total: 1 });
+  });
+});
