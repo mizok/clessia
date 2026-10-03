@@ -7,7 +7,7 @@
 
 /**
  * `schedule_changes.change_type` 的**唯一真相**（對齊 DB 的 `schedule_change_type` enum，
- * 2026-09-07 查 `pg_enum` 確認：這六個，不多不少）。
+ * 2026-09-07 查 `pg_enum` 確認六個，#1109 加 `creation` 成七個）。
  *
  * ⚠️ **加一個新的異動類型時，只改這裡。** 之前這份清單在 API 側被抄了四份
  * （回應 schema、查詢 schema、`mapSession` 的 cast、`summarise` 的 switch），
@@ -21,16 +21,15 @@ export const SCHEDULE_CHANGE_TYPES = [
   'uncancel',
   'time_change',
   'makeup',
+  'creation',
 ] as const;
 
 /**
- * 歷程上看得到的類型 = DB 的六種 + `creation`。
- *
- * **`creation` 不在 DB enum 裡** —— 它是 `buildSessionCreationHistory` 合成出來的
- * 一筆（「這堂課是什麼時候建的」），所以**可以出現在歷程回應裡，但不能當查詢條件**。
- * 兩份清單的差別就是這一個值，這也是為什麼它們沒有被合併成同一份。
+ * 歷程上看得到的類型。#1109 前比 DB 多一個合成的 `creation`；
+ * `POST /api/sessions` 加開的課堂開始真的寫 `creation` 列之後，兩份就一樣了。
+ * 合成的那筆仍然存在（批次產生的課堂沒有那一列），由 `GET /:id/changes` 在沒有真列時補上。
  */
-export const SESSION_HISTORY_TYPES = [...SCHEDULE_CHANGE_TYPES, 'creation'] as const;
+export const SESSION_HISTORY_TYPES = SCHEDULE_CHANGE_TYPES;
 
 export type ChangeType = (typeof SESSION_HISTORY_TYPES)[number];
 
