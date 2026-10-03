@@ -57,18 +57,6 @@
           styleClass="staff__filter-select clessia-filter-control"
         />
         <p-select
-          [options]="campusOptions()"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="分校篩選"
-          [ngModel]="campusFilter()"
-          (ngModelChange)="onCampusFilterChange($event)"
-          size="small"
-          [showClear]="true"
-          [appendTo]="'body'"
-          styleClass="staff__filter-select clessia-filter-control"
-        />
-        <p-select
           [options]="subjectOptions()"
           optionLabel="label"
           optionValue="value"

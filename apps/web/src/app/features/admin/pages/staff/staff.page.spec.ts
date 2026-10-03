@@ -1,7 +1,10 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService } from '@core/campuses.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { StaffService } from '@core/staff.service';
 import { SubjectsService } from '@core/subjects.service';
 import type { Staff } from '@core/staff.service';
@@ -50,8 +53,15 @@ describe('StaffPage', () => {
     createLoginLink: vi.fn(() => of({ url: 'https://x/verify?token=t', expiresInSeconds: 86400 })),
   };
   const dialogServiceMock = { open: vi.fn(() => ({ onClose: of(undefined) })) };
+  const refDataMock = {
+    campuses: signal<unknown[]>([]),
+    loadCampuses: vi.fn(),
+    invalidate: vi.fn(),
+  };
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     staffServiceMock.list.mockReset();
     staffServiceMock.list.mockReturnValue(of(buildStaffResponse()));
     staffServiceMock.createLoginLink.mockClear();
@@ -70,6 +80,7 @@ describe('StaffPage', () => {
             list: () => of({ data: [] }),
           },
         },
+        { provide: ReferenceDataService, useValue: refDataMock },
         {
           provide: SubjectsService,
           useValue: {
@@ -105,6 +116,20 @@ describe('StaffPage', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('分校跟頂欄走：頂欄換分校回第一頁重查，清除篩選不動分校（#1138）', () => {
+    staffServiceMock.list.mockClear();
+
+    TestBed.inject(CampusContextService).select('campus-1');
+    fixture.detectChanges();
+
+    const calls = staffServiceMock.list.mock.calls as unknown as [Record<string, unknown>][];
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toEqual(expect.objectContaining({ campusId: 'campus-1', page: 1 }));
+
+    component.clearFilters();
+    expect(calls[1][0]).toEqual(expect.objectContaining({ campusId: 'campus-1' }));
   });
 
   it('用共用的整頁列表頁大小，不自己訂一個', () => {
