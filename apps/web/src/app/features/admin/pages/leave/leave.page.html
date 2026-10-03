@@ -16,17 +16,6 @@
   </div>
 
   <div class="leave-page__filters clessia-filter-bar">
-    <p-select
-      [options]="campuses()"
-      [(ngModel)]="filterCampusId"
-      optionLabel="label"
-      optionValue="value"
-      size="small"
-      placeholder="全部分校"
-      (onChange)="onFilterChange()"
-      styleClass="clessia-filter-control"
-      [appendTo]="'body'"
-    />
     <p-datepicker
       [(ngModel)]="filterDateRange"
       selectionMode="range"
