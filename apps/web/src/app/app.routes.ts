@@ -117,6 +117,15 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_LEAVE },
           },
           {
+            path: RoutesCatalog.ADMIN_APPLICATIONS.relativePath,
+            canActivate: [permissionGuard('manage_students')],
+            loadComponent: () =>
+              import('@features/admin/pages/applications/applications.page').then(
+                (m) => m.ApplicationsPage,
+              ),
+            data: { page: RoutesCatalog.ADMIN_APPLICATIONS },
+          },
+          {
             path: RoutesCatalog.ADMIN_CHECKIN.relativePath,
             canActivate: [permissionGuard('basic_operations')],
             loadComponent: () =>
