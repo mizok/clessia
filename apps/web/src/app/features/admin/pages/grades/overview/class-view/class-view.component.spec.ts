@@ -6,6 +6,8 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
 import { vi } from 'vitest';
 
+import { CampusContextService } from '@core/campus-context.service';
+
 import { ClassViewComponent } from './class-view.component';
 
 describe('ClassViewComponent', () => {
@@ -16,6 +18,8 @@ describe('ClassViewComponent', () => {
   const openMock = vi.fn();
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     await TestBed.configureTestingModule({
       imports: [ClassViewComponent],
       providers: [
@@ -79,6 +83,24 @@ describe('ClassViewComponent', () => {
     expect(component['searchText']()).toBe('');
   });
 
+  it('頂欄選了分校就用它、頁內分校下拉收起；頂欄是全部時頁內下拉才出現（#1138）', () => {
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(
+      host.querySelector('.class-view__toolbar--desktop p-select[placeholder="選擇分校"]'),
+    ).not.toBeNull();
+
+    TestBed.inject(CampusContextService).select('campus-9');
+    fixture.detectChanges();
+
+    expect(component['campusId']()).toBe('campus-9');
+    expect(
+      host.querySelector('.class-view__toolbar--desktop p-select[placeholder="選擇分校"]'),
+    ).toBeNull();
+    const reqs = http.match((r) => r.url.includes('/api/classes'));
+    expect(reqs.map((r) => r.request.params.get('campusId'))).toEqual(['campus-9']);
+  });
+
   /**
    * **#812：取數失敗時畫面不能說「無符合的課程／請嘗試調整篩選條件」** ——
    * 那是**叫使用者去做一件不會有用的事**。
@@ -86,6 +108,7 @@ describe('ClassViewComponent', () => {
    */
   it('取數失敗時渲染「載入失敗」，不叫使用者調整篩選條件', () => {
     component['onCampusChange']('campus-1');
+    fixture.detectChanges(); // 載入由 campusId 的 toObservable 觸發
     const classRequests = http.match((r) => r.url.includes('/api/classes'));
     classRequests[0].flush(null, { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
@@ -97,6 +120,7 @@ describe('ClassViewComponent', () => {
 
   it('重試鈕真的重打 /api/classes', () => {
     component['onCampusChange']('campus-1');
+    fixture.detectChanges(); // 載入由 campusId 的 toObservable 觸發
     http
       .match((r) => r.url.includes('/api/classes'))[0]
       .flush(null, {
@@ -115,6 +139,7 @@ describe('ClassViewComponent', () => {
 
   it('should load grouped classes with a single classes request on campus change', () => {
     component['onCampusChange']('campus-1');
+    fixture.detectChanges(); // 載入由 campusId 的 toObservable 觸發
     expect(component['campusId']()).toBe('campus-1');
 
     const classRequests = http.match((r) => r.url.includes('/api/classes'));
@@ -247,7 +272,7 @@ describe('ClassViewComponent', () => {
       updatedAt: '',
     } as any;
 
-    component['campusId'].set('campus-1');
+    component['localCampusId'].set('campus-1');
     component['openClassScores'](cls);
 
     expect(openMock).toHaveBeenCalledTimes(1);
@@ -259,7 +284,9 @@ describe('ClassViewComponent', () => {
   });
 
   it('row click 應以 todoOnly = false 開啟 dialog', () => {
-    component['campusId'].set('campus-1');
+    component['localCampusId'].set('campus-1');
+    fixture.detectChanges(); // 先讓換分校的那次載入跑完，再塞測試資料
+    http.match((r) => r.url.includes('/api/classes')).forEach((r) => r.flush({ data: [] }));
     component['loadingGroups'].set(false);
     component['courseGroups'].set([
       {
@@ -302,7 +329,9 @@ describe('ClassViewComponent', () => {
   });
 
   it('點待登錄徽章應以 todoOnly = true 開啟 dialog，且不觸發 row click', () => {
-    component['campusId'].set('campus-1');
+    component['localCampusId'].set('campus-1');
+    fixture.detectChanges(); // 先讓換分校的那次載入跑完，再塞測試資料
+    http.match((r) => r.url.includes('/api/classes')).forEach((r) => r.flush({ data: [] }));
     component['loadingGroups'].set(false);
     component['courseGroups'].set([
       {
@@ -346,7 +375,9 @@ describe('ClassViewComponent', () => {
   });
 
   it('renders course groups with class rows', () => {
-    component['campusId'].set('campus-1');
+    component['localCampusId'].set('campus-1');
+    fixture.detectChanges(); // 先讓換分校的那次載入跑完，再塞測試資料
+    http.match((r) => r.url.includes('/api/classes')).forEach((r) => r.flush({ data: [] }));
     component['loadingGroups'].set(false);
     component['courseGroups'].set([
       {
