@@ -1,0 +1,33 @@
+<div class="flex min-w-0 flex-col gap-1">
+  <span [id]="labelId" class="text-sm font-semibold text-zinc-700">{{ label() }}</span>
+  <p-select
+    [options]="$any(options())"
+    [ngModel]="value()"
+    (ngModelChange)="value.set($event)"
+    optionLabel="label"
+    optionValue="value"
+    [checkmark]="true"
+    [filter]="filter()"
+    filterPlaceholder="搜尋"
+    [ariaLabelledBy]="labelId"
+    [overlayOptions]="overlayOptions"
+    appendTo="body"
+    scrollHeight="360px"
+    [pt]="pt"
+  >
+    <!-- 只在底部面板（≤860px）顯示：手機上看不到觸發鈕旁的標籤，面板要自己說在選什麼 -->
+    <ng-template #header>
+      <div class="hidden items-center justify-between py-2 pr-1 pl-2 max-[860px]:flex">
+        <p class="m-0 text-lg font-bold text-zinc-900">{{ label() }}</p>
+        <button
+          type="button"
+          class="grid size-11 place-items-center rounded-md text-zinc-700"
+          aria-label="關閉"
+          (click)="close()"
+        >
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    </ng-template>
+  </p-select>
+</div>

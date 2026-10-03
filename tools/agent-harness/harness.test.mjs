@@ -28,6 +28,11 @@ import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
 import { rootVariables, themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
+import {
+  contrastClassViolations,
+  minHeightPx,
+  touchTargetClassViolations,
+} from './lib/tailwind-a11y.mjs';
 import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
   declaredOrgTables,
@@ -43,7 +48,12 @@ import {
   stripComments,
 } from './lib/api-param-coverage.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
-import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
+import {
+  contrast,
+  readTokenPalette,
+  resolveColor,
+  usageContrastViolations,
+} from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
@@ -1913,6 +1923,72 @@ test('A26 紅：styles.scss 的順序跟 tailwind.css 不一致', () => {
   });
   assert.equal(p.length, 1);
   assert.match(p[0], /styles\.scss 的 layer 順序/);
+});
+
+// ── A27／A28：Tailwind 頁的觸控與對比（#991 T3）─────────────────────────────────────
+
+test('A27 尺寸 class 換算：spacing 4px、任意值 px、其他不算', () => {
+  assert.equal(minHeightPx('h-11'), 44);
+  assert.equal(minHeightPx('min-h-12'), 48);
+  assert.equal(minHeightPx('size-11'), 44);
+  assert.equal(minHeightPx('h-[48px]'), 48);
+  assert.equal(minHeightPx('h-full'), null);
+  assert.equal(minHeightPx('w-11'), null);
+});
+
+test('A27 紅：可點元素沒有基底的 44px 下限（含 @if 裡、只在 lg: 才有、(click) 的 div）', () => {
+  const v = touchTargetClassViolations(
+    `<button class="text-md">a</button>
+     @if (x) { <a routerLink="/x" class="lg:h-11">b</a> }
+     <div (click)="f()" class="h-10">c</div>
+     <summary class="py-4">d</summary>`,
+  );
+  assert.deepEqual(
+    v.map((x) => x.tag),
+    ['button', 'a', 'div', 'summary'],
+  );
+});
+
+test('A27 綠：min-h-11／size-11／h-[44px]；不可點的元素不管', () => {
+  const v = touchTargetClassViolations(
+    `<button class="min-h-11">a</button><a href="/x" class="size-11">b</a>
+     <button class="h-[44px]">c</button><span class="text-md">d</span>`,
+  );
+  assert.deepEqual(v, []);
+});
+
+const PAL = readTokenPalette(
+  `:root {\n  --zinc-100: #f4f1ef;\n  --zinc-400: #a8a29e;\n  --zinc-900: #1a1614;\n}`,
+);
+const COLORS = {
+  colorOf: (c) =>
+    ({
+      'text-zinc-400': 'var(--zinc-400)',
+      'text-zinc-900': 'var(--zinc-900)',
+      'bg-zinc-100': 'var(--zinc-100)',
+      'bg-[#1a1614]': '#1a1614',
+    })[c] ?? null,
+  resolve: (v) => resolveColor(v, PAL),
+  contrast,
+};
+
+test('A28 紅：文字色從祖先繼承、底色從祖先找，條件 class 也算', () => {
+  const v = contrastClassViolations(
+    `<section class="bg-zinc-100"><div class="text-zinc-400"><p>淡字</p></div></section>
+     <div [class.bg-[#1a1614]]="dark"><span class="text-zinc-900">深字疊深底</span></div>`,
+    COLORS,
+  );
+  assert.equal(v.length, 2);
+  assert.equal(v[0].fg, 'text-zinc-400');
+  assert.equal(v[1].bg, 'bg-[#1a1614]');
+});
+
+test('A28 綠：對比夠、找不到底色不判、font-size 的 text-* 不是顏色', () => {
+  const v = contrastClassViolations(
+    `<div class="bg-zinc-100 text-zinc-900 text-md">夠</div><p class="text-zinc-400">底色在殼裡，不判</p>`,
+    COLORS,
+  );
+  assert.deepEqual(v, []);
 });
 
 // ── c6 的 Tailwind class 載體（#991 T1）────────────────────────────────────────────────

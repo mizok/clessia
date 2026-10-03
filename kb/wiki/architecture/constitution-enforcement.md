@@ -98,6 +98,8 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A24  | SCSS 歸零帳面（#991）：帳面外的 `.scss`／內嵌 `styles:` 紅、帳面上已刪的紅（`harness:write` 只減）；`@source` 目錄底下不得有 SCSS                         |
 | A25  | `tailwind.css` 的 `@theme` 映射：引用的 token 必須在 `styles.scss :root`、字重不得寫進 `--font-*`、同名映射要在 `reference` 區塊                          |
 | A26  | cascade layer 順序三處一致（#991 T4）：`tailwind.css` 與 `styles.scss` 的 `@layer …;` 相同，PrimeNG `cssLayer.order` 是它的前綴                           |
+| A27  | Tailwind 頁（`@source` 目錄）的可點元素要有基底的 ≥44px 高度 class（A17 的 class 版，#991 T3）；**零 baseline**                                           |
+| A28  | Tailwind 頁的文字色／底色 class 對比（scss-contrast 的 class 版，#991 T3）：祖先鏈找最近的 `text-*`／`bg-*`，經 design system 解析成 token 值             |
 
 ### 存量 allowlist：讓債務可見且會自己收斂
 

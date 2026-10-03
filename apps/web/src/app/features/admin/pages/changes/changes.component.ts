@@ -8,11 +8,10 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DatePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { addDays, endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { PaginatorModule } from 'primeng/paginator';
-import { SelectModule } from 'primeng/select';
 
 import { CampusesService, type Campus } from '@core/campuses.service';
 import {
@@ -20,12 +19,14 @@ import {
   type ChangeLogEntry,
   type ScheduleChangeType,
 } from '@core/sessions.service';
-import { RouteObj } from '@core/smart-enums/routes-catalog';
-import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
+import { SystemClockService } from '@core/system-clock.service';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 const MONTHS_BACK = 12;
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 /**
  * `schedule_change_type` 的中文標籤。**這份表的完整性沒有任何東西在守** ——
@@ -60,25 +61,43 @@ const CHANGE_TYPE_LABELS: Record<ScheduleChangeType, string> = {
  */
 const UNFILTERABLE_CHANGE_TYPES = new Set(['creation', 'makeup']);
 
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+/** 類型小標的圖示（A6 沿用課表「全部異動」的那一組） */
+const CHANGE_TYPE_ICONS: Record<ScheduleChangeType, string> = {
+  reschedule: 'pi-arrow-right',
+  substitute: 'pi-arrow-right-arrow-left',
+  cancellation: 'pi-times',
+  uncancel: 'pi-replay',
+  time_change: 'pi-clock',
+  makeup: 'pi-link',
+  creation: 'pi-plus',
+};
+
+/** 一則：單筆異動，或同一次批次操作產生的多筆 */
+interface ChangeItem {
+  key: string;
+  rows: ChangeLogEntry[];
+}
+
+/** 一章：同一個上課日 */
+interface ChangeChapter {
+  date: string;
+  items: ChangeItem[];
+  count: number;
+}
+
+/**
+ * **API 只有 `isBatch`、沒有批次 id**（#991 P1，計畫席同意的暫定做法）：同一次批次操作寫入的列，
+ * 類型、原因、操作者、建立時間（到秒）都相同，用它們當分組鍵。只在同一頁的資料內分組 ——
+ * 一個批次跨了分頁的話，兩頁各收成一則。後端給批次 id 之後換成它。
+ */
+function batchKey(e: ChangeLogEntry): string {
+  return [e.changeType, e.reason, e.createdByName, e.createdAt.slice(0, 19)].join('|');
+}
+
 @Component({
   selector: 'app-changes',
-  imports: [
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
-    DataChipComponent,
-    DatePipe,
-    FormsModule,
-    SelectModule,
-    PaginatorModule,
-  ],
+  imports: [DatePipe, NgTemplateOutlet, RouterLink, PaginatorModule, SelectFieldComponent],
   templateUrl: './changes.component.html',
-  styleUrl: './changes.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChangesComponent {
@@ -86,7 +105,10 @@ export class ChangesComponent {
 
   private readonly sessionsService = inject(SessionsService);
   private readonly campusesService = inject(CampusesService);
+  private readonly clock = inject(SystemClockService);
   private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly scheduleLink = RoutesCatalog.ADMIN_SESSIONS.absolutePath;
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
@@ -94,13 +116,20 @@ export class ChangesComponent {
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
 
-  protected readonly month = signal(format(new Date(), 'yyyy-MM'));
+  /** 開場標題用：這個月（不看類型／分校篩選）總共幾則、其中停課幾堂 */
+  protected readonly monthTotal = signal<number | null>(null);
+  protected readonly monthCancelled = signal<number | null>(null);
+
+  private readonly today = this.clock.todayTaipei();
+  protected readonly month = signal(this.today.slice(0, 7));
   protected readonly changeType = signal<string | null>(null);
   protected readonly campusId = signal<string | null>(null);
   protected readonly campuses = signal<Campus[]>([]);
+  /** 手機上「篩選」那一列展開與否；桌機永遠展開（lg:grid） */
+  protected readonly filtersOpen = signal(false);
 
   protected readonly monthOptions = Array.from({ length: MONTHS_BACK }, (_, i) => {
-    const date = subMonths(new Date(), i);
+    const date = subMonths(parseISO(this.today), i);
     return { label: format(date, 'yyyy 年 M 月'), value: format(date, 'yyyy-MM') };
   });
 
@@ -116,15 +145,45 @@ export class ChangesComponent {
     ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
   ]);
 
-  protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
-  protected readonly pageSize = PAGE_SIZE;
+  protected readonly monthNumber = computed(() => Number(this.month().slice(5)));
+  protected readonly filtered = computed(() => !!this.changeType() || !!this.campusId());
 
-  /** 分頁交給 app-responsive-table 內建的 paginator —— 表格與它的分頁不該被拆開 */
-  protected readonly pagination = computed(() => ({
-    first: this.first(),
-    rows: PAGE_SIZE,
-    totalRecords: this.total(),
-  }));
+  /** 手機上收進「篩選」那一列的摘要 */
+  protected readonly filterSummary = computed(() => {
+    const type = this.changeTypeOptions.find((o) => o.value === this.changeType())?.label;
+    const campus = this.campusOptions().find((o) => o.value === this.campusId())?.label;
+    return `${type ?? '全部異動'} · ${campus ?? '全部分校'}`;
+  });
+
+  /**
+   * 依上課日分章（A6）：今天以後的在前、由近到遠；過去的在後、由近到遠。
+   * 章內同一次批次收成一則。
+   */
+  protected readonly chapters = computed<ChangeChapter[]>(() => {
+    const today = this.today;
+    const dateOf = (e: ChangeLogEntry) => e.sessionDate ?? '';
+    const sorted = [...this.entries()].sort((a, b) => {
+      const fa = dateOf(a) >= today;
+      const fb = dateOf(b) >= today;
+      if (fa !== fb) return fa ? -1 : 1;
+      return fa ? dateOf(a).localeCompare(dateOf(b)) : dateOf(b).localeCompare(dateOf(a));
+    });
+    const chapters = new Map<string, ChangeChapter>();
+    for (const e of sorted) {
+      const date = dateOf(e);
+      let chapter = chapters.get(date);
+      if (!chapter) chapters.set(date, (chapter = { date, items: [], count: 0 }));
+      chapter.count++;
+      const key = e.isBatch ? batchKey(e) : e.id;
+      const item = chapter.items.find((i) => i.key === key);
+      if (item) item.rows.push(e);
+      else chapter.items.push({ key, rows: [e] });
+    }
+    return [...chapters.values()];
+  });
+
+  protected readonly pageSize = PAGE_SIZE;
+  protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
 
   constructor() {
     this.campusesService
@@ -136,6 +195,7 @@ export class ChangesComponent {
       });
 
     this.load();
+    this.loadMonthSummary();
   }
 
   /**
@@ -148,9 +208,34 @@ export class ChangesComponent {
     return CHANGE_TYPE_LABELS[value] ?? value;
   }
 
+  protected typeIcon(value: ScheduleChangeType): string {
+    return CHANGE_TYPE_ICONS[value] ?? 'pi-circle';
+  }
+
+  /** 章的大字：今天／明天／M/D；沒有上課日（理論上不會有）寫「未排日期」 */
+  protected dayLabel(date: string): string {
+    if (!date) return '未排日期';
+    if (date === this.today) return '今天';
+    if (date === format(addDays(parseISO(this.today), 1), 'yyyy-MM-dd')) return '明天';
+    return format(parseISO(date), 'M/d');
+  }
+
+  /** 章的小字：今天／明天要補上日期，其他只寫星期 */
+  protected dayMeta(date: string): string {
+    if (!date) return '';
+    const d = parseISO(date);
+    const weekday = `週${WEEKDAYS[d.getDay()]}`;
+    return this.dayLabel(date).includes('/') ? weekday : `${format(d, 'M/d')} ${weekday}`;
+  }
+
+  protected classCount(rows: ChangeLogEntry[]): number {
+    return new Set(rows.map((r) => r.className)).size;
+  }
+
   protected onMonthChange(value: string): void {
     this.month.set(value);
     this.resetToFirstPage();
+    this.loadMonthSummary();
   }
 
   protected onChangeTypeChange(value: string | null): void {
@@ -160,6 +245,12 @@ export class ChangesComponent {
 
   protected onCampusChange(value: string | null): void {
     this.campusId.set(value);
+    this.resetToFirstPage();
+  }
+
+  protected resetFilters(): void {
+    this.changeType.set(null);
+    this.campusId.set(null);
     this.resetToFirstPage();
   }
 
@@ -174,17 +265,21 @@ export class ChangesComponent {
     this.load();
   }
 
-  private load(): void {
-    const [year, month] = this.month().split('-').map(Number);
-    const base = new Date(year, month - 1, 1);
+  private monthRange(): { from: string; to: string } {
+    const base = parseISO(`${this.month()}-01`);
+    return {
+      from: format(startOfMonth(base), 'yyyy-MM-dd'),
+      to: format(endOfMonth(base), 'yyyy-MM-dd'),
+    };
+  }
 
+  private load(): void {
     this.loading.set(true);
     this.loadError.set(false);
 
     this.sessionsService
       .listChanges({
-        from: format(startOfMonth(base), 'yyyy-MM-dd'),
-        to: format(endOfMonth(base), 'yyyy-MM-dd'),
+        ...this.monthRange(),
         changeType: this.changeType() ?? undefined,
         campusId: this.campusId() ?? undefined,
         page: this.currentPage(),
@@ -204,5 +299,24 @@ export class ChangesComponent {
           this.loading.set(false);
         },
       });
+  }
+
+  /**
+   * 開場標題的兩個數字。只要 total，所以 pageSize 1。
+   * 失敗就不顯示數字（標題退回頁名），不影響列表。
+   */
+  private loadMonthSummary(): void {
+    this.monthTotal.set(null);
+    this.monthCancelled.set(null);
+    const range = this.monthRange();
+    for (const [changeType, target] of [
+      [undefined, this.monthTotal],
+      ['cancellation', this.monthCancelled],
+    ] as const) {
+      this.sessionsService
+        .listChanges({ ...range, changeType, page: 1, pageSize: 1 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({ next: (res) => target.set(res.meta.total), error: () => target.set(null) });
+    }
   }
 }

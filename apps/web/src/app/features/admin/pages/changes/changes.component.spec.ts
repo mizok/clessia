@@ -1,10 +1,13 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { provideRouter } from '@angular/router';
 
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SessionsService, type ChangeLogEntry } from '@core/sessions.service';
 import { CampusesService } from '@core/campuses.service';
+import { SystemClockService } from '@core/system-clock.service';
 
 import { ChangesComponent } from './changes.component';
 
@@ -44,6 +47,8 @@ describe('ChangesComponent', () => {
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
         { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
+        provideRouter([]),
       ],
     }).compileComponents();
 
@@ -66,6 +71,8 @@ describe('ChangesComponent', () => {
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
         { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
+        provideRouter([]),
       ],
     }).compileComponents();
 
@@ -126,6 +133,8 @@ describe('ChangesComponent', () => {
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
         { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
+        provideRouter([]),
       ],
     }).compileComponents();
 
@@ -147,6 +156,8 @@ describe('ChangesComponent', () => {
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
         { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
+        provideRouter([]),
       ],
     }).compileComponents();
 
@@ -169,6 +180,8 @@ describe('ChangesComponent', () => {
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
         { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
+        provideRouter([]),
       ],
     }).compileComponents();
 
@@ -176,7 +189,88 @@ describe('ChangesComponent', () => {
     f.componentRef.setInput('page', RoutesCatalog.ADMIN_CHANGES);
     f.detectChanges();
 
-    expect(f.nativeElement.textContent).toContain('沒有課務異動');
+    expect(f.nativeElement.textContent).toContain('8 月沒有任何調課、代課或停課');
+  });
+
+  // #991 P1（A6）：依上課日分章。今天以後的在前、由近到遠；過去的在後、由近到遠
+  it('分章：未來（含今天）由近到遠在前，過去由近到遠在後', async () => {
+    await setup();
+    component['entries'].set([
+      entry({ id: 'a', sessionDate: '2026-08-10' }),
+      entry({ id: 'b', sessionDate: '2026-08-20' }),
+      entry({ id: 'c', sessionDate: '2026-08-15' }),
+      entry({ id: 'd', sessionDate: '2026-08-12' }),
+      entry({ id: 'e', sessionDate: '2026-08-16' }),
+    ]);
+
+    expect(component['chapters']().map((c) => c.date)).toEqual([
+      '2026-08-15',
+      '2026-08-16',
+      '2026-08-20',
+      '2026-08-12',
+      '2026-08-10',
+    ]);
+    expect(component['dayLabel']('2026-08-15')).toBe('今天');
+    expect(component['dayLabel']('2026-08-16')).toBe('明天');
+    expect(component['dayLabel']('2026-08-20')).toBe('8/20');
+  });
+
+  /**
+   * API 沒有批次 id：同類型＋原因＋操作者＋建立時間（到秒）視為同一次批次。
+   * 非批次的列即使這四樣都一樣也不能併（那是兩次各自的操作）。
+   */
+  it('批次：同一次批次收成一則，原因不同或非批次的不併', async () => {
+    await setup();
+    const at = '2026-08-10T03:00:00Z';
+    component['entries'].set([
+      entry({ id: 'b1', isBatch: true, createdAt: at, className: '國二數學 A' }),
+      entry({ id: 'b2', isBatch: true, createdAt: at, className: '國三英文 B' }),
+      entry({ id: 'b3', isBatch: true, createdAt: at, reason: '停電' }),
+      entry({ id: 's1', createdAt: at }),
+      entry({ id: 's2', createdAt: at }),
+    ]);
+
+    const [chapter] = component['chapters']();
+    expect(chapter.count).toBe(5);
+    expect(chapter.items.map((i) => i.rows.map((r) => r.id))).toEqual([
+      ['b1', 'b2'],
+      ['b3'],
+      ['s1'],
+      ['s2'],
+    ]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('看是哪 2 堂');
+  });
+
+  it('開場標題：這個月總共幾則、停課幾堂（不看類型與分校篩選）', async () => {
+    listChangesMock.mockReset();
+    listCampusesMock.mockReset();
+    listChangesMock.mockImplementation((p: { changeType?: string; pageSize: number }) =>
+      of({
+        data: p.pageSize === 1 ? [] : [entry()],
+        meta: { total: p.changeType === 'cancellation' ? 3 : 6, page: 1, pageSize: p.pageSize },
+      }),
+    );
+    listCampusesMock.mockReturnValue(of({ data: [] }));
+
+    await TestBed.configureTestingModule({
+      imports: [ChangesComponent],
+      providers: [
+        { provide: SessionsService, useValue: { listChanges: listChangesMock } },
+        { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
+        provideRouter([]),
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(ChangesComponent);
+    f.componentRef.setInput('page', RoutesCatalog.ADMIN_CHANGES);
+    f.detectChanges();
+
+    const h1 = f.nativeElement.querySelector('h1').textContent.replace(/\s+/g, '');
+    expect(h1).toBe('8月6則異動，停課3堂。');
+    const summaryCalls = listChangesMock.mock.calls.filter(([p]) => p.pageSize === 1);
+    expect(summaryCalls.map(([p]) => p.campusId)).toEqual([undefined, undefined]);
   });
 
   /**

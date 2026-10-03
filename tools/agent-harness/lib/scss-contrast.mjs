@@ -47,7 +47,7 @@ const luminance = (rgb) => {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
 
-const contrast = (a, b) => {
+export const contrast = (a, b) => {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 };
@@ -76,7 +76,7 @@ export function readTokenPalette(css) {
  * 把一個宣告值解析成實色。解析不出來就回 null —— 漸層、color-mix、transparent、
  * currentColor、關鍵字全部歸在這裡，**不猜**。
  */
-const resolveColor = (value, palette) => {
+export const resolveColor = (value, palette) => {
   const v = value.trim().replace(/\s*!important$/, '');
   if (/^#[0-9a-fA-F]{3,8}$/.test(v)) return parseHex(v.slice(0, 7));
 

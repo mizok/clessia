@@ -71,6 +71,13 @@
     "roots": ["apps/web/src"],
     "exts": [".css", ".scss", ".ts"]
   },
+  "tailwind-a11y": {
+    "roots": [
+      "apps/web/src/app/features/admin/pages/changes",
+      "apps/web/src/app/shared/components/select-field"
+    ],
+    "exts": [".html", ".ts"]
+  },
   "tailwind-theme": {
     "roots": ["apps/web/src"],
     "exts": [".css"]
