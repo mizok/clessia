@@ -1,8 +1,9 @@
-<div class="mx-auto flex w-full max-w-[32rem] flex-col gap-6">
+<div class="mx-auto flex w-full max-w-[30rem] flex-col gap-5">
   <form class="flex flex-col gap-3" (ngSubmit)="submit()">
     <label for="checkin-code" class="text-sm font-medium text-zinc-700">卡號</label>
     <!-- 掃碼器是鍵盤輸入＋Enter，所以欄位一直保持焦點、送出後清空 -->
     <input
+      #codeInput
       id="checkin-code"
       pInputText
       name="code"
@@ -24,37 +25,102 @@
       [disabled]="!code().trim()"
       data-testid="checkin-submit"
     />
+    <p class="text-center text-md text-zinc-600">沒帶卡？請找櫃台登記到班。</p>
   </form>
 
-  @if (error(); as message) {
-    <app-inline-notice severity="error" [detail]="message" [dismissible]="false" />
-  }
-
-  @if (result(); as r) {
+  @if (view(); as v) {
     <section
-      class="rounded-lg border border-surface-border bg-surface-card p-6"
+      class="rounded-lg border border-zinc-200 bg-surface-card px-5 py-6"
       aria-live="polite"
       data-testid="checkin-result"
     >
-      <p class="text-sm text-muted">已到班</p>
-      <p class="mt-1 text-2xl font-semibold text-zinc-900" data-testid="checkin-student">
-        {{ r.student.name }}
+      <span
+        class="grid size-12 place-items-center rounded-full bg-zinc-100"
+        [class.text-success-600]="v.tone === 'ok'"
+        [class.text-zinc-600]="v.tone === 'leave'"
+        aria-hidden="true"
+      >
+        <i
+          class="pi text-xl"
+          [class.pi-check]="v.tone === 'ok'"
+          [class.pi-calendar-minus]="v.tone === 'leave'"
+        ></i>
+      </span>
+      <p
+        class="mt-4 text-2xl leading-tight font-bold text-zinc-900 lg:text-3xl"
+        data-testid="checkin-headline"
+      >
+        {{ v.headline }}
       </p>
-      @if (r.todaySessions.length === 0) {
-        <p class="mt-4 text-base text-zinc-700">今天沒有排課。</p>
-      } @else {
-        <p class="mt-4 text-sm text-muted">今天的課</p>
-        <ul class="mt-2 flex flex-col gap-2">
-          @for (s of r.todaySessions; track s.sessionId) {
-            <li class="flex items-baseline gap-3 text-base text-zinc-800" data-testid="checkin-session">
-              <span class="tabular-nums text-zinc-600">
-                {{ clock5(s.startTime) }}–{{ clock5(s.endTime) }}
-              </span>
-              <span>{{ s.className }}</span>
+      <p class="mt-2 text-lg text-zinc-800" data-testid="checkin-summary">{{ v.summary }}</p>
+
+      @if (v.rows.length > 0) {
+        <ul class="mt-5 border-t border-zinc-200">
+          @for (row of v.rows; track row.sessionId) {
+            <li
+              class="grid grid-cols-[1fr_auto] items-baseline gap-x-3 border-b border-zinc-200 py-3 text-base sm:grid-cols-[6rem_1fr_auto]"
+              data-testid="checkin-session"
+            >
+              <span class="col-span-2 tabular-nums text-zinc-700 sm:col-span-1">{{
+                row.time
+              }}</span>
+              <span class="font-semibold">{{ row.className }}</span>
+              <span class="text-md font-semibold whitespace-nowrap">{{ row.label }}</span>
             </li>
           }
         </ul>
       }
+      @if (v.note; as note) {
+        <p class="mt-4 text-base leading-relaxed text-zinc-700">{{ note }}</p>
+      }
+
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        <p-button
+          label="下一位"
+          styleClass="h-11 px-6"
+          (onClick)="next()"
+          data-testid="checkin-next"
+        />
+        <span class="text-md tabular-nums text-zinc-600">{{ secondsLeft() }} 秒後回到掃描</span>
+      </div>
+    </section>
+  }
+
+  @if (failure(); as f) {
+    <section
+      class="rounded-lg border border-zinc-200 bg-surface-card px-5 py-6"
+      role="alert"
+      data-testid="checkin-failure"
+    >
+      <span
+        class="grid size-12 place-items-center rounded-full bg-zinc-100 text-error-700"
+        aria-hidden="true"
+      >
+        <i class="pi pi-exclamation-triangle text-xl"></i>
+      </span>
+      <!-- 不只靠顏色：圖示＋粗體標題 -->
+      <p class="mt-4 text-lg font-semibold text-error-700" data-testid="checkin-failure-title">
+        {{ f.title }}
+      </p>
+      <p class="mt-2 text-base leading-relaxed text-zinc-700">{{ f.note }}</p>
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        @if (f.retry) {
+          <p-button
+            label="再掃一次"
+            styleClass="h-11 px-6"
+            (onClick)="retry()"
+            data-testid="checkin-retry"
+          />
+        } @else {
+          <p-button
+            label="下一位"
+            styleClass="h-11 px-6"
+            (onClick)="next()"
+            data-testid="checkin-next"
+          />
+        }
+        <span class="text-md tabular-nums text-zinc-600">{{ secondsLeft() }} 秒後回到掃描</span>
+      </div>
     </section>
   }
 </div>

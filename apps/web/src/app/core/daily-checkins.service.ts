@@ -21,12 +21,20 @@ export interface DailyCheckin {
 /** POST 的回應：打卡那筆＋給機台畫面的確認資訊（#1127，只有剛打卡的那一位） */
 export interface DailyCheckinConfirmation extends DailyCheckin {
   student: { name: string };
+  /** 重掃：當天已經打過，`checkedInAt` 是第一次那筆 */
+  alreadyCheckedIn: boolean;
+  /** 分校層級的出勤模式。課堂模式只記到班，出席由老師點名 */
+  attendanceMode: 'daily_checkin' | 'per_session';
   /** 當天有在籍、沒停課的課堂，依開始時間排序 */
   todaySessions: Array<{
     sessionId: string;
     className: string;
     startTime: string;
     endTime: string;
+    /** 有假單蓋到這堂 */
+    onLeave: boolean;
+    /** 寫完之後這堂實際的出勤紀錄；null＝還沒有 */
+    attendance: 'present' | 'absent' | 'on_leave' | null;
   }>;
 }
 

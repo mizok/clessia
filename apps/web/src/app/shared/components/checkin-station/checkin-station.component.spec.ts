@@ -1,21 +1,30 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DailyCheckinsService } from '@core/daily-checkins.service';
+import { DailyCheckinsService, type DailyCheckinConfirmation } from '@core/daily-checkins.service';
 import { SystemClockService } from '@core/system-clock.service';
-import { CheckinStationComponent, checkinErrorMessage } from './checkin-station.component';
+import { CheckinStationComponent, RESULT_SECONDS } from './checkin-station.component';
 
-const confirmation = {
+const confirmation: DailyCheckinConfirmation = {
   id: 'c1',
   studentId: 'stu-1',
   campusId: null,
   checkinDate: '2026-10-03',
-  checkedInAt: '2026-10-03T08:00:00Z',
+  checkedInAt: '2026-10-03T09:40:00Z',
   student: { name: '王小明' },
+  alreadyCheckedIn: false,
+  attendanceMode: 'daily_checkin',
   todaySessions: [
-    { sessionId: 's1', className: '國小五年級英文班', startTime: '17:00:00', endTime: '18:30:00' },
+    {
+      sessionId: 's1',
+      className: '國小五年級英文班',
+      startTime: '17:00:00',
+      endTime: '18:30:00',
+      onLeave: false,
+      attendance: 'present',
+    },
   ],
 };
 
@@ -30,8 +39,9 @@ async function setup(checkIn: ReturnType<typeof vi.fn>) {
   const fixture = TestBed.createComponent(CheckinStationComponent);
   fixture.detectChanges();
   const el = fixture.nativeElement as HTMLElement;
+  const q = (id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
   const type = async (value: string) => {
-    const input = el.querySelector('[data-testid="checkin-code"]') as HTMLInputElement;
+    const input = q('checkin-code') as HTMLInputElement;
     input.value = value;
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
@@ -40,43 +50,73 @@ async function setup(checkIn: ReturnType<typeof vi.fn>) {
     await fixture.whenStable();
     fixture.detectChanges();
   };
-  return { el, type };
+  const click = (id: string) => {
+    (q(id)?.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+  };
+  return { el, q, type, click, fixture };
 }
 
+afterEach(() => vi.useRealTimers());
+
 describe('CheckinStationComponent（#1127）', () => {
-  it('送卡號（去空白）＋台北今天，不送分校；顯示學生名與今日課堂', async () => {
+  it('送卡號（去空白）＋台北今天、不送分校；顯示結果並清空欄位', async () => {
     const checkIn = vi.fn(() => of(confirmation));
-    const { el, type } = await setup(checkIn);
+    const { q, type } = await setup(checkIn);
 
     await type('  stu-1 ');
 
     expect(checkIn).toHaveBeenCalledWith({ studentId: 'stu-1', checkinDate: '2026-10-03' });
-    expect(el.querySelector('[data-testid="checkin-student"]')?.textContent?.trim()).toBe('王小明');
-    expect(el.querySelector('[data-testid="checkin-session"]')?.textContent).toContain(
-      '17:00–18:30',
-    );
-    // 掃碼器下一張卡直接打進來
-    expect((el.querySelector('[data-testid="checkin-code"]') as HTMLInputElement).value).toBe('');
+    expect(q('checkin-headline')?.textContent?.trim()).toBe('王小明，17:40 到班');
+    expect(q('checkin-session')?.textContent).toContain('已記出席');
+    expect((q('checkin-code') as HTMLInputElement).value).toBe('');
   });
 
-  it('沒有課的那天說「今天沒有排課」', async () => {
-    const { el, type } = await setup(vi.fn(() => of({ ...confirmation, todaySessions: [] })));
+  it(`${RESULT_SECONDS} 秒後自動回到掃描；「下一位」立刻回去`, async () => {
+    vi.useFakeTimers();
+    const { q, type, click, fixture } = await setup(vi.fn(() => of(confirmation)));
+
     await type('stu-1');
-    expect(el.querySelector('[data-testid="checkin-result"]')?.textContent).toContain('今天沒有排課');
+    vi.advanceTimersByTime((RESULT_SECONDS - 1) * 1000);
+    fixture.detectChanges();
+    expect(q('checkin-result')).not.toBeNull();
+    vi.advanceTimersByTime(1000);
+    fixture.detectChanges();
+    expect(q('checkin-result')).toBeNull();
+
+    await type('stu-1');
+    click('checkin-next');
+    expect(q('checkin-result')).toBeNull();
   });
 
-  it('失敗時顯示給學生看的話，不顯示上一位的結果', async () => {
+  it('離線：「這次沒有記到」，再掃一次會用同一張卡重送', async () => {
+    const checkIn = vi
+      .fn()
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })))
+      .mockReturnValueOnce(of(confirmation));
+    const { q, type, click } = await setup(checkIn);
+
+    await type('stu-1');
+    expect(q('checkin-failure-title')?.textContent?.trim()).toBe('這次沒有記到');
+
+    click('checkin-retry');
+    expect(checkIn).toHaveBeenLastCalledWith({ studentId: 'stu-1', checkinDate: '2026-10-03' });
+    expect(q('checkin-failure')).toBeNull();
+    expect(q('checkin-result')).not.toBeNull();
+  });
+
+  it('讀不到的卡：不顯示上一位的結果', async () => {
     const checkIn = vi
       .fn()
       .mockReturnValueOnce(of(confirmation))
       .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404 })));
-    const { el, type } = await setup(checkIn);
+    const { q, type } = await setup(checkIn);
 
     await type('stu-1');
     await type('nobody');
 
-    expect(el.querySelector('[data-testid="checkin-result"]')).toBeNull();
-    expect(el.textContent).toContain('找不到這張卡');
+    expect(q('checkin-result')).toBeNull();
+    expect(q('checkin-failure-title')?.textContent).toContain('這張卡讀不到學生');
   });
 
   it('空白不送', async () => {
@@ -84,16 +124,5 @@ describe('CheckinStationComponent（#1127）', () => {
     const { type } = await setup(checkIn);
     await type('   ');
     expect(checkIn).not.toHaveBeenCalled();
-  });
-});
-
-describe('checkinErrorMessage', () => {
-  it.each([
-    [404, '找不到這張卡'],
-    [403, '不能在這裡打卡'],
-    [401, '重新登入'],
-    [500, '再試一次'],
-  ])('%i', (status, text) => {
-    expect(checkinErrorMessage(new HttpErrorResponse({ status }))).toContain(text);
   });
 });
