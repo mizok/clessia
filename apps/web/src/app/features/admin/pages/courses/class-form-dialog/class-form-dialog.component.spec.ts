@@ -289,4 +289,20 @@ describe('ClassFormDialogComponent', () => {
       expect((classesServiceMock.update as any).mock.calls[0][1].defaultFeeTemplateId).toBeNull();
     });
   });
+
+  /** #1118：家長端推薦加選的人工標記 —— 門檻跟班級本身一樣（manage_courses），永遠送 */
+  it('推薦加選：預設關，打開後送出帶 isRecommended: true', () => {
+    expect(fixture.nativeElement.textContent).toContain('家長端推薦加選');
+    expect((component as any).isRecommended()).toBe(false);
+    (component as any).formData.set({
+      name: '測試班級',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+    });
+    (component as any).isRecommended.set(true);
+    (component as any).save();
+
+    expect((classesServiceMock.create as any).mock.calls[0][0].isRecommended).toBe(true);
+  });
 });

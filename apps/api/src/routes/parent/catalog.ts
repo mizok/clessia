@@ -20,7 +20,8 @@ import {
  *
  * 班級是**機構參考資料**：走 `childDb.orgRef('classes')`（只帶 `org_id`、不套孩子 scope），
  * 課程／分校／時段／老師名以 embed 帶出；名額走 `activeEnrollmentCounts`（只拿數字）。
- * 裁定（#1152）：全機構所有分校、年級只標 `matchesGrade` 不過濾、推薦不帶欄位。
+ * 裁定（#1152）：全機構所有分校、年級只標 `matchesGrade` 不過濾。
+ * 推薦（#1118）：班級的人工標記 `is_recommended`，推薦的排最前（規格「推薦加選的優先顯示」）。
  * 費用（#1175）：取自班級的預設範本，只是參考價 —— 實際報名價以報名時選的範本為準。
  */
 
@@ -113,7 +114,8 @@ app.openapi(
           matchesGrade: gradeLevels.length === 0 || (!!grade && gradeLevels.includes(grade)),
         };
       })
-      .sort(byCourseThenClass);
+      // 推薦的排最前（#1118，規格「推薦加選的優先顯示」），其餘照課程名→班名
+      .sort((a, b) => Number(b.isRecommended) - Number(a.isRecommended) || byCourseThenClass(a, b));
 
     return c.json({ data }, 200);
   },

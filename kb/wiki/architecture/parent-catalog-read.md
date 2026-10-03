@@ -1,6 +1,6 @@
 ---
 title: 家長端課程／開課班目錄（加選、試聽、首頁推薦的共用 API）
-summary: GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：分校 A 全機構、年級只標記、推薦不帶欄位；費用後來改 B（#1175）：班級掛預設範本，回 `fee`（參考價，停用範本回 null）。
+summary: GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：分校 A 全機構、年級只標記；推薦改人工標記 `classes.is_recommended`、排最前（#1118）；費用後來改 B（#1175）：班級掛預設範本，回 `fee`（參考價，停用範本回 null）。
 category: architecture
 status: developing
 updated: 2026-10-03
@@ -64,7 +64,9 @@ tags: [architecture, parent, authorization, catalog, enrollment]
    班級 GET 只回範本 id。家長端卡片畫「參考價」留給加選頁（P4 批 5）。
 2. **分校 A**：全機構所有分校，卡片帶分校名。
 3. **年級**只標 `matchesGrade`，不在 server 過濾。
-4. **推薦**等使用者裁；回應不帶推薦欄位，之後補是純加法。
+4. ~~**推薦**等使用者裁~~ **使用者裁人工標記（#1118）**：`classes.is_recommended`（單位是班 —— 目錄一列一班，
+   掛課程會連已額滿／年級不合的班一起推）。回應帶 `isRecommended`，**推薦的排最前**，其餘照課程名→班名；
+   寫入門檻就是班級的 `manage_courses`（不是錢）。管理端班級表單有開關。
 
 <details><summary>當時列出的選項（留著給 #1125 參考）</summary>
 

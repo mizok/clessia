@@ -162,3 +162,18 @@ describe('POST /api/classes —— defaultFeeTemplateId（#1175）', () => {
     expect(db.rows('classes').some((r) => r['name'] === '新班')).toBe(false);
   });
 });
+
+/** #1118：推薦加選的人工標記。門檻就是班級本身的 `manage_courses`（掛載層擋），不是錢 */
+describe('PUT /api/classes/:id —— isRecommended（#1118）', () => {
+  it('寫入並回在回應裡；沒帶 key 不動', async () => {
+    const db = seed();
+    const res = await call(db, 'PUT', `/${CLASS_A}`, { isRecommended: true }, ['manage_courses']);
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).data.isRecommended).toBe(true);
+    expect(db.rows('classes')[0]!['is_recommended']).toBe(true);
+
+    await call(db, 'PUT', `/${CLASS_A}`, { name: '改名' }, ['manage_courses']);
+    expect(db.rows('classes')[0]!['is_recommended']).toBe(true);
+  });
+});
