@@ -16,6 +16,10 @@ const OrgSettingsSchema = z
   .object({
     id: z.string().uuid(),
     name: z.string(),
+    /**
+     * **機構預設**（#1112）。實際生效的模式是分校層級：分校有設定用分校的，
+     * 沒有才是這一個 —— 推算在 `lib/attendance-mode.ts`，要「某分校現在是哪種模式」別讀這裡。
+     */
     attendanceMode: AttendanceModeSchema,
     attendanceResponsible: AttendanceResponsibleSchema,
     attendanceRetroactiveDays: z.number().int().min(0),

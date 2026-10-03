@@ -7,6 +7,7 @@ import { logAudit } from '../utils/audit';
 import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import { resourceCampusAllowed, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
+import { resolveAttendanceMode } from '../lib/attendance-mode';
 
 const DailyCheckinSchema = z
   .object({
@@ -69,19 +70,17 @@ app.openapi(
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
-    // 0. 機構的出勤模式（#1099）。**在任何寫入之前讀** —— 讀不到就不知道該不該替課堂寫出勤，
-    //    停在這裡比「到班寫了、課堂出勤猜一個」好。分校層級的模式等使用者裁，先用 organizations 的欄位。
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .select('attendance_mode')
-      .eq('id', orgId)
-      .maybeSingle();
-    if (orgError) {
-      return c.json({ error: '讀取出勤模式失敗', message: orgError.message }, 500);
+    // 0. 出勤模式（#1099）。**在任何寫入之前讀** —— 讀不到就不知道該不該替課堂寫出勤，
+    //    停在這裡比「到班寫了、課堂出勤猜一個」好。分校層級（#1112）：打卡帶了分校就看
+    //    那個分校的設定，沒設定或沒帶分校沿用機構預設。
+    const { mode: attendanceMode, error: modeError } = await resolveAttendanceMode(
+      supabase,
+      orgId,
+      body.campusId,
+    );
+    if (modeError) {
+      return c.json({ error: '讀取出勤模式失敗', message: modeError.message }, 500);
     }
-    // 讀到空列（理論上不會：NOT NULL）時跟 DB 預設一致（#976）
-    const attendanceMode =
-      (org as { attendance_mode?: string } | null)?.attendance_mode ?? 'daily_checkin';
 
     // 1. 建立打卡紀錄（UPSERT 防重複，UNIQUE: student_id, checkin_date）
     const { data: checkin, error } = await supabase

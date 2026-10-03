@@ -6,6 +6,7 @@ import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { leaveCoversSession } from '../lib/leave-covers-session';
 import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
+import { resolveAttendanceMode } from '../lib/attendance-mode';
 
 /**
  * 作業台的聚合端點。**一支取代四支。**
@@ -57,7 +58,7 @@ const WorkbenchTodaySchema = z
   .object({
     date: z.string(),
     /**
-     * **伺服器讀 `organizations.attendance_mode`，不收呼叫端傳的。**
+     * **伺服器推算（分校設定 → 機構預設，#1112），不收呼叫端傳的。**
      * 讓呼叫端傳等於同一個機構可能拿到兩種形狀，而那個不一致沒有人會發現。
      */
     mode: z.enum(['per_session', 'daily_checkin']),
@@ -150,15 +151,16 @@ app.openapi(
 
     if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', campusIds);
 
-    // #949：點名模式只在撈完課堂之後才用到，兩支互不相依 —— 同一輪發出去
-    const [{ data: org }, { data: sessionRows, error: sessionsError }] = await Promise.all([
-      supabase.from('organizations').select('attendance_mode').eq('id', orgId).maybeSingle(),
-      sessionsQuery,
-    ]);
+    // #949：點名模式只在撈完課堂之後才用到，兩支互不相依 —— 同一輪發出去。
+    // #1112：模式是分校層級，而這支一次只回一個 mode —— 看的是單一分校（帶了 campusId，
+    // 或只管一個分校）就用那個分校的；看多校時沿用機構預設。
+    // ponytail: 多校混用不同模式時多校總覽只顯示機構預設的形狀，要逐校分流再改回應形狀
+    const singleCampus = campusId ?? (campusIds?.length === 1 ? campusIds[0] : null);
+    const [{ mode: resolvedMode }, { data: sessionRows, error: sessionsError }] = await Promise.all(
+      [resolveAttendanceMode(supabase, orgId, singleCampus), sessionsQuery],
+    );
 
-    const mode =
-      ((org as { attendance_mode?: string } | null)?.attendance_mode as
-        'per_session' | 'daily_checkin') ?? 'per_session';
+    const mode = resolvedMode ?? 'per_session';
     if (sessionsError) {
       return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
     }

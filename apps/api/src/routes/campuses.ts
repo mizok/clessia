@@ -5,6 +5,8 @@ import { logAudit } from '../utils/audit';
 import { auditDeleteSnapshot, auditFieldDiff } from '../lib/audit-diff';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
 import { findInOrg, inOrg } from '../lib/org-scope';
+import { hasPermission } from '../lib/permissions';
+import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
@@ -19,6 +21,8 @@ const CampusSchema = z
     address: z.string().nullable(),
     phone: z.string().nullable(),
     isActive: z.boolean(),
+    /** 出勤模式（#1112）。null = 沿用機構預設（`organizations.attendance_mode`） */
+    attendanceMode: z.enum(['per_session', 'daily_checkin']).nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -56,6 +60,8 @@ const UpdateCampusSchema = z
     address: z.string().max(255).nullable().optional(),
     phone: z.string().max(30).nullable().optional(),
     isActive: z.boolean().optional(),
+    /** null = 改回沿用機構預設。要 `manage_org_settings`（跟改機構預設同一個門檻） */
+    attendanceMode: z.enum(['per_session', 'daily_checkin']).nullable().optional(),
   })
   .openapi('UpdateCampus');
 
@@ -86,6 +92,7 @@ function mapCampus(row: Record<string, unknown>) {
     address: row['address'] as string | null,
     phone: row['phone'] as string | null,
     isActive: row['is_active'] as boolean,
+    attendanceMode: (row['attendance_mode'] as 'per_session' | 'daily_checkin' | null) ?? null,
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
@@ -395,6 +402,14 @@ const updateRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '沒有權限修改出勤模式（#1112）',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
     404: {
       description: '分校不存在',
       content: {
@@ -418,6 +433,19 @@ app.openapi(updateRoute, async (c) => {
   if (body.address !== undefined) updateData['address'] = body.address;
   if (body.phone !== undefined) updateData['phone'] = body.phone;
   if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
+
+  // #1112：出勤模式跟機構預設（`PATCH /api/org/settings`）同一個門檻 —— 這支 PUT 只要 admin，
+  // 不另擋的話沒有 manage_org_settings 的管理員繞到分校就改得到同一個開關。
+  // 受分校限制者只能改自己管的分校（這支 PUT 的其餘欄位目前沒有分校範圍，那是另一張單）。
+  if (body.attendanceMode !== undefined) {
+    if (
+      !hasPermission(c.get('permissions') ?? [], 'manage_org_settings') ||
+      !resourceCampusAllowed(getCampusScope(c), id)
+    ) {
+      return c.json({ error: '沒有權限修改這個分校的出勤模式', code: 'FORBIDDEN' }, 403);
+    }
+    updateData['attendance_mode'] = body.attendanceMode;
+  }
 
   // **改動前先讀一次** —— 稽核要答得出「原本是什麼」，而改完就查不到了（#837）。
   // UI 的停用／啟用走的也是這支 PUT，所以這一讀同時涵蓋那兩顆。

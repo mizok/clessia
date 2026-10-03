@@ -46,7 +46,7 @@ export interface WorkbenchLeave {
 export interface WorkbenchToday {
   date: string;
   /**
-   * **伺服器讀 `organizations.attendance_mode`，前端不傳。**
+   * **伺服器推算（分校設定 → 機構預設，#1112），前端不傳。**
    * 讓呼叫端傳等於同一個機構可能拿到兩種形狀，而那個不一致沒有人會發現。
    */
   mode: AttendanceMode;

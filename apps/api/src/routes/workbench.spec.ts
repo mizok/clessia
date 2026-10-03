@@ -10,6 +10,8 @@ import workbenchApp from './workbench';
  */
 function createWorkbenchApp(fixture: {
   mode: 'per_session' | 'daily_checkin';
+  /** `campuses.attendance_mode`（#1112）；不給 = null，沿用機構預設 */
+  campusMode?: 'per_session' | 'daily_checkin' | null;
   sessions?: Array<Record<string, unknown>>;
   enrollments?: Array<Record<string, unknown>>;
   checkins?: Array<Record<string, unknown>>;
@@ -39,7 +41,12 @@ function createWorkbenchApp(fixture: {
         order: () => query,
         maybeSingle: () =>
           Promise.resolve({
-            data: table === 'organizations' ? { attendance_mode: fixture.mode } : null,
+            data:
+              table === 'organizations'
+                ? { attendance_mode: fixture.mode }
+                : table === 'campuses'
+                  ? { attendance_mode: fixture.campusMode ?? null }
+                  : null,
             error: null,
           }),
         then: (onfulfilled?: ((value: { data: unknown[]; error: null }) => unknown) | null) => {
@@ -203,6 +210,35 @@ describe('GET /api/workbench/today', () => {
 
     expect(queried).not.toContain('daily_checkins');
     expect(queried).not.toContain('leave_requests');
+  });
+
+  // #1112：出勤模式是分校層級。作業台一次只回一個 mode —— 看的是單一分校時用那個分校的
+  const CAMPUS = '00000000-0000-4000-8000-0000000000c1';
+
+  it('帶 campusId：mode 照分校設定，不是機構預設', async () => {
+    const { body } = await today(
+      { mode: 'per_session', campusMode: 'daily_checkin' },
+      `&campusId=${CAMPUS}`,
+    );
+
+    expect(body.mode).toBe('daily_checkin');
+  });
+
+  it('沒帶 campusId、但只管一個分校：用那個分校的設定', async () => {
+    const { body } = await today({
+      mode: 'per_session',
+      campusMode: 'daily_checkin',
+      campusScope: [CAMPUS],
+    });
+
+    expect(body.mode).toBe('daily_checkin');
+  });
+
+  it('看多個分校：沿用機構預設（不查分校）', async () => {
+    const { body, queried } = await today({ mode: 'per_session', campusMode: 'daily_checkin' });
+
+    expect(body.mode).toBe('per_session');
+    expect(queried).not.toContain('campuses');
   });
 });
 

@@ -223,3 +223,108 @@ describe('campuses 的稽核 details（#837）', () => {
     expect(row?.['details']).not.toHaveProperty('created_at');
   });
 });
+
+/**
+ * #1112：出勤模式是分校層級。`attendanceMode` null = 沿用機構預設。
+ *
+ * 改它的門檻跟改機構預設一樣是 `manage_org_settings`（`org-settings.ts`）——
+ * 分校這支 PUT 本身只要 admin，若不另擋，沒有那個權限的管理員繞到分校就改得到同一個開關。
+ * 受分校限制的管理員也只能改自己管的分校。
+ */
+describe('PUT /api/campuses/:id —— 出勤模式（#1112）', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const MINE = '00000000-0000-0000-0000-0000000000c1';
+  const THEIRS = '00000000-0000-0000-0000-0000000000c2';
+  const row = (id: string) => ({
+    id,
+    org_id: ORG,
+    name: id === MINE ? '中正' : '信義',
+    address: null,
+    phone: null,
+    is_active: true,
+    attendance_mode: null,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  });
+
+  async function put(
+    id: string,
+    body: unknown,
+    who: { permissions?: string[]; campusScope?: readonly string[] | null } = {},
+  ) {
+    const db = createMultiOrgDb({ campuses: [row(MINE), row(THEIRS)] });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', who.permissions ?? ['manage_org_settings']);
+      set('campusScope', who.campusScope ?? null);
+      await next();
+    });
+    app.route('/', campusesRoute.default as unknown as Hono);
+    const res = await app.request(`/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const stored = db.rows('campuses').find((r) => r['id'] === id)?.['attendance_mode'];
+    return { status: res.status, body: (await res.json()) as any, stored };
+  }
+
+  it('有 manage_org_settings：寫得進去，回應帶 attendanceMode', async () => {
+    const { status, body, stored } = await put(MINE, { attendanceMode: 'per_session' });
+
+    expect(status).toBe(200);
+    expect(stored).toBe('per_session');
+    expect(body.data.attendanceMode).toBe('per_session');
+  });
+
+  it('設回 null = 沿用機構預設', async () => {
+    const { status, stored } = await put(MINE, { attendanceMode: null });
+
+    expect(status).toBe(200);
+    expect(stored).toBeNull();
+  });
+
+  it('沒有 manage_org_settings：403，沒寫', async () => {
+    const { status, stored } = await put(
+      MINE,
+      { attendanceMode: 'per_session' },
+      { permissions: ['basic_operations'] },
+    );
+
+    expect(status).toBe(403);
+    expect(stored).toBeNull();
+  });
+
+  it('沒有 manage_org_settings 但只改名：不受這道影響', async () => {
+    const { status } = await put(MINE, { name: '中正旗艦' }, { permissions: [] });
+
+    expect(status).toBe(200);
+  });
+
+  it('受分校限制：改別人管的分校 403，沒寫', async () => {
+    const { status, stored } = await put(
+      THEIRS,
+      { attendanceMode: 'per_session' },
+      { campusScope: [MINE] },
+    );
+
+    expect(status).toBe(403);
+    expect(stored).toBeNull();
+  });
+
+  it('受分校限制：自己的分校照常', async () => {
+    const { status } = await put(
+      MINE,
+      { attendanceMode: 'daily_checkin' },
+      { campusScope: [MINE] },
+    );
+
+    expect(status).toBe(200);
+  });
+});
