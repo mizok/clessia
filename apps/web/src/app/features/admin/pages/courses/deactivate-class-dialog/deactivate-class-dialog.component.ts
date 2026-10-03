@@ -10,7 +10,6 @@ import { ClassesService, Class } from '@core/classes.service';
   standalone: true,
   imports: [CommonModule, ButtonModule],
   templateUrl: './deactivate-class-dialog.component.html',
-  styleUrl: './deactivate-class-dialog.component.scss',
 })
 export class DeactivateClassDialogComponent {
   private readonly classesService = inject(ClassesService);

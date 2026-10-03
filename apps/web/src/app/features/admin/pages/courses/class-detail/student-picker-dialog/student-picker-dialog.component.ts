@@ -55,7 +55,6 @@ import {
     EnrollmentBillingFieldsComponent,
   ],
   templateUrl: './student-picker-dialog.component.html',
-  styleUrl: './student-picker-dialog.component.scss',
 })
 export class StudentPickerDialogComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);

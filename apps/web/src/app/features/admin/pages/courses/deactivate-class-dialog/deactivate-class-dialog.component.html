@@ -4,30 +4,47 @@
       <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
       <span class="dialog-header-inline__title">停用班級</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="Close"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
 
-  <div class="deactivate-dialog">
-    <div class="deactivate-dialog__hero">
-      <div class="deactivate-dialog__hero-icon">
-        <i class="pi pi-ban"></i>
+  <div class="@container/deactivate-dialog flex flex-col gap-5 p-4 sm:p-6">
+    <div
+      class="flex flex-col items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 bg-[linear-gradient(180deg,var(--color-white)_0%,rgba(250,250,250,0.8)_100%)] p-4 text-center sm:p-5"
+    >
+      <div
+        class="inline-flex size-14 items-center justify-center rounded-full bg-error-100 text-error-700"
+      >
+        <i class="pi pi-ban text-[1.6rem]"></i>
       </div>
-      <p class="deactivate-dialog__message">
-        確定要停用班級「<strong>{{ cls()?.name }}</strong
+      <p class="m-0 text-lg leading-[1.5] font-semibold text-zinc-900 sm:text-xl">
+        確定要停用班級「<strong class="text-error-700">{{ cls()?.name }}</strong
         >」嗎？
       </p>
-      <p class="deactivate-dialog__hint">停用後將無法新增學生報名，也無法產生新課堂。</p>
+      <p class="m-0 text-sm leading-[1.6] text-zinc-500">
+        停用後將無法新增學生報名，也無法產生新課堂。
+      </p>
     </div>
 
-    <div class="deactivate-dialog__options">
-      <article class="deactivate-dialog__option deactivate-dialog__option--danger">
-        <div class="deactivate-dialog__option-head">
-          <i class="pi pi-calendar-times deactivate-dialog__option-icon"></i>
-          <span class="deactivate-dialog__option-title">模式 A：停用並停課未來課堂</span>
+    <div class="grid grid-cols-1 gap-3 @tablet-portrait/deactivate-dialog:grid-cols-2">
+      <article
+        class="flex min-h-full flex-col gap-3 rounded-lg border border-error-100 bg-[linear-gradient(180deg,rgba(254,242,242,0.6)_0%,var(--color-white)_100%)] p-4"
+      >
+        <div class="flex items-center gap-2">
+          <i class="pi pi-calendar-times text-[1rem] text-error-600"></i>
+          <span class="text-base leading-[1.5] font-semibold text-zinc-900"
+            >模式 A：停用並停課未來課堂</span
+          >
         </div>
-        <p class="deactivate-dialog__option-desc">
+        <p
+          class="m-0 text-sm leading-[1.6] text-zinc-600 @tablet-portrait/deactivate-dialog:min-h-[3.2em]"
+        >
           會把這個班級所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
         </p>
         <p-button
@@ -41,12 +58,18 @@
         />
       </article>
 
-      <article class="deactivate-dialog__option deactivate-dialog__option--neutral">
-        <div class="deactivate-dialog__option-head">
-          <i class="pi pi-ban deactivate-dialog__option-icon"></i>
-          <span class="deactivate-dialog__option-title">模式 B：僅停用班級</span>
+      <article
+        class="flex min-h-full flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4"
+      >
+        <div class="flex items-center gap-2">
+          <i class="pi pi-ban text-[1rem] text-zinc-500"></i>
+          <span class="text-base leading-[1.5] font-semibold text-zinc-900"
+            >模式 B：僅停用班級</span
+          >
         </div>
-        <p class="deactivate-dialog__option-desc">
+        <p
+          class="m-0 text-sm leading-[1.6] text-zinc-600 @tablet-portrait/deactivate-dialog:min-h-[3.2em]"
+        >
           只停用班級本身，既有課堂維持原樣，無法新增未來課程排程。
         </p>
         <p-button

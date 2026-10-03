@@ -34,7 +34,6 @@ import {
   standalone: true,
   imports: [FormsModule, ButtonModule, InputNumberModule, SelectModule, TextareaModule],
   templateUrl: './enrollment-billing-fields.component.html',
-  styleUrl: './enrollment-billing-fields.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EnrollmentBillingFieldsComponent {

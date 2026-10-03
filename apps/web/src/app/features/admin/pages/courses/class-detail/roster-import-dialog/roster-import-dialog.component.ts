@@ -51,7 +51,6 @@ interface ReviewRow {
     InlineNoticeComponent,
   ],
   templateUrl: './roster-import-dialog.component.html',
-  styleUrl: './roster-import-dialog.component.scss',
 })
 export class RosterImportDialogComponent {
   private readonly enrollmentsService = inject(EnrollmentsService);

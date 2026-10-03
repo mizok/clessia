@@ -4,7 +4,12 @@
       <span class="dialog-header-inline__breadcrumb">{{ campusName() }}</span>
       <span class="dialog-header-inline__title">{{ isEditing() ? '編輯課程' : '新增課程' }}</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="Close"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
@@ -23,7 +28,9 @@
         </span>
       </div>
     </div>
-    <p class="course-form-dialog__status-hint">停用後不會刪除課程資料，也無法新增未來課程排程。</p>
+    <p class="-mt-2 mb-0 text-xs leading-[1.6] text-zinc-500">
+      停用後不會刪除課程資料，也無法新增未來課程排程。
+    </p>
     @if (shouldShowDeactivateMode()) {
       <div class="form-dialog__field">
         <label class="form-dialog__label">停用模式</label>
@@ -38,7 +45,7 @@
           class="w-full"
         />
       </div>
-      <p class="course-form-dialog__mode-hint">
+      <p class="-mt-2 mb-0 text-xs leading-[1.6] text-warning-600">
         選擇「停用並停課未來課堂」會將該課程所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
       </p>
     }

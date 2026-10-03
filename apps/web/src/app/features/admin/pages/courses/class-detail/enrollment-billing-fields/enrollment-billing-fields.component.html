@@ -1,7 +1,7 @@
-<div class="billing-fields">
-  <div class="billing-fields__row">
-    <label class="billing-fields__field">
-      <span class="billing-fields__label">計費模式</span>
+<div class="flex flex-col gap-3">
+  <div class="flex flex-wrap gap-3 [&>*]:flex-[1_1_12rem]">
+    <label class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-zinc-600">計費模式</span>
       <p-select
         [options]="billingModeOptions"
         [ngModel]="draft().billingMode"
@@ -12,8 +12,8 @@
         styleClass="w-full"
       />
     </label>
-    <label class="billing-fields__field">
-      <span class="billing-fields__label">價目表</span>
+    <label class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-zinc-600">價目表</span>
       <p-select
         [options]="templateOptions()"
         [ngModel]="draft().feeTemplateId"
@@ -28,10 +28,10 @@
 
   @if (isPeriodMode()) {
     <!-- 期繳才問 —— 月繳的期間是月份，堂數制沒有期間 -->
-    <label class="billing-fields__field">
-      <span class="billing-fields__label">
+    <label class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-zinc-600">
         收費期間
-        <span class="billing-fields__hint">用來試算期中插班的金額</span>
+        <span class="text-xxs text-zinc-500">用來試算期中插班的金額</span>
       </span>
       <p-select
         [options]="periodOptions()"
@@ -45,11 +45,11 @@
     </label>
   }
 
-  <label class="billing-fields__field">
-    <span class="billing-fields__label">
+  <label class="flex flex-col gap-1">
+    <span class="text-xs font-medium text-zinc-600">
       議定金額
       @if (pricingHint()) {
-        <span class="billing-fields__hint">{{ pricingHint() }}</span>
+        <span class="text-xxs text-zinc-500">{{ pricingHint() }}</span>
       }
     </span>
     <p-inputnumber
@@ -67,10 +67,10 @@
   @if (proration(); as p) {
     <!-- 試算的**理由**跟數字一樣重要：只給一個數字沒有人敢改它，
          而規則 5.2 說試算是建議值、行政本來就可以調 -->
-    <div class="billing-fields__proration">
-      <span class="billing-fields__proration-text">
+    <div class="flex items-center gap-2 text-xs text-zinc-600">
+      <span class="min-w-0 flex-1">
         本期試算 <strong>${{ p.amount.toLocaleString() }}</strong>
-        <span class="billing-fields__proration-note">{{ p.note }}</span>
+        <span class="block text-zinc-500">{{ p.note }}</span>
       </span>
       <p-button
         label="套用"
@@ -84,8 +84,8 @@
 
   @if (isAdjusted()) {
     <!-- 折數看老闆當下心情，所以系統不猜原因，只要求寫下來（規則 5.3） -->
-    <label class="billing-fields__field">
-      <span class="billing-fields__label">調整原因（必填）</span>
+    <label class="flex flex-col gap-1">
+      <span class="text-xs font-medium text-zinc-600">調整原因（必填）</span>
       <textarea
         pTextarea
         rows="2"

@@ -1,14 +1,14 @@
-<div class="enrollment-billing">
-  <header class="enrollment-billing__header">
-    <h2 class="enrollment-billing__title">計費設定</h2>
-    <p class="enrollment-billing__hint">
+<div class="flex flex-col gap-5 p-5">
+  <header class="flex flex-col gap-1">
+    <h2 class="m-0 text-lg font-semibold text-zinc-900">計費設定</h2>
+    <p class="m-0 text-xs text-zinc-500">
       {{ enrollment.studentName }} —— 計費模式是每位學生自己的選擇，同一班可以有月繳生也有期繳生。
     </p>
   </header>
 
-  <div class="enrollment-billing__body">
-    <div class="enrollment-billing__field">
-      <label class="enrollment-billing__label" for="eb-mode">計費模式</label>
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600" for="eb-mode">計費模式</label>
       <p-select
         inputId="eb-mode"
         optionLabel="label"
@@ -19,8 +19,8 @@
       />
     </div>
 
-    <div class="enrollment-billing__field">
-      <label class="enrollment-billing__label" for="eb-template">價目表</label>
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600" for="eb-template">價目表</label>
       <p-select
         inputId="eb-template"
         optionLabel="label"
@@ -32,8 +32,8 @@
       />
     </div>
 
-    <div class="enrollment-billing__field">
-      <label class="enrollment-billing__label" for="eb-amount">議定金額</label>
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600" for="eb-amount">議定金額</label>
       <p-inputnumber
         inputId="eb-amount"
         mode="currency"
@@ -45,7 +45,7 @@
         [ngModel]="form().agreedAmount"
         (ngModelChange)="update('agreedAmount', $event)"
       />
-      <span class="enrollment-billing__hint">
+      <span class="m-0 text-xs text-zinc-500">
         @if (pricingHint()) {
           {{ pricingHint() }}。留空 = 照定價收，填了數字 = 這位學生就是這個價。
         } @else {
@@ -55,8 +55,8 @@
     </div>
 
     @if (isAdjusted()) {
-      <div class="enrollment-billing__field">
-        <label class="enrollment-billing__label" for="eb-note">調整原因 *</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-medium text-zinc-600" for="eb-note">調整原因 *</label>
         <textarea
           id="eb-note"
           pTextarea
@@ -66,20 +66,20 @@
           [ngModel]="form().adjustmentNote"
           (ngModelChange)="update('adjustmentNote', $event)"
         ></textarea>
-        <span class="enrollment-billing__hint">
+        <span class="m-0 text-xs text-zinc-500">
           金額和定價不一樣就要留原因 —— 半年後沒有人記得為什麼收這個數字。
         </span>
       </div>
     }
 
     @if (isSessionPackMode()) {
-      <div class="enrollment-billing__field enrollment-billing__session-pack">
-        <label class="enrollment-billing__label">堂數帳</label>
+      <div class="flex flex-col gap-3" data-testid="session-pack">
+        <label class="text-sm font-medium text-zinc-600">堂數帳</label>
 
         @if (packSummary(); as summary) {
           @if (summary.remaining <= 0) {
             <app-inline-notice
-              class="enrollment-billing__session-pack-notice"
+              class="block"
               severity="warning"
               summary="堂數已用完，該追補買了"
               [detail]="
@@ -94,7 +94,7 @@
               [dismissible]="false"
             />
           } @else {
-            <p class="enrollment-billing__hint">
+            <p class="m-0 text-xs text-zinc-500">
               剩餘 <strong>{{ summary.remaining }}</strong> 堂（買了
               {{ summary.purchased }} 堂，已扣 {{ summary.deducted }} 堂）
             </p>
@@ -102,16 +102,16 @@
         }
 
         @if (packs().length > 0) {
-          <ul class="enrollment-billing__session-pack-list">
+          <ul class="m-0 flex list-none flex-col gap-1 p-0">
             @for (pack of packs(); track pack.id) {
-              <li class="enrollment-billing__session-pack-item">
+              <li class="flex items-center gap-2 rounded-md bg-zinc-50 p-2 text-sm text-zinc-700">
                 <span>{{ pack.purchasedAt }}・{{ pack.purchasedCount }} 堂</span>
                 @if (pack.note) {
-                  <span class="enrollment-billing__session-pack-note">{{ pack.note }}</span>
+                  <span class="truncate text-zinc-500">{{ pack.note }}</span>
                 }
                 <button
                   type="button"
-                  class="enrollment-billing__session-pack-delete"
+                  class="ml-auto inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-sm border-none bg-transparent p-1 text-zinc-400 hover:bg-zinc-100 hover:text-error-700"
                   aria-label="刪除這筆購買紀錄"
                   (click)="confirmDeletePack(pack)"
                 >
@@ -132,7 +132,7 @@
     }
   </div>
 
-  <footer class="enrollment-billing__footer">
+  <footer class="flex justify-end gap-2">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
   </footer>

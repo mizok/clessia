@@ -6,7 +6,12 @@
       }
       <span class="dialog-header-inline__title">{{ dialogTitle() }}</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="Close"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
@@ -76,11 +81,13 @@
         />
       </div>
       <!-- 同日期那段的說明樣式：選填欄位的「代價」講在欄位下面 -->
-      <p class="class-date-hint">家長目錄顯示的參考價；實際收費以報名時選的範本為準。</p>
+      <p class="-mt-2 mb-0 text-xs leading-normal text-zinc-500">
+        家長目錄顯示的參考價；實際收費以報名時選的範本為準。
+      </p>
     }
 
     <!-- Date Range -->
-    <div class="form-dialog__row">
+    <div class="form-dialog__row flex-col md:flex-row">
       <div class="form-dialog__field">
         <label class="form-dialog__label">開始日期</label>
         <p-datepicker
@@ -112,7 +119,8 @@
         />
       </div>
     </div>
-    <p class="class-date-hint">
+    <!-- 日期是選填的，但留空要付的代價在另一個對話框才會顯現 —— 在這裡先講 -->
+    <p class="-mt-2 mb-0 text-xs leading-normal text-zinc-500">
       兩邊都填，之後產生課堂會直接沿用這段期間；留空（不限期）則每次產生課堂都要另外指定範圍。
     </p>
 
@@ -144,18 +152,26 @@
       @if (scheduleEntries().length === 0) {
         <p class="form-dialog__empty-note">尚未設定上課時間，點擊「新增時段」添加</p>
       } @else {
-        <div class="schedule-entries">
+        <div class="flex flex-col gap-3 p-4">
           @for (entry of scheduleEntries(); track $index) {
-            <div class="schedule-entry">
+            <div
+              class="relative flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3"
+            >
+              <!-- 看得到的圓是 24px，可點範圍是 44px（A27）。白色圖示疊 zinc-400 只有 2.60，zinc-500 過 3:1 -->
               <button
                 type="button"
-                class="schedule-entry__close"
+                class="group absolute top-0 right-0 flex size-11 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center border-0 bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-40"
                 (click)="removeScheduleEntry($index)"
                 [disabled]="loading()"
+                aria-label="移除時段"
               >
-                <i class="pi pi-times"></i>
+                <span
+                  class="flex size-6 items-center justify-center rounded-full bg-zinc-500 text-white [transition:background_var(--transition-fast)] group-hover:bg-zinc-600"
+                >
+                  <i class="pi pi-times text-[10px]"></i>
+                </span>
               </button>
-              <div class="schedule-entry__row">
+              <div class="flex flex-wrap items-center gap-2">
                 <p-select
                   [options]="weekdayOptions"
                   [ngModel]="entry.weekday"
@@ -163,19 +179,20 @@
                   placeholder="星期"
                   [disabled]="loading()"
                   [appendTo]="'body'"
-                  styleClass="schedule-entry__weekday"
+                  styleClass="min-w-[90px]"
                 />
                 <input
                   type="time"
-                  class="schedule-entry__time-input"
+                  class="h-9 w-28 cursor-pointer rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 [transition:border-color_var(--transition-fast)] hover:border-accent-400 focus:border-accent-500 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.15)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400 pointer-coarse:min-h-11"
                   [ngModel]="entry.startTime"
                   (ngModelChange)="updateScheduleEntry($index, 'startTime', $event)"
                   [disabled]="loading()"
                 />
-                <span class="schedule-entry__dash">—</span>
+                <!-- 文字字元不是裝飾，走 4.5:1：zinc-400 只有 2.47，zinc-500 過關 -->
+                <span class="text-sm text-zinc-500">—</span>
                 <input
                   type="time"
-                  class="schedule-entry__time-input"
+                  class="h-9 w-28 cursor-pointer rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 [transition:border-color_var(--transition-fast)] hover:border-accent-400 focus:border-accent-500 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.15)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400 pointer-coarse:min-h-11"
                   [ngModel]="entry.endTime"
                   (ngModelChange)="updateScheduleEntry($index, 'endTime', $event)"
                   [disabled]="loading()"

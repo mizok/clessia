@@ -57,7 +57,6 @@ import { SessionPackFormDialogComponent } from '../session-pack-form-dialog/sess
   ],
   providers: [ConfirmationService],
   templateUrl: './enrollment-billing-dialog.component.html',
-  styleUrl: './enrollment-billing-dialog.component.scss',
 })
 export class EnrollmentBillingDialogComponent {
   private readonly enrollmentsService = inject(EnrollmentsService);
