@@ -8,6 +8,92 @@
 巡檢的本質是拿檔案對現實,檔案落後於現實時,你會拿過期前提去糾正沒有錯的席位
 (2026-09-03 首輪:照落後的 backlog 指 infra 去做兩項其實 #206 已完成的事)。
 
+## 一輪巡檢怎麼跑(可直接貼;2026-10-04 蒸餾)
+
+**底下各節是判準與它們的來歷,這一節是把它們組成一個動作** ——
+charter 已經 800 多行,**下一任不該為了跑一輪巡檢去重組六項檢查**。
+每一行的「為什麼長這樣」都在對應的節裡,**改這段之前先讀那一節**。
+
+```bash
+cd <ops-warden worktree>
+NOW=$(date -u '+%Y-%m-%dT%H:%M:%SZ'); echo "now_utc=$NOW"   # 時間一律用 date 帶入
+git fetch -pq origin 2>&1 | head -2                          # ref lock 不重試,見末節
+
+# Ctx:剝 ANSI 再抓;讀不到重讀,全滅是 pattern 壞了,零星可能是 footer 沒那一行
+ctx() { herdr agent read "$1" 2>/dev/null | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' \
+  | grep -ao 'Ctx[^0-9]\{0,20\}[0-9.]\{1,5\}%' | tail -1 | grep -ao '[0-9.]\{1,5\}%'; }
+
+# charter 落檔:三型不同檔名(生產席/常設席/計畫席),對 origin/main 查不是對工作樹
+chart() { case "$1" in
+  labor-plan-*)     echo "快照";;
+  labor-reviewer-*) git ls-tree --name-only origin/main herdr-team/labor-reviewer.md|wc -l|tr -d ' ';;
+  *)                git ls-tree --name-only origin/main herdr-team/$1.md|wc -l|tr -d ' ';; esac; }
+
+live=$(herdr agent list 2>/dev/null | python3 -c "import sys,json;print('\n'.join(
+  a['name'] for a in json.load(sys.stdin)['result']['agents'] if a.get('name')))" | sort -u)
+
+herdr agent list 2>/dev/null | python3 -c "
+import sys,json
+for a in json.load(sys.stdin)['result']['agents']:
+    n=a.get('name')
+    if n and 'labor' in n: print(n, a['agent_status'])" | while read n st; do
+  pane=$(herdr agent read $n 2>/dev/null | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g')
+  v=$(ctx $n); [ -z "$v" ] && v=$(ctx $n); [ -z "$v" ] && v=$(ctx $n)
+  printf "%-32s %-8s %-7s 卡住=%s 截斷=%s charter=%s\n" "$n" "$st" "${v:-未量}" \
+    "$(echo "$pane" | grep -ac '^❯ \[Pasted text #')" \
+    "$(echo "$pane" | grep -ac 'API Error: Connection lost mid-response')" \
+    "$(chart $n)"
+done
+
+# 孤兒:標籤指向不在 live 裡的席位(含「在線但已退場」要另外記著查)
+gh issue list --state open --limit 200 --json number,labels \
+  --jq '.[] as $i | $i.labels[] | select(.name|startswith("seat:"))
+        | "\(.name|ltrimstr("seat:"))\t#\($i.number)"' \
+ | while IFS=$'\t' read -r seat rest; do
+     grep -qx "$seat" <<<"$live" || echo "孤兒 seat:$seat $rest"; done
+
+# 未指派:無 seat: 標籤且未 blocked(blocked 承載刻意 backlog,所以自動排除)
+gh issue list --state open --limit 200 --json number,createdAt,labels \
+  --jq '.[] | select(([.labels[].name]|any(startswith("seat:"))|not)
+        and ([.labels[].name]|index("blocked")|not)) | "#\(.number) \(.createdAt)"'
+
+# PR:逐支查才有可信的 mergeable;UNKNOWN 在剛推的 PR 上是「還在算」
+gh pr list --state open --json number,updatedAt,mergeable,isDraft \
+  --jq '.[] | "#\(.number) \(.updatedAt) \(.mergeable) draft=\(.isDraft)"'
+git log --oneline -1 origin/main
+```
+
+**然後問那個收尾問句:「現在有哪一條線在推進?」** ——
+逐席全綠不等於整隊在前進(見職責 2 底下那條)。
+
+### 送達驗證:這是一個完整動作,不是一句規則
+
+```bash
+herdr agent prompt <現任計畫席> "$(cat 回報檔)" >/dev/null 2>&1
+for i in 1 2 3; do sleep 5
+  a=$(herdr agent read <席> 2>/dev/null | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' | grep -av '^❯')
+  n1=$(echo "$a" | grep -ac '<短句一>'); n2=$(echo "$a" | grep -ac '<短句二>')
+  [ $((n1+n2)) -gt 0 ] && break
+done
+echo "pane 驗證第 $i 次：n1=$n1 n2=$n2"
+herdr agent read <席> 2>/dev/null | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' \
+  | grep -ac '^❯ \[Pasted text #'     # 同時確認沒卡在輸入框
+```
+
+**四個要素缺一不可**:`grep -av '^❯'` 排除輸入框、**兩句短句**(長句會被折行切斷)、
+**從原文複製**(不要憑印象)、**任一命中就算送到**。細節與各自的來歷見送達那幾節。
+
+### 報給誰:兩個去向,不要混
+
+| 類型                                   | 去向                                           |
+| -------------------------------------- | ---------------------------------------------- |
+| 席位／工單／帳面異常                   | **現任計畫席**(交接窗口看交接協定,不看時間戳)   |
+| **只有使用者能解的卡點**               | **寫在終端機輸出裡** —— 使用者讀得到監工的回合 |
+| 計畫席自己 Ctx 過線、或它卡在要使用者裁的選單 | **直接告訴使用者**(計畫席沒有第二個監看者)      |
+
+**「只有使用者能解」的例子**:保留類 PR 等親合、`prod-db` 等 Approve、Chrome 擴充要重連、
+api 要本人跑 `wrangler deploy`。**這些報給計畫席沒有用,它也動不了。**
+
 ## 職責(每 10-15 分鐘巡一輪)
 
 1. **席位存活**:`herdr agent list` → 對 idle/done 超過 5 分鐘的席:
