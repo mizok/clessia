@@ -47,6 +47,7 @@
 @source './app/features/admin/pages/campuses';
 @source './app/features/admin/pages/grades';
 @source './app/features/admin/pages/leave';
+@source './app/features/admin/pages/meals';
 @source './app/features/admin/pages/notifications';
 @source './app/features/admin/pages/sessions';
 @source './app/features/admin/pages/schools';

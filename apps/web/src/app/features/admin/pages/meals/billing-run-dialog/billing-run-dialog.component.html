@@ -1,48 +1,58 @@
-<div class="billing-run">
-  <header class="billing-run__header">
-    <h2 class="billing-run__title">{{ modeLabel() }}</h2>
+<div class="flex flex-col gap-4 p-5">
+  <header class="flex flex-col gap-1">
+    <h2 class="m-0 text-lg font-semibold text-zinc-900">{{ modeLabel() }}</h2>
     @if (mode() === 'period') {
-      <p class="billing-run__hint">把這一期「期繳」報名的學費開成帳單（餐費照舊跟著月結走）。</p>
+      <p class="m-0 text-xs text-zinc-500">
+        把這一期「期繳」報名的學費開成帳單（餐費照舊跟著月結走）。
+      </p>
     } @else {
-      <p class="billing-run__hint">把這個月「要收費且尚未結算」的餐費與學費加總成帳單。</p>
+      <p class="m-0 text-xs text-zinc-500">把這個月「要收費且尚未結算」的餐費與學費加總成帳單。</p>
     }
   </header>
 
   @if (result(); as done) {
-    <div class="billing-run__result">
-      <dl class="billing-run__stats">
-        <div class="billing-run__stat">
-          <dt>開立帳單</dt>
-          <dd>{{ done.invoicesCreated }}</dd>
+    <div class="flex flex-col gap-4">
+      <dl class="m-0 flex flex-wrap gap-5 rounded-lg bg-zinc-50 p-4">
+        <div class="flex flex-col gap-1">
+          <dt class="text-xs text-zinc-500">開立帳單</dt>
+          <dd class="m-0 text-lg font-semibold tabular-nums text-zinc-900">
+            {{ done.invoicesCreated }}
+          </dd>
         </div>
-        <div class="billing-run__stat">
-          <dt>學費明細</dt>
-          <dd>{{ done.tuitionItems }}</dd>
+        <div class="flex flex-col gap-1">
+          <dt class="text-xs text-zinc-500">學費明細</dt>
+          <dd class="m-0 text-lg font-semibold tabular-nums text-zinc-900">
+            {{ done.tuitionItems }}
+          </dd>
         </div>
-        <div class="billing-run__stat">
-          <dt>餐費明細</dt>
-          <dd>{{ done.mealItems }}</dd>
+        <div class="flex flex-col gap-1">
+          <dt class="text-xs text-zinc-500">餐費明細</dt>
+          <dd class="m-0 text-lg font-semibold tabular-nums text-zinc-900">{{ done.mealItems }}</dd>
         </div>
-        <div class="billing-run__stat">
-          <dt>結算餐記錄</dt>
-          <dd>{{ done.mealRecordsSettled }}</dd>
+        <div class="flex flex-col gap-1">
+          <dt class="text-xs text-zinc-500">結算餐記錄</dt>
+          <dd class="m-0 text-lg font-semibold tabular-nums text-zinc-900">
+            {{ done.mealRecordsSettled }}
+          </dd>
         </div>
       </dl>
 
       @if (done.anomalies.length > 0) {
-        <div class="billing-run__anomalies">
-          <h3 class="billing-run__anomalies-title">
+        <div class="flex flex-col gap-2 rounded-lg bg-warning-100 p-4">
+          <h3 class="m-0 text-sm font-semibold text-warning-600">
             {{ done.anomalies.length }} 筆金額對不上，要人工核對
           </h3>
-          <p class="billing-run__anomalies-hint">
+          <p class="m-0 text-xs leading-relaxed text-zinc-700">
             帳單明細的金額與蓋章的餐記錄總額不一致。帳單已經開出去了 ——
             請到繳費紀錄找到這幾筆核對，不要重跑月結（重跑不會修正已開的明細）。
           </p>
-          <ul class="billing-run__anomaly-list">
+          <ul class="m-0 flex list-none flex-col gap-2 p-0">
             @for (anomaly of done.anomalies; track anomaly.invoiceItemId) {
-              <li class="billing-run__anomaly">
-                <code class="billing-run__anomaly-id">{{ anomaly.invoiceItemId }}</code>
-                <span class="billing-run__anomaly-detail">
+              <li class="flex flex-col gap-1 text-xs">
+                <code class="font-[monospace] break-all text-zinc-700">{{
+                  anomaly.invoiceItemId
+                }}</code>
+                <span class="tabular-nums text-zinc-600">
                   明細 {{ anomaly.itemAmount }} 元 · 蓋章總額 {{ anomaly.stampedTotal }} 元 · 應為
                   {{ anomaly.expectedAmount }} 元
                 </span>
@@ -53,7 +63,7 @@
       }
     </div>
 
-    <footer class="billing-run__footer">
+    <footer class="flex justify-end gap-2">
       @if (done.invoicesCreated > 0) {
         <!-- 產生了東西就要能走到它 —— 不然使用者得自己從側邊選單找回繳費紀錄 -->
         <p-button
@@ -67,8 +77,8 @@
       <p-button label="關閉" (onClick)="close()" />
     </footer>
   } @else {
-    <div class="billing-run__field">
-      <span class="billing-run__label" id="br-mode">開單類型</span>
+    <div class="flex flex-col gap-2">
+      <span class="text-sm font-medium text-zinc-600" id="br-mode">開單類型</span>
       <p-selectbutton
         ariaLabelledBy="br-mode"
         [options]="modeOptions"
@@ -81,8 +91,8 @@
     </div>
 
     @if (mode() === 'period') {
-      <div class="billing-run__field">
-        <label class="billing-run__label" for="br-period">開哪一期</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-medium text-zinc-600" for="br-period">開哪一期</label>
         <p-select
           inputId="br-period"
           [options]="periods()"
@@ -94,8 +104,8 @@
         />
       </div>
     } @else {
-      <div class="billing-run__field">
-        <label class="billing-run__label" for="br-month">結算月份</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-medium text-zinc-600" for="br-month">結算月份</label>
         <p-datepicker
           inputId="br-month"
           view="month"
@@ -108,13 +118,15 @@
       </div>
     }
 
-    <p class="billing-run__notice">
+    <p
+      class="m-0 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-relaxed text-zinc-600"
+    >
       <strong>{{ mode() === 'period' ? '同一期可以重複跑。' : '同一個月可以重複跑。' }}</strong>
       {{ modeLabel() }}只撈「尚未結算」的記錄，處理完就蓋上結算標記 ——
       所以跑第二次不會重複開帳單，之後補登的舊記錄下次會自動被撈進來。
     </p>
 
-    <footer class="billing-run__footer">
+    <footer class="flex justify-end gap-2">
       <p-button label="取消" [text]="true" severity="secondary" (onClick)="close()" />
       <p-button
         [label]="'執行' + modeLabel()"

@@ -16,6 +16,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { MealsService, MEAL_BATCH_MAX_ROWS, type MealSummary } from '@core/meals.service';
 import { StudentsService, type Student } from '@core/students.service';
 
@@ -73,6 +74,7 @@ const RANGE_PAGE_SIZE = 50;
   standalone: true,
   imports: [
     StatusDotComponent,
+    PageOpenComponent,
     DecimalPipe,
     FormsModule,
     ButtonModule,
@@ -93,7 +95,6 @@ const RANGE_PAGE_SIZE = 50;
   ],
   providers: [MessageService, DialogService],
   templateUrl: './meals.component.html',
-  styleUrl: './meals.component.scss',
 })
 export class MealsComponent implements OnInit {
   readonly page = input.required<RouteObj>();
