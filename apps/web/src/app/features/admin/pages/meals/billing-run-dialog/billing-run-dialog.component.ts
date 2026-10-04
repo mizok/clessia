@@ -43,7 +43,6 @@ export interface BillingRunDialogData {
   standalone: true,
   imports: [FormsModule, ButtonModule, DatePickerModule, SelectModule, SelectButtonModule],
   templateUrl: './billing-run-dialog.component.html',
-  styleUrl: './billing-run-dialog.component.scss',
 })
 export class BillingRunDialogComponent {
   private readonly service = inject(BillingRunsService);

@@ -1,17 +1,18 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="meals">
-  <header class="meals__header">
-    <div class="meals__title-group">
-      <h1 class="meals__title">{{ page().label }}</h1>
-      <p class="meals__subtitle">
-        每日勾選誰要訂餐，月底一次結算成帳單。有上課不一定訂餐 —— 課表只給候選名單。
-      </p>
-    </div>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openBillingRun()" />
-  </header>
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>
+    每日勾選誰要訂餐，月底一次結算成帳單。有上課不一定訂餐 —— 課表只給候選名單。
+  </ng-container>
+</app-page-open>
 
-  <div class="meals__toolbar clessia-filter-bar">
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    role="search"
+    aria-label="餐費篩選"
+  >
     <p-selectbutton
       [options]="modeOptions"
       optionLabel="label"
@@ -33,7 +34,7 @@
         (ngModelChange)="onRangeChange($event)"
         ariaLabel="日期區間"
       />
-      <div class="meals__search clessia-filter-search">
+      <div class="clessia-filter-search w-full min-w-0 wide:w-80">
         <app-student-autocomplete
           [value]="student()"
           (valueChange)="onStudentChange($event)"
@@ -69,33 +70,38 @@
         />
       }
     }
+    <div class="wide:ml-auto">
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openBillingRun()" />
+    </div>
   </div>
+</div>
 
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   @if (!loading() && !failed() && rows().length > 0) {
     @if (isRange()) {
       <!--
         區間的數字**一律取後端的 meta** —— 它算的是整個區間，前端手上只有當頁。
         totalAmount 問的是「這段期間吃了多少錢」，所以已結算的照樣算進去。
       -->
-      <p class="meals__summary">
+      <p class="m-0 rounded-lg bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
         這段期間 <strong>{{ summary()?.total ?? 0 }}</strong> 筆餐記錄，其中
         <strong>{{ summary()?.chargeableCount ?? 0 }}</strong> 筆要收費，合計
         <strong>{{ summary()?.totalAmount ?? 0 | number }}</strong> 元 （含已結算的
         {{ summary()?.settledCount ?? 0 }} 筆）。
       </p>
     } @else {
-      <p class="meals__summary">
+      <p class="m-0 rounded-lg bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
         訂 <strong>{{ totals().ordered }}</strong> 份，其中
         <strong>{{ totals().chargeable }}</strong> 份要收費，合計
         <strong>{{ totals().amount | number }}</strong> 元。
         @if (settledCount() > 0) {
-          <span class="meals__summary-locked"> （{{ settledCount() }} 筆已結算，鎖住不能改） </span>
+          <span class="text-zinc-500"> （{{ settledCount() }} 筆已結算，鎖住不能改） </span>
         }
       </p>
     }
   }
 
-  <div class="meals__content">
+  <div class="flex flex-col gap-4">
     @if (loading()) {
       <div class="skeleton-list">
         @for (i of [1, 2, 3, 4, 5]; track i) {
@@ -164,15 +170,15 @@
           <tr appRtRow [appRtRow]="row" [appRtRowId]="row.studentId">
             @if (isRange()) {
               <td appRtColCell="date">
-                <span class="meals__date">{{ row.mealDate }}</span>
+                <span class="tabular-nums text-zinc-600">{{ row.mealDate }}</span>
               </td>
             }
             <td appRtColCell="student">
-              <span class="meals__student">{{ row.studentName }}</span>
+              <span class="font-medium text-zinc-900">{{ row.studentName }}</span>
             </td>
             @if (!isRange()) {
               <td appRtColCell="classes">
-                <span class="meals__classes">{{ row.classLabel }}</span>
+                <span class="text-sm text-zinc-500">{{ row.classLabel }}</span>
               </td>
             }
             <td appRtColCell="ordered">
@@ -212,7 +218,7 @@
                 pInputText
                 maxlength="200"
                 placeholder="如：素食"
-                class="meals__note-input"
+                class="w-full"
                 [disabled]="row.settled || isRange()"
                 [ngModel]="row.note"
                 (ngModelChange)="updateRow(row.studentId, 'note', $event)"
@@ -238,12 +244,16 @@
       </ng-template>
 
       @if (!isRange()) {
-        <div class="meals__actions">
-          <span class="meals__hint">
+        <div
+          class="sticky bottom-0 z-[1] mt-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border-t border-zinc-200 bg-zinc-50 px-4 py-3 shadow-[0_-4px_6px_-2px_rgb(0_0_0/8%)]"
+        >
+          <span class="flex-[1_1_320px] text-xs text-zinc-500">
             「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
           </span>
-          <div class="meals__actions-confirm">
-            <span class="meals__actions-count">共 {{ rows().length }} 位</span>
+          <div class="flex items-center gap-3">
+            <span class="meals__actions-count whitespace-nowrap text-sm font-medium text-zinc-600"
+              >共 {{ rows().length }} 位</span
+            >
             <p-button
               label="確認名單"
               icon="pi pi-save"
@@ -256,7 +266,7 @@
       }
 
       @if (!isRange() && overBatchLimit()) {
-        <p class="meals__notice">
+        <p class="m-0 rounded-md bg-warning-100 p-3 text-xs leading-relaxed text-warning-600">
           這天的候選名單超過後端一次能寫入的 {{ MEAL_BATCH_MAX_ROWS }} 筆上限。 請回報 ——
           這裡刻意擋住而不是只送前面幾筆，否則後面的學生會沒有記錄而且沒有徵兆。
         </p>
