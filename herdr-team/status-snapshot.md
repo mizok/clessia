@@ -42,11 +42,11 @@
 | ----- | ---------- | ---- |
 | #1262 | #1126 公開表單防濫用（migration `20261004055339`） | draft，base 已轉 main（head `3473d8ed`，只含 #1126 自己的改動）。等一個 Opus 後端席收尾＋實打；合時要您 Approve。 |
 
-10-04 白天合進的保留類：#1307（您親合，Approve 綠）、#1259（您親合 —— 計畫席 `gh pr merge` 被 auto-mode 分類器判「Merge Without Review」擋下，Approve 綠）。三支 migration（#1247／#1216／#1303）由 run `37173410979` 一次套綠。第十二～十五批皆 CI 自動部署。
+10-04 白天合進的保留類：#1307（11:21 合進 main，誰按的從共用帳號分不出，Approve 綠）、#1259（您親合 —— 計畫席 `gh pr merge` 被 auto-mode 分類器判「Merge Without Review」擋下，Approve 綠）。三支 migration（#1247／#1216／#1303）由 run `37173410979` 一次套綠。第十二批起皆 CI 自動部署（每顆 main 的 migrate 綠後觸發，一天十多顆）。
 
 ### 使用者動手的
 
-1. ~~`DEPLOY_ENABLED`~~ 已開：第十二批起全由 `deploy.yml` 自動部署，沒再出現「使用者要跑的那一行」。
+1. ~~`DEPLOY_ENABLED`~~ 已開：第十二批起全由 `deploy.yml` 自動部署（每顆 main 一顆 run），沒再出現「使用者要跑的那一行」。
 2. **兩條 permission 規則（可選，不加就照今天的路走）**：計畫席的 `Bash(gh pr merge:*)`（分類器擋 v3 合併 → 改您親合）、生產席的 `Bash(npx nx:*)`（分類器把 `nx typecheck`／`nx test` 判 CI Bypass → 改以 CI verify 為證，每支 PR 多繞一趟 CI）。計畫席對 `labor-db-reset` 說「跑」也被判大量刪除，今天由您直接下令 —— 同屬這一條。
 3. **T4 cssLayer 回歸**需您在場一次（複製 `.dev.vars`），計畫席排時間。
 4. ~~PUBLIC_ORG_SLUG~~ 已裁不設：#1126（#1262）落地前不開公開頁。
