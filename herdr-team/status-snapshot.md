@@ -22,13 +22,13 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-04 06:3x 第十次部署，labor-reviewer-20261001-2204）
+## 🚀 線上是哪一版（2026-10-04 11:0x 第十一次部署，**首次 CI 部署**，labor-reviewer-20261004-0638）
 
-**截線 `1fa88495`**（#1227；`verify` success）：web `main-2WJRY3S4.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 為 10-03 21:05 的產物、**使用者隔了一晚才按 api，期間 `dist` 與截線都固定未動**）、api `5210641e-9a31-43fb-b421-2ff2b6831007`（使用者 10-04 06:30 親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
-含：api #1212（班級參考價 `default_fee_template_id`）、#1213（sessions 列表 `latestChange`）、#1217（請假 truncate 倒置列）、#1219（加開單堂＋`creation` 異動類型）；web #1215（頂欄分校鈕）、#1226（courses C1 列表）等（本機 173 個 js 檔裡有 156 個是新的）。
-**⓪**：窗口 `d55aa967..1fa88495` 的 migration 兩支——`20261003122743_class_default_fee_template`（`migrate.yml` run `37123830002`）、`20261003124241_schedule_change_type_creation`（run `37124456052`）——皆 apply 綠已套。
-**部署驗證**：web 線上 `main-2WJRY3S4.js`＝本機 build；本機 173 個 js 檔線上缺 0 個（部署前 156）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；cf-placement `remote-SIN`；`openapi.json` 132 條路徑（無新路由）。**`/api/public/catalog` 回 `401 NO_SESSION`（不是計畫席預期的 `404 PUBLIC_DISABLED`）**——因為 #1241 還沒合、這條路由根本不在線上，落到 `authMiddleware` 的未登入 401；`openapi.json` 的 `paths` 也沒有它。這不是異常，也**不構成「路由存在」的證據**。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換。
-**第十一批**：自 `1fa88495` 後合進 main 的 api（#1246 成績日期篩選、#1263 家長目錄濾停用課程、…）與 web（#1229／#1230／#1238 掃描與列印卡、#1138 各頁接 CampusContext、#1256／#1279／#1282 A6 換版…）。
+**截線 `f656c732`**（#1302；`verify` 與各 `migrate` run 皆 success）：`deploy.yml` run `37173099756`（`DEPLOY_ENABLED` 由使用者開、計畫席 dispatch 帶 `target_sha`；11:06–11:08 台北，plan／deploy-api／deploy-web／verify-live 四個 job 全 success）。api version `f3e98d37-8fc1-47f9-a4f3-556b9f163e11`（run log 的 `Current Version ID`）、web `main-FLI6EFRO.js`（CI 發，`bfb04c14.clessia.pages.dev`；與本席 07:35 本機 build 同 hash，本席**沒有**再本機 `pages deploy`）。
+含：自 `1fa88495` 後合進 main 的 api（#1225／#1241／#1252 等保留類、#1246、#1263、#1281…）與 web（#1229／#1230／#1238、#1138 各頁接 CampusContext、grades／courses／sessions A6 換版…）。
+**⓪**：窗口 `1fa88495..f656c732` 無新 migration（`git log … -- supabase/migrations` 空；上一批的 `20261003122743`／`20261003124241` 已套）。**限度**：這只回答「窗口內有沒有」，正式 DB 實際套到哪一支仍是宣告值。
+**部署驗證**（本席 11:1x 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-FLI6EFRO.js`＝本機 build＝CI 輸出；本機 175 個 js 檔中 174 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 者 0 個；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 299260 bytes）139 條路徑，含 `/api/public/catalog`、`/api/sessions/batch-reschedule`、`/api/billing-periods/upcoming-unbilled`、`/api/me/meals`、`/api/me/renewal-preview`、`/api/scores/students`；`/api/public/enrollment-applications` 不在（#1247 未合，預期）。`/api/public/catalog` 回 404（`PUBLIC_ORG_SLUG` 正式環境沒設 → fail-closed，預期）。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換；CI 的 verify-live 另有一道 BUILT／BEFORE 比對（BUILT `main-FLI6EFRO.js`、BEFORE `main-2WJRY3S4.js`）。
+**第十二批**：之後合進 main 的；#1247／#1216／#1303 三支 migration（公開申請兩張表、`classes.is_recommended`、`schedule_changes.batch_id`）屬 schema 類，**要先在 `prod-db` Approve 套完才能部署 api**（新 api 會 select 這些欄）。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
