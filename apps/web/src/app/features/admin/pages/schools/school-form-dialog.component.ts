@@ -30,7 +30,6 @@ export interface SchoolFormDialogData {
   standalone: true,
   imports: [FormsModule, InputTextModule, ButtonModule, CheckboxModule],
   templateUrl: './school-form-dialog.component.html',
-  styleUrl: './school-form-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SchoolFormDialogComponent {

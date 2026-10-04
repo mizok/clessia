@@ -1,4 +1,4 @@
-<div class="schools-page">
+<div class="flex flex-col gap-4">
   <!--
     **不用麵包屑**（#728）：這一頁是 `/admin/settings` tab 殼底下的一個 tab，
     而殼自己已經畫了 `<h1>系統設定</h1>` + tab 列 —— 再放一條
@@ -8,25 +8,36 @@
     標題用 `<h2>` 不是 `<h1>`：**殼擁有這個頁面的 h1**。
     樣式與另外三個 tab 相同（`--text-2xl` / bold），所以畫面不會不一樣。
   -->
-  <header class="schools-page__header">
-    <div class="schools-page__title-group">
-      <h2 class="schools-page__title">學校管理</h2>
-      <p class="schools-page__subtitle">管理學生就讀的學校清單，供學生資料填寫時選用</p>
+  <header
+    class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
+  >
+    <div class="flex flex-col gap-1">
+      <h2 class="schools-page__title m-0 text-lg font-semibold text-zinc-900">學校管理</h2>
+      <p class="m-0 text-sm text-zinc-500">管理學生就讀的學校清單，供學生資料填寫時選用</p>
     </div>
   </header>
 
-  <div class="schools-page__toolbar">
+  <div class="flex flex-wrap items-center gap-3">
     <input
       pInputText
       placeholder="搜尋學校名稱..."
       [ngModel]="search()"
       (ngModelChange)="onSearch($event)"
     />
-    <button pButton icon="pi pi-plus" label="新增學校" size="small" (click)="openCreate()"></button>
+    <button
+      pButton
+      class="min-h-11"
+      icon="pi pi-plus"
+      label="新增學校"
+      size="small"
+      (click)="openCreate()"
+    ></button>
   </div>
 
   @if (loading()) {
-    <div class="schools-page__loading"><i class="pi pi-spinner pi-spin"></i> 載入中…</div>
+    <div class="flex items-center gap-2 p-8 text-zinc-500">
+      <i class="pi pi-spinner pi-spin"></i> 載入中…
+    </div>
   } @else if (loadFailed()) {
     <app-load-failed description="沒有讀到學校清單，可能是連線問題" (retry)="load()" />
   } @else if (schools().length === 0) {
@@ -36,7 +47,10 @@
       description="點右上角「新增學校」建立第一筆"
     />
   } @else {
-    <p-table [value]="schools()" styleClass="schools-page__table">
+    <p-table
+      [value]="schools()"
+      styleClass="overflow-hidden rounded-lg border border-zinc-200 bg-white"
+    >
       <ng-template pTemplate="header">
         <tr>
           <th>名稱</th>
@@ -63,6 +77,8 @@
               severity="secondary"
               size="small"
               text
+              class="size-11"
+              aria-label="編輯學校"
               (click)="openEdit(school)"
             ></button>
             <button
@@ -71,6 +87,8 @@
               severity="danger"
               size="small"
               text
+              class="size-11"
+              aria-label="刪除學校"
               (click)="onDelete(school)"
             ></button>
           </td>

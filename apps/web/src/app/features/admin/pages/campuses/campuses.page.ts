@@ -78,7 +78,6 @@ import {
   ],
   providers: [MessageService, DialogService],
   templateUrl: './campuses.page.html',
-  styleUrl: './campuses.page.scss',
 })
 export class CampusesPage implements OnInit {
   /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——

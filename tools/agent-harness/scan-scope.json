@@ -74,6 +74,7 @@
   "tailwind-a11y": {
     "roots": [
       "apps/web/src/app/features/admin/pages/applications",
+      "apps/web/src/app/features/admin/pages/campuses",
       "apps/web/src/app/features/admin/pages/changes",
       "apps/web/src/app/features/admin/pages/checkin",
       "apps/web/src/app/features/admin/pages/courses",
@@ -84,9 +85,12 @@
       "apps/web/src/app/features/admin/pages/notifications",
       "apps/web/src/app/features/admin/pages/parents",
       "apps/web/src/app/features/admin/pages/payments",
+      "apps/web/src/app/features/admin/pages/schools",
       "apps/web/src/app/features/admin/pages/sessions",
+      "apps/web/src/app/features/admin/pages/settings",
       "apps/web/src/app/features/admin/pages/staff",
       "apps/web/src/app/features/admin/pages/students",
+      "apps/web/src/app/features/admin/pages/subjects",
       "apps/web/src/app/features/kiosk",
       "apps/web/src/app/shared/components/campus-scope-note",
       "apps/web/src/app/shared/components/checkin-station",

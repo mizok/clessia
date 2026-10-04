@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterOutlet, NavigationEnd } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { TabsModule } from 'primeng/tabs';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 
@@ -25,9 +26,8 @@ interface SettingsTab {
 @Component({
   selector: 'app-settings-shell',
   standalone: true,
-  imports: [RouterOutlet, TabsModule],
+  imports: [RouterOutlet, TabsModule, PageOpenComponent],
   templateUrl: './settings-shell.page.html',
-  styleUrl: './settings-shell.page.scss',
 })
 export class SettingsShellPage {
   readonly page = input.required<RouteObj>();

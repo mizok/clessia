@@ -20,7 +20,6 @@ import { AuthService } from '@core/auth.service';
   standalone: true,
   imports: [CommonModule, FormsModule, ButtonModule, InputTextModule, TextareaModule],
   templateUrl: './campus-form-dialog.component.html',
-  styleUrl: './campus-form-dialog.component.scss',
 })
 export class CampusFormDialogComponent {
   private readonly campusesService = inject(CampusesService);
