@@ -4,6 +4,13 @@ import type { AppEnv } from '../../index';
 import { isOpenClass, takenSeats, type Row } from '../../lib/catalog-class';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
+import {
+  ApplicantFields,
+  ApplicationErrorSchema as ErrorSchema,
+  EMAIL_OR_PHONE_REQUIRED,
+  hasContact,
+  insertApplication,
+} from './application-common';
 
 /**
  * 公開報名送出（#1123，免登入）。`specs/public/enrollment.md`。
@@ -18,37 +25,14 @@ import { DbUuidSchema } from '../../lib/validation';
  * 防濫用（Turnstile／rate limit／honeypot）在 #1126；正式環境 `PUBLIC_ORG_SLUG` 沒設之前這支是關著的。
  */
 
-const GRADES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'] as const;
-
-/** 台灣手機：去掉空白與連字號後是 09 開頭 10 碼 */
-const MobileSchema = z
-  .string()
-  .transform((v) => v.replace(/[\s-]/g, ''))
-  .pipe(z.string().regex(/^09\d{8}$/, '手機號碼格式不正確'));
-
-const text = (max: number) => z.string().trim().min(1).max(max);
-
 const CreateApplicationSchema = z
   .object({
-    parent: z.object({
-      name: text(50),
-      email: z.string().trim().email().max(254).optional(),
-      phone: MobileSchema.optional(),
-      relation: z.enum(['father', 'mother', 'other']),
-    }),
-    student: z.object({
-      name: text(50),
-      grade: z.enum(GRADES),
-      school: text(100),
-    }),
+    ...ApplicantFields,
     classIds: z.array(DbUuidSchema).min(1).max(10),
     preferredStartDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
-    note: z.string().trim().max(500).optional(),
-    /** 個資同意；沒勾不收 */
-    consent: z.literal(true),
   })
   .openapi('PublicEnrollmentApplicationInput');
 
@@ -59,9 +43,6 @@ const CreatedSchema = z
     waitlistClassIds: z.array(DbUuidSchema),
   })
   .openapi('PublicEnrollmentApplicationCreated');
-const ErrorSchema = z
-  .object({ error: z.string(), code: z.string() })
-  .openapi('PublicApplicationError');
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -92,9 +73,7 @@ app.openapi(
     const body = c.req.valid('json');
     const failed = () => c.json({ error: '送出失敗，請稍後再試', code: 'SUBMIT_FAILED' }, 500);
 
-    if (!body.parent.email && !body.parent.phone) {
-      return c.json({ error: 'Email 或手機號碼至少填一個', code: 'EMAIL_OR_PHONE_REQUIRED' }, 400);
-    }
+    if (!hasContact(body)) return c.json(EMAIL_OR_PHONE_REQUIRED, 400);
 
     const classIds = [...new Set(body.classIds)];
     const today = getCurrentTaipeiDateString();
@@ -122,43 +101,15 @@ app.openapi(
     const isFull = (cid: string) =>
       (taken.get(cid) ?? 0) >= (open.get(cid)!['max_students'] as number);
 
-    const { data: created, error: insertError } = await supabase
-      .from('public_applications')
-      .insert({
-        org_id: orgId,
-        kind: 'enrollment',
-        parent_name: body.parent.name,
-        parent_email: body.parent.email ?? null,
-        parent_phone: body.parent.phone ?? null,
-        parent_relation: body.parent.relation,
-        student_name: body.student.name,
-        student_grade: body.student.grade,
-        student_school: body.student.school,
-        preferred_start_date: body.preferredStartDate ?? null,
-        note: body.note || null,
-        consented_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
-    if (insertError || !created) return failed();
-    const applicationId = (created as { id: string }).id;
-
-    const { error: targetsError } = await supabase.from('public_application_targets').insert(
-      classIds.map((cid) => ({
-        application_id: applicationId,
-        class_id: cid,
-        is_waitlist: isFull(cid),
-      })),
+    const applicationId = await insertApplication(
+      supabase,
+      orgId,
+      'enrollment',
+      body,
+      { preferred_start_date: body.preferredStartDate ?? null },
+      classIds.map((cid) => ({ class_id: cid, is_waitlist: isFull(cid) })),
     );
-    if (targetsError) {
-      // 沒有班的申請沒有用 —— 把主列收回，讓對方重送（targets 會跟著 CASCADE）
-      await supabase
-        .from('public_applications')
-        .delete()
-        .eq('id', applicationId)
-        .eq('org_id', orgId);
-      return failed();
-    }
+    if (!applicationId) return failed();
 
     return c.json({ id: applicationId, waitlistClassIds: classIds.filter(isFull) }, 201);
   },

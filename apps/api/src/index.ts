@@ -22,6 +22,7 @@ import billingPeriodsRoute from './routes/billing-periods';
 import feeTemplatesRoute from './routes/fee-templates';
 import publicCatalogRoute from './routes/public/catalog';
 import publicEnrollmentApplicationsRoute from './routes/public/enrollment-applications';
+import publicTrialApplicationsRoute from './routes/public/trial-applications';
 import { publicOrgMiddleware } from './lib/public-org';
 import invoicesRoute from './routes/invoices';
 import sessionPacksRoute from './routes/session-packs';
@@ -271,6 +272,7 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 app.use('/api/public/*', publicOrgMiddleware);
 app.route('/api/public/catalog', publicCatalogRoute);
 app.route('/api/public/enrollment-applications', publicEnrollmentApplicationsRoute);
+app.route('/api/public/trial-applications', publicTrialApplicationsRoute);
 
 app.use('/api/*', authMiddleware);
 
