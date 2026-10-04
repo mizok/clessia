@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-04 13:3x(CI,deploy.yml run 37180286848,migrate→deploy 自動觸發) | `b209b094` | `main-IXFKIL6L.js`(CI 發) | `979cddc0` | 窗口 `218ab2db..b209b094` 一支 migration:`20261004031232` billing_reminder_days〔#1307〕由 migrate.yml run 37174039440 apply 綠已套(計畫席讀日誌「Applying 20261004031232_billing_reminder_days」);含 #1251(公開試聽) | CI(接任計畫席讀回 apply、本席讀 deploy run 驗) |
 | 2026-10-04 11:1x(CI,deploy.yml run 37173546196,migrate→deploy 自動觸發) | `218ab2db` | `main-UMWDEOMQ.js`(CI 發) | `2222fa70` | 窗口 `f656c732..218ab2db` 三支 migration(`20261003172458` 公開申請兩表〔#1247〕、`20261003172959` is_recommended〔#1216〕、`20261003232218` batch_id〔#1303〕)由 migrate.yml run 37173410979 apply 綠已套(TARGET_SHA `218ab2db`);**不含 #1251(`3ebe93fe`,在截線之後合進 main)** | CI(計畫席讀回 apply、本席讀 deploy run 驗) |
 | 2026-10-04 11:0x(**首次 CI 部署**,deploy.yml run 37173099756) | `f656c732` | `main-FLI6EFRO.js`(CI 發,與本席 07:35 本機 build 同 hash) | `f3e98d37` | 窗口 `1fa88495..f656c732` 無新 migration(`20261003122743`／`20261003124241` 已於上一批套上) | CI(deploy.yml;使用者開 `DEPLOY_ENABLED`、計畫席 dispatch;本席讀 run 驗) |
 | 2026-10-04 06:3x | `1fa88495` | `main-2WJRY3S4.js`(有重發) | `5210641e` | `20261003122743`／`20261003124241`(#1212／#1219)皆 apply 綠已套;窗口內無其他 migration | labor-reviewer(api 由使用者親跑、web 由本席) |
