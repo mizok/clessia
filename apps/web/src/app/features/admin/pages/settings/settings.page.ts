@@ -31,7 +31,6 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
   ],
   providers: [MessageService],
   templateUrl: './settings.page.html',
-  styleUrl: './settings.page.scss',
 })
 export class SettingsPage implements OnInit {
   readonly page = input.required<RouteObj>();

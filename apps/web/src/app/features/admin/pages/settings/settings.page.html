@@ -1,12 +1,14 @@
 <p-toast appendTo="body" />
 
-<div class="settings-page">
-  <div class="settings-page__header">
-    <h2 class="settings-page__title">{{ page().label }}</h2>
+<div class="flex flex-col gap-4">
+  <div
+    class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
+  >
+    <h2 class="m-0 text-lg font-semibold text-zinc-900">{{ page().label }}</h2>
   </div>
 
   @if (loading()) {
-    <div class="settings-page__section">
+    <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
       <p-skeleton height="2rem" styleClass="mb-2" />
       <p-skeleton height="3rem" />
     </div>
@@ -18,20 +20,20 @@
     -->
     <app-load-failed description="沒有讀到系統設定，可能是連線問題" (retry)="loadSettings()" />
   } @else {
-    <div class="settings-page__section">
-      <h3 class="settings-page__section-title">出勤紀錄模式</h3>
-      <p class="settings-page__section-desc">
+    <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
+      <h3 class="m-0 mb-2 text-base font-semibold text-zinc-800">出勤紀錄模式</h3>
+      <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
         <strong>隨堂點名</strong>：老師在每堂課結束後逐一標記學生出席狀態。<br />
         <strong>日到班</strong>：學生抵達分校打卡後，系統自動勾選當天所有課堂為出席。
       </p>
-      <div class="settings-page__control">
+      <div class="flex flex-col items-stretch gap-4 md:flex-row md:items-center">
         <p-selectbutton
           [options]="attendanceModeOptions"
           [(ngModel)]="attendanceModeValue"
           optionLabel="label"
           optionValue="value"
         />
-        <span class="settings-page__divider" aria-hidden="true"></span>
+        <span class="h-px w-full bg-zinc-200 md:h-6 md:w-px" aria-hidden="true"></span>
         <p-button
           label="儲存"
           icon="pi pi-check"
@@ -41,14 +43,16 @@
       </div>
     </div>
 
-    <div class="settings-page__section">
-      <h3 id="settings-responsible-title" class="settings-page__section-title">誰負責點名</h3>
-      <p class="settings-page__section-desc">
+    <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
+      <h3 id="settings-responsible-title" class="m-0 mb-2 text-base font-semibold text-zinc-800">
+        誰負責點名
+      </h3>
+      <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
         <strong>行政負責</strong
         >：由行政人員點名。老師端只看得到自己課堂的名單與到／假／缺，不能點名或修改。<br />
         <strong>老師負責</strong>：老師端出現點名、教務日誌、聯絡簿，可在補登期限內修改。
       </p>
-      <div class="settings-page__control">
+      <div class="flex flex-col items-stretch gap-4 md:flex-row md:items-center">
         <p-selectbutton
           [options]="attendanceResponsibleOptions"
           [(ngModel)]="attendanceResponsibleValue"
@@ -56,7 +60,7 @@
           optionValue="value"
           ariaLabelledBy="settings-responsible-title"
         />
-        <span class="settings-page__divider" aria-hidden="true"></span>
+        <span class="h-px w-full bg-zinc-200 md:h-6 md:w-px" aria-hidden="true"></span>
         <p-button
           label="儲存"
           icon="pi pi-check"
@@ -72,11 +76,14 @@
     -->
     <!-- #1305：財務設定，同帳戶資訊 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
     @if (settings()?.billingReminderDays !== undefined) {
-      <div class="settings-page__section">
-        <h3 id="settings-billing-reminder-title" class="settings-page__section-title">
+      <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
+        <h3
+          id="settings-billing-reminder-title"
+          class="m-0 mb-2 text-base font-semibold text-zinc-800"
+        >
           待開單提醒
         </h3>
-        <p class="settings-page__section-desc">
+        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
           期的開始日前這麼多天，儀表板的「待開單」就會列出還沒開單的期（1–90 天）。
         </p>
         <p-inputnumber
@@ -86,7 +93,7 @@
           suffix=" 天"
           ariaLabelledBy="settings-billing-reminder-title"
         />
-        <div class="settings-page__actions">
+        <div class="mt-3 flex justify-end">
           <p-button
             label="儲存"
             icon="pi pi-check"
@@ -98,23 +105,23 @@
     }
 
     @if (settings()?.paymentInfo !== undefined) {
-      <div class="settings-page__section">
-        <h3 id="settings-payment-info-title" class="settings-page__section-title">
+      <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
+        <h3 id="settings-payment-info-title" class="m-0 mb-2 text-base font-semibold text-zinc-800">
           家長付款帳戶資訊
         </h3>
-        <p class="settings-page__section-desc">
+        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
           家長在「繳費」頁看到待付款帳單時會看到這段文字（例如銀行代碼、帳號、戶名、匯款後怎麼通知）。
           分校可以在分校設定另外填寫，沒填的分校沿用這裡。留白＝家長看到「請洽補習班行政人員」。
         </p>
         <textarea
           pTextarea
-          class="settings-page__textarea"
+          class="w-full resize-y"
           rows="5"
           maxlength="1000"
           aria-labelledby="settings-payment-info-title"
           [(ngModel)]="paymentInfoValue"
         ></textarea>
-        <div class="settings-page__actions">
+        <div class="mt-3 flex justify-end">
           <p-button
             label="儲存"
             icon="pi pi-check"

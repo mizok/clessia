@@ -1,11 +1,13 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="campuses">
+<div class="flex flex-col gap-4">
   <!-- Page Header -->
-  <header class="campuses__header">
-    <div class="campuses__title-group">
-      <h1 class="campuses__title">分校管理</h1>
-      <p class="campuses__subtitle">管理您的補習班分校資訊</p>
+  <header
+    class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
+  >
+    <div class="flex flex-col gap-1">
+      <h1 class="m-0 text-lg font-semibold text-zinc-900">分校管理</h1>
+      <p class="m-0 text-sm text-zinc-500">管理您的補習班分校資訊</p>
     </div>
     <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
       <p-button
@@ -18,11 +20,10 @@
     </app-page-actions>
   </header>
 
-  <!-- Main Card -->
-  <div class="campuses__card">
+  <div class="flex flex-col gap-4">
     <!-- Toolbar with Search -->
-    <div class="campuses__toolbar clessia-filter-bar">
-      <div class="campuses__search clessia-filter-search">
+    <div class="clessia-filter-bar flex flex-wrap items-center gap-3">
+      <div class="clessia-filter-search w-full min-w-0 wide:w-80">
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
@@ -49,24 +50,30 @@
 
     <!-- Stats Summary -->
     @if (!loading() && campuses().length > 0) {
-      <div class="campuses__stats">
-        <div class="campuses__stat">
-          <span class="campuses__stat-value">{{ summary().total }}</span>
-          <span class="campuses__stat-label">個分校</span>
+      <div class="flex flex-wrap gap-4 rounded-lg bg-zinc-50 px-4 py-3 wide:gap-6 wide:px-6">
+        <div class="flex items-center gap-2">
+          <span class="campuses__stat-value text-lg font-bold text-zinc-900">{{
+            summary().total
+          }}</span>
+          <span class="text-sm text-zinc-500">個分校</span>
         </div>
-        <div class="campuses__stat">
-          <span class="campuses__stat-value">{{ activeCampusCount() }}</span>
-          <span class="campuses__stat-label">啟用中</span>
+        <div class="flex items-center gap-2">
+          <span class="campuses__stat-value text-lg font-bold text-zinc-900">{{
+            activeCampusCount()
+          }}</span>
+          <span class="text-sm text-zinc-500">啟用中</span>
         </div>
-        <div class="campuses__stat">
-          <span class="campuses__stat-value">{{ inactiveCampusCount() }}</span>
-          <span class="campuses__stat-label">已停用</span>
+        <div class="flex items-center gap-2">
+          <span class="campuses__stat-value text-lg font-bold text-zinc-900">{{
+            inactiveCampusCount()
+          }}</span>
+          <span class="text-sm text-zinc-500">已停用</span>
         </div>
       </div>
     }
 
     <!-- Content Area -->
-    <div class="campuses__content">
+    <div>
       @if (loading()) {
         <!-- Skeleton Loading -->
         <div class="skeleton-list">
@@ -134,8 +141,10 @@
           @for (campus of campuses(); track campus.id) {
             <tr appRtRow [appRtRow]="campus" [appRtRowId]="campus.id">
               <td appRtColCell="name">
-                <div class="campus-table__name">
-                  <span class="campus-table__icon">
+                <div class="flex items-center gap-2 font-semibold text-zinc-900">
+                  <span
+                    class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent-50 text-sm text-accent-600"
+                  >
                     <i class="pi pi-building"></i>
                   </span>
                   <span>{{ campus.name }}</span>
@@ -143,18 +152,21 @@
               </td>
               <td appRtColCell="address">
                 @if (campus.address) {
-                  <span class="campus-table__address">{{ campus.address }}</span>
+                  <span class="text-sm text-zinc-600">{{ campus.address }}</span>
                 } @else {
-                  <span class="campus-table__empty">未填寫</span>
+                  <span class="text-sm text-zinc-500 italic">未填寫</span>
                 }
               </td>
               <td appRtColCell="phone">
                 @if (campus.phone) {
-                  <a [href]="'tel:' + campus.phone" class="campus-table__phone-link">
+                  <a
+                    [href]="'tel:' + campus.phone"
+                    class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
+                  >
                     {{ campus.phone }}
                   </a>
                 } @else {
-                  <span class="campus-table__empty">未填寫</span>
+                  <span class="text-sm text-zinc-500 italic">未填寫</span>
                 }
               </td>
               <td appRtColCell="status">

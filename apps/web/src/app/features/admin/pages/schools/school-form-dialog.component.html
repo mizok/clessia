@@ -5,12 +5,17 @@
         mode() === 'create' ? '新增學校' : '編輯學校'
       }}</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="close()"
+      aria-label="關閉"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
 
-  <div class="school-form">
+  <div class="flex flex-col gap-4">
     <div class="form-dialog__field">
       <label class="form-dialog__label">學校全名<span class="form-dialog__required">*</span></label>
       <input
@@ -31,7 +36,7 @@
       />
     </div>
 
-    <label class="school-form__field school-form__field--inline">
+    <label class="flex flex-row items-center gap-2">
       <p-checkbox
         [ngModel]="isActive()"
         (ngModelChange)="isActive.set($event)"
@@ -44,6 +49,7 @@
     <div class="form-dialog__footer">
       <button
         pButton
+        class="min-h-11"
         label="取消"
         severity="secondary"
         size="small"
@@ -52,6 +58,7 @@
       ></button>
       <button
         pButton
+        class="min-h-11"
         label="儲存"
         size="small"
         [disabled]="!canSubmit()"

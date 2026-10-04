@@ -5,7 +5,6 @@ import { SubjectManagerComponent } from '@shared/components/subject-manager/subj
   selector: 'app-subjects-page',
   imports: [SubjectManagerComponent],
   templateUrl: './subjects.page.html',
-  styleUrl: './subjects.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SubjectsPage {}

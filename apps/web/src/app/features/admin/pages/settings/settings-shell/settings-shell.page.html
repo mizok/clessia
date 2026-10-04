@@ -1,7 +1,10 @@
-<div class="settings-shell">
-  <!-- 這頁原本直接從 tabs 開始，沒有頁標——全站唯一（Tester #15） -->
-  <h1 class="settings-shell__title">{{ page().label }}</h1>
+<app-page-open>
+  <ng-container openTitle
+    ><span class="settings-shell__title">{{ page().label }}</span></ng-container
+  >
+</app-page-open>
 
+<div class="page-wrap pt-4">
   <p-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
     <p-tablist>
       @for (tab of tabs; track tab.value) {
@@ -9,8 +12,8 @@
       }
     </p-tablist>
   </p-tabs>
+</div>
 
-  <div class="settings-shell__body">
-    <router-outlet />
-  </div>
+<div class="page-wrap pt-6 pb-12 wide:pt-8">
+  <router-outlet />
 </div>

@@ -39,7 +39,6 @@ import { StatusDotComponent } from '@shared/components/status/status-dot/status-
   ],
   providers: [MessageService, ConfirmationService, DialogService],
   templateUrl: './schools.page.html',
-  styleUrl: './schools.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SchoolsPage implements OnInit {

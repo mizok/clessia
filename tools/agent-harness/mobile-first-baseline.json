@@ -1,6 +1,4 @@
 [
-  "apps/web/src/app/features/admin/pages/campuses/campuses.page.scss",
-  "apps/web/src/app/features/admin/pages/schools/schools.page.scss",
   "apps/web/src/app/features/public/public-shell.component.scss",
   "apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss",
   "apps/web/src/styles.scss"
