@@ -1,18 +1,18 @@
-<div class="admin-notifications">
-  <header class="admin-notifications__header">
-    <h1 class="admin-notifications__title">{{ page().label }}</h1>
-    <p class="admin-notifications__subtitle">
-      發布站內公告給老師或家長。公告會出現在對方的通知頁，並顯示未讀數。
-    </p>
-  </header>
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>
+    發布站內公告給老師或家長。公告會出現在對方的通知頁，並顯示未讀數。
+  </ng-container>
+</app-page-open>
 
-  <section class="admin-notifications__composer">
-    <h2 class="admin-notifications__section-title">發布新公告</h2>
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+  <section class="admin-notifications__composer flex flex-col items-stretch gap-3">
+    <h2 class="mt-0 mb-3 text-lg font-semibold">發布新公告</h2>
 
-    <label class="admin-notifications__field">
-      <span class="admin-notifications__label">標題</span>
+    <label class="flex min-w-0 flex-1 flex-col gap-1">
+      <span class="text-sm text-zinc-500">標題</span>
       <input
-        class="admin-notifications__input"
+        class="admin-notifications__input w-full rounded-md border border-[var(--surface-border)] px-3 py-2 [font:inherit]"
         type="text"
         maxlength="200"
         [ngModel]="title()"
@@ -20,14 +20,16 @@
         [class.p-invalid]="!!errors()['title']"
       />
       @if (errors()['title']; as msg) {
-        <span class="admin-notifications__error-text">{{ msg }}</span>
+        <span class="admin-notifications__error-text mt-1 block text-xs text-error-600">{{
+          msg
+        }}</span>
       }
     </label>
 
-    <label class="admin-notifications__field">
-      <span class="admin-notifications__label">內容</span>
+    <label class="flex min-w-0 flex-1 flex-col gap-1">
+      <span class="text-sm text-zinc-500">內容</span>
       <textarea
-        class="admin-notifications__textarea"
+        class="w-full resize-y rounded-md border border-[var(--surface-border)] px-3 py-2 [font:inherit]"
         rows="5"
         maxlength="5000"
         [ngModel]="body()"
@@ -35,13 +37,15 @@
         [class.p-invalid]="!!errors()['body']"
       ></textarea>
       @if (errors()['body']; as msg) {
-        <span class="admin-notifications__error-text">{{ msg }}</span>
+        <span class="admin-notifications__error-text mt-1 block text-xs text-error-600">{{
+          msg
+        }}</span>
       }
     </label>
 
-    <div class="admin-notifications__row">
-      <label class="admin-notifications__field">
-        <span class="admin-notifications__label">發送對象</span>
+    <div class="flex w-full flex-wrap gap-4">
+      <label class="flex min-w-0 flex-1 flex-col gap-1">
+        <span class="text-sm text-zinc-500">發送對象</span>
         <p-select
           [options]="audienceOptions"
           [ngModel]="audience()"
@@ -51,8 +55,8 @@
         />
       </label>
 
-      <label class="admin-notifications__field">
-        <span class="admin-notifications__label">分校範圍</span>
+      <label class="flex min-w-0 flex-1 flex-col gap-1">
+        <span class="text-sm text-zinc-500">分校範圍</span>
         <p-select
           [options]="campusOptions()"
           [ngModel]="campusId()"
@@ -64,7 +68,7 @@
     </div>
 
     @if (submitError()) {
-      <p class="admin-notifications__error">{{ submitError() }}</p>
+      <p class="m-0 text-error-600">{{ submitError() }}</p>
     }
 
     <!--
@@ -79,8 +83,8 @@
     />
   </section>
 
-  <section class="admin-notifications__history">
-    <h2 class="admin-notifications__section-title">已發布</h2>
+  <section>
+    <h2 class="mt-0 mb-3 text-lg font-semibold">已發布</h2>
 
     @if (loading()) {
       <div class="skeleton-list" aria-label="已發布公告載入中">
@@ -89,17 +93,17 @@
         }
       </div>
     } @else if (loadError()) {
-      <p class="admin-notifications__state admin-notifications__state--error">
-        查詢失敗，請稍後再試。
-      </p>
+      <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
     } @else if (announcements().length === 0) {
-      <p class="admin-notifications__state">還沒有發布過公告。</p>
+      <p class="m-0 text-zinc-500">還沒有發布過公告。</p>
     } @else {
-      <ul class="admin-notifications__list">
+      <ul class="m-0 flex list-none flex-col p-0">
         @for (item of announcements(); track item.id) {
-          <li class="admin-notifications__item">
-            <span class="admin-notifications__item-title">{{ item.title }}</span>
-            <span class="admin-notifications__meta">
+          <li
+            class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--surface-border)] px-2 py-3"
+          >
+            <span class="font-medium">{{ item.title }}</span>
+            <span class="text-sm text-zinc-500">
               {{ item.publishedAt | date: 'yyyy-MM-dd HH:mm' }}
               · {{ AUDIENCE_LABELS[item.audience] }} · {{ item.campusName ?? '全部分校' }}
             </span>

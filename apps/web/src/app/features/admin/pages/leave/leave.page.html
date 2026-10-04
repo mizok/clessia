@@ -1,21 +1,16 @@
 <p-toast appendTo="body" />
 <p-confirmdialog />
 
-<div class="leave-page">
-  <div class="leave-page__header">
-    <h2 class="leave-page__title">{{ page().label }}</h2>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-      <p-button
-        label="操作紀錄"
-        icon="pi pi-history"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openAuditLog()"
-      />
-    </app-page-actions>
-  </div>
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+</app-page-open>
 
-  <div class="leave-page__filters clessia-filter-bar">
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選請假紀錄"
+  >
     <p-datepicker
       [(ngModel)]="filterDateRange"
       selectionMode="range"
@@ -30,8 +25,22 @@
       [firstDayOfWeek]="1"
     />
     <p-button size="small" severity="secondary" (onClick)="onFilterChange()"> 重置篩選 </p-button>
-  </div>
 
+    <div class="wide:ml-auto">
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+        <p-button
+          label="操作紀錄"
+          icon="pi pi-history"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="openAuditLog()"
+        />
+      </app-page-actions>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   <app-responsive-table
     [headTemplate]="headTpl"
     [bodyTemplate]="bodyTpl"
@@ -69,13 +78,13 @@
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <tr>
           <td class="responsive-table__cell" colspan="7">
-            <div class="leave-page__skeleton-bar"></div>
+            <div class="h-5 animate-pulse rounded-sm bg-zinc-100"></div>
           </td>
         </tr>
       }
     } @else if (records().length === 0) {
       <tr>
-        <td class="responsive-table__cell leave-page__empty" colspan="7">
+        <td class="responsive-table__cell py-8 text-center text-zinc-500" colspan="7">
           沒有請假紀錄
           <app-campus-scope-note />
         </td>
@@ -85,18 +94,18 @@
         <tr appRtRow [appRtRow]="record" [appRtRowId]="record.id">
           <td appRtColCell="studentName">{{ record.studentName }}</td>
           <td appRtColCell="startDate">
-            <div class="leave-page__date-cell">
+            <div class="flex flex-col gap-0.5">
               <span>{{ record.startDate }}</span>
               @if (record.startTime) {
-                <span class="leave-page__date-time">{{ record.startTime }}</span>
+                <span class="text-xs text-zinc-500">{{ record.startTime }}</span>
               }
             </div>
           </td>
           <td appRtColCell="endDate">
-            <div class="leave-page__date-cell">
+            <div class="flex flex-col gap-0.5">
               <span>{{ record.endDate }}</span>
               @if (record.endTime) {
-                <span class="leave-page__date-time">{{ record.endTime }}</span>
+                <span class="text-xs text-zinc-500">{{ record.endTime }}</span>
               }
             </div>
           </td>
@@ -121,6 +130,7 @@
               [text]="true"
               size="small"
               pTooltip="取消請假"
+              ariaLabel="取消請假"
               (onClick)="confirmDelete(record)"
             />
           </td>

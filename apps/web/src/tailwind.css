@@ -45,6 +45,8 @@
 @source './app/features/admin/pages/parents';
 @source './app/features/admin/pages/payments';
 @source './app/features/admin/pages/grades';
+@source './app/features/admin/pages/leave';
+@source './app/features/admin/pages/notifications';
 @source './app/features/admin/pages/sessions';
 @source './app/features/admin/pages/students';
 @source './app/features/admin/pages/checkin';
