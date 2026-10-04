@@ -480,10 +480,13 @@ app.openapi(updateRoute, async (c) => {
           .eq('id', userId)
           .maybeSingle();
 
-        // 為每堂課建立 schedule_change 紀錄
+        // 為每堂課建立 schedule_change 紀錄（整門課一次停用 = 一批，#1195；同班級停用）
+        const batchId = crypto.randomUUID();
         const changeRecords = sessionIds.map((sessionId) => ({
           org_id: orgId,
           session_id: sessionId,
+          operation_source: 'batch',
+          batch_id: batchId,
           change_type: 'cancellation',
           reason: '課程停用',
           created_by_name: profile?.display_name ?? null,
