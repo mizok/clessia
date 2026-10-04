@@ -63,6 +63,20 @@
       />
     </div>
 
+    <!-- 推薦加選（#1118）：家長目錄排最前、畫推薦標籤 -->
+    <div class="form-dialog__field form-dialog__field--inline">
+      <label class="form-dialog__label" for="class-recommended">家長端推薦加選</label>
+      <div class="form-dialog__switch-row">
+        <p-toggleswitch
+          inputId="class-recommended"
+          [ngModel]="isRecommended()"
+          (ngModelChange)="isRecommended.set($event)"
+          [disabled]="loading()"
+        />
+        <span class="form-dialog__switch-label">{{ isRecommended() ? '推薦' : '不推薦' }}</span>
+      </div>
+    </div>
+
     <!-- 目錄參考價（#1175，要 manage_finance） -->
     @if (canSetFee) {
       <div class="form-dialog__field">
