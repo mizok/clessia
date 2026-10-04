@@ -33,6 +33,7 @@ import type {
 import { ContactBookEntryDialogComponent } from '@shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component';
 import { dateRangeOf, signedSummary } from './contact-book.util';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
@@ -72,10 +73,10 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     RtColCellDirective,
     RtRowDirective,
     FilterChipComponent,
+    PageOpenComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './contact-book.page.html',
-  styleUrl: './contact-book.page.scss',
 })
 export class ContactBookPage implements OnInit {
   readonly page = input.required<RouteObj>();

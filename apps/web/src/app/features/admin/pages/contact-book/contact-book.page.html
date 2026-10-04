@@ -1,80 +1,18 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="contact-book">
-  <header class="contact-book__header">
-    <div class="contact-book__title-group">
-      <h1 class="contact-book__title">{{ page().label }}</h1>
-      <p class="contact-book__subtitle">
-        看老師寫了什麼、家長簽了沒。撰寫在老師端 —— 這裡可以修正已經寫好的內容。
-      </p>
-    </div>
-  </header>
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>
+    看老師寫了什麼、家長簽了沒。撰寫在老師端 —— 這裡可以修正已經寫好的內容。
+  </ng-container>
+</app-page-open>
 
-  <!-- ── 當日待辦：這天該寫但還沒寫 ─────────────────────────────────── -->
-  <section class="contact-book__missing">
-    <div class="contact-book__missing-header">
-      <h2 class="contact-book__missing-title">還沒寫的</h2>
-      <p-datepicker
-        dateFormat="yy-mm-dd"
-        [showIcon]="true"
-        [ngModel]="missingDate"
-        (ngModelChange)="onMissingDateChange($event)"
-        ariaLabel="缺漏名單的日期"
-      />
-    </div>
-
-    @if (missingLoading()) {
-      <div class="skeleton-list" aria-label="缺漏名單載入中">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
-    } @else if (missingFailed()) {
-      <p class="contact-book__missing-note">
-        缺漏名單讀不到。
-        <p-button label="重試" [text]="true" size="small" (onClick)="loadMissing()" />
-      </p>
-    } @else if (missing().length === 0) {
-      <p class="contact-book__missing-note contact-book__missing-note--done">
-        <i class="pi pi-check-circle"></i>
-        這天該寫的都寫了。
-      </p>
-    } @else {
-      <p class="contact-book__missing-note">
-        <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。 只有「有課的班」才算 ——
-        當天沒課或停課的班不列入。
-      </p>
-      <ul class="contact-book__missing-list">
-        @for (target of visibleMissing(); track target.studentId) {
-          <li class="contact-book__missing-item">
-            <span class="contact-book__missing-student">{{ target.studentName }}</span>
-            <span class="contact-book__missing-classes">{{ classNamesOf(target) }}</span>
-            <p-button
-              label="補寫"
-              icon="pi pi-pencil"
-              [text]="true"
-              size="small"
-              [ariaLabel]="'補寫 ' + target.studentName + ' 的聯絡簿'"
-              (onClick)="writeMissing(target)"
-            />
-          </li>
-        }
-      </ul>
-
-      @if (hiddenMissingCount() > 0 || missingExpanded()) {
-        <p-button
-          [label]="missingExpanded() ? '收合' : '還有 ' + hiddenMissingCount() + ' 位，全部展開'"
-          [icon]="missingExpanded() ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="toggleMissingExpanded()"
-        />
-      }
-    }
-  </section>
-
-  <div class="contact-book__toolbar clessia-filter-bar">
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選聯絡簿"
+  >
     <p-datepicker
       class="clessia-filter-control clessia-filter-control--date-range"
       selectionMode="range"
@@ -86,7 +24,7 @@
       (ngModelChange)="onDateRangeChange($event)"
       ariaLabel="日期區間"
     />
-    <div class="contact-book__search clessia-filter-search">
+    <div class="clessia-filter-search flex-[1_1_240px]">
       <app-student-autocomplete
         [value]="student()"
         (valueChange)="onStudentChange($event)"
@@ -112,16 +50,84 @@
       />
     }
   </div>
+</div>
+
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+  <!-- ── 當日待辦：這天該寫但還沒寫 ─────────────────────────────────── -->
+  <section class="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="m-0 text-sm font-semibold text-zinc-700">還沒寫的</h2>
+      <p-datepicker
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [ngModel]="missingDate"
+        (ngModelChange)="onMissingDateChange($event)"
+        ariaLabel="缺漏名單的日期"
+      />
+    </div>
+
+    @if (missingLoading()) {
+      <div class="skeleton-list" aria-label="缺漏名單載入中">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (missingFailed()) {
+      <p class="m-0 text-sm text-zinc-600">
+        缺漏名單讀不到。
+        <p-button label="重試" [text]="true" size="small" (onClick)="loadMissing()" />
+      </p>
+    } @else if (missing().length === 0) {
+      <p class="m-0 flex items-center gap-2 text-sm text-success-600">
+        <i class="pi pi-check-circle"></i>
+        這天該寫的都寫了。
+      </p>
+    } @else {
+      <p class="m-0 text-sm text-zinc-600">
+        <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。 只有「有課的班」才算 ——
+        當天沒課或停課的班不列入。
+      </p>
+      <ul class="m-0 flex list-none flex-col gap-1 p-0">
+        @for (target of visibleMissing(); track target.studentId) {
+          <li
+            class="flex min-h-11 items-center gap-3 border-b border-zinc-200 py-2 last:border-b-0"
+          >
+            <span class="flex-none font-medium text-zinc-900">{{ target.studentName }}</span>
+            <span class="flex-auto text-sm text-zinc-500">{{ classNamesOf(target) }}</span>
+            <p-button
+              label="補寫"
+              icon="pi pi-pencil"
+              [text]="true"
+              size="small"
+              [ariaLabel]="'補寫 ' + target.studentName + ' 的聯絡簿'"
+              (onClick)="writeMissing(target)"
+            />
+          </li>
+        }
+      </ul>
+
+      @if (hiddenMissingCount() > 0 || missingExpanded()) {
+        <p-button
+          [label]="missingExpanded() ? '收合' : '還有 ' + hiddenMissingCount() + ' 位，全部展開'"
+          [icon]="missingExpanded() ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="toggleMissingExpanded()"
+        />
+      }
+    }
+  </section>
 
   @if (!loading() && !failed() && summary().total > 0) {
-    <p class="contact-book__summary">
+    <p class="m-0 rounded-lg bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
       這段期間共 <strong>{{ summary().total }}</strong> 則，
-      <strong class="contact-book__summary-unsigned">{{ summary().unsigned }}</strong>
+      <strong class="text-warning-600">{{ summary().unsigned }}</strong>
       則家長還沒簽收。
     </p>
   }
 
-  <div class="contact-book__content">
+  <div class="flex flex-col">
     @if (loading()) {
       <div class="skeleton-list">
         @for (i of [1, 2, 3, 4, 5]; track i) {
@@ -205,7 +211,7 @@
             appRtRow
             [appRtRow]="entry"
             [appRtRowId]="entry.id"
-            class="contact-book__row"
+            class="min-h-11 cursor-pointer hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500"
             tabindex="0"
             role="button"
             [attr.aria-label]="
@@ -216,16 +222,16 @@
             (keydown.space)="openEntry(entry)"
           >
             <td appRtColCell="date">
-              <span class="contact-book__date">{{ entry.entryDate }}</span>
+              <span class="text-zinc-600 tabular-nums">{{ entry.entryDate }}</span>
             </td>
             <td appRtColCell="student">
-              <span class="contact-book__student">{{ entry.studentName ?? '未知學生' }}</span>
+              <span class="font-medium text-zinc-900">{{ entry.studentName ?? '未知學生' }}</span>
             </td>
             <td appRtColCell="content">
-              <span class="contact-book__content-preview">{{ entry.content }}</span>
+              <span class="line-clamp-1 text-zinc-600">{{ entry.content }}</span>
             </td>
             <td appRtColCell="editor">
-              <span class="contact-book__editor">{{ entry.lastEditedByName ?? '—' }}</span>
+              <span class="text-sm text-zinc-500">{{ entry.lastEditedByName ?? '—' }}</span>
             </td>
             <td appRtColCell="signed">
               @if (entry.isSigned) {
