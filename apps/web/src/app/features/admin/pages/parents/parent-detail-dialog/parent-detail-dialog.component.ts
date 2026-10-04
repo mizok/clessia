@@ -46,7 +46,6 @@ interface ConflictPrompt {
   imports: [AutoCompleteModule, FormsModule, ButtonModule, SkeletonModule, InlineNoticeComponent],
   providers: [DialogService],
   templateUrl: './parent-detail-dialog.component.html',
-  styleUrl: './parent-detail-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ParentDetailDialogComponent implements OnInit {

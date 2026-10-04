@@ -1,192 +1,227 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="parents">
-  <!-- Page Header -->
-  <header class="parents__header">
-    <div class="parents__title-group">
-      <h1 class="parents__title">{{ page().label }}</h1>
-      <p class="parents__subtitle">管理家長帳號、關聯學生及帳號狀態</p>
+<!--
+  A6 版（#991）：色面 → 灰工具列（搜尋、狀態、新增、匯入）→ 統計列 → 家長表格。
+  換版不換資料：A6 稿的「依狀態分章」要全量資料（列表是伺服器分頁），其餘差異列後續項（#1314 PA1–PA8）。
+-->
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>管理家長帳號、關聯學生及帳號狀態</ng-container>
+</app-page-open>
+
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選家長"
+  >
+    <div class="clessia-filter-search w-full min-w-0 wide:w-80">
+      <p-iconfield iconPosition="left">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          type="text"
+          pInputText
+          placeholder="搜尋姓名、Email、手機..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="onSearchChange($event)"
+          class="clessia-filter-search-input"
+        />
+      </p-iconfield>
     </div>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-      <p-button
-        label="匯入"
-        icon="pi pi-upload"
-        severity="secondary"
-        (onClick)="openImportDialog()"
+
+    <div class="w-full wide:w-auto">
+      <p-select
+        [options]="statusOptions"
+        [ngModel]="selectedStatus()"
+        (ngModelChange)="onStatusChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        size="small"
+        placeholder="啟用＋停用（不含封存）"
+        [fluid]="true"
+        styleClass="clessia-filter-control"
       />
-    </app-page-actions>
-  </header>
-
-  <!-- Main Card -->
-  <div class="parents__card">
-    <!-- Toolbar -->
-    <div class="parents__toolbar clessia-filter-bar">
-      <div class="parents__search clessia-filter-search">
-        <p-iconfield iconPosition="left">
-          <p-inputicon styleClass="pi pi-search" />
-          <input
-            type="text"
-            pInputText
-            placeholder="搜尋姓名、Email、手機..."
-            [ngModel]="searchQuery()"
-            (ngModelChange)="onSearchChange($event)"
-            class="clessia-filter-search-input"
-          />
-        </p-iconfield>
-      </div>
-
-      <div class="parents__status-filter">
-        <p-select
-          [options]="statusOptions"
-          [ngModel]="selectedStatus()"
-          (ngModelChange)="onStatusChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          size="small"
-          placeholder="啟用＋停用（不含封存）"
-          [fluid]="true"
-          styleClass="parents__status-select clessia-filter-control"
-        />
-      </div>
     </div>
 
-    <!-- Stats Summary -->
-    @if (!loading() && parents().length > 0) {
-      <div class="parents__stats">
-        <div class="parents__stat">
-          <span class="parents__stat-value">{{ summary().total }}</span>
-          <span class="parents__stat-label">位家長</span>
-        </div>
-        <div class="parents__stat">
-          <span class="parents__stat-value">{{ activeCount() }}</span>
-          <span class="parents__stat-label">啟用中</span>
-        </div>
-        @if (inactiveCount() > 0) {
-          <div class="parents__stat">
-            <span class="parents__stat-value">{{ inactiveCount() }}</span>
-            <span class="parents__stat-label">已停用</span>
-          </div>
-        }
-      </div>
-    }
-
-    <!-- Content Area -->
-    <div class="parents__content">
-      @if (loading()) {
-        <div class="skeleton-list">
-          @for (i of [1, 2, 3, 4, 5]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-      } @else if (loadFailed()) {
-        <app-load-failed description="沒有讀到家長資料，可能是連線問題" (retry)="loadParents()" />
-      } @else if (parents().length === 0) {
-        @if (searchQuery() || selectedStatus()) {
-          <app-empty-state
-            icon="pi pi-search"
-            title="找不到符合的家長"
-            description="請嘗試調整搜尋條件或狀態篩選"
-          >
-            <p-button
-              label="清除篩選"
-              [text]="true"
-              severity="secondary"
-              (onClick)="onSearchChange(''); onStatusChange(null)"
-            />
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-users"
-            title="尚未有家長資料"
-            description="點選「新增家長」來建立第一位家長帳號"
-          >
-            <p-button label="新增家長" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-          </app-empty-state>
-        }
-      } @else {
-        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-        <app-responsive-table
-          [headTemplate]="headTpl"
-          [bodyTemplate]="bodyTpl"
-          [pagination]="pagination()"
-          (page)="onPage($event)"
+    <div class="wide:ml-auto">
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+        <p-button
+          label="匯入"
+          icon="pi pi-upload"
+          severity="secondary"
+          (onClick)="openImportDialog()"
         />
-
-        <ng-template #headTpl>
-          <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
-            <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">手機</th>
-            <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">Email</th>
-            <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
-              關聯學生
-            </th>
-            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
-            <th
-              appRtColDef="actions"
-              [appRtColDefMinWidth]="56"
-              [appRtColDefPriority]="0"
-              [appRtColDefCollapsible]="false"
-              aria-hidden="true"
-            ></th>
-          </tr>
-        </ng-template>
-
-        <ng-template #bodyTpl>
-          @for (parent of parents(); track parent.id) {
-            <tr appRtRow [appRtRow]="parent" [appRtRowId]="parent.id" class="parent-table__row">
-              <td appRtColCell="name">
-                <div class="parent-table__name-cell">
-                  <span class="parent-table__avatar" [style.--h]="getPersonHue(parent.id)">{{
-                    parent.name[0]
-                  }}</span>
-                  <span class="parent-table__name">{{ parent.name }}</span>
-                </div>
-              </td>
-              <td appRtColCell="phone">
-                @if (parent.phone) {
-                  <span class="parent-table__account-item">{{ parent.phone }}</span>
-                } @else {
-                  <span class="parent-table__empty">—</span>
-                }
-              </td>
-              <td appRtColCell="email">
-                @if (parent.email) {
-                  <span class="parent-table__account-item">{{ parent.email }}</span>
-                } @else {
-                  <span class="parent-table__empty">—</span>
-                }
-              </td>
-              <td appRtColCell="students">
-                @if (parent.studentCount > 0) {
-                  <span class="parent-table__students">
-                    @for (name of parent.studentNames; track name) {
-                      <span class="parent-table__student-tag">{{ name }}</span>
-                    }
-                  </span>
-                } @else {
-                  <span class="parent-table__empty">無關聯</span>
-                }
-              </td>
-              <td appRtColCell="status">
-                <app-status-dot [tone]="statusTone(parent.status)">{{
-                  getStatusLabel(parent.status)
-                }}</app-status-dot>
-              </td>
-              <td class="responsive-table__cell" style="text-align: center">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [rounded]="true"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="parent.name + ' 的操作'"
-                  (onClick)="openActionMenu($event, parent)"
-                />
-              </td>
-            </tr>
-          }
-        </ng-template>
-      }
+      </app-page-actions>
     </div>
   </div>
+</div>
+
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+  <!-- Stats Summary -->
+  @if (!loading() && parents().length > 0) {
+    <div class="flex gap-4 rounded-lg bg-zinc-50 px-4 py-3 wide:gap-0 wide:px-6">
+      <div class="flex flex-col gap-0.5 py-2 pr-5 wide:pr-5">
+        <span class="text-[1.375rem] leading-none font-bold text-zinc-900 tabular-nums">{{
+          summary().total
+        }}</span>
+        <span class="text-xs font-medium tracking-[0.05em] text-zinc-500 uppercase">位家長</span>
+      </div>
+      <div class="flex flex-col gap-0.5 border-l border-zinc-200 px-5 py-2">
+        <span class="text-[1.375rem] leading-none font-bold text-zinc-900 tabular-nums">{{
+          activeCount()
+        }}</span>
+        <span class="text-xs font-medium tracking-[0.05em] text-zinc-500 uppercase">啟用中</span>
+      </div>
+      @if (inactiveCount() > 0) {
+        <div class="flex flex-col gap-0.5 border-l border-zinc-200 px-5 py-2">
+          <span class="text-[1.375rem] leading-none font-bold text-zinc-900 tabular-nums">{{
+            inactiveCount()
+          }}</span>
+          <span class="text-xs font-medium tracking-[0.05em] text-zinc-500 uppercase">已停用</span>
+        </div>
+      }
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="skeleton-list">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到家長資料，可能是連線問題" (retry)="loadParents()" />
+  } @else if (parents().length === 0) {
+    @if (searchQuery() || selectedStatus()) {
+      <app-empty-state
+        icon="pi pi-search"
+        title="找不到符合的家長"
+        description="請嘗試調整搜尋條件或狀態篩選"
+      >
+        <p-button
+          label="清除篩選"
+          [text]="true"
+          severity="secondary"
+          (onClick)="onSearchChange(''); onStatusChange(null)"
+        />
+      </app-empty-state>
+    } @else {
+      <app-empty-state
+        icon="pi pi-users"
+        title="尚未有家長資料"
+        description="點選「新增家長」來建立第一位家長帳號"
+      >
+        <p-button label="新增家長" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+      </app-empty-state>
+    }
+  } @else {
+    <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+
+    <app-responsive-table
+      [headTemplate]="headTpl"
+      [bodyTemplate]="bodyTpl"
+      [pagination]="pagination()"
+      (page)="onPage($event)"
+    />
+
+    @if (selectedStatus() !== 'archived' && summary().archivedCount > 0) {
+      <p class="m-0 text-sm text-zinc-600">
+        另有 {{ summary().archivedCount }} 位已封存 ·
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm font-semibold text-accent-700 underline underline-offset-2"
+          (click)="onStatusChange('archived')"
+        >
+          顯示
+        </button>
+      </p>
+    }
+
+    <ng-template #headTpl>
+      <tr>
+        <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
+        <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">手機</th>
+        <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">Email</th>
+        <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
+          關聯學生
+        </th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
+        <th
+          appRtColDef="actions"
+          [appRtColDefMinWidth]="56"
+          [appRtColDefPriority]="0"
+          [appRtColDefCollapsible]="false"
+          aria-hidden="true"
+        ></th>
+      </tr>
+    </ng-template>
+
+    <ng-template #bodyTpl>
+      @for (parent of parents(); track parent.id) {
+        <tr
+          appRtRow
+          [appRtRow]="parent"
+          [appRtRowId]="parent.id"
+          class="group/row border-l-[3px] border-transparent transition-colors hover:border-accent-400 hover:bg-zinc-50"
+        >
+          <td appRtColCell="name">
+            <div class="flex items-center gap-2">
+              <span
+                class="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_2px_5px_-1px_hsl(var(--h,210)_31%_36%/0.22)] select-none"
+                [style.--h]="getPersonHue(parent.id)"
+                >{{ parent.name[0] }}</span
+              >
+              <span
+                class="min-w-0 truncate font-semibold text-zinc-900 group-hover/row:text-accent-600"
+                >{{ parent.name }}</span
+              >
+            </div>
+          </td>
+          <td appRtColCell="phone">
+            @if (parent.phone) {
+              <span class="text-[0.8125rem] text-zinc-600">{{ parent.phone }}</span>
+            } @else {
+              <span class="text-sm text-zinc-500 italic">—</span>
+            }
+          </td>
+          <td appRtColCell="email">
+            @if (parent.email) {
+              <span class="text-[0.8125rem] text-zinc-600">{{ parent.email }}</span>
+            } @else {
+              <span class="text-sm text-zinc-500 italic">—</span>
+            }
+          </td>
+          <td appRtColCell="students">
+            @if (parent.studentCount > 0) {
+              <span class="flex flex-wrap gap-1">
+                @for (name of parent.studentNames; track name) {
+                  <span
+                    class="inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-zinc-700"
+                    >{{ name }}</span
+                  >
+                }
+              </span>
+            } @else {
+              <span class="text-sm text-zinc-500 italic">無關聯</span>
+            }
+          </td>
+          <td appRtColCell="status">
+            <app-status-dot [tone]="statusTone(parent.status)">{{
+              getStatusLabel(parent.status)
+            }}</app-status-dot>
+          </td>
+          <td class="responsive-table__cell" style="text-align: center">
+            <p-button
+              icon="pi pi-ellipsis-v"
+              [rounded]="true"
+              [text]="true"
+              severity="secondary"
+              [ariaLabel]="parent.name + ' 的操作'"
+              (onClick)="openActionMenu($event, parent)"
+            />
+          </td>
+        </tr>
+      }
+    </ng-template>
+  }
 </div>

@@ -55,6 +55,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
 import { loginLinkErrorDetail } from '@shared/utils/login-link-error.util';
@@ -68,6 +69,7 @@ import {
   standalone: true,
   imports: [
     PageActionsComponent,
+    PageOpenComponent,
     StatusDotComponent,
     FormsModule,
     ButtonModule,
@@ -88,7 +90,6 @@ import {
   ],
   providers: [MessageService, DialogService],
   templateUrl: './parents.page.html',
-  styleUrl: './parents.page.scss',
 })
 export class ParentsPage implements OnInit {
   /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——

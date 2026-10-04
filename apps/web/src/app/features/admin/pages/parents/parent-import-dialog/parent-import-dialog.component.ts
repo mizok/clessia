@@ -71,7 +71,6 @@ interface ParsedRow {
   standalone: true,
   imports: [CommonModule, ButtonModule, TableModule, TagModule, ProgressSpinnerModule],
   templateUrl: './parent-import-dialog.component.html',
-  styleUrl: './parent-import-dialog.component.scss',
 })
 export class ParentImportDialogComponent {
   /** `parseExcelFile` 動態載入後存下來，供 `toBirthdayString` 讀 Excel 的日期序列值 */
