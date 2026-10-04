@@ -1,24 +1,29 @@
-<div class="teaching-log">
-  <header class="teaching-log__header">
+<div class="flex flex-col gap-4">
+  <header class="flex justify-end">
     <p-select
       [options]="monthOptions"
       [ngModel]="month()"
       (ngModelChange)="onMonthChange($event)"
       optionLabel="label"
       optionValue="value"
-      styleClass="teaching-log__month"
     />
   </header>
 
   @if (loading()) {
-    <section class="teaching-log__summary" aria-label="教學紀錄載入中">
-      <div class="teaching-log__metric">
-        <span class="teaching-log__metric-skeleton p-skeleton" aria-hidden="true"></span>
-        <span class="teaching-log__metric-label">小時</span>
+    <section class="flex flex-wrap items-center gap-4" aria-label="教學紀錄載入中">
+      <div class="flex items-baseline gap-1">
+        <span
+          class="teaching-log__metric-skeleton p-skeleton inline-block h-[2.625rem] w-[2.5ch] rounded-sm"
+          aria-hidden="true"
+        ></span>
+        <span class="text-muted">小時</span>
       </div>
-      <div class="teaching-log__metric">
-        <span class="teaching-log__metric-skeleton p-skeleton" aria-hidden="true"></span>
-        <span class="teaching-log__metric-label">堂</span>
+      <div class="flex items-baseline gap-1">
+        <span
+          class="teaching-log__metric-skeleton p-skeleton inline-block h-[2.625rem] w-[2.5ch] rounded-sm"
+          aria-hidden="true"
+        ></span>
+        <span class="text-muted">堂</span>
       </div>
     </section>
     <div class="skeleton-list">
@@ -27,16 +32,16 @@
       }
     </div>
   } @else if (loadError()) {
-    <p class="teaching-log__state teaching-log__state--error">課堂查詢失敗，請稍後再試。</p>
+    <p class="m-0 text-error-600">課堂查詢失敗，請稍後再試。</p>
   } @else {
-    <section class="teaching-log__summary">
-      <div class="teaching-log__metric">
-        <span class="teaching-log__metric-value">{{ summary().totalHours }}</span>
-        <span class="teaching-log__metric-label">小時</span>
+    <section class="flex flex-wrap items-center gap-4">
+      <div class="flex items-baseline gap-1">
+        <span class="text-[1.75rem] font-semibold">{{ summary().totalHours }}</span>
+        <span class="text-muted">小時</span>
       </div>
-      <div class="teaching-log__metric">
-        <span class="teaching-log__metric-value">{{ summary().countedSessions }}</span>
-        <span class="teaching-log__metric-label">堂</span>
+      <div class="flex items-baseline gap-1">
+        <span class="text-[1.75rem] font-semibold">{{ summary().countedSessions }}</span>
+        <span class="text-muted">堂</span>
       </div>
       @if (summary().missingAttendance.length > 0) {
         <p-tag severity="warn" [value]="summary().missingAttendance.length + ' 堂沒有點名紀錄'" />
@@ -90,13 +95,13 @@
         }
       </ng-template>
     } @else {
-      <p class="teaching-log__state">這個月沒有課堂紀錄。</p>
+      <p class="m-0 text-muted">這個月沒有課堂紀錄。</p>
     }
 
     @if (summary().cancelled.length > 0) {
-      <section class="teaching-log__section">
-        <h3 class="teaching-log__section-title">停課（不計入時數）</h3>
-        <ul class="teaching-log__list">
+      <section>
+        <h3 class="m-0 mb-2 text-[0.9rem] font-semibold">停課（不計入時數）</h3>
+        <ul class="m-0 flex flex-col gap-1 pl-4 text-muted">
           @for (row of summary().cancelled; track row.id) {
             <li>
               {{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }}
@@ -107,15 +112,15 @@
     }
 
     @if (substitutedAway().length > 0) {
-      <section class="teaching-log__section">
-        <h3 class="teaching-log__section-title">被代課（不計入時數）</h3>
-        <ul class="teaching-log__list">
+      <section>
+        <h3 class="m-0 mb-2 text-[0.9rem] font-semibold">被代課（不計入時數）</h3>
+        <ul class="m-0 flex flex-col gap-1 pl-4 text-muted">
           @for (row of substitutedAway(); track row.changeId) {
             <li>
               {{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }} → 由
               {{ row.substituteTeacherName ?? '未指定' }} 代課
               @if (row.reason) {
-                <span class="teaching-log__reason">（{{ row.reason }}）</span>
+                <span class="italic">（{{ row.reason }}）</span>
               }
             </li>
           }
@@ -128,7 +133,7 @@
     刻意放在所有資料分支**外面**（#727）：這是唯讀檢視，沒有「做到一半不能走」的狀態，
     而載入很慢或載不出來**正是使用者最想離開的時候**。
   -->
-  <footer class="teaching-log__footer">
+  <footer class="flex justify-end gap-2">
     <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
   </footer>
 </div>

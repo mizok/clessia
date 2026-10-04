@@ -44,7 +44,6 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
     TagModule,
   ],
   templateUrl: './teaching-log-dialog.component.html',
-  styleUrl: './teaching-log-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TeachingLogDialogComponent {

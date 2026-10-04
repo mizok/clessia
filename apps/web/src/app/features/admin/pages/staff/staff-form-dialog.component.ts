@@ -69,7 +69,6 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
     CheckboxModule,
   ],
   templateUrl: './staff-form-dialog.component.html',
-  styleUrl: './staff-form-dialog.component.scss',
 })
 export class StaffFormDialogComponent {
   private readonly staffService = inject(StaffService);

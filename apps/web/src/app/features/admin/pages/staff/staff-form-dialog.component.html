@@ -3,11 +3,16 @@
     <div class="dialog-header-inline__content">
       <span class="dialog-header-inline__title">{{ isEditing() ? '編輯人員' : '新增人員' }}</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="Close"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
-  <div class="form-grid">
+  <div class="grid grid-cols-1 gap-4 min-[641px]:grid-cols-2">
     <!-- Name -->
     <div class="form-dialog__field">
       <label class="form-dialog__label"> 姓名<span class="form-dialog__required">*</span> </label>
@@ -22,7 +27,7 @@
         class="w-full"
       />
       @if (errors()['displayName']; as msg) {
-        <span class="staff-form-dialog__error-text">{{ msg }}</span>
+        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
       }
     </div>
 
@@ -40,7 +45,7 @@
         class="w-full"
       />
       @if (errors()['email']; as msg) {
-        <span class="staff-form-dialog__error-text">{{ msg }}</span>
+        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
       }
     </div>
 
@@ -77,9 +82,9 @@
   <!-- Role Selection -->
   <div class="form-dialog__field">
     <label class="form-dialog__label">角色<span class="form-dialog__required">*</span></label>
-    <div class="role-checkboxes">
+    <div class="flex flex-wrap gap-4 rounded-md bg-zinc-50 p-3">
       @for (role of roleOptions; track role.value) {
-        <div class="role-checkboxes__item">
+        <div class="flex items-center gap-2">
           <p-checkbox
             [inputId]="'role_' + role.value"
             [name]="'role'"
@@ -93,7 +98,7 @@
       }
     </div>
     @if (errors()['roles']; as msg) {
-      <span class="staff-form-dialog__error-text">{{ msg }}</span>
+      <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
     }
   </div>
 
@@ -111,7 +116,7 @@
       display="chip"
     />
     @if (errors()['campusIds']; as msg) {
-      <span class="staff-form-dialog__error-text">{{ msg }}</span>
+      <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
     }
   </div>
 
@@ -142,7 +147,7 @@
         display="chip"
       />
       @if (errors()['subjectIds']; as msg) {
-        <span class="staff-form-dialog__error-text">{{ msg }}</span>
+        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
       }
     </div>
   }
@@ -151,9 +156,11 @@
   @if (isAdminRole()) {
     <div class="form-dialog__field">
       <label class="form-dialog__label">管理權限</label>
-      <div class="permission-grid">
+      <div class="grid grid-cols-1 gap-3 rounded-md bg-zinc-50 p-3 min-[641px]:grid-cols-2">
         @for (opt of permissionOptions; track opt.value) {
-          <div class="permission-item">
+          <div
+            class="permission-item flex cursor-pointer items-start gap-3 pointer-coarse:min-h-11"
+          >
             <p-checkbox
               [binary]="true"
               [inputId]="'perm_' + opt.value"
@@ -161,11 +168,14 @@
               (onChange)="togglePermission(opt.value, $event.checked)"
               [disabled]="loading()"
             />
-            <div class="permission-item__text">
-              <label [for]="'perm_' + opt.value" class="permission-item__label">
+            <div class="flex flex-col gap-0.5">
+              <label
+                [for]="'perm_' + opt.value"
+                class="permission-item__label cursor-pointer text-sm font-medium text-zinc-800 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+              >
                 {{ opt.label }}
               </label>
-              <p class="permission-item__desc">{{ opt.description }}</p>
+              <p class="permission-item__desc m-0 text-xs text-zinc-500">{{ opt.description }}</p>
             </div>
           </div>
         }

@@ -1,270 +1,293 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="staff">
-  <!-- Page Header -->
-  <header class="staff__header">
-    <div class="staff__title-group">
-      <h1 class="staff__title">人員管理</h1>
-      <p class="staff__subtitle">管理管理員、老師帳號與分校門口的掃碼機台</p>
+<!--
+  A6 版（#991）：色面 → 灰工具列（搜尋、篩選、新增）→ 人員表格。
+  換版不換資料：A6 稿的「依角色分章」要全量資料（列表是伺服器分頁），其餘差異列後續項（#1314 ST1–ST8）。
+  統計列（總數、管理員・老師、啟用中）照留：A6 把數字搬進色面副行，但 spec 以 `.staff__stat-*` 讀它，這支 PR 不動行為。
+-->
+<app-page-open>
+  <ng-container openTitle>人員管理</ng-container>
+  <ng-container openSub>管理管理員、老師帳號與分校門口的掃碼機台</ng-container>
+</app-page-open>
+
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選人員"
+  >
+    <div class="clessia-filter-search w-full min-w-0 wide:w-80">
+      <p-iconField iconPosition="left">
+        <p-inputIcon styleClass="pi pi-search" />
+        <input
+          type="text"
+          pInputText
+          placeholder="搜尋姓名或 Email..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="onSearchChange($event)"
+          class="clessia-filter-search-input"
+        />
+      </p-iconField>
     </div>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-      <p-button
-        label="新增掃碼機台"
-        icon="pi pi-qrcode"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openKioskDialog()"
-        data-testid="staff-add-kiosk"
+    <div class="clessia-filter-group flex flex-wrap gap-3">
+      <p-select
+        [options]="roleOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="角色篩選"
+        [ngModel]="roleFilter()"
+        (ngModelChange)="onRoleFilterChange($event)"
+        size="small"
+        [showClear]="true"
+        [appendTo]="'body'"
+        styleClass="min-w-30 flex-[1_1_120px] clessia-filter-control"
       />
-      <p-button
-        label="操作紀錄"
-        icon="pi pi-history"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openAuditLog()"
+      <p-select
+        [options]="subjectOptions()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="科目篩選"
+        [ngModel]="subjectFilter()"
+        (ngModelChange)="onSubjectFilterChange($event)"
+        size="small"
+        [showClear]="true"
+        [appendTo]="'body'"
+        styleClass="min-w-30 flex-[1_1_120px] clessia-filter-control"
       />
-    </app-page-actions>
-  </header>
-
-  <!-- Main Card -->
-  <div class="staff__card">
-    <!-- Toolbar with Search and Filters -->
-    <div class="staff__toolbar clessia-filter-bar">
-      <div class="staff__search clessia-filter-search">
-        <p-iconField iconPosition="left">
-          <p-inputIcon styleClass="pi pi-search" />
-          <input
-            type="text"
-            pInputText
-            placeholder="搜尋姓名或 Email..."
-            [ngModel]="searchQuery()"
-            (ngModelChange)="onSearchChange($event)"
-            class="clessia-filter-search-input"
-          />
-        </p-iconField>
-      </div>
-      <div class="staff__filters clessia-filter-group">
-        <p-select
-          [options]="roleOptions"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="角色篩選"
-          [ngModel]="roleFilter()"
-          (ngModelChange)="onRoleFilterChange($event)"
-          size="small"
-          [showClear]="true"
-          [appendTo]="'body'"
-          styleClass="staff__filter-select clessia-filter-control"
-        />
-        <p-select
-          [options]="subjectOptions()"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="科目篩選"
-          [ngModel]="subjectFilter()"
-          (ngModelChange)="onSubjectFilterChange($event)"
-          size="small"
-          [showClear]="true"
-          [appendTo]="'body'"
-          styleClass="staff__filter-select clessia-filter-control"
-        />
-        <p-select
-          [options]="staffStatusOptions"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="全部狀態"
-          [ngModel]="staffStatusFilter()"
-          (ngModelChange)="onStaffStatusFilterChange($event)"
-          size="small"
-          [showClear]="true"
-          [appendTo]="'body'"
-          styleClass="staff__filter-select clessia-filter-control"
-        />
-      </div>
+      <p-select
+        [options]="staffStatusOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部狀態"
+        [ngModel]="staffStatusFilter()"
+        (ngModelChange)="onStaffStatusFilterChange($event)"
+        size="small"
+        [showClear]="true"
+        [appendTo]="'body'"
+        styleClass="min-w-30 flex-[1_1_120px] clessia-filter-control"
+      />
     </div>
-
-    <!-- Stats Summary -->
-    @if (!loading() && staffList().length > 0) {
-      <div class="staff__stats">
-        <div class="staff__stat">
-          <span class="staff__stat-value">{{ summary().total }}</span>
-          <span class="staff__stat-label">位人員</span>
-        </div>
-        <!--
-          管理員與老師合併成同一塊，不是兩塊獨立的磚——分開放會讓人把它們讀成
-          「總人數的兩個子分類」，但一個人可以同時是管理員又是老師，兩邊各算
-          一次，加起來本來就會比總人數多（P1-4，Tester 抓到：13+89≠101 讓人
-          以為系統算錯）。放在同一塊 + 明寫兼任人數，讓「為什麼加起來對不上」
-          不用使用者自己算。
-        -->
-        <div class="staff__stat staff__stat--roles">
-          <span class="staff__stat-value">{{ adminCount() }}</span>
-          <span class="staff__stat-label">管理員</span>
-          <span class="staff__stat-sep">・</span>
-          <span class="staff__stat-value">{{ teacherCount() }}</span>
-          <span class="staff__stat-label">老師</span>
-          @if (multiRoleCount() > 0) {
-            <span class="staff__stat-note">（{{ multiRoleCount() }} 位身兼兩者）</span>
-          }
-        </div>
-        <div class="staff__stat">
-          <span class="staff__stat-value">{{ activeCount() }}</span>
-          <span class="staff__stat-label">啟用中</span>
-        </div>
-      </div>
-    }
-
-    <!-- Content Area -->
-    <div class="staff__content">
-      @if (loading()) {
-        <!-- Skeleton Loading -->
-        <div class="skeleton-list">
-          @for (i of [1, 2, 3, 4, 5]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-      } @else if (loadFailed()) {
-        <app-load-failed description="沒有讀到人員資料，可能是連線問題" (retry)="loadStaff()" />
-      } @else if (staffList().length === 0) {
-        <!-- Empty State -->
-        @if (
-          searchQuery() || roleFilter() || campusFilter() || subjectFilter() || staffStatusFilter()
-        ) {
-          <app-empty-state
-            icon="pi pi-search"
-            title="找不到符合的人員"
-            campusScoped
-            description="沒有找到符合篩選條件的人員，請嘗試其他條件"
-          >
-            <p-button
-              label="清除篩選"
-              [text]="true"
-              severity="secondary"
-              (onClick)="clearFilters()"
-            />
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-users"
-            title="尚未建立人員"
-            campusScoped
-            description="開始建立管理員或老師帳號"
-          >
-            <p-button label="新增人員" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-          </app-empty-state>
-        }
-      } @else {
-        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-        <app-responsive-table
-          [headTemplate]="headTpl"
-          [bodyTemplate]="bodyTpl"
-          [pagination]="pagination()"
-          (page)="onPage($event)"
+    <div class="wide:ml-auto">
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+        <p-button
+          label="新增掃碼機台"
+          icon="pi pi-qrcode"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="openKioskDialog()"
+          data-testid="staff-add-kiosk"
         />
-
-        <ng-template #headTpl>
-          <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="180" [appRtColDefPriority]="1">姓名</th>
-            <th appRtColDef="role" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">角色</th>
-            <th appRtColDef="subjects" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">
-              教學科目
-            </th>
-            <th appRtColDef="campuses" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
-              服務分校
-            </th>
-            <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="6">電話</th>
-            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
-            <th
-              appRtColDef="actions"
-              [appRtColDefMinWidth]="56"
-              [appRtColDefPriority]="0"
-              [appRtColDefCollapsible]="false"
-              aria-hidden="true"
-            ></th>
-          </tr>
-        </ng-template>
-
-        <ng-template #bodyTpl>
-          @for (staff of staffList(); track staff.id) {
-            <tr appRtRow [appRtRow]="staff" [appRtRowId]="staff.id" class="staff-table__row">
-              <td appRtColCell="name">
-                <div class="staff-table__name">
-                  <span
-                    class="staff-table__icon"
-                    [class.staff-table__icon--admin]="staff.roles.includes('admin')"
-                    [style.--h]="getPersonHue(staff.id)"
-                    >{{ staff.displayName[0] }}</span
-                  >
-                  <div class="staff-table__name-group">
-                    <span class="staff-table__display-name">{{ staff.displayName }}</span>
-                    <span class="staff-table__email">{{ staff.email }}</span>
-                  </div>
-                </div>
-              </td>
-              <td appRtColCell="role">
-                <div class="staff-table__roles">
-                  @for (role of staff.roles; track role) {
-                    <app-data-chip>{{ getRoleLabel(role) }}</app-data-chip>
-                  }
-                </div>
-              </td>
-              <td appRtColCell="subjects">
-                @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
-                  <div class="staff-table__subjects">
-                    @for (
-                      subject of getDisplaySubjects(staff.subjectNames).visible;
-                      track subject
-                    ) {
-                      <span class="staff-table__subject-tag">{{ subject }}</span>
-                    }
-                    @if (getDisplaySubjects(staff.subjectNames).remaining > 0) {
-                      <span
-                        class="staff-table__subject-more"
-                        [pTooltip]="staff.subjectNames.join('、')"
-                        tooltipPosition="top"
-                      >
-                        +{{ getDisplaySubjects(staff.subjectNames).remaining }}
-                      </span>
-                    }
-                  </div>
-                } @else {
-                  <span class="staff-table__empty">—</span>
-                }
-              </td>
-              <td appRtColCell="campuses">
-                <span class="staff-table__campuses">{{ getCampusNames(staff.campusIds) }}</span>
-              </td>
-              <td appRtColCell="phone">
-                @if (staff.phone) {
-                  <a [href]="'tel:' + staff.phone" class="staff-table__phone-link">
-                    {{ staff.phone }}
-                  </a>
-                } @else {
-                  <span class="staff-table__empty">未填寫</span>
-                }
-              </td>
-              <td appRtColCell="status">
-                <div class="staff-table__status">
-                  <app-status-dot [tone]="staffStatusTone(staff.status)">{{
-                    getStaffStatusLabel(staff.status)
-                  }}</app-status-dot>
-                </div>
-              </td>
-              <td class="responsive-table__cell" style="text-align: center">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [rounded]="true"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="staff.displayName + ' 的操作'"
-                  (onClick)="openActionMenu($event, staff)"
-                />
-              </td>
-            </tr>
-          }
-        </ng-template>
-      }
+        <p-button
+          label="操作紀錄"
+          icon="pi pi-history"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="openAuditLog()"
+        />
+      </app-page-actions>
     </div>
   </div>
+</div>
+
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+  <!-- Stats Summary -->
+  @if (!loading() && staffList().length > 0) {
+    <div
+      class="flex overflow-x-auto rounded-lg bg-zinc-50 px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div class="flex shrink-0 items-baseline gap-1 px-4 py-2">
+        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
+          summary().total
+        }}</span>
+        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">位人員</span>
+      </div>
+      <!--
+        管理員與老師合併成同一塊，不是兩塊獨立的磚——分開放會讓人把它們讀成
+        「總人數的兩個子分類」，但一個人可以同時是管理員又是老師，兩邊各算
+        一次，加起來本來就會比總人數多（P1-4，Tester 抓到：13+89≠101 讓人
+        以為系統算錯）。放在同一塊 + 明寫兼任人數，讓「為什麼加起來對不上」
+        不用使用者自己算。
+      -->
+      <div class="flex shrink-0 items-baseline gap-2 border-l border-zinc-200 px-4 py-2">
+        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
+          adminCount()
+        }}</span>
+        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">管理員</span>
+        <span class="text-zinc-500">・</span>
+        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
+          teacherCount()
+        }}</span>
+        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">老師</span>
+        @if (multiRoleCount() > 0) {
+          <span class="staff__stat-note text-xs whitespace-nowrap text-zinc-500"
+            >（{{ multiRoleCount() }} 位身兼兩者）</span
+          >
+        }
+      </div>
+      <div class="flex shrink-0 items-baseline gap-1 border-l border-zinc-200 px-4 py-2">
+        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
+          activeCount()
+        }}</span>
+        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">啟用中</span>
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <!-- Skeleton Loading -->
+    <div class="skeleton-list">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到人員資料，可能是連線問題" (retry)="loadStaff()" />
+  } @else if (staffList().length === 0) {
+    <!-- Empty State -->
+    @if (
+      searchQuery() || roleFilter() || campusFilter() || subjectFilter() || staffStatusFilter()
+    ) {
+      <app-empty-state
+        icon="pi pi-search"
+        title="找不到符合的人員"
+        campusScoped
+        description="沒有找到符合篩選條件的人員，請嘗試其他條件"
+      >
+        <p-button label="清除篩選" [text]="true" severity="secondary" (onClick)="clearFilters()" />
+      </app-empty-state>
+    } @else {
+      <app-empty-state
+        icon="pi pi-users"
+        title="尚未建立人員"
+        campusScoped
+        description="開始建立管理員或老師帳號"
+      >
+        <p-button label="新增人員" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+      </app-empty-state>
+    }
+  } @else {
+    <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+
+    <app-responsive-table
+      [headTemplate]="headTpl"
+      [bodyTemplate]="bodyTpl"
+      [pagination]="pagination()"
+      (page)="onPage($event)"
+    />
+
+    <ng-template #headTpl>
+      <tr>
+        <th appRtColDef="name" [appRtColDefMinWidth]="180" [appRtColDefPriority]="1">姓名</th>
+        <th appRtColDef="role" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">角色</th>
+        <th appRtColDef="subjects" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">
+          教學科目
+        </th>
+        <th appRtColDef="campuses" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
+          服務分校
+        </th>
+        <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="6">電話</th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
+        <th
+          appRtColDef="actions"
+          [appRtColDefMinWidth]="56"
+          [appRtColDefPriority]="0"
+          [appRtColDefCollapsible]="false"
+          aria-hidden="true"
+        ></th>
+      </tr>
+    </ng-template>
+
+    <ng-template #bodyTpl>
+      @for (staff of staffList(); track staff.id) {
+        <tr
+          appRtRow
+          [appRtRow]="staff"
+          [appRtRowId]="staff.id"
+          class="group/row border-l-[3px] border-transparent transition-colors hover:border-accent-400 hover:bg-zinc-50"
+        >
+          <td appRtColCell="name">
+            <div class="flex items-center gap-3">
+              <span
+                class="hidden size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_2px_5px_-1px_hsl(var(--h,210)_31%_36%/0.22)] select-none data-admin:bg-[linear-gradient(135deg,var(--accent-400),var(--accent-600))] sm:flex"
+                [attr.data-admin]="staff.roles.includes('admin') ? '' : null"
+                [style.--h]="getPersonHue(staff.id)"
+                >{{ staff.displayName[0] }}</span
+              >
+              <div class="flex min-w-0 flex-col gap-0.5">
+                <span
+                  class="min-w-0 truncate font-semibold text-zinc-900 group-hover/row:text-accent-600"
+                  >{{ staff.displayName }}</span
+                >
+                <span class="truncate text-sm text-zinc-500">{{ staff.email }}</span>
+              </div>
+            </div>
+          </td>
+          <td appRtColCell="role">
+            <div class="flex flex-nowrap gap-1 whitespace-nowrap">
+              @for (role of staff.roles; track role) {
+                <app-data-chip>{{ getRoleLabel(role) }}</app-data-chip>
+              }
+            </div>
+          </td>
+          <td appRtColCell="subjects">
+            @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
+              <div class="flex flex-wrap items-center gap-1">
+                @for (subject of getDisplaySubjects(staff.subjectNames).visible; track subject) {
+                  <span
+                    class="inline-flex items-center rounded-full bg-accent-50 px-2 py-0.5 text-xs font-medium text-accent-600"
+                    >{{ subject }}</span
+                  >
+                }
+                @if (getDisplaySubjects(staff.subjectNames).remaining > 0) {
+                  <span
+                    class="inline-flex cursor-help items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-700"
+                    [pTooltip]="staff.subjectNames.join('、')"
+                    tooltipPosition="top"
+                  >
+                    +{{ getDisplaySubjects(staff.subjectNames).remaining }}
+                  </span>
+                }
+              </div>
+            } @else {
+              <span class="text-sm text-zinc-500 italic">—</span>
+            }
+          </td>
+          <td appRtColCell="campuses">
+            <span class="block truncate text-sm text-zinc-600">{{
+              getCampusNames(staff.campusIds)
+            }}</span>
+          </td>
+          <td appRtColCell="phone">
+            @if (staff.phone) {
+              <a
+                [href]="'tel:' + staff.phone"
+                class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
+              >
+                {{ staff.phone }}
+              </a>
+            } @else {
+              <span class="text-sm text-zinc-500 italic">未填寫</span>
+            }
+          </td>
+          <td appRtColCell="status">
+            <div class="flex flex-nowrap gap-1 whitespace-nowrap">
+              <app-status-dot [tone]="staffStatusTone(staff.status)">{{
+                getStaffStatusLabel(staff.status)
+              }}</app-status-dot>
+            </div>
+          </td>
+          <td class="responsive-table__cell" style="text-align: center">
+            <p-button
+              icon="pi pi-ellipsis-v"
+              [rounded]="true"
+              [text]="true"
+              severity="secondary"
+              [ariaLabel]="staff.displayName + ' 的操作'"
+              (onClick)="openActionMenu($event, staff)"
+            />
+          </td>
+        </tr>
+      }
+    </ng-template>
+  }
 </div>

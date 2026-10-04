@@ -81,7 +81,7 @@
       "apps/web/src/app/features/admin/pages/grades",
       "apps/web/src/app/features/admin/pages/payments",
       "apps/web/src/app/features/admin/pages/sessions",
-      "apps/web/src/app/features/admin/pages/staff/kiosk-form-dialog",
+      "apps/web/src/app/features/admin/pages/staff",
       "apps/web/src/app/features/admin/pages/students",
       "apps/web/src/app/features/kiosk",
       "apps/web/src/app/shared/components/campus-scope-note",
