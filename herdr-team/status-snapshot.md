@@ -22,13 +22,13 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-04 13:3x 第十三次部署，CI，labor-reviewer-20261004-0638）
+## 🚀 線上是哪一版（2026-10-04 14:0x 第十四次部署，CI，labor-reviewer-20261004-0638）
 
-**截線 `b209b094`**（#1307；`migrate @ b209b094` apply 綠後 `deploy.yml` 自動觸發，run `37180286848`，13:34–13:36 台北，plan／deploy-api／deploy-web／verify-live 全 success）：web `main-IXFKIL6L.js`（CI 發，`e4af987d.clessia.pages.dev`）、api version `979cddc0-6a20-4886-a139-51b2e016d115`（run log 的 `Current Version ID`）。
-含：#1251（公開試聽申請 `POST /api/public/trial-applications`）、#1307（`organizations.billing_reminder_days`＋設定頁＋待開單讀設定）。
-**⓪**：窗口 `218ab2db..b209b094` 一支 migration `20261004031232_billing_reminder_days`，由 `migrate.yml` run `37174039440`（使用者 Approve）apply 綠已套，**先套完才部署**（這支的 api select 讀新欄，順序反了 `/api/org/settings` 會壞）。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
-**部署驗證**（本席 13:3x 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-IXFKIL6L.js`＝CI 輸出（verify-live BUILT／BEFORE：`main-IXFKIL6L.js`／`main-UMWDEOMQ.js`）；該 main 引用的 64 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的，不是整個 dist**）；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 304264 bytes）141 條路徑，含 `/api/public/enrollment-applications` 與 `/api/public/trial-applications`；`/api/org/settings` 未登入 401（authMiddleware，不證明新欄可讀）。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換；我沒有帶身分打 `/api/org/settings`，所以「新欄位讀得到」沒有被實測。
-**第十四批**：之後合進 main 的（#1259 審核頁、#1262 防濫用等仍在 PR）。**正式環境仍未設 `PUBLIC_ORG_SLUG`**——公開端點 fail-closed 404；兩支匿名寫入端點在 #1126（#1262）落地前不要開。
+**截線 `a51b0aa7`**（#1259；`migrate @ a51b0aa7` apply 綠後 `deploy.yml` 自動觸發，run `37181432168`，13:58–14:01 台北，plan／deploy-api／deploy-web／verify-live 全 success）：web `main-IJH372SH.js`（CI 發，`fc49b600.clessia.pages.dev`）、api version `f4dbfefa-ead7-4982-af3d-22a75992dd29`（run log 的 `Current Version ID`）。
+含：#1259（管理端公開申請審核頁 `/admin/applications`＋`/api/public-applications`，掛 `manage_students`，受限管理員依目標班／課程的分校過濾）。窗口內其餘 commit 都是 docs。
+**⓪**：窗口 `b209b094..a51b0aa7` 一支 migration `20261004054133_public_applications_admin`（`staff_note`＋`audit_logs.resource_type` 加 `public_application`），由 `migrate.yml` run `37181318442`（使用者 Approve）apply 綠已套，**先套完才部署**（新 api 會 select `staff_note`、稽核寫新 resource_type）。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
+**部署驗證**（本席 14:0x 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-IJH372SH.js`＝CI 輸出（verify-live BUILT／BEFORE：`main-IJH372SH.js`／`main-IXFKIL6L.js`）；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的，不是整個 dist**）；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 307687 bytes）143 條路徑，含 `/api/public-applications` 與 `/api/public-applications/{id}`；`/api/public-applications` 未登入 401、`/admin/applications` 200（SPA fallback，**不證明頁面存在**）。**限度**：本席沒有帶身分，所以審核頁的 GET（內嵌 select `classes(...)`／`courses(...)` 的 PostgREST 方向）與分校過濾**沒有被實測**——二讀時就標了「未驗」，到現在仍是；openapi 證不了新程式碼上線，只證明服務正常、版本已換。
+**第十五批**：之後合進 main 的（#1262 防濫用仍是 draft，base 已轉 main；**正式環境仍未設 `PUBLIC_ORG_SLUG`**，兩支匿名寫入端點在 #1126 落地前不要開）。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
