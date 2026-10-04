@@ -386,6 +386,7 @@ attendance 的三支寫入端點加上「這個 `eventId` 的班是不是我教�
 - **沒設、或對不到 → 404 `PUBLIC_DISABLED`**（fail-closed：沒準備好招生的客戶不會不小心開著）。
 - 掛在 `authMiddleware` **之前**；harness A7 對 `/api/public/*` 放行角色宣告，但要求它在那一行之前，掛錯位置會紅。
 - 讀取一律 `.eq('org_id', orgId)`（c1 照舊），公開回應不含老師名等內部資料。
+- **寫入（#1123 公開報名）只寫 `public_applications`**：不建帳號、不寫 `students`；送來的班 id 一律以部署 org 重查，別 org／不開放的班整筆 400。
 
 ## 上線順序 —— 真正的風險在這裡，不在寫法
 
