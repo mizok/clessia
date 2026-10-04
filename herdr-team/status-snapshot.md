@@ -22,14 +22,13 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-04 11:1x 第十二次部署，CI，labor-reviewer-20261004-0638）
+## 🚀 線上是哪一版（2026-10-04 13:3x 第十三次部署，CI，labor-reviewer-20261004-0638）
 
-**截線 `218ab2db`**（#1303；`migrate @ 218ab2db` success 後 `deploy.yml` 自動觸發，run `37173546196`，11:15–11:18 台北，plan／deploy-api／deploy-web／verify-live 全 success）：web `main-UMWDEOMQ.js`（CI 發，`32872d77.clessia.pages.dev`）、api version `2222fa70-30ef-4805-b616-99777c906179`（run log 的 `Current Version ID`）。
-含：#1247（公開報名送出）、#1216（班級 `is_recommended`）、#1303（`schedule_changes.batch_id`）。**不含 #1251（公開試聽申請，`3ebe93fe`）**——它在截線之後才合進 main，`merge-base --is-ancestor` 實測不在；線上目前沒有 `/api/public/trial-applications`，歸第十三批。
-**⓪**：窗口 `f656c732..218ab2db` 三支 migration（`20261003172458`／`20261003172959`／`20261003232218`）皆由 `migrate.yml` run `37173410979`（TARGET_SHA `218ab2db`，使用者 Approve）apply 綠已套。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
-**同時被觸發的另兩顆 deploy run**（`37173703347` migrate @ cc3bc0da、`37173702025` migrate @ acb98ca8）：四個 job 全 skipped——那兩顆 migrate 是被取消的 waiting（workflow_run 的 conclusion 不是 success），**沒部署任何東西**。
-**部署驗證**（本席 11:2x 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-UMWDEOMQ.js`＝CI 輸出；`openapi.json` 140 條路徑，含 `/api/public/enrollment-applications`（#1247）。**限度**：我這次沒重跑逐 chunk 的 content-type 比對與負控（CI 的 `verify-live` 有 BUILT／BEFORE 與 smoke，我讀到它 success）；openapi 證不了新程式碼上線，只證明服務正常、版本已換。
-**第十三批**：#1251、#1307（`organizations.billing_reminder_days`，schema 類，**要先套完才能部署 api**——見 `deploying.md`）、之後合進 main 的。
+**截線 `b209b094`**（#1307；`migrate @ b209b094` apply 綠後 `deploy.yml` 自動觸發，run `37180286848`，13:34–13:36 台北，plan／deploy-api／deploy-web／verify-live 全 success）：web `main-IXFKIL6L.js`（CI 發，`e4af987d.clessia.pages.dev`）、api version `979cddc0-6a20-4886-a139-51b2e016d115`（run log 的 `Current Version ID`）。
+含：#1251（公開試聽申請 `POST /api/public/trial-applications`）、#1307（`organizations.billing_reminder_days`＋設定頁＋待開單讀設定）。
+**⓪**：窗口 `218ab2db..b209b094` 一支 migration `20261004031232_billing_reminder_days`，由 `migrate.yml` run `37174039440`（使用者 Approve）apply 綠已套，**先套完才部署**（這支的 api select 讀新欄，順序反了 `/api/org/settings` 會壞）。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
+**部署驗證**（本席 13:3x 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-IXFKIL6L.js`＝CI 輸出（verify-live BUILT／BEFORE：`main-IXFKIL6L.js`／`main-UMWDEOMQ.js`）；該 main 引用的 64 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的，不是整個 dist**）；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 304264 bytes）141 條路徑，含 `/api/public/enrollment-applications` 與 `/api/public/trial-applications`；`/api/org/settings` 未登入 401（authMiddleware，不證明新欄可讀）。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換；我沒有帶身分打 `/api/org/settings`，所以「新欄位讀得到」沒有被實測。
+**第十四批**：之後合進 main 的（#1259 審核頁、#1262 防濫用等仍在 PR）。**正式環境仍未設 `PUBLIC_ORG_SLUG`**——公開端點 fail-closed 404；兩支匿名寫入端點在 #1126（#1262）落地前不要開。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
