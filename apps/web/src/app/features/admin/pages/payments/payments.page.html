@@ -14,11 +14,11 @@
 
 <div class="bg-zinc-100">
   <div
-    class="page-wrap clessia-filter-bar flex flex-col gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
     role="search"
     aria-label="篩選帳單"
   >
-    <div class="clessia-filter-search min-w-0 wide:w-80">
+    <div class="clessia-filter-search w-full min-w-0 wide:w-80">
       <app-student-autocomplete
         [value]="student()"
         (valueChange)="onStudentChange($event)"
