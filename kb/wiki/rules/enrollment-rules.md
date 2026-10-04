@@ -21,6 +21,9 @@ tags: [rules, enrollment-rules]
    - **公開表單（沒登入的新家長，#1123）不走這張表**：寫進 `public_applications`（未驗證的申請，狀態是聯絡流程
      `new → contacted → converted／rejected／spam`），**不建家長、學生、帳號**（那是 1.4 首次收款時的事）。
      額滿判定與名額同公開目錄（`lib/catalog-class.ts` 的 `takenSeats`），額滿班記為候補。管理員聯絡後走既有建檔與報名。
+     管理端在 `/admin/applications`（#1245，`manage_students`，讀也擋）看、改狀態、寫櫃檯備註（都有稽核）；
+     「建立家長」只開預填的新增家長表單，**不自動改狀態、不自動建學生或報名**（自動轉檔上線用過再說）。
+     分校受限的管理員只看得到目標班／課程在自己範圍內的申請。
 2. 管理員審核通過後：
    - 建立繳費單。
    - 建立 Enrollment（狀態 `pending_payment`）。

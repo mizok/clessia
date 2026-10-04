@@ -21,6 +21,7 @@ import loginLinksRoute from './routes/login-links';
 import billingPeriodsRoute from './routes/billing-periods';
 import feeTemplatesRoute from './routes/fee-templates';
 import publicCatalogRoute from './routes/public/catalog';
+import publicApplicationsRoute from './routes/public-applications';
 import publicEnrollmentApplicationsRoute from './routes/public/enrollment-applications';
 import publicTrialApplicationsRoute from './routes/public/trial-applications';
 import { publicOrgMiddleware } from './lib/public-org';
@@ -391,6 +392,8 @@ mount('/api/login-links', loginLinksRoute, ADMIN_ONLY);
 // 金流：admin 角色之外還要 manage_finance（見 kb/wiki/rules/billing-rules.md）
 mount('/api/billing-periods', billingPeriodsRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/fee-templates', feeTemplatesRoute, ADMIN_ONLY, { all: 'manage_finance' });
+// #1245：公開表單送進來的申請。讀也擋 —— 陌生人的個資（家長電話、學生學校）
+mount('/api/public-applications', publicApplicationsRoute, ADMIN_ONLY, { all: 'manage_students' });
 mount('/api/invoices', invoicesRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/session-packs', sessionPacksRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/meals', mealsRoute, ADMIN_ONLY, { all: 'manage_finance' });

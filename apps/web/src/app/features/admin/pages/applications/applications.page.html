@@ -1,0 +1,125 @@
+<app-page-open>
+  <ng-container openTitle>公開申請</ng-container>
+  <ng-container openSub>從公開報名、試聽表單送進來的新家長。聯絡過再建檔。</ng-container>
+</app-page-open>
+
+<div class="flex flex-col gap-4 px-4 py-6 md:px-8">
+  <div class="flex flex-wrap items-center gap-2">
+    @for (f of filters; track f.label) {
+      <p-button
+        [label]="f.label"
+        [outlined]="filter() !== f"
+        size="small"
+        styleClass="h-11"
+        (onClick)="setFilter(f)"
+      />
+    }
+    <p-select
+      class="ml-auto"
+      [options]="kindOptions"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="kind()"
+      (ngModelChange)="setKind($event)"
+      ariaLabel="申請類型"
+      appendTo="body"
+    />
+  </div>
+
+  @if (loading()) {
+    <p class="text-md text-zinc-600">載入中…</p>
+  } @else if (failed()) {
+    <div class="flex items-center gap-3" role="alert">
+      <p class="text-md text-error-700">讀取失敗。</p>
+      <p-button label="重試" [text]="true" styleClass="h-11" (onClick)="load()" />
+    </div>
+  } @else if (applications().length === 0) {
+    <p class="text-md text-zinc-600">沒有{{ filter().label }}的申請。</p>
+  } @else {
+    <ul class="flex flex-col gap-3">
+      @for (a of applications(); track a.id) {
+        <li
+          class="rounded-lg border border-zinc-200 bg-surface-card px-4 py-4"
+          data-testid="application-card"
+        >
+          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span class="rounded bg-zinc-100 px-2 py-0.5 text-sm font-semibold text-zinc-700">
+              {{ a.kind === 'trial' ? '試聽' : '報名' }}
+            </span>
+            <span class="text-lg font-semibold text-zinc-900">{{ a.student.name }}</span>
+            <span class="text-md text-zinc-700"
+              >{{ gradeLabels[a.student.grade] }} · {{ a.student.school }}</span
+            >
+            <span class="ml-auto text-sm text-zinc-600 tabular-nums">{{
+              a.createdAt | date: 'M/d HH:mm'
+            }}</span>
+          </div>
+
+          <p class="mt-2 text-md text-zinc-800">
+            {{ a.parent.name }}（{{ relationLabels[a.parent.relation] }}）
+            @if (a.parent.phone; as phone) {
+              <a class="ml-2 inline-flex min-h-11 items-center text-accent-700 underline" [href]="'tel:' + phone">{{ phone }}</a>
+            }
+            @if (a.parent.email; as email) {
+              <a class="ml-2 inline-flex min-h-11 items-center text-accent-700 underline" [href]="'mailto:' + email">{{ email }}</a>
+            }
+          </p>
+
+          <ul class="mt-2 flex flex-wrap gap-2">
+            @for (t of a.targets; track $index) {
+              <li class="rounded border border-zinc-200 px-2 py-1 text-sm text-zinc-800">
+                @if (t.deleted) {
+                  <span class="text-zinc-600"
+                    >已刪除的{{ t.type === 'class' ? '班' : '課程' }}</span
+                  >
+                } @else {
+                  {{ t.name }}<span class="text-zinc-600"> · {{ t.campusName }}</span>
+                }
+                @if (t.isWaitlist) {
+                  <span class="ml-1 font-semibold text-warning-800">候補</span>
+                }
+              </li>
+            }
+          </ul>
+
+          @if (a.preferredStartDate || a.preferredTimes) {
+            <p class="mt-2 text-sm text-zinc-700">
+              希望：{{ a.preferredStartDate ?? a.preferredTimes }}
+            </p>
+          }
+          @if (a.note) {
+            <p class="mt-1 text-sm text-zinc-700">家長備註：{{ a.note }}</p>
+          }
+
+          <div class="mt-3 flex flex-col gap-2 md:flex-row md:items-start">
+            <p-select
+              [options]="statusOptions"
+              optionLabel="label"
+              optionValue="value"
+              [ngModel]="a.status"
+              (ngModelChange)="setStatus(a, $event)"
+              ariaLabel="聯絡狀態"
+              appendTo="body"
+            />
+            <textarea
+              pTextarea
+              class="min-h-11 flex-1"
+              rows="1"
+              [attr.aria-label]="'櫃檯備註：' + a.student.name"
+              placeholder="櫃檯備註（例如：10/4 打過電話，週六來試聽）"
+              [value]="a.staffNote ?? ''"
+              (blur)="saveNote(a, $any($event.target).value)"
+            ></textarea>
+            <p-button
+              label="建立家長"
+              icon="pi pi-user-plus"
+              [outlined]="true"
+              styleClass="h-11"
+              (onClick)="createParent(a)"
+            />
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

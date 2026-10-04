@@ -42,10 +42,16 @@ export class ParentFormDialogComponent {
   protected readonly parent = signal<ParentDetail | null>(this.config.data?.parent ?? null);
   protected readonly isEditMode = computed(() => this.parent() !== null);
 
+  /**
+   * 新增模式的預填（#1245：從公開申請建立家長）。**不是 `parent`** —— 有 `parent` 就是編輯模式。
+   */
+  private readonly prefill: { name?: string; email?: string | null; phone?: string | null } =
+    this.config.data?.prefill ?? {};
+
   protected readonly formData = signal({
-    name: this.config.data?.parent?.name ?? '',
-    email: this.config.data?.parent?.email ?? '',
-    phone: this.config.data?.parent?.phone ?? '',
+    name: this.config.data?.parent?.name ?? this.prefill.name ?? '',
+    email: this.config.data?.parent?.email ?? this.prefill.email ?? '',
+    phone: this.config.data?.parent?.phone ?? this.prefill.phone ?? '',
     notes: this.config.data?.parent?.notes ?? '',
   });
 
