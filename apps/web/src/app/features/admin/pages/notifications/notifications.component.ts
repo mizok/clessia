@@ -20,13 +20,13 @@ import {
   type AnnouncementAudience,
 } from '@core/announcements.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 
 @Component({
   selector: 'app-notifications',
-  imports: [DatePipe, FormsModule, ButtonModule, SelectModule],
+  imports: [DatePipe, FormsModule, ButtonModule, SelectModule, PageOpenComponent],
   templateUrl: './notifications.component.html',
-  styleUrl: './notifications.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotificationsComponent {

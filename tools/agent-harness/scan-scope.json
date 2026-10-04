@@ -80,6 +80,8 @@
       "apps/web/src/app/features/admin/pages/dashboard",
       "apps/web/src/app/features/admin/pages/fee-templates",
       "apps/web/src/app/features/admin/pages/grades",
+      "apps/web/src/app/features/admin/pages/leave",
+      "apps/web/src/app/features/admin/pages/notifications",
       "apps/web/src/app/features/admin/pages/parents",
       "apps/web/src/app/features/admin/pages/payments",
       "apps/web/src/app/features/admin/pages/sessions",

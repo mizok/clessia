@@ -52,16 +52,16 @@ function toTimeDate(time: string | null): Date | null {
     StudentAutocompleteComponent,
   ],
   template: `
-    <div class="leave-form">
+    <div class="flex flex-col gap-5 py-2">
       @if (editing) {
-        <div class="leave-form__field leave-form__field--full">
-          <label class="leave-form__label">學生</label>
+        <div class="flex w-full flex-col gap-1.5">
+          <label class="text-sm font-medium text-zinc-700">學生</label>
           <strong>{{ editing.studentName }}</strong>
         </div>
       } @else {
-        <div class="leave-form__filters">
-          <div class="leave-form__filter-group">
-            <label class="leave-form__label">分校</label>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium text-zinc-700">分校</label>
             <p-select
               [(ngModel)]="selectedCampusId"
               [options]="campusOptions()"
@@ -72,8 +72,8 @@ function toTimeDate(time: string | null): Date | null {
               (onChange)="onFilterChange()"
             />
           </div>
-          <div class="leave-form__filter-group">
-            <label class="leave-form__label">年級</label>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium text-zinc-700">年級</label>
             <p-select
               [(ngModel)]="selectedGrade"
               [options]="gradeOptions"
@@ -86,8 +86,10 @@ function toTimeDate(time: string | null): Date | null {
           </div>
         </div>
 
-        <div class="leave-form__field leave-form__field--full">
-          <label class="leave-form__label">學生 <span class="leave-form__required">*</span></label>
+        <div class="flex w-full flex-col gap-1.5">
+          <label class="text-sm font-medium text-zinc-700"
+            >學生 <span class="text-error-600">*</span></label
+          >
           <app-student-autocomplete
             [value]="selectedStudent"
             (valueChange)="selectedStudent = $event"
@@ -97,12 +99,12 @@ function toTimeDate(time: string | null): Date | null {
         </div>
       }
 
-      <div class="leave-form__range-grid">
-        <div class="leave-form__range-group">
-          <label class="leave-form__label"
-            >開始日期時間 <span class="leave-form__required">*</span></label
+      <div class="grid gap-3">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-zinc-700"
+            >開始日期時間 <span class="text-error-600">*</span></label
           >
-          <div class="leave-form__date-time-row">
+          <div class="grid grid-cols-2 gap-3">
             <p-datepicker
               [(ngModel)]="startDate"
               placeholder="開始日期"
@@ -120,11 +122,11 @@ function toTimeDate(time: string | null): Date | null {
             />
           </div>
         </div>
-        <div class="leave-form__range-group">
-          <label class="leave-form__label"
-            >結束日期時間 <span class="leave-form__required">*</span></label
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-zinc-700"
+            >結束日期時間 <span class="text-error-600">*</span></label
           >
-          <div class="leave-form__date-time-row">
+          <div class="grid grid-cols-2 gap-3">
             <p-datepicker
               [(ngModel)]="endDate"
               placeholder="結束日期"
@@ -145,8 +147,8 @@ function toTimeDate(time: string | null): Date | null {
         </div>
       </div>
 
-      <div class="leave-form__field">
-        <label class="leave-form__label">原因（選填）</label>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm font-medium text-zinc-700">原因（選填）</label>
         <textarea
           pTextarea
           [(ngModel)]="reason"
@@ -156,7 +158,7 @@ function toTimeDate(time: string | null): Date | null {
         ></textarea>
       </div>
 
-      <div class="leave-form__actions">
+      <div class="flex justify-end gap-3 pt-2">
         <p-button label="取消" severity="secondary" (onClick)="cancel()" [disabled]="saving()" />
         <p-button
           [label]="editing ? '儲存變更' : '送出請假'"
@@ -167,77 +169,10 @@ function toTimeDate(time: string | null): Date | null {
         />
       </div>
       @if (errorMessage()) {
-        <p class="leave-form__error">{{ errorMessage() }}</p>
+        <p class="-mt-2 text-right text-sm text-error-600">{{ errorMessage() }}</p>
       }
     </div>
   `,
-  styles: [
-    `
-      .leave-form {
-        display: flex;
-        flex-direction: column;
-        gap: 1.25rem;
-        padding: 0.5rem 0;
-
-        &__filters {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.75rem;
-        }
-        &__filter-group {
-          display: flex;
-          flex-direction: column;
-          gap: 0.375rem;
-        }
-        &__field {
-          display: flex;
-          flex-direction: column;
-          gap: 0.375rem;
-        }
-        &__field--full {
-          width: 100%;
-        }
-        &__range-grid {
-          display: grid;
-          gap: 0.75rem;
-        }
-        &__range-group {
-          display: flex;
-          flex-direction: column;
-          gap: 0.375rem;
-        }
-        &__date-time-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0.75rem;
-        }
-        &__label {
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: var(--zinc-700);
-        }
-        &__required {
-          // --error-600，不是 --red-500 —— 後者從來沒被定義過（專案的紅是 --error-*），
-          // 而沒有 fallback 的 var() 解不到就整條宣告作廢，所以這顆星號一直是繼承色。
-          // 這是 inline styles 寫在 .ts 裡才活得下來的 bug：token gate 只掃 .scss。
-          color: var(--error-600);
-        }
-        &__actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: 0.75rem;
-          padding-top: 0.5rem;
-        }
-        &__error {
-          // 同上：--red-500 未定義。--error-600 疊白對比 4.83，過 AA。
-          color: var(--error-600);
-          font-size: 0.875rem;
-          text-align: right;
-          margin-top: -0.5rem;
-        }
-      }
-    `,
-  ],
 })
 export class LeaveFormDialogComponent implements OnInit {
   private readonly dialogRef = inject(DynamicDialogRef);

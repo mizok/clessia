@@ -25,6 +25,7 @@ import type {
 } from '@shared/components/responsive-table/responsive-table.models';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { LeaveFormDialogComponent } from './leave-form-dialog.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
@@ -37,6 +38,7 @@ import {
   standalone: true,
   imports: [
     CampusScopeNoteComponent,
+    PageOpenComponent,
     PageActionsComponent,
     DataChipComponent,
     FormsModule,
@@ -53,7 +55,6 @@ import {
   ],
   providers: [MessageService, ConfirmationService, DialogService],
   templateUrl: './leave.page.html',
-  styleUrl: './leave.page.scss',
 })
 export class LeavePage implements OnInit {
   /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
