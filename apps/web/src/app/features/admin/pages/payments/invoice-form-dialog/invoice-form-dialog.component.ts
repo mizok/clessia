@@ -50,7 +50,6 @@ interface DraftItem {
     StudentAutocompleteComponent,
   ],
   templateUrl: './invoice-form-dialog.component.html',
-  styleUrl: './invoice-form-dialog.component.scss',
 })
 export class InvoiceFormDialogComponent {
   private readonly service = inject(InvoicesService);

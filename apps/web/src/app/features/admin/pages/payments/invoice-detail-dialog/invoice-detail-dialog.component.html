@@ -1,8 +1,10 @@
-<div class="invoice-detail">
-  <header class="invoice-detail__header">
-    <div class="invoice-detail__title-group">
-      <h2 class="invoice-detail__title">{{ invoice().studentName ?? '未知學生' }} 的帳單</h2>
-      <div class="invoice-detail__tags">
+<div class="flex flex-col gap-4 p-5">
+  <header class="flex items-start justify-between gap-3">
+    <div class="flex flex-col gap-2">
+      <h2 class="m-0 text-lg font-semibold text-zinc-900">
+        {{ invoice().studentName ?? '未知學生' }} 的帳單
+      </h2>
+      <div class="flex flex-wrap gap-2">
         <app-status-dot [tone]="statusTone()">{{
           INVOICE_STATUS_LABELS[invoice().status]
         }}</app-status-dot>
@@ -20,32 +22,29 @@
     />
   </header>
 
-  <dl class="invoice-detail__summary">
-    <div class="invoice-detail__summary-item">
-      <dt>應繳</dt>
-      <dd>{{ invoice().total | number }}</dd>
+  <dl class="m-0 flex flex-wrap gap-5 rounded-lg bg-zinc-50 p-4">
+    <div class="flex flex-col gap-1">
+      <dt class="text-xs text-zinc-500">應繳</dt>
+      <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().total | number }}</dd>
     </div>
-    <div class="invoice-detail__summary-item">
-      <dt>已收</dt>
-      <dd>{{ invoice().netPaid | number }}</dd>
+    <div class="flex flex-col gap-1">
+      <dt class="text-xs text-zinc-500">已收</dt>
+      <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().netPaid | number }}</dd>
     </div>
-    <div
-      class="invoice-detail__summary-item"
-      [class.invoice-detail__summary-item--due]="outstandingAmount() > 0"
-    >
+    <div class="flex flex-col gap-1" [class.text-zinc-900]="outstandingAmount() > 0">
       @if (overRefundedAmount() > 0) {
-        <dt>多退</dt>
-        <dd>{{ overRefundedAmount() | number }}</dd>
+        <dt class="text-xs text-zinc-500">多退</dt>
+        <dd class="m-0 text-lg font-semibold tabular-nums">{{ overRefundedAmount() | number }}</dd>
       } @else {
-        <dt>{{ outstandingAmount() < 0 ? '溢繳' : '尚欠' }}</dt>
-        <dd>
+        <dt class="text-xs text-zinc-500">{{ outstandingAmount() < 0 ? '溢繳' : '尚欠' }}</dt>
+        <dd class="m-0 text-lg font-semibold tabular-nums">
           {{ (outstandingAmount() < 0 ? -outstandingAmount() : outstandingAmount()) | number }}
         </dd>
       }
     </div>
-    <div class="invoice-detail__summary-item">
-      <dt>繳費期限</dt>
-      <dd>{{ invoice().dueDate ?? '未設定' }}</dd>
+    <div class="flex flex-col gap-1">
+      <dt class="text-xs text-zinc-500">繳費期限</dt>
+      <dd class="m-0 text-lg font-semibold tabular-nums">{{ invoice().dueDate ?? '未設定' }}</dd>
     </div>
   </dl>
 
@@ -59,12 +58,14 @@
     />
   }
 
-  <div class="invoice-detail__body">
+  <div class="flex flex-col gap-5">
     <!-- ── 明細 ─────────────────────────────────────────────────────── -->
-    <section class="invoice-detail__section">
-      <h3 class="invoice-detail__section-title">帳單明細</h3>
+    <section class="flex flex-col gap-3">
+      <h3 class="m-0 text-sm font-semibold text-zinc-700">帳單明細</h3>
       @if (invoice().items.length === 0) {
-        <p class="invoice-detail__empty">這張帳單還沒有明細，金額是 0。</p>
+        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">
+          這張帳單還沒有明細，金額是 0。
+        </p>
       } @else {
         <app-responsive-table [headTemplate]="itemHead" [bodyTemplate]="itemBody" />
 
@@ -83,7 +84,7 @@
             <!-- 金額比說明先留 —— 看帳單明細就是在看錢，說明是補充 -->
             <th
               scope="col"
-              class="invoice-detail__amount-col"
+              class="text-right tabular-nums"
               appRtColDef="amount"
               [appRtColDefMinWidth]="96"
               [appRtColDefPriority]="2"
@@ -105,7 +106,7 @@
           @for (item of invoice().items; track item.id) {
             <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
               <td appRtColCell="type">{{ INVOICE_ITEM_TYPE_LABELS[item.type] }}</td>
-              <td appRtColCell="amount" class="invoice-detail__amount-col">
+              <td appRtColCell="amount" class="text-right tabular-nums">
                 {{ item.amount | number }}
               </td>
               <td appRtColCell="note">{{ item.note ?? item.periodMonth ?? '—' }}</td>
@@ -116,11 +117,11 @@
     </section>
 
     <!-- ── 收款記錄 ─────────────────────────────────────────────────── -->
-    <section class="invoice-detail__section">
-      <div class="invoice-detail__section-header">
-        <h3 class="invoice-detail__section-title">收款記錄</h3>
+    <section class="flex flex-col gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h3 class="m-0 text-sm font-semibold text-zinc-700">收款記錄</h3>
         @if (!isVoided()) {
-          <div class="invoice-detail__section-actions">
+          <div class="flex flex-wrap gap-2">
             <p-button
               label="記錄收款"
               icon="pi pi-plus"
@@ -141,7 +142,7 @@
       </div>
 
       @if (invoice().payments.length === 0) {
-        <p class="invoice-detail__empty">還沒有任何收款。</p>
+        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">還沒有任何收款。</p>
       } @else {
         <app-responsive-table [headTemplate]="paymentHead" [bodyTemplate]="paymentBody" />
 
@@ -159,11 +160,11 @@
             </th>
             <!--
               金額緊跟著日期：退款是負數，而「這筆是收還是退」只看得到金額才分得出來
-              （`invoice-detail__row--refund` 的底色在手機上仍在，但顏色不是唯一的區分）。
+              （退款列的灰字在手機上仍在，但顏色不是唯一的區分）。
             -->
             <th
               scope="col"
-              class="invoice-detail__amount-col"
+              class="text-right tabular-nums"
               appRtColDef="amount"
               [appRtColDefMinWidth]="96"
               [appRtColDefPriority]="2"
@@ -203,10 +204,10 @@
               appRtRow
               [appRtRow]="payment"
               [appRtRowId]="payment.id"
-              [class.invoice-detail__row--refund]="payment.kind === 'refund'"
+              [class.text-zinc-500]="payment.kind === 'refund'"
             >
               <td appRtColCell="paidAt">{{ payment.paidAt }}</td>
-              <td appRtColCell="amount" class="invoice-detail__amount-col">
+              <td appRtColCell="amount" class="text-right tabular-nums">
                 {{ payment.kind === 'refund' ? '−' : '' }}{{ payment.amount | number }}
               </td>
               <td appRtColCell="method">{{ PAYMENT_METHOD_LABELS[payment.method] }}</td>
@@ -219,12 +220,12 @@
     </section>
 
     <!-- ── 催繳記錄 ─────────────────────────────────────────────────── -->
-    <section class="invoice-detail__section">
-      <h3 class="invoice-detail__section-title">催繳記錄</h3>
-      <p class="invoice-detail__hint">催繳只留紀錄，不會停課也不會擋住任何東西。</p>
+    <section class="flex flex-col gap-3">
+      <h3 class="m-0 text-sm font-semibold text-zinc-700">催繳記錄</h3>
+      <p class="m-0 text-xs text-zinc-500">催繳只留紀錄，不會停課也不會擋住任何東西。</p>
 
       @if (!isVoided()) {
-        <div class="invoice-detail__reminder-form">
+        <div class="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(96px,auto)_1fr_auto]">
           <p-select
             [options]="reminderMethodOptions"
             optionLabel="label"
@@ -253,18 +254,18 @@
       }
 
       @if (remindersLoading()) {
-        <p class="invoice-detail__empty">載入中…</p>
+        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">載入中…</p>
       } @else if (reminders().length === 0) {
-        <p class="invoice-detail__empty">還沒有催繳過。</p>
+        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">還沒有催繳過。</p>
       } @else {
-        <ul class="invoice-detail__reminder-list">
+        <ul class="m-0 flex list-none flex-col gap-2 p-0">
           @for (reminder of reminders(); track reminder.id) {
-            <li class="invoice-detail__reminder">
-              <span class="invoice-detail__reminder-method">
+            <li class="flex items-baseline gap-3 text-sm">
+              <span class="shrink-0 font-medium text-zinc-700">
                 {{ REMINDER_METHOD_LABELS[reminder.method] }}
               </span>
-              <span class="invoice-detail__reminder-note">{{ reminder.note ?? '—' }}</span>
-              <span class="invoice-detail__reminder-date">{{
+              <span class="flex-auto text-zinc-600">{{ reminder.note ?? '—' }}</span>
+              <span class="shrink-0 text-xs text-zinc-500 tabular-nums">{{
                 reminder.createdAt | slice: 0 : 10
               }}</span>
             </li>
@@ -279,18 +280,23 @@
       作廢確認（#898）。放在 body 與 footer 之間：按鈕在 footer，面板就長在它正上方，
       不會因為 body 捲動而出現在看不到的地方。
     -->
-    <section class="invoice-detail__void" aria-labelledby="invoice-void-title">
-      <h3 id="invoice-void-title" class="invoice-detail__void-title">作廢這張帳單</h3>
+    <section
+      class="flex flex-col gap-2 rounded-md border border-error-200 p-4"
+      aria-labelledby="invoice-void-title"
+    >
+      <h3 id="invoice-void-title" class="m-0 text-base font-semibold text-error-700">
+        作廢這張帳單
+      </h3>
       @if (invoice().netPaid !== 0) {
         <!-- 淨額歸零才能作廢（使用者裁決）—— 擋在前端是為了直接給下一步，後端另有一層 -->
-        <p class="invoice-detail__void-text">
+        <p class="m-0 text-sm text-zinc-700">
           @if (invoice().netPaid > 0) {
             已收淨額 {{ invoice().netPaid | number }} 元 —— 先記一筆退款把淨額歸零，才能作廢。
           } @else {
             退款比收款多 {{ -invoice().netPaid | number }} 元 —— 淨額要歸零才能作廢。
           }
         </p>
-        <div class="invoice-detail__void-actions">
+        <div class="flex justify-end gap-2">
           <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
           @if (invoice().netPaid > 0) {
             <p-button
@@ -303,18 +309,20 @@
           }
         </div>
       } @else {
-        <p class="invoice-detail__void-text">
+        <p class="m-0 text-sm text-zinc-700">
           作廢後<strong>無法復原</strong>，帳單會留著但不再計入任何應收與催繳。要重新收費請另開一張新帳單。
         </p>
         @if (mealItemCount() > 0) {
-          <p class="invoice-detail__void-text">
+          <p class="m-0 text-sm text-zinc-700">
             這張帳單的餐費會回到未結算，下次帳務作業會重新計入。
           </p>
         }
-        <label class="invoice-detail__void-label" for="invoice-void-reason">作廢理由（必填）</label>
+        <label class="text-sm font-medium text-zinc-900" for="invoice-void-reason"
+          >作廢理由（必填）</label
+        >
         <textarea
           id="invoice-void-reason"
-          class="invoice-detail__void-reason"
+          class="w-full"
           pTextarea
           rows="2"
           maxlength="500"
@@ -323,9 +331,9 @@
           (ngModelChange)="voidReason.set($event)"
         ></textarea>
         @if (voidError()) {
-          <p class="invoice-detail__void-error" role="alert">{{ voidError() }}</p>
+          <p class="m-0 text-sm text-error-700" role="alert">{{ voidError() }}</p>
         }
-        <div class="invoice-detail__void-actions">
+        <div class="flex justify-end gap-2">
           <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
           <p-button
             label="確認作廢"
@@ -339,7 +347,7 @@
     </section>
   }
 
-  <footer class="invoice-detail__footer">
+  <footer class="flex flex-wrap justify-end gap-2">
     <p-button label="列印收費單" icon="pi pi-print" [outlined]="true" (onClick)="printInvoice()" />
     <p-button
       label="列印收據"
@@ -366,7 +374,7 @@
   列印用的版面。搬到獨立視窗印（見元件註解），所以這裡藏起來不影響畫面。
   用 hidden 而不是 display:none 的 class —— importNode 搬過去之後屬性會被移除。
 -->
-<div class="invoice-detail__print-source" aria-hidden="true">
+<div class="hidden" aria-hidden="true">
   <div #invoicePrintArea class="print-doc">
     <h1 class="print-doc__title">繳費通知單</h1>
     <p class="print-doc__subtitle">請於期限前繳回，謝謝。</p>

@@ -1,14 +1,14 @@
-<div class="invoice-form">
-  <header class="invoice-form__header">
-    <h2 class="invoice-form__title">手動開立帳單</h2>
-    <p class="invoice-form__hint">
+<div class="flex flex-col gap-5 p-5">
+  <header class="flex flex-col gap-1">
+    <h2 class="m-0 text-lg font-semibold text-zinc-900">手動開立帳單</h2>
+    <p class="m-0 text-xs text-zinc-500">
       月繳與期繳的批次開帳走自動排程，這裡處理它涵蓋不到的個案：補開、雜費、人工調整。
     </p>
   </header>
 
-  <div class="invoice-form__body">
-    <div class="invoice-form__field">
-      <label class="invoice-form__label">學生 *</label>
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600">學生 *</label>
       <app-student-autocomplete
         [value]="student()"
         (valueChange)="student.set($event)"
@@ -17,9 +17,9 @@
       />
     </div>
 
-    <div class="invoice-form__row">
-      <div class="invoice-form__field">
-        <label class="invoice-form__label" for="if-issued">開立日期 *</label>
+    <div class="flex flex-wrap gap-4">
+      <div class="flex flex-[1_1_180px] flex-col gap-2">
+        <label class="text-sm font-medium text-zinc-600" for="if-issued">開立日期 *</label>
         <p-datepicker
           inputId="if-issued"
           dateFormat="yy-mm-dd"
@@ -29,8 +29,8 @@
         />
       </div>
 
-      <div class="invoice-form__field">
-        <label class="invoice-form__label" for="if-due">繳費期限</label>
+      <div class="flex flex-[1_1_180px] flex-col gap-2">
+        <label class="text-sm font-medium text-zinc-600" for="if-due">繳費期限</label>
         <p-datepicker
           inputId="if-due"
           dateFormat="yy-mm-dd"
@@ -44,11 +44,13 @@
     </div>
 
     <!-- ── 明細 ─────────────────────────────────────────────────────── -->
-    <div class="invoice-form__field">
-      <label class="invoice-form__label">明細 *</label>
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600">明細 *</label>
 
       @for (item of items(); track $index) {
-        <div class="invoice-form__item">
+        <div
+          class="grid grid-cols-[minmax(96px,1fr)_minmax(120px,1fr)_minmax(140px,2fr)_auto] items-center gap-2"
+        >
           <p-select
             [options]="itemTypeOptions"
             optionLabel="label"
@@ -86,7 +88,7 @@
         </div>
       }
 
-      <div class="invoice-form__item-actions">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <p-button
           label="新增明細"
           icon="pi pi-plus"
@@ -94,16 +96,18 @@
           size="small"
           (onClick)="addItem()"
         />
-        <span class="invoice-form__total">合計 {{ total() | number }} 元</span>
+        <span class="text-sm font-semibold text-zinc-900 tabular-nums"
+          >合計 {{ total() | number }} 元</span
+        >
       </div>
 
-      <span class="invoice-form__hint">
+      <span class="text-xs text-zinc-500">
         「調整」可以填負數 —— 折讓與補償走這一列，並在說明裡寫原因。
       </span>
     </div>
 
-    <div class="invoice-form__field">
-      <label class="invoice-form__label" for="if-note">帳單備註</label>
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600" for="if-note">帳單備註</label>
       <input
         id="if-note"
         type="text"
@@ -116,7 +120,7 @@
     </div>
   </div>
 
-  <footer class="invoice-form__footer">
+  <footer class="flex justify-end gap-2">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="開立帳單" [loading]="saving()" (onClick)="save()" />
   </footer>

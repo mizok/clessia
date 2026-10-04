@@ -41,6 +41,7 @@ import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-de
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
 import { isOverdue, outstanding, overRefunded } from './payments.util';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
   StatusDotComponent,
@@ -75,6 +76,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     SelectButtonModule,
     ToastModule,
     PageActionsComponent,
+    PageOpenComponent,
     EmptyStateComponent,
     StudentAutocompleteComponent,
     ResponsiveTableComponent,
@@ -85,7 +87,6 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   ],
   providers: [MessageService, DialogService],
   templateUrl: './payments.page.html',
-  styleUrl: './payments.page.scss',
 })
 export class PaymentsPage implements OnInit {
   readonly page = input.required<RouteObj>();

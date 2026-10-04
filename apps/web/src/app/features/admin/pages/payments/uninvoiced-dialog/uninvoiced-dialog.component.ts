@@ -36,7 +36,6 @@ import { payableAmount } from '../../courses/class-detail/enrollment-billing.uti
   standalone: true,
   imports: [DecimalPipe, ButtonModule, ProgressSpinnerModule, InlineNoticeComponent],
   templateUrl: './uninvoiced-dialog.component.html',
-  styleUrl: './uninvoiced-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UninvoicedDialogComponent {
