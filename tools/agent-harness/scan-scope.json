@@ -78,6 +78,7 @@
       "apps/web/src/app/features/admin/pages/checkin",
       "apps/web/src/app/features/admin/pages/courses",
       "apps/web/src/app/features/admin/pages/dashboard",
+      "apps/web/src/app/features/admin/pages/fee-templates",
       "apps/web/src/app/features/admin/pages/grades",
       "apps/web/src/app/features/admin/pages/parents",
       "apps/web/src/app/features/admin/pages/payments",

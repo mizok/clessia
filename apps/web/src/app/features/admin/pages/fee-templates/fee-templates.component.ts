@@ -32,6 +32,7 @@ import {
 import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
 
 import { PageActionsComponent } from '@shared/components/page-actions/page-actions.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
@@ -70,6 +71,7 @@ import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.
     InputTextModule,
     ToastModule,
     PageActionsComponent,
+    PageOpenComponent,
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
@@ -81,7 +83,6 @@ import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.
   ],
   providers: [MessageService, DialogService],
   templateUrl: './fee-templates.component.html',
-  styleUrl: './fee-templates.component.scss',
 })
 export class FeeTemplatesComponent implements OnInit {
   readonly page = input.required<RouteObj>();

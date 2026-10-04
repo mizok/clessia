@@ -41,6 +41,7 @@
 @source './app/features/admin/pages/changes';
 @source './app/features/admin/pages/courses';
 @source './app/features/admin/pages/dashboard';
+@source './app/features/admin/pages/fee-templates';
 @source './app/features/admin/pages/parents';
 @source './app/features/admin/pages/payments';
 @source './app/features/admin/pages/grades';

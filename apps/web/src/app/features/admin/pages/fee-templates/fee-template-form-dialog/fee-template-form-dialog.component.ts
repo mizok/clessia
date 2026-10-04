@@ -32,7 +32,6 @@ import {
     ToggleSwitchModule,
   ],
   templateUrl: './fee-template-form-dialog.component.html',
-  styleUrl: './fee-template-form-dialog.component.scss',
 })
 export class FeeTemplateFormDialogComponent {
   private readonly service = inject(FeeTemplatesService);

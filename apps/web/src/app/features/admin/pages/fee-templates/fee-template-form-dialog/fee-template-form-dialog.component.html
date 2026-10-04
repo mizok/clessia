@@ -1,12 +1,14 @@
-<div class="fee-template-form">
-  <header class="fee-template-form__header">
-    <h2 class="fee-template-form__title">{{ isEditing() ? '編輯價目表' : '新增價目表' }}</h2>
-    <p class="fee-template-form__hint">這裡填的是定價。實際收多少在報名時可以另外議定。</p>
+<div class="flex flex-col gap-5 p-5">
+  <header class="flex flex-col gap-1">
+    <h2 class="m-0 text-lg font-semibold text-zinc-900">
+      {{ isEditing() ? '編輯價目表' : '新增價目表' }}
+    </h2>
+    <p class="m-0 text-xs text-zinc-500">這裡填的是定價。實際收多少在報名時可以另外議定。</p>
   </header>
 
-  <div class="fee-template-form__body">
-    <div class="fee-template-form__field">
-      <label class="fee-template-form__label" for="ft-name">方案名稱 *</label>
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600" for="ft-name">方案名稱 *</label>
       <input
         id="ft-name"
         type="text"
@@ -18,8 +20,8 @@
       />
     </div>
 
-    <div class="fee-template-form__field">
-      <label class="fee-template-form__label" for="ft-mode">計費模式 *</label>
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600" for="ft-mode">計費模式 *</label>
       <p-select
         inputId="ft-mode"
         optionLabel="label"
@@ -30,8 +32,8 @@
       />
     </div>
 
-    <div class="fee-template-form__field">
-      <label class="fee-template-form__label" for="ft-amount">定價 *</label>
+    <div class="flex flex-col gap-2">
+      <label class="text-sm font-medium text-zinc-600" for="ft-amount">定價 *</label>
       <p-inputnumber
         inputId="ft-amount"
         mode="currency"
@@ -44,18 +46,18 @@
       />
     </div>
 
-    <div class="fee-template-form__field fee-template-form__field--inline">
-      <label class="fee-template-form__label" for="ft-active">啟用</label>
+    <div class="flex flex-row flex-wrap items-center gap-3">
+      <label class="text-sm font-medium text-zinc-600" for="ft-active">啟用</label>
       <p-toggleswitch
         inputId="ft-active"
         [ngModel]="form().isActive"
         (ngModelChange)="update('isActive', $event)"
       />
-      <span class="fee-template-form__hint">停用後不會出現在報名選單，歷史報名不受影響。</span>
+      <span class="m-0 text-xs text-zinc-500">停用後不會出現在報名選單，歷史報名不受影響。</span>
     </div>
   </div>
 
-  <footer class="fee-template-form__footer">
+  <footer class="flex justify-end gap-2">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
   </footer>
