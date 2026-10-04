@@ -1,7 +1,7 @@
-<div class="pid import-dialog">
+<div class="import-dialog">
   @if (step() === 1) {
     <div
-      class="import-dialog__upload-area"
+      class="import-dialog__upload-area min-h-11"
       [class.import-dialog__upload-area--drag-over]="dragging()"
       (click)="fileInput.click()"
       (dragover)="onDragOver($event)"
@@ -23,7 +23,7 @@
     </div>
 
     <a
-      class="import-dialog__template-link"
+      class="import-dialog__template-link inline-flex min-h-11 items-center"
       href="/assets/templates/parent-import-template.xlsx"
       download
       (click)="$event.stopPropagation()"
@@ -33,7 +33,9 @@
     </a>
 
     <div class="import-dialog__footer import-dialog__footer--single">
-      <button pButton type="button" severity="secondary" (click)="onClose()">取消</button>
+      <button pButton type="button" class="min-h-11" severity="secondary" (click)="onClose()">
+        取消
+      </button>
     </div>
   }
 
@@ -66,15 +68,15 @@
           <td>{{ row.studentGrade || '-' }}</td>
           <td>{{ row.studentSchool || '-' }}</td>
           <td>
-            <div class="pid__status">
+            <div class="grid gap-2">
               @if (row.errors.length > 0) {
                 <p-tag severity="danger" [value]="'錯誤 ' + row.errors.length"></p-tag>
-                <small class="pid__status-text">{{ row.errors[0] }}</small>
+                <small class="text-zinc-500 text-sm leading-[1.4]">{{ row.errors[0] }}</small>
               } @else if (row.skipped) {
                 <p-tag severity="secondary" value="無需匯入"></p-tag>
-                <small class="pid__status-text">{{ row.skipReason }}</small>
+                <small class="text-zinc-500 text-sm leading-[1.4]">{{ row.skipReason }}</small>
               } @else {
-                <div class="pid__status-tags">
+                <div class="flex gap-2 flex-wrap">
                   @if (row.warnings.length > 0) {
                     <p-tag severity="warn" value="需確認"></p-tag>
                   }
@@ -86,10 +88,10 @@
                   }
                 </div>
                 @if (row.warnings.length > 0) {
-                  <small class="pid__status-text">{{ row.warnings[0] }}</small>
+                  <small class="text-zinc-500 text-sm leading-[1.4]">{{ row.warnings[0] }}</small>
                 }
                 @if (row.mergeNote) {
-                  <small class="pid__status-text">{{ row.mergeNote }}</small>
+                  <small class="text-zinc-500 text-sm leading-[1.4]">{{ row.mergeNote }}</small>
                 }
               }
             </div>
@@ -99,10 +101,13 @@
     </p-table>
 
     <div class="import-dialog__footer">
-      <button pButton type="button" severity="secondary" (click)="onClose()">取消</button>
+      <button pButton type="button" class="min-h-11" severity="secondary" (click)="onClose()">
+        取消
+      </button>
       <button
         pButton
         type="button"
+        class="min-h-11"
         [disabled]="importableCount() === 0 || submitting()"
         (click)="onSubmit()"
       >
@@ -144,12 +149,16 @@
           }
         </div>
         @if (failedCount() > 0) {
-          <div class="pid__error-list">
+          <div
+            class="w-full flex flex-col gap-2 bg-error-100 border border-[#fecaca] rounded-md py-3 px-4 text-left"
+          >
             @for (r of result.results; track r.rowIndex) {
               @if (r.status === 'failed') {
-                <div class="pid__error-item">
-                  <span class="pid__error-row">第 {{ submittedIndexes()[r.rowIndex] }} 筆</span>
-                  <span class="pid__error-msg">{{ r.error }}</span>
+                <div class="flex gap-2 text-sm">
+                  <span class="shrink-0 font-semibold text-error-700"
+                    >第 {{ submittedIndexes()[r.rowIndex] }} 筆</span
+                  >
+                  <span class="text-zinc-700 break-all">{{ r.error }}</span>
                 </div>
               }
             }
@@ -157,12 +166,12 @@
         }
       }
 
-      <p class="pid__result-note">
+      <p class="mt-2 text-zinc-500 text-sm leading-relaxed text-center">
         各帳號已建立。請到家長管理頁，對每一位家長使用「產生登入連結」，把 QR 或連結交給對方。
       </p>
 
       <div class="import-dialog__footer import-dialog__footer--single">
-        <button pButton type="button" (click)="onDone()">完成</button>
+        <button pButton type="button" class="min-h-11" (click)="onDone()">完成</button>
       </div>
     </div>
   }
