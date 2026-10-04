@@ -114,8 +114,6 @@ const TOUCH_TARGET_EXEMPT = {
   // 尺寸跨檔案來自共用元件，是這個 gate 已知的盲區 —— 它只看得到單一檔案。
   'apps/web/src/app/features/admin/pages/contact-book/contact-book.page.scss|.contact-book__row':
     '<tr>，列高由 responsive-table 的 __cell padding-block 決定（coarse 下已抬到 ≈44.5px）；min-height 在 table-row 上不生效',
-  'apps/web/src/app/features/admin/pages/enrollments/enrollments.page.scss|.enrollments__row':
-    '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
 };
 const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
 const SCAN_SCOPE = join(ROOT, 'tools/agent-harness/scan-scope.json');

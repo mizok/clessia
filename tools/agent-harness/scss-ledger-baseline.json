@@ -1,7 +1,6 @@
 [
   "apps/web/src/app/app.component.scss",
   "apps/web/src/app/features/admin/pages/contact-book/contact-book.page.scss",
-  "apps/web/src/app/features/admin/pages/enrollments/enrollments.page.scss",
   "apps/web/src/app/features/parent/pages/attendance/attendance.page.scss",
   "apps/web/src/app/features/parent/pages/dashboard/dashboard.component.scss",
   "apps/web/src/app/features/parent/pages/grades/grades.component.scss",
