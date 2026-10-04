@@ -296,6 +296,11 @@ describe('PATCH /api/sessions/batch-reschedule（#1111）', () => {
     expect(sessionUpdates(queries).every((q) => has(q, 'eq', 'org_id', 'org-1'))).toBe(true);
 
     const [insert] = queries.filter((q) => q.table === 'schedule_changes' && has(q, 'insert'));
+    // #1195：同一次呼叫的每一列共用一顆 batch_id
+    const batchIds = (arg(insert, 'insert') as Array<{ batch_id: string }>).map((r) => r.batch_id);
+    expect(batchIds).toHaveLength(3);
+    expect(batchIds[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(new Set(batchIds).size).toBe(1);
     expect(arg(insert, 'insert')).toContainEqual(
       expect.objectContaining({
         session_id: id(3),

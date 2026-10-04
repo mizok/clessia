@@ -45,6 +45,7 @@ export interface ChangeLogRow {
   readonly new_end_time: string | null;
   readonly original_teacher_name: string | null;
   readonly operation_source: string;
+  readonly batch_id?: string | null;
   readonly reason: string | null;
   readonly created_by_name: string | null;
   readonly created_at: string;
@@ -63,6 +64,8 @@ export interface ChangeLogEntry {
   readonly createdByName: string | null;
   readonly createdAt: string;
   readonly isBatch: boolean;
+  /** 同一批共用（#1195）；單堂與舊資料為 null */
+  readonly batchId: string | null;
 }
 
 function firstRelation(value: unknown): Record<string, unknown> | null {
@@ -148,5 +151,6 @@ export function describeChange(row: ChangeLogRow): ChangeLogEntry {
     createdByName: row.created_by_name,
     createdAt: row.created_at,
     isBatch: row.operation_source === 'batch',
+    batchId: row.batch_id ?? null,
   };
 }

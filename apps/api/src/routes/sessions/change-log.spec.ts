@@ -165,3 +165,14 @@ describe('SCHEDULE_CHANGE_TYPES 是唯一真相（#605）', () => {
     }
   });
 });
+
+describe('batchId（#1195）', () => {
+  it('同一批的列帶 batchId；舊資料沒有 batch_id 時是 null', () => {
+    expect(
+      describeChange(
+        row({ change_type: 'cancellation', operation_source: 'batch', batch_id: 'b-1' }),
+      ).batchId,
+    ).toBe('b-1');
+    expect(describeChange(row({ change_type: 'cancellation' })).batchId).toBeNull();
+  });
+});

@@ -237,6 +237,8 @@ const SessionChangeItemSchema = z
     substituteTeacherId: DbUuidSchema.nullable(),
     substituteTeacherName: z.string().nullable(),
     operationSource: z.enum(['single', 'batch']).nullable(),
+    /** 同一次批次操作共用的識別碼（#1195）；單堂、與 #1195 之前的舊資料為 null */
+    batchId: z.string().nullable(),
     reason: z.string().nullable(),
     createdByName: z.string().nullable(),
     createdAt: z.string(),
@@ -451,6 +453,11 @@ interface BatchSessionChangeInsertInput {
   readonly orgId: string;
   readonly createdByName: string | null;
   readonly changeType: 'cancellation' | 'reschedule' | 'uncancel' | 'time_change';
+  /**
+   * 同一次批次呼叫共用的識別碼（#1195）。**必填** —— optional 的話漏傳的呼叫點會靜靜寫成 null，
+   * 那一批在 /admin/changes 就收不起來，而且沒有任何訊號（charter 1155 §二）
+   */
+  readonly batchId: string;
   readonly sessionStates: readonly BatchSessionChangeState[];
   readonly reason?: string | null;
   readonly newStartTime?: string | null;
@@ -663,6 +670,7 @@ export function buildSessionCreationHistory(input: {
     substituteTeacherId: null,
     substituteTeacherName: null,
     operationSource: null,
+    batchId: null,
     reason: null,
     createdByName: input.createdByName ?? null,
     createdAt: input.sessionCreatedAt,
@@ -674,7 +682,7 @@ export const SESSION_CHANGES_SELECT = `
       original_session_date, original_start_time, original_end_time,
       new_session_date, new_start_time, new_end_time,
       original_teacher_id, original_teacher_name,
-      operation_source,
+      operation_source, batch_id,
       reason, created_by_name, created_at,
       staff!substitute_teacher_id ( id, display_name )
     `;
@@ -697,6 +705,7 @@ export function mapSessionChange(row: Record<string, unknown>) {
     substituteTeacherName: (substituteTeacher?.['display_name'] as string | undefined) ?? null,
     operationSource: ((row['operation_source'] as 'single' | 'batch' | null) ?? 'single') as
       'single' | 'batch' | null,
+    batchId: (row['batch_id'] as string | null) ?? null,
     reason: (row['reason'] as string | null) ?? null,
     createdByName: (row['created_by_name'] as string | null) ?? null,
     createdAt: row['created_at'] as string,
@@ -813,6 +822,7 @@ export function buildBatchSessionChangeInserts(input: BatchSessionChangeInsertIn
     reason: input.reason ?? null,
     created_by_name: input.createdByName,
     operation_source: 'batch' as const,
+    batch_id: input.batchId,
   }));
 }
 
@@ -1502,6 +1512,8 @@ const ChangeLogEntrySchema = z
     createdByName: z.string().nullable(),
     createdAt: z.string(),
     isBatch: z.boolean(),
+    /** 同一批共用（#1195）—— 前端用它把「停課 14 堂」收成一則；單堂與舊資料為 null */
+    batchId: z.string().nullable(),
   })
   .openapi('ChangeLogEntry');
 
@@ -1538,7 +1550,7 @@ app.openapi(listChangeLogRoute, async (c) => {
     .from('schedule_changes')
     .select(
       `
-      id, session_id, change_type, operation_source, reason, created_by_name, created_at,
+      id, session_id, change_type, operation_source, batch_id, reason, created_by_name, created_at,
       original_session_date, original_start_time, original_end_time,
       new_session_date, new_start_time, new_end_time,
       original_teacher_name,
@@ -3198,7 +3210,8 @@ app.openapi(batchSubstituteRoute, async (c) => {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
     }
 
-    // ② 逐堂寫流水
+    // ② 逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195）
+    const batchId = crypto.randomUUID();
     const { error: logError } = await supabase.from('schedule_changes').insert(
       processable.map((s) => ({
         org_id: orgId,
@@ -3210,6 +3223,7 @@ app.openapi(batchSubstituteRoute, async (c) => {
         reason: body.reason ?? null,
         created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
         operation_source: 'batch' as const,
+        batch_id: batchId,
       })),
     );
     if (logError) {
@@ -3473,6 +3487,7 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
 
     const changes = buildBatchSessionChangeInserts({
       orgId,
+      batchId: crypto.randomUUID(),
       createdByName: profile?.display_name ?? null,
       changeType: 'time_change',
       sessionStates: targetSessions
@@ -3840,7 +3855,8 @@ app.openapi(batchRescheduleRoute, async (c) => {
       ids.forEach((id) => moved.add(id));
     }
 
-    // ② 逐堂寫流水
+    // ② 逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195）
+    const batchId = crypto.randomUUID();
     const { data: profile } = await supabase
       .from('profiles')
       .select('display_name')
@@ -3862,6 +3878,7 @@ app.openapi(batchRescheduleRoute, async (c) => {
           reason: body.reason ?? null,
           created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
           operation_source: 'batch' as const,
+          batch_id: batchId,
         };
       }),
     );
@@ -4046,6 +4063,7 @@ app.openapi(batchCancelRoute, async (c) => {
     const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
       buildBatchSessionChangeInserts({
         orgId,
+        batchId: crypto.randomUUID(),
         createdByName: profile?.display_name ?? null,
         changeType: 'cancellation',
         sessionStates: targetSessions
@@ -4449,6 +4467,7 @@ app.openapi(batchUncancelRoute, async (c) => {
     const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
       buildBatchSessionChangeInserts({
         orgId,
+        batchId: crypto.randomUUID(),
         createdByName: profile?.display_name ?? null,
         changeType: 'uncancel',
         sessionStates: targetSessions
