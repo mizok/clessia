@@ -97,7 +97,15 @@ api 要本人跑 `wrangler deploy`。**這些報給計畫席沒有用,它也動�
 ## 職責(每 10-15 分鐘巡一輪)
 
 1. **席位存活**:`herdr agent list` → 對 idle/done 超過 5 分鐘的席:
-   `herdr agent read` 看尾部 —— 輸入框有殘字?有「/low-priority」橫幅?(額度耗盡→
+   `herdr agent read` 看尾部 —— 輸入框有殘字?有額度耗盡橫幅?
+   ⚠️ **橫幅的字串有兩種,只抓一種會假陰性**(2026-10-05 踩到):
+   舊的是 `/low-priority to continue`,**新的是
+   `You're out of usage credits. Run /usage-credits to keep using <模型>`** ——
+   當天計畫席就是卡在新版橫幅上,而我只掃 `low-priority` → **五席全回 0,而它其實停了八小時**。
+   **掃兩種:`grep -ac 'out of usage credits'` 與 `grep -ac 'low-priority'`,任一命中就是額度耗盡。**
+   (這是本檔那個反覆出現的形狀:比對字串過窄 → 量不到被讀成沒事。同族的還有
+   `mid-response` 片段、`[Pasted text` 未錨定、`in:title` 單向。)
+   (額度耗盡→
    等回流後 nudge)有 WAITING-ON 標記?(對帳計畫席收件,漏了就催重送)**Ctx Used
    有沒有到 95%?(見下方「context 檢查點」,這是 README 一條通則的載體,不是自選)**
 2. **零 idle 執行**:確認 idle 席收到工單提醒;佇列空了通知計畫席補貨。
