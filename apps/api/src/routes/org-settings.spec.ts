@@ -108,6 +108,7 @@ describe('toOrgSettingsResponse', () => {
       attendanceRetroactiveDays: 0,
       // 欄位不在的舊 org 用 14 —— 對齊 billing_rules 規則 7 的「發袋後兩三週」節奏
       invoiceDueDays: 14,
+      billingReminderDays: 14,
       mealDefaultPrice: 0,
       prorationBasis: 'days',
       // #1073：還沒設定帳戶資訊 → null（家長頁退回「請洽行政人員」）
@@ -161,6 +162,21 @@ describe('toOrgSettingsResponse', () => {
   });
 });
 
+describe('billingReminderDays（#1305）', () => {
+  it('有財務權限：回設定值；欄位缺席退回 14', () => {
+    expect(toOrgSettingsResponse({ id: 'o', billing_reminder_days: 7 })).toMatchObject({
+      billingReminderDays: 7,
+    });
+    expect(toOrgSettingsResponse({ id: 'o' })).toMatchObject({ billingReminderDays: 14 });
+  });
+
+  it('沒有財務權限：回應裡沒有這個 key', () => {
+    expect(toOrgSettingsResponse({ id: 'o', billing_reminder_days: 7 }, false)).not.toHaveProperty(
+      'billingReminderDays',
+    );
+  });
+});
+
 describe('touchesFinanceSettings', () => {
   it('只改點名設定不算動到財務', () => {
     expect(touchesFinanceSettings({ attendanceRetroactiveDays: 3 })).toBe(false);
@@ -172,6 +188,11 @@ describe('touchesFinanceSettings', () => {
 
   it('改開帳天數算', () => {
     expect(touchesFinanceSettings({ invoiceDueDays: 21 })).toBe(true);
+  });
+
+  // #1305：待開單提醒天數跟開帳天數同一類（開帳節奏）
+  it('改待開單提醒天數算', () => {
+    expect(touchesFinanceSettings({ billingReminderDays: 7 })).toBe(true);
   });
 
   it('改比例分攤基準算', () => {

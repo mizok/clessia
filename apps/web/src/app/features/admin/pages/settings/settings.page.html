@@ -70,6 +70,33 @@
       #1073：財務設定 —— 沒有 manage_finance 時 API 回應裡沒有這個 key，整段不畫
       （畫一個讀不到值的空欄位，按儲存就會把機構的帳戶清掉）。
     -->
+    <!-- #1305：財務設定，同帳戶資訊 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
+    @if (settings()?.billingReminderDays !== undefined) {
+      <div class="settings-page__section">
+        <h3 id="settings-billing-reminder-title" class="settings-page__section-title">
+          待開單提醒
+        </h3>
+        <p class="settings-page__section-desc">
+          期的開始日前這麼多天，儀表板的「待開單」就會列出還沒開單的期（1–90 天）。
+        </p>
+        <p-inputnumber
+          [(ngModel)]="billingReminderDaysValue"
+          [min]="1"
+          [max]="90"
+          suffix=" 天"
+          ariaLabelledBy="settings-billing-reminder-title"
+        />
+        <div class="settings-page__actions">
+          <p-button
+            label="儲存"
+            icon="pi pi-check"
+            [loading]="savingBillingReminder()"
+            (onClick)="saveBillingReminderDays()"
+          />
+        </div>
+      </div>
+    }
+
     @if (settings()?.paymentInfo !== undefined) {
       <div class="settings-page__section">
         <h3 id="settings-payment-info-title" class="settings-page__section-title">

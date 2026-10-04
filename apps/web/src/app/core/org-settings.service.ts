@@ -29,6 +29,8 @@ export interface OrgSettings {
   // 所以型別上是 optional，不要在 UI 裡假設它們一定在。
   /** 開帳時 due_date 的預設天數（kb/wiki/rules/billing-rules.md 規則 7） */
   invoiceDueDays?: number;
+  /** 待開單提醒的提前天數（#1305，1–90）。財務設定：沒有 `manage_finance` 時這個 key 不存在 */
+  billingReminderDays?: number;
   /** 餐費預設單價（單價實際存在每一筆餐記錄上） */
   mealDefaultPrice?: number;
   /** 插班／退班比例試算的基準，預設 days */
@@ -45,6 +47,8 @@ export interface UpdateOrgSettingsInput {
   attendanceResponsible?: AttendanceResponsible;
   attendanceRetroactiveDays?: number;
   invoiceDueDays?: number;
+  /** 待開單提醒的提前天數（#1305，1–90）。財務設定：沒有 `manage_finance` 時這個 key 不存在 */
+  billingReminderDays?: number;
   mealDefaultPrice?: number;
   prorationBasis?: 'days' | 'sessions';
   /** 空白存成 null（= 未設定）。要 `manage_finance` */

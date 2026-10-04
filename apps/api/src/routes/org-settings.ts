@@ -29,6 +29,8 @@ const OrgSettingsSchema = z
     // 因為「餐費單價是 0」跟「你不該知道餐費單價」是兩件不同的事。
     /** 開帳時 due_date 的預設天數（規則 7：對齊發袋後兩三週的節奏） */
     invoiceDueDays: z.number().int().min(0).optional(),
+    /** 待開單提醒的提前天數（#1305）：期的開始日前這麼多天，儀表板「待開單」就會出現 */
+    billingReminderDays: z.number().int().min(1).max(90).optional(),
     /** 餐費的預設單價。單價存在每一筆餐記錄上，這只是開單時的起始值 */
     mealDefaultPrice: z.number().int().min(0).optional(),
     prorationBasis: ProrationBasisSchema.optional(),
@@ -47,6 +49,7 @@ const UpdateOrgSettingsSchema = z
     attendanceResponsible: AttendanceResponsibleSchema.optional(),
     attendanceRetroactiveDays: z.coerce.number().int().min(0).optional(),
     invoiceDueDays: z.coerce.number().int().min(0).optional(),
+    billingReminderDays: z.coerce.number().int().min(1).max(90).optional(),
     mealDefaultPrice: z.coerce.number().int().min(0).optional(),
     prorationBasis: ProrationBasisSchema.optional(),
     /** 空字串存成 null（= 未設定） */
@@ -67,6 +70,7 @@ const UpdateOrgSettingsSchema = z
  */
 export const FINANCE_SETTING_KEYS = [
   'invoiceDueDays',
+  'billingReminderDays',
   'mealDefaultPrice',
   'prorationBasis',
   'paymentInfo',
@@ -86,6 +90,7 @@ export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinan
   return {
     ...base,
     invoiceDueDays: (row['invoice_due_days'] as number) ?? 14,
+    billingReminderDays: (row['billing_reminder_days'] as number | undefined) ?? 14,
     mealDefaultPrice: Number(row['meal_default_price'] ?? 0),
     prorationBasis: (row['proration_basis'] as 'days' | 'sessions') ?? 'days',
     paymentInfo: normalizePaymentInfo(row['payment_info']),
@@ -105,7 +110,7 @@ const app = new OpenAPIHono<AppEnv>();
 app.use('/settings', writeRequiresAdmin('manage_org_settings'));
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, meal_default_price, proration_basis, payment_info';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, meal_default_price, proration_basis, payment_info';
 
 // GET /api/org/settings
 app.openapi(
@@ -184,6 +189,9 @@ app.openapi(
     if (body.attendanceRetroactiveDays !== undefined)
       updates['attendance_retroactive_days'] = body.attendanceRetroactiveDays;
     if (body.invoiceDueDays !== undefined) updates['invoice_due_days'] = body.invoiceDueDays;
+    if (body.billingReminderDays !== undefined) {
+      updates['billing_reminder_days'] = body.billingReminderDays;
+    }
     if (body.mealDefaultPrice !== undefined) updates['meal_default_price'] = body.mealDefaultPrice;
     if (body.prorationBasis !== undefined) updates['proration_basis'] = body.prorationBasis;
     if (body.paymentInfo !== undefined)

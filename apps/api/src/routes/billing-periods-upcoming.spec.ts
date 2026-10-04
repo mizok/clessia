@@ -29,6 +29,12 @@ function createApp(tables: Record<string, Row[]>) {
         gt: (col: string, val: string) => (filters.push((r) => String(r[col]) > val), q),
         lte: (col: string, val: string) => (filters.push((r) => String(r[col]) <= val), q),
         in: (col: string, vals: unknown[]) => (filters.push((r) => vals.includes(r[col])), q),
+        // #1305：先讀 organizations.billing_reminder_days
+        maybeSingle: () =>
+          Promise.resolve({
+            data: (tables[table] ?? []).find((r) => filters.every((f) => f(r))) ?? null,
+            error: null,
+          }),
         then: (onfulfilled: (value: unknown) => unknown) =>
           Promise.resolve({
             data: (tables[table] ?? []).filter((r) => filters.every((f) => f(r))),
@@ -104,6 +110,21 @@ describe('GET /api/billing-periods/upcoming-unbilled（#1293）', () => {
       invoice_items: [],
     });
     expect(body.data.map((d) => d['periodId'])).toEqual(['edge']);
+  });
+
+  /** #1305：提前天數是機構設定（預設 14）。設 7 天：10 天後開始的不列、5 天後的列 */
+  it('窗口天數讀機構設定 billing_reminder_days', async () => {
+    const { body } = await get({
+      organizations: [{ id: 'org-1', billing_reminder_days: 7 }],
+      billing_periods: [
+        period('in', '2026-10-09', '2027-01-31'),
+        period('edge', '2026-10-11', '2027-01-31'),
+        period('out', '2026-10-14', '2027-01-31'),
+      ],
+      enrollments: [enrollment()],
+      invoice_items: [],
+    });
+    expect(body.data.map((d) => d['periodId'])).toEqual(['in', 'edge']);
   });
 
   it('已經有一筆沒作廢的明細 → 不列；只有作廢的 → 照列', async () => {
