@@ -70,7 +70,6 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
     TooltipModule,
   ],
   templateUrl: './invoice-detail-dialog.component.html',
-  styleUrl: './invoice-detail-dialog.component.scss',
 })
 export class InvoiceDetailDialogComponent {
   private readonly service = inject(InvoicesService);

@@ -79,6 +79,7 @@
       "apps/web/src/app/features/admin/pages/courses",
       "apps/web/src/app/features/admin/pages/dashboard",
       "apps/web/src/app/features/admin/pages/grades",
+      "apps/web/src/app/features/admin/pages/payments",
       "apps/web/src/app/features/admin/pages/sessions",
       "apps/web/src/app/features/admin/pages/staff/kiosk-form-dialog",
       "apps/web/src/app/features/admin/pages/students",

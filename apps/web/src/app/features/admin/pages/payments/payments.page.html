@@ -1,31 +1,24 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="payments">
-  <header class="payments__header">
-    <div class="payments__title-group">
-      <h1 class="payments__title">{{ page().label }}</h1>
-      <p class="payments__subtitle">
-        開帳單、收款、看誰還沒繳。狀態由累計實收推導，逾期是額外的標記不是另一種狀態。
-      </p>
-    </div>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-      <p-button
-        label="操作紀錄"
-        icon="pi pi-history"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openAuditLog()"
-      />
-    </app-page-actions>
-  </header>
+<!--
+  A6 版（#991）：色面 → 灰工具列（搜尋、篩選、新增）→ 帳單表格。
+  換版不換資料：A6 稿的「依狀態分章」「十月應收／已收長條」「列上提醒／收款鈕」要的資料這頁沒有
+  （列表是伺服器分頁、沒有彙總 API、沒有上次提醒日），表格與分頁不動、只換外框。
+-->
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>
+    開帳單、收款、看誰還沒繳。狀態由累計實收推導，逾期是額外的標記不是另一種狀態。
+  </ng-container>
+</app-page-open>
 
-  <!-- 提示直接連到修法（kb/wiki/architecture/admin-todo-alerts.md 的共用元件）—— 不是一個死路的數字 -->
-  <app-todo-banner [count]="uninvoicedCount()" (action)="openUninvoiced()">
-    有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
-  </app-todo-banner>
-
-  <div class="payments__toolbar clessia-filter-bar">
-    <div class="payments__search clessia-filter-search">
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap clessia-filter-bar flex flex-col gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選帳單"
+  >
+    <div class="clessia-filter-search min-w-0 wide:w-80">
       <app-student-autocomplete
         [value]="student()"
         (valueChange)="onStudentChange($event)"
@@ -66,151 +59,175 @@
         (onClick)="clearFilters()"
       />
     }
+    <div class="wide:ml-auto">
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+        <p-button
+          label="操作紀錄"
+          icon="pi pi-history"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="openAuditLog()"
+        />
+      </app-page-actions>
+    </div>
   </div>
+</div>
 
-  <div class="payments__content">
-    @if (loading()) {
-      <div class="skeleton-list">
-        @for (i of [1, 2, 3, 4, 5]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
-    } @else if (failed()) {
-      <app-empty-state
-        icon="pi pi-exclamation-circle"
-        title="載入失敗"
-        description="沒有讀到帳單資料，可能是連線問題"
-      >
-        <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
-      </app-empty-state>
-    } @else if (invoices().length === 0) {
-      @if (dueFilter() !== 'all') {
-        <app-empty-state
-          icon="pi pi-check-circle"
-          [title]="emptyStateTitle()"
-          [description]="emptyStateDescription()"
-        >
-          <p-button
-            label="顯示全部帳單"
-            [text]="true"
-            severity="secondary"
-            (onClick)="setDueFilter('all')"
-          />
-        </app-empty-state>
-      } @else if (selectedStudent()) {
-        <app-empty-state
-          icon="pi pi-search"
-          title="這位學生還沒有帳單"
-          [description]="selectedStudent()!.name + ' 名下目前沒有任何帳單'"
-        >
-          <p-button
-            label="清除篩選"
-            [text]="true"
-            severity="secondary"
-            (onClick)="clearFilters()"
-          />
-        </app-empty-state>
-      } @else if (statusFilter()) {
-        <app-empty-state
-          icon="pi pi-filter"
-          title="沒有這個狀態的帳單"
-          description="換一個狀態，或清除篩選看全部"
-        >
-          <p-button
-            label="清除篩選"
-            [text]="true"
-            severity="secondary"
-            (onClick)="clearFilters()"
-          />
-        </app-empty-state>
-      } @else {
-        <app-empty-state
-          icon="pi pi-receipt"
-          title="還沒有任何帳單"
-          description="月繳與期繳的批次開帳走自動排程；個案可以在這裡手動開一張"
-        >
-          <p-button label="手動開帳" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-        </app-empty-state>
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+  <!-- 提示直接連到修法（kb/wiki/architecture/admin-todo-alerts.md 的共用元件）—— 不是一個死路的數字 -->
+  <app-todo-banner [count]="uninvoicedCount()" (action)="openUninvoiced()">
+    有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
+  </app-todo-banner>
+
+  @if (loading()) {
+    <div class="skeleton-list">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
       }
+    </div>
+  } @else if (failed()) {
+    <app-empty-state
+      icon="pi pi-exclamation-circle"
+      title="載入失敗"
+      description="沒有讀到帳單資料，可能是連線問題"
+    >
+      <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
+    </app-empty-state>
+  } @else if (invoices().length === 0) {
+    @if (dueFilter() !== 'all') {
+      <app-empty-state
+        icon="pi pi-check-circle"
+        [title]="emptyStateTitle()"
+        [description]="emptyStateDescription()"
+      >
+        <p-button
+          label="顯示全部帳單"
+          [text]="true"
+          severity="secondary"
+          (onClick)="setDueFilter('all')"
+        />
+      </app-empty-state>
+    } @else if (selectedStudent()) {
+      <app-empty-state
+        icon="pi pi-search"
+        title="這位學生還沒有帳單"
+        [description]="selectedStudent()!.name + ' 名下目前沒有任何帳單'"
+      >
+        <p-button label="清除篩選" [text]="true" severity="secondary" (onClick)="clearFilters()" />
+      </app-empty-state>
+    } @else if (statusFilter()) {
+      <app-empty-state
+        icon="pi pi-filter"
+        title="沒有這個狀態的帳單"
+        description="換一個狀態，或清除篩選看全部"
+      >
+        <p-button label="清除篩選" [text]="true" severity="secondary" (onClick)="clearFilters()" />
+      </app-empty-state>
     } @else {
-      <app-responsive-table
-        [headTemplate]="invoiceHead"
-        [bodyTemplate]="invoiceBody"
-        [pagination]="pagination()"
-        (page)="onPageChange($event)"
-      />
-
-      <ng-template #invoiceHead>
-        <tr>
-          <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">學生</th>
-          <th appRtColDef="issued" [appRtColDefMinWidth]="110" [appRtColDefPriority]="3">開立日</th>
-          <th appRtColDef="due" [appRtColDefMinWidth]="110" [appRtColDefPriority]="2">繳費期限</th>
-          <th appRtColDef="total" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1">應繳</th>
-          <th appRtColDef="paid" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">已收</th>
-          <th appRtColDef="outstanding" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1">
-            尚欠
-          </th>
-          <th appRtColDef="status" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">狀態</th>
-        </tr>
-      </ng-template>
-
-      <ng-template #invoiceBody>
-        @for (invoice of invoices(); track invoice.id) {
-          <tr
-            appRtRow
-            [appRtRow]="invoice"
-            [appRtRowId]="invoice.id"
-            class="payments__row"
-            [class.payments__row--void]="invoice.status === 'void'"
-            tabindex="0"
-            role="button"
-            [attr.aria-label]="(invoice.studentName ?? '未知學生') + ' 的帳單詳情'"
-            (click)="openDetail(invoice)"
-            (keydown.enter)="openDetail(invoice)"
-            (keydown.space)="openDetail(invoice)"
-          >
-            <td appRtColCell="student">
-              <span class="payments__student">{{ invoice.studentName ?? '未知學生' }}</span>
-            </td>
-            <td appRtColCell="issued">
-              <span class="payments__date">{{ invoice.issuedAt }}</span>
-            </td>
-            <td appRtColCell="due">
-              <span class="payments__date" [class.payments__date--overdue]="isOverdue(invoice)">
-                {{ invoice.dueDate ?? '未設定' }}
-              </span>
-            </td>
-            <td appRtColCell="total">
-              <span class="payments__amount">{{ invoice.total | number }}</span>
-            </td>
-            <td appRtColCell="paid">
-              <span class="payments__amount">{{ invoice.netPaid | number }}</span>
-            </td>
-            <td appRtColCell="outstanding">
-              @if (overRefunded(invoice) > 0) {
-                <span class="payments__amount">多退 {{ overRefunded(invoice) | number }}</span>
-              } @else {
-                <span
-                  class="payments__amount"
-                  [class.payments__amount--due]="outstanding(invoice) > 0"
-                >
-                  {{ outstanding(invoice) | number }}
-                </span>
-              }
-            </td>
-            <td appRtColCell="status">
-              <div class="payments__status">
-                <app-status-dot [tone]="statusTone(invoice)">{{
-                  INVOICE_STATUS_LABELS[invoice.status]
-                }}</app-status-dot>
-                @if (isOverdue(invoice)) {
-                  <app-status-dot tone="overdue">逾期</app-status-dot>
-                }
-              </div>
-            </td>
-          </tr>
-        }
-      </ng-template>
+      <app-empty-state
+        icon="pi pi-receipt"
+        title="還沒有任何帳單"
+        description="月繳與期繳的批次開帳走自動排程；個案可以在這裡手動開一張"
+      >
+        <p-button label="手動開帳" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+      </app-empty-state>
     }
-  </div>
+  } @else {
+    <app-responsive-table
+      [headTemplate]="invoiceHead"
+      [bodyTemplate]="invoiceBody"
+      [pagination]="pagination()"
+      (page)="onPageChange($event)"
+    />
+
+    <ng-template #invoiceHead>
+      <tr>
+        <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">學生</th>
+        <th appRtColDef="issued" [appRtColDefMinWidth]="110" [appRtColDefPriority]="3">開立日</th>
+        <th appRtColDef="due" [appRtColDefMinWidth]="110" [appRtColDefPriority]="2">繳費期限</th>
+        <th appRtColDef="total" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1">應繳</th>
+        <th appRtColDef="paid" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">已收</th>
+        <th appRtColDef="outstanding" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1">
+          尚欠
+        </th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">狀態</th>
+      </tr>
+    </ng-template>
+
+    <ng-template #invoiceBody>
+      @for (invoice of invoices(); track invoice.id) {
+        <tr
+          appRtRow
+          [appRtRow]="invoice"
+          [appRtRowId]="invoice.id"
+          class="group/row min-h-11 cursor-pointer hover:bg-zinc-50 focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent-500"
+          [attr.data-void]="invoice.status === 'void' ? '' : null"
+          tabindex="0"
+          role="button"
+          [attr.aria-label]="(invoice.studentName ?? '未知學生') + ' 的帳單詳情'"
+          (click)="openDetail(invoice)"
+          (keydown.enter)="openDetail(invoice)"
+          (keydown.space)="openDetail(invoice)"
+        >
+          <td appRtColCell="student">
+            <span class="font-medium text-zinc-900 group-data-void/row:text-zinc-500">{{
+              invoice.studentName ?? '未知學生'
+            }}</span>
+          </td>
+          <td appRtColCell="issued">
+            <span class="text-zinc-600 tabular-nums group-data-void/row:text-zinc-500">{{
+              invoice.issuedAt
+            }}</span>
+          </td>
+          <td appRtColCell="due">
+            <span
+              class="text-zinc-600 tabular-nums group-data-void/row:text-zinc-500"
+              [class.font-medium]="isOverdue(invoice)"
+              [class.text-error-600]="isOverdue(invoice)"
+            >
+              {{ invoice.dueDate ?? '未設定' }}
+            </span>
+          </td>
+          <td appRtColCell="total">
+            <span
+              class="tabular-nums group-data-void/row:text-zinc-500 group-data-void/row:line-through"
+              >{{ invoice.total | number }}</span
+            >
+          </td>
+          <td appRtColCell="paid">
+            <span
+              class="tabular-nums group-data-void/row:text-zinc-500 group-data-void/row:line-through"
+              >{{ invoice.netPaid | number }}</span
+            >
+          </td>
+          <td appRtColCell="outstanding">
+            @if (overRefunded(invoice) > 0) {
+              <span
+                class="tabular-nums group-data-void/row:text-zinc-500 group-data-void/row:line-through"
+                >多退 {{ overRefunded(invoice) | number }}</span
+              >
+            } @else {
+              <span
+                class="tabular-nums group-data-void/row:text-zinc-500 group-data-void/row:line-through"
+                [class.font-semibold]="outstanding(invoice) > 0"
+                [class.text-zinc-900]="outstanding(invoice) > 0"
+              >
+                {{ outstanding(invoice) | number }}
+              </span>
+            }
+          </td>
+          <td appRtColCell="status">
+            <div class="flex flex-wrap items-center gap-2">
+              <app-status-dot [tone]="statusTone(invoice)">{{
+                INVOICE_STATUS_LABELS[invoice.status]
+              }}</app-status-dot>
+              @if (isOverdue(invoice)) {
+                <app-status-dot tone="overdue">逾期</app-status-dot>
+              }
+            </div>
+          </td>
+        </tr>
+      }
+    </ng-template>
+  }
 </div>

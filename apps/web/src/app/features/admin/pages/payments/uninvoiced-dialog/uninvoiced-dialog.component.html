@@ -1,14 +1,16 @@
-<div class="uninvoiced">
-  <div class="uninvoiced__header">
+<div class="flex flex-col gap-3">
+  <div class="flex items-start justify-between gap-3">
     <div>
-      <div class="uninvoiced__title">待開帳的報名</div>
-      <div class="uninvoiced__subtitle">已經生效、但還沒開過任何帳單</div>
+      <div class="text-lg font-semibold text-zinc-800">待開帳的報名</div>
+      <div class="text-xs text-zinc-500">已經生效、但還沒開過任何帳單</div>
     </div>
     <p-button icon="pi pi-times" [text]="true" severity="secondary" (onClick)="close()" />
   </div>
 
   @if (loading()) {
-    <div class="uninvoiced__center"><p-progressSpinner strokeWidth="4" /></div>
+    <div class="px-4 py-8 text-center text-sm text-zinc-500">
+      <p-progressSpinner strokeWidth="4" />
+    </div>
   } @else if (failed()) {
     <app-inline-notice
       severity="error"
@@ -16,7 +18,7 @@
       [dismissible]="false"
     />
   } @else if (rows().length === 0) {
-    <p class="uninvoiced__center">每一筆生效中的報名都開過帳了。</p>
+    <p class="px-4 py-8 text-center text-sm text-zinc-500">每一筆生效中的報名都開過帳了。</p>
   } @else {
     @if (needsBillingCount() > 0) {
       <!-- 指出來就好 —— 計費設定在班級名單那邊，這裡不做那件事 -->
@@ -30,24 +32,29 @@
       />
     }
 
-    <div class="uninvoiced__list">
+    <div class="flex max-h-90 flex-col overflow-y-auto rounded-md border border-zinc-200">
       @for (row of rows(); track row.id) {
-        <div class="uninvoiced__row" [class.uninvoiced__row--done]="isIssued(row)">
-          <span class="uninvoiced__who">
-            <span class="uninvoiced__name">{{ row.studentName }}</span>
-            <span class="uninvoiced__meta">{{ row.className }} · {{ row.effectiveFrom }}</span>
+        <div
+          class="flex min-h-11 items-center gap-3 px-3 py-2 not-first:border-t not-first:border-zinc-100"
+          [class.bg-zinc-50]="isIssued(row)"
+        >
+          <span class="flex min-w-0 flex-1 flex-col">
+            <span class="text-sm font-medium text-zinc-800">{{ row.studentName }}</span>
+            <span class="text-xxs text-zinc-500"
+              >{{ row.className }} · {{ row.effectiveFrom }}</span
+            >
           </span>
 
-          <span class="uninvoiced__amount">
+          <span class="text-sm text-zinc-700 tabular-nums">
             @if (amountOf(row) !== null) {
               ${{ amountOf(row) | number }}
             } @else {
-              <span class="uninvoiced__no-amount">未設定計費</span>
+              <span class="text-xs text-zinc-500">未設定計費</span>
             }
           </span>
 
           @if (isIssued(row)) {
-            <span class="uninvoiced__done-mark">已開帳</span>
+            <span class="text-xs text-success-600">已開帳</span>
           } @else if (amountOf(row) !== null) {
             <p-button
               [label]="isFailed(row) ? '重試' : '開帳'"
@@ -61,8 +68,8 @@
       }
     </div>
 
-    <div class="uninvoiced__footer">
-      <span class="uninvoiced__count">
+    <div class="flex items-center gap-2">
+      <span class="mr-auto text-xs text-zinc-500">
         共 {{ total() }} 筆待開帳
         @if (issuedIds().size > 0) {
           · 這次開了 {{ issuedIds().size }} 張

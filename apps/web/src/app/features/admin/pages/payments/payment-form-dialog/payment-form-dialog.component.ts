@@ -43,7 +43,6 @@ import { outstanding } from '../payments.util';
     SelectModule,
   ],
   templateUrl: './payment-form-dialog.component.html',
-  styleUrl: './payment-form-dialog.component.scss',
 })
 export class PaymentFormDialogComponent {
   private readonly service = inject(InvoicesService);

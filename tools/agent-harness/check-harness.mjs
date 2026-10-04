@@ -116,8 +116,6 @@ const TOUCH_TARGET_EXEMPT = {
     '<tr>，列高由 responsive-table 的 __cell padding-block 決定（coarse 下已抬到 ≈44.5px）；min-height 在 table-row 上不生效',
   'apps/web/src/app/features/admin/pages/enrollments/enrollments.page.scss|.enrollments__row':
     '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
-  'apps/web/src/app/features/admin/pages/payments/payments.page.scss|.payments__row':
-    '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
 };
 const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
 const SCAN_SCOPE = join(ROOT, 'tools/agent-harness/scan-scope.json');
