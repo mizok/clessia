@@ -21,7 +21,6 @@ import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods
   standalone: true,
   imports: [FormsModule, ButtonModule, InputTextModule, DatePickerModule],
   templateUrl: './billing-period-form-dialog.component.html',
-  styleUrl: './billing-period-form-dialog.component.scss',
 })
 export class BillingPeriodFormDialogComponent {
   private readonly service = inject(BillingPeriodsService);

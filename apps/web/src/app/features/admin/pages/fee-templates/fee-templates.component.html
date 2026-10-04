@@ -1,13 +1,18 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="fee-templates">
-  <header class="fee-templates__header">
-    <div class="fee-templates__title-group">
-      <h1 class="fee-templates__title">{{ page().label }}</h1>
-      <p class="fee-templates__subtitle">
-        定義收費標準供報名時挑選。這裡只給定價，實際談定的金額寫在每筆報名上。
-      </p>
-    </div>
+<!--
+  A6 版（#991）：色面 → 價目表（灰工具列＋表格）→ 收費期間。
+  換版不換資料：A6 稿的「依計費模式分章」要 `.ts` 的分組 computed，這支 PR 為證明金額路徑零改動而不做（後續項 F0）。
+-->
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>
+    定義收費標準供報名時挑選。這裡只給定價，實際談定的金額寫在每筆報名上。
+  </ng-container>
+</app-page-open>
+
+<div class="page-wrap flex flex-col gap-8 pt-6 pb-12 wide:pt-8">
+  <div class="flex justify-end">
     <app-page-actions>
       <p-button
         label="操作紀錄"
@@ -17,22 +22,24 @@
         (onClick)="openAuditLog()"
       />
     </app-page-actions>
-  </header>
+  </div>
 
   <!-- ── 價目表 ───────────────────────────────────────────────────────── -->
-  <section class="fee-templates__section">
-    <div class="fee-templates__section-header">
-      <div class="fee-templates__section-title-group">
-        <h2 class="fee-templates__section-title">價目表</h2>
-        <p class="fee-templates__section-hint">
+  <section class="flex flex-col gap-4">
+    <div
+      class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
+    >
+      <div class="flex flex-col gap-1">
+        <h2 class="m-0 text-lg font-semibold text-zinc-900">價目表</h2>
+        <p class="m-0 text-sm text-zinc-500">
           停用的方案不會出現在報名選單，但歷史報名仍看得懂它。
         </p>
       </div>
       <p-button label="新增價目表" icon="pi pi-plus" (onClick)="openTemplateDialog()" />
     </div>
 
-    <div class="fee-templates__toolbar clessia-filter-bar">
-      <div class="fee-templates__search clessia-filter-search">
+    <div class="clessia-filter-bar flex flex-wrap items-center gap-3">
+      <div class="clessia-filter-search flex-[1_1_240px]">
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
@@ -54,7 +61,7 @@
       </app-filter-chip>
     </div>
 
-    <div class="fee-templates__content">
+    <div class="flex flex-col">
       @if (templatesLoading()) {
         <div class="skeleton-list">
           @for (i of [1, 2, 3]; track i) {
@@ -119,15 +126,16 @@
             <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
               <td appRtColCell="name">
                 <span
-                  class="fee-templates__name"
-                  [class.fee-templates__name--inactive]="!item.isActive"
+                  class="font-medium text-zinc-900"
+                  [class.text-zinc-500]="!item.isActive"
+                  [class.line-through]="!item.isActive"
                 >
                   {{ item.name }}
                 </span>
               </td>
               <td appRtColCell="mode">{{ BILLING_MODE_LABELS[item.billingMode] }}</td>
               <td appRtColCell="amount">
-                <span class="fee-templates__amount">{{ item.amount | number }}</span>
+                <span class="font-medium tabular-nums">{{ item.amount | number }}</span>
               </td>
               <td appRtColCell="status">
                 <app-status-dot [tone]="item.isActive ? 'done' : 'inactive'">{{
@@ -151,11 +159,13 @@
   </section>
 
   <!-- ── 收費期間 ─────────────────────────────────────────────────────── -->
-  <section class="fee-templates__section">
-    <div class="fee-templates__section-header">
-      <div class="fee-templates__section-title-group">
-        <h2 class="fee-templates__section-title">收費期間</h2>
-        <p class="fee-templates__section-hint">
+  <section class="flex flex-col gap-4">
+    <div
+      class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
+    >
+      <div class="flex flex-col gap-1">
+        <h2 class="m-0 text-lg font-semibold text-zinc-900">收費期間</h2>
+        <p class="m-0 text-sm text-zinc-500">
           期繳用的具名日期區間。期間之間可以重疊 —— 新舊制交接時本來就會。
         </p>
       </div>
@@ -167,7 +177,7 @@
       />
     </div>
 
-    <div class="fee-templates__content">
+    <div class="flex flex-col">
       @if (periodsLoading()) {
         <div class="skeleton-list">
           @for (i of [1, 2]; track i) {
@@ -210,7 +220,7 @@
             <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
               <td appRtColCell="name">{{ item.name }}</td>
               <td appRtColCell="range">
-                <span class="fee-templates__range">
+                <span class="text-zinc-500 tabular-nums">
                   {{ item.startDate }} — {{ item.endDate }}
                 </span>
               </td>
