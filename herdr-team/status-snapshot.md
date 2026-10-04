@@ -22,13 +22,14 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-04 11:0x 第十一次部署，**首次 CI 部署**，labor-reviewer-20261004-0638）
+## 🚀 線上是哪一版（2026-10-04 11:1x 第十二次部署，CI，labor-reviewer-20261004-0638）
 
-**截線 `f656c732`**（#1302；`verify` 與各 `migrate` run 皆 success）：`deploy.yml` run `37173099756`（`DEPLOY_ENABLED` 由使用者開、計畫席 dispatch 帶 `target_sha`；11:06–11:08 台北，plan／deploy-api／deploy-web／verify-live 四個 job 全 success）。api version `f3e98d37-8fc1-47f9-a4f3-556b9f163e11`（run log 的 `Current Version ID`）、web `main-FLI6EFRO.js`（CI 發，`bfb04c14.clessia.pages.dev`；與本席 07:35 本機 build 同 hash，本席**沒有**再本機 `pages deploy`）。
-含：自 `1fa88495` 後合進 main 的 api（#1225／#1241／#1252 等保留類、#1246、#1263、#1281…）與 web（#1229／#1230／#1238、#1138 各頁接 CampusContext、grades／courses／sessions A6 換版…）。
-**⓪**：窗口 `1fa88495..f656c732` 無新 migration（`git log … -- supabase/migrations` 空；上一批的 `20261003122743`／`20261003124241` 已套）。**限度**：這只回答「窗口內有沒有」，正式 DB 實際套到哪一支仍是宣告值。
-**部署驗證**（本席 11:1x 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-FLI6EFRO.js`＝本機 build＝CI 輸出；本機 175 個 js 檔中 174 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 者 0 個；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 299260 bytes）139 條路徑，含 `/api/public/catalog`、`/api/sessions/batch-reschedule`、`/api/billing-periods/upcoming-unbilled`、`/api/me/meals`、`/api/me/renewal-preview`、`/api/scores/students`；`/api/public/enrollment-applications` 不在（#1247 未合，預期）。`/api/public/catalog` 回 404（`PUBLIC_ORG_SLUG` 正式環境沒設 → fail-closed，預期）。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換；CI 的 verify-live 另有一道 BUILT／BEFORE 比對（BUILT `main-FLI6EFRO.js`、BEFORE `main-2WJRY3S4.js`）。
-**第十二批**：之後合進 main 的；#1247／#1216／#1303 三支 migration（公開申請兩張表、`classes.is_recommended`、`schedule_changes.batch_id`）屬 schema 類，**要先在 `prod-db` Approve 套完才能部署 api**（新 api 會 select 這些欄）。
+**截線 `218ab2db`**（#1303；`migrate @ 218ab2db` success 後 `deploy.yml` 自動觸發，run `37173546196`，11:15–11:18 台北，plan／deploy-api／deploy-web／verify-live 全 success）：web `main-UMWDEOMQ.js`（CI 發，`32872d77.clessia.pages.dev`）、api version `2222fa70-30ef-4805-b616-99777c906179`（run log 的 `Current Version ID`）。
+含：#1247（公開報名送出）、#1216（班級 `is_recommended`）、#1303（`schedule_changes.batch_id`）。**不含 #1251（公開試聽申請，`3ebe93fe`）**——它在截線之後才合進 main，`merge-base --is-ancestor` 實測不在；線上目前沒有 `/api/public/trial-applications`，歸第十三批。
+**⓪**：窗口 `f656c732..218ab2db` 三支 migration（`20261003172458`／`20261003172959`／`20261003232218`）皆由 `migrate.yml` run `37173410979`（TARGET_SHA `218ab2db`，使用者 Approve）apply 綠已套。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
+**同時被觸發的另兩顆 deploy run**（`37173703347` migrate @ cc3bc0da、`37173702025` migrate @ acb98ca8）：四個 job 全 skipped——那兩顆 migrate 是被取消的 waiting（workflow_run 的 conclusion 不是 success），**沒部署任何東西**。
+**部署驗證**（本席 11:2x 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-UMWDEOMQ.js`＝CI 輸出；`openapi.json` 140 條路徑，含 `/api/public/enrollment-applications`（#1247）。**限度**：我這次沒重跑逐 chunk 的 content-type 比對與負控（CI 的 `verify-live` 有 BUILT／BEFORE 與 smoke，我讀到它 success）；openapi 證不了新程式碼上線，只證明服務正常、版本已換。
+**第十三批**：#1251、#1307（`organizations.billing_reminder_days`，schema 類，**要先套完才能部署 api**——見 `deploying.md`）、之後合進 main 的。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者

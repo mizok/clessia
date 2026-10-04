@@ -444,6 +444,7 @@ while i < len(s):
 | 一支檔是一個隱式 transaction | 失敗整支回滾、不留 history 列。**兩顆 apply 同時被按也靠它**：後到的那顆撞 `schema_migrations` 主鍵、整支回滾（含 DML），不會套兩次（#1146 用 CLI 2.119.0 對拋棄式 DB 實測：計數只 +1） |
 | `CREATE/DROP INDEX CONCURRENTLY`、`REINDEX … CONCURRENTLY`、`VACUUM`、`ALTER SYSTEM`、`CLUSTER` **獨立成一支只有那一句的檔** | CLI 遇到它們會先 flush、單獨執行 —— 同一支檔被拆成多個 transaction。跟 DML 混在一起時，兩顆同時套會讓 DML **套兩次**（#1146 實測：計數 +2） |
 | 套壞了用新的 migration 往前修 | c3：已提交的檔不可改；沒有 down migration |
+| 檔頭寫「套完才部署或部署完才套都安全」要自己核 | 純加欄不等於 api 讀不到也沒事：`20261004031232_billing_reminder_days`（#1307）檔頭說「新程式碼讀不到就退回 14」，但那只對 `upcoming-unbilled` 成立；`routes/org-settings.ts` 的 `SELECT_FIELDS` 也讀新欄，欄位不存在時 `GET／PUT /api/org/settings` 直接報錯。**api 的 select 讀了新欄的 migration 一律是 schema 類，先套完才能部署**（CI 的 migrate→deploy 順序天然滿足，手動先部署 api 就會壞）。已提交的檔不改（c3），記在這裡 |
 
 **設定**（一次性，使用者做）：GitHub repo → Settings → Environments 建 `prod-db`（Required reviewers =
 使用者、Deployment branches = `main`）與 `prod-db-plan`（只限 `main`），兩者各放 environment secret
