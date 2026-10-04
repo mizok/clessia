@@ -5,6 +5,7 @@ import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TextareaModule } from 'primeng/textarea';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { MessageService } from 'primeng/api';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import {
@@ -25,6 +26,7 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
     ToastModule,
     SkeletonModule,
     TextareaModule,
+    InputNumberModule,
     LoadFailedComponent,
   ],
   providers: [MessageService],
@@ -55,6 +57,10 @@ export class SettingsPage implements OnInit {
   protected paymentInfoValue = '';
   protected readonly savingPaymentInfo = signal(false);
 
+  /** #1305：待開單提醒天數。同帳戶資訊：只在回應帶了這個 key（有財務權限）時畫 */
+  protected billingReminderDaysValue = 14;
+  protected readonly savingBillingReminder = signal(false);
+
   protected readonly attendanceResponsibleOptions = [
     { label: '行政負責', value: 'admin' },
     { label: '老師負責', value: 'teacher' },
@@ -78,6 +84,7 @@ export class SettingsPage implements OnInit {
         this.attendanceModeValue = s.attendanceMode;
         this.attendanceResponsibleValue = s.attendanceResponsible;
         this.paymentInfoValue = s.paymentInfo ?? '';
+        this.billingReminderDaysValue = s.billingReminderDays ?? 14;
         this.loading.set(false);
       },
       // **不發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast + 留著的錯誤畫面
@@ -129,6 +136,33 @@ export class SettingsPage implements OnInit {
         },
         error: () => {
           this.savingResponsible.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '錯誤',
+            detail: '儲存失敗，請稍後再試',
+          });
+        },
+      });
+  }
+
+  /** #1305：期的開始日前這麼多天，儀表板「待開單」就會出現（1–90） */
+  protected saveBillingReminderDays(): void {
+    this.savingBillingReminder.set(true);
+    this.orgSettingsService
+      .updateSettings({ billingReminderDays: this.billingReminderDaysValue })
+      .subscribe({
+        next: (s) => {
+          this.settings.set(s);
+          this.billingReminderDaysValue = s.billingReminderDays ?? 14;
+          this.savingBillingReminder.set(false);
+          this.messageService.add({
+            severity: 'success',
+            summary: '已儲存',
+            detail: '提醒天數已更新',
+          });
+        },
+        error: () => {
+          this.savingBillingReminder.set(false);
           this.messageService.add({
             severity: 'error',
             summary: '錯誤',

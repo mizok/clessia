@@ -168,4 +168,24 @@ describe('SettingsPage', () => {
 
     expect(bodyText()).not.toContain('家長付款帳戶資訊');
   });
+
+  /** #1305：待開單提醒天數 —— 財務設定，同帳戶資訊：沒有這個 key 就整段不畫 */
+  it('有 billingReminderDays 這個 key → 顯示，儲存送 billingReminderDays', async () => {
+    orgSettingsServiceMock.getSettings.mockReturnValue(
+      of({ ...DAILY_CHECKIN, billingReminderDays: 14 }),
+    );
+    await setup();
+
+    expect(bodyText()).toContain('待開單提醒');
+    component['billingReminderDaysValue'] = 7;
+    component['saveBillingReminderDays']();
+
+    expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ billingReminderDays: 7 });
+  });
+
+  it('回應裡沒有 billingReminderDays（沒有財務權限）→ 不畫', async () => {
+    await setup();
+
+    expect(bodyText()).not.toContain('待開單提醒');
+  });
 });

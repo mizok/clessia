@@ -121,12 +121,12 @@ app.openapi(
 //
 // 系統沒有排程、也沒有 `billing_runs` 表（開單是無狀態的，直接產出帳單），所以行政不會被提醒
 // 「下期快到了還沒開單」。這支在儀表板載入時算：
-//   今天 < 期的開始日 ≤ 今天 + 14 天，**而且**有該開的（在讀的期繳報名與這期重疊 —— 同期 run 的
+//   今天 < 期的開始日 ≤ 今天 + N 天（N＝機構設定 `organizations.billing_reminder_days`，預設 14，#1305），**而且**有該開的（在讀的期繳報名與這期重疊 —— 同期 run 的
 //   `planTuitionItems` 撈的對象），**而且**還沒開（這期沒有任何一筆未作廢的學費明細）。
 // 開過一次之後才有新報名的「增量」不在這支（#1100 billing-run 增量那條）。
 //
-// ponytail: 14 天是常數（計畫席裁、使用者可否決）；要給機構自己調的話是 organizations 加一欄（migration）
-const UPCOMING_UNBILLED_DAYS = 14;
+// 讀不到設定（欄位還沒套、查詢失敗）退回原本的 14 天
+const DEFAULT_REMINDER_DAYS = 14;
 
 const UpcomingUnbilledSchema = z
   .object({
@@ -153,7 +153,7 @@ app.openapi(
     method: 'get',
     path: '/upcoming-unbilled',
     tags: ['BillingPeriods'],
-    summary: `${UPCOMING_UNBILLED_DAYS} 天內開始、有期繳生卻還沒開單的期`,
+    summary: '機構設定天數內開始、有期繳生卻還沒開單的期',
     responses: {
       200: {
         description: '待開單的期（通常 0 或 1 筆），依開始日排序',
@@ -170,12 +170,22 @@ app.openapi(
     const today = getCurrentTaipeiDateString();
     const failed = () => c.json({ error: '查詢待開單失敗', code: 'DB_ERROR' }, 500);
 
+    // 待辦要能顯示，跟「能不能改這個數字」（manage_finance）是兩件事 —— 這裡直接讀自己 org 的設定
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('billing_reminder_days')
+      .eq('id', orgId)
+      .maybeSingle();
+    const reminderDays =
+      ((org as { billing_reminder_days?: number } | null)?.billing_reminder_days ?? 0) ||
+      DEFAULT_REMINDER_DAYS;
+
     const { data: periodRows, error: periodError } = await supabase
       .from('billing_periods')
       .select('id, name, start_date, end_date')
       .eq('org_id', orgId)
       .gt('start_date', today)
-      .lte('start_date', addDays(today, UPCOMING_UNBILLED_DAYS))
+      .lte('start_date', addDays(today, reminderDays))
       .order('start_date', { ascending: true });
     if (periodError) return failed();
     const periods = (periodRows ?? []) as Array<{
