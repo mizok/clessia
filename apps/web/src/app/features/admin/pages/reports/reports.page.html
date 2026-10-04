@@ -1,12 +1,22 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="reports">
-  <h1 class="reports__title">{{ page().label }}</h1>
-  <!-- 原本多一句「所有數字都由後端聚合，不是抓明細加總出來的」——那是給工程師看的
-       實作細節，補習班行政不需要也不會懂（Tester #22） -->
-  <p class="reports__lede">錢進來多少、還有多少沒收到。</p>
+<!--
+  A6 版（#991）：色面 → 灰工具列（日期區間、課程）→ 橘帶＋實收退款註記 → 分組統計。
+  換版不換資料：不新增任何前端加總。
+  原本多一句「所有數字都由後端聚合，不是抓明細加總出來的」——那是給工程師看的
+  實作細節，補習班行政不需要也不會懂（Tester #22）
+-->
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>錢進來多少、還有多少沒收到。</ng-container>
+</app-page-open>
 
-  <div class="reports__toolbar clessia-filter-bar">
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選營收報表"
+  >
     <p-datepicker
       class="clessia-filter-control clessia-filter-control--date-range"
       selectionMode="range"
@@ -38,7 +48,9 @@
       />
     }
   </div>
+</div>
 
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   @if (loading()) {
     <div class="skeleton-list">
       @for (i of [1, 2, 3, 4]; track i) {
@@ -65,33 +77,49 @@
       只用 billed / outstanding 這一組 —— received 看收款日、billed 看開帳日，
       是不同的集合，放進同一條會在比不同母體。
     -->
-    <section class="reports__band">
-      <p class="reports__band-cap">這段期間開帳</p>
-      <p class="reports__band-total">{{ summary()?.billed ?? 0 | number }}</p>
+    <section
+      class="mt-5 rounded-xl bg-[image:var(--band-surface)] px-4 pt-5 pb-[calc(20px+var(--band-seam))] text-band-ink sm:px-8 sm:pt-6 sm:pb-[calc(32px+var(--band-seam))]"
+    >
+      <p class="m-0 text-md font-semibold text-band-ink-muted">這段期間開帳</p>
+      <p
+        class="m-0 mt-1 mb-5 text-[32px] leading-none font-bold tracking-[-0.035em] tabular-nums sm:text-[44px]"
+      >
+        {{ summary()?.billed ?? 0 | number }}
+      </p>
 
       @if (billedSplit(); as split) {
-        <div class="reports__flow">
-          <span class="reports__flow-fill" [style.width.%]="split.collectedPct"></span>
+        <div
+          class="relative h-[26px] overflow-hidden rounded-md border-2 border-band-ink bg-[rgb(255_240_234/55%)] sm:h-[34px]"
+        >
           <span
-            class="reports__flow-overdue"
+            class="absolute inset-y-0 left-0 bg-band-ink"
+            [style.width.%]="split.collectedPct"
+          ></span>
+          <span
+            class="absolute inset-y-0 bg-[image:repeating-linear-gradient(-45deg,var(--band-ink)_0_5px,transparent_5px_10px)]"
             [style.left.%]="split.collectedPct"
             [style.width.%]="split.overduePct"
           ></span>
         </div>
 
-        <ul class="reports__flow-keys">
-          <li class="reports__flow-key">
-            <i class="reports__flow-sw reports__flow-sw--fill"></i>
-            已收回 <b class="reports__num">{{ split.collected | number }}</b>
+        <ul
+          class="m-0 mt-4 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-sm font-semibold text-band-ink-muted sm:gap-x-5 sm:gap-y-2 sm:text-md"
+        >
+          <li class="flex items-center gap-2">
+            <i class="size-[13px] rounded-[3px] border-2 border-band-ink bg-band-ink"></i>
+            已收回 <b class="font-bold tabular-nums">{{ split.collected | number }}</b>
           </li>
-          <li class="reports__flow-key">
-            <i class="reports__flow-sw reports__flow-sw--rest"></i>
-            應收未收 <b class="reports__num">{{ summary()?.outstanding ?? 0 | number }}</b>
+          <li class="flex items-center gap-2">
+            <i class="size-[13px] rounded-[3px] border-2 border-band-ink"></i>
+            應收未收
+            <b class="font-bold tabular-nums">{{ summary()?.outstanding ?? 0 | number }}</b>
           </li>
-          <li class="reports__flow-key">
-            <i class="reports__flow-sw reports__flow-sw--overdue"></i>
+          <li class="flex items-center gap-2">
+            <i
+              class="size-[13px] rounded-[3px] border-2 border-band-ink bg-[image:repeating-linear-gradient(-45deg,var(--band-ink)_0_3px,transparent_3px_6px)]"
+            ></i>
             其中逾期
-            <b class="reports__num">{{ summary()?.overdueOutstanding ?? 0 | number }}</b>
+            <b class="font-bold tabular-nums">{{ summary()?.overdueOutstanding ?? 0 | number }}</b>
           </li>
         </ul>
       }
@@ -102,18 +130,22 @@
       集合，所以它們不進那條流向，也不是第五張卡。退款單獨列、不從實收扣除：
       「收了 100 萬、退了 3.6 萬」與「收了 96.4 萬」是兩個不同的經營訊號。
     -->
-    <p class="reports__cash">
-      <i class="pi pi-info-circle reports__cash-icon"></i>
+    <p
+      class="relative m-0 flex items-start gap-3 rounded-lg border border-surface-border bg-surface-card p-4 text-sm leading-relaxed text-zinc-600 sm:px-5 sm:text-md mt-[calc(var(--band-seam)*-1)]"
+    >
+      <i class="pi pi-info-circle mt-0.5 shrink-0 text-zinc-500"></i>
       <span>
-        這段期間實收 <b class="reports__num">{{ summary()?.received ?? 0 | number }}</b
-        >、 退款 <b class="reports__num">{{ summary()?.refunded ?? 0 | number }}</b
+        這段期間實收
+        <b class="font-bold text-zinc-900 tabular-nums">{{ summary()?.received ?? 0 | number }}</b
+        >、 退款
+        <b class="font-bold text-zinc-900 tabular-nums">{{ summary()?.refunded ?? 0 | number }}</b
         >（單獨列，未從實收扣除）。 收款看收款日，與上面的開帳區間是不同的集合。
       </span>
     </p>
 
-    <section class="reports__groups">
-      <div class="reports__groups-header">
-        <h2 class="reports__groups-title">分組統計</h2>
+    <section class="flex flex-col gap-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <h2 class="m-0 text-lg font-semibold text-zinc-900">分組統計</h2>
         <p-selectbutton
           [options]="groupByOptions"
           optionLabel="label"
@@ -130,7 +162,7 @@
         手機與鍵盤使用者看不到。這行小字是正式說明，列上的 tooltip 留作桌機補充。
       -->
       @if (hasAmbiguousGroup()) {
-        <p class="reports__groups-note">
+        <p class="reports__groups-note m-0 mb-3 text-xs leading-[1.5] text-zinc-600">
           「（跨分校）」「（跨課程）」「（未分類）」是刻意的：跨多個分校／課程的帳單不拆分也不重複計入，沒有班的帳單（例如純餐費）歸未分類，所以各組小計加起來等於總計。
         </p>
       }
@@ -187,12 +219,18 @@
           @for (group of groups(); track group.key) {
             <tr appRtRow [appRtRow]="group" [appRtRowId]="group.key">
               <td appRtColCell="key">
-                <span class="reports__group-key">{{ labelOf(group) }}</span>
+                <span class="font-medium text-zinc-900">{{ labelOf(group) }}</span>
                 @if (group.billed > 0) {
                   <!-- 比例條填色是中性深色，不用 accent —— accent 是品牌色，
                        已退出數值強調用途（#100 的視覺回歸） -->
-                  <span class="reports__mini" [attr.aria-hidden]="true">
-                    <span class="reports__mini-fill" [style.width.%]="collectedPctOf(group)"></span>
+                  <span
+                    class="relative block h-[5px] w-full overflow-hidden rounded-full bg-zinc-200 mt-[5px] sm:max-w-35"
+                    [attr.aria-hidden]="true"
+                  >
+                    <span
+                      class="absolute inset-y-0 left-0 rounded-full bg-zinc-700"
+                      [style.width.%]="collectedPctOf(group)"
+                    ></span>
                   </span>
                 }
                 @if (isAmbiguous(group)) {
@@ -201,30 +239,31 @@
                     也不重複計入）—— 代價是多一列，換來小計永遠加得回總計。
                   -->
                   <i
-                    class="pi pi-info-circle reports__group-info"
+                    class="pi pi-info-circle ml-2 cursor-help text-zinc-500"
                     pTooltip="這一組是刻意的：跨多個分校/課程的帳單不做比例拆分也不重複計入，所以自成一組。沒有班的帳單（例如純餐費）歸「未分類」。這樣小計加起來才等於總計。"
                     tooltipPosition="right"
                   ></i>
                 }
               </td>
               <td appRtColCell="received">
-                <span class="reports__amount">{{ group.received | number }}</span>
+                <span class="tabular-nums">{{ group.received | number }}</span>
               </td>
               <td appRtColCell="refunded">
-                <span class="reports__amount reports__amount--refund">
+                <span class="text-warning-600 tabular-nums">
                   {{ group.refunded | number }}
                 </span>
               </td>
               <td appRtColCell="billed">
-                <span class="reports__amount">{{ group.billed | number }}</span>
+                <span class="tabular-nums">{{ group.billed | number }}</span>
               </td>
               <td appRtColCell="outstanding">
-                <span class="reports__amount">{{ group.outstanding | number }}</span>
+                <span class="tabular-nums">{{ group.outstanding | number }}</span>
               </td>
               <td appRtColCell="overdue">
                 <span
-                  class="reports__amount"
-                  [class.reports__amount--overdue]="group.overdueOutstanding > 0"
+                  class="tabular-nums"
+                  [class.text-error-600]="group.overdueOutstanding > 0"
+                  [class.font-medium]="group.overdueOutstanding > 0"
                 >
                   {{ group.overdueOutstanding | number }}
                 </span>

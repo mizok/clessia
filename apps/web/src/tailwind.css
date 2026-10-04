@@ -44,6 +44,7 @@
 @source './app/features/admin/pages/fee-templates';
 @source './app/features/admin/pages/parents';
 @source './app/features/admin/pages/payments';
+@source './app/features/admin/pages/reports';
 @source './app/features/admin/pages/campuses';
 @source './app/features/admin/pages/grades';
 @source './app/features/admin/pages/leave';
