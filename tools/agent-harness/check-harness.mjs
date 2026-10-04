@@ -112,8 +112,6 @@ const TOUCH_TARGET_EXEMPT = {
   // 已經加了，一行同時解決三個頁面與未來每一張表）。
   //
   // 尺寸跨檔案來自共用元件，是這個 gate 已知的盲區 —— 它只看得到單一檔案。
-  'apps/web/src/app/features/admin/pages/contact-book/contact-book.page.scss|.contact-book__row':
-    '<tr>，列高由 responsive-table 的 __cell padding-block 決定（coarse 下已抬到 ≈44.5px）；min-height 在 table-row 上不生效',
 };
 const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
 const SCAN_SCOPE = join(ROOT, 'tools/agent-harness/scan-scope.json');

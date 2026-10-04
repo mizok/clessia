@@ -39,6 +39,7 @@
 @source './app/shared/components/layout/global-search';
 @source './app/shared/components/layout/shell-layout';
 @source './app/features/admin/pages/changes';
+@source './app/features/admin/pages/contact-book';
 @source './app/features/admin/pages/courses';
 @source './app/features/admin/pages/dashboard';
 @source './app/features/admin/pages/enrollments';

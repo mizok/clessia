@@ -77,6 +77,7 @@
       "apps/web/src/app/features/admin/pages/campuses",
       "apps/web/src/app/features/admin/pages/changes",
       "apps/web/src/app/features/admin/pages/checkin",
+      "apps/web/src/app/features/admin/pages/contact-book",
       "apps/web/src/app/features/admin/pages/courses",
       "apps/web/src/app/features/admin/pages/dashboard",
       "apps/web/src/app/features/admin/pages/enrollments",
