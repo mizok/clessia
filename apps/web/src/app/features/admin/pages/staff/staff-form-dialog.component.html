@@ -158,7 +158,9 @@
       <label class="form-dialog__label">管理權限</label>
       <div class="grid grid-cols-1 gap-3 rounded-md bg-zinc-50 p-3 min-[641px]:grid-cols-2">
         @for (opt of permissionOptions; track opt.value) {
-          <div class="flex cursor-pointer items-start gap-3 pointer-coarse:min-h-11">
+          <div
+            class="permission-item flex cursor-pointer items-start gap-3 pointer-coarse:min-h-11"
+          >
             <p-checkbox
               [binary]="true"
               [inputId]="'perm_' + opt.value"
@@ -169,11 +171,11 @@
             <div class="flex flex-col gap-0.5">
               <label
                 [for]="'perm_' + opt.value"
-                class="cursor-pointer text-sm font-medium text-zinc-800 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+                class="permission-item__label cursor-pointer text-sm font-medium text-zinc-800 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
               >
                 {{ opt.label }}
               </label>
-              <p class="m-0 text-xs text-zinc-500">{{ opt.description }}</p>
+              <p class="permission-item__desc m-0 text-xs text-zinc-500">{{ opt.description }}</p>
             </div>
           </div>
         }
