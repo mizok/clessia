@@ -25,6 +25,7 @@ import { CampusContextService } from '@core/campus-context.service';
 import { CoursesService, type Course } from '@core/courses.service';
 import { SystemClockService } from '@core/system-clock.service';
 
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
@@ -64,6 +65,7 @@ import { defaultRange, groupKeyLabel, isAmbiguousKey, splitBilled } from './repo
     SelectButtonModule,
     ToastModule,
     TooltipModule,
+    PageOpenComponent,
     EmptyStateComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
@@ -72,7 +74,6 @@ import { defaultRange, groupKeyLabel, isAmbiguousKey, splitBilled } from './repo
   ],
   providers: [MessageService],
   templateUrl: './reports.page.html',
-  styleUrl: './reports.page.scss',
 })
 export class ReportsPage implements OnInit {
   readonly page = input.required<RouteObj>();

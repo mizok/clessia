@@ -86,6 +86,7 @@
       "apps/web/src/app/features/admin/pages/notifications",
       "apps/web/src/app/features/admin/pages/parents",
       "apps/web/src/app/features/admin/pages/payments",
+      "apps/web/src/app/features/admin/pages/reports",
       "apps/web/src/app/features/admin/pages/schools",
       "apps/web/src/app/features/admin/pages/sessions",
       "apps/web/src/app/features/admin/pages/settings",
