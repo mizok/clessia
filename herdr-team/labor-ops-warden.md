@@ -102,7 +102,18 @@ api 要本人跑 `wrangler deploy`。**這些報給計畫席沒有用,它也動�
    舊的是 `/low-priority to continue`,**新的是
    `You're out of usage credits. Run /usage-credits to keep using <模型>`** ——
    當天計畫席就是卡在新版橫幅上,而我只掃 `low-priority` → **五席全回 0,而它其實停了八小時**。
-   **掃兩種:`grep -ac 'out of usage credits'` 與 `grep -ac 'low-priority'`,任一命中就是額度耗盡。**
+   **掃兩種、而且要錨在 `⎿` 那一行** —— 真橫幅是工具結果列,長這樣:
+   `⎿  You're out of usage credits. Run /usage-credits to keep using <模型>`。
+
+   ```bash
+   herdr agent read <席> | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' \
+     | grep -acE '^[[:space:]]*⎿[[:space:]]+(You.re out of usage credits|.*/low-priority)'
+   ```
+
+   ⚠️ **不錨定會中自己**(同一輪實測):監工 pane 裡有這份 charter 與回報在討論橫幅,
+   **未錨定版命中 3、錨定版 0**;計畫席兩版都命中(它是真的耗盡)。
+   **跟 `mid-response` 片段、`[Pasted text` 未錨定完全同族 ——
+   比對太窄會漏、比對太寬會中自己,兩邊都要卡。**
    (這是本檔那個反覆出現的形狀:比對字串過窄 → 量不到被讀成沒事。同族的還有
    `mid-response` 片段、`[Pasted text` 未錨定、`in:title` 單向。)
    (額度耗盡→
