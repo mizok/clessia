@@ -226,11 +226,12 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
                   created_at: '2026-04-01T00:00:00Z',
                   updated_at: '2026-04-01T00:00:00Z',
                   subjects: null,
-                  academy_exam_classes: [
-                    {
-                      count: fixture.examClasses.filter((row) => row.exam_id === exam.id).length,
-                    },
-                  ],
+                  academy_exam_classes: fixture.examClasses
+                    .filter((row) => row.exam_id === exam.id)
+                    .map((row) => ({
+                      class_id: row.class_id,
+                      classes: { name: `班-${row.class_id}` },
+                    })),
                   academy_scores: [
                     { count: fixture.scores.filter((row) => row.exam_id === exam.id).length },
                   ],
@@ -413,6 +414,29 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
     expect(byId.get('exam-done')).toMatchObject({ scoreCount: 2, expectedCount: 2 });
     expect(byId.get('exam-partial')).toMatchObject({ scoreCount: 1, expectedCount: 2 });
     expect(byId.get('exam-empty')).toMatchObject({ scoreCount: 0, expectedCount: 2 });
+  });
+
+  it('列表每一筆帶參加班級 `classes[{id,name}]`（班名排序），`classCount` 是它的長度（#1314 G1）', async () => {
+    const { list } = createListApp({
+      ...BASE,
+      activeExams: [...BASE.activeExams, { id: 'exam-none', exam_date: '2026-04-10' }],
+      examClasses: [...BASE.examClasses, { exam_id: 'exam-done', class_id: 'c-a-extra' }],
+    });
+    const { body } = await list('');
+
+    const byId = new Map(body.data.map((row) => [row['id'], row]));
+    expect(byId.get('exam-done')).toMatchObject({
+      classCount: 2,
+      classes: [
+        { id: 'c-a-extra', name: '班-c-a-extra' },
+        { id: 'c-done', name: '班-c-done' },
+      ],
+    });
+    expect(byId.get('exam-none')).toMatchObject({ classCount: 0, classes: [] });
+    expect(byId.get('exam-empty')).toMatchObject({
+      classCount: 1,
+      classes: [{ id: 'c-empty', name: '班-c-empty' }],
+    });
   });
 
   /**

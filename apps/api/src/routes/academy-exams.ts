@@ -42,6 +42,8 @@ const AcademyExamListItemSchema = z
     subjectId: DbUuidSchema.nullable(),
     subjectName: z.string().nullable(),
     classCount: z.number().int(),
+    /** 參加班級（班名排序）；`classCount` 就是它的長度（#1314 G1） */
+    classes: z.array(z.object({ id: DbUuidSchema, name: z.string() })),
     scoreCount: z.number().int(),
     // 應登錄人數（分母）= **考試日在籍 ∪ 已登錄**。定義與理由見
     // `lib/academy-exam-roster.ts`（issue #424 使用者裁定）。
@@ -271,7 +273,10 @@ interface ExamListRow {
   created_at: string;
   updated_at: string;
   subjects?: { name: string | null } | Array<{ name: string | null }> | null;
-  academy_exam_classes?: Array<{ count: number | null }> | null;
+  academy_exam_classes?: Array<{
+    class_id: string;
+    classes?: { name: string | null } | Array<{ name: string | null }> | null;
+  }> | null;
   academy_scores?: Array<{ count: number | null }> | null;
 }
 
@@ -564,7 +569,7 @@ app.openapi(listRoute, async (c) => {
       created_at,
       updated_at,
       subjects(name),
-      academy_exam_classes(count),
+      academy_exam_classes(class_id, classes(name)),
       academy_scores(count)
     `,
       { count: 'exact' },
@@ -686,7 +691,9 @@ app.openapi(listRoute, async (c) => {
 
   const rows = pageRows.map((row) => {
     const subject = pickRelationFirst(row.subjects);
-    const classCount = row.academy_exam_classes?.[0]?.count ?? 0;
+    const classes = (row.academy_exam_classes ?? [])
+      .map((link) => ({ id: link.class_id, name: pickRelationFirst(link.classes)?.name ?? '' }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
     const scoreCount = row.academy_scores?.[0]?.count ?? 0;
     // 這一頁的每一筆都在 `counts` 裡（它是照 pageRows 或候選集算出來的），
     // 所以這個 `?? 0` 走不到 —— 留著只是為了不讓型別逼出一個 non-null 斷言
@@ -704,7 +711,8 @@ app.openapi(listRoute, async (c) => {
       campusId: row.campus_id,
       subjectId: row.subject_id,
       subjectName: subject?.name ?? null,
-      classCount,
+      classCount: classes.length,
+      classes,
       scoreCount,
       expectedCount,
       createdAt: row.created_at,
