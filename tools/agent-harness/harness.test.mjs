@@ -647,7 +647,20 @@ function unmigratedPageDir(src) {
       if (files.some((f) => f.endsWith('.scss'))) return rel;
     }
   }
-  throw new Error('找不到還沒遷移、底下有 .scss 的頁面目錄 —— 全站遷完時這兩條測試要改寫');
+  // 頁面與 shared/components 都遷完之後（#991 Z12），剩下的 .scss 是殼與斷點：`app/app.component.scss`、
+  // `app/shared/_breakpoints.scss`（S 批與 T4）。它們所在的目錄不在 @source 裡、目錄裡直接有 .scss，
+  // 對這兩條測試的用途（「不在 @source 的目錄」「同目錄有別的 .scss」）一樣成立。
+  for (const rel of ['app/shared', 'app']) {
+    if (covered.some((c) => rel === c || rel.startsWith(`${c}/`))) continue;
+    let files;
+    try {
+      files = readdirSync(join(src, rel));
+    } catch {
+      continue;
+    }
+    if (files.some((f) => f.endsWith('.scss'))) return rel;
+  }
+  throw new Error('找不到還沒遷移、底下有 .scss 的目錄 —— 全站的 .scss 都遷完時這兩條測試要改寫');
 }
 
 test('A20 的 Tailwind 放寬只放行 @source 目錄裡真的會產生 CSS 的 class', () => {
