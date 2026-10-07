@@ -72,6 +72,60 @@ describe('ContactBookEntryDialogComponent', () => {
   });
 
   /**
+   * #1314 CB6：儲存鈕 `[disabled]="!dirty()"` 停用時要講原因。
+   * 對照組（有改動時提示消失）跟「停用時有提示」成對 —— 只斷言「有提示」的話，
+   * 提示永遠顯示也會是綠的（坑 16）。
+   */
+  describe('#1314 CB6 儲存鈕停用原因', () => {
+    const reason = () =>
+      fixture.nativeElement.querySelector('.entry-dialog__disabled-reason') as HTMLElement | null;
+    const saveButton = () =>
+      fixture.nativeElement.querySelector('.entry-dialog__footer p-button:last-child button') as
+        HTMLButtonElement | undefined;
+
+    it('既有稿沒改：停用並寫「內容沒有修改」，改了之後提示消失、鈕可按', async () => {
+      await setup(signedEntry);
+
+      expect(reason()?.textContent?.trim()).toBe('內容沒有修改，改了才能儲存');
+      expect(saveButton()?.disabled).toBe(true);
+
+      fixture.componentInstance['content'].set('改過的內容');
+      fixture.detectChanges();
+
+      expect(reason()).toBeNull();
+      expect(saveButton()?.disabled).toBe(false);
+    });
+
+    it('新稿沒寫字：停用並寫「還沒寫內容」；只有空白也算沒寫', async () => {
+      await TestBed.configureTestingModule({
+        imports: [ContactBookEntryDialogComponent],
+        providers: [
+          { provide: ContactBookService, useValue: { upsert: vi.fn() } },
+          { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+          {
+            provide: DynamicDialogConfig,
+            useValue: {
+              data: { draft: { studentId: 's1', studentName: '王柏睿', entryDate: '2026-08-31' } },
+            },
+          },
+        ],
+      }).compileComponents();
+      fixture = TestBed.createComponent(ContactBookEntryDialogComponent);
+      fixture.detectChanges();
+
+      expect(reason()?.textContent?.trim()).toBe('還沒寫內容，寫了才能寫入');
+
+      fixture.componentInstance['content'].set('   ');
+      fixture.detectChanges();
+      expect(reason()?.textContent?.trim()).toBe('還沒寫內容，寫了才能寫入');
+
+      fixture.componentInstance['content'].set('今天有練習');
+      fixture.detectChanges();
+      expect(reason()).toBeNull();
+    });
+  });
+
+  /**
    * #733：**這支對話框自己 `inject(MessageService)`，卻沒有自己 `provide` 它。**
    *
    * `MessageService` 不是 `providedIn: 'root'` —— 要由 injector 鏈上的誰給。
