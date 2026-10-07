@@ -399,3 +399,35 @@ CI／部署類(`.github/workflows`)另看:觸發條件(`workflow_run` 的 conclu
 - build 完看 `dist` 的 **mtime 與退出碼**;`package.json`／lock 動過先 `npm ci`(#1055／#1172 都踩過)。
 - 回報一律從 `gh pr view <n> --json state,mergeCommit` 讀回,**不跟 merge 指令串在同一條**(#1220 的教訓)。
 
+
+---
+
+# 10-07 補:Tailwind 換版 PR 的二讀(labor-reviewer-20261004-0638,#991 Z 批)
+
+## 「這個 class 有沒有真的產生 CSS」要編譯看,不要用讀的
+
+換版 PR 把 SCSS 換成 utility,`去 class 去空白後逐字相同` 只證明**模板結構與綁定沒動**,證明不了 **class 有沒有生效**(任意值的跳脫、`inline-flex!`、`[&.x\_\_y]` 變體、`group-open:`、`min-[640.02px]:`…都可能編得出來也可能靜默落空)。實測可用的做法(在 PR head 的 worktree 裡,node_modules 已裝):
+
+```js
+// tw-check.mjs(跑完刪掉;不要提交)
+import { compile } from '@tailwindcss/node';
+import { Scanner } from '@tailwindcss/oxide';
+import { readFileSync } from 'node:fs';
+const base = process.cwd() + '/apps/web/src';
+const c = await compile(readFileSync(base + '/tailwind.css', 'utf8'), { base, onDependency() {} });
+const out = c.build(new Scanner({ sources: c.sources }).scan());
+console.log(out.includes('要查的 class 或選擇器'));
+```
+
+用法:對**被 PR 刪掉的 SCSS 規則**與**PR 新寫的任意值／變體**各查一次輸出(例:#1361 查到 `.[&.popup-menu\_\_item--disabled]:opacity-50.popup-menu__item--disabled{…}` 確實產生、#1362 查到 `page-actions__cta` 在輸出裡**不存在**)。**限度**:這證明「有沒有規則」,不證明「規則的外觀對不對」;也不替代渲染。
+
+## 規則「掉了」不等於「回歸」—— 先問舊規則有沒有命中過
+
+#1362 我報了「`.page-actions__cta{width:100%}` 隨 scss 刪掉、手機停靠鈕會從滿版變小鈕」。**我只驗了新樹裡沒有這條規則,沒驗舊樹裡它有沒有命中**。事實是:那條規則在 encapsulated SCSS 裡,而 `styleClass` 落在 PrimeNG 內部 button(子元件 view,沒有 `_ngcontent`),**從來沒命中過**,舊畫面本來就是小鈕(#1363)。所以那不是回歸,是「換版把一條從未生效的意圖暴露出來」;處置是補 `w-full justify-center` 讓意圖第一次生效,而不是退回。
+
+> **判準**:報「規則掉了」之前先看舊畫面(或舊規則的選擇器能不能命中那個元素:投影內容、PrimeNG 內部元素、跨 view 的 encapsulated 選擇器都是常見的『從未命中』)。**「新樹沒有」和「舊樹有效」是兩個要各自查的事實。**
+> (同族:`todo-banner` 的 `strong` 規則、`leave-form-dialog` 的 `&__x` 巢狀,都是『寫了但從沒生效』。)
+
+## `git grep` 的 alternation 我又踩了一次
+
+`git grep -n 'a\|b'`(BRE)在這台機器上不會當 alternation,**回空**——而空長得跟「不存在」一模一樣(#1323:我第一次查 `.enrollments__summary\|skeleton-` 得空,差點據此判掛勾不在)。**一律 `git grep -E 'a|b'`**;查『不存在』的結論前,先拿一個一定存在的字串當正控。
