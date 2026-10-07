@@ -73,7 +73,6 @@ const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
   ],
   providers: [DialogService],
   templateUrl: './schedule.page.html',
-  styleUrl: './schedule.page.scss',
 })
 export class SchedulePage implements OnInit {
   readonly page = input.required<RouteObj>();

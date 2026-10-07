@@ -31,7 +31,6 @@ export interface ContactBookRosterInput {
   selector: 'app-contact-book-roster',
   imports: [ButtonModule],
   templateUrl: './contact-book-roster.component.html',
-  styleUrl: './contact-book-roster.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   // **刻意不在這裡 provide DialogService** —— 這支自己是被 DialogService 開出來的，
   // 它從開啟方（課表頁）的 injector 拿到同一個實例。自己 provide 會多開一個，
