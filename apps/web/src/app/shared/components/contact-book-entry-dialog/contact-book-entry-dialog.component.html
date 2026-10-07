@@ -50,6 +50,12 @@
     <span class="entry-dialog__hint">
       每生每日一則，不分科目。共同編輯會直接覆寫並記下最後編輯者。
     </span>
+    @if (!dirty()) {
+      <!-- #1314 CB6：儲存鈕停用時講原因（沒有字／沒改），不讓人猜為什麼按不下去 -->
+      <span class="entry-dialog__hint entry-dialog__disabled-reason" role="status">
+        {{ isNew() ? '還沒寫內容，寫了才能寫入' : '內容沒有修改，改了才能儲存' }}
+      </span>
+    }
   </div>
 
   <footer class="entry-dialog__footer">
