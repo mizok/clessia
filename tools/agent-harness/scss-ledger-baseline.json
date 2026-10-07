@@ -7,7 +7,6 @@
   "apps/web/src/app/shared/components/class-picker-dialog/class-picker-dialog.component.scss",
   "apps/web/src/app/shared/components/confirm-dialog/confirm-dialog.component.scss",
   "apps/web/src/app/shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component.scss",
-  "apps/web/src/app/shared/components/empty-state/empty-state.component.scss",
   "apps/web/src/app/shared/components/login-link-dialog/login-link-dialog.component.scss",
   "apps/web/src/app/shared/components/page-actions/page-actions.component.scss",
   "apps/web/src/app/shared/components/page-band/band-anchor/band-anchor.component.scss",

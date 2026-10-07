@@ -77,11 +77,6 @@ const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline
  * 不是保險；改完就要把它刪掉。
  */
 const CONTRAST_EXEMPT = {
-  // ─ 空狀態的大圖示：WCAG 1.4.11 明文豁免「純裝飾」 ─
-  // 這幾處都是同一個形狀：一個 24–40px 的灰圖示，旁邊必定有標題與說明文字，
-  // 圖示不承載任何文字沒講的資訊。提高對比會讓它從「氣氛」變成「重點」。
-  'apps/web/src/app/shared/components/empty-state/empty-state.component.scss|i|var(--zinc-400)|var(--zinc-100)':
-    '共用空狀態元件的圖示（i 28px，圓底 zinc-100），__title 與說明文字承載資訊 —— 1.4.11 純裝飾豁免',
 };
 /**
  * A28（Tailwind 頁的 class 對比）的豁免：鍵＝`檔案|前景 class|背景 class`，值＝理由。

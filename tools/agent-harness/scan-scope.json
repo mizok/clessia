@@ -110,6 +110,7 @@
       "apps/web/src/app/shared/components/checkin-station",
       "apps/web/src/app/shared/components/collapsible",
       "apps/web/src/app/shared/components/day-timeline",
+      "apps/web/src/app/shared/components/empty-state",
       "apps/web/src/app/shared/components/filter-chip",
       "apps/web/src/app/shared/components/flow-field",
       "apps/web/src/app/shared/components/ime-filter-input",

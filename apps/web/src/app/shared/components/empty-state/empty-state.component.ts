@@ -6,7 +6,6 @@ import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/c
   standalone: true,
   imports: [CampusScopeNoteComponent],
   templateUrl: './empty-state.component.html',
-  styleUrl: './empty-state.component.scss',
 })
 export class EmptyStateComponent {
   readonly icon = input<string>('pi pi-inbox');

@@ -1,15 +1,19 @@
-<div class="empty-state">
-  <div class="empty-state__icon">
+<div class="empty-state flex flex-col items-center justify-center px-6 py-12 text-center">
+  <div
+    class="empty-state__icon mb-4 flex size-16 items-center justify-center rounded-full bg-zinc-100 [&_i]:text-[28px] [&_i]:text-zinc-400"
+  >
     <i [class]="icon()"></i>
   </div>
-  <h3 class="empty-state__title">{{ title() }}</h3>
+  <!-- prettier-ignore -->
+  <h3 class="empty-state__title mx-0 mt-0 mb-2 text-lg font-semibold text-zinc-900">{{ title() }}</h3>
   @if (description()) {
-    <p class="empty-state__description">{{ description() }}</p>
+    <!-- prettier-ignore -->
+    <p class="empty-state__description mx-0 mt-0 mb-6 max-w-[280px] text-md leading-relaxed text-zinc-500">{{ description() }}</p>
   }
   @if (campusScoped()) {
     <app-campus-scope-note />
   }
-  <div class="empty-state__action">
+  <div class="empty-state__action flex gap-3 empty:hidden">
     <ng-content />
   </div>
 </div>
