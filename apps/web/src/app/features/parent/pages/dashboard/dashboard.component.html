@@ -1,7 +1,11 @@
-<div class="dashboard">
+<div class="dashboard mx-auto flex min-h-full max-w-[1200px] flex-col gap-0">
   <app-page-band>
     <app-child-switcher />
-    <h1 class="dashboard__band-title">{{ page().label }}</h1>
+    <h1
+      class="dashboard__band-title mx-0 mt-2 mb-0 text-3xl leading-[1.02] font-bold tracking-[-0.04em]"
+    >
+      {{ page().label }}
+    </h1>
   </app-page-band>
   <!--
     **依賴孩子的頁面都包這一層**（#749）：0 個孩子時底下那些空狀態講的是

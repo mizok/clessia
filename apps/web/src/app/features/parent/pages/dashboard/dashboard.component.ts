@@ -16,7 +16,6 @@ import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-sco
     ChildScopeGateComponent,
   ],
   templateUrl: './dashboard.component.html',
-  styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent implements OnInit {
   readonly page = input.required<RouteObj>();

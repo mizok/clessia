@@ -96,6 +96,8 @@
       "apps/web/src/app/features/admin/pages/students",
       "apps/web/src/app/features/admin/pages/subjects",
       "apps/web/src/app/features/kiosk",
+      "apps/web/src/app/features/parent/pages/dashboard",
+      "apps/web/src/app/features/parent/shared/child-switcher",
       "apps/web/src/app/features/public",
       "apps/web/src/app/features/select-role",
       "apps/web/src/app/features/teacher/pages/schedule",
