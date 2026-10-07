@@ -38,7 +38,6 @@ interface SubjectManagerNotice {
   ],
   providers: [DialogService],
   templateUrl: './subject-manager.component.html',
-  styleUrl: './subject-manager.component.scss',
 })
 export class SubjectManagerComponent implements OnInit, OnDestroy {
   private readonly subjectsService = inject(SubjectsService);

@@ -3,14 +3,14 @@
     <div class="dialog-header-inline__title-container">
       <h2 class="dialog-header-inline__title">科目管理</h2>
     </div>
-    <button class="dialog-header-inline__close" (click)="cancel()">
+    <button class="dialog-header-inline__close size-11" (click)="cancel()">
       <i class="pi pi-times"></i>
     </button>
   </div>
 }
 
 <div class="subject-manager">
-  <div class="subject-manager__body">
+  <div class="subject-manager__body flex min-h-[120px] flex-col gap-1">
     @if (notice(); as n) {
       <app-inline-notice
         [severity]="n.severity"
@@ -23,7 +23,9 @@
     <!-- Loading skeleton -->
     @if (loading()) {
       @for (_ of [1, 2, 3]; track $index) {
-        <div class="subject-manager__row subject-manager__row--skeleton">
+        <div
+          class="subject-manager__row subject-manager__row--skeleton flex cursor-default items-center gap-2 rounded-md px-0 py-2 [transition:background_0.15s] hover:bg-zinc-50"
+        >
           <span class="skeleton-bar"></span>
         </div>
       }
@@ -36,12 +38,14 @@
     } @else {
       <!-- Subject list -->
       @for (subject of subjects(); track subject.id) {
-        <div class="subject-manager__row">
+        <div
+          class="subject-manager__row flex cursor-default items-center gap-2 rounded-md p-2 [transition:background_0.15s] hover:bg-zinc-50"
+        >
           @if (editingId() === subject.id) {
             <!-- Inline edit mode -->
             <input
               pInputText
-              class="subject-manager__input"
+              class="subject-manager__input flex-1 text-[0.9375rem]"
               [ngModel]="editingName()"
               (ngModelChange)="editingName.set($event)"
               (keydown)="onEditNameKeydown($event)"
@@ -72,11 +76,11 @@
             />
           } @else {
             <!-- Display mode -->
-            <span class="subject-manager__name-stack">
-              <span class="subject-manager__name">{{ subject.name }}</span>
+            <span class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
+              <span class="subject-manager__name text-md text-zinc-800">{{ subject.name }}</span>
               @if (deleteBlockReason(subject); as reason) {
                 <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到 -->
-                <span class="subject-manager__usage-hint">{{ reason }}</span>
+                <span class="subject-manager__usage-hint text-xs text-zinc-500">{{ reason }}</span>
               }
             </span>
             <p-button
@@ -105,17 +109,19 @@
       }
 
       @if (subjects().length === 0) {
-        <p class="subject-manager__empty">尚無科目，請新增</p>
+        <p class="subject-manager__empty px-0 py-4 text-center text-[0.875rem] text-zinc-500">
+          尚無科目，請新增
+        </p>
       }
 
       <!-- Divider -->
-      <div class="subject-manager__divider"></div>
+      <div class="subject-manager__divider mx-0 my-3 h-px bg-zinc-200"></div>
 
       <!-- Add new -->
-      <div class="subject-manager__add">
+      <div class="subject-manager__add flex items-center gap-2">
         <input
           pInputText
-          class="subject-manager__input"
+          class="subject-manager__input flex-1 text-[0.9375rem]"
           placeholder="新增科目名稱"
           [ngModel]="newSubjectName()"
           (ngModelChange)="newSubjectName.set($event)"

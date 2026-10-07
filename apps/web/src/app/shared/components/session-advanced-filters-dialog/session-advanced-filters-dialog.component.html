@@ -1,16 +1,29 @@
-<div class="session-advanced-filters-dialog">
-  <div class="session-advanced-filters-dialog__summary">
-    <div class="session-advanced-filters-dialog__summary-copy">
-      <span class="session-advanced-filters-dialog__eyebrow">{{ modeLabel() }}</span>
-      <p class="session-advanced-filters-dialog__summary-title">目前範圍：{{ scopeSummary() }}</p>
+<div
+  class="session-advanced-filters-dialog flex min-w-[min(32rem,100%)] flex-col gap-4 text-zinc-900"
+>
+  <div
+    class="session-advanced-filters-dialog__summary flex flex-wrap items-start justify-between gap-3 rounded-[1rem] border border-solid border-zinc-200 p-4 [background:linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(241,245,249,0.88)_100%)]"
+  >
+    <div class="session-advanced-filters-dialog__summary-copy flex min-w-0 flex-1 flex-col gap-1">
+      <span
+        class="session-advanced-filters-dialog__eyebrow text-[0.75rem] font-bold tracking-[0.08em] text-zinc-500 uppercase"
+        >{{ modeLabel() }}</span
+      >
+      <p
+        class="session-advanced-filters-dialog__summary-title m-0 text-[1rem] font-bold text-zinc-900"
+      >
+        目前範圍：{{ scopeSummary() }}
+      </p>
     </div>
-    <div class="session-advanced-filters-dialog__summary-badges">
-      <span class="session-advanced-filters-dialog__badge">
+    <div class="session-advanced-filters-dialog__summary-badges flex flex-wrap justify-end gap-2">
+      <span
+        class="session-advanced-filters-dialog__badge inline-flex items-center justify-center rounded-[999px] bg-zinc-900 px-[0.625rem] py-[0.375rem] text-[0.75rem] font-semibold whitespace-nowrap text-white"
+      >
         {{ appliedFilterCount() }} 個進階條件
       </span>
       @if (showClassFilter()) {
         <span
-          class="session-advanced-filters-dialog__badge session-advanced-filters-dialog__badge--accent"
+          class="session-advanced-filters-dialog__badge session-advanced-filters-dialog__badge--accent inline-flex items-center justify-center rounded-[999px] bg-accent-600 px-[0.625rem] py-[0.375rem] text-[0.75rem] font-semibold whitespace-nowrap text-white"
         >
           已啟用班級篩選
         </span>
@@ -18,8 +31,13 @@
     </div>
   </div>
 
-  <div class="session-advanced-filters-dialog__row">
-    <label class="session-advanced-filters-dialog__label">課程</label>
+  <div
+    class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
+  >
+    <label
+      class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
+      >課程</label
+    >
     <p-multiselect
       [options]="filteredCourseOptions()"
       optionLabel="name"
@@ -41,12 +59,19 @@
         />
       </ng-template>
     </p-multiselect>
-    <span class="session-advanced-filters-dialog__hint"> 搜尋範圍限在目前分校。 </span>
+    <span class="session-advanced-filters-dialog__hint text-[0.75rem] leading-[1.4] text-zinc-500">
+      搜尋範圍限在目前分校。
+    </span>
   </div>
 
   @if (showClassFilter()) {
-    <div class="session-advanced-filters-dialog__row">
-      <label class="session-advanced-filters-dialog__label">班級</label>
+    <div
+      class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
+    >
+      <label
+        class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
+        >班級</label
+      >
       <p-multiselect
         [options]="filteredClassOptions()"
         optionLabel="name"
@@ -67,12 +92,14 @@
           />
         </ng-template>
         <ng-template #item let-classOption>
-          <div class="session-advanced-filters-dialog__option">
-            <span class="session-advanced-filters-dialog__option-title">{{
+          <div class="session-advanced-filters-dialog__option flex flex-col gap-0.5">
+            <span class="session-advanced-filters-dialog__option-title font-semibold">{{
               classOption.name
             }}</span>
             @if (getClassMetaLabel(classOption); as metaLabel) {
-              <span class="session-advanced-filters-dialog__option-meta">
+              <span
+                class="session-advanced-filters-dialog__option-meta text-[0.75rem] text-zinc-500"
+              >
                 {{ metaLabel }}
               </span>
             }
@@ -83,8 +110,13 @@
   }
 
   @if (students().length > 0) {
-    <div class="session-advanced-filters-dialog__row">
-      <label class="session-advanced-filters-dialog__label">學生</label>
+    <div
+      class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
+    >
+      <label
+        class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
+        >學生</label
+      >
       <p-multiselect
         [options]="students()"
         optionLabel="name"
@@ -107,23 +139,35 @@
           />
         </ng-template>
         <ng-template #item let-student>
-          <div class="session-advanced-filters-dialog__option">
-            <span class="session-advanced-filters-dialog__option-title">{{ student.name }}</span>
+          <div class="session-advanced-filters-dialog__option flex flex-col gap-0.5">
+            <span class="session-advanced-filters-dialog__option-title font-semibold">{{
+              student.name
+            }}</span>
             @if (getStudentOptionMeta(student); as meta) {
-              <span class="session-advanced-filters-dialog__option-meta">{{ meta }}</span>
+              <span
+                class="session-advanced-filters-dialog__option-meta text-[0.75rem] text-zinc-500"
+                >{{ meta }}</span
+              >
             }
           </div>
         </ng-template>
       </p-multiselect>
-      <span class="session-advanced-filters-dialog__hint">
+      <span
+        class="session-advanced-filters-dialog__hint text-[0.75rem] leading-[1.4] text-zinc-500"
+      >
         只顯示所選學生目前有在籍的班級課堂。
       </span>
     </div>
   }
 
   @if (isSessionsMode()) {
-    <div class="session-advanced-filters-dialog__row">
-      <label class="session-advanced-filters-dialog__label">老師</label>
+    <div
+      class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
+    >
+      <label
+        class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
+        >老師</label
+      >
       <p-multiselect
         [options]="filteredTeacherOptions()"
         optionLabel="displayName"
@@ -144,21 +188,32 @@
           />
         </ng-template>
         <ng-template #item let-teacher>
-          <div class="session-advanced-filters-dialog__option">
-            <span class="session-advanced-filters-dialog__option-title">{{
+          <div class="session-advanced-filters-dialog__option flex flex-col gap-0.5">
+            <span class="session-advanced-filters-dialog__option-title font-semibold">{{
               teacher.displayName
             }}</span>
             @if (getTeacherOptionMeta(teacher); as meta) {
-              <span class="session-advanced-filters-dialog__option-meta">{{ meta }}</span>
+              <span
+                class="session-advanced-filters-dialog__option-meta text-[0.75rem] text-zinc-500"
+                >{{ meta }}</span
+              >
             }
           </div>
         </ng-template>
       </p-multiselect>
-      <span class="session-advanced-filters-dialog__hint">{{ teacherScopeHint() }}</span>
+      <span
+        class="session-advanced-filters-dialog__hint text-[0.75rem] leading-[1.4] text-zinc-500"
+        >{{ teacherScopeHint() }}</span
+      >
     </div>
 
-    <div class="session-advanced-filters-dialog__row">
-      <label class="session-advanced-filters-dialog__label">課堂狀態</label>
+    <div
+      class="session-advanced-filters-dialog__row flex flex-col gap-2 rounded-[0.875rem] border border-solid border-zinc-200 bg-white px-4 py-[0.875rem]"
+    >
+      <label
+        class="session-advanced-filters-dialog__label text-[0.8125rem] font-bold tracking-[0.01em] text-zinc-700"
+        >課堂狀態</label
+      >
       <p-multiselect
         [options]="statusOptions"
         optionLabel="label"
@@ -174,7 +229,7 @@
     </div>
   }
 
-  <div class="session-advanced-filters-dialog__actions">
+  <div class="session-advanced-filters-dialog__actions flex items-center justify-end gap-2 pt-2">
     <p-button
       label="清除全部"
       severity="secondary"

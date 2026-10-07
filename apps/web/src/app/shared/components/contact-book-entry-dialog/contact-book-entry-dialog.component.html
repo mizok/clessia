@@ -1,10 +1,12 @@
 <p-toast position="top-center" [baseZIndex]="30000" />
 
-<div class="entry-dialog">
-  <header class="entry-dialog__header">
-    <div class="entry-dialog__title-group">
-      <h2 class="entry-dialog__title">{{ studentName() }}</h2>
-      <p class="entry-dialog__meta">
+<div class="entry-dialog flex flex-col gap-4 p-5">
+  <header class="entry-dialog__header flex items-start justify-between gap-3">
+    <div class="entry-dialog__title-group flex flex-col gap-1">
+      <h2 class="entry-dialog__title m-0 text-lg font-semibold text-zinc-900">
+        {{ studentName() }}
+      </h2>
+      <p class="entry-dialog__meta m-0 text-xs text-zinc-500">
         {{ entryDate() }}
         @if (entry(); as existing) {
           @if (existing.lastEditedByName) {
@@ -26,39 +28,50 @@
 
   @if (entry(); as existing) {
     @if (existing.isSigned && existing.signedAt) {
-      <p class="entry-dialog__signed-note">
+      <p
+        class="entry-dialog__signed-note m-0 rounded-md border border-solid border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600"
+      >
         家長已於 {{ existing.signedAt | date: 'yyyy-MM-dd HH:mm' }} 簽收。改內容不會取消簽收 ——
         家長看到的是最新版本。
       </p>
     }
   } @else {
-    <p class="entry-dialog__signed-note">{{ emptyNote() }}</p>
+    <p
+      class="entry-dialog__signed-note m-0 rounded-md border border-solid border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600"
+    >
+      {{ emptyNote() }}
+    </p>
   }
 
-  <div class="entry-dialog__field">
-    <label class="entry-dialog__label" for="cb-content">內容</label>
+  <div class="entry-dialog__field flex flex-col gap-2">
+    <label class="entry-dialog__label text-sm font-medium text-zinc-600" for="cb-content"
+      >內容</label
+    >
     <textarea
       id="cb-content"
       pTextarea
       [rows]="8"
       [maxlength]="MAX_CONTENT"
       placeholder="今天的上課狀況…"
-      class="entry-dialog__textarea"
+      class="entry-dialog__textarea w-full resize-y"
       [ngModel]="content()"
       (ngModelChange)="content.set($event)"
     ></textarea>
-    <span class="entry-dialog__hint">
+    <span class="entry-dialog__hint text-xs text-zinc-500">
       每生每日一則，不分科目。共同編輯會直接覆寫並記下最後編輯者。
     </span>
     @if (!dirty()) {
       <!-- #1314 CB6：儲存鈕停用時講原因（沒有字／沒改），不讓人猜為什麼按不下去 -->
-      <span class="entry-dialog__hint entry-dialog__disabled-reason" role="status">
+      <span
+        class="entry-dialog__hint entry-dialog__disabled-reason text-xs text-zinc-500"
+        role="status"
+      >
         {{ isNew() ? '還沒寫內容，寫了才能寫入' : '內容沒有修改，改了才能儲存' }}
       </span>
     }
   </div>
 
-  <footer class="entry-dialog__footer">
+  <footer class="entry-dialog__footer flex justify-end gap-2">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button
       [label]="isNew() ? '寫入' : '儲存'"

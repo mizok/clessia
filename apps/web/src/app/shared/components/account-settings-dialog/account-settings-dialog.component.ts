@@ -19,7 +19,6 @@ type FieldKey = 'displayName' | 'email' | 'phone' | 'birthday';
   imports: [FormsModule, InputTextModule, ButtonModule, DatePickerModule, ConfirmDialogModule],
   providers: [ConfirmationService],
   templateUrl: './account-settings-dialog.component.html',
-  styleUrl: './account-settings-dialog.component.scss',
 })
 export class AccountSettingsDialogComponent {
   private readonly http = inject(HttpClient);

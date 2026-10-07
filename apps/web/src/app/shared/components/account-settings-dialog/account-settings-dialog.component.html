@@ -5,17 +5,24 @@
     <div class="dialog-header-inline__content">
       <span class="dialog-header-inline__title">帳號設定</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="close()"
+      aria-label="關閉"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
 
-  <div class="account-settings__section">
+  <div
+    class="account-settings__section flex flex-col gap-3 border-b border-b-solid border-b-zinc-100 last:border-b-0"
+  >
     <div class="form-dialog__field">
       <label class="form-dialog__label">顯示名稱</label>
-      <div class="account-settings__input-row">
-        <input pInputText [(ngModel)]="displayName" [disabled]="saving()" />
-        <span class="account-settings__save-btn">
+      <div class="account-settings__input-row flex items-center gap-2">
+        <input pInputText class="min-w-0 flex-1" [(ngModel)]="displayName" [disabled]="saving()" />
+        <span class="account-settings__save-btn shrink-0 self-center">
           @if (savedField() === 'displayName') {
             <p-button
               icon="pi pi-check"
@@ -38,22 +45,22 @@
         </span>
       </div>
       @if (fieldError()?.field === 'displayName') {
-        <p class="account-settings__error">{{ fieldError()!.msg }}</p>
+        <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
       }
     </div>
 
     <div class="form-dialog__field">
       <label class="form-dialog__label">生日</label>
-      <div class="account-settings__input-row">
+      <div class="account-settings__input-row flex items-center gap-2">
         <p-datepicker
           [(ngModel)]="birthday"
           [showIcon]="true"
           placeholder="選擇生日"
           appendTo="body"
-          class="account-settings__date-picker"
+          class="account-settings__date-picker min-w-0 flex-1"
           [disabled]="saving()"
         />
-        <span class="account-settings__save-btn">
+        <span class="account-settings__save-btn shrink-0 self-center">
           @if (savedField() === 'birthday') {
             <p-button
               icon="pi pi-check"
@@ -79,9 +86,15 @@
 
     <div class="form-dialog__field">
       <label class="form-dialog__label">Email</label>
-      <div class="account-settings__input-row">
-        <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" />
-        <span class="account-settings__save-btn">
+      <div class="account-settings__input-row flex items-center gap-2">
+        <input
+          pInputText
+          class="min-w-0 flex-1"
+          type="email"
+          [(ngModel)]="email"
+          [disabled]="saving()"
+        />
+        <span class="account-settings__save-btn shrink-0 self-center">
           @if (savedField() === 'email') {
             <p-button
               icon="pi pi-check"
@@ -104,17 +117,25 @@
         </span>
       </div>
       @if (fieldError()?.field === 'email') {
-        <p class="account-settings__error">{{ fieldError()!.msg }}</p>
+        <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
       } @else {
-        <p class="account-settings__hint">補習班用這個 Email 幫你產生一次性登入連結</p>
+        <p class="account-settings__hint m-0 text-xs text-zinc-500">
+          補習班用這個 Email 幫你產生一次性登入連結
+        </p>
       }
     </div>
 
     <div class="form-dialog__field">
       <label class="form-dialog__label">電話</label>
-      <div class="account-settings__input-row">
-        <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" />
-        <span class="account-settings__save-btn">
+      <div class="account-settings__input-row flex items-center gap-2">
+        <input
+          pInputText
+          class="min-w-0 flex-1"
+          type="tel"
+          [(ngModel)]="phone"
+          [disabled]="saving()"
+        />
+        <span class="account-settings__save-btn shrink-0 self-center">
           @if (savedField() === 'phone') {
             <p-button
               icon="pi pi-check"
@@ -137,16 +158,22 @@
         </span>
       </div>
       @if (fieldError()?.field === 'phone') {
-        <p class="account-settings__error">{{ fieldError()!.msg }}</p>
+        <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
       }
     </div>
   </div>
 
   @if (!hasParentRole()) {
-    <div class="account-settings__section">
-      <p class="account-settings__section-label">家長身份</p>
+    <div
+      class="account-settings__section flex flex-col gap-3 border-b border-b-solid border-b-zinc-100 last:border-b-0"
+    >
+      <p
+        class="account-settings__section-label m-0 text-xs font-semibold tracking-[0.06em] text-zinc-500 uppercase"
+      >
+        家長身份
+      </p>
       @if (activateError()) {
-        <p class="account-settings__error">{{ activateError() }}</p>
+        <p class="account-settings__error m-0 text-xs text-error-600">{{ activateError() }}</p>
       }
       <p-button
         label="啟用家長身份"
@@ -155,7 +182,9 @@
         [loading]="activating()"
         (onClick)="confirmActivateParent()"
       />
-      <p class="account-settings__desc">啟用後可使用家長 portal 查看子女的出缺席與課表。</p>
+      <p class="account-settings__desc m-0 text-sm text-zinc-500">
+        啟用後可使用家長 portal 查看子女的出缺席與課表。
+      </p>
     </div>
   }
 </div>
