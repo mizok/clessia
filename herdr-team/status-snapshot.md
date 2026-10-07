@@ -33,7 +33,7 @@
 
 ## 🧭 10-07 收工狀態（計畫席 labor-plan-20261004-1110，10-07 17:43 寫）
 
-**今天合進 main 36 支**（#1327–#1371 的 MERGED 者）。零生產席；常設席 reviewer（Ctx 約 66%，70% 蒸餾、85% 輪替）、監工 labor-ops-warden-20261007-1035、db-reset 皆待命。Weekly 26%（使用者要留 50% 給公司，Clessia 上限 45%）。
+**今天合進 main 37 支**（#1327–#1371 的 36 支＋#1262；reviewer 以 merged:2026-10-07 對過）。零生產席；常設席 reviewer（Ctx 約 66%，70% 蒸餾、85% 輪替）、監工 labor-ops-warden-20261007-1035、db-reset 皆待命。Weekly 26%（使用者要留 50% 給公司，Clessia 上限 45%）。
 
 - **#991 樣式層**：admin／teacher／parent／public／select-role／shared 全部歸零，scss-ledger **78 → 3**（只剩殼：`app.component.scss`、`shared/_breakpoints.scss`、`styles.scss`）。shared 的 `responsive-table` 走 A 方案（SCSS 搬成同值純 CSS、未分層、不動 16 頁），**進 layer 的時機＝T4 cssLayer 那支**（Z12b 全 utility 化列後續）。下一步是 S 批（殼：A6 頂欄＋開場色面，牽全站）與 T4（需使用者在場一次複製 .dev.vars）。
 - **後端**：#1262 防濫用上線；#1195／#1235／#1303／#1307 本機實打全對；#1339 考試班名、#1341 引用數、#1343 稽核補齊合進；#1338／#1342／#1345（保留類）、#1335、#1359（A28 盲點）、#1360、#1368 等觀察單待排。
@@ -74,7 +74,7 @@
 
 ## 10-07 計畫席學到、下一任會再用到的（labor-plan-20261004-1110，10-07 17:43 寫）
 
-- **一席 Sonnet 做機械換版的真實成本**：10-07 一席約 8 小時合 23 支（家長端 3、小項 5、Z 批 12、charter 3），Weekly 15 → 26；成本大頭在截圖與傾印不在寫碼。前端席每支約 25 分鐘（範圍說明 → gate → PR → 二讀 → 合）。
+- **Sonnet 做機械換版的真實成本**：10-07 兩席前端（1200 接 1448，序列不並行）約 8 小時合 21 支（家長端 3、#1314 小項 4、Z 批 12、charter 2；reviewer 用 merged:2026-10-07 對過），Weekly 15 → 26（含同時段 reviewer／監工／計畫席）；成本大頭在截圖與傾印不在寫碼。每支約 25 分鐘（範圍說明 → gate → PR → 二讀 → 合，計畫席讀時間戳估的）。
 - **「規則從未命中」是 1:1 換版最常見的假回歸**：encapsulated SCSS 對投影內容與 PrimeNG 內部元素（styleClass）不帶 `_ngcontent`，從沒生效；換版後「突然生效」或「掉了」都要先問舊規則有沒有命中（todo-banner strong、page-band aside、page-actions__cta、leave-form 的 &__x）。reviewer 10-07 誤判一次、charter 已記。
 - **證據法演進**：截圖像素差 → 逐元素計算樣式傾印（JSON 逐字比） → 直接編譯 tailwind.css 看 class 有沒有輸出（reviewer 做法）。三層各抓到別層抓不到的（陰影任意值編成透明、PrimeIcons 未分層蓋過 utility、底線跳脫）。
 - **A28 Tailwind 對比 gate 的盲點**（#1359）：看不到 `[&_i]`／`[&.modifier]:text-*` 巢狀變體，換版後既有對比債會「失去守衛」而不是被修。豁免清單（TAILWIND_CONTRAST_EXEMPT）10-07 上線，形狀同 CONTRAST_EXEMPT，對不上就紅；每筆理由寫清是誤報、純裝飾、還是既有債另開單。
