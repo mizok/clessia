@@ -16,7 +16,6 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
   selector: 'app-link-line',
   imports: [InlineNoticeComponent],
   templateUrl: './link-line.component.html',
-  styleUrl: './link-line.component.scss',
   host: { class: 'u-centered-flex' },
 })
 export class LinkLineComponent {

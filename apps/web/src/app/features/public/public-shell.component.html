@@ -1,24 +1,42 @@
-<section class="public-shell">
+<section
+  class="grid grid-cols-[minmax(340px,40%)_1fr] h-[var(--window-height,100%)] overflow-hidden max-[1024px]:grid-cols-[1fr] max-[1024px]:grid-rows-[auto_1fr] max-[1024px]:overflow-y-auto max-[1024px]:bg-white"
+>
   <!-- 品牌面：桌機在左，手機在上。字標在頂、入口貼底、中間留給流場 -->
-  <aside class="public-shell__brand">
+  <aside
+    class="sticky top-0 isolate flex flex-col h-[var(--window-height,100%)] p-8 overflow-hidden bg-[linear-gradient(150deg,var(--accent-vivid)_0%,var(--accent-vivid-2)_100%)] text-zinc-900 after:content-[''] after:absolute after:inset-0 after:z-0 after:pointer-events-none after:bg-[linear-gradient(168deg,rgb(255_106_61/90%)_0%,rgb(255_106_61/62%)_34%,rgb(255_106_61/10%)_68%,rgb(255_106_61/0%)_88%)] max-[1024px]:static max-[1024px]:h-[calc(var(--window-height,720px)*0.36)] max-[1024px]:min-h-[232px] max-[1024px]:max-h-[330px] max-[1024px]:pt-6 max-[1024px]:px-5 max-[1024px]:pb-5 max-[1024px]:after:hidden max-[1024px]:[@media(max-height:560px)]:h-auto max-[1024px]:[@media(max-height:560px)]:min-h-0 max-[1024px]:[@media(max-height:560px)]:py-4 max-[1024px]:[@media(max-height:560px)]:px-5"
+  >
     <app-flow-field [density]="0.8" [speed]="1" />
 
-    <div class="public-shell__brand-content">
-      <a class="public-shell__logo" routerLink="/login">
-        <span class="public-shell__logo-text">Clessia</span>
+    <div class="relative z-1">
+      <a
+        class="relative flex min-h-11 items-center gap-3 -mt-0.5 mb-[30px] no-underline text-inherit max-[1024px]:-mt-1.5 max-[1024px]:mb-[-6px] max-[1024px]:[@media(max-height:560px)]:-mt-[13px] max-[1024px]:[@media(max-height:560px)]:mb-[-13px]"
+        routerLink="/login"
+      >
+        <span
+          class="text-[40px] font-bold leading-none tracking-[-0.04em] max-[1024px]:text-[32px] max-[1024px]:[@media(max-height:560px)]:text-xl"
+          >Clessia</span
+        >
       </a>
-      <h2 class="public-shell__tagline">學程管家</h2>
-      <p class="public-shell__slogan">讓學習旅程更輕鬆</p>
+      <h2
+        class="mt-4 mx-0 mb-1 text-lg font-semibold leading-tight opacity-90 max-[1024px]:mt-3 max-[1024px]:mb-0 max-[1024px]:text-md max-[1024px]:[@media(max-height:560px)]:hidden"
+      >
+        學程管家
+      </h2>
+      <p class="m-0 mb-8 text-md font-medium text-zinc-900 opacity-78 max-[1024px]:hidden">
+        讓學習旅程更輕鬆
+      </p>
     </div>
 
     <!-- 公開頁的入口是一排輕量連結，不是一份選單清單。
          四個項目撐不起一個側邊選單，而選單的體積會把品牌面壓成導航面。 -->
-    <nav class="public-shell__links">
+    <nav
+      class="relative z-1 flex flex-wrap gap-x-5 gap-y-2 mt-auto mb-5 max-[1024px]:mb-0 max-[1024px]:gap-x-4"
+    >
       @for (item of publicRoutes; track item.absolutePath) {
         <a
-          class="public-shell__link"
+          class="relative inline-flex min-h-11 items-center -my-[10.75px] text-md font-medium text-zinc-900 underline decoration-transparent decoration-[1.5px] underline-offset-[5px] opacity-72 transition-[opacity,text-decoration-color] duration-[0.12s] ease-[ease] hover:opacity-100 hover:decoration-[rgb(26_22_20/40%)]"
           [routerLink]="item.absolutePath"
-          routerLinkActive="public-shell__link--active"
+          routerLinkActive="opacity-100! font-semibold! decoration-zinc-900!"
           [routerLinkActiveOptions]="
             item.absolutePath === '/login' ? { exact: true } : { exact: false }
           "
@@ -28,12 +46,15 @@
       }
     </nav>
 
-    <p class="public-shell__copyright">&copy; 2025 Clessia Academy</p>
-
+    <p class="relative z-1 text-sm text-zinc-900 opacity-62 max-[1024px]:hidden">
+      &copy; 2025 Clessia Academy
+    </p>
   </aside>
 
   <!-- 白面：承載表單 -->
-  <main class="public-shell__main">
+  <main
+    class="flex items-stretch justify-center h-[var(--window-height,100%)] p-10 bg-white overflow-y-auto [&>:not(router-outlet)]:contents max-[1024px]:h-auto max-[1024px]:py-6 max-[1024px]:px-5 max-[1024px]:overflow-y-visible"
+  >
     <div class="shell-route-wrapper u-fill-route-child">
       <router-outlet />
     </div>

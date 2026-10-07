@@ -83,6 +83,18 @@ const CONTRAST_EXEMPT = {
   'apps/web/src/app/shared/components/empty-state/empty-state.component.scss|i|var(--zinc-400)|var(--zinc-100)':
     '共用空狀態元件的圖示（i 28px，圓底 zinc-100），__title 與說明文字承載資訊 —— 1.4.11 純裝飾豁免',
 };
+/**
+ * A28（Tailwind 頁的 class 對比）的豁免：鍵＝`檔案|前景 class|背景 class`，值＝理由。
+ * 跟 `CONTRAST_EXEMPT`（SCSS 那一道）同一個形狀：**沒有合規路徑**才進來，不會歸零，必須寫理由。
+ */
+const TAILWIND_CONTRAST_EXEMPT = {
+  // ─ LINE 品牌色：LINE 官方登入按鈕規範就是白字疊 #06C755（對比 2.26），改色等於不是 LINE 按鈕 ─
+  'apps/web/src/app/features/public/pages/link-line/link-line.component.html|text-white|bg-[#06c755]':
+    'LINE 官方按鈕規範：白字＋#06C755（2.26:1）；按鈕文字粗體並有圖示。**既有的對比債**，1:1 搬家不改外觀（#991 E1 搬自原 SCSS 的 --line-brand，原版 gate 看不到 var 間接）',
+  'apps/web/src/app/features/public/pages/login/login.component.html|text-[#06c755]|bg-white':
+    '使用者指定的白底綠框 LINE 登入鈕（login 原 SCSS 註解：「使用者要的是白底綠框的輪廓感」）：文字與邊框同為 LINE 品牌綠 #06C755，疊白底只有 2.26:1。這是**既有的對比債**，1:1 搬家不改外觀；要修需要使用者改設計（#991 E1，原 SCSS 版 gate 看不到 var 間接）',
+};
+const usedTailwindContrastExempt = new Set();
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
@@ -2032,8 +2044,19 @@ function checkTailwindA11y() {
         );
       }
       for (const v of contrastClassViolations(t, colors, rel)) {
+        const key = `${rel}|${v.fg}|${v.bg}`;
+        if (key in TAILWIND_CONTRAST_EXEMPT) {
+          usedTailwindContrastExempt.add(key);
+          continue;
+        }
         fail(`${rel}:${v.line} 的 ${v.fg} 疊在 ${v.bg} 上對比 ${v.ratio}，低於 ${v.threshold}`);
       }
+    }
+  }
+  // 跟 CONTRAST_EXEMPT 同一個規矩：豁免對不上任何實際違規時 gate 會紅 —— 指向已經不存在的地方的豁免是謊
+  for (const key of Object.keys(TAILWIND_CONTRAST_EXEMPT)) {
+    if (!usedTailwindContrastExempt.has(key)) {
+      fail(`A28 豁免過期：${key} 已經不違規了 —— 把 TAILWIND_CONTRAST_EXEMPT 裡那一筆整筆刪掉`);
     }
   }
 }

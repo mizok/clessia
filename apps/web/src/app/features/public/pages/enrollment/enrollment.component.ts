@@ -5,7 +5,6 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
   selector: 'app-enrollment',
   imports: [InlineNoticeComponent],
   templateUrl: './enrollment.component.html',
-  styleUrl: './enrollment.component.scss',
   host: { class: 'u-centered-flex' },
 })
 export class EnrollmentComponent {}

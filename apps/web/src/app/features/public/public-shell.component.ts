@@ -7,7 +7,6 @@ import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.com
   selector: 'app-public-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, FlowFieldComponent],
   templateUrl: './public-shell.component.html',
-  styleUrl: './public-shell.component.scss',
 })
 export class PublicShellComponent {
   protected readonly publicRoutes = RoutesCatalog.values.filter((r) => !r.role && r.showInMenu);

@@ -96,6 +96,7 @@
       "apps/web/src/app/features/admin/pages/students",
       "apps/web/src/app/features/admin/pages/subjects",
       "apps/web/src/app/features/kiosk",
+      "apps/web/src/app/features/public",
       "apps/web/src/app/shared/components/campus-scope-note",
       "apps/web/src/app/shared/components/checkin-station",
       "apps/web/src/app/shared/components/layout/global-search",
