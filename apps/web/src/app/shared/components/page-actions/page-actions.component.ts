@@ -42,7 +42,6 @@ export interface PageAction {
   standalone: true,
   imports: [ButtonModule],
   templateUrl: './page-actions.component.html',
-  styleUrl: './page-actions.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PageActionsComponent {

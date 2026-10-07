@@ -118,6 +118,7 @@
       "apps/web/src/app/shared/components/jdenticon-avatar",
       "apps/web/src/app/shared/components/layout/global-search",
       "apps/web/src/app/shared/components/layout/shell-layout",
+      "apps/web/src/app/shared/components/page-actions",
       "apps/web/src/app/shared/components/page-open",
       "apps/web/src/app/shared/components/popup-menu",
       "apps/web/src/app/shared/components/select-field",
