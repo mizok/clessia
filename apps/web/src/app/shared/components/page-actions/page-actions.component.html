@@ -1,10 +1,10 @@
 <!-- 標頭：**手機也保留**。次要行動（操作紀錄、匯入）投影在這裡，
      它們在手機上仍然要按得到 —— 主要行動搬走不代表其他行動跟著消失。 -->
-<div class="page-actions__header">
+<div class="page-actions__header flex items-center gap-2">
   <ng-content />
   @if (primary(); as action) {
     <!-- 主要行動在標頭裡的那一份**只在桌機出現**；手機由下方的停靠列承擔 -->
-    <div class="page-actions__header-primary">
+    <div class="page-actions__header-primary hidden min-[640.02px]:block">
       <p-button
         [label]="action.label"
         [icon]="action.icon ?? ''"
@@ -20,7 +20,9 @@
        **底部留白不在這裡** —— 這個元件宣告在頁面標頭，佔位塊放這裡等於保留了
        標頭下方的空間，而停靠列蓋住的是清單最後一列。留白由 `.shell-content`
        用 `:has()` 自己處理，見 shell-layout 的模板。 -->
-  <div class="page-actions__dock">
+  <div
+    class="page-actions__dock fixed inset-x-0 bottom-[env(safe-area-inset-bottom,0px)] z-100 border-t border-t-solid border-t-zinc-200 bg-white px-4 py-3 min-[640.02px]:hidden"
+  >
     <p-button
       styleClass="page-actions__cta"
       [label]="action.label"

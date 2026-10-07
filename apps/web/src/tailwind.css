@@ -76,6 +76,7 @@
 @source './app/shared/components/ime-filter-input';
 @source './app/shared/components/student-autocomplete';
 @source './app/shared/components/popup-menu';
+@source './app/shared/components/page-actions';
 @source './app/shared/components/inline-notice';
 @source './app/shared/components/empty-state';
 @source './app/shared/components/day-timeline';
