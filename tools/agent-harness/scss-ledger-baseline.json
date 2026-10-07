@@ -8,7 +8,6 @@
   "apps/web/src/app/features/teacher/pages/schedule/class-log-sheet/class-log-sheet.component.scss",
   "apps/web/src/app/features/teacher/pages/schedule/contact-book-roster/contact-book-roster.component.scss",
   "apps/web/src/app/features/teacher/pages/schedule/schedule.page.scss",
-  "apps/web/src/app/features/teacher/pages/students/students.page.scss",
   "apps/web/src/app/shared/_breakpoints.scss",
   "apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.scss",
   "apps/web/src/app/shared/components/announcement-inbox/announcement-inbox.component.scss",
