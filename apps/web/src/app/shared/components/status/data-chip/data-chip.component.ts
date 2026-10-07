@@ -15,7 +15,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   selector: 'app-data-chip',
   imports: [],
   templateUrl: './data-chip.component.html',
-  styleUrl: './data-chip.component.scss',
+  host: { class: 'inline-flex' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DataChipComponent {}
