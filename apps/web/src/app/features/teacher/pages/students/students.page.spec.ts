@@ -120,6 +120,39 @@ describe('StudentsPage（老師端）', () => {
     expect(component['groups']()[0].students[0].name).toBe('乙');
   });
 
+  it('篩光時有「清除篩選」，按下後搜尋與班級篩選都歸零、名單回來（#1314 TST2）', async () => {
+    await setup([
+      student({ id: 'a', name: '甲', classNames: ['數學班 A'] }),
+      student({ id: 'b', name: '乙', classNames: ['英文班 B'] }),
+    ]);
+
+    component['search'].set('不存在的名字');
+    component['classFilter'].set('英文班 B');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('沒有符合條件的學生');
+    const clear = fixture.nativeElement.querySelector('.clear-filters') as HTMLButtonElement;
+    expect(clear.textContent?.trim()).toBe('清除篩選');
+
+    clear.click();
+    fixture.detectChanges();
+
+    expect(component['search']()).toBe('');
+    expect(component['classFilter']()).toBeNull();
+    expect(fixture.nativeElement.querySelector('.clear-filters')).toBeNull();
+    expect(
+      component['groups']()
+        .flatMap((g: { students: Student[] }) => g.students.map((x) => x.name))
+        .sort(),
+    ).toEqual(['乙', '甲']);
+  });
+
+  it('有符合的學生時不出現「清除篩選」', async () => {
+    await setup([student({ id: 'a', name: '甲' })]);
+
+    expect(fixture.nativeElement.querySelector('.clear-filters')).toBeNull();
+  });
+
   it('沒有任課學生時顯示空狀態', async () => {
     await setup([]);
 
