@@ -3,29 +3,39 @@ import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
-import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
+import {
+  FeeTemplatesService,
+  type FeeTemplate,
+  type FeeTemplateListItem,
+} from '@core/fee-templates.service';
+import {
+  BillingPeriodsService,
+  type BillingPeriod,
+  type BillingPeriodListItem,
+} from '@core/billing-periods.service';
 
 import { FeeTemplatesComponent } from './fee-templates.component';
 
-const template = (overrides?: Partial<FeeTemplate>): FeeTemplate => ({
+const template = (overrides?: Partial<FeeTemplateListItem>): FeeTemplateListItem => ({
   id: 'ft-1',
   orgId: 'org-1',
   name: '國中主科月繳',
   billingMode: 'monthly',
   amount: 4500,
   isActive: true,
+  inUseCount: 0,
   createdAt: '2026-08-01T00:00:00.000Z',
   updatedAt: '2026-08-01T00:00:00.000Z',
   ...overrides,
 });
 
-const period = (overrides?: Partial<BillingPeriod>): BillingPeriod => ({
+const period = (overrides?: Partial<BillingPeriodListItem>): BillingPeriodListItem => ({
   id: 'bp-1',
   orgId: 'org-1',
   name: '2026 上學期 + 暑假',
   startDate: '2026-02-01',
   endDate: '2026-08-31',
+  overlappingEnrollmentCount: 0,
   createdAt: '2026-08-01T00:00:00.000Z',
   updatedAt: '2026-08-01T00:00:00.000Z',
   ...overrides,
@@ -70,8 +80,8 @@ describe('FeeTemplatesComponent', () => {
   });
 
   type Internals = {
-    templates: { set: (v: FeeTemplate[]) => void; (): FeeTemplate[] };
-    periods: { set: (v: BillingPeriod[]) => void; (): BillingPeriod[] };
+    templates: { set: (v: FeeTemplateListItem[]) => void; (): FeeTemplateListItem[] };
+    periods: { set: (v: BillingPeriodListItem[]) => void; (): BillingPeriodListItem[] };
     loading: { set: (v: boolean) => void };
     deleteTemplate: (t: FeeTemplate) => void;
   };

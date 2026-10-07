@@ -28,8 +28,13 @@ import {
   BILLING_MODE_LABELS,
   FeeTemplatesService,
   type FeeTemplate,
+  type FeeTemplateListItem,
 } from '@core/fee-templates.service';
-import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
+import {
+  BillingPeriodsService,
+  type BillingPeriod,
+  type BillingPeriodListItem,
+} from '@core/billing-periods.service';
 
 import { PageActionsComponent } from '@shared/components/page-actions/page-actions.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
@@ -48,6 +53,7 @@ import { FeeTemplateFormDialogComponent } from './fee-template-form-dialog/fee-t
 import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/billing-period-form-dialog.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
+import { inUseLabel, periodUsageLabel } from './fee-templates.util';
 
 /**
  * 費用方案管理 —— 見 kb/wiki/specs/admin/finance/fee-templates.md。
@@ -95,7 +101,10 @@ export class FeeTemplatesComponent implements OnInit {
 
   protected readonly BILLING_MODE_LABELS = BILLING_MODE_LABELS;
 
-  protected readonly templates = signal<FeeTemplate[]>([]);
+  protected readonly inUseLabel = inUseLabel;
+  protected readonly periodUsageLabel = periodUsageLabel;
+
+  protected readonly templates = signal<FeeTemplateListItem[]>([]);
   protected readonly templatesLoading = signal(true);
 
   /**
@@ -120,7 +129,7 @@ export class FeeTemplatesComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   protected readonly showInactive = signal(false);
 
-  protected readonly periods = signal<BillingPeriod[]>([]);
+  protected readonly periods = signal<BillingPeriodListItem[]>([]);
   protected readonly periodsLoading = signal(true);
 
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');

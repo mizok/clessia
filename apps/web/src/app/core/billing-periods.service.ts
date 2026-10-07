@@ -21,6 +21,12 @@ export interface BillingPeriod {
   updatedAt: string;
 }
 
+/** `GET /billing-periods` 列表專用（#1341）：create／update 的回應不帶計數 */
+export interface BillingPeriodListItem extends BillingPeriod {
+  /** 與這期日期重疊的在讀期繳報名數。**不代表刪不掉** —— 擋刪除的是已開的帳單明細 */
+  overlappingEnrollmentCount: number;
+}
+
 /** 儀表板「待開單」（#1293）：14 天內開始、有期繳生卻還沒開單的期 */
 export interface UpcomingUnbilledPeriod {
   periodId: string;
@@ -48,8 +54,8 @@ export class BillingPeriodsService {
   private readonly http = inject(HttpClient);
   private readonly endpoint = `${environment.apiUrl}/api/billing-periods`;
 
-  list(): Observable<{ data: BillingPeriod[] }> {
-    return this.http.get<{ data: BillingPeriod[] }>(this.endpoint);
+  list(): Observable<{ data: BillingPeriodListItem[] }> {
+    return this.http.get<{ data: BillingPeriodListItem[] }>(this.endpoint);
   }
 
   upcomingUnbilled(): Observable<{ data: UpcomingUnbilledPeriod[] }> {

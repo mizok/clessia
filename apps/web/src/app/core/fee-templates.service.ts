@@ -32,6 +32,12 @@ export interface FeeTemplate {
   updatedAt: string;
 }
 
+/** `GET /fee-templates` 列表專用（#1341）：create／update 的回應不帶計數 */
+export interface FeeTemplateListItem extends FeeTemplate {
+  /** 引用它的報名數 —— 全 org、不分狀態（跟刪除的 409 同源） */
+  inUseCount: number;
+}
+
 export interface FeeTemplateQueryParams {
   search?: string;
   isActive?: boolean;
@@ -57,8 +63,8 @@ export class FeeTemplatesService {
   private readonly http = inject(HttpClient);
   private readonly endpoint = `${environment.apiUrl}/api/fee-templates`;
 
-  list(params?: FeeTemplateQueryParams): Observable<{ data: FeeTemplate[] }> {
-    return this.http.get<{ data: FeeTemplate[] }>(this.endpoint, {
+  list(params?: FeeTemplateQueryParams): Observable<{ data: FeeTemplateListItem[] }> {
+    return this.http.get<{ data: FeeTemplateListItem[] }>(this.endpoint, {
       params: toQuery(params),
     });
   }
