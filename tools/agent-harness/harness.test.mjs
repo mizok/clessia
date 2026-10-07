@@ -622,16 +622,19 @@ function unmigratedPageDir(src) {
   const covered = sourcePaths(readFileSync(join(src, 'tailwind.css'), 'utf8')).map((p) =>
     p.replace(/^\.\//, '').replace(/\/$/, ''),
   );
-  for (const role of readdirSync(join(src, 'app/features'))) {
-    const pages = join(src, 'app/features', role, 'pages');
+  // 頁面目錄遷完（#991 P3 之後 features/*/pages 底下沒有 .scss 了）才輪到 shared/components：
+  // 那裡是 Z 批，還有 .scss。
+  const roots = readdirSync(join(src, 'app/features')).map((role) => `app/features/${role}/pages`);
+  roots.push('app/shared/components');
+  for (const root of roots) {
     let names;
     try {
-      names = readdirSync(pages);
+      names = readdirSync(join(src, root));
     } catch {
       continue;
     }
     for (const name of names.sort()) {
-      const rel = `app/features/${role}/pages/${name}`;
+      const rel = `${root}/${name}`;
       if (covered.some((c) => rel === c || rel.startsWith(`${c}/`) || c.startsWith(`${rel}/`))) {
         continue;
       }
