@@ -21,7 +21,6 @@ import { axisTicks, binDay, nowMarkerPct, type DensityBin } from './day-timeline
   selector: 'app-day-timeline',
   imports: [],
   templateUrl: './day-timeline.component.html',
-  styleUrl: './day-timeline.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DayTimelineComponent {

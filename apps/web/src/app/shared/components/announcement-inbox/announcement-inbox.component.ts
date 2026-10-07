@@ -35,7 +35,6 @@ import { AnnouncementsService, type Announcement } from '@core/announcements.ser
   selector: 'app-announcement-inbox',
   imports: [DatePipe],
   templateUrl: './announcement-inbox.component.html',
-  styleUrl: './announcement-inbox.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AnnouncementInboxComponent {

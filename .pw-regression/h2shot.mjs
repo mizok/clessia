@@ -1,0 +1,40 @@
+// 拋棄式（#1138 H2）：頂欄分校下拉 × 課表，真資料。不進 repo。
+import { chromium } from 'playwright';
+const [state, out] = process.argv.slice(2);
+const b = await chromium.launch();
+const errs = [];
+for (const [w, h, tag] of [[1440, 900, 'd'], [390, 844, 'm']]) {
+  const ctx = await b.newContext({ storageState: state, viewport: { width: w, height: h }, reducedMotion: 'reduce' });
+  const p = await ctx.newPage();
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  const reqs = [];
+  p.on('request', (r) => { if (/\/api\/sessions\?/.test(r.url())) reqs.push(new URL(r.url()).searchParams.get('campusIds') ?? '(全部)'); });
+  await p.goto('http://localhost:4200/admin/dashboard', { waitUntil: 'networkidle' });
+  await p.waitForTimeout(600);
+  console.log(tag, 'overlay', await p.locator('vite-error-overlay').count(), ' 儀表板有分校鈕', await p.locator('[popovertarget="shell-campus"]').count());
+  await p.goto('http://localhost:4200/admin/sessions', { waitUntil: 'networkidle' });
+  await p.waitForTimeout(800);
+  const btn = p.locator('[popovertarget="shell-campus"]');
+  console.log(' 課表分校鈕', await btn.count(), JSON.stringify((await btn.innerText()).trim()), ' 頁內分校下拉', await p.locator('app-session-filters app-select-field').count(), ' 初次查詢', reqs.join('|'));
+  await p.screenshot({ path: `${out}/h2-${tag}-all.png` });
+  await btn.click();
+  await p.waitForTimeout(300);
+  const items = await p.locator('#shell-campus button').allInnerTexts();
+  console.log(' 選單', items.map((s) => s.trim()).join(' / '));
+  await p.screenshot({ path: `${out}/h2-${tag}-menu.png` });
+  reqs.length = 0;
+  await p.locator('#shell-campus button').nth(1).click();
+  await p.waitForTimeout(1200);
+  console.log(' 選第一間 → 查詢', reqs.join('|'), ' 鈕', JSON.stringify((await btn.innerText()).trim()), ' 色面', (await p.locator('app-page-open').innerText()).split('\n').slice(0, 2).join(' / '));
+  await p.screenshot({ path: `${out}/h2-${tag}-campus.png` });
+  reqs.length = 0;
+  await p.reload({ waitUntil: 'networkidle' });
+  await p.waitForTimeout(800);
+  console.log(' 重新整理後 → 查詢', reqs.join('|'), ' 鈕', JSON.stringify((await btn.innerText()).trim()));
+  await p.locator('[popovertarget="shell-campus"]').click();
+  await p.locator('#shell-campus button').nth(0).click();
+  await p.waitForTimeout(600);
+  await ctx.close();
+}
+console.log('console errors', errs.length, errs.slice(0, 3));
+await b.close();

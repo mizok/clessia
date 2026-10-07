@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch();
+const ctx = await b.newContext({ storageState: process.argv[2], viewport: { width: 1440, height: 900 } });
+const p = await ctx.newPage(); p.setDefaultTimeout(8000);
+await p.goto('http://localhost:4200/admin/courses', { waitUntil: 'networkidle' }); await p.waitForTimeout(1200);
+const r = p.locator('app-class-row:visible').first();
+console.log('buttons in row', await r.locator('button').count(), await r.locator('button').evaluateAll(bs => bs.map(b => b.getAttribute('aria-label') || b.textContent.trim().slice(0,10))));
+await r.locator('button').last().click(); await p.waitForTimeout(600);
+console.log('menuitems', await p.getByRole('menuitem').allInnerTexts());
+console.log('masks', await p.locator('.p-dialog-mask, .p-overlay-mask').count());
+await b.close();

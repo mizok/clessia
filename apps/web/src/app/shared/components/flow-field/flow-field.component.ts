@@ -22,8 +22,9 @@ import {
 @Component({
   selector: 'app-flow-field',
   imports: [],
-  template: '<canvas #canvas class="flow-field__canvas" aria-hidden="true"></canvas>',
-  styleUrl: './flow-field.component.scss',
+  template:
+    '<canvas #canvas class="flow-field__canvas block h-full w-full [transition:opacity_1s_ease] motion-reduce:transition-none" aria-hidden="true"></canvas>',
+  host: { class: 'pointer-events-none absolute inset-0 z-0 block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FlowFieldComponent {

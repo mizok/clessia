@@ -16,15 +16,7 @@ import * as jdenticon from 'jdenticon/browser';
       [attr.data-jdenticon-value]="value()"
     ></svg>
   `,
-  styles: [
-    `
-      :host {
-        display: inline-flex;
-        border-radius: 50%;
-        overflow: hidden;
-      }
-    `,
-  ],
+  host: { class: 'inline-flex overflow-hidden rounded-[50%]' },
 })
 export class JdenticonAvatarComponent {
   readonly value = input('Clessia');
