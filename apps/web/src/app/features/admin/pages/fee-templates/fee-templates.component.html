@@ -110,6 +110,7 @@
               計費模式
             </th>
             <th appRtColDef="amount" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">定價</th>
+            <th appRtColDef="inUse" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">報名</th>
             <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
             <th
               appRtColDef="actions"
@@ -136,6 +137,9 @@
               <td appRtColCell="mode">{{ BILLING_MODE_LABELS[item.billingMode] }}</td>
               <td appRtColCell="amount">
                 <span class="font-medium tabular-nums">{{ item.amount | number }}</span>
+              </td>
+              <td appRtColCell="inUse">
+                <span class="text-zinc-500 tabular-nums">{{ inUseLabel(item.inUseCount) }}</span>
               </td>
               <td appRtColCell="status">
                 <app-status-dot [tone]="item.isActive ? 'done' : 'inactive'">{{
@@ -205,6 +209,7 @@
             <th appRtColDef="range" [appRtColDefMinWidth]="200" [appRtColDefPriority]="2">
               起訖日期
             </th>
+            <th appRtColDef="usage" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">報名</th>
             <th
               appRtColDef="actions"
               [appRtColDefMinWidth]="56"
@@ -223,6 +228,11 @@
                 <span class="text-zinc-500 tabular-nums">
                   {{ item.startDate }} — {{ item.endDate }}
                 </span>
+              </td>
+              <td appRtColCell="usage">
+                <span class="text-zinc-500 tabular-nums">{{
+                  periodUsageLabel(item.overlappingEnrollmentCount)
+                }}</span>
               </td>
               <td appRtColCell="actions">
                 <p-button
