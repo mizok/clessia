@@ -16,7 +16,6 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   selector: 'app-todo-banner',
   imports: [],
   templateUrl: './todo-banner.component.html',
-  styleUrl: './todo-banner.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TodoBannerComponent {

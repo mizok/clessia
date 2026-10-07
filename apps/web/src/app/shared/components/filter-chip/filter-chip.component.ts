@@ -15,7 +15,6 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   selector: 'app-filter-chip',
   imports: [],
   templateUrl: './filter-chip.component.html',
-  styleUrl: './filter-chip.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FilterChipComponent {

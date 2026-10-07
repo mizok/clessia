@@ -7,7 +7,7 @@ import { InputTextModule } from 'primeng/inputtext';
   selector: 'app-ime-filter-input',
   imports: [IconFieldModule, InputTextModule, InputIconModule],
   templateUrl: './ime-filter-input.component.html',
-  styleUrl: './ime-filter-input.component.scss',
+  host: { class: 'block w-full' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ImeFilterInputComponent {

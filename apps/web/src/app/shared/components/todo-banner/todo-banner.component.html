@@ -1,14 +1,17 @@
 @if (count() > 0) {
   <button
     type="button"
-    class="todo-banner"
+    class="todo-banner flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-md border border-solid border-warning-200 bg-warning-50 px-4 py-3 text-left text-sm text-warning-800 [font-family:inherit] [transition:background_var(--transition-fast)] hover:bg-warning-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning-600 [&.todo-banner--active]:border-warning-600 [&.todo-banner--active]:bg-warning-100 [&.todo-banner--low]:border-zinc-200 [&.todo-banner--low]:bg-zinc-50 [&.todo-banner--low]:text-zinc-700 [&.todo-banner--low]:hover:bg-zinc-100 [&.todo-banner--low]:focus-visible:outline-zinc-600 [&.todo-banner--low.todo-banner--active]:border-zinc-500 [&.todo-banner--low.todo-banner--active]:bg-zinc-100"
     [class.todo-banner--low]="tone() === 'low'"
     [class.todo-banner--active]="active()"
     [attr.aria-pressed]="active()"
     (click)="action.emit()"
   >
-    <i class="todo-banner__icon" [class]="'pi ' + icon()"></i>
-    <span class="todo-banner__text"><ng-content /></span>
-    <i class="pi pi-arrow-right todo-banner__arrow" aria-hidden="true"></i>
+    <i class="todo-banner__icon shrink-0 text-lg" [class]="'pi ' + icon()"></i>
+    <span class="todo-banner__text min-w-0 flex-1 leading-normal"><ng-content /></span>
+    <i
+      class="pi pi-arrow-right todo-banner__arrow shrink-0 text-sm opacity-60"
+      aria-hidden="true"
+    ></i>
   </button>
 }

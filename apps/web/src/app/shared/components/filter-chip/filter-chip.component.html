@@ -1,12 +1,12 @@
 <button
   type="button"
-  class="filter-chip"
+  class="filter-chip inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-solid border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 [font-family:inherit] [transition:all_var(--transition-fast)] hover:border-accent-400 hover:bg-accent-50 hover:text-accent-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500 [&.filter-chip--active]:border-accent-400 [&.filter-chip--active]:bg-accent-50 [&.filter-chip--active]:text-accent-700"
   [class.filter-chip--active]="active()"
   [attr.aria-pressed]="active()"
   (click)="toggle.emit()"
 >
   @if (icon(); as ic) {
-    <i class="filter-chip__icon" [class]="'pi ' + ic"></i>
+    <i class="filter-chip__icon text-sm" [class]="'pi ' + ic"></i>
   }
   <ng-content />
 </button>

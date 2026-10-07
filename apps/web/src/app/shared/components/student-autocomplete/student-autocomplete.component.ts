@@ -9,7 +9,7 @@ import { GRADE_LEVEL_LABELS, type Student } from '@core/students.service';
   standalone: true,
   imports: [FormsModule, AutoCompleteModule],
   templateUrl: './student-autocomplete.component.html',
-  styleUrl: './student-autocomplete.component.scss',
+  host: { class: 'block w-full' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StudentAutocompleteComponent {

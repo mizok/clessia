@@ -9,14 +9,21 @@
   [fluid]="true"
   [inputStyle]="{ width: '100%' }"
   [forceSelection]="forceSelection()"
-  class="student-autocomplete"
+  class="student-autocomplete block w-full"
 >
   <ng-template pTemplate="item" let-student>
-    <div class="student-autocomplete__item">
-      <span class="student-autocomplete__name">{{ student.name }}</span>
-      <span class="student-autocomplete__meta">{{ formatStudentMeta(student) }}</span>
+    <div class="student-autocomplete__item flex flex-col gap-1 py-1">
+      <span
+        class="student-autocomplete__name text-[0.9375rem] leading-[1.4] font-medium text-zinc-900"
+        >{{ student.name }}</span
+      >
+      <span class="student-autocomplete__meta text-[0.8125rem] leading-[1.4] text-zinc-500">{{
+        formatStudentMeta(student)
+      }}</span>
       @if (showContact() && formatStudentContact(student)) {
-        <span class="student-autocomplete__meta">{{ formatStudentContact(student) }}</span>
+        <span class="student-autocomplete__meta text-[0.8125rem] leading-[1.4] text-zinc-500">{{
+          formatStudentContact(student)
+        }}</span>
       }
     </div>
   </ng-template>
