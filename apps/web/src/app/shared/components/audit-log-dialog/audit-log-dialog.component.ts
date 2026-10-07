@@ -75,7 +75,6 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
     LoadFailedComponent,
   ],
   templateUrl: './audit-log-dialog.component.html',
-  styleUrl: './audit-log-dialog.component.scss',
 })
 export class AuditLogDialogComponent {
   private readonly auditLogsService = inject(AuditLogsService);

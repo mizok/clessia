@@ -5,7 +5,12 @@
         {{ isEditMode() ? '編輯家長資料' : '新增家長' }}
       </span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="關閉">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="關閉"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
@@ -25,10 +30,12 @@
   </div>
 
   <!-- Email + 手機 -->
-  <div class="form-dialog__row">
+  <div class="form-dialog__row grid grid-cols-[1fr] gap-4 min-[640.02px]:grid-cols-[1fr_1fr]">
     <div class="form-dialog__field">
       <label class="form-dialog__label">
-        Email<span class="form-dialog__hint">與手機至少填一個</span>
+        Email<span class="form-dialog__hint ml-1 text-[0.6875rem] font-normal text-zinc-400"
+          >與手機至少填一個</span
+        >
       </label>
       <input
         type="email"
@@ -42,7 +49,9 @@
     </div>
     <div class="form-dialog__field">
       <label class="form-dialog__label">
-        手機號碼<span class="form-dialog__hint">與 Email 至少填一個</span>
+        手機號碼<span class="form-dialog__hint ml-1 text-[0.6875rem] font-normal text-zinc-400"
+          >與 Email 至少填一個</span
+        >
       </label>
       <input
         type="tel"

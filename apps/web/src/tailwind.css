@@ -75,6 +75,10 @@
 @source './app/shared/components/todo-banner';
 @source './app/shared/components/ime-filter-input';
 @source './app/shared/components/student-autocomplete';
+@source './app/shared/components/confirm-dialog';
+@source './app/shared/components/audit-log-dialog';
+@source './app/shared/components/login-link-dialog';
+@source './app/shared/components/parent-form-dialog';
 @source './app/shared/components/popup-menu';
 @source './app/shared/components/page-actions';
 @source './app/shared/components/inline-notice';

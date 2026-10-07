@@ -27,7 +27,6 @@ import { StudentsService, type Student } from '@core/students.service';
     InlineNoticeComponent,
   ],
   templateUrl: './parent-form-dialog.component.html',
-  styleUrl: './parent-form-dialog.component.scss',
 })
 export class ParentFormDialogComponent {
   private readonly parentsService = inject(ParentsService);

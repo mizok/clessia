@@ -39,7 +39,6 @@ const NOTICE_BY_AUDIENCE: Record<LoginLinkAudience, string> = {
   imports: [ButtonModule, TooltipModule, ToastModule, QRCodeComponent, InlineNoticeComponent],
   providers: [MessageService],
   templateUrl: './login-link-dialog.component.html',
-  styleUrl: './login-link-dialog.component.scss',
 })
 export class LoginLinkDialogComponent {
   private readonly messageService = inject(MessageService);

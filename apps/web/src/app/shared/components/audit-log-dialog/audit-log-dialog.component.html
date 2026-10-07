@@ -2,15 +2,15 @@
   <div class="dialog-header-inline__title-container">
     <h2 class="dialog-header-inline__title">操作紀錄</h2>
   </div>
-  <button class="dialog-header-inline__close" (click)="cancel()">
+  <button class="dialog-header-inline__close size-11" (click)="cancel()">
     <i class="pi pi-times"></i>
   </button>
 </div>
 
-<div class="audit-log-dialog">
-  <div class="audit-log-dialog__body">
+<div class="audit-log-dialog max-w-[60rem]">
+  <div class="audit-log-dialog__body flex h-[340px] flex-col overflow-hidden">
     @if (loading()) {
-      <div class="skeleton-list">
+      <div class="skeleton-list px-0 py-3">
         <span class="skeleton-bar skeleton-bar--label"></span>
         @for (_ of [1, 2, 3, 4, 5]; track $index) {
           <span class="skeleton-bar"></span>
@@ -19,13 +19,15 @@
     } @else if (loadFailed()) {
       <app-load-failed description="沒有讀到操作紀錄，可能是連線問題" (retry)="loadPage()" />
     } @else if (logs().length === 0) {
-      <div class="audit-log-dialog__empty">
-        <i class="pi pi-history"></i>
-        <p>尚無操作紀錄</p>
+      <div
+        class="audit-log-dialog__empty flex flex-1 flex-col items-center justify-center gap-3 text-[color:var(--p-text-muted-color)]"
+      >
+        <i class="pi pi-history text-[2rem]"></i>
+        <p class="m-0 text-[0.875rem]">尚無操作紀錄</p>
       </div>
     } @else {
       <app-responsive-table
-        class="audit-log-dialog__table"
+        class="audit-log-dialog__table block min-h-0 flex-1 overflow-hidden"
         [headTemplate]="headTemplate"
         [bodyTemplate]="bodyTemplate"
         [pagination]="pagination()"
@@ -54,19 +56,27 @@
         @for (log of logs(); track log.id) {
           <tr appRtRow [appRtRow]="log" [appRtRowId]="log.id">
             <td appRtColCell="userName">{{ log.userName ?? '—' }}</td>
-            <td appRtColCell="createdAt" class="audit-log-dialog__time">
+            <td
+              appRtColCell="createdAt"
+              class="audit-log-dialog__time text-[0.8125rem] whitespace-nowrap text-[color:var(--p-text-muted-color)]!"
+            >
               {{ log.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}
             </td>
             <td appRtColCell="resourceName">
-              <span class="audit-log-dialog__resource-type">{{
-                getResourceTypeLabel(log.resourceType)
+              <span
+                class="audit-log-dialog__resource-type mr-1 text-[0.75rem] text-[color:var(--p-text-muted-color)]"
+                >{{ getResourceTypeLabel(log.resourceType) }}</span
+              >
+              <span class="audit-log-dialog__resource-name text-[0.875rem]">{{
+                log.resourceName ?? '—'
               }}</span>
-              <span class="audit-log-dialog__resource-name">{{ log.resourceName ?? '—' }}</span>
             </td>
             <td appRtColCell="action">
               <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
               @if (getDetailsSummary(log)) {
-                <div class="audit-log__detail-summary">{{ getDetailsSummary(log) }}</div>
+                <div class="audit-log__detail-summary mt-0.5 text-[0.75rem] text-muted">
+                  {{ getDetailsSummary(log) }}
+                </div>
               }
             </td>
           </tr>
