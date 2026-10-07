@@ -3086,8 +3086,12 @@ app.openapi(
     const supabase = c.get('supabase');
     const { id } = c.req.valid('param');
 
-    // 確認班級存在
-    const { data: cls } = await supabase.from('classes').select('id').eq('id', id).single();
+    // 確認班級存在（名稱給稽核用）
+    const { data: cls } = await supabase
+      .from('classes')
+      .select('id, name, courses(name), campuses(name)')
+      .eq('id', id)
+      .single();
 
     if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
@@ -3149,6 +3153,28 @@ app.openapi(
       if (insertError) {
         return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
       }
+
+      // 同 `/{id}/sessions/batch-cancel` 的稽核形狀（#1336）—— 整班未來課全停是影響最大的批次動作
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'class',
+          resourceId: id,
+          resourceName: classAuditResourceName(cls as Record<string, unknown>),
+          action: 'batch_cancel_session',
+          details: {
+            requested: sessionIds.length,
+            updated: sessionIds.length,
+            skipped: 0,
+            classId: id,
+            scope: 'all_future',
+            batchId,
+          },
+        },
+        waitUntilFrom(c),
+      );
     }
 
     return c.json({ cancelled: sessionIds.length }, 200);
