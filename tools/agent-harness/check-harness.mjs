@@ -96,6 +96,9 @@ const TAILWIND_CONTRAST_EXEMPT = {
   // ─ 純裝飾圖示：WCAG 1.4.11 明文豁免（同 CONTRAST_EXEMPT 的 empty-state 先例）─
   'apps/web/src/app/features/select-role/role-picker/role-picker.component.html|text-zinc-300|bg-white':
     '選項右側的 chevron（`aria-hidden`，旁邊必有身分名稱與說明文字，hover 變 accent）：純裝飾、不承載文字沒講的資訊——1.4.11 純裝飾豁免；原 SCSS 即 `--zinc-300`，1:1 搬家不改色（#991 E2）',
+  // ─ gate 把「祖先的底色」當成文字的底色，而實際位置不在祖先上 ─
+  'apps/web/src/app/shared/components/day-timeline/day-timeline.component.html|text-band-ink|bg-band-ink':
+    '「現在」標籤是 2px 寬 `now` 標記線（bg-band-ink）的子元素，但定位在線**上方** `-top-[15px]`、水平置中，實際疊在橘帶本身（`--band-ink` 疊 band 底色已由 band-contrast gate 守地板 0.78）。gate 只看 DOM 祖先所以誤報 1:1；原 SCSS 版同一結構（#991 Z2）',
 };
 const usedTailwindContrastExempt = new Set();
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');

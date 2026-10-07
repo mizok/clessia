@@ -1,55 +1,75 @@
 @if (hasBars()) {
-  <div class="day-timeline">
-    <div class="day-timeline__track">
+  <div class="day-timeline relative">
+    <div class="day-timeline__track relative h-16">
       @if (nowPct(); as pct) {
         <!-- 參考線而已，它的資訊（現在幾點）在別處都有 -->
-        <div class="day-timeline__now" [style.left.%]="pct" aria-hidden="true">
-          <span class="day-timeline__now-label">現在</span>
+        <div
+          class="day-timeline__now absolute top-0 bottom-0 w-0.5 bg-band-ink"
+          [style.left.%]="pct"
+          aria-hidden="true"
+        >
+          <span
+            class="day-timeline__now-label absolute -top-[15px] left-1/2 text-[10px] font-bold whitespace-nowrap text-band-ink -translate-x-1/2"
+            >現在</span
+          >
         </div>
       }
 
-      <div class="day-timeline__bars">
+      <div
+        class="day-timeline__bars absolute inset-x-0 top-0 bottom-0.5 flex items-end gap-0 max-[640px]:gap-px"
+      >
         @for (row of renderBins(); track row.bin.startHour) {
           <!--
             一根柱分兩段：下段已點名（實心）、上段未點名（中空）。堆疊而不並排 ——
             柱高仍然是「同時幾堂」這個唯一的量，狀態是它的內部組成。
           -->
           <span
-            class="day-timeline__bar"
+            class="day-timeline__bar flex h-full min-w-[3px] flex-1 flex-col justify-end"
             role="img"
             [attr.aria-label]="describe(row.bin)"
             [title]="describe(row.bin)"
           >
             <span
-              class="day-timeline__seg day-timeline__seg--untaken"
+              class="day-timeline__seg day-timeline__seg--untaken block w-full border-2 border-b-0 border-solid border-band-ink"
               [class.day-timeline__seg--join-left]="row.joinUntakenLeft"
+              [class.border-l-0]="row.joinUntakenLeft"
               [class.day-timeline__seg--join-right]="row.joinUntakenRight"
+              [class.border-r-0]="row.joinUntakenRight"
               [style.height.%]="heightPct(row.bin.untaken)"
             ></span>
             <span
-              class="day-timeline__seg day-timeline__seg--taken"
+              class="day-timeline__seg day-timeline__seg--taken block w-full bg-band-ink"
               [style.height.%]="heightPct(row.bin.total - row.bin.untaken)"
             ></span>
           </span>
         }
       </div>
 
-      <div class="day-timeline__rule"></div>
+      <div class="day-timeline__rule absolute inset-x-0 bottom-0 h-0.5 bg-band-rule"></div>
     </div>
 
-    <ul class="day-timeline__ticks" aria-hidden="true">
+    <ul
+      class="day-timeline__ticks mx-0 mt-2 mb-0 flex list-none justify-between p-0 text-[10px] font-semibold text-band-ink-muted max-[640px]:text-[9px]"
+      aria-hidden="true"
+    >
       @for (t of ticks(); track t) {
         <li>{{ hour(t) }}</li>
       }
     </ul>
 
-    <p class="day-timeline__legend">
-      <span class="day-timeline__legend-item">
-        <i class="day-timeline__swatch day-timeline__swatch--taken"></i>
+    <p
+      class="day-timeline__legend mx-0 mt-3 mb-0 flex flex-wrap gap-x-4 gap-y-2 text-sm font-semibold text-band-ink-muted max-[640px]:gap-x-3 max-[640px]:gap-y-1 max-[640px]:text-xs"
+    >
+      <span class="day-timeline__legend-item flex items-center gap-2">
+        <i
+          class="day-timeline__swatch day-timeline__swatch--taken size-3 rounded-[3px] border-2 border-solid border-band-ink bg-band-ink"
+        ></i>
         已點名 {{ summaryOf().taken }}
       </span>
-      <span class="day-timeline__legend-item">
-        <i class="day-timeline__swatch"></i>
+      <span class="day-timeline__legend-item flex items-center gap-2">
+        <i
+          class="day-timeline__swatch size-3 rounded-[3px] border-2 border-solid border-band-ink"
+        ></i>
         未點名 {{ summaryOf().untaken }}
       </span>
       <!--
@@ -57,14 +77,16 @@
         「已點名 N / 未點名 N」數的是**堂數**，這裡數的是**同一時刻幾堂**，
         三個數字並列而量綱不同 —— 使用者的困惑正是「多根柱子 vs 圖例說 1 堂」。
       -->
-      <span class="day-timeline__legend-item">最忙同時 {{ layout().maxTotal }} 堂</span>
+      <span class="day-timeline__legend-item flex items-center gap-2"
+        >最忙同時 {{ layout().maxTotal }} 堂</span
+      >
       @if (layout().cancelled.length > 0) {
         <!--
           停課的課刻意不畫進軸（柱子只有已點名／未點名兩段，停課兩者都不是）——
           所以要在這裡說出來，否則軸上少一根而下面的清單多一列，沒有人知道為什麼。
           跟下面 `unplaced` 是同一個處置（#686）。
         -->
-        <span class="day-timeline__legend-item">
+        <span class="day-timeline__legend-item flex items-center gap-2">
           另有 {{ layout().cancelled.length }} 堂已停課
         </span>
       }
@@ -73,7 +95,7 @@
           畫不出來的要說出來，不是默默對齊 —— 上面那句話算的是總數，
           軸上畫的只是有時間的那部分。兩個數字不一致時使用者要知道為什麼。
         -->
-        <span class="day-timeline__legend-item">
+        <span class="day-timeline__legend-item flex items-center gap-2">
           另有 {{ layout().unplaced.length }} 堂未排定時間
         </span>
       }

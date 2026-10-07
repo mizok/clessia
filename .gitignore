@@ -74,3 +74,6 @@ lint-report-*.md
 
 # 設計方向探索的過程產物（mockup、工具輸入），不進版控
 .design-explorations/
+
+# 席位的截圖腳本，不進版控
+.pw-regression/

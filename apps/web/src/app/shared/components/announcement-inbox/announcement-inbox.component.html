@@ -1,15 +1,22 @@
-<div class="announcement-inbox">
+<div class="announcement-inbox flex flex-col gap-4 p-4">
   <header class="announcement-inbox__header">
-    <h1 class="announcement-inbox__title">
+    <h1 class="announcement-inbox__title m-0 flex items-center gap-3 text-[1.5rem] font-semibold">
       {{ heading() }}
       @if (unread() > 0) {
-        <span class="announcement-inbox__badge">{{ unread() }} 則未讀</span>
+        <span
+          class="announcement-inbox__badge rounded-full bg-accent-50 px-2 py-1 text-[0.75rem] font-medium text-accent-600"
+          >{{ unread() }} 則未讀</span
+        >
       }
     </h1>
 
     <!-- 沒有未讀就沒有可做的事 —— 不放一顆按了不會發生任何事的按鈕 -->
     @if (unread() > 0) {
-      <button type="button" class="announcement-inbox__mark-all" (click)="markAllRead()">
+      <button
+        type="button"
+        class="announcement-inbox__mark-all min-h-11 cursor-pointer self-start rounded-lg border border-solid border-zinc-300 bg-transparent px-3 py-0 text-[0.85rem] text-zinc-700 hover:bg-zinc-50"
+        (click)="markAllRead()"
+      >
         全部標為已讀
       </button>
     }
@@ -22,24 +29,36 @@
       }
     </div>
   } @else if (loadError()) {
-    <p class="announcement-inbox__state announcement-inbox__state--error">查詢失敗，請稍後再試。</p>
+    <p class="announcement-inbox__state announcement-inbox__state--error m-0 text-error-600">
+      查詢失敗，請稍後再試。
+    </p>
   } @else if (announcements().length === 0) {
-    <p class="announcement-inbox__state">目前沒有公告。</p>
+    <p class="announcement-inbox__state m-0 text-muted">目前沒有公告。</p>
   } @else {
-    <ul class="announcement-inbox__list">
+    <ul class="announcement-inbox__list m-0 flex max-w-[560px] list-none flex-col p-0">
       @for (item of announcements(); track item.id) {
         <li
-          class="announcement-inbox__item"
+          class="announcement-inbox__item border-b border-b-solid border-b-surface-border"
           [class.announcement-inbox__item--unread]="!item.isRead"
         >
-          <button type="button" class="announcement-inbox__summary" (click)="toggle(item)">
-            <span class="announcement-inbox__item-title">
+          <button
+            type="button"
+            class="announcement-inbox__summary flex min-h-11 w-full cursor-pointer flex-wrap items-baseline justify-between gap-2 border-0 bg-transparent px-2 py-3 text-left"
+            (click)="toggle(item)"
+          >
+            <span
+              class="announcement-inbox__item-title flex items-center gap-2 text-[1rem]"
+              [class.font-semibold]="!item.isRead"
+            >
               @if (!item.isRead) {
-                <span class="announcement-inbox__dot" aria-label="未讀"></span>
+                <span
+                  class="announcement-inbox__dot size-2 rounded-full bg-accent-500"
+                  aria-label="未讀"
+                ></span>
               }
               {{ item.title }}
             </span>
-            <span class="announcement-inbox__meta">
+            <span class="announcement-inbox__meta text-[0.875rem] text-muted">
               {{ item.publishedAt | date: 'MM/dd HH:mm' }}
               @if (item.campusName) {
                 · {{ item.campusName }}
@@ -48,10 +67,13 @@
           </button>
 
           @if (openId() === item.id) {
-            <div class="announcement-inbox__body">
-              <p class="announcement-inbox__text">{{ item.body }}</p>
+            <div class="announcement-inbox__body px-2 pb-3">
+              <!-- prettier-ignore -->
+              <p class="announcement-inbox__text m-0 leading-[1.7] whitespace-pre-wrap">{{ item.body }}</p>
               @if (item.createdByName) {
-                <p class="announcement-inbox__author">—— {{ item.createdByName }}</p>
+                <p class="announcement-inbox__author mx-0 mt-2 mb-0 text-[0.875rem] text-muted">
+                  —— {{ item.createdByName }}
+                </p>
               }
             </div>
           }

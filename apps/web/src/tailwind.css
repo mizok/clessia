@@ -75,6 +75,10 @@
 @source './app/shared/components/todo-banner';
 @source './app/shared/components/ime-filter-input';
 @source './app/shared/components/student-autocomplete';
+@source './app/shared/components/day-timeline';
+@source './app/shared/components/announcement-inbox';
+@source './app/shared/components/flow-field';
+@source './app/shared/components/jdenticon-avatar';
 @source './app/features/admin/pages/staff';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */
