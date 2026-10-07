@@ -37,7 +37,7 @@
 
 - **下一任計畫席的上任提示**：`~/.cache/clessia-plan-20261004-1110/onboard-next-plan.txt`（第一行 `/rename`），各席上任提示範本同目錄。
 - **重開後第一輪**：`herdr agent list` 會是空的；本機 Supabase 容器多半 exited（`npm run db:start` 會說 already running 而不重拉）→ 請 db-reset `docker start supabase_db_clessia`（不 reset）；心跳腳本第 36 行改計畫席名。
-- **當下狀態（重開前）**：main 在 #1331 之後；open PR 只有 #1262（draft，等 Opus 後端席）與 1408 的 charter 補遺（若還沒合，reviewer 代合）；scss-ledger 39；#991 剩 teacher T2 課表（範圍說明已過 gate，10-07 09:5x 留言；T2 若有 wip/ 分支見 1408 最後回報）、家長端 5 支（要對 A6 家長稿貼範圍說明）、shared 29＋全域（S／Z 批）。
+- **當下狀態（重開前）**：main 在 #1331 之後；open PR 只有 #1262（draft，等 Opus 後端席）與 1408 的 charter 補遺（若還沒合，reviewer 代合）；scss-ledger 39；#991 剩 teacher T2 課表（範圍說明已過 gate，10-07 09:5x 留言；T2 在 **`wip/teacher-schedule-t2`**（三支 SCSS 已刪、html 已轉、.ts 只刪 styleUrl；**沒做**：tailwind.css 的 `@source teacher/pages/schedule`、harness:write／harness、三寬度＋橫捲截圖、c6 的 100dvh fallback、#800 註解同步 —— commit message 有清單）；1408 最後一輪 Stop hook 報 `admin/students/student-form-dialog.component.spec.ts` 紅，它沒動那目錄、本機 nx 被擋驗不了，下一席以 CI 為準）、家長端 5 支（要對 A6 家長稿貼範圍說明）、shared 29＋全域（S／Z 批）。
 - **10-07 上午做了**：#1327 監工橫幅字串、#1328 公開頁 1:1、#1329 select-role 1:1（抓到任意值 `_` 變空白的 bug）、#1330 charter 補遺、#1331 老師端學生頁；A28 Tailwind 對比豁免清單上線（兩陷阱驗過）。
 - **等使用者**照「📋 等使用者」段不變：#1314 三題方向級（S3 抽屜、分章一族、P3 列內按鈕）＋新增 TS1（老師課表單日清單取代軌道）、開 Opus 後端席與否、兩條 permission 規則。
 
