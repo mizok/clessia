@@ -31,6 +31,16 @@
 **第十五批**：之後合進 main 的（#1262 防濫用仍是 draft，base 已轉 main；**正式環境仍未設 `PUBLIC_ORG_SLUG`**，兩支匿名寫入端點在 #1126 落地前不要開）。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
+## 🔁 10-07 重開電腦後接手（計畫席 labor-plan-20261004-1110，10-07 10:18 寫）
+
+**使用者 10-07 10:2x 要重開電腦，所有 session 一起消失。** 沒有任何席是 Ctx 過線退場；worktree、遠端分支、本機 DB volume 都留著。
+
+- **下一任計畫席的上任提示**：`~/.cache/clessia-plan-20261004-1110/onboard-next-plan.txt`（第一行 `/rename`），各席上任提示範本同目錄。
+- **重開後第一輪**：`herdr agent list` 會是空的；本機 Supabase 容器多半 exited（`npm run db:start` 會說 already running 而不重拉）→ 請 db-reset `docker start supabase_db_clessia`（不 reset）；心跳腳本第 36 行改計畫席名。
+- **當下狀態（重開前）**：main 在 #1331 之後；open PR 只有 #1262（draft，等 Opus 後端席）與 1408 的 charter 補遺（若還沒合，reviewer 代合）；scss-ledger 39；#991 剩 teacher T2 課表（範圍說明已過 gate，10-07 09:5x 留言；T2 在 **`wip/teacher-schedule-t2`**（三支 SCSS 已刪、html 已轉、.ts 只刪 styleUrl；**沒做**：tailwind.css 的 `@source teacher/pages/schedule`、harness:write／harness、三寬度＋橫捲截圖、c6 的 100dvh fallback、#800 註解同步 —— commit message 有清單）；1408 最後一輪 Stop hook 報 `admin/students/student-form-dialog.component.spec.ts` 紅，它沒動那目錄、本機 nx 被擋驗不了，下一席以 CI 為準）、家長端 5 支（要對 A6 家長稿貼範圍說明）、shared 29＋全域（S／Z 批）。
+- **10-07 上午做了**：#1327 監工橫幅字串、#1328 公開頁 1:1、#1329 select-role 1:1（抓到任意值 `_` 變空白的 bug）、#1330 charter 補遺、#1331 老師端學生頁；A28 Tailwind 對比豁免清單上線（兩陷阱驗過）。
+- **等使用者**照「📋 等使用者」段不變：#1314 三題方向級（S3 抽屜、分章一族、P3 列內按鈕）＋新增 TS1（老師課表單日清單取代軌道）、開 Opus 後端席與否、兩條 permission 規則。
+
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
