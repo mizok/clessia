@@ -1,4 +1,1 @@
-[
-  "apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss",
-  "apps/web/src/styles.scss"
-]
+["apps/web/src/styles.scss"]

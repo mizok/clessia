@@ -39,7 +39,7 @@ import { RESPONSIVE_TABLE } from './responsive-table.token';
     },
   ],
   templateUrl: './responsive-table.component.html',
-  styleUrl: './responsive-table.component.scss',
+  styleUrl: './responsive-table.component.css',
   encapsulation: ViewEncapsulation.None,
 })
 export class ResponsiveTableComponent {
