@@ -149,28 +149,26 @@ app.openapi(
     }
 
     const rows = data ?? [];
-    const inUse = new Map<string, number>();
-    if (rows.length > 0) {
-      const { data: refs, error: refError } = await supabase
-        .from('enrollments')
-        .select('fee_template_id')
-        .eq('org_id', orgId)
-        .in(
-          'fee_template_id',
-          rows.map((row) => row['id'] as string),
-        );
-      // 數不出來就不回 0 —— 「0 筆在用」會讓人去按一個必然 409 的刪除
-      if (refError) return c.json({ error: '查詢引用數失敗', code: 'DB_ERROR' }, 500);
-      for (const ref of (refs ?? []) as Array<{ fee_template_id: string }>) {
-        inUse.set(ref.fee_template_id, (inUse.get(ref.fee_template_id) ?? 0) + 1);
-      }
+    // 每個價目表一支 head count，讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷
+    const counts = await Promise.all(
+      rows.map((row) =>
+        supabase
+          .from('enrollments')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId)
+          .eq('fee_template_id', row['id'] as string),
+      ),
+    );
+    // 數不出來就不回 0 —— 「0 筆在用」會讓人去按一個必然 409 的刪除
+    if (counts.some((r) => r.error)) {
+      return c.json({ error: '查詢引用數失敗', code: 'DB_ERROR' }, 500);
     }
 
     return c.json(
       {
-        data: rows.map((row) => ({
+        data: rows.map((row, i) => ({
           ...mapFeeTemplate(row),
-          inUseCount: inUse.get(row['id'] as string) ?? 0,
+          inUseCount: counts[i]!.count ?? 0,
         })),
       },
       200,

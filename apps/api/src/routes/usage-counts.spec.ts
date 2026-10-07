@@ -27,7 +27,38 @@ const enrollment = (row: Record<string, unknown>) => ({
   ...row,
 });
 
-async function get(route: unknown, enrollments: Array<Record<string, unknown>>) {
+/**
+ * 模擬 PostgREST 的 `max_rows`（`supabase/config.toml` 是 1000）：撈列的查詢**靜默**只回前 1000 列，
+ * head count 不受影響。實作若改回「撈列回來在記憶體數」，超過一千筆時數字會偷偷變少。
+ */
+function withMaxRows(client: any, maxRows: number): any {
+  const wrap = (b: any): any =>
+    new Proxy(b, {
+      get(target, prop) {
+        if (prop === 'then')
+          return (resolve: (v: unknown) => void, reject: (e: unknown) => void) =>
+            target.then(
+              (r: any) =>
+                resolve(Array.isArray(r?.data) ? { ...r, data: r.data.slice(0, maxRows) } : r),
+              reject,
+            );
+        const v = Reflect.get(target, prop);
+        return typeof v === 'function' ? (...args: unknown[]) => wrap(v.apply(target, args)) : v;
+      },
+    });
+  return new Proxy(client, {
+    get(target, prop) {
+      if (prop !== 'from') return Reflect.get(target, prop);
+      return (table: string) => wrap(target.from(table));
+    },
+  });
+}
+
+async function get(
+  route: unknown,
+  enrollments: Array<Record<string, unknown>>,
+  opts: { maxRows?: number } = {},
+) {
   const db = createMultiOrgDb({
     fee_templates: [TPL_A, TPL_B].map((id) => ({
       id,
@@ -55,7 +86,7 @@ async function get(route: unknown, enrollments: Array<Record<string, unknown>>) 
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    set('supabase', opts.maxRows ? withMaxRows(db.client, opts.maxRows) : db.client);
     set('orgId', ORG);
     await next();
   });
@@ -96,5 +127,17 @@ describe('GET /api/billing-periods 的 overlappingEnrollmentCount（F4）', () =
     expect(status).toBe(200);
     expect(body.data).toHaveLength(1);
     expect(body.data[0]).toMatchObject({ id: PERIOD, overlappingEnrollmentCount: 3 });
+  });
+});
+
+describe('超過 max_rows 也數得對（計數交給 DB，不撈列回來數）', () => {
+  it('1001 筆報名：價目表 inUseCount 與期間 overlappingEnrollmentCount 都是 1001', async () => {
+    const many = Array.from({ length: 1001 }, () => enrollment({ fee_template_id: TPL_A }));
+
+    const templates = await get(feeTemplatesRoute, many, { maxRows: 1000 });
+    expect(templates.body.data.find((t: any) => t.id === TPL_A).inUseCount).toBe(1001);
+
+    const periods = await get(billingPeriodsRoute, many, { maxRows: 1000 });
+    expect(periods.body.data[0].overlappingEnrollmentCount).toBe(1001);
   });
 });

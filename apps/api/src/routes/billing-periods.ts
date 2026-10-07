@@ -34,28 +34,11 @@ const BillingPeriodSchema = z
 const BillingPeriodListItemSchema = BillingPeriodSchema.extend({
   /**
    * 與這期日期重疊的在讀期繳報名數（#1314 F4，計畫席裁 (i)）。報名跟期間沒有 FK，
-   * 判斷同「待開單」（`overlapsPeriod`）。**它不代表刪不掉** —— 擋刪除的是已開的帳單明細（`invoice_items`）。
+   * 重疊條件同「待開單」（`upcoming-unbilled` 的 `pending`）。**它不代表刪不掉** ——
+   * 擋刪除的是已開的帳單明細（`invoice_items`）。
    */
   overlappingEnrollmentCount: z.number().int(),
 }).openapi('BillingPeriodListItem');
-
-type PeriodEnrollment = { effective_from: string; effective_to: string | null };
-
-/** 在讀的期繳報名（「待開單」與列表的重疊數共用） */
-const activePeriodEnrollments = (supabase: AppEnv['Variables']['supabase'], orgId: string) =>
-  supabase
-    .from('enrollments')
-    .select('effective_from, effective_to')
-    .eq('org_id', orgId)
-    .eq('status', 'active')
-    .eq('billing_mode', 'period');
-
-/** 報名期間與收費期間重疊（兩端都含；`effective_to` 空＝沒有結束日） */
-const overlapsPeriod = (
-  e: PeriodEnrollment,
-  period: { start_date: string; end_date: string },
-): boolean =>
-  e.effective_from <= period.end_date && (!e.effective_to || e.effective_to >= period.start_date);
 
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
@@ -139,24 +122,29 @@ app.openapi(
     }
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
-    let enrollments: PeriodEnrollment[] = [];
-    if (rows.length > 0) {
-      const { data: enrollmentRows, error: enrollmentError } = await activePeriodEnrollments(
-        supabase,
-        orgId,
-      );
-      // 數不出來就不回 0（看起來像「沒人在用」）
-      if (enrollmentError) return c.json({ error: '查詢報名數失敗', code: 'DB_ERROR' }, 500);
-      enrollments = (enrollmentRows ?? []) as PeriodEnrollment[];
+    // 每期一支 head count，讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷
+    const counts = await Promise.all(
+      rows.map((row) =>
+        supabase
+          .from('enrollments')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId)
+          .eq('status', 'active')
+          .eq('billing_mode', 'period')
+          .lte('effective_from', row['end_date'] as string)
+          .or(`effective_to.is.null,effective_to.gte.${row['start_date'] as string}`),
+      ),
+    );
+    // 數不出來就不回 0（看起來像「沒人在用」）
+    if (counts.some((r) => r.error)) {
+      return c.json({ error: '查詢報名數失敗', code: 'DB_ERROR' }, 500);
     }
 
     return c.json(
       {
-        data: rows.map((row) => ({
+        data: rows.map((row, i) => ({
           ...mapBillingPeriod(row),
-          overlappingEnrollmentCount: enrollments.filter((e) =>
-            overlapsPeriod(e, row as { start_date: string; end_date: string }),
-          ).length,
+          overlappingEnrollmentCount: counts[i]!.count ?? 0,
         })),
       },
       200,
@@ -246,7 +234,12 @@ app.openapi(
     if (periods.length === 0) return c.json({ data: [] }, 200);
 
     const [enrollmentResult, billedResult] = await Promise.all([
-      activePeriodEnrollments(supabase, orgId),
+      supabase
+        .from('enrollments')
+        .select('effective_from, effective_to')
+        .eq('org_id', orgId)
+        .eq('status', 'active')
+        .eq('billing_mode', 'period'),
       // invoice_items 沒有 org_id，經 invoices 篩；作廢的帳單不算開過（同 billing-runs 的 alreadyBilled）
       supabase
         .from('invoice_items')
@@ -270,11 +263,18 @@ app.openapi(
         })
         .map((row) => row['billing_period_id'] as string),
     );
-    const enrollments = (enrollmentResult.data ?? []) as PeriodEnrollment[];
+    const enrollments = (enrollmentResult.data ?? []) as Array<{
+      effective_from: string;
+      effective_to: string | null;
+    }>;
 
     const data = periods.flatMap((period) => {
       if (billed.has(period.id)) return [];
-      const pending = enrollments.filter((e) => overlapsPeriod(e, period)).length;
+      const pending = enrollments.filter(
+        (e) =>
+          e.effective_from <= period.end_date &&
+          (!e.effective_to || e.effective_to >= period.start_date),
+      ).length;
       if (pending === 0) return [];
       return [
         {
