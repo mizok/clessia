@@ -35,7 +35,6 @@ export interface ClassLogSheetInput {
   selector: 'app-class-log-sheet',
   imports: [FormsModule, ButtonModule],
   templateUrl: './class-log-sheet.component.html',
-  styleUrl: './class-log-sheet.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassLogSheetComponent {

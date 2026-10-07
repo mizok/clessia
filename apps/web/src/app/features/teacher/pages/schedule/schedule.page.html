@@ -1,14 +1,14 @@
-<div class="schedule-page">
+<div class="flex flex-col gap-4">
   <!-- 橘帶：這一頁的入口面。錨點放最可行動的數字 —— 漏點名，不是總堂數 -->
   <app-page-band>
     @if (page().group; as group) {
-      <p class="schedule-page__band-eyebrow">{{ group.label }}</p>
+      <p class="m-0 text-[0.8rem] tracking-[0.08em] uppercase opacity-70">{{ group.label }}</p>
     }
-    <h1 class="schedule-page__band-title">{{ page().label }}</h1>
-    <p class="schedule-page__band-sub">{{ weekLabel() }}</p>
+    <h1 class="m-0 text-[1.5rem] font-bold">{{ page().label }}</h1>
+    <p class="m-0 text-[0.9rem] opacity-80">{{ weekLabel() }}</p>
 
     <div bandAside>
-      <div class="schedule-page__week-nav">
+      <div class="flex items-center gap-1">
         <p-button
           icon="pi pi-chevron-left"
           [text]="true"
@@ -42,12 +42,17 @@
       尺寸跟排列自動對齊，不用重寫一份 grid 設定。上一週/下一週按鈕在載入中
       也保留——它們不依賴這週的資料，拿掉會讓骨架的寬度跟真正的週條對不上。
     -->
-    <nav class="schedule-page__weekbar" aria-label="本週各日">
+    <nav
+      class="schedule-page__weekbar hidden items-center gap-2 @min-[640px]/shell-content:flex"
+      aria-label="本週各日"
+    >
       <p-button icon="pi pi-chevron-left" [text]="true" [disabled]="true" ariaLabel="上一週" />
-      <ul class="schedule-page__weekbar-days">
+      <ul class="m-0 grid flex-1 list-none grid-cols-[repeat(7,minmax(0,1fr))] gap-1 p-0">
         @for (i of [1, 2, 3, 4, 5, 6, 7]; track i) {
           <li>
-            <span class="schedule-page__weekbar-skeleton p-skeleton"></span>
+            <span
+              class="schedule-page__weekbar-skeleton p-skeleton block h-11 w-full rounded-[8px]"
+            ></span>
           </li>
         }
       </ul>
@@ -55,23 +60,27 @@
     </nav>
     <!--
       **日面板的骨架，而且刻意不放在上面那條週條裡面**：週條是桌機專屬
-      （SCSS 的 `display: none` 到 640px），所以骨架掛在它上面時 390 下
-      **唯一的載入訊號是 `display: none`** —— 畫面上就是七行「沒有課」（#800）。
+      （Tailwind 的 `hidden`＝`display: none`，到 shell-content 容器 640px 才 `flex`），所以骨架掛在它上面時 390 下
+      **唯一的載入訊號是 `hidden`（`display: none`）** —— 畫面上就是七行「沒有課」（#800）。
       這一塊在所有寬度都在，而且它取代了整個 `&__track`，所以載入中不再印「沒有課」。
       「載入中」這句話也在這裡宣告，不在週條上：週條在手機被 `display: none`
       移出無障礙樹，宣告掛在它上面等於 390 下沒有宣告。
     -->
-    <div class="schedule-page__day-skeleton" role="status" aria-label="本週課表載入中">
-      <span class="schedule-page__day-skeleton-header p-skeleton"></span>
-      <span class="schedule-page__day-skeleton-card p-skeleton"></span>
-      <span class="schedule-page__day-skeleton-card p-skeleton"></span>
+    <div
+      class="schedule-page__day-skeleton flex flex-col gap-3"
+      role="status"
+      aria-label="本週課表載入中"
+    >
+      <span class="p-skeleton h-11 w-full rounded-lg"></span>
+      <span class="p-skeleton h-[120px] w-full rounded-xl"></span>
+      <span class="p-skeleton h-[120px] w-full rounded-xl"></span>
     </div>
   } @else if (loadError()) {
     <!--
       **這一格存在的理由**：沒有它的時候，查詢失敗會走到每一天的 `@empty`，
       印出七次「沒有課」——跟真的沒有排課一模一樣。
       原本是一行文字 + 軌道上的 `[hidden]="loadError()"`，而那個 `[hidden]`
-      **從來沒有生效**：`.schedule-page__track { display: grid }` 是 author 樣式，
+      **從來沒有生效**：軌道的 `display: grid`（原 SCSS，現在是 Tailwind 的 `grid` utility）是 author 樣式，
       永遠蓋過 UA 的 `[hidden] { display: none }`（#800）。
       現在軌道在錯誤態根本不渲染，遮蔽這件事不再靠 CSS 打架。
     -->
@@ -82,14 +91,10 @@
       teacherLed 分支）。**不改那個預設，只是把「我不知道」講出來** ——
       不講的話，一週沒有任何警示跟「這週都點完了」一模一樣。
     -->
-    <p class="schedule-page__state schedule-page__state--warning">
-      讀不到點名設定，「漏點名」提醒可能不準。
-    </p>
+    <p class="m-0 p-4 text-center text-warning-600">讀不到點名設定，「漏點名」提醒可能不準。</p>
   } @else if (missingFailed()) {
     <!-- 課表有載到、只有聯絡簿待辦沒有。不講的話「沒有徽章」會被讀成「都寫完了」 -->
-    <p class="schedule-page__state schedule-page__state--warning">
-      聯絡簿待辦數字暫時讀不到，徽章可能不完整。
-    </p>
+    <p class="m-0 p-4 text-center text-warning-600">聯絡簿待辦數字暫時讀不到，徽章可能不完整。</p>
   }
 
   <!--
@@ -97,28 +102,33 @@
     每天只給老師掃視需要的四件事：星期、日期、幾堂、一顆狀態點。
   -->
   @if (!loading() && !loadError()) {
-    <nav class="schedule-page__weekbar" aria-label="本週各日">
+    <nav
+      class="schedule-page__weekbar hidden items-center gap-2 @min-[640px]/shell-content:flex"
+      aria-label="本週各日"
+    >
       <p-button icon="pi pi-chevron-left" [text]="true" ariaLabel="上一週" (onClick)="prevWeek()" />
-      <ul class="schedule-page__weekbar-days">
+      <ul class="m-0 grid flex-1 list-none grid-cols-[repeat(7,minmax(0,1fr))] gap-1 p-0">
         @for (day of weekBar(); track day.dateStr) {
           <li>
             <button
               type="button"
-              class="schedule-page__weekbar-day"
+              class="schedule-page__weekbar-day flex min-h-11 w-full cursor-pointer flex-col items-center gap-[2px] rounded-[8px] border border-transparent bg-transparent px-1 py-2 hover:bg-zinc-50 [&.schedule-page\_\_weekbar-day--today]:border-accent-400 [&.schedule-page\_\_weekbar-day--today]:bg-accent-50 [&.schedule-page\_\_weekbar-day--today]:hover:bg-zinc-50"
               [class.schedule-page__weekbar-day--today]="day.isToday"
               [attr.aria-current]="day.isToday ? 'date' : null"
               (click)="snapToDay(day.index)"
             >
-              <span class="schedule-page__weekbar-label">{{ day.label }}</span>
+              <span class="text-[0.7rem] text-zinc-500">{{ day.label }}</span>
               <!--
                 用 M/d 不用裸的 d：裸數字會跟下面的堂數黏成「31 1 堂」，
                 月初更糟（「1 1 堂」）。M/d 也跟每一屏的標題一致。
               -->
-              <span class="schedule-page__weekbar-date">{{ day.date | date: 'M/d' }}</span>
+              <span class="text-[0.95rem] font-bold text-zinc-900 tabular-nums">{{
+                day.date | date: 'M/d'
+              }}</span>
               @if (day.tone; as tone) {
                 <app-status-dot [tone]="tone">{{ day.count }} 堂</app-status-dot>
               } @else {
-                <span class="schedule-page__weekbar-empty">—</span>
+                <span class="schedule-page__weekbar-empty text-[0.75rem] text-zinc-300">—</span>
               }
             </button>
           </li>
@@ -142,42 +152,48 @@
   @if (!loading() && !loadError()) {
     <div
       #track
-      class="schedule-page__track"
+      class="schedule-page__track grid auto-cols-[100%] grid-flow-col snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400"
       role="group"
       aria-label="本週課表，左右捲動換日"
       tabindex="0"
     >
       @for (day of weekDays(); track day.dateStr) {
         <section
-          class="schedule-page__day"
+          class="schedule-page__day flex min-w-0 snap-start flex-col gap-2 overflow-hidden rounded-[8px] border border-zinc-200 bg-white [&.schedule-page\_\_day--today]:border-accent-400"
           [class.schedule-page__day--today]="isToday(day.dateStr)"
         >
-          <h2 class="schedule-page__day-header">
-            <span class="schedule-page__day-date">{{ day.date | date: 'M/d' }}</span>
-            <span class="schedule-page__day-label">{{ day.label }}</span>
+          <h2
+            class="m-0 flex items-baseline gap-2 border-b border-zinc-200 bg-zinc-50 p-3 @min-[640px]/shell-content:px-4 [.schedule-page\_\_day--today_&]:bg-accent-50"
+          >
+            <span class="text-[1rem] font-bold text-zinc-900">{{ day.date | date: 'M/d' }}</span>
+            <span class="text-[0.8rem] font-medium text-zinc-500">{{ day.label }}</span>
             @if (missingOn(day.dateStr); as missing) {
               <span
-                class="schedule-page__pending"
+                class="ml-auto inline-flex items-center gap-1 text-[0.75rem] font-semibold text-accent-600 tabular-nums"
                 [attr.aria-label]="missing + ' 位學生的聯絡簿還沒寫'"
               >
-                <span class="schedule-page__pending-dot" aria-hidden="true"></span>
+                <span class="size-[6px] rounded-full bg-accent-500" aria-hidden="true"></span>
                 {{ missing }}
               </span>
             }
           </h2>
 
-          <div class="schedule-page__day-body">
+          <div class="flex flex-col gap-2 p-3 @min-[640px]/shell-content:p-4">
             @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.sessionId) {
               <article
-                class="schedule-page__session"
+                class="schedule-page__session flex flex-col gap-1 rounded-[6px] border border-zinc-200 p-3 @min-[640px]/shell-content:max-w-[560px] @min-[640px]/shell-content:p-4 [&.schedule-page\_\_session--cancelled]:border-dashed [&.schedule-page\_\_session--cancelled]:bg-zinc-50"
                 [class.schedule-page__session--cancelled]="session.status === 'cancelled'"
               >
-                <p class="schedule-page__session-time">
+                <p class="m-0 text-[0.8rem] font-semibold text-zinc-500 tabular-nums">
                   {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
                 </p>
-                <p class="schedule-page__session-name">{{ session.className }}</p>
+                <p
+                  class="m-0 text-[0.95rem] font-semibold text-zinc-900 [.schedule-page\_\_session--cancelled_&]:text-zinc-500 [.schedule-page\_\_session--cancelled_&]:line-through"
+                >
+                  {{ session.className }}
+                </p>
 
-                <p class="schedule-page__session-meta">
+                <p class="m-0 flex flex-wrap items-center gap-2">
                   @if (session.status === 'cancelled') {
                     <app-data-chip>停課</app-data-chip>
                   }
@@ -192,10 +208,10 @@
                   @if (session.campusName) {
                     <app-data-chip>{{ session.campusName }}</app-data-chip>
                   }
-                  <span class="schedule-page__session-count">{{ session.enrolledCount }} 人</span>
+                  <span class="text-[0.75rem] text-zinc-500">{{ session.enrolledCount }} 人</span>
                 </p>
 
-                <div class="schedule-page__session-status">
+                <div class="mt-1 flex flex-wrap items-center gap-2">
                   @if (isRetroactiveLocked(session)) {
                     <app-status-dot tone="inactive">點名已截止</app-status-dot>
                   } @else if (display(session); as d) {
@@ -203,18 +219,10 @@
                   }
 
                   @if (session.takenAt) {
-                    <span class="schedule-page__summary">
-                      <span
-                        class="schedule-page__summary-item schedule-page__summary-item--present"
-                      >
-                        到 {{ session.presentCount }}
-                      </span>
-                      <span class="schedule-page__summary-item schedule-page__summary-item--leave">
-                        假 {{ session.onLeaveCount }}
-                      </span>
-                      <span class="schedule-page__summary-item schedule-page__summary-item--absent">
-                        缺 {{ session.absentCount }}
-                      </span>
+                    <span class="flex gap-2 text-[0.75rem] tabular-nums">
+                      <span class="text-success-600"> 到 {{ session.presentCount }} </span>
+                      <span class="text-warning-600"> 假 {{ session.onLeaveCount }} </span>
+                      <span class="text-error-600"> 缺 {{ session.absentCount }} </span>
                     </span>
                   }
                 </div>
@@ -278,7 +286,7 @@
                 }
               </article>
             } @empty {
-              <p class="schedule-page__no-class">沒有課</p>
+              <p class="m-0 py-4 text-center text-[0.85rem] text-zinc-500">沒有課</p>
             }
           </div>
         </section>

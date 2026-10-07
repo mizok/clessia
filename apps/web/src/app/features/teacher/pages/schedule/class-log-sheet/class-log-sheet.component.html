@@ -1,38 +1,42 @@
-<div class="class-log-sheet">
-  <header class="class-log-sheet__header">
-    <h2 class="class-log-sheet__title">{{ input.className }}</h2>
-    <p class="class-log-sheet__date">{{ input.logDate }}</p>
+<div class="flex flex-col gap-4">
+  <header class="flex flex-col gap-1">
+    <h2 class="m-0 text-[1.125rem] font-semibold">{{ input.className }}</h2>
+    <p class="m-0 text-[0.875rem] text-muted">{{ input.logDate }}</p>
     <!--
       同一班同一天兩場課會開到同一篇（class_logs 的鍵不含時段）。
       第二場的老師必須知道自己在編輯既有內容 —— 但真正的防線是上面已經
       把內容預載進輸入框了，這句只是把它說出來。
     -->
     @if (existing()) {
-      <p class="class-log-sheet__existing">本日已有日誌，你正在編輯它</p>
+      <p class="m-0 mt-1 text-[0.8rem] text-muted">本日已有日誌，你正在編輯它</p>
     }
   </header>
 
   @if (loading()) {
-    <div class="class-log-sheet__field-skeleton" aria-label="教學紀錄載入中">
+    <div class="class-log-sheet__field-skeleton flex flex-col gap-2" aria-label="教學紀錄載入中">
       <span class="skeleton-bar skeleton-bar--label"></span>
-      <span class="class-log-sheet__textarea-skeleton p-skeleton"></span>
+      <span
+        class="class-log-sheet__textarea-skeleton p-skeleton block h-[101px] w-full rounded-md"
+      ></span>
     </div>
-    <div class="class-log-sheet__field-skeleton" aria-label="作業安排載入中">
+    <div class="class-log-sheet__field-skeleton flex flex-col gap-2" aria-label="作業安排載入中">
       <span class="skeleton-bar skeleton-bar--label"></span>
-      <span class="class-log-sheet__textarea-skeleton p-skeleton"></span>
+      <span
+        class="class-log-sheet__textarea-skeleton p-skeleton block h-[101px] w-full rounded-md"
+      ></span>
     </div>
   } @else if (loadError()) {
-    <p class="class-log-sheet__state class-log-sheet__state--error">
-      讀取失敗，請關閉重開。現在存檔會覆蓋掉本來就有的內容。
-    </p>
+    <p class="m-0 text-error-600">讀取失敗，請關閉重開。現在存檔會覆蓋掉本來就有的內容。</p>
   } @else {
-    <label class="class-log-sheet__field">
-      <span class="class-log-sheet__label">
+    <label class="flex flex-col gap-2">
+      <span class="flex items-baseline gap-2 text-[0.875rem] font-medium">
         教學紀錄
-        <span class="class-log-sheet__visibility">內部，家長看不到</span>
+        <span class="rounded-full bg-zinc-100 px-2 py-[2px] text-[0.7rem] font-normal text-zinc-600"
+          >內部，家長看不到</span
+        >
       </span>
       <textarea
-        class="class-log-sheet__input"
+        class="w-full resize-y rounded-md border border-solid border-surface-border px-3 py-2 font-[family-name:inherit] text-md leading-[1.6]"
         rows="4"
         maxlength="5000"
         [ngModel]="teachingRecord()"
@@ -40,15 +44,17 @@
       ></textarea>
     </label>
 
-    <label class="class-log-sheet__field">
-      <span class="class-log-sheet__label">
+    <label class="flex flex-col gap-2">
+      <span class="flex items-baseline gap-2 text-[0.875rem] font-medium">
         作業安排
-        <span class="class-log-sheet__visibility class-log-sheet__visibility--public">
+        <span
+          class="rounded-full bg-warning-50 px-2 py-[2px] text-[0.7rem] font-normal text-warning-800"
+        >
           家長會看到
         </span>
       </span>
       <textarea
-        class="class-log-sheet__input"
+        class="w-full resize-y rounded-md border border-solid border-surface-border px-3 py-2 font-[family-name:inherit] text-md leading-[1.6]"
         rows="4"
         maxlength="5000"
         [ngModel]="homework()"
@@ -57,11 +63,11 @@
     </label>
 
     @if (saveError(); as message) {
-      <p class="class-log-sheet__state class-log-sheet__state--error">{{ message }}</p>
+      <p class="m-0 text-error-600">{{ message }}</p>
     }
 
     @if (published()) {
-      <p class="class-log-sheet__published">已發布，家長看得到「作業安排」這一欄</p>
+      <p class="m-0 text-[0.8rem] text-zinc-600">已發布，家長看得到「作業安排」這一欄</p>
     }
 
     @if (confirmingPublish()) {
@@ -70,12 +76,14 @@
         避免「以為只是存檔，其實家長全看到了」。
         文案**只說現在為真的事**：不提 LINE 推播（規則排在 P4，而 repo 至今沒有實作）。
       -->
-      <div class="class-log-sheet__confirm">
-        <p class="class-log-sheet__confirm-text">
+      <div
+        class="flex flex-col gap-3 rounded-md border border-solid border-warning-200 bg-warning-50 p-3"
+      >
+        <p class="m-0 text-[0.85rem] leading-[1.6] text-warning-800">
           發布之後，<strong>家長就會看到「作業安排」這一欄</strong>，而且<strong>收不回</strong>。
           教學紀錄不會給家長看。
         </p>
-        <div class="class-log-sheet__confirm-actions">
+        <div class="flex justify-end gap-2">
           <p-button label="再想想" [text]="true" size="small" (onClick)="cancelPublish()" />
           <p-button
             label="確定發布"
@@ -88,7 +96,7 @@
       </div>
     }
 
-    <footer class="class-log-sheet__footer">
+    <footer class="flex justify-end gap-2">
       <!--
         v1a 只有存檔。**沒有發布按鈕，也不是 disabled** —— 發布不可逆，
         而家長端讀取與 LINE 推播在 v1b 之前都不存在。
