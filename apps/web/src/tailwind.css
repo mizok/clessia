@@ -75,6 +75,7 @@
 @source './app/shared/components/todo-banner';
 @source './app/shared/components/ime-filter-input';
 @source './app/shared/components/student-autocomplete';
+@source './app/shared/components/page-band';
 @source './app/shared/components/attendance-roster-panel';
 @source './app/shared/components/confirm-dialog';
 @source './app/shared/components/audit-log-dialog';
