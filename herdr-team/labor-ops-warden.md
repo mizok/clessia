@@ -97,7 +97,32 @@ api 要本人跑 `wrangler deploy`。**這些報給計畫席沒有用,它也動�
 ## 職責(每 10-15 分鐘巡一輪)
 
 1. **席位存活**:`herdr agent list` → 對 idle/done 超過 5 分鐘的席:
-   `herdr agent read` 看尾部 —— 輸入框有殘字?有「/low-priority」橫幅?(額度耗盡→
+   `herdr agent read` 看尾部 —— 輸入框有殘字?有額度耗盡橫幅?
+   ⚠️ **橫幅的字串有兩種,只抓一種會假陰性**(2026-10-05 踩到):
+   舊的是 `/low-priority to continue`,**新的是
+   `You're out of usage credits. Run /usage-credits to keep using <模型>`** ——
+   當天計畫席就是卡在新版橫幅上,而我只掃 `low-priority` → **五席全回 0,而它其實停了八小時**。
+   **掃兩種、而且要錨在 `⎿` 那一行** —— 真橫幅是工具結果列,長這樣:
+   `⎿  You're out of usage credits. Run /usage-credits to keep using <模型>`。
+
+   ```bash
+   herdr agent read <席> | sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' \
+     | grep -acE '^[[:space:]]*⎿[[:space:]]+(You.re out of usage credits|.*/low-priority)'
+   ```
+
+   ⚠️ **不錨定會中自己**(同一輪實測):監工 pane 裡有這份 charter 與回報在討論橫幅,
+   **未錨定版命中 3、錨定版 0**;計畫席兩版都命中(它是真的耗盡)。
+   **跟 `mid-response` 片段、`[Pasted text` 未錨定完全同族 ——
+   比對太窄會漏、比對太寬會中自己,兩邊都要卡。**
+
+   **而錨定還是不夠:掃描要排除監工自己。** 下一輪我把真橫幅那一行 `grep` 出來貼進回報,
+   **自己的 pane 於是也有一行 `⎿  You're out of usage credits…`,錨定版照樣命中 1。**
+   **監工的 pane 會引用別席的畫面,所以它對任何「畫面特徵」的掃描都是不可靠的樣本** ——
+   **而且監工本來就知道自己有沒有耗盡**(耗盡就不會在跑這段)。
+   **作法:逐席掃描時跳過自己那一席。** 這一條對截斷掃描、`[Pasted text` 掃描同樣成立。
+   (這是本檔那個反覆出現的形狀:比對字串過窄 → 量不到被讀成沒事。同族的還有
+   `mid-response` 片段、`[Pasted text` 未錨定、`in:title` 單向。)
+   (額度耗盡→
    等回流後 nudge)有 WAITING-ON 標記?(對帳計畫席收件,漏了就催重送)**Ctx Used
    有沒有到 95%?(見下方「context 檢查點」,這是 README 一條通則的載體,不是自選)**
 2. **零 idle 執行**:確認 idle 席收到工單提醒;佇列空了通知計畫席補貨。
