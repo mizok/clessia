@@ -13,7 +13,6 @@ import { ChildScopeService } from '@core/child-scope.service';
   standalone: true,
   imports: [Popover],
   templateUrl: './child-switcher.component.html',
-  styleUrl: './child-switcher.component.scss',
 })
 export class ChildSwitcherComponent {
   protected readonly childScope = inject(ChildScopeService);

@@ -64,6 +64,8 @@
 @source './app/features/admin/pages/checkin';
 @source './app/features/admin/pages/applications';
 @source './app/features/kiosk';
+@source './app/features/parent/shared/child-switcher';
+@source './app/features/parent/pages/dashboard';
 @source './app/shared/components/checkin-station';
 @source './app/features/admin/pages/staff';
 
