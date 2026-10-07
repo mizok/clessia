@@ -138,6 +138,19 @@ Worker route 的優先權高於 Pages，所以 `/api/*` 會被 Worker 接走，�
 沒有它，任何非根路徑重新整理都會 404——Angular 的路由在瀏覽器端，
 `/admin/students` 在伺服器上沒有對應檔案。`200` 是 rewrite 不是 302。
 
+## 公開表單（報名、試聽）的開關與防濫用（#1125、#1126）
+
+| 設定 | 種類 | 說明 |
+| --- | --- | --- |
+| `PUBLIC_ORG_SLUG` | 非機密（`[env.production.vars]`） | 公開頁屬於哪個 org。**沒設＝所有 `/api/public/*` 回 404**（關著） |
+| `TURNSTILE_SECRET_KEY` | 機密（`wrangler secret put`） | **可選**。有設才對公開表單強制 Cloudflare Turnstile；沒設只剩速率限制＋honeypot。可選是為了 c12：客戶要能離開 Cloudflare（後路：ALTCHA，自架 PoW，未實作） |
+
+- **速率限制的計數存在自己的 Postgres**（`public_applications.client_ip_hash`，只存 HMAC），不用 KV／Durable Objects（c12）。
+  數字在 `routes/public/application-common.ts` 的 `RATE_LIMITS`（同來源 1 小時 5 筆、同聯絡方式 24 小時同類 3 筆）。
+- 來源 IP 依序讀 `CF-Connecting-IP` → `X-Real-IP` → `X-Forwarded-For`。**Node 自架時必須放在會覆寫這些標頭的反向代理後面**，
+  否則對方自己帶標頭就能換「來源」繞過 IP 那條（聯絡方式那條仍在）。
+- **開公開頁之前**：先設好 `TURNSTILE_SECRET_KEY`（或確定不要），再設 `PUBLIC_ORG_SLUG`。
+
 ## Hyperdrive（正式環境的資料庫連線）
 
 Workers **不能跨請求重用 I/O 物件**，所以每個受保護的請求都自己開一個連線池

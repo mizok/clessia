@@ -8,6 +8,7 @@ import {
   ApplicantFields,
   ApplicationErrorSchema as ErrorSchema,
   EMAIL_OR_PHONE_REQUIRED,
+  guardSubmission,
   hasContact,
   insertApplication,
 } from './application-common';
@@ -60,6 +61,14 @@ app.openapi(
         description: '班不開放／聯絡方式缺',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      429: {
+        description: '送出太多次（#1126 rate limit）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      503: {
+        description: '機器人驗證服務或限流計數暫時無法使用（fail-closed）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       404: {
         description: '這個部署沒有開放公開頁',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -72,6 +81,20 @@ app.openapi(
     const orgId = c.get('orgId');
     const body = c.req.valid('json');
     const failed = () => c.json({ error: '送出失敗，請稍後再試', code: 'SUBMIT_FAILED' }, 500);
+
+    // #1126：honeypot → rate limit → CAPTCHA，都過了才走原本的驗證
+    const guard = await guardSubmission(c, body, 'enrollment');
+    // honeypot：回假成功、不寫 —— 不讓機器人知道被擋
+    if (guard.kind === 'honeypot')
+      return c.json({ id: crypto.randomUUID(), waitlistClassIds: [] }, 201);
+    if (guard.kind === 'reject') {
+      if (guard.status === 429) {
+        c.header('Retry-After', String(guard.retryAfterSeconds));
+        return c.json(guard.body, 429);
+      }
+      if (guard.status === 503) return c.json(guard.body, 503);
+      return c.json(guard.body, 400);
+    }
 
     if (!hasContact(body)) return c.json(EMAIL_OR_PHONE_REQUIRED, 400);
 
@@ -106,7 +129,7 @@ app.openapi(
       orgId,
       'enrollment',
       body,
-      { preferred_start_date: body.preferredStartDate ?? null },
+      { preferred_start_date: body.preferredStartDate ?? null, client_ip_hash: guard.ipHash },
       classIds.map((cid) => ({ class_id: cid, is_waitlist: isFull(cid) })),
     );
     if (!applicationId) return failed();

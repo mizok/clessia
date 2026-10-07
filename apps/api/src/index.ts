@@ -87,6 +87,11 @@ export type Bindings = {
    * **沒設＝公開端點一律 404 `PUBLIC_DISABLED`**（見 `lib/public-org.ts`）。
    */
   PUBLIC_ORG_SLUG?: string;
+  /**
+   * Cloudflare Turnstile 的 secret（#1126）—— **可選**：有設才對公開表單強制機器人驗證；
+   * 沒設只剩 rate limit＋honeypot（c12：客戶要能離開 Cloudflare）。走 `wrangler secret put`。
+   */
+  TURNSTILE_SECRET_KEY?: string;
 };
 
 export type Variables = {
