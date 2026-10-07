@@ -7,7 +7,6 @@ export type InlineNoticeSeverity = 'error' | 'success' | 'warning' | 'info';
   standalone: true,
   imports: [],
   templateUrl: './inline-notice.component.html',
-  styleUrl: './inline-notice.component.scss',
 })
 export class InlineNoticeComponent {
   /**

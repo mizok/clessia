@@ -113,6 +113,7 @@
       "apps/web/src/app/shared/components/filter-chip",
       "apps/web/src/app/shared/components/flow-field",
       "apps/web/src/app/shared/components/ime-filter-input",
+      "apps/web/src/app/shared/components/inline-notice",
       "apps/web/src/app/shared/components/jdenticon-avatar",
       "apps/web/src/app/shared/components/layout/global-search",
       "apps/web/src/app/shared/components/layout/shell-layout",
