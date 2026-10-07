@@ -62,7 +62,6 @@ const PAGE_SIZE = 50;
     EmptyStateComponent,
   ],
   templateUrl: './attendance.page.html',
-  styleUrl: './attendance.page.scss',
 })
 export class AttendancePage implements OnInit {
   readonly page = input.required<RouteObj>();

@@ -1,7 +1,11 @@
-<div class="grades">
+<div class="grades mx-auto flex min-h-full max-w-[800px] flex-col gap-0">
   <app-page-band>
     <app-child-switcher />
-    <h1 class="grades__band-title">{{ page().label }}</h1>
+    <h1
+      class="grades__band-title mx-0 mt-2 mb-0 text-3xl leading-[1.02] font-bold tracking-[-0.04em]"
+    >
+      {{ page().label }}
+    </h1>
     <div bandAside>
       @if (!loading() && records().length > 0) {
         <app-band-anchor [value]="recentCount()" unit="筆新成績">過去 7 天內登錄</app-band-anchor>
@@ -14,7 +18,7 @@
     規則與措辭集中在 `app-child-scope-gate`，四頁不各自長出一種說法。
   -->
   <app-child-scope-gate>
-    <div class="grades__filters">
+    <div class="grades__filters flex flex-wrap items-center gap-3 p-4">
       <p-select
         [options]="subjectOptions()"
         optionLabel="label"
@@ -34,7 +38,7 @@
       />
     </div>
 
-    <div class="grades__content">
+    <div class="grades__content flex flex-col gap-5 px-4 pt-0 pb-6">
       @if (loading() && records().length === 0) {
         <div class="skeleton-list">
           @for (i of [1, 2, 3]; track i) {
@@ -56,13 +60,15 @@
         所以拿 `meta.total` 對一次，不一致就講出來。
       -->
         @if (truncated()) {
-          <p class="grades__state grades__state--warning">
+          <p class="grades__state grades__state--warning m-0 mb-3 text-sm text-warning-600">
             只顯示最近 {{ records().length }} 筆，共 {{ total() }} 筆。
           </p>
         }
         @for (group of groups(); track group.subjectName) {
-          <section class="grades__subject">
-            <h2 class="grades__subject-title">{{ group.subjectName }}</h2>
+          <section class="grades__subject flex flex-col gap-2">
+            <h2 class="grades__subject-title m-0 text-sm font-semibold text-zinc-600">
+              {{ group.subjectName }}
+            </h2>
             @for (record of group.records; track record.id) {
               @if (record.description) {
                 <!--
@@ -70,18 +76,25 @@
                   鍵盤、讀屏的「已展開／已收合」都不用自己做。沒有描述的不給展開 ——
                   點了什麼都沒有的列，比不能點更糟。
                 -->
-                <details class="grades__item">
-                  <summary class="grades__record grades__record--expandable">
+                <details class="grades__item group rounded-lg bg-zinc-50">
+                  <summary
+                    class="grades__record grades__record--expandable flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-lg bg-zinc-50 p-3 [&::-webkit-details-marker]:hidden"
+                  >
                     <ng-container
                       [ngTemplateOutlet]="recordRow"
                       [ngTemplateOutletContext]="{ $implicit: record }"
                     />
-                    <i class="pi pi-chevron-down grades__chevron" aria-hidden="true"></i>
+                    <i
+                      class="pi pi-chevron-down grades__chevron text-xs text-zinc-500 transition-transform duration-[120ms] ease-[ease] group-open:rotate-180"
+                      aria-hidden="true"
+                    ></i>
                   </summary>
-                  <p class="grades__desc">{{ record.description }}</p>
+                  <!-- white-space: pre-line 會把 prettier 折出來的前後換行渲染出來，所以下一行不能折 -->
+                  <!-- prettier-ignore -->
+                  <p class="grades__desc m-0 px-3 pt-0 pb-3 text-sm whitespace-pre-line text-zinc-700">{{ record.description }}</p>
                 </details>
               } @else {
-                <div class="grades__record">
+                <div class="grades__record flex items-center gap-3 rounded-lg bg-zinc-50 p-3">
                   <ng-container
                     [ngTemplateOutlet]="recordRow"
                     [ngTemplateOutletContext]="{ $implicit: record }"
@@ -97,12 +110,19 @@
 </div>
 
 <ng-template #recordRow let-record>
-  <span class="grades__record-date">{{ record.examDate }}</span>
-  <span class="grades__record-name">{{ record.examName }}</span>
+  <span class="grades__record-date text-sm text-zinc-500 tabular-nums">{{ record.examDate }}</span>
+  <span class="grades__record-name flex-1 text-zinc-900">{{ record.examName }}</span>
   @if (record.status === 'scored') {
-    <span class="grades__record-score" [class.grades__record-score--fail]="isFailing(record)">
+    <span
+      class="grades__record-score font-semibold tabular-nums"
+      [class.grades__record-score--fail]="isFailing(record)"
+      [class.text-error-600]="isFailing(record)"
+    >
       @if (isFailing(record)) {
-        <i class="pi pi-exclamation-triangle grades__fail-icon" aria-label="不及格"></i>
+        <i
+          class="pi pi-exclamation-triangle grades__fail-icon mr-1 text-xs"
+          aria-label="不及格"
+        ></i>
       }
       {{ formatScore(record) }}
     </span>
