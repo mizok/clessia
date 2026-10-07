@@ -65,7 +65,6 @@ const PAGE_SIZE = 100;
     EmptyStateComponent,
   ],
   templateUrl: './grades.component.html',
-  styleUrl: './grades.component.scss',
 })
 export class GradesComponent implements OnInit {
   readonly page = input.required<RouteObj>();
