@@ -1,9 +1,14 @@
 <div class="band-anchor">
-  <p class="band-anchor__figure">
-    <span class="band-anchor__value">{{ value() }}</span>
+  <p class="band-anchor__figure m-0 flex items-end justify-start gap-3 min-[768.02px]:justify-end">
+    <span
+      class="band-anchor__value text-3xl leading-[0.86] font-bold tracking-[-0.045em] tabular-nums min-[768.02px]:text-[64px]"
+      >{{ value() }}</span
+    >
     @if (unit()) {
-      <span class="band-anchor__unit">{{ unit() }}</span>
+      <span class="band-anchor__unit pb-[5px] text-lg font-semibold">{{ unit() }}</span>
     }
   </p>
-  <p class="band-anchor__sub"><ng-content /></p>
+  <p class="band-anchor__sub mx-0 mt-2 mb-0 text-base text-band-ink-muted empty:hidden">
+    <ng-content />
+  </p>
 </div>

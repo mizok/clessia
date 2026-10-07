@@ -20,7 +20,7 @@ import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.com
   selector: 'app-page-band',
   imports: [FlowFieldComponent],
   templateUrl: './page-band.component.html',
-  styleUrl: './page-band.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PageBandComponent {

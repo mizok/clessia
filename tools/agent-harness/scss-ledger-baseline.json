@@ -2,8 +2,6 @@
   "apps/web/src/app/app.component.scss",
   "apps/web/src/app/shared/_breakpoints.scss",
   "apps/web/src/app/shared/components/attendance-roster-panel/attendance-roster-panel.component.scss",
-  "apps/web/src/app/shared/components/page-band/band-anchor/band-anchor.component.scss",
-  "apps/web/src/app/shared/components/page-band/page-band.component.scss",
   "apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss",
   "apps/web/src/styles.scss"
 ]

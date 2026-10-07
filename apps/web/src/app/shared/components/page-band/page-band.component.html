@@ -1,9 +1,21 @@
-<div class="page-band">
+<div
+  class="page-band relative isolate overflow-hidden rounded-xl px-5 pt-5 pb-[calc(20px+var(--band-seam))] text-band-ink [background:var(--band-surface)] min-[768.02px]:px-8 min-[768.02px]:pt-8 min-[768.02px]:pb-[calc(32px+var(--band-seam))]"
+>
   @if (fieldDensity() > 0) {
-    <app-flow-field class="page-band__field" [frozen]="true" [density]="fieldDensity()" />
+    <app-flow-field
+      class="page-band__field [mask-image:linear-gradient(100deg,rgb(0_0_0/10%)_0%,rgb(0_0_0/42%)_40%,rgb(0_0_0/100%)_78%)]"
+      [frozen]="true"
+      [density]="fieldDensity()"
+    />
   }
-  <div class="page-band__inner">
-    <div class="page-band__id"><ng-content /></div>
-    <div class="page-band__aside"><ng-content select="[bandAside]" /></div>
+  <div
+    class="page-band__inner relative z-1 flex flex-col items-stretch gap-4 min-[768.02px]:flex-row min-[768.02px]:gap-8"
+  >
+    <div class="page-band__id min-w-0"><ng-content /></div>
+    <div
+      class="page-band__aside ml-0 flex shrink-0 flex-col items-start justify-between gap-6 text-left min-[768.02px]:ml-auto min-[768.02px]:items-end min-[768.02px]:text-right [&>:only-child]:mt-auto"
+    >
+      <ng-content select="[bandAside]" />
+    </div>
   </div>
 </div>

@@ -13,7 +13,6 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   selector: 'app-band-anchor',
   imports: [],
   templateUrl: './band-anchor.component.html',
-  styleUrl: './band-anchor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BandAnchorComponent {
