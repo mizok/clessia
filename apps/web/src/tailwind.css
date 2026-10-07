@@ -79,6 +79,7 @@
 @source './app/shared/components/announcement-inbox';
 @source './app/shared/components/flow-field';
 @source './app/shared/components/jdenticon-avatar';
+@source './app/shared/components/status';
 @source './app/features/admin/pages/staff';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */

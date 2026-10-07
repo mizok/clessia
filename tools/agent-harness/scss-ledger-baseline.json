@@ -18,8 +18,6 @@
   "apps/web/src/app/shared/components/popup-menu/popup-menu.component.scss",
   "apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss",
   "apps/web/src/app/shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component.scss",
-  "apps/web/src/app/shared/components/status/data-chip/data-chip.component.scss",
-  "apps/web/src/app/shared/components/status/status-dot/status-dot.component.scss",
   "apps/web/src/app/shared/components/subject-manager/subject-manager.component.scss",
   "apps/web/src/styles.scss"
 ]

@@ -35,7 +35,7 @@ export type StatusTone = 'done' | 'pending' | 'overdue' | 'inactive';
   selector: 'app-status-dot',
   imports: [],
   templateUrl: './status-dot.component.html',
-  styleUrl: './status-dot.component.scss',
+  host: { class: 'inline-flex' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StatusDotComponent {

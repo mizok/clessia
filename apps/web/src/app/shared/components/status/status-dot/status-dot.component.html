@@ -1,4 +1,10 @@
-<span class="status-dot" [class]="'status-dot--' + tone()">
-  <span class="status-dot__mark" aria-hidden="true"></span>
+<span
+  class="status-dot group inline-flex items-center gap-1.5 text-md leading-normal font-semibold whitespace-nowrap [&.status-dot--done]:text-success-600 [&.status-dot--inactive]:font-medium [&.status-dot--inactive]:text-zinc-500 [&.status-dot--overdue]:text-warning-600 [&.status-dot--pending]:font-medium [&.status-dot--pending]:text-zinc-500"
+  [class]="'status-dot--' + tone()"
+>
+  <span
+    class="status-dot__mark size-2 shrink-0 rounded-full group-[.status-dot--done]:bg-success-600 group-[.status-dot--inactive]:bg-zinc-500 group-[.status-dot--overdue]:bg-warning-600 group-[.status-dot--pending]:border-[1.5px] group-[.status-dot--pending]:border-solid group-[.status-dot--pending]:border-zinc-500"
+    aria-hidden="true"
+  ></span>
   <span class="status-dot__label"><ng-content /></span>
 </span>
