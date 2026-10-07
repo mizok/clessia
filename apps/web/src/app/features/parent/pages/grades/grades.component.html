@@ -66,9 +66,9 @@
         }
         @for (group of groups(); track group.subjectName) {
           <section class="grades__subject flex flex-col gap-2">
-            <h2 class="grades__subject-title m-0 text-sm font-semibold text-zinc-600">
-              {{ group.subjectName }}
-            </h2>
+            <!-- spec 讀 textContent，行內不能被 prettier 折出前後空白 -->
+            <!-- prettier-ignore -->
+            <h2 class="grades__subject-title m-0 text-sm font-semibold text-zinc-600">{{ group.subjectName }}</h2>
             @for (record of group.records; track record.id) {
               @if (record.description) {
                 <!--
