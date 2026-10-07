@@ -99,6 +99,7 @@
       "apps/web/src/app/features/parent/pages/attendance",
       "apps/web/src/app/features/parent/pages/dashboard",
       "apps/web/src/app/features/parent/pages/grades",
+      "apps/web/src/app/features/parent/pages/payments",
       "apps/web/src/app/features/parent/shared/child-switcher",
       "apps/web/src/app/features/public",
       "apps/web/src/app/features/select-role",

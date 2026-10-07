@@ -1,6 +1,5 @@
 [
   "apps/web/src/app/app.component.scss",
-  "apps/web/src/app/features/parent/pages/payments/payments.page.scss",
   "apps/web/src/app/shared/_breakpoints.scss",
   "apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.scss",
   "apps/web/src/app/shared/components/announcement-inbox/announcement-inbox.component.scss",

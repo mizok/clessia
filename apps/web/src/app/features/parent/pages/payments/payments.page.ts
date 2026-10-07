@@ -47,7 +47,6 @@ const PAGE_SIZE = 20;
     EmptyStateComponent,
   ],
   templateUrl: './payments.page.html',
-  styleUrl: './payments.page.scss',
 })
 export class PaymentsPage implements OnInit {
   readonly page = input.required<RouteObj>();
