@@ -1,16 +1,20 @@
-<div class="inline-notice inline-notice--{{ severity() }}">
-  <div class="inline-notice__copy">
+<div
+  class="inline-notice inline-notice--{{
+    severity()
+  }} flex items-center justify-between gap-3 rounded-lg border border-solid border-zinc-200 bg-zinc-50 p-3 [&.inline-notice--error]:border-error-200 [&.inline-notice--error]:text-[#991b1b] [&.inline-notice--error]:[background:linear-gradient(135deg,#fef2f2_0%,var(--error-100)_100%)] [&.inline-notice--info]:border-zinc-500 [&.inline-notice--info]:text-zinc-700 [&.inline-notice--info]:[background:linear-gradient(135deg,var(--zinc-50)_0%,var(--zinc-100)_100%)] [&.inline-notice--success]:border-[#bbf7d0] [&.inline-notice--success]:text-[#166534] [&.inline-notice--success]:[background:linear-gradient(135deg,#f0fdf4_0%,var(--success-100)_100%)] [&.inline-notice--warning]:border-warning-200 [&.inline-notice--warning]:text-warning-800 [&.inline-notice--warning]:[background:linear-gradient(135deg,var(--warning-50)_0%,var(--warning-100)_100%)]"
+>
+  <div class="inline-notice__copy flex min-w-0 flex-col gap-1">
     @if (summary()) {
-      <p class="inline-notice__summary">{{ summary() }}</p>
+      <p class="inline-notice__summary m-0 text-md leading-normal font-semibold">{{ summary() }}</p>
     }
     @if (detail()) {
-      <p class="inline-notice__detail">{{ detail() }}</p>
+      <p class="inline-notice__detail m-0 text-sm leading-normal opacity-[0.92]">{{ detail() }}</p>
     }
   </div>
   @if (dismissible()) {
     <button
       type="button"
-      class="inline-notice__close"
+      class="inline-notice__close relative isolate -m-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-sm text-[currentcolor] before:absolute before:inset-2 before:-z-10 before:rounded-sm before:[transition:background_var(--transition-fast)] hover:before:bg-[rgb(255_255_255/35%)] [&_.pi]:text-[12px]"
       aria-label="關閉訊息"
       (click)="dismissed.emit()"
     >
