@@ -1,6 +1,6 @@
 <div class="flex flex-col gap-4 p-4">
   <header>
-    <h1 class="m-0 text-2xl font-semibold">{{ page().label }}</h1>
+    <h1 class="m-0 text-[1.5rem] font-semibold">{{ page().label }}</h1>
     <p class="mx-0 mt-1 mb-0 text-muted">你任課班級的在籍學生。</p>
   </header>
 
@@ -37,15 +37,15 @@
   } @else {
     @for (group of groups(); track group.className) {
       <section class="flex max-w-[560px] flex-col gap-2">
-        <h2 class="m-0 flex items-baseline gap-2 text-base font-semibold">
+        <h2 class="m-0 flex items-baseline gap-2 text-[1rem] font-semibold">
           {{ group.className }}
-          <span class="text-sm font-normal text-muted">{{ group.students.length }} 人</span>
+          <span class="text-[0.875rem] font-normal text-muted">{{ group.students.length }} 人</span>
         </h2>
         <ul class="m-0 flex list-none flex-col p-0">
           @for (student of group.students; track student.id) {
             <li class="flex items-center justify-between border-b border-surface-border p-2">
               <span>{{ student.name }}</span>
-              <span class="text-sm text-muted">{{ gradeLabel(student.grade) }}</span>
+              <span class="text-[0.875rem] text-muted">{{ gradeLabel(student.grade) }}</span>
             </li>
           }
         </ul>
