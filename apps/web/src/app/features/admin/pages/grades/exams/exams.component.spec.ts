@@ -28,6 +28,10 @@ describe('ExamsComponent', () => {
       subjectId: 's1',
       subjectName: '數學',
       classCount: 2,
+      classes: [
+        { id: 'k1', name: '國三數學 A' },
+        { id: 'k2', name: '國三數學 B' },
+      ],
       scoreCount: 0,
       expectedCount: 20,
       createdAt: '2026-03-20T00:00:00Z',
@@ -45,6 +49,11 @@ describe('ExamsComponent', () => {
       subjectId: 's2',
       subjectName: '英文',
       classCount: 3,
+      classes: [
+        { id: 'k3', name: '國二英文 A' },
+        { id: 'k4', name: '國二英文 B' },
+        { id: 'k5', name: '國二英文 C' },
+      ],
       scoreCount: 25,
       expectedCount: 25,
       createdAt: '2026-03-01T00:00:00Z',
@@ -157,6 +166,20 @@ describe('ExamsComponent', () => {
     expect(component['examType']()).toBe('academy');
     expect(component['currentRows']().length).toBe(2);
     expect(component['totalRows']()).toBe(2);
+  });
+
+  it('academy 列帶班名：有 scopeNote 時範圍說明為主字、班名補在小字行（#1314 G1）', () => {
+    const rows = component['currentRows']() as Array<{
+      scope: string;
+      classLabel: string | null;
+      classTitle: string | null;
+    }>;
+
+    expect(rows[0]).toMatchObject({
+      scope: '第一章',
+      classLabel: '國三數學 A、國三數學 B',
+      classTitle: '國三數學 A、國三數學 B',
+    });
   });
 
   it('switches to school tab and requests school list from server', () => {

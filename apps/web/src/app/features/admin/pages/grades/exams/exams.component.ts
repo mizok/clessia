@@ -65,6 +65,7 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import { academyScope } from './exam-class-label.util';
 import {
   PageActionsComponent,
   type PageAction,
@@ -91,6 +92,10 @@ export interface AcademyExamRow {
   readonly status: AcademyExamStatus;
   readonly examType: AcademyExamType;
   readonly scope: string;
+  /** 有 `scopeNote` 時，班名補在小字行最前面；沒有 `scopeNote` 時班名已經是 `scope`，這裡是 null */
+  readonly classLabel: string | null;
+  /** 完整班名清單（班名被收成「等 N 個班」時看得到全部） */
+  readonly classTitle: string | null;
   readonly campusId: string | null;
   readonly subjectId: string | null;
   readonly scoreCount: number;
@@ -484,7 +489,7 @@ export class ExamsComponent implements OnInit {
                 examDate: exam.examDate,
                 status: exam.status,
                 examType: exam.examType,
-                scope: exam.scopeNote?.trim() || `${exam.classCount} 個班`,
+                ...academyScope(exam),
                 campusId: exam.campusId,
                 subjectId: exam.subjectId,
                 scoreCount: exam.scoreCount,

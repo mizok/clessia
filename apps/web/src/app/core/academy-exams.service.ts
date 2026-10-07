@@ -92,8 +92,13 @@ export interface AcademyExamListParams {
   pageSize?: number;
 }
 
+/** `GET /academy-exams` 列表專用（#1339）：參加班級（班名排序），`classCount` 就是它的長度 */
+export interface AcademyExamListItem extends AcademyExam {
+  classes: { id: string; name: string }[];
+}
+
 export interface AcademyExamListResponse {
-  data: AcademyExam[];
+  data: AcademyExamListItem[];
   meta: {
     total: number;
     page: number;
