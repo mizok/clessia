@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, public]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-10-07
 ---
 
 # 綁定 LINE
@@ -152,8 +152,8 @@ updated: 2026-09-13
 | 1504 | `480 × 44` |
 
 **390 是唯一不是 480 的那個，而它不是斷點造成的。** 按鈕是 `width: 100%`
-（`link-line.component.scss:21`），外層表單是 `max-width: 480px`
-（`features/public/shared/_auth-form.scss:68`）—— 所以 390 下是被視窗夾住的 350，
+（`link-line.component.html` 綁定按鈕的 `w-full`），外層容器是 `max-w-[480px]`
+（同檔第 1 行的 `<div class="m-auto w-full max-w-[480px] py-4">`；#991 E1 前寫在 `link-line.component.scss:21`、`features/public/shared/_auth-form.scss:68`）—— 所以 390 下是被視窗夾住的 350，
 **768 起就已經觸到那個上限**，於是 768 / 1024 / 1504 在這一頁完全相同。
 （`350 = 390 − 40`，兩側各 20 的外框內距；**這一句是從兩個量到的數字推的**，
 沒有回去對哪一條 padding 規則。）
@@ -173,7 +173,7 @@ updated: 2026-09-13
 ### 觸控目標 < 44px
 
 **`<main>` 內 0 筆** —— 兩顆按鈕在四個寬度都是 `44` 高，**不靠 `(pointer: coarse)`**：
-高度是寫死的（`link-line.component.scss:22` 的 `height: 44px`、`:48` 的 `min-height: 44px`），
+高度是寫死的（`link-line.component.html` 綁定按鈕的 `h-11`、略過按鈕的 `min-h-11`；#991 E1 前是 `link-line.component.scss:22` 的 `height: 44px`、`:48` 的 `min-height: 44px`），
 而 CSSOM 查過兩顆都沒有被任何 coarse 規則命中。
 
 > 這一頁是本輪 public 六頁裡**唯一不需要 coarse 規則就達標**的一頁。

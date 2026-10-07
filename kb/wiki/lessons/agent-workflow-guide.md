@@ -3,7 +3,7 @@ title: Agent 開發流程指南
 summary: 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
 category: guide
 status: active
-updated: 2026-03-17
+updated: 2026-10-07
 tags: [lessons, agent-workflow-guide]
 ---
 
@@ -437,7 +437,7 @@ cat package.json | grep -E '"(@angular/core|primeng|zod|hono|@supabase)"' | head
 | -------------------------------------------------------------- | --------------------------------- |
 | `apps/web/src/styles.scss`                                     | 全域 CSS 變數（色彩、間距、字型） |
 | `apps/web/src/app/shared/components/layout/shell-layout/`      | Header 樣式                       |
-| `apps/web/src/app/features/public/public-shell.component.scss` | Sidebar 樣式                      |
+| `apps/web/src/app/features/public/public-shell.component.html` | Sidebar 樣式（Tailwind 內聯）     |
 | `apps/web/src/app/shared/styles/_dashboard.scss`               | Dashboard 卡片樣式                |
 
 ### 色彩/樣式變數

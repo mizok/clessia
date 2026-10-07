@@ -34,7 +34,6 @@ const ROLE_OPTIONS: RoleOption[] = [
   selector: 'app-role-picker',
   imports: [],
   templateUrl: './role-picker.component.html',
-  styleUrl: './role-picker.component.scss',
 })
 export class RolePickerComponent {
   private readonly auth = inject(AuthService);
