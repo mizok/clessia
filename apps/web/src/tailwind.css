@@ -64,6 +64,7 @@
 @source './app/features/admin/pages/checkin';
 @source './app/features/admin/pages/applications';
 @source './app/features/kiosk';
+@source './app/features/parent/pages/payments';
 @source './app/features/parent/pages/attendance';
 @source './app/features/parent/pages/grades';
 @source './app/features/parent/shared/child-switcher';
