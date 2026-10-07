@@ -309,8 +309,13 @@
           </div>
 
           <div class="col-start-1 min-w-0 text-md text-zinc-800 wide:col-start-2 wide:row-start-1">
-            {{ row.scope }}
+            <span [attr.title]="row.kind === 'academy' ? row.classTitle : null">{{
+              row.scope
+            }}</span>
             <small class="mt-0.5 block text-sm text-zinc-600 tabular-nums">
+              @if (row.kind === 'academy' && row.classLabel; as classes) {
+                <span [attr.title]="row.classTitle">{{ classes }}</span> ·
+              }
               @if (getCampusName(row); as campus) {
                 {{ campus }} ·
               }
