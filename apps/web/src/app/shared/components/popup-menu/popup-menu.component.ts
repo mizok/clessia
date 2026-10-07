@@ -36,7 +36,6 @@ const MENU_POSITIONS: ConnectedPosition[] = [
   selector: 'app-popup-menu',
   standalone: true,
   templateUrl: './popup-menu.component.html',
-  styleUrl: './popup-menu.component.scss',
   encapsulation: ViewEncapsulation.None,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -78,7 +77,7 @@ export class PopupMenuComponent implements OnDestroy {
       scrollStrategy: this.overlay.scrollStrategies.reposition(),
       hasBackdrop: true,
       backdropClass: 'cdk-overlay-transparent-backdrop',
-      panelClass: 'popup-menu__panel',
+      panelClass: ['popup-menu__panel', 'pointer-events-auto'],
     });
 
     const portal = new TemplatePortal(this.menuTemplate(), this.vcr);
