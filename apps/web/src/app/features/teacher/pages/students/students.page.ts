@@ -26,7 +26,6 @@ interface ClassGroup {
   selector: 'app-students',
   imports: [FormsModule, SelectModule],
   templateUrl: './students.page.html',
-  styleUrl: './students.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StudentsPage {
