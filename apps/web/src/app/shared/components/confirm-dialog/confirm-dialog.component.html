@@ -1,8 +1,10 @@
-<div class="confirm-dialog">
-  <p class="confirm-dialog__message">{{ data.message }}</p>
+<div class="confirm-dialog p-2">
+  <p class="confirm-dialog__message mx-0 mt-0 mb-6 leading-[1.6] text-zinc-900">
+    {{ data.message }}
+  </p>
 
   @if (data.requireNotes) {
-    <div class="confirm-dialog__notes">
+    <div class="confirm-dialog__notes mb-4">
       <textarea
         pTextarea
         [(ngModel)]="notes"
@@ -13,7 +15,7 @@
     </div>
   }
 
-  <div class="confirm-dialog__actions">
+  <div class="confirm-dialog__actions flex justify-end gap-2">
     <p-button
       [label]="data.rejectLabel ?? '取消'"
       [outlined]="true"

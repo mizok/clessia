@@ -18,7 +18,6 @@ export interface ConfirmDialogData {
   standalone: true,
   imports: [ButtonModule, FormsModule, TextareaModule],
   templateUrl: './confirm-dialog.component.html',
-  styleUrl: './confirm-dialog.component.scss',
 })
 export class ConfirmDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
