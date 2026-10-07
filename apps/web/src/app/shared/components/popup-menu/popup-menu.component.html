@@ -1,21 +1,31 @@
 <ng-template #menuTemplate>
-  <ul class="popup-menu" role="menu">
+  <ul
+    class="popup-menu m-0 min-w-48 list-none rounded-[var(--p-menu-border-radius,0.5rem)] border border-solid border-[color:var(--p-menu-border-color,var(--p-surface-200,#e4e4e7))] bg-[color:var(--p-menu-background,var(--color-white))] px-0 py-1 text-[0.875rem] text-[color:var(--p-menu-color,var(--p-text-color,#27272a))] [box-shadow:0_10px_15px_-3px_rgba(0,0,0,0.08),0_4px_6px_-4px_rgba(0,0,0,0.04)]"
+    role="menu"
+  >
     @for (item of model(); track $index) {
       @if (item.separator) {
-        <li class="popup-menu__separator" role="separator"></li>
+        <li
+          class="popup-menu__separator mx-0 my-1 h-px bg-[color:var(--p-menu-separator-border-color,var(--p-surface-200,#e4e4e7))]"
+          role="separator"
+        ></li>
       } @else {
-        <li class="popup-menu__item-wrapper">
+        <li class="popup-menu__item-wrapper block">
           <button
             type="button"
+            class="flex min-h-11 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2 text-left [color:inherit] [font:inherit] [transition:background-color_0.15s_ease] hover:enabled:bg-[color:var(--p-menu-item-focus-background,var(--zinc-100))] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--p-focus-ring-color,var(--accent-500))] disabled:cursor-not-allowed disabled:opacity-50 [&.popup-menu\_\_item--disabled]:cursor-not-allowed [&.popup-menu\_\_item--disabled]:opacity-50"
             [class]="itemClass(item)"
             [disabled]="item.disabled"
             role="menuitem"
             (click)="handleItemClick(item, $event)"
           >
             @if (item.icon) {
-              <i class="popup-menu__icon" [class]="item.icon"></i>
+              <i
+                class="popup-menu__icon inline-flex! w-4 shrink-0 justify-center text-[0.875rem]"
+                [class]="item.icon"
+              ></i>
             }
-            <span class="popup-menu__label">{{ item.label }}</span>
+            <span class="popup-menu__label flex-1 whitespace-nowrap">{{ item.label }}</span>
           </button>
         </li>
       }

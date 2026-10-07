@@ -13,7 +13,6 @@
   "apps/web/src/app/shared/components/page-band/page-band.component.scss",
   "apps/web/src/app/shared/components/page-breadcrumb/page-breadcrumb.component.scss",
   "apps/web/src/app/shared/components/parent-form-dialog/parent-form-dialog.component.scss",
-  "apps/web/src/app/shared/components/popup-menu/popup-menu.component.scss",
   "apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss",
   "apps/web/src/app/shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component.scss",
   "apps/web/src/app/shared/components/subject-manager/subject-manager.component.scss",
