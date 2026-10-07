@@ -58,7 +58,6 @@ const MAX_CONTENT = 5000;
    */
   providers: [MessageService],
   templateUrl: './contact-book-entry-dialog.component.html',
-  styleUrl: './contact-book-entry-dialog.component.scss',
 })
 export class ContactBookEntryDialogComponent {
   private readonly service = inject(ContactBookService);

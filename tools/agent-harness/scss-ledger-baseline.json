@@ -1,14 +1,9 @@
 [
   "apps/web/src/app/app.component.scss",
   "apps/web/src/app/shared/_breakpoints.scss",
-  "apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.scss",
   "apps/web/src/app/shared/components/attendance-roster-panel/attendance-roster-panel.component.scss",
-  "apps/web/src/app/shared/components/class-picker-dialog/class-picker-dialog.component.scss",
-  "apps/web/src/app/shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component.scss",
   "apps/web/src/app/shared/components/page-band/band-anchor/band-anchor.component.scss",
   "apps/web/src/app/shared/components/page-band/page-band.component.scss",
   "apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss",
-  "apps/web/src/app/shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component.scss",
-  "apps/web/src/app/shared/components/subject-manager/subject-manager.component.scss",
   "apps/web/src/styles.scss"
 ]

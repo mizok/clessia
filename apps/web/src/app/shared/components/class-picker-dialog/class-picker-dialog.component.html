@@ -1,6 +1,6 @@
-<div class="class-picker">
-  <div class="class-picker__toolbar">
-    <p-iconfield iconPosition="left" styleClass="class-picker__iconfield">
+<div class="class-picker flex flex-col gap-3">
+  <div class="class-picker__toolbar flex gap-2 px-1 py-0 [--p-form-field-padding-y:0.75rem]">
+    <p-iconfield iconPosition="left" styleClass="class-picker__iconfield min-w-0 flex-1">
       <p-inputicon styleClass="pi pi-search" />
       <input
         type="text"
@@ -8,7 +8,7 @@
         placeholder="搜尋課程或班級名稱..."
         [ngModel]="searchQuery()"
         (ngModelChange)="onSearchChange($event)"
-        class="class-picker__input"
+        class="class-picker__input h-[42px] w-full"
       />
     </p-iconfield>
     <p-select
@@ -19,58 +19,71 @@
       optionValue="value"
       [showClear]="true"
       placeholder="適合年級"
-      styleClass="class-picker__grade-select"
+      styleClass="class-picker__grade-select w-[130px] shrink-0"
       [appendTo]="'body'"
     />
   </div>
 
   @if (loading()) {
-    <div class="class-picker__list">
+    <div class="class-picker__list flex max-h-[380px] flex-col gap-2 overflow-y-auto px-1 py-0">
       @for (i of [1, 2, 3, 4]; track i) {
         <p-skeleton height="60px" borderRadius="10px" styleClass="mb-2" />
       }
     </div>
   } @else if (filteredClasses().length === 0) {
-    <div class="class-picker__empty">
-      <i class="pi pi-inbox"></i>
-      <span>{{ searchQuery() ? '找不到符合的班級' : '目前沒有可加入的班級' }}</span>
+    <div class="class-picker__empty flex flex-col items-center gap-3 px-0 py-10 text-zinc-500">
+      <i class="pi pi-inbox text-[2rem]"></i>
+      <span class="text-sm">{{ searchQuery() ? '找不到符合的班級' : '目前沒有可加入的班級' }}</span>
     </div>
   } @else {
-    <div class="class-picker__list">
+    <div class="class-picker__list flex max-h-[380px] flex-col gap-2 overflow-y-auto px-1 py-0">
       @for (cls of filteredClasses(); track cls.id) {
-        <button type="button" class="class-picker__item" (click)="select(cls)">
-          <div class="class-picker__item-info">
-            <span class="class-picker__item-name">{{ cls.name }}</span>
-            <span class="class-picker__item-meta">
+        <button
+          type="button"
+          class="class-picker__item group flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-l-none rounded-r-md border border-l-[3px] border-solid border-zinc-200 border-l-transparent bg-white px-4 py-3 text-left [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
+          (click)="select(cls)"
+        >
+          <div class="class-picker__item-info flex min-w-0 flex-1 flex-col gap-0.5">
+            <span
+              class="class-picker__item-name text-sm font-semibold text-zinc-800 group-hover:text-accent-600"
+              >{{ cls.name }}</span
+            >
+            <span class="class-picker__item-meta truncate text-xs text-zinc-500">
               {{ cls.courseName }}
               @if (cls.campusName) {
                 · {{ cls.campusName }}
               }
             </span>
             @if (cls.startDate || cls.endDate) {
-              <span class="class-picker__item-dates">
-                <i class="pi pi-calendar"></i>
+              <span class="class-picker__item-dates flex items-center gap-1 text-xs text-zinc-500">
+                <i class="pi pi-calendar text-[10px]"></i>
                 {{ cls.startDate ?? '不限' }} — {{ cls.endDate ?? '不限' }}
               </span>
             }
           </div>
-          <div class="class-picker__item-right">
+          <div class="class-picker__item-right flex shrink-0 items-center gap-3">
             @if (cls.maxStudents) {
-              <span class="class-picker__item-capacity">
-                <i class="pi pi-users"></i> {{ cls.maxStudents }} 人上限
+              <span
+                class="class-picker__item-capacity flex items-center gap-1 text-xs text-zinc-500"
+              >
+                <i class="pi pi-users text-[11px]"></i> {{ cls.maxStudents }} 人上限
               </span>
             }
-            <i class="pi pi-chevron-right class-picker__item-arrow"></i>
+            <i
+              class="pi pi-chevron-right class-picker__item-arrow text-[11px] text-zinc-300 [transition:color_var(--transition-fast),transform_var(--transition-fast)] group-hover:text-accent-500 group-hover:[transform:translateX(2px)]"
+            ></i>
           </div>
         </button>
       }
     </div>
     @if (total() > PAGE_SIZE) {
-      <p class="class-picker__total">共 {{ total() }} 個班級</p>
+      <p class="class-picker__total m-0 text-center text-xs text-zinc-500">
+        共 {{ total() }} 個班級
+      </p>
     }
   }
 
-  <div class="class-picker__footer">
+  <div class="class-picker__footer flex justify-end border-t border-t-solid border-t-zinc-100 pt-2">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
   </div>
 </div>

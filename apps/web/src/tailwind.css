@@ -79,6 +79,11 @@
 @source './app/shared/components/audit-log-dialog';
 @source './app/shared/components/login-link-dialog';
 @source './app/shared/components/parent-form-dialog';
+@source './app/shared/components/contact-book-entry-dialog';
+@source './app/shared/components/class-picker-dialog';
+@source './app/shared/components/session-advanced-filters-dialog';
+@source './app/shared/components/account-settings-dialog';
+@source './app/shared/components/subject-manager';
 @source './app/shared/components/popup-menu';
 @source './app/shared/components/page-actions';
 @source './app/shared/components/inline-notice';

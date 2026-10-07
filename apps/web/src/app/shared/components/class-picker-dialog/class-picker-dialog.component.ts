@@ -25,7 +25,6 @@ import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/student
     SelectModule,
   ],
   templateUrl: './class-picker-dialog.component.html',
-  styleUrl: './class-picker-dialog.component.scss',
 })
 export class ClassPickerDialogComponent implements OnInit {
   private readonly classesService = inject(ClassesService);

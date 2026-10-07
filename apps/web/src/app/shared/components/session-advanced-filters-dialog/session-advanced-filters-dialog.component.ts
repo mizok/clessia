@@ -60,7 +60,6 @@ type TeacherOption = Pick<
   selector: 'app-session-advanced-filters-dialog',
   imports: [FormsModule, ButtonModule, MultiSelectModule, ImeFilterInputComponent],
   templateUrl: './session-advanced-filters-dialog.component.html',
-  styleUrl: './session-advanced-filters-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionAdvancedFiltersDialogComponent {
