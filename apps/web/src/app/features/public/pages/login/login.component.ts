@@ -8,7 +8,7 @@ import { oauthErrorFor } from './oauth-error';
   selector: 'app-login',
   imports: [InlineNoticeComponent],
   templateUrl: './login.component.html',
-  styleUrl: './login.component.scss',
+  host: { class: 'flex min-h-full items-center justify-center' },
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);

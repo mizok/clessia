@@ -5,7 +5,6 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
   selector: 'app-trial',
   imports: [InlineNoticeComponent],
   templateUrl: './trial.component.html',
-  styleUrl: './trial.component.scss',
   host: { class: 'u-centered-flex' },
 })
 export class TrialComponent {}
