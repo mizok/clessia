@@ -96,6 +96,10 @@ const TAILWIND_CONTRAST_EXEMPT = {
     '「現在」標籤是 2px 寬 `now` 標記線（bg-band-ink）的子元素，但定位在線**上方** `-top-[15px]`、水平置中，實際疊在橘帶本身（`--band-ink` 疊 band 底色已由 band-contrast gate 守地板 0.78）。gate 只看 DOM 祖先所以誤報 1:1；原 SCSS 版同一結構（#991 Z2）',
   'apps/web/src/app/shared/components/class-picker-dialog/class-picker-dialog.component.html|text-zinc-300|bg-white':
     '班級列右側的 chevron（hover 變 accent-500 並右移 2px）：純裝飾，旁邊必有班級名稱、課程、日期等文字——1.4.11 純裝飾豁免；原 SCSS 即 `--zinc-300`（1.34:1），1:1 搬家不改色（#991 Z9）',
+  'apps/web/src/app/shared/components/attendance-roster-panel/attendance-roster-panel.component.html|text-zinc-500|bg-zinc-200':
+    '誤報：`text-zinc-500`（`[class.text-zinc-500]="!isLocked(student)"`）與 `bg-zinc-200`（`[class.bg-zinc-200]="isLocked(student)"`）是同一個條件的相反兩面，**永遠不會同時套在同一列**；請假列（鎖定）的副標是 `text-zinc-600` 對 zinc-200 6.44:1。gate 把兩個條件 class 視為「可能同時套上」（#991 Z10）',
+  'apps/web/src/app/shared/components/attendance-roster-panel/attendance-roster-panel.component.html|text-warning-600|bg-zinc-200':
+    '**既有的對比債**：請假列（`--on-leave`，zinc-200 底）裡的警告文字（`__leave-span`「銷假將一併取消到…」、`__mismark`「這位學生已請假，不需點名」，12px）用 `warning-600`，對 zinc-200 只有 4.08:1（< AA 4.5）。原 SCSS 版 gate 看不到跨選擇器的底色（`--on-leave` 在 `__row` 上、文字在子孫），1:1 搬家不改色——搬成 Tailwind 後才第一次被量到。要修需改 token 色階或請假列底色，屬設計決定（#991 Z10）',
 };
 const usedTailwindContrastExempt = new Set();
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');

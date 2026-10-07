@@ -1,8 +1,12 @@
-<div class="roster-panel">
-  <div class="roster-panel__header">
+<div class="roster-panel flex flex-col">
+  <div
+    class="roster-panel__header flex items-start justify-between border-b border-b-solid border-b-zinc-200 p-4"
+  >
     <div>
-      <div class="roster-panel__title">{{ session.className }}</div>
-      <div class="roster-panel__subtitle">
+      <div class="roster-panel__title text-[1rem] font-semibold text-zinc-900">
+        {{ session.className }}
+      </div>
+      <div class="roster-panel__subtitle mt-0.5 text-[0.75rem] text-zinc-500">
         {{ session.eventDate }}
         @if (session.timeRange) {
           · {{ session.timeRange }}
@@ -21,24 +25,44 @@
   }
 
   @if (loading()) {
-    <div class="roster-panel__loading">
+    <div class="roster-panel__loading flex justify-center p-8">
       <p-progressSpinner strokeWidth="4" />
     </div>
   } @else if (roster()) {
-    <div class="roster-panel__list">
+    <div
+      class="roster-panel__list max-h-[calc(var(--window-height,100dvh)*0.55)] overflow-y-auto px-0 py-2"
+    >
       @if (rosterEmpty()) {
-        <p class="roster-panel__empty">這個班還沒有學生，先到班級名單加人。</p>
+        <p class="roster-panel__empty m-0 px-4 py-6 text-center text-sm text-zinc-500">
+          這個班還沒有學生，先到班級名單加人。
+        </p>
       }
       @for (student of roster()!.students; track student.studentId) {
-        <div class="roster-panel__row" [class.roster-panel__row--on-leave]="isLocked(student)">
-          <div class="roster-panel__student">
-            <span class="roster-panel__identity">
-              <span class="roster-panel__name">{{ student.studentName }}</span>
+        <!--
+          請假的列**刻意不用 opacity 淡化**：它是老師唯一需要發現、卻在這裡做不了事的一列（學生人在現場、系統說他請假），
+          淡化等於說「這列不用管」，也會把裡面 chip 的對比從 10.58 吃到 4.39。區別由結構（沒有出席／缺席鈕）加
+          zinc-200 底色（對白亮度差 0.1958）承擔；底色加深後副標跟著從 zinc-500 改 zinc-600（對比 6.44）。
+          只有請假單、紀錄還沒套用的那種列**不掛** `--on-leave`（它本來就能標記）。
+        -->
+        <div
+          class="roster-panel__row flex items-center justify-between border-b border-b-solid border-b-zinc-100 px-4 py-3"
+          [class.roster-panel__row--on-leave]="isLocked(student)"
+          [class.bg-zinc-200]="isLocked(student)"
+        >
+          <div class="roster-panel__student flex min-w-0 flex-col gap-0.5">
+            <span class="roster-panel__identity flex min-w-0 flex-wrap items-center gap-2">
+              <span class="roster-panel__name text-[0.9rem] font-medium text-zinc-800">{{
+                student.studentName
+              }}</span>
               @if (hasLeave(student)) {
                 <app-data-chip>請假</app-data-chip>
               }
             </span>
-            <span class="roster-panel__sub">
+            <span
+              class="roster-panel__sub text-[0.75rem]"
+              [class.text-zinc-500]="!isLocked(student)"
+              [class.text-zinc-600]="isLocked(student)"
+            >
               {{ gradeLabel(student.grade) }}{{ student.school ? ' · ' + student.school : '' }}
             </span>
             @if (isMismarked(student)) {
@@ -47,7 +71,9 @@
                 這一句回答「你得看一眼」（對這一列的旗標）。不同的問題用不同的載體。
                 2026-09-02 與 design-web-2 的結論；第二個使用者出現時再升上 shared。
               -->
-              <span class="roster-panel__mismark">
+              <span
+                class="roster-panel__mismark mt-0.5 inline-flex items-center gap-1 text-[0.75rem] font-medium text-warning-600"
+              >
                 <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
                 這位學生已請假，不需點名
               </span>
@@ -60,11 +86,13 @@
               學生本人站在教室裡，系統沒有任何方式記錄他來了。
             -->
             @if (cancelDropsUntil(student); as dropUntil) {
-              <p class="roster-panel__leave-span">銷假將一併取消到 {{ dropUntil }} 的請假</p>
+              <p class="roster-panel__leave-span m-0 text-[0.75rem] text-warning-600">
+                銷假將一併取消到 {{ dropUntil }} 的請假
+              </p>
             }
             @if (canCancelLeave()) {
               <p-button
-                class="roster-panel__came"
+                class="roster-panel__came shrink-0"
                 label="他來了"
                 icon="pi pi-user-plus"
                 size="small"
@@ -84,7 +112,7 @@
               }}
             </app-data-chip>
           } @else {
-            <div class="roster-panel__toggle">
+            <div class="roster-panel__toggle flex shrink-0 gap-2">
               <p-button
                 label="出席"
                 size="small"
@@ -108,11 +136,17 @@
     </div>
 
     @if (session.readOnly) {
-      <div class="roster-panel__footer">
-        <span class="roster-panel__progress">由行政人員點名，這裡只能查看</span>
+      <div
+        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-solid border-t-zinc-200 p-4"
+      >
+        <span class="roster-panel__progress min-w-0 flex-[1_1_10rem] text-xs text-zinc-500"
+          >由行政人員點名，這裡只能查看</span
+        >
       </div>
     } @else {
-      <div class="roster-panel__footer">
+      <div
+        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-solid border-t-zinc-200 p-4"
+      >
         <!--
         進度講在按鈕旁邊。**三種狀態都有話講，所以這一格永遠在** ——
         標完最後一人的瞬間如果它消失，footer 會縮 25px、儲存鈕往上跳，
@@ -120,7 +154,7 @@
 
         三句話長度刻意接近（都 ≤ 9 字），不然換行本身又是一次位移。
       -->
-        <span class="roster-panel__progress">
+        <span class="roster-panel__progress min-w-0 flex-[1_1_10rem] text-xs text-zinc-500">
           @if (rosterEmpty()) {
             這堂課沒有學生
           } @else if (pendingCount() > 0) {
@@ -140,7 +174,7 @@
             全部標記完成
           }
         </span>
-        <div class="roster-panel__actions">
+        <div class="roster-panel__actions ml-auto flex shrink-0 gap-2">
           <p-button
             label="全部出席"
             icon="pi pi-users"
