@@ -93,6 +93,9 @@ const TAILWIND_CONTRAST_EXEMPT = {
     'LINE 官方按鈕規範：白字＋#06C755（2.26:1）；按鈕文字粗體並有圖示。**既有的對比債**，1:1 搬家不改外觀（#991 E1 搬自原 SCSS 的 --line-brand，原版 gate 看不到 var 間接）',
   'apps/web/src/app/features/public/pages/login/login.component.html|text-[#06c755]|bg-white':
     '使用者指定的白底綠框 LINE 登入鈕（login 原 SCSS 註解：「使用者要的是白底綠框的輪廓感」）：文字與邊框同為 LINE 品牌綠 #06C755，疊白底只有 2.26:1。這是**既有的對比債**，1:1 搬家不改外觀；要修需要使用者改設計（#991 E1，原 SCSS 版 gate 看不到 var 間接）',
+  // ─ 純裝飾圖示：WCAG 1.4.11 明文豁免（同 CONTRAST_EXEMPT 的 empty-state 先例）─
+  'apps/web/src/app/features/select-role/role-picker/role-picker.component.html|text-zinc-300|bg-white':
+    '選項右側的 chevron（`aria-hidden`，旁邊必有身分名稱與說明文字，hover 變 accent）：純裝飾、不承載文字沒講的資訊——1.4.11 純裝飾豁免；原 SCSS 即 `--zinc-300`，1:1 搬家不改色（#991 E2）',
 };
 const usedTailwindContrastExempt = new Set();
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');

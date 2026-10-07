@@ -25,7 +25,7 @@ import { AuthService, type UserRole } from '@core/auth.service';
   selector: 'app-select-role',
   imports: [],
   templateUrl: './select-role.component.html',
-  styleUrl: './select-role.component.scss',
+  host: { class: 'block h-full' },
 })
 export class SelectRoleComponent {
   private readonly auth = inject(AuthService);

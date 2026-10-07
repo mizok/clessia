@@ -57,6 +57,7 @@
 @source './app/features/admin/pages/settings';
 @source './app/features/admin/pages/students';
 @source './app/features/public';
+@source './app/features/select-role';
 @source './app/features/admin/pages/subjects';
 @source './app/features/admin/pages/checkin';
 @source './app/features/admin/pages/applications';

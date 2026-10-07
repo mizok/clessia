@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, _shared, public, rwd]
 created: 2026-09-12
-updated: 2026-10-03
+updated: 2026-10-07
 ---
 
 # 公開頁外框（PublicShell）
@@ -125,7 +125,7 @@ updated: 2026-10-03
 
 捲動容器在堆疊版是 `.public-shell` 自己（`overflow-y: auto`），不是內層 `main`
 —— 往下捲時品牌面會跟著捲走，長表單頁（報名 / 試聽）拿得到整個螢幕高度。
-（理由寫在 `public-shell.component.scss` 的 responsive 區塊裡。）
+（原寫在 `public-shell.component.scss` 的 responsive 區塊；#991 E1 起改為 `public-shell.component.html` 裡的 `max-[1024px]:` 變體，`max-height:560px` 那段是 `max-[1024px]:[@media(max-height:560px)]:` 巢狀。）
 
 ### 差集（1504 ↔ 390 ↔ 768 ↔ 1024）
 
