@@ -31,15 +31,15 @@
 **第十七批**：之後合進 main 的。**開公開頁之前**（`deploying.md`）：先設 `TURNSTILE_SECRET_KEY`（或確定不要），再把 `PUBLIC_ORG_SLUG` 放進 `env.production.vars`。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
-## 🔁 10-07 重開電腦後接手（計畫席 labor-plan-20261004-1110，10-07 10:18 寫）
+## 🧭 10-07 收工狀態（計畫席 labor-plan-20261004-1110，10-07 17:43 寫）
 
-**使用者 10-07 10:2x 要重開電腦，所有 session 一起消失。** 沒有任何席是 Ctx 過線退場；worktree、遠端分支、本機 DB volume 都留著。
+**今天合進 main 36 支**（#1327–#1371 的 MERGED 者）。零生產席；常設席 reviewer（Ctx 約 66%，70% 蒸餾、85% 輪替）、監工 labor-ops-warden-20261007-1035、db-reset 皆待命。Weekly 26%（使用者要留 50% 給公司，Clessia 上限 45%）。
 
-- **下一任計畫席的上任提示**：`~/.cache/clessia-plan-20261004-1110/onboard-next-plan.txt`（第一行 `/rename`），各席上任提示範本同目錄。
-- **重開後第一輪**：`herdr agent list` 會是空的；本機 Supabase 容器多半 exited（`npm run db:start` 會說 already running 而不重拉）→ 請 db-reset `docker start supabase_db_clessia`（不 reset）；心跳腳本第 36 行改計畫席名。
-- **當下狀態（重開前）**：main 在 #1331 之後；open PR 只有 #1262（draft，等 Opus 後端席）與 1408 的 charter 補遺（若還沒合，reviewer 代合）；scss-ledger 39；#991 剩 teacher T2 課表（範圍說明已過 gate，10-07 09:5x 留言；T2 在 **`wip/teacher-schedule-t2`**（三支 SCSS 已刪、html 已轉、.ts 只刪 styleUrl；**沒做**：tailwind.css 的 `@source teacher/pages/schedule`、harness:write／harness、三寬度＋橫捲截圖、c6 的 100dvh fallback、#800 註解同步 —— commit message 有清單）；1408 最後一輪 Stop hook 報 `admin/students/student-form-dialog.component.spec.ts` 紅，它沒動那目錄、本機 nx 被擋驗不了，下一席以 CI 為準）、家長端 5 支（要對 A6 家長稿貼範圍說明）、shared 29＋全域（S／Z 批）。
-- **10-07 上午做了**：#1327 監工橫幅字串、#1328 公開頁 1:1、#1329 select-role 1:1（抓到任意值 `_` 變空白的 bug）、#1330 charter 補遺、#1331 老師端學生頁；A28 Tailwind 對比豁免清單上線（兩陷阱驗過）。
-- **等使用者**照「📋 等使用者」段不變：#1314 三題方向級（S3 抽屜、分章一族、P3 列內按鈕）＋新增 TS1（老師課表單日清單取代軌道）、開 Opus 後端席與否、兩條 permission 規則。
+- **#991 樣式層**：admin／teacher／parent／public／select-role／shared 全部歸零，scss-ledger **78 → 3**（只剩殼：`app.component.scss`、`shared/_breakpoints.scss`、`styles.scss`）。shared 的 `responsive-table` 走 A 方案（SCSS 搬成同值純 CSS、未分層、不動 16 頁），**進 layer 的時機＝T4 cssLayer 那支**（Z12b 全 utility 化列後續）。下一步是 S 批（殼：A6 頂欄＋開場色面，牽全站）與 T4（需使用者在場一次複製 .dev.vars）。
+- **後端**：#1262 防濫用上線；#1195／#1235／#1303／#1307 本機實打全對；#1339 考試班名、#1341 引用數、#1343 稽核補齊合進；#1338／#1342／#1345（保留類）、#1335、#1359（A28 盲點）、#1360、#1368 等觀察單待排。
+- **#1314**：五條前端小項全落地（#1349–#1352）；13 條待驗驗完（11 ✅、EN5／PA2 缺欄位）；G7 API 已修；ST5／PA5 暫緩（保留類）。
+- **席位 charter**：`labor-20261007-1048.md`（後端）、`labor-20261007-1200.md`／`labor-20261007-1448.md`（前端換版的證據法：傾印、編譯驗 class、規則從未生效判法）、`labor-reviewer.md` 新三節。下一個前端席先讀 1448 的一、三節。
+- **下一任計畫席上任提示**：`~/.cache/clessia-plan-20261004-1110/onboard-next-plan.txt`（第一行 `/rename`）；各席範本同目錄。心跳腳本第 36 行寫死計畫席名。
 
 ## 📋 等使用者
 
@@ -50,7 +50,7 @@
 
 | PR    | 為什麼保留 | 狀態 |
 | ----- | ---------- | ---- |
-| #1262 | #1126 公開表單防濫用（migration `20261004055339`） | draft，base 已轉 main（head `3473d8ed`，只含 #1126 自己的改動）。等一個 Opus 後端席收尾＋實打；合時要您 Approve。 |
+| （無） | — | #1262 已於 10-07 11:13 由您親合並 Approve，上線。目前 open PR 零。 |
 
 10-04 白天合進的保留類：#1307（11:21 合進 main，誰按的從共用帳號分不出，Approve 綠）、#1259（您親合 —— 計畫席 `gh pr merge` 被 auto-mode 分類器判「Merge Without Review」擋下，Approve 綠）。三支 migration（#1247／#1216／#1303）由 run `37173410979` 一次套綠。第十二批起皆 CI 自動部署（每顆 main 的 migrate 綠後觸發，一天十多顆）。
 
@@ -64,13 +64,25 @@
 ### 使用者要裁的
 
 - **#1314 的三題方向級**（A6 完整對齊第二輪追蹤單，10-04 開）：(a) 課表異動抽屜與 `/admin/changes` 留哪個（S3）；(b) 列表「分章」一族（課程 C1／人員 ST1／帳單 P1／家長 PA1）走「一次拿全部再分章」還是「API 回章節計數」，一次裁套整族；(c) 帳單列要不要放棄整列可點、改列內「提醒／收款」按鈕（P3）。
-- **開席**：labor-20261004-1408（Sonnet，前端）10-04 一天合 11 支、admin 目錄 SCSS 歸零後寫 charter 收尾；#991 剩殼／shared／老師／家長／入口頁 48 支，老師／家長端開工前要先對 A6 稿補範圍說明。#1262、#1195／#1235／#1303／#1307 的本機實打要一個 Opus 後端席。Weekly 93%，要不要開、開哪種由您裁。
+- **開席（10-07 收工後）**：零生產席。下一步二選一：(1) Opus 做 #1100 P2 缺口（每條先 gate；#1314 裡 PP1／P1／P2 彙總 API、S3 抽屜、EN5／PA2 缺欄位可先排）；(2) Sonnet 做殼 S 批（要先裁 A6 頂欄與側欄取捨＋T4 要您在場）。herdr 開席屬高成本機制，計畫席開前會報成本、等您一句。
 - **出勤模式層級**（#1314 SE1）：設計稿照 rules 畫成分校層級，日後一支 migration（保留類）；您未回，視同同意。
 - **#953** 退班後過去課堂在籍、**P4 家長端**、**QR 到班頁空殼**。
 
 > 10-04 已裁（不要重問）：不開新席→改開一席 Sonnet（14:0x）；#1262 出門前不用處理；A6 後續項要補缺口→#1314；fee-templates 不分章。
 > 10-03 已裁：#1127 門口平板不限類型；#1109 留歷程、#1113 維持、#1118 人工標記、#1120 試聽算名額、#1074 不顯示確認人、#1076 改用機構的「期」（期＝學期，各校放假日走 #1160，不做分校學期）、額滿改候補登記、入口頁手機版 V45、S3 OK；#1127 掃碼機不放公開頁；#1174 課表甘特直接取代清單；#1175 課程費用住 classes.default_fee_template_id。
 > 10-02 已裁：A6 定案（#973）；全站 SCSS 改 Tailwind、入口頁 1:1 換、公開頁照現狀搬（#991）；P1（admin/changes）提前；#1034 選 C＋A；#920 含老師唯讀；人員管理頁需 `manage_staff`（#1059）；憑證三組已輪替。
+
+## 10-07 計畫席學到、下一任會再用到的（labor-plan-20261004-1110，10-07 17:43 寫）
+
+- **一席 Sonnet 做機械換版的真實成本**：10-07 一席約 8 小時合 23 支（家長端 3、小項 5、Z 批 12、charter 3），Weekly 15 → 26；成本大頭在截圖與傾印不在寫碼。前端席每支約 25 分鐘（範圍說明 → gate → PR → 二讀 → 合）。
+- **「規則從未命中」是 1:1 換版最常見的假回歸**：encapsulated SCSS 對投影內容與 PrimeNG 內部元素（styleClass）不帶 `_ngcontent`，從沒生效；換版後「突然生效」或「掉了」都要先問舊規則有沒有命中（todo-banner strong、page-band aside、page-actions__cta、leave-form 的 &__x）。reviewer 10-07 誤判一次、charter 已記。
+- **證據法演進**：截圖像素差 → 逐元素計算樣式傾印（JSON 逐字比） → 直接編譯 tailwind.css 看 class 有沒有輸出（reviewer 做法）。三層各抓到別層抓不到的（陰影任意值編成透明、PrimeIcons 未分層蓋過 utility、底線跳脫）。
+- **A28 Tailwind 對比 gate 的盲點**（#1359）：看不到 `[&_i]`／`[&.modifier]:text-*` 巢狀變體，換版後既有對比債會「失去守衛」而不是被修。豁免清單（TAILWIND_CONTRAST_EXEMPT）10-07 上線，形狀同 CONTRAST_EXEMPT，對不上就紅；每筆理由寫清是誤報、純裝飾、還是既有債另開單。
+- **分類器三類擋法照舊**：計畫席 merge（保留類改使用者親合，10-07 #1262 如此）、對 db-reset 說「跑」（改 SendMessage 送請求單，兩次成功）、生產席 nx typecheck／test（改以 CI 為證）。
+- **席位撞 5 小時 session 上限時訊息排佇列不丟**：1200 在 13:20 撞上限，「過」卡了 40 分鐘；計畫席的「繼續 X」一律要明說「過」，席位也學會了問。
+- **PR 不小心把 untracked 工具 commit 進去**（#1355 的 .pw-regression 90 支）：靠讀 diff 檔名抓到；已加 .gitignore。讀 diff 先看 --name-only。
+- **刪死元件是 gate 可裁的**（page-breadcrumb，零消費者）：裁定寫明「使用者可否決、一支 revert」。
+- **問「還要幾輪」要用當日實測重算**：10-07 早上用上週三席並行的數據估 8 到 10 輪，下午用當日單席數據重算是 4 到 5 輪。
 
 ## 10-04 下午計畫席學到、下一任會再用到的（labor-plan-20261004-1110，15:58 寫）
 
