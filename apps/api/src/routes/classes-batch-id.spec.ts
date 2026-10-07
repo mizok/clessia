@@ -95,3 +95,31 @@ describe('PATCH /api/classes/{id}/sessions/batch-cancel —— 流水標成批�
     expect(new Set(rows.map((r) => r.batch_id)).size).toBe(1);
   });
 });
+
+describe('POST /api/classes/{id}/cancel-future-sessions —— 寫稽核（#1336）', () => {
+  it('停了幾堂就寫一筆 batch_cancel_session，帶筆數、classId、同一顆 batchId', async () => {
+    const { app, queries } = createApp();
+    const res = await app.request(`/api/classes/${CLASS}/cancel-future-sessions`, {
+      method: 'POST',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: 2 });
+    // logAudit 是 fire-and-forget（先查操作者名稱再寫），等它跑完
+    await new Promise((r) => setTimeout(r, 0));
+
+    const audit = queries.find((q) => q.table === 'audit_logs');
+    const row = audit?.ops.find((op) => op.name === 'insert')?.args[0] as
+      Record<string, any> | undefined;
+    expect(row).toMatchObject({
+      org_id: 'org-1',
+      resource_type: 'class',
+      resource_id: CLASS,
+      action: 'batch_cancel_session',
+      details: { requested: 2, updated: 2, classId: CLASS, scope: 'all_future' },
+    });
+    const changes = queries
+      .find((q) => q.table === 'schedule_changes' && q.ops.some((op) => op.name === 'insert'))!
+      .ops.find((op) => op.name === 'insert')!.args[0] as Array<{ batch_id: string }>;
+    expect(row!['details'].batchId).toBe(changes[0]!.batch_id);
+  });
+});
