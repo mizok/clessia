@@ -31,6 +31,15 @@ const BillingPeriodSchema = z
   })
   .openapi('BillingPeriod');
 
+const BillingPeriodListItemSchema = BillingPeriodSchema.extend({
+  /**
+   * 與這期日期重疊的在讀期繳報名數（#1314 F4，計畫席裁 (i)）。報名跟期間沒有 FK，
+   * 重疊條件同「待開單」（`upcoming-unbilled` 的 `pending`）。**它不代表刪不掉** ——
+   * 擋刪除的是已開的帳單明細（`invoice_items`）。
+   */
+  overlappingEnrollmentCount: z.number().int(),
+}).openapi('BillingPeriodListItem');
+
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
   .openapi('BillingPeriodError');
@@ -92,9 +101,10 @@ app.openapi(
       200: {
         description: '成功',
         content: {
-          'application/json': { schema: z.object({ data: z.array(BillingPeriodSchema) }) },
+          'application/json': { schema: z.object({ data: z.array(BillingPeriodListItemSchema) }) },
         },
       },
+      500: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -111,7 +121,34 @@ app.openapi(
       return c.json({ data: [] }, 200);
     }
 
-    return c.json({ data: (data ?? []).map((row) => mapBillingPeriod(row)) }, 200);
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // 每期一支 head count，讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷
+    const counts = await Promise.all(
+      rows.map((row) =>
+        supabase
+          .from('enrollments')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId)
+          .eq('status', 'active')
+          .eq('billing_mode', 'period')
+          .lte('effective_from', row['end_date'] as string)
+          .or(`effective_to.is.null,effective_to.gte.${row['start_date'] as string}`),
+      ),
+    );
+    // 數不出來就不回 0（看起來像「沒人在用」）
+    if (counts.some((r) => r.error)) {
+      return c.json({ error: '查詢報名數失敗', code: 'DB_ERROR' }, 500);
+    }
+
+    return c.json(
+      {
+        data: rows.map((row, i) => ({
+          ...mapBillingPeriod(row),
+          overlappingEnrollmentCount: counts[i]!.count ?? 0,
+        })),
+      },
+      200,
+    );
   },
 );
 
