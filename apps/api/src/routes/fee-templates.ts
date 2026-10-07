@@ -32,6 +32,14 @@ const FeeTemplateSchema = z
   })
   .openapi('FeeTemplate');
 
+const FeeTemplateListItemSchema = FeeTemplateSchema.extend({
+  /**
+   * 引用它的報名數（#1314 F1／F2）—— **不分狀態**：`enrollments.fee_template_id` 是 RESTRICT，
+   * 已結束的報名也擋刪除，「N 筆在用，無法刪除」要跟刪除的 409 同源。全 org 數（價目表是 org 層級）。
+   */
+  inUseCount: z.number().int(),
+}).openapi('FeeTemplateListItem');
+
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
   .openapi('FeeTemplateError');
@@ -110,8 +118,11 @@ app.openapi(
     responses: {
       200: {
         description: '成功',
-        content: { 'application/json': { schema: z.object({ data: z.array(FeeTemplateSchema) }) } },
+        content: {
+          'application/json': { schema: z.object({ data: z.array(FeeTemplateListItemSchema) }) },
+        },
       },
+      500: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -137,7 +148,33 @@ app.openapi(
       return c.json({ data: [] }, 200);
     }
 
-    return c.json({ data: (data ?? []).map((row) => mapFeeTemplate(row)) }, 200);
+    const rows = data ?? [];
+    const inUse = new Map<string, number>();
+    if (rows.length > 0) {
+      const { data: refs, error: refError } = await supabase
+        .from('enrollments')
+        .select('fee_template_id')
+        .eq('org_id', orgId)
+        .in(
+          'fee_template_id',
+          rows.map((row) => row['id'] as string),
+        );
+      // 數不出來就不回 0 —— 「0 筆在用」會讓人去按一個必然 409 的刪除
+      if (refError) return c.json({ error: '查詢引用數失敗', code: 'DB_ERROR' }, 500);
+      for (const ref of (refs ?? []) as Array<{ fee_template_id: string }>) {
+        inUse.set(ref.fee_template_id, (inUse.get(ref.fee_template_id) ?? 0) + 1);
+      }
+    }
+
+    return c.json(
+      {
+        data: rows.map((row) => ({
+          ...mapFeeTemplate(row),
+          inUseCount: inUse.get(row['id'] as string) ?? 0,
+        })),
+      },
+      200,
+    );
   },
 );
 
