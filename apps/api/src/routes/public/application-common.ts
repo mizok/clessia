@@ -88,7 +88,11 @@ export type GuardResult =
       body: { error: string; code: 'RATE_LIMITED' };
       retryAfterSeconds: number;
     }
-  | { kind: 'reject'; status: 503; body: { error: string; code: 'CAPTCHA_UNAVAILABLE' } };
+  | {
+      kind: 'reject';
+      status: 503;
+      body: { error: string; code: 'CAPTCHA_UNAVAILABLE' | 'RATE_LIMIT_UNAVAILABLE' };
+    };
 
 /**
  * 防濫用（#1126）。順序 honeypot → rate limit → CAPTCHA（便宜的先擋）；都過了才走原本的驗證與寫入。
@@ -120,23 +124,30 @@ export async function guardSubmission(
       .eq(column, value)
       .gte('created_at', new Date(now - sinceMs).toISOString());
     if (sameKind) query = query.eq('kind', kind);
-    return (await query).count ?? 0;
+    const { count: n, error } = await query;
+    // 數不出來就不知道有沒有超過 —— 回 null 讓呼叫端 fail-closed，不吞成 0 放行
+    return error ? null : (n ?? 0);
+  };
+  const countUnavailable: GuardResult = {
+    kind: 'reject',
+    status: 503,
+    body: { error: '暫時無法送出，請稍後再試', code: 'RATE_LIMIT_UNAVAILABLE' },
   };
 
   const HOUR = 60 * 60 * 1000;
-  if (
-    ipHash &&
-    (await count('client_ip_hash', ipHash, HOUR, false)) >= RATE_LIMITS.perSourcePerHour
-  ) {
-    return rateLimited(60 * 60);
+  if (ipHash) {
+    const n = await count('client_ip_hash', ipHash, HOUR, false);
+    if (n === null) return countUnavailable;
+    if (n >= RATE_LIMITS.perSourcePerHour) return rateLimited(60 * 60);
   }
   for (const [column, value] of [
     ['parent_phone', body.parent.phone],
     ['parent_email', body.parent.email],
   ] as const) {
-    if (value && (await count(column, value, 24 * HOUR, true)) >= RATE_LIMITS.perContactPerDay) {
-      return rateLimited(24 * 60 * 60);
-    }
+    if (!value) continue;
+    const n = await count(column, value, 24 * HOUR, true);
+    if (n === null) return countUnavailable;
+    if (n >= RATE_LIMITS.perContactPerDay) return rateLimited(24 * 60 * 60);
   }
 
   // Turnstile 可選（c12：客戶要能離開 Cloudflare）—— 沒設 secret 就不檢查

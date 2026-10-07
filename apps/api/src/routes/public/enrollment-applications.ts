@@ -66,7 +66,7 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       503: {
-        description: '機器人驗證服務暫時無法使用（fail-closed）',
+        description: '機器人驗證服務或限流計數暫時無法使用（fail-closed）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       404: {

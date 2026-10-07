@@ -103,6 +103,26 @@ describe('honeypot', () => {
     expect(written(db)).toHaveLength(0);
     expect(db.rows('public_application_targets')).toHaveLength(0);
   });
+
+  it('試聽端點同樣：201 假 id，兩張表都沒寫', async () => {
+    const db = seed();
+    const { res, json } = await post(
+      db,
+      {
+        parent: { name: '林爸爸', phone: '0912345678', relation: 'father' },
+        student: { name: '林小美', grade: 'P5', school: '信義國小' },
+        courseIds: [COURSE],
+        consent: true,
+        website: 'http://spam.example',
+      },
+      { route: 'trial' },
+    );
+
+    expect(res.status).toBe(201);
+    expect(json.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(written(db)).toHaveLength(0);
+    expect(db.rows('public_application_targets')).toHaveLength(0);
+  });
 });
 
 describe('rate limit', () => {
@@ -153,6 +173,46 @@ describe('rate limit', () => {
         })
       ).res.status,
     ).toBe(201);
+  });
+
+  it('計數查詢出錯：503 RATE_LIMIT_UNAVAILABLE，不吞成 0 放行、不寫', async () => {
+    const db = seed();
+    // 只讓「數筆數」那支（head: true）回 error；寫入照常 —— 修前它會被當成 0 筆而寫進去
+    const failing: any = new Proxy(
+      {},
+      {
+        get: (_, p) =>
+          p === 'then'
+            ? (resolve: (v: unknown) => void) =>
+                resolve({ data: null, count: null, error: { message: 'boom' } })
+            : () => failing,
+      },
+    );
+    const client = new Proxy(db.client as any, {
+      get(target, prop) {
+        if (prop !== 'from') return Reflect.get(target, prop);
+        return (table: string) => {
+          const builder = target.from(table);
+          if (table !== 'public_applications') return builder;
+          return new Proxy(builder, {
+            get(b, p) {
+              if (p === 'select')
+                return (cols: string, o?: { head?: boolean }) =>
+                  o?.head ? failing : b.select(cols, o);
+              const v = Reflect.get(b, p);
+              return typeof v === 'function' ? v.bind(b) : v;
+            },
+          });
+        };
+      },
+    });
+
+    for (const ip of [IP, null]) {
+      const { res, json } = await post({ ...db, client } as typeof db, enrollmentBody(), { ip });
+      expect(res.status).toBe(503);
+      expect(json.code).toBe('RATE_LIMIT_UNAVAILABLE');
+    }
+    expect(written(db)).toHaveLength(0);
   });
 
   it('試聽端點走同一套（同 Email 第 4 筆 429）', async () => {
