@@ -1,5 +1,10 @@
-<div class="collapsible" [class.collapsible--collapsed]="collapsed()">
-  <div class="collapsible__inner">
+<div
+  class="collapsible group grid grid-rows-[1fr] [transition:grid-template-rows_0.3s_cubic-bezier(0.4,0,0.2,1)] [&.collapsible--collapsed]:grid-rows-[0fr]"
+  [class.collapsible--collapsed]="collapsed()"
+>
+  <div
+    class="collapsible__inner min-h-0 overflow-hidden opacity-100 [transition:opacity_0.3s_cubic-bezier(0.4,0,0.2,1),transform_0.3s_cubic-bezier(0.4,0,0.2,1),margin_0.3s_cubic-bezier(0.4,0,0.2,1)] group-[.collapsible--collapsed]:opacity-0 group-[.collapsible--collapsed]:[transform:translateY(-8px)]"
+  >
     <ng-content />
   </div>
 </div>

@@ -107,10 +107,15 @@
       "apps/web/src/app/features/teacher/pages/students",
       "apps/web/src/app/shared/components/campus-scope-note",
       "apps/web/src/app/shared/components/checkin-station",
+      "apps/web/src/app/shared/components/collapsible",
+      "apps/web/src/app/shared/components/filter-chip",
+      "apps/web/src/app/shared/components/ime-filter-input",
       "apps/web/src/app/shared/components/layout/global-search",
       "apps/web/src/app/shared/components/layout/shell-layout",
       "apps/web/src/app/shared/components/page-open",
-      "apps/web/src/app/shared/components/select-field"
+      "apps/web/src/app/shared/components/select-field",
+      "apps/web/src/app/shared/components/student-autocomplete",
+      "apps/web/src/app/shared/components/todo-banner"
     ],
     "exts": [".html", ".ts"]
   },

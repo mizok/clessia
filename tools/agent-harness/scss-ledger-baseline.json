@@ -6,14 +6,11 @@
   "apps/web/src/app/shared/components/attendance-roster-panel/attendance-roster-panel.component.scss",
   "apps/web/src/app/shared/components/audit-log-dialog/audit-log-dialog.component.scss",
   "apps/web/src/app/shared/components/class-picker-dialog/class-picker-dialog.component.scss",
-  "apps/web/src/app/shared/components/collapsible/collapsible.component.scss",
   "apps/web/src/app/shared/components/confirm-dialog/confirm-dialog.component.scss",
   "apps/web/src/app/shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component.scss",
   "apps/web/src/app/shared/components/day-timeline/day-timeline.component.scss",
   "apps/web/src/app/shared/components/empty-state/empty-state.component.scss",
-  "apps/web/src/app/shared/components/filter-chip/filter-chip.component.scss",
   "apps/web/src/app/shared/components/flow-field/flow-field.component.scss",
-  "apps/web/src/app/shared/components/ime-filter-input/ime-filter-input.component.scss",
   "apps/web/src/app/shared/components/inline-notice/inline-notice.component.scss",
   "apps/web/src/app/shared/components/jdenticon-avatar/jdenticon-avatar.component.ts",
   "apps/web/src/app/shared/components/login-link-dialog/login-link-dialog.component.scss",
@@ -27,8 +24,6 @@
   "apps/web/src/app/shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component.scss",
   "apps/web/src/app/shared/components/status/data-chip/data-chip.component.scss",
   "apps/web/src/app/shared/components/status/status-dot/status-dot.component.scss",
-  "apps/web/src/app/shared/components/student-autocomplete/student-autocomplete.component.scss",
   "apps/web/src/app/shared/components/subject-manager/subject-manager.component.scss",
-  "apps/web/src/app/shared/components/todo-banner/todo-banner.component.scss",
   "apps/web/src/styles.scss"
 ]

@@ -70,6 +70,11 @@
 @source './app/features/parent/shared/child-switcher';
 @source './app/features/parent/pages/dashboard';
 @source './app/shared/components/checkin-station';
+@source './app/shared/components/filter-chip';
+@source './app/shared/components/collapsible';
+@source './app/shared/components/todo-banner';
+@source './app/shared/components/ime-filter-input';
+@source './app/shared/components/student-autocomplete';
 @source './app/features/admin/pages/staff';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */
