@@ -45,7 +45,6 @@ export interface RosterPanelSession {
   standalone: true,
   imports: [DataChipComponent, ButtonModule, ProgressSpinnerModule, InlineNoticeComponent],
   templateUrl: './attendance-roster-panel.component.html',
-  styleUrl: './attendance-roster-panel.component.scss',
   providers: [DialogService],
 })
 export class AttendanceRosterPanelComponent implements OnInit {
