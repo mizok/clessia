@@ -1,19 +1,20 @@
 import {
   Component,
   ElementRef,
+  Injector,
   OnInit,
+  afterNextRender,
   computed,
   effect,
   inject,
   input,
   signal,
-  untracked,
-  viewChild,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import {
   startOfWeek,
   endOfWeek,
+  addDays,
   addWeeks,
   subWeeks,
   format,
@@ -46,17 +47,25 @@ import {
   canWriteClassLog,
   canWriteContactBook,
   daySummary,
+  nextSession,
+  sortByStart,
   weekAnchor,
 } from './schedule.util';
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
+/** 這週有今天就選今天，沒有就週一 */
+function defaultDay(weekStart: Date, todayStr: string): string {
+  const days = Array.from({ length: 7 }, (_, i) => format(addDays(weekStart, i), 'yyyy-MM-dd'));
+  return days.includes(todayStr) ? todayStr : days[0];
+}
+
 /**
- * 老師的課表。**手機是主要形態**，桌機是撐寬的次要情境 ——
- * 設計與取捨見 `kb/wiki/architecture/teacher-schedule-mobile-day.md`。
+ * 老師的課表。**手機是主要形態**，桌機是撐寬的次要情境。
  *
- * 換日是原生的水平 scroll-snap，**這裡沒有任何手勢或捲動監聽程式碼**。
- * 唯一碰 scroll 的是進頁時把軌道對到今天那一屏（一次性，不是監聽器）。
+ * #1314 TS1（A6）：週條（所有寬度、可橫捲）＋單日清單；換日用週條，不靠滑動。
+ * 選中日是今天時，「接下來那堂」放第一張。取代了原本的七天水平軌道
+ * （設計取捨見 `kb/wiki/architecture/teacher-schedule-mobile-day.md` 的舊版）。
  */
 @Component({
   selector: 'app-schedule',
@@ -82,8 +91,8 @@ export class SchedulePage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly contactBookService = inject(ContactBookService);
-
-  private readonly track = viewChild<ElementRef<HTMLElement>>('track');
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   protected readonly currentWeekStart = signal<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   protected readonly sessions = signal<EventSessionSummary[]>([]);
@@ -96,6 +105,11 @@ export class SchedulePage implements OnInit {
    */
   private readonly now = new Date();
   private readonly todayStr = format(this.now, 'yyyy-MM-dd');
+
+  /** 選中的那一天（`yyyy-MM-dd`）。預設今天；這週沒有今天就週一 */
+  protected readonly selectedDate = signal(
+    defaultDay(startOfWeek(this.now, { weekStartsOn: 1 }), this.todayStr),
+  );
 
   protected readonly weekLabel = computed(() => {
     const start = this.currentWeekStart();
@@ -170,6 +184,7 @@ export class SchedulePage implements OnInit {
       ...day,
       index,
       isToday: day.dateStr === this.todayStr,
+      isSelected: day.dateStr === this.selectedDate(),
       ...daySummary(byDay.get(day.dateStr) ?? [], this.now, teacherLed),
     }));
   });
@@ -179,21 +194,18 @@ export class SchedulePage implements OnInit {
   }
 
   constructor() {
-    /*
-     * 進頁與換週都停在今天那一屏 —— **等軌道回到 DOM 之後才做**（#800）。
-     *
-     * 軌道現在是條件渲染的（載入中／錯誤態不畫），而先前兩個呼叫點都落在
-     * 它不在 DOM 的那一刻：`afterNextRender` 的第一次 render 是載入中；
-     * 換週時同步呼叫，拿到的是**即將被拆掉的那個元素**。
-     * 這支 effect 只依賴 `track()`，所以它正好在「軌道出現」時跑一次
-     * —— 進頁一次、每次換週一次；使用者手動捲動之後不會被拉回去，
-     * 因為那不會讓軌道重建。
-     */
+    // 手機週條可橫捲，選中日可能在畫面外 —— 進頁、換日、換週、載入完成後把它捲進來。
+    // 只捲週條那一條（inline），不動頁面的垂直位置（block: 'nearest'）。
     effect(() => {
-      if (!this.track()) return;
-      // untracked：snapToToday 會讀 weekDays()，不 untracked 的話那些 signal
-      // 都變成這支 effect 的依賴，資料一動就把使用者捲回今天
-      untracked(() => this.snapToToday());
+      this.selectedDate();
+      this.loading();
+      afterNextRender(
+        () =>
+          this.host.nativeElement
+            .querySelector('.schedule-page__weekbar-day[aria-pressed="true"]')
+            ?.scrollIntoView?.({ inline: 'center', block: 'nearest' }),
+        { injector: this.injector },
+      );
     });
   }
 
@@ -206,45 +218,58 @@ export class SchedulePage implements OnInit {
 
   protected prevWeek(): void {
     this.currentWeekStart.update((d) => subWeeks(d, 1));
+    this.resetSelectedDate();
     this.loadSessions();
   }
 
   protected nextWeek(): void {
     this.currentWeekStart.update((d) => addWeeks(d, 1));
+    this.resetSelectedDate();
     this.loadSessions();
   }
 
+  /** 換週後選中日回到「今天（若在這週）或週一」，不然會停在不存在的日期 */
+  private resetSelectedDate(): void {
+    this.selectedDate.set(defaultDay(this.currentWeekStart(), this.todayStr));
+  }
+
+  protected selectDay(dateStr: string): void {
+    this.selectedDate.set(dateStr);
+  }
+
+  /** 選中那天的課，依開始時間排 */
+  private readonly selectedSessions = computed(() =>
+    sortByStart(this.sessionsByDay().get(this.selectedDate()) ?? []),
+  );
+
   /**
-   * 把軌道對到今天那一屏；這一週沒有今天就回到週一。
-   *
-   * **換週時不能同步呼叫了**（#800）：軌道現在是條件渲染的（載入中／錯誤態不畫），
-   * 換週會先進載入中把它從 DOM 移掉，所以呼叫當下 `track()` 還是**即將被拆掉的
-   * 那個元素** —— 設了 `scrollLeft` 也隨它一起消失，而新元素從 0 開始（週一）。
-   * 換週不再呼叫這裡，改由建構式那支 effect 在軌道回到 DOM 之後做。
-   * 桌機是 grid、沒有水平捲動，這裡設 `scrollLeft` 是無害的 no-op。
+   * 「接下來那堂」：只有選中日＝今天才有。
+   * `now` 只在建構時取一次（上面那條知情取捨）——頁面開著跨過上課時間，它不會自己翻；
+   * 換週會重新取數，但 `now` 不變，要重開頁面才會更新。
    */
-  private snapToToday(): void {
-    this.snapToDay(this.weekDays().findIndex((d) => d.dateStr === this.todayStr));
-  }
+  protected readonly next = computed(() =>
+    this.selectedDate() === this.todayStr ? nextSession(this.selectedSessions(), this.now) : null,
+  );
 
-  /** 週條點某一天就捲到那一屏。桌機沒有水平捲動時是無害的 no-op */
-  protected snapToDay(index: number): void {
-    const el = this.track()?.nativeElement;
-    if (!el) return;
-    if (index <= 0) {
-      el.scrollLeft = 0;
-      return;
-    }
+  /** 清單的順序：接下來那堂在最前面（抽出來，不複製），其餘照時間排 */
+  protected readonly daySessions = computed(() => {
+    const next = this.next();
+    const all = this.selectedSessions();
+    return next ? [next, ...all.filter((s) => s !== next)] : all;
+  });
 
-    // 位置問面板自己，不要用 index × clientWidth 去算 —— 那漏掉欄間距，
-    // 一天差一個 gap，週日會差到 6 個。scroll-snap 目前會把誤差吸回去，
-    // 但那是運氣：間距一改就不成立了。
-    const first = el.firstElementChild as HTMLElement | null;
-    const target = el.children[index] as HTMLElement | undefined;
-    if (!first || !target) return;
-    // scrollLeft 而不是 scrollTo()：不需要 smooth，而且 jsdom 沒有實作 scrollTo
-    el.scrollLeft = target.offsetLeft - first.offsetLeft;
-  }
+  /** 清單上方那一行：日期、星期、堂數（不含停課） */
+  protected readonly selectedDay = computed(() => {
+    const dateStr = this.selectedDate();
+    const date = parseISO(dateStr);
+    return {
+      dateStr,
+      date,
+      label: `週${WEEKDAY_LABELS[date.getDay()]}`,
+      isToday: dateStr === this.todayStr,
+      count: this.selectedSessions().filter((s) => s.status !== 'cancelled').length,
+    };
+  });
 
   protected loadSessions(): void {
     this.loading.set(true);
