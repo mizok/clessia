@@ -43,6 +43,7 @@ function invoiceRow({ id, amount, paid }: FakeRow) {
 function fakeSupabase(rows: ReturnType<typeof invoiceRow>[]) {
   const calls = {
     ranged: false,
+    ranges: [] as Array<[number, number]>,
     ltArgs: [] as Array<[string, unknown]>,
     gteArgs: [] as Array<[string, unknown]>,
     lteArgs: [] as Array<[string, unknown]>,
@@ -73,10 +74,13 @@ function fakeSupabase(rows: ReturnType<typeof invoiceRow>[]) {
     },
     range: (from: number, to: number) => {
       calls.ranged = true;
+      calls.ranges.push([from, to]);
       sliced = rows.slice(from, to + 1);
       return chain();
     },
-    order: () => Promise.resolve({ data: sliced, count: rows.length, error: null }),
+    order: () => chain(),
+    then: (resolve: (v: unknown) => void) =>
+      resolve({ data: sliced, count: rows.length, error: null }),
     // `logAudit` 走的是 profiles.maybeSingle → audit_logs.insert。
     // 少了它們，稽核會在 logAudit 自己的 try/catch 裡靜默失敗
     //（只印 `[audit] log failed`），測試看不到、CI 也不會紅。
@@ -94,6 +98,7 @@ function appWith(supabase: unknown) {
     set('supabase', supabase);
     set('orgId', '00000000-0000-0000-0000-0000000000aa');
     set('userId', 'u1');
+    set('campusScope', null);
     await next();
   });
   app.route('/', invoicesRoute as unknown as Hono);
@@ -138,13 +143,13 @@ describe('GET /api/invoices —— status 篩選', () => {
     invoiceRow({ id: '00000000-0000-0000-0000-000000000003', amount: 1000, paid: 1000 }), // paid
   ];
 
-  // status 是推導值，DB 濾不掉 —— 走「全撈再篩再切」那條，而且不能呼叫 range()
+  // status 是推導值，DB 濾不掉 —— 走「全撈再篩再切」那條：range 是撈到底的整頁，不是請求的那一頁
   it('只回符合狀態的，total 是篩後總數', async () => {
     const { client, calls } = fakeSupabase(mixed);
     const res = await appWith(client).request('/?status=partial');
     const body = (await res.json()) as { data: { status: string }[]; meta: { total: number } };
 
-    expect(calls.ranged).toBe(false);
+    expect(calls.ranges).toEqual([[0, 999]]);
     expect(body.data.map((row) => row.status)).toEqual(['partial']);
     expect(body.meta.total).toBe(1);
   });
