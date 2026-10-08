@@ -209,7 +209,7 @@ describe('EnrollmentsPage', () => {
   });
 
   // pending_payment 目前沒有任何流程會產生，放出來只會讓人以為系統壞了
-  it('狀態選項不含待付款', async () => {
+  it('狀態選項不含待繳費', async () => {
     await setup();
 
     expect(component['statusOptions'].map((option) => option.value)).not.toContain(
