@@ -80,11 +80,12 @@ const StaffListResponseSchema = z
         .object({
           admin: z.number().int(),
           teacher: z.number().int(),
+          kiosk: z.number().int(),
           inactiveOrArchived: z.number().int(),
         })
         .openapi({
           description:
-            '依角色分章的章節計數（#1314 ST1），三章互斥：在職且有 admin（兼老師的歸這章）／在職且只有 teacher／停用＋封存。和＝total 減在職且兩個角色都沒有的（機台帳號）',
+            '依角色分章的章節計數（#1314 ST1），四桶互斥、和＝total：在職且有 admin（兼老師的歸這章）／在職且只有 teacher／在職的掃碼機台（kiosk）／停用＋封存',
         }),
     }),
     meta: z.object({
@@ -353,7 +354,7 @@ export function buildStaffSummary(
   };
 }
 
-const EMPTY_BY_ROLE = { admin: 0, teacher: 0, inactiveOrArchived: 0 } as const;
+const EMPTY_BY_ROLE = { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0 } as const;
 
 function emptyStaffSummary(): StaffSummary {
   return {
@@ -379,10 +380,11 @@ interface StaffFilterable {
 }
 
 /**
- * 依角色分章的章節計數（#1314 ST1）。三章互斥；和＝total 減「在職且 admin／teacher 都沒有」的人
- * （機台帳號 kiosk 也是 staff 列，#1127）：
+ * 依角色分章的章節計數（#1314 ST1）。四桶互斥、和＝total：
  * 在職且有 admin（**兼老師的歸管理員章** —— A6 `staff.html`：「身兼兩者的人列在管理員那章，
- * 角色標兩個」）／在職且只有 teacher／停用＋封存。跟既有 adminCount／teacherCount（重疊人次）不同，
+ * 角色標兩個」）／在職且只有 teacher／在職的掃碼機台（kiosk 也是 staff 列，#1127；建立與 PUT 都
+ * 擋它跟別的角色並存，這裡仍排除 admin／teacher 以保互斥）／停用＋封存。
+ * 在職而三種角色都沒有的人不在任何一桶 —— 資料上不該存在（建人員一定帶角色）。跟既有 adminCount／teacherCount（重疊人次）不同，
  * 那兩個給開場副行用，不動。
  *
  * 每章一支 head count 讓 DB 數 —— 撈 staff 列回來數會被 max_rows（1000）靜默截斷。
@@ -393,41 +395,50 @@ interface StaffFilterable {
 async function countStaffByRole(
   supabase: SupabaseClient,
   withFilters: <Q>(q: Q) => Q,
-): Promise<{ admin: number; teacher: number; inactiveOrArchived: number } | { error: string }> {
-  const adminIds = new Set<string>();
-  const teacherIds = new Set<string>();
+): Promise<
+  { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number } | { error: string }
+> {
+  const ids: Record<string, Set<string>> = {
+    admin: new Set(),
+    teacher: new Set(),
+    kiosk: new Set(),
+  };
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase
       .from('user_roles')
       .select('user_id, role')
-      .in('role', ['admin', 'teacher'])
+      .in('role', ['admin', 'teacher', 'kiosk'])
       .order('user_id')
       .range(from, from + 999);
     if (error) return { error: error.message };
     for (const row of (data ?? []) as Array<{ user_id: string; role: string }>) {
-      (row.role === 'admin' ? adminIds : teacherIds).add(row.user_id);
+      ids[row.role]?.add(row.user_id);
     }
     if ((data ?? []).length < 1000) break;
   }
-  const teacherOnlyIds = [...teacherIds].filter((id) => !adminIds.has(id));
+  const adminIds = [...ids['admin']!];
+  const teacherOnlyIds = [...ids['teacher']!].filter((id) => !ids['admin']!.has(id));
+  const kioskOnlyIds = [...ids['kiosk']!].filter(
+    (id) => !ids['admin']!.has(id) && !ids['teacher']!.has(id),
+  );
 
   const head = () => supabase.from('staff').select('id', { count: 'exact', head: true });
   const results = await Promise.all([
-    withFilters(head())
-      .eq('status', 'active')
-      .in('user_id', [...adminIds]),
+    withFilters(head()).eq('status', 'active').in('user_id', adminIds),
     withFilters(head()).eq('status', 'active').in('user_id', teacherOnlyIds),
+    withFilters(head()).eq('status', 'active').in('user_id', kioskOnlyIds),
     withFilters(head()).in('status', ['inactive', 'archived']),
   ]);
   // 數不出來就不回 0
   const failed = results.find((r) => r.error)?.error;
   if (failed) return { error: failed.message };
-  const [admin, teacher, inactiveOrArchived] = results.map((r) => r.count ?? 0) as [
+  const [admin, teacher, kiosk, inactiveOrArchived] = results.map((r) => r.count ?? 0) as [
+    number,
     number,
     number,
     number,
   ];
-  return { admin, teacher, inactiveOrArchived };
+  return { admin, teacher, kiosk, inactiveOrArchived };
 }
 
 async function checkUserIsAdmin(supabase: SupabaseClient, userId: string): Promise<boolean> {
@@ -602,6 +613,10 @@ const listRoute = createRoute({
           schema: ErrorSchema,
         },
       },
+    },
+    500: {
+      description: '章節計數失敗',
+      content: { 'application/json': { schema: ErrorSchema } },
     },
   },
 });
@@ -814,7 +829,8 @@ app.openapi(listRoute, async (c) => {
   const typedSummaryRows = (summaryRows || []) as Array<{ user_id: string; status: string }>;
   const byRole = await countStaffByRole(supabase, withSummaryFilters);
   if ('error' in byRole) {
-    return c.json({ error: byRole.error, code: 'DB_ERROR' }, 400);
+    // 數不出來是伺服器的事，不是請求錯 —— 同 courses 的 bySubject
+    return c.json({ error: byRole.error, code: 'DB_ERROR' }, 500);
   }
   const summary = { ...buildStaffSummary(typedSummaryRows, summaryRoleInfoMap), byRole };
 

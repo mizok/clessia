@@ -70,15 +70,17 @@ const people: Person[] = [
   { status: 'active', roles: ['teacher'], campus: CB },
   { status: 'inactive', roles: ['teacher'] },
   { status: 'archived', roles: ['admin'] },
-  { status: 'active', roles: ['kiosk'] }, // 機台：三章都不算
+  { status: 'active', roles: ['kiosk'] }, // 機台：自己一桶
   { status: 'active', roles: ['admin'], org: OTHER }, // 別 org
 ];
 
 describe('GET /api/staff —— summary.byRole（#1314 ST1）', () => {
-  it('三章互斥：兼任歸管理員章、停用與封存一章、機台與別 org 不算', async () => {
+  it('四桶互斥、和＝total：兼任歸管理員章、機台自己一桶、別 org 不算', async () => {
     const { status, body } = await list(seed(people));
     expect(status).toBe(200);
-    expect(body.summary.byRole).toEqual({ admin: 2, teacher: 2, inactiveOrArchived: 2 });
+    expect(body.summary.byRole).toEqual({ admin: 2, teacher: 2, kiosk: 1, inactiveOrArchived: 2 });
+    const { admin, teacher, kiosk, inactiveOrArchived } = body.summary.byRole;
+    expect(admin + teacher + kiosk + inactiveOrArchived).toBe(body.summary.total);
     // 既有的重疊人次不動（開場副行要用）
     expect(body.summary.adminCount).toBe(3);
     expect(body.summary.teacherCount).toBe(4);
@@ -86,12 +88,12 @@ describe('GET /api/staff —— summary.byRole（#1314 ST1）', () => {
 
   it('不吃 status 篩選', async () => {
     const { body } = await list(seed(people), '/?status=inactive');
-    expect(body.summary.byRole).toEqual({ admin: 2, teacher: 2, inactiveOrArchived: 2 });
+    expect(body.summary.byRole).toEqual({ admin: 2, teacher: 2, kiosk: 1, inactiveOrArchived: 2 });
   });
 
   it('跟列表同一個分校範圍', async () => {
     const { body } = await list(seed(people), '/', [CB]);
-    expect(body.summary.byRole).toEqual({ admin: 0, teacher: 1, inactiveOrArchived: 0 });
+    expect(body.summary.byRole).toEqual({ admin: 0, teacher: 1, kiosk: 0, inactiveOrArchived: 0 });
   });
 
   // 陷阱：角色名單破千時（user_roles 全表沒有 org 欄、含家長），撈一頁就停會漏人
@@ -104,5 +106,45 @@ describe('GET /api/staff —— summary.byRole（#1314 ST1）', () => {
     const db = seed([{ status: 'active', roles: ['admin'] }], filler);
     const { body } = await list(db, '/', null, 1000);
     expect(body.summary.byRole.admin).toBe(1);
+  });
+
+  it('角色名單查詢失敗 → 500，不回 0', async () => {
+    const db = seed(people);
+    const failing = new Proxy(db.client as any, {
+      get(target, prop) {
+        if (prop !== 'from') return Reflect.get(target, prop);
+        // 只讓章節名單那支（唯一對 user_roles 翻頁的查詢）失敗；其餘 user_roles 查詢照常
+        return (table: string) => {
+          const real = target.from(table);
+          if (table !== 'user_roles') return real;
+          const wrap = (b: any): any =>
+            new Proxy(b, {
+              get(t, p) {
+                if (p === 'range')
+                  return () => ({
+                    then: (resolve: (v: unknown) => void) =>
+                      resolve({ data: null, error: { message: 'boom' } }),
+                  });
+                const v = Reflect.get(t, p);
+                return typeof v === 'function' ? (...args: unknown[]) => wrap(v.apply(t, args)) : v;
+              },
+            });
+          return wrap(real);
+        };
+      },
+    });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', failing);
+      set('orgId', ORG);
+      set('userId', 'admin-a');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', staffRoute as unknown as Hono);
+    expect((await app.request('/')).status).toBe(500);
   });
 });
