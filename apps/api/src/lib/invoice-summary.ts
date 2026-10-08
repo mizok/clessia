@@ -1,4 +1,4 @@
-import { isOverdueOn } from './invoice-overdue';
+import { DUE_SOON_DAYS, dueStateOn } from './invoice-overdue';
 import {
   deriveInvoiceStatus,
   invoiceTotals,
@@ -38,7 +38,13 @@ export interface InvoiceSummary {
     overrefunded: { count: number };
     void: { count: number };
   };
+  /**
+   * 未繳清的三章（#1314 P1），互斥、聯集＝ unpaid＋partial（`dueStateOn`）。
+   * `overdue` 語意不變；沒有到期日的落 `notDue`
+   */
   overdue: Bucket;
+  dueSoon: Bucket & { days: number };
+  notDue: Bucket;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收。比例由前端除 */
   month: { month: string; billed: number; received: number };
 }
@@ -54,6 +60,8 @@ export function summarizeInvoices(invoices: SummaryInvoice[], today: string): In
       void: { count: 0 },
     },
     overdue: { count: 0, outstanding: 0 },
+    dueSoon: { count: 0, outstanding: 0, days: DUE_SOON_DAYS },
+    notDue: { count: 0, outstanding: 0 },
     month: { month, billed: 0, received: 0 },
   };
 
@@ -66,10 +74,9 @@ export function summarizeInvoices(invoices: SummaryInvoice[], today: string): In
     if (isOpenInvoice(status)) {
       const owed = total - net;
       (summary.byStatus[status] as Bucket).outstanding += owed;
-      if (isOverdueOn(invoice.dueDate, today)) {
-        summary.overdue.count += 1;
-        summary.overdue.outstanding += owed;
-      }
+      const bucket = summary[dueStateOn(invoice.dueDate, today)];
+      bucket.count += 1;
+      bucket.outstanding += owed;
     }
     if (invoice.issuedAt.slice(0, 7) === month) {
       summary.month.billed += total;
