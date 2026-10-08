@@ -26,7 +26,7 @@ import { type MakeupCandidate, type Session, SessionsService } from '@core/sessi
 @Component({
   selector: 'app-session-makeup-dialog',
   imports: [FormsModule, ButtonModule, SelectModule],
-  // 沒有自己的 SCSS —— 版面全部用全域的 `session-op-form`（`styles.scss:1424`），
+  // 沒有自己的 SCSS —— 版面全部用全域的 `session-op-form`（`styles.css:1424`），
   // 跟其他課堂操作對話框一致。空的 SCSS 檔留著只會變成孤兒。
   templateUrl: './session-makeup-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

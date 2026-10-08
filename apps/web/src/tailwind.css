@@ -1,14 +1,14 @@
 /*
  * Tailwind 入口（#991 T0）。設計與每一行的理由：kb/wiki/architecture/tailwind-adoption.md
  *
- * 純 CSS，不放進 styles.scss —— Tailwind 4 不是設計來跟 Sass 一起用的。
- * tokens 的來源仍是 styles.scss 的 :root；這裡只引用、不另定值（c11），A24b gate 守映射。
+ * 純 CSS，不放進 styles.css —— Tailwind 4 不是設計來跟 Sass 一起用的。
+ * tokens 的來源仍是 styles.css 的 :root；這裡只引用、不另定值（c11），A24b gate 守映射。
  */
 
 /*
- * layer 順序。⚠️ PrimeNG 的 cssLayer.order 必須是這一行的前綴，styles.scss 也宣告同一行
+ * layer 順序。⚠️ PrimeNG 的 cssLayer.order 必須是這一行的前綴，styles.css 也宣告同一行
  * （harness A26 守三處一致）—— PrimeNG 把 layer-order 插在 <head> 最前面，順序由第一次出現決定。
- * legacy = styles.scss 的全域規則（#991 T4），夾在 primeng 與 utilities 之間。
+ * legacy = styles.css 的全域規則（#991 T4），夾在 primeng 與 utilities 之間。
  */
 @layer theme, base, primeng, legacy, utilities;
 
@@ -107,7 +107,7 @@
  *
  * `inline`：utility 直接寫 `var(--zinc-500)`，不經 Tailwind 的中介變數。
  * `reference`：**這些映射不輸出到 :root**。不加的話會輸出 `--text-xs: var(--text-xs)` 這種
- * 自我參照（實測），今天靠 styles.scss 未分層而贏，但哪天 :root 被包進 layer 就變成循環。
+ * 自我參照（實測），今天靠 styles.css 未分層而贏，但哪天 :root 被包進 layer 就變成循環。
  */
 @theme inline reference {
   --*: initial;

@@ -99,11 +99,11 @@
     [heightVar]="'--shell-layout-body-height'"
   >
     <!--
-      `.shell-content`：styles.scss 的 view-transition 與「停靠列留底」兩條規則掛在這個名字上；
+      `.shell-content`：styles.css 的 view-transition 與「停靠列留底」兩條規則掛在這個名字上；
       container `shell-content` 是 sessions／teacher schedule 的容器查詢斷點。
       內距只給還沒遷到 A6 的頁 —— 放了 <app-page-open> 的頁全寬出血，內距由頁面的 page-wrap 給。
       手機有停靠列（page-actions，position: fixed 貼底）時，底部留出它的高度，不然最後一列被蓋住。
-      這條原本在 styles.scss，T4 把它包進 legacy layer 之後就輸給元件樣式、一直沒生效。
+      這條原本在 styles.css，T4 把它包進 legacy layer 之後就輸給元件樣式、一直沒生效。
     -->
     <main
       class="shell-content @container/shell-content flex flex-1 flex-col overflow-y-auto bg-zinc-50 has-[app-page-open]:bg-white not-has-[app-page-open]:p-3 not-has-[app-page-open]:pb-[calc(8px+env(safe-area-inset-bottom,0px))] not-has-[app-page-open]:sm:p-8 max-[640.02px]:has-[.page-actions\_\_dock]:pb-[calc(var(--space-3)*2+44px+env(safe-area-inset-bottom,0px))]"

@@ -50,7 +50,7 @@ describe('PageActionsComponent', () => {
   //
   // 第一版我把佔位塊放在這個元件裡。**那是錯的**：元件宣告在頁面**標頭**，
   // 佔位塊放這裡保留的是標頭下方的空間，而要保留的是**頁尾**。
-  // 改由 `.shell-content:has(.page-actions__dock)` 在 styles.scss 處理。
+  // 改由 `.shell-content:has(.page-actions__dock)` 在 styles.css 處理。
   //
   // 這條測試釘的是「元件不要自作聰明再長回一塊」——
   // 它在錯的位置，加回來只會多出一段沒有作用的留白。

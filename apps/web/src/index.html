@@ -16,7 +16,7 @@
     開站畫面。Angular bootstrap 之後會把 <app-root> 的內容整個換掉，所以這段只活到
     第一次 render 為止 —— 刻意是純 HTML/CSS 零依賴，它要在任何 JS 下載完成之前就看得見。
 
-    色值是字面量而不是 var(--zinc-100) 之類：index.html 讀不到 styles.scss 的 token。
+    色值是字面量而不是 var(--zinc-100) 之類：index.html 讀不到 styles.css 的 token。
     在這裡重新宣告一次同名變數，讓「跟 token 一致」這件事至少有個對照點 —— 值變了要兩邊都改。
     底色必須跟 body 的 --zinc-100 一樣，否則 Angular 接手的那一刻會閃一下。
 

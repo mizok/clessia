@@ -57,7 +57,7 @@ tags: [architecture, design-system, tokens, animation]
 | `--zinc-600` | `#52525b`  | `#57504b`  |
 | `--zinc-900` | `#18181b`  | `#1a1614`  |
 
-（完整十階見 `apps/web/src/styles.scss`。這裡不抄全表 —— 手抄的清單會腐化，c11。）
+（完整十階見 `apps/web/src/styles.css`。這裡不抄全表 —— 手抄的清單會腐化，c11。）
 
 ### Accent：sky → 暖橘
 
