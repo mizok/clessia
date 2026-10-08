@@ -94,6 +94,8 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
   interface QueryRecord {
     readonly table: string;
     columns: string;
+    head?: boolean;
+    readonly eqs: Array<{ column: string; value: unknown }>;
     readonly ins: Array<{ column: string; values: string[] }>;
     readonly neqs: Array<{ column: string; value: string }>;
   }
@@ -101,17 +103,21 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
   function fakeSupabase(queries: QueryRecord[]) {
     return {
       from(table: string) {
-        const record: QueryRecord = { table, columns: '', ins: [], neqs: [] };
+        const record: QueryRecord = { table, columns: '', eqs: [], ins: [], neqs: [] };
         queries.push(record);
 
         const builder: Record<string, unknown> = {};
         const chain = () => builder as never;
         Object.assign(builder, {
-          select: (columns?: string) => {
+          select: (columns?: string, options?: { head?: boolean }) => {
             record.columns = columns ?? '';
+            record.head = options?.head;
             return chain();
           },
-          eq: () => chain(),
+          eq: (column: string, value: unknown) => {
+            record.eqs.push({ column, value });
+            return chain();
+          },
           neq: (column: string, value: string) => {
             record.neqs.push({ column, value });
             return chain();
@@ -202,6 +208,29 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     expect(queries.some((q) => q.table === 'enrollments')).toBe(false);
     const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
     expect(listQuery?.ins.some((call) => call.column === 'id')).toBe(false);
+  });
+
+  // #1338：上方統計要跟列表同一個範圍，否則受限管理員看到的是全 org 的人數。
+  // 交給 DB 數（head count），撈列回來數會被 max_rows（1000）靜默截斷
+  const summaryQueries = (queries: QueryRecord[]) =>
+    queries.filter((q) => q.table === 'parents' && q.head === true);
+
+  it('summary：每個狀態一支 head count，受限時都帶家長 id 條件', async () => {
+    const summary = summaryQueries(await listParents(['campus-1']));
+
+    expect(summary.map((q) => q.eqs.find((e) => e.column === 'status')?.value).sort()).toEqual([
+      'active',
+      'archived',
+      'inactive',
+    ]);
+    expect(summary.every((q) => q.ins.some((call) => call.column === 'id'))).toBe(true);
+  });
+
+  it('summary：不受限時不帶家長 id 條件', async () => {
+    const summary = summaryQueries(await listParents(null));
+
+    expect(summary).toHaveLength(3);
+    expect(summary.some((q) => q.ins.some((call) => call.column === 'id'))).toBe(false);
   });
 });
 
