@@ -98,12 +98,13 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     readonly eqs: Array<{ column: string; value: unknown }>;
     readonly ins: Array<{ column: string; values: string[] }>;
     readonly neqs: Array<{ column: string; value: string }>;
+    readonly orders: string[];
   }
 
   function fakeSupabase(queries: QueryRecord[]) {
     return {
       from(table: string) {
-        const record: QueryRecord = { table, columns: '', eqs: [], ins: [], neqs: [] };
+        const record: QueryRecord = { table, columns: '', eqs: [], ins: [], neqs: [], orders: [] };
         queries.push(record);
 
         const builder: Record<string, unknown> = {};
@@ -123,7 +124,10 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
             return chain();
           },
           or: () => chain(),
-          order: () => chain(),
+          order: (column: string) => {
+            record.orders.push(column);
+            return chain();
+          },
           range: () => chain(),
           ilike: () => chain(),
           in: (column: string, values: readonly string[]) => {
@@ -185,6 +189,14 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
 
     const without = await listParents(null);
     expect(without.find((q) => q.table === 'parents' && q.columns === '*')?.neqs).toEqual([]);
+  });
+
+  // #1314 PA1：前端依狀態分章，翻頁時每章要連續 —— 先依狀態（enum 宣告序
+  // active→inactive→archived）再依姓名。只排姓名的話同一頁啟用與停用混排。
+  it('列表先依 status 再依 name 排序（分章翻頁連續）', async () => {
+    const queries = await listParents(null);
+    const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
+    expect(listQuery?.orders).toEqual(['status', 'name']);
   });
 
   it('受限管理員：分校條件下到關聯的三層 embed，家長 id 條件下到 parents', async () => {

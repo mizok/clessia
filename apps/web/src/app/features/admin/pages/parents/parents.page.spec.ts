@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { Subject, of, throwError } from 'rxjs';
@@ -64,6 +65,7 @@ describe('ParentsPage', () => {
     await TestBed.configureTestingModule({
       imports: [ParentsPage],
       providers: [
+        provideRouter([]),
         // 這支 spec 原本**沒有任何 service mock**，於是元件打真的 HTTP。
         { provide: ParentsService, useValue: parentsServiceMock },
         { provide: MessageService, useValue: { add: vi.fn() } },
@@ -267,6 +269,94 @@ describe('ParentsPage', () => {
       config.data.onImported();
 
       expect(parentsServiceMock.list.mock.calls.length).toBe(listCalls + 1);
+    });
+  });
+  describe('#1314 PA1／PA2 分章與識別帳號', () => {
+    const mixed = (): ParentListResponse =>
+      ({
+        data: [
+          {
+            id: 'a1',
+            name: '王媽媽',
+            phone: '0912000111',
+            email: 'wang@example.com',
+            status: 'active',
+            studentCount: 2,
+            studentNames: ['小明', '小華'],
+            students: [
+              { id: 's1', name: '小明' },
+              { id: 's2', name: '小華' },
+            ],
+          },
+          {
+            id: 'a2',
+            name: '李媽媽',
+            phone: '0922333444',
+            email: null,
+            status: 'active',
+            studentCount: 0,
+            studentNames: [],
+            students: [],
+          },
+          {
+            id: 'i1',
+            name: '陳爸爸',
+            phone: null,
+            email: null,
+            status: 'inactive',
+            studentCount: 1,
+            studentNames: ['小美'],
+          },
+        ],
+        meta: { total: 3, page: 1, pageSize: 20, totalPages: 1 },
+        summary: { total: 9, activeCount: 6, inactiveCount: 3, archivedCount: 0 },
+      }) as unknown as ParentListResponse;
+
+    const load = () => {
+      pending[0].subject.next(mixed());
+      pending[0].subject.complete();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
+
+    it('依狀態分章：每章一個章頭，章名旁是 summary 的全量人數', () => {
+      const heads = [...load().querySelectorAll('th[scope="colgroup"]')].map((e) =>
+        (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      );
+      expect(heads).toEqual(['啟用中 6 位', '停用 3 位']);
+    });
+
+    it('搜尋中章名不帶人數（summary 不受搜尋影響），改顯示 meta.total', () => {
+      type('王');
+      vi.advanceTimersByTime(300);
+      pending.at(-1)!.subject.next(mixed());
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const heads = [...el.querySelectorAll('th[scope="colgroup"]')].map((e) =>
+        (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      );
+      expect(heads).toEqual(['啟用中', '停用']);
+      expect(el.textContent).toMatch(/顯示\s*3\s*位/);
+    });
+
+    it('Email 優先、沒有才用手機；兩者都沒有顯示破折號', () => {
+      const text = load().textContent ?? '';
+      expect(text).toContain('wang@example.com');
+      expect(text).not.toContain('0912000111');
+      expect(text).toContain('0922333444');
+    });
+
+    it('孩子名字連到學生檔案；列表沒帶 students 時退回純文字', () => {
+      const el = load();
+      const links = [...el.querySelectorAll('a[href]')].map((a) => [
+        a.textContent?.trim(),
+        a.getAttribute('href'),
+      ]);
+      expect(links).toEqual([
+        ['小明', '/admin/students/s1'],
+        ['小華', '/admin/students/s2'],
+      ]);
+      expect(el.textContent).toContain('小美');
     });
   });
 });

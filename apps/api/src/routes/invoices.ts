@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
@@ -6,6 +7,13 @@ import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
+import { getCampusScope } from '../lib/campus-scope';
+import {
+  enrollmentsInScope,
+  INVOICE_SCOPE_EMBED,
+  invoiceInScope,
+  studentInScope,
+} from '../lib/invoice-campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
 import { summarizeInvoices } from '../lib/invoice-summary';
@@ -92,6 +100,67 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const app = new OpenAPIHono<AppEnv>();
 
+/**
+ * 撈到底：每頁 1000（= `max_rows`）、翻到不足一頁為止 —— 一次撈會被 `max_rows` 靜默截斷。
+ * `page` 每次要回一支**新的** builder（照穩定排序切 range）。任一頁失敗就回 error，不回半套。
+ *
+ * ponytail: O(全部帳單) 每次呼叫 —— 上限是帳單總數；量大時升級成 DB 側 view／RPC（migration）。
+ */
+const PAGE = 1000;
+
+async function fetchAllPages(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<{ rows: Array<Record<string, unknown>>; error: unknown }> {
+  const rows: Array<Record<string, unknown>> = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) return { rows, error };
+    rows.push(...((data ?? []) as Array<Record<string, unknown>>));
+    if ((data ?? []).length < PAGE) return { rows, error: null };
+  }
+}
+
+/**
+ * 以 id 取一張帳單，**org 與分校範圍都套**（#1381）。範圍外跟不存在一樣回 null → 路由回 404
+ * （同 `findInOrg` 慣例：以 id 指名的單筆資源，不透露存在；計畫席 10-08 gate 裁定）。
+ */
+async function findScopedInvoice(
+  c: Context<AppEnv>,
+  id: string,
+  columns: string,
+): Promise<Record<string, unknown> | null> {
+  const select: string = columns + INVOICE_SCOPE_EMBED;
+  const { data } = await c
+    .get('supabase')
+    .from('invoices')
+    .select(select)
+    .eq('id', id)
+    .eq('org_id', c.get('orgId'))
+    .maybeSingle();
+  const row = (data as Record<string, unknown> | null) ?? null;
+  return row && invoiceInScope(row, getCampusScope(c)) ? row : null;
+}
+
+/**
+ * body 指名的報名，班在範圍外的有沒有（#1381）—— 否則受限者可以往自己看得到的單塞別校明細。
+ * 不受限時不查。查詢失敗丟（500），不折成「都在範圍內」。
+ */
+async function hasEnrollmentOutOfScope(
+  c: Context<AppEnv>,
+  enrollmentIds: readonly string[],
+): Promise<boolean> {
+  const scope = getCampusScope(c);
+  if (scope === null || enrollmentIds.length === 0) return false;
+  const { data, error } = await c
+    .get('supabase')
+    .from('enrollments')
+    .select('id, classes(campus_id)')
+    .eq('org_id', c.get('orgId'))
+    .in('id', [...new Set(enrollmentIds)]);
+  if (error) throw new Error(`hasEnrollmentOutOfScope failed: ${error.message}`);
+  return !enrollmentsInScope(data ?? [], scope);
+}
+
 // ============================================================
 // GET /api/invoices
 //
@@ -168,47 +237,61 @@ app.openapi(
     //   dueWithin    今天 <= due_date <= 今天+N   —— 快到期
     // **「未繳清」那一半三者共用**,所以下面只有一個 isOpenInvoice。
     const unpaidOnly = overdue || outstanding || dueWithinDays !== undefined;
+    // 分校範圍（#1381）在記憶體判（`lib/invoice-campus-scope.ts`），所以受限者也走推導路徑
+    const campusScope = getCampusScope(c);
     // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
-    const derivedFilter = unpaidOnly || Boolean(params.status);
+    const derivedFilter = unpaidOnly || Boolean(params.status) || campusScope !== null;
 
-    let query = supabase
-      .from('invoices')
-      .select(INVOICE_SELECT, derivedFilter ? undefined : { count: 'exact' })
-      .eq('org_id', orgId);
-    if (params.studentId) query = query.eq('student_id', params.studentId);
-    // 台北時間，不是 UTC —— 這是過濾條件不是預設值，算錯一天會讓整份清單的成員
-    // 錯位（在台北凌晨看繳費頁，一批帳單會被錯誤地列為逾期或錯誤地不列，
-    // 行政可能因此去催繳一個還沒到期的家長）。見 lib/taipei-date.ts 檔頭。
-    // 「過了到期日沒」這條判斷本身在 lib/invoice-overdue.ts —— 營收報表用的是同一支。
-    if (overdue) query = whereOverdue(query, getCurrentTaipeiDateString());
-    // **沒有到期日的帳單**（還沒發收費袋）:`outstanding` **含**、`overdue` 與
-    // `dueWithin` **不含**。使用者 2026-09-07 裁定 —— 帳單存在 = 這筆錢記下來了,
-    // 所以未繳清的統計要含它;但沒有到期日 = 還沒告訴家長什麼時候要繳,
-    // **去催一個你從沒通知過期限的人是錯的**。
-    // 機制上這不需要額外的分支:`outstanding` 沒有日期條件所以 NULL 那批通得過,
-    // 另外兩個用的比較對 NULL 回 NULL,那些列撈不出來。
-    if (dueWithinDays !== undefined) {
-      const today = getCurrentTaipeiDateString();
-      query = whereDueWithin(query, today, addDaysToDateString(today, dueWithinDays));
-    }
-    if (!derivedFilter) query = query.range((page - 1) * pageSize, page * pageSize - 1);
-
-    const { data, error, count } = await query.order('issued_at', { ascending: false });
-
-    if (error) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
-    }
-
-    const mapped = (data ?? []).map((row) =>
-      toInvoiceResponse(row as unknown as Record<string, unknown>),
-    );
+    const select: string =
+      campusScope === null ? INVOICE_SELECT : INVOICE_SELECT + INVOICE_SCOPE_EMBED;
+    const build = () => {
+      let query = supabase
+        .from('invoices')
+        .select(select, derivedFilter ? undefined : { count: 'exact' })
+        .eq('org_id', orgId);
+      if (params.studentId) query = query.eq('student_id', params.studentId);
+      // 台北時間，不是 UTC —— 這是過濾條件不是預設值，算錯一天會讓整份清單的成員
+      // 錯位（在台北凌晨看繳費頁，一批帳單會被錯誤地列為逾期或錯誤地不列，
+      // 行政可能因此去催繳一個還沒到期的家長）。見 lib/taipei-date.ts 檔頭。
+      // 「過了到期日沒」這條判斷本身在 lib/invoice-overdue.ts —— 營收報表用的是同一支。
+      if (overdue) query = whereOverdue(query, getCurrentTaipeiDateString());
+      // **沒有到期日的帳單**（還沒發收費袋）:`outstanding` **含**、`overdue` 與
+      // `dueWithin` **不含**。使用者 2026-09-07 裁定 —— 帳單存在 = 這筆錢記下來了,
+      // 所以未繳清的統計要含它;但沒有到期日 = 還沒告訴家長什麼時候要繳,
+      // **去催一個你從沒通知過期限的人是錯的**。
+      // 機制上這不需要額外的分支:`outstanding` 沒有日期條件所以 NULL 那批通得過,
+      // 另外兩個用的比較對 NULL 回 NULL,那些列撈不出來。
+      if (dueWithinDays !== undefined) {
+        const today = getCurrentTaipeiDateString();
+        query = whereDueWithin(query, today, addDaysToDateString(today, dueWithinDays));
+      }
+      return query.order('issued_at', { ascending: false });
+    };
 
     if (!derivedFilter) {
+      const { data, error, count } = await build().range(
+        (page - 1) * pageSize,
+        page * pageSize - 1,
+      );
+      if (error) return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+      const mapped = (data ?? []).map((row) =>
+        toInvoiceResponse(row as unknown as Record<string, unknown>),
+      );
       // DB 已經切好頁了 —— total 要拿 DB 的總數，不是這一頁的長度
       return c.json({ data: mapped, meta: { total: count ?? mapped.length, page, pageSize } }, 200);
     }
 
-    let rows = mapped;
+    // 推導路徑撈到底（原本一次撈，破千會被 max_rows 靜默截斷）；id 是同日開立時的穩定排序
+    const { rows: fetched, error } = await fetchAllPages((from, to) =>
+      build().order('id').range(from, to),
+    );
+    if (error) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+
+    let rows = fetched
+      .filter((row) => invoiceInScope(row, campusScope))
+      .map((row) => toInvoiceResponse(row));
     // 作廢單不在母體裡（#898）—— 它的 total − netPaid 是全額，放進來就是叫行政去催一張
     // 不存在的帳單。所以是 isOpenInvoice，不是 `!== 'paid'`
     if (unpaidOnly) rows = rows.filter((invoice) => isOpenInvoice(invoice.status));
@@ -223,14 +306,10 @@ app.openapi(
 // ============================================================
 // GET /api/invoices/summary —— 帳本頁的彙總（#1314 P1／P2）
 //
-// 狀態是推導值，DB 數不出來，所以撈回來用 lib/invoice-summary 加總。**撈到底**：
-// 每頁 1000（= max_rows）、照 id 排序翻到不足一頁為止 —— 一次撈會被 max_rows 靜默截斷。
-// ponytail: O(全部帳單) 每次載入；量大時升級成 SQL view／RPC（migration）。
-//
-// 分校範圍刻意不套：跟列表一致（列表也沒套），兩者一起由 #1381 補。
+// 狀態是推導值，DB 數不出來，所以撈回來用 lib/invoice-summary 加總。**撈到底**（`fetchAllPages`）。
+// 分校範圍跟列表同一支判準（#1381）。
 // 必須註冊在 `/{id}` 之前，否則 `summary` 會被當成 id 驗 uuid 回 400。
 // ============================================================
-const SUMMARY_PAGE = 1000;
 
 const BucketSchema = z.object({ count: z.number().int(), outstanding: z.number() });
 const CountSchema = z.object({ count: z.number().int() });
@@ -269,21 +348,16 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
 
-    const rows: Array<Record<string, unknown>> = [];
-    for (let from = 0; ; from += SUMMARY_PAGE) {
-      const { data, error } = await supabase
-        .from('invoices')
-        .select(
-          'id, issued_at, due_date, voided_at, invoice_items(amount), payment_records(kind, amount)',
-        )
-        .eq('org_id', orgId)
-        .order('id')
-        .range(from, from + SUMMARY_PAGE - 1);
-      // 撈一半失敗就不回半套數字
-      if (error) return c.json({ error: '查詢帳單彙總失敗', code: 'DB_ERROR' }, 500);
-      rows.push(...((data ?? []) as Array<Record<string, unknown>>));
-      if ((data ?? []).length < SUMMARY_PAGE) break;
-    }
+    const campusScope = getCampusScope(c);
+    const select: string =
+      'id, issued_at, due_date, voided_at, invoice_items(amount), payment_records(kind, amount)' +
+      (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
+    const { rows: fetched, error } = await fetchAllPages((from, to) =>
+      supabase.from('invoices').select(select).eq('org_id', orgId).order('id').range(from, to),
+    );
+    // 撈一半失敗就不回半套數字
+    if (error) return c.json({ error: '查詢帳單彙總失敗', code: 'DB_ERROR' }, 500);
+    const rows = fetched.filter((row) => invoiceInScope(row, campusScope));
 
     // postgrest 的 numeric 回來是字串
     const summary = summarizeInvoices(
@@ -328,12 +402,7 @@ app.openapi(
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
 
-    const { data } = await supabase
-      .from('invoices')
-      .select(INVOICE_SELECT)
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const data = await findScopedInvoice(c, id, INVOICE_SELECT);
 
     if (!data) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
@@ -398,25 +467,25 @@ app.openapi(
     // body 指名的學生與明細參照都要屬於本 org，而且要在寫入**之前**驗 ——
     // 先開帳再發現明細不對的話，回滾那一步失敗就會留下空殼（c1，#966 B4）
     const items = body.items ?? [];
-    const [student, foreignEnrollments, foreignPeriods] = await Promise.all([
-      findInOrg(supabase, 'students', orgId, body.studentId),
-      missingInOrg(
-        supabase,
-        'enrollments',
-        orgId,
-        items.flatMap((item) => (item.enrollmentId ? [item.enrollmentId] : [])),
-      ),
+    const itemEnrollmentIds = items.flatMap((item) =>
+      item.enrollmentId ? [item.enrollmentId] : [],
+    );
+    const [student, foreignEnrollments, foreignPeriods, outOfScope] = await Promise.all([
+      findInOrg(supabase, 'students', orgId, body.studentId, 'id, enrollments(classes(campus_id))'),
+      missingInOrg(supabase, 'enrollments', orgId, itemEnrollmentIds),
       missingInOrg(
         supabase,
         'billing_periods',
         orgId,
         items.flatMap((item) => (item.billingPeriodId ? [item.billingPeriodId] : [])),
       ),
+      hasEnrollmentOutOfScope(c, itemEnrollmentIds),
     ]);
-    if (!student) {
+    // 分校範圍外的學生跟不存在一樣（#1381）
+    if (!student || !studentInScope(student['enrollments'], getCampusScope(c))) {
       return c.json({ error: '學生不存在', code: 'STUDENT_NOT_FOUND' }, 404);
     }
-    if (foreignEnrollments.length > 0 || foreignPeriods.length > 0) {
+    if (foreignEnrollments.length > 0 || foreignPeriods.length > 0 || outOfScope) {
       return c.json({ error: '明細指名的報名或計費期不存在', code: 'REFERENCE_NOT_FOUND' }, 404);
     }
 
@@ -534,17 +603,15 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const { data: invoice } = await supabase
-      .from('invoices')
-      .select('id, voided_at')
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const invoice = await findScopedInvoice(c, id, 'id, voided_at');
 
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
     if (invoice['voided_at']) return c.json(VOIDED, 409);
+    if (await hasEnrollmentOutOfScope(c, body.enrollmentId ? [body.enrollmentId] : [])) {
+      return c.json({ error: '明細指名的報名不存在', code: 'REFERENCE_NOT_FOUND' }, 404);
+    }
 
     const { error } = await supabase.from('invoice_items').insert({
       invoice_id: id,
@@ -594,12 +661,7 @@ app.openapi(
     const userId = c.get('userId');
     const { id, itemId } = c.req.valid('param');
 
-    const { data: invoice } = await supabase
-      .from('invoices')
-      .select('id, voided_at')
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const invoice = await findScopedInvoice(c, id, 'id, voided_at');
 
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
@@ -670,12 +732,7 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const { data: invoice } = await supabase
-      .from('invoices')
-      .select('id, voided_at')
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const invoice = await findScopedInvoice(c, id, 'id, voided_at');
 
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
@@ -829,12 +886,7 @@ app.openapi(
     const { id } = c.req.valid('param');
     const { reason } = c.req.valid('json');
 
-    const { data: row } = await supabase
-      .from('invoices')
-      .select(INVOICE_SELECT)
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const row = await findScopedInvoice(c, id, INVOICE_SELECT);
 
     if (!row) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
@@ -953,12 +1005,7 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const { data: invoice } = await supabase
-      .from('invoices')
-      .select('id, voided_at')
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const invoice = await findScopedInvoice(c, id, 'id, voided_at');
 
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
@@ -1025,12 +1072,7 @@ app.openapi(
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
 
-    const { data: invoice } = await supabase
-      .from('invoices')
-      .select('id')
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const invoice = await findScopedInvoice(c, id, 'id');
 
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
