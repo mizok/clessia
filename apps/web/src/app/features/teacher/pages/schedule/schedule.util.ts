@@ -165,3 +165,34 @@ export function canWriteContactBook(
 ): boolean {
   return session.status !== 'cancelled' && session.usesContactBook;
 }
+
+/** 依開始時間排（沒有開始時間的排最後）。穩定排序，不改傳入的陣列 */
+export function sortByStart<T extends Pick<EventSessionSummary, 'startTime'>>(
+  sessions: readonly T[],
+): T[] {
+  return [...sessions].sort((a, b) =>
+    (a.startTime ?? '99:99').localeCompare(b.startTime ?? '99:99'),
+  );
+}
+
+/**
+ * 「接下來那堂」：今天第一堂**還沒上完**的課（#1314 TS1）。
+ *
+ * 上課中的課還沒上完，而它的開始時間比後面的課早，所以排序後取第一個未結束的，
+ * 就同時涵蓋「現在上課中」與「下一堂」，不用分兩種情況。停課不算 ——
+ * 它不會發生，放在首屏當「接下來」是在騙人。
+ *
+ * 「上完了沒」一律問 `hasSessionEnded`（同這個檔案開頭那條規則）。
+ * 呼叫端只傳**今天**的課；全上完了回 `null`。
+ */
+export function nextSession<
+  T extends Pick<EventSessionSummary, 'status' | 'eventDate' | 'startTime' | 'endTime'>,
+>(sessions: readonly T[], now: Date): T | null {
+  return (
+    sortByStart(sessions).find(
+      (s) =>
+        s.status !== 'cancelled' &&
+        !hasSessionEnded({ date: s.eventDate, startTime: s.startTime, endTime: s.endTime }, now),
+    ) ?? null
+  );
+}
