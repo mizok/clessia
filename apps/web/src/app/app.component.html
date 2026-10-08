@@ -1,10 +1,13 @@
-<div class="app" appWindowSize>
+<div class="h-window w-window" appWindowSize>
   <!-- 版本提示條。**刻意用純標記而不是元件** —— 這支檔案的註解寫著
        「不要再往 root component 加 UI 依賴」（曾經因為 DynamicDialog
        讓初始 bundle 多 140 kB）。這幾行的成本是零。 -->
   @if (version.isStale() || version.recoveryFailed()) {
-    <div class="app__version-bar" role="status">
-      <span class="app__version-text">
+    <div
+      class="fixed inset-x-0 top-0 z-[130] flex items-center justify-center gap-3 bg-warning-100 px-4 py-2 text-sm text-warning-800 shadow-sm"
+      role="status"
+    >
+      <span class="min-w-0">
         @if (version.recoveryFailed()) {
           重新載入後仍取得舊版本，請手動重新整理（Cmd/Ctrl + Shift + R）
         } @else {
@@ -12,7 +15,11 @@
         }
       </span>
       @if (!version.recoveryFailed()) {
-        <button type="button" class="app__version-action" (click)="version.reloadNow()">
+        <button
+          type="button"
+          class="-my-1.5 min-h-11 shrink-0 cursor-pointer rounded-md border border-solid border-warning-800 bg-transparent px-3 py-1 [font-family:inherit] text-[length:inherit] leading-[inherit] font-medium text-inherit hover:bg-warning-200 pointer-coarse:my-0"
+          (click)="version.reloadNow()"
+        >
           重新載入
         </button>
       }

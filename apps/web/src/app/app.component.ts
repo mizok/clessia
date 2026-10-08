@@ -15,7 +15,6 @@ import { AppVersionService } from '@core/app-version.service';
   selector: 'app-root',
   imports: [RouterOutlet, WindowSizeDirective],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.scss',
 })
 export class App {
   // 版本提示條是**唯一**掛在 root 的 UI。它沒有帶進任何依賴 ——
