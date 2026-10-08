@@ -98,7 +98,7 @@ export class ClassDetailPage implements OnInit {
     }
     if (e.status === 'suspended') {
       items.push({
-        label: '恢復在籍',
+        label: '恢復在學',
         icon: 'pi pi-unlock',
         command: () => this.changeStatus(e, 'active'),
       });
