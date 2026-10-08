@@ -1,4 +1,3 @@
-@use 'app/shared/breakpoints' as bp;
 
 /* =============================================================================
    Clessia Design Tokens
@@ -383,7 +382,8 @@
        已經自己蓋掉 max-width 的頁（courses 的 280px）不受影響。 */
     max-width: 100%;
 
-    @include bp.respond-from('tablet-portrait') {
+    // 768.02px 不是講究：避免跟 `max-width: 768px` 在正好 768px 時兩邊同時生效（原 respond-from 的 +0.02px）
+    @media (min-width: 768.02px) {
       max-width: 320px;
     }
   }
@@ -599,7 +599,7 @@
     }
 
     // Mobile responsiveness for Toast
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       width: calc(var(--window-width, 100vw) - 32px) !important;
       left: 16px !important;
       right: 16px !important;
@@ -669,7 +669,7 @@
       padding: var(--space-4) var(--space-6);
     }
 
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       max-width: calc(var(--window-width, 100vw) - var(--space-2) * 2);
 
       .p-dialog-header,
@@ -770,7 +770,7 @@
       }
     }
 
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       padding: var(--space-4);
     }
   }
@@ -786,7 +786,7 @@
       gap: var(--space-5);
       padding: var(--space-6);
 
-      @include bp.respond-to('mobile') {
+      @media (max-width: 640px) {
         padding: var(--space-4);
       }
     }
@@ -1159,7 +1159,7 @@
   .p-dialog.roster-sheet {
     max-height: calc(var(--window-height, 800px) * 0.85);
 
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       position: fixed;
       inset: auto 0 0;
       margin: 0;
@@ -1618,7 +1618,7 @@
     }
   }
 
-  @include bp.respond-to('tablet-portrait') {
+  @media (max-width: 768px) {
     .p-paginator .p-paginator-pages,
     .p-paginator .p-paginator-first,
     .p-paginator .p-paginator-last,
