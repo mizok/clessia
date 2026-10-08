@@ -116,7 +116,12 @@
             <app-data-chip>{{ EVENT_LABELS[row.event.kind] }}</app-data-chip>
           </td>
           <td appRtColCell="date">{{ row.event.date | date: 'MM/dd' }}</td>
-          <td appRtColCell="status">{{ STATUS_LABELS[row.enrollment.status] }}</td>
+          <td appRtColCell="status">
+            {{ STATUS_LABELS[row.enrollment.status] }}
+            @if (row.enrollment.statusReason) {
+              <span class="block text-sm text-zinc-600">{{ row.enrollment.statusReason }}</span>
+            }
+          </td>
           <td appRtColCell="campus">{{ row.enrollment.campusName ?? '—' }}</td>
           <td appRtColCell="updatedAt">{{ row.enrollment.updatedAt | date: 'MM/dd HH:mm' }}</td>
         </tr>
