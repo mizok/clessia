@@ -87,6 +87,8 @@ const InvoiceSchema = z
     voidReason: z.string().nullable(),
     items: z.array(InvoiceItemSchema),
     payments: z.array(PaymentRecordSchema),
+    /** 最近一次催繳（#1314 P3）。只有列表帶；沒催過是 null */
+    lastRemindedAt: z.string().nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -99,6 +101,22 @@ const ErrorSchema = z
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const app = new OpenAPIHono<AppEnv>();
+
+const LIST_REMINDERS_EMBED = ', payment_reminders(created_at)';
+
+/**
+ * 列表的一列：帳單本體＋最近一次催繳時間（#1314 P3，列內「提醒」鈕要它）。
+ * ponytail: 每張單的催繳全撈再取最大值（量級個位數）；上千筆時改 `referencedTable` 的 order＋limit 1。
+ */
+function toListedInvoice(row: Record<string, unknown>) {
+  const reminders = (row['payment_reminders'] as Array<{ created_at: string }> | null) ?? [];
+  // timestamptz 字串同格式同時區，字典序＝時間序
+  const lastRemindedAt = reminders.reduce<string | null>(
+    (latest, r) => (latest === null || r.created_at > latest ? r.created_at : latest),
+    null,
+  );
+  return { ...toInvoiceResponse(row), lastRemindedAt };
+}
 
 /**
  * 撈到底：每頁 1000（= `max_rows`）、翻到不足一頁為止 —— 一次撈會被 `max_rows` 靜默截斷。
@@ -242,8 +260,9 @@ app.openapi(
     // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
     const derivedFilter = unpaidOnly || Boolean(params.status) || campusScope !== null;
 
+    // 催繳時間只在管理端列表帶（#1314 P3）—— 不進共用的 INVOICE_SELECT，家長端也用它
     const select: string =
-      campusScope === null ? INVOICE_SELECT : INVOICE_SELECT + INVOICE_SCOPE_EMBED;
+      INVOICE_SELECT + LIST_REMINDERS_EMBED + (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
     const build = () => {
       let query = supabase
         .from('invoices')
@@ -275,7 +294,7 @@ app.openapi(
       );
       if (error) return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
       const mapped = (data ?? []).map((row) =>
-        toInvoiceResponse(row as unknown as Record<string, unknown>),
+        toListedInvoice(row as unknown as Record<string, unknown>),
       );
       // DB 已經切好頁了 —— total 要拿 DB 的總數，不是這一頁的長度
       return c.json({ data: mapped, meta: { total: count ?? mapped.length, page, pageSize } }, 200);
@@ -291,7 +310,7 @@ app.openapi(
 
     let rows = fetched
       .filter((row) => invoiceInScope(row, campusScope))
-      .map((row) => toInvoiceResponse(row));
+      .map((row) => toListedInvoice(row));
     // 作廢單不在母體裡（#898）—— 它的 total − netPaid 是全額，放進來就是叫行政去催一張
     // 不存在的帳單。所以是 isOpenInvoice，不是 `!== 'paid'`
     if (unpaidOnly) rows = rows.filter((invoice) => isOpenInvoice(invoice.status));
