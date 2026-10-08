@@ -76,6 +76,17 @@ const StaffListResponseSchema = z
       activeCount: z.number(),
       inactiveCount: z.number(),
       archivedCount: z.number(),
+      byRole: z
+        .object({
+          admin: z.number().int(),
+          teacher: z.number().int(),
+          kiosk: z.number().int(),
+          inactiveOrArchived: z.number().int(),
+        })
+        .openapi({
+          description:
+            '依角色分章的章節計數（#1314 ST1），四桶互斥、和＝total：在職且有 admin（兼老師的歸這章）／在職且只有 teacher／在職的掃碼機台（kiosk）／停用＋封存',
+        }),
     }),
     meta: z.object({
       total: z.number(),
@@ -89,12 +100,9 @@ const StaffListResponseSchema = z
 const CreateStaffSchema = z
   .object({
     displayName: z.string().min(1).max(100).openapi({ description: '姓名' }),
-    email: z
-      .email()
-      .optional()
-      .openapi({
-        description: 'Email（產生一次性登入連結時的查人鍵）；掃碼機台不給，由系統產生佔位值',
-      }),
+    email: z.email().optional().openapi({
+      description: 'Email（產生一次性登入連結時的查人鍵）；掃碼機台不給，由系統產生佔位值',
+    }),
     phone: z.string().max(30).nullable().optional().openapi({ description: '電話' }),
     birthday: DateStringSchema.nullable().optional().openapi({ description: '生日（YYYY-MM-DD）' }),
     notes: z.string().max(2000).nullable().optional().openapi({ description: '備註' }),
@@ -346,6 +354,8 @@ export function buildStaffSummary(
   };
 }
 
+const EMPTY_BY_ROLE = { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0 } as const;
+
 function emptyStaffSummary(): StaffSummary {
   return {
     total: 0,
@@ -356,6 +366,79 @@ function emptyStaffSummary(): StaffSummary {
     inactiveCount: 0,
     archivedCount: 0,
   };
+}
+
+/**
+ * `withSummaryFilters` 會用到的 builder 方法。泛型 `Q` 刻意不加約束、在裡面轉型 ——
+ * 拿 supabase-js 的 builder 去比對有約束的泛型會撞 TS2589（同 #1245 的 `inOrg` 長 select）
+ */
+interface StaffFilterable {
+  eq(column: string, value: unknown): StaffFilterable;
+  in(column: string, values: readonly unknown[]): StaffFilterable;
+  or(filters: string): StaffFilterable;
+  ilike(column: string, pattern: string): StaffFilterable;
+}
+
+/**
+ * 依角色分章的章節計數（#1314 ST1）。四桶互斥、和＝total：
+ * 在職且有 admin（**兼老師的歸管理員章** —— A6 `staff.html`：「身兼兩者的人列在管理員那章，
+ * 角色標兩個」）／在職且只有 teacher／在職的掃碼機台（kiosk 也是 staff 列，#1127；建立與 PUT 都
+ * 擋它跟別的角色並存，這裡仍排除 admin／teacher 以保互斥）／停用＋封存。
+ * 在職而三種角色都沒有的人不在任何一桶 —— 資料上不該存在（建人員一定帶角色）。跟既有 adminCount／teacherCount（重疊人次）不同，
+ * 那兩個給開場副行用，不動。
+ *
+ * 每章一支 head count 讓 DB 數 —— 撈 staff 列回來數會被 max_rows（1000）靜默截斷。
+ * 角色名單從 `user_roles` 撈（它沒有 org 欄、跟 staff 也沒有 FK 可 embed），交給 head count 的
+ * `.in('user_id')`；別 org 的 user_id 對不到本 org 的 staff，不影響計數。
+ * ponytail: 角色名單撈到底（每頁 1000），而 `.in()` 的 URL 長度上限約數百人；人員量級超過時改 RPC。
+ */
+async function countStaffByRole(
+  supabase: SupabaseClient,
+  withFilters: <Q>(q: Q) => Q,
+): Promise<
+  { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number } | { error: string }
+> {
+  const ids: Record<string, Set<string>> = {
+    admin: new Set(),
+    teacher: new Set(),
+    kiosk: new Set(),
+  };
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('user_id, role')
+      .in('role', ['admin', 'teacher', 'kiosk'])
+      .order('user_id')
+      .range(from, from + 999);
+    if (error) return { error: error.message };
+    for (const row of (data ?? []) as Array<{ user_id: string; role: string }>) {
+      ids[row.role]?.add(row.user_id);
+    }
+    if ((data ?? []).length < 1000) break;
+  }
+  const adminIds = [...ids['admin']!];
+  const teacherOnlyIds = [...ids['teacher']!].filter((id) => !ids['admin']!.has(id));
+  const kioskOnlyIds = [...ids['kiosk']!].filter(
+    (id) => !ids['admin']!.has(id) && !ids['teacher']!.has(id),
+  );
+
+  const head = () => supabase.from('staff').select('id', { count: 'exact', head: true });
+  const results = await Promise.all([
+    withFilters(head()).eq('status', 'active').in('user_id', adminIds),
+    withFilters(head()).eq('status', 'active').in('user_id', teacherOnlyIds),
+    withFilters(head()).eq('status', 'active').in('user_id', kioskOnlyIds),
+    withFilters(head()).in('status', ['inactive', 'archived']),
+  ]);
+  // 數不出來就不回 0
+  const failed = results.find((r) => r.error)?.error;
+  if (failed) return { error: failed.message };
+  const [admin, teacher, kiosk, inactiveOrArchived] = results.map((r) => r.count ?? 0) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  return { admin, teacher, kiosk, inactiveOrArchived };
 }
 
 async function checkUserIsAdmin(supabase: SupabaseClient, userId: string): Promise<boolean> {
@@ -531,6 +614,10 @@ const listRoute = createRoute({
         },
       },
     },
+    500: {
+      description: '章節計數失敗',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -602,7 +689,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
-        summary: emptyStaffSummary(),
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
         meta: {
           total: 0,
           page,
@@ -618,7 +705,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
-        summary: emptyStaffSummary(),
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
         meta: {
           total: 0,
           page,
@@ -634,7 +721,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
-        summary: emptyStaffSummary(),
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
         meta: {
           total: 0,
           page,
@@ -677,30 +764,24 @@ app.openapi(listRoute, async (c) => {
   dbQuery = dbQuery.order('created_at', { ascending: false });
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
-  // summary 不套用 status filter，永遠反映全機構（含封存）的真實總數
-  let summaryQuery = supabase.from('staff').select('user_id, status').eq('org_id', orgId);
-
-  if (query.search) {
-    if (matchingUserIds.length > 0) {
-      summaryQuery = summaryQuery.or(
-        `display_name.ilike.%${query.search}%,user_id.in.(${matchingUserIds.join(',')})`,
-      );
-    } else {
-      summaryQuery = summaryQuery.ilike('display_name', `%${query.search}%`);
+  // summary 不套用 status filter，永遠反映全機構（含封存）的真實總數。
+  // 章節計數（byRole）也走同一組篩選，兩者才不會對同一份名單給出兩個總數
+  const withSummaryFilters = <Q>(q: Q): Q => {
+    let next = (q as unknown as StaffFilterable).eq('org_id', orgId);
+    if (query.search) {
+      next =
+        matchingUserIds.length > 0
+          ? next.or(
+              `display_name.ilike.%${query.search}%,user_id.in.(${matchingUserIds.join(',')})`,
+            )
+          : next.ilike('display_name', `%${query.search}%`);
     }
-  }
-
-  if (filteredStaffIdsByCampus) {
-    summaryQuery = summaryQuery.in('id', filteredStaffIdsByCampus);
-  }
-
-  if (filteredStaffIdsBySubject) {
-    summaryQuery = summaryQuery.in('id', filteredStaffIdsBySubject);
-  }
-
-  if (filteredUserIdsByRole) {
-    summaryQuery = summaryQuery.in('user_id', filteredUserIdsByRole);
-  }
+    if (filteredStaffIdsByCampus) next = next.in('id', filteredStaffIdsByCampus);
+    if (filteredStaffIdsBySubject) next = next.in('id', filteredStaffIdsBySubject);
+    if (filteredUserIdsByRole) next = next.in('user_id', filteredUserIdsByRole);
+    return next as unknown as Q;
+  };
+  const summaryQuery = withSummaryFilters(supabase.from('staff').select('user_id, status'));
 
   // #949：主查詢與 summary 互不相依（summary 只用篩選條件，不用主查詢的結果）——
   // 同一輪發出去；兩邊各自的關聯（主查詢的 loadStaffRelations、summary 的角色）再一輪。
@@ -746,7 +827,12 @@ app.openapi(listRoute, async (c) => {
   );
 
   const typedSummaryRows = (summaryRows || []) as Array<{ user_id: string; status: string }>;
-  const summary = buildStaffSummary(typedSummaryRows, summaryRoleInfoMap);
+  const byRole = await countStaffByRole(supabase, withSummaryFilters);
+  if ('error' in byRole) {
+    // 數不出來是伺服器的事，不是請求錯 —— 同 courses 的 bySubject
+    return c.json({ error: byRole.error, code: 'DB_ERROR' }, 500);
+  }
+  const summary = { ...buildStaffSummary(typedSummaryRows, summaryRoleInfoMap), byRole };
 
   return c.json(
     {

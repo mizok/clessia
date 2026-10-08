@@ -22,6 +22,23 @@ type Filter = (row: Row) => boolean;
 const field = (row: Row, column: string): unknown =>
   column.split('.').reduce<unknown>((value, key) => (value as Row | null)?.[key], row);
 
+/**
+ * 巢狀欄位的所有值：路徑**中途**遇到陣列（一對多的 embed，例如 `students.enrollments`）就攤平。
+ * `eq`／`in` 任一個值符合即成立 —— 同 PostgREST 對 `a!inner(b!inner(c))` 下條件的語意
+ * （有任一筆子列符合，父列就留著）。**最後一層的陣列不攤**：那是欄位本身（jsonb 陣列），不是 embed。
+ */
+const fieldValues = (row: Row, column: string): unknown[] => {
+  const keys = column.split('.');
+  return keys.reduce<unknown[]>(
+    (values, key, i) =>
+      values.flatMap((value) => {
+        const next = (value as Row | null)?.[key];
+        return i < keys.length - 1 && Array.isArray(next) ? next : [next];
+      }),
+    [row],
+  );
+};
+
 interface Result {
   readonly data: unknown;
   readonly error: { readonly code: string; readonly message: string } | null;
@@ -167,7 +184,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       eq(column: string, value: unknown) {
-        filters.push((row) => field(row, column) === value);
+        filters.push((row) => fieldValues(row, column).some((v) => v === value));
         return proxy;
       },
       neq(column: string, value: unknown) {
@@ -175,7 +192,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       in(column: string, values: readonly unknown[]) {
-        filters.push((row) => values.includes(field(row, column)));
+        filters.push((row) => fieldValues(row, column).some((v) => values.includes(v)));
         return proxy;
       },
       limit(count: number) {

@@ -225,6 +225,25 @@ export interface CreateReminderInput {
   note?: string;
 }
 
+interface SummaryBucket {
+  count: number;
+  outstanding: number;
+}
+
+/** `GET /invoices/summary`（#1382）。金額與張數都由後端加總，前端只顯示 */
+export interface InvoiceSummary {
+  byStatus: {
+    unpaid: SummaryBucket;
+    partial: SummaryBucket;
+    paid: { count: number };
+    overrefunded: { count: number };
+    void: { count: number };
+  };
+  overdue: SummaryBucket;
+  /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
+  month: { month: string; billed: number; received: number };
+}
+
 @Injectable({ providedIn: 'root' })
 export class InvoicesService {
   private readonly http = inject(HttpClient);
@@ -232,6 +251,10 @@ export class InvoicesService {
 
   list(params?: InvoiceQueryParams): Observable<InvoiceListResponse> {
     return this.http.get<InvoiceListResponse>(this.endpoint, { params: toQuery(params) });
+  }
+
+  summary(): Observable<InvoiceSummary> {
+    return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`);
   }
 
   get(id: string): Observable<{ data: Invoice }> {

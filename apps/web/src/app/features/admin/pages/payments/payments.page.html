@@ -6,10 +6,52 @@
   （列表是伺服器分頁、沒有彙總 API、沒有上次提醒日），表格與分頁不動、只換外框。
 -->
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
-  <ng-container openSub>
-    開帳單、收款、看誰還沒繳。狀態由累計實收推導，逾期是額外的標記不是另一種狀態。
+  <ng-container openTitle>
+    @if (bandTitle(); as t) {
+      {{ t.line1 }}
+      @if (t.line2) {
+        <br />{{ t.line2 }}
+      }
+    } @else {
+      {{ page().label }}
+    }
   </ng-container>
+  <ng-container openSub>
+    @if (!summary()) {
+      開帳單、收款、看誰還沒繳。狀態由累計實收推導，逾期是額外的標記不是另一種狀態。
+    }
+  </ng-container>
+  @if (summary(); as s) {
+    @if (s.month.billed > 0) {
+      <div
+        class="mt-6 hidden max-w-[760px] wide:block"
+        role="img"
+        [attr.aria-label]="'已收 ' + receivedPct() + '%'"
+      >
+        <div
+          class="flex h-3.5 overflow-hidden rounded-full [box-shadow:inset_0_0_0_1.5px_var(--band-rule)]"
+        >
+          <span class="bg-band-ink" [style.width.%]="receivedPct()"></span>
+        </div>
+        <div
+          class="mt-2 flex justify-between text-[length:var(--text-md)] text-band-ink-muted tabular-nums"
+        >
+          <span
+            >已收
+            <strong class="font-semibold text-band-ink"
+              >NT$ {{ s.month.received | number }}</strong
+            ></span
+          >
+          <span
+            >還差
+            <strong class="font-semibold text-band-ink"
+              >NT$ {{ stillOwed() | number }}</strong
+            ></span
+          >
+        </div>
+      </div>
+    }
+  }
 </app-page-open>
 
 <div class="bg-zinc-100">
@@ -93,6 +135,144 @@
     >
       <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
     </app-empty-state>
+  } @else if (chapterMode()) {
+    <!-- 逾期章：永遠攤開（A6）。這張清單就是 `overdue=true` 的第 N 頁 -->
+    <section class="flex flex-col gap-3" aria-label="逾期">
+      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h2 class="m-0 text-2xl font-bold text-error-700">逾期</h2>
+        @if (summary(); as s) {
+          <p class="m-0 text-sm text-zinc-600 tabular-nums">
+            {{ s.overdue.count }} 張 · 待收 NT$ {{ s.overdue.outstanding | number }}
+          </p>
+        }
+      </div>
+      @if (invoices().length === 0) {
+        <p class="m-0 text-sm text-zinc-600">目前沒有過期又還沒繳清的帳單</p>
+      } @else {
+        <ul class="m-0 flex list-none flex-col p-0">
+          @for (invoice of invoices(); track invoice.id) {
+            <li class="border-b border-zinc-200">
+              <button
+                type="button"
+                class="grid min-h-11 w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-4 gap-y-0.5 border-0 bg-transparent px-1 py-3 text-left hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 wide:grid-cols-[1fr_10rem_8rem]"
+                [attr.aria-label]="(invoice.studentName ?? '未知學生') + ' 的帳單詳情'"
+                (click)="openDetail(invoice)"
+              >
+                <span class="font-semibold text-zinc-900">{{
+                  invoice.studentName ?? '未知學生'
+                }}</span>
+                <span
+                  class="col-span-2 row-start-2 font-semibold text-error-700 tabular-nums wide:col-span-1 wide:col-start-2 wide:row-start-1"
+                  >{{ dueText(invoice) }}</span
+                >
+                <span
+                  class="col-start-2 row-start-1 text-right font-semibold text-zinc-900 tabular-nums wide:col-start-3"
+                  >{{ chapterAmount(invoice) | number }}</span
+                >
+              </button>
+            </li>
+          }
+        </ul>
+        @if (totalRecords() > PAGE_SIZE) {
+          <p-paginator
+            [first]="pagination().first"
+            [rows]="PAGE_SIZE"
+            [totalRecords]="totalRecords()"
+            [showCurrentPageReport]="true"
+            currentPageReportTemplate="第 {currentPage} / {totalPages} 頁，共 {totalRecords} 張"
+            (onPageChange)="onChapterPage($event)"
+          />
+        }
+      }
+    </section>
+
+    <!-- 已繳清章：收著，展開才抓；多退併在這一章最前面 -->
+    <section class="border-t border-zinc-200 pt-2" aria-label="已繳清">
+      <button
+        type="button"
+        class="flex min-h-11 w-full cursor-pointer items-center justify-between gap-4 border-0 bg-transparent px-1 py-2 text-left hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500"
+        [attr.aria-expanded]="paidOpen()"
+        (click)="togglePaid()"
+      >
+        <span class="text-base font-semibold text-zinc-900">已繳清</span>
+        <span class="text-sm text-zinc-600 tabular-nums">
+          {{ paidChapterCount() }} 張
+          <i
+            class="pi ml-2"
+            [class.pi-chevron-down]="paidOpen()"
+            [class.pi-chevron-right]="!paidOpen()"
+            aria-hidden="true"
+          ></i>
+        </span>
+      </button>
+      @if (paidOpen()) {
+        @if (paidLoading()) {
+          <p class="m-0 px-1 py-3 text-sm text-zinc-600">載入中…</p>
+        } @else if (paidFailed()) {
+          <p class="m-0 px-1 py-3 text-sm text-zinc-600">
+            沒有讀到已繳清的帳單
+            <button
+              type="button"
+              class="ml-2 min-h-11 cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-accent-700 underline underline-offset-2"
+              (click)="loadPaid()"
+            >
+              重試
+            </button>
+          </p>
+        } @else {
+          <ul class="m-0 flex list-none flex-col p-0">
+            @for (invoice of paidRows(); track invoice.id) {
+              <li class="border-b border-zinc-200">
+                <button
+                  type="button"
+                  class="grid min-h-11 w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-4 gap-y-0.5 border-0 bg-transparent px-1 py-3 text-left hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 wide:grid-cols-[1fr_10rem_8rem]"
+                  [attr.aria-label]="(invoice.studentName ?? '未知學生') + ' 的帳單詳情'"
+                  (click)="openDetail(invoice)"
+                >
+                  <span class="font-semibold text-zinc-900">{{
+                    invoice.studentName ?? '未知學生'
+                  }}</span>
+                  <span
+                    class="col-span-2 row-start-2 tabular-nums wide:col-span-1 wide:col-start-2 wide:row-start-1"
+                    [class.font-semibold]="invoice.status === 'overrefunded'"
+                    [class.text-error-700]="invoice.status === 'overrefunded'"
+                    [class.text-zinc-600]="invoice.status !== 'overrefunded'"
+                    >{{ dueText(invoice) }}</span
+                  >
+                  <span
+                    class="col-start-2 row-start-1 text-right text-zinc-900 tabular-nums wide:col-start-3"
+                    >{{ chapterAmount(invoice) | number }}</span
+                  >
+                </button>
+              </li>
+            }
+          </ul>
+          @if (paidTotal() > PAGE_SIZE) {
+            <p-paginator
+              [first]="paidFirst()"
+              [rows]="PAGE_SIZE"
+              [totalRecords]="paidTotal()"
+              (onPageChange)="onPaidPage($event)"
+            />
+          }
+        }
+      }
+    </section>
+
+    @if (summary(); as s) {
+      @if (s.byStatus.void.count > 0) {
+        <p class="m-0 text-sm text-zinc-600">
+          另有 {{ s.byStatus.void.count }} 張已作廢 ·
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm font-semibold text-accent-700 underline underline-offset-2"
+            (click)="onStatusChange('void')"
+          >
+            顯示
+          </button>
+        </p>
+      }
+    }
   } @else if (invoices().length === 0) {
     @if (dueFilter() !== 'all') {
       <app-empty-state
