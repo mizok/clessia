@@ -1,5 +1,10 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../lib/taipei-date', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/taipei-date')>()),
+  getCurrentTaipeiDateString: () => '2026-10-08',
+}));
 
 import billingRoute from './billing';
 import { createChildDb } from '../../lib/child-db';
@@ -13,6 +18,9 @@ function chainable(resolve: () => { data: unknown; error: unknown; count?: numbe
     eq: () => obj,
     range: () => obj,
     order: () => obj,
+    lte: () => obj,
+    gte: () => obj,
+    limit: () => obj,
     then: (onfulfilled: (value: unknown) => unknown) =>
       Promise.resolve(resolve()).then(onfulfilled),
   };
@@ -94,6 +102,8 @@ const PAID_INVOICE = {
 function fakeChildDb(pageInvoices: unknown[], allInvoices: unknown[]) {
   return {
     orgPaymentInfo: async () => ({ paymentInfo: null, error: null }),
+    // #1314 PP1：本學期查 billing_periods —— 這組測試不看它，回沒有學期
+    orgRef: () => ({ select: () => chainable(() => ({ data: [], error: null })) }),
     from: () => ({
       pluck: async () => ({ rows: [], ids: [], error: null }),
       select: (_cols: string, opts?: { count?: string }) => {
@@ -285,5 +295,93 @@ describe('GET /api/me/billing —— meta.paymentInfo（#1073）', () => {
     const result = await run({ enrollments: [], classes: [], campuses: [] });
 
     expect(result.paymentInfo).toEqual([{ campusName: null, text: '機構：台銀 004' }]);
+  });
+});
+
+/**
+ * #1314 PP1：「本學期已繳」＝**明細掛在本期的帳單**的淨收（收款－退款）。
+ * 本期＝涵蓋台北今天的收費期間（重疊取開始日最晚的）；沒有就是 null。
+ * 不用收款日：開學前先繳的要算、期內補繳上一期欠款的不算（計畫席 10-08 10:13 裁）。
+ */
+describe('GET /api/me/billing —— meta.term（#1314 PP1）', () => {
+  const ORG = 'org-1';
+  const period = (id: string, start: string, end: string, org = ORG) => ({
+    id,
+    org_id: org,
+    name: `期 ${id}`,
+    start_date: start,
+    end_date: end,
+  });
+  const invoice = (
+    periodIds: string[],
+    payments: Array<{ kind: 'payment' | 'refund'; amount: number }>,
+    over: Record<string, unknown> = {},
+  ) => ({
+    id: `inv-${Math.random()}`,
+    org_id: ORG,
+    student_id: CHILD_ID,
+    issued_at: '2026-09-01',
+    voided_at: null,
+    invoice_items: periodIds.map((billing_period_id) => ({ amount: 5000, billing_period_id })),
+    payment_records: payments.map((p) => ({ ...p, paid_at: '2026-09-15' })),
+    ...over,
+  });
+
+  async function term(tables: Record<string, Record<string, unknown>[]>) {
+    const db = createMultiOrgDb({
+      organizations: [{ id: ORG, payment_info: null }],
+      enrollments: [],
+      billing_periods: [],
+      invoices: [],
+      ...tables,
+    });
+    const childDb = createChildDb(db.client as never, [CHILD_ID], ORG);
+    const res = await appWith(['parent'], [CHILD_ID], childDb).request(`/?childId=${CHILD_ID}`);
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { meta: { term: unknown } }).meta.term;
+  }
+
+  it('涵蓋今天的期：掛在本期的帳單淨收（退款扣回）；別期、作廢、兄弟姊妹的不算', async () => {
+    const result = await term({
+      billing_periods: [
+        period('now', '2026-09-01', '2027-01-31'),
+        period('prev', '2026-02-01', '2026-08-31'),
+      ],
+      invoices: [
+        invoice(
+          ['now'],
+          [
+            { kind: 'payment', amount: 5000 },
+            { kind: 'refund', amount: 1000 },
+          ],
+        ),
+        invoice(['now', 'prev'], [{ kind: 'payment', amount: 2000 }]),
+        invoice(['prev'], [{ kind: 'payment', amount: 5000 }]),
+        invoice(['now'], [], { voided_at: '2026-09-20T00:00:00Z' }),
+        invoice(['now'], [{ kind: 'payment', amount: 9999 }], { student_id: OTHER_CHILD_ID }),
+      ],
+    });
+    expect(result).toEqual({
+      name: '期 now',
+      startDate: '2026-09-01',
+      endDate: '2027-01-31',
+      paid: 6000,
+    });
+  });
+
+  it('重疊的期取開始日最晚的；別 org 的期不算', async () => {
+    const result = await term({
+      billing_periods: [
+        period('old', '2026-08-01', '2026-12-31'),
+        period('new', '2026-10-01', '2027-02-28'),
+        period('alien', '2026-10-05', '2027-03-31', 'org-2'),
+      ],
+    });
+    expect(result).toMatchObject({ name: '期 new', paid: 0 });
+  });
+
+  it('沒有涵蓋今天的期 → null', async () => {
+    const result = await term({ billing_periods: [period('later', '2026-11-01', '2027-01-31')] });
+    expect(result).toBeNull();
   });
 });
