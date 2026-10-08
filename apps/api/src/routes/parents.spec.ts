@@ -84,8 +84,8 @@ describe('toParentResponse', () => {
  * 只被指派一間分校的管理員看得到全機構家長的姓名與 email。
  *
  * 家長身上沒有 `campus_id`，所以範圍要走三跳：
- * `enrollments`（分校）→ `student_id` → `parent_student_relations` → `parent_id`，
- * 形狀照 `students.ts` 既有的做法（先撈 id 集合再 `.in('id', …)`）。
+ * `parent_student_relations` → `students` → `enrollments` → `classes.campus_id`（三層 `!inner`，
+ * #1374 起一支查詢；原本是先撈報名再撈關聯，兩支都吃 `max_rows`），再 `.in('id', …)` 縮家長清單。
  *
  * 斷言的是**送出去的查詢長什麼樣**，不是回傳值 —— 替身回固定 fixture，
  * 「有下條件」與「沒下條件」在回傳值上完全一樣。
@@ -187,17 +187,19 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     expect(without.find((q) => q.table === 'parents' && q.columns === '*')?.neqs).toEqual([]);
   });
 
-  it('受限管理員：分校條件下到 enrollments，家長 id 條件下到 parents', async () => {
+  it('受限管理員：分校條件下到關聯的三層 embed，家長 id 條件下到 parents', async () => {
     const queries = await listParents(['campus-1']);
 
-    // 第一跳：用他管的分校撈報名。**`classes.campus_id` 是巢狀欄位** ——
-    // select 必須是無條件的 `classes!inner`，否則就是 #815 那個洞
-    const enrollmentQuery = queries.find((q) => q.table === 'enrollments');
-    expect(enrollmentQuery?.ins).toContainEqual({
-      column: 'classes.campus_id',
+    // 範圍查詢：條件下在最底層的 `classes.campus_id` —— select 必須三層都是無條件的
+    // `!inner`，否則條件傳不上來、範圍外的關聯整列留著（#815 那個洞）
+    const scopeQuery = queries.find(
+      (q) => q.table === 'parent_student_relations' && q.columns.includes('classes!inner'),
+    );
+    expect(scopeQuery?.ins).toContainEqual({
+      column: 'students.enrollments.classes.campus_id',
       values: ['campus-1'],
     });
-    expect(enrollmentQuery?.columns).toContain('classes!inner');
+    expect(scopeQuery?.columns).toContain('students!inner(enrollments!inner(classes!inner(');
 
     // 最後一跳：家長清單真的被那組 id 縮限
     const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
@@ -207,7 +209,7 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
   it('不受分校限制時三跳都不做（確認上一條不是無腦通過）', async () => {
     const queries = await listParents(null);
 
-    expect(queries.some((q) => q.table === 'enrollments')).toBe(false);
+    expect(queries.some((q) => q.columns.includes('classes!inner'))).toBe(false);
     const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
     expect(listQuery?.ins.some((call) => call.column === 'id')).toBe(false);
   });
@@ -494,6 +496,7 @@ describe('POST /batch-check —— 範圍外的同名家長不具名、不可合
           or: () => chain(),
           order: () => chain(),
           limit: () => chain(),
+          range: () => chain(),
           ilike: () => chain(),
           maybeSingle: () => Promise.resolve({ data: null, error: null }),
           then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
