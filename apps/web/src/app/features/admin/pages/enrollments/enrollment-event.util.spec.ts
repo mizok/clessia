@@ -1,7 +1,7 @@
 import { toEnrollmentEvent } from './enrollment-event.util';
 
 describe('toEnrollmentEvent', () => {
-  it('在籍是新報名，日期看生效起日', () => {
+  it('在學是新報名，日期看生效起日', () => {
     expect(
       toEnrollmentEvent({ status: 'active', effectiveFrom: '2026-08-01', effectiveTo: null }),
     ).toEqual({ kind: 'joined', date: '2026-08-01' });
@@ -17,7 +17,7 @@ describe('toEnrollmentEvent', () => {
     ).toEqual({ kind: 'left', date: '2026-08-14' });
   });
 
-  it('失效是「作廢」不是退班，日期同樣看 effectiveTo', () => {
+  it('void（作廢）不是退班，日期同樣看 effectiveTo', () => {
     expect(
       toEnrollmentEvent({ status: 'void', effectiveFrom: '2026-02-01', effectiveTo: '2026-08-14' }),
     ).toEqual({ kind: 'voided', date: '2026-08-14' });
@@ -66,8 +66,8 @@ describe('toEnrollmentEvent', () => {
     ).toBe('joined');
   });
 
-  // 排定未來結束日的在籍生還沒離開 —— 用 effectiveTo 判斷會把他們誤標成退班
-  it('在籍但排了結束日，仍然算新報名', () => {
+  // 排定未來結束日的在學生還沒離開 —— 用 effectiveTo 判斷會把他們誤標成退班
+  it('在學但排了結束日，仍然算新報名', () => {
     expect(
       toEnrollmentEvent({
         status: 'active',

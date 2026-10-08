@@ -12,11 +12,11 @@ export type EnrollmentStatus = 'pending_payment' | 'active' | 'suspended' | 'wit
 export type BillingMode = 'monthly' | 'period' | 'session_pack';
 
 export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
-  pending_payment: '待付款',
-  active: '在籍',
+  pending_payment: '待繳費',
+  active: '在學',
   suspended: '暫停',
   withdrawal: '退班',
-  void: '失效',
+  void: '作廢',
 };
 
 export interface Enrollment {
