@@ -61,6 +61,10 @@ const EnrollmentSchema = z
     effectiveFrom: z.string(),
     effectiveTo: z.string().nullable(),
     notes: z.string().nullable(),
+    /** 最近一次狀態變更的台北日期（#1314 EN5）；舊資料為 null */
+    statusChangedAt: z.string().nullable(),
+    /** 那次變更的原因（暫停／退班／作廢）；恢復或舊資料為 null。**不再寫進 notes** */
+    statusReason: z.string().nullable(),
     createdBy: z.string().nullable(),
     createdByName: z.string().nullable(),
     createdAt: z.string(),
@@ -124,6 +128,7 @@ const UpdateEnrollmentSchema = z
 const UpdateEnrollmentStatusSchema = z
   .object({
     status: EnrollmentStatusSchema,
+    /** 狀態變更的原因，寫進 `status_reason`（#1314 EN5 起不再覆寫 `notes`） */
     notes: z.string().max(2000).optional(),
   })
   .openapi('UpdateEnrollmentStatus');
@@ -244,6 +249,8 @@ export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema>
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to ?? null,
     notes: row.notes ?? null,
+    statusChangedAt: row.status_changed_at ?? null,
+    statusReason: row.status_reason ?? null,
     createdBy: row.created_by ?? null,
     createdByName: row.creator?.name ?? null,
     createdAt: row.created_at,
@@ -654,7 +661,7 @@ app.openapi(
         created_by: userId,
       })
       .select(
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
@@ -750,7 +757,7 @@ app.openapi(
       .eq('id', id)
       .eq('org_id', orgId)
       .select(
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
@@ -837,12 +844,18 @@ app.openapi(
       return c.json({ error: 'INVALID_TRANSITION' }, 400);
     }
 
-    const updates: Record<string, unknown> = { status };
-    if (notes) updates['notes'] = notes;
+    // 原因寫獨立欄位，不覆寫 notes（#1314 EN5）—— notes 是行政自己的備註。
+    // 日期每次都寫：暫停沒有 effective_to 可落，這是它唯一的日期
+    const today = getCurrentTaipeiDateString();
+    const updates: Record<string, unknown> = {
+      status,
+      status_changed_at: today,
+      status_reason: notes?.trim() || null,
+    };
     if (['withdrawal', 'void'].includes(status)) {
       // 台北時間，不是 UTC —— 同一個理由：effective_to 也是 countEnrolledOn
       // 判斷在籍範圍的邊界，算錯一天會讓退班日跟實際操作日期對不上。
-      updates['effective_to'] = getCurrentTaipeiDateString();
+      updates['effective_to'] = today;
     }
 
     const { data, error } = await supabase
@@ -851,7 +864,7 @@ app.openapi(
       .eq('id', id)
       .eq('org_id', orgId)
       .select(
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 

@@ -3,22 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { buildPeriodFilter, buildSelect, sortColumn } from './list-query';
 
 describe('buildPeriodFilter', () => {
-  it('期間內新報名或退班都要抓到', () => {
+  it('期間內新報名、退班或暫停都要抓到', () => {
     expect(buildPeriodFilter('2026-08-01', '2026-08-31')).toBe(
       'and(effective_from.gte.2026-08-01,effective_from.lte.2026-08-31),' +
-        'and(effective_to.gte.2026-08-01,effective_to.lte.2026-08-31)',
+        'and(effective_to.gte.2026-08-01,effective_to.lte.2026-08-31),' +
+        'and(status.eq.suspended,status_changed_at.gte.2026-08-01,status_changed_at.lte.2026-08-31)',
     );
   });
 
-  it('只給起日時兩個欄位都只比起日', () => {
+  it('只給起日時每個欄位都只比起日', () => {
     expect(buildPeriodFilter('2026-08-01', undefined)).toBe(
-      'effective_from.gte.2026-08-01,effective_to.gte.2026-08-01',
+      'effective_from.gte.2026-08-01,effective_to.gte.2026-08-01,' +
+        'and(status.eq.suspended,status_changed_at.gte.2026-08-01)',
     );
   });
 
-  it('只給迄日時兩個欄位都只比迄日', () => {
+  it('只給迄日時每個欄位都只比迄日', () => {
     expect(buildPeriodFilter(undefined, '2026-08-31')).toBe(
-      'effective_from.lte.2026-08-31,effective_to.lte.2026-08-31',
+      'effective_from.lte.2026-08-31,effective_to.lte.2026-08-31,' +
+        'and(status.eq.suspended,status_changed_at.lte.2026-08-31)',
     );
   });
 

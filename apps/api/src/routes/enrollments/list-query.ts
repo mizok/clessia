@@ -18,7 +18,9 @@ function columnInRange(column: string, from?: string, to?: string): string | nul
 }
 
 /**
- * 期間內「發生過事情」的報名：這段期間開始生效（新報名），或這段期間結束（退班）。
+ * 期間內「發生過事情」的報名：這段期間開始生效（新報名）、這段期間結束（退班／作廢），
+ * 或這段期間被暫停（#1314 EN5：暫停不寫 effective_to，日期在 `status_changed_at`）。
+ * 暫停那項要配 `status=suspended` —— `status_changed_at` 是「最近一次」變更，恢復也會寫它。
  *
  * 回傳的字串直接餵給 PostgREST 的 `.or()`；沒有任何期間條件時回 null（代表不篩）。
  */
@@ -27,11 +29,16 @@ export function buildPeriodFilter(from?: string, to?: string): string | null {
   const ended = columnInRange('effective_to', from, to);
 
   if (!started || !ended) return null;
-  return `${started},${ended}`;
+  const suspendedOn = [
+    'status.eq.suspended',
+    ...(from ? [`status_changed_at.gte.${from}`] : []),
+    ...(to ? [`status_changed_at.lte.${to}`] : []),
+  ];
+  return `${started},${ended},and(${suspendedOn.join(',')})`;
 }
 
 const SELECT_COLUMNS =
-  'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at';
+  'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at';
 const SELECT_RELATIONS =
   '(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)';
 
