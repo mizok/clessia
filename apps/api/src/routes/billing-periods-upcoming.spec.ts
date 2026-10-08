@@ -22,10 +22,19 @@ const OTHER_ORG = 'org-2';
 
 async function get(tables: Record<string, Row[]>, opts: { maxRows?: number } = {}) {
   const db = createMultiOrgDb(tables);
+  // 記下查過哪些表（「沒有窗口內的期就不查報名與明細」要斷言的是沒查，不只是結果空）
+  const queried: string[] = [];
+  const base = opts.maxRows ? withMaxRows(db.client, opts.maxRows) : db.client;
+  const client = new Proxy(base as { from: (table: string) => unknown }, {
+    get: (target, prop) =>
+      prop === 'from'
+        ? (table: string) => (queried.push(table), target.from(table))
+        : Reflect.get(target, prop),
+  });
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
     const ctx = c as unknown as { set: (k: string, v: unknown) => void };
-    ctx.set('supabase', opts.maxRows ? withMaxRows(db.client, opts.maxRows) : db.client);
+    ctx.set('supabase', client);
     ctx.set('orgId', 'org-1');
     ctx.set('userId', 'user-1');
     ctx.set('roles', ['admin']);
@@ -34,7 +43,7 @@ async function get(tables: Record<string, Row[]>, opts: { maxRows?: number } = {
   });
   app.route('/api/billing-periods', billingPeriodsApp);
   const res = await app.request('/api/billing-periods/upcoming-unbilled');
-  return { res, body: (await res.json()) as { data: Array<Record<string, unknown>> } };
+  return { res, body: (await res.json()) as { data: Array<Record<string, unknown>> }, queried };
 }
 
 const period = (id: string, start: string, end: string) => ({
@@ -129,9 +138,11 @@ describe('GET /api/billing-periods/upcoming-unbilled（#1293）', () => {
     expect(body.data).toEqual([]);
   });
 
-  it('沒有窗口內的期 → 空陣列', async () => {
-    const { body } = await get({ billing_periods: [], enrollments: [enrollment()] });
+  it('沒有窗口內的期 → 空陣列，不查報名與明細', async () => {
+    const { body, queried } = await get({ billing_periods: [], enrollments: [enrollment()] });
     expect(body.data).toEqual([]);
+    expect(queried).toContain('billing_periods');
+    expect(queried.some((t) => t === 'enrollments' || t === 'invoice_items')).toBe(false);
   });
 
   it('明細經 invoices 篩本機構：別 org 的有效明細不算這期開過', async () => {
