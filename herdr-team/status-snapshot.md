@@ -22,13 +22,13 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-07 11:2x 第十六次部署，CI，labor-reviewer-20261004-0638）
+## 🚀 線上是哪一版（2026-10-08 11:3x 第十七次部署，CI，labor-reviewer-20261004-0638）
 
-**截線 `782785c1`**（#1262；`migrate @ 782785c1` apply 綠後 `deploy.yml` 自動觸發，run `37566649163`，11:25–11:26 台北，plan／deploy-api／verify-live success、**deploy-web skipped**＝本批只動 api）：api version `c28b68a8-c56b-4e69-aa62-16f2918222ec`（run log 的 `Current Version ID`）；web **沒有重發**，線上 `main-ZDXJBKGM.js` 是前一顆 run `37564053675`（`40f895e3`，#1334）發的。
-含：#1262（公開報名／試聽送出的防濫用：honeypot → 速率限制 → 可選 Turnstile，計數存 `public_applications.client_ip_hash`，只存 HMAC）；其餘窗口內 commit 是前端換版與 docs（那些由各自的 CI 部署帶上線，沒有單獨寫紀錄——第十五次沒寫）。
-**⓪**：窗口 `a51b0aa7..782785c1` 一支 migration `20261004055339_public_applications_rate_limit`，由 `migrate.yml` run `37566081829`（使用者 Approve）apply 綠已套，**先套完才部署**（api 會寫這欄也依它計數；插入帶不存在欄位會 500、計數查詢出錯在 #1262 的最後一顆 commit 起是 503 fail-closed）。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
-**部署驗證**（本席 11:27 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-ZDXJBKGM.js` ＝前一次 CI 的 BUILT；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的，不是整個 dist**）；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 308579 bytes）143 條路徑，`/api/public/enrollment-applications` 與 `/api/public/trial-applications` 的 POST 回應現在是 `201／400／404／429／500／503`（多了 429／503，對上 #1262）；`PUBLIC_ORG_SLUG` 仍沒設：公開 POST 回 404（fail-closed）。**限度**：我沒有打過真正的 429／503（正式環境公開頁關著，也不該去寫正式資料）；openapi 只證明服務正常、版本已換、守衛的回應型別在合約裡。
-**第十七批**：之後合進 main 的。**開公開頁之前**（`deploying.md`）：先設 `TURNSTILE_SECRET_KEY`（或確定不要），再把 `PUBLIC_ORG_SLUG` 放進 `env.production.vars`。
+**截線 `aff7c3b1`**（#1379；`migrate @ aff7c3b1` apply 綠後 `deploy.yml` 自動觸發，run `37722816566`，11:27–11:30 台北，plan／deploy-api／deploy-web／verify-live 全 success）：web `main-PXSR6HJC.js`（CI 發，`b100b44c.clessia.pages.dev`）、api version `7fdf2b09-2055-4db1-86f8-59eb919ba875`。**第十六次（`782785c1`）之後每顆 main 都由 CI 自動部署一次，中間各次沒有逐次寫紀錄。**
+含：#1379（報名 `status_changed_at`／`status_reason`，原因不再覆寫 notes），及窗口內其餘前端換版與後端小項（#1375／#1377／#1378／#1386 等）。
+**⓪**：窗口 `782785c1..aff7c3b1` 一支 migration `20261008020623_enrollment_status_change_fields`，由 `migrate.yml` run `37722528604`（使用者 Approve）apply 綠已套，**先套完才部署**（api 的 POST／PUT／PATCH status／list 的 select 都讀這兩欄）。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
+**部署驗證**（本席 11:31 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-PXSR6HJC.js`＝CI 輸出（verify-live BUILT＝BEFORE＝`main-PXSR6HJC.js`：本批的 web 輸出與前一次相同，意即前端 bundle 沒變）；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的**）；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 309999 bytes）143 條路徑；未登入 `GET /api/enrollments` 401。**限度**：沒有帶身分，所以『新欄位讀得到』（`GET /api/enrollments` 帶 `statusChangedAt`／`statusReason`）**沒有被實測**；openapi 證不了新程式碼上線，只證明服務正常、版本已換。
+**之後**：#1382（`GET /api/invoices/summary`，保留類：金額）待二讀；本席（reviewer 0638）Ctx 已過 80%，等輪替。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 🧭 10-07 收工狀態（計畫席 labor-plan-20261004-1110，10-07 17:43 寫）
