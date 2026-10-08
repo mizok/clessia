@@ -369,7 +369,7 @@
        已經自己蓋掉 max-width 的頁（courses 的 280px）不受影響。 */
     max-width: 100%;
 
-    // 768.02px 不是講究：避免跟 `max-width: 768px` 在正好 768px 時兩邊同時生效（原 respond-from 的 +0.02px）
+    /* 768.02px 不是講究：避免跟 `max-width: 768px` 在正好 768px 時兩邊同時生效（原 respond-from 的 +0.02px） */
     @media (min-width: 768.02px) {
       max-width: 320px;
     }
@@ -423,7 +423,7 @@
         opacity: 0.9;
       }
 
-      // Success - Green tones
+      /* Success - Green tones */
       &.p-toast-message-success {
         background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
         border-color: #bbf7d0;
@@ -434,7 +434,7 @@
         }
       }
 
-      // Error - Red tones
+      /* Error - Red tones */
       &.p-toast-message-error {
         background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
         border-color: #fecaca;
@@ -445,7 +445,7 @@
         }
       }
 
-      // Warning - Amber tones
+      /* Warning - Amber tones */
       &.p-toast-message-warn {
         background: linear-gradient(135deg, var(--warning-50) 0%, var(--warning-100) 100%);
         border-color: var(--warning-200);
@@ -456,7 +456,7 @@
         }
       }
 
-      // Info —— 用 accent token 而不是硬編碼色值，換色系時才會跟著走
+      /* Info —— 用 accent token 而不是硬編碼色值，換色系時才會跟著走 */
       &.p-toast-message-info {
         background: linear-gradient(135deg, var(--accent-50) 0%, var(--accent-100) 100%);
         border-color: var(--accent-400);
@@ -479,7 +479,7 @@
       }
     }
 
-    // Mobile responsiveness for Toast
+    /* Mobile responsiveness for Toast */
     @media (max-width: 640px) {
       width: calc(var(--window-width, 100vw) - 32px) !important;
       left: 16px !important;
@@ -523,7 +523,7 @@
       gap: var(--space-3);
     }
 
-    // Warning icon styling
+    /* Warning icon styling */
     .p-confirmdialog-icon {
       color: var(--warning-600);
       font-size: 1.5rem;
@@ -567,7 +567,7 @@
     --p-dialog-content-padding: var(--space-6) !important;
   }
 
-  // ---- Standard inline header with breadcrumb and close button ----
+  /* ---- Standard inline header with breadcrumb and close button ---- */
   .dialog-header-inline {
     display: flex;
     align-items: flex-start;
@@ -629,7 +629,7 @@
     }
   }
 
-  // ---- Canonical form dialog pattern ----
+  /* ---- Canonical form dialog pattern ---- */
   .form-dialog {
     display: flex;
     flex-direction: column;
@@ -720,16 +720,16 @@
       }
     }
 
-    // 動作列**必須釘在捲動容器底部**。這些 dialog 用 `showHeader: false`，
-    // 自己在內容裡畫動作列 —— 也就是說按鈕是**捲動內容的一部分**，不是固定的 chrome。
-    // 內容一長（新增班級加一個時段就夠），「建立」就被推到視窗外：
-    // 2026-09-02 實走實測，1504×695 下按鈕底部落在 723px，視窗只有 695。
-    //
-    // 注意這不是 max-height 沒生效 —— `.p-dialog` 的 615px 上限與 `.p-dialog-content`
-    // 的 `overflow-y: auto` 都正常運作。壞的只是動作列跟著內容一起捲走。
-    //
-    // `margin-top` 換成 padding：margin 的區域不會被背景繪製，內容捲到下面時
-    // 會從那道 8px 的縫裡透出來，看起來像破圖。
+    /* 動作列**必須釘在捲動容器底部**。這些 dialog 用 `showHeader: false`， */
+    /* 自己在內容裡畫動作列 —— 也就是說按鈕是**捲動內容的一部分**，不是固定的 chrome。 */
+    /* 內容一長（新增班級加一個時段就夠），「建立」就被推到視窗外： */
+    /* 2026-09-02 實走實測，1504×695 下按鈕底部落在 723px，視窗只有 695。 */
+    /* */
+    /* 注意這不是 max-height 沒生效 —— `.p-dialog` 的 615px 上限與 `.p-dialog-content` */
+    /* 的 `overflow-y: auto` 都正常運作。壞的只是動作列跟著內容一起捲走。 */
+    /* */
+    /* `margin-top` 換成 padding：margin 的區域不會被背景繪製，內容捲到下面時 */
+    /* 會從那道 8px 的縫裡透出來，看起來像破圖。 */
     &__footer {
       position: sticky;
       bottom: 0;
@@ -753,9 +753,9 @@
     }
   }
 
-  // Global PrimeNG Form Component Helpers
-  // p-select-label has hardcoded font-size: 1rem in PrimeNG source,
-  // so inheritance from wrapper doesn't work — override via helper class.
+  /* Global PrimeNG Form Component Helpers */
+  /* p-select-label has hardcoded font-size: 1rem in PrimeNG source, */
+  /* so inheritance from wrapper doesn't work — override via helper class. */
   .select-sm {
     width: 100%;
     --p-form-field-padding-y: var(--space-1);
@@ -766,7 +766,7 @@
     }
   }
 
-  // Override PrimeNG bottom drawer default height (10rem)
+  /* Override PrimeNG bottom drawer default height (10rem) */
   .p-drawer-bottom.drawer-auto {
     height: auto;
     max-height: calc(var(--window-height, 667px) * 0.8);
@@ -795,11 +795,11 @@
   /* =============================================================================
      Button Global Styles
      ============================================================================= */
-  // 主要按鈕。**這裡曾經硬寫成 zinc-900**，是 accent 還是天藍時的決定 ——
-  // 那個藍撐不起一顆實心按鈕，所以退回黑色。橘撐得起：`--accent-500` 這一階
-  // 就是為了「白字壓在上面」而定的（5.31:1），主按鈕是它唯一的理由。
-  // 覆寫留著而不是刪掉，是因為 PrimeNG 的 primary 還要服務 focus ring、
-  // 連結、選單等更淡的用途，兩者不共用同一階。
+  /* 主要按鈕。**這裡曾經硬寫成 zinc-900**，是 accent 還是天藍時的決定 —— */
+  /* 那個藍撐不起一顆實心按鈕，所以退回黑色。橘撐得起：`--accent-500` 這一階 */
+  /* 就是為了「白字壓在上面」而定的（5.31:1），主按鈕是它唯一的理由。 */
+  /* 覆寫留著而不是刪掉，是因為 PrimeNG 的 primary 還要服務 focus ring、 */
+  /* 連結、選單等更淡的用途，兩者不共用同一階。 */
   .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
       .p-button-success
     ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
@@ -825,28 +825,28 @@
     }
   }
 
-  // PrimeNG 全站的 disabled 樣式只有一條全域規則：`.p-component:disabled{opacity:
-  // var(--p-disabled-opacity)}`（0.6），跟按鈕原本是什麼顏色無關。對飽和色（例如
-  // 上面這階 accent-500，啟用時白字壓上去是 5.31:1）疊上 0.6 透明度、再跟白底混色，
-  // 算出來的有效背景只剩接近粉橘的淡色，白字對比掉到 ~2.6:1——字幾乎看不清，而且
-  // 看起來只是「同一顆按鈕變淡」，不是使用者期待的「灰階=按不了」。cursor 也還是
-  // PrimeNG 預設的 `default`，沒有 not-allowed 的提示。
-  //
-  // 改成跟 severity 脫鉤的灰階組合：不管原本是哪個顏色（primary/danger/secondary...），
-  // 停用時全部收斂成同一種「這現在按不了」的樣子。實心/outline/text 三種底色結構
-  // 不一樣，分開處理——套同一組實色背景會讓 outline/text 按鈕在停用時反而「長出」
-  // 一個原本沒有的填色。
-  //
-  // **這裡的 `!important` 是必要的，不是圖方便**：PrimeNG 把每個元件的樣式在執行期
-  // 動態插入 `<style>` 到 `<head>`，永遠排在這支全域 styles.scss 之後，選擇器優先度
-  // 打平時它必贏（`.p-skeleton` 那組覆寫也是同一個理由）。實測 `opacity`/`cursor`
-  // 不加 `!important` 完全沒生效，`.p-button:disabled{cursor:default}` 原封不動贏過來。
+  /* PrimeNG 全站的 disabled 樣式只有一條全域規則：`.p-component:disabled{opacity: */
+  /* var(--p-disabled-opacity)}`（0.6），跟按鈕原本是什麼顏色無關。對飽和色（例如 */
+  /* 上面這階 accent-500，啟用時白字壓上去是 5.31:1）疊上 0.6 透明度、再跟白底混色， */
+  /* 算出來的有效背景只剩接近粉橘的淡色，白字對比掉到 ~2.6:1——字幾乎看不清，而且 */
+  /* 看起來只是「同一顆按鈕變淡」，不是使用者期待的「灰階=按不了」。cursor 也還是 */
+  /* PrimeNG 預設的 `default`，沒有 not-allowed 的提示。 */
+  /* */
+  /* 改成跟 severity 脫鉤的灰階組合：不管原本是哪個顏色（primary/danger/secondary...）， */
+  /* 停用時全部收斂成同一種「這現在按不了」的樣子。實心/outline/text 三種底色結構 */
+  /* 不一樣，分開處理——套同一組實色背景會讓 outline/text 按鈕在停用時反而「長出」 */
+  /* 一個原本沒有的填色。 */
+  /* */
+  /* **這裡的 `!important` 是必要的，不是圖方便**：PrimeNG 把每個元件的樣式在執行期 */
+  /* 動態插入 `<style>` 到 `<head>`，永遠排在這支全域 styles.scss 之後，選擇器優先度 */
+  /* 打平時它必贏（`.p-skeleton` 那組覆寫也是同一個理由）。實測 `opacity`/`cursor` */
+  /* 不加 `!important` 完全沒生效，`.p-button:disabled{cursor:default}` 原封不動贏過來。 */
   .p-button:disabled {
     opacity: 1 !important;
     cursor: not-allowed !important;
-    // zinc-600 對 zinc-200：6.44:1。挑這一階不是「反正 disabled 不用管對比」——
-    // 目標本來就是「文字清楚可讀」，越好讀越貼近「一眼看出按不了」，沒有理由
-    // 只求壓線過 3:1。
+    /* zinc-600 對 zinc-200：6.44:1。挑這一階不是「反正 disabled 不用管對比」—— */
+    /* 目標本來就是「文字清楚可讀」，越好讀越貼近「一眼看出按不了」，沒有理由 */
+    /* 只求壓線過 3:1。 */
     color: var(--zinc-600) !important;
 
     &:not(.p-button-text):not(.p-button-outlined) {
@@ -991,10 +991,10 @@
       position: fixed;
       inset: auto 0 0;
       margin: 0;
-      // 貼著螢幕底緣，所以下面兩角不能是圓的
+      /* 貼著螢幕底緣，所以下面兩角不能是圓的 */
       border-radius: 16px 16px 0 0;
-      // PrimeNG 把 width 寫成 inline style（開啟時傳的 '480px'），
-      // 這是少數 !important 站得住腳的場合：覆蓋行內樣式沒有別的辦法
+      /* PrimeNG 把 width 寫成 inline style（開啟時傳的 '480px'）， */
+      /* 這是少數 !important 站得住腳的場合：覆蓋行內樣式沒有別的辦法 */
       width: 100% !important;
       max-width: none !important;
     }
@@ -1034,9 +1034,9 @@
     }
   }
 
-  // =============================================================================
-  // Detail Popup
-  // =============================================================================
+  /* ============================================================================= */
+  /* Detail Popup */
+  /* ============================================================================= */
 
   .session-detail {
     display: flex;
@@ -1049,16 +1049,16 @@
       gap: var(--space-2);
       flex-wrap: wrap;
 
-      // Push close button to the right
+      /* Push close button to the right */
       > p-button:last-child {
         margin-left: auto;
       }
     }
   }
 
-  // =============================================================================
-  // Operation Forms (Cancel / Substitute / Reschedule dialogs)
-  // =============================================================================
+  /* ============================================================================= */
+  /* Operation Forms (Cancel / Substitute / Reschedule dialogs) */
+  /* ============================================================================= */
 
   .session-op-form {
     display: flex;
@@ -1126,17 +1126,17 @@
     }
   }
 
-  // =============================================================================
+  /* ============================================================================= */
 
-  // =============================================================================
-  // Import Dialog — shared block used by parent-import-dialog & student-excel-import-dialog
-  // =============================================================================
+  /* ============================================================================= */
+  /* Import Dialog — shared block used by parent-import-dialog & student-excel-import-dialog */
+  /* ============================================================================= */
   .import-dialog {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
 
-    // ---- Step 1: Upload zone ----
+    /* ---- Step 1: Upload zone ---- */
     &__upload-area {
       display: flex;
       flex-direction: column;
@@ -1232,7 +1232,7 @@
       }
     }
 
-    // ---- Step 2: Summary bar ----
+    /* ---- Step 2: Summary bar ---- */
     &__summary {
       display: flex;
       align-items: center;
@@ -1256,7 +1256,7 @@
       }
     }
 
-    // ---- Footer buttons ----
+    /* ---- Footer buttons ---- */
     &__footer {
       margin-top: var(--space-2);
       display: flex;
@@ -1268,7 +1268,7 @@
       }
     }
 
-    // ---- Step 3: Full-page loading ----
+    /* ---- Step 3: Full-page loading ---- */
     &__loading {
       min-height: 220px;
       display: flex;
@@ -1284,7 +1284,7 @@
       color: var(--zinc-500);
     }
 
-    // ---- Step 4: Result ----
+    /* ---- Step 4: Result ---- */
     &__result {
       display: flex;
       flex-direction: column;
@@ -1354,7 +1354,7 @@
       white-space: nowrap;
     }
 
-    // Muted variant for "skipped/failed" stats
+    /* Muted variant for "skipped/failed" stats */
     &__result-stat--muted &__result-stat-value {
       color: var(--zinc-500);
     }
