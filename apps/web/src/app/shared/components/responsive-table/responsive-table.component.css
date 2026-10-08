@@ -1,21 +1,22 @@
 /*
  * responsive-table 的全域樣式（#991 Z12：由 .scss 以 sass 原樣編出的純 CSS，沒有 utility 化）。
  *
- * - `ViewEncapsulation.None`、**刻意保持未分層**：帶 class 的元素不在這個元件的模板裡——`__cell`／`__header-cell`／
- *   `__row` 由三支 directive 以 HostBinding 掛、展開鈕／詳情列由 rt-row.directive 動態建 DOM、另有 5 個消費頁的模板
- *   自己寫 `<td class="responsive-table__cell …">`。未分層意味著它贏過所有 layer 內的 utility；搬進 layer 會讓消費頁
- *   `td` 上原本被它蓋掉的 utility（例如 leave 的 `py-8`）第一次生效。
- * - 斷點量的是**容器**不是視窗：`@container responsive-table (min-width: 768.02px)`（= `_breakpoints.scss` 的
- *   tablet-portrait ＋ 0.02px，手機優先）；`(max-width: 768px)` 是窄版才追加的分頁器樣式，刻意沒翻面。
+ * - `ViewEncapsulation.None`。**整份在 `@layer legacy` 裡**（#991 T4 剩餘項）：低於 `utilities`，所以消費頁 `td`
+ *   上的 utility（leave 的 `py-8 text-zinc-500` 等）會生效；在這之前它是未分層，贏過所有 layer 內的 utility。
+ *   帶 class 的元素不在這個元件的模板裡——`__cell`／`__header-cell`／`__row` 由三支 directive 以 HostBinding 掛、
+ *   展開鈕／詳情列由 rt-row.directive 動態建 DOM、另有 5 個消費頁的模板自己寫 `<td class="responsive-table__cell …">`。
+ * - 斷點量的是**容器**不是視窗：`@container responsive-table (min-width: 768.02px)`（手機優先，768 ＋ 0.02px）；
+ *   `(max-width: 768px)` 是窄版才追加的分頁器樣式，刻意沒翻面。
  * - `@media (pointer: coarse)`：44px 觸控目標——展開鈕畫小、命中區 44；資料列是 `<tr>`，`min-height` 對 table-row 不生效，
  *   唯一能抬高列的是儲存格內距（36.5px → 44.5px，只在觸控下，滑鼠下的密度是刻意的）。
- * - 開頭的 `:host { display:block; min-width:0 }` 在 None 下不會命中任何元素（從未生效，**原樣保留**以維持「編譯輸出逐字相同」；要不要刪是之後的事）。
+ * - 開頭的 `:host { display:block; min-width:0 }` 在 None 下不會命中任何元素（從未生效，原樣保留）。
  */
 @charset "UTF-8";
-/* =============================================================================
+@layer legacy {
+  /* =============================================================================
    Breakpoints & Media Queries
    ============================================================================= */
-/**
+  /**
  * **手機優先的斷點。** 跟上面的 `respond-to` 相反：以手機為基準，往大螢幕加強。
  *
  * 2026-09 使用者裁定全站改成手機優先。既有的 41 支 SCSS 用的是 `respond-to`
@@ -27,252 +28,252 @@
  * 而哪一個贏取決於原始碼順序 —— 那是會在真機上才發現的 bug。
  * 加 0.02 讓兩者互斥，且不動既有 `respond-to` 的任何行為。
  */
-:host {
-  display: block;
-  min-width: 0;
-}
-
-.responsive-table {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  container-type: inline-size;
-  container-name: responsive-table;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid var(--zinc-200);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--zinc-50) 72%, var(--color-white)) 0%,
-    var(--color-white) 28%
-  );
-  box-shadow: var(--shadow-sm);
-}
-.responsive-table__viewport {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--zinc-400) 70%, transparent) transparent;
-}
-.responsive-table__viewport::-webkit-scrollbar {
-  height: 10px;
-  width: 10px;
-}
-.responsive-table__viewport::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: var(--radius-full);
-  background-clip: content-box;
-  background-color: color-mix(in srgb, var(--zinc-400) 72%, transparent);
-}
-.responsive-table__table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: transparent;
-}
-.responsive-table__head .responsive-table__header-cell {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--zinc-200);
-  background: color-mix(in srgb, var(--color-white) 90%, var(--accent-50));
-  color: var(--zinc-600);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  line-height: var(--leading-tight);
-  text-align: left;
-  white-space: nowrap;
-}
-.responsive-table__row {
-  transition:
-    background-color var(--transition-fast),
-    box-shadow var(--transition-fast);
-}
-.responsive-table__row:nth-child(odd) .responsive-table__cell,
-.responsive-table__row:nth-child(odd) .responsive-table__expand-cell {
-  background: color-mix(in srgb, var(--zinc-50) 65%, var(--color-white));
-}
-.responsive-table__cell {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--zinc-200);
-  color: var(--rt-cell-color, var(--zinc-700));
-  font-size: var(--text-md);
-  line-height: var(--leading-normal);
-  background: var(--rt-cell-bg, transparent);
-  vertical-align: middle;
-}
-.responsive-table__row:hover .responsive-table__cell,
-.responsive-table__row:hover .responsive-table__expand-cell {
-  background: color-mix(in srgb, var(--accent-50) 48%, var(--color-white));
-}
-.responsive-table__expand-cell {
-  width: 48px;
-  min-width: 48px;
-  padding: var(--space-2);
-  text-align: center;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--zinc-200);
-}
-.responsive-table__expand-header {
-  width: 40px;
-  min-width: 40px;
-  padding: var(--space-1);
-  border-bottom: 1px solid var(--zinc-200);
-  background: color-mix(in srgb, var(--color-white) 90%, var(--accent-50));
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  vertical-align: middle;
-}
-.responsive-table__expand-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--zinc-300);
-  border-radius: var(--radius-full);
-  color: var(--zinc-700);
-  background: color-mix(in srgb, var(--color-white) 88%, var(--zinc-50));
-  transition:
-    background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    color var(--transition-fast),
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast);
-}
-.responsive-table__expand-button:hover {
-  border-color: var(--accent-500);
-  color: var(--accent-600);
-  background: color-mix(in srgb, var(--accent-50) 62%, var(--color-white));
-  transform: translateY(-1px);
-}
-.responsive-table__expand-button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent-500) 45%, transparent);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-100) 60%, transparent);
-}
-.responsive-table__expand-button[aria-expanded='true'] {
-  border-color: var(--accent-500);
-  color: var(--accent-600);
-  background: color-mix(in srgb, var(--accent-100) 68%, var(--color-white));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-100) 60%, transparent);
-}
-.responsive-table__expand-icon {
-  font-size: 0.75rem;
-  transition: transform var(--transition-fast);
-}
-.responsive-table__detail-row {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent-50) 60%, var(--color-white)) 0%,
-    color-mix(in srgb, var(--zinc-50) 70%, var(--color-white)) 100%
-  );
-}
-.responsive-table__detail-cell {
-  padding: var(--space-3);
-  border-top: 1px solid var(--zinc-200);
-  border-bottom: 1px solid var(--zinc-200);
-}
-.responsive-table__detail-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-}
-.responsive-table__detail-item {
-  display: grid;
-  grid-template-columns: minmax(74px, auto) minmax(0, 1fr);
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--accent-100) 75%, var(--zinc-200));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-white) 86%, var(--accent-50));
-}
-.responsive-table__detail-label {
-  color: var(--zinc-500);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  margin: 0;
-  display: flex;
-  align-items: center;
-}
-.responsive-table__detail-value {
-  color: var(--zinc-800);
-  font-size: var(--text-md);
-  line-height: var(--leading-normal);
-  overflow-wrap: anywhere;
-  margin: 0;
-}
-.responsive-table__detail-value > * {
-  margin: 0;
-}
-.responsive-table__paginator {
-  border-top: 1px solid var(--zinc-100);
-  background: var(--zinc-50);
-}
-.responsive-table__paginator .p-paginator {
-  border: 0;
-  border-radius: 0;
-  padding: var(--space-3) var(--space-4);
-  background: transparent;
-}
-@media (prefers-reduced-motion: reduce) {
-  .responsive-table__row,
-  .responsive-table__expand-button,
-  .responsive-table__expand-icon {
-    transition: none;
+  :host {
+    display: block;
+    min-width: 0;
   }
-}
 
-@container responsive-table (min-width: 768.02px) {
-  .responsive-table__head .responsive-table__header-cell,
+  .responsive-table {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    container-type: inline-size;
+    container-name: responsive-table;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--zinc-50) 72%, var(--color-white)) 0%,
+      var(--color-white) 28%
+    );
+    box-shadow: var(--shadow-sm);
+  }
+  .responsive-table__viewport {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--zinc-400) 70%, transparent) transparent;
+  }
+  .responsive-table__viewport::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .responsive-table__viewport::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: var(--radius-full);
+    background-clip: content-box;
+    background-color: color-mix(in srgb, var(--zinc-400) 72%, transparent);
+  }
+  .responsive-table__table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: transparent;
+  }
+  .responsive-table__head .responsive-table__header-cell {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--zinc-200);
+    background: color-mix(in srgb, var(--color-white) 90%, var(--accent-50));
+    color: var(--zinc-600);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-tight);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .responsive-table__row {
+    transition:
+      background-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+  .responsive-table__row:nth-child(odd) .responsive-table__cell,
+  .responsive-table__row:nth-child(odd) .responsive-table__expand-cell {
+    background: color-mix(in srgb, var(--zinc-50) 65%, var(--color-white));
+  }
   .responsive-table__cell {
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--zinc-200);
+    color: var(--rt-cell-color, var(--zinc-700));
+    font-size: var(--text-md);
+    line-height: var(--leading-normal);
+    background: var(--rt-cell-bg, transparent);
+    vertical-align: middle;
   }
-  .responsive-table__expand-cell,
-  .responsive-table__expand-header {
+  .responsive-table__row:hover .responsive-table__cell,
+  .responsive-table__row:hover .responsive-table__expand-cell {
+    background: color-mix(in srgb, var(--accent-50) 48%, var(--color-white));
+  }
+  .responsive-table__expand-cell {
     width: 48px;
     min-width: 48px;
-    padding: var(--space-3) var(--space-2);
+    padding: var(--space-2);
+    text-align: center;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--zinc-200);
+  }
+  .responsive-table__expand-header {
+    width: 40px;
+    min-width: 40px;
+    padding: var(--space-1);
+    border-bottom: 1px solid var(--zinc-200);
+    background: color-mix(in srgb, var(--color-white) 90%, var(--accent-50));
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    vertical-align: middle;
   }
   .responsive-table__expand-button {
-    width: 30px;
-    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--zinc-300);
+    border-radius: var(--radius-full);
+    color: var(--zinc-700);
+    background: color-mix(in srgb, var(--color-white) 88%, var(--zinc-50));
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast),
+      color var(--transition-fast),
+      transform var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+  .responsive-table__expand-button:hover {
+    border-color: var(--accent-500);
+    color: var(--accent-600);
+    background: color-mix(in srgb, var(--accent-50) 62%, var(--color-white));
+    transform: translateY(-1px);
+  }
+  .responsive-table__expand-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent-500) 45%, transparent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-100) 60%, transparent);
+  }
+  .responsive-table__expand-button[aria-expanded='true'] {
+    border-color: var(--accent-500);
+    color: var(--accent-600);
+    background: color-mix(in srgb, var(--accent-100) 68%, var(--color-white));
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-100) 60%, transparent);
+  }
+  .responsive-table__expand-icon {
+    font-size: 0.75rem;
+    transition: transform var(--transition-fast);
+  }
+  .responsive-table__detail-row {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-50) 60%, var(--color-white)) 0%,
+      color-mix(in srgb, var(--zinc-50) 70%, var(--color-white)) 100%
+    );
   }
   .responsive-table__detail-cell {
-    padding: var(--space-4);
+    padding: var(--space-3);
+    border-top: 1px solid var(--zinc-200);
+    border-bottom: 1px solid var(--zinc-200);
+  }
+  .responsive-table__detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
   }
   .responsive-table__detail-item {
-    grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
-    gap: var(--space-3);
-  }
-}
-@container responsive-table (max-width: 768px) {
-  .responsive-table__paginator .p-paginator {
-    justify-content: center;
+    display: grid;
+    grid-template-columns: minmax(74px, auto) minmax(0, 1fr);
     gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid color-mix(in srgb, var(--accent-100) 75%, var(--zinc-200));
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-white) 86%, var(--accent-50));
   }
-  .responsive-table__paginator .p-paginator-current {
-    margin-left: 0;
-    font-size: var(--text-sm);
+  .responsive-table__detail-label {
     color: var(--zinc-500);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    margin: 0;
+    display: flex;
+    align-items: center;
   }
-}
-@media (pointer: coarse) {
-  .responsive-table__expand-cell,
-  .responsive-table__expand-header {
-    width: 44px;
-    min-width: 44px;
-    padding: 0;
+  .responsive-table__detail-value {
+    color: var(--zinc-800);
+    font-size: var(--text-md);
+    line-height: var(--leading-normal);
+    overflow-wrap: anywhere;
+    margin: 0;
   }
-  .responsive-table {
-    /* 44px 是**觸控目標**，不是這顆鈕該有的視覺尺寸（#848）。
+  .responsive-table__detail-value > * {
+    margin: 0;
+  }
+  .responsive-table__paginator {
+    border-top: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+  }
+  .responsive-table__paginator .p-paginator {
+    border: 0;
+    border-radius: 0;
+    padding: var(--space-3) var(--space-4);
+    background: transparent;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .responsive-table__row,
+    .responsive-table__expand-button,
+    .responsive-table__expand-icon {
+      transition: none;
+    }
+  }
+
+  @container responsive-table (min-width: 768.02px) {
+    .responsive-table__head .responsive-table__header-cell,
+    .responsive-table__cell {
+      padding: var(--space-3) var(--space-4);
+    }
+    .responsive-table__expand-cell,
+    .responsive-table__expand-header {
+      width: 48px;
+      min-width: 48px;
+      padding: var(--space-3) var(--space-2);
+    }
+    .responsive-table__expand-button {
+      width: 30px;
+      height: 30px;
+    }
+    .responsive-table__detail-cell {
+      padding: var(--space-4);
+    }
+    .responsive-table__detail-item {
+      grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
+      gap: var(--space-3);
+    }
+  }
+  @container responsive-table (max-width: 768px) {
+    .responsive-table__paginator .p-paginator {
+      justify-content: center;
+      gap: var(--space-2);
+    }
+    .responsive-table__paginator .p-paginator-current {
+      margin-left: 0;
+      font-size: var(--text-sm);
+      color: var(--zinc-500);
+    }
+  }
+  @media (pointer: coarse) {
+    .responsive-table__expand-cell,
+    .responsive-table__expand-header {
+      width: 44px;
+      min-width: 44px;
+      padding: 0;
+    }
+    .responsive-table {
+      /* 44px 是**觸控目標**，不是這顆鈕該有的視覺尺寸（#848）。
        原本圓框、底色、陰影全部跟著放大到 44 —— 使用者的字是
        「太大顆把列撐醜」，而列高只有 44.5px，等於一顆圓鈕佔掉整列
        （掃描 A 量到 ratio 0.67~0.98，payments / reports / contact-book 幾乎是 1.0）。
@@ -280,33 +281,34 @@
        改成**看得見的部分縮到 chevron、摸得到的部分維持 44** ——
        多出來的 18px 是透明內距，命中區一格都沒少。
        AAA 2.5.5 要的是目標尺寸，它從來沒有要求那個目標要畫出來。 */
-  }
-  .responsive-table__expand-button {
-    width: 44px;
-    height: 44px;
-    border: 0;
-    border-radius: 0;
-    background: none;
-    box-shadow: none;
-  }
-  .responsive-table {
-    /* 展開狀態靠 icon 自己換（`pi-chevron-right` ↔ `pi-chevron-down`），
+    }
+    .responsive-table__expand-button {
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+    }
+    .responsive-table {
+      /* 展開狀態靠 icon 自己換（`pi-chevron-right` ↔ `pi-chevron-down`），
        不靠邊框與底色 —— 那兩者在這個分支已經沒有了。
        這也順手讓狀態不再只由顏色承載。 */
-  }
-  .responsive-table__expand-button[aria-expanded='true'] {
-    border-color: transparent;
-    background: none;
-    box-shadow: none;
-  }
-  .responsive-table__expand-button:hover {
-    background: none;
-    transform: none;
-  }
-  .responsive-table__expand-icon {
-    font-size: 1.5rem;
-  }
-  .responsive-table__cell {
-    padding-block: var(--space-3);
+    }
+    .responsive-table__expand-button[aria-expanded='true'] {
+      border-color: transparent;
+      background: none;
+      box-shadow: none;
+    }
+    .responsive-table__expand-button:hover {
+      background: none;
+      transform: none;
+    }
+    .responsive-table__expand-icon {
+      font-size: 1.5rem;
+    }
+    .responsive-table__cell {
+      padding-block: var(--space-3);
+    }
   }
 }
