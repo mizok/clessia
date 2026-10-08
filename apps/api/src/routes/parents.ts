@@ -248,6 +248,8 @@ app.openapi(
       .from('parents')
       .select('*', { count: 'exact' })
       .eq('org_id', orgId)
+      // 先依狀態（enum 宣告序 active→inactive→archived）：前端依狀態分章，翻頁時章才連續（#1314 PA1）
+      .order('status')
       .order('name');
 
     // 空清單也是條件 —— `.in(col, [])` 實測是零筆而不是「沒有條件」

@@ -2,7 +2,8 @@
 
 <!--
   A6 版（#991）：色面 → 灰工具列（搜尋、狀態、新增、匯入）→ 統計列 → 家長表格。
-  換版不換資料：A6 稿的「依狀態分章」要全量資料（列表是伺服器分頁），其餘差異列後續項（#1314 PA1–PA8）。
+  PA1：依狀態分章（章頭是表格裡的一列；後端先依狀態再依姓名排，翻頁章才連續）。
+  PA2：Email／手機合一欄、孩子名字連到學生檔案。其餘差異列後續項（#1314）。
 -->
 <app-page-open>
   <ng-container openTitle>{{ page().label }}</ng-container>
@@ -117,6 +118,12 @@
   } @else {
     <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
+    @if (narrowed()) {
+      <p class="m-0 text-sm text-zinc-600">
+        顯示 <strong class="text-zinc-900 tabular-nums">{{ shownTotal() }}</strong> 位
+      </p>
+    }
+
     <app-responsive-table
       [headTemplate]="headTpl"
       [bodyTemplate]="bodyTpl"
@@ -140,12 +147,12 @@
     <ng-template #headTpl>
       <tr>
         <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
-        <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">手機</th>
-        <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">Email</th>
-        <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
+        <th appRtColDef="ident" [appRtColDefMinWidth]="200" [appRtColDefPriority]="2">
+          Email／手機
+        </th>
+        <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">
           關聯學生
         </th>
-        <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
         <th
           appRtColDef="actions"
           [appRtColDefMinWidth]="56"
@@ -157,7 +164,23 @@
     </ng-template>
 
     <ng-template #bodyTpl>
-      @for (parent of parents(); track parent.id) {
+      @for (parent of parents(); track parent.id; let i = $index) {
+        @if (startsChapter(i)) {
+          <tr class="bg-zinc-50">
+            <th
+              colspan="99"
+              scope="colgroup"
+              class="px-4 py-3 text-left text-sm font-semibold text-zinc-900"
+            >
+              {{ chapterLabels[parent.status] }}
+              @if (chapterTally(parent.status) !== null) {
+                <span class="ml-2 font-normal text-zinc-600 tabular-nums"
+                  >{{ chapterTally(parent.status) }} 位</span
+                >
+              }
+            </th>
+          </tr>
+        }
         <tr
           appRtRow
           [appRtRow]="parent"
@@ -177,38 +200,33 @@
               >
             </div>
           </td>
-          <td appRtColCell="phone">
-            @if (parent.phone) {
-              <span class="text-[0.8125rem] text-zinc-600">{{ parent.phone }}</span>
-            } @else {
-              <span class="text-sm text-zinc-500 italic">—</span>
-            }
-          </td>
-          <td appRtColCell="email">
-            @if (parent.email) {
-              <span class="text-[0.8125rem] text-zinc-600">{{ parent.email }}</span>
+          <td appRtColCell="ident">
+            @if (identOf(parent); as ident) {
+              <span class="text-[0.8125rem] text-zinc-600">{{ ident }}</span>
             } @else {
               <span class="text-sm text-zinc-500 italic">—</span>
             }
           </td>
           <td appRtColCell="students">
             @if (parent.studentCount > 0) {
-              <span class="flex flex-wrap gap-1">
-                @for (name of parent.studentNames; track name) {
-                  <span
-                    class="inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-zinc-700"
-                    >{{ name }}</span
-                  >
+              <span class="flex flex-wrap gap-x-3 gap-y-1">
+                @if (parent.students; as kids) {
+                  @for (kid of kids; track kid.id) {
+                    <a
+                      [routerLink]="['/admin/students', kid.id]"
+                      class="inline-flex min-h-11 items-center text-sm font-medium text-accent-700 underline underline-offset-2"
+                      >{{ kid.name }}</a
+                    >
+                  }
+                } @else {
+                  @for (name of parent.studentNames; track name) {
+                    <span class="text-sm text-zinc-700">{{ name }}</span>
+                  }
                 }
               </span>
             } @else {
               <span class="text-sm text-zinc-500 italic">無關聯</span>
             }
-          </td>
-          <td appRtColCell="status">
-            <app-status-dot [tone]="statusTone(parent.status)">{{
-              getStatusLabel(parent.status)
-            }}</app-status-dot>
           </td>
           <td class="responsive-table__cell" style="text-align: center">
             <p-button
