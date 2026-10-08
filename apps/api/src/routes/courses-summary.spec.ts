@@ -94,4 +94,45 @@ describe('GET /api/courses —— summary.bySubject（#1314 C1）', () => {
     expect(counts((await list('/', [CA])).body)).toEqual({ 國文: 2, 數學: 1, 美術: 0 });
     expect(counts((await list(`/?campusId=${CB}`)).body)).toEqual({ 國文: 1, 數學: 0, 美術: 0 });
   });
+
+  // 數不出來不回 0（「國文 0 門」會誤導）—— 只讓章節計數那支（courses 的 head count）失敗
+  it('章節計數失敗 → 500', async () => {
+    const db = seed();
+    const failing = new Proxy(db.client as any, {
+      get(target, prop) {
+        if (prop !== 'from') return Reflect.get(target, prop);
+        return (table: string) => {
+          const real = target.from(table);
+          if (table !== 'courses') return real;
+          return new Proxy(real, {
+            get(t, p) {
+              if (p !== 'select') return Reflect.get(t, p);
+              return (cols: string, opts?: { head?: boolean }) => {
+                const chain = t.select(cols, opts);
+                if (!opts?.head) return chain;
+                const b: Record<string, unknown> = {};
+                for (const m of ['eq', 'in']) b[m] = () => b;
+                b['then'] = (resolve: (v: unknown) => void) =>
+                  resolve({ data: null, count: null, error: { message: 'boom' } });
+                return b;
+              };
+            },
+          });
+        };
+      },
+    });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', failing);
+      set('orgId', ORG);
+      set('userId', 'admin-a');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', coursesApp as unknown as Hono);
+    expect((await app.request('/')).status).toBe(500);
+  });
 });
