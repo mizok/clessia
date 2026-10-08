@@ -33,6 +33,7 @@
  * 只掃已遷移的目錄，死 class 留在未遷移的頁上照舊無效，整頁重寫時自然消失。
  */
 
+@source './app/app.component.html';
 @source './app/shared/components/select-field';
 @source './app/shared/components/page-open';
 @source './app/shared/components/campus-scope-note';
@@ -184,7 +185,7 @@
  * 不能 inline 的：`--spacing` 是乘數，元件 CSS（@reference）引用時要拿得到全域變數，
  * 不然會靜靜用 Tailwind 的 0.25rem fallback（#995 第 7 條）。static = 一定輸出。
  * 斷點與容器尺寸被上面的 `--*: initial` 一起清掉了，要重新宣告：
- * 斷點沿用 Tailwind 名稱（正好等於 _breakpoints.scss 的 640／768／1024／1280）；
+ * 斷點沿用 Tailwind 名稱（正好等於原 _breakpoints.scss（#991 S-b 已刪）的 640／768／1024／1280）；
  * 容器用專案的名稱（Tailwind 預設的 @sm 是 24rem，跟專案不同）。都寫 px，不依賴 root font-size。
  */
 @theme static {

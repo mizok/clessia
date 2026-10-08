@@ -1,4 +1,3 @@
-@use 'app/shared/breakpoints' as bp;
 
 /* =============================================================================
    Clessia Design Tokens
@@ -273,19 +272,6 @@
 }
 
 @layer legacy {
-  .session-filters-panel .p-multiselect-header {
-    padding: var(--space-2) var(--space-3) var(--space-1);
-  }
-
-  .session-filters-panel .p-multiselect-filter-container,
-  .session-filters-panel app-ime-filter-input {
-    width: 100%;
-  }
-
-  .session-filters-panel .p-multiselect-list-container {
-    padding-top: 0;
-  }
-
   .clessia-filter-bar {
     display: flex;
     flex-wrap: wrap;
@@ -383,7 +369,8 @@
        已經自己蓋掉 max-width 的頁（courses 的 280px）不受影響。 */
     max-width: 100%;
 
-    @include bp.respond-from('tablet-portrait') {
+    // 768.02px 不是講究：避免跟 `max-width: 768px` 在正好 768px 時兩邊同時生效（原 respond-from 的 +0.02px）
+    @media (min-width: 768.02px) {
       max-width: 320px;
     }
   }
@@ -393,112 +380,6 @@
     width: 100%;
     min-height: 38px;
     font-size: var(--text-md);
-  }
-
-  /* =============================================================================
-     Tooltip Styles
-     ============================================================================= */
-  .clessia-tooltip.p-tooltip {
-    pointer-events: none;
-    --clessia-tooltip-arrow-size: 6px;
-    --p-tooltip-gutter: var(--clessia-tooltip-arrow-size);
-    --p-tooltip-background: var(--zinc-700);
-    --p-tooltip-color: #fff;
-    transform-origin: 50% 0%;
-    transform: scale(1);
-    transition-property: transform;
-    transition-duration: var(--clessia-tooltip-enter-duration, 180ms);
-    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-    will-change: transform;
-    backface-visibility: hidden;
-    border: none;
-  }
-
-  .clessia-tooltip.p-tooltip.clessia-tooltip--pre-enter {
-    transform: scale(0.8);
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-bottom {
-    margin-top: 4px;
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-top {
-    margin-bottom: 4px;
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-top {
-    transform-origin: center bottom;
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-left {
-    transform-origin: right center;
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-right {
-    transform-origin: left center;
-  }
-
-  .clessia-tooltip.p-tooltip .p-tooltip-text {
-    max-width: 220px;
-    padding: var(--space-2) var(--space-3);
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    line-height: var(--leading-normal);
-    color: var(--p-tooltip-color);
-    background: var(--p-tooltip-background);
-    box-shadow: 0 10px 24px rgb(2 6 23 / 28%);
-    opacity: 1;
-    transition: opacity var(--clessia-tooltip-enter-duration, 180ms) cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .clessia-tooltip.p-tooltip.clessia-tooltip--pre-enter .p-tooltip-text {
-    opacity: 0;
-  }
-
-  .clessia-tooltip.p-tooltip .p-tooltip-arrow {
-    border-color: transparent;
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-top .p-tooltip-arrow {
-    border-top-color: var(--p-tooltip-background);
-    border-bottom-color: var(--p-tooltip-background);
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-bottom .p-tooltip-arrow {
-    border-top-color: var(--p-tooltip-background);
-    border-bottom-color: var(--p-tooltip-background);
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-left .p-tooltip-arrow {
-    border-left-color: var(--p-tooltip-background);
-    border-right-color: var(--p-tooltip-background);
-  }
-
-  .clessia-tooltip.p-tooltip.p-tooltip-right .p-tooltip-arrow {
-    border-left-color: var(--p-tooltip-background);
-    border-right-color: var(--p-tooltip-background);
-  }
-
-  .clessia-tooltip.p-tooltip.clessia-tooltip--leaving {
-    transition-duration: var(--clessia-tooltip-leave-duration, 180ms);
-    transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
-    transform: scale(0.8);
-  }
-
-  .clessia-tooltip.p-tooltip.clessia-tooltip--leaving .p-tooltip-text {
-    opacity: 0;
-    transition-duration: var(--clessia-tooltip-leave-duration, 180ms);
-    transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
-  }
-
-  .clessia-tooltip.p-tooltip.clessia-tooltip--kill-animations,
-  .clessia-tooltip.p-tooltip.clessia-tooltip--kill-animations .p-tooltip-text {
-    transition: none !important;
-    opacity: 0 !important;
-    transform: none !important;
-    animation: none !important;
   }
 
   /* =============================================================================
@@ -599,7 +480,7 @@
     }
 
     // Mobile responsiveness for Toast
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       width: calc(var(--window-width, 100vw) - 32px) !important;
       left: 16px !important;
       right: 16px !important;
@@ -669,7 +550,7 @@
       padding: var(--space-4) var(--space-6);
     }
 
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       max-width: calc(var(--window-width, 100vw) - var(--space-2) * 2);
 
       .p-dialog-header,
@@ -717,33 +598,6 @@
       line-height: 1.4;
     }
 
-    &__row {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-    }
-
-    &__back {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.75rem;
-      height: 1.75rem;
-      flex-shrink: 0;
-      border-radius: var(--radius-md);
-      color: var(--zinc-500);
-      transition: all var(--transition-fast);
-
-      &:hover {
-        background: var(--zinc-100);
-        color: var(--zinc-900);
-      }
-
-      .pi {
-        font-size: 13px;
-      }
-    }
-
     &__close {
       width: 2rem;
       height: 2rem;
@@ -770,7 +624,7 @@
       }
     }
 
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       padding: var(--space-4);
     }
   }
@@ -786,7 +640,7 @@
       gap: var(--space-5);
       padding: var(--space-6);
 
-      @include bp.respond-to('mobile') {
+      @media (max-width: 640px) {
         padding: var(--space-4);
       }
     }
@@ -835,12 +689,6 @@
     &__switch-label {
       font-size: var(--text-sm);
       color: var(--zinc-600);
-    }
-
-    &__readonly {
-      font-size: var(--text-base);
-      color: var(--zinc-600);
-      padding: var(--space-1) 0;
     }
 
     &__section {
@@ -893,13 +741,6 @@
       padding-bottom: var(--space-4);
       border-top: 1px solid var(--zinc-100);
       background: var(--color-white);
-
-      &--column {
-        flex-direction: column;
-        gap: var(--space-2);
-        border-top: none;
-        padding-top: 0;
-      }
     }
 
     &__empty-note {
@@ -920,19 +761,6 @@
     --p-form-field-padding-y: var(--space-1);
 
     .p-select-label {
-      font-size: var(--text-sm);
-      min-height: 36px;
-    }
-  }
-
-  .datepicker-sm {
-    width: 100%;
-    --p-datepicker-input-font-size: var(--text-sm);
-    --p-datepicker-input-padding-y: var(--space-1);
-    --p-inputtext-font-size: var(--text-sm);
-    --p-inputtext-padding-y: var(--space-1);
-
-    .p-inputtext {
       font-size: var(--text-sm);
       min-height: 36px;
     }
@@ -1159,7 +987,7 @@
   .p-dialog.roster-sheet {
     max-height: calc(var(--window-height, 800px) * 0.85);
 
-    @include bp.respond-to('mobile') {
+    @media (max-width: 640px) {
       position: fixed;
       inset: auto 0 0;
       margin: 0;
@@ -1214,76 +1042,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-
-    &__section {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-
-      & + & {
-        border-top: 1px solid var(--zinc-100);
-        padding-top: var(--space-4);
-      }
-    }
-
-    &__section-title {
-      font-size: var(--text-sm);
-      font-weight: var(--font-semibold);
-      color: var(--zinc-500);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    &__row {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      font-size: var(--text-base);
-      color: var(--zinc-700);
-    }
-
-    &__icon {
-      font-size: 14px;
-      color: var(--zinc-400);
-      flex-shrink: 0;
-      width: 16px;
-      text-align: center;
-    }
-
-    &__change {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-3);
-      padding: var(--space-2) var(--space-3);
-      background: var(--zinc-50);
-      border-radius: var(--radius-md);
-      border: 1px solid var(--zinc-100);
-    }
-
-    &__change-body {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-size: var(--text-sm);
-      color: var(--zinc-700);
-      min-width: 0;
-      flex: 1;
-    }
-
-    &__reason {
-      color: var(--zinc-500);
-      font-style: italic;
-    }
-
-    &__unassigned {
-      font-weight: var(--font-semibold);
-      color: var(--warning-600);
-    }
-
-    &__by {
-      font-size: var(--text-xs);
-      color: var(--zinc-500);
-    }
 
     &__actions {
       display: flex;
@@ -1357,12 +1115,6 @@
       font-size: var(--text-md);
       line-height: var(--leading-normal);
       min-height: 72px;
-    }
-
-    &__time {
-      width: 100%;
-      border-radius: var(--radius-md);
-      padding: var(--space-2) var(--space-3);
     }
 
     &__footer {
@@ -1559,16 +1311,6 @@
           color: var(--success-600);
         }
       }
-
-      &--error {
-        background: var(--error-100);
-        border: 2px solid #fecaca;
-
-        .pi {
-          font-size: 1.75rem;
-          color: var(--error-600);
-        }
-      }
     }
 
     &__result-title {
@@ -1618,7 +1360,7 @@
     }
   }
 
-  @include bp.respond-to('tablet-portrait') {
+  @media (max-width: 768px) {
     .p-paginator .p-paginator-pages,
     .p-paginator .p-paginator-first,
     .p-paginator .p-paginator-last,

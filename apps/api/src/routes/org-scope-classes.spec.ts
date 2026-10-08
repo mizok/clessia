@@ -138,6 +138,14 @@ const CASES = [
     mine: ['DELETE', `/${CLASS_A}/schedules/${SCHEDULE_A}`, undefined, 200],
     applied: (db: Db) => !db.rows('schedules').some((r) => r['id'] === SCHEDULE_A),
   },
+  // #1345：停課查詢本來就帶 org，所以修前別 org 也停不到課 —— 但回的是 200 cancelled:0
+  {
+    name: 'POST /api/classes/:id/cancel-future-sessions',
+    theirs: ['POST', `/${CLASS_B}/cancel-future-sessions`],
+    mine: ['POST', `/${CLASS_A}/cancel-future-sessions`, undefined, 200],
+    applied: (db: Db) =>
+      db.rows('sessions').find((r) => r['id'] === id(301))?.['status'] === 'cancelled',
+  },
 ] as const;
 
 describe.each(CASES)('$name', ({ theirs, mine, applied }) => {

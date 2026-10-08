@@ -613,6 +613,8 @@ test('A20 跳過外部 class 與沒有 class 的元素', () => {
  * CSS 的 class —— 這兩個邊界都在 check-harness.mjs 的組裝裡，純函式測不到，所以整支跑起來：
  * 在真的目錄裡種檔，看 gate 紅不紅。
  */
+/** `unmigratedPageDir` 回傳 '' 表示 src 根：路徑前綴要省掉那個斜線 */
+const dirPrefix = (dir) => (dir ? `${dir}/` : '');
 /**
  * 還沒遷移、而且**目錄裡直接有 .scss** 的頁面目錄（`app/…`，相對 `apps/web/src`）。
  * 整支跑的測試要一個「不在 @source 裡」的對照目錄 —— 寫死的話，那一頁一遷完前提就靜靜失效
@@ -647,19 +649,11 @@ function unmigratedPageDir(src) {
       if (files.some((f) => f.endsWith('.scss'))) return rel;
     }
   }
-  // 頁面與 shared/components 都遷完之後（#991 Z12），剩下的 .scss 是殼與斷點：`app/app.component.scss`、
-  // `app/shared/_breakpoints.scss`（S 批與 T4）。它們所在的目錄不在 @source 裡、目錄裡直接有 .scss，
-  // 對這兩條測試的用途（「不在 @source 的目錄」「同目錄有別的 .scss」）一樣成立。
-  for (const rel of ['app/shared', 'app']) {
-    if (covered.some((c) => rel === c || rel.startsWith(`${c}/`))) continue;
-    let files;
-    try {
-      files = readdirSync(join(src, rel));
-    } catch {
-      continue;
-    }
-    if (files.some((f) => f.endsWith('.scss'))) return rel;
-  }
+  // 頁面、shared/components、app 殼都遷完之後（#991 S-a／S-b），剩下的 .scss 只有 `apps/web/src/styles.scss`。
+  // 它所在的目錄（src 根，回傳 ''）不在 @source 裡、目錄裡直接有 .scss，對這兩條測試的用途
+  // （「不在 @source 的目錄」「同目錄有別的 .scss」）一樣成立。呼叫端用 `dirPrefix()` 組路徑。
+  // ⚠️ styles.scss 也遷完（S-c）時這裡就沒有東西可用了，兩條測試要改寫。
+  if (readdirSync(src).some((f) => f.endsWith('.scss'))) return '';
   throw new Error('找不到還沒遷移、底下有 .scss 的目錄 —— 全站的 .scss 都遷完時這兩條測試要改寫');
 }
 
@@ -689,7 +683,7 @@ test('A20 的 Tailwind 放寬只放行 @source 目錄裡真的會產生 CSS 的 
     );
     // 陷阱 2：@source 以外的目錄寫 Tailwind class 沒有樣式（不會被掃），仍然紅
     assert.ok(
-      hits.some((l) => l.includes(`${uncoveredDir}/__a20-trap__`) && l.includes(tw)),
+      hits.some((l) => l.includes(`${dirPrefix(uncoveredDir)}__a20-trap__`) && l.includes(tw)),
       run.stderr,
     );
     // 對照：@source 目錄裡真的會產生 CSS 的 class 放行
@@ -2250,7 +2244,7 @@ test('@source 列單一檔案：A27 仍抓得到陷阱、A24 不對同目錄其�
   const twFile = join(src, 'tailwind.css');
   const original = readFileSync(twFile, 'utf8');
   const dir = unmigratedPageDir(src); // 同目錄有還沒遷的 .scss
-  const trapRel = `${dir}/__a27-trap__.html`;
+  const trapRel = `${dirPrefix(dir)}__a27-trap__.html`;
   const trap = join(src, trapRel);
   try {
     writeFileSync(trap, '<button class="flex items-center" (click)="x()">a</button>\n');
@@ -2263,7 +2257,7 @@ test('@source 列單一檔案：A27 仍抓得到陷阱、A24 不對同目錄其�
       run.stderr,
     );
     assert.ok(
-      !run.stderr.includes(`${dir}/__a27-trap__.html 已列入 tailwind.css 的 @source`),
+      !run.stderr.includes(`${dirPrefix(dir)}__a27-trap__.html 已列入 tailwind.css 的 @source`),
       run.stderr,
     );
   } finally {

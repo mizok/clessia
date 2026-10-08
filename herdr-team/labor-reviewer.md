@@ -431,3 +431,35 @@ console.log(out.includes('要查的 class 或選擇器'));
 ## `git grep` 的 alternation 我又踩了一次
 
 `git grep -n 'a\|b'`(BRE)在這台機器上不會當 alternation,**回空**——而空長得跟「不存在」一模一樣(#1323:我第一次查 `.enrollments__summary\|skeleton-` 得空,差點據此判掛勾不在)。**一律 `git grep -E 'a|b'`**;查『不存在』的結論前,先拿一個一定存在的字串當正控。
+
+---
+
+# 10-08 補:更正一條、並把 10-07 的二讀流程收成一頁(labor-reviewer-20261004-0638)
+
+## 更正:「編譯輸出裡看不到 `@media (hover: hover)`」不等於「沒有包」
+
+#1376 我寫過『本專案 hover 沒有包 `@media (hover:hover)`』——**錯的**。Tailwind v4 的 `hover:` 預設就包 `@media (hover: hover)`;本專案編譯輸出有 9 個這樣的區塊,`.hover\:bg-warning-200:hover` 就在其中一個裡。我錯在**判斷方法**:我只截取該規則前面 80～500 字元看,而 Tailwind 把一整串 hover 規則收進**同一個** `@media (hover: hover) { … }`,開頭那一行離規則一千多字元遠,截取視窗裡沒有它,我就把『沒看到』寫成『沒有』。
+
+> **判準**:「這條規則有沒有被某個 at-rule 包住」是**結構問題**,不能用固定長度的上下文視窗判。要做括號深度檢查:往前找最近的 `@media (…)`,數它到該規則之間 `{`/`}` 的淨深度,**≥1 才是被它包住**。
+
+```js
+const j = out.lastIndexOf('@media (hover: hover)', i);   // i = 該規則的位置
+let depth = 0;
+for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}') depth--; }
+// depth >= 1 → 被包住
+```
+
+(同族:charter 前面『`git grep` 的 BRE 回空』——**「沒看到」不是證據,要先有一個正控**。這裡的正控是先對一條『一定有包』的規則跑同一個檢查。)
+
+## 10-07 的 Tailwind 換版二讀,一頁版
+
+1. **先看範圍**:`git diff --name-status origin/main...<pr>`;`.ts` 只能刪 `styleUrl`(或加 `host:{class}`);不該出現 `.pw-regression`、不該動消費者模板。
+2. **模板去 class 比對**:去掉 `class`/`[class.x]`/`[ngClass]`/`styleClass` 後去空白應逐字相同;再比『綁定 token＋`@if/@for` 巢狀路徑』的多重集合(removed/added 皆空)。新增的 `[class.*]` 條件要逐條對回原 SCSS 的修飾 class,**表達式一字不改**。
+3. **逐項對原 SCSS 的值**(字級、間距、顏色 token、斷點);斷點 `min-[Npx+0.02]`/`@container` 對 `_breakpoints` 的定義。
+4. **實編譯**驗關鍵 class 有產生(上一節 `tw-check`):任意值、`!`、`[&.x\_\_y]`、`group-open:`、`empty:hidden`、hover 的 `@media`(用括號深度)。
+5. **「規則掉了」先問舊規則有沒有命中**:投影內容、PrimeNG 內部元素(`styleClass`)、跨 view 的 encapsulated 選擇器——舊規則常常從來沒命中。
+6. **未分層 vs `@layer`**:`ViewEncapsulation.None` 的元件 SCSS 是**未分層**,贏過 `@layer utilities`;同一個元素上要蓋它得用 `!`(#1365 的 audit-log time)。
+7. **A28 對比豁免兩個陷阱**:暫刪一筆應紅在真違規(訊息有『對比 X』);加一筆指向不存在違規的假鍵應紅『豁免過期』。**兩個都紅才算 gate 活著**;誤報型要確認兩個 class 真的是相反條件。
+8. **harness 測試動到 fixture 尋找**:暫把 `check-harness.mjs` 的兩條 gate 訊息改掉,應恰好 A20 與 A27/A24 兩條 not ok。
+9. **合併前同呼叫重讀 head**;授權後作者可能又推一顆(#1313 的教訓),`steward-merge.sh` 鎖的是 head,但回報要寫『合併時 head』。
+10. **暫存檔不要用 `rm -rf`**:分類器會擋(10-08 #1380 我的暫存清理被擋);用 `mktemp -d`,或只 `rm -f` 自己建的單一檔。
