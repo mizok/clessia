@@ -74,6 +74,26 @@ const UpdateBillingPeriodSchema = z
   })
   .openapi('UpdateBillingPeriod');
 
+/**
+ * 與這期日期重疊的在讀期繳報名數 —— 列表的 `overlappingEnrollmentCount` 與「待開單」的
+ * `pending` 是**同一個判準**，所以只有這一份。head count 讓 DB 數：撈列回來數會被
+ * `max_rows`（1000）靜默截斷（#1341／#1342）。
+ */
+function countOverlappingEnrollments(
+  supabase: AppEnv['Variables']['supabase'],
+  orgId: string,
+  period: { start_date: string; end_date: string },
+) {
+  return supabase
+    .from('enrollments')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('status', 'active')
+    .eq('billing_mode', 'period')
+    .lte('effective_from', period.end_date)
+    .or(`effective_to.is.null,effective_to.gte.${period.start_date}`);
+}
+
 function mapBillingPeriod(row: Record<string, unknown>) {
   return {
     id: row['id'] as string,
@@ -125,14 +145,10 @@ app.openapi(
     // 每期一支 head count，讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷
     const counts = await Promise.all(
       rows.map((row) =>
-        supabase
-          .from('enrollments')
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .eq('status', 'active')
-          .eq('billing_mode', 'period')
-          .lte('effective_from', row['end_date'] as string)
-          .or(`effective_to.is.null,effective_to.gte.${row['start_date'] as string}`),
+        countOverlappingEnrollments(supabase, orgId, {
+          start_date: row['start_date'] as string,
+          end_date: row['end_date'] as string,
+        }),
       ),
     );
     // 數不出來就不回 0（看起來像「沒人在用」）
@@ -233,48 +249,28 @@ app.openapi(
     }>;
     if (periods.length === 0) return c.json({ data: [] }, 200);
 
-    const [enrollmentResult, billedResult] = await Promise.all([
-      supabase
-        .from('enrollments')
-        .select('effective_from, effective_to')
-        .eq('org_id', orgId)
-        .eq('status', 'active')
-        .eq('billing_mode', 'period'),
-      // invoice_items 沒有 org_id，經 invoices 篩；作廢的帳單不算開過（同 billing-runs 的 alreadyBilled）
-      supabase
-        .from('invoice_items')
-        .select('billing_period_id, invoices!inner(org_id, voided_at)')
-        .eq('invoices.org_id', orgId)
-        .in(
-          'billing_period_id',
-          periods.map((p) => p.id),
-        ),
-    ]);
-    if (enrollmentResult.error || billedResult.error) return failed();
-
-    const billed = new Set(
-      ((billedResult.data ?? []) as Array<Record<string, unknown>>)
-        .filter((row) => {
-          const invoice = row['invoices'];
-          const one = (Array.isArray(invoice) ? invoice[0] : invoice) as {
-            voided_at?: string | null;
-          } | null;
-          return !one?.voided_at;
-        })
-        .map((row) => row['billing_period_id'] as string),
+    // 每期兩支 head count（#1342）：該開的報名數、已開的明細數。撈列回來數會被
+    // max_rows（1000）靜默截斷 —— 報名少算；明細則是後面那期的列整批沒回來，被誤判成還沒開
+    const counts = await Promise.all(
+      periods.map((period) =>
+        Promise.all([
+          countOverlappingEnrollments(supabase, orgId, period),
+          // invoice_items 沒有 org_id，經 invoices 篩；作廢的帳單不算開過（同 billing-runs 的 alreadyBilled）
+          supabase
+            .from('invoice_items')
+            .select('id, invoices!inner(org_id, voided_at)', { count: 'exact', head: true })
+            .eq('billing_period_id', period.id)
+            .eq('invoices.org_id', orgId)
+            .is('invoices.voided_at', null),
+        ]),
+      ),
     );
-    const enrollments = (enrollmentResult.data ?? []) as Array<{
-      effective_from: string;
-      effective_to: string | null;
-    }>;
+    if (counts.some(([pending, billed]) => pending.error || billed.error)) return failed();
 
-    const data = periods.flatMap((period) => {
-      if (billed.has(period.id)) return [];
-      const pending = enrollments.filter(
-        (e) =>
-          e.effective_from <= period.end_date &&
-          (!e.effective_to || e.effective_to >= period.start_date),
-      ).length;
+    const data = periods.flatMap((period, i) => {
+      const [pendingResult, billedResult] = counts[i]!;
+      if ((billedResult.count ?? 0) > 0) return [];
+      const pending = pendingResult.count ?? 0;
       if (pending === 0) return [];
       return [
         {
