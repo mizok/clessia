@@ -165,9 +165,11 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
       { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
     );
     expect(res.status).toBe(200);
+    lastBody = await res.json();
 
     return queries;
   }
+  let lastBody: { data: Array<Record<string, unknown>> } = { data: [] };
 
   // #1008：規格「封存預設隱藏」。opt-in 參數，其他呼叫端（學生表單）行為不變。
   it('excludeArchived=true → 家長清單加上 status != archived；沒帶就不加', async () => {
@@ -202,6 +204,20 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     expect(queries.some((q) => q.table === 'enrollments')).toBe(false);
     const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
     expect(listQuery?.ins.some((call) => call.column === 'id')).toBe(false);
+  });
+
+  // #1314 PA2：孩子名字要能點進學生檔案 —— 列表帶 id，不只名字
+  it('每列帶 students[{ id, name }]', async () => {
+    await listParents(null);
+    expect(lastBody.data[0]?.['students']).toEqual([{ id: 'student-1', name: '學生一' }]);
+  });
+
+  // 原本先撈全 org 家長 id 再撈關聯：家長破千時被 max_rows 截斷，後面的人孩子數靜默變 0
+  it('關聯只撈本頁家長，不撈全 org 家長 id', async () => {
+    const queries = await listParents(null);
+    const relQuery = queries.find((q) => q.table === 'parent_student_relations');
+    expect(relQuery?.ins).toEqual([{ column: 'parent_id', values: ['parent-1'] }]);
+    expect(queries.some((q) => q.table === 'parents' && q.columns === 'id')).toBe(false);
   });
 });
 

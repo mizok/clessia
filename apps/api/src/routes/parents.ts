@@ -52,9 +52,14 @@ const ParentDetailSchema = ParentSchema.extend({
   students: z.array(ParentDetailStudentSchema),
 }).openapi('ParentDetail');
 
+/** 列表多帶孩子的 id，名字才能點進學生檔案（#1314 PA2）。只在列表 —— 單筆有更完整的 `students` */
+const ParentListItemSchema = ParentSchema.extend({
+  students: z.array(z.object({ id: DbUuidSchema, name: z.string() })),
+}).openapi('ParentListItem');
+
 const ParentListResponseSchema = z
   .object({
-    data: z.array(ParentSchema),
+    data: z.array(ParentListItemSchema),
     summary: z.object({
       total: z.number(),
       activeCount: z.number(),
@@ -235,29 +240,6 @@ app.openapi(
     const { search, status, excludeArchived, page = 1, pageSize = 20 } = c.req.valid('query');
     const offset = (page - 1) * pageSize;
 
-    // 取得 org 下所有 parent 的 id，用來查 student 關聯
-    const { data: allParentIds } = await supabase.from('parents').select('id').eq('org_id', orgId);
-    const parentIdList = (allParentIds ?? []).map((p: { id: string }) => p.id);
-
-    // 取得 student relations（含學生姓名）
-    const studentRelMap = new Map<string, Array<{ id: string; name: string }>>();
-    if (parentIdList.length > 0) {
-      const { data: relRows } = await supabase
-        .from('parent_student_relations')
-        .select('parent_id, students(id, name)')
-        .in('parent_id', parentIdList);
-      for (const rel of relRows ?? []) {
-        const r = rel as unknown as {
-          parent_id: string;
-          students: { id: string; name: string } | null;
-        };
-        if (!r.students) continue;
-        const existing = studentRelMap.get(r.parent_id) ?? [];
-        existing.push(r.students);
-        studentRelMap.set(r.parent_id, existing);
-      }
-    }
-
     // 分校範圍（#816）。判準與其餘 8 個端點共用同一支函式（#821）——
     // 在 9 個地方各寫一次就是 9 個會分岔的判準（#815 的形狀）
     const scopedParentIds = await resolveScopedParentIds(supabase, getCampusScope(c));
@@ -319,6 +301,27 @@ app.openapi(
     }
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // 取得本頁家長的 student 關聯（含學生 id 與姓名）。只撈本頁 —— 先撈全 org 家長 id
+    // 會被 max_rows（1000）靜默截斷，後面的人孩子數變 0（#1314 PA2）
+    const parentIdList = rows.map((r) => r['id'] as string);
+    const studentRelMap = new Map<string, Array<{ id: string; name: string }>>();
+    if (parentIdList.length > 0) {
+      const { data: relRows } = await supabase
+        .from('parent_student_relations')
+        .select('parent_id, students(id, name)')
+        .in('parent_id', parentIdList);
+      for (const rel of relRows ?? []) {
+        const r = rel as unknown as {
+          parent_id: string;
+          students: { id: string; name: string } | null;
+        };
+        if (!r.students) continue;
+        const existing = studentRelMap.get(r.parent_id) ?? [];
+        existing.push({ id: r.students.id, name: r.students.name });
+        studentRelMap.set(r.parent_id, existing);
+      }
+    }
+
     const userIds = rows.map((r) => r['user_id'] as string).filter(Boolean);
     const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
     if (userIds.length > 0) {
@@ -339,12 +342,15 @@ app.openapi(
 
     const parents = rows.map((row) => {
       const parentStudents = studentRelMap.get(row['id'] as string) ?? [];
-      return toParentResponse(
-        row,
-        parentStudents.length,
-        baUserMap.get(row['user_id'] as string),
-        parentStudents.map((s) => s.name),
-      );
+      return {
+        ...toParentResponse(
+          row,
+          parentStudents.length,
+          baUserMap.get(row['user_id'] as string),
+          parentStudents.map((s) => s.name),
+        ),
+        students: parentStudents,
+      };
     });
 
     // Summary（不受 status filter 影響）
