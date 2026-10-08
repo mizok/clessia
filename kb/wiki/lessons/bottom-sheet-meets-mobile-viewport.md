@@ -33,7 +33,7 @@ iOS Safari 的底部工具列收合／展開時**不會可靠地觸發 `resize`*
 
 ## 缺口二：會覆蓋導覽列的抽屜，撞得到 home indicator
 
-掃過 `styles.scss`：**一處 `env(safe-area-inset-*)` 都沒有**。
+掃過 `styles.css`：**一處 `env(safe-area-inset-*)` 都沒有**。
 
 ### 範圍比第一版寫的窄——導覽列擋掉了大部分
 

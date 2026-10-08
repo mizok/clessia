@@ -126,6 +126,10 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         filters.push((row) => field(row, column) != null && String(field(row, column)) <= value);
         return proxy;
       },
+      gt(column: string, value: string) {
+        filters.push((row) => field(row, column) != null && String(field(row, column)) > value);
+        return proxy;
+      },
       /** PostgREST 的 `.range(from, to)`（含頭尾） */
       range(from: number, to: number) {
         rowOffset = from;
@@ -184,7 +188,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       is(column: string, value: unknown) {
-        filters.push((row) => (row[column] ?? null) === value);
+        filters.push((row) => (field(row, column) ?? null) === value);
         return proxy;
       },
       single: () => Promise.resolve(one(true)),
@@ -240,4 +244,31 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
   );
 
   return { client, rows: (table) => tableOf(table).map((row) => ({ ...row })) };
+}
+
+/**
+ * 模擬 PostgREST 的 `max_rows`（`supabase/config.toml` 是 1000）：撈列的查詢**靜默**只回前 1000 列，
+ * head count 不受影響。實作若改回「撈列回來在記憶體數」，超過一千筆時數字會偷偷變少。
+ */
+export function withMaxRows(client: any, maxRows: number): any {
+  const wrap = (b: any): any =>
+    new Proxy(b, {
+      get(target, prop) {
+        if (prop === 'then')
+          return (resolve: (v: unknown) => void, reject: (e: unknown) => void) =>
+            target.then(
+              (r: any) =>
+                resolve(Array.isArray(r?.data) ? { ...r, data: r.data.slice(0, maxRows) } : r),
+              reject,
+            );
+        const v = Reflect.get(target, prop);
+        return typeof v === 'function' ? (...args: unknown[]) => wrap(v.apply(target, args)) : v;
+      },
+    });
+  return new Proxy(client, {
+    get(target, prop) {
+      if (prop !== 'from') return Reflect.get(target, prop);
+      return (table: string) => wrap(target.from(table));
+    },
+  });
 }

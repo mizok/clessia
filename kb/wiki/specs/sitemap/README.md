@@ -266,7 +266,7 @@ media query、`matchMedia`、container query、`--window-width`
 | `WindowSizeDirective`（`--window-width` / `--window-height`） | `ngOnInit` + `@HostListener('window:resize')` | **活的** |
 | `InheritSizeDirective`（`--shell-layout-body-width` / `-height`） | **只在 ResizeObserver callback 裡 `setProperty`** | **死的 —— 變數從頭到尾是空的** |
 
-而 `styles.scss:721-723` 是：
+而 `styles.css:721-723` 是：
 
 ```scss
 .p-dialog {
@@ -756,7 +756,7 @@ __P.coarseRules = function () {
 
 > 🔴 **2026-09-13 訂正（labor-6）：選擇器比對只對自刻元件成立，對 PrimeNG 會漏報。**
 >
-> `styles.scss` 的 coarse 區塊改的不是選擇器的尺寸，是 `:root` 上的
+> `styles.css` 的 coarse 區塊改的不是選擇器的尺寸，是 `:root` 上的
 > `--p-inputtext-padding-y` / `--p-button-padding-y` 這一族 **token**。
 > `el.matches(selector)` 永遠比對不到 `:root`，於是**每一個 PrimeNG 控制項都會被報成
 > 「沒有 coarse 規則接住」** —— 而它們多數是會被抬到 44 的。

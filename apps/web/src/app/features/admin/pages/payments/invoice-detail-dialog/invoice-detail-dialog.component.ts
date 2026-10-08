@@ -264,7 +264,7 @@ export class InvoiceDetailDialogComponent {
    * 開一個乾淨的視窗印，**不用 `@media print` 藏東西**。
    *
    * dialog 是 modal，`window.print()` 會連同背後的遮罩與列表一起印出去；要壓掉它們
-   * 得寫全域規則（`styles.scss` 不是這一席的邊界）。搬一份節點到空白視窗換來的是
+   * 得寫全域規則（`styles.css` 不是這一席的邊界）。搬一份節點到空白視窗換來的是
    * 「印出來就是紙上該有的樣子」，而且列印版面本來就跟螢幕版面不同 ——
    * 那段樣式不是重複，是專門為紙寫的。
    *

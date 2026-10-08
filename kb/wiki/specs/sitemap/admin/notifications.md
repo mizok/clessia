@@ -153,7 +153,7 @@ updated: 2026-10-02
 | `button.p-button`（發布）                  | `58 × 41`         | `58 × 45` ✓              |
 
 > **只有標題輸入框沒被抬起來，而它旁邊的每一個控制項都被抬了。**
-> 成因是 `styles.scss` 的 coarse 區塊改的是 `--p-inputtext-padding-y` 這一族 token，
+> 成因是 `styles.css` 的 coarse 區塊改的是 `--p-inputtext-padding-y` 這一族 token，
 > 而這顆是專案自刻的 `.admin-notifications__input`、**不是 `.p-inputtext`**，所以吃不到。
 > `<textarea>` 因為有多行高度（`300 × 116`）不受影響。
 > **記現況，不在這裡判定是不是缺陷。**

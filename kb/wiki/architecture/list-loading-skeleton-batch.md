@@ -32,7 +32,7 @@ issue 原本假設三種病可能獨立出現，但逐檔查過對應的 `.scss`
 `students.page.html:25`（teacher）、`contact-book-roster.component.html:8`。
 
 最終內容都是 `<ul>` 列表（標題/姓名 + meta + 偶爾一顆按鈕）。**直接重用全站既有的
-`.skeleton-list`/`.skeleton-bar`**（`styles.scss:1156-1180`，`dashboard.component.html:287-291`
+`.skeleton-list`/`.skeleton-bar`**（`styles.css:1156-1180`，`dashboard.component.html:287-291`
 已經在用同一組類別）——不寫任何新 CSS，只把每一檔的
 
 ```html
@@ -89,7 +89,7 @@ block 自己的 element，跨元件借用會被 Angular 的 view encapsulation �
 
 ## 共同原則
 
-- 三類都只重用 `.p-skeleton` 的動畫/配色（`styles.scss` 全站共用），沒有新增第三種骨架配方
+- 三類都只重用 `.p-skeleton` 的動畫/配色（`styles.css` 全站共用），沒有新增第三種骨架配方
 - 類別 A 完全不寫新 CSS，直接套現成的 `.skeleton-list`/`.skeleton-bar`
 - 類別 B、C 的尺寸各自局部定義、卡住各自的最終內容形狀，不強行共用一個參數化 utility
   ——兩邊尺寸本來就不同，共用只是多一層抽象，換不到重複程式碼的減少

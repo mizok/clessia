@@ -172,7 +172,7 @@ updated: 2026-09-13
 `filter-chip`（只看未簽收）不在清單裡，代表它已經 ≥ 44px。
 
 > 自動完成輸入框沒被抬起來 —— 跟 [[specs/sitemap/admin/notifications]] 的標題框同一個成因族：
-> `styles.scss` 的 coarse 區塊只列了 `--p-inputtext-*` 等既有 token，
+> `styles.css` 的 coarse 區塊只列了 `--p-inputtext-*` 等既有 token，
 > 而它自己的註解就寫著「幽靈 token 不會有任何錯誤訊號，只會靜靜地什麼都不做」。
 
 ### 鍵盤可達性

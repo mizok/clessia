@@ -17,7 +17,7 @@
   },
   "band-contrast": {
     "roots": ["apps/web/src"],
-    "exts": [".scss"]
+    "exts": [".css"]
   },
   "c2": {
     "roots": ["apps/api/src", "supabase"],
@@ -49,7 +49,7 @@
   },
   "ghost-token": {
     "roots": ["apps/web/src"],
-    "exts": [".html", ".scss", ".ts"]
+    "exts": [".css", ".html", ".scss", ".ts"]
   },
   "mobile-first": {
     "roots": ["apps/web/src"],
@@ -73,6 +73,7 @@
   },
   "tailwind-a11y": {
     "roots": [
+      "apps/web/src/app/app.component.html",
       "apps/web/src/app/features/admin/pages/applications",
       "apps/web/src/app/features/admin/pages/campuses",
       "apps/web/src/app/features/admin/pages/changes",
@@ -160,6 +161,6 @@
   },
   "usage-contrast": {
     "roots": ["apps/web/src"],
-    "exts": [".scss", ".ts"]
+    "exts": [".css", ".scss", ".ts"]
   }
 }

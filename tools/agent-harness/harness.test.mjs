@@ -614,61 +614,28 @@ test('A20 跳過外部 class 與沒有 class 的元素', () => {
  * 在真的目錄裡種檔，看 gate 紅不紅。
  */
 /**
- * 還沒遷移、而且**目錄裡直接有 .scss** 的頁面目錄（`app/…`，相對 `apps/web/src`）。
- * 整支跑的測試要一個「不在 @source 裡」的對照目錄 —— 寫死的話，那一頁一遷完前提就靜靜失效
- * （#1162 前用 students，students 一遷完 A20 那條就紅了；反過來的「同目錄有別頁 .scss」則會悄悄變真空）。
+ * 一個**不在 `@source` 裡**的目錄（`app/…`，相對 `apps/web/src`）。整支跑的測試要它當對照：
+ * 「@source 以外寫 Tailwind class 沒有樣式」「@source 單檔不連累同目錄」。
+ * 全站 `.scss` 歸零（#991 S-c）之後不再有「還沒遷的目錄」可用，所以改挑一個沒被 @source 蓋到的固定目錄；
+ * 需要「同目錄有 .scss」的測試自己在裡面暫時放一支（見 A27 單檔那條）。
  */
-function unmigratedPageDir(src) {
+function uncoveredDir(src) {
   const covered = sourcePaths(readFileSync(join(src, 'tailwind.css'), 'utf8')).map((p) =>
     p.replace(/^\.\//, '').replace(/\/$/, ''),
   );
-  // 頁面目錄遷完（#991 P3 之後 features/*/pages 底下沒有 .scss 了）才輪到 shared/components：
-  // 那裡是 Z 批，還有 .scss。
-  const roots = readdirSync(join(src, 'app/features')).map((role) => `app/features/${role}/pages`);
-  roots.push('app/shared/components');
-  for (const root of roots) {
-    let names;
-    try {
-      names = readdirSync(join(src, root));
-    } catch {
-      continue;
-    }
-    for (const name of names.sort()) {
-      const rel = `${root}/${name}`;
-      if (covered.some((c) => rel === c || rel.startsWith(`${c}/`) || c.startsWith(`${rel}/`))) {
-        continue;
-      }
-      let files;
-      try {
-        files = readdirSync(join(src, rel));
-      } catch {
-        continue;
-      }
-      if (files.some((f) => f.endsWith('.scss'))) return rel;
-    }
+  const rel = 'app/core';
+  if (covered.some((c) => rel === c || rel.startsWith(`${c}/`) || c.startsWith(`${rel}/`))) {
+    throw new Error(`${rel} 已被 @source 蓋到 —— 挑另一個沒被蓋到的目錄給這兩條測試`);
   }
-  // 頁面與 shared/components 都遷完之後（#991 Z12），剩下的 .scss 是殼與斷點：`app/app.component.scss`、
-  // `app/shared/_breakpoints.scss`（S 批與 T4）。它們所在的目錄不在 @source 裡、目錄裡直接有 .scss，
-  // 對這兩條測試的用途（「不在 @source 的目錄」「同目錄有別的 .scss」）一樣成立。
-  for (const rel of ['app/shared', 'app']) {
-    if (covered.some((c) => rel === c || rel.startsWith(`${c}/`))) continue;
-    let files;
-    try {
-      files = readdirSync(join(src, rel));
-    } catch {
-      continue;
-    }
-    if (files.some((f) => f.endsWith('.scss'))) return rel;
-  }
-  throw new Error('找不到還沒遷移、底下有 .scss 的目錄 —— 全站的 .scss 都遷完時這兩條測試要改寫');
+  return rel;
 }
 
 test('A20 的 Tailwind 放寬只放行 @source 目錄裡真的會產生 CSS 的 class', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const app = join(here, '../../apps/web/src/app');
   const covered = join(app, 'features/admin/pages/changes/__a20-trap__.html'); // 在 @source 裡
-  const uncoveredDir = unmigratedPageDir(join(here, '../../apps/web/src'));
-  const uncovered = join(here, '../../apps/web/src', uncoveredDir, '__a20-trap__.html'); // 不在
+  const uncoveredRel = uncoveredDir(join(here, '../../apps/web/src'));
+  const uncovered = join(here, '../../apps/web/src', uncoveredRel, '__a20-trap__.html'); // 不在
   const tw = 'flex items-center min-h-11';
   try {
     writeFileSync(
@@ -689,7 +656,7 @@ test('A20 的 Tailwind 放寬只放行 @source 目錄裡真的會產生 CSS 的 
     );
     // 陷阱 2：@source 以外的目錄寫 Tailwind class 沒有樣式（不會被掃），仍然紅
     assert.ok(
-      hits.some((l) => l.includes(`${uncoveredDir}/__a20-trap__`) && l.includes(tw)),
+      hits.some((l) => l.includes(`${uncoveredRel}/__a20-trap__`) && l.includes(tw)),
       run.stderr,
     );
     // 對照：@source 目錄裡真的會產生 CSS 的 class 放行
@@ -1964,7 +1931,7 @@ test('A25 紅：引用不存在的 token', () => {
     STYLES,
   );
   assert.equal(p.length, 1);
-  assert.match(p[0], /--zinc-950 不在 styles\.scss/);
+  assert.match(p[0], /--zinc-950 不在 styles\.css/);
 });
 
 test('A25 紅：字重寫進 --font-*（Tailwind 的字體家族命名空間）', () => {
@@ -1986,7 +1953,7 @@ test('A25 紅：同名自我參照放在會輸出的區塊（少了 reference）
 
 const LAYERS = {
   tailwindCss: `/* x */\n@layer theme, base, primeng, legacy, utilities;\n@import 'x';`,
-  stylesScss: `@use 'bp';\n:root { --a: 1; }\n@layer theme, base, primeng, legacy, utilities;\n@layer legacy {\n}`,
+  stylesCss: `@use 'bp';\n:root { --a: 1; }\n@layer theme, base, primeng, legacy, utilities;\n@layer legacy {\n}`,
   appConfigTs: `cssLayer: { name: 'primeng', order: 'theme, base, primeng, legacy' },`,
 };
 
@@ -2009,13 +1976,13 @@ test('A26 紅：cssLayer 被改回 false', () => {
   assert.match(p[0], /utilities 永遠贏不了 Aura/);
 });
 
-test('A26 紅：styles.scss 的順序跟 tailwind.css 不一致', () => {
+test('A26 紅：styles.css 的順序跟 tailwind.css 不一致', () => {
   const p = layerOrderProblems({
     ...LAYERS,
-    stylesScss: `@layer theme, base, legacy, primeng, utilities;`,
+    stylesCss: `@layer theme, base, legacy, primeng, utilities;`,
   });
   assert.equal(p.length, 1);
-  assert.match(p[0], /styles\.scss 的 layer 順序/);
+  assert.match(p[0], /styles\.css 的 layer 順序/);
 });
 
 // ── A27／A28：Tailwind 頁的觸控與對比（#991 T3）─────────────────────────────────────
@@ -2249,10 +2216,12 @@ test('@source 列單一檔案：A27 仍抓得到陷阱、A24 不對同目錄其�
   const src = join(here, '../../apps/web/src');
   const twFile = join(src, 'tailwind.css');
   const original = readFileSync(twFile, 'utf8');
-  const dir = unmigratedPageDir(src); // 同目錄有還沒遷的 .scss
+  const dir = uncoveredDir(src);
   const trapRel = `${dir}/__a27-trap__.html`;
+  const sibling = join(src, dir, '__a24-sibling__.scss'); // 同目錄的另一支 .scss（暫放）
   const trap = join(src, trapRel);
   try {
+    writeFileSync(sibling, '.a { color: red; }\n');
     writeFileSync(trap, '<button class="flex items-center" (click)="x()">a</button>\n');
     writeFileSync(twFile, `${original}\n@source './${trapRel}';\n`);
     const run = spawnSync(process.execPath, [join(here, 'check-harness.mjs')], {
@@ -2269,5 +2238,71 @@ test('@source 列單一檔案：A27 仍抓得到陷阱、A24 不對同目錄其�
   } finally {
     writeFileSync(twFile, original);
     rmSync(trap, { force: true });
+    rmSync(sibling, { force: true });
+  }
+});
+
+/**
+ * 全站 `.scss` 歸零後（#991 S-c），全域樣式與 token 的唯一來源是 `apps/web/src/styles.css`。
+ * 每道讀它的 gate 都可能因為路徑／副檔名改漏而**靜靜變成空轉**（band-contrast 在找不到 token 時
+ * 直接 return []，ghost-token 少了載體就沒有 defined）——所以逐道整支跑：把 styles.css 改壞，
+ * 它必須紅；跑完還原。
+ */
+test('styles.css 被改壞時，每一道讀它的 gate 都要紅（不是空轉）', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const file = join(here, '../../apps/web/src/styles.css');
+  const original = readFileSync(file, 'utf8');
+  const cases = [
+    {
+      name: 'band-contrast',
+      mutate: (s) => s.replace(/(--accent-vivid:)[^;]*;/, '$1 #1a1614;'),
+      expect: '壓在 --accent-vivid 上只有',
+    },
+    {
+      name: 'A25 theme 映射',
+      mutate: (s) => s.replace(/\n\s*--zinc-50:[^\n]*/, ''),
+      expect: '--zinc-50 不在 styles.css 的 :root',
+    },
+    {
+      name: 'A26 layer 順序',
+      mutate: (s) =>
+        s.replace(
+          /^@layer theme, base, primeng, legacy, utilities;/m,
+          '@layer theme, base, legacy, primeng, utilities;',
+        ),
+      expect: 'styles.css 的 layer 順序',
+    },
+    {
+      name: 'c6 viewport 單位',
+      mutate: (s) => `${s}\n.zz { height: 100vh; }\n`,
+      expect: 'styles.css 使用了 viewport 單位',
+    },
+    {
+      name: 'usage-contrast',
+      mutate: (s) => `${s}\n.zz {\n  color: var(--zinc-300);\n  background: var(--zinc-100);\n}\n`,
+      expect: '低於文字的 AA 門檻',
+    },
+    {
+      name: 'A24 不准新增 .scss',
+      mutate: (s) => s,
+      extra: () =>
+        writeFileSync(join(here, '../../apps/web/src/__s-c-trap__.scss'), '.a { color: red; }\n'),
+      cleanup: () => rmSync(join(here, '../../apps/web/src/__s-c-trap__.scss'), { force: true }),
+      expect: '是新的 SCSS',
+    },
+  ];
+  try {
+    for (const c of cases) {
+      writeFileSync(file, c.mutate(original));
+      c.extra?.();
+      const run = spawnSync(process.execPath, [join(here, 'check-harness.mjs')], {
+        encoding: 'utf8',
+      });
+      c.cleanup?.();
+      assert.ok(run.stderr.includes(c.expect), `${c.name} 沒紅（空轉？）\n${run.stderr}`);
+    }
+  } finally {
+    writeFileSync(file, original);
+    rmSync(join(here, '../../apps/web/src/__s-c-trap__.scss'), { force: true });
   }
 });

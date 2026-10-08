@@ -50,7 +50,7 @@ Tester 的原話：「讀起來像一個狀態值，不像還在載」。
 
 本專案已經有兩套骨架呈現，各自為自己的情境發明：
 
-1. `.p-skeleton`（`styles.scss`）——全站共用的動畫骨架：漸層 shimmer + `skeleton-wave` 動畫，
+1. `.p-skeleton`（`styles.css`）——全站共用的動畫骨架：漸層 shimmer + `skeleton-wave` 動畫，
    PrimeNG 元件與少數自訂用法在用
 2. `.dashboard__band-skeleton`（本檔）——橘帶專用，靜態方塊 + `opacity: 0.45`，配色是
    `--band-rule`（近黑的半透明），因為橘帶的骨架不能用 `.p-skeleton` 的灰階漸層（會在橘帶上
@@ -83,7 +83,7 @@ Tester 的原話：「讀起來像一個狀態值，不像還在載」。
 }
 ```
 
-`.p-skeleton` 自己的 `background`/`animation` 都是 `!important`（見 `styles.scss` 既有註解：
+`.p-skeleton` 自己的 `background`/`animation` 都是 `!important`（見 `styles.css` 既有註解：
 PrimeNG 元件樣式是執行期動態插入，優先度打平時它必贏），這裡只補寬高與圓角，顏色跟動畫
 完全交給它，不重複定義。
 

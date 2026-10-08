@@ -62,7 +62,7 @@ const parseHex = (hex) => {
   return h ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : null;
 };
 
-/** styles.scss 的 `--name: #hex;` → { name: [r,g,b] }。只收不透明的實色 */
+/** styles.css 的 `--name: #hex;` → { name: [r,g,b] }。只收不透明的實色 */
 export function readTokenPalette(css) {
   const palette = new Map();
   for (const m of css.matchAll(/^\s*(--[a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/gm)) {
@@ -117,7 +117,7 @@ export function usageContrastViolations(scss, palette) {
   const evaluate = (frame) => {
     // ::before / ::after 多半是裝飾用的小方塊（圓點、線、角標）。它的 background
     // 是**自己那個盒子**的底，不是父層文字的底 —— 拿父層繼承來的 color 去比它
-    // 是誤報。判例：styles.scss 的 6px 項目符號，被算成 zinc-600 疊在 accent-500 上 1.58。
+    // 是誤報。判例：styles.css 的 6px 項目符號，被算成 zinc-600 疊在 accent-500 上 1.58。
     if (frame.pseudo) return;
     const fg = nearest('color');
     const bg = nearest('bg');

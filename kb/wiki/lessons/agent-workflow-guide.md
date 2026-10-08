@@ -435,7 +435,7 @@ cat package.json | grep -E '"(@angular/core|primeng|zod|hono|@supabase)"' | head
 
 | 檔案                                                           | 用途                              |
 | -------------------------------------------------------------- | --------------------------------- |
-| `apps/web/src/styles.scss`                                     | 全域 CSS 變數（色彩、間距、字型） |
+| `apps/web/src/styles.css`                                     | 全域 CSS 變數（色彩、間距、字型） |
 | `apps/web/src/app/shared/components/layout/shell-layout/`      | Header 樣式                       |
 | `apps/web/src/app/features/public/public-shell.component.html` | Sidebar 樣式（Tailwind 內聯）     |
 | `apps/web/src/app/shared/styles/_dashboard.scss`               | Dashboard 卡片樣式                |
