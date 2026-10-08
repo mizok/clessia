@@ -119,30 +119,6 @@ export interface PaymentReminder {
 
 export type DueState = 'overdue' | 'dueSoon' | 'notDue';
 
-interface SummaryBucket {
-  count: number;
-  outstanding: number;
-}
-
-/**
- * `GET /api/invoices/summary`（#1314 P1／P2）。未繳清的三章 `overdue`／`dueSoon`／`notDue`
- * 互斥、聯集＝ `unpaid`＋`partial`。**章名的天數讀 `dueSoon.days`**，不要在前端另存一份
- */
-export interface InvoiceSummary {
-  byStatus: {
-    unpaid: SummaryBucket;
-    partial: SummaryBucket;
-    paid: { count: number };
-    overrefunded: { count: number };
-    void: { count: number };
-  };
-  overdue: SummaryBucket;
-  dueSoon: SummaryBucket & { days: number };
-  notDue: SummaryBucket;
-  /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
-  month: { month: string; billed: number; received: number };
-}
-
 export interface InvoiceQueryParams {
   /** 後端只吃 uuid，**不吃姓名關鍵字** —— 姓名搜尋走 student-autocomplete 換出 id */
   studentId?: string;
@@ -230,7 +206,12 @@ interface SummaryBucket {
   outstanding: number;
 }
 
-/** `GET /invoices/summary`（#1382）。金額與張數都由後端加總，前端只顯示 */
+/**
+ * `GET /invoices/summary`（#1382）。金額與張數都由後端加總，前端只顯示。
+ *
+ * 未繳清的三章 `overdue`／`dueSoon`／`notDue`（#1314 P1）互斥、聯集＝ `unpaid`＋`partial`。
+ * **章名的天數讀 `dueSoon.days`**，不要在前端另存一份
+ */
 export interface InvoiceSummary {
   byStatus: {
     unpaid: SummaryBucket;
@@ -240,6 +221,8 @@ export interface InvoiceSummary {
     void: { count: number };
   };
   overdue: SummaryBucket;
+  dueSoon: SummaryBucket & { days: number };
+  notDue: SummaryBucket;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
   month: { month: string; billed: number; received: number };
 }
