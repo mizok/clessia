@@ -347,17 +347,31 @@ app.openapi(
       );
     });
 
-    // Summary（不受 status filter 影響）
-    const { data: summaryRows } = await supabase
-      .from('parents')
-      .select('status')
-      .eq('org_id', orgId);
-
-    const summaryList = (summaryRows ?? []) as Array<{ status: string }>;
-    const summaryTotal = summaryList.length;
-    const activeCount = summaryList.filter((r) => r.status === 'active').length;
-    const inactiveCount = summaryList.filter((r) => r.status === 'inactive').length;
-    const archivedCount = summaryList.filter((r) => r.status === 'archived').length;
+    // Summary（不受 status filter 影響）。跟列表同一個分校範圍（#1338），
+    // 每個狀態一支 head count 讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷
+    const summaryCounts = await Promise.all(
+      (['active', 'inactive', 'archived'] as const).map((s) => {
+        let countQuery = supabase
+          .from('parents')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId)
+          .eq('status', s);
+        if (scopedParentIds) countQuery = countQuery.in('id', scopedParentIds);
+        return countQuery;
+      }),
+    );
+    // 數不出來就不回 0
+    const summaryError = summaryCounts.find((r) => r.error)?.error;
+    if (summaryError) {
+      return c.json({ error: '讀取家長統計失敗', message: summaryError.message }, 500);
+    }
+    const [activeCount, inactiveCount, archivedCount] = summaryCounts.map((r) => r.count ?? 0) as [
+      number,
+      number,
+      number,
+    ];
+    // parent_status enum 恰三值（20260317000001），total 就是三者和
+    const summaryTotal = activeCount + inactiveCount + archivedCount;
 
     return c.json(
       {
