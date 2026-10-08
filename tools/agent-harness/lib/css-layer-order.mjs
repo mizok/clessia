@@ -1,12 +1,12 @@
 /**
  * 守 cascade layer 順序的三處宣告一致（#991 T4，gate A26）。
  *
- * - `tailwind.css` 與 `styles.scss` 各自開頭宣告完整順序 `@layer theme, base, primeng, legacy, utilities;`
+ * - `tailwind.css` 與 `styles.css` 各自開頭宣告完整順序 `@layer theme, base, primeng, legacy, utilities;`
  * - `app.config.ts` 的 PrimeNG `cssLayer.order` 必須是它的**前綴**
  *
  * 順序由第一次出現決定，而 PrimeNG 把它那支 layer-order 插在 `<head>` 最前面 —— 所以**只改其中一處**時
  * 生效的是 PrimeNG 那一行，另外兩處寫什麼都不會報錯。例如 order 少了 `legacy`，legacy 就排到 primeng
- * **前面**，styles.scss 對 PrimeNG 的覆寫全部靜靜失效。
+ * **前面**，styles.css 對 PrimeNG 的覆寫全部靜靜失效。
  */
 
 /** 第一個 `@layer a, b, c;` 陳述（不是區塊）的 layer 名稱 */
@@ -25,16 +25,16 @@ export function primengCssLayer(ts) {
 }
 
 /** @returns {string[]} 違規訊息（空陣列 = 綠） */
-export function layerOrderProblems({ tailwindCss, stylesScss, appConfigTs }) {
+export function layerOrderProblems({ tailwindCss, stylesCss, appConfigTs }) {
   const problems = [];
   const tw = layerStatement(tailwindCss);
   if (!tw) return ['tailwind.css 開頭沒有 `@layer …;` 順序宣告'];
 
-  const st = layerStatement(stylesScss);
-  if (!st) problems.push('styles.scss 沒有 `@layer …;` 順序宣告');
+  const st = layerStatement(stylesCss);
+  if (!st) problems.push('styles.css 沒有 `@layer …;` 順序宣告');
   else if (st.join() !== tw.join()) {
     problems.push(
-      `styles.scss 的 layer 順序（${st.join(', ')}）跟 tailwind.css（${tw.join(', ')}）不一致`,
+      `styles.css 的 layer 順序（${st.join(', ')}）跟 tailwind.css（${tw.join(', ')}）不一致`,
     );
   }
 

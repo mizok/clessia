@@ -199,7 +199,7 @@ admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同�
 ### CSS / SCSS
 
 - BEM：`.block__element--modifier`
-- 全域 design tokens 在 `apps/web/src/styles.scss`（CSS custom properties）
+- 全域 design tokens 在 `apps/web/src/styles.css`（CSS custom properties）
 - 色彩 Zinc gray + Accent **橘紅**（`--accent-400: #ff8557`）；spacing 基準 4px（`var(--space-*)`）；字體 Inter + Noto Sans TC
   > 2026-09-05 訂正：這裡原本寫「Accent sky blue」，但實際色票早已換成橘紅系。
   > 那次漂移的代價不只是文件過期 —— `inline-notice` 的 `--info` 綁 accent token

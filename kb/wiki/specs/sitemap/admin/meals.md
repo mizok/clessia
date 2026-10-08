@@ -327,7 +327,7 @@ session 篩選列的三個手機元素，但**任何用 `app-page-actions` 帶 p
 | `p-togglebutton`（區間查詢） | `97 × 42` | **`97 × 42`** |
 
 > ⚠️ **`p-togglebutton` 一顆都沒被 coarse 抬起來，而這一批三頁加起來有 9 顆。**
-> 成因寫在 `apps/web/src/styles.scss` 的 coarse 區塊註解裡：
+> 成因寫在 `apps/web/src/styles.css` 的 coarse 區塊註解裡：
 > 「`--p-togglebutton-padding-y` 與 `--p-checkbox-*` **不存在**，所以沒寫 ——
 > 幽靈 token 不會有任何錯誤訊號，只會靜靜地什麼都不做」。
 > **量測把那句註解變成了數字。** 記現況，不在這裡判定是不是缺陷。

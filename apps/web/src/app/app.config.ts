@@ -48,7 +48,7 @@ const ClessiaPreset = definePreset(Aura, {
     // 橘專屬品牌（accent），警示一律琥珀 —— 所以連 PrimeNG 的 orange 一起換掉，
     // 否則 Tag / Message / Button 的 warn 會用品牌色喊「這裡有問題」。
     //
-    // 值就是琥珀階（與 styles.scss 的 `--warning-*` 同一組），對比實測：
+    // 值就是琥珀階（與 styles.css 的 `--warning-*` 同一組），對比實測：
     // 700 壓在 100 上 4.51:1、壓在 200（hover）上 4.03:1 ——
     // 所以 chip 內文字在我們自己的 SCSS 裡用 800；PrimeNG 的 Tag 沒有 hover，
     // 維持它預設的 700 即可。
@@ -108,7 +108,7 @@ const ClessiaPreset = definePreset(Aura, {
     // Color scheme specific tokens
     colorScheme: {
       light: {
-        // 跟 styles.scss 的 --zinc-* 同一組暖中性階。兩邊不同步的話，
+        // 跟 styles.css 的 --zinc-* 同一組暖中性階。兩邊不同步的話，
         // PrimeNG 元件會是冷灰、周圍的自訂樣式是暖灰，同框就露餡。
         surface: {
           0: '#ffffff',
@@ -181,7 +181,7 @@ export const appConfig: ApplicationConfig = {
         options: {
           prefix: 'p',
           darkModeSelector: '.dark-mode',
-          // PrimeNG 進 `primeng` layer（#991 T4）。order 必須是 tailwind.css／styles.scss 那行
+          // PrimeNG 進 `primeng` layer（#991 T4）。order 必須是 tailwind.css／styles.css 那行
           // `@layer …` 的前綴 —— PrimeNG 把這支 layer-order 插在 <head> 最前面，順序由第一次出現決定。
           // 三處一致由 harness A26 守。為什麼要 legacy：kb/wiki/architecture/tailwind-adoption.md 2.2。
           cssLayer: { name: 'primeng', order: 'theme, base, primeng, legacy' },

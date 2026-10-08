@@ -55,7 +55,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | c3 已提交 migration 不可改 | Deterministic | **雙層**：pre-guard + `whenTracked`（寫入當下）+ harness gate A16（分支對照 `origin/main...HEAD` 的 M/D/R）                                         | ✅ 雙重 —— A16 看不到「直接推 main」的情形，理由見下                        |
 | c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                                                                    | 依賴工具，未另外 gate                                                       |
 | c5 feature 不互相 import   | Semantic      | **部分機器化**：harness gate A18（路徑層面的直接 import，含 `@features/` 與 `@app/` 別名）+ 人工 review                                             | ⚠️ 部分 —— **經由 `core/` / `shared/` 的間接耦合看不到**，那一半仍靠 review |
-| c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**/*.scss`）                                       | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄     |
+| c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`／`.ts`／`.html`／`.css`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**` 的 `.scss`／`.ts`／`.html`／`.css`，含全域 `styles.css`）                                       | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄     |
 | c7 原生 control flow       | Deterministic | **雙層**：pre-guard regex（`.html`）+ harness gate A13（存量，掃 `apps/web/src/**/*.html`）                                                         | ✅ 雙重 —— 存量 0，gate 是防回歸                                            |
 | c8 functional API          | Deterministic | **雙層**：pre-guard regex（`apps/web/**`，排除 `.spec.ts`）+ harness gate A14（存量，**allowlist 4 筆**）                                           | ⚠️ 雙重但有 allowlist —— 「等」字的範圍見下方邊界記錄                       |
 | c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs?/`，`doc/` 與 `docs/` 都擋）+ harness gate A3                                                                                | ✅ 雙重                                                                     |
@@ -86,7 +86,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A9   | `.claude/settings.json` 的 deny 規則指向的檔案真的存在（護欄不得靜默失效）                                                                                |
 | A10  | `apps/api/src` 不得 import 雲端供應商專屬服務（KV / R2 / Durable Objects，c12）                                                                           |
 | A11  | `apps/api/src` 的 `createUser` 不得帶 `password`（scrypt 超過 Workers 的 10ms CPU 上限）                                                                  |
-| A12  | `apps/web/src/**/*.scss` 沒有拿 viewport 單位當值（c6 的**存量**那一半；規則與 pre-guard 共用）                                                           |
+| A12  | `apps/web/src/**/*.{scss,css,ts,html}` 沒有拿 viewport 單位當值（c6 的**存量**那一半；規則與 pre-guard 共用）                                                           |
 | A13  | `apps/web/src/**/*.html` 沒有 `*ngIf` / `*ngFor` / `*ngSwitch`（c7 的存量；目前 0 筆，防回歸）                                                            |
 | A14  | `apps/web/src/**/*.ts` 沒有裝飾器版 API（c8 的存量；**allowlist 4 筆**）                                                                                  |
 | A15  | `apps/api/src/**/*.ts` 沒有直寫 `ba_*`（c2 的存量；**allowlist 9 筆**）                                                                                   |
@@ -95,9 +95,9 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A18  | `features/<a>` 不得 import `features/<b>`（c5 可判定的那一半；**無 baseline，立法時零違規**）                                                             |
 | A22  | icon-only 的按鈕有可及名稱（#930；ratchet 21 筆。**第三種形狀「原生 `<button>` 上寫 `ariaLabel`」存量 0、不走 ratchet，一出現就紅**）                     |
 | A23  | org 表的 update/delete 帶 `.eq('org_id')` 或 `inOrg()`（c1，#966 B；ratchet 只能往下；org 表從 migration 推導，對照 `OrgTable`）                          |
-| A24  | SCSS 歸零帳面（#991）：帳面外的 `.scss`／內嵌 `styles:` 紅、帳面上已刪的紅（`harness:write` 只減）；`@source` 目錄底下不得有 SCSS                         |
-| A25  | `tailwind.css` 的 `@theme` 映射：引用的 token 必須在 `styles.scss :root`、字重不得寫進 `--font-*`、同名映射要在 `reference` 區塊                          |
-| A26  | cascade layer 順序三處一致（#991 T4）：`tailwind.css` 與 `styles.scss` 的 `@layer …;` 相同，PrimeNG `cssLayer.order` 是它的前綴                           |
+| A24  | SCSS 已歸零（#991 S-c，帳面為 `[]`）：任何 `.scss`／內嵌 `styles:` 一出現就紅（零 baseline）；`@source` 目錄底下不得有 SCSS。讀 `styles.css` 的 gate 由 `harness.test.mjs` 逐道整支驗過                         |
+| A25  | `tailwind.css` 的 `@theme` 映射：引用的 token 必須在 `styles.css :root`、字重不得寫進 `--font-*`、同名映射要在 `reference` 區塊                          |
+| A26  | cascade layer 順序三處一致（#991 T4）：`tailwind.css` 與 `styles.css` 的 `@layer …;` 相同，PrimeNG `cssLayer.order` 是它的前綴                           |
 | A27  | Tailwind 頁（`@source` 目錄）的可點元素要有基底的 ≥44px 高度 class（A17 的 class 版，#991 T3）；**零 baseline**                                           |
 | A28  | Tailwind 頁的文字色／底色 class 對比（scss-contrast 的 class 版，#991 T3）：祖先鏈找最近的 `text-*`／`bg-*`，經 design system 解析成 token 值             |
 

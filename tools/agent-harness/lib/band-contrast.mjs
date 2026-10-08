@@ -6,7 +6,7 @@
  * 兩席各自憑直覺寫過 0.32~0.72，全部不合格，而畫面看起來「只是淡了一點」。
  * 所以它需要一道 gate 而不是一段註解。
  *
- * 不寫死數字：門檻是從 styles.scss 的**現值**算出來的，之後誰動了 `--accent-vivid`
+ * 不寫死數字：門檻是從 styles.css 的**現值**算出來的，之後誰動了 `--accent-vivid`
  * 或 `--band-ink-muted`，這裡會跟著重算。
  */
 
@@ -48,7 +48,7 @@ const readRgba = (css, name) => {
 };
 
 /**
- * @param {string} css `apps/web/src/styles.scss` 的內容
+ * @param {string} css `apps/web/src/styles.css` 的內容
  * @returns {string[]} 違規訊息；全部合格時是空陣列
  */
 export function bandContrastViolations(css) {
