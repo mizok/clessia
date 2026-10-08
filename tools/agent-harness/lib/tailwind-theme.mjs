@@ -1,7 +1,7 @@
 /**
  * 守 `apps/web/src/tailwind.css` 的 `@theme` 映射（#991 T0，gate A25）。
  *
- * tokens 的來源是 `styles.scss` 的 `:root`，`@theme` 只引用、不另定值。映射表是手寫的，
+ * tokens 的來源是 `styles.css` 的 `:root`，`@theme` 只引用、不另定值。映射表是手寫的，
  * 所以要一道 gate 守住三件**錯了也不會報錯**的事：
  *
  * 1. **引用的變數不存在**：`--color-zinc-950: var(--zinc-950)` 而 `:root` 沒有 `--zinc-950` ——
@@ -10,7 +10,7 @@
  *    `--font-*` 是 `font-family`。寫成 `--font-medium: var(--font-medium)` 的話，
  *    `font-medium` 會輸出 `font-family: 500`。字重要映到 `--font-weight-*`。
  * 3. **同名自我參照被輸出**：`@theme inline` 沒加 `reference` 時，`--text-xs: var(--text-xs)`
- *    會被輸出到 `:root`（實測）。今天靠 styles.scss 未分層而贏，`:root` 哪天被包進 layer 就變成循環。
+ *    會被輸出到 `:root`（實測）。今天靠 styles.css 未分層而贏，`:root` 哪天被包進 layer 就變成循環。
  */
 
 const FONT_WEIGHT_NAMES =
@@ -58,8 +58,8 @@ export function themeBlocks(css) {
 }
 
 /** @returns {string[]} 違規訊息（空陣列 = 綠） */
-export function themeMappingProblems(tailwindCss, stylesScss) {
-  const known = rootVariables(stylesScss);
+export function themeMappingProblems(tailwindCss, stylesCss) {
+  const known = rootVariables(stylesCss);
   const problems = [];
   for (const { options, decls } of themeBlocks(tailwindCss)) {
     const emitted = !options.includes('reference');
@@ -72,7 +72,7 @@ export function themeMappingProblems(tailwindCss, stylesScss) {
       for (const ref of value.matchAll(/var\(\s*(--[\w-]+)/g)) {
         if (!known.has(ref[1])) {
           problems.push(
-            `${name} 引用的 ${ref[1]} 不在 styles.scss 的 :root —— utility 會產生、值是空的`,
+            `${name} 引用的 ${ref[1]} 不在 styles.css 的 :root —— utility 會產生、值是空的`,
           );
         }
         if (ref[1] === name && emitted) {

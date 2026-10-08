@@ -17,7 +17,7 @@
   },
   "band-contrast": {
     "roots": ["apps/web/src"],
-    "exts": [".scss"]
+    "exts": [".css"]
   },
   "c2": {
     "roots": ["apps/api/src", "supabase"],
@@ -49,7 +49,7 @@
   },
   "ghost-token": {
     "roots": ["apps/web/src"],
-    "exts": [".html", ".scss", ".ts"]
+    "exts": [".css", ".html", ".scss", ".ts"]
   },
   "mobile-first": {
     "roots": ["apps/web/src"],
@@ -161,6 +161,6 @@
   },
   "usage-contrast": {
     "roots": ["apps/web/src"],
-    "exts": [".scss", ".ts"]
+    "exts": [".css", ".scss", ".ts"]
   }
 }

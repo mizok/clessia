@@ -38,7 +38,7 @@
  * - **PrimeNG 元件不在掃描範圍** —— 元件 SCSS 永遠不會有 min-height，掃它們只會製造誤報。
  *
  *   **但「由全域 token 負責」這句話有範圍，2026-09-06 訂正**：
- *   `styles.scss` 的 `@media (pointer: coarse)` 區塊只對全域**加大內距**
+ *   `styles.css` 的 `@media (pointer: coarse)` 區塊只對全域**加大內距**
  *   （`--p-button-sm-padding-y` 等），而 `min-height: 44px` **只掛在
  *   `.clessia-filter-bar .p-button`**。其餘位置的 `p-button` 最終高度取決於字級 ——
  *   teacher-pages 量到老師端課堂卡的動作鈕是 **34px**，而這道 gate 是綠的。
