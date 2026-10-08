@@ -149,6 +149,42 @@ describe('EnrollmentsPage', () => {
     expect(fixture.nativeElement.textContent).toContain('08/14');
   });
 
+  it('四種事件詞各自標記，原因寫在狀態下面（#1314 EN5）', async () => {
+    await setup([
+      enrollment({ id: 'a', status: 'active' }),
+      enrollment({
+        id: 'b',
+        status: 'withdrawal',
+        effectiveTo: '2026-08-14',
+        statusReason: '搬家',
+      }),
+      enrollment({
+        id: 'c',
+        status: 'suspended',
+        statusChangedAt: '2026-08-10',
+        statusReason: '長期請病假',
+      }),
+      enrollment({ id: 'd', status: 'void', effectiveTo: '2026-08-12', statusReason: '重複報名' }),
+    ]);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    for (const word of ['新報名', '退班', '暫停', '作廢']) expect(text).toContain(word);
+    expect(component['rows']().map((r) => r.event.kind)).toEqual([
+      'joined',
+      'left',
+      'paused',
+      'voided',
+    ]);
+    // 暫停的日期是 status_changed_at（它不寫 effective_to）
+    expect(text).toContain('08/10');
+    for (const why of ['搬家', '長期請病假', '重複報名']) expect(text).toContain(why);
+  });
+
+  it('沒有原因就不畫那一行', async () => {
+    await setup([enrollment({ status: 'active', statusReason: null })]);
+    expect((fixture.nativeElement as HTMLElement).querySelector('td span.block')).toBeNull();
+  });
+
   it('分校跟頂欄走：頂欄換分校會重新查詢並回到第一頁（#1138）', async () => {
     await setup();
     component['onPageChange'](3);
