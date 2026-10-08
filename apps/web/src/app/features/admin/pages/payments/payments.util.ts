@@ -72,3 +72,13 @@ export function lastPaidOn(invoice: Invoice): string | null {
   if (!last) return null;
   return `${+last.paidAt.slice(5, 7)}/${+last.paidAt.slice(8, 10)}`;
 }
+
+/**
+ * 離到期日還有幾天（今天到期＝0）。`daysOverdue` 的反方向，同樣是純日期字串、UTC 日數相減。
+ * 沒到期日或已逾期回 0 —— 呼叫端自己先排掉沒到期日的情況（那種帳單不談「還有幾天」）。
+ */
+export function daysUntilDue(invoice: Invoice, today: string): number {
+  if (invoice.dueDate === null || invoice.dueDate < today) return 0;
+  const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+  return Math.round((day(invoice.dueDate) - day(today)) / 86_400_000);
+}

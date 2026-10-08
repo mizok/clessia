@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { format } from 'date-fns';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -145,7 +146,7 @@ describe('PaymentsPage', () => {
    */
   it.each([
     ['outstanding', { outstanding: true }],
-    ['dueSoon', { dueWithin: 7 }],
+    ['dueSoon', { dueState: 'dueSoon' }],
     ['overdue', { overdue: true }],
   ] as const)('三選一:%s 送出對應的參數', (filter, expected) => {
     invoices.list.mockClear();
@@ -364,13 +365,62 @@ describe('PaymentsPage', () => {
       expect(text()).toContain('繳費紀錄');
     });
 
-    it('章名數字直接用彙總：逾期張數與待收、已繳清＝繳清＋多退', async () => {
+    it('章名數字直接用彙總：逾期、7 天內到期、還沒到期各自的張數與待收，已繳清＝繳清＋多退', async () => {
       invoices.list.mockReturnValue(of(listResponse([invoice()], 4)));
       component['load']();
       await render();
       expect(text()).toContain('4 張 · 待收 NT$ 15,000');
-      expect(component['paidChapterCount']()).toBe(17);
+      expect(text()).toContain('7 天內到期');
+      expect(text()).toContain('2 張 · 待收 NT$ 6,000');
+      expect(text()).toContain('還沒到期');
+      expect(text()).toContain('1 張 · 待收 NT$ 5,000');
+      const paid = component['chapterList']().find((c) => c.key === 'paid');
+      expect(paid?.count).toBe(17);
+      // 順序照 A6
+      expect(component['chapterList']().map((c) => c.key)).toEqual(['dueSoon', 'notDue', 'paid']);
     });
+
+    it('章名的天數讀 summary.dueSoon.days，不是前端寫死的 7', async () => {
+      invoices.summary.mockReturnValue(
+        of(summary({ dueSoon: { count: 2, outstanding: 6000, days: 10 } })),
+      );
+      component['loadSummary']();
+      await render();
+      expect(text()).toContain('10 天內到期');
+      expect(text()).not.toContain('7 天內到期');
+      expect('DUE_SOON_DAYS' in component).toBe(false);
+    });
+
+    it('張數為 0 的章不畫；沒有彙總時一章都不畫', async () => {
+      invoices.summary.mockReturnValue(of(summary({ notDue: { count: 0, outstanding: 0 } })));
+      component['loadSummary']();
+      await render();
+      expect(component['chapterList']().map((c) => c.key)).toEqual(['dueSoon', 'paid']);
+
+      invoices.summary.mockReturnValue(throwError(() => new Error('boom')));
+      component['loadSummary']();
+      await render();
+      expect(component['chapterList']()).toEqual([]);
+    });
+
+    it.each(['dueSoon', 'notDue'] as const)(
+      '%s 章收著，展開才抓，且送 dueState（互斥章篩選）',
+      async (key) => {
+        await render();
+        invoices.list.mockClear();
+        expect(invoices.list).not.toHaveBeenCalled();
+
+        component['toggleChapter'](key);
+        await render();
+
+        expect(invoices.list).toHaveBeenCalledWith(
+          expect.objectContaining({ dueState: key, page: 1, pageSize: 20 }),
+        );
+        expect(component['chapters']()[key].open).toBe(true);
+        // 其他章不受影響
+        expect(component['chapters']().paid.open).toBe(false);
+      },
+    );
 
     it('已繳清章收著：展開才抓；多退排在繳清前面', async () => {
       await render();
@@ -382,18 +432,35 @@ describe('PaymentsPage', () => {
             : listResponse([invoice({ id: 'paid', status: 'paid', netPaid: 4500 })]),
         )) as never);
 
-      component['togglePaid']();
+      component['toggleChapter']('paid');
       await render();
 
       expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'paid' }));
       expect(invoices.list).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'overrefunded' }),
       );
-      expect(component['paidRows']().map((i) => i.id)).toEqual(['over', 'paid']);
+      expect(component['chapters']().paid.rows.map((i) => i.id)).toEqual(['over', 'paid']);
       expect(component['dueText'](invoice({ status: 'overrefunded', netPaid: -300 }))).toBe('多退');
       expect(component['chapterAmount'](invoice({ status: 'overrefunded', netPaid: -300 }))).toBe(
         300,
       );
+    });
+
+    it('到期兩章的列文字：今天到期、N 天後到期、M/D 到期、沒有到期日', async () => {
+      await render();
+      const today = component['today']();
+      const plus = (n: number) => {
+        const d = new Date(`${today}T12:00:00`);
+        d.setDate(d.getDate() + n);
+        return format(d, 'yyyy-MM-dd');
+      };
+      const text = (dueDate: string | null) =>
+        component['dueText'](invoice({ status: 'unpaid', dueDate }));
+      expect(text(today)).toBe('今天到期');
+      expect(text(plus(3))).toBe('3 天後到期');
+      expect(text(plus(7))).toBe('7 天後到期');
+      expect(text(plus(8))).toMatch(/^\d+\/\d+ 到期$/);
+      expect(text(null)).toBe('未設定到期日');
     });
 
     it('逾期章的「逾期 N 天」用台北今天算', async () => {

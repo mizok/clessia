@@ -1,4 +1,11 @@
-import { isOverdue, outstanding, overRefunded, receiptNoOf } from './payments.util';
+import {
+  daysOverdue,
+  daysUntilDue,
+  isOverdue,
+  outstanding,
+  overRefunded,
+  receiptNoOf,
+} from './payments.util';
 import type { Invoice, PaymentRecord } from '@core/invoices.service';
 
 function invoice(overrides: Partial<Invoice> = {}): Invoice {
@@ -168,5 +175,24 @@ describe('outstanding／overRefunded —— 多退（淨額 < 0）', () => {
   it('不是多退的帳單 overRefunded 是 0（溢繳照舊由 outstanding 的負數表達）', () => {
     expect(overRefunded(invoice({ total: 1000, netPaid: 1200, status: 'paid' }))).toBe(0);
     expect(outstanding(invoice({ total: 1000, netPaid: 1200, status: 'paid' }))).toBe(-200);
+  });
+});
+
+describe('daysUntilDue／daysOverdue —— 純日期字串，不走本地時區', () => {
+  it('今天到期是 0 天；逾期的帳單回 0（不是負數）', () => {
+    expect(daysUntilDue(invoice({ dueDate: '2026-10-08' }), '2026-10-08')).toBe(0);
+    expect(daysUntilDue(invoice({ dueDate: '2026-10-07' }), '2026-10-08')).toBe(0);
+  });
+
+  it('跨月、跨年照日曆算', () => {
+    expect(daysUntilDue(invoice({ dueDate: '2026-11-02' }), '2026-10-30')).toBe(3);
+    expect(daysUntilDue(invoice({ dueDate: '2027-01-02' }), '2026-12-30')).toBe(3);
+    expect(daysOverdue(invoice({ dueDate: '2026-09-28' }), '2026-10-02')).toBe(4);
+  });
+
+  it('沒有到期日回 0；到期日當天不算逾期', () => {
+    expect(daysUntilDue(invoice({ dueDate: null }), '2026-10-08')).toBe(0);
+    expect(daysOverdue(invoice({ dueDate: null }), '2026-10-08')).toBe(0);
+    expect(daysOverdue(invoice({ dueDate: '2026-10-08' }), '2026-10-08')).toBe(0);
   });
 });
