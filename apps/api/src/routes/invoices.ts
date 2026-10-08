@@ -8,6 +8,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
+import { summarizeInvoices } from '../lib/invoice-summary';
 import {
   invoiceTotals,
   isOpenInvoice,
@@ -216,6 +217,91 @@ app.openapi(
     const paged = sliceDerivedPage(rows, page, pageSize);
 
     return c.json({ data: paged.rows, meta: { total: paged.total, page, pageSize } }, 200);
+  },
+);
+
+// ============================================================
+// GET /api/invoices/summary —— 帳本頁的彙總（#1314 P1／P2）
+//
+// 狀態是推導值，DB 數不出來，所以撈回來用 lib/invoice-summary 加總。**撈到底**：
+// 每頁 1000（= max_rows）、照 id 排序翻到不足一頁為止 —— 一次撈會被 max_rows 靜默截斷。
+// ponytail: O(全部帳單) 每次載入；量大時升級成 SQL view／RPC（migration）。
+//
+// 分校範圍刻意不套：跟列表一致（列表也沒套），兩者一起由 #1381 補。
+// 必須註冊在 `/{id}` 之前，否則 `summary` 會被當成 id 驗 uuid 回 400。
+// ============================================================
+const SUMMARY_PAGE = 1000;
+
+const BucketSchema = z.object({ count: z.number().int(), outstanding: z.number() });
+const CountSchema = z.object({ count: z.number().int() });
+
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/summary',
+    tags: ['Invoices'],
+    summary: '帳單彙總（各狀態張數與待收、逾期、本月應收／已收）',
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z
+              .object({
+                byStatus: z.object({
+                  unpaid: BucketSchema,
+                  partial: BucketSchema,
+                  paid: CountSchema,
+                  overrefunded: CountSchema,
+                  void: CountSchema,
+                }),
+                overdue: BucketSchema,
+                month: z.object({ month: z.string(), billed: z.number(), received: z.number() }),
+              })
+              .openapi('InvoiceSummary'),
+          },
+        },
+      },
+      500: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+
+    const rows: Array<Record<string, unknown>> = [];
+    for (let from = 0; ; from += SUMMARY_PAGE) {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(
+          'id, issued_at, due_date, voided_at, invoice_items(amount), payment_records(kind, amount)',
+        )
+        .eq('org_id', orgId)
+        .order('id')
+        .range(from, from + SUMMARY_PAGE - 1);
+      // 撈一半失敗就不回半套數字
+      if (error) return c.json({ error: '查詢帳單彙總失敗', code: 'DB_ERROR' }, 500);
+      rows.push(...((data ?? []) as Array<Record<string, unknown>>));
+      if ((data ?? []).length < SUMMARY_PAGE) break;
+    }
+
+    // postgrest 的 numeric 回來是字串
+    const summary = summarizeInvoices(
+      rows.map((row) => ({
+        issuedAt: row['issued_at'] as string,
+        dueDate: (row['due_date'] as string | null) ?? null,
+        voided: Boolean(row['voided_at']),
+        items: ((row['invoice_items'] as Array<Record<string, unknown>> | null) ?? []).map(
+          (item) => ({ amount: Number(item['amount'] ?? 0) }),
+        ),
+        payments: ((row['payment_records'] as Array<Record<string, unknown>> | null) ?? []).map(
+          (p) => ({ kind: p['kind'] as 'payment' | 'refund', amount: Number(p['amount'] ?? 0) }),
+        ),
+      })),
+      getCurrentTaipeiDateString(),
+    );
+
+    return c.json(summary, 200);
   },
 );
 
