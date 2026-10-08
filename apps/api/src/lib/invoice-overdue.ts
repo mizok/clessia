@@ -1,3 +1,5 @@
+import { addDaysToDateString } from './taipei-date';
+
 /**
  * 「這張帳單逾期了嗎」的**唯一定義**：有到期日、而且**過了**到期日
  * （`kb/wiki/rules/billing-rules.md:63`「欠」的定義）。到期日當天不算。
@@ -63,4 +65,30 @@ export function whereDueWithin<
   Q extends { gte(column: string, value: string): Q; lte(column: string, value: string): Q },
 >(query: Q, today: string, until: string): Q {
   return query.gte(OVERDUE_DUE_DATE_COLUMN, today).lte(OVERDUE_DUE_DATE_COLUMN, until);
+}
+
+/**
+ * 「快到期」的天數（#1314 P1）。**唯一一份** —— 帳本彙總的分桶用它，並透過
+ * `summary.dueSoon.days` 回給前端當章名的天數，前端不另存一份（`@clessia/shared-types`
+ * 沒有人 import、wrangler 吃不吃 paths 沒驗過，所以常數住 API、由回應帶出去）。
+ */
+export const DUE_SOON_DAYS = 7;
+
+export type DueState = 'overdue' | 'dueSoon' | 'notDue';
+
+/**
+ * 一張**未繳清**帳單落在哪一章（#1314 P1）。三者對任何輸入恰好一個成立 —— 互斥由這支保證，
+ * 不靠呼叫端：
+ *
+ * - `overdue`：`isOverdueOn`（原樣，過了到期日、當天不算）
+ * - `dueSoon`：`today ≤ 到期日 ≤ today + DUE_SOON_DAYS`（＝ `whereDueWithin` 的閉區間）
+ * - `notDue`：到期日在那之後，**或沒有到期日**（2026-09-07 裁定：沒到期日屬未繳清母體、
+ *   不屬逾期也不屬快到期 —— 還沒告訴家長期限，談不上快到期）
+ *
+ * 「未繳清」那一半不在這裡判（同本檔 `isOverdueOn` 的分工）。
+ */
+export function dueStateOn(dueDate: string | null, today: string): DueState {
+  if (isOverdueOn(dueDate, today)) return 'overdue';
+  if (dueDate !== null && dueDate <= addDaysToDateString(today, DUE_SOON_DAYS)) return 'dueSoon';
+  return 'notDue';
 }

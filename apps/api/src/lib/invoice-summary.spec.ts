@@ -51,6 +51,29 @@ describe('summarizeInvoices（#1314 P1／P2）', () => {
     expect(s.overdue).toEqual({ count: 2, outstanding: 1600 });
   });
 
+  it('未繳清三章（#1314 P1）：互斥、聯集＝unpaid＋partial；沒到期日落 notDue', () => {
+    const s = summarizeInvoices(
+      [
+        inv({ dueDate: '2026-10-07' }), // overdue 1000
+        inv({ dueDate: TODAY, payments: [pay(400)] }), // dueSoon 600
+        inv({ dueDate: '2026-10-15' }), // dueSoon（第 7 天）1000
+        inv({ dueDate: '2026-10-16', payments: [pay(100)] }), // notDue（第 8 天）900
+        inv({ dueDate: null }), // notDue（沒到期日）1000
+        inv({ dueDate: '2026-10-09', payments: [pay(1000)] }), // 繳清：不進任何一章
+        inv({ dueDate: '2026-10-09', voided: true }), // 作廢：不進
+        inv({ dueDate: '2026-10-09', payments: [pay(500), refund(800)] }), // 多退：不進
+      ],
+      TODAY,
+    );
+    expect(s.overdue).toEqual({ count: 1, outstanding: 1000 });
+    expect(s.dueSoon).toEqual({ count: 2, outstanding: 1600, days: 7 });
+    expect(s.notDue).toEqual({ count: 2, outstanding: 1900 });
+    const open = s.byStatus.unpaid.count + s.byStatus.partial.count;
+    const owed = s.byStatus.unpaid.outstanding + s.byStatus.partial.outstanding;
+    expect(s.overdue.count + s.dueSoon.count + s.notDue.count).toBe(open);
+    expect(s.overdue.outstanding + s.dueSoon.outstanding + s.notDue.outstanding).toBe(owed);
+  });
+
   it('本月：本月開立的非作廢帳單，應收＝明細合計、已收＝至今淨收', () => {
     const s = summarizeInvoices(
       [

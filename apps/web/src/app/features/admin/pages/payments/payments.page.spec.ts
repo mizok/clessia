@@ -55,6 +55,9 @@ const summary = (overrides?: Partial<InvoiceSummary>): InvoiceSummary => ({
     void: { count: 3 },
   },
   overdue: { count: 4, outstanding: 15000 },
+  // 三章聯集＝unpaid＋partial（7 張／26000），同後端的不變量
+  dueSoon: { count: 2, outstanding: 6000, days: 7 },
+  notDue: { count: 1, outstanding: 5000 },
   month: { month: '2026-10', billed: 200000, received: 150000 },
   ...overrides,
 });

@@ -117,6 +117,8 @@ export interface PaymentReminder {
   createdAt: string;
 }
 
+export type DueState = 'overdue' | 'dueSoon' | 'notDue';
+
 export interface InvoiceQueryParams {
   /** 後端只吃 uuid，**不吃姓名關鍵字** —— 姓名搜尋走 student-autocomplete 換出 id */
   studentId?: string;
@@ -140,6 +142,12 @@ export interface InvoiceQueryParams {
   dueWithin?: number;
   /** 推導出來的狀態（PR #64 加的）。**與 `overdue` 可並用** —— 「部分繳 + 逾期」是常見組合 */
   status?: InvoiceStatus;
+  /**
+   * 未繳清的互斥章（#1314 P1）。判準在後端 `lib/invoice-overdue.ts` 的 `dueStateOn`：
+   * `dueSoon` = 今天到第 `summary.dueSoon.days` 天（含）；`notDue` 含沒有到期日的。
+   * 與上面三者並用是交集
+   */
+  dueState?: DueState;
   page?: number;
   pageSize?: number;
 }
@@ -198,7 +206,12 @@ interface SummaryBucket {
   outstanding: number;
 }
 
-/** `GET /invoices/summary`（#1382）。金額與張數都由後端加總，前端只顯示 */
+/**
+ * `GET /invoices/summary`（#1382）。金額與張數都由後端加總，前端只顯示。
+ *
+ * 未繳清的三章 `overdue`／`dueSoon`／`notDue`（#1314 P1）互斥、聯集＝ `unpaid`＋`partial`。
+ * **章名的天數讀 `dueSoon.days`**，不要在前端另存一份
+ */
 export interface InvoiceSummary {
   byStatus: {
     unpaid: SummaryBucket;
@@ -208,6 +221,8 @@ export interface InvoiceSummary {
     void: { count: number };
   };
   overdue: SummaryBucket;
+  dueSoon: SummaryBucket & { days: number };
+  notDue: SummaryBucket;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
   month: { month: string; billed: number; received: number };
 }
@@ -277,6 +292,7 @@ function toQuery(params?: InvoiceQueryParams): Record<string, string> {
     query['dueWithin'] = String(params.dueWithin);
   }
   if (params.status) query['status'] = params.status;
+  if (params.dueState) query['dueState'] = params.dueState;
   if (params.page !== undefined) query['page'] = String(params.page);
   if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);
   return query;

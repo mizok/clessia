@@ -15,7 +15,7 @@ import {
   studentInScope,
 } from '../lib/invoice-campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
-import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
+import { dueStateOn, whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
 import { summarizeInvoices } from '../lib/invoice-summary';
 import {
   invoiceTotals,
@@ -38,6 +38,7 @@ const PAYMENT_KINDS = ['payment', 'refund'] as const;
 const PAYMENT_METHODS = ['cash', 'transfer'] as const;
 const REMINDER_METHODS = ['line', 'phone', 'other'] as const;
 const INVOICE_STATUSES = ['unpaid', 'partial', 'paid', 'void', 'overrefunded'] as const;
+const DUE_STATES = ['overdue', 'dueSoon', 'notDue'] as const;
 
 /** 作廢單凍結（#898）。四支寫入共用的回應 —— DB trigger 另有一層，催繳那支沒有 */
 const VOIDED = { error: '這張帳單已作廢，不能再修改', code: 'INVOICE_VOIDED' } as const;
@@ -216,6 +217,10 @@ app.openapi(
           .enum(INVOICE_STATUSES)
           .optional()
           .openapi({ description: '推導出來的狀態，與 overdue 可並用' }),
+        dueState: z.enum(DUE_STATES).optional().openapi({
+          description:
+            '未繳清的互斥章（#1314 P1）：overdue／dueSoon（7 天內，含今天）／notDue（之後或沒有到期日）。與 overdue／dueWithin 並用＝AND',
+        }),
         page: z.string().optional(),
         pageSize: z.string().optional(),
       }),
@@ -254,7 +259,9 @@ app.openapi(
     //   overdue      due_date < 今天              —— 已逾期
     //   dueWithin    今天 <= due_date <= 今天+N   —— 快到期
     // **「未繳清」那一半三者共用**,所以下面只有一個 isOpenInvoice。
-    const unpaidOnly = overdue || outstanding || dueWithinDays !== undefined;
+    // dueState（#1314 P1）是同一個母體的互斥分章，判準在 lib/invoice-overdue 的 dueStateOn
+    const unpaidOnly =
+      overdue || outstanding || dueWithinDays !== undefined || params.dueState !== undefined;
     // 分校範圍（#1381）在記憶體判（`lib/invoice-campus-scope.ts`），所以受限者也走推導路徑
     const campusScope = getCampusScope(c);
     // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
@@ -315,6 +322,11 @@ app.openapi(
     // 不存在的帳單。所以是 isOpenInvoice，不是 `!== 'paid'`
     if (unpaidOnly) rows = rows.filter((invoice) => isOpenInvoice(invoice.status));
     if (params.status) rows = rows.filter((invoice) => invoice.status === params.status);
+    if (params.dueState) {
+      // 在記憶體用同一支判準篩 —— 不另寫 SQL 版，免得同一條分界出現第三個實作
+      const today = getCurrentTaipeiDateString();
+      rows = rows.filter((invoice) => dueStateOn(invoice.dueDate, today) === params.dueState);
+    }
 
     const paged = sliceDerivedPage(rows, page, pageSize);
 
@@ -354,6 +366,8 @@ app.openapi(
                   void: CountSchema,
                 }),
                 overdue: BucketSchema,
+                dueSoon: BucketSchema.extend({ days: z.number().int() }),
+                notDue: BucketSchema,
                 month: z.object({ month: z.string(), billed: z.number(), received: z.number() }),
               })
               .openapi('InvoiceSummary'),
