@@ -1,8 +1,10 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { forkJoin, of } from 'rxjs';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
+import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
@@ -16,6 +18,7 @@ import {
   InvoicesService,
   type Invoice,
   type InvoiceStatus,
+  type InvoiceSummary,
 } from '@core/invoices.service';
 import { StudentsService, type Student } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
@@ -40,7 +43,7 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
-import { isOverdue, outstanding, overRefunded } from './payments.util';
+import { daysOverdue, isOverdue, lastPaidOn, outstanding, overRefunded } from './payments.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
@@ -74,6 +77,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     ButtonModule,
     SelectModule,
     SelectButtonModule,
+    PaginatorModule,
     ToastModule,
     PageActionsComponent,
     PageOpenComponent,
@@ -208,9 +212,139 @@ export class PaymentsPage implements OnInit {
     return typeof value === 'string' || value === null ? null : value;
   });
 
+  /**
+   * 帳本彙總（#1314 P1／P2）。**金額與張數全由後端加總**，這裡只顯示；
+   * 失敗就當沒有 —— 色面退回頁名、章名不帶數字，不擋主列表。
+   */
+  protected readonly summary = signal<InvoiceSummary | null>(null);
+
+  /**
+   * 沒有任何篩選時是 A6 的「章」：逾期章（攤開）＋已繳清章（收著）。
+   * 一動舊的篩選（學生、狀態、催繳三選一）就回到原本那張平面表 —— 暫留，
+   * 等「7 天內到期」「還沒到期」兩章接上（#1314 P1 第二支）才退場。
+   */
+  protected readonly chapterMode = computed(() => !this.hasFilters());
+
+  protected readonly monthLabel = computed(() => {
+    const month = this.summary()?.month.month;
+    return month ? `${Number(month.slice(5, 7))} 月` : '';
+  });
+  /** 已收幾成。**唯一的前端除法**；本月沒開單（billed=0）不除 */
+  protected readonly receivedPct = computed(() => {
+    const month = this.summary()?.month;
+    if (!month || month.billed <= 0) return null;
+    return Math.round((month.received / month.billed) * 100);
+  });
+  /** 色面那句話。`line2` 只在本月有開單時才有（billed=0 不報百分比） */
+  protected readonly bandTitle = computed(() => {
+    const month = this.summary()?.month;
+    if (!month) return null;
+    const pct = this.receivedPct();
+    return {
+      line1: `${this.monthLabel()}應收 NT$ ${month.billed.toLocaleString('en-US')}${pct === null ? '。' : '，'}`,
+      line2: pct === null ? '' : `已收 ${pct}%。`,
+    };
+  });
+  /** 還差多少。**唯一的前端減法**；已收超過應收時夾成 0（不顯示「還差負的」） */
+  protected readonly stillOwed = computed(() => {
+    const month = this.summary()?.month;
+    return month ? Math.max(0, month.billed - month.received) : 0;
+  });
+  /** 已繳清章張數：繳清＋多退（整數相加，不是金額） */
+  protected readonly paidChapterCount = computed(() => {
+    const by = this.summary()?.byStatus;
+    return by ? by.paid.count + by.overrefunded.count : 0;
+  });
+
+  // 已繳清章：收著，展開才抓。多退併進這一章（先列，因為要處理）
+  protected readonly paidOpen = signal(false);
+  protected readonly paidLoading = signal(false);
+  protected readonly paidFailed = signal(false);
+  protected readonly paidRows = signal<Invoice[]>([]);
+  protected readonly paidTotal = signal(0);
+  protected readonly paidPageIndex = signal(1);
+  protected readonly paidFirst = computed(() => (this.paidPageIndex() - 1) * PAGE_SIZE);
+  protected readonly PAGE_SIZE = PAGE_SIZE;
+
   ngOnInit(): void {
     this.load();
+    this.loadSummary();
     this.loadUninvoicedCount();
+  }
+
+  private loadSummary(): void {
+    this.service.summary().subscribe({
+      next: (res) => this.summary.set(res),
+      error: () => this.summary.set(null),
+    });
+  }
+
+  protected togglePaid(): void {
+    this.paidOpen.update((open) => !open);
+    if (this.paidOpen()) this.loadPaid();
+  }
+
+  /** 逾期章的分頁（章節模式下 `invoices()` 就是逾期那張清單） */
+  protected onChapterPage(event: PaginatorState): void {
+    this.pageIndex.set(Math.floor((event.first ?? 0) / PAGE_SIZE) + 1);
+    this.load();
+  }
+
+  protected onPaidPage(event: PaginatorState): void {
+    this.paidPageIndex.set(Math.floor((event.first ?? 0) / PAGE_SIZE) + 1);
+    this.loadPaid();
+  }
+
+  /**
+   * 已繳清章的列：第 1 頁前面接全部多退（通常寥寥幾張、`pageSize` 取上限），
+   * 後面才是繳清的分頁；分頁器只數繳清的。多退只在第 1 頁出現，翻頁不重複。
+   */
+  protected loadPaid(): void {
+    this.paidLoading.set(true);
+    this.paidFailed.set(false);
+    const page = this.paidPageIndex();
+    forkJoin([
+      this.service.list({ status: 'paid', page, pageSize: PAGE_SIZE }),
+      page === 1 && (this.summary()?.byStatus.overrefunded.count ?? 1) > 0
+        ? this.service.list({ status: 'overrefunded', page: 1, pageSize: 200 })
+        : of(null),
+    ]).subscribe({
+      next: ([paid, over]) => {
+        this.paidRows.set([...(over?.data ?? []), ...paid.data]);
+        this.paidTotal.set(paid.meta.total);
+        this.paidLoading.set(false);
+      },
+      error: () => {
+        this.paidRows.set([]);
+        this.paidFailed.set(true);
+        this.paidLoading.set(false);
+      },
+    });
+  }
+
+  /** 章裡每列的「到期」那一欄文字 */
+  protected dueText(invoice: Invoice): string {
+    if (invoice.status === 'overrefunded') return '多退';
+    if (invoice.status === 'paid') {
+      const on = lastPaidOn(invoice);
+      return on ? `${on} 繳清` : '已繳清';
+    }
+    const days = daysOverdue(invoice, this.today());
+    return days > 0 ? `逾期 ${days} 天` : '';
+  }
+
+  /** 章裡每列右邊的金額：待收／繳清是帳單金額，多退是退多少 */
+  protected chapterAmount(invoice: Invoice): number {
+    if (invoice.status === 'overrefunded') return overRefunded(invoice);
+    if (invoice.status === 'paid') return invoice.total;
+    return outstanding(invoice);
+  }
+
+  /** 做了任何會改變帳本的事之後：列表、彙總、（展開中的）已繳清章都要重抓 */
+  private refreshAll(): void {
+    this.load();
+    this.loadSummary();
+    if (this.paidOpen()) this.loadPaid();
   }
 
   private loadUninvoicedCount(): void {
@@ -231,7 +365,7 @@ export class PaymentsPage implements OnInit {
     ref?.onClose.subscribe((result: { issued: number } | undefined) => {
       if (!result) return;
       // 開了帳單 → 帳單列表與待開帳數字都變了
-      this.load();
+      this.refreshAll();
       this.loadUninvoicedCount();
       this.messageService.add({
         severity: 'success',
@@ -265,7 +399,8 @@ export class PaymentsPage implements OnInit {
       .list({
         studentId: this.selectedStudent()?.id,
         outstanding: this.dueFilter() === 'outstanding' || undefined,
-        overdue: this.dueFilter() === 'overdue' || undefined,
+        // 章節模式下這張表就是逾期章
+        overdue: this.dueFilter() === 'overdue' || this.chapterMode() || undefined,
         dueWithin: this.dueFilter() === 'dueSoon' ? this.DUE_SOON_DAYS : undefined,
         status: this.statusFilter() ?? undefined,
         page: this.pageIndex(),
@@ -373,7 +508,7 @@ export class PaymentsPage implements OnInit {
 
     ref?.onClose.subscribe((updated: Invoice | undefined) => {
       // 只有真的動過才重新取數 —— 純瀏覽關掉不該讓整張表閃一次
-      if (updated) this.load();
+      if (updated) this.refreshAll();
     });
   }
 
@@ -388,6 +523,8 @@ export class PaymentsPage implements OnInit {
     ref?.onClose.subscribe((created: Invoice | undefined) => {
       if (!created) return;
       this.reload();
+      this.loadSummary();
+      if (this.paidOpen()) this.loadPaid();
       // 開完帳最常見的下一步就是收錢（新生報名當場繳定金）。原本要關掉這個 dialog、
       // 回列表、再把剛開的那張找出來點進去 —— 三個動作換一件本來就連著的事。
       this.openDetail(created);

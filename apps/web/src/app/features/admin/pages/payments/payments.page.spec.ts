@@ -3,7 +3,7 @@ import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { InvoicesService, type Invoice } from '@core/invoices.service';
+import { InvoicesService, type Invoice, type InvoiceSummary } from '@core/invoices.service';
 import { StudentsService, type Student } from '@core/students.service';
 
 import { PaymentsPage } from './payments.page';
@@ -46,12 +46,26 @@ const listResponse = (rows: Invoice[], total = rows.length, page = 1) => ({
   meta: { total, page, pageSize: 20 },
 });
 
+const summary = (overrides?: Partial<InvoiceSummary>): InvoiceSummary => ({
+  byStatus: {
+    unpaid: { count: 5, outstanding: 20000 },
+    partial: { count: 2, outstanding: 6000 },
+    paid: { count: 16 },
+    overrefunded: { count: 1 },
+    void: { count: 3 },
+  },
+  overdue: { count: 4, outstanding: 15000 },
+  month: { month: '2026-10', billed: 200000, received: 150000 },
+  ...overrides,
+});
+
 describe('PaymentsPage', () => {
   let component: PaymentsPage;
   let fixture: ComponentFixture<PaymentsPage>;
 
   const invoices = {
     list: vi.fn(() => of(listResponse([]))),
+    summary: vi.fn(() => of(summary())),
     get: vi.fn(),
     create: vi.fn(),
     addItem: vi.fn(),
@@ -66,6 +80,7 @@ describe('PaymentsPage', () => {
 
   beforeEach(async () => {
     invoices.list.mockReset().mockReturnValue(of(listResponse([])));
+    invoices.summary.mockReset().mockReturnValue(of(summary()));
     students.list.mockReset().mockReturnValue(of({ data: [student()], summary: {}, meta: {} }));
 
     await TestBed.configureTestingModule({
@@ -91,10 +106,21 @@ describe('PaymentsPage', () => {
     expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 20 }));
   });
 
-  // 沒有篩選時不要送 overdue —— 送 overdue: false 會讓後端走完全不同的那條查詢路徑
-  it('預設不送 overdue 與 status 參數', () => {
+  // 沒有篩選時是章節模式：主清單就是逾期章，所以送 overdue=true、不送 status
+  it('預設（章節模式）只取逾期那一章，不送 status 與 studentId', () => {
     expect(invoices.list).toHaveBeenCalledWith(
-      expect.objectContaining({ overdue: undefined, status: undefined, studentId: undefined }),
+      expect.objectContaining({ overdue: true, status: undefined, studentId: undefined }),
+    );
+  });
+
+  it('動了舊的篩選就回到平面表：狀態篩選不再被強加 overdue', () => {
+    invoices.list.mockClear();
+
+    component['onStatusChange']('paid');
+
+    expect(component['chapterMode']()).toBe(false);
+    expect(invoices.list).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'paid', overdue: undefined }),
     );
   });
 
@@ -264,8 +290,9 @@ describe('PaymentsPage', () => {
     expect(component['overdueOnly']()).toBe(false);
     expect(component['statusFilter']()).toBeNull();
     expect(component['selectedStudent']()).toBeNull();
+    // 清完回到章節模式：主清單又是逾期章
     expect(invoices.list).toHaveBeenCalledWith(
-      expect.objectContaining({ overdue: undefined, status: undefined, studentId: undefined }),
+      expect.objectContaining({ overdue: true, status: undefined, studentId: undefined }),
     );
   });
 
@@ -301,5 +328,87 @@ describe('PaymentsPage', () => {
     expect(opened).toHaveLength(1);
     expect((opened[0] as { invoice: Invoice }).invoice.id).toBe('inv-new');
     dialogService.open = originalOpen;
+  });
+  describe('#1314 P1／P2 逾期章、已繳清章與色面', () => {
+    const text = () =>
+      (fixture.nativeElement as HTMLElement).textContent?.replace(/\s+/g, ' ') ?? '';
+    const render = async () => {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('色面：本月應收與已收幾成（billed=0 不除）', async () => {
+      await render();
+      expect(text()).toContain('10 月應收 NT$ 200,000');
+      expect(text()).toContain('已收 75%');
+      expect(component['stillOwed']()).toBe(50000);
+
+      invoices.summary.mockReturnValue(
+        of(summary({ month: { month: '2026-10', billed: 0, received: 0 } })),
+      );
+      component['loadSummary']();
+      await render();
+      expect(component['receivedPct']()).toBeNull();
+      expect(text()).not.toContain('NaN');
+    });
+
+    it('彙總失敗時退回頁名，不擋清單', async () => {
+      invoices.summary.mockReturnValue(throwError(() => new Error('boom')));
+      component['loadSummary']();
+      await render();
+      expect(component['summary']()).toBeNull();
+      expect(text()).toContain('繳費紀錄');
+    });
+
+    it('章名數字直接用彙總：逾期張數與待收、已繳清＝繳清＋多退', async () => {
+      invoices.list.mockReturnValue(of(listResponse([invoice()], 4)));
+      component['load']();
+      await render();
+      expect(text()).toContain('4 張 · 待收 NT$ 15,000');
+      expect(component['paidChapterCount']()).toBe(17);
+    });
+
+    it('已繳清章收著：展開才抓；多退排在繳清前面', async () => {
+      await render();
+      invoices.list.mockClear();
+      invoices.list.mockImplementation(((p: { status?: string }) =>
+        of(
+          p.status === 'overrefunded'
+            ? listResponse([invoice({ id: 'over', status: 'overrefunded', netPaid: -300 })])
+            : listResponse([invoice({ id: 'paid', status: 'paid', netPaid: 4500 })]),
+        )) as never);
+
+      component['togglePaid']();
+      await render();
+
+      expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'paid' }));
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'overrefunded' }),
+      );
+      expect(component['paidRows']().map((i) => i.id)).toEqual(['over', 'paid']);
+      expect(component['dueText'](invoice({ status: 'overrefunded', netPaid: -300 }))).toBe('多退');
+      expect(component['chapterAmount'](invoice({ status: 'overrefunded', netPaid: -300 }))).toBe(
+        300,
+      );
+    });
+
+    it('逾期章的「逾期 N 天」用台北今天算', async () => {
+      const today = component['today']();
+      const y = +today.slice(0, 4);
+      const due = `${y - 1}-${today.slice(5)}`;
+      const days = component['dueText'](invoice({ dueDate: due }));
+      expect(days).toMatch(/^逾期 36[56] 天$/);
+    });
+
+    it('已作廢那一行：點「顯示」切到 status=void 的平面表', async () => {
+      await render();
+      expect(text()).toContain('另有 3 張已作廢');
+      invoices.list.mockClear();
+
+      component['onStatusChange']('void');
+
+      expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'void' }));
+    });
   });
 });
