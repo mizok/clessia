@@ -41,6 +41,10 @@ export interface Enrollment {
   effectiveFrom: string;
   effectiveTo: string | null;
   notes: string | null;
+  /** 最近一次狀態變更的日期（#1314 EN5）；暫停事件的日期只在這裡。舊資料為 null */
+  statusChangedAt?: string | null;
+  /** 暫停／退班／作廢的原因；不再寫進 notes */
+  statusReason?: string | null;
   createdBy: string | null;
   createdByName: string | null;
   createdAt: string;
