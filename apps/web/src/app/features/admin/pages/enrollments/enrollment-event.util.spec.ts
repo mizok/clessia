@@ -17,18 +17,52 @@ describe('toEnrollmentEvent', () => {
     ).toEqual({ kind: 'left', date: '2026-08-14' });
   });
 
-  it('失效也算退出', () => {
+  it('失效是「作廢」不是退班，日期同樣看 effectiveTo', () => {
     expect(
-      toEnrollmentEvent({ status: 'void', effectiveFrom: '2026-02-01', effectiveTo: '2026-08-14' })
-        .kind,
-    ).toBe('left');
+      toEnrollmentEvent({ status: 'void', effectiveFrom: '2026-02-01', effectiveTo: '2026-08-14' }),
+    ).toEqual({ kind: 'voided', date: '2026-08-14' });
   });
 
-  // 停權不寫 effective_to，人還在班上
-  it('停權不算退出', () => {
+  // 暫停不寫 effective_to，人還在班上 —— 它唯一的日期是 status_changed_at
+  it('暫停是「暫停」，日期看 statusChangedAt', () => {
+    expect(
+      toEnrollmentEvent({
+        status: 'suspended',
+        effectiveFrom: '2026-02-01',
+        effectiveTo: null,
+        statusChangedAt: '2026-08-10',
+      }),
+    ).toEqual({ kind: 'paused', date: '2026-08-10' });
+  });
+
+  it('暫停但舊資料沒有 statusChangedAt 時退回生效起日', () => {
     expect(
       toEnrollmentEvent({ status: 'suspended', effectiveFrom: '2026-08-01', effectiveTo: null })
-        .kind,
+        .date,
+    ).toBe('2026-08-01');
+  });
+
+  it('作廢缺 effectiveTo 時依序退回 statusChangedAt、生效起日', () => {
+    expect(
+      toEnrollmentEvent({
+        status: 'void',
+        effectiveFrom: '2026-02-01',
+        effectiveTo: null,
+        statusChangedAt: '2026-08-12',
+      }).date,
+    ).toBe('2026-08-12');
+    expect(
+      toEnrollmentEvent({ status: 'void', effectiveFrom: '2026-02-01', effectiveTo: null }).date,
+    ).toBe('2026-02-01');
+  });
+
+  it('待繳費與在學都是新報名', () => {
+    expect(
+      toEnrollmentEvent({
+        status: 'pending_payment',
+        effectiveFrom: '2026-08-01',
+        effectiveTo: null,
+      }).kind,
     ).toBe('joined');
   });
 
