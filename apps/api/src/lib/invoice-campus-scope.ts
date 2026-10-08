@@ -26,8 +26,10 @@ export const INVOICE_SCOPE_EMBED =
 
 type Row = Record<string, unknown>;
 
+// `?? null` 不能省：沒有報名的明細（餐費）embed 回 null，可選鏈出來是 undefined，
+// 而下面判「沒有班」比的是 null —— 少了它，帶餐費的帳單整張被判成範圍外
 const campusOf = (enrollment: unknown): string | null =>
-  ((enrollment as Row | null)?.['classes'] as Row | null)?.['campus_id'] as string | null;
+  (((enrollment as Row | null)?.['classes'] as Row | null)?.['campus_id'] as string | null) ?? null;
 
 /** 學生的報名（`students(enrollments(classes(campus_id)))` 那一層）有沒有任一筆在範圍內 */
 export function studentInScope(enrollments: unknown, scope: CampusScope): boolean {
