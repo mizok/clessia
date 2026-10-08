@@ -1,5 +1,1 @@
-[
-  "apps/web/src/app/app.component.scss",
-  "apps/web/src/app/shared/_breakpoints.scss",
-  "apps/web/src/styles.scss"
-]
+["apps/web/src/app/shared/_breakpoints.scss", "apps/web/src/styles.scss"]
