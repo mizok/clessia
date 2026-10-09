@@ -220,7 +220,7 @@ jobs:
   # 套兩支 seed，再用 `apps/api/src/contract/` 對每支 GET 列表打一次斷言 200。
   # 端點清單從 app 的 OpenAPI 文件取，不手抄（c11）。
   #
-  # 只在 apps/api／supabase 有改動時跑：每次多約 2–3 分鐘（拉 PostgREST／Kong image＋reset）。
+  # 只在 apps/api／supabase／本 workflow 有改動時跑：每次多約 2–3 分鐘（拉 PostgREST／Kong image＋reset）。
   # base 的判法同 seed-reset（before 不可用就退到 merge-base），理由寫在那支。
   api-contract:
     runs-on: ubuntu-latest
@@ -251,8 +251,9 @@ jobs:
             exit 0
           fi
           git diff --name-only "$base" HEAD | head -20
-          if git diff --name-only "$base" HEAD | grep -qE '^(apps/api|supabase)/'; then
-            echo 'apps/api 或 supabase 有改動 —— 跑'
+          # workflow 檔本身也算：改了這支 job 卻因為沒動 apps/api 被跳過，會顯示成綠（實際沒跑）
+          if git diff --name-only "$base" HEAD | grep -qE '^(apps/api/|supabase/|\.github/workflows/verify\.yml$)'; then
+            echo 'apps/api、supabase 或本 workflow 有改動 —— 跑'
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo '都沒動 —— 跳過'
