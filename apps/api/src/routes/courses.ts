@@ -152,6 +152,16 @@ const listRoute = createRoute({
   },
 });
 
+/**
+ * `withChapterFilters` 會用到的 builder 方法。泛型不加約束、在裡面轉型 —— 有約束的版本拿
+ * supabase-js 的 builder 去比會撞 TS2589（同 staff.ts 的 `StaffFilterable`）
+ */
+interface CourseFilterable {
+  eq(column: string, value: unknown): CourseFilterable;
+  in(column: string, values: string[]): CourseFilterable;
+  ilike(column: string, pattern: string): CourseFilterable;
+}
+
 app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const query = c.req.valid('query');
@@ -170,16 +180,19 @@ app.openapi(listRoute, async (c) => {
     .select('*, campuses(name), subjects(name, sort_order)', { count: 'exact' })
     .eq('org_id', c.get('orgId'));
 
+  // 列表與章節計數共用的篩選（search／isActive／分校）—— 兩邊各寫一份就會對同一份名單給出兩個數字。
+  // subjectId 不在裡面：章節要列出其他科（同 staff.ts 的 withSummaryFilters）
+  const withChapterFilters = <Q>(q: Q): Q => {
+    let next = q as unknown as CourseFilterable;
+    if (query.search) next = next.ilike('name', `%${query.search}%`);
+    if (query.isActive !== undefined) next = next.eq('is_active', query.isActive === 'true');
+    return applyCampusFilter(next, 'campus_id', getCampusScope(c), query.campusId) as unknown as Q;
+  };
+
   // Apply filters
-  if (query.search) {
-    dbQuery = dbQuery.ilike('name', `%${query.search}%`);
-  }
-  dbQuery = applyCampusFilter(dbQuery, 'campus_id', getCampusScope(c), query.campusId);
+  dbQuery = withChapterFilters(dbQuery);
   if (query.subjectId) {
     dbQuery = dbQuery.eq('subject_id', query.subjectId);
-  }
-  if (query.isActive !== undefined) {
-    dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
   }
 
   // 依科目分章（#1314 C1）：章節順序＝ subjects 的 sort_order，同序再比 subject_id（sort_order 預設 0、
@@ -202,10 +215,9 @@ app.openapi(listRoute, async (c) => {
   const total = count || 0;
 
   // 依科目分章的章節計數（#1314 C1）。每科一支 head count 讓 DB 數 —— 撈列回來數會被
-  // max_rows（1000）靜默截斷。跟列表同一個分校範圍；**不吃 search／isActive／subjectId**
-  // （同 parents summary 不受 status filter 影響），章名的數字是全體不是本次結果。
+  // max_rows（1000）靜默截斷。跟列表吃同一組 search／isActive／分校（`withChapterFilters`），
+  // 章名的數字＝這個篩選下該科有幾門；**不吃 subjectId**，篩了一科時其他科的章名照樣在。
   const orgId = c.get('orgId');
-  const campusScope = getCampusScope(c);
   const { data: subjects, error: subjectsError } = await supabase
     .from('subjects')
     .select('id, name')
@@ -223,7 +235,7 @@ app.openapi(listRoute, async (c) => {
         .select('id', { count: 'exact', head: true })
         .eq('org_id', orgId)
         .eq('subject_id', subject.id);
-      return applyCampusFilter(countQuery, 'campus_id', campusScope, query.campusId);
+      return withChapterFilters(countQuery);
     }),
   );
   // 數不出來就不回 0

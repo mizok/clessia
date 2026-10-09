@@ -236,6 +236,14 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         filters.push((row) => fieldValues(row, column).some((v) => v === value));
         return proxy;
       },
+      /** `%x%` 形狀的 ilike（不分大小寫的包含）；其他 pattern 一律丟 */
+      ilike(column: string, pattern: string) {
+        const m = pattern.match(/^%([^%_]*)%$/);
+        if (!m) throw new Error(`multi-org-db：ilike 只支援 %x%，拿到 \`${pattern}\``);
+        const needle = (m[1] as string).toLowerCase();
+        filters.push((row) => String(field(row, column) ?? '').toLowerCase().includes(needle));
+        return proxy;
+      },
       neq(column: string, value: unknown) {
         filters.push((row) => row[column] !== value);
         return proxy;
