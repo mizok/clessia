@@ -132,6 +132,7 @@
       "apps/web/src/app/shared/components/page-open",
       "apps/web/src/app/shared/components/parent-form-dialog",
       "apps/web/src/app/shared/components/popup-menu",
+      "apps/web/src/app/shared/components/search-field",
       "apps/web/src/app/shared/components/select-field",
       "apps/web/src/app/shared/components/session-advanced-filters-dialog",
       "apps/web/src/app/shared/components/status",

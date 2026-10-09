@@ -131,6 +131,31 @@ describe('ChangesComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('全部分校');
   });
 
+  it('搜尋「老師或班級」：帶 q 重查、回第一頁；開場月總數不帶 q；清除篩選連搜尋框一起清', async () => {
+    await setup();
+    component['onPageChange'](3);
+    listChangesMock.mockClear();
+
+    component['onQueryChange']('王老師');
+    fixture.detectChanges();
+
+    const list = listChangesMock.mock.calls[0][0];
+    expect(list.q).toBe('王老師');
+    expect(list.page).toBe(1);
+    expect(listChangesMock.mock.calls.every(([c]) => c.pageSize !== 1)).toBe(true);
+    expect(
+      (fixture.nativeElement.querySelector('input[type=search]') as HTMLInputElement).value,
+    ).toBe('王老師');
+
+    listChangesMock.mockClear();
+    component['resetFilters']();
+    fixture.detectChanges();
+    expect(listChangesMock.mock.calls[0][0].q).toBeUndefined();
+    expect(
+      (fixture.nativeElement.querySelector('input[type=search]') as HTMLInputElement).value,
+    ).toBe('');
+  });
+
   it('「全部」類型不送 changeType 參數', async () => {
     await setup();
     listChangesMock.mockClear();
