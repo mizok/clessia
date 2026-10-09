@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-10-04
+updated: 2026-10-09
 ---
 
 # 部署
@@ -478,6 +478,12 @@ main 上 verify 綠 → migrate（差集 0 直接綠；有待套 → 等 Approve
                  → deploy（只吃 conclusion=success 的 migrate）→ verify-live
 ```
 
+- **verify workflow 裡每個 job 都是這條鏈的前提**（#1437）：`migrate` 的觸發是 `workflow_run [verify]` 的**整體
+  conclusion**，不是名叫 `verify` 的那一個 job。所以 `seed-reset`、`api-contract`（起真的 PostgREST 對每支 GET
+  列表打一次，抓替身看不出來的 select／order／embed 錯誤）**任何一個紅都會連 migrate → deploy 一起擋**；
+  連 `supabase start`／拉 image 這類基礎設施抖動也算。這是「不可繞過」的設計，但 flake 時要去 workflow 層找是哪個 job，
+  不是只看 `verify`。反過來，`tools/steward-merge.sh` 只看名叫 `verify` 的那個 job（`steward-verify.jq`），
+  **不會**被 `api-contract` 擋住合併 —— 代合前自己看一眼整個 rollup。
 - **接在 migrate 後面而不是 verify** —— 「套完才部署」是結構保證，不靠 poll。
   after-deploy backfill（plan 綠、只剩 backfill）照常部署，部署完由使用者 dispatch migrate。
 - **範圍**：比對「上次成功部署那顆」到這顆的 diff（`tools/agent-harness/lib/deploy-scope.mjs`，有測試）。

@@ -22,28 +22,19 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-09 第十八次部署紀錄，CI，labor-reviewer-20261008-1356）
+## 🚀 線上是哪一版（2026-10-10 第十九次部署紀錄，CI，labor-reviewer-20261008-1356）
 
-**截線 `c0a514f3`**（#1411；今天 main 到這顆，含 #1395–#1411 十五支）。**第十七次（`aff7c3b1`）之後每顆 main 都由 `deploy.yml` 自動部署一次，中間各次沒有逐次寫紀錄**；這一節記「線上現在是哪一版」，兩半分開看：
+**截線＝origin/main HEAD `9b5580da`**（#1439，純 docs）。**每顆 main 都由 `deploy.yml` 自動部署一次，中間各次沒有逐次寫紀錄**；api 與 web 分開看：
 
-- **web**：run `37751992112`（10-08 16:45–16:47 台北，plan／deploy-web／verify-live success，**deploy-api skipped**）→ `main-OSUR3ZBH.js`（`5180876e.clessia.pages.dev`）。
-- **api**：沒有任何一顆之後的 run 動過 api，**線上 api 是最後一次 deploy-api success 的那顆** —— run `37748778057`（截線 `fdb4f766`＝#1401，同 run web 也 success）→ version `20a85342-cda7-4c95-8090-d37574f9d6f1`。#1401 之後合的 #1402–#1411 都是 web／docs／spec，所以 api 與 `c0a514f3` 的 api 程式碼一致（**以 deploy-api skipped 為據，我沒逐檔比對**）。
-  含（自第十七次）：api —— #1381 帳單分校範圍、#1374 家長範圍撈到底、#1382 summary、#1399 courses／staff 章節計數、#1401 `dueSoon`／`notDue`／`dueState`、#1404 列表 `lastRemindedAt`、#1396 parents 依狀態排序；web —— #1400／#1410 帳單頁逾期／7 天內／還沒到期／已繳清各章、#1403 報名事件詞、#1407 老師課表、#1411 報名狀態詞。
-  **⓪**：本批窗口 `aff7c3b1..c0a514f3` **沒有新 migration**（`git log` 窗口內 `supabase/migrations` 無新增；**限度：這回答窗口內，不回答正式 DB 套到哪一支，仍是宣告值**）。
-  **部署驗證**（本席 10-09 05:00–06:17 自測，main 當時仍是 `c0a514f3`、20:20 複查 index.html 仍是 `main-OSUR3ZBH.js`）：線上 `index.html`（`?cb=` 繞快取）的 `main-OSUR3ZBH.js`＝run `37751992112` 的 CI 輸出；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的**）；負控 `chunk-ZZZZZZZZ.js` 回 `200 text/html`；正控：`chunk-HPTFETQZ.js` 內 `all_parents` 出現 1 次（main 本身 0 次——該字串在 lazy chunk，不在 main）；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 313525 bytes）144 條路徑，含 `/invoices/summary`、`dueState`、`dueSoon`、`lastRemindedAt`；未登入 `GET /api/invoices`、`/api/invoices/summary`、`/api/enrollments` 皆 401。
-  **限度**：沒有帶身分，所以『新欄位／新彙總桶讀得到』沒有被實測；openapi 含新欄位只證明新 api 上線（版本是 `20a85342`），不證明資料對。**我寫 api version 時只認得 deploy-api 日誌裡的 `Current Version ID`，沒有對 workers.dev 線上版本做回讀**（有沒有不需身分、能回線上版本的端點我沒查）。run `37745919637`（#1400，`220e17d2`）的 verify-live 曾 **failure**，之後每顆都 success；我沒有追那一次紅的原因（verify-live 紅了只紅燈不自動回退，且後續 run 已覆蓋它）。
-  **之後**：待命；1507 的帳單頁後續與 #1314 其餘項照計畫席派工。
+- **api**：最後一次 deploy-api success 是 run `37947662120`（截線 `829b0dfb`＝#1428，10-09 22:54–22:59 台北）→ version `49c5755a-85d1-4765-b088-079a34b62ce9`。之後的 run 都是 deploy-api skipped（#1431、#1439 沒動 api）。
+- **web**：最後一次 deploy-web success 是 run `37948817275`（截線 `f859dd21`＝#1431，23:03–23:05 台北）→ `main-XXWMDDAW.js`（`d72aac87.clessia.pages.dev`）。`9b5580da` 的 run `37949360292` 全 skipped（純 docs）。
+  含（自第十八次 `c0a514f3`）：api —— #1421 異動搜尋 `q`、#1422 summary `studentId`／`outstanding`、#1423／#1430 courses 排序（含 hotfix）、#1426 `issuedMonth`、#1427 courses／classes／campuses 列表補 `org_id`、#1428 courses 章節計數吃同篩選、#1432 批次提醒、#1433 加明細驗 org、#1434 courses/{id} 走 `findInOrg`、#1383 家長端 `meta.term`；web —— #1420 學生檔案帳單章、#1424 人員分章、#1425 搜尋框接線、#1431 課程頁分章、#1414／#1415／#1417 課表異動三支。
+  **⓪**：窗口 `c0a514f3..9b5580da` 無新 migration（`git log … -- supabase/migrations` 為 0；**這回答窗口內，不回答正式 DB 套到哪一支，仍是宣告值**）。
+  **⚠️ 這一輪的事故（#1423）**：#1423 的 `order('subjects(sort_order)')` 沒把 `sort_order` 選進 embed，替身 spec 全綠、上線後 `GET /courses` 回 400。**run `37939752944`（截線 `ab67fdd8`＝#1424）把它推上線**（21:50 台北），hotfix #1430 由手動 dispatch run `37940353012` 於 21:57 上線（version `972d71b2-780d-4cc1-ac16-a314f89c6b6f`，該 run 全 success）。verify-live 的未登入探針（401 在 auth middleware，擋在查詢之前）**抓不到這種壞法**；補救是 #1436（替身擋「order 用 embed 欄但 select 沒選」）與 #1437（`api-contract` job：起真 PostgREST 對每支 GET 列表打一次）。
+  **部署驗證**（本席 10-10 01:22–01:24 自測，main 仍是 `9b5580da`）：線上 `index.html`（`?cb=` 繞快取）的 `main-XXWMDDAW.js`＝run `37948817275` 的 CI 輸出；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的**）；負控 `chunk-ZZZZZZZZ.js` 回 `200 text/html`；正控 `chunk-HPTFETQZ.js` 含 `all_parents` 1 次；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 315591 bytes）145 條路徑，含 `/api/invoices/reminders/batch`、`issuedMonth`、`dueState`；未登入 `GET /api/invoices`、`/api/invoices/summary`、`/api/courses`、`/api/enrollments`、`POST /api/invoices/reminders/batch` 皆 401。
+  **限度**：沒有帶身分，所以『新欄位／新端點讀得到、`/api/courses` 登入後回 200』**沒有被實測**（本席的 worktree 沒有 `.dev.vars`、沒有登入連結）；未登入 401 **不能**證明路由修好（見上面事故）。openapi 含新欄位只證明新 api 上線。api version 只來自 deploy-api 日誌的 `Current Version ID`，沒有對 workers.dev 線上版本回讀。
+  **之後**：本週生產工作停（Weekly 70%）；待命。
   入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
-
-## 🔁 10-09 交接狀態（計畫席 labor-plan-20261008-1357，10-09 21:17 寫；本席仍在任，Ctx 約 20%）
-
-**10-08 下午起合進 main 21 支**（10-08 全天起算 35 支）：保留類 #1395（帳單分校範圍）／#1397（家長範圍撈到底）／#1401（彙總 dueSoon／notDue）由您親合；非保留類全由 reviewer 1356 代合。**#1314 進度**：家長頁 PA1＋PA2、帳單頁 P1＋P2（#1400／#1410）、報名 EN5＋#1406 狀態詞、老師課表 TS1（#1407）、課表 S3 三支（#1414／#1415／#1417）、C1／ST1 後端計數（#1399）、P3 後端 lastRemindedAt（#1404）。**#991 已關**。線上：api 最後一次 deploy-api success 是 #1401（fdb4f766，version 20a85342）；web 已部署到 #1416（ab84adfd），#1417／#1418 的 run 寫這段時還沒出現 —— **版本一律現查 deploy.yml，上面「線上是哪一版」節是第十八次的快照**。
-
-- **使用者 10-08 裁的原則**（記憶 `feedback-a6-adopt-fully`）：**A6 全採，不做新舊取捨，只提「舊有新無」**；#1314 所有「待裁」視同採。**Showcase 優先序**在 #1314 10-08 留言（五段：管理端主線 → 人員課程家長報名 → 老師端 → 家長端 → 其餘），派工照它不照表格。
-- **額度**：本週上限暫改 **75%**（留 25% 給使用者；10-14 重置後回 45%）。10-09 21:18 Weekly 58%。
-- **席位**：生產席 1506（Opus 後端）／1507（Sonnet 前端）都已退場，charter #1405／#1408／#1416／#1418 全合，workspace 已關、worktree 留著。常設：reviewer 1356（Ctx 約 30%）、監工 1035、db-reset（本機 DB 有 10-07／10-08 實打殘留，對照表在 db-reset 10-08 報到訊息）。
-- **只開未修的保留類單**：#1393（billing-runs 無分校範圍）、#1394（GET /students/{id} 對 admin 沒套）、#1398（courses／classes／campuses 列表沒濾 org）、#1409（POST /invoices/{id}/items 沒驗 org）；非保留類：#1412（異動搜尋 q）。
-- **停擺教訓**：10-08 16:39 到 10-09 20:19 全席同斷是**機器睡眠**，不是額度（pane 有 `Your computer went to sleep` 那行）；使用者已接電源，合蓋才會睡。
 
 ## 🔁 10-08 交接狀態（計畫席 labor-plan-20261004-1110，10-08 11:29 寫；Ctx 81% 主動交接）
 
