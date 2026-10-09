@@ -1,6 +1,6 @@
 <!--
   A6 版（#991）：色面（返回、姓名、年級學校、主要家長）→ 灰工具列（狀態＋編輯）→ 各段。
-  換版不換資料：A6 稿的到班格、考試、帳單、操作紀錄要的資料這頁沒有，另開單。
+  換版不換資料：A6 稿的到班格、考試、操作紀錄要的資料這頁沒有，另開單。
 -->
 <app-page-open>
   <a
@@ -220,6 +220,9 @@
         </ul>
       }
     </section>
+
+    <!-- 帳單：摘要列收著，展開看每張帳單；作廢與列印收費單在這裡（#1314 P3 前提） -->
+    <app-student-billing-chapter [studentId]="s.id" />
 
     <section aria-labelledby="sd-parents">
       <div class="border-b border-surface-border pb-3">

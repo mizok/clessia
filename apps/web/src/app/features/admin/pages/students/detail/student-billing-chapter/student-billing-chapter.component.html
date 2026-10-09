@@ -1,0 +1,105 @@
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<details class="group/chapter border-b border-surface-border">
+  <summary
+    class="flex min-h-11 cursor-pointer list-none items-center gap-3 bg-zinc-100 px-4 py-3 hover:bg-zinc-200 [&::-webkit-details-marker]:hidden"
+  >
+    <h2 class="m-0 text-lg font-bold text-zinc-900">帳單</h2>
+    <span class="ml-auto text-md text-zinc-700" data-testid="billing-summary">
+      @if (loading() || failed() || totalOutstanding() === null) {
+        {{ failed() ? '載入失敗' : '' }}
+      } @else if (totalOutstanding()! > 0) {
+        NT$ <span class="font-semibold tabular-nums">{{ totalOutstanding() | number }}</span>
+        @if (dueNote()) {
+          ·
+          <span [class.text-error-700]="hasOverdue()" [class.font-semibold]="hasOverdue()">{{
+            dueNote()
+          }}</span>
+        }
+      } @else {
+        沒有待繳
+      }
+    </span>
+  </summary>
+
+  <div class="bg-white">
+    @if (failed()) {
+      <p class="m-0 px-4 py-6 text-base text-zinc-700">
+        帳單載入失敗。<button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-base font-semibold text-accent-700 underline"
+          (click)="load()"
+        >
+          重試
+        </button>
+      </p>
+    } @else if (!loading() && invoices().length === 0) {
+      <p class="m-0 px-4 py-6 text-base text-zinc-700">還沒有帳單。</p>
+    } @else {
+      <ul class="m-0 list-none p-0">
+        @for (invoice of invoices(); track invoice.id) {
+          <li class="flex flex-col gap-2 border-b border-surface-border px-4 py-4 last:border-b-0">
+            <div class="flex flex-col gap-2 wide:flex-row wide:items-start wide:gap-x-4">
+              <div class="min-w-0 flex-1">
+                <div class="text-base font-semibold text-zinc-900">
+                  {{ invoice.issuedAt.slice(0, 10) }} 開立
+                </div>
+                <div class="mt-1 grid grid-cols-[1fr_auto] gap-x-6 text-md text-zinc-700">
+                  @for (item of invoice.items; track item.id) {
+                    <span>{{ itemLabel(item) }}</span>
+                    <span class="text-right tabular-nums">{{
+                      (item.amount < 0 ? '−' : '') +
+                        (item.amount < 0 ? -item.amount : (item.amount | number))
+                    }}</span>
+                  }
+                </div>
+              </div>
+              <div class="flex flex-col gap-1 wide:items-end">
+                <div class="text-xl font-bold tabular-nums text-zinc-900">
+                  <span class="text-md font-medium">NT$ </span>{{ outstanding(invoice) | number }}
+                </div>
+                <div class="flex flex-wrap items-center gap-2 wide:justify-end">
+                  <app-status-dot
+                    [tone]="
+                      invoice.status === 'paid'
+                        ? 'done'
+                        : invoice.status === 'void'
+                          ? 'inactive'
+                          : 'pending'
+                    "
+                    >{{ INVOICE_STATUS_LABELS[invoice.status] }}</app-status-dot
+                  >
+                  @if (isOverdue(invoice)) {
+                    <app-status-dot tone="overdue">逾期</app-status-dot>
+                  }
+                </div>
+                <div class="text-sm text-zinc-700">
+                  應繳 {{ invoice.total | number }} · 已收 {{ invoice.netPaid | number }}
+                  @if (invoice.dueDate) {
+                    · {{ invoice.dueDate }} 到期
+                  }
+                </div>
+              </div>
+            </div>
+            <div>
+              <button
+                type="button"
+                class="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                (click)="openDetail(invoice)"
+              >
+                作廢／列印收費單
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+    <p class="m-0 px-4 py-3">
+      <a
+        class="inline-flex min-h-11 items-center gap-1 text-md font-semibold text-accent-700 no-underline hover:underline"
+        [routerLink]="allInvoicesLink"
+        >全部帳單<i class="pi pi-angle-right" aria-hidden="true"></i
+      ></a>
+    </p>
+  </div>
+</details>
