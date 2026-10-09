@@ -12,7 +12,8 @@
  * `upsert` 的衝突比對**跨 org**（只看 `onConflict` 那幾欄）—— 跟真的 DB 一樣：衝突鍵不含
  * `org_id` 時，別 org 的同鍵列會被覆寫。那正是 B4 要抓的形狀，替身不能替它擋掉。
  *
- * 刻意不做：`select` 的欄位清單與巢狀關聯（一律回整列）、排序、分頁。
+ * 刻意不做：`select` 的欄位清單與巢狀關聯（一律回整列）。
+ * `order` 可疊多鍵（先下的優先），`subjects(sort_order)`（對 to-one embed 排序）當成巢狀欄位取值。
  */
 
 type Row = Record<string, unknown>;
@@ -71,7 +72,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
     const filters: Filter[] = [];
     let rowLimit = Infinity;
     let rowOffset = 0;
-    let sortBy: { column: string; ascending: boolean } | null = null;
+    const sortBy: { column: string; ascending: boolean }[] = [];
 
     function run(): Result {
       const all = tableOf(table);
@@ -108,14 +109,22 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return { data: returning ? matched : null, error: null };
       }
       if (countOnly) return { data: null, count: matched.length, error: null };
-      if (sortBy) {
-        const { column, ascending } = sortBy;
-        matched.sort((x, y) => {
-          const a = String(field(x, column) ?? '');
-          const b = String(field(y, column) ?? '');
-          return (a < b ? -1 : a > b ? 1 : 0) * (ascending ? 1 : -1);
-        });
-      }
+      matched.sort((x, y) => {
+        for (const { column, ascending } of sortBy) {
+          const a = field(x, column) ?? '';
+          const b = field(y, column) ?? '';
+          const cmp =
+            typeof a === 'number' && typeof b === 'number'
+              ? a - b
+              : String(a) < String(b)
+                ? -1
+                : String(a) > String(b)
+                  ? 1
+                  : 0;
+          if (cmp !== 0) return cmp * (ascending ? 1 : -1);
+        }
+        return 0;
+      });
       return {
         data: matched.slice(rowOffset, rowOffset + rowLimit).map((r) => ({ ...r })),
         count: matched.length,
@@ -154,7 +163,10 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       order(column: string, options?: { ascending?: boolean }) {
-        sortBy = { column, ascending: options?.ascending !== false };
+        sortBy.push({
+          column: column.replace(/^(\w+)\((\w+)\)$/, '$1.$2'),
+          ascending: options?.ascending !== false,
+        });
         return proxy;
       },
       select(_columns?: string, options?: { count?: string; head?: boolean }) {

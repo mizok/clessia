@@ -179,8 +179,14 @@ app.openapi(listRoute, async (c) => {
     dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
   }
 
-  // Pagination
-  dbQuery = dbQuery.order('created_at', { ascending: false });
+  // 依科目分章（#1314 C1）：章節順序＝ subjects 的 sort_order，同序再比 subject_id（sort_order 預設 0、
+  // 沒有 unique，少這一鍵兩科的課會交錯，分章翻頁就斷）。章內依課名，末鍵 id 讓同名課翻頁穩定。
+  // 章節計數那支 subjects 查詢用同一個順序（sort_order, id）。
+  dbQuery = dbQuery
+    .order('subjects(sort_order)')
+    .order('subject_id')
+    .order('name')
+    .order('id');
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   const { data, count, error } = await dbQuery;
@@ -202,7 +208,8 @@ app.openapi(listRoute, async (c) => {
     .from('subjects')
     .select('id, name')
     .eq('org_id', orgId)
-    .order('sort_order');
+    .order('sort_order')
+    .order('id');
   if (subjectsError) {
     return c.json({ error: subjectsError.message, code: 'DB_ERROR' }, 500);
   }
