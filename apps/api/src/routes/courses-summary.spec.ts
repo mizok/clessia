@@ -84,10 +84,20 @@ describe('GET /api/courses —— summary.bySubject（#1314 C1）', () => {
     expect(counts(body)).toEqual({ 國文: 3, 數學: 1, 美術: 0 });
   });
 
-  it('不吃 isActive／subjectId（章名是全體，不是本次結果；search 同理，替身沒有 ilike）', async () => {
-    const { body } = await list(`/?isActive=false&subjectId=${MATH}`);
-    expect(body.meta.total).toBe(0);
+  it('不吃 subjectId：篩了一科，其他科的章名與數字照樣在', async () => {
+    const { body } = await list(`/?subjectId=${MATH}`);
     expect(counts(body)).toEqual({ 國文: 3, 數學: 1, 美術: 0 });
+  });
+
+  it('吃 isActive：被篩掉的不算（跟列表同一組篩選）', async () => {
+    expect(counts((await list('/?isActive=false')).body)).toEqual({ 國文: 1, 數學: 0, 美術: 0 });
+    expect(counts((await list('/?isActive=true')).body)).toEqual({ 國文: 2, 數學: 1, 美術: 0 });
+  });
+
+  it('吃 search：課名不命中的不算', async () => {
+    const { body } = await list(`/?search=${encodeURIComponent('停用')}`);
+    expect(body.meta.total).toBe(1);
+    expect(counts(body)).toEqual({ 國文: 1, 數學: 0, 美術: 0 });
   });
 
   it('跟列表同一個分校範圍：受限 A 校只數 A 校；指名分校也縮', async () => {
