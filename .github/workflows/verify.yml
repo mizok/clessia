@@ -213,6 +213,90 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/seed-sentinels.sql
 
+  # ── 列表端點對真 PostgREST 的契約測試（#1435）──────────────────────────────────────────
+  #
+  # 一般 spec 全走替身，替身不解析 select —— #1423 的排序欄位沒選進 embed，spec 與 CI 全綠，
+  # 上線回 400。這個 job 起**真的** PostgREST（seed-reset 那支只有 `db start`，沒有它），
+  # 套兩支 seed，再用 `apps/api/src/contract/` 對每支 GET 列表打一次斷言 200。
+  # 端點清單從 app 的 OpenAPI 文件取，不手抄（c11）。
+  #
+  # 只在 apps/api／supabase／本 workflow 有改動時跑：每次多約 2–3 分鐘（拉 PostgREST／Kong image＋reset）。
+  # base 的判法同 seed-reset（before 不可用就退到 merge-base），理由寫在那支。
+  api-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 這次 push 有沒有動到 apps/api/ 或 supabase/
+        id: scope
+        run: |
+          before='${{ github.event.before }}'
+          base=''
+          if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$before^{commit}" 2>/dev/null; then
+            base="$before"
+            echo "base 來源：github.event.before"
+          else
+            git fetch --no-tags origin main 2>/dev/null || true
+            base="$(git merge-base FETCH_HEAD HEAD 2>/dev/null \
+                    || git merge-base origin/main HEAD 2>/dev/null || true)"
+            echo "base 來源：merge-base 對 main（before 是 '$before'）"
+          fi
+          echo "base=$base"
+          if [ -z "$base" ]; then
+            echo '連 merge-base 都算不出來 —— 保守起見照跑'
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$base" HEAD | head -20
+          # workflow 檔本身也算：改了這支 job 卻因為沒動 apps/api 被跳過，會顯示成綠（實際沒跑）
+          if git diff --name-only "$base" HEAD | grep -qE '^(apps/api/|supabase/|\.github/workflows/verify\.yml$)'; then
+            echo 'apps/api、supabase 或本 workflow 有改動 —— 跑'
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '都沒動 —— 跳過'
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      # 兩層都要：vitest 裝在根目錄，supabase-js／hono 在 apps/api（同 verify job）
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+        working-directory: apps/api
+
+      - uses: supabase/setup-cli@v1
+        if: steps.scope.outputs.run == 'true'
+        with:
+          version: latest
+
+      # 留 db＋PostgREST＋Kong＋gotrue（`/rest/v1` 經 Kong 進 PostgREST）。
+      # 第一版連 gotrue 一起排除，`supabase status` 就只剩 Database、沒有 API 那段 ——
+      # 環境變數全空，測試 skip 成綠。所以 gotrue 留著，下一步也改成拿不到就紅。
+      - name: supabase start（精簡）
+        if: steps.scope.outputs.run == 'true'
+        run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: 契約測試
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          echo 'status 有哪些變數（只印名稱）：'
+          supabase status -o env | cut -d= -f1
+          eval "$(supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')"
+          # CI 上拿不到環境變數要紅，不能 skip 成綠（本機才允許 skip）
+          CONTRACT_REQUIRED=1 SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            npx vitest run --config vitest.contract.config.mts
+        working-directory: apps/api
+
   # ── main 上自動重生現況表 ──────────────────────────────────────────────────────────────
   #
   # 為什麼要有這個 job：`kb/wiki/roadmap.md` 的功能區現況表是**從整個 repo 的磁碟狀態**
