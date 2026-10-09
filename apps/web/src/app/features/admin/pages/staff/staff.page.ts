@@ -22,10 +22,7 @@ import { ResponsiveTableComponent } from '@shared/components/responsive-table/re
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
+import type {} from '@shared/components/responsive-table/responsive-table.models';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 import {
   KioskFormDialogComponent,
@@ -61,7 +58,6 @@ import {
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
 import { loginLinkErrorDetail } from '@shared/utils/login-link-error.util';
 import {
@@ -82,6 +78,16 @@ interface StaffSummary {
   activeCount: number;
   inactiveCount: number;
   archivedCount: number;
+  byRole: { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number };
+}
+
+type StaffChapterKey = 'admin' | 'teacher' | 'kiosk' | 'inactive';
+
+interface StaffChapter {
+  key: StaffChapterKey;
+  label: string;
+  count: number;
+  rows: Staff[];
 }
 
 const ROLE_OPTIONS: RoleOption[] = [
@@ -178,8 +184,6 @@ export class StaffPage implements OnInit {
   readonly campusFilter = this.campusCtx.id;
   readonly subjectFilter = signal<string | null>(null);
   protected readonly staffStatusFilter = signal<StaffStatus | null>(null);
-  protected readonly currentPage = signal(1);
-  protected readonly total = signal(0);
   readonly summary = signal<StaffSummary>({
     total: 0,
     adminCount: 0,
@@ -188,20 +192,55 @@ export class StaffPage implements OnInit {
     activeCount: 0,
     inactiveCount: 0,
     archivedCount: 0,
+    byRole: { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0 },
   });
-  protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   // Computed
   readonly adminCount = computed(() => this.summary().adminCount);
   readonly teacherCount = computed(() => this.summary().teacherCount);
   readonly multiRoleCount = computed(() => this.summary().multiRoleCount);
-  readonly activeCount = computed(() => this.summary().activeCount);
 
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
-    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-    rows: this.PAGE_SIZE,
-    totalRecords: this.total(),
-  }));
+  /**
+   * 依角色分章（#1314 ST1）。列表一次拿全部，所以在這裡歸桶；歸法與後端 `byRole` 同定義
+   * （在職且有 admin｜在職且只有 teacher｜在職 kiosk｜停用＋封存），兼任歸管理員章。
+   * 章名張數讀 `summary.byRole`（走同一組篩選，不用前端數列）；沒有列的章不顯示。
+   */
+  protected readonly chapters = computed<StaffChapter[]>(() => {
+    const rows = this.staffList();
+    const by = this.summary().byRole;
+    const bucket = (s: Staff): StaffChapterKey =>
+      s.status !== 'active'
+        ? 'inactive'
+        : s.roles.includes('admin')
+          ? 'admin'
+          : isKiosk(s)
+            ? 'kiosk'
+            : 'teacher';
+    const grouped: Record<StaffChapterKey, Staff[]> = {
+      admin: [],
+      teacher: [],
+      kiosk: [],
+      inactive: [],
+    };
+    for (const s of rows) grouped[bucket(s)].push(s);
+    const hasArchived = grouped.inactive.some((s) => s.status === 'archived');
+    const defs: [StaffChapterKey, string, number][] = [
+      ['admin', '管理員', by.admin],
+      ['teacher', '老師', by.teacher],
+      ['kiosk', '掃碼機台', by.kiosk],
+      ['inactive', hasArchived ? '停用與封存' : '已停用', by.inactiveOrArchived],
+    ];
+    return defs
+      .filter(([key]) => grouped[key].length > 0)
+      .map(([key, label, count]) => ({ key, label, count, rows: grouped[key] }));
+  });
+
+  /** 開場副行：N 位管理員 · N 位老師（N 位身兼兩者） */
+  protected readonly openSub = computed(() => {
+    const s = this.summary();
+    const both = s.multiRoleCount > 0 ? `（${s.multiRoleCount} 位身兼兩者）` : '';
+    return `${s.adminCount} 位管理員 · ${s.teacherCount} 位老師${both}`;
+  });
 
   // Action menu
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
@@ -318,7 +357,6 @@ export class StaffPage implements OnInit {
     toObservable(this.campusFilter)
       .pipe(skip(1), takeUntilDestroyed())
       .subscribe(() => {
-        this.currentPage.set(1);
         this.loadStaff();
       });
   }
@@ -340,7 +378,6 @@ export class StaffPage implements OnInit {
       .subscribe((value) => {
         if (value === this.searchQuery()) return;
         this.searchQuery.set(value);
-        this.currentPage.set(1);
         this.loadStaff();
       });
 
@@ -378,8 +415,9 @@ export class StaffPage implements OnInit {
               campusId: this.campusFilter() || undefined,
               subjectId: this.subjectFilter() || undefined,
               status: this.staffStatusFilter() ?? undefined,
-              page: this.currentPage(),
-              pageSize: this.PAGE_SIZE,
+              // 人員量級小（一個組織幾十到一百多人），一次拿全部好分章。
+              // ponytail: 沒有 max_rows 保護，超過 1000 會被靜默截斷；真有那麼多人再改伺服器分頁
+              pageSize: 0,
             })
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
             // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
@@ -402,7 +440,6 @@ export class StaffPage implements OnInit {
       )
       .subscribe((res: StaffListResponse) => {
         this.staffList.set(res.data);
-        this.total.set(res.meta.total);
         this.summary.set(res.summary);
         this.loading.set(false);
       });
@@ -414,24 +451,16 @@ export class StaffPage implements OnInit {
 
   protected onRoleFilterChange(value: StaffRole | null): void {
     this.roleFilter.set(value);
-    this.currentPage.set(1);
     this.loadStaff();
   }
 
   protected onSubjectFilterChange(value: string | null): void {
     this.subjectFilter.set(value);
-    this.currentPage.set(1);
     this.loadStaff();
   }
 
   protected onStaffStatusFilterChange(value: StaffStatus | null): void {
     this.staffStatusFilter.set(value);
-    this.currentPage.set(1);
-    this.loadStaff();
-  }
-
-  protected onPage(event: ResponsiveTablePageEvent): void {
-    this.currentPage.set(event.page + 1);
     this.loadStaff();
   }
 
@@ -457,7 +486,6 @@ export class StaffPage implements OnInit {
   private afterCreate(result?: { data?: Staff; loginUrl?: string | null }): void {
     if (!result) return;
     this.refData.invalidate('teachers');
-    this.currentPage.set(1);
     this.loadStaff();
 
     // 建完立刻給連結：櫃檯把 QR 給對方掃，是綁定成功率最高的時刻
@@ -706,7 +734,6 @@ export class StaffPage implements OnInit {
     this.roleFilter.set(null);
     this.subjectFilter.set(null);
     this.staffStatusFilter.set(null);
-    this.currentPage.set(1);
     this.loadStaff();
   }
 

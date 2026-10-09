@@ -18,12 +18,18 @@
     </button>
   </header>
 
-  <!-- 篩選列（灰底）：類型、月份。「老師或班級」搜尋等 #1412 的後端 `q` 到了再補在這裡 -->
+  <!-- 篩選列（灰底）：老師或班級、類型、月份 -->
   <section
     class="flex flex-none flex-col gap-3 bg-zinc-100 p-4"
     role="search"
     aria-label="篩選課務異動"
   >
+    <app-search-field
+      label="老師或班級"
+      placeholder="輸入老師名或班名"
+      [value]="query()"
+      (searchChange)="onQueryChange($event)"
+    />
     <app-select-field
       label="異動類型"
       [options]="changeTypeOptions"
