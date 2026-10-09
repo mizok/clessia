@@ -296,19 +296,21 @@ app.openapi(getRoute, async (c) => {
   const supabase = c.get('supabase');
   const { id } = c.req.valid('param');
 
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*, campuses(name), subjects(name)')
-    .eq('id', id)
-    .single();
-
-  if (error || !data) {
+  // 別 org 的 id 跟不存在一樣 404（#1429，c1）
+  const data = await findInOrg(
+    supabase,
+    'courses',
+    c.get('orgId'),
+    id,
+    '*, campuses(name), subjects(name)',
+  );
+  if (!data) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
   return c.json(
     {
-      data: mapCourse(data as Record<string, unknown>),
+      data: mapCourse(data),
     },
     200,
   );
