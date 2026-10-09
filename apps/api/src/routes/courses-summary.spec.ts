@@ -136,3 +136,33 @@ describe('GET /api/courses —— summary.bySubject（#1314 C1）', () => {
     expect((await app.request('/')).status).toBe(500);
   });
 });
+
+describe('GET /api/courses/{id} —— org 範圍（#1429）', () => {
+  // seed() 的第 5 門是別 org 的數學課。id 由模組層計數器 n 產生、list() 會再 seed 一次，
+  // 所以取 id 與打請求前都把 n 歸零，兩次 seed 的 id 才對得上
+  const ids = () => {
+    n = 0;
+    const db = seed();
+    const rows = db.rows('courses');
+    return {
+      own: rows.find((r) => r['org_id'] === ORG)?.['id'] as string,
+      foreign: rows.find((r) => r['org_id'] === OTHER)?.['id'] as string,
+    };
+  };
+
+  it('別 org 的課程 id → 404（跟不存在一樣）', async () => {
+    const { foreign } = ids();
+    n = 0;
+    const { status, body } = await list(`/${foreign}`);
+    expect(status).toBe(404);
+    expect(body.code).toBe('NOT_FOUND');
+  });
+
+  it('本 org 的課程 id → 200（對照組）', async () => {
+    const { own } = ids();
+    n = 0;
+    const { status, body } = await list(`/${own}`);
+    expect(status).toBe(200);
+    expect(body.data.id).toBe(own);
+  });
+});

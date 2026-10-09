@@ -24,6 +24,7 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { StudentBillingChapterComponent } from './student-billing-chapter/student-billing-chapter.component';
 import { ClassPickerDialogComponent } from '@shared/components/class-picker-dialog/class-picker-dialog.component';
 import {
   InlineNoticeComponent,
@@ -63,6 +64,7 @@ interface ConflictPrompt {
     EmptyStateComponent,
     PageOpenComponent,
     InlineNoticeComponent,
+    StudentBillingChapterComponent,
   ],
   providers: [DialogService],
   templateUrl: './student-detail.page.html',

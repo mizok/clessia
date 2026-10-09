@@ -505,7 +505,8 @@ app.openapi(
         {
           count: 'exact',
         },
-      );
+      )
+      .eq('org_id', c.get('orgId'));
 
     if (query.search) dbQuery = dbQuery.ilike('name', `%${query.search}%`);
     dbQuery = applyCampusFilter(dbQuery, 'campus_id', getCampusScope(c), query.campusId);

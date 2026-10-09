@@ -167,7 +167,8 @@ app.openapi(listRoute, async (c) => {
     .from('courses')
     // `sort_order` 必須在 embed 的 select 裡：PostgREST 對 `order=subjects(sort_order)` 只認選了的欄，
     // 少了回 400「courses_subjects_1.sort_order does not exist」（#1423 上線後整頁載入失敗）
-    .select('*, campuses(name), subjects(name, sort_order)', { count: 'exact' });
+    .select('*, campuses(name), subjects(name, sort_order)', { count: 'exact' })
+    .eq('org_id', c.get('orgId'));
 
   // Apply filters
   if (query.search) {
@@ -203,7 +204,6 @@ app.openapi(listRoute, async (c) => {
   // 依科目分章的章節計數（#1314 C1）。每科一支 head count 讓 DB 數 —— 撈列回來數會被
   // max_rows（1000）靜默截斷。跟列表同一個分校範圍；**不吃 search／isActive／subjectId**
   // （同 parents summary 不受 status filter 影響），章名的數字是全體不是本次結果。
-  // ⚠️ 帶 org_id：列表主查詢本身沒濾 org（#1398），這裡不跟著漏
   const orgId = c.get('orgId');
   const campusScope = getCampusScope(c);
   const { data: subjects, error: subjectsError } = await supabase
@@ -296,19 +296,21 @@ app.openapi(getRoute, async (c) => {
   const supabase = c.get('supabase');
   const { id } = c.req.valid('param');
 
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*, campuses(name), subjects(name)')
-    .eq('id', id)
-    .single();
-
-  if (error || !data) {
+  // 別 org 的 id 跟不存在一樣 404（#1429，c1）
+  const data = await findInOrg(
+    supabase,
+    'courses',
+    c.get('orgId'),
+    id,
+    '*, campuses(name), subjects(name)',
+  );
+  if (!data) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
   return c.json(
     {
-      data: mapCourse(data as Record<string, unknown>),
+      data: mapCourse(data),
     },
     200,
   );

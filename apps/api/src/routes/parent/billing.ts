@@ -3,6 +3,7 @@ import type { AppEnv } from '../../index';
 import { isChildAllowed } from '../../lib/child-scope';
 import { INVOICE_SELECT, toInvoiceResponse, type InvoiceResponse } from '../../lib/invoice-query';
 import { isOpenInvoice } from '../../lib/invoice-status';
+import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
 import { paymentInfoEntries } from '../../lib/payment-info';
 import type { ChildDb } from '../../lib/child-db';
@@ -65,6 +66,19 @@ const ListResponseSchema = z
        * 多筆時標分校名。全都沒設定 → `[]`。
        */
       paymentInfo: z.array(z.object({ campusName: z.string().nullable(), text: z.string() })),
+      /**
+       * 本學期已繳（#1314 PP1）。本學期＝涵蓋台北今天的收費期間（重疊取開始日最晚）；沒有 → null。
+       * `paid`＝**明細掛在這一期**的非作廢帳單之淨收（收款－退款）—— 不是收款日落在期內：
+       * 開學前先繳的要算、期內補繳上一期欠款的不算。
+       */
+      term: z
+        .object({
+          name: z.string(),
+          startDate: z.string(),
+          endDate: z.string(),
+          paid: z.number(),
+        })
+        .nullable(),
     }),
   })
   .openapi('ParentInvoiceListResponse');
@@ -194,7 +208,8 @@ app.openapi(
 
     // `totalDue` 是**全部**帳單（不分頁）算出來的 —— 分頁截斷不能拿來算總額，
     // 跟出缺席／成績的 meta 同一個判準，所以另開一支不分頁的查詢。
-    const [pageResult, allResult, paymentInfo] = await Promise.all([
+    const today = getCurrentTaipeiDateString();
+    const [pageResult, allResult, paymentInfo, termResult] = await Promise.all([
       childDb
         .from('invoices', 'student_id')
         .select(INVOICE_SELECT, { count: 'exact' })
@@ -203,9 +218,16 @@ app.openapi(
         .order('issued_at', { ascending: false }),
       childDb.from('invoices', 'student_id').select(INVOICE_SELECT).eq('student_id', childId),
       readPaymentInfo(childDb, childId),
+      childDb
+        .orgRef('billing_periods')
+        .select('id, name, start_date, end_date')
+        .lte('start_date', today)
+        .gte('end_date', today)
+        .order('start_date', { ascending: false })
+        .limit(1),
     ]);
 
-    if (pageResult.error || allResult.error || paymentInfo.error) {
+    if (pageResult.error || allResult.error || paymentInfo.error || termResult.error) {
       return c.json({ error: '讀取帳單失敗', code: 'FETCH_BILLING_FAILED' }, 500);
     }
 
@@ -213,11 +235,27 @@ app.openapi(
     const allRows = (allResult.data ?? []) as unknown as Record<string, unknown>[];
 
     const mapped = pageRows.map((row) => toParentInvoice(toInvoiceResponse(row)));
-    const totalDue = allRows
-      .map((row) => toInvoiceResponse(row))
+    const allInvoices = allRows.map((row) => toInvoiceResponse(row));
+    const totalDue = allInvoices
       // isOpenInvoice 而不是 `!== 'paid'` —— 作廢單的 total − netPaid 是全額（#898）
       .filter((invoice) => isOpenInvoice(invoice.status))
       .reduce((sum, invoice) => sum + (invoice.total - invoice.netPaid), 0);
+
+    const period = ((termResult.data ?? []) as unknown as Array<Record<string, string>>)[0];
+    const term = period
+      ? {
+          name: period['name']!,
+          startDate: period['start_date']!,
+          endDate: period['end_date']!,
+          paid: allInvoices
+            .filter(
+              (invoice) =>
+                invoice.status !== 'void' &&
+                invoice.items.some((item) => item.billingPeriodId === period['id']),
+            )
+            .reduce((sum, invoice) => sum + invoice.netPaid, 0),
+        }
+      : null;
 
     return c.json(
       {
@@ -228,6 +266,7 @@ app.openapi(
           pageSize,
           totalDue,
           paymentInfo: paymentInfo.entries,
+          term,
         },
       },
       200,
