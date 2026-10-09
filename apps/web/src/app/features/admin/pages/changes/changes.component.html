@@ -45,11 +45,19 @@
     </button>
     <div
       id="changes-more-filters"
-      class="gap-3 wide:grid wide:w-56"
+      class="gap-3 wide:flex wide:gap-4"
       [class.grid]="filtersOpen()"
       [class.hidden]="!filtersOpen()"
     >
+      <app-search-field
+        class="wide:w-64"
+        label="老師或班級"
+        placeholder="輸入老師名或班名"
+        [value]="query()"
+        (searchChange)="onQueryChange($event)"
+      />
       <app-select-field
+        class="wide:w-56"
         label="異動類型"
         [options]="changeTypeOptions"
         [value]="changeType()"

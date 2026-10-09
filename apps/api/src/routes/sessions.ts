@@ -1496,9 +1496,14 @@ const ChangeLogQuerySchema = z.object({
   // `creation` 篩得到的只有加開的課堂（#1109）—— 批次產生的不寫列，它們的「建立」是合成的。
   changeType: z.enum(SCHEDULE_CHANGE_TYPES).optional(),
   campusId: DbUuidSchema.optional(),
+  /** 老師或班級（#1412）：比對班名、原老師名、代課老師名 */
+  q: z.string().trim().max(50).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+/** PostgREST `or` 字串的保留字元與 LIKE 萬用字元 —— 留著會拆壞條件或變成萬用比對 */
+const CHANGE_SEARCH_RESERVED = /[,()*%"\\]/g;
 
 const ChangeLogEntrySchema = z
   .object({
@@ -1542,7 +1547,25 @@ const listChangeLogRoute = createRoute({
 app.openapi(listChangeLogRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
-  const { from, to, changeType, campusId, page, pageSize } = c.req.valid('query');
+  const { from, to, changeType, campusId, q, page, pageSize } = c.req.valid('query');
+
+  // 搜尋（#1412）：班名在 sessions→classes 底下，PostgREST 的 top-level `or` 比不到巢狀欄位，
+  // 所以先撈出名字符合的班級／老師 id，再用 `class_match` 這個 embed 判空（被篩掉就是 null）跟老師條件 OR。
+  const term = q?.replace(CHANGE_SEARCH_RESERVED, '');
+  if (q && !term) return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+  let search: { classIds: string[]; staffIds: string[] } | null = null;
+  if (term) {
+    const [classesResult, staffResult] = await Promise.all([
+      supabase.from('classes').select('id').eq('org_id', orgId).ilike('name', `%${term}%`),
+      supabase.from('staff').select('id').eq('org_id', orgId).ilike('display_name', `%${term}%`),
+    ]);
+    const searchError = classesResult.error ?? staffResult.error;
+    if (searchError) return c.json({ error: searchError.message, code: 'DB_ERROR' }, 400);
+    search = {
+      classIds: (classesResult.data ?? []).map((row) => row.id as string),
+      staffIds: (staffResult.data ?? []).map((row) => row.id as string),
+    };
+  }
 
   // 排序用 created_at 而非課堂日期：這是 log 檢視，關心的是「最近發生了什麼」。
   // （授課紀錄剛好相反，它用課堂日期排 —— 同一份資料在不同問題下有不同的自然順序。）
@@ -1555,7 +1578,7 @@ app.openapi(listChangeLogRoute, async (c) => {
       new_session_date, new_start_time, new_end_time,
       original_teacher_name,
       sessions!inner ( session_date, classes!inner ( name, campus_id ) ),
-      staff!substitute_teacher_id ( display_name )
+      staff!substitute_teacher_id ( display_name )${search ? ', class_match:sessions ( id )' : ''}
     `,
       { count: 'exact' },
     )
@@ -1567,6 +1590,13 @@ app.openapi(listChangeLogRoute, async (c) => {
 
   if (changeType) query = query.eq('change_type', changeType);
   if (campusId) query = query.eq('sessions.classes.campus_id', campusId);
+  if (search) {
+    query = query
+      .in('class_match.class_id', search.classIds)
+      .or(
+        `class_match.not.is.null,original_teacher_name.ilike.*${term}*,substitute_teacher_id.in.(${search.staffIds.join(',')})`,
+      );
+  }
 
   const { data, error, count } = await query;
 

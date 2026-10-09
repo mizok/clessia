@@ -107,6 +107,18 @@ describe('ScheduleChangesDrawerComponent', () => {
     );
   });
 
+  it('搜尋老師或班級會帶 q 重新取數；清空就不帶', async () => {
+    await setup(true);
+    const c = fixture.componentInstance as unknown as { onQueryChange: (v: string) => void };
+    listChanges.mockClear();
+
+    c.onQueryChange('國二');
+    expect(listChanges).toHaveBeenLastCalledWith(expect.objectContaining({ q: '國二' }));
+
+    c.onQueryChange('');
+    expect(listChanges.mock.lastCall![0].q).toBeUndefined();
+  });
+
   it('篩選選項沒有後端還不收的 makeup 與合成的 creation', async () => {
     await setup(true);
     const values = (

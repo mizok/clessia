@@ -148,6 +148,8 @@ export interface InvoiceQueryParams {
    * 與上面三者並用是交集
    */
   dueState?: DueState;
+  /** 'YYYY-MM' = 只看這個月開立的（匯出，#1314 P4） */
+  issuedMonth?: string;
   page?: number;
   pageSize?: number;
 }
@@ -223,6 +225,8 @@ export interface InvoiceSummary {
   overdue: SummaryBucket;
   dueSoon: SummaryBucket & { days: number };
   notDue: SummaryBucket;
+  /** 未繳清總待收（#1314 P3）＝三章 outstanding 和；不含作廢與多退 */
+  outstanding: number;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
   month: { month: string; billed: number; received: number };
 }
@@ -236,8 +240,11 @@ export class InvoicesService {
     return this.http.get<InvoiceListResponse>(this.endpoint, { params: toQuery(params) });
   }
 
-  summary(): Observable<InvoiceSummary> {
-    return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`);
+  /** 帶 `studentId` 只算該生（學生檔案帳單章，#1314 P3） */
+  summary(params?: { studentId?: string }): Observable<InvoiceSummary> {
+    const query: Record<string, string> = {};
+    if (params?.studentId) query['studentId'] = params.studentId;
+    return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`, { params: query });
   }
 
   /** 單一學生的彙總：同 `summary()`，另帶 `outstanding`＝未繳清總待收（後端算，前端不加總） */
@@ -300,6 +307,7 @@ function toQuery(params?: InvoiceQueryParams): Record<string, string> {
   }
   if (params.status) query['status'] = params.status;
   if (params.dueState) query['dueState'] = params.dueState;
+  if (params.issuedMonth) query['issuedMonth'] = params.issuedMonth;
   if (params.page !== undefined) query['page'] = String(params.page);
   if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);
   return query;

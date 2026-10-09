@@ -17,7 +17,6 @@ import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/l
 import { StaffPage } from './staff.page';
 import { KioskFormDialogComponent } from './kiosk-form-dialog/kiosk-form-dialog.component';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
-import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('StaffPage', () => {
   let component: StaffPage;
@@ -33,6 +32,8 @@ describe('StaffPage', () => {
         activeCount: number;
         inactiveCount: number;
         archivedCount: number;
+        multiRoleCount: number;
+        byRole: { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number };
       };
     }>,
   ) => ({
@@ -45,6 +46,8 @@ describe('StaffPage', () => {
       activeCount: 0,
       inactiveCount: 0,
       archivedCount: 0,
+      multiRoleCount: 0,
+      byRole: { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0 },
     },
     ...overrides,
   });
@@ -126,193 +129,113 @@ describe('StaffPage', () => {
 
     const calls = staffServiceMock.list.mock.calls as unknown as [Record<string, unknown>][];
     expect(calls).toHaveLength(1);
-    expect(calls[0][0]).toEqual(expect.objectContaining({ campusId: 'campus-1', page: 1 }));
+    expect(calls[0][0]).toEqual(expect.objectContaining({ campusId: 'campus-1' }));
 
     component.clearFilters();
     expect(calls[1][0]).toEqual(expect.objectContaining({ campusId: 'campus-1' }));
   });
 
-  it('用共用的整頁列表頁大小，不自己訂一個', () => {
-    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(LIST_PAGE_SIZE);
+  it('一次拿全部（pageSize 0），不分頁', () => {
+    const calls = staffServiceMock.list.mock.calls as unknown as [Record<string, unknown>][];
+    expect(calls.at(-1)![0]).toEqual(expect.objectContaining({ pageSize: 0 }));
+    expect(calls.at(-1)![0]).not.toHaveProperty('page');
   });
 
-  it('shows the total staff count in the summary card', () => {
-    const staff = [
-      {
-        id: 'staff-1',
-        userId: 'user-1',
-        orgId: 'org-1',
-        displayName: '王老師',
-        phone: null,
-        email: 'wang@example.com',
-        birthday: null,
-        notes: null,
-        subjectIds: [],
-        subjectNames: [],
-        status: 'active',
-        createdAt: '2026-03-11T00:00:00.000Z',
-        updatedAt: '2026-03-11T00:00:00.000Z',
-        campusIds: [],
-        roles: ['teacher'],
-        permissions: [],
-      },
-    ] satisfies Staff[];
-
-    (component as unknown as { loading: { set: (value: boolean) => void } }).loading.set(false);
-    (component as unknown as { staffList: { set: (value: Staff[]) => void } }).staffList.set(staff);
-    (component as unknown as { total: { set: (value: number) => void } }).total.set(128);
-    (
-      component as unknown as {
-        summary: {
-          set: (value: {
-            total: number;
-            adminCount: number;
-            teacherCount: number;
-            activeCount: number;
-            inactiveCount: number;
-            archivedCount: number;
-          }) => void;
-        };
-      }
-    ).summary.set({
-      total: 128,
-      adminCount: 0,
-      teacherCount: 1,
-      activeCount: 1,
-      inactiveCount: 0,
-      archivedCount: 0,
+  describe('依角色分章（#1314 ST1）', () => {
+    const person = (id: string, over: Partial<Staff>): Staff => ({
+      id,
+      userId: `u-${id}`,
+      orgId: 'org-1',
+      displayName: id,
+      phone: null,
+      email: `${id}@example.com`,
+      birthday: null,
+      notes: null,
+      subjectIds: [],
+      subjectNames: [],
+      status: 'active',
+      createdAt: '2026-03-11T00:00:00.000Z',
+      updatedAt: '2026-03-11T00:00:00.000Z',
+      campusIds: [],
+      roles: ['teacher'],
+      permissions: [],
+      ...over,
     });
-    fixture.detectChanges();
 
-    const statValues = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('.staff__stat-value'),
-    ).map((element) => element.textContent?.trim() ?? '');
-
-    expect(statValues[0]).toBe('128');
-  });
-
-  it('shows summary counts returned by the API', () => {
-    const staff = [
-      {
-        id: 'staff-1',
-        userId: 'user-1',
-        orgId: 'org-1',
-        displayName: '王老師',
-        phone: null,
-        email: 'wang@example.com',
-        birthday: null,
-        notes: null,
-        subjectIds: [],
-        subjectNames: [],
-        status: 'active',
-        createdAt: '2026-03-11T00:00:00.000Z',
-        updatedAt: '2026-03-11T00:00:00.000Z',
-        campusIds: [],
-        roles: ['teacher'],
-        permissions: [],
-      },
-    ] satisfies Staff[];
-
-    (component as unknown as { loading: { set: (value: boolean) => void } }).loading.set(false);
-    (component as unknown as { staffList: { set: (value: Staff[]) => void } }).staffList.set(staff);
-    (
-      component as unknown as {
-        summary: {
-          set: (value: {
-            total: number;
-            adminCount: number;
-            teacherCount: number;
-            activeCount: number;
-            inactiveCount: number;
-            archivedCount: number;
-          }) => void;
-        };
-      }
-    ).summary.set({
-      total: 128,
-      adminCount: 7,
-      teacherCount: 121,
-      activeCount: 119,
-      inactiveCount: 5,
-      archivedCount: 4,
-    });
-    fixture.detectChanges();
-
-    const statValues = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('.staff__stat-value'),
-    ).map((element) => element.textContent?.trim() ?? '');
-
-    expect(statValues).toEqual(['128', '7', '121', '119']);
-  });
-
-  /**
-   * P1-4（Tester 抓到）：13 管理員 + 89 老師 ≠ 101 位人員，因為兼任的人兩邊
-   * 各算一次——這是既定規格不是 bug，但畫面原本沒講，行政會停下來以為算錯。
-   */
-  describe('管理員／老師合併磚的兼任備註', () => {
-    function setSummary(overrides: { multiRoleCount: number }) {
-      const staff: Staff[] = [
-        {
-          id: 'staff-1',
-          userId: 'user-1',
-          orgId: 'org-1',
-          displayName: '王老師',
-          phone: null,
-          email: 'wang@example.com',
-          birthday: null,
-          notes: null,
-          subjectIds: [],
-          subjectNames: [],
-          status: 'active',
-          createdAt: '2026-03-11T00:00:00.000Z',
-          updatedAt: '2026-03-11T00:00:00.000Z',
-          campusIds: [],
-          roles: ['teacher'],
-          permissions: [],
-        },
-      ];
-
-      (component as unknown as { loading: { set: (value: boolean) => void } }).loading.set(false);
-      (component as unknown as { staffList: { set: (value: Staff[]) => void } }).staffList.set(
-        staff,
+    function show(
+      staff: Staff[],
+      byRole: Record<string, number>,
+      over: Record<string, number> = {},
+    ) {
+      staffServiceMock.list.mockReturnValue(
+        of(
+          buildStaffResponse({
+            data: staff,
+            summary: {
+              total: staff.length,
+              adminCount: 0,
+              teacherCount: 0,
+              multiRoleCount: 0,
+              activeCount: 0,
+              inactiveCount: 0,
+              archivedCount: 0,
+              byRole: { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0, ...byRole },
+              ...over,
+            },
+          }),
+        ),
       );
-      (
-        component as unknown as {
-          summary: {
-            set: (value: {
-              total: number;
-              adminCount: number;
-              teacherCount: number;
-              multiRoleCount: number;
-              activeCount: number;
-              inactiveCount: number;
-              archivedCount: number;
-            }) => void;
-          };
-        }
-      ).summary.set({
-        total: 101,
-        adminCount: 13,
-        teacherCount: 89,
-        activeCount: 98,
-        inactiveCount: 3,
-        archivedCount: 0,
-        ...overrides,
-      });
+      (component as unknown as { loadStaff: () => void }).loadStaff();
       fixture.detectChanges();
     }
 
-    it('有兼任人數時顯示備註，不用自己算', () => {
-      setSummary({ multiRoleCount: 1 });
+    const chapterHeads = () =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('th[scope="colgroup"]'),
+      ).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim());
 
-      const note = fixture.nativeElement.querySelector('.staff__stat-note');
-      expect(note?.textContent?.trim()).toBe('（1 位身兼兩者）');
+    afterEach(() => staffServiceMock.list.mockReturnValue(of(buildStaffResponse())));
+
+    it('四桶互斥：兼任歸管理員章、停用與封存同一章；章名張數讀 byRole', () => {
+      show(
+        [
+          person('a', { roles: ['admin'] }),
+          person('both', { roles: ['admin', 'teacher'] }),
+          person('t', {}),
+          person('old', { status: 'archived' }),
+        ],
+        { admin: 2, teacher: 1, inactiveOrArchived: 1 },
+      );
+      expect(chapterHeads()).toEqual(['管理員 2 位', '老師 1 位', '停用與封存 1 位']);
     });
 
-    it('沒有兼任（0）時不顯示備註', () => {
-      setSummary({ multiRoleCount: 0 });
+    it('沒有人的章不顯示（kiosk 章只在有機台時出現）；沒有封存叫「已停用」', () => {
+      show([person('t', {}), person('off', { status: 'inactive' })], {
+        teacher: 1,
+        inactiveOrArchived: 1,
+      });
+      expect(chapterHeads()).toEqual(['老師 1 位', '已停用 1 位']);
 
-      expect(fixture.nativeElement.querySelector('.staff__stat-note')).toBeNull();
+      show([person('k', { roles: ['kiosk'] })], { kiosk: 1 });
+      expect(chapterHeads()).toEqual(['掃碼機台 1 位']);
+    });
+
+    it('開場副行：N 位管理員 · N 位老師（N 位身兼兩者），0 位身兼時不寫括號', () => {
+      show(
+        [person('t', {})],
+        { teacher: 1 },
+        { adminCount: 7, teacherCount: 121, multiRoleCount: 2 },
+      );
+      const sub = () => (fixture.nativeElement as HTMLElement).textContent!;
+      expect(sub()).toContain('7 位管理員 · 121 位老師（2 位身兼兩者）');
+
+      show(
+        [person('t', {})],
+        { teacher: 1 },
+        { adminCount: 7, teacherCount: 121, multiRoleCount: 0 },
+      );
+      expect(sub()).toContain('7 位管理員 · 121 位老師');
+      expect(sub()).not.toContain('身兼兩者');
     });
   });
 

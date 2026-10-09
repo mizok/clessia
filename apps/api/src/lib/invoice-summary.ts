@@ -45,6 +45,8 @@ export interface InvoiceSummary {
   overdue: Bucket;
   dueSoon: Bucket & { days: number };
   notDue: Bucket;
+  /** 未繳清總待收（#1314 P3）＝三章 outstanding 和＝ unpaid＋partial 的；不含作廢與多退 */
+  outstanding: number;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收。比例由前端除 */
   month: { month: string; billed: number; received: number };
 }
@@ -62,6 +64,7 @@ export function summarizeInvoices(invoices: SummaryInvoice[], today: string): In
     overdue: { count: 0, outstanding: 0 },
     dueSoon: { count: 0, outstanding: 0, days: DUE_SOON_DAYS },
     notDue: { count: 0, outstanding: 0 },
+    outstanding: 0,
     month: { month, billed: 0, received: 0 },
   };
 
@@ -77,6 +80,7 @@ export function summarizeInvoices(invoices: SummaryInvoice[], today: string): In
       const bucket = summary[dueStateOn(invoice.dueDate, today)];
       bucket.count += 1;
       bucket.outstanding += owed;
+      summary.outstanding += owed;
     }
     if (invoice.issuedAt.slice(0, 7) === month) {
       summary.month.billed += total;

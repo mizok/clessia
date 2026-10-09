@@ -2,12 +2,12 @@
 
 <!--
   A6 版（#991）：色面 → 灰工具列（搜尋、篩選、新增）→ 人員表格。
-  換版不換資料：A6 稿的「依角色分章」要全量資料（列表是伺服器分頁），其餘差異列後續項（#1314 ST1–ST8）。
-  統計列（總數、管理員・老師、啟用中）照留：A6 把數字搬進色面副行，但 spec 以 `.staff__stat-*` 讀它，這支 PR 不動行為。
+  依角色分章（#1314 ST1）：列表一次拿全部（pageSize=0）、前端歸桶；章名張數讀 `summary.byRole`。
+  統計列已刪，數字在色面副行；其餘差異列後續項（ST2–ST8）。
 -->
 <app-page-open>
   <ng-container openTitle>人員管理</ng-container>
-  <ng-container openSub>管理管理員、老師帳號與分校門口的掃碼機台</ng-container>
+  <ng-container openSub>{{ openSub() }}</ng-container>
 </app-page-open>
 
 <div class="bg-zinc-100">
@@ -90,49 +90,6 @@
 </div>
 
 <div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
-  <!-- Stats Summary -->
-  @if (!loading() && staffList().length > 0) {
-    <div
-      class="flex overflow-x-auto rounded-lg bg-zinc-50 px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
-      <div class="flex shrink-0 items-baseline gap-1 px-4 py-2">
-        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
-          summary().total
-        }}</span>
-        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">位人員</span>
-      </div>
-      <!--
-        管理員與老師合併成同一塊，不是兩塊獨立的磚——分開放會讓人把它們讀成
-        「總人數的兩個子分類」，但一個人可以同時是管理員又是老師，兩邊各算
-        一次，加起來本來就會比總人數多（P1-4，Tester 抓到：13+89≠101 讓人
-        以為系統算錯）。放在同一塊 + 明寫兼任人數，讓「為什麼加起來對不上」
-        不用使用者自己算。
-      -->
-      <div class="flex shrink-0 items-baseline gap-2 border-l border-zinc-200 px-4 py-2">
-        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
-          adminCount()
-        }}</span>
-        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">管理員</span>
-        <span class="text-zinc-500">・</span>
-        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
-          teacherCount()
-        }}</span>
-        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">老師</span>
-        @if (multiRoleCount() > 0) {
-          <span class="staff__stat-note text-xs whitespace-nowrap text-zinc-500"
-            >（{{ multiRoleCount() }} 位身兼兩者）</span
-          >
-        }
-      </div>
-      <div class="flex shrink-0 items-baseline gap-1 border-l border-zinc-200 px-4 py-2">
-        <span class="staff__stat-value text-xl leading-none font-bold text-zinc-900 tabular-nums">{{
-          activeCount()
-        }}</span>
-        <span class="text-sm font-medium whitespace-nowrap text-zinc-500">啟用中</span>
-      </div>
-    </div>
-  }
-
   @if (loading()) {
     <!-- Skeleton Loading -->
     <div class="skeleton-list">
@@ -168,12 +125,7 @@
   } @else {
     <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
-    <app-responsive-table
-      [headTemplate]="headTpl"
-      [bodyTemplate]="bodyTpl"
-      [pagination]="pagination()"
-      (page)="onPage($event)"
-    />
+    <app-responsive-table [headTemplate]="headTpl" [bodyTemplate]="bodyTpl" />
 
     <ng-template #headTpl>
       <tr>
@@ -198,95 +150,107 @@
     </ng-template>
 
     <ng-template #bodyTpl>
-      @for (staff of staffList(); track staff.id) {
-        <tr
-          appRtRow
-          [appRtRow]="staff"
-          [appRtRowId]="staff.id"
-          class="group/row border-l-[3px] border-transparent transition-colors hover:border-accent-400 hover:bg-zinc-50"
-        >
-          <td appRtColCell="name">
-            <div class="flex items-center gap-3">
-              <span
-                class="hidden size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_2px_5px_-1px_hsl(var(--h,210)_31%_36%/0.22)] select-none data-admin:bg-[linear-gradient(135deg,var(--accent-400),var(--accent-600))] sm:flex"
-                [attr.data-admin]="staff.roles.includes('admin') ? '' : null"
-                [style.--h]="getPersonHue(staff.id)"
-                >{{ staff.displayName[0] }}</span
-              >
-              <div class="flex min-w-0 flex-col gap-0.5">
-                <span
-                  class="min-w-0 truncate font-semibold text-zinc-900 group-hover/row:text-accent-600"
-                  >{{ staff.displayName }}</span
-                >
-                <span class="truncate text-sm text-zinc-500">{{ staff.email }}</span>
-              </div>
-            </div>
-          </td>
-          <td appRtColCell="role">
-            <div class="flex flex-nowrap gap-1 whitespace-nowrap">
-              @for (role of staff.roles; track role) {
-                <app-data-chip>{{ getRoleLabel(role) }}</app-data-chip>
-              }
-            </div>
-          </td>
-          <td appRtColCell="subjects">
-            @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
-              <div class="flex flex-wrap items-center gap-1">
-                @for (subject of getDisplaySubjects(staff.subjectNames).visible; track subject) {
-                  <span
-                    class="inline-flex items-center rounded-full bg-accent-50 px-2 py-0.5 text-xs font-medium text-accent-600"
-                    >{{ subject }}</span
-                  >
-                }
-                @if (getDisplaySubjects(staff.subjectNames).remaining > 0) {
-                  <span
-                    class="inline-flex cursor-help items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-700"
-                    [pTooltip]="staff.subjectNames.join('、')"
-                    tooltipPosition="top"
-                  >
-                    +{{ getDisplaySubjects(staff.subjectNames).remaining }}
-                  </span>
-                }
-              </div>
-            } @else {
-              <span class="text-sm text-zinc-500 italic">—</span>
-            }
-          </td>
-          <td appRtColCell="campuses">
-            <span class="block truncate text-sm text-zinc-600">{{
-              getCampusNames(staff.campusIds)
-            }}</span>
-          </td>
-          <td appRtColCell="phone">
-            @if (staff.phone) {
-              <a
-                [href]="'tel:' + staff.phone"
-                class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
-              >
-                {{ staff.phone }}
-              </a>
-            } @else {
-              <span class="text-sm text-zinc-500 italic">未填寫</span>
-            }
-          </td>
-          <td appRtColCell="status">
-            <div class="flex flex-nowrap gap-1 whitespace-nowrap">
-              <app-status-dot [tone]="staffStatusTone(staff.status)">{{
-                getStaffStatusLabel(staff.status)
-              }}</app-status-dot>
-            </div>
-          </td>
-          <td class="responsive-table__cell" style="text-align: center">
-            <p-button
-              icon="pi pi-ellipsis-v"
-              [rounded]="true"
-              [text]="true"
-              severity="secondary"
-              [ariaLabel]="staff.displayName + ' 的操作'"
-              (onClick)="openActionMenu($event, staff)"
-            />
-          </td>
+      @for (chapter of chapters(); track chapter.key) {
+        <tr class="bg-zinc-50" [attr.data-chapter]="chapter.key">
+          <th
+            colspan="99"
+            scope="colgroup"
+            class="px-4 py-3 text-left text-sm font-semibold text-zinc-900"
+          >
+            {{ chapter.label }}
+            <span class="ml-2 font-normal text-zinc-600 tabular-nums">{{ chapter.count }} 位</span>
+          </th>
         </tr>
+        @for (staff of chapter.rows; track staff.id) {
+          <tr
+            appRtRow
+            [appRtRow]="staff"
+            [appRtRowId]="staff.id"
+            class="group/row border-l-[3px] border-transparent transition-colors hover:border-accent-400 hover:bg-zinc-50"
+          >
+            <td appRtColCell="name">
+              <div class="flex items-center gap-3">
+                <span
+                  class="hidden size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_2px_5px_-1px_hsl(var(--h,210)_31%_36%/0.22)] select-none data-admin:bg-[linear-gradient(135deg,var(--accent-400),var(--accent-600))] sm:flex"
+                  [attr.data-admin]="staff.roles.includes('admin') ? '' : null"
+                  [style.--h]="getPersonHue(staff.id)"
+                  >{{ staff.displayName[0] }}</span
+                >
+                <div class="flex min-w-0 flex-col gap-0.5">
+                  <span
+                    class="min-w-0 truncate font-semibold text-zinc-900 group-hover/row:text-accent-600"
+                    >{{ staff.displayName }}</span
+                  >
+                  <span class="truncate text-sm text-zinc-500">{{ staff.email }}</span>
+                </div>
+              </div>
+            </td>
+            <td appRtColCell="role">
+              <div class="flex flex-nowrap gap-1 whitespace-nowrap">
+                @for (role of staff.roles; track role) {
+                  <app-data-chip>{{ getRoleLabel(role) }}</app-data-chip>
+                }
+              </div>
+            </td>
+            <td appRtColCell="subjects">
+              @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
+                <div class="flex flex-wrap items-center gap-1">
+                  @for (subject of getDisplaySubjects(staff.subjectNames).visible; track subject) {
+                    <span
+                      class="inline-flex items-center rounded-full bg-accent-50 px-2 py-0.5 text-xs font-medium text-accent-600"
+                      >{{ subject }}</span
+                    >
+                  }
+                  @if (getDisplaySubjects(staff.subjectNames).remaining > 0) {
+                    <span
+                      class="inline-flex cursor-help items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-700"
+                      [pTooltip]="staff.subjectNames.join('、')"
+                      tooltipPosition="top"
+                    >
+                      +{{ getDisplaySubjects(staff.subjectNames).remaining }}
+                    </span>
+                  }
+                </div>
+              } @else {
+                <span class="text-sm text-zinc-500 italic">—</span>
+              }
+            </td>
+            <td appRtColCell="campuses">
+              <span class="block truncate text-sm text-zinc-600">{{
+                getCampusNames(staff.campusIds)
+              }}</span>
+            </td>
+            <td appRtColCell="phone">
+              @if (staff.phone) {
+                <a
+                  [href]="'tel:' + staff.phone"
+                  class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
+                >
+                  {{ staff.phone }}
+                </a>
+              } @else {
+                <span class="text-sm text-zinc-500 italic">未填寫</span>
+              }
+            </td>
+            <td appRtColCell="status">
+              <div class="flex flex-nowrap gap-1 whitespace-nowrap">
+                <app-status-dot [tone]="staffStatusTone(staff.status)">{{
+                  getStaffStatusLabel(staff.status)
+                }}</app-status-dot>
+              </div>
+            </td>
+            <td class="responsive-table__cell" style="text-align: center">
+              <p-button
+                icon="pi pi-ellipsis-v"
+                [rounded]="true"
+                [text]="true"
+                severity="secondary"
+                [ariaLabel]="staff.displayName + ' 的操作'"
+                (onClick)="openActionMenu($event, staff)"
+              />
+            </td>
+          </tr>
+        }
       }
     </ng-template>
   }
