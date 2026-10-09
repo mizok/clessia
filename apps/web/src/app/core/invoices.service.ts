@@ -148,6 +148,8 @@ export interface InvoiceQueryParams {
    * 與上面三者並用是交集
    */
   dueState?: DueState;
+  /** 'YYYY-MM' = 只看這個月開立的（匯出，#1314 P4） */
+  issuedMonth?: string;
   page?: number;
   pageSize?: number;
 }
@@ -293,6 +295,7 @@ function toQuery(params?: InvoiceQueryParams): Record<string, string> {
   }
   if (params.status) query['status'] = params.status;
   if (params.dueState) query['dueState'] = params.dueState;
+  if (params.issuedMonth) query['issuedMonth'] = params.issuedMonth;
   if (params.page !== undefined) query['page'] = String(params.page);
   if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);
   return query;
