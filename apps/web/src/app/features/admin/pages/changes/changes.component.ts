@@ -9,44 +9,23 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { skip } from 'rxjs';
-import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { addDays, endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns';
+import { endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { PaginatorModule } from 'primeng/paginator';
 
 import { CampusContextService } from '@core/campus-context.service';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
-import {
-  SessionsService,
-  type ChangeLogEntry,
-  type ScheduleChangeType,
-} from '@core/sessions.service';
+import { SessionsService, type ChangeLogEntry } from '@core/sessions.service';
 import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SystemClockService } from '@core/system-clock.service';
+import { ChangeLogListComponent } from '@shared/components/change-log-list/change-log-list.component';
+import { CHANGE_TYPE_LABELS } from '@shared/components/change-log-list/change-log.util';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 const MONTHS_BACK = 12;
-const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
-
-/**
- * `schedule_change_type` 的中文標籤。**這份表的完整性沒有任何東西在守** ——
- * enum 加了新值而這裡沒跟上時，表格會靠 `?? value` 顯示原始英文字（`makeup`），
- * 而**它不會拋錯、不會紅燈，列還是會出現**。
- *
- * `creation` 不是 enum 值，是後端合成的「建立課堂」那筆。
- */
-const CHANGE_TYPE_LABELS: Record<ScheduleChangeType, string> = {
-  reschedule: '調課',
-  substitute: '代課',
-  cancellation: '停課',
-  uncancel: '恢復上課',
-  time_change: '改時間',
-  makeup: '補課',
-  creation: '建立課堂',
-};
 
 /**
  * **有標籤但不給篩的類型。**
@@ -64,45 +43,11 @@ const CHANGE_TYPE_LABELS: Record<ScheduleChangeType, string> = {
  */
 const UNFILTERABLE_CHANGE_TYPES = new Set(['creation', 'makeup']);
 
-/** 類型小標的圖示（A6 沿用課表「全部異動」的那一組） */
-const CHANGE_TYPE_ICONS: Record<ScheduleChangeType, string> = {
-  reschedule: 'pi-arrow-right',
-  substitute: 'pi-arrow-right-arrow-left',
-  cancellation: 'pi-times',
-  uncancel: 'pi-replay',
-  time_change: 'pi-clock',
-  makeup: 'pi-link',
-  creation: 'pi-plus',
-};
-
-/** 一則：單筆異動，或同一次批次操作產生的多筆 */
-interface ChangeItem {
-  key: string;
-  rows: ChangeLogEntry[];
-}
-
-/** 一章：同一個上課日 */
-interface ChangeChapter {
-  date: string;
-  items: ChangeItem[];
-  count: number;
-}
-
-/**
- * **API 只有 `isBatch`、沒有批次 id**（#991 P1，計畫席同意的暫定做法）：同一次批次操作寫入的列，
- * 類型、原因、操作者、建立時間（到秒）都相同，用它們當分組鍵。只在同一頁的資料內分組 ——
- * 一個批次跨了分頁的話，兩頁各收成一則。後端給批次 id 之後換成它。
- */
-function batchKey(e: ChangeLogEntry): string {
-  return [e.changeType, e.reason, e.createdByName, e.createdAt.slice(0, 19)].join('|');
-}
-
 @Component({
   selector: 'app-changes',
   imports: [
     CampusScopeNoteComponent,
-    DatePipe,
-    NgTemplateOutlet,
+    ChangeLogListComponent,
     RouterLink,
     PaginatorModule,
     SelectFieldComponent,
@@ -132,7 +77,8 @@ export class ChangesComponent {
   protected readonly monthTotal = signal<number | null>(null);
   protected readonly monthCancelled = signal<number | null>(null);
 
-  private readonly today = this.clock.todayTaipei();
+  protected readonly todayStr = this.clock.todayTaipei();
+  private readonly today = this.todayStr;
   protected readonly month = signal(this.today.slice(0, 7));
   protected readonly changeType = signal<string | null>(null);
   private readonly campusId = this.campusCtx.id;
@@ -160,33 +106,6 @@ export class ChangesComponent {
     return type ?? '全部異動';
   });
 
-  /**
-   * 依上課日分章（A6）：今天以後的在前、由近到遠；過去的在後、由近到遠。
-   * 章內同一次批次收成一則。
-   */
-  protected readonly chapters = computed<ChangeChapter[]>(() => {
-    const today = this.today;
-    const dateOf = (e: ChangeLogEntry) => e.sessionDate ?? '';
-    const sorted = [...this.entries()].sort((a, b) => {
-      const fa = dateOf(a) >= today;
-      const fb = dateOf(b) >= today;
-      if (fa !== fb) return fa ? -1 : 1;
-      return fa ? dateOf(a).localeCompare(dateOf(b)) : dateOf(b).localeCompare(dateOf(a));
-    });
-    const chapters = new Map<string, ChangeChapter>();
-    for (const e of sorted) {
-      const date = dateOf(e);
-      let chapter = chapters.get(date);
-      if (!chapter) chapters.set(date, (chapter = { date, items: [], count: 0 }));
-      chapter.count++;
-      const key = e.isBatch ? batchKey(e) : e.id;
-      const item = chapter.items.find((i) => i.key === key);
-      if (item) item.rows.push(e);
-      else chapter.items.push({ key, rows: [e] });
-    }
-    return [...chapters.values()];
-  });
-
   protected readonly pageSize = PAGE_SIZE;
   protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
 
@@ -199,40 +118,6 @@ export class ChangesComponent {
 
     this.load();
     this.loadMonthSummary();
-  }
-
-  /**
-   * `?? value` 是最後的退路，不是設計 —— 它會顯示原始英文字（`makeup`）。
-   * 現在 `CHANGE_TYPE_LABELS` 綁死 `ScheduleChangeType`，漏標籤會編不過，
-   * 所以正常情況走不到那個 `??`；留著是因為後端的 `changeType` 回的是
-   * `z.string()`，執行期仍可能出現型別沒涵蓋的值（型別是當下的保證，不是永久的）。
-   */
-  protected typeLabel(value: ScheduleChangeType): string {
-    return CHANGE_TYPE_LABELS[value] ?? value;
-  }
-
-  protected typeIcon(value: ScheduleChangeType): string {
-    return CHANGE_TYPE_ICONS[value] ?? 'pi-circle';
-  }
-
-  /** 章的大字：今天／明天／M/D；沒有上課日（理論上不會有）寫「未排日期」 */
-  protected dayLabel(date: string): string {
-    if (!date) return '未排日期';
-    if (date === this.today) return '今天';
-    if (date === format(addDays(parseISO(this.today), 1), 'yyyy-MM-dd')) return '明天';
-    return format(parseISO(date), 'M/d');
-  }
-
-  /** 章的小字：今天／明天要補上日期，其他只寫星期 */
-  protected dayMeta(date: string): string {
-    if (!date) return '';
-    const d = parseISO(date);
-    const weekday = `週${WEEKDAYS[d.getDay()]}`;
-    return this.dayLabel(date).includes('/') ? weekday : `${format(d, 'M/d')} ${weekday}`;
-  }
-
-  protected classCount(rows: ChangeLogEntry[]): number {
-    return new Set(rows.map((r) => r.className)).size;
   }
 
   protected onMonthChange(value: string): void {

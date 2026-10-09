@@ -24,6 +24,7 @@ function entry(overrides: Partial<ChangeLogEntry> = {}): ChangeLogEntry {
     createdByName: '王主任',
     createdAt: '2026-08-10T03:00:00Z',
     isBatch: false,
+    batchId: null,
     ...overrides,
   };
 }
@@ -205,53 +206,30 @@ describe('ChangesComponent', () => {
     expect(f.nativeElement.textContent).toContain('8 月沒有任何調課、代課或停課');
   });
 
-  // #991 P1（A6）：依上課日分章。今天以後的在前、由近到遠；過去的在後、由近到遠
-  it('分章：未來（含今天）由近到遠在前，過去由近到遠在後', async () => {
-    await setup();
-    component['entries'].set([
-      entry({ id: 'a', sessionDate: '2026-08-10' }),
-      entry({ id: 'b', sessionDate: '2026-08-20' }),
-      entry({ id: 'c', sessionDate: '2026-08-15' }),
-      entry({ id: 'd', sessionDate: '2026-08-12' }),
-      entry({ id: 'e', sessionDate: '2026-08-16' }),
-    ]);
-
-    expect(component['chapters']().map((c) => c.date)).toEqual([
-      '2026-08-15',
-      '2026-08-16',
-      '2026-08-20',
-      '2026-08-12',
-      '2026-08-10',
-    ]);
-    expect(component['dayLabel']('2026-08-15')).toBe('今天');
-    expect(component['dayLabel']('2026-08-16')).toBe('明天');
-    expect(component['dayLabel']('2026-08-20')).toBe('8/20');
-  });
-
-  /**
-   * API 沒有批次 id：同類型＋原因＋操作者＋建立時間（到秒）視為同一次批次。
-   * 非批次的列即使這四樣都一樣也不能併（那是兩次各自的操作）。
-   */
-  it('批次：同一次批次收成一則，原因不同或非批次的不併', async () => {
+  // 分章、批次分組、日期標籤的邏輯在共用的 change-log-list（util／component 各有 spec）；
+  // 這裡只確認頁面把資料交給它、而且畫出來
+  it('把這一頁的資料交給共用清單：批次收成一則、依日分章', async () => {
     await setup();
     const at = '2026-08-10T03:00:00Z';
     component['entries'].set([
-      entry({ id: 'b1', isBatch: true, createdAt: at, className: '國二數學 A' }),
-      entry({ id: 'b2', isBatch: true, createdAt: at, className: '國三英文 B' }),
-      entry({ id: 'b3', isBatch: true, createdAt: at, reason: '停電' }),
-      entry({ id: 's1', createdAt: at }),
-      entry({ id: 's2', createdAt: at }),
-    ]);
-
-    const [chapter] = component['chapters']();
-    expect(chapter.count).toBe(5);
-    expect(chapter.items.map((i) => i.rows.map((r) => r.id))).toEqual([
-      ['b1', 'b2'],
-      ['b3'],
-      ['s1'],
-      ['s2'],
+      entry({
+        id: 'b1',
+        isBatch: true,
+        batchId: 'batch-1',
+        createdAt: at,
+        className: '國二數學 A',
+      }),
+      entry({
+        id: 'b2',
+        isBatch: true,
+        batchId: 'batch-1',
+        createdAt: at,
+        className: '國三英文 B',
+      }),
     ]);
     fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-change-log-list')).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('看是哪 2 堂');
   });
 
@@ -292,14 +270,7 @@ describe('ChangesComponent', () => {
    * 這兩條守的是型別看不到的另一半：**篩選選項該有誰、不該有誰**。
    */
   describe('補課（makeup）', () => {
-    it('表格顯示「補課」，不是原始 enum 值', () => {
-      const label = (component as unknown as { typeLabel: (v: string) => string }).typeLabel(
-        'makeup',
-      );
-
-      expect(label).toBe('補課');
-      expect(label).not.toBe('makeup');
-    });
+    // 「表格顯示補課」那條搬到共用清單的 spec（它才是畫表格的人）
 
     /**
      * **後端還不收 `makeup`**（`ChangeLogQuerySchema.changeType` 的 `z.enum` 沒有它），

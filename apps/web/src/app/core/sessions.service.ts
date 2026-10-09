@@ -146,6 +146,8 @@ export interface ChangeLogEntry {
   createdAt: string;
   /** 批次操作會產生多筆，標記出來才不會看起來像有人重複操作 */
   isBatch: boolean;
+  /** 同一次批次共用（#1195）；單堂與 #1195 之前的舊資料為 null。分組優先用它 */
+  batchId: string | null;
 }
 
 export interface ChangeLogParams {

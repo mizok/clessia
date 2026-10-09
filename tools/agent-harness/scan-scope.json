@@ -111,6 +111,7 @@
       "apps/web/src/app/shared/components/attendance-roster-panel",
       "apps/web/src/app/shared/components/audit-log-dialog",
       "apps/web/src/app/shared/components/campus-scope-note",
+      "apps/web/src/app/shared/components/change-log-list",
       "apps/web/src/app/shared/components/checkin-station",
       "apps/web/src/app/shared/components/class-picker-dialog",
       "apps/web/src/app/shared/components/collapsible",
