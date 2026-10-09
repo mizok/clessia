@@ -104,6 +104,10 @@ const SKIP_PREFIX = ['/api/me', '/api/public/'];
 const ids: Record<string, string> = {};
 const fill = (value: string) => value.replace(/\{\w+\}/g, (token) => ids[token] ?? token);
 
+if ((!URL || !KEY) && process.env['CONTRACT_REQUIRED']) {
+  // CI 設了 CONTRACT_REQUIRED：拿不到就紅 —— skip 會顯示成綠（#1435 第三跑就是這樣）
+  throw new Error('[contract] CONTRACT_REQUIRED 但沒有 SUPABASE_URL／SUPABASE_SERVICE_ROLE_KEY');
+}
 if (!URL || !KEY) {
   console.warn(
     '[contract] 沒有 SUPABASE_URL／SUPABASE_SERVICE_ROLE_KEY —— 跳過（本機請先 npm run db:start）',
