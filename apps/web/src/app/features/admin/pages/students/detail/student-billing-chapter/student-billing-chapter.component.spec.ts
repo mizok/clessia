@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { StudentBillingChapterComponent } from './student-billing-chapter.component';
@@ -45,7 +46,7 @@ function invoice(over: Partial<Invoice>): Invoice {
 describe('StudentBillingChapterComponent', () => {
   let fixture: ComponentFixture<StudentBillingChapterComponent>;
   const open = vi.fn((..._a: unknown[]) => ({ onClose: of<Invoice | undefined>(undefined) }));
-  const service = { list: vi.fn(), summaryOf: vi.fn() };
+  const service = { list: vi.fn(), summary: vi.fn() };
 
   function setup(
     invoices: Invoice[],
@@ -58,7 +59,7 @@ describe('StudentBillingChapterComponent', () => {
         ? throwError(() => new Error('x'))
         : of({ data: invoices, meta: { total: invoices.length } }),
     );
-    service.summaryOf.mockReturnValue(
+    service.summary.mockReturnValue(
       fail ? throwError(() => new Error('x')) : of({ outstanding: outstandingTotal }),
     );
     TestBed.configureTestingModule({
@@ -90,7 +91,7 @@ describe('StudentBillingChapterComponent', () => {
   it('摘要列：待繳金額讀 API，未逾期寫到期日', () => {
     setup([invoice({})], 4050);
     expect(service.list).toHaveBeenCalledWith({ studentId: 's1', pageSize: 200 });
-    expect(service.summaryOf).toHaveBeenCalledWith('s1');
+    expect(service.summary).toHaveBeenCalledWith({ studentId: 's1' });
     expect(summary()).toBe('NT$ 4,050 · 10/20 到期');
   });
 
@@ -121,5 +122,10 @@ describe('StudentBillingChapterComponent', () => {
     btn.click();
     expect(open).toHaveBeenCalledTimes(1);
     expect(service.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('章自己提供 MessageService：帳單詳情 dialog 靠它回報作廢／收款結果，學生檔案頁沒有這個 provider（實機 NG0201 抓到）', () => {
+    setup([], 0);
+    expect(fixture.debugElement.injector.get(MessageService)).toBeTruthy();
   });
 });

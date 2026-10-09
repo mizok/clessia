@@ -2,7 +2,9 @@ import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
+import { ToastModule } from 'primeng/toast';
 
 import {
   INVOICE_ITEM_TYPE_LABELS,
@@ -31,7 +33,9 @@ import { daysOverdue, isOverdue, outstanding } from '../../../payments/payments.
 @Component({
   selector: 'app-student-billing-chapter',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, StatusDotComponent],
+  imports: [DecimalPipe, RouterLink, StatusDotComponent, ToastModule],
+  // 帳單詳情 dialog 要 MessageService（作廢、收款、催繳的結果訊息）；這頁原本沒有，所以章自己帶一組＋下面的 p-toast
+  providers: [MessageService, DialogService],
   templateUrl: './student-billing-chapter.component.html',
 })
 export class StudentBillingChapterComponent implements OnInit {
@@ -95,7 +99,7 @@ export class StudentBillingChapterComponent implements OnInit {
         },
       });
     this.invoicesService
-      .summaryOf(studentId)
+      .summary({ studentId })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (s) => this.totalOutstanding.set(s.outstanding ?? null),

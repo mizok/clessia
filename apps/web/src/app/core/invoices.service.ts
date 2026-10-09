@@ -247,13 +247,6 @@ export class InvoicesService {
     return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`, { params: query });
   }
 
-  /** 單一學生的彙總：同 `summary()`，另帶 `outstanding`＝未繳清總待收（後端算，前端不加總） */
-  summaryOf(studentId: string): Observable<InvoiceSummary & { outstanding: number }> {
-    return this.http.get<InvoiceSummary & { outstanding: number }>(`${this.endpoint}/summary`, {
-      params: { studentId },
-    });
-  }
-
   get(id: string): Observable<{ data: Invoice }> {
     return this.http.get<{ data: Invoice }>(`${this.endpoint}/${id}`);
   }
