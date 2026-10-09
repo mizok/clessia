@@ -10,7 +10,8 @@ import {
 } from '@angular/core';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { DatePipe } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { Location } from '@angular/common';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   addDays,
   endOfMonth,
@@ -83,6 +84,7 @@ import {
 } from './components/schedule-gantt/schedule-gantt.component';
 import { ScheduleListComponent } from './components/schedule-list/schedule-list.component';
 import { ScheduleQuickPicksComponent } from './components/schedule-quick-picks/schedule-quick-picks.component';
+import { ScheduleChangesDrawerComponent } from './components/schedule-changes-drawer/schedule-changes-drawer.component';
 import { ScheduleQuickSheetComponent } from './components/schedule-quick-sheet/schedule-quick-sheet.component';
 import {
   groupByDate,
@@ -122,6 +124,8 @@ const FETCH_LIMIT = 500;
     ScheduleListComponent,
     ScheduleQuickPicksComponent,
     ScheduleQuickSheetComponent,
+    ScheduleChangesDrawerComponent,
+    RouterLink,
     SessionFiltersComponent,
     LoadFailedComponent,
     PageOpenComponent,
@@ -144,6 +148,8 @@ export class SessionsPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly studentsService = inject(StudentsService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -452,9 +458,45 @@ export class SessionsPage implements OnInit {
     return items;
   });
 
+  // ── 「全部異動」抽屜（#changes，A6） ─────────────────────────────────────
+  /**
+   * 開關**只由網址的 fragment 決定**（`#changes`）：分享連結、重新整理、返回鍵都自然成立，
+   * 頁面自己不另存一份「開著沒」。從課表內點入口是 push 一筆歷史，所以返回鍵＝關閉；
+   * 直接帶 hash 進來的沒有那一筆，關閉時改成原地把 hash 拿掉（不然「返回」會離開這一頁）。
+   */
+  protected readonly changesDrawerOpen = signal(false);
+  private drawerPushed = false;
+  private fragmentSeen = false;
+
+  private watchChangesFragment(): void {
+    this.route.fragment.pipe(takeUntilDestroyed()).subscribe((fragment) => {
+      const open = fragment === 'changes';
+      // 第一次就已經是 #changes ＝直接帶 hash 進來；之後 false→true ＝使用者點了入口（push 了一筆）
+      this.drawerPushed = open && this.fragmentSeen && !this.changesDrawerOpen();
+      this.fragmentSeen = true;
+      this.changesDrawerOpen.set(open);
+    });
+  }
+
+  /** 抽屜自己關了（Esc、背景、×）：把網址的 hash 同步拿掉 */
+  protected onChangesDrawerClosed(): void {
+    if (!this.changesDrawerOpen()) return; // 返回鍵先把 hash 拿掉的那一路，不重複處理
+    if (this.drawerPushed) {
+      this.location.back();
+    } else {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        fragment: undefined,
+        queryParamsHandling: 'preserve',
+        replaceUrl: true,
+      });
+    }
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────
   constructor() {
     this.campusCtx.use();
+    this.watchChangesFragment();
     // 第一次（ngOnInit 之後的第一輪變更偵測）就是初次載入；之後是頂欄換了分校
     let first = true;
     toObservable(this.campusCtx.id)

@@ -1,17 +1,21 @@
 <div>
   @for (chapter of chapters(); track chapter.date) {
     <section
-      class="grid gap-2 border-b border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
+      class="grid gap-2 border-b border-surface-border py-6"
+      [class]="wide().chapter"
       [attr.aria-label]="dayLabel(chapter.date)"
     >
-      <div class="flex items-baseline gap-3 wide:sticky wide:top-4 wide:block wide:self-start">
+      <div class="flex items-baseline gap-3" [class]="wide().chapterHead">
         <div
-          class="text-[32px] leading-none font-bold tracking-[-0.04em] tabular-nums text-zinc-900 wide:text-[44px]"
+          class="text-[32px] leading-none font-bold tracking-[-0.04em] tabular-nums text-zinc-900"
+          [class]="wide().day"
         >
           {{ dayLabel(chapter.date) }}
         </div>
-        <p class="m-0 text-sm text-zinc-600 wide:mt-0.5">{{ dayMeta(chapter.date) }}</p>
-        <p class="m-0 text-base font-bold tabular-nums text-zinc-900 wide:mt-3 wide:text-xl">
+        <p class="m-0 text-sm text-zinc-600" [class]="wide().dayMeta">
+          {{ dayMeta(chapter.date) }}
+        </p>
+        <p class="m-0 text-base font-bold tabular-nums text-zinc-900" [class]="wide().count">
           {{ chapter.count }} 則
         </p>
       </div>
@@ -21,7 +25,8 @@
           @let e = item.rows[0];
           @if (item.rows.length === 1) {
             <div
-              class="grid gap-x-5 gap-y-1 border-b border-surface-border py-4 last:border-b-0 wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)] wide:items-baseline"
+              class="grid gap-x-5 gap-y-1 border-b border-surface-border py-4 last:border-b-0"
+              [class]="wide().row"
             >
               <span class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900">
                 {{ e.className ?? '—' }}
@@ -44,7 +49,8 @@
           } @else {
             <details class="group border-b border-surface-border last:border-b-0">
               <summary
-                class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline [&::-webkit-details-marker]:hidden"
+                class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
+                [class]="wide().summary"
               >
                 <span
                   class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900"
@@ -73,7 +79,7 @@
                   >
                 </span>
               </summary>
-              <ul class="m-0 mb-4 list-none rounded-md bg-zinc-100 px-3 py-1 wide:ml-0">
+              <ul class="m-0 mb-4 list-none rounded-md bg-zinc-100 px-3 py-1">
                 @for (row of item.rows; track row.id) {
                   <li
                     class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-zinc-200 py-2 text-md first:border-t-0"
