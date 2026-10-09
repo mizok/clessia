@@ -160,6 +160,16 @@ describe('帳單的分校範圍（#1381）—— 讀', () => {
     expect(body.byStatus.unpaid).toEqual({ count: 2, outstanding: 2000 });
   });
 
+  it('彙總帶 studentId：範圍外的學生回全零（不是 403／404，同列表）', async () => {
+    const { status, body } = await call(seed(), 'GET', `/summary?studentId=${SB}`);
+    expect(status).toBe(200);
+    expect(body.outstanding).toBe(0);
+    expect(body.byStatus.unpaid).toEqual({ count: 0, outstanding: 0 });
+    // 對照：不受限時同一位學生有兩張（MEAL_B、OTHER），證明全零來自範圍不是沒資料
+    const open = await call(seed(), 'GET', `/summary?studentId=${SB}`, { scope: null });
+    expect(open.body.outstanding).toBe(2000);
+  });
+
   it('單筆：範圍內 200、範圍外（含跨校）404', async () => {
     const db = seed();
     expect((await call(db, 'GET', `/${VISIBLE}`)).status).toBe(200);
