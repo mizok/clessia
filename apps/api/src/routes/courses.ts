@@ -165,7 +165,8 @@ app.openapi(listRoute, async (c) => {
   // Build query
   let dbQuery = supabase
     .from('courses')
-    .select('*, campuses(name), subjects(name)', { count: 'exact' });
+    .select('*, campuses(name), subjects(name)', { count: 'exact' })
+    .eq('org_id', c.get('orgId'));
 
   // Apply filters
   if (query.search) {
@@ -201,7 +202,6 @@ app.openapi(listRoute, async (c) => {
   // 依科目分章的章節計數（#1314 C1）。每科一支 head count 讓 DB 數 —— 撈列回來數會被
   // max_rows（1000）靜默截斷。跟列表同一個分校範圍；**不吃 search／isActive／subjectId**
   // （同 parents summary 不受 status filter 影響），章名的數字是全體不是本次結果。
-  // ⚠️ 帶 org_id：列表主查詢本身沒濾 org（#1398），這裡不跟著漏
   const orgId = c.get('orgId');
   const campusScope = getCampusScope(c);
   const { data: subjects, error: subjectsError } = await supabase
