@@ -667,8 +667,21 @@ app.openapi(
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
     if (invoice['voided_at']) return c.json(VOIDED, 409);
-    if (await hasEnrollmentOutOfScope(c, body.enrollmentId ? [body.enrollmentId] : [])) {
-      return c.json({ error: '明細指名的報名不存在', code: 'REFERENCE_NOT_FOUND' }, 404);
+    // body 指名的報名與計費期要屬於本 org（#1409，同開單端點）—— 不受限的管理員不查範圍，
+    // 少了這兩支就能把別 org 的 id 塞進本 org 的明細
+    const enrollmentIds = body.enrollmentId ? [body.enrollmentId] : [];
+    const [foreignEnrollments, foreignPeriods, outOfScope] = await Promise.all([
+      missingInOrg(supabase, 'enrollments', orgId, enrollmentIds),
+      missingInOrg(
+        supabase,
+        'billing_periods',
+        orgId,
+        body.billingPeriodId ? [body.billingPeriodId] : [],
+      ),
+      hasEnrollmentOutOfScope(c, enrollmentIds),
+    ]);
+    if (foreignEnrollments.length > 0 || foreignPeriods.length > 0 || outOfScope) {
+      return c.json({ error: '明細指名的報名或計費期不存在', code: 'REFERENCE_NOT_FOUND' }, 404);
     }
 
     const { error } = await supabase.from('invoice_items').insert({
