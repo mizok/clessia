@@ -223,6 +223,8 @@ export interface InvoiceSummary {
   overdue: SummaryBucket;
   dueSoon: SummaryBucket & { days: number };
   notDue: SummaryBucket;
+  /** 未繳清總待收（#1314 P3）＝三章 outstanding 和；不含作廢與多退 */
+  outstanding: number;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
   month: { month: string; billed: number; received: number };
 }
@@ -236,8 +238,11 @@ export class InvoicesService {
     return this.http.get<InvoiceListResponse>(this.endpoint, { params: toQuery(params) });
   }
 
-  summary(): Observable<InvoiceSummary> {
-    return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`);
+  /** 帶 `studentId` 只算該生（學生檔案帳單章，#1314 P3） */
+  summary(params?: { studentId?: string }): Observable<InvoiceSummary> {
+    const query: Record<string, string> = {};
+    if (params?.studentId) query['studentId'] = params.studentId;
+    return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`, { params: query });
   }
 
   get(id: string): Observable<{ data: Invoice }> {

@@ -351,6 +351,10 @@ app.openapi(
     path: '/summary',
     tags: ['Invoices'],
     summary: '帳單彙總（各狀態張數與待收、逾期、本月應收／已收）',
+    request: {
+      // 學生檔案帳單章（#1314 P3）：只算這位學生的帳單；範圍外的學生回全零（同列表帶 studentId）
+      query: z.object({ studentId: DbUuidSchema.optional() }),
+    },
     responses: {
       200: {
         description: '成功',
@@ -368,6 +372,7 @@ app.openapi(
                 overdue: BucketSchema,
                 dueSoon: BucketSchema.extend({ days: z.number().int() }),
                 notDue: BucketSchema,
+                outstanding: z.number(),
                 month: z.object({ month: z.string(), billed: z.number(), received: z.number() }),
               })
               .openapi('InvoiceSummary'),
@@ -385,9 +390,12 @@ app.openapi(
     const select: string =
       'id, issued_at, due_date, voided_at, invoice_items(amount), payment_records(kind, amount)' +
       (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
-    const { rows: fetched, error } = await fetchAllPages((from, to) =>
-      supabase.from('invoices').select(select).eq('org_id', orgId).order('id').range(from, to),
-    );
+    const { studentId } = c.req.valid('query');
+    const { rows: fetched, error } = await fetchAllPages((from, to) => {
+      let query = supabase.from('invoices').select(select).eq('org_id', orgId);
+      if (studentId) query = query.eq('student_id', studentId);
+      return query.order('id').range(from, to);
+    });
     // 撈一半失敗就不回半套數字
     if (error) return c.json({ error: '查詢帳單彙總失敗', code: 'DB_ERROR' }, 500);
     const rows = fetched.filter((row) => invoiceInScope(row, campusScope));
