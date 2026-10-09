@@ -75,6 +75,15 @@ interface CourseGroup {
   classes: Class[];
 }
 
+/** 依科目分章（#1314 C1）：連續同科目的課程歸一章（後端先依科目排序） */
+interface CourseChapter {
+  subjectId: string;
+  subjectName: string;
+  /** 章名旁的「N 門」；算不出可信的數字時是 null（不顯示） */
+  tally: number | null;
+  groups: CourseGroup[];
+}
+
 @Component({
   selector: 'app-courses',
   standalone: true,
@@ -157,6 +166,7 @@ export class CoursesPage implements OnInit {
   protected readonly selectedClassIds = signal<Set<string>>(new Set());
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
+  private readonly subjectCounts = signal<Record<string, number>>({});
   protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   protected readonly selectedActiveCount = computed(
@@ -307,6 +317,32 @@ export class CoursesPage implements OnInit {
         return !!(search && g.course.name.toLowerCase().includes(search));
       })
       .filter((g) => isActive !== 'intervention' || this.hasCourseNeedsIntervention(g));
+  });
+
+  /**
+   * 章名張數：全量模式（需介入）直接數手上的群組；其餘讀 `summary.bySubject`（全量、跟列表同篩選）。
+   * 老師篩選是前端在這一頁內再濾的，API 的數字就對不上 → 不顯示。
+   */
+  protected readonly chapters = computed((): CourseChapter[] => {
+    const full = this.statusFilter() === 'intervention';
+    const trustApi = !full && this.selectedTeacherIds().length === 0;
+    const counts = this.subjectCounts();
+    const out: CourseChapter[] = [];
+    for (const group of this.courseGroups()) {
+      const last = out.at(-1);
+      if (last && last.subjectId === group.course.subjectId) {
+        last.groups.push(group);
+        continue;
+      }
+      out.push({
+        subjectId: group.course.subjectId,
+        subjectName: group.course.subjectName,
+        tally: trustApi ? (counts[group.course.subjectId] ?? null) : null,
+        groups: [group],
+      });
+    }
+    if (full) for (const chapter of out) chapter.tally = chapter.groups.length;
+    return out;
   });
 
   protected readonly hasActiveFilters = computed(
@@ -529,6 +565,9 @@ export class CoursesPage implements OnInit {
       .subscribe((res) => {
         this.courses.set(res.data);
         this.total.set(res.meta?.total ?? res.data.length);
+        this.subjectCounts.set(
+          Object.fromEntries((res.summary?.bySubject ?? []).map((b) => [b.subjectId, b.count])),
+        );
         this.expandedCourseIds.set(new Set());
         this.selectedClassIds.set(new Set());
         this.loading.set(false);

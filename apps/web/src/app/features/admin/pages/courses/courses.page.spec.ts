@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
-import { Subject, of, throwError } from 'rxjs';
+import { type Observable, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -24,7 +24,7 @@ describe('CoursesPage', () => {
   };
 
   const coursesServiceMock = {
-    list: vi.fn(() => of({ data: [] })),
+    list: vi.fn((): Observable<unknown> => of({ data: [] })),
     delete: vi.fn(),
   };
   const classesServiceMock = {
@@ -496,5 +496,59 @@ describe('CoursesPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('載入失敗');
     expect(text).not.toContain('尚未建立任何課程');
+  });
+
+  describe('依科目分章（#1314 C1）', () => {
+    const course = (id: string, name: string, subjectId: string, subjectName: string) => ({
+      id,
+      orgId: 'o',
+      campusId: 'campus-1',
+      name,
+      subjectId,
+      subjectName,
+      description: null,
+      isActive: true,
+      gradeLevels: [],
+      createdAt: '',
+      updatedAt: '',
+    });
+    const load = (data: unknown[], bySubject: unknown[]) => {
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data,
+          meta: { total: data.length, page: 1, pageSize: 20, totalPages: 1 },
+          summary: { bySubject },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+    };
+    const chapterHeads = () =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll(
+          'section[data-chapter] > div:first-child',
+        ),
+      ).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim());
+
+    it('連續同科目歸一章，章名張數讀 summary.bySubject（全量，不是這一頁的列數）', () => {
+      load(
+        [
+          course('c1', '國一國文', 's-zh', '國文'),
+          course('c2', '國二國文', 's-zh', '國文'),
+          course('c3', '國一數學', 's-ma', '數學'),
+        ],
+        [
+          { subjectId: 's-zh', subjectName: '國文', count: 8 },
+          { subjectId: 's-ma', subjectName: '數學', count: 5 },
+        ],
+      );
+      expect(chapterHeads()).toEqual(['國文 8 門', '數學 5 門']);
+    });
+
+    it('summary 沒有這一科的數字就只寫科目名，不編數字', () => {
+      load([course('c1', '國一國文', 's-zh', '國文')], []);
+      expect(chapterHeads()).toEqual(['國文']);
+    });
   });
 });

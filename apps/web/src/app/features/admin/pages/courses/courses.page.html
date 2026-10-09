@@ -2,7 +2,7 @@
 
 <!--
   A6 版（#991 courses C1）：色面 → 灰工具列（搜尋、篩選、操作紀錄、新增課程）→ 需介入灰列 → 課程列（展開是班級列）。
-  換版不換資料：A6 的「依科目分章」做不出來（課程清單是伺服器分頁，計畫席裁 Q1 不分章，另列後續項）；
+  依科目分章（#1314 C1）：後端先依科目排序、章名張數讀 `summary.bySubject`；
   分校改由頂欄的 CampusContextService 決定（Q2），頁內 tabs 拿掉；批次勾選照留（Q3）。
 -->
 <app-page-open>
@@ -165,131 +165,154 @@
     </label>
 
     <div class="border-t border-zinc-900">
-      @for (group of courseGroups(); track group.course.id) {
-        @let collapsed = isCourseCollapsed(group.course.id);
-        @let hasClasses = group.classes.length > 0;
-        <section class="border-b border-surface-border" [attr.aria-label]="group.course.name">
-          <!-- 課程列（A6 .crs__sum）：名稱｜分校·科目｜N 個班｜狀態｜＋新增班、編輯、刪除 -->
-          <div
-            class="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 wide:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_56px_auto] wide:gap-x-6"
-          >
-            <button
-              type="button"
-              class="col-start-1 row-start-1 flex min-h-11 min-w-0 items-center gap-2 border-0 bg-transparent p-0 text-left text-lg font-semibold text-zinc-900"
-              [class.cursor-pointer]="hasClasses"
-              [class.hover:underline]="hasClasses"
-              [class.text-zinc-600]="!group.course.isActive"
-              [disabled]="!hasClasses"
-              [attr.aria-expanded]="hasClasses ? !collapsed : null"
-              (click)="toggleCourse(group.course.id)"
-            >
-              <i
-                class="pi w-3 shrink-0 text-xs"
-                [class.pi-chevron-down]="hasClasses && !collapsed"
-                [class.pi-chevron-right]="hasClasses && collapsed"
-                aria-hidden="true"
-              ></i>
-              <span class="truncate underline-offset-4">{{ group.course.name }}</span>
-              @if (hasCourseNeedsIntervention(group)) {
-                <i
-                  class="pi pi-exclamation-triangle shrink-0 text-sm text-warning-800"
-                  [attr.aria-label]="getCourseInterventionTooltip(group)"
-                  [pTooltip]="getCourseInterventionTooltip(group)"
-                  tooltipPosition="top"
-                ></i>
-              }
-            </button>
-            <span
-              class="col-start-1 row-start-2 pl-5 text-md text-zinc-600 wide:col-start-2 wide:row-start-1 wide:pl-0"
-            >
-              {{ group.course.campusName ?? getCampusName(group.course.campusId) }} ·
-              {{ group.course.subjectName }}
-              <span class="wide:hidden">
-                · {{ group.classes.length }} 個班
-                @if (!group.course.isActive) {
-                  · 停用
-                }
-              </span>
-            </span>
-            <span class="hidden text-md text-zinc-600 tabular-nums wide:inline"
-              ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b> 個班</span
-            >
-            <span
-              class="hidden text-md wide:inline"
-              [class.font-semibold]="group.course.isActive"
-              [class.text-zinc-700]="group.course.isActive"
-              [class.text-zinc-600]="!group.course.isActive"
-              >{{ group.course.isActive ? '啟用' : '停用' }}</span
-            >
-            <div
-              class="col-start-2 row-span-2 row-start-1 flex items-center gap-1 wide:col-start-5 wide:row-span-1"
-            >
-              <p-button
-                [label]="isMobile() ? '' : '新增班'"
-                icon="pi pi-plus"
-                [outlined]="true"
-                severity="secondary"
-                [ariaLabel]="'在 ' + group.course.name + ' 新增班'"
-                [disabled]="!group.course.isActive"
-                [pTooltip]="!group.course.isActive ? '課程已停用，無法新增班級' : ''"
-                tooltipPosition="top"
-                (onClick)="openCreateClassDialog(group.course.id)"
-              />
-              <p-button
-                icon="pi pi-pencil"
-                [rounded]="true"
-                [text]="true"
-                severity="secondary"
-                [ariaLabel]="'編輯 ' + group.course.name"
-                pTooltip="編輯課程"
-                tooltipPosition="top"
-                (onClick)="openEditCourseDialog(group.course)"
-              />
-              <p-button
-                icon="pi pi-trash"
-                [rounded]="true"
-                [text]="true"
-                severity="danger"
-                [ariaLabel]="'刪除 ' + group.course.name"
-                [disabled]="hasClasses"
-                [pTooltip]="hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程'"
-                tooltipPosition="top"
-                (onClick)="confirmDeleteCourse(group.course)"
-              />
-            </div>
+      <!-- 依科目分章（#1314 C1，A6 chap--row）：桌機左欄科目名＋張數，右邊是課程列 -->
+      @for (chapter of chapters(); track chapter.subjectId + chapter.groups[0].course.id) {
+        <section
+          class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0 wide:grid-cols-[10rem_minmax(0,1fr)] wide:gap-x-6"
+          [attr.aria-label]="chapter.subjectName"
+          [attr.data-chapter]="chapter.subjectId"
+        >
+          <div class="flex items-baseline gap-2 pt-4 wide:flex-col wide:gap-1">
+            <h2 class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900">
+              {{ chapter.subjectName }}
+            </h2>
+            @if (chapter.tally !== null) {
+              <p class="m-0 text-md text-zinc-600 tabular-nums">{{ chapter.tally }} 門</p>
+            }
           </div>
+          <div>
+            @for (group of courseGroups(); track group.course.id) {
+              @let collapsed = isCourseCollapsed(group.course.id);
+              @let hasClasses = group.classes.length > 0;
+              <section
+                class="border-b border-surface-border last:border-b-0"
+                [attr.aria-label]="group.course.name"
+              >
+                <!-- 課程列（A6 .crs__sum）：名稱｜分校·科目｜N 個班｜狀態｜＋新增班、編輯、刪除 -->
+                <div
+                  class="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 wide:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_56px_auto] wide:gap-x-6"
+                >
+                  <button
+                    type="button"
+                    class="col-start-1 row-start-1 flex min-h-11 min-w-0 items-center gap-2 border-0 bg-transparent p-0 text-left text-lg font-semibold text-zinc-900"
+                    [class.cursor-pointer]="hasClasses"
+                    [class.hover:underline]="hasClasses"
+                    [class.text-zinc-600]="!group.course.isActive"
+                    [disabled]="!hasClasses"
+                    [attr.aria-expanded]="hasClasses ? !collapsed : null"
+                    (click)="toggleCourse(group.course.id)"
+                  >
+                    <i
+                      class="pi w-3 shrink-0 text-xs"
+                      [class.pi-chevron-down]="hasClasses && !collapsed"
+                      [class.pi-chevron-right]="hasClasses && collapsed"
+                      aria-hidden="true"
+                    ></i>
+                    <span class="truncate underline-offset-4">{{ group.course.name }}</span>
+                    @if (hasCourseNeedsIntervention(group)) {
+                      <i
+                        class="pi pi-exclamation-triangle shrink-0 text-sm text-warning-800"
+                        [attr.aria-label]="getCourseInterventionTooltip(group)"
+                        [pTooltip]="getCourseInterventionTooltip(group)"
+                        tooltipPosition="top"
+                      ></i>
+                    }
+                  </button>
+                  <span
+                    class="col-start-1 row-start-2 pl-5 text-md text-zinc-600 wide:col-start-2 wide:row-start-1 wide:pl-0"
+                  >
+                    {{ group.course.campusName ?? getCampusName(group.course.campusId) }} ·
+                    {{ group.course.subjectName }}
+                    <span class="wide:hidden">
+                      · {{ group.classes.length }} 個班
+                      @if (!group.course.isActive) {
+                        · 停用
+                      }
+                    </span>
+                  </span>
+                  <span class="hidden text-md text-zinc-600 tabular-nums wide:inline"
+                    ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b>
+                    個班</span
+                  >
+                  <span
+                    class="hidden text-md wide:inline"
+                    [class.font-semibold]="group.course.isActive"
+                    [class.text-zinc-700]="group.course.isActive"
+                    [class.text-zinc-600]="!group.course.isActive"
+                    >{{ group.course.isActive ? '啟用' : '停用' }}</span
+                  >
+                  <div
+                    class="col-start-2 row-span-2 row-start-1 flex items-center gap-1 wide:col-start-5 wide:row-span-1"
+                  >
+                    <p-button
+                      [label]="isMobile() ? '' : '新增班'"
+                      icon="pi pi-plus"
+                      [outlined]="true"
+                      severity="secondary"
+                      [ariaLabel]="'在 ' + group.course.name + ' 新增班'"
+                      [disabled]="!group.course.isActive"
+                      [pTooltip]="!group.course.isActive ? '課程已停用，無法新增班級' : ''"
+                      tooltipPosition="top"
+                      (onClick)="openCreateClassDialog(group.course.id)"
+                    />
+                    <p-button
+                      icon="pi pi-pencil"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      [ariaLabel]="'編輯 ' + group.course.name"
+                      pTooltip="編輯課程"
+                      tooltipPosition="top"
+                      (onClick)="openEditCourseDialog(group.course)"
+                    />
+                    <p-button
+                      icon="pi pi-trash"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="danger"
+                      [ariaLabel]="'刪除 ' + group.course.name"
+                      [disabled]="hasClasses"
+                      [pTooltip]="hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程'"
+                      tooltipPosition="top"
+                      (onClick)="confirmDeleteCourse(group.course)"
+                    />
+                  </div>
+                </div>
 
-          <!-- 班級（A6 .crs__body）：收合用 grid-template-rows 1fr↔0fr 做高度動畫 -->
-          <div
-            class="grid transition-[grid-template-rows] duration-250 ease-out"
-            [style.grid-template-rows]="collapsed ? '0fr' : '1fr'"
-            [attr.inert]="collapsed ? '' : null"
-          >
-            <div class="min-h-0 overflow-hidden wide:pl-5">
-              @if (group.course.description) {
-                <p class="m-0 mb-2 max-w-[64ch] text-md text-zinc-600">
-                  {{ group.course.description }}
-                </p>
-              }
-              @for (cls of group.classes; track cls.id) {
-                <app-class-row
-                  [cls]="cls"
-                  [selected]="selectedClassIds().has(cls.id)"
-                  [historical]="isHistorical(cls)"
-                  [scheduleSummary]="getScheduleSummary(cls.schedules)"
-                  [mobile]="isMobile()"
-                  (toggleSelection)="toggleClassSelection(cls.id, $event)"
-                  (navigate)="navigateToClass(group.course.id, cls.id)"
-                  (navigateUnassigned)="navigateToUnassignedSessions(cls)"
-                  (generateSessions)="openGenerateDialog(cls)"
-                  (openMenu)="openActionMenu($event, cls, actionMenu)"
-                />
-              } @empty {
-                <p class="m-0 border-t border-zinc-100 py-3 text-md text-zinc-600">
-                  此課程尚無班級，點「新增班」建立
-                </p>
-              }
-            </div>
+                <!-- 班級（A6 .crs__body）：收合用 grid-template-rows 1fr↔0fr 做高度動畫 -->
+                <div
+                  class="grid transition-[grid-template-rows] duration-250 ease-out"
+                  [style.grid-template-rows]="collapsed ? '0fr' : '1fr'"
+                  [attr.inert]="collapsed ? '' : null"
+                >
+                  <div class="min-h-0 overflow-hidden wide:pl-5">
+                    @if (group.course.description) {
+                      <p class="m-0 mb-2 max-w-[64ch] text-md text-zinc-600">
+                        {{ group.course.description }}
+                      </p>
+                    }
+                    @for (cls of group.classes; track cls.id) {
+                      <app-class-row
+                        [cls]="cls"
+                        [selected]="selectedClassIds().has(cls.id)"
+                        [historical]="isHistorical(cls)"
+                        [scheduleSummary]="getScheduleSummary(cls.schedules)"
+                        [mobile]="isMobile()"
+                        (toggleSelection)="toggleClassSelection(cls.id, $event)"
+                        (navigate)="navigateToClass(group.course.id, cls.id)"
+                        (navigateUnassigned)="navigateToUnassignedSessions(cls)"
+                        (generateSessions)="openGenerateDialog(cls)"
+                        (openMenu)="openActionMenu($event, cls, actionMenu)"
+                      />
+                    } @empty {
+                      <p class="m-0 border-t border-zinc-100 py-3 text-md text-zinc-600">
+                        此課程尚無班級，點「新增班」建立
+                      </p>
+                    }
+                  </div>
+                </div>
+              </section>
+            }
           </div>
         </section>
       }
