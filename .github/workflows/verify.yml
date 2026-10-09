@@ -265,6 +265,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      # 兩層都要：vitest 裝在根目錄，supabase-js／hono 在 apps/api（同 verify job）
+      - if: steps.scope.outputs.run == 'true'
+        run: npm ci
+
       - if: steps.scope.outputs.run == 'true'
         run: npm ci
         working-directory: apps/api
