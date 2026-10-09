@@ -20,7 +20,7 @@ const CHINESE = { id: '00000000-0000-0000-0000-0000000000e2', name: '國文', so
 const MATH = { id: '00000000-0000-0000-0000-0000000000e3', name: '數學', sort_order: -1 };
 
 let n = 0;
-const course = (subject: typeof ENGLISH, name: string) => ({
+const course = (subject: typeof ENGLISH, name: string, over: Record<string, unknown> = {}) => ({
   id: `00000000-0000-0000-0000-${String(++n).padStart(12, '0')}`,
   org_id: ORG,
   campus_id: CA,
@@ -31,6 +31,7 @@ const course = (subject: typeof ENGLISH, name: string) => ({
   created_at: `2026-10-${String(n).padStart(2, '0')}T00:00:00Z`,
   subjects: { name: subject.name, sort_order: subject.sort_order },
   campuses: { name: 'A' },
+  ...over,
 });
 
 function seed() {
@@ -43,7 +44,8 @@ function seed() {
       course(MATH, 'Z 數學'),
       course(CHINESE, 'A 國文'),
       course(ENGLISH, 'A 英文'),
-      course(ENGLISH, 'A 英文'), // 同名：靠 id
+      // 同名：靠 id —— 種子順序排在後面、id 卻最小，沒有末鍵 id 就會照種子順序
+      course(ENGLISH, 'A 英文', { id: '00000000-0000-0000-0000-000000000000' }),
       course(MATH, 'A 數學'),
     ],
   });
@@ -75,8 +77,8 @@ describe('GET /api/courses —— 依科目分章的排序（#1314 C1）', () =>
     expect(names(body)).toEqual([
       'A 數學#7',
       'Z 數學#3',
+      'A 英文#0',
       'A 英文#5',
-      'A 英文#6',
       'B 英文#2',
       'A 國文#4',
       'B 國文#1',
@@ -89,8 +91,8 @@ describe('GET /api/courses —— 依科目分章的排序（#1314 C1）', () =>
     expect([...names(page1), ...names(page2)]).toEqual([
       'A 數學#7',
       'Z 數學#3',
+      'A 英文#0',
       'A 英文#5',
-      'A 英文#6',
       'B 英文#2',
       'A 國文#4',
     ]);
