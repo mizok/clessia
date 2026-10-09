@@ -22,14 +22,18 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-08 11:3x 第十七次部署，CI，labor-reviewer-20261004-0638）
+## 🚀 線上是哪一版（2026-10-09 第十八次部署紀錄，CI，labor-reviewer-20261008-1356）
 
-**截線 `aff7c3b1`**（#1379；`migrate @ aff7c3b1` apply 綠後 `deploy.yml` 自動觸發，run `37722816566`，11:27–11:30 台北，plan／deploy-api／deploy-web／verify-live 全 success）：web `main-PXSR6HJC.js`（CI 發，`b100b44c.clessia.pages.dev`）、api version `7fdf2b09-2055-4db1-86f8-59eb919ba875`。**第十六次（`782785c1`）之後每顆 main 都由 CI 自動部署一次，中間各次沒有逐次寫紀錄。**
-含：#1379（報名 `status_changed_at`／`status_reason`，原因不再覆寫 notes），及窗口內其餘前端換版與後端小項（#1375／#1377／#1378／#1386 等）。
-**⓪**：窗口 `782785c1..aff7c3b1` 一支 migration `20261008020623_enrollment_status_change_fields`，由 `migrate.yml` run `37722528604`（使用者 Approve）apply 綠已套，**先套完才部署**（api 的 POST／PUT／PATCH status／list 的 select 都讀這兩欄）。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
-**部署驗證**（本席 11:31 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-PXSR6HJC.js`＝CI 輸出（verify-live BUILT＝BEFORE＝`main-PXSR6HJC.js`：本批的 web 輸出與前一次相同，意即前端 bundle 沒變）；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的**）；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 309999 bytes）143 條路徑；未登入 `GET /api/enrollments` 401。**限度**：沒有帶身分，所以『新欄位讀得到』（`GET /api/enrollments` 帶 `statusChangedAt`／`statusReason`）**沒有被實測**；openapi 證不了新程式碼上線，只證明服務正常、版本已換。
-**之後**：#1382（`GET /api/invoices/summary`，保留類：金額）待二讀；本席（reviewer 0638）Ctx 已過 80%，等輪替。
-入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
+**截線 `c0a514f3`**（#1411；今天 main 到這顆，含 #1395–#1411 十五支）。**第十七次（`aff7c3b1`）之後每顆 main 都由 `deploy.yml` 自動部署一次，中間各次沒有逐次寫紀錄**；這一節記「線上現在是哪一版」，兩半分開看：
+
+- **web**：run `37751992112`（10-08 16:45–16:47 台北，plan／deploy-web／verify-live success，**deploy-api skipped**）→ `main-OSUR3ZBH.js`（`5180876e.clessia.pages.dev`）。
+- **api**：沒有任何一顆之後的 run 動過 api，**線上 api 是最後一次 deploy-api success 的那顆** —— run `37748778057`（截線 `fdb4f766`＝#1401，同 run web 也 success）→ version `20a85342-cda7-4c95-8090-d37574f9d6f1`。#1401 之後合的 #1402–#1411 都是 web／docs／spec，所以 api 與 `c0a514f3` 的 api 程式碼一致（**以 deploy-api skipped 為據，我沒逐檔比對**）。
+  含（自第十七次）：api —— #1381 帳單分校範圍、#1374 家長範圍撈到底、#1382 summary、#1399 courses／staff 章節計數、#1401 `dueSoon`／`notDue`／`dueState`、#1404 列表 `lastRemindedAt`、#1396 parents 依狀態排序；web —— #1400／#1410 帳單頁逾期／7 天內／還沒到期／已繳清各章、#1403 報名事件詞、#1407 老師課表、#1411 報名狀態詞。
+  **⓪**：本批窗口 `aff7c3b1..c0a514f3` **沒有新 migration**（`git log` 窗口內 `supabase/migrations` 無新增；**限度：這回答窗口內，不回答正式 DB 套到哪一支，仍是宣告值**）。
+  **部署驗證**（本席 10-09 05:00–06:17 自測，main 當時仍是 `c0a514f3`、20:20 複查 index.html 仍是 `main-OSUR3ZBH.js`）：線上 `index.html`（`?cb=` 繞快取）的 `main-OSUR3ZBH.js`＝run `37751992112` 的 CI 輸出；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的**）；負控 `chunk-ZZZZZZZZ.js` 回 `200 text/html`；正控：`chunk-HPTFETQZ.js` 內 `all_parents` 出現 1 次（main 本身 0 次——該字串在 lazy chunk，不在 main）；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 313525 bytes）144 條路徑，含 `/invoices/summary`、`dueState`、`dueSoon`、`lastRemindedAt`；未登入 `GET /api/invoices`、`/api/invoices/summary`、`/api/enrollments` 皆 401。
+  **限度**：沒有帶身分，所以『新欄位／新彙總桶讀得到』沒有被實測；openapi 含新欄位只證明新 api 上線（版本是 `20a85342`），不證明資料對。**我寫 api version 時只認得 deploy-api 日誌裡的 `Current Version ID`，沒有對 workers.dev 線上版本做回讀**（有沒有不需身分、能回線上版本的端點我沒查）。run `37745919637`（#1400，`220e17d2`）的 verify-live 曾 **failure**，之後每顆都 success；我沒有追那一次紅的原因（verify-live 紅了只紅燈不自動回退，且後續 run 已覆蓋它）。
+  **之後**：待命；1507 的帳單頁後續與 #1314 其餘項照計畫席派工。
+  入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 🔁 10-08 交接狀態（計畫席 labor-plan-20261004-1110，10-08 11:29 寫；Ctx 81% 主動交接）
 
