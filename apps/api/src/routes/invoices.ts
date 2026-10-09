@@ -139,6 +139,12 @@ async function fetchAllPages(
   }
 }
 
+/** 'YYYY-MM' → 下個月 1 號 'YYYY-MM-01' */
+function nextMonthStart(month: string): string {
+  const [year, m] = month.split('-').map(Number) as [number, number];
+  return m === 12 ? `${year + 1}-01-01` : `${year}-${String(m + 1).padStart(2, '0')}-01`;
+}
+
 /**
  * 以 id 取一張帳單，**org 與分校範圍都套**（#1381）。範圍外跟不存在一樣回 null → 路由回 404
  * （同 `findInOrg` 慣例：以 id 指名的單筆資源，不透露存在；計畫席 10-08 gate 裁定）。
@@ -221,6 +227,11 @@ app.openapi(
           description:
             '未繳清的互斥章（#1314 P1）：overdue／dueSoon（7 天內，含今天）／notDue（之後或沒有到期日）。與 overdue／dueWithin 並用＝AND',
         }),
+        issuedMonth: z
+          .string()
+          .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+          .optional()
+          .openapi({ description: 'YYYY-MM = 只看這個月開立的（匯出用，#1314 P4；同彙總「本月」的定義）' }),
         page: z.string().optional(),
         pageSize: z.string().optional(),
       }),
@@ -276,6 +287,12 @@ app.openapi(
         .select(select, derivedFilter ? undefined : { count: 'exact' })
         .eq('org_id', orgId);
       if (params.studentId) query = query.eq('student_id', params.studentId);
+      // `issued_at` 是 date 欄（台北日期），月份直接比字串區間
+      if (params.issuedMonth) {
+        query = query
+          .gte('issued_at', `${params.issuedMonth}-01`)
+          .lt('issued_at', nextMonthStart(params.issuedMonth));
+      }
       // 台北時間，不是 UTC —— 這是過濾條件不是預設值，算錯一天會讓整份清單的成員
       // 錯位（在台北凌晨看繳費頁，一批帳單會被錯誤地列為逾期或錯誤地不列，
       // 行政可能因此去催繳一個還沒到期的家長）。見 lib/taipei-date.ts 檔頭。
