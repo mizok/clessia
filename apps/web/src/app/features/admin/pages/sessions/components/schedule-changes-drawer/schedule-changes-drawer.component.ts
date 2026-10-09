@@ -47,6 +47,8 @@ const UNFILTERABLE = new Set(['creation', 'makeup']);
 })
 export class ScheduleChangesDrawerComponent {
   readonly open = input(false);
+  /** 從跑馬燈點批次進來：預設月份與要展開的那一批 */
+  readonly focus = input<{ key: string; month: string } | null>(null);
   readonly closed = output<void>();
 
   private readonly sessionsService = inject(SessionsService);
@@ -84,6 +86,8 @@ export class ScheduleChangesDrawerComponent {
     effect(() => {
       const d = this.dialog().nativeElement;
       if (this.open() && !d.open) {
+        const focus = this.focus();
+        if (focus) this.month.set(focus.month);
         d.showModal();
         this.load();
       }

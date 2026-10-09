@@ -209,6 +209,15 @@
 </div>
 
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+  <!-- 異動跑馬燈（A6）：灰條；沒有異動時整條不畫 -->
+  @if (mode() !== 'results') {
+    <div class="mb-4">
+      <app-schedule-changes-ticker
+        (pickSession)="onTickerSession($event)"
+        (pickBatch)="onTickerBatch($event)"
+      />
+    </div>
+  }
   @if (loadFailed()) {
     <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
   } @else if (loading() && !loadedOnce()) {
@@ -387,4 +396,8 @@
   (closed)="sheetOpen.set(false)"
 />
 
-<app-schedule-changes-drawer [open]="changesDrawerOpen()" (closed)="onChangesDrawerClosed()" />
+<app-schedule-changes-drawer
+  [open]="changesDrawerOpen()"
+  [focus]="changesFocus()"
+  (closed)="onChangesDrawerClosed()"
+/>

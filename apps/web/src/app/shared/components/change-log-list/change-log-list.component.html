@@ -47,7 +47,10 @@
               <ng-container [ngTemplateOutlet]="why" [ngTemplateOutletContext]="{ $implicit: e }" />
             </div>
           } @else {
-            <details class="group border-b border-surface-border last:border-b-0">
+            <details
+              class="group border-b border-surface-border last:border-b-0"
+              [open]="item.key === expandKey()"
+            >
               <summary
                 class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
                 [class]="wide().summary"

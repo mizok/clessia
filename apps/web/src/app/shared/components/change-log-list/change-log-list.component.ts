@@ -56,6 +56,8 @@ export class ChangeLogListComponent {
   readonly today = input.required<string>();
   /** 窄容器（抽屜）：不用 `wide:` 的左右兩欄版面 */
   readonly compact = input(false);
+  /** 要預先展開的那一批（`ChangeItem.key`）；沒有就都收著 */
+  readonly expandKey = input<string | null>(null);
 
   protected readonly wide = computed(() => (this.compact() ? NARROW : WIDE));
 
