@@ -155,6 +155,8 @@ export interface ChangeLogParams {
   to: string;
   changeType?: string;
   campusId?: string;
+  /** 老師或班級（#1412），後端比對班名、原老師、代課老師；上限 50 字 */
+  q?: string;
   page?: number;
   pageSize?: number;
 }
@@ -312,6 +314,7 @@ export class SessionsService {
     const query: Record<string, string> = { from: params.from, to: params.to };
     if (params.changeType) query['changeType'] = params.changeType;
     if (params.campusId) query['campusId'] = params.campusId;
+    if (params.q?.trim()) query['q'] = params.q.trim();
     if (params.page !== undefined) query['page'] = String(params.page);
     if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);
 
