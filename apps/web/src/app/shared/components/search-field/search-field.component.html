@@ -1,0 +1,13 @@
+<div class="flex min-w-0 flex-col gap-1">
+  <label [for]="inputId" class="text-sm font-semibold text-zinc-700">{{ label() }}</label>
+  <input
+    [id]="inputId"
+    type="search"
+    autocomplete="off"
+    class="h-11 w-full rounded-md border border-solid border-zinc-300 bg-white px-3.5 text-base font-medium text-zinc-900 shadow-none outline-none placeholder:text-zinc-500 hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)]"
+    [placeholder]="placeholder()"
+    [value]="value()"
+    (input)="onInput($event)"
+    (compositionend)="onCompositionEnd($event)"
+  />
+</div>

@@ -106,4 +106,43 @@ describe('GET /api/courses —— 依科目分章的排序（#1314 C1）', () =>
       '國文',
     ]);
   });
+
+  // 替身不解析 select，看不出 PostgREST 的規則：排序用的 embed 欄位必須在 select 裡，否則 400
+  // （#1423 上線即壞）。這條只能釘字串 —— 形狀本身的證據是本機實打（PR 留言）
+  it('order 用到的 subjects(sort_order) 有選進 embed', async () => {
+    const selects: string[] = [];
+    const db = seed();
+    const client = new Proxy(db.client as any, {
+      get(target, prop) {
+        if (prop !== 'from') return Reflect.get(target, prop);
+        return (table: string) => {
+          const builder = target.from(table);
+          if (table !== 'courses') return builder;
+          return new Proxy(builder, {
+            get(b, p) {
+              if (p !== 'select') return Reflect.get(b, p);
+              return (cols: string, opts?: unknown) => {
+                selects.push(cols);
+                return b.select(cols, opts);
+              };
+            },
+          });
+        };
+      },
+    });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', client);
+      set('orgId', ORG);
+      set('userId', 'admin-a');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', coursesApp as unknown as Hono);
+    expect((await app.request('/')).status).toBe(200);
+    expect(selects[0]).toMatch(/subjects\([^)]*\bsort_order\b/);
+  });
 });

@@ -21,6 +21,7 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SystemClockService } from '@core/system-clock.service';
 import { ChangeLogListComponent } from '@shared/components/change-log-list/change-log-list.component';
 import { CHANGE_TYPE_LABELS } from '@shared/components/change-log-list/change-log.util';
+import { SearchFieldComponent } from '@shared/components/search-field/search-field.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 
 /** 抽屜一次拿一頁到底（API 上限 100）；超過的請到「全部異動」頁翻頁 */
@@ -36,12 +37,10 @@ const UNFILTERABLE = new Set(['creation', 'makeup']);
  *
  * 原生 `<dialog>` + `showModal()`：Esc、焦點圈住、背景 inert 由瀏覽器給（跟「快速選取」面板同一個做法）。
  * 開關由課表頁的 `open` 驅動（它讀網址的 fragment），關閉一律回報 `closed` 讓頁面把 hash 拿掉。
- *
- * ponytail: 「老師或班級」搜尋要等後端 `q`（#1412），篩選列留在月份旁，API 到了再加一個欄位。
  */
 @Component({
   selector: 'app-schedule-changes-drawer',
-  imports: [ChangeLogListComponent, RouterLink, SelectFieldComponent],
+  imports: [ChangeLogListComponent, RouterLink, SearchFieldComponent, SelectFieldComponent],
   templateUrl: './schedule-changes-drawer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -63,6 +62,8 @@ export class ScheduleChangesDrawerComponent {
 
   protected readonly month = signal(this.today.slice(0, 7));
   protected readonly changeType = signal<string | null>(null);
+  /** 老師或班級（後端 `q`，#1412） */
+  protected readonly query = signal('');
   protected readonly entries = signal<ChangeLogEntry[]>([]);
   protected readonly total = signal(0);
   protected readonly loading = signal(false);
@@ -106,6 +107,11 @@ export class ScheduleChangesDrawerComponent {
     this.load();
   }
 
+  protected onQueryChange(value: string): void {
+    this.query.set(value);
+    this.load();
+  }
+
   /** 點背景＝關閉（內容蓋滿整個 dialog，點得到 dialog 本身只會是背景） */
   protected onBackdrop(event: MouseEvent): void {
     if (event.target === this.dialog().nativeElement) this.dialog().nativeElement.close();
@@ -125,6 +131,7 @@ export class ScheduleChangesDrawerComponent {
         from: format(startOfMonth(base), 'yyyy-MM-dd'),
         to: format(endOfMonth(base), 'yyyy-MM-dd'),
         changeType: this.changeType() ?? undefined,
+        q: this.query() || undefined,
         campusId: this.campusCtx.id() ?? undefined,
         page: 1,
         pageSize: DRAWER_PAGE_SIZE,

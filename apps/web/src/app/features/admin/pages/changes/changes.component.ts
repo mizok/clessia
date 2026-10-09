@@ -21,6 +21,7 @@ import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SystemClockService } from '@core/system-clock.service';
 import { ChangeLogListComponent } from '@shared/components/change-log-list/change-log-list.component';
 import { CHANGE_TYPE_LABELS } from '@shared/components/change-log-list/change-log.util';
+import { SearchFieldComponent } from '@shared/components/search-field/search-field.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
@@ -50,6 +51,7 @@ const UNFILTERABLE_CHANGE_TYPES = new Set(['creation', 'makeup']);
     ChangeLogListComponent,
     RouterLink,
     PaginatorModule,
+    SearchFieldComponent,
     SelectFieldComponent,
     PageOpenComponent,
   ],
@@ -81,6 +83,8 @@ export class ChangesComponent {
   private readonly today = this.todayStr;
   protected readonly month = signal(this.today.slice(0, 7));
   protected readonly changeType = signal<string | null>(null);
+  /** 老師或班級（後端 `q`，#1412）。只影響列表，不影響開場的月總數 */
+  protected readonly query = signal('');
   private readonly campusId = this.campusCtx.id;
   /** 手機上「篩選」那一列展開與否；桌機永遠展開（wide:grid） */
   protected readonly filtersOpen = signal(false);
@@ -98,12 +102,14 @@ export class ChangesComponent {
   ];
 
   protected readonly monthNumber = computed(() => Number(this.month().slice(5)));
-  protected readonly filtered = computed(() => !!this.changeType());
+  protected readonly filtered = computed(() => !!this.changeType() || !!this.query());
 
   /** 手機上收進「篩選」那一列的摘要 */
   protected readonly filterSummary = computed(() => {
     const type = this.changeTypeOptions.find((o) => o.value === this.changeType())?.label;
-    return type ?? '全部異動';
+    const parts = [type ?? '全部異動'];
+    if (this.query()) parts.push(`「${this.query()}」`);
+    return parts.join(' · ');
   });
 
   protected readonly pageSize = PAGE_SIZE;
@@ -131,8 +137,14 @@ export class ChangesComponent {
     this.resetToFirstPage();
   }
 
+  protected onQueryChange(value: string): void {
+    this.query.set(value);
+    this.resetToFirstPage();
+  }
+
   protected resetFilters(): void {
     this.changeType.set(null);
+    this.query.set('');
     this.resetToFirstPage();
   }
 
@@ -163,6 +175,7 @@ export class ChangesComponent {
       .listChanges({
         ...this.monthRange(),
         changeType: this.changeType() ?? undefined,
+        q: this.query() || undefined,
         campusId: this.campusId() ?? undefined,
         page: this.currentPage(),
         pageSize: PAGE_SIZE,
