@@ -237,3 +237,45 @@ describe('帳單的分校範圍（#1381）—— 寫：範圍外 404 且沒寫�
     expect(db.rows('invoices')).toHaveLength(6);
   });
 });
+
+describe('加明細指名的報名／計費期要屬於本 org（#1409）', () => {
+  const OTHER_ORG = '00000000-0000-0000-0000-00000000000b';
+  const FOREIGN_ENROLLMENT = id(301);
+  const FOREIGN_PERIOD = id(302);
+  const OWN_PERIOD = id(303);
+
+  async function seedWithForeign() {
+    const db = seed();
+    const client = db.client as any;
+    await client.from('enrollments').insert({ id: FOREIGN_ENROLLMENT, org_id: OTHER_ORG });
+    await client.from('billing_periods').insert([
+      { id: FOREIGN_PERIOD, org_id: OTHER_ORG },
+      { id: OWN_PERIOD, org_id: ORG },
+    ]);
+    return db;
+  }
+
+  // 不受限的管理員（scope = null）—— 範圍檢查不查，洞就在這條路上
+  it.each([
+    ['別 org 的報名', { type: 'tuition', enrollmentId: FOREIGN_ENROLLMENT, amount: 1000 }],
+    ['別 org 的計費期', { type: 'tuition', billingPeriodId: FOREIGN_PERIOD, amount: 1000 }],
+  ])('%s → 404 REFERENCE_NOT_FOUND，明細沒加', async (_label, body) => {
+    const db = await seedWithForeign();
+    const before = db.rows('invoice_items').length;
+    const res = await call(db, 'POST', `/${VISIBLE}/items`, { body, scope: null });
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
+    expect(db.rows('invoice_items')).toHaveLength(before);
+  });
+
+  it('本 org 的報名＋計費期 → 201（對照組）', async () => {
+    const db = await seedWithForeign();
+    const before = db.rows('invoice_items').length;
+    const res = await call(db, 'POST', `/${VISIBLE}/items`, {
+      body: { type: 'tuition', enrollmentId: EA, billingPeriodId: OWN_PERIOD, amount: 1000 },
+      scope: null,
+    });
+    expect(res.status).toBe(201);
+    expect(db.rows('invoice_items')).toHaveLength(before + 1);
+  });
+});
