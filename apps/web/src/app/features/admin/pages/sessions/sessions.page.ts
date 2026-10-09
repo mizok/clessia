@@ -1,10 +1,15 @@
 import {
   Component,
+  ElementRef,
+  Injector,
   OnInit,
+  afterNextRender,
   computed,
+  effect,
   inject,
   input,
   signal,
+  untracked,
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
@@ -84,6 +89,11 @@ import {
 } from './components/schedule-gantt/schedule-gantt.component';
 import { ScheduleListComponent } from './components/schedule-list/schedule-list.component';
 import { ScheduleQuickPicksComponent } from './components/schedule-quick-picks/schedule-quick-picks.component';
+import {
+  ScheduleChangesTickerComponent,
+  type TickerBatchPick,
+  type TickerSessionPick,
+} from './components/schedule-changes-ticker/schedule-changes-ticker.component';
 import { ScheduleChangesDrawerComponent } from './components/schedule-changes-drawer/schedule-changes-drawer.component';
 import { ScheduleQuickSheetComponent } from './components/schedule-quick-sheet/schedule-quick-sheet.component';
 import {
@@ -125,6 +135,7 @@ const FETCH_LIMIT = 500;
     ScheduleQuickPicksComponent,
     ScheduleQuickSheetComponent,
     ScheduleChangesDrawerComponent,
+    ScheduleChangesTickerComponent,
     RouterLink,
     SessionFiltersComponent,
     LoadFailedComponent,
@@ -149,6 +160,8 @@ export class SessionsPage implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   private readonly location = inject(Location);
 
   protected get overlayContainer(): HTMLElement | null {
@@ -478,6 +491,51 @@ export class SessionsPage implements OnInit {
     });
   }
 
+  /** 跑馬燈點批次：開抽屜（push 一筆歷史）並展開那一批，月份對到那一批的上課日 */
+  protected readonly changesFocus = signal<{ key: string; month: string } | null>(null);
+
+  protected onTickerBatch(pick: TickerBatchPick): void {
+    this.changesFocus.set({ key: pick.key, month: pick.date.slice(0, 7) });
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      fragment: 'changes',
+      queryParamsHandling: 'preserve',
+    });
+  }
+
+  /**
+   * 跑馬燈點單堂：切到那天（日視圖）→ 等課表載完 → 捲到那一塊 → 打開它的 ⋯。
+   * 等的是 `loading()` 變 false（下面那支 effect），不是猜時間；同一天已載好時 effect 直接成立。
+   */
+  protected readonly pendingMenuSession = signal<string | null>(null);
+
+  protected onTickerSession(pick: TickerSessionPick): void {
+    this.pendingMenuSession.set(pick.sessionId);
+    this.setDay(parseISO(pick.date));
+  }
+
+  private openPendingMenuSession(): void {
+    effect(() => {
+      const id = this.pendingMenuSession();
+      if (!id || this.loading()) return;
+      untracked(() => {
+        this.pendingMenuSession.set(null);
+        afterNextRender(
+          () => {
+            const el = (this.host.nativeElement as HTMLElement).querySelector<HTMLElement>(
+              `[data-session-menu="${id}"]`,
+            );
+            // 在目前的篩選下看不到那一堂：不假裝成功，由使用者看到課表沒有它
+            if (!el) return;
+            el.scrollIntoView({ block: 'center', inline: 'center' });
+            el.click();
+          },
+          { injector: this.injector },
+        );
+      });
+    });
+  }
+
   /** 抽屜自己關了（Esc、背景、×）：把網址的 hash 同步拿掉 */
   protected onChangesDrawerClosed(): void {
     if (!this.changesDrawerOpen()) return; // 返回鍵先把 hash 拿掉的那一路，不重複處理
@@ -497,6 +555,7 @@ export class SessionsPage implements OnInit {
   constructor() {
     this.campusCtx.use();
     this.watchChangesFragment();
+    this.openPendingMenuSession();
     // 第一次（ngOnInit 之後的第一輪變更偵測）就是初次載入；之後是頂欄換了分校
     let first = true;
     toObservable(this.campusCtx.id)

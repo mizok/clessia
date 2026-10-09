@@ -206,6 +206,22 @@
   --container-tablet-portrait: 768px;
   --container-tablet-landscape: 1024px;
   --container-desktop: 1280px;
+
+  /*
+   * 課表異動跑馬燈（#1314 S3 PR-C）：32px/s，時長由元件量內容寬度後寫進 `--ticker-duration`，並在元素上用 `animation-duration` 覆寫
+   * （`var()` 寫在這裡會在 :root 就解掉，元素上的 `--ticker-duration` 讀不到）。
+   * `animate-ticker` 只在 `motion-safe` 用（`prefers-reduced-motion` 時整條停住、改成可橫捲）。
+   * 在 `@theme`（theme layer）裡宣告，所以不動 `@layer` 順序（A26 守的三處一致）。
+   */
+  --animate-ticker: ticker 40s linear infinite;
+  @keyframes ticker {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
 }
 
 /*

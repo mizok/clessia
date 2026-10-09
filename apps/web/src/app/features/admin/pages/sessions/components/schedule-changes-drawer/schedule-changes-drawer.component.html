@@ -51,7 +51,12 @@
       <p class="m-0 py-8 text-base text-zinc-700">這個月沒有符合的異動。</p>
     } @else {
       <p class="m-0 pt-4 text-md text-zinc-600">共 {{ total() }} 則</p>
-      <app-change-log-list [entries]="entries()" [today]="today" [compact]="true" />
+      <app-change-log-list
+        [entries]="entries()"
+        [today]="today"
+        [compact]="true"
+        [expandKey]="focus()?.key ?? null"
+      />
       @if (total() > pageSize) {
         <p class="m-0 pt-4 text-md text-zinc-700">
           只列出前 {{ pageSize }} 則，

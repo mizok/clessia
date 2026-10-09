@@ -29,6 +29,7 @@
           type="button"
           class="flex min-h-11 min-w-0 cursor-pointer flex-col items-start gap-px border-0 bg-transparent px-0 py-2 text-left text-zinc-900"
           [attr.aria-label]="s.className + ' ' + s.startTime + '–' + s.endTime + '：看看能做什麼'"
+          [attr.data-session-menu]="compact() ? s.id : null"
           (click)="onMain($event, s)"
           (pointerdown)="pressStart($event, s.id)"
           (pointerup)="pressEnd()"
@@ -69,6 +70,7 @@
             type="button"
             class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
             [attr.aria-label]="s.className + ' 的操作'"
+            [attr.data-session-menu]="s.id"
             (click)="menu.emit({ event: $event, session: s })"
           >
             <i class="pi pi-ellipsis-h" aria-hidden="true"></i>

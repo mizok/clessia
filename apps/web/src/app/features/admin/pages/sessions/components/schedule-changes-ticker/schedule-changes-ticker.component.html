@@ -1,0 +1,46 @@
+<!--
+  放進 `page-wrap` 由頁面決定；這裡只負責灰條本身。沒有異動就整條不畫（一條永遠寫「0 則」的灰條
+  是在說一件沒發生的事）。
+-->
+@if (items().length > 0) {
+  <section
+    class="flex min-h-11 items-center gap-3 rounded-md bg-zinc-100 px-3"
+    aria-label="近期課務異動"
+  >
+    <p class="m-0 flex-none text-md font-semibold whitespace-nowrap text-zinc-900 tabular-nums">
+      異動 · 今天起 {{ items().length }} 則
+    </p>
+
+    <!--
+      軌道前面有一整個容器寬的空白（`pl-full`），字從右邊進來、走完自己的寬度離開。
+      hover／focus 暫停（`hover:`、`focus-within:`）；reduced-motion 時不動、容器可橫捲。
+    -->
+    <div class="min-w-0 flex-1 overflow-hidden motion-reduce:overflow-x-auto" tabindex="-1">
+      <ul
+        #track
+        class="m-0 flex w-max list-none gap-6 p-0 pl-[100%] motion-safe:animate-ticker motion-safe:[animation-duration:var(--ticker-duration,40s)] motion-safe:hover:[animation-play-state:paused] motion-safe:focus-within:[animation-play-state:paused] motion-reduce:pl-0"
+        [style.--ticker-duration]="duration() === null ? null : duration() + 's'"
+      >
+        @for (item of items(); track item.key) {
+          <li class="flex-none">
+            <button
+              type="button"
+              class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent px-1 text-md whitespace-nowrap text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-900"
+              (click)="pick(item)"
+            >
+              {{ item.text }}
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <a
+      class="inline-flex min-h-11 flex-none items-center text-md font-semibold whitespace-nowrap text-zinc-900 underline underline-offset-4"
+      [routerLink]="[]"
+      fragment="changes"
+      queryParamsHandling="preserve"
+      >全部異動</a
+    >
+  </section>
+}
