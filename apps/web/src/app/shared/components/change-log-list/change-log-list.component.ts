@@ -11,6 +11,31 @@ import {
   type ChangeChapter,
 } from './change-log.util';
 
+/**
+ * 寬版（桌機頁面）的版面 class。**全部是完整字面量** —— Tailwind 掃的是原始碼字串，
+ * 不能用字串拼接。`compact`（窄容器，例如課表的抽屜）時整組不套：抽屜在桌機也只有
+ * 480px，用 `wide:`（視窗 ≥861px）會把它排成左 208px 的兩欄而擠爆。
+ */
+const WIDE = {
+  chapter: 'wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8',
+  chapterHead: 'wide:sticky wide:top-4 wide:block wide:self-start',
+  day: 'wide:text-[44px]',
+  dayMeta: 'wide:mt-0.5',
+  count: 'wide:mt-3 wide:text-xl',
+  row: 'wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)] wide:items-baseline',
+  summary:
+    'wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
+} as const;
+const NARROW = {
+  chapter: '',
+  chapterHead: '',
+  day: '',
+  dayMeta: '',
+  count: '',
+  row: '',
+  summary: '',
+};
+
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 /**
@@ -29,6 +54,10 @@ export class ChangeLogListComponent {
   readonly entries = input.required<readonly ChangeLogEntry[]>();
   /** 今天（台北，`yyyy-MM-dd`）：決定章的排序與「今天／明天」 */
   readonly today = input.required<string>();
+  /** 窄容器（抽屜）：不用 `wide:` 的左右兩欄版面 */
+  readonly compact = input(false);
+
+  protected readonly wide = computed(() => (this.compact() ? NARROW : WIDE));
 
   protected readonly chapters = computed<ChangeChapter[]>(() =>
     groupChanges(this.entries(), this.today()),

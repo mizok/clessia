@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
+import { Location } from '@angular/common';
 import { vi } from 'vitest';
 import { parseISO } from 'date-fns';
 import { AttendanceService, type AttendanceSessionListResponse } from '@core/attendance.service';
@@ -27,6 +28,7 @@ describe('SessionsPage', () => {
   let fixture: ComponentFixture<SessionsPage>;
   let router: Router;
   let routeQueryParams: Record<string, string>;
+  const routeFragment = new BehaviorSubject<string | null>(null);
   const refDataMock = {
     campuses: signal<{ id: string; name: string }[]>([]),
     teachers: signal<Staff[]>([]),
@@ -44,6 +46,7 @@ describe('SessionsPage', () => {
   });
   const sessionsServiceMock = {
     list: vi.fn(() => of(makeListResponse())),
+    listChanges: vi.fn(() => of({ data: [], meta: { total: 0, page: 1, pageSize: 100 } })),
     batchAssignTeacher: vi.fn(() =>
       of({ updated: 0, skippedConflicts: 0, skippedNotEligible: 0, conflicts: [], dryRun: true }),
     ),
@@ -118,6 +121,7 @@ describe('SessionsPage', () => {
 
   beforeEach(async () => {
     routeQueryParams = {};
+    routeFragment.next(null);
     // 頂欄分校記在 localStorage（CampusContextService）—— 不清的話上一條測試選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
     sessionsServiceMock.list.mockClear();
@@ -136,6 +140,7 @@ describe('SessionsPage', () => {
         {
           provide: ActivatedRoute,
           useValue: {
+            fragment: routeFragment.asObservable(),
             get snapshot() {
               return { queryParams: routeQueryParams };
             },
@@ -562,6 +567,7 @@ describe('SessionsPage', () => {
         {
           provide: ActivatedRoute,
           useValue: {
+            fragment: routeFragment.asObservable(),
             get snapshot() {
               return { queryParams: routeQueryParams };
             },
@@ -1468,5 +1474,129 @@ describe('SessionsPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('載入失敗');
     expect(text).not.toContain('此期間沒有課堂');
+  });
+  /**
+   * #1314 S3 PR-B：「全部異動」抽屜。**開關只由網址的 fragment 決定** ——
+   * 斷言畫面上的 `<dialog>` 開了沒，不斷言頁面的 signal。
+   */
+  describe('#changes 抽屜', () => {
+    const drawer = () =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        'app-schedule-changes-drawer dialog',
+      ) as HTMLDialogElement;
+    // jsdom 沒有 <dialog> 的 modal 行為：只補開關狀態與 close 事件（瀏覽器關掉時會發）
+    const proto = HTMLDialogElement.prototype;
+    const original = { showModal: proto.showModal, close: proto.close };
+    beforeEach(() => {
+      proto.showModal = function (this: HTMLDialogElement) {
+        this.open = true;
+      };
+      proto.close = function (this: HTMLDialogElement) {
+        if (!this.open) return;
+        this.open = false;
+        this.dispatchEvent(new Event('close'));
+      };
+    });
+    afterEach(() => Object.assign(proto, original));
+
+    const settle = async () => {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('沒有 hash 時抽屜是關的', async () => {
+      await settle();
+      expect(drawer().open).toBe(false);
+    });
+
+    it('#changes 開抽屜，hash 拿掉就關（返回鍵走這條）', async () => {
+      routeFragment.next('changes');
+      await settle();
+      expect(drawer().open).toBe(true);
+      expect(drawer().textContent).toContain('全部異動');
+
+      routeFragment.next(null);
+      await settle();
+      expect(drawer().open).toBe(false);
+    });
+
+    it('別的 hash 不開', async () => {
+      routeFragment.next('something-else');
+      await settle();
+      expect(drawer().open).toBe(false);
+    });
+
+    it('從課表內點入口開的（push 過一筆歷史）：關閉＝返回上一筆，不是再 push', async () => {
+      const back = vi.spyOn(TestBed.inject(Location), 'back').mockImplementation(() => undefined);
+      const navigate = vi.spyOn(router, 'navigate');
+      await settle();
+      routeFragment.next('changes'); // 第一個 null 之後的 true ＝使用者點了入口
+      await settle();
+
+      drawer().close();
+      await settle();
+
+      expect(back).toHaveBeenCalledTimes(1);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('直接帶 #changes 進來的：關閉＝原地把 hash 拿掉（返回會離開這一頁，不能用）', async () => {
+      TestBed.resetTestingModule();
+      routeFragment.next('changes'); // 元件建立時就已經有 hash
+      await TestBed.configureTestingModule({
+        imports: [SessionsPage],
+        providers: [
+          provideRouter([]),
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              fragment: routeFragment.asObservable(),
+              get snapshot() {
+                return { queryParams: {} };
+              },
+            },
+          },
+          { provide: ReferenceDataService, useValue: refDataMock },
+          { provide: CoursesService, useValue: { list: () => of({ data: [] }) } },
+          { provide: ClassesService, useValue: { list: () => of({ data: [] }) } },
+          { provide: SessionsService, useValue: sessionsServiceMock },
+          { provide: AttendanceService, useValue: attendanceServiceMock },
+          { provide: StudentsService, useValue: studentsServiceMock },
+          { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
+        ],
+      }).compileComponents();
+      const back = vi.spyOn(TestBed.inject(Location), 'back').mockImplementation(() => undefined);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      fixture = TestBed.createComponent(SessionsPage);
+      fixture.componentRef.setInput('page', {
+        label: 'Test',
+        relativePath: '',
+        absolutePath: '',
+        role: undefined,
+        icon: '',
+        showInMenu: true,
+      });
+      await settle();
+      expect(drawer().open).toBe(true);
+
+      drawer().close();
+      await settle();
+
+      expect(back).not.toHaveBeenCalled();
+      expect(navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({ fragment: undefined, replaceUrl: true }),
+      );
+    });
+
+    it('入口是一個帶 #changes 的連結', async () => {
+      await settle();
+      const link = (fixture.nativeElement as HTMLElement).querySelector(
+        'a[href*="#changes"]',
+      ) as HTMLAnchorElement | null;
+      expect(link?.textContent).toContain('全部異動');
+    });
   });
 });
