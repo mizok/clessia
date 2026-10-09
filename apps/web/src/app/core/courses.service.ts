@@ -26,6 +26,10 @@ export interface CourseListResponse {
     pageSize: number;
     totalPages: number;
   };
+  /** 依科目分章的章名張數（#1314 C1）：依科目排序、含 0 門的科目；跟列表吃同一組 isActive／search，不吃 subjectId */
+  summary: {
+    bySubject: { subjectId: string; subjectName: string; count: number }[];
+  };
 }
 
 export interface CourseQueryParams {

@@ -22,7 +22,6 @@ import { ResponsiveTableComponent } from '@shared/components/responsive-table/re
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {} from '@shared/components/responsive-table/responsive-table.models';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 import {
   KioskFormDialogComponent,
