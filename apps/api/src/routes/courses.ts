@@ -165,7 +165,9 @@ app.openapi(listRoute, async (c) => {
   // Build query
   let dbQuery = supabase
     .from('courses')
-    .select('*, campuses(name), subjects(name)', { count: 'exact' });
+    // `sort_order` 必須在 embed 的 select 裡：PostgREST 對 `order=subjects(sort_order)` 只認選了的欄，
+    // 少了回 400「courses_subjects_1.sort_order does not exist」（#1423 上線後整頁載入失敗）
+    .select('*, campuses(name), subjects(name, sort_order)', { count: 'exact' });
 
   // Apply filters
   if (query.search) {
