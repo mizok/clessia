@@ -357,7 +357,8 @@ describe('GET /api/me/billing —— meta.term（#1314 PP1）', () => {
         ),
         invoice(['now', 'prev'], [{ kind: 'payment', amount: 2000 }]),
         invoice(['prev'], [{ kind: 'payment', amount: 5000 }]),
-        invoice(['now'], [], { voided_at: '2026-09-20T00:00:00Z' }),
+        // 作廢單帶一筆收款（金額獨一）：拿掉作廢判斷的話 paid 會變 6700
+        invoice(['now'], [{ kind: 'payment', amount: 700 }], { voided_at: '2026-09-20T00:00:00Z' }),
         invoice(['now'], [{ kind: 'payment', amount: 9999 }], { student_id: OTHER_CHILD_ID }),
       ],
     });
@@ -378,6 +379,39 @@ describe('GET /api/me/billing —— meta.term（#1314 PP1）', () => {
       ],
     });
     expect(result).toMatchObject({ name: '期 new', paid: 0 });
+  });
+
+  it('期間查詢失敗 → 500（不折成「沒有本學期」）', async () => {
+    const db = createMultiOrgDb({
+      organizations: [{ id: ORG, payment_info: null }],
+      enrollments: [],
+      billing_periods: [period('now', '2026-09-01', '2027-01-31')],
+      invoices: [],
+    });
+    const real = db.client as any;
+    const failing = {
+      from(table: string) {
+        const builder = real.from(table);
+        if (table !== 'billing_periods') return builder;
+        const wrap = (target: any): any =>
+          new Proxy(target, {
+            get(t, prop) {
+              if (prop === 'then') {
+                return (resolve: (v: unknown) => unknown) =>
+                  resolve({ data: null, error: { code: 'XX000', message: 'boom' } });
+              }
+              const value = Reflect.get(t, prop);
+              return typeof value === 'function'
+                ? (...args: unknown[]) => wrap(value.apply(t, args))
+                : value;
+            },
+          });
+        return wrap(builder);
+      },
+    };
+    const childDb = createChildDb(failing as never, [CHILD_ID], ORG);
+    const res = await appWith(['parent'], [CHILD_ID], childDb).request(`/?childId=${CHILD_ID}`);
+    expect(res.status).toBe(500);
   });
 
   it('沒有涵蓋今天的期 → null', async () => {
