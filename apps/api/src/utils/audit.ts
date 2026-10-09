@@ -125,3 +125,42 @@ export function logAudit(
 
   waitUntil?.(promise);
 }
+
+/**
+ * 同一個人一次寫多筆稽核（批次端點，#1314 P5）：**每個資源仍是一筆**，但只查一次 profile、
+ * 一次 insert —— 逐筆呼叫 `logAudit` 的話 200 張是 400 個 subrequest，會撞 Workers 的上限。
+ */
+export function logAuditMany(
+  supabase: SupabaseClient,
+  base: Omit<AuditLogParams, 'resourceId' | 'resourceName'>,
+  resources: ReadonlyArray<{ resourceId: string; resourceName?: string | null }>,
+  waitUntil?: (promise: Promise<unknown>) => void,
+): void {
+  if (resources.length === 0) return;
+  const promise = (async () => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', base.userId)
+        .maybeSingle();
+
+      await supabase.from('audit_logs').insert(
+        resources.map((r) => ({
+          org_id: base.orgId,
+          user_id: base.userId,
+          user_name: profile?.display_name ?? null,
+          resource_type: base.resourceType,
+          resource_id: r.resourceId,
+          resource_name: r.resourceName ?? null,
+          action: base.action,
+          details: base.details ?? {},
+        })),
+      );
+    } catch (e) {
+      console.warn('[audit] log failed:', e);
+    }
+  })();
+
+  waitUntil?.(promise);
+}
