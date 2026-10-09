@@ -74,6 +74,24 @@ describe('summarizeInvoices（#1314 P1／P2）', () => {
     expect(s.overdue.outstanding + s.dueSoon.outstanding + s.notDue.outstanding).toBe(owed);
   });
 
+  it('outstanding（#1314 P3）＝三章 outstanding 和；作廢、繳清、多退不進', () => {
+    const s = summarizeInvoices(
+      [
+        inv({ dueDate: '2026-10-07' }), // overdue 1000
+        inv({ dueDate: '2026-10-10', payments: [pay(400)] }), // dueSoon 600
+        inv({ dueDate: null, payments: [pay(100)] }), // notDue 900
+        inv({ payments: [pay(1000)] }), // 繳清
+        inv({ voided: true }), // 作廢
+        inv({ payments: [pay(500), refund(800)] }), // 多退
+      ],
+      TODAY,
+    );
+    expect(s.outstanding).toBe(2500);
+    expect(s.outstanding).toBe(
+      s.overdue.outstanding + s.dueSoon.outstanding + s.notDue.outstanding,
+    );
+  });
+
   it('本月：本月開立的非作廢帳單，應收＝明細合計、已收＝至今淨收', () => {
     const s = summarizeInvoices(
       [
@@ -89,6 +107,7 @@ describe('summarizeInvoices（#1314 P1／P2）', () => {
 
   it('沒有帳單 → 全零', () => {
     const s = summarizeInvoices([], TODAY);
+    expect(s.outstanding).toBe(0);
     expect(s.byStatus.unpaid).toEqual({ count: 0, outstanding: 0 });
     expect(s.overdue).toEqual({ count: 0, outstanding: 0 });
     expect(s.month).toEqual({ month: '2026-10', billed: 0, received: 0 });

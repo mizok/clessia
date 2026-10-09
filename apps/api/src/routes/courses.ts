@@ -177,7 +177,8 @@ app.openapi(listRoute, async (c) => {
     .from('courses')
     // `sort_order` 必須在 embed 的 select 裡：PostgREST 對 `order=subjects(sort_order)` 只認選了的欄，
     // 少了回 400「courses_subjects_1.sort_order does not exist」（#1423 上線後整頁載入失敗）
-    .select('*, campuses(name), subjects(name, sort_order)', { count: 'exact' });
+    .select('*, campuses(name), subjects(name, sort_order)', { count: 'exact' })
+    .eq('org_id', c.get('orgId'));
 
   // 列表與章節計數共用的篩選（search／isActive／分校）—— 兩邊各寫一份就會對同一份名單給出兩個數字。
   // subjectId 不在裡面：章節要列出其他科（同 staff.ts 的 withSummaryFilters）
@@ -216,7 +217,6 @@ app.openapi(listRoute, async (c) => {
   // 依科目分章的章節計數（#1314 C1）。每科一支 head count 讓 DB 數 —— 撈列回來數會被
   // max_rows（1000）靜默截斷。跟列表吃同一組 search／isActive／分校（`withChapterFilters`），
   // 章名的數字＝這個篩選下該科有幾門；**不吃 subjectId**，篩了一科時其他科的章名照樣在。
-  // ⚠️ 帶 org_id：列表主查詢本身沒濾 org（#1398），這裡不跟著漏
   const orgId = c.get('orgId');
   const { data: subjects, error: subjectsError } = await supabase
     .from('subjects')

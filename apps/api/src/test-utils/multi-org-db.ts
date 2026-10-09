@@ -40,6 +40,32 @@ const fieldValues = (row: Row, column: string): unknown[] => {
   );
 };
 
+/**
+ * `order('x(y)')`（對 to-one embed 排序）要求 `y` 在 select 字串裡 `x(...)` 那層的欄位清單中 ——
+ * 真 PostgREST 少了會回 400「column …_x_1.y does not exist」，而替身原本照樣排得出來（#1423 → #1435）。
+ * 回 null = 有選到；否則回錯誤訊息。`x` 可以是表名、`表!hint` 或 alias（`x:表(`）。
+ */
+export function embedOrderProblem(select: string, embed: string, column: string): string | null {
+  const head = new RegExp(`(?:^|[\\s,(])(?:${embed}(?:![\\w]+)?|${embed}:[\\w!]+)\\s*\\(`);
+  const m = head.exec(select);
+  if (!m) return `select 裡沒有 embed \`${embed}\``;
+  let depth = 1;
+  let i = m.index + m[0].length;
+  const start = i;
+  for (; i < select.length && depth > 0; i++) {
+    if (select[i] === '(') depth++;
+    else if (select[i] === ')') depth--;
+  }
+  const inner = select.slice(start, i - 1);
+  // 只看這一層：把更深的 (...) 拿掉再切逗號
+  let flat = inner;
+  while (/\([^()]*\)/.test(flat)) flat = flat.replace(/\([^()]*\)/g, '');
+  const columns = flat.split(',').map((c) => c.trim().split(':').pop()!.trim());
+  return columns.includes(column) || columns.includes('*')
+    ? null
+    : `order('${embed}(${column})') 但 select 的 \`${embed}(...)\` 沒選 \`${column}\``;
+}
+
 interface Result {
   readonly data: unknown;
   readonly error: { readonly code: string; readonly message: string } | null;
@@ -73,6 +99,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
     let rowLimit = Infinity;
     let rowOffset = 0;
     const sortBy: { column: string; ascending: boolean }[] = [];
+    let selected: string | null = null;
 
     function run(): Result {
       const all = tableOf(table);
@@ -167,13 +194,19 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       order(column: string, options?: { ascending?: boolean }) {
+        const embedded = /^(\w+)\((\w+)\)$/.exec(column);
+        if (embedded && selected !== null) {
+          const problem = embedOrderProblem(selected, embedded[1]!, embedded[2]!);
+          if (problem) throw new Error(`multi-org-db：${problem}（真 PostgREST 會回 400）`);
+        }
         sortBy.push({
           column: column.replace(/^(\w+)\((\w+)\)$/, '$1.$2'),
           ascending: options?.ascending !== false,
         });
         return proxy;
       },
-      select(_columns?: string, options?: { count?: string; head?: boolean }) {
+      select(columns?: string, options?: { count?: string; head?: boolean }) {
+        selected = columns ?? '*';
         if (op === 'select') countOnly = options?.head === true;
         else returning = true;
         return proxy;
