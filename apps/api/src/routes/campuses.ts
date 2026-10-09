@@ -176,7 +176,8 @@ app.openapi(listRoute, async (c) => {
   const offset = (page - 1) * pageSize;
 
   // Build query
-  let dbQuery = supabase.from('campuses').select('*', { count: 'exact' });
+  const orgId = c.get('orgId');
+  let dbQuery = supabase.from('campuses').select('*', { count: 'exact' }).eq('org_id', orgId);
 
   // **分校清單自己也要縮。** 只管 A 校的人不該在下拉選單裡看到 B 校 ——
   // 這裡用 `id` 而不是 `campus_id`，因為這張表的每一列就是一個分校。
@@ -195,7 +196,7 @@ app.openapi(listRoute, async (c) => {
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   // summary 不套用 isActive filter，永遠反映全機構的真實總數
-  let summaryQuery = supabase.from('campuses').select('is_active');
+  let summaryQuery = supabase.from('campuses').select('is_active').eq('org_id', orgId);
 
   // 統計要跟清單同範圍，否則「共 5 間」配上 2 列
   summaryQuery = applyCampusFilter(summaryQuery, 'id', campusScope);
