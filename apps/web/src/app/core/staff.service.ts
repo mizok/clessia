@@ -73,6 +73,8 @@ export interface StaffListResponse {
     activeCount: number;
     inactiveCount: number;
     archivedCount: number;
+    /** 依角色分章的四桶（#1314 ST1）：互斥、和＝total、走與列表同一組篩選 */
+    byRole: { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number };
   };
   meta: {
     total: number;
