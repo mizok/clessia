@@ -34,6 +34,7 @@
  */
 
 @source './app/app.component.html';
+@source './app/shared/components/search-field';
 @source './app/shared/components/select-field';
 @source './app/shared/components/page-open';
 @source './app/shared/components/campus-scope-note';

@@ -152,6 +152,10 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         filters.push((row) => field(row, column) != null && String(field(row, column)) <= value);
         return proxy;
       },
+      lt(column: string, value: string) {
+        filters.push((row) => field(row, column) != null && String(field(row, column)) < value);
+        return proxy;
+      },
       gt(column: string, value: string) {
         filters.push((row) => field(row, column) != null && String(field(row, column)) > value);
         return proxy;
