@@ -1,0 +1,87 @@
+<dialog
+  #dialog
+  class="inset-0 m-0 h-full max-h-none min-h-11 w-full max-w-none flex-col border-0 bg-white p-0 text-zinc-900 backdrop:bg-zinc-900/40 open:flex wide:left-auto wide:w-[480px] wide:shadow-[-12px_0_32px_-8px_rgb(26_22_20/28%)]"
+  aria-labelledby="changes-drawer-title"
+  (click)="onBackdrop($event)"
+  (close)="closed.emit()"
+>
+  <header class="flex flex-none items-center gap-2 border-b border-zinc-200 py-2 pr-2 pl-4">
+    <h2 id="changes-drawer-title" class="m-0 text-xl font-bold tracking-tight">全部異動</h2>
+    <button
+      type="button"
+      class="ml-auto grid size-11 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-zinc-900 hover:bg-zinc-100"
+      aria-label="關閉"
+      autofocus
+      (click)="close()"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  <!-- 篩選列（灰底）：老師或班級、類型、月份 -->
+  <section
+    class="flex flex-none flex-col gap-3 bg-zinc-100 p-4"
+    role="search"
+    aria-label="篩選課務異動"
+  >
+    <app-search-field
+      label="老師或班級"
+      placeholder="輸入老師名或班名"
+      [value]="query()"
+      (searchChange)="onQueryChange($event)"
+    />
+    <app-select-field
+      label="異動類型"
+      [options]="changeTypeOptions"
+      [value]="changeType()"
+      (valueChange)="onTypeChange($event)"
+    />
+    <app-select-field
+      label="月份"
+      [options]="monthOptions"
+      [value]="month()"
+      (valueChange)="onMonthChange($event)"
+    />
+  </section>
+
+  <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+    @if (loading()) {
+      <div class="skeleton-list pt-4" aria-label="課務異動載入中">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (loadError()) {
+      <p class="m-0 pt-4 text-base text-error-700" role="alert">查詢失敗，請稍後再試。</p>
+    } @else if (entries().length === 0) {
+      <p class="m-0 py-8 text-base text-zinc-700">這個月沒有符合的異動。</p>
+    } @else {
+      <p class="m-0 pt-4 text-md text-zinc-600">共 {{ total() }} 則</p>
+      <app-change-log-list
+        [entries]="entries()"
+        [today]="today"
+        [compact]="true"
+        [expandKey]="focus()?.key ?? null"
+      />
+      @if (total() > pageSize) {
+        <p class="m-0 pt-4 text-md text-zinc-700">
+          只列出前 {{ pageSize }} 則，
+          <a
+            class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-[3px]"
+            [routerLink]="adminChangesLink"
+            >到全部異動頁翻頁</a
+          >
+        </p>
+      }
+    }
+  </div>
+
+  <footer class="flex flex-none justify-end border-t border-zinc-200 p-3">
+    <a
+      class="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
+      [routerLink]="adminChangesLink"
+    >
+      開全部異動頁 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+    </a>
+  </footer>
+</dialog>

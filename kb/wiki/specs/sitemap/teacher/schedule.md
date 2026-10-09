@@ -423,7 +423,7 @@ div.schedule-page__track   390 下 366 → 2634      1504 下 1200 → 8472
 > getBoundingClientRect    → 366 × 135 ← 看得見
 > ```
 >
-> 全 repo 只有這一處 `[hidden]=` 繫結，`styles.scss` 也沒有全域的
+> 全 repo 只有這一處 `[hidden]=` 繫結，`styles.css` 也沒有全域的
 > `[hidden] { display: none !important }`。**模板自己在 `schedule.page.html:56-58`
 > 的註解寫著這一格存在的理由就是不要讓「查詢失敗」長得跟「真的沒有排課」一樣 ——
 > 顧慮是對的，防禦沒有生效。**

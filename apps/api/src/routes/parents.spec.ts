@@ -84,8 +84,8 @@ describe('toParentResponse', () => {
  * 只被指派一間分校的管理員看得到全機構家長的姓名與 email。
  *
  * 家長身上沒有 `campus_id`，所以範圍要走三跳：
- * `enrollments`（分校）→ `student_id` → `parent_student_relations` → `parent_id`，
- * 形狀照 `students.ts` 既有的做法（先撈 id 集合再 `.in('id', …)`）。
+ * `parent_student_relations` → `students` → `enrollments` → `classes.campus_id`（三層 `!inner`，
+ * #1374 起一支查詢；原本是先撈報名再撈關聯，兩支都吃 `max_rows`），再 `.in('id', …)` 縮家長清單。
  *
  * 斷言的是**送出去的查詢長什麼樣**，不是回傳值 —— 替身回固定 fixture，
  * 「有下條件」與「沒下條件」在回傳值上完全一樣。
@@ -94,30 +94,40 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
   interface QueryRecord {
     readonly table: string;
     columns: string;
+    head?: boolean;
+    readonly eqs: Array<{ column: string; value: unknown }>;
     readonly ins: Array<{ column: string; values: string[] }>;
     readonly neqs: Array<{ column: string; value: string }>;
+    readonly orders: string[];
   }
 
   function fakeSupabase(queries: QueryRecord[]) {
     return {
       from(table: string) {
-        const record: QueryRecord = { table, columns: '', ins: [], neqs: [] };
+        const record: QueryRecord = { table, columns: '', eqs: [], ins: [], neqs: [], orders: [] };
         queries.push(record);
 
         const builder: Record<string, unknown> = {};
         const chain = () => builder as never;
         Object.assign(builder, {
-          select: (columns?: string) => {
+          select: (columns?: string, options?: { head?: boolean }) => {
             record.columns = columns ?? '';
+            record.head = options?.head;
             return chain();
           },
-          eq: () => chain(),
+          eq: (column: string, value: unknown) => {
+            record.eqs.push({ column, value });
+            return chain();
+          },
           neq: (column: string, value: string) => {
             record.neqs.push({ column, value });
             return chain();
           },
           or: () => chain(),
-          order: () => chain(),
+          order: (column: string) => {
+            record.orders.push(column);
+            return chain();
+          },
           range: () => chain(),
           ilike: () => chain(),
           in: (column: string, values: readonly string[]) => {
@@ -165,9 +175,11 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
       { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
     );
     expect(res.status).toBe(200);
+    lastBody = await res.json();
 
     return queries;
   }
+  let lastBody: { data: Array<Record<string, unknown>> } = { data: [] };
 
   // #1008：規格「封存預設隱藏」。opt-in 參數，其他呼叫端（學生表單）行為不變。
   it('excludeArchived=true → 家長清單加上 status != archived；沒帶就不加', async () => {
@@ -179,17 +191,27 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     expect(without.find((q) => q.table === 'parents' && q.columns === '*')?.neqs).toEqual([]);
   });
 
-  it('受限管理員：分校條件下到 enrollments，家長 id 條件下到 parents', async () => {
+  // #1314 PA1：前端依狀態分章，翻頁時每章要連續 —— 先依狀態（enum 宣告序
+  // active→inactive→archived）再依姓名。只排姓名的話同一頁啟用與停用混排。
+  it('列表先依 status 再依 name 排序（分章翻頁連續）', async () => {
+    const queries = await listParents(null);
+    const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
+    expect(listQuery?.orders).toEqual(['status', 'name']);
+  });
+
+  it('受限管理員：分校條件下到關聯的三層 embed，家長 id 條件下到 parents', async () => {
     const queries = await listParents(['campus-1']);
 
-    // 第一跳：用他管的分校撈報名。**`classes.campus_id` 是巢狀欄位** ——
-    // select 必須是無條件的 `classes!inner`，否則就是 #815 那個洞
-    const enrollmentQuery = queries.find((q) => q.table === 'enrollments');
-    expect(enrollmentQuery?.ins).toContainEqual({
-      column: 'classes.campus_id',
+    // 範圍查詢：條件下在最底層的 `classes.campus_id` —— select 必須三層都是無條件的
+    // `!inner`，否則條件傳不上來、範圍外的關聯整列留著（#815 那個洞）
+    const scopeQuery = queries.find(
+      (q) => q.table === 'parent_student_relations' && q.columns.includes('classes!inner'),
+    );
+    expect(scopeQuery?.ins).toContainEqual({
+      column: 'students.enrollments.classes.campus_id',
       values: ['campus-1'],
     });
-    expect(enrollmentQuery?.columns).toContain('classes!inner');
+    expect(scopeQuery?.columns).toContain('students!inner(enrollments!inner(classes!inner(');
 
     // 最後一跳：家長清單真的被那組 id 縮限
     const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
@@ -199,9 +221,47 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
   it('不受分校限制時三跳都不做（確認上一條不是無腦通過）', async () => {
     const queries = await listParents(null);
 
-    expect(queries.some((q) => q.table === 'enrollments')).toBe(false);
+    expect(queries.some((q) => q.columns.includes('classes!inner'))).toBe(false);
     const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
     expect(listQuery?.ins.some((call) => call.column === 'id')).toBe(false);
+  });
+
+  // #1338：上方統計要跟列表同一個範圍，否則受限管理員看到的是全 org 的人數。
+  // 交給 DB 數（head count），撈列回來數會被 max_rows（1000）靜默截斷
+  const summaryQueries = (queries: QueryRecord[]) =>
+    queries.filter((q) => q.table === 'parents' && q.head === true);
+
+  it('summary：每個狀態一支 head count，受限時都帶家長 id 條件', async () => {
+    const summary = summaryQueries(await listParents(['campus-1']));
+
+    expect(summary.map((q) => q.eqs.find((e) => e.column === 'status')?.value).sort()).toEqual([
+      'active',
+      'archived',
+      'inactive',
+    ]);
+    expect(summary.every((q) => q.ins.some((call) => call.column === 'id'))).toBe(true);
+  });
+
+  it('summary：不受限時不帶家長 id 條件', async () => {
+    const summary = summaryQueries(await listParents(null));
+
+    expect(summary).toHaveLength(3);
+    expect(summary.some((q) => q.ins.some((call) => call.column === 'id'))).toBe(false);
+  });
+
+  // #1314 PA2：孩子名字要能點進學生檔案 —— 列表帶 id，不只名字
+  it('每列帶 students[{ id, name }]', async () => {
+    await listParents(null);
+    expect(lastBody.data[0]?.['students']).toEqual([{ id: 'student-1', name: '學生一' }]);
+  });
+
+  // 原本先撈全 org 家長 id 再撈關聯：家長破千時被 max_rows 截斷，後面的人孩子數靜默變 0
+  it('關聯只撈本頁家長，不撈全 org 家長 id', async () => {
+    const queries = await listParents(null);
+    const relQuery = queries.find((q) => q.table === 'parent_student_relations');
+    expect(relQuery?.ins).toEqual([{ column: 'parent_id', values: ['parent-1'] }]);
+    // summary 的 head count 也是 select('id')（#1338），要排除
+    expect(queries.some((q) => q.table === 'parents' && q.columns === 'id' && !q.head)).toBe(false);
   });
 });
 
@@ -448,6 +508,7 @@ describe('POST /batch-check —— 範圍外的同名家長不具名、不可合
           or: () => chain(),
           order: () => chain(),
           limit: () => chain(),
+          range: () => chain(),
           ilike: () => chain(),
           maybeSingle: () => Promise.resolve({ data: null, error: null }),
           then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>

@@ -76,8 +76,7 @@ const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline
  * **豁免對不上任何實際違規時 gate 會紅** —— 一筆指向已經不存在的地方的豁免是謊，
  * 不是保險；改完就要把它刪掉。
  */
-const CONTRAST_EXEMPT = {
-};
+const CONTRAST_EXEMPT = {};
 /**
  * A28（Tailwind 頁的 class 對比）的豁免：鍵＝`檔案|前景 class|背景 class`，值＝理由。
  * 跟 `CONTRAST_EXEMPT`（SCSS 那一道）同一個形狀：**沒有合規路徑**才進來，不會歸零，必須寫理由。
@@ -1095,7 +1094,7 @@ function checkTouchTargets() {
     // **admin 的桌機優先檔不再排除（2026-09-30）**。原本的分批依據是「遷完手機優先才納入」，
     // 那讓 15 筆自刻元素長期在範圍外 —— 而**觸控門檻跟手機優先是兩件事**：
     // 尺寸下限寫在 `@media (pointer: coarse)` 裡的話，桌機版面完全不受影響
-    // （跟 `styles.scss:176` 同一個原則），所以沒有理由等遷移。
+    // （跟 `styles.css:176` 同一個原則），所以沒有理由等遷移。
     ...walk(adminDir, '.scss'),
   ];
 
@@ -1228,7 +1227,7 @@ function checkTouchTargets() {
 
   // **能力邊界要明寫。** 綠燈的意思是「掃描範圍內、自己刻的可點元素都有下限」，
   // 不是「觸控目標都合格」：尺寸由 padding 與行高撐出來的看不到（那要在裝置上量），
-  // PrimeNG 元件不在範圍（由 styles.scss 的 pointer: coarse token 統一負責），
+  // PrimeNG 元件不在範圍（由 styles.css 的 pointer: coarse token 統一負責），
   // 而 parent / public 兩區**沒有人量過也不在掃描範圍**。
 }
 
@@ -1464,6 +1463,9 @@ const RUNTIME_TOKENS = new Set([
   '--h',
   '--avatar-hue',
   '--item-hue',
+  // generate-sessions 的列用 `data-exists:[--rt-cell-bg:…]` 在模板上寫入（responsive-table.component.css 讀它）
+  '--rt-cell-bg',
+  '--rt-cell-color',
 ]);
 
 // ── 樣式載體 ────────────────────────────────────────────────────────────────
@@ -1477,7 +1479,9 @@ function styleCarriers(webSrc) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith('.scss')) {
+      else if (entry.name.endsWith('.scss') || entry.name.endsWith('.css')) {
+        // `.css`：全站 `.scss` 歸零後（#991 S-c）全域樣式 `styles.css` 與元件 `.css` 是樣式載體；
+        // 只認 `.scss` 的話，token 定義（ghost-token 的 defined）與對比配對會整批消失而沒有任何訊號
         out.push({ path: full.slice(ROOT.length + 1), source: readFileSync(full, 'utf8') });
       } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
         const ts = readFileSync(full, 'utf8');
@@ -1498,7 +1502,7 @@ function scanGhostTokens() {
   const carriers = styleCarriers(webSrc);
   recordScope('ghost-token', {
     roots: [webSrc.slice(ROOT.length + 1)],
-    exts: ['.scss', '.ts', '.html'],
+    exts: ['.scss', '.css', '.ts', '.html'],
   });
 
   const defined = new Set();
@@ -1568,18 +1572,18 @@ scanGhostTokens();
 // 為什麼要 gate 而不是註解：近黑字降透明度掉出 AA 沒有任何編譯期訊號，
 // 畫面上看起來也只是「淡了一點」—— 兩席各自憑直覺寫過 0.32~0.72，全部不合格。
 function checkBandContrast() {
-  const file = join(ROOT, 'apps/web/src/styles.scss');
+  const file = join(ROOT, 'apps/web/src/styles.css');
   if (!existsSync(file)) return;
 
   // **12 道 gate 裡唯一沒有登記範圍的一道**（2026-09-06 的載體複查抓到）。
   // 它只讀一個檔，所以不會像走目錄的 gate 那樣「靜靜少掃一片」——
   // 但**路徑被改掉或加了提早 return 一樣沒有訊號**，而那正是 scan-scope 要防的。
   //
-  // 能力邊界：它讀的是 styles.scss 裡的**全域 token 定義**。
+  // 能力邊界：它讀的是 styles.css 裡的**全域 token 定義**。
   // 元件若自己重新定義 `--accent-vivid` 之類，會在該元件底下遮蔽全域值，
-  // 而這道 gate 看不到。**2026-09-06 查過：那四個 token 目前只在 styles.scss 定義**，
+  // 而這道 gate 看不到。**2026-09-06 查過：那四個 token 目前只在 styles.css 定義**，
   // 所以單檔範圍今天是對的 —— 但它是「現況」不是「保證」。
-  recordScope('band-contrast', { roots: ['apps/web/src'], exts: ['.scss'] });
+  recordScope('band-contrast', { roots: ['apps/web/src'], exts: ['.css'] });
   for (const violation of bandContrastViolations(readFileSync(file, 'utf8'))) fail(violation);
 }
 
@@ -1593,13 +1597,16 @@ checkBandContrast();
 // 既有的違規進 baseline（跟 test-baseline.json 同一套想法）：**只擋新增的**。
 // baseline 的數量會印成警告持續曝光，不然它會變成一個沒人記得要縮小的清單。
 function checkUsageContrast() {
-  const stylesPath = join(ROOT, 'apps/web/src/styles.scss');
+  const stylesPath = join(ROOT, 'apps/web/src/styles.css');
   const webSrc = join(ROOT, 'apps/web/src');
   if (!existsSync(stylesPath) || !existsSync(webSrc)) return;
 
   const palette = readTokenPalette(readFileSync(stylesPath, 'utf8'));
   const carriers = styleCarriers(webSrc);
-  recordScope('usage-contrast', { roots: [webSrc.slice(ROOT.length + 1)], exts: ['.scss', '.ts'] });
+  recordScope('usage-contrast', {
+    roots: [webSrc.slice(ROOT.length + 1)],
+    exts: ['.scss', '.css', '.ts'],
+  });
 
   const current = new Map();
   for (const { path: rel, source } of carriers) {
@@ -2026,7 +2033,7 @@ checkUnstyledInteractive();
 function checkTailwindA11y() {
   if (!tailwind || !tailwind.dirs.length) return;
   recordScope('tailwind-a11y', { roots: tailwind.dirs, exts: ['.html', '.ts'] });
-  const palette = readTokenPalette(readFileSync(join(ROOT, 'apps/web/src/styles.scss'), 'utf8'));
+  const palette = readTokenPalette(readFileSync(join(ROOT, 'apps/web/src/styles.css'), 'utf8'));
   const colors = {
     colorOf: tailwind.colorOf,
     resolve: (v) => resolveColor(v, palette),
@@ -2293,7 +2300,7 @@ checkOrgScopedWrites();
 // 只會讓 utility 靜靜沒樣式或樣式錯。判準在 lib/tailwind-theme.mjs。
 function checkTailwindTheme() {
   const twFile = join(ROOT, 'apps/web/src/tailwind.css');
-  const stylesFile = join(ROOT, 'apps/web/src/styles.scss');
+  const stylesFile = join(ROOT, 'apps/web/src/styles.css');
   if (!existsSync(twFile)) return;
   recordScope('tailwind-theme', { roots: ['apps/web/src'], exts: ['.css'] });
   for (const problem of themeMappingProblems(
@@ -2307,7 +2314,7 @@ function checkTailwindTheme() {
 checkTailwindTheme();
 
 // ── A26. cascade layer 順序三處一致（#991 T4）──────────────────────────────────────────
-// tailwind.css、styles.scss 的 `@layer …;` 與 PrimeNG 的 cssLayer.order（必須是前綴）。
+// tailwind.css、styles.css 的 `@layer …;` 與 PrimeNG 的 cssLayer.order（必須是前綴）。
 // 只改一處的話生效的是 PrimeNG 那一行，另外兩處不會報錯。判準在 lib/css-layer-order.mjs。
 function checkCssLayerOrder() {
   const twFile = join(ROOT, 'apps/web/src/tailwind.css');
@@ -2315,7 +2322,7 @@ function checkCssLayerOrder() {
   recordScope('css-layer-order', { roots: ['apps/web/src'], exts: ['.css', '.scss', '.ts'] });
   for (const problem of layerOrderProblems({
     tailwindCss: readFileSync(twFile, 'utf8'),
-    stylesScss: readFileSync(join(ROOT, 'apps/web/src/styles.scss'), 'utf8'),
+    stylesCss: readFileSync(join(ROOT, 'apps/web/src/styles.css'), 'utf8'),
     appConfigTs: readFileSync(join(ROOT, 'apps/web/src/app/app.config.ts'), 'utf8'),
   })) {
     fail(problem);

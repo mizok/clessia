@@ -1,0 +1,120 @@
+<div>
+  @for (chapter of chapters(); track chapter.date) {
+    <section
+      class="grid gap-2 border-b border-surface-border py-6"
+      [class]="wide().chapter"
+      [attr.aria-label]="dayLabel(chapter.date)"
+    >
+      <div class="flex items-baseline gap-3" [class]="wide().chapterHead">
+        <div
+          class="text-[32px] leading-none font-bold tracking-[-0.04em] tabular-nums text-zinc-900"
+          [class]="wide().day"
+        >
+          {{ dayLabel(chapter.date) }}
+        </div>
+        <p class="m-0 text-sm text-zinc-600" [class]="wide().dayMeta">
+          {{ dayMeta(chapter.date) }}
+        </p>
+        <p class="m-0 text-base font-bold tabular-nums text-zinc-900" [class]="wide().count">
+          {{ chapter.count }} 則
+        </p>
+      </div>
+
+      <div>
+        @for (item of chapter.items; track item.key) {
+          @let e = item.rows[0];
+          @if (item.rows.length === 1) {
+            <div
+              class="grid gap-x-5 gap-y-1 border-b border-surface-border py-4 last:border-b-0"
+              [class]="wide().row"
+            >
+              <span class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900">
+                {{ e.className ?? '—' }}
+                <ng-container
+                  [ngTemplateOutlet]="typeTag"
+                  [ngTemplateOutletContext]="{
+                    $implicit: e.changeType,
+                    label: typeLabel(e.changeType),
+                  }"
+                />
+                @if (e.isBatch) {
+                  <span class="rounded-sm border border-zinc-900 px-1 text-xs font-semibold"
+                    >批次</span
+                  >
+                }
+              </span>
+              <span class="text-md tabular-nums text-zinc-900">{{ e.summary }}</span>
+              <ng-container [ngTemplateOutlet]="why" [ngTemplateOutletContext]="{ $implicit: e }" />
+            </div>
+          } @else {
+            <details
+              class="group border-b border-surface-border last:border-b-0"
+              [open]="item.key === expandKey()"
+            >
+              <summary
+                class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
+                [class]="wide().summary"
+              >
+                <span
+                  class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900"
+                >
+                  <ng-container
+                    [ngTemplateOutlet]="typeTag"
+                    [ngTemplateOutletContext]="{
+                      $implicit: e.changeType,
+                      label: typeLabel(e.changeType) + ' ' + item.rows.length + ' 堂',
+                    }"
+                  />
+                  <span class="rounded-sm border border-zinc-900 px-1 text-xs font-semibold"
+                    >批次</span
+                  >
+                </span>
+                <span class="text-md text-zinc-900">{{ classCount(item.rows) }} 個班</span>
+                <ng-container
+                  [ngTemplateOutlet]="why"
+                  [ngTemplateOutletContext]="{ $implicit: e }"
+                />
+                <span
+                  class="text-md font-semibold whitespace-nowrap text-zinc-900 underline underline-offset-[3px]"
+                >
+                  看是哪 {{ item.rows.length }} 堂<span class="hidden font-medium group-open:inline"
+                    >（收起）</span
+                  >
+                </span>
+              </summary>
+              <ul class="m-0 mb-4 list-none rounded-md bg-zinc-100 px-3 py-1">
+                @for (row of item.rows; track row.id) {
+                  <li
+                    class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-zinc-200 py-2 text-md first:border-t-0"
+                  >
+                    <span>{{ row.className ?? '—' }}</span>
+                    <small class="text-sm text-zinc-600">{{ row.summary }}</small>
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+        }
+      </div>
+    </section>
+  }
+</div>
+
+<ng-template #typeTag let-type let-label="label">
+  <span
+    class="inline-flex items-center gap-1 rounded-sm px-1.5 py-px text-xs font-semibold whitespace-nowrap text-zinc-800"
+    [class.bg-zinc-100]="type !== 'cancellation'"
+    [class.shadow-[inset_0_0_0_1px_var(--zinc-500)]]="type === 'cancellation'"
+  >
+    <i class="pi {{ typeIcon(type) }} text-[10px]" aria-hidden="true"></i>{{ label }}
+  </span>
+</ng-template>
+
+<ng-template #why let-e>
+  <span class="text-md text-zinc-700">
+    {{ e.reason ?? '沒寫原因' }}
+    <span class="mt-0.5 block text-sm tabular-nums text-zinc-600">
+      {{ e.createdByName ?? '—' }} · {{ e.createdAt | date: 'M/d HH:mm' }}
+    </span>
+  </span>
+</ng-template>

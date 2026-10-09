@@ -97,7 +97,7 @@ export class EnrollmentsPage {
   ];
 
   /**
-   * 刻意不放「待付款」：目前沒有任何流程會產生 pending_payment（invoices 表還不存在），
+   * 刻意不放「待繳費」：目前沒有任何流程會產生 pending_payment（invoices 表還不存在），
    * 放一個永遠是空的篩選只會讓人以為系統壞了。M3 做金流時再加。
    */
   protected readonly statusOptions = [

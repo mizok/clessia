@@ -30,6 +30,20 @@ const CourseSchema = z
 const CourseListResponseSchema = z
   .object({
     data: z.array(CourseSchema),
+    summary: z.object({
+      bySubject: z
+        .array(
+          z.object({
+            subjectId: DbUuidSchema,
+            subjectName: z.string(),
+            count: z.number().int(),
+          }),
+        )
+        .openapi({
+          description:
+            '各科目的課程數（依科目排序，含 0 門的科目）。跟列表同一個分校範圍，不吃 search／isActive／subjectId',
+        }),
+    }),
     meta: z.object({
       total: z.number(),
       page: z.number(),
@@ -131,6 +145,10 @@ const listRoute = createRoute({
         },
       },
     },
+    500: {
+      description: '章節計數失敗',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -147,7 +165,9 @@ app.openapi(listRoute, async (c) => {
   // Build query
   let dbQuery = supabase
     .from('courses')
-    .select('*, campuses(name), subjects(name)', { count: 'exact' });
+    // `sort_order` 必須在 embed 的 select 裡：PostgREST 對 `order=subjects(sort_order)` 只認選了的欄，
+    // 少了回 400「courses_subjects_1.sort_order does not exist」（#1423 上線後整頁載入失敗）
+    .select('*, campuses(name), subjects(name, sort_order)', { count: 'exact' });
 
   // Apply filters
   if (query.search) {
@@ -161,8 +181,14 @@ app.openapi(listRoute, async (c) => {
     dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
   }
 
-  // Pagination
-  dbQuery = dbQuery.order('created_at', { ascending: false });
+  // 依科目分章（#1314 C1）：章節順序＝ subjects 的 sort_order，同序再比 subject_id（sort_order 預設 0、
+  // 沒有 unique，少這一鍵兩科的課會交錯，分章翻頁就斷）。章內依課名，末鍵 id 讓同名課翻頁穩定。
+  // 章節計數那支 subjects 查詢用同一個順序（sort_order, id）。
+  dbQuery = dbQuery
+    .order('subjects(sort_order)')
+    .order('subject_id')
+    .order('name')
+    .order('id');
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   const { data, count, error } = await dbQuery;
@@ -174,10 +200,48 @@ app.openapi(listRoute, async (c) => {
   const courses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
   const total = count || 0;
 
+  // 依科目分章的章節計數（#1314 C1）。每科一支 head count 讓 DB 數 —— 撈列回來數會被
+  // max_rows（1000）靜默截斷。跟列表同一個分校範圍；**不吃 search／isActive／subjectId**
+  // （同 parents summary 不受 status filter 影響），章名的數字是全體不是本次結果。
+  // ⚠️ 帶 org_id：列表主查詢本身沒濾 org（#1398），這裡不跟著漏
+  const orgId = c.get('orgId');
+  const campusScope = getCampusScope(c);
+  const { data: subjects, error: subjectsError } = await supabase
+    .from('subjects')
+    .select('id, name')
+    .eq('org_id', orgId)
+    .order('sort_order')
+    .order('id');
+  if (subjectsError) {
+    return c.json({ error: subjectsError.message, code: 'DB_ERROR' }, 500);
+  }
+  const subjectRows = (subjects ?? []) as Array<{ id: string; name: string }>;
+  const subjectCounts = await Promise.all(
+    subjectRows.map((subject) => {
+      const countQuery = supabase
+        .from('courses')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('subject_id', subject.id);
+      return applyCampusFilter(countQuery, 'campus_id', campusScope, query.campusId);
+    }),
+  );
+  // 數不出來就不回 0
+  const countError = subjectCounts.find((r) => r.error)?.error;
+  if (countError) {
+    return c.json({ error: countError.message, code: 'DB_ERROR' }, 500);
+  }
+  const bySubject = subjectRows.map((subject, i) => ({
+    subjectId: subject.id,
+    subjectName: subject.name,
+    count: subjectCounts[i]?.count ?? 0,
+  }));
+
   // 必須明寫 200：不帶狀態碼時型別無法選中 200 分支，會去跟 400 的 error schema 比對而報錯。
   return c.json(
     {
       data: courses,
+      summary: { bySubject },
       meta: {
         total,
         page: unpaginated ? 1 : page,

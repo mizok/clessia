@@ -9,6 +9,8 @@ import {
   canWriteClassLog,
   canWriteContactBook,
   daySummary,
+  nextSession,
+  sortByStart,
   weekAnchor,
 } from './schedule.util';
 
@@ -345,5 +347,46 @@ describe('兩型入口互斥', () => {
   it('停課 → 兩個都沒有（不會發生的課兩型都沒東西可寫）', () => {
     expect(both({ status: 'cancelled', usesContactBook: false })).toEqual([false, false]);
     expect(both({ status: 'cancelled', usesContactBook: true })).toEqual([false, false]);
+  });
+});
+
+describe('nextSession（#1314 TS1 首屏「接下來那堂」）', () => {
+  const at = (hhmm: string) => new Date(`2026-08-31T${hhmm}:00`);
+  const a = session({ sessionId: 'a', startTime: '09:00', endTime: '10:00' });
+  const b = session({ sessionId: 'b', startTime: '14:00', endTime: '15:00' });
+  const c = session({ sessionId: 'c', startTime: '19:00', endTime: '21:00' });
+
+  it('還沒開始的第一堂就是下一堂', () => {
+    expect(nextSession([c, a, b], at('08:00'))?.sessionId).toBe('a');
+  });
+
+  it('上課中的那堂還沒上完，所以它就是「接下來」，不是跳到後面那堂', () => {
+    expect(nextSession([a, b, c], at('09:30'))?.sessionId).toBe('a');
+  });
+
+  it('剛好下課的那一刻算上完了（hasSessionEnded：結束時間 <= 現在）', () => {
+    expect(nextSession([a, b, c], at('10:00'))?.sessionId).toBe('b');
+  });
+
+  it('全上完了回 null', () => {
+    expect(nextSession([a, b, c], at('22:00'))).toBeNull();
+  });
+
+  it('停課不算 —— 它不會發生，放首屏是騙人', () => {
+    const cancelled = session({ sessionId: 'x', status: 'cancelled', startTime: '08:30' });
+    expect(nextSession([cancelled, a], at('08:00'))?.sessionId).toBe('a');
+    expect(nextSession([cancelled], at('08:00'))).toBeNull();
+  });
+
+  it('沒有課回 null；沒有開始時間的排最後', () => {
+    expect(nextSession([], at('08:00'))).toBeNull();
+    const noTime = session({ sessionId: 'n', startTime: null, endTime: null });
+    expect(sortByStart([noTime, a]).map((s) => s.sessionId)).toEqual(['a', 'n']);
+  });
+
+  it('不改傳入的陣列順序', () => {
+    const input = [c, a];
+    nextSession(input, at('08:00'));
+    expect(input.map((s) => s.sessionId)).toEqual(['c', 'a']);
   });
 });

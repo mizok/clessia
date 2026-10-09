@@ -1,0 +1,1254 @@
+@charset "UTF-8";
+/* =============================================================================
+   Clessia Design Tokens
+   ============================================================================= */
+:root {
+  /* Base Colors */
+  --color-white: #fff;
+  --color-black: #000;
+  /* Zinc Gray Scale */
+  --zinc-50: #faf9f8;
+  --zinc-100: #f5f3f1;
+  --zinc-200: #ebe7e4;
+  --zinc-300: #ddd8d4;
+  --zinc-400: #a89f99;
+  --zinc-500: #786f69;
+  --zinc-600: #57504b;
+  --zinc-700: #3d3733;
+  --zinc-800: #2a2523;
+  --zinc-900: #1a1614;
+  /* Accent（暖橘）。階的值由**用途**決定而不是色票順序：
+     50 是 27 處淺背景、400 全是邊框、500 混用（文字 / 邊框 / 白字底色，
+     所以必須對白 >=4.5）、600 有 40 處純文字所以最深。 */
+  --accent-50: #fff0ea;
+  --accent-100: #ffdcce;
+  --accent-400: #ff8557;
+  --accent-500: #c93f14;
+  --accent-600: #a8340f;
+  /* 大面積色面專用。既有的 500/600 被文字對比綁在深色端，亮橘沒有位置，
+     所以新增一階 —— 新 token 不影響任何既有引用。
+     這個面上一律配 --zinc-900 近黑字：亮橘配白字只有 2.85:1，配近黑是 6.32:1。 */
+  --accent-vivid: #ff6a3d;
+  --accent-vivid-2: #ff8557;
+  /* 這兩階原本被引用但從來沒定義過，所以那些規則一直是無效的 */
+  --accent-200: #ffc9b3;
+  --accent-700: #8c2a0b;
+  /* Semantic Colors。600 這一階跟 accent 一樣是**用途決定值**：它幾乎只被當文字色用
+     （success 8 處、warning 20 處），而原本的 #16a34a / #d97706 對白底只有 3.30:1 / 3.19:1，
+     連在自家的 100 底色上也只有 3.00:1 / 2.86:1 —— 全數低於 WCAG AA 的 4.5:1。
+     各往下一階後：success 對白 5.02、對 --success-100 4.57；warning 對白 5.02、
+     對 --warning-100 4.51。少數非文字的引用（outline / border / 小色點）只是變深。 */
+  --success-100: #dcfce7;
+  --success-600: #15803d;
+  /* 警示色是琥珀 —— 橘現在專屬品牌（accent），警示不再借用它（#89/#95）。
+     階數不能憑順序挑，要看對比實測：
+
+       600 #b45309  白底 5.02:1、自家 100 底 4.51:1 —— 這是「文字安全」的那一階
+       800 #92400e  chip 內文字。chip 的 hover 底會換到 200，
+                    600 壓在 200 上只有 4.03:1 會掛，800 有 5.69:1
+
+     **600 的值來自 #97**：它原本是 #d97706（白底 3.19:1，拿來寫字不合格），
+     #97 把它整階往下改成 #b45309 修掉那 20 處文字。#95 原本走的是另一條路
+     —— 保留 600 的舊值、另加一階 700 當文字色。兩條路解的是同一件事，
+     所以這裡採 #97 的作法（600 就是文字階），原本的 700 併回 600，不留重複的階。 */
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-600: #b45309;
+  --warning-800: #92400e;
+  --error-100: #fee2e2;
+  --error-200: #fecaca;
+  --error-600: #dc2626;
+  --error-700: #b91c1c;
+  /* ── 橘帶（band）—— 內部頁的入口面 ────────────────────────────────────────────
+     D 說橘是「一整個色面、只出現在入口」，並且預告了「之後的儀表板標頭」。
+     內部頁的入口面就是標頭：一頁一條橘帶，橫線以下維持白底與既有密度。
+     列表／詳情（design-web-2）與儀表板／報表（bundle-analysis）共用這一組詞彙。
+
+     **三段式而不是登入頁的兩段式。** 大面積平塗會把亮橘拉淡，中間不加停點的話
+     整條帶會偏鮭魚色 —— 這是實測出來的，不是配色偏好。登入頁的品牌面是直立窄長
+     的 150deg 兩段式，幾何不同所以刻意不併過來（要不要統一是另一個決定）。
+
+     ── 三條硬地板（算過的，不是估的；由 harness 的 checkBandContrast 把關）──
+
+       1. 近黑字實色      對 #ff6a3d 6.32:1、對 #ff8557 7.48:1 —— 寬裕
+       2. 次要文字        **透明度不得低於 0.78**。0.72 只有 4.00:1（不合 AA），
+                          0.78 是 4.53:1、0.80 是 4.66:1。這裡取 0.80 留餘裕。
+                          反直覺的地方：近黑降透明度壓在**深端** #ff6a3d 對比更低，
+                          不是亮端 —— 兩席各自實測，結論一致。
+       3. 非文字描邊      chip、pill、底線這些是 UI 元件邊界，門檻 3:1 不是 4.5:1。
+                          0.60 是 3.13:1；憑直覺寫的 0.32–0.38 只有 1.8–2.0，全不合格。
+
+     所以**橘帶上不能用透明度做層次**（0.80 就是地板），層次交給字級、字重、字距。
+     語意色（success / warning）疊在暖橘上一律讀不出來 —— 語意色只活在白工作面。
+
+     `--band-ink-muted` / `--band-rule` 直接給成色而不是給 opacity，是為了讓地板
+     不可繞過：用 token 就自動合格。它們的 rgb 三元組必須跟 `--zinc-900` 一致，
+     gate 會比對 —— 這是 #97 的教訓（改 token 值修不到繞過 token 的地方）。 */
+  --band-surface: linear-gradient(
+    140deg,
+    var(--accent-vivid) 0%,
+    var(--accent-vivid) 46%,
+    var(--accent-vivid-2) 100%
+  );
+  --band-ink: #1a1614; /* = zinc-900，橘面一律近黑字 */
+  --band-ink-muted: rgb(26 22 20 / 80%); /* 次要字。地板 0.78，這裡 0.80 */
+  --band-rule: rgb(26 22 20 / 60%); /* 非文字描邊。地板 0.58，這裡 0.60 */
+  /* 白工作面往上壓進橘帶的深度。兩個矩形上下對齊會讀成「兩塊東西」，
+     交扣才會讀成「一個構圖」—— 桌機手機同值，縮掉構圖就散了。 */
+  --band-seam: 28px;
+  /* 語意層。這幾個名字全站有 40 幾處引用、而且**大多沒有 fallback** ——
+     也就是那些規則一直沒有生效。它們指向中性階，換色系時自動跟著走。 */
+  --text-muted: #786f69; /* = zinc-500 */
+  --surface-border: #ebe7e4; /* = zinc-200 */
+  --surface-card: #ffffff;
+  --font-normal: 400;
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-9: 36px;
+  --space-10: 40px;
+  --space-12: 48px;
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-full: 9999px;
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  /* Typography */
+  --font-sans: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  --text-xxs: 9px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+  /* Transitions */
+  --transition-fast: 0.12s ease;
+  /* =============================================================================
+     PrimeNG token 覆寫（#991 T4）
+     PrimeNG 進 layer 之後，「只想改預設狀態」的覆寫要寫成 token，不能寫成 class 規則 ——
+     class 規則在 legacy layer 一律贏，會連 hover／checked／focus／invalid 一起蓋掉。
+     ============================================================================= */
+  --p-checkbox-border-color: var(--zinc-300);
+  --p-checkbox-border-radius: var(--radius-sm);
+  --p-textarea-border-color: var(--zinc-300);
+  --p-textarea-border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   觸控目標尺寸（手機優先的第一塊地基）
+
+   2026-09 使用者裁定全站改成手機優先。PrimeNG Aura 的預設值是給滑鼠用的：
+   小按鈕實測 **34px** 高、icon-only 小按鈕 **36×36**、一般按鈕 41px ——
+   全部低於 44px 的觸控門檻（WCAG 2.5.5 / Apple HIG）。
+
+   **用 `pointer: coarse` 而不是視窗寬度**，因為要問的是「這東西被什麼操作」，
+   不是「視窗多寬」。桌機開一個窄視窗不需要 44px；平板再寬也需要。
+
+   **這樣桌機完全不受影響** —— 手機優先不等於桌機劣化。
+
+   每一個變數都在活的頁面上用 `getComputedStyle` 確認存在過（2026-09-02）。
+   `--p-togglebutton-padding-y` 與 `--p-checkbox-*` **不存在**，所以沒寫 ——
+   幽靈 token 不會有任何錯誤訊號，只會靜靜地什麼都不做。
+   ============================================================================= */
+@media (pointer: coarse) {
+  :root {
+    /* 34px → 44px：11 + 11 + 20（14px 字的行高）+ 2（框） */
+    --p-button-sm-padding-y: 0.6875rem;
+    /* 41px → 45px */
+    --p-button-padding-y: 0.625rem;
+    --p-button-sm-icon-only-width: 2.75rem;
+    --p-button-icon-only-width: 2.75rem;
+    /* 表單控制項也是手指要點的東西，同一個門檻 */
+    --p-select-sm-padding-y: 0.6875rem;
+    --p-select-padding-y: 0.625rem;
+    --p-inputtext-sm-padding-y: 0.6875rem;
+    --p-inputtext-padding-y: 0.625rem;
+    --p-multiselect-sm-padding-y: 0.6875rem;
+    --p-multiselect-padding-y: 0.625rem;
+    --p-datepicker-dropdown-width: 2.75rem;
+  }
+}
+/* =============================================================================
+   全域規則進 `legacy` layer、reset 進 `base`（#991 T4）
+
+   順序 theme → base → primeng → legacy → utilities：
+   - legacy 贏 primeng：這裡對 PrimeNG 的覆寫繼續有效（而且**不再靠 specificity**，
+     以前比不贏、所以沒效的規則會開始生效 —— 回歸判讀表在 #991）；
+   - utilities 贏 legacy：Tailwind 頁不必跟這裡的全域覆寫打架、不必寫 `!`。
+   - 元件 SCSS（未分層）一律贏 legacy —— 以前靠 specificity 贏元件樣式的全域規則會輸。
+
+   **tokens（上面的 `:root` 與 pointer:coarse 那塊）刻意不分層**：PrimeNG 的 `--p-*` 也在 :root，
+   進 layer 之後未分層的覆寫才贏得了它。
+
+   這一行跟 tailwind.css、app.config.ts 的 cssLayer.order 必須一致（harness A26）。
+   兩支樣式表都宣告完整順序：哪一支先載入都不會讓順序跑掉。
+   ============================================================================= */
+@layer theme, base, primeng, legacy, utilities;
+/*
+ * reset 與元素預設值進 `base`（primeng 之前）：它們以前是未分層、specificity 最低的規則，
+ * 一直輸給 PrimeNG 的 class。放進 legacy 的話 `* { padding: 0 }`、`button { border: none }`
+ * 會蓋掉 Aura 所有元件的內距與框線（實測：p-select 變成一行裸字）。
+ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  * {
+    margin: 0;
+    padding: 0;
+  }
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-md);
+    font-weight: var(--font-medium);
+    color: var(--zinc-900);
+    background-color: var(--zinc-100);
+    line-height: var(--leading-normal);
+  }
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+  }
+}
+@layer legacy {
+  .clessia-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    --p-select-color: var(--zinc-600);
+    --p-multiselect-color: var(--zinc-600);
+    --p-inputtext-color: var(--zinc-600);
+    --p-select-sm-font-size: var(--text-md);
+    --p-select-sm-padding-y: var(--p-select-padding-y);
+    --p-select-sm-padding-x: var(--p-select-padding-x);
+    --p-multiselect-sm-font-size: var(--text-md);
+    --p-multiselect-sm-padding-y: var(--p-multiselect-padding-y);
+    --p-multiselect-sm-padding-x: var(--p-multiselect-padding-x);
+    --p-inputtext-sm-font-size: var(--text-md);
+    --p-inputtext-sm-padding-y: var(--p-inputtext-padding-y);
+    --p-inputtext-sm-padding-x: var(--p-inputtext-padding-x);
+  }
+  .clessia-filter-bar .p-select,
+  .clessia-filter-bar .p-multiselect,
+  .clessia-filter-bar .p-datepicker .p-inputtext,
+  .clessia-filter-bar .p-button {
+    min-height: 38px;
+    font-size: var(--text-md);
+  }
+  /* 這條 38px 的硬底會蓋過上面的 token 覆寫，所以觸控下要一起抬 */
+  @media (pointer: coarse) {
+    .clessia-filter-bar .p-select,
+    .clessia-filter-bar .p-multiselect,
+    .clessia-filter-bar .p-datepicker .p-inputtext,
+    .clessia-filter-bar .p-button {
+      min-height: 44px;
+    }
+  }
+  .clessia-filter-bar .p-select-label,
+  .clessia-filter-bar .p-multiselect-label,
+  .clessia-filter-bar .p-datepicker .p-inputtext,
+  .clessia-filter-bar .p-button-label {
+    font-size: var(--text-md);
+  }
+  .clessia-filter-control {
+    min-width: 160px;
+  }
+  /*
+   * 220px（後改 250px）曾經不夠：實機量過三頁（課堂管理、聯絡簿、營收報表）渲染
+   * 出來的完整區間文字（例如「2026-09-01 - 2026-09-30」），最寬需要 238px，
+   * 220px 窄了幾 px，於是結束日被截斷成一個看起來合法、實際被切掉的日期
+   * （例如 `2026/09/3`）——這是外觀上跟合法日期一模一樣的截斷，比明顯亂碼更陰險。
+   *
+   * **用 `ch` 不用 `px`**：250px 是對著當下字級量出來的數字，使用者放大字級或
+   * 瀏覽器縮放之後又會不夠，而且會用同一種方式無聲無息地再壞一次。`1ch` 是目前
+   * 字型下 `0` 的寬度，會跟著字級一起變。內容 23 字元，本來抓 `26ch` 留一點餘裕，
+   *
+   * 2026-09-06：那個例字原本寫成 `2026/09/01`，是 #425 把兩支斜線 outlier 對齊成
+   * `yy-mm-dd` 之前的樣子。**字元數不變（都是 23），所以上面量到的 238px 與 `30ch`
+   * 的結論不受影響** —— `ch` 保留的寬度只看 `0` 的寬度乘以字數，跟實際是哪些字無關。
+   * 但 `ch` 是粗略估計（以 `0` 的寬度為準，不是每個字元的實際寬度，`p-inputtext-sm`
+   * 與預設尺寸的 padding 也不同）——量了三頁才發現聯絡簿/營收報表（沒用 `-sm`
+   * 尺寸）在 26ch 下還是差幾 px 截斷，改成 30ch 才在三頁都留夠餘裕。
+   *
+   * 這條規則本來看起來不生效：課堂管理頁量出來 `getComputedStyle().minWidth`
+   * 是 `auto`。查到根因是 `session-filters.component.scss` 裡一條同名的 BEM
+   * 修飾字規則（`&--date-range`，编成 `.session-filters__control--date-range`）
+   * 從沒被模板實際掛上去過——模板掛的是這裡的 `clessia-filter-control--date-range`，
+   * 兩個 class 長得像、屬於不同家族，從未是同一個東西。真正贏過這條全域規則的是
+   * 同一支元件在 container query 裡的 `.session-filters__control[_ngcontent]
+   * { min-width: auto }`（attribute 選擇器的 specificity 比這裡的單一 class 高），
+   * 已經在該元件的 SCSS 裡改成對到實際 class 的複合選擇器修好，不再需要 inline
+   * style 補洞。**「排除過『量到錯的節點』這個平凡假設」記在這裡**：直接對照過
+   * wrapper 本身與其內層 `<input>` 的 computed min-width，兩者都是 `auto`，
+   * 不是量錯節點——問題是一直有另一條更高 specificity 的規則在贏。
+   */
+  .clessia-filter-control--date-range {
+    min-width: 30ch;
+  }
+  .clessia-filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .clessia-filter-search {
+    flex: 1;
+    min-width: 200px;
+    /* **手機優先**：窄螢幕上搜尋框填滿整列，寬螢幕才收到 320px。
+       這條原本是各頁在自己的 `respond-to` 裡寫 `max-width: 100%` ——
+       九頁共用同一個 block，那個決定就該住在 block 裡，320 也只該有一份（c11）。
+       已經自己蓋掉 max-width 的頁（courses 的 280px）不受影響。 */
+    max-width: 100%;
+    /* 768.02px 不是講究：避免跟 `max-width: 768px` 在正好 768px 時兩邊同時生效（原 respond-from 的 +0.02px） */
+  }
+  @media (min-width: 768.02px) {
+    .clessia-filter-search {
+      max-width: 320px;
+    }
+  }
+  .clessia-filter-search .p-inputtext,
+  .clessia-filter-search-input {
+    width: 100%;
+    min-height: 38px;
+    font-size: var(--text-md);
+  }
+  /* =============================================================================
+     Toast Styles
+     ============================================================================= */
+  .p-inputnumber-input {
+    min-width: 0;
+  }
+  .p-toast {
+    opacity: 1;
+    z-index: 25000 !important;
+    top: calc(var(--app-header-height, 0px) + 20px) !important;
+  }
+  .p-toast .p-toast-message {
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 10px 25px -5px rgba(0, 0, 0, 0.1),
+      0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    border: 1px solid transparent;
+    backdrop-filter: blur(8px);
+  }
+  .p-toast .p-toast-message .p-toast-message-content {
+    padding: var(--space-4);
+    gap: var(--space-3);
+  }
+  .p-toast .p-toast-message .p-toast-message-icon {
+    font-size: 1.25rem;
+  }
+  .p-toast .p-toast-message .p-toast-summary {
+    font-weight: var(--font-semibold);
+    font-size: var(--text-md);
+  }
+  .p-toast .p-toast-message .p-toast-detail {
+    font-size: var(--text-sm);
+    margin-top: 2px;
+    opacity: 0.9;
+  }
+  .p-toast .p-toast-message {
+    /* Success - Green tones */
+  }
+  .p-toast .p-toast-message.p-toast-message-success {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-color: #bbf7d0;
+    color: #166534;
+  }
+  .p-toast .p-toast-message.p-toast-message-success .p-toast-message-icon {
+    color: var(--success-600);
+  }
+  .p-toast .p-toast-message {
+    /* Error - Red tones */
+  }
+  .p-toast .p-toast-message.p-toast-message-error {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+  .p-toast .p-toast-message.p-toast-message-error .p-toast-message-icon {
+    color: #dc2626;
+  }
+  .p-toast .p-toast-message {
+    /* Warning - Amber tones */
+  }
+  .p-toast .p-toast-message.p-toast-message-warn {
+    background: linear-gradient(135deg, var(--warning-50) 0%, var(--warning-100) 100%);
+    border-color: var(--warning-200);
+    color: var(--warning-800);
+  }
+  .p-toast .p-toast-message.p-toast-message-warn .p-toast-message-icon {
+    color: var(--warning-600);
+  }
+  .p-toast .p-toast-message {
+    /* Info —— 用 accent token 而不是硬編碼色值，換色系時才會跟著走 */
+  }
+  .p-toast .p-toast-message.p-toast-message-info {
+    background: linear-gradient(135deg, var(--accent-50) 0%, var(--accent-100) 100%);
+    border-color: var(--accent-400);
+    color: var(--accent-600);
+  }
+  .p-toast .p-toast-message.p-toast-message-info .p-toast-message-icon {
+    color: var(--accent-500);
+  }
+  .p-toast .p-toast-close-button {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+  }
+  .p-toast .p-toast-close-button:focus {
+    box-shadow: 0 0 0 2px var(--accent-500);
+  }
+  .p-toast {
+    /* Mobile responsiveness for Toast */
+  }
+  @media (max-width: 640px) {
+    .p-toast {
+      width: calc(var(--window-width, 100vw) - 32px) !important;
+      left: 16px !important;
+      right: 16px !important;
+    }
+    .p-toast .p-toast-message {
+      width: 100% !important;
+    }
+  }
+  /* =============================================================================
+     Confirm Dialog Styles
+     ============================================================================= */
+  .p-confirmdialog .p-dialog-header {
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+  }
+  .p-confirmdialog .p-dialog-header .p-dialog-title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+  .p-confirmdialog .p-dialog-content .p-confirmdialog-message {
+    margin-left: var(--space-4);
+    font-size: var(--text-md);
+    color: var(--zinc-700);
+    line-height: var(--leading-relaxed);
+  }
+  .p-confirmdialog .p-dialog-footer {
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+    gap: var(--space-3);
+  }
+  .p-confirmdialog {
+    /* Warning icon styling */
+  }
+  .p-confirmdialog .p-confirmdialog-icon {
+    color: var(--warning-600);
+    font-size: 1.5rem;
+  }
+  /* =============================================================================
+     Global Dialog & Form Patterns
+     PrimeNG dialogs are teleported to <body>, so these must be global.
+     ============================================================================= */
+  .p-dialog {
+    max-height: calc(var(--shell-layout-body-height) - var(--space-3) * 2) !important;
+    max-width: calc(var(--shell-layout-body-width) - var(--space-3) * 2) !important;
+    --p-dialog-content-padding: var(--space-4) !important;
+  }
+  .p-dialog .p-dialog-header {
+    border-bottom: 1px solid var(--zinc-200);
+    padding: var(--space-4) var(--space-6);
+  }
+  .p-dialog .p-dialog-footer {
+    border-top: 1px solid var(--zinc-200);
+    padding: var(--space-4) var(--space-6);
+  }
+  @media (max-width: 640px) {
+    .p-dialog {
+      max-width: calc(var(--window-width, 100vw) - var(--space-2) * 2);
+    }
+    .p-dialog .p-dialog-header,
+    .p-dialog .p-dialog-footer {
+      padding: var(--space-3) !important;
+    }
+  }
+  /* 角色選擇彈窗（`/select-role`）。它沒有 header、內容自己就是一張卡片，
+     所以要比一般 dialog 更寬鬆的內距。特異性刻意比上面的 `.p-dialog` 高一級，
+     否則會被那條 `!important` 蓋掉。 */
+  .p-dialog.role-picker-dialog {
+    --p-dialog-content-padding: var(--space-6) !important;
+  }
+  /* ---- Standard inline header with breadcrumb and close button ---- */
+  .dialog-header-inline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--zinc-100);
+    background: var(--zinc-50) / 0.5;
+  }
+  .dialog-header-inline__content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .dialog-header-inline__breadcrumb {
+    font-size: var(--text-xs);
+    font-weight: var(--font-normal);
+    color: var(--zinc-500);
+    letter-spacing: 0.01em;
+    line-height: 1.4;
+  }
+  .dialog-header-inline__title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+    line-height: 1.4;
+  }
+  .dialog-header-inline__close {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    color: var(--zinc-400);
+    transition: all var(--transition-fast);
+    margin-top: -2px;
+    margin-right: -8px;
+  }
+  .dialog-header-inline__close:hover {
+    background: var(--zinc-100);
+    color: var(--zinc-900);
+  }
+  .dialog-header-inline__close:active {
+    transform: scale(0.95);
+  }
+  .dialog-header-inline__close .pi {
+    font-size: 14px;
+  }
+  @media (max-width: 640px) {
+    .dialog-header-inline {
+      padding: var(--space-4);
+    }
+  }
+  /* ---- Canonical form dialog pattern ---- */
+  .form-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .form-dialog__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-6);
+  }
+  @media (max-width: 640px) {
+    .form-dialog__content {
+      padding: var(--space-4);
+    }
+  }
+  .form-dialog__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .form-dialog__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .form-dialog__field--inline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .form-dialog__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .form-dialog__label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-700);
+  }
+  .form-dialog__required {
+    color: var(--error-600);
+    margin-left: 2px;
+  }
+  .form-dialog__switch-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .form-dialog__switch-label {
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+  }
+  .form-dialog__section {
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .form-dialog__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: var(--zinc-50);
+    border-bottom: 1px solid var(--zinc-200);
+  }
+  .form-dialog__section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-700);
+  }
+  .form-dialog__section-title .pi {
+    font-size: 12px;
+    color: var(--accent-500);
+  }
+  .form-dialog {
+    /* 動作列**必須釘在捲動容器底部**。這些 dialog 用 `showHeader: false`， */
+    /* 自己在內容裡畫動作列 —— 也就是說按鈕是**捲動內容的一部分**，不是固定的 chrome。 */
+    /* 內容一長（新增班級加一個時段就夠），「建立」就被推到視窗外： */
+    /* 2026-09-02 實走實測，1504×695 下按鈕底部落在 723px，視窗只有 695。 */
+    /* */
+    /* 注意這不是 max-height 沒生效 —— `.p-dialog` 的 615px 上限與 `.p-dialog-content` */
+    /* 的 `overflow-y: auto` 都正常運作。壞的只是動作列跟著內容一起捲走。 */
+    /* */
+    /* `margin-top` 換成 padding：margin 的區域不會被背景繪製，內容捲到下面時 */
+    /* 會從那道 8px 的縫裡透出來，看起來像破圖。 */
+  }
+  .form-dialog__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding-top: calc(var(--space-4) + var(--space-2));
+    padding-bottom: var(--space-4);
+    border-top: 1px solid var(--zinc-100);
+    background: var(--color-white);
+  }
+  .form-dialog__empty-note {
+    padding: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    text-align: center;
+    margin: 0;
+    font-style: italic;
+  }
+  /* Global PrimeNG Form Component Helpers */
+  /* p-select-label has hardcoded font-size: 1rem in PrimeNG source, */
+  /* so inheritance from wrapper doesn't work — override via helper class. */
+  .select-sm {
+    width: 100%;
+    --p-form-field-padding-y: var(--space-1);
+  }
+  .select-sm .p-select-label {
+    font-size: var(--text-sm);
+    min-height: 36px;
+  }
+  /* Override PrimeNG bottom drawer default height (10rem) */
+  .p-drawer-bottom.drawer-auto {
+    height: auto;
+    max-height: calc(var(--window-height, 667px) * 0.8);
+  }
+  .form-dialog .p-multiselect,
+  .form-dialog .p-select,
+  .form-dialog .p-datepicker,
+  .form-dialog .p-inputnumber {
+    width: 100%;
+  }
+  /* =============================================================================
+     Form Input Global Styles
+     ============================================================================= */
+  /* #991 T4：預設框色、transition、:focus、::placeholder 四條拿掉了 —— 它們跟 Aura 同分或較低分，
+     從沒生效過（focus 環還是舊的天藍色）；進 legacy layer 之後會變成一律贏，連 .p-invalid 的紅框都蓋掉。 */
+  .p-inputtext:hover:not(:disabled):not(:focus) {
+    border-color: var(--zinc-400);
+  }
+  /* =============================================================================
+     Button Global Styles
+     ============================================================================= */
+  /* 主要按鈕。**這裡曾經硬寫成 zinc-900**，是 accent 還是天藍時的決定 —— */
+  /* 那個藍撐不起一顆實心按鈕，所以退回黑色。橘撐得起：`--accent-500` 這一階 */
+  /* 就是為了「白字壓在上面」而定的（5.31:1），主按鈕是它唯一的理由。 */
+  /* 覆寫留著而不是刪掉，是因為 PrimeNG 的 primary 還要服務 focus ring、 */
+  /* 連結、選單等更淡的用途，兩者不共用同一階。 */
+  .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
+      .p-button-success
+    ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
+      .p-button-contrast
+    ) {
+    background: var(--accent-500);
+    border-color: var(--accent-500);
+  }
+  .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
+      .p-button-success
+    ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
+      .p-button-contrast
+    ):not(:disabled):hover {
+    background: var(--accent-600);
+    border-color: var(--accent-600);
+  }
+  .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
+      .p-button-success
+    ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
+      .p-button-contrast
+    ):not(:disabled):focus {
+    box-shadow:
+      0 0 0 2px var(--color-white),
+      0 0 0 4px var(--accent-500);
+  }
+  .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
+      .p-button-success
+    ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
+      .p-button-contrast
+    ):not(:disabled):active {
+    background: var(--accent-700);
+    border-color: var(--accent-700);
+  }
+  /* PrimeNG 全站的 disabled 樣式只有一條全域規則：`.p-component:disabled{opacity: */
+  /* var(--p-disabled-opacity)}`（0.6），跟按鈕原本是什麼顏色無關。對飽和色（例如 */
+  /* 上面這階 accent-500，啟用時白字壓上去是 5.31:1）疊上 0.6 透明度、再跟白底混色， */
+  /* 算出來的有效背景只剩接近粉橘的淡色，白字對比掉到 ~2.6:1——字幾乎看不清，而且 */
+  /* 看起來只是「同一顆按鈕變淡」，不是使用者期待的「灰階=按不了」。cursor 也還是 */
+  /* PrimeNG 預設的 `default`，沒有 not-allowed 的提示。 */
+  /* */
+  /* 改成跟 severity 脫鉤的灰階組合：不管原本是哪個顏色（primary/danger/secondary...）， */
+  /* 停用時全部收斂成同一種「這現在按不了」的樣子。實心/outline/text 三種底色結構 */
+  /* 不一樣，分開處理——套同一組實色背景會讓 outline/text 按鈕在停用時反而「長出」 */
+  /* 一個原本沒有的填色。 */
+  /* */
+  /* **這裡的 `!important` 是必要的，不是圖方便**：PrimeNG 把每個元件的樣式在執行期 */
+  /* 動態插入 `<style>` 到 `<head>`，永遠排在這支全域 styles.css 之後，選擇器優先度 */
+  /* 打平時它必贏（`.p-skeleton` 那組覆寫也是同一個理由）。實測 `opacity`/`cursor` */
+  /* 不加 `!important` 完全沒生效，`.p-button:disabled{cursor:default}` 原封不動贏過來。 */
+  .p-button:disabled {
+    opacity: 1 !important;
+    cursor: not-allowed !important;
+    /* zinc-600 對 zinc-200：6.44:1。挑這一階不是「反正 disabled 不用管對比」—— */
+    /* 目標本來就是「文字清楚可讀」，越好讀越貼近「一眼看出按不了」，沒有理由 */
+    /* 只求壓線過 3:1。 */
+    color: var(--zinc-600) !important;
+  }
+  .p-button:disabled:not(.p-button-text):not(.p-button-outlined) {
+    background: var(--zinc-200) !important;
+    border-color: var(--zinc-200) !important;
+  }
+  .p-button:disabled.p-button-outlined {
+    border-color: var(--zinc-300) !important;
+  }
+  /* =============================================================================
+     Utilities
+     ============================================================================= */
+  /* =============================================================================
+     Skeleton Loading Animation (global override)
+     ============================================================================= */
+  @keyframes skeleton-wave {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+  .p-skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--p-surface-200) 0%,
+      var(--p-surface-100) 50%,
+      var(--p-surface-200) 100%
+    ) !important;
+    background-size: 200% 100% !important;
+    animation: skeleton-wave 1.5s linear infinite !important;
+  }
+  .p-skeleton::after {
+    display: none !important;
+  }
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-4) var(--space-6);
+  }
+  .skeleton-bar {
+    display: block;
+    height: 1rem;
+    border-radius: 4px;
+    background: linear-gradient(
+      90deg,
+      var(--p-surface-200) 0%,
+      var(--p-surface-100) 50%,
+      var(--p-surface-200) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-wave 1.5s linear infinite;
+  }
+  .skeleton-bar--label {
+    width: 40%;
+    opacity: 0.6;
+  }
+  /* =============================================================================
+     Route View Transitions
+     ============================================================================= */
+  @keyframes vt-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes vt-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  /* Suppress root — prevents sidebar/header from being captured in the snapshot */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+  /* Only the content area fades */
+  ::view-transition-old(route-content) {
+    animation: 150ms ease-in vt-fade-out both;
+  }
+  ::view-transition-new(route-content) {
+    animation: 250ms ease-out vt-fade-in both;
+  }
+  /* Tag the content areas that change on route navigation */
+  .shell-route-wrapper,
+  .shell-content {
+    view-transition-name: route-content;
+  }
+  /* =============================================================================
+     Utilities
+     ============================================================================= */
+  .u-fill-route-child {
+    display: flex;
+    width: 100%;
+  }
+  .u-fill-route-child > *:not(router-outlet) {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+  .u-centered-flex {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* =============================================================================
+     Roster Sheet —— 老師端的點名面板
+     -----------------------------------------------------------------------------
+     手機上從下方升起（bottom sheet），桌機維持置中彈窗。
+
+     為什麼不是置中：老師站在教室裡單手拿手機點名，置中的面板把「儲存點名」
+     推到螢幕中央偏上，拇指構不到；貼著底部升起則整個動作區都在拇指弧內。
+
+     **只有老師端這樣開** —— admin 出勤頁用同一支元件（#169 收斂），
+     但那邊是坐著用滑鼠，置中才對。差異在呼叫端的 styleClass，不在元件裡。
+     ============================================================================= */
+  /* `.p-dialog` 複合選擇器：PrimeNG 自己的 `.p-dialog` 規則在 cascade 裡排在後面，
+     單獨用 `.roster-sheet` 的 border-radius 會被它蓋掉（實測仍是 12px 四角圓）。 */
+  .p-dialog.roster-sheet {
+    max-height: calc(var(--window-height, 800px) * 0.85);
+  }
+  @media (max-width: 640px) {
+    .p-dialog.roster-sheet {
+      position: fixed;
+      inset: auto 0 0;
+      margin: 0;
+      /* 貼著螢幕底緣，所以下面兩角不能是圓的 */
+      border-radius: 16px 16px 0 0;
+      /* PrimeNG 把 width 寫成 inline style（開啟時傳的 '480px'）， */
+      /* 這是少數 !important 站得住腳的場合：覆蓋行內樣式沒有別的辦法 */
+      width: 100% !important;
+      max-width: none !important;
+    }
+  }
+  /* =============================================================================
+     Sessions Dialog Styles (extracted)
+     ============================================================================= */
+  .session-dialog {
+    max-height: calc(var(--window-height, 800px) * 0.85);
+    display: flex;
+    flex-direction: column;
+  }
+  .session-dialog .p-dialog-header {
+    flex-shrink: 0;
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--zinc-100);
+  }
+  .session-dialog .p-dialog-header .p-dialog-title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+  .session-dialog .p-dialog-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto !important;
+  }
+  .session-dialog .p-dialog-footer {
+    flex-shrink: 0;
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+  }
+  /* ============================================================================= */
+  /* Detail Popup */
+  /* ============================================================================= */
+  .session-detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .session-detail__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    /* Push close button to the right */
+  }
+  .session-detail__actions > p-button:last-child {
+    margin-left: auto;
+  }
+  /* ============================================================================= */
+  /* Operation Forms (Cancel / Substitute / Reschedule dialogs) */
+  /* ============================================================================= */
+  .session-op-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .session-op-form__warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--warning-100);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--warning-200);
+    font-size: var(--text-sm);
+    color: var(--warning-800);
+    line-height: var(--leading-relaxed);
+  }
+  .session-op-form__warning i {
+    color: var(--warning-600);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .session-op-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1;
+  }
+  .session-op-form__row {
+    display: flex;
+    gap: var(--space-3);
+  }
+  .session-op-form__label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-700);
+  }
+  .session-op-form__required {
+    color: var(--error-600);
+    margin-left: 2px;
+  }
+  .session-op-form__textarea {
+    width: 100%;
+    resize: vertical;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-md);
+    line-height: var(--leading-normal);
+    min-height: 72px;
+  }
+  .session-op-form__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--zinc-100);
+  }
+  /* ============================================================================= */
+  /* ============================================================================= */
+  /* Import Dialog — shared block used by parent-import-dialog & student-excel-import-dialog */
+  /* ============================================================================= */
+  .import-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    /* ---- Step 1: Upload zone ---- */
+  }
+  .import-dialog__upload-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    border: 2px dashed var(--zinc-300);
+    border-radius: 16px;
+    padding: var(--space-10) var(--space-6);
+    text-align: center;
+    background: var(--zinc-50);
+    cursor: pointer;
+    transition:
+      border-color var(--transition-fast),
+      background var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+  .import-dialog__upload-area:hover,
+  .import-dialog__upload-area--drag-over {
+    border-color: var(--accent-400);
+    background: var(--accent-50);
+    box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.08);
+  }
+  .import-dialog__upload-area--drag-over {
+    border-color: var(--accent-500);
+    background: var(--accent-100);
+    box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.12);
+  }
+  .import-dialog__upload-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-50) 0%, var(--accent-100) 100%);
+    border: 1.5px solid var(--accent-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-1);
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .import-dialog__upload-icon .pi {
+    font-size: 1.5rem;
+    color: var(--accent-500);
+  }
+  .import-dialog__upload-area:hover .import-dialog__upload-icon,
+  .import-dialog__upload-area--drag-over .import-dialog__upload-icon {
+    transform: translateY(-3px);
+  }
+  .import-dialog__file-input {
+    display: none;
+  }
+  .import-dialog__upload-title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-800);
+  }
+  .import-dialog__upload-hint {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    margin-top: 2px;
+  }
+  .import-dialog__template-link {
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-500);
+    text-decoration: none;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-md);
+    background: var(--color-white);
+    transition: all var(--transition-fast);
+  }
+  .import-dialog__template-link .pi {
+    font-size: 12px;
+  }
+  .import-dialog__template-link:hover {
+    color: var(--zinc-900);
+    border-color: var(--zinc-300);
+    background: var(--zinc-50);
+  }
+  .import-dialog {
+    /* ---- Step 2: Summary bar ---- */
+  }
+  .import-dialog__summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-600);
+    background: var(--zinc-50);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+  }
+  .import-dialog__summary::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-500);
+    flex-shrink: 0;
+  }
+  .import-dialog {
+    /* ---- Footer buttons ---- */
+  }
+  .import-dialog__footer {
+    margin-top: var(--space-2);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+  }
+  .import-dialog__footer--single {
+    justify-content: center;
+  }
+  .import-dialog {
+    /* ---- Step 3: Full-page loading ---- */
+  }
+  .import-dialog__loading {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    text-align: center;
+  }
+  .import-dialog__loading-text {
+    font-size: var(--text-base);
+    color: var(--zinc-500);
+  }
+  .import-dialog {
+    /* ---- Step 4: Result ---- */
+  }
+  .import-dialog__result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-6) var(--space-4);
+    text-align: center;
+  }
+  .import-dialog__result-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .import-dialog__result-icon--success {
+    background: #dcfce7;
+    border: 2px solid #bbf7d0;
+  }
+  .import-dialog__result-icon--success .pi {
+    font-size: 1.75rem;
+    color: var(--success-600);
+  }
+  .import-dialog__result-title {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+  }
+  .import-dialog__result-stats {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--zinc-50);
+  }
+  .import-dialog__result-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-4) var(--space-6);
+  }
+  .import-dialog__result-stat + .import-dialog__result-stat {
+    border-left: 1px solid var(--zinc-200);
+  }
+  .import-dialog__result-stat-value {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    line-height: 1;
+  }
+  .import-dialog__result-stat-label {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    white-space: nowrap;
+  }
+  .import-dialog {
+    /* Muted variant for "skipped/failed" stats */
+  }
+  .import-dialog__result-stat--muted .import-dialog__result-stat-value {
+    color: var(--zinc-500);
+  }
+  @media (max-width: 768px) {
+    .p-paginator .p-paginator-pages,
+    .p-paginator .p-paginator-first,
+    .p-paginator .p-paginator-last,
+    .p-paginator .p-paginator-rpp-dropdown,
+    .p-paginator .p-paginator-jtp-dropdown,
+    .p-paginator .p-paginator-jtp-input {
+      display: none !important;
+    }
+    .p-paginator .p-paginator-current {
+      margin-left: 0;
+      white-space: nowrap;
+      font-size: var(--text-sm);
+      color: var(--zinc-500);
+    }
+    .session-op-form__row {
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+  }
+}

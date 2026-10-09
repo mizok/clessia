@@ -56,9 +56,18 @@
         </button>
       </div>
       <span class="text-md text-zinc-700 tabular-nums">{{ weekLabel() }}</span>
+      <!-- 「全部異動」抽屜的入口（A6）：純 hash，從這裡進是一筆歷史，返回鍵會關掉它 -->
+      <a
+        class="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-md font-semibold text-zinc-900 underline underline-offset-4 hover:bg-zinc-200"
+        [routerLink]="[]"
+        fragment="changes"
+        queryParamsHandling="preserve"
+      >
+        <i class="pi pi-history" aria-hidden="true"></i>全部異動
+      </a>
       <!-- 跳到某天（#1184 留下的，併進 G3）：原生日期選擇器，按鈕只是它的入口 -->
       <label
-        class="ml-auto inline-flex size-11 cursor-pointer items-center justify-center rounded-md text-zinc-900 hover:bg-zinc-200"
+        class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md text-zinc-900 hover:bg-zinc-200"
         title="跳到某天"
         (click)="$any(jump).showPicker?.()"
       >
@@ -200,6 +209,15 @@
 </div>
 
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+  <!-- 異動跑馬燈（A6）：灰條；沒有異動時整條不畫 -->
+  @if (mode() !== 'results') {
+    <div class="mb-4">
+      <app-schedule-changes-ticker
+        (pickSession)="onTickerSession($event)"
+        (pickBatch)="onTickerBatch($event)"
+      />
+    </div>
+  }
   @if (loadFailed()) {
     <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
   } @else if (loading() && !loadedOnce()) {
@@ -376,4 +394,10 @@
   (clear)="clearSelection()"
   (act)="onSheetAct($event)"
   (closed)="sheetOpen.set(false)"
+/>
+
+<app-schedule-changes-drawer
+  [open]="changesDrawerOpen()"
+  [focus]="changesFocus()"
+  (closed)="onChangesDrawerClosed()"
 />

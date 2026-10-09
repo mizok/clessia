@@ -30,7 +30,7 @@ tags: [architecture, tailwind, styling, primeng, c6, migration]
 2. **PrimeNG 要從 `cssLayer: false` 改成放進 `primeng` layer**，這是官方的並存方式。
    **連帶效果是 cascade 勝負翻轉**：未分層的樣式一律贏過分層的，所以現有 SCSS 對 PrimeNG 的每一條覆寫都會自動勝出。
    以前靠 specificity 輸掉、所以「沒效」的規則，可能突然生效。這一步要在 47 頁 sitemap 上做視覺回歸。
-3. **Tailwind 4 官方明說「不是設計來跟 Sass 一起用的」。** 入口要另開一支純 `.css`（`apps/web/src/tailwind.css`），不能塞進 `styles.scss`。
+3. **Tailwind 4 官方明說「不是設計來跟 Sass 一起用的」。** 入口要另開一支純 `.css`（`apps/web/src/tailwind.css`），不能塞進 `styles.css`。
 4. **tokens 有一處真正的語意衝突**：本專案的 `--font-normal`／`--font-medium` 是**字重**，
    在 Tailwind 的 `--font-*` 命名空間裡卻是**字體家族**。做法是清掉 Tailwind 預設 theme（`--*: initial`），再逐一映射。
 5. **五支解析 SCSS 的 harness gate 在 Tailwind 頁面上會失明**：對比、觸控目標、mobile-first、孤兒 class 等。
@@ -165,7 +165,7 @@ PrimeNG 的 Tailwind 頁面（<https://primeng.dev/tailwind>，頁面顯示版�
 
 CSS cascade 的規則是**未分層的樣式一律贏過任何 layer 裡的樣式**。所以 PrimeNG 一旦進了 `primeng` layer：
 
-- `styles.scss` 與各元件 SCSS（全部未分層）對 PrimeNG 的覆寫，**全部自動勝出**；
+- `styles.css` 與各元件 SCSS（全部未分層）對 PrimeNG 的覆寫，**全部自動勝出**；
 - **以前因為 specificity 不夠、實際上沒生效的規則，會突然生效**。那些規則從來沒在畫面上被看過；
 - Tailwind utility 在 `utilities` layer 裡，**會輸給任何未分層的 SCSS**，不論 specificity 多高。
 
@@ -176,7 +176,7 @@ CSS cascade 的規則是**未分層的樣式一律贏過任何 layer 裡的樣�
 
 ### 2.2a ⚠️ 實作後（#991 T4）：切換時實測抓到的三個坑
 
-順序定為 `theme, base, primeng, legacy, utilities`：`styles.scss` 的全域規則進 `legacy`（贏 PrimeNG、輸 utility），tokens 維持未分層。
+順序定為 `theme, base, primeng, legacy, utilities`：`styles.css` 的全域規則進 `legacy`（贏 PrimeNG、輸 utility），tokens 維持未分層。
 切換前後在 47 條路由 × 1440／390、含下拉與對話框的開啟狀態上比對 `getComputedStyle`（另跑一組「同碼兩次」當雜訊基準），抓到：
 
 1. **reset 不能進 `legacy`，要進 `base`。** `* { padding: 0 }`、`button { border: none; background: none }` 以前未分層、specificity 最低，一直輸給 PrimeNG 的 class；
@@ -209,14 +209,14 @@ Tailwind 的 preflight 會重置 `h1`、`ul`、`img`、`button` 等基礎樣式�
 
 ### 2.4 tokens 映射：單一來源，清掉 Tailwind 預設
 
-**來源維持 `apps/web/src/styles.scss` 的 `:root`**，SCSS 完全退場之後再搬進 `tailwind.css`。
+**來源維持 `apps/web/src/styles.css` 的 `:root`**，SCSS 完全退場之後再搬進 `tailwind.css`。
 
 Tailwind 端用 `@theme inline` 引用它。官方說引用其他變數時要用 `inline`，否則會因變數跨 DOM 層級解析而拿到非預期的 fallback
 （<https://tailwindcss.com/docs/theme>，「Referencing other variables」）。
 
 **為什麼要先 `--*: initial` 清掉整個預設 theme**（官方用法見 <https://tailwindcss.com/docs/theme>，「Disable default theme globally」）：
 
-| 名稱                             | 本專案（`styles.scss`） | Tailwind 4 預設                                                 | 問題                                                                           |
+| 名稱                             | 本專案（`styles.css`） | Tailwind 4 預設                                                 | 問題                                                                           |
 | -------------------------------- | ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `--font-normal`、`--font-medium` | **字重**（400、500）    | `--font-*` 是**字體家族**命名空間；字重在 `--font-weight-*`     | ⚠️ **語意衝突**：放進 `@theme` 的話，`font-medium` 會被當成 `font-family: 500` |
 | `--text-xs` … `--text-3xl`       | 字級，px                | 同名，也是字級，但 rem 而且值不同；另有 `--text-*--line-height` | 同語意不同值，映射時以本專案為準                                               |
@@ -234,7 +234,7 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
   --*: initial;
   --spacing: 4px;
   --color-white: var(--color-white);
-  /* …逐一映射，不手抄完整清單（c11）：由 styles.scss 的 :root 產生 */
+  /* …逐一映射，不手抄完整清單（c11）：由 styles.css 的 :root 產生 */
   --color-zinc-50: var(--zinc-50);
   --color-accent-400: var(--accent-400);
   --font-sans: var(--font-sans);
@@ -245,7 +245,7 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
 }
 ```
 
-**映射表不手抄**（c11）。建議由 `styles.scss` 的 `:root` 產生，或加一道 gate：`@theme` 裡出現的每個名稱，都必須對應到 `styles.scss` 的一個變數，而且不得是 `--font-<weight>` 這種衝突名稱。
+**映射表不手抄**（c11）。建議由 `styles.css` 的 `:root` 產生，或加一道 gate：`@theme` 裡出現的每個名稱，都必須對應到 `styles.css` 的一個變數，而且不得是 `--font-<weight>` 這種衝突名稱。
 
 **深色模式**：PrimeNG 用 `darkModeSelector: '.dark-mode'`。Tailwind 的 `dark:` variant 用 `@custom-variant` 對齊同一個 selector。
 實測（Tailwind 4.3.3）：`@custom-variant dark (&:where(.dark-mode, .dark-mode *));` 加上 `dark:bg-black`，輸出 `.dark\:bg-black:where(.dark-mode, .dark-mode *) { … }`。
@@ -274,7 +274,7 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
 | ------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 依賴          | `tailwindcss`、`@tailwindcss/postcss`、`postcss`（devDependencies）                                    | Angular 的 `ng add tailwindcss` schematic 安裝的就是這三個（`angular-cli/packages/schematics/angular/tailwind/index.ts`）                                                                                               |
 | PostCSS 設定  | **`apps/web/.postcssrc.json`**，內容 `{ "plugins": { "@tailwindcss/postcss": {} } }`                   | 建置器依序在 `[projectRoot, workspaceRoot]` 找 `postcss.config.json`／`.postcssrc.json`（`angular-cli/packages/angular/build/src/builders/application/options.ts:281-282`）。放 project root 優先，不影響 repo 其他東西 |
-| Tailwind 入口 | **新檔 `apps/web/src/tailwind.css`**（純 CSS），加進 `apps/web/project.json` 的 `build.options.styles` | 官方：v4「不是設計來跟 Sass、Less、Stylus 一起用的」（<https://tailwindcss.com/docs/compatibility>）。所以不放進 `styles.scss`                                                                                          |
+| Tailwind 入口 | **新檔 `apps/web/src/tailwind.css`**（純 CSS），加進 `apps/web/project.json` 的 `build.options.styles` | 官方：v4「不是設計來跟 Sass、Less、Stylus 一起用的」（<https://tailwindcss.com/docs/compatibility>）。所以不放進 `styles.css`                                                                                          |
 | `ng add`      | **用不了**：本 repo 沒有 `angular.json`（`AGENTS.md`）。照上面三列手動接                               | —                                                                                                                                                                                                                       |
 
 **順序：實際上是 PrimeNG 先定的。** 實測加讀原始碼：PrimeNG 用 `first: true` 把 `layer-order` 那支 `<style>` **插在 `<head>` 的第一個位置**
@@ -324,13 +324,13 @@ layer 順序由第一次出現決定，所以：
 | **入口頁**（`features/public`、`select-role`、登入） | 使用者指定的第一批重排對象                                          |
 | **其餘既有頁**                                       | 碰到大改時才整頁重排。小修照原樣（BEM＋SCSS），**不要半頁換**       |
 | **同一個元件**                                       | **只用一套**。混用時 SCSS（未分層）一律贏過 utility（分層），見 2.2 |
-| **tokens**                                           | 單一來源（`styles.scss` 的 `:root`）。Tailwind 端只引用、不另定值   |
+| **tokens**                                           | 單一來源（`styles.css` 的 `:root`）。Tailwind 端只引用、不另定值   |
 
 ### 4.2 退場：文件與 skill
 
 - **`AGENTS.md`「CSS / SCSS」段落**改寫草稿：
   > 新 UI 一律 Tailwind（utility 寫在 template；入口 `apps/web/src/tailwind.css`）。既有 BEM＋SCSS 頁面只維護不擴張，重排時整頁換。
-  > design tokens 的來源仍是 `apps/web/src/styles.scss` 的 `:root`，Tailwind 經 `@theme inline` 引用。禁止 viewport 單位（c6）同樣適用 Tailwind：用 `h-window` 系列，不用 `h-screen`／`*-dvh`。
+  > design tokens 的來源仍是 `apps/web/src/styles.css` 的 `:root`，Tailwind 經 `@theme inline` 引用。禁止 viewport 單位（c6）同樣適用 Tailwind：用 `h-window` 系列，不用 `h-screen`／`*-dvh`。
 - **`angular-scss-bem-standards` skill**：改成「**只在維護既有 SCSS 時使用**」，描述裡寫明新 UI 不適用。等 SCSS 歸零時整支退場。
   `AGENTS.md` 的「寫 SCSS 前先 invoke」改成同樣的限定。
   使用者層級的 memory（`feedback_scss_bem_skill`）也寫了同一條規則，**那份在使用者的家目錄，要使用者自己決定是否改**。
@@ -347,14 +347,14 @@ layer 順序由第一次出現決定，所以：
 | `touch-target`  | 自刻可點元素的 44px 下限             | 失明                                        | 可點元素（`button`、`a`、`(click)`）的 class 要有 `min-h-11`、`size-11` 或等值                |
 | `mobile-first`  | 桌機優先（`respond-to`）只准變少     | 失明                                        | Tailwind 本身就是 mobile-first。新規則改成「新程式碼不得用 `max-*:` variant」                 |
 | `orphan-class`  | template 的 class 在 SCSS 有沒有對應 | 不適用                                      | utility 拼錯會**靜靜沒樣式**。實測可行：`candidatesToCss()` 對拼錯的 class 回空（見實測紀錄） |
-| `band-contrast` | token 本身的值                       | **仍有效**：它看 `styles.scss`，tokens 不搬 | 不用動                                                                                        |
+| `band-contrast` | token 本身的值                       | **仍有效**：它看 `styles.css`，tokens 不搬 | 不用動                                                                                        |
 
 **判準**：第一頁 Tailwind 上線之前，至少 `touch-target` 與 `scss-contrast` 要有 class 版本。
 否則「gate 全綠」在那一頁上的意思會變成「沒有東西在看」，而輸出看不出來。
 
 ### 4.4 SCSS 退場的終點
 
-當 `apps/web/src/**/*.scss` 只剩 `styles.scss` 時：
+當 `apps/web/src/**/*.scss` 只剩 `styles.css` 時：
 
 - tokens 搬進 `tailwind.css`；
 - 拿掉 `inlineStyleLanguage: scss`、Sass 依賴、`_breakpoints.scss`、`respond-*` mixin；

@@ -3,51 +3,38 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/taipei-date', () => ({ getCurrentTaipeiDateString: () => '2026-10-04' }));
 
+import { createMultiOrgDb, withMaxRows } from '../test-utils/multi-org-db';
 import billingPeriodsApp from './billing-periods';
 
 /**
  * `GET /api/billing-periods/upcoming-unbilled`（#1293）。
  *
- * 替身**真的實作**平面欄位的 `eq`／`gt`／`lte`／`in` —— 守的是「14 天窗口」「只算在讀的期繳」
- * 這幾個條件，替身不篩的話拿掉它們照樣綠。嵌入欄位的條件（`invoices.org_id`）記下來不執行。
+ * 用 `multi-org-db`：它**真的照條件過濾**（含嵌入欄位 `invoices.org_id`、`or`、head count），
+ * 守的是「14 天窗口」「只算在讀的期繳」「別 org 的明細不算開過」這幾個條件 ——
+ * 替身不篩的話拿掉它們照樣綠。
+ *
+ * #1342：兩種計數都交給 DB（每期一支 head count）。`withMaxRows` 模擬 `max_rows = 1000`，
+ * 撈列回來數的寫法超過一千筆會靜默少算（或把已開的期誤判成沒開）。
  */
 type Row = Record<string, unknown>;
 
-function createApp(tables: Record<string, Row[]>) {
-  const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
-  const supabase = {
-    from(table: string) {
-      const filters: Array<(row: Row) => boolean> = [];
-      const q: any = {
-        select: () => q,
-        order: () => q,
-        eq: (col: string, val: unknown) => {
-          calls.push({ table, op: 'eq', args: [col, val] });
-          if (!col.includes('.')) filters.push((r) => r[col] === val);
-          return q;
-        },
-        gt: (col: string, val: string) => (filters.push((r) => String(r[col]) > val), q),
-        lte: (col: string, val: string) => (filters.push((r) => String(r[col]) <= val), q),
-        in: (col: string, vals: unknown[]) => (filters.push((r) => vals.includes(r[col])), q),
-        // #1305：先讀 organizations.billing_reminder_days
-        maybeSingle: () =>
-          Promise.resolve({
-            data: (tables[table] ?? []).find((r) => filters.every((f) => f(r))) ?? null,
-            error: null,
-          }),
-        then: (onfulfilled: (value: unknown) => unknown) =>
-          Promise.resolve({
-            data: (tables[table] ?? []).filter((r) => filters.every((f) => f(r))),
-            error: null,
-          }).then(onfulfilled),
-      };
-      return q;
-    },
-  };
+const OTHER_ORG = 'org-2';
+
+async function get(tables: Record<string, Row[]>, opts: { maxRows?: number } = {}) {
+  const db = createMultiOrgDb(tables);
+  // 記下查過哪些表（「沒有窗口內的期就不查報名與明細」要斷言的是沒查，不只是結果空）
+  const queried: string[] = [];
+  const base = opts.maxRows ? withMaxRows(db.client, opts.maxRows) : db.client;
+  const client = new Proxy(base as { from: (table: string) => unknown }, {
+    get: (target, prop) =>
+      prop === 'from'
+        ? (table: string) => (queried.push(table), target.from(table))
+        : Reflect.get(target, prop),
+  });
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
     const ctx = c as unknown as { set: (k: string, v: unknown) => void };
-    ctx.set('supabase', supabase);
+    ctx.set('supabase', client);
     ctx.set('orgId', 'org-1');
     ctx.set('userId', 'user-1');
     ctx.set('roles', ['admin']);
@@ -55,7 +42,8 @@ function createApp(tables: Record<string, Row[]>) {
     await next();
   });
   app.route('/api/billing-periods', billingPeriodsApp);
-  return { app, calls };
+  const res = await app.request('/api/billing-periods/upcoming-unbilled');
+  return { res, body: (await res.json()) as { data: Array<Record<string, unknown>> }, queried };
 }
 
 const period = (id: string, start: string, end: string) => ({
@@ -73,12 +61,6 @@ const enrollment = (over: Row = {}) => ({
   effective_to: null,
   ...over,
 });
-
-const get = async (tables: Record<string, Row[]>) => {
-  const { app, calls } = createApp(tables);
-  const res = await app.request('/api/billing-periods/upcoming-unbilled');
-  return { res, body: (await res.json()) as { data: Array<Record<string, unknown>> }, calls };
-};
 
 describe('GET /api/billing-periods/upcoming-unbilled（#1293）', () => {
   it('14 天內開始、有期繳生、還沒開 → 列出（含距今天數與待開報名數）', async () => {
@@ -157,21 +139,63 @@ describe('GET /api/billing-periods/upcoming-unbilled（#1293）', () => {
   });
 
   it('沒有窗口內的期 → 空陣列，不查報名與明細', async () => {
-    const { body, calls } = await get({ billing_periods: [], enrollments: [enrollment()] });
+    const { body, queried } = await get({ billing_periods: [], enrollments: [enrollment()] });
     expect(body.data).toEqual([]);
-    expect(calls.some((c) => c.table === 'enrollments' || c.table === 'invoice_items')).toBe(false);
+    expect(queried).toContain('billing_periods');
+    expect(queried.some((t) => t === 'enrollments' || t === 'invoice_items')).toBe(false);
   });
 
-  it('明細經 invoices 篩本機構（invoice_items 沒有 org_id）', async () => {
-    const { calls } = await get({
+  it('明細經 invoices 篩本機構：別 org 的有效明細不算這期開過', async () => {
+    const { body } = await get({
       billing_periods: [period('p1', '2026-10-15', '2027-01-31')],
       enrollments: [enrollment()],
+      invoice_items: [
+        { billing_period_id: 'p1', invoices: { org_id: OTHER_ORG, voided_at: null } },
+      ],
+    });
+    expect(body.data.map((d) => d['periodId'])).toEqual(['p1']);
+  });
+
+  it('別 org 的期繳報名不算進待開數', async () => {
+    const { body } = await get({
+      billing_periods: [period('p1', '2026-10-15', '2027-01-31')],
+      enrollments: [enrollment(), enrollment({ org_id: OTHER_ORG })],
       invoice_items: [],
     });
-    expect(calls).toContainEqual({
-      table: 'invoice_items',
-      op: 'eq',
-      args: ['invoices.org_id', 'org-1'],
-    });
+    expect(body.data[0]?.['pendingEnrollmentCount']).toBe(1);
+  });
+
+  // #1342 陷阱：PostgREST 撈列只回前 1000 列、不報錯
+  it('待開報名破千：數字是 1001 不是 1000', async () => {
+    const { body } = await get(
+      {
+        billing_periods: [period('p1', '2026-10-15', '2027-01-31')],
+        enrollments: Array.from({ length: 1001 }, () => enrollment()),
+        invoice_items: [],
+      },
+      { maxRows: 1000 },
+    );
+    expect(body.data[0]?.['pendingEnrollmentCount']).toBe(1001);
+  });
+
+  it('明細破千：前一期 1000 筆作廢明細擠掉後一期那筆有效的 → 後一期仍判為已開', async () => {
+    const { body } = await get(
+      {
+        billing_periods: [
+          period('a', '2026-10-10', '2027-01-31'),
+          period('b', '2026-10-11', '2027-01-31'),
+        ],
+        enrollments: [enrollment()],
+        invoice_items: [
+          ...Array.from({ length: 1000 }, () => ({
+            billing_period_id: 'a',
+            invoices: { org_id: 'org-1', voided_at: '2026-10-01' },
+          })),
+          { billing_period_id: 'b', invoices: { org_id: 'org-1', voided_at: null } },
+        ],
+      },
+      { maxRows: 1000 },
+    );
+    expect(body.data.map((d) => d['periodId'])).toEqual(['a']);
   });
 });

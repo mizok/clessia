@@ -12,11 +12,11 @@ export type EnrollmentStatus = 'pending_payment' | 'active' | 'suspended' | 'wit
 export type BillingMode = 'monthly' | 'period' | 'session_pack';
 
 export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
-  pending_payment: '待付款',
-  active: '在籍',
+  pending_payment: '待繳費',
+  active: '在學',
   suspended: '暫停',
   withdrawal: '退班',
-  void: '失效',
+  void: '作廢',
 };
 
 export interface Enrollment {
@@ -41,6 +41,10 @@ export interface Enrollment {
   effectiveFrom: string;
   effectiveTo: string | null;
   notes: string | null;
+  /** 最近一次狀態變更的日期（#1314 EN5）；暫停事件的日期只在這裡。舊資料為 null */
+  statusChangedAt?: string | null;
+  /** 暫停／退班／作廢的原因；不再寫進 notes */
+  statusReason?: string | null;
   createdBy: string | null;
   createdByName: string | null;
   createdAt: string;

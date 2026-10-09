@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-10-03
+updated: 2026-10-08
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -282,6 +282,12 @@ PostgREST 的巢狀過濾預設走 **left join**：少了 `!inner`，`classes.ca
 **`reports.ts` 的判準與其他不同**：篩選是「沾到就算」（跨班帳單沾到這個分校就進來），
 **範圍是「沾到就不能看」** —— 一張帳單只要有任何一筆明細在範圍外，受限的管理員就
 看不到它。否則跨校帳單會變成看見別校金額的側管道。
+
+**`invoices.ts` 沿用「沾到就不能看」，但刻意差一處**（#1381，`lib/invoice-campus-scope.ts`）：
+**沒有班的明細（餐費、調整）不讓整張失格**，改由「學生在範圍內」（同 `students.ts` 學生列表的判準）
+補上推不出分校的那一半。餐費的 `enrollment_id` 一律是 null，照抄 reports 的話受限者看不到
+自己學生所有帶餐費的帳單，連剛開的空帳單也看不到。範圍外的單筆與寫入一律 404（同不存在）。
+受限者的列表在記憶體判範圍，所以走推導路徑撈到底 —— 上限是帳單總數，升級路徑是 DB 側 view／RPC。
 
 ### 實作時修正的設計：權限只擋寫，不擋讀
 

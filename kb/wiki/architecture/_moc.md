@@ -240,7 +240,7 @@ Links to: [[rules/teaching-log-rules]], [[architecture/teacher-today-flow]], [[a
 
 ## [[architecture/teacher-schedule-mobile-day|老師端課表 —— 行動優先單日檢視]]
 
-手機一日一屏、水平 scroll-snap 換日；桌機保留七欄。為什麼不寫手勢 JS、為什麼日期標題放在面板裡。
+（2026-10-08 起已被 A6 單日清單取代）原設計：手機一日一屏、水平 scroll-snap 換日。現行：週條（所有寬度、可橫捲）＋單日清單＋首屏「接下來那堂」卡；下文 scroll-snap／手勢／日期標題的取捨是歷史紀錄。
 
 Tags: `architecture`, `teacher`, `schedule`, `mobile`
 

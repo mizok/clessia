@@ -3084,21 +3084,22 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const { id } = c.req.valid('param');
 
-    // 確認班級存在（名稱給稽核用）
+    // 確認班級存在（名稱給稽核用）。別 org 的班跟不存在一樣 404（#1345）
     const { data: cls } = await supabase
       .from('classes')
       .select('id, name, courses(name), campuses(name)')
       .eq('id', id)
-      .single();
+      .eq('org_id', orgId)
+      .maybeSingle();
 
     if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    const orgId = c.get('orgId');
-    const userId = c.get('userId');
     // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。算錯一天會把台北昨天
     // 已經上過的課堂一併抓進來取消（軟刪除，保留 schedule_change，但語意錯）。
     const today = getCurrentTaipeiDateString();

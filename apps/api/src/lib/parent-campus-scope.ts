@@ -9,8 +9,7 @@ import { campusFilterIds, type CampusScope } from './campus-scope';
  * enrollments），所以範圍要走三跳：
  *
  * ```
- * enrollments（.in('classes.campus_id', 他管的分校)）
- *   → student_id → parent_student_relations → parent_id
+ * parent_student_relations → students → enrollments → classes.campus_id（三層 !inner，條件下在最底層）
  * ```
  *
  * 判準：**分校管理員看得到的家長 = 孩子在他的分校有報名的家長。**
@@ -23,6 +22,9 @@ import { campusFilterIds, type CampusScope } from './campus-scope';
  * 而**在 9 個地方各寫一次就是 9 個會分岔的判準** —— #815 的成因逐字是這個形狀：
  * 兩處各自推論同一件事，在某個輸入上分岔。
  */
+
+/** ponytail: O(範圍內關聯列) 每次呼叫；量大時升級成 RPC／view（migration） */
+const PAGE = 1000;
 
 /**
  * 這個請求看得到哪些家長的 id。
@@ -38,37 +40,32 @@ export async function resolveScopedParentIds(
   const campusIds = campusFilterIds(scope, undefined);
   if (!campusIds) return null;
 
-  // ⚠️ **`classes!inner` 是寫死的，不跟任何條件連動。** PostgREST 的巢狀過濾走
-  // left join，`classes.campus_id` 條件不成立的報名不會被排除、只會把關聯變成
-  // null 留著。#815 就是因為 `!inner` 跟著「使用者有沒有傳 campusId」走、
-  // 而條件跟著 scope 走，兩邊分岔。**這裡沒有第二個判準可以分岔。**
-  const { data: campusEnrollments } = await supabase
-    .from('enrollments')
-    .select('student_id, classes!inner(campus_id)')
-    .in('classes.campus_id', [...campusIds]);
+  // ⚠️ **三層 `!inner` 是寫死的，不跟任何條件連動。** PostgREST 的巢狀過濾走 left join，
+  // 條件不成立的子列不會把父列排除、只會把關聯變成 null 留著。#815 就是因為 `!inner`
+  // 跟著「使用者有沒有傳 campusId」走、而條件跟著 scope 走，兩邊分岔。
+  // **這裡沒有第二個判準可以分岔。** 三層都 inner，條件才會一路往上傳到關聯列。
+  //
+  // 從關聯表出發（#1374）：一列＝一條關聯，不是一筆報名。原本先撈報名（破千被 `max_rows`
+  // 靜默截斷）、再把學生 id 整串塞進 `.in()`（同樣截斷，學生一多還會撞 URL 長度）。
+  // 撈到底：每頁 1000（= `max_rows`），照 id 翻到不足一頁為止。
+  const parentIds = new Set<string>();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('parent_student_relations')
+      .select('id, parent_id, students!inner(enrollments!inner(classes!inner(campus_id)))')
+      .in('students.enrollments.classes.campus_id', [...campusIds])
+      .order('id')
+      .range(from, from + PAGE - 1);
+    // 「查詢失敗」不能長得像「範圍內沒有家長」—— 後者在單筆端點是 403、在匯入是「同名家長不能合併」。
+    // 丟出去由全域 onError 回 500（呼叫端 9 處都沒接 error）
+    if (error) throw new Error(`resolveScopedParentIds failed: ${error.message}`);
+    for (const row of (data ?? []) as Array<{ parent_id: string | null }>) {
+      if (row.parent_id) parentIds.add(row.parent_id);
+    }
+    if ((data ?? []).length < PAGE) break;
+  }
 
-  const campusStudentIds = [
-    ...new Set(
-      ((campusEnrollments ?? []) as Array<{ student_id: string | null }>)
-        .map((row) => row.student_id)
-        .filter((id): id is string => !!id),
-    ),
-  ];
-
-  if (campusStudentIds.length === 0) return [];
-
-  const { data: scopedRelations } = await supabase
-    .from('parent_student_relations')
-    .select('parent_id')
-    .in('student_id', campusStudentIds);
-
-  return [
-    ...new Set(
-      ((scopedRelations ?? []) as Array<{ parent_id: string | null }>)
-        .map((row) => row.parent_id)
-        .filter((id): id is string => !!id),
-    ),
-  ];
+  return [...parentIds];
 }
 
 /**

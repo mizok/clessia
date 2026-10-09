@@ -1,8 +1,10 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { forkJoin, of } from 'rxjs';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
+import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
@@ -16,6 +18,7 @@ import {
   InvoicesService,
   type Invoice,
   type InvoiceStatus,
+  type InvoiceSummary,
 } from '@core/invoices.service';
 import { StudentsService, type Student } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
@@ -40,7 +43,14 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
-import { isOverdue, outstanding, overRefunded } from './payments.util';
+import {
+  daysOverdue,
+  daysUntilDue,
+  isOverdue,
+  lastPaidOn,
+  outstanding,
+  overRefunded,
+} from './payments.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
@@ -50,6 +60,26 @@ import {
 import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
+
+type ChapterKey = 'dueSoon' | 'notDue' | 'paid';
+
+interface ChapterState {
+  open: boolean;
+  loading: boolean;
+  failed: boolean;
+  rows: Invoice[];
+  total: number;
+  page: number;
+}
+
+const emptyChapter = (): ChapterState => ({
+  open: false,
+  loading: false,
+  failed: false,
+  rows: [],
+  total: 0,
+  page: 1,
+});
 
 /**
  * 繳費紀錄 —— 見 kb/wiki/specs/admin/finance/payments.md 與
@@ -74,6 +104,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     ButtonModule,
     SelectModule,
     SelectButtonModule,
+    PaginatorModule,
     ToastModule,
     PageActionsComponent,
     PageOpenComponent,
@@ -114,8 +145,14 @@ export class PaymentsPage implements OnInit {
    * 快到期→提醒、已逾期→催、全部未繳清→母體。**所以是三選一不是三個開關。**
    */
   protected readonly dueFilter = signal<'all' | 'outstanding' | 'overdue' | 'dueSoon'>('all');
-  /** 「快到期」的天數。7 天是催繳實務的一週節奏,不是隨便挑的 */
-  protected readonly DUE_SOON_DAYS = 7;
+  /**
+   * 「快到期」的天數**讀後端**（`summary.dueSoon.days`），前端不另存一份 —— 判準只有一個來源
+   * （`lib/invoice-overdue.ts` 的 `DUE_SOON_DAYS`）。彙總還沒回來時不寫數字。
+   */
+  protected readonly dueSoonLabel = computed(() => {
+    const days = this.summary()?.dueSoon.days;
+    return days === undefined ? '快到期' : `${days} 天內到期`;
+  });
   protected readonly overdueOnly = computed(() => this.dueFilter() === 'overdue');
 
   /** 順序照催繳實務的緊迫度:全部 → 母體 → 快到期 → 已逾期 */
@@ -133,7 +170,7 @@ export class PaymentsPage implements OnInit {
       case 'outstanding':
         return '沒有未繳清的帳單';
       case 'dueSoon':
-        return `${this.DUE_SOON_DAYS} 天內沒有要到期的帳單`;
+        return `沒有${this.dueSoonLabel()}的帳單`;
       case 'overdue':
         return '沒有逾期的帳單';
       default:
@@ -146,7 +183,7 @@ export class PaymentsPage implements OnInit {
       case 'outstanding':
         return '所有已開立的帳單都收齊了';
       case 'dueSoon':
-        return `目前沒有 ${this.DUE_SOON_DAYS} 天內到期又還沒繳清的帳單`;
+        return `目前沒有${this.dueSoonLabel()}又還沒繳清的帳單`;
       case 'overdue':
         return '目前沒有過期又還沒繳清的帳單';
       default:
@@ -208,9 +245,187 @@ export class PaymentsPage implements OnInit {
     return typeof value === 'string' || value === null ? null : value;
   });
 
+  /**
+   * 帳本彙總（#1314 P1／P2）。**金額與張數全由後端加總**，這裡只顯示；
+   * 失敗就當沒有 —— 色面退回頁名、章名不帶數字，不擋主列表。
+   */
+  protected readonly summary = signal<InvoiceSummary | null>(null);
+
+  /**
+   * 沒有任何篩選時是 A6 的「章」：逾期章（攤開）＋已繳清章（收著）。
+   * 一動舊的篩選（學生、狀態、催繳三選一）就回到原本那張平面表 —— 暫留，
+   * 等「7 天內到期」「還沒到期」兩章接上（#1314 P1 第二支）才退場。
+   */
+  protected readonly chapterMode = computed(() => !this.hasFilters());
+
+  protected readonly monthLabel = computed(() => {
+    const month = this.summary()?.month.month;
+    return month ? `${Number(month.slice(5, 7))} 月` : '';
+  });
+  /** 已收幾成。**唯一的前端除法**；本月沒開單（billed=0）不除 */
+  protected readonly receivedPct = computed(() => {
+    const month = this.summary()?.month;
+    if (!month || month.billed <= 0) return null;
+    return Math.round((month.received / month.billed) * 100);
+  });
+  /** 色面那句話。`line2` 只在本月有開單時才有（billed=0 不報百分比） */
+  protected readonly bandTitle = computed(() => {
+    const month = this.summary()?.month;
+    if (!month) return null;
+    const pct = this.receivedPct();
+    return {
+      line1: `${this.monthLabel()}應收 NT$ ${month.billed.toLocaleString('en-US')}${pct === null ? '。' : '，'}`,
+      line2: pct === null ? '' : `已收 ${pct}%。`,
+    };
+  });
+  /** 還差多少。**唯一的前端減法**；已收超過應收時夾成 0（不顯示「還差負的」） */
+  protected readonly stillOwed = computed(() => {
+    const month = this.summary()?.month;
+    return month ? Math.max(0, month.billed - month.received) : 0;
+  });
+  /**
+   * 收著的三章（A6：逾期攤開，其餘摘要列、展開才抓）。三章共用一組狀態與載入函式，
+   * 不寫三份；各章展開、分頁彼此獨立。
+   */
+  protected readonly chapters = signal<Record<ChapterKey, ChapterState>>({
+    dueSoon: emptyChapter(),
+    notDue: emptyChapter(),
+    paid: emptyChapter(),
+  });
+
+  /** 畫面上的章，順序照 A6：7 天內到期 → 還沒到期 → 已繳清。沒有彙總或張數為 0 的章不畫 */
+  protected readonly chapterList = computed(() => {
+    const s = this.summary();
+    if (!s) return [];
+    const state = this.chapters();
+    return [
+      {
+        key: 'dueSoon' as const,
+        title: this.dueSoonLabel(),
+        count: s.dueSoon.count,
+        outstanding: s.dueSoon.outstanding as number | null,
+        state: state.dueSoon,
+      },
+      {
+        key: 'notDue' as const,
+        title: '還沒到期',
+        count: s.notDue.count,
+        outstanding: s.notDue.outstanding as number | null,
+        state: state.notDue,
+      },
+      {
+        key: 'paid' as const,
+        title: '已繳清',
+        // 繳清＋多退（整數相加，不是金額）
+        count: s.byStatus.paid.count + s.byStatus.overrefunded.count,
+        outstanding: null,
+        state: state.paid,
+      },
+    ].filter((chapter) => chapter.count > 0);
+  });
+  protected readonly PAGE_SIZE = PAGE_SIZE;
+
   ngOnInit(): void {
     this.load();
+    this.loadSummary();
     this.loadUninvoicedCount();
+  }
+
+  private loadSummary(): void {
+    this.service.summary().subscribe({
+      next: (res) => this.summary.set(res),
+      error: () => this.summary.set(null),
+    });
+  }
+
+  private patchChapter(key: ChapterKey, patch: Partial<ChapterState>): void {
+    this.chapters.update((all) => ({ ...all, [key]: { ...all[key], ...patch } }));
+  }
+
+  protected toggleChapter(key: ChapterKey): void {
+    const open = !this.chapters()[key].open;
+    this.patchChapter(key, { open });
+    if (open) this.loadChapter(key);
+  }
+
+  /** 逾期章的分頁（章節模式下 `invoices()` 就是逾期那張清單） */
+  protected onChapterPage(event: PaginatorState): void {
+    this.pageIndex.set(Math.floor((event.first ?? 0) / PAGE_SIZE) + 1);
+    this.load();
+  }
+
+  protected onChapterPageOf(key: ChapterKey, event: PaginatorState): void {
+    this.patchChapter(key, { page: Math.floor((event.first ?? 0) / PAGE_SIZE) + 1 });
+    this.loadChapter(key);
+  }
+
+  protected chapterFirst(state: ChapterState): number {
+    return (state.page - 1) * PAGE_SIZE;
+  }
+
+  /**
+   * 某一章展開後的列。到期兩章是 `dueState`（後端互斥章篩選）；已繳清章第 1 頁前面接全部多退
+   * （通常寥寥幾張、`pageSize` 取上限）、後面才是繳清的分頁，分頁器只數繳清的 ——
+   * 列表一次只收一個 `status`，所以是兩支請求。多退只在第 1 頁出現，翻頁不重複。
+   */
+  protected loadChapter(key: ChapterKey): void {
+    this.patchChapter(key, { loading: true, failed: false });
+    const page = this.chapters()[key].page;
+    const request =
+      key === 'paid'
+        ? forkJoin([
+            this.service.list({ status: 'paid', page, pageSize: PAGE_SIZE }),
+            page === 1 && (this.summary()?.byStatus.overrefunded.count ?? 1) > 0
+              ? this.service.list({ status: 'overrefunded', page: 1, pageSize: 200 })
+              : of(null),
+          ])
+        : forkJoin([this.service.list({ dueState: key, page, pageSize: PAGE_SIZE }), of(null)]);
+    request.subscribe({
+      next: ([main, over]) => {
+        this.patchChapter(key, {
+          rows: [...(over?.data ?? []), ...main.data],
+          total: main.meta.total,
+          loading: false,
+        });
+      },
+      error: () => this.patchChapter(key, { rows: [], failed: true, loading: false }),
+    });
+  }
+
+  /** 章裡每列的「到期」那一欄文字 */
+  protected dueText(invoice: Invoice): string {
+    if (invoice.status === 'overrefunded') return '多退';
+    if (invoice.status === 'paid') {
+      const on = lastPaidOn(invoice);
+      return on ? `${on} 繳清` : '已繳清';
+    }
+    const late = daysOverdue(invoice, this.today());
+    if (late > 0) return `逾期 ${late} 天`;
+    if (!invoice.dueDate) return '未設定到期日';
+    const left = daysUntilDue(invoice, this.today());
+    const soon = this.summary()?.dueSoon.days;
+    if (soon !== undefined && left <= soon) return left === 0 ? '今天到期' : `${left} 天後到期`;
+    return `${+invoice.dueDate.slice(5, 7)}/${+invoice.dueDate.slice(8, 10)} 到期`;
+  }
+
+  /** 章裡每列右邊的金額：待收／繳清是帳單金額，多退是退多少 */
+  protected chapterAmount(invoice: Invoice): number {
+    if (invoice.status === 'overrefunded') return overRefunded(invoice);
+    if (invoice.status === 'paid') return invoice.total;
+    return outstanding(invoice);
+  }
+
+  /** 做了任何會改變帳本的事之後：列表、彙總、（展開中的）已繳清章都要重抓 */
+  private refreshAll(): void {
+    this.load();
+    this.loadSummary();
+    this.reloadOpenChapters();
+  }
+
+  private reloadOpenChapters(): void {
+    for (const key of ['dueSoon', 'notDue', 'paid'] as const) {
+      if (this.chapters()[key].open) this.loadChapter(key);
+    }
   }
 
   private loadUninvoicedCount(): void {
@@ -231,7 +446,7 @@ export class PaymentsPage implements OnInit {
     ref?.onClose.subscribe((result: { issued: number } | undefined) => {
       if (!result) return;
       // 開了帳單 → 帳單列表與待開帳數字都變了
-      this.load();
+      this.refreshAll();
       this.loadUninvoicedCount();
       this.messageService.add({
         severity: 'success',
@@ -265,8 +480,10 @@ export class PaymentsPage implements OnInit {
       .list({
         studentId: this.selectedStudent()?.id,
         outstanding: this.dueFilter() === 'outstanding' || undefined,
-        overdue: this.dueFilter() === 'overdue' || undefined,
-        dueWithin: this.dueFilter() === 'dueSoon' ? this.DUE_SOON_DAYS : undefined,
+        // 章節模式下這張表就是逾期章
+        overdue: this.dueFilter() === 'overdue' || this.chapterMode() || undefined,
+        // 同一個閉區間，判準在後端 `dueStateOn`；前端不再帶天數
+        dueState: this.dueFilter() === 'dueSoon' ? 'dueSoon' : undefined,
         status: this.statusFilter() ?? undefined,
         page: this.pageIndex(),
         pageSize: PAGE_SIZE,
@@ -373,7 +590,7 @@ export class PaymentsPage implements OnInit {
 
     ref?.onClose.subscribe((updated: Invoice | undefined) => {
       // 只有真的動過才重新取數 —— 純瀏覽關掉不該讓整張表閃一次
-      if (updated) this.load();
+      if (updated) this.refreshAll();
     });
   }
 
@@ -388,6 +605,8 @@ export class PaymentsPage implements OnInit {
     ref?.onClose.subscribe((created: Invoice | undefined) => {
       if (!created) return;
       this.reload();
+      this.loadSummary();
+      this.reloadOpenChapters();
       // 開完帳最常見的下一步就是收錢（新生報名當場繳定金）。原本要關掉這個 dialog、
       // 回列表、再把剛開的那張找出來點進去 —— 三個動作換一件本來就連著的事。
       this.openDetail(created);

@@ -43,7 +43,7 @@
 - [[architecture/role-authorization]] — 掛載的 route 曾經只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
 - [[architecture/session-makeup]] — 停課的課堂可以被另一堂課補回來。連結存在 sessions.makeup_for_session_id 這個自我參照 FK 上，只為可解釋性——計費完全不需要它，因為補課那堂本來就會扣、停掉的那堂本來就不扣。
 - [[architecture/teacher-class-log]] — 一班一天一篇的教學紀錄與作業，從課堂卡的 bottom sheet 寫入。v1a 只寫草稿、刻意不放發布按鈕——因為發布不可逆而下游（家長端可見、LINE 推播）都還不存在。
-- [[architecture/teacher-schedule-mobile-day]] — 手機一日一屏、水平 scroll-snap 換日；桌機保留七欄。為什麼不寫手勢 JS、為什麼日期標題放在面板裡。
+- [[architecture/teacher-schedule-mobile-day]] — （2026-10-08 起已被 A6 單日清單取代）原設計：手機一日一屏、水平 scroll-snap 換日。現行：週條（所有寬度、可橫捲）＋單日清單＋首屏「接下來那堂」卡；下文 scroll-snap／手勢／日期標題的取捨是歷史紀錄。
 - [[architecture/teacher-students-view]] — 老師看自己任課班級的學生。同時處理 teacher/attendance 空殼——點名的家是課表，不是另一個選單項目。
 - [[architecture/teacher-today-flow]] — 老師端四個介面收成三個，儀表板刪除而非搬移。核心判準是「站在教室門口的老師此刻要做什麼」——凡是不回答這件事的東西都不進來，包含月曆。
 - [[architecture/teaching-history-not-payroll]] — 老師多為鐘點計酬，但系統刻意不計算薪資。職責是把「誰在什麼時候上了哪一堂」記到可信，計算方式留給人。

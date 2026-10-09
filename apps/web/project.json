@@ -15,7 +15,6 @@
         "outputPath": "dist/apps/web",
         "browser": "apps/web/src/main.ts",
         "tsConfig": "apps/web/tsconfig.app.json",
-        "inlineStyleLanguage": "scss",
         "assets": [
           {
             "glob": "**/*",
@@ -24,14 +23,9 @@
         ],
         "styles": [
           "primeicons/primeicons.css",
-          "apps/web/src/styles.scss",
+          "apps/web/src/styles.css",
           "apps/web/src/tailwind.css"
         ],
-        "stylePreprocessorOptions": {
-          "includePaths": [
-            "apps/web/src/app"
-          ]
-        },
         "allowedCommonJsDependencies": [
           "qrcode",
           "jsqr"

@@ -1,13 +1,19 @@
 ---
 title: 老師端課表 —— 行動優先單日檢視
-summary: 手機一日一屏、水平 scroll-snap 換日；桌機保留七欄。為什麼不寫手勢 JS、為什麼日期標題放在面板裡。
+summary: （2026-10-08 起已被 A6 單日清單取代）原設計：手機一日一屏、水平 scroll-snap 換日。現行：週條（所有寬度、可橫捲）＋單日清單＋首屏「接下來那堂」卡；下文 scroll-snap／手勢／日期標題的取捨是歷史紀錄。
 category: architecture
 status: active
-updated: 2026-08-31
+updated: 2026-10-08
 tags: [architecture, teacher, schedule, mobile]
 ---
 
 # 老師端課表 —— 行動優先單日檢視
+
+> **2026-10-08 更新（#1314 TS1，使用者裁 A6 全採）**：本頁描述的「七天水平 scroll-snap 軌道」與
+> 「手機沒有週條」**已被取代**。現行結構：**週條所有寬度都顯示、手機可橫捲，點一天切單日清單**
+> （換日不靠滑動，所以下面「不寫手勢 JS」「日期標題放在面板裡」兩節的前提已不存在）；選中日是今天時
+> 「接下來那堂」（`nextSession`：今天第一堂還沒上完的課，停課不算）抽出來放第一張、深框。
+> 預設選今天，這週沒有今天就週一，換週重設。**下文保留作歷史紀錄**，「接線」與 API 那幾節仍然有效。
 
 **對象**：`/teacher/schedule`（`features/teacher/pages/schedule/`）
 **規格**：[[specs/teacher/schedule]]（2026-08-30 裁決手機版為主要形態）

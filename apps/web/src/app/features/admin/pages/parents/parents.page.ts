@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 
 // PrimeNG
@@ -51,10 +52,6 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
 import { ParentImportDialogComponent } from './parent-import-dialog/parent-import-dialog.component';
 import { ParentDetailDialogComponent } from './parent-detail-dialog/parent-detail-dialog.component';
-import {
-  StatusDotComponent,
-  type StatusTone,
-} from '@shared/components/status/status-dot/status-dot.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
@@ -70,7 +67,7 @@ import {
   imports: [
     PageActionsComponent,
     PageOpenComponent,
-    StatusDotComponent,
+    RouterLink,
     FormsModule,
     ButtonModule,
     InputIconModule,
@@ -296,24 +293,42 @@ export class ParentsPage implements OnInit {
     this.loadParents();
   }
 
-  protected getStatusLabel(status: ParentStatus): string {
-    return PARENT_STATUS_LABELS[status] ?? status;
+  /** 章名照 A6（`PARENT_STATUS_LABELS` 是狀態點用的短詞：啟用／停用／封存） */
+  protected readonly chapterLabels: Record<ParentStatus, string> = {
+    active: '啟用中',
+    inactive: '停用',
+    archived: '已封存',
+  };
+
+  /** 識別帳號：Email 優先，沒有才用手機（A6 把兩欄合成一欄） */
+  protected identOf(parent: Parent): string | null {
+    return parent.email || parent.phone || null;
   }
 
   /**
-   * 只有兩種：還在用（done）與不在等任何事了（inactive）。
-   *
-   * 原本 `archived` 回 `danger` —— **封存一個家長帳號不是壞消息**，
-   * 那是行政主動做的決定。
-   *
-   * **這裡合併的只是顯示色調，不是動作本身**——`inactive`（停用，可逆，
-   * 見下方「啟用帳號」）與 `archived`（封存，不可逆，confirm 文案明講
-   * 「無法透過系統自動復原」）是兩個不同的動作，色調相同不代表它們是
-   * 同一件事。見 kb/wiki/architecture/deactivate-vs-archive.md。
+   * 第 `index` 列是不是新一章的開頭。列表由後端先依狀態再依姓名排（#1314 PA1），
+   * 所以同狀態的列一定相鄰；翻頁時章會跨頁，頁首那列照樣開一個章頭。
    */
-  protected statusTone(status: ParentStatus): StatusTone {
-    return status === 'active' ? 'done' : 'inactive';
+  protected startsChapter(index: number): boolean {
+    const rows = this.parents();
+    return index === 0 || rows[index - 1].status !== rows[index].status;
   }
+
+  /**
+   * 章名旁的人數。用 `summary`（全量），所以只有在沒有搜尋時才成立 ——
+   * `summary` 不受搜尋影響，搜尋中顯示它會跟底下的列數對不上（改顯示 `total`）。
+   */
+  protected chapterTally(status: ParentStatus): number | null {
+    if (this.searchQuery()) return null;
+    const s = this.summary();
+    return { active: s.activeCount, inactive: s.inactiveCount, archived: s.archivedCount }[status];
+  }
+
+  /** 搜尋或篩選中：顯示「顯示 N 位」，章名不帶人數 */
+  protected readonly narrowed = computed(
+    () => this.searchQuery() !== '' || this.selectedStatus() !== null,
+  );
+  protected readonly shownTotal = this.total.asReadonly();
 
   /** 見 `personHue` —— 契約是「同一個人到哪一頁都同色」，所以只能有一份實作 */
   protected getPersonHue(id: string): number {

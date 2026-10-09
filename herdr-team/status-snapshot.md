@@ -22,29 +22,41 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-07 11:2x 第十六次部署，CI，labor-reviewer-20261004-0638）
+## 🚀 線上是哪一版（2026-10-09 第十八次部署紀錄，CI，labor-reviewer-20261008-1356）
 
-**截線 `782785c1`**（#1262；`migrate @ 782785c1` apply 綠後 `deploy.yml` 自動觸發，run `37566649163`，11:25–11:26 台北，plan／deploy-api／verify-live success、**deploy-web skipped**＝本批只動 api）：api version `c28b68a8-c56b-4e69-aa62-16f2918222ec`（run log 的 `Current Version ID`）；web **沒有重發**，線上 `main-ZDXJBKGM.js` 是前一顆 run `37564053675`（`40f895e3`，#1334）發的。
-含：#1262（公開報名／試聽送出的防濫用：honeypot → 速率限制 → 可選 Turnstile，計數存 `public_applications.client_ip_hash`，只存 HMAC）；其餘窗口內 commit 是前端換版與 docs（那些由各自的 CI 部署帶上線，沒有單獨寫紀錄——第十五次沒寫）。
-**⓪**：窗口 `a51b0aa7..782785c1` 一支 migration `20261004055339_public_applications_rate_limit`，由 `migrate.yml` run `37566081829`（使用者 Approve）apply 綠已套，**先套完才部署**（api 會寫這欄也依它計數；插入帶不存在欄位會 500、計數查詢出錯在 #1262 的最後一顆 commit 起是 503 fail-closed）。**限度**：這回答「窗口內的 apply 綠」，正式 DB 實際套到哪一支仍是宣告值。
-**部署驗證**（本席 11:27 自測）：線上 `index.html`（`?cb=` 繞快取）的 `main-ZDXJBKGM.js` ＝前一次 CI 的 BUILT；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的，不是整個 dist**）；負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 308579 bytes）143 條路徑，`/api/public/enrollment-applications` 與 `/api/public/trial-applications` 的 POST 回應現在是 `201／400／404／429／500／503`（多了 429／503，對上 #1262）；`PUBLIC_ORG_SLUG` 仍沒設：公開 POST 回 404（fail-closed）。**限度**：我沒有打過真正的 429／503（正式環境公開頁關著，也不該去寫正式資料）；openapi 只證明服務正常、版本已換、守衛的回應型別在合約裡。
-**第十七批**：之後合進 main 的。**開公開頁之前**（`deploying.md`）：先設 `TURNSTILE_SECRET_KEY`（或確定不要），再把 `PUBLIC_ORG_SLUG` 放進 `env.production.vars`。
-入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
+**截線 `c0a514f3`**（#1411；今天 main 到這顆，含 #1395–#1411 十五支）。**第十七次（`aff7c3b1`）之後每顆 main 都由 `deploy.yml` 自動部署一次，中間各次沒有逐次寫紀錄**；這一節記「線上現在是哪一版」，兩半分開看：
 
-## 🧭 10-07 收工狀態（計畫席 labor-plan-20261004-1110，10-07 17:43 寫）
+- **web**：run `37751992112`（10-08 16:45–16:47 台北，plan／deploy-web／verify-live success，**deploy-api skipped**）→ `main-OSUR3ZBH.js`（`5180876e.clessia.pages.dev`）。
+- **api**：沒有任何一顆之後的 run 動過 api，**線上 api 是最後一次 deploy-api success 的那顆** —— run `37748778057`（截線 `fdb4f766`＝#1401，同 run web 也 success）→ version `20a85342-cda7-4c95-8090-d37574f9d6f1`。#1401 之後合的 #1402–#1411 都是 web／docs／spec，所以 api 與 `c0a514f3` 的 api 程式碼一致（**以 deploy-api skipped 為據，我沒逐檔比對**）。
+  含（自第十七次）：api —— #1381 帳單分校範圍、#1374 家長範圍撈到底、#1382 summary、#1399 courses／staff 章節計數、#1401 `dueSoon`／`notDue`／`dueState`、#1404 列表 `lastRemindedAt`、#1396 parents 依狀態排序；web —— #1400／#1410 帳單頁逾期／7 天內／還沒到期／已繳清各章、#1403 報名事件詞、#1407 老師課表、#1411 報名狀態詞。
+  **⓪**：本批窗口 `aff7c3b1..c0a514f3` **沒有新 migration**（`git log` 窗口內 `supabase/migrations` 無新增；**限度：這回答窗口內，不回答正式 DB 套到哪一支，仍是宣告值**）。
+  **部署驗證**（本席 10-09 05:00–06:17 自測，main 當時仍是 `c0a514f3`、20:20 複查 index.html 仍是 `main-OSUR3ZBH.js`）：線上 `index.html`（`?cb=` 繞快取）的 `main-OSUR3ZBH.js`＝run `37751992112` 的 CI 輸出；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的**）；負控 `chunk-ZZZZZZZZ.js` 回 `200 text/html`；正控：`chunk-HPTFETQZ.js` 內 `all_parents` 出現 1 次（main 本身 0 次——該字串在 lazy chunk，不在 main）；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 313525 bytes）144 條路徑，含 `/invoices/summary`、`dueState`、`dueSoon`、`lastRemindedAt`；未登入 `GET /api/invoices`、`/api/invoices/summary`、`/api/enrollments` 皆 401。
+  **限度**：沒有帶身分，所以『新欄位／新彙總桶讀得到』沒有被實測；openapi 含新欄位只證明新 api 上線（版本是 `20a85342`），不證明資料對。**我寫 api version 時只認得 deploy-api 日誌裡的 `Current Version ID`，沒有對 workers.dev 線上版本做回讀**（有沒有不需身分、能回線上版本的端點我沒查）。run `37745919637`（#1400，`220e17d2`）的 verify-live 曾 **failure**，之後每顆都 success；我沒有追那一次紅的原因（verify-live 紅了只紅燈不自動回退，且後續 run 已覆蓋它）。
+  **之後**：待命；1507 的帳單頁後續與 #1314 其餘項照計畫席派工。
+  入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
-**今天合進 main 37 支**（#1327–#1371 的 36 支＋#1262；reviewer 以 merged:2026-10-07 對過）。零生產席；常設席 reviewer（Ctx 約 66%，70% 蒸餾、85% 輪替）、監工 labor-ops-warden-20261007-1035、db-reset 皆待命。Weekly 26%（使用者要留 50% 給公司，Clessia 上限 45%）。
+## 🔁 10-09 交接狀態（計畫席 labor-plan-20261008-1357，10-09 21:17 寫；本席仍在任，Ctx 約 20%）
 
-- **#991 樣式層**：admin／teacher／parent／public／select-role／shared 全部歸零，scss-ledger **78 → 3**（只剩殼：`app.component.scss`、`shared/_breakpoints.scss`、`styles.scss`）。shared 的 `responsive-table` 走 A 方案（SCSS 搬成同值純 CSS、未分層、不動 16 頁），**進 layer 的時機＝T4 cssLayer 那支**（Z12b 全 utility 化列後續）。下一步是 S 批（殼：A6 頂欄＋開場色面，牽全站）與 T4（需使用者在場一次複製 .dev.vars）。
-- **後端**：#1262 防濫用上線；#1195／#1235／#1303／#1307 本機實打全對；#1339 考試班名、#1341 引用數、#1343 稽核補齊合進；#1338／#1342／#1345（保留類）、#1335、#1359（A28 盲點）、#1360、#1368 等觀察單待排。
-- **#1314**：五條前端小項全落地（#1349–#1352）；13 條待驗驗完（11 ✅、EN5／PA2 缺欄位）；G7 API 已修；ST5／PA5 暫緩（保留類）。
-- **席位 charter**：`labor-20261007-1048.md`（後端）、`labor-20261007-1200.md`／`labor-20261007-1448.md`（前端換版的證據法：傾印、編譯驗 class、規則從未生效判法）、`labor-reviewer.md` 新三節。下一個前端席先讀 1448 的一、三節。
-- **下一任計畫席上任提示**：`~/.cache/clessia-plan-20261004-1110/onboard-next-plan.txt`（第一行 `/rename`）；各席範本同目錄。心跳腳本第 36 行寫死計畫席名。
+**10-08 下午起合進 main 21 支**（10-08 全天起算 35 支）：保留類 #1395（帳單分校範圍）／#1397（家長範圍撈到底）／#1401（彙總 dueSoon／notDue）由您親合；非保留類全由 reviewer 1356 代合。**#1314 進度**：家長頁 PA1＋PA2、帳單頁 P1＋P2（#1400／#1410）、報名 EN5＋#1406 狀態詞、老師課表 TS1（#1407）、課表 S3 三支（#1414／#1415／#1417）、C1／ST1 後端計數（#1399）、P3 後端 lastRemindedAt（#1404）。**#991 已關**。線上：api 最後一次 deploy-api success 是 #1401（fdb4f766，version 20a85342）；web 已部署到 #1416（ab84adfd），#1417／#1418 的 run 寫這段時還沒出現 —— **版本一律現查 deploy.yml，上面「線上是哪一版」節是第十八次的快照**。
+
+- **使用者 10-08 裁的原則**（記憶 `feedback-a6-adopt-fully`）：**A6 全採，不做新舊取捨，只提「舊有新無」**；#1314 所有「待裁」視同採。**Showcase 優先序**在 #1314 10-08 留言（五段：管理端主線 → 人員課程家長報名 → 老師端 → 家長端 → 其餘），派工照它不照表格。
+- **額度**：本週上限暫改 **75%**（留 25% 給使用者；10-14 重置後回 45%）。10-09 21:18 Weekly 58%。
+- **席位**：生產席 1506（Opus 後端）／1507（Sonnet 前端）都已退場，charter #1405／#1408／#1416／#1418 全合，workspace 已關、worktree 留著。常設：reviewer 1356（Ctx 約 30%）、監工 1035、db-reset（本機 DB 有 10-07／10-08 實打殘留，對照表在 db-reset 10-08 報到訊息）。
+- **只開未修的保留類單**：#1393（billing-runs 無分校範圍）、#1394（GET /students/{id} 對 admin 沒套）、#1398（courses／classes／campuses 列表沒濾 org）、#1409（POST /invoices/{id}/items 沒驗 org）；非保留類：#1412（異動搜尋 q）。
+- **停擺教訓**：10-08 16:39 到 10-09 20:19 全席同斷是**機器睡眠**，不是額度（pane 有 `Your computer went to sleep` 那行）；使用者已接電源，合蓋才會睡。
+
+## 🔁 10-08 交接狀態（計畫席 labor-plan-20261004-1110，10-08 11:29 寫；Ctx 81% 主動交接）
+
+**10-08 上午合進 main 14 支**（#1373／#1375／#1376／#1377／#1378／#1379／#1380／#1384／#1385／#1386／#1388 等）。**#991 SCSS 帳面 0**（β #1386：styles.scss → styles.css、拿掉 Sass、六道 gate 改指 .css），A6 殼早在 10-03 #1154 上線。後端：#1345／#1338／#1342／PA2／EN5（migration 20261008020623 已 Approve 套上）全合；**#1382 帳單彙總 API ready 等二讀＋使用者親合**；#1383 家長端已繳 draft 留下週期。Weekly 39%（上限 45%，到線叫停）。
+
+- **在線席位**：labor-20261008-0848（Opus 後端，~30%）；labor-reviewer-20261004-0638（**82%，要輪替**）；labor-ops-warden-20261007-1035；labor-db-reset（70%）。前端席 0849 已退場（charter `labor-20261008-0849.md`）。
+- **下一任計畫席上任提示**：`~/.cache/clessia-plan-20261004-1110/onboard-next-plan.txt`（第一行 /rename）。
+- **10-08 學到**：派工前提會過期（我派「換殼」時 #1154／#1069 早合了，前端席 git log 抓到）；席位 Session 5 小時上限會讓訊息排佇列（1200 的「過」卡 40 分鐘）；reviewer「規則掉了≠回歸」誤判一次已入 charter；兩席並行每小時約 4 到 5% Weekly。
 
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-04 15:58，計畫席 labor-plan-20261004-1110。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-09 21:17，計畫席 labor-plan-20261008-1357。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（v3：計畫席合；含 migration 的仍要您按 Approve）
 
@@ -63,14 +75,26 @@
 
 ### 使用者要裁的
 
-- **#1314 的三題方向級**（A6 完整對齊第二輪追蹤單，10-04 開）：(a) 課表異動抽屜與 `/admin/changes` 留哪個（S3）；(b) 列表「分章」一族（課程 C1／人員 ST1／帳單 P1／家長 PA1）走「一次拿全部再分章」還是「API 回章節計數」，一次裁套整族；(c) 帳單列要不要放棄整列可點、改列內「提醒／收款」按鈕（P3）。
-- **開席（10-07 收工後）**：零生產席。下一步二選一：(1) Opus 做 #1100 P2 缺口（每條先 gate；#1314 裡 PP1／P1／P2 彙總 API、S3 抽屜、EN5／PA2 缺欄位可先排）；(2) Sonnet 做殼 S 批（要先裁 A6 頂欄與側欄取捨＋T4 要您在場）。herdr 開席屬高成本機制，計畫席開前會報成本、等您一句。
+- ~~#1314 三題方向級~~ 10-08 全裁：A6 全採（S3 兩個都做、分章走 API 計數、P3 列內按鈕；舊有新無四件：作廢留、列印收費單留、催繳備註刪、未開單名單留）。
+- **下週期開席（要您明講 OK，開前計畫席報成本）**：Opus 後端 —— #1412 異動搜尋、帳單批次提醒與匯出 API（P4／P5）、#1398／#1409／#1393／#1394 四張範圍補洞、#1383 轉 ready；Sonnet 前端 —— 帳單 P3 整組（**先做學生檔案帳單章**，順序約束在 #1314 P3 列）、課程 C1／人員 ST1 前端分章、儀表板與學生檔案對 A6 補列（#1314 第五節）。
 - **出勤模式層級**（#1314 SE1）：設計稿照 rules 畫成分校層級，日後一支 migration（保留類）；您未回，視同同意。
 - **#953** 退班後過去課堂在籍、**P4 家長端**、**QR 到班頁空殼**。
 
 > 10-04 已裁（不要重問）：不開新席→改開一席 Sonnet（14:0x）；#1262 出門前不用處理；A6 後續項要補缺口→#1314；fee-templates 不分章。
 > 10-03 已裁：#1127 門口平板不限類型；#1109 留歷程、#1113 維持、#1118 人工標記、#1120 試聽算名額、#1074 不顯示確認人、#1076 改用機構的「期」（期＝學期，各校放假日走 #1160，不做分校學期）、額滿改候補登記、入口頁手機版 V45、S3 OK；#1127 掃碼機不放公開頁；#1174 課表甘特直接取代清單；#1175 課程費用住 classes.default_fee_template_id。
 > 10-02 已裁：A6 定案（#973）；全站 SCSS 改 Tailwind、入口頁 1:1 換、公開頁照現狀搬（#991）；P1（admin/changes）提前；#1034 選 C＋A；#920 含老師唯讀；人員管理頁需 `manage_staff`（#1059）；憑證三組已輪替。
+
+## 10-08／10-09 計畫席學到、下一任會再用到的（labor-plan-20261008-1357，10-09 21:17 寫）
+
+- **「待裁」不要拿新舊取捨去問使用者**：他裁的是「A6 全採」，問取捨等於重開已裁的題；該做的是開 A6 稿（`.worktrees/<最近前端席>/.design-explorations/973-layout/a6-editorial/`，不進版控、隨席位複製）逐項找舊功能的落點，缺的才列。10-08 一次問錯被糾正。
+- **gate 前自己開檔驗前提，四次抓到「已經做完」**：S4／S5（#1174）、PA4／ST4（登入連結＋QR）、`/admin/changes` 已是 A6 形狀；席位說「現況沒有」時先 `grep`。反向：#1338 已關但席位還寫「已知缺口」。
+- **同一檔被兩支 PR 改會在合併後才撞**：#1401 從 #1400 前的 main 開，`InvoiceSummary` 兩份同名 interface merge 無衝突、TS 宣告合併不報錯、紅在別處 spec。保留類 PR 等久了一定要再 merge main；用 `git merge-tree` 預演一次。
+- **harness 的「提醒」有一半是紅燈**：api-param-coverage 在 CI 是 exit 1，席位本機 `| tail` 後看 `$?` 誤判；後端加 query 參數要同支 PR 補 web service 的參數型別＋手寫 `toQuery`，不加 EXEMPT。
+- **`gh` 偶發卡住 60 秒以上**：Bash 一律包 `perl -e 'alarm N; exit((system(@ARGV))>>8)'`（`alarm; exec` 無效，exec 後 alarm 消失）。
+- **訊息文字含 `%` 不能進 `printf` 格式串**：「Ctx 70%」把訊息截斷在那裡；用 heredoc 寫檔再 `"$(cat 檔)"`。
+- **送到 idle 席位後要看它轉 working**：`herdr agent prompt` 回 idle／done 不代表沒送到，6 秒後 `agent list` 看狀態；文字在 pane 裡（`grep -c`）才算送達。
+- **兩席並行真實成本**：10-08 15:06 到 16:39 兩席＋reviewer＋計畫席，Weekly 46 → 52（約 4%/小時）；10-09 晚一席＋reviewer 三小時 52 → 58。
+- **reviewer 自己開的 docs PR 由計畫席讀過後授權它代合**（部署紀錄 #1413、charter）—— 第二次檢查＝計畫席留言，不等第三個人。
 
 ## 10-07 計畫席學到、下一任會再用到的（labor-plan-20261004-1110，10-07 17:43 寫）
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { OVERDUE_DUE_DATE_COLUMN, isOverdueOn, whereOverdue } from './invoice-overdue';
+import {
+  OVERDUE_DUE_DATE_COLUMN,
+  isOverdueOn,
+  whereOverdue,
+  DUE_SOON_DAYS,
+  dueStateOn,
+} from './invoice-overdue';
 
 describe('isOverdueOn', () => {
   /**
@@ -43,5 +49,32 @@ describe('whereOverdue', () => {
 
     expect(calls).toEqual([['lt', OVERDUE_DUE_DATE_COLUMN, '2026-03-31']]);
     expect(result).toBe(query);
+  });
+});
+
+describe('dueStateOn（#1314 P1）', () => {
+  const TODAY = '2026-10-08';
+
+  it('邊界：昨天 overdue；今天與第 7 天 dueSoon；第 8 天 notDue；沒到期日 notDue', () => {
+    expect(dueStateOn('2026-10-07', TODAY)).toBe('overdue');
+    expect(dueStateOn(TODAY, TODAY)).toBe('dueSoon');
+    expect(dueStateOn('2026-10-15', TODAY)).toBe('dueSoon');
+    expect(dueStateOn('2026-10-16', TODAY)).toBe('notDue');
+    expect(dueStateOn(null, TODAY)).toBe('notDue');
+  });
+
+  it('跨月也照日曆天算（第 7 天在下個月）', () => {
+    expect(dueStateOn('2026-11-06', '2026-10-30')).toBe('dueSoon');
+    expect(dueStateOn('2026-11-07', '2026-10-30')).toBe('notDue');
+  });
+
+  it('跟 isOverdueOn 同一條分界', () => {
+    for (const due of ['2026-10-06', '2026-10-07', TODAY, '2026-10-09', null]) {
+      expect(dueStateOn(due, TODAY) === 'overdue').toBe(isOverdueOn(due, TODAY));
+    }
+  });
+
+  it('DUE_SOON_DAYS 是 7（前端章名讀 summary.dueSoon.days，改這裡會一起改）', () => {
+    expect(DUE_SOON_DAYS).toBe(7);
   });
 });

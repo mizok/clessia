@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { format, startOfWeek } from 'date-fns';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { AttendanceService } from '@core/attendance.service';
 import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
@@ -33,6 +34,8 @@ describe('SchedulePage', () => {
       orgSettingsFails?: boolean;
       attendanceResponsible?: 'admin' | 'teacher';
       sessions?: unknown[];
+      /** 這些 fixture 放在本週一；單日清單只畫選中日，所以要先點那一天（結果不是意圖） */
+      selectDate?: string;
     } = {},
   ) {
     const orgSettings = signal({
@@ -93,6 +96,10 @@ describe('SchedulePage', () => {
     fixture.detectChanges();
     component = fixture.componentInstance;
     await fixture.whenStable();
+    if (options.selectDate) {
+      (component as unknown as { selectDay: (d: string) => void }).selectDay(options.selectDate);
+      fixture.detectChanges();
+    }
   }
 
   it('should create', async () => {
@@ -205,7 +212,11 @@ describe('SchedulePage', () => {
     ];
 
     it('admin 模式：顯示中性的「未點名」，不出現「漏點名」', async () => {
-      await setup({ attendanceResponsible: 'admin', sessions: PAST_UNTAKEN });
+      await setup({
+        attendanceResponsible: 'admin',
+        sessions: PAST_UNTAKEN,
+        selectDate: MONDAY_THIS_WEEK,
+      });
       const text = fixture.nativeElement.textContent as string;
       expect(text).toContain('未點名');
       expect(text).not.toContain('漏點名');
@@ -213,7 +224,11 @@ describe('SchedulePage', () => {
     });
 
     it('teacher 模式：同一堂課才叫「漏點名」', async () => {
-      await setup({ attendanceResponsible: 'teacher', sessions: PAST_UNTAKEN });
+      await setup({
+        attendanceResponsible: 'teacher',
+        sessions: PAST_UNTAKEN,
+        selectDate: MONDAY_THIS_WEEK,
+      });
       const text = fixture.nativeElement.textContent as string;
       expect(text).toContain('漏點名');
       expect(text).toContain('堂待點名');
@@ -221,14 +236,22 @@ describe('SchedulePage', () => {
 
     // #920：行政負責時老師沒有點名入口，但要能唯讀看自己課堂的名單（rules/attendance-rules.md）
     it('admin 模式：有「看名單」、沒有「開始點名」', async () => {
-      await setup({ attendanceResponsible: 'admin', sessions: PAST_UNTAKEN });
+      await setup({
+        attendanceResponsible: 'admin',
+        sessions: PAST_UNTAKEN,
+        selectDate: MONDAY_THIS_WEEK,
+      });
       const text = fixture.nativeElement.textContent as string;
       expect(text).toContain('看名單');
       expect(text).not.toContain('開始點名');
     });
 
     it('teacher 模式：有「開始點名」、沒有「看名單」', async () => {
-      await setup({ attendanceResponsible: 'teacher', sessions: PAST_UNTAKEN });
+      await setup({
+        attendanceResponsible: 'teacher',
+        sessions: PAST_UNTAKEN,
+        selectDate: MONDAY_THIS_WEEK,
+      });
       const text = fixture.nativeElement.textContent as string;
       expect(text).toContain('開始點名');
       expect(text).not.toContain('看名單');
@@ -262,6 +285,138 @@ describe('SchedulePage', () => {
       );
     });
   });
+  /**
+   * #1314 TS1：單日清單取代七天軌道。斷言**畫面上有什麼**，不斷言某個 signal。
+   * 假時鐘固定在今天中午，「接下來」才不會隨跑測試的時間漂。
+   */
+  describe('單日清單與「接下來那堂」（#1314 TS1）', () => {
+    const TODAY = format(new Date(), 'yyyy-MM-dd');
+    const row = (over: Record<string, unknown>) => ({
+      sessionId: 'x',
+      eventId: 'e',
+      status: 'scheduled',
+      isSubstitute: false,
+      examCount: 0,
+      usesContactBook: false,
+      classId: 'c',
+      className: '班',
+      courseName: null,
+      teacherName: null,
+      campusId: null,
+      campusName: null,
+      eventDate: TODAY,
+      startTime: '09:00',
+      endTime: '10:00',
+      enrolledCount: 5,
+      presentCount: 0,
+      onLeaveCount: 0,
+      absentCount: 0,
+      takenAt: null,
+      ...over,
+    });
+    const names = () =>
+      [...fixture.nativeElement.querySelectorAll('.schedule-page__session')].map((el) =>
+        (el as HTMLElement).querySelector('p:nth-child(2)')?.textContent?.trim(),
+      );
+
+    // 時鐘釘在今天中午。**不能用 `vi.useRealTimers()` 收尾**：test:timetravel 的 setup 已經
+    // 把時鐘推到未來，收成真時鐘會讓這個 describe 之後的測試全看到「現在」（#670 的形狀）。
+    // 所以只還原我們動過的那一層。
+    let restore: () => void;
+    beforeEach(() => {
+      const alreadyFake = vi.isFakeTimers();
+      const before = Date.now();
+      if (!alreadyFake) vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(`${TODAY}T12:00:00`));
+      restore = () => (alreadyFake ? vi.setSystemTime(before) : vi.useRealTimers());
+    });
+    afterEach(() => restore());
+
+    const sessions = () => [
+      row({ sessionId: '1', className: '上午班', startTime: '09:00', endTime: '10:00' }),
+      row({ sessionId: '2', className: '晚上班', startTime: '19:00', endTime: '21:00' }),
+      row({ sessionId: '3', className: '傍晚班', startTime: '16:00', endTime: '17:00' }),
+    ];
+
+    it('預設選今天，畫面上只有今天的課（沒有水平軌道）', async () => {
+      await setup({
+        sessions: [
+          ...sessions(),
+          row({ sessionId: '9', className: '別天班', eventDate: '2000-01-01' }),
+        ],
+      });
+      expect(fixture.nativeElement.querySelector('.schedule-page__track')).toBeNull();
+      expect(fixture.nativeElement.textContent).not.toContain('別天班');
+      expect(names().length).toBe(3);
+    });
+
+    it('今天：下一堂排第一張並標記，其餘照時間排，而且沒有重複', async () => {
+      await setup({ sessions: sessions() });
+      // 假時鐘中午 → 上午班已結束，傍晚班是下一堂
+      expect(names()).toEqual(['傍晚班', '上午班', '晚上班']);
+      const cards = fixture.nativeElement.querySelectorAll('.schedule-page__session');
+      expect(cards[0].classList.contains('schedule-page__session--next')).toBe(true);
+      expect(fixture.nativeElement.querySelectorAll('.schedule-page__session--next').length).toBe(
+        1,
+      );
+    });
+
+    it('週條可以換日：點別天只看到那天，而且沒有「接下來」卡', async () => {
+      const mondayLater = format(
+        new Date(new Date(`${TODAY}T12:00:00`).getTime() + 86_400_000),
+        'yyyy-MM-dd',
+      );
+      await setup({
+        sessions: [
+          ...sessions(),
+          row({ sessionId: '8', className: '明天班', eventDate: mondayLater }),
+        ],
+      });
+      const days = [...fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-day')];
+      const tomorrow = days.find((d) =>
+        (d as HTMLElement).textContent?.includes(
+          format(new Date(`${mondayLater}T12:00:00`), 'M/d'),
+        ),
+      ) as HTMLElement | undefined;
+      // 今天若是週日，明天在下一週；那種日子這條只驗到「今天」之外沒有東西可點，跳過
+      if (!tomorrow) return;
+      tomorrow.click();
+      fixture.detectChanges();
+
+      expect(names()).toEqual(['明天班']);
+      expect(fixture.nativeElement.querySelector('.schedule-page__session--next')).toBeNull();
+      expect(tomorrow.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('這天沒課：說「這天沒有你的課。」', async () => {
+      await setup();
+      expect(fixture.nativeElement.textContent).toContain('這天沒有你的課。');
+    });
+
+    it('換週後選中日回到那週的週一（那週沒有今天）', async () => {
+      await setup({ sessions: sessions() });
+      (component as unknown as { nextWeek: () => void }).nextWeek();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const selected = fixture.nativeElement.querySelectorAll('[aria-pressed="true"]');
+      expect(selected.length).toBe(1);
+      expect(selected[0].getAttribute('aria-current')).toBeNull();
+    });
+
+    it('聯絡簿缺漏徽章跟著選中日走', async () => {
+      await setup({ sessions: sessions() });
+      (component as unknown as { missingByDate: { set: (m: Map<string, number>) => void } })[
+        'missingByDate'
+      ].set(new Map([[TODAY, 4]]));
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('h2 [aria-label="4 位學生的聯絡簿還沒寫"]'),
+      ).not.toBeNull();
+    });
+  });
+
   describe('載入失敗要產生訊號（#484 H1／H3）', () => {
     /**
      * **#800**：這條原本斷言 `.schedule-page__track` 的 `hidden` 屬性是 true，
@@ -307,6 +462,7 @@ describe('SchedulePage', () => {
 
     it('換週查失敗不留上一週的資料 —— 舊資料配新標題比空畫面危險', async () => {
       await setup({
+        selectDate: MONDAY_THIS_WEEK,
         sessions: [
           {
             sessionId: 's1',

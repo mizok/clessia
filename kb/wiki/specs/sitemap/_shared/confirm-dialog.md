@@ -105,7 +105,7 @@ updated: 2026-09-13
 
 > ⚠️ **2026-09-13 訂正：上面的對話框尺寸是在 ResizeObserver 失效的環境下量的。**
 > `--shell-layout-body-height` 靠 `InheritSizeDirective` 的 ResizeObserver 寫入，
-> 而**它在 MCP 的背景分頁 iframe 裡不觸發** —— 於是 `styles.scss:721-722` 的
+> 而**它在 MCP 的背景分頁 iframe 裡不觸發** —— 於是 `styles.css:721-722` 的
 > `max-height: calc(var(--shell-layout-body-height) - …)` 的 `calc()` 無效，
 > **computed 值是 `none`，對話框不受限**。
 >
