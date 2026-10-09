@@ -52,6 +52,8 @@ export interface ParentInvoiceListResponse {
      * 多筆時 `campusName` 標分校；全都沒設定 → `[]`。
      */
     paymentInfo: Array<{ campusName: string | null; text: string }>;
+    /** 本學期已繳（#1314 PP1）：明細掛在本期的帳單淨收；沒有涵蓋今天的收費期間 → null */
+    term?: { name: string; startDate: string; endDate: string; paid: number } | null;
   };
 }
 
