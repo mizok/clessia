@@ -32,6 +32,10 @@ const ACADEMY_ROW = {
     pass_score: 60,
     scope_note: '第三章 一元二次方程式',
     subjects: { name: '數學' },
+    academy_exam_classes: [
+      { class_id: 'c-mine', classes: { name: '國三數學 A 班' } },
+      { class_id: 'c-other', classes: { name: '別班' } },
+    ],
   },
 };
 
@@ -67,6 +71,7 @@ function fakeChildDb(
       },
     }),
     from: (table: string) => ({
+      pluck: async () => ({ rows: [], ids: ['c-mine'], error: null }),
       select: (_cols: string, opts?: { head?: boolean }) => {
         if (opts?.head) {
           const count = table === 'academy_scores' ? academyRecent : schoolRecent;
@@ -136,6 +141,8 @@ describe('GET /api/me/grades', () => {
       passScore: 60,
       // #1076：展開詳情顯示的考試描述＝校內考的範圍說明（scope_note）
       description: '第三章 一元二次方程式',
+      // PG1：班名只含這個孩子報名過的班（別班不外流）
+      className: '國三數學 A 班',
     });
     expect(body.data[1]).toMatchObject({
       type: 'school',
@@ -147,12 +154,42 @@ describe('GET /api/me/grades', () => {
       passScore: null,
       // 段考沒有描述欄位（school_exams 只有 label）
       description: null,
+      className: null,
     });
+    // 回應鍵集合是契約（家長資料面）：這一輪只多 className
+    expect(Object.keys(body.data[0]).sort()).toEqual(
+      [
+        'className',
+        'createdAt',
+        'description',
+        'examDate',
+        'examId',
+        'examName',
+        'id',
+        'passScore',
+        'score',
+        'status',
+        'subjectName',
+        'totalScore',
+        'type',
+      ].sort(),
+    );
     // 不回 studentId / studentName —— 家長已經知道自己在看誰
     expect(body.data[0]).not.toHaveProperty('studentId');
     expect(body.data[0]).not.toHaveProperty('studentName');
     // recentCount 是兩張表獨立查詢加總，不靠當頁筆數
     expect(body.meta).toMatchObject({ total: 2, recentCount: 2 });
+  });
+
+  it('報名班查詢失敗 → 500（不折成沒有班名）', async () => {
+    const db: any = fakeChildDb([ACADEMY_ROW], [], 1, 0);
+    const from = db.from;
+    db.from = (table: string) => ({
+      ...from(table),
+      pluck: async () => ({ rows: [], ids: [], error: { message: 'boom' } }),
+    });
+    const res = await appWith(['parent'], [CHILD_ID], db).request(`/?childId=${CHILD_ID}`);
+    expect(res.status).toBe(500);
   });
 
   it('meta.periods 回機構的期（billing_periods），前端用它判考試落在哪個期（#1076）', async () => {

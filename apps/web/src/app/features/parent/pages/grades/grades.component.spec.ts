@@ -9,6 +9,8 @@ import {
   type ParentScoreListResponse,
   type ParentScoreRecord,
 } from '@core/parent-grades.service';
+import { SystemClockService } from '@core/system-clock.service';
+import { provideRouter } from '@angular/router';
 import { GradesComponent } from './grades.component';
 
 const PAGE = {
@@ -27,6 +29,8 @@ function record(overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord {
     examName: '第一次段考',
     examDate: '2026-09-01',
     subjectName: '數學',
+    className: '國三數學 A 班',
+    createdAt: '2026-09-01T02:00:00Z',
     score: 88,
     totalScore: 100,
     status: 'scored',
@@ -42,6 +46,7 @@ function record(overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord {
  * 使用者看到的是「載入失敗」，而那跟連線問題長得一樣。
  */
 const API_MAX_PAGE_SIZE = 100;
+const TODAY = '2026-09-10';
 
 describe('GradesComponent', () => {
   let fixture: ComponentFixture<GradesComponent>;
@@ -80,6 +85,7 @@ describe('GradesComponent', () => {
           },
         },
         { provide: ParentGradesService, useValue: { list: listMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: () => TODAY } },
       ],
     });
 
@@ -131,18 +137,18 @@ describe('GradesComponent', () => {
     );
   });
 
-  it('依科目分組顯示', () => {
+  it('依課程分組顯示；段考（沒有班）歸「學校段考」放最後', () => {
     createComponent({
       data: [
-        record({ id: 'r1', subjectName: '數學' }),
-        record({ id: 'r2', subjectName: '英文', examName: '單字測驗' }),
+        record({ id: 'r1', className: '數學班' }),
+        record({ id: 'r2', className: '英文班', examName: '單字測驗' }),
       ],
       meta: { total: 2, page: 1, pageSize: 100, recentCount: 0, periods: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    const titles = fixture.nativeElement.querySelectorAll('.grades__subject-title');
+    const titles = fixture.nativeElement.querySelectorAll('.grades__class h2');
     expect(titles.length).toBe(2);
   });
 
@@ -186,7 +192,8 @@ describe('GradesComponent', () => {
   });
 
   // #1076（規格「展開詳情」）：有描述的那筆可以展開看，沒有描述的不給一個點了什麼都沒有的展開
-  it('有描述的成績可以展開看描述，沒有描述的不能展開', () => {
+  // A6：每一列都能展開；說明有才寫，滿分與登錄日一定有
+  it('每一列都可展開：有描述寫描述，另有滿分與登錄日', () => {
     createComponent({
       data: [
         record({ id: 'r1', examName: '單元小考', description: '第三章 一元二次方程式' }),
@@ -197,14 +204,57 @@ describe('GradesComponent', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    const el = fixture.nativeElement as HTMLElement;
-    const items = el.querySelectorAll('details.grades__item');
-    expect(items.length).toBe(1);
-    expect(items[0].querySelector('summary')?.textContent).toContain('單元小考');
+    const items = (fixture.nativeElement as HTMLElement).querySelectorAll('details.grades__item');
+    expect(items.length).toBe(2);
     expect(items[0].querySelector('.grades__desc')?.textContent).toContain('第三章 一元二次方程式');
-    // 沒有描述的那筆照舊是一般列
-    const plain = [...el.querySelectorAll('div.grades__record')].map((r) => r.textContent);
-    expect(plain.some((t) => t?.includes('單字測驗'))).toBe(true);
+    expect(items[1].querySelector('.grades__desc')).toBeNull();
+    expect(items[1].querySelector('.grades__total')?.textContent).toContain('滿分 100 分');
+    expect(items[1].querySelector('.grades__recorded')?.textContent).toContain('9/1 登錄');
+  });
+
+  it('NEW：登錄日在 7 天內才標；開場標題句是最近一次已登錄的成績', () => {
+    createComponent({
+      data: [
+        record({ id: 'new', examName: '新的', createdAt: '2026-09-08T02:00:00Z', score: 77 }),
+        record({ id: 'old', examName: '舊的', createdAt: '2026-08-20T02:00:00Z' }),
+      ],
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 1, periods: [] },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const items = fixture.nativeElement.querySelectorAll('details.grades__item');
+    expect(items[0].querySelector('.grades__new')).not.toBeNull();
+    expect(items[1].querySelector('.grades__new')).toBeNull();
+    expect(fixture.nativeElement.querySelector('h1').textContent).toContain(
+      '最近一次 數學 77 分。',
+    );
+  });
+
+  // PG2：篩光了跟「完全沒成績」分開講，並有出路
+  it('篩光時寫「目前的篩選下沒有成績」並可清除；清除後回到預設', () => {
+    const old = createComponent({
+      data: [record({ examDate: '2026-01-01' })],
+      meta: { total: 1, page: 1, pageSize: 100, recentCount: 0, periods: [] },
+    }) as unknown as { onRangeChange: (r: string) => void };
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    old.onRangeChange('1');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('目前的篩選下沒有成績');
+    (fixture.nativeElement.querySelector('.grades__clear--empty') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('details.grades__item').length).toBe(1);
+    expect(fixture.nativeElement.textContent).not.toContain('目前的篩選下沒有成績');
+  });
+
+  it('完全沒有成績 → 另一句話，不給清除篩選', () => {
+    createComponent();
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('還沒有任何成績');
+    expect(fixture.nativeElement.querySelector('.grades__clear')).toBeNull();
   });
 
   it('缺考/補考用 chip 顯示，不顯示分數', () => {
@@ -225,20 +275,20 @@ describe('GradesComponent', () => {
     expect(isFailing.isFailing(record({ score: 60, totalScore: 100 }))).toBe(false);
   });
 
-  it('科目篩選只顯示選中的科目', () => {
+  it('課程篩選只顯示選中的課程', () => {
     const comp = createComponent({
-      data: [record({ id: 'r1', subjectName: '數學' }), record({ id: 'r2', subjectName: '英文' })],
+      data: [record({ id: 'r1', className: '數學班' }), record({ id: 'r2', className: '英文班' })],
       meta: { total: 2, page: 1, pageSize: 100, recentCount: 0, periods: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    (comp as unknown as { onSubjectChange: (s: string | null) => void }).onSubjectChange('數學');
+    (comp as unknown as { onClassChange: (s: string | null) => void }).onClassChange('數學班');
     fixture.detectChanges();
 
-    const titles = fixture.nativeElement.querySelectorAll('.grades__subject-title');
+    const titles = fixture.nativeElement.querySelectorAll('.grades__class h2');
     expect(titles.length).toBe(1);
-    expect(titles[0].textContent).toBe('數學');
+    expect(titles[0].textContent).toContain('數學班');
   });
 
   /**
@@ -257,14 +307,14 @@ describe('GradesComponent', () => {
         of(
           childId === 'child-1'
             ? {
-                data: [record({ id: 'r1', subjectName: '數學', examDate: '2026-09-01' })],
+                data: [record({ id: 'r1', className: '數學班', examDate: '2026-09-01' })],
                 meta: { total: 1, page: 1, pageSize: 100, recentCount: 1, periods: [] },
               }
             : {
                 data: [
                   record({
                     id: 'r2',
-                    subjectName: '自然',
+                    className: '自然班',
                     examName: '自然模擬考',
                     examDate: '2026-09-01',
                   }),
@@ -277,24 +327,24 @@ describe('GradesComponent', () => {
 
     it('切換到沒有該科目的孩子時，不得把他的成績全部濾光', () => {
       const comp = createComponent() as unknown as {
-        onSubjectChange: (s: string | null) => void;
+        onClassChange: (s: string | null) => void;
       };
       listByChild();
 
       activeChildId.set('child-1');
       fixture.detectChanges();
-      comp.onSubjectChange('數學');
+      comp.onClassChange('數學班');
       fixture.detectChanges();
       // 前提成立：篩選確實生效了（孩子一只有數學，所以仍是 1 組）
-      expect(fixture.nativeElement.querySelectorAll('.grades__subject-title').length).toBe(1);
+      expect(fixture.nativeElement.querySelectorAll('.grades__class h2').length).toBe(1);
 
       activeChildId.set('child-2');
       fixture.detectChanges();
 
-      const titles = fixture.nativeElement.querySelectorAll('.grades__subject-title');
+      const titles = fixture.nativeElement.querySelectorAll('.grades__class h2');
       expect(titles.length).toBe(1);
-      expect(titles[0].textContent).toBe('自然');
-      expect(fixture.nativeElement.textContent).not.toContain('沒有符合條件的成績');
+      expect(titles[0].textContent).toContain('自然班');
+      expect(fixture.nativeElement.textContent).not.toContain('目前的篩選下沒有成績');
     });
 
     /**

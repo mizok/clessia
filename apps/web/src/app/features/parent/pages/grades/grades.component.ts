@@ -20,6 +20,7 @@ import {
   type ParentGradePeriod,
   type ParentScoreRecord,
 } from '@core/parent-grades.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
@@ -27,12 +28,18 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
-import { format } from 'date-fns';
 import {
   SCORE_STATUS_LABELS,
   defaultPeriodFilter,
   filterByPeriod,
-  groupBySubject,
+  RANGE_OPTIONS,
+  monthDay,
+  classOf,
+  filterByRange,
+  groupByClass,
+  isNewRecord,
+  recordedOn,
+  type RangeFilter,
   periodOptions,
   type PeriodFilter,
 } from './grades.util';
@@ -71,6 +78,10 @@ export class GradesComponent implements OnInit {
 
   private readonly childScope = inject(ChildScopeService);
   private readonly gradesService = inject(ParentGradesService);
+  protected readonly today = inject(SystemClockService).todayTaipei;
+  protected readonly rangeOptions = RANGE_OPTIONS;
+  protected readonly monthDay = monthDay;
+  protected readonly childName = computed(() => this.childScope.activeChild()?.name ?? '孩子');
 
   protected readonly statusLabels = SCORE_STATUS_LABELS;
 
@@ -93,42 +104,56 @@ export class GradesComponent implements OnInit {
   /** `null`＝使用者還沒選過，第一次拿到期清單時套預設（含今天的期） */
   protected readonly periodFilter = signal<PeriodFilter | null>(null);
   protected readonly periodOptions = computed(() => periodOptions(this.periods(), this.records()));
-  protected readonly subjectFilter = signal<string | null>(null);
+  /** `null`＝全部課程 */
+  protected readonly classFilter = signal<string | null>(null);
+  protected readonly rangeFilter = signal<RangeFilter>('all');
+  /** 第一次拿到期清單時算出的預設學期（含今天的期）；「清除篩選」回到它 */
+  private readonly defaultPeriod = signal<PeriodFilter>('all');
 
-  protected readonly subjectOptions = computed(() => {
-    const names = new Set<string>();
-    for (const record of this.records()) {
-      if (record.subjectName) names.add(record.subjectName);
-    }
-    return Array.from(names)
-      .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
-      .map((name) => ({ label: name, value: name }));
-  });
+  /** 課程下拉只列這個孩子有成績的課（含「學校段考」） */
+  protected readonly classOptions = computed(() =>
+    [...new Set(this.records().map(classOf))].map((name) => ({ label: name, value: name })),
+  );
 
   private readonly filteredRecords = computed(() => {
-    const bySubject = this.subjectFilter()
-      ? this.records().filter((r) => r.subjectName === this.subjectFilter())
+    const byClass = this.classFilter()
+      ? this.records().filter((r) => classOf(r) === this.classFilter())
       : this.records();
-    return filterByPeriod(bySubject, this.periodFilter() ?? 'all', this.periods());
+    const byPeriod = filterByPeriod(byClass, this.periodFilter() ?? 'all', this.periods());
+    return filterByRange(byPeriod, this.rangeFilter(), this.today());
   });
 
-  protected readonly groups = computed(() => groupBySubject(this.filteredRecords()));
+  protected readonly groups = computed(() => groupByClass(this.filteredRecords()));
+  protected readonly shownCount = computed(() => this.filteredRecords().length);
+  protected readonly filtered = computed(
+    () =>
+      this.classFilter() !== null ||
+      this.rangeFilter() !== 'all' ||
+      (this.periodFilter() ?? 'all') !== this.defaultPeriod(),
+  );
+
+  /** 篩選前最新一筆已登錄的成績（API 已新到舊）——開場標題句用 */
+  protected readonly latest = computed(
+    () => this.records().find((r) => r.status === 'scored' && r.score !== null) ?? null,
+  );
+  protected readonly classCount = computed(() => groupByClass(this.records()).length);
 
   constructor() {
     effect(() => {
       const childId = this.childScope.activeChildId();
       if (!childId) return;
       untracked(() => {
-        // **換孩子 = 換一整組科目**，所以舊的科目篩選要一起丟掉（#703）。
+        // **換孩子 = 換一整組科目**，所以舊的課程篩選要一起丟掉（#703）。
         //
-        // 不丟的話它不是「篩選殘留」這麼單純：`subjectOptions()` 是從 `records()`
+        // 不丟的話它不是「篩選殘留」這麼單純：`classOptions()` 是從 `records()`
         // 算出來的，舊科目在新孩子身上不存在 → `p-select` 解不出標籤 →
         // **退回顯示 placeholder「全部科目」**。篩選還在生效，控制項卻長得像沒有篩選，
         // 而空狀態文案跟「這個孩子真的沒有成績」一模一樣 —— 家長讀成後者。
         //
         // **學期篩選刻意不重設**：期是機構的，換孩子還是同一組期，選中的那個顯示得出來、
         // 不會騙人，所以使用者的選擇留著。會騙人的只有「值還在生效但畫面上消失」的那一個。
-        this.subjectFilter.set(null);
+        this.classFilter.set(null);
+        this.rangeFilter.set('all');
         this.load(childId);
       });
     });
@@ -138,8 +163,26 @@ export class GradesComponent implements OnInit {
     this.childScope.load();
   }
 
-  protected onSubjectChange(subject: string | null): void {
-    this.subjectFilter.set(subject);
+  protected onClassChange(name: string | null): void {
+    this.classFilter.set(name);
+  }
+
+  protected onRangeChange(range: RangeFilter): void {
+    this.rangeFilter.set(range);
+  }
+
+  protected clearFilters(): void {
+    this.classFilter.set(null);
+    this.rangeFilter.set('all');
+    this.periodFilter.set(this.defaultPeriod());
+  }
+
+  protected isNew(record: ParentScoreRecord): boolean {
+    return isNewRecord(record, this.today());
+  }
+
+  protected recordedOn(record: ParentScoreRecord): string {
+    return recordedOn(record);
   }
 
   protected onPeriodChange(filter: PeriodFilter | null): void {
@@ -170,11 +213,8 @@ export class GradesComponent implements OnInit {
         this.recentCount.set(res.meta.recentCount);
         this.total.set(res.meta.total);
         this.periods.set(res.meta.periods);
-        if (this.periodFilter() === null) {
-          this.periodFilter.set(
-            defaultPeriodFilter(res.meta.periods, format(new Date(), 'yyyy-MM-dd')),
-          );
-        }
+        this.defaultPeriod.set(defaultPeriodFilter(res.meta.periods, this.today()));
+        if (this.periodFilter() === null) this.periodFilter.set(this.defaultPeriod());
         this.loading.set(false);
       },
       error: () => {

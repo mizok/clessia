@@ -1,5 +1,12 @@
 import type { ParentGradePeriod, ParentScoreRecord } from '@core/parent-grades.service';
-import { defaultPeriodFilter, filterByPeriod, groupBySubject, periodOptions } from './grades.util';
+import {
+  defaultPeriodFilter,
+  filterByPeriod,
+  groupByClass,
+  isNewRecord,
+  filterByRange,
+  periodOptions,
+} from './grades.util';
 
 const record = (overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord => ({
   id: 'r1',
@@ -7,6 +14,8 @@ const record = (overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord =
   examName: '第一次段考',
   examDate: '2026-09-01',
   subjectName: '數學',
+  className: '數學班',
+  createdAt: '2026-09-01T02:00:00Z',
   score: 88,
   totalScore: 100,
   status: 'scored',
@@ -15,26 +24,33 @@ const record = (overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord =
 });
 
 describe('grades.util', () => {
-  describe('groupBySubject', () => {
-    it('依科目分組，同科目合併成一組', () => {
-      const groups = groupBySubject([
-        record({ id: 'r1', subjectName: '英文' }),
-        record({ id: 'r2', subjectName: '數學' }),
-        record({ id: 'r3', subjectName: '數學' }),
+  describe('groupByClass', () => {
+    it('依課程分組、同課程合併；段考（沒有班）歸「學校段考」放最後', () => {
+      const groups = groupByClass([
+        record({ id: 'r1', className: null, type: 'school' }),
+        record({ id: 'r2', className: '英文班' }),
+        record({ id: 'r3', className: '英文班' }),
       ]);
+      expect(groups.map((g) => g.name)).toEqual(['英文班', '學校段考']);
+      expect(groups[0].records.map((r) => r.id)).toEqual(['r2', 'r3']);
+    });
+  });
 
-      expect(groups).toHaveLength(2);
-      const math = groups.find((g) => g.subjectName === '數學');
-      expect(math?.records.map((r) => r.id)).toEqual(['r2', 'r3']);
+  describe('期間與 NEW', () => {
+    it('近 N 月＝考試日在今天往前 30×N 天內', () => {
+      const rs = [
+        record({ id: 'in', examDate: '2026-08-12' }),
+        record({ id: 'out', examDate: '2026-08-10' }),
+      ];
+      expect(filterByRange(rs, '1', '2026-09-10').map((r) => r.id)).toEqual(['in']);
+      expect(filterByRange(rs, 'all', '2026-09-10')).toHaveLength(2);
     });
 
-    it('沒有科目（null）分到「未分類」，放最後', () => {
-      const groups = groupBySubject([
-        record({ id: 'r1', subjectName: null }),
-        record({ id: 'r2', subjectName: '數學' }),
-      ]);
-
-      expect(groups.map((g) => g.subjectName)).toEqual(['數學', '未分類']);
+    it('NEW＝登錄日（台北）在 7 天內；UTC 晚上算隔天', () => {
+      expect(isNewRecord(record({ createdAt: '2026-09-04T00:00:00Z' }), '2026-09-10')).toBe(true);
+      expect(isNewRecord(record({ createdAt: '2026-09-03T00:00:00Z' }), '2026-09-10')).toBe(false);
+      // 09-03 16:30 UTC＝台北 09-04 00:30 → 算 09-04，在 7 天內
+      expect(isNewRecord(record({ createdAt: '2026-09-03T16:30:00Z' }), '2026-09-10')).toBe(true);
     });
   });
 

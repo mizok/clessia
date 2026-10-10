@@ -14,7 +14,7 @@ export const ACADEMY_SCORE_SELECT = `
   score,
   status,
   created_at,
-  academy_exams!inner ( name, exam_date, total_score, pass_score, scope_note, org_id, subject_id, subjects ( name ) )
+  academy_exams!inner ( name, exam_date, total_score, pass_score, scope_note, org_id, subject_id, subjects ( name ), academy_exam_classes ( class_id, classes ( name ) ) )
 `;
 
 export const SCHOOL_SCORE_SELECT = `

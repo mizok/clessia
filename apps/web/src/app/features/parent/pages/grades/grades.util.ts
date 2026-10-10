@@ -1,3 +1,4 @@
+import { addDaysToDateString, taipeiDateString } from '@core/system-clock.service';
 import type {
   ParentGradePeriod,
   ParentScoreRecord,
@@ -72,29 +73,57 @@ export const SCORE_TYPE_LABELS: Record<ParentScoreType, string> = {
   school: '學校考試',
 };
 
-export interface SubjectGroup {
-  readonly subjectName: string;
+/** 段考沒有班，歸在這一組（放最後） */
+export const SCHOOL_GROUP = '學校段考';
+
+export interface ClassGroup {
+  readonly name: string;
   readonly records: ParentScoreRecord[];
 }
 
-/** 依科目分組，「未分類」（subjectName 為 null）放最後 */
-export function groupBySubject(records: readonly ParentScoreRecord[]): SubjectGroup[] {
+export const classOf = (record: ParentScoreRecord): string => record.className ?? SCHOOL_GROUP;
+
+/** 依課程分組（A6：照規格按課程），組內保持原順序（API 已新到舊）；學校段考放最後 */
+export function groupByClass(records: readonly ParentScoreRecord[]): ClassGroup[] {
   const byName = new Map<string, ParentScoreRecord[]>();
   for (const record of records) {
-    const key = record.subjectName ?? '__uncategorized__';
-    const bucket = byName.get(key);
+    const bucket = byName.get(classOf(record));
     if (bucket) bucket.push(record);
-    else byName.set(key, [record]);
+    else byName.set(classOf(record), [record]);
   }
-
-  const names = Array.from(byName.keys()).sort((a, b) => {
-    if (a === '__uncategorized__') return 1;
-    if (b === '__uncategorized__') return -1;
-    return a.localeCompare(b, 'zh-Hant');
-  });
-
-  return names.map((name) => ({
-    subjectName: name === '__uncategorized__' ? '未分類' : name,
-    records: byName.get(name)!,
-  }));
+  return [...byName]
+    .map(([name, rs]) => ({ name, records: rs }))
+    .sort((a, b) => Number(a.name === SCHOOL_GROUP) - Number(b.name === SCHOOL_GROUP));
 }
+
+export type RangeFilter = 'all' | '1' | '3' | '6';
+
+export const RANGE_OPTIONS: ReadonlyArray<{ value: RangeFilter; label: string }> = [
+  { value: '1', label: '近 1 月' },
+  { value: '3', label: '近 3 月' },
+  { value: '6', label: '近半年' },
+  { value: 'all', label: '全部' },
+];
+
+/** 期間切換：考試日在「今天往前 30×N 天」內（A6 `PER`） */
+export function filterByRange(
+  records: readonly ParentScoreRecord[],
+  range: RangeFilter,
+  today: string,
+): ParentScoreRecord[] {
+  if (range === 'all') return [...records];
+  const from = addDaysToDateString(today, -30 * Number(range));
+  return records.filter((r) => r.examDate.slice(0, 10) >= from);
+}
+
+/** 登錄日（台北日曆日）。`createdAt` 是 UTC 時刻，直接切字串會在清晨差一天 */
+export const recordedOn = (record: ParentScoreRecord): string =>
+  taipeiDateString(Date.parse(record.createdAt));
+
+/** NEW：登錄日在 7 天內（今天算第一天，所以往前 6 天） */
+export function isNewRecord(record: ParentScoreRecord, today: string): boolean {
+  return recordedOn(record) >= addDaysToDateString(today, -6);
+}
+
+/** `YYYY-MM-DD`（或帶時間的 ISO 字串）→ `M/D` */
+export const monthDay = (date: string): string => `${+date.slice(5, 7)}/${+date.slice(8, 10)}`;
