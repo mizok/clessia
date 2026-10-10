@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -59,6 +60,7 @@ describe('MealsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [MealsComponent],
       providers: [
+        provideRouter([]),
         { provide: MealsService, useValue: meals },
         { provide: BillingRunsService, useValue: billingRuns },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
@@ -231,6 +233,45 @@ describe('MealsComponent', () => {
 
       const settled = component['rows']().find((r) => r.studentId === 's2');
       expect(settled?.ordered).toBe(true);
+    });
+  });
+
+  describe('#1314 ME2/ME3 分章與已結算連帳單', () => {
+    it('當日名單依班分章，章頭寫班名與位數', async () => {
+      meals.roster.mockReturnValue(
+        of(
+          roster([
+            row({ studentId: 's1', classNames: ['數學'] }),
+            row({ studentId: 's2', classNames: ['數學'] }),
+            row({ studentId: 's3', classNames: ['英文'] }),
+          ]),
+        ),
+      );
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const sections = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('section[data-chapter]'),
+      );
+      expect(sections.map((s) => s.getAttribute('aria-label')).sort()).toEqual(['數學', '英文']);
+      expect(sections.find((s) => s.getAttribute('aria-label') === '數學')?.textContent).toContain(
+        '2',
+      );
+    });
+
+    it('已結算的列有連到帳單頁的連結', async () => {
+      meals.roster.mockReturnValue(
+        of(roster([row({ studentId: 's2', recordId: 'r2', ordered: true, settled: true })])),
+      );
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const link = (fixture.nativeElement as HTMLElement).querySelector(
+        'a[href="/admin/payments"]',
+      );
+      expect(link?.textContent).toContain('要改走帳單');
     });
   });
 

@@ -1,4 +1,4 @@
-import { rosterToDraft, draftTotals, draftToBatchRows } from './meals.util';
+import { mealChapters, rosterToDraft, draftTotals, draftToBatchRows } from './meals.util';
 import type { MealRosterRow } from '@core/meals.service';
 
 function row(overrides: Partial<MealRosterRow> = {}): MealRosterRow {
@@ -211,5 +211,24 @@ describe('draftToBatchRows —— 備註', () => {
     draft[0].note = '   ';
 
     expect(draftToBatchRows(draft)[0].note).toBeNull();
+  });
+});
+
+describe('mealChapters', () => {
+  const draft = (id: string, classNames: string[]) =>
+    rosterToDraft([row({ studentId: id, studentName: id, classNames })], 60)[0];
+
+  it('一人多班只出現一次，歸在排序後第一個班', () => {
+    const chapters = mealChapters([draft('a', ['英文', '數學'])]);
+    expect(chapters).toHaveLength(1);
+    expect(chapters[0].name).toBe(
+      ['英文', '數學'].sort((x, y) => x.localeCompare(y, 'zh-Hant'))[0],
+    );
+  });
+
+  it('沒班級的章放最後，章內保留原順序', () => {
+    const chapters = mealChapters([draft('x', []), draft('b', ['數學']), draft('c', ['數學'])]);
+    expect(chapters.map((c) => c.name)).toEqual(['數學', '']);
+    expect(chapters[0].rows.map((r) => r.studentId)).toEqual(['b', 'c']);
   });
 });
