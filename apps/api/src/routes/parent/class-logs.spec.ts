@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 import classLogsRoute from './class-logs';
+import { fakePluck } from '../../test-utils/fake-pluck';
 
 const CHILD_ID = '00000000-0000-0000-0000-000000000001';
 const OTHER_CHILD_ID = '00000000-0000-0000-0000-000000000002';
@@ -9,6 +10,8 @@ const CLASS_A = 'class-a';
 const CLASS_B = 'class-b';
 
 interface EnrollmentFixture {
+  /** 沒寫＝CHILD_ID（既有 fixture 都是同一個孩子） */
+  student_id?: string;
   class_id: string;
   effective_from: string;
   effective_to: string | null;
@@ -50,11 +53,7 @@ function fakeChildDb(config: {
 }) {
   return {
     from: (_table: string, _studentIdColumn: string) => ({
-      async pluck(_columns: string, idColumn: string) {
-        const rows = config.enrollmentRows as unknown as Record<string, unknown>[];
-        const ids = [...new Set(rows.map((row) => row[idColumn] as string))];
-        return { rows, ids, error: null };
-      },
+      pluck: fakePluck(config.enrollmentRows as unknown as Record<string, unknown>[], CHILD_ID),
     }),
     fromScopedIds: (_table: string, _column: string, _ids: readonly string[]) => {
       let selectedColumns = '';
@@ -218,5 +217,35 @@ describe('GET /api/me/class-logs', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { meta: Record<string, unknown> };
     expect(body.meta).toMatchObject({ recentCount: 0 });
+  });
+
+  it('兄弟姊妹：查另一個孩子時，不會拿到這個孩子班的日誌（pluck 要套 student_id）', async () => {
+    const res = await appWith(
+      ['parent'],
+      [CHILD_ID, OTHER_CHILD_ID],
+      fakeChildDb({
+        enrollmentRows: [
+          {
+            student_id: CHILD_ID,
+            class_id: CLASS_A,
+            effective_from: '2026-01-01',
+            effective_to: null,
+          },
+        ],
+        classLogRows: [
+          {
+            id: 'l1',
+            class_id: CLASS_A,
+            log_date: '2026-09-01',
+            teaching_record: 'x',
+            homework: 'y',
+            last_edited_by: null,
+            published_at: '2026-09-01T00:00:00Z',
+          },
+        ],
+      }),
+    ).request(`/?childId=${OTHER_CHILD_ID}`);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: unknown[] }).data).toEqual([]);
   });
 });
