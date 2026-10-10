@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { NEVER, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
@@ -737,6 +737,33 @@ describe('DashboardComponent（管理端）', () => {
       expect(contactMock).toHaveBeenCalledWith({ studentId: 'stu-1', channel: 'phone' });
       expect(q('contacted')!.textContent).toContain('已聯絡 10:05');
       expect(q('call-action')).toBeNull();
+    });
+
+    // 連按防護：POST 還沒回來時再按不能再送一筆（聯絡紀錄只增不改不刪，重複的刪不掉）
+    it('記錄中再按「打電話」不重送；回來後那一列才換成已聯絡', async () => {
+      await board({ workbenchExpected: [expectedStudent()] });
+      const reply = new Subject<{
+        data: { id: string; studentId: string; channel: string; createdAt: string };
+      }>();
+      contactMock.mockReturnValue(reply);
+
+      const link = q('call-action')!;
+      link.addEventListener('click', (e) => e.preventDefault());
+      link.click();
+      link.click();
+      link.click();
+      fixture.detectChanges();
+
+      expect(contactMock).toHaveBeenCalledTimes(1);
+
+      reply.next({
+        data: { id: 'c1', studentId: 'stu-1', channel: 'phone', createdAt: `${TODAY}T10:05:00` },
+      });
+      reply.complete();
+      fixture.detectChanges();
+
+      expect(q('contacted')!.textContent).toContain('已聯絡 10:05');
+      expect(contactMock).toHaveBeenCalledTimes(1);
     });
 
     it('記不成功 → 該列不變，並提示再試一次（不假裝聯絡過）', async () => {
