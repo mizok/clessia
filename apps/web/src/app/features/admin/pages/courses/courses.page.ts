@@ -1342,6 +1342,17 @@ export class CoursesPage implements OnInit {
     });
   }
 
+  /**
+   * 課程列「N 個班」後面的「，開班中 M」／「，都沒有在開」（A6，#1314 (c)）。
+   * M 來自列表 API 的 `activeClassCount`（啟用且未結束、套分校範圍）—— **沒給（單筆、舊後端）就不寫**，
+   * 不要用前端列出的班數去猜；沒有班（0 個班）也不寫，「都沒有在開」對一個沒有班的課程是廢話。
+   */
+  protected openClassSuffix(group: CourseGroup): string {
+    const open = group.course.activeClassCount;
+    if (open === undefined || group.classes.length === 0) return '';
+    return open > 0 ? `，開班中 ${open}` : '，都沒有在開';
+  }
+
   protected hasCourseNeedsIntervention(group: CourseGroup): boolean {
     const stats = this.getCourseInterventionStats(group);
     return (

@@ -218,15 +218,16 @@
                     {{ group.course.campusName ?? getCampusName(group.course.campusId) }} ·
                     {{ group.course.subjectName }}
                     <span class="wide:hidden">
-                      · {{ group.classes.length }} 個班
+                      · {{ group.classes.length }} 個班{{ openClassSuffix(group) }}
                       @if (!group.course.isActive) {
                         · 停用
                       }
                     </span>
                   </span>
                   <span class="hidden text-md text-zinc-600 tabular-nums wide:inline"
-                    ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b>
-                    個班</span
+                    ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b> 個班{{
+                      openClassSuffix(group)
+                    }}</span
                   >
                   <span
                     class="hidden text-md wide:inline"
