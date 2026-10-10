@@ -1,6 +1,6 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<details class="group/chapter border-b border-surface-border">
+<details class="group/chapter group border-b border-surface-border">
   <summary
     class="flex min-h-11 cursor-pointer list-none items-center gap-3 bg-zinc-100 px-4 py-3 hover:bg-zinc-200 [&::-webkit-details-marker]:hidden"
   >
@@ -20,6 +20,10 @@
         沒有待繳
       }
     </span>
+    <i
+      class="pi pi-chevron-down text-xs text-zinc-700 transition-transform group-open:rotate-180"
+      aria-hidden="true"
+    ></i>
   </summary>
 
   <div class="bg-white">
