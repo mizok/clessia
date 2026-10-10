@@ -11,7 +11,7 @@ import {
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { endOfMonth, format, startOfMonth, subDays, subMonths } from 'date-fns';
+import { endOfMonth, format, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
 import { SelectModule } from 'primeng/select';
 
 import { Subject, catchError, map, of, skip, switchMap } from 'rxjs';
@@ -142,14 +142,15 @@ export class EnrollmentsPage {
   protected readonly filtersOpen = signal(false);
   private readonly campusId = this.campusCtx.id;
 
-  protected readonly monthOptions = [
+  /** 月份選項也從台北的今天往回推 —— 裝置日期在跨月那幾小時會差一個月 */
+  protected readonly monthOptions = computed(() => [
     { label: '近 30 天', value: LAST_30 },
     ...Array.from({ length: MONTHS_BACK }, (_, i) => {
-      const date = subMonths(new Date(), i);
+      const date = subMonths(parseISO(this.today()), i);
       return { label: format(date, 'yyyy 年 M 月'), value: format(date, 'yyyy-MM') };
     }),
     { label: '不限期間', value: ALL_MONTHS },
-  ];
+  ]);
 
   /**
    * 刻意不放「待繳費」：目前沒有任何流程會產生 pending_payment（invoices 表還不存在），
@@ -417,8 +418,9 @@ export class EnrollmentsPage {
     if (!this.hasPeriod()) return {};
 
     if (this.month() === LAST_30) {
-      const today = new Date();
-      return { from: format(subDays(today, 29), 'yyyy-MM-dd'), to: format(today, 'yyyy-MM-dd') };
+      // 台北的今天往前 29 天：只做日曆加減，parseISO 取當地午夜不會跨日
+      const today = this.today();
+      return { from: format(subDays(parseISO(today), 29), 'yyyy-MM-dd'), to: today };
     }
 
     const [year, month] = this.month().split('-').map(Number);

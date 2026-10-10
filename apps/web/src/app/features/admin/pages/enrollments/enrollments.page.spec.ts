@@ -163,10 +163,21 @@ describe('EnrollmentsPage', () => {
     await setup();
 
     const call = listMock.mock.calls[0][0];
-    const day = (offset: number) => format(subDays(new Date(), offset), 'yyyy-MM-dd');
-    expect(call.from).toBe(day(29));
-    expect(call.to).toBe(day(0));
+    // 從時鐘替身的台北今天推，不是裝置日期
+    expect(call.from).toBe(ago(29));
+    expect(call.to).toBe(TODAY);
     expect(call.sort).toBe('updatedAt');
+  });
+
+  it('月份選項從時鐘的台北今天往回推 12 個月', async () => {
+    await setup();
+
+    const months = component['monthOptions']()
+      .map((o) => o.value)
+      .filter((v) => /^\d{4}-\d{2}$/.test(v));
+    expect(months[0]).toBe(TODAY.slice(0, 7));
+    expect(months).toHaveLength(12);
+    expect(months.at(-1)).toBe('2026-04');
   });
 
   it('選月份就查那一整個月', async () => {
@@ -525,7 +536,6 @@ describe('EnrollmentsPage', () => {
   });
 
   describe('Hero 數字句、事件計數與事件篩選（#1507）', () => {
-    const day = (offset: number) => format(subDays(new Date(), offset), 'yyyy-MM-dd');
     const hero = () => q('hero-title')!.textContent!.replace(/\s+/g, '');
 
     it('照期間寫「新報名 N 筆，退班 M 筆。」', async () => {
@@ -589,7 +599,7 @@ describe('EnrollmentsPage', () => {
       component['onStatusChange']('withdrawal');
 
       const call = countsMock.mock.calls.at(-1)![0];
-      expect(call).toMatchObject({ classId: 'class-1', status: 'withdrawal', from: day(29) });
+      expect(call).toMatchObject({ classId: 'class-1', status: 'withdrawal', from: ago(29) });
       expect(call.page).toBeUndefined();
       expect(call.event).toBeUndefined();
 

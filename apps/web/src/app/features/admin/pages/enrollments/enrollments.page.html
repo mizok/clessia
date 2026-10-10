@@ -33,7 +33,7 @@
       <p-select
         class="min-w-0 flex-1 wide:w-44 wide:flex-none"
         styleClass="w-full"
-        [options]="monthOptions"
+        [options]="monthOptions()"
         [ngModel]="month()"
         (ngModelChange)="onMonthChange($event)"
         optionLabel="label"
