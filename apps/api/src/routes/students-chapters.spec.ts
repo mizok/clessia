@@ -23,9 +23,10 @@ const student = (id: string, grade: string, extra: Record<string, unknown> = {})
   ...extra,
 });
 
-function seed() {
+function seed(extraStudents: Array<Record<string, unknown>> = []) {
   return createMultiOrgDb({
     students: [
+      ...extraStudents,
       student('s-j1a', 'J1', { school_id: 'sch-jg' }),
       student('s-j1b', 'J1'),
       student('s-j2', 'J2', { school_id: 'sch-jg' }),
@@ -41,8 +42,11 @@ function seed() {
   });
 }
 
-function appWith(campusScope: string[] | null = null) {
-  const db = seed();
+function appWith(
+  campusScope: string[] | null = null,
+  extraStudents: Array<Record<string, unknown>> = [],
+) {
+  const db = seed(extraStudents);
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -119,5 +123,16 @@ describe('GET /students —— 搜尋學校名（#1314 SL4）', () => {
   it('searchScope=student_name 不比學校', async () => {
     const { ids } = await list(`search=${encodeURIComponent('建國')}&searchScope=student_name`);
     expect(ids).toEqual([]);
+  });
+
+  // reviewer 二讀 #1450 抓的：學校查詢拿掉 `.eq('org_id')` 原本全綠。
+  // 本 org 學生的 school_id 指到**別 org** 的同名學校（髒資料）—— 搜尋不能因別 org 的學校命中他
+  it('別 org 的同名學校不命中本 org 學生', async () => {
+    const res = await appWith(null, [student('s-cross', 'J1', { school_id: 'sch-other' })]).request(
+      `/?search=${encodeURIComponent('建國')}`,
+    );
+    const body = (await res.json()) as { data: Array<{ id: string }> };
+
+    expect(body.data.map((row) => row.id).sort()).toEqual(['s-j1a', 's-j2']);
   });
 });
