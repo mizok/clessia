@@ -3,19 +3,18 @@ import { provideRouter } from '@angular/router';
 import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
-import { AcademyExamsService } from '@core/academy-exams.service';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { AuthService } from '@core/auth.service';
 import { BillingPeriodsService, type UpcomingUnbilledPeriod } from '@core/billing-periods.service';
-import { EnrollmentsService } from '@core/enrollments.service';
+import { ContactLogsService } from '@core/contact-logs.service';
+import { InvoicesService } from '@core/invoices.service';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
 import { OrgSettingsService, type AttendanceMode } from '@core/org-settings.service';
-import { SchoolExamsService } from '@core/school-exams.service';
-import { StudentsService } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
-import { WorkbenchService } from '@core/workbench.service';
+import { WorkbenchService, type WorkbenchExpectedStudent } from '@core/workbench.service';
 import { DailyCheckinsService } from '@core/daily-checkins.service';
+import { StudentsService } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
@@ -26,8 +25,6 @@ import { format } from 'date-fns';
 // toISOString() 是 UTC，在 UTC+8 的凌晨那幾小時會跟元件差一天，測試就假紅。
 const TODAY = format(new Date(), 'yyyy-MM-dd');
 /** 回溯窗裡「已經結束」的那一天 —— 今天的課還沒上完，不算漏點名 */
-// 跟上面的 TODAY 同一個理由用 format 而不是 toISOString —— 這一行原本漏了，
-// 於是同一個檔案裡一個修對、一個每天紅 8 小時
 const YESTERDAY = format(new Date(Date.now() - 86_400_000), 'yyyy-MM-dd');
 
 function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSummary {
@@ -75,18 +72,25 @@ function leave(overrides: Partial<LeaveRequest> = {}): LeaveRequest {
   };
 }
 
+function expectedStudent(over: Partial<WorkbenchExpectedStudent> = {}): WorkbenchExpectedStudent {
+  return {
+    studentId: 'stu-1',
+    studentName: '林小明',
+    grade: '七年級',
+    campusId: 'campus-a',
+    campusName: '本館',
+    firstSession: { startTime: '09:00', className: '數學班 A' },
+    primaryParent: { name: '林媽媽', relation: '母親', phone: '0912345678' },
+    lastContact: null,
+    ...over,
+  };
+}
+
 interface SetupOptions {
   /** #1293 待開單：`fail` = 端點失敗 */
   unbilled?: UpcomingUnbilledPeriod[] | 'fail';
   /** 日到班看板的三段。逐堂模式的測試不必給。 */
-  workbenchExpected?: {
-    studentId: string;
-    studentName: string;
-    grade: string | null;
-    campusId: string | null;
-    campusName: string | null;
-    firstSession: { startTime: string | null; className: string } | null;
-  }[];
+  workbenchExpected?: WorkbenchExpectedStudent[];
   workbenchArrived?: { studentId: string; checkedInAt: string; checkinId: string }[];
   workbenchOnLeave?: {
     studentId: string;
@@ -94,21 +98,20 @@ interface SetupOptions {
     startDate: string;
     endDate: string;
     submittedByRole: string;
+    reason?: string | null;
   }[];
   todaySessions?: EventSessionSummary[];
   recentSessions?: EventSessionSummary[];
   leaves?: LeaveRequest[];
-  academyTodo?: number;
-  schoolTodo?: number;
-  activeCount?: number;
-  enrollmentTotal?: number;
   mode?: AttendanceMode;
   permissions?: string[];
-  fail?: 'sessions' | 'leaves' | 'grades' | 'students' | 'enrollments' | 'org';
+  overdue?: { count: number; amount: number };
+  fail?: 'sessions' | 'leaves' | 'org';
   /** 讓查詢永遠不回覆，用來驗「載入中」而不是「空」 */
   pending?: boolean;
   /** 只讓「今日課表」回覆，其餘永遠不回 —— 用來驗漸進渲染 */
   onlySessions?: boolean;
+  orgName?: string | null;
 }
 
 describe('DashboardComponent（管理端）', () => {
@@ -117,15 +120,15 @@ describe('DashboardComponent（管理端）', () => {
 
   const sessionsMock = vi.fn();
   const leavesMock = vi.fn();
-  const academyTodoMock = vi.fn();
-  const schoolTodoMock = vi.fn();
-  const studentsMock = vi.fn();
-  const enrollmentsMock = vi.fn();
-  const orgSettingsMock = vi.fn();
   const workbenchMock = vi.fn();
   const checkInMock = vi.fn();
   const cancelMock = vi.fn();
   const unbilledMock = vi.fn();
+  const contactMock = vi.fn();
+  const summaryMock = vi.fn();
+  const invoiceListMock = vi.fn();
+  const studentGetMock = vi.fn();
+  const orgLoadMock = vi.fn();
 
   function sessionList(data: EventSessionSummary[]) {
     return of({
@@ -139,10 +142,6 @@ describe('DashboardComponent（管理端）', () => {
       todaySessions = [session()],
       recentSessions = [session()],
       leaves = [leave()],
-      academyTodo = 2,
-      schoolTodo = 3,
-      activeCount = 120,
-      enrollmentTotal = 7,
       mode = 'per_session',
       permissions = ['view_reports'],
       fail,
@@ -152,6 +151,8 @@ describe('DashboardComponent（管理端）', () => {
       workbenchArrived = [],
       workbenchOnLeave = [],
       unbilled = [],
+      overdue = { count: 0, amount: 0 },
+      orgName = '示範補習班',
     } = options;
     unbilledMock.mockReset();
     unbilledMock.mockReturnValue(
@@ -169,21 +170,20 @@ describe('DashboardComponent（管理端）', () => {
     for (const mock of [
       sessionsMock,
       leavesMock,
-      academyTodoMock,
-      schoolTodoMock,
-      studentsMock,
-      enrollmentsMock,
-      orgSettingsMock,
       workbenchMock,
       checkInMock,
       cancelMock,
+      contactMock,
+      summaryMock,
+      invoiceListMock,
+      studentGetMock,
+      orgLoadMock,
     ]) {
       mock.mockReset();
     }
 
-    // 未點名課堂現在**只有一支請求**（`endedOnly` 到位後不再拆兩段）——
-    // 「已經上完」的判斷是伺服器做的（#368），mock 不重算一次，直接信 `recentSessions`
-    // 已經是「篩過的候選集合」，照 `attendanceTaken` 決定要不要濾 `takenAt`。
+    // 未點名課堂**只有一支請求**（`endedOnly`）——「已經上完」的判斷是伺服器做的（#368），
+    // mock 不重算一次，直接信 `recentSessions` 已經是「篩過的候選集合」。
     sessionsMock.mockImplementation((params: { attendanceTaken?: boolean; endedOnly?: boolean }) =>
       pending || stalled
         ? NEVER
@@ -205,37 +205,29 @@ describe('DashboardComponent（管理端）', () => {
               meta: { total: leaves.length, page: 1, pageSize: 100, totalPages: 1 },
             }),
     );
-    academyTodoMock.mockReturnValue(
-      stalled ? NEVER : fail === 'grades' ? boom : of({ count: academyTodo }),
+    summaryMock.mockReturnValue(
+      stalled ? NEVER : of({ overdue: { count: overdue.count, outstanding: overdue.amount } }),
     );
-    schoolTodoMock.mockReturnValue(stalled ? NEVER : of({ count: schoolTodo }));
-    studentsMock.mockReturnValue(
+    invoiceListMock.mockReturnValue(
       stalled
         ? NEVER
-        : fail === 'students'
-          ? boom
-          : of({
-              data: [],
-              meta: { total: activeCount },
-              summary: { total: activeCount, activeCount },
-            }),
-    );
-    enrollmentsMock.mockReturnValue(
-      stalled
-        ? NEVER
-        : fail === 'enrollments'
-          ? boom
-          : of({ data: [], meta: { total: enrollmentTotal, page: 1, pageSize: 1, totalPages: 1 } }),
-    );
-    orgSettingsMock.mockReturnValue(
-      stalled
-        ? NEVER
-        : fail === 'org'
-          ? boom
-          : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
+        : of({
+            data:
+              overdue.count > 0
+                ? [
+                    {
+                      id: 'inv-1',
+                      studentId: 'stu-9',
+                      studentName: '黃小華',
+                      dueDate: '2026-09-20',
+                      total: 5000,
+                      netPaid: 1000,
+                    },
+                  ]
+                : [],
+          }),
     );
     // 作業台的聚合端點：**一支帶回今日課表 + 點名模式 + 日到班的三段**。
-    // 原本前兩者是兩支，於是畫面會先用 per_session 的語言渲一次再改口。
     workbenchMock.mockReturnValue(
       pending
         ? NEVER
@@ -262,13 +254,19 @@ describe('DashboardComponent（管理端）', () => {
           provide: DailyCheckinsService,
           useValue: { checkIn: checkInMock, cancel: cancelMock },
         },
+        { provide: ContactLogsService, useValue: { create: contactMock } },
+        { provide: InvoicesService, useValue: { summary: summaryMock, list: invoiceListMock } },
         { provide: LeaveService, useValue: { list: leavesMock } },
-        { provide: AcademyExamsService, useValue: { getTodoCount: academyTodoMock } },
-        { provide: SchoolExamsService, useValue: { getTodoCount: schoolTodoMock } },
-        { provide: StudentsService, useValue: { list: studentsMock } },
-        { provide: EnrollmentsService, useValue: { list: enrollmentsMock } },
+        { provide: StudentsService, useValue: { get: studentGetMock, list: vi.fn() } },
         { provide: BillingPeriodsService, useValue: { upcomingUnbilled: unbilledMock } },
-        { provide: OrgSettingsService, useValue: { getSettings: orgSettingsMock } },
+        {
+          provide: OrgSettingsService,
+          useValue: {
+            status: signal(fail === 'org' ? 'failed' : orgName === null ? 'unloaded' : 'ready'),
+            settings: signal(orgName === null ? null : { id: 'o1', name: orgName }),
+            load: orgLoadMock,
+          },
+        },
         {
           provide: AuthService,
           useValue: { hasPermission: (p: string) => permissions.includes(p) },
@@ -284,149 +282,81 @@ describe('DashboardComponent（管理端）', () => {
     fixture.detectChanges();
   }
 
+  const el = () => fixture.nativeElement as HTMLElement;
+  const q = (testId: string) =>
+    el().querySelector(`[data-testid="${testId}"]`) as HTMLElement | null;
+  const qa = (testId: string) => [
+    ...el().querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`),
+  ];
+
   function cardLabels(): string[] {
-    return component['cards']().map((c) => c.label);
+    return component['todoCards']().map((c) => c.label);
   }
 
   function card(label: string) {
-    return component['cards']().find((c) => c.label === label);
+    return component['todoCards']().find((c) => c.label === label);
   }
 
-  // 「已經上完」現在整個是伺服器算的（`endedOnly`）——前端只讀 meta.total，
-  // 不再自己合併兩段查詢的結果
+  // 「已經上完」整個是伺服器算的（`endedOnly`）——前端只讀 meta.total，不再自己合併
   it('未點名數整個來自伺服器的 meta.total，前端不重算', async () => {
     await setup({
       recentSessions: [
         session({ eventId: 'r1', eventDate: YESTERDAY, takenAt: null }),
         session({ eventId: 'r2', eventDate: YESTERDAY, takenAt: null }),
-        session({ eventId: 'r3', eventDate: YESTERDAY, takenAt: `${YESTERDAY}T12:00:00Z` }),
+        session({ eventId: 'r3', eventDate: YESTERDAY, takenAt: '2026-08-29T10:00:00Z' }),
       ],
     });
 
-    // mock 濾掉點過名的 r3，剩 2 —— 這個數字完全來自 mock 回的 meta.total，
-    // 元件沒有對這份資料做任何進一步計算
     expect(card('未點名課堂')?.value).toBe(2);
   });
 
-  it('六張卡都拿到真實數字', async () => {
-    await setup({
-      todaySessions: [session(), session({ eventId: 'e2' })],
-      recentSessions: [
-        session({ eventId: 'r1', eventDate: YESTERDAY, takenAt: null }),
-        session({ eventId: 'r2', eventDate: YESTERDAY, takenAt: `${YESTERDAY}T12:00:00Z` }),
-      ],
-      leaves: [leave(), leave({ id: 'l2' })],
-      academyTodo: 2,
-      schoolTodo: 3,
-      activeCount: 120,
-      enrollmentTotal: 7,
-    });
+  it('待處理只剩真的要動作的；成績待登錄與「現況」數字卡不再出現（A6 沒畫）', async () => {
+    await setup({ permissions: ['view_reports'] });
 
-    expect(card('今日課堂')?.value).toBe(2);
-    expect(card('未點名課堂')?.value).toBe(1);
-    expect(card('今日請假')?.value).toBe(2);
-    expect(card('成績待登錄')?.value).toBe(5);
-    expect(card('在籍學生')?.value).toBe(120);
-    expect(card('本月報名異動')?.value).toBe(7);
+    expect(cardLabels()).toEqual(['未點名課堂']);
+    const text = el().textContent as string;
+    expect(text).not.toContain('成績待登錄');
+    expect(text).not.toContain('在籍學生');
+    expect(text).not.toContain('本月報名異動');
+    expect(el().querySelector('app-day-timeline')).toBeNull();
+    expect(text).not.toContain('收合時間軸');
   });
 
-  it('每張卡連到功能的家', async () => {
-    await setup();
-
-    expect(card('今日課堂')?.routerLink).toBe(RoutesCatalog.ADMIN_SESSIONS.absolutePath);
-    expect(card('未點名課堂')?.routerLink).toBe(RoutesCatalog.ADMIN_ATTENDANCE.absolutePath);
-    expect(card('今日請假')?.routerLink).toBe(RoutesCatalog.ADMIN_LEAVE.absolutePath);
-    expect(card('成績待登錄')?.routerLink).toBe(RoutesCatalog.ADMIN_GRADES_EXAMS.absolutePath);
-    expect(card('在籍學生')?.routerLink).toBe(RoutesCatalog.ADMIN_STUDENTS.absolutePath);
-    expect(card('本月報名異動')?.routerLink).toBe(RoutesCatalog.ADMIN_ENROLLMENTS.absolutePath);
-  });
-
-  // P1-6：卡片說 15、落地頁顯示別的數字。這條釘住卡片帶去的 queryParams
-  // 跟它自己算數字用的參數是**同一個查詢**（pendingAttendanceQuery），不是兩份
   it('未點名課堂卡帶的 queryParams 跟它自己查詢用的參數一致', async () => {
     await setup();
 
-    const sent = sessionsMock.mock.calls[0][0];
-    const queryParams = card('未點名課堂')?.queryParams;
-
-    expect(queryParams).toEqual({
-      dateFrom: sent.dateFrom,
-      dateTo: sent.dateTo,
-      attendanceTaken: String(sent.attendanceTaken),
-      endedOnly: String(sent.endedOnly),
-      statuses: sent.statuses.join(','),
+    const query = sessionsMock.mock.calls[0][0];
+    expect(card('未點名課堂')?.routerLink).toBe(RoutesCatalog.ADMIN_ATTENDANCE.absolutePath);
+    expect(card('未點名課堂')?.queryParams).toEqual({
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      attendanceTaken: String(query.attendanceTaken),
+      endedOnly: String(query.endedOnly),
+      statuses: query.statuses.join(','),
     });
   });
 
-  /**
-   * **今日課表改由聚合端點供給，不再自己打 `/api/attendance/sessions`。**
-   *
-   * 那一支現在只剩「逾期未點名」的回溯查詢。聚合端點不帶 `date` —— 伺服器用台北
-   * 時區的今天，前端不必自己算（而且算錯的方式很安靜：UTC 的凌晨會差一天）。
-   */
   it('今日課表走聚合端點，未點名那支帶 endedOnly 一次查完（含今天）', async () => {
     await setup();
 
     expect(workbenchMock).toHaveBeenCalledTimes(1);
-    expect(workbenchMock.mock.calls[0][0]).toBeUndefined();
-
-    const sessionCalls = sessionsMock.mock.calls.map((c) => c[0]);
-    expect(sessionCalls).toHaveLength(1);
-    expect(sessionCalls[0].dateFrom < TODAY).toBe(true);
-    // `dateTo` 含**今天**——`endedOnly` 已經在伺服器排除今天還沒上完的課，
-    // 不需要前端再挖掉今天（這是 pendingAttendanceQuery 的陷阱測試盯住的同一個值）
-    expect(sessionCalls[0].dateTo).toBe(TODAY);
-    expect(sessionCalls[0].attendanceTaken).toBe(false);
-    expect(sessionCalls[0].endedOnly).toBe(true);
-    // #456：statuses 明著送。**沒送的話這支吃的是 API 預設，而落地頁吃 web 的
-    // `DEFAULT_STATUSES`** —— 兩份獨立清單今天剛好相等，任一邊改就分歧，
-    // 而分歧的樣子（卡片 15、點進去 12）跟正常的樣子一模一樣
-    expect(sessionCalls[0].statuses).toEqual(['scheduled', 'completed']);
-    expect(sessionCalls[0].pageSize).toBe(1);
-
-    expect(leavesMock.mock.calls[0][0]).toMatchObject({ coverDate: TODAY });
+    expect(sessionsMock).toHaveBeenCalledTimes(1);
+    const query = sessionsMock.mock.calls[0][0];
+    expect(query.endedOnly).toBe(true);
+    expect(query.pageSize).toBe(1);
+    expect(query.dateTo).toBe(TODAY);
   });
 
-  // meta.total 數的是「期間內有異動的報名記錄數」，不是進出人次，所以只抓 total
-  it('報名異動只取 meta.total，不抓明細', async () => {
-    await setup();
-
-    expect(enrollmentsMock.mock.calls[0][0]).toMatchObject({ pageSize: 1 });
-  });
-
-  // 在籍人數只讀 summary.activeCount：名冊的「今日到班」第一頁才算（多 4～5 支查詢），
-  // 儀表板這支呼叫永遠是第一頁，不帶 withToday=false 就每次進儀表板都白算一次
-  it('在籍人數那支呼叫帶 withToday: false（只要總數，不要今日到班）', async () => {
-    await setup();
-
-    expect(studentsMock.mock.calls[0][0]).toMatchObject({ pageSize: 1, withToday: false });
-  });
-
-  // daily-checkins 從不蓋 attendance_taken_at，這個模式下整張卡都是誤報
   it('日到班模式不渲染未點名卡', async () => {
     await setup({ mode: 'daily_checkin' });
-
     expect(cardLabels()).not.toContain('未點名課堂');
-    expect(cardLabels()).toContain('今日課堂');
   });
 
-  // 讀不到模式就無法確定數字有沒有意義，寧可不顯示也不要顯示可能全錯的數
   it('讀不到機構設定時不渲染未點名卡', async () => {
     await setup({ fail: 'org' });
-
     expect(cardLabels()).not.toContain('未點名課堂');
   });
 
-  it('沒有 view_reports 就看不到經營區兩張卡', async () => {
-    await setup({ permissions: [] });
-
-    expect(cardLabels()).not.toContain('在籍學生');
-    expect(cardLabels()).not.toContain('本月報名異動');
-    expect(cardLabels()).toContain('今日課堂');
-    expect(cardLabels()).toContain('今日請假');
-  });
-
-  // #1293：系統沒有排程提醒開單，行政只看得到這張卡
   describe('待開單卡（#1293）', () => {
     const upcoming: UpcomingUnbilledPeriod = {
       periodId: 'p-1',
@@ -440,7 +370,6 @@ describe('DashboardComponent（管理端）', () => {
       await setup({ permissions: ['manage_finance'], unbilled: [upcoming] });
       expect(unbilledMock).toHaveBeenCalledTimes(1);
       expect(card('待開單')).toMatchObject({
-        kind: 'todo',
         value: 1,
         sub: '2027 上學期 10 月 15 日 開始',
         routerLink: RoutesCatalog.ADMIN_MEALS.absolutePath,
@@ -462,55 +391,23 @@ describe('DashboardComponent（管理端）', () => {
     it('端點失敗 → 卡片顯示失敗態，其他卡照常', async () => {
       await setup({ permissions: ['manage_finance'], unbilled: 'fail' });
       expect(card('待開單')?.value).toBe('error');
-      expect(cardLabels()).toContain('今日課堂');
+      expect(cardLabels()).toContain('未點名課堂');
     });
   });
 
-  it('單張卡失敗只讓那張卡顯示失敗，其他照常', async () => {
-    await setup({ fail: 'leaves' });
-
-    expect(card('今日請假')?.value).toBe('error');
-    expect(card('今日課堂')?.value).toBe(1);
-    expect(card('在籍學生')?.value).toBe(120);
-    expect(fixture.nativeElement.textContent).toContain('讀取失敗');
-  });
-
-  // #426：失敗態不能長得像骨架（會被讀成「還在載入」）也不能長得像數字
-  // （會被讀成一個異常大的值）——用小圖示 + 短字，字級/字重跟真數字不同量級
   it('失敗態是小圖示配短字，不是骨架，也不是巨大數字樣式', async () => {
-    await setup({ fail: 'leaves' });
+    await setup({ permissions: ['manage_finance'], unbilled: 'fail' });
 
-    const errorEl = fixture.nativeElement.querySelector('[data-testid="value-error"]');
-    expect(errorEl).not.toBeNull();
-    expect(errorEl?.querySelector('.pi-exclamation-triangle')).not.toBeNull();
-    expect(errorEl?.textContent).toContain('讀取失敗');
-    // 失敗態不能同時長得像骨架——那會被讀成「載入特別慢」而不是「查詢失敗」
-    expect(errorEl?.querySelector('[data-testid="value-skeleton"]')).toBeNull();
+    const failed = q('value-error');
+    expect(failed).not.toBeNull();
+    expect(failed!.textContent).toContain('讀取失敗');
+    expect(failed!.querySelector('.pi-exclamation-triangle')).not.toBeNull();
   });
 
-  // #426 本體：原本 `null` 直接渲染「載入中」三個字，字重/字級/位置
-  // 跟真數字一模一樣，讀起來像一個狀態值不像「還在載」。改成骨架條，
-  // 「載入中」只留給輔助技術念，不再是畫面上看得到的主要內容。
   it('未點名卡還在載入時顯示骨架條，不是站在數字位置上的純文字', async () => {
-    await setup({ onlySessions: true, todaySessions: [session()] });
-
-    const untakenValue = fixture.nativeElement.querySelector(
-      '[data-testid="todo-row"] [data-testid="todo-value"]',
-    );
-    expect(untakenValue).not.toBeNull();
-
-    const skeleton = untakenValue?.querySelector('[data-testid="value-skeleton"]');
-    expect(skeleton).not.toBeNull();
-    // 骨架本身不帶文字——是純視覺元素，念出來的是旁邊的輔助文字
-    expect(skeleton?.textContent?.trim()).toBe('');
-    expect(untakenValue?.querySelector('.sr-only')?.textContent).toContain('載入中');
-  });
-
-  it('兩支成績 todo 任一支失敗，成績卡就是失敗態', async () => {
-    await setup({ fail: 'grades' });
-
-    expect(card('成績待登錄')?.value).toBe('error');
-    expect(card('今日課堂')?.value).toBe(1);
+    await setup({ pending: true });
+    // pending 讓 workbench 也不回 → mode 未知 → 卡片本身隱藏；骨架出現在 Hero
+    expect(q('band-skeleton') ?? el().querySelector('.skeleton-bar')).not.toBeNull();
   });
 
   it('今日課表列出今天的課，依開始時間排序', async () => {
@@ -524,55 +421,70 @@ describe('DashboardComponent（管理端）', () => {
     expect(component['todaySessionList']()?.map((s) => s.eventId)).toEqual(['early', 'late']);
   });
 
-  // 載入中回空陣列的話，畫面會立刻宣稱「今日尚無排課」—— 那是一個當下還不知道
-  // 的事實。空資料庫上這個謊會維持十幾秒（實機回饋），直到資料回來才更正。
-  // 拆 forkJoin 的驗收條件：**其他請求還在飛的時候，橘帶已經填好**。
-  // 這比量時間可靠 —— 時間隨網路變，而「會不會等最慢的那一支」是結構性的。
-  // 用單一 forkJoin 的話這條必然失敗：它要全部完成才 emit。
-  it('橘帶不等其他請求 —— 聚合端點一到就先渲染', async () => {
-    await setup({ onlySessions: true, todaySessions: [session(), session({ eventId: 'e2' })] });
+  describe('色面（Hero）', () => {
+    it('主標是機構名；分校只有一個時寫在小字', async () => {
+      await setup({
+        mode: 'daily_checkin',
+        workbenchExpected: [expectedStudent({ campusName: '文山旗艦校' })],
+        todaySessions: [session({ campusName: '文山旗艦校' })],
+      });
 
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('今天 2 堂課');
-    expect(fixture.nativeElement.querySelector('[data-testid="band-skeleton"]')).toBeNull();
-    // 而現況欄還在等
-    expect(text).toContain('載入中');
-  });
+      const band = el().querySelector('app-page-open') as HTMLElement;
+      expect(band.textContent).toContain('示範補習班');
+      expect(band.textContent).toContain('文山旗艦校');
+    });
 
-  describe('時間軸收合', () => {
-    // 這三條釘住的是「量出來的 N=3」這個決定：4 條 lane 時橘帶吃掉 48% 視窗、
-    // 課表脊椎掉到摺線下。門檻改動要有人重新量過，不是憑感覺調。
-    function overlappingSessions(count: number) {
-      // 全部同時段 → 每一堂各自一條 lane
-      return Array.from({ length: count }, (_, i) =>
-        session({ eventId: `s${i}`, startTime: '09:00', endTime: '12:00' }),
+    it('跨分校時不挑一個分校寫', async () => {
+      await setup({
+        mode: 'daily_checkin',
+        workbenchExpected: [
+          expectedStudent({ studentId: 'a', campusName: '甲校' }),
+          expectedStudent({ studentId: 'b', campusName: '乙校' }),
+        ],
+      });
+
+      const band = el().querySelector('app-page-open') as HTMLElement;
+      expect(band.textContent).not.toContain('甲校');
+      expect(band.textContent).not.toContain('乙校');
+    });
+
+    it('機構名還沒載到 → 骨架，不是空白也不是假名字', async () => {
+      await setup({ orgName: null });
+      expect(q('band-skeleton')).not.toBeNull();
+      expect(orgLoadMock).toHaveBeenCalled();
+    });
+
+    it('日到班：副行講人（今天 N 人要來，已經到了 M 位）', async () => {
+      await setup({
+        mode: 'daily_checkin',
+        workbenchExpected: [
+          expectedStudent({ studentId: 'a' }),
+          expectedStudent({ studentId: 'b' }),
+          expectedStudent({ studentId: 'c' }),
+        ],
+        workbenchArrived: [{ studentId: 'a', checkedInAt: `${TODAY}T01:00:00Z`, checkinId: 'k1' }],
+      });
+
+      expect((el().querySelector('app-page-open') as HTMLElement).textContent).toContain(
+        '今天 3 人要來，已經到了 1 位。',
       );
-    }
-
-    afterEach(() => localStorage.removeItem('clessia.dashboard.timeline-collapsed'));
-
-    /**
-     * **自動收合退役了。** 它的依據是「課多時圖會長到把課表推到摺線下」，
-     * 而時間軸改成密度圖之後高度與課量脫鉤 —— 那個依據不存在了，
-     * 再自動收就只是把資訊藏起來。
-     */
-    it('課再多也預設展開', async () => {
-      await setup({ todaySessions: overlappingSessions(6) });
-      expect(component['timelineCollapsed']()).toBe(false);
     });
 
-    // 手動收合保留（可收合帶是已裁的方向），使用者按過就照他的意思
-    it('使用者收起來的選擇會被記住', async () => {
-      localStorage.setItem('clessia.dashboard.timeline-collapsed', '1');
-      await setup({ todaySessions: overlappingSessions(1) });
-      expect(component['timelineCollapsed']()).toBe(true);
+    it('橘帶不等其他請求 —— 聚合端點一到就先渲染', async () => {
+      await setup({ onlySessions: true, todaySessions: [session(), session({ eventId: 'e2' })] });
+
+      expect((el().querySelector('app-page-open') as HTMLElement).textContent).toContain(
+        '今天 2 堂課',
+      );
+      expect(q('band-skeleton')).toBeNull();
+    });
+
+    it('載入中不得宣稱今天沒有排課', async () => {
+      await setup({ pending: true });
+      expect(el().textContent).not.toContain('今天沒有排課');
     });
   });
 
-  /**
-   * 就地點名是作業台的核心：原本要走「儀表板 → 課堂管理 → 找到那一堂 → 開 dialog」
-   * 四步，而那四步每天重複五次。
-   */
   describe('就地點名', () => {
     function rows(): HTMLElement[] {
       return [...fixture.nativeElement.querySelectorAll('[data-testid="spine-row"]')];
@@ -697,46 +609,54 @@ describe('DashboardComponent（管理端）', () => {
   });
 
   /**
-   * 日到班看板。**晨間視角是「誰還沒到」，不是「誰到了」** ——
-   * 一張列出全部學生的表，行政要自己掃描找出缺口；而晨間真正的工作是追還沒到的人。
+   * 日到班看板（A6）。**晨間視角是「誰該到沒到、打給誰」** —— 只列第一堂已經開始、
+   * 還沒到、沒請假的人；還沒到上課時間的在摺疊的到班名冊裡。
    */
-  describe('日到班看板', () => {
-    const student = (
-      over: Partial<{
-        studentId: string;
-        studentName: string;
-        campusId: string | null;
-        campusName: string | null;
-      }> = {},
-    ) => ({
-      studentId: 'stu-1',
-      studentName: '林小明',
-      grade: '七年級',
-      campusId: 'campus-a',
-      campusName: '本館',
-      firstSession: { startTime: '09:00', className: '數學班 A' },
-      ...over,
+  describe('日到班：該到沒到', () => {
+    // 固定「現在」＝ 10:00：09:00 開始的算該到沒到、11:00 開始的還沒到時間
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(`${TODAY}T10:00:00`));
     });
+    afterEach(() => vi.useRealTimers());
 
-    async function board(options: Parameters<typeof setup>[0] = {}) {
-      await setup({ mode: 'daily_checkin', ...options });
-      return fixture.nativeElement as HTMLElement;
+    async function board(options: SetupOptions = {}) {
+      await setup({
+        mode: 'daily_checkin',
+        permissions: ['view_reports', 'basic_operations'],
+        todaySessions: [
+          session({ startTime: '09:00', endTime: '10:30', className: '數學班 A' }),
+          session({
+            sessionId: 's2',
+            eventId: 'e2',
+            startTime: '11:00',
+            endTime: '12:00',
+            className: '英文班 B',
+          }),
+        ],
+        ...options,
+      });
     }
 
-    it('還沒到 = 應到 − 已到 − 已請假', async () => {
-      const el = await board({
+    it('只列第一堂已開始、沒到、沒請假的人；還沒到時間的不在主區', async () => {
+      await board({
         workbenchExpected: [
-          student({ studentId: 'a', studentName: '甲' }),
-          student({ studentId: 'b', studentName: '乙' }),
-          student({ studentId: 'c', studentName: '丙' }),
+          expectedStudent({ studentId: 'late', studentName: '遲到者' }),
+          expectedStudent({ studentId: 'here', studentName: '已到者' }),
+          expectedStudent({ studentId: 'off', studentName: '請假者' }),
+          expectedStudent({
+            studentId: 'soon',
+            studentName: '晚班者',
+            firstSession: { startTime: '11:00', className: '英文班 B' },
+          }),
         ],
         workbenchArrived: [
-          { studentId: 'b', checkedInAt: '2026-08-30T01:12:00Z', checkinId: 'k1' },
+          { studentId: 'here', checkedInAt: `${TODAY}T01:00:00Z`, checkinId: 'k1' },
         ],
         workbenchOnLeave: [
           {
-            studentId: 'c',
-            studentName: '丙',
+            studentId: 'off',
+            studentName: '請假者',
             startDate: TODAY,
             endDate: TODAY,
             submittedByRole: 'parent',
@@ -744,157 +664,273 @@ describe('DashboardComponent（管理端）', () => {
         ],
       });
 
-      expect(el.textContent).toContain('還沒到（1）');
-      expect(component['notArrivedGroups']()[0].students.map((s) => s.studentId)).toEqual(['a']);
+      expect(qa('call-name').map((n) => n.textContent?.trim())).toEqual(['遲到者']);
+      expect(el().querySelector('#dashboard-main-title')?.textContent).toContain(
+        '該到沒到的 1 位，先打給家長',
+      );
     });
 
-    // 混在一起行政會去打一通不必要的電話
-    it('已請假的學生單獨列，不在「還沒到」裡', async () => {
-      const el = await board({
-        workbenchExpected: [student({ studentId: 'c', studentName: '丙' })],
-        workbenchOnLeave: [
-          {
-            studentId: 'c',
-            studentName: '丙',
-            startDate: TODAY,
-            endDate: TODAY,
-            submittedByRole: 'parent',
-          },
-        ],
-      });
+    it('每列有：班與時間、紅字原因、家長稱謂與電話、打電話', async () => {
+      await board({ workbenchExpected: [expectedStudent()] });
 
-      expect(el.textContent).toContain('已請假（1）');
-      expect(component['notArrivedCount']()).toBe(0);
+      const row = q('call-row')!;
+      expect(row.textContent).toContain('09:00 數學班 A');
+      expect(q('call-why')!.textContent).toContain('上課 1 小時了，還沒掃碼');
+      expect(row.textContent).toContain('林媽媽（母親）');
+      expect(q('call-phone')!.getAttribute('href')).toBe('tel:0912345678');
+      expect(q('call-action')!.getAttribute('href')).toBe('tel:0912345678');
     });
 
-    // 分組在分校隔離落地前後都成立；「先選分校再看」則兩邊都要改
-    it('多分校時依分校分組', async () => {
-      const el = await board({
+    it('已下課的原因寫「已下課，今天沒掃碼」', async () => {
+      vi.setSystemTime(new Date(`${TODAY}T11:30:00`));
+      await board({ workbenchExpected: [expectedStudent()] });
+
+      expect(q('call-why')!.textContent).toContain('已下課，今天沒掃碼');
+    });
+
+    it('沒有家長電話 → 沒有「打電話」，並說出原因', async () => {
+      await board({
         workbenchExpected: [
-          student({ studentId: 'a', campusId: 'x', campusName: '本館' }),
-          student({ studentId: 'b', campusId: 'y', campusName: '二館' }),
+          expectedStudent({ primaryParent: { name: '林媽媽', relation: '母親', phone: null } }),
         ],
       });
 
-      expect(el.textContent).toContain('本館');
-      expect(el.textContent).toContain('二館');
+      expect(q('call-action')).toBeNull();
+      expect(q('call-row')!.textContent).toContain('沒有留電話');
     });
 
-    // 單一分校顯示分組標題是一句沒有資訊的話。
-    // **一個 it 只能 setup 一次** —— TestBed 不能在同一條測試裡建兩次。
-    it('單一分校不顯示分組標題', async () => {
-      const el = await board({ workbenchExpected: [student({ studentId: 'a' })] });
+    it('還沒登記家長 → 說出來，不是空白', async () => {
+      await board({ workbenchExpected: [expectedStudent({ primaryParent: null })] });
 
-      expect(el.querySelectorAll('[data-testid="board-group"]').length).toBe(0);
+      expect(q('call-action')).toBeNull();
+      expect(q('call-row')!.textContent).toContain('還沒登記家長');
     });
 
-    /**
-     * 勾完只顯示「已到班 09:12」，**不顯示「已為 N 堂課記錄出席」** ——
-     * 後者取決於 API 的散播規則，是機器的推論不是觀察到的事實。
-     */
-    it('勾到班之後只講到班時間，不宣稱替幾堂課記了出席', async () => {
-      const el = await board({
-        workbenchExpected: [student({ studentId: 'a', studentName: '甲' })],
+    it('今天已經聯絡過 → 載入時就是「已聯絡 HH:mm」，不再顯示打電話', async () => {
+      await board({
+        workbenchExpected: [
+          expectedStudent({
+            lastContact: { at: `${TODAY}T09:42:00`, channel: 'phone' },
+          }),
+        ],
       });
-      // **在 setup 之後才設回傳值** —— setup 會 mockReset 所有 mock，
-      // 在它之前設會被清掉（第一次寫就踩了這個）
-      checkInMock.mockReturnValue(
+
+      expect(q('contacted')!.textContent).toContain('已聯絡 09:42');
+      expect(q('call-action')).toBeNull();
+    });
+
+    it('按「打電話」記一筆 phone 聯絡，成功後該列換成「已聯絡」', async () => {
+      contactMock.mockReset();
+      await board({ workbenchExpected: [expectedStudent()] });
+      contactMock.mockReturnValue(
         of({
-          id: 'k9',
-          studentId: 'a',
-          campusId: 'campus-a',
-          checkinDate: TODAY,
-          checkedInAt: '2026-08-30T01:12:00Z',
+          data: { id: 'c1', studentId: 'stu-1', channel: 'phone', createdAt: `${TODAY}T10:05:00` },
         }),
       );
 
-      el.querySelector<HTMLButtonElement>('[data-testid="board-action"]')!.click();
-      await fixture.whenStable();
+      // 不讓 jsdom 真的導向 tel:
+      const link = q('call-action')!;
+      link.addEventListener('click', (e) => e.preventDefault());
+      link.click();
+      fixture.detectChanges();
 
-      expect(component['notArrivedCount']()).toBe(0);
-      expect(component['arrivedList']()).toHaveLength(1);
-      expect(el.textContent).not.toContain('記錄出席');
+      expect(contactMock).toHaveBeenCalledWith({ studentId: 'stu-1', channel: 'phone' });
+      expect(q('contacted')!.textContent).toContain('已聯絡 10:05');
+      expect(q('call-action')).toBeNull();
     });
 
-    it('逐堂點名模式不渲染看板', async () => {
-      const el = await board({ mode: 'per_session' });
-      expect(el.textContent).not.toContain('還沒到');
+    it('記不成功 → 該列不變，並提示再試一次（不假裝聯絡過）', async () => {
+      await board({ workbenchExpected: [expectedStudent()] });
+      contactMock.mockReturnValue(throwError(() => new Error('boom')));
+
+      const link = q('call-action')!;
+      link.addEventListener('click', (e) => e.preventDefault());
+      link.click();
+      fixture.detectChanges();
+
+      expect(q('contacted')).toBeNull();
+      expect(q('call-action')).not.toBeNull();
+      expect(q('board-error')!.textContent).toContain('林小明');
+    });
+
+    it('「登記請假」開面板並預帶這位學生', async () => {
+      await board({ workbenchExpected: [expectedStudent()] });
+      // 預帶的取數交給子元件的 spec；這裡只守「有把學生 id 傳下去」
+      studentGetMock.mockReturnValue(NEVER);
+      q('leave-action')!.click();
+      fixture.detectChanges();
+
+      const panel = fixture.debugElement.query(By.css('app-phone-leave'));
+      expect(panel).not.toBeNull();
+      expect(panel.componentInstance.presetStudentId()).toBe('stu-1');
+      expect(studentGetMock).toHaveBeenCalledWith('stu-1');
+    });
+
+    it('代刷到班之後只講到班時間，並從主區移到名冊的「到」', async () => {
+      await board({ workbenchExpected: [expectedStudent()] });
+      checkInMock.mockReturnValue(
+        of({ id: 'k9', studentId: 'stu-1', checkedInAt: `${TODAY}T10:01:00` }),
+      );
+      q('board-action')!.click();
+      fixture.detectChanges();
+
+      expect(checkInMock).toHaveBeenCalledWith(
+        expect.objectContaining({ studentId: 'stu-1', campusId: 'campus-a' }),
+      );
+      expect(q('call-row')).toBeNull();
+      expect(q('arrived-at')!.textContent).toContain('10:01 到');
+      expect(el().textContent).not.toContain('已為');
+    });
+
+    it('取消到班：連同打卡一起撤回，回到該到沒到', async () => {
+      await board({
+        workbenchExpected: [expectedStudent()],
+        workbenchArrived: [
+          { studentId: 'stu-1', checkedInAt: `${TODAY}T01:00:00Z`, checkinId: 'k1' },
+        ],
+      });
+      cancelMock.mockReturnValue(of(undefined));
+      q('cancel-arrival')!.click();
+      fixture.detectChanges();
+
+      expect(cancelMock).toHaveBeenCalledWith('k1');
+      expect(q('call-row')).not.toBeNull();
+    });
+
+    it('到班名冊依最早一堂分章，現在線在第一個還沒開始的章前面', async () => {
+      await board({
+        workbenchExpected: [
+          expectedStudent({ studentId: 'a', studentName: '甲' }),
+          expectedStudent({
+            studentId: 'b',
+            studentName: '乙',
+            firstSession: { startTime: '11:00', className: '英文班 B' },
+          }),
+        ],
+        workbenchArrived: [{ studentId: 'a', checkedInAt: `${TODAY}T01:00:00Z`, checkinId: 'k1' }],
+      });
+
+      const chapters = qa('roster-chapter');
+      expect(chapters).toHaveLength(2);
+      expect(chapters[0].textContent).toContain('09:00');
+      expect(chapters[0].textContent).toContain('到 1／1');
+      expect(chapters[1].textContent).toContain('到 0／1');
+      expect(q('now-line')!.textContent).toContain('現在 10:00');
+      // 現在線在第二章之前
+      expect(
+        q('now-line')!.compareDocumentPosition(chapters[1]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(q('coll-roster')!.textContent).toContain('到 1／2 · 請假 0');
+    });
+
+    it('逐堂點名模式不渲染「該到沒到」也不渲染名冊', async () => {
+      await setup({ mode: 'per_session' });
+
+      expect(q('call-row')).toBeNull();
+      expect(q('coll-roster')).toBeNull();
+      expect(el().textContent).toContain('今日課表');
+    });
+  });
+
+  describe('摺疊列與臨時狀況', () => {
+    it('今天的請假：每筆有來源與原因', async () => {
+      await setup({
+        leaves: [
+          leave({ id: 'l1', studentName: '林小美', reason: '感冒', submittedByRole: 'parent' }),
+          leave({ id: 'l2', studentName: '王小弟', reason: null, submittedByRole: 'admin' }),
+        ],
+      });
+
+      const items = qa('leave-item').map((i) => i.textContent!.replace(/\s+/g, ' '));
+      expect(items[0]).toContain('林小美');
+      expect(items[0]).toContain('家長 app · 感冒');
+      expect(items[1]).toContain('櫃台');
+      expect(q('coll-leaves')!.textContent).toContain('2 筆 · 已登記');
+    });
+
+    it('逾期帳單：張數與金額來自伺服器摘要，列表是前幾筆', async () => {
+      await setup({
+        permissions: ['manage_finance'],
+        overdue: { count: 9, amount: 81050 },
+      });
+
+      expect(q('coll-overdue')!.textContent).toContain('9 張 · NT$ 81,050');
+      const item = q('overdue-item')!;
+      expect(item.textContent).toContain('黃小華');
+      expect(item.textContent).toContain('4,000'); // 5000 − 1000
+      expect(invoiceListMock).toHaveBeenCalledWith({ overdue: true, pageSize: 4 });
+    });
+
+    it('沒有 manage_finance → 不打帳單端點、不出現逾期帳單', async () => {
+      await setup({ permissions: ['view_reports'] });
+
+      expect(summaryMock).not.toHaveBeenCalled();
+      expect(q('coll-overdue')).toBeNull();
+    });
+
+    it('臨時狀況三個入口都連到課表頁', async () => {
+      await setup();
+
+      const links = qa('emergency-link');
+      expect(links.map((l) => l.textContent!.replace(/\s+/g, ' ').trim())).toEqual([
+        expect.stringContaining('颱風、停電'),
+        expect.stringContaining('老師請假'),
+        expect.stringContaining('班級改時段'),
+      ]);
+      for (const link of links) {
+        expect(link.getAttribute('href')).toBe(RoutesCatalog.ADMIN_SESSIONS.absolutePath);
+      }
     });
   });
 
   it('載入中不得宣稱今日尚無排課', async () => {
     await setup({ pending: true });
 
-    const text = fixture.nativeElement.textContent as string;
+    const text = el().textContent as string;
     expect(text).not.toContain('今日尚無排課');
     expect(text).not.toContain('今天沒有人請假');
-    expect(fixture.nativeElement.querySelector('.skeleton-bar')).not.toBeNull();
-  });
-
-  it('載入中橘帶不得宣稱今天沒有排課', async () => {
-    await setup({ pending: true });
-
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).not.toContain('今天沒有排課');
-    expect(fixture.nativeElement.querySelector('[data-testid="band-skeleton"]')).not.toBeNull();
+    expect(el().querySelector('.skeleton-bar')).not.toBeNull();
   });
 
   it('今天沒課時顯示空狀態', async () => {
     await setup({ todaySessions: [] });
 
-    expect(fixture.nativeElement.textContent).toContain('今日尚無排課');
-  });
-
-  it('今日請假列出請假學生', async () => {
-    await setup({ leaves: [leave({ studentName: '林小美' })] });
-
-    expect(fixture.nativeElement.textContent).toContain('林小美');
+    expect(el().textContent).toContain('今日尚無排課');
   });
 
   it('不再有寫死的佔位卡', async () => {
     await setup();
 
-    const text = fixture.nativeElement.textContent as string;
+    const text = el().textContent as string;
     expect(text).not.toContain('資料串接中');
-    expect(text).not.toContain('—');
   });
 
   /**
-   * #516：現況區每一列都是連結，而它原本**除了 hover 變色之外沒有任何可點的線索**。
-   * **觸控裝置上 hover 不存在**，所以那一列在手機上跟純文字長得一模一樣。
-   *
-   * 這條盯的不是「chevron 這個圖示」，是「**有一個不依賴 hover 的訊號**」——
-   * 換成底線或框線的話請一起改這條的斷言，但不要讓它變成零。
-   */
-  it('現況區的每一列都有不依賴 hover 的可點訊號', async () => {
-    await setup();
-
-    const rows = fixture.nativeElement.querySelectorAll('[data-testid="fact"]');
-    expect(rows.length).toBeGreaterThan(0);
-
-    for (const row of rows) {
-      expect(row.querySelector('.pi-chevron-right')).not.toBeNull();
-    }
-  });
-
-  /**
-   * #964 UI 實驗：接到電話就地請假。任務流本身在 `phone-leave.component.spec.ts`；
+   * #964：接到電話就地請假。任務流本身在 `phone-leave.component.spec.ts`；
    * 這裡守儀表板的兩件事：入口給誰、送出之後底下的看板有沒有跟著更新（閉環在同一頁）。
+   * #1314 D：入口改名「登記請假」，進工具列／手機托盤的主要行動。
    */
-  describe('接到電話：請假（#964）', () => {
+  describe('登記請假（#964）', () => {
     const entry = () =>
-      Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
-      ).find((b) => b.textContent?.includes('接到電話：請假'));
+      Array.from(el().querySelectorAll<HTMLElement>('app-page-actions p-button')).find((b) =>
+        b.textContent?.includes('登記請假'),
+      );
 
     it('沒有請假寫入權限（basic_operations）的人看不到入口', async () => {
       await setup({ permissions: ['view_reports'] });
       expect(entry()).toBeUndefined();
+      expect(el().querySelector('app-page-actions')).toBeNull();
+    });
+
+    it('有權限 → 工具列有「登記請假」與「櫃台代刷到班」', async () => {
+      await setup({ permissions: ['view_reports', 'basic_operations'] });
+      expect(entry()).toBeDefined();
+      expect(el().querySelector('app-page-actions')!.textContent).toContain('櫃台代刷到班');
     });
 
     it('送出成功後重抓「今日」—— 剛登記的假出現在底下的看板上', async () => {
       await setup({ permissions: ['view_reports', 'basic_operations'] });
-      entry()!.click();
+      component['openPhoneLeave']();
       fixture.detectChanges();
 
       const before = {

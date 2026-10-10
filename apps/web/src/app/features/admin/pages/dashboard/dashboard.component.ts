@@ -10,27 +10,30 @@ import {
   createEnvironmentInjector,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NgTemplateOutlet } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { endOfMonth, format, startOfMonth } from 'date-fns';
-import { catchError, forkJoin, of, type Observable } from 'rxjs';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { Router, RouterLink } from '@angular/router';
+import { format } from 'date-fns';
+import { catchError, of, type Observable } from 'rxjs';
 
-import { AcademyExamsService } from '@core/academy-exams.service';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
-import { DayTimelineComponent } from '@shared/components/day-timeline/day-timeline.component';
 import { AuthService } from '@core/auth.service';
 import { BillingPeriodsService, type UpcomingUnbilledPeriod } from '@core/billing-periods.service';
-import { EnrollmentsService } from '@core/enrollments.service';
+import { ContactLogsService } from '@core/contact-logs.service';
+import { InvoicesService, type Invoice } from '@core/invoices.service';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
-import type { AttendanceMode } from '@core/org-settings.service';
-import { SchoolExamsService } from '@core/school-exams.service';
-import { StudentsService } from '@core/students.service';
+import { OrgSettingsService, type AttendanceMode } from '@core/org-settings.service';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 
-import { CollapsibleComponent } from '@shared/components/collapsible/collapsible.component';
+import { PageActionsComponent } from '@shared/components/page-actions/page-actions.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 
-import { pendingAttendanceQuery } from './dashboard.util';
+import {
+  missingReason,
+  missingText,
+  pendingAttendanceQuery,
+  toMinutes,
+  type MissingReason,
+} from './dashboard.util';
 import {
   StatusDotComponent,
   type StatusTone,
@@ -44,7 +47,6 @@ interface StatCard {
   readonly label: string;
   readonly value: CardValue;
   readonly sub?: string;
-  readonly icon: string;
   readonly routerLink: string;
   /**
    * 帶去目的頁的篩選——**沒有這個欄位，卡片的數字跟落地頁篩選後看到的東西
@@ -52,28 +54,23 @@ interface StatCard {
    * 沒有篩選需求的卡片就不填，模板綁 `card.queryParams ?? {}`。
    */
   readonly queryParams?: Readonly<Record<string, string>>;
-  readonly accent?: boolean;
-  /**
-   * 這張卡是「今天要動作的事」還是「背景脈絡」。
-   *
-   * 舊版六張卡等權排成一列，所以「未點名 6」跟「在籍學生 27」長得一樣大 ——
-   * 但一個要動作、一個只是背景。分類讓構圖能把它們放到不同的地方：
-   * `todo` 進待處理區、其餘退到右側安靜的現況欄。
-   */
-  readonly kind: 'todo' | 'fact';
 }
 
-/**
- * 使用者手動收合橘帶時間軸的偏好。
- *
- * **原本還有一條自動收合**（lane 超過 3 條就預設收起來），依據是實測：橘帶在
- * 1 堂課時 226px、4 條 lane 時 359px（48% 視窗），整頁 1.76 螢幕、課表整段掉到
- * 摺線下。那是 lane 式畫法的止血。
- *
- * 時間軸換成密度圖之後**高度與課量脫鉤**，那個依據不存在了，所以自動收合退役 ——
- * 留著只是把資訊藏起來。這個鍵保留，因為使用者按過的選擇要繼續生效。
- */
-const TIMELINE_COLLAPSED_KEY = 'clessia.dashboard.timeline-collapsed';
+/** 到班名冊裡一個人的狀態；排序也照這個順序（要處理的在最上面） */
+type RosterState = 'missing' | 'arrived' | 'not_yet' | 'on_leave';
+const ROSTER_RANK: Record<RosterState, number> = {
+  missing: 0,
+  arrived: 1,
+  not_yet: 2,
+  on_leave: 3,
+};
+
+interface RosterPerson {
+  readonly student: WorkbenchExpectedStudent;
+  readonly state: RosterState;
+  readonly reason: MissingReason | null;
+  readonly arrival: WorkbenchArrival | undefined;
+}
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'] as const;
 
@@ -84,15 +81,6 @@ function failSoft<T>(source: Observable<T>): Observable<T | typeof FAILED> {
   return source.pipe(catchError(() => of(FAILED)));
 }
 
-function readStoredCollapsed(): boolean | null {
-  try {
-    const v = localStorage.getItem('clessia.dashboard.timeline-collapsed');
-    return v === null ? null : v === '1';
-  } catch {
-    return null;
-  }
-}
-
 function countOf(items: readonly unknown[] | 'error' | null): CardValue {
   return items === null || items === FAILED ? items : items.length;
 }
@@ -100,8 +88,12 @@ function countOf(items: readonly unknown[] | 'error' | null): CardValue {
 /** 回溯窗：昨天忘記點的今天要追得到，更久以前的漏點名是報表該查的異常 */
 const UNTAKEN_LOOKBACK_DAYS = 7;
 
+/** 「逾期帳單」摺疊列展開後列幾筆（A6：前 4 筆，其餘到帳單頁看） */
+const OVERDUE_PREVIEW = 4;
+
 import {
   WorkbenchService,
+  type WorkbenchArrival,
   type WorkbenchExpectedStudent,
   type WorkbenchToday,
 } from '@core/workbench.service';
@@ -116,11 +108,11 @@ import {
   imports: [
     StatusDotComponent,
     RouterLink,
-    DayTimelineComponent,
-    CollapsibleComponent,
     PhoneLeaveComponent,
+    PageActionsComponent,
     PageOpenComponent,
     NgTemplateOutlet,
+    DecimalPipe,
   ],
   templateUrl: './dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -130,45 +122,22 @@ export class DashboardComponent {
 
   private readonly attendanceService = inject(AttendanceService);
   private readonly leaveService = inject(LeaveService);
-  private readonly academyExamsService = inject(AcademyExamsService);
-  private readonly schoolExamsService = inject(SchoolExamsService);
-  private readonly studentsService = inject(StudentsService);
-  private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly billingPeriodsService = inject(BillingPeriodsService);
+  private readonly invoicesService = inject(InvoicesService);
   private readonly workbenchService = inject(WorkbenchService);
   private readonly dailyCheckinsService = inject(DailyCheckinsService);
+  private readonly contactLogsService = inject(ContactLogsService);
+  private readonly orgSettings = inject(OrgSettingsService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  private readonly now = new Date();
-  private readonly todayIso = format(this.now, 'yyyy-MM-dd');
-
-  protected readonly today = this.now;
-  /** 時間軸要的是本地日期字串。用 date-fns 的 format 而不是 toISOString ——
-      補習班的「今天」是本地的今天，UTC+8 的凌晨會差一天（既有 spec 踩過）。 */
-  protected readonly todayKey = format(this.now, 'yyyy-MM-dd');
-
-  /**
-   * 時間軸收合狀態。
-   *
-   * 收的是**時間軸**不是整條帶 —— 帶上那句話（「今天 9 堂課，其中 6 堂還沒點名」）
-   * 是這一頁的錨點，收掉它等於收掉重點。隨密度長大的是時間軸（359px 裡的 136px）。
-   *
-   * `null` = 使用者還沒表態，這時候看 lane 數決定；一旦他按過就永遠照他的意思。
-   */
-  private readonly storedCollapsed = signal<boolean | null>(readStoredCollapsed());
-
-  /**
-   * **自動收合退役了。** 它的依據是「lane 超過 3 條時圖會長到把課表推到摺線下」，
-   * 而時間軸改成密度圖之後**高度與課量脫鉤** —— 那個依據不存在了，
-   * 再自動收就只是把資訊藏起來。
-   *
-   * 手動收合保留（可收合帶是已裁的方向），使用者按過就照他的意思。
-   */
-  protected readonly timelineCollapsed = computed(() => this.storedCollapsed() ?? false);
-
-  /** 有課才顯示收合鈕 —— 沒課的日子那條軸本來就不畫，給一顆收合鈕是空的動作 */
-  protected readonly hasTimeline = computed(() => (this.todaySessionList()?.length ?? 0) > 0);
+  /** 「現在」。每半分鐘更新一次 —— 「上課 40 分鐘了」與名冊的現在線會隨時間走 */
+  private readonly now = signal(new Date());
+  private readonly todayIso = format(this.now(), 'yyyy-MM-dd');
+  private readonly nowMinutes = computed(
+    () => this.now().getHours() * 60 + this.now().getMinutes(),
+  );
 
   /**
    * 就地點名：從這裡直接開點名 dialog，不用「儀表板 → 課堂管理 → 找到那一堂」。
@@ -264,86 +233,146 @@ export class DashboardComponent {
 
   // ── 日到班看板 ────────────────────────────────────────────────────────
   //
-  // **晨間視角是「誰還沒到」，不是「誰到了」。** 一張列出全部學生的表，行政要自己
-  // 掃描找出缺口；而晨間真正的工作是**追還沒到的人**（打電話問家長、確認是不是請假）。
+  // **晨間視角是「誰該到沒到」，不是「誰到了」。** 一張列出全部學生的表，行政要自己
+  // 掃描找出缺口；而晨間真正的工作是**追該到沒到的人**（打電話問家長、確認是不是請假）。
   //
-  // 三段的順序就是它們的重要性：還沒到（工作）→ 已請假（別打那通電話）→ 已到（確認）。
+  // 主區只放「第一堂已經開始、還沒到、沒請假」的人（A6）；還沒到上課時間的人在
+  // 摺疊的到班名冊裡，不佔主區。
 
   protected readonly isDailyCheckin = computed(() => this.attendanceMode() === 'daily_checkin');
 
-  // ── 接到電話：請假（#964 UI 實驗）──────────────────────────────────────
+  // ── 登記請假（#964 接到電話就地請假；A6 工具列／托盤的「登記請假」）─────────
   // 寫入走既有 `POST /api/leaves`，它要求 `basic_operations` —— 沒有的人連入口都不給
   protected readonly canPhoneLeave = computed(() => this.auth.hasPermission('basic_operations'));
   protected readonly phoneLeaveOpen = signal(false);
+  /** 從「該到沒到」那一列開的：預帶那位學生 */
+  protected readonly phoneLeaveStudentId = signal<string | null>(null);
+
+  /** A6 的「臨時狀況？」三個入口；本站沒有各自的情境頁，都從課表頁出發 */
+  protected readonly emergencyLinks = [
+    { title: '颱風、停電', hint: '整天停課' },
+    { title: '老師請假', hint: '整週找人代課' },
+    { title: '班級改時段', hint: '整期一起改' },
+  ] as const;
+
+  protected readonly leavePrimary = { label: '登記請假' };
+  protected readonly leaveSecondary = { label: '櫃台代刷到班' };
+
+  protected openPhoneLeave(studentId: string | null = null): void {
+    this.phoneLeaveStudentId.set(studentId);
+    this.phoneLeaveOpen.set(true);
+    // 面板在頁面上方，從列內按時要把它帶進視野
+    queueMicrotask(() =>
+      document
+        .getElementById('dashboard-phone-leave')
+        ?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }),
+    );
+  }
+
+  protected closePhoneLeave(): void {
+    this.phoneLeaveOpen.set(false);
+    this.phoneLeaveStudentId.set(null);
+  }
+
+  /** 櫃台代刷＝到班打卡站（掃 QR）。登記請假用同一顆托盤鈕，不經這裡 */
+  protected openCheckinStation(): void {
+    void this.router.navigateByUrl(RoutesCatalog.ADMIN_CHECKIN.absolutePath);
+  }
 
   private readonly arrivedById = computed(
     () => new Map((this.workbench()?.arrived ?? []).map((a) => [a.studentId, a])),
   );
 
-  /**
-   * 已請假的學生。**這是第三種狀態，不是「還沒到」的一種** ——
-   * 混在一起行政會去打一通不必要的電話。
-   */
-  protected readonly leaveList = computed(() => this.workbench()?.onLeave ?? []);
-
   private readonly onLeaveIds = computed(
-    () => new Set(this.leaveList().map((leave) => leave.studentId)),
+    () => new Set((this.workbench()?.onLeave ?? []).map((leave) => leave.studentId)),
   );
 
-  /**
-   * 還沒到 = 應到 − 已到 − 已請假，**依分校分組**。
-   *
-   * 分組而不是「先選分校再看」（使用者裁定）：分組在分校隔離落地前後都成立 ——
-   * 現在管理者看到全部分校各自的缺口，有隔離之後他只會拿到自己那組，同一段 UI
-   * 不用改。單一分校的機構不顯示分組標題。
-   */
-  protected readonly notArrivedGroups = computed(() => {
+  /** 每個人的名冊狀態。判定只有一份：missing 與否交給 `missingReason` */
+  private readonly rosterPeople = computed<RosterPerson[]>(() => {
     const arrived = this.arrivedById();
     const onLeave = this.onLeaveIds();
-    const pending = (this.workbench()?.expected ?? []).filter(
-      (student) => !arrived.has(student.studentId) && !onLeave.has(student.studentId),
-    );
+    const sessions = this.workbench()?.sessions ?? [];
+    const nowMin = this.nowMinutes();
 
-    const groups = new Map<string, { campusName: string; students: typeof pending }>();
-    for (const student of pending) {
-      const key = student.campusId ?? '';
-      const group = groups.get(key) ?? {
-        campusName: student.campusName ?? '未指定分校',
-        students: [],
-      };
-      group.students.push(student);
+    return (this.workbench()?.expected ?? []).map((student) => {
+      const arrival = arrived.get(student.studentId);
+      const reason = missingReason(student.firstSession, sessions, nowMin);
+      const state: RosterState = arrival
+        ? 'arrived'
+        : onLeave.has(student.studentId)
+          ? 'on_leave'
+          : reason
+            ? 'missing'
+            : 'not_yet';
+      return { student, state, reason, arrival };
+    });
+  });
+
+  /** 該到沒到：開始時間早的在上面（最久沒到的先處理） */
+  protected readonly missingRows = computed(() =>
+    this.rosterPeople()
+      .filter((p) => p.state === 'missing' && p.reason !== null)
+      .sort((a, b) =>
+        (a.student.firstSession?.startTime ?? '').localeCompare(
+          b.student.firstSession?.startTime ?? '',
+        ),
+      )
+      .map((p) => ({
+        student: p.student,
+        text: missingText(p.reason!),
+        // 家長沒有帳號 → 沒有電話；沒有家長 → 兩個都沒有。都要說出來，不要空白
+        parent: p.student.primaryParent,
+        contactedAt: p.student.lastContact ? this.clock(p.student.lastContact.at) : null,
+      })),
+  );
+
+  /** 到班名冊：依「今天最早那堂」分章，現在線插在第一個還沒開始的章前面 */
+  protected readonly rosterChapters = computed(() => {
+    const groups = new Map<string, { people: RosterPerson[]; classNames: Set<string> }>();
+    for (const person of this.rosterPeople()) {
+      const key = person.student.firstSession?.startTime ?? '';
+      const group = groups.get(key) ?? { people: [], classNames: new Set<string>() };
+      group.people.push(person);
+      if (person.student.firstSession) group.classNames.add(person.student.firstSession.className);
       groups.set(key, group);
     }
 
-    return [...groups.values()];
+    const nowMin = this.nowMinutes();
+    let nowPlaced = false;
+    return [...groups.entries()]
+      .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+      .map(([time, group]) => {
+        const start = toMinutes(time);
+        const nowBefore = !nowPlaced && start !== null && start > nowMin;
+        if (nowBefore) nowPlaced = true;
+        return {
+          time,
+          nowBefore,
+          classNames: [...group.classNames],
+          arrivedCount: group.people.filter((p) => p.state === 'arrived').length,
+          people: [...group.people].sort(
+            (a, b) =>
+              ROSTER_RANK[a.state] - ROSTER_RANK[b.state] ||
+              (a.arrival?.checkedInAt ?? '').localeCompare(b.arrival?.checkedInAt ?? ''),
+          ),
+        };
+      });
   });
 
-  protected readonly notArrivedCount = computed(() =>
-    this.notArrivedGroups().reduce((sum, group) => sum + group.students.length, 0),
-  );
-
-  /** 已到：把打卡時間接回名字。應到名單是唯一有名字的來源。 */
-  protected readonly arrivedList = computed(() => {
-    const names = new Map(
-      (this.workbench()?.expected ?? []).map((s) => [s.studentId, s.studentName]),
-    );
-    return (this.workbench()?.arrived ?? []).map((arrival) => ({
-      ...arrival,
-      studentName: names.get(arrival.studentId) ?? '（不在今天的名單上）',
-    }));
+  protected readonly rosterSummary = computed(() => {
+    const people = this.rosterPeople();
+    const arrived = people.filter((p) => p.state === 'arrived').length;
+    const onLeave = people.filter((p) => p.state === 'on_leave').length;
+    return `到 ${arrived}／${people.length} · 請假 ${onLeave}`;
   });
 
   protected readonly boardBusy = signal<string | null>(null);
+  protected readonly boardError = signal<string | null>(null);
 
-  /** 「已到」預設收合 —— 它是確認不是工作。這裡不記 localStorage：跨天沒有意義。 */
-  protected readonly arrivedCollapsed = signal(true);
-
-  protected toggleArrived(): void {
-    this.arrivedCollapsed.update((collapsed) => !collapsed);
-  }
+  protected readonly nowText = computed(() => format(this.now(), 'HH:mm'));
 
   /** `HH:mm`。打卡時間是 ISO 字串，而行政要看的是「幾點到的」。 */
-  protected arrivalClock(isoTime: string): string {
+  protected clock(isoTime: string): string {
     const at = new Date(isoTime);
     return Number.isNaN(at.getTime())
       ? '—'
@@ -351,7 +380,43 @@ export class DashboardComponent {
   }
 
   /**
-   * 勾到班。
+   * 打電話（#1314 D2）：撥號交給 `tel:` 連結（模板），這裡只負責**記一筆聯絡**。
+   * 記錄成功才把那一列換成「已聯絡 HH:mm」—— 用回應的時間，不猜。
+   * 沒記成功就留在原地並說出來，列不能假裝聯絡過了。
+   */
+  protected recordCall(student: WorkbenchExpectedStudent): void {
+    if (this.boardBusy() !== null) return;
+    this.boardBusy.set(student.studentId);
+    this.boardError.set(null);
+
+    this.contactLogsService
+      .create({ studentId: student.studentId, channel: 'phone' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ data }) => {
+          this.workbench.update((current) =>
+            current === null
+              ? current
+              : {
+                  ...current,
+                  expected: current.expected.map((s) =>
+                    s.studentId === student.studentId
+                      ? { ...s, lastContact: { at: data.createdAt, channel: data.channel } }
+                      : s,
+                  ),
+                },
+          );
+          this.boardBusy.set(null);
+        },
+        error: () => {
+          this.boardError.set(`沒能記下對 ${student.studentName} 家長的聯絡，請再試一次。`);
+          this.boardBusy.set(null);
+        },
+      });
+  }
+
+  /**
+   * 勾到班（櫃台代刷）。
    *
    * **勾完只顯示「已到班 09:12」，不顯示「已為 N 堂課記錄出席」** —— 後者取決於
    * API 那邊的散播規則（`#178`：只寫他有報名的課），是機器的推論而不是觀察到的
@@ -360,6 +425,7 @@ export class DashboardComponent {
   protected checkIn(student: WorkbenchExpectedStudent): void {
     if (this.boardBusy() !== null) return;
     this.boardBusy.set(student.studentId);
+    this.boardError.set(null);
 
     this.dailyCheckinsService
       .checkIn({
@@ -413,23 +479,16 @@ export class DashboardComponent {
       });
   }
 
-  protected toggleTimeline(): void {
-    const next = !this.timelineCollapsed();
-    this.storedCollapsed.set(next);
-    try {
-      localStorage.setItem(TIMELINE_COLLAPSED_KEY, next ? '1' : '0');
-    } catch {
-      // 無痕視窗之類的環境沒有 localStorage —— 記不住不是錯誤，這一次仍然生效
-    }
-  }
-
   /**
-   * 橘帶上的日期。**在這裡算而不是用 DatePipe 帶 locale** ——
+   * 工具列上的日期與時刻。**在這裡算而不是用 DatePipe 帶 locale** ——
    * `registerLocaleData(localeZhTW)` 是在 `app.config.ts` 跑的，TestBed 不載它，
    * 所以 `date: … : 'zh-TW'` 在測試環境會炸「Missing locale data」。
    * 星期用自己的陣列，不依賴任何 locale 註冊。
    */
-  protected readonly todayLabel = `${format(this.now, 'yyyy 年 M 月 d 日')} · ${WEEKDAYS[this.now.getDay()]}`;
+  protected readonly todayLabel = computed(
+    () =>
+      `${format(this.now(), 'M 月 d 日')} ${WEEKDAYS[this.now().getDay()]} ${format(this.now(), 'HH:mm')}`,
+  );
 
   private readonly todaySessions = signal<EventSessionSummary[] | 'error' | null>(null);
   /**
@@ -438,7 +497,6 @@ export class DashboardComponent {
    */
   private readonly untakenCount = signal<CardValue>(null);
   private readonly todayLeaves = signal<LeaveRequest[] | 'error' | null>(null);
-  private readonly gradesTodo = signal<CardValue>(null);
   /**
    * 待開單（#1293）：14 天內開始、有期繳生卻還沒開單的期。系統沒有排程提醒，行政只看得到這裡。
    * 只有 `manage_finance` 的人會載入（開單是財務動作，端點也掛這個權限）。
@@ -446,12 +504,36 @@ export class DashboardComponent {
   private readonly unbilledPeriods = signal<readonly UpcomingUnbilledPeriod[] | 'error' | null>(
     null,
   );
-  private readonly activeStudents = signal<CardValue>(null);
-  private readonly enrollmentChanges = signal<CardValue>(null);
+  /** 逾期帳單摘要（#1314 D6）。同樣只有 `manage_finance` 載入；`null` = 還不知道 */
+  protected readonly overdueSummary = signal<
+    { count: number; amount: number } | typeof FAILED | null
+  >(null);
+  protected readonly overdueList = signal<readonly Invoice[]>([]);
+  protected readonly canSeeOverdue = computed(() => this.auth.hasPermission('manage_finance'));
+  protected readonly overdueRoute = RoutesCatalog.ADMIN_PAYMENTS.absolutePath;
+  protected readonly studentRoute = RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath;
+  protected readonly sessionsRoute = RoutesCatalog.ADMIN_SESSIONS.absolutePath;
   /** `null` 代表讀不到機構設定 */
   private readonly attendanceMode = signal<AttendanceMode | null>(null);
   /** 日到班看板要用的那三段（應到／已到／請假）。逐堂模式下它們是空陣列。 */
   private readonly workbench = signal<WorkbenchToday | null>(null);
+
+  /** 主標：機構名。還沒載到是 `null`（骨架），讀不到才退回頁名 */
+  protected readonly orgName = computed(() => {
+    if (this.orgSettings.status() === 'failed') return this.page().label;
+    return this.orgSettings.settings()?.name ?? null;
+  });
+
+  /** 分校小字：只有今天的資料全落在同一個分校時才寫，跨分校的機構不挑一個 */
+  protected readonly campusName = computed(() => {
+    const names = new Set(
+      [
+        ...(this.workbench()?.sessions ?? []).map((s) => s.campusName),
+        ...(this.workbench()?.expected ?? []).map((s) => s.campusName),
+      ].filter((name): name is string => !!name),
+    );
+    return names.size === 1 ? [...names][0] : null;
+  });
 
   /**
    * **`null` 是「還不知道」，不是「沒有」。**
@@ -478,6 +560,21 @@ export class DashboardComponent {
   protected readonly sessionsFailed = computed(() => this.todaySessions() === FAILED);
   protected readonly leavesFailed = computed(() => this.todayLeaves() === FAILED);
 
+  /** 「林媽媽（母親）」；沒有關係就只有名字。拼在這裡是因為模板的換行會在中間長出空白 */
+  protected parentLabel(parent: { name: string; relation: string | null } | null): string {
+    return parent ? `${parent.name}${parent.relation ? `（${parent.relation}）` : ''}` : '';
+  }
+
+  /** 逾期列右邊的金額：未收餘額（總額 − 已收淨額） */
+  protected balance(invoice: Invoice): number {
+    return invoice.total - invoice.netPaid;
+  }
+
+  /** A6 的請假列右側：「家長 app」或「櫃台」 */
+  protected leaveSource(leave: LeaveRequest): string {
+    return leave.submittedByRole === 'parent' ? '家長 app' : '櫃台';
+  }
+
   /**
    * `'hidden'` 是整張卡不該存在：`daily-checkins` 建立 attendance_records 但從不蓋
    * `events.attendance_taken_at`，日到班模式下每一堂都會被算成漏點名。讀不到機構設定時
@@ -495,29 +592,23 @@ export class DashboardComponent {
    * 卡片的 `queryParams` 都從它產生，兩者不能各自拼一份。
    */
   private readonly untakenQuery = computed(() =>
-    pendingAttendanceQuery(this.now, UNTAKEN_LOOKBACK_DAYS),
+    pendingAttendanceQuery(this.now(), UNTAKEN_LOOKBACK_DAYS),
   );
 
-  protected readonly cards = computed<StatCard[]>(() => {
-    const cards: StatCard[] = [
-      {
-        kind: 'fact',
-        label: '今日課堂',
-        value: countOf(this.todaySessions()),
-        icon: 'pi-calendar',
-        routerLink: RoutesCatalog.ADMIN_SESSIONS.absolutePath,
-      },
-    ];
+  /**
+   * 待處理：只有真的要動作的才進來（A6 沒畫這一列，但這兩項是已接通的提醒，保留）。
+   * 「成績待登錄」、「現況」數字卡在 #1314 D 移除 —— A6 儀表板沒有它們。
+   */
+  protected readonly todoCards = computed<StatCard[]>(() => {
+    const cards: StatCard[] = [];
 
     const untaken = this.untaken();
     if (untaken !== 'hidden') {
       const query = this.untakenQuery();
       cards.push({
-        kind: 'todo',
         label: '未點名課堂',
         value: untaken,
         sub: `近 ${UNTAKEN_LOOKBACK_DAYS} 天`,
-        icon: 'pi-exclamation-triangle',
         routerLink: RoutesCatalog.ADMIN_ATTENDANCE.absolutePath,
         queryParams: {
           dateFrom: query.dateFrom,
@@ -527,122 +618,66 @@ export class DashboardComponent {
           // 明著帶過去，落地頁才不會退回它自己的 `DEFAULT_STATUSES`（#456）
           statuses: query.statuses.join(','),
         },
-        accent: true,
       });
     }
-
-    cards.push(
-      {
-        kind: 'fact',
-        label: '今日請假',
-        value: countOf(this.todayLeaves()),
-        icon: 'pi-file',
-        routerLink: RoutesCatalog.ADMIN_LEAVE.absolutePath,
-      },
-      {
-        kind: 'todo',
-        label: '成績待登錄',
-        value: this.gradesTodo(),
-        sub: '校內考 + 段考',
-        icon: 'pi-pencil',
-        routerLink: RoutesCatalog.ADMIN_GRADES_EXAMS.absolutePath,
-      },
-    );
 
     // 沒有待開的期就不出現（不是顯示 0）—— 一學期才一次的事，平常不該佔一格
     const unbilled = this.unbilledPeriods();
     if (unbilled === FAILED || (unbilled && unbilled.length > 0)) {
       const first = unbilled === FAILED ? null : unbilled[0];
       cards.push({
-        kind: 'todo',
         label: '待開單',
         value: unbilled === FAILED ? FAILED : unbilled.length,
         sub: first ? `${first.name} ${formatMonthDay(first.startDate)} 開始` : undefined,
-        icon: 'pi-receipt',
         routerLink: RoutesCatalog.ADMIN_MEALS.absolutePath,
         // 帶去開單對話框、直接選好那一期 —— 卡片說的那一期就是點進去開的那一期（P1-6）
         queryParams: first ? { billingRun: 'period', periodId: first.periodId } : undefined,
-        accent: true,
       });
-    }
-
-    if (this.auth.hasPermission('view_reports')) {
-      cards.push(
-        {
-          kind: 'fact',
-          label: '在籍學生',
-          value: this.activeStudents(),
-          icon: 'pi-users',
-          routerLink: RoutesCatalog.ADMIN_STUDENTS.absolutePath,
-        },
-        {
-          kind: 'fact',
-          label: '本月報名異動',
-          value: this.enrollmentChanges(),
-          // meta.total 數的是「期間內有異動的報名記錄」，一筆當月插班又退班的報名在這裡是 1，
-          // 在總覽頁的事件分類裡會是 joined + left 兩筆 —— 所以單位是「筆」，分項去那邊看
-          sub: '筆 · 點擊查看進出分項',
-          icon: 'pi-sign-in',
-          routerLink: RoutesCatalog.ADMIN_ENROLLMENTS.absolutePath,
-        },
-      );
     }
 
     return cards;
   });
 
-  /** 待處理：只有真的要動作的才進來 */
-  protected readonly todoCards = computed(() => this.cards().filter((c) => c.kind === 'todo'));
-
-  /** 現況：背景脈絡，放右側安靜的窄欄 */
-  protected readonly factCards = computed(() => this.cards().filter((c) => c.kind === 'fact'));
-
-  /** 「現況」摺疊列的摘要：只列已經有數字的，載入中／失敗的不佔位 */
-  protected readonly factSummary = computed(() =>
-    this.factCards()
-      .filter((c) => typeof c.value === 'number')
-      .map((c) => `${c.label} ${c.value}`)
-      .join(' · '),
-  );
-
   /**
-   * 橘帶上那句話。**它算的是總數**，而時間軸只畫得出有時間的那部分 ——
-   * 兩者不一致時由時間軸自己說出來（「另有 N 堂未排定時間」），不在這裡對齊。
+   * Hero 副行。日到班講「人」（A6）；逐堂點名的機構沒有「掃碼到班」，仍講「堂」。
    */
   protected readonly todayHeadline = computed(() => {
+    const board = this.workbench();
     const sessions = this.todaySessions();
-    if (sessions === null || sessions === FAILED) return null;
+    if (board === null || sessions === null || sessions === FAILED) return null;
+
+    if (board.mode === 'daily_checkin') {
+      return `今天 ${board.expected.length} 人要來，已經到了 ${board.arrived.length} 位。`;
+    }
+
     // **停課的不算未點名**（#686）—— 它永遠不會被點，算進去等於宣稱有一件
-    // 做不完的事。`total` 刻意**不**排除停課：時間軸照樣畫得出那一列
-    // （標成「已停課」），總數少一堂的話這句話會跟下面的清單對不上。
+    // 做不完的事。`total` 刻意**不**排除停課：總數少一堂的話這句話會跟下面的清單對不上。
     const untaken = sessions.filter((s) => s.status !== 'cancelled' && s.takenAt === null).length;
-    return { total: sessions.length, untaken };
+    if (sessions.length === 0) return '今天沒有排課。';
+    return untaken === 0
+      ? `今天 ${sessions.length} 堂課，全部點完了。`
+      : `今天 ${sessions.length} 堂課，其中 ${untaken} 堂還沒點名。`;
   });
 
   constructor() {
     this.destroyRef.onDestroy(() => (this.destroyed = true));
 
+    const tick = setInterval(() => this.now.set(new Date()), 30_000);
+    this.destroyRef.onDestroy(() => clearInterval(tick));
+
+    if (this.orgSettings.status() === 'unloaded') this.orgSettings.load();
+
     // **逐支訂閱，不用單一 forkJoin。** forkJoin 要全部完成才 emit，於是整頁
-    // 等最慢的那一支 —— 橘帶那句話可能是最早回來的，卻要等最後一支。
+    // 等最慢的那一支。次序照**畫面由上而下**，不照快慢，畫面才不會跳來跳去。
     //
-    // 次序照**畫面由上而下**，不照快慢。照快慢排的話畫面會跳來跳去
-    // （design-web-2 的提醒）：橘帶 → 待處理 → 現況欄。
-    //
-    // ⚠️ 這是**體感的改善，不是延遲的改善**。billing-api 量到那 8 支即使
-    // 完全不碰資料庫，並行仍比序列慢 2.4 倍（fan-out 本身的成本），而且
-    // guard 的 `await auth.ready` 是序列跳板，總時間 ≈ TTFB(/api/me) + max(8 支)。
-    // 真正的延遲那條在 pooler 設定，不在這裡。見
+    // ⚠️ 這是**體感的改善，不是延遲的改善**，見
     // kb/wiki/lessons/workers-fanout-costs-before-the-db.md
     // `takeUntilDestroyed` 的泛型是在呼叫點推導的 —— 存成 const 會把 T 定死成
     // `unknown`，後面每個 subscribe 的 res 都變 unknown。所以逐一 inline 呼叫。
 
-    // ① 橘帶＋作業台主體：**一支取代兩支**（今日課表 + 點名模式）。
-    //
-    // 原本這兩件事分兩支發，於是「今天幾堂課」與「這個機構怎麼點名」會在不同時間
-    // 抵達，畫面先用 per_session 的語言渲一次再改口。合成一支之後兩者同時到 ——
-    // 而**形狀的判斷本來就該只有一份，在伺服器**。
-    //
-    // 日到班模式下這一支還順便帶回應到／已到／請假，前端不必再打三支。
+    // ① Hero＋作業台主體：**一支取代兩支**（今日課表 + 點名模式）。
+    // 形狀的判斷本來就該只有一份，在伺服器。日到班模式下這一支還順便帶回
+    // 應到／已到／請假（連同家長電話與今天的聯絡），前端不必再打。
     this.loadWorkbench();
 
     /**
@@ -660,45 +695,30 @@ export class DashboardComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((res) => this.untakenCount.set(res === FAILED ? FAILED : res.meta.total));
 
-    failSoft(
-      forkJoin([this.academyExamsService.getTodoCount(), this.schoolExamsService.getTodoCount()]),
-    )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) =>
-        this.gradesTodo.set(res === FAILED ? FAILED : res[0].count + res[1].count),
-      );
-
     if (this.auth.hasPermission('manage_finance')) {
       failSoft(this.billingPeriodsService.upcomingUnbilled())
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((res) => this.unbilledPeriods.set(res === FAILED ? FAILED : res.data));
+
+      // 逾期帳單（D6）：張數與金額由伺服器加總，列表只取前幾筆
+      failSoft(this.invoicesService.summary())
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((res) =>
+          this.overdueSummary.set(
+            res === FAILED ? FAILED : { count: res.overdue.count, amount: res.overdue.outstanding },
+          ),
+        );
+      failSoft(this.invoicesService.list({ overdue: true, pageSize: OVERDUE_PREVIEW }))
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((res) => this.overdueList.set(res === FAILED ? [] : res.data));
     }
 
-    // ③ 現況欄：背景脈絡，最後填也不影響使用者在做的事
     this.loadTodayLeaves();
-
-    // 只要 summary.activeCount：名冊的「今日到班」只在第一頁才算（多 4～5 支查詢），這裡不需要
-    failSoft(this.studentsService.list({ pageSize: 1, withToday: false }))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) =>
-        this.activeStudents.set(res === FAILED ? FAILED : res.summary.activeCount),
-      );
-
-    // 只要 meta.total：pageSize 上限是 100，抓明細自己分類會在異動破百的月份
-    // 悄悄少算，而且錯得沒有徵兆
-    failSoft(
-      this.enrollmentsService.list({
-        from: format(startOfMonth(this.now), 'yyyy-MM-dd'),
-        to: format(endOfMonth(this.now), 'yyyy-MM-dd'),
-        pageSize: 1,
-      }),
-    )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.enrollmentChanges.set(res === FAILED ? FAILED : res.meta.total));
   }
+
   /**
    * 重抓「今日」—— 接到電話請假送出後叫（#964）：讓剛登記的假也出現在底下的看板上
-   * （日到班模式：從「還沒到」移到「已請假」）。只重抓會被請假改到的那兩支。
+   * （日到班模式：從「該到沒到」移到請假）。只重抓會被請假改到的那兩支。
    */
   protected loadToday(): void {
     this.loadWorkbench();
@@ -725,6 +745,8 @@ export class DashboardComponent {
       .subscribe((res) => this.todayLeaves.set(res === FAILED ? FAILED : res.data));
   }
 
+  protected readonly leaveCount = computed(() => countOf(this.todayLeaves()));
+
   /** 跟課堂管理用同一支推導 —— 兩個畫面對「漏點名」必須說一樣的話 */
   protected attendanceTone(session: EventSessionSummary): StatusTone {
     return toAttendanceTone(
@@ -748,10 +770,8 @@ export class DashboardComponent {
    * 其中一件永遠做不完。
    *
    * **為什麼是「已停課」而不是課堂管理用的「不適用」**：那一頁同一列
-   * **另有一欄**寫著「已停課」（`session-list.component.html:84` 與 `:96` 並排），
-   * 所以「不適用」有東西撐著。**儀表板一列只有一個狀態位**，
-   * 用「不適用」的話使用者看不出為什麼。這裡跟老師端課表同族
-   * （`ATTENDANCE_TONE_LABELS.inactive`）—— 那也是一列一個狀態位的版面。
+   * **另有一欄**寫著「已停課」，所以「不適用」有東西撐著。**儀表板一列只有一個
+   * 狀態位**，用「不適用」的話使用者看不出為什麼。
    *
    * 沒有直接引用老師端那份 `Record`：跨 feature import 違反 c5，
    * 而為了兩個字把它提到 `shared/` 會連帶把「還沒上／漏點名」那兩個
