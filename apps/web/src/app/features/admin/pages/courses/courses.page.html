@@ -242,37 +242,27 @@
                   <div
                     class="col-start-2 row-span-2 row-start-1 flex items-center gap-1 wide:col-start-5 wide:row-span-1"
                   >
+                    <!-- A6 .crs__act：桌機「新增班」＋「⋯」；手機只有「⋯」（新增班收進選單） -->
+                    @if (!isMobile()) {
+                      <p-button
+                        label="新增班"
+                        icon="pi pi-plus"
+                        [outlined]="true"
+                        severity="secondary"
+                        [ariaLabel]="'在 ' + group.course.name + ' 新增班'"
+                        [disabled]="!group.course.isActive"
+                        [pTooltip]="!group.course.isActive ? '課程已停用，無法新增班級' : ''"
+                        tooltipPosition="top"
+                        (onClick)="openCreateClassDialog(group.course.id)"
+                      />
+                    }
                     <p-button
-                      [label]="isMobile() ? '' : '新增班'"
-                      icon="pi pi-plus"
-                      [outlined]="true"
-                      severity="secondary"
-                      [ariaLabel]="'在 ' + group.course.name + ' 新增班'"
-                      [disabled]="!group.course.isActive"
-                      [pTooltip]="!group.course.isActive ? '課程已停用，無法新增班級' : ''"
-                      tooltipPosition="top"
-                      (onClick)="openCreateClassDialog(group.course.id)"
-                    />
-                    <p-button
-                      icon="pi pi-pencil"
+                      icon="pi pi-ellipsis-h"
                       [rounded]="true"
                       [text]="true"
                       severity="secondary"
-                      [ariaLabel]="'編輯 ' + group.course.name"
-                      pTooltip="編輯課程"
-                      tooltipPosition="top"
-                      (onClick)="openEditCourseDialog(group.course)"
-                    />
-                    <p-button
-                      icon="pi pi-trash"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="danger"
-                      [ariaLabel]="'刪除 ' + group.course.name"
-                      [disabled]="hasClasses"
-                      [pTooltip]="hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程'"
-                      tooltipPosition="top"
-                      (onClick)="confirmDeleteCourse(group.course)"
+                      [ariaLabel]="group.course.name + ' 的更多動作'"
+                      (onClick)="openCourseMenu($event, group.course, hasClasses, courseMenu)"
                     />
                   </div>
                 </div>
@@ -517,3 +507,4 @@
 
 <!-- Class Action Menu -->
 <app-popup-menu #actionMenu [model]="classActionMenuItems()" />
+<app-popup-menu #courseMenu [model]="courseActionMenuItems()" />

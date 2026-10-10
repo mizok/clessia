@@ -161,6 +161,7 @@ export class CoursesPage implements OnInit {
   protected readonly loadingHistorical = signal(false);
 
   protected readonly classActionMenuItems = signal<MenuItem[]>([]);
+  protected readonly courseActionMenuItems = signal<MenuItem[]>([]);
   protected readonly selectedClassForMenu = signal<Class | null>(null);
   protected readonly expandedCourseIds = signal<Set<string>>(new Set());
 
@@ -643,6 +644,41 @@ export class CoursesPage implements OnInit {
         resourceTypes: ['class', 'course'],
       },
     });
+  }
+
+  /** 課程列尾「⋯」（A6 `data-cmenu`）：手機的「新增班」也收在這裡，桌機另有獨立按鈕。 */
+  protected openCourseMenu(
+    event: Event,
+    course: Course,
+    hasClasses: boolean,
+    menu: PopupMenuComponent,
+  ): void {
+    this.courseActionMenuItems.set([
+      ...(this.isMobile()
+        ? [
+            {
+              label: course.isActive ? '新增班' : '新增班（課程已停用）',
+              icon: 'pi pi-plus',
+              disabled: !course.isActive,
+              command: () => this.openCreateClassDialog(course.id),
+            },
+          ]
+        : []),
+      {
+        label: '編輯課程',
+        icon: 'pi pi-pencil',
+        command: () => this.openEditCourseDialog(course),
+      },
+      { separator: true },
+      {
+        label: hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程',
+        icon: 'pi pi-trash',
+        disabled: hasClasses,
+        itemClass: 'text-red-500',
+        command: () => this.confirmDeleteCourse(course),
+      },
+    ]);
+    menu.toggle(event);
   }
 
   protected openActionMenu(event: Event, cls: Class, menu: PopupMenuComponent): void {

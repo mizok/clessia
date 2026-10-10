@@ -498,6 +498,70 @@ describe('CoursesPage', () => {
     expect(text).not.toContain('尚未建立任何課程');
   });
 
+  describe('課程列尾「⋯」（#1314 ⑤）', () => {
+    const course = (id: string, name: string, subjectId: string, subjectName: string) => ({
+      id,
+      orgId: 'o',
+      campusId: 'campus-1',
+      name,
+      subjectId,
+      subjectName,
+      description: null,
+      isActive: true,
+      gradeLevels: [],
+      createdAt: '',
+      updatedAt: '',
+    });
+    const loadOne = () => {
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data: [course('c1', '國一國文', 's-zh', '國文')],
+          meta: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          summary: { bySubject: [{ subjectId: 's-zh', subjectName: '國文', count: 1 }] },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+    };
+
+    it('列尾只有「新增班」與「⋯」，編輯／刪除不再並排成圖示鈕', () => {
+      loadOne();
+      const el = fixture.nativeElement as HTMLElement;
+
+      expect(el.querySelectorAll('button[aria-label="國一國文 的更多動作"]').length).toBe(1);
+      expect(el.querySelector('button[aria-label="編輯 國一國文"]')).toBeNull();
+      expect(el.querySelector('button[aria-label="刪除 國一國文"]')).toBeNull();
+      expect(el.querySelector('button[aria-label="在 國一國文 新增班"]')).not.toBeNull();
+    });
+
+    it('選單內容：編輯、刪除；底下有班級時刪除 disabled 且寫明原因', () => {
+      const toggle = vi.fn();
+      const menu = { toggle } as never;
+      const call = (hasClasses: boolean) => {
+        (
+          component as unknown as {
+            openCourseMenu: (e: Event, c: unknown, h: boolean, m: unknown) => void;
+          }
+        ).openCourseMenu(new Event('click'), { id: 'c1', isActive: true }, hasClasses, menu);
+        return (
+          component as unknown as {
+            courseActionMenuItems: () => { label?: string; disabled?: boolean }[];
+          }
+        ).courseActionMenuItems();
+      };
+
+      const empty = call(false).filter((i) => i.label);
+      expect(empty.map((i) => i.label)).toEqual(['編輯課程', '刪除課程']);
+      expect(empty[1].disabled).toBe(false);
+
+      const used = call(true).filter((i) => i.label);
+      expect(used[1].label).toBe('此課程底下還有班級，無法刪除');
+      expect(used[1].disabled).toBe(true);
+      expect(toggle).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('依科目分章（#1314 C1）', () => {
     const course = (id: string, name: string, subjectId: string, subjectName: string) => ({
       id,
