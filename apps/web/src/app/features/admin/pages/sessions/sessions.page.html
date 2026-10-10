@@ -28,7 +28,7 @@
 
 <div class="bg-zinc-100">
   @if (mode() !== 'results') {
-    <div class="page-wrap flex items-center gap-3 pt-2">
+    <div class="page-wrap flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 md:gap-x-3">
       <div class="inline-flex gap-0.5 rounded-md bg-zinc-200 p-0.5" role="group" aria-label="檢視">
         <button
           type="button"
@@ -55,10 +55,10 @@
           週
         </button>
       </div>
-      <span class="text-md text-zinc-700 tabular-nums">{{ weekLabel() }}</span>
+      <span class="text-md whitespace-nowrap text-zinc-700 tabular-nums">{{ weekLabel() }}</span>
       <!-- 「全部異動」抽屜的入口（A6）：純 hash，從這裡進是一筆歷史，返回鍵會關掉它 -->
       <a
-        class="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-md font-semibold text-zinc-900 underline underline-offset-4 hover:bg-zinc-200"
+        class="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-1 text-md font-semibold whitespace-nowrap md:px-2 text-zinc-900 underline underline-offset-4 hover:bg-zinc-200"
         [routerLink]="[]"
         fragment="changes"
         queryParamsHandling="preserve"
@@ -86,7 +86,7 @@
     <div class="page-wrap flex items-center gap-1">
       <button
         type="button"
-        class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
+        class="inline-flex h-11 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 md:size-11"
         aria-label="上一週"
         (click)="shiftWeek(-1)"
       >
@@ -104,7 +104,7 @@
             (click)="setDay(d)"
           >
             <span class="text-sm">週{{ weekdayLabel(d) }}</span>
-            <b class="text-base tabular-nums md:text-lg">{{ d | date: 'M/d' }}</b>
+            <b class="text-md tabular-nums md:text-lg">{{ d | date: 'M/d' }}</b>
             @if (isTodayDate(d)) {
               <span class="text-xs font-semibold">今天</span>
             }
@@ -113,7 +113,7 @@
       </nav>
       <button
         type="button"
-        class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
+        class="inline-flex h-11 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 md:size-11"
         aria-label="下一週"
         (click)="shiftWeek(1)"
       >

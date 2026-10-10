@@ -1598,5 +1598,24 @@ describe('SessionsPage', () => {
       ) as HTMLAnchorElement | null;
       expect(link?.textContent).toContain('全部異動');
     });
+
+    // #1441：360px 時入口折成兩行、週日期條字黏在一起。jsdom 不跑 Tailwind，
+    // 這裡釘的是意圖（nowrap／手機字級），結果由 PR 的 360 實拍證明。
+    it('入口不折行；週日期條七格用手機字級，上下週鈕手機收窄', async () => {
+      await settle();
+      const el = fixture.nativeElement as HTMLElement;
+      const link = el.querySelector('a[href*="#changes"]') as HTMLElement;
+      expect(link.classList.contains('whitespace-nowrap')).toBe(true);
+
+      const dates = el.querySelectorAll('nav[aria-label="選擇日期"] button b');
+      expect(dates.length).toBe(7);
+      for (const b of Array.from(dates)) expect(b.classList.contains('text-md')).toBe(true);
+
+      for (const label of ['上一週', '下一週']) {
+        const btn = el.querySelector(`button[aria-label="${label}"]`) as HTMLElement;
+        expect(btn.classList.contains('w-8'), label).toBe(true);
+        expect(btn.classList.contains('h-11'), label).toBe(true);
+      }
+    });
   });
 });
