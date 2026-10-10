@@ -222,7 +222,13 @@ const AREAS = [
   },
   // 後端沒有自己的 route 檔：`GET /api/sessions/changes` 掛在 sessions 底下（異動紀錄本來就
   // 是課堂的附屬資料）。認領 `sessions` 讓狀態反映「這頁真的接得到後端」。
-  { name: '課務異動', pages: ['admin/changes'], routes: ['sessions'], specs: [] },
+  {
+    name: '課務異動',
+    pages: ['admin/changes'],
+    // teacher-session-changes：老師端「這週你的課務異動」（#1488）
+    routes: ['sessions', 'teacher-session-changes'],
+    specs: [],
+  },
   {
     name: '系統設定',
     pages: ['admin/settings'],

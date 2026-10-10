@@ -138,11 +138,14 @@ const PARAMS: Record<string, string> = {
 const ALWAYS: Record<string, string> = {
   '/api/scores/students': 'studentId={student}',
   '/api/meals': 'date={today}',
+  // 老師端課務異動（#1488）：用「有異動的課堂的老師」打、區間框住那一天，才會真的走到 schedule_changes 的查詢
+  '/api/teacher/session-changes': 'from={changeDate}&to={changeDate}',
 };
 
 /** 不是 admin 身分的收件匣類端點，用這個角色打 */
 const ROLE: Record<string, string> = {
   '/api/announcements/inbox': 'teacher',
+  '/api/teacher/session-changes': 'teacher',
 };
 
 /** 會走到另一條查詢分支的參數（每支多打一次）。值裡的 `{campus}` 換成 seed 的分校 */
@@ -170,6 +173,7 @@ const isMe = (path: string) => path === '/api/me' || path.startsWith('/api/me/')
 const SKIP_PREFIX = ['/api/public/'];
 
 const ids: Record<string, string> = {};
+let changeUser = '';
 const parentUser: { userId: string; children: string[] } = { userId: '', children: [] };
 const fill = (value: string) => value.replace(/\{\w+\}/g, (token) => ids[token] ?? token);
 
@@ -266,6 +270,17 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       (r) => r.student_id,
     );
     ids['{child}'] = parentUser.children[0]!;
+    // 有課務異動的課堂與它的老師（沒有就退回 admin 的 userId、今天 —— 查詢形狀就驗不到）
+    const { data: change } = await supabase
+      .from('schedule_changes')
+      .select('sessions!inner(session_date, staff!inner(user_id))')
+      .eq('org_id', ctx.orgId)
+      .limit(1)
+      .maybeSingle();
+    const changeSession = change?.['sessions'] as unknown as
+      { session_date: string; staff: { user_id: string } } | undefined;
+    ids['{changeDate}'] = changeSession?.session_date ?? TODAY;
+    changeUser = changeSession?.staff.user_id ?? '';
     ids['{today}'] = TODAY;
     ids['{monthStart}'] = `${TODAY.slice(0, 7)}-01`;
 
@@ -312,6 +327,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
 
   async function hitAll(which: 'staff' | 'me' = 'staff'): Promise<string[]> {
     const failures: string[] = [];
+    const userBefore = ctx.userId;
     for (const { path, required } of endpoints(which)) {
       const list = urls(path, required);
       if (typeof list === 'string') {
@@ -319,6 +335,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
         continue;
       }
       ctx.role = which === 'me' ? 'parent' : (ROLE[path] ?? 'admin');
+      if (path === '/api/teacher/session-changes' && changeUser) ctx.userId = changeUser;
       for (const url of list) {
         const res = await app.request(url, {}, env);
         if (res.status !== 200) {
@@ -327,6 +344,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       }
     }
     ctx.role = 'admin';
+    ctx.userId = userBefore;
     return failures;
   }
 
