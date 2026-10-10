@@ -47,9 +47,10 @@ export class StudentBillingChapterComponent implements OnInit {
   private readonly clock = inject(SystemClockService);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly invoices = signal<Invoice[]>([]);
+  /** 學生檔案的工具列（收款鈕、紀錄時間軸）讀這幾個——同一份資料不重打 API */
+  readonly invoices = signal<Invoice[]>([]);
   /** null＝還沒回來或失敗；失敗時摘要列只寫「帳單」不騙人說沒有待繳 */
-  protected readonly totalOutstanding = signal<number | null>(null);
+  readonly totalOutstanding = signal<number | null>(null);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
@@ -114,6 +115,18 @@ export class StudentBillingChapterComponent implements OnInit {
   protected itemLabel(item: Invoice['items'][number]): string {
     const base = INVOICE_ITEM_TYPE_LABELS[item.type];
     return item.note ? `${base}（${item.note}）` : base;
+  }
+
+  /**
+   * 工具列的「收款」入口（#1314 SD，金額入口）：開**最早到期未繳**那張的既有帳單詳情，
+   * 收款本身走 dialog 裡原本那條路徑，這裡不碰金額。沒有到期日的排最後。
+   */
+  collect(): void {
+    const open = this.invoices().filter((i) => isOpenInvoice(i.status) && outstanding(i) > 0);
+    const first = open.sort((a, b) =>
+      (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31'),
+    )[0];
+    if (first) this.openDetail(first);
   }
 
   protected openDetail(invoice: Invoice): void {

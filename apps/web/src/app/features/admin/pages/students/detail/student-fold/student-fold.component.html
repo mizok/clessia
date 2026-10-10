@@ -1,0 +1,15 @@
+<details class="group border-b border-surface-border">
+  <summary
+    class="flex min-h-11 cursor-pointer list-none items-center gap-3 bg-zinc-100 px-4 py-3 hover:bg-zinc-200 [&::-webkit-details-marker]:hidden"
+  >
+    <h2 class="m-0 text-lg font-bold text-zinc-900">{{ title() }}</h2>
+    <span class="ml-auto text-md text-zinc-700">{{ meta() }}</span>
+    <i
+      class="pi pi-chevron-down text-xs text-zinc-700 transition-transform group-open:rotate-180"
+      aria-hidden="true"
+    ></i>
+  </summary>
+  <div class="bg-white px-4 py-2">
+    <ng-content />
+  </div>
+</details>

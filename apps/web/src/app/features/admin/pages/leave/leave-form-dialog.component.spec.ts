@@ -212,3 +212,44 @@ describe('LeaveFormDialogComponent 編輯模式', () => {
     expect(close).not.toHaveBeenCalled();
   });
 });
+
+describe('LeaveFormDialogComponent 預帶學生（學生檔案的「登記請假」）', () => {
+  const dialogRefMock = { close: vi.fn() };
+  const studentsServiceMock = { list: vi.fn() };
+  const referenceDataServiceMock = { campuses: signal<Campus[]>([]), loadCampuses: vi.fn() };
+  const leaveServiceMock = { create: vi.fn(() => of({ id: 'leave-1', studentName: '小九' })) };
+
+  it('學生唯讀、不載入分校、用預帶的 id 建立', async () => {
+    await TestBed.configureTestingModule({
+      imports: [LeaveFormDialogComponent],
+      providers: [
+        { provide: DynamicDialogRef, useValue: dialogRefMock },
+        {
+          provide: DynamicDialogConfig,
+          useValue: { data: { student: { id: 's9', name: '小九' } } },
+        },
+        { provide: StudentsService, useValue: studentsServiceMock },
+        { provide: ReferenceDataService, useValue: referenceDataServiceMock },
+        { provide: LeaveService, useValue: leaveServiceMock },
+      ],
+    }).compileComponents();
+    const f = TestBed.createComponent(LeaveFormDialogComponent);
+    f.detectChanges();
+    const c = f.componentInstance as unknown as {
+      startDate: Date;
+      endDate: Date;
+      canSubmit: () => boolean;
+      submit: () => void;
+    };
+    expect(f.nativeElement.textContent).toContain('小九');
+    expect(f.nativeElement.querySelector('app-student-autocomplete')).toBeNull();
+    expect(referenceDataServiceMock.loadCampuses).not.toHaveBeenCalled();
+    c.startDate = new Date(2026, 9, 12);
+    c.endDate = new Date(2026, 9, 12);
+    expect(c.canSubmit()).toBe(true);
+    c.submit();
+    expect(leaveServiceMock.create).toHaveBeenCalledWith(
+      expect.objectContaining({ studentId: 's9', startDate: '2026-10-12' }),
+    );
+  });
+});
