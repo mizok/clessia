@@ -175,13 +175,17 @@ app.openapi(
     }
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // 受限管理員只數自己範圍的報名，同「待開單」（#1314 DB-campus）—— 全機構的數字是看別校規模的側管道
+    const scope = getCampusScope(c);
     // 每期一支 head count，讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷
     const counts = await Promise.all(
       rows.map((row) =>
-        countOverlappingEnrollments(supabase, orgId, {
-          start_date: row['start_date'] as string,
-          end_date: row['end_date'] as string,
-        }),
+        countOverlappingEnrollments(
+          supabase,
+          orgId,
+          { start_date: row['start_date'] as string, end_date: row['end_date'] as string },
+          scope,
+        ),
       ),
     );
     // 數不出來就不回 0（看起來像「沒人在用」）

@@ -22,7 +22,7 @@ const OTHER_ORG = 'org-2';
 
 async function get(
   tables: Record<string, Row[]>,
-  opts: { maxRows?: number; campusScope?: string[] | null } = {},
+  opts: { maxRows?: number; campusScope?: string[] | null; path?: string } = {},
 ) {
   const db = createMultiOrgDb(tables);
   // 記下查過哪些表（「沒有窗口內的期就不查報名與明細」要斷言的是沒查，不只是結果空）
@@ -45,7 +45,7 @@ async function get(
     await next();
   });
   app.route('/api/billing-periods', billingPeriodsApp);
-  const res = await app.request('/api/billing-periods/upcoming-unbilled');
+  const res = await app.request(opts.path ?? '/api/billing-periods/upcoming-unbilled');
   return { res, body: (await res.json()) as { data: Array<Record<string, unknown>> }, queried };
 }
 
@@ -250,5 +250,17 @@ describe('upcoming-unbilled 的分校範圍', () => {
   it('受限但沒有任何分校：沒有待辦', async () => {
     const { body } = await get(tables(null), { campusScope: [] });
     expect(body.data).toEqual([]);
+  });
+
+  // 列表的 overlappingEnrollmentCount 跟待開單共用同一個計數，範圍也要一樣
+  it('收費期間列表的 overlappingEnrollmentCount：受限只數範圍內，不受限照舊', async () => {
+    const list = { path: '/api/billing-periods' };
+    const counts = async (campusScope: string[] | null) =>
+      (await get(tables(null), { ...list, campusScope })).body.data.map(
+        (d) => d['overlappingEnrollmentCount'],
+      );
+    expect(await counts(['A'])).toEqual([2]);
+    expect(await counts(null)).toEqual([3]);
+    expect(await counts([])).toEqual([0]);
   });
 });
