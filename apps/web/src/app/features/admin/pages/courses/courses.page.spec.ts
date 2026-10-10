@@ -717,6 +717,40 @@ describe('CoursesPage', () => {
       expect(perChapter).toEqual([['國一國文'], ['國一數學']]);
     });
 
+    it('課程列「N 個班」後面接「，開班中 M」／「，都沒有在開」；沒給 activeClassCount 或沒有班就不寫', () => {
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data: [
+            { ...course('c1', '國一國文'), activeClassCount: 2 },
+            { ...course('c2', '國二國文'), activeClassCount: 0 },
+            course('c3', '國三國文'),
+            { ...course('c4', '高一國文'), activeClassCount: 0 },
+          ],
+          meta: { total: 4, page: 1, pageSize: 20, totalPages: 1 },
+          summary: { bySubject: [{ subjectId: 's-zh', subjectName: '國文', count: 4 }] },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set([
+        klass('a', 'c1'),
+        klass('b', 'c1'),
+        klass('c', 'c2'),
+        klass('d', 'c3'),
+      ]);
+      fixture.detectChanges();
+
+      const row = (name: string) =>
+        norm(el().querySelector(`section[aria-label="${name}"]`)).replace(/\s+/g, ' ');
+      expect(row('國一國文')).toContain('2 個班，開班中 2');
+      expect(row('國二國文')).toContain('1 個班，都沒有在開');
+      expect(row('國三國文')).toContain('1 個班');
+      expect(row('國三國文')).not.toContain('開班中');
+      expect(row('國三國文')).not.toContain('都沒有在開');
+      // 沒有班：不寫「都沒有在開」
+      expect(row('高一國文')).not.toContain('都沒有在開');
+    });
+
     it('沒有需介入的班：提醒列不出現', () => {
       setup();
       (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set([
