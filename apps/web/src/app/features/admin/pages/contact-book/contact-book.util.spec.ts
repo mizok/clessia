@@ -1,4 +1,11 @@
-import { dateRangeOf, signedSummary } from './contact-book.util';
+import {
+  dateRangeOf,
+  groupEntriesByDay,
+  groupMissingByClass,
+  missingDayOptions,
+  signedSummary,
+  signedTimeText,
+} from './contact-book.util';
 import type { ContactBookEntry } from '@core/contact-book.service';
 
 function entry(overrides: Partial<ContactBookEntry> = {}): ContactBookEntry {
@@ -76,5 +83,77 @@ describe('signedSummary', () => {
     const weird = entry({ isSigned: true, signedAt: null });
 
     expect(signedSummary([weird])).toEqual({ total: 1, signed: 1, unsigned: 0 });
+  });
+});
+
+describe('groupMissingByClass', () => {
+  const stu = (id: string, ...classes: string[]) => ({
+    studentId: id,
+    studentName: id,
+    classes: classes.map((c) => ({ classId: c, className: `班${c}` })),
+  });
+
+  it('一班一組，同生跨兩班只歸第一個班', () => {
+    const groups = groupMissingByClass([stu('a', 'B', 'A'), stu('b', 'A'), stu('c', 'B')]);
+
+    expect(groups.map((g) => [g.classId, g.students.map((s) => s.studentId)])).toEqual([
+      ['A', ['b']],
+      ['B', ['a', 'c']],
+    ]);
+  });
+
+  it('沒有班的學生歸未分班，不丟掉', () => {
+    expect(groupMissingByClass([stu('x')])[0].className).toBe('未分班');
+  });
+});
+
+describe('groupEntriesByDay', () => {
+  it('新的日子在上，每日統計未簽收', () => {
+    const days = groupEntriesByDay([
+      entry({ id: '1', entryDate: '2026-08-28', isSigned: true }),
+      entry({ id: '2', entryDate: '2026-08-29' }),
+      entry({ id: '3', entryDate: '2026-08-28' }),
+    ]);
+
+    expect(days.map((d) => [d.date, d.entries.length, d.unsigned])).toEqual([
+      ['2026-08-29', 1, 1],
+      ['2026-08-28', 2, 1],
+    ]);
+  });
+});
+
+describe('signedTimeText', () => {
+  // UTC 12:15 = 台北 20:15；UTC 前一天 16:30 = 台北當天 00:30（不能顯示成 24:30）
+  it('轉成台北時間', () => {
+    expect(signedTimeText('2026-08-29T12:15:00Z')).toBe('20:15');
+    expect(signedTimeText('2026-08-28T16:30:00Z')).toBe('00:30');
+  });
+
+  it('沒有或壞掉的時間回空字串', () => {
+    expect(signedTimeText(null)).toBe('');
+    expect(signedTimeText('不是時間')).toBe('');
+  });
+});
+
+describe('missingDayOptions', () => {
+  // 2026-08-29 是週六：今天照列（可能補寫），往回只留週一到週五，最後一項是「其他日期…」
+  it('週末的今天仍可選，其餘只列上課日，最後是其他日期', () => {
+    const options = missingDayOptions('2026-08-29');
+
+    expect(options.map((o) => o.value)).toEqual([
+      '2026-08-29',
+      '2026-08-28',
+      '2026-08-27',
+      '2026-08-26',
+      '2026-08-25',
+      '2026-08-24',
+      'other',
+    ]);
+    expect(options[0].label).toBe('今天 08-29（六）');
+    expect(options[1].label).toBe('昨天 08-28（五）');
+  });
+
+  it('跨月往回也對', () => {
+    expect(missingDayOptions('2026-09-01')[1].value).toBe('2026-08-31');
   });
 });
