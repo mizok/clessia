@@ -8,7 +8,7 @@
     </h1>
     <div bandAside>
       @if (!loading() && invoices().length > 0) {
-        <app-band-anchor [value]="totalDue()" unit="元待繳">
+        <app-band-anchor [value]="(totalDue() | number) ?? ''" unit="元待繳">
           {{ groups().pending.length }} 張待付款
         </app-band-anchor>
       }
@@ -42,22 +42,22 @@
             @for (invoice of groups().pending; track invoice.id) {
               <button
                 type="button"
-                class="payments__row flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
+                class="payments__row flex min-h-11 w-full flex-wrap cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
                 (click)="openDetail(invoice)"
               >
-                <span class="payments__row-id text-sm text-zinc-500 tabular-nums"
+                <span class="payments__row-id whitespace-nowrap text-sm text-zinc-500 tabular-nums"
                   >#{{ invoice.id.slice(0, 8) }}</span
                 >
-                <span class="payments__row-amount font-semibold text-zinc-900"
+                <span class="payments__row-amount whitespace-nowrap font-semibold text-zinc-900"
                   >{{ invoice.total - invoice.netPaid | number }} 元</span
                 >
                 @if (invoice.dueDate) {
-                  <span class="payments__row-hint ml-auto text-sm text-zinc-500"
+                  <span class="payments__row-hint ml-auto whitespace-nowrap text-sm text-zinc-500"
                     >期限 {{ invoice.dueDate }}</span
                   >
                 }
                 <span
-                  class="payments__row-status payments__row-status--pending rounded-full px-2 py-1 text-xs font-semibold bg-warning-100 text-warning-800"
+                  class="payments__row-status payments__row-status--pending whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold bg-warning-100 text-warning-800"
                   >{{ statusLabels[invoice.status] }}</span
                 >
               </button>
@@ -71,20 +71,23 @@
             @for (invoice of groups().paid; track invoice.id) {
               <button
                 type="button"
-                class="payments__row flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
+                class="payments__row flex min-h-11 w-full flex-wrap cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
                 (click)="openDetail(invoice)"
               >
-                <span class="payments__row-id text-sm text-zinc-500 tabular-nums"
+                <span class="payments__row-id whitespace-nowrap text-sm text-zinc-500 tabular-nums"
                   >#{{ invoice.id.slice(0, 8) }}</span
                 >
-                <span class="payments__row-amount font-semibold text-zinc-900"
+                <span class="payments__row-amount whitespace-nowrap font-semibold text-zinc-900"
                   >{{ invoice.total | number }} 元</span
                 >
                 @if (latestPaymentDate(invoice); as paidAt) {
-                  <span class="payments__row-hint ml-auto text-sm text-zinc-500">{{ paidAt }}</span>
+                  <span
+                    class="payments__row-hint ml-auto whitespace-nowrap text-sm text-zinc-500"
+                    >{{ paidAt }}</span
+                  >
                 }
                 <span
-                  class="payments__row-status payments__row-status--paid rounded-full px-2 py-1 text-xs font-semibold bg-zinc-100 text-zinc-600"
+                  class="payments__row-status payments__row-status--paid whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold bg-zinc-100 text-zinc-600"
                   >{{
                     invoice.status === 'overrefunded'
                       ? '多退 ' + (-invoice.netPaid | number) + ' 元'
@@ -110,18 +113,18 @@
             @for (invoice of groups().voided; track invoice.id) {
               <button
                 type="button"
-                class="payments__row mt-2 flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
+                class="payments__row mt-2 flex min-h-11 w-full flex-wrap cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
                 (click)="openDetail(invoice)"
               >
-                <span class="payments__row-id text-sm text-zinc-500 tabular-nums"
+                <span class="payments__row-id whitespace-nowrap text-sm text-zinc-500 tabular-nums"
                   >#{{ invoice.id.slice(0, 8) }}</span
                 >
                 <span
-                  class="payments__row-amount payments__row-amount--void font-semibold text-zinc-600 line-through"
+                  class="payments__row-amount payments__row-amount--void whitespace-nowrap font-semibold text-zinc-600 line-through"
                   >{{ invoice.total | number }} 元</span
                 >
                 <span
-                  class="payments__row-status payments__row-status--void rounded-full px-2 py-1 text-xs font-semibold bg-zinc-100 text-zinc-600"
+                  class="payments__row-status payments__row-status--void whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold bg-zinc-100 text-zinc-600"
                   >已作廢</span
                 >
               </button>
