@@ -4,7 +4,7 @@ import { DbUuidSchema } from '../lib/validation';
 
 import type { AppEnv } from '../index';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
-import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { loadDailyAttendance } from '../lib/today-attendance';
@@ -81,6 +81,38 @@ async function primaryParentByStudent(
   );
 }
 
+/**
+ * 每個學生在 `date`（台北日）最近一筆聯絡（#1314 D2）。只看這一天 —— 儀表板問的是「今天打過了沒」，
+ * 歷史在學生檔案（`GET /contact-logs`）。新到舊撈、每人取第一筆。
+ */
+export async function lastContactByStudent(
+  supabase: SupabaseClient,
+  orgId: string,
+  studentIds: string[],
+  date: string,
+): Promise<Map<string, { at: string; channel: 'phone' | 'line' | 'other' }>> {
+  const { data } = await supabase
+    .from('contact_logs')
+    .select('student_id, channel, created_at')
+    .eq('org_id', orgId)
+    .in('student_id', studentIds)
+    .gte('created_at', `${date}T00:00:00+08:00`)
+    .lt('created_at', `${addDaysToDateString(date, 1)}T00:00:00+08:00`)
+    .order('created_at', { ascending: false });
+
+  const latest = new Map<string, { at: string; channel: 'phone' | 'line' | 'other' }>();
+  for (const row of (data ?? []) as Array<{
+    student_id: string;
+    channel: 'phone' | 'line' | 'other';
+    created_at: string;
+  }>) {
+    if (!latest.has(row.student_id)) {
+      latest.set(row.student_id, { at: row.created_at, channel: row.channel });
+    }
+  }
+  return latest;
+}
+
 const app = new OpenAPIHono<AppEnv>();
 
 const SessionSummarySchema = z
@@ -149,6 +181,10 @@ const WorkbenchTodaySchema = z
             relation: z.string().nullable(),
             phone: z.string().nullable(),
           })
+          .nullable(),
+        /** 這一天（台北）最近一筆聯絡（#1314 D2）—— 「已聯絡 17:42」。這天沒聯絡過 → null */
+        lastContact: z
+          .object({ at: z.string(), channel: z.enum(['phone', 'line', 'other']) })
           .nullable(),
       }),
     ),
@@ -258,17 +294,19 @@ app.openapi(
         : { expected: [], arrived: [], onLeave: [] };
 
     // 主要家長（#1314 D1）：該到沒到的列直接撥
-    const primaryParents =
-      daily.expected.length > 0
-        ? await primaryParentByStudent(
-            supabase,
-            orgId,
-            daily.expected.map((student) => student.studentId),
-          )
-        : new Map();
+    // 與這一天最近一筆聯絡（#1314 D2）同一輪發出
+    const expectedIds = daily.expected.map((student) => student.studentId);
+    const [primaryParents, lastContacts] =
+      expectedIds.length > 0
+        ? await Promise.all([
+            primaryParentByStudent(supabase, orgId, expectedIds),
+            lastContactByStudent(supabase, orgId, expectedIds, targetDate),
+          ])
+        : [new Map(), new Map()];
     const expected = daily.expected.map((student) => ({
       ...student,
       primaryParent: primaryParents.get(student.studentId) ?? null,
+      lastContact: lastContacts.get(student.studentId) ?? null,
     }));
     const { arrived, onLeave } = daily;
 

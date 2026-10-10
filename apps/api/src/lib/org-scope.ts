@@ -22,6 +22,7 @@ export type OrgTable =
   | 'campuses'
   | 'class_logs'
   | 'classes'
+  | 'contact_logs'
   | 'contact_book_entries'
   | 'courses'
   | 'daily_checkins'

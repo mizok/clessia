@@ -433,6 +433,10 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
   const enforced = new Set(
     [...source.matchAll(/\{\s*(?:all|write):\s*'([a-z_]+)'\s*\}/g)].map(([, value]) => value),
   );
+  // 陣列＝任一（#1314 D2 起 `write: ['basic_operations', 'manage_students']`）：裡面每一個都算有被強制
+  for (const [, list] of source.matchAll(/\{\s*write:\s*\[([^\]]*)\]\s*\}/g)) {
+    for (const [, value] of list.matchAll(/'([a-z_]+)'/g)) enforced.add(value);
+  }
   // 不是靠 mount 而是靠路由自己掛的（例如組織設定的 writeRequiresAdmin）也算數
   for (const [, value] of readdirSync(join(ROOT, 'apps/api/src/routes'))
     .filter((name) => name.endsWith('.ts') && !name.endsWith('.spec.ts'))

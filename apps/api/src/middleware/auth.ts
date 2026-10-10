@@ -237,8 +237,12 @@ export const campusRequestGuard = createMiddleware<AppEnv>(async (c, next) => {
  * **ponytail: 同時擁有 admin 與 teacher 的人，缺權限時一律拒絕，不會降級成老師身分。**
  * 真的出現「會教課的分校主任被自己的管理員權限擋在點名外面」再拆 —— 正確的解通常是
  * 補上 `basic_operations`，而不是讓授權在角色之間偷偷降級。
+ *
+ * **陣列＝任一**（#1314 D2）：聯絡紀錄是櫃台（`basic_operations`）與學生資料管理者
+ * （`manage_students`）都要能記的 —— 而 KB 權限對照裡兩者互不包含（admin01 只有前者、
+ * admin03 只有後者），所以不能只寫其中一個。
  */
-export const requireAdminPermission = (permission: string) =>
+export const requireAdminPermission = (permission: string | readonly string[]) =>
   createMiddleware<AppEnv>(async (c, next) => {
     const roles = c.get('roles');
 
@@ -257,7 +261,8 @@ export const requireAdminPermission = (permission: string) =>
 
     const permissions = c.get('permissions');
 
-    if (!permissions || !hasPermission(permissions, permission)) {
+    const anyOf = typeof permission === 'string' ? [permission] : permission;
+    if (!permissions || !anyOf.some((p) => hasPermission(permissions, p))) {
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 
