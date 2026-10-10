@@ -1,41 +1,39 @@
-<div class="flex flex-col gap-4">
-  <!-- 橘帶：這一頁的入口面。錨點放最可行動的數字 —— 漏點名，不是總堂數 -->
-  <app-page-band>
-    @if (page().group; as group) {
-      <p class="m-0 text-[0.8rem] tracking-[0.08em] uppercase opacity-70">{{ group.label }}</p>
-    }
-    <h1 class="m-0 text-[1.5rem] font-bold">{{ page().label }}</h1>
-    <p class="m-0 text-[0.9rem] opacity-80">{{ weekLabel() }}</p>
-
-    <div bandAside>
-      <div class="flex items-center gap-1">
-        <p-button
-          icon="pi pi-chevron-left"
-          [text]="true"
-          ariaLabel="上一週"
-          (onClick)="prevWeek()"
-        />
-        <p-button
-          icon="pi pi-chevron-right"
-          [text]="true"
-          ariaLabel="下一週"
-          (onClick)="nextWeek()"
-        />
-      </div>
-      <!-- 錯誤態也不印 —— 「本週 0 堂」跟真的沒課一模一樣（#800） -->
-      @if (!loading() && !loadError()) {
-        @if (isTeacherLed()) {
-          <app-band-anchor [value]="anchor().overdue" unit="堂待點名">
-            本週 <b>{{ anchor().total }}</b> 堂
-          </app-band-anchor>
-        } @else {
-          <!-- 行政負責點名：老師沒有點名入口，把「待點名」當錨點是在問責他做不到的事 -->
-          <app-band-anchor [value]="anchor().total" unit="堂課">本週</app-band-anchor>
-        }
-      }
+<!-- 滿版橘面（A6 page-open）：這一頁的入口面。錨點放最可行動的數字 —— 漏點名，不是總堂數 -->
+<app-page-open>
+  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openSub>{{ weekLabel() }}</ng-container>
+  <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+    <div class="flex items-center gap-1">
+      <p-button
+        icon="pi pi-chevron-left"
+        [text]="true"
+        severity="contrast"
+        ariaLabel="上一週"
+        (onClick)="prevWeek()"
+      />
+      <p-button
+        icon="pi pi-chevron-right"
+        [text]="true"
+        severity="contrast"
+        ariaLabel="下一週"
+        (onClick)="nextWeek()"
+      />
     </div>
-  </app-page-band>
+    <!-- 錯誤態也不印 —— 「本週 0 堂」跟真的沒課一模一樣（#800） -->
+    @if (!loading() && !loadError()) {
+      @if (isTeacherLed()) {
+        <app-band-anchor [value]="anchor().overdue" unit="堂待點名">
+          本週 <b>{{ anchor().total }}</b> 堂
+        </app-band-anchor>
+      } @else {
+        <!-- 行政負責點名：老師沒有點名入口，把「待點名」當錨點是在問責他做不到的事 -->
+        <app-band-anchor [value]="anchor().total" unit="堂課">本週</app-band-anchor>
+      }
+    }
+  </div>
+</app-page-open>
 
+<div class="page-wrap flex flex-col gap-4 py-4">
   @if (loading()) {
     <!--
       週條的骨架跟真正的 &__weekbar 用同一個 &__weekbar-days grid（7 欄），

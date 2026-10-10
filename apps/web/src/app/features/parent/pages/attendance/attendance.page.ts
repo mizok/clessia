@@ -23,7 +23,7 @@ import {
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
-import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
@@ -53,7 +53,7 @@ const PAGE_SIZE = 50;
     FormsModule,
     DatePickerModule,
     SelectButtonModule,
-    PageBandComponent,
+    PageOpenComponent,
     BandAnchorComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
