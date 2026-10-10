@@ -3,6 +3,8 @@
   型態／科目／期間 → 合計列 → .rec 紀錄列 → 學生檔案。
   A6 每場的「及格線」「班名／班平均」「這場全班的成績」缺資料（ScoreRecord 沒有 passScore／className／
   classAvg／examId），列 #991 後續項；不及格沿用既有退路（該場總分的 60%）。
+  #1314 G10：#1482 起 ScoreRecord 帶 examId／classAvg／rank／classSize → 補班平均、名次與「這場全班的成績」連結；
+  及格線與班名仍缺（要 API 加 passScore／className）。
 -->
 @if (student; as s) {
   <div class="dialog-header-inline">
@@ -155,6 +157,12 @@
                   · {{ record.subjectName }}
                 }
                 · {{ record.examDate }}
+                @if (record.classAvg !== null) {
+                  · 班平均 {{ record.classAvg }}
+                }
+                @if (record.rank !== null && (record.classSize ?? 0) > 1) {
+                  · 第 {{ record.rank }} 名／{{ record.classSize }} 人
+                }
               </span>
             </span>
             <span
@@ -177,7 +185,17 @@
                 }
               </small>
             </span>
-            <span class="col-[2/-1] justify-self-start wide:col-auto wide:justify-self-end">
+            <span
+              class="col-[2/-1] flex flex-wrap items-center gap-2 justify-self-start wide:col-auto wide:justify-self-end"
+            >
+              @if (record.type === 'academy') {
+                <a
+                  class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline underline-offset-[3px]"
+                  [routerLink]="['/admin/grades/exams', 'academy', record.examId, 'scores']"
+                  (click)="close()"
+                  >這場全班的成績</a
+                >
+              }
               @if (record.status === 'absent') {
                 <span
                   class="inline-flex items-center gap-1 rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold text-zinc-800"
