@@ -60,6 +60,23 @@ export interface StudentListResponse {
   meta: { total: number; page: number; pageSize: number; totalPages: number };
 }
 
+/**
+ * 學生檔案的到班格（#1314 SD2）：區間內他有課的每一天一格。
+ * 日到班分校看打卡、逐堂分校看出勤紀錄（依班的分校判）；late 當到
+ */
+export interface StudentAttendanceDays {
+  days: {
+    date: string;
+    state: 'came' | 'absent' | 'on_leave' | 'cancelled' | 'future';
+    sessions: { sessionId: string; className: string; startTime: string | null; status: string }[];
+  }[];
+  /** `due` = 非停課非未來的天數（「到班 came／due 天」） */
+  summary: { due: number; came: number; absentDates: string[] };
+  today: { startTime: string | null } | null;
+  /** 區間內今天之後的第一堂（區間外不找） */
+  nextSession: { date: string; startTime: string | null; className: string } | null;
+}
+
 export interface StudentQueryParams {
   search?: string;
   searchScope?: 'default' | 'student_name';
@@ -150,6 +167,13 @@ export class StudentsService {
 
   get(id: string): Observable<{ data: StudentDetail }> {
     return this.http.get<{ data: StudentDetail }>(`${this.endpoint}/${id}`);
+  }
+
+  /** 學生檔案的到班格（#1314 SD2）。`from`／`to` 必填（`YYYY-MM-DD`，≤ 366 天） */
+  attendanceDays(id: string, from: string, to: string): Observable<StudentAttendanceDays> {
+    return this.http.get<StudentAttendanceDays>(`${this.endpoint}/${id}/attendance-days`, {
+      params: { from, to },
+    });
   }
 
   update(id: string, input: UpdateStudentInput): Observable<{ data: Student }> {
