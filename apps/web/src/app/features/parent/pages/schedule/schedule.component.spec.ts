@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -85,6 +85,7 @@ const SESSIONS: ParentSession[] = [
 
 describe('家長端課表 ScheduleComponent', () => {
   let fixture: ComponentFixture<ScheduleComponent>;
+  const activeChildId = signal('kid-1');
   const list = vi.fn((..._a: unknown[]) => of({ data: SESSIONS }));
   const homework = vi.fn((..._a: unknown[]) =>
     of({
@@ -119,7 +120,9 @@ describe('家長端課表 ScheduleComponent', () => {
     HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
       this.removeAttribute('open');
     };
+    activeChildId.set('kid-1');
     const child = { id: 'kid-1', name: '林子晴', grade: 'J3', school: null };
+    const other = { id: 'kid-2', name: '王柏翰', grade: 'P5', school: null };
     await TestBed.configureTestingModule({
       imports: [ScheduleComponent],
       providers: [
@@ -132,12 +135,12 @@ describe('家長端課表 ScheduleComponent', () => {
         {
           provide: ChildScopeService,
           useValue: {
-            children: signal([child]),
+            children: signal([child, other]),
             status: signal('ready'),
-            activeChildId: signal('kid-1'),
-            activeChild: signal(child),
+            activeChildId,
+            activeChild: computed(() => (activeChildId() === 'kid-1' ? child : other)),
             loading: signal(false),
-            canSwitch: signal(false),
+            canSwitch: signal(true),
             load: vi.fn(),
             setActiveChild: vi.fn(),
           },
@@ -234,5 +237,89 @@ describe('家長端課表 ScheduleComponent', () => {
       '停課，不用到班',
     );
     expect(homework).not.toHaveBeenCalled();
+  });
+
+  // 這兩條是 #1523 讀 diff 抓到的：回應要綁孩子／週，不能「後回來的就贏」
+  describe('切孩子、切週的資料歸屬', () => {
+    const flush = async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('在別週切孩子：Hero 不能留著前一個孩子的「下一堂」，等新孩子的資料回來才換', async () => {
+      list.mockReturnValueOnce(
+        of({
+          data: [session({ sessionId: 'k1w2', date: '2026-10-13', className: '林子晴的第二週課' })],
+        }) as never,
+      );
+      (host().querySelector('[aria-label="下一週"]') as HTMLButtonElement).click();
+      await flush();
+      expect(host().querySelector('h1')!.textContent).toContain('林子晴 正在上');
+      expect(host().textContent).toContain('林子晴的第二週課');
+
+      const heroOfKid2 = new Subject<{ data: ParentSession[] }>();
+      list.mockImplementation(((childId: string, from: string) =>
+        childId === 'kid-2' && from === '2026-10-05' ? heroOfKid2 : of({ data: [] })) as never);
+      activeChildId.set('kid-2');
+      await flush();
+
+      // 新孩子的本週資料還沒回來：標題不能還是林子晴那一班
+      const title = host().querySelector('h1')!.textContent!;
+      expect(title).not.toContain('國三數學 B 班');
+      expect(title).not.toContain('林子晴');
+      expect(host().textContent).not.toContain('林子晴的第二週課'); // 週曆也不能留著舊孩子的課
+
+      heroOfKid2.next({
+        data: [session({ sessionId: 'k2', className: '國小英文班', classId: 'c9' })],
+      });
+      heroOfKid2.complete(); // HTTP 回應會自己 complete；forkJoin 等它
+      await flush();
+      expect(host().querySelector('h1')!.textContent).toContain('王柏翰 正在上');
+    });
+
+    it('連按下一週：先送出的慢回應晚到，不能蓋掉最後選的那一週', async () => {
+      const slow = new Subject<{ data: ParentSession[] }>();
+      const fast = new Subject<{ data: ParentSession[] }>();
+      list.mockReset();
+      list.mockReturnValueOnce(slow as never).mockReturnValueOnce(fast as never);
+      const next = host().querySelector('[aria-label="下一週"]') as HTMLButtonElement;
+      next.click();
+      await flush();
+      next.click();
+      await flush();
+      expect(host().querySelector('[data-part="week-label"]')!.textContent).toContain(
+        '10/19～10/25',
+      );
+
+      fast.next({
+        data: [session({ sessionId: 'w3', date: '2026-10-20', className: '第三週的課' })],
+      });
+      fast.complete();
+      slow.next({
+        data: [session({ sessionId: 'w2', date: '2026-10-13', className: '第二週的課' })],
+      });
+      slow.complete();
+      await flush();
+      expect(host().textContent).toContain('第三週的課');
+      expect(host().textContent).not.toContain('第二週的課');
+    });
+
+    it('再翻到沒回來的下一週：畫面不能還顯示上一週的課', async () => {
+      list.mockReset();
+      list.mockReturnValueOnce(
+        of({
+          data: [session({ sessionId: 'w2', date: '2026-10-13', className: '第二週的課' })],
+        }) as never,
+      );
+      const next = host().querySelector('[aria-label="下一週"]') as HTMLButtonElement;
+      next.click();
+      await flush();
+      expect(host().textContent).toContain('第二週的課');
+
+      list.mockReturnValueOnce(new Subject() as never); // 第三週還沒回來
+      next.click();
+      await flush();
+      expect(host().textContent).not.toContain('第二週的課');
+    });
   });
 });

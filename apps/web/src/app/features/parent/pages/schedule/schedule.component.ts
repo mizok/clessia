@@ -13,6 +13,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, forkJoin, map, of, switchMap, tap, type Observable } from 'rxjs';
 import { RouterLink } from '@angular/router';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -100,9 +101,22 @@ export class ScheduleComponent implements OnInit {
 
   protected readonly childName = computed(() => this.childScope.activeChild()?.name ?? '');
 
+  /**
+   * 回來的資料都**帶著是哪個孩子、哪一週查的**，讀的時候跟現在的孩子／週比對 ——
+   * 切孩子時舊孩子的資料不會被當成新孩子的 Hero（別週切孩子曾經殘留前一個孩子的「下一堂」）。
+   */
+  private readonly heroStore = signal<{ childId: string; data: ParentSession[] } | null>(null);
+  private readonly weekStore = signal<{ childId: string; data: ParentSession[] } | null>(null);
   /** 開場用：本週＋下週（一次查；看本週時週曆直接用它，回到本週會重查一次拿新資料） */
-  private readonly heroSessions = signal<ParentSession[]>([]);
-  private readonly otherWeekSessions = signal<ParentSession[]>([]);
+  private readonly heroSessions = computed(() => {
+    const store = this.heroStore();
+    return store && store.childId === this.childScope.activeChildId() ? store.data : [];
+  });
+  private readonly otherWeekSessions = computed(() => {
+    const store = this.weekStore();
+    // 不比週別：週曆只畫 days() 裡的日期，別週的課自然畫不出來
+    return store && store.childId === this.childScope.activeChildId() ? store.data : [];
+  });
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
@@ -209,13 +223,49 @@ export class ScheduleComponent implements OnInit {
     }
   });
 
+  /** 查課表的請求流：switchMap 讓快速切週、切孩子時舊回應不會蓋掉新回應 */
+  private readonly request$ = new Subject<{
+    childId: string;
+    monday: string;
+    thisMonday: string;
+    needHero: boolean;
+  }>();
+  /** 看詳情時查作業；連點不同堂時同樣只認最後一次 */
+  private readonly homework$ = new Subject<{ childId: string; date: string }>();
+
   constructor() {
+    this.request$
+      .pipe(
+        tap(() => {
+          this.loading.set(true);
+          this.failed.set(false);
+        }),
+        switchMap((r) => this.fetch(r)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+
+    this.homework$
+      .pipe(
+        switchMap(({ childId, date }) =>
+          this.sessionsService.homework(childId, addDaysToDateString(date, -120), date).pipe(
+            map((res) => res.data),
+            catchError(() => of([] as ParentClassLog[])),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((data) => {
+        this.classLogs.set(data);
+        this.homeworkLoading.set(false);
+      });
+
     effect(() => {
       const childId = this.childScope.activeChildId();
       const monday = this.monday();
       const thisMonday = this.thisMonday();
       if (!childId) return;
-      untracked(() => this.load(childId, monday, thisMonday));
+      untracked(() => this.requestWeek(childId, monday, thisMonday));
     });
   }
 
@@ -223,40 +273,46 @@ export class ScheduleComponent implements OnInit {
     this.childScope.load();
   }
 
-  private load(childId: string, monday: string, thisMonday: string): void {
-    this.loading.set(true);
-    this.failed.set(false);
-    // 本週視窗＝本週一到下週日（14 天）；看別週才多查那一週
-    const range =
-      monday === thisMonday
-        ? { from: thisMonday, to: addDaysToDateString(thisMonday, 13) }
-        : { from: monday, to: addDaysToDateString(monday, 6) };
-    this.sessionsService
-      .list(childId, range.from, range.to)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ data }) => {
-          if (monday === thisMonday) this.heroSessions.set(data);
-          else this.otherWeekSessions.set(data);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.failed.set(true);
-          this.loading.set(false);
-        },
-      });
-    // 開場句要本週資料：看別週時本週那份還沒有就補查一次
-    if (monday !== thisMonday && this.heroSessions().length === 0) {
-      this.sessionsService
-        .list(childId, thisMonday, addDaysToDateString(thisMonday, 13))
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({ next: ({ data }) => this.heroSessions.set(data), error: () => undefined });
-    }
+  private requestWeek(childId: string, monday: string, thisMonday: string): void {
+    // 本週視窗＝本週一到下週日（14 天）；看別週才多查那一週，Hero 沒有這個孩子的資料時才補查
+    const needHero = monday === thisMonday || this.heroStore()?.childId !== childId;
+    this.request$.next({ childId, monday, thisMonday, needHero });
+  }
+
+  private fetch(r: {
+    childId: string;
+    monday: string;
+    thisMonday: string;
+    needHero: boolean;
+  }): Observable<unknown> {
+    const hero$ = r.needHero
+      ? this.sessionsService
+          .list(r.childId, r.thisMonday, addDaysToDateString(r.thisMonday, 13))
+          .pipe(map((res) => res.data))
+      : of(null);
+    const week$ =
+      r.monday === r.thisMonday
+        ? of(null)
+        : this.sessionsService
+            .list(r.childId, r.monday, addDaysToDateString(r.monday, 6))
+            .pipe(map((res) => res.data));
+    return forkJoin({ hero: hero$, week: week$ }).pipe(
+      tap(({ hero, week }) => {
+        if (hero) this.heroStore.set({ childId: r.childId, data: hero });
+        if (week) this.weekStore.set({ childId: r.childId, data: week });
+        this.loading.set(false);
+      }),
+      catchError(() => {
+        this.failed.set(true);
+        this.loading.set(false);
+        return of(null);
+      }),
+    );
   }
 
   protected retry(): void {
     const childId = this.childScope.activeChildId();
-    if (childId) this.load(childId, this.monday(), this.thisMonday());
+    if (childId) this.requestWeek(childId, this.monday(), this.thisMonday());
   }
 
   protected shiftWeek(weeks: number): void {
@@ -278,16 +334,7 @@ export class ScheduleComponent implements OnInit {
     const childId = this.childScope.activeChildId();
     if (!childId || this.phase(s) === 'future' || this.phase(s) === 'off') return;
     this.homeworkLoading.set(true);
-    this.sessionsService
-      .homework(childId, addDaysToDateString(s.date, -120), s.date)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ data }) => {
-          this.classLogs.set(data);
-          this.homeworkLoading.set(false);
-        },
-        error: () => this.homeworkLoading.set(false),
-      });
+    this.homework$.next({ childId, date: s.date });
   }
 
   protected closeDetail(): void {
