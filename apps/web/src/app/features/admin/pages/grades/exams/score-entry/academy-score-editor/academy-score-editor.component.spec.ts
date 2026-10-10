@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AcademyExamsService, type AcademyExamDetail } from '@core/academy-exams.service';
+import { StudentsService, type Student } from '@core/students.service';
 import { AcademyScoreEditorComponent } from './academy-score-editor.component';
 
 describe('AcademyScoreEditorComponent', () => {
@@ -75,6 +76,7 @@ describe('AcademyScoreEditorComponent', () => {
       providers: [
         { provide: AcademyExamsService, useValue: academyExamsServiceMock },
         { provide: MessageService, useValue: messageServiceMock },
+        { provide: StudentsService, useValue: { list: vi.fn(() => of({ data: [] })) } },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -411,6 +413,48 @@ describe('AcademyScoreEditorComponent', () => {
       fixture.componentRef.setInput('disabled', true);
       fixture.detectChanges();
       expect(host.querySelector('[data-part="mark-absent"]')).toBeNull();
+    });
+  });
+
+  // #1314 G4
+  describe('加入其他學生', () => {
+    const outsider = { id: 'stu-9', name: '陳插班', grade: 'J2' } as unknown as Student;
+
+    it('選到學生：加一列、不算未存變更；輸入分數後才 dirty，存檔送出該生', () => {
+      component['onStudentPicked'](outsider);
+      const rows = component['rows']();
+      expect(rows).toHaveLength(3);
+      expect(rows[2]).toMatchObject({ studentId: 'stu-9', studentName: '陳插班', score: null });
+      expect(component['dirtyCount']()).toBe(0);
+
+      component['onScoreChange'](rows[2], 77);
+      component.save();
+      expect(academyExamsServiceMock.saveScores).toHaveBeenCalledWith('exam-1', [
+        { studentId: 'stu-9', score: 77, status: 'scored', notes: null },
+      ]);
+    });
+
+    it('已在名單裡的人不重複加；打字中的字串不算選定', () => {
+      component['onStudentPicked']({ ...outsider, id: 'stu-1' } as Student);
+      component['onStudentPicked']('陳');
+      expect(component['rows']()).toHaveLength(2);
+    });
+
+    it('加入時清掉班級篩選，否則沒有 classIds 的班外學生會被篩掉看不到', () => {
+      component['classFilter'].set('cls-1');
+      component['onStudentPicked'](outsider);
+      expect(component['classFilter']()).toBeNull();
+      expect(component['filteredRows']().some((r) => r.studentId === 'stu-9')).toBe(true);
+    });
+
+    it('按鈕開關面板；已結束的考試不出鈕', () => {
+      const host = fixture.nativeElement as HTMLElement;
+      host.querySelector<HTMLButtonElement>('[data-part="add-student"]')!.click();
+      fixture.detectChanges();
+      expect(host.querySelector('[data-part="add-student-panel"]')).not.toBeNull();
+      fixture.componentRef.setInput('disabled', true);
+      fixture.detectChanges();
+      expect(host.querySelector('[data-part="add-student"]')).toBeNull();
     });
   });
 });
