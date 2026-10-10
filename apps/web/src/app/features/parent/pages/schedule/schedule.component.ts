@@ -148,6 +148,11 @@ export class ScheduleComponent implements OnInit {
       ).length,
   );
 
+  /** 這個孩子的本週資料回來了嗎。沒回來（載入中、失敗）時 Hero 不下結論，免得把「還沒讀到」說成「沒有課」 */
+  protected readonly heroReady = computed(
+    () => this.heroStore()?.childId === this.childScope.activeChildId(),
+  );
+
   protected readonly hero = computed(() =>
     heroOf(this.heroSessions(), this.today(), this.nowMin()),
   );

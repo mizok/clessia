@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { computed, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -111,7 +111,9 @@ describe('家長端課表 ScheduleComponent', () => {
   );
 
   beforeEach(async () => {
-    list.mockClear();
+    // 每條都從預設實作開始（前面的測試會用 mockImplementation／mockReset 換掉它）
+    list.mockReset();
+    list.mockImplementation((() => of({ data: SESSIONS })) as never);
     homework.mockClear();
     // jsdom 沒有 <dialog>.showModal
     HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
@@ -263,8 +265,13 @@ describe('家長端課表 ScheduleComponent', () => {
       activeChildId.set('kid-2');
       await flush();
 
-      // 新孩子的本週資料還沒回來：標題不能還是林子晴那一班
       const title = host().querySelector('h1')!.textContent!;
+      // 新孩子的本週資料還沒回來：不能把「還沒讀到」說成「沒有課」，也不能留著舊孩子的標題
+      expect(title).toContain('王柏翰');
+      expect(title).toContain('載入中');
+      expect(title).not.toContain('沒有課');
+      expect(host().querySelector('h1 + p')!.textContent!.trim()).toBe('');
+      // 標題不能還是林子晴那一班
       expect(title).not.toContain('國三數學 B 班');
       expect(title).not.toContain('林子晴');
       expect(host().textContent).not.toContain('林子晴的第二週課'); // 週曆也不能留著舊孩子的課
@@ -320,6 +327,60 @@ describe('家長端課表 ScheduleComponent', () => {
       next.click();
       await flush();
       expect(host().textContent).not.toContain('第二週的課');
+    });
+
+    it('讀取失敗：標題不寫「載入中」也不寫「沒有課」（兩個都是假話），body 有失敗訊息', async () => {
+      list.mockImplementation((() => throwError(() => new Error('boom'))) as never);
+      activeChildId.set('kid-2');
+      await flush();
+      const title = host().querySelector('h1')!.textContent!;
+      expect(title).toContain('王柏翰');
+      expect(title).not.toContain('載入中');
+      expect(title).not.toContain('沒有課');
+      expect(host().textContent).toContain('載入失敗');
+    });
+
+    it('連點兩堂課：先點那堂的作業慢回應晚到，不能蓋掉後點那堂的作業', async () => {
+      const slow = new Subject<{ data: unknown[] }>();
+      const fast = new Subject<{ data: unknown[] }>();
+      homework.mockReset();
+      homework.mockReturnValueOnce(slow as never).mockReturnValueOnce(fast as never);
+      // 先點週三那堂（過去的課），再點今天上課中那堂
+      cards()
+        .find((c) => c.textContent?.includes('國三自然 B 班'))!
+        .click();
+      fixture.detectChanges();
+      card('live').click();
+      fixture.detectChanges();
+
+      fast.next({
+        data: [
+          {
+            id: 'b',
+            classId: 'c1',
+            className: '國三數學 B 班',
+            logDate: TODAY,
+            homework: 'B堂的作業',
+          },
+        ],
+      });
+      fast.complete();
+      slow.next({
+        data: [
+          {
+            id: 'a',
+            classId: 'c1',
+            className: '國三自然 B 班',
+            logDate: '2026-10-07',
+            homework: 'A堂的作業',
+          },
+        ],
+      });
+      slow.complete();
+      await flush();
+      const hw = host().querySelector('[data-part="homework"]')!.textContent!;
+      expect(hw).toContain('B堂的作業');
+      expect(hw).not.toContain('還沒有發布');
     });
   });
 });
