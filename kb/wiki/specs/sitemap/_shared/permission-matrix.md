@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, _shared, admin, authorization]
 created: 2026-09-13
-updated: 2026-10-03
+updated: 2026-10-10
 ---
 
 # 權限變體矩陣（管理端）
@@ -133,9 +133,9 @@ updated: 2026-10-03
 | 權限 | 擋住的東西 |
 | --- | --- |
 | `manage_courses` | `courses` `schools` `subjects` `classes` `sessions` 的**寫入** |
-| `manage_students` | `students` `parents` `enrollments` 的**寫入** |
+| `manage_students` | `students` `parents` `enrollments` 的**寫入**；`contact-logs` 的寫入（與 `basic_operations` **任一**即可） |
 | `manage_staff` | `staff` 的**寫入**（讀取刻意開放：排課指派、代課、人員挑選器要讀；**進頁**由前端 `permissionGuard` 擋，#1059） |
-| `basic_operations` | `attendance` `leaves` `daily-checkins` `contact-book` `class-logs` 的**寫入** |
+| `basic_operations` | `attendance` `leaves` `daily-checkins` `contact-book` `class-logs` 的**寫入**；`contact-logs` 的寫入（與 `manage_students` **任一**即可，#1314 D2 —— 第一個「陣列＝任一」的 mount） |
 | `manage_finance` | `billing-periods` `fee-templates` `invoices` `session-packs` `meals` `billing-runs` 的**全部**（讀也擋） |
 | `view_reports` | `reports` 的**全部** |
 | `manage_roles` | 不在 `mount()` 上 —— 在 `lib/role-assignment.ts:47` 與 `routes/staff.ts:875/1144` |
