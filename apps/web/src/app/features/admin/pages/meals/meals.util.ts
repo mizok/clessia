@@ -17,6 +17,8 @@ export interface MealDraftRow {
   studentName: string;
   /** 班名並列成一行。**沒有班級時是破折號不是空字串** —— 區間模式後端刻意回空陣列 */
   classLabel: string;
+  /** 當日名單分章用的班名：一人多班只歸一章（便當只有一份），取排序後第一個；沒班級是空字串 */
+  chapter: string;
   mealDate: string;
   ordered: boolean;
   chargeable: boolean;
@@ -38,6 +40,7 @@ export function rosterToDraft(rows: MealRosterRow[], defaultUnitPrice: number): 
     studentId: row.studentId,
     studentName: row.studentName,
     classLabel: row.classNames.length > 0 ? row.classNames.join('、') : '—',
+    chapter: [...row.classNames].sort((a, b) => a.localeCompare(b, 'zh-Hant'))[0] ?? '',
     mealDate: row.mealDate,
     // 還沒處理過的落在學生的 opt-in 上 —— 那正是候選名單的意義
     ordered: row.ordered ?? row.mealDefault,
@@ -90,4 +93,15 @@ export function draftToBatchRows(rows: MealDraftRow[]): MealBatchRow[] {
       // **清空要送 null**：送 undefined 後端會當成「沒給」而保留原值，備註就清不掉
       note: row.note.trim() || null,
     }));
+}
+
+/** 當日名單依班級分章（A6 `.chap`）。章依班名排序，沒班級的放最後；章內維持 API 的姓名順序 */
+export function mealChapters(rows: MealDraftRow[]): { name: string; rows: MealDraftRow[] }[] {
+  const byName = new Map<string, MealDraftRow[]>();
+  for (const row of rows) byName.set(row.chapter, [...(byName.get(row.chapter) ?? []), row]);
+  return [...byName]
+    .map(([name, list]) => ({ name, rows: list }))
+    .sort((a, b) =>
+      a.name === '' ? 1 : b.name === '' ? -1 : a.name.localeCompare(b.name, 'zh-Hant'),
+    );
 }

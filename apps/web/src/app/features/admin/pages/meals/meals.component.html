@@ -137,111 +137,167 @@
         />
       }
     } @else {
-      <app-responsive-table
-        [headTemplate]="mealHead"
-        [bodyTemplate]="mealBody"
-        [pagination]="isRange() ? pagination() : null"
-        (page)="onPageChange($event)"
-      />
-
-      <ng-template #mealHead>
-        <tr>
-          @if (isRange()) {
-            <th appRtColDef="date" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">日期</th>
-          }
-          <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">學生</th>
-          @if (!isRange()) {
-            <th appRtColDef="classes" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">
-              班級
-            </th>
-          }
-          <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">訂餐</th>
-          <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">單價</th>
-          <th appRtColDef="chargeable" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
-            收費
-          </th>
-          <th appRtColDef="note" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">備註</th>
-          <th appRtColDef="state" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">狀態</th>
-        </tr>
-      </ng-template>
-
-      <ng-template #mealBody>
-        @for (row of rows(); track row.studentId) {
-          <tr appRtRow [appRtRow]="row" [appRtRowId]="row.studentId">
-            @if (isRange()) {
-              <td appRtColCell="date">
-                <span class="tabular-nums text-zinc-600">{{ row.mealDate }}</span>
-              </td>
-            }
-            <td appRtColCell="student">
-              <span class="font-medium text-zinc-900">{{ row.studentName }}</span>
-            </td>
+      <!--
+        當日依班級分章（#1314 ME2，A6 chap）：桌機左欄班名＋訂餐數，右邊是該班的表。
+        區間是只有一章、沒有章頭的同一個結構 —— 列的標記只寫一份：`appRtRow` 要在
+        responsive-table 自己的 injector 裡建立，不能走巢狀的 ngTemplateOutlet。
+      -->
+      <div class="border-t border-zinc-900">
+        @for (table of tables(); track table.name) {
+          <section
+            class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0"
+            [class]="isRange() ? '' : chapterGrid"
+            [attr.aria-label]="table.name || '未分班'"
+            data-chapter
+          >
             @if (!isRange()) {
-              <td appRtColCell="classes">
-                <span class="text-sm text-zinc-500">{{ row.classLabel }}</span>
-              </td>
+              <app-chapter-head
+                class="block pt-6 wide:pt-8"
+                [name]="table.name || '未分班'"
+                [count]="table.rows.length"
+                unit="位"
+              />
             }
-            <td appRtColCell="ordered">
-              <p-checkbox
-                [binary]="true"
-                [disabled]="row.settled || isRange()"
-                [ngModel]="row.ordered"
-                (ngModelChange)="updateRow(row.studentId, 'ordered', $event)"
-                [ariaLabel]="row.studentName + ' 訂餐'"
-              />
-            </td>
-            <td appRtColCell="price">
-              <p-inputnumber
-                mode="currency"
-                currency="TWD"
-                locale="zh-TW"
-                [min]="0"
-                [maxFractionDigits]="0"
-                [disabled]="row.settled || !row.ordered || isRange()"
-                [ngModel]="row.unitPrice"
-                (ngModelChange)="updateRow(row.studentId, 'unitPrice', $event)"
-                [ariaLabel]="row.studentName + ' 的單價'"
-              />
-            </td>
-            <td appRtColCell="chargeable">
-              <p-checkbox
-                [binary]="true"
-                [disabled]="row.settled || !row.ordered || isRange()"
-                [ngModel]="row.chargeable"
-                (ngModelChange)="updateRow(row.studentId, 'chargeable', $event)"
-                [ariaLabel]="row.studentName + ' 收不收費'"
-              />
-            </td>
-            <td appRtColCell="note">
-              <input
-                type="text"
-                pInputText
-                maxlength="200"
-                placeholder="如：素食"
-                class="w-full"
-                [disabled]="row.settled || isRange()"
-                [ngModel]="row.note"
-                (ngModelChange)="updateRow(row.studentId, 'note', $event)"
-                [attr.aria-label]="row.studentName + ' 的備註'"
-              />
-            </td>
-            <td appRtColCell="state">
-              @if (row.settled) {
-                <app-status-dot
-                  tone="done"
-                  pTooltip="已經開進帳單。要改得走帳單作廢或下期調整"
-                  tooltipPosition="left"
-                  >已結算</app-status-dot
-                >
-              } @else if (row.recordId === null) {
-                <app-status-dot [tone]="unhandledTone()">未處理</app-status-dot>
-              } @else {
-                <app-status-dot tone="done">已確認</app-status-dot>
+            <ng-template #mealHead>
+              <tr>
+                @if (isRange()) {
+                  <th appRtColDef="date" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
+                    日期
+                  </th>
+                }
+                <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">
+                  學生
+                </th>
+                @if (!isRange()) {
+                  <th appRtColDef="classes" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">
+                    班級
+                  </th>
+                }
+                <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">
+                  訂餐
+                </th>
+                <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">
+                  單價
+                </th>
+                <th appRtColDef="chargeable" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+                  收費
+                </th>
+                <th appRtColDef="note" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
+                  備註
+                </th>
+                <th appRtColDef="state" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">
+                  狀態
+                </th>
+              </tr>
+            </ng-template>
+            <ng-template #dayHead>
+              <tr>
+                <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">
+                  學生
+                </th>
+                <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">
+                  訂餐
+                </th>
+                <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">
+                  單價
+                </th>
+                <th appRtColDef="chargeable" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+                  收費
+                </th>
+                <th appRtColDef="note" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
+                  備註
+                </th>
+                <th appRtColDef="state" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">
+                  狀態
+                </th>
+              </tr>
+            </ng-template>
+            <ng-template #mealBody>
+              @for (row of table.rows; track row.studentId) {
+                <tr appRtRow [appRtRow]="row" [appRtRowId]="row.studentId">
+                  @if (isRange()) {
+                    <td appRtColCell="date">
+                      <span class="tabular-nums text-zinc-600">{{ row.mealDate }}</span>
+                    </td>
+                  }
+                  <td appRtColCell="student">
+                    <span class="font-medium text-zinc-900">{{ row.studentName }}</span>
+                    @if (!isRange() && row.classLabel !== row.chapter) {
+                      <span class="block text-sm text-zinc-500">{{ row.classLabel }}</span>
+                    }
+                  </td>
+                  <td appRtColCell="ordered">
+                    <p-checkbox
+                      [binary]="true"
+                      [disabled]="row.settled || isRange()"
+                      [ngModel]="row.ordered"
+                      (ngModelChange)="updateRow(row.studentId, 'ordered', $event)"
+                      [ariaLabel]="row.studentName + ' 訂餐'"
+                    />
+                  </td>
+                  <td appRtColCell="price">
+                    <p-inputnumber
+                      mode="currency"
+                      currency="TWD"
+                      locale="zh-TW"
+                      [min]="0"
+                      [maxFractionDigits]="0"
+                      [disabled]="row.settled || !row.ordered || isRange()"
+                      [ngModel]="row.unitPrice"
+                      (ngModelChange)="updateRow(row.studentId, 'unitPrice', $event)"
+                      [ariaLabel]="row.studentName + ' 的單價'"
+                    />
+                  </td>
+                  <td appRtColCell="chargeable">
+                    <p-checkbox
+                      [binary]="true"
+                      [disabled]="row.settled || !row.ordered || isRange()"
+                      [ngModel]="row.chargeable"
+                      (ngModelChange)="updateRow(row.studentId, 'chargeable', $event)"
+                      [ariaLabel]="row.studentName + ' 收不收費'"
+                    />
+                  </td>
+                  <td appRtColCell="note">
+                    <input
+                      type="text"
+                      pInputText
+                      maxlength="200"
+                      placeholder="如：素食"
+                      class="w-full"
+                      [disabled]="row.settled || isRange()"
+                      [ngModel]="row.note"
+                      (ngModelChange)="updateRow(row.studentId, 'note', $event)"
+                      [attr.aria-label]="row.studentName + ' 的備註'"
+                    />
+                  </td>
+                  <td appRtColCell="state">
+                    @if (row.settled) {
+                      <app-status-dot tone="done">已結算</app-status-dot>
+                      <a
+                        routerLink="/admin/payments"
+                        class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline underline-offset-4"
+                        >要改走帳單</a
+                      >
+                    } @else if (row.recordId === null) {
+                      <app-status-dot [tone]="unhandledTone()">未處理</app-status-dot>
+                    } @else {
+                      <app-status-dot tone="done">已確認</app-status-dot>
+                    }
+                  </td>
+                </tr>
               }
-            </td>
-          </tr>
+            </ng-template>
+            <div class="min-w-0 py-2 wide:pt-6">
+              <app-responsive-table
+                [headTemplate]="isRange() ? mealHead : dayHead"
+                [bodyTemplate]="mealBody"
+                [pagination]="isRange() ? pagination() : null"
+                (page)="onPageChange($event)"
+              />
+            </div>
+          </section>
         }
-      </ng-template>
+      </div>
 
       @if (!isRange()) {
         <div

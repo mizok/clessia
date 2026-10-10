@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { format, startOfMonth } from 'date-fns';
 
@@ -24,6 +25,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -39,7 +41,13 @@ import {
   BillingRunDialogComponent,
   type BillingRunDialogData,
 } from './billing-run-dialog/billing-run-dialog.component';
-import { draftTotals, draftToBatchRows, rosterToDraft, type MealDraftRow } from './meals.util';
+import {
+  draftTotals,
+  draftToBatchRows,
+  mealChapters,
+  rosterToDraft,
+  type MealDraftRow,
+} from './meals.util';
 import {
   StatusDotComponent,
   type StatusTone,
@@ -76,6 +84,8 @@ const RANGE_PAGE_SIZE = 50;
     StatusDotComponent,
     PageOpenComponent,
     DecimalPipe,
+    RouterLink,
+    ChapterHeadComponent,
     FormsModule,
     ButtonModule,
     CheckboxModule,
@@ -161,6 +171,11 @@ export class MealsComponent implements OnInit {
   });
 
   protected readonly totals = computed(() => draftTotals(this.rows()));
+  /** 當日＝依班分章；區間＝只有一章（沒有章頭）、帶分頁 */
+  protected readonly tables = computed(() =>
+    this.isRange() ? [{ name: '', rows: this.rows() }] : mealChapters(this.rows()),
+  );
+  protected readonly chapterGrid = 'wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8';
   protected readonly settledCount = computed(() => this.rows().filter((r) => r.settled).length);
   /** 超過後端上限就擋在送出之前 —— 靜靜截斷會讓一部分學生沒有記錄 */
   protected readonly overBatchLimit = computed(
