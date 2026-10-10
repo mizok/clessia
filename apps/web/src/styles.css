@@ -716,9 +716,10 @@
   /* =============================================================================
      Button Global Styles
      ============================================================================= */
-  /* 主要按鈕。**這裡曾經硬寫成 zinc-900**，是 accent 還是天藍時的決定 —— */
-  /* 那個藍撐不起一顆實心按鈕，所以退回黑色。橘撐得起：`--accent-500` 這一階 */
-  /* 就是為了「白字壓在上面」而定的（5.31:1），主按鈕是它唯一的理由。 */
+  /* 主要按鈕（A6 `btn--cta`，#1314 ④）：亮橘底＋**深字**。 */
+  /* 歷史：這裡曾經是 zinc-900（accent 還是天藍時），後來是 `--accent-500` 底＋白字（5.31:1）。 */
+  /* A6 的做法不同：底 `--accent-vivid`（#ff6a3d）、字 zinc-900 —— 對比 6.32:1，hover `--accent-vivid-2` */
+  /* （#ff8557）7.48:1。**白字壓在亮橘上只有 2.4–2.8:1，不可用**，所以是深字，不是「換淺底還用白字」。 */
   /* 覆寫留著而不是刪掉，是因為 PrimeNG 的 primary 還要服務 focus ring、 */
   /* 連結、選單等更淡的用途，兩者不共用同一階。 */
   .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
@@ -726,16 +727,18 @@
     ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
       .p-button-contrast
     ) {
-    background: var(--accent-500);
-    border-color: var(--accent-500);
+    background: var(--accent-vivid);
+    border-color: var(--accent-vivid);
+    color: var(--zinc-900);
   }
   .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
       .p-button-success
     ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
       .p-button-contrast
     ):not(:disabled):hover {
-    background: var(--accent-600);
-    border-color: var(--accent-600);
+    background: var(--accent-vivid-2);
+    border-color: var(--accent-vivid-2);
+    color: var(--zinc-900);
   }
   .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
       .p-button-success
@@ -751,8 +754,9 @@
     ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
       .p-button-contrast
     ):not(:disabled):active {
-    background: var(--accent-700);
-    border-color: var(--accent-700);
+    background: var(--accent-vivid);
+    border-color: var(--accent-vivid);
+    color: var(--zinc-900);
   }
   /* PrimeNG 全站的 disabled 樣式只有一條全域規則：`.p-component:disabled{opacity: */
   /* var(--p-disabled-opacity)}`（0.6），跟按鈕原本是什麼顏色無關。對飽和色（例如 */
