@@ -1,12 +1,11 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { format } from 'date-fns';
 import { skip } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
-import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
@@ -24,6 +23,7 @@ import {
 import { CampusContextService } from '@core/campus-context.service';
 import { CoursesService, type Course } from '@core/courses.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { AuthService } from '@core/auth.service';
 
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -32,7 +32,13 @@ import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-c
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
-import { defaultRange, groupKeyLabel, isAmbiguousKey, splitBilled } from './reports.util';
+import {
+  DEFAULT_PERIOD,
+  groupKeyLabel,
+  isAmbiguousKey,
+  reportPeriods,
+  splitBilled,
+} from './reports.util';
 
 /**
  * 營收報表 —— 見 kb/wiki/specs/admin/finance/reports.md。
@@ -59,8 +65,8 @@ import { defaultRange, groupKeyLabel, isAmbiguousKey, splitBilled } from './repo
   imports: [
     DecimalPipe,
     FormsModule,
+    RouterLink,
     ButtonModule,
-    DatePickerModule,
     SelectModule,
     SelectButtonModule,
     ToastModule,
@@ -94,7 +100,15 @@ export class ReportsPage implements OnInit {
   protected readonly courses = signal<Course[]>([]);
 
   private readonly systemClock = inject(SystemClockService);
-  protected dateRange: Date[] | null = initialRange(this.systemClock.todayTaipei());
+  /** 月份下拉（RP1）：預設上個完整月。換算成 from/to 在 util，這裡只存選了哪一項 */
+  protected readonly periodOptions = reportPeriods(this.systemClock.todayTaipei());
+  protected readonly period = signal(DEFAULT_PERIOD);
+
+  /**
+   * 報表是 `view_reports`、帳單頁是 `manage_finance` —— 沒有後者的人點了連結會被擋，
+   * 所以連到帳單頁的連結只給有權限的人（#1314 RP3）
+   */
+  protected readonly canOpenInvoices = inject(AuthService).hasPermission('manage_finance');
 
   protected readonly groupByOptions = (
     Object.keys(REVENUE_GROUP_BY_LABELS) as RevenueGroupBy[]
@@ -150,7 +164,7 @@ export class ReportsPage implements OnInit {
     this.loading.set(true);
     this.failed.set(false);
 
-    const { from, to } = rangeToStrings(this.dateRange, this.systemClock.todayTaipei());
+    const { from, to } = this.periodOptions.find((o) => o.value === this.period())!;
 
     this.service
       .revenue({
@@ -176,10 +190,8 @@ export class ReportsPage implements OnInit {
       });
   }
 
-  protected onRangeChange(value: Date[] | null): void {
-    this.dateRange = value;
-    // range 模式選第一個日期時 end 還是 null，那時候查會查成單日
-    if (!value || value.length < 2 || !value[1]) return;
+  protected onPeriodChange(value: string): void {
+    this.period.set(value);
     this.load();
   }
 
@@ -207,31 +219,14 @@ export class ReportsPage implements OnInit {
     return groupKeyLabel(group.key, this.groupBy());
   }
 
+  /** 分組列名稱的連結（#1314 RP3）：模糊桶不連（它不是一個真的分校／課程）；帳單頁需要 manage_finance */
+  protected linkOf(group: RevenueGroup): string | null {
+    if (this.isAmbiguous(group)) return null;
+    if (this.groupBy() === 'course') return '/admin/courses';
+    return this.canOpenInvoices ? '/admin/payments' : null;
+  }
+
   protected isAmbiguous(group: RevenueGroup): boolean {
     return isAmbiguousKey(group.key);
   }
-}
-
-/**
- * `today` 由呼叫端傳進來（台北曆日），**不是這裡自己 `new Date()`**。
- *
- * 營收報表的預設區間是「這個月」，而月份邊界正是最貴的那一天：管理員的機器
- * 不在 Asia/Taipei 時，台北已經是 10/01 而瀏覽器還是 09/30 —— **預設就查了
- * 上一個月，而畫面上兩個月份都是合理的數字，沒有東西會紅**（#467 同族）。
- */
-function initialRange(today: string): Date[] {
-  const { from, to } = defaultRange(today);
-  return [new Date(`${from}T00:00:00`), new Date(`${to}T00:00:00`)];
-}
-
-/** 沒選滿區間就退回預設 —— `dateFrom`/`dateTo` 是後端的必填參數 */
-function rangeToStrings(range: Date[] | null, today: string): { from: string; to: string } {
-  if (!range || range.length < 2 || !range[0] || !range[1]) {
-    return defaultRange(today);
-  }
-
-  return {
-    from: format(range[0], 'yyyy-MM-dd'),
-    to: format(range[1], 'yyyy-MM-dd'),
-  };
 }

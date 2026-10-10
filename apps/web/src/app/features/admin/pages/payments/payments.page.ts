@@ -138,6 +138,8 @@ const emptyChapter = (): ChapterState => ({
 })
 export class PaymentsPage implements OnInit {
   readonly page = input.required<RouteObj>();
+  /** 營收報表的「看逾期帳單」帶過來的（#1314 RP3）：`?due=overdue|outstanding|dueSoon` */
+  readonly due = input<string | undefined>();
 
   private readonly service = inject(InvoicesService);
   private readonly studentsService = inject(StudentsService);
@@ -377,6 +379,8 @@ export class PaymentsPage implements OnInit {
   protected readonly PAGE_SIZE = PAGE_SIZE;
 
   ngOnInit(): void {
+    const due = this.due();
+    if (due === 'overdue' || due === 'outstanding' || due === 'dueSoon') this.dueFilter.set(due);
     this.load();
     this.loadSummary();
     this.loadUninvoicedCount();

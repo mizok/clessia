@@ -90,3 +90,46 @@ export function splitBilled(figures: {
     collected,
   };
 }
+
+/** 期間下拉的一個選項（RP1，#1314）。`value` 是穩定的鍵，`from`／`to` 直接送 API */
+export interface ReportPeriod {
+  readonly value: string;
+  readonly label: string;
+  readonly from: string;
+  readonly to: string;
+}
+
+/** 預設期間＝上個完整月：月初開頁時「本月」整頁是 0（A6 預設上個完整月） */
+export const DEFAULT_PERIOD = 'prev1';
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** `today`（台北曆日）往前 `back` 個月的整月：1 號到月底 */
+function fullMonth(today: string, back: number): { from: string; to: string; label: string } {
+  const index = Number(today.slice(0, 4)) * 12 + (Number(today.slice(5, 7)) - 1) - back;
+  const year = Math.floor(index / 12);
+  const month = (index % 12) + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return {
+    from: `${year}-${pad2(month)}-01`,
+    to: `${year}-${pad2(month)}-${pad2(lastDay)}`,
+    label: `${month} 月`,
+  };
+}
+
+/**
+ * 期間下拉：前三個完整月、近三個月（＝那三個月合起來）、本月（到今天）。
+ * 行政是按月對帳，所以沒有任意日期區間（A6 稿拿掉了）。
+ * **`today` 由呼叫端傳台北曆日**，月份邊界不能靠瀏覽器時區（見 `ReportsPage`）。
+ */
+export function reportPeriods(today: string): ReportPeriod[] {
+  const [m1, m2, m3] = [1, 2, 3].map((back) => fullMonth(today, back));
+  const thisMonth = defaultRange(today);
+  return [
+    { value: 'prev1', label: m1.label, from: m1.from, to: m1.to },
+    { value: 'prev2', label: m2.label, from: m2.from, to: m2.to },
+    { value: 'prev3', label: m3.label, from: m3.from, to: m3.to },
+    { value: 'last3', label: '近三個月', from: m3.from, to: m1.to },
+    { value: 'current', label: `${Number(today.slice(5, 7))} 月（到今天）`, ...thisMonth },
+  ];
+}

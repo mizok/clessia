@@ -132,26 +132,52 @@ describe('ReportsPage', () => {
       );
     });
 
-    // range 模式選第一個日期時 end 還是 null
-    it('日期區間只選了一半時不查', () => {
+    it('預設期間是上個完整月，換期間會用該期間的起訖重打（RP1）', () => {
+      const first = reports.revenue.mock.calls[0][0]!;
+      const prev1 = component['periodOptions'].find((o) => o.value === 'prev1')!;
+      expect([first.dateFrom, first.dateTo]).toEqual([prev1.from, prev1.to]);
+
       reports.revenue.mockClear();
-
-      component['onRangeChange']([new Date('2026-08-01T00:00:00'), null as unknown as Date]);
-
-      expect(reports.revenue).not.toHaveBeenCalled();
-    });
-
-    it('日期區間選滿才查', () => {
-      reports.revenue.mockClear();
-
-      component['onRangeChange']([
-        new Date('2026-08-01T00:00:00'),
-        new Date('2026-08-31T00:00:00'),
-      ]);
+      component['onPeriodChange']('last3');
+      const last3 = component['periodOptions'].find((o) => o.value === 'last3')!;
 
       expect(reports.revenue).toHaveBeenCalledWith(
-        expect.objectContaining({ dateFrom: '2026-08-01', dateTo: '2026-08-31' }),
+        expect.objectContaining({ dateFrom: last3.from, dateTo: last3.to }),
       );
+    });
+  });
+
+  describe('#1314 RP3 連結與合計', () => {
+    const group = (key: string) => ({ key, ...figures({ billed: 1000 }) });
+
+    it('課程列連到課程管理，模糊桶不連', () => {
+      component['groupBy'].set('course');
+
+      expect(component['linkOf'](group('國三數學'))).toBe('/admin/courses');
+      expect(component['linkOf'](group('（跨課程）'))).toBeNull();
+    });
+
+    it('沒有 manage_finance 時，連到帳單頁的連結不出現', () => {
+      expect(component['canOpenInvoices']).toBe(false);
+      expect(component['linkOf'](group('示範分校01'))).toBeNull();
+    });
+
+    it('合計列顯示 API 的 summary，不是前端加各組', async () => {
+      reports.revenue.mockReturnValue(
+        of(
+          response({
+            summary: figures({ billed: 99999 }),
+            groups: [group('A'), group('B')],
+          }),
+        ),
+      );
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('合計');
+      expect(text).toContain('99,999');
     });
   });
 
