@@ -2,7 +2,7 @@
 <app-page-open>
   <ng-container openTitle>{{ opener()?.title ?? page().label }}</ng-container>
   <ng-container openSub>{{ opener()?.sub ?? weekLabel() }}</ng-container>
-  <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+  <div class="mt-4 flex flex-col items-start gap-2">
     <div class="flex items-center gap-1">
       <p-button
         icon="pi pi-chevron-left"
@@ -21,18 +21,54 @@
     </div>
     <!-- 錯誤態也不印 —— 「本週 0 堂」跟真的沒課一模一樣（#800） -->
     @if (!loading() && !loadError()) {
-      @if (isTeacherLed()) {
-        <app-band-anchor [value]="anchor().overdue" unit="堂待點名">
-          本週 <b>{{ anchor().total }}</b> 堂
-        </app-band-anchor>
-      } @else {
-        <!-- 行政負責點名：老師沒有點名入口，把「待點名」當錨點是在問責他做不到的事 -->
-        <app-band-anchor [value]="anchor().total" unit="堂課">本週</app-band-anchor>
-      }
-      <!-- 週徽章（missingOn）不分模式都印，這顆跟它同一份資料；查失敗不印 0 -->
-      @if (!missingFailed()) {
-        <app-band-anchor [value]="missingTotal()" unit="則聯絡簿還沒寫" />
-      }
+      <!-- A6 `.open__stats`：橘面上的小統計列（數字在上、說明在下），不是整頁錨點 -->
+      <dl
+        class="schedule-page__stats m-0 mt-3 flex w-full max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-t border-band-rule pt-4 wide:mt-8 wide:gap-x-12 wide:pt-5"
+      >
+        @if (isTeacherLed()) {
+          <div class="m-0 flex flex-col">
+            <dt
+              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-base"
+            >
+              堂待點名
+            </dt>
+            <dd
+              class="m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+            >
+              {{ anchor().overdue }}
+            </dd>
+          </div>
+        } @else {
+          <!-- 行政負責點名：老師沒有點名入口，把「待點名」當統計是在問責他做不到的事 -->
+          <div class="m-0 flex flex-col">
+            <dt
+              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-base"
+            >
+              本週的課
+            </dt>
+            <dd
+              class="m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+            >
+              {{ anchor().total }}<small class="ml-0.5 text-base wide:text-lg">堂</small>
+            </dd>
+          </div>
+        }
+        <!-- 週徽章（missingOn）不分模式都印，這顆跟它同一份資料；查失敗不印 0 -->
+        @if (!missingFailed()) {
+          <div class="m-0 flex flex-col">
+            <dt
+              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-base"
+            >
+              則聯絡簿還沒寫
+            </dt>
+            <dd
+              class="m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+            >
+              {{ missingTotal() }}
+            </dd>
+          </div>
+        }
+      </dl>
     }
   </div>
 </app-page-open>

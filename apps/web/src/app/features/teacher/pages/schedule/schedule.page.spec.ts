@@ -488,7 +488,7 @@ describe('SchedulePage', () => {
     it('課表查失敗時不印本週堂數錨點', async () => {
       await setup({ sessionsFails: true });
 
-      expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.schedule-page__stats')).toBeNull();
     });
 
     it('錯誤態的重試會重新取數', async () => {

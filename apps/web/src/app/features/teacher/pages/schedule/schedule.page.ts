@@ -31,7 +31,6 @@ import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { hasSessionStarted } from '@shared/utils/session-time.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
@@ -77,7 +76,6 @@ function defaultDay(weekStart: Date, todayStr: string): string {
     ButtonModule,
     DynamicDialogModule,
     PageOpenComponent,
-    BandAnchorComponent,
     StatusDotComponent,
     DataChipComponent,
     LoadFailedComponent,
