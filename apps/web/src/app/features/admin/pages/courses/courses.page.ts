@@ -60,6 +60,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { classNeedsIntervention } from './class-intervention.util';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -310,6 +311,8 @@ export class CoursesPage implements OnInit {
               return false;
             if (search && !courseMatchesSearch && !cl.name.toLowerCase().includes(search))
               return false;
+            // 需介入（A6 以班為單位）：課程仍顯示，底下只列需介入的班
+            if (isActive === 'intervention' && !classNeedsIntervention(cl)) return false;
             return true;
           }),
         };
@@ -319,7 +322,7 @@ export class CoursesPage implements OnInit {
         if (!search && teacherIds.length === 0) return true;
         return !!(search && g.course.name.toLowerCase().includes(search));
       })
-      .filter((g) => isActive !== 'intervention' || this.hasCourseNeedsIntervention(g));
+      .filter((g) => isActive !== 'intervention' || g.classes.length > 0);
   });
 
   /**
@@ -359,25 +362,22 @@ export class CoursesPage implements OnInit {
       !!this.historicalDateTo(),
   );
 
-  // 需介入的課程數量（依分校範圍，不受其他篩選影響）
+  // 需介入的**班**數（A6 以班為單位，#1314；依分校範圍，不受其他篩選影響）。
+  // **數全部的班（`allClasses` 是不分頁拿全部的那份），不是只數目前這一頁載入的課程底下的班** ——
+  // 課程列表是分頁的，只數這一頁會讓「需介入 1 個班」按下去變成 2 個班（實機抓到的）。
+  // 已知停用的課程（在這一頁裡看得到的）底下的班不算；不在這一頁的課程沒有活動狀態可查，照班本身算。
   protected readonly interventionCount = computed(() => {
     const campusId = this.selectedCampusId();
-    const activeCourses = this.courses().filter((c) => {
-      if (!c.isActive) return false;
-      if (campusId && c.campusId !== campusId) return false;
-      return true;
-    });
-    const activeClassesByCourse = new Map<string, Class[]>();
-    for (const cl of this.allClasses()) {
-      if (!cl.isActive) continue;
-      if (!activeClassesByCourse.has(cl.courseId)) activeClassesByCourse.set(cl.courseId, []);
-      activeClassesByCourse.get(cl.courseId)!.push(cl);
-    }
-    return activeCourses.filter((course) =>
-      this.hasCourseNeedsIntervention({
-        course,
-        classes: activeClassesByCourse.get(course.id) ?? [],
-      }),
+    const inactiveCourseIds = new Set(
+      this.courses()
+        .filter((c) => !c.isActive)
+        .map((c) => c.id),
+    );
+    return this.allClasses().filter(
+      (cl) =>
+        (!campusId || cl.campusId === campusId) &&
+        !inactiveCourseIds.has(cl.courseId) &&
+        classNeedsIntervention(cl),
     ).length;
   });
 
@@ -1340,6 +1340,17 @@ export class CoursesPage implements OnInit {
     ref.onClose.subscribe((result) => {
       if (result) onAccept();
     });
+  }
+
+  /**
+   * 課程列「N 個班」後面的「，開班中 M」／「，都沒有在開」（A6，#1314 (c)）。
+   * M 來自列表 API 的 `activeClassCount`（啟用且未結束、套分校範圍）—— **沒給（單筆、舊後端）就不寫**，
+   * 不要用前端列出的班數去猜；沒有班（0 個班）也不寫，「都沒有在開」對一個沒有班的課程是廢話。
+   */
+  protected openClassSuffix(group: CourseGroup): string {
+    const open = group.course.activeClassCount;
+    if (open === undefined || group.classes.length === 0) return '';
+    return open > 0 ? `，開班中 ${open}` : '，都沒有在開';
   }
 
   protected hasCourseNeedsIntervention(group: CourseGroup): boolean {
