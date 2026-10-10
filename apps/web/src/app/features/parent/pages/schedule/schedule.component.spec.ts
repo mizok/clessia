@@ -111,7 +111,9 @@ describe('家長端課表 ScheduleComponent', () => {
   );
 
   beforeEach(async () => {
-    list.mockClear();
+    // 每條都從預設實作開始（前面的測試會用 mockImplementation／mockReset 換掉它）
+    list.mockReset();
+    list.mockImplementation((() => of({ data: SESSIONS })) as never);
     homework.mockClear();
     // jsdom 沒有 <dialog>.showModal
     HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
@@ -336,6 +338,49 @@ describe('家長端課表 ScheduleComponent', () => {
       expect(title).not.toContain('載入中');
       expect(title).not.toContain('沒有課');
       expect(host().textContent).toContain('載入失敗');
+    });
+
+    it('連點兩堂課：先點那堂的作業慢回應晚到，不能蓋掉後點那堂的作業', async () => {
+      const slow = new Subject<{ data: unknown[] }>();
+      const fast = new Subject<{ data: unknown[] }>();
+      homework.mockReset();
+      homework.mockReturnValueOnce(slow as never).mockReturnValueOnce(fast as never);
+      // 先點週三那堂（過去的課），再點今天上課中那堂
+      cards()
+        .find((c) => c.textContent?.includes('國三自然 B 班'))!
+        .click();
+      fixture.detectChanges();
+      card('live').click();
+      fixture.detectChanges();
+
+      fast.next({
+        data: [
+          {
+            id: 'b',
+            classId: 'c1',
+            className: '國三數學 B 班',
+            logDate: TODAY,
+            homework: 'B堂的作業',
+          },
+        ],
+      });
+      fast.complete();
+      slow.next({
+        data: [
+          {
+            id: 'a',
+            classId: 'c1',
+            className: '國三自然 B 班',
+            logDate: '2026-10-07',
+            homework: 'A堂的作業',
+          },
+        ],
+      });
+      slow.complete();
+      await flush();
+      const hw = host().querySelector('[data-part="homework"]')!.textContent!;
+      expect(hw).toContain('B堂的作業');
+      expect(hw).not.toContain('還沒有發布');
     });
   });
 });
