@@ -1,0 +1,32 @@
+<div class="invoice-actions flex items-center gap-2">
+  @if (showRemind()) {
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500"
+      [attr.aria-label]="'記錄 ' + name() + ' 的催繳'"
+      (click)="remind.emit($event)"
+    >
+      <i class="pi pi-bell mr-1.5 text-sm" aria-hidden="true"></i>提醒
+    </button>
+  }
+  @if (showCollect()) {
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500"
+      [attr.aria-label]="'記錄 ' + name() + ' 的收款'"
+      (click)="collect.emit()"
+    >
+      收款
+    </button>
+  }
+  @if (showReceipt()) {
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500"
+      [attr.aria-label]="'開啟 ' + name() + ' 的帳單、列印收據'"
+      (click)="receipt.emit()"
+    >
+      收據
+    </button>
+  }
+</div>

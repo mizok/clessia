@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { forkJoin, of } from 'rxjs';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
@@ -8,15 +9,17 @@ import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
+import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import {
   INVOICE_STATUS_LABELS,
+  REMINDER_METHOD_LABELS,
   InvoicesService,
   type Invoice,
+  type ReminderMethod,
   type InvoiceStatus,
   type InvoiceSummary,
 } from '@core/invoices.service';
@@ -41,15 +44,21 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
+import { InvoiceActionsComponent } from './invoice-actions/invoice-actions.component';
+import { PaymentFormDialogComponent } from './payment-form-dialog/payment-form-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
 import {
   daysOverdue,
+  canRemind,
   daysUntilDue,
   isOverdue,
   lastPaidOn,
+  remindedText,
   outstanding,
   overRefunded,
 } from './payments.util';
@@ -100,6 +109,10 @@ const emptyChapter = (): ChapterState => ({
   selector: 'app-payments',
   standalone: true,
   imports: [
+    InvoiceActionsComponent,
+    NgTemplateOutlet,
+    PopupMenuComponent,
+    RouterLink,
     ChapterHeadComponent,
     FilterToggleComponent,
     StatusDotComponent,
@@ -134,7 +147,6 @@ export class PaymentsPage implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly INVOICE_STATUS_LABELS = INVOICE_STATUS_LABELS;
-  protected readonly primaryAction: PageAction = { label: '手動開帳', icon: 'pi pi-plus' };
 
   protected readonly invoices = signal<Invoice[]>([]);
   protected readonly loading = signal(true);
@@ -272,6 +284,30 @@ export class PaymentsPage implements OnInit {
    * 等「7 天內到期」「還沒到期」兩章接上（#1314 P1 第二支）才退場。
    */
   protected readonly chapterMode = computed(() => !this.hasFilters());
+
+  /**
+   * 「全部提醒」的對象＝**畫面上這一頁**的可催繳帳單（batch API 的設計就是送畫面上那批 id，
+   * 看到的就是記錄的；逾期超過一頁時它不是「所有逾期」，鈕上寫明張數）。只在章節模式有。
+   */
+  protected readonly remindAllIds = computed(() =>
+    this.chapterMode()
+      ? this.invoices()
+          .filter(canRemind)
+          .map((invoice) => invoice.id)
+      : [],
+  );
+
+  /** 手機托盤＝次要「開立帳單」＋主要「全部提醒（N）」（A6）；沒有可催繳的就只剩「開立帳單」 */
+  protected readonly primaryAction = computed<PageAction>(() => {
+    const n = this.remindAllIds().length;
+    return n > 0
+      ? { label: `全部提醒（${n}）`, icon: 'pi pi-bell' }
+      : { label: '開立帳單', icon: 'pi pi-plus' };
+  });
+  protected readonly secondaryAction = computed<PageAction | null>(() =>
+    this.remindAllIds().length > 0 ? { label: '開立帳單', icon: 'pi pi-plus' } : null,
+  );
+  protected readonly remindMenuItems = signal<MenuItem[]>([]);
 
   protected readonly monthLabel = computed(() => {
     const month = this.summary()?.month.month;
@@ -592,6 +628,100 @@ export class PaymentsPage implements OnInit {
     if (invoice.status === 'void') return 'inactive';
     // 多退（#1034）不是繳清：要處理（追回或另開帳單）
     return invoice.status === 'paid' ? 'done' : 'pending';
+  }
+
+  protected onPrimaryAction(event: MouseEvent, menu: PopupMenuComponent): void {
+    if (this.remindAllIds().length > 0) this.openRemindMenu(event, menu, null);
+    else this.openCreateDialog();
+  }
+
+  protected remindedText(invoice: Invoice): string | null {
+    return remindedText(invoice, this.today());
+  }
+
+  /**
+   * 記錄催繳的方式選單。**這裡「提醒」＝記錄一次催繳**（line／phone／other）——
+   * 系統沒有真的發 LINE，所以選單標題與 toast 都不寫「已通知家長」（計畫席 10-10 裁定）。
+   * `invoice` 給了就是單張，null 就是「全部提醒」（先確認再送）。
+   */
+  protected openRemindMenu(event: Event, menu: PopupMenuComponent, invoice: Invoice | null): void {
+    const methods = Object.keys(REMINDER_METHOD_LABELS) as ReminderMethod[];
+    this.remindMenuItems.set([
+      { label: '記錄催繳，方式：', disabled: true },
+      ...methods.map((method) => ({
+        label: REMINDER_METHOD_LABELS[method],
+        command: () => (invoice ? this.remindOne(invoice, method) : this.confirmRemindAll(method)),
+      })),
+    ]);
+    menu.toggle(event);
+  }
+
+  private remindOne(invoice: Invoice, method: ReminderMethod): void {
+    this.service.createReminder(invoice.id, { method }).subscribe({
+      next: () => {
+        this.messageService.add({
+          severity: 'success',
+          summary: '已記錄催繳',
+          detail: `已記錄 1 筆催繳（${REMINDER_METHOD_LABELS[method]}）`,
+        });
+        this.refreshAll();
+      },
+      error: (err) => this.remindFailed(err),
+    });
+  }
+
+  private confirmRemindAll(method: ReminderMethod): void {
+    const ids = this.remindAllIds();
+    if (ids.length === 0) return;
+    const label = REMINDER_METHOD_LABELS[method];
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header: '記錄這一頁的催繳',
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        message: `要記錄這一頁 ${ids.length} 張帳單的催繳（${label}）嗎？這只會留下紀錄，不會自動通知家長。`,
+        acceptLabel: `記錄 ${ids.length} 筆`,
+      },
+    });
+    ref?.onClose.subscribe((accepted: boolean | undefined) => {
+      if (!accepted) return;
+      this.service.createRemindersBatch(ids, { method }).subscribe({
+        next: (res) => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '已記錄催繳',
+            detail: `已記錄 ${res.count} 筆催繳（${label}）`,
+          });
+          this.refreshAll();
+        },
+        error: (err) => this.remindFailed(err),
+      });
+    });
+  }
+
+  private remindFailed(err: { error?: { error?: string } }): void {
+    this.messageService.add({
+      severity: 'error',
+      summary: '記錄催繳失敗',
+      detail: err?.error?.error ?? '請稍後再試',
+    });
+  }
+
+  /** 列上「收款」：直接開收款表單（不必先開帳單詳情）。收完整頁重抓 */
+  protected collect(invoice: Invoice): void {
+    const ref = this.dialogService.open(PaymentFormDialogComponent, {
+      header: '記錄收款',
+      width: '440px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { invoice, kind: 'payment' },
+    });
+    ref?.onClose.subscribe((updated: Invoice | undefined) => {
+      if (updated) this.refreshAll();
+    });
   }
 
   protected openDetail(invoice: Invoice): void {

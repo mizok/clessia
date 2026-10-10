@@ -107,6 +107,8 @@ export interface Invoice {
   payments: PaymentRecord[];
   createdAt: string;
   updatedAt: string;
+  /** **只有列表回**（#1404）：最近一次催繳記錄的時間（ISO）；從沒催過是 null。單張 GET 沒有 */
+  lastRemindedAt?: string | null;
 }
 
 export interface PaymentReminder {
@@ -278,6 +280,17 @@ export class InvoicesService {
 
   listReminders(id: string): Observable<{ data: PaymentReminder[] }> {
     return this.http.get<{ data: PaymentReminder[] }>(`${this.endpoint}/${id}/reminders`);
+  }
+
+  /** 一次記錄多張的催繳（#1432）。送畫面上那批 id（上限 200），整批成功或整批失敗 */
+  createRemindersBatch(
+    invoiceIds: string[],
+    input: CreateReminderInput,
+  ): Observable<{ count: number }> {
+    return this.http.post<{ count: number }>(`${this.endpoint}/reminders/batch`, {
+      invoiceIds,
+      ...input,
+    });
   }
 
   createReminder(id: string, input: CreateReminderInput): Observable<{ success: boolean }> {

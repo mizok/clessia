@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { format } from 'date-fns';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -78,6 +79,7 @@ describe('PaymentsPage', () => {
     recordPayment: vi.fn(),
     listReminders: vi.fn(() => of({ data: [] })),
     createReminder: vi.fn(),
+    createRemindersBatch: vi.fn(),
   };
   const students = {
     list: vi.fn(() => of({ data: [student()], summary: {}, meta: {} })),
@@ -91,6 +93,7 @@ describe('PaymentsPage', () => {
     await TestBed.configureTestingModule({
       imports: [PaymentsPage],
       providers: [
+        provideRouter([]),
         { provide: InvoicesService, useValue: invoices },
         { provide: StudentsService, useValue: students },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
@@ -511,6 +514,186 @@ describe('PaymentsPage', () => {
       c.onStatusChange('unpaid');
       fixture.detectChanges();
       expect(toggle().textContent).toMatch(/篩選：已逾期、/);
+    });
+  });
+  describe('#1314 列：提醒／收款／收據，整列不可點（A6）', () => {
+    type Internals = {
+      dialogService: { open: (c: unknown, cfg: { data?: unknown }) => unknown };
+      messageService: { add: (m: { severity: string; detail?: string }) => void };
+      remindMenuItems: () => { label?: string; disabled?: boolean; command?: () => void }[];
+      remindAllIds: () => string[];
+      primaryAction: () => { label: string };
+      secondaryAction: () => { label: string } | null;
+      openRemindMenu: (e: Event, m: unknown, i: Invoice | null) => void;
+      collect: (i: Invoice) => void;
+    };
+    const internals = () => component as unknown as Internals;
+    const el = () => fixture.nativeElement as HTMLElement;
+    const text = () => el().textContent?.replace(/\s+/g, ' ') ?? '';
+    const render = async () => {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    const toasts: { severity: string; detail?: string }[] = [];
+    let dialogData: unknown[] = [];
+    let dialogResult: unknown = undefined;
+    const menu = { toggle: vi.fn() };
+
+    beforeEach(() => {
+      toasts.length = 0;
+      dialogData = [];
+      dialogResult = undefined;
+      menu.toggle.mockReset();
+      invoices.createReminder.mockReset().mockReturnValue(of({ success: true }));
+      invoices.createRemindersBatch.mockReset().mockReturnValue(of({ count: 2 }));
+      internals().messageService.add = (m) => toasts.push(m);
+      internals().dialogService.open = (_c, cfg) => {
+        dialogData.push(cfg?.data);
+        return { onClose: of(dialogResult) };
+      };
+    });
+
+    const overdueRows = () => [
+      invoice({ id: 'inv-1', studentId: 'stu-1', studentName: '陳小明', dueDate: '2020-01-01' }),
+      invoice({ id: 'inv-2', studentId: 'stu-2', studentName: '林小美', dueDate: '2020-01-01' }),
+    ];
+    const loadOverdue = async (rows = overdueRows()) => {
+      invoices.list.mockReturnValue(of(listResponse(rows, rows.length)));
+      component['load']();
+      await render();
+    };
+
+    it('姓名連到學生檔案；整列不是按鈕，沒有「的帳單詳情」那顆整列可點的鈕', async () => {
+      await loadOverdue();
+
+      const link = el().querySelector('a[href="/admin/students/stu-1"]');
+      expect(link?.textContent).toContain('陳小明');
+      expect(el().querySelector('button[aria-label$="的帳單詳情"]')).toBeNull();
+      expect(el().querySelectorAll('app-invoice-actions')).toHaveLength(2);
+    });
+
+    it('下一行寫「還沒提醒」；催過就寫「今天提醒」', async () => {
+      await loadOverdue([invoice({ lastRemindedAt: null, dueDate: '2020-01-01' })]);
+      expect(text()).toContain('還沒提醒');
+
+      await loadOverdue([
+        invoice({ lastRemindedAt: new Date().toISOString(), dueDate: '2020-01-01' }),
+      ]);
+      expect(text()).toContain('今天提醒');
+      expect(text()).not.toContain('還沒提醒');
+    });
+
+    it('單張提醒：選單是三種方式；選 LINE 記錄一筆、toast 寫「已記錄」不寫「已通知」、並重取列表', async () => {
+      await loadOverdue();
+      const calls = invoices.list.mock.calls.length;
+
+      internals().openRemindMenu(new Event('click'), menu, overdueRows()[0]);
+      const items = internals().remindMenuItems();
+      expect(items.map((i) => i.label)).toEqual(['記錄催繳，方式：', 'LINE', '電話', '其他']);
+      expect(items[0].disabled).toBe(true);
+      expect(menu.toggle).toHaveBeenCalled();
+
+      items[1].command?.();
+
+      expect(invoices.createReminder).toHaveBeenCalledWith('inv-1', { method: 'line' });
+      expect(toasts.at(-1)?.severity).toBe('success');
+      expect(toasts.at(-1)?.detail).toBe('已記錄 1 筆催繳（LINE）');
+      expect(toasts.at(-1)?.detail).not.toContain('通知');
+      expect(invoices.list.mock.calls.length).toBeGreaterThan(calls);
+    });
+
+    it('單張提醒失敗：顯示錯誤，不顯示成功', async () => {
+      await loadOverdue();
+      invoices.createReminder.mockReturnValue(
+        throwError(() => ({ error: { error: '帳單已作廢' } })),
+      );
+
+      internals().openRemindMenu(new Event('click'), menu, overdueRows()[0]);
+      internals().remindMenuItems()[2].command?.();
+
+      expect(toasts.map((t) => t.severity)).toEqual(['error']);
+      expect(toasts[0].detail).toBe('帳單已作廢');
+    });
+
+    it('全部提醒：對象＝畫面上這一頁可催繳的帳單，鈕上寫張數；確認後一次送出那批 id', async () => {
+      await loadOverdue();
+      expect(internals().remindAllIds()).toEqual(['inv-1', 'inv-2']);
+      expect(internals().primaryAction().label).toBe('全部提醒（2）');
+      expect(internals().secondaryAction()?.label).toBe('開立帳單');
+
+      internals().openRemindMenu(new Event('click'), menu, null);
+      dialogResult = true;
+      internals().remindMenuItems()[2].command?.(); // 電話
+
+      expect((dialogData[0] as { message: string }).message).toContain('這一頁 2 張');
+      expect((dialogData[0] as { message: string }).message).toContain('不會自動通知家長');
+      expect(invoices.createRemindersBatch).toHaveBeenCalledWith(['inv-1', 'inv-2'], {
+        method: 'phone',
+      });
+      expect(toasts.at(-1)?.detail).toBe('已記錄 2 筆催繳（電話）');
+    });
+
+    it('全部提醒：確認視窗按取消就什麼都不送', async () => {
+      await loadOverdue();
+
+      internals().openRemindMenu(new Event('click'), menu, null);
+      dialogResult = false;
+      internals().remindMenuItems()[1].command?.();
+
+      expect(invoices.createRemindersBatch).not.toHaveBeenCalled();
+      expect(toasts).toHaveLength(0);
+    });
+
+    it('全部提醒失敗：不顯示成功', async () => {
+      await loadOverdue();
+      invoices.createRemindersBatch.mockReturnValue(
+        throwError(() => ({ error: { error: '有帳單已作廢' } })),
+      );
+
+      internals().openRemindMenu(new Event('click'), menu, null);
+      dialogResult = true;
+      internals().remindMenuItems()[1].command?.();
+
+      expect(toasts.map((t) => t.severity)).toEqual(['error']);
+    });
+
+    it('沒有可催繳的帳單：主要行動是「開立帳單」、沒有次要', async () => {
+      await loadOverdue([]);
+
+      expect(internals().remindAllIds()).toEqual([]);
+      expect(internals().primaryAction().label).toBe('開立帳單');
+      expect(internals().secondaryAction()).toBeNull();
+    });
+
+    it('有篩選（平面表）時沒有「全部提醒」—— 那不是「這一頁的逾期」', async () => {
+      component['setDueFilter']('overdue');
+      await loadOverdue();
+
+      expect(internals().remindAllIds()).toEqual([]);
+      expect(internals().primaryAction().label).toBe('開立帳單');
+    });
+
+    it('收款：直接開收款表單（kind=payment），收完重取列表', async () => {
+      await loadOverdue();
+      const calls = invoices.list.mock.calls.length;
+      dialogResult = invoice({ id: 'inv-1' });
+
+      internals().collect(overdueRows()[0]);
+
+      expect((dialogData[0] as { kind: string }).kind).toBe('payment');
+      expect((dialogData[0] as { invoice: Invoice }).invoice.id).toBe('inv-1');
+      expect(invoices.list.mock.calls.length).toBeGreaterThan(calls);
+    });
+
+    it('收款視窗直接關掉（沒收）就不重取', async () => {
+      await loadOverdue();
+      const calls = invoices.list.mock.calls.length;
+      dialogResult = undefined;
+
+      internals().collect(overdueRows()[0]);
+
+      expect(invoices.list.mock.calls.length).toBe(calls);
     });
   });
 });
