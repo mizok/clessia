@@ -88,7 +88,9 @@ describe('家長端課表 ScheduleComponent', () => {
   const list = vi.fn((..._a: unknown[]) => of({ data: SESSIONS }));
   const homework = vi.fn((..._a: unknown[]) =>
     of({
+      // 別班同一天的排最前面：只比日期不比班級的實作會先撈到它
       data: [
+        { id: 'x', classId: 'other', className: '別班', logDate: TODAY, homework: '別班的作業' },
         {
           id: 'l1',
           classId: 'c1',
@@ -103,7 +105,6 @@ describe('家長端課表 ScheduleComponent', () => {
           logDate: '2026-10-01',
           homework: '習作第 8 回',
         },
-        { id: 'x', classId: 'other', className: '別班', logDate: TODAY, homework: '別班的作業' },
       ],
     }),
   );
