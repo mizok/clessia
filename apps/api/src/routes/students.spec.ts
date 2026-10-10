@@ -261,7 +261,8 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
     });
     app.route('/', studentsRoute.default as unknown as Hono);
 
-    const res = await app.request('/');
+    // 這組測的是 campusNames／分校條件，不是今日到班（#1314 SL1）—— 關掉它，`.in` 的記錄才只有原本那幾支
+    const res = await app.request('/?withToday=false');
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: Array<{ campusNames: string[]; classNames: string[]; hasEnrollments: boolean }>;

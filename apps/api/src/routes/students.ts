@@ -8,6 +8,15 @@ import { DbUuidSchema } from '../lib/validation';
 import { campusFilterIds, getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { studentInScope } from '../lib/invoice-campus-scope';
 import { findInOrg } from '../lib/org-scope';
+import { resolveAttendanceMode } from '../lib/attendance-mode';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import {
+  TODAY_SESSION_SELECT,
+  classifyToday,
+  loadDailyAttendance,
+  toTodaySession,
+  type TodayStatus,
+} from '../lib/today-attendance';
 import type { SupabaseClient } from '@supabase/supabase-js';
 // ============================================================
 // Schemas
@@ -56,6 +65,18 @@ const StudentSchema = z
       .enum(['pending_payment', 'active', 'suspended', 'withdrawal'])
       .nullable()
       .optional(),
+    /**
+     * 今日到班（#1314 SL1）：**只有列表、而且有算的時候才有這欄**（帶 `today` 或第一頁）。
+     * null = 今天沒有他的課。判準見 `lib/today-attendance.ts`
+     */
+    todayStatus: z
+      .object({
+        state: z.enum(['arrived', 'on_leave', 'missing', 'not_yet']),
+        dueAt: z.string().nullable(),
+        arrivedAt: z.string().nullable(),
+      })
+      .nullable()
+      .optional(),
     campusNames: z.array(z.string()),
     /** 在籍班級（老師端用來分組；管理端目前不顯示） */
     classNames: z.array(z.string()),
@@ -91,6 +112,21 @@ const StudentListResponseSchema = z
        * 吃列表同一組篩選（search／分校／老師範圍／isActive），**不吃 grade** —— 篩了一級時其他章名照樣在
        */
       byGrade: z.array(z.object({ grade: GradeLevelSchema, count: z.number() })),
+      /**
+       * 今日到班各狀態人數（#1314 SL1）：只套分校範圍（與老師範圍），不套其他篩選 ——
+       * A6 篩選鈕上的數字是「今天全體」。沒算（非第一頁且沒帶 today、或 `withToday=false`）
+       * 或逐堂點名模式（v1 不支援）→ null
+       */
+      today: z
+        .object({
+          any: z.number(),
+          arrived: z.number(),
+          not_yet: z.number(),
+          missing: z.number(),
+          on_leave: z.number(),
+        })
+        .nullable()
+        .optional(),
     }),
     meta: z.object({
       total: z.number(),
@@ -240,6 +276,12 @@ interface StudentFilterable {
 
 const GRADE_LEVELS = GradeLevelSchema.options;
 
+function countToday(statuses: Map<string, TodayStatus>) {
+  const counts = { any: statuses.size, arrived: 0, not_yet: 0, missing: 0, on_leave: 0 };
+  for (const { state } of statuses.values()) counts[state] += 1;
+  return counts;
+}
+
 // ============================================================
 // Routes
 // ============================================================
@@ -287,6 +329,10 @@ app.openapi(
         isActive: z.coerce.boolean().optional(),
         // 意圖提示而已：老師的範圍由角色決定（見 students/teacher-scope.ts）
         taughtByMe: z.coerce.boolean().optional(),
+        /** 今日到班篩選（#1314 SL1）。逐堂點名模式的分校 → 400 `TODAY_UNSUPPORTED_MODE` */
+        today: z.enum(['any', 'arrived', 'not_yet', 'missing', 'on_leave']).optional(),
+        /** `false` = 不算今日到班（儀表板只要總數的呼叫用）。預設第一頁才算 */
+        withToday: z.enum(['true', 'false']).optional(),
       }),
     },
     responses: {
@@ -309,6 +355,8 @@ app.openapi(
       pageSize = 20,
       isActive,
       taughtByMe = false,
+      today: todayFilter,
+      withToday,
     } = c.req.valid('query');
 
     const roles = c.get('roles') ?? [];
@@ -375,6 +423,7 @@ app.openapi(
               total: 0,
               activeCount: 0,
               byGrade: GRADE_LEVELS.map((level) => ({ grade: level, count: 0 })),
+              today: null,
             },
             meta: { total: 0, page, pageSize, totalPages: 0 },
           },
@@ -483,6 +532,54 @@ app.openapi(
         campusStudentIds.length > 0 ? campusStudentIds : ['00000000-0000-0000-0000-000000000000'];
     }
 
+    // ── 今日到班（#1314 SL1）──────────────────────────────────
+    // 判準在 `lib/today-attendance.ts`，跟作業台同一份。只在帶 `today`、或第一頁（且沒說
+    // `withToday=false`）時算 —— 多 4～5 支查詢，翻頁不必重算（計畫席 10-10 裁）。
+    let todayStatuses: Map<string, TodayStatus> | null = null;
+    if (todayFilter !== undefined || (page === 1 && withToday !== 'false')) {
+      const date = getCurrentTaipeiDateString();
+      // 模式解析同作業台：單一分校用分校設定、多校用機構預設（同一個 ponytail 上限）
+      const singleCampus = campusId ?? (campusIds?.length === 1 ? campusIds[0] : null);
+      const { mode } = await resolveAttendanceMode(supabase, orgId, singleCampus);
+      if ((mode ?? 'per_session') === 'daily_checkin') {
+        let sessionsQuery = supabase
+          .from('sessions')
+          .select(TODAY_SESSION_SELECT)
+          .eq('org_id', orgId)
+          .eq('session_date', date);
+        if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', [...campusIds]);
+        const { data: sessionRows, error: sessionsError } = await sessionsQuery;
+        if (sessionsError) {
+          return c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500);
+        }
+        const daily = await loadDailyAttendance(
+          supabase,
+          orgId,
+          date,
+          ((sessionRows ?? []) as unknown as Array<Record<string, unknown>>).map(toTodaySession),
+        );
+        todayStatuses = classifyToday(daily, date);
+        // 老師只數得到自己的學生
+        if (taughtStudentIds !== null) {
+          const taught = new Set(taughtStudentIds);
+          for (const id of todayStatuses.keys()) if (!taught.has(id)) todayStatuses.delete(id);
+        }
+      } else if (todayFilter !== undefined) {
+        // ponytail: 逐堂點名的「到了沒」是每堂出勤紀錄，v1 不支援（計畫席 10-10 記可否決）——
+        // 明講不支援，不默默回空（默默回空會看起來像「今天沒人」）
+        return c.json(
+          { error: '逐堂點名模式不支援今日到班篩選', code: 'TODAY_UNSUPPORTED_MODE' },
+          400,
+        );
+      }
+    }
+    const todayIds =
+      todayFilter !== undefined && todayStatuses
+        ? [...todayStatuses]
+            .filter(([, status]) => todayFilter === 'any' || status.state === todayFilter)
+            .map(([id]) => id)
+        : null;
+
     // 列表與年級章節計數共用（#1314 SL3）—— 兩邊各寫一份就會對同一份名單給出兩個數字。
     // grade 不在裡面：章節要列出其他年級。兩個 `in('id')` 在 PostgREST 是 AND（交集）
     const withChapterFilters = <Q>(q: Q): Q => {
@@ -491,6 +588,7 @@ app.openapi(
       if (searchClause) next = next.or(searchClause);
       if (scopedStudentIds) next = next.in('id', scopedStudentIds);
       if (isActive !== undefined) next = next.eq('is_active', isActive);
+      if (todayIds) next = next.in('id', todayIds);
       return next as unknown as Q;
     };
     query = withChapterFilters(query);
@@ -614,13 +712,19 @@ app.openapi(
         primaryParentPhone,
         // 跟 campusNames 一樣不依分校濾（enrollment-rules 第 8 節）
         enrollmentState: deriveEnrollmentState(enrollmentRows.map((e) => e.status)),
+        ...(todayStatuses ? { todayStatus: todayStatuses.get(row['id'] as string) ?? null } : {}),
       };
     });
 
     return c.json(
       {
         data: students,
-        summary: { total, activeCount: activeCount ?? 0, byGrade },
+        summary: {
+          total,
+          activeCount: activeCount ?? 0,
+          byGrade,
+          today: todayStatuses ? countToday(todayStatuses) : null,
+        },
         meta: {
           total,
           page,

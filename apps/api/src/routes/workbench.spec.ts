@@ -195,6 +195,40 @@ describe('GET /api/workbench/today', () => {
     });
   });
 
+  // #1314 SL1（計畫席 10-10 裁）：當天停課的班不讓學生「應到」；同一天另一班有課的照樣應到
+  it('停課的班的學生不在 expected（另一班有課的仍在）', async () => {
+    const { app, inCalls } = createWorkbenchApp({
+      mode: 'daily_checkin',
+      sessions: [
+        sessionRow(),
+        sessionRow({
+          id: 'session-2',
+          class_id: 'class-2',
+          status: 'cancelled',
+          event_id: null,
+          events: null,
+        }),
+      ],
+      enrollments: [
+        {
+          student_id: 'only-cancelled',
+          class_id: 'class-2',
+          students: { name: '甲', grade: null },
+        },
+        { student_id: 'both', class_id: 'class-2', students: { name: '乙', grade: null } },
+        { student_id: 'both', class_id: 'class-1', students: { name: '乙', grade: null } },
+      ],
+    });
+    await app.request('/api/workbench/today?date=2026-04-06');
+
+    // 替身回固定 fixture、不照 in 過濾 —— 所以測送出去的條件：撈在籍名單時停課的班不在 class_id 裡
+    // 第一支是 summariseSessions 算每堂在籍人數（停課堂照算，那是課堂卡片的數字）；最後一支是應到名單
+    const classIdCalls = inCalls.filter(
+      (call) => call.table === 'enrollments' && call.column === 'class_id',
+    );
+    expect(classIdCalls.at(-1)?.values).toEqual(['class-1']);
+  });
+
   // #1314 D1：is_primary 優先（不論列序）；沒有家長 → null；家長沒帳號 → phone null
   it('primaryParent：主要家長優先、沒家長是 null、沒帳號沒電話', async () => {
     const enrollment = (id: string) => ({

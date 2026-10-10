@@ -5,13 +5,9 @@ import { DbUuidSchema } from '../lib/validation';
 import type { AppEnv } from '../index';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
-import {
-  LEAVE_WINDOW_COLUMNS,
-  leaveCoversSession,
-  toLeaveWindow,
-} from '../lib/leave-covers-session';
 import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
+import { loadDailyAttendance } from '../lib/today-attendance';
 
 /**
  * 作業台的聚合端點。**一支取代四支。**
@@ -255,138 +251,26 @@ app.openapi(
         : [];
 
     // ── 日到班模式 ──────────────────────────────────────────
-    let expected: Array<{
-      studentId: string;
-      studentName: string;
-      grade: string | null;
-      campusId: string | null;
-      campusName: string | null;
-      firstSession: { startTime: string | null; className: string } | null;
-      primaryParent: { name: string; relation: string | null; phone: string | null } | null;
-    }> = [];
-    let arrived: Array<{ studentId: string; checkedInAt: string; checkinId: string }> = [];
-    let onLeave: Array<{
-      studentId: string;
-      studentName: string;
-      startDate: string;
-      endDate: string;
-      submittedByRole: string;
-      reason: string | null;
-    }> = [];
+    // 判準在 `lib/today-attendance.ts`（學生名冊的「今日到班」也走它，#1314 SL1）
+    const daily =
+      mode === 'daily_checkin'
+        ? await loadDailyAttendance(supabase, orgId, targetDate, sessions)
+        : { expected: [], arrived: [], onLeave: [] };
 
-    const classIds = Array.from(
-      new Set(sessions.map((session) => session.classId).filter(Boolean)),
-    );
-
-    if (mode === 'daily_checkin' && classIds.length > 0) {
-      // 在籍條件**與點名名單同源**（`status = 'active'` + 生效區間涵蓋當天）——
-      // #178 已經在 daily-checkins.ts 建立這個先例，照抄不另立一份。
-      // 兩邊條件不一致會生出「有出勤紀錄但名單上沒這個人」的鬼影。
-      const [{ data: enrollmentRows }, { data: checkinRows }] = await Promise.all([
-        supabase
-          .from('enrollments')
-          .select('student_id, class_id, students(name, grade)')
-          .eq('org_id', orgId)
-          .eq('status', 'active')
-          .in('class_id', classIds)
-          .lte('effective_from', targetDate)
-          .or(`effective_to.is.null,effective_to.gte.${targetDate}`),
-        supabase
-          .from('daily_checkins')
-          .select('id, student_id, checked_in_at')
-          .eq('org_id', orgId)
-          .eq('checkin_date', targetDate),
-      ]);
-
-      // 一個學生可能在今天的兩個班都有課 —— 只列一次，`firstSession` 取最早那堂
-      const sessionByClass = new Map(sessions.map((session) => [session.classId, session]));
-      const byStudent = new Map<string, (typeof expected)[number]>();
-
-      for (const row of (enrollmentRows ?? []) as Array<Record<string, unknown>>) {
-        const studentId = row['student_id'] as string;
-        const student = row['students'] as { name?: string; grade?: string | null } | null;
-        const session = sessionByClass.get(row['class_id'] as string);
-        const existing = byStudent.get(studentId);
-
-        const candidate = session
-          ? { startTime: session.startTime, className: session.className }
-          : null;
-
-        if (!existing) {
-          byStudent.set(studentId, {
-            studentId,
-            studentName: student?.name ?? '',
-            grade: student?.grade ?? null,
-            // 前端靠這兩個欄位**依分校分組**（使用者裁定：分組，不是先選分校再看）
-            campusId: session?.campusId ?? null,
-            campusName: session?.campusName ?? null,
-            firstSession: candidate,
-            primaryParent: null,
-          });
-          continue;
-        }
-
-        if (
-          candidate &&
-          (!existing.firstSession ||
-            (candidate.startTime ?? '99:99') < (existing.firstSession.startTime ?? '99:99'))
-        ) {
-          existing.firstSession = candidate;
-        }
-      }
-
-      expected = Array.from(byStudent.values()).sort((a, b) =>
-        a.studentName.localeCompare(b.studentName, 'zh-Hant'),
-      );
-
-      arrived = ((checkinRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
-        studentId: row['student_id'] as string,
-        checkedInAt: row['checked_in_at'] as string,
-        checkinId: row['id'] as string,
-      }));
-
-      const studentIds = expected.map((student) => student.studentId);
-      if (studentIds.length > 0) {
-        const [{ data: leaveRows }, primaryParents] = await Promise.all([
-          supabase
-            .from('leave_requests')
-            .select(`student_id, submitted_by_role, reason, ${LEAVE_WINDOW_COLUMNS}`)
-            .eq('org_id', orgId)
-            .in('student_id', studentIds)
-            .lte('start_date', targetDate)
-            .gte('end_date', targetDate),
-          primaryParentByStudent(supabase, orgId, studentIds),
-        ]);
-        for (const student of expected) {
-          student.primaryParent = primaryParents.get(student.studentId) ?? null;
-        }
-
-        const nameById = new Map(
-          expected.map((student) => [student.studentId, student.studentName]),
-        );
-
-        onLeave = ((leaveRows ?? []) as Array<Record<string, unknown>>)
-          .filter((row) =>
-            // 半天假只蓋到部分時段 —— 用跟 roster 同一支判斷（#153），
-            // 日到班沒有單堂時段，所以拿整天去比
-            // 綁定堂次的假：當天任一綁定堂被蓋到就算（#1114 裁定 2）
-            leaveCoversSession(toLeaveWindow(row), {
-              sessionId: null,
-              date: targetDate,
-              startTime: null,
-              endTime: null,
-            }),
+    // 主要家長（#1314 D1）：該到沒到的列直接撥
+    const primaryParents =
+      daily.expected.length > 0
+        ? await primaryParentByStudent(
+            supabase,
+            orgId,
+            daily.expected.map((student) => student.studentId),
           )
-          .map((row) => ({
-            studentId: row['student_id'] as string,
-            studentName: nameById.get(row['student_id'] as string) ?? '',
-            startDate: row['start_date'] as string,
-            endDate: row['end_date'] as string,
-            submittedByRole: row['submitted_by_role'] as string,
-            reason: (row['reason'] as string | null) ?? null,
-          }));
-      }
-    }
+        : new Map();
+    const expected = daily.expected.map((student) => ({
+      ...student,
+      primaryParent: primaryParents.get(student.studentId) ?? null,
+    }));
+    const { arrived, onLeave } = daily;
 
     return c.json({ date: targetDate, mode, sessions, rosters, expected, arrived, onLeave }, 200);
   },
