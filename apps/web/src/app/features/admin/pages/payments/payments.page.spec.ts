@@ -482,4 +482,35 @@ describe('PaymentsPage', () => {
       expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'void' }));
     });
   });
+  describe('手機「篩選：全部」面板（#1314 ③）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const toggle = () => el().querySelector('app-filter-toggle button') as HTMLButtonElement;
+    const panel = () => el().querySelector('#payments-filters') as HTMLElement;
+
+    it('預設收合、鈕寫「篩選：全部」；點開後面板顯示、aria-expanded 跟著走', () => {
+      fixture.detectChanges();
+      expect(toggle().textContent).toContain('篩選：全部');
+      expect(panel().classList.contains('hidden')).toBe(true);
+
+      toggle().click();
+      fixture.detectChanges();
+      expect(panel().classList.contains('hidden')).toBe(false);
+      expect(panel().classList.contains('flex')).toBe(true);
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('摘要＝催繳＋狀態的條件（沒有就「全部」）', () => {
+      const c = component as unknown as {
+        setDueFilter: (v: string) => void;
+        onStatusChange: (v: string | null) => void;
+      };
+      c.setDueFilter('overdue');
+      fixture.detectChanges();
+      expect(toggle().textContent).toContain('篩選：已逾期');
+
+      c.onStatusChange('unpaid');
+      fixture.detectChanges();
+      expect(toggle().textContent).toMatch(/篩選：已逾期、/);
+    });
+  });
 });

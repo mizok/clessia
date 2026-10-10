@@ -91,6 +91,8 @@
 @source './app/shared/components/subject-manager';
 @source './app/shared/components/popup-menu';
 @source './app/shared/components/page-actions';
+@source './app/shared/components/chapter-head';
+@source './app/shared/components/filter-toggle';
 @source './app/shared/components/inline-notice';
 @source './app/shared/components/empty-state';
 @source './app/shared/components/day-timeline';

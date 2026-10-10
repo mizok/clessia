@@ -359,4 +359,27 @@ describe('ParentsPage', () => {
       expect(el.textContent).toContain('小美');
     });
   });
+  describe('手機「篩選：全部」面板（#1314 ③）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const toggle = () => el().querySelector('app-filter-toggle button') as HTMLButtonElement;
+    const panel = () => el().querySelector('#parents-filters') as HTMLElement;
+
+    it('預設收合（面板 hidden）、鈕寫「篩選：全部」，點開後面板顯示', () => {
+      fixture.detectChanges();
+      expect(toggle().textContent).toContain('篩選：全部');
+      expect(panel().classList.contains('hidden')).toBe(true);
+      expect(toggle().getAttribute('aria-controls')).toBe('parents-filters');
+
+      toggle().click();
+      fixture.detectChanges();
+      expect(panel().classList.contains('hidden')).toBe(false);
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('選了狀態，鈕上寫那個狀態（收起來也看得出在濾什麼）', () => {
+      (component as unknown as { onStatusChange: (s: string) => void }).onStatusChange('inactive');
+      fixture.detectChanges();
+      expect(toggle().textContent).toContain('篩選：停用');
+    });
+  });
 });

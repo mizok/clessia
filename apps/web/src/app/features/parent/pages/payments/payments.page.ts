@@ -21,7 +21,7 @@ import {
 } from '@core/parent-billing.service';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {
@@ -40,7 +40,7 @@ const PAGE_SIZE = 20;
   imports: [
     DecimalPipe,
     DrawerModule,
-    PageBandComponent,
+    PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
     BandAnchorComponent,

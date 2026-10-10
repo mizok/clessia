@@ -1,0 +1,22 @@
+<button
+  type="button"
+  class="filter-toggle inline-flex h-11 max-w-44 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+  [attr.aria-expanded]="open()"
+  [attr.aria-controls]="controls()"
+  (click)="open.set(!open())"
+>
+  <i class="pi pi-sliders-h shrink-0 text-sm" aria-hidden="true"></i>
+  <span class="filter-toggle__label truncate">篩選：{{ summary() }}</span>
+  @if (active()) {
+    <span
+      class="filter-toggle__dot size-2 shrink-0 rounded-full bg-accent-vivid"
+      aria-hidden="true"
+    ></span>
+  }
+  <i
+    class="pi shrink-0 text-xs"
+    [class.pi-chevron-down]="!open()"
+    [class.pi-chevron-up]="open()"
+    aria-hidden="true"
+  ></i>
+</button>

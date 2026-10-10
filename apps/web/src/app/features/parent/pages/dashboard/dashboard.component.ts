@@ -2,7 +2,7 @@ import { Component, OnInit, inject, input } from '@angular/core';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 
@@ -11,7 +11,7 @@ import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-sco
   standalone: true,
   imports: [
     EmptyStateComponent,
-    PageBandComponent,
+    PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
   ],
