@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { DbUuidSchema } from '../lib/validation';
 
@@ -30,6 +31,60 @@ import { resolveAttendanceMode } from '../lib/attendance-mode';
  * 更新。這支跟 `/api/attendance/sessions` 共用 `lib/session-summary.ts` 的形狀定義，
  * 以及 `#175` 的 `campusScope` —— 判斷只有一份。
  */
+/**
+ * 每個學生的主要家長（#1314 D1）。`is_primary` 優先，沒標的取第一位；電話住 `ba_user`（讀 ba_* 合法，c2 只禁寫）。
+ * 家長用 `parents!inner` 限本 org —— 關聯表沒有 org_id。
+ */
+async function primaryParentByStudent(
+  supabase: SupabaseClient,
+  orgId: string,
+  studentIds: string[],
+): Promise<Map<string, { name: string; relation: string | null; phone: string | null }>> {
+  const { data: relationRows } = await supabase
+    .from('parent_student_relations')
+    .select('student_id, relation, is_primary, parents!inner(name, user_id, org_id)')
+    .in('student_id', studentIds)
+    .eq('parents.org_id', orgId);
+
+  const picked = new Map<
+    string,
+    { name: string; relation: string | null; userId: string | null }
+  >();
+  const primaryFirst = ((relationRows ?? []) as unknown as Array<Record<string, unknown>>).sort(
+    (a, b) => Number(Boolean(b['is_primary'])) - Number(Boolean(a['is_primary'])),
+  );
+  for (const row of primaryFirst) {
+    const studentId = row['student_id'] as string;
+    if (picked.has(studentId)) continue;
+    const parent = row['parents'] as { name?: string; user_id?: string | null } | null;
+    picked.set(studentId, {
+      name: parent?.name ?? '',
+      relation: (row['relation'] as string | null) ?? null,
+      userId: parent?.user_id ?? null,
+    });
+  }
+
+  const userIds = [...new Set([...picked.values()].flatMap((p) => (p.userId ? [p.userId] : [])))];
+  const phoneByUser = new Map<string, string | null>();
+  if (userIds.length > 0) {
+    const { data: users } = await supabase.from('ba_user').select('id, phone').in('id', userIds);
+    for (const user of (users ?? []) as Array<{ id: string; phone: string | null }>) {
+      phoneByUser.set(user.id, user.phone ?? null);
+    }
+  }
+
+  return new Map(
+    [...picked].map(([studentId, p]) => [
+      studentId,
+      {
+        name: p.name,
+        relation: p.relation,
+        phone: p.userId ? (phoneByUser.get(p.userId) ?? null) : null,
+      },
+    ]),
+  );
+}
+
 const app = new OpenAPIHono<AppEnv>();
 
 const SessionSummarySchema = z
@@ -91,6 +146,14 @@ const WorkbenchTodaySchema = z
         firstSession: z
           .object({ startTime: z.string().nullable(), className: z.string() })
           .nullable(),
+        /** 主要家長（#1314 D1）：該到沒到的列直接撥電話，不必逐筆打 `/students/{id}`。沒有家長 → null */
+        primaryParent: z
+          .object({
+            name: z.string(),
+            relation: z.string().nullable(),
+            phone: z.string().nullable(),
+          })
+          .nullable(),
       }),
     ),
     arrived: z.array(
@@ -103,6 +166,8 @@ const WorkbenchTodaySchema = z
         startDate: z.string(),
         endDate: z.string(),
         submittedByRole: z.string(),
+        /** #1314 D5 */
+        reason: z.string().nullable(),
       }),
     ),
   })
@@ -197,6 +262,7 @@ app.openapi(
       campusId: string | null;
       campusName: string | null;
       firstSession: { startTime: string | null; className: string } | null;
+      primaryParent: { name: string; relation: string | null; phone: string | null } | null;
     }> = [];
     let arrived: Array<{ studentId: string; checkedInAt: string; checkinId: string }> = [];
     let onLeave: Array<{
@@ -205,6 +271,7 @@ app.openapi(
       startDate: string;
       endDate: string;
       submittedByRole: string;
+      reason: string | null;
     }> = [];
 
     const classIds = Array.from(
@@ -254,6 +321,7 @@ app.openapi(
             campusId: session?.campusId ?? null,
             campusName: session?.campusName ?? null,
             firstSession: candidate,
+            primaryParent: null,
           });
           continue;
         }
@@ -279,13 +347,19 @@ app.openapi(
 
       const studentIds = expected.map((student) => student.studentId);
       if (studentIds.length > 0) {
-        const { data: leaveRows } = await supabase
-          .from('leave_requests')
-          .select(`student_id, submitted_by_role, ${LEAVE_WINDOW_COLUMNS}`)
-          .eq('org_id', orgId)
-          .in('student_id', studentIds)
-          .lte('start_date', targetDate)
-          .gte('end_date', targetDate);
+        const [{ data: leaveRows }, primaryParents] = await Promise.all([
+          supabase
+            .from('leave_requests')
+            .select(`student_id, submitted_by_role, reason, ${LEAVE_WINDOW_COLUMNS}`)
+            .eq('org_id', orgId)
+            .in('student_id', studentIds)
+            .lte('start_date', targetDate)
+            .gte('end_date', targetDate),
+          primaryParentByStudent(supabase, orgId, studentIds),
+        ]);
+        for (const student of expected) {
+          student.primaryParent = primaryParents.get(student.studentId) ?? null;
+        }
 
         const nameById = new Map(
           expected.map((student) => [student.studentId, student.studentName]),
@@ -309,6 +383,7 @@ app.openapi(
             startDate: row['start_date'] as string,
             endDate: row['end_date'] as string,
             submittedByRole: row['submitted_by_role'] as string,
+            reason: (row['reason'] as string | null) ?? null,
           }));
       }
     }

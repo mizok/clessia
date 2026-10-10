@@ -16,6 +16,8 @@ function createWorkbenchApp(fixture: {
   enrollments?: Array<Record<string, unknown>>;
   checkins?: Array<Record<string, unknown>>;
   leaves?: Array<Record<string, unknown>>;
+  relations?: Array<Record<string, unknown>>;
+  baUsers?: Array<Record<string, unknown>>;
   /** 這個請求的分校範圍。預設 null = 不受分校限制（多數測試的主題不是分校） */
   campusScope?: readonly string[] | null;
 }) {
@@ -59,7 +61,11 @@ function createWorkbenchApp(fixture: {
                   ? (fixture.checkins ?? [])
                   : table === 'leave_requests'
                     ? (fixture.leaves ?? [])
-                    : [];
+                    : table === 'parent_student_relations'
+                      ? (fixture.relations ?? [])
+                      : table === 'ba_user'
+                        ? (fixture.baUsers ?? [])
+                        : [];
           return Promise.resolve({ data, error: null }).then(onfulfilled ?? undefined);
         },
       };
@@ -150,8 +156,18 @@ describe('GET /api/workbench/today', () => {
           start_time: null,
           end_time: null,
           submitted_by_role: 'parent',
+          reason: '發燒',
         },
       ],
+      relations: [
+        {
+          student_id: 'stu-1',
+          relation: '母親',
+          is_primary: true,
+          parents: { name: '王媽媽', user_id: 'u-mom', org_id: 'org-1' },
+        },
+      ],
+      baUsers: [{ id: 'u-mom', phone: '0912345678' }],
     });
 
     expect(body.mode).toBe('daily_checkin');
@@ -165,12 +181,64 @@ describe('GET /api/workbench/today', () => {
         campusId: 'campus-1',
         campusName: '中正',
         firstSession: { startTime: '09:00', className: '數學 A' },
+        // #1314 D1：該到沒到的列直接撥
+        primaryParent: { name: '王媽媽', relation: '母親', phone: '0912345678' },
       },
     ]);
     expect(body.arrived).toEqual([
       { studentId: 'stu-1', checkedInAt: '2026-04-06T01:00:00Z', checkinId: 'checkin-1' },
     ]);
-    expect(body.onLeave[0]).toMatchObject({ studentId: 'stu-1', submittedByRole: 'parent' });
+    expect(body.onLeave[0]).toMatchObject({
+      studentId: 'stu-1',
+      submittedByRole: 'parent',
+      reason: '發燒',
+    });
+  });
+
+  // #1314 D1：is_primary 優先（不論列序）；沒有家長 → null；家長沒帳號 → phone null
+  it('primaryParent：主要家長優先、沒家長是 null、沒帳號沒電話', async () => {
+    const enrollment = (id: string) => ({
+      student_id: id,
+      class_id: 'class-1',
+      students: { name: id, grade: null },
+    });
+    const { body } = await today({
+      mode: 'daily_checkin',
+      sessions: [sessionRow()],
+      enrollments: [enrollment('stu-1'), enrollment('stu-2'), enrollment('stu-3')],
+      relations: [
+        {
+          student_id: 'stu-1',
+          relation: '父親',
+          is_primary: false,
+          parents: { name: '爸爸', user_id: 'u-dad', org_id: 'org-1' },
+        },
+        {
+          student_id: 'stu-1',
+          relation: '母親',
+          is_primary: true,
+          parents: { name: '媽媽', user_id: 'u-mom', org_id: 'org-1' },
+        },
+        {
+          student_id: 'stu-3',
+          relation: null,
+          is_primary: false,
+          parents: { name: '阿姨', user_id: null, org_id: 'org-1' },
+        },
+      ],
+      baUsers: [
+        { id: 'u-dad', phone: '0900000001' },
+        { id: 'u-mom', phone: '0900000002' },
+      ],
+    });
+
+    const parentOf = (id: string) =>
+      (body.expected as Array<{ studentId: string; primaryParent: unknown }>).find(
+        (e) => e.studentId === id,
+      )?.primaryParent;
+    expect(parentOf('stu-1')).toEqual({ name: '媽媽', relation: '母親', phone: '0900000002' });
+    expect(parentOf('stu-2')).toBeNull();
+    expect(parentOf('stu-3')).toEqual({ name: '阿姨', relation: null, phone: null });
   });
 
   it('mode 由伺服器讀，呼叫端傳的不算數', async () => {
