@@ -121,12 +121,18 @@ function seed(mode: 'daily_checkin' | 'per_session' = 'daily_checkin') {
       student('s-leave'),
       student('s-none'),
     ],
-    sessions: [session('c-am', '09:00'), session('c-pm', '15:00', 'campus-2')],
+    sessions: [
+      session('c-am', '09:00'),
+      session('c-pm', '15:00', 'campus-2'),
+      // 停課：s-none 只有這堂 → 今天不必來（A6 排除，計畫席 10-10 裁）
+      { ...session('c-off', '08:00'), status: 'cancelled' },
+    ],
     enrollments: [
       enrollment('s-arrived', 'c-am'),
       enrollment('s-missing', 'c-am'),
       enrollment('s-leave', 'c-am'),
       enrollment('s-notyet', 'c-pm'),
+      enrollment('s-none', 'c-off'),
     ],
     daily_checkins: [
       {

@@ -19,6 +19,8 @@ export interface TodaySession {
   startTime: string | null;
   campusId: string | null;
   campusName: string | null;
+  /** 停課的那堂不讓學生「應到」（#1314 SL1，計畫席 10-10 裁：照 A6 排除） */
+  status: string;
 }
 
 export interface ExpectedStudent {
@@ -57,7 +59,7 @@ export interface DailyAttendance {
  * 開始時間與分校**事件優先**，同 `lib/session-summary.ts`。
  */
 export const TODAY_SESSION_SELECT =
-  'class_id, start_time, events!event_id(start_time, campus_id, campuses(name)), classes!inner(name, campus_id, campuses(name))';
+  'class_id, start_time, status, events!event_id(start_time, campus_id, campuses(name)), classes!inner(name, campus_id, campuses(name))';
 
 type Row = Record<string, unknown>;
 
@@ -67,6 +69,7 @@ export function toTodaySession(row: Row): TodaySession {
   const start = (event?.['start_time'] ?? row['start_time']) as string | null | undefined;
   return {
     classId: row['class_id'] as string,
+    status: (row['status'] as string | undefined) ?? 'scheduled',
     className: (cls?.['name'] as string | undefined) ?? '',
     startTime: start?.slice(0, 5) ?? null,
     campusId: ((event?.['campus_id'] ?? cls?.['campus_id']) as string | null | undefined) ?? null,
@@ -85,7 +88,10 @@ export async function loadDailyAttendance(
   date: string,
   sessions: readonly TodaySession[],
 ): Promise<DailyAttendance> {
-  const classIds = Array.from(new Set(sessions.map((session) => session.classId).filter(Boolean)));
+  // 停課的課不算 —— 只剩停課那堂的學生今天不必來（同一天另一個班有課的照樣應到）。
+  // 2026-10-10 前作業台把停課班的學生也列進「應到」，晨間看板會叫行政去追不用來的人
+  const held = sessions.filter((session) => session.status !== 'cancelled');
+  const classIds = Array.from(new Set(held.map((session) => session.classId).filter(Boolean)));
   if (classIds.length === 0) return { expected: [], arrived: [], onLeave: [] };
 
   // 在籍條件**與點名名單同源**（`status = 'active'` + 生效區間涵蓋當天）——
@@ -108,7 +114,7 @@ export async function loadDailyAttendance(
   ]);
 
   // 一個學生可能在今天的兩個班都有課 —— 只列一次，`firstSession` 取最早那堂
-  const sessionByClass = new Map(sessions.map((session) => [session.classId, session]));
+  const sessionByClass = new Map(held.map((session) => [session.classId, session]));
   const byStudent = new Map<string, ExpectedStudent>();
 
   for (const row of (enrollmentRows ?? []) as Row[]) {
