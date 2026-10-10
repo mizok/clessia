@@ -357,4 +357,60 @@ describe('AcademyScoreEditorComponent', () => {
       );
     });
   });
+
+  // #1314 G11
+  describe('批次動作', () => {
+    it('其餘標記缺考：只動沒分數的人，已登分的不被蓋掉，存檔送 absent＋score:null', () => {
+      component.markRestAbsent();
+      const rows = component['rows']();
+      expect(rows[0]).toMatchObject({ score: 85, status: 'scored' });
+      expect(rows[1]).toMatchObject({ score: null, status: 'absent' });
+      expect(component['dirtyCount']()).toBe(1);
+
+      component.save();
+      expect(academyExamsServiceMock.saveScores).toHaveBeenCalledWith('exam-1', [
+        { studentId: 'stu-2', score: null, status: 'absent', notes: null },
+      ]);
+    });
+
+    it('其餘標記缺考：補考列（makeup、沒分數）不被改成缺考', () => {
+      const makeupRow = component['rows']()[1];
+      component['onStatusChange'](makeupRow, 'makeup');
+      component['rows']()[1].original.status = 'makeup'; // 當作上次儲存就是補考
+
+      component.markRestAbsent();
+      expect(component['rows']()[1]).toMatchObject({ score: null, status: 'makeup' });
+      expect(component['dirtyCount']()).toBe(0);
+    });
+
+    it('其餘標記缺考：每位都有分數或缺考時只提示、不改任何列', () => {
+      component.markRestAbsent();
+      messageServiceMock.add.mockClear();
+      component.markRestAbsent();
+      expect(component['dirtyCount']()).toBe(1);
+      expect(messageServiceMock.add).toHaveBeenCalledWith(
+        expect.objectContaining({ summary: expect.stringContaining('每位都已經') }),
+      );
+    });
+
+    it('復原變更：改過的分數、狀態都退回上次儲存', () => {
+      component['onScoreChange'](component['rows']()[0], 10);
+      component.markRestAbsent();
+      expect(component['dirtyCount']()).toBe(2);
+
+      component.revert();
+      const rows = component['rows']();
+      expect(rows[0]).toMatchObject({ score: 85, status: 'scored' });
+      expect(rows[1]).toMatchObject({ score: null, status: 'scored' });
+      expect(component['isDirty']()).toBe(false);
+    });
+
+    it('已結束的考試不出現「其餘標記缺考」鈕', () => {
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('[data-part="mark-absent"]')).not.toBeNull();
+      fixture.componentRef.setInput('disabled', true);
+      fixture.detectChanges();
+      expect(host.querySelector('[data-part="mark-absent"]')).toBeNull();
+    });
+  });
 });

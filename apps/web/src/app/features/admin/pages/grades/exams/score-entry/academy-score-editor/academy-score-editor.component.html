@@ -18,6 +18,17 @@
       <b class="text-zinc-900 tabular-nums">{{ tally().fail }}</b> 位
     </p>
 
+    @if (!disabled()) {
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 wide:ml-auto"
+        data-part="mark-absent"
+        (click)="markRestAbsent()"
+      >
+        其餘標記缺考
+      </button>
+    }
+
     <!-- 多班考試的「篩選班級」（A6 沒畫，照留） -->
     @if (classOptions().length > 0) {
       <p-select
@@ -29,7 +40,7 @@
         placeholder="篩選班級"
         [showClear]="true"
         ariaLabel="篩選班級"
-        styleClass="w-full wide:ml-auto wide:w-auto wide:min-w-50"
+        styleClass="w-full wide:w-auto wide:min-w-50"
       />
     }
   </div>
