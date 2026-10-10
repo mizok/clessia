@@ -42,7 +42,14 @@
 #
 # backfill 類的檔案第一行寫 `-- clessia:apply after-deploy`：plan 看到它就**不往 apply 走**，
 # 等部署完由使用者手動 dispatch 這支（填部署的截線 SHA）。沒標的一律當 schema（套完才部署）。
-# 兩類同批待套會紅 —— 一次 db push 拆不開，要分批合併。
+#
+# **兩類同批待套**（10-10 事故前是紅燈、要求分批合）：plan 判 `apply`，backfill 列進 `deferred`；
+# apply 把 deferred 的檔**從 runner 的 checkout 拿掉**再 db push —— 一次 push 拆不開順序，拆的是檔案集合。
+# 套完 history 少那幾支，正好是「本機有、遠端沒有、比遠端最新還新」的正常待套形狀，dispatch 照舊套得上。
+# 舊規則的代價：`20261010020730_invoice_no` 與它的 backfill 同時進 main，之後每顆 main 的 plan 都紅、
+# **全部沒部署**；而 migration 已提交不能改（c3），只能等 —— 等不到東西。
+# 例外（仍然紅）：同批有比 backfill **還新**的 schema（先套它 backfill 就成了中間漏套，dispatch 也
+# 套不上）；dispatch（部署者已確認上線）那顆還有 schema 沒套（順序亂了）。判斷在 migration-plan.mjs。
 #
 # ## 沒設定 secret 時
 #
@@ -136,6 +143,7 @@ jobs:
     outputs:
       state: ${{ steps.plan.outputs.state }}
       pending: ${{ steps.plan.outputs.pending }}
+      deferred: ${{ steps.plan.outputs.deferred }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -193,10 +201,24 @@ jobs:
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           EXPECTED: ${{ needs.plan.outputs.pending }}
+          DEFERRED: ${{ needs.plan.outputs.deferred }}
         run: |
-          ls supabase/migrations/*.sql | sed -E 's#.*/([0-9]{14})_.*#\1#' | sort > "$RUNNER_TEMP/local.txt"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
             -c 'select version from supabase_migrations.schema_migrations order by 1' | sort > "$RUNNER_TEMP/remote.txt"
+          # schema＋backfill 同批：plan 列為 deferred 的 backfill 這次不套 —— 從 checkout 拿掉，
+          # 之後的 recheck、db push、套後比對全都只看剩下的檔。只拿「正式 DB 還沒有、而且第一個非空行
+          # 真的是 after-deploy 標記」的：已在正式 DB 的若拿掉，CLI 會判「遠端有、本機沒有」而拒絕
+          for v in $(printf '%s' "${DEFERRED}" | tr ',' ' '); do
+            printf '%s' "$v" | grep -Eqx '[0-9]{14}' || { echo "deferred 不是 version：$v"; exit 1; }
+            grep -qx "$v" "$RUNNER_TEMP/remote.txt" && continue
+            for f in supabase/migrations/"${v}"_*.sql; do
+              first=$(grep -m1 -v '^[[:space:]]*$' "$f" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+              [ "$first" = '-- clessia:apply after-deploy' ] || { echo "$f 沒有 after-deploy 標記，不能延後 —— 停"; exit 1; }
+              rm -- "$f"
+              echo "### 這次不套 \`$(basename "$f")\`（after-deploy，部署完 dispatch）" >> "$GITHUB_STEP_SUMMARY"
+            done
+          done
+          ls supabase/migrations/*.sql | sed -E 's#.*/([0-9]{14})_.*#\1#' | sort > "$RUNNER_TEMP/local.txt"
           comm -23 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" > "$RUNNER_TEMP/now.txt"
           printf '%s\n' "${EXPECTED}" | tr ',' '\n' | sort > "$RUNNER_TEMP/expected.txt"
           now=$(paste -sd, - < "$RUNNER_TEMP/now.txt")

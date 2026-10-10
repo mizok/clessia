@@ -62,13 +62,38 @@ test('after-deploy 在部署者確認之後 → apply', () => {
   assert.equal(plan.state, 'apply');
 });
 
-test('schema 與 after-deploy 同批待套 → blocked（一次 db push 拆不開，要分批合）', () => {
+// 10-10 事故：`20261010020730_invoice_no`（schema）與 `…021232_invoice_no_backfill`（after-deploy）
+// 同批待套，舊規則判 blocked，之後每顆 main 都紅、全部沒部署。改成：先套 schema，backfill 留著
+test('schema 與 after-deploy 同批待套 → apply 只套 schema，backfill 留待部署後（deferred）', () => {
   const plan = planMigrations({ local: [m('1'), m('2'), m('3', true)], remote: ['1'] });
-  assert.equal(plan.state, 'blocked');
-  assert.match(plan.reason, /分批/);
+  assert.equal(plan.state, 'apply');
+  assert.deepEqual(
+    plan.pending.map((p) => p.version),
+    ['2', '3'],
+  );
+  assert.deepEqual(
+    plan.deferred.map((p) => p.version),
+    ['3'],
+  );
 });
 
-test('同批混合但部署者已確認 → 仍然 blocked（schema 不能晚於部署）', () => {
+// 先套了比 backfill 新的 schema，backfill 就成了「比遠端最新還舊卻沒套」—— dispatch 也套不上
+// （CI 不帶 --include-all）。所以 backfill 之後的 schema 要等 backfill 先套
+test('同批裡有比 after-deploy 還新的 schema → blocked（先 dispatch backfill）', () => {
+  const plan = planMigrations({ local: [m('1'), m('2', true), m('3')], remote: ['1'] });
+  assert.equal(plan.state, 'blocked');
+  assert.match(plan.reason, /dispatch/);
+});
+
+test('非混合的情形 deferred 都是空的', () => {
+  assert.deepEqual(planMigrations({ local: [m('1'), m('2')], remote: ['1'] }).deferred, []);
+  assert.deepEqual(
+    planMigrations({ local: [m('1'), m('2', true)], remote: ['1'], deployed: true }).deferred,
+    [],
+  );
+});
+
+test('同批混合但部署者已確認 → blocked（schema 該在部署前套，順序亂了）', () => {
   const plan = planMigrations({
     local: [m('1'), m('2'), m('3', true)],
     remote: ['1'],

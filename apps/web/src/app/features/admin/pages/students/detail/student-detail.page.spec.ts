@@ -4,7 +4,10 @@ import { BehaviorSubject, of, throwError } from 'rxjs';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { StudentDetailPage } from './student-detail.page';
-import { StudentsService } from '@core/students.service';
+import { StudentsService, type StudentAttendanceDays } from '@core/students.service';
+import { ScoresService } from '@core/scores.service';
+import { LeaveService } from '@core/leave.service';
+import { LeaveFormDialogComponent } from '../../leave/leave-form-dialog.component';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
@@ -14,7 +17,7 @@ describe('StudentDetailPage', () => {
   const seedStudentId = '61000000-0000-0000-0000-000000000001';
   const paramMap$ = new BehaviorSubject(convertToParamMap({ id: seedStudentId }));
 
-  const studentsServiceMock = {
+  const studentsServiceMock: Record<string, ReturnType<typeof vi.fn>> = {
     get: vi.fn(() =>
       of({
         data: {
@@ -43,6 +46,41 @@ describe('StudentDetailPage', () => {
     ),
   };
 
+  const attendance: StudentAttendanceDays = {
+    days: [
+      { date: '2026-09-05', state: 'came', sessions: [] },
+      { date: '2026-09-12', state: 'absent', sessions: [] },
+      { date: '2026-10-17', state: 'future', sessions: [] },
+    ],
+    summary: { due: 2, came: 1, absentDates: ['2026-09-12'] },
+    today: null,
+    nextSession: { date: '2026-10-17', startTime: '15:00:00', className: '數學 A' },
+  };
+  studentsServiceMock['attendanceDays'] = vi.fn(() => of(attendance));
+  const scoresServiceMock = {
+    getStudentSummary: vi.fn(() =>
+      of({
+        data: {
+          studentId: seedStudentId,
+          studentName: 'x',
+          subjects: [
+            {
+              subjectName: '英文',
+              academySum: 92,
+              academyTotalSum: 100,
+              schoolAvg: null,
+              totalRecords: 1,
+            },
+          ],
+        },
+      }),
+    ),
+  };
+  const leaveServiceMock = {
+    list: vi.fn(() => of({ data: [], meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 } })),
+  };
+  const dialogOpen = vi.fn();
+
   const enrollmentsServiceMock = {
     // `data` 標型別 —— 不標的話會被推論成 `never[]`，
     // 之後用 `mockReturnValue` 餵真的 enrollment 進去會編譯失敗
@@ -64,7 +102,9 @@ describe('StudentDetailPage', () => {
   };
 
   beforeEach(async () => {
-    studentsServiceMock.get.mockClear();
+    studentsServiceMock['get'].mockClear();
+    studentsServiceMock['attendanceDays'].mockClear();
+    dialogOpen.mockReset();
     enrollmentsServiceMock.list.mockClear();
     enrollmentsServiceMock.create.mockClear();
 
@@ -74,7 +114,9 @@ describe('StudentDetailPage', () => {
         provideRouter([]),
         { provide: StudentsService, useValue: studentsServiceMock },
         { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
-        { provide: DialogService, useValue: { open: vi.fn() } },
+        { provide: ScoresService, useValue: scoresServiceMock },
+        { provide: LeaveService, useValue: leaveServiceMock },
+        { provide: DialogService, useValue: { open: dialogOpen } },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
         {
           provide: ActivatedRoute,
@@ -84,7 +126,10 @@ describe('StudentDetailPage', () => {
           },
         },
       ],
-    }).compileComponents();
+    })
+      // 頁面自己 `providers: [DialogService]`，只在 providers 陣列放 mock 蓋不掉
+      .overrideProvider(DialogService, { useValue: { open: dialogOpen } })
+      .compileComponents();
 
     fixture = TestBed.createComponent(StudentDetailPage);
     fixture.detectChanges();
@@ -92,7 +137,7 @@ describe('StudentDetailPage', () => {
   });
 
   it('loads student and enrollments from route params', () => {
-    expect(studentsServiceMock.get).toHaveBeenCalledWith(seedStudentId);
+    expect(studentsServiceMock['get']).toHaveBeenCalledWith(seedStudentId);
     expect(enrollmentsServiceMock.list).toHaveBeenCalledWith({
       studentId: seedStudentId,
       pageSize: 50,
@@ -208,6 +253,113 @@ describe('StudentDetailPage', () => {
     });
   });
 
+  describe('A6 換形（#1314 SD）', () => {
+    async function renderWithEnrollment() {
+      enrollmentsServiceMock.list.mockReturnValue(
+        of({
+          data: [
+            {
+              id: 'enrollment-1',
+              studentId: seedStudentId,
+              classId: 'class-1',
+              courseId: 'course-1',
+              className: '三年級數學 A',
+              courseName: '數學',
+              effectiveFrom: '2026-09-01',
+              status: 'active',
+              billingMode: 'monthly',
+              createdAt: '2026-09-01T02:00:00Z',
+              classSchedule: [
+                { weekday: 6, startTime: '15:00:00', endTime: '16:30:00', teacherName: '簡志明' },
+              ],
+              teacherName: '簡志明',
+            } as unknown as Enrollment,
+          ],
+          meta: { total: 1, page: 1, pageSize: 50, totalPages: 1 },
+        }),
+      );
+      fixture = TestBed.createComponent(StudentDetailPage);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('有報名 → 以最早報名日起、到「今天＋21」查到班格；畫面寫到班數字與沒到日期', async () => {
+      const el = await renderWithEnrollment();
+      const [id, from, to] = studentsServiceMock['attendanceDays'].mock.calls.at(-1) as string[];
+      expect(id).toBe(seedStudentId);
+      expect(from).toBe('2026-09-01');
+      expect(to > from).toBe(true);
+      expect(el.querySelector('[data-testid="attendance-stat"]')?.textContent).toContain('1');
+      expect(el.querySelector('[data-testid="absent-line"]')?.textContent).toContain('沒到 1 天');
+      expect(el.querySelectorAll('[role="listitem"]').length).toBe(3);
+    });
+
+    it('沒有報名 → 不打到班 API', async () => {
+      studentsServiceMock['attendanceDays'].mockClear();
+      enrollmentsServiceMock.list.mockReturnValue(
+        of({ data: [], meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 } }),
+      );
+      fixture = TestBed.createComponent(StudentDetailPage);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(studentsServiceMock['attendanceDays']).not.toHaveBeenCalled();
+    });
+
+    it('課程列寫時段與老師，在學不寫狀態字', async () => {
+      const el = await renderWithEnrollment();
+      const row = el.querySelector('[data-testid="enrollment-item"]')!.textContent!;
+      expect(row).toContain('週六 15:00–16:30 · 簡志明 老師');
+      expect(row).not.toContain('在學');
+    });
+
+    it('工具列情境句：沒有今天的課＋下一堂', async () => {
+      const el = await renderWithEnrollment();
+      const text = el.querySelector('[data-testid="situation"]')!.textContent!.replace(/\s+/g, ' ');
+      expect(text).toContain('今天沒有他的課');
+      expect(text).toContain('下一堂 10/17（六） 15:00');
+    });
+
+    it('成績列寫各科平均', async () => {
+      const el = await renderWithEnrollment();
+      expect(el.textContent).toContain('補習班考 92%');
+    });
+
+    it('登記請假：開請假對話框並預帶這位學生', async () => {
+      dialogOpen.mockReturnValue({ onClose: of(null) });
+      await renderWithEnrollment();
+      fixture.componentInstance['openLeaveDialog']();
+      expect(dialogOpen).toHaveBeenCalledWith(
+        LeaveFormDialogComponent,
+        expect.objectContaining({
+          data: { student: { id: seedStudentId, name: '出勤測試學生01' } },
+        }),
+      );
+    });
+
+    it('送出請假後重抓請假紀錄與到班格', async () => {
+      dialogOpen.mockReturnValue({ onClose: of({ id: 'l1' }) });
+      await renderWithEnrollment();
+      leaveServiceMock.list.mockClear();
+      studentsServiceMock['attendanceDays'].mockClear();
+      fixture.componentInstance['openLeaveDialog']();
+      expect(leaveServiceMock.list).toHaveBeenCalled();
+      expect(studentsServiceMock['attendanceDays']).toHaveBeenCalled();
+      expect(fixture.componentInstance['notice']()?.summary).toBe('已登記請假');
+    });
+
+    it('沒有待收款 → 主要行動是「登記請假」、沒有次要', async () => {
+      await renderWithEnrollment();
+      const c = fixture.componentInstance as unknown as {
+        primaryAction: () => { label: string };
+        secondaryAction: () => unknown;
+      };
+      expect(c.primaryAction().label).toBe('登記請假');
+      expect(c.secondaryAction()).toBeNull();
+    });
+  });
+
   /**
    * #722：在籍班級列的鍵盤操作。
    *
@@ -239,6 +391,11 @@ describe('StudentDetailPage', () => {
               effectiveFrom: '2026-09-01',
               status: 'active',
               billingMode: 'monthly',
+              createdAt: '2026-09-01T02:00:00Z',
+              classSchedule: [
+                { weekday: 6, startTime: '15:00:00', endTime: '16:30:00', teacherName: '簡志明' },
+              ],
+              teacherName: '簡志明',
             } as unknown as Enrollment,
           ],
           meta: { total: 1, page: 1, pageSize: 50, totalPages: 1 },

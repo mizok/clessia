@@ -30,6 +30,8 @@ export const SCHOOL_SCORE_SELECT = `
 
 export interface ScoreRecordBase {
   id: string;
+  /** 這筆成績所屬的考試（校內考 academy_exams.id／段考 school_exams.id，#1314 G10） */
+  examId: string;
   type: 'academy' | 'school';
   examName: string;
   examDate: string;
@@ -56,6 +58,7 @@ export function mapAcademyScoreRow(row: any): ScoreRecordBase {
   const exam = row.academy_exams;
   return {
     id: row.id,
+    examId: row.exam_id,
     type: 'academy',
     examName: exam.name,
     examDate: exam.exam_date,
@@ -74,6 +77,7 @@ export function mapSchoolScoreRow(row: any): ScoreRecordBase {
   const subject = row.subjects;
   return {
     id: row.id,
+    examId: row.school_exam_id,
     type: 'school',
     examName: exam.label,
     examDate: exam.exam_date ?? exam.created_at?.split('T')[0] ?? '',

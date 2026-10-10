@@ -5,7 +5,7 @@ import { ButtonModule } from 'primeng/button';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
@@ -29,7 +29,7 @@ import {
     InputTextModule,
     InputNumberModule,
     SelectModule,
-    ToggleSwitchModule,
+    SelectButtonModule,
   ],
   templateUrl: './fee-template-form-dialog.component.html',
 })
@@ -46,6 +46,12 @@ export class FeeTemplateFormDialogComponent {
   protected readonly billingModeOptions = (Object.keys(BILLING_MODE_LABELS) as BillingMode[]).map(
     (value) => ({ value, label: BILLING_MODE_LABELS[value] }),
   );
+
+  /** 啟用用兩個選項（A6 F6）：看得到兩種結果，不是一個要猜開關方向的 toggle */
+  protected readonly activeOptions = [
+    { label: '啟用', value: true },
+    { label: '停用', value: false },
+  ];
 
   protected readonly form = signal({
     name: this.template()?.name ?? '',

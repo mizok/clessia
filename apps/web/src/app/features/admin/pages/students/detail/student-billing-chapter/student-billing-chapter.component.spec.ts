@@ -130,4 +130,26 @@ describe('StudentBillingChapterComponent', () => {
     setup([], 0);
     expect(fixture.debugElement.injector.get(MessageService)).toBeTruthy();
   });
+
+  it('collect()：開最早到期未繳那張；已繳、作廢的不算；沒有到期日排最後', () => {
+    setup(
+      [
+        invoice({ id: 'late', dueDate: '2026-10-25' }),
+        invoice({ id: 'paid', status: 'paid', netPaid: 4050, dueDate: '2026-09-01' }),
+        invoice({ id: 'nodue', dueDate: null }),
+        invoice({ id: 'early', dueDate: '2026-10-05' }),
+      ],
+      12150,
+    );
+    fixture.componentInstance.collect();
+    const data = (open.mock.calls.at(-1) as unknown as [unknown, { data: { invoice: Invoice } }])[1]
+      .data;
+    expect(data.invoice.id).toBe('early');
+  });
+
+  it('collect()：沒有待收的就不開', () => {
+    setup([invoice({ status: 'paid', netPaid: 4050 })], 0);
+    fixture.componentInstance.collect();
+    expect(open).not.toHaveBeenCalled();
+  });
 });
