@@ -9,7 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
+import { EMPTY, Subject, catchError, switchMap } from 'rxjs';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -36,24 +36,23 @@ import {
   type BillingPeriodListItem,
 } from '@core/billing-periods.service';
 
-import { PageActionsComponent } from '@shared/components/page-actions/page-actions.component';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { FeeTemplateFormDialogComponent } from './fee-template-form-dialog/fee-template-form-dialog.component';
 import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/billing-period-form-dialog.component';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
-import { inUseLabel, periodUsageLabel } from './fee-templates.util';
+import { inUseLabel, periodUsageLabel, overlappingNames, amountUnit } from './fee-templates.util';
 
 /**
  * 費用方案管理 —— 見 kb/wiki/specs/admin/finance/fee-templates.md。
@@ -68,7 +67,7 @@ import { inUseLabel, periodUsageLabel } from './fee-templates.util';
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
-    StatusDotComponent,
+    ChapterHeadComponent,
     DecimalPipe,
     FormsModule,
     ButtonModule,
@@ -81,10 +80,6 @@ import { inUseLabel, periodUsageLabel } from './fee-templates.util';
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
     FilterChipComponent,
   ],
   providers: [MessageService, DialogService],
@@ -103,6 +98,10 @@ export class FeeTemplatesComponent implements OnInit {
 
   protected readonly inUseLabel = inUseLabel;
   protected readonly periodUsageLabel = periodUsageLabel;
+  protected readonly amountUnit = amountUnit;
+
+  protected readonly primaryAction: PageAction = { label: '新增價目表', icon: 'pi pi-plus' };
+  protected readonly secondaryAction: PageAction = { label: '新增期間', icon: 'pi pi-plus' };
 
   protected readonly templates = signal<FeeTemplateListItem[]>([]);
   protected readonly templatesLoading = signal(true);
@@ -114,26 +113,59 @@ export class FeeTemplatesComponent implements OnInit {
   protected readonly loadFailed = signal(false);
   protected readonly searchQuery = signal('');
 
-  /** 搜尋輸入 —— 節流 + 去重之後才進 `loadTemplates()`（#661） */
-  private readonly searchInput = new Subject<string>();
   /**
    * **所有**取數都經過這裡，然後 `switchMap` 出去。
    *
-   * `debounce` 只解一半：打字慢的人（每次間隔超過 300ms）仍然會送出多支請求，
-   * 而它們回來的順序不保證 —— **先發的後到就會蓋掉畫面**，而畫面上的輸入框
-   * 顯示的是最新的字。**而且它不會自己追上**：沒有任何後續事件會重查。
-   *
+   * 搜尋改在前端過濾後不再有輸入打出的請求，但重整（儲存、停用、刪除之後）仍可能連發，
    * 讓每一個取數都走同一條 `switchMap`，新的一發就取消舊的那一支。
    */
   private readonly loadRequests = new Subject<void>();
   private readonly destroyRef = inject(DestroyRef);
   protected readonly showInactive = signal(false);
 
+  /**
+   * 價目表一次取全部（含停用）、搜尋與「顯示停用」都在前端過濾（#1314 F0）：色面的「N 種／M 種」
+   * 與「顯示停用方案（N）」要含停用的數字，而 API 本來就沒分頁、量級十幾筆。
+   */
+  protected readonly activeCount = computed(
+    () => this.templates().filter((t) => t.isActive).length,
+  );
+  protected readonly inactiveCount = computed(() => this.templates().length - this.activeCount());
+  protected readonly visibleTemplates = computed(() => {
+    const q = this.searchQuery().trim();
+    return this.templates().filter(
+      (t) => (this.showInactive() || t.isActive) && (!q || t.name.includes(q)),
+    );
+  });
+
+  /** 依計費模式分章（A6 F0）：沒有列的章不顯示；章內啟用在前、再依定價由低到高 */
+  protected readonly chapters = computed(() => {
+    const rows = this.visibleTemplates();
+    return (['monthly', 'period', 'session_pack'] as const)
+      .map((mode) => ({
+        mode,
+        label: BILLING_MODE_LABELS[mode],
+        rows: rows
+          .filter((t) => t.billingMode === mode)
+          .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.amount - b.amount),
+      }))
+      .filter((c) => c.rows.length > 0);
+  });
+
   protected readonly periods = signal<BillingPeriodListItem[]>([]);
+
+  /** 這段期間跟哪些期間重疊（F5）。由已載入的列表算，不擋、不多一次請求 */
+  protected overlapsOf(period: BillingPeriodListItem): string[] {
+    return overlappingNames(period, this.periods());
+  }
+
+  protected formatRange(period: BillingPeriod): string {
+    return `${period.startDate.replaceAll('-', '/')} — ${period.endDate.replaceAll('-', '/')}`;
+  }
   protected readonly periodsLoading = signal(true);
 
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
-  protected readonly selectedTemplate = signal<FeeTemplate | null>(null);
+  protected readonly selectedTemplate = signal<FeeTemplateListItem | null>(null);
   protected readonly periodMenu = viewChild.required<PopupMenuComponent>('periodMenu');
   protected readonly selectedPeriod = signal<BillingPeriod | null>(null);
 
@@ -148,11 +180,18 @@ export class FeeTemplatesComponent implements OnInit {
         icon: target.isActive ? 'pi pi-lock' : 'pi pi-unlock',
         command: () => this.setTemplateActive(target, !target.isActive),
       },
-      {
-        label: '刪除',
-        icon: 'pi pi-trash',
-        command: () => this.confirmDeleteTemplate(target),
-      },
+      // F2：有人在用就直接說明、不給刪除（後端 FK RESTRICT 本來就會擋；這裡不讓人白按一次）
+      target.inUseCount > 0
+        ? {
+            label: `${target.inUseCount} 筆報名在用，無法刪除`,
+            icon: 'pi pi-trash',
+            disabled: true,
+          }
+        : {
+            label: '刪除',
+            icon: 'pi pi-trash',
+            command: () => this.confirmDeleteTemplate(target),
+          },
     ];
   });
 
@@ -173,14 +212,6 @@ export class FeeTemplatesComponent implements OnInit {
     // 去重比對的是 `searchQuery` signal 而不是 `distinctUntilChanged` ——
     // 後者的記憶是這個狀態的第二份複本，任何不經過這條管線的重設都會讓它
     // 跟畫面脫鉤，然後靜靜吞掉下一次同樣的字。
-    this.searchInput
-      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
-      .subscribe((value) => {
-        if (value === this.searchQuery()) return;
-        this.searchQuery.set(value);
-        this.loadTemplates();
-      });
-
     this.loadTemplates();
     this.loadPeriods();
   }
@@ -215,11 +246,8 @@ export class FeeTemplatesComponent implements OnInit {
       .pipe(
         switchMap(() =>
           this.feeTemplatesService
-            .list({
-              search: this.searchQuery() || undefined,
-              // 停用不刪除：預設只看啟用中的，但停用的要找得回來（歷史報名還引用著）
-              isActive: this.showInactive() ? undefined : true,
-            })
+
+            .list()
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
             // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
             // **一次網路錯誤就讓這一頁再也載入不了任何東西**，而畫面上只有一則
@@ -245,15 +273,14 @@ export class FeeTemplatesComponent implements OnInit {
   }
 
   protected onSearchChange(value: string): void {
-    this.searchInput.next(value);
+    this.searchQuery.set(value);
   }
 
   protected toggleShowInactive(): void {
     this.showInactive.update((v) => !v);
-    this.loadTemplates();
   }
 
-  protected openTemplateActionMenu(event: MouseEvent, target: FeeTemplate): void {
+  protected openTemplateActionMenu(event: MouseEvent, target: FeeTemplateListItem): void {
     this.selectedTemplate.set(target);
     this.actionMenu().toggle(event);
   }
