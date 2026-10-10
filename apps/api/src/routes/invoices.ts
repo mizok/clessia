@@ -255,6 +255,10 @@ app.openapi(
           },
         },
       },
+      500: {
+        description: '查詢失敗（含搜尋子查詢）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -302,8 +306,13 @@ app.openapi(
           .eq('parents.org_id', orgId)
           .ilike('parents.name', `%${search}%`),
       ]);
-      if (byName.error || byParent.error) {
-        return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+      // 查不到 ≠ 沒這個人：回空清單的話行政會以為「沒有他的帳單」（reviewer 二讀 #1460）
+      const searchError = byName.error ?? byParent.error;
+      if (searchError) {
+        return c.json(
+          { error: '搜尋帳單失敗', code: 'SEARCH_FAILED', message: searchError.message },
+          500,
+        );
       }
       searchStudentIds = [
         ...new Set([
