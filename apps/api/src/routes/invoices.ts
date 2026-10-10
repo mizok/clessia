@@ -73,6 +73,8 @@ const InvoiceSchema = z
   .object({
     id: DbUuidSchema,
     orgId: DbUuidSchema,
+    /** INV-YYMM-NNN（#1459）。null 只會是回填前的舊單 */
+    invoiceNo: z.string().nullable(),
     studentId: DbUuidSchema,
     studentName: z.string().nullable(),
     studentGrade: z.string().nullable(),
@@ -211,10 +213,9 @@ app.openapi(
     request: {
       query: z.object({
         studentId: DbUuidSchema.optional(),
-        search: z
-          .string()
-          .optional()
-          .openapi({ description: '學生姓名或任一位家長姓名（部分比對）—— 家長來繳錢時找帳單' }),
+        search: z.string().optional().openapi({
+          description: '學生姓名、任一位家長姓名、或帳單編號（部分比對）—— 家長來繳錢時找帳單',
+        }),
         overdue: z.string().optional().openapi({ description: 'true = 只看過期未繳清' }),
         outstanding: z
           .string()
@@ -319,7 +320,12 @@ app.openapi(
         .select(select, derivedFilter ? undefined : { count: 'exact' })
         .eq('org_id', orgId);
       if (params.studentId) query = query.eq('student_id', params.studentId);
-      if (searchStudentIds) query = query.in('student_id', searchStudentIds);
+      // 學生（姓名／家長）或帳單編號（#1459）其一命中。空的 `in.()` 合法、只是那一半不命中
+      if (searchStudentIds) {
+        query = query.or(
+          `student_id.in.(${searchStudentIds.join(',')}),invoice_no.ilike.%${search}%`,
+        );
+      }
       // `issued_at` 是 date 欄（台北日期），月份直接比字串區間
       if (params.issuedMonth) {
         query = query
