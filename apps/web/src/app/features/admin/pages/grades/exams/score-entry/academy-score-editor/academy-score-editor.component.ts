@@ -21,6 +21,7 @@ import { DrawerModule } from 'primeng/drawer';
 import { MessageService } from 'primeng/api';
 import { focusScoreRow, scoreKeyStep } from '../score-keyboard.util';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
+import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 
 import {
   AcademyExamsService,
@@ -29,6 +30,7 @@ import {
   type AcademyScoreStatus,
   type SaveAcademyScoresInput,
 } from '@core/academy-exams.service';
+import { StudentsService, type Student } from '@core/students.service';
 
 export interface ScoreRow {
   studentId: string;
@@ -63,6 +65,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
     InputTextModule,
     SelectModule,
     DrawerModule,
+    StudentAutocompleteComponent,
   ],
   templateUrl: './academy-score-editor.component.html',
   host: { class: 'block' },
@@ -93,6 +96,7 @@ export class AcademyScoreEditorComponent implements OnInit {
   readonly saved = output<void>();
 
   private readonly academyExamsService = inject(AcademyExamsService);
+  private readonly studentsService = inject(StudentsService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -101,6 +105,8 @@ export class AcademyScoreEditorComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly rows = signal<ScoreRow[]>([]);
   protected readonly classFilter = signal<string | null>(null);
+  protected readonly addingStudent = signal(false);
+  protected readonly studentSuggestions = signal<Student[]>([]);
 
   // Bottom sheet state
   protected sheetVisible = false;
@@ -323,6 +329,56 @@ export class AcademyScoreEditorComponent implements OnInit {
           this.savingChange.emit(false);
         },
       });
+  }
+
+  /**
+   * 加入其他學生（A6 data-add，#1314 G4）：不在這個班、但這次一起考的人（插班、補考）。
+   * 加進來的列**不算未存變更** —— 還沒輸入分數就沒有東西可以存（存一筆空分數的「已登錄」是假資料）；
+   * 輸入分數或標缺考後它才變 dirty、才會送出。API 管理員可寫班外學生、老師限任課班（403）。
+   */
+  protected onStudentQuery(query: string): void {
+    if (!query.trim()) {
+      this.studentSuggestions.set([]);
+      return;
+    }
+    this.studentsService
+      .list({ search: query, searchScope: 'student_name', pageSize: 20 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.studentSuggestions.set(res.data),
+        error: () => this.studentSuggestions.set([]),
+      });
+  }
+
+  protected onStudentPicked(value: Student | string | null): void {
+    // 打字中間是字串，還不是選定的學生
+    if (value === null || typeof value === 'string') return;
+    this.addingStudent.set(false);
+    this.studentSuggestions.set([]);
+    if (this.rows().some((r) => r.studentId === value.id)) {
+      this.messageService.add({ severity: 'info', summary: `${value.name} 已經在名單裡` });
+      return;
+    }
+    // 班級篩選用 classIds 比對，班外學生沒有 classIds → 清掉篩選，否則剛加的人會看不到
+    this.classFilter.set(null);
+    this.rows.set([
+      ...this.rows(),
+      {
+        studentId: value.id,
+        studentName: value.name,
+        studentGrade: value.grade,
+        score: null,
+        status: 'scored',
+        notes: '',
+        classIds: [],
+        original: { score: null, status: 'scored', notes: '' },
+      },
+    ]);
+    this.messageService.add({
+      severity: 'info',
+      summary: `已加入 ${value.name}`,
+      detail: '輸入分數或標缺考後才會存',
+    });
   }
 
   /**

@@ -19,14 +19,25 @@
     </p>
 
     @if (!disabled()) {
-      <button
-        type="button"
-        class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 wide:ml-auto"
-        data-part="mark-absent"
-        (click)="markRestAbsent()"
-      >
-        其餘標記缺考
-      </button>
+      <div class="flex flex-wrap gap-2 wide:ml-auto">
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+          data-part="mark-absent"
+          (click)="markRestAbsent()"
+        >
+          其餘標記缺考
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+          data-part="add-student"
+          [attr.aria-expanded]="addingStudent()"
+          (click)="addingStudent.set(!addingStudent())"
+        >
+          加入其他學生
+        </button>
+      </div>
     }
 
     <!-- 多班考試的「篩選班級」（A6 沒畫，照留） -->
@@ -44,6 +55,30 @@
       />
     }
   </div>
+
+  @if (addingStudent()) {
+    <div class="mt-4 flex flex-col gap-2 rounded-lg bg-zinc-100 p-4" data-part="add-student-panel">
+      <p class="m-0 text-md font-semibold text-zinc-900">加入其他學生</p>
+      <p class="m-0 text-sm text-zinc-700">不在這個班、但這次一起考的學生（例如插班、補考）</p>
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="min-w-0 flex-1 wide:max-w-96">
+          <app-student-autocomplete
+            [suggestions]="studentSuggestions()"
+            (queryChange)="onStudentQuery($event)"
+            (valueChange)="onStudentPicked($event)"
+            placeholder="輸入姓名搜尋"
+          />
+        </div>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+          (click)="addingStudent.set(false)"
+        >
+          取消
+        </button>
+      </div>
+    </div>
+  }
 
   @if (filteredRows().length === 0) {
     <div class="flex flex-col items-center gap-2 p-12 text-sm text-zinc-600">
