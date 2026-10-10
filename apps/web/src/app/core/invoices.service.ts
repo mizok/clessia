@@ -89,6 +89,8 @@ export interface Invoice {
   orgId: string;
   studentId: string;
   studentName: string | null;
+  /** #1314 (a)：帳單列表的年級欄 */
+  studentGrade: string | null;
   issuedAt: string;
   /** 可為 null —— 沒有到期日就不會逾期 */
   dueDate: string | null;
@@ -120,8 +122,10 @@ export interface PaymentReminder {
 export type DueState = 'overdue' | 'dueSoon' | 'notDue';
 
 export interface InvoiceQueryParams {
-  /** 後端只吃 uuid，**不吃姓名關鍵字** —— 姓名搜尋走 student-autocomplete 換出 id */
+  /** 只吃 uuid；姓名關鍵字用 `search` */
   studentId?: string;
+  /** 學生姓名或任一位家長姓名（部分比對，#1314 (a)）。帳單編號搜尋待 #1459 */
+  search?: string;
   /**
    * 催繳的三個子集(#639)。**同一個母體(未繳清)、差別只在日期那一半**,
    * 所以 UI 做成三選一;並用的話是交集,不是聯集。
@@ -291,6 +295,7 @@ function toQuery(params?: InvoiceQueryParams): Record<string, string> {
 
   const query: Record<string, string> = {};
   if (params.studentId) query['studentId'] = params.studentId;
+  if (params.search) query['search'] = params.search;
   if (params.outstanding) query['outstanding'] = 'true';
   if (params.overdue) query['overdue'] = 'true';
   // `dueWithin: 0` 是有效值(只看今天到期)—— 用 `!= null` 不是 truthy,

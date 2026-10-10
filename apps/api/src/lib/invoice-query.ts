@@ -12,7 +12,7 @@ import { deriveInvoiceStatus, invoiceTotals } from './invoice-status';
 export const INVOICE_SELECT =
   'id, org_id, student_id, issued_at, due_date, note, created_by, created_at, updated_at,' +
   ' voided_at, voided_by, void_reason,' +
-  ' students(name),' +
+  ' students(name, grade),' +
   ' invoice_items(id, type, enrollment_id, amount, billing_period_id, period_month, note, created_at),' +
   ' payment_records(id, kind, amount, method, paid_at, proof_path, receipt_no, note, recorded_by, created_at)';
 
@@ -52,7 +52,7 @@ export function toInvoiceResponse(row: Record<string, unknown>) {
   }));
 
   const { total, net } = invoiceTotals(items, payments);
-  const student = row['students'] as { name?: string } | null;
+  const student = row['students'] as { name?: string; grade?: string | null } | null;
   const voidedAt = (row['voided_at'] as string | null) ?? null;
 
   return {
@@ -60,6 +60,8 @@ export function toInvoiceResponse(row: Record<string, unknown>) {
     orgId: row['org_id'] as string,
     studentId: row['student_id'] as string,
     studentName: student?.name ?? null,
+    /** 帳單列表的年級欄（#1314 帳單視覺對齊 (a)） */
+    studentGrade: student?.grade ?? null,
     issuedAt: row['issued_at'] as string,
     dueDate: (row['due_date'] as string | null) ?? null,
     note: (row['note'] as string | null) ?? null,

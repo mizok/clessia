@@ -149,7 +149,12 @@ const BRANCHES: Record<string, string[]> = {
   '/api/sessions/changes': ['q=英文'],
   '/api/courses': ['search=數學'],
   '/api/students': ['search=國中', 'grade=J1&isActive=true', 'today=any', 'today=missing'],
-  '/api/invoices': ['outstanding=true', 'issuedMonth=' + TODAY.slice(0, 7)],
+  '/api/invoices': [
+    'search=王',
+    'search=王&outstanding=true',
+    'outstanding=true',
+    'issuedMonth=' + TODAY.slice(0, 7),
+  ],
   '/api/invoices/summary': [],
 };
 
