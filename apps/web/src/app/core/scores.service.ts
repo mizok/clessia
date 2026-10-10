@@ -17,6 +17,12 @@ export interface ScoreRecord {
   score: number | null;
   totalScore: number | null;
   status: ScoreRecordStatus;
+  examId: string;
+  /** 這場（校內考）scored 成績的平均，1 位小數（#1314 G10）。母體＝整場應考者；段考或他沒分數 → null */
+  classAvg: number | null;
+  /** 名次：1＋分數比他高的人數（同分同名次） */
+  rank: number | null;
+  classSize: number | null;
 }
 
 export interface ScoreListParams {
@@ -51,6 +57,17 @@ export interface StudentSummary {
   studentId: string;
   studentName: string;
   subjects: SubjectAverage[];
+  /** 最近一場有分數的校內考（#1314 SD4「最近 82 分（班平均 76）」）。沒有 → null */
+  latestAcademy: {
+    examId: string;
+    examName: string;
+    examDate: string;
+    score: number;
+    totalScore: number | null;
+    classAvg: number | null;
+    rank: number | null;
+    classSize: number | null;
+  } | null;
 }
 
 export interface ClassExamScore {

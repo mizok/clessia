@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Subject, of, throwError } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -136,55 +136,115 @@ describe('FeeTemplatesComponent', () => {
     ).toEqual(['bp-1', 'bp-2']);
   });
 
-  /**
-   * **把所有取數收進同一條 `switchMap` 會帶來一個新的失效模式：
-   * 內層一 error，外層管線就終止 —— 之後這一頁永遠不會再載入任何東西。**
-   *
-   * 修改前每次取數是各自獨立的訂閱，錯一次只影響那一次；改成單一管線之後，
-   * **一次網路錯誤會把搜尋框變成死的**，而畫面上只有一則 toast，
-   * 看起來像「這次失敗了」而不是「這一頁壞了」。
-   *
-   * 這條釘住「錯過一次之後還能再查」。**沒有它，下一個重構的人會把
-   * `catchError` 拿掉，而那個缺陷安靜到沒有人會回報。**
-   *
-   * 這支 spec 的其他測試用的是立即完成的 `of()` 替身，餵不出「還沒回來的請求」——
-   * 所以這一區自己換上可控的 `Subject` 替身，並在收尾時換回去。
-   */
-  describe('搜尋管線的錯誤復原（#689）', () => {
-    const pending: Array<Subject<{ data: FeeTemplate[] }>> = [];
+  describe('A6 價目表與收費期間（#1314 F0／F2／F5）', () => {
+    const root = () => fixture.nativeElement as HTMLElement;
+    const load = (templates: FeeTemplateListItem[], periods: BillingPeriodListItem[] = []) => {
+      feeTemplates.list.mockReturnValue(of({ data: templates }));
+      billingPeriods.list.mockReturnValue(of({ data: periods }));
+      (component as unknown as { loadTemplates: () => void }).loadTemplates();
+      (component as unknown as { loadPeriods: () => void }).loadPeriods();
+      fixture.detectChanges();
+    };
+    const mixed = () => [
+      template({ id: 'a', name: '月繳新', billingMode: 'monthly', amount: 3600 }),
+      template({ id: 'b', name: '月繳舊', billingMode: 'monthly', amount: 4500, isActive: false }),
+      template({ id: 'c', name: '月繳便宜', billingMode: 'monthly', amount: 2400 }),
+      template({ id: 'd', name: '期繳', billingMode: 'period', amount: 19800, inUseCount: 3 }),
+      template({ id: 'e', name: '十堂', billingMode: 'session_pack', amount: 4500 }),
+    ];
+    const names = (mode: string) =>
+      [...root().querySelectorAll(`[data-chapter="${mode}"] [data-template]`)].map((el) =>
+        el.querySelector('button')!.textContent!.trim(),
+      );
 
-    beforeEach(() => {
-      // 這個 app 是 zoneless（Angular 21 + signals），沒有 `fakeAsync` ——
-      // 時間用 vitest 的假計時器控制。`debounceTime` 走 asyncScheduler 的 setTimeout。
-      vi.useFakeTimers();
-      pending.length = 0;
-      feeTemplates.list.mockReset();
-      feeTemplates.list.mockImplementation(() => {
-        const subject = new Subject<{ data: FeeTemplate[] }>();
-        pending.push(subject);
-        return subject.asObservable();
-      });
+    it('色面數字句含停用的數字：N 種價目、M 種開放報名', () => {
+      load(mixed());
+      const title = root().querySelector('app-page-open')!.textContent!.replace(/\s+/g, '');
+      expect(title).toContain('5種價目，4種開放報名。');
     });
 
-    afterEach(() => {
-      vi.useRealTimers();
-      feeTemplates.list.mockReset().mockReturnValue(of({ data: [] }));
+    it('依計費模式分三章，沒有列的章不顯示；預設不列停用', () => {
+      load(mixed());
+      expect(
+        [...root().querySelectorAll('[data-chapter]')].map((c) => c.getAttribute('data-chapter')),
+      ).toEqual(['monthly', 'period', 'session_pack']);
+      expect(names('monthly')).toEqual(['月繳便宜', '月繳新']);
+
+      load([template({ id: 'x', billingMode: 'period' })]);
+      expect(
+        [...root().querySelectorAll('[data-chapter]')].map((c) => c.getAttribute('data-chapter')),
+      ).toEqual(['period']);
     });
 
-    it('一次請求失敗之後，後續的搜尋仍然會送出（管線沒有被 error 終止）', () => {
-      const type = (text: string) =>
-        (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange(text);
+    it('顯示停用方案：停用的排在章內最後、不重新打 API；鈕上寫停用數', () => {
+      load(mixed());
+      const calls = feeTemplates.list.mock.calls.length;
+      expect(root().textContent).toContain('顯示停用方案（1）');
+      (component as unknown as { toggleShowInactive: () => void }).toggleShowInactive();
+      fixture.detectChanges();
+      expect(names('monthly')).toEqual(['月繳便宜', '月繳新', '月繳舊']);
+      expect(feeTemplates.list.mock.calls.length).toBe(calls);
+    });
 
-      type('國中');
-      vi.advanceTimersByTime(300);
-      expect(feeTemplates.list).toHaveBeenCalledTimes(1);
+    it('搜尋在前端過濾，不送請求', () => {
+      load(mixed());
+      const calls = feeTemplates.list.mock.calls.length;
+      (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange('十堂');
+      fixture.detectChanges();
+      expect(names('session_pack')).toEqual(['十堂']);
+      expect(root().querySelector('[data-chapter="monthly"]')).toBeNull();
+      expect(feeTemplates.list.mock.calls.length).toBe(calls);
+    });
 
-      pending[0].error(new Error('boom'));
+    it('價格寫「NT$ 3,600／月」，堂數制沒有單位', () => {
+      load(mixed());
+      const price = (id: string) =>
+        root().querySelector(`[data-template="${id}"]`)!.textContent!.replace(/\s+/g, '');
+      expect(price('a')).toContain('NT$3,600／月');
+      expect(price('d')).toContain('NT$19,800／期');
+      expect(price('e')).toContain('NT$4,500');
+      expect(price('e')).not.toContain('／');
+    });
 
-      type('高中');
-      vi.advanceTimersByTime(300);
+    it('F2 選單：有人在用 → 「N 筆報名在用，無法刪除」且沒有可按的刪除；沒人用 → 刪除', () => {
+      const menu = (item: FeeTemplateListItem) => {
+        (
+          component as unknown as { selectedTemplate: { set: (v: unknown) => void } }
+        ).selectedTemplate.set(item);
+        return (
+          component as unknown as {
+            actionMenuItems: () => { label?: string; disabled?: boolean; command?: unknown }[];
+          }
+        ).actionMenuItems();
+      };
+      const inUse = menu(template({ inUseCount: 3 }));
+      const blocked = inUse.find((i) => i.label === '3 筆報名在用，無法刪除');
+      expect(blocked?.disabled).toBe(true);
+      expect(inUse.map((i) => i.label)).not.toContain('刪除');
+      expect(inUse.map((i) => i.label)).toContain('停用');
 
-      expect(feeTemplates.list).toHaveBeenCalledTimes(2);
+      expect(menu(template({ inUseCount: 0 })).map((i) => i.label)).toContain('刪除');
+    });
+
+    it('F5 重疊期間：列上寫「跟「X」重疊」，不重疊的沒有', () => {
+      load(
+        [],
+        [
+          period({ id: 'p1', name: '上學期', startDate: '2026-09-01', endDate: '2027-01-31' }),
+          period({
+            id: 'p2',
+            name: '上學期＋暑假',
+            startDate: '2026-07-01',
+            endDate: '2027-01-31',
+          }),
+          period({ id: 'p3', name: '去年', startDate: '2025-09-01', endDate: '2026-01-31' }),
+        ],
+      );
+      const row = (id: string) => root().querySelector(`[data-period="${id}"]`)!.textContent!;
+      expect(row('p1')).toContain('跟「上學期＋暑假」重疊');
+      expect(row('p2')).toContain('跟「上學期」重疊');
+      expect(row('p3')).not.toContain('重疊');
+      expect(row('p1')).toContain('2026/09/01 — 2027/01/31');
     });
   });
 
