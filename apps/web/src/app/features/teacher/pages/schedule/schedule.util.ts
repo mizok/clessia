@@ -1,6 +1,6 @@
 import type { EventSessionSummary } from '@core/attendance.service';
 import type { StatusTone } from '@shared/components/status/status-dot/status-dot.component';
-import { hasSessionEnded } from '@shared/utils/session-time.util';
+import { hasSessionEnded, hasSessionStarted } from '@shared/utils/session-time.util';
 
 /**
  * 課表上一堂課的點名狀態。
@@ -195,4 +195,30 @@ export function nextSession<
         !hasSessionEnded({ date: s.eventDate, startTime: s.startTime, endTime: s.endTime }, now),
     ) ?? null
   );
+}
+
+function minutesUntil(date: string, hhmm: string, now: Date): number {
+  const t = new Date(`${date}T${hhmm}:00`);
+  return Math.ceil((t.getTime() - now.getTime()) / 60000);
+}
+
+/**
+ * 橘面標題的開場句（#1314 TS2）：回答「下一堂是什麼、還有多久」。
+ * 呼叫端只傳**今天**的課。上課中的課 `nextSession` 也算「接下來」，所以拆成兩種句子；
+ * 分鐘數進位，避免最後半分鐘寫「還有 0 分」。
+ */
+export function openerLine(todaySessions: readonly EventSessionSummary[], now: Date): string {
+  if (todaySessions.length === 0) return '今天沒有你的課。';
+  const next = nextSession(todaySessions, now);
+  if (!next) return '今天的課都上完了。';
+  if (!next.startTime || !next.endTime) return `下一堂 ${next.className}。`;
+  if (
+    hasSessionStarted(
+      { date: next.eventDate, startTime: next.startTime, endTime: next.endTime },
+      now,
+    )
+  ) {
+    return `${next.className} 上課中，還有 ${minutesUntil(next.eventDate, next.endTime, now)} 分下課。`;
+  }
+  return `下一堂 ${next.startTime} ${next.className}，還有 ${minutesUntil(next.eventDate, next.startTime, now)} 分。`;
 }

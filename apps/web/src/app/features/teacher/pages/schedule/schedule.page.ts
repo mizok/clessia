@@ -29,8 +29,8 @@ import { AttendanceService, type EventSessionSummary } from '@core/attendance.se
 import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { hasSessionStarted } from '@shared/utils/session-time.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
@@ -48,6 +48,7 @@ import {
   canWriteContactBook,
   daySummary,
   nextSession,
+  openerLine,
   sortByStart,
   weekAnchor,
 } from './schedule.util';
@@ -75,7 +76,6 @@ function defaultDay(weekStart: Date, todayStr: string): string {
     ButtonModule,
     DynamicDialogModule,
     PageOpenComponent,
-    BandAnchorComponent,
     StatusDotComponent,
     DataChipComponent,
     LoadFailedComponent,
@@ -187,6 +187,40 @@ export class SchedulePage implements OnInit {
       isSelected: day.dateStr === this.selectedDate(),
       ...daySummary(byDay.get(day.dateStr) ?? [], this.now, teacherLed),
     }));
+  });
+
+  /**
+   * 開場句與副行（#1314 TS2）。只在「已載入的這週含今天」時成立 ——
+   * 看別週、載入中、錯誤態都不拿課表說今天的事（回 null，模板退回頁名＋週區間）。
+   */
+  protected readonly opener = computed(() => {
+    const today = this.sessionsByDay().get(this.todayStr);
+    if (this.loading() || this.loadError() || !today) return null;
+    const active = nextSession(sortByStart(today), this.now);
+    const live =
+      active &&
+      hasSessionStarted(
+        { date: active.eventDate, startTime: active.startTime, endTime: active.endTime },
+        this.now,
+      )
+        ? active
+        : null;
+    const counted = (list: readonly EventSessionSummary[]) =>
+      list.filter((s) => s.status !== 'cancelled').length;
+    const liveText = live
+      ? `現在：${live.className}${live.campusName ? `（${live.campusName}）` : ''}上課中 · `
+      : '';
+    return {
+      title: openerLine(today, this.now),
+      sub: `${liveText}今天 ${counted(today)} 堂 · 本週 ${counted(this.sessions())} 堂`,
+    };
+  });
+
+  /** 聯絡簿還沒寫的則數（整週）。查失敗不印 0 —— 見 `missingFailed` */
+  protected readonly missingTotal = computed(() => {
+    let sum = 0;
+    for (const n of this.missingByDate().values()) sum += n;
+    return sum;
   });
 
   protected get overlayContainer(): HTMLElement | null {
