@@ -99,4 +99,79 @@ describe('StudentScoreDetailDialogComponent', () => {
     expect(values[0].textContent.trim()).toBe('—');
     expect(values[0].hasAttribute('data-fail')).toBe(false);
   });
+
+  // #1314 G10：每場帶班平均、名次、這場全班的成績連結（只有補習班考試有）
+  it('每場顯示班平均與名次，補習班考試多一條「這場全班的成績」連結，校內段考沒有', () => {
+    const base = {
+      studentId: 's1',
+      studentName: '王小明',
+      subjectName: '數學',
+      totalScore: 100,
+      status: 'scored',
+    };
+    (component as unknown as { scores: { set: (v: unknown) => void } }).scores.set([
+      {
+        ...base,
+        id: 'a',
+        type: 'academy',
+        examId: 'e1',
+        examName: '第三次小考',
+        examDate: '2026-09-24',
+        score: 80,
+        classAvg: 76.5,
+        rank: 3,
+        classSize: 18,
+      },
+      {
+        ...base,
+        id: 'b',
+        type: 'school',
+        examId: 'e2',
+        examName: '期中段考',
+        examDate: '2026-09-10',
+        score: 70,
+        classAvg: null,
+        rank: null,
+        classSize: null,
+      },
+    ]);
+    fixture.detectChanges();
+    const rows = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-part="record"]'),
+    ];
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain('班平均 76.5');
+    expect(rows[0].textContent).toContain('第 3 名／18 人');
+    expect(rows[0].querySelector('a')?.getAttribute('href')).toBe(
+      '/admin/grades/exams/academy/e1/scores',
+    );
+    expect(rows[1].textContent).not.toContain('班平均');
+    expect(rows[1].querySelector('a')).toBeNull();
+  });
+
+  // #1314 G10：只有 1 人考的場次，「第 1 名／1 人」沒有資訊量，不寫名次
+  it('classSize 為 1 時只寫班平均，不顯示名次；2 人以上才顯示', () => {
+    const base = {
+      studentId: 's1',
+      studentName: '王小明',
+      subjectName: '數學',
+      totalScore: 100,
+      status: 'scored',
+      type: 'academy',
+      examDate: '2026-09-24',
+      score: 80,
+      classAvg: 80,
+    };
+    (component as unknown as { scores: { set: (v: unknown) => void } }).scores.set([
+      { ...base, id: 'solo', examId: 'e1', examName: '一人考', rank: 1, classSize: 1 },
+      { ...base, id: 'pair', examId: 'e2', examName: '兩人考', rank: 2, classSize: 2 },
+    ]);
+    fixture.detectChanges();
+    const rows = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-part="record"]'),
+    ];
+    expect(rows[0].textContent).toContain('班平均 80');
+    expect(rows[0].textContent).not.toContain('名');
+    expect(rows[1].textContent).toContain('第 2 名／2 人');
+  });
 });

@@ -27,7 +27,7 @@ import {
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import { PASSING_RATIO, isFailingScore } from '@shared/utils/score-threshold.util';
 
-type ScoreStatusFilter = 'all' | ScoreRecordStatus;
+type ScoreStatusFilter = 'all' | ScoreRecordStatus | 'pending';
 type ExamScopeFilter = 'todo' | 'all';
 
 interface ClassScoresDialogData {
@@ -49,6 +49,7 @@ interface ExamScopeOption {
 const SCORE_STATUS_OPTIONS: Array<{ label: string; value: ScoreStatusFilter }> = [
   { label: '全部', value: 'all' },
   { label: '已登錄', value: 'scored' },
+  { label: '待登錄', value: 'pending' },
   { label: '缺考', value: 'absent' },
   { label: '補考', value: 'makeup' },
 ];
@@ -125,15 +126,17 @@ export class ClassScoresDialogComponent implements OnInit {
     });
   });
 
-  /** 名單篩選各類人數（A6 的「全部 N／已登錄 N…」）。待登錄刻意不做：API 把沒成績的人回成 scored（#991 grades Q4） */
+  /** 名單篩選各類人數（A6 的「全部 N／已登錄 N…」）。待登錄＝API 的 pending（#1280 起沒成績的人不再回成 scored） */
   protected readonly scoreCounts = computed(() => {
     const rows = this.stats()?.scores ?? [];
-    const count = (status: ScoreRecordStatus) => rows.filter((r) => r.status === status).length;
+    const count = (status: ScoreRecordStatus | 'pending') =>
+      rows.filter((r) => r.status === status).length;
     return {
       all: rows.length,
       scored: count('scored'),
       absent: count('absent'),
       makeup: count('makeup'),
+      pending: count('pending'),
     };
   });
 
