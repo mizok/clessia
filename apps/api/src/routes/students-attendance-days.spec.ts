@@ -87,7 +87,7 @@ function seed() {
       session('s09', 'c-sess', '2026-03-09', '18:00'),
       session('s10', 'c-daily', '2026-03-10', '15:00'),
       session('s12', 'c-daily', '2026-03-12', '18:00'),
-      session('sv', 'c-void', '2026-03-05', '10:00'),
+      session('sv', 'c-void', '2026-03-07', '10:00'),
     ],
     organizations: [{ id: ORG, attendance_mode: 'daily_checkin' }],
     campuses: [
