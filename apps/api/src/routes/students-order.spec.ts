@@ -5,13 +5,13 @@ import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import studentsRoute from './students';
 
 /**
- * 學生列表依「年級 → 姓名」排序（#1314 名冊換形前置）。
+ * 學生列表依「年級（高年級在前）→ 姓名」排序（#1314 名冊換形前置；照 A6，計畫席 10-10 裁）。
  *
  * ⚠️ 替身比的是字串，**驗不出 enum 的列舉序**（真 DB 是 P1…S3，字串序是 J… < P… < S…）。
  * 這支只驗鍵的優先序；列舉序由契約測試對真 PostgREST 驗（`list-endpoints.contract.ts`）。
  */
-describe('GET /students —— 先年級、再姓名', () => {
-  it('混排的 fixture 依年級分組、組內依姓名', async () => {
+describe('GET /students —— 先年級（高年級在前）、再姓名', () => {
+  it('混排的 fixture 依年級分組（J2 在 J1 前）、組內依姓名', async () => {
     const student = (id: string, grade: string, name: string) => ({
       id,
       org_id: 'org-a',
@@ -44,6 +44,6 @@ describe('GET /students —— 先年級、再姓名', () => {
       data: Array<{ name: string }>;
     };
     // 只照姓名排會是 Amy, Ann, Ben, Cat
-    expect(body.data.map((s) => s.name)).toEqual(['Ann', 'Ben', 'Amy', 'Cat']);
+    expect(body.data.map((s) => s.name)).toEqual(['Amy', 'Cat', 'Ann', 'Ben']);
   });
 });

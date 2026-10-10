@@ -108,7 +108,7 @@ const StudentListResponseSchema = z
       total: z.number(),
       activeCount: z.number(),
       /**
-       * 依年級分章的章節計數（#1314 SL3）：`GradeLevel` 列舉順序、每級都有（0 也回）。
+       * 依年級分章的章節計數（#1314 SL3）：**高年級在前**（S3→P1，同列表排序，照 A6）、每級都有（0 也回）。
        * 吃列表同一組篩選（search／分校／老師範圍／isActive），**不吃 grade** —— 篩了一級時其他章名照樣在
        */
       byGrade: z.array(z.object({ grade: GradeLevelSchema, count: z.number() })),
@@ -275,6 +275,8 @@ interface StudentFilterable {
 }
 
 const GRADE_LEVELS = GradeLevelSchema.options;
+/** 章節順序＝列表順序：高年級在前（A6 名冊，計畫席 10-10 裁） */
+const GRADE_CHAPTERS = [...GRADE_LEVELS].reverse();
 
 function countToday(statuses: Map<string, TodayStatus>) {
   const counts = { any: statuses.size, arrived: 0, not_yet: 0, missing: 0, on_leave: 0 };
@@ -388,9 +390,10 @@ app.openapi(
         { count: 'exact' },
       )
       .eq('org_id', orgId)
-      // 依年級分章（#1314 名冊換形前置）：`grade` 是 enum `grade_level`，Postgres 依列舉序排
-      // （P1…S3，同 GRADE_LEVELS／byGrade），不必 RPC 或 generated column。章內依姓名，末鍵 id 讓同名翻頁穩定
-      .order('grade', { nullsFirst: false })
+      // 依年級分章（#1314 名冊換形前置）：`grade` 是 enum `grade_level`，Postgres 依列舉序排（P1…S3），
+      // 不必 RPC 或 generated column。**高年級在前**（desc，照 A6；同 byGrade 的 GRADE_CHAPTERS）。
+      // 章內依姓名，末鍵 id 讓同名翻頁穩定
+      .order('grade', { ascending: false, nullsFirst: false })
       .order('name')
       .order('id');
 
@@ -403,7 +406,7 @@ app.openapi(
             summary: {
               total: 0,
               activeCount: 0,
-              byGrade: GRADE_LEVELS.map((level) => ({ grade: level, count: 0 })),
+              byGrade: GRADE_CHAPTERS.map((level) => ({ grade: level, count: 0 })),
               today: null,
             },
             meta: { total: 0, page, pageSize, totalPages: 0 },
@@ -590,7 +593,7 @@ app.openapi(
 
     // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去
     // 每級一支 head count 讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷（同 courses bySubject）
-    const gradeCountQueries = GRADE_LEVELS.map((level) =>
+    const gradeCountQueries = GRADE_CHAPTERS.map((level) =>
       withChapterFilters(
         supabase
           .from('students')
@@ -614,7 +617,7 @@ app.openapi(
     if (gradeCountError) {
       return c.json({ error: '讀取學生列表失敗', message: gradeCountError.message }, 500);
     }
-    const byGrade = GRADE_LEVELS.map((level, i) => ({
+    const byGrade = GRADE_CHAPTERS.map((level, i) => ({
       grade: level,
       count: gradeCounts[i]?.count ?? 0,
     }));

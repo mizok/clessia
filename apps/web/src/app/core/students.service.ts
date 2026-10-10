@@ -56,7 +56,7 @@ export interface StudentListResponse {
   summary: {
     total: number;
     activeCount: number;
-    /** 依年級分章（#1314 SL3）：列舉順序、每級都有；吃列表篩選但不吃 grade */
+    /** 依年級分章（#1314 SL3）：高年級在前（S3→P1，同列表排序）、每級都有；吃列表篩選但不吃 grade */
     byGrade: { grade: GradeLevel; count: number }[];
     /** 今日到班各狀態人數（#1314 SL1）。只套分校範圍；沒算或逐堂點名模式 → null */
     today?: Record<StudentTodayFilter, number> | null;

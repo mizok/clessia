@@ -75,22 +75,22 @@ async function list(query: string, campusScope: string[] | null = null) {
 }
 
 describe('GET /students —— 年級章節計數（#1314 SL3）', () => {
-  it('每個年級都回（列舉順序），只數本 org', async () => {
+  it('每個年級都回（高年級在前 S3→P1，同列表），只數本 org', async () => {
     const { counts, byGrade } = await list('');
 
     expect(byGrade.map((g) => g.grade)).toEqual([
-      'P1',
-      'P2',
-      'P3',
-      'P4',
-      'P5',
-      'P6',
-      'J1',
-      'J2',
-      'J3',
-      'S1',
-      'S2',
       'S3',
+      'S2',
+      'S1',
+      'J3',
+      'J2',
+      'J1',
+      'P6',
+      'P5',
+      'P4',
+      'P3',
+      'P2',
+      'P1',
     ]);
     expect(counts).toEqual({ J1: 2, J2: 1, J3: 1 });
   });
