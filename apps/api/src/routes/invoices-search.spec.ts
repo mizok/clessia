@@ -137,4 +137,14 @@ describe('GET /invoices —— search 與 studentGrade（#1314 (a)）', () => {
     });
     expect(res.data.map((i) => i.id)).toEqual(['i1']);
   });
+
+  // 計畫席 10-10 裁：列表本體失敗也是 500（DB 分頁與推導分頁兩條）
+  it.each(['', 'outstanding=true'])(
+    '列表本體查詢失敗（%s）→ 500 LIST_FAILED，不是空清單',
+    async (q) => {
+      const res = await list(q, null, { failTable: 'invoices' });
+      expect(res.status).toBe(500);
+      expect(res.code).toBe('LIST_FAILED');
+    },
+  );
 });

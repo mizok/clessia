@@ -358,7 +358,10 @@ app.openapi(
         (page - 1) * pageSize,
         page * pageSize - 1,
       );
-      if (error) return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+      // 查不到 ≠ 沒有帳單：回空清單會讓繳費頁顯示「沒有帳單」（計畫席 10-10 裁，同 SEARCH_FAILED）
+      if (error) {
+        return c.json({ error: '讀取帳單失敗', code: 'LIST_FAILED', message: error.message }, 500);
+      }
       const mapped = (data ?? []).map((row) =>
         toListedInvoice(row as unknown as Record<string, unknown>),
       );
@@ -371,7 +374,8 @@ app.openapi(
       build().order('id').range(from, to),
     );
     if (error) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+      const message = (error as { message?: string }).message ?? String(error);
+      return c.json({ error: '讀取帳單失敗', code: 'LIST_FAILED', message }, 500);
     }
 
     let rows = fetched
