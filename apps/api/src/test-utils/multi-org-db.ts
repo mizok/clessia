@@ -241,7 +241,11 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         const m = pattern.match(/^%([^%_]*)%$/);
         if (!m) throw new Error(`multi-org-db：ilike 只支援 %x%，拿到 \`${pattern}\``);
         const needle = (m[1] as string).toLowerCase();
-        filters.push((row) => String(field(row, column) ?? '').toLowerCase().includes(needle));
+        filters.push((row) =>
+          String(field(row, column) ?? '')
+            .toLowerCase()
+            .includes(needle),
+        );
         return proxy;
       },
       neq(column: string, value: unknown) {
@@ -277,10 +281,39 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
           gt: (a, b) => a > b,
           gte: (a, b) => a >= b,
         };
-        const terms = expression.split(',').map((term) => {
+        // 逗號只在括號外切 —— `in.(a,b)` 裡的逗號是值的一部分
+        const split: string[] = [];
+        let depth = 0;
+        let current = '';
+        for (const ch of expression) {
+          if (ch === '(') depth++;
+          if (ch === ')') depth--;
+          if (ch === ',' && depth === 0) {
+            split.push(current);
+            current = '';
+          } else current += ch;
+        }
+        split.push(current);
+        const terms = split.map((term) => {
           const [column, op, ...rest] = term.split('.');
-          if (op === 'is' && rest.join('.') === 'null') {
+          const value = rest.join('.');
+          if (op === 'is' && value === 'null') {
             return (row: Row) => (row[column as string] ?? null) === null;
+          }
+          if (op === 'in' && /^\(.*\)$/.test(value)) {
+            const values = value.slice(1, -1).split(',').filter(Boolean);
+            return (row: Row) => values.includes(String(row[column as string]));
+          }
+          // 只認 `%x%`（包含），其他 pattern 丟 —— 同 `.ilike()`
+          if (op === 'ilike') {
+            const m = /^%([^%]*)%$/.exec(value);
+            if (!m) throw new Error(`multi-org-db：or 的 ilike 只支援 %x%：\`${term}\``);
+            const needle = m[1]!.toLowerCase();
+            return (row: Row) =>
+              row[column as string] != null &&
+              String(row[column as string])
+                .toLowerCase()
+                .includes(needle);
           }
           const compare = ops[op as string];
           if (!column || !compare) throw new Error(`multi-org-db：or 不支援 \`${term}\``);

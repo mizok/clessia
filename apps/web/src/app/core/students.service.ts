@@ -49,7 +49,12 @@ export interface StudentDetail extends Student {
 
 export interface StudentListResponse {
   data: Student[];
-  summary: { total: number; activeCount: number };
+  summary: {
+    total: number;
+    activeCount: number;
+    /** 依年級分章（#1314 SL3）：列舉順序、每級都有；吃列表篩選但不吃 grade */
+    byGrade: { grade: GradeLevel; count: number }[];
+  };
   meta: { total: number; page: number; pageSize: number; totalPages: number };
 }
 
