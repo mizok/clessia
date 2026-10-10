@@ -194,4 +194,38 @@ describe('PageActionsComponent', () => {
     );
     expect(host.querySelector('.page-actions__dock')?.textContent).toContain('新增期間');
   });
+
+  // ── 托盤的版面：靠右、依內容寬（A6 `.dock`），不撐滿 ─────────────────────────
+  // 一顆時撐滿整條是回歸（家長頁手機「新增家長」變滿版長條，PR-A／PR-B 當初就是要拿掉它）。
+  // 稿的規則：「底部動作列不再兩顆對半撐滿：靠右、依內容寬」。
+  describe('托盤版面（靠右、依內容寬）', () => {
+    it('托盤是靠右的 flex，不是等分欄的 grid', async () => {
+      await setup({ label: '新增家長' });
+
+      const dock = host.querySelector('.page-actions__dock') as HTMLElement;
+      expect(dock.classList.contains('flex')).toBe(true);
+      expect(dock.classList.contains('justify-end')).toBe(true);
+      expect(dock.classList.contains('grid')).toBe(false);
+      expect(dock.className).not.toContain('auto-cols-fr');
+    });
+
+    it('一顆 primary：鈕不撐滿（沒有 w-full）', async () => {
+      await setup({ label: '新增家長' });
+
+      const cta = host.querySelector('.page-actions__cta') as HTMLElement;
+      expect(cta).not.toBeNull();
+      expect(cta.classList.contains('w-full')).toBe(false);
+    });
+
+    it('兩顆：次要在左、主要在右，兩顆都不撐滿', async () => {
+      await setup({ label: '全部提醒' }, { label: '開立帳單' });
+
+      const buttons = Array.from(host.querySelectorAll('.page-actions__dock button'));
+      expect(buttons.map((b) => b.textContent?.trim())).toEqual(['開立帳單', '全部提醒']);
+      expect(host.querySelector('.page-actions__secondary')?.classList.contains('w-full')).toBe(
+        false,
+      );
+      expect(host.querySelector('.page-actions__cta')?.classList.contains('w-full')).toBe(false);
+    });
+  });
 });

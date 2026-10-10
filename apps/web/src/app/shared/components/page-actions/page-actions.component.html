@@ -30,15 +30,15 @@
 </div>
 
 @if (primary(); as action) {
-  <!-- 手機：浮起托盤（A6 .dock）。**底部留白不在這裡** —— 這個元件宣告在頁面標頭，
+  <!-- 手機：浮起托盤（A6 .dock）：**靠右、依內容寬，不撐滿**（A6：「底部動作列不再兩顆對半撐滿」）。**底部留白不在這裡** —— 這個元件宣告在頁面標頭，
        佔位塊放這裡等於保留了標頭下方的空間，而托盤蓋住的是清單最後一列。
        留白由 `.shell-content` 用 `:has()` 自己處理，見 shell-layout 的模板。 -->
   <div
-    class="page-actions__dock fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom,0px))] z-100 grid auto-cols-fr grid-flow-col gap-2 rounded-lg border border-solid border-zinc-200 bg-white p-2 shadow-[0_10px_28px_-8px_rgb(26_22_20/45%)] min-[640.02px]:hidden"
+    class="page-actions__dock fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom,0px))] z-100 flex justify-end gap-2 rounded-lg border border-solid border-zinc-200 bg-white p-2 shadow-[0_10px_28px_-8px_rgb(26_22_20/45%)] min-[640.02px]:hidden"
   >
     @if (secondary(); as second) {
       <p-button
-        styleClass="page-actions__secondary w-full justify-center"
+        styleClass="page-actions__secondary justify-center"
         [label]="second.label"
         [icon]="second.icon ?? ''"
         [disabled]="!!second.disabled"
@@ -48,7 +48,7 @@
       />
     }
     <p-button
-      styleClass="page-actions__cta w-full justify-center"
+      styleClass="page-actions__cta justify-center"
       [label]="action.label"
       [icon]="action.icon ?? ''"
       [disabled]="!!action.disabled"
