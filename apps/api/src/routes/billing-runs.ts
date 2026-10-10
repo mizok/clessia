@@ -14,6 +14,8 @@ import {
   type TuitionCandidate,
 } from '../lib/billing-run';
 import { DbUuidSchema } from '../lib/validation';
+import { getCampusScope, type CampusScope } from '../lib/campus-scope';
+import { INVOICE_SCOPE_EMBED, invoiceInScope } from '../lib/invoice-campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 /**
@@ -30,6 +32,11 @@ import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-d
  *
  * 餐費跟著**月份**走，跟學費的週期無關（meal-rules 規則 2：月底加總）。所以期繳的
  * 學生在非開帳月份也會收到一張只含餐費的小帳單 —— 收費袋本來就一個月發一次。
+ *
+ * **分校範圍（#1393）**：受限的管理員跑的是「自己分校那一份」—— 學費只挑班在範圍內的報名、
+ * 餐費只開 `studentInScope` 的學生，於是開出的每張帳單必然 `invoiceInScope`。判準住在
+ * `lib/invoice-campus-scope.ts`，這裡不另寫。跨校學生被兩校各自 run 會拿到兩張單（計畫席 10-10 過）。
+ * 異常掃描與 repair 也只看、只修範圍內的帳單。`scope === null` 時查詢跟改之前一字不差。
  */
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -61,18 +68,24 @@ const ErrorSchema = z
 async function scanMealAnomalies(
   supabase: SupabaseClient,
   orgId: string,
+  scope: CampusScope,
 ): Promise<MealItemAnomaly[]> {
+  const select: string =
+    'id, amount, invoices!inner(org_id, voided_at' +
+    (scope === null ? '' : INVOICE_SCOPE_EMBED) +
+    ')';
   const { data: mealItems } = await supabase
     .from('invoice_items')
-    .select('id, amount, invoices!inner(org_id, voided_at)')
+    .select(select)
     .eq('type', 'meal')
     .eq('invoices.org_id', orgId);
 
   // 作廢單不掃（#898）：作廢時章已解，它的 item 必然「對不上」，
   // 放進來的話 repair 會去改一張作廢單（DB trigger 擋下 → 每次都回報一筆修不掉的異常）
-  const items = ((mealItems ?? []) as unknown as Record<string, unknown>[]).filter(
-    (item) => !(item['invoices'] as { voided_at?: string | null } | null)?.voided_at,
-  );
+  const items = ((mealItems ?? []) as unknown as Record<string, unknown>[]).filter((item) => {
+    const invoice = item['invoices'] as Record<string, unknown> | null;
+    return !invoice?.['voided_at'] && (scope === null || invoiceInScope(invoice ?? {}, scope));
+  });
   if (items.length === 0) return [];
 
   const itemIds = items.map((item) => item['id'] as string);
@@ -111,16 +124,21 @@ async function scanMealAnomalies(
 async function scanEnrollmentsWithoutBillingMode(
   supabase: SupabaseClient,
   orgId: string,
+  scope: CampusScope,
 ): Promise<EnrollmentBillingModeCheck[]> {
-  const { data } = await supabase
+  const select: string =
+    'id, student_id, class_id, billing_mode' + (scope === null ? '' : ', classes!inner(campus_id)');
+  let query = supabase
     .from('enrollments')
-    .select('id, student_id, class_id, billing_mode')
+    .select(select)
     .eq('org_id', orgId)
     .eq('status', 'active')
     .is('billing_mode', null);
+  if (scope !== null) query = query.in('classes.campus_id', [...scope]);
+  const { data } = await query;
 
   return detectEnrollmentsWithoutBillingMode(
-    ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    ((data ?? []) as unknown as Array<Record<string, unknown>>).map((row) => ({
       id: row['id'] as string,
       studentId: row['student_id'] as string,
       classId: row['class_id'] as string,
@@ -191,6 +209,7 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
+    const scope = getCampusScope(c);
     const body = c.req.valid('json');
 
     const isMonthRun = Boolean(body.periodMonth);
@@ -219,12 +238,18 @@ app.openapi(
     }
 
     // ── 學費候選 ────────────────────────────────────────────
-    const { data: enrollmentRows } = await supabase
+    // 受限者只挑班在範圍內的報名（空範圍 → `in.()` 零筆，fail-closed）
+    const enrollmentSelect: string =
+      'id, student_id, effective_from, effective_to, agreed_amount, fee_templates(amount)' +
+      (scope === null ? '' : ', classes!inner(campus_id)');
+    let enrollmentQuery = supabase
       .from('enrollments')
-      .select('id, student_id, effective_from, effective_to, agreed_amount, fee_templates(amount)')
+      .select(enrollmentSelect)
       .eq('org_id', orgId)
       .eq('status', 'active')
       .eq('billing_mode', isMonthRun ? 'monthly' : 'period');
+    if (scope !== null) enrollmentQuery = enrollmentQuery.in('classes.campus_id', [...scope]);
+    const { data: enrollmentRows } = await enrollmentQuery;
 
     const candidates: TuitionCandidate[] = (
       (enrollmentRows ?? []) as unknown as Record<string, unknown>[]
@@ -281,6 +306,23 @@ app.openapi(
 
       for (const row of (mealRows ?? []) as unknown as Record<string, unknown>[]) {
         mealStudents.add(row['student_id'] as string);
+      }
+
+      // 餐費沒有分校（`meal_records` 無 campus_id）—— 受限者只開 `studentInScope` 的學生：
+      // 任一報名（不分 status）的班在範圍內，同學生列表 `students.ts` 與單張開單
+      if (scope !== null && mealStudents.size > 0) {
+        const { data: inScopeRows } = await supabase
+          .from('enrollments')
+          .select('student_id, classes!inner(campus_id)')
+          .eq('org_id', orgId)
+          .in('student_id', [...mealStudents])
+          .in('classes.campus_id', [...scope]);
+        const inScope = new Set(
+          ((inScopeRows ?? []) as Array<{ student_id: string }>).map((row) => row.student_id),
+        );
+        for (const studentId of mealStudents) {
+          if (!inScope.has(studentId)) mealStudents.delete(studentId);
+        }
       }
     }
 
@@ -390,8 +432,12 @@ app.openapi(
       await supabase.from('invoice_items').update({ amount: total }).eq('id', mealItemId);
     }
 
-    const anomalies = await scanMealAnomalies(supabase, orgId);
-    const enrollmentsWithoutBillingMode = await scanEnrollmentsWithoutBillingMode(supabase, orgId);
+    const anomalies = await scanMealAnomalies(supabase, orgId, scope);
+    const enrollmentsWithoutBillingMode = await scanEnrollmentsWithoutBillingMode(
+      supabase,
+      orgId,
+      scope,
+    );
 
     logAudit(
       supabase,
@@ -453,8 +499,13 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const anomalies = await scanMealAnomalies(supabase, orgId);
-    const enrollmentsWithoutBillingMode = await scanEnrollmentsWithoutBillingMode(supabase, orgId);
+    const scope = getCampusScope(c);
+    const anomalies = await scanMealAnomalies(supabase, orgId, scope);
+    const enrollmentsWithoutBillingMode = await scanEnrollmentsWithoutBillingMode(
+      supabase,
+      orgId,
+      scope,
+    );
 
     return c.json({ data: anomalies, enrollmentsWithoutBillingMode }, 200);
   },
@@ -486,8 +537,9 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
+    const scope = getCampusScope(c);
 
-    const anomalies = await scanMealAnomalies(supabase, orgId);
+    const anomalies = await scanMealAnomalies(supabase, orgId, scope);
 
     for (const anomaly of anomalies) {
       await supabase
@@ -511,7 +563,7 @@ app.openapi(
     }
 
     return c.json(
-      { repaired: anomalies.length, remaining: await scanMealAnomalies(supabase, orgId) },
+      { repaired: anomalies.length, remaining: await scanMealAnomalies(supabase, orgId, scope) },
       200,
     );
   },
