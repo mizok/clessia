@@ -60,6 +60,7 @@ function appWith(supabase: unknown) {
     set('supabase', supabase);
     set('orgId', '00000000-0000-0000-0000-0000000000aa');
     set('userId', 'u1');
+    set('campusScope', null);
     await next();
   });
   app.route('/', billingRunsRoute as unknown as Hono);
