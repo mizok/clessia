@@ -49,6 +49,7 @@ import attendanceRoute from './routes/attendance';
 import leavesRoute from './routes/leaves';
 import dailyCheckinsRoute from './routes/daily-checkins';
 import workbenchRoute from './routes/workbench';
+import contactLogsRoute from './routes/contact-logs';
 import academyExamsRoute from './routes/academy-exams';
 import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
@@ -310,10 +311,10 @@ const ADMIN_ONLY = ['admin'];
  *
  * 讀寫用同一個權限是最容易寫、也最容易讓人放棄使用權限的做法。
  */
-type MountPermission = { all: Permission } | { write: Permission };
+type MountPermission = { all: Permission } | { write: Permission | readonly Permission[] };
 
 /** 只對會改資料的方法套權限。GET / HEAD / OPTIONS 交給角色層。 */
-const requireAdminPermissionOnWrite = (permission: string) =>
+const requireAdminPermissionOnWrite = (permission: string | readonly string[]) =>
   createMiddleware<AppEnv>(async (c, next) => {
     if (c.req.method === 'GET' || c.req.method === 'HEAD' || c.req.method === 'OPTIONS') {
       return next();
@@ -372,6 +373,11 @@ mount('/api/daily-checkins', dailyCheckinsRoute, ['admin', 'kiosk'], {
 // 不預開，等它真的需要再說（計畫席 2026-09-03 裁定）。
 // 它只讀不寫，所以沒有 write 權限
 mount('/api/workbench', workbenchRoute, ADMIN_ONLY);
+// 聯絡紀錄（#1314 D2）：櫃台（basic_operations）與學生資料管理者（manage_students）**任一**即可記。
+// 獨立 mount —— 掛在 /api/students 底下會先被那段的 manage_students 擋
+mount('/api/contact-logs', contactLogsRoute, ['admin', 'teacher'], {
+  write: ['basic_operations', 'manage_students'],
+});
 // 成績三支開給老師，但**範圍限制在路由層**（`lib/exam-scope.ts` / `lib/teacher-scope.ts`）：
 // 老師只碰自己固定任課的班。單純把角色加上去是不安全的 —— 那會讓任何老師讀寫全校的
 // 考試與成績。見 herdr-team/billing-api-p3-grades-scope-design.md

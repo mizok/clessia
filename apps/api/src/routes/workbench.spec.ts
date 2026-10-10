@@ -39,6 +39,7 @@ function createWorkbenchApp(fixture: {
         },
         lte: () => query,
         gte: () => query,
+        lt: () => query,
         or: () => query,
         order: () => query,
         maybeSingle: () =>
@@ -183,6 +184,7 @@ describe('GET /api/workbench/today', () => {
         firstSession: { startTime: '09:00', className: '數學 A' },
         // #1314 D1：該到沒到的列直接撥
         primaryParent: { name: '王媽媽', relation: '母親', phone: '0912345678' },
+        lastContact: null,
       },
     ]);
     expect(body.arrived).toEqual([

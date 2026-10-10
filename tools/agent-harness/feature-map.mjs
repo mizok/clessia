@@ -76,7 +76,8 @@ const AREAS = [
   {
     name: '學生',
     pages: ['admin/students', 'teacher/students'],
-    routes: ['students'],
+    // contact-logs：聯絡紀錄（#1314 D2）—— 學生檔案的時間軸與儀表板「已聯絡」都吃它
+    routes: ['students', 'contact-logs'],
     specs: ['admin/student-affairs/students.md', 'teacher/students.md'],
   },
   {

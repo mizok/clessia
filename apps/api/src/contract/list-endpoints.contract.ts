@@ -79,6 +79,7 @@ const REQUIRED: Record<string, string> = {
   '/api/contact-book/missing/summary dateFrom': '{monthStart}',
   '/api/contact-book/missing/summary dateTo': '{today}',
   '/api/session-packs enrollmentId': '{enrollment}',
+  '/api/contact-logs studentId': '{student}',
   '/api/reports/revenue dateFrom': '{monthStart}',
   '/api/reports/revenue dateTo': '{today}',
   '/api/reports/revenue.csv dateFrom': '{monthStart}',

@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { environment } from '@env/environment';
+import type { ContactChannel } from './contact-logs.service';
 import type { EventSessionSummary } from './attendance.service';
 import type { AttendanceMode } from './org-settings.service';
 
@@ -29,6 +30,8 @@ export interface WorkbenchExpectedStudent {
   firstSession: { startTime: string | null; className: string } | null;
   /** 主要家長（#1314 D1）。沒有家長 → null；家長沒帳號 → phone null */
   primaryParent: { name: string; relation: string | null; phone: string | null } | null;
+  /** 這一天最近一筆聯絡（#1314 D2）—— 「已聯絡 17:42」。沒聯絡過 → null */
+  lastContact: { at: string; channel: ContactChannel } | null;
 }
 
 export interface WorkbenchArrival {
