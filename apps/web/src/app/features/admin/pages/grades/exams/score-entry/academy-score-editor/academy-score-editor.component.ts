@@ -326,12 +326,15 @@ export class AcademyScoreEditorComponent implements OnInit {
   }
 
   /**
-   * 其餘標記缺考（A6 data-absent，#1314 G11）：只動「沒分數也沒標缺考」的列 ——
+   * 其餘標記缺考（A6 data-absent，#1314 G11）：只動「沒分數、沒標缺考、也不是補考」的列 ——
    * 已登分的不該被蓋掉（A6 把「全部」改成「其餘」就是為了這件事）。算畫面上看得到的列，
    * 篩選班級後只動那班。存檔走既有的 status:'absent'＋score:null，不需新欄位。
    */
   markRestAbsent(): void {
-    const targets = this.filteredRows().filter((r) => this.isUnrecorded(r));
+    // 補考列（makeup、還沒分數）是「等他補考」不是「沒來」—— 不能被改成缺考
+    const targets = this.filteredRows().filter(
+      (r) => this.isUnrecorded(r) && r.status !== 'makeup',
+    );
     if (targets.length === 0) {
       this.messageService.add({ severity: 'info', summary: '每位都已經有分數或標了缺考' });
       return;

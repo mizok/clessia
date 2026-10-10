@@ -373,6 +373,16 @@ describe('AcademyScoreEditorComponent', () => {
       ]);
     });
 
+    it('其餘標記缺考：補考列（makeup、沒分數）不被改成缺考', () => {
+      const makeupRow = component['rows']()[1];
+      component['onStatusChange'](makeupRow, 'makeup');
+      component['rows']()[1].original.status = 'makeup'; // 當作上次儲存就是補考
+
+      component.markRestAbsent();
+      expect(component['rows']()[1]).toMatchObject({ score: null, status: 'makeup' });
+      expect(component['dirtyCount']()).toBe(0);
+    });
+
     it('其餘標記缺考：每位都有分數或缺考時只提示、不改任何列', () => {
       component.markRestAbsent();
       messageServiceMock.add.mockClear();
