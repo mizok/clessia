@@ -20,6 +20,7 @@ const invoice = (overrides: Partial<Invoice> = {}): Invoice => ({
   id: 'i1',
   orgId: 'o1',
   studentId: 's1',
+  invoiceNo: null,
   studentName: '王小明',
   studentGrade: null,
   issuedAt: '2026-08-01',

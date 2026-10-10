@@ -10,7 +10,7 @@ import { deriveInvoiceStatus, invoiceTotals } from './invoice-status';
  * 狀態的邏輯是同一份。
  */
 export const INVOICE_SELECT =
-  'id, org_id, student_id, issued_at, due_date, note, created_by, created_at, updated_at,' +
+  'id, org_id, invoice_no, student_id, issued_at, due_date, note, created_by, created_at, updated_at,' +
   ' voided_at, voided_by, void_reason,' +
   ' students(name, grade),' +
   ' invoice_items(id, type, enrollment_id, amount, billing_period_id, period_month, note, created_at),' +
@@ -57,6 +57,8 @@ export function toInvoiceResponse(row: Record<string, unknown>) {
 
   return {
     id: row['id'] as string,
+    /** INV-YYMM-NNN（#1459）。null 只會是回填前的舊單 */
+    invoiceNo: (row['invoice_no'] as string | null) ?? null,
     orgId: row['org_id'] as string,
     studentId: row['student_id'] as string,
     studentName: student?.name ?? null,

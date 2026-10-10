@@ -13,6 +13,8 @@ const ORG = 'org-a';
 const invoice = (id: string, studentId: string, name: string, grade: string, org = ORG) => ({
   id,
   org_id: org,
+  // #1459：i1 → INV-2603-001 …；別 org 的 ix 刻意撞同號
+  invoice_no: `INV-2603-00${id === 'ix' ? '1' : id.slice(1)}`,
   student_id: studentId,
   issued_at: '2026-03-01',
   due_date: null,
@@ -118,6 +120,19 @@ describe('GET /invoices —— search 與 studentGrade（#1314 (a)）', () => {
   it('沒命中 → 空；輸入剝光 → 空（不是不篩）', async () => {
     expect((await list(`search=${encodeURIComponent('不存在')}`)).data).toEqual([]);
     expect((await list(`search=${encodeURIComponent('%,()')}`)).data).toEqual([]);
+  });
+
+  // #1459：家長拿紙本收費單來繳錢時打編號
+  it('帳單編號（完整或片段）命中；別 org 同號不算；回應帶 invoiceNo', async () => {
+    const full = await list(`search=${encodeURIComponent('INV-2603-002')}`);
+    expect(full.data.map((i) => i.id)).toEqual(['i2']);
+    expect((full.data[0] as unknown as { invoiceNo: string }).invoiceNo).toBe('INV-2603-002');
+
+    const part = await list(`search=${encodeURIComponent('2603-00')}`);
+    expect(part.data.map((i) => i.id).sort()).toEqual(['i1', 'i2', 'i3']);
+
+    const sameAsOtherOrg = await list(`search=${encodeURIComponent('INV-2603-001')}`);
+    expect(sameAsOtherOrg.data.map((i) => i.id)).toEqual(['i1']);
   });
 
   // reviewer 二讀 #1460：查不到 ≠ 沒這個人 —— 回空清單行政會以為「沒有他的帳單」
