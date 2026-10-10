@@ -1,30 +1,61 @@
 <p-toast appendTo="body" />
-<p-confirmdialog />
+<!-- 確認文案分行寫（出缺席影響逐項說），要保留換行 -->
+<p-confirmdialog styleClass="whitespace-pre-line" />
 
+<!--
+  A6 版（#1314 LV1／LV3）：色面（今天幾位、之後幾筆）→ 灰工具列（待處理／全部、操作紀錄、登記請假）→
+  依「今天／明天／之後」分章的可展開列。展開後才有「編輯」「取消請假」（取代列尾兩顆圖示鈕）。
+  現況有、A6 沒畫、保留：操作紀錄。A6 有、這裡沒做（缺 API，LV2 後續）：批次請假、課程／開課班篩選、
+  列內課堂清單、年級。
+-->
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openTitle>
+    @if (headline(); as line) {
+      {{ line }}
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
 </app-page-open>
 
 <div class="bg-zinc-100">
   <div
-    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
-    role="search"
-    aria-label="篩選請假紀錄"
+    class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16"
+    role="toolbar"
+    aria-label="請假"
   >
-    <p-datepicker
-      [(ngModel)]="filterDateRange"
-      selectionMode="range"
-      placeholder="日期範圍"
-      dateFormat="yy-mm-dd"
-      inputStyleClass="p-inputtext-sm"
-      (onClose)="onFilterChange()"
-      styleClass="clessia-filter-control clessia-filter-control--date-range"
-      [appendTo]="'body'"
-      [showIcon]="true"
-      [readonlyInput]="true"
-      [firstDayOfWeek]="1"
-    />
-    <p-button size="small" severity="secondary" (onClick)="onFilterChange()"> 重置篩選 </p-button>
+    <nav class="flex items-center gap-4" aria-label="請假分頁">
+      <button
+        type="button"
+        class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        data-testid="tab-pending"
+        [class.border-zinc-900]="tab() === 'pending'"
+        [class.font-semibold]="tab() === 'pending'"
+        [class.border-transparent]="tab() !== 'pending'"
+        [attr.aria-current]="tab() === 'pending' ? 'page' : null"
+        (click)="setTab('pending')"
+      >
+        待處理
+        @if (pendingCount() !== null) {
+          <span class="text-sm font-normal text-zinc-600 tabular-nums">{{ pendingCount() }}</span>
+        }
+      </button>
+      <button
+        type="button"
+        class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        data-testid="tab-all"
+        [class.border-zinc-900]="tab() === 'all'"
+        [class.font-semibold]="tab() === 'all'"
+        [class.border-transparent]="tab() !== 'all'"
+        [attr.aria-current]="tab() === 'all' ? 'page' : null"
+        (click)="setTab('all')"
+      >
+        全部
+        @if (allCount() !== null) {
+          <span class="text-sm font-normal text-zinc-600 tabular-nums">{{ allCount() }}</span>
+        }
+      </button>
+    </nav>
 
     <div class="wide:ml-auto">
       <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
@@ -38,104 +69,183 @@
       </app-page-actions>
     </div>
   </div>
+
+  @if (tab() === 'all') {
+    <!-- 全部分頁才有篩選（A6）：學生、日期範圍；分校跟頂欄走（#1138） -->
+    <div
+      class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 pb-3 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+      role="search"
+      aria-label="篩選請假紀錄"
+      data-testid="filters"
+    >
+      <div class="w-full wide:w-72" data-testid="student-filter">
+        <app-student-autocomplete
+          placeholder="找學生（輸入姓名）"
+          [value]="studentValue()"
+          [suggestions]="studentSuggestions()"
+          [forceSelection]="false"
+          (queryChange)="onStudentQuery($event)"
+          (valueChange)="onStudentChange($event)"
+        />
+      </div>
+      <p-datepicker
+        [(ngModel)]="filterDateRange"
+        selectionMode="range"
+        placeholder="日期範圍"
+        dateFormat="yy-mm-dd"
+        inputStyleClass="p-inputtext-sm"
+        (onClose)="onFilterChange()"
+        styleClass="clessia-filter-control clessia-filter-control--date-range"
+        [appendTo]="'body'"
+        [showIcon]="true"
+        [readonlyInput]="true"
+        [firstDayOfWeek]="1"
+      />
+      @if (hasFilter()) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+          data-testid="clear-filters"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+      }
+    </div>
+  }
 </div>
 
 <div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
-  <app-responsive-table
-    [headTemplate]="headTpl"
-    [bodyTemplate]="bodyTpl"
-    [pagination]="pagination()"
-    (page)="onPage($event)"
-  />
-
-  <ng-template #headTpl>
-    <tr>
-      <th appRtColDef="studentName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">
-        學生姓名
-      </th>
-      <th appRtColDef="startDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
-        開始日期
-      </th>
-      <th appRtColDef="endDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">結束日期</th>
-      <th appRtColDef="days" [appRtColDefMinWidth]="80" [appRtColDefPriority]="4">天數</th>
-      <th appRtColDef="reason" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">原因</th>
-      <th appRtColDef="submittedByRole" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">
-        申請方
-      </th>
-      <th
-        appRtColDef="actions"
-        [appRtColDefMinWidth]="80"
-        [appRtColDefPriority]="0"
-        [appRtColDefCollapsible]="false"
-      >
-        操作
-      </th>
-    </tr>
-  </ng-template>
-
-  <ng-template #bodyTpl>
-    @if (loading()) {
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <tr>
-          <td class="responsive-table__cell" colspan="7">
-            <div class="h-5 animate-pulse rounded-sm bg-zinc-100"></div>
-          </td>
-        </tr>
+  @if (loading()) {
+    <div class="skeleton-list" aria-label="請假紀錄載入中">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
       }
-    } @else if (records().length === 0) {
-      <tr>
-        <td class="responsive-table__cell py-8 text-center text-zinc-500" colspan="7">
-          沒有請假紀錄
-          <app-campus-scope-note />
-        </td>
-      </tr>
-    } @else {
-      @for (record of records(); track record.id) {
-        <tr appRtRow [appRtRow]="record" [appRtRowId]="record.id">
-          <td appRtColCell="studentName">{{ record.studentName }}</td>
-          <td appRtColCell="startDate">
-            <div class="flex flex-col gap-0.5">
-              <span>{{ record.startDate }}</span>
-              @if (record.startTime) {
-                <span class="text-xs text-zinc-500">{{ record.startTime }}</span>
-              }
-            </div>
-          </td>
-          <td appRtColCell="endDate">
-            <div class="flex flex-col gap-0.5">
-              <span>{{ record.endDate }}</span>
-              @if (record.endTime) {
-                <span class="text-xs text-zinc-500">{{ record.endTime }}</span>
-              }
-            </div>
-          </td>
-          <td appRtColCell="days">{{ calcDays(record.startDate, record.endDate) }} 天</td>
-          <td appRtColCell="reason">{{ record.reason ?? '—' }}</td>
-          <td appRtColCell="submittedByRole">
-            <app-data-chip>{{ submittedByRoleLabel(record.submittedByRole) }}</app-data-chip>
-          </td>
-          <td appRtColCell="actions">
-            <p-button
-              icon="pi pi-pencil"
-              severity="secondary"
-              [text]="true"
-              size="small"
-              pTooltip="編輯請假"
-              ariaLabel="編輯請假"
-              (onClick)="openEditDialog(record)"
-            />
-            <p-button
-              icon="pi pi-trash"
-              severity="danger"
-              [text]="true"
-              size="small"
-              pTooltip="取消請假"
-              ariaLabel="取消請假"
-              (onClick)="confirmDelete(record)"
-            />
-          </td>
-        </tr>
-      }
+    </div>
+  } @else if (records().length === 0) {
+    <div data-testid="empty">
+      <p class="m-0 py-4 text-base text-zinc-700">
+        @if (tab() === 'pending') {
+          今天和之後都沒有請假。
+        } @else {
+          沒有符合這組篩選的請假。
+        }
+      </p>
+      <app-campus-scope-note />
+    </div>
+  } @else {
+    @if (tab() === 'all') {
+      <p class="m-0 text-md text-zinc-600 tabular-nums" data-testid="total">
+        共 <strong class="text-zinc-900">{{ totalRecords() }}</strong> 筆
+      </p>
     }
-  </ng-template>
+
+    <div>
+      @for (chapter of chapters(); track chapter.key) {
+        <section
+          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+          [attr.aria-label]="chapter.name"
+          data-testid="chapter"
+        >
+          <app-chapter-head
+            class="block pt-4 wide:pt-8"
+            [name]="chapter.name"
+            [count]="chapter.rows.length"
+            unit="位"
+          />
+          <div class="wide:pt-4">
+            @for (record of chapter.rows; track record.id) {
+              <details
+                class="group border-b border-surface-border last:border-b-0"
+                data-testid="leave-row"
+              >
+                <summary
+                  class="grid min-h-11 cursor-pointer list-none grid-cols-1 gap-x-6 gap-y-1 py-4 hover:bg-zinc-50 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] wide:items-baseline [&::-webkit-details-marker]:hidden"
+                >
+                  <span>
+                    <a
+                      class="inline-flex min-h-11 items-center text-lg font-bold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+                      data-testid="student-link"
+                      [routerLink]="[studentRoute.replace(':id', record.studentId)]"
+                      (click)="$event.stopPropagation()"
+                      >{{ record.studentName }}</a
+                    >
+                    @if (record.startDate !== record.endDate) {
+                      <span class="ml-1.5 text-sm text-zinc-600" data-testid="days"
+                        >{{ calcDays(record.startDate, record.endDate) }} 天</span
+                      >
+                    }
+                  </span>
+                  <span class="text-md text-zinc-900 tabular-nums" data-testid="range">{{
+                    rangeText(record)
+                  }}</span>
+                  <span class="text-md text-zinc-700" data-testid="reason">{{
+                    record.reason ? record.reason : '沒寫原因'
+                  }}</span>
+                  <span class="text-sm text-zinc-600 tabular-nums wide:text-right" data-testid="by">
+                    {{ byText(record) }}
+                    @if (isLate(record)) {
+                      <span
+                        class="ml-1.5 rounded-sm bg-zinc-100 px-1.5 text-xs font-semibold whitespace-nowrap text-zinc-800"
+                        data-testid="late"
+                        >補請</span
+                      >
+                    }
+                  </span>
+                </summary>
+                <div class="flex flex-wrap items-center gap-2 pb-4">
+                  <p class="m-0 mr-auto text-md text-zinc-700">
+                    {{ record.startDate }} ~ {{ record.endDate }}
+                  </p>
+                  <button
+                    type="button"
+                    class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                    data-testid="edit"
+                    (click)="openEditDialog(record)"
+                  >
+                    編輯
+                  </button>
+                  <button
+                    type="button"
+                    class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                    data-testid="cancel"
+                    (click)="confirmDelete(record)"
+                  >
+                    取消請假
+                  </button>
+                </div>
+              </details>
+            }
+          </div>
+        </section>
+      }
+    </div>
+
+    @if (totalPages() > 1) {
+      <nav
+        class="flex items-center justify-center gap-3 py-4 text-md text-zinc-600 tabular-nums"
+        aria-label="分頁"
+      >
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="prev-page"
+          [disabled]="currentPage() <= 1"
+          (click)="onPageStep(-1)"
+        >
+          上一頁
+        </button>
+        <span data-testid="page-indicator">第 {{ currentPage() }}／{{ totalPages() }} 頁</span>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="next-page"
+          [disabled]="currentPage() >= totalPages()"
+          (click)="onPageStep(1)"
+        >
+          下一頁
+        </button>
+      </nav>
+    }
+  }
 </div>

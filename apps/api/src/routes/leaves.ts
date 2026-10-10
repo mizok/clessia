@@ -689,6 +689,16 @@ app.openapi(
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
         coverDate: z.string().optional(),
+        /**
+         * 還沒結束的假（`end_date >= endFrom`）。管理端「待處理」分頁＝傳台北今天。
+         * 跟 `dateFrom`／`dateTo` 不同 —— 那兩個比的是起日／迄日各自一端，不是「跟某天有交集」。
+         */
+        endFrom: z.string().optional(),
+        /** 排序：預設最近建立的在前；`start_asc`／`start_desc` 依開始日（管理端分章用） */
+        order: z
+          .enum(['created_desc', 'start_asc', 'start_desc'])
+          .default('created_desc')
+          .optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
       }),
@@ -711,6 +721,8 @@ app.openapi(
       dateFrom,
       dateTo,
       coverDate,
+      endFrom,
+      order = 'created_desc',
       page = 1,
       pageSize = 20,
     } = c.req.valid('query');
@@ -725,6 +737,7 @@ app.openapi(
     if (studentId) query = query.eq('student_id', studentId);
     if (dateFrom) query = query.gte('start_date', dateFrom);
     if (dateTo) query = query.lte('end_date', dateTo);
+    if (endFrom) query = query.gte('end_date', endFrom);
     // coverDate: 找出請假範圍包含指定日期的紀錄（start_date <= date AND end_date >= date）
     if (coverDate) {
       query = query.lte('start_date', coverDate).gte('end_date', coverDate);
@@ -757,7 +770,16 @@ app.openapi(
     }
 
     const from = (page - 1) * pageSize;
-    query = query.range(from, from + pageSize - 1).order('created_at', { ascending: false });
+    // 依開始日排序時再以建立時間、id 收斂：同一天開始的假要有固定次序，不然翻頁會重複或漏掉
+    query = query.range(from, from + pageSize - 1);
+    if (order === 'created_desc') {
+      query = query.order('created_at', { ascending: false });
+    } else {
+      query = query
+        .order('start_date', { ascending: order === 'start_asc' })
+        .order('created_at', { ascending: false })
+        .order('id');
+    }
 
     const { data, error, count } = await query;
 

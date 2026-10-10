@@ -978,3 +978,86 @@ describe('PATCH /api/leaves/:id', () => {
     });
   });
 });
+
+describe('GET /api/leaves —— endFrom／order（#1314 LV1）', () => {
+  function createListApp() {
+    const gte: Array<[string, unknown]> = [];
+    const orders: Array<[string, boolean | undefined]> = [];
+    const supabase = {
+      from() {
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: () => query,
+          in: () => query,
+          lte: () => query,
+          gte: (column: string, value: unknown) => {
+            gte.push([column, value]);
+            return query;
+          },
+          range: () => query,
+          order: (column: string, opts?: { ascending?: boolean }) => {
+            orders.push([column, opts?.ascending]);
+            return query;
+          },
+          then: (onfulfilled?: ((value: unknown) => unknown) | null) =>
+            Promise.resolve({ data: [], error: null, count: 0 }).then(onfulfilled ?? undefined),
+        };
+        return query;
+      },
+    };
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('campusScope', null);
+      context.set('userId', 'user-1');
+      context.set('roles', ['admin']);
+      await next();
+    });
+    app.route('/api/leaves', leavesApp);
+    return { app, gte, orders };
+  }
+
+  it('預設：依建立時間新到舊，不加結束日條件', async () => {
+    const { app, gte, orders } = createListApp();
+    const res = await app.request('/api/leaves');
+
+    expect(res.status).toBe(200);
+    expect(gte).toEqual([]);
+    expect(orders).toEqual([['created_at', false]]);
+  });
+
+  it('endFrom 只留還沒結束的（end_date >= endFrom）；dateFrom 仍是 start_date', async () => {
+    const { app, gte } = createListApp();
+    await app.request('/api/leaves?endFrom=2026-10-10&dateFrom=2026-10-01');
+
+    expect(gte).toContainEqual(['end_date', '2026-10-10']);
+    expect(gte).toContainEqual(['start_date', '2026-10-01']);
+  });
+
+  it('order=start_asc：開始日由早到晚，再以建立時間、id 收斂（翻頁不重複）', async () => {
+    const { app, orders } = createListApp();
+    await app.request('/api/leaves?order=start_asc');
+
+    expect(orders).toEqual([
+      ['start_date', true],
+      ['created_at', false],
+      ['id', undefined],
+    ]);
+  });
+
+  it('order=start_desc：開始日由晚到早', async () => {
+    const { app, orders } = createListApp();
+    await app.request('/api/leaves?order=start_desc');
+
+    expect(orders[0]).toEqual(['start_date', false]);
+  });
+
+  it('不認得的 order → 400，不是靜默退回預設', async () => {
+    const { app } = createListApp();
+    const res = await app.request('/api/leaves?order=bogus');
+
+    expect(res.status).toBe(400);
+  });
+});
