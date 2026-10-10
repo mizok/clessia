@@ -82,3 +82,35 @@ export function daysUntilDue(invoice: Invoice, today: string): number {
   const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
   return Math.round((day(invoice.dueDate) - day(today)) / 86_400_000);
 }
+
+/** 帳單在催繳這件事上是不是還「開著」：欠款還在、沒作廢。繳清／多退／作廢都不催 */
+export function canRemind(invoice: Invoice): boolean {
+  return invoice.status === 'unpaid' || invoice.status === 'partial';
+}
+
+/** 能不能收款：還欠錢（作廢單不欠、多退不欠，見 `outstanding`） */
+export function canCollect(invoice: Invoice): boolean {
+  return outstanding(invoice) > 0;
+}
+
+/** 能不能印收據：至少有一筆收款（收據號由收款觸發，退費沒有） */
+export function canReceipt(invoice: Invoice): boolean {
+  return invoice.status !== 'void' && receiptNoOf(invoice) !== null;
+}
+
+/**
+ * 列上「還沒提醒／N 天前提醒」那行字（A6）。不是催繳對象（繳清、作廢、多退）回 null ——
+ * 那種帳單談「有沒有提醒」是在問責一件不用做的事。
+ *
+ * `lastRemindedAt` 是 UTC 時間戳，換成**台北日期**再跟 `today`（台北日期）算日數；
+ * 直接切字串會讓台北凌晨 0–8 點的催繳被算成前一天。
+ */
+export function remindedText(invoice: Invoice, today: string): string | null {
+  if (!canRemind(invoice)) return null;
+  const at = invoice.lastRemindedAt;
+  if (!at) return '還沒提醒';
+  const on = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date(at));
+  const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+  const days = Math.max(0, Math.round((day(today) - day(on)) / 86_400_000));
+  return days === 0 ? '今天提醒' : `${days} 天前提醒`;
+}

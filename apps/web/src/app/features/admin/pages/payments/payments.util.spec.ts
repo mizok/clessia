@@ -1,4 +1,8 @@
 import {
+  canCollect,
+  canReceipt,
+  canRemind,
+  remindedText,
   daysOverdue,
   daysUntilDue,
   isOverdue,
@@ -195,5 +199,75 @@ describe('daysUntilDue／daysOverdue —— 純日期字串，不走本地時區
     expect(daysUntilDue(invoice({ dueDate: null }), '2026-10-08')).toBe(0);
     expect(daysOverdue(invoice({ dueDate: null }), '2026-10-08')).toBe(0);
     expect(daysOverdue(invoice({ dueDate: '2026-10-08' }), '2026-10-08')).toBe(0);
+  });
+});
+
+describe('remindedText —— 列上「還沒提醒／N 天前提醒」', () => {
+  it('從沒催過：還沒提醒', () => {
+    expect(remindedText(invoice(), TODAY)).toBe('還沒提醒');
+    expect(remindedText(invoice({ lastRemindedAt: null }), TODAY)).toBe('還沒提醒');
+  });
+
+  it('今天催的：今天提醒；三天前催的：3 天前提醒', () => {
+    expect(remindedText(invoice({ lastRemindedAt: '2026-08-29T03:00:00Z' }), TODAY)).toBe(
+      '今天提醒',
+    );
+    expect(remindedText(invoice({ lastRemindedAt: '2026-08-26T03:00:00Z' }), TODAY)).toBe(
+      '3 天前提醒',
+    );
+  });
+
+  // 台北 08-29 06:00 ＝ UTC 08-28 22:00：切 UTC 字串會算成「前一天」，今天催的變成 1 天前
+  it('UTC 前一天晚上＝台北今天凌晨：算今天，不是 1 天前', () => {
+    expect(remindedText(invoice({ lastRemindedAt: '2026-08-28T22:00:00Z' }), TODAY)).toBe(
+      '今天提醒',
+    );
+  });
+
+  it('不是催繳對象（繳清、作廢、多退）回 null', () => {
+    expect(remindedText(invoice({ status: 'paid', netPaid: 3000 }), TODAY)).toBeNull();
+    expect(remindedText(invoice({ status: 'void' }), TODAY)).toBeNull();
+    expect(remindedText(invoice({ status: 'overrefunded', netPaid: -100 }), TODAY)).toBeNull();
+  });
+
+  it('部分繳還是要催', () => {
+    expect(remindedText(invoice({ status: 'partial', netPaid: 1000 }), TODAY)).toBe('還沒提醒');
+  });
+});
+
+describe('canRemind／canCollect／canReceipt —— 列上三顆鈕各自顯示的條件', () => {
+  it('未繳清與部分繳：可提醒、可收款；沒有收款所以沒有收據', () => {
+    for (const inv of [invoice(), invoice({ status: 'partial', netPaid: 1000 })]) {
+      expect(canRemind(inv)).toBe(true);
+      expect(canCollect(inv)).toBe(true);
+    }
+    expect(canReceipt(invoice())).toBe(false);
+  });
+
+  it('繳清：不提醒、不收款、有收據（有收款記錄）', () => {
+    const paid = invoice({ status: 'paid', netPaid: 3000, payments: [payment()] });
+    expect(canRemind(paid)).toBe(false);
+    expect(canCollect(paid)).toBe(false);
+    expect(canReceipt(paid)).toBe(true);
+  });
+
+  it('作廢：三顆都沒有（作廢單不欠、不催，也不該再印收據）', () => {
+    const voided = invoice({ status: 'void', payments: [payment()] });
+    expect(canRemind(voided)).toBe(false);
+    expect(canCollect(voided)).toBe(false);
+    expect(canReceipt(voided)).toBe(false);
+  });
+
+  it('多退：不提醒、不收款（不欠）；有收款記錄所以還印得出收據', () => {
+    const over = invoice({ status: 'overrefunded', netPaid: -100, payments: [payment()] });
+    expect(canRemind(over)).toBe(false);
+    expect(canCollect(over)).toBe(false);
+    expect(canReceipt(over)).toBe(true);
+  });
+
+  it('部分繳：收款可（還欠），收據也可（已有一筆）', () => {
+    const part = invoice({ status: 'partial', netPaid: 1000, payments: [payment()] });
+    expect(canCollect(part)).toBe(true);
+    expect(canReceipt(part)).toBe(true);
   });
 });
