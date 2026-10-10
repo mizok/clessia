@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 import gradesRoute from './grades';
+import { fakePluck } from '../../test-utils/fake-pluck';
 
 const CHILD_ID = '00000000-0000-0000-0000-000000000001';
 const OTHER_CHILD_ID = '00000000-0000-0000-0000-000000000002';
@@ -71,7 +72,7 @@ function fakeChildDb(
       },
     }),
     from: (table: string) => ({
-      pluck: async () => ({ rows: [], ids: ['c-mine'], error: null }),
+      pluck: fakePluck([{ class_id: 'c-mine', student_id: CHILD_ID }], CHILD_ID),
       select: (_cols: string, opts?: { head?: boolean }) => {
         if (opts?.head) {
           const count = table === 'academy_scores' ? academyRecent : schoolRecent;
@@ -179,6 +180,16 @@ describe('GET /api/me/grades', () => {
     expect(body.data[0]).not.toHaveProperty('studentName');
     // recentCount 是兩張表獨立查詢加總，不靠當頁筆數
     expect(body.meta).toMatchObject({ total: 2, recentCount: 2 });
+  });
+
+  it('兄弟姊妹：查另一個孩子時，不會拿到這個孩子報名的班名（pluck 要套 student_id）', async () => {
+    const res = await appWith(
+      ['parent'],
+      [CHILD_ID, OTHER_CHILD_ID],
+      fakeChildDb([ACADEMY_ROW], [], 1, 0),
+    ).request(`/?childId=${OTHER_CHILD_ID}`);
+    const body = (await res.json()) as { data: Array<Record<string, unknown>> };
+    expect(body.data[0]).toMatchObject({ className: null });
   });
 
   it('報名班查詢失敗 → 500（不折成沒有班名）', async () => {

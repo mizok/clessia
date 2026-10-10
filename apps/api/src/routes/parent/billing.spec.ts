@@ -8,6 +8,7 @@ vi.mock('../../lib/taipei-date', async (importOriginal) => ({
 
 import billingRoute from './billing';
 import { createChildDb } from '../../lib/child-db';
+import { fakePluck } from '../../test-utils/fake-pluck';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 
 const CHILD_ID = '00000000-0000-0000-0000-000000000001';
@@ -182,11 +183,10 @@ describe('GET /api/me/billing', () => {
     const childDb = fakeChildDb([withEnrollment], [withEnrollment]);
     childDb.from = () =>
       ({
-        pluck: async () => ({
-          rows: [{ id: 'enr1', classes: { name: '國三數學' } }],
-          ids: [],
-          error: null,
-        }),
+        pluck: fakePluck(
+          [{ id: 'enr1', classes: { name: '國三數學' }, student_id: CHILD_ID }],
+          CHILD_ID,
+        ),
         select: () => chainable(() => ({ data: [withEnrollment], error: null, count: 1 })),
       }) as never;
     const res = await appWith(['parent'], [CHILD_ID], childDb).request(`/?childId=${CHILD_ID}`);
@@ -213,6 +213,27 @@ describe('GET /api/me/billing', () => {
     );
     expect(inv['invoiceNo']).toBe('INV-2609-001');
     expect(items[0]['className']).toBe('國三數學');
+  });
+
+  it('兄弟姊妹：查另一個孩子時，拿不到這個孩子報名的班名（pluck 要套 student_id）', async () => {
+    const withEnrollment = {
+      ...UNPAID_INVOICE,
+      invoice_items: [{ ...UNPAID_INVOICE.invoice_items[0], enrollment_id: 'enr1' }],
+    };
+    const childDb = fakeChildDb([withEnrollment], [withEnrollment]);
+    childDb.from = () =>
+      ({
+        pluck: fakePluck(
+          [{ id: 'enr1', classes: { name: '國三數學' }, student_id: CHILD_ID }],
+          CHILD_ID,
+        ),
+        select: () => chainable(() => ({ data: [withEnrollment], error: null, count: 1 })),
+      }) as never;
+    const res = await appWith(['parent'], [CHILD_ID, OTHER_CHILD_ID], childDb).request(
+      `/?childId=${OTHER_CHILD_ID}`,
+    );
+    const body = (await res.json()) as { data: Array<{ items: Array<Record<string, unknown>> }> };
+    expect(body.data[0].items[0]['className']).toBeNull();
   });
 
   // #898 裁決 E：家長看得到作廢單（前端收合），但不計應繳 ——
