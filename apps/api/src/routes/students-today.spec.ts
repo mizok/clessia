@@ -157,12 +157,19 @@ function seed(mode: 'daily_checkin' | 'per_session' = 'daily_checkin') {
       },
     ],
     parent_student_relations: [],
+    // 老師 staff-t 只固定任課 c-am（s-arrived／s-missing／s-leave）
+    staff: [{ id: 'staff-t', user_id: 'u-teacher', org_id: ORG }],
+    schedules: [{ class_id: 'c-am', teacher_id: 'staff-t', classes: { org_id: ORG } }],
   });
 }
 
 async function list(
   query: string,
-  opts: { mode?: 'daily_checkin' | 'per_session'; campusScope?: string[] | null } = {},
+  opts: {
+    mode?: 'daily_checkin' | 'per_session';
+    campusScope?: string[] | null;
+    teacher?: boolean;
+  } = {},
 ) {
   const db = seed(opts.mode);
   const app = new Hono();
@@ -170,8 +177,8 @@ async function list(
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
     set('supabase', db.client);
     set('orgId', ORG);
-    set('userId', 'u1');
-    set('roles', ['admin']);
+    set('userId', opts.teacher ? 'u-teacher' : 'u1');
+    set('roles', opts.teacher ? ['teacher'] : ['admin']);
     set('campusScope', opts.campusScope ?? null);
     await next();
   });
@@ -251,5 +258,11 @@ describe('GET /students —— 今日到班（#1314 SL1）', () => {
     const plain = await list('', { mode: 'per_session' });
     expect(plain.status).toBe(200);
     expect(plain.body.summary.today).toBeNull();
+  });
+
+  // reviewer 二讀 #1456 抓的：拿掉老師的 taughtStudentIds 剔除原本全綠
+  it('老師：summary.today 只算任課班的學生（別班今天有課的不算）', async () => {
+    const { body } = await list('', { teacher: true });
+    expect(body.summary.today).toEqual({ any: 3, arrived: 1, not_yet: 0, missing: 1, on_leave: 1 });
   });
 });

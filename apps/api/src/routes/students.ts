@@ -1,13 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import { resolveStudentScope } from './students/teacher-scope';
+import { outOfCampusScope, teacherCannotRead } from './students/read-scope';
 import { taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
-import { campusFilterIds, getCampusScope, type CampusScope } from '../lib/campus-scope';
-import { studentInScope } from '../lib/invoice-campus-scope';
-import { findInOrg } from '../lib/org-scope';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import {
@@ -17,7 +16,8 @@ import {
   toTodaySession,
   type TodayStatus,
 } from '../lib/today-attendance';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import attendanceDaysRoute from './students/attendance-days';
+
 // ============================================================
 // Schemas
 // ============================================================
@@ -285,29 +285,6 @@ function countToday(statuses: Map<string, TodayStatus>) {
 // ============================================================
 // Routes
 // ============================================================
-
-/**
- * #1394：受限管理員的單筆讀寫跟列表同一條判準 —— 學生任一報名（不分 status）的班在範圍內
- * （`studentInScope`，同列表 `scopedStudentIds` 與 `invoices.ts`）。**範圍外跟不存在一樣回 404。**
- * 沒有任何報名的學生推不出分校，對受限者是範圍外（列表本來就看不到）⇒ 受限者實質不能刪學生，
- * 孤兒清理留給全校區管理員（計畫席 10-10 過）。`scope === null`（全校區、老師、家長）不多查。
- */
-async function outOfCampusScope(
-  supabase: SupabaseClient,
-  orgId: string,
-  id: string,
-  scope: CampusScope,
-): Promise<boolean> {
-  if (scope === null) return false;
-  const student = await findInOrg(
-    supabase,
-    'students',
-    orgId,
-    id,
-    'id, enrollments(classes(campus_id))',
-  );
-  return !student || !studentInScope(student['enrollments'], scope);
-}
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -848,27 +825,9 @@ app.openapi(
       return c.json({ error: '學生不存在' }, 404);
     }
 
-    // #1098：老師只讀得到自己固定任課班的學生（跟列表同一個範圍，代課不算「我的學生」）。
-    // 別 org 的 id 在上面已是 404；同 org 但不是他的學生 → 403
-    const roles = c.get('roles') ?? [];
-    if (!roles.includes('admin')) {
-      const { data: ownStaff } = await supabase
-        .from('staff')
-        .select('id')
-        .eq('user_id', c.get('userId'))
-        .eq('org_id', orgId)
-        .maybeSingle();
-      const scope = resolveStudentScope({
-        roles,
-        taughtByMe: true,
-        ownStaffId: (ownStaff?.id as string | undefined) ?? null,
-      });
-      if (
-        'forbidden' in scope ||
-        !(await taughtStudentIds(supabase, orgId, scope.teacherStaffId!)).includes(id)
-      ) {
-        return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
-      }
+    // #1098：老師只讀得到自己固定任課班的學生。別 org 的 id 在上面已是 404；同 org 但不是他的學生 → 403
+    if (await teacherCannotRead(supabase, orgId, c.get('userId'), c.get('roles') ?? [], id)) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 
     const row = data as Record<string, unknown>;
@@ -1059,5 +1018,8 @@ app.openapi(
     return c.json({ success: true }, 200);
   },
 );
+
+// GET /api/students/:id/attendance-days（#1314 SD2）
+app.route('/', attendanceDaysRoute);
 
 export default app;
