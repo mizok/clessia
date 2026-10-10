@@ -12,7 +12,7 @@
     } @else if (hasActiveFilters()) {
       符合篩選的 {{ total() }} 門課程。
     } @else {
-      {{ total() }} 門課程，{{ openClassCount() }} 個班正在開。
+      {{ total() }} 門課程，<br />{{ openClassCount() }} 個班正在開。
     }
   </ng-container>
   @if (selectedCampusName(); as name) {
@@ -22,14 +22,13 @@
 
 <div class="bg-zinc-100">
   <div
-    class="page-wrap flex flex-col gap-3 py-3 wide:flex-row wide:items-end wide:gap-4"
+    class="page-wrap flex flex-col gap-3 py-3 wide:flex-row wide:items-center wide:gap-4"
     role="search"
     aria-label="篩選課程"
   >
     <!-- 手機：搜尋框＋篩選＋次要行動同一列（#1314 ③）；桌機 contents 攤平回原本的排法 -->
-    <div class="flex w-full flex-wrap items-end gap-2 wide:contents">
-      <label class="flex min-w-0 flex-1 flex-col gap-1 wide:w-80 wide:flex-none">
-        <span class="text-sm font-semibold text-zinc-700">搜尋</span>
+    <div class="flex w-full flex-wrap items-center gap-2 wide:contents">
+      <label class="flex min-w-0 flex-1 flex-col wide:w-80 wide:flex-none">
         <span class="relative">
           <i
             class="pi pi-search pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-zinc-600"
@@ -40,6 +39,7 @@
             pInputText
             class="h-11 w-full pl-9"
             placeholder="課程或班級名稱"
+            aria-label="搜尋課程或班級"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
           />
@@ -56,14 +56,7 @@
           (click)="onFilterBtnClick($event)"
         >
           <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
-          篩選
-          @if (activeFilterCount() > 0) {
-            <span
-              class="inline-grid min-w-5 place-items-center rounded-full bg-zinc-900 px-1.5 text-xs font-bold text-white"
-              aria-hidden="true"
-              >{{ activeFilterCount() }}</span
-            >
-          }
+          篩選：{{ activeFilterCount() > 0 ? activeFilterCount() + ' 項' : '全部' }}
         </button>
         @if (hasActiveFilters()) {
           <button
@@ -80,11 +73,12 @@
         <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateCourseDialog()">
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+            title="操作紀錄"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-0 w-11 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
             (click)="openAuditLog()"
           >
             <i class="pi pi-history text-sm" aria-hidden="true"></i>
-            <span class="sr-only wide:not-sr-only">操作紀錄</span>
+            <span class="sr-only">操作紀錄</span>
           </button>
         </app-page-actions>
       </div>
@@ -101,10 +95,9 @@
       <p class="m-0">
         <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
         @if (statusFilter() === 'intervention') {
-          只看需介入的 <b>{{ interventionCount() }}</b> 門課程
+          只看需介入的 <b>{{ interventionCount() }}</b> 個班
         } @else {
-          <b>需介入 {{ interventionCount() }} 門課程</b
-          >：沒有時段、沒有未來的課堂，或有課堂還沒指派老師。
+          <b>需介入 {{ interventionCount() }} 個班</b>：沒有未來的課堂，家長看不到下一堂。
         }
       </p>
       <button
@@ -114,7 +107,7 @@
           statusFilter() === 'intervention' ? onStatusFilterChange(null) : onFilterIntervention()
         "
       >
-        {{ statusFilter() === 'intervention' ? '看全部課程' : '只看這幾門' }}
+        {{ statusFilter() === 'intervention' ? '看全部課程' : '只看這幾個班' }}
       </button>
     </div>
   }
@@ -182,7 +175,7 @@
             unit="門"
           />
           <div>
-            @for (group of courseGroups(); track group.course.id) {
+            @for (group of chapter.groups; track group.course.id) {
               @let collapsed = isCourseCollapsed(group.course.id);
               @let hasClasses = group.classes.length > 0;
               <section
@@ -225,15 +218,16 @@
                     {{ group.course.campusName ?? getCampusName(group.course.campusId) }} ·
                     {{ group.course.subjectName }}
                     <span class="wide:hidden">
-                      · {{ group.classes.length }} 個班
+                      · {{ group.classes.length }} 個班{{ openClassSuffix(group) }}
                       @if (!group.course.isActive) {
                         · 停用
                       }
                     </span>
                   </span>
                   <span class="hidden text-md text-zinc-600 tabular-nums wide:inline"
-                    ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b>
-                    個班</span
+                    ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b> 個班{{
+                      openClassSuffix(group)
+                    }}</span
                   >
                   <span
                     class="hidden text-md wide:inline"

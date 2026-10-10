@@ -562,6 +562,206 @@ describe('CoursesPage', () => {
     });
   });
 
+  describe('#1314 視覺對齊：標題兩行、搜尋無標籤、篩選鈕寫狀態、需介入以班為單位', () => {
+    const course = (id: string, name: string) => ({
+      id,
+      orgId: 'o',
+      campusId: 'campus-1',
+      name,
+      subjectId: 's-zh',
+      subjectName: '國文',
+      description: null,
+      isActive: true,
+      gradeLevels: [],
+      createdAt: '',
+      updatedAt: '',
+    });
+    const klass = (id: string, courseId: string, overrides: Record<string, unknown> = {}) =>
+      ({
+        id,
+        courseId,
+        campusId: 'campus-1',
+        name: id,
+        isActive: true,
+        scheduleCount: 1,
+        hasUpcomingSessions: true,
+        upcomingCancelledCount: 0,
+        upcomingUnassignedCount: 0,
+        upcomingClassConflictCount: 0,
+        upcomingTeacherConflictCount: 0,
+        gradeLevels: [],
+        ...overrides,
+      }) as never;
+    const el = () => fixture.nativeElement as HTMLElement;
+    const norm = (e: Element | null) => (e?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const setup = () => {
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data: [course('c1', '國一國文'), course('c2', '國二國文')],
+          meta: { total: 2, page: 1, pageSize: 20, totalPages: 1 },
+          summary: { bySubject: [{ subjectId: 's-zh', subjectName: '國文', count: 2 }] },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      // c1：一個沒時段的班＋一個正常班；c2：一個正常班＋一個沒有指派老師的班
+      (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set([
+        klass('a', 'c1', { scheduleCount: 0 }),
+        klass('b', 'c1'),
+        klass('c', 'c2'),
+        klass('d', 'c2', { upcomingUnassignedCount: 2 }),
+      ]);
+      fixture.detectChanges();
+    };
+
+    it('標題是兩行（句點後換行）：N 門課程，／M 個班正在開。', () => {
+      setup();
+      const h1 = el().querySelector('h1') as HTMLElement;
+      expect(h1.querySelector('br')).not.toBeNull();
+      expect(norm(h1)).toMatch(/^2 門課程， ?\d+ 個班正在開。$/);
+    });
+
+    it('搜尋框沒有可見標籤，但有 aria-label', () => {
+      setup();
+      expect(el().querySelector('label > span.text-sm.font-semibold')).toBeNull();
+      expect(el().querySelector('input[aria-label="搜尋課程或班級"]')).not.toBeNull();
+    });
+
+    it('操作紀錄是圖示鈕（文字只給螢幕閱讀器）', () => {
+      setup();
+      const btn = el().querySelector('button[title="操作紀錄"]') as HTMLElement;
+      expect(btn.querySelector('.sr-only')?.textContent).toBe('操作紀錄');
+    });
+
+    it('篩選鈕寫目前狀態：沒條件「全部」；有條件「N 項」', () => {
+      setup();
+      const btn = () => norm(el().querySelector('button[aria-label^="篩選"]'));
+      expect(btn()).toBe('篩選：全部');
+
+      component['selectedSubjectId'].set('s-zh');
+      fixture.detectChanges();
+      expect(btn()).toMatch(/^篩選：\d+ 項$/);
+    });
+
+    it('需介入以「班」計：4 個班裡有 2 個需介入（沒時段、未指派老師）', () => {
+      setup();
+      expect(
+        (component as unknown as { interventionCount: () => number }).interventionCount(),
+      ).toBe(2);
+      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('需介入 2 個班');
+      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain(
+        '沒有未來的課堂，家長看不到下一堂。',
+      );
+      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看這幾個班');
+    });
+
+    it('「只看這幾個班」：課程仍顯示、底下只留需介入的班；再按還原', () => {
+      setup();
+      // 切到需介入會重新取課程；回同一批
+      const again = () =>
+        coursesServiceMock.list.mockReturnValueOnce(
+          of({
+            data: [course('c1', '國一國文'), course('c2', '國二國文')],
+            meta: { total: 2, page: 1, pageSize: 20, totalPages: 1 },
+            summary: { bySubject: [] },
+          }),
+        );
+      again();
+      component['onFilterIntervention']();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+
+      const groups = (
+        component as unknown as { courseGroups: () => { classes: { id: string }[] }[] }
+      ).courseGroups();
+      expect(groups.map((g) => g.classes.map((c) => c.id))).toEqual([['a'], ['d']]);
+      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看需介入的 2 個班');
+
+      again();
+      component['onStatusFilterChange'](null);
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+      const all = (
+        component as unknown as { courseGroups: () => { classes: unknown[] }[] }
+      ).courseGroups();
+      expect(all.map((g) => g.classes.length)).toEqual([2, 2]);
+    });
+
+    // 回歸（#1431 起就有的 bug，demo 資料幾乎全是國文所以看不出來）：每一章的右側清單
+    // 原本迴圈的是**全部**課程群組，於是兩個科目就把每門課各列兩次
+    it('不同科目各歸各章：每章底下只有自己科目的課程，不會每章都列全部', () => {
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data: [
+            course('c1', '國一國文'),
+            { ...course('c2', '國一數學'), subjectId: 's-ma', subjectName: '數學' },
+          ],
+          meta: { total: 2, page: 1, pageSize: 20, totalPages: 1 },
+          summary: {
+            bySubject: [
+              { subjectId: 's-zh', subjectName: '國文', count: 1 },
+              { subjectId: 's-ma', subjectName: '數學', count: 1 },
+            ],
+          },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+
+      const perChapter = [...el().querySelectorAll('section[data-chapter]')].map((section) =>
+        [...section.querySelectorAll('section[aria-label]')].map((c) =>
+          c.getAttribute('aria-label'),
+        ),
+      );
+      expect(perChapter).toEqual([['國一國文'], ['國一數學']]);
+    });
+
+    it('課程列「N 個班」後面接「，開班中 M」／「，都沒有在開」；沒給 activeClassCount 或沒有班就不寫', () => {
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data: [
+            { ...course('c1', '國一國文'), activeClassCount: 2 },
+            { ...course('c2', '國二國文'), activeClassCount: 0 },
+            course('c3', '國三國文'),
+            { ...course('c4', '高一國文'), activeClassCount: 0 },
+          ],
+          meta: { total: 4, page: 1, pageSize: 20, totalPages: 1 },
+          summary: { bySubject: [{ subjectId: 's-zh', subjectName: '國文', count: 4 }] },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set([
+        klass('a', 'c1'),
+        klass('b', 'c1'),
+        klass('c', 'c2'),
+        klass('d', 'c3'),
+      ]);
+      fixture.detectChanges();
+
+      const row = (name: string) =>
+        norm(el().querySelector(`section[aria-label="${name}"]`)).replace(/\s+/g, ' ');
+      expect(row('國一國文')).toContain('2 個班，開班中 2');
+      expect(row('國二國文')).toContain('1 個班，都沒有在開');
+      expect(row('國三國文')).toContain('1 個班');
+      expect(row('國三國文')).not.toContain('開班中');
+      expect(row('國三國文')).not.toContain('都沒有在開');
+      // 沒有班：不寫「都沒有在開」
+      expect(row('高一國文')).not.toContain('都沒有在開');
+    });
+
+    it('沒有需介入的班：提醒列不出現', () => {
+      setup();
+      (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set([
+        klass('b', 'c1'),
+        klass('c', 'c2'),
+      ]);
+      fixture.detectChanges();
+      expect(el().textContent).not.toContain('需介入');
+    });
+  });
+
   describe('依科目分章（#1314 C1）', () => {
     const course = (id: string, name: string, subjectId: string, subjectName: string) => ({
       id,

@@ -31,6 +31,7 @@ import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 
 // Services
 import { ParentsService, Parent, ParentStatus, PARENT_STATUS_LABELS } from '@core/parents.service';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
@@ -297,6 +298,11 @@ export class ParentsPage implements OnInit {
     inactive: '停用',
     archived: '已封存',
   };
+
+  /** 孩子名旁的年級（A6「王柏翰 · 小五」）。API 沒給或不認得就不顯示，不顯示原始代碼（P5） */
+  protected gradeLabel(grade: string | null | undefined): string | null {
+    return grade ? (GRADE_LEVEL_LABELS[grade as GradeLevel] ?? null) : null;
+  }
 
   /** 識別帳號：Email 優先，沒有才用手機（A6 把兩欄合成一欄） */
   protected identOf(parent: Parent): string | null {
