@@ -12,6 +12,10 @@ export interface ParentScoreRecord {
   examName: string;
   examDate: string;
   subjectName: string | null;
+  /** 課程名（#1314 PG1）：段考、對不上報名的班 → null */
+  className: string | null;
+  /** 這筆成績的登錄時間（NEW 標籤與「M/D 登錄」用，不是考試日期） */
+  createdAt: string;
   score: number | null;
   totalScore: number | null;
   status: ParentScoreStatus;

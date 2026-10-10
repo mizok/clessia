@@ -26,6 +26,8 @@ const ParentScoreRecordSchema = z
     examName: z.string(),
     examDate: z.string(),
     subjectName: z.string().nullable(),
+    /** 課程名（#1314 PG1）：校內考＝這場考試的班裡**這個孩子在籍過的**那幾個；段考、對不上 → null */
+    className: z.string().nullable(),
     score: z.number().nullable(),
     totalScore: z.number().nullable(),
     status: z.enum(['scored', 'absent', 'makeup']),
@@ -69,6 +71,14 @@ const ListResponseSchema = z
   .openapi('ParentScoreListResponse');
 
 const ErrorSchema = z.object({ error: z.string(), code: z.string() }).openapi('ParentScoreError');
+
+/** 這場考試的班 ∩ 孩子報名過的班 → 班名（去重、用「、」接）；沒有交集 → null */
+function academyClassName(row: any, myClassIds: ReadonlySet<string>): string | null {
+  const names: string[] = (row.academy_exams?.academy_exam_classes ?? [])
+    .filter((x: any) => myClassIds.has(x.class_id) && x.classes?.name)
+    .map((x: any) => x.classes.name);
+  return names.length > 0 ? [...new Set(names)].join('、') : null;
+}
 
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -124,7 +134,7 @@ app.openapi(
 
     const recentSince = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
 
-    const [academyResult, schoolResult, academyRecent, schoolRecent, periodsResult] =
+    const [academyResult, schoolResult, academyRecent, schoolRecent, periodsResult, myClasses] =
       await Promise.all([
         academyQuery,
         schoolQuery,
@@ -142,6 +152,8 @@ app.openapi(
           .orgRef('billing_periods')
           .select('id, name, start_date, end_date')
           .order('start_date', { ascending: false }),
+        // 一場考試可以掛多個班（academy_exam_classes）：只認這個孩子報名過的班，別班的名字不外流
+        childDb.from('enrollments', 'student_id').pluck('class_id', 'class_id', childId),
       ]);
 
     if (
@@ -149,7 +161,8 @@ app.openapi(
       schoolResult.error ||
       academyRecent.error ||
       schoolRecent.error ||
-      periodsResult.error
+      periodsResult.error ||
+      myClasses.error
     ) {
       return c.json({ error: '讀取成績失敗', code: 'FETCH_GRADES_FAILED' }, 500);
     }
@@ -161,8 +174,11 @@ app.openapi(
     // examDate 退回建立日（mapSchoolScoreRow），DB 層篩 `school_exams.exam_date` 會把那些整批漏掉。
     // 一個孩子的成績本來就全撈回來在這裡分頁，篩在這裡不多撈。
     const results = [
-      ...academyRows.map((row) => mapAcademyScoreRow(row)),
-      ...schoolRows.map((row) => mapSchoolScoreRow(row)),
+      ...academyRows.map((row) => ({
+        ...mapAcademyScoreRow(row),
+        className: academyClassName(row, new Set(myClasses.ids)),
+      })),
+      ...schoolRows.map((row) => ({ ...mapSchoolScoreRow(row), className: null })),
     ].filter((r) => (!dateFrom || r.examDate >= dateFrom) && (!dateTo || r.examDate <= dateTo));
     results.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
 
