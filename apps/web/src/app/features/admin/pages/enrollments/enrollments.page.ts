@@ -10,12 +10,14 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
-import { PaginatorModule } from 'primeng/paginator';
+import { Router, RouterLink } from '@angular/router';
+import { endOfMonth, format, startOfMonth, subDays, subMonths } from 'date-fns';
 import { SelectModule } from 'primeng/select';
 
 import { skip } from 'rxjs';
+import { ClassesService, type Class } from '@core/classes.service';
+import { BILLING_MODE_LABELS } from '@core/fee-templates.service';
+import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { CampusContextService } from '@core/campus-context.service';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import {
@@ -25,10 +27,16 @@ import {
   type EnrollmentStatus,
 } from '@core/enrollments.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
-import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
+import {
+  GRADE_LEVEL_LABELS,
+  StudentsService,
+  type GradeLevel,
+  type Student,
+} from '@core/students.service';
 
 import { EVENT_LABELS, toEnrollmentEvent, type EnrollmentEvent } from './enrollment-event.util';
-import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
+import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
@@ -36,31 +44,32 @@ const MONTHS_BACK = 12;
 
 /** 期間選項的「全部」—— 清空期間就退化成全部在籍的瀏覽 */
 const ALL_MONTHS = '';
+/** A6 的預設期間：月初那幾天整頁幾乎是空的，「近 30 天」才看得到動靜 */
+const LAST_30 = 'last30';
 
 interface EnrollmentRow {
   readonly enrollment: Enrollment;
   readonly event: EnrollmentEvent;
+  /** 班名下面那行：「08/03–12/31 · 月繳」。沒有結束日寫「08/03 起」；計費模式沒填就不寫 */
+  readonly periodText: string;
+  /** 右欄第二行：新報名才有經手人（建立者）——暫停／退班是誰按的只在稽核裡，不編造 */
+  readonly handlerText: string;
 }
 
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+const monthDay = (date: string): string => date.slice(5).replace('-', '/');
+
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 @Component({
   selector: 'app-enrollments',
   imports: [
     CampusScopeNoteComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
-    DataChipComponent,
+    FilterToggleComponent,
+    StudentAutocompleteComponent,
     PageOpenComponent,
     DatePipe,
     FormsModule,
+    RouterLink,
     SelectModule,
-    PaginatorModule,
   ],
   templateUrl: './enrollments.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,9 +81,18 @@ export class EnrollmentsPage {
   /** 分校跟頂欄走（#1138）：頁內分校下拉拿掉 */
   private readonly campusCtx = inject(CampusContextService);
   private readonly router = inject(Router);
+  private readonly studentsService = inject(StudentsService);
+  private readonly classesService = inject(ClassesService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly EVENT_LABELS = EVENT_LABELS;
+  /** 事件 pill 只用字＋細框，不用底色塊（A6：新報名黑框、退班紅、暫停／作廢灰）。完整 class 字串，Tailwind 才掃得到 */
+  protected readonly PILL_CLASS: Record<EnrollmentEvent['kind'], string> = {
+    joined: 'text-zinc-900 ring-[1.5px] ring-zinc-900',
+    left: 'text-error-700 ring-1 ring-error-200',
+    paused: 'text-zinc-600 ring-1 ring-zinc-300',
+    voided: 'text-zinc-600 ring-1 ring-zinc-300',
+  };
   protected readonly STATUS_LABELS = ENROLLMENT_STATUS_LABELS;
   protected readonly pageSize = PAGE_SIZE;
 
@@ -84,11 +102,21 @@ export class EnrollmentsPage {
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
 
-  protected readonly month = signal(format(new Date(), 'yyyy-MM'));
+  protected readonly month = signal(LAST_30);
   protected readonly status = signal<EnrollmentStatus | null>(null);
+  /** 學生篩選＝選一個人（帶 studentId），不是文字搜尋：API 只收 id（#1314 EN3） */
+  protected readonly studentValue = signal<Student | string | null>(null);
+  protected readonly studentSuggestions = signal<Student[]>([]);
+  private readonly studentId = signal<string | null>(null);
+  protected readonly classId = signal<string | null>(null);
+  protected readonly classOptions = signal<{ label: string; value: string | null }[]>([
+    { label: '全部班級', value: null },
+  ]);
+  protected readonly filtersOpen = signal(false);
   private readonly campusId = this.campusCtx.id;
 
   protected readonly monthOptions = [
+    { label: '近 30 天', value: LAST_30 },
     ...Array.from({ length: MONTHS_BACK }, (_, i) => {
       const date = subMonths(new Date(), i);
       return { label: format(date, 'yyyy 年 M 月'), value: format(date, 'yyyy-MM') };
@@ -109,7 +137,20 @@ export class EnrollmentsPage {
   ];
 
   protected readonly rows = computed<EnrollmentRow[]>(() =>
-    this.enrollments().map((enrollment) => ({ enrollment, event: toEnrollmentEvent(enrollment) })),
+    this.enrollments().map((enrollment) => {
+      const event = toEnrollmentEvent(enrollment);
+      const span = enrollment.effectiveTo
+        ? `${monthDay(enrollment.effectiveFrom)}–${monthDay(enrollment.effectiveTo)}`
+        : `${monthDay(enrollment.effectiveFrom)} 起`;
+      const mode = enrollment.billingMode ? BILLING_MODE_LABELS[enrollment.billingMode] : null;
+      const joined = event.kind === 'joined';
+      return {
+        enrollment,
+        event,
+        periodText: mode ? `${span} · ${mode}` : span,
+        handlerText: joined && enrollment.createdByName ? enrollment.createdByName : '',
+      };
+    }),
   );
 
   protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
@@ -121,6 +162,28 @@ export class EnrollmentsPage {
     totalRecords: this.total(),
   }));
   protected readonly hasPeriod = computed(() => this.month() !== ALL_MONTHS);
+  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.total() / PAGE_SIZE)));
+
+  /** 「篩選」鈕上的摘要：開了哪些（期間不算，它在工具列上看得到） */
+  protected readonly filterSummary = computed(() => {
+    const parts: string[] = [];
+    const classId = this.classId();
+    if (classId)
+      parts.push(this.classOptions().find((o) => o.value === classId)?.label ?? '指定班級');
+    const status = this.status();
+    if (status) parts.push(ENROLLMENT_STATUS_LABELS[status]);
+    return parts.length > 0 ? parts.join(' · ') : '全部';
+  });
+  protected readonly hasFilter = computed(
+    () => this.studentId() !== null || this.classId() !== null || this.status() !== null,
+  );
+  /** 空狀態與摘要用：「近 30 天」「10 月」「這段期間」 */
+  protected readonly periodLabel = computed(() => {
+    const month = this.month();
+    if (month === LAST_30) return '近 30 天';
+    if (month === ALL_MONTHS) return '這段期間';
+    return `${Number(month.slice(5))} 月`;
+  });
 
   constructor() {
     this.campusCtx.use();
@@ -128,6 +191,19 @@ export class EnrollmentsPage {
     toObservable(this.campusId)
       .pipe(skip(1), takeUntilDestroyed())
       .subscribe(() => this.resetToFirstPage());
+
+    this.classesService
+      .list({ pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) =>
+          this.classOptions.set([
+            { label: '全部班級', value: null },
+            ...res.data.map((c: Class) => ({ label: c.name, value: c.id as string | null })),
+          ]),
+        // 班級清單掛了只是少一個篩選，不擋整頁
+        error: () => undefined,
+      });
 
     this.load();
   }
@@ -139,6 +215,38 @@ export class EnrollmentsPage {
 
   protected onStatusChange(value: EnrollmentStatus | null): void {
     this.status.set(value);
+    this.resetToFirstPage();
+  }
+
+  protected onStudentQuery(query: string): void {
+    this.studentsService
+      .list({ search: query, pageSize: 10 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.studentSuggestions.set(res.data),
+        error: () => this.studentSuggestions.set([]),
+      });
+  }
+
+  /** 選到人（物件）才帶 studentId；打字中或清空（字串／null）就退回不篩 */
+  protected onStudentChange(value: Student | string | null): void {
+    this.studentValue.set(value);
+    const id = value !== null && typeof value === 'object' ? value.id : null;
+    if (id === this.studentId()) return;
+    this.studentId.set(id);
+    this.resetToFirstPage();
+  }
+
+  protected onClassChange(value: string | null): void {
+    this.classId.set(value);
+    this.resetToFirstPage();
+  }
+
+  protected clearFilters(): void {
+    this.studentValue.set(null);
+    this.studentId.set(null);
+    this.classId.set(null);
+    this.status.set(null);
     this.resetToFirstPage();
   }
 
@@ -159,6 +267,10 @@ export class EnrollmentsPage {
   }
 
   /** 狀態變更的唯一入口是班級詳情頁，這裡只負責把人送過去 */
+  protected studentRoute(id: string): string {
+    return RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath.replace(':id', id);
+  }
+
   protected openClass(row: EnrollmentRow): void {
     this.router.navigate([
       '/admin/courses',
@@ -176,6 +288,8 @@ export class EnrollmentsPage {
       .list({
         ...this.periodParams(),
         status: this.status() ?? undefined,
+        studentId: this.studentId() ?? undefined,
+        classId: this.classId() ?? undefined,
         campusId: this.campusId() ?? undefined,
         // 新報名的 updatedAt 是建立時間、退班的是退班時間 —— 兩種列的最後異動剛好等於事件日
         sort: 'updatedAt',
@@ -200,6 +314,11 @@ export class EnrollmentsPage {
 
   private periodParams(): { from?: string; to?: string } {
     if (!this.hasPeriod()) return {};
+
+    if (this.month() === LAST_30) {
+      const today = new Date();
+      return { from: format(subDays(today, 29), 'yyyy-MM-dd'), to: format(today, 'yyyy-MM-dd') };
+    }
 
     const [year, month] = this.month().split('-').map(Number);
     const base = new Date(year, month - 1, 1);
