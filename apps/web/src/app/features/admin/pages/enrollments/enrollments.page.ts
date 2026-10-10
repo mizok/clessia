@@ -11,19 +11,23 @@ import {
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { endOfMonth, format, startOfMonth, subDays, subMonths } from 'date-fns';
+import { endOfMonth, format, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
 import { SelectModule } from 'primeng/select';
 
-import { skip } from 'rxjs';
+import { Subject, catchError, map, of, skip, switchMap } from 'rxjs';
 import { ClassesService, type Class } from '@core/classes.service';
 import { BILLING_MODE_LABELS } from '@core/fee-templates.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { CampusContextService } from '@core/campus-context.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import {
   ENROLLMENT_STATUS_LABELS,
   EnrollmentsService,
   type Enrollment,
+  type EnrollmentEventCounts,
+  type EnrollmentEventKind,
+  type EnrollmentListResponse,
   type EnrollmentStatus,
 } from '@core/enrollments.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -34,7 +38,13 @@ import {
   type Student,
 } from '@core/students.service';
 
-import { EVENT_LABELS, toEnrollmentEvent, type EnrollmentEvent } from './enrollment-event.util';
+import {
+  EVENT_LABELS,
+  leftNote,
+  statusLabel,
+  toEnrollmentEvent,
+  type EnrollmentEvent,
+} from './enrollment-event.util';
 import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
@@ -54,7 +64,13 @@ interface EnrollmentRow {
   readonly periodText: string;
   /** 右欄第二行：新報名才有經手人（建立者）——暫停／退班是誰按的只在稽核裡，不編造 */
   readonly handlerText: string;
+  /** 狀態欄：到期結束的 active 推導成「已結束」（#1314 EN Hero (c)） */
+  readonly statusText: string;
+  /** 「退班」pill 下的副行：辦理退班／到期結束；其他事件空字串 */
+  readonly eventNote: string;
 }
+
+const EVENT_KINDS: readonly EnrollmentEventKind[] = ['joined', 'left', 'paused', 'voided'];
 
 const monthDay = (date: string): string => date.slice(5).replace('-', '/');
 
@@ -104,6 +120,17 @@ export class EnrollmentsPage {
 
   protected readonly month = signal(LAST_30);
   protected readonly status = signal<EnrollmentStatus | null>(null);
+  /** 事件篩選（#1507）：期間內發生過這件事的列。跟「狀態」不同 —— 狀態是現在的狀態 */
+  protected readonly event = signal<EnrollmentEventKind | null>(null);
+  /** 期間內各事件的次數；null ＝載入中或失敗，Hero 不寫數字（#1524：載入中不能說成「沒有」） */
+  protected readonly counts = signal<EnrollmentEventCounts | null>(null);
+  /**
+   * 台北的今天（伺服器時鐘）：事件歸類與「已結束」都比它，跟 API 的 left 截到
+   * `getCurrentTaipeiDateString` 同一天。不用 `new Date()` —— 那是裝置時區，也躲過 test:timetravel
+   */
+  private readonly today = inject(SystemClockService).todayTaipei;
+  private readonly listReload$ = new Subject<void>();
+  private readonly countsReload$ = new Subject<void>();
   /** 學生篩選＝選一個人（帶 studentId），不是文字搜尋：API 只收 id（#1314 EN3） */
   protected readonly studentValue = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
@@ -115,14 +142,15 @@ export class EnrollmentsPage {
   protected readonly filtersOpen = signal(false);
   private readonly campusId = this.campusCtx.id;
 
-  protected readonly monthOptions = [
+  /** 月份選項也從台北的今天往回推 —— 裝置日期在跨月那幾小時會差一個月 */
+  protected readonly monthOptions = computed(() => [
     { label: '近 30 天', value: LAST_30 },
     ...Array.from({ length: MONTHS_BACK }, (_, i) => {
-      const date = subMonths(new Date(), i);
+      const date = subMonths(parseISO(this.today()), i);
       return { label: format(date, 'yyyy 年 M 月'), value: format(date, 'yyyy-MM') };
     }),
     { label: '不限期間', value: ALL_MONTHS },
-  ];
+  ]);
 
   /**
    * 刻意不放「待繳費」：目前沒有任何流程會產生 pending_payment（invoices 表還不存在），
@@ -136,9 +164,40 @@ export class EnrollmentsPage {
     })),
   ];
 
+  protected readonly eventOptions = [
+    { label: '全部事件', value: null as EnrollmentEventKind | null },
+    ...EVENT_KINDS.map((value) => ({
+      label: EVENT_LABELS[value],
+      value: value as EnrollmentEventKind | null,
+    })),
+  ];
+
+  /**
+   * 照 A6：計數跟著所有篩選走，**包括事件** —— 選「退班」時新報名寫 0（計畫席 10-10 裁 (a)）。
+   * 後端的計數不收 event（一筆報名可以同時是新報名又是退班，帶進去會變成交集），
+   * 所以這裡把沒選到的事件歸零：A6 的列是事件，篩了退班，剩下的就全是退班。
+   */
+  protected readonly shownCounts = computed<EnrollmentEventCounts | null>(() => {
+    const counts = this.counts();
+    const event = this.event();
+    if (!counts || !event) return counts;
+    return { joined: 0, left: 0, paused: 0, voided: 0, [event]: counts[event] };
+  });
+  protected readonly EVENT_KINDS = EVENT_KINDS;
+
+  /** Hero：「近 30 天新報名 N 筆，退班 M 筆。」；全是 0 寫「…沒有報名進出。」；沒有數字就是頁名 */
+  protected readonly heroTitle = computed(() => {
+    const counts = this.shownCounts();
+    if (!counts) return null;
+    const period = this.periodLabel();
+    return EVENT_KINDS.every((kind) => counts[kind] === 0)
+      ? { empty: `${period}沒有報名進出。` }
+      : { joined: `${period}新報名 ${counts.joined} 筆，`, left: `退班 ${counts.left} 筆。` };
+  });
+
   protected readonly rows = computed<EnrollmentRow[]>(() =>
     this.enrollments().map((enrollment) => {
-      const event = toEnrollmentEvent(enrollment);
+      const event = toEnrollmentEvent(enrollment, this.today(), this.event());
       const span = enrollment.effectiveTo
         ? `${monthDay(enrollment.effectiveFrom)}–${monthDay(enrollment.effectiveTo)}`
         : `${monthDay(enrollment.effectiveFrom)} 起`;
@@ -149,6 +208,8 @@ export class EnrollmentsPage {
         event,
         periodText: mode ? `${span} · ${mode}` : span,
         handlerText: joined && enrollment.createdByName ? enrollment.createdByName : '',
+        statusText: statusLabel(enrollment, this.today()),
+        eventNote: event.kind === 'left' ? leftNote(enrollment) : '',
       };
     }),
   );
@@ -170,12 +231,18 @@ export class EnrollmentsPage {
     const classId = this.classId();
     if (classId)
       parts.push(this.classOptions().find((o) => o.value === classId)?.label ?? '指定班級');
+    const event = this.event();
+    if (event) parts.push(EVENT_LABELS[event]);
     const status = this.status();
     if (status) parts.push(ENROLLMENT_STATUS_LABELS[status]);
     return parts.length > 0 ? parts.join(' · ') : '全部';
   });
   protected readonly hasFilter = computed(
-    () => this.studentId() !== null || this.classId() !== null || this.status() !== null,
+    () =>
+      this.studentId() !== null ||
+      this.classId() !== null ||
+      this.event() !== null ||
+      this.status() !== null,
   );
   /** 空狀態與摘要用：「近 30 天」「10 月」「這段期間」 */
   protected readonly periodLabel = computed(() => {
@@ -205,7 +272,42 @@ export class EnrollmentsPage {
         error: () => undefined,
       });
 
-    this.load();
+    // 兩條都用 switchMap 收斂成最後一次的條件 —— 換得快時，先發的慢回應不能蓋掉後發的
+    this.listReload$
+      .pipe(
+        switchMap(() =>
+          this.enrollmentsService.list(this.listParams()).pipe(
+            map((res): EnrollmentListResponse | null => res),
+            catchError(() => of(null)),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        this.enrollments.set(res?.data ?? []);
+        this.total.set(res?.meta.total ?? 0);
+        this.loadError.set(res === null);
+        this.loading.set(false);
+      });
+    this.countsReload$
+      .pipe(
+        switchMap(() =>
+          this.enrollmentsService.getEventCounts(this.filterParams()).pipe(
+            map((res): EnrollmentEventCounts | null => res.data),
+            // 計數掛了 Hero 退回頁名、摘要不寫事件數，列表照常
+            catchError(() => of(null)),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((counts) => this.counts.set(counts));
+
+    this.resetToFirstPage();
+  }
+
+  protected onEventChange(value: EnrollmentEventKind | null): void {
+    this.event.set(value);
+    this.resetToFirstPage();
   }
 
   protected onMonthChange(value: string): void {
@@ -246,19 +348,23 @@ export class EnrollmentsPage {
     this.studentValue.set(null);
     this.studentId.set(null);
     this.classId.set(null);
+    this.event.set(null);
     this.status.set(null);
     this.resetToFirstPage();
   }
 
+  /** 換頁不重查計數 —— 計數跟分頁無關 */
   protected onPageChange(page: number): void {
     this.currentPage.set(page);
-    this.load();
+    this.loadList();
   }
 
   /** 換篩選條件後停在第 3 頁沒有意義 —— 結果集已經不同了 */
   private resetToFirstPage(): void {
     this.currentPage.set(1);
-    this.load();
+    this.loadList();
+    this.counts.set(null);
+    this.countsReload$.next();
   }
 
   // J1/J2 沒轉成國一/國二——全站其他頁面都用中文年級（Tester #29）
@@ -280,44 +386,41 @@ export class EnrollmentsPage {
     ]);
   }
 
-  private load(): void {
+  private loadList(): void {
     this.loading.set(true);
     this.loadError.set(false);
+    this.listReload$.next();
+  }
 
-    this.enrollmentsService
-      .list({
-        ...this.periodParams(),
-        status: this.status() ?? undefined,
-        studentId: this.studentId() ?? undefined,
-        classId: this.classId() ?? undefined,
-        campusId: this.campusId() ?? undefined,
-        // 新報名的 updatedAt 是建立時間、退班的是退班時間 —— 兩種列的最後異動剛好等於事件日
-        sort: 'updatedAt',
-        page: this.currentPage(),
-        pageSize: PAGE_SIZE,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.enrollments.set(res.data);
-          this.total.set(res.meta.total);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.enrollments.set([]);
-          this.total.set(0);
-          this.loadError.set(true);
-          this.loading.set(false);
-        },
-      });
+  /** 列表與計數共用的篩選；事件只給列表（計數的事件歸零在 shownCounts） */
+  private filterParams() {
+    return {
+      ...this.periodParams(),
+      status: this.status() ?? undefined,
+      studentId: this.studentId() ?? undefined,
+      classId: this.classId() ?? undefined,
+      campusId: this.campusId() ?? undefined,
+    };
+  }
+
+  private listParams() {
+    return {
+      ...this.filterParams(),
+      event: this.event() ?? undefined,
+      // 新報名的 updatedAt 是建立時間、退班的是退班時間 —— 兩種列的最後異動剛好等於事件日
+      sort: 'updatedAt' as const,
+      page: this.currentPage(),
+      pageSize: PAGE_SIZE,
+    };
   }
 
   private periodParams(): { from?: string; to?: string } {
     if (!this.hasPeriod()) return {};
 
     if (this.month() === LAST_30) {
-      const today = new Date();
-      return { from: format(subDays(today, 29), 'yyyy-MM-dd'), to: format(today, 'yyyy-MM-dd') };
+      // 台北的今天往前 29 天：只做日曆加減，parseISO 取當地午夜不會跨日
+      const today = this.today();
+      return { from: format(subDays(parseISO(today), 29), 'yyyy-MM-dd'), to: today };
     }
 
     const [year, month] = this.month().split('-').map(Number);
