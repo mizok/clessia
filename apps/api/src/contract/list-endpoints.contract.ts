@@ -23,11 +23,19 @@ import { PERMISSIONS } from '../lib/permissions';
 const URL = process.env['SUPABASE_URL'];
 const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'];
 
-const ctx: { orgId: string; userId: string; campusScope: string[] | null; role: string } = {
+const ctx: {
+  orgId: string;
+  userId: string;
+  campusScope: string[] | null;
+  role: string;
+  /** 家長身分時是他的孩子；其他角色 null（同 authMiddleware） */
+  studentScope: string[] | null;
+} = {
   orgId: '',
   userId: '',
   campusScope: null,
   role: 'admin',
+  studentScope: null,
 };
 
 vi.mock('../middleware/auth', async (importOriginal) => {
@@ -44,8 +52,8 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('roles', [ctx.role]);
       set('permissions', ctx.role === 'admin' ? [...PERMISSIONS] : []);
       set('activeRole', ctx.role);
-      set('studentScope', null);
-      set('childDb', createChildDb(supabase as never, null, ctx.orgId));
+      set('studentScope', ctx.studentScope);
+      set('childDb', createChildDb(supabase as never, ctx.studentScope, ctx.orgId));
       set('campusScope', ctx.campusScope);
       await next();
     }),
@@ -75,11 +83,57 @@ const REQUIRED: Record<string, string> = {
   '/api/reports/revenue dateTo': '{today}',
   '/api/reports/revenue.csv dateFrom': '{monthStart}',
   '/api/reports/revenue.csv dateTo': '{today}',
+  '/api/classes/{id}/sessions/preview from': '{monthStart}',
+  '/api/classes/{id}/sessions/preview to': '{today}',
+  '/api/me/attendance childId': '{child}',
+  '/api/me/grades childId': '{child}',
+  '/api/me/renewal-preview childId': '{child}',
+  '/api/me/meals childId': '{child}',
+  '/api/me/meals dateFrom': '{monthStart}',
+  '/api/me/meals dateTo': '{today}',
+  '/api/me/billing childId': '{child}',
+  '/api/me/class-logs childId': '{child}',
+  '/api/me/sessions childId': '{child}',
+  '/api/me/sessions dateFrom': '{monthStart}',
+  '/api/me/sessions dateTo': '{today}',
+  '/api/me/catalog childId': '{child}',
+};
+
+/**
+ * 單筆端點的 path 參數 —— `<path> <param>` → seed 裡撈到的 id（beforeAll 填）。
+ * 跟 `REQUIRED` 一樣：文件有 `{param}` 而表裡沒有 → 紅，新端點不會默默漏掉。
+ * ⚠️ 很多單筆路由把查詢錯誤折成 404（`if (error || !data)`），所以**這裡要的是 200** ——
+ * 撈不到真的列就測不到形狀，id 一定要是 seed 裡存在、且互相對得上的。
+ */
+const PARAMS: Record<string, string> = {
+  '/api/courses/{id} id': '{course}',
+  '/api/campuses/{id} id': '{campus}',
+  '/api/staff/{id} id': '{teacher}',
+  '/api/classes/{id} id': '{class}',
+  '/api/classes/{id}/sessions/preview id': '{class}',
+  '/api/sessions/{id}/changes id': '{session}',
+  '/api/sessions/{id}/makeup-candidates id': '{session}',
+  '/api/students/{id} id': '{student}',
+  '/api/parents/{id} id': '{parent}',
+  '/api/attendance/roster/{eventId} eventId': '{event}',
+  '/api/academy-exams/{id} id': '{academyExam}',
+  '/api/academy-exams/{id}/scores id': '{academyExam}',
+  '/api/school-exams/{id} id': '{schoolExam}',
+  '/api/school-exams/{id}/scores id': '{schoolExam}',
+  '/api/school-exams/{id}/recent-students id': '{schoolExam}',
+  '/api/school-exams/{id}/students id': '{schoolExam}',
+  '/api/school-exams/by-student/{studentId} studentId': '{student}',
+  '/api/scores/student/{studentId}/summary studentId': '{student}',
+  '/api/scores/class/{classId}/exam/{examId} classId': '{examClass}',
+  '/api/scores/class/{classId}/exam/{examId} examId': '{academyExam}',
+  '/api/invoices/{id} id': '{invoice}',
+  '/api/invoices/{id}/reminders id': '{invoice}',
 };
 
 /** 文件沒標 required、但路由邏輯要求至少一個的（不帶回 400）—— 每次都帶 */
 const ALWAYS: Record<string, string> = {
   '/api/scores/students': 'studentId={student}',
+  '/api/meals': 'date={today}',
 };
 
 /** 不是 admin 身分的收件匣類端點，用這個角色打 */
@@ -96,12 +150,16 @@ const BRANCHES: Record<string, string[]> = {
 };
 
 /**
- * 不在這支測試範圍的前綴：`/api/me/*` 是家長／個人身分（要 seed 的家長與孩子，下一輪補），
- * `/api/public/*` 走公開 org middleware（要 `PUBLIC_ORG_SLUG`）。
+ * 家長／個人身分的端點（`/api/me` 與 `/api/me/*`）用 seed 的家長打。
+ * ⚠️ 不能寫成 `startsWith('/api/me')` —— 那會把 `/api/meals` 一起吃掉（#1435 之 1 就這樣漏了它）。
  */
-const SKIP_PREFIX = ['/api/me', '/api/public/'];
+const isMe = (path: string) => path === '/api/me' || path.startsWith('/api/me/');
+
+/** 不在這支測試範圍的前綴：`/api/public/*` 走公開 org middleware（要 `PUBLIC_ORG_SLUG`） */
+const SKIP_PREFIX = ['/api/public/'];
 
 const ids: Record<string, string> = {};
+const parentUser: { userId: string; children: string[] } = { userId: '', children: [] };
 const fill = (value: string) => value.replace(/\{\w+\}/g, (token) => ids[token] ?? token);
 
 if ((!URL || !KEY) && process.env['CONTRACT_REQUIRED']) {
@@ -115,7 +173,7 @@ if (!URL || !KEY) {
 }
 const run = URL && KEY ? describe : describe.skip;
 
-run('GET 列表端點對真 PostgREST 回 200（#1435）', () => {
+run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
   let app: { request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response> };
   let doc: {
     paths: Record<
@@ -157,8 +215,46 @@ run('GET 列表端點對真 PostgREST 回 200（#1435）', () => {
       return (data as unknown as Record<string, string>)[column]!;
     };
     ids['{teacher}'] = await first('staff');
-    ids['{student}'] = await first('students');
+    // 有報名的學生 —— 分校範圍判準要推得出分校（#1394）
+    ids['{student}'] = await first('enrollments', 'student_id');
     ids['{enrollment}'] = await first('enrollments');
+    ids['{course}'] = await first('courses');
+    ids['{campus}'] = await first('campuses');
+    ids['{class}'] = await first('classes');
+    ids['{session}'] = await first('sessions');
+    ids['{event}'] = await first('events');
+    ids['{academyExam}'] = await first('academy_exams');
+    ids['{schoolExam}'] = await first('school_exams');
+    ids['{invoice}'] = await first('invoices');
+
+    // 有班的那場校內考，classId／examId 要對得上
+    const { data: examClass, error: examClassError } = await supabase
+      .from('academy_exam_classes')
+      .select('exam_id, class_id, academy_exams!inner(org_id)')
+      .eq('academy_exams.org_id', ctx.orgId)
+      .limit(1)
+      .single();
+    if (examClassError || !examClass)
+      throw new Error(`seed 裡找不到 academy_exam_classes：${examClassError?.message}`);
+    ids['{academyExam}'] = examClass.exam_id as string;
+    ids['{examClass}'] = examClass.class_id as string;
+
+    // 有孩子的家長：家長端點用他的身分打
+    const { data: parent, error: parentError } = await supabase
+      .from('parents')
+      .select('id, user_id, parent_student_relations!inner(student_id)')
+      .eq('org_id', ctx.orgId)
+      .not('user_id', 'is', null)
+      .limit(1)
+      .single();
+    if (parentError || !parent)
+      throw new Error(`seed 裡找不到有孩子的家長：${parentError?.message}`);
+    ids['{parent}'] = parent.id as string;
+    parentUser.userId = parent.user_id as string;
+    parentUser.children = (parent.parent_student_relations as Array<{ student_id: string }>).map(
+      (r) => r.student_id,
+    );
+    ids['{child}'] = parentUser.children[0]!;
     ids['{today}'] = TODAY;
     ids['{monthStart}'] = `${TODAY.slice(0, 7)}-01`;
 
@@ -166,11 +262,13 @@ run('GET 列表端點對真 PostgREST 回 200（#1435）', () => {
     doc = (await app.request('/openapi.json', {}, env).then((r) => r.json())) as never;
   });
 
-  const endpoints = () =>
+  const endpoints = (which: 'staff' | 'me') =>
     Object.entries(doc.paths)
       .filter(
         ([path, ops]) =>
-          ops['get'] && !path.includes('{') && !SKIP_PREFIX.some((p) => path.startsWith(p)),
+          ops['get'] &&
+          !SKIP_PREFIX.some((p) => path.startsWith(p)) &&
+          isMe(path) === (which === 'me'),
       )
       .map(([path, ops]) => ({
         path,
@@ -179,32 +277,37 @@ run('GET 列表端點對真 PostgREST 回 200（#1435）', () => {
           .map((p) => p.name),
       }));
 
-  /** 一支端點的所有請求 URL；required 缺 fixture 回 null */
-  const urls = (path: string, required: string[]): string[] | null => {
+  /** 一支端點的所有請求 URL；required 或 path 參數缺 fixture 回錯誤訊息 */
+  const urls = (template: string, required: string[]): string[] | string => {
+    let path = template;
+    for (const [, name] of template.matchAll(/\{(\w+)\}/g)) {
+      const value = PARAMS[`${template} ${name}`];
+      if (value === undefined) return `path 參數 {${name}}，PARAMS 表沒有值`;
+      path = path.replace(`{${name}}`, fill(value));
+    }
     const base: string[] = [];
     for (const name of required) {
-      const value = REQUIRED[`${path} ${name}`];
-      if (value === undefined) return null;
+      const value = REQUIRED[`${template} ${name}`];
+      if (value === undefined)
+        return `文件要求 required query [${required.join(', ')}]，REQUIRED 表沒有值`;
       base.push(`${name}=${encodeURIComponent(fill(value))}`);
     }
-    if (ALWAYS[path]) base.push(fill(ALWAYS[path]));
-    return [[], ...(BRANCHES[path] ?? []).map((b) => [b])].map((extra) => {
+    if (ALWAYS[template]) base.push(fill(ALWAYS[template]));
+    return [[], ...(BRANCHES[template] ?? []).map((b) => [b])].map((extra) => {
       const qs = [...base, ...extra].join('&');
       return qs ? `${path}?${qs}` : path;
     });
   };
 
-  async function hitAll(): Promise<string[]> {
+  async function hitAll(which: 'staff' | 'me' = 'staff'): Promise<string[]> {
     const failures: string[] = [];
-    for (const { path, required } of endpoints()) {
+    for (const { path, required } of endpoints(which)) {
       const list = urls(path, required);
-      if (!list) {
-        failures.push(
-          `${path}：文件要求 required query [${required.join(', ')}]，REQUIRED 表沒有值`,
-        );
+      if (typeof list === 'string') {
+        failures.push(`${path}：${list}`);
         continue;
       }
-      ctx.role = ROLE[path] ?? 'admin';
+      ctx.role = which === 'me' ? 'parent' : (ROLE[path] ?? 'admin');
       for (const url of list) {
         const res = await app.request(url, {}, env);
         if (res.status !== 200) {
@@ -216,21 +319,30 @@ run('GET 列表端點對真 PostgREST 回 200（#1435）', () => {
     return failures;
   }
 
+  it('家長（seed 裡有孩子的那位）：/api/me 與 /api/me/* 每支都 200', async () => {
+    const staffUser = ctx.userId;
+    ctx.userId = parentUser.userId;
+    ctx.studentScope = parentUser.children;
+    try {
+      expect(await hitAll('me')).toEqual([]);
+    } finally {
+      ctx.userId = staffUser;
+      ctx.studentScope = null;
+    }
+  });
+
   it('不受限的管理員：每支都 200', async () => {
     ctx.campusScope = null;
     expect(await hitAll()).toEqual([]);
   });
 
-  // 分校範圍的 `!inner`／alias embed 只在受限時才出現在查詢裡
-  it('受限一間分校的管理員：每支都 200', async () => {
+  // 分校範圍的 `!inner`／alias embed 只在受限時（scope 非 null）才出現在查詢裡。
+  // 範圍給**全部分校**而不是一間：查詢形狀一樣，但單筆端點的 id 才必在範圍內 ——
+  // 範圍外是 404，而 404 跟「查詢形狀錯被折成 404」分不出來
+  it('受限（範圍＝全部分校，非 null）的管理員：每支都 200', async () => {
     const supabase = createClient(URL!, KEY!);
-    const { data: campus } = await supabase
-      .from('campuses')
-      .select('id')
-      .eq('org_id', ctx.orgId)
-      .limit(1)
-      .single();
-    ctx.campusScope = [campus!.id as string];
+    const { data: campuses } = await supabase.from('campuses').select('id').eq('org_id', ctx.orgId);
+    ctx.campusScope = (campuses ?? []).map((row) => row.id as string);
     try {
       expect(await hitAll()).toEqual([]);
     } finally {
