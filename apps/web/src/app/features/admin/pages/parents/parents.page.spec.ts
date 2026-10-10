@@ -284,8 +284,8 @@ describe('ParentsPage', () => {
             studentCount: 2,
             studentNames: ['小明', '小華'],
             students: [
-              { id: 's1', name: '小明' },
-              { id: 's2', name: '小華' },
+              { id: 's1', name: '小明', grade: 'P5' },
+              { id: 's2', name: '小華', grade: null },
             ],
           },
           {
@@ -357,6 +357,20 @@ describe('ParentsPage', () => {
         ['小華', '/admin/students/s2'],
       ]);
       expect(el.textContent).toContain('小美');
+    });
+
+    // A6「王柏翰 · 小五」：年級是中文，不是 P5；沒有年級（null）就只有名字，不印 null／代碼
+    it('孩子名旁顯示中文年級；沒有年級的只有名字', () => {
+      const el = load();
+      const li = el.querySelector('section[data-chapter] li') as HTMLElement;
+      // 年級是名字旁獨立的灰字（視覺上的空白由 gap 排，不靠文字空格）
+      const grades = [...li.querySelectorAll('span.text-zinc-500')].map((e) =>
+        e.textContent?.trim(),
+      );
+      expect(grades).toEqual(['· 小五']);
+      const text = (li.textContent ?? '').replace(/\s+/g, ' ');
+      expect(text).not.toContain('P5');
+      expect(text).not.toContain('null');
     });
   });
   describe('#1314 視覺對齊：章頭左欄、無表格、列攤開、數字句標題', () => {

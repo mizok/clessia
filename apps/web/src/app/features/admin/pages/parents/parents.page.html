@@ -168,11 +168,16 @@
                     @if (parent.studentCount > 0) {
                       @if (parent.students; as kids) {
                         @for (kid of kids; track kid.id) {
-                          <a
-                            [routerLink]="['/admin/students', kid.id]"
-                            class="inline-flex min-h-11 items-center text-base text-zinc-700 no-underline underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500"
-                            >{{ kid.name }}</a
-                          >
+                          <span class="inline-flex items-center gap-1">
+                            <a
+                              [routerLink]="['/admin/students', kid.id]"
+                              class="inline-flex min-h-11 items-center text-base text-zinc-700 no-underline underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500"
+                              >{{ kid.name }}</a
+                            >
+                            @if (gradeLabel(kid.grade); as grade) {
+                              <span class="text-md text-zinc-500">· {{ grade }}</span>
+                            }
+                          </span>
                         }
                       } @else {
                         @for (name of parent.studentNames; track name) {
