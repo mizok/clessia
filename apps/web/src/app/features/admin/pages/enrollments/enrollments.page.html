@@ -1,3 +1,9 @@
+<!--
+  A6 版（#1314 EN3／EN4）：色面 → 灰工具列（期間、學生、篩選）→ 列表（五格）。
+  每列：學生（連學生檔案）｜班名＋生效期間·計費模式｜事件｜狀態＋原因｜日期·分校（＋經手人與時間）。
+  整列仍點開班級（狀態變更的唯一入口是班級詳情頁，EN1／EN2 的「⋯」「直接報名」是保留類，不在這裡）。
+  現況有、A6 沒畫的：此頁唯讀的副行（保留）。
+-->
 <app-page-open>
   <ng-container openTitle>{{ page().label }}</ng-container>
   <ng-container openSub>這段期間的報名進出。此頁唯讀，要調整報名狀態請點進班級。</ng-container>
@@ -9,20 +15,71 @@
     role="search"
     aria-label="篩選報名紀錄"
   >
-    <p-select
-      [options]="monthOptions"
-      [ngModel]="month()"
-      (ngModelChange)="onMonthChange($event)"
-      optionLabel="label"
-      optionValue="value"
-    />
-    <p-select
-      [options]="statusOptions"
-      [ngModel]="status()"
-      (ngModelChange)="onStatusChange($event)"
-      optionLabel="label"
-      optionValue="value"
-    />
+    <div class="flex w-full items-center gap-2 wide:w-auto">
+      <span class="shrink-0 text-md font-semibold text-zinc-900">期間</span>
+      <p-select
+        class="min-w-0 flex-1 wide:w-44 wide:flex-none"
+        styleClass="w-full"
+        [options]="monthOptions"
+        [ngModel]="month()"
+        (ngModelChange)="onMonthChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        ariaLabel="期間"
+      />
+    </div>
+    <div class="flex w-full items-center gap-2 wide:contents">
+      <div class="min-w-0 flex-1 wide:w-72 wide:flex-none" data-testid="student-filter">
+        <app-student-autocomplete
+          placeholder="找學生（輸入姓名）"
+          [value]="studentValue()"
+          [suggestions]="studentSuggestions()"
+          [forceSelection]="false"
+          (queryChange)="onStudentQuery($event)"
+          (valueChange)="onStudentChange($event)"
+        />
+      </div>
+      <app-filter-toggle
+        [summary]="filterSummary()"
+        [active]="classId() !== null || status() !== null"
+        [(open)]="filtersOpen"
+        [always]="true"
+        controls="enrollments-filters"
+      />
+    </div>
+
+    <!-- 篩選面板：開課班、狀態。分校不放 —— 它跟頂欄走（#1138） -->
+    <div
+      id="enrollments-filters"
+      class="grid w-full grid-cols-1 gap-3 wide:order-3 wide:basis-full wide:grid-cols-4"
+      [class.hidden]="!filtersOpen()"
+    >
+      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        開課班
+        <p-select
+          styleClass="w-full"
+          [options]="classOptions()"
+          [ngModel]="classId()"
+          (ngModelChange)="onClassChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          [filter]="true"
+          ariaLabel="開課班"
+        />
+      </label>
+      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        狀態
+        <p-select
+          styleClass="w-full"
+          [options]="statusOptions"
+          [ngModel]="status()"
+          (ngModelChange)="onStatusChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          ariaLabel="狀態"
+        />
+      </label>
+    </div>
   </div>
 </div>
 
@@ -36,96 +93,142 @@
   } @else if (loadError()) {
     <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
   } @else if (rows().length === 0) {
-    <p class="m-0 text-zinc-500">
-      @if (hasPeriod()) {
-        這個月沒有報名進出。
-      } @else {
-        沒有符合條件的報名。
+    <div data-testid="empty">
+      <p class="m-0 py-4 text-base text-zinc-700">
+        @if (month() === 'last30') {
+          近 30 天沒有報名進出。
+        } @else if (hasPeriod()) {
+          {{ periodLabel() }}沒有報名進出。
+        } @else {
+          沒有符合條件的報名。
+        }
+      </p>
+      @if (hasFilter()) {
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          data-testid="clear-filters"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
       }
-    </p>
+    </div>
     <app-campus-scope-note />
   } @else {
-    <p class="enrollments__summary m-0 text-zinc-500">
+    <p class="enrollments__summary m-0 text-md text-zinc-600 tabular-nums">
       <!--
         只留全量的 T。原本「本頁 新報名 N 筆、退班 M 筆，共 T 筆」的 N／M 只算目前這一頁（≤20 列），
-        T 是伺服器全量，三個數字並排會被讀成同一個母體（#1022）。要全量的 N／M 得在列表 API 多做兩次
-        聚合（且那支有分校範圍的 inner join），等有設計真的需要再加。
+        T 是伺服器全量，三個數字並排會被讀成同一個母體（#1022）。分事件計數要後端聚合（#1507）。
       -->
-      共 {{ total() }} 筆
+      共 <strong class="text-zinc-900">{{ total() }}</strong> 筆
+      @if (hasFilter()) {
+        ·
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+          data-testid="clear-filters"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+      }
     </p>
 
-    <app-responsive-table
-      [headTemplate]="enrollmentHead"
-      [bodyTemplate]="enrollmentBody"
-      [pagination]="pagination()"
-      (page)="onPageChange($event.page + 1)"
-    />
-
-    <ng-template #enrollmentHead>
-      <tr>
-        <!--
-          學生是這一列的身分。收掉它，手機上就變成一排「插班 / 09/12 / 在學」——
-          知道發生了什麼事，但不知道發生在誰身上。
-        -->
-        <th
-          appRtColDef="student"
-          [appRtColDefMinWidth]="140"
-          [appRtColDefPriority]="1"
-          [appRtColDefCollapsible]="false"
-        >
-          學生
-        </th>
-        <!--
-          班級排在事件之前：點一列就是開那個班，所以班級是這張表**可行動的**那一欄。
-          事件與日期是描述，班級是去處。
-        -->
-        <th appRtColDef="class" [appRtColDefMinWidth]="140" [appRtColDefPriority]="2">班級</th>
-        <th appRtColDef="event" [appRtColDefMinWidth]="96" [appRtColDefPriority]="3">事件</th>
-        <th appRtColDef="date" [appRtColDefMinWidth]="80" [appRtColDefPriority]="4">日期</th>
-        <th appRtColDef="status" [appRtColDefMinWidth]="90" [appRtColDefPriority]="5">狀態</th>
-        <th appRtColDef="campus" [appRtColDefMinWidth]="110" [appRtColDefPriority]="6">分校</th>
-        <th appRtColDef="updatedAt" [appRtColDefMinWidth]="120" [appRtColDefPriority]="7">
-          最後異動
-        </th>
-      </tr>
-    </ng-template>
-
-    <ng-template #enrollmentBody>
+    <div role="list">
       @for (row of rows(); track row.enrollment.id) {
         <!--
-          整列可點（開班級詳情）。展開鈕自己有 stopPropagation（rt-row.directive），
-          所以在手機上點開明細不會順便把班級也開走。
+          整列可點（開班級詳情）。學生名是另一個連結，自己 stopPropagation，所以點名字只進學生檔案。
         -->
-        <tr
-          appRtRow
-          [appRtRow]="row"
-          [appRtRowId]="row.enrollment.id"
-          class="enrollments__row min-h-11 cursor-pointer hover:bg-zinc-100 focus-visible:bg-zinc-100"
+        <div
+          role="listitem"
+          data-testid="enrollment-row"
+          class="grid min-h-11 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-1 border-b border-surface-border py-3 hover:bg-zinc-50 focus-visible:bg-zinc-50 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_92px_minmax(0,1fr)_minmax(0,1fr)] wide:py-4"
           tabindex="0"
           (click)="openClass(row)"
           (keydown.enter)="openClass(row)"
         >
-          <td appRtColCell="student">
-            {{ row.enrollment.studentName }}
-            <span class="enrollments__grade ml-1 text-sm text-zinc-500">{{
+          <div class="min-w-0">
+            <a
+              class="inline-flex min-h-11 items-center text-lg font-bold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+              data-testid="student-link"
+              [routerLink]="[studentRoute(row.enrollment.studentId)]"
+              (click)="$event.stopPropagation()"
+              >{{ row.enrollment.studentName }}</a
+            >
+            <span class="ml-1.5 text-sm font-medium text-zinc-600">{{
               getGradeLabel(row.enrollment.studentGrade)
             }}</span>
-          </td>
-          <td appRtColCell="class">{{ row.enrollment.className }}</td>
-          <td appRtColCell="event">
-            <app-data-chip>{{ EVENT_LABELS[row.event.kind] }}</app-data-chip>
-          </td>
-          <td appRtColCell="date">{{ row.event.date | date: 'MM/dd' }}</td>
-          <td appRtColCell="status">
-            {{ STATUS_LABELS[row.enrollment.status] }}
+          </div>
+          <div class="col-span-2 row-start-2 min-w-0 wide:col-span-1 wide:row-start-auto">
+            <span class="block text-md font-semibold text-zinc-900">{{
+              row.enrollment.className
+            }}</span>
+            <span
+              class="block text-sm font-medium text-zinc-600 tabular-nums"
+              data-testid="period-text"
+              >{{ row.periodText }}</span
+            >
+          </div>
+          <span
+            class="col-start-2 row-start-1 inline-flex h-[22px] items-center justify-self-start rounded-full px-2 text-sm font-semibold whitespace-nowrap ring-inset wide:col-start-auto wide:row-start-auto"
+            data-testid="event-pill"
+            [class]="PILL_CLASS[row.event.kind]"
+            >{{ EVENT_LABELS[row.event.kind] }}</span
+          >
+          <div class="col-span-2 min-w-0 wide:col-span-1">
+            <span class="block text-md text-zinc-800">{{
+              STATUS_LABELS[row.enrollment.status]
+            }}</span>
             @if (row.enrollment.statusReason) {
-              <span class="block text-sm text-zinc-600">{{ row.enrollment.statusReason }}</span>
+              <span class="block text-sm text-zinc-600" data-testid="status-reason">{{
+                row.enrollment.statusReason
+              }}</span>
             }
-          </td>
-          <td appRtColCell="campus">{{ row.enrollment.campusName ?? '—' }}</td>
-          <td appRtColCell="updatedAt">{{ row.enrollment.updatedAt | date: 'MM/dd HH:mm' }}</td>
-        </tr>
+          </div>
+          <div
+            class="col-span-2 min-w-0 text-sm text-zinc-600 tabular-nums wide:col-span-1 wide:text-right"
+          >
+            {{ row.event.date | date: 'MM/dd' }} · {{ row.enrollment.campusName ?? '—' }}
+            <span class="block" data-testid="handler-text">
+              @if (row.handlerText) {
+                {{ row.handlerText }}
+              }
+              {{
+                (row.event.kind === 'joined' ? row.enrollment.createdAt : row.enrollment.updatedAt)
+                  | date: 'MM/dd HH:mm'
+              }}</span
+            >
+          </div>
+        </div>
       }
-    </ng-template>
+    </div>
+
+    @if (totalPages() > 1) {
+      <nav
+        class="flex items-center justify-center gap-3 py-4 text-md text-zinc-600 tabular-nums"
+        aria-label="分頁"
+      >
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="prev-page"
+          [disabled]="currentPage() <= 1"
+          (click)="onPageChange(currentPage() - 1)"
+        >
+          上一頁
+        </button>
+        <span data-testid="page-indicator">第 {{ currentPage() }}／{{ totalPages() }} 頁</span>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="next-page"
+          [disabled]="currentPage() >= totalPages()"
+          (click)="onPageChange(currentPage() + 1)"
+        >
+          下一頁
+        </button>
+      </nav>
+    }
   }
 </div>
