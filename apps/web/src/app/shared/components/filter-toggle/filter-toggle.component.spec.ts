@@ -49,6 +49,12 @@ describe('FilterToggleComponent', () => {
     expect(host.classList.contains('wide:hidden')).toBe(true);
   });
 
+  it('always：桌機也渲染（宿主不帶 wide:hidden）', () => {
+    fixture.componentRef.setInput('always', true);
+    fixture.detectChanges();
+    expect(host.classList.contains('wide:hidden')).toBe(false);
+  });
+
   it('鈕高 ≥44px（A27 的 class 版）', () => {
     expect(button().classList.contains('h-11')).toBe(true);
   });
