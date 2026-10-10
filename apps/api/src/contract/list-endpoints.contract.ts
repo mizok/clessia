@@ -145,6 +145,7 @@ const ROLE: Record<string, string> = {
 const BRANCHES: Record<string, string[]> = {
   '/api/sessions/changes': ['q=英文'],
   '/api/courses': ['search=數學'],
+  '/api/students': ['search=國中', 'grade=J1&isActive=true'],
   '/api/invoices': ['outstanding=true', 'issuedMonth=' + TODAY.slice(0, 7)],
   '/api/invoices/summary': [],
 };
