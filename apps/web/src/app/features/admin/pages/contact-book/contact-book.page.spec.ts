@@ -15,7 +15,6 @@ import {
 import { StudentsService, type Student } from '@core/students.service';
 
 import { ContactBookPage } from './contact-book.page';
-import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   id: 'e1',
@@ -190,50 +189,6 @@ describe('ContactBookPage', () => {
     });
   });
 
-  describe('分頁', () => {
-    beforeEach(async () => {
-      // 比一頁多 5 筆，這樣分頁才真的被測到（頁大小改動時這裡要跟著動）
-      const rows = Array.from({ length: LIST_PAGE_SIZE + 5 }, (_, i) => entry({ id: `e${i}` }));
-      contactBook.list.mockReturnValue(of(listResponse(rows)));
-      component['load']();
-      await fixture.whenStable();
-    });
-
-    it('第一頁只顯示一頁的量', () => {
-      expect(component['pagedEntries']().length).toBe(LIST_PAGE_SIZE);
-    });
-
-    it('第二頁顯示剩下的 5 筆', () => {
-      component['onPageChange']({
-        first: LIST_PAGE_SIZE,
-        rows: LIST_PAGE_SIZE,
-        page: 1,
-        pageCount: 2,
-      });
-
-      expect(component['pagedEntries']().length).toBe(5);
-    });
-
-    it('分頁總數是篩選後的筆數', () => {
-      expect(component['pagination']().totalRecords).toBe(LIST_PAGE_SIZE + 5);
-    });
-
-    // 停在第 2 頁換篩選會看到空白 —— 篩完要回第一頁
-    it('切換未簽收會回到第一頁', () => {
-      component['onPageChange']({
-        first: LIST_PAGE_SIZE,
-        rows: LIST_PAGE_SIZE,
-        page: 1,
-        pageCount: 2,
-      });
-      expect(component['currentPage']()).toBe(2);
-
-      component['toggleUnsignedOnly']();
-
-      expect(component['currentPage']()).toBe(1);
-    });
-  });
-
   it('取數失敗時顯示失敗狀態而不是空清單', async () => {
     contactBook.list.mockReturnValue(throwError(() => new Error('boom')));
     component['load']();
@@ -305,18 +260,6 @@ describe('ContactBookPage', () => {
       expect(component['failed']()).toBe(false);
     });
 
-    // 同一個學生在兩個開了聯絡簿的班，要寫的仍然只有一則 —— 班名並列不是兩列
-    it('多班的學生班名並列在同一列', () => {
-      const target = missingStudent({
-        classes: [
-          { classId: 'c1', className: '三年級數學' },
-          { classId: 'c2', className: '三年級英文' },
-        ],
-      });
-
-      expect(component['classNamesOf'](target)).toBe('三年級數學、三年級英文');
-    });
-
     it('補寫完的學生從待辦名單移掉', async () => {
       contactBook.missing.mockReturnValue(
         of({
@@ -335,42 +278,95 @@ describe('ContactBookPage', () => {
     });
   });
 
-  describe('待辦名單的摺疊', () => {
-    const many = (n: number) =>
-      Array.from({ length: n }, (_, i) => ({
-        studentId: `stu-${i}`,
-        studentName: `學生${i}`,
-        classes: [{ classId: 'c1', className: '三年級數學' }],
-      }));
+  describe('A6 對齊（CB1 CB2 CB4）', () => {
+    const miss = (id: string, ...classes: string[]): MissingContactBookStudent => ({
+      studentId: id,
+      studentName: `學生${id}`,
+      classes: classes.map((c) => ({ classId: c, className: `班${c}` })),
+    });
+    const el = () => fixture.nativeElement as HTMLElement;
 
-    // 它是待辦不是清單 —— 沒有上限的話一天 30 位沒寫就佔滿首屏（實測 8 位已滿版）
-    it('超過 5 位時預設只顯示前 5 位', async () => {
-      contactBook.missing.mockReturnValue(of({ data: many(12), meta: { total: 12 } }));
+    async function load(
+      entries: ContactBookEntry[],
+      missing: MissingContactBookStudent[] = [],
+    ): Promise<void> {
+      contactBook.list.mockReturnValue(of(listResponse(entries)));
+      contactBook.missing.mockReturnValue(of({ data: missing, meta: { total: missing.length } }));
+      component['load']();
       component['loadMissing']();
+      fixture.detectChanges();
       await fixture.whenStable();
+      fixture.detectChanges();
+    }
 
-      expect(component['visibleMissing']().length).toBe(5);
-      expect(component['hiddenMissingCount']()).toBe(7);
+    it('CB1 缺漏名單一班一列，列上寫還差幾則、名字是補寫鈕', async () => {
+      await load([], [miss('1', 'A'), miss('2', 'A'), miss('3', 'B', 'A')]);
+
+      const rows = Array.from(el().querySelectorAll('[data-testid="missing-class"]'));
+      expect(
+        rows.map((r) => r.querySelector('[data-testid="missing-left"]')?.textContent?.trim()),
+      ).toEqual(['還差 2 則', '還差 1 則']);
+      expect(rows[0].querySelectorAll('[data-testid="missing-write"]').length).toBe(2);
     });
 
-    it('展開之後全部顯示', async () => {
-      contactBook.missing.mockReturnValue(of({ data: many(12), meta: { total: 12 } }));
-      component['loadMissing']();
-      await fixture.whenStable();
+    it('CB1 按學生名字就是補寫該生', async () => {
+      await load([], [miss('1', 'A')]);
+      const write = vi.spyOn(component as never, 'writeMissing' as never);
 
-      component['toggleMissingExpanded']();
+      (el().querySelector('[data-testid="missing-write"]') as HTMLButtonElement).click();
 
-      expect(component['visibleMissing']().length).toBe(12);
-      expect(component['hiddenMissingCount']()).toBe(0);
+      expect(write).toHaveBeenCalledWith(expect.objectContaining({ studentId: '1' }));
     });
 
-    it('不足 5 位時不摺疊也沒有隱藏數', async () => {
-      contactBook.missing.mockReturnValue(of({ data: many(3), meta: { total: 3 } }));
-      component['loadMissing']();
-      await fixture.whenStable();
+    it('CB2 依日分段，只有最新一天展開，每段寫幾則幾則未簽', async () => {
+      await load([
+        entry({ id: 'a', entryDate: '2026-08-29', isSigned: true }),
+        entry({ id: 'b', entryDate: '2026-08-29' }),
+        entry({ id: 'c', entryDate: '2026-08-28' }),
+      ]);
 
-      expect(component['visibleMissing']().length).toBe(3);
-      expect(component['hiddenMissingCount']()).toBe(0);
+      const days = Array.from(el().querySelectorAll<HTMLDetailsElement>('[data-testid="day"]'));
+      expect(days.map((d) => d.open)).toEqual([true, false]);
+      expect(days[0].querySelector('[data-testid="day-meta"]')?.textContent?.trim()).toBe(
+        '2 則 · 1 則未簽收',
+      );
+    });
+
+    it('CB4 篩選中所有日段展開，摘要多一句顯示 N 則', async () => {
+      await load([
+        entry({ id: 'a', entryDate: '2026-08-29' }),
+        entry({ id: 'b', entryDate: '2026-08-28' }),
+        entry({ id: 'c', entryDate: '2026-08-27', isSigned: true }),
+      ]);
+
+      component['toggleUnsignedOnly']();
+      fixture.detectChanges();
+
+      const days = Array.from(el().querySelectorAll<HTMLDetailsElement>('[data-testid="day"]'));
+      expect(days.map((d) => d.open)).toEqual([true, true]);
+      expect(el().querySelector('[data-testid="shown"]')?.textContent).toBe('2');
+    });
+
+    it('簽收欄寫台北時間，沒簽的寫未簽收', async () => {
+      await load([
+        entry({ id: 'a', isSigned: true, signedAt: '2026-08-29T12:15:00Z' }),
+        entry({ id: 'b' }),
+      ]);
+
+      expect(el().querySelector('[data-testid="signed"]')?.textContent).toContain('20:15');
+      expect(el().querySelectorAll('[data-testid="unsigned"]').length).toBe(1);
+    });
+
+    it('缺漏日期下拉選日期就查那天；選其他日期只出現 datepicker 不查', () => {
+      contactBook.missing.mockClear();
+
+      component['onMissingPick']('2026-08-27');
+      expect(contactBook.missing).toHaveBeenCalledWith('2026-08-27');
+
+      contactBook.missing.mockClear();
+      component['onMissingPick']('other');
+      expect(contactBook.missing).not.toHaveBeenCalled();
+      expect(component['missingPick']()).toBe('other');
     });
   });
 

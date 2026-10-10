@@ -3,7 +3,7 @@ title: 聯絡簿管理端頁的設計
 summary: 管理端的聯絡簿是監看不是撰寫：日期區間列表＋未簽收篩選（API 無分頁且 count 是 exact，所以前端篩是誠實的），編輯已存在的一則走同一支 upsert，但不做「挑學生開新的一則」——那是老師端 P3 的工作流。「今天哪些該寫還沒寫」這輪不做，現有 API 做出來會漏班且是 N+1。
 category: architecture
 status: active
-updated: 2026-08-29
+updated: 2026-10-10
 tags: [architecture, admin, contact-book]
 ---
 
@@ -132,3 +132,13 @@ contact-book.page          日期區間 + 學生 autocomplete + 未簽收 toggle
 —— 這兩個是坑 #1 的兩半，`app.routes.spec.ts` 會自動把新的 `showInMenu` 項目納入斷言。
 
 復用 `shared/components/` 的 `student-autocomplete`、`responsive-table`、`empty-state`。
+
+## A6 對齊（#1314 CB1–CB4，2026-10）
+
+- **缺漏名單一班一列**：分組鍵是 `classes[0]`（一則聯絡簿屬於學生不屬於班，同生跨班只列一次）；
+  名字即補寫鈕。原本「預設只顯示 5 位、其餘展開」拿掉——一班一列已把數量壓進列數。
+  日期用 A6 的週日下拉（最近 7 天的上課日＋今天），最後一項「其他日期…」才開 datepicker。
+- **列表依日分段**（原生 `<details>`）：最新一天展開，篩選中全部展開；**分頁與 responsive-table 拿掉**
+  （日期區間限制了量）。簽收欄只寫時間（`signedAt`→台北 HH:mm）。
+- **還沒有 API 的**：簽收人姓名（`signedBy` 是 `ba_user.id`，要 `signedByName`）、帶班老師名與「提醒老師補寫」
+  （`/missing` 不回老師、也沒有提醒 API）、「○○班都寫了」腳註（`/missing` 只回缺的班）。

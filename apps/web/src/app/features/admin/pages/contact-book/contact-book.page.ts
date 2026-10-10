@@ -5,7 +5,6 @@ import { format } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToastModule } from 'primeng/toast';
-import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -20,27 +19,24 @@ import { StudentsService, type Student } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
 
 import { ContactBookEntryDialogComponent } from '@shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component';
-import { dateRangeOf, signedSummary } from './contact-book.util';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import {
+  dateRangeOf,
+  dayLabel,
+  groupEntriesByDay,
+  groupMissingByClass,
+  missingDayOptions,
+  OTHER_DAY,
+  signedSummary,
+  signedTimeText,
+} from './contact-book.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
-import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const DEFAULT_RANGE_DAYS = 7;
-/** 待辦區塊預設顯示幾位 —— 超過就摺起來，首屏要留給下面的歷史列表 */
-const MISSING_PREVIEW_COUNT = 5;
-const PAGE_SIZE = LIST_PAGE_SIZE;
 
 /**
  * 聯絡簿（管理端）—— 見 kb/wiki/rules/contact-book-rules.md 與
@@ -49,8 +45,9 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
  * **這一頁是監看不是撰寫。** rules 規則 4 指派給管理端的任務只有一句：
  * 「能看哪些還沒簽」。撰寫是帶班老師的工作流（老師端 P3）。
  *
- * **未簽收篩選與分頁都在前端做，而且是誠實的** —— `GET /api/contact-book` 沒有分頁，
+ * **未簽收篩選在前端做，而且是誠實的** —— `GET /api/contact-book` 沒有分頁，
  * 回的是符合日期區間的**全部**，所以手上的資料是完整的。
+ * （A6 對齊後依日分段、沒有分頁。）
  * （對照 `/api/invoices`：那支有分頁，前端篩就只篩得到當頁，所以繳費頁沒有做狀態篩選。
  * 判斷「前端能不能篩」看的是資料完不完整，不是「前端篩」這個做法本身。）
  *
@@ -60,18 +57,13 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   selector: 'app-admin-contact-book',
   standalone: true,
   imports: [
-    StatusDotComponent,
     FormsModule,
     ButtonModule,
     DatePickerModule,
     ToastModule,
-    TooltipModule,
     EmptyStateComponent,
     StudentAutocompleteComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
+    SelectFieldComponent,
     FilterChipComponent,
     PageOpenComponent,
   ],
@@ -105,11 +97,6 @@ export class ContactBookPage implements OnInit {
   // 列表問的是「一段區間」—— 綁在一起的話改區間結束日會同時動到兩件事。
   // 這個端點的消費場景是行政的當日待辦，所以它自己的預設就是今天。
   protected readonly missing = signal<MissingContactBookStudent[]>([]);
-  /**
-   * 待辦名單預設只顯示前幾位。**它是待辦不是清單** —— 沒有上限的話，一天有 30 位
-   * 沒寫就佔滿整個首屏，下面的歷史列表被推到看不見（實測 8 位就已經滿版）。
-   */
-  protected readonly missingExpanded = signal(false);
   protected readonly missingLoading = signal(true);
   protected readonly missingFailed = signal(false);
   /**
@@ -121,13 +108,15 @@ export class ContactBookPage implements OnInit {
    * `format()` 照本地格式化是對的 —— **只有「一開始是哪一天」需要跟伺服器對齊**。
    */
   protected missingDate: Date = new Date(`${this.systemClock.todayTaipei()}T00:00:00`);
+  /** 缺漏名單日期下拉的選中值：一個日期，或 `OTHER_DAY`（此時顯示 datepicker） */
+  protected readonly missingPick = signal<string>(this.systemClock.todayTaipei());
+  protected readonly missingDayOptions = missingDayOptions(this.systemClock.todayTaipei());
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
   protected readonly unsignedOnly = signal(false);
   protected readonly student = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
-  protected readonly currentPage = signal(1);
 
   /** p-datepicker 的 range 模式給的是 `[start, end]`，end 在選第一個日期時是 null */
   protected dateRange: Date[] | null = initialRange(this.today);
@@ -144,23 +133,11 @@ export class ContactBookPage implements OnInit {
     this.unsignedOnly() ? this.entries().filter((entry) => !entry.isSigned) : this.entries(),
   );
 
-  protected readonly pagedEntries = computed(() => {
-    const start = (this.currentPage() - 1) * PAGE_SIZE;
-    return this.visibleEntries().slice(start, start + PAGE_SIZE);
-  });
+  /** 依日分段（A6）。篩選中的日段全部展開，沒篩選只展開最新一天 */
+  protected readonly dayGroups = computed(() => groupEntriesByDay(this.visibleEntries()));
 
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
-    first: Math.max((this.currentPage() - 1) * PAGE_SIZE, 0),
-    rows: PAGE_SIZE,
-    totalRecords: this.visibleEntries().length,
-  }));
-
-  protected readonly visibleMissing = computed(() =>
-    this.missingExpanded() ? this.missing() : this.missing().slice(0, MISSING_PREVIEW_COUNT),
-  );
-  protected readonly hiddenMissingCount = computed(() =>
-    Math.max(0, this.missing().length - this.visibleMissing().length),
-  );
+  /** 一班一列（A6）：缺漏名單的分組鍵是班，同生跨班只歸第一個班 */
+  protected readonly missingGroups = computed(() => groupMissingByClass(this.missing()));
 
   protected readonly hasFilters = computed(
     () => this.unsignedOnly() || this.selectedStudent() !== null,
@@ -178,7 +155,6 @@ export class ContactBookPage implements OnInit {
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
-    this.currentPage.set(1);
 
     const [from, to] = rangeToStrings(this.dateRange, this.today);
 
@@ -219,6 +195,15 @@ export class ContactBookPage implements OnInit {
     this.loadMissing();
   }
 
+  /** 下拉選到日期就查那天；選「其他日期…」只換成 datepicker，等使用者挑了才查 */
+  protected onMissingPick(value: string | null): void {
+    if (!value) return;
+    this.missingPick.set(value);
+    if (value !== OTHER_DAY) this.onMissingDateChange(new Date(`${value}T00:00:00`));
+  }
+
+  protected readonly otherDay = OTHER_DAY;
+
   /**
    * 從缺漏名單補寫一則。學生與日期都是清單給的 —— 不需要選擇器，
    * 所以這條路徑不違反「管理端不做挑學生開新一則」那個決定。
@@ -250,12 +235,16 @@ export class ContactBookPage implements OnInit {
     });
   }
 
-  protected toggleMissingExpanded(): void {
-    this.missingExpanded.update((v) => !v);
+  protected isDayOpen(index: number): boolean {
+    return index === 0 || this.hasFilters();
   }
 
-  protected classNamesOf(target: MissingContactBookStudent): string {
-    return target.classes.map((c) => c.className).join('、');
+  protected dayTitle(date: string): string {
+    return dayLabel(date, this.today);
+  }
+
+  protected signedTime(entry: ContactBookEntry): string {
+    return signedTimeText(entry.signedAt);
   }
 
   protected onDateRangeChange(value: Date[] | null): void {
@@ -285,10 +274,9 @@ export class ContactBookPage implements OnInit {
       });
   }
 
-  /** 未簽收是**前端篩**，資料沒變，不必重打 API —— 只要回到第一頁 */
+  /** 未簽收是**前端篩**，資料沒變，不必重打 API */
   protected toggleUnsignedOnly(): void {
     this.unsignedOnly.update((v) => !v);
-    this.currentPage.set(1);
   }
 
   protected clearFilters(): void {
@@ -297,10 +285,6 @@ export class ContactBookPage implements OnInit {
     this.studentSuggestions.set([]);
     this.dateRange = initialRange(this.today);
     this.load();
-  }
-
-  protected onPageChange(event: ResponsiveTablePageEvent): void {
-    this.currentPage.set(Math.floor(event.first / PAGE_SIZE) + 1);
   }
 
   protected openEntry(entry: ContactBookEntry): void {
