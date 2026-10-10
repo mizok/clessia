@@ -163,6 +163,13 @@ const BRANCHES: Record<string, string[]> = {
   '/api/invoices/summary': [],
   // 管理端請假頁（#1314 LV1）：待處理＝endFrom 今天、依開始日排序
   '/api/leaves': ['endFrom=' + TODAY + '&order=start_asc', 'order=start_desc'],
+  // 報名進出（#1507）：事件條件是 `and(…)` 包在 `.or()` 裡、退班截到今天 —— 替身驗不了 PostgREST 的解析
+  '/api/enrollments': [
+    'from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY,
+    'event=left&from=' + TODAY.slice(0, 7) + '-01&to=2099-12-31',
+    'event=paused',
+  ],
+  '/api/enrollments/event-counts': ['from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY],
 };
 
 /**

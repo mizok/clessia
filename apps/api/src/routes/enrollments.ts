@@ -9,9 +9,20 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { inOrg } from '../lib/org-scope';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
-import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
+import {
+  ENROLLMENT_EVENT_KINDS,
+  buildPeriodFilter,
+  buildSelect,
+  eventFilter,
+  sortColumn,
+} from './enrollments/list-query';
 import { monthRange, prorateByDays } from '../lib/proration';
-import { applyCampusFilter, filtersCampus, getCampusScope } from '../lib/campus-scope';
+import {
+  applyCampusFilter,
+  filtersCampus,
+  getCampusScope,
+  type CampusScope,
+} from '../lib/campus-scope';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { auditFieldDiff } from '../lib/audit-diff';
@@ -490,6 +501,39 @@ const ScheduleConflictErrorSchema = ErrorSchema.extend({
 
 const app = new OpenAPIHono<AppEnv>();
 
+const EnrollmentEventKindSchema = z.enum(ENROLLMENT_EVENT_KINDS).openapi('EnrollmentEventKind');
+
+/** 列表與事件計數共用的篩選參數 —— 計數數的就是列表那一批（#1507） */
+const ListFilterQuerySchema = z.object({
+  classId: DbUuidSchema.optional(),
+  studentId: DbUuidSchema.optional(),
+  campusId: DbUuidSchema.optional(),
+  status: EnrollmentStatusSchema.optional(),
+  // 期間內「發生過事情」：新報名、退班（含到期結束）、暫停、作廢，判準見 list-query.ts
+  from: z.string().date().optional(),
+  to: z.string().date().optional(),
+});
+
+interface ListFilters {
+  readonly orgId: string;
+  readonly campusScope: CampusScope;
+  readonly campusId?: string;
+  readonly classId?: string;
+  readonly studentId?: string;
+  readonly status?: string;
+}
+
+function applyListFilters<
+  T extends { eq(column: string, value: string): T; in(column: string, values: string[]): T },
+>(query: T, filters: ListFilters): T {
+  let q = query.eq('org_id', filters.orgId);
+  if (filters.classId) q = q.eq('class_id', filters.classId);
+  if (filters.studentId) q = q.eq('student_id', filters.studentId);
+  q = applyCampusFilter(q, 'classes.campus_id', filters.campusScope, filters.campusId);
+  if (filters.status) q = q.eq('status', filters.status);
+  return q;
+}
+
 // GET /api/enrollments
 app.openapi(
   createRoute({
@@ -497,14 +541,9 @@ app.openapi(
     path: '/',
     tags: ['Enrollments'],
     request: {
-      query: z.object({
-        classId: DbUuidSchema.optional(),
-        studentId: DbUuidSchema.optional(),
-        campusId: DbUuidSchema.optional(),
-        status: EnrollmentStatusSchema.optional(),
-        // 期間內「發生過事情」：這段期間開始生效（新報名）或結束（退班）
-        from: z.string().date().optional(),
-        to: z.string().date().optional(),
+      query: ListFilterQuerySchema.extend({
+        /** 只留期間內發生過這種事件的列（#1507）；沒給期間時只比狀態 */
+        event: EnrollmentEventKindSchema.optional(),
         sort: z.enum(['createdAt', 'updatedAt']).optional(),
         /**
          * 有沒有開過帳單（`invoice_items.enrollment_id` 有沒有對到這筆報名）。
@@ -540,6 +579,7 @@ app.openapi(
       status,
       from,
       to,
+      event,
       sort,
       hasInvoice,
       page = 1,
@@ -554,21 +594,20 @@ app.openapi(
     let query = supabase
       .from('enrollments')
       .select(buildSelect(filtersCampus(campusScope, campusId), hasInvoice), { count: 'exact' })
-      .eq('org_id', orgId)
       .order(sortColumn(sort), { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
-
-    if (classId) query = query.eq('class_id', classId);
-    if (studentId) query = query.eq('student_id', studentId);
-    query = applyCampusFilter(query, 'classes.campus_id', campusScope, campusId);
-    if (status) query = query.eq('status', status);
+    query = applyListFilters(query, { orgId, campusScope, campusId, classId, studentId, status });
 
     // `true` 的過濾由 select 裡的 `!inner` 完成；`false` 要再下這一條
     // 兩個方向都先把作廢單的明細篩掉（#898）—— 作廢 = 收費項回到未開帳
     if (hasInvoice !== undefined) query = query.is('invoice_items.invoices.voided_at', null);
     if (hasInvoice === false) query = query.is('invoice_items', null);
 
-    const periodFilter = buildPeriodFilter(from, to);
+    // 指定事件時，事件條件本身就帶著期間
+    const today = getCurrentTaipeiDateString();
+    const periodFilter = event
+      ? eventFilter(event, from, to, today)
+      : buildPeriodFilter(from, to, today);
     if (periodFilter) query = query.or(periodFilter);
 
     const { data, count, error } = await query;
@@ -579,6 +618,74 @@ app.openapi(
       {
         data: (data ?? []).map(toEnrollmentResponse),
         meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
+      },
+      200,
+    );
+  },
+);
+
+// GET /api/enrollments/event-counts —— 報名進出 Hero 數字句與摘要（#1507）
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/event-counts',
+    tags: ['Enrollments'],
+    request: { query: ListFilterQuerySchema },
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              // 數的是發生過的事：報了又退的人兩邊各算一次，加起來可以大於列表的 total
+              data: z.object({
+                joined: z.number(),
+                left: z.number(),
+                paused: z.number(),
+                voided: z.number(),
+              }),
+            }),
+          },
+        },
+        description: 'OK',
+      },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
+    },
+  }),
+  async (c) => {
+    const { from, to, ...rest } = c.req.valid('query');
+    const supabase = c.get('supabase');
+    const campusScope = getCampusScope(c);
+    const filters: ListFilters = { orgId: c.get('orgId'), campusScope, ...rest };
+    const today = getCurrentTaipeiDateString();
+    // 分校條件走 classes 的 inner join，判準同列表（#815）
+    // 型別標成 string：字面值會讓 supabase-js 去解析 select，配上泛型 filter 會遞迴過深
+    const select: string = filtersCampus(campusScope, rest.campusId)
+      ? 'id, classes!inner(id)'
+      : 'id';
+
+    const results = await Promise.all(
+      ENROLLMENT_EVENT_KINDS.map(async (kind) => {
+        const base = supabase.from('enrollments').select(select, { count: 'exact', head: true });
+        let query = applyListFilters(base, filters);
+        const condition = eventFilter(kind, from, to, today);
+        if (condition) query = query.or(condition);
+        const { count, error } = await query;
+        return { kind, count: count ?? 0, error };
+      }),
+    );
+
+    const failed = results.find((result) => result.error);
+    if (failed?.error) return c.json({ error: failed.error.message }, 500);
+
+    return c.json(
+      {
+        data: Object.fromEntries(results.map(({ kind, count }) => [kind, count])) as Record<
+          (typeof ENROLLMENT_EVENT_KINDS)[number],
+          number
+        >,
       },
       200,
     );

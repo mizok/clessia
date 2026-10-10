@@ -1,40 +1,85 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPeriodFilter, buildSelect, sortColumn } from './list-query';
+import {
+  ENROLLMENT_EVENT_KINDS,
+  buildPeriodFilter,
+  buildSelect,
+  eventFilter,
+  sortColumn,
+} from './list-query';
+
+const TODAY = '2026-10-10';
+
+describe('eventFilter（#1507：計數與列表共用的事件判準）', () => {
+  it('新報名只看 effective_from，不論現在狀態 —— 報了又退也算一次新報名', () => {
+    expect(eventFilter('joined', '2026-08-01', '2026-08-31', TODAY)).toBe(
+      'and(effective_from.gte.2026-08-01,effective_from.lte.2026-08-31)',
+    );
+  });
+
+  // 計畫席 10-10 裁：active 的 effective_to 過了就離開名冊（today-attendance 等同判準），到期也算退班
+  it('退班＝effective_to 在期間內且不是作廢（辦理退班與到期結束都算）', () => {
+    expect(eventFilter('left', '2026-08-01', '2026-08-31', TODAY)).toBe(
+      'and(status.neq.void,effective_to.gte.2026-08-01,effective_to.lte.2026-08-31)',
+    );
+  });
+
+  it('期間迄日在未來時，退班只算到今天 —— 排定日還沒到的人還沒走', () => {
+    expect(eventFilter('left', '2026-10-01', '2026-10-31', TODAY)).toBe(
+      'and(status.neq.void,effective_to.gte.2026-10-01,effective_to.lte.2026-10-10)',
+    );
+    expect(eventFilter('left', undefined, undefined, TODAY)).toBe(
+      'and(status.neq.void,effective_to.lte.2026-10-10)',
+    );
+  });
+
+  it('作廢看 effective_to、暫停看 status_changed_at，都要配狀態', () => {
+    expect(eventFilter('voided', '2026-08-01', '2026-08-31', TODAY)).toBe(
+      'and(status.eq.void,effective_to.gte.2026-08-01,effective_to.lte.2026-08-31)',
+    );
+    expect(eventFilter('paused', '2026-08-01', undefined, TODAY)).toBe(
+      'and(status.eq.suspended,status_changed_at.gte.2026-08-01)',
+    );
+  });
+
+  it('沒給期間時：新報名不篩，其他只比狀態', () => {
+    expect(eventFilter('joined', undefined, undefined, TODAY)).toBeNull();
+    expect(eventFilter('paused', undefined, undefined, TODAY)).toBe('status.eq.suspended');
+  });
+});
 
 describe('buildPeriodFilter', () => {
-  it('期間內新報名、退班或暫停都要抓到', () => {
-    expect(buildPeriodFilter('2026-08-01', '2026-08-31')).toBe(
-      'and(effective_from.gte.2026-08-01,effective_from.lte.2026-08-31),' +
-        'and(effective_to.gte.2026-08-01,effective_to.lte.2026-08-31),' +
-        'and(status.eq.suspended,status_changed_at.gte.2026-08-01,status_changed_at.lte.2026-08-31)',
+  it('期間內的列＝四種事件的聯集', () => {
+    expect(buildPeriodFilter('2026-08-01', '2026-08-31', TODAY)).toBe(
+      ENROLLMENT_EVENT_KINDS.map((kind) =>
+        eventFilter(kind, '2026-08-01', '2026-08-31', TODAY),
+      ).join(','),
     );
+  });
+
+  // 原本結束分支不看狀態也不看今天：排定 effective_to 落在期間內的在籍生會被列進來、標成新報名
+  it('排定日還沒到的在籍生不在進出總覽裡', () => {
+    const filter = buildPeriodFilter('2026-10-01', '2026-10-31', TODAY) ?? '';
+
+    // 唯一不配狀態、看 effective_to 的分支是退班，它的迄日要截到今天
+    expect(filter).toContain(
+      'and(status.neq.void,effective_to.gte.2026-10-01,effective_to.lte.2026-10-10)',
+    );
+    expect(filter).not.toMatch(/(^|,)and\(effective_to/);
   });
 
   it('只給起日時每個欄位都只比起日', () => {
-    expect(buildPeriodFilter('2026-08-01', undefined)).toBe(
-      'effective_from.gte.2026-08-01,effective_to.gte.2026-08-01,' +
-        'and(status.eq.suspended,status_changed_at.gte.2026-08-01)',
-    );
-  });
-
-  it('只給迄日時每個欄位都只比迄日', () => {
-    expect(buildPeriodFilter(undefined, '2026-08-31')).toBe(
-      'effective_from.lte.2026-08-31,effective_to.lte.2026-08-31,' +
-        'and(status.eq.suspended,status_changed_at.lte.2026-08-31)',
+    expect(buildPeriodFilter('2026-08-01', undefined, TODAY)).toBe(
+      'effective_from.gte.2026-08-01,' +
+        'and(status.neq.void,effective_to.gte.2026-08-01,effective_to.lte.2026-10-10),' +
+        'and(status.eq.suspended,status_changed_at.gte.2026-08-01),' +
+        'and(status.eq.void,effective_to.gte.2026-08-01)',
     );
   });
 
   // 期間清空 = 看全部在籍，不是看空清單
   it('沒有期間就不篩', () => {
-    expect(buildPeriodFilter(undefined, undefined)).toBeNull();
-  });
-
-  it('兩個欄位都要出現 —— 只比 effective_from 會漏掉整批退班', () => {
-    const filter = buildPeriodFilter('2026-08-01', '2026-08-31') ?? '';
-
-    expect(filter).toContain('effective_from');
-    expect(filter).toContain('effective_to');
+    expect(buildPeriodFilter(undefined, undefined, TODAY)).toBeNull();
   });
 });
 
@@ -81,7 +126,9 @@ describe('buildSelect 的 hasInvoice', () => {
   });
 
   it('要「有帳單」時用 inner join', () => {
-    expect(buildSelect(false, true)).toContain('invoice_items!inner(id, invoices!inner(voided_at))');
+    expect(buildSelect(false, true)).toContain(
+      'invoice_items!inner(id, invoices!inner(voided_at))',
+    );
   });
 
   it('要「沒帳單」時用 left join（過濾靠 is.null，不是 join）', () => {

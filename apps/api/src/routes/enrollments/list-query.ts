@@ -8,33 +8,63 @@
  */
 
 /** 一個欄位落在 [from, to] 的條件；只給單邊就只比單邊 */
-function columnInRange(column: string, from?: string, to?: string): string | null {
-  const parts: string[] = [];
-  if (from) parts.push(`${column}.gte.${from}`);
-  if (to) parts.push(`${column}.lte.${to}`);
+function columnInRange(column: string, from?: string, to?: string): string[] {
+  return [...(from ? [`${column}.gte.${from}`] : []), ...(to ? [`${column}.lte.${to}`] : [])];
+}
 
-  if (parts.length === 0) return null;
-  return parts.length === 1 ? parts[0] : `and(${parts.join(',')})`;
+/** 報名進出的四種事件（A6 / #1314 EN5；字面跟前端 `enrollment-event.util.ts` 對齊） */
+export const ENROLLMENT_EVENT_KINDS = ['joined', 'left', 'paused', 'voided'] as const;
+export type EnrollmentEventKind = (typeof ENROLLMENT_EVENT_KINDS)[number];
+
+/**
+ * 某一種事件「在期間內發生過」的條件（#1507）。計數與列表共用這一份 —— 兩邊各寫一份，
+ * 摘要的數字就會跟列對不上。
+ *
+ * 數的是**發生過的事，不是列**：報了又退的人，新報名、退班各算一次（計畫席 10-10 裁 A）。
+ *
+ * - `joined`：`effective_from` 在期間內，不論現在狀態
+ * - `left`：`effective_to` 在期間內且不是作廢 —— 辦理退班**與到期結束**都算：active 列的
+ *   `effective_to` 過了就真的離開名冊（today-attendance／attendance／billing-periods 同判準）。
+ *   另加 `effective_to <= today`：期間的迄日在未來時，排定日還沒到的人還沒走
+ * - `voided`：作廢，日期也在 `effective_to`（updateStatus 寫當天）
+ * - `paused`：暫停不寫 `effective_to`，日期在 `status_changed_at` —— 那是「最近一次」變更，
+ *   恢復也會寫它，所以要配 `status=suspended`
+ *
+ * 回傳的是 PostgREST `.or()` 的一個元素；條件為空（`joined` 又沒給期間）時回 null ＝不篩。
+ */
+export function eventFilter(
+  kind: EnrollmentEventKind,
+  from: string | undefined,
+  to: string | undefined,
+  today: string,
+): string | null {
+  const conditions = {
+    joined: columnInRange('effective_from', from, to),
+    left: [
+      'status.neq.void',
+      ...columnInRange('effective_to', from, to && to < today ? to : today),
+    ],
+    voided: ['status.eq.void', ...columnInRange('effective_to', from, to)],
+    paused: ['status.eq.suspended', ...columnInRange('status_changed_at', from, to)],
+  }[kind];
+
+  if (conditions.length === 0) return null;
+  return conditions.length === 1 ? conditions[0] : `and(${conditions.join(',')})`;
 }
 
 /**
- * 期間內「發生過事情」的報名：這段期間開始生效（新報名）、這段期間結束（退班／作廢），
- * 或這段期間被暫停（#1314 EN5：暫停不寫 effective_to，日期在 `status_changed_at`）。
- * 暫停那項要配 `status=suspended` —— `status_changed_at` 是「最近一次」變更，恢復也會寫它。
+ * 期間內「發生過事情」的報名＝四種事件的聯集，直接餵給 `.or()`；沒有期間時回 null（不篩）。
  *
- * 回傳的字串直接餵給 PostgREST 的 `.or()`；沒有任何期間條件時回 null（代表不篩）。
+ * 抽出來是因為這個 OR 跨三個欄位，而 PostgREST 的 `.or()` 字串很容易寫錯又不會報錯 ——
+ * 錯的結果是「篩選看起來有作用但漏掉一半的列」，安靜且難以察覺。
  */
-export function buildPeriodFilter(from?: string, to?: string): string | null {
-  const started = columnInRange('effective_from', from, to);
-  const ended = columnInRange('effective_to', from, to);
-
-  if (!started || !ended) return null;
-  const suspendedOn = [
-    'status.eq.suspended',
-    ...(from ? [`status_changed_at.gte.${from}`] : []),
-    ...(to ? [`status_changed_at.lte.${to}`] : []),
-  ];
-  return `${started},${ended},and(${suspendedOn.join(',')})`;
+export function buildPeriodFilter(
+  from: string | undefined,
+  to: string | undefined,
+  today: string,
+): string | null {
+  if (!from && !to) return null;
+  return ENROLLMENT_EVENT_KINDS.map((kind) => eventFilter(kind, from, to, today)).join(',');
 }
 
 const SELECT_COLUMNS =
