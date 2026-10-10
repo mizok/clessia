@@ -527,7 +527,7 @@ describe('CoursesPage', () => {
     const chapterHeads = () =>
       Array.from(
         (fixture.nativeElement as HTMLElement).querySelectorAll(
-          'section[data-chapter] > div:first-child',
+          'section[data-chapter] > app-chapter-head',
         ),
       ).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim());
 

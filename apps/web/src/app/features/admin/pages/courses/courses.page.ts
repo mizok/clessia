@@ -60,6 +60,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -88,6 +89,7 @@ interface CourseChapter {
   selector: 'app-courses',
   standalone: true,
   imports: [
+    ChapterHeadComponent,
     PageActionsComponent,
     ClassRowComponent,
     CommonModule,

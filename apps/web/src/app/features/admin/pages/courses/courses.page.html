@@ -168,18 +168,16 @@
       <!-- 依科目分章（#1314 C1，A6 chap--row）：桌機左欄科目名＋張數，右邊是課程列 -->
       @for (chapter of chapters(); track chapter.subjectId + chapter.groups[0].course.id) {
         <section
-          class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0 wide:grid-cols-[10rem_minmax(0,1fr)] wide:gap-x-6"
+          class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
           [attr.aria-label]="chapter.subjectName"
           [attr.data-chapter]="chapter.subjectId"
         >
-          <div class="flex items-baseline gap-2 pt-4 wide:flex-col wide:gap-1">
-            <h2 class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900">
-              {{ chapter.subjectName }}
-            </h2>
-            @if (chapter.tally !== null) {
-              <p class="m-0 text-md text-zinc-600 tabular-nums">{{ chapter.tally }} 門</p>
-            }
-          </div>
+          <app-chapter-head
+            class="block pt-6 wide:pt-8"
+            [name]="chapter.subjectName"
+            [count]="chapter.tally"
+            unit="門"
+          />
           <div>
             @for (group of courseGroups(); track group.course.id) {
               @let collapsed = isCourseCollapsed(group.course.id);
