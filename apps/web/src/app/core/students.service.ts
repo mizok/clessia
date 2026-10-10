@@ -26,6 +26,8 @@ export interface Student {
   parentNames: string[];
   /** 主要家長電話：只有 `/api/students` 列表回、只有管理員有值（#1138），老師是 null */
   primaryParentPhone?: string | null;
+  /** 列表、而且有算的時候才有（#1314 SL1）。null = 今天沒有他的課 */
+  todayStatus?: { state: StudentTodayState; dueAt: string | null; arrivedAt: string | null } | null;
   /** 列表才有（#1314 SL2）：任一待繳費 → pending_payment；否則在籍 → active；暫停 → suspended；只剩退班 → withdrawal；沒報名 → null */
   enrollmentState?: 'pending_payment' | 'active' | 'suspended' | 'withdrawal' | null;
   campusNames: string[];
@@ -56,9 +58,15 @@ export interface StudentListResponse {
     activeCount: number;
     /** 依年級分章（#1314 SL3）：列舉順序、每級都有；吃列表篩選但不吃 grade */
     byGrade: { grade: GradeLevel; count: number }[];
+    /** 今日到班各狀態人數（#1314 SL1）。只套分校範圍；沒算或逐堂點名模式 → null */
+    today?: Record<StudentTodayFilter, number> | null;
   };
   meta: { total: number; page: number; pageSize: number; totalPages: number };
 }
+
+/** 今日到班（#1314 SL1）。判準跟作業台同一份（後端 `lib/today-attendance.ts`） */
+export type StudentTodayState = 'arrived' | 'on_leave' | 'missing' | 'not_yet';
+export type StudentTodayFilter = 'any' | StudentTodayState;
 
 export interface StudentQueryParams {
   search?: string;
@@ -71,6 +79,8 @@ export interface StudentQueryParams {
   schoolId?: string | null;
   /** 老師端用。實際範圍由後端依角色決定，這個旗標只是意圖 */
   taughtByMe?: boolean;
+  /** 今日到班篩選。逐堂點名模式的分校 → 400 `TODAY_UNSUPPORTED_MODE` */
+  today?: StudentTodayFilter;
   /** `false` = 不算今日到班（只要總數的呼叫用）。後端預設第一頁才算 */
   withToday?: boolean;
 }
@@ -174,6 +184,7 @@ export class StudentsService {
     if (params.isActive !== undefined) q['isActive'] = params.isActive;
     if (params.schoolId !== undefined && params.schoolId !== null) q['schoolId'] = params.schoolId;
     if (params.taughtByMe !== undefined) q['taughtByMe'] = params.taughtByMe;
+    if (params.today !== undefined) q['today'] = params.today;
     if (params.withToday !== undefined) q['withToday'] = params.withToday;
     return q;
   }
