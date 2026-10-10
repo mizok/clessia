@@ -2,13 +2,18 @@ import { signal } from '@angular/core';
 import { format, subDays } from 'date-fns';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { NEVER, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { CampusContextService } from '@core/campus-context.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { ClassesService } from '@core/classes.service';
-import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
+import {
+  EnrollmentsService,
+  type Enrollment,
+  type EnrollmentListResponse,
+} from '@core/enrollments.service';
 import { StudentsService } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
@@ -52,6 +57,15 @@ describe('EnrollmentsPage', () => {
   let component: EnrollmentsPage;
 
   const listMock = vi.fn();
+  /**
+   * 列的事件歸類與「已結束」看伺服器時鐘的台北今天。刻意釘在離真實日期很遠的一天：
+   * 改回讀 `new Date()` 的話，下面用 TODAY 推出的日期就會分錯類。
+   */
+  const TODAY = '2027-03-15';
+  const clockMock = { todayTaipei: signal(TODAY) };
+  const ago = (days: number) => format(subDays(new Date(`${TODAY}T12:00:00`), days), 'yyyy-MM-dd');
+  const COUNTS = { joined: 1, left: 0, paused: 0, voided: 0 };
+  const countsMock = vi.fn();
   const refDataMock = { campuses: signal<unknown[]>([]), loadCampuses: vi.fn() };
   const navigateMock = vi.fn();
   const studentsListMock = vi.fn();
@@ -84,14 +98,17 @@ describe('EnrollmentsPage', () => {
     navigateMock.mockReset();
 
     listMock.mockReturnValue(of({ data, meta: { total, page: 1, pageSize: 20, totalPages: 1 } }));
+    countsMock.mockReset();
+    countsMock.mockReturnValue(of({ data: COUNTS }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
       providers: [
-        { provide: EnrollmentsService, useValue: { list: listMock } },
+        { provide: EnrollmentsService, useValue: { list: listMock, getEventCounts: countsMock } },
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
+        { provide: SystemClockService, useValue: clockMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -120,14 +137,16 @@ describe('EnrollmentsPage', () => {
     );
     localStorage.removeItem('clessia.campusContext');
     listMock.mockReturnValue(NEVER);
+    countsMock.mockReturnValue(of({ data: COUNTS }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
       providers: [
-        { provide: EnrollmentsService, useValue: { list: listMock } },
+        { provide: EnrollmentsService, useValue: { list: listMock, getEventCounts: countsMock } },
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
+        { provide: SystemClockService, useValue: clockMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -144,10 +163,21 @@ describe('EnrollmentsPage', () => {
     await setup();
 
     const call = listMock.mock.calls[0][0];
-    const day = (offset: number) => format(subDays(new Date(), offset), 'yyyy-MM-dd');
-    expect(call.from).toBe(day(29));
-    expect(call.to).toBe(day(0));
+    // 從時鐘替身的台北今天推，不是裝置日期
+    expect(call.from).toBe(ago(29));
+    expect(call.to).toBe(TODAY);
     expect(call.sort).toBe('updatedAt');
+  });
+
+  it('月份選項從時鐘的台北今天往回推 12 個月', async () => {
+    await setup();
+
+    const months = component['monthOptions']()
+      .map((o) => o.value)
+      .filter((v) => /^\d{4}-\d{2}$/.test(v));
+    expect(months[0]).toBe(TODAY.slice(0, 7));
+    expect(months).toHaveLength(12);
+    expect(months.at(-1)).toBe('2026-04');
   });
 
   it('選月份就查那一整個月', async () => {
@@ -296,14 +326,16 @@ describe('EnrollmentsPage', () => {
     );
     localStorage.removeItem('clessia.campusContext');
     listMock.mockReturnValue(throwError(() => new Error('boom')));
+    countsMock.mockReturnValue(of({ data: COUNTS }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
       providers: [
-        { provide: EnrollmentsService, useValue: { list: listMock } },
+        { provide: EnrollmentsService, useValue: { list: listMock, getEventCounts: countsMock } },
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
+        { provide: SystemClockService, useValue: clockMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -500,6 +532,178 @@ describe('EnrollmentsPage', () => {
     it('只有一頁就不畫分頁', async () => {
       await setup();
       expect(q('page-indicator')).toBeNull();
+    });
+  });
+
+  describe('Hero 數字句、事件計數與事件篩選（#1507）', () => {
+    const hero = () => q('hero-title')!.textContent!.replace(/\s+/g, '');
+
+    it('照期間寫「新報名 N 筆，退班 M 筆。」', async () => {
+      await setup();
+      countsMock.mockReturnValue(of({ data: { joined: 12, left: 3, paused: 1, voided: 0 } }));
+      component['onMonthChange']('last30');
+      fixture.detectChanges();
+      expect(hero()).toBe('近30天新報名12筆，退班3筆。');
+
+      component['onMonthChange']('2026-08');
+      fixture.detectChanges();
+      expect(hero()).toBe('8月新報名12筆，退班3筆。');
+
+      component['onMonthChange']('');
+      fixture.detectChanges();
+      expect(hero()).toBe('這段期間新報名12筆，退班3筆。');
+    });
+
+    it('四個數都是 0 寫「沒有報名進出」', async () => {
+      await setup();
+      countsMock.mockReturnValue(of({ data: { joined: 0, left: 0, paused: 0, voided: 0 } }));
+      component['onMonthChange']('last30');
+      fixture.detectChanges();
+
+      expect(hero()).toBe('近30天沒有報名進出。');
+    });
+
+    // #1524：載入中不能說成「沒有」，失敗也不能寫 0
+    it('計數載入中或失敗時，標題是頁名，不寫數字；列表照常', async () => {
+      await setup();
+      countsMock.mockReturnValue(NEVER);
+      component['onMonthChange']('2026-08');
+      fixture.detectChanges();
+      expect(hero()).toBe(RoutesCatalog.ADMIN_ENROLLMENTS.label);
+      expect(qa('event-count')).toHaveLength(0);
+
+      countsMock.mockReturnValue(throwError(() => new Error('boom')));
+      component['onMonthChange']('2026-09');
+      fixture.detectChanges();
+      expect(hero()).toBe(RoutesCatalog.ADMIN_ENROLLMENTS.label);
+      expect(qa('enrollment-row')).toHaveLength(1);
+    });
+
+    it('摘要：共 N 筆之後列四種事件數', async () => {
+      await setup();
+      countsMock.mockReturnValue(of({ data: { joined: 5, left: 2, paused: 1, voided: 1 } }));
+      component['onMonthChange']('last30');
+      fixture.detectChanges();
+
+      expect(qa('event-count').map((el) => el.textContent!.replace(/\s+/g, ''))).toEqual([
+        '·新報名5',
+        '·退班2',
+        '·暫停1',
+        '·作廢1',
+      ]);
+    });
+
+    it('計數跟著期間、學生、班、狀態、分校走，但不帶分頁', async () => {
+      await setup();
+      component['onClassChange']('class-1');
+      component['onStatusChange']('withdrawal');
+
+      const call = countsMock.mock.calls.at(-1)![0];
+      expect(call).toMatchObject({ classId: 'class-1', status: 'withdrawal', from: ago(29) });
+      expect(call.page).toBeUndefined();
+      expect(call.event).toBeUndefined();
+
+      countsMock.mockClear();
+      component['onPageChange'](2);
+      expect(countsMock).not.toHaveBeenCalled();
+    });
+
+    // 計畫席 10-10 裁 (a)：照 A6，選「退班」時新報名寫 0
+    it('選事件：列表帶 event；計數只留那一種，其他歸零；篩選摘要與清除都算它', async () => {
+      await setup();
+      countsMock.mockReturnValue(of({ data: { joined: 5, left: 2, paused: 1, voided: 0 } }));
+      listMock.mockClear();
+
+      component['onEventChange']('left');
+      fixture.detectChanges();
+
+      expect(listMock.mock.calls[0][0].event).toBe('left');
+      expect(hero()).toBe('近30天新報名0筆，退班2筆。');
+      expect(component['filterSummary']()).toBe('退班');
+      expect(component['hasFilter']()).toBe(true);
+
+      listMock.mockClear();
+      component['clearFilters']();
+      expect(listMock.mock.calls[0][0].event).toBeUndefined();
+      expect(component['event']()).toBeNull();
+    });
+
+    it('有指定事件時 pill 寫那件事：報了又退的人在「新報名」篩選下是新報名', async () => {
+      const churned = enrollment({
+        status: 'withdrawal',
+        effectiveFrom: ago(8),
+        effectiveTo: ago(2),
+      });
+      await setup([churned]);
+      expect(q('event-pill')!.textContent).toContain('退班');
+
+      component['onEventChange']('joined');
+      fixture.detectChanges();
+      expect(q('event-pill')!.textContent).toContain('新報名');
+    });
+
+    it('退班副行分「辦理退班」與「到期結束」；到期結束的狀態欄寫「已結束」不寫在學', async () => {
+      await setup([
+        enrollment({ id: 'w', status: 'withdrawal', effectiveTo: ago(5) }),
+        enrollment({ id: 'x', status: 'active', effectiveTo: ago(3) }),
+        // 排定日還沒到：仍是新報名、在學，沒有副行
+        enrollment({ id: 'y', status: 'active', effectiveTo: ago(-20) }),
+        // effective_to 當天還在籍：歸成退班（同 API 的 ≤），狀態欄還不是「已結束」
+        enrollment({ id: 'z', status: 'active', effectiveTo: TODAY }),
+      ]);
+
+      expect(component['rows']().map((r) => r.event.kind)).toEqual([
+        'left',
+        'left',
+        'joined',
+        'left',
+      ]);
+      expect(qa('event-note').map((el) => el.textContent!.trim())).toEqual([
+        '辦理退班',
+        '到期結束',
+        '到期結束',
+      ]);
+      expect(qa('status-text').map((el) => el.textContent!.trim())).toEqual([
+        '退班',
+        '已結束',
+        '在學',
+        '在學',
+      ]);
+    });
+
+    // charter #1524：每條 switchMap 要有亂序 spec —— 先發的慢回應不能蓋掉後發的
+    it('列表亂序回應：只認最後一次條件的結果', async () => {
+      await setup();
+      const slow = new Subject<EnrollmentListResponse>();
+      const fast = new Subject<EnrollmentListResponse>();
+      listMock.mockReturnValueOnce(slow).mockReturnValueOnce(fast);
+
+      component['onStatusChange']('withdrawal');
+      component['onStatusChange']('suspended');
+      fast.next({
+        data: [enrollment({ id: 'new' })],
+        meta: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+      });
+      slow.next({
+        data: [enrollment({ id: 'old' })],
+        meta: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+      });
+
+      expect(component['rows']().map((r) => r.enrollment.id)).toEqual(['new']);
+    });
+
+    it('計數亂序回應：只認最後一次條件的結果', async () => {
+      await setup();
+      const slow = new Subject<{ data: typeof COUNTS }>();
+      const fast = new Subject<{ data: typeof COUNTS }>();
+      countsMock.mockReturnValueOnce(slow).mockReturnValueOnce(fast);
+
+      component['onStatusChange']('withdrawal');
+      component['onStatusChange']('suspended');
+      fast.next({ data: { joined: 2, left: 0, paused: 7, voided: 0 } });
+      slow.next({ data: { joined: 9, left: 9, paused: 0, voided: 0 } });
+
+      expect(component['counts']()).toEqual({ joined: 2, left: 0, paused: 7, voided: 0 });
     });
   });
 });
