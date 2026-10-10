@@ -348,6 +348,17 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
   // 分校範圍的 `!inner`／alias embed 只在受限時（scope 非 null）才出現在查詢裡。
   // 範圍給**全部分校**而不是一間：查詢形狀一樣，但單筆端點的 id 才必在範圍內 ——
   // 範圍外是 404，而 404 跟「查詢形狀錯被折成 404」分不出來
+  // 替身比字串、驗不出 enum 的列舉序（P1…S3）—— 這條只有真 PostgREST 驗得了
+  it('學生列表依年級列舉序排（P1…S3），不是字串序', async () => {
+    ctx.campusScope = null;
+    const ORDER = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'];
+    const res = await app.request('/api/students?pageSize=100&withToday=false', {}, env);
+    const body = (await res.json()) as { data: Array<{ grade: string }> };
+    const ranks = body.data.map((s) => ORDER.indexOf(s.grade));
+    expect(new Set(body.data.map((s) => s.grade)).size).toBeGreaterThan(1); // seed 要有多個年級才驗得到
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+  });
+
   it('受限（範圍＝全部分校，非 null）的管理員：每支都 200', async () => {
     const supabase = createClient(URL!, KEY!);
     const { data: campuses } = await supabase.from('campuses').select('id').eq('org_id', ctx.orgId);
