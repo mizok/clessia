@@ -14,16 +14,22 @@ import { ButtonModule } from 'primeng/button';
  * 而這輪的全站分析已經有三個實例證明分岔必然發生（點名兩份實作、成績登錄兩份、
  * `selectionMode="range"` 有能力沒用）。所以這裡只收一次宣告，由元件決定渲染在哪。
  *
- * ## 為什麼是全寬停靠列而不是浮動圓鈕
+ * ## 手機的形態：浮起托盤（2026-10，A6 推翻了下面兩段「歷史」）
  *
- * 圓鈕在右下角，**對左手使用者是最遠的角落**；而且圓鈕只放得下圖示，
- * 而「＋」在不同頁面意思不同（新增課程／新增人員／新增請假）——
- * 使用者無法從圖示預測按下去會發生什麼。全寬列左右手都在範圍內，也放得下完整文字。
+ * 現行：手機渲染成**浮起托盤**（左右各內縮 12px、圓角、白底、陰影），最多兩顆 ——
+ * **次要在左、主要在右**（A6 學生檔案＝「登記請假」＋「收款」；帳單＝「開立帳單」＋「全部提醒」）。
+ * 托盤是左右手都碰得到的全寬形態，不是右下角圓鈕，所以舊的反對理由仍然成立；
+ * 它推翻的是「貼邊的整條橫線」與「只收一顆」。
  *
- * ## 只收一顆主要行動
+ * ### 歷史（2026-10 前的決定，已被 A6 推翻，留著是因為理由仍有參考價值）
  *
- * `primary` 是單數，**這是刻意的**。次要行動（操作紀錄、匯入）走投影內容、只在桌機標頭出現。
- * 停靠列放兩顆以上，它就變成第二排導覽，而導覽已經在頂欄了。
+ * **「為什麼是全寬停靠列而不是浮動圓鈕」**：圓鈕在右下角，對左手使用者是最遠的角落；
+ * 而且圓鈕只放得下圖示，「＋」在不同頁面意思不同，使用者無法從圖示預測按下去會發生什麼。
+ * 全寬列左右手都在範圍內，也放得下完整文字。——**托盤保留了這兩點**，只是不再貼邊。
+ *
+ * **「只收一顆主要行動」**：停靠列放兩顆以上，它就變成第二排導覽。——
+ * A6 的反例是**兩顆都是同一個脈絡的動作**（登記請假／收款都是在處理這一個學生），
+ * 不是導覽；所以現在放寬到「一顆次要＋一顆主要」，**仍然不收第三顆**（型別上就放不進）。
  *
  * ## 破壞性行動永遠不要放進來
  *
@@ -45,8 +51,15 @@ export interface PageAction {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PageActionsComponent {
-  /** 這一頁的主要行動。不給就只渲染次要行動（桌機），手機上完全不佔空間。 */
+  /** 這一頁的主要行動。不給就只渲染投影的次要行動（桌機），手機上完全不佔空間。 */
   readonly primary = input<PageAction | null>(null);
+
+  /**
+   * 托盤左邊那顆（與 `primary` 同一個脈絡的動作，例如「登記請假」＋「收款」）。
+   * **沒有 `primary` 時不渲染** —— 托盤的存在理由是主要行動，只剩次要就不該佔一條。
+   */
+  readonly secondary = input<PageAction | null>(null);
+  readonly secondaryClick = output<MouseEvent>();
 
   /**
    * 帶著原始的 `MouseEvent` —— 有些主要行動要**錨定一個彈出選單**在按鈕上
@@ -56,6 +69,11 @@ export class PageActionsComponent {
    * 正好是拇指旁邊，不用另外處理。
    */
   readonly primaryClick = output<MouseEvent>();
+
+  protected onSecondary(event: MouseEvent): void {
+    if (this.secondary()?.disabled) return;
+    this.secondaryClick.emit(event);
+  }
 
   protected onPrimary(event: MouseEvent): void {
     if (this.primary()?.disabled) return;

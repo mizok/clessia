@@ -13,10 +13,14 @@ describe('PageActionsComponent', () => {
   let fixture: ComponentFixture<PageActionsComponent>;
   let host: HTMLElement;
 
-  const setup = async (primary: { label: string; icon?: string; disabled?: boolean } | null) => {
+  const setup = async (
+    primary: { label: string; icon?: string; disabled?: boolean } | null,
+    secondary: { label: string; icon?: string; disabled?: boolean } | null = null,
+  ) => {
     await TestBed.configureTestingModule({ imports: [PageActionsComponent] }).compileComponents();
     fixture = TestBed.createComponent(PageActionsComponent);
     fixture.componentRef.setInput('primary', primary);
+    fixture.componentRef.setInput('secondary', secondary);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -81,14 +85,63 @@ describe('PageActionsComponent', () => {
     expect(headerPrimary!.parentElement).toBe(header);
   });
 
-  // ── 只收一顆 ──────────────────────────────────────────────────────────────
-  // `primary` 是單數，型別上就放不進第二顆。這條測試釘的是「停靠列裡只有一顆按鈕」，
-  // 因為投影內容（次要行動）不該漏進停靠列。
-  it('停靠列裡只有一顆按鈕 —— 次要行動不該漏進來', async () => {
+  // ── 托盤（2026-10，A6 推翻 2026-10 前「單一主要行動」的決定）──────────────
+  // 托盤最多兩顆：次要在左、主要在右（A6 學生檔案＝「登記請假」＋「收款」）。
+  // `primary`／`secondary` 各自是單數，**型別上放不進第三顆**；投影內容（桌機標頭的
+  // 其他次要行動）仍然不該漏進托盤，所以沒給 secondary 時托盤裡還是只有一顆。
+  it('沒給 secondary 時托盤裡只有一顆按鈕 —— 投影內容不該漏進來', async () => {
     await setup({ label: '新增請假' });
 
-    const dockButtons = host.querySelectorAll('.page-actions__dock button');
-    expect(dockButtons.length).toBe(1);
+    expect(host.querySelectorAll('.page-actions__dock button').length).toBe(1);
+  });
+
+  it('給了 secondary：托盤兩顆，次要在左、主要在右', async () => {
+    await setup({ label: '收款' }, { label: '登記請假' });
+
+    const labels = Array.from(host.querySelectorAll('.page-actions__dock button')).map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(labels).toEqual(['登記請假', '收款']);
+  });
+
+  it('托盤是浮起的（內縮＋圓角），不是貼邊的橫線', async () => {
+    await setup({ label: '新增人員' });
+
+    const dock = host.querySelector('.page-actions__dock') as HTMLElement;
+    // jsdom 不跑 Tailwind，斷言 class 是意圖；實際像素由 PR 的 360 實拍證明
+    expect(dock.classList.contains('rounded-lg')).toBe(true);
+    expect(dock.className).toContain('inset-x-3');
+    expect(dock.classList.contains('border-t')).toBe(false);
+  });
+
+  it('secondary 在桌機標頭也有一份，且在主要行動前面', async () => {
+    await setup({ label: '收款' }, { label: '登記請假' });
+
+    const header = host.querySelector('.page-actions__header') as HTMLElement;
+    const text = header.textContent ?? '';
+    expect(text.indexOf('登記請假')).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf('登記請假')).toBeLessThan(text.indexOf('收款'));
+  });
+
+  it('沒有主要行動時，secondary 也不渲染（托盤與標頭都沒有）', async () => {
+    await setup(null, { label: '登記請假' });
+
+    expect(host.querySelector('.page-actions__dock')).toBeNull();
+    expect(host.querySelector('.page-actions__header-secondary')).toBeNull();
+  });
+
+  it('secondary 點下去發 secondaryClick；disabled 不發', async () => {
+    await setup({ label: '收款' }, { label: '登記請假' });
+    let fired = 0;
+    fixture.componentInstance.secondaryClick.subscribe(() => fired++);
+    const call = (fixture.componentInstance as unknown as { onSecondary: (e: MouseEvent) => void })
+      .onSecondary;
+    call.call(fixture.componentInstance, new MouseEvent('click'));
+    expect(fired).toBe(1);
+
+    fixture.componentRef.setInput('secondary', { label: '登記請假', disabled: true });
+    call.call(fixture.componentInstance, new MouseEvent('click'));
+    expect(fired).toBe(1);
   });
 
   // ── disabled 的行為 ───────────────────────────────────────────────────────

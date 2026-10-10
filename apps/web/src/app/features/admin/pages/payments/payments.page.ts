@@ -28,6 +28,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -98,6 +99,7 @@ const emptyChapter = (): ChapterState => ({
   selector: 'app-payments',
   standalone: true,
   imports: [
+    ChapterHeadComponent,
     StatusDotComponent,
     DecimalPipe,
     FormsModule,

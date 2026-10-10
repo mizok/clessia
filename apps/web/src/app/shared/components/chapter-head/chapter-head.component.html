@@ -1,0 +1,20 @@
+<div class="chapter-head flex flex-wrap items-baseline gap-x-3 wide:flex-col wide:gap-x-0">
+  <h2
+    class="chapter-head__name m-0 text-[26px] leading-none font-bold tracking-[-0.04em] wide:text-[44px]"
+    [class.text-zinc-900]="tone() === 'default'"
+    [class.text-error-700]="tone() === 'error'"
+  >
+    {{ name() }}
+  </h2>
+  @if (count() !== null) {
+    <p
+      class="chapter-head__tally m-0 text-lg font-bold tracking-[-0.02em] text-zinc-900 tabular-nums wide:mt-3 wide:text-xl"
+    >
+      {{ count() }}
+      @if (unit()) {
+        <span class="text-md font-medium tracking-normal text-zinc-600">{{ unit() }}</span>
+      }
+      <span class="text-md font-medium tracking-normal text-zinc-600"><ng-content /></span>
+    </p>
+  }
+</div>
