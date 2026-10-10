@@ -11,7 +11,15 @@
 -- 兜底：`unique (org_id, invoice_no)` 讓任何撞號整支失敗回滾（不會半套）。正常不會撞 ——
 -- 撞號只可能來自「部署到回填之間有舊單的 issued_at 被改到別的月份」，而目前沒有任何 api 改得到 issued_at。
 -- 最後把計數表抬到至少已用的最大號，防同一種邊界讓下一張新單撞號。
+--
+-- ⚠️ 作廢單：`invoices_guard_void`（20260930072356_invoice_void.sql）拒絕對作廢單做
+-- created_by／voided_by／updated_at 以外的任何 UPDATE（它用 jsonb 比對，刻意涵蓋將來的新欄）。
+-- 回填要替作廢單也給號，所以**只在這一句 UPDATE 前後**關掉它、同一交易內再開回來
+-- （migration 一支檔＝一個交易；中途失敗整支回滾，trigger 不會停在關閉狀態）。
+-- 副作用：`invoices_updated_at` 會把被回填列的 updated_at 推到回填當下（含作廢單）。
 -- ============================================================
+
+ALTER TABLE public.invoices DISABLE TRIGGER invoices_guard_void;
 
 WITH numbered AS (
   SELECT
@@ -29,6 +37,8 @@ UPDATE public.invoices AS i
 SET invoice_no = 'INV-' || numbered.yymm || '-' || lpad(numbered.n::text, greatest(3, length(numbered.n::text)), '0')
 FROM numbered
 WHERE i.id = numbered.id;
+
+ALTER TABLE public.invoices ENABLE TRIGGER invoices_guard_void;
 
 -- 計數表不得低於已用的最大號（`INV-YYMM-` 之後的數字）
 INSERT INTO public.invoice_no_counters AS c (org_id, period, last_no)
