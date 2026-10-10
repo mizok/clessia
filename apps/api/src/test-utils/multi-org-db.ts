@@ -271,7 +271,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
       },
       single: () => Promise.resolve(one(true)),
       maybeSingle: () => Promise.resolve(one(false)),
-      /** PostgREST 的 `or('a.lt.x,b.eq.y')`：只支援 eq / neq / lt / lte / gt / gte 與 `is.null`，值一律字串比較 */
+      /** PostgREST 的 `or('a.lt.x,b.eq.y')`：只支援 eq / neq / lt / lte / gt / gte、`is.null` 與一層以上的 `and(…)`，值一律字串比較 */
       or(expression: string) {
         const ops: Record<string, (a: string, b: string) => boolean> = {
           eq: (a, b) => a === b,
@@ -282,19 +282,28 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
           gte: (a, b) => a >= b,
         };
         // 逗號只在括號外切 —— `in.(a,b)` 裡的逗號是值的一部分
-        const split: string[] = [];
-        let depth = 0;
-        let current = '';
-        for (const ch of expression) {
-          if (ch === '(') depth++;
-          if (ch === ')') depth--;
-          if (ch === ',' && depth === 0) {
-            split.push(current);
-            current = '';
-          } else current += ch;
-        }
-        split.push(current);
-        const terms = split.map((term) => {
+        const splitTop = (text: string) => {
+          const parts: string[] = [];
+          let depth = 0;
+          let current = '';
+          for (const ch of text) {
+            if (ch === '(') depth++;
+            if (ch === ')') depth--;
+            if (ch === ',' && depth === 0) {
+              parts.push(current);
+              current = '';
+            } else current += ch;
+          }
+          parts.push(current);
+          return parts;
+        };
+        const toTest = (term: string): ((row: Row) => boolean) => {
+          // `and(a,b)`：裡面每一項都要成立（#1507 的事件條件）
+          const and = /^and\((.*)\)$/.exec(term);
+          if (and) {
+            const tests = splitTop(and[1]!).map(toTest);
+            return (row: Row) => tests.every((test) => test(row));
+          }
           const [column, op, ...rest] = term.split('.');
           const value = rest.join('.');
           if (op === 'is' && value === 'null') {
@@ -318,7 +327,8 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
           const compare = ops[op as string];
           if (!column || !compare) throw new Error(`multi-org-db：or 不支援 \`${term}\``);
           return (row: Row) => row[column] != null && compare(String(row[column]), rest.join('.'));
-        });
+        };
+        const terms = splitTop(expression).map(toTest);
         filters.push((row) => terms.some((test) => test(row)));
         return proxy;
       },
