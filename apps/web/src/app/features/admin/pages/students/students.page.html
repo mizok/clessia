@@ -1,86 +1,141 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
 <!--
-  A6 版（#991）：色面 → 灰工具列（搜尋、篩選、新增）→ 表格。
-  換版不換資料：A6 稿的「依年級分章的名冊」「今天有課／到了沒」「待繳費」要的資料這頁沒有
-  （列表是伺服器分頁，分章做不出來），另開單。
+  A6 版（#991、#1314 SL）：色面（數字句）→ 灰工具列（搜尋、篩選：全部、⋯、新增）→ 依年級分章的姓名雲。
+  每章＝左欄大字章頭（`app-chapter-head`）＋右側姓名清單，沒有表格、表頭、頭像；名字右邊只用字
+  （到班時間／還沒到／該到沒到／請假）。後端先依年級再依姓名排，翻頁時章才連續（章可能在頁首接續）。
+  現況有、A6 沒畫的收進「⋯」：列印本頁到班卡（頁面層級）、編輯／停用／刪除（每個名字的「⋯」，
+  桌機 hover／focus 才出現）、狀態篩選（篩選面板第三列）。
 -->
 <app-page-open>
   <ng-container openTitle>
-    @if (!loading() && summary().total > 0) {
-      {{ summary().total }} 位學生。
-    } @else {
+    @if (loading() || loadFailed()) {
       {{ page().label }}
-    }
-  </ng-container>
-  <ng-container openSub>
-    @if (!loading() && summary().total > 0) {
-      在籍 {{ activeStudentCount() }} 位
-      @if (inactiveStudentCount() > 0) {
-        · 停用 {{ inactiveStudentCount() }} 位
-      }
+    } @else if (narrowed()) {
+      符合篩選的 {{ total() }} 位學生。
+    } @else if (todayCounts(); as today) {
+      {{ summary().total }} 位學生，<br />今天有 {{ today.any }} 位有課。
+    } @else {
+      {{ summary().total }} 位學生。
     }
   </ng-container>
 </app-page-open>
 
 <div class="bg-zinc-100">
   <div
-    class="page-wrap flex flex-col gap-3 py-3 wide:min-h-16 wide:flex-row wide:items-end wide:gap-4"
+    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
     role="search"
     aria-label="篩選學生"
   >
-    <label class="flex min-w-0 flex-col gap-1 wide:w-80">
-      <span class="text-sm font-semibold text-zinc-700">搜尋</span>
-      <span class="relative">
-        <i
-          class="pi pi-search pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-zinc-600"
-          aria-hidden="true"
-        ></i>
-        <input
-          type="search"
-          pInputText
-          class="h-11 w-full pl-9"
-          placeholder="姓名、學校或家長姓名"
-          [ngModel]="searchQuery()"
-          (ngModelChange)="onSearchChange($event)"
-        />
-      </span>
-    </label>
-
-    <div class="grid grid-cols-2 gap-3 wide:w-80">
-      <app-select-field
-        label="年級"
-        [options]="gradeOptions"
-        [value]="selectedGrade()"
-        (valueChange)="onGradeChange($event)"
+    <!-- 手機：搜尋框＋「篩選：全部」同一列；桌機 contents 攤平 -->
+    <div class="flex w-full items-center gap-2 wide:contents">
+      <div class="clessia-filter-search min-w-0 flex-1 wide:w-80 wide:flex-none">
+        <p-iconfield iconPosition="left">
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="找名字、學校或家長電話"
+            aria-label="搜尋學生"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+            class="clessia-filter-search-input"
+          />
+        </p-iconfield>
+      </div>
+      <app-filter-toggle
+        [summary]="filterSummary()"
+        [active]="hasFilter()"
+        [(open)]="filtersOpen"
+        [always]="true"
+        controls="students-filters"
       />
-      <app-select-field
-        label="狀態"
-        [options]="statusOptions"
-        [value]="statusFilter()"
-        (valueChange)="onStatusFilterChange($event)"
-      />
-    </div>
-
-    <div class="wide:ml-auto">
-      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-        <!-- 到班卡（#1127 B）：印畫面上這一頁的學生（先篩年級、拉大每頁筆數） -->
-        @if (canPrintCards && students().length > 0) {
+      <app-page-actions
+        class="wide:order-2 wide:ml-auto"
+        [primary]="primaryAction"
+        (primaryClick)="openCreateDialog()"
+      >
+        @if (pageMenuItems().length > 0) {
+          <app-popup-menu #pageMenu [model]="pageMenuItems()" />
+          <!-- 手機不放：搜尋框要那個寬度，而且手機上印到班卡不是日常（每列的「⋯」還在） -->
           <p-button
-            label="列印本頁到班卡"
-            icon="pi pi-qrcode"
-            [outlined]="true"
+            class="hidden wide:block"
+            icon="pi pi-ellipsis-h"
             severity="secondary"
-            (onClick)="printCards(students())"
-            data-testid="print-checkin-cards"
+            ariaLabel="更多動作"
+            (onClick)="pageMenu.toggle($event)"
           />
         }
       </app-page-actions>
     </div>
+
+    <!-- 篩選面板（A6 的「篩選」浮層）：今天、年級，再加現況有的「狀態」 -->
+    <div
+      id="students-filters"
+      class="flex w-full flex-col gap-3 wide:order-3 wide:basis-full"
+      [class.hidden]="!filtersOpen()"
+    >
+      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span class="w-full text-sm text-zinc-600 wide:w-10">今天</span>
+        @for (opt of todayOptions; track opt.label) {
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 enabled:hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+            [class.border-zinc-900]="todayFilter() === opt.value"
+            [class.font-semibold]="todayFilter() === opt.value"
+            [class.border-transparent]="todayFilter() !== opt.value"
+            [attr.aria-pressed]="todayFilter() === opt.value"
+            [disabled]="todayUnsupported() && opt.value !== null"
+            (click)="onTodayChange(opt.value)"
+          >
+            {{ opt.label }}
+            @if (opt.value !== null && todayCounts(); as counts) {
+              <span class="font-normal text-zinc-600 tabular-nums">{{ counts[opt.value] }}</span>
+            }
+          </button>
+        }
+        @if (todayUnsupported()) {
+          <span class="text-sm text-zinc-600">這個分校是逐堂點名，到班請看課堂</span>
+        }
+      </div>
+      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span class="w-full text-sm text-zinc-600 wide:w-10">年級</span>
+        @for (opt of gradeOptions(); track opt.label) {
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+            [class.border-zinc-900]="selectedGrade() === opt.value"
+            [class.font-semibold]="selectedGrade() === opt.value"
+            [class.border-transparent]="selectedGrade() !== opt.value"
+            [attr.aria-pressed]="selectedGrade() === opt.value"
+            (click)="onGradeChange(opt.value)"
+          >
+            {{ opt.label }}
+            <span class="font-normal text-zinc-600 tabular-nums">{{ opt.count }}</span>
+          </button>
+        }
+      </div>
+      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span class="w-full text-sm text-zinc-600 wide:w-10">狀態</span>
+        @for (opt of statusOptions; track opt.value) {
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+            [class.border-zinc-900]="statusFilter() === opt.value"
+            [class.font-semibold]="statusFilter() === opt.value"
+            [class.border-transparent]="statusFilter() !== opt.value"
+            [attr.aria-pressed]="statusFilter() === opt.value"
+            (click)="onStatusFilterChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+<div class="page-wrap flex flex-col gap-4 pt-0 pb-28 wide:pb-32">
   @if (loading()) {
     <div class="skeleton-list">
       @for (i of [1, 2, 3, 4, 5]; track i) {
@@ -90,19 +145,18 @@
   } @else if (loadFailed()) {
     <app-load-failed description="沒有讀到學生資料，可能是連線問題" (retry)="loadStudents()" />
   } @else if (students().length === 0) {
-    @if (searchQuery() || selectedGrade() || statusFilter() !== null) {
-      <app-empty-state
-        icon="pi pi-search"
-        title="找不到符合的學生"
-        description="請嘗試調整搜尋條件或篩選條件"
-      >
-        <p-button
-          label="清除篩選"
-          [text]="true"
-          severity="secondary"
-          (onClick)="onSearchChange(''); onGradeChange(null); onStatusFilterChange(null)"
-        />
-      </app-empty-state>
+    @if (narrowed()) {
+      <p class="m-0 text-base text-zinc-700">
+        沒有符合「{{ searchQuery() || '這組篩選' }}」的學生。試試只打姓氏，或按
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-base font-semibold text-zinc-900 underline underline-offset-4"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+        。
+      </p>
     } @else {
       <app-empty-state
         icon="pi pi-users"
@@ -115,92 +169,117 @@
   } @else {
     <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
-    <app-responsive-table
-      [headTemplate]="headTpl"
-      [bodyTemplate]="bodyTpl"
-      [pagination]="pagination()"
-      (page)="onPage($event)"
-    />
+    @if (narrowed()) {
+      <p class="m-0 mt-4 flex flex-wrap items-baseline gap-x-3 text-md text-zinc-600 wide:mt-6">
+        <span
+          >顯示 <strong class="text-zinc-900 tabular-nums">{{ total() }}</strong> 位
+          @if (statusFilter() === 'active') {
+            （共 {{ activeStudentCount() }}）
+          }
+        </span>
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+      </p>
+    }
 
-    <ng-template #headTpl>
-      <tr>
-        <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
-        <th appRtColDef="grade" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">年級</th>
-        <th appRtColDef="school" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">學校</th>
-        <th appRtColDef="parents" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">
-          關聯家長
-        </th>
-        <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
-        <th
-          appRtColDef="actions"
-          [appRtColDefMinWidth]="56"
-          [appRtColDefPriority]="0"
-          [appRtColDefCollapsible]="false"
-          aria-hidden="true"
-        ></th>
-      </tr>
-    </ng-template>
-
-    <ng-template #bodyTpl>
-      @for (student of students(); track student.id) {
-        <tr appRtRow [appRtRow]="student" [appRtRowId]="student.id" class="group">
-          <td appRtColCell="name">
-            <div class="flex items-center gap-2">
-              <span
-                class="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white select-none"
-                [style.--h]="getPersonHue(student.id)"
-                aria-hidden="true"
-                >{{ student.name[0] }}</span
+    <div>
+      @for (chapter of chapters(); track chapter.grade + chapter.rows[0].id) {
+        <section
+          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+          [attr.aria-label]="gradeLabels[chapter.grade]"
+          [attr.data-chapter]="chapter.grade"
+        >
+          <app-chapter-head
+            class="block pt-4 wide:pt-8"
+            [name]="gradeLabels[chapter.grade]"
+            [count]="chapterTally(chapter.grade)"
+            unit="位"
+          />
+          <ul
+            class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1 wide:pt-6"
+          >
+            @for (student of chapter.rows; track student.id) {
+              <li
+                class="group/row relative flex min-w-0 items-center border-b border-zinc-200 wide:block wide:border-b-0"
+                [class.opacity-70]="isQuiet(student)"
               >
-              <div class="flex min-w-0 flex-col gap-px">
-                <span
-                  class="truncate font-semibold text-zinc-900 transition-colors group-hover:text-accent-600"
-                  >{{ student.name }}</span
+                <a
+                  [routerLink]="['/admin/students', student.id]"
+                  class="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 py-1 no-underline wide:block wide:min-h-11 wide:py-2"
                 >
-                @if (student.campusNames.length > 0) {
-                  <span class="truncate text-xs text-zinc-600">{{
-                    student.campusNames.join('・')
-                  }}</span>
-                }
-              </div>
-            </div>
-          </td>
-          <td appRtColCell="grade">
-            <span class="text-sm font-medium text-zinc-700">{{
-              getGradeLabel(student.grade)
-            }}</span>
-          </td>
-          <td appRtColCell="school">
-            @if (student.school?.name; as schoolName) {
-              <span class="text-sm text-zinc-600">{{ schoolName }}</span>
-            } @else {
-              <span class="text-sm text-zinc-600 italic">未填寫</span>
+                  <span
+                    class="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-[0.01em] underline-offset-4 group-hover/row:underline"
+                    [class.text-zinc-900]="!isQuiet(student)"
+                    [class.text-zinc-600]="isQuiet(student)"
+                    [class.font-medium]="isQuiet(student)"
+                  >
+                    <span class="truncate">{{ student.name }}</span>
+                    @if (!student.isActive) {
+                      <span
+                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-zinc-100 text-zinc-700"
+                        >已停用</span
+                      >
+                    } @else if (student.enrollmentState === 'pending_payment') {
+                      <span
+                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-warning-50 text-warning-800 shadow-[inset_0_0_0_1px_var(--warning-200)]"
+                        >{{ flagLabels.pending_payment }}</span
+                      >
+                    } @else if (student.enrollmentState === 'suspended') {
+                      <span
+                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-zinc-100 text-zinc-700"
+                        >{{ flagLabels.suspended }}</span
+                      >
+                    } @else if (student.enrollmentState === 'withdrawal') {
+                      <span
+                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap text-zinc-700 shadow-[inset_0_0_0_1px_var(--zinc-300)]"
+                        >{{ flagLabels.withdrawal }}</span
+                      >
+                    }
+                  </span>
+                  @if (todayMeta(student); as meta) {
+                    <span
+                      class="flex-none text-sm whitespace-nowrap tabular-nums wide:mt-px wide:block"
+                      [class.text-zinc-600]="!meta.missing"
+                      [class.text-error-700]="meta.missing"
+                      [class.font-semibold]="meta.missing"
+                      >{{ meta.text }}</span
+                    >
+                  }
+                </a>
+                <!-- 現況有、A6 沒畫：編輯／停用／刪除／列印這張到班卡。桌機 hover／focus 才出現，觸控裝置一直在 -->
+                <div
+                  class="flex-none wide:absolute wide:top-1/2 wide:right-0 wide:-translate-y-1/2 wide:opacity-0 wide:group-focus-within/row:opacity-100 wide:group-hover/row:opacity-100 [@media(hover:none)]:opacity-100"
+                >
+                  <p-button
+                    icon="pi pi-ellipsis-h"
+                    [rounded]="true"
+                    [text]="true"
+                    severity="secondary"
+                    [ariaLabel]="student.name + ' 的更多動作'"
+                    (onClick)="openActionMenu($event, student)"
+                  />
+                </div>
+              </li>
             }
-          </td>
-          <td appRtColCell="parents">
-            @if (student.parentNames.length > 0) {
-              <span class="text-sm text-zinc-600">{{ student.parentNames.join('、') }}</span>
-            } @else {
-              <span class="text-sm text-zinc-600 italic">無關聯家長</span>
-            }
-          </td>
-          <td appRtColCell="status">
-            <app-status-dot [tone]="student.isActive ? 'done' : 'inactive'">{{
-              student.isActive ? '在籍' : '停用'
-            }}</app-status-dot>
-          </td>
-          <td class="responsive-table__cell text-center">
-            <p-button
-              icon="pi pi-ellipsis-v"
-              [rounded]="true"
-              [text]="true"
-              severity="secondary"
-              [ariaLabel]="student.name + ' 的操作'"
-              (onClick)="openActionMenu($event, student); $event.stopPropagation()"
-            />
-          </td>
-        </tr>
+          </ul>
+        </section>
       }
-    </ng-template>
+    </div>
+
+    @if (total() > PAGE_SIZE) {
+      <p-paginator
+        [first]="pageFirst()"
+        [rows]="PAGE_SIZE"
+        [totalRecords]="total()"
+        [showCurrentPageReport]="true"
+        currentPageReportTemplate="第 {currentPage} / {totalPages} 頁，共 {totalRecords} 位"
+        (onPageChange)="onPage($event)"
+      />
+    }
   }
 </div>

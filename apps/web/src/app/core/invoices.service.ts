@@ -88,6 +88,8 @@ export interface Invoice {
   id: string;
   orgId: string;
   studentId: string;
+  /** INV-YYMM-NNN（#1459）。null 只會是回填前的舊單 */
+  invoiceNo: string | null;
   studentName: string | null;
   /** #1314 (a)：帳單列表的年級欄 */
   studentGrade: string | null;
@@ -126,7 +128,7 @@ export type DueState = 'overdue' | 'dueSoon' | 'notDue';
 export interface InvoiceQueryParams {
   /** 只吃 uuid；姓名關鍵字用 `search` */
   studentId?: string;
-  /** 學生姓名或任一位家長姓名（部分比對，#1314 (a)）。帳單編號搜尋待 #1459 */
+  /** 學生姓名、任一位家長姓名、或帳單編號（部分比對；#1314 (a)、#1459） */
   search?: string;
   /**
    * 催繳的三個子集(#639)。**同一個母體(未繳清)、差別只在日期那一半**,

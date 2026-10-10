@@ -30,6 +30,7 @@ export type OrgTable =
   | 'events'
   | 'fee_templates'
   | 'invoices'
+  | 'invoice_no_counters'
   | 'leave_requests'
   | 'leave_request_sessions'
   | 'meal_records'
