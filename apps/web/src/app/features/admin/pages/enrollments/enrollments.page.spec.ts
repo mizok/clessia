@@ -6,6 +6,7 @@ import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { CampusContextService } from '@core/campus-context.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { ClassesService } from '@core/classes.service';
 import {
@@ -56,6 +57,13 @@ describe('EnrollmentsPage', () => {
   let component: EnrollmentsPage;
 
   const listMock = vi.fn();
+  /**
+   * 列的事件歸類與「已結束」看伺服器時鐘的台北今天。刻意釘在離真實日期很遠的一天：
+   * 改回讀 `new Date()` 的話，下面用 TODAY 推出的日期就會分錯類。
+   */
+  const TODAY = '2027-03-15';
+  const clockMock = { todayTaipei: signal(TODAY) };
+  const ago = (days: number) => format(subDays(new Date(`${TODAY}T12:00:00`), days), 'yyyy-MM-dd');
   const COUNTS = { joined: 1, left: 0, paused: 0, voided: 0 };
   const countsMock = vi.fn();
   const refDataMock = { campuses: signal<unknown[]>([]), loadCampuses: vi.fn() };
@@ -100,6 +108,7 @@ describe('EnrollmentsPage', () => {
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
+        { provide: SystemClockService, useValue: clockMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -137,6 +146,7 @@ describe('EnrollmentsPage', () => {
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
+        { provide: SystemClockService, useValue: clockMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -314,6 +324,7 @@ describe('EnrollmentsPage', () => {
         { provide: StudentsService, useValue: { list: studentsListMock } },
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
+        { provide: SystemClockService, useValue: clockMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -610,8 +621,8 @@ describe('EnrollmentsPage', () => {
     it('有指定事件時 pill 寫那件事：報了又退的人在「新報名」篩選下是新報名', async () => {
       const churned = enrollment({
         status: 'withdrawal',
-        effectiveFrom: day(8),
-        effectiveTo: day(2),
+        effectiveFrom: ago(8),
+        effectiveTo: ago(2),
       });
       await setup([churned]);
       expect(q('event-pill')!.textContent).toContain('退班');
@@ -623,20 +634,29 @@ describe('EnrollmentsPage', () => {
 
     it('退班副行分「辦理退班」與「到期結束」；到期結束的狀態欄寫「已結束」不寫在學', async () => {
       await setup([
-        enrollment({ id: 'w', status: 'withdrawal', effectiveTo: day(5) }),
-        enrollment({ id: 'x', status: 'active', effectiveTo: day(3) }),
+        enrollment({ id: 'w', status: 'withdrawal', effectiveTo: ago(5) }),
+        enrollment({ id: 'x', status: 'active', effectiveTo: ago(3) }),
         // 排定日還沒到：仍是新報名、在學，沒有副行
-        enrollment({ id: 'y', status: 'active', effectiveTo: day(-20) }),
+        enrollment({ id: 'y', status: 'active', effectiveTo: ago(-20) }),
+        // effective_to 當天還在籍：歸成退班（同 API 的 ≤），狀態欄還不是「已結束」
+        enrollment({ id: 'z', status: 'active', effectiveTo: TODAY }),
       ]);
 
-      expect(component['rows']().map((r) => r.event.kind)).toEqual(['left', 'left', 'joined']);
+      expect(component['rows']().map((r) => r.event.kind)).toEqual([
+        'left',
+        'left',
+        'joined',
+        'left',
+      ]);
       expect(qa('event-note').map((el) => el.textContent!.trim())).toEqual([
         '辦理退班',
+        '到期結束',
         '到期結束',
       ]);
       expect(qa('status-text').map((el) => el.textContent!.trim())).toEqual([
         '退班',
         '已結束',
+        '在學',
         '在學',
       ]);
     });

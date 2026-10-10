@@ -19,6 +19,7 @@ import { ClassesService, type Class } from '@core/classes.service';
 import { BILLING_MODE_LABELS } from '@core/fee-templates.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { CampusContextService } from '@core/campus-context.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import {
   ENROLLMENT_STATUS_LABELS,
@@ -123,8 +124,11 @@ export class EnrollmentsPage {
   protected readonly event = signal<EnrollmentEventKind | null>(null);
   /** 期間內各事件的次數；null ＝載入中或失敗，Hero 不寫數字（#1524：載入中不能說成「沒有」） */
   protected readonly counts = signal<EnrollmentEventCounts | null>(null);
-  /** 只讀一次：事件歸類與「已結束」都比今天，跟 API 的 left 截到今天同一個判準 */
-  private readonly today = format(new Date(), 'yyyy-MM-dd');
+  /**
+   * 台北的今天（伺服器時鐘）：事件歸類與「已結束」都比它，跟 API 的 left 截到
+   * `getCurrentTaipeiDateString` 同一天。不用 `new Date()` —— 那是裝置時區，也躲過 test:timetravel
+   */
+  private readonly today = inject(SystemClockService).todayTaipei;
   private readonly listReload$ = new Subject<void>();
   private readonly countsReload$ = new Subject<void>();
   /** 學生篩選＝選一個人（帶 studentId），不是文字搜尋：API 只收 id（#1314 EN3） */
@@ -192,7 +196,7 @@ export class EnrollmentsPage {
 
   protected readonly rows = computed<EnrollmentRow[]>(() =>
     this.enrollments().map((enrollment) => {
-      const event = toEnrollmentEvent(enrollment, this.today, this.event());
+      const event = toEnrollmentEvent(enrollment, this.today(), this.event());
       const span = enrollment.effectiveTo
         ? `${monthDay(enrollment.effectiveFrom)}–${monthDay(enrollment.effectiveTo)}`
         : `${monthDay(enrollment.effectiveFrom)} 起`;
@@ -203,7 +207,7 @@ export class EnrollmentsPage {
         event,
         periodText: mode ? `${span} · ${mode}` : span,
         handlerText: joined && enrollment.createdByName ? enrollment.createdByName : '',
-        statusText: statusLabel(enrollment, this.today),
+        statusText: statusLabel(enrollment, this.today()),
         eventNote: event.kind === 'left' ? leftNote(enrollment) : '',
       };
     }),
