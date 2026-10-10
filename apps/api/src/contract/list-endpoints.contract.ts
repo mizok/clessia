@@ -152,6 +152,7 @@ const BRANCHES: Record<string, string[]> = {
   '/api/invoices': [
     'search=王',
     'search=王&outstanding=true',
+    'search=INV-',
     'outstanding=true',
     'issuedMonth=' + TODAY.slice(0, 7),
   ],
