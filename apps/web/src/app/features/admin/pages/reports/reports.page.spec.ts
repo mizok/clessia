@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -11,6 +12,7 @@ import {
 import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { CoursesService } from '@core/courses.service';
+import { AuthService } from '@core/auth.service';
 
 import { ReportsPage } from './reports.page';
 import { By } from '@angular/platform-browser';
@@ -160,6 +162,49 @@ describe('ReportsPage', () => {
     it('沒有 manage_finance 時，連到帳單頁的連結不出現', () => {
       expect(component['canOpenInvoices']).toBe(false);
       expect(component['linkOf'](group('示範分校01'))).toBeNull();
+    });
+
+    // 正向：只有負向那條的話，把權限改成 view_reports 也全綠（#1514 reviewer 抓到）
+    it('有 manage_finance 時，分校列與「看逾期帳單」連到帳單頁；只給 view_reports 則不出現', async () => {
+      const build = async (allowed: string) => {
+        TestBed.resetTestingModule();
+        await TestBed.configureTestingModule({
+          imports: [ReportsPage],
+          providers: [
+            { provide: ReportsService, useValue: reports },
+            { provide: CoursesService, useValue: courses },
+            { provide: ReferenceDataService, useValue: refData },
+            provideRouter([]),
+            { provide: AuthService, useValue: { hasPermission: (p: string) => p === allowed } },
+          ],
+        }).compileComponents();
+        reports.revenue.mockReturnValue(
+          of(
+            response({
+              summary: figures({ billed: 1000, outstanding: 500, overdueOutstanding: 200 }),
+              groups: [group('示範分校01')],
+            }),
+          ),
+        );
+        const f = TestBed.createComponent(ReportsPage);
+        f.componentRef.setInput('page', { label: '營收報表' });
+        await f.whenStable();
+        f.detectChanges();
+        return f;
+      };
+      const paymentLinks = (f: ComponentFixture<ReportsPage>) =>
+        Array.from(
+          (f.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>('a'),
+        ).filter((a) => a.getAttribute('href')?.startsWith('/admin/payments'));
+
+      const allowed = await build('manage_finance');
+      expect(allowed.componentInstance['canOpenInvoices']).toBe(true);
+      expect(allowed.componentInstance['linkOf'](group('示範分校01'))).toBe('/admin/payments');
+      expect(paymentLinks(allowed).length).toBeGreaterThan(0);
+      expect((allowed.nativeElement as HTMLElement).textContent).toContain('看逾期帳單');
+
+      const denied = await build('view_reports');
+      expect(paymentLinks(denied).length).toBe(0);
     });
 
     it('合計列顯示 API 的 summary，不是前端加各組', async () => {
