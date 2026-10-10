@@ -1,91 +1,109 @@
+<p-toast appendTo="body" />
+
+<!--
+  A6 版（#1314 NT3）：色面（已發布幾則、上一則是哪天）→ 頁內發布表單（灰底圓角卡）→ 依月份分章的已發布。
+  A6 這頁還有「收到的」分頁（通知收件匣＝#1023）——不在這裡，所以沒有分頁列與「全部標為已讀」。
+  副標拿掉（稿：對象在表單裡選；舊副標還寫「給老師」）。
+-->
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
-  <ng-container openSub>
-    發布站內公告給老師或家長。公告會出現在對方的通知頁，並顯示未讀數。
+  <ng-container openTitle>
+    @if (headline(); as line) {
+      {{ line }}
+    } @else {
+      {{ page().label }}
+    }
   </ng-container>
 </app-page-open>
 
-<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
-  <section class="admin-notifications__composer flex flex-col items-stretch gap-3">
-    <h2 class="mt-0 mb-3 text-lg font-semibold">發布新公告</h2>
+<div class="page-wrap flex flex-col gap-10 pt-6 pb-12 wide:pt-8">
+  <section
+    class="admin-notifications__composer grid max-w-[760px] grid-cols-1 gap-4 rounded-none bg-zinc-100 p-4 wide:grid-cols-2 wide:rounded-lg wide:p-6"
+    aria-labelledby="notifications-compose-title"
+  >
+    <h2 id="notifications-compose-title" class="sr-only">發布新公告</h2>
 
-    <label class="flex min-w-0 flex-1 flex-col gap-1">
-      <span class="text-sm text-zinc-500">標題</span>
+    <label class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700 wide:col-span-2">
+      標題
       <input
-        class="admin-notifications__input w-full rounded-md border border-[var(--surface-border)] px-3 py-2 [font:inherit]"
+        #titleInput
+        class="admin-notifications__input h-11 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 [font:inherit]"
         type="text"
         maxlength="200"
+        autocomplete="off"
         [ngModel]="title()"
         (ngModelChange)="onTitleChange($event)"
         [class.p-invalid]="!!errors()['title']"
+        [attr.aria-invalid]="!!errors()['title']"
       />
-      @if (errors()['title']; as msg) {
-        <span class="admin-notifications__error-text mt-1 block text-xs text-error-600">{{
-          msg
-        }}</span>
-      }
+      <span
+        class="admin-notifications__error-text min-h-[18px] text-sm font-medium text-error-700"
+        aria-live="polite"
+        >{{ errors()['title'] }}</span
+      >
     </label>
 
-    <label class="flex min-w-0 flex-1 flex-col gap-1">
-      <span class="text-sm text-zinc-500">內容</span>
+    <label class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700 wide:col-span-2">
+      內容
       <textarea
-        class="w-full resize-y rounded-md border border-[var(--surface-border)] px-3 py-2 [font:inherit]"
+        #bodyInput
+        class="w-full resize-y rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 [font:inherit]"
         rows="5"
         maxlength="5000"
         [ngModel]="body()"
         (ngModelChange)="onBodyChange($event)"
         [class.p-invalid]="!!errors()['body']"
+        [attr.aria-invalid]="!!errors()['body']"
       ></textarea>
-      @if (errors()['body']; as msg) {
-        <span class="admin-notifications__error-text mt-1 block text-xs text-error-600">{{
-          msg
-        }}</span>
-      }
+      <span
+        class="admin-notifications__error-text min-h-[18px] text-sm font-medium text-error-700"
+        aria-live="polite"
+        >{{ errors()['body'] }}</span
+      >
     </label>
 
-    <div class="flex w-full flex-wrap gap-4">
-      <label class="flex min-w-0 flex-1 flex-col gap-1">
-        <span class="text-sm text-zinc-500">發送對象</span>
-        <p-select
-          [options]="audienceOptions"
-          [ngModel]="audience()"
-          (ngModelChange)="audience.set($event)"
-          optionLabel="label"
-          optionValue="value"
-        />
-      </label>
+    <label class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700">
+      發送對象
+      <p-select
+        styleClass="w-full"
+        [options]="audienceOptions"
+        [ngModel]="audience()"
+        (ngModelChange)="audience.set($event)"
+        optionLabel="label"
+        optionValue="value"
+      />
+    </label>
 
-      <label class="flex min-w-0 flex-1 flex-col gap-1">
-        <span class="text-sm text-zinc-500">分校範圍</span>
-        <p-select
-          [options]="campusOptions()"
-          [ngModel]="campusId()"
-          (ngModelChange)="campusId.set($event)"
-          optionLabel="label"
-          optionValue="value"
-        />
-      </label>
-    </div>
+    <label class="flex min-w-0 flex-col gap-1 text-md font-semibold text-zinc-700">
+      分校範圍
+      <p-select
+        styleClass="w-full"
+        [options]="campusOptions()"
+        [ngModel]="campusId()"
+        (ngModelChange)="campusId.set($event)"
+        optionLabel="label"
+        optionValue="value"
+      />
+    </label>
 
     @if (submitError()) {
-      <p class="m-0 text-error-600">{{ submitError() }}</p>
+      <p class="m-0 text-error-700 wide:col-span-2" role="alert">{{ submitError() }}</p>
     }
 
     <!--
       **只在 `submitting()` 時 disable**（#723，照 #664／#718）——
       `disabled` 是把「為什麼不行」藏起來，而那正是使用者最需要知道的。
     -->
-    <p-button
-      label="發布"
-      [disabled]="submitting()"
-      [loading]="submitting()"
-      (onClick)="submit()"
-    />
+    <div class="flex justify-end wide:col-span-2">
+      <p-button
+        label="發布"
+        [disabled]="submitting()"
+        [loading]="submitting()"
+        (onClick)="submit()"
+      />
+    </div>
   </section>
 
-  <section>
-    <h2 class="mt-0 mb-3 text-lg font-semibold">已發布</h2>
-
+  <section aria-label="已發布">
     @if (loading()) {
       <div class="skeleton-list" aria-label="已發布公告載入中">
         @for (i of [1, 2, 3]; track i) {
@@ -95,21 +113,41 @@
     } @else if (loadError()) {
       <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
     } @else if (announcements().length === 0) {
-      <p class="m-0 text-zinc-500">還沒有發布過公告。</p>
+      <p class="m-0 text-base text-zinc-700">還沒有發布過公告。</p>
     } @else {
-      <ul class="m-0 flex list-none flex-col p-0">
-        @for (item of announcements(); track item.id) {
-          <li
-            class="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--surface-border)] px-2 py-3"
-          >
-            <span class="font-medium">{{ item.title }}</span>
-            <span class="text-sm text-zinc-500">
-              {{ item.publishedAt | date: 'yyyy-MM-dd HH:mm' }}
-              · {{ AUDIENCE_LABELS[item.audience] }} · {{ item.campusName ?? '全部分校' }}
-            </span>
-          </li>
-        }
-      </ul>
+      @for (chapter of chapters(); track chapter.key) {
+        <section
+          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+          [attr.aria-label]="chapter.name"
+          data-testid="chapter"
+        >
+          <app-chapter-head
+            class="block pt-4 wide:pt-8"
+            [name]="chapter.name"
+            [count]="chapter.items.length"
+            unit="則"
+          />
+          <ul class="m-0 list-none p-0 wide:pt-4">
+            @for (item of chapter.items; track item.id) {
+              <li
+                class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 border-b border-surface-border py-4 last:border-b-0"
+                data-testid="announcement"
+              >
+                <span class="text-base font-semibold text-zinc-900">{{ item.title }}</span>
+                <span
+                  class="col-start-2 row-span-2 row-start-1 inline-flex h-[22px] items-center self-center rounded-full px-2 text-sm font-semibold whitespace-nowrap text-zinc-800 ring-1 ring-zinc-300 ring-inset"
+                  data-testid="audience"
+                  >{{ AUDIENCE_LABELS[item.audience] }}</span
+                >
+                <span class="text-sm text-zinc-600 tabular-nums" data-testid="meta">
+                  {{ item.publishedAt | date: 'yyyy-MM-dd HH:mm' : '+0800' }} ·
+                  {{ item.campusName ?? '全部分校' }}
+                </span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
     }
   </section>
 </div>

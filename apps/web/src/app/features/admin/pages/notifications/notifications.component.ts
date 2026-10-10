@@ -7,11 +7,15 @@ import {
   inject,
   input,
   signal,
+  viewChild,
+  type ElementRef,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
+import { MessageService } from 'primeng/api';
 import { SelectModule } from 'primeng/select';
+import { ToastModule } from 'primeng/toast';
 
 import {
   AUDIENCE_LABELS,
@@ -20,12 +24,23 @@ import {
   type AnnouncementAudience,
 } from '@core/announcements.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
+import { taipeiDateString } from '@core/system-clock.service';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 
 @Component({
   selector: 'app-notifications',
-  imports: [DatePipe, FormsModule, ButtonModule, SelectModule, PageOpenComponent],
+  imports: [
+    DatePipe,
+    FormsModule,
+    ButtonModule,
+    SelectModule,
+    ToastModule,
+    ChapterHeadComponent,
+    PageOpenComponent,
+  ],
+  providers: [MessageService],
   templateUrl: './notifications.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -35,6 +50,10 @@ export class NotificationsComponent {
   private readonly announcementsService = inject(AnnouncementsService);
   private readonly campusesService = inject(CampusesService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly messageService = inject(MessageService);
+
+  private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('titleInput');
+  private readonly bodyInput = viewChild<ElementRef<HTMLTextAreaElement>>('bodyInput');
 
   protected readonly AUDIENCE_LABELS = AUDIENCE_LABELS;
 
@@ -69,9 +88,48 @@ export class NotificationsComponent {
   protected readonly audience = signal<AnnouncementAudience>('all_teachers');
 
   /** 順序照 `AudienceSchema` 的宣告序，不要照字母序 —— 預設值排第一個 */
-  protected readonly audienceOptions = (['all_teachers', 'all_parents'] as const).map(
-    (value) => ({ label: AUDIENCE_LABELS[value], value }),
-  );
+  protected readonly audienceOptions = (['all_teachers', 'all_parents'] as const).map((value) => ({
+    label: AUDIENCE_LABELS[value],
+    value,
+  }));
+
+  /**
+   * 已發布依**月份**分章（A6、#1314 NT3）。月份用台北時區切 —— 不是瀏覽器本地：
+   * 晚上 11 點發的公告在海外瀏覽器會落到隔天，月底那一則就跑到下個月的章。
+   * API 本來就是新到舊，這裡再排一次是為了不依賴它；跨年才在章名加年份。
+   */
+  protected readonly chapters = computed(() => {
+    const currentYear = taipeiDateString(Date.now()).slice(0, 4);
+    const groups = new Map<string, { key: string; name: string; items: Announcement[] }>();
+    const sorted = [...this.announcements()].sort((a, b) =>
+      b.publishedAt.localeCompare(a.publishedAt),
+    );
+    for (const item of sorted) {
+      const key = taipeiDateString(Date.parse(item.publishedAt)).slice(0, 7);
+      let group = groups.get(key);
+      if (!group) {
+        const [year, month] = key.split('-');
+        group = {
+          key,
+          name: `${year === currentYear ? '' : `${year} 年 `}${Number(month)} 月`,
+          items: [],
+        };
+        groups.set(key, group);
+      }
+      group.items.push(item);
+    }
+    return [...groups.values()];
+  });
+
+  /** 色面句：已發布幾則、上一則是哪天（台北）。還沒載到回 `null`，由模板退回頁名 */
+  protected readonly headline = computed(() => {
+    if (this.loading() || this.loadError()) return null;
+    const items = this.announcements();
+    if (items.length === 0) return '還沒有發布過公告。';
+    const latest = items.reduce((a, b) => (a.publishedAt > b.publishedAt ? a : b));
+    const day = taipeiDateString(Date.parse(latest.publishedAt));
+    return `已發布 ${items.length} 則公告，上一則是 ${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}。`;
+  });
 
   protected readonly campusOptions = computed(() => [
     { label: '全部分校', value: null as string | null },
@@ -91,8 +149,8 @@ export class NotificationsComponent {
   private validate(): string | null {
     const found: Record<string, string> = {};
 
-    if (!this.title().trim()) found['title'] = '請填寫標題';
-    if (!this.body().trim()) found['body'] = '請填寫內容';
+    if (!this.title().trim()) found['title'] = '標題還沒填';
+    if (!this.body().trim()) found['body'] = '內容還沒填';
 
     this.errors.set(found);
     return Object.keys(found)[0] ?? null;
@@ -142,7 +200,11 @@ export class NotificationsComponent {
    */
   protected submit(): void {
     const firstError = this.validate();
-    if (firstError) return;
+    if (firstError) {
+      // 第一個有錯的欄位拿到焦點 —— 錯誤字在欄位旁，但使用者的游標不一定在那附近
+      (firstError === 'title' ? this.titleInput() : this.bodyInput())?.nativeElement.focus();
+      return;
+    }
 
     this.submitting.set(true);
     this.submitError.set(null);
@@ -157,6 +219,12 @@ export class NotificationsComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
+          const campus = this.campusOptions().find((o) => o.value === this.campusId())?.label;
+          this.messageService.add({
+            severity: 'success',
+            summary: '已發布',
+            detail: `已發布給${AUDIENCE_LABELS[this.audience()]}（${campus ?? '全部分校'}）`,
+          });
           this.title.set('');
           this.body.set('');
           this.submitting.set(false);
