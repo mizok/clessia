@@ -26,6 +26,7 @@ import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
+import { SessionsService } from '@core/sessions.service';
 import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -46,6 +47,7 @@ import {
   canTakeAttendance,
   canWriteClassLog,
   canWriteContactBook,
+  changeItems,
   daySummary,
   nextSession,
   openerLine,
@@ -91,6 +93,7 @@ export class SchedulePage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly contactBookService = inject(ContactBookService);
+  private readonly sessionsService = inject(SessionsService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -223,6 +226,12 @@ export class SchedulePage implements OnInit {
     return sum;
   });
 
+  /** 這週你的課務異動（#1314 TS7）。獨立一支請求，失敗只影響這一段 */
+  private readonly changeEntries = signal<Parameters<typeof changeItems>[0]>([]);
+  protected readonly changes = computed(() => changeItems(this.changeEntries()));
+  /** 查失敗不能讓「沒有異動」的空態出現 —— 兩者長得一樣但意思相反 */
+  protected readonly changesFailed = signal(false);
+
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
@@ -323,6 +332,15 @@ export class SchedulePage implements OnInit {
       error: () => {
         this.missingByDate.set(new Map());
         this.missingFailed.set(true);
+      },
+    });
+
+    this.changesFailed.set(false);
+    this.sessionsService.listMyChanges(dateFrom, dateTo).subscribe({
+      next: (res) => this.changeEntries.set(res.data),
+      error: () => {
+        this.changeEntries.set([]);
+        this.changesFailed.set(true);
       },
     });
 

@@ -5,6 +5,7 @@ import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { AttendanceService } from '@core/attendance.service';
 import { ContactBookService } from '@core/contact-book.service';
+import { SessionsService } from '@core/sessions.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
@@ -29,6 +30,8 @@ describe('SchedulePage', () => {
   async function setup(
     options: {
       missingSummaryFails?: boolean;
+      changes?: unknown[];
+      changesFail?: boolean;
       sessionsFails?: boolean;
       sessionsStall?: boolean;
       orgSettingsFails?: boolean;
@@ -64,10 +67,17 @@ describe('SchedulePage', () => {
           }),
     );
 
+    const changesSpy = vi.fn(() =>
+      options.changesFail
+        ? throwError(() => new Error('boom'))
+        : of({ data: options.changes ?? [] }),
+    );
+
     await TestBed.configureTestingModule({
       imports: [SchedulePage],
       providers: [
         { provide: AttendanceService, useValue: { sessions: sessionsSpy } },
+        { provide: SessionsService, useValue: { listMyChanges: changesSpy } },
         { provide: ContactBookService, useValue: { missingSummary: missingSummarySpy } },
         {
           provide: OrgSettingsService,
@@ -400,6 +410,50 @@ describe('SchedulePage', () => {
       expect(fixture.nativeElement.querySelector('app-page-open').textContent).not.toContain(
         '聯絡簿還沒寫',
       );
+    });
+
+    // #1314 TS7：這週你的課務異動，點一則跳到那天
+    it('課務異動：列出、點一則跳到那天；沒有異動時整段不出現', async () => {
+      const day = format(
+        new Date(new Date(`${TODAY}T12:00:00`).getTime() + 86_400_000),
+        'yyyy-MM-dd',
+      );
+      await setup({
+        sessions: [...sessions(), row({ sessionId: '8', className: '明天班', eventDate: day })],
+        changes: [
+          {
+            id: 'c1',
+            sessionId: '8',
+            changeType: 'cancellation',
+            summary: '停課',
+            sessionDate: day,
+            className: '明天班',
+            reason: null,
+            createdByName: null,
+            createdAt: '',
+            isBatch: false,
+            batchId: null,
+          },
+        ],
+      });
+      const btn = fixture.nativeElement.querySelector('.schedule-page__change') as HTMLElement;
+      expect(btn.textContent).toContain('停課');
+      expect(btn.textContent).toContain('明天班');
+      btn.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('明天班');
+      expect(fixture.nativeElement.querySelector('.schedule-page__session')?.textContent).toContain(
+        '明天班',
+      );
+    });
+
+    it('沒有異動：不印這一段；查失敗：講出來，不當成沒有異動', async () => {
+      await setup({ sessions: sessions() });
+      expect(fixture.nativeElement.querySelector('.schedule-page__changes')).toBeNull();
+      fixture.destroy();
+      TestBed.resetTestingModule();
+      await setup({ sessions: sessions(), changesFail: true });
+      expect(fixture.nativeElement.textContent).toContain('課務異動暫時讀不到');
     });
 
     it('週條可以換日：點別天只看到那天，而且沒有「接下來」卡', async () => {

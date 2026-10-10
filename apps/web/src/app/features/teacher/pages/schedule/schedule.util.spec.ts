@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EventSessionSummary } from '@core/attendance.service';
+import type { ChangeLogEntry } from '@core/sessions.service';
 
 import {
   ATTENDANCE_TONE_LABELS,
@@ -8,6 +9,7 @@ import {
   canTakeAttendance,
   canWriteClassLog,
   canWriteContactBook,
+  changeItems,
   daySummary,
   nextSession,
   openerLine,
@@ -437,5 +439,41 @@ describe('openerLine（#1314 TS2 開場句）', () => {
   it('沒有時間的課不給倒數，只講班名', () => {
     const n = session({ className: '作文', startTime: null, endTime: null });
     expect(openerLine([n], at('10:00'))).toBe('下一堂 作文。');
+  });
+});
+
+describe('changeItems（#1314 TS7）', () => {
+  const entry = (over: Partial<ChangeLogEntry>): ChangeLogEntry => ({
+    id: 'a',
+    sessionId: 's',
+    changeType: 'cancellation',
+    summary: '停課',
+    sessionDate: '2026-10-12',
+    className: '國三數學',
+    reason: null,
+    createdByName: null,
+    createdAt: '2026-10-10T00:00:00Z',
+    isBatch: false,
+    batchId: null,
+    ...over,
+  });
+
+  it('依課堂日期排，不是 created_at；摘要只是類型時不重複', () => {
+    const items = changeItems([
+      entry({ id: 'late', sessionDate: '2026-10-14' }),
+      entry({
+        id: 'early',
+        sessionDate: '2026-10-12',
+        changeType: 'substitute',
+        summary: '代課：王 → 李',
+      }),
+    ]);
+    expect(items.map((i) => i.id)).toEqual(['early', 'late']);
+    expect(items[0]).toMatchObject({ label: '代課', text: '10/12 國三數學 · 代課：王 → 李' });
+    expect(items[1].text).toBe('10/14 國三數學');
+  });
+
+  it('沒有課堂日期的列沒地方可跳，丟掉', () => {
+    expect(changeItems([entry({ sessionDate: null })])).toEqual([]);
   });
 });
