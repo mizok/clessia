@@ -8,8 +8,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY, Subject, catchError, debounceTime, filter, switchMap } from 'rxjs';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { EMPTY, Subject, catchError, debounceTime, filter, skip, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,6 +18,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
 import { AuthService } from '@core/auth.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -126,6 +127,7 @@ export class StudentsPage implements OnInit {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly orgSettings = inject(OrgSettingsService);
+  private readonly campusCtx = inject(CampusContextService);
 
   /** 到班卡（#1127 B）：發卡是學生管理的事，跟編輯學生同一個門檻 */
   protected readonly canPrintCards = this.auth.hasPermission('manage_students');
@@ -343,6 +345,17 @@ export class StudentsPage implements OnInit {
     this.actionMenu().toggle(event);
   }
 
+  constructor() {
+    this.campusCtx.use();
+    // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校（#1314 殼層後續項 5）
+    toObservable(this.campusCtx.id)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => {
+        this.currentPage.set(1);
+        this.loadStudents();
+      });
+  }
+
   ngOnInit(): void {
     // 到班卡上要印補習班名；視窗得在點擊當下開，不能等這裡（見 printCards）
     if (this.canPrintCards && this.orgSettings.status() === 'unloaded') this.orgSettings.load();
@@ -387,6 +400,7 @@ export class StudentsPage implements OnInit {
               pageSize: this.PAGE_SIZE,
               isActive: STATUS_TO_IS_ACTIVE[this.statusFilter()],
               today: this.todayFilter() ?? undefined,
+              campusId: this.campusCtx.id() ?? undefined,
             })
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
             // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
