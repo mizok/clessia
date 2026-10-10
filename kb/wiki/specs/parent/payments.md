@@ -3,7 +3,7 @@ title: 繳費紀錄
 summary: 查看繳費單和繳費紀錄。
 category: spec
 status: active
-updated: 2026-10-03
+updated: 2026-10-10
 tags: [specs, parent, payments]
 ---
 
@@ -73,3 +73,12 @@ tags: [specs, parent, payments]
 - 4.18 繳費單
 - 4.19 繳費紀錄
 - 7.2 家長頁面
+
+## 現況（A6 對齊，#1314 PP1–3）
+
+- 開場：標題句＋兩個數字，待繳＝`meta.totalDue`、本學期已繳＝`meta.term.paid`（沒有涵蓋今天的收費期間就不畫）。
+- 列：班名為主行（`items[].className`，沒有班名退回項目種類）；副行＝期限標籤＋日期＋帳單編號（`invoiceNo`）。
+- 對話框：帳戶資訊整段可複製、餐費項目連到 `/parent/meals`。
+- **尚未做**：收款經手人（`recorded_by` 是 user id，給家長看行政姓名是新的外洩面，要先裁）。
+- `GET /api/me/billing` 的鍵集合由 spec 釘住：回應只多這一輪的 `className`、`invoiceNo`。
+

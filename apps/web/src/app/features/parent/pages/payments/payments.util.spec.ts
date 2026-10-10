@@ -1,8 +1,9 @@
 import type { ParentInvoice } from '@core/parent-billing.service';
-import { groupInvoices, latestPaymentDate } from './payments.util';
+import { dueTag, groupInvoices, invoiceTitle, latestPaymentDate } from './payments.util';
 
 const invoice = (overrides: Partial<ParentInvoice> = {}): ParentInvoice => ({
   id: 'inv-1',
+  invoiceNo: null,
   issuedAt: '2026-08-01',
   dueDate: '2026-08-15',
   status: 'unpaid',
@@ -83,5 +84,41 @@ describe('groupInvoices —— 多退', () => {
 
     expect(groups.pending).toEqual([]);
     expect(groups.paid.map((i) => i.id)).toEqual(['a']);
+  });
+
+  describe('invoiceTitle', () => {
+    it('班名去重；沒有班名退回項目種類', () => {
+      const item = (type: 'tuition' | 'meal', className: string | null) => ({
+        id: Math.random().toString(),
+        type,
+        amount: 1,
+        periodMonth: null,
+        className,
+      });
+      expect(
+        invoiceTitle(
+          invoice({
+            items: [item('tuition', '數學'), item('tuition', '數學'), item('meal', null)],
+          }),
+        ),
+      ).toBe('數學、餐費');
+    });
+  });
+
+  describe('dueTag', () => {
+    const tag = (dueDate: string | null, status: 'unpaid' | 'partial' = 'unpaid') =>
+      dueTag(invoice({ dueDate, status }), '2026-10-10');
+
+    it('逾期／今天／7 天內／更晚', () => {
+      expect(tag('2026-10-08')).toEqual({ tone: 'overdue', label: '逾期 2 天' });
+      expect(tag('2026-10-10')).toEqual({ tone: 'pending', label: '今天到期' });
+      expect(tag('2026-10-17')).toEqual({ tone: 'pending', label: '7 天後到期' });
+      expect(tag('2026-10-18')).toEqual({ tone: 'inactive', label: '未到期' });
+    });
+
+    it('部分繳加前綴；沒有期限日 → null', () => {
+      expect(tag('2026-10-12', 'partial')?.label).toBe('部分繳 · 2 天後到期');
+      expect(tag(null)).toBeNull();
+    });
   });
 });
