@@ -1,6 +1,6 @@
 <!--
   A6 版（#991 grades G4，grades-class.html 的對話框）：考試範圍切換＋選考試 → 灰統計 → 分數分布 → 名單篩選 → .rec 名單 → 底部連結。
-  #991 grades Q4：名單篩選不做「待登錄」—— API 把沒成績的學生回成 status:'scored'＋score:null，推導出來的人數會跟考試列表對不上。
+  #1314 G7：名單篩選加「待登錄」（只在那場還有人沒登錄時出現）—— #1280 起 API 把沒成績的人回成 status:'pending'。
 -->
 @if (classData; as classInfo) {
   <div class="dialog-header-inline">
@@ -134,9 +134,12 @@
             <dd class="m-0 mt-0.5 text-2xl font-bold tabular-nums">{{ failCount() }} 人</dd>
           </div>
           <div>
-            <dt class="text-sm text-zinc-700">缺考</dt>
+            <!-- A6：還有人沒登錄時，這格講「還沒登錄」（缺考人數在名單篩選看得到） -->
+            <dt class="text-sm text-zinc-700">
+              {{ scoreCounts().pending > 0 ? '還沒登錄' : '缺考' }}
+            </dt>
             <dd class="m-0 mt-0.5 text-2xl font-bold tabular-nums">
-              {{ data.summary.absentCount }} 人
+              {{ scoreCounts().pending > 0 ? scoreCounts().pending : data.summary.absentCount }} 人
             </dd>
           </div>
         </dl>
@@ -177,14 +180,16 @@
           aria-label="名單"
         >
           @for (opt of scoreStatusOptions; track opt.value) {
-            <button
-              type="button"
-              class="min-h-11 cursor-pointer border-0 bg-white px-3 text-md text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white"
-              [attr.aria-pressed]="scoreStatusFilter() === opt.value"
-              (click)="scoreStatusFilter.set(opt.value)"
-            >
-              {{ opt.label }} {{ scoreCounts()[opt.value] }}
-            </button>
+            @if (opt.value !== 'pending' || scoreCounts().pending > 0) {
+              <button
+                type="button"
+                class="min-h-11 cursor-pointer border-0 bg-white px-3 text-md text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white"
+                [attr.aria-pressed]="scoreStatusFilter() === opt.value"
+                (click)="scoreStatusFilter.set(opt.value)"
+              >
+                {{ opt.label }} {{ scoreCounts()[opt.value] }}
+              </button>
+            }
           }
         </span>
 
@@ -238,7 +243,7 @@
                     <!-- #1280：還沒登錄。API 原本把這些也回成 scored，於是這一格顯示成及格／空白 -->
                     <span
                       class="inline-flex items-center rounded-sm px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-700 shadow-[inset_0_0_0_1px_var(--zinc-400)]"
-                      >待登錄</span
+                      >還沒登錄</span
                     >
                   } @else if (row.score !== null) {
                     <span
@@ -280,7 +285,11 @@
           class="inline-flex h-11 cursor-pointer items-center rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2"
           (click)="goToScoreEntry(exam)"
         >
-          登錄這場成績
+          @if (scoreCounts().pending > 0) {
+            登錄這場成績（還差 {{ scoreCounts().pending }} 人）
+          } @else {
+            看這場的成績登錄
+          }
         </button>
       }
     </div>

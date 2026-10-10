@@ -141,7 +141,7 @@ describe('ClassScoresDialogComponent', () => {
   });
 
   // #1280：沒登錄的學生 API 回 pending —— 要顯示中文，不能把英文原值漏到畫面上
-  it('沒登錄的學生顯示「待登錄」，不是英文 pending、也不是已登錄', async () => {
+  it('沒登錄的學生顯示「還沒登錄」，不是英文 pending、也不是已登錄', async () => {
     listMock.mockReturnValue(of({ data: [exam], meta: { total: 1 } }));
     getClassExamStatsMock.mockReturnValue(
       of({
@@ -170,9 +170,48 @@ describe('ClassScoresDialogComponent', () => {
     const row = [...(fixture.nativeElement as HTMLElement).querySelectorAll('li')].find((li) =>
       li.textContent?.includes('王小明'),
     );
-    expect(row?.textContent).toContain('待登錄');
+    expect(row?.textContent).toContain('還沒登錄');
     expect(row?.textContent).not.toContain('及格');
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('pending');
+  });
+
+  // #1314 G7：名單篩選的「待登錄」只在那場有人沒登錄時出現，按了只剩沒登錄的人
+  describe('名單的待登錄篩選', () => {
+    const rows = [
+      { studentId: 's1', studentName: '王小明', score: 80, status: 'scored', notes: null },
+      { studentId: 's2', studentName: '李小華', score: null, status: 'pending', notes: null },
+      { studentId: 's3', studentName: '陳小美', score: null, status: 'pending', notes: null },
+    ];
+    const open = async (scores: unknown[]) => {
+      listMock.mockReturnValue(of({ data: [exam], meta: { total: 1 } }));
+      getClassExamStatsMock.mockReturnValue(of({ data: { ...stats, scores } }));
+      fixture = TestBed.createComponent(ClassScoresDialogComponent);
+      fixture.componentInstance['examScope'].set('all');
+      fixture.componentInstance['selectedExamId'].set('exam-1');
+      await fixture.whenStable();
+      return fixture.nativeElement as HTMLElement;
+    };
+    const chip = (host: HTMLElement) =>
+      [...host.querySelectorAll('[aria-label="名單"] button')].find((b) =>
+        b.textContent?.includes('待登錄'),
+      ) as HTMLButtonElement | undefined;
+
+    it('有人沒登錄：出現「待登錄 2」，按下只剩他們兩位，CTA 寫還差 2 人', async () => {
+      const host = await open(rows);
+      expect(chip(host)?.textContent?.replace(/\s+/g, ' ').trim()).toBe('待登錄 2');
+      chip(host)!.click();
+      fixture.detectChanges();
+      const names = [...host.querySelectorAll('[data-part="rec"]')].map((li) => li.textContent);
+      expect(names).toHaveLength(2);
+      expect(names.join('')).not.toContain('王小明');
+      expect(host.textContent).toContain('登錄這場成績（還差 2 人）');
+    });
+
+    it('都登錄完：沒有「待登錄」籌碼，CTA 改「看這場的成績登錄」', async () => {
+      const host = await open([rows[0]]);
+      expect(chip(host)).toBeUndefined();
+      expect(host.textContent).toContain('看這場的成績登錄');
+    });
   });
 
   it('不及格門檻改用該場考試的總分比例，不再是跟裸 60 比大小', async () => {
