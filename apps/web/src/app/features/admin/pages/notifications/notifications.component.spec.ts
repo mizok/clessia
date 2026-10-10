@@ -96,7 +96,7 @@ describe('NotificationsComponent（管理端發布）', () => {
 
     expect(createMock).not.toHaveBeenCalled();
     // **一次收集全部**，不是遇到第一個就 return
-    expect(component['errors']()).toEqual({ title: '請填寫標題', body: '請填寫內容' });
+    expect(component['errors']()).toEqual({ title: '標題還沒填', body: '內容還沒填' });
   });
 
   it('只有空白字元也算空白', async () => {
@@ -124,10 +124,10 @@ describe('NotificationsComponent（管理端發布）', () => {
     component['submit']();
     fixture.detectChanges();
 
-    const texts = [
-      ...fixture.nativeElement.querySelectorAll('.admin-notifications__error-text'),
-    ].map((e) => (e as HTMLElement).textContent?.trim());
-    expect(texts).toEqual(['請填寫標題', '請填寫內容']);
+    const texts = [...fixture.nativeElement.querySelectorAll('.admin-notifications__error-text')]
+      .map((e) => (e as HTMLElement).textContent?.trim())
+      .filter(Boolean);
+    expect(texts).toEqual(['標題還沒填', '內容還沒填']);
     expect(
       fixture.nativeElement.querySelector('.admin-notifications__input.p-invalid'),
     ).not.toBeNull();
@@ -141,7 +141,7 @@ describe('NotificationsComponent（管理端發布）', () => {
 
     component['onTitleChange']('停課通知');
 
-    expect(component['errors']()).toEqual({ body: '請填寫內容' });
+    expect(component['errors']()).toEqual({ body: '內容還沒填' });
   });
 
   it('送出時去掉前後空白並帶上分校', async () => {
@@ -190,9 +190,7 @@ describe('NotificationsComponent（管理端發布）', () => {
 
     component['submit']();
 
-    expect(createMock).toHaveBeenCalledWith(
-      expect.objectContaining({ audience: 'all_parents' }),
-    );
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ audience: 'all_parents' }));
   });
 
   it('發布成功後清空表單並重新載入清單', async () => {
@@ -245,5 +243,125 @@ describe('NotificationsComponent（管理端發布）', () => {
     await setup([announcement({ campusName: null })]);
 
     expect(fixture.nativeElement.textContent).toContain('全部分校');
+  });
+
+  describe('A6 版（#1314 NT3）', () => {
+    const q = (id: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        `[data-testid="${id}"]`,
+      ) as HTMLElement | null;
+    const qa = (id: string) => [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+        `[data-testid="${id}"]`,
+      ),
+    ];
+
+    it('已發布依月份分章，新到舊；章頭有月份與則數', async () => {
+      await setup([
+        announcement({ id: 'a', publishedAt: '2026-08-18T02:00:00Z' }),
+        announcement({ id: 'b', publishedAt: '2026-10-02T02:00:00Z' }),
+        announcement({ id: 'c', publishedAt: '2026-10-01T02:00:00Z' }),
+      ]);
+
+      const chapters = component['chapters']();
+      expect(chapters.map((g) => g.key)).toEqual(['2026-10', '2026-08']);
+      expect(chapters[0].items.map((i) => i.id)).toEqual(['b', 'c']);
+      expect(qa('chapter')).toHaveLength(2);
+      expect(qa('chapter')[0].textContent).toContain('2 則');
+    });
+
+    it('月份用台北時區切：UTC 月底晚上＝台北下個月初', async () => {
+      await setup([announcement({ publishedAt: '2026-09-30T17:30:00Z' })]);
+
+      expect(component['chapters']()[0].key).toBe('2026-10');
+      // 顯示的時間也是台北：2026-10-01 01:30
+      expect(q('meta')!.textContent).toContain('2026-10-01 01:30');
+    });
+
+    it('跨年的章名帶年份', async () => {
+      await setup([announcement({ publishedAt: '2019-12-05T02:00:00Z' })]);
+
+      expect(component['chapters']()[0].name).toBe('2019 年 12 月');
+    });
+
+    it('色面句：已發布幾則、上一則是哪天；沒有公告時照實說', async () => {
+      await setup([
+        announcement({ id: 'a', publishedAt: '2026-08-18T02:00:00Z' }),
+        announcement({ id: 'b', publishedAt: '2026-10-02T02:00:00Z' }),
+      ]);
+      expect(component['headline']()).toBe('已發布 2 則公告，上一則是 10/2。');
+
+      TestBed.resetTestingModule();
+      await setup([]);
+      expect(component['headline']()).toBe('還沒有發布過公告。');
+    });
+
+    it('載入中色面不宣稱「還沒有發布過公告」', async () => {
+      listMock.mockReset();
+      listMock.mockReturnValue(NEVER);
+      createMock.mockReset();
+      campusesMock.mockReset();
+      campusesMock.mockReturnValue(of({ data: [] }));
+      await TestBed.configureTestingModule({
+        imports: [NotificationsComponent],
+        providers: [
+          { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
+          { provide: CampusesService, useValue: { list: campusesMock } },
+        ],
+      }).compileComponents();
+      const f = TestBed.createComponent(NotificationsComponent);
+      f.componentRef.setInput('page', RoutesCatalog.ADMIN_NOTIFICATIONS);
+      f.detectChanges();
+
+      expect(f.componentInstance['headline']()).toBeNull();
+      expect(f.nativeElement.textContent).not.toContain('還沒有發布過公告');
+    });
+
+    it('列：標題、時間·分校、對象 pill；沒有舊的副標', async () => {
+      await setup([announcement({ campusName: '本校', audience: 'all_parents' })]);
+
+      expect(q('announcement')!.textContent).toContain('本週三停課');
+      expect(q('audience')!.textContent).toContain('全體家長');
+      expect(q('meta')!.textContent).toContain('本校');
+      expect(fixture.nativeElement.textContent).not.toContain('發布站內公告給老師或家長');
+    });
+
+    it('按發布：空標題與內容 → 焦點到標題；只缺內容 → 焦點到內容', async () => {
+      await setup();
+
+      component['submit']();
+      expect(document.activeElement).toBe(fixture.nativeElement.querySelector('input[type=text]'));
+
+      component['title'].set('停課通知');
+      component['submit']();
+      expect(document.activeElement).toBe(fixture.nativeElement.querySelector('textarea'));
+    });
+
+    it('發布成功跳 toast：寫出對象與分校', async () => {
+      await setup();
+      const spy = vi.spyOn(component['messageService'], 'add');
+      component['title'].set('停課通知');
+      component['body'].set('內容');
+      component['audience'].set('all_parents');
+      component['campusId'].set('c1');
+
+      component['submit']();
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'success', detail: '已發布給全體家長（本校）' }),
+      );
+    });
+
+    it('發布失敗不跳成功 toast', async () => {
+      await setup();
+      const spy = vi.spyOn(component['messageService'], 'add');
+      createMock.mockReturnValue(throwError(() => new Error('boom')));
+      component['title'].set('停課通知');
+      component['body'].set('內容');
+
+      component['submit']();
+
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 });
