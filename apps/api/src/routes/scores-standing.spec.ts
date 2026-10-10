@@ -54,7 +54,7 @@ const score = (
   students: { name: studentId === S1 ? '小明' : studentId },
 });
 
-function app() {
+function app(extraScores: ReturnType<typeof score>[] = []) {
   const db = createMultiOrgDb({
     students: [{ id: S1, org_id: ORG, name: '小明', school_id: null, enrollments: [] }],
     academy_scores: [
@@ -71,6 +71,7 @@ function app() {
       score('b2', 'e2', 's2', 70, 'scored', '2026-03-08'),
       // 別 org 同 exam id 的成績不能混進母體
       score('x1', 'e1', 'sx', 0, 'scored', '2026-03-01', 'org-b'),
+      ...extraScores,
     ],
     school_scores: [],
   });
@@ -120,5 +121,13 @@ describe('GET /scores/student/{id}/summary —— latestAcademy', () => {
       rank: 2,
       classSize: 4,
     });
+  });
+
+  it('兩場都有分數 → 取 exam_date 較新的那場（較新的排在後面，拿掉排序或對調都會取到 e1）', async () => {
+    const res = await app([score('c1', 'e3', S1, 95, 'scored', '2026-03-05')]).request(
+      `/student/${S1}/summary`,
+    );
+    const body = (await res.json()) as { data: { latestAcademy: Record<string, unknown> | null } };
+    expect(body.data.latestAcademy).toMatchObject({ examId: 'e3', score: 95 });
   });
 });
