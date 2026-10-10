@@ -47,7 +47,13 @@ const remote = readFileSync(remoteFile, 'utf8')
   .filter(Boolean);
 
 const plan = planMigrations({ local, remote, deployed: flag('--deployed') });
-const pendingCsv = plan.pending.map((m) => m.version).join(',');
+// `pending` output = 這次 apply 要套的（deferred 的 backfill 不算，apply 會把它們從 checkout 拿掉）
+const deferredSet = new Set(plan.deferred.map((m) => m.version));
+const pendingCsv = plan.pending
+  .filter((m) => !deferredSet.has(m.version))
+  .map((m) => m.version)
+  .join(',');
+const deferredCsv = plan.deferred.map((m) => m.version).join(',');
 
 let failure = plan.state === 'blocked' ? plan.reason : null;
 const expected = value('--expect');
@@ -70,7 +76,8 @@ const summary = [
         '| 待套 | 類型 |',
         '| --- | --- |',
         ...plan.pending.map(
-          (m) => `| \`${m.file}\` | ${m.afterDeploy ? 'after-deploy' : 'schema'} |`,
+          (m) =>
+            `| \`${m.file}\` | ${m.afterDeploy ? 'after-deploy' : 'schema'}${deferredSet.has(m.version) ? '（這次不套，部署完 dispatch）' : ''} |`,
         ),
       ]
     : []),
@@ -81,6 +88,9 @@ console.log(summary);
 if (process.env.GITHUB_STEP_SUMMARY)
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
 if (process.env.GITHUB_OUTPUT) {
-  appendFileSync(process.env.GITHUB_OUTPUT, `state=${plan.state}\npending=${pendingCsv}\n`);
+  appendFileSync(
+    process.env.GITHUB_OUTPUT,
+    `state=${plan.state}\npending=${pendingCsv}\ndeferred=${deferredCsv}\n`,
+  );
 }
 if (failure) process.exit(1);
