@@ -392,8 +392,8 @@ app.openapi(
       .eq('org_id', orgId)
       // 依年級分章（#1314 名冊換形前置）：`grade` 是 enum `grade_level`，Postgres 依列舉序排（P1…S3），
       // 不必 RPC 或 generated column。**高年級在前**（desc，照 A6；同 byGrade 的 GRADE_CHAPTERS）。
-      // 章內依姓名，末鍵 id 讓同名翻頁穩定
-      .order('grade', { ascending: false, nullsFirst: false })
+      // 章內依姓名，末鍵 id 讓同名翻頁穩定。`grade` 是 NOT NULL，所以不寫 nulls 位置（寫了也觀察不到）
+      .order('grade', { ascending: false })
       .order('name')
       .order('id');
 

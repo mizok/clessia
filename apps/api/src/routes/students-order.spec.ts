@@ -46,4 +46,36 @@ describe('GET /students —— 先年級（高年級在前）、再姓名', () =
     // 只照姓名排會是 Amy, Ann, Ben, Cat
     expect(body.data.map((s) => s.name)).toEqual(['Amy', 'Cat', 'Ann', 'Ben']);
   });
+
+  // reviewer 二讀 #1473：末鍵 order('id') 沒被守。同名同年級時沒有末鍵，翻頁會重複／漏人。
+  // 插入順序刻意跟 id 相反 —— 少了 id 鍵，替身會照插入順序回、這條就紅
+  it('同年級同名：依 id 穩定翻頁（第 1 頁 a、第 2 頁 b）', async () => {
+    const twin = (id: string) => ({
+      id,
+      org_id: 'org-a',
+      grade: 'J1',
+      name: '王小明',
+      is_active: true,
+    });
+    const db = createMultiOrgDb({ students: [twin('b'), twin('a')], parent_student_relations: [] });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', 'org-a');
+      set('userId', 'u1');
+      set('roles', ['admin']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', studentsRoute as unknown as Hono);
+    const page = async (n: number) =>
+      (
+        (await (await app.request(`/?pageSize=1&page=${n}&withToday=false`)).json()) as {
+          data: Array<{ id: string }>;
+        }
+      ).data.map((s) => s.id);
+
+    expect([...(await page(1)), ...(await page(2))]).toEqual(['a', 'b']);
+  });
 });
