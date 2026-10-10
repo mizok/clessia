@@ -17,16 +17,13 @@
     role="search"
     aria-label="篩選營收報表"
   >
-    <p-datepicker
-      class="clessia-filter-control clessia-filter-control--date-range"
-      selectionMode="range"
-      dateFormat="yy-mm-dd"
-      [showIcon]="true"
-      [readonlyInput]="true"
-      placeholder="日期區間"
-      [ngModel]="dateRange"
-      (ngModelChange)="onRangeChange($event)"
-      ariaLabel="日期區間"
+    <p-select
+      [options]="periodOptions"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="period()"
+      (ngModelChange)="onPeriodChange($event)"
+      ariaLabel="期間"
     />
     <p-select
       [options]="courseOptions()"
@@ -113,6 +110,14 @@
             <i class="size-[13px] rounded-[3px] border-2 border-band-ink"></i>
             應收未收
             <b class="font-bold tabular-nums">{{ summary()?.outstanding ?? 0 | number }}</b>
+            @if (canOpenInvoices) {
+              <a
+                routerLink="/admin/payments"
+                [queryParams]="{ due: 'outstanding' }"
+                class="ml-auto inline-flex min-h-11 items-center text-sm font-semibold text-band-ink underline underline-offset-4"
+                >看還沒繳清的帳單</a
+              >
+            }
           </li>
           <li class="flex items-center gap-2">
             <i
@@ -120,6 +125,14 @@
             ></i>
             其中逾期
             <b class="font-bold tabular-nums">{{ summary()?.overdueOutstanding ?? 0 | number }}</b>
+            @if (canOpenInvoices) {
+              <a
+                routerLink="/admin/payments"
+                [queryParams]="{ due: 'overdue' }"
+                class="ml-auto inline-flex min-h-11 items-center text-sm font-semibold text-band-ink underline underline-offset-4"
+                >看逾期帳單</a
+              >
+            }
           </li>
         </ul>
       }
@@ -219,7 +232,15 @@
           @for (group of groups(); track group.key) {
             <tr appRtRow [appRtRow]="group" [appRtRowId]="group.key">
               <td appRtColCell="key">
-                <span class="font-medium text-zinc-900">{{ labelOf(group) }}</span>
+                @if (linkOf(group); as link) {
+                  <a
+                    [routerLink]="link"
+                    class="inline-flex min-h-11 items-center font-medium text-zinc-900 underline-offset-4 hover:underline"
+                    >{{ labelOf(group) }}</a
+                  >
+                } @else {
+                  <span class="font-medium text-zinc-900">{{ labelOf(group) }}</span>
+                }
                 @if (group.billed > 0) {
                   <!-- 比例條填色是中性深色，不用 accent —— accent 是品牌色，
                        已退出數值強調用途（#100 的視覺回歸） -->
@@ -267,6 +288,29 @@
                 >
                   {{ group.overdueOutstanding | number }}
                 </span>
+              </td>
+            </tr>
+          }
+          @if (summary(); as total) {
+            <!-- 合計列＝API 的 summary，**不是前端把各組加起來**（各組小計後端保證加得回總計） -->
+            <tr appRtRow [appRtRow]="total" appRtRowId="__total">
+              <td appRtColCell="key"><span class="font-bold text-zinc-900">合計</span></td>
+              <td appRtColCell="received">
+                <span class="font-bold tabular-nums">{{ total.received | number }}</span>
+              </td>
+              <td appRtColCell="refunded">
+                <span class="font-bold text-warning-600 tabular-nums">{{
+                  total.refunded | number
+                }}</span>
+              </td>
+              <td appRtColCell="billed">
+                <span class="font-bold tabular-nums">{{ total.billed | number }}</span>
+              </td>
+              <td appRtColCell="outstanding">
+                <span class="font-bold tabular-nums">{{ total.outstanding | number }}</span>
+              </td>
+              <td appRtColCell="overdue">
+                <span class="font-bold tabular-nums">{{ total.overdueOutstanding | number }}</span>
               </td>
             </tr>
           }

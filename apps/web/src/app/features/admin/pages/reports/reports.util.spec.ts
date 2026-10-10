@@ -2,6 +2,7 @@ import {
   AMBIGUOUS_GROUP_KEYS,
   isAmbiguousKey,
   defaultRange,
+  reportPeriods,
   groupKeyLabel,
   splitBilled,
 } from './reports.util';
@@ -106,5 +107,40 @@ describe('splitBilled', () => {
     const s = splitBilled({ billed: 500, outstanding: 500, overdueOutstanding: 500 });
     expect(s.collectedPct).toBe(0);
     expect(s.overduePct).toBe(100);
+  });
+});
+
+describe('reportPeriods', () => {
+  const byValue = (today: string, value: string) =>
+    reportPeriods(today).find((p) => p.value === value)!;
+
+  it('預設的上個完整月是整月，不含本月', () => {
+    expect(byValue('2026-10-10', 'prev1')).toMatchObject({
+      label: '9 月',
+      from: '2026-09-01',
+      to: '2026-09-30',
+    });
+  });
+
+  it('近三個月＝前三個完整月合起來', () => {
+    expect(byValue('2026-10-10', 'last3')).toMatchObject({ from: '2026-07-01', to: '2026-09-30' });
+  });
+
+  it('本月到今天', () => {
+    expect(byValue('2026-10-10', 'current')).toMatchObject({
+      label: '10 月（到今天）',
+      from: '2026-10-01',
+      to: '2026-10-10',
+    });
+  });
+
+  it('跨年：一月看的是去年 12 月，近三個月跨年', () => {
+    expect(byValue('2027-01-15', 'prev1')).toMatchObject({ from: '2026-12-01', to: '2026-12-31' });
+    expect(byValue('2027-01-15', 'last3')).toMatchObject({ from: '2026-10-01', to: '2026-12-31' });
+  });
+
+  it('二月月底照閏年算', () => {
+    expect(byValue('2028-03-05', 'prev1').to).toBe('2028-02-29');
+    expect(byValue('2027-03-05', 'prev1').to).toBe('2027-02-28');
   });
 });

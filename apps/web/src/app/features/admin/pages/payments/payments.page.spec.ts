@@ -162,6 +162,29 @@ describe('PaymentsPage', () => {
     expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining(expected));
   });
 
+  // 營收報表的「看逾期帳單」（#1314 RP3）帶 ?due= 進來
+  it('?due=overdue 一進頁就是只看逾期', () => {
+    const f = TestBed.createComponent(PaymentsPage);
+    f.componentRef.setInput('page', { label: '繳費紀錄' });
+    f.componentRef.setInput('due', 'overdue');
+    invoices.list.mockClear();
+
+    f.detectChanges();
+
+    expect(f.componentInstance['dueFilter']()).toBe('overdue');
+    expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ overdue: true }));
+  });
+
+  it('?due= 不認得的值忽略，不是亂套', () => {
+    const f = TestBed.createComponent(PaymentsPage);
+    f.componentRef.setInput('page', { label: '繳費紀錄' });
+    f.componentRef.setInput('due', 'whatever');
+
+    f.detectChanges();
+
+    expect(f.componentInstance['dueFilter']()).toBe('all');
+  });
+
   it('三選一是互斥的 —— 切到別的不會把前一個留著', () => {
     component['setDueFilter']('overdue');
     invoices.list.mockClear();
