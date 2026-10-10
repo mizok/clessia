@@ -72,6 +72,7 @@
 @source './app/features/parent/pages/grades';
 @source './app/features/parent/shared/child-switcher';
 @source './app/features/parent/pages/dashboard';
+@source './app/features/parent/pages/schedule';
 @source './app/shared/components/checkin-station';
 @source './app/shared/components/filter-chip';
 @source './app/shared/components/collapsible';
