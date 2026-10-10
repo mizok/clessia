@@ -24,9 +24,10 @@ const invoice = (id: string, studentId: string, name: string, grade: string, org
   payment_reminders: [],
 });
 
-function seed() {
+function seed(extraInvoices: Array<Record<string, unknown>> = []) {
   return createMultiOrgDb({
     invoices: [
+      ...extraInvoices,
       invoice('i1', 's1', '王小明', 'J1'),
       invoice('i2', 's2', '李小華', 'J2'),
       invoice('i3', 's3', '張三', 'P6'),
@@ -46,12 +47,32 @@ function seed() {
   });
 }
 
-async function list(query: string, campusScope: string[] | null = null) {
-  const db = seed();
+/** 讓某張表的查詢一律失敗（只拿來打搜尋子查詢） */
+function failing(client: unknown, table: string) {
+  const base = client as { from: (t: string) => unknown };
+  const broken: Record<string, unknown> = new Proxy(
+    {},
+    {
+      get: (_target, prop) =>
+        prop === 'then'
+          ? (resolve: (v: unknown) => unknown) =>
+              resolve({ data: null, error: { code: 'XX000', message: 'boom' } })
+          : () => broken,
+    },
+  );
+  return { from: (t: string) => (t === table ? broken : base.from(t)) };
+}
+
+async function list(
+  query: string,
+  campusScope: string[] | null = null,
+  opts: { failTable?: string; extraInvoices?: Array<Record<string, unknown>> } = {},
+) {
+  const db = seed(opts.extraInvoices);
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    set('supabase', opts.failTable ? failing(db.client, opts.failTable) : db.client);
     set('orgId', ORG);
     set('userId', 'u1');
     set('roles', ['admin']);
@@ -60,9 +81,13 @@ async function list(query: string, campusScope: string[] | null = null) {
   });
   app.route('/', invoicesRoute as unknown as Hono);
   const res = await app.request(`/?${query}`);
-  return (await res.json()) as {
-    data: Array<{ id: string; studentGrade: string | null }>;
-    meta: { total: number };
+  return {
+    status: res.status,
+    ...((await res.json()) as {
+      data: Array<{ id: string; studentGrade: string | null }>;
+      meta: { total: number };
+      code?: string;
+    }),
   };
 }
 
@@ -94,4 +119,32 @@ describe('GET /invoices —— search 與 studentGrade（#1314 (a)）', () => {
     expect((await list(`search=${encodeURIComponent('不存在')}`)).data).toEqual([]);
     expect((await list(`search=${encodeURIComponent('%,()')}`)).data).toEqual([]);
   });
+
+  // reviewer 二讀 #1460：查不到 ≠ 沒這個人 —— 回空清單行政會以為「沒有他的帳單」
+  it.each(['students', 'parent_student_relations'])(
+    '搜尋子查詢（%s）失敗 → 500，不是空清單',
+    async (table) => {
+      const res = await list(`search=${encodeURIComponent('王')}`, null, { failTable: table });
+      expect(res.status).toBe(500);
+      expect(res.code).toBe('SEARCH_FAILED');
+    },
+  );
+
+  // reviewer 二讀 #1460：學生名子查詢拿掉 org 原本全綠。本 org 帳單掛著別 org 同名學生（髒資料）不能被命中
+  it('別 org 的同名學生不命中', async () => {
+    const res = await list(`search=${encodeURIComponent('王小明')}`, null, {
+      extraInvoices: [invoice('i-dirty', 'sx', '王小明', 'J1')],
+    });
+    expect(res.data.map((i) => i.id)).toEqual(['i1']);
+  });
+
+  // 計畫席 10-10 裁：列表本體失敗也是 500（DB 分頁與推導分頁兩條）
+  it.each(['', 'outstanding=true'])(
+    '列表本體查詢失敗（%s）→ 500 LIST_FAILED，不是空清單',
+    async (q) => {
+      const res = await list(q, null, { failTable: 'invoices' });
+      expect(res.status).toBe(500);
+      expect(res.code).toBe('LIST_FAILED');
+    },
+  );
 });
