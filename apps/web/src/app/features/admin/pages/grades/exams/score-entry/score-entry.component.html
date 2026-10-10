@@ -135,6 +135,17 @@
               有成績還沒儲存
             }
           </p>
+          @if (academyEditor(); as editor) {
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center rounded-md border border-white/40 bg-transparent px-4 text-md font-semibold text-white hover:bg-white/10 disabled:cursor-default disabled:opacity-60"
+              data-part="revert"
+              [disabled]="saving()"
+              (click)="editor.revert()"
+            >
+              復原變更
+            </button>
+          }
           <button
             type="button"
             class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60"
