@@ -64,6 +64,8 @@ function app() {
       score('a3', 'e1', 's3', 80),
       score('a4', 'e1', 's4', 71),
       score('a5', 'e1', 's5', null, 'absent'),
+      // 補考但留著舊分數（DB 沒有約束擋這種列）—— 不能算進母體
+      score('a6', 'e1', 's6', 100, 'makeup'),
       // e2（較新）：小明缺考 → 三欄 null；別人有分數
       score('b1', 'e2', S1, null, 'absent', '2026-03-08'),
       score('b2', 'e2', 's2', 70, 'scored', '2026-03-08'),
