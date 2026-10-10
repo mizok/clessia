@@ -54,7 +54,8 @@ const ParentDetailSchema = ParentSchema.extend({
 
 /** 列表多帶孩子的 id，名字才能點進學生檔案（#1314 PA2）。只在列表 —— 單筆有更完整的 `students` */
 const ParentListItemSchema = ParentSchema.extend({
-  students: z.array(z.object({ id: DbUuidSchema, name: z.string() })),
+  /** grade：列表孩子名旁的年級（#1314 (b)） */
+  students: z.array(z.object({ id: DbUuidSchema, name: z.string(), grade: z.string().nullable() })),
 }).openapi('ParentListItem');
 
 const ParentListResponseSchema = z
@@ -306,20 +307,27 @@ app.openapi(
     // 取得本頁家長的 student 關聯（含學生 id 與姓名）。只撈本頁 —— 先撈全 org 家長 id
     // 會被 max_rows（1000）靜默截斷，後面的人孩子數變 0（#1314 PA2）
     const parentIdList = rows.map((r) => r['id'] as string);
-    const studentRelMap = new Map<string, Array<{ id: string; name: string }>>();
+    const studentRelMap = new Map<
+      string,
+      Array<{ id: string; name: string; grade: string | null }>
+    >();
     if (parentIdList.length > 0) {
       const { data: relRows } = await supabase
         .from('parent_student_relations')
-        .select('parent_id, students(id, name)')
+        .select('parent_id, students(id, name, grade)')
         .in('parent_id', parentIdList);
       for (const rel of relRows ?? []) {
         const r = rel as unknown as {
           parent_id: string;
-          students: { id: string; name: string } | null;
+          students: { id: string; name: string; grade: string | null } | null;
         };
         if (!r.students) continue;
         const existing = studentRelMap.get(r.parent_id) ?? [];
-        existing.push({ id: r.students.id, name: r.students.name });
+        existing.push({
+          id: r.students.id,
+          name: r.students.name,
+          grade: r.students.grade ?? null,
+        });
         studentRelMap.set(r.parent_id, existing);
       }
     }

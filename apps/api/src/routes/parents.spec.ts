@@ -142,7 +142,12 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
                 : table === 'enrollments'
                   ? [{ student_id: 'student-1' }]
                   : table === 'parent_student_relations'
-                    ? [{ parent_id: 'parent-1', students: { id: 'student-1', name: '學生一' } }]
+                    ? [
+                        {
+                          parent_id: 'parent-1',
+                          students: { id: 'student-1', name: '學生一', grade: 'J1' },
+                        },
+                      ]
                     : [];
             return resolve({ data, count: data.length, error: null });
           },
@@ -250,9 +255,11 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
   });
 
   // #1314 PA2：孩子名字要能點進學生檔案 —— 列表帶 id，不只名字
-  it('每列帶 students[{ id, name }]', async () => {
+  it('每列帶 students[{ id, name, grade }]（grade：#1314 (b)）', async () => {
     await listParents(null);
-    expect(lastBody.data[0]?.['students']).toEqual([{ id: 'student-1', name: '學生一' }]);
+    expect(lastBody.data[0]?.['students']).toEqual([
+      { id: 'student-1', name: '學生一', grade: 'J1' },
+    ]);
   });
 
   // 原本先撈全 org 家長 id 再撈關聯：家長破千時被 max_rows 截斷，後面的人孩子數靜默變 0

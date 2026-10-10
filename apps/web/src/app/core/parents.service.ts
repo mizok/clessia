@@ -21,7 +21,7 @@ export interface Parent {
   studentCount: number;
   studentNames: string[]; // 關聯學生姓名列表
   /** 只有列表（`GET /parents`）帶；單筆的 `ParentDetail.students` 是更完整的形狀 */
-  students?: Array<{ id: string; name: string }>;
+  students?: Array<{ id: string; name: string; grade: string | null }>;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
