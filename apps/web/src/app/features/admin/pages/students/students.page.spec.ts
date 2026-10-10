@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
@@ -8,6 +9,8 @@ import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 import { StudentsService, type StudentListResponse } from '@core/students.service';
 import { AuthService } from '@core/auth.service';
 import { OrgSettingsService } from '@core/org-settings.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 
 import { StudentsPage } from './students.page';
 
@@ -40,17 +43,23 @@ describe('StudentsPage', () => {
     }) as unknown as StudentListResponse;
 
   /** 每次呼叫都記下 search 參數，並回一個我們自己控制何時完成的 Subject */
-  const pending: Array<{ search: string | undefined; subject: Subject<StudentListResponse> }> = [];
+  const pending: Array<{
+    search: string | undefined;
+    params: { search?: string; campusId?: string; page?: number };
+    subject: Subject<StudentListResponse>;
+  }> = [];
   const studentsServiceMock = {
-    list: vi.fn((params: { search?: string }) => {
+    list: vi.fn((params: { search?: string; campusId?: string; page?: number }) => {
       const subject = new Subject<StudentListResponse>();
-      pending.push({ search: params.search, subject });
+      pending.push({ search: params.search, params, subject });
       return subject.asObservable();
     }),
     // #876：這兩支要分得出來 —— 這個 bug 的形狀就是「畫面上是兩件事、網路上是同一支 API」
     update: vi.fn(() => of({ data: {} as never })),
     delete: vi.fn(() => of({ success: true })),
   };
+
+  const refDataMock = { campuses: signal<unknown[]>([]), loadCampuses: vi.fn() };
 
   viBeforeEach(() => {
     // 這個 app 是 zoneless（Angular 21 + signals），沒有 `fakeAsync` ——
@@ -63,6 +72,8 @@ describe('StudentsPage', () => {
   });
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     pending.length = 0;
     studentsServiceMock.list.mockClear();
     studentsServiceMock.update.mockClear();
@@ -75,6 +86,7 @@ describe('StudentsPage', () => {
         // 原本這支 spec **沒有任何 service mock**，於是元件打真的 HTTP ——
         // `whenStable()` 等到 hook timeout 為止（本機那支卡住的 API 讓它每次 10 秒）。
         { provide: StudentsService, useValue: studentsServiceMock },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: MessageService, useValue: { add: vi.fn() } },
         { provide: DialogService, useValue: { open: vi.fn(() => ({ onClose: of(null) })) } },
         {
@@ -107,6 +119,55 @@ describe('StudentsPage', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  /** 分校跟頂欄走（#1314 殼層後續項 5） */
+  describe('頂欄分校', () => {
+    const selectCampus = (id: string | null) => {
+      TestBed.inject(CampusContextService).select(id);
+      fixture.detectChanges();
+    };
+
+    it('頁面接上頂欄（use）：頂欄才會出現分校下拉', () => {
+      expect(TestBed.inject(CampusContextService).inUse()).toBe(true);
+    });
+
+    it('初次載入沒選分校就不帶 campusId', () => {
+      expect(pending[0].params.campusId).toBeUndefined();
+    });
+
+    it('換分校：回第一頁、帶新的 campusId 重查；換回全部分校就不帶', () => {
+      (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 2 });
+      expect(pending.at(-1)?.params.page).toBe(3);
+
+      selectCampus('campus-1');
+      expect(pending.at(-1)?.params).toEqual(
+        expect.objectContaining({ campusId: 'campus-1', page: 1 }),
+      );
+
+      selectCampus(null);
+      expect(pending.at(-1)?.params.campusId).toBeUndefined();
+    });
+
+    it('清除篩選不動分校', () => {
+      selectCampus('campus-1');
+      (component as unknown as { clearFilters: () => void }).clearFilters();
+      expect(pending.at(-1)?.params.campusId).toBe('campus-1');
+    });
+
+    it('亂序：換分校後，前一個分校晚到的回應不能蓋掉新的', () => {
+      selectCampus('campus-1');
+      selectCampus('campus-2');
+      const [, first, second] = pending;
+
+      second.subject.next(emptyRes(['B 分校的人']));
+      first.subject.next(emptyRes(['A 分校的人']));
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('B 分校的人');
+      expect(text).not.toContain('A 分校的人');
+    });
   });
 
   /**

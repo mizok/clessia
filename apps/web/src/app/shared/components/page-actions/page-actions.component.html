@@ -5,16 +5,18 @@
   @if (primary(); as action) {
     <!-- 主要／次要行動在標頭裡的那一份**只在桌機出現**；手機由下方的托盤承擔 -->
     @if (secondary(); as second) {
-      <div class="page-actions__header-secondary hidden min-[640.02px]:block">
-        <p-button
-          [label]="second.label"
-          [icon]="second.icon ?? ''"
-          [disabled]="!!second.disabled"
-          [outlined]="true"
-          severity="secondary"
-          (onClick)="onSecondary($event)"
-        />
-      </div>
+      @if (secondaryOnDesktop()) {
+        <div class="page-actions__header-secondary hidden min-[640.02px]:block">
+          <p-button
+            [label]="second.label"
+            [icon]="second.icon ?? ''"
+            [disabled]="!!second.disabled"
+            [outlined]="true"
+            severity="secondary"
+            (onClick)="onSecondary($event)"
+          />
+        </div>
+      }
     }
     <div class="page-actions__header-primary hidden min-[640.02px]:block">
       <p-button
