@@ -168,4 +168,30 @@ describe('PageActionsComponent', () => {
 
     expect(fired).toBe(1);
   });
+
+  // ── secondaryOnDesktop：章頭已有同一個動作時，標頭不再放第二份 ─────────────
+  it('預設桌機標頭與托盤都有次要行動', async () => {
+    await setup({ label: '新增價目表' }, { label: '新增期間' });
+
+    expect(host.querySelector('.page-actions__header-secondary')?.textContent).toContain(
+      '新增期間',
+    );
+    expect(host.querySelector('.page-actions__dock')?.textContent).toContain('新增期間');
+  });
+
+  it('secondaryOnDesktop=false：標頭沒有次要行動，托盤照舊', async () => {
+    await TestBed.configureTestingModule({ imports: [PageActionsComponent] }).compileComponents();
+    fixture = TestBed.createComponent(PageActionsComponent);
+    fixture.componentRef.setInput('primary', { label: '新增價目表' });
+    fixture.componentRef.setInput('secondary', { label: '新增期間' });
+    fixture.componentRef.setInput('secondaryOnDesktop', false);
+    fixture.detectChanges();
+    host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.page-actions__header-secondary')).toBeNull();
+    expect(host.querySelector('.page-actions__header-primary')?.textContent).toContain(
+      '新增價目表',
+    );
+    expect(host.querySelector('.page-actions__dock')?.textContent).toContain('新增期間');
+  });
 });

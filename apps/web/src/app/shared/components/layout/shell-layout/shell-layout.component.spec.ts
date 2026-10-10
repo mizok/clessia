@@ -77,6 +77,24 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       originalResizeObserver;
   });
 
+  describe('頭像圓章取字（A6）', () => {
+    const initialFor = async (displayName: string, email = 'a@example.com') => {
+      const { auth, fixture, el } = await setup(['admin'], 'admin');
+      auth.profile.set({ id: 'u1', display_name: displayName, branch_id: null });
+      auth.user.set({ id: 'u1', email });
+      fixture.detectChanges();
+      return el.querySelector('button[popovertarget="shell-account"] span[aria-hidden="true"]')
+        ?.textContent;
+    };
+
+    it('中文名取第一個字', async () => expect(await initialFor('王主任')).toBe('王'));
+    it('英文名大寫', async () => expect(await initialFor('alice')).toBe('A'));
+    it('前後空白不算', async () => expect(await initialFor('  bob  ')).toBe('B'));
+    it('沒有名字就用 email 第一個字', async () => expect(await initialFor('')).toBe('A'));
+    it('名字與 email 都空 → ?', async () => expect(await initialFor('', '')).toBe('?'));
+    it('代理對（𠮷）不被拆半', async () => expect(await initialFor('𠮷野')).toBe('𠮷'));
+  });
+
   it('頂欄列出 topItems，字標連到第一項（角色首頁）', async () => {
     const { el } = await setup(['admin'], 'admin');
     const nav = el.querySelector('nav[aria-label="主要導覽"]')!;

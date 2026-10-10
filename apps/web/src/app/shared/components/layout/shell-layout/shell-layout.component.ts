@@ -1,7 +1,6 @@
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
-import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
 import { AuthService, type UserRole } from '@core/auth.service';
 import { NavigationService } from '@core/navigation.service';
 import { CampusContextService } from '@core/campus-context.service';
@@ -31,7 +30,6 @@ const WIDE = '(min-width: 861px)';
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
-    JdenticonAvatarComponent,
     InheritSizeDirective,
     OverlayContainerDirective,
     GlobalSearchComponent,
@@ -64,8 +62,9 @@ export class ShellLayoutComponent {
   protected readonly displayName = computed(
     () => this.auth.profile()?.display_name || this.auth.user()?.email || '',
   );
-  protected readonly avatarSeed = computed(
-    () => (this.auth.user()?.id || 'ANYMOUS') + '_' + (this.auth.profile()?.display_name || 'USER'),
+  /** 頭像圓章的字（A6）：名字第一個字；空名顯示「?」。`Array.from` 不把代理對拆半 */
+  protected readonly avatarInitial = computed(
+    () => Array.from(this.displayName().trim())[0]?.toUpperCase() ?? '?',
   );
   /** 帳戶浮層裡點得到的身分 —— 目前這個不列，點自己沒有意義 */
   protected readonly otherRoles = computed(() =>

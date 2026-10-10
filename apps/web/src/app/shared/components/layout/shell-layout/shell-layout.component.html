@@ -14,12 +14,12 @@
       >
 
       <nav
-        class="order-3 -mx-1 flex w-full items-center gap-5 overflow-x-auto px-1 [scrollbar-width:none] wide:order-none wide:mx-0 wide:w-auto wide:overflow-visible wide:px-0"
+        class="order-3 -mx-1 flex w-full items-center gap-5 overflow-x-auto px-1 [scrollbar-width:none] max-wide:bg-white max-wide:shadow-[0_0_0_2000px_#fff] max-wide:[clip-path:inset(0_-2000px)] max-wide:[&_:focus-visible]:outline-zinc-900 wide:order-none wide:mx-0 wide:w-auto wide:overflow-visible wide:px-0"
         aria-label="主要導覽"
       >
         @for (item of nav.topItems(); track item.route) {
           <a
-            class="group inline-flex min-h-11 shrink-0 items-center text-base font-medium whitespace-nowrap text-zinc-300 no-underline hover:text-white aria-[current=page]:font-semibold aria-[current=page]:text-white"
+            class="group inline-flex min-h-11 shrink-0 items-center text-base font-medium whitespace-nowrap text-zinc-300 no-underline hover:text-white aria-[current=page]:font-semibold aria-[current=page]:text-white max-wide:text-zinc-600 max-wide:hover:text-zinc-900 max-wide:aria-[current=page]:text-zinc-900"
             [routerLink]="item.route"
             routerLinkActive
             ariaCurrentWhenActive="page"
@@ -32,7 +32,7 @@
         }
         @if (nav.moreGroups().length > 0) {
           <button
-            class="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-base font-medium whitespace-nowrap text-zinc-300 hover:text-white"
+            class="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-base font-medium whitespace-nowrap text-zinc-300 hover:text-white max-wide:text-zinc-600 max-wide:hover:text-zinc-900"
             type="button"
             popovertarget="shell-more"
             [attr.aria-expanded]="moreOpen()"
@@ -60,7 +60,7 @@
             [attr.aria-label]="'切換分校，目前 ' + (campus.name() ?? '全部分校')"
           >
             <i class="pi pi-building text-sm" aria-hidden="true"></i>
-            <!-- 手機頂欄第一列放不下名字（會把帳戶鈕擠到第二列）：只留圖示，名字在 aria-label -->
+            <!-- 手機頂欄第一列放不下名字（會把帳戶鈕擠到第二列，頭部 93→137px，2026-10-10 實測 360）：只留圖示，名字在 aria-label -->
             <span class="hidden truncate wide:inline">{{ campus.name() ?? '全部分校' }}</span>
             <i class="pi pi-chevron-down text-xs" aria-hidden="true"></i>
           </button>
@@ -75,11 +75,11 @@
           [attr.aria-expanded]="accountOpen()"
           [attr.aria-label]="'帳戶：' + displayName() + '，目前身分 ' + roleLabels[role]"
         >
-          <app-jdenticon-avatar
-            class="block rounded-full bg-white"
-            [size]="28"
-            [value]="avatarSeed()"
-          />
+          <span
+            class="inline-grid size-[30px] shrink-0 place-items-center rounded-full bg-white text-md leading-none font-bold text-zinc-900"
+            aria-hidden="true"
+            >{{ avatarInitial() }}</span
+          >
           <span class="hidden whitespace-nowrap wide:inline"
             >{{ displayName() }} · {{ roleLabels[role] }}</span
           >
@@ -180,11 +180,11 @@
 >
   <div class="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300 wide:hidden" aria-hidden="true"></div>
   <div class="flex items-center gap-3 p-3">
-    <app-jdenticon-avatar
-      class="block rounded-full bg-zinc-900"
-      [size]="48"
-      [value]="avatarSeed()"
-    />
+    <span
+      class="inline-grid size-12 shrink-0 place-items-center rounded-full bg-zinc-900 text-xl leading-none font-bold text-white"
+      aria-hidden="true"
+      >{{ avatarInitial() }}</span
+    >
     <div class="min-w-0">
       <p class="m-0 text-lg font-bold">{{ displayName() }}</p>
       <p class="m-0 text-md [overflow-wrap:anywhere] text-zinc-600">{{ auth.user()?.email }}</p>

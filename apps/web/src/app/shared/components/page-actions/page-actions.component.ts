@@ -62,6 +62,13 @@ export class PageActionsComponent {
   readonly secondaryClick = output<MouseEvent>();
 
   /**
+   * 桌機標頭要不要也放 `secondary`（預設要）。**手機托盤不受影響**。
+   * 頁面的章頭已經有同一個動作時傳 `false`（例如 fee-templates 的「新增期間」），
+   * 不然同一個動作在同一屏出現兩次；A6 工具列只放它畫的那幾顆。
+   */
+  readonly secondaryOnDesktop = input(true);
+
+  /**
    * 帶著原始的 `MouseEvent` —— 有些主要行動要**錨定一個彈出選單**在按鈕上
    * （例如「新增考試」要先選補習班考試還是學校考試），那需要事件的 target。
    *
