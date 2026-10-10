@@ -78,7 +78,15 @@ const StudentDetailSchema = StudentSchema.extend({
 const StudentListResponseSchema = z
   .object({
     data: z.array(StudentSchema),
-    summary: z.object({ total: z.number(), activeCount: z.number() }),
+    summary: z.object({
+      total: z.number(),
+      activeCount: z.number(),
+      /**
+       * 依年級分章的章節計數（#1314 SL3）：`GradeLevel` 列舉順序、每級都有（0 也回）。
+       * 吃列表同一組篩選（search／分校／老師範圍／isActive），**不吃 grade** —— 篩了一級時其他章名照樣在
+       */
+      byGrade: z.array(z.object({ grade: GradeLevelSchema, count: z.number() })),
+    }),
     meta: z.object({
       total: z.number(),
       page: z.number(),
@@ -188,17 +196,28 @@ export function buildStudentSearchClause(
   search: string,
   matchedStudentIds: string[],
   searchScope: 'default' | 'student_name' = 'default',
+  /** 名稱符合的學校（#1314 SL4）—— 只在 default 範圍併進來 */
+  schoolIds: string[] = [],
 ): string {
   if (searchScope === 'student_name') {
     return `name.ilike.%${search}%`;
   }
 
-  if (matchedStudentIds.length > 0) {
-    return `name.ilike.%${search}%,id.in.(${matchedStudentIds.join(',')})`;
-  }
-
-  return `name.ilike.%${search}%`;
+  return [
+    `name.ilike.%${search}%`,
+    ...(matchedStudentIds.length > 0 ? [`id.in.(${matchedStudentIds.join(',')})`] : []),
+    ...(schoolIds.length > 0 ? [`school_id.in.(${schoolIds.join(',')})`] : []),
+  ].join(',');
 }
+
+/** 列表與年級章節計數共用篩選會用到的 builder 方法（泛型不加約束，同 courses／staff，避 TS2589） */
+interface StudentFilterable {
+  eq(column: string, value: unknown): StudentFilterable;
+  in(column: string, values: string[]): StudentFilterable;
+  or(filters: string): StudentFilterable;
+}
+
+const GRADE_LEVELS = GradeLevelSchema.options;
 
 // ============================================================
 // Routes
@@ -328,13 +347,25 @@ app.openapi(
     if (taughtStudentIds !== null) {
       // 空陣列代表這位老師沒有任何任課班 —— 結果必須是空的，不是「不篩」
       if (taughtStudentIds.length === 0) {
-        return c.json({ data: [], meta: { total: 0, page, pageSize, totalPages: 0 } }, 200);
+        return c.json(
+          {
+            data: [],
+            summary: {
+              total: 0,
+              activeCount: 0,
+              byGrade: GRADE_LEVELS.map((level) => ({ grade: level, count: 0 })),
+            },
+            meta: { total: 0, page, pageSize, totalPages: 0 },
+          },
+          200,
+        );
       }
-      query = query.in('id', taughtStudentIds);
     }
 
+    let searchClause: string | null = null;
     if (search) {
       let matchedStudentIds: string[] = [];
+      let schoolIds: string[] = [];
 
       if (searchScope === 'default') {
         const { data: relationRows, error: relationError } = await supabase
@@ -373,6 +404,17 @@ app.openapi(
           }
         }
 
+        // 學校名（#1314 SL4）：本 org 的學校，全名或簡稱
+        const { data: schoolRows, error: schoolError } = await supabase
+          .from('schools')
+          .select('id')
+          .eq('org_id', orgId)
+          .or(`name.ilike.%${search}%,short_name.ilike.%${search}%`);
+        if (schoolError) {
+          return c.json({ error: '讀取學生列表失敗', message: schoolError.message }, 500);
+        }
+        schoolIds = ((schoolRows ?? []) as Array<{ id: string }>).map((row) => row.id);
+
         matchedStudentIds = Array.from(
           new Set(
             [...((relationRows ?? []) as Array<{ student_id: string | null }>), ...phoneRows]
@@ -382,7 +424,7 @@ app.openapi(
         );
       }
 
-      query = query.or(buildStudentSearchClause(search, matchedStudentIds, searchScope));
+      searchClause = buildStudentSearchClause(search, matchedStudentIds, searchScope, schoolIds);
     }
     if (grade) {
       query = query.eq('grade', grade);
@@ -418,11 +460,19 @@ app.openapi(
       // 但保留既有寫法，不趁機改語意
       scopedStudentIds =
         campusStudentIds.length > 0 ? campusStudentIds : ['00000000-0000-0000-0000-000000000000'];
-      query = query.in('id', scopedStudentIds);
     }
-    if (isActive !== undefined) {
-      query = query.eq('is_active', isActive);
-    }
+
+    // 列表與年級章節計數共用（#1314 SL3）—— 兩邊各寫一份就會對同一份名單給出兩個數字。
+    // grade 不在裡面：章節要列出其他年級。兩個 `in('id')` 在 PostgREST 是 AND（交集）
+    const withChapterFilters = <Q>(q: Q): Q => {
+      let next = q as unknown as StudentFilterable;
+      if (taughtStudentIds !== null) next = next.in('id', taughtStudentIds);
+      if (searchClause) next = next.or(searchClause);
+      if (scopedStudentIds) next = next.in('id', scopedStudentIds);
+      if (isActive !== undefined) next = next.eq('is_active', isActive);
+      return next as unknown as Q;
+    };
+    query = withChapterFilters(query);
 
     const offset = (page - 1) * pageSize;
     query = query.range(offset, offset + pageSize - 1);
@@ -439,14 +489,35 @@ app.openapi(
     if (scopedStudentIds) activeCountQuery = activeCountQuery.in('id', scopedStudentIds);
 
     // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去
-    const [{ data, error, count }, { count: activeCount }] = await Promise.all([
+    // 每級一支 head count 讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷（同 courses bySubject）
+    const gradeCountQueries = GRADE_LEVELS.map((level) =>
+      withChapterFilters(
+        supabase
+          .from('students')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId)
+          .eq('grade', level),
+      ),
+    );
+
+    const [{ data, error, count }, { count: activeCount }, ...gradeCounts] = await Promise.all([
       query,
       activeCountQuery,
+      ...gradeCountQueries,
     ]);
 
     if (error) {
       return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
     }
+    // 數不出來就不回 0
+    const gradeCountError = gradeCounts.find((r) => r.error)?.error;
+    if (gradeCountError) {
+      return c.json({ error: '讀取學生列表失敗', message: gradeCountError.message }, 500);
+    }
+    const byGrade = GRADE_LEVELS.map((level, i) => ({
+      grade: level,
+      count: gradeCounts[i]?.count ?? 0,
+    }));
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     const total = count ?? 0;
@@ -526,7 +597,7 @@ app.openapi(
     return c.json(
       {
         data: students,
-        summary: { total, activeCount: activeCount ?? 0 },
+        summary: { total, activeCount: activeCount ?? 0, byGrade },
         meta: {
           total,
           page,
