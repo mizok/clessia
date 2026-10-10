@@ -56,29 +56,33 @@
     }
   </div>
 
-  @if (addingStudent()) {
-    <div class="mt-4 flex flex-col gap-2 rounded-lg bg-zinc-100 p-4" data-part="add-student-panel">
-      <p class="m-0 text-md font-semibold text-zinc-900">加入其他學生</p>
-      <p class="m-0 text-sm text-zinc-700">不在這個班、但這次一起考的學生（例如插班、補考）</p>
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="min-w-0 flex-1 wide:max-w-96">
-          <app-student-autocomplete
-            [suggestions]="studentSuggestions()"
-            (queryChange)="onStudentQuery($event)"
-            (valueChange)="onStudentPicked($event)"
-            placeholder="輸入姓名搜尋"
-          />
-        </div>
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
-          (click)="addingStudent.set(false)"
-        >
-          取消
-        </button>
-      </div>
-    </div>
-  }
+  <p-dialog
+    header="加入其他學生"
+    [modal]="true"
+    [visible]="addingStudent()"
+    (visibleChange)="addingStudent.set($event)"
+    [draggable]="false"
+    [style]="{ width: 'min(28rem, calc(100% - 2rem))' }"
+    data-part="add-student-panel"
+  >
+    <p class="m-0 mb-3 text-sm text-zinc-700">不在這個班、但這次一起考的學生（例如插班、補考）</p>
+    <app-student-autocomplete
+      [suggestions]="studentSuggestions()"
+      (queryChange)="onStudentQuery($event)"
+      (valueChange)="onStudentPicked($event)"
+      placeholder="輸入姓名搜尋"
+      appendTo="body"
+    />
+    <ng-template #footer>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+        (click)="addingStudent.set(false)"
+      >
+        取消
+      </button>
+    </ng-template>
+  </p-dialog>
 
   @if (filteredRows().length === 0) {
     <div class="flex flex-col items-center gap-2 p-12 text-sm text-zinc-600">
@@ -126,6 +130,13 @@
                 [routerLink]="['/admin/students', row.studentId]"
                 >{{ row.studentName }}</a
               >
+              @if (row.added) {
+                <span
+                  class="ml-1.5 inline-flex items-center rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold text-zinc-800"
+                  data-part="added-tag"
+                  >加入</span
+                >
+              }
               <small class="ml-1.5 text-sm text-zinc-600">{{
                 formatGrade(row.studentGrade)
               }}</small>
@@ -201,6 +212,13 @@
               [class.text-zinc-600]="isUnrecorded(row)"
               >{{ row.studentName }}</span
             >
+            @if (row.added) {
+              <span
+                class="inline-flex items-center rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold text-zinc-800"
+                data-part="added-tag"
+                >加入</span
+              >
+            }
             <span class="text-sm text-zinc-600">{{ formatGrade(row.studentGrade) }}</span>
           </span>
           <span

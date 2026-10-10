@@ -1,7 +1,7 @@
 import { provideRouter } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AcademyExamsService, type AcademyExamDetail } from '@core/academy-exams.service';
@@ -65,6 +65,7 @@ describe('AcademyScoreEditorComponent', () => {
   };
 
   const messageServiceMock = { add: vi.fn() };
+  const studentsServiceMock = { list: vi.fn((..._a: unknown[]) => of({ data: [] as Student[] })) };
 
   beforeEach(async () => {
     academyExamsServiceMock.getScores.mockClear();
@@ -76,7 +77,7 @@ describe('AcademyScoreEditorComponent', () => {
       providers: [
         { provide: AcademyExamsService, useValue: academyExamsServiceMock },
         { provide: MessageService, useValue: messageServiceMock },
-        { provide: StudentsService, useValue: { list: vi.fn(() => of({ data: [] })) } },
+        { provide: StudentsService, useValue: studentsServiceMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -445,6 +446,29 @@ describe('AcademyScoreEditorComponent', () => {
       component['onStudentPicked'](outsider);
       expect(component['classFilter']()).toBeNull();
       expect(component['filteredRows']().some((r) => r.studentId === 'stu-9')).toBe(true);
+    });
+
+    it('班外學生的列標「加入」，原名單的人沒有', () => {
+      component['onStudentPicked'](outsider);
+      fixture.detectChanges();
+      const tags = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-part="added-tag"]'),
+      ];
+      expect(tags.length).toBeGreaterThan(0);
+      expect(component['rows']().map((r) => !!r.added)).toEqual([false, false, true]);
+    });
+
+    it('連打查詢時舊查詢慢回來不會蓋掉新結果（switchMap）', () => {
+      const slow = new Subject<{ data: Student[] }>();
+      const fast = new Subject<{ data: Student[] }>();
+      studentsServiceMock.list
+        .mockReturnValueOnce(slow as never)
+        .mockReturnValueOnce(fast as never);
+      component['onStudentQuery']('陳');
+      component['onStudentQuery']('陳插');
+      fast.next({ data: [outsider] });
+      slow.next({ data: [{ ...outsider, id: 'old', name: '舊結果' } as Student] });
+      expect(component['studentSuggestions']().map((x) => x.name)).toEqual(['陳插班']);
     });
 
     it('按鈕開關面板；已結束的考試不出鈕', () => {

@@ -23,6 +23,8 @@ export class StudentAutocompleteComponent {
    * 而接電話時最可靠的線索是**打來的家長是誰**。預設關：既有使用點一字不動。
    */
   readonly showContact = input(false);
+  /** 候選清單掛在哪（預設不變）。放進 dialog／drawer 時傳 'body'，否則清單會被裁掉或蓋住 */
+  readonly appendTo = input<string | undefined>(undefined);
 
   readonly valueChange = output<Student | string | null>();
   readonly queryChange = output<string>();

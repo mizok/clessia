@@ -13,11 +13,13 @@ import {
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, of, switchMap } from 'rxjs';
 
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { DrawerModule } from 'primeng/drawer';
+import { DialogModule } from 'primeng/dialog';
 import { MessageService } from 'primeng/api';
 import { focusScoreRow, scoreKeyStep } from '../score-keyboard.util';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
@@ -41,6 +43,8 @@ export interface ScoreRow {
   notes: string;
   /** 這名學生在本場考試中所屬的班級，可能多於一個（跨班報名） */
   classIds: string[];
+  /** 「加入其他學生」加進來的（不在原名單）。畫面上標「加入」 */
+  added?: boolean;
   /** 原始快照，用於 dirty check */
   original: {
     score: number | null;
@@ -65,6 +69,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
     InputTextModule,
     SelectModule,
     DrawerModule,
+    DialogModule,
     StudentAutocompleteComponent,
   ],
   templateUrl: './academy-score-editor.component.html',
@@ -153,6 +158,18 @@ export class AcademyScoreEditorComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.studentQuery$
+      .pipe(
+        switchMap((query) =>
+          query.trim()
+            ? this.studentsService
+                .list({ search: query, searchScope: 'student_name', pageSize: 20 })
+                .pipe(catchError(() => of({ data: [] as Student[] })))
+            : of({ data: [] as Student[] }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => this.studentSuggestions.set(res.data));
     this.loadScores();
   }
 
@@ -336,18 +353,11 @@ export class AcademyScoreEditorComponent implements OnInit {
    * 加進來的列**不算未存變更** —— 還沒輸入分數就沒有東西可以存（存一筆空分數的「已登錄」是假資料）；
    * 輸入分數或標缺考後它才變 dirty、才會送出。API 管理員可寫班外學生、老師限任課班（403）。
    */
+  // 打字會連續送查詢；switchMap 讓慢回來的舊結果不會蓋掉新結果（亂序）
+  private readonly studentQuery$ = new Subject<string>();
+
   protected onStudentQuery(query: string): void {
-    if (!query.trim()) {
-      this.studentSuggestions.set([]);
-      return;
-    }
-    this.studentsService
-      .list({ search: query, searchScope: 'student_name', pageSize: 20 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => this.studentSuggestions.set(res.data),
-        error: () => this.studentSuggestions.set([]),
-      });
+    this.studentQuery$.next(query);
   }
 
   protected onStudentPicked(value: Student | string | null): void {
@@ -371,6 +381,7 @@ export class AcademyScoreEditorComponent implements OnInit {
         status: 'scored',
         notes: '',
         classIds: [],
+        added: true,
         original: { score: null, status: 'scored', notes: '' },
       },
     ]);
