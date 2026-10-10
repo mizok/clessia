@@ -148,4 +148,30 @@ describe('StudentScoreDetailDialogComponent', () => {
     expect(rows[1].textContent).not.toContain('班平均');
     expect(rows[1].querySelector('a')).toBeNull();
   });
+
+  // #1314 G10：只有 1 人考的場次，「第 1 名／1 人」沒有資訊量，不寫名次
+  it('classSize 為 1 時只寫班平均，不顯示名次；2 人以上才顯示', () => {
+    const base = {
+      studentId: 's1',
+      studentName: '王小明',
+      subjectName: '數學',
+      totalScore: 100,
+      status: 'scored',
+      type: 'academy',
+      examDate: '2026-09-24',
+      score: 80,
+      classAvg: 80,
+    };
+    (component as unknown as { scores: { set: (v: unknown) => void } }).scores.set([
+      { ...base, id: 'solo', examId: 'e1', examName: '一人考', rank: 1, classSize: 1 },
+      { ...base, id: 'pair', examId: 'e2', examName: '兩人考', rank: 2, classSize: 2 },
+    ]);
+    fixture.detectChanges();
+    const rows = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-part="record"]'),
+    ];
+    expect(rows[0].textContent).toContain('班平均 80');
+    expect(rows[0].textContent).not.toContain('名');
+    expect(rows[1].textContent).toContain('第 2 名／2 人');
+  });
 });
