@@ -171,6 +171,50 @@ describe('GET /api/me/billing', () => {
     expect(body.meta).toMatchObject({ totalDue: 600 });
   });
 
+  // 家長資料面（#1314 PP2）：回應鍵集合是契約 —— 這一輪只多 className、invoiceNo，
+  // 之後誰再加欄位（尤其是 note／recordedBy 這類內部欄位）會在這裡紅燈
+  it('回應的鍵集合固定：只比上一版多 className、invoiceNo；className 來自報名的班', async () => {
+    const withEnrollment = {
+      ...UNPAID_INVOICE,
+      invoice_no: 'INV-2609-001',
+      invoice_items: [{ ...UNPAID_INVOICE.invoice_items[0], enrollment_id: 'enr1' }],
+    };
+    const childDb = fakeChildDb([withEnrollment], [withEnrollment]);
+    childDb.from = () =>
+      ({
+        pluck: async () => ({
+          rows: [{ id: 'enr1', classes: { name: '國三數學' } }],
+          ids: [],
+          error: null,
+        }),
+        select: () => chainable(() => ({ data: [withEnrollment], error: null, count: 1 })),
+      }) as never;
+    const res = await appWith(['parent'], [CHILD_ID], childDb).request(`/?childId=${CHILD_ID}`);
+    const body = (await res.json()) as { data: Array<Record<string, unknown>> };
+    const [inv] = body.data;
+    expect(Object.keys(inv).sort()).toEqual(
+      [
+        'createdAt',
+        'dueDate',
+        'id',
+        'invoiceNo',
+        'issuedAt',
+        'items',
+        'netPaid',
+        'payments',
+        'status',
+        'total',
+        'voidedAt',
+      ].sort(),
+    );
+    const items = inv['items'] as Array<Record<string, unknown>>;
+    expect(Object.keys(items[0]).sort()).toEqual(
+      ['amount', 'className', 'id', 'periodMonth', 'type'].sort(),
+    );
+    expect(inv['invoiceNo']).toBe('INV-2609-001');
+    expect(items[0]['className']).toBe('國三數學');
+  });
+
   // #898 裁決 E：家長看得到作廢單（前端收合），但不計應繳 ——
   // 作廢單的 total − netPaid 是全額，算進去就是向家長要一筆不存在的錢
   it('作廢單列出、status 是 void、不帶作廢理由、不計入 totalDue', async () => {

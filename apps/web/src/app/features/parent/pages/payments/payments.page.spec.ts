@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -9,6 +10,7 @@ import {
   type ParentInvoice,
   type ParentInvoiceListResponse,
 } from '@core/parent-billing.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { PaymentsPage } from './payments.page';
 
 const PAGE = {
@@ -23,13 +25,22 @@ const PAGE = {
 function invoice(overrides: Partial<ParentInvoice> = {}): ParentInvoice {
   return {
     id: 'invoice-uuid-1',
+    invoiceNo: 'INV-2608-001',
     issuedAt: '2026-08-01',
     dueDate: '2026-08-15',
     status: 'unpaid',
     total: 5000,
     netPaid: 0,
     voidedAt: null,
-    items: [{ id: 'item-1', type: 'tuition', amount: 5000, periodMonth: '2026-08' }],
+    items: [
+      {
+        id: 'item-1',
+        type: 'tuition',
+        amount: 5000,
+        periodMonth: '2026-08',
+        className: '國三數學',
+      },
+    ],
     payments: [],
     createdAt: '2026-08-01T00:00:00.000Z',
     ...overrides,
@@ -61,6 +72,7 @@ describe('PaymentsPage', () => {
     TestBed.configureTestingModule({
       imports: [PaymentsPage],
       providers: [
+        provideRouter([]),
         {
           provide: ChildScopeService,
           useValue: {
@@ -77,6 +89,7 @@ describe('PaymentsPage', () => {
           },
         },
         { provide: ParentBillingService, useValue: { list: listMock } },
+        { provide: SystemClockService, useValue: { todayTaipei: () => '2026-08-10' } },
       ],
     });
 
@@ -117,7 +130,7 @@ describe('PaymentsPage', () => {
     );
   });
 
-  it('列內各欄不在字中間折行、窄螢幕整欄換行（#1444，360px 的「待付／款」「3,600／元」）', () => {
+  it('列：金額不折行、副行整段換行（#1444，360px 的「3,600／元」）', () => {
     createComponent({
       data: [invoice()],
       meta: { total: 1, page: 1, pageSize: 20, totalDue: 3600, paymentInfo: [] },
@@ -126,13 +139,84 @@ describe('PaymentsPage', () => {
     fixture.detectChanges();
 
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.payments__row')?.classList.contains('flex-wrap')).toBe(true);
-    for (const part of ['id', 'amount', 'status']) {
-      expect(
-        el.querySelector(`.payments__row-${part}`)?.classList.contains('whitespace-nowrap'),
-        part,
-      ).toBe(true);
-    }
+    expect(el.querySelector('.payments__row-amount')?.classList.contains('whitespace-nowrap')).toBe(
+      true,
+    );
+    expect(el.querySelector('.payments__row-meta')?.classList.contains('flex-wrap')).toBe(true);
+  });
+
+  // PP1
+  it('開場兩個數字：待繳讀 meta.totalDue、本學期已繳讀 meta.term.paid；沒有學期就只畫待繳', () => {
+    const meta = { total: 1, page: 1, pageSize: 20, totalDue: 2400, paymentInfo: [] };
+    createComponent({
+      data: [invoice()],
+      meta: {
+        ...meta,
+        term: { name: '秋季', startDate: '2026-08-01', endDate: '2026-12-31', paid: 44160 },
+      },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    const values = Array.from(fixture.nativeElement.querySelectorAll('.band-anchor__value')).map(
+      (e: unknown) => (e as HTMLElement).textContent?.trim(),
+    );
+    expect(values).toEqual(['2,400', '44,160']);
+    expect(fixture.nativeElement.textContent).toContain('本學期已繳');
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    createComponent({ data: [invoice()], meta: { ...meta, term: null } });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.band-anchor__value')).toHaveLength(1);
+    expect(fixture.nativeElement.textContent).not.toContain('本學期已繳');
+  });
+
+  // PP2
+  it('列以班名為主行；部分繳寫「已收／應繳」，期限標籤與帳單編號在副行', () => {
+    createComponent({
+      data: [
+        invoice({
+          status: 'partial',
+          netPaid: 2000,
+          dueDate: '2026-08-15',
+          items: [
+            { id: 'a', type: 'tuition', amount: 4000, periodMonth: null, className: '國三數學' },
+            { id: 'b', type: 'meal', amount: 1000, periodMonth: null, className: null },
+          ],
+        }),
+      ],
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 3000, paymentInfo: [] },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector('.payments__row') as HTMLElement;
+    expect(row.querySelector('.payments__row-title')?.textContent?.trim()).toBe('國三數學、餐費');
+    expect(row.textContent).toContain('部分繳 · 5 天後到期');
+    expect(row.textContent).toContain('#INV-2608-001');
+    expect(row.querySelector('.payments__row-amount')?.textContent).toContain('3,000 元');
+    expect(row.querySelector('.payments__row-amount')?.textContent).toContain(
+      '已收 2,000／應繳 5,000',
+    );
+  });
+
+  it('章頭「待繳／已繳清」；標題句說還要繳多少、最近的期限', () => {
+    createComponent({
+      data: [invoice({ id: 'a' }), invoice({ id: 'c', status: 'paid', netPaid: 5000 })],
+      meta: { total: 2, page: 1, pageSize: 20, totalDue: 5000, paymentInfo: [] },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const names = Array.from(fixture.nativeElement.querySelectorAll('.chapter-head__name')).map(
+      (e: unknown) => (e as HTMLElement).textContent?.trim(),
+    );
+    expect(names).toEqual(['待繳', '已繳清']);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('還要繳');
+    expect(text).toContain('5,000 元。');
+    expect(text).toContain('最近的期限是 8/15');
   });
 
   it('unpaid/partial 分進待付款組，paid 分進已付款組，沒有已取消組', () => {
@@ -147,11 +231,10 @@ describe('PaymentsPage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    const sections = fixture.nativeElement.querySelectorAll('.payments__section-title');
-    expect(Array.from(sections).map((el: unknown) => (el as HTMLElement).textContent)).toEqual([
-      '待付款',
-      '已付款',
-    ]);
+    const sections = fixture.nativeElement.querySelectorAll('.chapter-head__name');
+    expect(
+      Array.from(sections).map((el: unknown) => (el as HTMLElement).textContent?.trim()),
+    ).toEqual(['待繳', '已繳清']);
     expect(fixture.nativeElement.textContent).not.toContain('已取消');
   });
 
@@ -170,11 +253,11 @@ describe('PaymentsPage', () => {
     const voided = fixture.nativeElement.querySelector('.payments__voided') as HTMLDetailsElement;
     expect(voided).not.toBeNull();
     expect(voided.open).toBe(false);
-    expect(voided.textContent).toContain('#v0000000');
+    expect(voided.textContent).toContain('已作廢');
 
     const pending = fixture.nativeElement.querySelector('.payments__section') as HTMLElement;
-    expect(pending.textContent).toContain('待付款');
-    expect(pending.textContent).not.toContain('#v0000000');
+    expect(pending.textContent).toContain('待繳');
+    expect(pending.textContent).not.toContain('已作廢');
 
     (voided.querySelector('.payments__row') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -198,7 +281,7 @@ describe('PaymentsPage', () => {
 
     // p-drawer 用 appendTo="body"，內容 portal 到 document.body，不在 fixture 底下
     const detail = document.body.querySelector('.payments__detail');
-    expect(detail?.textContent).toContain('學費');
+    expect(detail?.textContent).toContain('國三數學');
     expect(detail?.textContent).toContain('5,000');
     // API allowlist 本來就不回 note/recordedBy，這裡確認畫面沒有意外自己補一個
     expect(detail?.textContent).not.toContain('recordedBy');
@@ -229,6 +312,34 @@ describe('PaymentsPage', () => {
     expect(detail?.textContent).toContain('中正');
     expect(detail?.textContent).toContain('郵局 700');
     expect(detail?.textContent).not.toContain('帳戶資訊請洽補習班行政人員');
+  });
+
+  // PP3
+  it('帳戶資訊有複製鈕，整段原樣進剪貼簿', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    createComponent({
+      data: [invoice()],
+      meta: {
+        total: 1,
+        page: 1,
+        pageSize: 20,
+        totalDue: 5000,
+        paymentInfo: [{ campusName: null, text: '台銀 004\n帳號 111' }],
+      },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.payments__row') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const btn = document.body.querySelector('.payments__copy') as HTMLButtonElement;
+    btn.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(writeText).toHaveBeenCalledWith('台銀 004\n帳號 111');
+    expect(btn.textContent).toContain('已複製');
   });
 
   it('沒有任何帳戶資訊時照舊請家長洽行政人員', () => {

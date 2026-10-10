@@ -1,25 +1,112 @@
+<!--
+  A6 版（#1314 PP1–3）：色面＝一句話＋兩個數字（待繳、本學期已繳，都讀 API，前端不加總）→
+  分章（待繳／已繳清，作廢收合）→ 一張帳單一列（班名為主行）。
+  金額欄位逐欄：待繳 `meta.totalDue`｜本學期已繳 `meta.term.paid`｜列的「還要繳」`total − netPaid`（既有）。
+-->
 <app-page-open>
   <app-child-switcher openBack class="mb-3 block" />
-  <ng-container openTitle>{{ page().label }}</ng-container>
-  <!-- 錨點數字（原本在橘帶右側）：滿版橘面下放在標題下方、靠左 -->
-  <div class="mt-4 [&_.band-anchor__figure]:min-[768.02px]:justify-start">
+  <ng-container openTitle>
     @if (!loading() && invoices().length > 0) {
-      <app-band-anchor [value]="(totalDue() | number) ?? ''" unit="元待繳">
-        {{ groups().pending.length }} 張待付款
-      </app-band-anchor>
+      @if (totalDue() > 0) {
+        {{ childName() }} 還要繳<br />{{ totalDue() | number }} 元。
+      } @else {
+        {{ childName() }} 的帳單<br />都繳清了。
+      }
+    } @else {
+      {{ page().label }}
     }
-  </div>
+  </ng-container>
+  <ng-container openSub>
+    @if (nextDue(); as due) {
+      最近的期限是 {{ monthDay(due) }}{{ due < today() ? '，已經過了' : '' }}
+    }
+  </ng-container>
+  @if (!loading() && invoices().length > 0) {
+    <div
+      class="payments__stats mt-6 flex flex-wrap gap-x-10 gap-y-4 border-t border-band-rule pt-5 [&_.band-anchor__figure]:justify-start [&_.band-anchor__value]:text-[32px] [&_.band-anchor__value]:tracking-[-0.03em] wide:[&_.band-anchor__value]:text-[40px] [&_.band-anchor__unit]:pb-0 [&_.band-anchor__unit]:text-base"
+    >
+      <app-band-anchor [value]="(totalDue() | number) ?? ''" unit="元">
+        待繳 · {{ groups().pending.length }} 張
+      </app-band-anchor>
+      @if (termPaid() !== null) {
+        <app-band-anchor [value]="(termPaid() | number) ?? ''" unit="元">
+          本學期已繳
+        </app-band-anchor>
+      }
+    </div>
+  }
 </app-page-open>
-<div class="payments mx-auto flex min-h-full max-w-[800px] flex-col gap-0">
+
+<!-- 一張帳單一列：整列是按鈕，開明細 -->
+<ng-template #invRow let-invoice let-kind="kind">
+  <button
+    type="button"
+    class="payments__row grid min-h-16 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-1 border-0 border-b border-zinc-200 bg-transparent py-4 text-left last:border-b-0 hover:[&_.payments__row-title]:underline focus-visible:outline-2 focus-visible:outline-zinc-900"
+    (click)="openDetail(invoice)"
+  >
+    <span class="min-w-0">
+      <span
+        class="payments__row-title block text-lg font-bold"
+        [class.text-zinc-600]="kind === 'void'"
+        [class.line-through]="kind === 'void'"
+        >{{ title(invoice) }}</span
+      >
+      <span
+        class="payments__row-meta mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-md text-zinc-700 tabular-nums"
+      >
+        @if (kind === 'pending') {
+          @if (dueTag(invoice); as tag) {
+            <app-status-dot [tone]="tag.tone">{{ tag.label }}</app-status-dot>
+          }
+          @if (invoice.dueDate) {
+            <span>繳費期限 {{ monthDay(invoice.dueDate) }}</span>
+          }
+        } @else if (kind === 'paid') {
+          <app-status-dot [tone]="invoice.status === 'overrefunded' ? 'inactive' : 'done'">{{
+            invoice.status === 'overrefunded'
+              ? '多退 ' + (-invoice.netPaid | number) + ' 元'
+              : '已繳清'
+          }}</app-status-dot>
+          @if (latestPaymentDate(invoice); as paidAt) {
+            <span>{{ monthDay(paidAt) }} 繳清</span>
+          }
+        } @else {
+          <app-status-dot tone="inactive">已作廢</app-status-dot>
+        }
+        @if (invoice.invoiceNo) {
+          <span>#{{ invoice.invoiceNo }}</span>
+        }
+      </span>
+    </span>
+    <span
+      class="payments__row-amount text-right text-xl font-bold tracking-[-0.01em] whitespace-nowrap tabular-nums"
+      [class.text-zinc-600]="kind === 'void'"
+      [class.line-through]="kind === 'void'"
+    >
+      @if (kind === 'pending') {
+        {{ invoice.total - invoice.netPaid | number }} 元
+        @if (invoice.netPaid > 0) {
+          <small class="block text-sm font-medium text-zinc-600"
+            >已收 {{ invoice.netPaid | number }}／應繳 {{ invoice.total | number }}</small
+          >
+        }
+      } @else {
+        {{ invoice.total | number }} 元
+      }
+    </span>
+  </button>
+</ng-template>
+
+<div class="payments flex min-h-full flex-col">
   <!--
     **依賴孩子的頁面都包這一層**（#749）：0 個孩子時底下那些空狀態講的是
     不成立的事（「今日無課」「目前沒有帳單紀錄」）—— 那是正面斷言，不是空白。
     規則與措辭集中在 `app-child-scope-gate`，四頁不各自長出一種說法。
   -->
   <app-child-scope-gate>
-    <div class="payments__content flex flex-col gap-5 px-4 pt-4 pb-6">
+    <div class="payments__content page-wrap flex flex-col pb-6">
       @if (loading() && invoices().length === 0) {
-        <div class="skeleton-list">
+        <div class="skeleton-list pt-4">
           @for (i of [1, 2, 3]; track i) {
             <span class="skeleton-bar"></span>
           }
@@ -33,66 +120,27 @@
       } @else if (invoices().length === 0) {
         <app-empty-state icon="pi pi-wallet" title="目前沒有帳單紀錄" description="" />
       } @else {
-        @if (groups().pending.length > 0) {
-          <section class="payments__section flex flex-col gap-2">
-            <h2 class="payments__section-title m-0 text-sm font-semibold text-zinc-600">待付款</h2>
-            @for (invoice of groups().pending; track invoice.id) {
-              <button
-                type="button"
-                class="payments__row flex min-h-11 w-full flex-wrap cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
-                (click)="openDetail(invoice)"
-              >
-                <span class="payments__row-id whitespace-nowrap text-sm text-zinc-500 tabular-nums"
-                  >#{{ invoice.id.slice(0, 8) }}</span
-                >
-                <span class="payments__row-amount whitespace-nowrap font-semibold text-zinc-900"
-                  >{{ invoice.total - invoice.netPaid | number }} 元</span
-                >
-                @if (invoice.dueDate) {
-                  <span class="payments__row-hint ml-auto whitespace-nowrap text-sm text-zinc-500"
-                    >期限 {{ invoice.dueDate }}</span
-                  >
-                }
-                <span
-                  class="payments__row-status payments__row-status--pending whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold bg-warning-100 text-warning-800"
-                  >{{ statusLabels[invoice.status] }}</span
-                >
-              </button>
-            }
-          </section>
-        }
-
-        @if (groups().paid.length > 0) {
-          <section class="payments__section flex flex-col gap-2">
-            <h2 class="payments__section-title m-0 text-sm font-semibold text-zinc-600">已付款</h2>
-            @for (invoice of groups().paid; track invoice.id) {
-              <button
-                type="button"
-                class="payments__row flex min-h-11 w-full flex-wrap cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
-                (click)="openDetail(invoice)"
-              >
-                <span class="payments__row-id whitespace-nowrap text-sm text-zinc-500 tabular-nums"
-                  >#{{ invoice.id.slice(0, 8) }}</span
-                >
-                <span class="payments__row-amount whitespace-nowrap font-semibold text-zinc-900"
-                  >{{ invoice.total | number }} 元</span
-                >
-                @if (latestPaymentDate(invoice); as paidAt) {
-                  <span
-                    class="payments__row-hint ml-auto whitespace-nowrap text-sm text-zinc-500"
-                    >{{ paidAt }}</span
-                  >
-                }
-                <span
-                  class="payments__row-status payments__row-status--paid whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold bg-zinc-100 text-zinc-600"
-                  >{{
-                    invoice.status === 'overrefunded'
-                      ? '多退 ' + (-invoice.netPaid | number) + ' 元'
-                      : '已付款'
-                  }}</span
-                >
-              </button>
-            }
+        @for (chapter of chapters(); track chapter.kind) {
+          <section
+            class="payments__section grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            [attr.aria-label]="chapter.name"
+          >
+            <app-chapter-head
+              class="block pt-6 wide:pt-8"
+              [name]="chapter.name"
+              [count]="hasMore() ? null : chapter.rows.length"
+              unit="張"
+            />
+            <div class="wide:pt-3">
+              @for (invoice of chapter.rows; track invoice.id) {
+                <ng-container
+                  [ngTemplateOutlet]="invRow"
+                  [ngTemplateOutletContext]="{ $implicit: invoice, kind: chapter.kind }"
+                />
+              } @empty {
+                <p class="m-0 py-6 text-zinc-600">{{ chapter.empty }}</p>
+              }
+            </div>
           </section>
         }
 
@@ -101,38 +149,33 @@
             作廢單（#898）：看得到、預設收合、不計應繳。原生 <details> 自帶開合與鍵盤操作。
             金額照列：家長手上有紙本收費袋，對得上那張紙才知道是哪一張被作廢了。
           -->
-          <details class="payments__voided block">
+          <details class="payments__voided block py-6">
             <summary
-              class="payments__section-title payments__voided-summary m-0 min-h-11 cursor-pointer text-sm font-semibold text-zinc-600"
+              class="payments__voided-summary min-h-11 cursor-pointer text-md font-semibold text-zinc-700"
             >
-              已作廢（{{ groups().voided.length }}）
+              已作廢（{{ groups().voided.length }}）· 不用繳
             </summary>
             @for (invoice of groups().voided; track invoice.id) {
-              <button
-                type="button"
-                class="payments__row mt-2 flex min-h-11 w-full flex-wrap cursor-pointer items-center gap-3 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
-                (click)="openDetail(invoice)"
-              >
-                <span class="payments__row-id whitespace-nowrap text-sm text-zinc-500 tabular-nums"
-                  >#{{ invoice.id.slice(0, 8) }}</span
-                >
-                <span
-                  class="payments__row-amount payments__row-amount--void whitespace-nowrap font-semibold text-zinc-600 line-through"
-                  >{{ invoice.total | number }} 元</span
-                >
-                <span
-                  class="payments__row-status payments__row-status--void whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold bg-zinc-100 text-zinc-600"
-                  >已作廢</span
-                >
-              </button>
+              <ng-container
+                [ngTemplateOutlet]="invRow"
+                [ngTemplateOutletContext]="{ $implicit: invoice, kind: 'void' }"
+              />
             }
           </details>
         }
 
+        <p class="m-0 py-6">
+          <a
+            routerLink="/parent/meals"
+            class="payments__meals-link inline-flex min-h-11 items-center text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+            >看餐費紀錄 →</a
+          >
+        </p>
+
         @if (hasMore()) {
           <button
             type="button"
-            class="payments__load-more min-h-11 cursor-pointer rounded-lg border border-zinc-200 bg-transparent p-3 text-accent-600 disabled:cursor-default disabled:opacity-60"
+            class="payments__load-more mt-4 min-h-11 cursor-pointer rounded-lg border border-zinc-200 bg-transparent p-3 text-accent-600 disabled:cursor-default disabled:opacity-60"
             [disabled]="loading()"
             (click)="loadMore()"
           >
@@ -157,7 +200,7 @@
       @if (selectedInvoice(); as invoice) {
         <div class="payments__detail flex flex-col gap-3 p-4">
           <h3 class="payments__detail-title m-0 text-lg font-semibold">
-            帳單 #{{ invoice.id.slice(0, 8) }}
+            帳單 #{{ invoice.invoiceNo ?? invoice.id.slice(0, 8) }}
           </h3>
           <p class="payments__detail-status m-0 text-sm text-zinc-500">
             {{ statusLabels[invoice.status] }}
@@ -166,10 +209,19 @@
           <div class="payments__detail-items flex flex-col gap-1">
             @for (item of invoice.items; track item.id) {
               <div class="payments__detail-item flex justify-between text-sm text-zinc-700">
-                <span
-                  >{{ itemTypeLabels[item.type]
-                  }}{{ item.periodMonth ? '（' + item.periodMonth + '）' : '' }}</span
-                >
+                <span>
+                  @if (item.type === 'meal') {
+                    <a
+                      routerLink="/parent/meals"
+                      class="payments__detail-meal-link inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+                      (click)="closeDetail()"
+                      >{{ itemTypeLabels[item.type] }}</a
+                    >
+                  } @else {
+                    {{ item.className ?? itemTypeLabels[item.type] }}
+                  }
+                  {{ item.periodMonth ? '（' + item.periodMonth + '）' : '' }}
+                </span>
                 <span>{{ item.amount | number }} 元</span>
               </div>
             }
@@ -210,6 +262,14 @@
                     <!-- white-space: pre-line：不能讓 prettier 折出前後換行 -->
                     <!-- prettier-ignore -->
                     <p class="payments__account-text m-0 text-sm text-zinc-600 [p+&]:mt-1 [overflow-wrap:anywhere] whitespace-pre-line">{{ info.text }}</p>
+                    <!-- 整段原樣複製（帳戶資訊是行政填的自由文字，不拆欄位） -->
+                    <button
+                      type="button"
+                      class="payments__copy mt-2 min-h-11 cursor-pointer rounded-lg border border-solid border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900"
+                      (click)="copyAccount(info.text)"
+                    >
+                      {{ copiedText() === info.text ? '已複製' : '複製帳戶資訊' }}
+                    </button>
                   </div>
                 }
               }
