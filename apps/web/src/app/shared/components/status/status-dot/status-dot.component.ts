@@ -7,14 +7,19 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
  * | ---------- | ---------------- | -------------- | --------------------- |
  * | `done`     | 實心（已定案）   | success        | 已點名、在籍、已結算  |
  * | `pending`  | **中空**（還在等）| 中性           | 還沒上、尚未撰寫      |
+ * | `soon`     | **中空**（快到了）| warning（深字） | 7 天內到期的帳單      |
  * | `overdue`  | 實心（已積欠）   | warning        | 漏點名、待繳費、缺考  |
  * | `inactive` | 實心（不在等了） | 中性           | 已停用、已退班        |
  *
  * 兩個軸各自獨立這件事在 `overdue` 上最要緊：它跟 `pending` **形狀與色相同時不同**，
  * 所以色盲、灰階列印、爛螢幕都還分得出來。#103 說漏點名是「有問題的中空」——
  * 這裡的處理是讓它**不再是中空**：逾期的未完成從「等待中」變成「積欠中」。
+ *
+ * `soon`（#1314 PP2，A6 的 `tag--warn`）是 `pending` 與 `overdue` 之間的那一格：還在等（中空）、
+ * 但期限逼近（warning 色）。它跟 `overdue` 同色相、**形狀不同**（中空 vs 實心），
+ * 所以「快到期」與「已逾期」在灰階下也分得開。
  */
-export type StatusTone = 'done' | 'pending' | 'overdue' | 'inactive';
+export type StatusTone = 'done' | 'pending' | 'soon' | 'overdue' | 'inactive';
 
 /**
  * **曾經有一個 `failed`（實心 + error 色），從頭到尾零使用者，2026-09-03 刪掉。**
