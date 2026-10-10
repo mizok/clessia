@@ -26,6 +26,8 @@ export interface Student {
   parentNames: string[];
   /** 主要家長電話：只有 `/api/students` 列表回、只有管理員有值（#1138），老師是 null */
   primaryParentPhone?: string | null;
+  /** 列表才有（#1314 SL2）：任一待繳費 → pending_payment；否則在籍 → active；暫停 → suspended；只剩退班 → withdrawal；沒報名 → null */
+  enrollmentState?: 'pending_payment' | 'active' | 'suspended' | 'withdrawal' | null;
   campusNames: string[];
   /** 在籍班級名稱，老師端用來分組 */
   classNames: string[];
