@@ -394,6 +394,14 @@ describe('DashboardComponent（管理端）', () => {
     expect(enrollmentsMock.mock.calls[0][0]).toMatchObject({ pageSize: 1 });
   });
 
+  // 在籍人數只讀 summary.activeCount：名冊的「今日到班」第一頁才算（多 4～5 支查詢），
+  // 儀表板這支呼叫永遠是第一頁，不帶 withToday=false 就每次進儀表板都白算一次
+  it('在籍人數那支呼叫帶 withToday: false（只要總數，不要今日到班）', async () => {
+    await setup();
+
+    expect(studentsMock.mock.calls[0][0]).toMatchObject({ pageSize: 1, withToday: false });
+  });
+
   // daily-checkins 從不蓋 attendance_taken_at，這個模式下整張卡都是誤報
   it('日到班模式不渲染未點名卡', async () => {
     await setup({ mode: 'daily_checkin' });
