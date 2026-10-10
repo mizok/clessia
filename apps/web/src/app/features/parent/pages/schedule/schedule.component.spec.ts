@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { computed, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -263,8 +263,13 @@ describe('家長端課表 ScheduleComponent', () => {
       activeChildId.set('kid-2');
       await flush();
 
-      // 新孩子的本週資料還沒回來：標題不能還是林子晴那一班
       const title = host().querySelector('h1')!.textContent!;
+      // 新孩子的本週資料還沒回來：不能把「還沒讀到」說成「沒有課」，也不能留著舊孩子的標題
+      expect(title).toContain('王柏翰');
+      expect(title).toContain('載入中');
+      expect(title).not.toContain('沒有課');
+      expect(host().querySelector('h1 + p')!.textContent!.trim()).toBe('');
+      // 標題不能還是林子晴那一班
       expect(title).not.toContain('國三數學 B 班');
       expect(title).not.toContain('林子晴');
       expect(host().textContent).not.toContain('林子晴的第二週課'); // 週曆也不能留著舊孩子的課
@@ -320,6 +325,17 @@ describe('家長端課表 ScheduleComponent', () => {
       next.click();
       await flush();
       expect(host().textContent).not.toContain('第二週的課');
+    });
+
+    it('讀取失敗：標題不寫「載入中」也不寫「沒有課」（兩個都是假話），body 有失敗訊息', async () => {
+      list.mockImplementation((() => throwError(() => new Error('boom'))) as never);
+      activeChildId.set('kid-2');
+      await flush();
+      const title = host().querySelector('h1')!.textContent!;
+      expect(title).toContain('王柏翰');
+      expect(title).not.toContain('載入中');
+      expect(title).not.toContain('沒有課');
+      expect(host().textContent).toContain('載入失敗');
     });
   });
 });

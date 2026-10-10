@@ -6,13 +6,15 @@
 <app-page-open>
   <app-child-switcher openBack class="mb-3 block" />
   <ng-container openTitle>
-    @if (childName()) {
+    @if (childName() && heroReady()) {
       {{ heroTitle().head }}<br />{{ heroTitle().tail }}
+    } @else if (childName()) {
+      {{ childName() }}<br />{{ failed() ? '的課表' : '的課表載入中…' }}
     } @else {
       {{ page().label }}
     }
   </ng-container>
-  <ng-container openSub>{{ childName() ? heroSub() : '' }}</ng-container>
+  <ng-container openSub>{{ childName() && heroReady() ? heroSub() : '' }}</ng-container>
 </app-page-open>
 
 <app-child-scope-gate>
