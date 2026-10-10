@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 
 # 部署
@@ -438,6 +438,7 @@ while i < len(s):
    `clean`（差集 0）／`apply`／`after-deploy`／`blocked`（紅）。
 2. **apply**：停在 `prod-db` environment 等使用者按 Approve，再 `supabase db push --db-url … --yes`。
    套前重算一次：**現在待套的必須是 plan 時的子集**（多出 plan 沒看過的就停；空的就 skip），套後差集必須是 0。
+   plan 列為 `deferred` 的 after-deploy backfill 會先從 checkout 拿掉，上面兩道檢查都只算剩下的檔（見下表）。
 
 **多顆 apply 同時 waiting 是正常的**（#1146 拿掉了 concurrency —— 它會讓等 Approve 的那顆被下一顆取代）。
 **按最新那顆**（待套最多）；其餘不用理，之後被按也只會 skip 或套剩下的子集。
@@ -453,7 +454,8 @@ while i < len(s):
 | --- | --- |
 | **永不帶 `--include-all`** | 中間漏套（#915 的形狀）時 CLI 會以 `Found local migration files to be inserted before the last migration on remote database.` 拒絕 —— 補哪一支要人決定 |
 | backfill 檔**第一行**寫 `-- clessia:apply after-deploy` | schema 要「套完才部署」、backfill 要「部署完才套」（#905），一次 `db push` 拆不開；有標記的 plan 不自動套，部署完由使用者 dispatch（填 `deployed_sha`） |
-| schema 與 backfill **分批合** | 同批待套 plan 會紅 |
+| schema 與 backfill **同批待套 → 先套 schema，backfill 留著**（plan 判 `apply`、backfill 列 `deferred`；apply 把它從 runner 的 checkout 拿掉再 push；部署完照常 dispatch） | 10-10 事故前這裡是「要分批合、同批 plan 會紅」。`20261010020730_invoice_no` 與它的 backfill 同時進了 main，**之後每顆 main 的 plan 都紅、全部沒部署**；而已提交的 migration 不能改（c3）也不能刪，紅燈沒有出口 —— 規則把一個合併順序的失誤變成整條部署線停擺。拿掉的檔套完後是「本機有、遠端沒有、比遠端最新還新」的正常待套，dispatch 套得上（CLI 2.119.0 對拋棄式 DB 實測）。**只拿正式 DB 還沒有、且第一行真的帶標記的** —— 已在正式 DB 的檔若從本機拿掉，CLI 以 `Remote migration versions not found in local migrations directory` 拒絕 |
+| 同批裡有比 backfill **還新**的 schema → 仍然紅 | 先套它，backfill 就成了「比遠端最新還舊卻沒套」（#915 的形狀），CI 不帶 `--include-all`，dispatch 也套不上。先部署並 dispatch 掉 backfill，這批 schema 才走 |
 | 一支檔是一個隱式 transaction | 失敗整支回滾、不留 history 列。**兩顆 apply 同時被按也靠它**：後到的那顆撞 `schema_migrations` 主鍵、整支回滾（含 DML），不會套兩次（#1146 用 CLI 2.119.0 對拋棄式 DB 實測：計數只 +1） |
 | `CREATE/DROP INDEX CONCURRENTLY`、`REINDEX … CONCURRENTLY`、`VACUUM`、`ALTER SYSTEM`、`CLUSTER` **獨立成一支只有那一句的檔** | CLI 遇到它們會先 flush、單獨執行 —— 同一支檔被拆成多個 transaction。跟 DML 混在一起時，兩顆同時套會讓 DML **套兩次**（#1146 實測：計數 +2） |
 | 套壞了用新的 migration 往前修 | c3：已提交的檔不可改；沒有 down migration |

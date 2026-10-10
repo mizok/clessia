@@ -1036,7 +1036,8 @@ curl -s -o /tmp/c -w '%{content_type}' "https://demo.clessia.cc/<chunk 名>"
 > | 任何一個 job 紅、apply 還在等 Approve、或那顆根本沒有 migrate run(被 concurrency 丟掉) | **停**,報計畫席與使用者;沒有 run 的話改選有結果的那顆當截線 |
 >
 > 分類不再是部署當下的人工判斷:backfill 由作者在檔頭寫 `-- clessia:apply after-deploy`,
-> 沒標的一律當 schema;兩類同批待套 plan 會紅(要分批合)。下面那張分類表是這條規則的由來。
+> 沒標的一律當 schema;兩類同批待套時 plan 判 `apply` 只套 schema、backfill 列 `deferred`
+> (10-10 起;apply 綠＝**放行部署**,部署完照 `after-deploy` 那列請使用者 dispatch)。下面那張分類表是這條規則的由來。
 >
 > **舊流程(生效條件達成前沿用)**:
 

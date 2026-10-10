@@ -104,6 +104,7 @@ export function splitsTransaction(sql) {
  *   `deployed` = 部署者確認這一批的程式碼已經上線（手動 dispatch 時給）
  * @returns {{ state: 'clean' | 'apply' | 'after-deploy' | 'blocked', reason: string,
  *             pending: Array<{version: string, file: string, afterDeploy: boolean}>,
+ *             deferred: Array<{version: string, file: string, afterDeploy: boolean}>,
  *             missingLocal: string[], outOfOrder: string[] }}
  */
 export function planMigrations({ local, remote, deployed = false }) {
@@ -117,7 +118,14 @@ export function planMigrations({ local, remote, deployed = false }) {
   const outOfOrder = unapplied.filter((m) => m.version < remoteMax).map((m) => m.version);
   const pending = unapplied;
 
-  const result = (state, reason) => ({ state, reason, pending, missingLocal, outOfOrder });
+  const result = (state, reason, deferred = []) => ({
+    state,
+    reason,
+    pending,
+    deferred,
+    missingLocal,
+    outOfOrder,
+  });
 
   if (missingLocal.length > 0) {
     return result(
@@ -148,11 +156,31 @@ export function planMigrations({ local, remote, deployed = false }) {
   const backfills = pending.filter((m) => m.afterDeploy);
   if (backfills.length === 0) return result('apply', `待套 ${pending.length} 支 schema。`);
 
+  // schema 與 backfill 同批（10-10 事故）：先套 schema、backfill 留著（deferred），部署完照常 dispatch。
+  // apply 只把 deferred 從 checkout 拿掉再 push —— 一次 db push 拆不開，拆的是檔案集合。
+  // 部署者已確認上線時不走這條：那顆的 schema 應該早就套了，還在待套代表順序亂了，讓人看。
   if (backfills.length < pending.length) {
+    if (deployed) {
+      return result(
+        'blocked',
+        '部署者確認上線的那顆還有 schema 沒套 —— schema 應該在部署前就套上，順序亂了，由使用者看。',
+      );
+    }
+    const firstBackfill = backfills[0].version;
+    const later = pending.filter((m) => !m.afterDeploy && m.version > firstBackfill);
+    if (later.length > 0) {
+      return result(
+        'blocked',
+        `${later.map((m) => m.file).join(', ')} 比待套的 after-deploy backfill（${backfills[0].file}）新 —— ` +
+          '先套它，backfill 就成了「比正式 DB 最新還舊卻沒套」，dispatch 也套不上（不帶 --include-all）。' +
+          '先部署並 dispatch 套掉 backfill，再讓這批 schema 走。',
+      );
+    }
     return result(
-      'blocked',
-      'schema（套完才部署）與 after-deploy backfill（部署完才套）同批待套 —— ' +
-        '一次 db push 拆不開兩者的順序。請分批合併：先合 schema、部署，再合 backfill。',
+      'apply',
+      `待套 ${pending.length - backfills.length} 支 schema；${backfills.length} 支 after-deploy backfill ` +
+        '這次不套，部署完由使用者 dispatch（填部署截線 SHA）。',
+      backfills,
     );
   }
   return deployed

@@ -99,3 +99,17 @@ test('dispatch（after-deploy）的標題與目標都是 deployed_sha —— ⓪
   // 標題全字比對，所以只收完整 SHA
   assert.match(all.plan, /\[0-9a-f\]\{40\}/);
 });
+
+// 10-10 事故：schema＋backfill 同批時 plan 判 apply、backfill 列 deferred。apply 從 checkout 拿掉它們，
+// 而且要在算 local.txt **之前** —— 否則 recheck 的子集判準與套後差集都會把 backfill 算進去而紅
+test('apply 先拿掉 deferred 的 backfill 再算待套；只拿遠端沒有、帶標記的', () => {
+  assert.match(all.plan, /deferred: \$\{\{ steps\.plan\.outputs\.deferred \}\}/);
+  assert.match(all.apply, /DEFERRED: \$\{\{ needs\.plan\.outputs\.deferred \}\}/);
+  const rm = all.apply.indexOf('rm -- "$f"');
+  assert.ok(rm > 0, 'apply 沒有拿掉 deferred 的檔');
+  assert.ok(rm < all.apply.indexOf('> "$RUNNER_TEMP/local.txt"'), 'local.txt 要在拿掉之後才算');
+  assert.ok(rm < all.apply.indexOf('supabase db push'), 'db push 要在拿掉之後');
+  const loop = all.apply.slice(all.apply.indexOf('for v in'), rm);
+  assert.match(loop, /grep -qx "\$v" "\$RUNNER_TEMP\/remote\.txt" && continue/);
+  assert.match(loop, /-- clessia:apply after-deploy/);
+});
