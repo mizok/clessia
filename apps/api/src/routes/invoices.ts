@@ -75,6 +75,7 @@ const InvoiceSchema = z
     orgId: DbUuidSchema,
     studentId: DbUuidSchema,
     studentName: z.string().nullable(),
+    studentGrade: z.string().nullable(),
     issuedAt: z.string(),
     dueDate: z.string().nullable(),
     note: z.string().nullable(),
@@ -210,6 +211,10 @@ app.openapi(
     request: {
       query: z.object({
         studentId: DbUuidSchema.optional(),
+        search: z
+          .string()
+          .optional()
+          .openapi({ description: '學生姓名或任一位家長姓名（部分比對）—— 家長來繳錢時找帳單' }),
         overdue: z.string().optional().openapi({ description: 'true = 只看過期未繳清' }),
         outstanding: z
           .string()
@@ -231,7 +236,9 @@ app.openapi(
           .string()
           .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
           .optional()
-          .openapi({ description: 'YYYY-MM = 只看這個月開立的（匯出用，#1314 P4；同彙總「本月」的定義）' }),
+          .openapi({
+            description: 'YYYY-MM = 只看這個月開立的（匯出用，#1314 P4；同彙總「本月」的定義）',
+          }),
         page: z.string().optional(),
         pageSize: z.string().optional(),
       }),
@@ -281,12 +288,38 @@ app.openapi(
     // 催繳時間只在管理端列表帶（#1314 P3）—— 不進共用的 INVOICE_SELECT，家長端也用它
     const select: string =
       INVOICE_SELECT + LIST_REMINDERS_EMBED + (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
+    // 搜尋先解析成學生 id（姓名或家長姓名），再當條件下 —— 兩條分頁路徑都吃得到。
+    // 沒命中 = 空集合（`in.()` 零筆），不是「不篩」
+    const search = params.search?.trim().replace(/[,()*%"\\]/g, '');
+    let searchStudentIds: string[] | null = null;
+    if (params.search !== undefined) {
+      if (!search) return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+      const [byName, byParent] = await Promise.all([
+        supabase.from('students').select('id').eq('org_id', orgId).ilike('name', `%${search}%`),
+        supabase
+          .from('parent_student_relations')
+          .select('student_id, parents!inner(name, org_id)')
+          .eq('parents.org_id', orgId)
+          .ilike('parents.name', `%${search}%`),
+      ]);
+      if (byName.error || byParent.error) {
+        return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+      }
+      searchStudentIds = [
+        ...new Set([
+          ...((byName.data ?? []) as Array<{ id: string }>).map((row) => row.id),
+          ...((byParent.data ?? []) as Array<{ student_id: string }>).map((row) => row.student_id),
+        ]),
+      ];
+    }
+
     const build = () => {
       let query = supabase
         .from('invoices')
         .select(select, derivedFilter ? undefined : { count: 'exact' })
         .eq('org_id', orgId);
       if (params.studentId) query = query.eq('student_id', params.studentId);
+      if (searchStudentIds) query = query.in('student_id', searchStudentIds);
       // `issued_at` 是 date 欄（台北日期），月份直接比字串區間
       if (params.issuedMonth) {
         query = query
@@ -1067,9 +1100,18 @@ app.openapi(
         description: '成功',
         content: { 'application/json': { schema: z.object({ count: z.number().int() }) } },
       },
-      404: { description: '有帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
-      409: { description: '有帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
-      500: { description: '查詢或寫入失敗', content: { 'application/json': { schema: ErrorSchema } } },
+      404: {
+        description: '有帳單不存在',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      409: {
+        description: '有帳單已作廢',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: {
+        description: '查詢或寫入失敗',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
