@@ -55,8 +55,10 @@
               @if (s.attendanceEnrolledCount !== undefined) {
                 · {{ s.attendanceEnrolledCount }} 人
               }
-              · {{ s.campusName }}</span
-            >
+              @if (showCampus()) {
+                · {{ s.campusName }}
+              }
+            </span>
           }
           <app-session-tags
             class="mt-0.5"

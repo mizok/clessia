@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { CampusContextService } from '@core/campus-context.service';
 import type { Session } from '@core/sessions.service';
 import { ScheduleListComponent } from './schedule-list.component';
 
@@ -62,4 +63,31 @@ describe('ScheduleListComponent —— 手機長按（#1174 G3）', () => {
     vi.advanceTimersByTime(1000);
     expect(long).not.toHaveBeenCalled();
   });
+});
+
+describe('ScheduleListComponent —— 分校名只在看全部分校時寫', () => {
+  const s = {
+    id: 's1',
+    className: '數學A',
+    sessionDate: '2026-10-07',
+    startTime: '17:00',
+    endTime: '18:00',
+    teacherName: '林',
+    status: 'scheduled',
+    campusName: '總校',
+  } as Session;
+
+  const render = (campusId: string | null) => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: CampusContextService, useValue: { id: () => campusId } }],
+    });
+    const fixture = TestBed.createComponent(ScheduleListComponent);
+    fixture.componentRef.setInput('groups', [{ start: '17:00', sessions: [s] }]);
+    fixture.componentRef.setInput('now', new Date(2026, 9, 7, 9));
+    fixture.detectChanges();
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  };
+
+  it('全部分校：列上寫分校名', () => expect(render(null)).toContain('總校'));
+  it('頂欄選了某分校：不重複寫', () => expect(render('c1')).not.toContain('總校'));
 });
