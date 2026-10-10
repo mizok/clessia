@@ -1,7 +1,7 @@
 <!-- 滿版橘面（A6 page-open）：這一頁的入口面。錨點放最可行動的數字 —— 漏點名，不是總堂數 -->
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
-  <ng-container openSub>{{ weekLabel() }}</ng-container>
+  <ng-container openTitle>{{ opener()?.title ?? page().label }}</ng-container>
+  <ng-container openSub>{{ opener()?.sub ?? weekLabel() }}</ng-container>
   <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
     <div class="flex items-center gap-1">
       <p-button
@@ -28,6 +28,10 @@
       } @else {
         <!-- 行政負責點名：老師沒有點名入口，把「待點名」當錨點是在問責他做不到的事 -->
         <app-band-anchor [value]="anchor().total" unit="堂課">本週</app-band-anchor>
+      }
+      <!-- 週徽章（missingOn）不分模式都印，這顆跟它同一份資料；查失敗不印 0 -->
+      @if (!missingFailed()) {
+        <app-band-anchor [value]="missingTotal()" unit="則聯絡簿還沒寫" />
       }
     }
   </div>
@@ -98,6 +102,8 @@
     今天用 aria-current="date"，選中的那天用 aria-pressed —— 兩件事不要混成同一個屬性。
   -->
   @if (!loading() && !loadError()) {
+    <!-- 週區間（副行改成今天的摘要後，搬到週條旁）：翻週時要看得出現在是哪一週 -->
+    <p class="m-0 text-[0.8rem] font-medium text-zinc-600 tabular-nums">{{ weekLabel() }}</p>
     <nav class="schedule-page__weekbar flex items-center gap-2" aria-label="本週各日">
       <p-button icon="pi pi-chevron-left" [text]="true" ariaLabel="上一週" (onClick)="prevWeek()" />
       <ul

@@ -10,6 +10,7 @@ import {
   canWriteContactBook,
   daySummary,
   nextSession,
+  openerLine,
   sortByStart,
   weekAnchor,
 } from './schedule.util';
@@ -388,5 +389,53 @@ describe('nextSession（#1314 TS1 首屏「接下來那堂」）', () => {
     const input = [c, a];
     nextSession(input, at('08:00'));
     expect(input.map((s) => s.sessionId)).toEqual(['c', 'a']);
+  });
+});
+
+describe('openerLine（#1314 TS2 開場句）', () => {
+  const at = (hhmm: string) => new Date(`2026-08-31T${hhmm}:00`);
+  const a = session({
+    sessionId: 'a',
+    className: '國三數學',
+    startTime: '15:30',
+    endTime: '17:00',
+  });
+  const b = session({
+    sessionId: 'b',
+    className: '國二英文',
+    startTime: '19:00',
+    endTime: '20:30',
+  });
+
+  it('還沒開始 → 下一堂時間、班名、還有幾分', () => {
+    expect(openerLine([b, a], at('15:00'))).toBe('下一堂 15:30 國三數學，還有 30 分。');
+  });
+
+  it('不足一分鐘進位，不會寫「還有 0 分」', () => {
+    expect(openerLine([a], new Date('2026-08-31T15:29:30'))).toBe(
+      '下一堂 15:30 國三數學，還有 1 分。',
+    );
+  });
+
+  it('上課中 → 寫下課倒數，不是跳到下一堂', () => {
+    expect(openerLine([a, b], at('16:00'))).toBe('國三數學 上課中，還有 60 分下課。');
+  });
+
+  it('全上完 → 都上完了', () => {
+    expect(openerLine([a, b], at('21:00'))).toBe('今天的課都上完了。');
+  });
+
+  it('今天只有停課 → 都上完了（停課不會發生）', () => {
+    const off = session({ status: 'cancelled', startTime: '15:30', endTime: '17:00' });
+    expect(openerLine([off], at('10:00'))).toBe('今天的課都上完了。');
+  });
+
+  it('今天沒有課 → 沒有你的課', () => {
+    expect(openerLine([], at('10:00'))).toBe('今天沒有你的課。');
+  });
+
+  it('沒有時間的課不給倒數，只講班名', () => {
+    const n = session({ className: '作文', startTime: null, endTime: null });
+    expect(openerLine([n], at('10:00'))).toBe('下一堂 作文。');
   });
 });

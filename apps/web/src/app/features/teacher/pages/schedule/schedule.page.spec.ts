@@ -361,6 +361,47 @@ describe('SchedulePage', () => {
       );
     });
 
+    // #1314 TS2：橘面標題是開場句，副行是今天的摘要，週區間搬到週條旁
+    it('開場句與副行：下一堂倒數、今天幾堂、本週幾堂', async () => {
+      await setup({ sessions: sessions() });
+      const open = fixture.nativeElement.querySelector('app-page-open').textContent;
+      expect(open).toContain('下一堂 16:00 傍晚班，還有 240 分。');
+      expect(open).toContain('今天 3 堂 · 本週 3 堂');
+      expect(open).not.toContain('現在：');
+    });
+
+    it('上課中：副行寫現在哪個班（分校）', async () => {
+      await setup({
+        sessions: [
+          row({ className: '午間班', campusName: '文山', startTime: '11:30', endTime: '12:30' }),
+        ],
+      });
+      const open = fixture.nativeElement.querySelector('app-page-open').textContent;
+      expect(open).toContain('午間班 上課中，還有 30 分下課。');
+      expect(open).toContain('現在：午間班（文山）上課中');
+    });
+
+    it('讀不到這週（失敗）時退回頁名，不拿空課表說「今天沒有課」', async () => {
+      await setup({ sessionsFails: true });
+      const open = fixture.nativeElement.querySelector('app-page-open').textContent;
+      expect(open).toContain('課表');
+      expect(open).not.toContain('今天沒有你的課');
+    });
+
+    it('聯絡簿還沒寫：整週加總；查失敗時不印這顆（失敗不是 0）', async () => {
+      await setup({ attendanceResponsible: 'teacher' });
+      expect(fixture.nativeElement.querySelector('app-page-open').textContent).toContain(
+        '則聯絡簿還沒寫',
+      );
+      expect(component['missingTotal']()).toBe(3);
+      fixture.destroy();
+      TestBed.resetTestingModule();
+      await setup({ attendanceResponsible: 'teacher', missingSummaryFails: true });
+      expect(fixture.nativeElement.querySelector('app-page-open').textContent).not.toContain(
+        '聯絡簿還沒寫',
+      );
+    });
+
     it('週條可以換日：點別天只看到那天，而且沒有「接下來」卡', async () => {
       const mondayLater = format(
         new Date(new Date(`${TODAY}T12:00:00`).getTime() + 86_400_000),
