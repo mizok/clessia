@@ -320,8 +320,8 @@ describe('ParentsPage', () => {
     };
 
     it('依狀態分章：每章一個章頭，章名旁是 summary 的全量人數', () => {
-      const heads = [...load().querySelectorAll('th[scope="colgroup"]')].map((e) =>
-        (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      const heads = [...load().querySelectorAll('section[data-chapter] > app-chapter-head')].map(
+        (e) => (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
       );
       expect(heads).toEqual(['啟用中 6 位', '停用 3 位']);
     });
@@ -332,7 +332,7 @@ describe('ParentsPage', () => {
       pending.at(-1)!.subject.next(mixed());
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
-      const heads = [...el.querySelectorAll('th[scope="colgroup"]')].map((e) =>
+      const heads = [...el.querySelectorAll('section[data-chapter] > app-chapter-head')].map((e) =>
         (e.textContent ?? '').replace(/\s+/g, ' ').trim(),
       );
       expect(heads).toEqual(['啟用中', '停用']);
@@ -359,6 +359,93 @@ describe('ParentsPage', () => {
       expect(el.textContent).toContain('小美');
     });
   });
+  describe('#1314 視覺對齊：章頭左欄、無表格、列攤開、數字句標題', () => {
+    const resp = (n = 3): ParentListResponse =>
+      ({
+        data: [
+          {
+            id: 'a1',
+            name: '王媽媽',
+            phone: null,
+            email: 'wang@example.com',
+            status: 'active',
+            studentCount: 1,
+            studentNames: ['小明'],
+            students: [{ id: 's1', name: '小明' }],
+          },
+        ],
+        meta: { total: n, page: 1, pageSize: 20, totalPages: 1 },
+        summary: { total: 103, activeCount: 98, inactiveCount: 5, archivedCount: 0 },
+      }) as unknown as ParentListResponse;
+    const load = (r = resp()) => {
+      pending[0].subject.next(r);
+      pending[0].subject.complete();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
+    const norm = (e: Element | null) => (e?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+    it('色面標題是數字句：N 位家長，N 位啟用中；副行與統計磚都沒有', () => {
+      const el = load();
+      expect(norm(el.querySelector('h1'))).toBe('103 位家長，98 位啟用中。');
+      expect(el.textContent).not.toContain('管理家長帳號');
+      expect(el.querySelector('.rounded-lg.bg-zinc-50')).toBeNull();
+    });
+
+    it('搜尋／篩選中標題改「符合篩選的 N 位家長」（summary 不受搜尋影響，不拿它講符合數）', () => {
+      type('王');
+      vi.advanceTimersByTime(300);
+      pending.at(-1)!.subject.next(resp(7));
+      fixture.detectChanges();
+      expect(norm((fixture.nativeElement as HTMLElement).querySelector('h1'))).toBe(
+        '符合篩選的 7 位家長。',
+      );
+    });
+
+    it('不再是表格：沒有 table／thead，也沒有頭像圓章', () => {
+      const el = load();
+      expect(el.querySelector('table')).toBeNull();
+      expect(el.querySelector('thead')).toBeNull();
+      expect(el.querySelector('.rounded-full.select-none')).toBeNull();
+    });
+
+    it('列攤開：Email 與關聯學生都直接顯示，沒有展開鈕（aria-expanded）', () => {
+      const el = load();
+      const li = el.querySelector('section[data-chapter] li') as HTMLElement;
+      expect(li.textContent).toContain('wang@example.com');
+      expect(li.textContent).toContain('小明');
+      expect(li.querySelector('[aria-expanded]')).toBeNull();
+    });
+
+    it('姓名是按鈕、開詳情；「⋯」是更多動作', () => {
+      const el = load();
+      const detail = vi.spyOn(
+        component as unknown as { openDetailDialog: (p: unknown) => void },
+        'openDetailDialog',
+      );
+      detail.mockImplementation(() => undefined);
+      (el.querySelector('button[aria-label="王媽媽 的詳情"]') as HTMLButtonElement).click();
+      expect(detail).toHaveBeenCalledTimes(1);
+      expect(el.querySelector('button[aria-label="王媽媽 的更多動作"]')).not.toBeNull();
+    });
+
+    it('超過一頁才出現頁尾分頁器；翻頁會帶新的 page 重新取數', () => {
+      let el = load(resp(5));
+      expect(el.querySelector('p-paginator')).toBeNull();
+
+      component['loadParents']();
+      pending.at(-1)!.subject.next(resp(45));
+      fixture.detectChanges();
+      el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('p-paginator')).not.toBeNull();
+
+      const before = parentsServiceMock.list.mock.calls.length;
+      (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 1 });
+      expect(parentsServiceMock.list.mock.calls.length).toBe(before + 1);
+      expect(parentsServiceMock.list.mock.calls.at(-1)?.[0]).toMatchObject({ page: 2 });
+    });
+  });
+
   describe('手機「篩選：全部」面板（#1314 ③）', () => {
     const el = () => fixture.nativeElement as HTMLElement;
     const toggle = () => el().querySelector('app-filter-toggle button') as HTMLButtonElement;

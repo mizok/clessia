@@ -38,8 +38,12 @@ const session = (
   ...extra,
 });
 
-function seed() {
+function seed(teacherClassId: string | null = null) {
   return createMultiOrgDb({
+    staff: [{ id: 'staff-t', user_id: 'u-teacher', org_id: ORG }],
+    schedules: teacherClassId
+      ? [{ class_id: teacherClassId, teacher_id: 'staff-t', classes: { org_id: ORG } }]
+      : [],
     students: [
       {
         id: SID,
@@ -117,14 +121,19 @@ function seed() {
   });
 }
 
-function request(path: string, campusScope: string[] | null = null) {
+/** `teacherClassId`：以老師身分打，他固定任課這個班（null = 管理員） */
+function request(
+  path: string,
+  campusScope: string[] | null = null,
+  teacherClassId: string | null = null,
+) {
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', seed().client);
+    set('supabase', seed(teacherClassId).client);
     set('orgId', ORG);
-    set('userId', 'u1');
-    set('roles', ['admin']);
+    set('userId', teacherClassId ? 'u-teacher' : 'u1');
+    set('roles', teacherClassId ? ['teacher'] : ['admin']);
     set('campusScope', campusScope);
     await next();
   });
@@ -190,5 +199,12 @@ describe('GET /students/{id}/attendance-days（#1314 SD2）', () => {
     expect(
       (await request(`/${SID}/attendance-days?from=2026-03-01&to=2026-03-31`, ['campus-s'])).status,
     ).toBe(200);
+  });
+
+  // reviewer 二讀 #1458：授權函式有守，但「這條路由有呼叫它」沒守 —— 這條守路由
+  it('老師讀非任課學生的到班格 → 403；任課學生 → 200', async () => {
+    const path = `/${SID}/attendance-days?from=2026-03-01&to=2026-03-31`;
+    expect((await request(path, null, 'c-unrelated')).status).toBe(403);
+    expect((await request(path, null, 'c-daily')).status).toBe(200);
   });
 });

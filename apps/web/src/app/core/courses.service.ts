@@ -16,6 +16,8 @@ export interface Course {
   gradeLevels: string[];
   createdAt: string;
   updatedAt: string;
+  /** 列表才有（#1314 (c)）：進行中的班數（啟用且未結束，套分校範圍）。單筆不帶 */
+  activeClassCount?: number;
 }
 
 export interface CourseListResponse {

@@ -25,16 +25,9 @@ import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
+import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 
 // Responsive Table
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
 
 // Services
 import { ParentsService, Parent, ParentStatus, PARENT_STATUS_LABELS } from '@core/parents.service';
@@ -42,6 +35,7 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
 // Shared
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
@@ -55,7 +49,6 @@ import { ParentImportDialogComponent } from './parent-import-dialog/parent-impor
 import { ParentDetailDialogComponent } from './parent-detail-dialog/parent-detail-dialog.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
-import { personHue } from '@shared/utils/person-hue.util';
 import { loginLinkErrorDetail } from '@shared/utils/login-link-error.util';
 import {
   PageActionsComponent,
@@ -66,6 +59,8 @@ import {
   selector: 'app-parents',
   standalone: true,
   imports: [
+    ChapterHeadComponent,
+    PaginatorModule,
     FilterToggleComponent,
     PageActionsComponent,
     PageOpenComponent,
@@ -82,10 +77,6 @@ import {
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './parents.page.html',
@@ -161,7 +152,6 @@ export class ParentsPage implements OnInit {
   });
 
   protected readonly activeCount = computed(() => this.summary().activeCount);
-  protected readonly inactiveCount = computed(() => this.summary().inactiveCount);
 
   // Action menu
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
@@ -223,11 +213,10 @@ export class ParentsPage implements OnInit {
     this.actionMenu().toggle(event);
   }
 
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
-    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-    rows: this.PAGE_SIZE,
-    totalRecords: this.total(),
-  }));
+  /** 頁尾分頁器的起點（`p-paginator` 用「第幾筆」不是「第幾頁」） */
+  protected readonly pageFirst = computed(() =>
+    Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
+  );
 
   ngOnInit(): void {
     this.setupLoadPipeline();
@@ -297,8 +286,8 @@ export class ParentsPage implements OnInit {
     this.loadParents();
   }
 
-  protected onPage(event: ResponsiveTablePageEvent): void {
-    this.currentPage.set(event.page + 1);
+  protected onPage(event: PaginatorState): void {
+    this.currentPage.set((event.page ?? 0) + 1);
     this.loadParents();
   }
 
@@ -315,13 +304,18 @@ export class ParentsPage implements OnInit {
   }
 
   /**
-   * 第 `index` 列是不是新一章的開頭。列表由後端先依狀態再依姓名排（#1314 PA1），
-   * 所以同狀態的列一定相鄰；翻頁時章會跨頁，頁首那列照樣開一個章頭。
+   * 這一頁的列依狀態切成章。列表由後端先依狀態再依姓名排（#1314 PA1），所以同狀態的列一定
+   * 相鄰；翻頁時章可能在頁首接續，章名照寫（同 courses 的 §三）。
    */
-  protected startsChapter(index: number): boolean {
-    const rows = this.parents();
-    return index === 0 || rows[index - 1].status !== rows[index].status;
-  }
+  protected readonly chapters = computed(() => {
+    const result: { status: ParentStatus; rows: Parent[] }[] = [];
+    for (const parent of this.parents()) {
+      const last = result.at(-1);
+      if (last && last.status === parent.status) last.rows.push(parent);
+      else result.push({ status: parent.status, rows: [parent] });
+    }
+    return result;
+  });
 
   /**
    * 章名旁的人數。用 `summary`（全量），所以只有在沒有搜尋時才成立 ——
@@ -338,11 +332,6 @@ export class ParentsPage implements OnInit {
     () => this.searchQuery() !== '' || this.selectedStatus() !== null,
   );
   protected readonly shownTotal = this.total.asReadonly();
-
-  /** 見 `personHue` —— 契約是「同一個人到哪一頁都同色」，所以只能有一份實作 */
-  protected getPersonHue(id: string): number {
-    return personHue(id);
-  }
 
   // ── Create / Edit ──────────────────────────────────────────────────────────
 

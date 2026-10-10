@@ -3,6 +3,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { findInOrg, inOrg } from '../lib/org-scope';
 import { DbUuidSchema } from '../lib/validation';
 
@@ -27,9 +28,15 @@ const CourseSchema = z
   })
   .openapi('Course');
 
+/** 列表才有（#1314 (c)）。單筆 `GET /courses/{id}` 不帶 */
+const CourseListItemSchema = CourseSchema.extend({
+  /** 進行中的班數：`is_active` 且未結束（`end_date` 空或 ≥ 台北今天），套分校範圍 */
+  activeClassCount: z.number(),
+}).openapi('CourseListItem');
+
 const CourseListResponseSchema = z
   .object({
-    data: z.array(CourseSchema),
+    data: z.array(CourseListItemSchema),
     summary: z.object({
       bySubject: z
         .array(
@@ -198,11 +205,7 @@ app.openapi(listRoute, async (c) => {
   // 依科目分章（#1314 C1）：章節順序＝ subjects 的 sort_order，同序再比 subject_id（sort_order 預設 0、
   // 沒有 unique，少這一鍵兩科的課會交錯，分章翻頁就斷）。章內依課名，末鍵 id 讓同名課翻頁穩定。
   // 章節計數那支 subjects 查詢用同一個順序（sort_order, id）。
-  dbQuery = dbQuery
-    .order('subjects(sort_order)')
-    .order('subject_id')
-    .order('name')
-    .order('id');
+  dbQuery = dbQuery.order('subjects(sort_order)').order('subject_id').order('name').order('id');
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   const { data, count, error } = await dbQuery;
@@ -211,7 +214,38 @@ app.openapi(listRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  const courses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
+  const pageCourses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
+
+  // 進行中的班數（#1314 (c)）：本頁課程一次撈、記憶體數。「進行中」同班級列表預設排除歷史班那條
+  // （end_date 空或 ≥ 今天）再加 is_active；受限者只數範圍內的班
+  // ponytail: 一次撈本頁課程的進行中班（上限 1000 列）；不分頁列全部課程且班數破千時才會截斷 —— 那時改 head count
+  const classCountByCourse = new Map<string, number>();
+  if (pageCourses.length > 0) {
+    const today = getCurrentTaipeiDateString();
+    const { data: classRows, error: classError } = await applyCampusFilter(
+      supabase
+        .from('classes')
+        .select('course_id')
+        .eq('org_id', c.get('orgId'))
+        .in(
+          'course_id',
+          pageCourses.map((course) => course.id),
+        )
+        .eq('is_active', true)
+        .or(`end_date.is.null,end_date.gte.${today}`),
+      'campus_id',
+      getCampusScope(c),
+      undefined,
+    );
+    if (classError) return c.json({ error: classError.message, code: 'DB_ERROR' }, 500);
+    for (const row of (classRows ?? []) as Array<{ course_id: string }>) {
+      classCountByCourse.set(row.course_id, (classCountByCourse.get(row.course_id) ?? 0) + 1);
+    }
+  }
+  const courses = pageCourses.map((course) => ({
+    ...course,
+    activeClassCount: classCountByCourse.get(course.id) ?? 0,
+  }));
   const total = count || 0;
 
   // 依科目分章的章節計數（#1314 C1）。每科一支 head count 讓 DB 數 —— 撈列回來數會被
