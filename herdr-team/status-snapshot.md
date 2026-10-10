@@ -22,18 +22,37 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-10 第十九次部署紀錄，CI，labor-reviewer-20261008-1356）
+## 🚀 線上是哪一版（2026-10-10 第二十次部署紀錄，CI，labor-reviewer-20261008-1356）
 
-**截線＝origin/main HEAD `9b5580da`**（#1439，純 docs）。**每顆 main 都由 `deploy.yml` 自動部署一次，中間各次沒有逐次寫紀錄**；api 與 web 分開看：
+**截線＝`b7ba5d27`**（#1478 聯絡紀錄，10-10 15:27 台北合入）。**每顆 main 都由 `deploy.yml` 自動部署一次，中間各次沒有逐次寫紀錄**；api 與 web 分開看（驗證時間 2026-10-10 16:54 台北）：
 
-- **api**：最後一次 deploy-api success 是 run `37947662120`（截線 `829b0dfb`＝#1428，10-09 22:54–22:59 台北）→ version `49c5755a-85d1-4765-b088-079a34b62ce9`。之後的 run 都是 deploy-api skipped（#1431、#1439 沒動 api）。
-- **web**：最後一次 deploy-web success 是 run `37948817275`（截線 `f859dd21`＝#1431，23:03–23:05 台北）→ `main-XXWMDDAW.js`（`d72aac87.clessia.pages.dev`）。`9b5580da` 的 run `37949360292` 全 skipped（純 docs）。
-  含（自第十八次 `c0a514f3`）：api —— #1421 異動搜尋 `q`、#1422 summary `studentId`／`outstanding`、#1423／#1430 courses 排序（含 hotfix）、#1426 `issuedMonth`、#1427 courses／classes／campuses 列表補 `org_id`、#1428 courses 章節計數吃同篩選、#1432 批次提醒、#1433 加明細驗 org、#1434 courses/{id} 走 `findInOrg`、#1383 家長端 `meta.term`；web —— #1420 學生檔案帳單章、#1424 人員分章、#1425 搜尋框接線、#1431 課程頁分章、#1414／#1415／#1417 課表異動三支。
-  **⓪**：窗口 `c0a514f3..9b5580da` 無新 migration（`git log … -- supabase/migrations` 為 0；**這回答窗口內，不回答正式 DB 套到哪一支，仍是宣告值**）。
-  **⚠️ 這一輪的事故（#1423）**：#1423 的 `order('subjects(sort_order)')` 沒把 `sort_order` 選進 embed，替身 spec 全綠、上線後 `GET /courses` 回 400。**run `37939752944`（截線 `ab67fdd8`＝#1424）把它推上線**（21:50 台北），hotfix #1430 由手動 dispatch run `37940353012` 於 21:57 上線（version `972d71b2-780d-4cc1-ac16-a314f89c6b6f`，該 run 全 success）。verify-live 的未登入探針（401 在 auth middleware，擋在查詢之前）**抓不到這種壞法**；補救是 #1436（替身擋「order 用 embed 欄但 select 沒選」）與 #1437（`api-contract` job：起真 PostgREST 對每支 GET 列表打一次）。
-  **部署驗證**（本席 10-10 01:22–01:24 自測，main 仍是 `9b5580da`）：線上 `index.html`（`?cb=` 繞快取）的 `main-XXWMDDAW.js`＝run `37948817275` 的 CI 輸出；該 main 引用的 65 個 `chunk-*.js` 逐一抓線上，非 `javascript` content-type 0 個（**只比 main 直接引用的**）；負控 `chunk-ZZZZZZZZ.js` 回 `200 text/html`；正控 `chunk-HPTFETQZ.js` 含 `all_parents` 1 次；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`；`openapi.json`（`curl -s … | wc -c` 315591 bytes）145 條路徑，含 `/api/invoices/reminders/batch`、`issuedMonth`、`dueState`；未登入 `GET /api/invoices`、`/api/invoices/summary`、`/api/courses`、`/api/enrollments`、`POST /api/invoices/reminders/batch` 皆 401。
-  **限度**：沒有帶身分，所以『新欄位／新端點讀得到、`/api/courses` 登入後回 200』**沒有被實測**（本席的 worktree 沒有 `.dev.vars`、沒有登入連結）；未登入 401 **不能**證明路由修好（見上面事故）。openapi 含新欄位只證明新 api 上線。api version 只來自 deploy-api 日誌的 `Current Version ID`，沒有對 workers.dev 線上版本回讀。
-  **之後**：本週生產工作停（Weekly 70%）；待命。
+- **api**：最後一次 deploy-api success＝run `38038084990`（截線 `b7ba5d27`，08:30–08:31Z＝16:30–16:31 台北）→ version `96d71e85-1b9a-4679-a168-69ca3add9284`（只來自 deploy-api 日誌的 `Current Version ID`，沒有對 workers.dev 線上版本回讀）。
+- **web**：最後一次 deploy-web success＝同一個 run `38038084990` → `main-AE2QBYD4.js`（verify-live success；上一版 `main-XXWMDDAW.js` 在第十九次）。
+- 自第十九次截線 `9b5580da` 起 42 個 commit；這段時間 deploy 共 13 success、12 skipped、2 cancelled（`deploy.yml`，01:50Z–08:40Z）。
+
+**⓪ migration**：窗口 `9b5580da..b7ba5d27` 有 **3 支**（`git diff --name-only … -- supabase/migrations`）：
+
+| 檔                                       | 類型              | 套上方式                                                | migrate run（Z 時間＝台北 −8h）                                                                                                            |
+| ---------------------------------------- | ----------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20261010020730_invoice_no.sql`          | schema            | main 自動 plan＝apply，使用者 Approve（`prod-db`）      | `38033095060`（07:03Z，apply success 07:04Z）→ deploy `38033161668` api＋web success                                                       |
+| `20261010021232_invoice_no_backfill.sql` | after-deploy 回填 | 手動 dispatch，`deployed_sha=8d5b1ae8…`（完整 40 字元） | `38033949097`（07:18Z，plan＝apply「待套 1 支 after-deploy backfill」，apply success）；對應 deploy `38033996441` 全 skipped（無程式變動） |
+| `20261010025010_contact_logs.sql`        | schema            | main plan＝apply，使用者 Approve                        | `38034748056`（07:32Z 建立、apply 於 08:29:5xZ 套上、08:30:02Z 結束）→ deploy `38038084990` api＋web success                               |
+
+三支的「套上去」來自 migrate 日誌的 `Applying migration …` 與 apply job success；**我沒有連正式 DB 讀 `schema_migrations`，所以「正式 DB 套到哪一支」仍是日誌推得的，不是回讀**。回填實際改了幾張單（`UPDATE` 筆數）日誌不印，計畫席回報「差集 0」。
+
+**⚠️ 這一輪的事故：migrate 卡死 10:59–15:00（台北）**。#1470（schema）與 #1472（after-deploy 回填）先後合進 main，而舊規則「schema 與 after-deploy 同批待套 → plan 判 `blocked`（紅）、要分批合」在 schema 還沒套上時就讓回填先進了 main：之後**每顆 main 的 migrate plan 都紅、apply 與 deploy 全 skipped**（首顆 `38018942000`＝`37c63ba3`，02:59Z；之後共 8 顆 failure，末顆 `38032876447`，07:00Z）。migration 已提交不能改也不能刪（c3／harness A16），紅燈沒有出口。**使用者裁走工作流修法**：#1485（`8d5b1ae8`）讓 plan 在同批時判 `apply`、把回填列進 `deferred`，apply 把 deferred 的檔從 runner 的 checkout 拿掉再 `db push`（只拿「遠端還沒有、且第一個非空行是 after-deploy 標記」的；套前子集與套後差集都只看剩下的檔）；仍判 `blocked` 的兩種是「同批裡有比回填還新的 schema」與「dispatch 那顆還有 schema 沒套」。#1485 合後第一顆 main 的 plan 即為 `apply`（run `38033095060`）。細節在 `deploying.md`「分批合」那列。
+**教訓**：reviewer 代合回填 PR 時沒擋「schema 還沒套」—— 順序是計畫席排的，但**能擋住它的檢查（plan 的 blocked）只在合進 main 之後才看得到**；現在 blocked 已改成可前進，仍要記：回填 PR 該等 schema 部署後再合。
+
+**含（自第十九次）**：api —— #1442 帳務作業套分校範圍、#1443 學生單筆讀改刪套分校範圍、#1450 學生名冊依年級計數＋學校搜尋、#1452 報名列帶上課時段與老師、#1453 名冊 `enrollmentState`、#1456 名冊今日到班（`lib/today-attendance` 與作業台共用判準，含停課排除）、#1458 學生檔案到班格 `GET /students/{id}/attendance-days`、#1460／#1465 帳單 `studentGrade`＋學生／家長名搜尋（搜尋失敗改 500）、#1462 家長列表孩子年級、#1464 `activeClassCount`、#1470 帳單編號 `invoiceNo`（`INV-YYMM-NNN`，計數表＋trigger 取號）、#1473／#1475 名冊依年級降冪排序、#1478 聯絡紀錄 `/api/contact-logs`（寫入 `basic_operations` 或 `manage_students` 任一）與作業台 `lastContact`、#1482 成績逐場班平均與名次；web —— #1446 家長帳單千分位、#1448／#1449／#1454 共用元件（章頭、手機托盤、篩選鈕、CTA 色階、Hero 滿版）、#1451 課表 360 週條、#1461／#1463／#1466／#1469／#1471／#1474／#1476／#1477／#1483 各頁視覺對齊（帳單、家長、課程、名冊、人員、費用方案、學生檔案）。另 #1468 修 #1460×#1461 合在 main 上才出現的型別紅（fixture 缺 `studentGrade`），#1485 為 CI 工作流改動。
+
+**部署驗證**（本席 2026-10-10 16:54 台北自測，origin/main 當時是 `a238a258`，`b7ba5d27` 之後只有自動重生的現況表）：
+
+- 線上 `index.html`（`?cb=` 繞快取）的 `main-AE2QBYD4.js`＝run `38038084990` 的 CI `BUILT`；main 本身 129475 bytes、引用 65 個 `chunk-*.js`，逐一抓線上**非 `javascript` content-type 0 個**（只比 main 直接引用的）。**注意：main.js 大小與 chunk 數都與上一次紀錄的 main 相同，我只量到、沒有解釋**（hash 不同，內容不是同一個檔）。
+- 負控 `chunk-ZZZZZZZZ.js` 回 `200 text/html`；workers.dev 正控 `/api/system-time` 200 `application/json`、負控 `/no-such-route` 404 `application/json`、對照 `demo.clessia.cc/no-such-route` 200 `text/html`；cf-placement `remote-SIN`。
+- `GET /openapi.json`（注意是 `/openapi.json`，不是 `/api/openapi.json`；後者被 auth 擋回 401）324885 bytes、**147 條路徑**（上次 145）；含 `/api/contact-logs`、`/api/students/{id}/attendance-days`、`/api/invoices/reminders/batch`、`/api/courses`、`/api/billing-runs`，與欄位 `invoiceNo`、`activeClassCount`、`byGrade`、`todayStatus`、`latestAcademy`、`classAvg`、`enrollmentState`、`studentGrade`、`lastContact`、`primaryParent`、`classSchedule`。
+- 未登入 `GET /api/contact-logs?studentId=…`、`/api/invoices`、`/api/courses`、`/api/students` 皆 401。
+  **限度**：沒有帶身分，所以『新欄位／新端點讀得到、登入後 200、`invoice_no` 實際有編號、舊單回填完整』**沒有被實測**（本席沒有登入環境）；未登入 401 **不能**證明路由正常（#1423 的教訓）；openapi 含新欄位只證明新 api 上線。`clessia.cc`／`app.clessia.cc` 本席連線得到 000，我只驗了 `demo.clessia.cc` 與 workers.dev。
+  **之後**：本週最後一件；待命。
   入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 🔁 10-08 交接狀態（計畫席 labor-plan-20261004-1110，10-08 11:29 寫；Ctx 81% 主動交接）
