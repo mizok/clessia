@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { CampusContextService } from '@core/campus-context.service';
 import type { Session } from '@core/sessions.service';
 import { isLive, type StartGroup } from '../../schedule-day.util';
 import {
@@ -24,6 +25,10 @@ export class ScheduleListComponent {
   readonly now = input.required<Date>();
   /** 週視圖的窄欄：只寫結束時間與老師（A6 `list(ss, true)`） */
   readonly compact = input(false);
+
+  /** 頂欄只看某一分校時，每列寫分校名是重複的（A6 沒畫）；看全部分校才需要區分 */
+  private readonly campusCtx = inject(CampusContextService);
+  protected readonly showCampus = computed(() => this.campusCtx.id() === null);
 
   readonly toggle = output<SchedulePickRequest>();
   readonly menu = output<ScheduleMenuRequest>();

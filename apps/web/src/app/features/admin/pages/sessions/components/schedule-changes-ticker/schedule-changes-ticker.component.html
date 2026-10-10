@@ -4,7 +4,7 @@
 -->
 @if (items().length > 0) {
   <section
-    class="flex min-h-11 items-center gap-3 rounded-md bg-zinc-100 px-3"
+    class="flex min-h-11 flex-wrap items-center gap-x-3 rounded-md bg-zinc-100 px-3 wide:flex-nowrap"
     aria-label="近期課務異動"
   >
     <p class="m-0 flex-none text-md font-semibold whitespace-nowrap text-zinc-900 tabular-nums">
@@ -15,7 +15,10 @@
       軌道前面有一整個容器寬的空白（`pl-full`），字從右邊進來、走完自己的寬度離開。
       hover／focus 暫停（`hover:`、`focus-within:`）；reduced-motion 時不動、容器可橫捲。
     -->
-    <div class="min-w-0 flex-1 overflow-hidden motion-reduce:overflow-x-auto" tabindex="-1">
+    <div
+      class="order-3 min-w-0 basis-full overflow-hidden motion-reduce:overflow-x-auto wide:order-none wide:flex-1 wide:basis-auto"
+      tabindex="-1"
+    >
       <ul
         #track
         class="m-0 flex w-max list-none gap-6 p-0 pl-[100%] motion-safe:animate-ticker motion-safe:[animation-duration:var(--ticker-duration,40s)] motion-safe:hover:[animation-play-state:paused] motion-safe:focus-within:[animation-play-state:paused] motion-reduce:pl-0"
@@ -36,7 +39,7 @@
     </div>
 
     <a
-      class="inline-flex min-h-11 flex-none items-center text-md font-semibold whitespace-nowrap text-zinc-900 underline underline-offset-4"
+      class="ml-auto inline-flex min-h-11 flex-none items-center text-md font-semibold whitespace-nowrap text-zinc-900 underline underline-offset-4"
       [routerLink]="[]"
       fragment="changes"
       queryParamsHandling="preserve"
