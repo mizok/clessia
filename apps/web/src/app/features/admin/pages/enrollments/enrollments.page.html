@@ -5,7 +5,20 @@
   現況有、A6 沒畫的：此頁唯讀的副行（保留）。
 -->
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
+  <!-- Hero 數字句（A6、#1507）：計數還沒到或失敗時是頁名，不寫 0 —— 載入中不能說成「沒有」 -->
+  <ng-container openTitle>
+    <span data-testid="hero-title">
+      @if (heroTitle(); as hero) {
+        @if (hero.empty) {
+          {{ hero.empty }}
+        } @else {
+          {{ hero.joined }}<br />{{ hero.left }}
+        }
+      } @else {
+        {{ page().label }}
+      }
+    </span>
+  </ng-container>
   <ng-container openSub>這段期間的報名進出。此頁唯讀，要調整報名狀態請點進班級。</ng-container>
 </app-page-open>
 
@@ -41,14 +54,14 @@
       </div>
       <app-filter-toggle
         [summary]="filterSummary()"
-        [active]="classId() !== null || status() !== null"
+        [active]="classId() !== null || event() !== null || status() !== null"
         [(open)]="filtersOpen"
         [always]="true"
         controls="enrollments-filters"
       />
     </div>
 
-    <!-- 篩選面板：開課班、狀態。分校不放 —— 它跟頂欄走（#1138） -->
+    <!-- 篩選面板：開課班、事件、狀態（A6 順序）。分校不放 —— 它跟頂欄走（#1138） -->
     <div
       id="enrollments-filters"
       class="grid w-full grid-cols-1 gap-3 wide:order-3 wide:basis-full wide:grid-cols-4"
@@ -65,6 +78,18 @@
           optionValue="value"
           [filter]="true"
           ariaLabel="開課班"
+        />
+      </label>
+      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        事件
+        <p-select
+          styleClass="w-full"
+          [options]="eventOptions"
+          [ngModel]="event()"
+          (ngModelChange)="onEventChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          ariaLabel="事件"
         />
       </label>
       <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
@@ -119,9 +144,15 @@
     <p class="enrollments__summary m-0 text-md text-zinc-600 tabular-nums">
       <!--
         只留全量的 T。原本「本頁 新報名 N 筆、退班 M 筆，共 T 筆」的 N／M 只算目前這一頁（≤20 列），
-        T 是伺服器全量，三個數字並排會被讀成同一個母體（#1022）。分事件計數要後端聚合（#1507）。
+        T 是伺服器全量，三個數字並排會被讀成同一個母體（#1022）。
+        事件數由後端聚合（#1507）：數的是事件不是列，報了又退的人兩邊各一，加起來可以大於 T。
       -->
       共 <strong class="text-zinc-900">{{ total() }}</strong> 筆
+      @if (shownCounts(); as counts) {
+        @for (kind of EVENT_KINDS; track kind) {
+          <span data-testid="event-count"> · {{ EVENT_LABELS[kind] }} {{ counts[kind] }}</span>
+        }
+      }
       @if (hasFilter()) {
         ·
         <button
@@ -170,15 +201,25 @@
               >{{ row.periodText }}</span
             >
           </div>
-          <span
-            class="col-start-2 row-start-1 inline-flex h-[22px] items-center justify-self-start rounded-full px-2 text-sm font-semibold whitespace-nowrap ring-inset wide:col-start-auto wide:row-start-auto"
-            data-testid="event-pill"
-            [class]="PILL_CLASS[row.event.kind]"
-            >{{ EVENT_LABELS[row.event.kind] }}</span
+          <div
+            class="col-start-2 row-start-1 flex flex-col items-start gap-0.5 wide:col-start-auto wide:row-start-auto"
           >
+            <span
+              class="inline-flex h-[22px] items-center rounded-full px-2 text-sm font-semibold whitespace-nowrap ring-inset"
+              data-testid="event-pill"
+              [class]="PILL_CLASS[row.event.kind]"
+              >{{ EVENT_LABELS[row.event.kind] }}</span
+            >
+            <!-- A6 只有一種「退班」pill；辦理退班與到期結束靠這行分 -->
+            @if (row.eventNote) {
+              <span class="text-sm whitespace-nowrap text-zinc-600" data-testid="event-note">{{
+                row.eventNote
+              }}</span>
+            }
+          </div>
           <div class="col-span-2 min-w-0 wide:col-span-1">
-            <span class="block text-md text-zinc-800">{{
-              STATUS_LABELS[row.enrollment.status]
+            <span class="block text-md text-zinc-800" data-testid="status-text">{{
+              row.statusText
             }}</span>
             @if (row.enrollment.statusReason) {
               <span class="block text-sm text-zinc-600" data-testid="status-reason">{{
