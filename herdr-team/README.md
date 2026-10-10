@@ -76,6 +76,7 @@
 | [labor-20261010-1910.md](labor-20261010-1910.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1910` |
 | [labor-20261010-1838.md](labor-20261010-1838.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1838` |
 | [labor-20261010-1957.md](labor-20261010-1957.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1957` |
+| [labor-20261010-2156-api.md](labor-20261010-2156-api.md) | 通用執行席（無固定領域） | 同上 | `labor-20261010-2156-api` |
 | [usability-admin.md](usability-admin.md)         | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin`     |
 | [labor-db-reset.md](labor-db-reset.md)           | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`      |
 
