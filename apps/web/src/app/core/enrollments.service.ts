@@ -100,14 +100,29 @@ export interface EnrollmentListResponse {
   meta: { total: number; page: number; pageSize: number; totalPages: number };
 }
 
-export interface EnrollmentQueryParams {
+/** 報名進出的四種事件；判準在 API 的 `routes/enrollments/list-query.ts`（#1507） */
+export type EnrollmentEventKind = 'joined' | 'left' | 'paused' | 'voided';
+
+/** 列表與事件計數共用的篩選 —— 計數數的就是列表那一批 */
+export interface EnrollmentFilterParams {
   classId?: string;
   studentId?: string;
   campusId?: string;
   status?: EnrollmentStatus;
-  /** 期間內「發生過事情」：這段期間開始生效（新報名）或結束（退班） */
+  /** 期間內「發生過事情」：新報名、退班（含到期結束）、暫停、作廢 */
   from?: string;
   to?: string;
+}
+
+/**
+ * 期間內各事件的次數。數的是發生過的事、不是列：報了又退的人兩邊各算一次，
+ * 所以加起來可以大於列表的 `meta.total`。
+ */
+export type EnrollmentEventCounts = Record<EnrollmentEventKind, number>;
+
+export interface EnrollmentQueryParams extends EnrollmentFilterParams {
+  /** 只留期間內發生過這種事件的列 */
+  event?: EnrollmentEventKind;
   /** 預設 createdAt；進出總覽用 updatedAt，見 list-query.ts */
   sort?: 'createdAt' | 'updatedAt';
   /**
@@ -227,13 +242,8 @@ export class EnrollmentsService {
   private readonly base = `${environment.apiUrl}/api/enrollments`;
 
   list(params: EnrollmentQueryParams = {}): Observable<EnrollmentListResponse> {
-    const query = new URLSearchParams();
-    if (params.classId) query.set('classId', params.classId);
-    if (params.studentId) query.set('studentId', params.studentId);
-    if (params.campusId) query.set('campusId', params.campusId);
-    if (params.status) query.set('status', params.status);
-    if (params.from) query.set('from', params.from);
-    if (params.to) query.set('to', params.to);
+    const query = this.toQuery(params);
+    if (params.event) query.set('event', params.event);
     if (params.sort) query.set('sort', params.sort);
     // **`!== undefined` 不是 truthy 檢查** —— 待開帳清單要的正是 `false`，
     // 寫成 `if (params.hasInvoice)` 會把它靜靜地漏掉，然後撈回全部報名
@@ -241,6 +251,23 @@ export class EnrollmentsService {
     if (params.page) query.set('page', String(params.page));
     if (params.pageSize) query.set('pageSize', String(params.pageSize));
     return this.http.get<EnrollmentListResponse>(`${this.base}?${query}`);
+  }
+
+  getEventCounts(params: EnrollmentFilterParams = {}): Observable<{ data: EnrollmentEventCounts }> {
+    return this.http.get<{ data: EnrollmentEventCounts }>(
+      `${this.base}/event-counts?${this.toQuery(params)}`,
+    );
+  }
+
+  private toQuery(params: EnrollmentFilterParams): URLSearchParams {
+    const query = new URLSearchParams();
+    if (params.classId) query.set('classId', params.classId);
+    if (params.studentId) query.set('studentId', params.studentId);
+    if (params.campusId) query.set('campusId', params.campusId);
+    if (params.status) query.set('status', params.status);
+    if (params.from) query.set('from', params.from);
+    if (params.to) query.set('to', params.to);
+    return query;
   }
 
   create(input: CreateEnrollmentInput): Observable<CreateEnrollmentResponse> {
