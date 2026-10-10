@@ -111,9 +111,28 @@ describe('PaymentsPage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
+    // 千分位（#1444）：12345 讀成「一萬二千三百四十五」要停一下，12,345 不用
     expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '12345',
+      '12,345',
     );
+  });
+
+  it('列內各欄不在字中間折行、窄螢幕整欄換行（#1444，360px 的「待付／款」「3,600／元」）', () => {
+    createComponent({
+      data: [invoice()],
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 3600, paymentInfo: [] },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.payments__row')?.classList.contains('flex-wrap')).toBe(true);
+    for (const part of ['id', 'amount', 'status']) {
+      expect(
+        el.querySelector(`.payments__row-${part}`)?.classList.contains('whitespace-nowrap'),
+        part,
+      ).toBe(true);
+    }
   });
 
   it('unpaid/partial 分進待付款組，paid 分進已付款組，沒有已取消組', () => {
