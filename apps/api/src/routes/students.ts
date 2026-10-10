@@ -388,7 +388,11 @@ app.openapi(
         { count: 'exact' },
       )
       .eq('org_id', orgId)
-      .order('name');
+      // 依年級分章（#1314 名冊換形前置）：`grade` 是 enum `grade_level`，Postgres 依列舉序排
+      // （P1…S3，同 GRADE_LEVELS／byGrade），不必 RPC 或 generated column。章內依姓名，末鍵 id 讓同名翻頁穩定
+      .order('grade', { nullsFirst: false })
+      .order('name')
+      .order('id');
 
     if (taughtStudentIds !== null) {
       // 空陣列代表這位老師沒有任何任課班 —— 結果必須是空的，不是「不篩」
