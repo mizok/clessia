@@ -1,12 +1,21 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
 <!--
-  A6 版（#991）：色面 → 灰工具列（搜尋、篩選、新增）→ 人員表格。
-  依角色分章（#1314 ST1）：列表一次拿全部（pageSize=0）、前端歸桶；章名張數讀 `summary.byRole`。
-  統計列已刪，數字在色面副行；其餘差異列後續項（ST2–ST8）。
+  A6 版（#991、#1314 ST）：色面（數字句＋副行）→ 灰工具列（搜尋、篩選：全部、⋯、操作紀錄、新增）→ 依角色分章。
+  每章＝左欄大字章頭（`app-chapter-head`）＋右側人員列，沒有表格、表頭、頭像；列攤開不摺疊，
+  點名字＝編輯，管理員多一行「權限 N 項」（唯讀清單，不給編輯）。列一次拿全部（pageSize=0）、前端歸桶。
+  現況有、A6 沒畫的收進「⋯」：新增掃碼機台（頁面「⋯」）、每列既有的操作選單。
 -->
 <app-page-open>
-  <ng-container openTitle>人員管理</ng-container>
+  <ng-container openTitle>
+    @if (loading() || loadFailed()) {
+      人員管理
+    } @else if (narrowed()) {
+      符合篩選的 {{ visibleRows().length }} 位人員。
+    } @else {
+      {{ liveTotal() }} 位人員，<br />{{ summary().activeCount }} 位啟用中。
+    }
+  </ng-container>
   <ng-container openSub>{{ openSub() }}</ng-container>
 </app-page-open>
 
@@ -16,80 +25,76 @@
     role="search"
     aria-label="篩選人員"
   >
-    <div class="clessia-filter-search w-full min-w-0 wide:w-80">
-      <p-iconField iconPosition="left">
-        <p-inputIcon styleClass="pi pi-search" />
-        <input
-          type="text"
-          pInputText
-          placeholder="搜尋姓名或 Email..."
-          [ngModel]="searchQuery()"
-          (ngModelChange)="onSearchChange($event)"
-          class="clessia-filter-search-input"
-        />
-      </p-iconField>
-    </div>
-    <div class="clessia-filter-group flex flex-wrap gap-3">
-      <p-select
-        [options]="roleOptions"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="角色篩選"
-        [ngModel]="roleFilter()"
-        (ngModelChange)="onRoleFilterChange($event)"
-        size="small"
-        [showClear]="true"
-        [appendTo]="'body'"
-        styleClass="min-w-30 flex-[1_1_120px] clessia-filter-control"
+    <!-- 手機：搜尋框＋「篩選：全部」同一列；桌機 contents 攤平 -->
+    <div class="flex w-full items-center gap-2 wide:contents">
+      <div class="clessia-filter-search min-w-0 flex-1 wide:w-80 wide:flex-none">
+        <p-iconField iconPosition="left">
+          <p-inputIcon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="找姓名或 Email"
+            aria-label="搜尋人員"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+            class="clessia-filter-search-input"
+          />
+        </p-iconField>
+      </div>
+      <app-filter-toggle
+        [summary]="filterSummary()"
+        [active]="hasFilter()"
+        [(open)]="filtersOpen"
+        [always]="true"
+        controls="staff-filters"
       />
-      <p-select
-        [options]="subjectOptions()"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="科目篩選"
-        [ngModel]="subjectFilter()"
-        (ngModelChange)="onSubjectFilterChange($event)"
-        size="small"
-        [showClear]="true"
-        [appendTo]="'body'"
-        styleClass="min-w-30 flex-[1_1_120px] clessia-filter-control"
-      />
-      <p-select
-        [options]="staffStatusOptions"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部狀態"
-        [ngModel]="staffStatusFilter()"
-        (ngModelChange)="onStaffStatusFilterChange($event)"
-        size="small"
-        [showClear]="true"
-        [appendTo]="'body'"
-        styleClass="min-w-30 flex-[1_1_120px] clessia-filter-control"
-      />
-    </div>
-    <div class="wide:ml-auto">
-      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+      <app-page-actions
+        class="wide:order-2 wide:ml-auto"
+        [primary]="primaryAction"
+        [secondary]="secondaryAction"
+        (primaryClick)="openCreateDialog()"
+        (secondaryClick)="openAuditLog()"
+      >
+        <app-popup-menu #pageMenu [model]="pageMenuItems" />
         <p-button
-          label="新增掃碼機台"
-          icon="pi pi-qrcode"
-          [outlined]="true"
+          icon="pi pi-ellipsis-h"
           severity="secondary"
-          (onClick)="openKioskDialog()"
-          data-testid="staff-add-kiosk"
-        />
-        <p-button
-          label="操作紀錄"
-          icon="pi pi-history"
-          [outlined]="true"
-          severity="secondary"
-          (onClick)="openAuditLog()"
+          ariaLabel="更多動作"
+          data-testid="staff-page-menu"
+          (onClick)="pageMenu.toggle($event)"
         />
       </app-page-actions>
+    </div>
+
+    <!-- 篩選面板（A6 的篩選卡）：角色、教學科目、狀態；分校跟頂欄走（#1138） -->
+    <div
+      id="staff-filters"
+      class="flex w-full flex-col gap-3 wide:order-3 wide:basis-full"
+      [class.hidden]="!filtersOpen()"
+    >
+      @for (group of filterGroups(); track group.key) {
+        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span class="w-full text-sm text-zinc-600 wide:w-14">{{ group.label }}</span>
+          @for (opt of group.options; track opt.label) {
+            <button
+              type="button"
+              class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+              [class.border-zinc-900]="group.selected === opt.value"
+              [class.font-semibold]="group.selected === opt.value"
+              [class.border-transparent]="group.selected !== opt.value"
+              [attr.aria-pressed]="group.selected === opt.value"
+              (click)="onFilterPick(group.key, opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+      }
     </div>
   </div>
 </div>
 
-<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+<div class="page-wrap flex flex-col gap-4 pt-0 pb-28 wide:pb-32">
   @if (loading()) {
     <!-- Skeleton Loading -->
     <div class="skeleton-list">
@@ -99,11 +104,8 @@
     </div>
   } @else if (loadFailed()) {
     <app-load-failed description="沒有讀到人員資料，可能是連線問題" (retry)="loadStaff()" />
-  } @else if (staffList().length === 0) {
-    <!-- Empty State -->
-    @if (
-      searchQuery() || roleFilter() || campusFilter() || subjectFilter() || staffStatusFilter()
-    ) {
+  } @else if (visibleRows().length === 0) {
+    @if (narrowed() || campusFilter()) {
       <app-empty-state
         icon="pi pi-search"
         title="找不到符合的人員"
@@ -125,133 +127,120 @@
   } @else {
     <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
-    <app-responsive-table [headTemplate]="headTpl" [bodyTemplate]="bodyTpl" />
+    @if (narrowed()) {
+      <p class="m-0 mt-4 flex flex-wrap items-baseline gap-x-3 text-md text-zinc-600 wide:mt-6">
+        <span
+          ><strong class="text-zinc-900 tabular-nums">{{ visibleRows().length }}</strong>
+          位符合</span
+        >
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+      </p>
+    }
 
-    <ng-template #headTpl>
-      <tr>
-        <th appRtColDef="name" [appRtColDefMinWidth]="180" [appRtColDefPriority]="1">姓名</th>
-        <th appRtColDef="role" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">角色</th>
-        <th appRtColDef="subjects" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">
-          教學科目
-        </th>
-        <th appRtColDef="campuses" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
-          服務分校
-        </th>
-        <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="6">電話</th>
-        <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
-        <th
-          appRtColDef="actions"
-          [appRtColDefMinWidth]="56"
-          [appRtColDefPriority]="0"
-          [appRtColDefCollapsible]="false"
-          aria-hidden="true"
-        ></th>
-      </tr>
-    </ng-template>
-
-    <ng-template #bodyTpl>
+    <div>
       @for (chapter of chapters(); track chapter.key) {
-        <tr class="bg-zinc-50" [attr.data-chapter]="chapter.key">
-          <th
-            colspan="99"
-            scope="colgroup"
-            class="px-4 py-3 text-left text-sm font-semibold text-zinc-900"
-          >
-            {{ chapter.label }}
-            <span class="ml-2 font-normal text-zinc-600 tabular-nums">{{ chapter.count }} 位</span>
-          </th>
-        </tr>
-        @for (staff of chapter.rows; track staff.id) {
-          <tr
-            appRtRow
-            [appRtRow]="staff"
-            [appRtRowId]="staff.id"
-            class="group/row border-l-[3px] border-transparent transition-colors hover:border-accent-400 hover:bg-zinc-50"
-          >
-            <td appRtColCell="name">
-              <div class="flex items-center gap-3">
-                <span
-                  class="hidden size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_2px_5px_-1px_hsl(var(--h,210)_31%_36%/0.22)] select-none data-admin:bg-[linear-gradient(135deg,var(--accent-400),var(--accent-600))] sm:flex"
-                  [attr.data-admin]="staff.roles.includes('admin') ? '' : null"
-                  [style.--h]="getPersonHue(staff.id)"
-                  >{{ staff.displayName[0] }}</span
-                >
-                <div class="flex min-w-0 flex-col gap-0.5">
-                  <span
-                    class="min-w-0 truncate font-semibold text-zinc-900 group-hover/row:text-accent-600"
-                    >{{ staff.displayName }}</span
+        <section
+          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+          [attr.aria-label]="chapter.label"
+          [attr.data-chapter]="chapter.key"
+        >
+          <app-chapter-head
+            class="block pt-4 wide:pt-8"
+            [name]="chapter.label"
+            [count]="chapter.count"
+            unit="位"
+          />
+          <div class="wide:pt-2">
+            @for (staff of chapter.rows; track staff.id) {
+              <div
+                class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-zinc-200 py-3 last:border-b-0 wide:min-h-[72px] wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_44px] wide:gap-x-6 wide:gap-y-1"
+                [attr.data-staff]="staff.id"
+              >
+                <div class="col-start-1 min-w-0 wide:col-auto">
+                  <!-- 姓名＋Email 是同一個點擊目標（一塊 ≥44px），點開編輯 -->
+                  <button
+                    type="button"
+                    class="group/name flex min-h-11 w-full max-w-full cursor-pointer flex-col justify-center border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-accent-500"
+                    [attr.aria-label]="staff.displayName + ' 的編輯'"
+                    (click)="openEdit(staff)"
                   >
-                  <span class="truncate text-sm text-zinc-500">{{ staff.email }}</span>
-                </div>
-              </div>
-            </td>
-            <td appRtColCell="role">
-              <div class="flex flex-nowrap gap-1 whitespace-nowrap">
-                @for (role of staff.roles; track role) {
-                  <app-data-chip>{{ getRoleLabel(role) }}</app-data-chip>
-                }
-              </div>
-            </td>
-            <td appRtColCell="subjects">
-              @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
-                <div class="flex flex-wrap items-center gap-1">
-                  @for (subject of getDisplaySubjects(staff.subjectNames).visible; track subject) {
                     <span
-                      class="inline-flex items-center rounded-full bg-accent-50 px-2 py-0.5 text-xs font-medium text-accent-600"
-                      >{{ subject }}</span
+                      class="truncate text-lg font-bold underline-offset-4 group-hover/name:underline"
+                      [class.text-zinc-900]="staff.status === 'active'"
+                      [class.text-zinc-600]="staff.status !== 'active'"
+                      >{{ staff.displayName }}</span
                     >
+                    <span class="truncate text-sm text-zinc-600">{{ staff.email }}</span>
+                  </button>
+                </div>
+
+                <div class="col-start-1 flex flex-wrap items-center gap-x-2 gap-y-1 wide:col-auto">
+                  @for (role of staff.roles; track role) {
+                    @if (role === 'admin') {
+                      <span
+                        class="inline-flex h-[22px] items-center rounded-full bg-zinc-900 px-2 text-sm font-semibold text-white"
+                        >{{ getRoleLabel(role) }}</span
+                      >
+                    } @else {
+                      <span
+                        class="inline-flex h-[22px] items-center rounded-full bg-zinc-100 px-2 text-sm font-semibold text-zinc-800"
+                        >{{ getRoleLabel(role) }}</span
+                      >
+                    }
                   }
-                  @if (getDisplaySubjects(staff.subjectNames).remaining > 0) {
-                    <span
-                      class="inline-flex cursor-help items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-700"
-                      [pTooltip]="staff.subjectNames.join('、')"
-                      tooltipPosition="top"
+                  @if (staff.roles.includes('admin')) {
+                    <button
+                      type="button"
+                      class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:decoration-current"
+                      [attr.data-testid]="'permission-count-' + staff.id"
+                      (click)="openPermissionList(staff)"
                     >
-                      +{{ getDisplaySubjects(staff.subjectNames).remaining }}
-                    </span>
+                      權限 {{ staff.permissions.length }} 項
+                    </button>
                   }
                 </div>
-              } @else {
-                <span class="text-sm text-zinc-500 italic">—</span>
-              }
-            </td>
-            <td appRtColCell="campuses">
-              <span class="block truncate text-sm text-zinc-600">{{
-                getCampusNames(staff.campusIds)
-              }}</span>
-            </td>
-            <td appRtColCell="phone">
-              @if (staff.phone) {
-                <a
-                  [href]="'tel:' + staff.phone"
-                  class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
+
+                <div
+                  class="col-start-1 min-w-0 text-md wide:col-auto"
+                  [class.text-zinc-800]="staff.status === 'active'"
+                  [class.text-zinc-600]="staff.status !== 'active'"
                 >
-                  {{ staff.phone }}
-                </a>
-              } @else {
-                <span class="text-sm text-zinc-500 italic">未填寫</span>
-              }
-            </td>
-            <td appRtColCell="status">
-              <div class="flex flex-nowrap gap-1 whitespace-nowrap">
-                <app-status-dot [tone]="staffStatusTone(staff.status)">{{
-                  getStaffStatusLabel(staff.status)
-                }}</app-status-dot>
+                  {{ getSubjectsText(staff) }}
+                  <span class="mt-0.5 block text-sm text-zinc-600">{{
+                    getCampusNames(staff.campusIds)
+                  }}</span>
+                </div>
+
+                <div class="col-start-1 min-w-0 wide:col-auto">
+                  <span class="text-md font-semibold">{{ getStaffStatusText(staff.status) }}</span>
+                  @if (staff.phone) {
+                    <span class="mt-0.5 block text-sm text-zinc-600 tabular-nums">{{
+                      staff.phone
+                    }}</span>
+                  }
+                </div>
+
+                <div class="col-start-2 row-start-1 wide:col-auto wide:row-auto">
+                  <p-button
+                    icon="pi pi-ellipsis-h"
+                    [rounded]="true"
+                    [text]="true"
+                    severity="secondary"
+                    [ariaLabel]="staff.displayName + ' 的更多動作'"
+                    (onClick)="openActionMenu($event, staff)"
+                  />
+                </div>
               </div>
-            </td>
-            <td class="responsive-table__cell" style="text-align: center">
-              <p-button
-                icon="pi pi-ellipsis-v"
-                [rounded]="true"
-                [text]="true"
-                severity="secondary"
-                [ariaLabel]="staff.displayName + ' 的操作'"
-                (onClick)="openActionMenu($event, staff)"
-              />
-            </td>
-          </tr>
-        }
+            }
+          </div>
+        </section>
       }
-    </ng-template>
+    </div>
   }
 </div>
