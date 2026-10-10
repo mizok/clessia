@@ -22,6 +22,8 @@ const ParentInvoiceItemSchema = z
     type: z.enum(['tuition', 'meal', 'session_pack', 'adjustment']),
     amount: z.number(),
     periodMonth: z.string().nullable(),
+    /** 班名（#1314 PP2）：掛在報名的明細才有；餐費等沒報名的 → null */
+    className: z.string().nullable(),
   })
   .openapi('ParentInvoiceItem');
 
@@ -39,6 +41,8 @@ const ParentPaymentRecordSchema = z
 const ParentInvoiceSchema = z
   .object({
     id: DbUuidSchema,
+    /** INV-YYMM-NNN（#1459）；回填前的舊單 → null */
+    invoiceNo: z.string().nullable(),
     issuedAt: z.string(),
     dueDate: z.string().nullable(),
     status: z.enum(['unpaid', 'partial', 'paid', 'void', 'overrefunded']),
@@ -91,9 +95,10 @@ const ErrorSchema = z.object({ error: z.string(), code: z.string() }).openapi('P
  * `proofPath`（收款憑證檔案路徑）這輪也不回 —— 家長端 v1 沒有檔案下載的 UI，
  * 回一個打不開的路徑沒有意義，要開放是另一個牽涉檔案存取授權的決定。
  */
-function toParentInvoice(invoice: InvoiceResponse) {
+function toParentInvoice(invoice: InvoiceResponse, classNames: ReadonlyMap<string, string>) {
   return {
     id: invoice.id,
+    invoiceNo: invoice.invoiceNo,
     issuedAt: invoice.issuedAt,
     dueDate: invoice.dueDate,
     status: invoice.status,
@@ -105,6 +110,7 @@ function toParentInvoice(invoice: InvoiceResponse) {
       type: item.type,
       amount: item.amount,
       periodMonth: item.periodMonth,
+      className: (item.enrollmentId && classNames.get(item.enrollmentId)) || null,
     })),
     payments: invoice.payments.map((payment) => ({
       id: payment.id,
@@ -209,7 +215,7 @@ app.openapi(
     // `totalDue` 是**全部**帳單（不分頁）算出來的 —— 分頁截斷不能拿來算總額，
     // 跟出缺席／成績的 meta 同一個判準，所以另開一支不分頁的查詢。
     const today = getCurrentTaipeiDateString();
-    const [pageResult, allResult, paymentInfo, termResult] = await Promise.all([
+    const [pageResult, allResult, paymentInfo, termResult, enrollmentNames] = await Promise.all([
       childDb
         .from('invoices', 'student_id')
         .select(INVOICE_SELECT, { count: 'exact' })
@@ -225,16 +231,29 @@ app.openapi(
         .gte('end_date', today)
         .order('start_date', { ascending: false })
         .limit(1),
+      // 明細 → 報名 → 班名（PP2）。含退班的報名：舊帳單的班名不該因為退班就消失
+      childDb.from('enrollments', 'student_id').pluck('id, classes(name)', 'id', childId),
     ]);
 
-    if (pageResult.error || allResult.error || paymentInfo.error || termResult.error) {
+    if (
+      pageResult.error ||
+      allResult.error ||
+      paymentInfo.error ||
+      termResult.error ||
+      enrollmentNames.error
+    ) {
       return c.json({ error: '讀取帳單失敗', code: 'FETCH_BILLING_FAILED' }, 500);
     }
 
     const pageRows = (pageResult.data ?? []) as unknown as Record<string, unknown>[];
     const allRows = (allResult.data ?? []) as unknown as Record<string, unknown>[];
 
-    const mapped = pageRows.map((row) => toParentInvoice(toInvoiceResponse(row)));
+    const classNames = new Map<string, string>();
+    for (const row of enrollmentNames.rows) {
+      const name = (row['classes'] as { name?: string } | null)?.name;
+      if (name) classNames.set(row['id'] as string, name);
+    }
+    const mapped = pageRows.map((row) => toParentInvoice(toInvoiceResponse(row), classNames));
     const allInvoices = allRows.map((row) => toInvoiceResponse(row));
     const totalDue = allInvoices
       // isOpenInvoice 而不是 `!== 'paid'` —— 作廢單的 total − netPaid 是全額（#898）

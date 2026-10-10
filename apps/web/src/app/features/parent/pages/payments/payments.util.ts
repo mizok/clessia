@@ -60,3 +60,35 @@ export function latestPaymentDate(invoice: ParentInvoice): string | null {
   if (invoice.payments.length === 0) return null;
   return invoice.payments.reduce((latest, p) => (p.paidAt > latest ? p.paidAt : latest), '');
 }
+
+/** 列的主行（PP2）：家長認得的是「哪個班的錢」。有班名用班名（去重），沒有就退回項目種類（餐費、堂數包…） */
+export function invoiceTitle(invoice: ParentInvoice): string {
+  const names = invoice.items.map((i) => i.className ?? INVOICE_ITEM_TYPE_LABELS[i.type]);
+  return [...new Set(names)].join('、');
+}
+
+export type DueTone = 'overdue' | 'pending' | 'inactive';
+
+const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+
+/**
+ * 待繳列的期限標籤（A6 `statusTag`）：逾期 N 天／N 天後到期（7 天內）／未到期。
+ * `today` 由呼叫端傳（台北日曆日），這裡不碰時鐘。沒有期限日回 null。
+ */
+export function dueTag(
+  invoice: ParentInvoice,
+  today: string,
+): { tone: DueTone; label: string } | null {
+  if (invoice.dueDate === null) return null;
+  const part = invoice.status === 'partial' ? '部分繳 · ' : '';
+  const left = Math.round((day(invoice.dueDate) - day(today)) / 86_400_000);
+  if (left < 0) return { tone: 'overdue', label: `${part}逾期 ${-left} 天` };
+  if (left === 0) return { tone: 'pending', label: `${part}今天到期` };
+  if (left <= 7) return { tone: 'pending', label: `${part}${left} 天後到期` };
+  return { tone: 'inactive', label: `${part}未到期` };
+}
+
+/** `YYYY-MM-DD` → `M/D`（A6 `md`） */
+export function monthDay(date: string): string {
+  return `${+date.slice(5, 7)}/${+date.slice(8, 10)}`;
+}

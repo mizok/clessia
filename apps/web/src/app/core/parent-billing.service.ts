@@ -14,6 +14,8 @@ export interface ParentInvoiceItem {
   type: ParentInvoiceItemType;
   amount: number;
   periodMonth: string | null;
+  /** 班名（#1314 PP2）：掛在報名的明細才有；餐費等 → null */
+  className: string | null;
 }
 
 export interface ParentPaymentRecord {
@@ -27,6 +29,8 @@ export interface ParentPaymentRecord {
 
 export interface ParentInvoice {
   id: string;
+  /** INV-YYMM-NNN（#1459）；回填前的舊單 → null */
+  invoiceNo: string | null;
   issuedAt: string;
   dueDate: string | null;
   status: ParentInvoiceStatus;
