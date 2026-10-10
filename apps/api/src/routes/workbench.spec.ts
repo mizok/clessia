@@ -222,9 +222,11 @@ describe('GET /api/workbench/today', () => {
     await app.request('/api/workbench/today?date=2026-04-06');
 
     // 替身回固定 fixture、不照 in 過濾 —— 所以測送出去的條件：撈在籍名單時停課的班不在 class_id 裡
-    expect(
-      inCalls.filter((call) => call.table === 'enrollments' && call.column === 'class_id'),
-    ).toEqual([{ table: 'enrollments', column: 'class_id', values: ['class-1'] }]);
+    // 第一支是 summariseSessions 算每堂在籍人數（停課堂照算，那是課堂卡片的數字）；最後一支是應到名單
+    const classIdCalls = inCalls.filter(
+      (call) => call.table === 'enrollments' && call.column === 'class_id',
+    );
+    expect(classIdCalls.at(-1)?.values).toEqual(['class-1']);
   });
 
   // #1314 D1：is_primary 優先（不論列序）；沒有家長 → null；家長沒帳號 → phone null
