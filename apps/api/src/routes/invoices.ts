@@ -7,7 +7,7 @@ import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
-import { getCampusScope } from '../lib/campus-scope';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import {
   enrollmentsInScope,
   INVOICE_SCOPE_EMBED,
@@ -103,6 +103,15 @@ const ErrorSchema = z
   .openapi('InvoiceError');
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 指定分校（#1314 DB-campus）。**跟受限範圍取交集**（`campusFilterIds`）再餵 `invoiceInScope` ——
+ * 不受限的人選 A 校，看到的就是 A 校受限管理員看到的那批，不另開一份判準。
+ * 代價：跨校帳單（明細的班分屬兩校）在選任一校時都不出現，各校加總 < 全部分校（計畫席 10-10 裁）。
+ */
+const CampusIdQuerySchema = DbUuidSchema.optional().openapi({
+  description: '只看這間分校的帳單（與受限範圍取交集；不帶＝範圍內全部）',
+});
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -240,6 +249,7 @@ app.openapi(
           .openapi({
             description: 'YYYY-MM = 只看這個月開立的（匯出用，#1314 P4；同彙總「本月」的定義）',
           }),
+        campusId: CampusIdQuerySchema,
         page: z.string().optional(),
         pageSize: z.string().optional(),
       }),
@@ -285,8 +295,9 @@ app.openapi(
     // dueState（#1314 P1）是同一個母體的互斥分章，判準在 lib/invoice-overdue 的 dueStateOn
     const unpaidOnly =
       overdue || outstanding || dueWithinDays !== undefined || params.dueState !== undefined;
-    // 分校範圍（#1381）在記憶體判（`lib/invoice-campus-scope.ts`），所以受限者也走推導路徑
-    const campusScope = getCampusScope(c);
+    // 分校範圍（#1381）在記憶體判（`lib/invoice-campus-scope.ts`），所以受限者也走推導路徑。
+    // 指定分校＝跟受限範圍取交集，餵同一個判準（#1314 DB-campus）
+    const campusScope = campusFilterIds(getCampusScope(c), params.campusId);
     // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
     const derivedFilter = unpaidOnly || Boolean(params.status) || campusScope !== null;
 
@@ -422,7 +433,7 @@ app.openapi(
     summary: '帳單彙總（各狀態張數與待收、逾期、本月應收／已收）',
     request: {
       // 學生檔案帳單章（#1314 P3）：只算這位學生的帳單；範圍外的學生回全零（同列表帶 studentId）
-      query: z.object({ studentId: DbUuidSchema.optional() }),
+      query: z.object({ studentId: DbUuidSchema.optional(), campusId: CampusIdQuerySchema }),
     },
     responses: {
       200: {
@@ -455,11 +466,11 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
 
-    const campusScope = getCampusScope(c);
+    const { studentId, campusId } = c.req.valid('query');
+    const campusScope = campusFilterIds(getCampusScope(c), campusId);
     const select: string =
       'id, issued_at, due_date, voided_at, invoice_items(amount), payment_records(kind, amount)' +
       (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
-    const { studentId } = c.req.valid('query');
     const { rows: fetched, error } = await fetchAllPages((from, to) => {
       let query = supabase.from('invoices').select(select).eq('org_id', orgId);
       if (studentId) query = query.eq('student_id', studentId);

@@ -128,6 +128,11 @@ export type DueState = 'overdue' | 'dueSoon' | 'notDue';
 export interface InvoiceQueryParams {
   /** 只吃 uuid；姓名關鍵字用 `search` */
   studentId?: string;
+  /**
+   * 只看這間分校的帳單（#1314 DB-campus）。後端跟受限範圍取交集、走帳單的分校判準：
+   * 跨校帳單選哪一校都不見、跨校學生的純餐費單兩校都見 —— 各校加總不等於全部分校
+   */
+  campusId?: string;
   /** 學生姓名、任一位家長姓名、或帳單編號（部分比對；#1314 (a)、#1459） */
   search?: string;
   /**
@@ -248,10 +253,11 @@ export class InvoicesService {
     return this.http.get<InvoiceListResponse>(this.endpoint, { params: toQuery(params) });
   }
 
-  /** 帶 `studentId` 只算該生（學生檔案帳單章，#1314 P3） */
-  summary(params?: { studentId?: string }): Observable<InvoiceSummary> {
+  /** 帶 `studentId` 只算該生（學生檔案帳單章，#1314 P3）；`campusId` 同列表 */
+  summary(params?: { studentId?: string; campusId?: string }): Observable<InvoiceSummary> {
     const query: Record<string, string> = {};
     if (params?.studentId) query['studentId'] = params.studentId;
+    if (params?.campusId) query['campusId'] = params.campusId;
     return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`, { params: query });
   }
 
@@ -310,6 +316,7 @@ function toQuery(params?: InvoiceQueryParams): Record<string, string> {
 
   const query: Record<string, string> = {};
   if (params.studentId) query['studentId'] = params.studentId;
+  if (params.campusId) query['campusId'] = params.campusId;
   if (params.search) query['search'] = params.search;
   if (params.outstanding) query['outstanding'] = 'true';
   if (params.overdue) query['overdue'] = 'true';

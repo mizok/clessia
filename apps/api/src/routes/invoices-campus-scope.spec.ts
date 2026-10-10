@@ -181,6 +181,46 @@ describe('帳單的分校範圍（#1381）—— 讀', () => {
   });
 });
 
+/**
+ * #1314 DB-campus：`campusId` 跟受限範圍取交集，餵同一個 `invoiceInScope`。
+ * 不受限的人選 A＝A 校受限管理員看到的那批；跨校單（CROSS）選哪一校都不見（計畫席裁）。
+ */
+describe('帳單列表／彙總的 campusId（#1314 DB-campus）', () => {
+  const ids = (body: { data: Array<{ id: string }> }) => body.data.map((r) => r.id).sort();
+
+  it('不受限選 A：跟受限 A 看到的一樣；跨校單不在', async () => {
+    const picked = await call(seed(), 'GET', `/?campusId=${CA}`, { scope: null });
+    const restricted = await call(seed(), 'GET', '/', { scope: [CA] });
+    expect(ids(picked.body)).toEqual([VISIBLE, MEAL_A].sort());
+    expect(ids(picked.body)).toEqual(ids(restricted.body));
+  });
+
+  // 判準兩頭都不對稱：跨校的單（CROSS）哪一校都不見；跨校學生只有餐費的單（MEAL_A）兩校都見
+  // —— 所以各校加總不等於全部分校，可能少也可能多
+  it('不受限選 B：B 校學生的單＋跨校學生的餐費單；跨校單不在', async () => {
+    const { body } = await call(seed(), 'GET', `/?campusId=${CB}`, { scope: null });
+    expect(ids(body)).toEqual([MEAL_A, MEAL_B, OTHER].sort());
+    expect(ids(body)).not.toContain(CROSS);
+  });
+
+  it('不帶 campusId：照舊看得到全部', async () => {
+    const { body } = await call(seed(), 'GET', '/', { scope: null });
+    expect(body.meta.total).toBe(5);
+  });
+
+  it('受限 A 指定 B：交集是空的，不會變寬', async () => {
+    const list = await call(seed(), 'GET', `/?campusId=${CB}`, { scope: [CA] });
+    expect(list.body.data).toEqual([]);
+    const summary = await call(seed(), 'GET', `/summary?campusId=${CB}`, { scope: [CA] });
+    expect(summary.body.byStatus.unpaid).toEqual({ count: 0, outstanding: 0 });
+  });
+
+  it('彙總選 A：跟受限 A 的彙總一樣', async () => {
+    const { body } = await call(seed(), 'GET', `/summary?campusId=${CA}`, { scope: null });
+    expect(body.byStatus.unpaid).toEqual({ count: 2, outstanding: 2000 });
+  });
+});
+
 describe('帳單的分校範圍（#1381）—— 寫：範圍外 404 且沒寫進去', () => {
   const writes: Array<[string, string, unknown]> = [
     ['POST', `/${OTHER}/items`, { type: 'adjustment', amount: 100 }],

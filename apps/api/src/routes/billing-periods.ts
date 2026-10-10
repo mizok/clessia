@@ -6,6 +6,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import {
   applyCampusFilter,
+  campusFilterIds,
   filtersCampus,
   getCampusScope,
   type CampusScope,
@@ -244,6 +245,12 @@ app.openapi(
     path: '/upcoming-unbilled',
     tags: ['BillingPeriods'],
     summary: '機構設定天數內開始、有期繳生卻還沒開單的期',
+    request: {
+      query: z.object({
+        // 指定分校＝跟受限範圍取交集（#1314 DB-campus）；不帶＝範圍內全部
+        campusId: DbUuidSchema.optional(),
+      }),
+    },
     responses: {
       200: {
         description: '待開單的期（通常 0 或 1 筆），依開始日排序',
@@ -259,7 +266,7 @@ app.openapi(
     const orgId = c.get('orgId');
     // 受限的管理員只看自己範圍：「範圍內有期繳生、範圍內還沒開單」（#1314 DB-campus PR-a）。
     // 原本兩支計數都不看分校，A 校主任的待辦是全機構的數字，B 校開過單 A 校的待辦就跟著消失
-    const scope = getCampusScope(c);
+    const scope = campusFilterIds(getCampusScope(c), c.req.valid('query').campusId);
     const today = getCurrentTaipeiDateString();
     const failed = () => c.json({ error: '查詢待開單失敗', code: 'DB_ERROR' }, 500);
 
