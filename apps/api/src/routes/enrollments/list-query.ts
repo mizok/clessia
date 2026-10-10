@@ -39,8 +39,9 @@ export function buildPeriodFilter(from?: string, to?: string): string | null {
 
 const SELECT_COLUMNS =
   'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at';
+// `schedules(...)`：學生檔案「這學期的課」要星期時段與老師（#1314 SD1）
 const SELECT_RELATIONS =
-  '(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)';
+  '(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)';
 
 /**
  * 依分校過濾時，classes 的關聯必須是 inner join。

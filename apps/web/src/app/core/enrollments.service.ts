@@ -50,6 +50,15 @@ export interface Enrollment {
   createdAt: string;
   updatedAt: string;
   attendanceCount: number;
+  /** 班目前有效的上課時段（#1314 SD1）。weekday：1=週一 … 7=週日 */
+  classSchedule: {
+    weekday: number;
+    startTime: string;
+    endTime: string;
+    teacherName: string | null;
+  }[];
+  /** 各時段老師去重、以「、」連；沒有指派 → null */
+  teacherName: string | null;
 }
 
 export interface ScheduleConflictWarning {

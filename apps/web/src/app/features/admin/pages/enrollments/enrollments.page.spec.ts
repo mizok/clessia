@@ -38,6 +38,8 @@ function enrollment(overrides: Partial<Enrollment> = {}): Enrollment {
     createdAt: '2026-08-03T00:00:00Z',
     updatedAt: '2026-08-03T00:00:00Z',
     attendanceCount: 0,
+    classSchedule: [],
+    teacherName: null,
     ...overrides,
   };
 }
