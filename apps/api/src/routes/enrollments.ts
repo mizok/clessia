@@ -70,6 +70,18 @@ const EnrollmentSchema = z
     createdAt: z.string(),
     updatedAt: z.string(),
     attendanceCount: z.number().int().min(0),
+    /** 班目前有效的上課時段（#1314 SD1）：`effective_to` 空或 ≥ 台北今天，依星期、開始時間排 */
+    classSchedule: z.array(
+      z.object({
+        /** 1=週一 … 7=週日 */
+        weekday: z.number().int(),
+        startTime: z.string(),
+        endTime: z.string(),
+        teacherName: z.string().nullable(),
+      }),
+    ),
+    /** 各時段老師去重、以「、」連；沒有指派 → null */
+    teacherName: z.string().nullable(),
   })
   .openapi('Enrollment');
 
@@ -227,6 +239,19 @@ const CopyFromClassResponseSchema = z
 // ============================================================
 
 export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema> {
+  const today = getCurrentTaipeiDateString();
+  const classSchedule = ((row.classes?.schedules ?? []) as any[])
+    .filter((slot) => !slot.effective_to || slot.effective_to >= today)
+    .map((slot) => ({
+      weekday: Number(slot.weekday),
+      startTime: String(slot.start_time ?? '').slice(0, 5),
+      endTime: String(slot.end_time ?? '').slice(0, 5),
+      teacherName: (slot.staff?.display_name as string | undefined) ?? null,
+    }))
+    .sort((a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime));
+  const teachers = [
+    ...new Set(classSchedule.flatMap((slot) => (slot.teacherName ? [slot.teacherName] : []))),
+  ];
   return {
     id: row.id,
     orgId: row.org_id,
@@ -256,6 +281,8 @@ export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema>
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     attendanceCount: row.attendances?.[0]?.count ?? 0,
+    classSchedule,
+    teacherName: teachers.length > 0 ? teachers.join('、') : null,
   };
 }
 
@@ -661,7 +688,8 @@ app.openapi(
         created_by: userId,
       })
       .select(
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        // 跟列表 `buildSelect` 同形狀（字面寫才拿得到列型別）；schedules 給 classSchedule（#1314 SD1）
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
@@ -757,7 +785,8 @@ app.openapi(
       .eq('id', id)
       .eq('org_id', orgId)
       .select(
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        // 跟列表 `buildSelect` 同形狀（字面寫才拿得到列型別）；schedules 給 classSchedule（#1314 SD1）
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
@@ -864,7 +893,8 @@ app.openapi(
       .eq('id', id)
       .eq('org_id', orgId)
       .select(
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        // 跟列表 `buildSelect` 同形狀（字面寫才拿得到列型別）；schedules 給 classSchedule（#1314 SD1）
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
