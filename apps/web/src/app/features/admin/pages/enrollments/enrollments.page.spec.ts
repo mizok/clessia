@@ -128,6 +128,7 @@ describe('EnrollmentsPage', () => {
     );
     localStorage.removeItem('clessia.campusContext');
     listMock.mockReturnValue(NEVER);
+    countsMock.mockReturnValue(of({ data: COUNTS }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
@@ -304,6 +305,7 @@ describe('EnrollmentsPage', () => {
     );
     localStorage.removeItem('clessia.campusContext');
     listMock.mockReturnValue(throwError(() => new Error('boom')));
+    countsMock.mockReturnValue(of({ data: COUNTS }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
