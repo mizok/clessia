@@ -53,10 +53,10 @@ function toTimeDate(time: string | null): Date | null {
   ],
   template: `
     <div class="flex flex-col gap-5 py-2">
-      @if (editing) {
+      @if (fixedStudentName(); as fixedName) {
         <div class="flex w-full flex-col gap-1.5">
           <label class="text-sm font-medium text-zinc-700">學生</label>
-          <strong>{{ editing.studentName }}</strong>
+          <strong>{{ fixedName }}</strong>
         </div>
       } @else {
         <div class="grid grid-cols-2 gap-3">
@@ -183,6 +183,14 @@ export class LeaveFormDialogComponent implements OnInit {
   protected readonly editing: LeaveRequest | null =
     inject(DynamicDialogConfig, { optional: true })?.data?.leave ?? null;
 
+  // 預帶學生（學生檔案的「登記請假」）：`data.student` 有值就跟編輯一樣學生唯讀，不給選
+  protected readonly presetStudent: { id: string; name: string } | null =
+    inject(DynamicDialogConfig, { optional: true })?.data?.student ?? null;
+
+  protected fixedStudentName(): string | null {
+    return this.editing?.studentName ?? this.presetStudent?.name ?? null;
+  }
+
   protected selectedCampusId: string | null = null;
   protected selectedGrade: GradeLevel | null = null;
   protected selectedStudent: Student | string | null = null;
@@ -218,6 +226,7 @@ export class LeaveFormDialogComponent implements OnInit {
       this.reason = leave.reason ?? '';
       return;
     }
+    if (this.presetStudent) return;
     this.refData.loadCampuses();
   }
 
@@ -228,7 +237,7 @@ export class LeaveFormDialogComponent implements OnInit {
 
   protected canSubmit(): boolean {
     return (
-      (this.editing !== null || isStudentSelection(this.selectedStudent)) &&
+      (this.fixedStudentName() !== null || isStudentSelection(this.selectedStudent)) &&
       !!this.startDate &&
       !!this.endDate &&
       this.startDate <= this.endDate
@@ -252,7 +261,7 @@ export class LeaveFormDialogComponent implements OnInit {
 
   protected submit(): void {
     const student = this.selectedStudent;
-    if (!this.editing && !isStudentSelection(student)) {
+    if (!this.editing && !this.presetStudent && !isStudentSelection(student)) {
       this.errorMessage.set('請從建議清單選擇一位學生');
       return;
     }
@@ -287,7 +296,7 @@ export class LeaveFormDialogComponent implements OnInit {
     const request$ = this.editing
       ? this.leaveService.update(this.editing.id, fields)
       : this.leaveService.create({
-          studentId: (student as Student).id,
+          studentId: this.presetStudent?.id ?? (student as Student).id,
           ...fields,
         } satisfies CreateLeaveInput);
 

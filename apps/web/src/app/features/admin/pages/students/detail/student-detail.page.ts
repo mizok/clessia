@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, DestroyRef, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -12,7 +12,12 @@ import {
   StudentDetail,
   GradeLevel,
   GRADE_LEVEL_LABELS,
+  type StudentAttendanceDays,
 } from '@core/students.service';
+import { ScoresService, type SubjectAverage } from '@core/scores.service';
+import { LeaveService, type LeaveRequest } from '@core/leave.service';
+import { SystemClockService } from '@core/system-clock.service';
+import type { MenuItem } from 'primeng/api';
 import {
   EnrollmentsService,
   Enrollment,
@@ -25,6 +30,25 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StudentBillingChapterComponent } from './student-billing-chapter/student-billing-chapter.component';
+import { StudentFoldComponent } from './student-fold/student-fold.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
+import { LeaveFormDialogComponent } from '../../leave/leave-form-dialog.component';
+import {
+  ATTENDANCE_CELL_LABELS,
+  ATTENDANCE_STATE_LABELS,
+  absentLine,
+  attendanceRange,
+  buildLog,
+  dateWithWeekday,
+  hhmm,
+  shortDate,
+  situationLine,
+  subjectScoreText,
+} from './student-detail.util';
 import { ClassPickerDialogComponent } from '@shared/components/class-picker-dialog/class-picker-dialog.component';
 import {
   InlineNoticeComponent,
@@ -65,6 +89,9 @@ interface ConflictPrompt {
     PageOpenComponent,
     InlineNoticeComponent,
     StudentBillingChapterComponent,
+    StudentFoldComponent,
+    PopupMenuComponent,
+    PageActionsComponent,
   ],
   providers: [DialogService],
   templateUrl: './student-detail.page.html',
@@ -77,6 +104,12 @@ export class StudentDetailPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly scoresService = inject(ScoresService);
+  private readonly leaveService = inject(LeaveService);
+  private readonly clock = inject(SystemClockService);
+
+  /** 帳單章持有帳單與待收金額；工具列的「收款」與紀錄時間軸讀它，不重打 API */
+  protected readonly billing = viewChild(StudentBillingChapterComponent);
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -92,10 +125,108 @@ export class StudentDetailPage implements OnInit {
     return parents.find((p) => p.isPrimary) ?? parents[0] ?? null;
   });
 
-  protected readonly deferredSections = [
-    { title: '出缺席紀錄', body: '出缺席功能開發中。' },
-    { title: '成績紀錄', body: '成績功能開發中。' },
-  ] as const;
+  protected readonly ATTENDANCE_CELL_LABELS = ATTENDANCE_CELL_LABELS;
+  protected readonly attendance = signal<StudentAttendanceDays | null>(null);
+  protected readonly attendanceFailed = signal(false);
+  protected readonly subjects = signal<SubjectAverage[]>([]);
+  protected readonly leaves = signal<LeaveRequest[]>([]);
+  /** 紀錄時間軸要「報名過的所有班」，不只在學中的 */
+  private readonly allEnrollments = signal<Enrollment[]>([]);
+  private readonly today = this.clock.todayTaipei;
+
+  protected readonly situation = computed(() => situationLine(this.attendance()));
+  protected readonly absentSummary = computed(() => {
+    const att = this.attendance();
+    return att ? absentLine(att, this.today()) : '';
+  });
+  protected readonly outstandingTotal = computed(() => this.billing()?.totalOutstanding() ?? 0);
+
+  protected readonly subLine = computed(() => {
+    const s = this.student();
+    if (!s) return '';
+    const parts = [
+      this.getGradeLabel(s.grade),
+      s.school?.name ?? '學校未填寫',
+      ...this.enrollments().map((e) => e.className),
+    ];
+    if (!s.isActive) parts.push('已停用');
+    return parts.join(' · ');
+  });
+
+  /** 有待收款：次要「登記請假」＋主要「收款 NT$ N」；沒有待收：「登記請假」自己當主要 */
+  protected readonly leaveAction: PageAction = { label: '登記請假', icon: 'pi pi-calendar-minus' };
+  protected readonly primaryAction = computed<PageAction>(() =>
+    this.outstandingTotal() > 0
+      ? {
+          label: `收款 NT$ ${this.outstandingTotal().toLocaleString('en-US')}`,
+          icon: 'pi pi-wallet',
+        }
+      : this.leaveAction,
+  );
+  protected readonly secondaryAction = computed<PageAction | null>(() =>
+    this.outstandingTotal() > 0 ? this.leaveAction : null,
+  );
+
+  protected readonly menuItems = computed<MenuItem[]>(() => [
+    { label: '編輯資料', icon: 'pi pi-pencil', command: () => this.openEditDialog() },
+    ...(this.student()?.isActive
+      ? [{ label: '報名新班', icon: 'pi pi-plus', command: () => this.openClassPicker() }]
+      : []),
+  ]);
+
+  protected readonly scoreMeta = computed(() => {
+    const n = this.subjects().length;
+    return n === 0 ? '還沒有成績' : `${n} 科`;
+  });
+  protected subjectScoreText = subjectScoreText;
+
+  protected readonly logEntries = computed(() =>
+    buildLog({
+      today: this.today(),
+      createdAt: this.student()?.createdAt ?? '1970-01-01T00:00:00Z',
+      enrollments: this.allEnrollments().map((e) => ({
+        createdAt: e.createdAt,
+        className: e.className,
+        statusLabel: ENROLLMENT_STATUS_LABELS[e.status],
+      })),
+      attendance: this.attendance(),
+      invoices: this.billing()?.invoices() ?? [],
+      leaves: this.leaves(),
+    }),
+  );
+
+  protected parentMeta = computed(() => {
+    const parents = this.student()?.parents ?? [];
+    const p = parents.find((x) => x.isPrimary) ?? parents[0];
+    if (!p) return '尚未關聯家長';
+    const base = p.relation ? `${p.name}（${p.relation}）` : p.name;
+    return parents.length > 1 ? `${base} 等 ${parents.length} 位` : base;
+  });
+  protected basicMeta = computed(() => {
+    const s = this.student();
+    if (!s) return '';
+    return [this.getGradeLabel(s.grade), s.birthday?.replaceAll('-', '/')]
+      .filter(Boolean)
+      .join(' · ');
+  });
+
+  /** 一列課的「週六 15:00–16:30 · 簡志明 老師」 */
+  protected scheduleText(e: Enrollment): string {
+    const slots = e.classSchedule
+      .map((t) => `週${this.weekdayLabel(t.weekday)} ${hhmm(t.startTime)}–${hhmm(t.endTime)}`)
+      .join('、');
+    return [slots, e.teacherName ? `${e.teacherName} 老師` : ''].filter(Boolean).join(' · ');
+  }
+  protected cellTitle(d: StudentAttendanceDays['days'][number]): string {
+    return `${dateWithWeekday(d.date)} ${ATTENDANCE_STATE_LABELS[d.state]}`;
+  }
+  protected cellText(d: StudentAttendanceDays['days'][number]): string {
+    return d.state === 'future' ? shortDate(d.date, this.today()) : ATTENDANCE_CELL_LABELS[d.state];
+  }
+  protected shortDate(date: string): string {
+    return shortDate(date, this.today());
+  }
+  protected readonly dateWithWeekday = dateWithWeekday;
   readonly loading = signal(true);
   protected readonly enrollments = signal<Enrollment[]>([]);
   protected readonly enrollmentsLoading = signal(false);
@@ -110,6 +241,7 @@ export class StudentDetailPage implements OnInit {
       if (!id) {
         this.student.set(null);
         this.enrollments.set([]);
+        this.allEnrollments.set([]);
         this.loading.set(false);
         this.enrollmentsLoading.set(false);
         return;
@@ -117,6 +249,8 @@ export class StudentDetailPage implements OnInit {
 
       this.loadStudent(id);
       this.loadEnrollments(id);
+      this.loadSubjects(id);
+      this.loadLeaves(id);
     });
   }
 
@@ -343,14 +477,92 @@ export class StudentDetailPage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.enrollments.set(
-            res.data.filter((e) => ['active', 'pending_payment'].includes(e.status)),
-          );
+          this.allEnrollments.set(res.data);
+          const current = res.data.filter((e) => ['active', 'pending_payment'].includes(e.status));
+          this.enrollments.set(current);
           this.enrollmentsLoading.set(false);
+          this.loadAttendance(
+            studentId,
+            current.map((e) => e.effectiveFrom),
+          );
         },
         error: () => this.enrollmentsLoading.set(false),
       });
   }
+  /** 到班格：區間見 `attendanceRange`。沒有報名就不打，章顯示「還沒有他的課」 */
+  private loadAttendance(studentId: string, effectiveFroms: readonly string[]): void {
+    const range = attendanceRange(effectiveFroms, this.today());
+    this.attendanceFailed.set(false);
+    if (!range) {
+      this.attendance.set(null);
+      return;
+    }
+    this.studentsService
+      .attendanceDays(studentId, range.from, range.to)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.attendance.set(res),
+        error: () => {
+          this.attendance.set(null);
+          this.attendanceFailed.set(true);
+        },
+      });
+  }
+
+  private loadSubjects(studentId: string): void {
+    this.scoresService
+      .getStudentSummary(studentId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.subjects.set(res.data.subjects),
+        error: () => this.subjects.set([]),
+      });
+  }
+
+  private loadLeaves(studentId: string): void {
+    this.leaveService
+      .list({ studentId, pageSize: 50 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.leaves.set(res.data),
+        error: () => this.leaves.set([]),
+      });
+  }
+
+  /** 登記請假：開既有的請假對話框、預帶這位學生；存完重抓到班格與請假紀錄 */
+  protected openLeaveDialog(): void {
+    const s = this.student();
+    if (!s) return;
+    const ref = this.dialogService.open(LeaveFormDialogComponent, {
+      header: '登記請假',
+      width: '480px',
+      modal: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { student: { id: s.id, name: s.name } },
+    });
+    ref?.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((leave: LeaveRequest | null) => {
+        if (!leave) return;
+        this.notice.set({
+          severity: 'success',
+          summary: '已登記請假',
+          detail: `${s.name} 的請假已送出`,
+        });
+        this.loadLeaves(s.id);
+        this.loadEnrollments(s.id);
+      });
+  }
+
+  protected collect(): void {
+    this.billing()?.collect();
+  }
+
+  protected onPrimary(): void {
+    if (this.outstandingTotal() > 0) this.collect();
+    else this.openLeaveDialog();
+  }
+
   /**
    * 在學 = 還在用；退班 / 作廢 = 不在等任何事了；待繳費 / 暫停 = 還在等某件事發生。
    *

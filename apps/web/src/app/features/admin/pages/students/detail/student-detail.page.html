@@ -1,6 +1,7 @@
 <!--
-  A6 版（#991）：色面（返回、姓名、年級學校、主要家長）→ 灰工具列（狀態＋編輯）→ 各段。
-  換版不換資料：A6 稿的到班格、考試、操作紀錄要的資料這頁沒有，另開單。
+  A6 版（#1314 SD）：色面（返回、姓名、副行、到班數字、主要家長）→ 灰工具列（今天有沒有課、
+  登記請假／收款／⋯）→ 這學期的課 → 到班格 → 成績／帳單／紀錄／家長／基本資料五條灰摺疊列。
+  手機的「登記請假」「收款」走共用托盤（page-actions），工具列只留情境句與 ⋯。
 -->
 <app-page-open>
   <a
@@ -8,7 +9,7 @@
     class="mb-2 inline-flex min-h-11 items-center gap-1.5 text-md font-semibold text-band-ink no-underline hover:underline hover:underline-offset-4"
     [routerLink]="studentsLink"
   >
-    <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>學生列表
+    <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>學生名冊
   </a>
   <ng-container openTitle>
     @if (student(); as s) {
@@ -22,11 +23,20 @@
       找不到學生資料
     }
   </ng-container>
-  <ng-container openSub>
-    @if (student(); as s) {
-      {{ getGradeLabel(s.grade) }} · {{ s.school?.name ?? '學校未填寫' }}
+  <ng-container openSub>{{ subLine() }}</ng-container>
+
+  @if (attendance(); as att) {
+    @if (att.summary.due > 0) {
+      <p class="mt-6 mb-0 flex items-end gap-2 text-band-ink" data-testid="attendance-stat">
+        <span
+          class="text-[40px] leading-[0.9] font-bold tracking-[-0.04em] tabular-nums wide:text-[56px]"
+          >{{ att.summary.came
+          }}<small class="text-lg font-semibold wide:text-2xl">／{{ att.summary.due }}</small></span
+        >
+        <span class="pb-1 text-md text-band-ink-muted">到班（天）</span>
+      </p>
     }
-  </ng-container>
+  }
 
   @if (primaryParent(); as p) {
     <!-- 主要聯絡人一行（A6 `.contact`）：櫃台最常做的事是打給家長 -->
@@ -49,19 +59,34 @@
   }
 </app-page-open>
 
-@if (student(); as s) {
+@if (student()) {
+  <app-popup-menu #moreMenu [model]="menuItems()" />
   <div class="bg-zinc-100">
     <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 py-3">
-      <app-status-dot [tone]="s.isActive ? 'done' : 'inactive'">{{
-        s.isActive ? '在籍' : '停用'
-      }}</app-status-dot>
-      <button
-        type="button"
-        class="ml-auto inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-        (click)="openEditDialog()"
-      >
-        <i class="pi pi-pencil text-sm" aria-hidden="true"></i>編輯資料
-      </button>
+      <p class="m-0 text-md text-zinc-700" data-testid="situation">
+        @if (situation().today) {
+          <strong class="font-semibold text-zinc-900">{{ situation().today }}</strong>
+          @if (situation().next) {
+            · {{ situation().next }}
+          }
+        }
+      </p>
+      <div class="ml-auto flex items-center gap-2">
+        <app-page-actions
+          [primary]="primaryAction()"
+          [secondary]="secondaryAction()"
+          (primaryClick)="onPrimary()"
+          (secondaryClick)="openLeaveDialog()"
+        />
+        <button
+          type="button"
+          class="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          aria-label="更多動作"
+          (click)="moreMenu.toggle($event)"
+        >
+          <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
   </div>
 }
@@ -140,24 +165,15 @@
   } @else {
     @let s = student()!;
 
-    <!-- 在籍班級：最常被點的一段放最上面（A6「這學期的課」） -->
+    <!-- 這學期的課：時段與老師讀報名列的 classSchedule／teacherName（#1452）。狀態字只在不是「在學」時寫 -->
     <section aria-labelledby="sd-classes">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-border pb-3">
+      <div class="border-b border-surface-border pb-3">
         <h2
           id="sd-classes"
           class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
         >
-          在籍班級
+          這學期的課
         </h2>
-        @if (s.isActive) {
-          <button
-            type="button"
-            class="ml-auto inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-            (click)="openClassPicker()"
-          >
-            <i class="pi pi-plus text-sm" aria-hidden="true"></i>加入班級
-          </button>
-        }
       </div>
       @if (enrollmentsLoading()) {
         <p-skeleton height="48px" styleClass="mt-4" />
@@ -177,18 +193,13 @@
                 (keydown.space)="navigateToClass(enrollment.courseId, enrollment.classId)"
               >
                 <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span
-                      class="text-xl font-semibold tracking-[-0.01em] text-zinc-900 group-hover:underline group-hover:underline-offset-4"
-                      >{{ enrollment.className }}</span
-                    >
-                    @if (enrollment.campusName) {
-                      <app-data-chip>{{ enrollment.campusName }}</app-data-chip>
-                    }
-                  </div>
-                  <span class="text-md text-zinc-600"
-                    >{{ enrollment.courseName }} · 自 {{ enrollment.effectiveFrom }}</span
+                  <span
+                    class="text-xl font-semibold tracking-[-0.01em] text-zinc-900 group-hover:underline group-hover:underline-offset-4"
+                    >{{ enrollment.className }}</span
                   >
+                  <span class="text-md text-zinc-600">{{
+                    scheduleText(enrollment) || enrollment.courseName
+                  }}</span>
                 </div>
                 <div class="flex shrink-0 items-center gap-3">
                   <!--
@@ -206,9 +217,11 @@
                       (onClick)="openBillingSetup($event, enrollment)"
                     />
                   }
-                  <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
-                    ENROLLMENT_STATUS_LABELS[enrollment.status]
-                  }}</app-status-dot>
+                  @if (enrollment.status !== 'active') {
+                    <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
+                      ENROLLMENT_STATUS_LABELS[enrollment.status]
+                    }}</app-status-dot>
+                  }
                   <i
                     class="pi pi-chevron-right text-[11px] text-zinc-600 transition-transform group-hover:translate-x-0.5"
                     aria-hidden="true"
@@ -221,192 +234,273 @@
       }
     </section>
 
-    <!-- 帳單：摘要列收著，展開看每張帳單；作廢與列印收費單在這裡（#1314 P3 前提） -->
-    <app-student-billing-chapter [studentId]="s.id" />
-
-    <section aria-labelledby="sd-parents">
-      <div class="border-b border-surface-border pb-3">
+    <!-- 到班：一天一格（他有課的那天），格子自己寫字，不靠圖例 -->
+    <section aria-labelledby="sd-att">
+      <div
+        class="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-surface-border pb-3"
+      >
         <h2
-          id="sd-parents"
+          id="sd-att"
           class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
         >
-          關聯家長
+          到班
         </h2>
+        <span class="text-md text-zinc-700" data-testid="absent-line">{{ absentSummary() }}</span>
       </div>
-      @if (s.parents.length === 0) {
-        <!--
-          **指路，不是功能**（#641 裁定甲的補充）。綁定的操作在家長頁 —— `studentIds` 是全量替換，
-          家長詳情頁手上就有完整清單。但使用者的脈絡在學生身上，**所以他不知道那條路存在**。
-        -->
-        <p class="m-0 py-6 text-base text-zinc-700">
-          尚未關聯家長 —— 到
-          <a
-            [routerLink]="['/admin/parents']"
-            class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-2"
-            >家長管理</a
+      @if (attendanceFailed()) {
+        <p class="m-0 py-6 text-base text-zinc-700">到班資料載入失敗。</p>
+      } @else if (attendance(); as att) {
+        @if (att.days.length === 0) {
+          <p class="m-0 py-6 text-base text-zinc-700">這段期間還沒有他的課。</p>
+        } @else {
+          <div
+            class="mt-6 grid grid-cols-8 gap-1 wide:grid-cols-16"
+            role="list"
+            aria-label="每個上課日的到班"
           >
-          找到該家長，在詳情裡用「綁定既有學生」把這位學生加進去。
-        </p>
-      } @else {
-        <ul class="m-0 list-none p-0">
-          @for (parent of s.parents; track parent.id) {
-            <li class="flex items-start gap-3 border-b border-surface-border py-4">
-              <span
-                class="flex size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white select-none"
-                [style.--h]="getPersonHue(parent.id)"
-                aria-hidden="true"
-                >{{ parent.name[0] }}</span
-              >
-              <div class="flex min-w-0 flex-1 flex-col gap-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-base font-semibold text-zinc-900">{{ parent.name }}</span>
-                  @if (parent.isPrimary) {
-                    <app-data-chip>主要聯絡人</app-data-chip>
-                  }
-                  @if (parent.relation) {
-                    <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">{{
-                      parent.relation
-                    }}</span>
-                  }
-                </div>
-                <div class="flex flex-wrap gap-x-5">
-                  @if (parent.phone) {
-                    <a
-                      [href]="'tel:' + parent.phone"
-                      class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
-                    >
-                      <i class="pi pi-phone text-xs" aria-hidden="true"></i>{{ parent.phone }}
-                    </a>
-                  }
-                  @if (parent.email) {
-                    <a
-                      [href]="'mailto:' + parent.email"
-                      class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
-                    >
-                      <i class="pi pi-envelope text-xs" aria-hidden="true"></i>{{ parent.email }}
-                    </a>
-                  }
-                </div>
-              </div>
-            </li>
-          }
-        </ul>
+            @for (d of att.days; track d.date) {
+              @switch (d.state) {
+                @case ('came') {
+                  <span
+                    class="grid h-9 place-items-center overflow-hidden rounded-sm bg-zinc-900 text-xs font-semibold whitespace-nowrap text-white tabular-nums wide:h-11"
+                    role="listitem"
+                    [attr.title]="cellTitle(d)"
+                    [attr.aria-label]="cellTitle(d)"
+                    >{{ cellText(d) }}</span
+                  >
+                }
+                @case ('absent') {
+                  <span
+                    class="grid h-9 place-items-center overflow-hidden rounded-sm bg-white text-xs font-semibold whitespace-nowrap text-error-700 shadow-[inset_0_0_0_1.5px_var(--error-600)] tabular-nums wide:h-11"
+                    role="listitem"
+                    [attr.title]="cellTitle(d)"
+                    [attr.aria-label]="cellTitle(d)"
+                    >{{ cellText(d) }}</span
+                  >
+                }
+                @case ('on_leave') {
+                  <span
+                    class="grid h-9 place-items-center overflow-hidden rounded-sm bg-white text-xs font-semibold whitespace-nowrap text-zinc-700 shadow-[inset_0_0_0_1px_var(--zinc-400)] tabular-nums wide:h-11"
+                    role="listitem"
+                    [attr.title]="cellTitle(d)"
+                    [attr.aria-label]="cellTitle(d)"
+                    >{{ cellText(d) }}</span
+                  >
+                }
+                @case ('cancelled') {
+                  <span
+                    class="grid h-9 place-items-center overflow-hidden rounded-sm border-[1.5px] border-dashed border-zinc-300 text-xs font-semibold whitespace-nowrap text-zinc-600 tabular-nums wide:h-11"
+                    role="listitem"
+                    [attr.title]="cellTitle(d)"
+                    [attr.aria-label]="cellTitle(d)"
+                    >{{ cellText(d) }}</span
+                  >
+                }
+                @default {
+                  <span
+                    class="grid h-9 place-items-center overflow-hidden rounded-sm bg-zinc-100 text-xs font-medium whitespace-nowrap text-zinc-700 tabular-nums wide:h-11"
+                    role="listitem"
+                    [attr.title]="cellTitle(d)"
+                    [attr.aria-label]="cellTitle(d)"
+                    >{{ cellText(d) }}</span
+                  >
+                }
+              }
+            }
+          </div>
+        }
+      } @else if (!enrollmentsLoading()) {
+        <p class="m-0 py-6 text-base text-zinc-700">這學期還沒有他的課。</p>
       }
     </section>
 
-    <section aria-labelledby="sd-basic">
-      <div class="border-b border-surface-border pb-3">
-        <h2
-          id="sd-basic"
-          class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
-        >
-          基本資料
-        </h2>
-      </div>
-      <dl class="m-0 grid grid-cols-1 gap-x-8 gap-y-4 pt-5 md:grid-cols-2">
-        <div class="flex flex-col gap-1">
-          <dt class="text-sm font-semibold text-zinc-600">性別</dt>
-          <dd class="m-0 text-base text-zinc-900">{{ getGenderLabel(s.gender) }}</dd>
-        </div>
-        <div class="flex flex-col gap-1">
-          <dt class="text-sm font-semibold text-zinc-600">生日</dt>
-          <dd
-            class="m-0 text-base"
-            [class.text-zinc-900]="!!s.birthday"
-            [class.text-zinc-600]="!s.birthday"
-            [class.italic]="!s.birthday"
+    <div class="flex flex-col gap-2">
+      <app-student-fold title="成績" [meta]="scoreMeta()">
+        @for (subj of subjects(); track subj.subjectName) {
+          <div
+            class="flex items-baseline gap-3 border-b border-surface-border py-3 last:border-b-0"
           >
-            {{ s.birthday ?? '未填寫' }}
-          </dd>
-        </div>
-        <div class="flex flex-col gap-1">
-          <dt class="text-sm font-semibold text-zinc-600">電話</dt>
-          <dd class="m-0 text-base text-zinc-900">
-            @if (s.phone) {
-              <a
-                [href]="'tel:' + s.phone"
-                class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
-                >{{ s.phone }}</a
-              >
-            } @else {
-              <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
-            }
-          </dd>
-        </div>
-        <div class="flex flex-col gap-1">
-          <dt class="text-sm font-semibold text-zinc-600">Email</dt>
-          <dd class="m-0 text-base text-zinc-900">
-            @if (s.email) {
-              <a
-                [href]="'mailto:' + s.email"
-                class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
-                >{{ s.email }}</a
-              >
-            } @else {
-              <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
-            }
-          </dd>
-        </div>
-        <div class="flex flex-col gap-1 md:col-span-2">
-          <dt class="text-sm font-semibold text-zinc-600">地址</dt>
-          <dd
-            class="m-0 text-base"
-            [class.text-zinc-900]="!!s.address"
-            [class.text-zinc-600]="!s.address"
-            [class.italic]="!s.address"
-          >
-            {{ s.address ?? '未填寫' }}
-          </dd>
-        </div>
-        <div class="flex flex-col gap-1">
-          <dt class="text-sm font-semibold text-zinc-600">緊急聯絡人</dt>
-          <dd
-            class="m-0 text-base"
-            [class.text-zinc-900]="!!s.emergencyContactName"
-            [class.text-zinc-600]="!s.emergencyContactName"
-            [class.italic]="!s.emergencyContactName"
-          >
-            {{ s.emergencyContactName ?? '未填寫' }}
-          </dd>
-        </div>
-        <div class="flex flex-col gap-1">
-          <dt class="text-sm font-semibold text-zinc-600">緊急聯絡電話</dt>
-          <dd class="m-0 text-base text-zinc-900">
-            @if (s.emergencyContactPhone) {
-              <a
-                [href]="'tel:' + s.emergencyContactPhone"
-                class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
-                >{{ s.emergencyContactPhone }}</a
-              >
-            } @else {
-              <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
-            }
-          </dd>
-        </div>
-        @if (s.notes) {
-          <div class="flex flex-col gap-1 md:col-span-2">
-            <dt class="text-sm font-semibold text-zinc-600">備註</dt>
-            <dd class="m-0 text-base text-zinc-900">{{ s.notes }}</dd>
+            <span class="font-semibold text-zinc-900">{{ subj.subjectName }}</span>
+            <span class="ml-auto text-md text-zinc-700 tabular-nums">{{
+              subjectScoreText(subj) || '還沒有成績'
+            }}</span>
           </div>
+        } @empty {
+          <p class="m-0 py-4 text-base text-zinc-700">還沒有成績。老師登錄考試之後會出現在這裡。</p>
         }
-      </dl>
-    </section>
+      </app-student-fold>
 
-    <!-- 出缺席與成績：功能還沒做，照舊標「開發中」（不是新加的占位） -->
-    @for (d of deferredSections; track d.title) {
-      <section [attr.aria-label]="d.title">
-        <div class="flex items-center gap-3 border-b border-surface-border pb-3">
-          <h2
-            class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
-          >
-            {{ d.title }}
-          </h2>
-          <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700"
-            >開發中</span
-          >
+      <!-- 帳單：摘要列收著，展開看每張帳單；作廢與列印收費單在這裡（#1314 P3 前提）。工具列的「收款」也從這裡開 -->
+      <app-student-billing-chapter [studentId]="s.id" />
+
+      <app-student-fold title="紀錄" [meta]="logEntries().length + ' 筆'">
+        <ul class="m-0 list-none p-0" data-testid="log">
+          @for (entry of logEntries(); track $index) {
+            <li
+              class="grid grid-cols-[56px_minmax(0,1fr)] gap-4 border-b border-surface-border py-3 last:border-b-0 wide:grid-cols-[88px_minmax(0,1fr)]"
+            >
+              <time class="text-md text-zinc-600 tabular-nums" [attr.datetime]="entry.date">{{
+                shortDate(entry.date)
+              }}</time>
+              <span>{{ entry.text }}</span>
+            </li>
+          }
+        </ul>
+      </app-student-fold>
+
+      <app-student-fold title="家長" [meta]="parentMeta()">
+        @if (s.parents.length === 0) {
+          <!--
+          **指路，不是功能**（#641 裁定甲的補充）。綁定的操作在家長頁 —— `studentIds` 是全量替換，
+          家長詳情頁手上就有完整清單。但使用者的脈絡在學生身上，**所以他不知道那條路存在**。
+        -->
+          <p class="m-0 py-6 text-base text-zinc-700">
+            尚未關聯家長 —— 到
+            <a
+              [routerLink]="['/admin/parents']"
+              class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-2"
+              >家長管理</a
+            >
+            找到該家長，在詳情裡用「綁定既有學生」把這位學生加進去。
+          </p>
+        } @else {
+          <ul class="m-0 list-none p-0">
+            @for (parent of s.parents; track parent.id) {
+              <li class="flex items-start gap-3 border-b border-surface-border py-4">
+                <span
+                  class="flex size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white select-none"
+                  [style.--h]="getPersonHue(parent.id)"
+                  aria-hidden="true"
+                  >{{ parent.name[0] }}</span
+                >
+                <div class="flex min-w-0 flex-1 flex-col gap-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-base font-semibold text-zinc-900">{{ parent.name }}</span>
+                    @if (parent.isPrimary) {
+                      <app-data-chip>主要聯絡人</app-data-chip>
+                    }
+                    @if (parent.relation) {
+                      <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">{{
+                        parent.relation
+                      }}</span>
+                    }
+                  </div>
+                  <div class="flex flex-wrap gap-x-5">
+                    @if (parent.phone) {
+                      <a
+                        [href]="'tel:' + parent.phone"
+                        class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                      >
+                        <i class="pi pi-phone text-xs" aria-hidden="true"></i>{{ parent.phone }}
+                      </a>
+                    }
+                    @if (parent.email) {
+                      <a
+                        [href]="'mailto:' + parent.email"
+                        class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                      >
+                        <i class="pi pi-envelope text-xs" aria-hidden="true"></i>{{ parent.email }}
+                      </a>
+                    }
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </app-student-fold>
+
+      <app-student-fold title="基本資料" [meta]="basicMeta()">
+        <div class="pb-3">
+          <dl class="m-0 grid grid-cols-1 gap-x-8 gap-y-4 pt-5 md:grid-cols-2">
+            <div class="flex flex-col gap-1">
+              <dt class="text-sm font-semibold text-zinc-600">性別</dt>
+              <dd class="m-0 text-base text-zinc-900">{{ getGenderLabel(s.gender) }}</dd>
+            </div>
+            <div class="flex flex-col gap-1">
+              <dt class="text-sm font-semibold text-zinc-600">生日</dt>
+              <dd
+                class="m-0 text-base"
+                [class.text-zinc-900]="!!s.birthday"
+                [class.text-zinc-600]="!s.birthday"
+                [class.italic]="!s.birthday"
+              >
+                {{ s.birthday ?? '未填寫' }}
+              </dd>
+            </div>
+            <div class="flex flex-col gap-1">
+              <dt class="text-sm font-semibold text-zinc-600">電話</dt>
+              <dd class="m-0 text-base text-zinc-900">
+                @if (s.phone) {
+                  <a
+                    [href]="'tel:' + s.phone"
+                    class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                    >{{ s.phone }}</a
+                  >
+                } @else {
+                  <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
+                }
+              </dd>
+            </div>
+            <div class="flex flex-col gap-1">
+              <dt class="text-sm font-semibold text-zinc-600">Email</dt>
+              <dd class="m-0 text-base text-zinc-900">
+                @if (s.email) {
+                  <a
+                    [href]="'mailto:' + s.email"
+                    class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                    >{{ s.email }}</a
+                  >
+                } @else {
+                  <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
+                }
+              </dd>
+            </div>
+            <div class="flex flex-col gap-1 md:col-span-2">
+              <dt class="text-sm font-semibold text-zinc-600">地址</dt>
+              <dd
+                class="m-0 text-base"
+                [class.text-zinc-900]="!!s.address"
+                [class.text-zinc-600]="!s.address"
+                [class.italic]="!s.address"
+              >
+                {{ s.address ?? '未填寫' }}
+              </dd>
+            </div>
+            <div class="flex flex-col gap-1">
+              <dt class="text-sm font-semibold text-zinc-600">緊急聯絡人</dt>
+              <dd
+                class="m-0 text-base"
+                [class.text-zinc-900]="!!s.emergencyContactName"
+                [class.text-zinc-600]="!s.emergencyContactName"
+                [class.italic]="!s.emergencyContactName"
+              >
+                {{ s.emergencyContactName ?? '未填寫' }}
+              </dd>
+            </div>
+            <div class="flex flex-col gap-1">
+              <dt class="text-sm font-semibold text-zinc-600">緊急聯絡電話</dt>
+              <dd class="m-0 text-base text-zinc-900">
+                @if (s.emergencyContactPhone) {
+                  <a
+                    [href]="'tel:' + s.emergencyContactPhone"
+                    class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                    >{{ s.emergencyContactPhone }}</a
+                  >
+                } @else {
+                  <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
+                }
+              </dd>
+            </div>
+            @if (s.notes) {
+              <div class="flex flex-col gap-1 md:col-span-2">
+                <dt class="text-sm font-semibold text-zinc-600">備註</dt>
+                <dd class="m-0 text-base text-zinc-900">{{ s.notes }}</dd>
+              </div>
+            }
+          </dl>
         </div>
-        <p class="m-0 py-6 text-base text-zinc-700">{{ d.body }}</p>
-      </section>
-    }
+      </app-student-fold>
+    </div>
   }
 </div>
