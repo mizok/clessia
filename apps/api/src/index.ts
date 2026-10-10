@@ -50,6 +50,7 @@ import leavesRoute from './routes/leaves';
 import dailyCheckinsRoute from './routes/daily-checkins';
 import workbenchRoute from './routes/workbench';
 import contactLogsRoute from './routes/contact-logs';
+import teacherSessionChangesRoute from './routes/teacher-session-changes';
 import academyExamsRoute from './routes/academy-exams';
 import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
@@ -358,6 +359,7 @@ mount('/api/classes', classesRoute, ADMIN_ONLY, { write: 'manage_courses' });
 // 不該每個 admin 都看得到，所以是 `all` 不是 `write` —— 看得到就是問題。
 mount('/api/audit-logs', auditLogsRoute, ADMIN_ONLY, { all: 'view_reports' });
 mount('/api/sessions', sessionsRoute, ADMIN_ONLY, { write: 'manage_courses' });
+mount('/api/teacher/session-changes', teacherSessionChangesRoute, ['teacher']); // #1488
 mount('/api/students', studentsRoute, ['admin', 'teacher'], { write: 'manage_students' });
 mount('/api/parents', parentsRoute, ADMIN_ONLY, { write: 'manage_students' });
 mount('/api/enrollments', enrollmentsRoute, ADMIN_ONLY, { write: 'manage_students' });
