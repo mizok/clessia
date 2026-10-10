@@ -61,6 +61,8 @@ async function get(
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
     set('supabase', opts.maxRows ? withMaxRows(db.client, opts.maxRows) : db.client);
     set('orgId', ORG);
+    // 收費期間列表照分校範圍計數（#1314 DB-campus）；不受限＝null
+    set('campusScope', null);
     await next();
   });
   app.route('/', route as Hono);
