@@ -12,9 +12,9 @@
   <ng-container openSub>調課、代課、停課的完整紀錄。要改課堂，到課表。</ng-container>
 </app-page-open>
 
-<div class="page-wrap flex flex-col gap-5 pt-5 pb-28 wide:gap-6 wide:pt-8 wide:pb-32">
+<div class="bg-zinc-100">
   <section
-    class="flex flex-col gap-3 rounded-lg bg-zinc-100 p-4 wide:flex-row wide:items-end wide:gap-4"
+    class="page-wrap flex flex-col gap-3 py-4 wide:flex-row wide:items-end wide:gap-4"
     role="search"
     aria-label="篩選課務異動"
   >
@@ -49,19 +49,19 @@
       [class.grid]="filtersOpen()"
       [class.hidden]="!filtersOpen()"
     >
-      <app-search-field
-        class="wide:w-64"
-        label="老師或班級"
-        placeholder="輸入老師名或班名"
-        [value]="query()"
-        (searchChange)="onQueryChange($event)"
-      />
       <app-select-field
         class="wide:w-56"
         label="異動類型"
         [options]="changeTypeOptions"
         [value]="changeType()"
         (valueChange)="onChangeTypeChange($event)"
+      />
+      <app-search-field
+        class="wide:w-64"
+        label="老師或班級"
+        placeholder="輸入老師名或班名"
+        [value]="query()"
+        (searchChange)="onQueryChange($event)"
       />
     </div>
 
@@ -72,7 +72,9 @@
       到課表 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
     </a>
   </section>
+</div>
 
+<div class="page-wrap flex flex-col gap-5 pt-5 pb-28 wide:gap-6 wide:pt-8 wide:pb-32">
   @if (loading()) {
     <div class="skeleton-list" aria-label="課務異動載入中">
       @for (i of [1, 2, 3]; track i) {

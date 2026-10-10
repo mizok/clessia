@@ -17,7 +17,7 @@ import {
  * 480px，用 `wide:`（視窗 ≥861px）會把它排成左 208px 的兩欄而擠爆。
  */
 const WIDE = {
-  chapter: 'wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8',
+  chapter: 'wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-5',
   chapterHead: 'wide:sticky wide:top-4 wide:block wide:self-start',
   day: 'wide:text-[44px]',
   dayMeta: 'wide:mt-0.5',
