@@ -16,6 +16,7 @@ function invoice(over: Partial<Invoice>): Invoice {
     orgId: 'o',
     studentId: 's1',
     studentName: '小明',
+    studentGrade: null,
     issuedAt: '2026-10-01T00:00:00Z',
     dueDate: '2026-10-20',
     note: null,

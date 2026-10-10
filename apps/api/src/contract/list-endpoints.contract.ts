@@ -83,6 +83,8 @@ const REQUIRED: Record<string, string> = {
   '/api/reports/revenue dateTo': '{today}',
   '/api/reports/revenue.csv dateFrom': '{monthStart}',
   '/api/reports/revenue.csv dateTo': '{today}',
+  '/api/students/{id}/attendance-days from': '{monthStart}',
+  '/api/students/{id}/attendance-days to': '{today}',
   '/api/classes/{id}/sessions/preview from': '{monthStart}',
   '/api/classes/{id}/sessions/preview to': '{today}',
   '/api/me/attendance childId': '{child}',
@@ -114,6 +116,7 @@ const PARAMS: Record<string, string> = {
   '/api/sessions/{id}/changes id': '{session}',
   '/api/sessions/{id}/makeup-candidates id': '{session}',
   '/api/students/{id} id': '{student}',
+  '/api/students/{id}/attendance-days id': '{student}',
   '/api/parents/{id} id': '{parent}',
   '/api/attendance/roster/{eventId} eventId': '{event}',
   '/api/academy-exams/{id} id': '{academyExam}',
@@ -146,7 +149,12 @@ const BRANCHES: Record<string, string[]> = {
   '/api/sessions/changes': ['q=英文'],
   '/api/courses': ['search=數學'],
   '/api/students': ['search=國中', 'grade=J1&isActive=true', 'today=any', 'today=missing'],
-  '/api/invoices': ['outstanding=true', 'issuedMonth=' + TODAY.slice(0, 7)],
+  '/api/invoices': [
+    'search=王',
+    'search=王&outstanding=true',
+    'outstanding=true',
+    'issuedMonth=' + TODAY.slice(0, 7),
+  ],
   '/api/invoices/summary': [],
 };
 
