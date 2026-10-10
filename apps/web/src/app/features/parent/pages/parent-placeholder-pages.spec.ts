@@ -7,13 +7,12 @@ import { AddCourseComponent } from './add-course/add-course.component';
 import { EnrollmentComponent } from './enrollment/enrollment.component';
 import { MealsComponent } from './meals/meals.component';
 import { RenewalComponent } from './renewal/renewal.component';
-import { ScheduleComponent } from './schedule/schedule.component';
 import { TrialComponent } from './trial/trial.component';
 
 /**
- * 家長端有六頁是同一個 `EmptyStateComponent` 佔位頁，元件逐字同構。
+ * 家長端有五頁是同一個（課表查看已在 #1314 換成真頁） `EmptyStateComponent` 佔位頁，元件逐字同構。
  *
- * **寫成一支表格驅動的測試而不是六份複本**：六份會各自腐化，而這條不變量
+ * **寫成一支表格驅動的測試而不是五份複本**：五份會各自腐化，而這條不變量
  * （「空狀態圖示跟選單圖示是同一個」）對六頁的意義完全相同。
  *
  * #708：原本六頁的圖示是寫死在 `template` 字串裡的，**四頁跟 `RoutesCatalog`
@@ -25,7 +24,6 @@ const PLACEHOLDER_PAGES: ReadonlyArray<{
   readonly component: Type<unknown>;
   readonly route: RouteObj;
 }> = [
-  { name: '課表查看', component: ScheduleComponent, route: RoutesCatalog.PARENT_SCHEDULE },
   { name: '試聽申請', component: TrialComponent, route: RoutesCatalog.PARENT_TRIAL },
   { name: '報名申請', component: EnrollmentComponent, route: RoutesCatalog.PARENT_ENROLLMENT },
   { name: '加選課程', component: AddCourseComponent, route: RoutesCatalog.PARENT_ADD_COURSE },
@@ -33,7 +31,7 @@ const PLACEHOLDER_PAGES: ReadonlyArray<{
   { name: '餐費紀錄', component: MealsComponent, route: RoutesCatalog.PARENT_MEALS },
 ];
 
-describe('家長端的六支 EmptyState 佔位頁', () => {
+describe('家長端的五支 EmptyState 佔位頁', () => {
   async function render(
     component: Type<unknown>,
     route: RouteObj,

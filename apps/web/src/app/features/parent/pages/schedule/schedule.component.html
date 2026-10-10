@@ -1,0 +1,294 @@
+<!--
+  A6 版（#1314，p-schedule.html）：色面（孩子切換、「正在上／下一堂」、本週幾堂）→ 灰工具列（‹ 週 ›、回本週、跳到）
+  → 週曆（桌機七欄；手機同一份 DOM 變一天一段直排）→ 點卡片開詳情對話框。
+  缺家長端 API 的部分不放（聯絡簿與簽收、小考名稱、報名邊界句）—— 見元件註解。
+-->
+<app-page-open>
+  <app-child-switcher openBack class="mb-3 block" />
+  <ng-container openTitle>
+    @if (childName()) {
+      {{ heroTitle().head }}<br />{{ heroTitle().tail }}
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
+  <ng-container openSub>{{ childName() ? heroSub() : '' }}</ng-container>
+</app-page-open>
+
+<app-child-scope-gate>
+  <div class="bg-zinc-100">
+    <div class="page-wrap flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+      <button
+        type="button"
+        class="inline-grid size-11 cursor-pointer place-items-center rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400"
+        aria-label="上一週"
+        (click)="shiftWeek(-1)"
+      >
+        <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>
+      </button>
+      <span
+        class="min-w-[9.5em] text-center font-semibold tabular-nums"
+        data-part="week-label"
+        aria-live="polite"
+        >{{ weekLabel() }}{{ isThisWeek() ? '（本週）' : '' }}</span
+      >
+      <button
+        type="button"
+        class="inline-grid size-11 cursor-pointer place-items-center rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400"
+        aria-label="下一週"
+        (click)="shiftWeek(1)"
+      >
+        <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+        (click)="goThisWeek()"
+      >
+        回本週
+      </button>
+      <label class="flex items-center gap-2 text-md text-zinc-700 wide:ml-auto">
+        跳到
+        <input
+          type="date"
+          class="h-11 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900"
+          data-part="jump"
+          (change)="jumpTo($any($event.target).value)"
+        />
+      </label>
+    </div>
+  </div>
+
+  <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+    @if (loading() && weekSessions().length === 0) {
+      <div class="skeleton-list" aria-label="課表載入中">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到課表，可能是連線問題"
+      />
+      <button
+        type="button"
+        class="mx-auto mt-4 flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+        (click)="retry()"
+      >
+        再試一次
+      </button>
+    } @else if (weekEmpty()) {
+      <div class="rounded-lg bg-zinc-100 p-6" data-part="week-empty">
+        <p class="m-0 text-lg font-bold text-zinc-900">這週沒有課</p>
+      </div>
+    } @else {
+      <div class="grid grid-cols-1 gap-x-2 gap-y-4 wide:grid-cols-7" data-part="week">
+        @for (date of days(); track $index; let i = $index) {
+          @let list = sessionsByDate().get(date) ?? [];
+          <section class="min-w-0" [attr.aria-label]="formatMd(date)" data-part="day">
+            <h2
+              class="m-0 flex items-baseline gap-2 border-b-2 py-2 tabular-nums"
+              [class.border-zinc-200]="date !== todayDate()"
+              [class.border-accent-vivid]="date === todayDate()"
+            >
+              <b class="text-lg">{{ weekdayLabels[i] }}</b>
+              <small class="text-sm text-zinc-600"
+                >{{ formatMd(date) }}{{ date === todayDate() ? ' · 今天' : '' }}</small
+              >
+            </h2>
+            @for (s of list; track s.sessionId) {
+              <button
+                type="button"
+                class="mt-2 grid min-h-11 w-full cursor-pointer gap-1 rounded-md border bg-white p-3 text-left text-zinc-900 hover:border-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
+                [class.border-zinc-200]="phase(s) !== 'live'"
+                [class.border-zinc-900]="phase(s) === 'live'"
+                [class.shadow-[inset_0_0_0_1px_var(--zinc-900)]]="phase(s) === 'live'"
+                data-part="session"
+                [attr.data-phase]="phase(s)"
+                (click)="open(s)"
+              >
+                <span
+                  class="text-md font-bold tabular-nums"
+                  [class.text-zinc-600]="phase(s) === 'off'"
+                  [class.line-through]="phase(s) === 'off'"
+                  >{{ hhmm(s.startTime) }}–{{ hhmm(s.endTime) }}</span
+                >
+                <span
+                  class="text-base leading-snug font-bold"
+                  [class.text-zinc-600]="phase(s) === 'off'"
+                  [class.line-through]="phase(s) === 'off'"
+                  >{{ s.className }}</span
+                >
+                <span class="text-sm text-zinc-700"
+                  >{{ s.teacherName }}
+                  @if (s.campusName) {
+                    · {{ s.campusName }}
+                  }
+                </span>
+                @if (changeLabels(s).length > 0 || s.examCount > 0 || phase(s) === 'live') {
+                  <span class="flex flex-wrap gap-1">
+                    @for (label of changeLabels(s); track label) {
+                      <span
+                        class="inline-flex items-center rounded-sm border border-zinc-900 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
+                        data-part="chip"
+                        >{{ label }}</span
+                      >
+                    }
+                    @if (s.examCount > 0) {
+                      <span
+                        class="inline-flex items-center rounded-sm border border-zinc-300 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
+                        data-part="chip"
+                        >小考</span
+                      >
+                    }
+                    @if (phase(s) === 'live') {
+                      <span
+                        class="inline-flex items-center rounded-sm border border-zinc-900 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
+                        data-part="chip"
+                        >上課中</span
+                      >
+                    }
+                  </span>
+                }
+              </button>
+            } @empty {
+              <p class="m-0 py-3 text-md text-zinc-600">沒課</p>
+            }
+          </section>
+        }
+      </div>
+    }
+  </div>
+</app-child-scope-gate>
+
+<!-- 課堂詳情（A6 .sd）：基本資訊、出勤、小考、課務異動、這堂的作業與之前的作業 -->
+<dialog
+  #detailDialog
+  class="m-auto w-[min(32rem,calc(100%-2rem))] rounded-lg border-0 p-0 text-zinc-900 shadow-md backdrop:bg-zinc-900/40"
+  aria-labelledby="schedule-detail-title"
+  (click)="onDialogClick($event)"
+>
+  @if (selected(); as s) {
+    <div class="flex items-start justify-between gap-3 px-6 pt-6">
+      <div class="min-w-0">
+        <h2 id="schedule-detail-title" class="m-0 text-xl font-bold">{{ s.className }}</h2>
+        <p class="m-0 mt-1 text-md text-zinc-700 tabular-nums">
+          {{ formatMd(s.date) }}（{{ weekdayOf(s.date) }}）{{ hhmm(s.startTime) }}–{{
+            hhmm(s.endTime)
+          }}
+        </p>
+      </div>
+      <button
+        type="button"
+        class="inline-grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100"
+        aria-label="關閉"
+        (click)="closeDetail()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="grid gap-5 px-6 py-5">
+      <dl class="m-0 grid grid-cols-[5.5em_minmax(0,1fr)] gap-x-3 gap-y-2 text-base">
+        <dt class="text-zinc-600">老師</dt>
+        <dd class="m-0">
+          {{ s.teacherName ?? '—' }}
+          @if (s.isSubstitute && s.originalTeacherName) {
+            <span class="text-sm text-zinc-600">（代課，原任課 {{ s.originalTeacherName }}）</span>
+          }
+        </dd>
+        <dt class="text-zinc-600">分校</dt>
+        <dd class="m-0">{{ s.campusName ?? '—' }}</dd>
+        <dt class="text-zinc-600">出勤</dt>
+        <dd class="m-0" data-part="attendance">
+          {{ attendanceText() }}
+          @if (selectedPhase() === 'past' || selectedPhase() === 'live') {
+            ·
+            <a
+              class="inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+              routerLink="/parent/attendance"
+              (click)="closeDetail()"
+              >到班紀錄</a
+            >
+          }
+        </dd>
+        @if (s.examCount > 0) {
+          <dt class="text-zinc-600">小考</dt>
+          <dd class="m-0" data-part="exam">
+            這天有 {{ s.examCount }} 場小考
+            @if (selectedPhase() === 'past') {
+              ·
+              <a
+                class="inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+                routerLink="/parent/grades"
+                (click)="closeDetail()"
+                >看成績</a
+              >
+            }
+          </dd>
+        }
+      </dl>
+
+      @if (s.changes.length > 0) {
+        <div data-part="changes">
+          <p class="m-0 mb-2 text-sm font-bold text-zinc-800">課務異動</p>
+          <div class="grid gap-1 rounded-md bg-zinc-100 p-4 text-base">
+            @for (c of s.changes; track $index) {
+              <p class="m-0">
+                <b>{{ changeKindLabel[c.changeType] }}</b>
+                · {{ changeText(c, s) }}
+              </p>
+            }
+          </div>
+        </div>
+      }
+
+      @if (selectedPhase() === 'past' || selectedPhase() === 'live') {
+        <div data-part="homework">
+          <p class="m-0 mb-2 text-sm font-bold text-zinc-800">這堂的作業</p>
+          <div class="rounded-md bg-zinc-100 p-4 text-base">
+            @if (homeworkLoading()) {
+              <p class="m-0 text-zinc-600">載入中…</p>
+            } @else if (selectedHomework(); as log) {
+              <p class="m-0 whitespace-pre-line">{{ log.homework }}</p>
+            } @else {
+              <p class="m-0 text-zinc-600">老師還沒有發布這堂的作業。</p>
+            }
+          </div>
+        </div>
+        @if (homeworkHistory().length > 0) {
+          <details class="rounded-md bg-zinc-100 px-4 py-3" data-part="homework-history">
+            <summary
+              class="flex min-h-11 cursor-pointer items-center justify-between font-semibold"
+            >
+              之前的作業
+              <span class="text-sm font-normal text-zinc-600"
+                >最近 {{ homeworkHistory().length }} 堂</span
+              >
+            </summary>
+            <ul class="m-0 mt-2 grid list-none gap-2 p-0 text-base">
+              @for (log of homeworkHistory(); track log.id) {
+                <li class="grid grid-cols-[3.5em_minmax(0,1fr)] gap-x-3">
+                  <b class="tabular-nums">{{ formatMd(log.logDate) }}</b>
+                  <span class="whitespace-pre-line">{{ log.homework }}</span>
+                </li>
+              }
+            </ul>
+          </details>
+        }
+      }
+    </div>
+
+    <div class="flex justify-end px-6 pb-6">
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+        (click)="closeDetail()"
+      >
+        關閉
+      </button>
+    </div>
+  }
+</dialog>
