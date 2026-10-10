@@ -1174,6 +1174,60 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- 展示狀態補齊（二）：掃碼機台、退班、重疊的收費期間（#1481）
+--
+-- 在早退守衛之外、全部可重跑。**位置在「今日打卡」之前**：那段必須是整支檔案的最後一段（#977）。
+-- 其餘 #1481 要的狀態已由上面各段與最後一段涵蓋（停用學生、暫停／待繳費報名、請假中、
+-- 今日已到／該到沒到、有成績的學生）。
+--
+-- ⚠️ **家長電話補不了**：家長電話存在 `ba_user.phone`，而 c2 禁止 SQL 寫 `ba_*`。
+-- ⚠️ **今天是週日時沒有「已到／該到沒到」**：課表是週一～週六各一班（見上），週日今天沒課。
+-- ============================================================================
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_uid TEXT;
+  v_staff UUID;
+  v_campus UUID;
+  v_class UUID;
+  v_student UUID;
+BEGIN
+  -- ── 在職的掃碼機台（#1127）：只有 kiosk 角色、綁一個分校 ──────────────────
+  -- 不建帳號（c2），拿一位沒帶課的老師轉成機台（teacher 角色拿掉、改成 kiosk）。
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0088@demo.clessia.app';
+  SELECT id INTO v_campus FROM public.campuses WHERE org_id = demo_org_id AND name = '文山旗艦校' LIMIT 1;
+  SELECT id INTO v_staff FROM public.staff WHERE user_id = v_uid AND org_id = demo_org_id;
+  IF v_uid IS NOT NULL AND v_staff IS NOT NULL AND v_campus IS NOT NULL THEN
+    DELETE FROM public.user_roles WHERE user_id = v_uid AND role <> 'kiosk';
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_uid, 'kiosk', '[]'::jsonb) ON CONFLICT (user_id, role) DO NOTHING;
+    UPDATE public.staff SET display_name = '門口掃碼機台', notes = '展示用：掃碼機台'
+     WHERE id = v_staff AND display_name <> '門口掃碼機台';
+    -- 機台剛好綁一個分校：先清掉原本的歸屬
+    DELETE FROM public.staff_campuses WHERE staff_id = v_staff AND campus_id <> v_campus;
+    INSERT INTO public.staff_campuses (staff_id, campus_id)
+    VALUES (v_staff, v_campus) ON CONFLICT DO NOTHING;
+  END IF;
+
+  -- ── 退班：停用的示範生曾在國三數學 A 班，兩週前退班 ──────────────────────
+  SELECT id INTO v_student FROM public.students WHERE org_id = demo_org_id AND name = '離校示範生' LIMIT 1;
+  SELECT id INTO v_class FROM public.classes WHERE org_id = demo_org_id AND name = '國三數學 A 班' LIMIT 1;
+  IF v_student IS NOT NULL AND v_class IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM public.enrollments WHERE student_id = v_student AND class_id = v_class) THEN
+    INSERT INTO public.enrollments (org_id, class_id, student_id, status, effective_from, effective_to,
+                                    status_changed_at, status_reason)
+    VALUES (demo_org_id, v_class, v_student, 'withdrawal', current_date - 90, current_date - 14,
+            current_date - 14, '展示用：退班');
+  END IF;
+
+  -- ── 兩段重疊的收費期間（與「2026 下學期 + 寒假」重疊）──────────────────────
+  INSERT INTO public.billing_periods (org_id, name, start_date, end_date)
+  SELECT demo_org_id, '加強班專案期（與下學期重疊）', current_date - 20, current_date + 40
+  WHERE NOT EXISTS (SELECT 1 FROM public.billing_periods
+                     WHERE org_id = demo_org_id AND name = '加強班專案期（與下學期重疊）');
+END $$;
+
+-- ============================================================================
 -- 日到班的展示資料：今天的到班打卡（#976）
 --
 -- #976 起組織預設是日到班，儀表板改看「今日到班」—— 而這支原本一筆 `daily_checkins`
