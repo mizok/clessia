@@ -4,6 +4,12 @@ import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import {
+  applyCampusFilter,
+  filtersCampus,
+  getCampusScope,
+  type CampusScope,
+} from '../lib/campus-scope';
 
 /**
  * 收費期間：機構自訂的具名日期區間（「2026 上學期 + 暑假」）。
@@ -83,15 +89,42 @@ function countOverlappingEnrollments(
   supabase: AppEnv['Variables']['supabase'],
   orgId: string,
   period: { start_date: string; end_date: string },
+  scope: CampusScope = null,
 ) {
-  return supabase
+  // 分校條件走 classes 的巢狀欄位，要 inner join（#815：判準問 filtersCampus，不問有沒有傳參數）
+  const select: string = filtersCampus(scope) ? 'id, classes!inner(campus_id)' : 'id';
+  const query = supabase
     .from('enrollments')
-    .select('id', { count: 'exact', head: true })
+    .select(select, { count: 'exact', head: true })
     .eq('org_id', orgId)
     .eq('status', 'active')
     .eq('billing_mode', 'period')
     .lte('effective_from', period.end_date)
     .or(`effective_to.is.null,effective_to.gte.${period.start_date}`);
+  return applyCampusFilter(query, 'classes.campus_id', scope);
+}
+
+/**
+ * 這期在範圍內開過單沒（作廢的帳單不算開過，同 billing-runs 的 alreadyBilled）。
+ * invoice_items 沒有 org_id，經 invoices 篩；分校經明細的報名 → 班。
+ * 期繳明細一定掛報名（`billing-runs.ts`），所以 inner join 不會漏掉該算的明細。
+ */
+function countBilledItems(
+  supabase: AppEnv['Variables']['supabase'],
+  orgId: string,
+  periodId: string,
+  scope: CampusScope,
+) {
+  const select: string = filtersCampus(scope)
+    ? 'id, invoices!inner(org_id, voided_at), enrollments!inner(classes!inner(campus_id))'
+    : 'id, invoices!inner(org_id, voided_at)';
+  const query = supabase
+    .from('invoice_items')
+    .select(select, { count: 'exact', head: true })
+    .eq('billing_period_id', periodId)
+    .eq('invoices.org_id', orgId)
+    .is('invoices.voided_at', null);
+  return applyCampusFilter(query, 'enrollments.classes.campus_id', scope);
 }
 
 function mapBillingPeriod(row: Record<string, unknown>) {
@@ -220,6 +253,9 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
+    // 受限的管理員只看自己範圍：「範圍內有期繳生、範圍內還沒開單」（#1314 DB-campus PR-a）。
+    // 原本兩支計數都不看分校，A 校主任的待辦是全機構的數字，B 校開過單 A 校的待辦就跟著消失
+    const scope = getCampusScope(c);
     const today = getCurrentTaipeiDateString();
     const failed = () => c.json({ error: '查詢待開單失敗', code: 'DB_ERROR' }, 500);
 
@@ -254,14 +290,8 @@ app.openapi(
     const counts = await Promise.all(
       periods.map((period) =>
         Promise.all([
-          countOverlappingEnrollments(supabase, orgId, period),
-          // invoice_items 沒有 org_id，經 invoices 篩；作廢的帳單不算開過（同 billing-runs 的 alreadyBilled）
-          supabase
-            .from('invoice_items')
-            .select('id, invoices!inner(org_id, voided_at)', { count: 'exact', head: true })
-            .eq('billing_period_id', period.id)
-            .eq('invoices.org_id', orgId)
-            .is('invoices.voided_at', null),
+          countOverlappingEnrollments(supabase, orgId, period, scope),
+          countBilledItems(supabase, orgId, period.id, scope),
         ]),
       ),
     );
