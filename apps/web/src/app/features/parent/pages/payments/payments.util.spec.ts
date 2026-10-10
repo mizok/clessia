@@ -111,8 +111,8 @@ describe('groupInvoices —— 多退', () => {
 
     it('逾期／今天／7 天內／更晚', () => {
       expect(tag('2026-10-08')).toEqual({ tone: 'overdue', label: '逾期 2 天' });
-      expect(tag('2026-10-10')).toEqual({ tone: 'pending', label: '今天到期' });
-      expect(tag('2026-10-17')).toEqual({ tone: 'pending', label: '7 天後到期' });
+      expect(tag('2026-10-10')).toEqual({ tone: 'soon', label: '今天到期' });
+      expect(tag('2026-10-17')).toEqual({ tone: 'soon', label: '7 天後到期' });
       expect(tag('2026-10-18')).toEqual({ tone: 'inactive', label: '未到期' });
     });
 

@@ -32,8 +32,8 @@ describe('StatusDotComponent', () => {
     expect(root().querySelector('.status-dot__label').textContent.trim()).toBe('已點名');
   });
 
-  it('四個 tone 都對應到自己的 modifier', async () => {
-    const tones: StatusTone[] = ['done', 'pending', 'overdue', 'inactive'];
+  it('五個 tone 都對應到自己的 modifier', async () => {
+    const tones: StatusTone[] = ['done', 'pending', 'soon', 'overdue', 'inactive'];
 
     for (const tone of tones) {
       fixture.componentInstance.tone.set(tone);
@@ -47,5 +47,19 @@ describe('StatusDotComponent', () => {
   it('block 與 modifier 在同一個元素上', () => {
     expect(root().classList.contains('status-dot')).toBe(true);
     expect(root().classList.contains('status-dot--done')).toBe(true);
+  });
+
+  // soon 與 overdue 同色相，靠形狀分開（中空 vs 實心）—— 灰階下也分得出「快到期」與「已逾期」
+  it('soon 是中空的 warning 點，overdue 是實心的', async () => {
+    const mark = () => root().querySelector('.status-dot__mark').className as string;
+
+    fixture.componentInstance.tone.set('soon');
+    await fixture.whenStable();
+    expect(mark()).toContain('group-[.status-dot--soon]:border-warning-600');
+    expect(mark()).not.toContain('group-[.status-dot--soon]:bg-');
+
+    fixture.componentInstance.tone.set('overdue');
+    await fixture.whenStable();
+    expect(mark()).toContain('group-[.status-dot--overdue]:bg-warning-600');
   });
 });

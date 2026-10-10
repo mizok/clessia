@@ -425,6 +425,45 @@ describe('GET /api/me/billing —— meta.term（#1314 PP1）', () => {
     expect(result).toMatchObject({ name: '期 new', paid: 0 });
   });
 
+  // 班名查詢（PP2）失敗要 500，不能默默退成「沒有班名」。enrollments 另有帳戶資訊那支也會讀，
+  // 所以只讓「選了 classes(name)」的那一支失敗 —— 否則是帳戶資訊那條的 error 在撐這個 500
+  it('班名查詢失敗 → 500（不折成沒有班名）', async () => {
+    const db = createMultiOrgDb({
+      organizations: [{ id: ORG, payment_info: null }],
+      enrollments: [],
+      billing_periods: [],
+      invoices: [],
+    });
+    const real = db.client as any;
+    const failing = {
+      from(table: string) {
+        const builder = real.from(table);
+        if (table !== 'enrollments') return builder;
+        return new Proxy(builder, {
+          get(t, prop) {
+            const value = Reflect.get(t, prop);
+            if (prop !== 'select') return value;
+            return (cols: string, ...rest: unknown[]) => {
+              if (!cols.includes('classes(name)')) return value.call(t, cols, ...rest);
+              // 鏈上的 .in()／.eq() 都回自己，最後 await 時才吐錯 —— 沒實作的方法會丟 TypeError，
+              // 那也會變 500，讓這個測試在拿掉檢查後仍綠（不是因為 error 被檢查才紅）
+              const failed: any = {
+                in: () => failed,
+                eq: () => failed,
+                then: (resolve: (v: unknown) => unknown) =>
+                  resolve({ data: null, error: { code: 'XX000', message: 'boom' } }),
+              };
+              return failed;
+            };
+          },
+        });
+      },
+    };
+    const childDb = createChildDb(failing as never, [CHILD_ID], ORG);
+    const res = await appWith(['parent'], [CHILD_ID], childDb).request(`/?childId=${CHILD_ID}`);
+    expect(res.status).toBe(500);
+  });
+
   it('期間查詢失敗 → 500（不折成「沒有本學期」）', async () => {
     const db = createMultiOrgDb({
       organizations: [{ id: ORG, payment_info: null }],

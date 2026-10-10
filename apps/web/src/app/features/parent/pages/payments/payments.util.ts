@@ -67,7 +67,7 @@ export function invoiceTitle(invoice: ParentInvoice): string {
   return [...new Set(names)].join('、');
 }
 
-export type DueTone = 'overdue' | 'pending' | 'inactive';
+export type DueTone = 'overdue' | 'soon' | 'inactive';
 
 const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
 
@@ -83,8 +83,8 @@ export function dueTag(
   const part = invoice.status === 'partial' ? '部分繳 · ' : '';
   const left = Math.round((day(invoice.dueDate) - day(today)) / 86_400_000);
   if (left < 0) return { tone: 'overdue', label: `${part}逾期 ${-left} 天` };
-  if (left === 0) return { tone: 'pending', label: `${part}今天到期` };
-  if (left <= 7) return { tone: 'pending', label: `${part}${left} 天後到期` };
+  if (left === 0) return { tone: 'soon', label: `${part}今天到期` };
+  if (left <= 7) return { tone: 'soon', label: `${part}${left} 天後到期` };
   return { tone: 'inactive', label: `${part}未到期` };
 }
 

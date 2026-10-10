@@ -42,6 +42,8 @@ export function attendanceTone(session: EventSessionSummary, now: Date): StatusT
 export const ATTENDANCE_TONE_LABELS: Record<StatusTone, string> = {
   done: '已點名',
   pending: '還沒上',
+  // 考勤沒有「快到期」這一格（那是帳單的 tone）；窮舉用，不會顯示
+  soon: '還沒上',
   overdue: '漏點名',
   inactive: '已停課',
 };
