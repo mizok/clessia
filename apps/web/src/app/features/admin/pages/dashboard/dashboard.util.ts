@@ -45,3 +45,52 @@ export function pendingAttendanceQuery(
     statuses: ['scheduled', 'completed'],
   };
 }
+
+/** `HH:mm`（或 `HH:mm:ss`）→ 當日第幾分鐘；讀不出來回 null */
+export function toMinutes(time: string | null | undefined): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(time ?? '');
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** 該到沒到的原因：還在上（開始幾分鐘了）／已經下課 */
+export type MissingReason = { kind: 'started'; minutes: number } | { kind: 'ended' };
+
+/**
+ * 「該到沒到」的唯一判定（#1314 D3）：他今天第一堂已經開始、而且那堂沒停課。
+ * 還沒到上課時間的人不算 —— 他們進到班名冊的「還沒到時間」，不佔主區。
+ * 第一堂對不到課表（`sessions` 查無同時間同班名）時只能用開始時間判斷，當作「還在上」。
+ */
+export function missingReason(
+  first: { startTime: string | null; className: string } | null,
+  sessions: readonly {
+    startTime: string | null;
+    endTime: string | null;
+    className: string | null;
+    status: string;
+  }[],
+  nowMinutes: number,
+): MissingReason | null {
+  const start = toMinutes(first?.startTime);
+  if (first === null || start === null || nowMinutes < start) return null;
+
+  const session = sessions.find(
+    (s) => s.startTime === first.startTime && s.className === first.className,
+  );
+  if (session?.status === 'cancelled') return null;
+
+  const end = toMinutes(session?.endTime);
+  return end !== null && nowMinutes >= end
+    ? { kind: 'ended' }
+    : { kind: 'started', minutes: nowMinutes - start };
+}
+
+/** 紅字原因短句（A6：桌機手機同一句） */
+export function missingText(reason: MissingReason): string {
+  if (reason.kind === 'ended') return '已下課，今天沒掃碼';
+  const { minutes } = reason;
+  const span =
+    minutes >= 60
+      ? `${Math.floor(minutes / 60)} 小時${minutes % 60 ? ` ${minutes % 60} 分` : ''}`
+      : `${minutes} 分鐘`;
+  return `上課 ${span}了，還沒掃碼`;
+}

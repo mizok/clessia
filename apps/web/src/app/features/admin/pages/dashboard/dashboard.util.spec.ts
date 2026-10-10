@@ -1,4 +1,4 @@
-import { pendingAttendanceQuery } from './dashboard.util';
+import { missingReason, missingText, pendingAttendanceQuery } from './dashboard.util';
 
 /**
  * `pendingAttendanceQuery` 是未點名課堂卡片的**唯一**篩選定義來源——
@@ -50,5 +50,50 @@ describe('pendingAttendanceQuery', () => {
   // 有人為了「看得比較全」把 cancelled 加進來，這條會紅。
   it('陷阱：statuses 不含 cancelled', () => {
     expect(pendingAttendanceQuery(NOON, 7).statuses).not.toContain('cancelled');
+  });
+});
+
+describe('missingReason', () => {
+  const first = { startTime: '15:30', className: '國三數學' };
+  const sessions = [
+    { startTime: '15:30', endTime: '17:00', className: '國三數學', status: 'scheduled' },
+  ];
+  const at = (h: number, m: number) => h * 60 + m;
+
+  it('還沒到上課時間 → 不算該到沒到', () => {
+    expect(missingReason(first, sessions, at(15, 29))).toBeNull();
+  });
+
+  it('剛好開始 → 上課 0 分鐘', () => {
+    expect(missingReason(first, sessions, at(15, 30))).toEqual({ kind: 'started', minutes: 0 });
+  });
+
+  it('上到一半 → 上課 N 分鐘', () => {
+    expect(missingReason(first, sessions, at(16, 10))).toEqual({ kind: 'started', minutes: 40 });
+  });
+
+  it('下課時間到就是已下課', () => {
+    expect(missingReason(first, sessions, at(17, 0))).toEqual({ kind: 'ended' });
+  });
+
+  it('停課的堂不算', () => {
+    expect(missingReason(first, [{ ...sessions[0], status: 'cancelled' }], at(16, 0))).toBeNull();
+  });
+
+  it('沒有第一堂 → 不算', () => {
+    expect(missingReason(null, sessions, at(16, 0))).toBeNull();
+  });
+
+  it('對不到課表時用開始時間判斷', () => {
+    expect(missingReason(first, [], at(16, 0))).toEqual({ kind: 'started', minutes: 30 });
+  });
+});
+
+describe('missingText', () => {
+  it('短句', () => {
+    expect(missingText({ kind: 'ended' })).toBe('已下課，今天沒掃碼');
+    expect(missingText({ kind: 'started', minutes: 40 })).toBe('上課 40 分鐘了，還沒掃碼');
+    expect(missingText({ kind: 'started', minutes: 75 })).toBe('上課 1 小時 15 分了，還沒掃碼');
+    expect(missingText({ kind: 'started', minutes: 120 })).toBe('上課 2 小時了，還沒掃碼');
   });
 });

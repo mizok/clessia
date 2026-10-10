@@ -1,70 +1,49 @@
 <!--
-  A6 版（#991）：色面 → 灰工具列 → 待處理 → 主段（今日課表／到班看板）→ 灰摺疊列。
-  換版不換資料：A6 稿的「該到沒到＋家長電話」「逾期帳單」「臨時狀況」要的資料這頁沒有，另開單。
+  A6 版（#991、#1314 D）：色面（機構名＋一句話）→ 灰工具列 → 待處理 → 主段 → 灰摺疊列 → 臨時狀況。
+  主段：日到班＝「該到沒到，先打給家長」；逐堂點名＝今日課表（A6 只畫了日到班的形狀）。
 -->
 <app-page-open>
   <ng-container openTitle>
-    @if (todayHeadline(); as head) {
-      @if (head.total === 0) {
-        今天沒有排課。
-      } @else if (head.untaken === 0) {
-        今天 {{ head.total }} 堂課，全部點完了。
-      } @else {
-        今天 {{ head.total }} 堂課，其中 {{ head.untaken }} 堂還沒點名。
+    @if (orgName(); as name) {
+      {{ name }}
+      @if (campusName(); as campus) {
+        <span class="ml-2 text-base font-semibold text-band-ink-muted wide:text-lg">{{
+          campus
+        }}</span>
       }
-    } @else if (sessionsFailed()) {
-      今日課表讀取失敗。
     } @else {
       <!-- 骨架而不是「載入中」三個字：色面是整頁最顯眼的位置，一行字在那個尺寸下讀起來像內容 -->
       <span
-        class="inline-block h-[1em] w-[min(100%,18ch)] rounded-sm bg-band-rule align-middle opacity-45"
+        class="inline-block h-[1em] w-[min(100%,10ch)] rounded-sm bg-band-rule align-middle opacity-45"
         data-testid="band-skeleton"
-        aria-label="今日課表載入中"
+        aria-label="載入中"
       ></span>
     }
   </ng-container>
-
-  @if (todaySessionList(); as sessions) {
-    <!--
-      收的是時間軸不是整塊色面 —— 那句話是這一頁的錨點。使用者按過就照他的意思（localStorage）。
-    -->
-    <app-collapsible id="dashboard-timeline" [collapsed]="timelineCollapsed()">
-      <div class="mt-6">
-        <app-day-timeline [sessions]="sessions" [date]="todayKey" />
-      </div>
-    </app-collapsible>
-  }
+  <ng-container openSub>
+    @if (todayHeadline(); as head) {
+      {{ head }}
+    } @else if (sessionsFailed()) {
+      今日課表讀取失敗。
+    }
+  </ng-container>
 </app-page-open>
 
-<!-- 灰工具列：這頁在講哪一天＋櫃台動作（A6 .tbar） -->
+<!-- 灰工具列：這頁在講哪一天幾點＋櫃台動作（A6 .tbar；手機＝浮起托盤） -->
 <div class="bg-zinc-100">
   <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 py-3">
-    <p class="m-0 text-base font-semibold text-zinc-900 tabular-nums">{{ todayLabel }}</p>
-    <div class="ml-auto flex flex-wrap items-center gap-2">
-      @if (hasTimeline()) {
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-          [attr.aria-expanded]="!timelineCollapsed()"
-          aria-controls="dashboard-timeline"
-          (click)="toggleTimeline()"
-        >
-          {{ timelineCollapsed() ? '展開時間軸' : '收合時間軸' }}
-        </button>
-      }
-      @if (canPhoneLeave()) {
-        <!-- #964：接到電話就地請假 -->
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-          [attr.aria-expanded]="phoneLeaveOpen()"
-          aria-controls="dashboard-phone-leave"
-          (click)="phoneLeaveOpen.set(!phoneLeaveOpen())"
-        >
-          <i class="pi pi-phone text-sm" aria-hidden="true"></i>接到電話：請假
-        </button>
-      }
-    </div>
+    <p class="m-0 text-base font-semibold text-zinc-900 tabular-nums" data-testid="today-label">
+      {{ todayLabel() }}
+    </p>
+    @if (canPhoneLeave()) {
+      <app-page-actions
+        class="ml-auto"
+        [primary]="leavePrimary"
+        [secondary]="leaveSecondary"
+        (primaryClick)="openPhoneLeave()"
+        (secondaryClick)="openCheckinStation()"
+      />
+    }
   </div>
 </div>
 
@@ -73,9 +52,10 @@
     <app-phone-leave
       id="dashboard-phone-leave"
       [rosterAvailable]="!isDailyCheckin()"
+      [presetStudentId]="phoneLeaveStudentId()"
       (completed)="loadToday()"
       (rosterRequested)="openRosterDialog($event)"
-      (closed)="phoneLeaveOpen.set(false)"
+      (closed)="closePhoneLeave()"
     />
   }
 
@@ -129,133 +109,145 @@
 
   @if (isDailyCheckin()) {
     <!--
-      **日到班的機構，主段是到班看板而不是課表。** 晨間視角是「誰還沒到」不是「誰到了」。
-      三段的順序就是它們的重要性。設計見 kb/wiki/architecture/today-workbench.md。
+      **日到班的機構，主段是「該到沒到」而不是課表。** 晨間視角是「誰該到沒到、打給誰」。
+      只列第一堂已經開始的人；還沒到上課時間的在下面的到班名冊裡。
+      設計見 kb/wiki/architecture/today-workbench.md。
     -->
     <section aria-labelledby="dashboard-main-title">
-      <ng-container
-        [ngTemplateOutlet]="secHead"
-        [ngTemplateOutletContext]="{
-          title: '還沒到（' + notArrivedCount() + '）',
-          link: '今日課表',
-        }"
-      />
-
-      @if (notArrivedCount() === 0) {
-        <p class="m-0 py-6 text-base text-zinc-700">今天該到的都到了。</p>
-      } @else {
-        @for (group of notArrivedGroups(); track group.campusName) {
-          <!-- 單一分校的機構不顯示分組標題 —— 那是一句沒有資訊的話 -->
-          @if (notArrivedGroups().length > 1) {
-            <h3 class="mt-6 mb-2 text-md font-semibold text-zinc-600" data-testid="board-group">
-              {{ group.campusName }}
-            </h3>
+      <div class="border-b border-surface-border pb-3">
+        <h2
+          id="dashboard-main-title"
+          class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+        >
+          @if (missingRows().length > 0) {
+            該到沒到的 {{ missingRows().length }} 位，先打給家長
+          } @else {
+            現在沒有該到沒到的人
           }
-          <ul class="m-0 list-none p-0">
-            @for (student of group.students; track student.studentId) {
-              <li
-                class="flex items-center justify-between gap-3 border-b border-surface-border py-3"
-              >
-                <span class="min-w-0">
-                  <span class="block text-base font-semibold text-zinc-900">{{
-                    student.studentName
-                  }}</span>
-                  <span class="mt-0.5 block text-sm text-zinc-600">
-                    {{ student.grade ?? '—' }}
-                    @if (student.firstSession) {
-                      · {{ student.firstSession.startTime }} {{ student.firstSession.className }}
-                    }
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  data-testid="board-action"
-                  [disabled]="boardBusy() !== null"
-                  (click)="checkIn(student)"
-                >
-                  勾到班
-                </button>
-              </li>
-            }
-          </ul>
-        }
+        </h2>
+      </div>
+
+      @if (boardError(); as message) {
+        <p
+          class="m-0 pt-4 text-md font-semibold text-error-700"
+          role="alert"
+          data-testid="board-error"
+        >
+          {{ message }}
+        </p>
       }
 
-      @if (leaveList().length > 0) {
-        <!-- **已請假是第三種狀態，不是「還沒到」的一種。** 混在一起行政會去打一通不必要的電話。 -->
-        <h3 class="mt-6 mb-2 text-md font-semibold text-zinc-600" data-testid="board-group">
-          已請假（{{ leaveList().length }}）
-        </h3>
-        <ul class="m-0 list-none p-0">
-          @for (leave of leaveList(); track leave.studentId) {
-            <li class="flex items-center justify-between gap-3 border-b border-surface-border py-3">
-              <span class="min-w-0">
-                <span class="block text-base font-semibold text-zinc-900">{{
-                  leave.studentName
-                }}</span>
-                <span class="mt-0.5 block text-sm text-zinc-600">
-                  {{ leave.startDate }}–{{ leave.endDate }} · {{ leave.submittedByRole }}
-                </span>
-              </span>
-            </li>
-          }
-        </ul>
+      @if (missingRows().length === 0) {
+        <p class="m-0 py-5 text-base text-zinc-700">
+          課開始後還沒掃碼的學生會出現在這裡，附家長電話。
+        </p>
       }
 
-      @if (arrivedList().length > 0) {
-        <!-- 已到是「確認」不是「工作」，所以預設收合、排在最後 -->
-        <div class="flex items-center justify-between gap-3">
-          <h3 class="mt-6 mb-2 text-md font-semibold text-zinc-600" data-testid="board-group">
-            已到（{{ arrivedList().length }}）
-          </h3>
-          <button
-            type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-            [attr.aria-expanded]="!arrivedCollapsed()"
-            aria-controls="dashboard-arrived"
-            (click)="toggleArrived()"
+      @for (row of missingRows(); track row.student.studentId) {
+        <article
+          class="grid gap-x-8 gap-y-1 border-b border-surface-border py-5 wide:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_auto] wide:items-center wide:gap-y-2 wide:py-6"
+          data-testid="call-row"
+          [class.settled]="row.contactedAt !== null"
+        >
+          <a
+            class="inline-flex min-h-11 items-center text-2xl leading-[1.1] font-bold tracking-[-0.03em] no-underline hover:underline hover:decoration-2 hover:underline-offset-4 wide:text-3xl"
+            [class.text-zinc-600]="row.contactedAt !== null"
+            [class.text-zinc-900]="row.contactedAt === null"
+            data-testid="call-name"
+            [routerLink]="[studentRoute.replace(':id', row.student.studentId)]"
+            >{{ row.student.studentName }}</a
           >
-            {{ arrivedCollapsed() ? '展開' : '收合' }}
-          </button>
-        </div>
-
-        <app-collapsible id="dashboard-arrived" [collapsed]="arrivedCollapsed()">
-          <ul class="m-0 list-none p-0">
-            @for (arrival of arrivedList(); track arrival.checkinId) {
-              <li
-                class="flex items-center justify-between gap-3 border-b border-surface-border py-3"
-              >
-                <span class="min-w-0">
-                  <span class="block text-base font-semibold text-zinc-900">{{
-                    arrival.studentName
-                  }}</span>
-                  <!-- **只講觀察到的事實。** 不寫「已為 N 堂課記錄出席」—— 那是 API 散播規則的推論 -->
-                  <span class="mt-0.5 block text-sm text-zinc-600"
-                    >已到班 {{ arrivalClock(arrival.checkedInAt) }}</span
-                  >
-                </span>
-                <button
-                  type="button"
-                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  data-testid="board-action"
-                  [disabled]="boardBusy() !== null"
-                  (click)="cancelArrival(arrival.checkinId)"
+          <div>
+            <p
+              class="m-0 text-base font-semibold tabular-nums wide:text-lg"
+              [class.text-zinc-600]="row.contactedAt !== null"
+            >
+              {{ row.student.firstSession?.startTime }} {{ row.student.firstSession?.className }}
+            </p>
+            <p class="mt-1 mb-0 text-md font-semibold text-error-700" data-testid="call-why">
+              <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>{{ row.text }}
+            </p>
+          </div>
+          <div class="hidden wide:block">
+            @if (row.parent; as parent) {
+              <p class="m-0 text-md text-zinc-600">
+                {{ parentLabel(parent) }}
+              </p>
+              @if (parent.phone) {
+                <a
+                  class="flex min-h-11 items-center text-xl font-semibold tracking-[-0.01em] text-zinc-900 tabular-nums underline decoration-zinc-300 underline-offset-4"
+                  data-testid="call-phone"
+                  [href]="'tel:' + parent.phone"
+                  >{{ parent.phone }}</a
                 >
-                  取消
-                </button>
-              </li>
+              } @else {
+                <p class="m-0 text-md text-zinc-600">沒有留電話</p>
+              }
+            } @else {
+              <p class="m-0 text-md text-zinc-600">還沒登記家長</p>
             }
-          </ul>
-        </app-collapsible>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2 wide:mt-0">
+            @if (row.contactedAt; as at) {
+              <span
+                class="inline-flex min-h-11 items-center text-md font-semibold text-zinc-600"
+                data-testid="contacted"
+                >已聯絡 {{ at }}</span
+              >
+            } @else if (row.parent?.phone; as phone) {
+              <!-- 撥號交給 tel: 連結；點下去同時記一筆聯絡（D2）。記不成功列不會變，並出現提示 -->
+              <a
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 no-underline hover:bg-accent-vivid-2"
+                data-testid="call-action"
+                [href]="'tel:' + phone"
+                [attr.aria-disabled]="boardBusy() !== null"
+                (click)="recordCall(row.student)"
+              >
+                <i class="pi pi-phone text-sm" aria-hidden="true"></i>
+                <span class="hidden wide:inline">打電話</span>
+                <span class="wide:hidden">打給{{ parentLabel(row.parent) }}</span>
+              </a>
+            }
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="leave-action"
+              [disabled]="!canPhoneLeave()"
+              (click)="openPhoneLeave(row.student.studentId)"
+            >
+              登記請假
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="board-action"
+              [disabled]="boardBusy() !== null"
+              (click)="checkIn(row.student)"
+            >
+              代刷到班
+            </button>
+          </div>
+        </article>
       }
     </section>
   } @else {
     <section aria-labelledby="dashboard-main-title">
-      <ng-container
-        [ngTemplateOutlet]="secHead"
-        [ngTemplateOutletContext]="{ title: '今日課表', link: '查看全部' }"
-      />
+      <div
+        class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3"
+      >
+        <h2
+          id="dashboard-main-title"
+          class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+        >
+          今日課表
+        </h2>
+        <a
+          class="ml-auto inline-flex min-h-11 items-center gap-1 text-md font-medium text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+          [routerLink]="[sessionsRoute]"
+        >
+          查看全部 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+        </a>
+      </div>
 
       @if (sessionsFailed()) {
         <p class="m-0 py-6 text-base text-zinc-700">今日課表讀取失敗</p>
@@ -335,18 +327,119 @@
 
   <!-- 灰摺疊列（A6 .coll）：背景脈絡收成一列，右邊是摘要，點了才開 -->
   <div class="grid gap-2">
-    <details class="group rounded-lg bg-zinc-100">
+    @if (isDailyCheckin()) {
+      <details class="group rounded-lg bg-zinc-100" data-testid="coll-roster">
+        <summary
+          class="flex min-h-14 cursor-pointer list-none items-center gap-4 rounded-lg px-4 py-3 hover:bg-zinc-200 wide:min-h-16 wide:px-5 [&::-webkit-details-marker]:hidden"
+        >
+          <span class="shrink-0 text-lg font-bold tracking-[-0.01em] text-zinc-900 wide:text-xl"
+            >今天的到班名冊</span
+          >
+          <span class="ml-auto text-right text-md text-zinc-700 tabular-nums wide:text-base">{{
+            rosterSummary()
+          }}</span>
+          <i
+            class="pi pi-chevron-down text-sm text-zinc-900 transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          ></i>
+        </summary>
+        <div class="mx-1 mb-1 rounded-md bg-white px-4 pt-2 pb-6 wide:px-5">
+          @for (chapter of rosterChapters(); track chapter.time) {
+            @if (chapter.nowBefore) {
+              <div
+                class="my-4 flex items-center gap-3 border-t border-zinc-900 pt-2 text-md font-semibold text-zinc-900"
+                role="separator"
+                data-testid="now-line"
+              >
+                現在 {{ nowText() }}
+                <span class="font-normal text-zinc-600">以下的課還沒開始</span>
+              </div>
+            }
+            <section
+              class="grid gap-x-8 gap-y-2 border-b border-surface-border py-4 last:border-b-0 wide:grid-cols-[180px_minmax(0,1fr)]"
+              data-testid="roster-chapter"
+            >
+              <div>
+                <p class="m-0 text-2xl leading-none font-bold tracking-[-0.03em] tabular-nums">
+                  {{ chapter.time || '未排定' }}
+                </p>
+                @for (name of chapter.classNames; track name) {
+                  <p class="mt-1 mb-0 text-md font-semibold text-zinc-900">{{ name }}</p>
+                }
+                <p class="mt-1 mb-0 text-md text-zinc-600 tabular-nums">
+                  到 {{ chapter.arrivedCount }}／{{ chapter.people.length }}
+                </p>
+              </div>
+              <ul class="m-0 grid list-none gap-x-6 p-0 wide:grid-cols-2">
+                @for (person of chapter.people; track person.student.studentId) {
+                  <li
+                    class="flex min-h-11 items-center justify-between gap-3 py-1"
+                    data-testid="roster-person"
+                  >
+                    <a
+                      class="inline-flex min-h-11 min-w-0 items-center text-base font-semibold no-underline hover:underline hover:underline-offset-4"
+                      [class.text-error-700]="person.state === 'missing'"
+                      [class.text-zinc-600]="
+                        person.state === 'not_yet' || person.state === 'on_leave'
+                      "
+                      [class.text-zinc-900]="person.state === 'arrived'"
+                      [routerLink]="[studentRoute.replace(':id', person.student.studentId)]"
+                      >{{ person.student.studentName }}</a
+                    >
+                    <span class="flex items-center gap-2 text-md whitespace-nowrap tabular-nums">
+                      @switch (person.state) {
+                        @case ('arrived') {
+                          <span class="text-zinc-700" data-testid="arrived-at"
+                            >{{ clock(person.arrival!.checkedInAt) }} 到</span
+                          >
+                          <button
+                            type="button"
+                            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-2 text-md font-medium text-zinc-600 underline underline-offset-[3px] hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                            data-testid="cancel-arrival"
+                            [disabled]="boardBusy() !== null"
+                            (click)="cancelArrival(person.arrival!.checkinId)"
+                          >
+                            取消
+                          </button>
+                        }
+                        @case ('missing') {
+                          <span class="font-semibold text-error-700">該到沒到</span>
+                        }
+                        @case ('on_leave') {
+                          <span class="text-zinc-600">請假</span>
+                        }
+                        @default {
+                          <span class="text-zinc-600">還沒到</span>
+                        }
+                      }
+                    </span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+          <a
+            class="mt-3 inline-flex min-h-11 items-center gap-1 text-md font-medium text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+            [routerLink]="[sessionsRoute]"
+          >
+            今天的課表 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+          </a>
+        </div>
+      </details>
+    }
+
+    <details class="group rounded-lg bg-zinc-100" data-testid="coll-leaves">
       <summary
         class="flex min-h-14 cursor-pointer list-none items-center gap-4 rounded-lg px-4 py-3 hover:bg-zinc-200 wide:min-h-16 wide:px-5 [&::-webkit-details-marker]:hidden"
       >
         <span class="shrink-0 text-lg font-bold tracking-[-0.01em] text-zinc-900 wide:text-xl"
-          >今日請假</span
+          >今天的請假</span
         >
         <span class="ml-auto text-right text-md text-zinc-700 tabular-nums wide:text-base">
           @if (leavesFailed()) {
             讀取失敗
           } @else if (todayLeaveList(); as leaves) {
-            {{ leaves.length }} 筆
+            {{ leaves.length }} 筆 · 已登記
           } @else {
             載入中
           }
@@ -367,11 +460,19 @@
               @for (leave of leaves; track leave.id) {
                 <li
                   class="flex items-baseline gap-3 border-b border-surface-border py-3 text-base text-zinc-900 last:border-b-0"
+                  data-testid="leave-item"
                 >
-                  <span class="font-semibold">{{ leave.studentName }}</span>
-                  @if (leave.reason) {
-                    <span class="text-md text-zinc-600">{{ leave.reason }}</span>
-                  }
+                  <a
+                    class="inline-flex min-h-11 items-center font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-4"
+                    [routerLink]="[studentRoute.replace(':id', leave.studentId)]"
+                    >{{ leave.studentName }}</a
+                  >
+                  <span class="ml-auto text-right text-md text-zinc-600">
+                    {{ leaveSource(leave) }}
+                    @if (leave.reason) {
+                      · {{ leave.reason }}
+                    }
+                  </span>
                 </li>
               }
             </ul>
@@ -392,77 +493,84 @@
       </div>
     </details>
 
-    <details class="group rounded-lg bg-zinc-100">
-      <summary
-        class="flex min-h-14 cursor-pointer list-none items-center gap-4 rounded-lg px-4 py-3 hover:bg-zinc-200 wide:min-h-16 wide:px-5 [&::-webkit-details-marker]:hidden"
-      >
-        <span class="shrink-0 text-lg font-bold tracking-[-0.01em] text-zinc-900 wide:text-xl"
-          >現況</span
+    @if (canSeeOverdue()) {
+      <details class="group rounded-lg bg-zinc-100" data-testid="coll-overdue">
+        <summary
+          class="flex min-h-14 cursor-pointer list-none items-center gap-4 rounded-lg px-4 py-3 hover:bg-zinc-200 wide:min-h-16 wide:px-5 [&::-webkit-details-marker]:hidden"
         >
-        <span class="ml-auto text-right text-md text-zinc-700 tabular-nums wide:text-base">{{
-          factSummary()
-        }}</span>
-        <i
-          class="pi pi-chevron-down text-sm text-zinc-900 transition-transform group-open:rotate-180"
-          aria-hidden="true"
-        ></i>
-      </summary>
-      <div class="mx-1 mb-1 rounded-md bg-white px-4 pt-2 pb-6 wide:px-5">
-        <ul class="m-0 list-none p-0">
-          @for (card of factCards(); track card.label) {
-            <li class="border-b border-surface-border last:border-b-0">
-              <a
-                class="flex min-h-11 items-baseline gap-3 py-3 text-zinc-900 no-underline hover:[&>[data-label]]:underline hover:[&>[data-label]]:underline-offset-4"
-                data-testid="fact"
-                [routerLink]="card.routerLink"
-              >
-                <span class="flex-1 text-base" data-label>{{ card.label }}</span>
-                <span
-                  class="text-xl font-bold tracking-[-0.02em] tabular-nums"
-                  [class.text-zinc-500]="card.value === 0"
+          <span class="shrink-0 text-lg font-bold tracking-[-0.01em] text-zinc-900 wide:text-xl"
+            >逾期帳單</span
+          >
+          <span class="ml-auto text-right text-md text-zinc-700 tabular-nums wide:text-base">
+            @if (overdueSummary(); as summary) {
+              @if (summary === 'error') {
+                讀取失敗
+              } @else {
+                {{ summary.count }} 張 · NT$ {{ summary.amount | number }}
+              }
+            } @else {
+              載入中
+            }
+          </span>
+          <i
+            class="pi pi-chevron-down text-sm text-zinc-900 transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          ></i>
+        </summary>
+        <div class="mx-1 mb-1 rounded-md bg-white px-4 pt-2 pb-6 wide:px-5">
+          @if (overdueList().length === 0) {
+            <p class="m-0 py-4 text-md text-zinc-700">沒有逾期的帳單</p>
+          } @else {
+            <ul class="m-0 list-none p-0">
+              @for (invoice of overdueList(); track invoice.id) {
+                <li
+                  class="flex items-baseline gap-3 border-b border-surface-border py-3 text-base text-zinc-900"
+                  data-testid="overdue-item"
                 >
-                  @if (card.value === null) {
-                    <span
-                      class="p-skeleton inline-block h-[1em] w-[2ch] rounded-sm align-middle"
-                      data-testid="value-skeleton"
-                      aria-hidden="true"
-                    ></span>
-                    <span class="sr-only">載入中</span>
-                  } @else if (card.value === 'error') {
-                    <ng-container [ngTemplateOutlet]="valueError" />
-                  } @else {
-                    {{ card.value }}
-                  }
-                </span>
-                <!--
-                  可點性不能只靠 hover —— 觸控裝置上沒有 hover（#516）。chevron 是這頁「往那邊去」的安靜版。
-                -->
-                <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
-              </a>
-            </li>
+                  <a
+                    class="inline-flex min-h-11 items-center font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-4"
+                    [routerLink]="[overdueRoute]"
+                    >{{ invoice.studentName }}</a
+                  >
+                  <span class="ml-auto flex items-baseline gap-3 tabular-nums">
+                    @if (invoice.dueDate) {
+                      <span class="text-md font-semibold text-error-700"
+                        >{{ invoice.dueDate }} 到期</span
+                      >
+                    }
+                    <span class="font-semibold">{{ balance(invoice) | number }}</span>
+                  </span>
+                </li>
+              }
+            </ul>
           }
-        </ul>
-      </div>
-    </details>
+          <a
+            class="mt-3 inline-flex min-h-11 items-center gap-1 text-md font-medium text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+            [routerLink]="[overdueRoute]"
+          >
+            到帳單頁看全部 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+          </a>
+        </div>
+      </details>
+    }
   </div>
-</div>
 
-<ng-template #secHead let-title="title" let-link="link">
-  <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3">
-    <h2
-      id="dashboard-main-title"
-      class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
-    >
-      {{ title }}
-    </h2>
-    <a
-      class="ml-auto inline-flex min-h-11 items-center gap-1 text-md font-medium text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
-      [routerLink]="['/admin/sessions']"
-    >
-      {{ link }} <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
-    </a>
-  </div>
-</ng-template>
+  <!-- 臨時狀況（A6 .quick）：三件都從課表頁出發（批次停課、代課、改時段） -->
+  <nav class="flex flex-col gap-1 wide:flex-row wide:items-center wide:gap-6" aria-label="臨時狀況">
+    <span class="text-md font-semibold text-zinc-600">臨時狀況？</span>
+    @for (item of emergencyLinks; track item.title) {
+      <a
+        class="flex min-h-12 w-full items-center gap-2 border-b border-surface-border text-base font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-4 wide:inline-flex wide:w-auto wide:border-b-0"
+        data-testid="emergency-link"
+        [routerLink]="[sessionsRoute]"
+      >
+        {{ item.title }}
+        <span class="font-normal text-zinc-600">{{ item.hint }}</span>
+        <i class="pi pi-arrow-right ml-auto text-sm wide:ml-0" aria-hidden="true"></i>
+      </a>
+    }
+  </nav>
+</div>
 
 <ng-template #valueError>
   <span

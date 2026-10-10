@@ -1,4 +1,14 @@
-import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
@@ -64,10 +74,26 @@ export class PhoneLeaveComponent {
   /** 日到班模式沒有逐堂點名，結果卡不給「點名名單」 */
   readonly rosterAvailable = input(false);
 
+  /** 從「該到沒到」的列開的：預帶這位學生（#1314 D），不必再搜尋 */
+  readonly presetStudentId = input<string | null>(null);
+
   /** 送出成功 —— 儀表板據此重抓「今日」，讓結果也出現在底下的看板上 */
   readonly completed = output<void>();
   readonly rosterRequested = output<PhoneLeaveRosterRequest>();
   readonly closed = output<void>();
+
+  constructor() {
+    effect(() => {
+      const id = this.presetStudentId();
+      if (!id) return;
+      untracked(() =>
+        this.studentsService
+          .get(id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({ next: (res) => this.pick(res.data) }),
+      );
+    });
+  }
 
   protected readonly ATTENDANCE_STATUS_LABELS = ATTENDANCE_STATUS_LABELS;
   protected readonly REASON_CHIPS = REASON_CHIPS;
