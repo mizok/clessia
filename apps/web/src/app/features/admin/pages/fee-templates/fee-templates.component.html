@@ -1,252 +1,263 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
 <!--
-  A6 版（#991）：色面 → 價目表（灰工具列＋表格）→ 收費期間。
-  換版不換資料：A6 稿的「依計費模式分章」要 `.ts` 的分組 computed，這支 PR 為證明金額路徑零改動而不做（後續項 F0）。
+  A6 版（#991、#1314 F0／F2／F5）：色面（數字句）→ 灰工具列（搜尋、顯示停用方案、操作紀錄、新增）→
+  價目表依計費模式分三章 → 收費期間。章＝左欄大字章頭（`app-chapter-head`）＋右側列，沒有表格、表頭。
+  價目表一次取全部、前端過濾（色面要含停用的數字；API 本來就沒分頁）。重疊期間只提醒、不擋。
 -->
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
-  <ng-container openSub>
-    定義收費標準供報名時挑選。這裡只給定價，實際談定的金額寫在每筆報名上。
+  <ng-container openTitle>
+    @if (templatesLoading() || loadFailed()) {
+      {{ page().label }}
+    } @else {
+      {{ templates().length }} 種價目，<br />{{ activeCount() }} 種開放報名。
+    }
   </ng-container>
+  <ng-container openSub>這裡只給定價，實際談定的金額寫在每筆報名上。</ng-container>
 </app-page-open>
 
-<div class="page-wrap flex flex-col gap-8 pt-6 pb-12 wide:pt-8">
-  <div class="flex justify-end">
-    <app-page-actions>
-      <p-button
-        label="操作紀錄"
-        icon="pi pi-history"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openAuditLog()"
-      />
-    </app-page-actions>
-  </div>
-
-  <!-- ── 價目表 ───────────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <div
-      class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
-    >
-      <div class="flex flex-col gap-1">
-        <h2 class="m-0 text-lg font-semibold text-zinc-900">價目表</h2>
-        <p class="m-0 text-sm text-zinc-500">
-          停用的方案不會出現在報名選單，但歷史報名仍看得懂它。
-        </p>
-      </div>
-      <p-button label="新增價目表" icon="pi pi-plus" (onClick)="openTemplateDialog()" />
-    </div>
-
-    <div class="clessia-filter-bar flex flex-wrap items-center gap-3">
-      <div class="clessia-filter-search flex-[1_1_240px]">
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap flex flex-col gap-3 py-3 wide:min-h-16 wide:flex-row wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選價目表"
+  >
+    <div class="flex w-full flex-wrap items-center gap-2 wide:contents">
+      <div class="clessia-filter-search order-1 min-w-0 flex-1 wide:w-80 wide:flex-none">
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
             type="text"
             pInputText
-            placeholder="搜尋方案名稱..."
+            placeholder="搜尋方案名稱"
+            aria-label="搜尋方案名稱"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
             class="clessia-filter-search-input"
           />
         </p-iconfield>
       </div>
-      <app-filter-chip
-        [active]="showInactive()"
-        [icon]="showInactive() ? 'pi-eye-slash' : 'pi-eye'"
-        (toggle)="toggleShowInactive()"
+      <div class="order-3 w-full wide:order-2 wide:w-auto">
+        <app-filter-chip
+          [active]="showInactive()"
+          [icon]="showInactive() ? 'pi-eye-slash' : 'pi-eye'"
+          (toggle)="toggleShowInactive()"
+        >
+          {{ showInactive() ? '隱藏停用方案' : '顯示停用方案（' + inactiveCount() + '）' }}
+        </app-filter-chip>
+      </div>
+      <app-page-actions
+        class="order-2 ml-auto wide:order-3"
+        [primary]="primaryAction"
+        [secondary]="secondaryAction"
+        (primaryClick)="openTemplateDialog()"
+        (secondaryClick)="openPeriodDialog()"
       >
-        {{ showInactive() ? '隱藏停用方案' : '顯示停用方案' }}
-      </app-filter-chip>
+        <p-button
+          icon="pi pi-history"
+          severity="secondary"
+          [outlined]="true"
+          ariaLabel="操作紀錄"
+          (onClick)="openAuditLog()"
+        />
+      </app-page-actions>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
+  <!-- ── 價目表 ───────────────────────────────────────────────────────── -->
+  <section class="flex flex-col" aria-labelledby="h-ft">
+    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-zinc-200 pb-3">
+      <h2
+        id="h-ft"
+        class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+      >
+        價目表
+      </h2>
+      <span class="text-md text-zinc-600">停用的方案不會出現在報名選單，但歷史報名仍看得懂它</span>
     </div>
 
-    <div class="flex flex-col">
-      @if (templatesLoading()) {
-        <div class="skeleton-list">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-      } @else if (loadFailed()) {
-        <app-load-failed
-          description="沒有讀到價目表資料，可能是連線問題"
-          (retry)="loadTemplates()"
-        />
-      } @else if (templates().length === 0) {
-        @if (searchQuery()) {
-          <app-empty-state
-            icon="pi pi-search"
-            title="找不到符合的方案"
-            [description]="'沒有找到符合「' + searchQuery() + '」的方案'"
-          >
-            <p-button
-              label="清除搜尋"
-              [text]="true"
-              severity="secondary"
-              (onClick)="onSearchChange('')"
-            />
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-wallet"
-            title="尚未建立價目表"
-            description="建立第一個收費方案，報名時就能挑選它"
-          >
-            <p-button label="新增價目表" icon="pi pi-plus" (onClick)="openTemplateDialog()" />
-          </app-empty-state>
+    @if (templatesLoading()) {
+      <div class="skeleton-list mt-3">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
         }
+      </div>
+    } @else if (loadFailed()) {
+      <app-load-failed description="沒有讀到價目表資料，可能是連線問題" (retry)="loadTemplates()" />
+    } @else if (visibleTemplates().length === 0) {
+      @if (searchQuery()) {
+        <app-empty-state
+          icon="pi pi-search"
+          title="找不到符合的方案"
+          [description]="'沒有找到符合「' + searchQuery() + '」的方案'"
+        >
+          <p-button
+            label="清除搜尋"
+            [text]="true"
+            severity="secondary"
+            (onClick)="onSearchChange('')"
+          />
+        </app-empty-state>
       } @else {
-        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+        <app-empty-state
+          icon="pi pi-wallet"
+          title="尚未建立價目表"
+          description="建立第一個收費方案，報名時就能挑選它"
+        >
+          <p-button label="新增價目表" icon="pi pi-plus" (onClick)="openTemplateDialog()" />
+        </app-empty-state>
+      }
+    } @else {
+      <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
-        <app-responsive-table [headTemplate]="templateHead" [bodyTemplate]="templateBody" />
-
-        <ng-template #templateHead>
-          <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="180" [appRtColDefPriority]="1">
-              方案名稱
-            </th>
-            <th appRtColDef="mode" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
-              計費模式
-            </th>
-            <th appRtColDef="amount" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">定價</th>
-            <th appRtColDef="inUse" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">報名</th>
-            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
-            <th
-              appRtColDef="actions"
-              [appRtColDefMinWidth]="56"
-              [appRtColDefPriority]="0"
-              [appRtColDefCollapsible]="false"
-              aria-hidden="true"
-            ></th>
-          </tr>
-        </ng-template>
-
-        <ng-template #templateBody>
-          @for (item of templates(); track item.id) {
-            <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
-              <td appRtColCell="name">
-                <span
-                  class="font-medium text-zinc-900"
-                  [class.text-zinc-500]="!item.isActive"
-                  [class.line-through]="!item.isActive"
+      @for (chapter of chapters(); track chapter.mode) {
+        <section
+          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+          [attr.aria-label]="chapter.label"
+          [attr.data-chapter]="chapter.mode"
+        >
+          <app-chapter-head
+            class="block pt-4 wide:pt-8"
+            [name]="chapter.label"
+            [count]="chapter.rows.length"
+            unit="種"
+          />
+          <div class="wide:pt-2">
+            @for (item of chapter.rows; track item.id) {
+              <div
+                class="grid grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-x-3 gap-y-1 border-b border-zinc-200 py-3 last:border-b-0 wide:min-h-16 wide:grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.1fr)_44px] wide:gap-x-6"
+                [attr.data-template]="item.id"
+              >
+                <button
+                  type="button"
+                  class="col-start-1 min-h-11 min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-lg font-bold underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500 wide:col-auto"
+                  [class.text-zinc-900]="item.isActive"
+                  [class.text-zinc-600]="!item.isActive"
+                  [attr.aria-label]="item.name + ' 的編輯'"
+                  (click)="openTemplateDialog(item)"
                 >
                   {{ item.name }}
+                </button>
+                <span
+                  class="col-start-2 row-start-1 text-right text-xl font-bold tracking-[-0.02em] tabular-nums wide:col-auto wide:row-auto wide:text-left"
+                  [class.text-zinc-600]="!item.isActive"
+                >
+                  <small class="text-sm font-medium tracking-normal text-zinc-600">NT$ </small
+                  >{{ item.amount | number
+                  }}<small class="text-sm font-medium tracking-normal text-zinc-600">{{
+                    amountUnit(item.billingMode)
+                  }}</small>
                 </span>
-              </td>
-              <td appRtColCell="mode">{{ BILLING_MODE_LABELS[item.billingMode] }}</td>
-              <td appRtColCell="amount">
-                <span class="font-medium tabular-nums">{{ item.amount | number }}</span>
-              </td>
-              <td appRtColCell="inUse">
-                <span class="text-zinc-500 tabular-nums">{{ inUseLabel(item.inUseCount) }}</span>
-              </td>
-              <td appRtColCell="status">
-                <app-status-dot [tone]="item.isActive ? 'done' : 'inactive'">{{
-                  item.isActive ? '啟用中' : '已停用'
-                }}</app-status-dot>
-              </td>
-              <td appRtColCell="actions">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="item.name + ' 的操作'"
-                  (onClick)="openTemplateActionMenu($event, item)"
-                />
-              </td>
-            </tr>
-          }
-        </ng-template>
+                <span
+                  class="col-span-3 text-sm wide:col-auto wide:text-md"
+                  [class.text-zinc-800]="item.isActive"
+                  [class.text-zinc-600]="!item.isActive"
+                  >{{ item.isActive ? '啟用中' : '已停用 · 不出現在報名選單' }}</span
+                >
+                <span class="col-span-3 text-sm text-zinc-700 wide:col-auto wide:text-md">{{
+                  inUseLabel(item.inUseCount)
+                }}</span>
+                <div class="col-start-3 row-start-1 wide:col-auto wide:row-auto">
+                  <p-button
+                    icon="pi pi-ellipsis-h"
+                    [rounded]="true"
+                    [text]="true"
+                    severity="secondary"
+                    [ariaLabel]="item.name + ' 的更多動作'"
+                    (onClick)="openTemplateActionMenu($event, item)"
+                  />
+                </div>
+              </div>
+            }
+          </div>
+        </section>
       }
-    </div>
+    }
   </section>
 
   <!-- ── 收費期間 ─────────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <div
-      class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
-    >
-      <div class="flex flex-col gap-1">
-        <h2 class="m-0 text-lg font-semibold text-zinc-900">收費期間</h2>
-        <p class="m-0 text-sm text-zinc-500">
-          期繳用的具名日期區間。期間之間可以重疊 —— 新舊制交接時本來就會。
-        </p>
-      </div>
+  <section class="flex flex-col" aria-labelledby="h-bp">
+    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-zinc-200 pb-3">
+      <h2
+        id="h-bp"
+        class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+      >
+        收費期間
+      </h2>
+      <span class="text-md text-zinc-600"
+        >期繳用的具名日期區間。期間之間可以重疊 —— 新舊制交接時本來就會</span
+      >
       <p-button
+        class="hidden wide:ml-auto wide:block"
         label="新增期間"
         icon="pi pi-plus"
+        severity="secondary"
         [outlined]="true"
+        size="small"
         (onClick)="openPeriodDialog()"
       />
     </div>
 
-    <div class="flex flex-col">
-      @if (periodsLoading()) {
-        <div class="skeleton-list">
-          @for (i of [1, 2]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-      } @else if (periods().length === 0) {
-        <app-empty-state
-          icon="pi pi-calendar"
-          title="尚未建立收費期間"
-          description="一年兩期或照學期制都可以 —— 期間由你自己定義"
-        >
-          <p-button label="新增期間" icon="pi pi-plus" (onClick)="openPeriodDialog()" />
-        </app-empty-state>
-      } @else {
-        <app-popup-menu #periodMenu [model]="periodMenuItems()" />
+    @if (periodsLoading()) {
+      <div class="skeleton-list mt-3">
+        @for (i of [1, 2]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (periods().length === 0) {
+      <app-empty-state
+        icon="pi pi-calendar"
+        title="尚未建立收費期間"
+        description="一年兩期或照學期制都可以 —— 期間由你自己定義"
+      >
+        <p-button label="新增期間" icon="pi pi-plus" (onClick)="openPeriodDialog()" />
+      </app-empty-state>
+    } @else {
+      <app-popup-menu #periodMenu [model]="periodMenuItems()" />
 
-        <app-responsive-table [headTemplate]="periodHead" [bodyTemplate]="periodBody" />
-
-        <ng-template #periodHead>
-          <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="200" [appRtColDefPriority]="1">
-              期間名稱
-            </th>
-            <th appRtColDef="range" [appRtColDefMinWidth]="200" [appRtColDefPriority]="2">
-              起訖日期
-            </th>
-            <th appRtColDef="usage" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">報名</th>
-            <th
-              appRtColDef="actions"
-              [appRtColDefMinWidth]="56"
-              [appRtColDefPriority]="0"
-              [appRtColDefCollapsible]="false"
-              aria-hidden="true"
-            ></th>
-          </tr>
-        </ng-template>
-
-        <ng-template #periodBody>
-          @for (item of periods(); track item.id) {
-            <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
-              <td appRtColCell="name">{{ item.name }}</td>
-              <td appRtColCell="range">
-                <span class="text-zinc-500 tabular-nums">
-                  {{ item.startDate }} — {{ item.endDate }}
-                </span>
-              </td>
-              <td appRtColCell="usage">
-                <span class="text-zinc-500 tabular-nums">{{
-                  periodUsageLabel(item.overlappingEnrollmentCount)
-                }}</span>
-              </td>
-              <td appRtColCell="actions">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="item.name + ' 的操作'"
-                  (onClick)="openPeriodActionMenu($event, item)"
-                />
-              </td>
-            </tr>
-          }
-        </ng-template>
-      }
-    </div>
+      <div class="mt-2">
+        @for (item of periods(); track item.id) {
+          <div
+            class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-1 border-b border-zinc-200 py-3 wide:min-h-[60px] wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_44px] wide:gap-x-6"
+            [attr.data-period]="item.id"
+          >
+            <button
+              type="button"
+              class="col-start-1 min-h-11 min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-lg font-bold text-zinc-900 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500 wide:col-auto"
+              [attr.aria-label]="item.name + ' 的編輯'"
+              (click)="openPeriodDialog(item)"
+            >
+              {{ item.name }}
+            </button>
+            <span class="col-start-1 text-md text-zinc-800 tabular-nums wide:col-auto">
+              {{ formatRange(item) }}
+              @if (overlapsOf(item); as overlaps) {
+                @if (overlaps.length > 0) {
+                  <small class="mt-0.5 block text-sm text-zinc-600"
+                    >跟「{{ overlaps.join('」「') }}」重疊（新舊制交接時本來就會，不影響）</small
+                  >
+                }
+              }
+            </span>
+            <span
+              class="col-start-1 text-sm text-zinc-700 tabular-nums wide:col-auto wide:text-md"
+              >{{ periodUsageLabel(item.overlappingEnrollmentCount) }}</span
+            >
+            <div class="col-start-2 row-start-1 wide:col-auto wide:row-auto">
+              <p-button
+                icon="pi pi-ellipsis-h"
+                [rounded]="true"
+                [text]="true"
+                severity="secondary"
+                [ariaLabel]="item.name + ' 的更多動作'"
+                (onClick)="openPeriodActionMenu($event, item)"
+              />
+            </div>
+          </div>
+        }
+      </div>
+    }
   </section>
 </div>
