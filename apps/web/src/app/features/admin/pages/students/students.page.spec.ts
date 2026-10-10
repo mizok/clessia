@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { Subject, of } from 'rxjs';
@@ -21,9 +22,21 @@ describe('StudentsPage', () => {
     ({
       // `campusNames` 不能省 —— 模板有 `student.campusNames.length`，
       // 少了它會在測試輸出裡噴 TypeError 而**不讓任何一條測試紅**。
-      data: names.map((name, i) => ({ id: `s${i}`, name, campusNames: [], parentNames: [] })),
+      data: names.map((name, i) => ({
+        id: `s${i}`,
+        name,
+        grade: 'J3',
+        isActive: true,
+        campusNames: [],
+        parentNames: [],
+      })),
       meta: { total: names.length, page: 1, pageSize: 20, totalPages: 1 },
-      summary: { total: names.length, active: names.length, inactive: 0 },
+      summary: {
+        total: names.length,
+        activeCount: names.length,
+        byGrade: [{ grade: 'J3', count: names.length }],
+        today: null,
+      },
     }) as unknown as StudentListResponse;
 
   /** 每次呼叫都記下 search 參數，並回一個我們自己控制何時完成的 Subject */
@@ -58,6 +71,7 @@ describe('StudentsPage', () => {
     await TestBed.configureTestingModule({
       imports: [StudentsPage],
       providers: [
+        provideRouter([]),
         // 原本這支 spec **沒有任何 service mock**，於是元件打真的 HTTP ——
         // `whenStable()` 等到 hook timeout 為止（本機那支卡住的 API 讓它每次 10 秒）。
         { provide: StudentsService, useValue: studentsServiceMock },
@@ -326,6 +340,168 @@ describe('StudentsPage', () => {
       await Promise.resolve();
 
       expect(add).toHaveBeenCalledWith(expect.objectContaining({ summary: '無法開啟列印視窗' }));
+    });
+  });
+  /** #1314 SL：依年級分章、名字右邊只用字、篩選面板 */
+  describe('A6 名冊（#1314 SL）', () => {
+    type Row = Record<string, unknown>;
+    const row = (id: string, name: string, grade: string, extra: Row = {}) => ({
+      id,
+      name,
+      grade,
+      isActive: true,
+      campusNames: [],
+      parentNames: [],
+      ...extra,
+    });
+    const respond = (data: Row[], summary: Row = {}, page = 1) => {
+      const subject = pending.at(-1)!.subject;
+      subject.next({
+        data,
+        meta: { total: data.length, page, pageSize: 20, totalPages: 1 },
+        summary: {
+          total: data.length,
+          activeCount: 120,
+          byGrade: [
+            { grade: 'P5', count: 1 },
+            { grade: 'J3', count: 48 },
+          ],
+          today: { any: 3, arrived: 1, not_yet: 1, missing: 1, on_leave: 0 },
+          ...summary,
+        },
+      } as unknown as StudentListResponse);
+      subject.complete();
+      fixture.detectChanges();
+    };
+    const root = () => fixture.nativeElement as HTMLElement;
+    const lastCall = () =>
+      studentsServiceMock.list.mock.calls.at(-1)![0] as Record<string, unknown>;
+
+    it('依年級分章，章名張數讀 byGrade（不是這一頁的列數）', () => {
+      respond([row('a', '王一', 'P5'), row('b', '李二', 'J3'), row('c', '陳三', 'J3')]);
+
+      const chapters = [...root().querySelectorAll('[data-chapter]')];
+      expect(chapters.map((c) => c.getAttribute('data-chapter'))).toEqual(['P5', 'J3']);
+      expect(chapters[1].textContent).toContain('48');
+      expect(chapters[1].querySelectorAll('li').length).toBe(2);
+    });
+
+    it('預設只列在籍（isActive=true）', () => {
+      expect(lastCall()['isActive']).toBe(true);
+    });
+
+    it('名字右邊只用字：到班時間用台北時間、該到沒到是紅字、今天沒課的人沒有字', () => {
+      respond([
+        row('a', '王一', 'J3', {
+          todayStatus: { state: 'arrived', dueAt: null, arrivedAt: '2026-10-10T08:41:00Z' },
+        }),
+        row('b', '李二', 'J3', { todayStatus: { state: 'missing', dueAt: null, arrivedAt: null } }),
+        row('c', '陳三', 'J3', { todayStatus: null }),
+      ]);
+
+      const items = [...root().querySelectorAll('[data-chapter="J3"] li')];
+      expect(items[0].textContent).toContain('16:41 到');
+      expect(items[1].textContent).toContain('該到沒到');
+      expect(items[1].querySelector('.text-error-700')).toBeTruthy();
+      expect(items[2].textContent).not.toMatch(/到|請假/);
+    });
+
+    it('待繳費／暫停／退班是名字旁小標，暫停與退班整格淡化', () => {
+      respond([
+        row('a', '王一', 'J3', { enrollmentState: 'pending_payment' }),
+        row('b', '李二', 'J3', { enrollmentState: 'suspended' }),
+        row('c', '陳三', 'J3', { enrollmentState: 'withdrawal' }),
+      ]);
+
+      const items = [...root().querySelectorAll('[data-chapter="J3"] li')];
+      expect(items[0].textContent).toContain('待繳費');
+      expect(items[0].classList.contains('opacity-70')).toBe(false);
+      expect(items[1].textContent).toContain('暫停');
+      expect(items[1].classList.contains('opacity-70')).toBe(true);
+      expect(items[2].textContent).toContain('退班');
+    });
+
+    it('色面標題：有算今天就寫「今天有 M 位有課」；搜尋中改「符合篩選的 N 位」', () => {
+      respond([row('a', '王一', 'J3')]);
+      const title = () => root().querySelector('app-page-open')!.textContent!.replace(/\s+/g, '');
+      expect(title()).toContain('1位學生，今天有3位有課。');
+
+      type('王');
+      vi.advanceTimersByTime(300);
+      respond([row('a', '王一', 'J3')]);
+      expect(title()).toContain('符合篩選的1位學生。');
+    });
+
+    it('按「該到沒到」帶 today=missing 重查，篩選鈕寫出目前條件', () => {
+      respond([row('a', '王一', 'J3')]);
+      (component as any).onTodayChange('missing');
+      expect(lastCall()['today']).toBe('missing');
+      respond([row('b', '李二', 'J3')]);
+      expect((component as any).filterSummary()).toBe('該到沒到');
+    });
+
+    it('逐堂點名的分校（第一頁 today 回 null）：今天那列灰掉，按了也不送 today', () => {
+      respond([row('a', '王一', 'J3')], { today: null });
+      const calls = studentsServiceMock.list.mock.calls.length;
+
+      (component as any).onTodayChange('missing');
+
+      expect(studentsServiceMock.list.mock.calls.length).toBe(calls);
+      const today = [...root().querySelectorAll('#students-filters button')].filter((b) =>
+        ['今天有課', '已到', '還沒到', '該到沒到', '請假'].some((l) => b.textContent!.includes(l)),
+      ) as HTMLButtonElement[];
+      expect(today.length).toBe(5);
+      expect(today.every((b) => b.disabled)).toBe(true);
+      expect(root().textContent).toContain('逐堂點名');
+    });
+
+    it('翻到第 2 頁 today 回 null 不算「不支援」，也不清掉人數', () => {
+      respond([row('a', '王一', 'J3')]);
+      (component as any).onPage({ page: 1 });
+      respond([row('b', '李二', 'J3')], { today: null }, 2);
+
+      expect((component as any).todayUnsupported()).toBe(false);
+      expect((component as any).todayCounts().any).toBe(3);
+    });
+
+    it('清除篩選：搜尋、年級、今天、狀態一起清，只重查一次，清完同一個字還送得出去', () => {
+      respond([row('a', '王一', 'J3')]);
+      type('王');
+      vi.advanceTimersByTime(300);
+      respond([row('a', '王一', 'J3')]);
+      (component as any).onGradeChange('J3');
+      respond([row('a', '王一', 'J3')]);
+      const calls = studentsServiceMock.list.mock.calls.length;
+
+      (component as any).clearFilters();
+      vi.advanceTimersByTime(500);
+
+      expect(studentsServiceMock.list.mock.calls.length).toBe(calls + 1);
+      expect(lastCall()).toMatchObject({ search: undefined, grade: undefined, isActive: true });
+      respond([row('a', '王一', 'J3')]);
+
+      type('王');
+      vi.advanceTimersByTime(300);
+      expect(lastCall()['search']).toBe('王');
+    });
+
+    it('沒有符合：寫出搜尋字並給清除篩選', () => {
+      type('周');
+      vi.advanceTimersByTime(300);
+      respond([]);
+
+      expect(root().textContent).toContain('沒有符合「周」的學生');
+      expect(
+        [...root().querySelectorAll('button')].some((b) => b.textContent!.includes('清除篩選')),
+      ).toBe(true);
+    });
+
+    it('「⋯」選單：列印本頁到班卡（有權限、有列才出現）', () => {
+      expect((component as any).pageMenuItems()).toEqual([]);
+      respond([row('a', '王一', 'J3')]);
+      expect((component as any).pageMenuItems().map((i: { label: string }) => i.label)).toEqual([
+        '列印本頁到班卡',
+      ]);
     });
   });
 });

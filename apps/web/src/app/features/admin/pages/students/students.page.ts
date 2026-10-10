@@ -9,10 +9,10 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, filter, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
@@ -25,16 +25,9 @@ import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
-
-// Responsive Table
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 
 // Services
 import {
@@ -42,7 +35,8 @@ import {
   Student,
   StudentListResponse,
   GradeLevel,
-  GRADE_LEVELS,
+  StudentTodayFilter,
+  StudentTodayState,
   GRADE_LEVEL_LABELS,
 } from '@core/students.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -58,24 +52,41 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 // Local
 import { StudentFormDialogComponent } from './student-form-dialog.component';
 import { printCheckinCards } from './checkin-cards';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
-import { personHue } from '@shared/utils/person-hue.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
+import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
 
+type StudentStatusFilter = 'active' | 'inactive' | 'all';
+
+const TAIPEI_TIME = new Intl.DateTimeFormat('zh-TW', {
+  timeZone: 'Asia/Taipei',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+const STATUS_TO_IS_ACTIVE: Record<StudentStatusFilter, boolean | undefined> = {
+  active: true,
+  inactive: false,
+  all: undefined,
+};
+
+const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
+
 @Component({
   selector: 'app-students',
   standalone: true,
   imports: [
-    StatusDotComponent,
     PageActionsComponent,
     PageOpenComponent,
-    SelectFieldComponent,
+    ChapterHeadComponent,
+    FilterToggleComponent,
+    RouterLink,
+    PaginatorModule,
     CommonModule,
     FormsModule,
     ButtonModule,
@@ -83,13 +94,11 @@ import {
     TooltipModule,
     SkeletonModule,
     InputTextModule,
+    IconFieldModule,
+    InputIconModule,
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './students.page.html',
@@ -137,33 +146,157 @@ export class StudentsPage implements OnInit {
   readonly loadFailed = signal(false);
   readonly searchQuery = signal('');
   readonly selectedGrade = signal<GradeLevel | null>(null);
-  readonly summary = signal({ total: 0, activeCount: 0 });
+  readonly summary = signal<StudentListResponse['summary']>({
+    total: 0,
+    activeCount: 0,
+    byGrade: [],
+  });
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly statusFilter = signal<boolean | null>(null);
+  /** 預設只列在籍（A6 名冊沒有「停用」；要看停用的人在篩選面板第三列，#1314 SL 裁定） */
+  protected readonly statusFilter = signal<StudentStatusFilter>('active');
+  protected readonly todayFilter = signal<StudentTodayFilter | null>(null);
   protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
-  // Grade options for dropdown
-  protected readonly gradeOptions = [
-    { label: '全部年級', value: null },
-    ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
+  /**
+   * 今日到班各狀態人數。後端只有第一頁（或帶 `today` 時）才算，翻到第 2 頁會回 null ——
+   * 留著上一次算到的，篩選面板與標題才不會翻頁就掉數字。
+   */
+  protected readonly todayCounts = signal<Record<StudentTodayFilter, number> | null>(null);
+  /**
+   * 這個分校是不是逐堂點名（後端回 `today: null` 且是第一頁）。是的話「今天」那列整排灰掉並說明，
+   * 不讓使用者按下去吃 400（`TODAY_UNSUPPORTED_MODE`）。
+   */
+  protected readonly todayUnsupported = signal(false);
+
+  protected readonly todayOptions: { value: StudentTodayFilter | null; label: string }[] = [
+    { value: null, label: '全部' },
+    { value: 'any', label: '今天有課' },
+    { value: 'arrived', label: '已到' },
+    { value: 'not_yet', label: '還沒到' },
+    { value: 'missing', label: '該到沒到' },
+    { value: 'on_leave', label: '請假' },
   ];
 
-  protected readonly statusOptions = [
-    { label: '全部狀態', value: null },
-    { label: '啟用中', value: true },
-    { label: '已停用', value: false },
+  protected readonly statusOptions: { value: StudentStatusFilter; label: string }[] = [
+    { value: 'active', label: '在籍' },
+    { value: 'inactive', label: '已停用' },
+    { value: 'all', label: '全部' },
   ];
+
+  protected readonly gradeLabels = GRADE_LEVEL_LABELS;
 
   // Computed
   readonly activeStudentCount = computed(() => this.summary().activeCount);
-  readonly inactiveStudentCount = computed(() => this.summary().total - this.summary().activeCount);
 
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
-    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-    rows: this.PAGE_SIZE,
-    totalRecords: this.total(),
-  }));
+  /** 頁尾分頁器的起點（`p-paginator` 用「第幾筆」不是「第幾頁」） */
+  protected readonly pageFirst = computed(() =>
+    Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
+  );
+
+  /** 手機的「篩選：全部」面板開合與摘要；桌機也渲染（A6 的篩選鈕） */
+  protected readonly filtersOpen = signal(false);
+  protected readonly filterSummary = computed(() => {
+    const grade = this.selectedGrade();
+    const today = this.todayFilter();
+    const status = this.statusFilter();
+    const parts = [
+      grade ? GRADE_LEVEL_LABELS[grade] : '',
+      today ? this.todayOptions.find((o) => o.value === today)!.label : '',
+      status === 'active' ? '' : status === 'inactive' ? '已停用' : '含停用',
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : '全部';
+  });
+  protected readonly hasFilter = computed(
+    () =>
+      this.selectedGrade() !== null ||
+      this.todayFilter() !== null ||
+      this.statusFilter() !== 'active',
+  );
+  /** 搜尋或任何篩選生效：色面標題改「符合篩選的 N 位」，名冊上方出現「顯示 N 位 · 清除篩選」 */
+  protected readonly narrowed = computed(() => this.searchQuery() !== '' || this.hasFilter());
+
+  /** 年級列各鈕的人數。「全部」＝各章加總（byGrade 不吃 grade，所以選了年級也對） */
+  protected readonly gradeOptions = computed(() => {
+    const byGrade = this.summary().byGrade;
+    return [
+      {
+        value: null as GradeLevel | null,
+        label: '全部',
+        count: byGrade.reduce((n, g) => n + g.count, 0),
+      },
+      ...byGrade
+        .filter((g) => g.count > 0 || g.grade === this.selectedGrade())
+        .map((g) => ({
+          value: g.grade as GradeLevel | null,
+          label: GRADE_LEVEL_LABELS[g.grade],
+          count: g.count,
+        })),
+    ];
+  });
+
+  /**
+   * 這一頁的列依年級切成章。列表由後端先依年級再依姓名排（#1314 SL），同年級一定相鄰；
+   * 翻頁時章可能在頁首接續，章名照寫（同 parents／courses）。
+   */
+  protected readonly chapters = computed(() => {
+    const result: { grade: GradeLevel; rows: Student[] }[] = [];
+    for (const student of this.students()) {
+      const last = result.at(-1);
+      if (last && last.grade === student.grade) last.rows.push(student);
+      else result.push({ grade: student.grade, rows: [student] });
+    }
+    return result;
+  });
+
+  /** 章名旁的人數：`byGrade` 吃搜尋與其他篩選、不吃年級，所以搜尋中也對得上底下的列 */
+  protected chapterTally(grade: GradeLevel): number | null {
+    return this.summary().byGrade.find((g) => g.grade === grade)?.count ?? null;
+  }
+
+  /** 名字右邊只用字（A6）：到班時間、還沒到、該到沒到（紅）、請假；今天沒課的人是 null */
+  protected todayMeta(student: Student): { text: string; missing: boolean } | null {
+    const status = student.todayStatus;
+    if (!status) return null;
+    const text: Record<StudentTodayState, string> = {
+      arrived: status.arrivedAt ? `${taipeiTime(status.arrivedAt)} 到` : '已到',
+      not_yet: '還沒到',
+      missing: '該到沒到',
+      on_leave: '請假',
+    };
+    return { text: text[status.state], missing: status.state === 'missing' };
+  }
+
+  protected readonly flagLabels = {
+    pending_payment: '待繳費',
+    suspended: '暫停',
+    withdrawal: '退班',
+  } as const;
+
+  /** 暫停／退班／停用的人整格淡化（A6 `who--quiet`） */
+  protected isQuiet(student: Student): boolean {
+    return (
+      !student.isActive ||
+      student.enrollmentState === 'suspended' ||
+      student.enrollmentState === 'withdrawal'
+    );
+  }
+
+  /**
+   * 頁面層級的「⋯」（A6 沒畫、現況有的收進這裡，計畫席 10-10 裁定）：列印本頁到班卡。
+   * 邏輯照舊（`printCards`），只是入口從工具列的一顆鈕搬進選單。
+   */
+  protected readonly pageMenuItems = computed<MenuItem[]>(() =>
+    this.canPrintCards && this.students().length > 0
+      ? [
+          {
+            label: '列印本頁到班卡',
+            icon: 'pi pi-qrcode',
+            command: () => this.printCards(this.students()),
+          },
+        ]
+      : [],
+  );
 
   // Action menu
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
@@ -219,7 +352,13 @@ export class StudentsPage implements OnInit {
     // `distinctUntilChanged` 擋的是「同一個字重複送」——例如中文輸入法組字過程中
     // 送出同樣的中間值，或使用者貼上同樣的內容。
     this.searchInput
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      // 去重對照**目前生效的查詢**而不是上一次輸入：「清除篩選」會直接把 `searchQuery` 清掉，
+      // 之後再打同一個字要送得出去（`distinctUntilChanged` 記的是上一次輸入，清除不會更新它）
+      .pipe(
+        debounceTime(300),
+        filter((value) => value !== this.searchQuery()),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe((value) => {
         this.searchQuery.set(value);
         this.currentPage.set(1);
@@ -246,7 +385,8 @@ export class StudentsPage implements OnInit {
               grade: this.selectedGrade() ?? undefined,
               page: this.currentPage(),
               pageSize: this.PAGE_SIZE,
-              isActive: this.statusFilter() ?? undefined,
+              isActive: STATUS_TO_IS_ACTIVE[this.statusFilter()],
+              today: this.todayFilter() ?? undefined,
             })
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
             // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
@@ -255,6 +395,13 @@ export class StudentsPage implements OnInit {
             // 由 spec 的「一次請求失敗之後…」那條釘住（#689）。
             .pipe(
               catchError((err) => {
+                // 逐堂點名的分校不支援「今天」篩選：退回不篩、重查，不讓整頁變成載入失敗
+                if (err?.error?.code === 'TODAY_UNSUPPORTED_MODE') {
+                  this.todayUnsupported.set(true);
+                  this.todayFilter.set(null);
+                  this.loadStudents();
+                  return EMPTY;
+                }
                 console.error('Failed to load students', err);
                 // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments 的正例）。
                 // 一則會消失的 toast 加上一個留著的錯誤畫面，兩個訊號互相矛盾（#788）。
@@ -271,6 +418,9 @@ export class StudentsPage implements OnInit {
         this.students.set(res.data);
         this.total.set(res.meta.total);
         this.summary.set(res.summary);
+        if (res.summary.today) this.todayCounts.set(res.summary.today);
+        // 只有第一頁才分得出「沒算」與「這個分校不支援」；翻頁（today 回 null）不改判
+        if (res.meta.page === 1) this.todayUnsupported.set(!res.summary.today);
         this.loading.set(false);
       });
   }
@@ -285,24 +435,32 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
-  protected onStatusFilterChange(value: boolean | null): void {
+  protected onTodayChange(value: StudentTodayFilter | null): void {
+    if (this.todayUnsupported()) return;
+    this.todayFilter.set(value);
+    this.currentPage.set(1);
+    this.loadStudents();
+  }
+
+  protected onStatusFilterChange(value: StudentStatusFilter): void {
     this.statusFilter.set(value);
     this.currentPage.set(1);
     this.loadStudents();
   }
 
-  protected onPage(event: ResponsiveTablePageEvent): void {
-    this.currentPage.set(event.page + 1);
+  /** 搜尋與所有篩選一起清（只清篩選、搜尋還在，使用者會以為沒清乾淨） */
+  protected clearFilters(): void {
+    this.searchQuery.set('');
+    this.selectedGrade.set(null);
+    this.todayFilter.set(null);
+    this.statusFilter.set('active');
+    this.currentPage.set(1);
     this.loadStudents();
   }
 
-  protected getGradeLabel(grade: GradeLevel): string {
-    return GRADE_LEVEL_LABELS[grade] ?? grade;
-  }
-
-  /** 見 `personHue` —— 契約是「同一個人到哪一頁都同色」，所以只能有一份實作 */
-  protected getPersonHue(id: string): number {
-    return personHue(id);
+  protected onPage(event: PaginatorState): void {
+    this.currentPage.set((event.page ?? 0) + 1);
+    this.loadStudents();
   }
 
   protected navigateToDetail(student: Student): void {
