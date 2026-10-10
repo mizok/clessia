@@ -159,8 +159,11 @@ const BRANCHES: Record<string, string[]> = {
     'search=INV-',
     'outstanding=true',
     'issuedMonth=' + TODAY.slice(0, 7),
+    'campusId={campus}',
   ],
-  '/api/invoices/summary': [],
+  // 分校篩選（#1314 DB-campus）：BRANCHES 也過 fill()，{campus} 換成 seed 的一間
+  '/api/invoices/summary': ['campusId={campus}'],
+  '/api/billing-periods/upcoming-unbilled': ['campusId={campus}'],
   // 管理端請假頁（#1314 LV1）：待處理＝endFrom 今天、依開始日排序
   '/api/leaves': ['endFrom=' + TODAY + '&order=start_asc', 'order=start_desc'],
   // 報名進出（#1507）：事件條件是 `and(…)` 包在 `.or()` 裡、退班截到今天 —— 替身驗不了 PostgREST 的解析
@@ -328,7 +331,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       base.push(`${name}=${encodeURIComponent(fill(value))}`);
     }
     if (ALWAYS[template]) base.push(fill(ALWAYS[template]));
-    return [[], ...(BRANCHES[template] ?? []).map((b) => [b])].map((extra) => {
+    return [[], ...(BRANCHES[template] ?? []).map((b) => [fill(b)])].map((extra) => {
       const qs = [...base, ...extra].join('&');
       return qs ? `${path}?${qs}` : path;
     });

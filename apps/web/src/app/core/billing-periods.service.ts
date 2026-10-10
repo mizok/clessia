@@ -58,8 +58,13 @@ export class BillingPeriodsService {
     return this.http.get<{ data: BillingPeriodListItem[] }>(this.endpoint);
   }
 
-  upcomingUnbilled(): Observable<{ data: UpcomingUnbilledPeriod[] }> {
-    return this.http.get<{ data: UpcomingUnbilledPeriod[] }>(`${this.endpoint}/upcoming-unbilled`);
+  /** `campusId`：只看這間分校（後端跟受限範圍取交集，#1314 DB-campus） */
+  upcomingUnbilled(params?: { campusId?: string }): Observable<{ data: UpcomingUnbilledPeriod[] }> {
+    const query: Record<string, string> = {};
+    if (params?.campusId) query['campusId'] = params.campusId;
+    return this.http.get<{ data: UpcomingUnbilledPeriod[] }>(`${this.endpoint}/upcoming-unbilled`, {
+      params: query,
+    });
   }
 
   create(input: CreateBillingPeriodInput): Observable<{ data: BillingPeriod }> {

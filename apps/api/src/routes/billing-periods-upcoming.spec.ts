@@ -264,3 +264,30 @@ describe('upcoming-unbilled 的分校範圍', () => {
     expect(await counts([])).toEqual([0]);
   });
 });
+
+describe('upcoming-unbilled 的 campusId（#1314 DB-campus）', () => {
+  const UA = '00000000-0000-0000-0000-0000000000ca';
+  const UB = '00000000-0000-0000-0000-0000000000cb';
+  const tables = {
+    billing_periods: [period('p1', '2026-10-15', '2027-01-31')],
+    enrollments: [
+      enrollment({ classes: { campus_id: UA } }),
+      enrollment({ classes: { campus_id: UA } }),
+      enrollment({ classes: { campus_id: UB } }),
+    ],
+    invoice_items: [],
+  };
+  const pending = async (query: string, campusScope: string[] | null) =>
+    (
+      await get(tables, { path: `/api/billing-periods/upcoming-unbilled${query}`, campusScope })
+    ).body.data.map((d) => d['pendingEnrollmentCount']);
+
+  it('不受限選 A：只數 A；不帶照舊全部', async () => {
+    expect(await pending(`?campusId=${UA}`, null)).toEqual([2]);
+    expect(await pending('', null)).toEqual([3]);
+  });
+
+  it('受限 A 指定 B：交集是空的', async () => {
+    expect(await pending(`?campusId=${UB}`, [UA])).toEqual([]);
+  });
+});
