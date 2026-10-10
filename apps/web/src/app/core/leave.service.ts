@@ -30,6 +30,10 @@ export interface LeaveQueryParams {
   dateFrom?: string;
   dateTo?: string;
   coverDate?: string;
+  /** 還沒結束的假（`end_date >= endFrom`）。管理端「待處理」＝台北今天（#1314 LV1） */
+  endFrom?: string;
+  /** 預設最近建立的在前；`start_asc`／`start_desc` 依開始日 */
+  order?: 'created_desc' | 'start_asc' | 'start_desc';
   page?: number;
   pageSize?: number;
 }
@@ -65,6 +69,8 @@ export class LeaveService {
     if (params.dateFrom) httpParams = httpParams.set('dateFrom', params.dateFrom);
     if (params.dateTo) httpParams = httpParams.set('dateTo', params.dateTo);
     if (params.coverDate) httpParams = httpParams.set('coverDate', params.coverDate);
+    if (params.endFrom) httpParams = httpParams.set('endFrom', params.endFrom);
+    if (params.order) httpParams = httpParams.set('order', params.order);
     if (params.page) httpParams = httpParams.set('page', params.page);
     if (params.pageSize) httpParams = httpParams.set('pageSize', params.pageSize);
     return this.http.get<LeaveListResponse>(this.baseUrl, { params: httpParams });

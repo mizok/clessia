@@ -3,7 +3,7 @@ title: 請假管理
 summary: 建立和查詢請假紀錄。請假只能由管理員建立，支援事後補請。
 category: spec
 status: active
-updated: 2026-10-02
+updated: 2026-10-10
 tags: [specs, admin, student-affairs, leave]
 ---
 
@@ -74,6 +74,14 @@ tags: [specs, admin, student-affairs, leave]
 - 選擇一個課堂 → 勾選多個學生 → 批次建立請假
 - 適用場景：全班校外教學、颱風停課補假等
 - 批次建立後同樣觸發每位學生對應課堂出勤改為 `leave`
+
+## 管理端頁面 A6 版（#1314 LV，2026-10-10）
+
+- **兩分頁**：「待處理」（預設，`end_date >= 台北今天`）與「全部」；各自帶張數。`GET /leaves` 為此加了兩個可選 query：`endFrom`（`end_date >= `）與 `order`（`created_desc` 預設｜`start_asc`｜`start_desc`，依開始日時再以建立時間、id 收斂）。
+- **分章**：待處理依「今天／明天／之後的日期」，**進行中的跨日假歸今天**；全部依開始日由新到舊。章在翻頁時可能從頁首接續。
+- **補請**不是欄位：建立日（台北）晚於 `startDate` 就標「補請」。
+- **取消請假**的確認文案照 [[rules/attendance-rules]] §6–7：未來假＝不影響任何出缺席；已結束／進行中＝還沒點名的日子回到「還沒點名」、**已點過名的日子不會動**（舊文案寫「同步恢復出勤狀態」，與 API 不符，已改）。
+- **後續項（缺 API／資料，未做）**：批次請假（`POST /leaves/batch`）、課程／開課班篩選（list 加 `classId`）、列內課堂清單（列帶 `sessions[]`）、年級、取消前的影響筆數預覽（`GET /leaves/:id/impact`）。
 
 ## 資料依賴
 

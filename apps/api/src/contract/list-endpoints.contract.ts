@@ -161,6 +161,8 @@ const BRANCHES: Record<string, string[]> = {
     'issuedMonth=' + TODAY.slice(0, 7),
   ],
   '/api/invoices/summary': [],
+  // 管理端請假頁（#1314 LV1）：待處理＝endFrom 今天、依開始日排序
+  '/api/leaves': ['endFrom=' + TODAY + '&order=start_asc', 'order=start_desc'],
 };
 
 /**
