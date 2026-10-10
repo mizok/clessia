@@ -324,6 +324,17 @@ export class SessionsService {
     }>(`${this.endpoint}/changes`, { params: query });
   }
 
+  /**
+   * 老師自己的課務異動（#1488）。範圍由後端依本人身分決定，不傳 teacherId；
+   * 掛在 `/api/teacher`，不是 `/api/sessions`（那邊是 ADMIN_ONLY）。
+   */
+  listMyChanges(from: string, to: string): Observable<{ data: ChangeLogEntry[] }> {
+    return this.http.get<{ data: ChangeLogEntry[] }>(
+      `${environment.apiUrl}/api/teacher/session-changes`,
+      { params: { from, to } },
+    );
+  }
+
   getChanges(sessionId: string): Observable<{ data: SessionHistoryEntry[] }> {
     return this.http.get<{ data: SessionHistoryEntry[] }>(`${this.endpoint}/${sessionId}/changes`);
   }

@@ -1,4 +1,5 @@
 import type { EventSessionSummary } from '@core/attendance.service';
+import type { ChangeLogEntry, ScheduleChangeType } from '@core/sessions.service';
 import type { StatusTone } from '@shared/components/status/status-dot/status-dot.component';
 import { hasSessionEnded, hasSessionStarted } from '@shared/utils/session-time.util';
 
@@ -221,4 +222,44 @@ export function openerLine(todaySessions: readonly EventSessionSummary[], now: D
     return `${next.className} 上課中，還有 ${minutesUntil(next.eventDate, next.endTime, now)} 分下課。`;
   }
   return `下一堂 ${next.startTime} ${next.className}，還有 ${minutesUntil(next.eventDate, next.startTime, now)} 分。`;
+}
+
+const CHANGE_LABELS: Record<ScheduleChangeType, string> = {
+  cancellation: '停課',
+  uncancel: '恢復',
+  substitute: '代課',
+  reschedule: '調課',
+  time_change: '改時間',
+  makeup: '補課',
+  creation: '加開',
+};
+
+export interface ChangeItem {
+  readonly id: string;
+  readonly label: string;
+  /** 跳轉目標（`yyyy-MM-dd`） */
+  readonly date: string;
+  /** 「M/d 班名 · 摘要」；摘要只是類型本身（「停課」）時不重複 */
+  readonly text: string;
+}
+
+/**
+ * 「這週你的課務異動」的列。沒有課堂日期的列沒地方可跳，丟掉；
+ * 依課堂日期排（API 是 created_at 倒序，那是 log 的順序，這裡要的是「哪天有事」）。
+ */
+export function changeItems(entries: readonly ChangeLogEntry[]): ChangeItem[] {
+  return entries
+    .filter((e): e is ChangeLogEntry & { sessionDate: string } => e.sessionDate !== null)
+    .map((e) => {
+      const label = CHANGE_LABELS[e.changeType] ?? '異動';
+      const [, m, d] = e.sessionDate.split('-').map(Number);
+      const detail = e.summary === label ? '' : ` · ${e.summary}`;
+      return {
+        id: e.id,
+        label,
+        date: e.sessionDate,
+        text: `${m}/${d} ${e.className ?? ''}${detail}`.replace('  ', ' '),
+      };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
 }

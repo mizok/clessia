@@ -318,5 +318,39 @@
         }
       </div>
     </section>
+
+    <!-- A6「這週你的課務異動」：點一則跳到那天。範圍由後端依本人決定（#1488） -->
+    @if (changesFailed()) {
+      <p class="m-0 text-center text-warning-600">課務異動暫時讀不到。</p>
+    } @else if (changes().length > 0) {
+      <details class="schedule-page__changes group mt-6 rounded-xl bg-zinc-50 p-4 wide:p-5">
+        <summary
+          class="flex min-h-11 cursor-pointer list-none items-center gap-2 text-[0.95rem] font-semibold text-zinc-900 [&::-webkit-details-marker]:hidden"
+        >
+          這週你的課務異動
+          <span class="ml-auto text-[0.8rem] font-medium text-zinc-500 tabular-nums"
+            >{{ changes().length }} 則</span
+          >
+          <i
+            class="pi pi-chevron-down text-[0.7rem] text-zinc-500 transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          ></i>
+        </summary>
+        <ul class="m-0 mt-2 flex list-none flex-col p-0">
+          @for (item of changes(); track item.id) {
+            <li>
+              <button
+                type="button"
+                class="schedule-page__change flex min-h-11 w-full cursor-pointer items-baseline gap-3 border-0 bg-transparent px-0 py-2 text-left hover:bg-zinc-50"
+                (click)="selectDay(item.date)"
+              >
+                <b class="shrink-0 text-[0.85rem] text-zinc-900">{{ item.label }}</b>
+                <span class="text-[0.85rem] text-zinc-600">{{ item.text }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </details>
+    }
   }
 </div>
