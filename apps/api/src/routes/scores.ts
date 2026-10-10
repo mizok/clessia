@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import { getCampusScope, type CampusScope } from '../lib/campus-scope';
@@ -34,6 +35,16 @@ const ScoreRecordSchema = z
     score: z.number().nullable(),
     totalScore: z.number().nullable(),
     status: ScoreStatusSchema,
+    examId: z.string(),
+    /**
+     * 這場（校內考）所有 `scored` 成績的平均，1 位小數（#1314 G10）。母體＝整場考試的應考者，
+     * 不依分校縮（只露平均與名次、不露個人；計畫席 10-10 記可否決）。段考、或他自己沒分數 → null
+     */
+    classAvg: z.number().nullable(),
+    /** 名次：1＋分數高於他的人數（同分同名次） */
+    rank: z.number().int().nullable(),
+    /** 這場 scored 的人數 */
+    classSize: z.number().int().nullable(),
   })
   .openapi('ScoreRecord');
 
@@ -71,6 +82,19 @@ const StudentSummaryResponseSchema = z
       studentId: DbUuidSchema,
       studentName: z.string(),
       subjects: z.array(StudentSubjectSummarySchema),
+      /** 最近一場有分數的校內考，帶班平均與名次（#1314 SD4）。沒有 → null */
+      latestAcademy: z
+        .object({
+          examId: z.string(),
+          examName: z.string(),
+          examDate: z.string(),
+          score: z.number(),
+          totalScore: z.number().nullable(),
+          classAvg: z.number().nullable(),
+          rank: z.number().int().nullable(),
+          classSize: z.number().int().nullable(),
+        })
+        .nullable(),
     }),
   })
   .openapi('StudentSummaryResponse');
@@ -137,6 +161,7 @@ interface SchoolScoreRow {
 
 interface ScoreRecord {
   id: string;
+  examId: string;
   type: 'academy' | 'school';
   examName: string;
   examDate: string;
@@ -233,6 +258,50 @@ async function readableStudentIds(
 }
 
 /** PostgREST 的 max_rows（1000）會靜默截斷 —— 範圍解析用的清單要分頁撈齊，少一頁就少一批學生 */
+/**
+ * 校內考每場的 `scored` 成績（#1314 G10）—— 算班平均與名次用。只查指定的幾場（列表本頁／摘要最近一場），
+ * 分頁撈齊（一場上千人才會用到第二頁）。
+ */
+async function academyExamScores(
+  supabase: SupabaseClient,
+  orgId: string,
+  examIds: string[],
+): Promise<Map<string, number[]>> {
+  const byExam = new Map<string, number[]>();
+  if (examIds.length === 0) return byExam;
+  const rows = await fetchAllRows<{ exam_id: string; score: number | null }>((from, to) =>
+    supabase
+      .from('academy_scores')
+      .select('exam_id, score, academy_exams!inner(org_id)')
+      .in('exam_id', examIds)
+      .eq('status', 'scored')
+      .eq('academy_exams.org_id', orgId)
+      .order('id')
+      .range(from, to),
+  );
+  for (const row of rows) {
+    if (row.score === null) continue;
+    byExam.set(row.exam_id, [...(byExam.get(row.exam_id) ?? []), Number(row.score)]);
+  }
+  return byExam;
+}
+
+const NO_STANDING = { classAvg: null, rank: null, classSize: null };
+
+/** 他在這場的位置：平均（1 位小數）、名次（1＋分數比他高的人數）、人數。他沒分數 → 全 null */
+export function examStanding(
+  scores: readonly number[] | undefined,
+  mine: number | null,
+): { classAvg: number | null; rank: number | null; classSize: number | null } {
+  if (!scores || scores.length === 0 || mine === null) return NO_STANDING;
+  const avg = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+  return {
+    classAvg: Math.round(avg * 10) / 10,
+    rank: 1 + scores.filter((s) => s > Number(mine)).length,
+    classSize: scores.length,
+  };
+}
+
 async function fetchAllRows<T>(
   page: (
     from: number,
@@ -652,9 +721,20 @@ app.openapi(listRoute, async (c) => {
     const total = inRange.length;
     const paginated = inRange.slice(offset, offset + pageSize);
 
+    // 班平均與名次（#1314 G10）：分頁切完才查，只查本頁出現的校內考
+    const scoresByExam = await academyExamScores(supabase, orgId, [
+      ...new Set(paginated.filter((r) => r.type === 'academy').map((r) => r.examId)),
+    ]);
+    const withStanding = paginated.map((record) => ({
+      ...record,
+      ...(record.type === 'academy' && record.status === 'scored'
+        ? examStanding(scoresByExam.get(record.examId), record.score)
+        : NO_STANDING),
+    }));
+
     return c.json(
       {
-        data: paginated,
+        data: withStanding,
         meta: {
           total,
           page,
@@ -976,7 +1056,7 @@ app.openapi(studentSummaryRoute, async (c) => {
     supabase
       .from('academy_scores')
       .select(
-        'score, status, academy_exams!inner(subject_id, org_id, exam_date, total_score, subjects(name))',
+        'score, status, exam_id, academy_exams!inner(subject_id, org_id, exam_date, total_score, name, subjects(name))',
       )
       .eq('student_id', studentId)
       .eq('academy_exams.org_id', orgId),
@@ -1113,12 +1193,32 @@ app.openapi(studentSummaryRoute, async (c) => {
     })
     .sort((a, b) => a.subjectName.localeCompare(b.subjectName, 'zh-Hant'));
 
+  // 最近一場有分數的校內考（#1314 SD4「最近 82 分（班平均 76）」）
+  const latestRow = ((academyResult.data ?? []) as any[])
+    .filter((row) => row.status === 'scored' && row.score !== null)
+    .sort((a, b) =>
+      (b.academy_exams.exam_date ?? '').localeCompare(a.academy_exams.exam_date ?? ''),
+    )[0];
+  let latestAcademy = null;
+  if (latestRow) {
+    const scoresByExam = await academyExamScores(supabase, orgId, [latestRow.exam_id]);
+    latestAcademy = {
+      examId: latestRow.exam_id as string,
+      examName: latestRow.academy_exams.name as string,
+      examDate: latestRow.academy_exams.exam_date as string,
+      score: Number(latestRow.score),
+      totalScore: (latestRow.academy_exams.total_score as number | null) ?? null,
+      ...examStanding(scoresByExam.get(latestRow.exam_id), Number(latestRow.score)),
+    };
+  }
+
   return c.json(
     {
       data: {
         studentId: student.id,
         studentName: student.name,
         subjects,
+        latestAcademy,
       },
     },
     200,
