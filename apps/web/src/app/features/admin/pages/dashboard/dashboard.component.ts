@@ -677,7 +677,8 @@ export class DashboardComponent {
     // ③ 現況欄：背景脈絡，最後填也不影響使用者在做的事
     this.loadTodayLeaves();
 
-    failSoft(this.studentsService.list({ pageSize: 1 }))
+    // 只要 summary.activeCount：名冊的「今日到班」只在第一頁才算（多 4～5 支查詢），這裡不需要
+    failSoft(this.studentsService.list({ pageSize: 1, withToday: false }))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((res) =>
         this.activeStudents.set(res === FAILED ? FAILED : res.summary.activeCount),

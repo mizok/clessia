@@ -42,6 +42,7 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
 // Shared
+import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -65,6 +66,7 @@ import {
   selector: 'app-parents',
   standalone: true,
   imports: [
+    FilterToggleComponent,
     PageActionsComponent,
     PageOpenComponent,
     RouterLink,
@@ -150,6 +152,13 @@ export class ParentsPage implements OnInit {
     { label: PARENT_STATUS_LABELS.inactive, value: 'inactive' as ParentStatus },
     { label: PARENT_STATUS_LABELS.archived, value: 'archived' as ParentStatus },
   ];
+
+  /** 手機的「篩選：全部」面板開合與摘要（#1314 ③）：搜尋框之外只有狀態一項 */
+  protected readonly filtersOpen = signal(false);
+  protected readonly filterSummary = computed(() => {
+    const status = this.selectedStatus();
+    return status === null ? '全部' : PARENT_STATUS_LABELS[status];
+  });
 
   protected readonly activeCount = computed(() => this.summary().activeCount);
   protected readonly inactiveCount = computed(() => this.summary().inactiveCount);

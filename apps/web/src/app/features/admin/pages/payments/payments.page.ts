@@ -29,6 +29,7 @@ import {
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
+import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -100,6 +101,7 @@ const emptyChapter = (): ChapterState => ({
   standalone: true,
   imports: [
     ChapterHeadComponent,
+    FilterToggleComponent,
     StatusDotComponent,
     DecimalPipe,
     FormsModule,
@@ -236,6 +238,17 @@ export class PaymentsPage implements OnInit {
     rows: PAGE_SIZE,
     totalRecords: this.totalRecords(),
   }));
+
+  /** 手機的「篩選：全部」面板開合與摘要（#1314 ③）：學生搜尋框之外是狀態與催繳兩項 */
+  protected readonly filtersOpen = signal(false);
+  protected readonly panelFilterSummary = computed(() => {
+    const parts: string[] = [];
+    const due = this.dueFilterOptions.find((o) => o.value === this.dueFilter());
+    if (this.dueFilter() !== 'all' && due) parts.push(due.label);
+    const status = this.statusFilter();
+    if (status !== null) parts.push(INVOICE_STATUS_LABELS[status]);
+    return parts.length > 0 ? parts.join('、') : '全部';
+  });
 
   protected readonly hasFilters = computed(
     () =>

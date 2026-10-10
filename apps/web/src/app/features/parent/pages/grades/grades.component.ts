@@ -24,7 +24,7 @@ import { isFailingScore } from '@shared/utils/score-threshold.util';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import { format } from 'date-fns';
@@ -57,7 +57,7 @@ const PAGE_SIZE = 100;
     FormsModule,
     NgTemplateOutlet,
     SelectModule,
-    PageBandComponent,
+    PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
     BandAnchorComponent,

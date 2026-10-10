@@ -29,7 +29,7 @@ import { AttendanceService, type EventSessionSummary } from '@core/attendance.se
 import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
@@ -74,7 +74,7 @@ function defaultDay(weekStart: Date, todayStr: string): string {
     DatePipe,
     ButtonModule,
     DynamicDialogModule,
-    PageBandComponent,
+    PageOpenComponent,
     BandAnchorComponent,
     StatusDotComponent,
     DataChipComponent,
