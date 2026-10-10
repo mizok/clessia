@@ -1,10 +1,11 @@
 import { provideRouter } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AcademyExamsService, type AcademyExamDetail } from '@core/academy-exams.service';
+import { StudentsService, type Student } from '@core/students.service';
 import { AcademyScoreEditorComponent } from './academy-score-editor.component';
 
 describe('AcademyScoreEditorComponent', () => {
@@ -64,6 +65,7 @@ describe('AcademyScoreEditorComponent', () => {
   };
 
   const messageServiceMock = { add: vi.fn() };
+  const studentsServiceMock = { list: vi.fn((..._a: unknown[]) => of({ data: [] as Student[] })) };
 
   beforeEach(async () => {
     academyExamsServiceMock.getScores.mockClear();
@@ -75,6 +77,7 @@ describe('AcademyScoreEditorComponent', () => {
       providers: [
         { provide: AcademyExamsService, useValue: academyExamsServiceMock },
         { provide: MessageService, useValue: messageServiceMock },
+        { provide: StudentsService, useValue: studentsServiceMock },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -411,6 +414,71 @@ describe('AcademyScoreEditorComponent', () => {
       fixture.componentRef.setInput('disabled', true);
       fixture.detectChanges();
       expect(host.querySelector('[data-part="mark-absent"]')).toBeNull();
+    });
+  });
+
+  // #1314 G4
+  describe('加入其他學生', () => {
+    const outsider = { id: 'stu-9', name: '陳插班', grade: 'J2' } as unknown as Student;
+
+    it('選到學生：加一列、不算未存變更；輸入分數後才 dirty，存檔送出該生', () => {
+      component['onStudentPicked'](outsider);
+      const rows = component['rows']();
+      expect(rows).toHaveLength(3);
+      expect(rows[2]).toMatchObject({ studentId: 'stu-9', studentName: '陳插班', score: null });
+      expect(component['dirtyCount']()).toBe(0);
+
+      component['onScoreChange'](rows[2], 77);
+      component.save();
+      expect(academyExamsServiceMock.saveScores).toHaveBeenCalledWith('exam-1', [
+        { studentId: 'stu-9', score: 77, status: 'scored', notes: null },
+      ]);
+    });
+
+    it('已在名單裡的人不重複加；打字中的字串不算選定', () => {
+      component['onStudentPicked']({ ...outsider, id: 'stu-1' } as Student);
+      component['onStudentPicked']('陳');
+      expect(component['rows']()).toHaveLength(2);
+    });
+
+    it('加入時清掉班級篩選，否則沒有 classIds 的班外學生會被篩掉看不到', () => {
+      component['classFilter'].set('cls-1');
+      component['onStudentPicked'](outsider);
+      expect(component['classFilter']()).toBeNull();
+      expect(component['filteredRows']().some((r) => r.studentId === 'stu-9')).toBe(true);
+    });
+
+    it('班外學生的列標「加入」，原名單的人沒有', () => {
+      component['onStudentPicked'](outsider);
+      fixture.detectChanges();
+      const tags = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-part="added-tag"]'),
+      ];
+      expect(tags.length).toBeGreaterThan(0);
+      expect(component['rows']().map((r) => !!r.added)).toEqual([false, false, true]);
+    });
+
+    it('連打查詢時舊查詢慢回來不會蓋掉新結果（switchMap）', () => {
+      const slow = new Subject<{ data: Student[] }>();
+      const fast = new Subject<{ data: Student[] }>();
+      studentsServiceMock.list
+        .mockReturnValueOnce(slow as never)
+        .mockReturnValueOnce(fast as never);
+      component['onStudentQuery']('陳');
+      component['onStudentQuery']('陳插');
+      fast.next({ data: [outsider] });
+      slow.next({ data: [{ ...outsider, id: 'old', name: '舊結果' } as Student] });
+      expect(component['studentSuggestions']().map((x) => x.name)).toEqual(['陳插班']);
+    });
+
+    it('按鈕開關面板；已結束的考試不出鈕', () => {
+      const host = fixture.nativeElement as HTMLElement;
+      host.querySelector<HTMLButtonElement>('[data-part="add-student"]')!.click();
+      fixture.detectChanges();
+      expect(host.querySelector('[data-part="add-student-panel"]')).not.toBeNull();
+      fixture.componentRef.setInput('disabled', true);
+      fixture.detectChanges();
+      expect(host.querySelector('[data-part="add-student"]')).toBeNull();
     });
   });
 });
