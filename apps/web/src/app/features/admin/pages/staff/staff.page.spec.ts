@@ -17,6 +17,7 @@ import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/l
 import { StaffPage } from './staff.page';
 import { KioskFormDialogComponent } from './kiosk-form-dialog/kiosk-form-dialog.component';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
+import { PermissionListDialogComponent } from './permission-list-dialog/permission-list-dialog.component';
 
 describe('StaffPage', () => {
   let component: StaffPage;
@@ -191,12 +192,16 @@ describe('StaffPage', () => {
 
     const chapterHeads = () =>
       Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll('th[scope="colgroup"]'),
+        (fixture.nativeElement as HTMLElement).querySelectorAll('[data-chapter] app-chapter-head'),
       ).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim());
 
     afterEach(() => staffServiceMock.list.mockReturnValue(of(buildStaffResponse())));
 
     it('四桶互斥：兼任歸管理員章、停用與封存同一章；章名張數讀 byRole', () => {
+      // 預設狀態（啟用中＋已停用）不含封存；要看封存要選「全部」
+      (
+        component as unknown as { staffStatusFilter: { set: (v: string) => void } }
+      ).staffStatusFilter.set('all');
       show(
         [
           person('a', { roles: ['admin'] }),
@@ -210,10 +215,11 @@ describe('StaffPage', () => {
     });
 
     it('沒有人的章不顯示（kiosk 章只在有機台時出現）；沒有封存叫「已停用」', () => {
-      show([person('t', {}), person('off', { status: 'inactive' })], {
-        teacher: 1,
-        inactiveOrArchived: 1,
-      });
+      show(
+        [person('t', {}), person('off', { status: 'inactive' })],
+        { teacher: 1, inactiveOrArchived: 1 },
+        { inactiveCount: 1 },
+      );
       expect(chapterHeads()).toEqual(['老師 1 位', '已停用 1 位']);
 
       show([person('k', { roles: ['kiosk'] })], { kiosk: 1 });
@@ -350,9 +356,12 @@ describe('StaffPage', () => {
       dialogServiceMock.open.mockReturnValueOnce({
         onClose: of({ data: kiosk, loginUrl: 'https://x/link' }),
       } as never);
+      // A6 沒畫「新增掃碼機台」：收進頁面的「⋯」選單
       (
-        fixture.nativeElement.querySelector('[data-testid="staff-add-kiosk"] button') as HTMLElement
-      ).click();
+        component as unknown as { pageMenuItems: { label: string; command: () => void }[] }
+      ).pageMenuItems
+        .find((i) => i.label === '新增掃碼機台')!
+        .command();
 
       expect((dialogServiceMock.open.mock.calls as unknown as unknown[][])[0]?.[0]).toBe(
         KioskFormDialogComponent,
@@ -556,5 +565,156 @@ describe('StaffPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('載入失敗');
     expect(text).not.toContain('尚未建立人員');
+  });
+  describe('A6 人員列（#1314 ST）', () => {
+    const person = (id: string, over: Partial<Staff>): Staff => ({
+      id,
+      userId: `u-${id}`,
+      orgId: 'org-1',
+      displayName: id,
+      phone: '0912-345-678',
+      email: `${id}@example.com`,
+      birthday: null,
+      notes: null,
+      subjectIds: [],
+      subjectNames: ['數學'],
+      status: 'active',
+      createdAt: '2026-03-11T00:00:00.000Z',
+      updatedAt: '2026-03-11T00:00:00.000Z',
+      campusIds: [],
+      roles: ['teacher'],
+      permissions: [],
+      ...over,
+    });
+    const lastList = () =>
+      (staffServiceMock.list.mock.calls as unknown as Array<[Record<string, unknown>]>).at(-1)![0];
+    const root = () => fixture.nativeElement as HTMLElement;
+    const text = () => root().textContent!.replace(/\s+/g, ' ');
+    const respond = (staff: Staff[], summary: Record<string, unknown> = {}) => {
+      staffServiceMock.list.mockReturnValue(
+        of(
+          buildStaffResponse({
+            data: staff,
+            summary: {
+              total: staff.length,
+              adminCount: 1,
+              teacherCount: 1,
+              multiRoleCount: 0,
+              activeCount: staff.filter((s) => s.status === 'active').length,
+              inactiveCount: 0,
+              archivedCount: 0,
+              byRole: { admin: 1, teacher: 1, kiosk: 0, inactiveOrArchived: 0 },
+              ...summary,
+            } as never,
+          }),
+        ),
+      );
+      (component as unknown as { loadStaff: () => void }).loadStaff();
+      fixture.detectChanges();
+    };
+    afterEach(() => staffServiceMock.list.mockReturnValue(of(buildStaffResponse())));
+
+    it('色面數字句：N 位人員（不含封存），M 位啟用中', () => {
+      respond([person('a', { roles: ['admin'] }), person('t', {})], {
+        total: 5,
+        archivedCount: 2,
+        activeCount: 2,
+      });
+      const title = root().querySelector('app-page-open')!.textContent!.replace(/\s+/g, '');
+      expect(title).toContain('3位人員，2位啟用中。');
+    });
+
+    it('預設不含封存：封存的人不在列上，停用章張數讀 inactiveCount（不是 byRole 那桶）', () => {
+      respond(
+        [
+          person('t', {}),
+          person('off', { status: 'inactive' }),
+          person('gone', { status: 'archived' }),
+        ],
+        {
+          inactiveCount: 1,
+          archivedCount: 1,
+          byRole: { admin: 0, teacher: 1, kiosk: 0, inactiveOrArchived: 2 },
+        },
+      );
+      expect(root().querySelector('[data-staff="gone"]')).toBeNull();
+      expect(root().querySelector('[data-chapter="inactive"]')!.textContent).toContain('1');
+      expect(root().querySelector('[data-chapter="inactive"]')!.textContent).not.toContain('2 位');
+    });
+
+    it('明確選「已停用」時章名數列，不讀不吃狀態篩選的 byRole', () => {
+      (component as any).staffStatusFilter.set('inactive');
+      respond([person('off', { status: 'inactive' })], {
+        inactiveCount: 1,
+        byRole: { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 2 },
+      });
+      expect(root().querySelector('[data-chapter="inactive"]')!.textContent).toContain('1 位');
+      expect(root().querySelector('[data-chapter="inactive"]')!.textContent).not.toContain('2 位');
+    });
+
+    it('選「全部（含已封存）」不帶 status 且封存的人出現；選「已封存」帶 status=archived', () => {
+      respond([person('t', {})]);
+      (component as any).onStaffStatusFilterChange('all');
+      expect(lastList()['status']).toBeUndefined();
+      (component as any).onStaffStatusFilterChange('archived');
+      expect(lastList()['status']).toBe('archived');
+    });
+
+    it('管理員列有「權限 N 項」，老師沒有；點下去開唯讀清單，只列他有的權限', () => {
+      respond([
+        person('boss', { roles: ['admin'], permissions: ['manage_courses', 'view_reports'] }),
+        person('t', {}),
+      ]);
+      expect(root().querySelector('[data-testid="permission-count-boss"]')!.textContent).toContain(
+        '權限 2 項',
+      );
+      expect(root().querySelector('[data-testid="permission-count-t"]')).toBeNull();
+
+      (root().querySelector('[data-testid="permission-count-boss"]') as HTMLElement).click();
+      const [dialog, config] = dialogServiceMock.open.mock.calls.at(-1) as unknown as [
+        unknown,
+        { data: Record<string, unknown> },
+      ];
+      expect(dialog).toBe(PermissionListDialogComponent);
+      expect(config.data['permissions']).toEqual(['manage_courses', 'view_reports']);
+    });
+
+    it('點姓名開編輯；機台開機台 dialog', () => {
+      respond([person('t', {}), person('k', { roles: ['kiosk'] })]);
+      (root().querySelector('[data-staff="t"] button') as HTMLElement).click();
+      expect((dialogServiceMock.open.mock.calls as unknown as unknown[][]).at(-1)![0]).toBe(
+        StaffFormDialogComponent,
+      );
+      (root().querySelector('[data-staff="k"] button') as HTMLElement).click();
+      expect((dialogServiceMock.open.mock.calls as unknown as unknown[][]).at(-1)![0]).toBe(
+        KioskFormDialogComponent,
+      );
+    });
+
+    it('篩選鈕寫出目前條件；清除篩選回預設並一起清搜尋', () => {
+      respond([person('t', {})]);
+      (component as any).onFilterPick('role', 'teacher');
+      expect((component as any).filterSummary()).toBe('老師');
+      (component as any).onFilterPick('status', 'inactive');
+      expect((component as any).filterSummary()).toBe('老師 · 已停用');
+      fixture.detectChanges();
+      expect(text()).toContain('位符合');
+
+      (component as any).clearFilters();
+      expect((component as any).filterSummary()).toBe('全部');
+      expect(lastList()).toMatchObject({
+        role: undefined,
+        status: undefined,
+      });
+    });
+
+    it('列上：角色 chip、科目、狀態、電話都是純文字（沒有 tel 連結）', () => {
+      respond([person('t', {})]);
+      const row = root().querySelector('[data-staff="t"]')!;
+      expect(row.textContent).toContain('數學');
+      expect(row.textContent).toContain('啟用中');
+      expect(row.textContent).toContain('0912-345-678');
+      expect(row.querySelector('a[href^="tel:"]')).toBeNull();
+    });
   });
 });

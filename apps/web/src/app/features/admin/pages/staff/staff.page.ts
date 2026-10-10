@@ -7,7 +7,6 @@ import { FormsModule } from '@angular/forms';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { SelectModule } from 'primeng/select';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -17,17 +16,13 @@ import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
-// Responsive Table
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 import {
   KioskFormDialogComponent,
   type KioskFormDialogResult,
 } from './kiosk-form-dialog/kiosk-form-dialog.component';
 import { TeachingLogDialogComponent } from './teaching-log-dialog/teaching-log-dialog.component';
+import { PermissionListDialogComponent } from './permission-list-dialog/permission-list-dialog.component';
 
 // Services
 import {
@@ -51,13 +46,9 @@ import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confir
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';
-import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
-import {
-  StatusDotComponent,
-  type StatusTone,
-} from '@shared/components/status/status-dot/status-dot.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { personHue } from '@shared/utils/person-hue.util';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
+import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { loginLinkErrorDetail } from '@shared/utils/login-link-error.util';
 import {
   PageActionsComponent,
@@ -95,6 +86,26 @@ const ROLE_OPTIONS: RoleOption[] = [
   { value: 'kiosk', label: '掃碼機台' },
 ];
 
+/**
+ * 狀態篩選。A6 預設「啟用中＋已停用」（不含封存）：API 的 `status` 是單一值、沒有「不含封存」，
+ * 所以 `live` 與 `all` 都不帶 status 取全部，`live` 在前端濾掉封存的列（章名張數見 `chapters`）。
+ */
+type StaffStatusFilter = StaffStatus | 'live' | 'all';
+
+const STATUS_OPTIONS: { value: StaffStatusFilter; label: string }[] = [
+  { value: 'live', label: '啟用中＋已停用' },
+  { value: 'active', label: '啟用中' },
+  { value: 'inactive', label: '已停用' },
+  { value: 'archived', label: '已封存' },
+  { value: 'all', label: '全部（含已封存）' },
+];
+
+const STATUS_TEXT: Record<StaffStatus, string> = {
+  active: '啟用中',
+  inactive: '已停用',
+  archived: '已封存',
+};
+
 /** 分校門口的打卡平板（#1127）。只能單獨存在，所以看有沒有這個角色就夠 */
 const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
 
@@ -104,12 +115,11 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
   imports: [
     PageActionsComponent,
     PageOpenComponent,
-    StatusDotComponent,
-    DataChipComponent,
+    ChapterHeadComponent,
+    FilterToggleComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
-    SelectModule,
     ToastModule,
     TooltipModule,
     IconFieldModule,
@@ -118,10 +128,6 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './staff.page.html',
@@ -159,11 +165,7 @@ export class StaffPage implements OnInit {
 
   // Constants exposed to template
   protected readonly roleOptions = ROLE_OPTIONS;
-  protected readonly staffStatusOptions = [
-    { value: 'active', label: '啟用中' },
-    { value: 'inactive', label: '已停用' },
-    { value: 'archived', label: '已封存' },
-  ];
+  protected readonly secondaryAction: PageAction = { label: '操作紀錄', icon: 'pi pi-history' };
 
   // State
   readonly staffList = signal<Staff[]>([]);
@@ -182,7 +184,7 @@ export class StaffPage implements OnInit {
   private readonly campusCtx = inject(CampusContextService);
   readonly campusFilter = this.campusCtx.id;
   readonly subjectFilter = signal<string | null>(null);
-  protected readonly staffStatusFilter = signal<StaffStatus | null>(null);
+  protected readonly staffStatusFilter = signal<StaffStatusFilter>('live');
   readonly summary = signal<StaffSummary>({
     total: 0,
     adminCount: 0,
@@ -205,8 +207,16 @@ export class StaffPage implements OnInit {
    * 章名張數讀 `summary.byRole`（走同一組篩選，不用前端數列）；沒有列的章不顯示。
    */
   protected readonly chapters = computed<StaffChapter[]>(() => {
-    const rows = this.staffList();
+    const rows = this.visibleRows();
     const by = this.summary().byRole;
+    // 不含封存時，「停用」章的張數是 `inactiveCount`（byRole 那桶把封存也算進去）
+    const inactiveTally = this.hideArchived()
+      ? this.summary().inactiveCount
+      : by.inactiveOrArchived;
+    // 明確選了某個狀態時，`byRole` 不吃狀態篩選（實機：選「已停用」章名寫 2、底下只有 1 列），
+    // 這時列表本來就是完整的一次取回（pageSize=0），章名直接數列
+    const status = this.staffStatusFilter();
+    const countRows = status === 'active' || status === 'inactive' || status === 'archived';
     const bucket = (s: Staff): StaffChapterKey =>
       s.status !== 'active'
         ? 'inactive'
@@ -227,12 +237,80 @@ export class StaffPage implements OnInit {
       ['admin', '管理員', by.admin],
       ['teacher', '老師', by.teacher],
       ['kiosk', '掃碼機台', by.kiosk],
-      ['inactive', hasArchived ? '停用與封存' : '已停用', by.inactiveOrArchived],
+      ['inactive', hasArchived ? '停用與封存' : '已停用', inactiveTally],
     ];
     return defs
       .filter(([key]) => grouped[key].length > 0)
-      .map(([key, label, count]) => ({ key, label, count, rows: grouped[key] }));
+      .map(([key, label, count]) => ({
+        key,
+        label,
+        count: countRows ? grouped[key].length : count,
+        rows: grouped[key],
+      }));
   });
+
+  /** `live` 狀態（預設）不顯示封存的人 */
+  private readonly hideArchived = computed(() => this.staffStatusFilter() === 'live');
+  protected readonly visibleRows = computed(() =>
+    this.hideArchived()
+      ? this.staffList().filter((s) => s.status !== 'archived')
+      : this.staffList(),
+  );
+
+  /** 手機的「篩選：全部」面板開合與摘要；桌機也渲染（A6 的篩選鈕） */
+  protected readonly filtersOpen = signal(false);
+  protected readonly hasFilter = computed(
+    () =>
+      this.roleFilter() !== null ||
+      this.subjectFilter() !== null ||
+      this.staffStatusFilter() !== 'live',
+  );
+  /** 搜尋或任何篩選生效：標題改「符合篩選的 N 位」，名冊上方出現「N 位符合 · 清除篩選」 */
+  protected readonly narrowed = computed(() => this.searchQuery() !== '' || this.hasFilter());
+  protected readonly filterSummary = computed(() => {
+    const role = this.roleFilter();
+    const subject = this.subjectFilter();
+    const status = this.staffStatusFilter();
+    const parts = [
+      role ? this.getRoleLabel(role) : '',
+      subject ? (this.subjects().find((x) => x.id === subject)?.name ?? '') : '',
+      status === 'live' ? '' : STATUS_OPTIONS.find((o) => o.value === status)!.label,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : '全部';
+  });
+
+  /** 篩選面板的三列（A6：角色、教學科目、狀態；分校跟頂欄走，不在這裡） */
+  protected readonly filterGroups = computed(() => [
+    {
+      key: 'role' as const,
+      label: '角色',
+      selected: this.roleFilter() as string | null,
+      options: [{ value: null as string | null, label: '全部' }, ...ROLE_OPTIONS],
+    },
+    {
+      key: 'subject' as const,
+      label: '科目',
+      selected: this.subjectFilter(),
+      options: [{ value: null as string | null, label: '全部' }, ...this.subjectOptions()],
+    },
+    {
+      key: 'status' as const,
+      label: '狀態',
+      selected: this.staffStatusFilter() as string | null,
+      options: STATUS_OPTIONS as { value: string | null; label: string }[],
+    },
+  ]);
+
+  protected onFilterPick(key: 'role' | 'subject' | 'status', value: string | null): void {
+    if (key === 'role') this.onRoleFilterChange(value as StaffRole | null);
+    else if (key === 'subject') this.onSubjectFilterChange(value);
+    else this.onStaffStatusFilterChange((value ?? 'live') as StaffStatusFilter);
+  }
+
+  /** 標題數字句：N 位人員（不含封存），M 位啟用中 */
+  protected readonly liveTotal = computed(
+    () => this.summary().total - this.summary().archivedCount,
+  );
 
   /** 開場副行：N 位管理員 · N 位老師（N 位身兼兩者） */
   protected readonly openSub = computed(() => {
@@ -413,7 +491,7 @@ export class StaffPage implements OnInit {
               role: this.roleFilter() || undefined,
               campusId: this.campusFilter() || undefined,
               subjectId: this.subjectFilter() || undefined,
-              status: this.staffStatusFilter() ?? undefined,
+              status: this.apiStatus(),
               // 人員量級小（一個組織幾十到一百多人），一次拿全部好分章。
               // ponytail: 沒有 max_rows 保護，超過 1000 會被靜默截斷；真有那麼多人再改伺服器分頁
               pageSize: 0,
@@ -458,7 +536,12 @@ export class StaffPage implements OnInit {
     this.loadStaff();
   }
 
-  protected onStaffStatusFilterChange(value: StaffStatus | null): void {
+  private apiStatus(): StaffStatus | undefined {
+    const status = this.staffStatusFilter();
+    return status === 'live' || status === 'all' ? undefined : status;
+  }
+
+  protected onStaffStatusFilterChange(value: StaffStatusFilter): void {
     this.staffStatusFilter.set(value);
     this.loadStaff();
   }
@@ -553,6 +636,34 @@ export class StaffPage implements OnInit {
         }
       });
   }
+
+  /** 「權限 N 項」：唯讀清單（#1314 ST2），不給編輯 */
+  protected openPermissionList(staff: Staff): void {
+    this.dialogService.open(PermissionListDialogComponent, {
+      width: 'min(480px, 90%)',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { staffName: staff.displayName, permissions: staff.permissions },
+    });
+  }
+
+  /** 姓名＝編輯入口（A6 / 規格「點擊進入編輯」） */
+  protected openEdit(staff: Staff): void {
+    if (isKiosk(staff)) this.openKioskDialog(staff);
+    else this.openEditDialog(staff);
+  }
+
+  protected getSubjectsText(staff: Staff): string {
+    return staff.roles.includes('teacher') && staff.subjectNames.length > 0
+      ? staff.subjectNames.join('、')
+      : '—';
+  }
+
+  /** 頁面的「⋯」：現況有、A6 沒畫的「新增掃碼機台」收在這裡 */
+  protected readonly pageMenuItems: MenuItem[] = [
+    { label: '新增掃碼機台', icon: 'pi pi-qrcode', command: () => this.openKioskDialog() },
+  ];
 
   openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
@@ -684,32 +795,8 @@ export class StaffPage implements OnInit {
     });
   }
 
-  protected getStaffStatusLabel(status: StaffStatus): string {
-    if (status === 'active') return '啟用';
-    if (status === 'inactive') return '停用';
-    return '封存';
-  }
-
-  /**
-   * 只有兩種：還在用（done）與不在等任何事了（inactive）。
-   *
-   * 原本 `inactive` 回 `warn` —— **停用是行政主動做的決定，不是出了狀況**。
-   * 用警示色等於每次看員工列表都被提醒「這裡有問題」，而其實沒有。
-   * 停用與封存都是 inactive。
-   */
-  protected staffStatusTone(status: StaffStatus): StatusTone {
-    return status === 'active' ? 'done' : 'inactive';
-  }
-
   protected getStaffStatusText(status: StaffStatus): string {
-    if (status === 'active') return '啟用中';
-    if (status === 'inactive') return '已停用';
-    return '已封存';
-  }
-
-  /** 見 `personHue` —— 契約是「同一個人到哪一頁都同色」，所以只能有一份實作 */
-  protected getPersonHue(id: string): number {
-    return personHue(id);
+    return STATUS_TEXT[status];
   }
 
   getCampusNames(campusIds: string[]): string {
@@ -732,7 +819,7 @@ export class StaffPage implements OnInit {
     this.searchQuery.set('');
     this.roleFilter.set(null);
     this.subjectFilter.set(null);
-    this.staffStatusFilter.set(null);
+    this.staffStatusFilter.set('live');
     this.loadStaff();
   }
 

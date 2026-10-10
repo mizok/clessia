@@ -48,7 +48,7 @@ const PERMISSION_META: Record<Permission, { label: string; description: string }
   },
 };
 
-const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] =
+export const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] =
   PERMISSIONS.map((value) => ({ value, ...PERMISSION_META[value] }));
 const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: 'admin', label: '管理員' },
