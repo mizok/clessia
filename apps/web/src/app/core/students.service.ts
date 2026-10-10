@@ -71,6 +71,8 @@ export interface StudentQueryParams {
   schoolId?: string | null;
   /** 老師端用。實際範圍由後端依角色決定，這個旗標只是意圖 */
   taughtByMe?: boolean;
+  /** `false` = 不算今日到班（只要總數的呼叫用）。後端預設第一頁才算 */
+  withToday?: boolean;
 }
 
 export interface UpdateStudentInput {
@@ -172,6 +174,7 @@ export class StudentsService {
     if (params.isActive !== undefined) q['isActive'] = params.isActive;
     if (params.schoolId !== undefined && params.schoolId !== null) q['schoolId'] = params.schoolId;
     if (params.taughtByMe !== undefined) q['taughtByMe'] = params.taughtByMe;
+    if (params.withToday !== undefined) q['withToday'] = params.withToday;
     return q;
   }
 }
