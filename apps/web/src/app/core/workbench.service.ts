@@ -27,6 +27,8 @@ export interface WorkbenchExpectedStudent {
   campusName: string | null;
   /** 他今天第一堂課。行政要靠它確認是不是找錯人 */
   firstSession: { startTime: string | null; className: string } | null;
+  /** 主要家長（#1314 D1）。沒有家長 → null；家長沒帳號 → phone null */
+  primaryParent: { name: string; relation: string | null; phone: string | null } | null;
 }
 
 export interface WorkbenchArrival {
@@ -41,6 +43,8 @@ export interface WorkbenchLeave {
   startDate: string;
   endDate: string;
   submittedByRole: string;
+  /** #1314 D5 */
+  reason: string | null;
 }
 
 export interface WorkbenchToday {
