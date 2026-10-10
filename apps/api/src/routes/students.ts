@@ -51,6 +51,11 @@ const StudentSchema = z
      * **只有列表回這欄、只有管理員有值**；老師一律 null —— 家長電話不進老師的學生名單。
      */
     primaryParentPhone: z.string().nullable().optional(),
+    /** 列表才有（#1314 SL2）：見 `deriveEnrollmentState` */
+    enrollmentState: z
+      .enum(['pending_payment', 'active', 'suspended', 'withdrawal'])
+      .nullable()
+      .optional(),
     campusNames: z.array(z.string()),
     /** 在籍班級（老師端用來分組；管理端目前不顯示） */
     classNames: z.array(z.string()),
@@ -190,6 +195,22 @@ export function toStudentResponse(
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
+}
+
+/**
+ * 名冊上的報名狀態旗標（#1314 SL2），照 A6 `students.html` 的 `stateOf`：
+ * 任一待繳費 → 待繳費；否則有在籍 → 在籍；否則有暫停 → 暫停；否則（只剩退班）→ 退班。
+ * `void`（作廢的報名）不算數；一筆都沒有 → null。
+ */
+export function deriveEnrollmentState(
+  statuses: readonly (string | undefined)[],
+): 'pending_payment' | 'active' | 'suspended' | 'withdrawal' | null {
+  const counted = statuses.filter((status) => status && status !== 'void');
+  if (counted.length === 0) return null;
+  for (const state of ['pending_payment', 'active', 'suspended'] as const) {
+    if (counted.includes(state)) return state;
+  }
+  return 'withdrawal';
 }
 
 export function buildStudentSearchClause(
@@ -591,6 +612,8 @@ app.openapi(
       return {
         ...toStudentResponse(row, parentNames, campusNames, hasEnrollments, classNames),
         primaryParentPhone,
+        // 跟 campusNames 一樣不依分校濾（enrollment-rules 第 8 節）
+        enrollmentState: deriveEnrollmentState(enrollmentRows.map((e) => e.status)),
       };
     });
 
