@@ -81,7 +81,7 @@
       <!-- 手機：強制換行，讓「篩選」落到搜尋列下一行（不然搜尋框被擠成一個放大鏡） -->
       <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-filter-toggle
-        class="order-2 wide:order-none"
+        class="order-2 min-h-11 wide:order-none"
         [summary]="panelFilterSummary()"
         [active]="panelFilterSummary() !== '全部'"
         [always]="true"
