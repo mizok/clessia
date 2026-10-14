@@ -7,34 +7,51 @@
   實作細節，補習班行政不需要也不會懂（Tester #22）
 -->
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
-  <ng-container openSub>錢進來多少、還有多少沒收到。</ng-container>
+  <ng-container openTitle>
+    @if (headline(); as line) {
+      {{ line.first }}
+      @if (line.second) {
+        <br />{{ line.second }}
+      }
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
+  <ng-container openSub>{{ headline()?.sub ?? '錢進來多少、還有多少沒收到。' }}</ng-container>
 </app-page-open>
 
 <div class="bg-zinc-100">
   <div
-    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+    class="page-wrap clessia-filter-bar grid grid-cols-2 items-end gap-3 py-3 wide:flex wide:min-h-16 wide:flex-row wide:flex-wrap wide:gap-4"
     role="search"
     aria-label="篩選營收報表"
   >
-    <p-select
-      [options]="periodOptions"
-      optionLabel="label"
-      optionValue="value"
-      [ngModel]="period()"
-      (ngModelChange)="onPeriodChange($event)"
-      ariaLabel="期間"
-    />
-    <p-select
-      [options]="courseOptions()"
-      optionLabel="label"
-      optionValue="value"
-      [filter]="true"
-      filterBy="label"
-      [ngModel]="courseId()"
-      (ngModelChange)="onCourseChange($event)"
-      ariaLabel="課程"
-    />
+    <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+      期間
+      <p-select
+        styleClass="w-full"
+        [options]="periodOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="period()"
+        (ngModelChange)="onPeriodChange($event)"
+        ariaLabel="期間"
+      />
+    </label>
+    <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+      課程
+      <p-select
+        styleClass="w-full"
+        [options]="courseOptions()"
+        optionLabel="label"
+        optionValue="value"
+        [filter]="true"
+        filterBy="label"
+        [ngModel]="courseId()"
+        (ngModelChange)="onCourseChange($event)"
+        ariaLabel="課程"
+      />
+    </label>
     @if (hasFilters()) {
       <p-button
         label="清除篩選"
@@ -44,6 +61,17 @@
         (onClick)="clearFilters()"
       />
     }
+    <!-- 分組方式（A6：在工具列右側；分組統計標題旁原本那顆搬過來）。手機獨占一列 -->
+    <p-selectbutton
+      class="col-span-2 wide:col-auto wide:ml-auto"
+      [options]="groupByOptions"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
+      [ngModel]="groupBy()"
+      (ngModelChange)="onGroupByChange($event)"
+      ariaLabel="分組方式"
+    />
   </div>
 </div>
 
@@ -68,107 +96,126 @@
       是兩個不同的經營訊號。
     -->
     <!--
-      橘帶：開帳這筆錢的組成。四個金額原本是四張一樣的卡，看不出它們是同一筆錢
-      的不同狀態；畫成一條之後「還有多少沒收到」是長度，不用心算。
-
-      只用 billed / outstanding 這一組 —— received 看收款日、billed 看開帳日，
-      是不同的集合，放進同一條會在比不同母體。
+      開帳摘要（A6）：白底，大數字＋三段條（黑＝已收回／灰＝應收未收／紅＝其中逾期，紅在條的右端）
+      ＋三個左框數字塊。**只用 billed / outstanding / overdueOutstanding 這一組**（同一批帳單）——
+      received 看收款日、billed 看開帳日，是不同的集合，不進這條、也不拿來除。
+      沒有開帳（billed ≤ 0）時沒有占比：不畫條、百分比不顯示，只留金額。
     -->
-    <section
-      class="mt-5 rounded-xl bg-[image:var(--band-surface)] px-4 pt-5 pb-[calc(20px+var(--band-seam))] text-band-ink sm:px-8 sm:pt-6 sm:pb-[calc(32px+var(--band-seam))]"
-    >
-      <p class="m-0 text-md font-semibold text-band-ink-muted">這段期間開帳</p>
-      <p
-        class="m-0 mt-1 mb-5 text-[32px] leading-none font-bold tracking-[-0.035em] tabular-nums sm:text-[44px]"
-      >
+    <section class="flex flex-col gap-3" aria-label="開帳摘要" data-testid="billed-summary">
+      <p class="m-0 text-md font-semibold text-zinc-900">{{ periodName() }}開帳（看開帳日）</p>
+      <p class="m-0 text-[44px] leading-none font-bold tracking-[-0.035em] tabular-nums">
+        <span class="text-lg font-semibold tracking-normal">NT$</span>
         {{ summary()?.billed ?? 0 | number }}
       </p>
-
-      @if (billedSplit(); as split) {
+      @if (breakdown(); as split) {
         <div
-          class="relative h-[26px] overflow-hidden rounded-md border-2 border-band-ink bg-[rgb(255_240_234/55%)] sm:h-[34px]"
+          class="relative h-2.5 overflow-hidden rounded-full bg-zinc-200"
+          role="img"
+          [attr.aria-label]="
+            '已收回 ' +
+            split.collectedPct +
+            '%，應收未收 ' +
+            split.outstandingPct +
+            '%，其中逾期 ' +
+            split.overduePct +
+            '%'
+          "
+          data-testid="billed-bar"
         >
           <span
-            class="absolute inset-y-0 left-0 bg-band-ink"
+            class="absolute inset-y-0 left-0 bg-zinc-900"
+            data-testid="bar-collected"
             [style.width.%]="split.collectedPct"
           ></span>
           <span
-            class="absolute inset-y-0 bg-[image:repeating-linear-gradient(-45deg,var(--band-ink)_0_5px,transparent_5px_10px)]"
-            [style.left.%]="split.collectedPct"
+            class="absolute inset-y-0 right-0 bg-error-700"
+            data-testid="bar-overdue"
             [style.width.%]="split.overduePct"
           ></span>
         </div>
-
-        <ul
-          class="m-0 mt-4 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-sm font-semibold text-band-ink-muted sm:gap-x-5 sm:gap-y-2 sm:text-md"
-        >
-          <li class="flex items-center gap-2">
-            <i class="size-[13px] rounded-[3px] border-2 border-band-ink bg-band-ink"></i>
-            已收回 <b class="font-bold tabular-nums">{{ split.collected | number }}</b>
-          </li>
-          <li class="flex items-center gap-2">
-            <i class="size-[13px] rounded-[3px] border-2 border-band-ink"></i>
-            應收未收
-            <b class="font-bold tabular-nums">{{ summary()?.outstanding ?? 0 | number }}</b>
-            @if (canOpenInvoices) {
-              <a
-                routerLink="/admin/payments"
-                [queryParams]="{ due: 'outstanding' }"
-                class="ml-auto inline-flex min-h-11 items-center text-sm font-semibold text-band-ink underline underline-offset-4"
-                >看還沒繳清的帳單</a
-              >
-            }
-          </li>
-          <li class="flex items-center gap-2">
-            <i
-              class="size-[13px] rounded-[3px] border-2 border-band-ink bg-[image:repeating-linear-gradient(-45deg,var(--band-ink)_0_3px,transparent_3px_6px)]"
-            ></i>
-            其中逾期
-            <b class="font-bold tabular-nums">{{ summary()?.overdueOutstanding ?? 0 | number }}</b>
-            @if (canOpenInvoices) {
-              <a
-                routerLink="/admin/payments"
-                [queryParams]="{ due: 'overdue' }"
-                class="ml-auto inline-flex min-h-11 items-center text-sm font-semibold text-band-ink underline underline-offset-4"
-                >看逾期帳單</a
-              >
-            }
-          </li>
-        </ul>
       }
+      <div class="mt-2 grid grid-cols-1 gap-4 wide:grid-cols-3 wide:gap-6">
+        <div
+          class="border-0 border-l-2 border-solid border-zinc-900 pl-3"
+          data-testid="block-collected"
+        >
+          <p class="m-0 text-sm text-zinc-600">
+            已收回
+            @if (breakdown(); as split) {
+              <span data-testid="pct"> · {{ split.collectedPct }}%</span>
+            }
+          </p>
+          <p class="m-0 text-xl font-bold tabular-nums">
+            NT$ {{ breakdown()?.collected ?? 0 | number }}
+          </p>
+        </div>
+        <div
+          class="border-0 border-l-2 border-solid border-zinc-300 pl-3"
+          data-testid="block-outstanding"
+        >
+          <p class="m-0 text-sm text-zinc-600">
+            應收未收
+            @if (breakdown(); as split) {
+              <span data-testid="pct"> · {{ split.outstandingPct }}%</span>
+            }
+          </p>
+          <p class="m-0 text-xl font-bold tabular-nums">
+            NT$ {{ summary()?.outstanding ?? 0 | number }}
+          </p>
+          @if (canOpenInvoices) {
+            <a
+              routerLink="/admin/payments"
+              [queryParams]="{ due: 'outstanding' }"
+              class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline decoration-zinc-300 underline-offset-4"
+              >看還沒繳清的帳單</a
+            >
+          }
+        </div>
+        <div
+          class="border-0 border-l-2 border-solid border-error-700 pl-3"
+          data-testid="block-overdue"
+        >
+          <p class="m-0 text-sm text-zinc-600">
+            其中逾期
+            @if (breakdown(); as split) {
+              <span data-testid="pct"> · {{ split.overduePct }}%</span>
+            }
+          </p>
+          <p class="m-0 text-xl font-bold tabular-nums text-error-700">
+            NT$ {{ summary()?.overdueOutstanding ?? 0 | number }}
+          </p>
+          @if (canOpenInvoices) {
+            <a
+              routerLink="/admin/payments"
+              [queryParams]="{ due: 'overdue' }"
+              class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline decoration-zinc-300 underline-offset-4"
+              >看逾期帳單</a
+            >
+          }
+        </div>
+      </div>
     </section>
-
     <!--
-      實收與退款是**現金的進出**，看的是收款日 —— 跟上面那條開帳的區間是不同的
-      集合，所以它們不進那條流向，也不是第五張卡。退款單獨列、不從實收扣除：
-      「收了 100 萬、退了 3.6 萬」與「收了 96.4 萬」是兩個不同的經營訊號。
+      實收與退款是**現金的進出**，看的是收款日 —— 跟上面開帳的區間是不同的集合，
+      所以不進那條流向。退款單獨列、不從實收扣除。**兩個數字不能相除當收款率**（母體不同）。
     -->
     <p
-      class="relative m-0 flex items-start gap-3 rounded-lg border border-surface-border bg-surface-card p-4 text-sm leading-relaxed text-zinc-600 sm:px-5 sm:text-md mt-[calc(var(--band-seam)*-1)]"
+      class="m-0 flex items-start gap-3 rounded-lg bg-zinc-100 p-4 text-md leading-relaxed text-zinc-700"
+      data-testid="cash-note"
     >
-      <i class="pi pi-info-circle mt-0.5 shrink-0 text-zinc-500"></i>
+      <i class="pi pi-info-circle mt-1 shrink-0 text-zinc-600" aria-hidden="true"></i>
       <span>
         這段期間實收
-        <b class="font-bold text-zinc-900 tabular-nums">{{ summary()?.received ?? 0 | number }}</b
-        >、 退款
-        <b class="font-bold text-zinc-900 tabular-nums">{{ summary()?.refunded ?? 0 | number }}</b
-        >（單獨列，未從實收扣除）。 收款看收款日，與上面的開帳區間是不同的集合。
+        <b class="font-bold text-zinc-900 tabular-nums"
+          >NT$ {{ summary()?.received ?? 0 | number }}</b
+        >、退款
+        <b class="font-bold text-zinc-900 tabular-nums"
+          >NT$ {{ summary()?.refunded ?? 0 | number }}</b
+        >（退款單獨列，沒有從實收扣掉）。實收看收款日，跟上面看開帳日的是不同的一群帳單，兩個數字不能相除當收款率。
       </span>
     </p>
-
     <section class="flex flex-col gap-4">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <h2 class="m-0 text-lg font-semibold text-zinc-900">分組統計</h2>
-        <p-selectbutton
-          [options]="groupByOptions"
-          optionLabel="label"
-          optionValue="value"
-          [allowEmpty]="false"
-          [ngModel]="groupBy()"
-          (ngModelChange)="onGroupByChange($event)"
-          ariaLabel="分組方式"
-        />
-      </div>
+      <h2 class="m-0 text-lg font-semibold text-zinc-900">分組統計</h2>
 
       <!--
         模糊桶的說明要**看得見**（#1029）：tooltip 只在 hover 出現、`<i>` 不可聚焦，

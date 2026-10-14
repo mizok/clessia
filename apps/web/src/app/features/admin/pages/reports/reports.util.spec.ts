@@ -5,6 +5,8 @@ import {
   reportPeriods,
   groupKeyLabel,
   splitBilled,
+  billedBreakdown,
+  revenueHeadline,
 } from './reports.util';
 
 describe('isAmbiguousKey', () => {
@@ -142,5 +144,121 @@ describe('reportPeriods', () => {
   it('二月月底照閏年算', () => {
     expect(byValue('2028-03-05', 'prev1').to).toBe('2028-02-29');
     expect(byValue('2027-03-05', 'prev1').to).toBe('2027-02-28');
+  });
+});
+
+describe('reportPeriods —— 色面句的期間名', () => {
+  it('prev／last3／current 各自的 short；本月不帶「（到今天）」', () => {
+    const p = (v: string) => reportPeriods('2026-10-10').find((x) => x.value === v)!;
+    expect(p('prev1').short).toBe('9 月');
+    expect(p('last3').short).toBe('近三個月');
+    expect(p('current').short).toBe('10 月');
+  });
+});
+
+describe('billedBreakdown —— 開帳摘要的占比（0.1 進位、兩塊加起來 100）', () => {
+  const f = (billed: number, outstanding: number, overdueOutstanding = 0) =>
+    billedBreakdown({ billed, outstanding, overdueOutstanding });
+
+  it('A6 稿的例子：498,600／未收 323,500／逾期 81,350 → 35.1／64.9／16.3', () => {
+    expect(f(498600, 323500, 81350)).toMatchObject({
+      collected: 175100,
+      collectedPct: 35.1,
+      outstandingPct: 64.9,
+      overduePct: 16.3,
+      collectedPctInt: 35,
+    });
+  });
+
+  it('billed 為 0（或負）→ null：沒有占比，不除以 0', () => {
+    expect(f(0, 0)).toBeNull();
+    expect(f(-1, 0)).toBeNull();
+    expect(f(1, 0)).not.toBeNull(); // billed = 1 是門檻 +1
+  });
+
+  it('未收 0（全收回）→ 100.0／0.0；未收 ＝ billed（沒收到）→ 0.0／100.0', () => {
+    expect(f(1000, 0)).toMatchObject({
+      collectedPct: 100,
+      outstandingPct: 0,
+      collectedPctInt: 100,
+    });
+    expect(f(1000, 1000)).toMatchObject({
+      collectedPct: 0,
+      outstandingPct: 100,
+      collectedPctInt: 0,
+    });
+  });
+
+  it('進位邊界：.05 進位、.049 不進（用整數運算，不靠浮點乘 100）', () => {
+    // 49/400 = 12.25% → 小數一位 12.3（.25 進位到 .3，因為是 122.5 → 123）
+    expect(f(400, 400 - 49)!.collectedPct).toBe(12.3);
+    // 4899/40000 = 12.2475% → 12.2（122.475 → 122）
+    expect(f(40000, 40000 - 4899)!.collectedPct).toBe(12.2);
+  });
+
+  it('兩塊加起來一定是 100.0（不會各自進位變 99.9／100.1）', () => {
+    for (const [b, o] of [
+      [3, 1],
+      [7, 3],
+      [9, 4],
+      [400, 351],
+      [1000003, 333333],
+    ] as const) {
+      const s = f(b, o)!;
+      expect(Math.round((s.collectedPct + s.outstandingPct) * 10)).toBe(1000);
+    }
+  });
+
+  it('整數百分比（色面副行）：35.4→35、35.5→36（門檻 ±1）', () => {
+    expect(f(1000, 1000 - 354)!.collectedPctInt).toBe(35);
+    expect(f(1000, 1000 - 355)!.collectedPctInt).toBe(36);
+  });
+
+  it('溢繳（未收為負）夾住：不會出現超過 100%', () => {
+    expect(f(1000, -200)).toMatchObject({ collectedPct: 100, outstandingPct: 0 });
+  });
+
+  it('逾期超過未收的不可能組合只做保護：夾到未收', () => {
+    expect(f(1000, 100, 400)!.overduePct).toBe(10);
+  });
+});
+
+describe('revenueHeadline —— 色面句', () => {
+  const fig = (billed: number, outstanding: number, overdueOutstanding = 0) => ({
+    billed,
+    outstanding,
+    overdueOutstanding,
+  });
+
+  it('A6：9 月開帳 NT$ 498,600，／還有 NT$ 323,500 沒收到。＋副行', () => {
+    expect(revenueHeadline(fig(498600, 323500, 81350), '9 月')).toEqual({
+      first: '9 月開帳 NT$ 498,600，',
+      second: '還有 NT$ 323,500 沒收到。',
+      sub: '已收回 35%；沒收到的裡面，逾期 NT$ 81,350。',
+    });
+  });
+
+  it('billed 0 → 「9 月還沒有開帳。」，沒有第二段與副行', () => {
+    expect(revenueHeadline(fig(0, 0), '9 月')).toEqual({
+      first: '9 月還沒有開帳。',
+      second: null,
+      sub: null,
+    });
+  });
+
+  it('未收 0／1（門檻）：0 寫「都收到了。」，1 寫「還有 NT$ 1 沒收到。」', () => {
+    expect(revenueHeadline(fig(1000, 0), '近三個月')).toMatchObject({
+      first: '近三個月開帳 NT$ 1,000，',
+      second: '都收到了。',
+      sub: '已收回 100%。',
+    });
+    expect(revenueHeadline(fig(1000, 1), '9 月').second).toBe('還有 NT$ 1 沒收到。');
+  });
+
+  it('逾期 0／1（門檻）：0 寫「沒有逾期。」，1 寫金額', () => {
+    expect(revenueHeadline(fig(1000, 500, 0), '9 月').sub).toBe('已收回 50%；沒有逾期。');
+    expect(revenueHeadline(fig(1000, 500, 1), '9 月').sub).toBe(
+      '已收回 50%；沒收到的裡面，逾期 NT$ 1。',
+    );
   });
 });

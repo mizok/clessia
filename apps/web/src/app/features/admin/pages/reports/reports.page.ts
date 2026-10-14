@@ -37,6 +37,8 @@ import {
   groupKeyLabel,
   isAmbiguousKey,
   reportPeriods,
+  billedBreakdown,
+  revenueHeadline,
   splitBilled,
 } from './reports.util';
 
@@ -122,15 +124,21 @@ export class ReportsPage implements OnInit {
   /** 分組是不是切在「月份」—— 月份那欄的標題與格式不一樣 */
   protected readonly groupColumnLabel = computed(() => REVENUE_GROUP_BY_LABELS[this.groupBy()]);
 
-  /**
-   * 橘帶上那條流向的長度。用 `billed` / `outstanding` 這一組 ——
-   * `received` 看的是收款日、`billed` 看的是開帳日，兩者是**不同的集合**，
-   * 拿 `received / billed` 當收款率是在比不同母體（見 `splitBilled` 的說明）。
-   */
-  protected readonly billedSplit = computed(() => {
+  /** 色面句的期間名（「9 月」「近三個月」「10 月」） */
+  private readonly periodShort = computed(
+    () => this.periodOptions.find((o) => o.value === this.period())?.short ?? '',
+  );
+  /** 色面句：載入中、失敗、沒有摘要時回 `null`，退回頁名（舊數字配新篩選是最糟的騙法） */
+  protected readonly headline = computed(() => {
     const s = this.summary();
-    return s ? splitBilled(s) : null;
+    return this.loading() || this.failed() || !s ? null : revenueHeadline(s, this.periodShort());
   });
+  /** 開帳摘要的三段占比。`billed <= 0` 回 `null`（沒有占比，只留金額）。用 billed / outstanding 這一組，不拉 received */
+  protected readonly breakdown = computed(() => {
+    const s = this.summary();
+    return s ? billedBreakdown(s) : null;
+  });
+  protected readonly periodName = computed(() => this.periodShort());
 
   /** 一列自己的收款比例。同樣只用 billed / outstanding 這一組。 */
   protected collectedPctOf(group: RevenueGroup): number {

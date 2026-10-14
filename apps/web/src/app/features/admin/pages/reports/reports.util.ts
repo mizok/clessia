@@ -95,6 +95,8 @@ export function splitBilled(figures: {
 export interface ReportPeriod {
   readonly value: string;
   readonly label: string;
+  /** 色面句裡的名字：「9 月」「近三個月」「10 月」（本月不帶「（到今天）」） */
+  readonly short: string;
   readonly from: string;
   readonly to: string;
 }
@@ -126,10 +128,81 @@ export function reportPeriods(today: string): ReportPeriod[] {
   const [m1, m2, m3] = [1, 2, 3].map((back) => fullMonth(today, back));
   const thisMonth = defaultRange(today);
   return [
-    { value: 'prev1', label: m1.label, from: m1.from, to: m1.to },
-    { value: 'prev2', label: m2.label, from: m2.from, to: m2.to },
-    { value: 'prev3', label: m3.label, from: m3.from, to: m3.to },
-    { value: 'last3', label: '近三個月', from: m3.from, to: m1.to },
-    { value: 'current', label: `${Number(today.slice(5, 7))} 月（到今天）`, ...thisMonth },
+    { value: 'prev1', label: m1.label, short: m1.label, from: m1.from, to: m1.to },
+    { value: 'prev2', label: m2.label, short: m2.label, from: m2.from, to: m2.to },
+    { value: 'prev3', label: m3.label, short: m3.label, from: m3.from, to: m3.to },
+    { value: 'last3', label: '近三個月', short: '近三個月', from: m3.from, to: m1.to },
+    {
+      value: 'current',
+      label: `${Number(today.slice(5, 7))} 月（到今天）`,
+      short: `${Number(today.slice(5, 7))} 月`,
+      ...thisMonth,
+    },
   ];
+}
+
+/**
+ * 開帳摘要的占比（A6 三段條與三個數字塊）。**只用 billed / outstanding / overdueOutstanding 這一組**
+ * （同一批帳單，見 `splitBilled`）：已收回＝billed − outstanding，占 billed 的幾 %；
+ * 應收未收、其中逾期也各占 billed 的幾 %。**`received` 不進來**（收款日，不同的集合）。
+ *
+ * 百分比四捨五入到 0.1（整數運算 `x * 1000 / billed`，不靠浮點乘 100），
+ * **應收未收＝100 − 已收回**（兩塊加起來一定是 100.0，不會因為各自進位變成 99.9／100.1）。
+ * `billed <= 0` 回 `null`：沒有開帳就沒有占比，只留金額，不除以 0。
+ */
+export interface BilledBreakdown {
+  /** 已收回的金額（billed − 夾住後的 outstanding） */
+  readonly collected: number;
+  readonly collectedPct: number;
+  readonly outstandingPct: number;
+  readonly overduePct: number;
+  /** 色面副行用的整數 % */
+  readonly collectedPctInt: number;
+}
+
+export function billedBreakdown(figures: {
+  billed: number;
+  outstanding: number;
+  overdueOutstanding: number;
+}): BilledBreakdown | null {
+  const { billed, outstanding, overdueOutstanding } = figures;
+  if (billed <= 0) return null;
+  const owed = Math.min(Math.max(outstanding, 0), billed);
+  const collected = billed - owed;
+  const overdue = Math.min(Math.max(overdueOutstanding, 0), owed);
+  const collectedTenths = Math.round((collected * 1000) / billed);
+  return {
+    collected,
+    collectedPct: collectedTenths / 10,
+    outstandingPct: (1000 - collectedTenths) / 10,
+    overduePct: Math.round((overdue * 1000) / billed) / 10,
+    collectedPctInt: Math.round((collected * 100) / billed),
+  };
+}
+
+const money = (n: number): string => n.toLocaleString('en-US');
+
+/**
+ * 色面句（A6）：「9 月開帳 NT$ 498,600，／還有 NT$ 323,500 沒收到。」＋副行
+ * 「已收回 35%；沒收到的裡面，逾期 NT$ 81,350。」數字全部來自後端 summary。
+ *
+ * `billed <= 0`：「9 月還沒有開帳。」、沒有副行（`sub` 為 null，頁面退回預設副行）。
+ * 沒有未收（`outstanding <= 0`）：「都收到了。」；沒有逾期：「沒有逾期。」
+ */
+export function revenueHeadline(
+  figures: { billed: number; outstanding: number; overdueOutstanding: number },
+  periodShort: string,
+): { first: string; second: string | null; sub: string | null } {
+  const split = billedBreakdown(figures);
+  if (!split) return { first: `${periodShort}還沒有開帳。`, second: null, sub: null };
+  const owes = figures.outstanding > 0;
+  const overdue =
+    figures.overdueOutstanding > 0
+      ? `沒收到的裡面，逾期 NT$ ${money(figures.overdueOutstanding)}。`
+      : '沒有逾期。';
+  return {
+    first: `${periodShort}開帳 NT$ ${money(figures.billed)}，`,
+    second: owes ? `還有 NT$ ${money(figures.outstanding)} 沒收到。` : '都收到了。',
+    sub: `已收回 ${split.collectedPctInt}%${owes ? `；${overdue}` : '。'}`,
+  };
 }
