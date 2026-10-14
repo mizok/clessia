@@ -51,7 +51,11 @@ import {
 } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
-import { parseAttendanceQueryParams, parseClassQueryParams } from './sessions.util';
+import {
+  parseAttendanceQueryParams,
+  parseClassQueryParams,
+  parseFocusQueryParams,
+} from './sessions.util';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
@@ -564,7 +568,8 @@ export class SessionsPage implements OnInit {
   private openPendingMenuSession(): void {
     effect(() => {
       const id = this.pendingMenuSession();
-      if (!id || this.loading()) return;
+      // 初次載入前 loading 也是 false：不等 loadedOnce 會在課表還沒來時就把待開的那堂吃掉
+      if (!id || this.loading() || !this.loadedOnce()) return;
       untracked(() => {
         this.pendingMenuSession.set(null);
         afterNextRender(
@@ -619,6 +624,7 @@ export class SessionsPage implements OnInit {
 
   ngOnInit(): void {
     this.applyIncomingAttendanceFilter();
+    this.applyIncomingFocus();
     this.loadFilters();
     this.loadStudents();
   }
@@ -978,6 +984,14 @@ export class SessionsPage implements OnInit {
     // 來源頁明著指定了課堂狀態就照它的，沒帶才留著本頁的 `DEFAULT_STATUSES`（#456）——
     // 兩份剛好相等的預設值會靜靜分歧，而「卡片 15、點進去 12」兩個數字都看起來合理
     if (incoming.statuses) this.selectedStatuses.set([...incoming.statuses]);
+  }
+
+  /** 異動頁「看這堂」：日視圖切到那天，載完後打開那一堂的選單。帶了篩選條件（結果模式）時不處理 */
+  private applyIncomingFocus(): void {
+    const focus = parseFocusQueryParams(this.route.snapshot.queryParams);
+    if (!focus || this.mode() !== 'day') return;
+    this.day.set(startOfDay(focus.date));
+    this.pendingMenuSession.set(focus.sessionId);
   }
 
   protected clearFilters(): void {

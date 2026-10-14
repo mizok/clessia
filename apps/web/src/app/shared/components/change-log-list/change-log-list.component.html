@@ -28,6 +28,10 @@
               class="grid gap-x-5 gap-y-1 border-b border-surface-border py-4 last:border-b-0"
               [class]="wide().row"
             >
+              <ng-container
+                [ngTemplateOutlet]="timeCell"
+                [ngTemplateOutletContext]="{ $implicit: e }"
+              />
               <span class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900">
                 {{ e.className ?? '—' }}
                 <ng-container
@@ -45,6 +49,15 @@
               </span>
               <span class="text-md tabular-nums text-zinc-900">{{ e.summary }}</span>
               <ng-container [ngTemplateOutlet]="why" [ngTemplateOutletContext]="{ $implicit: e }" />
+              @if (!compact() && e.sessionDate) {
+                <a
+                  class="inline-flex h-11 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:h-8"
+                  [routerLink]="sessionsPath"
+                  [queryParams]="{ focusDate: e.sessionDate, focusSession: e.sessionId }"
+                >
+                  看這堂 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+                </a>
+              }
             </div>
           } @else {
             <details
@@ -55,6 +68,10 @@
                 class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
                 [class]="wide().summary"
               >
+                <ng-container
+                  [ngTemplateOutlet]="timeCell"
+                  [ngTemplateOutletContext]="{ $implicit: e }"
+                />
                 <span
                   class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900"
                 >
@@ -117,4 +134,14 @@
       {{ e.createdByName ?? '—' }} · {{ e.createdAt | date: 'M/d HH:mm' }}
     </span>
   </span>
+</ng-template>
+
+<ng-template #timeCell let-e>
+  @if (e.sessionStartTime) {
+    <span class="text-md tabular-nums text-zinc-600" data-change-time>{{
+      e.sessionStartTime
+    }}</span>
+  } @else {
+    <span [class]="wide().timeGap" aria-hidden="true"></span>
+  }
 </ng-template>
