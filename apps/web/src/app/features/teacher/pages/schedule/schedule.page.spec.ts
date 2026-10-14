@@ -1,4 +1,5 @@
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
@@ -8,10 +9,17 @@ import { ContactBookService } from '@core/contact-book.service';
 import { SessionsService } from '@core/sessions.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { SystemClockService } from '@core/system-clock.service';
 
 import { SchedulePage } from './schedule.page';
 
-const MONDAY_THIS_WEEK = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+/**
+ * 假「現在」：2027-03-05（週五）台北 12:00。**刻意跟真實今天不同** —— 元件改回 `new Date()`
+ * 就會在這支 spec 全紅，而不是剛好在跑測試的那天碰巧綠。週一 03-01、週日 03-07、明天 03-06。
+ */
+const FAKE_TODAY = '2027-03-05';
+const FAKE_NOW_MS = Date.parse('2027-03-05T04:00:00Z');
+const MONDAY_THIS_WEEK = '2027-03-01';
 
 const ORG = {
   id: 'org-1',
@@ -39,6 +47,8 @@ describe('SchedulePage', () => {
       sessions?: unknown[];
       /** 這些 fixture 放在本週一；單日清單只畫選中日，所以要先點那一天（結果不是意圖） */
       selectDate?: string;
+      /** 假「現在」的 epoch ms，預設 2027-03-05 12:00（台北） */
+      nowMs?: number;
     } = {},
   ) {
     const orgSettings = signal({
@@ -76,6 +86,11 @@ describe('SchedulePage', () => {
     await TestBed.configureTestingModule({
       imports: [SchedulePage],
       providers: [
+        provideRouter([]),
+        {
+          provide: SystemClockService,
+          useValue: { nowEpochMs: () => options.nowMs ?? FAKE_NOW_MS },
+        },
         { provide: AttendanceService, useValue: { sessions: sessionsSpy } },
         { provide: SessionsService, useValue: { listMyChanges: changesSpy } },
         { provide: ContactBookService, useValue: { missingSummary: missingSummarySpy } },
@@ -300,7 +315,7 @@ describe('SchedulePage', () => {
    * 假時鐘固定在今天中午，「接下來」才不會隨跑測試的時間漂。
    */
   describe('單日清單與「接下來那堂」（#1314 TS1）', () => {
-    const TODAY = format(new Date(), 'yyyy-MM-dd');
+    const TODAY = FAKE_TODAY;
     const row = (over: Record<string, unknown>) => ({
       sessionId: 'x',
       eventId: 'e',
@@ -326,21 +341,8 @@ describe('SchedulePage', () => {
     });
     const names = () =>
       [...fixture.nativeElement.querySelectorAll('.schedule-page__session')].map((el) =>
-        (el as HTMLElement).querySelector('p:nth-child(2)')?.textContent?.trim(),
+        (el as HTMLElement).querySelector('.schedule-page__class-name')?.textContent?.trim(),
       );
-
-    // 時鐘釘在今天中午。**不能用 `vi.useRealTimers()` 收尾**：test:timetravel 的 setup 已經
-    // 把時鐘推到未來，收成真時鐘會讓這個 describe 之後的測試全看到「現在」（#670 的形狀）。
-    // 所以只還原我們動過的那一層。
-    let restore: () => void;
-    beforeEach(() => {
-      const alreadyFake = vi.isFakeTimers();
-      const before = Date.now();
-      if (!alreadyFake) vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date(`${TODAY}T12:00:00`));
-      restore = () => (alreadyFake ? vi.setSystemTime(before) : vi.useRealTimers());
-    });
-    afterEach(() => restore());
 
     const sessions = () => [
       row({ sessionId: '1', className: '上午班', startTime: '09:00', endTime: '10:00' }),
@@ -414,10 +416,7 @@ describe('SchedulePage', () => {
 
     // #1314 TS7：這週你的課務異動，點一則跳到那天
     it('課務異動：列出、點一則跳到那天；沒有異動時整段不出現', async () => {
-      const day = format(
-        new Date(new Date(`${TODAY}T12:00:00`).getTime() + 86_400_000),
-        'yyyy-MM-dd',
-      );
+      const day = '2027-03-06';
       await setup({
         sessions: [...sessions(), row({ sessionId: '8', className: '明天班', eventDate: day })],
         changes: [
@@ -457,10 +456,7 @@ describe('SchedulePage', () => {
     });
 
     it('週條可以換日：點別天只看到那天，而且沒有「接下來」卡', async () => {
-      const mondayLater = format(
-        new Date(new Date(`${TODAY}T12:00:00`).getTime() + 86_400_000),
-        'yyyy-MM-dd',
-      );
+      const mondayLater = '2027-03-06';
       await setup({
         sessions: [
           ...sessions(),
@@ -468,11 +464,8 @@ describe('SchedulePage', () => {
         ],
       });
       const days = [...fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-day')];
-      const tomorrow = days.find((d) =>
-        (d as HTMLElement).textContent?.includes(
-          format(new Date(`${mondayLater}T12:00:00`), 'M/d'),
-        ),
-      ) as HTMLElement | undefined;
+      const tomorrow = days.find((d) => (d as HTMLElement).textContent?.includes('3/6')) as
+        HTMLElement | undefined;
       // 今天若是週日，明天在下一週；那種日子這條只驗到「今天」之外沒有東西可點，跳過
       if (!tomorrow) return;
       tomorrow.click();
@@ -507,6 +500,137 @@ describe('SchedulePage', () => {
       ].set(new Map([[TODAY, 4]]));
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('h2').textContent).toContain('4 則聯絡簿未寫');
+    });
+
+    /**
+     * #1314 TS-B：課堂列（A6 `.card`）。假現在＝2027-03-05 12:00（台北）。
+     * 動作鈕的條件一個字沒改；這裡守的是「畫面上有什麼、放哪、什麼樣式」，主／次 × 手機／桌機。
+     */
+    describe('課堂列（#1314 TS-B）', () => {
+      const rowEl = (name: string) =>
+        [...fixture.nativeElement.querySelectorAll('.schedule-page__session')].find((el) =>
+          (el as HTMLElement).textContent?.includes(name),
+        ) as HTMLElement;
+      const buttons = (el: HTMLElement) =>
+        [...el.querySelectorAll('.schedule-page__actions button')] as HTMLButtonElement[];
+      const labels = (el: HTMLElement) => buttons(el).map((b) => b.textContent?.trim());
+
+      it('狀態字：已上完／上課中／還有 N 分開始／已停課（12:00 的假現在）', async () => {
+        await setup({
+          sessions: [
+            row({ sessionId: '1', className: '早班', startTime: '09:00', endTime: '10:00' }),
+            row({ sessionId: '2', className: '上課中班', startTime: '11:30', endTime: '12:30' }),
+            row({ sessionId: '3', className: '晚班', startTime: '19:00', endTime: '21:00' }),
+            row({ sessionId: '4', className: '停課班', status: 'cancelled' }),
+          ],
+        });
+        const state = (n: string) => rowEl(n).querySelector('.schedule-page__state')?.textContent;
+        expect(state('早班')).toBe('已上完');
+        expect(state('上課中班')).toBe('上課中 · 還有 30 分下課');
+        expect(state('晚班')).toBe('還有 420 分開始');
+        expect(state('停課班')).toBe('已停課');
+      });
+
+      it('只有「接下來那堂」有黑框；其餘列是分段線（border-b），停課列畫刪除線', async () => {
+        await setup({
+          sessions: [
+            row({ sessionId: '1', className: '晚班', startTime: '19:00', endTime: '21:00' }),
+            row({ sessionId: '2', className: '停課班', status: 'cancelled', startTime: '13:00' }),
+          ],
+        });
+        const next = fixture.nativeElement.querySelectorAll('.schedule-page__session--next');
+        expect(next.length).toBe(1);
+        expect(next[0].textContent).toContain('晚班');
+        expect(rowEl('停課班').classList.contains('schedule-page__session--next')).toBe(false);
+        expect(rowEl('停課班').classList.contains('schedule-page__session--cancelled')).toBe(true);
+        expect(rowEl('停課班').className).toContain('border-b');
+        // 刪除線掛在班名與時間兩處（祖先 class 規則），兩處都要
+        expect(rowEl('停課班').querySelector('.schedule-page__class-name')?.className).toContain(
+          'line-through',
+        );
+        expect(rowEl('停課班').querySelector('div > div')?.className).toContain('line-through');
+      });
+
+      it('「N 位學生」是連到學生頁的連結（不是「N 人」純文字）', async () => {
+        await setup({ sessions: [row({ sessionId: '1', className: '甲班', enrolledCount: 25 })] });
+        const link = rowEl('甲班').querySelector('a.schedule-page__students') as HTMLAnchorElement;
+        expect(link.textContent?.trim()).toBe('25 位學生');
+        expect(link.getAttribute('href')).toBe('/teacher/students');
+        expect(link.className).toContain('min-h-11');
+        expect(rowEl('甲班').textContent).not.toContain('25 人');
+      });
+
+      it('老師負責點名：沒點＝橘底「開始點名」、點過＝白框「修改點名」（主／次，手機全寬、桌機直排）', async () => {
+        await setup({
+          attendanceResponsible: 'teacher',
+          sessions: [
+            row({ sessionId: '1', className: '沒點班', startTime: '09:00', endTime: '10:00' }),
+            row({
+              sessionId: '2',
+              className: '點過班',
+              startTime: '10:30',
+              endTime: '11:30',
+              takenAt: '2027-03-05T02:00:00Z',
+            }),
+          ],
+        });
+        const primary = buttons(rowEl('沒點班'))[0];
+        expect(primary.textContent?.trim()).toBe('開始點名');
+        expect(primary.className).toContain('bg-accent-vivid');
+        const secondary = buttons(rowEl('點過班'))[0];
+        expect(secondary.textContent?.trim()).toBe('修改點名');
+        expect(secondary.className).toContain('bg-white');
+        expect(secondary.className).not.toContain('bg-accent-vivid');
+        for (const b of [primary, secondary]) {
+          expect(b.className).toContain('min-h-11'); // 手機 ≥44px
+          expect(b.className).toContain('flex-1'); // 手機橫排各佔一格
+          expect(b.className).toContain('wide:flex-none'); // 桌機不拉滿
+        }
+        const actions = rowEl('沒點班').querySelector('.schedule-page__actions') as HTMLElement;
+        expect(actions.className).toContain('wide:flex-col'); // 桌機直排
+        expect(actions.className).toContain('flex-wrap'); // 手機橫排
+      });
+
+      it('行政負責點名：只有「看名單」（白框）；停課列沒有任何動作鈕', async () => {
+        await setup({
+          attendanceResponsible: 'admin',
+          sessions: [
+            row({ sessionId: '1', className: '甲班', startTime: '09:00', endTime: '10:00' }),
+            row({ sessionId: '2', className: '停課班', status: 'cancelled', eventId: null }),
+          ],
+        });
+        expect(labels(rowEl('甲班'))).toEqual(['看名單']);
+        expect(labels(rowEl('停課班'))).toEqual([]);
+      });
+
+      it('日誌與聯絡簿二選一：聯絡簿班只有「寫聯絡簿」、一般班只有「寫日誌」', async () => {
+        await setup({
+          attendanceResponsible: 'teacher',
+          sessions: [
+            row({ sessionId: '1', className: '日誌班', startTime: '09:00', endTime: '10:00' }),
+            row({
+              sessionId: '2',
+              className: '簿班',
+              usesContactBook: true,
+              startTime: '10:30',
+              endTime: '11:30',
+            }),
+          ],
+        });
+        expect(labels(rowEl('日誌班'))).toEqual(['開始點名', '寫日誌']);
+        expect(labels(rowEl('簿班'))).toEqual(['開始點名', '寫聯絡簿']);
+      });
+
+      it('今天的定義看假時鐘、不看瀏覽器：台北 23:59 仍是 3/5，00:00 翻成 3/6（日界線）', async () => {
+        await setup({ nowMs: Date.parse('2027-03-05T15:59:00Z') });
+        const todayBtn = () =>
+          fixture.nativeElement.querySelector('.schedule-page__weekbar-day[aria-current="date"]');
+        expect(todayBtn().textContent).toContain('3/5');
+        TestBed.resetTestingModule();
+        await setup({ nowMs: Date.parse('2027-03-05T16:00:00Z') });
+        expect(todayBtn().textContent).toContain('3/6');
+        expect(fixture.nativeElement.querySelector('h2').textContent).toContain('3/6');
+      });
     });
 
     /**

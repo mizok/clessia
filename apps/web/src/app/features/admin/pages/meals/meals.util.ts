@@ -115,3 +115,42 @@ export function chapterOrdered(rows: MealDraftRow[]): number {
 export function monthDay(day: string): string {
   return `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}`;
 }
+
+/** 可編輯的四個欄位壓成一個字串 —— 跟載入當下的快照比，就知道這列有沒有被改過 */
+function draftKey(row: MealDraftRow): string {
+  return `${row.ordered}|${row.chargeable}|${row.unitPrice}|${row.note}`;
+}
+
+/** 載入當下的快照（studentId → 欄位字串），給 `changedCount` 比對 */
+export function draftSnapshot(rows: MealDraftRow[]): ReadonlyMap<string, string> {
+  return new Map(rows.map((row) => [row.studentId, draftKey(row)]));
+}
+
+/**
+ * 跟載入當下比，被改過的有幾列（A6 確認列「改了 N 位」）。
+ * 改了又改回原值＝沒改；已結算的列鎖住、改不了，不算。
+ */
+export function changedCount(rows: MealDraftRow[], baseline: ReadonlyMap<string, string>): number {
+  return rows.filter((row) => !row.settled && baseline.get(row.studentId) !== draftKey(row)).length;
+}
+
+/** 還沒人處理過的（`recordId === null`）且沒被鎖住的列數 —— 「N 位還沒處理」 */
+export function unhandledCount(rows: MealDraftRow[]): number {
+  return rows.filter((row) => !row.settled && row.recordId === null).length;
+}
+
+/** 區間依日期分章（A6 `.chap`）。維持後端的新到舊（分頁也是照這個順序切的） */
+export function mealDayChapters(rows: MealDraftRow[]): { date: string; rows: MealDraftRow[] }[] {
+  const byDate = new Map<string, MealDraftRow[]>();
+  for (const row of rows) byDate.set(row.mealDate, [...(byDate.get(row.mealDate) ?? []), row]);
+  return [...byDate]
+    .map(([date, list]) => ({ date, rows: list }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
+
+/** `YYYY-MM-DD` → 週幾（一～日）。用 UTC 算，不吃瀏覽器時區 */
+export function weekdayLabel(day: string): string {
+  return WEEKDAY[new Date(`${day}T00:00:00Z`).getUTCDay()];
+}

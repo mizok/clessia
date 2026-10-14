@@ -1,4 +1,4 @@
-import type { RevenueGroupBy } from '@core/reports.service';
+import type { RevenueGroup, RevenueGroupBy } from '@core/reports.service';
 
 /**
  * 報表的顯示輔助。
@@ -48,47 +48,26 @@ export function defaultRange(today: string): { from: string; to: string } {
 }
 
 /**
- * 開帳這筆錢的組成，用來畫橘帶上那條流向。
- *
- * **只用 `billed` 與 `outstanding` 這一組**，不把 `received` 拉進來 ——
- * 收款看收款日、帳單看開帳日（見 `RevenueFigures` 的欄位說明），**兩者是不同
- * 的集合**。拿 `received / billed` 當「收款率」是在比不同的母體，數字看起來
- * 合理但沒有意義。
- *
- * 成立的部分／全體只有這一組：
- *
- *   billed = 已收回（billed − outstanding） + outstanding
- *   overdueOutstanding ⊆ outstanding
- *
- * 這是**顯示用的比例**，不是加總 —— 三個值都由後端給，這裡只是換算成長度。
+ * 模糊桶為什麼自成一列（A6：直接寫在那一列名稱底下，不藏在 tooltip）。
+ * 文案跟後端契約無關，只是給人看的；key 是上面 `AMBIGUOUS_GROUP_KEYS` 那三個。
  */
-export interface BilledSplit {
-  /** 已收回佔 billed 的百分比 */
-  readonly collectedPct: number;
-  /** 其中逾期佔 billed 的百分比（畫在未收段的起點） */
-  readonly overduePct: number;
-  /** 已收回的金額 */
-  readonly collected: number;
+const AMBIGUOUS_REASONS: Record<string, string> = {
+  '（跨分校）': '同一張帳單有兩個分校的課。不拆比例、也不重複算，自成一組，小計才加得回總計。',
+  '（跨課程）': '同一張帳單有兩門以上的課（例如同時修數學和英文）。理由同上。',
+  '（未分類）': '帳單上沒有任何課（例如只有講義費、餐費）。',
+};
+
+export function ambiguousReason(key: string): string | null {
+  return AMBIGUOUS_REASONS[key] ?? null;
 }
 
-export function splitBilled(figures: {
-  billed: number;
-  outstanding: number;
-  overdueOutstanding: number;
-}): BilledSplit {
-  const { billed, outstanding, overdueOutstanding } = figures;
-  if (billed <= 0) return { collectedPct: 0, overduePct: 0, collected: 0 };
-
-  // 溢繳會讓 outstanding 變負數，夾住才不會畫出超過 100% 的條
-  const owed = Math.min(Math.max(outstanding, 0), billed);
-  const collected = billed - owed;
-  const overdue = Math.min(Math.max(overdueOutstanding, 0), owed);
-
-  return {
-    collectedPct: (collected / billed) * 100,
-    overduePct: (overdue / billed) * 100,
-    collected,
-  };
+/**
+ * 一列的比例條（A6）：這一組的已開帳佔整體已開帳的幾 %。**顯示用的除法，不是加總** ——
+ * 兩個數字都由後端給。整體 `<= 0` 回 0（不除以 0）；夾在 0–100，避免畫出超出的條。
+ */
+export function billedShare(groupBilled: number, totalBilled: number): number {
+  if (totalBilled <= 0) return 0;
+  return Math.min(Math.max((groupBilled / totalBilled) * 100, 0), 100);
 }
 
 /** 期間下拉的一個選項（RP1，#1314）。`value` 是穩定的鍵，`from`／`to` 直接送 API */
@@ -205,4 +184,15 @@ export function revenueHeadline(
     second: owes ? `還有 NT$ ${money(figures.outstanding)} 沒收到。` : '都收到了。',
     sub: `已收回 ${split.collectedPctInt}%${owes ? `；${overdue}` : '。'}`,
   };
+}
+
+/**
+ * 分組列的顯示順序（A6）：月份新到舊；其餘模糊桶放最後、一般列依已開帳由大到小
+ * （已開帳相同就維持後端的名稱順序 —— `sort` 是穩定的）。**只換順序，不動任何數字。**
+ */
+export function sortGroups(groups: RevenueGroup[], groupBy: RevenueGroupBy): RevenueGroup[] {
+  if (groupBy === 'month') return [...groups].sort((a, b) => b.key.localeCompare(a.key));
+  return [...groups].sort(
+    (a, b) => Number(isAmbiguousKey(a.key)) - Number(isAmbiguousKey(b.key)) || b.billed - a.billed,
+  );
 }
