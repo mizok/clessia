@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
 
@@ -22,4 +22,17 @@ import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.com
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
 })
-export class PageOpenComponent {}
+export class PageOpenComponent {
+  /**
+   * 人名當標題（A6 `.open__title--name`，只有學生檔案用）：桌機 72／手機 44，行高 1。
+   * 預設 false＝一般標題 48／28，不影響別頁。整串寫在 TS：任意值 class 用 `[class.text-[..]]`
+   * 綁會靜默失效（labor-1019 charter §二）。
+   */
+  readonly nameSize = input(false);
+
+  protected readonly titleClass = computed(() =>
+    this.nameSize()
+      ? 'm-0 max-w-[18em] text-[44px] leading-none font-bold tracking-[-0.04em] text-balance wide:text-[72px]'
+      : 'm-0 max-w-[18em] text-[28px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[48px] wide:leading-[1.14] wide:tracking-[-0.035em]',
+  );
+}
