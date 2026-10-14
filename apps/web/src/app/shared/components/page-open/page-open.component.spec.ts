@@ -6,12 +6,14 @@ import { PageOpenComponent } from './page-open.component';
 
 @Component({
   imports: [PageOpenComponent],
-  template: `<app-page-open [nameSize]="big()"
-    ><ng-container openTitle>王柏翰</ng-container></app-page-open
+  template: `<app-page-open [nameSize]="big()" [subLarge]="large()"
+    ><ng-container openTitle>王柏翰</ng-container
+    ><ng-container openSub>副行</ng-container></app-page-open
   >`,
 })
 class Host {
   readonly big = signal(false);
+  readonly large = signal(false);
 }
 
 describe('PageOpenComponent 標題字級', () => {
@@ -32,5 +34,20 @@ describe('PageOpenComponent 標題字級', () => {
     expect(h1(f).classList.contains('text-[44px]')).toBe(true);
     expect(h1(f).classList.contains('leading-none')).toBe(true);
     expect(h1(f).classList.contains('wide:text-[48px]')).toBe(false);
+  });
+
+  const sub = (f: { nativeElement: HTMLElement }) => f.nativeElement.querySelector('h1 + p')!;
+
+  it('subLarge 預設關：副行一般大小；開了才放大（A6 a6.css:633）', () => {
+    const f = TestBed.createComponent(Host);
+    f.detectChanges();
+    expect(sub(f).classList.contains('wide:text-lg')).toBe(true);
+    expect(sub(f).classList.contains('wide:text-2xl')).toBe(false);
+
+    f.componentInstance.large.set(true);
+    f.detectChanges();
+    expect(sub(f).classList.contains('wide:text-2xl')).toBe(true);
+    expect(sub(f).classList.contains('font-semibold')).toBe(true);
+    expect(sub(f).classList.contains('wide:text-lg')).toBe(false);
   });
 });

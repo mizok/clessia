@@ -30,6 +30,18 @@ export class PageOpenComponent {
    */
   readonly nameSize = input(false);
 
+  /**
+   * 副行放大（A6 `a6.css:633`：標題裡有分校小字時，副行改 22／16px、600、近黑）。
+   * 預設 false＝一般副行 18／14px、500、淡色，別頁不變。
+   */
+  readonly subLarge = input(false);
+
+  protected readonly subClass = computed(() =>
+    this.subLarge()
+      ? 'mt-4 mb-0 max-w-[46em] text-lg font-semibold tracking-[-0.01em] text-band-ink empty:hidden wide:text-2xl'
+      : 'mt-3 mb-0 max-w-[46em] text-base font-medium text-band-ink-muted empty:hidden wide:text-lg',
+  );
+
   protected readonly titleClass = computed(() =>
     this.nameSize()
       ? 'm-0 max-w-[18em] text-[44px] leading-none font-bold tracking-[-0.04em] text-balance wide:text-[72px]'

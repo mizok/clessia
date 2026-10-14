@@ -2,7 +2,7 @@
   A6 版（#991、#1314 D）：色面（機構名＋一句話）→ 灰工具列 → 待處理 → 主段 → 灰摺疊列 → 臨時狀況。
   主段：日到班＝「該到沒到，先打給家長」；逐堂點名＝今日課表（A6 只畫了日到班的形狀）。
 -->
-<app-page-open>
+<app-page-open [subLarge]="!!campusName()">
   <ng-container openTitle>
     @if (orgName(); as name) {
       {{ name }}
@@ -36,13 +36,37 @@
       {{ todayLabel() }}
     </p>
     @if (canPhoneLeave()) {
+      <!--
+        桌機（A6）：兩顆都是白底框次要鈕，不是「次要＋橘主要」；手機是托盤（次要＋橘主要）。
+        所以標頭的主要／次要都關掉（primaryOnDesktop／secondaryOnDesktop），改投影兩顆，
+        用 `min-[640.02px]` 與托盤互斥（page-actions 的同一個斷點）。順序同稿：代刷、請假。
+      -->
       <app-page-actions
         class="ml-auto"
         [primary]="leavePrimary"
         [secondary]="leaveSecondary"
+        [primaryOnDesktop]="false"
+        [secondaryOnDesktop]="false"
         (primaryClick)="openPhoneLeave()"
         (secondaryClick)="openCheckinStation()"
-      />
+      >
+        <button
+          type="button"
+          class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex"
+          data-testid="desktop-checkin"
+          (click)="openCheckinStation()"
+        >
+          <i class="pi pi-check text-sm" aria-hidden="true"></i>櫃台代刷到班
+        </button>
+        <button
+          type="button"
+          class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex"
+          data-testid="desktop-leave"
+          (click)="openPhoneLeave()"
+        >
+          <i class="pi pi-file-edit text-sm" aria-hidden="true"></i>登記請假
+        </button>
+      </app-page-actions>
     }
   </div>
 </div>
@@ -215,7 +239,7 @@
               [disabled]="!canPhoneLeave()"
               (click)="openPhoneLeave(row.student.studentId)"
             >
-              登記請假
+              <i class="pi pi-file-edit text-sm" aria-hidden="true"></i>登記請假
             </button>
             <button
               type="button"

@@ -38,6 +38,8 @@ import { ButtonModule } from 'primeng/button';
  */
 export interface PageAction {
   readonly label: string;
+  /** 手機托盤上的標籤（A6 托盤比桌機鈕短，例如「櫃台代刷」對「櫃台代刷到班」）；不給就沿用 `label` */
+  readonly mobileLabel?: string;
   /** primeicons 的 class，例如 `pi pi-plus` */
   readonly icon?: string;
   readonly disabled?: boolean;

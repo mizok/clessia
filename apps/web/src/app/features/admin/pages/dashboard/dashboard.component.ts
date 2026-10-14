@@ -255,8 +255,13 @@ export class DashboardComponent {
     { title: '班級改時段', hint: '整期一起改' },
   ] as const;
 
-  protected readonly leavePrimary = { label: '登記請假' };
-  protected readonly leaveSecondary = { label: '櫃台代刷到班' };
+  // 手機托盤：A6 的「櫃台代刷」比桌機鈕「櫃台代刷到班」短；圖示照稿
+  protected readonly leavePrimary = { label: '登記請假', icon: 'pi pi-file-edit' };
+  protected readonly leaveSecondary = {
+    label: '櫃台代刷到班',
+    mobileLabel: '櫃台代刷',
+    icon: 'pi pi-check',
+  };
 
   protected openPhoneLeave(studentId: string | null = null): void {
     this.phoneLeaveStudentId.set(studentId);
