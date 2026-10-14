@@ -34,6 +34,7 @@ const ContactBookEntrySchema = z
     content: z.string(),
     lastEditedByName: z.string().nullable(),
     signedBy: z.string().nullable(),
+    signedByName: z.string().nullable(),
     signedAt: z.string().nullable(),
     isSigned: z.boolean(),
   })
@@ -68,6 +69,7 @@ interface ContactBookRow {
   signed_at: string | null;
   students?: { name: string } | null;
   editor?: { name: string } | null;
+  signer?: { name: string } | null;
 }
 
 export function toContactBookEntryResponse(row: Record<string, unknown>) {
@@ -80,6 +82,7 @@ export function toContactBookEntryResponse(row: Record<string, unknown>) {
     content: typed.content,
     lastEditedByName: typed.editor?.name ?? null,
     signedBy: typed.signed_by,
+    signedByName: typed.signer?.name ?? null,
     signedAt: typed.signed_at,
     isSigned: Boolean(typed.signed_at),
   };
@@ -87,7 +90,7 @@ export function toContactBookEntryResponse(row: Record<string, unknown>) {
 
 const SELECT =
   'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, ' +
-  'students(name), editor:ba_user!last_edited_by(name)';
+  'students(name), editor:ba_user!last_edited_by(name), signer:ba_user!signed_by(name)';
 
 // ── GET /api/contact-book —— 依學生或日期區間列出 ──────────────────────────
 app.openapi(

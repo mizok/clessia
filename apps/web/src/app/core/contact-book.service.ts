@@ -24,6 +24,8 @@ export interface ContactBookEntry {
   /** 共編只記最後編輯者，不做分段作者（rules 3） */
   lastEditedByName: string | null;
   signedBy: string | null;
+  /** 簽收者姓名（`signedBy` 是 ba_user id，畫面要顯示的是這個）；未簽或對不到使用者為 null */
+  signedByName: string | null;
   signedAt: string | null;
   /** 後端算好的 —— 前端不要再從 signedAt 推一次 */
   isSigned: boolean;
