@@ -963,6 +963,9 @@ describe('DashboardComponent（管理端）', () => {
       for (const b of [checkin, leave]) {
         expect(b.classList.contains('bg-white')).toBe(true);
         expect(b.classList.contains('border-zinc-300')).toBe(true);
+        // 只在桌機出現：手機靠 hidden、桌機靠 min-[640.02px]:inline-flex（與托盤互斥的同一個斷點）
+        expect(b.classList.contains('hidden')).toBe(true);
+        expect(b.classList.contains('min-[640.02px]:inline-flex')).toBe(true);
       }
       // 順序同稿：代刷在前、請假在後
       expect(

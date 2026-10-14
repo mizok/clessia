@@ -283,4 +283,18 @@ describe('PageActionsComponent', () => {
     // 主要鈕沒給 mobileLabel → 沿用 label
     expect(dock.querySelector('.page-actions__cta')!.textContent).toContain('登記請假');
   });
+
+  it('主要鈕帶 mobileLabel：托盤用短標籤、標頭用 label；次要沒給的兩處都用 label（主／次、手機／桌機四個方向）', async () => {
+    await setup({ label: '登記請假', mobileLabel: '請假' }, { label: '櫃台代刷到班' });
+
+    const text = (el: Element | null) => el!.textContent!.replace(/\s+/g, '');
+    // 手機托盤
+    expect(text(host.querySelector('.page-actions__dock .page-actions__cta'))).toBe('請假');
+    expect(text(host.querySelector('.page-actions__dock .page-actions__secondary'))).toBe(
+      '櫃台代刷到班',
+    );
+    // 桌機標頭
+    expect(text(host.querySelector('.page-actions__header-primary'))).toBe('登記請假');
+    expect(text(host.querySelector('.page-actions__header-secondary'))).toBe('櫃台代刷到班');
+  });
 });
