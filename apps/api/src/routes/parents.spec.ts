@@ -279,6 +279,12 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
       expect(lastBody.data[0]?.['hasLoggedIn']).toBe(false);
     });
 
+    it('emailVerified=null（欄位沒值）→ hasLoggedIn=false：只有明確的 true 才算登入過', async () => {
+      baUserRows = [{ id: 'user-1', email: 'a@x.com', phone: null, emailVerified: null }];
+      await listParents(null);
+      expect(lastBody.data[0]?.['hasLoggedIn']).toBe(false);
+    });
+
     it('emailVerified=true → hasLoggedIn=true', async () => {
       baUserRows = [{ id: 'user-1', email: 'a@x.com', phone: null, emailVerified: true }];
       await listParents(null);
