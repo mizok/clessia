@@ -69,6 +69,13 @@ export class PageActionsComponent {
   readonly secondaryOnDesktop = input(true);
 
   /**
+   * 桌機標頭要不要放 `primary`（預設要）。**手機托盤不受影響**。
+   * 手機托盤的主要行動和桌機的主鈕不是同一顆時傳 `false`（帳單：托盤是「全部提醒」，
+   * 桌機橘鈕是「開立帳單」，由頁面投影進標頭），不然桌機標頭會多一顆不該有的橘鈕。
+   */
+  readonly primaryOnDesktop = input(true);
+
+  /**
    * 帶著原始的 `MouseEvent` —— 有些主要行動要**錨定一個彈出選單**在按鈕上
    * （例如「新增考試」要先選補習班考試還是學校考試），那需要事件的 target。
    *

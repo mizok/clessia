@@ -3,7 +3,7 @@ title: 繳費紀錄頁的設計
 summary: 把 /admin/payments 空殼接上 /api/invoices：狀態由後端推導直接呈現、篩選只做 API 真的支援的兩項（欠繳與單一學生）而不在前端偽造狀態篩選、meta.total 在非 overdue 路徑不可信所以分頁改用「當頁滿即有下一頁」、詳情走 dialog、收款/退費/催繳/手動開帳共用同一個 dialog、列印用 @media print 切區塊。
 category: architecture
 status: active
-updated: 2026-08-29
+updated: 2026-10-14
 tags: [architecture, admin, finance, payments, invoices]
 ---
 
@@ -73,6 +73,12 @@ API 只吃 `studentId`(uuid)，不吃姓名關鍵字。`shared/components/studen
 存在（`students.service` 的 `search` + `searchScope: 'student_name'`），選定後帶 uuid 打
 `GET /api/invoices?studentId=`。這是**加法**，不必動 API，也不必新做元件。
 
+> **2026-10-14 更新（#1314 帳單殘差 PR-1）**：頁面已改成單一搜尋框（A6），打後端 `search`
+> （學生名、家長名、帳單編號），**不再用 `student-autocomplete`、也不再送 `studentId`**。
+> 節流 300ms 後走單一 `switchMap` 管線（逐字打字會讓慢的舊請求後到）。匯出在工具列的下載鈕：
+> 月份預設台北當月、範圍三選一（全部／只有逾期／還沒繳清），**範圍不跟畫面上的篩選走**；
+> `xlsx` 動態載入，一頁 200 筆輪詢到 `meta.total`。
+
 日期區間與分校篩選 API 都沒有 → 同 1，不做，回報。
 
 ### 4. 轉帳憑證：留欄位不接 Storage
@@ -97,7 +103,7 @@ spec 要求退費必填原因與經手人。API 的 `payment_records` 只有 `no
 一頁 + 一組 dialog，不新增路由：
 
 ```
-payments.page                     列表：搜尋(學生 autocomplete) / 欠繳 toggle / 開帳按鈕 / 分頁
+payments.page                     列表：搜尋(學生／家長／帳單編號) / 欠繳 toggle / 開帳按鈕 / 分頁
   └ invoice-detail-dialog         詳情：明細 items、收款記錄、催繳記錄
        ├ payment-form-dialog      記收款 / 記退費（同一個表單，kind 決定）
        └ reminder-form-dialog     記一次催繳

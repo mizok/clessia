@@ -1,12 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { format } from 'date-fns';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { InvoicesService, type Invoice, type InvoiceSummary } from '@core/invoices.service';
-import { StudentsService, type Student } from '@core/students.service';
 
 import { PaymentsPage } from './payments.page';
 
@@ -32,14 +31,6 @@ const invoice = (overrides?: Partial<Invoice>): Invoice => ({
   updatedAt: '2026-08-01T00:00:00.000Z',
   ...overrides,
 });
-
-const student = (overrides?: Partial<Student>): Student =>
-  ({
-    id: 'stu-1',
-    name: '陳小明',
-    grade: 'g7',
-    ...overrides,
-  }) as Student;
 
 /**
  * `meta.total` 是**篩後全體**的筆數，不是當頁長度（PR #64 修正）——
@@ -83,21 +74,16 @@ describe('PaymentsPage', () => {
     createReminder: vi.fn(),
     createRemindersBatch: vi.fn(),
   };
-  const students = {
-    list: vi.fn(() => of({ data: [student()], summary: {}, meta: {} })),
-  };
 
   beforeEach(async () => {
     invoices.list.mockReset().mockReturnValue(of(listResponse([])));
     invoices.summary.mockReset().mockReturnValue(of(summary()));
-    students.list.mockReset().mockReturnValue(of({ data: [student()], summary: {}, meta: {} }));
 
     await TestBed.configureTestingModule({
       imports: [PaymentsPage],
       providers: [
         provideRouter([]),
         { provide: InvoicesService, useValue: invoices },
-        { provide: StudentsService, useValue: students },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
       ],
     }).compileComponents();
@@ -117,9 +103,9 @@ describe('PaymentsPage', () => {
   });
 
   // 沒有篩選時是章節模式：主清單就是逾期章，所以送 overdue=true、不送 status
-  it('預設（章節模式）只取逾期那一章，不送 status 與 studentId', () => {
+  it('預設（章節模式）只取逾期那一章，不送 status 與 search', () => {
     expect(invoices.list).toHaveBeenCalledWith(
-      expect.objectContaining({ overdue: true, status: undefined, studentId: undefined }),
+      expect.objectContaining({ overdue: true, status: undefined, search: undefined }),
     );
   });
 
@@ -199,22 +185,48 @@ describe('PaymentsPage', () => {
     );
   });
 
-  // 學生搜尋的 API 只吃 uuid，不吃姓名關鍵字 —— 選定之後帶的必須是 id
-  it('選定學生後用 studentId 篩，不是姓名', () => {
-    invoices.list.mockClear();
+  describe('搜尋框（學生名、家長名、帳單編號 → 後端 search）', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
 
-    component['onStudentChange'](student({ id: 'stu-9' }));
+    it('打帳單編號：節流 300ms 後以 search 打後端，回第 1 頁、離開章節模式', () => {
+      invoices.list.mockClear();
 
-    expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ studentId: 'stu-9' }));
-  });
+      component['onSearchChange']('INV-2610-012');
+      vi.advanceTimersByTime(299);
+      expect(invoices.list).not.toHaveBeenCalled();
 
-  // 打字中間 autocomplete 的值是字串，那還不是一個選定的學生
-  it('自動完成打字中不觸發列表查詢', () => {
-    invoices.list.mockClear();
+      vi.advanceTimersByTime(1);
+      expect(invoices.list).toHaveBeenCalledTimes(1);
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'INV-2610-012', page: 1, overdue: undefined }),
+      );
+      expect(component['chapterMode']()).toBe(false);
+    });
 
-    component['onStudentChange']('陳');
+    it('只有空白不算搜尋', () => {
+      invoices.list.mockClear();
+      component['onSearchChange']('   ');
+      vi.advanceTimersByTime(300);
+      expect(invoices.list).not.toHaveBeenCalled();
+    });
 
-    expect(invoices.list).not.toHaveBeenCalled();
+    it('亂序：先發的搜尋後到，不蓋掉新的結果（switchMap）', () => {
+      const first = new Subject<ReturnType<typeof listResponse>>();
+      const second = new Subject<ReturnType<typeof listResponse>>();
+      invoices.list.mockReset().mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+      component['onSearchChange']('陳');
+      vi.advanceTimersByTime(300);
+      component['onSearchChange']('陳小明');
+      vi.advanceTimersByTime(300);
+
+      second.next(listResponse([invoice({ id: 'new', studentName: '陳小明' })]));
+      first.next(listResponse([invoice({ id: 'old', studentName: '陳大華' })], 9));
+
+      expect(component['invoices']().map((i) => i.id)).toEqual(['new']);
+      expect(component['totalRecords']()).toBe(1);
+    });
   });
 
   it('換篩選條件時回到第一頁', () => {
@@ -312,20 +324,20 @@ describe('PaymentsPage', () => {
     expect(component['failed']()).toBe(false);
   });
 
-  it('清除篩選會同時清掉欠繳、狀態與學生', () => {
+  it('清除篩選會同時清掉欠繳、狀態與搜尋', () => {
     component['setDueFilter']('overdue');
     component['onStatusChange']('unpaid');
-    component['onStudentChange'](student());
+    component['searchQuery'].set('陳');
     invoices.list.mockClear();
 
     component['clearFilters']();
 
     expect(component['overdueOnly']()).toBe(false);
     expect(component['statusFilter']()).toBeNull();
-    expect(component['selectedStudent']()).toBeNull();
+    expect(component['searchQuery']()).toBe('');
     // 清完回到章節模式：主清單又是逾期章
     expect(invoices.list).toHaveBeenCalledWith(
-      expect.objectContaining({ overdue: true, status: undefined, studentId: undefined }),
+      expect.objectContaining({ overdue: true, status: undefined, search: undefined }),
     );
   });
 
@@ -510,6 +522,89 @@ describe('PaymentsPage', () => {
       expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'void' }));
     });
   });
+  describe('#1314 殘差 PR-1：工具列與章頭', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const rows = () => [
+      invoice({ id: 'inv-1', dueDate: '2020-01-01' }),
+      invoice({ id: 'inv-2', dueDate: '2020-01-01' }),
+    ];
+
+    it('搜尋框 placeholder 照稿，且不再有學生自動完成', () => {
+      fixture.detectChanges();
+      const input = el().querySelector('input[aria-label="搜尋帳單"]') as HTMLInputElement;
+      expect(input.placeholder).toBe('找學生、家長或帳單編號');
+      expect(el().querySelector('app-student-autocomplete')).toBeNull();
+    });
+
+    it('「全部提醒（N）」在逾期章頭；沒有可催繳的就不畫', async () => {
+      invoices.list.mockReturnValue(of(listResponse(rows())));
+      component['load']();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const head = el().querySelector('app-chapter-head') as HTMLElement;
+      expect(head.textContent).toContain('全部提醒（2）');
+
+      invoices.list.mockReturnValue(of(listResponse([])));
+      component['load']();
+      fixture.detectChanges();
+      expect((el().querySelector('app-chapter-head') as HTMLElement).textContent).not.toContain(
+        '全部提醒',
+      );
+    });
+
+    it('匯出預設當月（台北今天所在月），檔名與範圍寫進檔名；逾期範圍送 overdue', async () => {
+      const writeFile = vi.fn();
+      vi.doMock('xlsx', () => ({
+        utils: {
+          json_to_sheet: vi.fn(() => ({})),
+          book_new: vi.fn(() => ({})),
+          book_append_sheet: vi.fn(),
+        },
+        writeFile,
+      }));
+      const month = component['systemClock'].todayTaipei().slice(0, 7);
+      expect(component['exportMonth']()).toBe(month);
+      component['exportScope'].set('overdue');
+      invoices.list.mockClear();
+      invoices.list.mockReturnValue(of(listResponse(rows())));
+
+      await component['exportInvoices']({ hide: vi.fn() } as never);
+
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          issuedMonth: month,
+          overdue: true,
+          outstanding: undefined,
+          pageSize: 200,
+        }),
+      );
+      expect(writeFile).toHaveBeenCalledWith(expect.anything(), `帳單_${month}_只有逾期.xlsx`);
+      vi.doUnmock('xlsx');
+    });
+
+    it('匯出超過一頁：用 meta.total 判斷收完', async () => {
+      vi.doMock('xlsx', () => ({
+        utils: {
+          json_to_sheet: vi.fn(() => ({})),
+          book_new: vi.fn(() => ({})),
+          book_append_sheet: vi.fn(),
+        },
+        writeFile: vi.fn(),
+      }));
+      invoices.list.mockClear();
+      invoices.list
+        .mockReturnValueOnce(of(listResponse(rows(), 3)))
+        .mockReturnValueOnce(of(listResponse([invoice({ id: 'inv-3' })], 3, 2)));
+
+      await component['exportInvoices']({ hide: vi.fn() } as never);
+
+      expect(invoices.list).toHaveBeenCalledTimes(2);
+      expect(invoices.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+      vi.doUnmock('xlsx');
+    });
+  });
+
   describe('手機「篩選：全部」面板（#1314 ③）', () => {
     const el = () => fixture.nativeElement as HTMLElement;
     const toggle = () => el().querySelector('app-filter-toggle button') as HTMLButtonElement;

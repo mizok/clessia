@@ -2,6 +2,7 @@ import {
   canCollect,
   canReceipt,
   canRemind,
+  invoiceExportRow,
   remindedText,
   daysOverdue,
   daysUntilDue,
@@ -270,5 +271,41 @@ describe('canRemind／canCollect／canReceipt —— 列上三顆鈕各自顯示
     const part = invoice({ status: 'partial', netPaid: 1000, payments: [payment()] });
     expect(canCollect(part)).toBe(true);
     expect(canReceipt(part)).toBe(true);
+  });
+});
+
+describe('invoiceExportRow', () => {
+  const base = {
+    invoiceNo: 'INV-2610-012',
+    studentName: '陳小明',
+    studentGrade: '國一',
+    issuedAt: '2026-10-01',
+    dueDate: '2026-10-10',
+    status: 'partial',
+    total: 5000,
+    netPaid: 2000,
+    payments: [],
+  } as unknown as Invoice;
+
+  it('欄位順序與值；尚欠＝應繳−已收；過了期限且未繳清標「是」', () => {
+    const row = invoiceExportRow(base, '2026-10-20');
+    expect(Object.keys(row)).toEqual([
+      '帳單編號',
+      '學生',
+      '年級',
+      '開立日',
+      '繳費期限',
+      '應繳',
+      '已收',
+      '尚欠',
+      '狀態',
+      '逾期',
+    ]);
+    expect(row).toMatchObject({ 帳單編號: 'INV-2610-012', 尚欠: 3000, 狀態: '部分繳', 逾期: '是' });
+  });
+
+  it('沒到期日、沒編號：留空，不寫 null', () => {
+    const row = invoiceExportRow({ ...base, invoiceNo: null, dueDate: null }, '2026-10-20');
+    expect(row).toMatchObject({ 帳單編號: '', 繳費期限: '', 逾期: '' });
   });
 });

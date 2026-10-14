@@ -18,14 +18,16 @@
         </div>
       }
     }
-    <div class="page-actions__header-primary hidden min-[640.02px]:block">
-      <p-button
-        [label]="action.label"
-        [icon]="action.icon ?? ''"
-        [disabled]="!!action.disabled"
-        (onClick)="onPrimary($event)"
-      />
-    </div>
+    @if (primaryOnDesktop()) {
+      <div class="page-actions__header-primary hidden min-[640.02px]:block">
+        <p-button
+          [label]="action.label"
+          [icon]="action.icon ?? ''"
+          [disabled]="!!action.disabled"
+          (onClick)="onPrimary($event)"
+        />
+      </div>
+    }
   }
 </div>
 
