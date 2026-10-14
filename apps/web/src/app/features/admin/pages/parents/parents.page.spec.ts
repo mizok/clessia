@@ -346,6 +346,27 @@ describe('ParentsPage', () => {
       expect(text).toContain('0922333444');
     });
 
+    it('「還沒登入過」：只對 hasLoggedIn=false 且啟用中的家長；登入過、沒帶欄位、停用的都沒有', () => {
+      const data = [
+        { ...mixed().data[0], id: 'n1', name: '甲', hasLoggedIn: false },
+        { ...mixed().data[0], id: 'n2', name: '乙', hasLoggedIn: true },
+        { ...mixed().data[0], id: 'n3', name: '丙' },
+        { ...mixed().data[0], id: 'n4', name: '丁', hasLoggedIn: false, status: 'inactive' },
+      ];
+      pending[0].subject.next({ ...mixed(), data } as unknown as ParentListResponse);
+      pending[0].subject.complete();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const pillOf = (name: string) =>
+        [...el.querySelectorAll('li')]
+          .find((li) => li.querySelector(`button[aria-label="${name} 的詳情"]`))
+          ?.textContent?.includes('還沒登入過');
+      expect(pillOf('甲')).toBe(true);
+      expect(pillOf('乙')).toBe(false);
+      expect(pillOf('丙')).toBe(false);
+      expect(pillOf('丁')).toBe(false);
+    });
+
     it('孩子名帶淡底線（A6，看得出可點）；章頭手機也堆疊', () => {
       const el = load();
       const link = el.querySelector('a[href="/admin/students/s1"]') as HTMLElement;
