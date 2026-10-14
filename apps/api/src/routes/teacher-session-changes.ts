@@ -34,6 +34,7 @@ const EntrySchema = z
     changeType: z.string(),
     summary: z.string(),
     sessionDate: z.string().nullable(),
+    sessionStartTime: z.string().nullable(),
     className: z.string().nullable(),
     reason: z.string().nullable(),
     createdByName: z.string().nullable(),
