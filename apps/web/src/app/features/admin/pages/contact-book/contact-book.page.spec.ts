@@ -602,6 +602,34 @@ describe('ContactBookPage', () => {
       expect(contactBook.list).toHaveBeenCalledTimes(1);
     });
 
+    it('亂序：先選 30 天、再選 7 天，30 天的回應晚到也不能蓋掉 7 天的結果', () => {
+      const slow = new Subject<ReturnType<typeof listResponse>>();
+      const fast = new Subject<ReturnType<typeof listResponse>>();
+      contactBook.list.mockReset().mockReturnValueOnce(slow).mockReturnValueOnce(fast);
+
+      component['onPeriodPick']('30');
+      component['onPeriodPick']('7');
+      fast.next(listResponse([entry({ id: 'new' })]));
+      slow.next(listResponse([entry({ id: 'old-1' }), entry({ id: 'old-2' })]));
+
+      expect(component['entries']().map((e) => e.id)).toEqual(['new']);
+      expect(component['loading']()).toBe(false);
+    });
+
+    it('亂序：舊請求晚到的失敗也不能把新結果換成失敗畫面', () => {
+      const slow = new Subject<ReturnType<typeof listResponse>>();
+      const fast = new Subject<ReturnType<typeof listResponse>>();
+      contactBook.list.mockReset().mockReturnValueOnce(slow).mockReturnValueOnce(fast);
+
+      component['onPeriodPick']('30');
+      component['onPeriodPick']('7');
+      fast.next(listResponse([entry({ id: 'new' })]));
+      slow.error(new Error('late'));
+
+      expect(component['failed']()).toBe(false);
+      expect(component['entries']().map((e) => e.id)).toEqual(['new']);
+    });
+
     it('清除篩選把期間拉回最近 7 天', () => {
       component['onPeriodPick']('custom');
       contactBook.list.mockClear();

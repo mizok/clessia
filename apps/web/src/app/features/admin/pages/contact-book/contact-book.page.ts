@@ -1,6 +1,8 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
+import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -13,6 +15,7 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import {
   ContactBookService,
   type ContactBookEntry,
+  type ContactBookQueryParams,
   type MissingContactBookStudent,
 } from '@core/contact-book.service';
 import { StudentsService, type Student } from '@core/students.service';
@@ -175,23 +178,37 @@ export class ContactBookPage implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
+  /**
+   * 列表請求走 switchMap：期間、學生、重試連按時，**後發的請求蓋掉先發的**，
+   * 慢回來的舊回應不會把新結果覆蓋掉（亂序只會讓畫面停在舊區間，且沒有任何錯誤）。
+   */
+  private readonly listRequest$ = new Subject<ContactBookQueryParams>();
+
+  constructor() {
+    this.listRequest$
+      .pipe(
+        switchMap((params) =>
+          this.service.list(params).pipe(
+            map((res) => res.data),
+            catchError(() => of(null)),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((data) => {
+        this.entries.set(data ?? []);
+        this.failed.set(data === null);
+        this.loading.set(false);
+      });
+  }
+
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
 
     const [from, to] = rangeToStrings(this.dateRange, this.today);
 
-    this.service.list({ studentId: this.selectedStudent()?.id, from, to }).subscribe({
-      next: (res) => {
-        this.entries.set(res.data);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.entries.set([]);
-        this.failed.set(true);
-        this.loading.set(false);
-      },
-    });
+    this.listRequest$.next({ studentId: this.selectedStudent()?.id, from, to });
   }
 
   /** 缺漏名單自己失敗就好 —— 它掛掉不該讓下面的歷史列表也看不了 */
