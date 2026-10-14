@@ -4,8 +4,7 @@ import { ButtonModule } from 'primeng/button';
 
 import type { Class } from '@core/classes.service';
 
-const ROW_BASE =
-  'grid min-h-11 items-center gap-y-1 border-t border-zinc-100 py-3 wide:gap-x-5 gap-x-3';
+const ROW_BASE = 'grid items-center gap-y-1 border-t border-zinc-100 py-3 wide:gap-x-5 gap-x-3';
 
 const LAYOUT_WITH_CHECKBOX = {
   row: `${ROW_BASE} cursor-pointer grid-cols-[28px_minmax(0,1fr)_44px] wide:grid-cols-[28px_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_44px]`,

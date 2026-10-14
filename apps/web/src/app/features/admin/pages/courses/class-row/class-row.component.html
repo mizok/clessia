@@ -3,7 +3,13 @@
   點名稱＝進班級；點列的其他地方＝勾選（批次啟用／停用／刪除）。
   `data-part` 是給 spec 的掛點（樣式改成 utility 之後，class 名不再穩定）。
 -->
-<div [class]="layout().row" [class.bg-zinc-100]="selected()" (click)="onRowClick($event)">
+<!-- min-h-11 寫成靜態 class：A27 gate 掃不到動態綁定裡的字串 -->
+<div
+  class="min-h-11"
+  [class]="layout().row"
+  [class.bg-zinc-100]="selected()"
+  (click)="onRowClick($event)"
+>
   @if (selectable()) {
     <input
       type="checkbox"

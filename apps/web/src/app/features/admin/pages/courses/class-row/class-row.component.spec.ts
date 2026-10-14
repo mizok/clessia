@@ -152,6 +152,13 @@ describe('ClassRowComponent', () => {
     });
   });
 
+  it('列本身有 min-h-11（A27 的靜態 class），且和版面 class 合併不互蓋', async () => {
+    await setup(makeClass(), { selectable: false });
+    const row = fixture.nativeElement.firstElementChild as HTMLElement;
+    expect(row.classList.contains('min-h-11')).toBe(true);
+    expect(row.classList.contains('grid')).toBe(true);
+  });
+
   describe('批次選取模式（selectable）', () => {
     it('selectable=false：沒有勾選框；點列的空白處不發勾選事件', async () => {
       await setup(makeClass(), { selectable: false });
