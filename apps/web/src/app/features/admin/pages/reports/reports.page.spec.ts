@@ -291,6 +291,114 @@ describe('ReportsPage', () => {
     });
   });
 
+  describe('R1 色面與開帳摘要（A6）', () => {
+    const q = (id: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    const load = async (summary: Partial<RevenueResponse['summary']>) => {
+      reports.revenue.mockReturnValue(of(response({ summary: figures(summary) })));
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    const heroText = () =>
+      fixture.nativeElement.querySelector('app-page-open')!.textContent.replace(/\s+/g, ' ');
+
+    it('色面句兩行（一個 <br>）＋副行；期間名跟著選項', async () => {
+      await load({ billed: 498600, outstanding: 323500, overdueOutstanding: 81350 });
+      expect(heroText()).toContain('開帳 NT$ 498,600，');
+      expect(heroText()).toContain('還有 NT$ 323,500 沒收到。');
+      expect(heroText()).toContain('已收回 35%；沒收到的裡面，逾期 NT$ 81,350。');
+      expect(fixture.nativeElement.querySelectorAll('app-page-open br')).toHaveLength(1);
+
+      component['onPeriodChange']('last3');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(heroText()).toContain('近三個月開帳');
+      expect(q('billed-summary').textContent).toContain('近三個月開帳（看開帳日）');
+    });
+
+    it('billed 0：色面寫「還沒有開帳」、沒有條、百分比不顯示，只留金額', async () => {
+      await load({ billed: 0, outstanding: 0 });
+      expect(heroText()).toContain('還沒有開帳。');
+      expect(fixture.nativeElement.querySelectorAll('app-page-open br')).toHaveLength(0);
+      expect(heroText()).toContain('錢進來多少、還有多少沒收到。'); // 退回預設副行
+      expect(q('billed-bar')).toBeNull();
+      expect(q('billed-summary').querySelectorAll('[data-testid="pct"]')).toHaveLength(0);
+      expect(q('block-outstanding').textContent).toContain('NT$ 0');
+    });
+
+    it('載入中／失敗：色面退回頁名，不留舊數字', async () => {
+      await load({ billed: 1000, outstanding: 500 });
+      reports.revenue.mockReturnValue(throwError(() => new Error('boom')));
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(component['headline']()).toBeNull();
+      expect(heroText()).toContain('營收報表');
+    });
+
+    it('三個數字塊：已收回／應收未收／其中逾期，帶占比與金額（金額照後端，占比 0.1 進位）', async () => {
+      await load({ billed: 498600, outstanding: 323500, overdueOutstanding: 81350 });
+      expect(q('block-collected').textContent!.replace(/\s+/g, ' ')).toContain(
+        '已收回 · 35.1% NT$ 175,100',
+      );
+      expect(q('block-outstanding').textContent!.replace(/\s+/g, ' ')).toContain(
+        '應收未收 · 64.9% NT$ 323,500',
+      );
+      expect(q('block-overdue').textContent!.replace(/\s+/g, ' ')).toContain(
+        '其中逾期 · 16.3% NT$ 81,350',
+      );
+    });
+
+    it('三段條：黑（已收回）從左、紅（逾期）貼右端；寬度＝占比', async () => {
+      await load({ billed: 1000, outstanding: 600, overdueOutstanding: 200 });
+      const collected = q('bar-collected');
+      const overdue = q('bar-overdue');
+      expect(collected.style.width).toBe('40%');
+      expect(collected.classList).toContain('left-0');
+      expect(overdue.style.width).toBe('20%');
+      expect(overdue.classList).toContain('right-0');
+      expect(q('billed-bar').getAttribute('aria-label')).toBe(
+        '已收回 40%，應收未收 60%，其中逾期 20%',
+      );
+    });
+
+    it('前端沒有加總：金額欄位是後端的 summary（outstanding 不是 billed 減出來的）', async () => {
+      // billed − outstanding = 700，但 outstanding 顯示後端的 250（溢繳時兩者不等，占比用夾住的值）
+      await load({ billed: 1000, outstanding: 250, overdueOutstanding: 0 });
+      expect(q('block-outstanding').textContent).toContain('NT$ 250');
+      expect(q('block-collected').textContent).toContain('NT$ 750');
+    });
+
+    it('連結：有 manage_finance 才有「看還沒繳清的帳單」「看逾期帳單」', async () => {
+      await load({ billed: 1000, outstanding: 500, overdueOutstanding: 100 });
+      const hasFinance = (component as unknown as { canOpenInvoices: boolean }).canOpenInvoices;
+      expect(q('block-outstanding').querySelectorAll('a').length).toBe(hasFinance ? 1 : 0);
+      expect(q('block-overdue').querySelectorAll('a').length).toBe(hasFinance ? 1 : 0);
+    });
+
+    it('實收／退款註腳：灰底塊、寫明不能相除當收款率；兩個數字照後端', async () => {
+      await load({ received: 578800, refunded: 6000, billed: 1000, outstanding: 500 });
+      const note = q('cash-note');
+      expect(note.classList).toContain('bg-zinc-100');
+      expect(note.textContent).toContain('NT$ 578,800');
+      expect(note.textContent).toContain('NT$ 6,000');
+      expect(note.textContent).toContain('兩個數字不能相除當收款率');
+    });
+
+    it('工具列：期間、課程帶標籤；分組方式在工具列（不在分組統計標題旁）', async () => {
+      await load({ billed: 1000, outstanding: 500 });
+      const bar = fixture.nativeElement.querySelector('[role="search"]') as HTMLElement;
+      const labels = Array.from(bar.querySelectorAll('label')).map((l) => l.textContent!.trim());
+      expect(labels.some((t) => t.startsWith('期間'))).toBe(true);
+      expect(labels.some((t) => t.startsWith('課程'))).toBe(true);
+      expect(bar.querySelector('p-selectbutton')).not.toBeNull();
+      expect(bar.querySelector('p-selectbutton')!.classList).toContain('col-span-2');
+      expect(bar.querySelector('p-selectbutton')!.classList).toContain('wide:ml-auto');
+      expect(fixture.nativeElement.querySelectorAll('p-selectbutton')).toHaveLength(1);
+    });
+  });
+
   describe('明標的模糊桶', () => {
     // 這幾個桶是刻意的：不藏、不合併、不重新命名
     it('認得跨分校與未分類，一般分校名不是', async () => {
