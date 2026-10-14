@@ -5,15 +5,24 @@
 # 反射會在忙的時候失效 —— 合完 #268 反射性刪分支,害疊在上面的 #276 被 GitHub
 # 自動關閉。charter 的「原子化讓紀律不必存在」適用於這裡。
 #
-#   tools/steward-merge.sh <PR 編號> [--dry-run]
+#   tools/steward-merge.sh <PR 編號> [--dry-run] [--delete-branch]
+#
+# 預設**不刪分支**(2026-10-14 計畫席定:作者可能還要在分支上補東西、也方便回查)。
+# 要刪才帶 --delete-branch,仍會先查有沒有 PR 疊在上面。
 #
 # 任何一步不符就停,不繼續。每一步都印證據,回報可以直接引用。
 set -euo pipefail
 
 REPO="${STEWARD_REPO:-mizok/clessia}"
-PR="${1:?用法: $0 <PR 編號> [--dry-run]}"
-DRY=""
-[ "${2:-}" = "--dry-run" ] && DRY=1
+PR="${1:?用法: $0 <PR 編號> [--dry-run] [--delete-branch]}"
+DRY=""; DEL=""
+for a in "${@:2}"; do
+  case "$a" in
+    --dry-run) DRY=1 ;;
+    --delete-branch) DEL=1 ;;
+    *) echo "✗ 不認得的參數 $a" >&2; exit 1 ;;
+  esac
+done
 
 q() { gh pr view "$PR" -R "$REPO" --json "$1" -q ".$1"; }
 die() { echo "✗ $*" >&2; exit 1; }
@@ -79,7 +88,8 @@ echo "疊在它上面的   = ${dependents:-（無）}"
 
 if [ -n "$DRY" ]; then
   echo "— dry-run,不執行合併 —"
-  [ -n "$dependents" ] && echo "  註:合併後**不會**刪分支,要先把 #${dependents% } 的 base 轉成 main"
+  [ -z "$DEL" ] && echo "  註:合併後保留分支(沒帶 --delete-branch)"
+  [ -n "$DEL" ] && [ -n "$dependents" ] && echo "  註:合併後**不會**刪分支,要先把 #${dependents% } 的 base 轉成 main"
   exit 0
 fi
 
@@ -93,8 +103,10 @@ after=$(q state)
 echo "合併後 state   = $after"
 [ "$after" = "MERGED" ] || die "沒有合併成功,分支保留不動"
 
-# ── 8. 條件刪除 ─────────────────────────────────────────────────────────
-if [ -n "$dependents" ]; then
+# ── 8. 條件刪除(只在帶 --delete-branch 時)──────────────────────────────
+if [ -z "$DEL" ]; then
+  echo "· 保留 $branch(沒帶 --delete-branch)"
+elif [ -n "$dependents" ]; then
   echo "⚠ 不刪 $branch —— #${dependents% } 疊在它上面,先把它們的 base 轉成 main:"
   for d in $dependents; do echo "    gh pr edit $d -R $REPO --base main"; done
 else
