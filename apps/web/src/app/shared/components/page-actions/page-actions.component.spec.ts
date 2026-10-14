@@ -249,4 +249,20 @@ describe('PageActionsComponent', () => {
       expect(host.querySelector('.page-actions__cta')?.classList.contains('w-full')).toBe(false);
     });
   });
+
+  // ── 次要鈕外觀（A6：白底、zinc-300 框、近黑字）──────────────────────────────
+  it('次要鈕在標頭與手機托盤兩處都是白底＋zinc-300 框，主要鈕不受影響', async () => {
+    await setup({ label: '收款' }, { label: '登記請假' });
+
+    const header = host.querySelector('.page-actions__header-secondary button')!;
+    const dock = host.querySelector('.page-actions__dock .page-actions__secondary')!;
+    for (const btn of [header, dock]) {
+      expect(btn.textContent).toContain('登記請假');
+      for (const c of ['bg-white', 'border-zinc-300', 'text-zinc-900']) {
+        expect(btn.classList.contains(c)).toBe(true);
+      }
+    }
+    const cta = host.querySelector('.page-actions__dock .page-actions__cta')!;
+    expect(cta.classList.contains('bg-white')).toBe(false);
+  });
 });
