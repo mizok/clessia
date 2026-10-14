@@ -52,4 +52,31 @@ describe('SessionFiltersComponent', () => {
 
     expect(openCount).toBe(1);
   });
+
+  // #1314：日／週檢視的進階篩選收進頁面工具列的「⋯」，這裡只剩清除；結果模式才有自己的鈕
+  it('日／週檢視（showDateRange=false）沒有任何篩選鈕，有篩選時仍有「清除篩選」', () => {
+    fixture.componentRef.setInput('showDateRange', false);
+    fixture.componentRef.setInput('activeFilterCount', 2);
+    fixture.componentRef.setInput('hasActiveFilters', false);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('進階篩選');
+    expect(el.textContent).not.toContain('篩選');
+    expect(el.querySelectorAll('button').length).toBe(0);
+
+    fixture.componentRef.setInput('hasActiveFilters', true);
+    fixture.detectChanges();
+    expect(el.textContent).toContain('清除篩選');
+    expect(el.textContent).not.toContain('進階篩選');
+  });
+
+  it('結果模式（showDateRange=true）：手機「篩選」與桌機「進階篩選」都在', () => {
+    fixture.componentRef.setInput('showDateRange', true);
+    fixture.detectChanges();
+    const labels = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ).map((b) => b.textContent?.replace(/\s+/g, ''));
+    expect(labels).toContain('篩選');
+    expect(labels).toContain('進階篩選');
+  });
 });
