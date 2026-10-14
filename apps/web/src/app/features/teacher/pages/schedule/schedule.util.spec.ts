@@ -13,7 +13,9 @@ import {
   daySummary,
   nextSession,
   openerLine,
+  sessionStateText,
   sortByStart,
+  taipeiWallClock,
   weekAnchor,
 } from './schedule.util';
 
@@ -475,5 +477,69 @@ describe('changeItems（#1314 TS7）', () => {
 
   it('沒有課堂日期的列沒地方可跳，丟掉', () => {
     expect(changeItems([entry({ sessionDate: null })])).toEqual([]);
+  });
+});
+
+/** 台北 2027-03-05 的某個時分秒 → 牆上時鐘（Taipei＝UTC+8，所以 UTC 少 8 小時） */
+const at = (hhmmss: string, date = '2027-03-05') => {
+  const [h, m, sec = 0] = hhmmss.split(':').map(Number);
+  return taipeiWallClock(Date.parse(`${date}T00:00:00Z`) + ((h - 8) * 3600 + m * 60 + sec) * 1000);
+};
+
+describe('taipeiWallClock（與瀏覽器時區無關；TZ=UTC／洛杉磯各跑過一次）', () => {
+  it('15:59Z 是台北當天 23:59，16:00Z 是隔天 00:00（日界線）', () => {
+    const before = taipeiWallClock(Date.parse('2027-03-05T15:59:00Z'));
+    expect([before.getFullYear(), before.getMonth(), before.getDate()]).toEqual([2027, 2, 5]);
+    expect([before.getHours(), before.getMinutes()]).toEqual([23, 59]);
+    const after = taipeiWallClock(Date.parse('2027-03-05T16:00:00Z'));
+    expect([after.getFullYear(), after.getMonth(), after.getDate()]).toEqual([2027, 2, 6]);
+    expect([after.getHours(), after.getMinutes()]).toEqual([0, 0]);
+  });
+});
+
+describe('sessionStateText（#1314 TS-B 狀態字）', () => {
+  const cls = session({ eventDate: '2027-03-05', startTime: '17:00', endTime: '18:30' });
+
+  it('開始前：還有 N 分開始（分鐘進位，最後半分鐘不寫 0）', () => {
+    expect(sessionStateText(cls, at('16:40'))).toBe('還有 20 分開始');
+    expect(sessionStateText(cls, at('16:59', '2027-03-05'))).toBe('還有 1 分開始');
+    expect(sessionStateText(cls, at('16:59:30'))).toBe('還有 1 分開始');
+    expect(sessionStateText(cls, at('16:59:59'))).toBe('還有 1 分開始');
+  });
+
+  it('剛好開始那一刻算上課中（門檻 ±1 秒）', () => {
+    expect(sessionStateText(cls, at('17:00'))).toBe('上課中 · 還有 90 分下課');
+    expect(sessionStateText(cls, at('17:00:01'))).toBe('上課中 · 還有 90 分下課');
+  });
+
+  it('上課中：還有 N 分下課；剛好下課那一刻就是已上完（門檻 ±1 秒）', () => {
+    expect(sessionStateText(cls, at('18:29'))).toBe('上課中 · 還有 1 分下課');
+    expect(sessionStateText(cls, at('18:29:59'))).toBe('上課中 · 還有 1 分下課');
+    expect(sessionStateText(cls, at('18:30'))).toBe('已上完');
+    expect(sessionStateText(cls, at('18:30:01'))).toBe('已上完');
+  });
+
+  it('別天的課沒有倒數：未來「還沒開始」、過去「已上完」', () => {
+    expect(sessionStateText({ ...cls, eventDate: '2027-03-06' }, at('12:00'))).toBe('還沒開始');
+    expect(sessionStateText({ ...cls, eventDate: '2027-03-04' }, at('12:00'))).toBe('已上完');
+  });
+
+  it('停課永遠說已停課（即使已過去；不誣賴成「已上完」）', () => {
+    expect(sessionStateText({ ...cls, status: 'cancelled' }, at('12:00'))).toBe('已停課');
+    expect(sessionStateText({ ...cls, status: 'cancelled' }, at('20:00'))).toBe('已停課');
+  });
+
+  it('沒有起訖時間：當天不說（null），隔天起說已上完', () => {
+    const none = { ...cls, startTime: null, endTime: null };
+    expect(sessionStateText(none, at('12:00'))).toBeNull();
+    expect(sessionStateText({ ...none, eventDate: '2027-03-04' }, at('00:00'))).toBe('已上完');
+  });
+
+  it('日界線：台北 23:59 還是當天、00:00 就是隔天（今天的課變成已上完）', () => {
+    expect(sessionStateText(cls, at('23:59'))).toBe('已上完');
+    expect(sessionStateText({ ...cls, eventDate: '2027-03-06' }, at('23:59'))).toBe('還沒開始');
+    expect(sessionStateText({ ...cls, eventDate: '2027-03-06' }, at('00:00', '2027-03-06'))).toBe(
+      '還有 1020 分開始',
+    );
   });
 });
