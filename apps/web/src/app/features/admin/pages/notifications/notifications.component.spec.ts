@@ -226,17 +226,17 @@ describe('NotificationsComponent（管理端發布）', () => {
   });
 
   /**
-   * 發布時間用 `yyyy-MM-dd`，不是 `yyyy/MM/dd`（#425 M4）。**年份留著**是情境選擇 ——
-   * 這是「發布過的全部公告」，會跨年；老師端收件匣（`announcement-inbox`）看的是最近
-   * 收到的，所以那邊用短版 `MM/dd HH:mm`。**但分隔符沒有情境理由**，全站其餘每一個
-   * 完整日期都是連字號。
+   * 發布時間用 `yyyy/MM/dd HH:mm`（斜線），照 A6 稿（`notifications.html` 的 `at.replaceAll('-', '/')`，
+   * #1314 計畫席 2026-10-14 裁：A6 全採，**晚於** #425 M4 的連字號決定）。**年份留著**是情境選擇 ——
+   * 這是「發布過的全部公告」，會跨年；老師端收件匣看的是最近收到的，所以那邊用短版 `MM/dd HH:mm`。
+   * 稿裡顯示完整日期的四頁（通知中心、費用方案、學生檔案、設定）全是斜線。
    */
-  it('發布時間用連字號而不是斜線', async () => {
+  it('發布時間用斜線而不是連字號', async () => {
     await setup([announcement({ campusName: '本校' })]);
 
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('2026-08-18');
-    expect(text).not.toMatch(/\d{4}\/\d{2}\/\d{2}/);
+    expect(text).toContain('2026/08/18');
+    expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   it('沒有分校的公告顯示為全部分校', async () => {
@@ -274,8 +274,19 @@ describe('NotificationsComponent（管理端發布）', () => {
       await setup([announcement({ publishedAt: '2026-09-30T17:30:00Z' })]);
 
       expect(component['chapters']()[0].key).toBe('2026-10');
-      // 顯示的時間也是台北：2026-10-01 01:30
-      expect(q('meta')!.textContent).toContain('2026-10-01 01:30');
+      // 顯示的時間也是台北：2026/10/01 01:30
+      expect(q('meta')!.textContent).toContain('2026/10/01 01:30');
+    });
+
+    it('台北日界線 ±1 分鐘：15:59Z＝當天 23:59、16:00Z＝隔天 00:00；月日補零', async () => {
+      await setup([announcement({ publishedAt: '2026-09-30T15:59:00Z' })]);
+      expect(q('meta')!.textContent).toContain('2026/09/30 23:59');
+      TestBed.resetTestingModule();
+      await setup([announcement({ publishedAt: '2026-09-30T16:00:00Z' })]);
+      expect(q('meta')!.textContent).toContain('2026/10/01 00:00');
+      TestBed.resetTestingModule();
+      await setup([announcement({ publishedAt: '2026-02-03T02:05:00Z' })]);
+      expect(q('meta')!.textContent).toContain('2026/02/03 10:05');
     });
 
     it('跨年的章名帶年份', async () => {
@@ -284,16 +295,41 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(component['chapters']()[0].name).toBe('2019 年 12 月');
     });
 
-    it('色面句：已發布幾則、上一則是哪天；沒有公告時照實說', async () => {
+    it('色面句兩段：已發布幾則／上一則是哪天；沒有公告時照實說（只有一行）', async () => {
       await setup([
         announcement({ id: 'a', publishedAt: '2026-08-18T02:00:00Z' }),
         announcement({ id: 'b', publishedAt: '2026-10-02T02:00:00Z' }),
       ]);
-      expect(component['headline']()).toBe('已發布 2 則公告，上一則是 10/2。');
+      expect(component['headline']()).toEqual({
+        first: '已發布 2 則公告，',
+        second: '上一則是 10/2。',
+      });
+      // 兩行：兩段之間有一個 <br>（桌機、手機都一樣，沒有斷點）
+      expect(fixture.nativeElement.querySelectorAll('app-page-open br')).toHaveLength(1);
+
+      TestBed.resetTestingModule();
+      await setup([announcement({ id: 'c', publishedAt: '2026-09-30T17:30:00Z' })]);
+      // 1 則；上一則的日期用台北：UTC 9/30 17:30 ＝ 台北 10/1
+      expect(component['headline']()).toEqual({
+        first: '已發布 1 則公告，',
+        second: '上一則是 10/1。',
+      });
 
       TestBed.resetTestingModule();
       await setup([]);
-      expect(component['headline']()).toBe('還沒有發布過公告。');
+      expect(component['headline']()).toEqual({ first: '還沒有發布過公告。', second: null });
+      expect(fixture.nativeElement.querySelectorAll('app-page-open br')).toHaveLength(0);
+    });
+
+    it('手機表單出血、桌機不出血；清單與表單的間距收緊（A6）', async () => {
+      await setup([announcement()]);
+      const composer = (fixture.nativeElement as HTMLElement).querySelector(
+        '.admin-notifications__composer',
+      )!;
+      expect([...composer.classList]).toEqual(
+        expect.arrayContaining(['-mx-4', 'wide:mx-0', 'rounded-none', 'wide:rounded-lg']),
+      );
+      expect(composer.parentElement!.classList).toContain('gap-3');
     });
 
     it('載入中色面不宣稱「還沒有發布過公告」', async () => {
