@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { format, startOfWeek } from 'date-fns';
+import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, vi } from 'vitest';
@@ -506,9 +506,116 @@ describe('SchedulePage', () => {
         'missingByDate'
       ].set(new Map([[TODAY, 4]]));
       fixture.detectChanges();
-      expect(
-        fixture.nativeElement.querySelector('h2 [aria-label="4 位學生的聯絡簿還沒寫"]'),
-      ).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('h2').textContent).toContain('4 則聯絡簿未寫');
+    });
+
+    /**
+     * #1314 TS-A：週條搬進 hero 下方的灰帶（A6 `.bar`）、日標題改 A6 字級。
+     * 門檻：聯絡簿徽章「有／沒有」的邊界是 0 與 1。
+     */
+    describe('灰帶週條與日標題（#1314 TS-A）', () => {
+      const setMissing = (n: number) => {
+        (component as unknown as { missingByDate: { set: (m: Map<string, number>) => void } })[
+          'missingByDate'
+        ].set(new Map([[TODAY, n]]));
+        fixture.detectChanges();
+      };
+      const heading = () => fixture.nativeElement.querySelector('h2') as HTMLElement;
+
+      it('換週鈕在灰帶裡、橘面裡沒有（兩處各一組是重複）', async () => {
+        await setup({ sessions: sessions() });
+        const band = fixture.nativeElement.querySelector('.schedule-page__band') as HTMLElement;
+        expect(band.querySelector('button[aria-label="上一週"]')).not.toBeNull();
+        expect(band.querySelector('button[aria-label="下一週"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('app-page-open button')).toBeNull();
+        // 灰帶在 page-wrap 之外（滿版），不是欄寬內的一塊
+        expect(band.closest('.page-wrap')).toBeNull();
+      });
+
+      it('換週鈕方向對：下一週＝週一＋7 天、上一週回到本週（不只數呼叫次數）', async () => {
+        await setup({ sessions: sessions() });
+        const band = fixture.nativeElement.querySelector('.schedule-page__band') as HTMLElement;
+        const lastFrom = () => sessionsSpy.mock.lastCall?.[0].dateFrom;
+        const monday = format(startOfWeek(parseISO(TODAY), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        expect(lastFrom()).toBe(monday);
+        (band.querySelector('button[aria-label="下一週"]') as HTMLButtonElement).click();
+        fixture.detectChanges();
+        expect(lastFrom()).toBe(format(addDays(parseISO(monday), 7), 'yyyy-MM-dd'));
+        (band.querySelector('button[aria-label="上一週"]') as HTMLButtonElement).click();
+        fixture.detectChanges();
+        expect(lastFrom()).toBe(monday);
+        (band.querySelector('button[aria-label="上一週"]') as HTMLButtonElement).click();
+        fixture.detectChanges();
+        expect(lastFrom()).toBe(format(addDays(parseISO(monday), -7), 'yyyy-MM-dd'));
+      });
+
+      it('換週鈕手機 44px、桌機 40px（A27 底線＋A6 尺寸）', async () => {
+        await setup({ sessions: sessions() });
+        const btn = fixture.nativeElement.querySelector(
+          '.schedule-page__band button[aria-label="上一週"]',
+        ) as HTMLElement;
+        expect(btn.classList.contains('size-11')).toBe(true);
+        expect(btn.classList.contains('wide:size-10')).toBe(true);
+      });
+
+      it('選中日＝底線 class＋aria-pressed；今天標籤尾巴有「· 今天」，別天沒有', async () => {
+        await setup({ sessions: sessions() });
+        const days = [
+          ...fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-day'),
+        ] as HTMLElement[];
+        const today = days.find((d) => d.getAttribute('aria-current') === 'date') as HTMLElement;
+        expect(today.classList.contains('schedule-page__weekbar-day--selected')).toBe(true);
+        expect(today.textContent).toContain('· 今天');
+        const others = days.filter((d) => d !== today);
+        expect(others.length).toBe(6);
+        for (const d of others) {
+          expect(d.textContent).not.toContain('今天');
+          expect(d.classList.contains('schedule-page__weekbar-day--selected')).toBe(false);
+        }
+        // 換到別天：底線跟著走，今天仍標得出來
+        others[0].click();
+        fixture.detectChanges();
+        expect(others[0].classList.contains('schedule-page__weekbar-day--selected')).toBe(true);
+        expect(today.classList.contains('schedule-page__weekbar-day--selected')).toBe(false);
+        expect(today.textContent).toContain('· 今天');
+      });
+
+      it('日標題：星期只寫單字（「（三）」不是「（週三）」），今天尾巴有「今天」', async () => {
+        await setup({ sessions: sessions() });
+        const weekday = '日一二三四五六'[parseISO(TODAY).getDay()];
+        expect(heading().textContent).toContain(`（${weekday}）`);
+        expect(heading().textContent).not.toContain('（週');
+        expect(heading().textContent).toContain('今天');
+      });
+
+      it('日標題：週日是「（日）」（星期陣列的 0 號邊界），非今天沒有「今天」', async () => {
+        const sunday = format(endOfWeek(parseISO(TODAY), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        await setup({ sessions: sessions(), selectDate: sunday });
+        expect(heading().textContent).toContain('（日）');
+        if (sunday !== TODAY) expect(heading().textContent).not.toContain('今天');
+      });
+
+      it('聯絡簿未寫：0 則不印、1 則印「1 則聯絡簿未寫」（門檻 0／1）', async () => {
+        await setup({ sessions: sessions() });
+        setMissing(0);
+        expect(heading().textContent).not.toContain('聯絡簿未寫');
+        setMissing(1);
+        expect(heading().textContent).toContain('1 則聯絡簿未寫');
+        setMissing(2);
+        expect(heading().textContent).toContain('2 則聯絡簿未寫');
+      });
+
+      it('載入中灰帶還在（骨架在裡面）；查詢失敗整條灰帶不畫', async () => {
+        await setup({ sessionsStall: true });
+        expect(
+          fixture.nativeElement.querySelector(
+            '.schedule-page__band .schedule-page__weekbar-skeleton',
+          ),
+        ).not.toBeNull();
+        TestBed.resetTestingModule();
+        await setup({ sessionsFails: true });
+        expect(fixture.nativeElement.querySelector('.schedule-page__band')).toBeNull();
+      });
     });
   });
 
