@@ -30,7 +30,7 @@ describe('summarizeInvoices（#1314 P1／P2）', () => {
     expect(s.byStatus).toEqual({
       unpaid: { count: 1, outstanding: 1000 },
       partial: { count: 1, outstanding: 700 },
-      paid: { count: 1 },
+      paid: { count: 1, received: 1000 },
       overrefunded: { count: 1 },
       void: { count: 1 },
     });

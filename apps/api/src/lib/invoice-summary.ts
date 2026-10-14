@@ -34,7 +34,8 @@ export interface InvoiceSummary {
   byStatus: {
     unpaid: Bucket;
     partial: Bucket;
-    paid: { count: number };
+    /** `received`＝繳清帳單的淨收總額（A6 已繳清章的「收到 NT$」）；多退（淨額 < 0）不計入 */
+    paid: { count: number; received: number };
     overrefunded: { count: number };
     void: { count: number };
   };
@@ -57,7 +58,7 @@ export function summarizeInvoices(invoices: SummaryInvoice[], today: string): In
     byStatus: {
       unpaid: { count: 0, outstanding: 0 },
       partial: { count: 0, outstanding: 0 },
-      paid: { count: 0 },
+      paid: { count: 0, received: 0 },
       overrefunded: { count: 0 },
       void: { count: 0 },
     },
@@ -82,6 +83,7 @@ export function summarizeInvoices(invoices: SummaryInvoice[], today: string): In
       bucket.outstanding += owed;
       summary.outstanding += owed;
     }
+    if (status === 'paid') summary.byStatus.paid.received += net;
     if (invoice.issuedAt.slice(0, 7) === month) {
       summary.month.billed += total;
       summary.month.received += net;
