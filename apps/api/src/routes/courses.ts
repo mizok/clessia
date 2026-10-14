@@ -32,6 +32,8 @@ const CourseSchema = z
 const CourseListItemSchema = CourseSchema.extend({
   /** 進行中的班數：`is_active` 且未結束（`end_date` 空或 ≥ 台北今天），套分校範圍 */
   activeClassCount: z.number(),
+  /** 已結束的班數：`end_date` 早於台北今天（不論是否啟用），套分校範圍。給「另有 N 個已結束的班」提示用 */
+  endedClassCount: z.number(),
 }).openapi('CourseListItem');
 
 const CourseListResponseSchema = z
@@ -220,31 +222,47 @@ app.openapi(listRoute, async (c) => {
   // （end_date 空或 ≥ 今天）再加 is_active；受限者只數範圍內的班
   // ponytail: 一次撈本頁課程的進行中班（上限 1000 列）；不分頁列全部課程且班數破千時才會截斷 —— 那時改 head count
   const classCountByCourse = new Map<string, number>();
+  const endedCountByCourse = new Map<string, number>();
   if (pageCourses.length > 0) {
     const today = getCurrentTaipeiDateString();
+    // ponytail: 全撈本頁課程的班（含已結束的）再在記憶體分類 —— 受 PostgREST 單次回傳上限（max_rows 1000 列）
+    // 限制；本頁課程的班數加起來破千（不分頁列全部課程、班數很多）才會被靜默截斷、兩個計數偏少。
+    // 升級路徑：改兩支 head count（進行中一支、已結束一支，各自 count:'exact'），
+    // 但兩支各自過濾的 supabase 鏈在這個函式裡會踩 TS2589，要先把查詢抽成獨立函式。
+    // 一支查詢同時數「進行中」與「已結束」（兩支各自過濾的版本會讓 supabase 的型別推導過深，TS2589）
+    // supabase 的查詢型別丟進泛型的 `applyCampusFilter` 會推導過深（TS2589），用最小形狀轉一下
+    type ScopedQuery = PromiseLike<{
+      data: Array<{ course_id: string; is_active: boolean; end_date: string | null }> | null;
+      error: { message: string } | null;
+    }> & { in(column: string, values: string[]): ScopedQuery };
     const { data: classRows, error: classError } = await applyCampusFilter(
       supabase
         .from('classes')
-        .select('course_id')
+        .select('course_id, is_active, end_date')
         .eq('org_id', c.get('orgId'))
         .in(
           'course_id',
           pageCourses.map((course) => course.id),
-        )
-        .eq('is_active', true)
-        .or(`end_date.is.null,end_date.gte.${today}`),
+        ) as unknown as ScopedQuery,
       'campus_id',
       getCampusScope(c),
       undefined,
     );
     if (classError) return c.json({ error: classError.message, code: 'DB_ERROR' }, 500);
-    for (const row of (classRows ?? []) as Array<{ course_id: string }>) {
-      classCountByCourse.set(row.course_id, (classCountByCourse.get(row.course_id) ?? 0) + 1);
+    for (const row of classRows ?? []) {
+      const ended = row.end_date !== null && row.end_date < today;
+      // 已結束：判準同班級列表的「歷史班」（end_date 早於台北今天），不看 is_active
+      if (ended) {
+        endedCountByCourse.set(row.course_id, (endedCountByCourse.get(row.course_id) ?? 0) + 1);
+      } else if (row.is_active) {
+        classCountByCourse.set(row.course_id, (classCountByCourse.get(row.course_id) ?? 0) + 1);
+      }
     }
   }
   const courses = pageCourses.map((course) => ({
     ...course,
     activeClassCount: classCountByCourse.get(course.id) ?? 0,
+    endedClassCount: endedCountByCourse.get(course.id) ?? 0,
   }));
   const total = count || 0;
 
