@@ -195,6 +195,27 @@ describe('PageActionsComponent', () => {
     expect(host.querySelector('.page-actions__dock')?.textContent).toContain('新增期間');
   });
 
+  // ── primaryOnDesktop：手機托盤的主要行動與桌機主鈕不是同一顆時（帳單），標頭不放 primary ──
+  it('預設桌機標頭有主要行動', async () => {
+    await setup({ label: '全部提醒' });
+
+    expect(host.querySelector('.page-actions__header-primary')?.textContent).toContain('全部提醒');
+  });
+
+  it('primaryOnDesktop=false：標頭沒有主要行動，托盤照舊（次要也照舊）', async () => {
+    await TestBed.configureTestingModule({ imports: [PageActionsComponent] }).compileComponents();
+    fixture = TestBed.createComponent(PageActionsComponent);
+    fixture.componentRef.setInput('primary', { label: '全部提醒' });
+    fixture.componentRef.setInput('secondary', { label: '開立帳單' });
+    fixture.componentRef.setInput('primaryOnDesktop', false);
+    fixture.detectChanges();
+    host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.page-actions__header-primary')).toBeNull();
+    expect(host.querySelector('.page-actions__dock')?.textContent).toContain('全部提醒');
+    expect(host.querySelector('.page-actions__dock')?.textContent).toContain('開立帳單');
+  });
+
   // ── 托盤的版面：靠右、依內容寬（A6 `.dock`），不撐滿 ─────────────────────────
   // 一顆時撐滿整條是回歸（家長頁手機「新增家長」變滿版長條，PR-A／PR-B 當初就是要拿掉它）。
   // 稿的規則：「底部動作列不再兩顆對半撐滿：靠右、依內容寬」。

@@ -1,4 +1,4 @@
-import { isOpenInvoice, type Invoice } from '@core/invoices.service';
+import { INVOICE_STATUS_LABELS, isOpenInvoice, type Invoice } from '@core/invoices.service';
 
 /**
  * 帳單顯示的邊界計算。狀態本身由後端推導（`@core/invoices.service`），
@@ -113,4 +113,32 @@ export function remindedText(invoice: Invoice, today: string): string | null {
   const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
   const days = Math.max(0, Math.round((day(today) - day(on)) / 86_400_000));
   return days === 0 ? '今天提醒' : `${days} 天前提醒`;
+}
+
+/** 匯出範圍：對應 A6 匯出面板的三個選項 */
+export type ExportScope = 'all' | 'overdue' | 'outstanding';
+
+export const EXPORT_SCOPE_LABELS: Readonly<Record<ExportScope, string>> = {
+  all: '全部帳單',
+  overdue: '只有逾期',
+  outstanding: '還沒繳清',
+};
+
+/**
+ * 匯出的一列（Excel 欄位順序＝物件鍵順序）。金額是整數元；「逾期」用跟畫面同一個判準
+ * （`isOverdue`），不另外算一份。
+ */
+export function invoiceExportRow(invoice: Invoice, today: string): Record<string, string | number> {
+  return {
+    帳單編號: invoice.invoiceNo ?? '',
+    學生: invoice.studentName ?? '',
+    年級: invoice.studentGrade ?? '',
+    開立日: invoice.issuedAt,
+    繳費期限: invoice.dueDate ?? '',
+    應繳: invoice.total,
+    已收: invoice.netPaid,
+    尚欠: outstanding(invoice),
+    狀態: INVOICE_STATUS_LABELS[invoice.status],
+    逾期: isOverdue(invoice, today) ? '是' : '',
+  };
 }
