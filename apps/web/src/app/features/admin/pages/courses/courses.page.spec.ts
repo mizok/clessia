@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Popover } from 'primeng/popover';
 import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { type Observable, Subject, of, throwError } from 'rxjs';
@@ -631,6 +633,20 @@ describe('CoursesPage', () => {
       setup();
       const btn = el().querySelector('button[title="操作紀錄"]') as HTMLElement;
       expect(btn.querySelector('.sr-only')?.textContent).toBe('操作紀錄');
+    });
+
+    it('點浮層外面關掉後，「篩選」鈕的 aria-expanded 回到 false（onHide 回寫）', () => {
+      setup();
+      const btn = el().querySelector('button[aria-label^="篩選"]') as HTMLButtonElement;
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+      btn.click();
+      fixture.detectChanges();
+      expect(btn.getAttribute('aria-expanded')).toBe('true');
+
+      // 外點擊由 Popover 自己關：直接呼叫它的 hide()，會發 onHide
+      fixture.debugElement.query(By.directive(Popover)).injector.get(Popover).hide();
+      fixture.detectChanges();
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
     });
 
     it('篩選鈕寫目前狀態：沒條件「全部」；有條件「N 項」', () => {

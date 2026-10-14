@@ -228,6 +228,8 @@ export class CoursesPage implements OnInit {
   protected readonly statusFilter = signal<boolean | 'intervention' | null>(null);
   // ---- Filter Panel ----
   protected readonly filterPopoverRef = viewChild<Popover>('filterPopover');
+  /** 篩選浮層開著與否（鈕的 aria-expanded）；外點擊關掉由 Popover 的 onHide 回寫 */
+  protected readonly filtersOpen = signal(false);
 
   protected readonly activeFilterCount = computed(() => {
     let count = 0;

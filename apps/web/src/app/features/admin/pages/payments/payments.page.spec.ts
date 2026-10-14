@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Popover } from 'primeng/popover';
 import { format } from 'date-fns';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
@@ -631,6 +633,23 @@ describe('PaymentsPage', () => {
       expect(panel()).not.toBeNull();
       expect(el().contains(panel())).toBe(false); // 浮層，不在頁面內（不推動清單）
       expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('點浮層外面關掉後，「篩選」鈕的 aria-expanded 回到 false（onHide 回寫）', () => {
+      fixture.detectChanges();
+      toggle().click();
+      fixture.detectChanges();
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+
+      // 外點擊由 Popover 自己關：直接呼叫它的 hide()，會發 onHide
+      // 頁上還有匯出的 Popover，挑開著的那個
+      fixture.debugElement
+        .queryAll(By.directive(Popover))
+        .map((d) => d.injector.get(Popover))
+        .find((p) => p.overlayVisible)!
+        .hide();
+      fixture.detectChanges();
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
     });
 
     it('摘要＝催繳＋狀態的條件（沒有就「全部」）', () => {

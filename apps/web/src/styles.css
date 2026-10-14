@@ -510,6 +510,26 @@
       padding: var(--space-3) !important;
     }
   }
+  /* 篩選浮層（學生／帳單／家長／課程，A6 `.pop`）：桌機貼在「篩選」鈕下；手機左右各內縮
+     --filter-popover-inset（A6 `left: max(16, …)`、寬 min(360, 100%-32)），不貼齊畫面邊。
+     overlay 掛在 body、拿不到 --window-width，所以用 left＋right 撐開、max-width 封頂，不用 vw（c6）。
+     PrimeNG 的 inline left 要 !important 才蓋得掉；箭頭定位跟著按鈕、內縮後會歪，手機不要。 */
+  .p-popover.filter-popover {
+    width: 22rem;
+    --filter-popover-inset: var(--space-4);
+  }
+  @media (max-width: 860px) {
+    .p-popover.filter-popover {
+      left: var(--filter-popover-inset) !important;
+      right: var(--filter-popover-inset) !important;
+      width: auto;
+      max-width: 22rem;
+    }
+    .p-popover.filter-popover::before,
+    .p-popover.filter-popover::after {
+      display: none;
+    }
+  }
   /* 角色選擇彈窗（`/select-role`）。它沒有 header、內容自己就是一張卡片，
      所以要比一般 dialog 更寬鬆的內距。特異性刻意比上面的 `.p-dialog` 高一級，
      否則會被那條 `!important` 蓋掉。 */
