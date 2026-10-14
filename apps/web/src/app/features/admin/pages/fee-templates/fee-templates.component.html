@@ -38,11 +38,7 @@
         </p-iconfield>
       </div>
       <div class="order-3 w-full wide:order-2 wide:w-auto">
-        <app-filter-chip
-          [active]="showInactive()"
-          [icon]="showInactive() ? 'pi-eye-slash' : 'pi-eye'"
-          (toggle)="toggleShowInactive()"
-        >
+        <app-filter-chip [active]="showInactive()" icon="pi-filter" (toggle)="toggleShowInactive()">
           {{ showInactive() ? '隱藏停用方案' : '顯示停用方案（' + inactiveCount() + '）' }}
         </app-filter-chip>
       </div>
@@ -54,13 +50,15 @@
         (primaryClick)="openTemplateDialog()"
         (secondaryClick)="openPeriodDialog()"
       >
-        <p-button
-          icon="pi pi-history"
-          severity="secondary"
-          [outlined]="true"
-          ariaLabel="操作紀錄"
-          (onClick)="openAuditLog()"
-        />
+        <button
+          type="button"
+          class="inline-flex size-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 wide:size-9"
+          aria-label="操作紀錄"
+          data-testid="audit-log-btn"
+          (click)="openAuditLog()"
+        >
+          <i class="pi pi-history text-sm" aria-hidden="true"></i>
+        </button>
       </app-page-actions>
     </div>
   </div>
@@ -190,15 +188,14 @@
       <span class="text-md text-zinc-600"
         >期繳用的具名日期區間。期間之間可以重疊 —— 新舊制交接時本來就會</span
       >
-      <p-button
-        class="hidden wide:ml-auto wide:block"
-        label="新增期間"
-        icon="pi pi-plus"
-        severity="secondary"
-        [outlined]="true"
-        size="small"
-        (onClick)="openPeriodDialog()"
-      />
+      <button
+        type="button"
+        class="hidden h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm font-semibold whitespace-nowrap wide:ml-auto wide:inline-flex"
+        data-testid="new-period-btn"
+        (click)="openPeriodDialog()"
+      >
+        <i class="pi pi-plus text-xs" aria-hidden="true"></i>新增期間
+      </button>
     </div>
 
     @if (periodsLoading()) {
