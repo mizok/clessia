@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -432,6 +432,8 @@ describe('DashboardComponent（管理端）', () => {
       const band = el().querySelector('app-page-open') as HTMLElement;
       expect(band.textContent).toContain('示範補習班');
       expect(band.textContent).toContain('文山旗艦校');
+      // 有分校小字：副行放大（A6 a6.css:633）
+      expect(band.querySelector('p')!.classList.contains('wide:text-2xl')).toBe(true);
     });
 
     it('跨分校時不挑一個分校寫', async () => {
@@ -446,6 +448,8 @@ describe('DashboardComponent（管理端）', () => {
       const band = el().querySelector('app-page-open') as HTMLElement;
       expect(band.textContent).not.toContain('甲校');
       expect(band.textContent).not.toContain('乙校');
+      // 沒有分校小字（兩個分校＝門檻＋1）：副行維持一般大小
+      expect(band.querySelector('p')!.classList.contains('wide:text-2xl')).toBe(false);
     });
 
     it('機構名還沒載到 → 骨架，不是空白也不是假名字', async () => {
@@ -947,6 +951,55 @@ describe('DashboardComponent（管理端）', () => {
       await setup({ permissions: ['view_reports'] });
       expect(entry()).toBeUndefined();
       expect(el().querySelector('app-page-actions')).toBeNull();
+    });
+
+    it('桌機標頭：兩顆都是白底框次要鈕（代刷、請假），沒有橘色主要鈕；點了各自開對應面板', async () => {
+      await setup({ permissions: ['view_reports', 'basic_operations'] });
+      const header = el().querySelector('app-page-actions .page-actions__header')!;
+      const checkin = header.querySelector<HTMLButtonElement>('[data-testid="desktop-checkin"]')!;
+      const leave = header.querySelector<HTMLButtonElement>('[data-testid="desktop-leave"]')!;
+      expect(checkin.textContent).toContain('櫃台代刷到班');
+      expect(leave.textContent).toContain('登記請假');
+      for (const b of [checkin, leave]) {
+        expect(b.classList.contains('bg-white')).toBe(true);
+        expect(b.classList.contains('border-zinc-300')).toBe(true);
+        // 只在桌機出現：手機靠 hidden、桌機靠 min-[640.02px]:inline-flex（與托盤互斥的同一個斷點）
+        expect(b.classList.contains('hidden')).toBe(true);
+        expect(b.classList.contains('min-[640.02px]:inline-flex')).toBe(true);
+      }
+      // 順序同稿：代刷在前、請假在後
+      expect(
+        checkin.compareDocumentPosition(leave) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      // 標頭裡不再有 PrimeNG 的橘色主要鈕（那顆只在手機托盤）
+      expect(header.querySelector('p-button')).toBeNull();
+      expect(checkin.querySelector('.pi-check')).not.toBeNull();
+      expect(leave.querySelector('.pi-file-edit')).not.toBeNull();
+
+      leave.click();
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css('app-phone-leave'))).not.toBeNull();
+    });
+
+    it('桌機「櫃台代刷到班」導到打卡站（不是開請假面板）', async () => {
+      await setup({ permissions: ['view_reports', 'basic_operations'] });
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      el().querySelector<HTMLButtonElement>('[data-testid="desktop-checkin"]')!.click();
+      fixture.detectChanges();
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(String(navigate.mock.calls[0][0])).toContain('checkin');
+      expect(fixture.debugElement.query(By.css('app-phone-leave'))).toBeNull();
+    });
+
+    it('手機托盤：「櫃台代刷」（mobileLabel）＋橘色「登記請假」，帶圖示', async () => {
+      await setup({ permissions: ['view_reports', 'basic_operations'] });
+      const dock = el().querySelector('app-page-actions .page-actions__dock')!;
+      const labels = Array.from(dock.querySelectorAll('button')).map((b) =>
+        b.textContent!.replace(/\s+/g, ''),
+      );
+      expect(labels).toEqual(['櫃台代刷', '登記請假']);
+      expect(dock.querySelector('.pi-check')).not.toBeNull();
+      expect(dock.querySelector('.pi-file-edit')).not.toBeNull();
     });
 
     it('有權限 → 工具列有「登記請假」與「櫃台代刷到班」', async () => {

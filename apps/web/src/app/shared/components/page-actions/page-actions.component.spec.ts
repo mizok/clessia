@@ -14,8 +14,13 @@ describe('PageActionsComponent', () => {
   let host: HTMLElement;
 
   const setup = async (
-    primary: { label: string; icon?: string; disabled?: boolean } | null,
-    secondary: { label: string; icon?: string; disabled?: boolean } | null = null,
+    primary: { label: string; mobileLabel?: string; icon?: string; disabled?: boolean } | null,
+    secondary: {
+      label: string;
+      mobileLabel?: string;
+      icon?: string;
+      disabled?: boolean;
+    } | null = null,
   ) => {
     await TestBed.configureTestingModule({ imports: [PageActionsComponent] }).compileComponents();
     fixture = TestBed.createComponent(PageActionsComponent);
@@ -264,5 +269,32 @@ describe('PageActionsComponent', () => {
     }
     const cta = host.querySelector('.page-actions__dock .page-actions__cta')!;
     expect(cta.classList.contains('bg-white')).toBe(false);
+  });
+
+  // ── 手機標籤 ────────────────────────────────────────────────────────────
+  it('mobileLabel：托盤用短標籤、桌機標頭仍用 label；不給就沿用 label', async () => {
+    await setup({ label: '登記請假' }, { label: '櫃台代刷到班', mobileLabel: '櫃台代刷' });
+    const dock = host.querySelector('.page-actions__dock')!;
+    expect(dock.textContent).toContain('櫃台代刷');
+    expect(dock.textContent).not.toContain('櫃台代刷到班');
+    expect(host.querySelector('.page-actions__header-secondary')!.textContent).toContain(
+      '櫃台代刷到班',
+    );
+    // 主要鈕沒給 mobileLabel → 沿用 label
+    expect(dock.querySelector('.page-actions__cta')!.textContent).toContain('登記請假');
+  });
+
+  it('主要鈕帶 mobileLabel：托盤用短標籤、標頭用 label；次要沒給的兩處都用 label（主／次、手機／桌機四個方向）', async () => {
+    await setup({ label: '登記請假', mobileLabel: '請假' }, { label: '櫃台代刷到班' });
+
+    const text = (el: Element | null) => el!.textContent!.replace(/\s+/g, '');
+    // 手機托盤
+    expect(text(host.querySelector('.page-actions__dock .page-actions__cta'))).toBe('請假');
+    expect(text(host.querySelector('.page-actions__dock .page-actions__secondary'))).toBe(
+      '櫃台代刷到班',
+    );
+    // 桌機標頭
+    expect(text(host.querySelector('.page-actions__header-primary'))).toBe('登記請假');
+    expect(text(host.querySelector('.page-actions__header-secondary'))).toBe('櫃台代刷到班');
   });
 });

@@ -42,7 +42,7 @@
     @if (secondary(); as second) {
       <p-button
         [styleClass]="'page-actions__secondary justify-center ' + secondaryClass"
-        [label]="second.label"
+        [label]="second.mobileLabel ?? second.label"
         [icon]="second.icon ?? ''"
         [disabled]="!!second.disabled"
         [outlined]="true"
@@ -52,7 +52,7 @@
     }
     <p-button
       styleClass="page-actions__cta justify-center"
-      [label]="action.label"
+      [label]="action.mobileLabel ?? action.label"
       [icon]="action.icon ?? ''"
       [disabled]="!!action.disabled"
       (onClick)="onPrimary($event)"
