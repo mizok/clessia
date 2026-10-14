@@ -1512,6 +1512,8 @@ const ChangeLogEntrySchema = z
     changeType: z.string(),
     summary: z.string(),
     sessionDate: z.string().nullable(),
+    /** 該堂現在的開始時間 HH:mm（調課後是新時間）；#1314 A6 時間欄 */
+    sessionStartTime: z.string().nullable(),
     className: z.string().nullable(),
     reason: z.string().nullable(),
     createdByName: z.string().nullable(),
@@ -1577,7 +1579,7 @@ app.openapi(listChangeLogRoute, async (c) => {
       original_session_date, original_start_time, original_end_time,
       new_session_date, new_start_time, new_end_time,
       original_teacher_name,
-      sessions!inner ( session_date, classes!inner ( name, campus_id ) ),
+      sessions!inner ( session_date, start_time, classes!inner ( name, campus_id ) ),
       staff!substitute_teacher_id ( display_name )${search ? ', class_match:sessions ( id )' : ''}
     `,
       { count: 'exact' },

@@ -1,6 +1,5 @@
 <!--
-  A6 灰工具列的左半（#991）。手機（<768，跟 page 的 isMobileViewport 同一條線）只留日期＋「篩選」，
-  其餘篩選收進 mobile-filter-dialog；寬了才攤開日期、分校、進階篩選、清除篩選。
+  結果模式（showDateRange）的日期區間＋篩選鈕；平常（日／週）進階篩選收在頁面工具列的「⋯」（#1314），這裡只剩「清除篩選」。
 -->
 <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:gap-4">
   @if (showDateRange()) {
@@ -61,38 +60,25 @@
         </button>
       </div>
     </div>
-  } @else {
-    <button
-      type="button"
-      class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 self-start rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 md:hidden"
-      (click)="openAdvancedFilters.emit()"
-    >
-      <i class="pi pi-filter text-sm" aria-hidden="true"></i>
-      篩選
-      @if (activeFilterCount() > 0) {
-        <span
-          class="inline-flex size-5 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white"
-          >{{ activeFilterCount() }}</span
-        >
-      }
-    </button>
   }
 
-  <div class="hidden items-center gap-2 md:flex">
-    <button
-      type="button"
-      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-      (click)="openAdvancedFilters.emit()"
-    >
-      <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
-      進階篩選
-      @if (activeFilterCount() > 0) {
-        <span
-          class="inline-flex size-5 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white"
-          >{{ activeFilterCount() }}</span
-        >
-      }
-    </button>
+  <div class="flex items-center gap-2">
+    @if (showDateRange()) {
+      <button
+        type="button"
+        class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 md:inline-flex"
+        (click)="openAdvancedFilters.emit()"
+      >
+        <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
+        進階篩選
+        @if (activeFilterCount() > 0) {
+          <span
+            class="inline-flex size-5 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white"
+            >{{ activeFilterCount() }}</span
+          >
+        }
+      </button>
+    }
     @if (hasActiveFilters()) {
       <button
         type="button"
