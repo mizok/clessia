@@ -45,7 +45,6 @@ import {
   toEnrollmentEvent,
   type EnrollmentEvent,
 } from './enrollment-event.util';
-import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
@@ -72,14 +71,15 @@ interface EnrollmentRow {
 
 const EVENT_KINDS: readonly EnrollmentEventKind[] = ['joined', 'left', 'paused', 'voided'];
 
-const monthDay = (date: string): string => date.slice(5).replace('-', '/');
+/** A6 日期不補零（9/29，不是 09/29） */
+const monthDay = (date: string): string =>
+  `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 @Component({
   selector: 'app-enrollments',
   imports: [
     CampusScopeNoteComponent,
-    FilterToggleComponent,
     StudentAutocompleteComponent,
     PageOpenComponent,
     DatePipe,

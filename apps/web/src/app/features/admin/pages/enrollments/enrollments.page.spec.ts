@@ -232,7 +232,7 @@ describe('EnrollmentsPage', () => {
     ]);
 
     expect(component['rows']()[0].event.date).toBe('2026-08-14');
-    expect(fixture.nativeElement.textContent).toContain('08/14');
+    expect(fixture.nativeElement.textContent).toContain('8/14');
   });
 
   it('四種事件詞各自標記，原因寫在狀態下面（#1314 EN5）', async () => {
@@ -262,7 +262,7 @@ describe('EnrollmentsPage', () => {
       'voided',
     ]);
     // 暫停的日期是 status_changed_at（它不寫 effective_to）
-    expect(text).toContain('08/10');
+    expect(text).toContain('8/10');
     for (const why of ['搬家', '長期請病假', '重複報名']) expect(text).toContain(why);
   });
 
@@ -386,11 +386,85 @@ describe('EnrollmentsPage', () => {
       ]);
 
       expect(qa('period-text').map((e) => e.textContent?.trim())).toEqual([
-        '08/03–12/31 · 月繳',
-        '09/01 起 · 期繳',
-        '09/02 起',
-        '09/03 起 · 堂數制',
+        '8/3–12/31 · 月繳',
+        '9/1 起 · 期繳',
+        '9/2 起',
+        '9/3 起 · 堂數制',
       ]);
+    });
+
+    it('日期不補零（A6：9/29）：月、日各自一位／兩位數的四種組合都對', async () => {
+      const pick = (id: string, from: string) =>
+        enrollment({ id, effectiveFrom: from, createdAt: `${from}T12:00:00Z` });
+      await setup([
+        pick('a', '2026-09-05'), // 月一位、日一位
+        pick('b', '2026-10-05'), // 月兩位、日一位
+        pick('c', '2026-09-10'), // 月一位、日兩位
+        pick('d', '2026-12-31'), // 月兩位、日兩位
+      ]);
+
+      expect(qa('period-text').map((e) => e.textContent?.trim())).toEqual([
+        '9/5 起',
+        '10/5 起',
+        '9/10 起',
+        '12/31 起',
+      ]);
+      // 右側「日期 · 分校」與「經手人 日期 時間」同一個格式
+      expect(qa('event-meta').map((e) => e.textContent!.replace(/\s+/g, ' ').trim())).toEqual([
+        expect.stringMatching(/^9\/5 · 本校 9\/5 \d{2}:\d{2}$/),
+        expect.stringMatching(/^10\/5 · 本校 10\/5 \d{2}:\d{2}$/),
+        expect.stringMatching(/^9\/10 · 本校 9\/10 \d{2}:\d{2}$/),
+        expect.stringMatching(/^12\/31 · 本校 12\/31 \d{2}:\d{2}$/),
+      ]);
+    });
+
+    describe('篩選條（A6 `.ff`）：桌機常開、手機收成「篩選　全部 ∨」', () => {
+      const root = () => fixture.nativeElement as HTMLElement;
+      const fold = () => q('filter-fold') as HTMLButtonElement;
+      const panel = () => root().querySelector('#enrollments-filters') as HTMLElement;
+
+      it('四欄都在 DOM（學生、開課班、事件、狀態），沒有共用的「篩選」鈕，也沒有分校欄', async () => {
+        await setup();
+        expect(q('student-filter')).not.toBeNull();
+        const labels = [...panel().querySelectorAll('label')].map((l) =>
+          l.textContent!.replace(/\s+/g, ''),
+        );
+        expect(labels.map((t) => t.replace(/全部.*$/, ''))).toEqual(['開課班', '事件', '狀態']);
+        expect(root().querySelector('app-filter-toggle')).toBeNull();
+        expect(root().textContent).not.toContain('分校範圍');
+      });
+
+      it('桌機面板用 wide:grid 蓋掉 hidden（永遠看得到）；摺疊列只在手機（wide:hidden）', async () => {
+        await setup();
+        expect(panel().classList.contains('wide:grid')).toBe(true);
+        expect(fold().classList.contains('wide:hidden')).toBe(true);
+      });
+
+      it('手機：預設收起；點摺疊列展開、再點收起，aria-expanded 跟著走', async () => {
+        await setup();
+        expect(fold().getAttribute('aria-expanded')).toBe('false');
+        expect(fold().getAttribute('aria-controls')).toBe('enrollments-filters');
+        expect(panel().classList.contains('hidden')).toBe(true);
+
+        fold().click();
+        fixture.detectChanges();
+        expect(fold().getAttribute('aria-expanded')).toBe('true');
+        expect(panel().classList.contains('hidden')).toBe(false);
+
+        fold().click();
+        fixture.detectChanges();
+        expect(fold().getAttribute('aria-expanded')).toBe('false');
+        expect(panel().classList.contains('hidden')).toBe(true);
+      });
+
+      it('摺疊列右邊寫目前的篩選（沒有「全部」，有就寫那幾項）', async () => {
+        await setup();
+        expect(q('filter-fold-meta')!.textContent!.trim()).toBe('全部');
+
+        component['onEventChange']('left');
+        fixture.detectChanges();
+        expect(q('filter-fold-meta')!.textContent!.trim()).toBe('退班');
+      });
     });
 
     it('事件 pill：新報名黑框、退班紅、暫停與作廢灰', async () => {

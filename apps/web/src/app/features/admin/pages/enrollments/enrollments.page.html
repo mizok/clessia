@@ -22,93 +22,113 @@
   <ng-container openSub>這段期間的報名進出。此頁唯讀，要調整報名狀態請點進班級。</ng-container>
 </app-page-open>
 
+<!-- 工具列：只有「期間」（A6）；篩選條在它下面，桌機常開、手機收成「篩選　全部 ∨」一列 -->
 <div class="bg-zinc-100">
-  <div
-    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
-    role="search"
-    aria-label="篩選報名紀錄"
-  >
-    <div class="flex w-full items-center gap-2 wide:w-auto">
-      <span class="shrink-0 text-md font-semibold text-zinc-900">期間</span>
-      <p-select
-        class="min-w-0 flex-1 wide:w-44 wide:flex-none"
-        styleClass="w-full"
-        [options]="monthOptions()"
-        [ngModel]="month()"
-        (ngModelChange)="onMonthChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        ariaLabel="期間"
-      />
-    </div>
-    <div class="flex w-full items-center gap-2 wide:contents">
-      <div class="min-w-0 flex-1 wide:w-72 wide:flex-none" data-testid="student-filter">
-        <app-student-autocomplete
-          placeholder="找學生（輸入姓名）"
-          [value]="studentValue()"
-          [suggestions]="studentSuggestions()"
-          [forceSelection]="false"
-          (queryChange)="onStudentQuery($event)"
-          (valueChange)="onStudentChange($event)"
-        />
-      </div>
-      <app-filter-toggle
-        [summary]="filterSummary()"
-        [active]="classId() !== null || event() !== null || status() !== null"
-        [(open)]="filtersOpen"
-        [always]="true"
-        controls="enrollments-filters"
-      />
-    </div>
-
-    <!-- 篩選面板：開課班、事件、狀態（A6 順序）。分校不放 —— 它跟頂欄走（#1138） -->
-    <div
-      id="enrollments-filters"
-      class="grid w-full grid-cols-1 gap-3 wide:order-3 wide:basis-full wide:grid-cols-4"
-      [class.hidden]="!filtersOpen()"
-    >
-      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
-        開課班
-        <p-select
-          styleClass="w-full"
-          [options]="classOptions()"
-          [ngModel]="classId()"
-          (ngModelChange)="onClassChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          [filter]="true"
-          ariaLabel="開課班"
-        />
-      </label>
-      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
-        事件
-        <p-select
-          styleClass="w-full"
-          [options]="eventOptions"
-          [ngModel]="event()"
-          (ngModelChange)="onEventChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          ariaLabel="事件"
-        />
-      </label>
-      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
-        狀態
-        <p-select
-          styleClass="w-full"
-          [options]="statusOptions"
-          [ngModel]="status()"
-          (ngModelChange)="onStatusChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          ariaLabel="狀態"
-        />
-      </label>
-    </div>
+  <div class="page-wrap flex min-h-16 items-center gap-2 py-3">
+    <span class="shrink-0 text-md font-semibold text-zinc-900">期間</span>
+    <p-select
+      class="min-w-0 flex-1 wide:w-44 wide:flex-none"
+      styleClass="w-full"
+      [options]="monthOptions()"
+      [ngModel]="month()"
+      (ngModelChange)="onMonthChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      ariaLabel="期間"
+    />
   </div>
 </div>
 
-<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+<div class="page-wrap flex flex-col gap-4 pt-4 pb-12 wide:pt-6">
+  <!--
+    篩選條（A6 `.ff`）：學生｜（開課班、事件、狀態）。桌機是常開的灰色圓角面板；手機是全寬灰面，
+    學生欄一列、其餘收進「篩選　全部 ∨」。分校不放 —— 它跟頂欄走（#1138）。
+    收合用 `filtersOpen`，面板在桌機用 `wide:grid` 蓋掉 `hidden`，所以桌機永遠看得到。
+  -->
+  <div
+    class="clessia-filter-bar -mx-4 grid gap-3 bg-zinc-100 p-4 wide:mx-0 wide:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] wide:rounded-lg"
+    role="search"
+    aria-label="篩選報名紀錄"
+  >
+    <div
+      class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+      data-testid="student-filter"
+    >
+      <span id="enrollments-student-label">學生</span>
+      <app-student-autocomplete
+        placeholder="輸入姓名"
+        [value]="studentValue()"
+        [suggestions]="studentSuggestions()"
+        [forceSelection]="false"
+        (queryChange)="onStudentQuery($event)"
+        (valueChange)="onStudentChange($event)"
+      />
+    </div>
+    <div class="min-w-0">
+      <button
+        type="button"
+        class="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent p-0 text-left wide:hidden"
+        data-testid="filter-fold"
+        aria-controls="enrollments-filters"
+        [attr.aria-expanded]="filtersOpen()"
+        (click)="filtersOpen.set(!filtersOpen())"
+      >
+        <span class="text-lg font-semibold text-zinc-900">篩選</span>
+        <span class="ml-auto text-md text-zinc-600 tabular-nums" data-testid="filter-fold-meta">{{
+          filterSummary()
+        }}</span>
+        <i
+          class="pi pi-chevron-down text-xs text-zinc-900 transition-transform"
+          [class.rotate-180]="filtersOpen()"
+          aria-hidden="true"
+        ></i>
+      </button>
+      <div
+        id="enrollments-filters"
+        class="grid grid-cols-2 gap-3 pb-1 wide:grid wide:grid-cols-3 wide:pb-0"
+        [class.hidden]="!filtersOpen()"
+      >
+        <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+          開課班
+          <p-select
+            styleClass="w-full"
+            [options]="classOptions()"
+            [ngModel]="classId()"
+            (ngModelChange)="onClassChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            [filter]="true"
+            ariaLabel="開課班"
+          />
+        </label>
+        <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+          事件
+          <p-select
+            styleClass="w-full"
+            [options]="eventOptions"
+            [ngModel]="event()"
+            (ngModelChange)="onEventChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            ariaLabel="事件"
+          />
+        </label>
+        <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+          狀態
+          <p-select
+            styleClass="w-full"
+            [options]="statusOptions"
+            [ngModel]="status()"
+            (ngModelChange)="onStatusChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            ariaLabel="狀態"
+          />
+        </label>
+      </div>
+    </div>
+  </div>
+
   @if (loading()) {
     <div class="skeleton-list" aria-label="報名紀錄載入中">
       @for (i of [1, 2, 3]; track i) {
@@ -141,7 +161,7 @@
     </div>
     <app-campus-scope-note />
   } @else {
-    <p class="enrollments__summary m-0 text-md text-zinc-600 tabular-nums">
+    <p class="enrollments__summary m-0 text-md font-normal text-zinc-600 tabular-nums">
       <!--
         只留全量的 T。原本「本頁 新報名 N 筆、退班 M 筆，共 T 筆」的 N／M 只算目前這一頁（≤20 列），
         T 是伺服器全量，三個數字並排會被讀成同一個母體（#1022）。
@@ -218,7 +238,7 @@
             }
           </div>
           <div class="col-span-2 min-w-0 wide:col-span-1">
-            <span class="block text-md text-zinc-800" data-testid="status-text">{{
+            <span class="block text-md font-normal text-zinc-800" data-testid="status-text">{{
               row.statusText
             }}</span>
             @if (row.enrollment.statusReason) {
@@ -229,15 +249,16 @@
           </div>
           <div
             class="col-span-2 min-w-0 text-sm text-zinc-600 tabular-nums wide:col-span-1 wide:text-right"
+            data-testid="event-meta"
           >
-            {{ row.event.date | date: 'MM/dd' }} · {{ row.enrollment.campusName ?? '—' }}
+            {{ row.event.date | date: 'M/d' }} · {{ row.enrollment.campusName ?? '—' }}
             <span class="block" data-testid="handler-text">
               @if (row.handlerText) {
                 {{ row.handlerText }}
               }
               {{
                 (row.event.kind === 'joined' ? row.enrollment.createdAt : row.enrollment.updatedAt)
-                  | date: 'MM/dd HH:mm'
+                  | date: 'M/d HH:mm'
               }}</span
             >
           </div>
