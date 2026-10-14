@@ -2,6 +2,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { Popover } from 'primeng/popover';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { ExamsComponent } from './exams.component';
@@ -497,6 +499,27 @@ describe('ExamsComponent', () => {
         );
       fixture.detectChanges();
       expect(el.querySelector('[data-toolbar-clear]')).not.toBeNull();
+    });
+
+    // 外點擊關掉浮層時，只有 Popover 的 onHide 會回寫 filtersOpen；少了它鈕會一直是「展開」
+    it('浮層 onShow／onHide 回寫篩選鈕的 aria-expanded（外點擊關掉後鈕要回到 false）', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const filterBtn = () =>
+        Array.from(el.querySelectorAll('button')).find((b) =>
+          b.textContent?.includes('篩選：'),
+        ) as HTMLButtonElement;
+      const popover = fixture.debugElement.query(By.directive(Popover)).injector.get(Popover);
+
+      expect(filterBtn().getAttribute('aria-expanded')).toBe('false');
+      filterBtn().click(); // 真的打開浮層（hide() 在沒開的浮層上不會發 onHide）
+      fixture.detectChanges();
+      popover.onShow.emit(); // jsdom 沒有動畫結束事件，onShow 由這裡補發
+      fixture.detectChanges();
+      expect(filterBtn().getAttribute('aria-expanded')).toBe('true');
+
+      popover.hide(); // 外點擊、Esc 都是走 hide() 發 onHide
+      fixture.detectChanges();
+      expect(filterBtn().getAttribute('aria-expanded')).toBe('false');
     });
 
     it('學校欄位只在學校考試算數', () => {
