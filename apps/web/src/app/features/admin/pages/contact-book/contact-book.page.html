@@ -116,11 +116,20 @@
     </h2>
 
     <div
-      class="flex flex-col items-start gap-3 rounded-lg bg-zinc-100 p-3 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+      class="flex flex-wrap items-end gap-3 rounded-lg bg-zinc-100 p-3 wide:items-center wide:gap-4"
       role="search"
       aria-label="篩選聯絡簿"
     >
-      <div class="w-full wide:w-48">
+      <div class="clessia-filter-search w-full wide:w-auto wide:flex-[1_1_240px]">
+        <app-student-autocomplete
+          [value]="student()"
+          (valueChange)="onStudentChange($event)"
+          [suggestions]="studentSuggestions()"
+          (queryChange)="onStudentQuery($event)"
+          placeholder="輸入學生姓名篩選"
+        />
+      </div>
+      <div class="w-40 wide:w-48">
         <app-select-field
           label="期間"
           [options]="periodOptions"
@@ -141,15 +150,6 @@
           ariaLabel="日期區間"
         />
       }
-      <div class="clessia-filter-search w-full wide:w-auto wide:flex-[1_1_240px]">
-        <app-student-autocomplete
-          [value]="student()"
-          (valueChange)="onStudentChange($event)"
-          [suggestions]="studentSuggestions()"
-          (queryChange)="onStudentQuery($event)"
-          placeholder="輸入學生姓名篩選"
-        />
-      </div>
       <button
         type="button"
         class="inline-flex h-11 items-center justify-center rounded-md border border-solid bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
