@@ -17,6 +17,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 })
 export class ChapterHeadComponent {
   readonly name = input.required<string>();
+  /** 章名下的小字（A6 `.chap__sub`：「10/1（四）」「週二」）。預設空＝不渲染，別頁 DOM 不變 */
+  readonly sub = input('');
   /** 章內的張數／筆數。`null`＝不顯示（例如前端另外再濾過，API 的數字對不上時別編） */
   readonly count = input<number | null>(null);
   /** 張數的單位（「門」「位」「張」） */
