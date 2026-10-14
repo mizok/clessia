@@ -1,7 +1,13 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
 <app-page-open>
-  <ng-container openTitle>{{ page().label }}</ng-container>
+  <ng-container openTitle>
+    @if (headline(); as line) {
+      {{ line.first }}<br />{{ line.second }}
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
   <ng-container openSub>
     每日勾選誰要訂餐，月底一次結算成帳單。有上課不一定訂餐 —— 課表只給候選名單。
   </ng-container>
@@ -13,16 +19,23 @@
     role="search"
     aria-label="餐費篩選"
   >
-    <p-selectbutton
-      [options]="modeOptions"
-      optionLabel="label"
-      optionValue="value"
-      [allowEmpty]="false"
-      [ngModel]="mode()"
-      (ngModelChange)="switchMode($event)"
-      ariaLabel="檢視模式"
-    />
-
+    <nav class="flex gap-4" aria-label="餐費">
+      @for (opt of modeOptions; track opt.value) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base font-semibold"
+          [class.border-zinc-900]="mode() === opt.value"
+          [class.text-zinc-900]="mode() === opt.value"
+          [class.border-transparent]="mode() !== opt.value"
+          [class.text-zinc-600]="mode() !== opt.value"
+          [attr.aria-current]="mode() === opt.value ? 'page' : null"
+          [attr.data-testid]="'mode-' + opt.value"
+          (click)="switchMode(opt.value)"
+        >
+          {{ opt.label }}
+        </button>
+      }
+    </nav>
     @if (isRange()) {
       <p-datepicker
         selectionMode="range"
@@ -44,31 +57,18 @@
         />
       </div>
     } @else {
-      <p-datepicker
-        dateFormat="yy-mm-dd"
-        [showIcon]="true"
-        [ngModel]="date"
-        (ngModelChange)="onDateChange($event)"
-        ariaLabel="名單日期"
-      />
-      @if (!loading() && !failed() && rows().length > 0) {
-        <p-button
-          label="全部訂"
-          icon="pi pi-check-square"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="setAllOrdered(true)"
+      <label class="flex w-full items-center gap-2 text-md font-semibold text-zinc-700 wide:w-auto">
+        名單日期
+        <input
+          #dateInput
+          type="date"
+          class="h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:h-10 wide:flex-none"
+          aria-label="名單日期"
+          data-testid="meals-date"
+          [value]="dateStr()"
+          (change)="onDateInput(dateInput)"
         />
-        <p-button
-          label="全部不訂"
-          icon="pi pi-stop"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="setAllOrdered(false)"
-        />
-      }
+      </label>
     }
     <div class="wide:ml-auto">
       <app-page-actions [primary]="primaryAction" (primaryClick)="openBillingRun()" />
@@ -83,24 +83,82 @@
         區間的數字**一律取後端的 meta** —— 它算的是整個區間，前端手上只有當頁。
         totalAmount 問的是「這段期間吃了多少錢」，所以已結算的照樣算進去。
       -->
-      <p class="m-0 rounded-lg bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
-        這段期間 <strong>{{ summary()?.total ?? 0 }}</strong> 筆餐記錄，其中
-        <strong>{{ summary()?.chargeableCount ?? 0 }}</strong> 筆要收費，合計
-        <strong>{{ summary()?.totalAmount ?? 0 | number }}</strong> 元 （含已結算的
-        {{ summary()?.settledCount ?? 0 }} 筆）。
+      <p
+        class="m-0 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-base text-zinc-700"
+        data-testid="meals-summary"
+      >
+        <span
+          ><b class="text-2xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums">{{
+            summary()?.total ?? 0
+          }}</b>
+          筆</span
+        >
+        <span
+          >要收費
+          <b class="text-2xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums"
+            >NT$ {{ summary()?.totalAmount ?? 0 | number }}</b
+          >
+          <span class="text-sm text-zinc-600"
+            >（{{ summary()?.chargeableCount ?? 0 }} 筆）</span
+          ></span
+        >
+        <span class="text-sm text-zinc-600">{{ summary()?.settledCount ?? 0 }} 筆已結算</span>
       </p>
     } @else {
-      <p class="m-0 rounded-lg bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
-        訂 <strong>{{ totals().ordered }}</strong> 份，其中
-        <strong>{{ totals().chargeable }}</strong> 份要收費，合計
-        <strong>{{ totals().amount | number }}</strong> 元。
+      <div
+        class="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-base text-zinc-700"
+        data-testid="meals-summary"
+      >
+        <span
+          ><b class="text-2xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums">{{
+            rows().length
+          }}</b>
+          位候選</span
+        >
+        <span
+          >訂
+          <b class="text-2xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums">{{
+            totals().ordered
+          }}</b>
+          份</span
+        >
+        <span
+          >要收費
+          <b class="text-2xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums"
+            >NT$ {{ totals().amount | number }}</b
+          >
+          <span class="text-sm text-zinc-600">（{{ totals().chargeable }} 份）</span></span
+        >
         @if (settledCount() > 0) {
-          <span class="text-zinc-500"> （{{ settledCount() }} 筆已結算，鎖住不能改） </span>
+          <span class="text-sm text-zinc-600">{{ settledCount() }} 筆已結算，鎖住不能改</span>
         }
+        <span class="flex gap-2 wide:ml-auto">
+          <button
+            type="button"
+            class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 px-3 text-sm font-semibold whitespace-nowrap wide:h-[30px]"
+            data-testid="bulk-all-on"
+            (click)="setAllOrdered(true)"
+          >
+            全部訂
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 px-3 text-sm font-semibold whitespace-nowrap wide:h-[30px]"
+            data-testid="bulk-all-off"
+            (click)="setAllOrdered(false)"
+          >
+            全部不訂
+          </button>
+        </span>
+      </div>
+      <p
+        class="m-0 rounded-lg bg-zinc-100 px-4 py-3 text-md text-zinc-700"
+        data-testid="meals-note"
+      >
+        「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
       </p>
     }
   }
-
   <div class="flex flex-col gap-4">
     @if (loading()) {
       <div class="skeleton-list">
@@ -151,12 +209,19 @@
             data-chapter
           >
             @if (!isRange()) {
-              <app-chapter-head
-                class="block pt-6 wide:pt-8"
-                [name]="table.name || '未分班'"
-                [count]="table.rows.length"
-                unit="位"
-              />
+              <!-- 章頭（A6 `.chap__side`，餐費自己的 24px 變體）：班名＋「訂 N／M」；手機橫排 -->
+              <div
+                class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-6 wide:block wide:pt-8"
+                data-testid="chapter-head"
+              >
+                <h2 class="m-0 text-2xl font-bold tracking-[-0.02em] text-zinc-900">
+                  {{ table.name || '未分班' }}
+                </h2>
+                <p class="m-0 text-lg font-bold tabular-nums wide:mt-3 wide:text-xl">
+                  訂 {{ chapterOrdered(table.rows)
+                  }}<span class="text-md font-medium text-zinc-600">／{{ table.rows.length }}</span>
+                </p>
+              </div>
             }
             <ng-template #mealHead>
               <tr>
@@ -301,11 +366,8 @@
 
       @if (!isRange()) {
         <div
-          class="sticky bottom-0 z-[1] mt-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border-t border-zinc-200 bg-zinc-50 px-4 py-3 shadow-[0_-4px_6px_-2px_rgb(0_0_0/8%)]"
+          class="sticky bottom-0 z-[1] mt-2 flex flex-wrap items-center justify-end gap-4 rounded-lg border-t border-zinc-200 bg-zinc-50 px-4 py-3 shadow-[0_-4px_6px_-2px_rgb(0_0_0/8%)]"
         >
-          <span class="flex-[1_1_320px] text-xs text-zinc-500">
-            「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
-          </span>
           <div class="flex items-center gap-3">
             <span class="meals__actions-count whitespace-nowrap text-sm font-medium text-zinc-600"
               >共 {{ rows().length }} 位</span

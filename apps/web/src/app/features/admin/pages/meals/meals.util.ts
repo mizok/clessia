@@ -105,3 +105,13 @@ export function mealChapters(rows: MealDraftRow[]): { name: string; rows: MealDr
       a.name === '' ? 1 : b.name === '' ? -1 : a.name.localeCompare(b.name, 'zh-Hant'),
     );
 }
+
+/** 這一章訂了幾位（A6 章頭「訂 6／7」的分子） */
+export function chapterOrdered(rows: MealDraftRow[]): number {
+  return rows.filter((row) => row.ordered).length;
+}
+
+/** `YYYY-MM-DD` → `M/D`（A6 不補零） */
+export function monthDay(day: string): string {
+  return `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}`;
+}

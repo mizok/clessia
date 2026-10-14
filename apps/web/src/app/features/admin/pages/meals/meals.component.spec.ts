@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { SystemClockService, taipeiDateString } from '@core/system-clock.service';
 import { MealsService, type MealBatchRow, type MealRosterRow } from '@core/meals.service';
 import { BillingRunsService } from '@core/billing-runs.service';
 
@@ -40,6 +42,7 @@ const roster = (rows: MealRosterRow[], defaultUnitPrice = 60) => ({
 });
 
 describe('MealsComponent', () => {
+  const today = signal('2026-10-14');
   let component: MealsComponent;
   let fixture: ComponentFixture<MealsComponent>;
 
@@ -56,6 +59,7 @@ describe('MealsComponent', () => {
     meals.roster.mockReset().mockReturnValue(of(roster([])));
     meals.batch.mockReset().mockReturnValue(of({ updated: 0, lockedStudentIds: [] }));
     meals.range.mockReset().mockReturnValue(of(roster([])));
+    today.set('2026-10-14');
 
     await TestBed.configureTestingModule({
       imports: [MealsComponent],
@@ -64,6 +68,7 @@ describe('MealsComponent', () => {
         { provide: MealsService, useValue: meals },
         { provide: BillingRunsService, useValue: billingRuns },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        { provide: SystemClockService, useValue: { todayTaipei: today } },
       ],
     }).compileComponents();
 
@@ -78,13 +83,13 @@ describe('MealsComponent', () => {
   });
 
   it('進頁就取今天的名單', () => {
-    expect(meals.roster).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    expect(meals.roster).toHaveBeenCalledWith('2026-10-14');
   });
 
   it('換日期會重新取名單', () => {
     meals.roster.mockClear();
 
-    component['onDateChange'](new Date('2026-08-20T00:00:00'));
+    component['onDateChange']('2026-08-20');
 
     expect(meals.roster).toHaveBeenCalledWith('2026-08-20');
   });
@@ -92,7 +97,7 @@ describe('MealsComponent', () => {
   it('清掉日期時不查 —— 沒有日期就沒有名單', () => {
     meals.roster.mockClear();
 
-    component['onDateChange'](null);
+    component['onDateChange']('');
 
     expect(meals.roster).not.toHaveBeenCalled();
   });
@@ -255,9 +260,13 @@ describe('MealsComponent', () => {
         (fixture.nativeElement as HTMLElement).querySelectorAll('section[data-chapter]'),
       );
       expect(sections.map((s) => s.getAttribute('aria-label')).sort()).toEqual(['數學', '英文']);
-      expect(sections.find((s) => s.getAttribute('aria-label') === '數學')?.textContent).toContain(
-        '2',
-      );
+      // 章頭「訂 N／M」：兩位都預設勾起 → 訂 2／2
+      expect(
+        sections
+          .find((s) => s.getAttribute('aria-label') === '數學')
+          ?.querySelector('[data-testid="chapter-head"]')
+          ?.textContent?.replace(/\s+/g, ''),
+      ).toBe('數學訂2／2');
     });
 
     it('已結算的列有連到帳單頁的連結', async () => {
@@ -327,6 +336,274 @@ describe('MealsComponent', () => {
       await fixture.whenStable();
 
       expect(component['totals']()).toEqual({ ordered: 2, chargeable: 1, amount: 60 });
+    });
+  });
+
+  describe('M1 頭部（A6）：色面句、分頁連結、日期欄、摘要列', () => {
+    const q = (id: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    /** n 位：前 ordered 位訂了、其中 handled 位已有記錄（recordId）；其餘沒處理 */
+    const load = async (rows: MealRosterRow[]) => {
+      meals.roster.mockReturnValue(of(roster(rows)));
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    const person = (id: string, over: Partial<MealRosterRow> = {}) =>
+      row({ studentId: id, studentName: id, mealDate: '2026-10-14', ...over });
+    const handled = (id: string, ordered: boolean) =>
+      person(id, { recordId: `r-${id}`, ordered, chargeable: true, unitPrice: 65 });
+
+    it('當日色面句兩段：今天 N 份便當／還有 M 位沒處理；<br> 一個', async () => {
+      await load([
+        person('a'), // 沒處理，預設訂
+        handled('b', true),
+        handled('c', false),
+      ]);
+
+      expect(component['headline']()).toEqual({
+        first: '今天 2 份便當，',
+        second: '還有 1 位沒處理。',
+      });
+      expect(fixture.nativeElement.querySelectorAll('app-page-open br')).toHaveLength(1);
+    });
+
+    it('沒處理 0／1／2 位（門檻 ±1）：0 位寫「全部處理完了」', async () => {
+      await load([handled('a', true), handled('b', true)]);
+      expect(component['headline']()!.second).toBe('全部處理完了。');
+      await load([person('a'), handled('b', true)]);
+      expect(component['headline']()!.second).toBe('還有 1 位沒處理。');
+      await load([person('a'), person('b'), handled('c', true)]);
+      expect(component['headline']()!.second).toBe('還有 2 位沒處理。');
+    });
+
+    describe('「未處理」點的色調（過去日期＝overdue、今天與之後＝pending）', () => {
+      // fake today 刻意設成與真實日期不同的一天（遠在未來）—— 元件若改回 `new Date()`，
+      // 真實今天 < 2027-03-04，「昨天」就會被判成 pending，這條才會紅
+      const FAKE_TODAY = '2027-03-05';
+      const toneOn = async (day: string) => {
+        meals.roster.mockReturnValue(of(roster([person('a')]))); // recordId null＝未處理
+        component['onDateChange'](day);
+        await fixture.whenStable();
+        fixture.detectChanges();
+        return component['unhandledTone']();
+      };
+
+      it('昨天 → overdue；今天 → pending；明天 → pending（臨界 ±1 天）', async () => {
+        today.set(FAKE_TODAY);
+        expect(await toneOn('2027-03-04')).toBe('overdue');
+        expect(await toneOn('2027-03-05')).toBe('pending');
+        expect(await toneOn('2027-03-06')).toBe('pending');
+      });
+
+      it('畫面上那顆點真的帶著對應的 tone class', async () => {
+        today.set(FAKE_TODAY);
+        await toneOn('2027-03-04');
+        expect(fixture.nativeElement.querySelector('.status-dot--overdue')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('.status-dot--pending')).toBeNull();
+        await toneOn('2027-03-05');
+        expect(fixture.nativeElement.querySelector('.status-dot--pending')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('.status-dot--overdue')).toBeNull();
+      });
+
+      it('台北時鐘跨過午夜：同一天先是 pending、過了午夜變 overdue', async () => {
+        today.set('2027-03-05');
+        expect(await toneOn('2027-03-05')).toBe('pending');
+        today.set('2027-03-06'); // 台北過午夜，3/5 成了過去
+        expect(component['unhandledTone']()).toBe('overdue');
+      });
+    });
+
+    it('章頭「訂 N／M」：分子是這班訂了幾位，不是總數（0／部分／全部）', async () => {
+      await load([
+        person('a', { classNames: ['數學'], recordId: 'r1', ordered: true }),
+        person('b', { classNames: ['數學'], recordId: 'r2', ordered: false }),
+        person('c', { classNames: ['英文'], recordId: 'r3', ordered: false }),
+        person('d', { classNames: ['國文'], recordId: 'r4', ordered: true }),
+        person('e', { classNames: ['國文'], recordId: 'r5', ordered: true }),
+      ]);
+      const heads = Object.fromEntries(
+        Array.from(
+          (fixture.nativeElement as HTMLElement).querySelectorAll('section[data-chapter]'),
+        ).map((sec) => [
+          sec.getAttribute('aria-label'),
+          sec.querySelector('[data-testid="chapter-head"]')!.textContent!.replace(/\s+/g, ''),
+        ]),
+      );
+      expect(heads).toEqual({
+        數學: '數學訂1／2',
+        英文: '英文訂0／1',
+        國文: '國文訂2／2',
+      });
+    });
+
+    it('不是今天就把「今天」換成 M/D；時鐘跨過午夜時跟著變', async () => {
+      await load([person('a')]);
+      expect(component['headline']()!.first).toBe('今天 1 份便當，');
+      today.set('2026-10-15'); // 台北過了午夜，頁面上的 10/14 就不是今天了
+      expect(component['headline']()!.first).toBe('10/14 1 份便當，');
+      component['onDateChange']('2026-10-15');
+      await fixture.whenStable();
+      expect(component['headline']()!.first).toBe('今天 1 份便當，');
+    });
+
+    it('載入中、失敗、空名單：色面退回頁名，不宣稱數字', async () => {
+      expect(component['headline']()).toBeNull(); // 預設空名單
+      expect(fixture.nativeElement.querySelector('app-page-open')!.textContent).toContain(
+        '餐費管理',
+      );
+      meals.roster.mockReturnValue(throwError(() => new Error('boom')));
+      component['load']();
+      await fixture.whenStable();
+      expect(component['headline']()).toBeNull();
+    });
+
+    it('區間色面句：9/1–10/1／N 份便當，NT$ X。數字取後端 meta', async () => {
+      meals.range.mockReturnValue(
+        of({
+          ...roster([person('a')]),
+          meta: {
+            total: 2473,
+            chargeableCount: 2400,
+            totalAmount: 148190,
+            settledCount: 0,
+            page: 1,
+            pageSize: 50,
+          },
+        }),
+      );
+      component['switchMode']('range');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(component['headline']()).toEqual({
+        first: '10/1–10/14',
+        second: '2473 份便當，NT$ 148,190。',
+      });
+    });
+
+    it('分頁是文字連結：目前這個 aria-current＝page，點另一個切模式', async () => {
+      await load([person('a')]);
+      expect(q('mode-day').getAttribute('aria-current')).toBe('page');
+      expect(q('mode-range').getAttribute('aria-current')).toBeNull();
+      expect(q('mode-day').classList).toContain('border-zinc-900');
+      expect(q('mode-range').classList).toContain('border-transparent');
+      expect(fixture.nativeElement.querySelector('p-selectbutton')).toBeNull();
+
+      q('mode-range').click();
+      fixture.detectChanges();
+      expect(meals.range).toHaveBeenCalled();
+      expect(q('mode-range').getAttribute('aria-current')).toBe('page');
+      expect(q('mode-day').getAttribute('aria-current')).toBeNull();
+    });
+
+    describe('名單日期（原生日期欄，台北日期字串）', () => {
+      const input = () => q('meals-date') as HTMLInputElement;
+      const change = (value: string) => {
+        input().value = value;
+        input().dispatchEvent(new Event('change'));
+      };
+
+      it('是 type=date、有「名單日期」標籤，預設值是台北的今天', () => {
+        expect(input().type).toBe('date');
+        expect(input().value).toBe('2026-10-14');
+        expect(input().closest('label')!.textContent).toContain('名單日期');
+        expect(fixture.nativeElement.querySelector('p-datepicker')).toBeNull();
+      });
+
+      it('改日期 → 用那個字串查（不經 Date，不會偏一天）', () => {
+        meals.roster.mockClear();
+        change('2026-09-30');
+        expect(meals.roster).toHaveBeenCalledWith('2026-09-30');
+        expect(meals.roster).toHaveBeenCalledTimes(1);
+      });
+
+      it('清空（或只打一半）→ 不查，欄位還原成目前日期', () => {
+        meals.roster.mockClear();
+        change('');
+        expect(meals.roster).not.toHaveBeenCalled();
+        expect(input().value).toBe('2026-10-14');
+      });
+    });
+
+    it('預設日期取台北日界線：15:59Z 是當天、16:00Z 是隔天', async () => {
+      // 替身用真正的台北日算法算「現在」，不靠固定字串 —— 這樣才測得到元件有沒有拿它當初值
+      const taipei = (iso: string) => taipeiDateString(Date.parse(iso));
+      for (const [now, expected] of [
+        ['2026-10-14T15:59:00Z', '2026-10-14'],
+        ['2026-10-14T16:00:00Z', '2026-10-15'],
+      ] as const) {
+        TestBed.resetTestingModule();
+        meals.roster.mockReset().mockReturnValue(of(roster([])));
+        await TestBed.configureTestingModule({
+          imports: [MealsComponent],
+          providers: [
+            provideRouter([]),
+            { provide: MealsService, useValue: meals },
+            { provide: BillingRunsService, useValue: billingRuns },
+            { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+            { provide: SystemClockService, useValue: { todayTaipei: () => taipei(now) } },
+          ],
+        }).compileComponents();
+        const f = TestBed.createComponent(MealsComponent);
+        f.componentRef.setInput('page', { label: '餐費管理' });
+        await f.whenStable();
+        expect(meals.roster).toHaveBeenCalledWith(expected);
+      }
+    });
+
+    it('摘要列：N 位候選／訂 N 份／要收費 NT$ X（份數）；已結算才多一段', async () => {
+      await load([
+        handled('a', true),
+        person('b', { recordId: 'r-b', ordered: true, chargeable: false, unitPrice: 65 }),
+        handled('c', false),
+      ]);
+      const text = q('meals-summary').textContent!.replace(/\s+/g, ' ');
+      expect(text).toContain('3 位候選');
+      expect(text).toContain('訂 2 份');
+      expect(text).toContain('要收費 NT$ 65');
+      expect(text).toContain('（1 份）');
+      expect(text).not.toContain('已結算');
+
+      await load([
+        handled('a', true),
+        person('s', { recordId: 'r-s', ordered: true, settled: true }),
+      ]);
+      expect(q('meals-summary').textContent).toContain('1 筆已結算，鎖住不能改');
+    });
+
+    it('「全部訂／全部不訂」在摘要列，不在工具列；已結算的不動', async () => {
+      await load([
+        handled('a', true),
+        handled('b', true),
+        person('s', { recordId: 'r-s', ordered: true, settled: true }),
+      ]);
+      expect(q('bulk-all-on').closest('[data-testid="meals-summary"]')).not.toBeNull();
+      q('bulk-all-off').click();
+      fixture.detectChanges();
+      expect(component['totals']().ordered).toBe(1); // 只剩已結算的那位
+      q('bulk-all-on').click();
+      fixture.detectChanges();
+      expect(component['totals']().ordered).toBe(3);
+    });
+
+    it('「收不收費是人工判斷」說明在頂端（摘要下），不在底部確認列', async () => {
+      await load([person('a')]);
+      expect(q('meals-note').textContent).toContain('人工判斷');
+      expect(q('meals-note').closest('[class*="sticky"]')).toBeNull();
+      const bar = fixture.nativeElement.querySelector('[class*="sticky"]') as HTMLElement;
+      expect(bar.textContent).not.toContain('人工判斷');
+      expect(bar.textContent).toContain('共 1 位');
+    });
+
+    it('區間模式的摘要列不放批次鈕與說明', async () => {
+      meals.range.mockReturnValue(of(roster([person('a')])));
+      component['switchMode']('range');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(q('bulk-all-on')).toBeNull();
+      expect(q('meals-note')).toBeNull();
+      expect(q('meals-summary').textContent).toContain('筆');
     });
   });
 
