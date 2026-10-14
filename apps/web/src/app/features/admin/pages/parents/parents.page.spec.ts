@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Popover } from 'primeng/popover';
 import { HttpErrorResponse } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
@@ -515,6 +517,18 @@ describe('ParentsPage', () => {
       expect(panel()).not.toBeNull();
       expect(panel()!.closest('app-parents, [role=search]')).toBeNull(); // 浮層，不在工具列內
       expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('點浮層外面關掉後，「篩選」鈕的 aria-expanded 回到 false（onHide 回寫）', () => {
+      fixture.detectChanges();
+      toggle().click();
+      fixture.detectChanges();
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+
+      // 外點擊由 Popover 自己關：直接呼叫它的 hide()，會發 onHide
+      fixture.debugElement.query(By.directive(Popover)).injector.get(Popover).hide();
+      fixture.detectChanges();
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
     });
 
     it('選了狀態，鈕上寫那個狀態（收起來也看得出在濾什麼）', () => {

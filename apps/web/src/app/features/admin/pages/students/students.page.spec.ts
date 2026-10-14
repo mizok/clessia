@@ -1,5 +1,7 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Popover } from 'primeng/popover';
 import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -460,6 +462,19 @@ describe('StudentsPage', () => {
       fixture.detectChanges();
       expect(panel()).not.toBeNull();
       expect(root().contains(panel())).toBe(false);
+    });
+
+    it('點浮層外面關掉後，「篩選」鈕的 aria-expanded 回到 false（onHide 回寫）', () => {
+      respond([row('a', '王一', 'J3')]);
+      const btn = root().querySelector('app-filter-toggle button') as HTMLButtonElement;
+      btn.click();
+      fixture.detectChanges();
+      expect(btn.getAttribute('aria-expanded')).toBe('true');
+
+      // 外點擊由 Popover 自己關：直接呼叫它的 hide()，會發 onHide
+      fixture.debugElement.query(By.directive(Popover)).injector.get(Popover).hide();
+      fixture.detectChanges();
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
     });
 
     it('依年級分章，章名張數讀 byGrade（不是這一頁的列數）', () => {
