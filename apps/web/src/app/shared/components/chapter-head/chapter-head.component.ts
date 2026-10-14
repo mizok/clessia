@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 /**
  * 章頭（A6 `.chap__side`）：大字章名＋章名下的張數。
@@ -25,4 +25,16 @@ export class ChapterHeadComponent {
   readonly tone = input<'default' | 'error'>('default');
   /** 手機也上下堆疊（A6 `chap`，家長頁）；預設手機橫排（`chap--row`，帳單頁） */
   readonly stacked = input(false);
+
+  /**
+   * 章名的 class。**整串寫在 TS 裡、用 `[class]` 綁** —— 任意值 class（`text-[34px]`）
+   * 不能寫成 `[class.text-[34px]]`：方括號會讓 Angular 的綁定名稱解析失敗，
+   * 而且是靜默失效（沒有編譯錯誤、class 就是沒掛上）。
+   */
+  protected readonly nameClass = computed(
+    () =>
+      'chapter-head__name m-0 leading-none font-bold tracking-[-0.04em] wide:text-[44px] ' +
+      (this.stacked() ? 'text-[34px] ' : 'text-[26px] ') +
+      (this.tone() === 'error' ? 'text-error-700' : 'text-zinc-900'),
+  );
 }

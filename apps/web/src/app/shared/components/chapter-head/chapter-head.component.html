@@ -4,13 +4,7 @@
   [class.flex-wrap]="!stacked()"
   [class.gap-x-3]="!stacked()"
 >
-  <h2
-    class="chapter-head__name m-0 leading-none font-bold tracking-[-0.04em] wide:text-[44px]"
-    [class.text-[26px]]="!stacked()"
-    [class.text-[34px]]="stacked()"
-    [class.text-zinc-900]="tone() === 'default'"
-    [class.text-error-700]="tone() === 'error'"
-  >
+  <h2 [class]="nameClass()">
     {{ name() }}
   </h2>
   @if (count() !== null) {
