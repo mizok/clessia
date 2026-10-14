@@ -463,3 +463,91 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 8. **harness 測試動到 fixture 尋找**:暫把 `check-harness.mjs` 的兩條 gate 訊息改掉,應恰好 A20 與 A27/A24 兩條 not ok。
 9. **合併前同呼叫重讀 head**;授權後作者可能又推一顆(#1313 的教訓),`steward-merge.sh` 鎖的是 head,但回報要寫『合併時 head』。
 10. **暫存檔不要用 `rm -rf`**:分類器會擋(10-08 #1380 我的暫存清理被擋);用 `mktemp -d`,或只 `rm -f` 自己建的單一檔。
+
+---
+
+## 10-10～10-14 大量代合（約 90 支非保留／保留類）學到的，一頁版
+
+**這一節只放知識。** 「二讀＝實跑＋自己跑突變」的流程本身見上面各節；這裡是那幾天踩到的坑與判準。
+
+### 一、突變要能編譯、要真的套上、門檻要 ±1
+
+1. **突變要能編譯。** 改了 `switchMap`→`mergeMap` 卻沒換 import，編譯錯誤讓 spec 一支都沒跑，
+   `grep -E "Tests |×"` 什麼都不印——**「沒輸出」不是「全綠」也不是「紅」**。印不出 `Tests` 那行就當這次突變無效，重做。
+2. **確認突變真的套上。** 我用一個小 Python 函式 `replace(file, old, new)` 並 `assert old in s`；macOS 的
+   `sed -i` 要寫 `sed -i ''`，否則靜默不套。第一次命中的不一定是你要的那一處（`chapter.groups` 第一個出現在
+   `track` 表達式，不是迴圈）——把 old 寫長到唯一。每次突變前後 `git status --short` 要乾淨。
+3. **grep 摘要行會被雜訊蓋掉。** vitest 的 stderr（`loadCourses failed: boom`、`[batch-import]`）排在摘要前面，
+   `| head -4` 會把 `Tests` 那行截掉。先 `grep -v "loadCourses\|batch-import"`。
+4. **門檻永遠測 ±1。** 抓到缺口的全是邊界：`<`→`<=`（`end_date = today`、`effective_to`）、`3→4`（`absentDates` 恰 3／4 天）、
+   `classSize = 1`、`emailVerified = null`（`=== true` 與 `as boolean` 在 true／false 兩值下不可分）。
+   fixture 只放 true／false、只放兩場、只放「遠離邊界」的值，突變就看不出來。
+5. **「雙向回寫」要各突變一次。** Popover 的 `(onShow)`／`(onHide)` 回寫 `filtersOpen`：拿掉其中一個全套 spec 仍綠過
+   （#1546）。外點擊關閉在 jsdom 看不到，**只能實機或寫會觸發 `onHide` 的 spec**。
+6. **「條件改恆 true／恆 false」是檢驗『這個 prop 到底有沒有被測』最便宜的方法**
+   （`primaryOnDesktop`、`secondaryOnDesktop`、`subLarge`）。沒有任何 spec 斷言的 opt-in prop，改成恆值會全綠。
+7. **對等價突變保持警覺**：`!== false` 與 `=== true` 在 boolean 輸入下等價，紅不紅取決於 fixture 有沒有 null。
+
+### 二、時區與時鐘
+
+- **本機 `TZ` 是 Asia/Taipei，CI 是 UTC。** 模板的 `'+0800'` 拿掉，本機 spec 全綠、`TZ=UTC` 才紅（#1557）。
+  二讀日期／月份／「今天」相關的 PR 一律 `TZ=UTC npx nx test web …` 再跑一次（#1558 的規則）。
+- **fake today 要不等於真實今天**，否則改回 `new Date()` 的突變不會紅（#1559 第一版：fake 與真實同為 10-14）。
+  `npm run test:timetravel`（+3 個月）也抓不到「完全沒被斷言」的行為——時間旅行只擋會過期的 fixture。
+- 用 `taipeiDateString`／`SystemClockService.todayTaipei`，不用 `new Date().toISOString().slice(0,10)`（UTC 日）。
+
+### 三、合併動作的坑
+
+- `gh pr merge --match-head-commit` **要完整 40 字元 SHA**；8 碼會 `Could not coerce value to GitObjectID`。
+- **主線動過後 `mergeable` 會變 `UNKNOWN` 幾十秒**，不是紅燈；等它變 `MERGEABLE`（我的腳本回 NOT READY 時先重查，別當失敗）。
+- **我自己的守門條件寫太寬**：`*apps/*` 會擋掉所有 web PR（路徑是 `apps/web/...`）。守的是 `apps/api|supabase|.github`。
+  守門腳本寫完先對一支已知可合的 PR 試一次。
+- **`gh run rerun` 沿用舊的 merge SHA**，不等於對新 main 重驗。主線有人合了之後要重驗用 `gh pr update-branch`（會推一顆
+  merge commit 到作者分支，**只在沒有衝突、且計畫席授權時用**）。
+- **兄弟 PR 以 squash 合進 main 後，另一支帶著未壓縮 commit 的分支會衝突**（#1545→#1546）；`update-branch` 做不到。
+- **作者分支衝突：回報作者，不自解**（計畫席 10-14 定的）。例外只有計畫席明講請我接手（#1478）。我在這之前
+  解過一次（#1538 的 import 區，並回報了增量）——之後照規則走。
+- 合前先 `git merge-tree --write-tree --name-only origin/main <pr> | grep -i conflict`，一秒鐘看得出有沒有衝突。
+- **併 main 後在 detached HEAD 上跑**（`git checkout --detach origin/main && git merge --no-edit <pr>`）：測的是「合進去之後」的樣子，
+  #1460×#1461（各自綠、合起來 typecheck 紅）就是這樣漏的。**合前對最新 main 跑一次 typecheck**。
+
+### 四、herdr 回報：引號會吃掉內容
+
+`herdr agent prompt <席> "…"` 的雙引號字串裡出現反引號會**被 shell 當命令執行**（吃掉那段字、甚至整則報錯沒送出）。
+一律 `"$(cat <<'MSG' … MSG)"`（單引號 heredoc）。送完看到 `sent` 才算送出；錯誤訊息是 `command not found: …` 時重送。
+
+### 五、沒有登入態時怎麼辦（實機驗證）
+
+- 別席留在 `~/.cache/clessia-visual-diff-*/state-admin.json` 的登入態**會過期**；`link-admin.txt` 的 magic link **單次有效**。
+  過期的症狀是**頁面被導去公開登入頁**——而公開頁的 `scrollWidth`／`nav` 數字看起來很合理。**量完一定看一眼截圖。**
+- Playwright 模組可借別席 `.pw-regression/node_modules`（在暫存目錄 `ln -s` 過去，ESM 不吃 `NODE_PATH`）。
+  起自己的 dev server（`npx nx serve web --port=4300`，API 沿用本機 8787），量完 `pkill` 掉。
+- **真的鑄不出登入態就誠實寫「算的、不是量的」**：拿 PR 自己量到的數字做算術（#1530 payments 兩顆長標籤），並指出沒有 spec 守。
+- 與資料庫相關的語法（巢狀 `!inner`＋`in`、`in.()`）**可以不登入驗**：本機 supabase REST 帶 service role key，
+  `HEAD` ＋ `Prefer: count=exact` 對 SQL 直接 join 的筆數（#1533，24／26／0 全對得上）。契約測試打不到的語法用這招。
+
+### 六、資料庫與 migration
+
+- **回填 SQL 要查目標表上的 `BEFORE UPDATE` trigger**：`guard_invoice_void` 對作廢單拒絕任何欄位變動，#1472 的回填第一次在
+  有作廢單的正式 DB 就會整支回滾。暫存 DB 沒帶 trigger、seed 沒有作廢單所以作者驗不到。本機真 DB 開交易、造一張作廢單、跑回填、`ROLLBACK`
+  ——共用 DB 不留痕跡（`psql -h 127.0.0.1 -p 54322 -U postgres`）。
+- **migrate plan 的紅燈不是「等 Approve」**：10:59–15:00 卡死是 plan 步驟紅（schema 與 after-deploy 同批 → blocked），不是 waiting。
+  說「等使用者 Approve」前先 `gh run list --workflow migrate` 看那顆 run 是不是 `waiting`。#1485 之後同批會判 `apply` 並延後回填，
+  但**回填 PR 仍要等 schema 套上並部署後才合**。
+- 合進 main 的 migration 含**任何一支**就觸發凍結規則（停止代合並回報）；計畫席可能口頭解凍「非 migration 的」，要照字面做。
+
+### 七、前端特有
+
+- **Tailwind 掃描範圍**：class 寫在 TS 字串（`text-[34px]`）要該目錄在 `tailwind.css` 的 `@source` 清單裡，且任意值不能寫成 `[class.text-[34px]]`
+  （方括號讓綁定名稱解析靜默失效）。
+- **A27 觸控下限看的是「靜態 class」**：把 `class="… min-h-11 …"` 改成 `[class]="layout().row"` 動態字串，gate 掃不到 → verify 紅（#1541）。
+  `npm run harness` 本機跑得出來，合前對併 main 的狀態跑一次。
+- **共用元件加 input 的二讀三件事**：(1) 預設值＝原行為（PrimeNG 的 `appendTo` 預設也是 `undefined`，要查原始碼不是猜）；
+  (2) 每個**使用端**都跑 spec（`git grep` 找使用處，別靠記憶）；(3) 改恆值突變要紅。
+- 第一次 vitest 冷啟動的偶發逾時（`contact-logs.spec` 第一支測試 5000ms）：同 head 再跑一次、再跑 main，兩邊都綠就是偶發，**但要在回報裡寫出來**。
+
+### 八、回報的寫法
+
+每支合併回報固定：`PR → merge commit（head、CI、檔案數、有無 migration）`＋`併 main 後的測試數`＋`每個突變→紅哪一支 spec`＋
+**沒被 spec 守到的**（明講「不擋／擋」及理由）＋**沒驗的**（Tailwind 渲染、實機、登入態）。**一個要求的突變沒轉紅就不合**
+（這輪因此擋了 #1537、#1540、#1542、#1549、#1551、#1559 各一次，作者補 spec 後全部重跑轉紅才合）；沒擋的缺口寫進回報讓計畫席決定。
