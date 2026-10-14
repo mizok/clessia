@@ -231,7 +231,8 @@ export interface InvoiceSummary {
   byStatus: {
     unpaid: SummaryBucket;
     partial: SummaryBucket;
-    paid: { count: number };
+    /** `received`＝繳清帳單的淨收（收款 − 退費，同 `month.received` 定義；已繳清章的「收到 NT$」） */
+    paid: { count: number; received: number };
     overrefunded: { count: number };
     void: { count: number };
   };

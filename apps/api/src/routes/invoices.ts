@@ -445,7 +445,7 @@ app.openapi(
                 byStatus: z.object({
                   unpaid: BucketSchema,
                   partial: BucketSchema,
-                  paid: CountSchema,
+                  paid: CountSchema.extend({ received: z.number() }),
                   overrefunded: CountSchema,
                   void: CountSchema,
                 }),

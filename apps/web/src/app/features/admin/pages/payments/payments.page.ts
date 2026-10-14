@@ -38,6 +38,7 @@ import {
   type InvoiceStatus,
   type InvoiceSummary,
 } from '@core/invoices.service';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { SystemClockService } from '@core/system-clock.service';
 
@@ -395,13 +396,15 @@ export class PaymentsPage implements OnInit {
         title: this.dueSoonLabel(),
         count: s.dueSoon.count,
         outstanding: s.dueSoon.outstanding as number | null,
+        received: null as number | null,
         state: state.dueSoon,
       },
       {
         key: 'notDue' as const,
-        title: '還沒到期',
+        title: '未到期',
         count: s.notDue.count,
         outstanding: s.notDue.outstanding as number | null,
+        received: null as number | null,
         state: state.notDue,
       },
       {
@@ -410,6 +413,8 @@ export class PaymentsPage implements OnInit {
         // 繳清＋多退（整數相加，不是金額）
         count: s.byStatus.paid.count + s.byStatus.overrefunded.count,
         outstanding: null,
+        // 「收到 NT$」＝繳清帳單的淨收（後端加總）；其餘兩章是「待收」
+        received: s.byStatus.paid.received as number | null,
         state: state.paid,
       },
     ].filter((chapter) => chapter.count > 0);
@@ -495,6 +500,11 @@ export class PaymentsPage implements OnInit {
       },
       error: () => this.patchChapter(key, { rows: [], failed: true, loading: false }),
     });
+  }
+
+  /** 姓名旁的年級（A6「林沛晴 · 國三」）。API 沒給或不認得就不顯示，不顯示原始代碼 */
+  protected gradeLabel(grade: string | null | undefined): string | null {
+    return grade ? (GRADE_LEVEL_LABELS[grade as GradeLevel] ?? null) : null;
   }
 
   /** 章裡每列的「到期」那一欄文字 */

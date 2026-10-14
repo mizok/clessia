@@ -106,4 +106,46 @@ describe('InvoiceActionsComponent', () => {
       expect(b.className).toContain('h-11');
     }
   });
+
+  describe('compact（A6 帳單章的列）：一顆主要鈕＋「⋯」', () => {
+    const setupCompact = async (inv: Invoice) => {
+      await TestBed.configureTestingModule({
+        imports: [InvoiceActionsComponent],
+      }).compileComponents();
+      fixture = TestBed.createComponent(InvoiceActionsComponent);
+      fixture.componentRef.setInput('invoice', inv);
+      fixture.componentRef.setInput('compact', true);
+      fixture.detectChanges();
+      host = fixture.nativeElement as HTMLElement;
+    };
+    const overflow = () =>
+      (
+        fixture.componentInstance as unknown as {
+          overflowItems: () => { label: string; command: () => void }[];
+        }
+      ).overflowItems();
+
+    it('未繳清：主要鈕是「提醒」，收款收進 ⋯', async () => {
+      await setupCompact(invoice());
+      expect(labels()).toEqual(['提醒', '']);
+      expect(host.querySelector('button[aria-label^="更多"]')).not.toBeNull();
+      expect(overflow().map((i) => i.label)).toEqual(['收款']);
+    });
+
+    it('部分繳：提醒為主，收款與收據都在 ⋯；選單項目發自己的事件', async () => {
+      await setupCompact(invoice({ status: 'partial', netPaid: 1000, payments: [payment] }));
+      expect(overflow().map((i) => i.label)).toEqual(['收款', '收據']);
+      const events: string[] = [];
+      fixture.componentInstance.collect.subscribe(() => events.push('collect'));
+      fixture.componentInstance.receipt.subscribe(() => events.push('receipt'));
+      overflow().forEach((i) => i.command());
+      expect(events).toEqual(['collect', 'receipt']);
+    });
+
+    it('繳清：只有「收據」一顆，沒有 ⋯', async () => {
+      await setupCompact(invoice({ status: 'paid', netPaid: 3000, payments: [payment] }));
+      expect(labels()).toEqual(['收據']);
+      expect(host.querySelector('button[aria-label^="更多"]')).toBeNull();
+    });
+  });
 });

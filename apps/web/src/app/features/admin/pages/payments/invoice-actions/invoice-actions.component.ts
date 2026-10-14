@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import type { MenuItem } from 'primeng/api';
 
 import type { Invoice } from '@core/invoices.service';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 
 import { canCollect, canReceipt, canRemind } from '../payments.util';
 
@@ -14,12 +16,17 @@ import { canCollect, canReceipt, canRemind } from '../payments.util';
  */
 @Component({
   selector: 'app-invoice-actions',
-  imports: [],
+  imports: [PopupMenuComponent],
   templateUrl: './invoice-actions.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InvoiceActionsComponent {
   readonly invoice = input.required<Invoice>();
+  /**
+   * 精簡版（A6 帳單章的列）：只留**一顆主要鈕**（能提醒就提醒、否則收款、否則收據），
+   * 其餘收進列尾「⋯」。表格版不傳，維持三顆並排。
+   */
+  readonly compact = input(false);
 
   readonly remind = output<MouseEvent>();
   readonly collect = output<void>();
@@ -29,4 +36,25 @@ export class InvoiceActionsComponent {
   protected readonly showRemind = computed(() => canRemind(this.invoice()));
   protected readonly showCollect = computed(() => canCollect(this.invoice()));
   protected readonly showReceipt = computed(() => canReceipt(this.invoice()));
+
+  /** 精簡版的主要鈕：提醒 → 收款 → 收據，第一個做得了的 */
+  protected readonly primary = computed<'remind' | 'collect' | 'receipt' | null>(() => {
+    if (this.showRemind()) return 'remind';
+    if (this.showCollect()) return 'collect';
+    if (this.showReceipt()) return 'receipt';
+    return null;
+  });
+
+  /** 精簡版收進「⋯」的動作（主要鈕以外、做得了的） */
+  protected readonly overflowItems = computed<MenuItem[]>(() => {
+    const primary = this.primary();
+    const items: MenuItem[] = [];
+    if (primary !== 'collect' && this.showCollect()) {
+      items.push({ label: '收款', icon: 'pi pi-wallet', command: () => this.collect.emit() });
+    }
+    if (primary !== 'receipt' && this.showReceipt()) {
+      items.push({ label: '收據', icon: 'pi pi-receipt', command: () => this.receipt.emit() });
+    }
+    return items;
+  });
 }

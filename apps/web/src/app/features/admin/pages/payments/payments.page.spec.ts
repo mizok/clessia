@@ -45,7 +45,7 @@ const summary = (overrides?: Partial<InvoiceSummary>): InvoiceSummary => ({
   byStatus: {
     unpaid: { count: 5, outstanding: 20000 },
     partial: { count: 2, outstanding: 6000 },
-    paid: { count: 16 },
+    paid: { count: 16, received: 151700 },
     overrefunded: { count: 1 },
     void: { count: 3 },
   },
@@ -413,10 +413,20 @@ describe('PaymentsPage', () => {
       expect(text()).toContain('4 張 · 待收 NT$ 15,000');
       expect(text()).toContain('7 天內到期');
       expect(text()).toContain('2 張 · 待收 NT$ 6,000');
-      expect(text()).toContain('還沒到期');
+      expect(text()).toContain('未到期');
+      expect(text()).not.toContain('還沒到期');
       expect(text()).toContain('1 張 · 待收 NT$ 5,000');
       const paid = component['chapterList']().find((c) => c.key === 'paid');
       expect(paid?.count).toBe(17);
+      // 已繳清章寫「收到」（後端加總的繳清淨收），不是「待收」
+      expect(text()).toContain('17 張 · 收到 NT$ 151,700');
+      // 箭頭一律向下（A6）
+      expect((fixture.nativeElement as HTMLElement).querySelector('.pi-chevron-right')).toBeNull();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelectorAll(
+          'section[aria-label] .pi-chevron-down',
+        ).length,
+      ).toBe(3);
       // 順序照 A6
       expect(component['chapterList']().map((c) => c.key)).toEqual(['dueSoon', 'notDue', 'paid']);
     });
@@ -691,6 +701,24 @@ describe('PaymentsPage', () => {
       expect(link?.textContent).toContain('陳小明');
       expect(el().querySelector('button[aria-label$="的帳單詳情"]')).toBeNull();
       expect(el().querySelectorAll('app-invoice-actions')).toHaveLength(2);
+    });
+
+    it('姓名旁有年級（中文標籤）；逾期是「！」圈圈圖示；金額加大加粗；列上只有一顆主要鈕＋⋯', async () => {
+      await loadOverdue([invoice({ studentGrade: 'J3', dueDate: '2020-01-01' })]);
+
+      expect(el().querySelector('li a')?.textContent).toMatch(/陳小明\s*· 國三/);
+      expect(el().querySelector('li .pi-exclamation-circle')).not.toBeNull();
+      expect(el().querySelector('li .pi-times-circle')).toBeNull();
+      expect(el().querySelector('li .text-lg.font-bold')?.textContent).toContain('4,500');
+      const buttons = Array.from(el().querySelectorAll('li app-invoice-actions button')).map((b) =>
+        b.textContent?.trim(),
+      );
+      expect(buttons).toEqual(['提醒', '']);
+    });
+
+    it('年級不認得就不顯示原始代碼', async () => {
+      await loadOverdue([invoice({ studentGrade: 'zzz', dueDate: '2020-01-01' })]);
+      expect(el().querySelector('li a')?.textContent).not.toContain('zzz');
     });
 
     it('下一行寫「還沒提醒」；催過就寫「今天提醒」', async () => {
