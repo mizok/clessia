@@ -438,6 +438,19 @@ describe('StudentsPage', () => {
     const lastCall = () =>
       studentsServiceMock.list.mock.calls.at(-1)![0] as Record<string, unknown>;
 
+    it('工具列（A6）：「篩選」在右群組（page-actions 裡）；搜尋滿寬一列並有手機斷行', () => {
+      respond([row('a', '王一', 'J3')]);
+      expect(root().querySelector('app-page-actions app-filter-toggle')).not.toBeNull();
+
+      const search = root().querySelector('.clessia-filter-search') as HTMLElement;
+      expect(search.classList.contains('min-w-full')).toBe(true);
+      expect(search.classList.contains('wide:w-[25rem]')).toBe(true);
+      // 手機斷行 div：讓「篩選」落到搜尋列下一行
+      const wrap = search.parentElement as HTMLElement;
+      expect(wrap.classList.contains('flex-wrap')).toBe(true);
+      expect(wrap.querySelector(':scope > div.order-1.w-full.h-0')).not.toBeNull();
+    });
+
     it('依年級分章，章名張數讀 byGrade（不是這一頁的列數）', () => {
       respond([row('a', '王一', 'P5'), row('b', '李二', 'J3'), row('c', '陳三', 'J3')]);
 

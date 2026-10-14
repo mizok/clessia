@@ -27,9 +27,11 @@
     role="search"
     aria-label="篩選學生"
   >
-    <!-- 手機：搜尋框＋「篩選：全部」同一列；桌機 contents 攤平 -->
-    <div class="flex w-full items-center gap-2 wide:contents">
-      <div class="clessia-filter-search min-w-0 flex-1 wide:w-80 wide:flex-none">
+    <!-- 手機：搜尋框滿寬一列，下一行右靠「篩選」；桌機 contents 攤平，「篩選」在右群組（A6） -->
+    <div class="flex w-full flex-wrap items-center gap-2 wide:contents">
+      <div
+        class="clessia-filter-search min-w-full wide:min-w-0 wide:w-[25rem] wide:max-w-[25rem] wide:flex-none"
+      >
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
@@ -43,18 +45,20 @@
           />
         </p-iconfield>
       </div>
-      <app-filter-toggle
-        [summary]="filterSummary()"
-        [active]="hasFilter()"
-        [(open)]="filtersOpen"
-        [always]="true"
-        controls="students-filters"
-      />
+      <!-- 手機：強制換行，「篩選」落到搜尋列下一行（A6） -->
+      <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-page-actions
-        class="wide:order-2 wide:ml-auto"
+        class="order-2 ml-auto wide:order-2"
         [primary]="primaryAction"
         (primaryClick)="openCreateDialog()"
       >
+        <app-filter-toggle
+          [summary]="filterSummary()"
+          [active]="hasFilter()"
+          [(open)]="filtersOpen"
+          [always]="true"
+          controls="students-filters"
+        />
         @if (pageMenuItems().length > 0) {
           <app-popup-menu #pageMenu [model]="pageMenuItems()" />
           <!-- 手機不放：搜尋框要那個寬度，而且手機上印到班卡不是日常（每列的「⋯」還在） -->
