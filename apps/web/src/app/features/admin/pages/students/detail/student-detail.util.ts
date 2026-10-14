@@ -1,5 +1,5 @@
 import type { StudentAttendanceDays } from '@core/students.service';
-import type { SubjectAverage } from '@core/scores.service';
+import type { StudentSummary, SubjectAverage } from '@core/scores.service';
 import { addDaysToDateString, taipeiDateString } from '@core/system-clock.service';
 
 /** A6 到班格往後看幾天：未來的課寫日期 */
@@ -74,11 +74,48 @@ export const ATTENDANCE_STATE_LABELS = {
   future: '還沒到那天',
 } as const;
 
-/** 「沒到 1 天：8/22」那句；沒有就寫「都有到」 */
+/**
+ * 「沒到 1 天：8/22」那句；沒有就寫「都有到」。
+ * 超過 3 天只列最近 3 天、後面寫「等 N 天」（稿只畫過 1 天；完整日期給 `absentTitle` 放 title）。
+ */
 export function absentLine(att: StudentAttendanceDays, today: string): string {
-  const dates = att.summary.absentDates;
+  const dates = [...att.summary.absentDates].sort();
   if (dates.length === 0) return att.summary.due > 0 ? '這段期間該到的都有到' : '';
+  const short = (ds: string[]) => ds.map((d) => shortDate(d, today)).join('、');
+  if (dates.length <= 3) return `沒到 ${dates.length} 天：${short(dates)}`;
+  return `沒到 ${short(dates.slice(-3))} 等 ${dates.length} 天`;
+}
+
+/** `absentLine` 縮短時，完整日期放 title；沒縮短就不需要 */
+export function absentTitle(att: StudentAttendanceDays, today: string): string | null {
+  const dates = [...att.summary.absentDates].sort();
+  if (dates.length <= 3) return null;
   return `沒到 ${dates.length} 天：${dates.map((d) => shortDate(d, today)).join('、')}`;
+}
+
+/** 副行的班級段：一個班寫班名；多個寫「班A 等 N 班」 */
+export function classesLabel(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names[0]} 等 ${names.length} 班`;
+}
+
+/** 「82 分」；滿分不是 100 的考試寫「40／50 分」，不讓 40 被讀成 40 分（百分制） */
+export function examScoreText(e: { score: number; totalScore: number | null }): string {
+  return e.totalScore !== null && e.totalScore !== 100
+    ? `${e.score}／${e.totalScore} 分`
+    : `${e.score} 分`;
+}
+
+/** 成績摘要列右邊那句（A6：「3 次 · 最近 79 分（班平均 86）」）；次數＝各科紀錄數加總 */
+export function scoreSummaryText(
+  subjects: readonly SubjectAverage[],
+  latest: StudentSummary['latestAcademy'],
+): string {
+  const n = subjects.reduce((sum, s) => sum + s.totalRecords, 0);
+  if (n === 0) return '還沒有成績';
+  if (!latest) return `${n} 次`;
+  const avg = latest.classAvg !== null ? `（班平均 ${latest.classAvg}）` : '';
+  return `${n} 次 · 最近 ${examScoreText(latest)}${avg}`;
 }
 
 /** 成績摘要列右邊那句，與展開後每科一行 */

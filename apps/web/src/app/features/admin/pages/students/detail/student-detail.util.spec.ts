@@ -1,9 +1,13 @@
 import type { StudentAttendanceDays } from '@core/students.service';
 import {
   absentLine,
+  absentTitle,
   attendanceRange,
   buildLog,
+  classesLabel,
   dateWithWeekday,
+  examScoreText,
+  scoreSummaryText,
   situationLine,
   subjectScoreText,
 } from './student-detail.util';
@@ -64,6 +68,68 @@ describe('absentLine', () => {
       '這段期間該到的都有到',
     );
     expect(absentLine(att(), '2026-10-10')).toBe('');
+  });
+});
+
+describe('absentLine：超過 3 天只列最近 3 天', () => {
+  const days = ['2026-08-03', '2026-08-10', '2026-08-17', '2026-08-24', '2026-08-31'];
+  const a = att({ summary: { due: 20, came: 15, absentDates: days } });
+  it('剛好 3 天：全列、不縮短（邊界）', () => {
+    const three = att({ summary: { due: 20, came: 17, absentDates: days.slice(0, 3) } });
+    expect(absentLine(three, '2026-10-10')).toBe('沒到 3 天：8/3、8/10、8/17');
+    expect(absentTitle(three, '2026-10-10')).toBeNull();
+  });
+  it('4 天以上：最近 3 天＋「等 N 天」，完整日期給 title（不論傳入順序）', () => {
+    expect(absentLine(a, '2026-10-10')).toBe('沒到 8/17、8/24、8/31 等 5 天');
+    expect(absentTitle(a, '2026-10-10')).toBe('沒到 5 天：8/3、8/10、8/17、8/24、8/31');
+    const shuffled = att({
+      summary: { due: 20, came: 15, absentDates: [days[3], days[0], days[4], days[1], days[2]] },
+    });
+    expect(absentLine(shuffled, '2026-10-10')).toBe('沒到 8/17、8/24、8/31 等 5 天');
+  });
+});
+
+describe('classesLabel', () => {
+  it('0／1／多個班', () => {
+    expect(classesLabel([])).toBe('');
+    expect(classesLabel(['班A'])).toBe('班A');
+    expect(classesLabel(['班A', '班B', '班C'])).toBe('班A 等 3 班');
+  });
+});
+
+describe('scoreSummaryText／examScoreText', () => {
+  const subj = (n: number) => ({
+    subjectName: '英文',
+    academySum: null,
+    academyTotalSum: null,
+    schoolAvg: null,
+    totalRecords: n,
+  });
+  const latest = (over = {}) => ({
+    examId: 'e',
+    examName: '段考',
+    examDate: '2026-10-01',
+    score: 79,
+    totalScore: 100,
+    classAvg: 86,
+    rank: 3,
+    classSize: 20,
+    ...over,
+  });
+  it('沒有紀錄 → 還沒有成績', () => {
+    expect(scoreSummaryText([], null)).toBe('還沒有成績');
+  });
+  it('次數＝各科紀錄數加總（互質：2＋3），有最近一場寫分數與班平均', () => {
+    expect(scoreSummaryText([subj(2), subj(3)], latest())).toBe('5 次 · 最近 79 分（班平均 86）');
+  });
+  it('班平均是 null 就不寫括號；沒有校內考只寫次數', () => {
+    expect(scoreSummaryText([subj(3)], latest({ classAvg: null }))).toBe('3 次 · 最近 79 分');
+    expect(scoreSummaryText([subj(3)], null)).toBe('3 次');
+  });
+  it('滿分不是 100 寫「40／50 分」，滿分 null 或 100 寫「N 分」', () => {
+    expect(examScoreText({ score: 40, totalScore: 50 })).toBe('40／50 分');
+    expect(examScoreText({ score: 40, totalScore: 100 })).toBe('40 分');
+    expect(examScoreText({ score: 40, totalScore: null })).toBe('40 分');
   });
 });
 

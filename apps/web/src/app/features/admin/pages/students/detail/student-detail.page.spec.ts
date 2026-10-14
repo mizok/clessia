@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, of, throwError, type Observable } from 'rxjs';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { StudentDetailPage } from './student-detail.page';
@@ -319,6 +319,116 @@ describe('StudentDetailPage', () => {
       const text = el.querySelector('[data-testid="situation"]')!.textContent!.replace(/\s+/g, ' ');
       expect(text).toContain('今天沒有他的課');
       expect(text).toContain('下一堂 10/17（六） 15:00');
+    });
+
+    describe('hero 數字列、成績摘要、副行（#1314 SD 殘差）', () => {
+      const latestAcademy = {
+        examId: 'e1',
+        examName: '段考',
+        examDate: '2026-10-01',
+        score: 82,
+        totalScore: 100,
+        classAvg: 76,
+        rank: 2,
+        classSize: 20,
+      };
+      const withLatest = () =>
+        scoresServiceMock.getStudentSummary.mockReturnValueOnce(
+          of({
+            data: {
+              studentId: seedStudentId,
+              studentName: 'x',
+              subjects: [
+                {
+                  subjectName: '英文',
+                  academySum: 92,
+                  academyTotalSum: 100,
+                  schoolAvg: null,
+                  totalRecords: 2,
+                },
+                {
+                  subjectName: '數學',
+                  academySum: 50,
+                  academyTotalSum: 100,
+                  schoolAvg: null,
+                  totalRecords: 3,
+                },
+              ],
+              latestAcademy,
+            },
+          }) as never,
+        );
+
+      it('有最近一場校內考 → hero 多一個「82 分 最近一次考試」，成績列寫「5 次 · 最近 82 分（班平均 76）」', async () => {
+        withLatest();
+        const el = await renderWithEnrollment();
+        const stat = el
+          .querySelector('[data-testid="exam-stat"]')!
+          .textContent!.replace(/\s+/g, ' ');
+        expect(stat).toContain('82');
+        expect(stat).toContain('最近一次考試');
+        expect(el.textContent).toContain('5 次 · 最近 82 分（班平均 76）');
+      });
+
+      it('沒有校內考 → 沒有考試數字，成績列只寫次數', async () => {
+        const el = await renderWithEnrollment();
+        expect(el.querySelector('[data-testid="exam-stat"]')).toBeNull();
+        expect(el.textContent).toContain('1 次');
+        expect(el.textContent).not.toContain('最近一次考試');
+      });
+
+      it('人名標題用 72／44 的大字（nameSize）', async () => {
+        const el = await renderWithEnrollment();
+        const h1 = el.querySelector('h1')!;
+        expect(h1.classList.contains('wide:text-[72px]')).toBe(true);
+      });
+
+      it('副行：學校用簡稱、多個班寫「班A 等 N 班」', async () => {
+        let base: Record<string, unknown> = {};
+        (
+          studentsServiceMock['get'] as unknown as () => Observable<{
+            data: Record<string, unknown>;
+          }>
+        )().subscribe((r) => {
+          base = r.data;
+        });
+        studentsServiceMock['get'].mockReturnValueOnce(
+          of({
+            data: {
+              ...base,
+              school: { id: 's1', name: '臺北市立景美國民中學', shortName: '景美國中' },
+            },
+          }),
+        );
+        const one = {
+          studentId: seedStudentId,
+          classId: 'c',
+          courseId: 'co',
+          courseName: '數學',
+          effectiveFrom: '2026-09-01',
+          status: 'active',
+          billingMode: 'monthly',
+          createdAt: '2026-09-01T02:00:00Z',
+          classSchedule: [],
+        };
+        enrollmentsServiceMock.list.mockReturnValue(
+          of({
+            data: [
+              { ...one, id: 'e1', className: '班A' },
+              { ...one, id: 'e2', className: '班B' },
+            ] as unknown as Enrollment[],
+            meta: { total: 2, page: 1, pageSize: 50, totalPages: 1 },
+          }),
+        );
+        fixture = TestBed.createComponent(StudentDetailPage);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        const sub = (fixture.nativeElement as HTMLElement)
+          .querySelector('h1')!
+          .parentElement!.querySelector('p')!.textContent!;
+        expect(sub.replace(/\s+/g, ' ').trim()).toBe('國一 · 景美國中 · 班A 等 2 班');
+      });
     });
 
     it('成績列寫各科平均', async () => {

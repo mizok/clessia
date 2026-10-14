@@ -14,7 +14,7 @@ import {
   GRADE_LEVEL_LABELS,
   type StudentAttendanceDays,
 } from '@core/students.service';
-import { ScoresService, type SubjectAverage } from '@core/scores.service';
+import { ScoresService, type StudentSummary, type SubjectAverage } from '@core/scores.service';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
 import { SystemClockService } from '@core/system-clock.service';
 import type { MenuItem } from 'primeng/api';
@@ -41,10 +41,13 @@ import {
   ATTENDANCE_CELL_LABELS,
   ATTENDANCE_STATE_LABELS,
   absentLine,
+  absentTitle,
   attendanceRange,
   buildLog,
+  classesLabel,
   dateWithWeekday,
   hhmm,
+  scoreSummaryText,
   shortDate,
   situationLine,
   subjectScoreText,
@@ -129,6 +132,8 @@ export class StudentDetailPage implements OnInit {
   protected readonly attendance = signal<StudentAttendanceDays | null>(null);
   protected readonly attendanceFailed = signal(false);
   protected readonly subjects = signal<SubjectAverage[]>([]);
+  /** 最近一場有分數的校內考（hero 的「最近一次考試」與成績摘要列）；沒有 → null */
+  protected readonly latestExam = signal<StudentSummary['latestAcademy']>(null);
   protected readonly leaves = signal<LeaveRequest[]>([]);
   /** 紀錄時間軸要「報名過的所有班」，不只在學中的 */
   private readonly allEnrollments = signal<Enrollment[]>([]);
@@ -139,16 +144,21 @@ export class StudentDetailPage implements OnInit {
     const att = this.attendance();
     return att ? absentLine(att, this.today()) : '';
   });
+  protected readonly absentTitleText = computed(() => {
+    const att = this.attendance();
+    return att ? absentTitle(att, this.today()) : null;
+  });
   protected readonly outstandingTotal = computed(() => this.billing()?.totalOutstanding() ?? 0);
 
   protected readonly subLine = computed(() => {
     const s = this.student();
     if (!s) return '';
+    // A6 副行只留年級、學校（簡稱優先）、班級（多班寫「班A 等 N 班」）
     const parts = [
       this.getGradeLabel(s.grade),
-      s.school?.name ?? '學校未填寫',
-      ...this.enrollments().map((e) => e.className),
-    ];
+      s.school?.shortName ?? s.school?.name ?? '學校未填寫',
+      classesLabel(this.enrollments().map((e) => e.className)),
+    ].filter(Boolean);
     if (!s.isActive) parts.push('已停用');
     return parts.join(' · ');
   });
@@ -171,10 +181,9 @@ export class StudentDetailPage implements OnInit {
       : []),
   ]);
 
-  protected readonly scoreMeta = computed(() => {
-    const n = this.subjects().length;
-    return n === 0 ? '還沒有成績' : `${n} 科`;
-  });
+  protected readonly scoreMeta = computed(() =>
+    scoreSummaryText(this.subjects(), this.latestExam()),
+  );
   protected subjectScoreText = subjectScoreText;
 
   protected readonly logEntries = computed(() =>
@@ -511,8 +520,14 @@ export class StudentDetailPage implements OnInit {
       .getStudentSummary(studentId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (res) => this.subjects.set(res.data.subjects),
-        error: () => this.subjects.set([]),
+        next: (res) => {
+          this.subjects.set(res.data.subjects);
+          this.latestExam.set(res.data.latestAcademy);
+        },
+        error: () => {
+          this.subjects.set([]);
+          this.latestExam.set(null);
+        },
       });
   }
 
