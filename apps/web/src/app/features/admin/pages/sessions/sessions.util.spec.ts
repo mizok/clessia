@@ -1,7 +1,11 @@
 import { format, parseISO } from 'date-fns';
 
 import { pendingAttendanceQuery } from '../dashboard/dashboard.util';
-import { parseAttendanceQueryParams, parseClassQueryParams } from './sessions.util';
+import {
+  parseAttendanceQueryParams,
+  parseClassQueryParams,
+  parseFocusQueryParams,
+} from './sessions.util';
 
 // `new Date('2026-08-22')`（無時分秒的 ISO 字串）是 UTC 解讀，UTC+8 印出來會差一天——
 // 跟實作一樣用 `parseISO`（本地時區）組期望值，不要在測試裡踩自己在別處警告過的坑
@@ -180,6 +184,28 @@ describe('parseClassQueryParams', () => {
   });
 
   it('範圍可以缺（開課班沒有起訖時）', () => {
-    expect(parseClassQueryParams({ classId: 'c1' })).toMatchObject({ from: null, to: null, unassigned: false });
+    expect(parseClassQueryParams({ classId: 'c1' })).toMatchObject({
+      from: null,
+      to: null,
+      unassigned: false,
+    });
+  });
+});
+
+// 異動頁「看這堂」帶來的 focusDate／focusSession
+describe('parseFocusQueryParams', () => {
+  it('兩個都在：解出本地時區的日期與課堂 id（不是 UTC 午夜）', () => {
+    const r = parseFocusQueryParams({ focusDate: '2026-10-15', focusSession: 's-1' });
+    expect(r?.sessionId).toBe('s-1');
+    expect(format(r!.date, 'yyyy-MM-dd HH:mm')).toBe('2026-10-15 00:00');
+  });
+
+  it('缺任一個、格式不對、不存在的日期都回 null（不讓壞網址把課表切到 Invalid Date）', () => {
+    expect(parseFocusQueryParams({ focusDate: '2026-10-15' })).toBeNull();
+    expect(parseFocusQueryParams({ focusSession: 's-1' })).toBeNull();
+    expect(parseFocusQueryParams({ focusDate: '2026-10-15T00:00', focusSession: 's' })).toBeNull();
+    expect(parseFocusQueryParams({ focusDate: '10/15', focusSession: 's' })).toBeNull();
+    expect(parseFocusQueryParams({ focusDate: '2026-13-45', focusSession: 's' })).toBeNull();
+    expect(parseFocusQueryParams({})).toBeNull();
   });
 });

@@ -56,6 +56,21 @@ export interface IncomingClassFilter {
   readonly unassigned: boolean;
 }
 
+/** 異動頁「看這堂」帶來的：切到那天、打開那一堂的選單（跟跑馬燈點單堂同一條路） */
+export interface IncomingFocus {
+  readonly date: Date;
+  readonly sessionId: string;
+}
+
+export function parseFocusQueryParams(
+  params: Readonly<Record<string, string>>,
+): IncomingFocus | null {
+  const { focusDate, focusSession } = params;
+  if (!focusSession || !focusDate || !/^\d{4}-\d{2}-\d{2}$/.test(focusDate)) return null;
+  const date = parseISO(focusDate);
+  return Number.isNaN(date.getTime()) ? null : { date, sessionId: focusSession };
+}
+
 export function parseClassQueryParams(
   params: Readonly<Record<string, string>>,
 ): IncomingClassFilter | null {

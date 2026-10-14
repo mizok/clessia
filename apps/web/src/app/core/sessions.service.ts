@@ -140,6 +140,8 @@ export interface ChangeLogEntry {
   /** 後端組好的一句話，例如「代課：王小明 → 李老師」 */
   summary: string;
   sessionDate: string | null;
+  /** 該堂現在的開始時間 `HH:mm`；API 還沒帶／教師端查詢沒帶時為 null 或缺（缺值就不畫） */
+  sessionStartTime?: string | null;
   className: string | null;
   reason: string | null;
   createdByName: string | null;

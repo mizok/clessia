@@ -1,6 +1,7 @@
 import type { EventSessionSummary } from '@core/attendance.service';
 import type { ChangeLogEntry, ScheduleChangeType } from '@core/sessions.service';
 import type { StatusTone } from '@shared/components/status/status-dot/status-dot.component';
+import { format } from 'date-fns';
 import { hasSessionEnded, hasSessionStarted } from '@shared/utils/session-time.util';
 
 /**
@@ -203,6 +204,54 @@ export function nextSession<
 function minutesUntil(date: string, hhmm: string, now: Date): number {
   const t = new Date(`${date}T${hhmm}:00`);
   return Math.ceil((t.getTime() - now.getTime()) / 60000);
+}
+
+/**
+ * 台北此刻的「牆上時鐘」，做成**本地欄位＝台北欄位**的 `Date`。
+ *
+ * 這一頁（連同 `hasSessionEnded` 等共用判斷）全是用本地欄位比日期與時分，所以把「現在」
+ * 換成台北的牆上時間，整串判斷就不依賴瀏覽器時區、也不依賴使用者機器時鐘
+ * （`SystemClockService.nowEpochMs` 已跟伺服器對過）。**這個 Date 不是真正的瞬間**，
+ * 只能餵給本地欄位比較（`getHours`、`new Date('yyyy-MM-ddTHH:mm:00')`），不要拿去 `toISOString`。
+ */
+export function taipeiWallClock(epochMs: number): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(epochMs));
+  const n = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return new Date(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second'));
+}
+
+/**
+ * 課堂列上的狀態字（A6 `.card__state`）：「上課中 · 還有 50 分下課」「還有 80 分開始」「已上完」。
+ *
+ * 邊界（每一個都有 fixture）：剛好開始那一分算上課中；剛好結束算已上完；分鐘數進位
+ * （最後半分鐘寫「還有 1 分」不寫 0）。別天的課沒有倒數，只說「還沒開始」／「已上完」。
+ * 停課說「已停課」。沒有起訖時間的課只能說「已上完」（日期已過）或不說（回 `null`）。
+ */
+export function sessionStateText(session: EventSessionSummary, now: Date): string | null {
+  if (session.status === 'cancelled') return '已停課';
+  const time = {
+    date: session.eventDate,
+    startTime: session.startTime,
+    endTime: session.endTime,
+  };
+  const ended = hasSessionEnded(time, now);
+  if (ended) return '已上完';
+  if (!session.startTime || !session.endTime) return null;
+  if (hasSessionStarted(time, now)) {
+    return `上課中 · 還有 ${minutesUntil(session.eventDate, session.endTime, now)} 分下課`;
+  }
+  return session.eventDate === format(now, 'yyyy-MM-dd')
+    ? `還有 ${minutesUntil(session.eventDate, session.startTime, now)} 分開始`
+    : '還沒開始';
 }
 
 /**

@@ -9,7 +9,6 @@ import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
-import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -27,19 +26,17 @@ import { AuthService } from '@core/auth.service';
 
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
 import {
   DEFAULT_PERIOD,
+  ambiguousReason,
+  billedShare,
   groupKeyLabel,
   isAmbiguousKey,
   reportPeriods,
+  sortGroups,
   billedBreakdown,
   revenueHeadline,
-  splitBilled,
 } from './reports.util';
 
 /**
@@ -72,13 +69,8 @@ import {
     SelectModule,
     SelectButtonModule,
     ToastModule,
-    TooltipModule,
     PageOpenComponent,
     EmptyStateComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
   ],
   providers: [MessageService],
   templateUrl: './reports.page.html',
@@ -140,10 +132,14 @@ export class ReportsPage implements OnInit {
   });
   protected readonly periodName = computed(() => this.periodShort());
 
-  /** 一列自己的收款比例。同樣只用 billed / outstanding 這一組。 */
-  protected collectedPctOf(group: RevenueGroup): number {
-    return splitBilled(group).collectedPct;
+  /** 一列的比例條（A6）：這一組的已開帳佔整體已開帳的幾 %，整體取後端 summary */
+  protected shareOf(group: RevenueGroup): number {
+    return billedShare(group.billed, this.summary()?.billed ?? 0);
   }
+
+  protected readonly sortedGroups = computed(() => sortGroups(this.groups(), this.groupBy()));
+  protected readonly figureLabels = ['實收', '退款', '已開帳', '應收未收', '其中逾期'];
+  protected readonly reasonOf = (group: RevenueGroup): string | null => ambiguousReason(group.key);
 
   protected readonly hasFilters = computed(() => this.courseId() !== null);
 
@@ -218,10 +214,6 @@ export class ReportsPage implements OnInit {
     this.courseId.set(null);
     this.load();
   }
-
-  protected readonly hasAmbiguousGroup = computed(() =>
-    this.groups().some((group) => isAmbiguousKey(group.key)),
-  );
 
   protected labelOf(group: RevenueGroup): string {
     return groupKeyLabel(group.key, this.groupBy());

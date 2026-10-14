@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -203,7 +203,7 @@ describe('MealsComponent', () => {
       fixture.detectChanges();
 
       const count = fixture.nativeElement.querySelector('.meals__actions-count');
-      expect(count?.textContent?.trim()).toBe('共 2 位');
+      expect(count?.textContent).toContain('共 2 位');
     });
   });
 
@@ -649,16 +649,6 @@ describe('MealsComponent', () => {
       expect(meals.roster).not.toHaveBeenCalled();
     });
 
-    // range 模式選第一個日期時 end 還是 null
-    it('區間只選了一半時不查', () => {
-      component['switchMode']('range');
-      meals.range.mockClear();
-
-      component['onRangeChange']([new Date('2026-08-01T00:00:00'), null as unknown as Date]);
-
-      expect(meals.range).not.toHaveBeenCalled();
-    });
-
     // 區間的數字要取後端的 meta —— 前端手上只有當頁
     it('分頁總數取後端的 meta.total 不是當頁長度', async () => {
       meals.range.mockReturnValue(
@@ -726,6 +716,20 @@ describe('MealsComponent', () => {
    * **兩件事。**
    */
   describe('#710 區間查詢的空狀態', () => {
+    /** 驅動畫面上真正的原生起訖欄（change 事件），不呼叫元件方法 */
+    const setRange = (from: string, to: string) => {
+      fixture.detectChanges();
+      for (const [id, value] of [
+        ['meals-from', from],
+        ['meals-to', to],
+      ]) {
+        const input = fixture.nativeElement.querySelector(
+          `[data-testid="${id}"]`,
+        ) as HTMLInputElement;
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+      }
+    };
     const emptyStateText = () =>
       (fixture.nativeElement.querySelector('app-empty-state')?.textContent ?? '').replace(
         /\s+/g,
@@ -734,10 +738,7 @@ describe('MealsComponent', () => {
 
     it('區間模式的空狀態不得講「這天」', async () => {
       component['switchMode']('range');
-      component['onRangeChange']([
-        new Date('2026-09-01T00:00:00'),
-        new Date('2026-09-12T00:00:00'),
-      ]);
+      setRange('2026-09-01', '2026-09-12');
       await fixture.whenStable();
       fixture.detectChanges();
 
@@ -748,10 +749,7 @@ describe('MealsComponent', () => {
 
     it('空狀態要寫出實際查詢的區間 —— 那是畫面上唯一能說明「查了什麼」的地方', async () => {
       component['switchMode']('range');
-      component['onRangeChange']([
-        new Date('2026-09-01T00:00:00'),
-        new Date('2026-09-12T00:00:00'),
-      ]);
+      setRange('2026-09-01', '2026-09-12');
       await fixture.whenStable();
       fixture.detectChanges();
 
@@ -761,38 +759,33 @@ describe('MealsComponent', () => {
     });
 
     /**
-     * **區間講的必須是「送出去的那一段」，不是「選擇器現在顯示什麼」。**
-     *
-     * `onRangeChange` 會**先寫入 `dateRange` 才 early-return**（只選了起日時），
-     * 所以那一刻畫面上的資料還是上一次查詢的結果。
-     * 空狀態如果是從 `dateRange` 即時算的，**它會講一段從來沒有被查過的期間**。
+     * **區間講的必須是「送出去的那一段」，不是「欄位現在顯示什麼」。**
+     * 起日被清空（或只打一半）時不查、欄位還原，空狀態仍講上一次實際查的那一段。
      */
-    it('只選了起日（還沒送出）時，空狀態仍然講上一次實際查的區間', async () => {
+    it('起日被清空（還沒送出）時，不查、欄位還原，空狀態仍講上一次實際查的區間', async () => {
       component['switchMode']('range');
-      component['onRangeChange']([
-        new Date('2026-09-01T00:00:00'),
-        new Date('2026-09-12T00:00:00'),
-      ]);
+      setRange('2026-09-01', '2026-09-12');
       await fixture.whenStable();
       fixture.detectChanges();
 
       meals.range.mockClear();
-      // 只選起日 —— 這一下不會觸發查詢
-      component['onRangeChange']([new Date('2026-07-05T00:00:00')]);
+      const from = fixture.nativeElement.querySelector(
+        '[data-testid="meals-from"]',
+      ) as HTMLInputElement;
+      from.value = '';
+      from.dispatchEvent(new Event('change'));
       await fixture.whenStable();
+      fixture.detectChanges();
 
-      // **刻意不再 detectChanges**：沒有查詢就沒有新資料，畫面本來就不該重繪。
-      // （在測試裡直接呼叫 `onRangeChange` 再跑一次 CD 會踩到日期選擇器
-      // `[ngModel]="dateRange"` 的 NG0100 —— 那是量測方式的產物，
-      // 真實流程裡這個呼叫來自 datepicker 自己的 `ngModelChange`，在 CD 內部。）
       expect(meals.range).not.toHaveBeenCalled();
+      expect(from.value).toBe('2026-09-01');
       expect(component['queriedRange']()).toEqual({
         dateFrom: '2026-09-01',
         dateTo: '2026-09-12',
       });
       const text = emptyStateText();
       expect(text).toContain('2026-09-01');
-      expect(text).not.toContain('2026-07-05');
+      expect(text).toContain('2026-09-12');
     });
 
     /**
@@ -806,6 +799,415 @@ describe('MealsComponent', () => {
       const text = emptyStateText();
       expect(text).toContain('這天沒有候選名單');
       expect(text).toContain('候選名單來自當天有課的班級');
+    });
+  });
+
+  describe('M2 列版型（A6）：自訂列、有修改才出現的確認列、區間依日分章', () => {
+    const q = (id: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    const all = (id: string) =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll(`[data-testid="${id}"]`),
+      ) as HTMLInputElement[];
+    const settle = async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    const loadDay = async (rows: MealRosterRow[]) => {
+      meals.roster.mockReturnValue(of(roster(rows)));
+      component['load']();
+      await settle();
+    };
+    const person = (id: string, over: Partial<MealRosterRow> = {}) =>
+      row({ studentId: id, studentName: id, mealDate: '2026-10-14', ...over });
+    const handled = (id: string, over: Partial<MealRosterRow> = {}) =>
+      person(id, { recordId: `r-${id}`, ordered: true, chargeable: true, unitPrice: 65, ...over });
+    const fire = (el: HTMLInputElement, value: string) => {
+      el.value = value;
+      el.dispatchEvent(
+        new Event(el.type === 'text' && el.inputMode === 'numeric' ? 'change' : 'input'),
+      );
+    };
+    const lastBatch = () => meals.batch.mock.calls.at(-1)![1]!;
+
+    describe('當日列', () => {
+      it('一位學生一列，不再是 responsive-table', async () => {
+        await loadDay([handled('a'), handled('b'), handled('c')]);
+        expect(all('meal-row')).toHaveLength(3);
+        expect(fixture.nativeElement.querySelector('app-responsive-table, table')).toBeNull();
+      });
+
+      it('勾選框 → 寫入 payload：訂餐／收費／單價／備註一個字不變', async () => {
+        await loadDay([handled('a', { note: '素食' })]);
+        component['save']();
+        expect(lastBatch()).toEqual([
+          { studentId: 'a', ordered: true, chargeable: true, unitPrice: 65, note: '素食' },
+        ]);
+
+        all('meal-ordered')[0].click();
+        fixture.detectChanges();
+        component['save']();
+        expect(lastBatch()).toEqual([
+          { studentId: 'a', ordered: false, chargeable: true, unitPrice: 65, note: '素食' },
+        ]);
+      });
+
+      it('沒訂 → 單價與收費停用；訂了 → 啟用（連動）', async () => {
+        await loadDay([handled('a', { ordered: false }), handled('b')]);
+        expect(all('meal-price').map((i) => i.disabled)).toEqual([true, false]);
+        expect(all('meal-chargeable').map((i) => i.disabled)).toEqual([true, false]);
+        expect(all('meal-note').map((i) => i.disabled)).toEqual([false, false]);
+
+        all('meal-ordered')[0].click();
+        fixture.detectChanges();
+        expect(all('meal-price')[0].disabled).toBe(false);
+        expect(all('meal-chargeable')[0].disabled).toBe(false);
+      });
+
+      it('已結算整列鎖住（含備註、訂餐），並有連到帳單的連結', async () => {
+        await loadDay([handled('a', { settled: true })]);
+        for (const id of ['meal-ordered', 'meal-price', 'meal-chargeable', 'meal-note']) {
+          expect(all(id)[0].disabled).toBe(true);
+        }
+        expect(q('meal-row').querySelector('a[href="/admin/payments"]')).not.toBeNull();
+      });
+
+      it('學生名是連到學生檔案的連結', async () => {
+        await loadDay([handled('stu-9')]);
+        expect(q('meal-row').querySelector('a[href="/admin/students/stu-9"]')).not.toBeNull();
+      });
+
+      it.each([
+        ['70', 70],
+        ['0', 0],
+        ['1', 1],
+        ['65元', 65],
+      ])('單價輸入 %s → 送出 %s', async (typed, price) => {
+        await loadDay([handled('a')]);
+        fire(all('meal-price')[0], typed);
+        fixture.detectChanges();
+        component['save']();
+        expect(lastBatch()[0].unitPrice).toBe(price);
+      });
+
+      it.each(['', '元', '  '])(
+        '單價清空或沒有數字（%j）→ 還原成目前單價、不改資料',
+        async (typed) => {
+          await loadDay([handled('a')]);
+          const input = all('meal-price')[0];
+          fire(input, typed);
+          expect(input.value).toBe('65');
+          component['save']();
+          expect(lastBatch()[0].unitPrice).toBe(65);
+        },
+      );
+
+      it('備註跟著送出；清空送 null（不是空字串）', async () => {
+        await loadDay([handled('a', { note: '素食' })]);
+        fire(all('meal-note')[0], '');
+        fixture.detectChanges();
+        component['save']();
+        expect(lastBatch()[0].note).toBeNull();
+      });
+    });
+
+    describe('確認列：有改動或還有人沒處理才出現', () => {
+      it('全部處理過、沒動 → 不出現', async () => {
+        await loadDay([handled('a'), handled('b')]);
+        expect(q('save-bar')).toBeNull();
+      });
+
+      it.each([1, 2])('%s 位還沒處理 → 出現，寫「N 位還沒處理」（門檻 ±1）', async (n) => {
+        await loadDay([handled('h'), ...Array.from({ length: n }, (_, i) => person(`u${i}`))]);
+        expect(q('save-bar-lead').textContent).toBe(`${n} 位還沒處理`);
+      });
+
+      it('改 1 位 → 出現「改了 1 位」；改 2 位 → 「改了 2 位」', async () => {
+        await loadDay([handled('a'), handled('b'), handled('c')]);
+        all('meal-ordered')[0].click();
+        fixture.detectChanges();
+        expect(q('save-bar-lead').textContent).toBe('改了 1 位');
+        all('meal-ordered')[1].click();
+        fixture.detectChanges();
+        expect(q('save-bar-lead').textContent).toBe('改了 2 位');
+      });
+
+      it('改了又改回原值 → 確認列收起來', async () => {
+        await loadDay([handled('a')]);
+        all('meal-ordered')[0].click();
+        fixture.detectChanges();
+        expect(q('save-bar')).not.toBeNull();
+        all('meal-ordered')[0].click();
+        fixture.detectChanges();
+        expect(q('save-bar')).toBeNull();
+      });
+
+      it('同一列改了三個欄位也只算一位', async () => {
+        await loadDay([handled('a')]);
+        fire(all('meal-price')[0], '70');
+        fire(all('meal-note')[0], '素食');
+        all('meal-chargeable')[0].click();
+        fixture.detectChanges();
+        expect(q('save-bar-lead').textContent).toBe('改了 1 位');
+      });
+
+      it('改了 1 位、另有 2 位沒處理 → 寫「改了 1 位」（改動優先）', async () => {
+        await loadDay([handled('a'), person('u1'), person('u2')]);
+        all('meal-ordered')[0].click();
+        fixture.detectChanges();
+        expect(q('save-bar-lead').textContent).toBe('改了 1 位');
+      });
+
+      it('「全部不訂」造成的改動也算；已結算的不算', async () => {
+        await loadDay([handled('a'), handled('b'), handled('s', { settled: true })]);
+        q('bulk-all-off').click();
+        fixture.detectChanges();
+        expect(q('save-bar-lead').textContent).toBe('改了 2 位');
+      });
+
+      it('只有已結算的未處理列 → 不出現（鎖住的不用確認）', async () => {
+        await loadDay([person('s', { settled: true, recordId: null })]);
+        expect(q('save-bar')).toBeNull();
+      });
+
+      it('小字寫共幾位、訂幾份、要收費多少', async () => {
+        await loadDay([handled('a'), handled('b', { chargeable: false }), person('u')]);
+        const text = q('save-bar').textContent!.replace(/\s+/g, ' ');
+        expect(text).toContain('共 3 位 · 訂 3 份 · 要收費 NT$ 125');
+      });
+
+      it('確認成功重載後，快照換成新資料 → 確認列收起來', async () => {
+        await loadDay([handled('a')]);
+        all('meal-ordered')[0].click();
+        fixture.detectChanges();
+        meals.batch.mockReturnValue(of({ updated: 1, lockedStudentIds: [] }));
+        meals.roster.mockReturnValue(of(roster([handled('a', { ordered: false })])));
+        component['save']();
+        await settle();
+        expect(q('save-bar')).toBeNull();
+      });
+
+      it('確認鈕在確認列裡，按下去走 save（payload 同舊版）', async () => {
+        await loadDay([person('u')]);
+        meals.batch.mockClear();
+        (q('save-bar').querySelector('button') as HTMLButtonElement).click();
+        expect(meals.batch).toHaveBeenCalledWith('2026-10-14', [
+          { studentId: 'u', ordered: true, chargeable: true, unitPrice: 60, note: null },
+        ]);
+      });
+
+      it('區間模式沒有確認列', async () => {
+        await loadDay([person('u')]);
+        meals.range.mockReturnValue(of(roster([])));
+        component['switchMode']('range');
+        await settle();
+        expect(q('save-bar')).toBeNull();
+      });
+    });
+
+    describe('區間查詢：原生起訖欄、依日分章的唯讀列', () => {
+      const rangeRow = (id: string, date: string, over: Partial<MealRosterRow> = {}) =>
+        handled(id, { mealDate: date, classNames: [], mealDefault: false, ...over });
+      const rangeRes = (rows: MealRosterRow[], total = rows.length) => ({
+        ...roster(rows),
+        meta: { ...roster(rows).meta, total },
+      });
+      const goRange = async (rows: MealRosterRow[], total?: number) => {
+        meals.range.mockReturnValue(of(rangeRes(rows, total)));
+        component['switchMode']('range');
+        await settle();
+      };
+      const setInput = (id: string, value: string) => {
+        const input = q(id) as HTMLInputElement;
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        return input;
+      };
+      const lastRange = () => meals.range.mock.calls.at(-1)![0] as Record<string, unknown>;
+
+      it('起訖是原生 type=date（有「從」「到」標籤），預設是當月 1 日到今天', async () => {
+        await goRange([]);
+        const from = q('meals-from') as HTMLInputElement;
+        const to = q('meals-to') as HTMLInputElement;
+        expect([from.type, to.type]).toEqual(['date', 'date']);
+        expect([from.value, to.value]).toEqual(['2026-10-01', '2026-10-14']);
+        expect(from.closest('label')!.textContent).toContain('從');
+        expect(to.closest('label')!.textContent).toContain('到');
+        expect(fixture.nativeElement.querySelector('p-datepicker')).toBeNull();
+      });
+
+      it('改起日／迄日 → 用字串查，回到第 1 頁', async () => {
+        await goRange([]);
+        setInput('meals-from', '2026-09-30');
+        expect(lastRange()).toMatchObject({
+          dateFrom: '2026-09-30',
+          dateTo: '2026-10-14',
+          page: 1,
+        });
+        setInput('meals-to', '2026-10-05');
+        expect(lastRange()).toMatchObject({ dateFrom: '2026-09-30', dateTo: '2026-10-05' });
+      });
+
+      it('起訖同一天合法（不被調整）', async () => {
+        await goRange([]);
+        setInput('meals-to', '2026-10-01');
+        expect(lastRange()).toMatchObject({ dateFrom: '2026-10-01', dateTo: '2026-10-01' });
+      });
+
+      it('起日晚於迄日（差 1 天）→ 迄日被拉到起日；迄日早於起日（差 1 天）→ 起日被拉到迄日', async () => {
+        await goRange([]);
+        setInput('meals-from', '2026-10-15');
+        expect(lastRange()).toMatchObject({ dateFrom: '2026-10-15', dateTo: '2026-10-15' });
+        fixture.detectChanges();
+        expect((q('meals-to') as HTMLInputElement).value).toBe('2026-10-15');
+
+        setInput('meals-to', '2026-10-14');
+        expect(lastRange()).toMatchObject({ dateFrom: '2026-10-14', dateTo: '2026-10-14' });
+        fixture.detectChanges();
+        expect((q('meals-from') as HTMLInputElement).value).toBe('2026-10-14');
+      });
+
+      it.each(['meals-from', 'meals-to'])('%s 清空 → 不查、欄位還原', async (id) => {
+        await goRange([]);
+        const before = (q(id) as HTMLInputElement).value;
+        meals.range.mockClear();
+        const input = setInput(id, '');
+        expect(meals.range).not.toHaveBeenCalled();
+        expect(input.value).toBe(before);
+      });
+
+      it('依日期分章，新的在上；章頭寫 M/D、份數與週幾', async () => {
+        await goRange([
+          rangeRow('a', '2026-10-11'),
+          rangeRow('b', '2026-10-14'),
+          rangeRow('c', '2026-10-14'),
+          rangeRow('d', '2026-10-12'),
+        ]);
+        const heads = all('chapter-head').map((h) => h.textContent!.replace(/\s+/g, ' ').trim());
+        expect(heads).toEqual(['10/14 2 份 · 三', '10/12 1 份 · 一', '10/11 1 份 · 日']);
+      });
+
+      it('章頭份數只算有訂的，沒訂的那列照樣列出', async () => {
+        await goRange([
+          rangeRow('a', '2026-10-14'),
+          rangeRow('b', '2026-10-14', { ordered: false }),
+        ]);
+        expect(q('chapter-head').textContent!.replace(/\s+/g, ' ')).toContain('1 份');
+        expect(all('range-row')).toHaveLength(2);
+      });
+
+      it('列是唯讀的：沒有任何輸入控制項', async () => {
+        await goRange([rangeRow('a', '2026-10-14')]);
+        expect(q('range-row').querySelector('input, select, textarea, p-checkbox')).toBeNull();
+      });
+
+      it('金額欄：NT$ 單價／不收費／沒訂', async () => {
+        await goRange([
+          rangeRow('a', '2026-10-14'),
+          rangeRow('b', '2026-10-14', { chargeable: false }),
+          rangeRow('c', '2026-10-14', { ordered: false }),
+        ]);
+        expect(all('range-amount').map((e) => e.textContent!.trim())).toEqual([
+          'NT$ 65',
+          '不收費',
+          '沒訂',
+        ]);
+      });
+
+      it('狀態欄：已結算／已確認／未處理', async () => {
+        await goRange([
+          rangeRow('a', '2026-10-14', { settled: true }),
+          rangeRow('b', '2026-10-14'),
+          rangeRow('c', '2026-10-14', { recordId: null }),
+        ]);
+        expect(all('range-state').map((e) => e.textContent!.trim())).toEqual([
+          '已結算',
+          '已確認',
+          '未處理',
+        ]);
+      });
+
+      it('學生名連到學生檔案；有備註才多一段字', async () => {
+        await goRange([
+          rangeRow('stu-1', '2026-10-14', { note: '素食' }),
+          rangeRow('b', '2026-10-14'),
+        ]);
+        const rows = all('range-row');
+        expect(rows[0].querySelector('a[href="/admin/students/stu-1"]')).not.toBeNull();
+        expect(rows[0].textContent).toContain('素食');
+        expect(rows[1].textContent).not.toContain('素食');
+      });
+
+      describe('分頁（每頁 50）', () => {
+        it.each([
+          [50, false],
+          [51, true],
+        ])('總數 %s 筆 → 分頁列出現：%s（門檻 ±1）', async (total, shown) => {
+          await goRange([rangeRow('a', '2026-10-14')], total);
+          expect(q('pager') !== null).toBe(shown);
+        });
+
+        it('第 1／3 頁：上一頁停用；下一頁 → 查第 2 頁；最後一頁下一頁停用', async () => {
+          await goRange([rangeRow('a', '2026-10-14')], 120);
+          expect(q('pager').textContent).toContain('第 1／3 頁');
+          expect((q('pager-prev') as HTMLButtonElement).disabled).toBe(true);
+
+          q('pager-next').click();
+          expect(lastRange()).toMatchObject({ page: 2 });
+          fixture.detectChanges();
+          q('pager-next').click();
+          expect(lastRange()).toMatchObject({ page: 3 });
+          fixture.detectChanges();
+          expect((q('pager-next') as HTMLButtonElement).disabled).toBe(true);
+        });
+
+        it('最後一頁再往後翻不查', async () => {
+          await goRange([rangeRow('a', '2026-10-14')], 120);
+          component['goPage'](1);
+          component['goPage'](1);
+          meals.range.mockClear();
+          component['goPage'](1);
+          expect(meals.range).not.toHaveBeenCalled();
+          expect(component['currentPage']()).toBe(3);
+        });
+
+        it('越界的翻頁不查', async () => {
+          await goRange([rangeRow('a', '2026-10-14')], 120);
+          meals.range.mockClear();
+          component['goPage'](-1);
+          expect(meals.range).not.toHaveBeenCalled();
+        });
+      });
+    });
+
+    describe('載入防亂序（switchMap）', () => {
+      it('先查 9/1、再查 9/2，9/1 的回應晚到也不能蓋掉 9/2', async () => {
+        const slow = new Subject<ReturnType<typeof roster>>();
+        const fast = new Subject<ReturnType<typeof roster>>();
+        meals.roster.mockReset().mockReturnValueOnce(slow).mockReturnValueOnce(fast);
+
+        component['onDateChange']('2026-09-01');
+        component['onDateChange']('2026-09-02');
+        fast.next(roster([person('new')]));
+        slow.next(roster([person('old1'), person('old2')]));
+
+        expect(component['rows']().map((r) => r.studentId)).toEqual(['new']);
+        expect(component['loading']()).toBe(false);
+      });
+
+      it('舊請求晚到的失敗也不能把新名單換成失敗畫面', async () => {
+        const slow = new Subject<ReturnType<typeof roster>>();
+        const fast = new Subject<ReturnType<typeof roster>>();
+        meals.roster.mockReset().mockReturnValueOnce(slow).mockReturnValueOnce(fast);
+
+        component['onDateChange']('2026-09-01');
+        component['onDateChange']('2026-09-02');
+        fast.next(roster([person('new')]));
+        slow.error(new Error('late'));
+
+        expect(component['failed']()).toBe(false);
+        expect(component['rows']().map((r) => r.studentId)).toEqual(['new']);
+      });
     });
   });
 

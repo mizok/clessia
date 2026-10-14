@@ -1,14 +1,11 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { format, startOfMonth } from 'date-fns';
+import { Subject, catchError, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
-import { CheckboxModule } from 'primeng/checkbox';
-import { DatePickerModule } from 'primeng/datepicker';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
@@ -26,26 +23,23 @@ import {
 } from '@shared/components/page-actions/page-actions.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
 
 import {
   BillingRunDialogComponent,
   type BillingRunDialogData,
 } from './billing-run-dialog/billing-run-dialog.component';
 import {
+  changedCount,
   chapterOrdered,
+  draftSnapshot,
   draftTotals,
   monthDay,
   draftToBatchRows,
   mealChapters,
+  mealDayChapters,
   rosterToDraft,
+  unhandledCount,
+  weekdayLabel,
   type MealDraftRow,
 } from './meals.util';
 import {
@@ -87,19 +81,11 @@ const RANGE_PAGE_SIZE = 50;
     RouterLink,
     FormsModule,
     ButtonModule,
-    CheckboxModule,
-    DatePickerModule,
-    InputNumberModule,
-    InputTextModule,
     ToastModule,
     TooltipModule,
     PageActionsComponent,
     EmptyStateComponent,
     StudentAutocompleteComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './meals.component.html',
@@ -142,16 +128,16 @@ export class MealsComponent implements OnInit {
   /**
    * **這一次實際送出去的區間**（#710）。
    *
-   * 空狀態要講的是「剛才查了什麼」，而**那跟選擇器現在顯示什麼是兩件事**：
-   * `onRangeChange` 會先寫入 `dateRange` 才 early-return（只選了起日時），
-   * 那一刻畫面上的資料還是上一次查詢的結果。從 `dateRange` 即時算的話，
-   * **空狀態會講一段從來沒有被查過的期間**。
+   * 空狀態要講的是「剛才查了什麼」，所以記的是 `load()` 當下送出去的那一組，
+   * 不是 `dateFrom`／`dateTo` 即時的值 —— 兩者只在載入途中不同，但空狀態只在載完後才畫。
    */
   protected readonly queriedRange = signal<{ dateFrom: string; dateTo: string } | null>(null);
 
   /** 名單日期，`YYYY-MM-DD`（台北）。**字串，不經 `new Date()`** —— 原生日期欄給的就是這個形狀 */
   protected readonly dateStr = signal(this.clock.todayTaipei());
-  protected dateRange: Date[] | null = null;
+  /** 區間起訖，`YYYY-MM-DD`（台北）。跟名單日期一樣是字串、不經 `new Date()` */
+  protected readonly dateFrom = signal('');
+  protected readonly dateTo = signal('');
   protected readonly student = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
   protected readonly currentPage = signal(1);
@@ -161,14 +147,14 @@ export class MealsComponent implements OnInit {
     return typeof value === 'string' || value === null ? null : value;
   });
 
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => {
-    const meta = this.summary();
-    return {
-      first: Math.max((this.currentPage() - 1) * RANGE_PAGE_SIZE, 0),
-      rows: RANGE_PAGE_SIZE,
-      totalRecords: meta?.total ?? 0,
-    };
-  });
+  protected readonly pagination = computed(() => ({
+    first: Math.max((this.currentPage() - 1) * RANGE_PAGE_SIZE, 0),
+    rows: RANGE_PAGE_SIZE,
+    totalRecords: this.summary()?.total ?? 0,
+  }));
+  protected readonly totalPages = computed(() =>
+    Math.max(1, Math.ceil(this.pagination().totalRecords / RANGE_PAGE_SIZE)),
+  );
 
   protected readonly totals = computed(() => draftTotals(this.rows()));
   /**
@@ -195,16 +181,55 @@ export class MealsComponent implements OnInit {
     };
   });
   protected readonly chapterOrdered = chapterOrdered;
-  /** 當日＝依班分章；區間＝只有一章（沒有章頭）、帶分頁 */
-  protected readonly tables = computed(() =>
-    this.isRange() ? [{ name: '', rows: this.rows() }] : mealChapters(this.rows()),
-  );
+  protected readonly weekdayLabel = weekdayLabel;
+  protected readonly monthDay = monthDay;
+  /** 當日依班分章；區間依日期分章（A6 `.chap`），章內的列各自寫在模板的兩個 @if 裡 */
+  protected readonly classChapters = computed(() => mealChapters(this.rows()));
+  protected readonly dayChapters = computed(() => mealDayChapters(this.rows()));
   protected readonly chapterGrid = 'wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8';
+
+  /**
+   * 載入當下的快照。確認列只在「改了」或「還有人沒處理」時出現（A6）：
+   * 沒處理的列帶的是預設值、沒人動過也一樣要能確認，所以不能只看 diff。
+   */
+  private readonly baseline = signal<ReadonlyMap<string, string>>(new Map());
+  protected readonly changed = computed(() => changedCount(this.rows(), this.baseline()));
+  protected readonly unhandled = computed(() => unhandledCount(this.rows()));
+  protected readonly showSaveBar = computed(() => this.changed() > 0 || this.unhandled() > 0);
   protected readonly settledCount = computed(() => this.rows().filter((r) => r.settled).length);
   /** 超過後端上限就擋在送出之前 —— 靜靜截斷會讓一部分學生沒有記錄 */
   protected readonly overBatchLimit = computed(
     () => draftToBatchRows(this.rows()).length > MEAL_BATCH_MAX_ROWS,
   );
+
+  /**
+   * 載入走 switchMap：連切日期／起訖／分頁、或存完立刻重載時，**後發的蓋掉先發的**，
+   * 慢回來的舊回應不會把畫面換回舊日期的名單（那份名單還能被「確認名單」寫進新日期之外的資料）。
+   */
+  private readonly loadRequest$ = new Subject<ReturnType<MealsService['roster']>>();
+
+  constructor() {
+    this.loadRequest$
+      .pipe(
+        switchMap((request) => request.pipe(catchError(() => of(null)))),
+        takeUntilDestroyed(),
+      )
+      .subscribe((res) => {
+        if (!res) {
+          this.rows.set([]);
+          this.summary.set(null);
+          this.failed.set(true);
+          this.loading.set(false);
+          return;
+        }
+        this.defaultUnitPrice.set(res.defaultUnitPrice);
+        const draft = rosterToDraft(res.data, res.defaultUnitPrice);
+        this.rows.set(draft);
+        this.baseline.set(draftSnapshot(draft));
+        this.summary.set(res.meta);
+        this.loading.set(false);
+      });
+  }
 
   ngOnInit(): void {
     if (this.billingRun() === 'period') {
@@ -227,7 +252,7 @@ export class MealsComponent implements OnInit {
 
     let request;
     if (this.isRange()) {
-      const range = rangeToStrings(this.dateRange, this.dateString);
+      const range = { dateFrom: this.dateFrom(), dateTo: this.dateTo() };
       // 跟送出去的是同一個物件 —— 這樣空狀態上的日期不可能跟查詢漂掉
       this.queriedRange.set(range);
       request = this.service.range({
@@ -241,20 +266,7 @@ export class MealsComponent implements OnInit {
       request = this.service.roster(this.dateString);
     }
 
-    request.subscribe({
-      next: (res) => {
-        this.defaultUnitPrice.set(res.defaultUnitPrice);
-        this.rows.set(rosterToDraft(res.data, res.defaultUnitPrice));
-        this.summary.set(res.meta);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.rows.set([]);
-        this.summary.set(null);
-        this.failed.set(true);
-        this.loading.set(false);
-      },
-    });
+    this.loadRequest$.next(request);
   }
 
   /**
@@ -280,19 +292,49 @@ export class MealsComponent implements OnInit {
     this.mode.set(mode);
     this.currentPage.set(1);
     // 切到區間時給一個預設區間 —— 不給的話後端會回 400
-    if (mode === 'range' && !this.dateRange) {
-      const day = parseDay(this.dateStr());
-      this.dateRange = [startOfMonth(day), day];
+    if (mode === 'range' && !this.dateFrom()) {
+      this.dateFrom.set(`${this.dateStr().slice(0, 7)}-01`);
+      this.dateTo.set(this.dateStr());
     }
     this.load();
   }
 
-  protected onRangeChange(value: Date[] | null): void {
-    this.dateRange = value;
-    // range 模式選第一個日期時 end 還是 null，那時候查會查成單日
-    if (!value || value.length < 2 || !value[1]) return;
+  /**
+   * 區間起訖的原生日期欄。空值要還原成目前的值；起日晚於迄日時，把另一端拉到同一天
+   * （起訖同一天是合法的單日區間）。
+   */
+  protected onFromInput(input: HTMLInputElement): void {
+    if (!input.value) {
+      input.value = this.dateFrom();
+      return;
+    }
+    this.dateFrom.set(input.value);
+    if (input.value > this.dateTo()) this.dateTo.set(input.value);
     this.currentPage.set(1);
     this.load();
+  }
+
+  protected onToInput(input: HTMLInputElement): void {
+    if (!input.value) {
+      input.value = this.dateTo();
+      return;
+    }
+    this.dateTo.set(input.value);
+    if (input.value < this.dateFrom()) this.dateFrom.set(input.value);
+    this.currentPage.set(1);
+    this.load();
+  }
+
+  /** 單價原生輸入框：只收非負整數；清空或亂打就還原成目前的單價（不送 null 給後端） */
+  protected onPriceInput(row: MealDraftRow, input: HTMLInputElement): void {
+    const digits = input.value.replace(/\D/g, '');
+    if (!digits) {
+      input.value = String(row.unitPrice);
+      return;
+    }
+    const price = Number(digits);
+    input.value = String(price);
+    this.updateRow(row.studentId, 'unitPrice', price);
   }
 
   protected onStudentChange(value: Student | string | null): void {
@@ -316,8 +358,10 @@ export class MealsComponent implements OnInit {
       });
   }
 
-  protected onPageChange(event: ResponsiveTablePageEvent): void {
-    this.currentPage.set(Math.floor(event.first / RANGE_PAGE_SIZE) + 1);
+  protected goPage(delta: -1 | 1): void {
+    const next = this.currentPage() + delta;
+    if (next < 1 || next > this.totalPages()) return;
+    this.currentPage.set(next);
     this.load();
   }
 
@@ -428,25 +472,4 @@ export class MealsComponent implements OnInit {
   protected unhandledTone(): StatusTone {
     return this.dateString < this.clock.todayTaipei() ? 'overdue' : 'pending';
   }
-}
-
-/** 沒選滿區間就退回「這個月到今天」—— 不帶區間後端會回 400 */
-function rangeToStrings(
-  range: Date[] | null,
-  fallbackDate: string,
-): { dateFrom: string; dateTo: string } {
-  if (!range || range.length < 2 || !range[0] || !range[1]) {
-    return { dateFrom: `${fallbackDate.slice(0, 7)}-01`, dateTo: fallbackDate };
-  }
-
-  return {
-    dateFrom: format(range[0], 'yyyy-MM-dd'),
-    dateTo: format(range[1], 'yyyy-MM-dd'),
-  };
-}
-
-/** `YYYY-MM-DD` → 本地午夜的 Date（給 `p-datepicker` 區間用；**不走** `new Date('YYYY-MM-DD')` 的 UTC 解析） */
-function parseDay(day: string): Date {
-  const [year, month, date] = day.split('-').map(Number);
-  return new Date(year, month - 1, date);
 }
