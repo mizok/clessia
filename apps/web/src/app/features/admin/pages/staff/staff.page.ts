@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
+import { SelectModule } from 'primeng/select';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -48,7 +49,6 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
-import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { loginLinkErrorDetail } from '@shared/utils/login-link-error.util';
 import {
   PageActionsComponent,
@@ -116,10 +116,10 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
     PageActionsComponent,
     PageOpenComponent,
     ChapterHeadComponent,
-    FilterToggleComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
+    SelectModule,
     ToastModule,
     TooltipModule,
     IconFieldModule,
@@ -165,7 +165,7 @@ export class StaffPage implements OnInit {
 
   // Constants exposed to template
   protected readonly roleOptions = ROLE_OPTIONS;
-  protected readonly secondaryAction: PageAction = { label: '操作紀錄', icon: 'pi pi-history' };
+  protected readonly secondaryAction: PageAction = { label: '操作紀錄' };
 
   // State
   readonly staffList = signal<Staff[]>([]);
@@ -279,33 +279,16 @@ export class StaffPage implements OnInit {
     return parts.length > 0 ? parts.join(' · ') : '全部';
   });
 
-  /** 篩選面板的三列（A6：角色、教學科目、狀態；分校跟頂欄走，不在這裡） */
-  protected readonly filterGroups = computed(() => [
-    {
-      key: 'role' as const,
-      label: '角色',
-      selected: this.roleFilter() as string | null,
-      options: [{ value: null as string | null, label: '全部' }, ...ROLE_OPTIONS],
-    },
-    {
-      key: 'subject' as const,
-      label: '科目',
-      selected: this.subjectFilter(),
-      options: [{ value: null as string | null, label: '全部' }, ...this.subjectOptions()],
-    },
-    {
-      key: 'status' as const,
-      label: '狀態',
-      selected: this.staffStatusFilter() as string | null,
-      options: STATUS_OPTIONS as { value: string | null; label: string }[],
-    },
+  /** 篩選面板的三個下拉（A6：角色、教學科目、狀態；分校跟頂欄走，不在這裡） */
+  protected readonly roleSelectOptions: { value: StaffRole | null; label: string }[] = [
+    { value: null, label: '全部角色' },
+    ...ROLE_OPTIONS,
+  ];
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly subjectSelectOptions = computed(() => [
+    { value: null as string | null, label: '全部科目' },
+    ...this.subjectOptions(),
   ]);
-
-  protected onFilterPick(key: 'role' | 'subject' | 'status', value: string | null): void {
-    if (key === 'role') this.onRoleFilterChange(value as StaffRole | null);
-    else if (key === 'subject') this.onSubjectFilterChange(value);
-    else this.onStaffStatusFilterChange((value ?? 'live') as StaffStatusFilter);
-  }
 
   /** 標題數字句：N 位人員（不含封存），M 位啟用中 */
   protected readonly liveTotal = computed(

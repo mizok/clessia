@@ -20,81 +20,112 @@
 </app-page-open>
 
 <div class="bg-zinc-100">
-  <div
-    class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
-    role="search"
-    aria-label="篩選人員"
-  >
-    <!-- 手機：搜尋框＋「篩選：全部」同一列；桌機 contents 攤平 -->
-    <div class="flex w-full items-center gap-2 wide:contents">
-      <div class="clessia-filter-search min-w-0 flex-1 wide:w-80 wide:flex-none">
-        <p-iconField iconPosition="left">
-          <p-inputIcon styleClass="pi pi-search" />
-          <input
-            type="text"
-            pInputText
-            placeholder="找姓名或 Email"
-            aria-label="搜尋人員"
-            [ngModel]="searchQuery()"
-            (ngModelChange)="onSearchChange($event)"
-            class="clessia-filter-search-input"
-          />
-        </p-iconField>
-      </div>
-      <app-filter-toggle
-        [summary]="filterSummary()"
-        [active]="hasFilter()"
-        [(open)]="filtersOpen"
-        [always]="true"
-        controls="staff-filters"
-      />
-      <app-page-actions
-        class="wide:order-2 wide:ml-auto"
-        [primary]="primaryAction"
-        [secondary]="secondaryAction"
-        (primaryClick)="openCreateDialog()"
-        (secondaryClick)="openAuditLog()"
-      >
-        <app-popup-menu #pageMenu [model]="pageMenuItems" />
-        <p-button
-          icon="pi pi-ellipsis-h"
-          severity="secondary"
-          ariaLabel="更多動作"
-          data-testid="staff-page-menu"
-          (onClick)="pageMenu.toggle($event)"
+  <div class="page-wrap flex min-h-16 items-center gap-2 py-3 wide:gap-4">
+    <div class="clessia-filter-search min-w-0 flex-1 wide:w-80 wide:flex-none">
+      <p-iconField iconPosition="left">
+        <p-inputIcon styleClass="pi pi-search" />
+        <input
+          type="text"
+          pInputText
+          placeholder="找姓名或 Email"
+          aria-label="搜尋人員"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="onSearchChange($event)"
+          class="clessia-filter-search-input"
         />
-      </app-page-actions>
+      </p-iconField>
     </div>
-
-    <!-- 篩選面板（A6 的篩選卡）：角色、教學科目、狀態；分校跟頂欄走（#1138） -->
-    <div
-      id="staff-filters"
-      class="flex w-full flex-col gap-3 wide:order-3 wide:basis-full"
-      [class.hidden]="!filtersOpen()"
+    <app-page-actions
+      class="wide:ml-auto"
+      [primary]="primaryAction"
+      [secondary]="secondaryAction"
+      (primaryClick)="openCreateDialog()"
+      (secondaryClick)="openAuditLog()"
     >
-      @for (group of filterGroups(); track group.key) {
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <span class="w-full text-sm text-zinc-600 wide:w-14">{{ group.label }}</span>
-          @for (opt of group.options; track opt.label) {
-            <button
-              type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
-              [class.border-zinc-900]="group.selected === opt.value"
-              [class.font-semibold]="group.selected === opt.value"
-              [class.border-transparent]="group.selected !== opt.value"
-              [attr.aria-pressed]="group.selected === opt.value"
-              (click)="onFilterPick(group.key, opt.value)"
-            >
-              {{ opt.label }}
-            </button>
-          }
-        </div>
-      }
-    </div>
+      <app-popup-menu #pageMenu [model]="pageMenuItems" />
+      <p-button
+        icon="pi pi-ellipsis-h"
+        severity="secondary"
+        ariaLabel="更多動作"
+        data-testid="staff-page-menu"
+        (onClick)="pageMenu.toggle($event)"
+      />
+    </app-page-actions>
   </div>
 </div>
 
 <div class="page-wrap flex flex-col gap-4 pt-0 pb-28 wide:pb-32">
+  <!--
+    篩選（A6 `.ff`）：角色、教學科目、狀態。桌機是常開的灰色圓角面板；手機收成「篩選　全部 ∨」一列，
+    展開後是全寬灰面兩欄。分校不放 —— 它跟頂欄走（#1138）。桌機用 `wide:grid` 蓋掉 `hidden`。
+  -->
+  <div class="pt-2 wide:pt-6">
+    <button
+      type="button"
+      class="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent p-0 text-left wide:hidden"
+      data-testid="filter-fold"
+      aria-controls="staff-filters"
+      [attr.aria-expanded]="filtersOpen()"
+      (click)="filtersOpen.set(!filtersOpen())"
+    >
+      <span class="text-lg font-semibold text-zinc-900">篩選</span>
+      <span class="ml-auto text-md text-zinc-600 tabular-nums" data-testid="filter-fold-meta">{{
+        filterSummary()
+      }}</span>
+      <i
+        class="pi pi-chevron-down text-xs text-zinc-900 transition-transform"
+        [class.rotate-180]="filtersOpen()"
+        aria-hidden="true"
+      ></i>
+    </button>
+    <div
+      id="staff-filters"
+      class="clessia-filter-bar -mx-4 grid grid-cols-2 gap-3 bg-zinc-100 p-4 wide:mx-0 wide:grid wide:grid-cols-3 wide:rounded-lg"
+      [class.hidden]="!filtersOpen()"
+      role="search"
+      aria-label="篩選人員"
+    >
+      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        角色
+        <p-select
+          styleClass="w-full"
+          [options]="roleSelectOptions"
+          [ngModel]="roleFilter()"
+          (ngModelChange)="onRoleFilterChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部角色"
+          ariaLabel="角色"
+        />
+      </label>
+      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        教學科目
+        <p-select
+          styleClass="w-full"
+          [options]="subjectSelectOptions()"
+          [ngModel]="subjectFilter()"
+          (ngModelChange)="onSubjectFilterChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部科目"
+          ariaLabel="教學科目"
+        />
+      </label>
+      <label class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700">
+        狀態
+        <p-select
+          styleClass="w-full"
+          [options]="statusOptions"
+          [ngModel]="staffStatusFilter()"
+          (ngModelChange)="onStaffStatusFilterChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          ariaLabel="狀態"
+        />
+      </label>
+    </div>
+  </div>
+
   @if (loading()) {
     <!-- Skeleton Loading -->
     <div class="skeleton-list">
@@ -143,7 +174,7 @@
       </p>
     }
 
-    <div>
+    <div class="wide:-mt-2">
       @for (chapter of chapters(); track chapter.key) {
         <section
           class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
@@ -151,7 +182,7 @@
           [attr.data-chapter]="chapter.key"
         >
           <app-chapter-head
-            class="block pt-4 wide:pt-8"
+            class="block pt-4"
             [name]="chapter.label"
             [count]="chapter.count"
             unit="位"

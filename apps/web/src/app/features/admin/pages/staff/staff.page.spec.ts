@@ -8,6 +8,8 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { StaffService } from '@core/staff.service';
 import { SubjectsService } from '@core/subjects.service';
 import type { Staff } from '@core/staff.service';
+import { By } from '@angular/platform-browser';
+import { Select } from 'primeng/select';
 import { vi } from 'vitest';
 
 import { MessageService } from 'primeng/api';
@@ -490,6 +492,25 @@ describe('StaffPage', () => {
       expect(names()).toEqual(['李語涵']);
     });
 
+    /** 篩選下拉也走同一條 switchMap：連切兩次角色，先發的後回不能蓋掉畫面（A6 篩選面板） */
+    it('連切兩次篩選下拉，先發的後回不會蓋掉畫面', () => {
+      const c = component as unknown as {
+        onRoleFilterChange: (v: string | null) => void;
+        onStaffStatusFilterChange: (v: string) => void;
+      };
+      pending.length = 0;
+      c.onRoleFilterChange('admin');
+      c.onStaffStatusFilterChange('inactive');
+      expect(pending).toHaveLength(2);
+
+      pending[1].subject.next(staffNamed(['停用的老師']));
+      pending[1].subject.complete();
+      pending[0].subject.next(staffNamed(['管理員甲', '管理員乙']));
+      pending[0].subject.complete();
+
+      expect(names()).toEqual(['停用的老師']);
+    });
+
     /** 對照組：同樣的字不重複送（否則上面那兩條在「每次都送」的實作下也會過） */
     it('同樣的關鍵字不重複送出請求', () => {
       type('李語涵');
@@ -691,11 +712,11 @@ describe('StaffPage', () => {
       );
     });
 
-    it('篩選鈕寫出目前條件；清除篩選回預設並一起清搜尋', () => {
+    it('篩選摘要寫出目前條件；清除篩選回預設並一起清搜尋', () => {
       respond([person('t', {})]);
-      (component as any).onFilterPick('role', 'teacher');
+      (component as any).onRoleFilterChange('teacher');
       expect((component as any).filterSummary()).toBe('老師');
-      (component as any).onFilterPick('status', 'inactive');
+      (component as any).onStaffStatusFilterChange('inactive');
       expect((component as any).filterSummary()).toBe('老師 · 已停用');
       fixture.detectChanges();
       expect(text()).toContain('位符合');
@@ -706,6 +727,112 @@ describe('StaffPage', () => {
         role: undefined,
         status: undefined,
       });
+    });
+
+    describe('篩選面板（A6 `.ff`：常開面板＋手機摺疊列）', () => {
+      const panel = () => root().querySelector('#staff-filters') as HTMLElement;
+      const fold = () => root().querySelector('[data-testid="filter-fold"]') as HTMLButtonElement;
+      const selects = () => Array.from(panel().querySelectorAll('p-select'));
+
+      it('面板有三個帶標籤的下拉：角色、教學科目、狀態（沒有服務分校）', () => {
+        respond([person('t', {})]);
+        expect(
+          fixture.debugElement
+            .queryAll(By.directive(Select))
+            .map((d) => (d.componentInstance as Select).ariaLabel),
+        ).toEqual(['角色', '教學科目', '狀態']);
+        expect(selects()).toHaveLength(3);
+        const labels = Array.from(panel().querySelectorAll('label')).map((l) =>
+          l.textContent!.replace(/\s+/g, ''),
+        );
+        expect(labels.some((l) => l.startsWith('角色'))).toBe(true);
+        expect(labels.some((l) => l.startsWith('教學科目'))).toBe(true);
+        expect(labels.some((l) => l.startsWith('狀態'))).toBe(true);
+        expect(panel().textContent).not.toContain('服務分校');
+      });
+
+      it('桌機常開、手機預設收合：面板有 hidden 與 wide:grid，摺疊鈕有 wide:hidden', () => {
+        respond([person('t', {})]);
+        expect(panel().classList).toContain('hidden');
+        expect(panel().classList).toContain('wide:grid');
+        expect(panel().classList).toContain('grid');
+        expect(fold().classList).toContain('wide:hidden');
+        expect(fold().getAttribute('aria-expanded')).toBe('false');
+        expect(fold().querySelector('[data-testid="filter-fold-meta"]')!.textContent!.trim()).toBe(
+          '全部',
+        );
+      });
+
+      it('按摺疊鈕展開（hidden 拿掉）、再按收合；aria-expanded 與 chevron 跟著走', () => {
+        respond([person('t', {})]);
+        fold().click();
+        fixture.detectChanges();
+        expect(panel().classList).not.toContain('hidden');
+        expect(panel().classList).toContain('wide:grid');
+        expect(fold().getAttribute('aria-expanded')).toBe('true');
+        expect(fold().querySelector('i')!.classList).toContain('rotate-180');
+        fold().click();
+        fixture.detectChanges();
+        expect(panel().classList).toContain('hidden');
+        expect(fold().getAttribute('aria-expanded')).toBe('false');
+      });
+
+      it('摺疊列的摘要跟著篩選走（手機看不到面板時仍知道有篩選）', () => {
+        respond([person('t', {})]);
+        (component as any).onRoleFilterChange('admin');
+        fixture.detectChanges();
+        expect(fold().querySelector('[data-testid="filter-fold-meta"]')!.textContent!.trim()).toBe(
+          '管理員',
+        );
+      });
+
+      it('下拉改值會帶進查詢：角色、科目、狀態各一次，「全部」回到未帶參數', () => {
+        respond([person('t', {})]);
+        const pick = (label: string, value: unknown) => {
+          const i = ['角色', '教學科目', '狀態'].indexOf(label);
+          fixture.debugElement
+            .queryAll(By.directive(Select))
+            [i].triggerEventHandler('ngModelChange', value);
+        };
+        pick('角色', 'teacher');
+        expect(lastList()).toMatchObject({ role: 'teacher' });
+        pick('教學科目', 'sub-1');
+        expect(lastList()).toMatchObject({ role: 'teacher', subjectId: 'sub-1' });
+        pick('狀態', 'inactive');
+        expect(lastList()).toMatchObject({ status: 'inactive' });
+        pick('角色', null);
+        pick('教學科目', null);
+        pick('狀態', 'live');
+        expect(lastList()).toMatchObject({
+          role: undefined,
+          subjectId: undefined,
+          status: undefined,
+        });
+      });
+
+      it('狀態選項五個、預設「啟用中＋已停用」；角色選項首項是「全部角色」', () => {
+        respond([person('t', {})]);
+        expect((component as any).statusOptions.map((o: { label: string }) => o.label)).toEqual([
+          '啟用中＋已停用',
+          '啟用中',
+          '已停用',
+          '已封存',
+          '全部（含已封存）',
+        ]);
+        expect((component as any).roleSelectOptions[0]).toEqual({ value: null, label: '全部角色' });
+        expect((component as any).subjectSelectOptions()[0]).toEqual({
+          value: null,
+          label: '全部科目',
+        });
+      });
+    });
+
+    it('操作紀錄是無圖示的次要鈕（A6）；新增人員仍帶 + 圖示；「⋯」還在', () => {
+      respond([person('t', {})]);
+      expect((component as any).secondaryAction).toEqual({ label: '操作紀錄' });
+      expect((component as any).primaryAction.icon).toBe('pi pi-plus');
+      expect(root().querySelector('[data-testid="staff-page-menu"]')).not.toBeNull();
+      expect(root().querySelector('app-filter-toggle')).toBeNull();
     });
 
     it('列上：角色 chip、科目、狀態、電話都是純文字（沒有 tel 連結）', () => {
