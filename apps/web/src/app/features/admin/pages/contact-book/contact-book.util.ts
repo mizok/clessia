@@ -108,7 +108,8 @@ const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
 export function dayLabel(date: string, today: string): string {
   const weekday = WEEKDAY[new Date(`${date}T00:00:00`).getDay()];
   const prefix = date === today ? '今天 ' : date === shiftDay(today, -1) ? '昨天 ' : '';
-  return `${prefix}${date.slice(5)}（${weekday}）`;
+  // A6 的短日期不補零：10/1（四）
+  return `${prefix}${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}（${weekday}）`;
 }
 
 function shiftDay(date: string, delta: number): string {
@@ -132,4 +133,14 @@ export function missingDayOptions(today: string): Array<{ label: string; value: 
     ...days.map((date) => ({ label: dayLabel(date, today), value: date })),
     { label: '其他日期…', value: OTHER_DAY },
   ];
+}
+
+/**
+ * 「這週」的第一天：**週一**（台北曆日字串，用 UTC 做日期運算，不吃瀏覽器時區）。
+ * 週一當天回自己、週日回 6 天前的週一 —— A6 色面「這週家長還沒簽」＝週一到今天。
+ */
+export function weekStart(today: string): string {
+  const day = new Date(`${today}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+  return day.toISOString().slice(0, 10);
 }

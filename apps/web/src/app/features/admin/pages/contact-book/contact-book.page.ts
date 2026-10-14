@@ -26,6 +26,7 @@ import { ContactBookEntryDialogComponent } from '@shared/components/contact-book
 import {
   dateRangeOf,
   dayLabel,
+  weekStart,
   groupEntriesByDay,
   groupMissingByClass,
   missingDayOptions,
@@ -34,7 +35,6 @@ import {
   signedTimeText,
 } from './contact-book.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
-import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
 
 const DEFAULT_RANGE_DAYS = 7;
 
@@ -64,7 +64,6 @@ const DEFAULT_RANGE_DAYS = 7;
     EmptyStateComponent,
     StudentAutocompleteComponent,
     SelectFieldComponent,
-    FilterChipComponent,
     PageOpenComponent,
   ],
   providers: [MessageService, DialogService],
@@ -143,9 +142,29 @@ export class ContactBookPage implements OnInit {
     () => this.unsignedOnly() || this.selectedStudent() !== null,
   );
 
+  /**
+   * 色面兩個數字（A6）：**固定**「今天還沒寫」「這週家長還沒簽」，**不隨下面的篩選／日期走**。
+   * 各自一支獨立的請求（今天的缺漏名單；週一到今天的列表）；失敗就顯示「—」，不宣稱 0。
+   */
+  protected readonly heroMissingToday = signal<number | null>(null);
+  protected readonly heroUnsignedWeek = signal<number | null>(null);
+
   ngOnInit(): void {
     this.load();
     this.loadMissing();
+    this.loadHero();
+  }
+
+  protected loadHero(): void {
+    const today = this.today;
+    this.service.missing(today).subscribe({
+      next: (res) => this.heroMissingToday.set(res.data.length),
+      error: () => this.heroMissingToday.set(null),
+    });
+    this.service.list({ from: weekStart(today), to: today }).subscribe({
+      next: (res) => this.heroUnsignedWeek.set(res.data.filter((entry) => !entry.isSigned).length),
+      error: () => this.heroUnsignedWeek.set(null),
+    });
   }
 
   private get overlayContainer(): HTMLElement | null {
@@ -232,6 +251,7 @@ export class ContactBookPage implements OnInit {
       this.missing.update((list) => list.filter((item) => item.studentId !== created.studentId));
       // 新寫的那則若落在列表的區間內就該出現 —— 這裡重打列表比自己插入可靠
       this.load();
+      this.loadHero();
     });
   }
 

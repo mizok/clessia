@@ -1,5 +1,7 @@
 import {
   dateRangeOf,
+  dayLabel,
+  weekStart,
   groupEntriesByDay,
   groupMissingByClass,
   missingDayOptions,
@@ -149,11 +151,39 @@ describe('missingDayOptions', () => {
       '2026-08-24',
       'other',
     ]);
-    expect(options[0].label).toBe('今天 08-29（六）');
-    expect(options[1].label).toBe('昨天 08-28（五）');
+    expect(options[0].label).toBe('今天 8/29（六）');
+    expect(options[1].label).toBe('昨天 8/28（五）');
   });
 
   it('跨月往回也對', () => {
     expect(missingDayOptions('2026-09-01')[1].value).toBe('2026-08-31');
+  });
+});
+
+describe('dayLabel —— A6 短日期不補零', () => {
+  it('今天／昨天前綴；月日一位／兩位四種組合', () => {
+    expect(dayLabel('2026-10-01', '2026-10-01')).toBe('今天 10/1（四）');
+    expect(dayLabel('2026-09-30', '2026-10-01')).toBe('昨天 9/30（三）');
+    expect(dayLabel('2026-09-05', '2026-10-01')).toBe('9/5（六）');
+    expect(dayLabel('2026-10-15', '2026-10-20')).toBe('10/15（四）');
+    expect(dayLabel('2026-11-05', '2026-12-20')).toBe('11/5（四）');
+  });
+});
+
+describe('weekStart —— 「這週」從週一算（台北曆日字串）', () => {
+  it('週一回自己；週二回前一天；週日回 6 天前（週一 ±1 邊界）', () => {
+    expect(weekStart('2027-03-01')).toBe('2027-03-01'); // 週一
+    expect(weekStart('2027-03-02')).toBe('2027-03-01'); // 週二
+    expect(weekStart('2027-03-05')).toBe('2027-03-01'); // 週五
+    expect(weekStart('2027-03-06')).toBe('2027-03-01'); // 週六
+    expect(weekStart('2027-03-07')).toBe('2027-03-01'); // 週日
+    expect(weekStart('2027-03-08')).toBe('2027-03-08'); // 下個週一
+  });
+
+  it('跨月、跨年、閏日', () => {
+    expect(weekStart('2027-01-01')).toBe('2026-12-28'); // 週五，跨年
+    expect(weekStart('2026-10-01')).toBe('2026-09-28'); // 週四，跨月
+    expect(weekStart('2028-03-01')).toBe('2028-02-28'); // 週三，2028 閏年 2/29 在其後
+    expect(weekStart('2028-02-29')).toBe('2028-02-28'); // 週二，閏日
   });
 });
