@@ -1377,6 +1377,15 @@ export class CoursesPage implements OnInit {
     return open > 0 ? `，開班中 ${open}` : '，都沒有在開';
   }
 
+  /**
+   * 這門課被「含歷史班級」關掉而沒列出來的已結束班數（A6「另有 N 個已結束的班…」）。
+   * 數字來自列表 API 的 `endedClassCount`（套分校範圍）；已經打開「含歷史班級」就是 0 —— 它們都列在下面了。
+   * 沒給（舊後端）也是 0，不用前端列出的班去猜。
+   */
+  protected hiddenEndedCount(group: CourseGroup): number {
+    return this.showHistorical() ? 0 : (group.course.endedClassCount ?? 0);
+  }
+
   protected hasCourseNeedsIntervention(group: CourseGroup): boolean {
     const stats = this.getCourseInterventionStats(group);
     return (

@@ -315,7 +315,16 @@
                       />
                     } @empty {
                       <p class="m-0 border-t border-zinc-100 py-3 text-md text-zinc-600">
-                        還沒有班。按「新增班」開第一個班。
+                        @if (hiddenEndedCount(group); as ended) {
+                          只有已結束的班（{{ ended }} 個）。打開篩選裡的「含歷史班級」看。
+                        } @else {
+                          還沒有班。按「新增班」開第一個班。
+                        }
+                      </p>
+                    }
+                    @if (group.classes.length > 0 && hiddenEndedCount(group); as ended) {
+                      <p class="m-0 border-t border-zinc-100 py-3 text-md text-zinc-600">
+                        另有 {{ ended }} 個已結束的班，打開篩選裡的「含歷史班級」看。
                       </p>
                     }
                   </div>
