@@ -18,6 +18,8 @@ export interface Course {
   updatedAt: string;
   /** 列表才有（#1314 (c)）：進行中的班數（啟用且未結束，套分校範圍）。單筆不帶 */
   activeClassCount?: number;
+  /** 列表才有：已結束的班數（`end_date` 早於台北今天，套分校範圍）。給「另有 N 個已結束的班」提示 */
+  endedClassCount?: number;
 }
 
 export interface CourseListResponse {

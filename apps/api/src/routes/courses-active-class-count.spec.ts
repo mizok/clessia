@@ -30,7 +30,10 @@ const cls = (id: string, courseId: string, extra: Record<string, unknown> = {}) 
   ...extra,
 });
 
-async function list(campusScope: string[] | null = null) {
+async function list(
+  campusScope: string[] | null = null,
+  field: 'activeClassCount' | 'endedClassCount' = 'activeClassCount',
+) {
   const db = createMultiOrgDb({
     courses: [course('k1'), course('k2')],
     subjects: [{ id: 'sub-1', org_id: ORG, name: '數學', sort_order: 0 }],
@@ -40,6 +43,7 @@ async function list(campusScope: string[] | null = null) {
       cls('c3', 'k1', { end_date: '2999-12-31' }),
       cls('c-off', 'k1', { is_active: false }),
       cls('c-ended', 'k1', { end_date: '2000-01-01' }),
+      cls('c-ended-2', 'k1', { end_date: '2000-02-01', campus_id: 'campus-2', is_active: false }),
       cls('c-other', 'k1', { org_id: 'org-b' }),
     ],
   });
@@ -56,8 +60,10 @@ async function list(campusScope: string[] | null = null) {
   app.route('/', coursesRoute as unknown as Hono);
   const res = await app.request('/');
   expect(res.status).toBe(200);
-  const body = (await res.json()) as { data: Array<{ id: string; activeClassCount: number }> };
-  return Object.fromEntries(body.data.map((row) => [row.id, row.activeClassCount]));
+  const body = (await res.json()) as {
+    data: Array<{ id: string; activeClassCount: number; endedClassCount: number }>;
+  };
+  return Object.fromEntries(body.data.map((row) => [row.id, row[field]]));
 }
 
 describe('GET /courses —— activeClassCount（#1314 (c)）', () => {
@@ -67,5 +73,16 @@ describe('GET /courses —— activeClassCount（#1314 (c)）', () => {
 
   it('受限者只數範圍內分校的班', async () => {
     expect(await list(['campus-1'])).toEqual({ k1: 2, k2: 0 });
+  });
+});
+
+describe('GET /courses —— endedClassCount（課程列「另有 N 個已結束的班」）', () => {
+  it('數 end_date 早於今天的班（不論啟用與否）；本 org、沒有班是 0；啟用中的與沒有結束日的不算', async () => {
+    // c-ended（campus-1）＋c-ended-2（campus-2、已停用）；c3 結束日在遠未來、c-off 沒有結束日 → 都不算
+    expect(await list(null, 'endedClassCount')).toEqual({ k1: 2, k2: 0 });
+  });
+
+  it('受限者只數範圍內分校的班', async () => {
+    expect(await list(['campus-1'], 'endedClassCount')).toEqual({ k1: 1, k2: 0 });
   });
 });
