@@ -377,6 +377,43 @@ describe('MealsComponent', () => {
       expect(component['headline']()!.second).toBe('還有 2 位沒處理。');
     });
 
+    describe('「未處理」點的色調（過去日期＝overdue、今天與之後＝pending）', () => {
+      // fake today 刻意設成與真實日期不同的一天（遠在未來）—— 元件若改回 `new Date()`，
+      // 真實今天 < 2027-03-04，「昨天」就會被判成 pending，這條才會紅
+      const FAKE_TODAY = '2027-03-05';
+      const toneOn = async (day: string) => {
+        meals.roster.mockReturnValue(of(roster([person('a')]))); // recordId null＝未處理
+        component['onDateChange'](day);
+        await fixture.whenStable();
+        fixture.detectChanges();
+        return component['unhandledTone']();
+      };
+
+      it('昨天 → overdue；今天 → pending；明天 → pending（臨界 ±1 天）', async () => {
+        today.set(FAKE_TODAY);
+        expect(await toneOn('2027-03-04')).toBe('overdue');
+        expect(await toneOn('2027-03-05')).toBe('pending');
+        expect(await toneOn('2027-03-06')).toBe('pending');
+      });
+
+      it('畫面上那顆點真的帶著對應的 tone class', async () => {
+        today.set(FAKE_TODAY);
+        await toneOn('2027-03-04');
+        expect(fixture.nativeElement.querySelector('.status-dot--overdue')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('.status-dot--pending')).toBeNull();
+        await toneOn('2027-03-05');
+        expect(fixture.nativeElement.querySelector('.status-dot--pending')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('.status-dot--overdue')).toBeNull();
+      });
+
+      it('台北時鐘跨過午夜：同一天先是 pending、過了午夜變 overdue', async () => {
+        today.set('2027-03-05');
+        expect(await toneOn('2027-03-05')).toBe('pending');
+        today.set('2027-03-06'); // 台北過午夜，3/5 成了過去
+        expect(component['unhandledTone']()).toBe('overdue');
+      });
+    });
+
     it('章頭「訂 N／M」：分子是這班訂了幾位，不是總數（0／部分／全部）', async () => {
       await load([
         person('a', { classNames: ['數學'], recordId: 'r1', ordered: true }),
