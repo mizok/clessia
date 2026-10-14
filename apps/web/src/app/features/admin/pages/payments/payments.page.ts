@@ -1,10 +1,25 @@
-import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
-import { forkJoin, of } from 'rxjs';
+import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  EMPTY,
+  Subject,
+  firstValueFrom,
+  catchError,
+  debounceTime,
+  filter,
+  forkJoin,
+  of,
+  switchMap,
+} from 'rxjs';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { InputTextModule } from 'primeng/inputtext';
+import { PopoverModule, type Popover } from 'primeng/popover';
 import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -23,12 +38,7 @@ import {
   type InvoiceStatus,
   type InvoiceSummary,
 } from '@core/invoices.service';
-import {
-  GRADE_LEVEL_LABELS,
-  StudentsService,
-  type GradeLevel,
-  type Student,
-} from '@core/students.service';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { SystemClockService } from '@core/system-clock.service';
 
@@ -39,7 +49,6 @@ import {
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
@@ -58,6 +67,9 @@ import { PaymentFormDialogComponent } from './payment-form-dialog/payment-form-d
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
 import {
+  EXPORT_SCOPE_LABELS,
+  invoiceExportRow,
+  type ExportScope,
   daysOverdue,
   canRemind,
   daysUntilDue,
@@ -131,7 +143,10 @@ const emptyChapter = (): ChapterState => ({
     PageActionsComponent,
     PageOpenComponent,
     EmptyStateComponent,
-    StudentAutocompleteComponent,
+    IconFieldModule,
+    InputIconModule,
+    InputTextModule,
+    PopoverModule,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
@@ -147,7 +162,7 @@ export class PaymentsPage implements OnInit {
   readonly due = input<string | undefined>();
 
   private readonly service = inject(InvoicesService);
-  private readonly studentsService = inject(StudentsService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
@@ -213,8 +228,17 @@ export class PaymentsPage implements OnInit {
         return '';
     }
   });
-  protected readonly student = signal<Student | string | null>(null);
-  protected readonly studentSuggestions = signal<Student[]>([]);
+  /**
+   * 搜尋框（學生名、家長名、帳單編號；後端 `search`）。節流 + 去重之後才進 `load()`。
+   * 取代原本的學生自動完成：它只能選學生，搜不到家長與帳單編號。
+   */
+  protected readonly searchQuery = signal('');
+  private readonly searchInput = new Subject<string>();
+  /**
+   * **所有**取數都經過這裡再 `switchMap`：搜尋是逐字打的，慢的那支後到會蓋掉新的結果，
+   * 而畫面上輸入框顯示的是最新的字（見 students.page 的同款說明）。
+   */
+  private readonly loadRequests = new Subject<void>();
   protected readonly pageIndex = signal(1);
   protected readonly totalRecords = signal(0);
   protected readonly statusFilter = signal<InvoiceStatus | null>(null);
@@ -231,6 +255,22 @@ export class PaymentsPage implements OnInit {
    */
   private readonly systemClock = inject(SystemClockService);
   protected readonly today = this.systemClock.todayTaipei;
+
+  /**
+   * 匯出（A6 匯出面板）：月份預設**今天所在的台北月**，範圍三選一。
+   * **匯出範圍不跟畫面上的篩選走**——面板上寫什麼就匯什麼，避免「畫面是逾期、檔案是全部」的落差。
+   */
+  protected readonly exportMonth = signal(this.systemClock.todayTaipei().slice(0, 7));
+  protected readonly exportScope = signal<ExportScope>('all');
+  protected readonly exporting = signal(false);
+  protected readonly exportScopeOptions = (Object.keys(EXPORT_SCOPE_LABELS) as ExportScope[]).map(
+    (value) => ({ value, label: EXPORT_SCOPE_LABELS[value] }),
+  );
+
+  /** 工具列「⋯」：現況有、A6 沒畫的次要動作收在這裡 */
+  protected readonly pageMenuItems: MenuItem[] = [
+    { label: '操作紀錄', icon: 'pi pi-history', command: () => this.openAuditLog() },
+  ];
 
   /**
    * 已經生效、但從來沒開過帳單的報名數。
@@ -270,14 +310,8 @@ export class PaymentsPage implements OnInit {
   });
 
   protected readonly hasFilters = computed(
-    () =>
-      this.dueFilter() !== 'all' || this.statusFilter() !== null || this.selectedStudent() !== null,
+    () => this.dueFilter() !== 'all' || this.statusFilter() !== null || this.searchQuery() !== '',
   );
-
-  protected readonly selectedStudent = computed(() => {
-    const value = this.student();
-    return typeof value === 'string' || value === null ? null : value;
-  });
 
   /**
    * 帳本彙總（#1314 P1／P2）。**金額與張數全由後端加總**，這裡只顯示；
@@ -388,6 +422,18 @@ export class PaymentsPage implements OnInit {
   protected readonly PAGE_SIZE = PAGE_SIZE;
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+    this.searchInput
+      .pipe(
+        debounceTime(300),
+        // 對照目前生效的查詢（不是上一次輸入）：清除篩選會直接清掉 searchQuery，之後再打同一個字要送得出去
+        filter((value) => value !== this.searchQuery()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((value) => {
+        this.searchQuery.set(value);
+        this.reload();
+      });
     const due = this.due();
     if (due === 'overdue' || due === 'outstanding' || due === 'dueSoon') this.dueFilter.set(due);
     this.load();
@@ -525,6 +571,56 @@ export class PaymentsPage implements OnInit {
     });
   }
 
+  protected async exportInvoices(popover: Popover): Promise<void> {
+    const month = this.exportMonth();
+    if (this.exporting() || !/^\d{4}-\d{2}$/.test(month)) return;
+    this.exporting.set(true);
+    try {
+      const scope = this.exportScope();
+      const rows: Invoice[] = [];
+      // 一頁最多 200 筆；用 meta.total 判斷收完了沒
+      for (let page = 1; ; page++) {
+        const res = await firstValueFrom(
+          this.service.list({
+            issuedMonth: month,
+            overdue: scope === 'overdue' || undefined,
+            outstanding: scope === 'outstanding' || undefined,
+            page,
+            pageSize: 200,
+          }),
+        );
+        rows.push(...res.data);
+        if (res.data.length === 0 || rows.length >= res.meta.total) break;
+      }
+      if (rows.length === 0) {
+        this.messageService.add({
+          severity: 'info',
+          summary: '沒有可匯出的帳單',
+          detail: `${month} 沒有符合的帳單`,
+        });
+        return;
+      }
+      const XLSX = await import('xlsx');
+      const sheet = XLSX.utils.json_to_sheet(
+        rows.map((row) => invoiceExportRow(row, this.today())),
+      );
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, '帳單');
+      const suffix = scope === 'all' ? '' : `_${EXPORT_SCOPE_LABELS[scope]}`;
+      XLSX.writeFile(book, `帳單_${month}${suffix}.xlsx`);
+      popover.hide();
+      this.messageService.add({
+        severity: 'success',
+        summary: '已匯出',
+        detail: `${rows.length} 張帳單（Excel）`,
+      });
+    } catch {
+      this.messageService.add({ severity: 'error', summary: '匯出失敗', detail: '請稍後再試' });
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
   protected openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
       width: '800px',
@@ -544,31 +640,42 @@ export class PaymentsPage implements OnInit {
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
+    this.loadRequests.next();
+  }
 
-    this.service
-      .list({
-        studentId: this.selectedStudent()?.id,
-        outstanding: this.dueFilter() === 'outstanding' || undefined,
-        // 章節模式下這張表就是逾期章
-        overdue: this.dueFilter() === 'overdue' || this.chapterMode() || undefined,
-        // 同一個閉區間，判準在後端 `dueStateOn`；前端不再帶天數
-        dueState: this.dueFilter() === 'dueSoon' ? 'dueSoon' : undefined,
-        status: this.statusFilter() ?? undefined,
-        page: this.pageIndex(),
-        pageSize: PAGE_SIZE,
-      })
-      .subscribe({
-        next: (res) => {
-          this.invoices.set(res.data);
-          this.totalRecords.set(res.meta.total);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.invoices.set([]);
-          this.totalRecords.set(0);
-          this.failed.set(true);
-          this.loading.set(false);
-        },
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.service
+            .list({
+              search: this.searchQuery() || undefined,
+              outstanding: this.dueFilter() === 'outstanding' || undefined,
+              // 章節模式下這張表就是逾期章
+              overdue: this.dueFilter() === 'overdue' || this.chapterMode() || undefined,
+              // 同一個閉區間，判準在後端 `dueStateOn`；前端不再帶天數
+              dueState: this.dueFilter() === 'dueSoon' ? 'dueSoon' : undefined,
+              status: this.statusFilter() ?? undefined,
+              page: this.pageIndex(),
+              pageSize: PAGE_SIZE,
+            })
+            // catchError 必須在內層：外層的 error 會終止整條管線，一次失敗就讓這頁再也載不了
+            .pipe(
+              catchError(() => {
+                this.invoices.set([]);
+                this.totalRecords.set(0);
+                this.failed.set(true);
+                this.loading.set(false);
+                return EMPTY;
+              }),
+            ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        this.invoices.set(res.data);
+        this.totalRecords.set(res.meta.total);
+        this.loading.set(false);
       });
   }
 
@@ -589,31 +696,14 @@ export class PaymentsPage implements OnInit {
     this.reload();
   }
 
-  protected onStudentChange(value: Student | string | null): void {
-    this.student.set(value);
-    // 打字中間會是字串，那還不是一個選定的學生，不要每個字都打一次 API
-    if (typeof value !== 'string') this.reload();
-  }
-
-  protected onStudentQuery(query: string): void {
-    if (!query.trim()) {
-      this.studentSuggestions.set([]);
-      return;
-    }
-
-    this.studentsService
-      .list({ search: query, searchScope: 'student_name', pageSize: 20 })
-      .subscribe({
-        next: (res) => this.studentSuggestions.set(res.data),
-        error: () => this.studentSuggestions.set([]),
-      });
+  protected onSearchChange(value: string): void {
+    this.searchInput.next(value.trim());
   }
 
   protected clearFilters(): void {
     this.dueFilter.set('all');
     this.statusFilter.set(null);
-    this.student.set(null);
-    this.studentSuggestions.set([]);
+    this.searchQuery.set('');
     this.reload();
   }
 

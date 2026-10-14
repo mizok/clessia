@@ -60,22 +60,31 @@
   <div
     class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 py-3 wide:min-h-16 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
     role="search"
-    aria-label="篩選帳單"
+    aria-label="帳單搜尋與篩選"
   >
-    <!-- 手機：搜尋框＋「篩選：全部」＋次要行動同一列（#1314 ③）；桌機 contents 攤平回原本的排法 -->
-    <div class="flex w-full items-center gap-2 wide:contents">
+    <!-- A6 單列：搜尋｜篩選｜（右）開立帳單、匯出、⋯。手機同一列放搜尋＋匯出＋⋯，「篩選」換到下一行 -->
+    <div class="flex w-full flex-wrap items-center gap-2 wide:contents">
       <div class="clessia-filter-search min-w-0 flex-1 wide:w-80 wide:flex-none">
-        <app-student-autocomplete
-          [value]="student()"
-          (valueChange)="onStudentChange($event)"
-          [suggestions]="studentSuggestions()"
-          (queryChange)="onStudentQuery($event)"
-          placeholder="輸入學生姓名篩選"
-        />
+        <p-iconfield iconPosition="left">
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="找學生、家長或帳單編號"
+            aria-label="搜尋帳單"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+            class="clessia-filter-search-input"
+          />
+        </p-iconfield>
       </div>
+      <!-- 手機：強制換行，讓「篩選」落到搜尋列下一行（不然搜尋框被擠成一個放大鏡） -->
+      <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-filter-toggle
+        class="order-2 wide:order-none"
         [summary]="panelFilterSummary()"
         [active]="panelFilterSummary() !== '全部'"
+        [always]="true"
         [(open)]="filtersOpen"
         controls="payments-filters"
       />
@@ -83,22 +92,73 @@
         class="wide:order-3 wide:ml-auto"
         [primary]="primaryAction()"
         [secondary]="secondaryAction()"
+        [primaryOnDesktop]="false"
+        [secondaryOnDesktop]="false"
         (primaryClick)="onPrimaryAction($event, remindMenu)"
         (secondaryClick)="openCreateDialog()"
       >
         <p-button
-          icon="pi pi-history"
+          class="hidden wide:block"
+          label="開立帳單"
+          icon="pi pi-plus"
+          (onClick)="openCreateDialog()"
+        />
+        <p-button
+          icon="pi pi-download"
           [outlined]="true"
           severity="secondary"
-          ariaLabel="操作紀錄"
-          title="操作紀錄"
-          (onClick)="openAuditLog()"
+          ariaLabel="匯出"
+          title="匯出"
+          (onClick)="exportPanel.toggle($event)"
+        />
+        <app-popup-menu #pageMenu [model]="pageMenuItems" />
+        <p-button
+          icon="pi pi-ellipsis-h"
+          [outlined]="true"
+          severity="secondary"
+          ariaLabel="更多動作"
+          title="更多動作"
+          (onClick)="pageMenu.toggle($event)"
         />
       </app-page-actions>
+      <p-popover #exportPanel appendTo="body">
+        <form
+          class="flex w-80 flex-col gap-3"
+          aria-label="匯出帳單"
+          (submit)="$event.preventDefault(); exportInvoices(exportPanel)"
+        >
+          <h2 class="m-0 text-base font-semibold text-zinc-900">匯出帳單</h2>
+          <label class="flex flex-col gap-1 text-sm text-zinc-600"
+            >月份（開立日）
+            <input
+              type="month"
+              pInputText
+              name="exportMonth"
+              [ngModel]="exportMonth()"
+              (ngModelChange)="exportMonth.set($event)"
+            />
+          </label>
+          <p-selectButton
+            [options]="exportScopeOptions"
+            [ngModel]="exportScope()"
+            (ngModelChange)="exportScope.set($event ?? 'all')"
+            [ngModelOptions]="{ standalone: true }"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            size="small"
+            ariaLabel="匯出範圍"
+          />
+          <p class="m-0 text-sm text-zinc-600">
+            格式：Excel（.xlsx）。範圍以這裡的選擇為準，不跟畫面上的篩選。
+          </p>
+          <p-button type="submit" label="匯出" icon="pi pi-download" [loading]="exporting()" />
+        </form>
+      </p-popover>
     </div>
     <div
       id="payments-filters"
-      class="w-full flex-wrap items-center gap-3 wide:contents"
+      class="w-full flex-wrap items-center gap-3 wide:order-3 wide:basis-full"
       [class.hidden]="!filtersOpen()"
       [class.flex]="filtersOpen()"
     >
@@ -176,6 +236,19 @@
             class="ml-1 text-lg font-bold tracking-[-0.02em] text-zinc-900 wide:mt-1 wide:ml-0 wide:block"
             >NT$ {{ s.overdue.outstanding | number }}</b
           >
+        }
+        @if (remindAllIds().length > 0) {
+          <!-- A6：「全部提醒」在章頭（桌機）；手機由底部托盤承擔 -->
+          <div chapterActions class="mt-3 hidden wide:block">
+            <p-button
+              size="small"
+              [outlined]="true"
+              severity="secondary"
+              icon="pi pi-bell"
+              [label]="'全部提醒（' + remindAllIds().length + '）'"
+              (onClick)="openRemindMenu($event, remindMenu, null)"
+            />
+          </div>
         }
       </app-chapter-head>
       <div class="flex min-w-0 flex-col gap-3">
@@ -344,11 +417,11 @@
           (onClick)="setDueFilter('all')"
         />
       </app-empty-state>
-    } @else if (selectedStudent()) {
+    } @else if (searchQuery()) {
       <app-empty-state
         icon="pi pi-search"
-        title="這位學生還沒有帳單"
-        [description]="selectedStudent()!.name + ' 名下目前沒有任何帳單'"
+        title="找不到符合的帳單"
+        [description]="'沒有學生、家長或帳單編號符合「' + searchQuery() + '」'"
       >
         <p-button label="清除篩選" [text]="true" severity="secondary" (onClick)="clearFilters()" />
       </app-empty-state>
