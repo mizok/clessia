@@ -16,7 +16,7 @@ import {
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { DatePipe } from '@angular/common';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   addDays,
   endOfMonth,
@@ -76,7 +76,6 @@ import {
   DEFAULT_STATUSES,
   statusesAreFiltering,
 } from './components/session-filters/session-filters.component';
-import { SessionsHeaderComponent } from './components/sessions-header/sessions-header.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import {
   SessionBatchComponent,
@@ -127,7 +126,6 @@ const FETCH_LIMIT = 500;
     CampusScopeNoteComponent,
     ToastModule,
     PopupMenuComponent,
-    SessionsHeaderComponent,
     DatePipe,
     SessionBatchComponent,
     ScheduleGanttComponent,
@@ -136,7 +134,6 @@ const FETCH_LIMIT = 500;
     ScheduleQuickSheetComponent,
     ScheduleChangesDrawerComponent,
     ScheduleChangesTickerComponent,
-    RouterLink,
     SessionFiltersComponent,
     LoadFailedComponent,
     PageOpenComponent,
@@ -420,6 +417,56 @@ export class SessionsPage implements OnInit {
         );
       }),
     );
+  });
+
+  // ── 「⋯」選單（A6 工具列只畫日／週、日期條、快速選取；其餘動作收在這） ─────────────
+  /** ⋯ 上的數字：本月未指派＋今日未點名的堂數（兩個都是「等人處理」的待辦） */
+  protected readonly moreMenuBadge = computed(
+    () => this.monthUnassignedCount() + this.todayPendingAttendanceCount(),
+  );
+  protected readonly moreMenuItems = computed<MenuItem[]>(() => {
+    const scope = this.selectedCampusName() ? '此分校' : '';
+    const items: MenuItem[] = [];
+    if (this.monthUnassignedCount() > 0) {
+      items.push({
+        label: `${scope}本月未指派 ${this.monthUnassignedCount()} 堂`,
+        icon: 'pi pi-user-plus',
+        command: () => this.onFilterUnassigned(),
+      });
+    }
+    if (this.todayPendingAttendanceCount() > 0) {
+      items.push({
+        label: `${scope}今日未點名 ${this.todayPendingAttendanceCount()} 堂`,
+        icon: 'pi pi-check-circle',
+        command: () => this.onFilterPendingAttendance(),
+      });
+    }
+    if (items.length) items.push({ separator: true });
+    items.push({
+      label: '全部異動',
+      icon: 'pi pi-list',
+      command: () =>
+        void this.router.navigate([], { fragment: 'changes', queryParamsHandling: 'preserve' }),
+    });
+    const filterCount = this.activeFilterCount();
+    items.push({
+      label: filterCount ? `進階篩選（${filterCount}）` : '進階篩選',
+      icon: 'pi pi-sliders-h',
+      command: () => this.openAdvancedFiltersDialog(),
+    });
+    if (this.mode() !== 'results' && !this.hiddenCancelledCount() && this.showsCancelled()) {
+      items.push({
+        label: '隱藏停課',
+        icon: 'pi pi-eye-slash',
+        command: () => this.hideCancelled(),
+      });
+    }
+    items.push({
+      label: '操作紀錄',
+      icon: 'pi pi-history',
+      command: () => this.openOperationsLog(),
+    });
+    return items;
   });
 
   // ── Context menu ───────────────────────────────────────────────────────
