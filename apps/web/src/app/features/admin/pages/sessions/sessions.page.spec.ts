@@ -1499,6 +1499,12 @@ describe('SessionsPage', () => {
     });
     afterEach(() => Object.assign(proto, original));
 
+    const moreItems = () =>
+      (
+        component as unknown as {
+          moreMenuItems: () => { label?: string; command?: (e: never) => void }[];
+        }
+      ).moreMenuItems();
     const settle = async () => {
       fixture.detectChanges();
       await fixture.whenStable();
@@ -1591,26 +1597,29 @@ describe('SessionsPage', () => {
       );
     });
 
-    it('入口是一個帶 #changes 的連結', async () => {
+    // #1314：入口從工具列收進「⋯」（A6 工具列沒畫它；跑馬燈沒異動時不畫，所以入口不能只靠它）
+    it('「⋯」選單的「全部異動」把 fragment 設成 changes', async () => {
       await settle();
-      const link = (fixture.nativeElement as HTMLElement).querySelector(
-        'a[href*="#changes"]',
-      ) as HTMLAnchorElement | null;
-      expect(link?.textContent).toContain('全部異動');
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+      const item = moreItems().find((i) => i.label === '全部異動');
+      item?.command?.({} as never);
+      expect(navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({ fragment: 'changes', queryParamsHandling: 'preserve' }),
+      );
     });
 
-    // #1441：360px 時入口折成兩行、週日期條字黏在一起。jsdom 不跑 Tailwind，
-    // 這裡釘的是意圖（nowrap／手機字級），結果由 PR 的 360 實拍證明。
-    it('入口不折行；週日期條七格用手機字級，上下週鈕手機收窄', async () => {
+    // #1441：360px 時週日期條字黏在一起。jsdom 不跑 Tailwind，
+    // 這裡釘的是意圖（手機字級），結果由 PR 的 360 實拍證明。
+    it('週日期條七格用手機字級（<md text-sm、md 以上 text-lg），上下週鈕手機收窄', async () => {
       await settle();
       const el = fixture.nativeElement as HTMLElement;
-      const link = el.querySelector('a[href*="#changes"]') as HTMLElement;
-      expect(link.classList.contains('whitespace-nowrap')).toBe(true);
-
       const dates = el.querySelectorAll('nav[aria-label="選擇日期"] button b');
       expect(dates.length).toBe(7);
-      for (const b of Array.from(dates)) expect(b.classList.contains('text-md')).toBe(true);
-
+      for (const b of Array.from(dates)) {
+        expect(b.classList.contains('text-sm')).toBe(true);
+        expect(b.classList.contains('md:text-lg')).toBe(true);
+      }
       for (const label of ['上一週', '下一週']) {
         const btn = el.querySelector(`button[aria-label="${label}"]`) as HTMLElement;
         expect(btn.classList.contains('w-8'), label).toBe(true);
@@ -1708,6 +1717,118 @@ describe('SessionsPage', () => {
       expect(c.pendingMenuSession()).toBeNull();
       // 待開的那堂會被 effect 消耗掉，所以光看它是 null 抓不到「沒擋」；day 沒被切走才是證據
       expect(format(c.day(), 'yyyy-MM-dd')).toBe('2026-04-15');
+    });
+  });
+
+  /** #1314 課表：A6 工具列只畫日／週、日期條、快速選取，其餘收進「⋯」，數字＝待處理堂數 */
+  describe('「⋯」選單', () => {
+    type C = {
+      monthUnassignedCount: { set: (v: number) => void };
+      todayPendingAttendanceCount: { set: (v: number) => void };
+      hiddenCancelledCount: { set: (v: number) => void };
+      moreMenuItems: () => { label?: string; separator?: boolean }[];
+    };
+    const c = () => component as unknown as C;
+    const labels = () =>
+      c()
+        .moreMenuItems()
+        .map((i) => i.label);
+    const badge = () =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '.more-menu-badge',
+      ) as HTMLElement | null;
+    const trigger = () =>
+      (fixture.nativeElement as HTMLElement).querySelector('.more-menu-trigger') as HTMLElement;
+
+    it('沒有待處理：沒有數字、沒有未指派／未點名項，固定項都在', () => {
+      c().monthUnassignedCount.set(0);
+      c().todayPendingAttendanceCount.set(0);
+      fixture.detectChanges();
+      expect(badge()).toBeNull();
+      expect(trigger().getAttribute('aria-label')).toBe('更多');
+      expect(labels()).toEqual(['全部異動', '進階篩選', '隱藏停課', '操作紀錄']);
+    });
+
+    it('門檻 1：未指派 1／未點名 0 與 未指派 0／未點名 1 各自出現；數字是兩者合計', () => {
+      c().monthUnassignedCount.set(1);
+      c().todayPendingAttendanceCount.set(0);
+      fixture.detectChanges();
+      expect(labels()).toContain('本月未指派 1 堂');
+      expect(labels().some((l) => l?.includes('未點名'))).toBe(false);
+      expect(badge()?.textContent?.trim()).toBe('1');
+
+      c().monthUnassignedCount.set(0);
+      c().todayPendingAttendanceCount.set(1);
+      fixture.detectChanges();
+      expect(labels().some((l) => l?.includes('未指派'))).toBe(false);
+      expect(labels()).toContain('今日未點名 1 堂');
+      expect(badge()?.textContent?.trim()).toBe('1');
+
+      c().monthUnassignedCount.set(3);
+      c().todayPendingAttendanceCount.set(2);
+      fixture.detectChanges();
+      expect(badge()?.textContent?.trim()).toBe('5');
+      expect(trigger().getAttribute('aria-label')).toBe('更多，5 堂待處理');
+    });
+
+    it('有待辦時待辦項與固定項之間有分隔線，沒有待辦時沒有（不以分隔線開頭）', () => {
+      c().monthUnassignedCount.set(1);
+      fixture.detectChanges();
+      expect(c().moreMenuItems()[1]?.separator).toBe(true);
+      c().monthUnassignedCount.set(0);
+      fixture.detectChanges();
+      expect(c().moreMenuItems()[0]?.separator).toBeUndefined();
+    });
+
+    it('已隱藏 N 堂停課：色面外有揭露鈕（#640），⋯ 不再提供「隱藏停課」', () => {
+      c().hiddenCancelledCount.set(0);
+      fixture.detectChanges();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.sessions-hidden-note'),
+      ).toBeNull();
+      c().hiddenCancelledCount.set(1);
+      fixture.detectChanges();
+      const note = (fixture.nativeElement as HTMLElement).querySelector('.sessions-hidden-note');
+      expect(note?.textContent).toContain('已隱藏 1 堂停課');
+      expect(labels()).not.toContain('隱藏停課');
+    });
+
+    it('有篩選但沒有被隱藏的停課：篩選列在、揭露鈕不在（0 堂不寫「已隱藏 0 堂」）', () => {
+      c().hiddenCancelledCount.set(0);
+      (
+        component as unknown as { selectedTeacherIds: { set: (v: string[]) => void } }
+      ).selectedTeacherIds.set(['t1']);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain('清除篩選');
+      expect(el.querySelector('.sessions-hidden-note')).toBeNull();
+    });
+
+    it('選了頂欄分校：待辦項寫「此分校」；沒選就不寫', () => {
+      c().monthUnassignedCount.set(2);
+      c().todayPendingAttendanceCount.set(3);
+      expect(labels()).toContain('本月未指派 2 堂');
+      expect(labels()).toContain('今日未點名 3 堂');
+
+      refDataMock.campuses.set([{ id: 'campus-1', name: '文山旗艦校' }]);
+      TestBed.inject(CampusContextService).select('campus-1');
+      expect(labels()).toContain('此分校本月未指派 2 堂');
+      expect(labels()).toContain('此分校今日未點名 3 堂');
+    });
+
+    it('結果模式（篩選中）不提供「隱藏停課」；日／週才有', () => {
+      expect(labels()).toContain('隱藏停課');
+      (component as unknown as { mode: { set: (v: string) => void } }).mode.set('results');
+      expect(labels()).not.toContain('隱藏停課');
+    });
+
+    it('Hero 不再放未指派／未點名連結', () => {
+      c().monthUnassignedCount.set(2);
+      c().todayPendingAttendanceCount.set(2);
+      fixture.detectChanges();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('app-page-open')?.textContent,
+      ).not.toContain('未指派');
     });
   });
 });

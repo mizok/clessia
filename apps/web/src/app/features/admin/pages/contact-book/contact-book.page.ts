@@ -1,6 +1,8 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
+import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -13,6 +15,7 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import {
   ContactBookService,
   type ContactBookEntry,
+  type ContactBookQueryParams,
   type MissingContactBookStudent,
 } from '@core/contact-book.service';
 import { StudentsService, type Student } from '@core/students.service';
@@ -31,8 +34,10 @@ import {
   groupMissingByClass,
   missingDayOptions,
   OTHER_DAY,
+  signedCellText,
   signedSummary,
-  signedTimeText,
+  CUSTOM_PERIOD,
+  PERIOD_OPTIONS,
 } from './contact-book.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 
@@ -155,6 +160,8 @@ export class ContactBookPage implements OnInit {
     this.loadHero();
   }
 
+  // ponytail: 「這週還沒簽」是前端數整週 list，受 PostgREST 1000 列上限；
+  // 升級路徑＝API 直接回未簽數（count），前端不再撈整週。
   protected loadHero(): void {
     const today = this.today;
     this.service.missing(today).subscribe({
@@ -171,23 +178,37 @@ export class ContactBookPage implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
+  /**
+   * 列表請求走 switchMap：期間、學生、重試連按時，**後發的請求蓋掉先發的**，
+   * 慢回來的舊回應不會把新結果覆蓋掉（亂序只會讓畫面停在舊區間，且沒有任何錯誤）。
+   */
+  private readonly listRequest$ = new Subject<ContactBookQueryParams>();
+
+  constructor() {
+    this.listRequest$
+      .pipe(
+        switchMap((params) =>
+          this.service.list(params).pipe(
+            map((res) => res.data),
+            catchError(() => of(null)),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((data) => {
+        this.entries.set(data ?? []);
+        this.failed.set(data === null);
+        this.loading.set(false);
+      });
+  }
+
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
 
     const [from, to] = rangeToStrings(this.dateRange, this.today);
 
-    this.service.list({ studentId: this.selectedStudent()?.id, from, to }).subscribe({
-      next: (res) => {
-        this.entries.set(res.data);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.entries.set([]);
-        this.failed.set(true);
-        this.loading.set(false);
-      },
-    });
+    this.listRequest$.next({ studentId: this.selectedStudent()?.id, from, to });
   }
 
   /** 缺漏名單自己失敗就好 —— 它掛掉不該讓下面的歷史列表也看不了 */
@@ -222,6 +243,10 @@ export class ContactBookPage implements OnInit {
   }
 
   protected readonly otherDay = OTHER_DAY;
+  protected readonly customPeriod = CUSTOM_PERIOD;
+  protected readonly periodOptions = PERIOD_OPTIONS;
+  /** 期間下拉選中值：天數字串，或 `CUSTOM_PERIOD`（此時顯示日期範圍選擇器） */
+  protected readonly periodPick = signal<string>(String(DEFAULT_RANGE_DAYS));
 
   /**
    * 從缺漏名單補寫一則。學生與日期都是清單給的 —— 不需要選擇器，
@@ -263,8 +288,17 @@ export class ContactBookPage implements OnInit {
     return dayLabel(date, this.today);
   }
 
-  protected signedTime(entry: ContactBookEntry): string {
-    return signedTimeText(entry.signedAt);
+  protected signedText(entry: ContactBookEntry): string {
+    return signedCellText(entry);
+  }
+
+  /** 選天數就換區間重查；選「自訂區間…」只展開範圍選擇器，等使用者選完才查 */
+  protected onPeriodPick(value: string | null): void {
+    if (!value) return;
+    this.periodPick.set(value);
+    if (value === CUSTOM_PERIOD) return;
+    this.dateRange = initialRange(this.today, Number(value));
+    this.load();
   }
 
   protected onDateRangeChange(value: Date[] | null): void {
@@ -303,6 +337,7 @@ export class ContactBookPage implements OnInit {
     this.unsignedOnly.set(false);
     this.student.set(null);
     this.studentSuggestions.set([]);
+    this.periodPick.set(String(DEFAULT_RANGE_DAYS));
     this.dateRange = initialRange(this.today);
     this.load();
   }
@@ -325,8 +360,8 @@ export class ContactBookPage implements OnInit {
 }
 
 /** 預設最近 7 天（含今天） */
-function initialRange(today: string): Date[] {
-  const { from, to } = dateRangeOf(DEFAULT_RANGE_DAYS, today);
+function initialRange(today: string, days = DEFAULT_RANGE_DAYS): Date[] {
+  const { from, to } = dateRangeOf(days, today);
   return [new Date(`${from}T00:00:00`), new Date(`${to}T00:00:00`)];
 }
 

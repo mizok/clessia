@@ -7,6 +7,9 @@ import {
   missingDayOptions,
   signedSummary,
   signedTimeText,
+  signedCellText,
+  PERIOD_OPTIONS,
+  CUSTOM_PERIOD,
 } from './contact-book.util';
 import type { ContactBookEntry } from '@core/contact-book.service';
 
@@ -19,6 +22,7 @@ function entry(overrides: Partial<ContactBookEntry> = {}): ContactBookEntry {
     content: '今天上課很專心。',
     lastEditedByName: '王老師',
     signedBy: null,
+    signedByName: null,
     signedAt: null,
     isSigned: false,
     ...overrides,
@@ -185,5 +189,37 @@ describe('weekStart —— 「這週」從週一算（台北曆日字串）', ()
     expect(weekStart('2026-10-01')).toBe('2026-09-28'); // 週四，跨月
     expect(weekStart('2028-03-01')).toBe('2028-02-28'); // 週三，2028 閏年 2/29 在其後
     expect(weekStart('2028-02-29')).toBe('2028-02-28'); // 週二，閏日
+  });
+});
+
+describe('signedCellText（C2）', () => {
+  const base = { id: 'e', isSigned: true } as ContactBookEntry;
+
+  it('有姓名＝「姓名 HH:mm 簽」（台北時間）', () => {
+    expect(
+      signedCellText({ ...base, signedByName: '林太太', signedAt: '2026-08-29T12:06:00Z' }),
+    ).toBe('林太太 20:06 簽');
+  });
+
+  it('沒有姓名退回「已簽收 HH:mm」', () => {
+    expect(signedCellText({ ...base, signedByName: null, signedAt: '2026-08-29T12:06:00Z' })).toBe(
+      '已簽收 20:06',
+    );
+  });
+
+  it('時間解析不了不留多餘空白', () => {
+    expect(signedCellText({ ...base, signedByName: '林太太', signedAt: null })).toBe('林太太 簽');
+    expect(signedCellText({ ...base, signedByName: null, signedAt: null })).toBe('已簽收');
+  });
+});
+
+describe('PERIOD_OPTIONS（C2）', () => {
+  it('選項依序是 7／14／30 天＋自訂區間', () => {
+    expect(PERIOD_OPTIONS.map((o) => o.value)).toEqual(['7', '14', '30', CUSTOM_PERIOD]);
+  });
+
+  it('最後一項是「自訂區間…」，其餘 value 都是天數', () => {
+    expect(PERIOD_OPTIONS.at(-1)).toEqual({ label: '自訂區間…', value: CUSTOM_PERIOD });
+    expect(PERIOD_OPTIONS.slice(0, -1).every((o) => /^\d+$/.test(o.value))).toBe(true);
   });
 });
