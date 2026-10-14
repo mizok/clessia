@@ -16,6 +16,7 @@ import { Router, RouterLink } from '@angular/router';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
+import { PopoverModule } from 'primeng/popover';
 import { MessageService } from 'primeng/api';
 import { AuthService } from '@core/auth.service';
 import { CampusContextService } from '@core/campus-context.service';
@@ -82,6 +83,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
   selector: 'app-students',
   standalone: true,
   imports: [
+    PopoverModule,
     PageActionsComponent,
     PageOpenComponent,
     ChapterHeadComponent,

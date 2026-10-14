@@ -451,6 +451,17 @@ describe('StudentsPage', () => {
       expect(wrap.querySelector(':scope > div.order-1.w-full.h-0')).not.toBeNull();
     });
 
+    it('篩選面板是浮層（Popover）：沒打開時不在 DOM，打開後在 body 上、不在頁面內', () => {
+      respond([row('a', '王一', 'J3')]);
+      const panel = () => document.body.querySelector('#students-filters');
+      expect(panel()).toBeNull();
+
+      (root().querySelector('app-filter-toggle button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(panel()).not.toBeNull();
+      expect(root().contains(panel())).toBe(false);
+    });
+
     it('依年級分章，章名張數讀 byGrade（不是這一頁的列數）', () => {
       respond([row('a', '王一', 'P5'), row('b', '李二', 'J3'), row('c', '陳三', 'J3')]);
 
@@ -521,12 +532,15 @@ describe('StudentsPage', () => {
       (component as any).onTodayChange('missing');
 
       expect(studentsServiceMock.list.mock.calls.length).toBe(calls);
-      const today = [...root().querySelectorAll('#students-filters button')].filter((b) =>
+      // 面板是 Popover：打開後掛在 body 上
+      (root().querySelector('app-filter-toggle button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      const today = [...document.body.querySelectorAll('#students-filters button')].filter((b) =>
         ['今天有課', '已到', '還沒到', '該到沒到', '請假'].some((l) => b.textContent!.includes(l)),
       ) as HTMLButtonElement[];
       expect(today.length).toBe(5);
       expect(today.every((b) => b.disabled)).toBe(true);
-      expect(root().textContent).toContain('逐堂點名');
+      expect(document.body.textContent).toContain('逐堂點名');
     });
 
     it('翻到第 2 頁 today 回 null 不算「不支援」，也不清掉人數', () => {

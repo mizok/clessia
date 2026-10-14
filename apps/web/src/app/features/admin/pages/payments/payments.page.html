@@ -85,7 +85,8 @@
         [summary]="panelFilterSummary()"
         [active]="panelFilterSummary() !== '全部'"
         [always]="true"
-        [(open)]="filtersOpen"
+        [open]="filtersOpen()"
+        (click)="filterPopover.toggle($event)"
         controls="payments-filters"
       />
       <app-page-actions
@@ -156,45 +157,50 @@
         </form>
       </p-popover>
     </div>
-    <div
-      id="payments-filters"
-      class="w-full flex-wrap items-center gap-3 wide:order-3 wide:basis-full"
-      [class.hidden]="!filtersOpen()"
-      [class.flex]="filtersOpen()"
+    <!-- 篩選面板（A6 浮層）：貼在「篩選」鈕下的 Popover，不推動清單；寫法同課程頁 -->
+    <p-popover
+      #filterPopover
+      styleClass="w-[22rem] max-w-[calc(100%-1.5rem)]"
+      (onShow)="filtersOpen.set(true)"
+      (onHide)="filtersOpen.set(false)"
     >
-      <p-select
-        [options]="statusOptions"
-        optionLabel="label"
-        optionValue="value"
-        [ngModel]="statusFilter()"
-        (ngModelChange)="onStatusChange($event)"
-        ariaLabel="帳單狀態"
-      />
-      <!--
+      <div id="payments-filters" class="flex flex-col gap-3">
+        <p-select
+          [options]="statusOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="onStatusChange($event)"
+          ariaLabel="帳單狀態"
+          appendTo="body"
+          [fluid]="true"
+        />
+        <!--
       催繳三選一（#639）。**不要改回兩態切換** —— 舊的那顆寫「只看欠繳」而做的是
       「逾期且未繳清」，照它催繳會漏掉還沒到期的未繳（驗收：逾期 9、未繳未逾期 8）。
       三個是同一個母體的子集，所以是單選不是三個開關。
     -->
-      <p-selectButton
-        [options]="dueFilterOptions"
-        [ngModel]="dueFilter()"
-        (ngModelChange)="setDueFilter($event)"
-        optionLabel="label"
-        optionValue="value"
-        [allowEmpty]="false"
-        size="small"
-        ariaLabel="催繳篩選"
-      />
-      @if (hasFilters()) {
-        <p-button
-          label="清除篩選"
-          [text]="true"
+        <p-selectButton
+          [options]="dueFilterOptions"
+          [ngModel]="dueFilter()"
+          (ngModelChange)="setDueFilter($event)"
+          optionLabel="label"
+          optionValue="value"
+          [allowEmpty]="false"
           size="small"
-          severity="secondary"
-          (onClick)="clearFilters()"
+          ariaLabel="催繳篩選"
         />
-      }
-    </div>
+        @if (hasFilters()) {
+          <p-button
+            label="清除篩選"
+            [text]="true"
+            size="small"
+            severity="secondary"
+            (onClick)="clearFilters()"
+          />
+        }
+      </div>
+    </p-popover>
   </div>
 </div>
 
