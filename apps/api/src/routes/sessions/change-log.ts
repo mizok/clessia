@@ -59,6 +59,8 @@ export interface ChangeLogEntry {
   readonly changeType: ChangeType;
   readonly summary: string;
   readonly sessionDate: string | null;
+  /** 該堂現在的開始時間（HH:mm）；課堂被調課後是新時間。取不到（教師端查詢沒帶）為 null */
+  readonly sessionStartTime: string | null;
   readonly className: string | null;
   readonly reason: string | null;
   readonly createdByName: string | null;
@@ -146,6 +148,7 @@ export function describeChange(row: ChangeLogRow): ChangeLogEntry {
     changeType: row.change_type,
     summary: summarise(row),
     sessionDate: (session?.['session_date'] as string | null) ?? null,
+    sessionStartTime: hhmm((session?.['start_time'] as string | null) ?? null),
     className: (classRow?.['name'] as string | null) ?? null,
     reason: row.reason,
     createdByName: row.created_by_name,
