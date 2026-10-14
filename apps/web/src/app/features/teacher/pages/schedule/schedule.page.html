@@ -3,22 +3,6 @@
   <ng-container openTitle>{{ opener()?.title ?? page().label }}</ng-container>
   <ng-container openSub>{{ opener()?.sub ?? weekLabel() }}</ng-container>
   <div class="mt-4 flex flex-col items-start gap-2">
-    <div class="flex items-center gap-1">
-      <p-button
-        icon="pi pi-chevron-left"
-        [text]="true"
-        severity="contrast"
-        ariaLabel="上一週"
-        (onClick)="prevWeek()"
-      />
-      <p-button
-        icon="pi pi-chevron-right"
-        [text]="true"
-        severity="contrast"
-        ariaLabel="下一週"
-        (onClick)="nextWeek()"
-      />
-    </div>
     <!-- 錯誤態也不印 —— 「本週 0 堂」跟真的沒課一模一樣（#800） -->
     @if (!loading() && !loadError()) {
       <!-- A6 `.open__stats`：橘面上的小統計列（數字在上、說明在下），不是整頁錨點 -->
@@ -73,6 +57,108 @@
   </div>
 </app-page-open>
 
+<!--
+  週條（A6 `.bar`）：hero 正下方的滿版灰帶，內容收在欄寬內；所有寬度都在，手機可橫捲。
+  點一天切換下面那天的清單，換日不靠滑動。每天給老師掃視需要的四件事：星期、日期、幾堂、一顆狀態點。
+  今天用 aria-current="date"，選中的那天用 aria-pressed —— 兩件事不要混成同一個屬性。
+  選中日＝底線（A6），今天＝標籤尾巴的「· 今天」；狀態點稿沒畫、現況有，保留。
+-->
+@if (loading() || !loadError()) {
+  <div class="schedule-page__band bg-zinc-100 py-3">
+    <div class="page-wrap">
+      @if (loading()) {
+        <!--
+          骨架跟真正的週條用同一份 7 欄排法；換週鈕在載入中也保留（它們不依賴這週的資料，
+          拿掉會讓骨架的寬度跟真正的週條對不上）。
+        -->
+        <nav class="schedule-page__weekbar flex items-center gap-2" aria-label="本週各日">
+          <button
+            type="button"
+            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
+            disabled
+            aria-label="上一週"
+          >
+            <i class="pi pi-chevron-left" aria-hidden="true"></i>
+          </button>
+          <ul class="m-0 flex flex-1 list-none gap-[2px] overflow-hidden p-0">
+            @for (i of [1, 2, 3, 4, 5, 6, 7]; track i) {
+              <li class="min-w-[52px] flex-1 shrink-0 wide:min-w-16">
+                <span
+                  class="schedule-page__weekbar-skeleton p-skeleton block h-[52px] w-full rounded-[6px]"
+                ></span>
+              </li>
+            }
+          </ul>
+          <button
+            type="button"
+            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
+            disabled
+            aria-label="下一週"
+          >
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </button>
+        </nav>
+      } @else {
+        <!-- 週區間（副行改成今天的摘要後，搬到週條旁）：翻週時要看得出現在是哪一週 -->
+        <p class="m-0 mb-1 text-right text-[11px] font-medium text-zinc-600 tabular-nums">
+          {{ weekLabel() }}
+        </p>
+        <nav class="schedule-page__weekbar flex items-center gap-2" aria-label="本週各日">
+          <button
+            type="button"
+            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
+            aria-label="上一週"
+            (click)="prevWeek()"
+          >
+            <i class="pi pi-chevron-left" aria-hidden="true"></i>
+          </button>
+          <ul
+            class="m-0 flex flex-1 list-none gap-[2px] overflow-x-auto overscroll-x-contain p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            @for (day of weekBar(); track day.dateStr) {
+              <li class="min-w-[52px] flex-1 shrink-0 wide:min-w-16">
+                <button
+                  type="button"
+                  class="schedule-page__weekbar-day flex min-h-[52px] w-full cursor-pointer flex-col items-center gap-px border-0 border-b-2 border-solid border-b-transparent bg-transparent px-1 py-1.5 text-sm text-zinc-700 hover:bg-zinc-200 [&.schedule-page\_\_weekbar-day--selected]:border-b-accent-vivid [&.schedule-page\_\_weekbar-day--selected]:font-semibold"
+                  [class.schedule-page__weekbar-day--today]="day.isToday"
+                  [class.schedule-page__weekbar-day--selected]="day.isSelected"
+                  [attr.aria-current]="day.isToday ? 'date' : null"
+                  [attr.aria-pressed]="day.isSelected"
+                  (click)="selectDay(day.dateStr)"
+                >
+                  <span class="text-[11px] text-zinc-600"
+                    >{{ day.label }}{{ day.isToday ? ' · 今天' : '' }}</span
+                  >
+                  <!--
+                    用 M/d 不用裸的 d：裸數字會跟下面的堂數黏成「31 1 堂」，
+                    月初更糟（「1 1 堂」）。M/d 也跟下面清單的標題一致。
+                  -->
+                  <span class="text-base font-bold text-zinc-900 tabular-nums">{{
+                    day.date | date: 'M/d'
+                  }}</span>
+                  @if (day.tone; as tone) {
+                    <app-status-dot [tone]="tone">{{ day.count }} 堂</app-status-dot>
+                  } @else {
+                    <span class="schedule-page__weekbar-empty text-[0.75rem] text-zinc-300">—</span>
+                  }
+                </button>
+              </li>
+            }
+          </ul>
+          <button
+            type="button"
+            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
+            aria-label="下一週"
+            (click)="nextWeek()"
+          >
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </button>
+        </nav>
+      }
+    </div>
+  </div>
+}
+
 <div class="page-wrap flex flex-col gap-4 py-4">
   @if (loading()) {
     <!--
@@ -80,19 +166,6 @@
       尺寸跟排列自動對齊，不用重寫一份 grid 設定。上一週/下一週按鈕在載入中
       也保留——它們不依賴這週的資料，拿掉會讓骨架的寬度跟真正的週條對不上。
     -->
-    <nav class="schedule-page__weekbar flex items-center gap-2" aria-label="本週各日">
-      <p-button icon="pi pi-chevron-left" [text]="true" [disabled]="true" ariaLabel="上一週" />
-      <ul class="m-0 flex flex-1 list-none gap-1 overflow-hidden p-0">
-        @for (i of [1, 2, 3, 4, 5, 6, 7]; track i) {
-          <li class="min-w-[4.5rem] flex-1 shrink-0">
-            <span
-              class="schedule-page__weekbar-skeleton p-skeleton block h-11 w-full rounded-[8px]"
-            ></span>
-          </li>
-        }
-      </ul>
-      <p-button icon="pi pi-chevron-right" [text]="true" [disabled]="true" ariaLabel="下一週" />
-    </nav>
     <!--
       **日面板的骨架，而且刻意不放在上面那條週條裡面**：週條是桌機專屬
       （Tailwind 的 `hidden`＝`display: none`，到 shell-content 容器 640px 才 `flex`），所以骨架掛在它上面時 390 下
@@ -138,69 +211,33 @@
     今天用 aria-current="date"，選中的那天用 aria-pressed —— 兩件事不要混成同一個屬性。
   -->
   @if (!loading() && !loadError()) {
-    <!-- 週區間（副行改成今天的摘要後，搬到週條旁）：翻週時要看得出現在是哪一週 -->
-    <p class="m-0 text-[0.8rem] font-medium text-zinc-600 tabular-nums">{{ weekLabel() }}</p>
-    <nav class="schedule-page__weekbar flex items-center gap-2" aria-label="本週各日">
-      <p-button icon="pi pi-chevron-left" [text]="true" ariaLabel="上一週" (onClick)="prevWeek()" />
-      <ul
-        class="m-0 flex flex-1 list-none gap-1 overflow-x-auto overscroll-x-contain p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        @for (day of weekBar(); track day.dateStr) {
-          <li class="min-w-[4.5rem] flex-1 shrink-0">
-            <button
-              type="button"
-              class="schedule-page__weekbar-day flex min-h-11 w-full cursor-pointer flex-col items-center gap-[2px] rounded-[8px] border border-transparent bg-transparent px-1 py-2 hover:bg-zinc-50 [&.schedule-page\_\_weekbar-day--today]:border-accent-400 [&.schedule-page\_\_weekbar-day--today]:bg-accent-50 [&.schedule-page\_\_weekbar-day--today]:hover:bg-zinc-50 [&.schedule-page\_\_weekbar-day--selected]:border-2 [&.schedule-page\_\_weekbar-day--selected]:border-zinc-900"
-              [class.schedule-page__weekbar-day--today]="day.isToday"
-              [class.schedule-page__weekbar-day--selected]="day.isSelected"
-              [attr.aria-current]="day.isToday ? 'date' : null"
-              [attr.aria-pressed]="day.isSelected"
-              (click)="selectDay(day.dateStr)"
-            >
-              <span class="text-[0.7rem] text-zinc-500">{{ day.label }}</span>
-              <!--
-                用 M/d 不用裸的 d：裸數字會跟下面的堂數黏成「31 1 堂」，
-                月初更糟（「1 1 堂」）。M/d 也跟下面清單的標題一致。
-              -->
-              <span class="text-[0.95rem] font-bold text-zinc-900 tabular-nums">{{
-                day.date | date: 'M/d'
-              }}</span>
-              @if (day.tone; as tone) {
-                <app-status-dot [tone]="tone">{{ day.count }} 堂</app-status-dot>
-              } @else {
-                <span class="schedule-page__weekbar-empty text-[0.75rem] text-zinc-300">—</span>
-              }
-            </button>
-          </li>
-        }
-      </ul>
-      <p-button
-        icon="pi pi-chevron-right"
-        [text]="true"
-        ariaLabel="下一週"
-        (onClick)="nextWeek()"
-      />
-    </nav>
-
     <!--
       單日清單（取代七天一屏的水平軌道）。選中日是今天時，「接下來那堂」排第一張、深框；
       它是從清單裡抽出來的，不是多複製一份。
     -->
-    <section class="schedule-page__day flex min-w-0 flex-col gap-2" aria-label="這一天的課">
-      <h2 class="m-0 flex flex-wrap items-baseline gap-2">
-        <span class="text-[1.1rem] font-bold text-zinc-900">{{
-          selectedDay().date | date: 'M/d'
-        }}</span>
-        <span class="text-[0.9rem] font-medium text-zinc-600"
-          >（{{ selectedDay().label }}）{{ selectedDay().isToday ? ' 今天' : '' }}</span
+    <section
+      class="schedule-page__day mt-6 flex min-w-0 flex-col gap-2 wide:mt-8"
+      aria-label="這一天的課"
+    >
+      <!-- A6 `.day__h`：標題 22／28px 粗，底下一條細線；星期只寫單字（A6 全站一致） -->
+      <h2
+        class="m-0 flex flex-wrap items-baseline gap-3 border-0 border-b border-solid border-zinc-200 pb-3"
+      >
+        <span class="text-[22px] leading-tight font-bold text-zinc-900 wide:text-[28px]"
+          >{{ selectedDay().date | date: 'M/d' }}（{{ selectedDay().label }}）{{
+            selectedDay().isToday ? ' 今天' : ''
+          }}</span
         >
-        <span class="text-[0.8rem] text-zinc-500 tabular-nums">{{ selectedDay().count }} 堂</span>
+        <span class="text-[13px] font-normal text-zinc-500 tabular-nums"
+          >{{ selectedDay().count }} 堂</span
+        >
         @if (missingOn(selectedDay().dateStr); as missing) {
+          <!-- 稿沒畫、現況有：右側的「● N」改成講得出口的一句話，不刪 -->
           <span
-            class="ml-auto inline-flex items-center gap-1 text-[0.75rem] font-semibold text-accent-600 tabular-nums"
-            [attr.aria-label]="missing + ' 位學生的聯絡簿還沒寫'"
+            class="ml-auto inline-flex items-center gap-1.5 text-[13px] font-medium text-accent-600 tabular-nums"
           >
             <span class="size-[6px] rounded-full bg-accent-500" aria-hidden="true"></span>
-            {{ missing }}
+            {{ missing }} 則聯絡簿未寫
           </span>
         }
       </h2>
