@@ -503,10 +503,6 @@ describe('SchedulePage', () => {
     });
 
     /**
-     * #1314 TS-A：週條搬進 hero 下方的灰帶（A6 `.bar`）、日標題改 A6 字級。
-     * 門檻：聯絡簿徽章「有／沒有」的邊界是 0 與 1。
-     */
-    /**
      * #1314 TS-B：課堂列（A6 `.card`）。假現在＝2027-03-05 12:00（台北）。
      * 動作鈕的條件一個字沒改；這裡守的是「畫面上有什麼、放哪、什麼樣式」，主／次 × 手機／桌機。
      */
@@ -637,6 +633,10 @@ describe('SchedulePage', () => {
       });
     });
 
+    /**
+     * #1314 TS-A：週條搬進 hero 下方的灰帶（A6 `.bar`）、日標題改 A6 字級。
+     * 門檻：聯絡簿徽章「有／沒有」的邊界是 0 與 1。
+     */
     describe('灰帶週條與日標題（#1314 TS-A）', () => {
       const setMissing = (n: number) => {
         (component as unknown as { missingByDate: { set: (m: Map<string, number>) => void } })[
