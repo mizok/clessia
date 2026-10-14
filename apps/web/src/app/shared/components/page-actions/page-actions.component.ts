@@ -84,6 +84,13 @@ export class PageActionsComponent {
    */
   readonly primaryClick = output<MouseEvent>();
 
+  /**
+   * 次要鈕外觀（A6：白底、1px zinc-300 框、近黑字；`a6.css` 各頁稿的次要鈕全是這樣）。
+   * 跟頁面裡「篩選」「⋯」鈕同一組 class。標頭與手機托盤共用，不各寫一份。
+   */
+  protected readonly secondaryClass =
+    'border-zinc-300 bg-white text-zinc-900 enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50';
+
   protected onSecondary(event: MouseEvent): void {
     if (this.secondary()?.disabled) return;
     this.secondaryClick.emit(event);

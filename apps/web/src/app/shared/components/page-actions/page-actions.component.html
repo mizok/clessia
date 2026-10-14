@@ -8,6 +8,7 @@
       @if (secondaryOnDesktop()) {
         <div class="page-actions__header-secondary hidden min-[640.02px]:block">
           <p-button
+            [styleClass]="secondaryClass"
             [label]="second.label"
             [icon]="second.icon ?? ''"
             [disabled]="!!second.disabled"
@@ -40,7 +41,7 @@
   >
     @if (secondary(); as second) {
       <p-button
-        styleClass="page-actions__secondary justify-center"
+        [styleClass]="'page-actions__secondary justify-center ' + secondaryClass"
         [label]="second.label"
         [icon]="second.icon ?? ''"
         [disabled]="!!second.disabled"
