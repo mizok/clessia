@@ -163,11 +163,20 @@
                         class="truncate text-base font-semibold text-zinc-900 underline-offset-4 group-hover/name:underline"
                         >{{ parent.name }}</span
                       >
-                      @if (identOf(parent); as ident) {
-                        <span class="truncate text-sm text-zinc-600">{{ ident }}</span>
-                      } @else {
-                        <span class="text-md text-zinc-500">—</span>
-                      }
+                      <span class="flex min-w-0 items-center gap-2">
+                        @if (identOf(parent); as ident) {
+                          <span class="truncate text-sm text-zinc-600">{{ ident }}</span>
+                        } @else {
+                          <span class="text-md text-zinc-500">—</span>
+                        }
+                        <!-- A6：只對啟用中的家長標（停用／封存的人沒有「該發連結」這件事） -->
+                        @if (parent.hasLoggedIn === false && parent.status === 'active') {
+                          <span
+                            class="shrink-0 rounded-full border border-solid border-zinc-300 px-2 text-xs leading-5 whitespace-nowrap text-zinc-600"
+                            >還沒登入過</span
+                          >
+                        }
+                      </span>
                     </button>
                   </div>
                   <div

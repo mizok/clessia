@@ -22,6 +22,11 @@ export interface Parent {
   studentNames: string[]; // 關聯學生姓名列表
   /** 只有列表（`GET /parents`）帶；單筆的 `ParentDetail.students` 是更完整的形狀 */
   students?: Array<{ id: string; name: string; grade: string | null }>;
+  /**
+   * 登入過沒有（只有列表帶，#1314）。false＝還沒登入過，列上標「還沒登入過」提醒發登入連結。
+   * 後端取自 `ba_user.emailVerified`（這個系統裡它的意思是「成功登入過」）；查不到就回 true
+   */
+  hasLoggedIn?: boolean;
   notes: string | null;
   createdAt: string;
   updatedAt: string;

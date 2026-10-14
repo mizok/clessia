@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // **靜態 import，不要在 test body 裡動態 import。**
 // 原本兩個測試各寫 `await import('./parents')`，於是**模組轉譯的時間被算進
@@ -101,6 +101,9 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     readonly orders: string[];
   }
 
+  // ba_user 的 fixture（每條 spec 自己設；預設空＝查不到 user）
+  let baUserRows: Array<Record<string, unknown>> = [];
+
   function fakeSupabase(queries: QueryRecord[]) {
     return {
       from(table: string) {
@@ -139,16 +142,18 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
             const data =
               table === 'parents'
                 ? [{ id: 'parent-1', user_id: 'user-1', org_id: 'org-1', name: '家長一' }]
-                : table === 'enrollments'
-                  ? [{ student_id: 'student-1' }]
-                  : table === 'parent_student_relations'
-                    ? [
-                        {
-                          parent_id: 'parent-1',
-                          students: { id: 'student-1', name: '學生一', grade: 'J1' },
-                        },
-                      ]
-                    : [];
+                : table === 'ba_user'
+                  ? baUserRows
+                  : table === 'enrollments'
+                    ? [{ student_id: 'student-1' }]
+                    : table === 'parent_student_relations'
+                      ? [
+                          {
+                            parent_id: 'parent-1',
+                            students: { id: 'student-1', name: '學生一', grade: 'J1' },
+                          },
+                        ]
+                      : [];
             return resolve({ data, count: data.length, error: null });
           },
         });
@@ -260,6 +265,44 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     expect(lastBody.data[0]?.['students']).toEqual([
       { id: 'student-1', name: '學生一', grade: 'J1' },
     ]);
+  });
+
+  // #1314「還沒登入過」：來源是 ba_user.emailVerified（建帳號 false，首次登入才 true）
+  describe('hasLoggedIn（只讀 ba_user.emailVerified）', () => {
+    afterEach(() => {
+      baUserRows = [];
+    });
+
+    it('emailVerified=false → hasLoggedIn=false（還沒登入過）', async () => {
+      baUserRows = [{ id: 'user-1', email: 'a@x.com', phone: null, emailVerified: false }];
+      await listParents(null);
+      expect(lastBody.data[0]?.['hasLoggedIn']).toBe(false);
+    });
+
+    it('emailVerified=null（欄位沒值）→ hasLoggedIn=false：只有明確的 true 才算登入過', async () => {
+      baUserRows = [{ id: 'user-1', email: 'a@x.com', phone: null, emailVerified: null }];
+      await listParents(null);
+      expect(lastBody.data[0]?.['hasLoggedIn']).toBe(false);
+    });
+
+    it('emailVerified=true → hasLoggedIn=true', async () => {
+      baUserRows = [{ id: 'user-1', email: 'a@x.com', phone: null, emailVerified: true }];
+      await listParents(null);
+      expect(lastBody.data[0]?.['hasLoggedIn']).toBe(true);
+    });
+
+    it('查不到 ba_user → true（不顯示小標，寧可漏報不誤報）', async () => {
+      baUserRows = [];
+      await listParents(null);
+      expect(lastBody.data[0]?.['hasLoggedIn']).toBe(true);
+    });
+
+    it('撈的是 ba_user.emailVerified，不是 ba_session／ba_account', async () => {
+      baUserRows = [{ id: 'user-1', email: 'a@x.com', phone: null, emailVerified: false }];
+      const queries = await listParents(null);
+      expect(queries.find((q) => q.table === 'ba_user')?.columns).toContain('emailVerified');
+      expect(queries.some((q) => q.table === 'ba_session' || q.table === 'ba_account')).toBe(false);
+    });
   });
 
   // 原本先撈全 org 家長 id 再撈關聯：家長破千時被 max_rows 截斷，後面的人孩子數靜默變 0

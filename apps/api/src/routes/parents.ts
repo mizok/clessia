@@ -54,6 +54,15 @@ const ParentDetailSchema = ParentSchema.extend({
 
 /** 列表多帶孩子的 id，名字才能點進學生檔案（#1314 PA2）。只在列表 —— 單筆有更完整的 `students` */
 const ParentListItemSchema = ParentSchema.extend({
+  /**
+   * 這位家長登入過沒有（列表的「還沒登入過」小標，#1314）。來源是 `ba_user."emailVerified"`
+   * —— **它在這個系統的意思是「成功登入過」，不是「驗證過信箱」**（沒有人寄信）：
+   * 建帳號（`createUser`）預設 false，第一次兌換登入連結（magic-link verify）或走 LINE 登入
+   * （`lineProfileToUser` 寫 true）才翻 true。不用 `ba_session`（會過期）、
+   * 也不用 `ba_account(line)`（只用連結登入的人沒有）。查不到 `ba_user` 一律回 true＝不顯示小標，
+   * 寧可漏報不誤報。**只讀 `ba_*`（c2）**。
+   */
+  hasLoggedIn: z.boolean(),
   /** grade：列表孩子名旁的年級（#1314 (b)） */
   students: z.array(z.object({ id: DbUuidSchema, name: z.string(), grade: z.string().nullable() })),
 }).openapi('ParentListItem');
@@ -333,11 +342,14 @@ app.openapi(
     }
 
     const userIds = rows.map((r) => r['user_id'] as string).filter(Boolean);
-    const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
+    const baUserMap = new Map<
+      string,
+      { email: string | null; phone: string | null; hasLoggedIn: boolean }
+    >();
     if (userIds.length > 0) {
       const { data: baUsers } = await supabase
         .from('ba_user')
-        .select('id, email, phone')
+        .select('id, email, phone, emailVerified')
         .in('id', userIds);
       const placeholderDomain = c.env.PLACEHOLDER_EMAIL_DOMAIN;
       for (const u of baUsers ?? []) {
@@ -345,6 +357,7 @@ app.openapi(
         baUserMap.set(u.id as string, {
           email: isPlaceholderEmail(rawEmail, placeholderDomain) ? null : rawEmail,
           phone: (u.phone as string | null) ?? null,
+          hasLoggedIn: u.emailVerified === true,
         });
       }
     }
@@ -360,6 +373,7 @@ app.openapi(
           parentStudents.map((s) => s.name),
         ),
         students: parentStudents,
+        hasLoggedIn: baUserMap.get(row['user_id'] as string)?.hasLoggedIn ?? true,
       };
     });
 
