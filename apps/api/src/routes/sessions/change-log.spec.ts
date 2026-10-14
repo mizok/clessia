@@ -175,4 +175,25 @@ describe('batchId（#1195）', () => {
     ).toBe('b-1');
     expect(describeChange(row({ change_type: 'cancellation' })).batchId).toBeNull();
   });
+
+  // #1314：A6 異動列最左的時間欄。DB 的 time 是 HH:mm:ss，對外 HH:mm
+  describe('sessionStartTime', () => {
+    it('HH:mm:ss 截成 HH:mm（含個位數時的補零不被吃掉）', () => {
+      for (const [db, out] of [
+        ['17:00:00', '17:00'],
+        ['09:05:00', '09:05'],
+        ['23:59:59', '23:59'],
+      ]) {
+        const r = describeChange(
+          row({ sessions: { session_date: '2026-08-12', start_time: db, classes: { name: 'x' } } }),
+        );
+        expect(r.sessionStartTime).toBe(out);
+      }
+    });
+
+    it('查詢沒帶 start_time（教師端）或整個 sessions 是 null：回 null，不拋', () => {
+      expect(describeChange(row()).sessionStartTime).toBeNull();
+      expect(describeChange(row({ sessions: null })).sessionStartTime).toBeNull();
+    });
+  });
 });
