@@ -225,6 +225,10 @@ app.openapi(listRoute, async (c) => {
   const endedCountByCourse = new Map<string, number>();
   if (pageCourses.length > 0) {
     const today = getCurrentTaipeiDateString();
+    // ponytail: 全撈本頁課程的班（含已結束的）再在記憶體分類 —— 受 PostgREST 單次回傳上限（max_rows 1000 列）
+    // 限制；本頁課程的班數加起來破千（不分頁列全部課程、班數很多）才會被靜默截斷、兩個計數偏少。
+    // 升級路徑：改兩支 head count（進行中一支、已結束一支，各自 count:'exact'），
+    // 但兩支各自過濾的 supabase 鏈在這個函式裡會踩 TS2589，要先把查詢抽成獨立函式。
     // 一支查詢同時數「進行中」與「已結束」（兩支各自過濾的版本會讓 supabase 的型別推導過深，TS2589）
     // supabase 的查詢型別丟進泛型的 `applyCampusFilter` 會推導過深（TS2589），用最小形狀轉一下
     type ScopedQuery = PromiseLike<{

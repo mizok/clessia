@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import coursesRoute from './courses';
 
@@ -42,6 +43,9 @@ async function list(
       cls('c2', 'k1', { campus_id: 'campus-2' }),
       cls('c3', 'k1', { end_date: '2999-12-31' }),
       cls('c-off', 'k1', { is_active: false }),
+      // 結束日＝今天：還沒結束（進 activeClassCount、不進 endedClassCount）。這條是唯一靠今天的 fixture，
+      // 專門釘 `end_date < today`（不是 <=）這個邊界
+      cls('c-today', 'k1', { end_date: getCurrentTaipeiDateString() }),
       cls('c-ended', 'k1', { end_date: '2000-01-01' }),
       cls('c-ended-2', 'k1', { end_date: '2000-02-01', campus_id: 'campus-2', is_active: false }),
       cls('c-other', 'k1', { org_id: 'org-b' }),
@@ -68,11 +72,11 @@ async function list(
 
 describe('GET /courses —— activeClassCount（#1314 (c)）', () => {
   it('只數本 org、啟用、未結束的班；沒有班是 0', async () => {
-    expect(await list()).toEqual({ k1: 3, k2: 0 });
+    expect(await list()).toEqual({ k1: 4, k2: 0 });
   });
 
   it('受限者只數範圍內分校的班', async () => {
-    expect(await list(['campus-1'])).toEqual({ k1: 2, k2: 0 });
+    expect(await list(['campus-1'])).toEqual({ k1: 3, k2: 0 });
   });
 });
 
