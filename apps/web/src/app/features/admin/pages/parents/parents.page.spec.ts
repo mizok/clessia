@@ -346,6 +346,23 @@ describe('ParentsPage', () => {
       expect(text).toContain('0922333444');
     });
 
+    it('孩子名帶淡底線（A6，看得出可點）；章頭手機也堆疊', () => {
+      const el = load();
+      const link = el.querySelector('a[href="/admin/students/s1"]') as HTMLElement;
+      expect(link.classList.contains('underline')).toBe(true);
+      expect(link.classList.contains('no-underline')).toBe(false);
+      expect(el.querySelector('section[data-chapter] app-chapter-head .flex-col')).not.toBeNull();
+    });
+
+    it('搜尋框 placeholder 照稿；匯入是有框的鈕', () => {
+      const el = load();
+      const input = el.querySelector('input[aria-label="搜尋家長"]') as HTMLInputElement;
+      expect(input.placeholder).toBe('找姓名、Email 或手機');
+      expect(
+        el.querySelector('button[aria-label="匯入家長"]')?.classList.contains('p-button-outlined'),
+      ).toBe(true);
+    });
+
     it('孩子名字連到學生檔案；列表沒帶 students 時退回純文字', () => {
       const el = load();
       const links = [...el.querySelectorAll('a[href]')].map((a) => [

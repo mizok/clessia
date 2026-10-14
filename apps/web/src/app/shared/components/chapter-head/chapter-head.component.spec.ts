@@ -50,4 +50,16 @@ describe('ChapterHeadComponent', () => {
       true,
     );
   });
+
+  it('預設手機橫排（章名與張數同一行可換行）；stacked 手機也上下堆疊', async () => {
+    await setup({ name: '帳單', count: 3, unit: '張' });
+    const box = () => host.querySelector('.chapter-head') as HTMLElement;
+    expect(box().classList.contains('flex-wrap')).toBe(true);
+    expect(box().classList.contains('flex-col')).toBe(false);
+
+    fixture.componentRef.setInput('stacked', true);
+    fixture.detectChanges();
+    expect(box().classList.contains('flex-col')).toBe(true);
+    expect(box().classList.contains('flex-wrap')).toBe(false);
+  });
 });

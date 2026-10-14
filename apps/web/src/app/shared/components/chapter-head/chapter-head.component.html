@@ -1,6 +1,13 @@
-<div class="chapter-head flex flex-wrap items-baseline gap-x-3 wide:flex-col wide:gap-x-0">
+<div
+  class="chapter-head flex items-baseline wide:flex-col wide:gap-x-0"
+  [class.flex-col]="stacked()"
+  [class.flex-wrap]="!stacked()"
+  [class.gap-x-3]="!stacked()"
+>
   <h2
-    class="chapter-head__name m-0 text-[26px] leading-none font-bold tracking-[-0.04em] wide:text-[44px]"
+    class="chapter-head__name m-0 leading-none font-bold tracking-[-0.04em] wide:text-[44px]"
+    [class.text-[26px]]="!stacked()"
+    [class.text-[34px]]="stacked()"
     [class.text-zinc-900]="tone() === 'default'"
     [class.text-error-700]="tone() === 'error'"
   >
@@ -9,6 +16,7 @@
   @if (count() !== null) {
     <p
       class="chapter-head__tally m-0 text-lg font-bold tracking-[-0.02em] text-zinc-900 tabular-nums wide:mt-3 wide:text-xl"
+      [class.mt-3]="stacked()"
     >
       {{ count() }}
       @if (unit()) {

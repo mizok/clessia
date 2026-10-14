@@ -25,21 +25,27 @@
     aria-label="篩選家長"
   >
     <!-- 手機：搜尋框＋「篩選：全部」＋次要行動同一列（#1314 ③）；桌機 contents 攤平回原本的排法 -->
-    <div class="flex w-full items-center gap-2 wide:contents">
-      <div class="clessia-filter-search min-w-0 flex-1 wide:w-80 wide:flex-none">
+    <div class="flex w-full flex-wrap items-center gap-2 wide:contents">
+      <div
+        class="clessia-filter-search min-w-0 min-w-full wide:min-w-0 wide:w-[25rem] wide:max-w-[25rem] wide:flex-none"
+      >
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
             type="text"
             pInputText
-            placeholder="搜尋姓名、Email、手機..."
+            placeholder="找姓名、Email 或手機"
+            aria-label="搜尋家長"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
             class="clessia-filter-search-input"
           />
         </p-iconfield>
       </div>
+      <!-- 手機：強制換行，「篩選」＋匯入落到搜尋列下一行靠右（A6） -->
+      <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-filter-toggle
+        class="order-2 ml-auto wide:order-none"
         [summary]="filterSummary()"
         [active]="selectedStatus() !== null"
         [(open)]="filtersOpen"
@@ -47,7 +53,7 @@
         controls="parents-filters"
       />
       <app-page-actions
-        class="wide:order-3 wide:ml-auto"
+        class="order-2 wide:order-3"
         [primary]="primaryAction"
         (primaryClick)="openCreateDialog()"
       >
@@ -55,6 +61,7 @@
           label="匯入"
           icon="pi pi-upload"
           severity="secondary"
+          [outlined]="true"
           ariaLabel="匯入家長"
           styleClass="[&_.p-button-label]:hidden wide:[&_.p-button-label]:inline"
           (onClick)="openImportDialog()"
@@ -62,7 +69,7 @@
       </app-page-actions>
     </div>
 
-    <div id="parents-filters" class="w-full wide:order-2 wide:w-64" [class.hidden]="!filtersOpen()">
+    <div id="parents-filters" class="w-full wide:order-4 wide:w-64" [class.hidden]="!filtersOpen()">
       <p-select
         [options]="statusOptions"
         [ngModel]="selectedStatus()"
@@ -78,7 +85,7 @@
   </div>
 </div>
 
-<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
+<div class="page-wrap flex flex-col gap-4 pt-2 pb-12">
   @if (loading()) {
     <div class="skeleton-list">
       @for (i of [1, 2, 3, 4, 5]; track i) {
@@ -133,6 +140,7 @@
         >
           <app-chapter-head
             class="block pt-6 wide:pt-8"
+            [stacked]="true"
             [name]="chapterLabels[chapter.status]"
             [count]="chapterTally(chapter.status)"
             unit="位"
@@ -141,7 +149,7 @@
             @for (parent of chapter.rows; track parent.id) {
               <li class="border-b border-zinc-200 last:border-b-0">
                 <div
-                  class="grid min-h-[46px] grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-0 py-2 wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] wide:items-center"
+                  class="grid min-h-[46px] grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-0 py-2 wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] wide:items-center wide:py-3"
                 >
                   <div class="col-start-1 row-start-1 min-w-0">
                     <!-- 姓名＋Email 是同一個點擊目標（一塊 ≥44px），點開詳情 -->
@@ -156,7 +164,7 @@
                         >{{ parent.name }}</span
                       >
                       @if (identOf(parent); as ident) {
-                        <span class="truncate text-md text-zinc-600">{{ ident }}</span>
+                        <span class="truncate text-sm text-zinc-600">{{ ident }}</span>
                       } @else {
                         <span class="text-md text-zinc-500">—</span>
                       }
@@ -171,11 +179,11 @@
                           <span class="inline-flex items-center gap-1">
                             <a
                               [routerLink]="['/admin/students', kid.id]"
-                              class="inline-flex min-h-11 items-center text-base text-zinc-700 no-underline underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500"
+                              class="inline-flex min-h-11 items-center text-md text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:decoration-zinc-700 focus-visible:outline-2 focus-visible:outline-accent-500"
                               >{{ kid.name }}</a
                             >
                             @if (gradeLabel(kid.grade); as grade) {
-                              <span class="text-md text-zinc-500">· {{ grade }}</span>
+                              <span class="text-sm text-zinc-500">· {{ grade }}</span>
                             }
                           </span>
                         }

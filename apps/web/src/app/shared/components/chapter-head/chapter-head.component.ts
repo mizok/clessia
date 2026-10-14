@@ -23,4 +23,6 @@ export class ChapterHeadComponent {
   readonly unit = input('');
   /** `error`＝逾期等需要立刻處理的章（A6 `.chap__big--overdue`） */
   readonly tone = input<'default' | 'error'>('default');
+  /** 手機也上下堆疊（A6 `chap`，家長頁）；預設手機橫排（`chap--row`，帳單頁） */
+  readonly stacked = input(false);
 }
