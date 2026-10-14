@@ -275,8 +275,8 @@ describe('ExamsComponent', () => {
     expect(component['statusFilter']()).toBe('todo-none');
   });
 
-  it('「只看登到一半的」帶 todoLevel=partial —— 兩顆不會篩到同一批', () => {
-    buttonByText('只看登到一半的')!.click();
+  it('狀態下拉的「待登錄（登到一半）」帶 todoLevel=partial —— 兩條路不會篩到同一批', () => {
+    component['onStatusChange']('todo-partial');
     fixture.detectChanges();
 
     const todoReq = http.expectOne(
@@ -291,6 +291,11 @@ describe('ExamsComponent', () => {
     });
 
     expect(component['statusFilter']()).toBe('todo-partial');
+  });
+
+  it('提示條只剩「只看還沒登的」，登到一半改由章頭承擔（#1314 gate）', () => {
+    expect(buttonByText('只看還沒登的')).toBeTruthy();
+    expect(buttonByText('只看登到一半的')).toBeFalsy();
   });
 
   it('「待處理／全部」只是 statusFilter 的預設值（#991 grades Q5）', () => {
@@ -355,5 +360,172 @@ describe('ExamsComponent', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('載入失敗');
+  });
+
+  // #1314：補習班「待處理」分頁依進度分章；其他情況維持扁平列表
+  describe('分章', () => {
+    const partialExam = { ...mockAcademyExams[0], id: 'a3', name: '登一半', scoreCount: 5 };
+    const chapterEls = () =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('section[data-chapter]'));
+
+    function openPending(rows: unknown[], total = rows.length): void {
+      component['setTab']('pending');
+      fixture.detectChanges();
+      const req = http.expectOne(
+        (r) =>
+          r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+          r.params.get('todo') === 'true',
+      );
+      req.flush({ data: rows, meta: { total, page: 1, pageSize: LIST_PAGE_SIZE } });
+      fixture.detectChanges();
+    }
+
+    it('待處理：還沒登／登到一半兩章，各自場數；全部分頁沒有章', () => {
+      openPending([mockAcademyExams[0], partialExam]);
+      expect(chapterEls().map((e) => e.getAttribute('data-chapter'))).toEqual(['none', 'partial']);
+      const txt = chapterEls().map((e) => e.textContent ?? '');
+      expect(txt[0]).toContain('還沒登');
+      expect(txt[0]).toContain('數學小考');
+      expect(txt[1]).toContain('登到一半');
+      expect(txt[1]).toContain('登一半');
+      expect(txt[0]).not.toContain('這一頁');
+
+      component['setTab']('all');
+      fixture.detectChanges();
+      http
+        .expectOne(
+          (r) =>
+            r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !r.params.has('todo'),
+        )
+        .flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: LIST_PAGE_SIZE } });
+      fixture.detectChanges();
+      expect(chapterEls().length).toBe(0);
+      expect((fixture.nativeElement as HTMLElement).querySelectorAll('li').length).toBe(2);
+    });
+
+    it('章頭的場數是各章自己的列數（2 場還沒登、1 場登到一半）', () => {
+      openPending([
+        mockAcademyExams[0],
+        { ...mockAcademyExams[0], id: 'a4', name: '又一場' },
+        partialExam,
+      ]);
+      const heads = chapterEls().map((e) => (e.textContent ?? '').replace(/\s+/g, ''));
+      expect(heads[0]).toContain('還沒登2場');
+      expect(heads[1]).toContain('登到一半1場');
+    });
+
+    it('只有一種進度就只有一章（空章不畫）', () => {
+      openPending([mockAcademyExams[0]]);
+      expect(chapterEls().map((e) => e.getAttribute('data-chapter'))).toEqual(['none']);
+    });
+
+    it('總數超過一頁：章頭標「這一頁」；剛好一頁（20）不標、21 才標', () => {
+      openPending([mockAcademyExams[0]], LIST_PAGE_SIZE);
+      expect(chapterEls()[0].textContent).not.toContain('這一頁');
+      component['setTab']('all');
+      fixture.detectChanges();
+      http
+        .expectOne(
+          (r) =>
+            r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !r.params.has('todo'),
+        )
+        .flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
+      openPending([mockAcademyExams[0]], LIST_PAGE_SIZE + 1);
+      expect(chapterEls()[0].textContent).toContain('這一頁');
+    });
+
+    it('學校考試的待處理沒有「登到一半」：維持扁平列表', () => {
+      component['onExamTypeChange']('school');
+      fixture.detectChanges();
+      http
+        .match((r) => r.url.startsWith(`${environment.apiUrl}/api/school-exams`))
+        .forEach((r) =>
+          r.flush({ data: mockSchoolExams, meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE } }),
+        );
+      component['setTab']('pending');
+      fixture.detectChanges();
+      http
+        .match((r) => r.url.startsWith(`${environment.apiUrl}/api/school-exams`))
+        .forEach((r) =>
+          r.flush({ data: mockSchoolExams, meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE } }),
+        );
+      fixture.detectChanges();
+      expect(component['tab']()).toBe('pending');
+      expect(chapterEls().length).toBe(0);
+    });
+  });
+
+  describe('桌機篩選浮層', () => {
+    it('篩選鈕的條件數連搜尋一起算；清除篩選歸零', () => {
+      expect(component['desktopFilterCount']()).toBe(0);
+      component['onSearchChange']('期中');
+      component['onSubjectChange']('s1');
+      expect(component['desktopFilterCount']()).toBe(2);
+      component['onSearchChange']('   ');
+      expect(component['desktopFilterCount']()).toBe(1);
+      component['onTimeRangeChange']('3m' as never);
+      expect(component['desktopFilterCount']()).toBe(2);
+      component['clearFilters']();
+      expect(component['desktopFilterCount']()).toBe(0);
+    });
+
+    it('「待處理」分頁本身不算條件；「全部」分頁選了狀態才算 1；待處理分頁沒有清除篩選鈕', () => {
+      component['setTab']('pending');
+      fixture.detectChanges();
+      http
+        .expectOne(
+          (r) =>
+            r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+            r.params.get('todo') === 'true',
+        )
+        .flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
+      fixture.detectChanges();
+      expect(component['desktopFilterCount']()).toBe(0);
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain('篩選：全部');
+      // 工具列那顆；列表上方「N 場符合 · 清除篩選」是另一顆（沿用既有判準），不在這裡
+      expect(el.querySelector('[data-toolbar-clear]')).toBeNull();
+
+      component['onStatusChange']('active');
+      expect(component['tab']()).toBe('all');
+      expect(component['desktopFilterCount']()).toBe(1);
+      http
+        .match((r) => r.url.startsWith(`${environment.apiUrl}/api/academy-exams`))
+        .forEach((r) =>
+          r.flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } }),
+        );
+      fixture.detectChanges();
+      expect(el.querySelector('[data-toolbar-clear]')).not.toBeNull();
+    });
+
+    it('學校欄位只在學校考試算數', () => {
+      component['schoolId'].set('sch-1');
+      expect(component['desktopFilterCount']()).toBe(0);
+      component['examType'].set('school');
+      expect(component['desktopFilterCount']()).toBe(1);
+    });
+
+    it('工具列不再常開一排條件：頁面上只有手機那一個搜尋框，條件在浮層（開了才有）', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelectorAll('input[type="search"]').length).toBe(1);
+      const filterBtn = Array.from(el.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('篩選：全部'),
+      );
+      expect(filterBtn).toBeTruthy();
+      expect(filterBtn!.getAttribute('aria-expanded')).toBe('false');
+      component['onSearchChange']('期中');
+      fixture.detectChanges();
+      http
+        .match((r) => r.url.startsWith(`${environment.apiUrl}/api/academy-exams`))
+        .forEach((r) =>
+          r.flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } }),
+        );
+      fixture.detectChanges();
+      const after = Array.from(el.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('篩選：'),
+      );
+      expect(after!.textContent).toContain('篩選：1 項');
+      expect(after!.textContent).not.toContain('篩選：全部');
+    });
   });
 });
