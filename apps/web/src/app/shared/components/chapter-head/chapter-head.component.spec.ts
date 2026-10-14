@@ -50,4 +50,35 @@ describe('ChapterHeadComponent', () => {
       true,
     );
   });
+
+  it('預設手機橫排（章名與張數同一行可換行）；stacked 手機也上下堆疊', async () => {
+    await setup({ name: '帳單', count: 3, unit: '張' });
+    const box = () => host.querySelector('.chapter-head') as HTMLElement;
+    expect(box().classList.contains('flex-wrap')).toBe(true);
+    expect(box().classList.contains('flex-col')).toBe(false);
+
+    fixture.componentRef.setInput('stacked', true);
+    fixture.detectChanges();
+    expect(box().classList.contains('flex-col')).toBe(true);
+    expect(box().classList.contains('flex-wrap')).toBe(false);
+  });
+
+  it('章名字級真的掛上：預設 26px、stacked 34px；error 紅字（任意值 class 不能用 [class.x] 綁）', async () => {
+    await setup({ name: '帳單', count: 3, unit: '張' });
+    const h2 = () => host.querySelector('.chapter-head__name') as HTMLElement;
+    expect(h2().classList.contains('text-[26px]')).toBe(true);
+    expect(h2().classList.contains('text-[34px]')).toBe(false);
+
+    fixture.componentRef.setInput('stacked', true);
+    fixture.detectChanges();
+    expect(h2().classList.contains('text-[34px]')).toBe(true);
+    expect(h2().classList.contains('text-[26px]')).toBe(false);
+    expect(h2().classList.contains('wide:text-[44px]')).toBe(true);
+    expect(h2().classList.contains('text-zinc-900')).toBe(true);
+
+    fixture.componentRef.setInput('tone', 'error');
+    fixture.detectChanges();
+    expect(h2().classList.contains('text-error-700')).toBe(true);
+    expect(h2().classList.contains('text-zinc-900')).toBe(false);
+  });
 });
