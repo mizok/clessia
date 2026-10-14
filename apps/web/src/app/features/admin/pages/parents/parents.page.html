@@ -45,10 +45,11 @@
       <!-- 手機：強制換行，「篩選」＋匯入落到搜尋列下一行靠右（A6） -->
       <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-filter-toggle
-        class="order-2 ml-auto wide:order-none"
+        class="order-2 ml-auto min-h-11 wide:order-none"
         [summary]="filterSummary()"
         [active]="selectedStatus() !== null"
-        [(open)]="filtersOpen"
+        [open]="filtersOpen()"
+        (click)="filterPopover.toggle($event)"
         [always]="true"
         controls="parents-filters"
       />
@@ -69,19 +70,28 @@
       </app-page-actions>
     </div>
 
-    <div id="parents-filters" class="w-full wide:order-4 wide:w-64" [class.hidden]="!filtersOpen()">
-      <p-select
-        [options]="statusOptions"
-        [ngModel]="selectedStatus()"
-        (ngModelChange)="onStatusChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        size="small"
-        placeholder="啟用＋停用（不含封存）"
-        [fluid]="true"
-        styleClass="clessia-filter-control"
-      />
-    </div>
+    <!-- 篩選面板（A6 浮層）：貼在「篩選」鈕下的 Popover，不推動清單；寫法同課程頁 -->
+    <p-popover
+      #filterPopover
+      styleClass="w-[22rem] max-w-[calc(100%-1.5rem)]"
+      (onShow)="filtersOpen.set(true)"
+      (onHide)="filtersOpen.set(false)"
+    >
+      <div id="parents-filters" class="flex flex-col gap-3">
+        <p-select
+          [options]="statusOptions"
+          [ngModel]="selectedStatus()"
+          (ngModelChange)="onStatusChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          size="small"
+          placeholder="啟用＋停用（不含封存）"
+          [fluid]="true"
+          styleClass="clessia-filter-control"
+          appendTo="body"
+        />
+      </div>
+    </p-popover>
   </div>
 </div>
 

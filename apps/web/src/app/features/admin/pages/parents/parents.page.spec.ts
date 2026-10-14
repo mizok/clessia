@@ -501,17 +501,19 @@ describe('ParentsPage', () => {
   describe('手機「篩選：全部」面板（#1314 ③）', () => {
     const el = () => fixture.nativeElement as HTMLElement;
     const toggle = () => el().querySelector('app-filter-toggle button') as HTMLButtonElement;
-    const panel = () => el().querySelector('#parents-filters') as HTMLElement;
+    // 面板是 Popover（A6 浮層）：沒打開時內容不在 DOM，打開後掛在 body 上
+    const panel = () => document.body.querySelector('#parents-filters') as HTMLElement | null;
 
-    it('預設收合（面板 hidden）、鈕寫「篩選：全部」，點開後面板顯示', () => {
+    it('預設收合（面板不在 DOM）、鈕寫「篩選：全部」，點開後浮層出現', () => {
       fixture.detectChanges();
       expect(toggle().textContent).toContain('篩選：全部');
-      expect(panel().classList.contains('hidden')).toBe(true);
+      expect(panel()).toBeNull();
       expect(toggle().getAttribute('aria-controls')).toBe('parents-filters');
 
       toggle().click();
       fixture.detectChanges();
-      expect(panel().classList.contains('hidden')).toBe(false);
+      expect(panel()).not.toBeNull();
+      expect(panel()!.closest('app-parents, [role=search]')).toBeNull(); // 浮層，不在工具列內
       expect(toggle().getAttribute('aria-expanded')).toBe('true');
     });
 

@@ -15,6 +15,7 @@ import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchM
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
+import { PopoverModule } from 'primeng/popover';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -60,6 +61,7 @@ import {
   selector: 'app-parents',
   standalone: true,
   imports: [
+    PopoverModule,
     ChapterHeadComponent,
     PaginatorModule,
     FilterToggleComponent,

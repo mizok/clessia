@@ -618,17 +618,18 @@ describe('PaymentsPage', () => {
   describe('手機「篩選：全部」面板（#1314 ③）', () => {
     const el = () => fixture.nativeElement as HTMLElement;
     const toggle = () => el().querySelector('app-filter-toggle button') as HTMLButtonElement;
-    const panel = () => el().querySelector('#payments-filters') as HTMLElement;
+    // 面板是 Popover（A6 浮層）：沒打開時內容不在 DOM，打開後掛在 body 上
+    const panel = () => document.body.querySelector('#payments-filters') as HTMLElement | null;
 
-    it('預設收合、鈕寫「篩選：全部」；點開後面板顯示、aria-expanded 跟著走', () => {
+    it('預設收合（面板不在 DOM）、鈕寫「篩選：全部」；點開後浮層出現、aria-expanded 跟著走', () => {
       fixture.detectChanges();
       expect(toggle().textContent).toContain('篩選：全部');
-      expect(panel().classList.contains('hidden')).toBe(true);
+      expect(panel()).toBeNull();
 
       toggle().click();
       fixture.detectChanges();
-      expect(panel().classList.contains('hidden')).toBe(false);
-      expect(panel().classList.contains('flex')).toBe(true);
+      expect(panel()).not.toBeNull();
+      expect(el().contains(panel())).toBe(false); // 浮層，不在頁面內（不推動清單）
       expect(toggle().getAttribute('aria-expanded')).toBe('true');
     });
 
