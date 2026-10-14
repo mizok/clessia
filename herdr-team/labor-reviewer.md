@@ -329,7 +329,7 @@ charter 裡那麼多條「先查」,全部是這個形狀的不同衣服。
 
 - **tail 時間窗**:規則寫在 [`deploying.md`](../kb/wiki/architecture/deploying.md) 的「用時間窗量一趟真人操作」
   (開 tail 前問計畫席有沒有別席在打 demo、捕獲檔原檔留著、判準本身未驗)。
-- **`steward-merge.sh` 收的 PR 會刪分支,別人用 `gh pr merge` 合的不會** ——
+- **`steward-merge.sh` 收的 PR 會刪分支,別人用 `gh pr merge` 合的不會**(10-14 起腳本預設不刪,這條只對帶 `--delete-branch` 的成立)——
   退場時 `git ls-remote --heads origin` 對一次,是唯一會發現殘留分支的時刻。
 
 - **build 失敗時 `dist` 還在,而且是上一次的**(2026-10-03 第四次部署):merge 了一支改 `package.json`／lock 的 PR(#1055 加 tailwind／postcss)之後,
@@ -394,7 +394,7 @@ CI／部署類(`.github/workflows`)另看:觸發條件(`workflow_run` 的 conclu
 
 ## 其他散落的小判準
 
-- `steward-merge.sh` 合併後會**自動刪分支**(疊在上面的 PR 會擋住並印 `gh pr edit --base main` 指令);作者說「不用刪」時,先告訴他已刪。
+- ~~`steward-merge.sh` 合併後會**自動刪分支**~~ **2026-10-14 起預設保留分支**(計畫席定:作者可能還要補、方便回查);要刪帶 `--delete-branch`,疊在上面的 PR 仍會擋住並印 `gh pr edit --base main` 指令。
 - 同一 head 多筆 `verify`(重複 push 的 1 秒 CANCELLED):腳本已改取最新一筆(#1053);不要手動 `gh pr merge` 繞過(分類器會擋)。
 - build 完看 `dist` 的 **mtime 與退出碼**;`package.json`／lock 動過先 `npm ci`(#1055／#1172 都踩過)。
 - 回報一律從 `gh pr view <n> --json state,mergeCommit` 讀回,**不跟 merge 指令串在同一條**(#1220 的教訓)。
