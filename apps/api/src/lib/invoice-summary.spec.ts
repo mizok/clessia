@@ -36,6 +36,19 @@ describe('summarizeInvoices（#1314 P1／P2）', () => {
     });
   });
 
+  it('paid.received＝繳清帳單的淨收（收款−退費），收超過不封頂；多退單不在內', () => {
+    const s = summarizeInvoices(
+      [
+        inv({ payments: [pay(1000)] }), // paid，淨收 1000
+        inv({ payments: [pay(1500), refund(300)] }), // paid（淨收 1200 ≥ 應繳），退款要扣、超收不封頂
+        inv({ payments: [pay(500), refund(800)] }), // overrefunded，不在 paid
+        inv({ payments: [pay(400)] }), // partial，不在 paid
+      ],
+      TODAY,
+    );
+    expect(s.byStatus.paid).toEqual({ count: 2, received: 2200 });
+  });
+
   it('逾期＝未繳清且過了到期日；到期日當天與沒有到期日都不算', () => {
     const s = summarizeInvoices(
       [
