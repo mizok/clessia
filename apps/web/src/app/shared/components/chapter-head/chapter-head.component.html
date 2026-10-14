@@ -7,6 +7,13 @@
   <h2 [class]="nameClass()">
     {{ name() }}
   </h2>
+  @if (sub()) {
+    <span
+      class="chapter-head__sub text-sm font-medium text-zinc-600 tabular-nums wide:mt-1"
+      data-testid="chapter-sub"
+      >{{ sub() }}</span
+    >
+  }
   @if (count() !== null) {
     <p
       class="chapter-head__tally m-0 text-lg font-bold tracking-[-0.02em] text-zinc-900 tabular-nums wide:mt-3 wide:text-xl"

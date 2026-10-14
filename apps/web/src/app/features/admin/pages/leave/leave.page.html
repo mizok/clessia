@@ -11,7 +11,7 @@
 <app-page-open>
   <ng-container openTitle>
     @if (headline(); as line) {
-      {{ line }}
+      {{ line.today }}<br />{{ line.later }}
     } @else {
       {{ page().label }}
     }
@@ -59,28 +59,38 @@
 
     <div class="wide:ml-auto">
       <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-        <p-button
-          label="操作紀錄"
-          icon="pi pi-history"
-          [outlined]="true"
-          severity="secondary"
-          (onClick)="openAuditLog()"
-        />
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          data-testid="audit-log"
+          (click)="openAuditLog()"
+        >
+          操作紀錄
+        </button>
       </app-page-actions>
     </div>
   </div>
+</div>
 
+<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   @if (tab() === 'all') {
-    <!-- 全部分頁才有篩選（A6）：學生、日期範圍；分校跟頂欄走（#1138） -->
+    <!--
+      全部分頁才有篩選（A6 `.ff`）：灰色圓角面板、常開、欄位帶標籤。稿另有課程／開課班（缺 API，LV2）
+      與分校（跟頂欄走，#1138），所以只有學生與日期範圍。手機全寬灰面、兩欄各一列。
+    -->
     <div
-      class="page-wrap clessia-filter-bar flex flex-col items-start gap-3 pb-3 wide:flex-row wide:flex-wrap wide:items-center wide:gap-4"
+      class="clessia-filter-bar -mx-4 grid gap-3 bg-zinc-100 p-4 wide:mx-0 wide:grid-cols-[minmax(0,18rem)_minmax(0,18rem)_auto] wide:items-end wide:rounded-lg"
       role="search"
       aria-label="篩選請假紀錄"
       data-testid="filters"
     >
-      <div class="w-full wide:w-72" data-testid="student-filter">
+      <div
+        class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+        data-testid="student-filter"
+      >
+        <span>學生</span>
         <app-student-autocomplete
-          placeholder="找學生（輸入姓名）"
+          placeholder="輸入姓名"
           [value]="studentValue()"
           [suggestions]="studentSuggestions()"
           [forceSelection]="false"
@@ -88,19 +98,25 @@
           (valueChange)="onStudentChange($event)"
         />
       </div>
-      <p-datepicker
-        [(ngModel)]="filterDateRange"
-        selectionMode="range"
-        placeholder="日期範圍"
-        dateFormat="yy-mm-dd"
-        inputStyleClass="p-inputtext-sm"
-        (onClose)="onFilterChange()"
-        styleClass="clessia-filter-control clessia-filter-control--date-range"
-        [appendTo]="'body'"
-        [showIcon]="true"
-        [readonlyInput]="true"
-        [firstDayOfWeek]="1"
-      />
+      <div
+        class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+        data-testid="date-filter"
+      >
+        <span>日期範圍</span>
+        <p-datepicker
+          [(ngModel)]="filterDateRange"
+          selectionMode="range"
+          placeholder="選擇日期範圍"
+          dateFormat="yy-mm-dd"
+          inputStyleClass="p-inputtext-sm"
+          (onClose)="onFilterChange()"
+          styleClass="clessia-filter-control clessia-filter-control--date-range"
+          [appendTo]="'body'"
+          [showIcon]="true"
+          [readonlyInput]="true"
+          [firstDayOfWeek]="1"
+        />
+      </div>
       @if (hasFilter()) {
         <button
           type="button"
@@ -113,9 +129,7 @@
       }
     </div>
   }
-</div>
 
-<div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   @if (loading()) {
     <div class="skeleton-list" aria-label="請假紀錄載入中">
       @for (i of [1, 2, 3]; track i) {
@@ -150,6 +164,7 @@
           <app-chapter-head
             class="block pt-4 wide:pt-8"
             [name]="chapter.name"
+            [sub]="chapter.meta"
             [count]="chapter.rows.length"
             unit="位"
           />

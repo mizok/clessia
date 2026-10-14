@@ -81,4 +81,20 @@ describe('ChapterHeadComponent', () => {
     expect(h2().classList.contains('text-error-700')).toBe(true);
     expect(h2().classList.contains('text-zinc-900')).toBe(false);
   });
+
+  it('sub 預設空：不渲染小字，別頁 DOM 不變；有值才出現', async () => {
+    await setup({ name: '今天', count: 4, unit: '位' });
+    expect(host.querySelector('[data-testid="chapter-sub"]')).toBeNull();
+
+    fixture.componentRef.setInput('sub', '10/1（四）');
+    fixture.detectChanges();
+    expect(host.querySelector('[data-testid="chapter-sub"]')?.textContent?.trim()).toBe(
+      '10/1（四）',
+    );
+    // 順序：章名、小字、張數
+    const order = [
+      ...host.querySelectorAll('h2, [data-testid="chapter-sub"], .chapter-head__tally'),
+    ].map((e) => e.tagName + (e.getAttribute('data-testid') ?? ''));
+    expect(order).toEqual(['H2', 'SPANchapter-sub', 'P']);
+  });
 });

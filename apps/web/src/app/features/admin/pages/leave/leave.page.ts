@@ -1,6 +1,5 @@
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
@@ -44,7 +43,6 @@ import {
     StudentAutocompleteComponent,
     RouterLink,
     FormsModule,
-    ButtonModule,
     DatePickerModule,
     ToastModule,
     TooltipModule,
@@ -57,7 +55,7 @@ import {
 export class LeavePage implements OnInit {
   /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
    *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
-  protected readonly primaryAction: PageAction = { label: '登記請假' };
+  protected readonly primaryAction: PageAction = { label: '登記請假', icon: 'pi pi-plus' };
 
   readonly page = input.required<RouteObj>();
 
@@ -102,7 +100,11 @@ export class LeavePage implements OnInit {
     const pending = this.pendingCount();
     if (today === null || pending === null) return null;
     const students = new Set(today.map((r) => r.studentId)).size;
-    return `今天 ${students} 位請假，之後還有 ${Math.max(pending - today.length, 0)} 筆。`;
+    // 兩行（A6）：逗號後換行，由模板用 <br />
+    return {
+      today: `今天 ${students} 位請假，`,
+      later: `之後還有 ${Math.max(pending - today.length, 0)} 筆。`,
+    };
   });
 
   /**
@@ -120,7 +122,12 @@ export class LeavePage implements OnInit {
       let group = groups.find((g) => g.key === key);
       if (!group) {
         const name = key === today ? '今天' : key === tomorrow ? '明天' : monthDay(key);
-        group = { key, name, meta: `${monthDay(key)}（${weekdayOf(key)}）`, rows: [] };
+        // A6 章名下小字：今天／明天寫「10/1（四）」（名字不含日期），一般日期名字就是日期，只寫「週二」
+        const meta =
+          key === today || key === tomorrow
+            ? `${monthDay(key)}（${weekdayOf(key).slice(1)}）`
+            : weekdayOf(key);
+        group = { key, name, meta, rows: [] };
         groups.push(group);
       }
       group.rows.push(record);

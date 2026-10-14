@@ -353,7 +353,84 @@ describe('LeavePage', () => {
         rec({ studentId: 's2' }),
       ]);
 
-      expect(component['headline']()).toBe('今天 2 位請假，之後還有 2 筆。');
+      expect(component['headline']()).toEqual({
+        today: '今天 2 位請假，',
+        later: '之後還有 2 筆。',
+      });
+    });
+
+    it('色面兩行（A6）：逗號後 <br />；兩個數字都還沒到就不寫、退回頁名（不寫 0）', () => {
+      const h1 = () => (fixture.nativeElement as HTMLElement).querySelector('h1')!;
+      component['pendingCount'].set(null);
+      component['todayLeaves'].set(null);
+      fixture.detectChanges();
+      expect(h1().querySelector('br')).toBeNull(); // 兩個數字都還沒到
+
+      component['pendingCount'].set(3);
+      fixture.detectChanges();
+      expect(component['headline']()).toBeNull(); // 只有一個數字也不算
+      expect(h1().querySelector('br')).toBeNull();
+
+      component['todayLeaves'].set([rec({ studentId: 's1' })]);
+      fixture.detectChanges();
+      expect(h1().querySelector('br')).not.toBeNull();
+      expect(h1().textContent!.replace(/\s+/g, '')).toBe('今天1位請假，之後還有2筆。');
+    });
+
+    it('章名下小字（A6）：今天／明天寫「4/10（五）」，其他日期寫「週二」；昨天以前的進行中假歸今天', () => {
+      respond([
+        rec({ id: 'y', startDate: '2026-04-09', endDate: '2026-04-11' }), // 昨天開始、進行中 → 今天章
+        rec({ id: 't', startDate: '2026-04-10', endDate: '2026-04-10' }),
+        rec({ id: 'm', startDate: '2026-04-11', endDate: '2026-04-11' }), // 明天（今天＋1）
+        rec({ id: 'a', startDate: '2026-04-12', endDate: '2026-04-12' }), // 後天（門檻＋1）
+      ]);
+      component['loadRecords']();
+      fixture.detectChanges();
+
+      expect(component['chapters']().map((c) => [c.name, c.meta, c.rows.length])).toEqual([
+        ['今天', '4/10（五）', 2],
+        ['明天', '4/11（六）', 1],
+        ['4/12', '週日', 1],
+      ]);
+      expect(qa('chapter-sub').map((e) => e.textContent!.trim())).toEqual([
+        '4/10（五）',
+        '4/11（六）',
+        '週日',
+      ]);
+    });
+
+    it('操作紀錄：白底框、沒有圖示（A6），點了開紀錄對話框', () => {
+      fixture.detectChanges();
+      const btn = q('audit-log')!;
+      expect(btn.textContent!.trim()).toBe('操作紀錄');
+      for (const c of ['bg-white', 'border-zinc-300', 'text-zinc-900']) {
+        expect(btn.classList.contains(c)).toBe(true);
+      }
+      expect(btn.querySelector('i, .pi')).toBeNull();
+
+      dialogServiceMock.open.mockClear();
+      btn.click();
+      expect(dialogServiceMock.open).toHaveBeenCalledTimes(1);
+    });
+
+    it('登記請假帶「＋」圖示：桌機標頭與手機托盤兩處都有', () => {
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('.page-actions__header-primary .pi-plus')).not.toBeNull();
+      expect(root.querySelector('.page-actions__dock .pi-plus')).not.toBeNull();
+    });
+
+    it('篩選面板（A6）：只在「全部」分頁，灰色圓角、欄位帶標籤（學生、日期範圍）', () => {
+      fixture.detectChanges();
+      expect(q('filters')).toBeNull(); // 待處理沒有
+
+      component['tab'].set('all');
+      fixture.detectChanges();
+      const panel = q('filters')!;
+      expect(panel.classList.contains('bg-zinc-100')).toBe(true);
+      expect(panel.classList.contains('wide:rounded-lg')).toBe(true);
+      expect(q('student-filter')!.textContent).toContain('學生');
+      expect(q('date-filter')!.textContent).toContain('日期範圍');
     });
 
     it('選學生帶 studentId（只在全部分頁），清除篩選全清', () => {
