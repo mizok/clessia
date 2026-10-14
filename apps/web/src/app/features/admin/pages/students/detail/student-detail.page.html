@@ -51,9 +51,7 @@
             >
               {{ exam.score
               }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">{{
-                exam.totalScore !== null && exam.totalScore !== 100
-                  ? '／' + exam.totalScore + ' 分'
-                  : '分'
+                examUnitText(exam)
               }}</small>
             </dd>
             <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">

@@ -7,6 +7,7 @@ import {
   classesLabel,
   dateWithWeekday,
   examScoreText,
+  examUnitText,
   scoreSummaryText,
   situationLine,
   subjectScoreText,
@@ -79,6 +80,11 @@ describe('absentLine：超過 3 天只列最近 3 天', () => {
     expect(absentLine(three, '2026-10-10')).toBe('沒到 3 天：8/3、8/10、8/17');
     expect(absentTitle(three, '2026-10-10')).toBeNull();
   });
+  it('恰 4 天（門檻＋1）：只列最近 3 天＋「等 4 天」，title 是完整 4 天', () => {
+    const four = att({ summary: { due: 20, came: 16, absentDates: days.slice(0, 4) } });
+    expect(absentLine(four, '2026-10-10')).toBe('沒到 8/10、8/17、8/24 等 4 天');
+    expect(absentTitle(four, '2026-10-10')).toBe('沒到 4 天：8/3、8/10、8/17、8/24');
+  });
   it('4 天以上：最近 3 天＋「等 N 天」，完整日期給 title（不論傳入順序）', () => {
     expect(absentLine(a, '2026-10-10')).toBe('沒到 8/17、8/24、8/31 等 5 天');
     expect(absentTitle(a, '2026-10-10')).toBe('沒到 5 天：8/3、8/10、8/17、8/24、8/31');
@@ -93,6 +99,7 @@ describe('classesLabel', () => {
   it('0／1／多個班', () => {
     expect(classesLabel([])).toBe('');
     expect(classesLabel(['班A'])).toBe('班A');
+    expect(classesLabel(['班A', '班B'])).toBe('班A 等 2 班');
     expect(classesLabel(['班A', '班B', '班C'])).toBe('班A 等 3 班');
   });
 });
@@ -125,11 +132,18 @@ describe('scoreSummaryText／examScoreText', () => {
   it('班平均是 null 就不寫括號；沒有校內考只寫次數', () => {
     expect(scoreSummaryText([subj(3)], latest({ classAvg: null }))).toBe('3 次 · 最近 79 分');
     expect(scoreSummaryText([subj(3)], null)).toBe('3 次');
+    expect(scoreSummaryText([subj(1)], null)).toBe('1 次');
   });
   it('滿分不是 100 寫「40／50 分」，滿分 null 或 100 寫「N 分」', () => {
     expect(examScoreText({ score: 40, totalScore: 50 })).toBe('40／50 分');
     expect(examScoreText({ score: 40, totalScore: 100 })).toBe('40 分');
     expect(examScoreText({ score: 40, totalScore: null })).toBe('40 分');
+    expect(examScoreText({ score: 40, totalScore: 99 })).toBe('40／99 分');
+    expect(examScoreText({ score: 40, totalScore: 101 })).toBe('40／101 分');
+    expect(examUnitText({ totalScore: 99 })).toBe('／99 分');
+    expect(examUnitText({ totalScore: 100 })).toBe('分');
+    expect(examUnitText({ totalScore: 101 })).toBe('／101 分');
+    expect(examUnitText({ totalScore: null })).toBe('分');
   });
 });
 

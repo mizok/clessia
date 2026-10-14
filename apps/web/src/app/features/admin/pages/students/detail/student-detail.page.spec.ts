@@ -367,6 +367,7 @@ describe('StudentDetailPage', () => {
           .textContent!.replace(/\s+/g, ' ');
         expect(stat).toContain('82');
         expect(stat).toContain('最近一次考試');
+        expect(stat).toContain('82分'); // 滿分 100：單位只寫「分」
         expect(el.textContent).toContain('5 次 · 最近 82 分（班平均 76）');
       });
 

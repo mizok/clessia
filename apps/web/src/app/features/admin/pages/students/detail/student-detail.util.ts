@@ -99,11 +99,15 @@ export function classesLabel(names: readonly string[]): string {
   return `${names[0]} 等 ${names.length} 班`;
 }
 
-/** 「82 分」；滿分不是 100 的考試寫「40／50 分」，不讓 40 被讀成 40 分（百分制） */
+/** 分數後面的單位：滿分不是 100 寫「／50 分」，不讓 40 被讀成百分制的 40 分 */
+export function examUnitText(e: { totalScore: number | null }): string {
+  return e.totalScore !== null && e.totalScore !== 100 ? `／${e.totalScore} 分` : '分';
+}
+
+/** 「82 分」；滿分不是 100 的考試寫「40／50 分」 */
 export function examScoreText(e: { score: number; totalScore: number | null }): string {
-  return e.totalScore !== null && e.totalScore !== 100
-    ? `${e.score}／${e.totalScore} 分`
-    : `${e.score} 分`;
+  const unit = examUnitText(e);
+  return unit === '分' ? `${e.score} 分` : `${e.score}${unit}`;
 }
 
 /** 成績摘要列右邊那句（A6：「3 次 · 最近 79 分（班平均 86）」）；次數＝各科紀錄數加總 */

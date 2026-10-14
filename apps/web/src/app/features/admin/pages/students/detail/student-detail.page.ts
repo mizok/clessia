@@ -46,6 +46,7 @@ import {
   buildLog,
   classesLabel,
   dateWithWeekday,
+  examUnitText,
   hhmm,
   scoreSummaryText,
   shortDate,
@@ -134,6 +135,7 @@ export class StudentDetailPage implements OnInit {
   protected readonly subjects = signal<SubjectAverage[]>([]);
   /** 最近一場有分數的校內考（hero 的「最近一次考試」與成績摘要列）；沒有 → null */
   protected readonly latestExam = signal<StudentSummary['latestAcademy']>(null);
+  protected readonly examUnitText = examUnitText;
   protected readonly leaves = signal<LeaveRequest[]>([]);
   /** 紀錄時間軸要「報名過的所有班」，不只在學中的 */
   private readonly allEnrollments = signal<Enrollment[]>([]);
