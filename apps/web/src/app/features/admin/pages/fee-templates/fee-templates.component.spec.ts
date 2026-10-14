@@ -186,6 +186,75 @@ describe('FeeTemplatesComponent', () => {
       expect(feeTemplates.list.mock.calls.length).toBe(calls);
     });
 
+    describe('次要鈕與篩選 chip（A6：白底 zinc-300 框、漏斗圖示）', () => {
+      const btn = (id: string) =>
+        root().querySelector(`[data-testid="${id}"]`) as HTMLButtonElement;
+      const chip = () => root().querySelector('app-filter-chip button') as HTMLButtonElement;
+      const component_ = () =>
+        component as unknown as {
+          openAuditLog: () => void;
+          openPeriodDialog: () => void;
+          toggleShowInactive: () => void;
+        };
+
+      it('操作紀錄是純按鈕：白底＋zinc-300 框、手機 44／桌機 36、點了開操作紀錄', () => {
+        load(mixed());
+        const b = btn('audit-log-btn');
+        expect(b.tagName).toBe('BUTTON');
+        expect([...b.classList]).toEqual(
+          expect.arrayContaining(['border-zinc-300', 'bg-white', 'size-11', 'wide:size-9']),
+        );
+        expect(b.getAttribute('aria-label')).toBe('操作紀錄');
+        expect(b.querySelector('i')!.className).toContain('pi-history');
+        const spy = vi.spyOn(component_(), 'openAuditLog').mockImplementation(() => undefined);
+        b.click();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it('「新增期間」是純按鈕：只在桌機（hidden＋wide:inline-flex 兩個 class 都在）、白底框、點了開期間表單', () => {
+        load(mixed());
+        const b = btn('new-period-btn');
+        expect(b.tagName).toBe('BUTTON');
+        expect([...b.classList]).toEqual(
+          expect.arrayContaining([
+            'hidden',
+            'wide:inline-flex',
+            'border-zinc-300',
+            'bg-white',
+            'h-11',
+            'wide:h-[30px]',
+          ]),
+        );
+        expect(b.querySelector('i')!.className).toContain('pi-plus');
+        const spy = vi.spyOn(component_(), 'openPeriodDialog').mockImplementation(() => undefined);
+        b.click();
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it('chip 圖示是漏斗，開／關兩種狀態都一樣；標籤隨狀態換', () => {
+        load(mixed());
+        expect(chip().querySelector('i')!.className).toContain('pi-filter');
+        expect(chip().textContent).toContain('顯示停用方案（1）');
+        chip().click();
+        fixture.detectChanges();
+        expect(chip().querySelector('i')!.className).toContain('pi-filter');
+        expect(chip().querySelector('i')!.className).not.toContain('pi-eye');
+        expect(chip().textContent).toContain('隱藏停用方案');
+        expect(chip().getAttribute('aria-pressed')).toBe('true');
+      });
+
+      it('停用數 0／1／2：鈕上的數字跟著變（門檻 ±1）', () => {
+        const withInactive = (n: number) =>
+          Array.from({ length: n }, (_, i) =>
+            template({ id: `x${i}`, name: `停${i}`, isActive: false }),
+          );
+        for (const n of [0, 1, 2]) {
+          load([template({ id: 'on' }), ...withInactive(n)]);
+          expect(chip().textContent).toContain(`顯示停用方案（${n}）`);
+        }
+      });
+    });
+
     it('搜尋在前端過濾，不送請求', () => {
       load(mixed());
       const calls = feeTemplates.list.mock.calls.length;
