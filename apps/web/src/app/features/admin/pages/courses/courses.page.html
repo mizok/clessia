@@ -28,7 +28,7 @@
   >
     <!-- 手機：搜尋框＋篩選＋次要行動同一列（#1314 ③）；桌機 contents 攤平回原本的排法 -->
     <div class="flex w-full flex-wrap items-center gap-2 wide:contents">
-      <label class="flex min-w-0 flex-1 flex-col wide:w-80 wide:flex-none">
+      <label class="flex min-w-0 flex-1 flex-col wide:w-[25rem] wide:flex-none">
         <span class="relative">
           <i
             class="pi pi-search pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-zinc-600"
@@ -38,7 +38,7 @@
             type="search"
             pInputText
             class="h-11 w-full pl-9"
-            placeholder="課程或班級名稱"
+            placeholder="找課程或班級名稱"
             aria-label="搜尋課程或班級"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
@@ -46,7 +46,12 @@
         </span>
       </label>
 
-      <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <app-page-actions
+        class="wide:ml-auto"
+        [primary]="primaryAction"
+        (primaryClick)="openCreateCourseDialog()"
+      >
+        <!-- A6 右群組：篩選｜（清除篩選）｜操作紀錄（時鐘）｜⋯（批次選取，桌機；手機放在課程列的「⋯」）｜新增課程 -->
         <button
           type="button"
           class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
@@ -67,21 +72,26 @@
             清除篩選
           </button>
         }
-      </div>
-
-      <div class="wide:ml-auto">
-        <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateCourseDialog()">
-          <button
-            type="button"
-            title="操作紀錄"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-0 w-11 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-            (click)="openAuditLog()"
-          >
-            <i class="pi pi-history text-sm" aria-hidden="true"></i>
-            <span class="sr-only">操作紀錄</span>
-          </button>
-        </app-page-actions>
-      </div>
+        <button
+          type="button"
+          title="操作紀錄"
+          class="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          (click)="openAuditLog()"
+        >
+          <i class="pi pi-clock text-sm" aria-hidden="true"></i>
+          <span class="sr-only">操作紀錄</span>
+        </button>
+        <app-popup-menu #pageMenu [model]="pageMenuItems()" />
+        <button
+          type="button"
+          title="更多動作"
+          class="hidden h-11 w-11 cursor-pointer items-center justify-center wide:inline-flex rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          aria-label="更多動作"
+          (click)="pageMenu.toggle($event)"
+        >
+          <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i>
+        </button>
+      </app-page-actions>
     </div>
   </div>
 </div>
@@ -147,24 +157,34 @@
       </app-empty-state>
     }
   } @else {
-    <label
-      class="mb-1 inline-flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-700"
-    >
-      <input
-        type="checkbox"
-        class="size-4 cursor-pointer accent-zinc-900"
-        [checked]="allVisibleSelected()"
-        [indeterminate]="selectedClassIds().size > 0 && !allVisibleSelected()"
-        (change)="toggleSelectAll()"
-      />
-      全選這一頁的班級
-    </label>
+    @if (selectionMode()) {
+      <!-- 批次選取模式（A6 沒畫，現況有）：從工具列「⋯」進入；退出會清掉勾選 -->
+      <div class="mb-1 flex flex-wrap items-center gap-x-4">
+        <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-700">
+          <input
+            type="checkbox"
+            class="size-4 cursor-pointer accent-zinc-900"
+            [checked]="allVisibleSelected()"
+            [indeterminate]="selectedClassIds().size > 0 && !allVisibleSelected()"
+            (change)="toggleSelectAll()"
+          />
+          全選這一頁的班級
+        </label>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center border-0 bg-transparent px-0 text-md font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
+          (click)="exitSelectionMode()"
+        >
+          結束批次選取
+        </button>
+      </div>
+    }
 
-    <div class="border-t border-zinc-900">
+    <div>
       <!-- 依科目分章（#1314 C1，A6 chap--row）：桌機左欄科目名＋張數，右邊是課程列 -->
       @for (chapter of chapters(); track chapter.subjectId + chapter.groups[0].course.id) {
         <section
-          class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
           [attr.aria-label]="chapter.subjectName"
           [attr.data-chapter]="chapter.subjectId"
         >
@@ -188,18 +208,16 @@
                 >
                   <button
                     type="button"
-                    class="col-start-1 row-start-1 flex min-h-11 min-w-0 items-center gap-2 border-0 bg-transparent p-0 text-left text-lg font-semibold text-zinc-900"
-                    [class.cursor-pointer]="hasClasses"
-                    [class.hover:underline]="hasClasses"
+                    class="col-start-1 row-start-1 flex min-h-11 min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-base font-semibold text-zinc-900 hover:underline"
                     [class.text-zinc-600]="!group.course.isActive"
-                    [disabled]="!hasClasses"
-                    [attr.aria-expanded]="hasClasses ? !collapsed : null"
+                    [attr.aria-expanded]="!collapsed"
                     (click)="toggleCourse(group.course.id)"
                   >
+                    <!-- 0 個班也有「›」、也能展開（A6：展開看到「還沒有班」） -->
                     <i
                       class="pi w-3 shrink-0 text-xs"
-                      [class.pi-chevron-down]="hasClasses && !collapsed"
-                      [class.pi-chevron-right]="hasClasses && collapsed"
+                      [class.pi-chevron-down]="!collapsed"
+                      [class.pi-chevron-right]="collapsed"
                       aria-hidden="true"
                     ></i>
                     <span class="truncate underline-offset-4">{{ group.course.name }}</span>
@@ -217,12 +235,17 @@
                   >
                     {{ group.course.campusName ?? getCampusName(group.course.campusId) }} ·
                     {{ group.course.subjectName }}
-                    <span class="wide:hidden">
-                      · {{ group.classes.length }} 個班{{ openClassSuffix(group) }}
-                      @if (!group.course.isActive) {
-                        · 停用
-                      }
-                    </span>
+                    <!-- 手機（A6）：下面再疊「N 個班」與「狀態：啟用」兩行 -->
+                    <span class="mt-0.5 block wide:hidden"
+                      ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b> 個班{{
+                        openClassSuffix(group)
+                      }}</span
+                    >
+                    <span class="mt-0.5 block wide:hidden"
+                      >狀態：<b class="font-semibold text-zinc-900">{{
+                        group.course.isActive ? '啟用' : '停用'
+                      }}</b></span
+                    >
                   </span>
                   <span class="hidden text-md text-zinc-600 tabular-nums wide:inline"
                     ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b> 個班{{
@@ -241,17 +264,17 @@
                   >
                     <!-- A6 .crs__act：桌機「新增班」＋「⋯」；手機只有「⋯」（新增班收進選單） -->
                     @if (!isMobile()) {
-                      <p-button
-                        label="新增班"
-                        icon="pi pi-plus"
-                        [outlined]="true"
-                        severity="secondary"
-                        [ariaLabel]="'在 ' + group.course.name + ' 新增班'"
+                      <button
+                        type="button"
+                        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-500 disabled:hover:border-zinc-300 disabled:hover:bg-white"
+                        [attr.aria-label]="'在 ' + group.course.name + ' 新增班'"
                         [disabled]="!group.course.isActive"
                         [pTooltip]="!group.course.isActive ? '課程已停用，無法新增班級' : ''"
                         tooltipPosition="top"
-                        (onClick)="openCreateClassDialog(group.course.id)"
-                      />
+                        (click)="openCreateClassDialog(group.course.id)"
+                      >
+                        <i class="pi pi-plus text-xs" aria-hidden="true"></i>新增班
+                      </button>
                     }
                     <p-button
                       icon="pi pi-ellipsis-h"
@@ -283,6 +306,7 @@
                         [historical]="isHistorical(cls)"
                         [scheduleSummary]="getScheduleSummary(cls.schedules)"
                         [mobile]="isMobile()"
+                        [selectable]="selectionMode()"
                         (toggleSelection)="toggleClassSelection(cls.id, $event)"
                         (navigate)="navigateToClass(group.course.id, cls.id)"
                         (navigateUnassigned)="navigateToUnassignedSessions(cls)"
@@ -291,7 +315,7 @@
                       />
                     } @empty {
                       <p class="m-0 border-t border-zinc-100 py-3 text-md text-zinc-600">
-                        此課程尚無班級，點「新增班」建立
+                        還沒有班。按「新增班」開第一個班。
                       </p>
                     }
                   </div>
@@ -383,22 +407,10 @@
   </div>
 }
 
-<!-- 桌面: Popover 篩選面板 -->
+<!-- 篩選面板：桌機手機都是貼在「篩選」鈕下的 Popover（A6） -->
 <p-popover #filterPopover styleClass="w-80">
   <ng-container [ngTemplateOutlet]="filterContent" />
 </p-popover>
-
-<!-- 手機: Drawer 篩選面板 -->
-<p-drawer
-  header="篩選"
-  position="bottom"
-  [visible]="filterPanelVisible()"
-  (visibleChange)="filterPanelVisible.set($event)"
-  styleClass="drawer-auto"
-  [appendTo]="'body'"
->
-  <ng-container [ngTemplateOutlet]="filterContent" />
-</p-drawer>
 
 <!-- 共用篩選內容 -->
 <ng-template #filterContent>

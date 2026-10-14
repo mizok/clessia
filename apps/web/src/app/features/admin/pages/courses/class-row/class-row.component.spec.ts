@@ -128,6 +128,65 @@ describe('ClassRowComponent', () => {
     });
   });
 
+  describe('在籍人數（A6「17／24 人」）', () => {
+    it('有 enrolledCount：「17／24 人」；沒有就退回「上限 24 人」', async () => {
+      await setup(makeClass({ maxStudents: 24, enrolledCount: 17 }));
+      const cap = () =>
+        fixture.nativeElement
+          .querySelector('[data-part=capacity]')
+          ?.textContent.replace(/\s+/g, '');
+      expect(cap()).toBe('17／24人');
+
+      fixture.componentRef.setInput('cls', makeClass({ maxStudents: 24 }));
+      fixture.detectChanges();
+      expect(cap()).toBe('上限24人');
+    });
+
+    it('enrolledCount=0 也要顯示（0 是答案）', async () => {
+      await setup(makeClass({ maxStudents: 24, enrolledCount: 0 }));
+      expect(
+        fixture.nativeElement
+          .querySelector('[data-part=capacity]')
+          ?.textContent.replace(/\s+/g, ''),
+      ).toBe('0／24人');
+    });
+  });
+
+  it('列本身有 min-h-11（A27 的靜態 class），且和版面 class 合併不互蓋', async () => {
+    await setup(makeClass(), { selectable: false });
+    const row = fixture.nativeElement.firstElementChild as HTMLElement;
+    expect(row.classList.contains('min-h-11')).toBe(true);
+    expect(row.classList.contains('grid')).toBe(true);
+  });
+
+  describe('批次選取模式（selectable）', () => {
+    it('selectable=false：沒有勾選框；點列的空白處不發勾選事件', async () => {
+      await setup(makeClass(), { selectable: false });
+      const spy = vi.fn();
+      fixture.componentInstance.toggleSelection.subscribe(spy);
+
+      expect(fixture.nativeElement.querySelector('input[type=checkbox]')).toBeNull();
+      fixture.nativeElement.querySelector('[data-part=schedules]').click();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('selectable=false：格位左移一格（沒有 28px 勾選欄）；true 才有', async () => {
+      await setup(makeClass(), { selectable: false });
+      const row = () => fixture.nativeElement.firstElementChild as HTMLElement;
+      expect(row().className).not.toContain('28px');
+      expect(
+        fixture.nativeElement.querySelector('[data-part=name]').parentElement.className,
+      ).toContain('col-start-1');
+
+      fixture.componentRef.setInput('selectable', true);
+      fixture.detectChanges();
+      expect(row().className).toContain('28px');
+      expect(
+        fixture.nativeElement.querySelector('[data-part=name]').parentElement.className,
+      ).toContain('col-start-2');
+    });
+  });
+
   // 提示要連到修法。同一列的「N 堂未指派」早就是可點的，這顆是唯一的死路
   describe('無未來排程的入口', () => {
     const noUpcoming = makeClass({

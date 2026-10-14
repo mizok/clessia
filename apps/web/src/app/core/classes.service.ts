@@ -25,6 +25,8 @@ export interface Class {
   campusName?: string;
   name: string;
   maxStudents: number;
+  /** 在籍人數（A6「17／24 人」）。列表 API 還沒帶時是 undefined，畫面退回「上限 N 人」 */
+  enrolledCount?: number;
   gradeLevels: string[];
   nextClassId: string | null;
   isActive: boolean;
