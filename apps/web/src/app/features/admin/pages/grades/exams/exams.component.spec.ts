@@ -489,6 +489,7 @@ describe('ExamsComponent', () => {
       component['onStatusChange']('active');
       expect(component['tab']()).toBe('all');
       expect(component['desktopFilterCount']()).toBe(1);
+      fixture.detectChanges(); // effect 在這輪才送出請求
       http
         .match((r) => r.url.startsWith(`${environment.apiUrl}/api/academy-exams`))
         .forEach((r) =>
