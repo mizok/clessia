@@ -18,6 +18,7 @@ const ROW = {
   signed_at: null,
   students: { name: '陳小明' },
   editor: { name: '林老師' },
+  signer: null,
 };
 
 describe('toContactBookEntryResponse', () => {
@@ -30,6 +31,7 @@ describe('toContactBookEntryResponse', () => {
       content: '今天上課很專心，數學小考 95 分。',
       lastEditedByName: '林老師',
       signedBy: null,
+      signedByName: null,
       signedAt: null,
       isSigned: false,
     });
@@ -43,6 +45,7 @@ describe('toContactBookEntryResponse', () => {
     const signed = {
       ...ROW,
       signed_by: 'user-parent',
+      signer: { name: '林太太' },
       signed_at: '2026-08-29T12:00:00Z',
     };
 
@@ -50,16 +53,18 @@ describe('toContactBookEntryResponse', () => {
 
     expect(result.isSigned).toBe(true);
     expect(result.signedBy).toBe('user-parent');
+    expect(result.signedByName).toBe('林太太');
     expect(result.signedAt).toBe('2026-08-29T12:00:00Z');
   });
 
   it('關聯資料缺漏時給 null，不讓回應塌成 undefined', () => {
-    const bare = { ...ROW, students: null, editor: null };
+    const bare = { ...ROW, students: null, editor: null, signer: null };
 
     const result = toContactBookEntryResponse(bare);
 
     expect(result.studentName).toBeNull();
     expect(result.lastEditedByName).toBeNull();
+    expect(result.signedByName).toBeNull();
   });
 });
 

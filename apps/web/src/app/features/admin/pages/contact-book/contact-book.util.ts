@@ -144,3 +144,21 @@ export function weekStart(today: string): string {
   day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
   return day.toISOString().slice(0, 10);
 }
+
+/** 期間下拉的最後一項：展開日期範圍選擇器（任意區間是現有功能，A6 只畫了固定天數） */
+export const CUSTOM_PERIOD = 'custom';
+
+/** A6 期間下拉：最近 N 天（含今天）＋「自訂區間…」。value 是天數字串 */
+export const PERIOD_OPTIONS: ReadonlyArray<{ label: string; value: string }> = [
+  { label: '最近 7 天', value: '7' },
+  { label: '最近 14 天', value: '14' },
+  { label: '最近 30 天', value: '30' },
+  { label: '自訂區間…', value: CUSTOM_PERIOD },
+];
+
+/** 簽收欄文字：有姓名＝「林太太 20:06 簽」（A6）；沒有姓名退回「已簽收 20:06」 */
+export function signedCellText(entry: ContactBookEntry): string {
+  const time = signedTimeText(entry.signedAt);
+  const parts = entry.signedByName ? [entry.signedByName, time, '簽'] : ['已簽收', time];
+  return parts.filter(Boolean).join(' ');
+}

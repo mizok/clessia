@@ -308,7 +308,7 @@ export class SchedulePage implements OnInit {
     return {
       dateStr,
       date,
-      label: `週${WEEKDAY_LABELS[date.getDay()]}`,
+      label: WEEKDAY_LABELS[date.getDay()],
       isToday: dateStr === this.todayStr,
       count: this.selectedSessions().filter((s) => s.status !== 'cancelled').length,
     };
