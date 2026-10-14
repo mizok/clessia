@@ -9,7 +9,6 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { DatePickerModule } from 'primeng/datepicker';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
-import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
@@ -25,7 +24,6 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
-import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -42,7 +40,9 @@ import {
   type BillingRunDialogData,
 } from './billing-run-dialog/billing-run-dialog.component';
 import {
+  chapterOrdered,
   draftTotals,
+  monthDay,
   draftToBatchRows,
   mealChapters,
   rosterToDraft,
@@ -52,7 +52,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
-import { todayLocal } from '@shared/utils/session-time.util';
+import { SystemClockService } from '@core/system-clock.service';
 import { extractErrorMessage } from '@shared/utils/api-error.util';
 
 /** 區間模式的每頁筆數。後端 pageSize 上限 100 */
@@ -85,14 +85,12 @@ const RANGE_PAGE_SIZE = 50;
     PageOpenComponent,
     DecimalPipe,
     RouterLink,
-    ChapterHeadComponent,
     FormsModule,
     ButtonModule,
     CheckboxModule,
     DatePickerModule,
     InputNumberModule,
     InputTextModule,
-    SelectButtonModule,
     ToastModule,
     TooltipModule,
     PageActionsComponent,
@@ -115,6 +113,7 @@ export class MealsComponent implements OnInit {
   readonly billingRun = input<string | undefined>();
   readonly periodId = input<string | undefined>();
 
+  private readonly clock = inject(SystemClockService);
   private readonly service = inject(MealsService);
   private readonly studentsService = inject(StudentsService);
   private readonly messageService = inject(MessageService);
@@ -150,7 +149,8 @@ export class MealsComponent implements OnInit {
    */
   protected readonly queriedRange = signal<{ dateFrom: string; dateTo: string } | null>(null);
 
-  protected date: Date = new Date();
+  /** 名單日期，`YYYY-MM-DD`（台北）。**字串，不經 `new Date()`** —— 原生日期欄給的就是這個形狀 */
+  protected readonly dateStr = signal(this.clock.todayTaipei());
   protected dateRange: Date[] | null = null;
   protected readonly student = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
@@ -171,6 +171,30 @@ export class MealsComponent implements OnInit {
   });
 
   protected readonly totals = computed(() => draftTotals(this.rows()));
+  /**
+   * 色面句（A6）。當日：「今天 N 份便當，／還有 M 位沒處理。」（不是今天就把「今天」換成 M/D）；
+   * 區間：「9/1–10/1／N 份便當，NT$ X。」數字取後端的 meta。還沒載到、失敗、空名單回 `null`，退回頁名。
+   * 「沒處理」＝這天還沒有記錄的人（`recordId === null`），跟「收不收費」的開關無關。
+   */
+  protected readonly headline = computed<{ first: string; second: string } | null>(() => {
+    if (this.loading() || this.failed() || this.rows().length === 0) return null;
+    if (this.isRange()) {
+      const range = this.queriedRange();
+      const meta = this.summary();
+      if (!range || !meta) return null;
+      return {
+        first: `${monthDay(range.dateFrom)}–${monthDay(range.dateTo)}`,
+        second: `${meta.total} 份便當，NT$ ${meta.totalAmount.toLocaleString('en-US')}。`,
+      };
+    }
+    const day = this.dateStr() === this.clock.todayTaipei() ? '今天' : monthDay(this.dateStr());
+    const unhandled = this.rows().filter((row) => row.recordId === null).length;
+    return {
+      first: `${day} ${this.totals().ordered} 份便當，`,
+      second: unhandled > 0 ? `還有 ${unhandled} 位沒處理。` : '全部處理完了。',
+    };
+  });
+  protected readonly chapterOrdered = chapterOrdered;
   /** 當日＝依班分章；區間＝只有一章（沒有章頭）、帶分頁 */
   protected readonly tables = computed(() =>
     this.isRange() ? [{ name: '', rows: this.rows() }] : mealChapters(this.rows()),
@@ -194,7 +218,7 @@ export class MealsComponent implements OnInit {
   }
 
   private get dateString(): string {
-    return format(this.date, 'yyyy-MM-dd');
+    return this.dateStr();
   }
 
   protected load(): void {
@@ -233,9 +257,21 @@ export class MealsComponent implements OnInit {
     });
   }
 
-  protected onDateChange(value: Date | null): void {
+  /**
+   * 原生日期欄的 `change`。**空值（清掉、或只打了一半）要把欄位還原成目前的日期** ——
+   * 否則畫面上的欄位是空的、底下卻還是上一天的名單。
+   */
+  protected onDateInput(input: HTMLInputElement): void {
+    if (!input.value) {
+      input.value = this.dateStr();
+      return;
+    }
+    this.onDateChange(input.value);
+  }
+
+  protected onDateChange(value: string): void {
     if (!value) return;
-    this.date = value;
+    this.dateStr.set(value);
     this.load();
   }
 
@@ -245,7 +281,8 @@ export class MealsComponent implements OnInit {
     this.currentPage.set(1);
     // 切到區間時給一個預設區間 —— 不給的話後端會回 400
     if (mode === 'range' && !this.dateRange) {
-      this.dateRange = [startOfMonth(this.date), this.date];
+      const day = parseDay(this.dateStr());
+      this.dateRange = [startOfMonth(day), day];
     }
     this.load();
   }
@@ -388,8 +425,8 @@ export class MealsComponent implements OnInit {
    * 「不要自動化 N 點截止邏輯 —— 那是人工裁量」，所以那顆開關**永遠不能有 overdue**。
    * 這裡判斷的是「行政有沒有處理過這一列」，不是「這一餐該不該收錢」。
    */
-  protected unhandledTone(now: Date = new Date()): StatusTone {
-    return this.dateString < todayLocal(now) ? 'overdue' : 'pending';
+  protected unhandledTone(): StatusTone {
+    return this.dateString < this.clock.todayTaipei() ? 'overdue' : 'pending';
   }
 }
 
@@ -406,4 +443,10 @@ function rangeToStrings(
     dateFrom: format(range[0], 'yyyy-MM-dd'),
     dateTo: format(range[1], 'yyyy-MM-dd'),
   };
+}
+
+/** `YYYY-MM-DD` → 本地午夜的 Date（給 `p-datepicker` 區間用；**不走** `new Date('YYYY-MM-DD')` 的 UTC 解析） */
+function parseDay(day: string): Date {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Date(year, month - 1, date);
 }

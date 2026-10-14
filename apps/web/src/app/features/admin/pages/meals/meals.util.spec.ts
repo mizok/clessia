@@ -1,4 +1,11 @@
-import { mealChapters, rosterToDraft, draftTotals, draftToBatchRows } from './meals.util';
+import {
+  chapterOrdered,
+  draftToBatchRows,
+  draftTotals,
+  mealChapters,
+  monthDay,
+  rosterToDraft,
+} from './meals.util';
 import type { MealRosterRow } from '@core/meals.service';
 
 function row(overrides: Partial<MealRosterRow> = {}): MealRosterRow {
@@ -230,5 +237,31 @@ describe('mealChapters', () => {
     const chapters = mealChapters([draft('x', []), draft('b', ['數學']), draft('c', ['數學'])]);
     expect(chapters.map((c) => c.name)).toEqual(['數學', '']);
     expect(chapters[0].rows.map((r) => r.studentId)).toEqual(['b', 'c']);
+  });
+});
+
+describe('chapterOrdered —— 章頭「訂 N／M」的分子', () => {
+  const rows = (flags: boolean[]) =>
+    rosterToDraft(
+      flags.map((ordered, i) =>
+        row({ studentId: `s${i}`, recordId: `r${i}`, ordered, chargeable: true, unitPrice: 60 }),
+      ),
+      60,
+    );
+
+  it('0 位／部分／全部訂（門檻 ±1）', () => {
+    expect(chapterOrdered(rows([false, false]))).toBe(0);
+    expect(chapterOrdered(rows([true, false]))).toBe(1);
+    expect(chapterOrdered(rows([true, true]))).toBe(2);
+    expect(chapterOrdered(rows([]))).toBe(0);
+  });
+});
+
+describe('monthDay —— A6 不補零', () => {
+  it('月日各一位／兩位四種組合', () => {
+    expect(monthDay('2026-09-05')).toBe('9/5');
+    expect(monthDay('2026-09-15')).toBe('9/15');
+    expect(monthDay('2026-10-05')).toBe('10/5');
+    expect(monthDay('2026-10-15')).toBe('10/15');
   });
 });
