@@ -899,6 +899,51 @@ describe('CoursesPage', () => {
       expect(row.querySelectorAll('.wide\\:hidden').length).toBeGreaterThanOrEqual(2);
     });
 
+    describe('已結束的班提示（endedClassCount）', () => {
+      const setupEnded = (ended: number | undefined, withClass: boolean) => {
+        coursesServiceMock.list.mockReturnValueOnce(
+          of({
+            data: [{ ...course('c1', '國一國文'), endedClassCount: ended }],
+            meta: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+            summary: { bySubject: [{ subjectId: 's-zh', subjectName: '國文', count: 1 }] },
+          }),
+        );
+        (component as unknown as { loadCourses: () => void }).loadCourses();
+        if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+        (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set(
+          withClass ? [klass('a', 'c1')] : [],
+        );
+        fixture.detectChanges();
+      };
+
+      it('有班、另有已結束的：結尾寫「另有 N 個已結束的班，打開篩選裡的「含歷史班級」看。」', () => {
+        setupEnded(2, true);
+        expect(norm(el())).toContain('另有 2 個已結束的班，打開篩選裡的「含歷史班級」看。');
+        expect(norm(el())).not.toContain('只有已結束的班');
+      });
+
+      it('沒有未結束的班、只有已結束的：寫「只有已結束的班（N 個）」而不是「還沒有班」', () => {
+        setupEnded(3, false);
+        expect(norm(el())).toContain('只有已結束的班（3 個）。打開篩選裡的「含歷史班級」看。');
+        expect(norm(el())).not.toContain('還沒有班。按「新增班」開第一個班。');
+        // 同一門課不會同時出現兩種提示
+        expect(norm(el())).not.toContain('另有 3 個已結束的班');
+      });
+
+      it('endedClassCount 是 0、或舊後端沒給：不寫提示；真的沒有班才寫「還沒有班」', () => {
+        setupEnded(0, true);
+        expect(norm(el())).not.toContain('已結束的班');
+        setupEnded(undefined, false);
+        expect(norm(el())).toContain('還沒有班。按「新增班」開第一個班。');
+      });
+
+      it('已經打開「含歷史班級」：它們都列出來了，不再提示', () => {
+        component['showHistorical'].set(true);
+        setupEnded(2, true);
+        expect(norm(el())).not.toContain('另有 2 個已結束的班');
+      });
+    });
+
     it('班級時段後面接老師名（同一天多個時段各自帶）；沒有老師就不寫', () => {
       const summary = (
         component as unknown as {
