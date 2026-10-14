@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { addDays, format, parseISO } from 'date-fns';
 
+import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import type { ChangeLogEntry, ScheduleChangeType } from '@core/sessions.service';
 
 import {
@@ -22,9 +24,12 @@ const WIDE = {
   day: 'wide:text-[44px]',
   dayMeta: 'wide:mt-0.5',
   count: 'wide:mt-3 wide:text-xl',
-  row: 'wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)] wide:items-baseline',
+  // 時間｜班名＋標籤｜說明｜原因與操作者｜看這堂（批次列最後一格是「看是哪 N 堂」）
+  row: 'wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
   summary:
-    'wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
+    'wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
+  // 該堂沒有開始時間時占住時間欄，讓同章其他列對得齊
+  timeGap: 'hidden wide:block',
 } as const;
 const NARROW = {
   chapter: '',
@@ -34,6 +39,7 @@ const NARROW = {
   count: '',
   row: '',
   summary: '',
+  timeGap: 'hidden',
 };
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -46,7 +52,7 @@ const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
  */
 @Component({
   selector: 'app-change-log-list',
-  imports: [DatePipe, NgTemplateOutlet],
+  imports: [DatePipe, NgTemplateOutlet, RouterLink],
   templateUrl: './change-log-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -58,6 +64,8 @@ export class ChangeLogListComponent {
   readonly compact = input(false);
   /** 要預先展開的那一批（`ChangeItem.key`）；沒有就都收著 */
   readonly expandKey = input<string | null>(null);
+
+  protected readonly sessionsPath = RoutesCatalog.ADMIN_SESSIONS.absolutePath;
 
   protected readonly wide = computed(() => (this.compact() ? NARROW : WIDE));
 

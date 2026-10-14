@@ -37,16 +37,30 @@
       }
     </nav>
     @if (isRange()) {
-      <p-datepicker
-        selectionMode="range"
-        dateFormat="yy-mm-dd"
-        [showIcon]="true"
-        [readonlyInput]="true"
-        placeholder="日期區間"
-        [ngModel]="dateRange"
-        (ngModelChange)="onRangeChange($event)"
-        ariaLabel="日期區間"
-      />
+      <label class="flex w-full items-center gap-2 text-md font-semibold text-zinc-700 wide:w-auto">
+        從
+        <input
+          #fromInput
+          type="date"
+          class="h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:h-10 wide:flex-none"
+          aria-label="區間起日"
+          data-testid="meals-from"
+          [value]="dateFrom()"
+          (change)="onFromInput(fromInput)"
+        />
+      </label>
+      <label class="flex w-full items-center gap-2 text-md font-semibold text-zinc-700 wide:w-auto">
+        到
+        <input
+          #toInput
+          type="date"
+          class="h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:h-10 wide:flex-none"
+          aria-label="區間迄日"
+          data-testid="meals-to"
+          [value]="dateTo()"
+          (change)="onToInput(toInput)"
+        />
+      </label>
       <div class="clessia-filter-search w-full min-w-0 wide:w-80">
         <app-student-autocomplete
           [value]="student()"
@@ -195,20 +209,98 @@
         />
       }
     } @else {
-      <!--
-        當日依班級分章（#1314 ME2，A6 chap）：桌機左欄班名＋訂餐數，右邊是該班的表。
-        區間是只有一章、沒有章頭的同一個結構 —— 列的標記只寫一份：`appRtRow` 要在
-        responsive-table 自己的 injector 裡建立，不能走巢狀的 ngTemplateOutlet。
-      -->
-      <div class="border-t border-zinc-900">
-        @for (table of tables(); track table.name) {
-          <section
-            class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0"
-            [class]="isRange() ? '' : chapterGrid"
-            [attr.aria-label]="table.name || '未分班'"
-            data-chapter
+      @if (isRange()) {
+        <!-- 區間：依日期分章的唯讀列（A6 `.chap` ＋ `.rg`）。沒有班級欄 —— 區間 API 不回班級 -->
+        <div class="border-t border-zinc-900">
+          @for (day of dayChapters(); track day.date) {
+            <section
+              class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+              [attr.aria-label]="monthDay(day.date)"
+              data-chapter
+            >
+              <div
+                class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-6 wide:block wide:pt-8"
+                data-testid="chapter-head"
+              >
+                <h2 class="m-0 text-[28px] font-bold tracking-[-0.02em] text-zinc-900 tabular-nums">
+                  {{ monthDay(day.date) }}
+                </h2>
+                <p class="m-0 text-lg font-bold tabular-nums wide:mt-3 wide:text-xl">
+                  {{ chapterOrdered(day.rows)
+                  }}<span class="text-md font-medium text-zinc-600">
+                    份 · {{ weekdayLabel(day.date) }}</span
+                  >
+                </p>
+              </div>
+              <div class="min-w-0 py-2 wide:pt-6">
+                @for (row of day.rows; track row.studentId) {
+                  <div
+                    class="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-surface-border py-3 text-md wide:grid-cols-[minmax(0,1.3fr)_100px_92px_minmax(0,1fr)] wide:gap-x-4 wide:py-2"
+                    data-testid="range-row"
+                  >
+                    <a
+                      [routerLink]="'/admin/students/' + row.studentId"
+                      class="inline-flex min-h-11 min-w-0 items-center font-bold text-zinc-900 underline underline-offset-[3px] wide:min-h-0"
+                      >{{ row.studentName }}</a
+                    >
+                    <span
+                      class="text-right font-semibold tabular-nums"
+                      data-testid="range-amount"
+                      >{{
+                        !row.ordered ? '沒訂' : row.chargeable ? 'NT$ ' + row.unitPrice : '不收費'
+                      }}</span
+                    >
+                    <span class="text-sm text-zinc-700" data-testid="range-state">{{
+                      row.settled ? '已結算' : row.recordId === null ? '未處理' : '已確認'
+                    }}</span>
+                    @if (row.note) {
+                      <span class="col-span-2 text-sm text-zinc-600 wide:col-span-1">{{
+                        row.note
+                      }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            </section>
+          }
+        </div>
+
+        @if (totalPages() > 1) {
+          <div
+            class="mt-2 flex items-center justify-end gap-2 text-md text-zinc-700 tabular-nums"
+            data-testid="pager"
           >
-            @if (!isRange()) {
+            <span>第 {{ currentPage() }}／{{ totalPages() }} 頁</span>
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:text-zinc-400 disabled:hover:border-zinc-300 disabled:hover:bg-white wide:h-[30px]"
+              data-testid="pager-prev"
+              [disabled]="currentPage() === 1"
+              (click)="goPage(-1)"
+            >
+              上一頁
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:text-zinc-400 disabled:hover:border-zinc-300 disabled:hover:bg-white wide:h-[30px]"
+              data-testid="pager-next"
+              [disabled]="currentPage() === totalPages()"
+              (click)="goPage(1)"
+            >
+              下一頁
+            </button>
+          </div>
+        }
+      } @else {
+        <!-- 當日：依班級分章，章內是 A6 `.ml` 自訂列（桌機一列六欄、手機堆疊） -->
+        <div class="border-t border-zinc-900">
+          @for (table of classChapters(); track table.name) {
+            <section
+              class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0"
+              [class]="chapterGrid"
+              [attr.aria-label]="table.name || '未分班'"
+              data-chapter
+            >
               <!-- 章頭（A6 `.chap__side`，餐費自己的 24px 變體）：班名＋「訂 N／M」；手機橫排 -->
               <div
                 class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-6 wide:block wide:pt-8"
@@ -222,156 +314,118 @@
                   }}<span class="text-md font-medium text-zinc-600">／{{ table.rows.length }}</span>
                 </p>
               </div>
-            }
-            <ng-template #mealHead>
-              <tr>
-                @if (isRange()) {
-                  <th appRtColDef="date" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
-                    日期
-                  </th>
-                }
-                <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">
-                  學生
-                </th>
-                @if (!isRange()) {
-                  <th appRtColDef="classes" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">
-                    班級
-                  </th>
-                }
-                <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">
-                  訂餐
-                </th>
-                <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">
-                  單價
-                </th>
-                <th appRtColDef="chargeable" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
-                  收費
-                </th>
-                <th appRtColDef="note" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
-                  備註
-                </th>
-                <th appRtColDef="state" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">
-                  狀態
-                </th>
-              </tr>
-            </ng-template>
-            <ng-template #dayHead>
-              <tr>
-                <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">
-                  學生
-                </th>
-                <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">
-                  訂餐
-                </th>
-                <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">
-                  單價
-                </th>
-                <th appRtColDef="chargeable" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
-                  收費
-                </th>
-                <th appRtColDef="note" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
-                  備註
-                </th>
-                <th appRtColDef="state" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">
-                  狀態
-                </th>
-              </tr>
-            </ng-template>
-            <ng-template #mealBody>
-              @for (row of table.rows; track row.studentId) {
-                <tr appRtRow [appRtRow]="row" [appRtRowId]="row.studentId">
-                  @if (isRange()) {
-                    <td appRtColCell="date">
-                      <span class="tabular-nums text-zinc-600">{{ row.mealDate }}</span>
-                    </td>
-                  }
-                  <td appRtColCell="student">
-                    <span class="font-medium text-zinc-900">{{ row.studentName }}</span>
-                    @if (!isRange() && row.classLabel !== row.chapter) {
-                      <span class="block text-sm text-zinc-500">{{ row.classLabel }}</span>
-                    }
-                  </td>
-                  <td appRtColCell="ordered">
-                    <p-checkbox
-                      [binary]="true"
-                      [disabled]="row.settled || isRange()"
-                      [ngModel]="row.ordered"
-                      (ngModelChange)="updateRow(row.studentId, 'ordered', $event)"
-                      [ariaLabel]="row.studentName + ' 訂餐'"
-                    />
-                  </td>
-                  <td appRtColCell="price">
-                    <p-inputnumber
-                      mode="currency"
-                      currency="TWD"
-                      locale="zh-TW"
-                      [min]="0"
-                      [maxFractionDigits]="0"
-                      [disabled]="row.settled || !row.ordered || isRange()"
-                      [ngModel]="row.unitPrice"
-                      (ngModelChange)="updateRow(row.studentId, 'unitPrice', $event)"
-                      [ariaLabel]="row.studentName + ' 的單價'"
-                    />
-                  </td>
-                  <td appRtColCell="chargeable">
-                    <p-checkbox
-                      [binary]="true"
-                      [disabled]="row.settled || !row.ordered || isRange()"
-                      [ngModel]="row.chargeable"
-                      (ngModelChange)="updateRow(row.studentId, 'chargeable', $event)"
-                      [ariaLabel]="row.studentName + ' 收不收費'"
-                    />
-                  </td>
-                  <td appRtColCell="note">
+              <div class="min-w-0 py-2 wide:pt-6">
+                @for (row of table.rows; track row.studentId) {
+                  <div
+                    class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-surface-border py-3 wide:min-h-14 wide:grid-cols-[minmax(0,1.3fr)_92px_120px_92px_minmax(0,1.2fr)_92px] wide:gap-x-4 wide:py-2"
+                    data-testid="meal-row"
+                  >
+                    <div class="col-start-1 row-start-1 min-w-0 wide:col-auto wide:row-auto">
+                      <a
+                        [routerLink]="'/admin/students/' + row.studentId"
+                        class="inline-flex min-h-11 items-center font-bold no-underline underline-offset-[3px] hover:underline wide:min-h-0"
+                        [class.text-zinc-900]="row.ordered"
+                        [class.text-zinc-600]="!row.ordered"
+                        >{{ row.studentName }}</a
+                      >
+                      @if (row.classLabel !== row.chapter) {
+                        <span class="block text-sm text-zinc-500">{{ row.classLabel }}</span>
+                      }
+                    </div>
+                    <label
+                      class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 text-md font-semibold has-[:disabled]:cursor-default has-[:disabled]:text-zinc-500 wide:min-h-10"
+                    >
+                      <input
+                        #ordered
+                        type="checkbox"
+                        class="m-0 size-[18px] accent-zinc-900"
+                        data-testid="meal-ordered"
+                        [checked]="row.ordered"
+                        [disabled]="row.settled"
+                        (change)="updateRow(row.studentId, 'ordered', ordered.checked)"
+                        [attr.aria-label]="row.studentName + ' 訂餐'"
+                      />訂餐
+                    </label>
+                    <label class="flex items-center gap-1 text-sm text-zinc-600">
+                      NT$
+                      <input
+                        #price
+                        type="text"
+                        inputmode="numeric"
+                        class="h-11 w-[72px] min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-2 text-right text-base tabular-nums text-zinc-900 [font:inherit] disabled:bg-zinc-100 disabled:text-zinc-600 wide:h-9"
+                        data-testid="meal-price"
+                        [value]="row.unitPrice"
+                        [disabled]="row.settled || !row.ordered"
+                        (change)="onPriceInput(row, price)"
+                        [attr.aria-label]="row.studentName + ' 的單價'"
+                      />
+                    </label>
+                    <label
+                      class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 text-md font-semibold has-[:disabled]:cursor-default has-[:disabled]:text-zinc-500 wide:min-h-10"
+                    >
+                      <input
+                        #chargeable
+                        type="checkbox"
+                        class="m-0 size-[18px] accent-zinc-900"
+                        data-testid="meal-chargeable"
+                        [checked]="row.chargeable"
+                        [disabled]="row.settled || !row.ordered"
+                        (change)="updateRow(row.studentId, 'chargeable', chargeable.checked)"
+                        [attr.aria-label]="row.studentName + ' 收不收費'"
+                      />收費
+                    </label>
                     <input
+                      #memo
                       type="text"
-                      pInputText
                       maxlength="200"
                       placeholder="如：素食"
-                      class="w-full"
-                      [disabled]="row.settled || isRange()"
-                      [ngModel]="row.note"
-                      (ngModelChange)="updateRow(row.studentId, 'note', $event)"
+                      class="col-span-2 h-11 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md text-zinc-900 [font:inherit] disabled:bg-zinc-100 disabled:text-zinc-600 wide:col-span-1 wide:h-9"
+                      data-testid="meal-note"
+                      [value]="row.note"
+                      [disabled]="row.settled"
+                      (input)="updateRow(row.studentId, 'note', memo.value)"
                       [attr.aria-label]="row.studentName + ' 的備註'"
                     />
-                  </td>
-                  <td appRtColCell="state">
-                    @if (row.settled) {
-                      <app-status-dot tone="done">已結算</app-status-dot>
-                      <a
-                        routerLink="/admin/payments"
-                        class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline underline-offset-4"
-                        >要改走帳單</a
-                      >
-                    } @else if (row.recordId === null) {
-                      <app-status-dot [tone]="unhandledTone()">未處理</app-status-dot>
-                    } @else {
-                      <app-status-dot tone="done">已確認</app-status-dot>
-                    }
-                  </td>
-                </tr>
-              }
-            </ng-template>
-            <div class="min-w-0 py-2 wide:pt-6">
-              <app-responsive-table
-                [headTemplate]="isRange() ? mealHead : dayHead"
-                [bodyTemplate]="mealBody"
-                [pagination]="isRange() ? pagination() : null"
-                (page)="onPageChange($event)"
-              />
-            </div>
-          </section>
-        }
-      </div>
+                    <div
+                      class="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-x-2 wide:col-auto wide:row-auto wide:justify-start"
+                    >
+                      @if (row.settled) {
+                        <app-status-dot tone="done">已結算</app-status-dot>
+                        <a
+                          routerLink="/admin/payments"
+                          class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline underline-offset-4"
+                          >要改走帳單</a
+                        >
+                      } @else if (row.recordId === null) {
+                        <app-status-dot [tone]="unhandledTone()">未處理</app-status-dot>
+                      } @else {
+                        <app-status-dot tone="done">已確認</app-status-dot>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </section>
+          }
+        </div>
 
-      @if (!isRange()) {
-        <div
-          class="sticky bottom-0 z-[1] mt-2 flex flex-wrap items-center justify-end gap-4 rounded-lg border-t border-zinc-200 bg-zinc-50 px-4 py-3 shadow-[0_-4px_6px_-2px_rgb(0_0_0/8%)]"
-        >
-          <div class="flex items-center gap-3">
-            <span class="meals__actions-count whitespace-nowrap text-sm font-medium text-zinc-600"
-              >共 {{ rows().length }} 位</span
-            >
+        <!-- 確認列：有改動或還有人沒處理才出現（A6）。送出的 payload 與舊版一字不差 -->
+        @if (showSaveBar()) {
+          <div
+            class="sticky bottom-4 z-[1] mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-900 px-4 py-3 text-white shadow-[0_16px_36px_-14px_rgb(26_22_20/45%)]"
+            role="region"
+            aria-label="確認名單"
+            data-testid="save-bar"
+          >
+            <p class="m-0 mr-auto text-base tabular-nums">
+              <span data-testid="save-bar-lead">{{
+                changed() > 0 ? '改了 ' + changed() + ' 位' : unhandled() + ' 位還沒處理'
+              }}</span>
+              <small class="meals__actions-count block text-sm text-white/70"
+                >共 {{ rows().length }} 位 · 訂 {{ totals().ordered }} 份 · 要收費 NT$
+                {{ totals().amount | number }}</small
+              >
+            </p>
             <p-button
               label="確認名單"
               icon="pi pi-save"
@@ -380,7 +434,7 @@
               (onClick)="save()"
             />
           </div>
-        </div>
+        }
       }
 
       @if (!isRange() && overBatchLimit()) {

@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import {
   startOfWeek,
   endOfWeek,
@@ -18,18 +19,17 @@ import {
   addWeeks,
   subWeeks,
   format,
-  isToday,
   parseISO,
   differenceInDays,
 } from 'date-fns';
-import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
-import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { SessionsService } from '@core/sessions.service';
 import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { hasSessionStarted } from '@shared/utils/session-time.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
@@ -51,7 +51,9 @@ import {
   daySummary,
   nextSession,
   openerLine,
+  sessionStateText,
   sortByStart,
+  taipeiWallClock,
   weekAnchor,
 } from './schedule.util';
 
@@ -75,7 +77,7 @@ function defaultDay(weekStart: Date, todayStr: string): string {
   standalone: true,
   imports: [
     DatePipe,
-    ButtonModule,
+    RouterLink,
     DynamicDialogModule,
     PageOpenComponent,
     StatusDotComponent,
@@ -88,6 +90,16 @@ function defaultDay(weekStart: Date, todayStr: string): string {
 export class SchedulePage implements OnInit {
   readonly page = input.required<RouteObj>();
 
+  /** 「N 位學生」連結的目標（A6：連到學生頁） */
+  protected readonly studentsPath = RoutesCatalog.TEACHER_STUDENTS.absolutePath;
+
+  /** 動作鈕（A6 `.btn`）：白底框；手機各佔一格全寬橫排、桌機直排。字級／高度 A27 要求手機 ≥44px */
+  protected readonly BTN =
+    'inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:flex-none';
+  /** 主要動作（開始點名）：亮橘底＋深字（白字壓亮橘只有 2.4–2.8:1，styles.css 的 btn--cta 註解） */
+  protected readonly BTN_PRIMARY =
+    'inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-md border border-solid border-transparent bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2 wide:flex-none';
+
   private readonly attendanceService = inject(AttendanceService);
   private readonly orgSettingsService = inject(OrgSettingsService);
   private readonly dialogService = inject(DialogService);
@@ -97,7 +109,6 @@ export class SchedulePage implements OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
-  protected readonly currentWeekStart = signal<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   protected readonly sessions = signal<EventSessionSummary[]>([]);
   protected readonly loading = signal(false);
 
@@ -106,8 +117,11 @@ export class SchedulePage implements OnInit {
    * 跟 day-timeline 一樣的知情取捨：為了一個標記掛計時器，代價高於它的價值。
    * 換週會重新取數，那時標記就會更新。
    */
-  private readonly now = new Date();
+  private readonly clock = inject(SystemClockService);
+  private readonly now = taipeiWallClock(this.clock.nowEpochMs());
   private readonly todayStr = format(this.now, 'yyyy-MM-dd');
+
+  protected readonly currentWeekStart = signal<Date>(startOfWeek(this.now, { weekStartsOn: 1 }));
 
   /** 選中的那一天（`yyyy-MM-dd`）。預設今天；這週沒有今天就週一 */
   protected readonly selectedDate = signal(
@@ -372,7 +386,7 @@ export class SchedulePage implements OnInit {
     if (!this.isTeacherLed()) return false;
     const days = this.orgSettingsService.settings()?.attendanceRetroactiveDays ?? 0;
     if (days === 0) return false;
-    return differenceInDays(new Date(), parseISO(session.eventDate)) > days;
+    return differenceInDays(this.now, parseISO(session.eventDate)) > days;
   }
 
   /**
@@ -391,8 +405,9 @@ export class SchedulePage implements OnInit {
     return attendanceDisplay(session, this.now, this.isTeacherLed());
   }
 
-  protected isToday(dateStr: string): boolean {
-    return isToday(parseISO(dateStr));
+  /** 狀態字（上課中／還有 N 分開始／已上完／已停課），見 `sessionStateText` */
+  protected stateText(session: EventSessionSummary): string | null {
+    return sessionStateText(session, this.now);
   }
 
   protected canTakeAttendance(session: EventSessionSummary): boolean {

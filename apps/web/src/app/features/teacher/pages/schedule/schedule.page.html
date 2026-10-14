@@ -242,113 +242,135 @@
         }
       </h2>
 
-      <div class="flex flex-col gap-2">
+      <!--
+        課堂列（A6 `.card`）：無外框的分段列，左＝時間＋狀態字、班名、chip＋分校＋「N 位學生」連結、
+        點名狀態；右欄＝動作鈕（桌機直排、手機橫排全寬）。**只有「接下來那堂」有 1.5px 黑框**。
+        動作的條件一個字沒改（行政／老師負責、補登窗、停課），只換成純按鈕與位置。
+      -->
+      <div class="flex flex-col">
         @for (session of daySessions(); track session.sessionId) {
           <article
-            class="schedule-page__session flex flex-col gap-1 rounded-[6px] border border-zinc-200 p-3 @min-[640px]/shell-content:max-w-[560px] @min-[640px]/shell-content:p-4 [&.schedule-page\_\_session--cancelled]:border-dashed [&.schedule-page\_\_session--cancelled]:bg-zinc-50 [&.schedule-page\_\_session--next]:border-2 [&.schedule-page\_\_session--next]:border-zinc-900"
+            class="schedule-page__session grid grid-cols-1 gap-x-5 gap-y-2 border-0 border-b border-solid border-zinc-200 py-5 wide:grid-cols-[minmax(0,1fr)_auto] [&.schedule-page\_\_session--next]:my-4 [&.schedule-page\_\_session--next]:rounded-lg [&.schedule-page\_\_session--next]:border-[1.5px] [&.schedule-page\_\_session--next]:border-zinc-900 [&.schedule-page\_\_session--next]:p-5"
             [class.schedule-page__session--cancelled]="session.status === 'cancelled'"
             [class.schedule-page__session--next]="session === next()"
           >
-            <p class="m-0 text-[0.8rem] font-semibold text-zinc-500 tabular-nums">
-              {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
-            </p>
-            <p
-              class="m-0 text-[0.95rem] font-semibold text-zinc-900 [.schedule-page\_\_session--cancelled_&]:text-zinc-500 [.schedule-page\_\_session--cancelled_&]:line-through"
-            >
-              {{ session.className }}
-            </p>
+            <div class="min-w-0">
+              <div
+                class="flex flex-wrap items-baseline gap-x-3 wide:block [.schedule-page\_\_session--cancelled_&]:text-zinc-600 [.schedule-page\_\_session--cancelled_&]:line-through"
+              >
+                <p class="m-0 text-xl font-bold tracking-[-0.01em] text-inherit tabular-nums">
+                  {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
+                </p>
+                @if (stateText(session); as state) {
+                  <span
+                    class="schedule-page__state block text-sm font-medium text-zinc-600 wide:mt-0.5"
+                    >{{ state }}</span
+                  >
+                }
+              </div>
+              <p
+                class="schedule-page__class-name m-0 mt-2 text-lg font-bold text-zinc-900 [.schedule-page\_\_session--cancelled_&]:text-zinc-600 [.schedule-page\_\_session--cancelled_&]:line-through"
+              >
+                {{ session.className }}
+              </p>
 
-            <p class="m-0 flex flex-wrap items-center gap-2">
-              @if (session.status === 'cancelled') {
-                <app-data-chip>停課</app-data-chip>
-              }
-              @if (session.isSubstitute) {
-                <app-data-chip>代課</app-data-chip>
-              }
-              @if (session.examCount > 0) {
-                <app-data-chip>
-                  小考{{ session.examCount > 1 ? ' ×' + session.examCount : '' }}
-                </app-data-chip>
-              }
-              @if (session.campusName) {
-                <app-data-chip>{{ session.campusName }}</app-data-chip>
-              }
-              <span class="text-[0.75rem] text-zinc-500">{{ session.enrolledCount }} 人</span>
-            </p>
+              <p
+                class="m-0 mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-md text-zinc-700"
+              >
+                @if (session.status === 'cancelled') {
+                  <app-data-chip>停課</app-data-chip>
+                }
+                @if (session.isSubstitute) {
+                  <app-data-chip>代課</app-data-chip>
+                }
+                @if (session.examCount > 0) {
+                  <app-data-chip>
+                    小考{{ session.examCount > 1 ? ' ×' + session.examCount : '' }}
+                  </app-data-chip>
+                }
+                @if (session.campusName) {
+                  <span>{{ session.campusName }}</span>
+                }
+                <!-- 稿的「N 位學生」是連到學生頁的底線連結；它跟下面的「看名單」不同件事（那是看到假缺） -->
+                <a
+                  class="schedule-page__students -my-2 inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+                  [routerLink]="studentsPath"
+                  >{{ session.enrolledCount }} 位學生</a
+                >
+              </p>
 
-            <div class="mt-1 flex flex-wrap items-center gap-2">
-              @if (isRetroactiveLocked(session)) {
-                <app-status-dot tone="inactive">點名已截止</app-status-dot>
-              } @else if (display(session); as d) {
-                <app-status-dot [tone]="d.tone">{{ d.label }}</app-status-dot>
-              }
+              <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-md text-zinc-700">
+                @if (isRetroactiveLocked(session)) {
+                  <app-status-dot tone="inactive">點名已截止</app-status-dot>
+                } @else if (display(session); as d) {
+                  <app-status-dot [tone]="d.tone">{{ d.label }}</app-status-dot>
+                }
 
-              @if (session.takenAt) {
-                <span class="flex gap-2 text-[0.75rem] tabular-nums">
-                  <span class="text-success-600"> 到 {{ session.presentCount }} </span>
-                  <span class="text-warning-600"> 假 {{ session.onLeaveCount }} </span>
-                  <span class="text-error-600"> 缺 {{ session.absentCount }} </span>
-                </span>
-              }
+                @if (session.takenAt) {
+                  <span class="flex gap-2 tabular-nums">
+                    <span class="text-success-600"> 到 {{ session.presentCount }} </span>
+                    <span class="text-warning-600"> 假 {{ session.onLeaveCount }} </span>
+                    <span class="text-error-600"> 缺 {{ session.absentCount }} </span>
+                  </span>
+                }
+              </div>
             </div>
 
-            @if (
-              isTeacherLed() &&
-              canTakeAttendance(session) &&
-              !isUpcoming(session) &&
-              !isRetroactiveLocked(session)
-            ) {
-              <p-button
-                styleClass="schedule-page__action"
-                [label]="session.takenAt ? '修改點名' : '開始點名'"
-                size="small"
-                [outlined]="!!session.takenAt"
-                [severity]="session.takenAt ? 'secondary' : 'primary'"
-                (onClick)="openPanel(session)"
-              />
-            }
-            @if (!isTeacherLed() && canTakeAttendance(session) && !isUpcoming(session)) {
-              <!--
-              #920：行政負責點名的機構，老師仍要看得到自己課堂的名單與到／假／缺（rules/attendance-rules.md），
-              只是不能點、不能改 —— 面板開唯讀模式，API 對老師的寫入一律 403。
-            -->
-              <p-button
-                styleClass="schedule-page__action"
-                label="看名單"
-                icon="pi pi-list"
-                size="small"
-                [outlined]="true"
-                severity="secondary"
-                (onClick)="openPanel(session, true)"
-              />
-            }
-            @if (isTeacherLed() && canWriteClassLog(session)) {
-              <!--
-            教務日誌。v1a 只有撰寫，**沒有發布** —— 發布不可逆，
-            而家長端讀取與 LINE 推播都還不存在。
-          -->
-              <p-button
-                styleClass="schedule-page__action"
-                label="寫日誌"
-                icon="pi pi-book"
-                size="small"
-                [outlined]="true"
-                severity="secondary"
-                (onClick)="openClassLog(session)"
-              />
-            }
-            @if (isTeacherLed() && canWriteContactBook(session)) {
-              <!-- 聯絡簿模式的班：同一個位置，開的是學生名單不是日誌表單 -->
-              <p-button
-                styleClass="schedule-page__action"
-                label="寫聯絡簿"
-                icon="pi pi-pencil"
-                size="small"
-                [outlined]="true"
-                severity="secondary"
-                (onClick)="openContactBook(session)"
-              />
-            }
+            <div
+              class="schedule-page__actions flex flex-wrap gap-2 empty:hidden wide:min-w-32 wide:flex-col wide:items-stretch"
+            >
+              @if (
+                isTeacherLed() &&
+                canTakeAttendance(session) &&
+                !isUpcoming(session) &&
+                !isRetroactiveLocked(session)
+              ) {
+                <button
+                  type="button"
+                  class="min-h-11"
+                  [class]="session.takenAt ? BTN : BTN_PRIMARY"
+                  (click)="openPanel(session)"
+                >
+                  {{ session.takenAt ? '修改點名' : '開始點名' }}
+                </button>
+              }
+              @if (!isTeacherLed() && canTakeAttendance(session) && !isUpcoming(session)) {
+                <!--
+                  #920：行政負責點名的機構，老師仍要看得到自己課堂的名單與到／假／缺（rules/attendance-rules.md），
+                  只是不能點、不能改 —— 面板開唯讀模式，API 對老師的寫入一律 403。
+                -->
+                <button
+                  type="button"
+                  class="min-h-11"
+                  [class]="BTN"
+                  (click)="openPanel(session, true)"
+                >
+                  看名單
+                </button>
+              }
+              @if (isTeacherLed() && canWriteClassLog(session)) {
+                <!-- 教務日誌。v1a 只有撰寫，**沒有發布** —— 發布不可逆，而家長端讀取與 LINE 推播都還不存在 -->
+                <button
+                  type="button"
+                  class="min-h-11"
+                  [class]="BTN"
+                  (click)="openClassLog(session)"
+                >
+                  寫日誌
+                </button>
+              }
+              @if (isTeacherLed() && canWriteContactBook(session)) {
+                <!-- 聯絡簿模式的班：同一個位置，開的是學生名單不是日誌表單 -->
+                <button
+                  type="button"
+                  class="min-h-11"
+                  [class]="BTN"
+                  (click)="openContactBook(session)"
+                >
+                  寫聯絡簿
+                </button>
+              }
+            </div>
           </article>
         } @empty {
           <p class="m-0 py-4 text-center text-[0.85rem] text-zinc-500">這天沒有你的課。</p>

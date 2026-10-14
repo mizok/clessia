@@ -4,7 +4,9 @@ import {
   defaultRange,
   reportPeriods,
   groupKeyLabel,
-  splitBilled,
+  billedShare,
+  ambiguousReason,
+  sortGroups,
   billedBreakdown,
   revenueHeadline,
 } from './reports.util';
@@ -77,38 +79,31 @@ describe('defaultRange', () => {
   });
 });
 
-describe('splitBilled', () => {
-  it('已收回 + 未收 = 開帳', () => {
-    const s = splitBilled({ billed: 1000, outstanding: 250, overdueOutstanding: 100 });
-    expect(s.collected).toBe(750);
-    expect(s.collectedPct).toBe(75);
-    expect(s.overduePct).toBe(10);
+describe('billedShare（A6 比例條：這組已開帳佔整體幾 %）', () => {
+  it('一半、全部、0', () => {
+    expect(billedShare(500, 1000)).toBe(50);
+    expect(billedShare(1000, 1000)).toBe(100);
+    expect(billedShare(0, 1000)).toBe(0);
   });
 
-  it('沒有開帳時不畫任何段', () => {
-    expect(splitBilled({ billed: 0, outstanding: 0, overdueOutstanding: 0 })).toEqual({
-      collectedPct: 0,
-      overduePct: 0,
-      collected: 0,
-    });
+  it('整體為 0 或負數 → 0，不除以 0（門檻 0／1）', () => {
+    expect(billedShare(100, 0)).toBe(0);
+    expect(billedShare(100, -5)).toBe(0);
+    expect(billedShare(1, 1)).toBe(100);
   });
 
-  // 溢繳會讓 outstanding 變負數，夾住才不會畫出超過 100% 的條
-  it('溢繳（outstanding 為負）時已收回不超過 100%', () => {
-    const s = splitBilled({ billed: 1000, outstanding: -200, overdueOutstanding: 0 });
-    expect(s.collectedPct).toBe(100);
-    expect(s.collected).toBe(1000);
+  it('不可能的組合只做保護：超過整體夾在 100、負的夾在 0', () => {
+    expect(billedShare(1001, 1000)).toBe(100);
+    expect(billedShare(-1, 1000)).toBe(0);
   });
+});
 
-  it('逾期不會超過未收的部分', () => {
-    const s = splitBilled({ billed: 1000, outstanding: 100, overdueOutstanding: 400 });
-    expect(s.overduePct).toBe(10);
-  });
-
-  it('全部未收時已收回是 0', () => {
-    const s = splitBilled({ billed: 500, outstanding: 500, overdueOutstanding: 500 });
-    expect(s.collectedPct).toBe(0);
-    expect(s.overduePct).toBe(100);
+describe('ambiguousReason', () => {
+  it('三個模糊桶各有說明；一般名稱沒有', () => {
+    for (const key of ['（跨分校）', '（跨課程）', '（未分類）']) {
+      expect(ambiguousReason(key)).toEqual(expect.any(String));
+    }
+    expect(ambiguousReason('文山旗艦校')).toBeNull();
   });
 });
 
@@ -260,5 +255,35 @@ describe('revenueHeadline —— 色面句', () => {
     expect(revenueHeadline(fig(1000, 500, 1), '9 月').sub).toBe(
       '已收回 50%；沒收到的裡面，逾期 NT$ 1。',
     );
+  });
+});
+
+describe('sortGroups（A6 的列順序）', () => {
+  const g = (key: string, billed: number) =>
+    ({ key, received: 0, refunded: 0, billed, outstanding: 0, overdueOutstanding: 0 }) as never;
+  const keys = (list: unknown[]) => (list as { key: string }[]).map((x) => x.key);
+
+  it('一般列依已開帳由大到小；模糊桶一律放最後，即使它金額最大', () => {
+    const sorted = sortGroups(
+      [g('（跨分校）', 900), g('甲', 100), g('乙', 300), g('（未分類）', 50)],
+      'campus',
+    );
+    expect(keys(sorted)).toEqual(['乙', '甲', '（跨分校）', '（未分類）']);
+  });
+
+  it('已開帳相同維持原順序（穩定）；差 1 就分先後', () => {
+    expect(keys(sortGroups([g('甲', 100), g('乙', 100)], 'campus'))).toEqual(['甲', '乙']);
+    expect(keys(sortGroups([g('甲', 100), g('乙', 101)], 'campus'))).toEqual(['乙', '甲']);
+  });
+
+  it('月份新到舊，跨年也對', () => {
+    const sorted = sortGroups([g('2026-12', 1), g('2027-01', 1), g('2026-09', 1)], 'month');
+    expect(keys(sorted)).toEqual(['2027-01', '2026-12', '2026-09']);
+  });
+
+  it('不改傳進來的陣列', () => {
+    const input = [g('甲', 1), g('乙', 2)];
+    sortGroups(input, 'campus');
+    expect(keys(input)).toEqual(['甲', '乙']);
   });
 });
