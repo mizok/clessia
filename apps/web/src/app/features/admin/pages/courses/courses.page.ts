@@ -28,7 +28,6 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { PopoverModule } from 'primeng/popover';
-import { DrawerModule } from 'primeng/drawer';
 import type { Popover } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
@@ -106,7 +105,6 @@ interface CourseChapter {
     DatePickerModule,
     ToggleSwitchModule,
     PopoverModule,
-    DrawerModule,
     PaginatorModule,
     TooltipModule,
     RouterModule,
@@ -167,6 +165,17 @@ export class CoursesPage implements OnInit {
   protected readonly expandedCourseIds = signal<Set<string>>(new Set());
 
   // ---- Selection ----
+  /** 批次選取模式（A6 預設沒有勾選框）：從工具列「⋯」進入、退出會清掉勾選 */
+  protected readonly selectionMode = signal(false);
+  protected readonly pageMenuItems = computed<MenuItem[]>(() => [
+    this.selectionMode()
+      ? { label: '結束批次選取', icon: 'pi pi-times', command: () => this.exitSelectionMode() }
+      : {
+          label: '批次選取',
+          icon: 'pi pi-check-square',
+          command: () => this.selectionMode.set(true),
+        },
+  ]);
   protected readonly selectedClassIds = signal<Set<string>>(new Set());
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
@@ -218,7 +227,6 @@ export class CoursesPage implements OnInit {
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly statusFilter = signal<boolean | 'intervention' | null>(null);
   // ---- Filter Panel ----
-  protected readonly filterPanelVisible = signal(false);
   protected readonly filterPopoverRef = viewChild<Popover>('filterPopover');
 
   protected readonly activeFilterCount = computed(() => {
@@ -669,6 +677,22 @@ export class CoursesPage implements OnInit {
         icon: 'pi pi-pencil',
         command: () => this.openEditCourseDialog(course),
       },
+      // 手機的工具列放不下「⋯」，批次選取的入口收在這裡（桌機在工具列）
+      ...(this.isMobile()
+        ? [
+            this.selectionMode()
+              ? {
+                  label: '結束批次選取',
+                  icon: 'pi pi-times',
+                  command: () => this.exitSelectionMode(),
+                }
+              : {
+                  label: '批次選取班級',
+                  icon: 'pi pi-check-square',
+                  command: () => this.selectionMode.set(true),
+                },
+          ]
+        : []),
       { separator: true },
       {
         label: hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程',
@@ -749,7 +773,6 @@ export class CoursesPage implements OnInit {
 
   protected clearFilters(): void {
     // 關閉篩選面板
-    this.filterPanelVisible.set(false);
     this.filterPopoverRef()?.hide();
     if (this.showHistorical()) {
       this.onToggleHistorical(false);
@@ -765,11 +788,7 @@ export class CoursesPage implements OnInit {
   }
 
   protected onFilterBtnClick(event: Event): void {
-    if (this.isMobile()) {
-      this.filterPanelVisible.set(true);
-    } else {
-      this.filterPopoverRef()?.toggle(event);
-    }
+    this.filterPopoverRef()?.toggle(event);
   }
 
   protected isCourseCollapsed(courseId: string): boolean {
@@ -832,6 +851,11 @@ export class CoursesPage implements OnInit {
 
   protected clearSelection(): void {
     this.selectedClassIds.set(new Set());
+  }
+
+  protected exitSelectionMode(): void {
+    this.selectionMode.set(false);
+    this.clearSelection();
   }
 
   protected batchActivate(): void {
@@ -1391,7 +1415,7 @@ export class CoursesPage implements OnInit {
     if (!schedules || schedules.length === 0) return '';
     const items = schedules.map(
       (s) =>
-        `${this.getWeekdayLabel(s.weekday)} ${s.startTime.substring(0, 5)}–${s.endTime.substring(0, 5)}`,
+        `${this.getWeekdayLabel(s.weekday)} ${s.startTime.substring(0, 5)}–${s.endTime.substring(0, 5)}${s.teacherName ? ` · ${s.teacherName}` : ''}`,
     );
 
     const maxVisible = this.isMobile() ? 1 : 2;

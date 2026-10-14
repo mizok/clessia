@@ -762,6 +762,178 @@ describe('CoursesPage', () => {
     });
   });
 
+  describe('#1314 課程殘差：工具列、0 班課程、批次選取入口、手機狀態行', () => {
+    const course = (id: string, name: string) => ({
+      id,
+      orgId: 'o',
+      campusId: 'campus-1',
+      name,
+      subjectId: 's-zh',
+      subjectName: '國文',
+      description: null,
+      isActive: true,
+      gradeLevels: [],
+      createdAt: '',
+      updatedAt: '',
+    });
+    const klass = (id: string, courseId: string, overrides: Record<string, unknown> = {}) =>
+      ({
+        id,
+        courseId,
+        campusId: 'campus-1',
+        name: id,
+        isActive: true,
+        scheduleCount: 1,
+        hasUpcomingSessions: true,
+        upcomingCancelledCount: 0,
+        upcomingUnassignedCount: 0,
+        upcomingClassConflictCount: 0,
+        upcomingTeacherConflictCount: 0,
+        gradeLevels: [],
+        ...overrides,
+      }) as never;
+    const el = () => fixture.nativeElement as HTMLElement;
+    const norm = (e: Element | null) => (e?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const setup = () => {
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data: [course('c1', '國一國文'), course('c0', '空課程')],
+          meta: { total: 2, page: 1, pageSize: 20, totalPages: 1 },
+          summary: { bySubject: [{ subjectId: 's-zh', subjectName: '國文', count: 2 }] },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set([
+        klass('a', 'c1'),
+      ]);
+      fixture.detectChanges();
+    };
+    const courseBtn = (name: string) =>
+      Array.from(el().querySelectorAll('section[data-chapter] section button[aria-expanded]')).find(
+        (b) => b.textContent?.includes(name),
+      ) as HTMLButtonElement;
+
+    it('搜尋框 placeholder 照稿；「篩選」在右群組（page-actions 裡），操作紀錄是時鐘', () => {
+      setup();
+      const input = el().querySelector('input[aria-label="搜尋課程或班級"]') as HTMLInputElement;
+      expect(input.placeholder).toBe('找課程或班級名稱');
+      expect(el().querySelector('app-page-actions button[aria-label^="篩選"]')).not.toBeNull();
+      expect(el().querySelector('button[title="操作紀錄"] .pi-clock')).not.toBeNull();
+    });
+
+    it('0 個班的課程也有「›」、不是 disabled，展開看到「還沒有班」', () => {
+      setup();
+      const btn = courseBtn('空課程');
+      expect(btn.disabled).toBe(false);
+      expect(btn.querySelector('.pi-chevron-right')).not.toBeNull();
+
+      btn.click();
+      fixture.detectChanges();
+      expect(courseBtn('空課程').querySelector('.pi-chevron-down')).not.toBeNull();
+      expect(norm(el())).toContain('還沒有班。按「新增班」開第一個班。');
+    });
+
+    it('沒有黑色粗線：列首沒有、章與章之間是淺灰細線', () => {
+      setup();
+      expect(el().querySelector('.border-zinc-900')).toBeNull();
+      expect(
+        el().querySelector('section[data-chapter]')?.classList.contains('border-zinc-200'),
+      ).toBe(true);
+    });
+
+    it('批次選取預設收起：沒有勾選框也沒有「全選」；進入後才有，結束會清掉勾選', () => {
+      setup();
+      expect(el().querySelector('app-class-row input[type="checkbox"]')).toBeNull();
+      expect(norm(el())).not.toContain('全選這一頁的班級');
+
+      component['selectionMode'].set(true);
+      fixture.detectChanges();
+      expect(el().querySelector('app-class-row input[type="checkbox"]')).not.toBeNull();
+      expect(norm(el())).toContain('全選這一頁的班級');
+
+      component['selectedClassIds'].set(new Set(['a']));
+      component['exitSelectionMode']();
+      fixture.detectChanges();
+      expect(component['selectionMode']()).toBe(false);
+      expect(component['selectedClassIds']().size).toBe(0);
+      expect(el().querySelector('app-class-row input[type="checkbox"]')).toBeNull();
+    });
+
+    it('「⋯」選單：批次選取／結束批次選取（桌機工具列的選單）', () => {
+      setup();
+      const items = () =>
+        (
+          component as unknown as { pageMenuItems: () => { label: string; command: () => void }[] }
+        ).pageMenuItems();
+      expect(items().map((i) => i.label)).toEqual(['批次選取']);
+      items()[0].command();
+      expect(component['selectionMode']()).toBe(true);
+      expect(items().map((i) => i.label)).toEqual(['結束批次選取']);
+    });
+
+    it('手機的課程「⋯」選單才有「批次選取班級」；桌機沒有', () => {
+      setup();
+      const menu = { toggle: vi.fn() } as never;
+      const open = (mobile: boolean) => {
+        vi.spyOn(component as unknown as { isMobile: () => boolean }, 'isMobile').mockReturnValue(
+          mobile,
+        );
+        (
+          component as unknown as {
+            openCourseMenu: (e: Event, c: unknown, h: boolean, m: unknown) => void;
+          }
+        ).openCourseMenu(new Event('click'), course('c1', '國一國文'), true, menu);
+        return (component as unknown as { courseActionMenuItems: () => { label?: string }[] })
+          .courseActionMenuItems()
+          .map((i) => i.label);
+      };
+      expect(open(true)).toContain('批次選取班級');
+      expect(open(false)).not.toContain('批次選取班級');
+    });
+
+    it('課程列有手機專用的「N 個班」與「狀態：啟用」兩行（A6）', () => {
+      setup();
+      const row = courseBtn('國一國文').closest('section') as HTMLElement;
+      expect(norm(row)).toContain('狀態：啟用');
+      expect(row.querySelectorAll('.wide\\:hidden').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('班級時段後面接老師名（同一天多個時段各自帶）；沒有老師就不寫', () => {
+      const summary = (
+        component as unknown as {
+          getScheduleSummary: (s: unknown[]) => string;
+        }
+      ).getScheduleSummary.bind(component);
+      vi.spyOn(component as unknown as { isMobile: () => boolean }, 'isMobile').mockReturnValue(
+        false,
+      );
+      expect(
+        summary([
+          { weekday: 3, startTime: '17:00:00', endTime: '18:30:00', teacherName: '劉語涵' },
+          { weekday: 5, startTime: '18:00:00', endTime: '19:00:00' },
+        ]),
+      ).toBe('週三 17:00–18:30 · 劉語涵、週五 18:00–19:00');
+    });
+
+    it('手機的篩選也是貼在鈕下的 Popover（不再是抽屜）', () => {
+      setup();
+      vi.spyOn(component as unknown as { isMobile: () => boolean }, 'isMobile').mockReturnValue(
+        true,
+      );
+      const toggle = vi.fn();
+      vi.spyOn(
+        component as unknown as { filterPopoverRef: () => unknown },
+        'filterPopoverRef',
+      ).mockReturnValue({ toggle });
+      (component as unknown as { onFilterBtnClick: (e: Event) => void }).onFilterBtnClick(
+        new Event('click'),
+      );
+      expect(toggle).toHaveBeenCalledTimes(1);
+      expect(el().querySelector('p-drawer')).toBeNull();
+    });
+  });
+
   describe('依科目分章（#1314 C1）', () => {
     const course = (id: string, name: string, subjectId: string, subjectName: string) => ({
       id,

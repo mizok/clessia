@@ -3,20 +3,18 @@
   點名稱＝進班級；點列的其他地方＝勾選（批次啟用／停用／刪除）。
   `data-part` 是給 spec 的掛點（樣式改成 utility 之後，class 名不再穩定）。
 -->
-<div
-  class="grid min-h-11 cursor-pointer grid-cols-[28px_minmax(0,1fr)_44px] items-center gap-x-3 gap-y-1 border-t border-zinc-100 py-3 wide:grid-cols-[28px_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_44px] wide:gap-x-5"
-  [class.bg-zinc-100]="selected()"
-  (click)="onRowClick($event)"
->
-  <input
-    type="checkbox"
-    class="col-start-1 row-start-1 size-4 cursor-pointer accent-zinc-900"
-    [checked]="selected()"
-    [attr.aria-label]="'勾選 ' + cls().name"
-    (change)="toggleSelection.emit($any($event))"
-  />
+<div [class]="layout().row" [class.bg-zinc-100]="selected()" (click)="onRowClick($event)">
+  @if (selectable()) {
+    <input
+      type="checkbox"
+      class="col-start-1 row-start-1 size-4 cursor-pointer accent-zinc-900"
+      [checked]="selected()"
+      [attr.aria-label]="'勾選 ' + cls().name"
+      (change)="toggleSelection.emit($any($event))"
+    />
+  }
 
-  <span class="col-start-2 row-start-1 flex min-w-0 items-center gap-0.5">
+  <span [class]="layout().name">
     <button
       type="button"
       data-part="name"
@@ -37,10 +35,7 @@
     </button>
   </span>
 
-  <span
-    data-part="schedules"
-    class="col-start-2 text-md text-zinc-700 tabular-nums wide:col-start-3 wide:row-start-1"
-  >
+  <span data-part="schedules" [class]="layout().schedules">
     @if ((cls().schedules?.length ?? 0) > 0) {
       {{ scheduleSummary() }}
     } @else {
@@ -48,13 +43,19 @@
     }
   </span>
 
-  <div
-    class="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 wide:col-start-4 wide:row-start-1"
-  >
+  <div [class]="layout().info">
     @if (cls().maxStudents) {
-      <span data-part="capacity" class="text-md text-zinc-700 tabular-nums"
-        >上限 {{ cls().maxStudents }} 人</span
-      >
+      @if (cls().enrolledCount !== undefined) {
+        <!-- A6「17／24 人」：在籍／上限 -->
+        <span data-part="capacity" class="text-md text-zinc-600 tabular-nums"
+          ><b class="font-semibold text-zinc-900">{{ cls().enrolledCount }}</b
+          >／{{ cls().maxStudents }} 人</span
+        >
+      } @else {
+        <span data-part="capacity" class="text-md text-zinc-700 tabular-nums"
+          >上限 {{ cls().maxStudents }} 人</span
+        >
+      }
     }
     @if (historical()) {
       <span class="text-sm font-semibold text-zinc-600">已結束</span>
@@ -103,7 +104,7 @@
 
   @if (!historical()) {
     <p-button
-      class="col-start-3 row-start-1 justify-self-end wide:col-start-5"
+      [class]="layout().menu"
       icon="pi pi-ellipsis-h"
       [text]="true"
       [rounded]="true"
@@ -115,7 +116,7 @@
 
   @if (cls().startDate || cls().endDate) {
     <!-- col-[2/span_2]：分開寫 col-start-2＋col-span-2 時，col-span 的 grid-column 簡寫會蓋掉起點 -->
-    <span class="col-[2/span_2] text-sm text-zinc-600 tabular-nums wide:col-[2/span_3]">
+    <span [class]="layout().dates">
       {{ cls().startDate ? (cls().startDate | slice: 0 : 10) : '' }} ～
       {{ cls().endDate ? (cls().endDate | slice: 0 : 10) : '' }}
     </span>
