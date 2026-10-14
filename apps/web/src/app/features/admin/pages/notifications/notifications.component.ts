@@ -121,14 +121,20 @@ export class NotificationsComponent {
     return [...groups.values()];
   });
 
-  /** 色面句：已發布幾則、上一則是哪天（台北）。還沒載到回 `null`，由模板退回頁名 */
-  protected readonly headline = computed(() => {
+  /**
+   * 色面句：已發布幾則、上一則是哪天（台北），A6 兩行（`<br>` 接在兩段中間）。
+   * 還沒載到回 `null`，由模板退回頁名
+   */
+  protected readonly headline = computed<{ first: string; second: string | null } | null>(() => {
     if (this.loading() || this.loadError()) return null;
     const items = this.announcements();
-    if (items.length === 0) return '還沒有發布過公告。';
+    if (items.length === 0) return { first: '還沒有發布過公告。', second: null };
     const latest = items.reduce((a, b) => (a.publishedAt > b.publishedAt ? a : b));
     const day = taipeiDateString(Date.parse(latest.publishedAt));
-    return `已發布 ${items.length} 則公告，上一則是 ${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}。`;
+    return {
+      first: `已發布 ${items.length} 則公告，`,
+      second: `上一則是 ${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}。`,
+    };
   });
 
   protected readonly campusOptions = computed(() => [
