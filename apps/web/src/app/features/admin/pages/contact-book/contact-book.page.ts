@@ -31,8 +31,10 @@ import {
   groupMissingByClass,
   missingDayOptions,
   OTHER_DAY,
+  signedCellText,
   signedSummary,
-  signedTimeText,
+  CUSTOM_PERIOD,
+  PERIOD_OPTIONS,
 } from './contact-book.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 
@@ -155,6 +157,8 @@ export class ContactBookPage implements OnInit {
     this.loadHero();
   }
 
+  // ponytail: 「這週還沒簽」是前端數整週 list，受 PostgREST 1000 列上限；
+  // 升級路徑＝API 直接回未簽數（count），前端不再撈整週。
   protected loadHero(): void {
     const today = this.today;
     this.service.missing(today).subscribe({
@@ -222,6 +226,10 @@ export class ContactBookPage implements OnInit {
   }
 
   protected readonly otherDay = OTHER_DAY;
+  protected readonly customPeriod = CUSTOM_PERIOD;
+  protected readonly periodOptions = PERIOD_OPTIONS;
+  /** 期間下拉選中值：天數字串，或 `CUSTOM_PERIOD`（此時顯示日期範圍選擇器） */
+  protected readonly periodPick = signal<string>(String(DEFAULT_RANGE_DAYS));
 
   /**
    * 從缺漏名單補寫一則。學生與日期都是清單給的 —— 不需要選擇器，
@@ -263,8 +271,17 @@ export class ContactBookPage implements OnInit {
     return dayLabel(date, this.today);
   }
 
-  protected signedTime(entry: ContactBookEntry): string {
-    return signedTimeText(entry.signedAt);
+  protected signedText(entry: ContactBookEntry): string {
+    return signedCellText(entry);
+  }
+
+  /** 選天數就換區間重查；選「自訂區間…」只展開範圍選擇器，等使用者選完才查 */
+  protected onPeriodPick(value: string | null): void {
+    if (!value) return;
+    this.periodPick.set(value);
+    if (value === CUSTOM_PERIOD) return;
+    this.dateRange = initialRange(this.today, Number(value));
+    this.load();
   }
 
   protected onDateRangeChange(value: Date[] | null): void {
@@ -303,6 +320,7 @@ export class ContactBookPage implements OnInit {
     this.unsignedOnly.set(false);
     this.student.set(null);
     this.studentSuggestions.set([]);
+    this.periodPick.set(String(DEFAULT_RANGE_DAYS));
     this.dateRange = initialRange(this.today);
     this.load();
   }
@@ -325,8 +343,8 @@ export class ContactBookPage implements OnInit {
 }
 
 /** 預設最近 7 天（含今天） */
-function initialRange(today: string): Date[] {
-  const { from, to } = dateRangeOf(DEFAULT_RANGE_DAYS, today);
+function initialRange(today: string, days = DEFAULT_RANGE_DAYS): Date[] {
+  const { from, to } = dateRangeOf(days, today);
   return [new Date(`${from}T00:00:00`), new Date(`${to}T00:00:00`)];
 }
 

@@ -120,17 +120,27 @@
       role="search"
       aria-label="篩選聯絡簿"
     >
-      <p-datepicker
-        class="clessia-filter-control clessia-filter-control--date-range w-full wide:w-[300px]"
-        selectionMode="range"
-        dateFormat="yy-mm-dd"
-        [showIcon]="true"
-        [readonlyInput]="true"
-        placeholder="日期區間"
-        [ngModel]="dateRange"
-        (ngModelChange)="onDateRangeChange($event)"
-        ariaLabel="日期區間"
-      />
+      <div class="w-full wide:w-48">
+        <app-select-field
+          label="期間"
+          [options]="periodOptions"
+          [value]="periodPick()"
+          (valueChange)="onPeriodPick($event)"
+        />
+      </div>
+      @if (periodPick() === customPeriod) {
+        <p-datepicker
+          class="clessia-filter-control clessia-filter-control--date-range w-full wide:w-[300px]"
+          selectionMode="range"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          [readonlyInput]="true"
+          placeholder="日期區間"
+          [ngModel]="dateRange"
+          (ngModelChange)="onDateRangeChange($event)"
+          ariaLabel="日期區間"
+        />
+      }
       <div class="clessia-filter-search w-full wide:w-auto wide:flex-[1_1_240px]">
         <app-student-autocomplete
           [value]="student()"
@@ -255,8 +265,8 @@
                   <span class="text-sm text-zinc-600">{{ entry.lastEditedByName ?? '—' }}</span>
                   @if (entry.isSigned) {
                     <span class="text-sm font-semibold text-success-600" data-testid="signed"
-                      ><i class="pi pi-check mr-1 text-xs" aria-hidden="true"></i>已簽收
-                      {{ signedTime(entry) }}</span
+                      ><i class="pi pi-check mr-1 text-xs" aria-hidden="true"></i
+                      >{{ signedText(entry) }}</span
                     >
                   } @else {
                     <span class="text-sm font-semibold text-zinc-700" data-testid="unsigned"

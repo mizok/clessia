@@ -26,6 +26,7 @@ const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   content: '今天上課很專心。',
   lastEditedByName: '王老師',
   signedBy: null,
+  signedByName: null,
   signedAt: null,
   isSigned: false,
   ...overrides,
@@ -296,6 +297,7 @@ describe('ContactBookPage', () => {
         content: '今天表現很好',
         lastEditedByName: '王老師',
         signedBy: signed ? '家長' : null,
+        signedByName: null,
         signedAt: signed ? '2027-03-04T12:00:00Z' : null,
         isSigned: signed,
       }) as unknown as ContactBookEntry;
@@ -520,6 +522,99 @@ describe('ContactBookPage', () => {
    * **永遠走不到那個 `@else` 分支**（對話框那邊有一支測試釘著這件事），
    * 標了是噪音。
    */
+  describe('C2 簽收者姓名與期間下拉', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const datepicker = () => el().querySelector('p-datepicker[selectionmode="range"]');
+
+    async function render(entries: ContactBookEntry[]): Promise<void> {
+      contactBook.list.mockReturnValue(of(listResponse(entries)));
+      component['load']();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('簽收欄：有姓名寫「姓名 時間 簽」，沒姓名寫「已簽收 時間」', async () => {
+      await render([
+        entry({
+          id: 'a',
+          isSigned: true,
+          signedByName: '林太太',
+          signedAt: '2026-08-29T12:06:00Z',
+        }),
+        entry({ id: 'b', isSigned: true, signedByName: null, signedAt: '2026-08-29T12:07:00Z' }),
+      ]);
+
+      const cells = Array.from(el().querySelectorAll('[data-testid="signed"]')).map((n) =>
+        n.textContent?.replace(/\s+/g, ' ').trim(),
+      );
+      expect(cells).toEqual(['林太太 20:06 簽', '已簽收 20:07']);
+    });
+
+    it('預設是最近 7 天，範圍選擇器收起來', () => {
+      expect(component['periodPick']()).toBe('7');
+      expect(datepicker()).toBeNull();
+    });
+
+    it.each([
+      ['7', '2027-02-27'],
+      ['14', '2027-02-20'],
+      ['30', '2027-02-04'],
+    ])('選最近 %s 天：to＝今天、from＝往回 N-1 天（含今天）', (days, from) => {
+      contactBook.list.mockClear();
+
+      component['onPeriodPick'](days);
+
+      expect(contactBook.list).toHaveBeenCalledTimes(1);
+      expect(contactBook.list).toHaveBeenCalledWith(
+        expect.objectContaining({ from, to: '2027-03-05' }),
+      );
+    });
+
+    it('選「自訂區間…」才出現範圍選擇器，而且不查；選滿區間才查；切回天數就收起來', async () => {
+      contactBook.list.mockClear();
+
+      component['onPeriodPick']('custom');
+      fixture.detectChanges();
+      expect(contactBook.list).not.toHaveBeenCalled();
+      expect(datepicker()).not.toBeNull();
+
+      component['onDateRangeChange']([
+        new Date('2027-01-01T00:00:00'),
+        new Date('2027-01-31T00:00:00'),
+      ]);
+      expect(contactBook.list).toHaveBeenCalledWith(
+        expect.objectContaining({ from: '2027-01-01', to: '2027-01-31' }),
+      );
+
+      component['onPeriodPick']('7');
+      fixture.detectChanges();
+      expect(datepicker()).toBeNull();
+    });
+
+    it('換期間只重查列表，不動缺漏名單與色面兩個數字', () => {
+      contactBook.missing.mockClear();
+      contactBook.list.mockClear();
+
+      component['onPeriodPick']('30');
+
+      expect(contactBook.missing).not.toHaveBeenCalled();
+      expect(contactBook.list).toHaveBeenCalledTimes(1);
+    });
+
+    it('清除篩選把期間拉回最近 7 天', () => {
+      component['onPeriodPick']('custom');
+      contactBook.list.mockClear();
+
+      component['clearFilters']();
+
+      expect(component['periodPick']()).toBe('7');
+      expect(contactBook.list).toHaveBeenCalledWith(
+        expect.objectContaining({ from: '2027-02-27', to: '2027-03-05' }),
+      );
+    });
+  });
+
   describe('#738 補寫缺漏時要標明對象是行政', () => {
     it('writeMissing 開對話框時帶 audience: admin', async () => {
       const dialogServiceMock = { open: vi.fn(() => ({ onClose: NEVER })) };
