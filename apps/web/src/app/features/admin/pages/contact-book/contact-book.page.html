@@ -5,6 +5,26 @@
   <ng-container openSub>
     看老師寫了什麼、家長簽了沒。撰寫在老師端 —— 這裡可以修正已經寫好的內容。
   </ng-container>
+  <!-- 色面兩個固定數字（A6）：今天還沒寫／這週（週一到今天）家長還沒簽；不隨篩選走 -->
+  <div
+    class="mt-6 flex gap-10 border-0 border-t border-solid border-current pt-4"
+    data-testid="hero-stats"
+  >
+    <p class="m-0" data-testid="hero-missing">
+      <b class="text-[40px] leading-none font-bold tracking-[-0.02em] tabular-nums">{{
+        heroMissingToday() ?? '—'
+      }}</b
+      ><span class="text-md font-semibold"> 則</span>
+      <span class="mt-1 block text-md">今天還沒寫</span>
+    </p>
+    <p class="m-0" data-testid="hero-unsigned">
+      <b class="text-[40px] leading-none font-bold tracking-[-0.02em] tabular-nums">{{
+        heroUnsignedWeek() ?? '—'
+      }}</b
+      ><span class="text-md font-semibold"> 則</span>
+      <span class="mt-1 block text-md">這週家長還沒簽</span>
+    </p>
+  </div>
 </app-page-open>
 
 <div class="page-wrap flex flex-col gap-10 pt-6 pb-12 wide:pt-8">
@@ -120,13 +140,17 @@
           placeholder="輸入學生姓名篩選"
         />
       </div>
-      <app-filter-chip
-        [active]="unsignedOnly()"
-        [icon]="unsignedOnly() ? 'pi-list' : 'pi-inbox'"
-        (toggle)="toggleUnsignedOnly()"
+      <button
+        type="button"
+        class="inline-flex h-11 items-center justify-center rounded-md border border-solid bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+        [class.border-zinc-900]="unsignedOnly()"
+        [class.border-zinc-300]="!unsignedOnly()"
+        [attr.aria-pressed]="unsignedOnly()"
+        data-testid="unsigned-only"
+        (click)="toggleUnsignedOnly()"
       >
-        {{ unsignedOnly() ? '顯示全部' : '只看未簽收' }}
-      </app-filter-chip>
+        只看未簽收
+      </button>
       @if (hasFilters()) {
         <p-button
           label="清除篩選"

@@ -1,11 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { NEVER, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
+import { signal } from '@angular/core';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { SystemClockService } from '@core/system-clock.service';
 import {
   ContactBookService,
   type ContactBookEntry,
@@ -38,6 +40,8 @@ const listResponse = (rows: ContactBookEntry[]) => ({
 });
 
 describe('ContactBookPage', () => {
+  // 2027-03-05＝週五；刻意與真實日期不同，元件若改用 new Date() 就會紅
+  const today = signal('2027-03-05');
   let component: ContactBookPage;
   let fixture: ComponentFixture<ContactBookPage>;
 
@@ -56,6 +60,7 @@ describe('ContactBookPage', () => {
     contactBook.list.mockReset().mockReturnValue(of(listResponse([])));
     contactBook.missing.mockReset().mockReturnValue(of({ data: [], meta: { total: 0 } }));
     students.list.mockReset().mockReturnValue(of({ data: [student()], summary: {}, meta: {} }));
+    today.set('2027-03-05');
 
     await TestBed.configureTestingModule({
       imports: [ContactBookPage],
@@ -63,6 +68,7 @@ describe('ContactBookPage', () => {
         { provide: ContactBookService, useValue: contactBook },
         { provide: StudentsService, useValue: students },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        { provide: SystemClockService, useValue: { todayTaipei: today } },
       ],
     }).compileComponents();
 
@@ -278,6 +284,140 @@ describe('ContactBookPage', () => {
     });
   });
 
+  describe('C1 色面固定數字與白框鈕', () => {
+    const q = (id: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    const entry = (id: string, signed: boolean): ContactBookEntry =>
+      ({
+        id,
+        studentId: `s${id}`,
+        studentName: `學生${id}`,
+        entryDate: '2027-03-04',
+        content: '今天表現很好',
+        lastEditedByName: '王老師',
+        signedBy: signed ? '家長' : null,
+        signedAt: signed ? '2027-03-04T12:00:00Z' : null,
+        isSigned: signed,
+      }) as unknown as ContactBookEntry;
+    const missingOf = (n: number): MissingContactBookStudent[] =>
+      Array.from({ length: n }, (_, i) => ({
+        studentId: `m${i}`,
+        studentName: `缺${i}`,
+        classes: [{ classId: 'c', className: '班' }],
+      }));
+    /** 重新建立元件：hero 的兩支請求在 ngOnInit 打 */
+    const boot = async (opts: {
+      missing?: MissingContactBookStudent[];
+      entries?: ContactBookEntry[];
+      failMissing?: boolean;
+      failList?: boolean;
+    }) => {
+      contactBook.missing
+        .mockReset()
+        .mockReturnValue(
+          opts.failMissing
+            ? throwError(() => new Error('boom'))
+            : of({ data: opts.missing ?? [], meta: { total: opts.missing?.length ?? 0 } }),
+        );
+      contactBook.list
+        .mockReset()
+        .mockReturnValue(
+          opts.failList
+            ? throwError(() => new Error('boom'))
+            : of(listResponse(opts.entries ?? [])),
+        );
+      fixture = TestBed.createComponent(ContactBookPage);
+      fixture.componentRef.setInput('page', { label: '聯絡簿' });
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('兩個固定數字：今天還沒寫＝今天的缺漏人數；這週還沒簽＝週一到今天未簽的則數', async () => {
+      await boot({
+        missing: missingOf(6),
+        entries: [entry('1', false), entry('2', false), entry('3', true)],
+      });
+      expect(q('hero-missing').textContent!.replace(/\s+/g, '')).toContain('6則今天還沒寫');
+      expect(q('hero-unsigned').textContent!.replace(/\s+/g, '')).toContain('2則這週家長還沒簽');
+      // 請求：缺漏用今天；列表用「週一到今天」（2027-03-05 是週五 → 3/1）
+      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05');
+      expect(contactBook.list.mock.calls.map((c) => [c[0]!.from, c[0]!.to])).toContainEqual([
+        '2027-03-01',
+        '2027-03-05',
+      ]);
+    });
+
+    it('週一當天＝只看今天；週日＝回 6 天前的週一（邊界 ±1）', async () => {
+      for (const [day, from] of [
+        ['2027-03-01', '2027-03-01'],
+        ['2027-03-07', '2027-03-01'],
+        ['2027-03-08', '2027-03-08'],
+      ] as const) {
+        today.set(day);
+        await boot({});
+        expect(contactBook.list.mock.calls.map((c) => [c[0]!.from, c[0]!.to])).toContainEqual([
+          from,
+          day,
+        ]);
+      }
+    });
+
+    it('0 與 1 都照實顯示（不是「沒有」）', async () => {
+      await boot({ missing: missingOf(0), entries: [entry('1', false)] });
+      expect(q('hero-missing').textContent).toContain('0');
+      expect(q('hero-unsigned').textContent).toContain('1');
+    });
+
+    it('不隨篩選走：切未簽收、改缺漏名單日期、換期間，兩個數字都不變也不重打 hero', async () => {
+      await boot({ missing: missingOf(6), entries: [entry('1', false)] });
+      const before = [q('hero-missing').textContent, q('hero-unsigned').textContent];
+      component['toggleUnsignedOnly']();
+      component['onMissingPick']('2027-03-04');
+      component['onDateRangeChange']([
+        new Date('2027-02-01T00:00:00'),
+        new Date('2027-02-05T00:00:00'),
+      ]);
+      fixture.detectChanges();
+      expect([q('hero-missing').textContent, q('hero-unsigned').textContent]).toEqual(before);
+    });
+
+    it('請求失敗顯示「—」，不宣稱 0；一邊失敗不影響另一邊', async () => {
+      await boot({ failMissing: true, entries: [entry('1', false)] });
+      expect(q('hero-missing').textContent).toContain('—');
+      expect(q('hero-unsigned').textContent).toContain('1');
+      await boot({ missing: missingOf(3), failList: true });
+      expect(q('hero-missing').textContent).toContain('3');
+      expect(q('hero-unsigned').textContent).toContain('—');
+    });
+
+    it('台北時鐘跨過午夜後重載（補寫完成）用新的今天', async () => {
+      await boot({ missing: missingOf(2) });
+      today.set('2027-03-06');
+      contactBook.missing.mockClear();
+      component['loadHero']();
+      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-06');
+    });
+
+    it('「只看未簽收」是白框鈕：aria-pressed 跟狀態、邊框黑／灰、文字不變、手機 44／桌機 36', async () => {
+      await boot({});
+      const btn = q('unsigned-only');
+      expect(btn.tagName).toBe('BUTTON');
+      expect(btn.getAttribute('aria-pressed')).toBe('false');
+      expect([...btn.classList]).toEqual(
+        expect.arrayContaining(['bg-white', 'border-zinc-300', 'h-11', 'wide:h-9']),
+      );
+      btn.click();
+      fixture.detectChanges();
+      expect(btn.getAttribute('aria-pressed')).toBe('true');
+      expect(btn.classList).toContain('border-zinc-900');
+      expect(btn.classList).not.toContain('border-zinc-300');
+      expect(btn.textContent!.trim()).toBe('只看未簽收');
+      expect(fixture.nativeElement.querySelector('app-filter-chip')).toBeNull();
+    });
+  });
+
   describe('A6 對齊（CB1 CB2 CB4）', () => {
     const miss = (id: string, ...classes: string[]): MissingContactBookStudent => ({
       studentId: id,
@@ -421,6 +561,46 @@ describe('ContactBookPage', () => {
       ];
 
       expect(lastCall[1].data.audience).toBe('admin');
+    });
+
+    it('補寫完成（對話框關閉回傳那一則）→ 色面兩個數字重載', async () => {
+      const closed = new Subject<unknown>();
+      const dialogServiceMock = { open: vi.fn(() => ({ onClose: closed })) };
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+        imports: [ContactBookPage],
+        providers: [
+          { provide: ContactBookService, useValue: contactBook },
+          { provide: StudentsService, useValue: students },
+          { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+          { provide: SystemClockService, useValue: { todayTaipei: today } },
+        ],
+      })
+        .overrideComponent(ContactBookPage, {
+          set: {
+            providers: [MessageService, { provide: DialogService, useValue: dialogServiceMock }],
+          },
+        })
+        .compileComponents();
+      const f = TestBed.createComponent(ContactBookPage);
+      f.componentRef.setInput('page', { label: '聯絡簿' });
+      await f.whenStable();
+      const page = f.componentInstance as unknown as {
+        writeMissing: (t: MissingContactBookStudent) => void;
+      };
+
+      contactBook.missing.mockClear();
+      contactBook.list.mockClear();
+      page.writeMissing({ studentId: 'stu-9', studentName: '王柏睿' } as MissingContactBookStudent);
+      expect(contactBook.missing).not.toHaveBeenCalled(); // 還沒寫完，不重載
+
+      closed.next({ id: 'e1', studentId: 'stu-9' });
+      // 色面的今天缺漏人數（用「今天」）＋這週未簽（週一到今天）各重打一次
+      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05');
+      expect(contactBook.list.mock.calls.map((c) => [c[0]!.from, c[0]!.to])).toContainEqual([
+        '2027-03-01',
+        '2027-03-05',
+      ]);
     });
   });
 });
