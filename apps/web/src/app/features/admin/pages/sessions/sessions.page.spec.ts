@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { Location } from '@angular/common';
 import { vi } from 'vitest';
-import { parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { AttendanceService, type AttendanceSessionListResponse } from '@core/attendance.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService } from '@core/courses.service';
@@ -1616,6 +1616,98 @@ describe('SessionsPage', () => {
         expect(btn.classList.contains('w-8'), label).toBe(true);
         expect(btn.classList.contains('h-11'), label).toBe(true);
       }
+    });
+  });
+
+  /** 異動頁「看這堂」（#1314）：日視圖切到那天，**載完課表後**才打開那一堂的選單 */
+  describe('focusDate／focusSession', () => {
+    type F = {
+      day: () => Date;
+      mode: () => string;
+      pendingMenuSession: () => string | null;
+    };
+    async function open(
+      query: Record<string, string>,
+      list: Subject<ReturnType<typeof makeListResponse>> | null = null,
+    ) {
+      TestBed.resetTestingModule();
+      routeQueryParams = query;
+      if (list) sessionsServiceMock.list.mockReturnValueOnce(list as never);
+      await TestBed.configureTestingModule({
+        imports: [SessionsPage],
+        providers: [
+          provideRouter([]),
+          {
+            provide: ActivatedRoute,
+            useValue: {
+              fragment: routeFragment.asObservable(),
+              get snapshot() {
+                return { queryParams: routeQueryParams };
+              },
+            },
+          },
+          { provide: ReferenceDataService, useValue: refDataMock },
+          { provide: CoursesService, useValue: { list: () => of({ data: [] }) } },
+          { provide: ClassesService, useValue: { list: () => of({ data: [] }) } },
+          { provide: SessionsService, useValue: sessionsServiceMock },
+          { provide: AttendanceService, useValue: attendanceServiceMock },
+          { provide: StudentsService, useValue: studentsServiceMock },
+          { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
+        ],
+      }).compileComponents();
+      const f = TestBed.createComponent(SessionsPage);
+      f.componentRef.setInput('page', {
+        label: 'Test',
+        relativePath: '',
+        absolutePath: '',
+        role: undefined,
+        icon: '',
+        showInMenu: true,
+      });
+      f.detectChanges();
+      return { f, c: f.componentInstance as unknown as F };
+    }
+
+    it('切到那天（固定時鐘 4/15，目標 10/20 與真實今天不同）並查那一天', async () => {
+      sessionsServiceMock.list.mockClear();
+      const { f, c } = await open({ focusDate: '2026-10-20', focusSession: 's-1' });
+      await f.whenStable();
+      expect(format(c.day(), 'yyyy-MM-dd')).toBe('2026-10-20');
+      expect(c.mode()).toBe('day');
+      const firstCall = sessionsServiceMock.list.mock.calls[0] as unknown as [
+        { dateFrom?: string; dateTo?: string },
+      ];
+      expect(JSON.stringify(firstCall[0])).toContain('2026-10-20');
+    });
+
+    it('課表還沒載完時不消耗待開的那一堂；載完才消耗', async () => {
+      const pending = new Subject<ReturnType<typeof makeListResponse>>();
+      const { f, c } = await open({ focusDate: '2026-10-20', focusSession: 's-1' }, pending);
+      await f.whenStable();
+      expect(c.pendingMenuSession()).toBe('s-1');
+      pending.next(makeListResponse());
+      pending.complete();
+      f.detectChanges();
+      await f.whenStable();
+      expect(c.pendingMenuSession()).toBeNull();
+    });
+
+    it('壞網址（日期不存在）：維持今天、不設待開', async () => {
+      const { c } = await open({ focusDate: '2026-13-45', focusSession: 's-1' });
+      expect(format(c.day(), 'yyyy-MM-dd')).toBe('2026-04-15');
+      expect(c.pendingMenuSession()).toBeNull();
+    });
+
+    it('同時帶了篩選條件（結果模式）：不處理 focus', async () => {
+      const { c } = await open({
+        classId: 'class-1',
+        focusDate: '2026-10-20',
+        focusSession: 's-1',
+      });
+      expect(c.mode()).toBe('results');
+      expect(c.pendingMenuSession()).toBeNull();
+      // 待開的那堂會被 effect 消耗掉，所以光看它是 null 抓不到「沒擋」；day 沒被切走才是證據
+      expect(format(c.day(), 'yyyy-MM-dd')).toBe('2026-04-15');
     });
   });
 });
