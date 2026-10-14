@@ -174,4 +174,159 @@ describe('StudentsPage（老師端）', () => {
 
     expect(f.componentInstance['loadError']()).toBe(true);
   });
+
+  /**
+   * #1314 老師端學生對齊 A6：色面數字句、分頁拿到底、「找到 N 位」。
+   * 分頁門檻：API 單頁上限 100 → 剛好 100 筆只打一次、101 筆要打第二頁（靜默截斷的邊界）。
+   */
+  describe('色面數字句與分頁（#1314）', () => {
+    const many = (n: number, classNames = ['數學班 A']) =>
+      Array.from({ length: n }, (_, i) => student({ id: `s${i}`, name: `學生${i}`, classNames }));
+
+    /** 依 `page` 參數切片的替身，meta.total 是全部筆數 */
+    async function setupPaged(all: Student[], failPage?: number) {
+      listMock.mockReset();
+      listMock.mockImplementation((params: { page?: number; pageSize?: number }) => {
+        const page = params.page ?? 1;
+        const size = params.pageSize ?? 20;
+        if (page === failPage) return throwError(() => new Error('boom'));
+        return of({
+          data: all.slice((page - 1) * size, page * size),
+          meta: {
+            total: all.length,
+            page,
+            pageSize: size,
+            totalPages: Math.ceil(all.length / size),
+          },
+        });
+      });
+      await TestBed.configureTestingModule({
+        imports: [StudentsPage],
+        providers: [{ provide: StudentsService, useValue: { list: listMock } }],
+      }).compileComponents();
+      fixture = TestBed.createComponent(StudentsPage);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('page', RoutesCatalog.TEACHER_STUDENTS);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+    const title = () =>
+      fixture.nativeElement.querySelector('app-page-open h1').textContent as string;
+
+    it('剛好 100 筆：只打一次 API、數字句 100 位', async () => {
+      await setupPaged(many(100));
+      expect(listMock).toHaveBeenCalledTimes(1);
+      expect(title()).toContain('共 100 位學生');
+    });
+
+    it('101 筆：打第二頁、101 位都在、數字句 101 位（不被截成 100）', async () => {
+      await setupPaged(many(101));
+      expect(listMock).toHaveBeenCalledTimes(2);
+      expect(listMock.mock.calls.map((c) => c[0].page)).toEqual([1, 2]);
+      expect(component['students']()).toHaveLength(101);
+      expect(title()).toContain('共 101 位學生');
+    });
+
+    it('201 筆：三頁（頁數是 ceil(total/100)，不是 +1）', async () => {
+      await setupPaged(many(201));
+      expect(listMock).toHaveBeenCalledTimes(3);
+      expect(title()).toContain('共 201 位學生');
+    });
+
+    it('第二頁失敗：整體失敗，不拿半份名單配完整數字', async () => {
+      await setupPaged(many(101), 2);
+      expect(component['loadError']()).toBe(true);
+      expect(component['students']()).toHaveLength(0);
+      expect(title().trim()).toBe('學生');
+    });
+
+    it('翻頁途中同一人落在相鄰兩頁：去重', async () => {
+      const all = many(101);
+      listMock.mockReset();
+      listMock.mockImplementation((params: { page?: number }) =>
+        of({
+          data: params.page === 2 ? [all[99], all[100]] : all.slice(0, 100),
+          meta: { total: 101, page: params.page ?? 1, pageSize: 100, totalPages: 2 },
+        }),
+      );
+      await TestBed.configureTestingModule({
+        imports: [StudentsPage],
+        providers: [{ provide: StudentsService, useValue: { list: listMock } }],
+      }).compileComponents();
+      fixture = TestBed.createComponent(StudentsPage);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('page', RoutesCatalog.TEACHER_STUDENTS);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(component['students']()).toHaveLength(101);
+    });
+
+    it('數字句：N 個班不含「未分班」，共 N 位是不重複學生（跨班只算一次）', async () => {
+      await setup([
+        student({ id: 'a', classNames: ['數學班 A', '英文班 B'] }),
+        student({ id: 'b', classNames: ['數學班 A'] }),
+        student({ id: 'c', classNames: [] }),
+      ]);
+      fixture.detectChanges();
+      const t = fixture.nativeElement.querySelector('app-page-open h1').textContent;
+      expect(t).toContain('2 個班');
+      expect(t).toContain('共 3 位學生');
+      expect(fixture.nativeElement.querySelectorAll('app-page-open h1 br').length).toBe(1);
+    });
+
+    it('數字句不隨搜尋／班級篩選變（它是任課總數）', async () => {
+      await setup([
+        student({ id: 'a', name: '王小明', classNames: ['數學班 A'] }),
+        student({ id: 'b', name: '李大華', classNames: ['英文班 B'] }),
+      ]);
+      component['search'].set('王');
+      component['classFilter'].set('數學班 A');
+      fixture.detectChanges();
+      const t = fixture.nativeElement.querySelector('app-page-open h1').textContent;
+      expect(t).toContain('2 個班');
+      expect(t).toContain('共 2 位學生');
+    });
+
+    it('載入中／失敗／沒有學生：色面退回頁名，不印數字句', async () => {
+      await setup([]);
+      expect(title().trim()).toBe('學生');
+      expect(fixture.nativeElement.querySelectorAll('app-page-open h1 br').length).toBe(0);
+    });
+
+    it('「找到 N 位」：沒篩選不出現；篩選時數不重複學生，清除後消失', async () => {
+      await setup([
+        student({ id: 'a', name: '王小明', classNames: ['數學班 A', '英文班 B'] }),
+        student({ id: 'b', name: '王大明', classNames: ['數學班 A'] }),
+        student({ id: 'c', name: '李大華', classNames: ['英文班 B'] }),
+      ]);
+      expect(fixture.nativeElement.querySelector('.clear-filters')).toBeNull();
+
+      component['search'].set('王');
+      fixture.detectChanges();
+      // 王小明在兩組、王大明在一組：組內加總 3，不重複 2
+      expect(
+        component['groups']().flatMap((g: { students: Student[] }) => g.students),
+      ).toHaveLength(3);
+      expect(fixture.nativeElement.textContent).toContain('找到 2 位');
+
+      (fixture.nativeElement.querySelector('.clear-filters') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('找到');
+    });
+
+    it('章頭：班名＋人數；桌機 4 欄網格與手機單欄列的 class 都在', async () => {
+      await setup([student({ id: 'a', classNames: ['數學班 A'] })]);
+      const section = fixture.nativeElement.querySelector('section[aria-label="數學班 A"]');
+      expect(section.querySelector('h2').textContent.trim()).toBe('數學班 A');
+      expect(section.textContent).toContain('1');
+      const ul = section.querySelector('ul') as HTMLElement;
+      expect(ul.className).toContain('grid-cols-1');
+      expect(ul.className).toContain('wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]');
+      const li = section.querySelector('li') as HTMLElement;
+      expect(li.className).toContain('flex');
+      expect(li.className).toContain('wide:block');
+      expect(li.textContent).toContain('國二');
+    });
+  });
 });

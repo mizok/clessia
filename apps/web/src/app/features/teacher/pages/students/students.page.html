@@ -1,65 +1,114 @@
-<div class="flex flex-col gap-4 p-4">
-  <header>
-    <h1 class="m-0 text-[1.5rem] font-semibold">{{ page().label }}</h1>
-    <p class="mx-0 mt-1 mb-0 text-muted">你任課班級的在籍學生。</p>
-  </header>
+<!--
+  A6 版（#1314 老師端學生）：色面（數字句）→ 灰工具列（搜尋、班級）→ 依班分章。
+  章＝左欄班名＋人數（桌機 sticky）、右側姓名（桌機 4 欄網格、年級在姓名下；手機單欄列、年級靠右）。
+  稿畫了、這裡沒做的：「點名字看家長電話…」的學生資訊面板（稿標新、要 API）、班的上課時段
+  （列表 API 沒給）、「最近的班排前面」（同上）。
+-->
+<app-page-open>
+  <ng-container openTitle>
+    @if (loading() || loadError() || total() === 0) {
+      {{ page().label }}
+    } @else {
+      {{ classCount() }} 個班，<br />共 {{ total() }} 位學生。
+    }
+  </ng-container>
+  <ng-container openSub>你任課班級的在籍學生。</ng-container>
+</app-page-open>
 
-  <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-    <input
-      class="min-h-10 w-full rounded-md border border-surface-border px-3 py-2 text-md pointer-coarse:min-h-11 sm:w-auto sm:min-w-[220px]"
-      type="search"
-      placeholder="搜尋姓名"
-      [ngModel]="search()"
-      (ngModelChange)="search.set($event)"
-    />
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap flex flex-col items-start gap-3 py-3 wide:flex-row wide:items-center wide:gap-4"
+    role="search"
+    aria-label="篩選學生"
+  >
+    <div
+      class="clessia-filter-search min-w-full wide:w-[25rem] wide:max-w-[25rem] wide:min-w-0 wide:flex-none"
+    >
+      <p-iconfield iconPosition="left">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          type="search"
+          pInputText
+          placeholder="搜尋姓名"
+          aria-label="搜尋姓名"
+          class="clessia-filter-search-input"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+        />
+      </p-iconfield>
+    </div>
     <p-select
       [options]="classOptions()"
       [ngModel]="classFilter()"
       (ngModelChange)="classFilter.set($event)"
       optionLabel="label"
       optionValue="value"
+      ariaLabel="班級"
     />
   </div>
+</div>
 
+<div class="page-wrap pb-8">
   @if (loading()) {
-    <div class="skeleton-list" aria-label="學生名單載入中">
+    <div class="skeleton-list mt-6" aria-label="學生名單載入中">
       <span class="skeleton-bar skeleton-bar--label"></span>
       @for (i of [1, 2, 3]; track i) {
         <span class="skeleton-bar"></span>
       }
     </div>
   } @else if (loadError()) {
-    <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
+    <p class="m-0 mt-6 text-error-600">查詢失敗，請稍後再試。</p>
   } @else if (total() === 0) {
-    <p class="m-0 text-muted">目前沒有任課班級的學生。</p>
-  } @else if (groups().length === 0) {
-    <div class="flex flex-col items-start gap-3">
-      <p class="m-0 text-muted">沒有符合條件的學生。</p>
-      <!-- 走到這個分支一定有篩選（total() > 0 才會到），所以不另判 -->
-      <button
-        type="button"
-        class="clear-filters min-h-11 cursor-pointer rounded-md border border-surface-border bg-transparent px-4 text-md text-zinc-700 hover:bg-zinc-100"
-        (click)="search.set(''); classFilter.set(null)"
-      >
-        清除篩選
-      </button>
-    </div>
+    <p class="m-0 mt-6 text-muted">目前沒有任課班級的學生。</p>
   } @else {
-    @for (group of groups(); track group.className) {
-      <section class="flex max-w-[560px] flex-col gap-2">
-        <h2 class="m-0 flex items-baseline gap-2 text-[1rem] font-semibold">
-          {{ group.className }}
-          <span class="text-[0.875rem] font-normal text-muted">{{ group.students.length }} 人</span>
-        </h2>
-        <ul class="m-0 flex list-none flex-col p-0">
-          @for (student of group.students; track student.id) {
-            <li class="flex items-center justify-between border-b border-surface-border p-2">
-              <span>{{ student.name }}</span>
-              <span class="text-[0.875rem] text-muted">{{ gradeLabel(student.grade) }}</span>
-            </li>
-          }
-        </ul>
-      </section>
+    @if (filtered()) {
+      <!-- A6 `.count`：篩選中才有，「找到 N 位」＋清除；N 數不重複的學生（跟色面同一個口徑） -->
+      <p class="m-0 mt-6 flex flex-wrap items-baseline gap-3 text-md text-zinc-600">
+        <span
+          >找到 <strong class="text-zinc-900">{{ foundCount() }}</strong> 位</span
+        >
+        <button
+          type="button"
+          class="clear-filters min-h-11 cursor-pointer border-0 bg-transparent p-0 font-semibold text-zinc-900 underline underline-offset-[3px]"
+          (click)="search.set(''); classFilter.set(null)"
+        >
+          清除篩選
+        </button>
+      </p>
+    }
+    @if (groups().length === 0) {
+      <p class="m-0 py-6 text-md leading-relaxed text-zinc-700">
+        沒有符合條件的學生。試試只打姓氏，或按「清除篩選」。
+      </p>
+    } @else {
+      @for (group of groups(); track group.className) {
+        <section
+          class="grid grid-cols-1 gap-3 border-0 border-b border-solid border-zinc-200 py-6 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
+          [attr.aria-label]="group.className"
+        >
+          <div class="wide:sticky wide:top-20 wide:self-start">
+            <h2 class="m-0 text-xl leading-snug font-bold text-zinc-900">{{ group.className }}</h2>
+            <p class="m-0 mt-3 text-xl font-bold tracking-[-0.02em] tabular-nums">
+              {{ group.students.length }}
+              <span class="text-md font-medium tracking-normal text-zinc-600">人</span>
+            </p>
+          </div>
+          <ul
+            class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1"
+          >
+            @for (student of group.students; track student.id) {
+              <li
+                class="flex min-h-12 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-zinc-200 py-1 wide:block wide:min-h-0 wide:border-b-0 wide:py-2"
+              >
+                <span class="block text-lg font-semibold">{{ student.name }}</span>
+                <span class="block shrink-0 text-sm text-zinc-600 wide:mt-px">{{
+                  gradeLabel(student.grade)
+                }}</span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
     }
   }
 </div>
