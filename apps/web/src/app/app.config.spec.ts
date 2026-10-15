@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { MessageService } from 'primeng/api';
 import { ApplicationInitStatus } from '@angular/core';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
@@ -34,5 +35,15 @@ describe('appConfig 開站請求', () => {
     // 守衛之後注入的是同一個 root 單例 —— 不會再發第二支 /me
     TestBed.inject(AuthService);
     expect(http.match((req) => req.url.endsWith('/api/me')).length, 'second /api/me').toBe(0);
+  });
+});
+
+/**
+ * #1615：`MessageService` 是全站一份，由這裡提供；出口是 App 的 `<app-toast>`。
+ * 各元件 spec 都會在 TestBed 自己給一份，所以這裡少了它，那些 spec 照樣全綠 —— 只有這支看得到。
+ */
+describe('appConfig 的 toast 通道', () => {
+  it('全域提供 MessageService', () => {
+    expect(appConfig.providers).toContain(MessageService);
   });
 });
