@@ -127,6 +127,14 @@ export type Variables = {
    * 只用這個** —— 見 `lib/child-db.ts`。
    */
   childDb: ChildDb;
+  /**
+   * 這個人自己的 staff／parents 列（只有顯示用欄位），由 auth middleware 跟身分查詢一起帶出來，
+   * 給 `/api/me` 省兩支查詢（#1595 P2a）。經身分快取，最遲 30 秒才反映修改。
+   */
+  selfRows: {
+    staff: { display_name?: string | null; birthday?: string | null } | null;
+    parent: { name?: string | null } | null;
+  };
   supabase: SupabaseClient;
   /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */
   auth: Auth;
