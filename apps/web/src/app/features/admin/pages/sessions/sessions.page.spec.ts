@@ -1897,6 +1897,14 @@ describe('SessionsPage', () => {
       expect(viewBtn('日').classList.contains('text-zinc-700')).toBe(true);
     });
 
+    it('日／週：外框是白底的一整塊（A6 .vsw 量到 #fff、padding 2px、圓角 6px），未選那顆透明在白底上', () => {
+      const group = el().querySelector('[aria-label="檢視"]')!;
+      expect(group.classList.contains('bg-white')).toBe(true);
+      expect(group.classList.contains('bg-zinc-100')).toBe(false);
+      expect(group.classList.contains('p-0.5')).toBe(true);
+      expect(group.classList.contains('rounded-md')).toBe(true);
+    });
+
     it('日／週：手機 44、桌機 32 高（A27 只管基底），字級 text-lg', () => {
       const b = viewBtn('日');
       expect(b.classList.contains('h-11')).toBe(true);
@@ -2019,6 +2027,30 @@ describe('SessionsPage', () => {
       expect(fn(new Date(2026, 8, 29), false)).toBe('29');
       // 桌機每格都是月/日
       expect(tabs()[1].querySelector('b.max-wide\\:hidden')?.textContent?.trim()).toBe('4/14');
+    });
+
+    const thisWeekBtn = () =>
+      Array.from(el().querySelectorAll('button')).find((b) => b.textContent?.trim() === '本週');
+
+    it('本週時沒有「本週」鈕（版面同 A6）；別週時出現在 ‹ › 旁，點了回本週並選今天', () => {
+      expect(thisWeekBtn()).toBeUndefined();
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(-2);
+      fixture.detectChanges();
+      const btn = thisWeekBtn()!;
+      expect(btn).toBeDefined();
+      btn.click();
+      fixture.detectChanges();
+      expect(thisWeekBtn()).toBeUndefined();
+      const day = (component as unknown as { day: () => Date }).day();
+      expect(day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate()).toBe(20260415);
+    });
+
+    it('今天是這週的週日、但週日沒有課：週日格照樣出現', () => {
+      vi.setSystemTime(new Date('2026-04-19T04:00:00Z')); // 台北週日中午
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      fixture.detectChanges();
+      expect(sessionsServiceMock.hasSessionsOn).toHaveReturned();
+      expect(tabs().at(-1)?.querySelector('span')?.textContent?.trim()).toBe('週日');
     });
 
     it('沒有「回到今天」、沒有日曆跳日；‹ › 換週還在', () => {

@@ -31,7 +31,7 @@
   >
     @if (mode() !== 'results') {
       <div
-        class="inline-flex gap-0.5 rounded-md bg-zinc-100 p-0.5 max-wide:order-1"
+        class="inline-flex gap-0.5 rounded-md bg-white p-0.5 max-wide:order-1"
         role="group"
         aria-label="檢視"
       >
@@ -111,6 +111,16 @@
         >
           <i class="pi pi-chevron-right text-sm" aria-hidden="true"></i>
         </button>
+        <!-- 「本週」（#1620 計畫席選 b）：停在別週才出現，本週的版面仍同 A6 -->
+        @if (!isThisWeek()) {
+          <button
+            type="button"
+            class="inline-flex h-11 shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 max-wide:order-5 max-wide:mt-2 wide:ml-1"
+            (click)="goThisWeek()"
+          >
+            本週
+          </button>
+        }
       </div>
       <span class="hidden basis-full max-wide:order-3 max-wide:block" aria-hidden="true"></span>
     }

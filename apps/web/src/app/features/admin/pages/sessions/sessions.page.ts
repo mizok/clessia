@@ -1031,15 +1031,17 @@ export class SessionsPage implements OnInit {
   });
 
   /**
-   * 週列的格子（#1620，A6 `.dtabs` 只畫週一～週六）。週日**有課才出現** —— 不然那天的課在日視圖
-   * 沒有入口；正停在週日（例如從異動跳過來）也要看得到自己在哪一天。
+   * 週列的格子（#1620，A6 `.dtabs` 只畫週一～週六）。週日在三種情況出現：那週週日有課（不然那天的課在
+   * 日視圖沒有入口）、今天就是那週的週日（計畫席 10-15 補）、正停在週日（例如從異動跳過來）。
    */
   private readonly sundayHasSessions = signal(false);
   private sundayChecked = '';
   protected readonly stripDays = computed(() => {
     const days = this.weekDays();
     const sunday = days[6];
-    return this.sundayHasSessions() || isSameDay(this.day(), sunday) ? days : days.slice(0, 6);
+    const show =
+      this.sundayHasSessions() || isSameDay(this.day(), sunday) || isSameDay(this.now(), sunday);
+    return show ? days : days.slice(0, 6);
   });
 
   /**
@@ -1097,6 +1099,11 @@ export class SessionsPage implements OnInit {
   /** 上一週／下一週：留在目前的日／週檢視（A6 沒有換週，使用者 10-15 裁定保留，#1620） */
   protected shiftWeek(weeks: number): void {
     this.moveTo(addDays(this.day(), weeks * 7));
+  }
+
+  /** 「本週」（#1620 計畫席選 b）：只在別週時出現；回到本週並選今天，日／週檢視不變 */
+  protected goThisWeek(): void {
+    this.moveTo(new Date());
   }
 
   private moveTo(d: Date): void {
