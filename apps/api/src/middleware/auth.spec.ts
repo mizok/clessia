@@ -568,7 +568,9 @@ describe('authMiddleware 的 selfRows（#1595 P2a）', () => {
     };
     getSession.mockResolvedValue({ user: { id: 'user-2', orgId: 'org-1' } });
     fromMock.mockImplementation((table: string) => ({
-      select: () => ({ eq: () => Promise.resolve({ data: rows[table] ?? [], error: null }) }),
+      select: () => ({
+        eq: () => eqChain(Promise.resolve({ data: rows[table] ?? [], error: null })),
+      }),
     }));
 
     const app = new Hono<AppEnv>();
