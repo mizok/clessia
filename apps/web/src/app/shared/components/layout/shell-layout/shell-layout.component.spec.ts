@@ -232,6 +232,18 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       }
     });
 
+    it('導覽列 padding 照稿 0（不再 px-1／-mx-1）；鍵盤焦點環往內縮，才不被 overflow 裁掉（A6 沒定義 offset，保留現況可見）', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const nav = el.querySelector('nav[aria-label="主要導覽"]')!;
+      expect(cls(nav)).not.toContain('px-1');
+      expect(cls(nav)).not.toContain('-mx-1');
+      has(
+        nav,
+        'max-wide:[&_:focus-visible]:-outline-offset-2',
+        'max-wide:[&_:focus-visible]:outline-zinc-900',
+      );
+    });
+
     it('「更多」鈕：同導覽連結的框線與高度規則；箭頭 14px', async () => {
       const { el } = await setup(['admin'], 'admin');
       const btn = el.querySelector('[popovertarget="shell-more"]')!;
