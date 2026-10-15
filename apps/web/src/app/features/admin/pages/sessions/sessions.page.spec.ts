@@ -1977,6 +1977,18 @@ describe('SessionsPage', () => {
 
   /** conformance：色面標題兩行（A6「…堂課，<br>…堂有異動。」）；篩選結果那句不拆 */
   describe('色面標題兩行', () => {
+    // 課表頁有沒有傳 compact 沒有別的東西在守（page-open 元件本身的 spec 只守「有傳會怎樣」）
+    it('課表的色面開了 compact：標題 40／26、內距上 32／下 24（A6 schedule.css:10-11,277）', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const h1 = el.querySelector('app-page-open h1') as HTMLElement;
+      expect(h1.classList.contains('wide:text-[40px]')).toBe(true);
+      expect(h1.classList.contains('text-[26px]')).toBe(true);
+      expect(h1.classList.contains('wide:text-[48px]')).toBe(false);
+      const wrap = el.querySelector('app-page-open section > div.page-wrap') as HTMLElement;
+      expect(wrap.classList.contains('pt-8')).toBe(true);
+      expect(wrap.classList.contains('pb-6')).toBe(true);
+    });
+
     const h1 = () => (fixture.nativeElement as HTMLElement).querySelector('h1') as HTMLElement;
     it('日／週：逗號後換行（一個 <br>）；文字內容連起來仍是原句', async () => {
       sessionsServiceMock.list.mockReturnValue(
