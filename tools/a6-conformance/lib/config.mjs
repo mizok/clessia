@@ -22,13 +22,24 @@ export const WIDTHS = [
  * 命中的差異列歸「已記錄偏離」，不算待修。欄位是 regex 字串：status（差異類別，必填）、
  * detail（差異文字）、a6／app（part key）、kind（part 種類）。頁面專屬的放 PAGES[頁].deviations。
  */
+const RULES = 'kb/wiki/architecture/a6-adoption-rules.md'; // #1586
+
 export const DEVIATIONS = [
   {
+    // R3：44px 只約束基底（手機）；桌機高度跟稿不同是待修，所以只在 360 生效
     status: '尺寸',
     kind: 'control',
+    widths: [360],
     detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
-    reason: '可點元素基底高 ≥44px（觸控下限）；稿較矮的高度不照抄',
-    source: 'kb/wiki/architecture/constitution-enforcement.md:101（A27）',
+    reason: '可點元素基底高 ≥44px（觸控下限），只管手機',
+    source: `${RULES}:32-34（R3）；kb/wiki/architecture/constitution-enforcement.md:101（A27）`,
+  },
+  {
+    status: '多',
+    pop: 'more',
+    app: 'control:link\\[(公開申請|到班打卡)\\]$',
+    reason: '現況有、稿沒畫：收進「更多」選單，不刪',
+    source: `${RULES}:24-28（R2）`,
   },
 ];
 
@@ -58,7 +69,43 @@ export const PAGES = {
     app: '/admin/students',
     // app 的篩選是 PrimeNG Popover（不是原生 popover）：點哪顆、內容根在哪
     appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
+    deviations: [
+      {
+        status: '多',
+        detail: '的更多動作」',
+        reason: '列尾「⋯」：現況有、稿沒畫的列動作收進「⋯」',
+        source: `${RULES}:24-28（R2）`,
+      },
+    ],
   },
-  schedule: { a6: 'schedule.html', app: '/admin/sessions' },
-  billing: { a6: 'billing.html', app: '/admin/payments' },
+  schedule: {
+    a6: 'schedule.html',
+    app: '/admin/sessions',
+    deviations: [
+      {
+        status: '多',
+        app: 'control:button\\[(上一週|下一週)\\]$',
+        reason: '換週箭頭：收不進「⋯」的入口，保留',
+        source: `${RULES}:30（R2 例外）；#1314 comment 6163635319`,
+      },
+    ],
+  },
+  billing: {
+    a6: 'billing.html',
+    app: '/admin/payments',
+    deviations: [
+      {
+        status: '多',
+        app: 'control:button\\[有#筆生效中的報名還沒開過帳單\\]$',
+        reason: '未開單名單：使用者 10-08 逐項裁定「留」',
+        source: `${RULES}:26（R2）`,
+      },
+      {
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${RULES}:24-28（R2）`,
+      },
+    ],
+  },
 };

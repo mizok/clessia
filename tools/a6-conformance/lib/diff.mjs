@@ -125,11 +125,13 @@ export const LIMITS = {
 
 /**
  * 每列歸一欄：`資料差` → `工具限制` → `已記錄偏離`（命中 deviations）→ `待修`。
- * deviation：{ status, detail?, a6?, app?, kind?（皆為 regex 字串／值）, reason, source }。
+ * deviation：{ status, detail?, a6?, app?（regex 字串）, kind?, pop?, widths?（只在這些寬度生效）, reason, source }。
  */
-export function classify(rows, deviations = []) {
+export function classify(rows, deviations = [], width) {
   const hit = (r, d) =>
     d.status === r.status &&
+    (!d.widths || d.widths.includes(width)) &&
+    (!d.pop || d.pop === r.pop) &&
     (!d.kind || d.kind === r.kind) &&
     (!d.detail || new RegExp(d.detail).test(r.detail)) &&
     (!d.a6 || new RegExp(d.a6).test(r.a6 ?? '')) &&

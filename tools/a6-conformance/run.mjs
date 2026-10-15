@@ -103,7 +103,7 @@ try {
             ))
               rows.push({ ...r, pop: ia });
         }
-        const out = classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])]);
+        const out = classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])], w.width);
         fs.writeFileSync(path.join(dir, `diff-${w.tag}.json`), JSON.stringify(out, null, 1));
         sections.push({ width: w.width, rows: out, a6, app });
       }

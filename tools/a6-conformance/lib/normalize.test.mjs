@@ -103,9 +103,23 @@ test('分欄：資料差 → 工具限制 → 已記錄偏離 → 待修', async
       r('位置', 'Δy', { limit: '結構範圍不同' }),
     ],
     DEVIATIONS,
+    360,
   ).map((x) => x.bucket);
   // 44 是 A27 的觸控下限；43 不到下限＝待修；文字不是可點元素＝待修
   assert.deepEqual(out, ['已記錄偏離', '待修', '待修', '資料差', '工具限制']);
+  // R3：A27 只管基底（手機）。桌機高度跟稿不同是待修，不是偏離
+  assert.equal(classify([r('尺寸', '高 26→44')], DEVIATIONS, 1440)[0].bucket, '待修');
+  // R2：「更多」選單多出的「公開申請」是已記錄偏離，其他多出來的連結不是
+  const more = (name) =>
+    r('多', '', {
+      a6: null,
+      app: `pop[shell-more]>landmark:popover[]>control:link[${name}]`,
+      pop: 'more',
+    });
+  assert.deepEqual(
+    classify([more('公開申請'), more('別的')], DEVIATIONS, 1440).map((x) => x.bucket),
+    ['已記錄偏離', '待修'],
+  );
 });
 
 test('工具限制自動標註：結構範圍不同、同型段落數不同、偽元素', async () => {
