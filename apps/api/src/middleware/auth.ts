@@ -56,7 +56,7 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   // 「最遲 30 秒生效」，上限由 lib/identity-cache.ts 與 auth.spec.ts 守（#1595 P1b）。
   let identity = getCachedIdentity<IdentityRows>(session.user.id);
   if (!identity) {
-    const loaded = await loadIdentity(supabase, session.user.id);
+    const loaded = await loadIdentity(supabase, session.user.id, orgId);
     if (!loaded) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     setCachedIdentity(session.user.id, loaded);
     identity = loaded;
@@ -142,12 +142,14 @@ interface IdentityRows {
 async function loadIdentity(
   supabase: SupabaseClient,
   userId: string,
+  orgId: string,
 ): Promise<IdentityRows | null> {
   const [
     { data: roleRows, error: rolesError },
     { data: staffRows, error: staffError },
     { data: parentRows, error: parentError },
   ] = await Promise.all([
+    // `user_roles` 沒有 org_id 欄位：它的 org 由 `ba_user.orgId`（session）決定，一個 user 只屬於一個 org
     supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
     // 分校指派跟著 staff 一起查 —— 授權要在 middleware 層成立（c1），
     // 各路由自己去查的話總有一支會忘記，而忘記的方式是安靜的。
@@ -155,13 +157,17 @@ async function loadIdentity(
     supabase
       .from('staff')
       .select('status, display_name, birthday, staff_campuses(campus_id)')
-      .eq('user_id', userId),
+      .eq('user_id', userId)
+      // staff／parents 的唯一鍵是 (user_id, org_id)：只用 user_id 的話，同一個人在別的 org 的列
+      // （停用狀態、別 org 的分校指派）會被合進來算（#1603，縱深防禦）
+      .eq('org_id', orgId),
     // `parent_student_relations` 跟 status 一起查 —— 理由跟 staff_campuses 那行一樣：
     // 授權要在 middleware 層成立（c1），各路由自己查的話總有一支會忘記。
     supabase
       .from('parents')
       .select('status, name, parent_student_relations(student_id)')
-      .eq('user_id', userId),
+      .eq('user_id', userId)
+      .eq('org_id', orgId),
   ]);
 
   // **失敗的原因要留下來。** 這三個 error 物件原本讀完就丟 —— 於是這條路只會在正式站

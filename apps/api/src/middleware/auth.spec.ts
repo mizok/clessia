@@ -7,6 +7,14 @@ import type { AppEnv } from '../index';
 const getSession = vi.fn();
 const fromMock = vi.fn();
 
+/**
+ * 讓替身的查詢結果也能再接 `.eq()`：staff／parents 的身分查詢是 `.eq('user_id').eq('org_id')`（#1603）。
+ * 這個 helper 不過濾 —— 要驗 org 過濾的那條測試自己記下 eq 參數。
+ */
+function eqChain<T extends object>(result: T): T & { eq: () => T } {
+  return Object.assign(result, { eq: () => eqChain(result) });
+}
+
 vi.mock('../lib/get-auth', () => ({
   getAuth: () => ({ api: { getSession: (...args: unknown[]) => getSession(...args) } }),
 }));
@@ -183,9 +191,11 @@ describe('authMiddleware 的身分查詢失敗', () => {
           // 這個替身同時要服務兩種呼叫形狀：`.eq()` 直接 await（角色/身分查詢），
           // 以及 `.eq().maybeSingle()`（`logAudit` 查 profiles）。
           // 少了 maybeSingle，稽核會在它自己的 try/catch 裡靜默失敗
-          return Object.assign(Promise.resolve(result), {
-            maybeSingle: () => Promise.resolve({ data: null, error: null }),
-          });
+          return eqChain(
+            Object.assign(Promise.resolve(result), {
+              maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            }),
+          );
         },
       }),
       insert: () => Promise.resolve({ error: null }),
@@ -258,9 +268,11 @@ describe('authMiddleware 的 studentScope', () => {
       select: () => ({
         eq: () => {
           const result = results[table] ?? { data: [], error: null };
-          return Object.assign(Promise.resolve(result), {
-            maybeSingle: () => Promise.resolve({ data: null, error: null }),
-          });
+          return eqChain(
+            Object.assign(Promise.resolve(result), {
+              maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            }),
+          );
         },
       }),
       insert: () => Promise.resolve({ error: null }),
@@ -378,7 +390,7 @@ describe('authMiddleware 的身分快取：撤銷最遲 30 秒生效', () => {
     getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
     fromMock.mockImplementation((table: string) => ({
       select: () => ({
-        eq: () => Promise.resolve(results[table] ?? { data: [], error: null }),
+        eq: () => eqChain(Promise.resolve(results[table] ?? { data: [], error: null })),
       }),
     }));
 
@@ -477,7 +489,7 @@ describe('authMiddleware 的身分快取：撤銷最遲 30 秒生效', () => {
         eq: (_column: string, userId: string) => {
           queriedUsers.push(userId);
           const data = table === 'user_roles' ? (rolesByUser[userId] ?? []) : [];
-          return Promise.resolve({ data, error: null });
+          return eqChain(Promise.resolve({ data, error: null }));
         },
       }),
     }));
@@ -520,14 +532,16 @@ describe('authMiddleware 的 selfRows（#1595 P2a）', () => {
     const selects: Record<string, string> = {};
     const rows: Record<string, unknown[]> = {
       user_roles: [{ role: 'admin', permissions: [] }],
-      staff: [{ status: 'active', display_name: '王主任', birthday: '1990-01-02', staff_campuses: [] }],
+      staff: [
+        { status: 'active', display_name: '王主任', birthday: '1990-01-02', staff_campuses: [] },
+      ],
       parents: [{ status: 'active', name: '王媽媽', parent_student_relations: [] }],
     };
     getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
     fromMock.mockImplementation((table: string) => ({
       select: (cols: string) => {
         selects[table] = cols;
-        return { eq: () => Promise.resolve({ data: rows[table] ?? [], error: null }) };
+        return { eq: () => eqChain(Promise.resolve({ data: rows[table] ?? [], error: null })) };
       },
     }));
 
@@ -543,5 +557,89 @@ describe('authMiddleware 的 selfRows（#1595 P2a）', () => {
       staff: { display_name: '王主任', birthday: '1990-01-02' },
       parent: { name: '王媽媽' },
     });
+  });
+});
+
+/**
+ * #1603：staff／parents 的唯一鍵是 (user_id, org_id)。身分查詢只用 user_id 的話，同一個人在
+ * **別的 org** 的列會被合進來算 —— 停用判斷、分校範圍、可看的學生都會被污染。
+ * 這個替身**真的照 `.eq()` 過濾**，所以拿掉 `org_id` 那個條件就會撈到別 org 的列。
+ */
+describe('authMiddleware 的身分查詢只看本 org（#1603）', () => {
+  afterEach(() => {
+    getSession.mockReset();
+    fromMock.mockReset();
+  });
+
+  function appWithRows(rows: Record<string, Array<Record<string, unknown>>>) {
+    getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+    fromMock.mockImplementation((table: string) => ({
+      select: () => {
+        const filters: Array<[string, unknown]> = [];
+        const query = {
+          eq: (column: string, value: unknown) => {
+            filters.push([column, value]);
+            return query;
+          },
+          then: (resolve: (v: unknown) => unknown) =>
+            resolve({
+              data: (rows[table] ?? []).filter((row) => filters.every(([k, v]) => row[k] === v)),
+              error: null,
+            }),
+        };
+        return query;
+      },
+    }));
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.get('/', (c) =>
+      c.json({ campusScope: c.get('campusScope'), studentScope: c.get('studentScope') }),
+    );
+    return app;
+  }
+
+  it('同一個人在別 org 有停用的 staff 列、別的分校指派：不影響本 org 的判斷', async () => {
+    const res = await appWithRows({
+      user_roles: [{ user_id: 'user-1', role: 'admin', permissions: [] }],
+      staff: [
+        {
+          user_id: 'user-1',
+          org_id: 'org-1',
+          status: 'active',
+          staff_campuses: [{ campus_id: 'c-1' }],
+        },
+        {
+          user_id: 'user-1',
+          org_id: 'org-2',
+          status: 'inactive',
+          staff_campuses: [{ campus_id: 'c-other' }],
+        },
+      ],
+    }).request('/');
+
+    expect(res.status).toBe(200); // 別 org 的停用列沒有被算進來
+    expect(await res.json()).toMatchObject({ campusScope: ['c-1'] }); // 也沒有混進 c-other
+  });
+
+  it('家長在別 org 的關聯學生不會混進 studentScope', async () => {
+    const res = await appWithRows({
+      user_roles: [{ user_id: 'user-1', role: 'parent', permissions: [] }],
+      parents: [
+        {
+          user_id: 'user-1',
+          org_id: 'org-1',
+          status: 'active',
+          parent_student_relations: [{ student_id: 's-1' }],
+        },
+        {
+          user_id: 'user-1',
+          org_id: 'org-2',
+          status: 'active',
+          parent_student_relations: [{ student_id: 's-other' }],
+        },
+      ],
+    }).request('/');
+
+    expect(await res.json()).toMatchObject({ studentScope: ['s-1'] });
   });
 });
