@@ -4,16 +4,40 @@
 -->
 @if (items().length > 0) {
   <section
-    class="flex min-h-11 flex-wrap items-center gap-x-3 rounded-md bg-zinc-100 px-3 wide:flex-nowrap"
-    aria-label="近期課務異動"
+    class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-zinc-100 p-3 wide:flex-nowrap wide:gap-y-3 wide:px-4 wide:py-2"
+    aria-label="近期異動"
   >
-    <p class="m-0 flex-none text-md font-semibold whitespace-nowrap text-zinc-900 tabular-nums">
-      異動 · 今天起 {{ items().length }} 則
-    </p>
+    <h2
+      class="m-0 flex flex-none flex-row items-baseline gap-2 text-lg leading-[1.25] font-bold whitespace-nowrap text-zinc-900 wide:flex-col wide:items-stretch wide:gap-[normal]"
+    >
+      異動<span class="text-sm font-medium text-zinc-600 tabular-nums"
+        >今天起 {{ items().length }} 則</span
+      >
+    </h2>
+
+    <!-- 暫停鈕：只在會動時才有意義（reduced-motion 時軌道本來就不動，所以不顯示） -->
+    <button
+      type="button"
+      class="grid size-11 flex-none cursor-pointer place-items-center rounded-full border border-zinc-300 bg-white p-0 text-zinc-900 hover:border-zinc-900 aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white motion-reduce:hidden wide:size-8"
+      aria-label="暫停捲動"
+      title="暫停捲動"
+      [attr.aria-pressed]="paused()"
+      (click)="paused.set(!paused())"
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          d="M5 3.5v9M11 3.5v9"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          fill="none"
+        />
+      </svg>
+    </button>
 
     <!--
       軌道前面有一整個容器寬的空白（`pl-full`），字從右邊進來、走完自己的寬度離開。
-      hover／focus 暫停（`hover:`、`focus-within:`）；reduced-motion 時不動、容器可橫捲。
+      hover／focus／暫停鈕都會停；reduced-motion 時不動、容器可橫捲。
     -->
     <div
       class="order-3 min-w-0 basis-full overflow-hidden motion-reduce:overflow-x-auto wide:order-none wide:flex-1 wide:basis-auto"
@@ -21,29 +45,59 @@
     >
       <ul
         #track
-        class="m-0 flex w-max list-none gap-6 p-0 pl-[100%] motion-safe:animate-ticker motion-safe:[animation-duration:var(--ticker-duration,40s)] motion-safe:hover:[animation-play-state:paused] motion-safe:focus-within:[animation-play-state:paused] motion-reduce:pl-0"
+        class="m-0 flex w-max list-none gap-2 py-0 pr-2 pl-[100%] motion-safe:animate-ticker motion-safe:[animation-duration:var(--ticker-duration,40s)] motion-safe:hover:[animation-play-state:paused] motion-safe:focus-within:[animation-play-state:paused] motion-reduce:pl-0"
+        [class.motion-safe:[animation-play-state:paused]]="paused()"
         [style.--ticker-duration]="duration() === null ? null : duration() + 's'"
       >
         @for (item of items(); track item.key) {
           <li class="flex-none">
             <button
               type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent px-1 text-md whitespace-nowrap text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-zinc-900"
+              class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base leading-normal whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:h-9 wide:text-md"
               (click)="pick(item)"
             >
-              {{ item.text }}
+              <b class="font-semibold tabular-nums">{{ item.when }}</b>
+              @if (item.cls) {
+                <span class="font-semibold">{{ item.cls }}</span>
+              }
+              <span
+                class="inline-flex items-center gap-[3px] rounded-sm px-1.5 py-px text-xs leading-normal font-semibold text-zinc-800"
+                [class.bg-zinc-100]="item.typeKind !== 'cancel'"
+                [class.bg-transparent]="item.typeKind === 'cancel'"
+                [class.shadow-[inset_0_0_0_1px_var(--zinc-500)]]="item.typeKind === 'cancel'"
+                ><i class="pi text-[10px]" [class]="item.icon" aria-hidden="true"></i
+                >{{ item.type }}</span
+              >
+              @if (item.detail) {
+                <span class="text-zinc-700">{{ item.detail }}</span>
+              }
+              @if (item.batch) {
+                <span
+                  class="inline-flex items-center rounded-sm border border-solid border-zinc-900 px-[5px] text-xs leading-4 font-bold text-zinc-900"
+                  >批次</span
+                >
+              }
             </button>
           </li>
         }
       </ul>
     </div>
 
-    <a
-      class="ml-auto inline-flex min-h-11 flex-none items-center text-md font-semibold whitespace-nowrap text-zinc-900 underline underline-offset-4"
-      [routerLink]="[]"
-      fragment="changes"
-      queryParamsHandling="preserve"
-      >全部異動</a
+    <button
+      type="button"
+      class="ml-auto inline-flex min-h-11 flex-none cursor-pointer items-center gap-1 border-0 border-solid border-zinc-400 bg-transparent px-0 py-0.5 text-base leading-normal font-semibold whitespace-nowrap text-zinc-900 wide:min-h-0 wide:border-b"
+      (click)="openAll()"
     >
+      全部異動<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          d="M2.5 8h11M10 4.5L13.5 8 10 11.5"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          fill="none"
+        />
+      </svg>
+    </button>
   </section>
 }

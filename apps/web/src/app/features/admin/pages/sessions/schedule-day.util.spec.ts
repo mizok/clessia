@@ -86,8 +86,13 @@ describe('layoutDay', () => {
     expect(l.peak).toEqual({ count: 2, from: '18:00', to: '19:00' });
   });
 
-  it('同時不到兩班就不標最滿', () => {
-    expect(layoutDay([s({ id: 'a' })])!.peak).toBeNull();
+  // A6（schedule.js `peak()`）：有課就有最滿——一堂也算「同時 1 班」；全部停課才沒有
+  it('一堂也有最滿（同時 1 班）；全部停課沒有', () => {
+    expect(layoutDay([s({ id: 'a' })])!.peak).toEqual({ count: 1, from: '17:00', to: '19:00' });
+    expect(layoutDay([s({ id: 'a', status: 'cancelled' })])!.peak).toBeNull();
+    // 門檻 1／2／3 班
+    const two = layoutDay([s({ id: 'a', teacherId: 't1' }), s({ id: 'b', teacherId: 't2' })])!.peak;
+    expect(two?.count).toBe(2);
   });
 
   it('接受 HH:mm:ss', () => {
@@ -143,7 +148,7 @@ describe('summarizeWeek', () => {
     expect(w.map((d) => d.sessions.length)).toEqual([2, 0, 1]);
     expect(w.map((d) => d.maxConcurrent)).toEqual([2, 0, 1]);
     expect(w[0].peak).toEqual({ count: 2, from: '17:00', to: '19:00' });
-    expect(w[2].peak).toBeNull();
+    expect(w[2].peak).toEqual({ count: 1, from: '09:00', to: '10:00' });
     expect(w[2].groups[0].start).toBe('09:00');
   });
 

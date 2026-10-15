@@ -19,7 +19,7 @@
 
     <div class="grid grid-cols-[148px_minmax(0,1fr)] border-b border-zinc-900">
       <div
-        class="sticky left-0 z-[2] flex items-end bg-white pb-1 text-xs font-semibold text-zinc-600"
+        class="sticky left-0 z-[2] flex flex-col justify-center bg-white py-2 pr-3 text-xs font-semibold text-zinc-600"
       >
         老師
       </div>
@@ -64,7 +64,7 @@
             >
               <button
                 type="button"
-                class="flex h-full min-h-11 w-full cursor-pointer flex-col items-start gap-px overflow-hidden rounded-md py-1.5 pr-8 pl-2.5 text-left text-zinc-900 transition-colors hover:border-zinc-900"
+                class="flex h-full min-h-11 w-full cursor-pointer flex-col items-start gap-px overflow-hidden rounded-md py-1.5 pr-[30px] pl-2.5 text-left text-zinc-900 transition-colors hover:border-zinc-900"
                 [class.border]="kind(b.session) === 'next' || kind(b.session) === 'done'"
                 [class.border-zinc-300]="kind(b.session) === 'next'"
                 [class.border-surface-border]="kind(b.session) === 'done'"
@@ -93,12 +93,12 @@
                 (click)="menu.emit({ event: $event, session: b.session })"
               >
                 <span
-                  class="text-md leading-tight font-semibold whitespace-nowrap"
+                  class="text-md leading-[1.3] font-semibold whitespace-nowrap"
                   [class.line-through]="kind(b.session) === 'cancelled'"
                   [class.text-zinc-600]="kind(b.session) === 'cancelled'"
                   >{{ b.session.className }}</span
                 >
-                <span class="text-sm leading-tight whitespace-nowrap text-zinc-600 tabular-nums"
+                <span class="text-sm leading-[1.3] whitespace-nowrap text-zinc-600 tabular-nums"
                   >{{ b.session.startTime }}–{{ b.session.endTime }}
                   @if (b.session.attendanceEnrolledCount !== undefined) {
                     · {{ b.session.attendanceEnrolledCount }} 人

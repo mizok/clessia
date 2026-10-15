@@ -6,7 +6,7 @@ import { PageOpenComponent } from './page-open.component';
 
 @Component({
   imports: [PageOpenComponent],
-  template: `<app-page-open [nameSize]="big()" [subLarge]="large()"
+  template: `<app-page-open [nameSize]="big()" [subLarge]="large()" [compact]="small()"
     ><ng-container openTitle>王柏翰</ng-container
     ><ng-container openSub>副行</ng-container></app-page-open
   >`,
@@ -14,6 +14,7 @@ import { PageOpenComponent } from './page-open.component';
 class Host {
   readonly big = signal(false);
   readonly large = signal(false);
+  readonly small = signal(false);
 }
 
 describe('PageOpenComponent 標題字級', () => {
@@ -49,5 +50,38 @@ describe('PageOpenComponent 標題字級', () => {
     expect(sub(f).classList.contains('wide:text-2xl')).toBe(true);
     expect(sub(f).classList.contains('font-semibold')).toBe(true);
     expect(sub(f).classList.contains('wide:text-lg')).toBe(false);
+  });
+
+  // 課表（A6 schedule.css:10-11,277）：標題 40／26、桌機內距上 32／下 24；預設關，別頁不變
+  describe('compact（課表色面）', () => {
+    const wrap = (f: { nativeElement: HTMLElement }) =>
+      f.nativeElement.querySelector('section > div.page-wrap') as HTMLElement;
+
+    it('預設關：48／28、內距上 48／下 40；開了：40／26、上 32／下 24（手機也是）', () => {
+      const f = TestBed.createComponent(Host);
+      f.detectChanges();
+      expect(h1(f).classList.contains('wide:text-[48px]')).toBe(true);
+      expect(h1(f).classList.contains('wide:text-[40px]')).toBe(false);
+      expect(wrap(f).classList.contains('wide:pt-12')).toBe(true);
+      expect(wrap(f).classList.contains('wide:pb-10')).toBe(true);
+
+      f.componentInstance.small.set(true);
+      f.detectChanges();
+      expect(h1(f).classList.contains('wide:text-[40px]')).toBe(true);
+      expect(h1(f).classList.contains('text-[26px]')).toBe(true);
+      expect(h1(f).classList.contains('wide:text-[48px]')).toBe(false);
+      expect(wrap(f).classList.contains('pt-8')).toBe(true); // A6 schedule.css:10 沒有媒體查詢，手機也是 32／24
+      expect(wrap(f).classList.contains('pb-6')).toBe(true);
+      expect(wrap(f).classList.contains('wide:pt-12')).toBe(false);
+    });
+
+    it('人名標題（nameSize）優先：就算 compact 也是 72／44', () => {
+      const f = TestBed.createComponent(Host);
+      f.componentInstance.big.set(true);
+      f.componentInstance.small.set(true);
+      f.detectChanges();
+      expect(h1(f).classList.contains('wide:text-[72px]')).toBe(true);
+      expect(h1(f).classList.contains('wide:text-[40px]')).toBe(false);
+    });
   });
 });

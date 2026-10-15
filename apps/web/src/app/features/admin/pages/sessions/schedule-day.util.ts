@@ -99,7 +99,8 @@ function peakOf(sessions: readonly Session[], h0: number, h1: number): GanttLayo
   for (let m = h0 * 60; m < h1 * 60; m += 15)
     bins.push({ m, n: live.filter((s) => toMin(s.startTime) <= m && toMin(s.endTime) > m).length });
   const count = Math.max(0, ...bins.map((b) => b.n));
-  if (count < 2) return null;
+  // A6（schedule.js `peak()`）：有課就有最滿，一堂也算（同時 1 班）；全停課才沒有
+  if (count < 1) return null;
   const i = bins.findIndex((b) => b.n === count);
   let j = i;
   while (j + 1 < bins.length && bins[j + 1].n === count) j++;

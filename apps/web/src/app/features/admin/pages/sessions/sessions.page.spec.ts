@@ -1611,13 +1611,13 @@ describe('SessionsPage', () => {
 
     // #1441：360px 時週日期條字黏在一起。jsdom 不跑 Tailwind，
     // 這裡釘的是意圖（手機字級），結果由 PR 的 360 實拍證明。
-    it('週日期條七格用手機字級（<md text-sm、md 以上 text-lg），上下週鈕手機收窄', async () => {
+    it('週日期條七格用 A6 字級（手機 text-base、md 以上 text-lg），上下週鈕手機收窄', async () => {
       await settle();
       const el = fixture.nativeElement as HTMLElement;
       const dates = el.querySelectorAll('nav[aria-label="選擇日期"] button b');
       expect(dates.length).toBe(7);
       for (const b of Array.from(dates)) {
-        expect(b.classList.contains('text-sm')).toBe(true);
+        expect(b.classList.contains('text-base')).toBe(true);
         expect(b.classList.contains('md:text-lg')).toBe(true);
       }
       for (const label of ['上一週', '下一週']) {
@@ -1829,6 +1829,214 @@ describe('SessionsPage', () => {
       expect(
         (fixture.nativeElement as HTMLElement).querySelector('app-page-open')?.textContent,
       ).not.toContain('未指派');
+    });
+  });
+
+  /** #1314 conformance（課表）：工具列的 A6 樣式——選中態、日期條、今天標籤、快速選取 */
+  describe('A6 工具列樣式', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const viewBtn = (label: string) =>
+      Array.from(el().querySelectorAll('[aria-label="檢視"] button')).find(
+        (b) => b.textContent?.trim() === label,
+      ) as HTMLElement;
+    const setMode = (m: string) => {
+      (component as unknown as { mode: { set: (v: string) => void } }).mode.set(m);
+      fixture.detectChanges();
+    };
+
+    it('日／週：選中＝近黑底白字，另一顆透明＋zinc-700；切換後兩邊對調', () => {
+      setMode('day');
+      expect(viewBtn('日').classList.contains('bg-zinc-900')).toBe(true);
+      expect(viewBtn('日').classList.contains('text-white')).toBe(true);
+      expect(viewBtn('週').classList.contains('bg-transparent')).toBe(true);
+      expect(viewBtn('週').classList.contains('text-zinc-700')).toBe(true);
+      expect(viewBtn('週').classList.contains('bg-zinc-900')).toBe(false);
+
+      setMode('week');
+      expect(viewBtn('週').classList.contains('bg-zinc-900')).toBe(true);
+      expect(viewBtn('日').classList.contains('bg-zinc-900')).toBe(false);
+      expect(viewBtn('日').classList.contains('text-zinc-700')).toBe(true);
+    });
+
+    it('日／週：手機 44、桌機 32 高（A27 只管基底），字級 text-lg', () => {
+      const b = viewBtn('日');
+      expect(b.classList.contains('h-11')).toBe(true);
+      expect(b.classList.contains('wide:h-8')).toBe(true);
+      expect(b.classList.contains('text-lg')).toBe(true);
+    });
+
+    it('日期條：選中的那天日期 zinc-900、週X zinc-700；其餘日期 zinc-700、週X zinc-500；今天是 <i>', () => {
+      setMode('day');
+      const tabs = Array.from(el().querySelectorAll('nav[aria-label="選擇日期"] button'));
+      const sel = tabs.filter((t) => t.getAttribute('aria-current') === 'date');
+      expect(sel.length).toBe(1);
+      for (const t of tabs) {
+        const isSel = t === sel[0];
+        const b = t.querySelector('b')!;
+        expect(t.classList.contains('text-zinc-700'), '選中 → 按鈕 zinc-700').toBe(isSel);
+        expect(t.classList.contains('text-zinc-500'), '未選 → 按鈕 zinc-500').toBe(!isSel);
+        expect(b.classList.contains('text-zinc-900')).toBe(isSel);
+        expect(b.classList.contains('text-zinc-700')).toBe(!isSel);
+        expect(t.classList.contains('leading-[1.25]')).toBe(true);
+      }
+    });
+
+    it('「今天」標籤是 <i>（A6 role），而且只有今天那一格有', () => {
+      const labels = el().querySelectorAll('nav[aria-label="選擇日期"] i');
+      expect(labels.length).toBe(1); // 固定時鐘 4/15 在預設那週裡，所以一定有；0 個（改成 span）要紅
+      for (const i of Array.from(labels)) {
+        expect(i.textContent?.trim()).toBe('今天');
+        expect(i.classList.contains('not-italic')).toBe(true);
+      }
+    });
+
+    it('快速選取：純文字（A6 沒畫圖示）、桌機 30 高；開了之後桌機鈕變「完成」', () => {
+      const desktop = Array.from(el().querySelectorAll('button')).find((b) =>
+        b.classList.contains('wide:h-[30px]'),
+      ) as HTMLElement;
+      expect(desktop.textContent?.trim()).toBe('快速選取');
+      expect(desktop.querySelector('i')).toBeNull();
+      expect(desktop.classList.contains('border-zinc-300')).toBe(true); // A6 桌機淺框
+      expect(desktop.classList.contains('bg-transparent')).toBe(true);
+      (component as unknown as { picking: { set: (v: boolean) => void } }).picking.set(true);
+      fixture.detectChanges();
+      expect(desktop.textContent?.trim()).toBe('完成');
+      expect(desktop.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('手機快速選取：A6 量到的是自然寬度（不是全寬）、白底、44 高、圖示拿掉；所在列靠右', () => {
+      const mobile = Array.from(el().querySelectorAll('button')).find(
+        (b) => b.classList.contains('wide:hidden') && b.textContent?.includes('快速選取'),
+      ) as HTMLElement;
+      expect(mobile.classList.contains('flex-1')).toBe(false);
+      expect(mobile.classList.contains('bg-white')).toBe(true);
+      expect(mobile.classList.contains('border-zinc-900')).toBe(true); // A6 手機是近黑框（桌機是淺框）
+      expect(mobile.classList.contains('h-11')).toBe(true);
+      expect(mobile.querySelector('i')).toBeNull();
+      expect(mobile.parentElement!.classList.contains('justify-end')).toBe(true);
+    });
+
+    it('手機：動作列在日期條之後（order-3 > order-2），桌機回到同一列（md:order-last）', () => {
+      const actions = el().querySelector('.more-menu-trigger')!.parentElement!;
+      expect(actions.classList.contains('order-3')).toBe(true);
+      expect(actions.classList.contains('md:order-last')).toBe(true);
+      const strip = el().querySelector('nav[aria-label="選擇日期"]')!.parentElement!;
+      expect(strip.classList.contains('order-2')).toBe(true);
+      expect(strip.classList.contains('md:order-none')).toBe(true);
+    });
+  });
+
+  /** #1314 conformance E：A6 `.pkl` 每天都印；日名除了「今天」後面有空格；全停課寫「整天停課」 */
+  describe('今天最滿一行', () => {
+    const line = () =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="peak-line"]',
+      ) as HTMLElement | null;
+    const flat = () => line()?.textContent?.replace(/\s+/g, ' ').trim();
+    const sess = (over: Record<string, unknown>) =>
+      ({
+        id: 's1',
+        sessionDate: '2026-04-15',
+        startTime: '17:00:00',
+        endTime: '18:00:00',
+        status: 'scheduled',
+        teacherId: 't1',
+        teacherName: '甲',
+        className: '國二數學',
+        classId: 'c1',
+        assignmentStatus: 'assigned',
+        ...over,
+      }) as never;
+    async function show(list: unknown[]) {
+      sessionsServiceMock.list.mockReturnValue(of(makeListResponse(list as never)));
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('一堂：今天（固定時鐘 4/15）→「今天最滿 17:00–18:00 · 同時 1 班」，日名後沒有空格', async () => {
+      await show([sess({})]);
+      expect(flat()).toBe('今天最滿 17:00–18:00 · 同時 1 班');
+    });
+
+    it('兩堂同時：同時 2 班；非今天的日子日名後有一個空格', async () => {
+      await show([sess({ id: 'a' }), sess({ id: 'b', teacherId: 't2' })]);
+      expect(flat()).toContain('同時 2 班');
+      (component as unknown as { day: { set: (d: Date) => void } }).day.set(
+        new Date('2026-04-16T00:00:00'),
+      );
+      fixture.detectChanges();
+      expect(flat()).toMatch(/^週四 4\/16 最滿/);
+    });
+
+    // conformance F：A6 `.gb__main` padding-right 30、`.gb__name／.gb__meta` 行高 1.3、軸列「老師」標籤內距 8／12
+    it('甘特課塊：右內距 30（留給 ⋯）、班名與時間行高 1.3；軸列標籤上下 8、右 12', async () => {
+      await show([sess({})]);
+      const root = fixture.nativeElement as HTMLElement;
+      const block = root.querySelector(
+        'app-schedule-gantt button[data-session-menu]',
+      ) as HTMLElement;
+      expect(block.classList.contains('pr-[30px]')).toBe(true);
+      const [name, meta] = Array.from(block.querySelectorAll(':scope > span'));
+      expect(name.classList.contains('leading-[1.3]')).toBe(true);
+      expect(meta.classList.contains('leading-[1.3]')).toBe(true);
+      const axis = Array.from(root.querySelectorAll('app-schedule-gantt div')).find(
+        (d) => d.textContent?.trim() === '老師',
+      ) as HTMLElement;
+      expect(axis.classList.contains('py-2')).toBe(true);
+      expect(axis.classList.contains('pr-3')).toBe(true);
+    });
+
+    it('全部停課：「整天停課」，不寫最滿', async () => {
+      await show([sess({ status: 'cancelled' })]);
+      expect(flat()).toBe('今天整天停課');
+    });
+  });
+
+  /** conformance：色面標題兩行（A6「…堂課，<br>…堂有異動。」）；篩選結果那句不拆 */
+  describe('色面標題兩行', () => {
+    // 課表頁有沒有傳 compact 沒有別的東西在守（page-open 元件本身的 spec 只守「有傳會怎樣」）
+    it('課表的色面開了 compact：標題 40／26、內距上 32／下 24（A6 schedule.css:10-11,277）', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const h1 = el.querySelector('app-page-open h1') as HTMLElement;
+      expect(h1.classList.contains('wide:text-[40px]')).toBe(true);
+      expect(h1.classList.contains('text-[26px]')).toBe(true);
+      expect(h1.classList.contains('wide:text-[48px]')).toBe(false);
+      const wrap = el.querySelector('app-page-open section > div.page-wrap') as HTMLElement;
+      expect(wrap.classList.contains('pt-8')).toBe(true);
+      expect(wrap.classList.contains('pb-6')).toBe(true);
+    });
+
+    const h1 = () => (fixture.nativeElement as HTMLElement).querySelector('h1') as HTMLElement;
+    it('日／週：逗號後換行（一個 <br>）；文字內容連起來仍是原句', async () => {
+      sessionsServiceMock.list.mockReturnValue(
+        of(
+          makeListResponse([
+            {
+              id: 's1',
+              sessionDate: '2026-04-15',
+              startTime: '17:00:00',
+              endTime: '18:00:00',
+              status: 'scheduled',
+              teacherId: 't1',
+              teacherName: '甲',
+              className: '國二數學',
+              classId: 'c1',
+              assignmentStatus: 'assigned',
+            } as never,
+          ]),
+        ),
+      );
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(h1().querySelectorAll('br').length).toBe(1);
+      expect(h1().textContent?.replace(/\s+/g, '')).toBe('今天1堂課，沒有異動。');
+    });
+    it('篩選結果：不拆行', async () => {
+      (component as unknown as { mode: { set: (v: string) => void } }).mode.set('results');
+      fixture.detectChanges();
+      expect(h1().querySelectorAll('br').length).toBe(0);
     });
   });
 });
