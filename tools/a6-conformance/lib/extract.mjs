@@ -1,0 +1,270 @@
+// 瀏覽器端的 part 抽取器：A6 稿與 app 用同一支，key 才可比。
+// `extractParts` 會被 toString() 塞進 page.evaluate，所以只能用它自己與 normText。
+import { normText } from './normalize.mjs';
+
+export const STYLE_PROPS = [
+  'display',
+  'fontSize',
+  'fontWeight',
+  'lineHeight',
+  'color',
+  'backgroundColor',
+  'borderTop',
+  'borderRight',
+  'borderBottom',
+  'borderLeft',
+  'borderRadius',
+  'padding',
+  'rowGap',
+  'columnGap',
+];
+
+/**
+ * 走 DOM，回傳扁平的 part 清單（每個帶 parent key，可還原成樹）。
+ *
+ * part 的種類：
+ * - landmark：header／nav／main／footer／aside／form／dialog／開著的 [popover]／有名字的 section、
+ *   以及 role=region|toolbar|search|navigation|dialog|menu
+ * - heading：h1–h6
+ * - control：button／a[href]／input／select／textarea／summary 與對應 role
+ * - list：ul／ol／role=list；它的直屬子項是 row
+ * - text：自己帶非空白文字節點、又不在 control／heading 裡的元素
+ *
+ * **row 的處理**：列是資料。所有 row 合成一個 `row` segment（不帶文字），row 底下的 part
+ * 取聯集、記 `inRows`（幾列有它）；幾何取第一個出現的。row 內的 control／text 也不帶文字進 key
+ * （那是人名、金額），只留角色＋序號。
+ */
+export function extractParts(opts) {
+  const { root: rootSel = 'body', names = [], prefix = '' } = opts ?? {};
+  const LAND_TAG = {
+    HEADER: 'banner',
+    NAV: 'navigation',
+    MAIN: 'main',
+    FOOTER: 'contentinfo',
+    ASIDE: 'complementary',
+    FORM: 'form',
+    DIALOG: 'dialog',
+  };
+  const LAND_ROLE = new Set([
+    'region',
+    'toolbar',
+    'search',
+    'navigation',
+    'dialog',
+    'menu',
+    'banner',
+    'main',
+    'complementary',
+    'contentinfo',
+  ]);
+  const CTRL_ROLE = new Set([
+    'button',
+    'link',
+    'tab',
+    'menuitem',
+    'checkbox',
+    'radio',
+    'switch',
+    'combobox',
+    'textbox',
+    'option',
+    'searchbox',
+  ]);
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'TEMPLATE', 'SVG', 'CANVAS', 'NOSCRIPT', 'svg']);
+
+  // 設計稿自帶的翻頁膠囊與說明（proto.js），不是頁面的一部分
+  const IGNORE = '.proto-pill, .proto-all, .proto-notes';
+  const visible = (el) => {
+    if (el.matches(IGNORE)) return false;
+    if (el.closest('[aria-hidden="true"]')) return false;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden') return false;
+    // 收合的 <details> 內容、content-visibility 跳過的東西：沒有盒子就不算畫面上的 part
+    if (s.display !== 'contents' && el.getClientRects().length === 0) return false;
+    if (el.matches('[popover]') && !el.matches(':popover-open')) return false;
+    return true;
+  };
+  const accName = (el) => {
+    const lb = el.getAttribute('aria-labelledby');
+    if (lb)
+      return lb
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent ?? '')
+        .join(' ');
+    const al = el.getAttribute('aria-label');
+    if (al) return al;
+    if (el.labels && el.labels.length) return el.labels[0].textContent;
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
+      return el.placeholder || el.title || '';
+    if (el.tagName === 'SELECT') return el.title || '';
+    return el.textContent || el.title || '';
+  };
+  const ownText = (el) =>
+    [...el.childNodes]
+      .filter((n) => n.nodeType === 3)
+      .map((n) => n.textContent)
+      .join('')
+      .trim();
+  const classify = (el) => {
+    const tag = el.tagName;
+    const role = el.getAttribute('role');
+    if (el.hasAttribute('data-a6-part')) return { kind: 'mapped', role: role || tag.toLowerCase() };
+    if (/^H[1-6]$/.test(tag) || role === 'heading')
+      return { kind: 'heading', role: 'h' + (tag[1] || el.getAttribute('aria-level') || '?') };
+    if (role && CTRL_ROLE.has(role)) return { kind: 'control', role };
+    if (tag === 'BUTTON' || tag === 'SUMMARY') return { kind: 'control', role: 'button' };
+    if (tag === 'A' && el.hasAttribute('href')) return { kind: 'control', role: 'link' };
+    if (tag === 'INPUT' && el.type !== 'hidden')
+      return {
+        kind: 'control',
+        role:
+          el.type === 'search'
+            ? 'searchbox'
+            : el.type === 'checkbox'
+              ? 'checkbox'
+              : el.type === 'radio'
+                ? 'radio'
+                : 'textbox',
+      };
+    if (tag === 'SELECT') return { kind: 'control', role: 'combobox' };
+    if (tag === 'TEXTAREA') return { kind: 'control', role: 'textbox' };
+    if (role && LAND_ROLE.has(role)) return { kind: 'landmark', role };
+    if (LAND_TAG[tag]) return { kind: 'landmark', role: LAND_TAG[tag] };
+    if (el.matches('[popover]')) return { kind: 'landmark', role: 'popover' };
+    if (tag === 'SECTION' && (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')))
+      return { kind: 'landmark', role: 'region' };
+    if (tag === 'UL' || tag === 'OL' || role === 'list' || tag === 'TABLE' || tag === 'TBODY')
+      return { kind: 'list', role: 'list' };
+    if (ownText(el)) return { kind: 'text', role: tag.toLowerCase() };
+    return null;
+  };
+  // 列的簽名：tag＋class，去掉 BEM 修飾子（`--`）與狀態（`is-`），因為每列狀態不同
+  const sig = (el) =>
+    el.tagName +
+    '.' +
+    [...el.classList]
+      .filter((k) => !k.includes('--') && !k.startsWith('is-'))
+      .sort()
+      .join('.');
+  const isRow = (el, c) => {
+    const p = el.parentElement;
+    if (!p) return false;
+    if (
+      (p.tagName === 'UL' ||
+        p.tagName === 'OL' ||
+        p.getAttribute('role') === 'list' ||
+        p.tagName === 'TBODY') &&
+      (el.tagName === 'LI' || el.tagName === 'TR' || el.getAttribute('role') === 'listitem')
+    )
+      return true;
+    // 沒用 ul/li 的列（div 格線）：同層同簽名的容器，裡面沒有標題（有標題的是分組，不是列），
+    // 且 ≥5 個、或 ≥3 個且子元素數都一樣
+    if (c && c.kind !== 'text') return false;
+    const H = 'h1,h2,h3,h4,h5,h6,[role=heading]';
+    if (el.querySelector(H)) return false;
+    const s = sig(el);
+    const sibs = [...p.children].filter((x) => sig(x) === s && !x.querySelector(H));
+    // 分組（「今天：全部／已到…」「年級：…」）各組選項數不同；資料列的形狀一樣
+    return (
+      sibs.length >= 5 ||
+      (sibs.length >= 3 && sibs.every((x) => x.children.length === el.children.length))
+    );
+  };
+  const style = (el) => {
+    const s = getComputedStyle(el);
+    const o = {};
+    for (const p of STYLE_PROPS) o[p] = s[p];
+    return o;
+  };
+  const box = (el) => {
+    const r = el.getBoundingClientRect();
+    return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
+  };
+
+  const parts = [];
+  const byKey = new Map();
+  // 遞迴：ctx = { key, counts（同層 segment 計數）, inRow, rowSeen（這一列已算過的 key）}
+  const walk = (el, ctx) => {
+    if (SKIP.has(el.tagName) || !visible(el)) return;
+    let c = classify(el);
+    let next = ctx;
+    const row = isRow(el, c);
+    if (row) c = { kind: 'row', role: 'row' };
+    if (c) {
+      // landmark／list 只認明寫的名字（aria-label），不然整段內文會進 key
+      const named = c.kind === 'landmark' || c.kind === 'list' || c.kind === 'row';
+      const raw = (
+        c.kind === 'text'
+          ? ownText(el)
+          : named
+            ? el.matches('[aria-label],[aria-labelledby]')
+              ? accName(el)
+              : ''
+            : accName(el)
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      let seg;
+      if (c.kind === 'mapped') seg = el.getAttribute('data-a6-part');
+      else if (c.kind === 'row') seg = 'row';
+      else if (c.kind === 'list') seg = 'list';
+      else if (ctx.inRow)
+        seg = `${c.kind}:${c.role}`; // 列內文字是資料，不進 key
+      else seg = `${c.kind}:${c.role}[${normText(raw, names)}]`;
+      // 同一個 parent 底下同名 segment 加序號；列（row）全部合一
+      const sib = (ctx.counts[seg] = (ctx.counts[seg] ?? 0) + 1);
+      const key =
+        c.kind === 'mapped'
+          ? seg
+          : `${ctx.key}>${c.kind === 'row' || sib === 1 ? seg : `${seg}~${sib}`}`;
+      let p = byKey.get(key);
+      if (!p) {
+        p = {
+          key,
+          parent: ctx.key || null,
+          kind: c.kind === 'mapped' ? 'mapped' : c.kind,
+          role: c.role,
+          tpl: c.kind === 'row' || c.kind === 'list' ? '' : normText(raw, names),
+          text: raw.slice(0, 80),
+          box: box(el),
+          // 自己有沒有文字節點：字級／顏色只在這種 part 上才看得見（包一層 span 的連結，顏色在 span 上）
+          own: !!ownText(el),
+          style: style(el),
+          attrs: Object.fromEntries(
+            [
+              'aria-current',
+              'aria-expanded',
+              'aria-pressed',
+              'aria-selected',
+              'aria-checked',
+              'disabled',
+              'popovertarget',
+              'href',
+            ]
+              .filter((a) => el.hasAttribute(a))
+              .map((a) => [a, el.getAttribute(a)]),
+          ),
+          inRows: 0,
+          rows: c.kind === 'list' ? [...el.children].filter((x) => visible(x)).length : undefined,
+        };
+        parts.push(p);
+        byKey.set(key, p);
+      }
+      if (ctx.inRow && !ctx.rowSeen.has(key)) {
+        ctx.rowSeen.add(key);
+        p.inRows++;
+      }
+      next = { key, counts: {}, inRow: ctx.inRow || row, rowSeen: row ? new Set() : ctx.rowSeen };
+      if (row) p.inRows++;
+    }
+    for (const ch of el.children) walk(ch, next);
+    if (el.shadowRoot) for (const ch of el.shadowRoot.children) walk(ch, next);
+  };
+  const rootEl = document.querySelector(rootSel);
+  if (rootEl) walk(rootEl, { key: prefix, counts: {}, inRow: false, rowSeen: new Set() });
+  return parts;
+}
+
+/** 給 page.evaluate 的字串：把 normText 一起帶進頁面。 */
+export const extractSource = (opts) =>
+  `(() => { const normText = ${normText.toString()}; const STYLE_PROPS = ${JSON.stringify(STYLE_PROPS)}; return (${extractParts.toString()})(${JSON.stringify(opts ?? {})}); })()`;
