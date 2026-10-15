@@ -436,7 +436,7 @@ describe('PaymentsPage', () => {
       expect((fixture.nativeElement as HTMLElement).querySelector('.pi-chevron-right')).toBeNull();
       expect(
         (fixture.nativeElement as HTMLElement).querySelectorAll(
-          'section[aria-label] .pi-chevron-down',
+          '.bg-zinc-100 > button[aria-expanded] .pi-chevron-down',
         ).length,
       ).toBe(3);
       // 順序照 A6
@@ -564,15 +564,21 @@ describe('PaymentsPage', () => {
       fixture.detectChanges();
       await fixture.whenStable();
       fixture.detectChanges();
-      const head = el().querySelector('app-chapter-head') as HTMLElement;
-      expect(head.textContent).toContain('全部提醒（2）');
+      const head = el().querySelector('section[aria-label="逾期"]') as HTMLElement;
+      const remindAll = () =>
+        Array.from(head.querySelectorAll('button')).find((b) =>
+          b.textContent?.includes('全部提醒'),
+        );
+      expect(remindAll()?.textContent?.replace(/\s+/g, '')).toBe('全部提醒（2）');
+      // A6：12px 粗、白底框、桌機 30px、手機基底 44px（A27）
+      expect(remindAll()?.className).toContain('min-h-11');
+      expect(remindAll()?.className).toContain('wide:h-[30px]');
+      expect(remindAll()?.className).toContain('text-[12px]');
 
       invoices.list.mockReturnValue(of(listResponse([])));
       component['load']();
       fixture.detectChanges();
-      expect((el().querySelector('app-chapter-head') as HTMLElement).textContent).not.toContain(
-        '全部提醒',
-      );
+      expect(remindAll()).toBeUndefined();
     });
 
     it('匯出預設當月（台北今天所在月），檔名與範圍寫進檔名；逾期範圍送 overdue', async () => {
@@ -736,10 +742,15 @@ describe('PaymentsPage', () => {
     it('姓名旁有年級（中文標籤）；逾期是「！」圈圈圖示；金額加大加粗；列上只有一顆主要鈕＋⋯', async () => {
       await loadOverdue([invoice({ studentGrade: 'J3', dueDate: '2020-01-01' })]);
 
-      expect(el().querySelector('li a')?.textContent).toMatch(/陳小明\s*· 國三/);
+      // A6：年級在連結外（連結只有名字），14px 灰
+      expect(el().querySelector('li a')?.textContent?.trim()).toBe('陳小明');
+      expect(el().querySelector('li a + span')?.textContent?.trim()).toBe('· 國三');
+      // 逾期：紅字加粗＋「！」圈圈圖示（A6 span 是 inline-flex gap 4，內含圖示），金額 16px 600
       expect(el().querySelector('li .pi-exclamation-circle')).not.toBeNull();
       expect(el().querySelector('li .pi-times-circle')).toBeNull();
-      expect(el().querySelector('li .text-lg.font-bold')?.textContent).toContain('4,500');
+      const due = el().querySelector('li .text-error-700.font-semibold');
+      expect(due?.textContent).toContain('逾期');
+      expect(el().querySelector('li .text-lg.font-semibold')?.textContent).toContain('4,500');
       const buttons = Array.from(el().querySelectorAll('li app-invoice-actions button')).map((b) =>
         b.textContent?.trim(),
       );
@@ -1000,6 +1011,139 @@ describe('PaymentsPage', () => {
         const rows = component['chapters']()['dueSoon'].rows.map((r: Invoice) => r.id);
         expect(rows).toEqual(['B1']);
       });
+    });
+  });
+
+  /**
+   * #1314 帳單對齊 A6（用 conformance 工具量）。jsdom 量不到版面，所以斷言「產生那個尺寸／結構的 class 與 DOM」；
+   * 每條 `wide:`／基底 44px（A27）成對都要在。
+   */
+  describe('A6 結構與幾何（#1314 帳單）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const cls = (e: Element | null) => (e as HTMLElement).className.split(/\s+/);
+    const has = (e: Element | null, ...names: string[]) => {
+      for (const n of names) expect(cls(e), n).toContain(n);
+    };
+    const render = async (
+      rows: Invoice[] = [invoice({ studentGrade: 'J3', dueDate: '2020-01-01' })],
+    ) => {
+      invoices.list.mockReturnValue(of(listResponse(rows, rows.length)));
+      component['load']();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('搜尋框是原生 search（角色 searchbox）', () => {
+      expect(el().querySelector('input[aria-label="搜尋帳單"]')?.getAttribute('type')).toBe(
+        'search',
+      );
+    });
+
+    it('工具列：開立帳單＝橘底 13px 粗、桌機 36px、手機基底 44px；匯出／更多動作＝白底框 zinc-300、桌機 36×40', () => {
+      const create = Array.from(el().querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('開立帳單'),
+      )!;
+      has(
+        create,
+        'bg-accent-vivid',
+        'border-accent-vivid',
+        'text-md',
+        'font-semibold',
+        'min-h-11',
+        'wide:min-h-0',
+        'wide:h-9',
+        'wide:inline-flex',
+        'hidden',
+      );
+      for (const label of ['匯出', '更多動作']) {
+        const b = el().querySelector(`button[aria-label="${label}"]`)!;
+        has(b, 'border-zinc-300', 'bg-white', 'size-11', 'wide:h-9', 'wide:w-10', 'gap-1.5');
+      }
+    });
+
+    it('逾期章頭：紅色大字名（手機 32／桌機 44）→「N 張 · 待收」→「NT$ …」兩個 <p>（18px 粗）', async () => {
+      await render();
+      const sec = el().querySelector('section[aria-label="逾期"]')!;
+      const h2 = sec.querySelector('h2')!;
+      has(h2, 'text-[32px]', 'wide:text-[44px]', 'text-error-700', 'font-bold');
+      const ps = Array.from(sec.querySelectorAll('p')).filter((p) =>
+        p.className.includes('text-xl'),
+      );
+      expect(ps).toHaveLength(2);
+      expect(ps[0].textContent?.replace(/\s+/g, ' ').trim()).toMatch(/^4 張 · 待收$/);
+      expect(ps[1].textContent?.replace(/\s+/g, ' ').trim()).toBe('NT$ 15,000');
+      // 「張」是 p 自己的字（不是另外的 span）；「· 待收」才是 span
+      expect(Array.from(ps[0].querySelectorAll('span')).map((x) => x.textContent?.trim())).toEqual([
+        '· 待收',
+      ]);
+    });
+
+    it('逾期章間距：手機 py-6 gap-y-3／桌機 py-8 gap-y-8、底線 1px zinc-200', async () => {
+      await render();
+      has(
+        el().querySelector('section[aria-label="逾期"]'),
+        'py-6',
+        'gap-y-3',
+        'wide:py-8',
+        'wide:gap-y-8',
+        'border-b',
+        'border-zinc-200',
+      );
+    });
+
+    it('列：<li> 自己是 grid（手機 2 欄／桌機 [1fr 260 120 auto]）；DOM 順序＝姓名、狀態、金額、動作', async () => {
+      await render();
+      const li = el().querySelector('section[aria-label="逾期"] li')!;
+      has(
+        li,
+        'grid',
+        'py-3',
+        'gap-x-3',
+        'wide:gap-x-4',
+        'wide:gap-y-4',
+        'wide:grid-cols-[minmax(0,1fr)_260px_120px_auto]',
+      );
+      const kids = Array.from(li.children);
+      expect(kids).toHaveLength(4);
+      expect(kids[0].querySelector('a')?.textContent?.trim()).toBe('陳小明');
+      expect(kids[1].textContent).toContain('逾期');
+      expect(kids[2].textContent).toContain('4,500');
+      expect(kids[3].tagName.toLowerCase()).toBe('app-invoice-actions');
+      // 年級在連結外、字重常規（不吃全站的 500）
+      has(kids[0].querySelector('span.shrink-0'), 'font-normal', 'text-zinc-500');
+      // 連結：手機 44、桌機行內
+      has(kids[0].querySelector('a'), 'min-h-11', 'wide:min-h-0', 'wide:inline');
+    });
+
+    it('列上動作鈕：手機 44px／14px、桌機 30px／12px 粗', async () => {
+      await render();
+      const b = el().querySelector('li app-invoice-actions button')!;
+      has(
+        b,
+        'h-11',
+        'wide:h-[30px]',
+        'text-[14px]',
+        'wide:text-[12px]',
+        'px-4',
+        'wide:px-3',
+        'font-semibold',
+      );
+    });
+
+    it('到期分組列：外層是 div（不是 region landmark）；標題 16／18px 粗；張數靠右；箭頭是按鈕的同層元素', async () => {
+      await render();
+      const rows = Array.from(el().querySelectorAll('div.rounded-lg.bg-zinc-100'));
+      expect(rows).toHaveLength(3);
+      expect(el().querySelector('section[aria-label="7 天內到期"]')).toBeNull();
+      const btn = rows[0].querySelector('button')!;
+      has(btn, 'min-h-16', 'px-4', 'wide:px-5', 'py-3');
+      const [title, count, chevron] = Array.from(btn.children);
+      has(title, 'text-[16px]', 'wide:text-[18px]', 'font-bold');
+      has(count, 'ml-auto', 'text-md', 'wide:text-base', 'text-zinc-700');
+      expect(chevron.className).toContain('pi-chevron-down');
+      // 箭頭不在張數那個 span 裡
+      expect(count.querySelector('.pi-chevron-down')).toBeNull();
     });
   });
 });
