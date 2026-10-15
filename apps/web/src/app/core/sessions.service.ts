@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import type { Observable } from 'rxjs';
+import { map, type Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
 export interface Session {
@@ -233,6 +233,16 @@ export interface BatchActionResult {
 export class SessionsService {
   private readonly http = inject(HttpClient);
   private readonly endpoint = `${environment.apiUrl}/api/sessions`;
+
+  /**
+   * 那一天有沒有任何一堂（#1620：課表週列的週日只在有課時出現）。只要總數，所以 pageSize 1；
+   * 只看分校，不吃頁面上的其他篩選 —— 它是換日的入口，不是篩選結果。
+   */
+  hasSessionsOn(date: string, campusIds?: string[]): Observable<boolean> {
+    return this.list({ from: date, to: date, campusIds, page: 1, pageSize: 1 }).pipe(
+      map((res) => res.meta.total > 0),
+    );
+  }
 
   list(params: SessionQueryParams): Observable<{
     data: Session[];

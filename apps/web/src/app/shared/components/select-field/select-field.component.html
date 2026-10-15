@@ -1,5 +1,7 @@
 <div class="flex min-w-0 flex-col gap-1">
-  <span [id]="labelId" class="text-sm font-semibold text-zinc-700">{{ label() }}</span>
+  <span [id]="labelId" class="text-sm font-semibold text-zinc-700" [class.sr-only]="compact()">{{
+    label()
+  }}</span>
   <p-select
     [options]="$any(options())"
     [ngModel]="value()"
@@ -13,7 +15,8 @@
     [overlayOptions]="overlayOptions"
     [appendTo]="appendTo()"
     scrollHeight="360px"
-    [pt]="pt"
+    [pt]="pt()"
+    [placeholder]="compact() ? label() + '…' : undefined"
   >
     <!-- 只在底部面板（≤860px）顯示：手機上看不到觸發鈕旁的標籤，面板要自己說在選什麼 -->
     <ng-template #header>

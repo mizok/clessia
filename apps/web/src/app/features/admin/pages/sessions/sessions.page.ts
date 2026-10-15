@@ -189,6 +189,8 @@ export class SessionsPage implements OnInit {
   >([]);
 
   private readonly sessionMenuRef = viewChild<PopupMenuComponent>('sessionMenu');
+  /** 課表工具列（A6 `#sx`）：點一天之後捲到這裡 */
+  private readonly toolbarRef = viewChild<ElementRef<HTMLElement>>('toolbar');
 
   // ── Filter state ───────────────────────────────────────────────────────
   /**
@@ -1028,11 +1030,63 @@ export class SessionsPage implements OnInit {
     return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   });
 
+  /**
+   * 週列的格子（#1620，A6 `.dtabs` 只畫週一～週六）。週日在三種情況出現：那週週日有課（不然那天的課在
+   * 日視圖沒有入口）、今天就是那週的週日（計畫席 10-15 補）、正停在週日（例如從異動跳過來）。
+   */
+  private readonly sundayHasSessions = signal(false);
+  private sundayChecked = '';
+  protected readonly stripDays = computed(() => {
+    const days = this.weekDays();
+    const sunday = days[6];
+    const show =
+      this.sundayHasSessions() || isSameDay(this.day(), sunday) || isSameDay(this.now(), sunday);
+    return show ? days : days.slice(0, 6);
+  });
+
+  /**
+   * 手機週列的日期字（#1620）：每格只剩約 38px，「10/12」會跟隔壁黏在一起（#1441 同一個坑）。
+   * 照月曆慣例只在第一格與跨月那天寫「月/日」，其餘寫日（9/28 29 30 10/1 2 3）；桌機照舊每格月/日。
+   */
+  protected stripDateShort(d: Date, first: boolean): string {
+    return first || d.getDate() === 1 ? format(d, 'M/d') : String(d.getDate());
+  }
+
+  /** 手機快速選取面板的標題（A6 `qs__day`：週四 10/1 · 今天） */
+  protected readonly sheetTitle = computed(() => {
+    const mode = this.mode();
+    if (mode === 'results') return '篩選結果';
+    if (mode === 'week') return this.weekLabel();
+    const d = this.day();
+    return `週${WEEKDAY[d.getDay()]} ${format(d, 'M/d')}${this.isToday() ? ' · 今天' : ''}`;
+  });
+
+  /** 換週或換分校才問一次（同一週換天不重查） */
+  private checkSunday(): void {
+    const sunday = format(this.weekDays()[6], 'yyyy-MM-dd');
+    const campusIds = this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined;
+    const key = `${sunday}|${campusIds?.join(',') ?? ''}`;
+    if (key === this.sundayChecked) return;
+    this.sundayChecked = key;
+    this.sundayHasSessions.set(false);
+    this.sessionsService.hasSessionsOn(sunday, campusIds).subscribe({
+      next: (has) => {
+        if (this.sundayChecked === key) this.sundayHasSessions.set(has);
+      },
+      error: () => {
+        // ponytail: 查不到就當沒有 —— 只是少一格入口，週視圖仍看得到週日
+        if (this.sundayChecked === key) this.sundayChecked = '';
+      },
+    });
+  }
+
   /** 日期條點某天：週視圖時也切回那天的日視圖（A6：週視圖點一天＝看那天） */
   protected setDay(d: Date): void {
     if (this.mode() === 'day' && isSameDay(d, this.day())) return;
     this.mode.set('day');
     this.moveTo(d);
+    // A6 schedule.js:867：換了一天就捲到工具列（頂欄不在捲動區裡，不用扣它的高度）
+    this.toolbarRef()?.nativeElement.scrollIntoView?.({ block: 'start' });
   }
 
   /** 換日／週、換天都**留著勾**（#1174 G3）：快速選取勾的是跨天的（某老師這週、某班整期），批次列會說有幾堂不在畫面上 */
@@ -1042,23 +1096,19 @@ export class SessionsPage implements OnInit {
     this.loadSessions();
   }
 
-  /** 上一週／下一週／回到今天：留在目前的日／週檢視 */
+  /** 上一週／下一週：留在目前的日／週檢視（A6 沒有換週，使用者 10-15 裁定保留，#1620） */
   protected shiftWeek(weeks: number): void {
     this.moveTo(addDays(this.day(), weeks * 7));
   }
 
-  protected goToday(): void {
+  /** 「本週」（#1620 計畫席選 b）：只在別週時出現；回到本週並選今天，日／週檢視不變 */
+  protected goThisWeek(): void {
     this.moveTo(new Date());
   }
 
   private moveTo(d: Date): void {
     this.day.set(startOfDay(d));
     this.loadSessions();
-  }
-
-  /** 「跳到某天」小日曆（原生 date input，`yyyy-MM-dd`） */
-  protected jumpTo(value: string): void {
-    if (value) this.setDay(parseISO(value));
   }
 
   /** 週視圖手機那一行（A6 `.wm__s`）：幾堂、最擠的時段、停課、其他異動 */
@@ -1418,6 +1468,7 @@ export class SessionsPage implements OnInit {
           ? [this.weekDays()[0], this.weekDays()[6]]
           : this.listDateRange();
     this.now.set(new Date());
+    if (mode !== 'results') this.checkSunday();
     const rawIds = this.selectedTeacherIds();
     const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');
     const hasUnassigned = rawIds.includes('__unassigned__');
