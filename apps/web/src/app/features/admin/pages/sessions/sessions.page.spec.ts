@@ -1937,11 +1937,13 @@ describe('SessionsPage', () => {
       }
     });
 
-    it('快速選取：純文字（A6 沒畫圖示）、桌機 30 高；開了之後桌機鈕變「完成」', () => {
-      const desktop = Array.from(el().querySelectorAll('button')).find((b) =>
-        b.classList.contains('wide:h-[30px]'),
+    it('快速選取：純文字（A6 沒畫圖示）、桌機跟旁邊的 ⋯／本週等高 44（使用者 10-15 要求，偏離 A6 的 30）；開了之後變「完成」', () => {
+      const desktop = Array.from(el().querySelectorAll('button[aria-pressed]')).find((b) =>
+        b.classList.contains('wide:inline-flex'),
       ) as HTMLElement;
       expect(desktop.textContent?.trim()).toBe('快速選取');
+      expect(desktop.classList.contains('h-11')).toBe(true);
+      expect(desktop.className).not.toContain('wide:h-[30px]');
       expect(desktop.querySelector('i')).toBeNull();
       expect(desktop.classList.contains('border-zinc-300')).toBe(true); // A6 桌機淺框
       expect(desktop.classList.contains('bg-transparent')).toBe(true);
