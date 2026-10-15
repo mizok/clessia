@@ -28,7 +28,7 @@ function topSegments(list: readonly Route[]): string[] {
   });
 }
 
-/** `_redirects` 裡改寫到 index.html 的規則，回傳它們的第一段 */
+/** `_redirects` 裡改寫到 `/`（index.html）的規則，回傳它們的第一段 */
 function rewrittenSegments(): { segments: string[]; lines: string[] } {
   const lines = readFileSync(resolve(PUBLIC_DIR, '_redirects'), 'utf8')
     .split('\n')
@@ -36,7 +36,7 @@ function rewrittenSegments(): { segments: string[]; lines: string[] } {
     .filter((line) => line && !line.startsWith('#'));
   const segments = lines
     .map((line) => line.split(/\s+/))
-    .filter(([, to, status]) => to === '/index.html' && status === '200')
+    .filter(([, to, status]) => to === '/' && status === '200')
     .map(([from]) => from.replace(/^\//, '').replace(/\/\*$/, ''));
   return { segments, lines };
 }
