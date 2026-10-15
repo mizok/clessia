@@ -340,10 +340,15 @@
       }
     </div>
   } @else if (layout(); as l) {
-    @if (l.peak) {
-      <p class="m-0 mb-2 text-md text-zinc-700 tabular-nums">
-        {{ dayName() }}最滿 <b class="text-zinc-900">{{ l.peak.from }}–{{ l.peak.to }}</b> · 同時
-        {{ l.peak.count }} 班
+    <!-- A6 `.pkl`：有課就印；整天都停課寫「整天停課」。日名後面除了「今天」都有一個空格 -->
+    @if (l.peak; as peak) {
+      <p class="m-0 mt-4 mb-2 text-md text-zinc-700 tabular-nums" data-testid="peak-line">
+        {{ dayName() }}{{ isToday() ? '' : ' ' }}最滿
+        <b class="text-zinc-900">{{ peak.from }}–{{ peak.to }}</b> · 同時 {{ peak.count }} 班
+      </p>
+    } @else {
+      <p class="m-0 mt-4 mb-2 text-md text-zinc-700 tabular-nums" data-testid="peak-line">
+        {{ dayName() }}整天停課
       </p>
     }
     <div class="hidden wide:block">

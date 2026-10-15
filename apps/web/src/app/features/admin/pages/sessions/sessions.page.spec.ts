@@ -1921,4 +1921,53 @@ describe('SessionsPage', () => {
       expect(strip.classList.contains('md:order-none')).toBe(true);
     });
   });
+
+  /** #1314 conformance E：A6 `.pkl` 每天都印；日名除了「今天」後面有空格；全停課寫「整天停課」 */
+  describe('今天最滿一行', () => {
+    const line = () =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="peak-line"]',
+      ) as HTMLElement | null;
+    const flat = () => line()?.textContent?.replace(/\s+/g, ' ').trim();
+    const sess = (over: Record<string, unknown>) =>
+      ({
+        id: 's1',
+        sessionDate: '2026-04-15',
+        startTime: '17:00:00',
+        endTime: '18:00:00',
+        status: 'scheduled',
+        teacherId: 't1',
+        teacherName: '甲',
+        className: '國二數學',
+        classId: 'c1',
+        assignmentStatus: 'assigned',
+        ...over,
+      }) as never;
+    async function show(list: unknown[]) {
+      sessionsServiceMock.list.mockReturnValue(of(makeListResponse(list as never)));
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('一堂：今天（固定時鐘 4/15）→「今天最滿 17:00–18:00 · 同時 1 班」，日名後沒有空格', async () => {
+      await show([sess({})]);
+      expect(flat()).toBe('今天最滿 17:00–18:00 · 同時 1 班');
+    });
+
+    it('兩堂同時：同時 2 班；非今天的日子日名後有一個空格', async () => {
+      await show([sess({ id: 'a' }), sess({ id: 'b', teacherId: 't2' })]);
+      expect(flat()).toContain('同時 2 班');
+      (component as unknown as { day: { set: (d: Date) => void } }).day.set(
+        new Date('2026-04-16T00:00:00'),
+      );
+      fixture.detectChanges();
+      expect(flat()).toMatch(/^週四 4\/16 最滿/);
+    });
+
+    it('全部停課：「整天停課」，不寫最滿', async () => {
+      await show([sess({ status: 'cancelled' })]);
+      expect(flat()).toBe('今天整天停課');
+    });
+  });
 });
