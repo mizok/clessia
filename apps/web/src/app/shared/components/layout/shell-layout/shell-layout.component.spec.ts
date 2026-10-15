@@ -209,6 +209,28 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       for (const n of names) expect(c, n).toContain(n);
     };
 
+    /**
+     * A6 兩列頂欄（`a6.css:163-165`）：手機放不下的整組工具換到第二列、導覽獨占第三列；
+     * 桌機一列不換行（高 56）。**斷點由這幾個 class 決定**：基底 `flex-wrap`、桌機 `flex-nowrap`；
+     * 導覽基底 `order-3 w-full`（排到最後、獨占一列）、桌機 `order-none w-auto`。
+     * 拿掉任何一個，手機頂欄就從兩列變一列（或桌機變兩列）。
+     */
+    it('頂欄兩列斷點：基底 flex-wrap＋桌機 flex-nowrap；導覽基底 order-3 w-full、桌機還原', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const row = el.querySelector('header > div')!;
+      has(row, 'flex', 'flex-wrap', 'items-center', 'gap-x-4', 'pt-3');
+      has(row, 'wide:flex-nowrap', 'wide:h-14', 'wide:gap-x-8', 'wide:pt-0');
+      // 基底不能是 nowrap（會讓手機一列擠爆）、桌機不能少了 nowrap（會換行）
+      expect(cls(row)).not.toContain('flex-nowrap');
+      expect(cls(row)).not.toContain('flex-wrap-reverse');
+      const nav = el.querySelector('nav[aria-label="主要導覽"]')!;
+      has(nav, 'order-3', 'w-full', 'wide:order-none', 'wide:w-auto', 'flex', 'overflow-x-auto');
+      // 工具組在導覽之前（DOM 順序）：手機換行時才會先落在第二列、導覽在第三列
+      const kids = Array.from(row.children);
+      expect(kids.indexOf(nav)).toBeLessThan(kids.length - 1);
+      expect(cls(kids[kids.length - 1])).toContain('ml-auto');
+    });
+
     it('字標：手機 44px 點擊區但只占 22px 版面（負邊距）、桌機 24px 字、高度回到行高', async () => {
       const { el } = await setup(['admin'], 'admin');
       has(
