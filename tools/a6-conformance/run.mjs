@@ -16,8 +16,10 @@ import {
   STATE,
   WIDTHS,
 } from './lib/config.mjs';
-import { capture } from './lib/capture.mjs';
-import { inventoryMarkdown } from './lib/report.mjs';
+import { capture, harvestNames, openPage } from './lib/capture.mjs';
+import { compareDelta, delta, runScenario } from './lib/behave.mjs';
+import { SCENARIOS } from './lib/scenarios.mjs';
+import { behaveMarkdown, inventoryMarkdown } from './lib/report.mjs';
 import { classify, diffParts, diffMarkdown } from './lib/diff.mjs';
 
 const [cmd, ...args] = process.argv.slice(2);
@@ -110,8 +112,59 @@ try {
       fs.writeFileSync(path.join(dir, 'diff.md'), diffMarkdown(page, PAGES[page], sections));
       console.log(`${page} → ${dir}/diff.md`);
     }
+  } else if (cmd === 'behave') {
+    for (const page of pages) {
+      const cfg = PAGES[page];
+      const dir = path.join(OUT, page);
+      fs.mkdirSync(dir, { recursive: true });
+      const results = [];
+      for (const w of WIDTHS)
+        for (const sc of SCENARIOS[page] ?? []) {
+          const side = {};
+          for (const source of ['a6', 'app']) {
+            // 每個情境各開一頁，前一個情境的狀態不會漏到下一個
+            const url = source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : APP_URL + cfg.app;
+            const {
+              ctx,
+              page: pg,
+              errors,
+            } = await openPage(browser, {
+              source,
+              url,
+              width: w.width,
+              storageState: source === 'app' ? STATE : undefined,
+            });
+            const names = await harvestNames(pg, source, ctx);
+            const r = await runScenario(pg, { steps: sc[source], names });
+            side[source] = { ...r, errors, delta: delta(r) };
+            await ctx.close();
+          }
+          const diffs = compareDelta(side.a6.delta, side.app.delta, {
+            ignore: [...(cfg.behaveIgnore ?? []), ...(sc.ignore ?? [])],
+            checkFocus: sc.checkFocus,
+          });
+          const failed = [
+            side.a6.failed && `A6 ${side.a6.failed}`,
+            side.app.failed && `app ${side.app.failed}`,
+          ].filter(Boolean);
+          results.push({
+            width: w.width,
+            name: sc.name,
+            ok: !diffs.length && !failed.length,
+            failed,
+            diffs,
+            a6: side.a6.delta,
+            app: side.app.delta,
+          });
+        }
+      fs.writeFileSync(path.join(dir, 'behave.json'), JSON.stringify(results, null, 1));
+      fs.writeFileSync(path.join(dir, 'behave.md'), behaveMarkdown(page, cfg, results));
+      console.log(
+        `${page}：${results.filter((r) => r.ok).length}／${results.length} 一致 → ${dir}/behave.md`,
+      );
+    }
   } else {
-    console.log('用法：run.mjs inventory [頁…] | diff <頁>');
+    console.log('用法：run.mjs inventory [頁…] | diff [頁…] | behave [頁…]');
     process.exitCode = 2;
   }
 } finally {

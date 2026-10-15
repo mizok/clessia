@@ -35,6 +35,31 @@ export const DEVIATIONS = [
     source: `${RULES}:32-34（R3）；kb/wiki/architecture/constitution-enforcement.md:101（A27）`,
   },
   {
+    // R3 連帶：手機 44px 的可點元素用 flex 垂直置中，取代稿的上下 padding
+    status: '樣式',
+    kind: 'control',
+    widths: [360],
+    detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline) → (inline-)?flex$',
+    reason: '手機 44px 觸控高度用 flex 置中（取代稿的上下 padding）',
+    source: `${RULES}:32-34（R3）`,
+  },
+  {
+    // R7：頂欄搜尋有建議清單＝combobox（稿是 searchbox）
+    status: '角色',
+    a6: 'control:searchbox\\[全站搜尋\\]$',
+    detail: '^control:searchbox → control:combobox$',
+    reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
+    source: `${RULES}:46-48（R7）`,
+  },
+  {
+    // R7（殼層席 B2）：手機搜尋鈕名「搜尋」→「搜尋學生」，名字講清楚搜的範圍
+    status: '文案',
+    a6: 'landmark:banner\\[\\]>control:button\\[搜尋\\]$',
+    detail: '^「搜尋」→「搜尋學生」$',
+    reason: '可及名稱依元件行為：搜的範圍是學生／家長電話',
+    source: `${RULES}:46-48（R7）`,
+  },
+  {
     status: '多',
     pop: 'more',
     app: 'control:link\\[(公開申請|到班打卡)\\]$',
@@ -69,6 +94,8 @@ export const PAGES = {
     app: '/admin/students',
     // app 的篩選是 PrimeNG Popover（不是原生 popover）：點哪顆、內容根在哪
     appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
+    // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
+    behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
       {
         status: '多',

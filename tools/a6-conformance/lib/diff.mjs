@@ -136,12 +136,54 @@ export function classify(rows, deviations = [], width) {
     (!d.detail || new RegExp(d.detail).test(r.detail)) &&
     (!d.a6 || new RegExp(d.a6).test(r.a6 ?? '')) &&
     (!d.app || new RegExp(d.app).test(r.app ?? ''));
-  return rows.map((r) => {
-    if (r.status === '資料差') return { ...r, bucket: '資料差' };
-    if (r.limit) return { ...r, bucket: '工具限制' };
+  const out = rows.flatMap((r) => {
+    if (r.status === '資料差') return [{ ...r, bucket: '資料差' }];
+    if (r.limit) return [{ ...r, bucket: '工具限制' }];
     const d = deviations.find((x) => hit(r, x));
-    return d ? { ...r, bucket: '已記錄偏離', dev: d } : { ...r, bucket: '待修' };
+    if (d) return [{ ...r, bucket: '已記錄偏離', dev: d }];
+    // 缺／多的容器：裡面若有子孫命中偏離，拆成自己一列；容器本身仍是待修
+    const side = r.a6 ? 'a6' : 'app';
+    const split = (r.inner ?? []).flatMap((q) => {
+      const sub = {
+        ...r,
+        inner: undefined,
+        kind: q.kind,
+        [side]: q.key,
+        detail: `「${q.tpl}」（在${r.status === '缺' ? '缺少' : '多出'}的區塊裡）`,
+      };
+      const dd = deviations.find((x) => hit(sub, x));
+      return dd ? [{ ...sub, bucket: '已記錄偏離', dev: dd }] : [];
+    });
+    const note = split.length ? `；其中 ${split.length} 個已記錄偏離（拆列）` : '';
+    return [{ ...r, detail: r.detail + note, bucket: '待修' }, ...split];
   });
+  // 連帶：待修的位移／尺寸差，如果每個原因都已經是偏離或資料差，就跟著原因歸欄。
+  // 原因可能自己也是連帶（「更多」第 3 項被第 2 項推、第 2 項被多出的「公開申請」推），所以重複到不再變
+  const causeRow = (c) =>
+    out.find(
+      (r) =>
+        (c.a6 ? r.a6 === c.a6 : r.app === c.app) &&
+        (c.axis
+          ? r.detail.startsWith(c.axis) && ['尺寸', '資料差'].includes(r.status)
+          : ['多', '缺', '資料差'].includes(r.status)),
+    );
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const r of out) {
+      if (r.bucket !== '待修' || !r.because?.length) continue;
+      const cs = r.because.map(causeRow);
+      if (cs.some((c) => !c || c.bucket === '待修' || c.bucket === '工具限制')) continue;
+      const devs = cs.filter((c) => c.bucket === '已記錄偏離');
+      if (devs.length) {
+        const d = devs[0].dev;
+        r.bucket = '已記錄偏離';
+        r.dev = { ...d, reason: `連帶：${d.reason}`, source: d.source };
+      } else r.bucket = '資料差';
+      r.detail += `；連帶自 ${cs.length} 處${devs.length ? '偏離' : '資料差'}`;
+      changed = true;
+    }
+  }
+  return out;
 }
 
 const sgn = (n) => (n > 0 ? '+' + n : String(n));
@@ -226,6 +268,10 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
       rows.push({
         status: rep ? '資料差' : side === 'a6' ? '缺' : '多',
         kind: p.kind,
+        // 底下同樣沒配上的子孫：偏離規則可能指的是裡面某一顆（多包一層的區塊裡的「⋯」）
+        inner: list
+          .filter((q) => q.key.startsWith(p.key + '>') && isFree(q))
+          .map((q) => ({ key: q.key, kind: q.kind, tpl: q.tpl })),
         limit: !rep && sameTypeUnpaired(p, side) ? LIMITS.count : undefined,
         a6: side === 'a6' ? p.key : null,
         app: side === 'app' ? p.key : null,
@@ -242,6 +288,8 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
     if ((a.kind === 'list' || a.kind === 'row') && count(a) !== count(b))
       (dataA.add(ak), dataB.add(bk));
   }
+  const freeTopA = topFree(A, mA, freeA),
+    freeTopB = topFree(B, mB, freeB);
   // y 的差是不是資料造成的：同一個參考容器裡、這個 part 上方有資料性的東西
   const dataAbove = (p, ref, set, m) =>
     [...set].some((k) => {
@@ -252,8 +300,8 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
   for (const [ak, bk] of pairs) {
     const a = mA.get(ak),
       b = mB.get(bk);
-    const push = (status, detail, limit) =>
-      rows.push({ status, kind: a.kind, a6: ak, app: bk, detail, limit });
+    const push = (status, detail, limit, because) =>
+      rows.push({ status, kind: a.kind, a6: ak, app: bk, detail, limit, because });
     const scope =
       ['landmark', 'list'].includes(a.kind) && scopeDiff(ak, bk) ? LIMITS.scope : undefined;
     if (kr(a) !== kr(b)) push('角色', `${kr(a)} → ${kr(b)}`);
@@ -274,13 +322,61 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
       const fromBottom = appCap.height - (by + bh) - (a6Cap.height - (ay + ah));
       if (Math.abs(fromBottom) < Math.abs(dy)) ((dy = -fromBottom), (anchor = '視窗底'));
     }
+    // 連帶：這個 part 的位移能不能被同一個參考容器裡「別人的變化量」解釋 —— 前面多出／少了的 part、
+    // 鄰居變高變寬、自己變高（置中）。能完整解釋就記下原因，classify 時跟著原因歸欄
+    const explain = (axis) => {
+      const i = axis === 'x' ? 0 : 1,
+        s = axis === 'x' ? 2 : 3;
+      const inA = (k) => !ra || k.startsWith(ra.key + '>'),
+        inB = (k) => !rb || k.startsWith(rb.key + '>');
+      const rel = (k, self) => k === self || self.startsWith(k + '>') || k.startsWith(self + '>');
+      const causes = [];
+      let room = 0;
+      for (const q of freeTopA)
+        if (inA(q.key) && !rel(q.key, ak) && q.box[i] < a.box[i])
+          ((room += q.box[s]), causes.push({ a6: q.key }));
+      for (const q of freeTopB)
+        if (inB(q.key) && !rel(q.key, bk) && q.box[i] < b.box[i])
+          ((room += q.box[s]), causes.push({ app: q.key }));
+      for (const [k2, k2b] of pairs) {
+        if (k2 === ak || !inA(k2) || rel(k2, ak)) continue;
+        const x = mA.get(k2),
+          y = mB.get(k2b);
+        // y 軸：上方的鄰居；x 軸：同一列的鄰居（靠右對齊的列，右邊變寬也會把左邊推走）
+        const near =
+          axis === 'y'
+            ? x.box[1] < a.box[1]
+            : Math.abs(x.box[1] - a.box[1]) < Math.max(a.box[3], x.box[3]);
+        const d = Math.abs(y.box[s] - x.box[s]);
+        if (near && !sizeOk(x.box[s], y.box[s], tol))
+          ((room += d), causes.push({ a6: k2, axis: axis === 'x' ? '寬' : '高' }));
+      }
+      // 參考容器自己變高／變寬：置中的內容會移動一半（手機分校鈕 29→44，裡面的字往下 7.5）
+      // 只在稿上真的置中時才算（彈出物是靠上排的，它變高不會推動裡面的項目）
+      const centered =
+        ra && Math.abs(a.box[i] - ra.box[i] - (ra.box[i] + ra.box[s] - a.box[i] - a.box[s])) <= 2;
+      if (centered && !sizeOk(ra.box[s], rb.box[s], tol))
+        ((room += Math.abs(rb.box[s] - ra.box[s]) / 2),
+          causes.push({ a6: ra.key, axis: axis === 'x' ? '寬' : '高' }));
+      const own = Math.abs(b.box[s] - a.box[s]);
+      // 自己變大：起點最多移動整個增量（靠左 0、置中一半、靠右全部 —— 帳戶鈕靠右，變寬就整個左移）
+      if (!sizeOk(a.box[s], b.box[s], tol))
+        ((room += own), causes.push({ a6: ak, axis: axis === 'x' ? '寬' : '高' }));
+      return causes.length ? { room, causes } : null;
+    };
     if (!posOk(0, dx, tol) || !posOk(0, dy, tol)) {
+      const ex = posOk(0, dx, tol) ? null : explain('x'),
+        ey = posOk(0, dy, tol) ? null : explain('y');
+      const okX = posOk(0, dx, tol) || (ex && Math.abs(dx) <= ex.room + tol.pos),
+        okY = posOk(0, dy, tol) || (ey && Math.abs(dy) <= ey.room + tol.pos);
+      const because = okX && okY ? [...(ex?.causes ?? []), ...(ey?.causes ?? [])] : undefined;
       const data =
         posOk(0, dx, tol) && (dataAbove(a, ra, dataA, mA) || dataAbove(b, rb, dataB, mB));
       push(
         data ? '資料差' : '位置',
         `相對${ra ? `「${ra.tpl || ra.role}」` : anchor} Δx ${sgn(dx)}、Δy ${sgn(dy)}（app − A6）${data ? '；上方內容隨資料' : ''}`,
         scope,
+        data ? undefined : because,
       );
     }
     const inner =
@@ -299,7 +395,24 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
     }
     if (!sizeOk(ah, bh, tol)) {
       const why = container || (a.text !== b.text && lines(a) !== lines(b) ? '文字行數不同' : '');
-      push(why ? '資料差' : '尺寸', `高 ${ah}→${bh}${why ? `；${why}` : ''}`, scope);
+      // 容器變高／變矮：裡面多出／少了的 part、直屬子項變高 → 連帶
+      const causes = [];
+      let room = 0;
+      for (const q of freeTopA)
+        if (q.key.startsWith(ak + '>')) ((room += q.box[3]), causes.push({ a6: q.key }));
+      for (const q of freeTopB)
+        if (q.key.startsWith(bk + '>')) ((room += q.box[3]), causes.push({ app: q.key }));
+      for (const [k2, k2b] of pairs)
+        if (mA.get(k2).parent === ak && !sizeOk(mA.get(k2).box[3], mB.get(k2b).box[3], tol))
+          ((room += Math.abs(mB.get(k2b).box[3] - mA.get(k2).box[3])),
+            causes.push({ a6: k2, axis: '高' }));
+      const because = causes.length && Math.abs(bh - ah) <= room + tol.size ? causes : undefined;
+      push(
+        why ? '資料差' : '尺寸',
+        `高 ${ah}→${bh}${why ? `；${why}` : ''}`,
+        scope,
+        why ? undefined : because,
+      );
     }
     const st = styleDiffs(withWrapper(a, A), withWrapper(b, B), tol);
     // 偽元素只可能解釋「底色／框線一邊有、一邊沒有」，而且沒有的那邊要帶偽元素；其他樣式差照算

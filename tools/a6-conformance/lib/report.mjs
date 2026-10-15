@@ -99,3 +99,36 @@ export function inventoryMarkdown(page, file, caps) {
   }
   return L.join('\n');
 }
+
+const list = (xs) => (xs.length ? xs.map((x) => `「${x}」`).join('') : '—');
+const summary = (d) =>
+  [
+    d.appeared.length && `出現 ${list(d.appeared)}`,
+    d.gone.length && `消失 ${list(d.gone)}`,
+    d.turnedOn.length && `選中／展開 ${list(d.turnedOn)}`,
+    d.turnedOff.length && `取消 ${list(d.turnedOff)}`,
+    d.overlays && `浮層 ${d.overlays > 0 ? '+' : ''}${d.overlays}`,
+    d.scrolled && '有捲動',
+    d.focus && `焦點「${d.focus}」`,
+  ]
+    .filter(Boolean)
+    .join('；') || '沒有變化';
+
+/** 第三層報告。results = [{ width, name, ok, failed, diffs, a6, app }]。 */
+export function behaveMarkdown(page, cfg, results) {
+  const cell = (t) => String(t).replace(/\|/g, '\\|');
+  const L = [`# A6 conformance · ${page} 互動情境：app（${cfg.app}）vs A6（${cfg.a6}）`, ''];
+  L.push(
+    '每個情境兩邊各開一頁、照步驟操作，比「操作前後的變化」：出現／消失的文案、變成選中或展開的控制項（aria-current／pressed／expanded／selected／checked）、浮層數、焦點、有沒有捲動。列內的文案是資料，不比。',
+    '',
+    `一致 ${results.filter((r) => r.ok).length}／${results.length}`,
+    '',
+    '| 寬 | 情境 | 結果 | 差異 | A6 的變化 | app 的變化 |',
+    '| --- | --- | --- | --- | --- | --- |',
+  );
+  for (const r of results)
+    L.push(
+      `| ${r.width} | ${cell(r.name)} | ${r.failed.length ? '步驟失敗' : r.ok ? '一致' : '不一致'} | ${cell([...r.failed, ...r.diffs].join('<br>') || '—')} | ${cell(summary(r.a6))} | ${cell(summary(r.app))} |`,
+    );
+  return L.join('\n') + '\n';
+}

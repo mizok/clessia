@@ -12,7 +12,11 @@ export function normText(s, names = []) {
     .trim();
   // email 先換：裡面的數字不該變成 `#`，兩邊（稿的假帳號、app 的登入者）都成 `{email}`
   t = t.replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '{email}');
-  for (const n of names) if (n && n.length >= 2) t = t.split(n).join('{名}');
+  // names：字串＝人名（→ {名}），或 [字串, 樣板]（例：分校名 → {分校}）。長的先換
+  for (const n of names) {
+    const [w, tok] = Array.isArray(n) ? n : [n, '{名}'];
+    if (w && w.length >= 2) t = t.split(w).join(tok);
+  }
   t = t.replace(/\d[\d,.:/]*(?:\s*[–~-]\s*\d[\d,.:/]*)?/g, '#');
   // 中文數字月份（稿寫「十月」、app 寫「10 月」）也是資料
   t = t.replace(/[一二三四五六七八九十]{1,3}(?=月)/g, '#');

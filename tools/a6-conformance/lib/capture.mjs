@@ -48,55 +48,70 @@ function hookSelectors(file) {
   return [...sels];
 }
 
-export async function capture(browser, { source, file, url, width, storageState, appOpen = {} }) {
+/** 開一個 context＋頁面並載入；app 端轉送 API、被導離目標路由就報錯。 */
+export async function openPage(browser, { source, url, width, height = 900, storageState }) {
   const ctx = await browser.newContext({
-    viewport: { width, height: 900 },
+    viewport: { width, height },
     storageState,
     reducedMotion: 'reduce',
   });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
   if (source === 'app' && API_URL !== BUILT_API)
-    await page.route(BUILT_API + '/**', async (route) =>
+    await ctx.route(BUILT_API + '/**', async (route) =>
       route.fulfill({
         response: await route.fetch({ url: route.request().url().replace(BUILT_API, API_URL) }),
       }),
     );
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url, { waitUntil: source === 'app' ? 'networkidle' : 'load' });
   if (source === 'app' && new URL(page.url()).pathname !== new URL(url).pathname)
     throw new Error(
       `app 被導到 ${page.url()}：登入態失效或 API 沒在跑（${API_URL}）。重跑 login.mjs`,
     );
   await page.waitForTimeout(1200);
-  const height = await growViewport(page, width);
+  return { ctx, page, errors };
+}
 
-  const names =
-    source === 'a6'
-      ? await page.evaluate((extra) => {
-          const out = new Set(extra);
-          const seen = new Set();
-          const rec = (o, k) => {
-            if (o == null || seen.has(o)) return;
-            if (typeof o === 'string') {
-              if (/^(name|teacher|student)$/.test(k ?? '') && /^[一-鿿]{2,4}$/.test(o)) out.add(o);
-              return;
-            }
-            if (typeof o !== 'object') return;
-            seen.add(o);
-            for (const [kk, v] of Object.entries(o)) rec(v, Array.isArray(o) ? k : kk);
-          };
-          rec(window.CLESSIA);
-          return [...out].sort((a, b) => b.length - a.length);
-        }, EXTRA_NAMES)
-      : // app 的登入者名字也是資料（帳戶鈕、帳戶浮層），跟稿的「林主任」一樣換成 {名}
-        [
-          await ctx.request
-            .get(API_URL + '/api/me')
-            .then((r) => r.json())
-            .then((j) => j.displayName)
-            .catch(() => null),
-        ].filter(Boolean);
+/** 要樣板化的專有名詞：人名（稿＝window.CLESSIA 的假人名；app＝登入者）→ {名}，分校名 → {分校}。 */
+export async function harvestNames(page, source, ctx) {
+  if (source === 'app') {
+    const get = (u) =>
+      ctx.request
+        .get(API_URL + u)
+        .then((r) => r.json())
+        .catch(() => null);
+    const [me, campuses] = await Promise.all([get('/api/me'), get('/api/campuses')]);
+    // 「全部分校」是「沒選單一分校」的使用者狀態，跟稿選了「文山旗艦校」一樣算資料
+    return [
+      me?.displayName,
+      ...['全部分校', ...(campuses?.data ?? []).map((c) => c.name)].map((n) => [n, '{分校}']),
+    ].filter(Boolean);
+  }
+  return page.evaluate((extra) => {
+    const out = new Set(extra);
+    const seen = new Set();
+    const rec = (o, k) => {
+      if (o == null || seen.has(o)) return;
+      if (typeof o === 'string') {
+        if (/^(name|teacher|student)$/.test(k ?? '') && /^[\u4e00-\u9fff]{2,4}$/.test(o))
+          out.add(o);
+        return;
+      }
+      if (typeof o !== 'object') return;
+      seen.add(o);
+      for (const [kk, v] of Object.entries(o)) rec(v, Array.isArray(o) ? k : kk);
+    };
+    rec(window.CLESSIA);
+    const campuses = (window.CLESSIA?.campuses ?? []).map((n) => [n, '{分校}']);
+    return [...campuses, ...out].sort((a, b) => [].concat(b)[0].length - [].concat(a)[0].length);
+  }, EXTRA_NAMES);
+}
+
+export async function capture(browser, { source, file, url, width, storageState, appOpen = {} }) {
+  const { ctx, page, errors } = await openPage(browser, { source, url, width, storageState });
+  const height = await growViewport(page, width);
+  const names = await harvestNames(page, source, ctx);
 
   const parts = await page.evaluate(extractSource({ names }));
   const shot = await page.screenshot({ fullPage: false });

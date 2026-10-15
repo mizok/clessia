@@ -217,6 +217,11 @@ test('帳戶浮層：名字、email 兩邊都樣板化；「切換身分」單�
   assert.equal(normText('lin.director@wenshan-demo.tw'), normText('admin@demo.clessia.app'));
   assert.equal(normText('林主任', ['林主任']), normText('Demo Admin', ['Demo Admin']));
   assert.equal(normText('user01@demo.clessia.app'), '{email}'); // 數字不能先被換成 #
+  // 分校名（稿選了文山旗艦校、admin@demo 是全部分校）也是資料
+  assert.equal(
+    normText('切換分校：文山旗艦校', [['文山旗艦校', '{分校}']]),
+    normText('切換分校：全部分校', [['全部分校', '{分校}']]),
+  );
 
   const { diffParts, classify } = await import('./diff.mjs');
   const { DATA_DEPENDENT } = await import('./config.mjs');
@@ -299,4 +304,136 @@ test('包裝層只認控制項：section 與章名同文案時不併章名的字
     style: { fontSize: '44px' },
   };
   assert.equal(withWrapper(sec, [sec, big]).style.fontSize, '14px');
+});
+
+test('偏離能命中「多出區塊」裡的子孫：拆成自己一列，區塊本身仍待修', async () => {
+  const { classify } = await import('./diff.mjs');
+  const dev = [{ status: '多', app: 'control:button\\[更多動作\\]$', reason: 'R2', source: 'x' }];
+  const row = {
+    status: '多',
+    kind: 'landmark',
+    a6: null,
+    app: '>main>landmark:search[帳單搜尋與篩選]',
+    detail: 'landmark:search',
+    inner: [
+      {
+        key: '>main>landmark:search[帳單搜尋與篩選]>control:button[更多動作]',
+        kind: 'control',
+        tpl: '更多動作',
+      },
+      {
+        key: '>main>landmark:search[帳單搜尋與篩選]>control:button[別的]',
+        kind: 'control',
+        tpl: '別的',
+      },
+    ],
+  };
+  const out = classify([row], dev, 1440);
+  assert.deepEqual(
+    out.map((r) => r.bucket),
+    ['待修', '已記錄偏離'],
+  );
+  assert.match(out[0].detail, /其中 1 個已記錄偏離/);
+  assert.match(out[1].app, /更多動作\]$/);
+});
+
+test('第三層：比變化量；純數字不比；焦點要宣告才比', async () => {
+  const { delta, compareDelta } = await import('./behave.mjs');
+  const part = (tpl, attrs = {}) => ({ tpl, kind: 'control', inRows: 0, attrs });
+  const snap = (parts, focus = '') => ({ parts, overlays: 0, focus, scroll: 0 });
+  // 兩邊點「國三」：A6 用 aria-current、app 用 aria-pressed —— 都算「變成選中」
+  const a = delta({
+    before: snap([part('國三#')]),
+    after: snap([part('國三#', { 'aria-current': 'true' }), part('#')], ''),
+  });
+  const b = delta({
+    before: snap([part('國三#')]),
+    after: snap([part('國三#', { 'aria-pressed': 'true' })], '國三#'),
+  });
+  assert.deepEqual(compareDelta(a, b), []);
+  assert.deepEqual(compareDelta(a, b, { checkFocus: true }), ['焦點：A6「」、app「國三#」']);
+  // app 沒有選中態 → 報出來
+  const c = delta({ before: snap([part('國三#')]), after: snap([part('國三#')]) });
+  assert.deepEqual(compareDelta(a, c), ['變成選中／展開：只有 A6「國三#」']);
+});
+
+test('連帶：「更多」多出兩項，後面的項目被往下推 → 跟著 R2 歸已記錄偏離', async () => {
+  const { diffParts, classify } = await import('./diff.mjs');
+  const { DEVIATIONS } = await import('./config.mjs');
+  const style = { display: 'block', padding: '0px' };
+  const p = (key, kind, role, tpl, box) => ({
+    key,
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind,
+    role,
+    tpl,
+    text: tpl,
+    box,
+    style,
+  });
+  const R = 'pop[more]>landmark:popover[]';
+  const link = (t, y) => p(`${R}>control:link[${t}]`, 'control', 'link', t, [0, y, 80, 29]);
+  const A = [
+    p(R, 'landmark', 'popover', '', [0, 0, 300, 100]),
+    link('家長管理', 0),
+    link('報名進出', 29),
+  ];
+  const B = [
+    p(R, 'landmark', 'popover', '', [0, 0, 300, 158]),
+    link('家長管理', 0),
+    link('公開申請', 29),
+    link('到班打卡', 58),
+    link('報名進出', 87),
+  ];
+  const rows = diffParts({ parts: A }, { parts: B }).map((r) => ({ ...r, pop: 'more' }));
+  const out = classify(rows, DEVIATIONS, 1440);
+  assert.deepEqual(
+    out.filter((r) => r.bucket === '待修'),
+    [],
+  );
+  const moved = out.find((r) => r.status === '位置');
+  assert.equal(moved.bucket, '已記錄偏離');
+  assert.match(moved.dev.reason, /^連帶：/);
+  // 位移超過能解釋的量（多推了 10px）→ 還是待修
+  const B2 = B.map((x) => (x.tpl === '報名進出' ? { ...x, box: [0, 97, 80, 29] } : x));
+  const out2 = classify(
+    diffParts({ parts: A }, { parts: B2 }).map((r) => ({ ...r, pop: 'more' })),
+    DEVIATIONS,
+    1440,
+  );
+  assert.equal(out2.find((r) => r.status === '位置').bucket, '待修');
+});
+
+test('連帶：自己變大最多推動整個增量；容器變大只在稿上置中時才推動內容', async () => {
+  const { diffParts, classify } = await import('./diff.mjs');
+  const style = { display: 'block', padding: '0px' };
+  const p = (key, kind, tpl, box, text = tpl) => ({
+    key,
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind,
+    role: kind === 'control' ? 'button' : 'banner',
+    tpl,
+    text,
+    box,
+    style,
+  });
+  const dev = [{ status: '尺寸', detail: '^寬', reason: 'R', source: 's' }];
+  // 靠右的帳戶鈕：文字變長變寬 35（資料差），整顆左移 35 → 資料差
+  const A = [
+    p('>b', 'landmark', '', [0, 0, 1440, 56]),
+    p('>b>control:button[帳戶]', 'control', '帳戶', [1075, 8, 163, 40], '林主任'),
+  ];
+  const B = [
+    p('>b', 'landmark', '', [0, 0, 1440, 56]),
+    p('>b>control:button[帳戶]', 'control', '帳戶', [1040, 8, 198, 40], 'Demo Admin'),
+  ];
+  const r = classify(diffParts({ parts: A }, { parts: B }), dev, 1440);
+  assert.equal(r.find((x) => x.status === '位置').bucket, '資料差');
+  // 左移 36（超過增量＋容差就不行）：36 ≤ 35＋4 仍可解釋；50 不行
+  const B2 = B.map((x) => (x.kind === 'control' ? { ...x, box: [1025, 8, 198, 40] } : x));
+  assert.equal(
+    classify(diffParts({ parts: A }, { parts: B2 }), dev, 1440).find((x) => x.status === '位置')
+      .bucket,
+    '待修',
+  );
 });
