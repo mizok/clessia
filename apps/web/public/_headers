@@ -1,0 +1,26 @@
+# Cloudflare Pages 回應頭（#1595 P1a）。
+#
+# Angular 建置（outputHashing: all）產出的檔名帶內容雜湊：內容變了檔名就變，
+# 所以同一個網址的內容永遠不會變 —— 可以讓瀏覽器快取一年、而且不用回源確認。
+# 沒有這份檔時它們拿到的是 max-age=14400, must-revalidate：每 4 小時每個檔都要回源問一次。
+#
+# 重做（#1595 1b）：#1596 曾因 SPA fallback 把不存在的雜湊檔改寫成 index.html、
+# 跟著吃到 immutable 而被 #1599 撤回。現在 _redirects 只改寫明列的路由，不存在的雜湊檔
+# 落到 404.html —— 驗證紀錄（預覽部署＋三個時間點的原始 header）見 #1595。
+#
+# index.html 與 SPA 路由（_redirects 明列的改寫）**刻意不寫規則**：
+# Pages 預設已是 max-age=0, must-revalidate（2026-10-15 curl 實測），新版部署立刻生效。
+# /assets/*、favicon.ico 檔名不帶雜湊，也不能 immutable。
+#
+# ponytail: 用檔名前綴比對，Angular 改了輸出命名（例如換 builder）這裡就會靜默失效 ——
+# 部署後用 curl 看 chunk 的 cache-control 是不是 immutable。
+/main-*
+  Cache-Control: public, max-age=31536000, immutable
+/chunk-*
+  Cache-Control: public, max-age=31536000, immutable
+/polyfills-*
+  Cache-Control: public, max-age=31536000, immutable
+/styles-*
+  Cache-Control: public, max-age=31536000, immutable
+/media/*
+  Cache-Control: public, max-age=31536000, immutable
