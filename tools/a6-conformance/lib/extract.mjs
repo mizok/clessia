@@ -229,6 +229,10 @@ export function extractParts(opts) {
           box: box(el),
           // 自己有沒有文字節點：字級／顏色只在這種 part 上才看得見（包一層 span 的連結，顏色在 span 上）
           own: !!ownText(el),
+          // 有 ::before／::after 內容：線、圖示可能畫在那裡，工具不量（報告會標「工具限制」）
+          pseudo: ['::before', '::after'].some(
+            (x) => !['none', 'normal'].includes(getComputedStyle(el, x).content),
+          ),
           style: style(el),
           attrs: Object.fromEntries(
             [

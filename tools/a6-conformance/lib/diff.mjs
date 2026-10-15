@@ -114,6 +114,32 @@ export function withWrapper(p, list) {
   return { ...p, own: p.own || w.own, style };
 }
 
+/** 工具量不準的幾類（README「已知限制」）。命中的列歸「工具限制」，不算待修，要人工看。 */
+export const LIMITS = {
+  scope: '結構範圍不同：兩邊這個容器包住的東西不同，它自己的位置／尺寸不可比',
+  pseudo: '偽元素：沒有底色／框線的那一側帶 ::before／::after，可能畫在那裡，工具不量',
+  count: '同型段落數不同：父層配上了、對面有同型的沒配上，要人工對',
+};
+
+/**
+ * 每列歸一欄：`資料差` → `工具限制` → `已記錄偏離`（命中 deviations）→ `待修`。
+ * deviation：{ status, detail?, a6?, app?, kind?（皆為 regex 字串／值）, reason, source }。
+ */
+export function classify(rows, deviations = []) {
+  const hit = (r, d) =>
+    d.status === r.status &&
+    (!d.kind || d.kind === r.kind) &&
+    (!d.detail || new RegExp(d.detail).test(r.detail)) &&
+    (!d.a6 || new RegExp(d.a6).test(r.a6 ?? '')) &&
+    (!d.app || new RegExp(d.app).test(r.app ?? ''));
+  return rows.map((r) => {
+    if (r.status === '資料差') return { ...r, bucket: '資料差' };
+    if (r.limit) return { ...r, bucket: '工具限制' };
+    const d = deviations.find((x) => hit(r, x));
+    return d ? { ...r, bucket: '已記錄偏離', dev: d } : { ...r, bucket: '待修' };
+  });
+}
+
 const sgn = (n) => (n > 0 ? '+' + n : String(n));
 const byKey = (parts) => new Map(parts.map((p) => [p.key, p]));
 const count = (p) => p.rows ?? p.inRows;
@@ -159,6 +185,17 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
   const nKids = (list, key) => list.filter((p) => p.key.startsWith(key + '>')).length;
   const dataA = new Set(),
     dataB = new Set();
+  // 父層配上了，對面同一個父層底下也有沒配上的同 kind:role → 段落數不同才沒配（帳戶浮層少了「切換身分」）
+  const sameTypeUnpaired = (p, side) => {
+    const other =
+      side === 'a6' ? pairs.get(p.parent) : [...pairs].find(([, v]) => v === p.parent)?.[0];
+    if (!other) return false;
+    const [list, isFree] = side === 'a6' ? [B, freeB] : [A, freeA];
+    return list.some((q) => q.parent === other && kr(q) === kr(p) && isFree(q));
+  };
+  // 兩邊容器包住的東西不同（app 的 main 包住色面、稿的不包）→ 它自己的位置／尺寸差沒有意義
+  const scopeDiff = (ak, bk) =>
+    [...pairs].some(([x, y]) => x.startsWith(ak + '>') !== y.startsWith(bk + '>'));
 
   for (const [list, m, isFree, side] of [
     [A, mA, freeA, 'a6'],
@@ -170,6 +207,8 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
       const kids = nKids(list, p.key);
       rows.push({
         status: rep ? '資料差' : side === 'a6' ? '缺' : '多',
+        kind: p.kind,
+        limit: !rep && sameTypeUnpaired(p, side) ? LIMITS.count : undefined,
         a6: side === 'a6' ? p.key : null,
         app: side === 'app' ? p.key : null,
         detail:
@@ -195,7 +234,10 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
   for (const [ak, bk] of pairs) {
     const a = mA.get(ak),
       b = mB.get(bk);
-    const push = (status, detail) => rows.push({ status, a6: ak, app: bk, detail });
+    const push = (status, detail, limit) =>
+      rows.push({ status, kind: a.kind, a6: ak, app: bk, detail, limit });
+    const scope =
+      ['landmark', 'list'].includes(a.kind) && scopeDiff(ak, bk) ? LIMITS.scope : undefined;
     if (kr(a) !== kr(b)) push('角色', `${kr(a)} → ${kr(b)}`);
     const inRow = a.inRows > 0 && a.kind !== 'row';
     if (a.tpl !== b.tpl && a.kind !== 'list' && a.kind !== 'row' && !inRow)
@@ -213,6 +255,7 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
       push(
         data ? '資料差' : '位置',
         `相對${ra ? `「${ra.tpl || ra.role}」` : '頁面'} Δx ${sgn(dx)}、Δy ${sgn(dy)}（app − A6）${data ? '；上方內容隨資料' : ''}`,
+        scope,
       );
     }
     const inner =
@@ -227,14 +270,24 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
     const lines = (p) => Math.round(p.box[3] / (parseFloat(p.style.lineHeight) || p.box[3]));
     if (!sizeOk(aw, bw, tol)) {
       const why = container || (a.text !== b.text ? '文字不同' : '');
-      push(why ? '資料差' : '尺寸', `寬 ${aw}→${bw}${why ? `；${why}` : ''}`);
+      push(why ? '資料差' : '尺寸', `寬 ${aw}→${bw}${why ? `；${why}` : ''}`, scope);
     }
     if (!sizeOk(ah, bh, tol)) {
       const why = container || (a.text !== b.text && lines(a) !== lines(b) ? '文字行數不同' : '');
-      push(why ? '資料差' : '尺寸', `高 ${ah}→${bh}${why ? `；${why}` : ''}`);
+      push(why ? '資料差' : '尺寸', `高 ${ah}→${bh}${why ? `；${why}` : ''}`, scope);
     }
     const st = styleDiffs(withWrapper(a, A), withWrapper(b, B), tol);
-    if (st.length) push('樣式', st.join('；'));
+    // 偽元素只可能解釋「底色／框線一邊有、一邊沒有」，而且沒有的那邊要帶偽元素；其他樣式差照算
+    const empty = (v) => normBorder(v) === 'none' || v === 'rgba(0, 0, 0, 0)';
+    const viaPseudo = (d) => {
+      const k = d.split(' ')[0];
+      if (k !== 'backgroundColor' && !BORDERS.includes(k)) return false;
+      return (a.pseudo && empty(a.style[k])) || (b.pseudo && empty(b.style[k]));
+    };
+    const real = st.filter((d) => !viaPseudo(d)),
+      maybe = st.filter(viaPseudo);
+    if (real.length) push('樣式', real.join('；'));
+    if (maybe.length) push('樣式', maybe.join('；'), LIMITS.pseudo);
   }
   const order = { 缺: 0, 角色: 1, 文案: 2, 位置: 3, 尺寸: 4, 樣式: 5, 多: 6, 資料差: 7 };
   return rows.sort((x, y) => order[x.status] - order[y.status]);
@@ -261,30 +314,46 @@ export function groupRows(rows) {
   return [...out.values()];
 }
 
+export const BUCKETS = ['待修', '已記錄偏離', '工具限制', '資料差'];
+
 export function diffMarkdown(page, cfg, sections) {
   const L = [`# A6 conformance · ${page}：app（${cfg.app}）vs A6（${cfg.a6}）`, ''];
   L.push(
     `容差：位置 ±${TOL.pos}px（相對最近的已配對祖先）；尺寸 ±${TOL.size}px 或 ±${TOL.sizeRatio * 100}%（取大）；字級／行高 ±${TOL.font}px；其餘樣式逐字。`,
-    '「資料差」＝列數、文字長度、隨資料增減的同型區塊造成的差，不算設計差，排在最後。同一父層下細節相同的列合併為「×N」。',
+    '分四欄：**待修**（目標歸零）／**已記錄偏離**（config 的 deviations，附理由與出處）／**工具限制**（工具量不準，人工看）／**資料差**（不算設計差）。同一父層下細節相同的列合併為「等 N 個」。',
     '',
+    '| 寬 | ' + BUCKETS.join(' | ') + ' |',
+    '| --- | ' + BUCKETS.map(() => '---').join(' | ') + ' |',
   );
-  for (const s of sections) {
-    const c = {};
-    for (const r of s.rows) c[r.status] = (c[r.status] ?? 0) + 1;
+  for (const s of sections)
     L.push(
-      `## ${s.width}px`,
-      '',
-      Object.entries(c)
-        .map(([k, n]) => `${k} ${n}`)
-        .join('、') || '沒有差異',
-      '',
+      `| ${s.width}px | ${BUCKETS.map((b) => s.rows.filter((r) => r.bucket === b).length).join(' | ')} |`,
     );
-    L.push('| 狀態 | A6 part | app part | 差異 |', '| --- | --- | --- | --- |');
-    for (const r of groupRows(s.rows))
+  L.push('');
+  const cell = (t) => String(t).replace(/\|/g, '\\|');
+  for (const s of sections) {
+    L.push(`## ${s.width}px`, '');
+    for (const b of BUCKETS) {
+      const g = groupRows(s.rows.filter((r) => r.bucket === b));
+      if (!g.length) continue;
+      const extra = b === '已記錄偏離' ? ' 理由（出處） |' : b === '工具限制' ? ' 限制 |' : '';
       L.push(
-        `| ${r.status}${where(r)} | ${short(r.a6)}${r.n > 1 ? ` 等 ${r.n} 個` : ''} | ${short(r.app)} | ${r.detail.replace(/\|/g, '\\|')} |`,
+        `### ${b}（${g.length}）`,
+        '',
+        `| 狀態 | A6 part | app part | 差異 |${extra}`,
+        `| --- | --- | --- | --- |${extra ? ' --- |' : ''}`,
       );
-    L.push('');
+      for (const r of g)
+        L.push(
+          `| ${r.status}${where(r)} | ${cell(short(r.a6))}${r.n > 1 ? ` 等 ${r.n} 個` : ''} | ${cell(short(r.app))} | ${cell(r.detail)} |` +
+            (b === '已記錄偏離'
+              ? ` ${cell(`${r.dev.reason}（${r.dev.source}）`)} |`
+              : b === '工具限制'
+                ? ` ${cell(r.limit)} |`
+                : ''),
+        );
+      L.push('');
+    }
   }
   return L.join('\n');
 }

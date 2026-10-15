@@ -5,10 +5,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { A6_DIR, APP_URL, OUT, PAGES, SHELL_POPOVERS, STATE, WIDTHS } from './lib/config.mjs';
+import {
+  A6_DIR,
+  APP_URL,
+  DEVIATIONS,
+  OUT,
+  PAGES,
+  SHELL_POPOVERS,
+  STATE,
+  WIDTHS,
+} from './lib/config.mjs';
 import { capture } from './lib/capture.mjs';
 import { inventoryMarkdown } from './lib/report.mjs';
-import { diffParts, diffMarkdown } from './lib/diff.mjs';
+import { classify, diffParts, diffMarkdown } from './lib/diff.mjs';
 
 const [cmd, ...args] = process.argv.slice(2);
 const pages = args.length ? args : Object.keys(PAGES);
@@ -87,8 +96,9 @@ try {
             for (const r of diffParts({ parts: pa }, { parts: pb }, { [pa[0].key]: pb[0].key }))
               rows.push({ ...r, pop: ia });
         }
-        fs.writeFileSync(path.join(dir, `diff-${w.tag}.json`), JSON.stringify(rows, null, 1));
-        sections.push({ width: w.width, rows, a6, app });
+        const out = classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])]);
+        fs.writeFileSync(path.join(dir, `diff-${w.tag}.json`), JSON.stringify(out, null, 1));
+        sections.push({ width: w.width, rows: out, a6, app });
       }
       fs.writeFileSync(path.join(dir, 'diff.md'), diffMarkdown(page, PAGES[page], sections));
       console.log(`${page} → ${dir}/diff.md`);

@@ -17,6 +17,21 @@ export const WIDTHS = [
   { tag: 'm', width: 360 },
 ];
 
+/**
+ * 刻意偏離 A6 的地方（#1314 gate 10-15：每條要 key／條件＋理由＋出處，不能用「近似」帶過）。
+ * 命中的差異列歸「已記錄偏離」，不算待修。欄位是 regex 字串：status（差異類別，必填）、
+ * detail（差異文字）、a6／app（part key）、kind（part 種類）。頁面專屬的放 PAGES[頁].deviations。
+ */
+export const DEVIATIONS = [
+  {
+    status: '尺寸',
+    kind: 'control',
+    detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
+    reason: '可點元素基底高 ≥44px（觸控下限）；稿較矮的高度不照抄',
+    source: 'kb/wiki/architecture/constitution-enforcement.md:101（A27）',
+  },
+];
+
 /** 殼層的彈出物：A6 popover id → app popover id（每頁都有）。 */
 export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
 
