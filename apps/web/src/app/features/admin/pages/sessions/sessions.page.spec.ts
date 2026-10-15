@@ -1896,7 +1896,7 @@ describe('SessionsPage', () => {
       ) as HTMLElement;
       expect(desktop.textContent?.trim()).toBe('快速選取');
       expect(desktop.querySelector('i')).toBeNull();
-      expect(desktop.classList.contains('border-zinc-300')).toBe(true); // A6：淺框，不是近黑
+      expect(desktop.classList.contains('border-zinc-300')).toBe(true); // A6 桌機淺框
       expect(desktop.classList.contains('bg-transparent')).toBe(true);
       (component as unknown as { picking: { set: (v: boolean) => void } }).picking.set(true);
       fixture.detectChanges();
@@ -1910,6 +1910,7 @@ describe('SessionsPage', () => {
       ) as HTMLElement;
       expect(mobile.classList.contains('flex-1')).toBe(false);
       expect(mobile.classList.contains('bg-white')).toBe(true);
+      expect(mobile.classList.contains('border-zinc-900')).toBe(true); // A6 手機是近黑框（桌機是淺框）
       expect(mobile.classList.contains('h-11')).toBe(true);
       expect(mobile.querySelector('i')).toBeNull();
       expect(mobile.parentElement!.classList.contains('justify-end')).toBe(true);

@@ -44,8 +44,9 @@ export class PageOpenComponent {
 
   protected readonly wrapClass = computed(
     () =>
-      'page-wrap relative py-6 ' +
-      (this.compact() ? 'wide:pt-8 wide:pb-6' : 'wide:pt-12 wide:pb-10'),
+      'page-wrap relative ' +
+      (this.compact() ? '' : 'py-6 ') +
+      (this.compact() ? 'pt-8 pb-6' : 'wide:pt-12 wide:pb-10'),
   );
 
   protected readonly subClass = computed(() =>

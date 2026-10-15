@@ -57,7 +57,7 @@ describe('PageOpenComponent 標題字級', () => {
     const wrap = (f: { nativeElement: HTMLElement }) =>
       f.nativeElement.querySelector('section > div.page-wrap') as HTMLElement;
 
-    it('預設關：48／28、內距上 48／下 40；開了：40／26、上 32／下 24', () => {
+    it('預設關：48／28、內距上 48／下 40；開了：40／26、上 32／下 24（手機也是）', () => {
       const f = TestBed.createComponent(Host);
       f.detectChanges();
       expect(h1(f).classList.contains('wide:text-[48px]')).toBe(true);
@@ -70,8 +70,8 @@ describe('PageOpenComponent 標題字級', () => {
       expect(h1(f).classList.contains('wide:text-[40px]')).toBe(true);
       expect(h1(f).classList.contains('text-[26px]')).toBe(true);
       expect(h1(f).classList.contains('wide:text-[48px]')).toBe(false);
-      expect(wrap(f).classList.contains('wide:pt-8')).toBe(true);
-      expect(wrap(f).classList.contains('wide:pb-6')).toBe(true);
+      expect(wrap(f).classList.contains('pt-8')).toBe(true); // A6 schedule.css:10 沒有媒體查詢，手機也是 32／24
+      expect(wrap(f).classList.contains('pb-6')).toBe(true);
       expect(wrap(f).classList.contains('wide:pt-12')).toBe(false);
     });
 

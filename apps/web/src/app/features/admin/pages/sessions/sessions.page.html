@@ -81,7 +81,7 @@
       <!-- 快速選取（#1174 G3）：桌機開關工具列下的「一次勾：」那一列；手機打開底部面板 -->
       <button
         type="button"
-        class="hidden cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex wide:h-[30px] wide:px-3 wide:text-sm"
+        class="hidden cursor-pointer items-center justify-center rounded-md gap-1.5 border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex wide:h-[30px] wide:px-3 wide:text-sm"
         [attr.aria-pressed]="picking()"
         (click)="picking.set(!picking())"
       >
@@ -89,7 +89,7 @@
       </button>
       <button
         type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-base leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-900 bg-white px-4 text-base leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
         aria-haspopup="dialog"
         (click)="sheetOpen.set(true)"
       >
