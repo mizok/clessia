@@ -1109,6 +1109,70 @@ describe('DashboardComponent（管理端）', () => {
       expect(component['todayLeaves']()).not.toBeNull();
     });
 
+    describe('跨校帳單一行（階段②）', () => {
+      const note = () => q('cross-campus-note');
+      /** 選分校＋讓 summary 回 `crossCampusOverdue` */
+      async function open(cross: { count: number } | undefined, selected = true) {
+        await setup({ permissions: FIN, overdue: { count: 2, amount: 900 } });
+        summaryMock.mockReturnValue(
+          of({
+            overdue: { count: 2, outstanding: 900 },
+            ...(cross ? { crossCampusOverdue: cross } : {}),
+          }),
+        );
+        campusCtx().select(selected ? 'campus-1' : null);
+        // 選「全部」時 id 沒變（null→null）不會重查，直接用 refresh 觸發同一支查詢
+        if (!selected) {
+          campusCtx().select('campus-1');
+          fixture.detectChanges();
+          campusCtx().select(null);
+        }
+        fixture.detectChanges();
+      }
+
+      for (const [count, text] of [
+        [0, null],
+        [1, '另有1張跨校帳單不在此分校統計內'],
+        [2, '另有2張跨校帳單不在此分校統計內'],
+      ] as const) {
+        it(`N = ${count}：${text ? '印出張數' : '不印'}`, async () => {
+          await open({ count });
+          expect(note()?.textContent?.replace(/\s+/g, '') ?? null).toBe(text);
+        });
+      }
+
+      it('API 沒給欄位（尚未部署）不畫，不是畫 0', async () => {
+        await open(undefined);
+        expect(note()).toBeNull();
+      });
+
+      it('頂欄是「全部分校」：就算 API 回了 3 也不畫（沒有「不在此分校」）', async () => {
+        await open({ count: 3 }, false);
+        expect(note()).toBeNull();
+      });
+
+      it('換分校先清掉（不拿 A 校的 N 配 B 校）；摘要讀取失敗也不畫', async () => {
+        await open({ count: 2 });
+        expect(note()).not.toBeNull();
+        summaryMock.mockReturnValueOnce(NEVER);
+        campusCtx().select('campus-2');
+        fixture.detectChanges();
+        expect(note()).toBeNull();
+
+        summaryMock.mockReturnValueOnce(throwError(() => new Error('boom')));
+        campusCtx().select('campus-3');
+        fixture.detectChanges();
+        expect(note()).toBeNull();
+      });
+
+      it('沒有 manage_finance 的人看不到財務卡，也看不到這一行', async () => {
+        await setup({ permissions: ['view_reports'] });
+        campusCtx().select('campus-1');
+        fixture.detectChanges();
+        expect(note()).toBeNull();
+      });
+    });
+
     it('頂欄選了分校：作業台小字直接寫那間的名字，不從今天的資料推', async () => {
       await setup({ permissions: FIN });
       TestBed.inject(ReferenceDataService).campuses.set([

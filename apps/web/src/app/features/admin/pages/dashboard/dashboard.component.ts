@@ -517,6 +517,16 @@ export class DashboardComponent {
     { count: number; amount: number } | typeof FAILED | null
   >(null);
   protected readonly overdueList = signal<readonly Invoice[]>([]);
+  /** API 回的「跨校逾期帳單」張數；`null`＝還不知道／API 沒給／讀取失敗（都不畫那一行） */
+  private readonly crossCampusOverdue = signal<number | null>(null);
+  /**
+   * 財務卡下方「另有 N 張跨校帳單不在此分校統計內」的 N；**不該畫時是 `null`**：
+   * 頂欄沒選分校（全部分校就是全部，沒有「不在此分校」）、欄位缺、N = 0。
+   */
+  protected readonly crossCampusNote = computed(() => {
+    const count = this.crossCampusOverdue();
+    return this.campusCtx.id() !== null && count !== null && count > 0 ? count : null;
+  });
   protected readonly canSeeOverdue = computed(() => this.auth.hasPermission('manage_finance'));
   protected readonly overdueRoute = RoutesCatalog.ADMIN_PAYMENTS.absolutePath;
   protected readonly studentRoute = RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath;
@@ -735,12 +745,22 @@ export class DashboardComponent {
 
       // 逾期帳單（D6）：張數與金額由伺服器加總，列表只取前幾筆
       this.bind(
-        () => this.overdueSummary.set(null),
+        () => {
+          this.overdueSummary.set(null);
+          this.crossCampusOverdue.set(null);
+        },
         (campusId) => this.invoicesService.summary({ campusId }),
-        (res) =>
+        (res) => {
           this.overdueSummary.set(
             res === FAILED ? FAILED : { count: res.overdue.count, amount: res.overdue.outstanding },
-          ),
+          );
+          // 失敗清成 null。⚠️ 目前**沒有路徑能在不換分校的情況下重打 summary**（這條 bind 沒有 refresh，
+          // 換分校又會先 reset），所以「失敗不動值」的突變在現況等價；給摘要加重新整理／輪詢時，
+          // 要補「同分校 N>0 → 失敗 → 那一行消失」的 spec（#1585 二讀）
+          this.crossCampusOverdue.set(
+            res === FAILED ? null : (res.crossCampusOverdue?.count ?? null),
+          );
+        },
       );
       this.bind(
         () => this.overdueList.set([]),
