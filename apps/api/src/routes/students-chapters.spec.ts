@@ -42,15 +42,39 @@ function seed(extraStudents: Array<Record<string, unknown>> = []) {
   });
 }
 
+type SelectableBuilder = {
+  select: (cols?: string, opts?: { count?: string; head?: boolean }) => unknown;
+};
+
 function appWith(
   campusScope: string[] | null = null,
   extraStudents: Array<Record<string, unknown>> = [],
+  /** 記下每次 `from('students')` 的 select 字串，用來數查詢支數 */
+  studentSelects?: string[],
 ) {
   const db = seed(extraStudents);
+  const client = studentSelects
+    ? new Proxy(db.client as { from: (table: string) => SelectableBuilder }, {
+        get: (target, key, receiver) =>
+          key === 'from'
+            ? (table: string) => {
+                const builder = target.from(table);
+                if (table !== 'students') return builder;
+                const select = builder.select.bind(builder);
+                return Object.assign(builder, {
+                  select: (cols?: string, opts?: { count?: string; head?: boolean }) => {
+                    studentSelects.push(cols ?? '*');
+                    return select(cols, opts);
+                  },
+                });
+              }
+            : Reflect.get(target, key, receiver),
+      })
+    : db.client;
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    set('supabase', client);
     set('orgId', ORG);
     set('userId', 'u1');
     set('roles', ['admin']);
@@ -75,6 +99,15 @@ async function list(query: string, campusScope: string[] | null = null) {
 }
 
 describe('GET /students —— 年級章節計數（#1314 SL3）', () => {
+  // #1595 P3b-B：12 個年級一支 GROUP BY 數完，不是每級一支 head count（14 支會排成 3 波）
+  it('年級計數只用一支聚合查詢', async () => {
+    const selects: string[] = [];
+    const res = await appWith(null, [], selects).request('/?withToday=false');
+    expect(res.status).toBe(200);
+    expect(selects.filter((cols) => /count\(\)/.test(cols))).toHaveLength(1);
+    expect(selects).toHaveLength(3); // 列表、在籍數、年級計數
+  });
+
   it('每個年級都回（高年級在前 S3→P1，同列表），只數本 org', async () => {
     const { counts, byGrade } = await list('');
 
