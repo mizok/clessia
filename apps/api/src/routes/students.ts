@@ -519,8 +519,8 @@ app.openapi(
     // ── 今日到班（#1314 SL1）──────────────────────────────────
     // 判準在 `lib/today-attendance.ts`，跟作業台同一份。只在帶 `today`、或第一頁（且沒說
     // `withToday=false`）時算 —— 多 4～5 支查詢，翻頁不必重算（計畫席 10-10 裁）。
-    let todayStatuses: Map<string, TodayStatus> | null = null;
-    if (todayFilter !== undefined || (page === 1 && withToday !== 'false')) {
+    type TodayResult = { statuses: Map<string, TodayStatus> | null } | { response: Response };
+    const loadToday = async (): Promise<TodayResult> => {
       const date = getCurrentTaipeiDateString();
       // 模式解析同作業台：單一分校用分校設定、多校用機構預設（同一個 ponytail 上限）
       const singleCampus = campusId ?? (campusIds?.length === 1 ? campusIds[0] : null);
@@ -534,7 +534,9 @@ app.openapi(
         if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', [...campusIds]);
         const { data: sessionRows, error: sessionsError } = await sessionsQuery;
         if (sessionsError) {
-          return c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500);
+          return {
+            response: c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500),
+          };
         }
         const daily = await loadDailyAttendance(
           supabase,
@@ -542,20 +544,38 @@ app.openapi(
           date,
           ((sessionRows ?? []) as unknown as Array<Record<string, unknown>>).map(toTodaySession),
         );
-        todayStatuses = classifyToday(daily, date);
+        const todayStatuses = classifyToday(daily, date);
         // 老師只數得到自己的學生
         if (taughtStudentIds !== null) {
           const taught = new Set(taughtStudentIds);
           for (const id of todayStatuses.keys()) if (!taught.has(id)) todayStatuses.delete(id);
         }
+        return { statuses: todayStatuses };
       } else if (todayFilter !== undefined) {
         // ponytail: 逐堂點名的「到了沒」是每堂出勤紀錄，v1 不支援（計畫席 10-10 記可否決）——
         // 明講不支援，不默默回空（默默回空會看起來像「今天沒人」）
-        return c.json(
-          { error: '逐堂點名模式不支援今日到班篩選', code: 'TODAY_UNSUPPORTED_MODE' },
-          400,
-        );
+        return {
+          response: c.json(
+            { error: '逐堂點名模式不支援今日到班篩選', code: 'TODAY_UNSUPPORTED_MODE' },
+            400,
+          ),
+        };
       }
+      return { statuses: null };
+    };
+    // 帶 `today` 篩選時列表要用它的結果，只能先算；沒帶時（開頁預設）跟下面的列表同時跑，
+    // 不再排在列表前面多等 3–4 個往返（#1595 P3b-A）
+    const todayPromise: Promise<TodayResult> =
+      todayFilter !== undefined || (page === 1 && withToday !== 'false')
+        ? loadToday()
+        : Promise.resolve({ statuses: null });
+    // 列表先失敗、提早 return 時，這支的結果沒人等 —— 別讓它變成 unhandled rejection
+    todayPromise.catch(() => undefined);
+    let todayStatuses: Map<string, TodayStatus> | null = null;
+    if (todayFilter !== undefined) {
+      const today = await todayPromise;
+      if ('response' in today) return today.response;
+      todayStatuses = today.statuses;
     }
     const todayIds =
       todayFilter !== undefined && todayStatuses
@@ -608,6 +628,11 @@ app.openapi(
 
     if (error) {
       return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
+    }
+    if (todayFilter === undefined) {
+      const today = await todayPromise;
+      if ('response' in today) return today.response;
+      todayStatuses = today.statuses;
     }
     // 數不出來就不回 0
     if (gradeCounts.error) {

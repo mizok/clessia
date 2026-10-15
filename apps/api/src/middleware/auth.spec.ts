@@ -505,3 +505,43 @@ describe('authMiddleware 的身分快取：撤銷最遲 30 秒生效', () => {
     expect((await app.request('/admin-only')).status).toBe(200);
   });
 });
+
+/**
+ * #1595 P2a：`/api/me` 的顯示名稱與生日改讀 middleware 帶出來的 `selfRows`，不再自己查。
+ * 所以 staff／parents 的 select 要真的選到那幾欄 —— 選漏了，名稱會靜靜退回 ba_user.name。
+ */
+describe('authMiddleware 的 selfRows（#1595 P2a）', () => {
+  afterEach(() => {
+    getSession.mockReset();
+    fromMock.mockReset();
+  });
+
+  it('staff／parents 的 select 帶上顯示欄位，並原樣放進 selfRows', async () => {
+    const selects: Record<string, string> = {};
+    const rows: Record<string, unknown[]> = {
+      user_roles: [{ role: 'admin', permissions: [] }],
+      staff: [{ status: 'active', display_name: '王主任', birthday: '1990-01-02', staff_campuses: [] }],
+      parents: [{ status: 'active', name: '王媽媽', parent_student_relations: [] }],
+    };
+    getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+    fromMock.mockImplementation((table: string) => ({
+      select: (cols: string) => {
+        selects[table] = cols;
+        return { eq: () => Promise.resolve({ data: rows[table] ?? [], error: null }) };
+      },
+    }));
+
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.get('/', (c) => c.json(c.get('selfRows')));
+    const body = await (await app.request('/')).json();
+
+    expect(selects['staff']).toMatch(/\bdisplay_name\b/);
+    expect(selects['staff']).toMatch(/\bbirthday\b/);
+    expect(selects['parents']).toMatch(/\bname\b/);
+    expect(body).toMatchObject({
+      staff: { display_name: '王主任', birthday: '1990-01-02' },
+      parent: { name: '王媽媽' },
+    });
+  });
+});

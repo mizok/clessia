@@ -64,15 +64,13 @@ app.openapi(
     const userId = c.get('userId');
     const orgId = c.get('orgId');
 
-    const [profileResult, rolesResult, staffResult, parentResult, baUserResult] = await Promise.all(
-      [
-        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
-        supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
-        supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
-        supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
-      ],
-    );
+    // 角色、權限、staff／parents 列都是 auth middleware 已經查好的（#1595 P2a）——
+    // 這裡原本各查一次，user_roles 那支跟 middleware 完全重複
+    const { staff, parent } = c.get('selfRows');
+    const [profileResult, baUserResult] = await Promise.all([
+      supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+      supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
+    ]);
 
     return c.json(
       {
@@ -81,17 +79,15 @@ app.openapi(
         // profiles 不是可靠的來源 —— 見 lib/display-name.ts
         displayName: resolveDisplayName({
           profile: profileResult.data,
-          staff: staffResult.data,
-          parent: parentResult.data,
+          staff,
+          parent,
           baUser: baUserResult.data,
         }),
         email: (baUserResult.data?.email as string | null) ?? null,
         phone: (baUserResult.data?.phone as string | null) ?? null,
-        birthday: (staffResult.data?.birthday as string | null) ?? null,
-        roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
-        permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
-          Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
-        ),
+        birthday: staff?.birthday ?? null,
+        roles: c.get('roles'),
+        permissions: c.get('permissions'),
       },
       200,
     );
