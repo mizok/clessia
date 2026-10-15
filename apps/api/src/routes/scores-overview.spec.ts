@@ -44,12 +44,12 @@ const score = (examId: string, studentId: string, value: string | null, status =
   status,
   students: { name: `學生 ${studentId}`, grade: 'J3' },
 });
-const enr = (classId: string, studentId: string) => ({
+const enr = (classId: string, studentId: string, status = 'active') => ({
   id: `e-${classId}-${studentId}`,
   org_id: ORG,
   class_id: classId,
   student_id: studentId,
-  status: 'active',
+  status,
   effective_from: '2000-01-01',
   effective_to: null,
 });
@@ -87,11 +87,19 @@ const TABLES = {
     enr('c1', 's4'),
     enr('c2', 's5'),
     enr('c2', 's6'),
+    enr('c1', 's10', 'void'), // 作廢的報名：不進分母（pending 的還差人數仍是 4）
   ],
 };
 
-async function overview(query = '', opts: { roles?: string[]; scope?: string[] | null } = {}) {
-  const db = createMultiOrgDb(TABLES);
+async function overview(
+  query = '',
+  opts: {
+    roles?: string[];
+    scope?: string[] | null;
+    tables?: Record<string, Array<Record<string, unknown>>>;
+  } = {},
+) {
+  const db = createMultiOrgDb(opts.tables ?? TABLES);
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -211,5 +219,27 @@ describe('GET /api/scores/overview（#1314 G5）', () => {
   it('days 超出 1–365 → 400', async () => {
     expect((await overview('?days=0')).status).toBe(400);
     expect((await overview('?days=366')).status).toBe(400);
+  });
+
+  // 總分 0 到得了（DB 沒有 > 0 約束、API 收 0）：算不出得分率的那場不進跨場平均與排序
+  it('總分 0 的考試：不進摘要平均、不進班排名；不及格排序排最後；其餘照常', async () => {
+    const tables = {
+      academy_exams: [
+        exam('ok', '2027-03-01', [C2]),
+        exam('zero', '2027-03-10', [C1], { total_score: 0 }),
+      ],
+      academy_scores: [score('ok', 's5', '50'), score('zero', 's1', '0')],
+      enrollments: [enr('c1', 's1'), enr('c2', 's5')],
+    };
+    const { body } = await overview('', { tables });
+    expect(body.exams.avgScore).toBe(50);
+    expect(body.lowestClasses.map((r: any) => r.classId)).toEqual(['c2']);
+    expect(body.totalClasses).toBe(2);
+    // s1 那場算不出得分率，排在 s5（50%）之後
+    expect(body.failingStudents.map((r: any) => r.studentId)).toEqual(['s5', 's1']);
+    expect(body.recentExams.find((e: any) => e.examId === 'zero')).toMatchObject({
+      totalScore: 0,
+      avgScore: 0,
+    });
   });
 });

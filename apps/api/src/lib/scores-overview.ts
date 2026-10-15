@@ -1,5 +1,6 @@
 import { buildAcademyExamExpectedCounts, classifyAcademyExamTodo } from './academy-exam-roster';
 import { buildLatestExams } from './class-latest-exam';
+import { scorePercent } from './score-percent';
 import { isFailingScore } from './score-threshold';
 
 /**
@@ -38,7 +39,9 @@ export interface OverviewEnrollment {
   effective_to: string | null;
 }
 
-const pct = (score: number, total: number) => (score / total) * 100;
+/** 得分率升冪；算不出得分率的排最後 */
+const byPct = (a: number | null, b: number | null) =>
+  a === null ? (b === null ? 0 : 1) : b === null ? -1 : a - b;
 const byDateDesc = (a: OverviewExam, b: OverviewExam) =>
   a.examDate === b.examDate ? (a.id < b.id ? 1 : -1) : a.examDate < b.examDate ? 1 : -1;
 
@@ -68,7 +71,10 @@ export function buildScoresOverview(input: {
   const pendingCount = exams.filter(
     (e) => classifyAcademyExamTodo(recorded.get(e.id) ?? 0, expected.get(e.id) ?? 0) !== null,
   ).length;
-  const pcts = scored.map((s) => pct(s.score as number, examById.get(s.examId)!.totalScore));
+  const pcts = scored.flatMap((s) => {
+    const p = scorePercent(s.score as number, examById.get(s.examId)!.totalScore);
+    return p === null ? [] : [p];
+  });
   const avgScore = pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null;
 
   // ── 每生最近一場有分數的考試 → 不及格者 ──
@@ -108,7 +114,9 @@ export function buildScoresOverview(input: {
         totalScore: exam.totalScore,
       };
     })
-    .sort((a, b) => pct(a.score, a.totalScore) - pct(b.score, b.totalScore));
+    .sort((a, b) =>
+      byPct(scorePercent(a.score, a.totalScore), scorePercent(b.score, b.totalScore)),
+    );
 
   // ── 每班最近一場（同 G6 判準）──
   const classNames = new Map(exams.flatMap((e) => e.classes.map((c) => [c.classId, c.className])));
@@ -141,11 +149,15 @@ export function buildScoresOverview(input: {
     return latest ? [{ classId, latest }] : [];
   });
   const lowestClasses = classRows
-    .filter((r) => r.latest.avgScore !== null)
+    // 總分 ≤ 0 的那場算不出得分率，不進排名
+    .filter(
+      (r) =>
+        r.latest.avgScore !== null && scorePercent(r.latest.avgScore, r.latest.totalScore) !== null,
+    )
     .sort(
       (a, b) =>
-        pct(a.latest.avgScore as number, a.latest.totalScore) -
-        pct(b.latest.avgScore as number, b.latest.totalScore),
+        (scorePercent(a.latest.avgScore as number, a.latest.totalScore) as number) -
+        (scorePercent(b.latest.avgScore as number, b.latest.totalScore) as number),
     )
     .slice(0, 3)
     .map(({ classId, latest }) => ({
