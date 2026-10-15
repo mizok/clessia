@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Bindings } from '../index';
 import { type LatencyProbe } from './supabase-latency-probe';
+import { retryOnFutureIat } from './retry-future-iat';
 
 export function createSupabaseClient(
   url: string,
@@ -37,6 +38,8 @@ export function createServiceClientFromEnv(env: Bindings, probe?: LatencyProbe):
       autoRefreshToken: false,
       persistSession: false,
     },
-    ...(probe ? { global: { fetch: probe.fetch } } : {}),
+    // 偶發的 `JWT issued at future` 讀取重試一次（#1612，減輕不是根治）。probe 在內層：
+    // 重試的那一次也會被計時、算進支數
+    global: { fetch: retryOnFutureIat(probe?.fetch ?? ((input, init) => fetch(input, init))) },
   });
 }
