@@ -146,6 +146,8 @@ export const LIMITS = {
   scope: '結構範圍不同：兩邊這個容器包住的東西不同，它自己的位置／尺寸不可比',
   pseudo: '偽元素：沒有底色／框線的那一側帶 ::before／::after，可能畫在那裡，工具不量',
   count: '同型段落數不同：父層配上了、對面有同型的沒配上，要人工對',
+  sparse:
+    '稿這裡是一份清單的列，app 這邊只有 1 個（或 0 個）容器：資料太少，工具無法確認是不是同一份清單',
   variant: '列內有多種樣式（例如上課中的課塊）：工具只比最常見那種，其他變體人工看',
 };
 
@@ -191,7 +193,8 @@ export function classify(rows, deviations = [], width, site = []) {
     for (const x of hitHere) siteHits.set(x, (siteHits.get(x) ?? 0) + 1);
     return keep.length ? [{ ...r, detail: keep.join('；') }] : [];
   });
-  const out = stripped.flatMap((r) => {
+  const out = stripped.flatMap((r0) => {
+    let r = r0;
     if (r.status === '資料差') return [{ ...r, bucket: '資料差' }];
     if (r.limit) return [{ ...r, bucket: '工具限制' }];
     const side = r.a6 ? 'a6' : 'app';
@@ -203,7 +206,28 @@ export function classify(rows, deviations = [], width, site = []) {
       [side]: q.key,
       detail: `「${q.tpl}」（在${r.status === '缺' ? '缺少' : '多出'}的區塊裡）`,
     });
-    const d = deviations.find((x) => hit(r, x));
+    // 單項偏離（硬性規則 A28 的對比色）：從樣式列拆出那一項，其他項照常歸欄
+    if (r.status === '樣式') {
+      const items = r.detail.split('；');
+      const split = [];
+      const rest = items.filter((it) => {
+        const dd = deviations.find(
+          (x) =>
+            x.item &&
+            new RegExp(x.item).test(it) &&
+            hit({ ...r, detail: it }, { ...x, item: undefined }),
+        );
+        if (dd) split.push({ ...r, detail: it, bucket: '已記錄偏離', dev: dd });
+        return !dd;
+      });
+      if (split.length) {
+        if (!rest.length) return split;
+        r = { ...r, detail: rest.join('；') };
+        const d2 = deviations.find((x) => !x.item && hit(r, x));
+        return [d2 ? { ...r, bucket: '已記錄偏離', dev: d2 } : { ...r, bucket: '待修' }, ...split];
+      }
+    }
+    const d = deviations.find((x) => !x.item && hit(r, x));
     // 包裝層本身是偏離（R7 的 role=search）：裡面真正多出／缺少的東西各自拆列、各自歸欄，不被包裝層一起帶走
     if (d) {
       // 只拆容器裡最上層的東西（按鈕裡的文字 span 跟著按鈕，不另列）
@@ -394,7 +418,14 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
         inner: list
           .filter((q) => q.key.startsWith(p.key + '>') && isFree(q))
           .map((q) => ({ key: q.key, kind: q.kind, tpl: q.tpl, host: q.host })),
-        limit: !rep && sameTypeUnpaired(p, side) ? LIMITS.count : undefined,
+        limit:
+          !rep && sameTypeUnpaired(p, side)
+            ? LIMITS.count
+            : side === 'a6' &&
+                p.kind === 'row' &&
+                !B.some((q) => q.kind === 'row' && q.parent === pairs.get(p.parent))
+              ? LIMITS.sparse
+              : undefined,
         a6: side === 'a6' ? p.key : null,
         app: side === 'app' ? p.key : null,
         detail:
@@ -436,14 +467,20 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
       rb = ra ? mB.get(pairs.get(ra.key)) : null;
     const [ax, ay, aw, ah] = a.box,
       [bx, by, bw, bh] = b.box;
-    const dx = bx - (rb?.box[0] ?? 0) - (ax - (ra?.box[0] ?? 0)); // app − A6
+    let dx = bx - (rb?.box[0] ?? 0) - (ax - (ra?.box[0] ?? 0)); // app − A6
     let dy = by - (rb?.box[1] ?? 0) - (ay - (ra?.box[1] ?? 0));
     // 沒有參考祖先（彈出物根）且知道兩邊視窗高：手機的底部抽屜貼視窗底，兩邊撐開的視窗高不同，
     // 量「距視窗底」才可比。兩種量法取差小的
     let anchor = '頁面';
+    // 兩邊都在列裡：直接比「相對所在列」的位置
+    if (a.rowRel && b.rowRel) {
+      dx = b.rowRel[0] - a.rowRel[0];
+      dy = b.rowRel[1] - a.rowRel[1];
+      anchor = '所在列';
+    }
     // 沒有可用的參考容器、但不是根（例：main 被排除後的章節）：改量跟「上方最近一個已配對 part」的間距，
     // 不然頂端色面的高度差會灌進每一條位置差
-    if (!ra && a.parent) {
+    if (anchor === '頁面' && !ra && a.parent) {
       const rel = (k) => k === ak || ak.startsWith(k + '>') || k.startsWith(ak + '>');
       let best = null;
       for (const [k2, k2b] of pairs) {
@@ -457,7 +494,7 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
         anchor = `上方「${xa.tpl || xa.role}」`;
       }
     }
-    if (!ra && !a.parent && a6Cap.height && appCap.height) {
+    if (anchor === '頁面' && !ra && !a.parent && a6Cap.height && appCap.height) {
       const fromBottom = appCap.height - (by + bh) - (a6Cap.height - (ay + ah));
       if (Math.abs(fromBottom) < Math.abs(dy)) ((dy = -fromBottom), (anchor = '視窗底'));
     }
@@ -543,7 +580,7 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
         posOk(0, dx, tol) && (dataAbove(a, ra, dataA, mA) || dataAbove(b, rb, dataB, mB));
       push(
         data ? '資料差' : '位置',
-        `相對${ra ? `「${ra.tpl || ra.role}」` : anchor} Δx ${sgn(dx)}、Δy ${sgn(dy)}（app − A6）${data ? '；上方內容隨資料' : ''}`,
+        `相對${anchor === '所在列' ? anchor : ra ? `「${ra.tpl || ra.role}」` : anchor} Δx ${sgn(dx)}、Δy ${sgn(dy)}（app − A6）${data ? '；上方內容隨資料' : ''}`,
         scope,
         data ? undefined : because,
       );

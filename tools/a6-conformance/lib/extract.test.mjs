@@ -38,3 +38,40 @@ test('完整文字含子元素（「已收 NT$ 174,100」的數字在 strong 裡
   assert.equal(sp.text, '已收');
   assert.equal(sp.full, '已收 NT$ 174,100');
 });
+
+test('稿在這個父層有列時，app 只有 2 列也認成列（資料少的日子）；只有 1 個不認', async () => {
+  const page = await browser.newPage();
+  const two =
+    '<main><div class="bar"><button>日</button></div><div class="r"><span>老師</span><b>15:00</b></div><div class="r"><span>李</span><button>課</button></div></main>';
+  await page.setContent(two);
+  const plain = await page.evaluate(extractSource({}));
+  const hinted = await page.evaluate(extractSource({ rowParents: ['>landmark:main[]'] }));
+  assert.ok(!plain.some((p) => p.kind === 'row'));
+  const rows = hinted.filter((p) => p.key === '>landmark:main[]>row');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].inRows, 2); // 兩列，工具列（不同簽名、只有一個）不算
+  // 只有一個容器：提示也不認（不知道是哪一個）
+  await page.setContent(
+    '<main><div class="bar"><button>日</button></div><div class="r"><span>李</span><button>課</button></div></main>',
+  );
+  const one = await page.evaluate(extractSource({ rowParents: ['>landmark:main[]'] }));
+  await page.close();
+  assert.ok(!one.some((p) => p.kind === 'row'));
+});
+
+test('列內 part 記「相對所在列」的位置（代表取自不同列也能比）', async () => {
+  const ps = await parts(
+    '<main>' +
+      [0, 1, 2]
+        .map(
+          (i) =>
+            `<div class="r" style="height:60px"><span>老師${i}</span><button style="margin-left:${i === 0 ? 0 : 100}px">課</button></div>`,
+        )
+        .join('') +
+      '</main>',
+  );
+  const btn = ps.find((p) => p.key.endsWith('>row>control:button'));
+  // 三列裡兩列的按鈕往右 100 —— 但樣式一樣，代表取第一個出現的；相對所在列的 y 都是同一個值
+  assert.ok(Array.isArray(btn.rowRel));
+  assert.ok(btn.rowRel[1] >= 0 && btn.rowRel[1] < 60);
+});

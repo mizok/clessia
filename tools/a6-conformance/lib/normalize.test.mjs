@@ -1069,3 +1069,72 @@ test('列尾「⋯」的兩種寫法都認成 R2', async () => {
     ['已記錄偏離', '已記錄偏離', '待修'],
   );
 });
+
+test('硬性規則：出處自動查條號行號；對比色只拆那一項', async () => {
+  const { classify } = await import('./diff.mjs');
+  const { DEVIATIONS, hardRule } = await import('./config.mjs');
+  assert.match(
+    hardRule('A28'),
+    /^kb\/wiki\/architecture\/constitution-enforcement\.md:\d+（A28）$/,
+  );
+  assert.throws(() => hardRule('A99'));
+  const row = {
+    status: '樣式',
+    kind: 'text',
+    a6: '>x',
+    app: '>x',
+    detail: 'color rgb(120, 111, 105) → rgb(87, 80, 75)；padding 8px → 0px',
+  };
+  const out = classify([row], DEVIATIONS, 1440);
+  assert.deepEqual(
+    out.map((r) => [r.bucket, r.detail]),
+    [
+      ['待修', 'padding 8px → 0px'],
+      ['已記錄偏離', 'color rgb(120, 111, 105) → rgb(87, 80, 75)'],
+    ],
+  );
+  assert.match(out[1].dev.source, /（A28）/);
+});
+
+test('兩邊都在列裡：位置用相對所在列比；稿的列在 app 只剩 1 個容器時歸工具限制', async () => {
+  const { diffParts } = await import('./diff.mjs');
+  const st = { display: 'block', padding: '0px' };
+  const p = (key, kind, box, extra = {}) => ({
+    key,
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind,
+    role: kind,
+    tpl: '',
+    text: '',
+    box,
+    style: st,
+    inRows: kind === 'row' ? 3 : 0,
+    ...extra,
+  });
+  const A = [
+    p('>landmark:main[]', 'landmark', [0, 0, 1000, 900]),
+    p('>landmark:main[]>row', 'row', [0, 100, 1000, 70]),
+    p('>landmark:main[]>row>control:button', 'control', [150, 106, 300, 60], {
+      inRows: 3,
+      rowRel: [150, 6],
+    }),
+  ];
+  // app 的代表列是第一列（軸列，y 400），按鈕的代表是第二列裡的（y 506）—— 相對所在列都是 (150, 6)
+  const B = [
+    p('>landmark:main[]', 'landmark', [0, 0, 1000, 900]),
+    p('>landmark:main[]>row', 'row', [0, 400, 1000, 70]),
+    p('>landmark:main[]>row>control:button', 'control', [150, 506, 300, 60], {
+      inRows: 2,
+      rowRel: [150, 6],
+    }),
+  ];
+  assert.equal(
+    diffParts({ parts: A }, { parts: B }).filter(
+      (r) => r.status === '位置' && r.a6.endsWith('button'),
+    ).length,
+    0,
+  );
+  // 稿有列、app 那個父層底下沒有列
+  const out = diffParts({ parts: A }, { parts: [B[0]] });
+  assert.match(out.find((r) => r.status === '缺' && r.a6.endsWith('>row')).limit, /資料太少/);
+});

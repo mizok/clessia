@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -22,6 +23,18 @@ export const WIDTHS = [
  * 命中的差異列歸「已記錄偏離」，不算待修。欄位是 regex 字串：status（差異類別，必填）、
  * detail（差異文字）、a6／app（part key）、kind（part 種類）。頁面專屬的放 PAGES[頁].deviations。
  */
+/**
+ * 硬性規則（constitution-enforcement.md 的 A 條）當偏離出處：條號手寫、行號執行時查，不會漂。
+ * 查不到那一條就直接報錯（條文被改名或刪掉時，偏離也該重審）。
+ */
+const ENFORCEMENT = 'kb/wiki/architecture/constitution-enforcement.md';
+export function hardRule(id) {
+  const lines = fs.readFileSync(path.join(root, ENFORCEMENT), 'utf8').split('\n');
+  const n = lines.findIndex((l) => l.startsWith(`| ${id} `));
+  if (n < 0) throw new Error(`${ENFORCEMENT} 找不到 ${id}`);
+  return `${ENFORCEMENT}:${n + 1}（${id}）`;
+}
+
 const RULES = 'kb/wiki/architecture/a6-adoption-rules.md'; // #1586
 
 export const DEVIATIONS = [
@@ -32,7 +45,15 @@ export const DEVIATIONS = [
     widths: [360],
     detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
     reason: '可點元素基底高 ≥44px（觸控下限），只管手機',
-    source: `${RULES}:32-34（R3）；kb/wiki/architecture/constitution-enforcement.md:101（A27）`,
+    source: `${RULES}:32-34（R3）；${hardRule('A27')}`,
+  },
+  {
+    // 硬性規則 A28：文字對比門檻。稿的 zinc-500（#786f69）在白底對比不足，app 升到 zinc-600（#57504b）。
+    // 只拆這一項（item），同一列的其他樣式差照算
+    status: '樣式',
+    item: '^color rgb\\(120, 111, 105\\) → rgb\\(87, 80, 75\\)$',
+    reason: '文字對比門檻：zinc-500 對比不足，升 zinc-600',
+    source: hardRule('A28'),
   },
   {
     // R3 連帶：手機 44px 的可點元素用 flex 垂直置中，取代稿的上下 padding

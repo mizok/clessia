@@ -35,7 +35,14 @@ export const STYLE_PROPS = [
  * （那是人名、金額），只留角色＋序號。
  */
 export function extractParts(opts) {
-  const { root: rootSel = 'body', names = [], prefix = '' } = opts ?? {};
+  const { root: rootSel = 'body', names = [], prefix = '', rowParents = [] } = opts ?? {};
+  // 稿在這些父層有列（資料多）：app 這邊資料少（1～2 列）也要認成列，兩邊才配得上
+  const noList = (k) =>
+    k
+      .split('>')
+      .filter((x) => x !== 'list')
+      .join('>');
+  const hinted = new Set(rowParents.map(noList));
   const LAND_TAG = {
     HEADER: 'banner',
     NAV: 'navigation',
@@ -146,7 +153,7 @@ export function extractParts(opts) {
       .filter((k) => !k.includes('--') && !k.startsWith('is-'))
       .sort()
       .join('.');
-  const isRow = (el, c) => {
+  const isRow = (el, c, parentKey = '') => {
     const p = el.parentElement;
     if (!p) return false;
     if (
@@ -165,6 +172,10 @@ export function extractParts(opts) {
     const s = sig(el);
     const sibs = [...p.children].filter((x) => sig(x) === s && !x.querySelector(H));
     // 分組（「今天：全部／已到…」「年級：…」）各組選項數不同；資料列的形狀一樣
+    const same = sibs.every((x) => x.children.length === el.children.length);
+    // 稿在這個父層有列（資料多）：app 資料少時門檻降到 2 個（軸列＋一位老師）。單獨一個仍不算 ——
+    // 提示只說「這裡該有列」，沒說是哪一個容器，單個容器（工具列、日期條）會被誤認
+    if (hinted.has(noList(parentKey)) && sibs.length >= 2 && same) return true;
     return (
       sibs.length >= 5 ||
       (sibs.length >= 3 && sibs.every((x) => x.children.length === el.children.length))
@@ -199,7 +210,7 @@ export function extractParts(opts) {
     if (SKIP.has(el.tagName) || !visible(el)) return;
     let c = classify(el);
     let next = ctx;
-    const row = isRow(el, c);
+    const row = isRow(el, c, ctx.key);
     if (row) c = { kind: 'row', role: 'row' };
     if (c) {
       // landmark／list 只認明寫的名字（aria-label），不然整段內文會進 key
@@ -297,12 +308,24 @@ export function extractParts(opts) {
       }
       // 列內同一個 key 會出現很多次：每次都記下樣式，最後取最常見的那種當代表（稿的第一列可能是
       // 軸列、第一個課塊可能是「上課中」—— 取第一個出現的會配錯對象）
-      if (ctx.inRow || row) (p.occ ??= []).push({ box: box(el), style: style(el) });
+      if (ctx.inRow || row) {
+        const b = box(el);
+        // 列內 part 相對「自己所在那一列」的位置：兩邊代表可能取自不同的列（稿取資料列、app 取軸列），
+        // 用絕對位置比會把「第幾列」的差也算進來
+        const rel = ctx.rowBox && !row ? [b[0] - ctx.rowBox[0], b[1] - ctx.rowBox[1]] : null;
+        (p.occ ??= []).push({ box: b, style: style(el), rel });
+      }
       if (ctx.inRow && !ctx.rowSeen.has(key)) {
         ctx.rowSeen.add(key);
         p.inRows++;
       }
-      next = { key, counts: {}, inRow: ctx.inRow || row, rowSeen: row ? new Set() : ctx.rowSeen };
+      next = {
+        key,
+        counts: {},
+        inRow: ctx.inRow || row,
+        rowSeen: row ? new Set() : ctx.rowSeen,
+        rowBox: row ? box(el) : ctx.rowBox,
+      };
       if (row) p.inRows++;
     }
     for (const ch of el.children) walk(ch, next);
@@ -319,6 +342,7 @@ export function extractParts(opts) {
     }
     const modal = [...groups.values()].sort((a, b) => b.length - a.length)[0];
     p.box = modal[0].box;
+    if (modal[0].rel) p.rowRel = modal[0].rel;
     p.style = modal[0].style;
     p.variants = groups.size;
     delete p.occ;

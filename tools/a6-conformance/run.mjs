@@ -36,7 +36,7 @@ const save = (dir, name, cap) => {
     fs.writeFileSync(path.join(dir, `${name}.pop-${id}.png`), png);
 };
 
-async function grab(page, source, w) {
+async function grab(page, source, w, rowParents = []) {
   const cfg = PAGES[page];
   if (!cfg) throw new Error(`不認得的頁：${page}（可用：${Object.keys(PAGES).join('、')}）`);
   const url = source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : APP_URL + cfg.app;
@@ -47,6 +47,7 @@ async function grab(page, source, w) {
     width: w.width,
     storageState: source === 'app' ? STATE : undefined,
     appOpen: cfg.appOpen,
+    rowParents,
   });
 }
 
@@ -57,7 +58,11 @@ async function diffPage(page) {
   const sections = [];
   for (const w of WIDTHS) {
     const a6 = await grab(page, 'a6', w);
-    const app = await grab(page, 'app', w);
+    // 稿裡有列的父層（主樹＋各彈出物），傳給 app 端：資料少時 app 的列也要認得出來
+    const rowParents = [...a6.parts, ...Object.values(a6.popovers).filter(Boolean).flat()]
+      .filter((p) => p.kind === 'row' && p.parent)
+      .map((p) => p.parent);
+    const app = await grab(page, 'app', w, [...new Set(rowParents)]);
     save(dir, `a6-${w.tag}`, a6);
     save(dir, `app-${w.tag}`, app);
     if (app.errors.length) console.warn(`  ⚠ app ${w.width} 頁面錯誤：`, app.errors);

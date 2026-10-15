@@ -108,12 +108,15 @@ export async function harvestNames(page, source, ctx) {
   }, EXTRA_NAMES);
 }
 
-export async function capture(browser, { source, file, url, width, storageState, appOpen = {} }) {
+export async function capture(
+  browser,
+  { source, file, url, width, storageState, appOpen = {}, rowParents = [] },
+) {
   const { ctx, page, errors } = await openPage(browser, { source, url, width, storageState });
   const height = await growViewport(page, width);
   const names = await harvestNames(page, source, ctx);
 
-  const parts = await page.evaluate(extractSource({ names }));
+  const parts = await page.evaluate(extractSource({ names, rowParents }));
   const shot = await page.screenshot({ fullPage: false });
 
   // 彈出物：每個不同的 popovertarget 點第一顆可見的開啟鈕
@@ -142,7 +145,9 @@ export async function capture(browser, { source, file, url, width, storageState,
       id,
     );
     popovers[id] = open
-      ? await page.evaluate(extractSource({ names, root: `[id="${id}"]`, prefix: `pop[${id}]` }))
+      ? await page.evaluate(
+          extractSource({ names, rowParents, root: `[id="${id}"]`, prefix: `pop[${id}]` }),
+        )
       : null;
     if (open) popShots[id] = await page.screenshot();
     await page.evaluate((i) => document.getElementById(i)?.hidePopover?.(), id).catch(() => {});
@@ -152,7 +157,7 @@ export async function capture(browser, { source, file, url, width, storageState,
     await page.locator(click).first().click();
     await page.waitForTimeout(500);
     popovers[id] = (await page.locator(root).count())
-      ? await page.evaluate(extractSource({ names, root, prefix: `pop[${id}]` }))
+      ? await page.evaluate(extractSource({ names, rowParents, root, prefix: `pop[${id}]` }))
       : null;
     if (popovers[id]) popShots[id] = await page.screenshot();
     await page.keyboard.press('Escape');
