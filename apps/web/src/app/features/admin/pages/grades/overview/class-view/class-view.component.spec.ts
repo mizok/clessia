@@ -1,3 +1,4 @@
+import { ToastComponent } from '@shared/components/toast/toast.component';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -24,6 +25,7 @@ describe('ClassViewComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ClassViewComponent],
       providers: [
+        MessageService,
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
@@ -32,12 +34,7 @@ describe('ClassViewComponent', () => {
     })
       .overrideComponent(ClassViewComponent, {
         set: {
-          providers: [
-            { provide: DialogService, useValue: { open: openMock } },
-            // **真的 MessageService，不是 `{ add: vi.fn() }`**：假物件沒有 observable，
-            // `<p-toast>` 就算不存在測試也看不出來（#809 就是這樣藏了一週）
-            { provide: MessageService, useValue: new MessageService() },
-          ],
+          providers: [{ provide: DialogService, useValue: { open: openMock } }],
         },
       })
       .compileComponents();
@@ -61,22 +58,21 @@ describe('ClassViewComponent', () => {
   });
 
   /**
-   * **#809：這支元件自己 `providers: [MessageService]`，所以它拿到的是自己的實例，
-   * 而 `<p-toast>` 訂閱的是注入它的那一層** —— 模板沒有出口的話，
-   * `messageService.add()` 的每一則都沒有訂閱者，畫面上零訊號。
-   *
-   * 斷言查的是 `document`（`appendTo="body"` 會把 toast 搬出元件），
-   * 而且查的是**渲染出來的訊息**，不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
+   * #809 → #1615：toast 的出口是全站唯一的 `<app-toast>`（掛在 App）。元件要是自己
+   * `providers: [MessageService]`，`add()` 就只進那一層，全站出口收不到 —— 畫面上零訊號。
+   * 查的是**出口渲染出來的訊息**，不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
    */
-  it('發出的 toast 有出口 —— DOM 裡真的長出訊息', () => {
+  it('發出的 toast 到得了全站出口 —— 出口裡真的長出訊息（#1615）', () => {
     fixture.detectChanges();
 
+    const outlet = TestBed.createComponent(ToastComponent);
     fixture.debugElement.injector
       .get(MessageService)
       .add({ severity: 'error', summary: '載入失敗', detail: '無法載入課程/班級列表' });
     fixture.detectChanges();
 
-    expect(document.querySelector('.p-toast-message')).not.toBeNull();
+    outlet.detectChanges();
+    expect((outlet.nativeElement as HTMLElement).querySelector('.toast')).not.toBeNull();
   });
 
   it('should start with no campus selected', () => {

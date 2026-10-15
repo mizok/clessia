@@ -15,7 +15,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { TableModule } from 'primeng/table';
-import { ToastModule } from 'primeng/toast';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SchoolsService } from '@core/schools.service';
@@ -32,12 +31,11 @@ import { StatusDotComponent } from '@shared/components/status/status-dot/status-
     TableModule,
     ButtonModule,
     InputTextModule,
-    ToastModule,
     ConfirmDialogModule,
     EmptyStateComponent,
     LoadFailedComponent,
   ],
-  providers: [MessageService, ConfirmationService, DialogService],
+  providers: [ConfirmationService, DialogService],
   templateUrl: './schools.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

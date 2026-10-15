@@ -15,7 +15,6 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
 import { SelectModule } from 'primeng/select';
-import { ToastModule } from 'primeng/toast';
 
 import {
   AUDIENCE_LABELS,
@@ -36,11 +35,9 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
     FormsModule,
     ButtonModule,
     SelectModule,
-    ToastModule,
     ChapterHeadComponent,
     PageOpenComponent,
   ],
-  providers: [MessageService],
   templateUrl: './notifications.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

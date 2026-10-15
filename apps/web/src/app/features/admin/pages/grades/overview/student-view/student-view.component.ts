@@ -18,7 +18,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
 import { DialogService } from 'primeng/dynamicdialog';
 import { RouterLink } from '@angular/router';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -69,13 +68,12 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     InputTextModule,
     PaginatorModule,
     EmptyStateComponent,
-    ToastModule,
     LoadFailedComponent,
   ],
   templateUrl: './student-view.component.html',
   host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [DialogService, MessageService],
+  providers: [DialogService],
 })
 export class StudentViewComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);

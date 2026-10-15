@@ -67,6 +67,7 @@ describe('StudentBillingChapterComponent', () => {
     TestBed.configureTestingModule({
       imports: [StudentBillingChapterComponent],
       providers: [
+        MessageService,
         provideRouter([]),
         { provide: InvoicesService, useValue: service },
         { provide: SystemClockService, useValue: { todayTaipei: signal(today) } },

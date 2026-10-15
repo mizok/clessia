@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -34,6 +35,7 @@ describe('CampusesPage', () => {
     await TestBed.configureTestingModule({
       imports: [CampusesPage],
       providers: [
+        MessageService,
         {
           provide: CampusesService,
           useValue: campusesServiceMock,

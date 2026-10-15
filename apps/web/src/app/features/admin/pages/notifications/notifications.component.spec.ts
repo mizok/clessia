@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
@@ -42,6 +43,7 @@ describe('NotificationsComponent（管理端發布）', () => {
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
       providers: [
+        MessageService,
         {
           provide: AnnouncementsService,
           useValue: { list: listMock, create: createMock },
@@ -69,6 +71,7 @@ describe('NotificationsComponent（管理端發布）', () => {
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
       providers: [
+        MessageService,
         { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
         { provide: CampusesService, useValue: { list: campusesMock } },
       ],
@@ -341,6 +344,7 @@ describe('NotificationsComponent（管理端發布）', () => {
       await TestBed.configureTestingModule({
         imports: [NotificationsComponent],
         providers: [
+          MessageService,
           { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
           { provide: CampusesService, useValue: { list: campusesMock } },
         ],

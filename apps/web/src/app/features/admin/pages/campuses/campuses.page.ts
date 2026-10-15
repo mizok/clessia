@@ -42,7 +42,6 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
@@ -64,7 +63,6 @@ import {
     ButtonModule,
     InputIconModule,
     IconFieldModule,
-    ToastModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,
@@ -76,7 +74,7 @@ import {
     RtRowDirective,
     LoadFailedComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './campuses.page.html',
 })
 export class CampusesPage implements OnInit {

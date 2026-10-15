@@ -8,7 +8,6 @@ import { FormsModule } from '@angular/forms';
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -120,7 +119,6 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
     FormsModule,
     ButtonModule,
     SelectModule,
-    ToastModule,
     TooltipModule,
     IconFieldModule,
     InputIconModule,
@@ -129,7 +127,7 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
     LoadFailedComponent,
     PopupMenuComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './staff.page.html',
 })
 export class StaffPage implements OnInit {

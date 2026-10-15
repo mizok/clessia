@@ -24,7 +24,6 @@ import { PopoverModule, type Popover } from 'primeng/popover';
 import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { ToastModule } from 'primeng/toast';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -142,7 +141,6 @@ const emptyChapter = (): ChapterState => ({
     SelectModule,
     SelectButtonModule,
     PaginatorModule,
-    ToastModule,
     PageActionsComponent,
     PageOpenComponent,
     EmptyStateComponent,
@@ -156,7 +154,7 @@ const emptyChapter = (): ChapterState => ({
     RtRowDirective,
     TodoBannerComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './payments.page.html',
 })
 export class PaymentsPage implements OnInit {

@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
@@ -64,6 +65,7 @@ describe('MealsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [MealsComponent],
       providers: [
+        MessageService,
         provideRouter([]),
         { provide: MealsService, useValue: meals },
         { provide: BillingRunsService, useValue: billingRuns },
@@ -538,6 +540,7 @@ describe('MealsComponent', () => {
         await TestBed.configureTestingModule({
           imports: [MealsComponent],
           providers: [
+            MessageService,
             provideRouter([]),
             { provide: MealsService, useValue: meals },
             { provide: BillingRunsService, useValue: billingRuns },

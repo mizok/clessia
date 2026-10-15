@@ -32,7 +32,6 @@ import { CampusContextService } from '@core/campus-context.service';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import type { Campus } from '@core/campuses.service';
@@ -128,7 +127,6 @@ const FETCH_LIMIT = 500;
   standalone: true,
   imports: [
     CampusScopeNoteComponent,
-    ToastModule,
     PopupMenuComponent,
     DatePipe,
     SessionBatchComponent,
@@ -142,7 +140,7 @@ const FETCH_LIMIT = 500;
     LoadFailedComponent,
     PageOpenComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './sessions.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { Subject, of } from 'rxjs';
 import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 
@@ -49,7 +49,7 @@ describe('SchoolsPage', () => {
     await TestBed.configureTestingModule({
       imports: [SchoolsPage],
       // 這支 spec 原本**沒有任何 service mock**，於是元件打真的 HTTP。
-      providers: [{ provide: SchoolsService, useValue: schoolsServiceMock }],
+      providers: [MessageService, { provide: SchoolsService, useValue: schoolsServiceMock }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SchoolsPage);

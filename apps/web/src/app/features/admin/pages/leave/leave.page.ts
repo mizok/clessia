@@ -1,7 +1,6 @@
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageService, ConfirmationService, ConfirmEventType } from 'primeng/api';
@@ -44,12 +43,11 @@ import {
     RouterLink,
     FormsModule,
     DatePickerModule,
-    ToastModule,
     TooltipModule,
     ConfirmDialogModule,
     DynamicDialogModule,
   ],
-  providers: [MessageService, ConfirmationService, DialogService],
+  providers: [ConfirmationService, DialogService],
   templateUrl: './leave.page.html',
 })
 export class LeavePage implements OnInit {

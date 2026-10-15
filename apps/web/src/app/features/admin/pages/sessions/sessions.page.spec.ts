@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
@@ -137,6 +138,7 @@ describe('SessionsPage', () => {
     await TestBed.configureTestingModule({
       imports: [SessionsPage],
       providers: [
+        MessageService,
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -595,6 +597,7 @@ describe('SessionsPage', () => {
     await TestBed.configureTestingModule({
       imports: [SessionsPage],
       providers: [
+        MessageService,
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -1585,6 +1588,7 @@ describe('SessionsPage', () => {
       await TestBed.configureTestingModule({
         imports: [SessionsPage],
         providers: [
+          MessageService,
           provideRouter([]),
           {
             provide: ActivatedRoute,
@@ -1677,6 +1681,7 @@ describe('SessionsPage', () => {
       await TestBed.configureTestingModule({
         imports: [SessionsPage],
         providers: [
+          MessageService,
           provideRouter([]),
           {
             provide: ActivatedRoute,

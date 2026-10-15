@@ -21,7 +21,6 @@ import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
@@ -72,7 +71,6 @@ import {
     ButtonModule,
     InputIconModule,
     IconFieldModule,
-    ToastModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,
@@ -81,7 +79,7 @@ import {
     LoadFailedComponent,
     PopupMenuComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './parents.page.html',
 })
 export class ParentsPage implements OnInit {

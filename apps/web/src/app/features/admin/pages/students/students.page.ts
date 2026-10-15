@@ -23,7 +23,6 @@ import { CampusContextService } from '@core/campus-context.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
@@ -93,7 +92,6 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
     CommonModule,
     FormsModule,
     ButtonModule,
-    ToastModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,
@@ -103,7 +101,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
     LoadFailedComponent,
     PopupMenuComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './students.page.html',
 })
 export class StudentsPage implements OnInit {

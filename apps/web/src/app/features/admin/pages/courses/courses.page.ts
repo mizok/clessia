@@ -18,7 +18,6 @@ import { format } from 'date-fns';
 // PrimeNG
 import { MessageService, MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ToastModule } from 'primeng/toast';
 import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -94,7 +93,6 @@ interface CourseChapter {
     ClassRowComponent,
     CommonModule,
     FormsModule,
-    ToastModule,
     ButtonModule,
     PopupMenuComponent,
     IconFieldModule,
@@ -112,7 +110,7 @@ interface CourseChapter {
     LoadFailedComponent,
     PageOpenComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './courses.page.html',
 })
 export class CoursesPage implements OnInit {

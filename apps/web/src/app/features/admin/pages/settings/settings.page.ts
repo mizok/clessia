@@ -2,7 +2,6 @@ import { Component, OnInit, inject, signal, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ButtonModule } from 'primeng/button';
-import { ToastModule } from 'primeng/toast';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TextareaModule } from 'primeng/textarea';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -23,13 +22,11 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
     FormsModule,
     SelectButtonModule,
     ButtonModule,
-    ToastModule,
     SkeletonModule,
     TextareaModule,
     InputNumberModule,
     LoadFailedComponent,
   ],
-  providers: [MessageService],
   templateUrl: './settings.page.html',
 })
 export class SettingsPage implements OnInit {

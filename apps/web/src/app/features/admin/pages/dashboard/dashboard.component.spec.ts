@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { NEVER, Subject, of, throwError, type Observable } from 'rxjs';
@@ -249,6 +250,7 @@ describe('DashboardComponent（管理端）', () => {
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
       providers: [
+        MessageService,
         provideRouter([]),
         { provide: AttendanceService, useValue: { sessions: sessionsMock } },
         { provide: WorkbenchService, useValue: { today: workbenchMock } },

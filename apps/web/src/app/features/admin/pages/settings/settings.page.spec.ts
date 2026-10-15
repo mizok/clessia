@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
@@ -26,7 +27,10 @@ describe('SettingsPage', () => {
   async function setup() {
     await TestBed.configureTestingModule({
       imports: [SettingsPage],
-      providers: [{ provide: OrgSettingsService, useValue: orgSettingsServiceMock }],
+      providers: [
+        MessageService,
+        { provide: OrgSettingsService, useValue: orgSettingsServiceMock },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SettingsPage);
