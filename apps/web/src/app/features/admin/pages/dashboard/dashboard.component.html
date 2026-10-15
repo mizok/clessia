@@ -576,6 +576,12 @@
           </a>
         </div>
       </details>
+      <!-- 選了分校時：被判準排除的跨校逾期單（#1314 DB-campus）。N 由 API 給，前端不猜 -->
+      @if (crossCampusNote(); as count) {
+        <p class="m-0 px-1 text-sm text-zinc-600" data-testid="cross-campus-note">
+          另有 {{ count }} 張跨校帳單不在此分校統計內
+        </p>
+      }
     }
   </div>
 
