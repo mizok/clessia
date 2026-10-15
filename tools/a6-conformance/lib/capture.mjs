@@ -89,7 +89,14 @@ export async function capture(browser, { source, file, url, width, storageState,
           rec(window.CLESSIA);
           return [...out].sort((a, b) => b.length - a.length);
         }, EXTRA_NAMES)
-      : [];
+      : // app 的登入者名字也是資料（帳戶鈕、帳戶浮層），跟稿的「林主任」一樣換成 {名}
+        [
+          await ctx.request
+            .get(API_URL + '/api/me')
+            .then((r) => r.json())
+            .then((j) => j.displayName)
+            .catch(() => null),
+        ].filter(Boolean);
 
   const parts = await page.evaluate(extractSource({ names }));
   const shot = await page.screenshot({ fullPage: false });

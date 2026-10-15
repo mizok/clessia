@@ -194,3 +194,78 @@ test('工具限制自動標註：結構範圍不同、同型段落數不同、�
     /偽元素/,
   );
 });
+
+test('帳戶浮層：名字、email 兩邊都樣板化；「切換身分」單身分帳號沒有＝資料差', async () => {
+  // 稿的假帳號與 app 的登入者，模板要一樣才配得上（#1314 comment 6182020487 C 段的誤報）
+  assert.equal(normText('lin.director@wenshan-demo.tw'), normText('admin@demo.clessia.app'));
+  assert.equal(normText('林主任', ['林主任']), normText('Demo Admin', ['Demo Admin']));
+  assert.equal(normText('user01@demo.clessia.app'), '{email}'); // 數字不能先被換成 #
+
+  const { diffParts, classify } = await import('./diff.mjs');
+  const { DATA_DEPENDENT } = await import('./config.mjs');
+  const style = { display: 'block', padding: '0px' };
+  const p = (key, kind, role, tpl, box) => ({
+    key,
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind,
+    role,
+    tpl,
+    text: tpl,
+    box,
+    style,
+  });
+  const R = 'pop[acct]>landmark:popover[帳戶]';
+  const A = [
+    p(R, 'landmark', 'popover', '帳戶', [0, 0, 300, 315]),
+    p(`${R}>text:p[{名}]`, 'text', 'p', '{名}', [0, 0, 200, 24]),
+    p(`${R}>text:p[切換身分]`, 'text', 'p', '切換身分', [0, 40, 200, 28]),
+    p(`${R}>control:button[家長]`, 'control', 'button', '家長', [0, 70, 270, 40]),
+  ];
+  const B = [
+    p(R, 'landmark', 'popover', '帳戶', [0, 0, 300, 195]),
+    p(`${R}>text:p[{名}]`, 'text', 'p', '{名}', [0, 0, 200, 24]),
+  ];
+  const rows = classify(
+    diffParts({ parts: A }, { parts: B }, {}, { dataDependent: DATA_DEPENDENT }),
+  );
+  assert.deepEqual(
+    rows.filter((r) => r.bucket === '待修'),
+    [],
+  );
+  assert.ok(rows.some((r) => r.a6 === R && /高 315→195；內含隨資料/.test(r.detail)));
+  // 沒有 dataDependent 時同一份資料會報「缺」—— 確認上面那條真的是規則在起作用
+  assert.ok(
+    classify(diffParts({ parts: A }, { parts: B })).some(
+      (r) => r.bucket === '待修' && r.status === '缺',
+    ),
+  );
+});
+
+test('貼底的抽屜：視窗高不同時用「距視窗底」量', async () => {
+  const { diffParts } = await import('./diff.mjs');
+  const st = { display: 'block' };
+  const root = (y, h) => [
+    {
+      key: 'pop[x]>landmark:popover[帳戶]',
+      parent: null,
+      kind: 'landmark',
+      role: 'popover',
+      tpl: '帳戶',
+      text: '',
+      box: [0, y, 360, h],
+      style: st,
+    },
+  ];
+  // 稿：視窗 6686、抽屜貼底；app：視窗 1112、抽屜也貼底 → 不算位置差
+  const same = diffParts(
+    { parts: root(6686 - 300, 300), height: 6686 },
+    { parts: root(1112 - 300, 300), height: 1112 },
+  );
+  assert.equal(same.filter((r) => r.status === '位置').length, 0);
+  // app 離底 20px → 報位置差，而且說是相對視窗底
+  const off = diffParts(
+    { parts: root(6686 - 300, 300), height: 6686 },
+    { parts: root(1112 - 320, 300), height: 1112 },
+  );
+  assert.match(off.find((r) => r.status === '位置').detail, /相對視窗底 Δx 0、Δy -20/);
+});

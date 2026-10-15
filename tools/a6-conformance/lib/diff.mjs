@@ -158,7 +158,11 @@ function refOf(part, map, has) {
  * - `位置`／`尺寸`／`樣式`：超出容差的設計差
  * - `資料差`：列數、文字長度、隨資料增減的同型區塊造成的差 —— 不算設計差
  */
-export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
+/**
+ * opts.dataDependent：只在某些資料下才出現的 part（`{ a6?, app?, reason }`，regex 字串）。
+ * 沒配上時算資料差而不是缺／多，它的容器尺寸差也跟著算資料差。
+ */
+export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
   const A = a6Cap.parts,
     B = appCap.parts;
   const pairs = matchParts(A, B, mapping);
@@ -182,7 +186,15 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
   const rowOf = (p, m) => refOf(p, m, (k) => m.get(k)?.kind === 'row');
   const cond = (p, m) =>
     p.kind !== 'row' && p.inRows > 0 && rowOf(p, m) && p.inRows < rowOf(p, m).inRows;
-  const nKids = (list, key) => list.filter((p) => p.key.startsWith(key + '>')).length;
+  // 子孫分兩種：自己也沒配上的（一起缺／多）、已配上的（這個容器只是多包了一層）
+  const kidsText = (list, key, isFree) => {
+    const ks = list.filter((p) => p.key.startsWith(key + '>'));
+    const free = ks.filter(isFree).length,
+      paired = ks.length - free;
+    return [free && `含 ${free} 個子 part`, paired && `包住 ${paired} 個已配對的 part＝多包一層`]
+      .filter(Boolean)
+      .join('；');
+  };
   const dataA = new Set(),
     dataB = new Set();
   // 父層配上了，對面同一個父層底下也有沒配上的同 kind:role → 段落數不同才沒配（帳戶浮層少了「切換身分」）
@@ -202,9 +214,10 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
     [B, mB, freeB, 'app'],
   ])
     for (const p of topFree(list, m, isFree)) {
-      const rep = repeated(p, list, isFree);
+      const dd = (opts.dataDependent ?? []).find((d) => d[side] && new RegExp(d[side]).test(p.key));
+      const rep = !!dd || repeated(p, list, isFree);
       if (rep) (side === 'a6' ? dataA : dataB).add(p.key);
-      const kids = nKids(list, p.key);
+      const kids = kidsText(list, p.key, isFree);
       rows.push({
         status: rep ? '資料差' : side === 'a6' ? '缺' : '多',
         kind: p.kind,
@@ -212,8 +225,8 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
         a6: side === 'a6' ? p.key : null,
         app: side === 'app' ? p.key : null,
         detail:
-          `${rep ? `${side === 'a6' ? 'A6' : 'app'} 多一個同型區塊（數量隨資料）：` : ''}` +
-          `${kr(p)}「${p.tpl}」${kids ? `（含 ${kids} 個子 part）` : ''}` +
+          `${dd ? `隨資料出現（${dd.reason}）：` : rep ? `${side === 'a6' ? 'A6' : 'app'} 多一個同型區塊（數量隨資料）：` : ''}` +
+          `${kr(p)}「${p.tpl}」${kids ? `（${kids}）` : ''}` +
           `${cond(p, m) ? `（列內條件式：${p.inRows}／${rowOf(p, m).inRows} 列有，可能隨資料）` : ''}` +
           `${side === 'a6' ? ` · ${styleLine(p.style)}` : ''}`,
       });
@@ -248,13 +261,20 @@ export function diffParts(a6Cap, appCap, mapping = {}, tol = TOL) {
     const [ax, ay, aw, ah] = a.box,
       [bx, by, bw, bh] = b.box;
     const dx = bx - (rb?.box[0] ?? 0) - (ax - (ra?.box[0] ?? 0)); // app − A6
-    const dy = by - (rb?.box[1] ?? 0) - (ay - (ra?.box[1] ?? 0));
+    let dy = by - (rb?.box[1] ?? 0) - (ay - (ra?.box[1] ?? 0));
+    // 沒有參考祖先（彈出物根）且知道兩邊視窗高：手機的底部抽屜貼視窗底，兩邊撐開的視窗高不同，
+    // 量「距視窗底」才可比。兩種量法取差小的
+    let anchor = '頁面';
+    if (!ra && a6Cap.height && appCap.height) {
+      const fromBottom = appCap.height - (by + bh) - (a6Cap.height - (ay + ah));
+      if (Math.abs(fromBottom) < Math.abs(dy)) ((dy = -fromBottom), (anchor = '視窗底'));
+    }
     if (!posOk(0, dx, tol) || !posOk(0, dy, tol)) {
       const data =
         posOk(0, dx, tol) && (dataAbove(a, ra, dataA, mA) || dataAbove(b, rb, dataB, mB));
       push(
         data ? '資料差' : '位置',
-        `相對${ra ? `「${ra.tpl || ra.role}」` : '頁面'} Δx ${sgn(dx)}、Δy ${sgn(dy)}（app − A6）${data ? '；上方內容隨資料' : ''}`,
+        `相對${ra ? `「${ra.tpl || ra.role}」` : anchor} Δx ${sgn(dx)}、Δy ${sgn(dy)}（app − A6）${data ? '；上方內容隨資料' : ''}`,
         scope,
       );
     }

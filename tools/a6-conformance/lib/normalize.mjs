@@ -3,12 +3,15 @@
 
 /**
  * 文案模板：讓 key 不靠假資料。數字（含千分位、小數、時間 16:42、日期 9/29、2026/10/14、
- * 區間 16:00–17:30）一律變 `#`；`names` 裡的專有名詞（稿的假人名）變 `{名}`；空白收成一格。
+ * 區間 16:00–17:30）一律變 `#`；email 變 `{email}`；`names` 裡的專有名詞（稿的假人名、app 的登入者
+ * 名字）變 `{名}`；空白收成一格。
  */
 export function normText(s, names = []) {
   let t = String(s ?? '')
     .replace(/\s+/g, ' ')
     .trim();
+  // email 先換：裡面的數字不該變成 `#`，兩邊（稿的假帳號、app 的登入者）都成 `{email}`
+  t = t.replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '{email}');
   for (const n of names) if (n && n.length >= 2) t = t.split(n).join('{名}');
   t = t.replace(/\d[\d,.:/]*(?:\s*[–~-]\s*\d[\d,.:/]*)?/g, '#');
   return t.length > 40 ? t.slice(0, 40) + '…' : t;

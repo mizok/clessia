@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 import {
   A6_DIR,
   APP_URL,
+  DATA_DEPENDENT,
   DEVIATIONS,
   OUT,
   PAGES,
@@ -74,7 +75,8 @@ try {
         save(dir, `a6-${w.tag}`, a6);
         save(dir, `app-${w.tag}`, app);
         if (app.errors.length) console.warn(`  ⚠ app ${w.width} 頁面錯誤：`, app.errors);
-        const rows = diffParts(a6, app, PAGES[page].mapping);
+        const opts = { dataDependent: DATA_DEPENDENT };
+        const rows = diffParts(a6, app, PAGES[page].mapping, opts);
         // 彈出物各自配對（A6 的 id 與 app 的不同，見 SHELL_POPOVERS）
         for (const [ia, ib] of Object.entries({
           ...SHELL_POPOVERS,
@@ -93,7 +95,12 @@ try {
             });
           // 兩邊的浮層根節點直接配（A6 是 popover、app 常是 PrimeNG 的 dialog）
           else
-            for (const r of diffParts({ parts: pa }, { parts: pb }, { [pa[0].key]: pb[0].key }))
+            for (const r of diffParts(
+              { parts: pa, height: a6.height },
+              { parts: pb, height: app.height },
+              { [pa[0].key]: pb[0].key },
+              opts,
+            ))
               rows.push({ ...r, pop: ia });
         }
         const out = classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])]);

@@ -32,6 +32,17 @@ export const DEVIATIONS = [
   },
 ];
 
+/**
+ * 只在某些資料下才出現的 part（regex 對 A6／app 的 part key）。沒配上時歸資料差、不算缺／多。
+ */
+export const DATA_DEPENDENT = [
+  {
+    a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)\\])',
+    reason:
+      '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `otherRoles().length > 0`）',
+  },
+];
+
 /** 殼層的彈出物：A6 popover id → app popover id（每頁都有）。 */
 export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
 
