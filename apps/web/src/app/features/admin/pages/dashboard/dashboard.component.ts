@@ -754,6 +754,9 @@ export class DashboardComponent {
           this.overdueSummary.set(
             res === FAILED ? FAILED : { count: res.overdue.count, amount: res.overdue.outstanding },
           );
+          // 失敗清成 null。⚠️ 目前**沒有路徑能在不換分校的情況下重打 summary**（這條 bind 沒有 refresh，
+          // 換分校又會先 reset），所以「失敗不動值」的突變在現況等價；給摘要加重新整理／輪詢時，
+          // 要補「同分校 N>0 → 失敗 → 那一行消失」的 spec（#1585 二讀）
           this.crossCampusOverdue.set(
             res === FAILED ? null : (res.crossCampusOverdue?.count ?? null),
           );
