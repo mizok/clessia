@@ -110,6 +110,7 @@ const summary = (d) =>
     d.overlays && `浮層 ${d.overlays > 0 ? '+' : ''}${d.overlays}`,
     d.scrolled && '有捲動',
     d.focus && `焦點「${d.focus}」`,
+    d.sr?.length && `螢幕閱讀器 ${list(d.sr)}`,
   ]
     .filter(Boolean)
     .join('；') || '沒有變化';

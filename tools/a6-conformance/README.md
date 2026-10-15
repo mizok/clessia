@@ -6,7 +6,7 @@
   按鈕／連結／輸入（角色＋可及名稱）、清單與列、文案；逐一打開 `[popovertarget]` 彈出物再抽一次；
   另列 a6.js click handler 用到的 `[data-*]` 觸發點（第三層的素材）。
 - **第二層 `diff`**：app 與 A6 同寬抽同一份 part 樹，配對後比幾何與 computed style，出差異表。
-- 第三層（互動情境）還沒做。
+- **第三層 `behave`**：`lib/scenarios.mjs` 裡的情境，兩邊各開一頁照步驟操作，比操作前後的變化量。
 
 A6 稿不進版控；輸出也不進版控（預設 `~/.cache/clessia-a6-conformance/out/<頁>/`）。
 
@@ -23,6 +23,7 @@ node tools/a6-conformance/login.mjs '<印出的連結>'
 
 node tools/a6-conformance/run.mjs inventory              # 全部頁；或指定 students schedule …
 node tools/a6-conformance/run.mjs diff students
+node tools/a6-conformance/run.mjs behave                 # 第三層
 npm test --prefix tools/a6-conformance                   # spec
 ```
 
@@ -44,7 +45,8 @@ app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，
 `kind:role[文案模板]`：
 
 - 文案模板：數字（含千分位、時間、日期、區間）→ `#`；email → `{email}`；稿的假人名（從 `window.CLESSIA` 收）
-  與 app 登入者的 `displayName`（`/api/me`）→ `{名}`
+  與 app 登入者的 `displayName`（`/api/me`）→ `{名}`；分校名（稿的 `CLESSIA.campuses`、app 的 `/api/campuses`，
+  以及「全部分校」）→ `{分校}`；中文數字月份 →`#`；中文字旁的空白去掉
 - **列是資料**：`ul/ol/tbody` 的子項，以及沒用 `li` 的 div 格線（同層同簽名、無標題，且 ≥5 個、或
   ≥3 個且子元素數相同）合成一個 `row`；列內 part 不帶文案、取聯集並記「幾列有」
 - landmark 與清單只認 `aria-label`，不吃整段內文
@@ -92,11 +94,43 @@ app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，
 偏離條目的寫法（欄位都是 regex 字串，`status` 必填）：
 
 ```js
-{ status: '尺寸', kind: 'control', detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
-  reason: '可點元素基底高 ≥44px（觸控下限）', source: 'kb/wiki/architecture/constitution-enforcement.md:101（A27）' }
+{ status: '尺寸', kind: 'control', widths: [360], detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
+  reason: '可點元素基底高 ≥44px，只管手機', source: 'kb/wiki/architecture/a6-adoption-rules.md:32-34（R3）' }
 ```
 
+欄位：`status`（必填）、`detail`／`a6`／`app`（regex）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
+缺／多的容器若裡面某一顆命中，會拆成自己一列歸偏離，容器本身仍是待修。
+
 **沒有出處的不寫進來**。「近似」「差不多」不是理由；找不到出處就留在待修，請 gate 裁，裁完把留言連結當 source。
+
+### 連帶
+
+位移或容器尺寸的差，若能被**同一個參考容器裡已歸偏離或資料差**的變化量完整解釋，就跟著原因歸欄，
+詳細欄註明「連帶自 N 處」。可用來解釋的量：
+
+- 前面（y 軸：上方；x 軸：同一列）多出／少了的 part 的高（寬）
+- 前面鄰居變高（變寬）的量
+- 自己變大的整個增量（靠左 0、置中一半、靠右全部，取上限）
+- 參考容器變大的一半 —— **只在稿上置中時**（彈出物是靠上排的，它變高不推動項目）
+
+位移超過可解釋量＋容差就留在待修。原因本身也可以是連帶（第 3 項被第 2 項推），重複判到不再變。
+
+## 第三層：互動情境（`behave`）
+
+情境寫在 `lib/scenarios.mjs`：`{ name, a6: [步驟], app: [步驟], ignore?, checkFocus? }`。步驟是
+`{ click | fill: [目標, 字] | press | hover | wait }`，目標是 CSS 或 `{ role, name（regex）, nth }`。
+觸發點從 inventory 的「互動觸發點」表找（a6.js 的 click handler）。
+
+每個情境兩邊各開一頁（狀態不互相漏），操作前後各抽一次 part 樹，比**變化量**（兩邊資料不同，絕對狀態
+本來就不會一樣）：
+
+- 出現／消失的文案（列內文案與純數字不比；`ignore` 與 `PAGES[頁].behaveIgnore` 放隨資料變的文案）
+- 變成選中／展開、取消的控制項 —— aria-current／pressed／expanded／selected／checked 任一，**不分是哪個屬性**
+- 開著的浮層數變化、有沒有捲動
+- 原生 `popovertarget` 的開啟鈕：瀏覽器不寫 `aria-expanded` 屬性，工具依目標是否 `:popover-open` 補上，兩邊才可比
+- 只給螢幕閱讀器的文字（1px／clip，例如篩選結果的 live region）不比，報告另列「螢幕閱讀器」；第二層也排除它
+- PrimeNG 分頁器的出現／消失不比（第二層已報 app 多分頁器）
+- 焦點：只在情境宣告 `checkFocus` 時比。稿多半用 `innerHTML` 重畫，點完按鈕焦點掉回 body 是原型的副作用
 
 ## 已知限制
 

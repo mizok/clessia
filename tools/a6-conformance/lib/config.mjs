@@ -135,4 +135,31 @@ export const PAGES = {
       },
     ],
   },
+  // 以下只登稿檔 ↔ 路由（#1314 多出功能盤點，10-15）；偏離與情境之後各頁對齊時再補。
+  // 詳情頁的 id 取自本機示範庫：張宇軒（資料最完整的學生）、國中數學的第一個班、展示用小考 #90
+  student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
+  parents: { a6: 'parents.html', app: '/admin/parents' },
+  courses: { a6: 'courses.html', app: '/admin/courses' },
+  class: {
+    a6: 'class.html',
+    app: '/admin/courses/dc2f0b1a-7e79-4b6e-a61e-8bbac3eec5a6/classes/1deffd57-e069-4d72-98bf-41415ec01967',
+  },
+  dashboard: { a6: 'dashboard.html', app: '/admin/dashboard' },
+  enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
+  leave: { a6: 'leave.html', app: '/admin/leave' },
+  staff: { a6: 'staff.html', app: '/admin/staff' },
+  'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
+  notifications: { a6: 'notifications.html', app: '/admin/notifications' },
+  meals: { a6: 'meals.html', app: '/admin/meals' },
+  reports: { a6: 'reports.html', app: '/admin/reports' },
+  'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },
+  changes: { a6: 'changes.html', app: '/admin/changes' },
+  exams: { a6: 'exams.html', app: '/admin/grades/exams' },
+  scores: {
+    a6: 'scores.html',
+    app: '/admin/grades/exams/academy/5bce4763-b20c-4dd5-9f7e-2b7e500e3a22/scores',
+  },
+  grades: { a6: 'grades.html', app: '/admin/grades/overview' },
+  'grades-class': { a6: 'grades-class.html', app: '/admin/grades/overview/class' },
+  'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
 };

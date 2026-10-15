@@ -209,8 +209,9 @@ function refOf(part, map, has) {
  * 沒配上時算資料差而不是缺／多，它的容器尺寸差也跟著算資料差。
  */
 export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
-  const A = a6Cap.parts,
-    B = appCap.parts;
+  // 只給螢幕閱讀器的文字不算視覺 part（第三層另列）
+  const A = a6Cap.parts.filter((p) => !p.sr),
+    B = appCap.parts.filter((p) => !p.sr);
   const pairs = matchParts(A, B, mapping);
   const appMatched = new Set(pairs.values());
   const mA = byKey(A),

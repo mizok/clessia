@@ -246,8 +246,36 @@ export function extractParts(opts) {
               'href',
             ]
               .filter((a) => el.hasAttribute(a))
-              .map((a) => [a, el.getAttribute(a)]),
+              .map((a) => [a, el.getAttribute(a)])
+              // 原生 popovertarget：瀏覽器把展開狀態給輔助技術，但不寫進屬性 —— 補上，兩邊才可比
+              .concat(
+                el.hasAttribute('popovertarget') &&
+                  !el.hasAttribute('aria-expanded') &&
+                  el.getAttribute('popovertargetaction') !== 'hide'
+                  ? [
+                      [
+                        'aria-expanded',
+                        String(
+                          !!document
+                            .getElementById(el.getAttribute('popovertarget'))
+                            ?.matches(':popover-open'),
+                        ),
+                      ],
+                    ]
+                  : [],
+              ),
           ),
+          // 最近的元件宿主（Angular／PrimeNG 的自訂元素，例如 p-paginator）：偏離規則與盤點用
+          host: (() => {
+            for (let x = el; x; x = x.parentElement)
+              if (x.tagName.includes('-')) return x.tagName.toLowerCase();
+            return '';
+          })(),
+          // 只給螢幕閱讀器的文字（1px、clip）：不是視覺 part，報告另列
+          sr: (() => {
+            const r = el.getBoundingClientRect();
+            return r.width <= 1 || r.height <= 1 || getComputedStyle(el).clip.startsWith('rect(0');
+          })(),
           inRows: 0,
           rows: c.kind === 'list' ? [...el.children].filter((x) => visible(x)).length : undefined,
         };

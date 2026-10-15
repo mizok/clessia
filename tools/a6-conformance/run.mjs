@@ -21,15 +21,18 @@ import { compareDelta, delta, runScenario } from './lib/behave.mjs';
 import { SCENARIOS } from './lib/scenarios.mjs';
 import { behaveMarkdown, inventoryMarkdown } from './lib/report.mjs';
 import { classify, diffParts, diffMarkdown } from './lib/diff.mjs';
+import { collectExtras, extrasMarkdown } from './lib/extras.mjs';
 
 const [cmd, ...args] = process.argv.slice(2);
 const pages = args.length ? args : Object.keys(PAGES);
 const browser = await chromium.launch();
 
 const save = (dir, name, cap) => {
-  const { shot, ...rest } = cap;
+  const { shot, popShots = {}, ...rest } = cap;
   fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(rest, null, 1));
   fs.writeFileSync(path.join(dir, `${name}.png`), shot);
+  for (const [id, png] of Object.entries(popShots))
+    fs.writeFileSync(path.join(dir, `${name}.pop-${id}.png`), png);
 };
 
 async function grab(page, source, w) {
@@ -44,6 +47,52 @@ async function grab(page, source, w) {
     storageState: source === 'app' ? STATE : undefined,
     appOpen: cfg.appOpen,
   });
+}
+
+/** 一頁的第二層（兩寬）：抓兩邊、配對、彈出物各自配對、分欄。存 JSON／截圖。 */
+async function diffPage(page) {
+  const dir = path.join(OUT, page);
+  fs.mkdirSync(dir, { recursive: true });
+  const sections = [];
+  for (const w of WIDTHS) {
+    const a6 = await grab(page, 'a6', w);
+    const app = await grab(page, 'app', w);
+    save(dir, `a6-${w.tag}`, a6);
+    save(dir, `app-${w.tag}`, app);
+    if (app.errors.length) console.warn(`  ⚠ app ${w.width} 頁面錯誤：`, app.errors);
+    const opts = { dataDependent: DATA_DEPENDENT };
+    const rows = diffParts(a6, app, PAGES[page].mapping, opts);
+    // 彈出物各自配對（A6 的 id 與 app 的不同，見 SHELL_POPOVERS）
+    for (const [ia, ib] of Object.entries({
+      ...SHELL_POPOVERS,
+      ...Object.fromEntries(Object.keys(PAGES[page].appOpen ?? {}).map((k) => [k, k])),
+      ...PAGES[page].popovers,
+    })) {
+      const pa = a6.popovers[ia],
+        pb = app.popovers[ib];
+      if (!pa) continue;
+      if (!pb)
+        rows.push({
+          status: '缺',
+          a6: `pop[${ia}]`,
+          app: null,
+          detail: `彈出物 ${ia}：app 端 ${ib} 沒打開或不存在`,
+        });
+      // 兩邊的浮層根節點直接配（A6 是 popover、app 常是 PrimeNG 的 dialog）
+      else
+        for (const r of diffParts(
+          { parts: pa, height: a6.height },
+          { parts: pb, height: app.height },
+          { [pa[0].key]: pb[0].key },
+          opts,
+        ))
+          rows.push({ ...r, pop: ia });
+    }
+    const out = classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])], w.width);
+    fs.writeFileSync(path.join(dir, `diff-${w.tag}.json`), JSON.stringify(out, null, 1));
+    sections.push({ width: w.width, tag: w.tag, rows: out, a6, app });
+  }
+  return sections;
 }
 
 try {
@@ -68,50 +117,86 @@ try {
     }
   } else if (cmd === 'diff') {
     for (const page of pages) {
-      const dir = path.join(OUT, page);
-      fs.mkdirSync(dir, { recursive: true });
-      const sections = [];
-      for (const w of WIDTHS) {
-        const a6 = await grab(page, 'a6', w);
-        const app = await grab(page, 'app', w);
-        save(dir, `a6-${w.tag}`, a6);
-        save(dir, `app-${w.tag}`, app);
-        if (app.errors.length) console.warn(`  ⚠ app ${w.width} 頁面錯誤：`, app.errors);
-        const opts = { dataDependent: DATA_DEPENDENT };
-        const rows = diffParts(a6, app, PAGES[page].mapping, opts);
-        // 彈出物各自配對（A6 的 id 與 app 的不同，見 SHELL_POPOVERS）
-        for (const [ia, ib] of Object.entries({
-          ...SHELL_POPOVERS,
-          ...Object.fromEntries(Object.keys(PAGES[page].appOpen ?? {}).map((k) => [k, k])),
-          ...PAGES[page].popovers,
-        })) {
-          const pa = a6.popovers[ia],
-            pb = app.popovers[ib];
-          if (!pa) continue;
-          if (!pb)
-            rows.push({
-              status: '缺',
-              a6: `pop[${ia}]`,
-              app: null,
-              detail: `彈出物 ${ia}：app 端 ${ib} 沒打開或不存在`,
-            });
-          // 兩邊的浮層根節點直接配（A6 是 popover、app 常是 PrimeNG 的 dialog）
-          else
-            for (const r of diffParts(
-              { parts: pa, height: a6.height },
-              { parts: pb, height: app.height },
-              { [pa[0].key]: pb[0].key },
-              opts,
-            ))
-              rows.push({ ...r, pop: ia });
-        }
-        const out = classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])], w.width);
-        fs.writeFileSync(path.join(dir, `diff-${w.tag}.json`), JSON.stringify(out, null, 1));
-        sections.push({ width: w.width, rows: out, a6, app });
-      }
-      fs.writeFileSync(path.join(dir, 'diff.md'), diffMarkdown(page, PAGES[page], sections));
-      console.log(`${page} → ${dir}/diff.md`);
+      const sections = await diffPage(page);
+      fs.writeFileSync(path.join(OUT, page, 'diff.md'), diffMarkdown(page, PAGES[page], sections));
+      console.log(`${page} → ${path.join(OUT, page)}/diff.md`);
     }
+  } else if (cmd === 'extras') {
+    // 多出功能盤點：每頁跑第一、二層，取「多」依功能歸組，裁圖
+    const all = [];
+    for (const page of pages) {
+      try {
+        const sections = await diffPage(page);
+        fs.writeFileSync(
+          path.join(OUT, page, 'diff.md'),
+          diffMarkdown(page, PAGES[page], sections),
+        );
+        all.push({
+          page,
+          cfg: PAGES[page],
+          widths: sections.map((s) => ({
+            width: s.width,
+            tag: s.tag,
+            rows: s.rows,
+            height: s.app.height,
+            parts: [...s.app.parts, ...Object.values(s.app.popovers).filter(Boolean).flat()],
+          })),
+        });
+        console.log(`${page} ✓`);
+      } catch (e) {
+        console.warn(`  ⚠ ${page} 跑不起來：${e.message.split('\n')[0]}`);
+        all.push({ page, cfg: PAGES[page], widths: [], error: e.message.split('\n')[0] });
+      }
+    }
+    const data = collectExtras(all.filter((p) => !p.error));
+    const shotDir = path.join(OUT, 'extras');
+    fs.mkdirSync(shotDir, { recursive: true });
+    const crop = await browser.newPage();
+    const shots = new Map();
+    const shotsOf = (page, f) => shots.get(f) ?? [];
+    for (const [page, list] of [
+      ['shell', data.shell],
+      ...data.pages.map((p) => [p.page, p.features]),
+    ])
+      for (const [i, f] of list.entries()) {
+        const out = [];
+        for (const [w, k] of Object.entries(f.keys)) {
+          if (!k.box || k.box[2] < 1 || k.box[3] < 1) continue;
+          const srcPage = page === 'shell' ? [...f.pages][0] : page;
+          const src = path.join(
+            OUT,
+            srcPage,
+            `app-${k.tag}${k.popId ? `.pop-${k.popId}` : ''}.png`,
+          );
+          if (!fs.existsSync(src)) continue;
+          const file = path.join(shotDir, `${page}-${i + 1}-${w}.png`);
+          const [x, y, bw, bh] = k.box;
+          await crop.setContent(
+            `<body style="margin:0"><img src="data:image/png;base64,${fs.readFileSync(src).toString('base64')}"></body>`,
+          );
+          await crop.setViewportSize({
+            width: Math.max(400, x + bw + 40),
+            height: Math.min(20000, Math.max(300, y + bh + 40)),
+          });
+          await crop.screenshot({
+            path: file,
+            clip: {
+              x: Math.max(0, x - 8),
+              y: Math.max(0, y - 8),
+              width: bw + 16,
+              height: Math.min(bh + 16, 1600),
+            },
+          });
+          out.push(path.relative(OUT, file));
+        }
+        shots.set(f, out);
+      }
+    let md = extrasMarkdown(data, shotsOf);
+    const failed = all.filter((p) => p.error);
+    if (failed.length)
+      md += `\n## 沒跑起來的頁\n\n${failed.map((p) => `- ${p.page}（\`${p.cfg.app}\`）：${p.error}`).join('\n')}\n`;
+    fs.writeFileSync(path.join(OUT, 'extras.md'), md);
+    console.log(`→ ${path.join(OUT, 'extras.md')}`);
   } else if (cmd === 'behave') {
     for (const page of pages) {
       const cfg = PAGES[page];
@@ -164,7 +249,7 @@ try {
       );
     }
   } else {
-    console.log('用法：run.mjs inventory [頁…] | diff [頁…] | behave [頁…]');
+    console.log('用法：run.mjs inventory [頁…] | diff [頁…] | behave [頁…] | extras [頁…]');
     process.exitCode = 2;
   }
 } finally {

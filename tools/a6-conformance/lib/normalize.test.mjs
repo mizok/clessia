@@ -437,3 +437,96 @@ test('連帶：自己變大最多推動整個增量；容器變大只在稿上�
     '待修',
   );
 });
+
+test('第三層：只給螢幕閱讀器的文字另列、不當成「出現」比', async () => {
+  const { delta, compareDelta } = await import('./behave.mjs');
+  const snap = (parts) => ({ parts, overlays: 0, focus: '', scroll: 0 });
+  const live = { tpl: '符合篩選的#位學生。', kind: 'text', inRows: 0, attrs: {}, sr: true };
+  const d = delta({ before: snap([]), after: snap([live]) });
+  assert.deepEqual(d.appeared, []);
+  assert.deepEqual(d.sr, ['符合篩選的#位學生。']);
+  assert.deepEqual(compareDelta(delta({ before: snap([]), after: snap([]) }), d), []);
+});
+
+test('多出功能歸組：分頁器整組、選項組依標籤命名、工具列上不同的鈕分開', async () => {
+  const { collectExtras } = await import('./extras.mjs');
+  const P = (key, kind, role, tpl, box, extra = {}) => ({
+    key,
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind,
+    role,
+    tpl,
+    box,
+    inRows: 0,
+    ...extra,
+  });
+  const parts = [
+    P('>landmark:main[]', 'landmark', 'main', '', [0, 0, 1440, 1000]),
+    P('>landmark:main[]>landmark:search[篩選]', 'landmark', 'search', '篩選', [0, 0, 1440, 60]),
+    P(
+      '>landmark:main[]>landmark:search[篩選]>control:button[更多動作]',
+      'control',
+      'button',
+      '更多動作',
+      [1000, 10, 40, 40],
+    ),
+    P(
+      '>landmark:main[]>landmark:search[篩選]>control:button[新增學生]',
+      'control',
+      'button',
+      '新增學生',
+      [1050, 10, 100, 40],
+    ),
+    P(
+      '>landmark:main[]>control:button[First Page]',
+      'control',
+      'button',
+      'First Page',
+      [600, 900, 40, 40],
+      { host: 'p-paginator' },
+    ),
+    P(
+      '>landmark:main[]>control:button[Next Page]',
+      'control',
+      'button',
+      'Next Page',
+      [650, 900, 40, 40],
+      { host: 'p-paginator' },
+    ),
+    P('pop[filt]>landmark:dialog[]', 'landmark', 'dialog', '', [0, 0, 300, 300]),
+    P('pop[filt]>landmark:dialog[]>text:span[狀態]', 'text', 'span', '狀態', [10, 200, 30, 20]),
+    P(
+      'pop[filt]>landmark:dialog[]>control:button[在籍]',
+      'control',
+      'button',
+      '在籍',
+      [50, 200, 30, 44],
+    ),
+    P(
+      'pop[filt]>landmark:dialog[]>control:button[已停用]',
+      'control',
+      'button',
+      '已停用',
+      [90, 200, 40, 44],
+    ),
+  ];
+  const row = (app, extra = {}) => ({ status: '多', app, detail: '', bucket: '待修', ...extra });
+  const rows = [
+    row('>landmark:main[]>landmark:search[篩選]', {
+      detail: '含 2 個子 part',
+      inner: parts.slice(2, 4).map((p) => ({ key: p.key, kind: p.kind, tpl: p.tpl })),
+    }),
+    row('>landmark:main[]>control:button[First Page]'),
+    row('>landmark:main[]>control:button[Next Page]'),
+    ...['狀態', '在籍', '已停用'].map((t) =>
+      row(parts.find((p) => p.tpl === t).key, { pop: 'filt' }),
+    ),
+  ];
+  const { pages } = collectExtras([
+    { page: 'students', cfg: {}, widths: [{ width: 1440, tag: 'd', rows, parts, height: 1000 }] },
+  ]);
+  assert.deepEqual(
+    pages[0].features.map((f) => f.name).sort(),
+    ['分頁器', '更多動作', '新增學生', '狀態（在籍／已停用）'].sort(),
+  );
+});

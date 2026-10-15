@@ -74,7 +74,8 @@ const ON = {
   'aria-checked': (v) => v === 'true',
 };
 // 列內的 part 不帶文案（是資料），變化只看列外的
-const visibleParts = (parts) => parts.filter((p) => p.tpl && !p.inRows && p.kind !== 'landmark');
+const visibleParts = (parts) =>
+  parts.filter((p) => p.tpl && !p.inRows && p.kind !== 'landmark' && !p.sr);
 const onSet = (parts) =>
   new Set(
     visibleParts(parts)
@@ -88,7 +89,12 @@ export function delta({ before, after }) {
   const ta = new Set(visibleParts(after.parts).map((p) => p.tpl));
   const ob = onSet(before.parts),
     oa = onSet(after.parts);
+  const srB = new Set(before.parts.filter((p) => p.sr && p.tpl).map((p) => p.tpl));
   return {
+    // 只給螢幕閱讀器、操作後才出現的文字（篩選結果的 live region）：另列，不比
+    sr: [
+      ...new Set(after.parts.filter((p) => p.sr && p.tpl && !srB.has(p.tpl)).map((p) => p.tpl)),
+    ].sort(),
     appeared: [...ta].filter((t) => !tb.has(t)).sort(),
     gone: [...tb].filter((t) => !ta.has(t)).sort(),
     turnedOn: [...oa].filter((t) => !ob.has(t)).sort(),
@@ -103,8 +109,9 @@ export function delta({ before, after }) {
  * 兩邊變化量的差（純函式）。`ignore` 是情境層級的 regex 字串清單：命中的文案不比（資料造成的
  * 名單變化等）。回傳差異描述的陣列，空的＝一致。
  */
-// 純數字（計數徽章、分頁碼）一律是資料
-const ALWAYS_IGNORE = ['^#$'];
+// 純數字（計數徽章、分頁碼）一律是資料；
+// 第二層已經報過的 app 獨有元件（PrimeNG 分頁器），第三層不重複報它的出現／消失
+const ALWAYS_IGNORE = ['^#$', ' Page$', '^第# / #頁'];
 const head = (xs, n = 8) =>
   xs.slice(0, n).join('」「') + (xs.length > n ? `」…共 ${xs.length} 項` : '」');
 

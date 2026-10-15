@@ -130,6 +130,7 @@ export async function capture(browser, { source, file, url, width, storageState,
       .map((b) => b.getAttribute('popovertarget'));
   });
   const popovers = {};
+  const popShots = {}; // 浮層開著時的截圖（多出功能盤點要裁圖）
   for (const id of targets) {
     await page
       .locator(`[popovertarget="${id}"]:not([popovertargetaction="hide"]) >> visible=true`)
@@ -143,6 +144,7 @@ export async function capture(browser, { source, file, url, width, storageState,
     popovers[id] = open
       ? await page.evaluate(extractSource({ names, root: `[id="${id}"]`, prefix: `pop[${id}]` }))
       : null;
+    if (open) popShots[id] = await page.screenshot();
     await page.evaluate((i) => document.getElementById(i)?.hidePopover?.(), id).catch(() => {});
   }
 
@@ -152,6 +154,7 @@ export async function capture(browser, { source, file, url, width, storageState,
     popovers[id] = (await page.locator(root).count())
       ? await page.evaluate(extractSource({ names, root, prefix: `pop[${id}]` }))
       : null;
+    if (popovers[id]) popShots[id] = await page.screenshot();
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
   }
@@ -165,5 +168,5 @@ export async function capture(browser, { source, file, url, width, storageState,
       : [];
 
   await ctx.close();
-  return { source, url, width, height, names, parts, popovers, hooks, errors, shot };
+  return { source, url, width, height, names, parts, popovers, hooks, errors, shot, popShots };
 }
