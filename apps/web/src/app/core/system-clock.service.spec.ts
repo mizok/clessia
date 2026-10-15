@@ -3,7 +3,12 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { vi } from 'vitest';
 
-import { SystemClockService, addDaysToDateString, taipeiDateString } from './system-clock.service';
+import {
+  EARLY_TIME_TIMEOUT_MS,
+  SystemClockService,
+  addDaysToDateString,
+  taipeiDateString,
+} from './system-clock.service';
 
 describe('SystemClockService', () => {
   let service: SystemClockService;
@@ -46,6 +51,85 @@ describe('SystemClockService', () => {
     expect(service.synced()).toBe(false);
     expect(service.lastError()).toBe('SYNC_FAILED');
     consoleErrorSpy.mockRestore();
+  });
+});
+
+// ── index.html 先發的 /api/system-time（#1595 1a）────────────────────────────────
+// 開站的 AppInitializer 原本等 Angular 起來才發這支、再等它回來才導覽。現在 HTML 一解析就發；
+// 用得上就不打第二趟，用不上（失敗、逾時、不是 JSON）一律退回原本的請求。
+describe('SystemClockService — 開站先發的 /api/system-time', () => {
+  const SERVER = 1700000000000;
+  const TIME_URL = 'http://localhost:8787/api/system-time';
+  type W = { __clessiaEarlyTime?: Promise<unknown> };
+
+  function setup(early: Promise<unknown>) {
+    (window as W).__clessiaEarlyTime = early;
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    return {
+      service: TestBed.inject(SystemClockService),
+      http: TestBed.inject(HttpTestingController),
+    };
+  }
+
+  afterEach(() => {
+    delete (window as W).__clessiaEarlyTime;
+    vi.useRealTimers();
+  });
+
+  it('用得上：直接用它，不打第二趟；用完就清掉', async () => {
+    const { service, http } = setup(
+      Promise.resolve({ body: { epochMs: SERVER }, at: performance.now() }),
+    );
+    await service.initialize();
+
+    expect(service.synced()).toBe(true);
+    http.expectNone(TIME_URL);
+    expect((window as W).__clessiaEarlyTime).toBeUndefined();
+  });
+
+  // 先發的那支可能在 bootstrap 之前很久就回來了。基準點若取「接手當下」，
+  // 中間那段會被當成伺服器時間沒走 —— 時鐘慢了那麼多
+  it('時鐘基準是回應到達當下，不是接手當下', async () => {
+    const { service } = setup(
+      Promise.resolve({ body: { epochMs: SERVER }, at: performance.now() - 5000 }),
+    );
+    await service.initialize();
+
+    expect(service.nowEpochMs()).toBeGreaterThanOrEqual(SERVER + 5000);
+  });
+
+  it('連線失敗：退回原本的請求', async () => {
+    const { service, http } = setup(Promise.reject(new TypeError('Failed to fetch')));
+    const done = service.initialize();
+    await vi.waitFor(() => http.expectOne(TIME_URL).flush({ epochMs: SERVER, iso: '' }));
+    await done;
+    expect(service.synced()).toBe(true);
+  });
+
+  it('不是 JSON／5xx（index.html 把它記成 body: null）：退回原本的請求', async () => {
+    for (const early of [
+      Promise.reject(new SyntaxError('Unexpected token <')),
+      Promise.resolve({ body: null, at: performance.now() }),
+    ]) {
+      TestBed.resetTestingModule();
+      const { service, http } = setup(early);
+      const done = service.initialize();
+      await vi.waitFor(() => http.expectOne(TIME_URL).flush({ epochMs: SERVER, iso: '' }));
+      await done;
+      expect(service.synced()).toBe(true);
+    }
+  });
+
+  it('逾時：放棄它、退回原本的請求，開站不會卡住', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { service, http } = setup(new Promise(() => undefined));
+    const done = service.initialize();
+    await vi.advanceTimersByTimeAsync(EARLY_TIME_TIMEOUT_MS);
+    http.expectOne(TIME_URL).flush({ epochMs: SERVER, iso: '' });
+    await done;
+    expect(service.synced()).toBe(true);
   });
 });
 
