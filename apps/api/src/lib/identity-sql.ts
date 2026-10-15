@@ -9,7 +9,7 @@
  * **c12**：只用 `resolveDatabaseUrl` 給的標準連線字串（共用 Better Auth 這個請求的 pg Pool）。
  * 沒有 Hyperdrive binding 時就是 `DATABASE_URL`：本機 `wrangler dev`、自架的 `server.ts` 都走這條。
  *
- * **退路**：任何失敗（拋錯、Hyperdrive 超過免費額度、結果形狀不對）都回 `null`，
+ * **退路**：任何失敗（拋錯、Hyperdrive 超過免費額度、結果形狀不對、roles 是空的）都回 `null`，
  * 呼叫端改走原本的 supabase-js 三查。**絕不用猜的值**：形狀不對時不能當成「沒有角色」
  * （會擋掉該進的人），也不能當成「已停用」（同上），更不能當成放行。
  *
@@ -125,7 +125,19 @@ export async function loadIdentityViaSql(
 ): Promise<IdentityRows | null> {
   try {
     const parsed = parseIdentityRow((await db.query(IDENTITY_SQL, [userId, orgId])).rows);
-    if (!parsed) console.error('[identity-sql] 結果形狀不對，改走 REST');
+    if (!parsed) {
+      console.error('[identity-sql] 結果形狀不對，改走 REST');
+      return null;
+    }
+    // **roles 是空的就不信它，走 REST 確認**（#1616 計畫席擋點）：連線角色若受 RLS 約束
+    // （自架客戶用了受限角色、或之後換了連線使用者），SQL 會**乾淨地**回三個空陣列 ——
+    // 形狀完全正確，看起來就是「沒有角色」，全站變 403 而且不會退回 REST。
+    // 業務表 RLS 開著、0 條 policy；正式站 Hyperdrive 連的是 `postgres`（rolbypassrls = true，
+    // 10-15 唯讀查證），所以正式站不會發生，這道是給其他部署的。代價：真的沒有角色的人多一次 REST。
+    if (parsed.roleRows.length === 0) {
+      console.error('[identity-sql] roles 為空，改走 REST 確認');
+      return null;
+    }
     return parsed;
   } catch (err) {
     // 只印錯誤碼：pg 的錯誤訊息有時會帶出參數值（例如 uuid 格式錯誤時印出那個值）

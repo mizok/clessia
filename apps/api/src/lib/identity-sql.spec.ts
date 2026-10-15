@@ -86,6 +86,17 @@ describe('loadIdentityViaSql', () => {
     expect(await loadIdentityViaSql(db, 'u', 'o')).toBeNull();
   });
 
+  it('roles 是空的 → null（不信「沒有角色」，交給 REST 確認；#1616）', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const db = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ roles: [], staff: GOOD.staff, parents: GOOD.parents }],
+      }),
+    };
+    expect(await loadIdentityViaSql(db, 'u', 'o')).toBeNull();
+    expect(String(log.mock.calls[0]?.[0])).toContain('roles 為空');
+  });
+
   it('參數是 [user id, org id]', async () => {
     const db = { query: vi.fn().mockResolvedValue({ rows: [GOOD] }) };
     await loadIdentityViaSql(db, 'user-1', 'org-1');

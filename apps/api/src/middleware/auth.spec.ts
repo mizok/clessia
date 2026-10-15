@@ -786,16 +786,31 @@ describe('authMiddleware 的身分 SQL 路徑與 REST 退路（Hyperdrive A）',
     expect(queried).toContain('user_roles');
   });
 
-  it('SQL 回「真的沒有角色」（合法的空陣列）→ 照實拒絕，不去問 REST', async () => {
+  // #1616 計畫席擋點：連線角色受 RLS 約束時，SQL 會乾淨地回三個空陣列 —— 形狀正確、看起來像沒有角色。
+  // 不能就此拒絕：一律去問 REST
+  it('SQL 回三個空陣列（例如連線角色被 RLS 擋住）→ 走 REST；REST 有角色就照樣授權', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     poolForTest = {
       query: vi.fn().mockResolvedValue({ rows: [{ roles: [], staff: [], parents: [] }] }),
     };
     const queried: string[] = [];
-    restReturning({ user_roles: ROLES }, queried);
+    restReturning({ user_roles: ROLES, staff: STAFF }, queried);
+
+    const a = app();
+    a.get('/admin-only', requireRoles('admin'), (c) => c.json({ ok: true }));
+    expect((await a.request('/admin-only')).status).toBe(200);
+    expect(queried).toContain('user_roles');
+  });
+
+  it('SQL 與 REST 都說沒有角色 → 照實拒絕（防線不會變成放行）', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    poolForTest = {
+      query: vi.fn().mockResolvedValue({ rows: [{ roles: [], staff: [], parents: [] }] }),
+    };
+    restReturning({});
 
     const a = app();
     a.get('/admin-only', requireRoles('admin'), (c) => c.json({ ok: true }));
     expect((await a.request('/admin-only')).status).toBe(403);
-    expect(queried).toEqual([]);
   });
 });
