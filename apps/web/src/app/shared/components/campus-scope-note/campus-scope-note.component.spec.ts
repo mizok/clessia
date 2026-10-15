@@ -8,6 +8,7 @@ import { CampusScopeNoteComponent } from './campus-scope-note.component';
 describe('CampusScopeNoteComponent（#1138）', () => {
   beforeEach(() => {
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     TestBed.configureTestingModule({
       providers: [
         {
@@ -34,11 +35,11 @@ describe('CampusScopeNoteComponent（#1138）', () => {
     expect(text()).toBe('目前只看 文山旗艦校，換分校在頂欄。');
   });
 
-  it('頂欄是全部分校、或這頁沒接頂欄：不出聲', () => {
+  it('頂欄是全部分校（報表頁）、或這頁沒接頂欄：不出聲', () => {
     const ctx = TestBed.inject(CampusContextService);
     ctx.select('c1');
     expect(text()).toBe(''); // 沒有人 use()
-    TestBed.runInInjectionContext(() => ctx.use());
+    TestBed.runInInjectionContext(() => ctx.use({ allowAll: true }));
     ctx.select(null);
     expect(text()).toBe('');
   });

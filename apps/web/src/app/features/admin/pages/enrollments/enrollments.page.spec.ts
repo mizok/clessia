@@ -95,6 +95,7 @@ describe('EnrollmentsPage', () => {
       }),
     );
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     navigateMock.mockReset();
 
     listMock.mockReturnValue(of({ data, meta: { total, page: 1, pageSize: 20, totalPages: 1 } }));
@@ -122,6 +123,13 @@ describe('EnrollmentsPage', () => {
 
   // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
   // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('日常頁：頂欄沒有「全部分校」（#1607）', async () => {
+    await setup();
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
+  });
+
   it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
     listMock.mockReset();
     studentsListMock.mockReset();

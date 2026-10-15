@@ -300,6 +300,13 @@ describe('DashboardComponent（管理端）', () => {
   }
 
   // 「已經上完」整個是伺服器算的（`endedOnly`）——前端只讀 meta.total，不再自己合併
+  it('報表類：頂欄保留「全部分校」（#1607）', async () => {
+    await setup();
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(true);
+  });
+
   it('未點名數整個來自伺服器的 meta.total，前端不重算', async () => {
     await setup({
       recentSessions: [
@@ -1035,7 +1042,10 @@ describe('DashboardComponent（管理端）', () => {
     const campusCtx = () => TestBed.inject(CampusContextService);
     const lastArg = (m: ReturnType<typeof vi.fn>) => m.mock.calls[m.mock.calls.length - 1][0];
 
-    beforeEach(() => localStorage.removeItem('clessia.campusContext'));
+    beforeEach(() => {
+      localStorage.removeItem('clessia.campusContext');
+      localStorage.removeItem('clessia.campusContext.single');
+    });
 
     it('預設（全部分校）六支都不帶 campusId，頁面接上頂欄（出現下拉）', async () => {
       await setup({ permissions: FIN });

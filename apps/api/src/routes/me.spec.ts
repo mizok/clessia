@@ -48,6 +48,7 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
     const res = await appWith(queried, {
       staff: { display_name: '王主任', birthday: '1990-01-02' },
       parent: null,
+      assignedCampusIds: [],
     }).request('/api/me');
 
     expect(res.status).toBe(200);
@@ -63,7 +64,23 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
   });
 
   it('家長：名稱用 parents.name；沒有 staff 列時生日是 null', async () => {
-    const res = await appWith([], { staff: null, parent: { name: '林媽媽' } }).request('/api/me');
+    const res = await appWith([], {
+      staff: null,
+      parent: { name: '林媽媽' },
+      assignedCampusIds: [],
+    }).request('/api/me');
     expect(await res.json()).toMatchObject({ displayName: '林媽媽', birthday: null });
+  });
+
+  // #1607：前端挑預設分校用。值就是 middleware 算 campusScope 的那份，不另查
+  it('assignedCampusIds 原樣回 middleware 的值，不多查任何表', async () => {
+    const queried: string[] = [];
+    const res = await appWith(queried, {
+      staff: { display_name: '王主任' },
+      parent: null,
+      assignedCampusIds: ['c2', 'c1'],
+    }).request('/api/me');
+    expect(queried.sort()).toEqual(['ba_user', 'profiles']);
+    expect(await res.json()).toMatchObject({ assignedCampusIds: ['c2', 'c1'] });
   });
 });

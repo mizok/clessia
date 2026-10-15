@@ -144,7 +144,7 @@ export class ReportsPage implements OnInit {
   protected readonly hasFilters = computed(() => this.courseId() !== null);
 
   constructor() {
-    this.campusCtx.use();
+    this.campusCtx.use({ allowAll: true }); // 報表類：保留全部分校（#1607）
     // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
     toObservable(this.campusId)
       .pipe(skip(1), takeUntilDestroyed())

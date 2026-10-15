@@ -82,10 +82,16 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   );
   c.set('permissions', permissions);
   c.set('supabase', supabase);
-  // /api/me 顯示名稱與生日用（#1595 P2a）。跟授權欄位同一份快取，所以最遲 30 秒才反映修改
+  const assignedCampusIds = staffRows.flatMap((row) => {
+    const links = (row as { staff_campuses?: { campus_id: string }[] | null }).staff_campuses;
+    return Array.isArray(links) ? links.map((link) => link.campus_id) : [];
+  });
+  // /api/me 顯示名稱與生日用（#1595 P2a）。跟授權欄位同一份快取，所以最遲 30 秒才反映修改。
+  // `assignedCampusIds` 是下面 campusScope 用的**同一份**，給前端挑預設分校（#1607），不是授權
   c.set('selfRows', {
     staff: (staffRows[0] as { display_name?: string | null; birthday?: string | null }) ?? null,
     parent: (parentRows[0] as { name?: string | null }) ?? null,
+    assignedCampusIds,
   });
 
   // 前端目前選定的身分（見 lib/active-role.ts）。找不到或不是這個人的角色之一 → null，
@@ -114,10 +120,7 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     resolveCampusScope({
       roles: roles,
       permissions: permissions,
-      assignedCampusIds: staffRows.flatMap((row) => {
-        const links = (row as { staff_campuses?: { campus_id: string }[] | null }).staff_campuses;
-        return Array.isArray(links) ? links.map((link) => link.campus_id) : [];
-      }),
+      assignedCampusIds,
     }),
   );
 

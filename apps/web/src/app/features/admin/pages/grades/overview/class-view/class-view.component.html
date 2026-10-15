@@ -38,21 +38,6 @@
 
     <!-- 桌機：篩選攤開（A6 收在 popover 裡；這裡欄位少，攤開少一次點擊） -->
     <div class="hidden gap-3 wide:flex wide:items-end" data-part="desktop-filters">
-      @if (showCampusPicker()) {
-        <div class="flex min-w-40 flex-col gap-1">
-          <span class="text-sm font-semibold text-zinc-700" id="cv-f-campus">分校</span>
-          <p-select
-            [options]="campusOptions()"
-            [ngModel]="campusId()"
-            (ngModelChange)="onCampusChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="選擇分校"
-            ariaLabelledBy="cv-f-campus"
-            styleClass="w-full"
-          />
-        </div>
-      }
       <div class="flex min-w-40 flex-col gap-1">
         <span class="text-sm font-semibold text-zinc-700" id="cv-f-grade">年級</span>
         <p-multiselect

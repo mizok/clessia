@@ -37,7 +37,10 @@ describe('ChangesComponent', () => {
   const refDataMock = { campuses: signal<unknown[]>([]), loadCampuses: vi.fn() };
 
   // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
-  beforeEach(() => localStorage.removeItem('clessia.campusContext'));
+  beforeEach(() => {
+    localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
+  });
 
   async function setup() {
     listChangesMock.mockReset();
@@ -63,6 +66,13 @@ describe('ChangesComponent', () => {
 
   // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
   // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('日常頁：頂欄沒有「全部分校」（#1607）', async () => {
+    await setup();
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
+  });
+
   it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
     listChangesMock.mockReset();
     listChangesMock.mockReturnValue(NEVER);

@@ -49,6 +49,7 @@ describe('ReportsPage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     reports.revenue.mockReset().mockReturnValue(of(response()));
     courses.list.mockReset().mockReturnValue(of({ data: [], meta: {} }));
 
@@ -66,6 +67,12 @@ describe('ReportsPage', () => {
     fixture.componentRef.setInput('page', { label: '營收報表' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  it('報表類：頂欄保留「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(true);
   });
 
   it('should create', () => {

@@ -20,6 +20,7 @@ describe('StudentViewComponent', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     await TestBed.configureTestingModule({
       imports: [StudentViewComponent],
       providers: [
@@ -66,6 +67,12 @@ describe('StudentViewComponent', () => {
    * 斷言查的是 `document`（toast 會被搬出元件），而且查的是**渲染出來的訊息**，
    * 不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
    */
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
+  });
+
   it('發出的 toast 有出口 —— DOM 裡真的長出訊息', () => {
     fixture.detectChanges();
 

@@ -124,6 +124,7 @@ describe('SessionsPage', () => {
     routeFragment.next(null);
     // 頂欄分校記在 localStorage（CampusContextService）—— 不清的話上一條測試選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     sessionsServiceMock.list.mockClear();
     sessionsServiceMock.batchAssignTeacher.mockClear();
     sessionsServiceMock.batchUpdateTime.mockClear();
@@ -189,6 +190,12 @@ describe('SessionsPage', () => {
     });
     router = TestBed.inject(Router);
     await fixture.whenStable();
+  });
+
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
   });
 
   it('should create', () => {
@@ -523,6 +530,31 @@ describe('SessionsPage', () => {
       expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
         expect.objectContaining({ campusIds: ['campus-b'], courseIds: ['math-b'] }),
       );
+    });
+
+    it('手機篩選沒帶分校回來：不把頂欄寫回全部分校（#1607）', async () => {
+      const ctx = TestBed.inject(CampusContextService);
+      ctx.select('campus-b');
+      vi.spyOn(
+        (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+          .dialogService,
+        'open',
+      ).mockReturnValue({
+        onClose: of({
+          campusIds: [],
+          courseIds: [],
+          teacherIds: [],
+          classIds: [],
+          studentIds: [],
+          statuses: [],
+        }),
+      });
+
+      (component as unknown as { openMobileFiltersDialog: () => void }).openMobileFiltersDialog();
+      await fixture.whenStable();
+
+      expect(ctx.id()).toBe('campus-b');
+      expect(localStorage.getItem('clessia.campusContext')).toBe('campus-b');
     });
   });
 

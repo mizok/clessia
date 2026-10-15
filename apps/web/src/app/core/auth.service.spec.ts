@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { environment } from '@env/environment';
 
 import { AuthService, EARLY_ME_TIMEOUT_MS } from './auth.service';
+import { CampusContextService } from './campus-context.service';
 
 const ME = {
   userId: 'u1',
@@ -97,6 +98,34 @@ describe('AuthService 開站', () => {
 });
 
 // ── refreshRoles ─────────────────────────────────────────────────────────────
+
+// #1607：頂欄日常頁的預設分校看「自己被指派的」；舊版 API 沒這欄時退回清單第一間
+describe('AuthService — 被指派的分校交給頂欄', () => {
+  const campuses = [
+    { id: 'a', name: '總校' },
+    { id: 'b', name: '二校' },
+  ];
+
+  async function dailyDefault(me: object) {
+    localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
+    const { service, http } = setup();
+    http.expectOne(ME_URL).flush(me);
+    await service.ready;
+    const ctx = TestBed.inject(CampusContextService);
+    ctx['refData'].campuses.set(campuses as never);
+    ctx['dailyUsers'].set(1);
+    return ctx.id();
+  }
+
+  it('/api/me 帶 assignedCampusIds：日常頁預設是指派的那間', async () => {
+    expect(await dailyDefault({ ...ME, assignedCampusIds: ['b'] })).toBe('b');
+  });
+
+  it('/api/me 沒帶這欄：退回清單第一間', async () => {
+    expect(await dailyDefault(ME)).toBe('a');
+  });
+});
 
 describe('AuthService — 讀不到 profile vs 沒有角色', () => {
   it('讀到資料時回 true，並把角色寫進 signal', async () => {

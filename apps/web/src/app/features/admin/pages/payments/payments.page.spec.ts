@@ -86,6 +86,7 @@ describe('PaymentsPage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     enrollments.list.mockReset().mockReturnValue(of({ data: [], meta: { total: 0 } }));
     invoices.list.mockReset().mockReturnValue(of(listResponse([])));
     invoices.summary.mockReset().mockReturnValue(of(summary()));
@@ -104,6 +105,12 @@ describe('PaymentsPage', () => {
     fixture.componentRef.setInput('page', { label: '繳費紀錄' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
   });
 
   it('should create', () => {
@@ -922,12 +929,12 @@ describe('PaymentsPage', () => {
       expect(component['pageIndex']()).toBe(1);
     });
 
-    it('選回「全部分校」：campusId 不帶（undefined），不是舊的 id', async () => {
+    it('日常頁沒有「全部分校」（#1607）：選擇被清成 null 仍帶上次那間', async () => {
       await pick('c1');
       await pick(null);
-      expect(lastCall(invoices.list)['campusId']).toBeUndefined();
-      expect(invoices.summary).toHaveBeenLastCalledWith({ campusId: undefined });
-      expect(lastCall(enrollments.list)['campusId']).toBeUndefined();
+      expect(lastCall(invoices.list)['campusId']).toBe('c1');
+      expect(invoices.summary).toHaveBeenLastCalledWith({ campusId: 'c1' });
+      expect(lastCall(enrollments.list)['campusId']).toBe('c1');
     });
 
     it('展開的章跟著換分校：頁碼歸 1、含已繳清章的多退那支；沒展開的章不多打', async () => {

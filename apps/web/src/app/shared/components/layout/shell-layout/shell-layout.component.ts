@@ -75,8 +75,9 @@ export class ShellLayoutComponent {
   protected readonly moreOpen = signal(false);
   protected readonly accountOpen = signal(false);
   protected readonly campusOpen = signal(false);
+  /** 「全部分校」只給報表頁（#1607）；日常頁一次只看一間 */
   protected readonly campusChoices = computed(() => [
-    { id: null as string | null, name: '全部分校' },
+    ...(this.campus.allowAll() ? [{ id: null as string | null, name: '全部分校' }] : []),
     ...this.campus.campuses().map((c) => ({ id: c.id as string | null, name: c.name })),
   ]);
 

@@ -81,7 +81,10 @@ describe('UninvoicedDialogComponent', () => {
       const calls = enrollmentsServiceMock.list.mock.calls;
       return calls[calls.length - 1][0] as { campusId?: string };
     };
-    beforeEach(() => localStorage.removeItem('clessia.campusContext'));
+    beforeEach(() => {
+      localStorage.removeItem('clessia.campusContext');
+      localStorage.removeItem('clessia.campusContext.single');
+    });
 
     it('頂欄是「全部分校」：不帶 campusId', async () => {
       await setup([enrollment()]);
@@ -96,7 +99,7 @@ describe('UninvoicedDialogComponent', () => {
       expect(lastCall().campusId).toBe('campus-A');
     });
 
-    it('換分校後再開一次：帶新的分校，不是上次那間；改回全部又不帶', async () => {
+    it('換分校後再開一次：帶新的分校，不是上次那間；清成 null 仍帶上次那間（#1607）', async () => {
       await setup([enrollment()]);
       campusCtx().select('campus-A');
       TestBed.createComponent(UninvoicedDialogComponent).detectChanges();
@@ -108,7 +111,7 @@ describe('UninvoicedDialogComponent', () => {
 
       campusCtx().select(null);
       TestBed.createComponent(UninvoicedDialogComponent).detectChanges();
-      expect(lastCall().campusId).toBeUndefined();
+      expect(lastCall().campusId).toBe('campus-B');
     });
   });
 
