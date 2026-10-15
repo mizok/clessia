@@ -4,6 +4,7 @@ import { getAuth } from '../lib/get-auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { createLatencyProbe } from '../lib/supabase-latency-probe';
 import { getCachedIdentity, setCachedIdentity } from '../lib/identity-cache';
+import { loadIdentityViaSql, type IdentityRows } from '../lib/identity-sql';
 import { isAccountUsable } from './account-status';
 import { hasPermission } from '../lib/permissions';
 import { isCampusAllowed, resolveCampusScope } from '../lib/campus-scope';
@@ -58,7 +59,11 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   // 「最遲 30 秒生效」，上限由 lib/identity-cache.ts 與 auth.spec.ts 守（#1595 P1b）。
   let identity = getCachedIdentity<IdentityRows>(session.user.id);
   if (!identity) {
-    const loaded = await loadIdentity(supabase, session.user.id, orgId);
+    // 先走 SQL（Hyperdrive，一次往返、繞過 PostgREST）；失敗或形狀不對就走原本的 REST 三查
+    // （見 lib/identity-sql.ts）。兩條路回同一個形狀，下游的授權推導完全相同
+    const loaded =
+      (auth.pool ? await loadIdentityViaSql(auth.pool, session.user.id, orgId) : null) ??
+      (await loadIdentity(supabase, session.user.id, orgId));
     if (!loaded) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     setCachedIdentity(session.user.id, loaded);
     identity = loaded;
@@ -142,14 +147,8 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   return;
 });
 
-interface IdentityRows {
-  roleRows: { role: string; permissions?: unknown }[];
-  staffRows: unknown[];
-  parentRows: unknown[];
-}
-
 /** 身分三查。任何一支失敗回 null（呼叫端回 500），失敗原因印進 log。 */
-async function loadIdentity(
+export async function loadIdentity(
   supabase: SupabaseClient,
   userId: string,
   orgId: string,

@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 import { getAuth } from '../lib/get-auth';
+import { loadMeExtrasViaSql, type MeExtras } from '../lib/identity-sql';
 import childrenRoute from './parent/children';
 import attendanceRoute from './parent/attendance';
 import gradesRoute from './parent/grades';
@@ -69,10 +70,17 @@ app.openapi(
     // 角色、權限、staff／parents 列都是 auth middleware 已經查好的（#1595 P2a）——
     // 這裡原本各查一次，user_roles 那支跟 middleware 完全重複
     const { staff, parent, assignedCampusIds } = c.get('selfRows');
-    const [profileResult, baUserResult] = await Promise.all([
-      supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
-      supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
-    ]);
+    // 先走 SQL（Hyperdrive，一次往返），失敗或形狀不對就走原本的兩支 REST（見 lib/identity-sql.ts）
+    const auth = getAuth(c);
+    const viaRest = async (): Promise<MeExtras> => {
+      const [p, u] = await Promise.all([
+        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+        supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
+      ]);
+      return { profile: p.data as MeExtras['profile'], baUser: u.data as MeExtras['baUser'] };
+    };
+    const { profile, baUser }: MeExtras =
+      (auth.pool ? await loadMeExtrasViaSql(auth.pool, userId, orgId) : null) ?? (await viaRest());
 
     return c.json(
       {
@@ -80,13 +88,13 @@ app.openapi(
         orgId,
         // profiles 不是可靠的來源 —— 見 lib/display-name.ts
         displayName: resolveDisplayName({
-          profile: profileResult.data,
+          profile,
           staff,
           parent,
-          baUser: baUserResult.data,
+          baUser,
         }),
-        email: (baUserResult.data?.email as string | null) ?? null,
-        phone: (baUserResult.data?.phone as string | null) ?? null,
+        email: baUser?.email ?? null,
+        phone: baUser?.phone ?? null,
         birthday: staff?.birthday ?? null,
         roles: c.get('roles'),
         permissions: c.get('permissions'),
