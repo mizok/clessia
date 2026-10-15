@@ -151,6 +151,7 @@ export async function loadLatestExams(
       ? { rows: [], error: null }
       : await fetchAllPages((from, to) =>
           supabase
+            // org 範圍是傳遞來的：examIds 只來自上面 org 過濾過的 links，改 examIds 來源時要補 org 條件
             .from('academy_scores')
             .select('id, exam_id, student_id, score, status')
             .in('exam_id', examIds)
