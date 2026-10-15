@@ -1969,6 +1969,24 @@ describe('SessionsPage', () => {
       expect(flat()).toMatch(/^週四 4\/16 最滿/);
     });
 
+    // conformance F：A6 `.gb__main` padding-right 30、`.gb__name／.gb__meta` 行高 1.3、軸列「老師」標籤內距 8／12
+    it('甘特課塊：右內距 30（留給 ⋯）、班名與時間行高 1.3；軸列標籤上下 8、右 12', async () => {
+      await show([sess({})]);
+      const root = fixture.nativeElement as HTMLElement;
+      const block = root.querySelector(
+        'app-schedule-gantt button[data-session-menu]',
+      ) as HTMLElement;
+      expect(block.classList.contains('pr-[30px]')).toBe(true);
+      const [name, meta] = Array.from(block.querySelectorAll(':scope > span'));
+      expect(name.classList.contains('leading-[1.3]')).toBe(true);
+      expect(meta.classList.contains('leading-[1.3]')).toBe(true);
+      const axis = Array.from(root.querySelectorAll('app-schedule-gantt div')).find(
+        (d) => d.textContent?.trim() === '老師',
+      ) as HTMLElement;
+      expect(axis.classList.contains('py-2')).toBe(true);
+      expect(axis.classList.contains('pr-3')).toBe(true);
+    });
+
     it('全部停課：「整天停課」，不寫最滿', async () => {
       await show([sess({ status: 'cancelled' })]);
       expect(flat()).toBe('今天整天停課');
