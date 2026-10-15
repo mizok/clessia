@@ -25,12 +25,12 @@
   -->
   <div class="page-wrap flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 md:gap-x-3">
     @if (mode() !== 'results') {
-      <div class="inline-flex gap-0.5 rounded-md bg-zinc-200 p-0.5" role="group" aria-label="檢視">
+      <div class="inline-flex gap-0.5 rounded-md bg-zinc-100 p-0.5" role="group" aria-label="檢視">
         <button
           type="button"
-          class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded border-0 px-3 text-md font-semibold"
-          [class.bg-white]="mode() === 'day'"
-          [class.text-zinc-900]="mode() === 'day'"
+          class="inline-flex h-11 min-w-11 cursor-pointer items-center justify-center rounded-sm border-0 px-3 text-lg font-semibold wide:h-8 wide:min-w-10"
+          [class.bg-zinc-900]="mode() === 'day'"
+          [class.text-white]="mode() === 'day'"
           [class.bg-transparent]="mode() !== 'day'"
           [class.text-zinc-700]="mode() !== 'day'"
           [attr.aria-pressed]="mode() === 'day'"
@@ -40,9 +40,9 @@
         </button>
         <button
           type="button"
-          class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded border-0 px-3 text-md font-semibold"
-          [class.bg-white]="mode() === 'week'"
-          [class.text-zinc-900]="mode() === 'week'"
+          class="inline-flex h-11 min-w-11 cursor-pointer items-center justify-center rounded-sm border-0 px-3 text-lg font-semibold wide:h-8 wide:min-w-10"
+          [class.bg-zinc-900]="mode() === 'week'"
+          [class.text-white]="mode() === 'week'"
           [class.bg-transparent]="mode() !== 'week'"
           [class.text-zinc-700]="mode() !== 'week'"
           [attr.aria-pressed]="mode() === 'week'"
@@ -71,29 +71,25 @@
         />
       </label>
     }
-    <div class="ml-auto flex items-center gap-2 md:order-last">
+    <div
+      class="order-3 flex w-full items-center gap-2 border-t border-zinc-200 pt-2 md:order-last md:ml-auto md:w-auto md:border-t-0 md:pt-0"
+    >
       <!-- 快速選取（#1174 G3）：桌機開關工具列下的「一次勾：」那一列；手機打開底部面板 -->
       <button
         type="button"
-        class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
+        class="hidden cursor-pointer items-center justify-center rounded-md border border-zinc-900 bg-transparent font-semibold whitespace-nowrap text-zinc-900 hover:bg-zinc-50 wide:inline-flex wide:h-[30px] wide:px-3 wide:text-sm"
         [attr.aria-pressed]="picking()"
         (click)="picking.set(!picking())"
       >
-        @if (picking()) {
-          <i class="pi pi-check text-sm" aria-hidden="true"></i>完成
-        } @else {
-          <i class="pi pi-check-square text-sm" aria-hidden="true"></i>快速選取
-        }
+        {{ picking() ? '完成' : '快速選取' }}
       </button>
       <button
         type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
+        class="inline-flex h-11 flex-1 cursor-pointer items-center justify-center rounded-md border border-zinc-900 bg-transparent px-3 text-base font-semibold whitespace-nowrap text-zinc-900 hover:bg-zinc-50 wide:hidden"
         aria-haspopup="dialog"
         (click)="sheetOpen.set(true)"
       >
-        <i class="pi pi-check-square text-sm" aria-hidden="true"></i>快速選取{{
-          selectedCount() ? ' · 已勾 ' + selectedCount() : ''
-        }}
+        快速選取{{ selectedCount() ? ' · 已勾 ' + selectedCount() : '' }}
       </button>
       <app-popup-menu #moreMenu [model]="moreMenuItems()" />
       <button
@@ -114,7 +110,9 @@
     </div>
     @if (mode() !== 'results') {
       <!-- 日期條（A6 .dtabs）：一週七天，選中那天橘底線（週視圖沒有選中的天，點一天＝看那天） -->
-      <div class="flex w-full min-w-0 items-center gap-0.5 md:w-auto md:flex-1 md:gap-1">
+      <div
+        class="order-2 flex w-full min-w-0 items-center gap-0.5 md:order-none md:w-auto md:flex-1 md:gap-1"
+      >
         <button
           type="button"
           class="inline-flex h-11 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 md:size-11"
@@ -123,21 +121,27 @@
         >
           <i class="pi pi-chevron-left text-sm" aria-hidden="true"></i>
         </button>
-        <nav class="flex min-w-0 flex-1 gap-0.5" aria-label="選擇日期">
+        <nav class="flex min-w-0 flex-1 gap-0 md:gap-0.5" aria-label="選擇日期">
           @for (d of weekDays(); track d.getTime()) {
             <button
               type="button"
-              class="grid min-h-11 min-w-0 flex-1 cursor-pointer justify-items-center border-0 border-b-2 bg-transparent px-0 py-1.5 leading-tight text-zinc-700 hover:text-zinc-900 md:px-2"
+              class="grid min-h-11 min-w-0 flex-1 cursor-pointer justify-items-center border-0 border-b-2 bg-transparent px-px pt-1 pb-1.5 leading-[1.25] hover:border-b-zinc-500 md:min-w-16 md:px-2 md:py-1.5"
               [class.border-transparent]="!isSelectedDay(d)"
               [class.border-accent-vivid]="isSelectedDay(d)"
-              [class.text-zinc-900]="isSelectedDay(d)"
+              [class.text-zinc-500]="!isSelectedDay(d)"
+              [class.text-zinc-700]="isSelectedDay(d)"
               [attr.aria-current]="isSelectedDay(d) ? 'date' : null"
               (click)="setDay(d)"
             >
               <span class="text-xs md:text-sm">週{{ weekdayLabel(d) }}</span>
-              <b class="text-sm tabular-nums md:text-lg">{{ d | date: 'M/d' }}</b>
+              <b
+                class="text-base tabular-nums md:text-lg"
+                [class.text-zinc-700]="!isSelectedDay(d)"
+                [class.text-zinc-900]="isSelectedDay(d)"
+                >{{ d | date: 'M/d' }}</b
+              >
               @if (isTodayDate(d)) {
-                <span class="text-xs font-semibold">今天</span>
+                <i class="text-xs font-semibold text-zinc-700 not-italic">今天</i>
               }
             </button>
           }

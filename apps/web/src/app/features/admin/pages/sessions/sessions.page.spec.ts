@@ -1611,13 +1611,13 @@ describe('SessionsPage', () => {
 
     // #1441：360px 時週日期條字黏在一起。jsdom 不跑 Tailwind，
     // 這裡釘的是意圖（手機字級），結果由 PR 的 360 實拍證明。
-    it('週日期條七格用手機字級（<md text-sm、md 以上 text-lg），上下週鈕手機收窄', async () => {
+    it('週日期條七格用 A6 字級（手機 text-base、md 以上 text-lg），上下週鈕手機收窄', async () => {
       await settle();
       const el = fixture.nativeElement as HTMLElement;
       const dates = el.querySelectorAll('nav[aria-label="選擇日期"] button b');
       expect(dates.length).toBe(7);
       for (const b of Array.from(dates)) {
-        expect(b.classList.contains('text-sm')).toBe(true);
+        expect(b.classList.contains('text-base')).toBe(true);
         expect(b.classList.contains('md:text-lg')).toBe(true);
       }
       for (const label of ['上一週', '下一週']) {
@@ -1829,6 +1829,96 @@ describe('SessionsPage', () => {
       expect(
         (fixture.nativeElement as HTMLElement).querySelector('app-page-open')?.textContent,
       ).not.toContain('未指派');
+    });
+  });
+
+  /** #1314 conformance（課表）：工具列的 A6 樣式——選中態、日期條、今天標籤、快速選取 */
+  describe('A6 工具列樣式', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const viewBtn = (label: string) =>
+      Array.from(el().querySelectorAll('[aria-label="檢視"] button')).find(
+        (b) => b.textContent?.trim() === label,
+      ) as HTMLElement;
+    const setMode = (m: string) => {
+      (component as unknown as { mode: { set: (v: string) => void } }).mode.set(m);
+      fixture.detectChanges();
+    };
+
+    it('日／週：選中＝近黑底白字，另一顆透明＋zinc-700；切換後兩邊對調', () => {
+      setMode('day');
+      expect(viewBtn('日').classList.contains('bg-zinc-900')).toBe(true);
+      expect(viewBtn('日').classList.contains('text-white')).toBe(true);
+      expect(viewBtn('週').classList.contains('bg-transparent')).toBe(true);
+      expect(viewBtn('週').classList.contains('text-zinc-700')).toBe(true);
+      expect(viewBtn('週').classList.contains('bg-zinc-900')).toBe(false);
+
+      setMode('week');
+      expect(viewBtn('週').classList.contains('bg-zinc-900')).toBe(true);
+      expect(viewBtn('日').classList.contains('bg-zinc-900')).toBe(false);
+      expect(viewBtn('日').classList.contains('text-zinc-700')).toBe(true);
+    });
+
+    it('日／週：手機 44、桌機 32 高（A27 只管基底），字級 text-lg', () => {
+      const b = viewBtn('日');
+      expect(b.classList.contains('h-11')).toBe(true);
+      expect(b.classList.contains('wide:h-8')).toBe(true);
+      expect(b.classList.contains('text-lg')).toBe(true);
+    });
+
+    it('日期條：選中的那天日期 zinc-900、週X zinc-700；其餘日期 zinc-700、週X zinc-500；今天是 <i>', () => {
+      setMode('day');
+      const tabs = Array.from(el().querySelectorAll('nav[aria-label="選擇日期"] button'));
+      const sel = tabs.filter((t) => t.getAttribute('aria-current') === 'date');
+      expect(sel.length).toBe(1);
+      for (const t of tabs) {
+        const isSel = t === sel[0];
+        const b = t.querySelector('b')!;
+        expect(t.classList.contains('text-zinc-700'), '選中 → 按鈕 zinc-700').toBe(isSel);
+        expect(t.classList.contains('text-zinc-500'), '未選 → 按鈕 zinc-500').toBe(!isSel);
+        expect(b.classList.contains('text-zinc-900')).toBe(isSel);
+        expect(b.classList.contains('text-zinc-700')).toBe(!isSel);
+        expect(t.classList.contains('leading-[1.25]')).toBe(true);
+      }
+    });
+
+    it('「今天」標籤是 <i>（A6 role），而且只有今天那一格有', () => {
+      const labels = el().querySelectorAll('nav[aria-label="選擇日期"] i');
+      expect(labels.length).toBeLessThanOrEqual(1);
+      for (const i of Array.from(labels)) {
+        expect(i.textContent?.trim()).toBe('今天');
+        expect(i.classList.contains('not-italic')).toBe(true);
+      }
+    });
+
+    it('快速選取：純文字（A6 沒畫圖示）、桌機 30 高；開了之後桌機鈕變「完成」', () => {
+      const desktop = Array.from(el().querySelectorAll('button')).find((b) =>
+        b.classList.contains('wide:h-[30px]'),
+      ) as HTMLElement;
+      expect(desktop.textContent?.trim()).toBe('快速選取');
+      expect(desktop.querySelector('i')).toBeNull();
+      expect(desktop.classList.contains('border-zinc-900')).toBe(true);
+      (component as unknown as { picking: { set: (v: boolean) => void } }).picking.set(true);
+      fixture.detectChanges();
+      expect(desktop.textContent?.trim()).toBe('完成');
+      expect(desktop.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('手機快速選取：全寬一列（flex-1、44 高），圖示拿掉；勾了課會寫「已勾 N」', () => {
+      const mobile = Array.from(el().querySelectorAll('button')).find(
+        (b) => b.classList.contains('wide:hidden') && b.textContent?.includes('快速選取'),
+      ) as HTMLElement;
+      expect(mobile.classList.contains('flex-1')).toBe(true);
+      expect(mobile.classList.contains('h-11')).toBe(true);
+      expect(mobile.querySelector('i')).toBeNull();
+    });
+
+    it('手機：動作列在日期條之後（order-3 > order-2），桌機回到同一列（md:order-last）', () => {
+      const actions = el().querySelector('.more-menu-trigger')!.parentElement!;
+      expect(actions.classList.contains('order-3')).toBe(true);
+      expect(actions.classList.contains('md:order-last')).toBe(true);
+      const strip = el().querySelector('nav[aria-label="選擇日期"]')!.parentElement!;
+      expect(strip.classList.contains('order-2')).toBe(true);
+      expect(strip.classList.contains('md:order-none')).toBe(true);
     });
   });
 });
