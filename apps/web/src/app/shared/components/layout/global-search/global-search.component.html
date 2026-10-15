@@ -1,11 +1,11 @@
 <!-- 桌機：頂欄輸入框（A6 .top__search） -->
 <label
-  class="hidden h-9 w-60 items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800 px-3 text-zinc-400 focus-within:border-zinc-300 wide:flex"
+  class="hidden h-[34px] w-60 items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800 px-3 text-zinc-400 focus-within:border-zinc-300 wide:flex"
 >
   <i class="pi pi-search text-sm" aria-hidden="true"></i>
   <input
     #head
-    class="min-w-0 flex-1 border-0 bg-transparent text-md text-white outline-none placeholder:text-zinc-400"
+    class="min-w-0 flex-1 border-0 bg-transparent px-0.5 py-px text-md text-white outline-none placeholder:text-zinc-400"
     type="search"
     placeholder="找學生、家長電話"
     aria-label="全站搜尋"
@@ -21,7 +21,7 @@
 
 <!-- 手機：放大鏡 → 底部面板 -->
 <button
-  class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-white hover:bg-zinc-800 wide:hidden"
+  class="inline-flex size-11 cursor-pointer items-center justify-center rounded-none border-0 bg-transparent p-1.5 text-white wide:hidden"
   type="button"
   aria-label="搜尋學生"
   (click)="openSheet()"

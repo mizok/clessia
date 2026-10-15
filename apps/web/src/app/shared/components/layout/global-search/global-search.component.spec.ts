@@ -114,4 +114,19 @@ describe('GlobalSearchComponent', () => {
     type('錢');
     expect(el.textContent).toContain('可能是連線問題');
   });
+
+  /** #1314 殼層：A6 `.top__search` 高 34、input 預設 padding 1px 2px；手機鈕 44px 方形、padding 6、無 hover 底 */
+  it('A6 幾何：桌機框 34px、input 1px 2px；手機鈕 44px（A27）、方角、padding 6', () => {
+    const cls = (e: Element | null) => (e as HTMLElement).className.split(/\s+/);
+    const label = head().closest('label')!;
+    expect(cls(label)).toContain('h-[34px]');
+    expect(cls(label)).toContain('w-60');
+    expect(cls(label)).toContain('wide:flex');
+    expect(cls(head())).toContain('px-0.5');
+    expect(cls(head())).toContain('py-px');
+    const btn = el.querySelector('button[aria-label="搜尋學生"]')!;
+    for (const c of ['size-11', 'rounded-none', 'p-1.5', 'wide:hidden'])
+      expect(cls(btn)).toContain(c);
+    expect(cls(btn).some((c) => c.includes('hover:bg'))).toBe(false);
+  });
 });
