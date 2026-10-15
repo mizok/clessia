@@ -17,6 +17,7 @@ import {
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { providePrimeNG } from 'primeng/config';
+import { MessageService } from 'primeng/api';
 import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 
@@ -190,6 +191,9 @@ export const appConfig: ApplicationConfig = {
       ripple: true,
     }),
     provideSystemClock(),
+    // 全站唯一的 toast 通道（#1615）：出口是 App 的 <app-toast>。元件不要再自己 provide，
+    // 不然訊息只進那一層、沒有人在聽
+    MessageService,
     // #951：讓 `/api/me` 跟 `/api/system-time` **同時**出發。
     //
     // 時鐘那個 initializer 會擋住啟動（同步前不能拿瀏覽器的時間算「今天」），而 AuthService

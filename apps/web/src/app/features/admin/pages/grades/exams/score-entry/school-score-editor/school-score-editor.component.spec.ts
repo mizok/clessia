@@ -1,3 +1,4 @@
+import { ToastComponent } from '@shared/components/toast/toast.component';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -63,29 +64,20 @@ describe('SchoolScoreEditorComponent', () => {
     loadCampuses: vi.fn(),
   };
 
-  const messageServiceMock = { add: vi.fn() };
-
   beforeEach(async () => {
     vi.clearAllMocks();
 
     await TestBed.configureTestingModule({
       imports: [SchoolScoreEditorComponent],
       providers: [
+        MessageService,
         { provide: SchoolExamsService, useValue: schoolExamsServiceMock },
         { provide: ReferenceDataService, useValue: refDataMock },
-        { provide: MessageService, useValue: messageServiceMock },
       ],
     })
       .overrideComponent(SchoolScoreEditorComponent, {
         set: {
-          providers: [
-            { provide: DialogService, useValue: { open: dialogOpenMock } },
-            // **元件層的 MessageService 要留著**（真實例，不是 `{ add: vi.fn() }`）：
-            // 這一層正是 #809 的成因所在 —— override 把它拿掉的話，注入鏈會往上
-            // 找到 TestBed 那一個，於是「元件自己 provide 會不會斷開出口」
-            // 從定義上就測不到了
-            { provide: MessageService, useValue: new MessageService() },
-          ],
+          providers: [{ provide: DialogService, useValue: { open: dialogOpenMock } }],
         },
       })
       .compileComponents();
@@ -101,20 +93,19 @@ describe('SchoolScoreEditorComponent', () => {
   });
 
   /**
-   * **#809：這支元件自己 `providers: [MessageService]`，所以它拿到的是自己的實例，
-   * 而 `<p-toast>` 訂閱的是注入它的那一層** —— 模板沒有出口的話，
-   * `messageService.add()` 的每一則都沒有訂閱者，畫面上零訊號。
-   *
-   * 斷言查的是 `document`（toast 會被搬出元件），而且查的是**渲染出來的訊息**，
-   * 不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
+   * #809 → #1615：toast 的出口是全站唯一的 `<app-toast>`（掛在 App）。元件要是自己
+   * `providers: [MessageService]`，`add()` 就只進那一層，全站出口收不到 —— 畫面上零訊號。
+   * 查的是**出口渲染出來的訊息**，不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
    */
-  it('發出的 toast 有出口 —— DOM 裡真的長出訊息', () => {
+  it('發出的 toast 到得了全站出口 —— 出口裡真的長出訊息（#1615）', () => {
+    const outlet = TestBed.createComponent(ToastComponent);
     fixture.debugElement.injector
       .get(MessageService)
       .add({ severity: 'error', summary: '載入失敗', detail: '無法載入學生成績' });
     fixture.detectChanges();
 
-    expect(document.querySelector('.p-toast-message')).not.toBeNull();
+    outlet.detectChanges();
+    expect((outlet.nativeElement as HTMLElement).querySelector('.toast')).not.toBeNull();
   });
 
   it('loads students on init', () => {

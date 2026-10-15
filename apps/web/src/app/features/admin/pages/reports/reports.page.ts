@@ -8,8 +8,6 @@ import { skip } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
 
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import {
@@ -68,11 +66,9 @@ import {
     ButtonModule,
     SelectModule,
     SelectButtonModule,
-    ToastModule,
     PageOpenComponent,
     EmptyStateComponent,
   ],
-  providers: [MessageService],
   templateUrl: './reports.page.html',
 })
 export class ReportsPage implements OnInit {

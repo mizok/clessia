@@ -16,7 +16,6 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -63,13 +62,12 @@ interface CourseGroup {
     EmptyStateComponent,
     PageOpenComponent,
     RouterLink,
-    ToastModule,
     LoadFailedComponent,
   ],
   templateUrl: './class-view.component.html',
   host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [DialogService, MessageService],
+  providers: [DialogService],
 })
 export class ClassViewComponent implements OnInit {
   private readonly classesService = inject(ClassesService);

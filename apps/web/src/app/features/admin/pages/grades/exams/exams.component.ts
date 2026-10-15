@@ -25,7 +25,6 @@ import { SelectModule } from 'primeng/select';
 import { PaginatorModule } from 'primeng/paginator';
 import { PopoverModule } from 'primeng/popover';
 import type { Popover } from 'primeng/popover';
-import { ToastModule } from 'primeng/toast';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -176,13 +175,12 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     PopoverModule,
     NgTemplateOutlet,
     ChapterHeadComponent,
-    ToastModule,
     PageOpenComponent,
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './exams.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

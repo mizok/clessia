@@ -141,6 +141,7 @@
       "apps/web/src/app/shared/components/status",
       "apps/web/src/app/shared/components/student-autocomplete",
       "apps/web/src/app/shared/components/subject-manager",
+      "apps/web/src/app/shared/components/toast",
       "apps/web/src/app/shared/components/todo-banner"
     ],
     "exts": [".html", ".ts"]

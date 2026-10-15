@@ -17,7 +17,6 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -74,7 +73,6 @@ import { inUseLabel, periodUsageLabel, overlappingNames, amountUnit } from './fe
     IconFieldModule,
     InputIconModule,
     InputTextModule,
-    ToastModule,
     PageActionsComponent,
     PageOpenComponent,
     EmptyStateComponent,
@@ -82,7 +80,7 @@ import { inUseLabel, periodUsageLabel, overlappingNames, amountUnit } from './fe
     PopupMenuComponent,
     FilterChipComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './fee-templates.component.html',
 })
 export class FeeTemplatesComponent implements OnInit {

@@ -1,5 +1,3 @@
-<p-toast appendTo="body" [baseZIndex]="25000" />
-
 <!--
   A6 版（#991 courses C1）：色面 → 灰工具列（搜尋、篩選、操作紀錄、新增課程）→ 需介入灰列 → 課程列（展開是班級列）。
   依科目分章（#1314 C1）：後端先依科目排序、章名張數讀 `summary.bySubject`；
@@ -365,6 +363,7 @@
 -->
 @if (selectedClassIds().size > 0) {
   <div
+    data-toast-dock
     class="fixed inset-x-0 bottom-0 z-20 border-t-2 border-zinc-900 bg-zinc-200 max-wide:bottom-[calc(var(--space-3)*2+44px+env(safe-area-inset-bottom,0px))] wide:pointer-events-none wide:bottom-6 wide:border-t-0 wide:bg-transparent"
   >
     <div class="page-wrap">

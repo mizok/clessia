@@ -14,7 +14,6 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
@@ -49,14 +48,7 @@ interface SummaryStats {
 @Component({
   selector: 'app-score-entry',
   standalone: true,
-  imports: [
-    ToastModule,
-    PageOpenComponent,
-    RouterLink,
-    AcademyScoreEditorComponent,
-    SchoolScoreEditorComponent,
-  ],
-  providers: [MessageService],
+  imports: [PageOpenComponent, RouterLink, AcademyScoreEditorComponent, SchoolScoreEditorComponent],
   templateUrl: './score-entry.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

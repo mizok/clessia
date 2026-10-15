@@ -66,6 +66,7 @@ describe('ContactBookPage', () => {
     await TestBed.configureTestingModule({
       imports: [ContactBookPage],
       providers: [
+        MessageService,
         { provide: ContactBookService, useValue: contactBook },
         { provide: StudentsService, useValue: students },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
@@ -92,6 +93,7 @@ describe('ContactBookPage', () => {
     await TestBed.configureTestingModule({
       imports: [ContactBookPage],
       providers: [
+        MessageService,
         { provide: ContactBookService, useValue: contactBook },
         { provide: StudentsService, useValue: students },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
@@ -654,6 +656,7 @@ describe('ContactBookPage', () => {
       await TestBed.configureTestingModule({
         imports: [ContactBookPage],
         providers: [
+          MessageService,
           { provide: ContactBookService, useValue: contactBook },
           { provide: StudentsService, useValue: students },
           { provide: OverlayContainerService, useValue: { getContainer: () => null } },
@@ -693,6 +696,7 @@ describe('ContactBookPage', () => {
       await TestBed.configureTestingModule({
         imports: [ContactBookPage],
         providers: [
+          MessageService,
           { provide: ContactBookService, useValue: contactBook },
           { provide: StudentsService, useValue: students },
           { provide: OverlayContainerService, useValue: { getContainer: () => null } },

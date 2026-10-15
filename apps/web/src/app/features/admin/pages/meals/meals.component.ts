@@ -6,7 +6,6 @@ import { FormsModule } from '@angular/forms';
 import { Subject, catchError, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -81,13 +80,12 @@ const RANGE_PAGE_SIZE = 50;
     RouterLink,
     FormsModule,
     ButtonModule,
-    ToastModule,
     TooltipModule,
     PageActionsComponent,
     EmptyStateComponent,
     StudentAutocompleteComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './meals.component.html',
 })
 export class MealsComponent implements OnInit {

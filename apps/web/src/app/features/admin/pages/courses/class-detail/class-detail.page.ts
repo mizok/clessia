@@ -10,7 +10,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -39,14 +38,8 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
 @Component({
   selector: 'app-class-detail',
   standalone: true,
-  imports: [
-    PageOpenComponent,
-    RouterLink,
-    ToastModule,
-    PopupMenuComponent,
-    LoadFailedComponent,
-  ],
-  providers: [MessageService, DialogService],
+  imports: [PageOpenComponent, RouterLink, PopupMenuComponent, LoadFailedComponent],
+  providers: [DialogService],
   templateUrl: './class-detail.page.html',
 })
 export class ClassDetailPage implements OnInit {

@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
@@ -67,6 +68,7 @@ describe('FeeTemplatesComponent', () => {
     await TestBed.configureTestingModule({
       imports: [FeeTemplatesComponent],
       providers: [
+        MessageService,
         { provide: FeeTemplatesService, useValue: feeTemplates },
         { provide: BillingPeriodsService, useValue: billingPeriods },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },

@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { vi } from 'vitest';
@@ -22,6 +23,7 @@ describe('LoginLinkDialogComponent 的對象措辭（#666）', () => {
     await TestBed.configureTestingModule({
       imports: [LoginLinkDialogComponent],
       providers: [
+        MessageService,
         { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
         {
           provide: DynamicDialogConfig,

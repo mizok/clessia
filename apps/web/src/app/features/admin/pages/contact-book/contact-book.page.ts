@@ -6,7 +6,6 @@ import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -65,13 +64,12 @@ const DEFAULT_RANGE_DAYS = 7;
     FormsModule,
     ButtonModule,
     DatePickerModule,
-    ToastModule,
     EmptyStateComponent,
     StudentAutocompleteComponent,
     SelectFieldComponent,
     PageOpenComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './contact-book.page.html',
 })
 export class ContactBookPage implements OnInit {
