@@ -82,6 +82,11 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   );
   c.set('permissions', permissions);
   c.set('supabase', supabase);
+  // /api/me 顯示名稱與生日用（#1595 P2a）。跟授權欄位同一份快取，所以最遲 30 秒才反映修改
+  c.set('selfRows', {
+    staff: (staffRows[0] as { display_name?: string | null; birthday?: string | null }) ?? null,
+    parent: (parentRows[0] as { name?: string | null }) ?? null,
+  });
 
   // 前端目前選定的身分（見 lib/active-role.ts）。找不到或不是這個人的角色之一 → null，
   // 呼叫端（例如 announcements 的 audienceFor）退回角色陣列的既有優先序規則。
@@ -146,12 +151,16 @@ async function loadIdentity(
     supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
     // 分校指派跟著 staff 一起查 —— 授權要在 middleware 層成立（c1），
     // 各路由自己去查的話總有一支會忘記，而忘記的方式是安靜的。
-    supabase.from('staff').select('status, staff_campuses(campus_id)').eq('user_id', userId),
+    // display_name、birthday 是給 /api/me 的（#1595 P2a）：順手帶、跟著快取，省它自己再查一次
+    supabase
+      .from('staff')
+      .select('status, display_name, birthday, staff_campuses(campus_id)')
+      .eq('user_id', userId),
     // `parent_student_relations` 跟 status 一起查 —— 理由跟 staff_campuses 那行一樣：
     // 授權要在 middleware 層成立（c1），各路由自己查的話總有一支會忘記。
     supabase
       .from('parents')
-      .select('status, parent_student_relations(student_id)')
+      .select('status, name, parent_student_relations(student_id)')
       .eq('user_id', userId),
   ]);
 
