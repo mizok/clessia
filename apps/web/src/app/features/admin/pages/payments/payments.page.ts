@@ -1,5 +1,5 @@
 import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
   EMPTY,
   Subject,
@@ -9,6 +9,7 @@ import {
   filter,
   forkJoin,
   of,
+  skip,
   switchMap,
 } from 'rxjs';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
@@ -41,6 +42,7 @@ import {
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { CampusContextService } from '@core/campus-context.service';
 
 import {
   PageActionsComponent,
@@ -90,6 +92,7 @@ import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.
 const PAGE_SIZE = LIST_PAGE_SIZE;
 
 type ChapterKey = 'dueSoon' | 'notDue' | 'paid';
+const CHAPTER_KEYS: readonly ChapterKey[] = ['dueSoon', 'notDue', 'paid'];
 
 interface ChapterState {
   open: boolean;
@@ -164,6 +167,12 @@ export class PaymentsPage implements OnInit {
   private readonly service = inject(InvoicesService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly enrollmentsService = inject(EnrollmentsService);
+  private readonly campusCtx = inject(CampusContextService);
+
+  /** 頂欄選的分校（#1314 帳單殼層）。`null`＝全部分校，不帶參數；範圍仍由後端判（c1） */
+  private campusId(): string | undefined {
+    return this.campusCtx.id() ?? undefined;
+  }
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
@@ -421,6 +430,19 @@ export class PaymentsPage implements OnInit {
   });
   protected readonly PAGE_SIZE = PAGE_SIZE;
 
+  constructor() {
+    this.campusCtx.use();
+    // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校：頁碼歸 1、列表／摘要／展開的章／待開帳數全部重抓
+    toObservable(this.campusCtx.id)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => {
+        this.pageIndex.set(1);
+        for (const key of CHAPTER_KEYS) this.patchChapter(key, { page: 1 });
+        this.refreshAll();
+        this.loadUninvoicedCount();
+      });
+  }
+
   ngOnInit(): void {
     this.setupLoadPipeline();
     this.searchInput
@@ -441,11 +463,20 @@ export class PaymentsPage implements OnInit {
     this.loadUninvoicedCount();
   }
 
+  /**
+   * 摘要／各章／待開帳數都走 `switchMap`：頂欄快切分校時，慢的舊分校回應不能蓋掉新的
+   * （畫面上頂欄顯示的是最新的分校，數字卻是上一間的，是最糟的騙法）。
+   */
+  private readonly summaryRequests = new Subject<void>();
+  private readonly uninvoicedRequests = new Subject<void>();
+  private readonly chapterRequests: Record<ChapterKey, Subject<void>> = {
+    dueSoon: new Subject<void>(),
+    notDue: new Subject<void>(),
+    paid: new Subject<void>(),
+  };
+
   private loadSummary(): void {
-    this.service.summary().subscribe({
-      next: (res) => this.summary.set(res),
-      error: () => this.summary.set(null),
-    });
+    this.summaryRequests.next();
   }
 
   private patchChapter(key: ChapterKey, patch: Partial<ChapterState>): void {
@@ -480,26 +511,23 @@ export class PaymentsPage implements OnInit {
    */
   protected loadChapter(key: ChapterKey): void {
     this.patchChapter(key, { loading: true, failed: false });
+    this.chapterRequests[key].next();
+  }
+
+  private chapterRequest(key: ChapterKey) {
     const page = this.chapters()[key].page;
-    const request =
-      key === 'paid'
-        ? forkJoin([
-            this.service.list({ status: 'paid', page, pageSize: PAGE_SIZE }),
-            page === 1 && (this.summary()?.byStatus.overrefunded.count ?? 1) > 0
-              ? this.service.list({ status: 'overrefunded', page: 1, pageSize: 200 })
-              : of(null),
-          ])
-        : forkJoin([this.service.list({ dueState: key, page, pageSize: PAGE_SIZE }), of(null)]);
-    request.subscribe({
-      next: ([main, over]) => {
-        this.patchChapter(key, {
-          rows: [...(over?.data ?? []), ...main.data],
-          total: main.meta.total,
-          loading: false,
-        });
-      },
-      error: () => this.patchChapter(key, { rows: [], failed: true, loading: false }),
-    });
+    const campusId = this.campusId();
+    return key === 'paid'
+      ? forkJoin([
+          this.service.list({ status: 'paid', campusId, page, pageSize: PAGE_SIZE }),
+          page === 1 && (this.summary()?.byStatus.overrefunded.count ?? 1) > 0
+            ? this.service.list({ status: 'overrefunded', campusId, page: 1, pageSize: 200 })
+            : of(null),
+        ])
+      : forkJoin([
+          this.service.list({ dueState: key, campusId, page, pageSize: PAGE_SIZE }),
+          of(null),
+        ]);
   }
 
   /** 姓名旁的年級（A6「林沛晴 · 國三」）。API 沒給或不認得就不顯示，不顯示原始代碼 */
@@ -538,16 +566,13 @@ export class PaymentsPage implements OnInit {
   }
 
   private reloadOpenChapters(): void {
-    for (const key of ['dueSoon', 'notDue', 'paid'] as const) {
+    for (const key of CHAPTER_KEYS) {
       if (this.chapters()[key].open) this.loadChapter(key);
     }
   }
 
   private loadUninvoicedCount(): void {
-    this.enrollmentsService.list({ hasInvoice: false, status: 'active', pageSize: 1 }).subscribe({
-      next: (res) => this.uninvoicedCount.set(res.meta.total),
-      error: () => this.uninvoicedCount.set(0),
-    });
+    this.uninvoicedRequests.next();
   }
 
   protected openUninvoiced(): void {
@@ -585,6 +610,7 @@ export class PaymentsPage implements OnInit {
             issuedMonth: month,
             overdue: scope === 'overdue' || undefined,
             outstanding: scope === 'outstanding' || undefined,
+            campusId: this.campusId(),
             page,
             pageSize: 200,
           }),
@@ -644,6 +670,58 @@ export class PaymentsPage implements OnInit {
   }
 
   private setupLoadPipeline(): void {
+    this.summaryRequests
+      .pipe(
+        switchMap(() =>
+          this.service.summary({ campusId: this.campusId() }).pipe(
+            catchError(() => {
+              this.summary.set(null);
+              return EMPTY;
+            }),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => this.summary.set(res));
+
+    this.uninvoicedRequests
+      .pipe(
+        switchMap(() =>
+          this.enrollmentsService
+            .list({ hasInvoice: false, status: 'active', campusId: this.campusId(), pageSize: 1 })
+            .pipe(
+              catchError(() => {
+                this.uninvoicedCount.set(0);
+                return EMPTY;
+              }),
+            ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => this.uninvoicedCount.set(res.meta.total));
+
+    for (const key of CHAPTER_KEYS) {
+      this.chapterRequests[key]
+        .pipe(
+          switchMap(() =>
+            this.chapterRequest(key).pipe(
+              catchError(() => {
+                this.patchChapter(key, { rows: [], failed: true, loading: false });
+                return EMPTY;
+              }),
+            ),
+          ),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe(([main, over]) =>
+          this.patchChapter(key, {
+            rows: [...(over?.data ?? []), ...main.data],
+            total: main.meta.total,
+            loading: false,
+          }),
+        );
+    }
+
     this.loadRequests
       .pipe(
         switchMap(() =>
@@ -656,6 +734,7 @@ export class PaymentsPage implements OnInit {
               // 同一個閉區間，判準在後端 `dueStateOn`；前端不再帶天數
               dueState: this.dueFilter() === 'dueSoon' ? 'dueSoon' : undefined,
               status: this.statusFilter() ?? undefined,
+              campusId: this.campusId(),
               page: this.pageIndex(),
               pageSize: PAGE_SIZE,
             })

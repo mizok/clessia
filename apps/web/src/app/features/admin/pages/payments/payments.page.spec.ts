@@ -8,6 +8,8 @@ import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { InvoicesService, type Invoice, type InvoiceSummary } from '@core/invoices.service';
+import { EnrollmentsService } from '@core/enrollments.service';
+import { CampusContextService } from '@core/campus-context.service';
 
 import { PaymentsPage } from './payments.page';
 
@@ -65,8 +67,8 @@ describe('PaymentsPage', () => {
   let fixture: ComponentFixture<PaymentsPage>;
 
   const invoices = {
-    list: vi.fn(() => of(listResponse([]))),
-    summary: vi.fn(() => of(summary())),
+    list: vi.fn((_params?: unknown) => of(listResponse([]))),
+    summary: vi.fn((_params?: unknown) => of(summary())),
     get: vi.fn(),
     create: vi.fn(),
     addItem: vi.fn(),
@@ -77,7 +79,14 @@ describe('PaymentsPage', () => {
     createRemindersBatch: vi.fn(),
   };
 
+  const enrollments = {
+    list: vi.fn((_params?: unknown) => of({ data: [], meta: { total: 0 } })),
+  };
+
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
+    enrollments.list.mockReset().mockReturnValue(of({ data: [], meta: { total: 0 } }));
     invoices.list.mockReset().mockReturnValue(of(listResponse([])));
     invoices.summary.mockReset().mockReturnValue(of(summary()));
 
@@ -86,6 +95,7 @@ describe('PaymentsPage', () => {
       providers: [
         provideRouter([]),
         { provide: InvoicesService, useValue: invoices },
+        { provide: EnrollmentsService, useValue: enrollments },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
       ],
     }).compileComponents();
@@ -426,7 +436,7 @@ describe('PaymentsPage', () => {
       expect((fixture.nativeElement as HTMLElement).querySelector('.pi-chevron-right')).toBeNull();
       expect(
         (fixture.nativeElement as HTMLElement).querySelectorAll(
-          'section[aria-label] .pi-chevron-down',
+          '.bg-zinc-100 > button[aria-expanded] .pi-chevron-down',
         ).length,
       ).toBe(3);
       // 順序照 A6
@@ -554,15 +564,21 @@ describe('PaymentsPage', () => {
       fixture.detectChanges();
       await fixture.whenStable();
       fixture.detectChanges();
-      const head = el().querySelector('app-chapter-head') as HTMLElement;
-      expect(head.textContent).toContain('全部提醒（2）');
+      const head = el().querySelector('section[aria-label="逾期"]') as HTMLElement;
+      const remindAll = () =>
+        Array.from(head.querySelectorAll('button')).find((b) =>
+          b.textContent?.includes('全部提醒'),
+        );
+      expect(remindAll()?.textContent?.replace(/\s+/g, '')).toBe('全部提醒（2）');
+      // A6：12px 粗、白底框、桌機 30px、手機基底 44px（A27）
+      expect(remindAll()?.className).toContain('min-h-11');
+      expect(remindAll()?.className).toContain('wide:h-[30px]');
+      expect(remindAll()?.className).toContain('text-[12px]');
 
       invoices.list.mockReturnValue(of(listResponse([])));
       component['load']();
       fixture.detectChanges();
-      expect((el().querySelector('app-chapter-head') as HTMLElement).textContent).not.toContain(
-        '全部提醒',
-      );
+      expect(remindAll()).toBeUndefined();
     });
 
     it('匯出預設當月（台北今天所在月），檔名與範圍寫進檔名；逾期範圍送 overdue', async () => {
@@ -726,10 +742,15 @@ describe('PaymentsPage', () => {
     it('姓名旁有年級（中文標籤）；逾期是「！」圈圈圖示；金額加大加粗；列上只有一顆主要鈕＋⋯', async () => {
       await loadOverdue([invoice({ studentGrade: 'J3', dueDate: '2020-01-01' })]);
 
-      expect(el().querySelector('li a')?.textContent).toMatch(/陳小明\s*· 國三/);
+      // A6：年級在連結外（連結只有名字），14px 灰
+      expect(el().querySelector('li a')?.textContent?.trim()).toBe('陳小明');
+      expect(el().querySelector('li a + span')?.textContent?.trim()).toBe('· 國三');
+      // 逾期：紅字加粗＋「！」圈圈圖示（A6 span 是 inline-flex gap 4，內含圖示），金額 16px 600
       expect(el().querySelector('li .pi-exclamation-circle')).not.toBeNull();
       expect(el().querySelector('li .pi-times-circle')).toBeNull();
-      expect(el().querySelector('li .text-lg.font-bold')?.textContent).toContain('4,500');
+      const due = el().querySelector('li .text-error-700.font-semibold');
+      expect(due?.textContent).toContain('逾期');
+      expect(el().querySelector('li .text-lg.font-semibold')?.textContent).toContain('4,500');
       const buttons = Array.from(el().querySelectorAll('li app-invoice-actions button')).map((b) =>
         b.textContent?.trim(),
       );
@@ -862,6 +883,267 @@ describe('PaymentsPage', () => {
       internals().collect(overdueRows()[0]);
 
       expect(invoices.list.mock.calls.length).toBe(calls);
+    });
+  });
+
+  /**
+   * #1314 帳單殼層：接頂欄分校。列表、摘要、展開的章、待開帳數、匯出都帶同一個 `campusId`；
+   * 換分校頁碼歸 1 並整頁重抓；**每條取數都是 `switchMap`**，快切時慢的舊分校回應不能蓋掉新的。
+   */
+  describe('頂欄分校（#1314）', () => {
+    const pick = async (id: string | null) => {
+      TestBed.inject(CampusContextService).select(id);
+      fixture.detectChanges();
+      await fixture.whenStable();
+    };
+    const lastCall = (m: { mock: { calls: unknown[][] } }) =>
+      m.mock.calls[m.mock.calls.length - 1]![0] as Record<string, unknown>;
+
+    it('頁面接上頂欄（use）：頂欄才會出現分校下拉', () => {
+      expect(TestBed.inject(CampusContextService).inUse()).toBe(true);
+    });
+
+    it('初次載入沒選分校：列表、摘要、待開帳數都不帶 campusId', () => {
+      expect(
+        invoices.list.mock.calls.every(
+          (c) => (c[0] as { campusId?: string }).campusId === undefined,
+        ),
+      ).toBe(true);
+      expect(invoices.summary).toHaveBeenCalledWith({ campusId: undefined });
+      expect(lastCall(enrollments.list)['campusId']).toBeUndefined();
+    });
+
+    it('選分校：列表、摘要、待開帳數都帶 campusId，頁碼歸 1', async () => {
+      component['pageIndex'].set(3);
+      await pick('c1');
+      expect(lastCall(invoices.list)).toMatchObject({ campusId: 'c1', page: 1 });
+      expect(invoices.summary).toHaveBeenLastCalledWith({ campusId: 'c1' });
+      expect(lastCall(enrollments.list)).toMatchObject({ campusId: 'c1', hasInvoice: false });
+      expect(component['pageIndex']()).toBe(1);
+    });
+
+    it('選回「全部分校」：campusId 不帶（undefined），不是舊的 id', async () => {
+      await pick('c1');
+      await pick(null);
+      expect(lastCall(invoices.list)['campusId']).toBeUndefined();
+      expect(invoices.summary).toHaveBeenLastCalledWith({ campusId: undefined });
+      expect(lastCall(enrollments.list)['campusId']).toBeUndefined();
+    });
+
+    it('展開的章跟著換分校：頁碼歸 1、含已繳清章的多退那支；沒展開的章不多打', async () => {
+      component['toggleChapter']('dueSoon');
+      component['toggleChapter']('paid');
+      component['patchChapter']('dueSoon', { page: 2 });
+      invoices.list.mockClear();
+      await pick('c2');
+      const calls = invoices.list.mock.calls.map((c) => c[0] as Record<string, unknown>);
+      const dueSoon = calls.filter((c) => c['dueState'] === 'dueSoon');
+      expect(dueSoon).toHaveLength(1);
+      expect(dueSoon[0]).toMatchObject({ campusId: 'c2', page: 1 });
+      const paid = calls.filter((c) => c['status'] === 'paid');
+      expect(paid[0]).toMatchObject({ campusId: 'c2', page: 1 });
+      const over = calls.filter((c) => c['status'] === 'overrefunded');
+      expect(over[0]).toMatchObject({ campusId: 'c2' });
+      // 沒展開的「未到期」章不多打
+      expect(calls.filter((c) => c['dueState'] === 'notDue')).toHaveLength(0);
+    });
+
+    it('匯出帶畫面上的分校', async () => {
+      await pick('c3');
+      invoices.list.mockClear();
+      await component['exportInvoices']({ hide: vi.fn() } as never);
+      expect(lastCall(invoices.list)).toMatchObject({ campusId: 'c3' });
+    });
+
+    describe('亂序：快切分校時慢的舊回應不能蓋掉新的（switchMap）', () => {
+      it('列表', async () => {
+        const a = new Subject<ReturnType<typeof listResponse>>();
+        const b = new Subject<ReturnType<typeof listResponse>>();
+        invoices.list.mockReturnValueOnce(a).mockReturnValueOnce(b);
+        await pick('A');
+        await pick('B');
+        b.next(listResponse([invoice({ id: 'B1' })], 1));
+        a.next(listResponse([invoice({ id: 'A1' }), invoice({ id: 'A2' })], 2));
+        expect(component['invoices']().map((i) => i.id)).toEqual(['B1']);
+        expect(component['totalRecords']()).toBe(1);
+      });
+
+      it('摘要', async () => {
+        const a = new Subject<InvoiceSummary>();
+        const b = new Subject<InvoiceSummary>();
+        invoices.summary.mockReturnValueOnce(a).mockReturnValueOnce(b);
+        await pick('A');
+        await pick('B');
+        b.next(summary({ month: { month: '2026-10', billed: 222, received: 1 } }));
+        a.next(summary({ month: { month: '2026-10', billed: 111, received: 1 } }));
+        expect(component['summary']()?.month.billed).toBe(222);
+      });
+
+      it('待開帳數', async () => {
+        const a = new Subject<{ data: never[]; meta: { total: number } }>();
+        const b = new Subject<{ data: never[]; meta: { total: number } }>();
+        enrollments.list.mockReturnValueOnce(a).mockReturnValueOnce(b);
+        await pick('A');
+        await pick('B');
+        b.next({ data: [], meta: { total: 2 } });
+        a.next({ data: [], meta: { total: 99 } });
+        expect(component['uninvoicedCount']()).toBe(2);
+      });
+
+      it('展開的章', async () => {
+        component['toggleChapter']('dueSoon');
+        const a = new Subject<ReturnType<typeof listResponse>>();
+        const b = new Subject<ReturnType<typeof listResponse>>();
+        const queue = [a, b];
+        // 只有「7 天內到期」章的請求走 Subject（依呼叫順序 A、B）；其餘（主列表）回空
+        invoices.list.mockImplementation((params?: unknown) =>
+          (params as { dueState?: string }).dueState === 'dueSoon'
+            ? queue.shift()!
+            : of(listResponse([])),
+        );
+        await pick('A');
+        await pick('B');
+        // forkJoin 要等內層完成才會發值，所以 next 之後要 complete
+        b.next(listResponse([invoice({ id: 'B1' })], 1));
+        b.complete();
+        a.next(listResponse([invoice({ id: 'A1' })], 1));
+        a.complete();
+        const rows = component['chapters']()['dueSoon'].rows.map((r: Invoice) => r.id);
+        expect(rows).toEqual(['B1']);
+      });
+    });
+  });
+
+  /**
+   * #1314 帳單對齊 A6（用 conformance 工具量）。jsdom 量不到版面，所以斷言「產生那個尺寸／結構的 class 與 DOM」；
+   * 每條 `wide:`／基底 44px（A27）成對都要在。
+   */
+  describe('A6 結構與幾何（#1314 帳單）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const cls = (e: Element | null) => (e as HTMLElement).className.split(/\s+/);
+    const has = (e: Element | null, ...names: string[]) => {
+      for (const n of names) expect(cls(e), n).toContain(n);
+    };
+    const render = async (
+      rows: Invoice[] = [invoice({ studentGrade: 'J3', dueDate: '2020-01-01' })],
+    ) => {
+      invoices.list.mockReturnValue(of(listResponse(rows, rows.length)));
+      component['load']();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('搜尋框是原生 search（角色 searchbox）', () => {
+      expect(el().querySelector('input[aria-label="搜尋帳單"]')?.getAttribute('type')).toBe(
+        'search',
+      );
+    });
+
+    it('工具列：開立帳單＝橘底 13px 粗、桌機 36px、手機基底 44px；匯出／更多動作＝白底框 zinc-300、桌機 36×40', () => {
+      const create = Array.from(el().querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('開立帳單'),
+      )!;
+      has(
+        create,
+        'bg-accent-vivid',
+        'border-accent-vivid',
+        'text-md',
+        'font-semibold',
+        'min-h-11',
+        'wide:min-h-0',
+        'wide:h-9',
+        'wide:inline-flex',
+        'hidden',
+      );
+      for (const label of ['匯出', '更多動作']) {
+        const b = el().querySelector(`button[aria-label="${label}"]`)!;
+        has(b, 'border-zinc-300', 'bg-white', 'size-11', 'wide:h-9', 'wide:w-10', 'gap-1.5');
+      }
+    });
+
+    it('逾期章頭：紅色大字名（手機 32／桌機 44）→「N 張 · 待收」→「NT$ …」兩個 <p>（18px 粗）', async () => {
+      await render();
+      const sec = el().querySelector('section[aria-label="逾期"]')!;
+      const h2 = sec.querySelector('h2')!;
+      has(h2, 'text-[32px]', 'wide:text-[44px]', 'text-error-700', 'font-bold');
+      const ps = Array.from(sec.querySelectorAll('p')).filter((p) =>
+        p.className.includes('text-xl'),
+      );
+      expect(ps).toHaveLength(2);
+      expect(ps[0].textContent?.replace(/\s+/g, ' ').trim()).toMatch(/^4 張 · 待收$/);
+      expect(ps[1].textContent?.replace(/\s+/g, ' ').trim()).toBe('NT$ 15,000');
+      // 「張」是 p 自己的字（不是另外的 span）；「· 待收」才是 span
+      expect(Array.from(ps[0].querySelectorAll('span')).map((x) => x.textContent?.trim())).toEqual([
+        '· 待收',
+      ]);
+    });
+
+    it('逾期章間距：手機 py-6 gap-y-3／桌機 py-8 gap-y-8、底線 1px zinc-200', async () => {
+      await render();
+      has(
+        el().querySelector('section[aria-label="逾期"]'),
+        'py-6',
+        'gap-y-3',
+        'wide:py-8',
+        'wide:gap-y-8',
+        'border-b',
+        'border-zinc-200',
+      );
+    });
+
+    it('列：<li> 自己是 grid（手機 2 欄／桌機 [1fr 260 120 auto]）；DOM 順序＝姓名、狀態、金額、動作', async () => {
+      await render();
+      const li = el().querySelector('section[aria-label="逾期"] li')!;
+      has(
+        li,
+        'grid',
+        'py-3',
+        'gap-x-3',
+        'wide:gap-x-4',
+        'wide:gap-y-4',
+        'wide:grid-cols-[minmax(0,1fr)_260px_120px_auto]',
+      );
+      const kids = Array.from(li.children);
+      expect(kids).toHaveLength(4);
+      expect(kids[0].querySelector('a')?.textContent?.trim()).toBe('陳小明');
+      expect(kids[1].textContent).toContain('逾期');
+      expect(kids[2].textContent).toContain('4,500');
+      expect(kids[3].tagName.toLowerCase()).toBe('app-invoice-actions');
+      // 年級在連結外、字重常規（不吃全站的 500）
+      has(kids[0].querySelector('span.shrink-0'), 'font-normal', 'text-zinc-500');
+      // 連結：手機 44、桌機行內
+      has(kids[0].querySelector('a'), 'min-h-11', 'wide:min-h-0', 'wide:inline');
+    });
+
+    it('列上動作鈕：手機 44px／14px、桌機 30px／12px 粗', async () => {
+      await render();
+      const b = el().querySelector('li app-invoice-actions button')!;
+      has(
+        b,
+        'h-11',
+        'wide:h-[30px]',
+        'text-[14px]',
+        'wide:text-[12px]',
+        'px-4',
+        'wide:px-3',
+        'font-semibold',
+      );
+    });
+
+    it('到期分組列：外層是 div（不是 region landmark）；標題 16／18px 粗；張數靠右；箭頭是按鈕的同層元素', async () => {
+      await render();
+      const rows = Array.from(el().querySelectorAll('div.rounded-lg.bg-zinc-100'));
+      expect(rows).toHaveLength(3);
+      expect(el().querySelector('section[aria-label="7 天內到期"]')).toBeNull();
+      const btn = rows[0].querySelector('button')!;
+      has(btn, 'min-h-16', 'px-4', 'wide:px-5', 'py-3');
+      const [title, count, chevron] = Array.from(btn.children);
+      has(title, 'text-[16px]', 'wide:text-[18px]', 'font-bold');
+      has(count, 'ml-auto', 'text-md', 'wide:text-base', 'text-zinc-700');
+      expect(chevron.className).toContain('pi-chevron-down');
+      // 箭頭不在張數那個 span 裡
+      expect(count.querySelector('.pi-chevron-down')).toBeNull();
     });
   });
 });

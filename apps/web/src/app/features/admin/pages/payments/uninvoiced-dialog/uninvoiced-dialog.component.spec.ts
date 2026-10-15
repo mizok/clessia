@@ -3,6 +3,7 @@ import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
+import { CampusContextService } from '@core/campus-context.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { FeeTemplatesService } from '@core/fee-templates.service';
 import { InvoicesService } from '@core/invoices.service';
@@ -71,6 +72,44 @@ describe('UninvoicedDialogComponent', () => {
     expect(enrollmentsServiceMock.list).toHaveBeenCalledWith(
       expect.objectContaining({ hasInvoice: false, status: 'active' }),
     );
+  });
+
+  // 頂欄分校（#1314 DB-campus）：「還沒開單」名單要跟頁面同一個分校，不然卡片說 N 筆、點進去是全部
+  describe('頂欄分校', () => {
+    const campusCtx = () => TestBed.inject(CampusContextService);
+    const lastCall = () => {
+      const calls = enrollmentsServiceMock.list.mock.calls;
+      return calls[calls.length - 1][0] as { campusId?: string };
+    };
+    beforeEach(() => localStorage.removeItem('clessia.campusContext'));
+
+    it('頂欄是「全部分校」：不帶 campusId', async () => {
+      await setup([enrollment()]);
+      expect(lastCall().campusId).toBeUndefined();
+    });
+
+    it('頂欄選了分校：請求帶那間的 campusId', async () => {
+      localStorage.setItem('clessia.campusContext', 'campus-A');
+      TestBed.resetTestingModule();
+      localStorage.setItem('clessia.campusContext', 'campus-A');
+      await setup([enrollment()]);
+      expect(lastCall().campusId).toBe('campus-A');
+    });
+
+    it('換分校後再開一次：帶新的分校，不是上次那間；改回全部又不帶', async () => {
+      await setup([enrollment()]);
+      campusCtx().select('campus-A');
+      TestBed.createComponent(UninvoicedDialogComponent).detectChanges();
+      expect(lastCall().campusId).toBe('campus-A');
+
+      campusCtx().select('campus-B');
+      TestBed.createComponent(UninvoicedDialogComponent).detectChanges();
+      expect(lastCall().campusId).toBe('campus-B');
+
+      campusCtx().select(null);
+      TestBed.createComponent(UninvoicedDialogComponent).detectChanges();
+      expect(lastCall().campusId).toBeUndefined();
+    });
   });
 
   it('金額照價目表帶出來', async () => {
