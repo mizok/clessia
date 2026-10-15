@@ -136,6 +136,15 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return { data: returning ? matched : null, error: null };
       }
       if (countOnly) return { data: null, count: matched.length, error: null };
+      // PostgREST 聚合 `select('欄, count()')`＝GROUP BY 欄（#1595 P3b-B）。只支援這一個形狀
+      const grouped = /^\s*(\w+)\s*,\s*count\(\)\s*$/.exec(selected ?? '');
+      if (grouped) {
+        const counts = new Map<unknown, number>();
+        for (const row of matched)
+          counts.set(row[grouped[1]!], (counts.get(row[grouped[1]!]) ?? 0) + 1);
+        const data = [...counts].map(([key, count]) => ({ [grouped[1]!]: key, count }));
+        return { data, count: data.length, error: null };
+      }
       matched.sort((x, y) => {
         for (const { column, ascending } of sortBy) {
           const a = field(x, column) ?? '';

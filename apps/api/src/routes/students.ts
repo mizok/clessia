@@ -611,22 +611,19 @@ app.openapi(
       .eq('is_active', true);
     if (scopedStudentIds) activeCountQuery = activeCountQuery.in('id', scopedStudentIds);
 
-    // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去
-    // 每級一支 head count 讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷（同 courses bySubject）
-    const gradeCountQueries = GRADE_CHAPTERS.map((level) =>
-      withChapterFilters(
-        supabase
-          .from('students')
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .eq('grade', level),
-      ),
+    // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去。
+    // 讓 DB 用 GROUP BY 數（PostgREST 聚合，#1595 P3b-B）：一支查詢、每個年級一列（最多 13 列，
+    // 不會撞 max_rows 1000 —— 撈學生列回來自己數才會被靜默截斷，同 courses bySubject）。
+    // 原本是每級一支 head count，12 支加上列表、在籍數共 14 支，超過 Workers 每請求 6 條連線、排成 3 波。
+    // 需要 `pgrst.db_aggregates_enabled`（migration 20261015060000_postgrest_aggregates）。
+    const gradeCountQuery = withChapterFilters(
+      supabase.from('students').select('grade, count()').eq('org_id', orgId),
     );
 
-    const [{ data, error, count }, { count: activeCount }, ...gradeCounts] = await Promise.all([
+    const [{ data, error, count }, { count: activeCount }, gradeCounts] = await Promise.all([
       query,
       activeCountQuery,
-      ...gradeCountQueries,
+      gradeCountQuery,
     ]);
 
     if (error) {
@@ -638,13 +635,18 @@ app.openapi(
       todayStatuses = today.statuses;
     }
     // 數不出來就不回 0
-    const gradeCountError = gradeCounts.find((r) => r.error)?.error;
-    if (gradeCountError) {
-      return c.json({ error: '讀取學生列表失敗', message: gradeCountError.message }, 500);
+    if (gradeCounts.error) {
+      return c.json({ error: '讀取學生列表失敗', message: gradeCounts.error.message }, 500);
     }
-    const byGrade = GRADE_CHAPTERS.map((level, i) => ({
+    const countByGrade = new Map(
+      ((gradeCounts.data ?? []) as Array<{ grade: string | null; count: number }>).map((r) => [
+        r.grade,
+        r.count,
+      ]),
+    );
+    const byGrade = GRADE_CHAPTERS.map((level) => ({
       grade: level,
-      count: gradeCounts[i]?.count ?? 0,
+      count: countByGrade.get(level) ?? 0,
     }));
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;

@@ -293,7 +293,8 @@ describe('GET /students —— 今日到班（#1314 SL1）', () => {
   });
 
   // #1595 P3b-A：開頁預設（沒帶 today）時今日到班跟列表同時跑。串行的話，列表那一輪
-  // （在籍數＋12 個年級計數）要等 daily_checkins 查完才發
+  // （列表＋在籍數＋年級計數，P3b-B 起年級計數是 1 支聚合，共 3 次 from('students')）
+  // 要等 daily_checkins 查完才發
   it('沒帶 today：列表與年級計數不等今日到班查完就發出', async () => {
     const calls: string[] = [];
     const { body } = await list('', { calls });
@@ -301,7 +302,7 @@ describe('GET /students —— 今日到班（#1314 SL1）', () => {
     const studentsBeforeCheckins = calls
       .slice(0, calls.indexOf('daily_checkins'))
       .filter((t) => t === 'students').length;
-    expect(studentsBeforeCheckins).toBeGreaterThanOrEqual(14);
+    expect(studentsBeforeCheckins).toBeGreaterThanOrEqual(3);
   });
 
   it('帶 today：列表要用它的結果，所以照舊先算完今日到班', async () => {
@@ -310,7 +311,7 @@ describe('GET /students —— 今日到班（#1314 SL1）', () => {
     const studentsBeforeCheckins = calls
       .slice(0, calls.indexOf('daily_checkins'))
       .filter((t) => t === 'students').length;
-    expect(studentsBeforeCheckins).toBeLessThan(14);
+    expect(studentsBeforeCheckins).toBeLessThan(3);
   });
 
   // 並行之後，沒帶 today 時今日到班的錯誤是在列表之後才收 —— 收的時候也要照樣回 500，
