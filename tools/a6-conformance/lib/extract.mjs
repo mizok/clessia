@@ -170,6 +170,17 @@ export function extractParts(opts) {
       (sibs.length >= 3 && sibs.every((x) => x.children.length === el.children.length))
     );
   };
+  // 徽章：有底色或框線的短字（狀態標籤）
+  const badge = (el) => {
+    const st = getComputedStyle(el);
+    const t = ownText(el);
+    return (
+      t.length <= 6 &&
+      (st.backgroundColor !== 'rgba(0, 0, 0, 0)' ||
+        parseFloat(st.borderTopWidth) > 0 ||
+        st.boxShadow !== 'none')
+    );
+  };
   const style = (el) => {
     const s = getComputedStyle(el);
     const o = {};
@@ -208,8 +219,8 @@ export function extractParts(opts) {
       if (c.kind === 'mapped') seg = el.getAttribute('data-a6-part');
       else if (c.kind === 'row') seg = 'row';
       else if (c.kind === 'list') seg = 'list';
-      else if (ctx.inRow)
-        seg = `${c.kind}:${c.role}`; // 列內文字是資料，不進 key
+      else if (ctx.inRow && !(c.kind === 'text' && badge(el)))
+        seg = `${c.kind}:${c.role}`; // 列內文字是資料，不進 key（徽章例外：「上課中」「補課」是狀態，不是資料）
       else seg = `${c.kind}:${c.role}[${normText(raw, names)}]`;
       // 同一個 parent 底下同名 segment 加序號；列（row）全部合一
       const sib = (ctx.counts[seg] = (ctx.counts[seg] ?? 0) + 1);
@@ -226,6 +237,8 @@ export function extractParts(opts) {
           role: c.role,
           tpl: c.kind === 'row' || c.kind === 'list' ? '' : normText(raw, names),
           text: raw.slice(0, 80),
+          // 含子元素的完整文字：判斷「寬度差是不是文字長度造成的」要看它（「已收 NT$ 174,100」的數字在子元素裡）
+          full: (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
           box: box(el),
           // 自己有沒有文字節點：字級／顏色只在這種 part 上才看得見（包一層 span 的連結，顏色在 span 上）
           own: !!ownText(el),
@@ -282,6 +295,9 @@ export function extractParts(opts) {
         parts.push(p);
         byKey.set(key, p);
       }
+      // 列內同一個 key 會出現很多次：每次都記下樣式，最後取最常見的那種當代表（稿的第一列可能是
+      // 軸列、第一個課塊可能是「上課中」—— 取第一個出現的會配錯對象）
+      if (ctx.inRow || row) (p.occ ??= []).push({ box: box(el), style: style(el) });
       if (ctx.inRow && !ctx.rowSeen.has(key)) {
         ctx.rowSeen.add(key);
         p.inRows++;
@@ -294,6 +310,19 @@ export function extractParts(opts) {
   };
   const rootEl = document.querySelector(rootSel);
   if (rootEl) walk(rootEl, { key: prefix, counts: {}, inRow: false, rowSeen: new Set() });
+  for (const p of parts) {
+    if (!p.occ) continue;
+    const groups = new Map();
+    for (const o of p.occ) {
+      const k = JSON.stringify(o.style);
+      groups.set(k, (groups.get(k) ?? []).concat(o));
+    }
+    const modal = [...groups.values()].sort((a, b) => b.length - a.length)[0];
+    p.box = modal[0].box;
+    p.style = modal[0].style;
+    p.variants = groups.size;
+    delete p.occ;
+  }
   return parts;
 }
 

@@ -59,12 +59,88 @@ export const DEVIATIONS = [
     reason: '可及名稱依元件行為：搜的範圍是學生／家長電話',
     source: `${RULES}:46-48（R7）`,
   },
+  // ── 帳單 gate（#1314 comment 6182400702）起：語意結構與角色（R7，#1590 擴寫）、分頁器（R2 例外）──
+  {
+    // D1：列表用 ul／li（稿是 div 格線）
+    status: '多',
+    kind: 'list',
+    reason: '語意結構依內容：列表用 ul／li，外觀照稿',
+    source: `${RULES}:46-48（R7，#1590）`,
+  },
+  {
+    // D2：章名用 h2（稿是 div）
+    status: '角色',
+    detail: '^text:\\w+ → heading:h[1-6]$',
+    reason: '語意結構依內容：章名用標題',
+    source: `${RULES}:46-48（R7，#1590）`,
+  },
+  {
+    // D2：工具列外包一層 role=search landmark（稿沒有）；裡面多出來的鈕另外拆列
+    status: '多',
+    app: 'landmark:search\\[[^\\]]*\\]$',
+    reason: '語意結構依內容：搜尋／篩選區包成 search landmark',
+    source: `${RULES}:46-48（R7，#1590）`,
+  },
+  {
+    // D4：手機停靠列不加 role=toolbar（沒有方向鍵移動的行為就不加）
+    status: '缺',
+    a6: 'landmark:toolbar\\[主要動作\\]$',
+    reason: '不為貼稿加沒有對應行為的角色：toolbar 要方向鍵移動，沒實作',
+    source: `${RULES}:50（R7 反向，#1590）`,
+  },
+  {
+    // D3：伺服器分頁的分頁器，收不進「⋯」
+    status: '多',
+    host: '^p-paginator$',
+    reason: '分頁器：伺服器分頁，沒有它看不到後面的資料，收不進「⋯」',
+    source: `${RULES}:30（R2 例外）；#1314 comment 6182400702`,
+  },
+  {
+    // 列尾「⋯」：每一列的列動作（全站都是這個形，#1593 起改成全站通用）
+    status: '多',
+    // 兩種寫法：學生「某某 的更多動作」、帳單「更多：某某的帳單動作」
+    detail: '「(更多：[^」]*|[^」]*的更多動作)」',
+    reason: '列尾「⋯」：現況有、稿沒畫的列動作收進「⋯」',
+    source: `${RULES}:24-28（R2）`,
+  },
   {
     status: '多',
     pop: 'more',
     app: 'control:link\\[(公開申請|到班打卡)\\]$',
     reason: '現況有、稿沒畫：收進「更多」選單，不刪',
     source: `${RULES}:24-28（R2）`,
+  },
+];
+
+/**
+ * 全站項（#1591）：每頁都量到的同一組差異，報告收成每頁一條「全站」，不計入頁面待修。
+ * `strip`：從樣式差裡拿掉的項目；`stripProps`＋`a6`：對符合 A6 key 的 part 拿掉這些屬性的差；
+ * `rows`：整列歸全站的 part（regex 對 A6 key）。
+ */
+export const SITE_WIDE = [
+  {
+    label: '全站基底字級、字重：app 13px／500，稿 14px／400',
+    issue: '#1591',
+    strip: ['fontSize 14px → 13px', 'fontWeight 400 → 500', 'lineHeight 21px → 19.5px'],
+  },
+  {
+    // D7（#1593）：頁面搜尋框的底色與框線來自全站共用 class；頂欄的全站搜尋屬殼層，不在這條
+    label: '頁面搜尋框底色、框線（全站共用 class）',
+    issue: '#1591',
+    a6: '^(?!>landmark:banner).*control:searchbox\\[[^\\]]*\\]$',
+    stripProps: [
+      'backgroundColor',
+      'borderTop',
+      'borderRight',
+      'borderBottom',
+      'borderLeft',
+      'borderRadius',
+    ],
+  },
+  {
+    label: 'main 範圍與盒子樣式：app 的 main 包住色面（結構範圍不同）、底色／padding／display 不同',
+    issue: '#1591',
+    rows: '^>landmark:main\\[\\]$',
   },
 ];
 
@@ -96,14 +172,6 @@ export const PAGES = {
     appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
     // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
-    deviations: [
-      {
-        status: '多',
-        detail: '的更多動作」',
-        reason: '列尾「⋯」：現況有、稿沒畫的列動作收進「⋯」',
-        source: `${RULES}:24-28（R2）`,
-      },
-    ],
   },
   schedule: {
     a6: 'schedule.html',

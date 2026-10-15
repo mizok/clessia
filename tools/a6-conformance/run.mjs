@@ -10,6 +10,7 @@ import {
   APP_URL,
   DATA_DEPENDENT,
   DEVIATIONS,
+  SITE_WIDE,
   OUT,
   PAGES,
   SHELL_POPOVERS,
@@ -88,7 +89,12 @@ async function diffPage(page) {
         ))
           rows.push({ ...r, pop: ia });
     }
-    const out = classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])], w.width);
+    const out = classify(
+      rows,
+      [...DEVIATIONS, ...(PAGES[page].deviations ?? [])],
+      w.width,
+      SITE_WIDE,
+    );
     fs.writeFileSync(path.join(dir, `diff-${w.tag}.json`), JSON.stringify(out, null, 1));
     sections.push({ width: w.width, tag: w.tag, rows: out, a6, app });
   }
