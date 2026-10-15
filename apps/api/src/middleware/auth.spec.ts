@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { clearIdentityCache } from '../lib/identity-cache';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { authMiddleware, campusRequestGuard, requireAdminPermission, requireRoles } from './auth';
@@ -16,8 +17,14 @@ function eqChain<T extends object>(result: T): T & { eq: () => T } {
   return Object.assign(result, { eq: () => eqChain(result) });
 }
 
+/** Hyperdrive A：身分查詢走 SQL 用的 pool。預設 undefined ＝ 沒有 pool，走 REST（既有測試都是這條） */
+let poolForTest: { query: ReturnType<typeof vi.fn> } | undefined;
+
 vi.mock('../lib/get-auth', () => ({
-  getAuth: () => ({ api: { getSession: (...args: unknown[]) => getSession(...args) } }),
+  getAuth: () => ({
+    api: { getSession: (...args: unknown[]) => getSession(...args) },
+    pool: poolForTest,
+  }),
 }));
 
 vi.mock('../lib/supabase', () => ({
@@ -666,5 +673,129 @@ describe('authMiddleware 的身分查詢只看本 org（#1603）', () => {
     }).request('/');
 
     expect(await res.json()).toMatchObject({ studentScope: ['s-1'] });
+  });
+});
+
+/**
+ * Hyperdrive A（#1595）：身分查詢先走 SQL，失敗或形狀不對就走 REST。
+ * 兩條路給同一份資料時，下游推出來的授權範圍要一模一樣（含 #1610 的 assignedCampusIds）。
+ */
+describe('authMiddleware 的身分 SQL 路徑與 REST 退路（Hyperdrive A）', () => {
+  afterEach(() => {
+    poolForTest = undefined;
+    getSession.mockReset();
+    fromMock.mockReset();
+    vi.restoreAllMocks();
+  });
+
+  type Body = { roles: string[]; selfRows: { assignedCampusIds: string[] } };
+  const ROLES = [{ role: 'admin', permissions: ['manage_students'] }];
+  const STAFF = [
+    {
+      status: 'active',
+      display_name: '王主任',
+      birthday: '1990-01-02',
+      staff_campuses: [{ campus_id: 'c-1' }, { campus_id: 'c-2' }],
+    },
+  ];
+  const PARENTS = [
+    { status: 'active', name: '王媽媽', parent_student_relations: [{ student_id: 's-1' }] },
+  ];
+
+  /** REST 替身：照表回固定列；記下被查了哪些表 */
+  function restReturning(rows: Record<string, unknown[]>, queried: string[] = []) {
+    fromMock.mockImplementation((table: string) => {
+      queried.push(table);
+      return {
+        select: () => ({
+          eq: () => eqChain(Promise.resolve({ data: rows[table] ?? [], error: null })),
+        }),
+      };
+    });
+  }
+
+  function app() {
+    getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+    const a = new Hono<AppEnv>();
+    a.use('*', authMiddleware);
+    a.get('/', (c) =>
+      c.json({
+        roles: c.get('roles'),
+        permissions: c.get('permissions'),
+        campusScope: c.get('campusScope'),
+        studentScope: c.get('studentScope'),
+        selfRows: c.get('selfRows'),
+      }),
+    );
+    return a;
+  }
+
+  it('SQL 與 REST 給同一份資料 → 角色、權限、campusScope、studentScope、assignedCampusIds 完全相同', async () => {
+    poolForTest = {
+      query: vi
+        .fn()
+        .mockResolvedValue({ rows: [{ roles: ROLES, staff: STAFF, parents: PARENTS }] }),
+    };
+    const queried: string[] = [];
+    restReturning({}, queried);
+    const viaSql = (await (await app().request('/')).json()) as Body;
+    expect(queried).toEqual([]); // SQL 成功就不碰 REST
+
+    // 清掉身分快取：不清的話第二個請求直接命中第一個的快取，等於自己比自己
+    clearIdentityCache();
+    poolForTest = undefined;
+    const queriedRest: string[] = [];
+    restReturning({ user_roles: ROLES, staff: STAFF, parents: PARENTS }, queriedRest);
+    const viaRest = (await (await app().request('/')).json()) as Body;
+    expect(queriedRest.sort()).toEqual(['parents', 'staff', 'user_roles']); // 真的走了 REST
+
+    expect(viaSql).toEqual(viaRest);
+    expect(viaSql.selfRows.assignedCampusIds).toEqual(['c-1', 'c-2']);
+  });
+
+  it('SQL 拋錯 → 走 REST，照樣授權', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    poolForTest = { query: vi.fn().mockRejectedValue(new Error('Hyperdrive 超過額度')) };
+    const queried: string[] = [];
+    restReturning({ user_roles: ROLES, staff: STAFF }, queried);
+
+    const res = await app().request('/');
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as Body).roles).toEqual(['admin']);
+    expect(queried.sort()).toEqual(['parents', 'staff', 'user_roles']);
+  });
+
+  // 形狀不對時若拿來用：roles 是字串 → map 會丟錯或變空（＝「沒有角色」）；
+  // staff 的 status 讀不到 → 可能被判成停用。兩種都不行，要走 REST
+  it.each([
+    ['roles 不是陣列', { roles: 'admin', staff: STAFF, parents: [] }],
+    [
+      'staff 列沒有 status',
+      { roles: ROLES, staff: [{ display_name: 'x', staff_campuses: [] }], parents: [] },
+    ],
+    ['沒有列', null],
+  ])('SQL 結果形狀不對（%s）→ 走 REST，不當成沒有角色、也不當成停用', async (_label, row) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    poolForTest = { query: vi.fn().mockResolvedValue({ rows: row ? [row] : [] }) };
+    const queried: string[] = [];
+    restReturning({ user_roles: ROLES, staff: STAFF }, queried);
+
+    const res = await app().request('/');
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as Body).roles).toEqual(['admin']);
+    expect(queried).toContain('user_roles');
+  });
+
+  it('SQL 回「真的沒有角色」（合法的空陣列）→ 照實拒絕，不去問 REST', async () => {
+    poolForTest = {
+      query: vi.fn().mockResolvedValue({ rows: [{ roles: [], staff: [], parents: [] }] }),
+    };
+    const queried: string[] = [];
+    restReturning({ user_roles: ROLES }, queried);
+
+    const a = app();
+    a.get('/admin-only', requireRoles('admin'), (c) => c.json({ ok: true }));
+    expect((await a.request('/admin-only')).status).toBe(403);
+    expect(queried).toEqual([]);
   });
 });

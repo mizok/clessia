@@ -291,9 +291,10 @@ jobs:
         run: |
           echo 'status 有哪些變數（只印名稱）：'
           supabase status -o env | cut -d= -f1
-          eval "$(supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')"
+          eval "$(supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY|DB_URL)=')"
           # CI 上拿不到環境變數要紅，不能 skip 成綠（本機才允許 skip）
-          CONTRACT_REQUIRED=1 SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+          # DATABASE_URL：身分 SQL 對真 Postgres 的契約（identity-sql.contract.ts，#1595 Hyperdrive A）
+          CONTRACT_REQUIRED=1 SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" DATABASE_URL="$DB_URL" \
             npx vitest run --config vitest.contract.config.mts
         working-directory: apps/api
 

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { Pool } from 'pg';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createChildDb } from '../lib/child-db';
 import { PERMISSIONS } from '../lib/permissions';
@@ -23,6 +24,10 @@ import { PERMISSIONS } from '../lib/permissions';
 
 const URL = process.env['SUPABASE_URL'];
 const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+const sqlPool = process.env['DATABASE_URL']
+  ? new Pool({ connectionString: process.env['DATABASE_URL'] })
+  : null;
+afterAll(() => sqlPool?.end());
 
 const ctx: {
   orgId: string;
@@ -57,6 +62,13 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('childDb', createChildDb(supabase as never, ctx.studentScope, ctx.orgId));
       set('campusScope', ctx.campusScope);
       // /api/me 讀的顯示欄位（#1595 P2a）—— 真的 middleware 跟身分查詢一起帶，替身不查 staff/parents
+      // `/api/me` 先走 SQL（Hyperdrive A）：有 DATABASE_URL 就給真的 pool，讓每支端點也走過 SQL 那條。
+      // `end` 是 no-op —— authPoolCleanup 每個請求都會呼叫它，而這裡所有請求共用同一個 pool
+      set('auth', {
+        pool: sqlPool
+          ? { query: sqlPool.query.bind(sqlPool), end: async () => undefined }
+          : { end: async () => undefined },
+      });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),

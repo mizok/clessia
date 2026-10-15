@@ -37,6 +37,7 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
       c.set('permissions', ['manage_students']);
       c.set('selfRows', selfRows);
       c.set('supabase', fakeSupabase(queried) as never);
+      c.set('auth', {} as never); // 沒有 pool → 走 REST 那條（SQL 那條由 identity-sql spec 守）
       await next();
     });
     app.route('/api/me', meRoute);
