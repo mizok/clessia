@@ -15,6 +15,7 @@ import { PERMISSIONS } from '../lib/permissions';
  * 端點清單**不手抄**（c11）：從 app 的 OpenAPI 文件取所有 GET、path 沒有 `{param}` 的路由。
  * required query 參數從 `REQUIRED` 補；文件要求了而表裡沒有 → 紅，新端點不會默默漏掉。
  * `BRANCHES` 是會走到另一條查詢分支（alias embed、搜尋）的參數，每支多打一次。
+ * 分支以 `!` 開頭時取代 `ALWAYS`（那支端點的必帶參數跟這條分支互斥時用，例：`scope=all`）。
  *
  * 需要本機 Supabase（`npm run db:start`）。環境變數 `SUPABASE_URL`／`SUPABASE_SERVICE_ROLE_KEY`，
  * 由 `npm run test:contract` 從 `supabase status` 帶進來。
@@ -164,6 +165,8 @@ const BRANCHES: Record<string, string[]> = {
   // 分校篩選（#1314 DB-campus）：BRANCHES 也過 fill()，{campus} 換成 seed 的一間
   '/api/invoices/summary': ['campusId={campus}'],
   '/api/billing-periods/upcoming-unbilled': ['campusId={campus}'],
+  // 全部學生的成績聚合（#1314 G8）：scope=all 走分頁撈齊＋分校交集
+  '/api/scores/students': ['!scope=all', '!scope=all&campusId={campus}'],
   // 管理端請假頁（#1314 LV1）：待處理＝endFrom 今天、依開始日排序
   '/api/leaves': ['endFrom=' + TODAY + '&order=start_asc', 'order=start_desc'],
   // 報名進出（#1507）：事件條件是 `and(…)` 包在 `.or()` 裡、退班截到今天 —— 替身驗不了 PostgREST 的解析
@@ -330,8 +333,15 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
         return `文件要求 required query [${required.join(', ')}]，REQUIRED 表沒有值`;
       base.push(`${name}=${encodeURIComponent(fill(value))}`);
     }
-    if (ALWAYS[template]) base.push(fill(ALWAYS[template]));
-    return [[], ...(BRANCHES[template] ?? []).map((b) => [fill(b)])].map((extra) => {
+    const always = ALWAYS[template] ? [fill(ALWAYS[template])] : [];
+    // 分支以 `!` 開頭＝取代 ALWAYS（例：scope=all 不能再帶 studentId）
+    return [null, ...(BRANCHES[template] ?? [])].map((branch) => {
+      const extra =
+        branch === null
+          ? always
+          : branch.startsWith('!')
+            ? [fill(branch.slice(1))]
+            : [...always, fill(branch)];
       const qs = [...base, ...extra].join('&');
       return qs ? `${path}?${qs}` : path;
     });
