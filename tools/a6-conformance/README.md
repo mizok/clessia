@@ -61,6 +61,8 @@ app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，
 2. 完整 key 相同
 3. key 後綴唯一：由短到長，有歧義就多帶一層祖先；依序比「嚴格」→「同類角色」
    （searchbox／textbox／combobox 同算輸入框）→「只看文案」（章名 A6 是 `div`、app 是 `h2` 也配得上）
+   →「拿掉 `list` 那層」（稿的 div 列對 app 的 ul／li 列）。完全不帶文案的短後綴（`text:span`、
+   `control:button>text:span`）不當依據 —— 剩下沒配上的很少時它常「剛好唯一」而配錯 —— 要延伸到有文案的段或整串 key
 4. 已配對的父層下，同 `kind:role` 的未配對子項數量相同 → 依 DOM 順序配
 
 **為什麼用自動配對＋mapping 檔，不在 app 加 `data-a6-part`**：A6 key 才是真相，app 端不用先改
