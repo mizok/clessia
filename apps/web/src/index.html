@@ -20,6 +20,17 @@
           headers: role ? { 'X-Active-Role': role } : {},
         });
       } catch (e) {}
+      // 同一個理由先發 /api/system-time（#1595 1a）：開站的 AppInitializer 要等它對完時才導覽。
+      // `at` 記回應到達當下，SystemClockService 拿它當基準點（見 takeEarlyTime）
+      try {
+        window.__clessiaEarlyTime = fetch('/api/system-time').then(function (r) {
+          var at = performance.now();
+          return r.json().then(function (body) {
+            return { body: r.ok ? body : null, at: at };
+          });
+        });
+        window.__clessiaEarlyTime.catch(function () {});
+      } catch (e) {}
     </script>
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

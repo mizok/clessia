@@ -48,6 +48,15 @@ export function addDaysToDateString(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** index.html 先發的 `/api/system-time`：回應本體＋到達當下的 `performance.now()` */
+interface EarlyTime {
+  body: { epochMs?: unknown } | null;
+  at: number;
+}
+
+/** 先發的那支等這麼久還沒回就放棄、改走原本的請求（不能卡住開站） */
+export const EARLY_TIME_TIMEOUT_MS = 10_000;
+
 @Injectable({
   providedIn: 'root',
 })
@@ -116,7 +125,40 @@ export class SystemClockService {
   }
 
   async initialize(): Promise<void> {
+    // 只用一次：之後的定時重新對時要的是「現在」的伺服器時間
+    const w = window as { __clessiaEarlyTime?: Promise<EarlyTime> };
+    const early = w.__clessiaEarlyTime;
+    delete w.__clessiaEarlyTime;
+    if (early && (await this.takeEarlyTime(early))) return;
     await this.syncWithServer();
+  }
+
+  /**
+   * 接手 index.html 先發的 `/api/system-time`（#1595 1a，同 `/api/me` 的 P3a）。
+   * 回 false＝這份不能用（失敗、逾時、不是預期的 JSON），呼叫端退回原本的請求。
+   *
+   * **基準點是回應到達當下（`at`），不是這裡接手的時間**：先發的請求可能早就回來了，
+   * 在那之後才拿 `performance.now()` 當基準，中間等 bootstrap 的那段會被算成
+   * 「伺服器時間停住了」—— 時鐘就慢了那麼多。
+   */
+  private async takeEarlyTime(early: Promise<EarlyTime>): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const { body, at } = await Promise.race([
+        early,
+        new Promise<never>((_, reject) => (timer = setTimeout(reject, EARLY_TIME_TIMEOUT_MS))),
+      ]);
+      if (typeof body?.epochMs !== 'number') return false;
+      this.baseServerEpochMs.set(body.epochMs);
+      this.basePerformanceMs.set(at);
+      this.syncedAtEpochMs.set(Date.now());
+      this.syncError.set(null);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async syncWithServer(): Promise<void> {
