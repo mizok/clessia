@@ -5,6 +5,9 @@
  *
  * 三層退路：`passScore`（0 有效）→ `totalScore × 0.6`（總分 > 0）→ 60。
  * `null`／`undefined`＝沒分數（未登、缺考），不算不及格。
+ *
+ * ponytail: 兩份，升級路徑＝搬進 packages 並接好別名（兩邊 tsconfig＋Workers 打包都要接；
+ * `packages/validators` 目前沒人引用、別名沒驗過）。
  */
 export const PASSING_RATIO = 0.6;
 export const PASSING_SCORE = 60;

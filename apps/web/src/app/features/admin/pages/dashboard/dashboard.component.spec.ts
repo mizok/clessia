@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { NEVER, Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError, type Observable } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { AuthService } from '@core/auth.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { BillingPeriodsService, type UpcomingUnbilledPeriod } from '@core/billing-periods.service';
 import { ContactLogsService } from '@core/contact-logs.service';
 import { InvoicesService } from '@core/invoices.service';
@@ -1020,9 +1022,191 @@ describe('DashboardComponent（管理端）', () => {
       const panel = fixture.debugElement.query(By.css('app-phone-leave'));
       expect(panel).not.toBeNull();
       panel.componentInstance.completed.emit();
+      fixture.detectChanges(); // 重抓由 effect 觸發
 
       expect(workbenchMock.mock.calls.length).toBe(before.workbench + 1);
       expect(leavesMock.mock.calls.length).toBe(before.leaves + 1);
+    });
+  });
+
+  /** #1314 DB-campus：整頁跟頂欄分校 */
+  describe('頂欄分校', () => {
+    const FIN = ['view_reports', 'manage_finance'];
+    const campusCtx = () => TestBed.inject(CampusContextService);
+    const lastArg = (m: ReturnType<typeof vi.fn>) => m.mock.calls[m.mock.calls.length - 1][0];
+
+    beforeEach(() => localStorage.removeItem('clessia.campusContext'));
+
+    it('預設（全部分校）六支都不帶 campusId，頁面接上頂欄（出現下拉）', async () => {
+      await setup({ permissions: FIN });
+      expect(campusCtx().inUse()).toBe(true);
+      expect(lastArg(sessionsMock).campusId).toBeUndefined();
+      expect(lastArg(workbenchMock)).toEqual({ campusId: undefined });
+      expect(lastArg(leavesMock).campusId).toBeUndefined();
+      expect(lastArg(unbilledMock)).toEqual({ campusId: undefined });
+      expect(lastArg(summaryMock)).toEqual({ campusId: undefined });
+      expect(lastArg(invoiceListMock).campusId).toBeUndefined();
+    });
+
+    it('選了分校：六支都改帶那間；改回全部又不帶', async () => {
+      await setup({ permissions: FIN });
+      campusCtx().select('campus-1');
+      fixture.detectChanges();
+      expect(lastArg(sessionsMock).campusId).toBe('campus-1');
+      expect(lastArg(workbenchMock)).toEqual({ campusId: 'campus-1' });
+      expect(lastArg(leavesMock).campusId).toBe('campus-1');
+      expect(lastArg(unbilledMock)).toEqual({ campusId: 'campus-1' });
+      expect(lastArg(summaryMock)).toEqual({ campusId: 'campus-1' });
+      expect(lastArg(invoiceListMock).campusId).toBe('campus-1');
+
+      campusCtx().select(null);
+      fixture.detectChanges();
+      expect(lastArg(sessionsMock).campusId).toBeUndefined();
+      expect(lastArg(summaryMock)).toEqual({ campusId: undefined });
+    });
+
+    it('沒有 manage_finance 的人換分校：財務三支仍不查', async () => {
+      await setup({ permissions: ['view_reports'] });
+      campusCtx().select('campus-1');
+      fixture.detectChanges();
+      expect(unbilledMock).not.toHaveBeenCalled();
+      expect(summaryMock).not.toHaveBeenCalled();
+      expect(invoiceListMock).not.toHaveBeenCalled();
+    });
+
+    it('分校一換，各卡先回到「還不知道」（不拿舊數字配新分校），新資料回來才亮', async () => {
+      await setup({ permissions: FIN, overdue: { count: 2, amount: 900 } });
+      expect(component['untakenCount']()).not.toBeNull();
+      expect(component['overdueSummary']()).not.toBeNull();
+      expect(component['todaySessions']()).not.toBeNull();
+
+      sessionsMock.mockReturnValueOnce(NEVER);
+      summaryMock.mockReturnValueOnce(NEVER);
+      workbenchMock.mockReturnValueOnce(NEVER);
+      leavesMock.mockReturnValueOnce(NEVER);
+      unbilledMock.mockReturnValueOnce(NEVER);
+      invoiceListMock.mockReturnValueOnce(NEVER);
+      campusCtx().select('campus-2');
+      fixture.detectChanges();
+
+      expect(component['untakenCount']()).toBeNull();
+      expect(component['overdueSummary']()).toBeNull();
+      expect(component['overdueList']()).toEqual([]);
+      expect(component['todaySessions']()).toBeNull();
+      expect(component['todayLeaves']()).toBeNull();
+      expect(component['unbilledPeriods']()).toBeNull();
+    });
+
+    it('接電話請假後的重抓（loadToday）不清畫面——只有換分校才清', async () => {
+      await setup({ permissions: FIN });
+      expect(component['todaySessions']()).not.toBeNull();
+      workbenchMock.mockReturnValueOnce(NEVER);
+      leavesMock.mockReturnValueOnce(NEVER);
+      (component as unknown as { loadToday: () => void }).loadToday();
+      fixture.detectChanges();
+      expect(workbenchMock).toHaveBeenCalledTimes(2);
+      expect(component['todaySessions']()).not.toBeNull();
+      expect(component['todayLeaves']()).not.toBeNull();
+    });
+
+    it('頂欄選了分校：作業台小字直接寫那間的名字，不從今天的資料推', async () => {
+      await setup({ permissions: FIN });
+      TestBed.inject(ReferenceDataService).campuses.set([
+        { id: 'campus-1', name: '文山旗艦校' } as never,
+      ]);
+      campusCtx().select('campus-1');
+      fixture.detectChanges();
+      expect(component['campusName']()).toBe('文山旗艦校');
+    });
+
+    // 每張卡一條：先送出（分校 A）的慢、後送出（分校 B）的快、快的先回 → 慢的晚到不能蓋掉 B
+    describe('亂序：慢的舊分校回應不蓋掉新分校', () => {
+      type Case = {
+        name: string;
+        mock: () => ReturnType<typeof vi.fn>;
+        resp: (tag: 'A' | 'B') => unknown;
+        read: () => unknown;
+        expectB: unknown;
+      };
+      const page = (total: number) => ({
+        data: [],
+        meta: { total, page: 1, pageSize: 1, totalPages: 1 },
+      });
+      const cases: Case[] = [
+        {
+          name: '未點名',
+          mock: () => sessionsMock,
+          resp: (t) => of(page(t === 'A' ? 7 : 3)),
+          read: () => component['untakenCount'](),
+          expectB: 3,
+        },
+        {
+          name: '今日請假',
+          mock: () => leavesMock,
+          resp: (t) => of({ ...page(0), data: t === 'A' ? [leave(), leave()] : [leave()] }),
+          read: () =>
+            component['todayLeaves']() && (component['todayLeaves']() as unknown[]).length,
+          expectB: 1,
+        },
+        {
+          name: '下期未開帳',
+          mock: () => unbilledMock,
+          resp: (t) => of({ data: t === 'A' ? [{ periodId: 'pa' }, { periodId: 'pa2' }] : [] }),
+          read: () => (component['unbilledPeriods']() as unknown[]).length,
+          expectB: 0,
+        },
+        {
+          name: '逾期摘要',
+          mock: () => summaryMock,
+          resp: (t) =>
+            of({ overdue: { count: t === 'A' ? 9 : 4, outstanding: t === 'A' ? 900 : 400 } }),
+          read: () => component['overdueSummary'](),
+          expectB: { count: 4, amount: 400 },
+        },
+        {
+          name: '逾期清單',
+          mock: () => invoiceListMock,
+          resp: (t) => of({ data: t === 'A' ? [{ id: 'ia' }, { id: 'ib' }] : [{ id: 'ic' }] }),
+          read: () => (component['overdueList']() as unknown[]).length,
+          expectB: 1,
+        },
+        {
+          name: '作業台',
+          mock: () => workbenchMock,
+          resp: (t) =>
+            of({
+              date: '2026-08-30',
+              mode: 'per_session',
+              sessions: t === 'A' ? [session(), session()] : [session()],
+              rosters: [],
+              expected: [],
+              arrived: [],
+              onLeave: [],
+            }),
+          read: () => (component['todaySessions']() as unknown[]).length,
+          expectB: 1,
+        },
+      ];
+
+      for (const c of cases) {
+        it(c.name, async () => {
+          await setup({ permissions: FIN });
+          const slowA = new Subject<unknown>();
+          c.mock().mockReturnValueOnce(slowA);
+          campusCtx().select('campus-A');
+          fixture.detectChanges();
+          c.mock().mockReturnValueOnce(c.resp('B'));
+          campusCtx().select('campus-B');
+          fixture.detectChanges();
+          expect(c.read()).toEqual(c.expectB);
+
+          // 慢的 A 現在才回：switchMap 已經丟掉它，畫面維持 B
+          (c.resp('A') as Observable<unknown>).subscribe((v) => slowA.next(v));
+          slowA.complete();
+          fixture.detectChanges();
+          expect(c.read()).toEqual(c.expectB);
+        });
+      }
     });
   });
 });

@@ -15,8 +15,6 @@ import { CoursesService } from '@core/courses.service';
 import { AuthService } from '@core/auth.service';
 
 import { ReportsPage } from './reports.page';
-import { By } from '@angular/platform-browser';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 
 const figures = (overrides: Partial<RevenueResponse['summary']> = {}) => ({
   received: 0,
@@ -57,6 +55,7 @@ describe('ReportsPage', () => {
     await TestBed.configureTestingModule({
       imports: [ReportsPage],
       providers: [
+        provideRouter([]),
         { provide: ReportsService, useValue: reports },
         { provide: CoursesService, useValue: courses },
         { provide: ReferenceDataService, useValue: refData },
@@ -227,31 +226,6 @@ describe('ReportsPage', () => {
   });
 
   describe('數字全部來自後端', () => {
-    // 窄螢幕上 responsive-table 只留得下一兩欄。留哪些不能靠 DOM 順序碰運氣：
-    // 身分欄（哪一個分校）不可摺疊，而留下來的那個數字要是可行動的那個。
-    it('分校欄不可摺疊，應收未收比實收優先留下', async () => {
-      // 表頭在 ng-template 裡，沒有分組資料時整張表不渲染 —— 要先餵資料
-      reports.revenue.mockReturnValue(
-        of(response({ groups: [{ key: '示範分校01', ...figures({ billed: 1000 }) }] })),
-      );
-      component['load']();
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      // 讀 directive 實例而不是 ng-reflect 屬性 —— 後者只有 dev 模式才有
-      const cols = fixture.debugElement
-        .queryAll(By.directive(RtColDefDirective))
-        .map((el) => el.injector.get(RtColDefDirective));
-      const col = (key: string) => cols.find((c) => c.key() === key);
-
-      expect(col('key')?.collapsible()).toBe(false);
-
-      const priority = (key: string) => col(key)?.priority() ?? Number.NaN;
-      expect(priority('outstanding')).toBeLessThan(priority('received'));
-      expect(priority('outstanding')).toBeLessThan(priority('billed'));
-      expect(priority('outstanding')).toBeLessThan(priority('refunded'));
-    });
-
     it('摘要照後端給的呈現，前端不重算', async () => {
       reports.revenue.mockReturnValue(
         of(
@@ -399,6 +373,221 @@ describe('ReportsPage', () => {
     });
   });
 
+  describe('R2 分組統計列（A6 平列）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const q = (id: string) => el().querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    const all = (id: string) =>
+      Array.from(el().querySelectorAll(`[data-testid="${id}"]`)) as HTMLElement[];
+    const feed = async (res: RevenueResponse) => {
+      reports.revenue.mockReturnValue(of(res));
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    const g = (key: string, over: Partial<RevenueResponse['summary']> = {}) => ({
+      key,
+      ...figures(over),
+    });
+
+    it('一組一列、一個合計列，不再是 responsive-table', async () => {
+      await feed(
+        response({
+          summary: figures({ billed: 1000 }),
+          groups: [g('中山校', { billed: 600 }), g('文山校', { billed: 400 })],
+        }),
+      );
+      expect(all('group-row')).toHaveLength(2);
+      expect(all('group-total')).toHaveLength(1);
+      expect(el().querySelector('app-responsive-table')).toBeNull();
+    });
+
+    it.each([
+      ['campus', '分校'],
+      ['course', '課程'],
+      ['month', '月份'],
+    ] as const)('分組 %s：第一欄表頭寫「%s」，後面五欄固定', async (by, label) => {
+      component['groupBy'].set(by);
+      await feed(response({ summary: figures({ billed: 1 }), groups: [g('x', { billed: 1 })] }));
+      const heads = Array.from(q('group-table').querySelectorAll('thead th')).map((t) =>
+        t.textContent!.trim(),
+      );
+      expect(heads).toEqual([label, '實收', '退款', '已開帳', '應收未收', '其中逾期']);
+    });
+
+    it('退款欄不上色：退款大於 0 也沒有任何文字色 class', async () => {
+      await feed(
+        response({
+          summary: figures({ billed: 100, refunded: 50 }),
+          groups: [g('中山校', { billed: 100, refunded: 50 })],
+        }),
+      );
+      expect(q('cell-refunded').className).not.toMatch(/text-(warning|error|accent|success)/);
+      expect(q('cell-refunded').textContent).toContain('50');
+    });
+
+    it.each([
+      [0, false],
+      [1, true],
+    ])('其中逾期 %s → 紅字加粗：%s（門檻 0／1）', async (overdue, red) => {
+      await feed(
+        response({
+          summary: figures({ billed: 100, outstanding: 50, overdueOutstanding: overdue }),
+          groups: [g('中山校', { billed: 100, outstanding: 50, overdueOutstanding: overdue })],
+        }),
+      );
+      expect(q('cell-overdue').classList.contains('text-error-700')).toBe(red);
+      expect(q('cell-overdue').classList.contains('font-semibold')).toBe(red);
+      expect(q('group-total').lastElementChild!.classList.contains('text-error-700')).toBe(red);
+    });
+
+    /**
+     * 合計列每一格的數值（取自 API `summary`，不是前端加各組）。
+     * 五個數字互質、各組數字刻意跟 summary 不同：任何一格被拿掉、換位置、或改成「各組加總」都會紅。
+     * 每格斷言「標籤＋千分位數字」，手機的小標籤（`wide:hidden`）也在同一個 td 裡。
+     */
+    describe('合計列每一格', () => {
+      const cells = () =>
+        Array.from(q('group-total').children).map((c) => c.textContent!.replace(/\s+/g, ''));
+
+      it.each([
+        [
+          '五格都有值',
+          figures({
+            received: 120001,
+            refunded: 3002,
+            billed: 250003,
+            outstanding: 70004,
+            overdueOutstanding: 9005,
+          }),
+          ['合計', '實收120,001', '退款3,002', '已開帳250,003', '應收未收70,004', '其中逾期9,005'],
+        ],
+        [
+          '全 0 也要印 0（不是空白）',
+          figures(),
+          ['合計', '實收0', '退款0', '已開帳0', '應收未收0', '其中逾期0'],
+        ],
+        [
+          '千分位邊界 999／1,000',
+          figures({
+            received: 999,
+            refunded: 1000,
+            billed: 1001,
+            outstanding: 9999,
+            overdueOutstanding: 10000,
+          }),
+          ['合計', '實收999', '退款1,000', '已開帳1,001', '應收未收9,999', '其中逾期10,000'],
+        ],
+      ] as const)('%s', async (_name, summary, expected) => {
+        await feed(
+          response({
+            summary,
+            // 各組數字跟 summary 不同：合計若改成前端加總就對不上
+            groups: [
+              g('中山校', {
+                received: 11,
+                refunded: 22,
+                billed: 33,
+                outstanding: 44,
+                overdueOutstanding: 55,
+              }),
+              g('文山校', {
+                received: 66,
+                refunded: 77,
+                billed: 88,
+                outstanding: 99,
+                overdueOutstanding: 111,
+              }),
+            ],
+          }),
+        );
+        expect(cells()).toEqual([...expected]);
+      });
+
+      it('合計列的欄序與表頭一致（實收、退款、已開帳、應收未收、其中逾期），逾期格 >0 才紅', async () => {
+        await feed(
+          response({
+            summary: figures({
+              received: 5,
+              refunded: 4,
+              billed: 3,
+              outstanding: 2,
+              overdueOutstanding: 1,
+            }),
+            groups: [g('中山校', { billed: 3 })],
+          }),
+        );
+        const heads = Array.from(q('group-table').querySelectorAll('thead th')).map((t) =>
+          t.textContent!.trim(),
+        );
+        const tdLabels = Array.from(q('group-total').children)
+          .slice(1)
+          .map((c) => c.querySelector('small')!.textContent!.trim());
+        expect(tdLabels).toEqual(heads.slice(1));
+        expect(q('group-total').lastElementChild!.classList.contains('text-error-700')).toBe(true);
+        // 其他四格不紅
+        for (const c of Array.from(q('group-total').children).slice(0, -1)) {
+          expect(c.classList.contains('text-error-700')).toBe(false);
+        }
+      });
+    });
+
+    it('畫面上的列序：已開帳大到小、模糊桶最後（只換順序）', async () => {
+      await feed(
+        response({
+          summary: figures({ billed: 600 }),
+          groups: [
+            g('（未分類）', { billed: 400 }),
+            g('甲', { billed: 100 }),
+            g('乙', { billed: 200 }),
+          ],
+        }),
+      );
+      const names = all('group-row').map((r) =>
+        r.querySelector('td')!.textContent!.trim().slice(0, 4),
+      );
+      expect(names).toEqual(['乙', '甲', '（未分類'].map((n) => n.slice(0, 4)));
+    });
+
+    it('比例條＝這組已開帳佔整體已開帳（取後端 summary），已開帳 0 的組沒有條', async () => {
+      await feed(
+        response({
+          summary: figures({ billed: 1000 }),
+          groups: [g('A', { billed: 500 }), g('B', { billed: 250 }), g('C', { billed: 0 })],
+        }),
+      );
+      expect(all('group-bar').map((b) => b.style.width)).toEqual(['50%', '25%']);
+      expect(all('group-row')[2].querySelector('[data-testid="group-bar"]')).toBeNull();
+    });
+
+    it('整體已開帳 0 → 條寬 0，不出現 NaN／Infinity', async () => {
+      await feed(response({ summary: figures({ billed: 0 }), groups: [g('A', { billed: 5 })] }));
+      expect(all('group-bar').map((b) => b.style.width)).toEqual(['0%']);
+    });
+
+    it('手機堆疊：每列是 grid、五個數字格各帶只在手機顯示的標籤', async () => {
+      await feed(response({ summary: figures({ billed: 1 }), groups: [g('A', { billed: 1 })] }));
+      const row = all('group-row')[0];
+      expect(row.classList.contains('grid')).toBe(true);
+      expect(row.classList.contains('wide:table-row')).toBe(true);
+      const labels = Array.from(row.querySelectorAll('td small')).map((s) => s.textContent);
+      expect(labels).toEqual(['實收', '退款', '已開帳', '應收未收', '其中逾期']);
+      expect(
+        Array.from(row.querySelectorAll('td small')).every((s) =>
+          s.classList.contains('wide:hidden'),
+        ),
+      ).toBe(true);
+    });
+
+    it('名稱連結有 44px 高度下限（鍵盤與觸控）', async () => {
+      component['groupBy'].set('course'); // 課程列的連結不需要 manage_finance
+      await feed(
+        response({ summary: figures({ billed: 1 }), groups: [g('中山校', { billed: 1 })] }),
+      );
+      const link = all('group-row')[0].querySelector('a')!;
+      expect(link.classList.contains('min-h-11')).toBe(true);
+    });
+  });
+
   describe('明標的模糊桶', () => {
     // 這幾個桶是刻意的：不藏、不合併、不重新命名
     it('認得跨分校與未分類，一般分校名不是', async () => {
@@ -422,23 +611,43 @@ describe('ReportsPage', () => {
       expect(component['isAmbiguous'](unclassified)).toBe(true);
     });
 
-    // #1029：說明不能只放 tooltip（手機 hover 不到）；有模糊桶才出現，沒有就不佔位
-    it('有模糊桶 → 頁面上有可見說明文字；沒有 → 沒有', async () => {
-      const note = () => fixture.nativeElement.querySelector('.reports__groups-note');
+    // #1029：說明不能只放 tooltip（手機 hover 不到）；A6：直接寫在那一列名稱底下，一般列不佔位
+    it('模糊桶那一列底下有可見說明；一般列沒有；不再有 tooltip 與獨立說明段', async () => {
+      const reasons = () =>
+        Array.from(fixture.nativeElement.querySelectorAll('[data-testid="group-reason"]')).map(
+          (n) => (n as HTMLElement).textContent!.trim(),
+        );
 
       reports.revenue.mockReturnValue(
-        of(response({ groups: [{ key: '（跨分校）', ...figures() }] })),
+        of(
+          response({
+            groups: [
+              { key: '中山校', ...figures() },
+              { key: '（跨分校）', ...figures() },
+              { key: '（跨課程）', ...figures() },
+              { key: '（未分類）', ...figures() },
+            ],
+          }),
+        ),
       );
       component['load']();
       await fixture.whenStable();
       fixture.detectChanges();
-      expect(note()?.textContent).toContain('小計加起來等於總計');
 
-      reports.revenue.mockReturnValue(of(response({ groups: [{ key: '中山校', ...figures() }] })));
-      component['load']();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(note()).toBeNull();
+      const rows = Array.from(
+        fixture.nativeElement.querySelectorAll('[data-testid="group-row"]'),
+      ) as HTMLElement[];
+      expect(rows.map((r) => r.querySelector('[data-testid="group-reason"]') !== null)).toEqual([
+        false,
+        true,
+        true,
+        true,
+      ]);
+      expect(reasons()).toHaveLength(3);
+      expect(reasons()[0]).toContain('小計才加得回總計');
+      expect(reasons()[2]).toContain('沒有任何課');
+      expect(fixture.nativeElement.querySelector('.reports__groups-note')).toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-testid="group-table"] i.pi')).toBeNull();
     });
 
     it('模糊桶照原樣顯示，不改名', async () => {

@@ -62,3 +62,15 @@ export function invoiceInScope(row: Row, scope: CampusScope): boolean {
     )
   );
 }
+
+/**
+ * 有班的明細有沒有任一筆在範圍內（#1314 儀表板「另有 N 張跨校帳單」）。**不是授權判準** ——
+ * 只拿來在已被 `invoiceInScope` 排除的單裡，挑出「其實也有這個範圍的班」的跨校單。
+ */
+export function invoiceTouchesScope(row: Row, scope: readonly string[]): boolean {
+  const items = (row['scope_items'] as Row[] | null) ?? [];
+  return items.some((item) => {
+    const campusId = campusOf(item['enrollments']);
+    return campusId !== null && scope.includes(campusId);
+  });
+}

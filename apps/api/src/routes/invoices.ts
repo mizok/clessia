@@ -12,6 +12,7 @@ import {
   enrollmentsInScope,
   INVOICE_SCOPE_EMBED,
   invoiceInScope,
+  invoiceTouchesScope,
   studentInScope,
 } from '../lib/invoice-campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
@@ -454,6 +455,10 @@ app.openapi(
                 notDue: BucketSchema,
                 outstanding: z.number(),
                 month: z.object({ month: z.string(), billed: z.number(), received: z.number() }),
+                crossCampusOverdue: CountSchema.openapi({
+                  description:
+                    '被 campusId 篩選排除的跨校逾期帳單張數（儀表板「另有 N 張跨校帳單」）。不帶 campusId 恆 0',
+                }),
               })
               .openapi('InvoiceSummary'),
           },
@@ -467,7 +472,8 @@ app.openapi(
     const orgId = c.get('orgId');
 
     const { studentId, campusId } = c.req.valid('query');
-    const campusScope = campusFilterIds(getCampusScope(c), campusId);
+    const baseScope = getCampusScope(c);
+    const campusScope = campusFilterIds(baseScope, campusId);
     const select: string =
       'id, issued_at, due_date, voided_at, invoice_items(amount), payment_records(kind, amount)' +
       (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
@@ -479,26 +485,42 @@ app.openapi(
     // 撈一半失敗就不回半套數字
     if (error) return c.json({ error: '查詢帳單彙總失敗', code: 'DB_ERROR' }, 500);
     const rows = fetched.filter((row) => invoiceInScope(row, campusScope));
+    // 跨校帳單 N（#1314 儀表板）：授權範圍內看得到、被篩選排除、但有班的明細也落在篩選範圍內。
+    // 純餐費跨校單不會被排除（兩校都看得到），所以不在這裡。逾期判準借 summarizeInvoices
+    const crossCampus =
+      campusScope === null
+        ? []
+        : fetched.filter(
+            (row) =>
+              invoiceInScope(row, baseScope) &&
+              !invoiceInScope(row, campusScope) &&
+              invoiceTouchesScope(row, campusScope),
+          );
 
-    // postgrest 的 numeric 回來是字串
-    const summary = summarizeInvoices(
-      rows.map((row) => ({
-        issuedAt: row['issued_at'] as string,
-        dueDate: (row['due_date'] as string | null) ?? null,
-        voided: Boolean(row['voided_at']),
-        items: ((row['invoice_items'] as Array<Record<string, unknown>> | null) ?? []).map(
-          (item) => ({ amount: Number(item['amount'] ?? 0) }),
-        ),
-        payments: ((row['payment_records'] as Array<Record<string, unknown>> | null) ?? []).map(
-          (p) => ({ kind: p['kind'] as 'payment' | 'refund', amount: Number(p['amount'] ?? 0) }),
-        ),
-      })),
-      getCurrentTaipeiDateString(),
-    );
+    const today = getCurrentTaipeiDateString();
+    const summary = summarizeInvoices(rows.map(toSummaryInvoice), today);
+    const crossCampusOverdue = {
+      count: summarizeInvoices(crossCampus.map(toSummaryInvoice), today).overdue.count,
+    };
 
-    return c.json(summary, 200);
+    return c.json({ ...summary, crossCampusOverdue }, 200);
   },
 );
+
+// postgrest 的 numeric 回來是字串
+function toSummaryInvoice(row: Record<string, unknown>) {
+  return {
+    issuedAt: row['issued_at'] as string,
+    dueDate: (row['due_date'] as string | null) ?? null,
+    voided: Boolean(row['voided_at']),
+    items: ((row['invoice_items'] as Array<Record<string, unknown>> | null) ?? []).map((item) => ({
+      amount: Number(item['amount'] ?? 0),
+    })),
+    payments: ((row['payment_records'] as Array<Record<string, unknown>> | null) ?? []).map(
+      (p) => ({ kind: p['kind'] as 'payment' | 'refund', amount: Number(p['amount'] ?? 0) }),
+    ),
+  };
+}
 
 // ============================================================
 // GET /api/invoices/:id
