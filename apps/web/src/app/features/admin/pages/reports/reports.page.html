@@ -215,17 +215,11 @@
       </span>
     </p>
     <section class="flex flex-col gap-4">
-      <h2 class="m-0 text-lg font-semibold text-zinc-900">分組統計</h2>
-
-      <!--
-        模糊桶的說明要**看得見**（#1029）：tooltip 只在 hover 出現、`<i>` 不可聚焦，
-        手機與鍵盤使用者看不到。這行小字是正式說明，列上的 tooltip 留作桌機補充。
-      -->
-      @if (hasAmbiguousGroup()) {
-        <p class="reports__groups-note m-0 mb-3 text-xs leading-[1.5] text-zinc-600">
-          「（跨分校）」「（跨課程）」「（未分類）」是刻意的：跨多個分校／課程的帳單不拆分也不重複計入，沒有班的帳單（例如純餐費）歸未分類，所以各組小計加起來等於總計。
-        </p>
-      }
+      <h2
+        class="m-0 border-0 border-b border-solid border-zinc-900 pb-3 text-2xl font-bold tracking-[-0.02em] text-zinc-900"
+      >
+        分組統計
+      </h2>
 
       @if (groups().length === 0) {
         <app-empty-state
@@ -235,133 +229,143 @@
           description="換一個日期區間，或放寬分校與課程的篩選"
         />
       } @else {
-        <app-responsive-table [headTemplate]="groupHead" [bodyTemplate]="groupBody" />
-
-        <ng-template #groupHead>
-          <tr>
-            <!--
-              這一欄是每一列的**身分**，不可摺疊。窄螢幕上它原本會因為 minWidth
-              最大而被優先丟掉，結果是一張沒有標籤的數字表 —— 看不出哪一列是
-              哪個分校。priority 只排順序，不保證留下來，要的是 collapsible。
-            -->
-            <th
-              appRtColDef="key"
-              [appRtColDefMinWidth]="100"
-              [appRtColDefPriority]="1"
-              [appRtColDefCollapsible]="false"
-            >
-              {{ groupColumnLabel() }}
-            </th>
-            <th appRtColDef="received" [appRtColDefMinWidth]="110" [appRtColDefPriority]="3">
-              實收
-            </th>
-            <th appRtColDef="refunded" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">
-              退款
-            </th>
-            <th appRtColDef="billed" [appRtColDefMinWidth]="110" [appRtColDefPriority]="4">
-              已開帳
-            </th>
-            <!--
-              手機上只留得下一個數字欄，那一個要是**可行動的**：還有多少沒收到。
-              原本它與「實收」同為 priority 1，誰留下來靠 DOM 順序決定 ——
-              那不是決定，是巧合。
-            -->
-            <th appRtColDef="outstanding" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
-              應收未收
-            </th>
-            <th appRtColDef="overdue" [appRtColDefMinWidth]="100" [appRtColDefPriority]="5">
-              其中逾期
-            </th>
-          </tr>
-        </ng-template>
-
-        <ng-template #groupBody>
-          @for (group of groups(); track group.key) {
-            <tr appRtRow [appRtRow]="group" [appRtRowId]="group.key">
-              <td appRtColCell="key">
-                @if (linkOf(group); as link) {
-                  <a
-                    [routerLink]="link"
-                    class="inline-flex min-h-11 items-center font-medium text-zinc-900 underline-offset-4 hover:underline"
-                    >{{ labelOf(group) }}</a
-                  >
-                } @else {
-                  <span class="font-medium text-zinc-900">{{ labelOf(group) }}</span>
-                }
-                @if (group.billed > 0) {
-                  <!-- 比例條填色是中性深色，不用 accent —— accent 是品牌色，
-                       已退出數值強調用途（#100 的視覺回歸） -->
-                  <span
-                    class="relative block h-[5px] w-full overflow-hidden rounded-full bg-zinc-200 mt-[5px] sm:max-w-35"
-                    [attr.aria-hidden]="true"
-                  >
-                    <span
-                      class="absolute inset-y-0 left-0 rounded-full bg-zinc-700"
-                      [style.width.%]="collectedPctOf(group)"
-                    ></span>
-                  </span>
-                }
-                @if (isAmbiguous(group)) {
-                  <!--
-                    模糊桶照實顯示。跨兩個分校的帳單只進這一組（不比例拆分、
-                    也不重複計入）—— 代價是多一列，換來小計永遠加得回總計。
-                  -->
-                  <i
-                    class="pi pi-info-circle ml-2 cursor-help text-zinc-500"
-                    pTooltip="這一組是刻意的：跨多個分校/課程的帳單不做比例拆分也不重複計入，所以自成一組。沒有班的帳單（例如純餐費）歸「未分類」。這樣小計加起來才等於總計。"
-                    tooltipPosition="right"
-                  ></i>
-                }
-              </td>
-              <td appRtColCell="received">
-                <span class="tabular-nums">{{ group.received | number }}</span>
-              </td>
-              <td appRtColCell="refunded">
-                <span class="text-warning-600 tabular-nums">
-                  {{ group.refunded | number }}
-                </span>
-              </td>
-              <td appRtColCell="billed">
-                <span class="tabular-nums">{{ group.billed | number }}</span>
-              </td>
-              <td appRtColCell="outstanding">
-                <span class="tabular-nums">{{ group.outstanding | number }}</span>
-              </td>
-              <td appRtColCell="overdue">
-                <span
-                  class="tabular-nums"
-                  [class.text-error-600]="group.overdueOutstanding > 0"
-                  [class.font-medium]="group.overdueOutstanding > 0"
+        <!--
+          A6 平列：桌機六欄表格、手機每組堆疊成一塊（不用展開）。模糊桶的說明直接寫在那一列
+          名稱底下（#1029：不能只放 tooltip，手機 hover 不到）。合計列＝API 的 summary，
+          **不是前端把各組加起來**（各組小計後端保證加得回總計）。
+        -->
+        <table class="w-full border-collapse tabular-nums" data-testid="group-table">
+          <thead class="hidden wide:table-header-group">
+            <tr>
+              <th class="py-3 pr-2 pl-0 text-left text-sm font-semibold text-zinc-600">
+                {{ groupColumnLabel() }}
+              </th>
+              @for (label of figureLabels; track label) {
+                <th class="px-2 py-3 text-right text-sm font-semibold text-zinc-600">
+                  {{ label }}
+                </th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (group of sortedGroups(); track group.key) {
+              <tr
+                class="grid grid-cols-2 gap-x-4 gap-y-1 border-0 border-b border-solid border-zinc-200 py-4 wide:table-row"
+                data-testid="group-row"
+              >
+                <td
+                  class="col-span-full mb-1 block align-top wide:table-cell wide:w-[34%] wide:py-3 wide:pr-2 wide:pl-0"
                 >
-                  {{ group.overdueOutstanding | number }}
-                </span>
-              </td>
-            </tr>
-          }
+                  @if (linkOf(group); as link) {
+                    <a
+                      [routerLink]="link"
+                      class="inline-flex min-h-11 items-center font-bold text-zinc-900 no-underline underline-offset-[3px] hover:underline"
+                      >{{ labelOf(group) }}</a
+                    >
+                  } @else {
+                    <span class="font-bold text-zinc-900">{{ labelOf(group) }}</span>
+                  }
+                  @if (reasonOf(group); as reason) {
+                    <span
+                      class="block text-sm leading-normal font-normal text-zinc-600"
+                      data-testid="group-reason"
+                      >{{ reason }}</span
+                    >
+                  }
+                  @if (group.billed > 0) {
+                    <!-- 比例條填色是中性深色，不用 accent —— accent 是品牌色，已退出數值強調用途（#100） -->
+                    <span
+                      class="mt-1.5 block h-1 w-full overflow-hidden rounded-sm bg-zinc-200 wide:max-w-35"
+                      aria-hidden="true"
+                      ><span
+                        class="block h-full bg-zinc-900"
+                        data-testid="group-bar"
+                        [style.width.%]="shareOf(group)"
+                      ></span
+                    ></span>
+                  }
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                >
+                  <small class="text-sm text-zinc-600 wide:hidden">實收</small
+                  >{{ group.received | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                  data-testid="cell-refunded"
+                >
+                  <small class="text-sm text-zinc-600 wide:hidden">退款</small
+                  >{{ group.refunded | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                >
+                  <small class="text-sm text-zinc-600 wide:hidden">已開帳</small
+                  >{{ group.billed | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                >
+                  <small class="text-sm text-zinc-600 wide:hidden">應收未收</small
+                  >{{ group.outstanding | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                  data-testid="cell-overdue"
+                  [class.text-error-700]="group.overdueOutstanding > 0"
+                  [class.font-semibold]="group.overdueOutstanding > 0"
+                >
+                  <small class="text-sm font-normal text-zinc-600 wide:hidden">其中逾期</small
+                  >{{ group.overdueOutstanding | number }}
+                </td>
+              </tr>
+            }
+          </tbody>
           @if (summary(); as total) {
-            <!-- 合計列＝API 的 summary，**不是前端把各組加起來**（各組小計後端保證加得回總計） -->
-            <tr appRtRow [appRtRow]="total" appRtRowId="__total">
-              <td appRtColCell="key"><span class="font-bold text-zinc-900">合計</span></td>
-              <td appRtColCell="received">
-                <span class="font-bold tabular-nums">{{ total.received | number }}</span>
-              </td>
-              <td appRtColCell="refunded">
-                <span class="font-bold text-warning-600 tabular-nums">{{
-                  total.refunded | number
-                }}</span>
-              </td>
-              <td appRtColCell="billed">
-                <span class="font-bold tabular-nums">{{ total.billed | number }}</span>
-              </td>
-              <td appRtColCell="outstanding">
-                <span class="font-bold tabular-nums">{{ total.outstanding | number }}</span>
-              </td>
-              <td appRtColCell="overdue">
-                <span class="font-bold tabular-nums">{{ total.overdueOutstanding | number }}</span>
-              </td>
-            </tr>
+            <tfoot>
+              <tr
+                class="grid grid-cols-2 gap-x-4 gap-y-1 border-0 border-t border-solid border-zinc-900 py-4 font-bold wide:table-row"
+                data-testid="group-total"
+              >
+                <td class="col-span-full mb-1 block wide:table-cell wide:py-3 wide:pr-2 wide:pl-0">
+                  合計
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                >
+                  <small class="text-sm font-normal text-zinc-600 wide:hidden">實收</small
+                  >{{ total.received | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                >
+                  <small class="text-sm font-normal text-zinc-600 wide:hidden">退款</small
+                  >{{ total.refunded | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                >
+                  <small class="text-sm font-normal text-zinc-600 wide:hidden">已開帳</small
+                  >{{ total.billed | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                >
+                  <small class="text-sm font-normal text-zinc-600 wide:hidden">應收未收</small
+                  >{{ total.outstanding | number }}
+                </td>
+                <td
+                  class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                  [class.text-error-700]="total.overdueOutstanding > 0"
+                >
+                  <small class="text-sm font-normal text-zinc-600 wide:hidden">其中逾期</small
+                  >{{ total.overdueOutstanding | number }}
+                </td>
+              </tr>
+            </tfoot>
           }
-        </ng-template>
+        </table>
       }
     </section>
   }

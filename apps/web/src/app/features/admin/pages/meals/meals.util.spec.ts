@@ -1,5 +1,10 @@
 import {
+  changedCount,
   chapterOrdered,
+  draftSnapshot,
+  mealDayChapters,
+  unhandledCount,
+  weekdayLabel,
   draftToBatchRows,
   draftTotals,
   mealChapters,
@@ -263,5 +268,95 @@ describe('monthDay —— A6 不補零', () => {
     expect(monthDay('2026-09-15')).toBe('9/15');
     expect(monthDay('2026-10-05')).toBe('10/5');
     expect(monthDay('2026-10-15')).toBe('10/15');
+  });
+});
+
+describe('changedCount／draftSnapshot（確認列「改了 N 位」）', () => {
+  const draft = () =>
+    rosterToDraft(
+      [
+        row({ studentId: 'a', recordId: 'r', ordered: true, chargeable: true, unitPrice: 60 }),
+        row({ studentId: 'b', recordId: 'r', ordered: true, chargeable: true, unitPrice: 60 }),
+      ],
+      60,
+    );
+
+  it('沒動 → 0；改一個欄位 → 1；兩列都改 → 2（門檻 ±1）', () => {
+    const rows = draft();
+    const base = draftSnapshot(rows);
+    expect(changedCount(rows, base)).toBe(0);
+    expect(changedCount([{ ...rows[0], unitPrice: 61 }, rows[1]], base)).toBe(1);
+    expect(
+      changedCount(
+        rows.map((r) => ({ ...r, unitPrice: 61 })),
+        base,
+      ),
+    ).toBe(2);
+  });
+
+  it.each([
+    ['ordered', false],
+    ['chargeable', false],
+    ['unitPrice', 61],
+    ['note', '素食'],
+  ] as const)('四個可編輯欄位任一個改了都算：%s', (field, value) => {
+    const rows = draft();
+    expect(changedCount([{ ...rows[0], [field]: value }, rows[1]], draftSnapshot(rows))).toBe(1);
+  });
+
+  it('改回原值＝沒改；已結算的列不算', () => {
+    const rows = draft();
+    const base = draftSnapshot(rows);
+    expect(
+      changedCount(
+        [{ ...rows[0], unitPrice: 61 }, rows[1]].map((r, i) =>
+          i === 0 ? { ...r, unitPrice: 60 } : r,
+        ),
+        base,
+      ),
+    ).toBe(0);
+    expect(changedCount([{ ...rows[0], unitPrice: 61, settled: true }, rows[1]], base)).toBe(0);
+  });
+
+  it('快照裡沒有的列（新出現的）算改過', () => {
+    const rows = draft();
+    expect(changedCount(rows, new Map())).toBe(2);
+  });
+});
+
+describe('unhandledCount', () => {
+  it('只數沒記錄且沒鎖住的', () => {
+    const rows = rosterToDraft(
+      [
+        row({ studentId: 'a' }),
+        row({ studentId: 'b', recordId: 'r', ordered: true }),
+        row({ studentId: 'c', settled: true }),
+      ],
+      60,
+    );
+    expect(unhandledCount(rows)).toBe(1);
+  });
+});
+
+describe('mealDayChapters／weekdayLabel（區間依日分章）', () => {
+  it('依日期新到舊，同一天的列維持原順序', () => {
+    const rows = rosterToDraft(
+      [
+        row({ studentId: 'a', mealDate: '2026-10-11' }),
+        row({ studentId: 'b', mealDate: '2026-10-14' }),
+        row({ studentId: 'c', mealDate: '2026-10-14' }),
+      ],
+      60,
+    );
+    const chapters = mealDayChapters(rows);
+    expect(chapters.map((c) => c.date)).toEqual(['2026-10-14', '2026-10-11']);
+    expect(chapters[0].rows.map((r) => r.studentId)).toEqual(['b', 'c']);
+  });
+
+  it('週幾：週日、週一邊界與跨年', () => {
+    expect(weekdayLabel('2026-10-11')).toBe('日');
+    expect(weekdayLabel('2026-10-12')).toBe('一');
+    expect(weekdayLabel('2026-10-14')).toBe('三');
+    expect(weekdayLabel('2027-01-01')).toBe('五');
   });
 });
