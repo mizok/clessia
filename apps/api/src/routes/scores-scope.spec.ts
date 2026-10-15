@@ -273,6 +273,18 @@ describe('GET /api/scores/students —— 每生聚合（#1115）', () => {
       absentCount: 1,
       makeupCount: 0,
       latestExamDate: '2026-09-10',
+      // #1314 G8：fixture 的及格線 60 > 45，所以不及格；差＝90%−80%
+      grade: null,
+      latest: {
+        score: 45,
+        totalScore: 50,
+        examName: '小考',
+        examDate: '2026-09-10',
+        failing: true,
+      },
+      deltaVsPrev: 10,
+      // 缺考在 2026-09-01，只會越來越舊 → 恆 0（窗口本身在 scores-students-fields.spec 用假時鐘釘）
+      recentAbsentCount: 0,
     });
     expect(body.data[1]).toMatchObject({
       academySum: null,

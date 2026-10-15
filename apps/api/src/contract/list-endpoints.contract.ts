@@ -168,7 +168,7 @@ const BRANCHES: Record<string, string[]> = {
   // 成績總覽（#1314 G5）：academy_exams 的巢狀 embed＋分校篩選＋分頁撈齊
   '/api/scores/overview': ['days=30', 'days=365&campusId={campus}'],
   // 全部學生的成績聚合（#1314 G8）：scope=all 走分頁撈齊＋分校交集
-  '/api/scores/students': ['!scope=all', '!scope=all&campusId={campus}'],
+  '/api/scores/students': ['!scope=all', '!scope=all&campusId={campus}', '!scope=all&sort=grade'],
   // 管理端請假頁（#1314 LV1）：待處理＝endFrom 今天、依開始日排序
   '/api/leaves': ['endFrom=' + TODAY + '&order=start_asc', 'order=start_desc'],
   // 報名進出（#1507）：事件條件是 `and(…)` 包在 `.or()` 裡、退班截到今天 —— 替身驗不了 PostgREST 的解析
