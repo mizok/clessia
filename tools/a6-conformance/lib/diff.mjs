@@ -105,6 +105,8 @@ export function styleDiffs(a, b, tol = TOL) {
  * 「目前頁」底線與文字畫在內層 span 上，不併的話會被報成「沒有底線」。
  */
 export function withWrapper(p, list) {
+  // 只有控制項（連結、按鈕）會把字包在 span 裡；section 跟它的章名同文案不算包裝層
+  if (p.kind !== 'control') return p;
   const w = list.find((q) => q.parent === p.key && q.kind === 'text' && q.tpl === p.tpl);
   if (!w) return p;
   const style = { ...p.style };
@@ -179,7 +181,8 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
     (['landmark', 'list', 'row'].includes(p.kind) || p.tpl.includes('#')) &&
     list.some((q) => q.parent === p.parent && kr(q) === kr(p) && !isFree(q));
   // 只包一層文字的 span（連結文字放在 span 裡）：DOM 形狀，不是設計
-  const wrapper = (p, m) => p.kind === 'text' && p.tpl === m.get(p.parent)?.tpl;
+  const wrapper = (p, m) =>
+    p.kind === 'text' && m.get(p.parent)?.kind === 'control' && p.tpl === m.get(p.parent)?.tpl;
   const topFree = (list, m, isFree) =>
     list.filter((p) => isFree(p) && !wrapper(p, m) && !refOf(p, m, (k) => isFree(m.get(k))));
   // 列內 part 不是每列都有（「待繳費」小標）→ 有沒有出現取決於資料

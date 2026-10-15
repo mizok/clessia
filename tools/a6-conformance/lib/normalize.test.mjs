@@ -272,3 +272,17 @@ test('貼底的抽屜：視窗高不同時用「距視窗底」量', async () =>
   );
   assert.match(off.find((r) => r.status === '位置').detail, /相對視窗底 Δx 0、Δy -20/);
 });
+
+test('包裝層只認控制項：section 與章名同文案時不併章名的字級', async () => {
+  const { withWrapper } = await import('./diff.mjs');
+  const sec = { key: '>r', kind: 'landmark', tpl: '逾期', own: false, style: { fontSize: '14px' } };
+  const big = {
+    key: '>r>d',
+    parent: '>r',
+    kind: 'text',
+    tpl: '逾期',
+    own: true,
+    style: { fontSize: '44px' },
+  };
+  assert.equal(withWrapper(sec, [sec, big]).style.fontSize, '14px');
+});
