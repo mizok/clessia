@@ -6,6 +6,8 @@ import { campusFilterIds, getCampusScope, type CampusScope } from '../lib/campus
 import { isEnrolledOn } from '../lib/session-roster';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
+import { isFailingScore } from '../lib/score-threshold';
+import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import {
   ACADEMY_SCORE_SELECT,
   SCHOOL_SCORE_SELECT,
@@ -771,8 +773,31 @@ const StudentAggregateSchema = z
     absentCount: z.number().int(),
     makeupCount: z.number().int(),
     latestExamDate: z.string().nullable(),
+    /** grade_level enum（P1…S3）；`sort=grade` 依它排 */
+    grade: z.string().nullable(),
+    /** 最近一場有分數的校內考（#1314 G8）。段考沒有總分，不算 */
+    latest: z
+      .object({
+        score: z.number(),
+        totalScore: z.number(),
+        examName: z.string(),
+        examDate: z.string(),
+        failing: z.boolean(),
+      })
+      .nullable(),
+    /** 最近一場減上一場（校內考），換算 100 分制的差；少於兩場 null */
+    deltaVsPrev: z.number().nullable(),
+    /** 近 30 天（台北日，依考試日）缺考次數，校內考＋段考。`absentCount` 是查詢範圍內全部 */
+    recentAbsentCount: z.number().int(),
   })
   .openapi('ScoreStudentAggregate');
+
+const GRADE_ORDER = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'];
+/** 年級序（grade_level enum 的順序）；沒有年級的排最後 */
+const gradeRank = (grade: string | null) => {
+  const i = grade === null ? -1 : GRADE_ORDER.indexOf(grade);
+  return i === -1 ? GRADE_ORDER.length : i;
+};
 
 const studentAggregatesRoute = createRoute({
   method: 'get',
@@ -786,6 +811,8 @@ const studentAggregatesRoute = createRoute({
        * 只准搭 `campusId` 與分頁
        */
       scope: z.enum(['all']).optional(),
+      /** 排序：預設依姓名；`grade`＝年級（P1→S3）再依姓名（#1314 G8，A6 依年級分章） */
+      sort: z.enum(['name', 'grade']).optional(),
       /** 只在 `scope=all` 時可帶；與受限範圍取交集 */
       campusId: DbUuidSchema.optional(),
       type: ScoreTypeSchema.optional(),
@@ -897,7 +924,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
     ? run(() => {
         let query = supabase
           .from('academy_scores')
-          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name, grade )`, { count: 'exact' })
           .eq('academy_exams.org_id', orgId);
         if (studentIds !== null) query = query.in('student_id', studentIds);
         if (academyExamIds !== null) query = query.in('exam_id', academyExamIds);
@@ -912,7 +939,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
     ? run(() => {
         let query = supabase
           .from('school_scores')
-          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name, grade )`, { count: 'exact' })
           .eq('school_exams.org_id', orgId);
         if (studentIds !== null) query = query.in('student_id', studentIds);
         if (q.studentId) query = query.eq('student_id', q.studentId);
@@ -951,8 +978,21 @@ app.openapi(studentAggregatesRoute, async (c) => {
     (!q.dateFrom || date >= q.dateFrom) && (!q.dateTo || date <= q.dateTo);
   const keyword = q.search?.trim().toLowerCase() ?? '';
 
+  const today = getCurrentTaipeiDateString();
+  const recentFrom = addDaysToDateString(today, -30);
+  interface Academy {
+    id: string;
+    score: number;
+    totalScore: number;
+    passScore: number | null;
+    examName: string;
+    examDate: string;
+  }
   interface Acc {
     studentName: string;
+    grade: string | null;
+    academyScored: Academy[];
+    recentAbsentCount: number;
     academyPairs: Array<{ score: number; totalScore: number }>;
     schoolScores: number[];
     scoredCount: number;
@@ -964,6 +1004,9 @@ app.openapi(studentAggregatesRoute, async (c) => {
   const add = (row: any, record: ReturnType<typeof mapAcademyScoreRow>) => {
     const acc = byStudent.get(row.student_id) ?? {
       studentName: (row.students?.name as string) ?? '',
+      grade: (row.students?.grade as string | null) ?? null,
+      academyScored: [],
+      recentAbsentCount: 0,
       academyPairs: [],
       schoolScores: [],
       scoredCount: 0,
@@ -973,10 +1016,21 @@ app.openapi(studentAggregatesRoute, async (c) => {
     };
     if (record.status === 'scored') acc.scoredCount += 1;
     if (record.status === 'absent') acc.absentCount += 1;
+    if (record.status === 'absent' && record.examDate >= recentFrom && record.examDate <= today) {
+      acc.recentAbsentCount += 1;
+    }
     if (record.status === 'makeup') acc.makeupCount += 1;
     if (record.status === 'scored' && record.score !== null) {
       if (record.type === 'academy' && record.totalScore !== null) {
         acc.academyPairs.push({ score: Number(record.score), totalScore: record.totalScore });
+        acc.academyScored.push({
+          id: record.id,
+          score: Number(record.score),
+          totalScore: record.totalScore,
+          passScore: record.passScore ?? null,
+          examName: record.examName,
+          examDate: record.examDate,
+        });
       }
       if (record.type === 'school') acc.schoolScores.push(Number(record.score));
     }
@@ -995,6 +1049,11 @@ app.openapi(studentAggregatesRoute, async (c) => {
     .filter(([, acc]) => !keyword || acc.studentName.toLowerCase().includes(keyword))
     .map(([studentId, acc]) => {
       const pairs = sumPairsOrNull(acc.academyPairs);
+      // 考試日新到舊、同日 id 大者先（只為穩定）
+      const [latest, prev] = [...acc.academyScored].sort((a, b) =>
+        a.examDate === b.examDate ? (a.id < b.id ? 1 : -1) : a.examDate < b.examDate ? 1 : -1,
+      );
+      const pct = (x: Academy) => (x.score / x.totalScore) * 100;
       return {
         studentId,
         studentName: acc.studentName,
@@ -1005,9 +1064,25 @@ app.openapi(studentAggregatesRoute, async (c) => {
         absentCount: acc.absentCount,
         makeupCount: acc.makeupCount,
         latestExamDate: acc.latestExamDate,
+        grade: acc.grade,
+        latest: latest
+          ? {
+              score: latest.score,
+              totalScore: latest.totalScore,
+              examName: latest.examName,
+              examDate: latest.examDate,
+              failing: isFailingScore(latest.score, latest),
+            }
+          : null,
+        deltaVsPrev: latest && prev ? pct(latest) - pct(prev) : null,
+        recentAbsentCount: acc.recentAbsentCount,
       };
     })
-    .sort((a, b) => a.studentName.localeCompare(b.studentName, 'zh-Hant'));
+    .sort(
+      (a, b) =>
+        (q.sort === 'grade' ? gradeRank(a.grade) - gradeRank(b.grade) : 0) ||
+        a.studentName.localeCompare(b.studentName, 'zh-Hant'),
+    );
 
   return c.json(
     {

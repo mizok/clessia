@@ -106,6 +106,20 @@ export interface StudentScoreAggregate {
   absentCount: number;
   makeupCount: number;
   latestExamDate: string | null;
+  /** grade_level enum（P1…S3），標籤用 `GRADE_LEVEL_LABELS`（students.service） */
+  grade: string | null;
+  /** 最近一場有分數的校內考（#1314 G8）；段考沒有總分，不算 */
+  latest: {
+    score: number;
+    totalScore: number;
+    examName: string;
+    examDate: string;
+    failing: boolean;
+  } | null;
+  /** 最近一場減上一場（校內考），換算 100 分制的差；少於兩場 null */
+  deltaVsPrev: number | null;
+  /** 近 30 天（台北日）缺考次數，校內考＋段考；`absentCount` 是查詢範圍內全部 */
+  recentAbsentCount: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -133,6 +147,8 @@ export class ScoresService {
    */
   studentAggregatesAll(params?: {
     campusId?: string;
+    /** `grade`＝年級（P1→S3）再依姓名；預設依姓名 */
+    sort?: 'name' | 'grade';
     page?: number;
     pageSize?: number;
   }): Observable<{
@@ -141,6 +157,7 @@ export class ScoresService {
   }> {
     const query: Record<string, string | number> = { scope: 'all' };
     if (params?.campusId) query['campusId'] = params.campusId;
+    if (params?.sort) query['sort'] = params.sort;
     if (params?.page !== undefined) query['page'] = params.page;
     if (params?.pageSize !== undefined) query['pageSize'] = params.pageSize;
     return this.http.get<{
