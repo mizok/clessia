@@ -4,13 +4,16 @@ import { normText, sizeOk, posOk, styleEq } from './normalize.mjs';
 import { matchParts } from './diff.mjs';
 
 test('文案模板：數字、時間、日期、區間、假人名正規化', () => {
-  assert.equal(normText('120 位學生，今天有 30 位有課。'), '# 位學生，今天有 # 位有課。');
+  assert.equal(normText('120 位學生，今天有 30 位有課。'), '#位學生，今天有#位有課。');
   assert.equal(normText('16:00–17:30 · 2026/10/14 · NT$ 1,200'), '# · # · NT$ #');
-  assert.equal(
-    normText('帳戶：林主任，目前身分 管理員', ['林主任']),
-    '帳戶：{名}，目前身分 管理員',
-  );
+  assert.equal(normText('帳戶：林主任，目前身分 管理員', ['林主任']), '帳戶：{名}，目前身分管理員');
   assert.equal(normText('  a \n b '), 'a b');
+  // 月份與 <br> 留下的空白（帳單色面：稿「十月應收…，已收」vs app「10 月應收…， 已收」）
+  assert.equal(
+    normText('十月應收 NT$ 1,200，已收 80%。'),
+    normText('10 月應收 NT$ 900， 已收 75%。'),
+  );
+  assert.equal(normText('120 位學生'), '#位學生');
 });
 
 test('容差邊界：位置 ±4、尺寸 ±4 或 3%、字級 ±0.5', () => {

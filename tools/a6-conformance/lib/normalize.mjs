@@ -14,6 +14,10 @@ export function normText(s, names = []) {
   t = t.replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '{email}');
   for (const n of names) if (n && n.length >= 2) t = t.split(n).join('{名}');
   t = t.replace(/\d[\d,.:/]*(?:\s*[–~-]\s*\d[\d,.:/]*)?/g, '#');
+  // 中文數字月份（稿寫「十月」、app 寫「10 月」）也是資料
+  t = t.replace(/[一二三四五六七八九十]{1,3}(?=月)/g, '#');
+  // 中文字與標點旁的空白不算文案（app 的 <br> 會留下一個空白，稿的不會）
+  t = t.replace(/\s+(?=[\u3000-\u9fff\uff00-\uffef])|(?<=[\u3000-\u9fff\uff00-\uffef])\s+/g, '');
   return t.length > 40 ? t.slice(0, 40) + '…' : t;
 }
 
