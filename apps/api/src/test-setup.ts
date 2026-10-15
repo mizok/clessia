@@ -1,5 +1,10 @@
 import { afterEach, beforeEach } from 'vitest';
 
+import { clearIdentityCache } from './lib/identity-cache';
+
+// authMiddleware 的身分快取是模組層級的 Map：不清的話同一個 'user-1' 的結果會跨測試殘留 30 秒。
+afterEach(() => clearIdentityCache());
+
 /**
  * **把「靜默失敗」變成測試紅燈。**
  *
