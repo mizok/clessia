@@ -171,21 +171,33 @@ async function list(
     teacher?: boolean;
     /** 依序記下每次 `from(table)`，用來看查詢發出的先後 */
     calls?: string[];
+    /** 這張表的查詢一律回 error（看錯誤路徑） */
+    failTable?: string;
   } = {},
 ) {
   const db = seed(opts.mode);
-  const calls = opts.calls;
-  const client = calls
-    ? new Proxy(db.client, {
-        get: (target, key, receiver) =>
-          key === 'from'
-            ? (table: string) => {
-                calls.push(table);
-                return target.from(table);
-              }
-            : Reflect.get(target, key, receiver),
-      })
-    : db.client;
+  const calls = opts.calls ?? [];
+  const failing = () => {
+    const chain: Record<string, unknown> = {
+      then: (resolve: (v: unknown) => unknown) =>
+        resolve({ data: null, error: { message: `${opts.failTable} 壞了` } }),
+    };
+    for (const m of ['select', 'eq', 'in', 'gte', 'lte', 'order', 'range', 'or', 'not', 'is'])
+      chain[m] = () => chain;
+    return chain;
+  };
+  const client =
+    opts.calls || opts.failTable
+      ? new Proxy(db.client as { from: (table: string) => unknown }, {
+          get: (target, key, receiver) =>
+            key === 'from'
+              ? (table: string) => {
+                  calls.push(table);
+                  return table === opts.failTable ? failing() : target.from(table);
+                }
+              : Reflect.get(target, key, receiver),
+        })
+      : db.client;
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -299,5 +311,12 @@ describe('GET /students —— 今日到班（#1314 SL1）', () => {
       .slice(0, calls.indexOf('daily_checkins'))
       .filter((t) => t === 'students').length;
     expect(studentsBeforeCheckins).toBeLessThan(14);
+  });
+
+  // 並行之後，沒帶 today 時今日到班的錯誤是在列表之後才收 —— 收的時候也要照樣回 500，
+  // 不能默默當成「今天沒人」
+  it('沒帶 today：今日課堂查詢失敗 → 500', async () => {
+    const { status } = await list('', { failTable: 'sessions' });
+    expect(status).toBe(500);
   });
 });
