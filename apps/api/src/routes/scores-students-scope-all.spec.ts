@@ -47,6 +47,24 @@ const academy = (n: number, studentId: string, score: string, org = ORG) => ({
   students: { name: `學生 ${studentId}` },
 });
 
+const schoolScore = (id: string, studentId: string, score: string, org: string) => ({
+  id,
+  school_exam_id: `sx-${id}`,
+  student_id: studentId,
+  subject_id: 'sub',
+  score,
+  status: 'scored',
+  created_at: '2027-03-01T00:00:00Z',
+  school_exams: {
+    label: '段考',
+    exam_date: '2027-03-01',
+    created_at: '2027-03-01T00:00:00Z',
+    org_id: org,
+  },
+  subjects: { name: '數學' },
+  students: { name: `學生 ${studentId}` },
+});
+
 const BASE = {
   enrollments: [
     enr('s1', CA),
@@ -61,7 +79,10 @@ const BASE = {
     academy(3, 's3', '90'),
     academy(4, 'sx', '50', OTHER), // 別 org 的成績
   ],
-  school_scores: [] as Array<Record<string, unknown>>,
+  school_scores: [
+    schoolScore('b1', 's2', '88', ORG),
+    schoolScore('b2', 'sy', '40', OTHER), // 別 org 的段考成績：school 路徑上只有 school_exams.org_id 擋它
+  ],
   academy_exam_classes: [{ exam_id: 'ex-1', class_id: C1 }],
 };
 
@@ -98,6 +119,14 @@ describe('GET /api/scores/students?scope=all（#1314 G8）', () => {
     const { status, ids } = await get('?scope=all');
     expect(status).toBe(200);
     expect(ids).toEqual(['s1', 's2', 's3']);
+  });
+
+  it('不受限、不指名：別 org 的段考成績不進（school 路徑的 org 條件）', async () => {
+    const { ids, body } = await get('?scope=all');
+    expect(ids).not.toContain('sy');
+    expect(body.data.find((r: { studentId: string }) => r.studentId === 's2')).toMatchObject({
+      schoolAvg: 88,
+    });
   });
 
   it('指名 A：A 校有報名的學生（跨校學生也算）', async () => {
