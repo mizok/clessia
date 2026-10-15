@@ -126,11 +126,22 @@ try {
     const all = [];
     for (const page of pages) {
       try {
-        const sections = await diffPage(page);
-        fs.writeFileSync(
-          path.join(OUT, page, 'diff.md'),
-          diffMarkdown(page, PAGES[page], sections),
-        );
+        // A6_CACHED=1：用上一次存下的 diff／app JSON 重新歸組（不重抓 22 頁）
+        const cached = process.env.A6_CACHED === '1';
+        const read = (f) => JSON.parse(fs.readFileSync(path.join(OUT, page, f), 'utf8'));
+        const sections = cached
+          ? WIDTHS.map((w) => ({
+              width: w.width,
+              tag: w.tag,
+              rows: read(`diff-${w.tag}.json`),
+              app: read(`app-${w.tag}.json`),
+            }))
+          : await diffPage(page);
+        if (!cached)
+          fs.writeFileSync(
+            path.join(OUT, page, 'diff.md'),
+            diffMarkdown(page, PAGES[page], sections),
+          );
         all.push({
           page,
           cfg: PAGES[page],

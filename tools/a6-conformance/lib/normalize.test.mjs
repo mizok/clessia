@@ -530,3 +530,49 @@ test('多出功能歸組：分頁器整組、選項組依標籤命名、工具�
     ['分頁器', '更多動作', '新增學生', '狀態（在籍／已停用）'].sort(),
   );
 });
+
+test('多出功能：同型 ≥3 項合成一份資料清單；下拉的內部按鈕不列', async () => {
+  const { collectExtras } = await import('./extras.mjs');
+  const P = (key, kind, role, tpl, box, extra = {}) => ({
+    key,
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind,
+    role,
+    tpl,
+    box,
+    inRows: 0,
+    ...extra,
+  });
+  const names = ['王柏翰', '李思妤', '張宇軒'];
+  const parts = [
+    P('>landmark:main[]', 'landmark', 'main', '', [0, 0, 1440, 1000]),
+    ...names.map((n, i) =>
+      P(
+        `>landmark:main[]>control:button[${n}：看學生檔案]`,
+        'control',
+        'button',
+        `${n}：看學生檔案`,
+        [0, 100 + i * 200, 1000, 64],
+      ),
+    ),
+    P(
+      '>landmark:main[]>control:button[dropdown trigger]',
+      'control',
+      'button',
+      'dropdown trigger',
+      [0, 900, 40, 36],
+      { host: 'p-select' },
+    ),
+  ];
+  const rows = parts
+    .slice(1)
+    .map((p) => ({ status: '多', app: p.key, detail: '', bucket: '待修' }));
+  const { pages } = collectExtras([
+    { page: 'class', cfg: {}, widths: [{ width: 1440, tag: 'd', rows, parts, height: 1000 }] },
+  ]);
+  assert.deepEqual(
+    pages[0].features.map((f) => f.name),
+    ['資料清單 3 項（例：王柏翰：看學生檔案、李思妤：看學生檔案）'],
+  );
+  assert.ok(pages[0].skipped.some((x) => /下拉／日期元件的內部/.test(x.why)));
+});
