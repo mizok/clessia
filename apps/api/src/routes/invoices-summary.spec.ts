@@ -104,6 +104,30 @@ describe('GET /api/invoices/summary（#1314 P1／P2）', () => {
     expect(body.outstanding).toBe(700);
   });
 
+  // 退費是扣淨收，不是加 —— 正負對調時 partial 會變 paid、received 會膨脹
+  it('收款＋退費：淨收＝收款 − 退費（金額走路由的轉換）', async () => {
+    const { body } = await get([
+      invoice(1, {
+        issued_at: '2026-10-01',
+        payment_records: [
+          { kind: 'payment', amount: '1000' },
+          { kind: 'refund', amount: '400' },
+        ],
+      }),
+      invoice(2, {
+        issued_at: '2026-10-02',
+        payment_records: [
+          { kind: 'payment', amount: '1200' },
+          { kind: 'refund', amount: '200' },
+        ],
+      }),
+    ]);
+    expect(body.byStatus.partial).toEqual({ count: 1, outstanding: 400 });
+    expect(body.byStatus.paid).toEqual({ count: 1, received: 1000 });
+    expect(body.outstanding).toBe(400);
+    expect(body.month).toEqual({ month: '2026-10', billed: 2000, received: 1600 });
+  });
+
   it('studentId 不是 uuid → 400', async () => {
     const { status } = await get([invoice(1)], { query: '?studentId=abc' });
     expect(status).toBe(400);

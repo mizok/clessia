@@ -243,6 +243,12 @@ export interface InvoiceSummary {
   outstanding: number;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
   month: { month: string; billed: number; received: number };
+  /**
+   * 被 `campusId` 篩選排除的跨校**逾期**帳單張數（#1314 儀表板「另有 N 張跨校帳單」）：
+   * 授權範圍內看得到、有班的明細同時落在所選分校內外。不帶 `campusId` 恆 0；純餐費跨校單不計。
+   * 舊版 API 沒有這欄
+   */
+  crossCampusOverdue?: { count: number };
 }
 
 @Injectable({ providedIn: 'root' })
