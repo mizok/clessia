@@ -274,6 +274,9 @@ describe('AuthService — 開站先發的 /api/me', () => {
     const { service, http } = setupWithEarly(Promise.resolve(json(ME)));
     await service.ready;
 
+    // 拿走就清掉：留著的話，下一個讀它的人（重建的 AuthService、別的程式）拿到的是開站那份舊回應
+    expect((window as { __clessiaEarlyMe?: unknown }).__clessiaEarlyMe).toBeUndefined();
+
     const result = service.refreshRoles();
     http.expectOne(ME_URL).flush(ME);
     expect(await result).toBe(true);
