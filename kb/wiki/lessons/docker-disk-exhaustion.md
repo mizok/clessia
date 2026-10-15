@@ -1,9 +1,9 @@
 ---
 title: 磁碟爆了怎麼查 —— Docker 佔滿主機的處置流程
-summary: 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用，改用 PureMac；含它被 Homebrew CLT 檢查誤擋時的取用方式）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
+summary: 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用，改用 PureMac；含它被 Homebrew CLT 檢查誤擋時的取用方式）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。2026-10-15 補第 1 節的鑑別方式：docker version 也卡住＝daemon 已死＋socket 殘留（什麼都清不動）、重開 GUI 會接到卡死的舊 com.docker.backend、以及「no space」對話框不等於磁碟真的滿了。
 category: lesson
 status: active
-updated: 2026-09-02
+updated: 2026-10-15
 tags: [lessons, docker, disk, dagger, ci, runbook]
 ---
 
@@ -144,6 +144,58 @@ du -xh -d 1 ~ | sort -rh | head -12      # 換路徑重複，一層一層縮小
 
 磁碟接近滿的時候 `docker system df` 會**跑不完**（實測卡了 40 分鐘才吐出結果），
 但 `docker version` 秒回 —— daemon 是活的，只是用量計算走不動。**不要在那裡等。**
+
+### 1.1 先鑑別：daemon 是慢，還是已經死了
+
+**`docker version` 就是那個鑑別器**，在跑任何清理指令之前先跑它：
+
+| `docker version` | 意思                                 | 能做什麼                                             |
+| ---------------- | ------------------------------------ | ---------------------------------------------------- |
+| 秒回             | daemon 活著，只是用量計算走不動      | 下面的替代量法全部可用，**可以清**                   |
+| **也卡住不回**   | **daemon 已經死了，socket 是殘留的** | **什麼都清不動** —— prune / rmi / dagger 都要 daemon |
+
+**卡住而不是立刻報錯，正是 socket 殘留的特徵**：`~/.docker/run/docker.sock` 這個檔還在，
+CLI 連得上、然後永遠等不到回應。所以「沒反應」不能推論成「磁碟太滿所以很慢」。
+
+```bash
+pgrep -fl 'Docker.app/Contents/MacOS/Docker$'    # GUI 不在 = Docker Desktop 已退出
+ls -l ~/.docker/run/docker.sock                   # 檔案還在 ≠ 服務還活著
+grep -iE 'engine crash|action.*Quit' \
+  ~/Library/Containers/com.docker.docker/Data/log/host/com.docker.backend.log | tail -5
+tail -30 ~/Library/Containers/com.docker.docker/Data/log/vm/console.log
+```
+
+2026-10-15 的實例：`docker version` 等 90 秒以上沒有回應，日誌顯示引擎收到 `POST /shutdown`
+並把容器 pid 全部 reaped，四分鐘後 `recovering from engine crash: context canceled`、GUI 送出
+`{"action":"Quit"}`。**引擎崩潰、Docker Desktop 整個退出，而 socket 檔留在原地。**
+
+### 1.2 重開 GUI 沒用：舊的 `com.docker.backend` 卡在半死狀態
+
+同一次事故裡**重開 Docker Desktop 也起不來**。原因是前一天 10:06 啟動的
+`com.docker.backend` 還活著但卡死，**新開的 GUI 會接到那個舊程序上**，
+症狀是「重開了還是壞的」，很容易被誤判成資料毀損或要重灌。
+
+```bash
+ps aux | grep com.docker.backend | grep -v grep   # 看 START 欄，早於本次重開 = 殘留
+```
+
+**處置：先結束舊程序，再開 GUI**（2026-10-15 由機器擁有者執行，重開後 server 29.2.0 正常，
+容器與 volume 全數還在、資料零損失）。
+
+### 1.3 「no space」對話框不等於磁碟真的滿了
+
+2026-10-15 使用者看到的錯誤訊息是「no space」，但實際量到的是：
+
+```
+主機可用        28–29 GiB（94%）—— 吃緊，但不是 0
+Docker.raw      138G（上限設定 460G）
+Docker 全部日誌  grep no space / ENOSPC / disk full / read-only fs → 0 筆
+```
+
+**磁碟吃緊與引擎崩潰同時出現，不代表前者是後者的原因。** 那次沒有任何 ENOSPC 證據，
+而真正讓 Docker 起不來的是 1.2 的殘留程序。**先鑑別再歸因**，否則會把整場力氣花在清磁碟上。
+
+### 1.4 替代量法（確認 daemon 活著之後才有意義）
 
 代替方案，全部都快：
 
