@@ -5,6 +5,22 @@
     <title>Clessia</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+    #1595 P3a：/api/me 在這裡就先發，跟 main.js 的下載＋bootstrap 重疊，不用等 Angular 起來才問。
+    AuthService 首次載入接手這個 promise（見 takeEarlyMe）；失敗、逾時、回的不是 JSON
+    （例如本機 dev server 沒有 /api）就退回原本的 HttpClient 請求。授權判斷不受影響 ——
+    guard 一樣等這個回應才放行，這裡只是讓它早點出發。
+    鑰匙名同 ACTIVE_ROLE_STORAGE_KEY（auth.service.ts），改名兩邊一起改。
+  -->
+    <script>
+      try {
+        var role = localStorage.getItem('clessia:active-role');
+        window.__clessiaEarlyMe = fetch('/api/me', {
+          credentials: 'include',
+          headers: role ? { 'X-Active-Role': role } : {},
+        });
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
