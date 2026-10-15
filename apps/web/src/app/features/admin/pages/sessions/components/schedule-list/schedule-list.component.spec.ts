@@ -57,6 +57,15 @@ describe('ScheduleListComponent —— 手機長按（#1174 G3）', () => {
     expect(menu).toHaveBeenCalledTimes(1);
   });
 
+  // #1620：手機的勾選欄是 hidden，display:none 不佔 grid 格子 —— 三欄的話 ⋯ 會落進中間那欄、
+  // 貼在班名旁邊。手機要兩欄（內容撐滿、⋯ 貼右緣，A6 x≈322），桌機才三欄
+  it('手機兩欄、桌機三欄：⋯ 貼卡片右緣', () => {
+    const { main } = setup();
+    const row = main.parentElement!;
+    expect(row.classList.contains('grid-cols-[minmax(0,1fr)_auto]')).toBe(true);
+    expect(row.classList.contains('wide:grid-cols-[auto_minmax(0,1fr)_auto]')).toBe(true);
+  });
+
   it('滑鼠沒有長按', () => {
     const { press, long } = setup();
     press('mouse');
