@@ -1138,3 +1138,61 @@ test('兩邊都在列裡：位置用相對所在列比；稿的列在 app 只剩
   const out = diffParts({ parts: A }, { parts: [B[0]] });
   assert.match(out.find((r) => r.status === '缺' && r.a6.endsWith('>row')).limit, /資料太少/);
 });
+
+test('compare：分段計數、全站命中加總、head 新增的待修', async () => {
+  const { summarize, todoDelta, compareMarkdown } = await import('./compare.mjs');
+  const base = [
+    {
+      status: '尺寸',
+      bucket: '待修',
+      a6: '>landmark:banner[]>control:link[Clessia]',
+      app: 'x',
+      detail: '高 24→44',
+    },
+    { status: '樣式', bucket: '待修', a6: '>landmark:main[]>x', app: 'y', detail: 'padding' },
+    {
+      status: '全站',
+      bucket: '全站',
+      a6: null,
+      app: null,
+      detail: '基底字級（本頁命中 18 處；#1591）',
+    },
+  ];
+  const head = [
+    { status: '樣式', bucket: '待修', a6: '>landmark:main[]>z', app: 'z', detail: 'color' },
+    {
+      status: '全站',
+      bucket: '全站',
+      a6: null,
+      app: null,
+      detail: '基底字級（本頁命中 20 處；#1591）',
+    },
+    { status: '多', bucket: '已記錄偏離', a6: null, app: '>landmark:main[]>p', detail: '' },
+  ];
+  const s = summarize(base);
+  assert.equal(s.殼層.待修, 1);
+  assert.equal(s.頁面.待修, 1);
+  assert.deepEqual(s.全站, { 件數: 1, 命中: 18 });
+  const d = todoDelta(base, head);
+  assert.equal(d.added.length, 1);
+  assert.equal(d.removed.length, 2);
+  const md = compareMarkdown(
+    {
+      tool: 'abc1234',
+      toolDirty: true,
+      base: { ref: 'main', sha: '1111111' },
+      head: { ref: 'pr', sha: '2222222' },
+      api: 'http://x',
+      state: 's.json',
+      page: 'billing',
+      cfg: { app: '/admin/payments', a6: 'billing.html' },
+    },
+    [{ width: 1440, base, head }],
+  );
+  assert.match(md, /@ `abc1234`（\*\*有未提交的修改\*\*/);
+  assert.match(md, /\| 頁面 \| 1 \| 0 → \*\*1\*\* \| 0 \| 0 \|/);
+  assert.match(md, /head 新增的待修 1 條/);
+  // 表格列格數一致
+  const t = md.split('\n').filter((l) => l.startsWith('| '));
+  for (const l of t) assert.equal(l.split('|').length, t[0].split('|').length, l);
+});

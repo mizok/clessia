@@ -23,9 +23,19 @@ import { SCENARIOS } from './lib/scenarios.mjs';
 import { behaveMarkdown, inventoryMarkdown } from './lib/report.mjs';
 import { classify, diffParts, diffMarkdown } from './lib/diff.mjs';
 import { collectExtras, extrasJson, extrasMarkdown } from './lib/extras.mjs';
+import { compareMarkdown } from './lib/compare.mjs';
+import { startWeb } from './lib/serve.mjs';
+import { execFileSync } from 'node:child_process';
 
-const [cmd, ...args] = process.argv.slice(2);
+const [cmd, ...argv] = process.argv.slice(2);
+// 旗標：--base <ref> --head <ref>（compare）、--base-url／--head-url（已有在跑的 web 時直接用）
+const flags = {};
+const args = [];
+for (let i = 0; i < argv.length; i++)
+  if (argv[i].startsWith('--')) flags[argv[i].slice(2)] = argv[++i];
+  else args.push(argv[i]);
 const pages = args.length ? args : Object.keys(PAGES);
+let appUrl = APP_URL; // compare 會依序換成 base／head 的 web
 const browser = await chromium.launch();
 
 const save = (dir, name, cap) => {
@@ -39,7 +49,7 @@ const save = (dir, name, cap) => {
 async function grab(page, source, w, rowParents = []) {
   const cfg = PAGES[page];
   if (!cfg) throw new Error(`不認得的頁：${page}（可用：${Object.keys(PAGES).join('、')}）`);
-  const url = source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : APP_URL + cfg.app;
+  const url = source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : appUrl + cfg.app;
   return capture(browser, {
     source,
     file: cfg.a6,
@@ -234,7 +244,7 @@ try {
           const side = {};
           for (const source of ['a6', 'app']) {
             // 每個情境各開一頁，前一個情境的狀態不會漏到下一個
-            const url = source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : APP_URL + cfg.app;
+            const url = source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : appUrl + cfg.app;
             const {
               ctx,
               page: pg,
@@ -274,8 +284,56 @@ try {
         `${page}：${results.filter((r) => r.ok).length}／${results.length} 一致 → ${dir}/behave.md`,
       );
     }
+  } else if (cmd === 'compare') {
+    if (!flags.base && !flags['base-url'])
+      throw new Error(
+        '用法：run.mjs compare <頁…> --base <ref> --head <ref>（或 --base-url／--head-url）',
+      );
+    const git = (...a) =>
+      execFileSync('git', a, { cwd: import.meta.dirname, encoding: 'utf8' }).trim();
+    const tool = git('rev-parse', '--short', 'HEAD');
+    const toolDirty = git('status', '--porcelain', '--', '.') !== '';
+    const sides = {};
+    for (const side of ['base', 'head']) {
+      const ref = flags[side] ?? '(現成的 web)';
+      const web = flags[`${side}-url`]
+        ? { url: flags[`${side}-url`], sha: '—', stop: () => {} }
+        : await startWeb(ref);
+      sides[side] = { ref, sha: web.sha, web };
+    }
+    try {
+      for (const page of pages) {
+        const widths = WIDTHS.map((w) => ({ width: w.width }));
+        for (const side of ['base', 'head']) {
+          appUrl = sides[side].web.url;
+          const secs = await diffPage(page);
+          secs.forEach((x, i) => (widths[i][side] = x.rows));
+        }
+        const md = compareMarkdown(
+          {
+            tool,
+            toolDirty,
+            base: sides.base,
+            head: sides.head,
+            api: process.env.A6_API_URL ?? 'http://localhost:8887',
+            state: path.basename(STATE),
+            page,
+            cfg: PAGES[page],
+          },
+          widths,
+        );
+        const file = path.join(OUT, 'compare', `${page}-${sides.base.sha}-${sides.head.sha}.md`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, md);
+        console.log(md, `\n→ ${file}`);
+      }
+    } finally {
+      for (const side of ['base', 'head']) await sides[side].web.stop();
+    }
   } else {
-    console.log('用法：run.mjs inventory [頁…] | diff [頁…] | behave [頁…] | extras [頁…]');
+    console.log(
+      '用法：run.mjs inventory [頁…] | diff [頁…] | behave [頁…] | extras [頁…] | compare <頁…> --base <ref> --head <ref>',
+    );
     process.exitCode = 2;
   }
 } finally {

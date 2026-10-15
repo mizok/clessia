@@ -24,6 +24,7 @@ node tools/a6-conformance/login.mjs '<印出的連結>'
 node tools/a6-conformance/run.mjs inventory              # 全部頁；或指定 students schedule …
 node tools/a6-conformance/run.mjs diff students
 node tools/a6-conformance/run.mjs behave                 # 第三層
+node tools/a6-conformance/run.mjs compare billing --base main --head <PR 分支>   # PR 驗收的前後對照
 npm test --prefix tools/a6-conformance                   # spec
 ```
 
@@ -39,6 +40,23 @@ app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，
 
 頁面對照（稿檔 ↔ 路由、非原生彈出物怎麼打開、手動配對）在 `lib/config.mjs` 的 `PAGES`。
 
+## PR 驗收：`compare`
+
+**PR 一律貼這張表**（10-15 計畫席）：各席自己切前後報告、混用工具版本時，數字不是同一把尺。
+
+```sh
+node tools/a6-conformance/run.mjs compare billing schedule --base main --head <PR 分支或 sha>
+# 已有在跑的 web：--base-url http://localhost:4205 --head-url http://localhost:4206
+```
+
+同一個工具版本對兩個 app 版本各跑一次。每個 ref 開臨時 detached worktree（共用 node_modules）、起一個
+web、量完收掉（停 server、移 worktree）。API 與登入兩邊共用，表上會註明。輸出在
+`A6_OUT/compare/<頁>-<base>-<head>.md`：
+
+- 表頭：工具 commit（**有未提交修改會標出來＝不可重現**）、base／head 的 ref 與 sha
+- 每個寬度一張：殼層／頁面 × 待修／已記錄偏離／資料差／工具限制（base → head），全站（#1591）條數與命中處數
+- **head 新增的待修**（回歸先看這裡，不會被總數抵銷）、修掉的待修條數
+
 ## part key
 
 `>landmark:main[]>landmark:region[國三]>list>row>control:link` —— 結構路徑，每段是
@@ -52,6 +70,9 @@ app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，
 - 列內 part 的幾何與樣式取**最常見的那種**當代表（稿的第一列可能是軸列、第一個課塊可能是「上課中」），
   並記下有幾種樣式變體；兩邊變體數不同時列成工具限制「列內狀態變體」，人工看
 - 列內有底色或框線的短字（徽章：上課中、補課、待繳費）保留文案進 key，不按位置配
+- 列內 part 的位置用「相對所在那一列」比（兩邊代表可能取自不同列）
+- 資料少的日子：先抓稿，把「稿在哪些父層有列」傳給 app 端，app 同層 ≥2 個同形容器也認成列；
+  只剩 1 個時認不出來，歸工具限制「資料太少」
 - landmark 與清單只認 `aria-label`，不吃整段內文
 - 同層同名加 `~2`、`~3`；設計稿自帶的翻頁膠囊（`.proto-*`）不算
 
@@ -86,7 +107,7 @@ app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，
 樣式只比看得見的：字級／字重／行高／顏色只在**自己帶文字**的 part 上比（容器上是繼承值）；
 0 寬或透明框線算沒有；gap 只在 flex／grid 上比；父層是 flex／grid 時 `inline-*` 被 blockify（`inline-flex`→`flex`），不算差。
 
-## 報告的四欄
+## 報告的分欄
 
 每條差異歸一欄（`classify`，依序判）：
 
@@ -104,6 +125,9 @@ app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，
 { status: '尺寸', kind: 'control', widths: [360], detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
   reason: '可點元素基底高 ≥44px，只管手機', source: 'kb/wiki/architecture/a6-adoption-rules.md:32-34（R3）' }
 ```
+
+硬性規則（constitution-enforcement.md 的 A 條）用 `hardRule('A28')` 當 `source`：條號手寫、行號執行時查，查不到就報錯。
+`item`（regex）：只拆樣式列裡的那一項（A28 的對比色），同列其他樣式差照算。
 
 欄位：`status`（必填）、`detail`／`a6`／`app`／`host`（regex；host＝元件宿主，例如 `p-paginator`）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
 包裝層本身是偏離時（R7 的 search landmark），裡面真正多出／缺少的最上層東西各自拆列、各自歸欄。
