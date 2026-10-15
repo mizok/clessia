@@ -32,10 +32,7 @@
         <button
           type="button"
           class="block h-11 min-w-11 cursor-pointer rounded-sm border-0 px-3 text-center text-lg leading-normal font-semibold wide:h-8 wide:min-w-10"
-          [class.bg-zinc-900]="mode() === 'day'"
-          [class.text-white]="mode() === 'day'"
-          [class.bg-transparent]="mode() !== 'day'"
-          [class.text-zinc-700]="mode() !== 'day'"
+          [class]="viewBtnState('day')"
           [attr.aria-pressed]="mode() === 'day'"
           (click)="setView('day')"
         >
@@ -44,10 +41,7 @@
         <button
           type="button"
           class="block h-11 min-w-11 cursor-pointer rounded-sm border-0 px-3 text-center text-lg leading-normal font-semibold wide:h-8 wide:min-w-10"
-          [class.bg-zinc-900]="mode() === 'week'"
-          [class.text-white]="mode() === 'week'"
-          [class.bg-transparent]="mode() !== 'week'"
-          [class.text-zinc-700]="mode() !== 'week'"
+          [class]="viewBtnState('week')"
           [attr.aria-pressed]="mode() === 'week'"
           (click)="setView('week')"
         >
@@ -55,7 +49,7 @@
         </button>
       </div>
       <span
-        class="hidden text-md font-normal whitespace-nowrap text-zinc-500 tabular-nums md:inline"
+        class="hidden text-md font-normal whitespace-nowrap text-zinc-600 tabular-nums md:inline"
         >{{ weekLabel() }}</span
       >
       <!-- 跳到某天（#1184 留下的，併進 G3）：原生日期選擇器，按鈕只是它的入口 -->
@@ -81,7 +75,7 @@
       <!-- 快速選取（#1174 G3）：桌機開關工具列下的「一次勾：」那一列；手機打開底部面板 -->
       <button
         type="button"
-        class="hidden cursor-pointer items-center justify-center rounded-md gap-1.5 border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex wide:h-[30px] wide:px-3 wide:text-sm"
+        class="hidden h-11 cursor-pointer items-center justify-center rounded-md gap-1.5 border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex wide:h-[30px] wide:px-3 wide:text-sm"
         [attr.aria-pressed]="picking()"
         (click)="picking.set(!picking())"
       >

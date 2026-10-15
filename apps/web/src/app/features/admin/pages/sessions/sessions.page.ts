@@ -265,6 +265,15 @@ export class SessionsPage implements OnInit {
     if (!from) return '';
     return to ? `${format(from, 'M/d')}–${format(to, 'M/d')}` : format(from, 'M/d');
   });
+  /**
+   * 日／週鈕的選中態（A6 `schedule.css:357`：近黑底白字；另一顆透明底 zinc-700）。
+   * 整串由方法回傳而不是兩組 `[class.x]`：對比 gate 掃模板時會把同一個元素上的
+   * `text-zinc-700` 與 `bg-zinc-900` 當成疊在一起（其實互斥）。
+   */
+  protected viewBtnState(view: 'day' | 'week'): string {
+    return this.mode() === view ? 'bg-zinc-900 text-white' : 'bg-transparent text-zinc-700';
+  }
+
   /** 色面標題的兩行（A6：「…堂課，」換行「…堂有異動。」）；篩選結果那句不拆 */
   protected readonly headlineLines = computed<[string, string | null]>(() => {
     const h = this.headline();
