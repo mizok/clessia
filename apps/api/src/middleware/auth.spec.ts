@@ -356,3 +356,110 @@ describe('campusRequestGuard', () => {
     expect((await appWithCampusScope([]).request('/x?campusId=a')).status).toBe(403);
   });
 });
+
+/**
+ * 身分三查的快取（#1595 P1b）。**撤銷的最長延遲是 IDENTITY_TTL_MS（30 秒）**：
+ * TTL 內可能還吃舊的結果（明文允許），**超過 TTL 必須拒絕**。
+ * 角色、權限、帳號停用三種撤銷各守一條 —— 它們走的是同一份快取，但被拿來做的判斷不同。
+ */
+describe('authMiddleware 的身分快取：撤銷最遲 30 秒生效', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    getSession.mockReset();
+    fromMock.mockReset();
+  });
+
+  // 上限寫死在這裡、不引用 IDENTITY_TTL_MS：有人把 TTL 調長時這組測試要紅，
+  // 而不是跟著常數一起變長。要改上限就是改政策，兩邊一起改並更新 KB。
+  const REVOCATION_LIMIT_MS = 30_000;
+
+  /** `results` 是可變的：測試中途改它，模擬管理員在 DB 撤銷。 */
+  function appWithMutableIdentity(results: Record<string, { data: unknown; error: unknown }>) {
+    getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+    fromMock.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: () => Promise.resolve(results[table] ?? { data: [], error: null }),
+      }),
+    }));
+
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.get('/admin-only', requireRoles('admin'), (c) => c.json({ ok: true }));
+    app.get('/finance', requireAdminPermission('manage_finance'), (c) => c.json({ ok: true }));
+    return app;
+  }
+
+  it('TTL 內重複請求不重查身分表', async () => {
+    vi.useFakeTimers();
+    const app = appWithMutableIdentity({
+      user_roles: { data: [{ role: 'admin', permissions: [] }], error: null },
+    });
+
+    await app.request('/admin-only');
+    const callsAfterFirst = fromMock.mock.calls.length;
+    await app.request('/admin-only');
+
+    expect(callsAfterFirst).toBe(3);
+    expect(fromMock.mock.calls.length).toBe(3);
+  });
+
+  it('撤銷角色：超過 TTL 後拒絕', async () => {
+    vi.useFakeTimers();
+    const results = {
+      user_roles: { data: [{ role: 'admin', permissions: [] }] as unknown, error: null },
+    };
+    const app = appWithMutableIdentity(results);
+    expect((await app.request('/admin-only')).status).toBe(200);
+
+    results.user_roles = { data: [{ role: 'teacher', permissions: [] }], error: null };
+    vi.advanceTimersByTime(REVOCATION_LIMIT_MS + 1);
+
+    expect((await app.request('/admin-only')).status).toBe(403);
+  });
+
+  it('拔權限：超過 TTL 後拒絕', async () => {
+    vi.useFakeTimers();
+    const results = {
+      user_roles: {
+        data: [{ role: 'admin', permissions: ['manage_finance'] }] as unknown,
+        error: null,
+      },
+    };
+    const app = appWithMutableIdentity(results);
+    expect((await app.request('/finance')).status).toBe(200);
+
+    results.user_roles = { data: [{ role: 'admin', permissions: [] }], error: null };
+    vi.advanceTimersByTime(REVOCATION_LIMIT_MS + 1);
+
+    expect((await app.request('/finance')).status).toBe(403);
+  });
+
+  it('停用帳號：超過 TTL 後拒絕', async () => {
+    vi.useFakeTimers();
+    const results: Record<string, { data: unknown; error: unknown }> = {
+      user_roles: { data: [{ role: 'admin', permissions: [] }], error: null },
+      staff: { data: [{ status: 'active', staff_campuses: [] }], error: null },
+    };
+    const app = appWithMutableIdentity(results);
+    expect((await app.request('/admin-only')).status).toBe(200);
+
+    results['staff'] = { data: [{ status: 'inactive', staff_campuses: [] }], error: null };
+    vi.advanceTimersByTime(REVOCATION_LIMIT_MS + 1);
+
+    const res = await app.request('/admin-only');
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ code: 'ACCOUNT_DISABLED' });
+  });
+
+  it('查詢失敗不進快取：下一個請求重查', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const results: Record<string, { data: unknown; error: unknown }> = {
+      user_roles: { data: null, error: { message: 'boom' } },
+    };
+    const app = appWithMutableIdentity(results);
+    expect((await app.request('/admin-only')).status).toBe(500);
+
+    results['user_roles'] = { data: [{ role: 'admin', permissions: [] }], error: null };
+    expect((await app.request('/admin-only')).status).toBe(200);
+  });
+});
