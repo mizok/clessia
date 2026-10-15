@@ -2,10 +2,19 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
-import { campusFilterIds, getCampusScope, type CampusScope } from '../lib/campus-scope';
+import {
+  applyCampusFilter,
+  campusFilterIds,
+  getCampusScope,
+  type CampusScope,
+} from '../lib/campus-scope';
+import { buildScoresOverview, type OverviewEnrollment } from '../lib/scores-overview';
+import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { isEnrolledOn } from '../lib/session-roster';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
+import { isFailingScore } from '../lib/score-threshold';
+import { scorePercent } from '../lib/score-percent';
 import {
   ACADEMY_SCORE_SELECT,
   SCHOOL_SCORE_SELECT,
@@ -771,8 +780,31 @@ const StudentAggregateSchema = z
     absentCount: z.number().int(),
     makeupCount: z.number().int(),
     latestExamDate: z.string().nullable(),
+    /** grade_level enum（P1…S3）；`sort=grade` 依它排 */
+    grade: z.string().nullable(),
+    /** 最近一場有分數的校內考（#1314 G8）。段考沒有總分，不算 */
+    latest: z
+      .object({
+        score: z.number(),
+        totalScore: z.number(),
+        examName: z.string(),
+        examDate: z.string(),
+        failing: z.boolean(),
+      })
+      .nullable(),
+    /** 最近一場減上一場（校內考），換算 100 分制的差；少於兩場 null */
+    deltaVsPrev: z.number().nullable(),
+    /** 近 30 天（台北日，依考試日）缺考次數，校內考＋段考。`absentCount` 是查詢範圍內全部 */
+    recentAbsentCount: z.number().int(),
   })
   .openapi('ScoreStudentAggregate');
+
+const GRADE_ORDER = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'];
+/** 年級序（grade_level enum 的順序）；沒有年級的排最後 */
+const gradeRank = (grade: string | null) => {
+  const i = grade === null ? -1 : GRADE_ORDER.indexOf(grade);
+  return i === -1 ? GRADE_ORDER.length : i;
+};
 
 const studentAggregatesRoute = createRoute({
   method: 'get',
@@ -786,6 +818,8 @@ const studentAggregatesRoute = createRoute({
        * 只准搭 `campusId` 與分頁
        */
       scope: z.enum(['all']).optional(),
+      /** 排序：預設依姓名；`grade`＝年級（P1→S3）再依姓名（#1314 G8，A6 依年級分章） */
+      sort: z.enum(['name', 'grade']).optional(),
       /** 只在 `scope=all` 時可帶；與受限範圍取交集 */
       campusId: DbUuidSchema.optional(),
       type: ScoreTypeSchema.optional(),
@@ -897,7 +931,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
     ? run(() => {
         let query = supabase
           .from('academy_scores')
-          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name, grade )`, { count: 'exact' })
           .eq('academy_exams.org_id', orgId);
         if (studentIds !== null) query = query.in('student_id', studentIds);
         if (academyExamIds !== null) query = query.in('exam_id', academyExamIds);
@@ -912,7 +946,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
     ? run(() => {
         let query = supabase
           .from('school_scores')
-          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name, grade )`, { count: 'exact' })
           .eq('school_exams.org_id', orgId);
         if (studentIds !== null) query = query.in('student_id', studentIds);
         if (q.studentId) query = query.eq('student_id', q.studentId);
@@ -951,8 +985,21 @@ app.openapi(studentAggregatesRoute, async (c) => {
     (!q.dateFrom || date >= q.dateFrom) && (!q.dateTo || date <= q.dateTo);
   const keyword = q.search?.trim().toLowerCase() ?? '';
 
+  const today = getCurrentTaipeiDateString();
+  const recentFrom = addDaysToDateString(today, -30);
+  interface Academy {
+    id: string;
+    score: number;
+    totalScore: number;
+    passScore: number | null;
+    examName: string;
+    examDate: string;
+  }
   interface Acc {
     studentName: string;
+    grade: string | null;
+    academyScored: Academy[];
+    recentAbsentCount: number;
     academyPairs: Array<{ score: number; totalScore: number }>;
     schoolScores: number[];
     scoredCount: number;
@@ -964,6 +1011,9 @@ app.openapi(studentAggregatesRoute, async (c) => {
   const add = (row: any, record: ReturnType<typeof mapAcademyScoreRow>) => {
     const acc = byStudent.get(row.student_id) ?? {
       studentName: (row.students?.name as string) ?? '',
+      grade: (row.students?.grade as string | null) ?? null,
+      academyScored: [],
+      recentAbsentCount: 0,
       academyPairs: [],
       schoolScores: [],
       scoredCount: 0,
@@ -973,10 +1023,21 @@ app.openapi(studentAggregatesRoute, async (c) => {
     };
     if (record.status === 'scored') acc.scoredCount += 1;
     if (record.status === 'absent') acc.absentCount += 1;
+    if (record.status === 'absent' && record.examDate >= recentFrom && record.examDate <= today) {
+      acc.recentAbsentCount += 1;
+    }
     if (record.status === 'makeup') acc.makeupCount += 1;
     if (record.status === 'scored' && record.score !== null) {
       if (record.type === 'academy' && record.totalScore !== null) {
         acc.academyPairs.push({ score: Number(record.score), totalScore: record.totalScore });
+        acc.academyScored.push({
+          id: record.id,
+          score: Number(record.score),
+          totalScore: record.totalScore,
+          passScore: record.passScore ?? null,
+          examName: record.examName,
+          examDate: record.examDate,
+        });
       }
       if (record.type === 'school') acc.schoolScores.push(Number(record.score));
     }
@@ -995,6 +1056,13 @@ app.openapi(studentAggregatesRoute, async (c) => {
     .filter(([, acc]) => !keyword || acc.studentName.toLowerCase().includes(keyword))
     .map(([studentId, acc]) => {
       const pairs = sumPairsOrNull(acc.academyPairs);
+      // 考試日新到舊、同日 id 大者先（只為穩定）
+      const [latest, prev] = [...acc.academyScored].sort((a, b) =>
+        a.examDate === b.examDate ? (a.id < b.id ? 1 : -1) : a.examDate < b.examDate ? 1 : -1,
+      );
+      // 總分 ≤ 0 的那場算不出得分率 → delta 為 null（`scorePercent`）
+      const latestPct = latest ? scorePercent(latest.score, latest.totalScore) : null;
+      const prevPct = prev ? scorePercent(prev.score, prev.totalScore) : null;
       return {
         studentId,
         studentName: acc.studentName,
@@ -1005,9 +1073,25 @@ app.openapi(studentAggregatesRoute, async (c) => {
         absentCount: acc.absentCount,
         makeupCount: acc.makeupCount,
         latestExamDate: acc.latestExamDate,
+        grade: acc.grade,
+        latest: latest
+          ? {
+              score: latest.score,
+              totalScore: latest.totalScore,
+              examName: latest.examName,
+              examDate: latest.examDate,
+              failing: isFailingScore(latest.score, latest),
+            }
+          : null,
+        deltaVsPrev: latestPct !== null && prevPct !== null ? latestPct - prevPct : null,
+        recentAbsentCount: acc.recentAbsentCount,
       };
     })
-    .sort((a, b) => a.studentName.localeCompare(b.studentName, 'zh-Hant'));
+    .sort(
+      (a, b) =>
+        (q.sort === 'grade' ? gradeRank(a.grade) - gradeRank(b.grade) : 0) ||
+        a.studentName.localeCompare(b.studentName, 'zh-Hant'),
+    );
 
   return c.json(
     {
@@ -1468,6 +1552,174 @@ app.openapi(classExamStatsRoute, async (c) => {
     },
     200,
   );
+});
+
+// ============================================================
+// GET /api/scores/overview —— 成績總覽（#1314 G5）
+//
+// 考試集合＝近 N 天（台北日）的校內考，分校篩選同考試列表（`applyCampusFilter` 在 campus_id）。
+// 聚合在 `lib/scores-overview.ts`。只給 admin —— 總覽是管理端頁，老師沒有這一頁。
+// ponytail: 窗內考試×人數全撈（分頁撈齊）；`.in(exam_id)` 帶窗內全部考試 id，一個月上百場才要改成
+// 依日期 embed 篩或 RPC。
+// ============================================================
+
+const ExamRowSchema = z.object({
+  examId: z.string(),
+  examName: z.string(),
+  examDate: z.string(),
+  totalScore: z.number(),
+  /** 該場自己的尺度 */
+  avgScore: z.number().nullable(),
+  failCount: z.number().int(),
+  absentCount: z.number().int(),
+});
+
+const overviewRoute = createRoute({
+  method: 'get',
+  path: '/overview',
+  tags: ['Scores'],
+  summary: '成績總覽（近 N 天校內考的摘要、不及格學生、班平均最低、最近考試）',
+  request: {
+    query: z.object({
+      days: z.coerce.number().int().min(1).max(365).default(30).optional(),
+      campusId: DbUuidSchema.optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: '成功',
+      content: {
+        'application/json': {
+          schema: z
+            .object({
+              windowDays: z.number().int(),
+              exams: z.object({
+                count: z.number().int(),
+                pendingCount: z.number().int(),
+                /** 100 分制 */
+                avgScore: z.number().nullable(),
+              }),
+              failingStudents: z.array(
+                z.object({
+                  studentId: z.string(),
+                  name: z.string(),
+                  /** grade_level enum（P1…S3）；標籤由前端轉 */
+                  grade: z.string().nullable(),
+                  className: z.string().nullable(),
+                  examName: z.string(),
+                  examDate: z.string(),
+                  score: z.number(),
+                  totalScore: z.number(),
+                }),
+              ),
+              failingTotal: z.number().int(),
+              lowestClasses: z.array(
+                ExamRowSchema.extend({ classId: z.string(), className: z.string() }),
+              ),
+              totalClasses: z.number().int(),
+              recentExams: z.array(
+                ExamRowSchema.extend({
+                  className: z.string(),
+                  missingCount: z.number().int(),
+                }),
+              ),
+            })
+            .openapi('ScoresOverview'),
+        },
+      },
+    },
+    403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(overviewRoute, async (c) => {
+  if (!(c.get('roles') ?? []).includes('admin')) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const { days = 30, campusId } = c.req.valid('query');
+  const today = getCurrentTaipeiDateString();
+
+  try {
+    const examSelect: string =
+      'id, name, exam_date, total_score, pass_score, academy_exam_classes(class_id, classes(name))';
+    const examRows = await fetchAllRows<Record<string, any>>((from, to) =>
+      applyCampusFilter(
+        supabase
+          .from('academy_exams')
+          .select(examSelect)
+          .eq('org_id', orgId)
+          .gte('exam_date', addDaysToDateString(today, -days))
+          .lte('exam_date', today),
+        'campus_id',
+        getCampusScope(c),
+        campusId,
+      )
+        .order('id')
+        .range(from, to),
+    );
+    const exams = examRows.map((r) => ({
+      id: r['id'] as string,
+      name: r['name'] as string,
+      examDate: r['exam_date'] as string,
+      totalScore: Number(r['total_score']),
+      passScore: r['pass_score'] == null ? null : Number(r['pass_score']),
+      classes: ((r['academy_exam_classes'] ?? []) as any[]).map((l) => ({
+        classId: l.class_id as string,
+        className: (l.classes?.name as string) ?? '',
+      })),
+    }));
+    const examIds = exams.map((e) => e.id);
+    const classIds = [...new Set(exams.flatMap((e) => e.classes.map((k) => k.classId)))];
+
+    const [scoreRows, enrollments] = await Promise.all([
+      examIds.length === 0
+        ? []
+        : fetchAllRows<Record<string, any>>((from, to) =>
+            supabase
+              .from('academy_scores')
+              .select('id, exam_id, student_id, score, status, students(name, grade)')
+              .in('exam_id', examIds)
+              .order('id')
+              .range(from, to),
+          ),
+      classIds.length === 0
+        ? []
+        : fetchAllRows<OverviewEnrollment>((from, to) =>
+            supabase
+              .from('enrollments')
+              .select('id, class_id, student_id, effective_from, effective_to')
+              .eq('org_id', orgId)
+              // 同 academy-exam-roster：排除作廢、保留退班
+              .neq('status', 'void')
+              .in('class_id', classIds)
+              .order('id')
+              .range(from, to),
+          ),
+    ]);
+
+    return c.json(
+      buildScoresOverview({
+        windowDays: days,
+        exams,
+        // postgrest 的 numeric 回來是字串
+        scores: scoreRows.map((s) => ({
+          examId: s['exam_id'] as string,
+          studentId: s['student_id'] as string,
+          studentName: (s['students']?.name as string) ?? '',
+          grade: (s['students']?.grade as string | null) ?? null,
+          score: s['score'] == null ? null : Number(s['score']),
+          status: s['status'] as string,
+        })),
+        enrollments,
+      }),
+      200,
+    );
+  } catch (error) {
+    return c.json({ error: (error as Error).message, code: 'DB_ERROR' }, 500);
+  }
 });
 
 export default app;
