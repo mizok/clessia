@@ -84,8 +84,15 @@
               (click)="setDay(d)"
             >
               <span class="text-xs wide:text-sm">週{{ weekdayLabel(d) }}</span>
+              <!-- 手機寫短的（第一格與跨月寫月/日），桌機每格月/日；兩個 <b> 只會顯示一個 -->
               <b
-                class="text-base tabular-nums wide:text-lg"
+                class="text-base tabular-nums wide:hidden"
+                [class.text-zinc-700]="!isSelectedDay(d)"
+                [class.text-zinc-900]="isSelectedDay(d)"
+                >{{ stripDateShort(d, $first) }}</b
+              >
+              <b
+                class="text-base tabular-nums max-wide:hidden wide:text-lg"
                 [class.text-zinc-700]="!isSelectedDay(d)"
                 [class.text-zinc-900]="isSelectedDay(d)"
                 >{{ d | date: 'M/d' }}</b

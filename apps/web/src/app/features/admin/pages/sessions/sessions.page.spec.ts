@@ -1653,12 +1653,12 @@ describe('SessionsPage', () => {
     it('週日期條用 A6 字級（手機 text-base、桌機 text-lg）；上下週鈕 44 見方', async () => {
       await settle();
       const el = fixture.nativeElement as HTMLElement;
-      const dates = el.querySelectorAll('[data-part="dtabs"] button b');
-      expect(dates.length).toBe(6);
-      for (const b of Array.from(dates)) {
-        expect(b.classList.contains('text-base')).toBe(true);
-        expect(b.classList.contains('wide:text-lg')).toBe(true);
-      }
+      const mobile = el.querySelectorAll('[data-part="dtabs"] button b.wide\\:hidden');
+      const desktop = el.querySelectorAll('[data-part="dtabs"] button b.max-wide\\:hidden');
+      expect(mobile.length).toBe(6);
+      expect(desktop.length).toBe(6);
+      for (const b of Array.from(mobile)) expect(b.classList.contains('text-base')).toBe(true);
+      for (const b of Array.from(desktop)) expect(b.classList.contains('wide:text-lg')).toBe(true);
       for (const label of ['上一週', '下一週']) {
         const btn = el.querySelector(`button[aria-label="${label}"]`) as HTMLElement;
         expect(btn.classList.contains('size-11'), label).toBe(true);
@@ -2006,6 +2006,19 @@ describe('SessionsPage', () => {
       (tabs()[0] as HTMLElement).click();
       fixture.detectChanges();
       expect(sessionsServiceMock.hasSessionsOn.mock.calls.length).toBe(n);
+    });
+
+    it('手機日期字：第一格與跨月那天寫月/日，其餘寫日（#1441：360 寬「10/12」會黏在一起）', () => {
+      const short = () =>
+        tabs().map((t) => t.querySelector('b.wide\\:hidden')?.textContent?.trim());
+      expect(short()).toEqual(['4/13', '14', '15', '16', '17', '18']);
+      const fn = (component as unknown as { stripDateShort: (d: Date, f: boolean) => string })
+        .stripDateShort;
+      expect(fn(new Date(2026, 9, 1), false)).toBe('10/1');
+      expect(fn(new Date(2026, 8, 28), true)).toBe('9/28');
+      expect(fn(new Date(2026, 8, 29), false)).toBe('29');
+      // 桌機每格都是月/日
+      expect(tabs()[1].querySelector('b.max-wide\\:hidden')?.textContent?.trim()).toBe('4/14');
     });
 
     it('沒有「回到今天」、沒有日曆跳日；‹ › 換週還在', () => {

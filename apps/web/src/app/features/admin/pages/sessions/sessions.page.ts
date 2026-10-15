@@ -1042,6 +1042,14 @@ export class SessionsPage implements OnInit {
     return this.sundayHasSessions() || isSameDay(this.day(), sunday) ? days : days.slice(0, 6);
   });
 
+  /**
+   * 手機週列的日期字（#1620）：每格只剩約 38px，「10/12」會跟隔壁黏在一起（#1441 同一個坑）。
+   * 照月曆慣例只在第一格與跨月那天寫「月/日」，其餘寫日（9/28 29 30 10/1 2 3）；桌機照舊每格月/日。
+   */
+  protected stripDateShort(d: Date, first: boolean): string {
+    return first || d.getDate() === 1 ? format(d, 'M/d') : String(d.getDate());
+  }
+
   /** 手機快速選取面板的標題（A6 `qs__day`：週四 10/1 · 今天） */
   protected readonly sheetTitle = computed(() => {
     const mode = this.mode();
