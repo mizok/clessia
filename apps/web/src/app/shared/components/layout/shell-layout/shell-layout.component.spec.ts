@@ -196,4 +196,249 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(el.textContent).toContain('分校0');
     });
   });
+
+  /**
+   * #1314 殼層對齊 A6（用 conformance 工具量，不靠肉眼）。jsdom 沒有版面，量不到尺寸；能量到的是
+   * **產生那個尺寸的 class**。基底（手機）≥44px（A27，`constitution-enforcement.md:101`），
+   * 桌機照稿縮（`wide:` 覆寫）——兩個 class 都要在，拿掉任一個都紅。
+   */
+  describe('A6 幾何（#1314 殼層）', () => {
+    const cls = (e: Element | null) => (e as HTMLElement).className.split(/\s+/);
+    const has = (e: Element | null, ...names: string[]) => {
+      const c = cls(e);
+      for (const n of names) expect(c, n).toContain(n);
+    };
+
+    /**
+     * A6 兩列頂欄（`a6.css:163-165`）：手機放不下的整組工具換到第二列、導覽獨占第三列；
+     * 桌機一列不換行（高 56）。**斷點由這幾個 class 決定**：基底 `flex-wrap`、桌機 `flex-nowrap`；
+     * 導覽基底 `order-3 w-full`（排到最後、獨占一列）、桌機 `order-none w-auto`。
+     * 拿掉任何一個，手機頂欄就從兩列變一列（或桌機變兩列）。
+     */
+    it('頂欄兩列斷點：基底 flex-wrap＋桌機 flex-nowrap；導覽基底 order-3 w-full、桌機還原', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const row = el.querySelector('header > div')!;
+      has(row, 'flex', 'flex-wrap', 'items-center', 'gap-x-4', 'pt-3');
+      has(row, 'wide:flex-nowrap', 'wide:h-14', 'wide:gap-x-8', 'wide:pt-0');
+      // 基底不能是 nowrap（會讓手機一列擠爆）、桌機不能少了 nowrap（會換行）
+      expect(cls(row)).not.toContain('flex-nowrap');
+      expect(cls(row)).not.toContain('flex-wrap-reverse');
+      const nav = el.querySelector('nav[aria-label="主要導覽"]')!;
+      has(nav, 'order-3', 'w-full', 'wide:order-none', 'wide:w-auto', 'flex', 'overflow-x-auto');
+      // 工具組在導覽之前（DOM 順序）：手機換行時才會先落在第二列、導覽在第三列
+      const kids = Array.from(row.children);
+      expect(kids.indexOf(nav)).toBeLessThan(kids.length - 1);
+      expect(cls(kids[kids.length - 1])).toContain('ml-auto');
+    });
+
+    it('字標：手機 44px 點擊區但只占 22px 版面（負邊距）、桌機 24px 字、高度回到行高', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      has(
+        el.querySelector('header a'),
+        'min-h-11',
+        'wide:min-h-0',
+        'wide:text-[24px]',
+        'wide:block',
+      );
+      has(el.querySelector('header a'), 'max-wide:my-[-11px]');
+    });
+
+    it('導覽連結：框線與 padding 在 <a> 自己（不是內層 span），目前頁 2px 橘線；手機 44／桌機縮', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const links = Array.from(el.querySelectorAll('nav[aria-label="主要導覽"] > a'));
+      expect(links).toHaveLength(2);
+      for (const a of links) {
+        has(a, 'min-h-11', 'wide:min-h-0', 'border-b-[1.5px]', 'py-0.5', 'gap-1', 'leading-[1.5]');
+        has(a, 'aria-[current=page]:border-b-2', 'aria-[current=page]:border-accent-vivid');
+        expect(a.querySelector('span')).toBeNull();
+      }
+    });
+
+    it('導覽列 padding 照稿 0（不再 px-1／-mx-1）；鍵盤焦點環往內縮，才不被 overflow 裁掉（A6 沒定義 offset，保留現況可見）', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const nav = el.querySelector('nav[aria-label="主要導覽"]')!;
+      expect(cls(nav)).not.toContain('px-1');
+      expect(cls(nav)).not.toContain('-mx-1');
+      has(
+        nav,
+        'max-wide:[&_:focus-visible]:-outline-offset-2',
+        'max-wide:[&_:focus-visible]:outline-zinc-900',
+      );
+    });
+
+    it('「更多」鈕：同導覽連結的框線與高度規則；箭頭 14px', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const btn = el.querySelector('[popovertarget="shell-more"]')!;
+      has(btn, 'min-h-11', 'wide:min-h-0', 'border-b-[1.5px]', 'py-0.5', 'leading-[1.5]');
+      has(btn.querySelector('i'), 'text-[14px]');
+    });
+
+    it('搜尋、分校、帳戶是同一組（margin-left:auto 在組上，不在各鈕上）', async () => {
+      const campus = {
+        inUse: signal(true),
+        campuses: signal([
+          { id: 'c0', name: '分校0' },
+          { id: 'c1', name: '分校1' },
+        ]),
+        id: signal<string | null>(null),
+        name: signal<string | null>(null),
+        select: vi.fn(),
+        use: vi.fn(),
+      };
+      TestBed.overrideProvider(CampusContextService, { useValue: campus });
+      const { el } = await setup(['admin'], 'admin');
+      const group = el.querySelector('app-global-search')!.parentElement!;
+      has(group, 'ml-auto', 'flex', 'wide:gap-x-4');
+      expect(group.querySelector('[popovertarget="shell-campus"]')).not.toBeNull();
+      expect(group.querySelector('[popovertarget="shell-account"]')).not.toBeNull();
+      // 各鈕自己不再帶 ml-auto
+      expect(cls(el.querySelector('[popovertarget="shell-account"]'))).not.toContain('ml-auto');
+      expect(cls(el.querySelector('app-global-search'))).not.toContain('ml-auto');
+    });
+
+    it('非管理員：帳戶鈕自己成一組靠右（ml-auto 在組上）', async () => {
+      const { el } = await setup(['teacher'], 'teacher');
+      const group = el.querySelector('[popovertarget="shell-account"]')!.parentElement!;
+      has(group, 'ml-auto');
+    });
+
+    it.each([
+      [null, '切換分校：全部分校'],
+      ['分校1', '切換分校：分校1'],
+    ])(
+      '分校鈕（名字 %s）：aria-label 是「%s」；名字手機也顯示、沒有大樓圖示、白字',
+      async (name, label) => {
+        const campus = {
+          inUse: signal(true),
+          campuses: signal([
+            { id: 'c0', name: '分校0' },
+            { id: 'c1', name: '分校1' },
+          ]),
+          id: signal<string | null>(null),
+          name: signal<string | null>(name),
+          select: vi.fn(),
+          use: vi.fn(),
+        };
+        TestBed.overrideProvider(CampusContextService, { useValue: campus });
+        const { el } = await setup(['admin'], 'admin');
+        const btn = el.querySelector('[popovertarget="shell-campus"]')!;
+        expect(btn.getAttribute('aria-label')).toBe(label);
+        expect(btn.textContent).toContain(name ?? '全部分校');
+        expect(btn.querySelector('.pi-building')).toBeNull();
+        has(btn, 'text-white', 'pr-[18px]', 'min-h-11', 'wide:min-h-0');
+        // 名字手機也顯示（A6 兩列頂欄）：不再有 hidden／wide:inline
+        expect(cls(btn.querySelector('span'))).not.toContain('hidden');
+      },
+    );
+
+    it('「更多」彈窗：手機 340 寬／桌機內容寬；2 欄 → 桌機 3 欄、欄距 32', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const pop = el.querySelector('#shell-more')!;
+      has(pop, 'max-wide:w-[340px]', 'wide:w-fit');
+      expect(cls(pop)).not.toContain('w-[340px]');
+      const grid = pop.querySelector('div')!;
+      has(grid, 'grid-cols-2', 'wide:grid-cols-[repeat(3,max-content)]', 'wide:gap-x-8', 'gap-y-6');
+    });
+
+    it('「更多」群組標題 h3：13px 粗、zinc-800、字距、下方 1px 線；項目 14px 常規字重、桌機 29px', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      has(
+        el.querySelector('#shell-more h3'),
+        'text-md',
+        'font-bold',
+        'text-zinc-800',
+        'tracking-[0.04em]',
+        'border-b',
+        'border-zinc-200',
+        'pb-1.5',
+        'mb-2',
+      );
+      has(
+        el.querySelector('#shell-more a'),
+        'text-base',
+        'font-normal',
+        'leading-[1.5]',
+        'min-h-11',
+        'wide:min-h-0',
+        'wide:py-1',
+        'wide:block',
+      );
+    });
+
+    it('帳戶浮層：手機抽屜 zinc-200、桌機白；「切換身分」群組手機白、標題 13px 粗 zinc-800', async () => {
+      const { el } = await setup(['admin', 'teacher'], 'admin');
+      has(el.querySelector('#shell-account'), 'bg-white', 'max-wide:bg-zinc-200');
+      has(el.querySelector('#shell-account [role="group"]'), 'bg-zinc-100', 'max-wide:bg-white');
+      has(
+        el.querySelector('#shell-account-switch'),
+        'text-md',
+        'font-bold',
+        'text-zinc-800',
+        'tracking-[0.04em]',
+      );
+    });
+
+    it('帳戶浮層：名字手機 18px、email 常規字重；每個項目 手機 48px／16px、桌機 40px', async () => {
+      const { el } = await setup(['admin', 'teacher'], 'admin');
+      const pop = el.querySelector('#shell-account')!;
+      has(pop.querySelector('p.font-bold'), 'max-wide:text-[18px]');
+      has(pop.querySelectorAll('p')[1], 'font-normal');
+      const items = Array.from(pop.querySelectorAll('button'));
+      expect(items.map((b) => b.textContent?.trim())).toEqual(['任課老師', '帳號設定', '登出']);
+      for (const b of items) {
+        has(
+          b,
+          'min-h-11',
+          'max-wide:min-h-12',
+          'max-wide:text-[16px]',
+          'wide:min-h-10',
+          'leading-[1.5]',
+        );
+      }
+    });
+  });
+
+  /**
+   * 「更多」貼著按鈕下緣往下 8px（A6 a6.js）；帳戶／分校仍從頁首下緣算。
+   * 「更多」鈕桌機縮成 27px 後，從頁首算會比稿低 15px（工具量到的 Δy）。
+   */
+  describe('彈窗定位', () => {
+    const place = async (which: 'more' | 'campus') => {
+      const campus = {
+        inUse: signal(true),
+        campuses: signal([
+          { id: 'c0', name: '分校0' },
+          { id: 'c1', name: '分校1' },
+        ]),
+        id: signal<string | null>(null),
+        name: signal<string | null>(null),
+        select: vi.fn(),
+        use: vi.fn(),
+      };
+      TestBed.overrideProvider(CampusContextService, { useValue: campus });
+      const { fixture, el } = await setup(['admin'], 'admin');
+      const popId = which === 'more' ? 'shell-more' : 'shell-campus';
+      const opener = el.querySelector(`[popovertarget="${popId}"]`) as HTMLElement;
+      const header = el.querySelector('header') as HTMLElement;
+      const rect = (o: Partial<DOMRect>) => () =>
+        ({ left: 0, right: 0, top: 0, bottom: 0, ...o }) as DOMRect;
+      opener.getBoundingClientRect = rect({ left: 300, right: 348, top: 14, bottom: 41 });
+      header.getBoundingClientRect = rect({ bottom: 56 });
+      const pop = document.getElementById(popId)!;
+      (
+        fixture.componentInstance as unknown as {
+          onPopoverToggle: (e: unknown, w: 'more' | 'campus') => void;
+        }
+      ).onPopoverToggle({ target: pop, newState: 'open' }, which);
+      return pop.style.top;
+    };
+
+    it('更多：按鈕下緣 41 + 8 = 49px（不是頁首下緣 56 + 8）', async () => {
+      expect(await place('more')).toBe('49px');
+    });
+
+    it('分校：仍從頁首下緣 56 + 8 = 64px', async () => {
+      expect(await place('campus')).toBe('64px');
+    });
+  });
 });
