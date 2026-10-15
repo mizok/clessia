@@ -1883,7 +1883,7 @@ describe('SessionsPage', () => {
 
     it('「今天」標籤是 <i>（A6 role），而且只有今天那一格有', () => {
       const labels = el().querySelectorAll('nav[aria-label="選擇日期"] i');
-      expect(labels.length).toBeLessThanOrEqual(1);
+      expect(labels.length).toBe(1); // 固定時鐘 4/15 在預設那週裡，所以一定有；0 個（改成 span）要紅
       for (const i of Array.from(labels)) {
         expect(i.textContent?.trim()).toBe('今天');
         expect(i.classList.contains('not-italic')).toBe(true);
