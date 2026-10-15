@@ -61,3 +61,39 @@ describe('authGuard', () => {
     expect(String(result)).toBe('/login?reason=connection-error');
   });
 });
+
+// #1595 P3a：等 /api/me 的時間先把整串路由的 chunk 抓下來 —— 但放不放行照舊看結果
+describe('authGuard 先抓 lazy chunk', () => {
+  function stateWith(...loaders: (() => Promise<unknown>)[]) {
+    const nodes = loaders.map((loadComponent) => ({ routeConfig: { loadComponent } }));
+    nodes.forEach((n, i) => Object.assign(n, { firstChild: nodes[i + 1] ?? null }));
+    return { root: nodes[0] } as unknown as RouterStateSnapshot;
+  }
+
+  async function runWith(auth: ReturnType<typeof stubAuth>, state: RouterStateSnapshot) {
+    TestBed.configureTestingModule({
+      providers: [provideRouter([]), { provide: AuthService, useValue: auth }],
+    });
+    return TestBed.runInInjectionContext(() => authGuard({} as ActivatedRouteSnapshot, state));
+  }
+
+  it('在 /api/me 回來之前就叫起每一層的 loadComponent', async () => {
+    const shell = vi.fn(() => Promise.resolve());
+    const page = vi.fn(() => Promise.resolve());
+    const auth = stubAuth(true);
+
+    const pending = runWith(auth, stateWith(shell, page));
+    expect(shell).toHaveBeenCalled();
+    expect(page).toHaveBeenCalled();
+    expect(auth.settledWhenAsked()).toBe(false);
+    expect(await pending).toBe(true);
+  });
+
+  it('未登入照樣導走：抓 chunk 不等於放行；chunk 載入失敗也不影響判定', async () => {
+    const result = await runWith(
+      stubAuth(false),
+      stateWith(() => Promise.reject(new Error('chunk 404'))),
+    );
+    expect(String(result)).toBe('/login');
+  });
+});

@@ -13,6 +13,9 @@ export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
  */
 export const ACTIVE_ROLE_STORAGE_KEY = 'clessia:active-role';
 
+/** index.html 先發的 `/api/me` 等這麼久還沒回就放棄、改走 HttpClient（不能卡住開站） */
+export const EARLY_ME_TIMEOUT_MS = 10_000;
+
 export interface Profile {
   id: string;
   display_name: string;
@@ -90,8 +93,12 @@ export class AuthService {
    * 任何資訊。
    */
   private async init(): Promise<void> {
+    // 只用一次：之後的 refreshRoles() 要的是「現在」的身分，不是開站那一份
+    const w = window as { __clessiaEarlyMe?: Promise<Response> };
+    const early = w.__clessiaEarlyMe ?? null;
+    delete w.__clessiaEarlyMe;
     try {
-      if (!(await this.loadProfile())) {
+      if (!(await this.loadProfile(early))) {
         this._user.set(null);
       }
     } finally {
@@ -125,11 +132,13 @@ export class AuthService {
    * 狀態下被叫的（見 account-settings-dialog），一次暫時性的 500 不該把
    * 正在編輯的人踢出畫面。
    */
-  private async loadProfile(): Promise<boolean> {
+  private async loadProfile(early: Promise<Response> | null = null): Promise<boolean> {
     try {
-      const me = await firstValueFrom(
-        this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
-      );
+      const me =
+        (early && (await this.takeEarlyMe(early))) ??
+        (await firstValueFrom(
+          this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
+        ));
 
       this._connectionError.set(false);
       this._user.set({ id: me.userId, email: me.email, name: me.displayName });
@@ -164,6 +173,31 @@ export class AuthService {
       }
 
       return false;
+    }
+  }
+
+  /**
+   * 接手 index.html 先發的 `/api/me`（#1595 P3a）。回 null＝這份不能用，呼叫端退回
+   * HttpClient 原流程：連線失敗、逾時、5xx、回的不是 JSON 都算。
+   * **401/403 是伺服器的確定答案**，照原流程的語意丟出去（＝未登入），不再多問一趟。
+   */
+  private async takeEarlyMe(early: Promise<Response>): Promise<MeResponse | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const res = await Promise.race([
+        early,
+        new Promise<never>((_, reject) => (timer = setTimeout(reject, EARLY_ME_TIMEOUT_MS))),
+      ]);
+      if (res.status === 401 || res.status === 403) {
+        throw new HttpErrorResponse({ status: res.status, url: res.url });
+      }
+      if (!res.ok) return null;
+      return (await res.json()) as MeResponse;
+    } catch (err) {
+      if (err instanceof HttpErrorResponse) throw err;
+      return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
