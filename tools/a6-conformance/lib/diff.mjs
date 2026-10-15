@@ -334,6 +334,10 @@ export function groupRows(rows) {
   return [...out.values()];
 }
 
+/** 殼層的 part：頂欄（banner）與殼層彈出物。 */
+export const isShell = (r) =>
+  ['more', 'acct'].includes(r.pop) || (r.a6 ?? r.app ?? '').startsWith('>landmark:banner');
+
 export const BUCKETS = ['待修', '已記錄偏離', '工具限制', '資料差'];
 
 export function diffMarkdown(page, cfg, sections) {
@@ -345,10 +349,16 @@ export function diffMarkdown(page, cfg, sections) {
     '| 寬 | ' + BUCKETS.join(' | ') + ' |',
     '| --- | ' + BUCKETS.map(() => '---').join(' | ') + ' |',
   );
+  // 殼層（頂欄＋「更多」＋帳戶）每頁都有，分開數才不會在每頁的報告裡重複算
   for (const s of sections)
-    L.push(
-      `| ${s.width}px | ${BUCKETS.map((b) => s.rows.filter((r) => r.bucket === b).length).join(' | ')} |`,
-    );
+    for (const [name, sel] of [
+      ['全部', () => true],
+      ['殼層', isShell],
+      ['頁面', (r) => !isShell(r)],
+    ])
+      L.push(
+        `| ${s.width}px ${name} | ${BUCKETS.map((b) => s.rows.filter((r) => r.bucket === b && sel(r)).length).join(' | ')} |`,
+      );
   L.push('');
   const cell = (t) => String(t).replace(/\|/g, '\\|');
   for (const s of sections) {
