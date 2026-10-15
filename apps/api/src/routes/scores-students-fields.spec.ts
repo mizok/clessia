@@ -23,6 +23,7 @@ const STUDENTS: Record<string, { name: string; grade: string | null }> = {
   s2: { name: '李二', grade: 'P5' },
   s3: { name: '陳三', grade: 'J1' },
   s4: { name: '林四', grade: null },
+  s5: { name: '周五', grade: 'J2' },
 };
 
 const academy = (
@@ -95,8 +96,8 @@ const TABLES = {
   school_scores: [school('b1', 's4', '2027-03-15'), school('b2', 's4', '2027-03-16')], // 今天算、明天不算
 };
 
-async function list(query = '') {
-  const db = createMultiOrgDb(TABLES);
+async function list(query = '', tables: Record<string, unknown[]> = TABLES) {
+  const db = createMultiOrgDb(tables as Record<string, Array<Record<string, unknown>>>);
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -166,5 +167,33 @@ describe('GET /api/scores/students —— 列欄位（#1314 G8）', () => {
     ]);
     const byName = (await list()).map((r) => r['studentName']);
     expect(byName).toEqual([...byName].sort((a, b) => a.localeCompare(b, 'zh-Hant')));
+  });
+
+  // 總分 0 到得了（DB 沒有 > 0 約束）：算不出得分率的那場讓 delta 為 null，不是 NaN／Infinity
+  it('總分 0：deltaVsPrev 為 null；latest 照常回', async () => {
+    const tables = {
+      ...TABLES,
+      academy_scores: [
+        academy('z1', 's5', '0', '2027-02-01', { total: 0 }),
+        academy('z2', 's5', '80', '2027-03-01'),
+      ],
+    };
+    const rows = Object.fromEntries((await list('', tables)).map((r) => [r['studentId'], r]));
+    expect(rows['s5']).toMatchObject({
+      latest: { score: 80, totalScore: 100 },
+      deltaVsPrev: null,
+    });
+  });
+
+  it('最近一場總分 0：deltaVsPrev 也為 null', async () => {
+    const tables = {
+      ...TABLES,
+      academy_scores: [
+        academy('z1', 's5', '70', '2027-02-01'),
+        academy('z2', 's5', '0', '2027-03-01', { total: 0 }),
+      ],
+    };
+    const rows = Object.fromEntries((await list('', tables)).map((r) => [r['studentId'], r]));
+    expect(rows['s5']).toMatchObject({ latest: { totalScore: 0 }, deltaVsPrev: null });
   });
 });

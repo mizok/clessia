@@ -14,7 +14,7 @@ import { isEnrolledOn } from '../lib/session-roster';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 import { isFailingScore } from '../lib/score-threshold';
-import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { scorePercent } from '../lib/score-percent';
 import {
   ACADEMY_SCORE_SELECT,
   SCHOOL_SCORE_SELECT,
@@ -1060,7 +1060,9 @@ app.openapi(studentAggregatesRoute, async (c) => {
       const [latest, prev] = [...acc.academyScored].sort((a, b) =>
         a.examDate === b.examDate ? (a.id < b.id ? 1 : -1) : a.examDate < b.examDate ? 1 : -1,
       );
-      const pct = (x: Academy) => (x.score / x.totalScore) * 100;
+      // 總分 ≤ 0 的那場算不出得分率 → delta 為 null（`scorePercent`）
+      const latestPct = latest ? scorePercent(latest.score, latest.totalScore) : null;
+      const prevPct = prev ? scorePercent(prev.score, prev.totalScore) : null;
       return {
         studentId,
         studentName: acc.studentName,
@@ -1081,7 +1083,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
               failing: isFailingScore(latest.score, latest),
             }
           : null,
-        deltaVsPrev: latest && prev ? pct(latest) - pct(prev) : null,
+        deltaVsPrev: latestPct !== null && prevPct !== null ? latestPct - prevPct : null,
         recentAbsentCount: acc.recentAbsentCount,
       };
     })
