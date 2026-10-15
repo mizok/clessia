@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '@env/environment';
 import { authClient } from './auth-client';
+import { CampusContextService } from './campus-context.service';
 
 export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
 
@@ -31,12 +32,15 @@ interface MeResponse {
   birthday: string | null;
   roles: UserRole[];
   permissions: string[];
+  /** 被指派的分校（#1607）；只拿來挑頂欄預設分校，不是權限。舊版 API 沒有這欄 */
+  assignedCampusIds?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
+  private readonly campusCtx = inject(CampusContextService);
 
   private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(
     null,
@@ -149,6 +153,7 @@ export class AuthService {
       });
       this._roles.set(me.roles);
       this._permissions.set(me.permissions);
+      this.campusCtx.setAssigned(me.assignedCampusIds ?? []);
 
       if (me.roles.length === 1) {
         this._activeRole.set(me.roles[0]);
@@ -170,6 +175,7 @@ export class AuthService {
         this._profile.set(null);
         this._roles.set([]);
         this._permissions.set([]);
+        this.campusCtx.setAssigned([]);
       }
 
       return false;
@@ -266,6 +272,7 @@ export class AuthService {
     this._profile.set(null);
     this._roles.set([]);
     this._permissions.set([]);
+    this.campusCtx.setAssigned([]);
     this._activeRole.set(null);
     localStorage.removeItem(ACTIVE_ROLE_STORAGE_KEY);
     this.router.navigate(['/login']);

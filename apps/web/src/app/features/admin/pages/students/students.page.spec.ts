@@ -76,6 +76,7 @@ describe('StudentsPage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     pending.length = 0;
     studentsServiceMock.list.mockClear();
     studentsServiceMock.update.mockClear();
@@ -119,6 +120,12 @@ describe('StudentsPage', () => {
     fixture.detectChanges();
   });
 
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
+  });
+
   it('should create', () => {
     expect(component).toBeTruthy();
   });
@@ -138,7 +145,7 @@ describe('StudentsPage', () => {
       expect(pending[0].params.campusId).toBeUndefined();
     });
 
-    it('換分校：回第一頁、帶新的 campusId 重查；換回全部分校就不帶', () => {
+    it('換分校：回第一頁、帶新的 campusId 重查；日常頁沒有全部分校（#1607）', () => {
       (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 2 });
       expect(pending.at(-1)?.params.page).toBe(3);
 
@@ -148,7 +155,7 @@ describe('StudentsPage', () => {
       );
 
       selectCampus(null);
-      expect(pending.at(-1)?.params.campusId).toBeUndefined();
+      expect(pending.at(-1)?.params.campusId).toBe('campus-1');
     });
 
     it('清除篩選不動分校', () => {

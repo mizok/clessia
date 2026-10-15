@@ -160,8 +160,9 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
   });
 
   describe('頂欄分校（#1138 H2）', () => {
-    const ctx = (inUse: boolean, n: number) => ({
+    const ctx = (inUse: boolean, n: number, allowAll = true) => ({
       inUse: signal(inUse),
+      allowAll: signal(allowAll),
       campuses: signal(Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `分校${i}` }))),
       id: signal<string | null>(null),
       name: signal<string | null>(null),
@@ -178,7 +179,19 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(el.querySelector('[popovertarget="shell-campus"]')).toBeNull();
     });
 
-    it('接上了、多間分校：下拉鈕寫「全部分校」，選單有全部＋每一間，點了寫回去', async () => {
+    it('日常頁（不允許全部）：選單只有每一間，沒有「全部分校」（#1607）', async () => {
+      const c = ctx(true, 2, false);
+      c.id.set('c0');
+      c.name.set('分校0');
+      const { el } = await withCtx(c);
+      expect(el.querySelector('[popovertarget="shell-campus"]')?.textContent).toContain('分校0');
+      const items = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('#shell-campus button'),
+      );
+      expect(items.map((b) => b.textContent?.trim())).toEqual(['分校0', '分校1']);
+    });
+
+    it('報表頁、多間分校：下拉鈕寫「全部分校」，選單有全部＋每一間，點了寫回去', async () => {
       const c = ctx(true, 2);
       const { el } = await withCtx(c);
       expect(el.querySelector('[popovertarget="shell-campus"]')?.textContent).toContain('全部分校');
@@ -276,6 +289,7 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     it('搜尋、分校、帳戶是同一組（margin-left:auto 在組上，不在各鈕上）', async () => {
       const campus = {
         inUse: signal(true),
+        allowAll: signal(true),
         campuses: signal([
           { id: 'c0', name: '分校0' },
           { id: 'c1', name: '分校1' },
@@ -310,6 +324,7 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       async (name, label) => {
         const campus = {
           inUse: signal(true),
+          allowAll: signal(true),
           campuses: signal([
             { id: 'c0', name: '分校0' },
             { id: 'c1', name: '分校1' },
@@ -406,6 +421,7 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     const place = async (which: 'more' | 'campus') => {
       const campus = {
         inUse: signal(true),
+        allowAll: signal(true),
         campuses: signal([
           { id: 'c0', name: '分校0' },
           { id: 'c1', name: '分校1' },

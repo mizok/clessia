@@ -134,6 +134,8 @@ export type Variables = {
   selfRows: {
     staff: { display_name?: string | null; birthday?: string | null } | null;
     parent: { name?: string | null } | null;
+    /** 這個人在 `staff_campuses` 的分校（跟 campusScope 同一份）；前端挑預設分校用（#1607） */
+    assignedCampusIds: string[];
   };
   supabase: SupabaseClient;
   /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */

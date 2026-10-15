@@ -783,9 +783,10 @@ export class SessionsPage implements OnInit {
     });
     ref?.onClose.subscribe((result?: MobileFilterDialogResult) => {
       if (result) {
-        // 手機篩選對話框裡的分校也寫回頂欄那一份（只有一個來源）；重查由頂欄的訂閱做
-        if ((result.campusIds[0] ?? null) !== this.campusCtx.id())
-          this.campusCtx.select(result.campusIds[0] ?? null);
+        // 手機篩選對話框裡的分校也寫回頂欄那一份（只有一個來源）；重查由頂欄的訂閱做。
+        // 日常頁沒有「全部分校」（#1607）：對話框沒給分校就不動頂欄
+        const campusId = result.campusIds[0];
+        if (campusId && campusId !== this.campusCtx.id()) this.campusCtx.select(campusId);
         this.selectedCourseIds.set(result.courseIds);
         this.selectedTeacherIds.set(result.teacherIds);
         this.selectedClassIds.set(result.classIds);

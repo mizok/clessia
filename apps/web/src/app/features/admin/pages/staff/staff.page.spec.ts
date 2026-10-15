@@ -68,6 +68,7 @@ describe('StaffPage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     staffServiceMock.list.mockReset();
     staffServiceMock.list.mockReturnValue(of(buildStaffResponse()));
     staffServiceMock.createLoginLink.mockClear();
@@ -118,6 +119,12 @@ describe('StaffPage', () => {
     fixture = TestBed.createComponent(StaffPage);
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  it('報表類：頂欄保留「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(true);
   });
 
   it('should create', () => {

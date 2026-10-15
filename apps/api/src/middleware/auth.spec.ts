@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { authMiddleware, campusRequestGuard, requireAdminPermission, requireRoles } from './auth';
 import type { AppEnv } from '../index';
+import { getCampusScope } from '../lib/campus-scope';
 
 const getSession = vi.fn();
 const fromMock = vi.fn();
@@ -557,6 +558,30 @@ describe('authMiddleware 的 selfRows（#1595 P2a）', () => {
       staff: { display_name: '王主任', birthday: '1990-01-02' },
       parent: { name: '王媽媽' },
     });
+  });
+
+  // #1607：/api/me 的 assignedCampusIds 跟 campusScope 必須是同一份，不然預設分校會挑到範圍外的
+  it('selfRows.assignedCampusIds 跟 campusScope 是同一份 staff_campuses', async () => {
+    const rows: Record<string, unknown[]> = {
+      user_roles: [{ role: 'admin', permissions: [] }],
+      staff: [{ status: 'active', staff_campuses: [{ campus_id: 'c2' }, { campus_id: 'c1' }] }],
+    };
+    getSession.mockResolvedValue({ user: { id: 'user-2', orgId: 'org-1' } });
+    fromMock.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: () => eqChain(Promise.resolve({ data: rows[table] ?? [], error: null })),
+      }),
+    }));
+
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.get('/', (c) =>
+      c.json({ self: c.get('selfRows').assignedCampusIds, scope: getCampusScope(c) }),
+    );
+    const body = (await (await app.request('/')).json()) as { self: string[]; scope: unknown };
+
+    expect(body.self).toEqual(['c2', 'c1']);
+    expect(body.scope).toEqual(body.self);
   });
 });
 

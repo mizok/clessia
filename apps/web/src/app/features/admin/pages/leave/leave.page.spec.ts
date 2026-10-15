@@ -58,6 +58,7 @@ describe('LeavePage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     vi.useFakeTimers();
     leaveServiceMock.list.mockClear();
     leaveServiceMock.delete.mockClear();
@@ -99,6 +100,12 @@ describe('LeavePage', () => {
     vi.spyOn(messageService, 'add');
     fixture.detectChanges();
     await fixture.whenStable();
+  });
+
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
   });
 
   it('分校跟頂欄走：頂欄換分校回第一頁、帶 campusId 重查（#1138）', () => {

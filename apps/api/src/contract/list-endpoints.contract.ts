@@ -57,7 +57,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('childDb', createChildDb(supabase as never, ctx.studentScope, ctx.orgId));
       set('campusScope', ctx.campusScope);
       // /api/me 讀的顯示欄位（#1595 P2a）—— 真的 middleware 跟身分查詢一起帶，替身不查 staff/parents
-      set('selfRows', { staff: null, parent: null });
+      set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
   };

@@ -32,6 +32,7 @@ describe('ScheduleChangesTickerComponent', () => {
 
   async function setup(entries: ChangeLogEntry[] = [entry()], fail = false) {
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     listChanges
       .mockReset()
       .mockReturnValue(

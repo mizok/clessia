@@ -25,6 +25,8 @@ const MeResponseSchema = z
     birthday: z.string().nullable(),
     roles: z.array(z.string()),
     permissions: z.array(z.string()),
+    /** 被指派的分校（`staff_campuses`）。**只給前端挑預設分校**，範圍仍由後端 campusScope 判（c1） */
+    assignedCampusIds: z.array(z.string()),
   })
   .openapi('MeResponse');
 
@@ -66,7 +68,7 @@ app.openapi(
 
     // 角色、權限、staff／parents 列都是 auth middleware 已經查好的（#1595 P2a）——
     // 這裡原本各查一次，user_roles 那支跟 middleware 完全重複
-    const { staff, parent } = c.get('selfRows');
+    const { staff, parent, assignedCampusIds } = c.get('selfRows');
     const [profileResult, baUserResult] = await Promise.all([
       supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
       supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
@@ -88,6 +90,7 @@ app.openapi(
         birthday: staff?.birthday ?? null,
         roles: c.get('roles'),
         permissions: c.get('permissions'),
+        assignedCampusIds,
       },
       200,
     );
@@ -208,6 +211,8 @@ app.openapi(
         permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
           Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
         ),
+        // 改個人資料動不到分校指派，沿用 middleware 那份
+        assignedCampusIds: c.get('selfRows').assignedCampusIds,
       },
       200,
     );

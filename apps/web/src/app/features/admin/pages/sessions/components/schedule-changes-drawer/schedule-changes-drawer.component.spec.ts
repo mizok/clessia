@@ -43,6 +43,7 @@ describe('ScheduleChangesDrawerComponent', () => {
       this.dispatchEvent(new Event('close'));
     };
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
   });
   afterEach(() => Object.assign(proto, original));
 

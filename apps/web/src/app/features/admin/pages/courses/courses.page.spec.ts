@@ -87,6 +87,7 @@ describe('CoursesPage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     sessionsServiceMock.list.mockClear();
     confirmationServiceMock.confirm.mockClear();
 
@@ -118,6 +119,12 @@ describe('CoursesPage', () => {
     });
     router = TestBed.inject(Router);
     await fixture.whenStable();
+  });
+
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
   });
 
   it('navigates to sessions list with first and last session dates for the class', () => {
