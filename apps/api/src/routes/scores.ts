@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
-import { getCampusScope, type CampusScope } from '../lib/campus-scope';
+import { campusFilterIds, getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { isEnrolledOn } from '../lib/session-roster';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
@@ -778,9 +778,16 @@ const studentAggregatesRoute = createRoute({
   method: 'get',
   path: '/students',
   tags: ['Scores'],
-  summary: '每生成績聚合（必帶 classId／courseId／studentId 其一）',
+  summary: '每生成績聚合（必帶 classId／courseId／studentId 其一，或 scope=all）',
   request: {
     query: z.object({
+      /**
+       * 全部學生（#1314 G8）：可見範圍同 `/students` 列表（分校範圍 ∩ `campusId`；老師只看任課學生）。
+       * 只准搭 `campusId` 與分頁
+       */
+      scope: z.enum(['all']).optional(),
+      /** 只在 `scope=all` 時可帶；與受限範圍取交集 */
+      campusId: DbUuidSchema.optional(),
       type: ScoreTypeSchema.optional(),
       subjectId: DbUuidSchema.optional(),
       classId: DbUuidSchema.optional(),
@@ -826,7 +833,32 @@ app.openapi(studentAggregatesRoute, async (c) => {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 50;
 
-  if (!q.classId && !q.courseId && !q.studentId) {
+  const all = q.scope === 'all';
+  if (all) {
+    const extra = (
+      [
+        'classId',
+        'courseId',
+        'studentId',
+        'type',
+        'subjectId',
+        'dateFrom',
+        'dateTo',
+        'search',
+      ] as const
+    ).filter((key) => q[key] !== undefined);
+    if (extra.length > 0) {
+      return c.json(
+        {
+          error: `scope=all 只能搭配 campusId 與分頁（多了 ${extra.join('、')}）`,
+          code: 'SCOPE_ALL_PARAMS',
+        },
+        400,
+      );
+    }
+  } else if (q.campusId) {
+    return c.json({ error: 'campusId 只能搭配 scope=all', code: 'SCOPE_ALL_PARAMS' }, 400);
+  } else if (!q.classId && !q.courseId && !q.studentId) {
     return c.json({ error: '請先選開課班、課程或學生', code: 'SCOPE_REQUIRED' }, 400);
   }
 
@@ -834,7 +866,8 @@ app.openapi(studentAggregatesRoute, async (c) => {
     orgId,
     userId: c.get('userId'),
     roles: c.get('roles') ?? [],
-    campusScope: getCampusScope(c),
+    // 同 `/students` 列表：受限範圍 ∩ 指名的分校（沒指名＝原範圍，行為不變）
+    campusScope: campusFilterIds(getCampusScope(c), q.campusId),
     classId: q.classId,
     courseId: q.courseId,
   });
@@ -848,8 +881,20 @@ app.openapi(studentAggregatesRoute, async (c) => {
   const wantAcademy = (!q.type || q.type === 'academy') && (academyExamIds?.length ?? 1) > 0;
   const wantSchool = !q.type || q.type === 'school';
 
+  // scope=all：全機構的成績必破 max_rows，改成分頁撈齊；其餘照舊一次撈、超量回 TOO_MANY_ROWS
+  // ponytail: 範圍內成績全撈再聚合，O(範圍內成績數) 每次請求；量大時升級成 DB 側聚合（RPC）
+  const run = (
+    build: () => any,
+  ): PromiseLike<{ data: any[] | null; count: number | null; error: any }> =>
+    all
+      ? fetchAllRows<any>((from, to) => build().order('id').range(from, to)).then(
+          (data) => ({ data, count: data.length, error: null }),
+          (error: Error) => ({ data: null, count: 0, error }),
+        )
+      : build();
+
   const academyPromise = wantAcademy
-    ? (() => {
+    ? run(() => {
         let query = supabase
           .from('academy_scores')
           .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
@@ -861,10 +906,10 @@ app.openapi(studentAggregatesRoute, async (c) => {
         if (q.dateFrom) query = query.gte('academy_exams.exam_date', q.dateFrom);
         if (q.dateTo) query = query.lte('academy_exams.exam_date', q.dateTo);
         return query;
-      })()
+      })
     : Promise.resolve({ data: [], count: 0, error: null });
   const schoolPromise = wantSchool
-    ? (() => {
+    ? run(() => {
         let query = supabase
           .from('school_scores')
           .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
@@ -873,7 +918,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
         if (q.studentId) query = query.eq('student_id', q.studentId);
         if (q.subjectId) query = query.eq('subject_id', q.subjectId);
         return query;
-      })()
+      })
     : Promise.resolve({ data: [], count: 0, error: null });
 
   const [academyResult, schoolResult] = await Promise.all([academyPromise, schoolPromise]);

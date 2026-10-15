@@ -95,6 +95,19 @@ export interface ClassExamStats {
   scores: ClassExamScore[];
 }
 
+/** `GET /scores/students` 的一列（每生聚合）。校內考是總得分／總滿分，段考是平均 */
+export interface StudentScoreAggregate {
+  studentId: string;
+  studentName: string;
+  academySum: number | null;
+  academyTotalSum: number | null;
+  schoolAvg: number | null;
+  scoredCount: number;
+  absentCount: number;
+  makeupCount: number;
+  latestExamDate: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ScoresService {
   private readonly http = inject(HttpClient);
@@ -112,6 +125,28 @@ export class ScoresService {
 
   getClassExamStats(classId: string, examId: string): Observable<{ data: ClassExamStats }> {
     return this.http.get<{ data: ClassExamStats }>(`${this.base}/class/${classId}/exam/${examId}`);
+  }
+
+  /**
+   * 全部學生的每生聚合（#1314 G8，`scope=all`）。可見範圍同 `/students` 列表；
+   * 只能搭 `campusId` 與分頁（帶別的參數 API 回 400）。只列有成績的學生
+   */
+  studentAggregatesAll(params?: {
+    campusId?: string;
+    page?: number;
+    pageSize?: number;
+  }): Observable<{
+    data: StudentScoreAggregate[];
+    meta: { total: number; page: number; pageSize: number };
+  }> {
+    const query: Record<string, string | number> = { scope: 'all' };
+    if (params?.campusId) query['campusId'] = params.campusId;
+    if (params?.page !== undefined) query['page'] = params.page;
+    if (params?.pageSize !== undefined) query['pageSize'] = params.pageSize;
+    return this.http.get<{
+      data: StudentScoreAggregate[];
+      meta: { total: number; page: number; pageSize: number };
+    }>(`${this.base}/students`, { params: query });
   }
 
   private toQueryParams(params?: ScoreListParams): Record<string, string | number | boolean> {
