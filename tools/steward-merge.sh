@@ -94,7 +94,11 @@ if [ -n "$DRY" ]; then
 fi
 
 # ── 6. 合併 ─────────────────────────────────────────────────────────────
-gh pr merge "$PR" -R "$REPO" --squash --match-head-commit "$head"
+# squash 標題固定用「PR 標題 (#N)」：不帶 --subject 時 GitHub 會拿第一顆 commit 當標題
+# （#1577 合進 main 變成「wip: …」，計畫席 10-15 定）
+subject="$(q title) (#$PR)"
+echo "subject        = $subject"
+gh pr merge "$PR" -R "$REPO" --squash --match-head-commit "$head" --subject "$subject"
 sleep 5
 
 # ── 7. 確認真的合了才可能刪分支 ─────────────────────────────────────────
