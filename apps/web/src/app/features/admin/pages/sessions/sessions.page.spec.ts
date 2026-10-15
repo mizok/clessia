@@ -47,6 +47,7 @@ describe('SessionsPage', () => {
   });
   const sessionsServiceMock = {
     list: vi.fn(() => of(makeListResponse())),
+    hasSessionsOn: vi.fn((_date: string, _campusIds?: string[]) => of(false)),
     listChanges: vi.fn(() => of({ data: [], meta: { total: 0, page: 1, pageSize: 100 } })),
     batchAssignTeacher: vi.fn(() =>
       of({ updated: 0, skippedConflicts: 0, skippedNotEligible: 0, conflicts: [], dryRun: true }),
@@ -127,6 +128,8 @@ describe('SessionsPage', () => {
     localStorage.removeItem('clessia.campusContext');
     localStorage.removeItem('clessia.campusContext.single');
     sessionsServiceMock.list.mockClear();
+    sessionsServiceMock.hasSessionsOn.mockReset();
+    sessionsServiceMock.hasSessionsOn.mockReturnValue(of(false));
     sessionsServiceMock.batchAssignTeacher.mockClear();
     sessionsServiceMock.batchUpdateTime.mockClear();
     sessionsServiceMock.batchCancel.mockClear();
@@ -1647,19 +1650,18 @@ describe('SessionsPage', () => {
 
     // #1441：360px 時週日期條字黏在一起。jsdom 不跑 Tailwind，
     // 這裡釘的是意圖（手機字級），結果由 PR 的 360 實拍證明。
-    it('週日期條七格用 A6 字級（手機 text-base、md 以上 text-lg），上下週鈕手機收窄', async () => {
+    it('週日期條用 A6 字級（手機 text-base、桌機 text-lg）；上下週鈕 44 見方', async () => {
       await settle();
       const el = fixture.nativeElement as HTMLElement;
-      const dates = el.querySelectorAll('nav[aria-label="選擇日期"] button b');
-      expect(dates.length).toBe(7);
+      const dates = el.querySelectorAll('[data-part="dtabs"] button b');
+      expect(dates.length).toBe(6);
       for (const b of Array.from(dates)) {
         expect(b.classList.contains('text-base')).toBe(true);
-        expect(b.classList.contains('md:text-lg')).toBe(true);
+        expect(b.classList.contains('wide:text-lg')).toBe(true);
       }
       for (const label of ['上一週', '下一週']) {
         const btn = el.querySelector(`button[aria-label="${label}"]`) as HTMLElement;
-        expect(btn.classList.contains('w-8'), label).toBe(true);
-        expect(btn.classList.contains('h-11'), label).toBe(true);
+        expect(btn.classList.contains('size-11'), label).toBe(true);
       }
     });
   });
@@ -1904,7 +1906,7 @@ describe('SessionsPage', () => {
 
     it('日期條：選中的那天日期 zinc-900、週X zinc-700；其餘日期 zinc-700、週X zinc-500；今天是 <i>', () => {
       setMode('day');
-      const tabs = Array.from(el().querySelectorAll('nav[aria-label="選擇日期"] button'));
+      const tabs = Array.from(el().querySelectorAll('[data-part="dtabs"] button'));
       const sel = tabs.filter((t) => t.getAttribute('aria-current') === 'date');
       expect(sel.length).toBe(1);
       for (const t of tabs) {
@@ -1919,7 +1921,7 @@ describe('SessionsPage', () => {
     });
 
     it('「今天」標籤是 <i>（A6 role），而且只有今天那一格有', () => {
-      const labels = el().querySelectorAll('nav[aria-label="選擇日期"] i');
+      const labels = el().querySelectorAll('[data-part="dtabs"] i');
       expect(labels.length).toBe(1); // 固定時鐘 4/15 在預設那週裡，所以一定有；0 個（改成 span）要紅
       for (const i of Array.from(labels)) {
         expect(i.textContent?.trim()).toBe('今天');
@@ -1939,6 +1941,10 @@ describe('SessionsPage', () => {
       fixture.detectChanges();
       expect(desktop.textContent?.trim()).toBe('完成');
       expect(desktop.getAttribute('aria-pressed')).toBe('true');
+      // #1620：A6「完成」＝近黑實心＋勾
+      expect(desktop.classList.contains('aria-pressed:bg-zinc-900')).toBe(true);
+      expect(desktop.classList.contains('aria-pressed:text-white')).toBe(true);
+      expect(desktop.querySelector('svg')).not.toBeNull();
     });
 
     it('手機快速選取：A6 量到的是自然寬度（不是全寬）、白底、44 高、圖示拿掉；所在列靠右', () => {
@@ -1950,16 +1956,82 @@ describe('SessionsPage', () => {
       expect(mobile.classList.contains('border-zinc-900')).toBe(true); // A6 手機是近黑框（桌機是淺框）
       expect(mobile.classList.contains('h-11')).toBe(true);
       expect(mobile.querySelector('i')).toBeNull();
-      expect(mobile.parentElement!.classList.contains('justify-end')).toBe(true);
+      expect(mobile.parentElement!.classList.contains('max-wide:ml-auto')).toBe(true);
     });
 
-    it('手機：動作列在日期條之後（order-3 > order-2），桌機回到同一列（md:order-last）', () => {
-      const actions = el().querySelector('.more-menu-trigger')!.parentElement!;
-      expect(actions.classList.contains('order-3')).toBe(true);
-      expect(actions.classList.contains('md:order-last')).toBe(true);
-      const strip = el().querySelector('nav[aria-label="選擇日期"]')!.parentElement!;
-      expect(strip.classList.contains('order-2')).toBe(true);
-      expect(strip.classList.contains('md:order-none')).toBe(true);
+    it('工具列上方沒有框線（#1620 使用者裁定 2）；手機在日期條之後換行、靠右', () => {
+      const tools = el().querySelector('.more-menu-trigger')!.parentElement!;
+      expect(tools.classList.contains('border-t')).toBe(false);
+      expect(tools.classList.contains('max-wide:order-6')).toBe(true);
+      expect(tools.classList.contains('max-wide:ml-auto')).toBe(true);
+      expect(
+        el().querySelector('[data-part="dtabs"]')!.classList.contains('max-wide:order-2'),
+      ).toBe(true);
+    });
+  });
+
+  /** #1620 使用者裁定 1：週列照 A6 `.dtabs`（週一～週六、和日／週同一列），保留 ‹ › 換週 */
+  describe('週列（#1620）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const tabs = () => Array.from(el().querySelectorAll('[data-part="dtabs"] button'));
+
+    it('沒有週日的課：只有週一～週六', async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(tabs().map((t) => t.querySelector('span')?.textContent?.trim())).toEqual([
+        '週一',
+        '週二',
+        '週三',
+        '週四',
+        '週五',
+        '週六',
+      ]);
+      expect(sessionsServiceMock.hasSessionsOn.mock.calls.at(-1)?.[0]).toBe('2026-04-19');
+    });
+
+    it('這週週日有課：多一格週日（不然日視圖沒有入口）', async () => {
+      sessionsServiceMock.hasSessionsOn.mockReturnValue(of(true));
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(1);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(sessionsServiceMock.hasSessionsOn.mock.calls.at(-1)?.[0]).toBe('2026-04-26');
+      expect(tabs().at(-1)?.querySelector('span')?.textContent?.trim()).toBe('週日');
+      expect(tabs()).toHaveLength(7);
+    });
+
+    it('同一週換天不重查週日', async () => {
+      await fixture.whenStable();
+      const n = sessionsServiceMock.hasSessionsOn.mock.calls.length;
+      (tabs()[0] as HTMLElement).click();
+      fixture.detectChanges();
+      expect(sessionsServiceMock.hasSessionsOn.mock.calls.length).toBe(n);
+    });
+
+    it('沒有「回到今天」、沒有日曆跳日；‹ › 換週還在', () => {
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(1);
+      fixture.detectChanges();
+      expect(el().textContent).not.toContain('回到今天');
+      expect(el().querySelector('input[type="date"]')).toBeNull();
+      expect(el().querySelector('[title="跳到某天"], [aria-label="跳到某天"]')).toBeNull();
+      expect(el().querySelector('button[aria-label="上一週"]')).not.toBeNull();
+      expect(el().querySelector('button[aria-label="下一週"]')).not.toBeNull();
+    });
+
+    it('點一天：捲到工具列（A6 schedule.js:867）', () => {
+      const spy = vi.fn();
+      Element.prototype.scrollIntoView = spy;
+      (tabs()[0] as HTMLElement).click();
+      fixture.detectChanges();
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('手機面板標題帶日期：週三 4/15 · 今天（A6 qs__day）', () => {
+      const title = (component as unknown as { sheetTitle: () => string }).sheetTitle;
+      expect(title()).toBe('週三 4/15 · 今天');
+      (tabs()[0] as HTMLElement).click();
+      fixture.detectChanges();
+      expect(title()).toBe('週一 4/13');
     });
   });
 

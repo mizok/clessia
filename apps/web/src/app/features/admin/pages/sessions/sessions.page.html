@@ -19,15 +19,22 @@
   </ng-container>
 </app-page-open>
 
-<div class="bg-zinc-100">
+<div class="bg-zinc-100" #toolbar>
   <!--
-    A6 工具列（#1314 課表）：日／週＋週日期條＋快速選取在同一列，其餘動作收進「⋯」
-    （全部異動、進階篩選、隱藏停課、操作紀錄、未指派／未點名）。⋯ 上的數字＝待處理堂數。
-    週日期條兩端的上一週／下一週 A6 沒畫，但它是換週的入口，保留。
+    A6 工具列 `.sx`（#1620 使用者裁定）：日／週、週範圍、週列（`.dtabs`，週一～週六；週日有課才出現）、
+    快速選取＋「⋯」同一列。A6 沒有換週，‹ › 是使用者保留的例外（a6-adoption-rules R2）；
+    「回到今天」與日曆跳日照 A6 拿掉 —— 點「今天」那格就是回到今天。
+    手機：第一列照 A6 是日／週＋週列；‹ › 放到第二列左邊（週列塞不下兩顆箭頭），工具靠右、沒有框線。
   -->
-  <div class="page-wrap flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 md:gap-x-3">
+  <div
+    class="page-wrap flex flex-wrap items-center gap-x-5 gap-y-3 py-2 max-wide:gap-x-2 max-wide:gap-y-0"
+  >
     @if (mode() !== 'results') {
-      <div class="inline-flex gap-0.5 rounded-md bg-zinc-100 p-0.5" role="group" aria-label="檢視">
+      <div
+        class="inline-flex gap-0.5 rounded-md bg-zinc-100 p-0.5 max-wide:order-1"
+        role="group"
+        aria-label="檢視"
+      >
         <button
           type="button"
           class="block h-11 min-w-11 cursor-pointer rounded-sm border-0 px-3 text-center text-lg leading-normal font-semibold wide:h-8 wide:min-w-10"
@@ -48,37 +55,84 @@
         </button>
       </div>
       <span
-        class="hidden text-md font-normal whitespace-nowrap text-zinc-600 tabular-nums md:inline"
+        class="hidden text-md font-normal whitespace-nowrap text-zinc-600 tabular-nums wide:inline"
         >{{ weekLabel() }}</span
       >
-      <!-- 跳到某天（#1184 留下的，併進 G3）：原生日期選擇器，按鈕只是它的入口 -->
-      <label
-        class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md text-zinc-900 hover:bg-zinc-200"
-        title="跳到某天"
-        (click)="$any(jump).showPicker?.()"
-      >
-        <i class="pi pi-calendar" aria-hidden="true"></i>
-        <input
-          #jump
-          class="sr-only"
-          type="date"
-          aria-label="跳到某天"
-          [value]="day() | date: 'yyyy-MM-dd'"
-          (change)="jumpTo(jump.value)"
-        />
-      </label>
+      <!-- 桌機：‹ 週列 › 一組靠右；手機拆開（contents），箭頭排到第二列 -->
+      <div class="flex min-w-0 items-center wide:ml-auto max-wide:contents">
+        <button
+          type="button"
+          class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 max-wide:order-4 max-wide:mt-2"
+          aria-label="上一週"
+          (click)="shiftWeek(-1)"
+        >
+          <i class="pi pi-chevron-left text-sm" aria-hidden="true"></i>
+        </button>
+        <div
+          class="flex min-w-0 gap-0.5 max-wide:order-2 max-wide:flex-1 max-wide:gap-0"
+          data-part="dtabs"
+        >
+          @for (d of stripDays(); track d.getTime()) {
+            <button
+              type="button"
+              class="grid min-h-11 min-w-0 flex-1 cursor-pointer justify-items-center border-0 border-b-2 bg-transparent px-px pt-1 pb-1.5 leading-[1.25] hover:border-b-zinc-500 wide:min-w-16 wide:flex-none wide:px-2 wide:py-1.5"
+              [class.border-transparent]="!isSelectedDay(d)"
+              [class.border-accent-vivid]="isSelectedDay(d)"
+              [class.text-zinc-500]="!isSelectedDay(d)"
+              [class.text-zinc-700]="isSelectedDay(d)"
+              [attr.aria-current]="isSelectedDay(d) ? 'date' : null"
+              (click)="setDay(d)"
+            >
+              <span class="text-xs wide:text-sm">週{{ weekdayLabel(d) }}</span>
+              <b
+                class="text-base tabular-nums wide:text-lg"
+                [class.text-zinc-700]="!isSelectedDay(d)"
+                [class.text-zinc-900]="isSelectedDay(d)"
+                >{{ d | date: 'M/d' }}</b
+              >
+              @if (isTodayDate(d)) {
+                <i class="text-xs font-semibold text-zinc-700 not-italic">今天</i>
+              }
+            </button>
+          }
+        </div>
+        <button
+          type="button"
+          class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 max-wide:order-5 max-wide:mt-2"
+          aria-label="下一週"
+          (click)="shiftWeek(1)"
+        >
+          <i class="pi pi-chevron-right text-sm" aria-hidden="true"></i>
+        </button>
+      </div>
+      <span class="hidden basis-full max-wide:order-3 max-wide:block" aria-hidden="true"></span>
     }
-    <div
-      class="order-3 flex w-full items-center justify-end gap-2 border-t border-zinc-200 pt-2 md:order-last md:w-auto md:border-t-0 md:pt-0"
-    >
+    <!-- A6 `.sx__tools`：快速選取＋（使用者保留的）⋯，上面沒有框線 -->
+    <div class="flex items-center gap-2 max-wide:order-6 max-wide:mt-2 max-wide:ml-auto">
       <!-- 快速選取（#1174 G3）：桌機開關工具列下的「一次勾：」那一列；手機打開底部面板 -->
       <button
         type="button"
-        class="hidden h-11 cursor-pointer items-center justify-center rounded-md gap-1.5 border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex wide:h-[30px] wide:px-3 wide:text-sm"
+        class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 wide:inline-flex wide:h-[30px] wide:px-3 wide:text-sm aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
         [attr.aria-pressed]="picking()"
         (click)="picking.set(!picking())"
       >
-        {{ picking() ? '完成' : '快速選取' }}
+        @if (picking()) {
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3.5 8.5l3 3 6-7" /></svg
+          >完成
+        } @else {
+          快速選取
+        }
       </button>
       <button
         type="button"
@@ -105,63 +159,6 @@
         }
       </button>
     </div>
-    @if (mode() !== 'results') {
-      <!-- 日期條（A6 .dtabs）：一週七天，選中那天橘底線（週視圖沒有選中的天，點一天＝看那天） -->
-      <div
-        class="order-2 flex w-full min-w-0 items-center gap-0.5 md:order-none md:ml-auto md:w-auto md:gap-1"
-      >
-        <button
-          type="button"
-          class="inline-flex h-11 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 md:size-11"
-          aria-label="上一週"
-          (click)="shiftWeek(-1)"
-        >
-          <i class="pi pi-chevron-left text-sm" aria-hidden="true"></i>
-        </button>
-        <nav class="flex min-w-0 flex-1 gap-0 md:flex-none md:gap-0.5" aria-label="選擇日期">
-          @for (d of weekDays(); track d.getTime()) {
-            <button
-              type="button"
-              class="grid min-h-11 min-w-0 flex-1 cursor-pointer justify-items-center md:flex-none border-0 border-b-2 bg-transparent px-px pt-1 pb-1.5 leading-[1.25] hover:border-b-zinc-500 md:min-w-16 md:px-2 md:py-1.5"
-              [class.border-transparent]="!isSelectedDay(d)"
-              [class.border-accent-vivid]="isSelectedDay(d)"
-              [class.text-zinc-500]="!isSelectedDay(d)"
-              [class.text-zinc-700]="isSelectedDay(d)"
-              [attr.aria-current]="isSelectedDay(d) ? 'date' : null"
-              (click)="setDay(d)"
-            >
-              <span class="text-xs md:text-sm">週{{ weekdayLabel(d) }}</span>
-              <b
-                class="text-base tabular-nums md:text-lg"
-                [class.text-zinc-700]="!isSelectedDay(d)"
-                [class.text-zinc-900]="isSelectedDay(d)"
-                >{{ d | date: 'M/d' }}</b
-              >
-              @if (isTodayDate(d)) {
-                <i class="text-xs font-semibold text-zinc-700 not-italic">今天</i>
-              }
-            </button>
-          }
-        </nav>
-        <button
-          type="button"
-          class="inline-flex h-11 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200 md:size-11"
-          aria-label="下一週"
-          (click)="shiftWeek(1)"
-        >
-          <i class="pi pi-chevron-right text-sm" aria-hidden="true"></i>
-        </button>
-        @if (mode() === 'week' ? !isThisWeek() : !isToday()) {
-          <button
-            type="button"
-            class="hidden h-11 shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold text-zinc-900 hover:border-zinc-400 md:inline-flex"
-            (click)="goToday()"
-          >
-            回到今天
-          </button>
-        }
-      </div>
-    }
   </div>
   @if (mode() === 'results' || hasActiveFilters() || hiddenCancelledCount() > 0) {
     <div
@@ -192,25 +189,28 @@
     </div>
   }
   @if (picking()) {
-    <!-- 桌機「一次勾：」（A6 .sx__row--q） -->
-    <div
-      class="page-wrap hidden flex-wrap items-end gap-x-4 gap-y-2 border-t border-zinc-300 py-3 wide:flex"
-    >
-      <span class="pb-3 text-md font-semibold text-zinc-700">一次勾：</span>
-      <app-schedule-quick-picks
-        [dayName]="mode() === 'day' ? dayName() : null"
-        [teacherOptions]="teacherPickOptions()"
-        [classOptions]="classPickOptions()"
-        (pickDay)="pickDay(dayIso())"
-        (pickTeacher)="pickTeacher($event)"
-        (pickClass)="pickClass($event)"
-      />
-      <span class="pb-3 text-sm text-zinc-700">按住 Shift 再勾一堂，中間的會一起勾起來</span>
+    <!-- 桌機「一次勾：」（A6 `.sx__row--q`）：框線只畫在內容寬（1024），不是整條 page-wrap -->
+    <div class="page-wrap hidden wide:block">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-zinc-300 py-3">
+        <span class="text-md font-bold tracking-[0.04em] text-zinc-800">一次勾：</span>
+        <app-schedule-quick-picks
+          [dense]="true"
+          [dayName]="mode() === 'day' ? dayName() : null"
+          [teacherOptions]="teacherPickOptions()"
+          [classOptions]="classPickOptions()"
+          (pickDay)="pickDay(dayIso())"
+          (pickTeacher)="pickTeacher($event)"
+          (pickClass)="pickClass($event)"
+        />
+        <span class="ml-auto text-sm font-normal text-zinc-600"
+          >按住 Shift 再勾一堂，中間的會一起勾起來</span
+        >
+      </div>
     </div>
   }
 </div>
 
-<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+<div class="page-wrap pt-4 pb-28 wide:pb-32">
   <!-- 異動跑馬燈（A6）：灰條；沒有異動時整條不畫 -->
   @if (mode() !== 'results') {
     <div class="mb-4">
@@ -393,7 +393,7 @@
 
 <app-schedule-quick-sheet
   [open]="sheetOpen()"
-  [title]="mode() === 'day' ? dayName() : mode() === 'week' ? weekLabel() : '篩選結果'"
+  [title]="sheetTitle()"
   [chapters]="sheetChapters()"
   [selectedIds]="selectedIds()"
   [visibleCount]="visibleSelectedCount()"
