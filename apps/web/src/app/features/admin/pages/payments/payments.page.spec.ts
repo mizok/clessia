@@ -8,6 +8,8 @@ import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { InvoicesService, type Invoice, type InvoiceSummary } from '@core/invoices.service';
+import { EnrollmentsService } from '@core/enrollments.service';
+import { CampusContextService } from '@core/campus-context.service';
 
 import { PaymentsPage } from './payments.page';
 
@@ -65,8 +67,8 @@ describe('PaymentsPage', () => {
   let fixture: ComponentFixture<PaymentsPage>;
 
   const invoices = {
-    list: vi.fn(() => of(listResponse([]))),
-    summary: vi.fn(() => of(summary())),
+    list: vi.fn((_params?: unknown) => of(listResponse([]))),
+    summary: vi.fn((_params?: unknown) => of(summary())),
     get: vi.fn(),
     create: vi.fn(),
     addItem: vi.fn(),
@@ -77,7 +79,14 @@ describe('PaymentsPage', () => {
     createRemindersBatch: vi.fn(),
   };
 
+  const enrollments = {
+    list: vi.fn((_params?: unknown) => of({ data: [], meta: { total: 0 } })),
+  };
+
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
+    enrollments.list.mockReset().mockReturnValue(of({ data: [], meta: { total: 0 } }));
     invoices.list.mockReset().mockReturnValue(of(listResponse([])));
     invoices.summary.mockReset().mockReturnValue(of(summary()));
 
@@ -86,6 +95,7 @@ describe('PaymentsPage', () => {
       providers: [
         provideRouter([]),
         { provide: InvoicesService, useValue: invoices },
+        { provide: EnrollmentsService, useValue: enrollments },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
       ],
     }).compileComponents();
@@ -862,6 +872,134 @@ describe('PaymentsPage', () => {
       internals().collect(overdueRows()[0]);
 
       expect(invoices.list.mock.calls.length).toBe(calls);
+    });
+  });
+
+  /**
+   * #1314 帳單殼層：接頂欄分校。列表、摘要、展開的章、待開帳數、匯出都帶同一個 `campusId`；
+   * 換分校頁碼歸 1 並整頁重抓；**每條取數都是 `switchMap`**，快切時慢的舊分校回應不能蓋掉新的。
+   */
+  describe('頂欄分校（#1314）', () => {
+    const pick = async (id: string | null) => {
+      TestBed.inject(CampusContextService).select(id);
+      fixture.detectChanges();
+      await fixture.whenStable();
+    };
+    const lastCall = (m: { mock: { calls: unknown[][] } }) =>
+      m.mock.calls[m.mock.calls.length - 1]![0] as Record<string, unknown>;
+
+    it('頁面接上頂欄（use）：頂欄才會出現分校下拉', () => {
+      expect(TestBed.inject(CampusContextService).inUse()).toBe(true);
+    });
+
+    it('初次載入沒選分校：列表、摘要、待開帳數都不帶 campusId', () => {
+      expect(
+        invoices.list.mock.calls.every(
+          (c) => (c[0] as { campusId?: string }).campusId === undefined,
+        ),
+      ).toBe(true);
+      expect(invoices.summary).toHaveBeenCalledWith({ campusId: undefined });
+      expect(lastCall(enrollments.list)['campusId']).toBeUndefined();
+    });
+
+    it('選分校：列表、摘要、待開帳數都帶 campusId，頁碼歸 1', async () => {
+      component['pageIndex'].set(3);
+      await pick('c1');
+      expect(lastCall(invoices.list)).toMatchObject({ campusId: 'c1', page: 1 });
+      expect(invoices.summary).toHaveBeenLastCalledWith({ campusId: 'c1' });
+      expect(lastCall(enrollments.list)).toMatchObject({ campusId: 'c1', hasInvoice: false });
+      expect(component['pageIndex']()).toBe(1);
+    });
+
+    it('選回「全部分校」：campusId 不帶（undefined），不是舊的 id', async () => {
+      await pick('c1');
+      await pick(null);
+      expect(lastCall(invoices.list)['campusId']).toBeUndefined();
+      expect(invoices.summary).toHaveBeenLastCalledWith({ campusId: undefined });
+      expect(lastCall(enrollments.list)['campusId']).toBeUndefined();
+    });
+
+    it('展開的章跟著換分校：頁碼歸 1、含已繳清章的多退那支；沒展開的章不多打', async () => {
+      component['toggleChapter']('dueSoon');
+      component['toggleChapter']('paid');
+      component['patchChapter']('dueSoon', { page: 2 });
+      invoices.list.mockClear();
+      await pick('c2');
+      const calls = invoices.list.mock.calls.map((c) => c[0] as Record<string, unknown>);
+      const dueSoon = calls.filter((c) => c['dueState'] === 'dueSoon');
+      expect(dueSoon).toHaveLength(1);
+      expect(dueSoon[0]).toMatchObject({ campusId: 'c2', page: 1 });
+      const paid = calls.filter((c) => c['status'] === 'paid');
+      expect(paid[0]).toMatchObject({ campusId: 'c2', page: 1 });
+      const over = calls.filter((c) => c['status'] === 'overrefunded');
+      expect(over[0]).toMatchObject({ campusId: 'c2' });
+      // 沒展開的「未到期」章不多打
+      expect(calls.filter((c) => c['dueState'] === 'notDue')).toHaveLength(0);
+    });
+
+    it('匯出帶畫面上的分校', async () => {
+      await pick('c3');
+      invoices.list.mockClear();
+      await component['exportInvoices']({ hide: vi.fn() } as never);
+      expect(lastCall(invoices.list)).toMatchObject({ campusId: 'c3' });
+    });
+
+    describe('亂序：快切分校時慢的舊回應不能蓋掉新的（switchMap）', () => {
+      it('列表', async () => {
+        const a = new Subject<ReturnType<typeof listResponse>>();
+        const b = new Subject<ReturnType<typeof listResponse>>();
+        invoices.list.mockReturnValueOnce(a).mockReturnValueOnce(b);
+        await pick('A');
+        await pick('B');
+        b.next(listResponse([invoice({ id: 'B1' })], 1));
+        a.next(listResponse([invoice({ id: 'A1' }), invoice({ id: 'A2' })], 2));
+        expect(component['invoices']().map((i) => i.id)).toEqual(['B1']);
+        expect(component['totalRecords']()).toBe(1);
+      });
+
+      it('摘要', async () => {
+        const a = new Subject<InvoiceSummary>();
+        const b = new Subject<InvoiceSummary>();
+        invoices.summary.mockReturnValueOnce(a).mockReturnValueOnce(b);
+        await pick('A');
+        await pick('B');
+        b.next(summary({ month: { month: '2026-10', billed: 222, received: 1 } }));
+        a.next(summary({ month: { month: '2026-10', billed: 111, received: 1 } }));
+        expect(component['summary']()?.month.billed).toBe(222);
+      });
+
+      it('待開帳數', async () => {
+        const a = new Subject<{ data: never[]; meta: { total: number } }>();
+        const b = new Subject<{ data: never[]; meta: { total: number } }>();
+        enrollments.list.mockReturnValueOnce(a).mockReturnValueOnce(b);
+        await pick('A');
+        await pick('B');
+        b.next({ data: [], meta: { total: 2 } });
+        a.next({ data: [], meta: { total: 99 } });
+        expect(component['uninvoicedCount']()).toBe(2);
+      });
+
+      it('展開的章', async () => {
+        component['toggleChapter']('dueSoon');
+        const a = new Subject<ReturnType<typeof listResponse>>();
+        const b = new Subject<ReturnType<typeof listResponse>>();
+        const queue = [a, b];
+        // 只有「7 天內到期」章的請求走 Subject（依呼叫順序 A、B）；其餘（主列表）回空
+        invoices.list.mockImplementation((params?: unknown) =>
+          (params as { dueState?: string }).dueState === 'dueSoon'
+            ? queue.shift()!
+            : of(listResponse([])),
+        );
+        await pick('A');
+        await pick('B');
+        // forkJoin 要等內層完成才會發值，所以 next 之後要 complete
+        b.next(listResponse([invoice({ id: 'B1' })], 1));
+        b.complete();
+        a.next(listResponse([invoice({ id: 'A1' })], 1));
+        a.complete();
+        const rows = component['chapters']()['dueSoon'].rows.map((r: Invoice) => r.id);
+        expect(rows).toEqual(['B1']);
+      });
     });
   });
 });
