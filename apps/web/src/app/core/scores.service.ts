@@ -95,6 +95,41 @@ export interface ClassExamStats {
   scores: ClassExamScore[];
 }
 
+/** 單場列：`avgScore` 是該場自己的尺度（配 `totalScore`），只含 scored */
+export interface OverviewExamRow {
+  examId: string;
+  examName: string;
+  examDate: string;
+  totalScore: number;
+  avgScore: number | null;
+  failCount: number;
+  absentCount: number;
+}
+
+/** `GET /scores/overview`（#1314 G5）：近 `days` 天（台北日）的校內考 */
+export interface ScoresOverview {
+  windowDays: number;
+  /** `avgScore` 換算成 100 分制 */
+  exams: { count: number; pendingCount: number; avgScore: number | null };
+  /** 每生最近一場不及格，依得分率升冪前 5；`grade` 是 enum，標籤用 `GRADE_LEVEL_LABELS`（students.service）轉 */
+  failingStudents: Array<{
+    studentId: string;
+    name: string;
+    grade: string | null;
+    className: string | null;
+    examName: string;
+    examDate: string;
+    score: number;
+    totalScore: number;
+  }>;
+  failingTotal: number;
+  /** 每班最近一場，依得分率升冪前 3 */
+  lowestClasses: Array<OverviewExamRow & { classId: string; className: string }>;
+  totalClasses: number;
+  /** 一場一列（多班名以「、」接），考試日降冪上限 50 */
+  recentExams: Array<OverviewExamRow & { className: string; missingCount: number }>;
+}
+
 /** `GET /scores/students` 的一列（每生聚合）。校內考是總得分／總滿分，段考是平均 */
 export interface StudentScoreAggregate {
   studentId: string;
@@ -139,6 +174,13 @@ export class ScoresService {
 
   getClassExamStats(classId: string, examId: string): Observable<{ data: ClassExamStats }> {
     return this.http.get<{ data: ClassExamStats }>(`${this.base}/class/${classId}/exam/${examId}`);
+  }
+
+  overview(params?: { days?: number; campusId?: string }): Observable<ScoresOverview> {
+    const query: Record<string, string | number> = {};
+    if (params?.days !== undefined) query['days'] = params.days;
+    if (params?.campusId) query['campusId'] = params.campusId;
+    return this.http.get<ScoresOverview>(`${this.base}/overview`, { params: query });
   }
 
   /**

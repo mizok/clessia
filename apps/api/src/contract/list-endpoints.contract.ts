@@ -165,6 +165,8 @@ const BRANCHES: Record<string, string[]> = {
   // 分校篩選（#1314 DB-campus）：BRANCHES 也過 fill()，{campus} 換成 seed 的一間
   '/api/invoices/summary': ['campusId={campus}'],
   '/api/billing-periods/upcoming-unbilled': ['campusId={campus}'],
+  // 成績總覽（#1314 G5）：academy_exams 的巢狀 embed＋分校篩選＋分頁撈齊
+  '/api/scores/overview': ['days=30', 'days=365&campusId={campus}'],
   // 全部學生的成績聚合（#1314 G8）：scope=all 走分頁撈齊＋分校交集
   '/api/scores/students': ['!scope=all', '!scope=all&campusId={campus}', '!scope=all&sort=grade'],
   // 管理端請假頁（#1314 LV1）：待處理＝endFrom 今天、依開始日排序
