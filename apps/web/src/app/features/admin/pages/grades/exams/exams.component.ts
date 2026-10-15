@@ -10,6 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
@@ -22,12 +23,15 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { PaginatorModule } from 'primeng/paginator';
+import { PopoverModule } from 'primeng/popover';
+import type { Popover } from 'primeng/popover';
 import { ToastModule } from 'primeng/toast';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
 // Shared
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
@@ -37,6 +41,7 @@ import {
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 
 // Dialogs
+import { chapterExamRows } from './exam-chapters.util';
 import { AcademyExamFormDialogComponent } from './academy-exam-form-dialog/academy-exam-form-dialog.component';
 import type { AcademyExamFormDialogResult } from './academy-exam-form-dialog/academy-exam-form-dialog.component';
 import { SchoolExamFormDialogComponent } from './school-exam-form-dialog/school-exam-form-dialog.component';
@@ -168,6 +173,9 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     InputTextModule,
     SelectModule,
     PaginatorModule,
+    PopoverModule,
+    NgTemplateOutlet,
+    ChapterHeadComponent,
     ToastModule,
     PageOpenComponent,
     EmptyStateComponent,
@@ -257,6 +265,26 @@ export class ExamsComponent implements OnInit {
     return count > 0 ? `篩選 (${count})` : '篩選';
   });
 
+  /** 桌機「篩選」鈕上的條件數：連搜尋一起算（桌機的搜尋也收進浮層了） */
+  protected readonly desktopFilterCount = computed(
+    () =>
+      (this.timeRange() !== 'all' ? 1 : 0) +
+      (this.examType() === 'school' && this.schoolId() ? 1 : 0) +
+      (this.subjectId() ? 1 : 0) +
+      // 「待處理」分頁自己就是一個 statusFilter（todo 家族），不算使用者另外加的條件；
+      // 狀態下拉只在「全部」分頁出現
+      (this.tab() === 'all' && this.statusFilter() !== 'all' ? 1 : 0) +
+      (this.searchText().trim() ? 1 : 0),
+  );
+
+  protected readonly filterPopoverRef = viewChild<Popover>('filterPopover');
+  /** 篩選浮層開著與否（鈕的 aria-expanded）；外點擊關掉由 Popover 的 onHide 回寫 */
+  protected readonly filtersOpen = signal(false);
+
+  protected onFilterBtnClick(event: Event): void {
+    this.filterPopoverRef()?.toggle(event);
+  }
+
   // Pagination
   protected readonly currentPage = signal(1);
   protected readonly PAGE_SIZE = PAGE_SIZE;
@@ -300,6 +328,16 @@ export class ExamsComponent implements OnInit {
   protected progressPct(row: AcademyExamRow): number {
     return row.expectedCount > 0 ? Math.min(100, (row.scoreCount / row.expectedCount) * 100) : 0;
   }
+
+  /**
+   * 補習班「待處理」分頁依進度分章（A6，#1314）；其他情況（全部分頁、學校考試）維持一張扁平列表。
+   * 學校考試沒有分母，沒有「登到一半」。
+   */
+  protected readonly chapters = computed(() =>
+    this.examType() === 'academy' && this.tab() === 'pending'
+      ? chapterExamRows(this.currentRows())
+      : null,
+  );
 
   // 待辦提醒：active 且 scoreCount = 0
   protected readonly todoCount = computed(() => {
