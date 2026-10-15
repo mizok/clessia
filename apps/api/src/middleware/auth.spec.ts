@@ -451,6 +451,48 @@ describe('authMiddleware 的身分快取：撤銷最遲 30 秒生效', () => {
     await expect(res.json()).resolves.toMatchObject({ code: 'ACCOUNT_DISABLED' });
   });
 
+  it('剛好滿 30 秒的那一刻已經拒絕（上限是「最遲」，不是「之後」）', async () => {
+    vi.useFakeTimers();
+    const results = {
+      user_roles: { data: [{ role: 'admin', permissions: [] }] as unknown, error: null },
+    };
+    const app = appWithMutableIdentity(results);
+    expect((await app.request('/admin-only')).status).toBe(200);
+
+    results.user_roles = { data: [{ role: 'teacher', permissions: [] }], error: null };
+    vi.advanceTimersByTime(REVOCATION_LIMIT_MS);
+
+    expect((await app.request('/admin-only')).status).toBe(403);
+  });
+
+  it('快取按使用者分開：A 的身分不會被 B 拿去用', async () => {
+    vi.useFakeTimers();
+    const rolesByUser: Record<string, unknown[]> = {
+      'user-a': [{ role: 'admin', permissions: [] }],
+      'user-b': [],
+    };
+    const queriedUsers: string[] = [];
+    fromMock.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: (_column: string, userId: string) => {
+          queriedUsers.push(userId);
+          const data = table === 'user_roles' ? (rolesByUser[userId] ?? []) : [];
+          return Promise.resolve({ data, error: null });
+        },
+      }),
+    }));
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.get('/admin-only', requireRoles('admin'), (c) => c.json({ ok: true }));
+
+    getSession.mockResolvedValue({ user: { id: 'user-a', orgId: 'org-1' } });
+    expect((await app.request('/admin-only')).status).toBe(200);
+
+    getSession.mockResolvedValue({ user: { id: 'user-b', orgId: 'org-1' } });
+    expect((await app.request('/admin-only')).status).toBe(403);
+    expect(queriedUsers.filter((id) => id === 'user-b')).toHaveLength(3);
+  });
+
   it('查詢失敗不進快取：下一個請求重查', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const results: Record<string, { data: unknown; error: unknown }> = {
