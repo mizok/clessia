@@ -36,6 +36,18 @@ export class PageOpenComponent {
    */
   readonly subLarge = input(false);
 
+  /**
+   * 課表的色面（A6 `schedule.css:10-11,277`）：這頁自己把標題縮成 40／26px、桌機上內距 32／下 24。
+   * 預設 false＝全站一般色面，別頁 DOM 與 class 不變。
+   */
+  readonly compact = input(false);
+
+  protected readonly wrapClass = computed(
+    () =>
+      'page-wrap relative py-6 ' +
+      (this.compact() ? 'wide:pt-8 wide:pb-6' : 'wide:pt-12 wide:pb-10'),
+  );
+
   protected readonly subClass = computed(() =>
     this.subLarge()
       ? 'mt-4 mb-0 max-w-[46em] text-lg font-semibold tracking-[-0.01em] text-band-ink empty:hidden wide:text-2xl'
@@ -45,6 +57,8 @@ export class PageOpenComponent {
   protected readonly titleClass = computed(() =>
     this.nameSize()
       ? 'm-0 max-w-[18em] text-[44px] leading-none font-bold tracking-[-0.04em] text-balance wide:text-[72px]'
-      : 'm-0 max-w-[18em] text-[28px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[48px] wide:leading-[1.14] wide:tracking-[-0.035em]',
+      : this.compact()
+        ? 'm-0 max-w-[18em] text-[26px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[40px] wide:leading-[1.14] wide:tracking-[-0.035em]'
+        : 'm-0 max-w-[18em] text-[28px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[48px] wide:leading-[1.14] wide:tracking-[-0.035em]',
   );
 }

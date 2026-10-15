@@ -7,7 +7,7 @@
   別頁帶範圍條件進來（儀表板未點名、開課班整期、色面計數）時切「篩選結果」：依日期分章的清單。
   缺資料的（代課原老師、調課細節、跑馬燈）課塊先標「有異動」，見 #1174 後續項。
 -->
-<app-page-open>
+<app-page-open [compact]="true">
   <ng-container openTitle>
     @if (loadedOnce() && !loadFailed()) {
       {{ headline() }}
