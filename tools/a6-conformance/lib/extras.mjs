@@ -245,6 +245,16 @@ export function collectExtras(pages) {
 }
 
 const cell = (t) => String(t ?? '').replace(/\|/g, '\\|');
+/** 判讀分四類（給計畫席與使用者篩）。 */
+export const judgment = (f) =>
+  f.hint.startsWith('疑似：稿也有這份清單')
+    ? '疑似同一份清單'
+    : f.hint.startsWith('疑似：對應')
+      ? '疑似對應稿上某項'
+      : f.hint.startsWith('文案')
+        ? '文案'
+        : '功能';
+
 const featRow = (f, shots) =>
   [
     cell(f.name),
@@ -254,6 +264,7 @@ const featRow = (f, shots) =>
         .join('<br>'),
     ),
     cell(f.type),
+    cell(f.hint),
     cell(
       Object.entries(f.sizes)
         .map(([w, x]) => `${w}：${x}`)
@@ -277,13 +288,7 @@ export function extrasMarkdown({ shell, pages }, shotsOf) {
     '',
     `判讀：${Object.entries(
       [...shell, ...pages.flatMap((p) => p.features)].reduce((m, f) => {
-        const k = f.hint.startsWith('疑似：稿也有這份清單')
-          ? '疑似同一份清單'
-          : f.hint.startsWith('疑似：對應')
-            ? '疑似對應稿上某項'
-            : f.hint.startsWith('文案')
-              ? '文案'
-              : '功能';
+        const k = judgment(f);
         return { ...m, [k]: (m[k] ?? 0) + 1 };
       }, {}),
     )
@@ -321,4 +326,28 @@ export function extrasMarkdown({ shell, pages }, shotsOf) {
       );
   }
   return L.join('\n');
+}
+
+const TAG = { 1440: 'd', 360: 'm' };
+
+/** 給計畫席整理用的 JSON：一項一筆，id 與裁圖檔名一致（`<section>-<序號>`）。 */
+export function extrasJson({ shell, pages }, shotsOf) {
+  const item = (section, cfg, f, i) => ({
+    id: `${section}-${i + 1}`,
+    section,
+    appRoute: cfg?.app ?? null,
+    a6File: cfg?.a6 ?? null,
+    name: f.name,
+    where: Object.fromEntries(Object.entries(f.where).map(([w, x]) => [TAG[w], x])),
+    presentation: f.type,
+    judgment: judgment(f),
+    judgmentNote: f.hint,
+    size: Object.fromEntries(Object.entries(f.sizes).map(([w, x]) => [TAG[w], x])),
+    currentStatus: f.dev ? `已登偏離：${f.dev.reason}（${f.dev.source}）` : null,
+    shots: shotsOf(section, f),
+  });
+  return [
+    ...shell.map((f, i) => item('shell', null, f, i)),
+    ...pages.flatMap((p) => p.features.map((f, i) => item(p.page, p.cfg, f, i))),
+  ];
 }

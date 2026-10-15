@@ -576,3 +576,20 @@ test('多出功能：同型 ≥3 項合成一份資料清單；下拉的內部�
   );
   assert.ok(pages[0].skipped.some((x) => /下拉／日期元件的內部/.test(x.why)));
 });
+
+test('extras.md 每列格數＝表頭欄數；extras.json 欄位齊全', async () => {
+  const { collectExtras, extrasMarkdown, extrasJson } = await import('./extras.mjs');
+  const P = (key, kind, role, tpl, box) => ({ key, parent: key.split('>').slice(0, -1).join('>') || null, kind, role, tpl, box, inRows: 0 });
+  const parts = [P('>landmark:main[]', 'landmark', 'main', '', [0, 0, 1440, 1000]), P('>landmark:main[]>control:button[匯入家長]', 'control', 'button', '匯入家長', [10, 10, 80, 38])];
+  const rows = [{ status: '多', app: parts[1].key, detail: '', bucket: '待修' }];
+  const data = collectExtras([{ page: 'parents', cfg: { app: '/admin/parents', a6: 'parents.html' }, widths: [{ width: 1440, tag: 'd', rows, parts, height: 1000 }] }]);
+  const md = extrasMarkdown(data, () => ['extras/parents-1-1440.png']);
+  const cells = (l) => l.split('|').length;
+  const tables = md.split('\n').filter((l) => l.startsWith('|'));
+  const header = tables.find((l) => l.startsWith('| 功能'));
+  for (const l of tables) assert.equal(cells(l), cells(header), l);
+  assert.match(md, /\| 功能 \| 1440/); // 判讀欄真的有值
+  const [j] = extrasJson(data, () => ['extras/parents-1-1440.png']);
+  assert.deepEqual(Object.keys(j).sort(), ['a6File', 'appRoute', 'currentStatus', 'id', 'judgment', 'judgmentNote', 'name', 'presentation', 'section', 'shots', 'size', 'where'].sort());
+  assert.deepEqual(j, { ...j, id: 'parents-1', section: 'parents', appRoute: '/admin/parents', judgment: '功能', size: { d: '80×38' }, currentStatus: null });
+});

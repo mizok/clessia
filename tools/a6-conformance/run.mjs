@@ -21,7 +21,7 @@ import { compareDelta, delta, runScenario } from './lib/behave.mjs';
 import { SCENARIOS } from './lib/scenarios.mjs';
 import { behaveMarkdown, inventoryMarkdown } from './lib/report.mjs';
 import { classify, diffParts, diffMarkdown } from './lib/diff.mjs';
-import { collectExtras, extrasMarkdown } from './lib/extras.mjs';
+import { collectExtras, extrasJson, extrasMarkdown } from './lib/extras.mjs';
 
 const [cmd, ...args] = process.argv.slice(2);
 const pages = args.length ? args : Object.keys(PAGES);
@@ -207,6 +207,10 @@ try {
     if (failed.length)
       md += `\n## 沒跑起來的頁\n\n${failed.map((p) => `- ${p.page}（\`${p.cfg.app}\`）：${p.error}`).join('\n')}\n`;
     fs.writeFileSync(path.join(OUT, 'extras.md'), md);
+    fs.writeFileSync(
+      path.join(OUT, 'extras.json'),
+      JSON.stringify(extrasJson(data, shotsOf), null, 1),
+    );
     console.log(`→ ${path.join(OUT, 'extras.md')}`);
   } else if (cmd === 'behave') {
     for (const page of pages) {
