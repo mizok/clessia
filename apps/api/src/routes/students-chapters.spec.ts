@@ -50,27 +50,36 @@ function appWith(
   campusScope: string[] | null = null,
   extraStudents: Array<Record<string, unknown>> = [],
   /** 記下每次 `from('students')` 的 select 字串，用來數查詢支數 */
-  studentSelects?: string[],
+  studentSelects: string[] = [],
+  /** 聚合查詢（`count()`）回 error —— 模擬正式站沒開 `pgrst.db_aggregates_enabled` */
+  failAggregate = false,
 ) {
   const db = seed(extraStudents);
-  const client = studentSelects
-    ? new Proxy(db.client as { from: (table: string) => SelectableBuilder }, {
-        get: (target, key, receiver) =>
-          key === 'from'
-            ? (table: string) => {
-                const builder = target.from(table);
-                if (table !== 'students') return builder;
-                const select = builder.select.bind(builder);
-                return Object.assign(builder, {
-                  select: (cols?: string, opts?: { count?: string; head?: boolean }) => {
-                    studentSelects.push(cols ?? '*');
-                    return select(cols, opts);
-                  },
-                });
-              }
-            : Reflect.get(target, key, receiver),
-      })
-    : db.client;
+  const failing = () => {
+    const chain: Record<string, unknown> = {
+      then: (resolve: (v: unknown) => unknown) =>
+        resolve({ data: null, error: { message: 'Use of aggregate functions is not allowed' } }),
+    };
+    for (const m of ['eq', 'in', 'or', 'not', 'is']) chain[m] = () => chain;
+    return chain;
+  };
+  const client = new Proxy(db.client as { from: (table: string) => SelectableBuilder }, {
+    get: (target, key, receiver) =>
+      key === 'from'
+        ? (table: string) => {
+            const builder = target.from(table);
+            if (table !== 'students') return builder;
+            const select = builder.select.bind(builder);
+            return Object.assign(builder, {
+              select: (cols?: string, opts?: { count?: string; head?: boolean }) => {
+                studentSelects.push(cols ?? '*');
+                if (failAggregate && /count\(\)/.test(cols ?? '')) return failing();
+                return select(cols, opts);
+              },
+            });
+          }
+        : Reflect.get(target, key, receiver),
+  });
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -100,6 +109,12 @@ async function list(query: string, campusScope: string[] | null = null) {
 
 describe('GET /students —— 年級章節計數（#1314 SL3）', () => {
   // #1595 P3b-B：12 個年級一支 GROUP BY 數完，不是每級一支 head count（14 支會排成 3 波）
+  // 正式站若沒開聚合（migration 沒套、或被回退），count() 會回 error —— 要 500，不能默默顯示全 0
+  it('年級計數查詢回 error → 500', async () => {
+    const res = await appWith(null, [], [], true).request('/?withToday=false');
+    expect(res.status).toBe(500);
+  });
+
   it('年級計數只用一支聚合查詢', async () => {
     const selects: string[] = [];
     const res = await appWith(null, [], selects).request('/?withToday=false');
