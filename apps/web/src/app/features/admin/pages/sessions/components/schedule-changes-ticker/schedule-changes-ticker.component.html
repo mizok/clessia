@@ -4,11 +4,11 @@
 -->
 @if (items().length > 0) {
   <section
-    class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-zinc-100 px-4 py-2 wide:flex-nowrap"
+    class="flex flex-wrap items-center gap-3 rounded-lg bg-zinc-100 p-3 wide:flex-nowrap wide:px-4 wide:py-2"
     aria-label="近期異動"
   >
     <h2
-      class="m-0 flex flex-none flex-col text-lg leading-[1.25] font-bold whitespace-nowrap text-zinc-900"
+      class="m-0 flex flex-none flex-row items-baseline gap-2 text-lg leading-[1.25] font-bold whitespace-nowrap text-zinc-900 wide:flex-col wide:items-stretch wide:gap-0"
     >
       異動<span class="text-sm font-medium text-zinc-600 tabular-nums"
         >今天起 {{ items().length }} 則</span
@@ -45,7 +45,7 @@
     >
       <ul
         #track
-        class="m-0 flex w-max list-none gap-2 p-0 pl-[100%] motion-safe:animate-ticker motion-safe:[animation-duration:var(--ticker-duration,40s)] motion-safe:hover:[animation-play-state:paused] motion-safe:focus-within:[animation-play-state:paused] motion-reduce:pl-0"
+        class="m-0 flex w-max list-none gap-2 py-0 pr-2 pl-[100%] motion-safe:animate-ticker motion-safe:[animation-duration:var(--ticker-duration,40s)] motion-safe:hover:[animation-play-state:paused] motion-safe:focus-within:[animation-play-state:paused] motion-reduce:pl-0"
         [class.motion-safe:[animation-play-state:paused]]="paused()"
         [style.--ticker-duration]="duration() === null ? null : duration() + 's'"
       >
@@ -53,7 +53,7 @@
           <li class="flex-none">
             <button
               type="button"
-              class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:h-9"
+              class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base leading-normal whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:h-9 wide:text-md"
               (click)="pick(item)"
             >
               <b class="font-semibold tabular-nums">{{ item.when }}</b>
@@ -85,10 +85,19 @@
 
     <button
       type="button"
-      class="ml-auto inline-flex min-h-11 flex-none cursor-pointer items-center border-0 bg-transparent p-0 text-base font-semibold whitespace-nowrap text-zinc-900"
+      class="ml-auto inline-flex min-h-11 flex-none cursor-pointer items-center gap-1 border-0 border-solid border-zinc-400 bg-transparent px-0 py-0.5 text-base leading-normal font-semibold whitespace-nowrap text-zinc-900 wide:min-h-0 wide:border-b"
       (click)="openAll()"
     >
-      <span class="border-0 border-b border-solid border-zinc-400 py-0.5">全部異動</span>
+      全部異動<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          d="M2.5 8h11M10 4.5L13.5 8 10 11.5"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          fill="none"
+        />
+      </svg>
     </button>
   </section>
 }

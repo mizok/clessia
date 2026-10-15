@@ -265,6 +265,13 @@ export class SessionsPage implements OnInit {
     if (!from) return '';
     return to ? `${format(from, 'M/d')}–${format(to, 'M/d')}` : format(from, 'M/d');
   });
+  /** 色面標題的兩行（A6：「…堂課，」換行「…堂有異動。」）；篩選結果那句不拆 */
+  protected readonly headlineLines = computed<[string, string | null]>(() => {
+    const h = this.headline();
+    const i = this.mode() === 'results' ? -1 : h.indexOf('，');
+    return i < 0 ? [h, null] : [h.slice(0, i + 1), h.slice(i + 1)];
+  });
+
   protected readonly headline = computed(() => {
     if (this.mode() === 'results') {
       const range = this.rangeLabel();

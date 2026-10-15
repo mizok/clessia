@@ -1896,20 +1896,23 @@ describe('SessionsPage', () => {
       ) as HTMLElement;
       expect(desktop.textContent?.trim()).toBe('快速選取');
       expect(desktop.querySelector('i')).toBeNull();
-      expect(desktop.classList.contains('border-zinc-900')).toBe(true);
+      expect(desktop.classList.contains('border-zinc-300')).toBe(true); // A6：淺框，不是近黑
+      expect(desktop.classList.contains('bg-transparent')).toBe(true);
       (component as unknown as { picking: { set: (v: boolean) => void } }).picking.set(true);
       fixture.detectChanges();
       expect(desktop.textContent?.trim()).toBe('完成');
       expect(desktop.getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('手機快速選取：全寬一列（flex-1、44 高），圖示拿掉；勾了課會寫「已勾 N」', () => {
+    it('手機快速選取：A6 量到的是自然寬度（不是全寬）、白底、44 高、圖示拿掉；所在列靠右', () => {
       const mobile = Array.from(el().querySelectorAll('button')).find(
         (b) => b.classList.contains('wide:hidden') && b.textContent?.includes('快速選取'),
       ) as HTMLElement;
-      expect(mobile.classList.contains('flex-1')).toBe(true);
+      expect(mobile.classList.contains('flex-1')).toBe(false);
+      expect(mobile.classList.contains('bg-white')).toBe(true);
       expect(mobile.classList.contains('h-11')).toBe(true);
       expect(mobile.querySelector('i')).toBeNull();
+      expect(mobile.parentElement!.classList.contains('justify-end')).toBe(true);
     });
 
     it('手機：動作列在日期條之後（order-3 > order-2），桌機回到同一列（md:order-last）', () => {
@@ -1968,6 +1971,41 @@ describe('SessionsPage', () => {
     it('全部停課：「整天停課」，不寫最滿', async () => {
       await show([sess({ status: 'cancelled' })]);
       expect(flat()).toBe('今天整天停課');
+    });
+  });
+
+  /** conformance：色面標題兩行（A6「…堂課，<br>…堂有異動。」）；篩選結果那句不拆 */
+  describe('色面標題兩行', () => {
+    const h1 = () => (fixture.nativeElement as HTMLElement).querySelector('h1') as HTMLElement;
+    it('日／週：逗號後換行（一個 <br>）；文字內容連起來仍是原句', async () => {
+      sessionsServiceMock.list.mockReturnValue(
+        of(
+          makeListResponse([
+            {
+              id: 's1',
+              sessionDate: '2026-04-15',
+              startTime: '17:00:00',
+              endTime: '18:00:00',
+              status: 'scheduled',
+              teacherId: 't1',
+              teacherName: '甲',
+              className: '國二數學',
+              classId: 'c1',
+              assignmentStatus: 'assigned',
+            } as never,
+          ]),
+        ),
+      );
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(h1().querySelectorAll('br').length).toBe(1);
+      expect(h1().textContent?.replace(/\s+/g, '')).toBe('今天1堂課，沒有異動。');
+    });
+    it('篩選結果：不拆行', async () => {
+      (component as unknown as { mode: { set: (v: string) => void } }).mode.set('results');
+      fixture.detectChanges();
+      expect(h1().querySelectorAll('br').length).toBe(0);
     });
   });
 });
