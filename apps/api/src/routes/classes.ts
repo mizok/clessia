@@ -19,6 +19,7 @@ import type {
 } from '../domain/session-assignment/session-assignment.types';
 import { waitUntilFrom } from '../lib/wait-until';
 import { hasPermission } from '../lib/permissions';
+import { loadLatestExams, type LatestExam } from '../lib/class-latest-exam';
 import {
   normalizeTime,
   toMinutes,
@@ -76,6 +77,19 @@ const ClassSchema = z
     upcomingTeacherConflictCount: z.number().optional(),
     /** 列表才有：今天在籍的人數（`countEnrolledOn`，跟點名／課堂名單同一份規則）；A6「17／24 人」 */
     enrolledCount: z.number().int().optional(),
+    /** 列表才有：最近一場有成績的校內考（#1314 G6，`lib/class-latest-exam.ts`）；沒考過＝null，查詢失敗＝不回 */
+    latestExam: z
+      .object({
+        examId: z.string(),
+        name: z.string(),
+        examDate: z.string(),
+        totalScore: z.number(),
+        avgScore: z.number().nullable(),
+        failCount: z.number().int(),
+        absentCount: z.number().int(),
+      })
+      .nullable()
+      .optional(),
     schedules: z.array(ScheduleSchema).optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -319,6 +333,7 @@ interface ClassExtras {
   upcomingClassConflictCount?: number;
   upcomingTeacherConflictCount?: number;
   enrolledCount?: number;
+  latestExam?: LatestExam | null;
   updatedByName?: string | null;
 }
 
@@ -392,6 +407,7 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     upcomingClassConflictCount: extras?.upcomingClassConflictCount,
     upcomingTeacherConflictCount: extras?.upcomingTeacherConflictCount,
     enrolledCount: extras?.enrolledCount,
+    latestExam: extras?.latestExam,
     schedules: extras?.schedules?.map((s) => mapSchedule(s as Record<string, unknown>)),
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
@@ -562,6 +578,7 @@ app.openapi(
     const upcomingClassConflictCountMap: Record<string, number> = {};
     const upcomingTeacherConflictCountMap: Record<string, number> = {};
     const enrolledCountMap: Record<string, number> = {};
+    let latestExamMap: Map<string, LatestExam | null> | null = null;
 
     if (classIds.length > 0) {
       // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。這個變數同時餵給下面
@@ -570,33 +587,40 @@ app.openapi(
       const today = getCurrentTaipeiDateString();
       // #949：三支都只依賴 classIds，彼此互不相依 —— 同一輪發出去
       // （原本依序發四支，第四支是下面註解說的 any-sessions，已刪）。
-      const [sessionsResult, pastSessionsCheck, upcomingCancelledResult, enrollmentsResult] =
-        await Promise.all([
-          supabase
-            .from('sessions')
-            .select('id, class_id, session_date, start_time, end_time, teacher_id')
-            .in('class_id', classIds)
-            .gte('session_date', today)
-            .eq('status', 'scheduled'),
-          // TODO: 待老師點名功能完成後，改為查 status='completed'
-          // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
-          // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
-          checkClassesPastSessions(supabase, classIds),
-          supabase
-            .from('sessions')
-            .select('class_id')
-            .in('class_id', classIds)
-            .gte('session_date', today)
-            .eq('status', 'cancelled'),
-          // 在籍人數（A6「17／24 人」）：只撈本頁班級的在籍報名，在記憶體裡用 `countEnrolledOn`
-          // 數 —— 跟課堂名單、點名同一份「某天在不在籍」的規則（`lib/session-roster.ts`）
-          supabase
-            .from('enrollments')
-            .select('class_id, effective_from, effective_to')
-            .in('class_id', classIds)
-            .eq('status', 'active')
-            .eq('org_id', c.get('orgId')),
-        ]);
+      const [
+        sessionsResult,
+        pastSessionsCheck,
+        upcomingCancelledResult,
+        enrollmentsResult,
+        latestExams,
+      ] = await Promise.all([
+        supabase
+          .from('sessions')
+          .select('id, class_id, session_date, start_time, end_time, teacher_id')
+          .in('class_id', classIds)
+          .gte('session_date', today)
+          .eq('status', 'scheduled'),
+        // TODO: 待老師點名功能完成後，改為查 status='completed'
+        // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
+        // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
+        checkClassesPastSessions(supabase, classIds),
+        supabase
+          .from('sessions')
+          .select('class_id')
+          .in('class_id', classIds)
+          .gte('session_date', today)
+          .eq('status', 'cancelled'),
+        // 在籍人數（A6「17／24 人」）：只撈本頁班級的在籍報名，在記憶體裡用 `countEnrolledOn`
+        // 數 —— 跟課堂名單、點名同一份「某天在不在籍」的規則（`lib/session-roster.ts`）
+        supabase
+          .from('enrollments')
+          .select('class_id, effective_from, effective_to')
+          .in('class_id', classIds)
+          .eq('status', 'active')
+          .eq('org_id', c.get('orgId')),
+        loadLatestExams(supabase, c.get('orgId'), classIds),
+      ]);
+      latestExamMap = latestExams;
 
       const enrollmentRanges: EnrollmentRange[] = (
         (enrollmentsResult.data ?? []) as Array<Record<string, unknown>>
@@ -729,6 +753,7 @@ app.openapi(
           upcomingClassConflictCount: upcomingClassConflictCountMap[id] ?? 0,
           upcomingTeacherConflictCount: upcomingTeacherConflictCountMap[id] ?? 0,
           enrolledCount: enrolledCountMap[id],
+          latestExam: latestExamMap ? (latestExamMap.get(id) ?? null) : undefined,
         });
       }),
       meta: {

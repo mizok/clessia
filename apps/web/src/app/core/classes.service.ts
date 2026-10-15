@@ -27,6 +27,19 @@ export interface Class {
   maxStudents: number;
   /** 在籍人數（A6「17／24 人」）。列表 API 還沒帶時是 undefined，畫面退回「上限 N 人」 */
   enrolledCount?: number;
+  /**
+   * 最近一場有成績的校內考（#1314 G6，列表才有）。`avgScore` 是該場自己的尺度（配 `totalScore`），
+   * 只含 scored；`null`＝沒考過；`undefined`＝API 沒帶或查詢失敗，缺值不畫
+   */
+  latestExam?: {
+    examId: string;
+    name: string;
+    examDate: string;
+    totalScore: number;
+    avgScore: number | null;
+    failCount: number;
+    absentCount: number;
+  } | null;
   gradeLevels: string[];
   nextClassId: string | null;
   isActive: boolean;
