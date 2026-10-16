@@ -730,4 +730,20 @@ describe('ContactBookPage', () => {
       ]);
     });
   });
+
+  // #1641 5b（使用者 10-16 裁定第 3 點）：已經有資料時重抓保留舊內容並變淡，只有第一次才是骨架
+  it('重抓時舊的聯絡簿留著並變淡，不回到骨架', async () => {
+    contactBook.list.mockReturnValue(of(listResponse([entry()])));
+    (component as unknown as { load: () => void }).load();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('[data-testid="entry"]').length).toBe(1);
+
+    contactBook.list.mockReturnValue(NEVER);
+    (component as unknown as { load: () => void }).load();
+    fixture.detectChanges();
+    expect(el.querySelector('.reload-veil--stale')).not.toBeNull();
+    expect(el.querySelector('.skeleton-list')).toBeNull();
+    expect(el.querySelectorAll('[data-testid="entry"]').length).toBe(1);
+  });
 });
