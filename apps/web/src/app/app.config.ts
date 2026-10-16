@@ -26,6 +26,7 @@ import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
 import { AuthService } from '@core/auth.service';
 import { handleChunkNavigationError, provideChunkRecovery } from '@core/chunk-recovery.providers';
+import { onRouteViewTransition } from '@core/route-transition';
 
 registerLocaleData(localeZhTW, 'zh-TW');
 
@@ -163,7 +164,8 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
-      withViewTransitions(),
+      // 換頁方向（往深／返回／同層）與「減少動態」：見 core/route-transition.ts（#1641）
+      withViewTransitions({ onViewTransitionCreated: onRouteViewTransition }),
       // 43 條路由全部 lazy 是為了初始 bundle 小，但沒有預載的話每頁第一次進入都要
       // 現場下載 chunk —— 使用者的體感是「每次跳轉都有微小延遲」。首屏渲染完之後
       // 讓瀏覽器閒時把其餘 chunk 拉完，初始 bundle 的大小不受影響。
