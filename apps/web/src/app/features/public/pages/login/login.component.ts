@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
@@ -6,9 +7,13 @@ import { oauthErrorFor } from './oauth-error';
 
 @Component({
   selector: 'app-login',
-  imports: [InlineNoticeComponent],
+  imports: [InlineNoticeComponent, NgTemplateOutlet],
   templateUrl: './login.component.html',
-  host: { class: 'flex min-h-full items-center justify-center' },
+  // 桌機在白面裡垂直置中；手機表單面從返回列下方開始排（A6），不撐滿高度，否則多出一截空捲動
+  host: {
+    class:
+      'flex min-h-full items-center justify-center max-[1024px]:min-h-0 max-[1024px]:items-start',
+  },
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);

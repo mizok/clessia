@@ -97,7 +97,7 @@ export class RoutesCatalog {
   public static readonly PUBLIC_SELECT_ROLE = this.register(
     'select-role',
     '/select-role',
-    '選擇角色',
+    '選擇身分',
     undefined,
     'pi-users',
     false,
