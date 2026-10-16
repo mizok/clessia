@@ -156,6 +156,16 @@ describe('runPush —— push_status 狀態機（#1661，#1626 改版）', () =>
     expect(urls.map((u) => u.split('/').at(-1)).sort()).toEqual(['a', 'b']);
   });
 
+  it('推播角色白名單（PUSH_ENABLED_ROLES）同時帶進 skip 與認領兩句', async () => {
+    const { find } = await run([sub('d1', 's1')], () => 201);
+    const skip = find(/push_error = CASE/)[0]!;
+    expect(skip.sql).toMatch(/WHEN NOT \(n\.role::text = ANY\(\$2\)\) THEN 'ROLE_PUSH_DISABLED'/);
+    expect(skip.params).toEqual([null, ['parent']]);
+    const claim = find(/FOR UPDATE SKIP LOCKED/)[0]!;
+    expect(claim.sql).toMatch(/role::text = ANY\(\$3\)/);
+    expect(claim.params?.[2]).toEqual(['parent']);
+  });
+
   it('批次邊界：裝置數剛好等於 K 的那一則要放進這一批（K=2：1 台＋1 台都認領）', async () => {
     const { urls, find } = await run(
       [sub('d1', 'a'), sub('d2', 'b'), sub('d3', 'c')],

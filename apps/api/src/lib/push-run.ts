@@ -34,6 +34,12 @@ const RETENTION_DAYS = 90;
 export const SEND_TIMEOUT_MS = 5000;
 /** 認領過了這麼久還沒回寫，就當那個 run 死了，重新開放。遠大於一次 run 的長度（送出最多約 5 秒） */
 export const RECLAIM_AFTER_MINUTES = 10;
+/**
+ * 會推播的角色（白名單，計畫席 10-16 20:18 裁定）。老師、管理員第一版不推播、只進通知中心（#1693）：
+ * 不在名單裡的，在 `skipUnreachable` 一律標 `skipped`／`ROLE_PUSH_DISABLED`，認領也不會拿到。
+ * 寫入端（`lib/notify.ts`）照舊寫 skipped，是第二道防線。**之後要開放其他角色推播，只改這一份。**
+ */
+export const PUSH_ENABLED_ROLES: readonly string[] = ['parent'];
 
 export interface PushRunOptions {
   /** 台北今天（`getCurrentTaipeiDateString()`），呼叫端決定 */
@@ -167,21 +173,26 @@ async function reopenAbandoned(db: PoolClient, orgs: Orgs): Promise<number> {
 }
 
 /**
- * 不推播的直接標 `skipped`（一句、整批）：沒有訂閱，或這一類的偏好關掉（偏好只管推播，Q-a）。
+ * 不推播的直接標 `skipped`（一句、整批）：角色不在 `PUSH_ENABLED_ROLES`、沒有訂閱，
+ * 或這一類的偏好關掉（偏好只管推播，Q-a）。
  * 先做這步，認領就只會拿到真的要推的 —— 不佔 K 的名額。
  */
 async function skipUnreachable(db: PoolClient, orgs: Orgs): Promise<number> {
   const { rowCount } = await db.query(
     `UPDATE notifications n SET push_status = 'skipped', push_updated_at = now(),
-       push_error = CASE WHEN NOT EXISTS (
-         SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id
-       ) THEN 'NO_SUBSCRIPTION' ELSE 'PUSH_DISABLED' END
+       push_error = CASE
+         WHEN NOT (n.role::text = ANY($2)) THEN 'ROLE_PUSH_DISABLED'
+         WHEN NOT EXISTS (
+           SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id
+         ) THEN 'NO_SUBSCRIPTION'
+         ELSE 'PUSH_DISABLED' END
      WHERE n.push_status = 'pending' AND ($1::uuid[] IS NULL OR n.org_id = ANY($1))
-       AND (NOT EXISTS (SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id)
+       AND (NOT (n.role::text = ANY($2))
+            OR NOT EXISTS (SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id)
             OR EXISTS (SELECT 1 FROM notification_preferences np
                        WHERE np.user_id = n.user_id AND np.org_id = n.org_id AND np.role = n.role
                          AND np.kind = n.kind AND NOT np.enabled))`,
-    [orgs],
+    [orgs, PUSH_ENABLED_ROLES],
   );
   return rowCount ?? 0;
 }
@@ -213,11 +224,12 @@ async function claim(
     `SELECT d.id, d.payload, s.id AS sub_id, s.endpoint, s.p256dh, s.auth
      FROM (SELECT id, user_id, org_id, payload, created_at FROM notifications
            WHERE push_status = 'pending' AND ($2::uuid[] IS NULL OR org_id = ANY($2))
+             AND role::text = ANY($3)
            ORDER BY created_at, id LIMIT $1
            FOR UPDATE SKIP LOCKED) d
      LEFT JOIN push_subscriptions s ON s.user_id = d.user_id AND s.org_id = d.org_id
      ORDER BY d.created_at, d.id`,
-    [batchSize, orgs],
+    [batchSize, orgs, PUSH_ENABLED_ROLES],
   );
 
   // 依佇列順序把整則（含它所有裝置）放進這一批，直到裝置數用完；一則不拆到兩次 run

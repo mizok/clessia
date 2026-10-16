@@ -336,6 +336,27 @@ run('推播排程對真 Postgres（#1661）', () => {
     expect((await deliveries()).map((d) => d.user_id)).toEqual([mom]);
   });
 
+  it('老師／管理員的 pending 通知就算有訂閱也不推：skip 那一句標成 skipped／ROLE_PUSH_DISABLED（PUSH_ENABLED_ROLES）', async () => {
+    // mom 在這個 org 有訂閱（beforeEach）；直接寫兩筆「漏標 skipped」的老師與管理員通知 —— 第二道防線失守的情況
+    for (const role of ['teacher', 'admin']) {
+      await q(
+        `INSERT INTO notifications (org_id, user_id, role, kind, dedupe_key, payload)
+         VALUES ($1, $2, $3, 'schedule_change', $4, '{"title":"t","body":"b","url":null}')`,
+        [orgId, mom, role, `guard:${role}`],
+      );
+    }
+    expect(await push()).toMatchObject({ skipped: 2, attempted: 0 });
+    expect(sent).toEqual([]);
+    const rows = await q<{ role: string; push_status: string; push_error: string }>(
+      `SELECT role, push_status, push_error FROM notifications WHERE org_id = $1 ORDER BY role`,
+      [orgId],
+    );
+    expect(rows).toEqual([
+      { role: 'admin', push_status: 'skipped', push_error: 'ROLE_PUSH_DISABLED' },
+      { role: 'teacher', push_status: 'skipped', push_error: 'ROLE_PUSH_DISABLED' },
+    ]);
+  });
+
   it('停用的家長 → 不排', async () => {
     await q(`UPDATE parents SET status = 'inactive' WHERE org_id = $1 AND user_id = $2`, [
       orgId,
