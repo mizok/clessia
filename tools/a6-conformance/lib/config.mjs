@@ -409,9 +409,42 @@ export const PAGES = {
   staff: { a6: 'staff.html', app: '/admin/staff' },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {
-    // 稿預設是「收到的」分頁；app 這頁對應「發布公告」，稿認網址 #publish（稿內說明）
-    a6: 'notifications.html#publish',
+    // 預設分頁「收到的」（#1692 起 app 也有）；「發布公告」是 notifications-publish
+    a6: 'notifications.html',
     app: '/admin/notifications',
+    // 稿的按鈕名帶「新」標記（全部標為已讀新），整串文案對不上，自動配對配不起來
+    mapping: {
+      '>control:button[全部標為已讀新]': '>landmark:main[]>control:button[全部標為已讀]',
+    },
+    deviations: [
+      {
+        // 稿上的「新」是設計說明（這個分頁、這顆鈕是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
+        status: '缺',
+        a6: '>text:span\\[新\\]$',
+        reason: '稿的「新」標記是設計說明，不是畫面內容',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
+      },
+      {
+        status: '文案',
+        a6: 'control:button\\[[^\\]]*新\\]$',
+        detail: '^「(.+)新」→「\\1」$',
+        reason: '稿的「新」標記是設計說明，拿掉之後文案相同',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
+      },
+      {
+        // 稿的 .tlink 高 26（padding 2px），app 照 R3 撐到 44
+        status: '尺寸',
+        a6: 'landmark:navigation\\[通知\\]>control:button\\[[^\\]]*\\]$',
+        detail: '^高 \\d+→44',
+        reason: '可點元素的基底高度 ≥ 44px',
+        source: `${rule('R3')}`,
+      },
+    ],
+  },
+  'notifications-publish': {
+    // 「發布公告」分頁：稿與 app 都認網址 #publish
+    a6: 'notifications.html#publish',
+    app: '/admin/notifications#publish',
     deviations: [
       {
         // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
