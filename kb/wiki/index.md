@@ -34,6 +34,7 @@
 - [[architecture/line-oauth-login]] — 密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
 - [[architecture/list-loading-skeleton-batch]] — #508——#426 掃到但根因不同的 10 個檔案，逐檔分類後發現「整塊被文字取代」與「沒有骨架尺寸／會跳版」在這批檔案裡是同一件事，分三類統一做法，全部重用既有 .p-skeleton／.skeleton-list，不新增第三種配方。
 - [[architecture/login-experience]] — 登入頁重設計（品牌卡片 + LINE 官方規範按鈕）與角色選擇回歸彈窗體感 —— /select-role 路由保留為唯一入口，薄殼自動開動態載入的彈窗，bundle 不回胖、無限重導向不回歸。
+- [[architecture/motion]] — 設計稿（#1635，未批准）。2026-10-16 在本機實跑盤點：頁內的狀態變化（換週、換日、日／週、篩選切換、tab）全部是瞬間替換；換頁只有內容區淡入淡出，而且沒有處理「減少動態」。提案：換頁依網址深度給方向（往深從右進、返回從左、同層只淡入淡出）；低頻的模式切換用同文件 view transition；連點型控制項（換週箭頭）不能用 VT —— 實測 VT 動畫期間的第二下點擊會被吞掉（規格：期間點擊一律打到 document element），改成內容層的 animate.enter；新增／刪除列照 A6 的 row-new，補位只在刪除時用 VT。曲線沿用 #1634 的 --arrive／--leave，不另訂。
 - [[architecture/no-division-scoping]] — 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。
 - [[architecture/no-value-display-conventions]] — M4 詞彙統一（#425）查證結論——「—」/「未填寫」/「無關聯 X」對應三種不同語意（唯讀顯示欄位空值/可編輯欄位未填/關聯不存在），不該合併成一種寫法。
 - [[architecture/parent-attendance-grades-billing-pages]] — 家長端 03 片。三頁共用 #344 的 child-switcher，資料走 #351 三支 childId 必填端點。逐項核對 kb specs 與 design-web 構圖跟 #351 實際契約的落差（4 態出勤/日到班時間/每筆 NEW 標籤/課程篩選/已取消分組都對不上），提出降級方案待批准。
