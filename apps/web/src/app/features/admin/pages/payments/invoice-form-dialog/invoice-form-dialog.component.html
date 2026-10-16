@@ -47,9 +47,10 @@
     <div class="flex flex-col gap-2">
       <label class="text-sm font-medium text-zinc-600">明細 *</label>
 
-      @for (item of items(); track $index) {
+      @for (item of items(); track item.key) {
         <div
-          class="grid grid-cols-[minmax(96px,1fr)_minmax(120px,1fr)_minmax(140px,2fr)_auto] items-center gap-2"
+          [style.view-transition-name]="'invoice-item-' + item.key"
+          class="vt-row grid grid-cols-[minmax(96px,1fr)_minmax(120px,1fr)_minmax(140px,2fr)_auto] items-center gap-2"
         >
           <p-select
             [options]="itemTypeOptions"

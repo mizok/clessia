@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
@@ -21,6 +22,11 @@ import { StudentsService, type Student } from '@core/students.service';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 
 interface DraftItem {
+  /**
+   * 前端用的穩定 key（#1641 項 5）：`@for` 用它 track，刪中間一列時被移掉的才是那一列。
+   * 不能 track 物件本身 —— `updateItem` 每次輸入都換新物件，會讓輸入框重建而失焦。不送 API。
+   */
+  key: number;
   type: InvoiceItemType;
   amount: number;
   note: string;
@@ -53,6 +59,8 @@ interface DraftItem {
 })
 export class InvoiceFormDialogComponent {
   private readonly service = inject(InvoicesService);
+  /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
+  private readonly viewTransition = injectViewTransition();
   private readonly studentsService = inject(StudentsService);
   private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
@@ -67,7 +75,8 @@ export class InvoiceFormDialogComponent {
   protected readonly dueDate = signal<Date | null>(null);
   protected readonly note = signal('');
 
-  protected readonly items = signal<DraftItem[]>([{ type: 'tuition', amount: 0, note: '' }]);
+  private nextItemKey = 0;
+  protected readonly items = signal<DraftItem[]>([this.newItem()]);
 
   protected readonly itemTypeOptions = (
     Object.keys(INVOICE_ITEM_TYPE_LABELS) as InvoiceItemType[]
@@ -97,12 +106,20 @@ export class InvoiceFormDialogComponent {
       });
   }
 
+  private newItem(): DraftItem {
+    return { key: this.nextItemKey++, type: 'tuition', amount: 0, note: '' };
+  }
+
   protected addItem(): void {
-    this.items.update((list) => [...list, { type: 'tuition', amount: 0, note: '' }]);
+    this.viewTransition(() => this.items.update((list) => [...list, this.newItem()]), {
+      rows: true,
+    });
   }
 
   protected removeItem(index: number): void {
-    this.items.update((list) => list.filter((_, i) => i !== index));
+    this.viewTransition(() => this.items.update((list) => list.filter((_, i) => i !== index)), {
+      rows: true,
+    });
   }
 
   protected updateItem<K extends keyof DraftItem>(
