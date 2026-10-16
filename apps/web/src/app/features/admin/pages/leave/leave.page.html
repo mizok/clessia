@@ -26,12 +26,13 @@
     <nav class="flex items-center gap-4" aria-label="請假分頁">
       <button
         type="button"
-        class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
         data-testid="tab-pending"
         [class.border-zinc-900]="tab() === 'pending'"
         [class.font-semibold]="tab() === 'pending'"
         [class.border-transparent]="tab() !== 'pending'"
         [attr.aria-current]="tab() === 'pending' ? 'page' : null"
+        [style.view-transition-name]="tab() === 'pending' ? 'seg-leave-tab' : null"
         (click)="setTab('pending')"
       >
         待處理
@@ -41,12 +42,13 @@
       </button>
       <button
         type="button"
-        class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
         data-testid="tab-all"
         [class.border-zinc-900]="tab() === 'all'"
         [class.font-semibold]="tab() === 'all'"
         [class.border-transparent]="tab() !== 'all'"
         [attr.aria-current]="tab() === 'all' ? 'page' : null"
+        [style.view-transition-name]="tab() === 'all' ? 'seg-leave-tab' : null"
         (click)="setTab('all')"
       >
         全部

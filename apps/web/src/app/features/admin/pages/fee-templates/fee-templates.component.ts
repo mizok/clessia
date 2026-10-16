@@ -52,6 +52,7 @@ import { FeeTemplateFormDialogComponent } from './fee-template-form-dialog/fee-t
 import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/billing-period-form-dialog.component';
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
 import { inUseLabel, periodUsageLabel, overlappingNames, amountUnit } from './fee-templates.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 /**
  * 費用方案管理 —— 見 kb/wiki/specs/admin/finance/fee-templates.md。
@@ -119,6 +120,8 @@ export class FeeTemplatesComponent implements OnInit {
    */
   private readonly loadRequests = new Subject<void>();
   private readonly destroyRef = inject(DestroyRef);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   protected readonly showInactive = signal(false);
 
   /**
@@ -275,7 +278,7 @@ export class FeeTemplatesComponent implements OnInit {
   }
 
   protected toggleShowInactive(): void {
-    this.showInactive.update((v) => !v);
+    this.viewTransition(() => this.showInactive.update((v) => !v));
   }
 
   protected openTemplateActionMenu(event: MouseEvent, target: FeeTemplateListItem): void {

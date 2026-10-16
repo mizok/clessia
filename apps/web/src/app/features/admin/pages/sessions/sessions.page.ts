@@ -13,6 +13,7 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { DatePipe } from '@angular/common';
 import { Location } from '@angular/common';
@@ -148,6 +149,8 @@ export class SessionsPage implements OnInit {
   readonly page = input.required<RouteObj>();
 
   private readonly refData = inject(ReferenceDataService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   private readonly classesService = inject(ClassesService);
   private readonly coursesService = inject(CoursesService);
   private readonly enrollmentsService = inject(EnrollmentsService);
@@ -1092,8 +1095,10 @@ export class SessionsPage implements OnInit {
   /** 換日／週、換天都**留著勾**（#1174 G3）：快速選取勾的是跨天的（某老師這週、某班整期），批次列會說有幾堂不在畫面上 */
   protected setView(view: 'day' | 'week'): void {
     if (this.mode() === view) return;
-    this.mode.set(view);
-    this.loadSessions();
+    this.viewTransition(() => {
+      this.mode.set(view);
+      this.loadSessions();
+    });
   }
 
   /** 上一週／下一週：留在目前的日／週檢視（A6 沒有換週，使用者 10-15 裁定保留，#1620） */

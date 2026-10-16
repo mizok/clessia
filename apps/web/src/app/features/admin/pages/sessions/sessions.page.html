@@ -38,7 +38,8 @@
         <button
           type="button"
           class="block h-11 min-w-11 cursor-pointer rounded-sm border-0 px-3 text-center text-lg leading-normal font-semibold wide:h-8 wide:min-w-10"
-          [class]="viewBtnState('day')"
+          [class]="viewBtnState('day') + ' vt-seg'"
+          [style.view-transition-name]="mode() === 'day' ? 'seg-sessions-view' : null"
           [attr.aria-pressed]="mode() === 'day'"
           (click)="setView('day')"
         >
@@ -47,7 +48,8 @@
         <button
           type="button"
           class="block h-11 min-w-11 cursor-pointer rounded-sm border-0 px-3 text-center text-lg leading-normal font-semibold wide:h-8 wide:min-w-10"
-          [class]="viewBtnState('week')"
+          [class]="viewBtnState('week') + ' vt-seg'"
+          [style.view-transition-name]="mode() === 'week' ? 'seg-sessions-view' : null"
           [attr.aria-pressed]="mode() === 'week'"
           (click)="setView('week')"
         >

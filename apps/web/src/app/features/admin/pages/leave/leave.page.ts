@@ -30,6 +30,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 @Component({
   selector: 'app-leave',
@@ -66,6 +67,8 @@ export class LeavePage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly studentsService = inject(StudentsService);
   private readonly destroyRef = inject(DestroyRef);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
 
   protected readonly loading = signal(false);
   protected readonly records = signal<LeaveRequest[]>([]);
@@ -260,9 +263,11 @@ export class LeavePage implements OnInit {
 
   protected setTab(tab: 'pending' | 'all'): void {
     if (this.tab() === tab) return;
-    this.tab.set(tab);
-    this.currentPage.set(1);
-    this.loadRecords();
+    this.viewTransition(() => {
+      this.tab.set(tab);
+      this.currentPage.set(1);
+      this.loadRecords();
+    });
   }
 
   protected onStudentQuery(query: string): void {

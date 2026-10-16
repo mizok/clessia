@@ -955,6 +955,20 @@
     }
   }
 
+  /* 頁內模式切換的同文件 VT（#1641 項 4，shared/utils/view-transition.util.ts）。
+     分段鈕選中的那一顆帶 .vt-seg 與唯一的 view-transition-name，切換時平移到新位置；
+     名字只在頁內 VT 期間（<html data-vt="in-page">）生效 —— 換頁時它要跟著內容區一起動，
+     不能脫離出來單獨淡出。!important 是為了蓋過模板上的 inline style。 */
+  :root:not([data-vt='in-page']) .vt-seg {
+    view-transition-name: none !important;
+  }
+  ::view-transition-group(*.vt-seg) {
+    animation-duration: 200ms;
+    animation-timing-function: var(--arrive);
+  }
+  .vt-seg {
+    view-transition-class: vt-seg;
+  }
   /* =============================================================================
      Route View Transitions
      ============================================================================= */

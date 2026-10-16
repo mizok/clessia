@@ -52,7 +52,8 @@
         @for (opt of examTypeOptions; track opt.value) {
           <button
             type="button"
-            class="min-h-11 cursor-pointer rounded-sm border-0 bg-transparent px-3 text-md font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
+            class="vt-seg min-h-11 cursor-pointer rounded-sm border-0 bg-transparent px-3 text-md font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
+            [style.view-transition-name]="examType() === opt.value ? 'seg-exam-type' : null"
             [attr.aria-pressed]="examType() === opt.value"
             (click)="onExamTypeChange(opt.value)"
           >

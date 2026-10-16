@@ -39,6 +39,7 @@ import {
   PERIOD_OPTIONS,
 } from './contact-book.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 const DEFAULT_RANGE_DAYS = 7;
 
@@ -87,6 +88,8 @@ export class ContactBookPage implements OnInit {
    * 伺服器認知的那一段錯開**，而使用者看到的只是「這幾天好像少了一筆」（#467 同族）。
    */
   private readonly systemClock = inject(SystemClockService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   private get today(): string {
     return this.systemClock.todayTaipei();
   }
@@ -328,7 +331,7 @@ export class ContactBookPage implements OnInit {
 
   /** 未簽收是**前端篩**，資料沒變，不必重打 API */
   protected toggleUnsignedOnly(): void {
-    this.unsignedOnly.update((v) => !v);
+    this.viewTransition(() => this.unsignedOnly.update((v) => !v));
   }
 
   protected clearFilters(): void {
