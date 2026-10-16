@@ -33,6 +33,7 @@ function seed(existing: Array<Record<string, unknown>> = []) {
         max_students: 20,
         is_active: true,
         end_date: null,
+        is_public_enrollment: true,
         courses: { is_active: true },
       },
     ],
