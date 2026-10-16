@@ -16,9 +16,18 @@ import { PushService } from './push.service';
  * 「先打 DELETE」那半段由 push.service.spec 守。
  */
 describe('AuthService.signOut：推播訂閱（#1663）', () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('先刪這台裝置的訂閱，等它做完登出才往下走', async () => {
+    // better-auth 的 signOut 會真的打 API；不替身的話，這支只在 8787 剛好有人起著 API 時才綠（#1679 撞到）。
+    // 替身得到是因為 auth-client.ts 每次呼叫才取 fetch
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { headers: { 'content-type': 'application/json' } })),
+    );
     let finish!: () => void;
     const forget = vi.fn(() => new Promise<void>((done) => (finish = done)));
     TestBed.configureTestingModule({
