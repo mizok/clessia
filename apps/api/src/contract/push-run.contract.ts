@@ -317,6 +317,35 @@ run('推播排程對真 Postgres（#1661）', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('別的 org 的家長透過 relation 掛到這個 org 的學生 → 不排（p.org_id = i.org_id 是唯一的 org 防線）', async () => {
+    // parent_student_relations 沒有 org_id，也沒有 FK／trigger 保證家長與學生同 org（二讀 #1678）
+    const otherOrg = await one(`INSERT INTO organizations (name) VALUES ($1)`, [
+      `c1661-${randomUUID()}`,
+    ]);
+    orgs.push(otherOrg);
+    const outsider = await one(
+      `INSERT INTO parents (org_id, name, user_id, status) VALUES ($1, 'x', $2, 'active')`,
+      [otherOrg, stranger],
+    );
+    await q(`INSERT INTO parent_student_relations (parent_id, student_id) VALUES ($1, $2)`, [
+      outsider,
+      studentId,
+    ]);
+    await invoice(3);
+    await push();
+    expect((await deliveries()).map((d) => d.user_id)).toEqual([mom]);
+  });
+
+  it('停用的家長 → 不排', async () => {
+    await q(`UPDATE parents SET status = 'inactive' WHERE org_id = $1 AND user_id = $2`, [
+      orgId,
+      mom,
+    ]);
+    await invoice(3);
+    expect(await push()).toMatchObject({ enqueued: 0 });
+    expect(await deliveries()).toEqual([]);
+  });
+
   it('沒開推播（沒有訂閱）→ 通知照樣有、算未讀，只是不推；不是失敗、不重試', async () => {
     await q('DELETE FROM push_subscriptions WHERE org_id = $1 AND user_id = $2', [orgId, mom]);
     await invoice(3);

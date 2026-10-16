@@ -71,13 +71,16 @@ describe('POST /api/internal/push/run 的門（#1661）', () => {
     expect(runPush.mock.calls[0]![1]).toMatchObject({ batchSize: 25 });
   });
 
-  it('VAPID 沒設齊 → 500 PUSH_NOT_CONFIGURED，不跑', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const res = await call({ ...ENV, VAPID_PRIVATE_KEY: '' }, 'Bearer s3cret');
-    expect(res.status).toBe(500);
-    expect(await res.json()).toMatchObject({ code: 'PUSH_NOT_CONFIGURED' });
-    expect(runPush).not.toHaveBeenCalled();
-  });
+  it.each(['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'])(
+    '只缺 %s → 500 PUSH_NOT_CONFIGURED，不跑',
+    async (missing) => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const res = await call({ ...ENV, [missing]: '' }, 'Bearer s3cret');
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ code: 'PUSH_NOT_CONFIGURED' });
+      expect(runPush).not.toHaveBeenCalled();
+    },
+  );
 
   it('run 丟例外 → 500，不是 200', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

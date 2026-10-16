@@ -156,6 +156,16 @@ describe('runPush —— push_status 狀態機（#1661，#1626 改版）', () =>
     expect(urls.map((u) => u.split('/').at(-1)).sort()).toEqual(['a', 'b']);
   });
 
+  it('批次邊界：裝置數剛好等於 K 的那一則要放進這一批（K=2：1 台＋1 台都認領）', async () => {
+    const { urls, find } = await run(
+      [sub('d1', 'a'), sub('d2', 'b'), sub('d3', 'c')],
+      () => 201,
+      2,
+    );
+    expect(urls.map((u) => u.split('/').at(-1)).sort()).toEqual(['a', 'b']);
+    expect(find(/SET push_status = 'claimed'/)[0]!.params).toEqual([['d1', 'd2']]);
+  });
+
   it('同一個推播服務只簽一次 VAPID', async () => {
     const pending = [
       sub('d1', 'a'),
