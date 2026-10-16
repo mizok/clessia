@@ -101,12 +101,17 @@ describe('PushSettingsComponent', () => {
     expect(text(el)).toContain('帳單即將到期');
     expect(text(el)).toContain('帳單逾期');
     expect(text(el)).toContain('iPhone · Safari');
+    // #1626 Q-a：偏好只管推播，通知中心照樣有、照樣算未讀 —— 文案要講清楚
+    expect(el.querySelector('[data-testid="push-kinds-note"]')!.textContent).toContain(
+      '通知中心照樣會有、照樣算未讀',
+    );
   });
 
   it('這台關掉了：開啟這台的按鈕', async () => {
     const { fixture, el } = setup('off');
     await settle(fixture);
     expect(buttons(el)).toContain('開啟這台裝置的通知');
+    expect(text(el)).toContain('通知中心照樣收得到，也照樣算未讀'); // #1626 Q-a
   });
 
   it('被拒絕：只說明怎麼去設定打開，沒有按鈕（網頁不能再問）', async () => {

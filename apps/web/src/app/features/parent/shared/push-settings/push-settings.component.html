@@ -55,7 +55,9 @@
       />
     }
     @case ('off') {
-      <p class="m-0 text-md text-zinc-700">這台裝置的通知已關閉。</p>
+      <p class="m-0 text-md text-zinc-700">
+        這台裝置的通知已關閉。通知中心照樣收得到，也照樣算未讀。
+      </p>
       <p-button
         class="self-start"
         label="開啟這台裝置的通知"
@@ -100,7 +102,9 @@
   @if (available(push.state()) && preferences().length > 0) {
     <fieldset class="m-0 flex flex-col gap-1 border-0 p-0" data-testid="push-kinds">
       <legend class="mb-1 p-0 text-md font-semibold text-zinc-900">要通知哪些事</legend>
-      <p class="m-0 mb-1 text-sm text-zinc-600">你所有已開啟通知的裝置都會一起套用。</p>
+      <p class="m-0 mb-1 text-sm text-zinc-600" data-testid="push-kinds-note">
+        你所有已開啟通知的裝置都會一起套用。關掉只是手機不跳通知，通知中心照樣會有、照樣算未讀。
+      </p>
       @for (pref of preferences(); track pref.kind) {
         <label class="flex min-h-11 items-center justify-between gap-4 text-md text-zinc-900">
           {{ kindLabels[pref.kind] }}
