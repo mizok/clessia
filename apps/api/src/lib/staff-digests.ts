@@ -259,8 +259,9 @@ export async function enqueueStaffDigests(
         assignedCampusIds: s.campus_ids,
       }),
     }));
-  // ponytail: 沒有財務管理員的 org、或逾期單全在每個人的範圍外的 org，不會留下今天的鍵，
-  // 之後每個 run 會再撈一次候選（量小）。要根治得另存「今天算過了」，目前沒有地方放
+  // ponytail: 今天沒寫進任何一則的 org 不會留下鍵，所以每輪都重算：沒有財務管理員的 org 每輪多兩句
+  // （排過沒＋收件人）；逾期單全在每個人範圍外的 org 還會再撈一次候選。升級做法：organizations 加
+  // `staff_digest_checked_on date`（migration），算完不論有沒有寫都記今天，第一句改看它
   const overdueTo = recipients.filter((r) => overdueOrgs.includes(r.org_id));
   const unbilledTo = recipients.filter((r) => unbilledOrgs.includes(r.org_id));
 

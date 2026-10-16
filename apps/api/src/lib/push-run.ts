@@ -389,6 +389,7 @@ export async function runPush(pool: Pool, opts: PushRunOptions): Promise<PushRun
     // 這個 run 排入了摘要 → 先不認領推播，留給 10 分鐘後的下一輪（計畫席 10-16 裁）：
     // 一天一次的摘要再加上推播（#1657：最大 11ms），會超過免費方案一次 Cron 的 10ms。
     // 看的是「真的寫進去」而不是「有算」—— 沒有財務管理員的 org 每輪都會算一次，用後者推播會永遠送不出去
+    // ponytail: 那幾輪的重算不擋推播，只吃一點 CPU；升級做法見 staff-digests.ts（記「今天算過了」的日期欄）
     const { jobs, skipped } =
       digests > 0 ? { jobs: [], skipped: 0 } : await claim(db, opts.batchSize, orgs);
     const { rowCount } = await db.query(
