@@ -24,6 +24,7 @@ import feeTemplatesRoute from './routes/fee-templates';
 import publicCaptchaRoute from './routes/public/captcha';
 import publicCatalogRoute from './routes/public/catalog';
 import publicApplicationsRoute from './routes/public-applications';
+import parentRequestsRoute from './routes/parent-requests';
 import publicEnrollmentApplicationsRoute from './routes/public/enrollment-applications';
 import publicTrialApplicationsRoute from './routes/public/trial-applications';
 import { publicOrgMiddleware } from './lib/public-org';
@@ -449,6 +450,8 @@ mount('/api/billing-periods', billingPeriodsRoute, ADMIN_ONLY, { all: 'manage_fi
 mount('/api/fee-templates', feeTemplatesRoute, ADMIN_ONLY, { all: 'manage_finance' });
 // #1245：公開表單送進來的申請。讀也擋 —— 陌生人的個資（家長電話、學生學校）
 mount('/api/public-applications', publicApplicationsRoute, ADMIN_ONLY, { all: 'manage_students' });
+// #1707：家長在 app 送的報名／試聽申請，跟公開申請同一頁、同一套授權（讀也擋：學生與家長聯絡方式）
+mount('/api/parent-requests', parentRequestsRoute, ADMIN_ONLY, { all: 'manage_students' });
 mount('/api/invoices', invoicesRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/session-packs', sessionPacksRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/meals', mealsRoute, ADMIN_ONLY, { all: 'manage_finance' });

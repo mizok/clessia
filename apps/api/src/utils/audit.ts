@@ -38,7 +38,10 @@ type ResourceType =
   // #911：只記「發佈」—— 已讀兩支刻意不記（使用者 2026-09-30 裁定）：
   // `announcement_reads` 本身就存了誰、何時第一次讀，而且永久；audit_logs 90 天就清
   | 'announcement'
-  | 'public_application';
+  | 'public_application'
+  // #1707：管理端處理家長登入後送的申請（migration 20261016144718 同時加進 CHECK）
+  | 'enrollment_request'
+  | 'trial_request';
 
 export interface AuditLogParams {
   orgId: string;
