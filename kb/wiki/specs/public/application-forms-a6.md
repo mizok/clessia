@@ -1,6 +1,6 @@
 ---
 title: 公開試聽申請、我要報名表單照 A6（設計稿）
-summary: 設計稿（#1637；Q1–Q6 已於 10-16 15:04 裁定，剩 Q5 預設值待裁）。後端（public_applications、/api/public/*、honeypot＋Postgres 速率限制）與行政收件頁（/admin/applications）早已上線，缺的是 /trial、/enrollment 兩個前端頁。依裁定加：試聽表單補「與學生關係」（A6 偏離）、機器人驗證改用自架的 ALTCHA（拿掉 Turnstile）、班級「開放公開報名」旗標、老師暱稱（對外只露暱稱，沒設就不露）、申請保存 6 個月由 pg_cron 刪除；三個 schema 變更合成一支 migration。拆成四支實作單。
+summary: 設計稿（#1637；Q1–Q6、Q5′、Q6′ 已於 10-16 裁定完畢）。後端（public_applications、/api/public/*、honeypot＋Postgres 速率限制）與行政收件頁（/admin/applications）早已上線，缺的是 /trial、/enrollment 兩個前端頁。依裁定加：試聽表單補「與學生關係」（A6 偏離）、機器人驗證改用自架的 ALTCHA（拿掉 Turnstile）、班級「開放公開報名」旗標、老師暱稱（對外只露暱稱，沒設就不露）、申請保存 6 個月由 pg_cron 刪除；三個 schema 變更合成一支 migration。拆成四支實作單。
 category: spec
 status: draft
 updated: 2026-10-16
@@ -9,7 +9,7 @@ tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 
 # 公開試聽申請、我要報名表單照 A6（設計稿）
 
-> **狀態：設計稿。Q1–Q6 已裁定（使用者 2026-10-16 15:04，#1637 留言），剩 §8 的 Q5′ 預設值待裁。**
+> **狀態：設計稿。Q1–Q6（15:04）、Q6 補充（15:09）、Q5′／Q6′（15:25）已全部裁定（#1637 留言），沒有待裁題。**
 > 實作照 §6 拆單，每一單仍走 `clessia-feature-slice`；migration 屬保留類，正式 DB 由使用者 Approve。
 > 稿：`.design-explorations/973-layout/a6-editorial/pub-trial.html`、`pub-enrollment.html`（以下 `D/`）。
 > A6 全採（[[architecture/a6-adoption-rules]]），偏離逐條列在 §1 與該頁 R5。
@@ -117,7 +117,7 @@ tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 
 拒絕「先選分校再列課」：多一步，也多一個「選錯分校之後課程清單整份換掉」的狀態。
 
-**開放公開報名旗標（Q5）**：`classes.is_public_enrollment boolean NOT NULL DEFAULT <Q5′>`。
+**開放公開報名旗標（Q5）**：`classes.is_public_enrollment boolean NOT NULL DEFAULT true`（Q5′ 已裁：既有與新開的班預設都開放，要藏的由行政關掉）。
 
 | 地方                                                       | 行為                                                                                                                                                         |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -199,7 +199,7 @@ A6 的個資聲明（`D/pub-trial.html:174-177`）寫「保存 6 個月，可以
 - `staff.nickname text NULL`，去掉頭尾空白後長度 1–20（CHECK）。
 - **欄位開給所有 staff**（老師、行政、管理員都能設；`staff` 表本來就是所有人員共用一張）。人員管理的新增／編輯表單對任何人員都顯示「對外暱稱」欄，說明「對外的頁面只會顯示暱稱；不填就不顯示這個人」。編輯權限沿用人員資料的 `manage_staff`，不另訂。
 - **對外顯示的規則不因此擴大**：只有實際出現在公開頁的人會被露出 —— 目前只有班級的任課老師（下一點）。行政、管理員設了暱稱也不會出現在任何公開回應裡，除非之後有新的公開頁要顯示他們（那時另裁）。
-- 本人能不能自己改暱稱是待裁題 **Q6′**（§8）。
+- **本人也可以改（Q6′ 已裁）**：帳號設定 dialog（`shared/components/account-settings-dialog`，現在可自己改顯示名稱、生日、Email）加「對外暱稱」欄，走 `/api/me` 更新；長度與 CHECK 同一條，不另設審核。家長也會開這個 dialog，暱稱欄只對有 staff 身分的人顯示。管理員仍可在人員管理改。
 - 公開目錄每一班多一個 `teacherNicknames: string[]`：取這一班**目前有效的 schedules**（`effective_to` 為空或未過）的 `teacher_id`，只 select `staff(nickname)`，去掉 null 與重複。**select 字串裡不出現 `display_name`** —— 從查詢那一步就拿不到本名，而不是拿到再濾掉。
 - **spec 守住**（裁定原文要求）：有一位老師 `display_name='王小明'`、`nickname=null` 時，`GET /api/public/catalog` 的回應**序列化成字串後不含 `王小明`**，且那一班的 `teacherNicknames` 是空陣列；另一條是有暱稱時只出現暱稱。
 - 前端：有暱稱才在班級列顯示，沒有就整格不顯示（不寫「未定」之類的字）。
@@ -215,7 +215,7 @@ Q2、Q5、Q6 合成一支：`supabase/migrations/<時間戳>_public_forms_flag_n
 
 -- Q5：班級是否出現在公開的報名／試聽表單（只管匿名公開目錄，家長端不受影響）
 ALTER TABLE public.classes
-  ADD COLUMN is_public_enrollment boolean NOT NULL DEFAULT true;  -- 預設值待裁 Q5′（設計稿 §8）
+  ADD COLUMN is_public_enrollment boolean NOT NULL DEFAULT true;  -- Q5′ 已裁：預設開放
 
 -- Q6：對外顯示用的暱稱（所有 staff 都能設）；沒設就不對外顯示，絕不退回 display_name
 ALTER TABLE public.staff
@@ -248,7 +248,7 @@ SELECT cron.schedule(
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ---------- |
 | PR-1 | **migration（§5）＋公開目錄 API**：開放旗標過濾、兩支 POST 拒收不開放的班／課、`teacherNicknames`（含「無暱稱不露本名」spec）、`campuses` 聯絡資訊（§4.2）                                                                                                          | **保留類**（migration） | —          |
 | PR-2 | **ALTCHA 換掉 Turnstile（API 端）**：先查掉 §4.4 的三個未證實；challenge 端點、`verifySolution`、金鑰衍生、拿掉 Turnstile；`abuse-guard.spec.ts` 改寫                                                                                                               | 保留類（防濫用屬安全）  | —          |
-| PR-3 | **行政頁**：班級 dialog 的「開放公開報名」開關＋課程頁「不公開」小標、人員表單的「對外暱稱」欄（所有人員）；班級／人員更新 API 收這兩欄；Q6′ 若開放，帳號設定 dialog 加暱稱欄與 `/api/me` 對應更新                                                                  | 一般                    | PR-1       |
+| PR-3 | **行政頁**：班級 dialog 的「開放公開報名」開關＋課程頁「不公開」小標、人員表單的「對外暱稱」欄（所有人員）；班級／人員更新 API 收這兩欄；帳號設定 dialog 加暱稱欄（只對 staff 顯示）與 `/api/me` 對應更新（Q6′）                                                    | 一般                    | PR-1       |
 | PR-4 | **公開表單前端**：`/trial`、`/enrollment` 照 A6（§1）、ALTCHA widget、成功／失敗畫面；訂正 `specs/public/trial.md`、`enrollment.md` 已過期的資料依賴（寫 `trial_requests`／`enrollment_requests`，實際是 `public_applications`）；a6-adoption-rules R5 登記 Q1 偏離 | 一般                    | PR-1、PR-2 |
 
 PR-1 與 PR-2 可以並行。兩支都會碰兩個 POST 路由檔（PR-1 改選班驗證，PR-2 改守門），後合的那支 merge main 解衝突。
@@ -264,21 +264,20 @@ PR-4 的驗收照 [[architecture/a6-adoption-rules]] R4：附 `tools/a6-conforma
 - ALTCHA 的重放防護表（§4.4）。
 - 年級清單合併到 `packages/shared-types`（§1）。
 
-## 8. 待裁題
+## 8. 裁定紀錄（#1637 留言）
 
-| #   | 題目                                                                                                                 | 建議                                                                                                                                                                                        |
-| --- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Q5′ | `is_public_enrollment` 的預設值（既有班級＋之後新開的班）                                                            | **開放（`true`）**：既有班級維持今天的行為（開課中就在公開目錄上），新開的班也不用多一步；要藏的班由行政關掉。若選「不開放」，上線那天公開頁會是空的，要行政逐班打開                        |
-| Q6′ | 本人能不能在「帳號設定」自己改暱稱（`shared/components/account-settings-dialog`，現在可自己改顯示名稱、生日、Email） | **開放**：暱稱是本人對外怎麼被稱呼，跟顯示名稱同性質，顯示名稱本來就讓本人改；行政仍可在人員管理改。長度與 CHECK 同一條，不另設審核。家長也會開這個 dialog，暱稱欄只對有 staff 身分的人顯示 |
+沒有待裁題。
 
-### 已裁（2026-10-16 15:04，#1637 留言）
+### 已裁
 
-| #                | 裁定                                                                                                       |
-| ---------------- | ---------------------------------------------------------------------------------------------------------- |
-| Q1               | 試聽表單補「與學生關係」，行政頁顯示；登記為 A6 偏離                                                       |
-| Q2               | pg_cron 每天刪超過 6 個月的申請（一支 migration，要 Approve）                                              |
-| Q3               | 已轉入的申請到期也刪                                                                                       |
-| Q4               | 加機器人驗證，用 ALTCHA；不用 Turnstile；honeypot、速率限制保留                                            |
-| Q5               | 班級加「開放公開報名」旗標，行政在班級設定切換，公開目錄只列開放的班                                       |
-| Q6               | staff 加 nickname，對外只公開暱稱；沒暱稱不顯示，絕不退回本名；spec 守住                                   |
-| Q6 補充（15:09） | 暱稱開給所有 staff（含管理員、行政）；對外只露實際出現在公開頁的人（目前只有任課老師）；本人自改列待裁 Q6′ |
+| #                | 裁定                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| Q1               | 試聽表單補「與學生關係」，行政頁顯示；登記為 A6 偏離                                   |
+| Q2               | pg_cron 每天刪超過 6 個月的申請（一支 migration，要 Approve）                          |
+| Q3               | 已轉入的申請到期也刪                                                                   |
+| Q4               | 加機器人驗證，用 ALTCHA；不用 Turnstile；honeypot、速率限制保留                        |
+| Q5               | 班級加「開放公開報名」旗標，行政在班級設定切換，公開目錄只列開放的班                   |
+| Q6               | staff 加 nickname，對外只公開暱稱；沒暱稱不顯示，絕不退回本名；spec 守住               |
+| Q6 補充（15:09） | 暱稱開給所有 staff（含管理員、行政）；對外只露實際出現在公開頁的人（目前只有任課老師） |
+| Q5′（15:25）     | `is_public_enrollment` 預設 `true`                                                     |
+| Q6′（15:25）     | 本人可在帳號設定改自己的暱稱；管理員也可在人員管理改                                   |
