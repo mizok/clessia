@@ -14,6 +14,7 @@ import sessionsRoute from './parent/sessions';
 import catalogRoute from './parent/catalog';
 import renewalRoute from './parent/renewal';
 import mealsRoute from './parent/meals';
+import mePushRoute from './me-push';
 import { inOrg } from '../lib/org-scope';
 import { invalidateIdentity } from '../lib/identity-cache';
 
@@ -321,6 +322,8 @@ app.openapi(
   },
 );
 
+// 推播訂閱與通知偏好（#1659）：/push-config、/push-subscriptions、/notification-preferences
+app.route('/', mePushRoute);
 app.route('/children', childrenRoute);
 app.route('/attendance', attendanceRoute);
 app.route('/grades', gradesRoute);

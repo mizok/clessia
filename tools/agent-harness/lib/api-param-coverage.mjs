@@ -19,6 +19,10 @@ import { join } from 'node:path';
 /** 前端刻意不支援的參數 —— 跟 baseline（債）不同，這些是**決定**，不該歸零 */
 const EXEMPT = new Map([
   [
+    '/api/me/notification-preferences|role',
+    '推播（#1659）的前端是 #1663，還沒寫。#1663 送出 role 之後這筆會被標成過期，屆時拿掉',
+  ],
+  [
     '/api/attendance/sessions|teacherId',
     '老師端一律被伺服器蓋成自己（attendance/teacher-scope.ts），前端傳了沒用',
   ],
