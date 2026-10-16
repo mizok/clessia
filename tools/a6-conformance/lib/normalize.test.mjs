@@ -1373,3 +1373,37 @@ test('compare：nx serve 編譯錯誤（帶顏色碼的 ✘ [ERROR]）馬上認�
     false,
   );
 });
+
+test('#1697：整塊搬走的偏離（whole）—— 表單整個進彈窗，裡面的子 part 跟著歸偏離；沒標 whole 的照舊拆出來算', async () => {
+  const { classify } = await import('./diff.mjs');
+  const { DEVIATIONS, PAGES } = await import('./config.mjs');
+  const form = '>landmark:main[]>landmark:form[]';
+  const row = {
+    status: '缺',
+    kind: 'landmark',
+    a6: form,
+    app: null,
+    detail: '「form」',
+    inner: [
+      { key: `${form}>row`, kind: 'row', tpl: 'row' },
+      { key: `${form}>control:button[發布]`, kind: 'control', tpl: '發布' },
+    ],
+  };
+  const devs = [...DEVIATIONS, ...PAGES.notifications.deviations];
+  const out = classify([row], devs, 1440);
+  assert.deepEqual(
+    out.map((x) => [x.a6, x.bucket]),
+    [
+      [form, '已記錄偏離'],
+      [`${form}>row`, '已記錄偏離'],
+      [`${form}>control:button[發布]`, '已記錄偏離'],
+    ],
+  );
+  assert.match(out[1].dev.reason, /^連帶：/);
+  // 同一條偏離拿掉 whole：子 part 照舊拆出來算待修（R7 包裝層那種）
+  const plain = devs.map((d) => ({ ...d, whole: undefined }));
+  assert.deepEqual(
+    classify([row], plain, 1440).map((x) => x.bucket),
+    ['已記錄偏離', '待修', '待修'],
+  );
+});

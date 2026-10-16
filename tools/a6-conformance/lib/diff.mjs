@@ -246,7 +246,11 @@ export function classify(rows, deviations = [], width, site = []) {
         .map((q) => {
           const sub = subOf(q);
           const dd = deviations.find((x) => hit(sub, x));
-          return dd ? { ...sub, bucket: '已記錄偏離', dev: dd } : { ...sub, bucket: '待修' };
+          if (dd) return { ...sub, bucket: '已記錄偏離', dev: dd };
+          // whole：整塊搬走（表單整個進彈窗，#1697），裡面跟著歸偏離
+          if (d.whole)
+            return { ...sub, bucket: '已記錄偏離', dev: { ...d, reason: `連帶：${d.reason}` } };
+          return { ...sub, bucket: '待修' };
         });
       return [{ ...r, bucket: '已記錄偏離', dev: d }, ...inner];
     }

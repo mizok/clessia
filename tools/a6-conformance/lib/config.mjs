@@ -23,6 +23,8 @@ export const WIDTHS = [
  * 刻意偏離 A6 的地方（#1314 gate 10-15：每條要 key／條件＋理由＋出處，不能用「近似」帶過）。
  * 命中的差異列歸「已記錄偏離」，不算待修。欄位是 regex 字串：status（差異類別，必填）、
  * detail（差異文字）、a6／app（part key）、kind（part 種類）。頁面專屬的放 PAGES[頁].deviations。
+ * `whole: true`：缺／多的整塊搬走（例：表單整個進彈窗），裡面的子 part 跟著歸偏離；不標的話子 part
+ * 拆出來各自算（R7 包裝層那種：包裝是偏離、裡面真的多出來的東西照算）。
  */
 /**
  * 硬性規則（constitution-enforcement.md 的 A 條）當偏離出處：條號手寫、行號執行時查，不會漂。
@@ -237,7 +239,8 @@ export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
  * （PrimeNG p-select＋pt，#991 P1 計畫席裁定選項 A），結構是 combobox＋觸發鈕＋標籤 span，外觀用 pt 對齊。
  */
 const SELECT_FIELD = 'app-select-field（p-select＋pt）對 A6 .dd：結構不同、外觀對齊';
-const SELECT_FIELD_SOURCE = 'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
+const SELECT_FIELD_SOURCE =
+  'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
 const PUBLIC_FORM_DEVIATIONS = [
   {
     status: '缺',
@@ -413,6 +416,7 @@ export const PAGES = {
       {
         // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
         status: '缺',
+        whole: true, // 整個表單搬進彈窗：裡面的列、「發布」鈕跟著歸偏離
         a6: 'landmark:main\\[\\]>landmark:form\\[\\]$',
         reason: '發布表單改成彈窗，頁面只放已發布列表（使用者指定）',
         source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
