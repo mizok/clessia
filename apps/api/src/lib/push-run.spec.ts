@@ -39,12 +39,44 @@ const sub = (
   auth: subId ? AUTH : null,
 });
 
-function fakePool(pending: Row[], fail?: RegExp) {
+function fakePool(pending: Row[], fail?: RegExp, digests = 0) {
   const sent: Array<{ sql: string; params?: unknown[] }> = [];
   const client = {
     query: async (sql: string, params?: unknown[]) => {
       sent.push({ sql, params });
       if (fail?.test(sql)) throw new Error('boom');
+      // 管理員摘要：今天還沒排、有一位財務管理員、有一張逾期未繳 → 寫進 digests 筆
+      if (digests > 0) {
+        if (/FROM organizations o\n/.test(sql))
+          return { rows: [{ org_id: 'o1', overdue: true, unbilled: false }], rowCount: 1 };
+        if (/HAVING bool_or/.test(sql))
+          return {
+            rows: [
+              { org_id: 'o1', user_id: 'u1', roles: ['admin'], permissions: ['*'], campus_ids: [] },
+            ],
+            rowCount: 1,
+          };
+        if (/i\.due_date < \$2/.test(sql))
+          return {
+            rows: [
+              {
+                org_id: 'o1',
+                due_date: '2026-10-01',
+                items: [{ amount: 100 }],
+                payments: [],
+                scope_student: null,
+                scope_items: [],
+              },
+            ],
+            rowCount: 1,
+          };
+        if (
+          /INSERT INTO notifications \(org_id, user_id, role, kind, dedupe_key, payload, push_status/.test(
+            sql,
+          )
+        )
+          return { rows: [], rowCount: digests };
+      }
       if (/FROM organizations org/.test(sql)) return { rows: [], rowCount: 0 }; // 沒有要排入的
       if (/LEFT JOIN push_subscriptions/.test(sql))
         return { rows: pending, rowCount: pending.length };
@@ -300,6 +332,28 @@ describe('runPush —— 管理員每日摘要（#1693）', () => {
     expect(result).toMatchObject({ digests: 0, attempted: 1, delivered: 1 });
     expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'boom');
     log.mockRestore();
+  });
+
+  it('這輪排入了摘要：不認領、不送推播，留給下一輪（計畫席 10-16 裁，免費方案 10ms）', async () => {
+    const db = fakePool([sub('d1', 's1')], undefined, 1);
+    const sends: string[] = [];
+    const result = await runPush(db.pool, {
+      today: '2026-10-16',
+      batchSize: 10,
+      vapid: await vapid(),
+      subject: 'mailto:ops@example.com',
+      send: async (url) => (sends.push(url), { status: 201 }),
+    });
+    expect(result).toMatchObject({ digests: 1, attempted: 0, delivered: 0 });
+    expect(db.find(/FOR UPDATE SKIP LOCKED/)).toHaveLength(0);
+    expect(sends).toEqual([]);
+    expect(db.sent.filter((q) => q.sql === 'BEGIN')).toHaveLength(1); // 沒有回寫的交易
+  });
+
+  it('沒有排入摘要（今天排過了，或算了但 0 筆）：照常認領與送出', async () => {
+    const { result, find } = await run([sub('d1', 's1')], () => 201);
+    expect(result).toMatchObject({ digests: 0, attempted: 1, delivered: 1 });
+    expect(find(/FOR UPDATE SKIP LOCKED/)).toHaveLength(1);
   });
 
   it('帶 orgIds 時摘要也只跑那幾個 org；日期是呼叫端給的台北日期', async () => {
