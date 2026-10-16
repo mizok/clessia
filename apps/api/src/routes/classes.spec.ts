@@ -2,6 +2,11 @@ import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as classesRoute from './classes';
 
+const deleteClassesMock = vi.hoisted(() => vi.fn());
+const getAuthPool = vi.hoisted(() => ({ value: undefined as unknown }));
+vi.mock('../lib/class-delete', () => ({ deleteClasses: deleteClassesMock }));
+vi.mock('../lib/get-auth', () => ({ getAuth: () => ({ pool: getAuthPool.value }) }));
+
 describe('applyClassDetailScheduleScope', () => {
   it('only scopes schedules by class_id', () => {
     const applyClassDetailScheduleScope = (classesRoute as Record<string, unknown>)[
@@ -62,206 +67,114 @@ describe('mapClass —— uses_contact_book', () => {
 });
 
 /**
- * M8 稽核發現：`DELETE /api/classes/:id` 手動 `enrollments.delete().eq('class_id', id)`
- * 完全繞過 enrollments.ts 自己的刪除守門，而底下的報名可能掛著已收費的
- * session_packs（ON DELETE CASCADE）。跟 enrollments.ts 共用同一支
- * `checkEnrollmentSessionPacks`（見 lib/enrollment-session-pack-guard.ts），
- * 這裡釘住那個「無辜」情境：班級沒有過去課堂、底下報名有 session_pack，
- * 一樣要回 409，不能刪。
+ * #1652：刪班級（單筆與批次）的範圍、守門、刪除都在 `lib/class-delete.ts` 的一個 pg 交易裡，
+ * SQL 語意（org、分校範圍、過去課堂、堂數包、帳單明細、FK 回滾）由
+ * `contract/class-delete.contract.ts` 對真 Postgres 驗；台北日期那個窗（M8）由 `class-delete.spec.ts` 驗。
+ * 這裡只釘路由把交易結果對成什麼 HTTP。
  */
-/**
- * #966 B2 起刪除會**先**以 org 範圍確認班級存在（在所有守門查詢之前）。
- * 這個 builder 只回答那一次存在檢查 —— 它**沒有** `delete`，所以路由若越過守門
- * 走到刪除，一樣會在這裡炸開，「守門有沒有真的擋下」的鑑別力不變。
- */
-function classesExistQuery(ids: readonly string[]) {
-  const query = {
-    select: () => query,
-    eq: () => query,
-    in: () => query,
-    maybeSingle: () => Promise.resolve({ data: { id: ids[0] }, error: null }),
-    then: (onfulfilled?: (value: unknown) => unknown) =>
-      Promise.resolve({ data: ids.map((id) => ({ id })), error: null }).then(
-        onfulfilled ?? undefined,
-      ),
-  };
-  return query;
-}
+describe('DELETE /api/classes —— 交易結果 → HTTP（#1652）', () => {
+  const CLASS = '22222222-2222-4222-8222-222222222222';
+  const done = (
+    over: Partial<Record<'deletedIds' | 'pastSessionIds' | 'sessionPackIds', string[]>>,
+  ) => ({
+    status: 'done' as const,
+    deletedIds: [],
+    pastSessionIds: [],
+    sessionPackIds: [],
+    ...over,
+  });
 
-describe('DELETE /api/classes/:id —— session_packs 守門（真的打路由）', () => {
-  interface DeleteRouteFixture {
-    readonly enrollmentIds: string[];
-    readonly sessionPackCount: number;
-  }
-
-  function createDeleteRouteApp(fixture: DeleteRouteFixture) {
-    let classesTouched = false;
-
-    const sessionsQuery = {
-      select: () => sessionsQuery,
-      eq: () => sessionsQuery,
-      in: () => sessionsQuery,
-      lt: () => sessionsQuery,
-      // #762：過去課堂的判定改成 `session_date < today OR status = 'completed'`
-      or: () => sessionsQuery,
-      limit: () => sessionsQuery,
-      then: (onfulfilled?: (value: unknown) => unknown) =>
-        Promise.resolve({ data: [], error: null }).then(onfulfilled ?? undefined),
-    };
-
-    const enrollmentsQuery = {
-      select: () => enrollmentsQuery,
-      eq: () => enrollmentsQuery,
-      then: (onfulfilled?: (value: unknown) => unknown) =>
-        Promise.resolve({
-          data: fixture.enrollmentIds.map((id) => ({ id })),
-          error: null,
-        }).then(onfulfilled ?? undefined),
-    };
-
-    const sessionPacksQuery = {
-      select: () => sessionPacksQuery,
-      eq: () => sessionPacksQuery,
-      in: () => sessionPacksQuery,
-      then: (onfulfilled?: (value: unknown) => unknown) =>
-        Promise.resolve({ data: null, count: fixture.sessionPackCount, error: null }).then(
-          onfulfilled ?? undefined,
-        ),
-    };
-
+  function app(pool: unknown = {}) {
+    getAuthPool.value = pool;
     const supabase = {
-      from(table: string) {
-        if (table === 'sessions') return sessionsQuery;
-        if (table === 'enrollments') return enrollmentsQuery;
-        if (table === 'session_packs') return sessionPacksQuery;
-        if (table === 'classes') return classesExistQuery(['22222222-2222-4222-8222-222222222222']);
-        // 只有走到 409 之前的表才會被查到；一旦這個測試意外走到 cascade delete
-        // 之後的表，代表守門沒有真的擋下，讓它直接爆炸比靜靜回一個假資料更誠實。
-        classesTouched = true;
-        throw new Error(`Unsupported table in this fixture: ${table}`);
+      from: () => {
+        const q: Record<string, unknown> = {};
+        for (const m of ['select', 'eq', 'in', 'insert']) q[m] = () => q;
+        q['maybeSingle'] = () => Promise.resolve({ data: { id: CLASS, name: 'x' }, error: null });
+        q['then'] = (ok: (v: unknown) => unknown) =>
+          Promise.resolve({ data: null, error: null }).then(ok);
+        return q;
       },
     };
-
-    const app = new Hono();
-    app.use('/api/classes/*', async (c, next) => {
+    const a = new Hono();
+    a.use('/api/classes/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
+      context.set('campusScope', ['campus-1']);
       await next();
     });
-    app.route('/api/classes', classesRoute.default);
-
-    return { app, wentPastGuard: () => classesTouched };
+    a.route('/api/classes', classesRoute.default);
+    return a;
   }
-
-  it('班級沒有過去課堂、但底下報名有 session_pack —— 仍要回 409，不能刪', async () => {
-    const { app, wentPastGuard } = createDeleteRouteApp({
-      enrollmentIds: ['enrollment-1'],
-      sessionPackCount: 1,
-    });
-
-    const res = await app.request('/api/classes/22222222-2222-4222-8222-222222222222', {
-      method: 'DELETE',
-    });
-
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: '此班級已有學生購買堂數包，無法刪除，請改為停用',
-      code: 'HAS_SESSION_PACK',
-    });
-    expect(wentPastGuard()).toBe(false);
-  });
-});
-
-/**
- * 時區第三批 PR A：`DELETE /api/classes/:id`（單筆）與 `DELETE /api/classes/batch`
- * 的「過去課堂」守門原本用 `new Date().toISOString().slice(0, 10)`（UTC）算「今天」，
- * 在台北時間 00:00–08:00 之間會算成前一天。
- *
- * **這是 M8 洞的迴歸測試**：一個班有「台北昨天」的課堂，在 UTC 還是前一天傍晚、
- * 台北已經跨到隔天凌晨的時刻呼叫刪除——修之前這個組合會被判定成「沒有過去課堂」
- * 而放行，修之後（收斂進 `checkClassesPastSessions`，用台北時間）要回 409。
- */
-describe('DELETE /api/classes —— 台北凌晨那個窗（M8 洞的迴歸測試）', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  function createPastSessionsApp(pastSessionRows: Array<{ class_id: string }>) {
-    let touchedBeyondGuard = false;
-
-    const sessionsQuery = {
-      select: () => sessionsQuery,
-      eq: () => sessionsQuery,
-      in: () => sessionsQuery,
-      lt: () => sessionsQuery,
-      // #762：過去課堂的判定改成 `session_date < today OR status = 'completed'`
-      or: () => sessionsQuery,
-      limit: () => sessionsQuery,
-      then: (onfulfilled?: (value: unknown) => unknown) =>
-        Promise.resolve({ data: pastSessionRows, error: null }).then(onfulfilled ?? undefined),
-    };
-
-    const supabase = {
-      from(table: string) {
-        if (table === 'sessions') return sessionsQuery;
-        if (table === 'classes') return classesExistQuery(pastSessionRows.map((r) => r.class_id));
-        // 409 之前只會查 sessions（與上面的存在檢查）；查到別的表代表守門沒有真的擋下
-        touchedBeyondGuard = true;
-        throw new Error(`Unsupported table in this fixture: ${table}`);
-      },
-    };
-
-    const app = new Hono();
-    app.use('/api/classes/*', async (c, next) => {
-      const context = c as unknown as { set: (key: string, value: unknown) => void };
-      context.set('supabase', supabase);
-      context.set('orgId', 'org-1');
-      context.set('userId', 'user-1');
-      await next();
-    });
-    app.route('/api/classes', classesRoute.default);
-
-    return { app, wentPastGuard: () => touchedBeyondGuard };
-  }
-
-  it('單筆刪除：班級有台北昨天的課堂，UTC 還在前一天傍晚時呼叫 —— 要回 409，不能刪', async () => {
-    // 台北 2026-09-06T01:00:00+08:00 = UTC 2026-09-05T17:00:00Z，#402 出事的那個窗
-    vi.setSystemTime(new Date('2026-09-05T17:00:00Z'));
-
-    const classId = '33333333-3333-4333-8333-333333333333';
-    const { app, wentPastGuard } = createPastSessionsApp([{ class_id: classId }]);
-
-    const res = await app.request(`/api/classes/${classId}`, { method: 'DELETE' });
-
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: '此班級已有歷史課堂記錄，無法刪除，請改為停用',
-      code: 'HAS_PAST_SESSIONS',
-    });
-    expect(wentPastGuard()).toBe(false);
-  });
-
-  it('批次刪除：同一個窗口，班級有台北昨天的課堂 —— 要被跳過，不能刪', async () => {
-    vi.setSystemTime(new Date('2026-09-05T17:00:00Z'));
-
-    const classId = '44444444-4444-4444-8444-444444444444';
-    const { app, wentPastGuard } = createPastSessionsApp([{ class_id: classId }]);
-
-    const res = await app.request('/api/classes/batch', {
+  const del = (a: Hono) => a.request(`/api/classes/${CLASS}`, { method: 'DELETE' });
+  const batch = (a: Hono) =>
+    a.request('/api/classes/batch', {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ids: [classId] }),
+      body: JSON.stringify({ ids: [CLASS] }),
     });
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ deleted: 0, deletedIds: [], skipped: 1 });
-    expect(wentPastGuard()).toBe(false);
+  afterEach(() => deleteClassesMock.mockReset());
+
+  it('帶 org、分校範圍與模式進交易', async () => {
+    deleteClassesMock.mockResolvedValue(done({ deletedIds: [CLASS] }));
+    expect((await del(app())).status).toBe(200);
+    expect(deleteClassesMock).toHaveBeenLastCalledWith(expect.anything(), {
+      orgId: 'org-1',
+      ids: [CLASS],
+      scope: ['campus-1'],
+      onBlocked: 'abort',
+    });
+    expect((await batch(app())).status).toBe(200);
+    expect(deleteClassesMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ onBlocked: 'skip' }),
+    );
+  });
+
+  it.each([
+    ['not-found', { status: 'not-found' }, 404, 'NOT_FOUND'],
+    [
+      'has-invoice-items',
+      { status: 'has-invoice-items', classIds: [CLASS] },
+      409,
+      'HAS_INVOICE_ITEMS',
+    ],
+    ['in-use（FK）', { status: 'in-use' }, 409, 'IN_USE'],
+    ['過去課堂', done({ pastSessionIds: [CLASS] }), 409, 'HAS_PAST_SESSIONS'],
+    ['堂數包', done({ sessionPackIds: [CLASS] }), 409, 'HAS_SESSION_PACK'],
+  ])('單筆：%s → %i %s', async (_l, outcome, status, code) => {
+    deleteClassesMock.mockResolvedValue(outcome);
+    const res = await del(app());
+    expect(res.status).toBe(status);
+    expect(await res.json()).toMatchObject({ code });
+  });
+
+  it('批次：有帳單 → 409 並標出哪幾班；被略過的算 skipped', async () => {
+    deleteClassesMock.mockResolvedValue({ status: 'has-invoice-items', classIds: [CLASS] });
+    const blocked = await batch(app());
+    expect(blocked.status).toBe(409);
+    expect(await blocked.json()).toMatchObject({ code: 'HAS_INVOICE_ITEMS', classIds: [CLASS] });
+
+    deleteClassesMock.mockResolvedValue(done({ pastSessionIds: [CLASS] }));
+    const skipped = await batch(app());
+    expect(await skipped.json()).toEqual({ deleted: 0, deletedIds: [], skipped: 1 });
+  });
+
+  it('交易丟例外 → 500，不是 404', async () => {
+    deleteClassesMock.mockRejectedValue(new Error('boom'));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect((await del(app())).status).toBe(500);
+    expect((await batch(app())).status).toBe(500);
+  });
+
+  it('pool 不在 → 500，不退回沒有交易的舊寫法', async () => {
+    const res = await del(app(null));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ code: 'DB_POOL_UNAVAILABLE' });
+    expect(deleteClassesMock).not.toHaveBeenCalled();
   });
 });
 

@@ -537,4 +537,26 @@ describe('ParentsPage', () => {
       expect(toggle().textContent).toContain('篩選：停用');
     });
   });
+
+  // #1651：API 把 ALREADY_ARCHIVED 放在 `code`，`error` 是給人看的字 —— 比對錯欄位，友善提示從來沒出現過
+  it('封存已封存的家長：顯示「帳號已封存」而不是「請稍後再試」（#1651）', () => {
+    const add = TestBed.inject(MessageService).add as ReturnType<typeof vi.fn>;
+    Object.assign(parentsServiceMock, {
+      archive: vi.fn(() =>
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 400,
+              error: { error: '家長已封存', code: 'ALREADY_ARCHIVED' },
+            }),
+        ),
+      ),
+    });
+    (
+      component as unknown as { changeStatus: (p: unknown, a: string, m: string) => void }
+    ).changeStatus({ id: 'p0', name: '王媽媽' }, 'archive', '已封存');
+    expect(add).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: '帳號已封存，無法再次操作' }),
+    );
+  });
 });

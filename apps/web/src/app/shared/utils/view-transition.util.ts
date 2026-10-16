@@ -71,10 +71,14 @@ export function injectViewTransition(): (
     });
     // 不管成敗都要拿掉 —— 但只在自己還是最後一個的時候：被下一個頁內 VT 截掉時，
     // 這個 finished 會晚於下一個寫上屬性才結束，拿掉的話下一個的分段鈕就不會平移
-    const finished = vt.finished.finally(() => {
-      if (mine === latestInPageVt) root.removeAttribute(IN_PAGE_VT_ATTR);
-      if (running === finished) running = null;
-    });
+    // update 拋例外時 finished 會 reject —— 吞掉，否則 `running.then` 後面排隊的永遠不會跑（審核席 #1648）。
+    // 例外本身照樣從 updateCallbackDone 浮出，不會被這裡藏起來
+    const finished = vt.finished
+      .catch(() => undefined)
+      .finally(() => {
+        if (mine === latestInPageVt) root.removeAttribute(IN_PAGE_VT_ATTR);
+        if (running === finished) running = null;
+      });
     running = finished;
   };
   return run;

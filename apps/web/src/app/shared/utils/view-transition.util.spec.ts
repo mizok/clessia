@@ -84,4 +84,27 @@ describe('injectViewTransition', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(document.documentElement.hasAttribute(IN_PAGE_VT_ATTR)).toBe(false);
   });
+
+  it('前一個的 update 拋例外：後面排隊的照樣執行', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.spyOn(TestBed.inject(ApplicationRef), 'tick').mockImplementation(() => {});
+    document.startViewTransition = ((cb: () => void) => {
+      let finished: Promise<void>;
+      try {
+        cb();
+        finished = Promise.resolve();
+      } catch (e) {
+        finished = Promise.reject(e);
+      }
+      return { finished };
+    }) as never;
+    const run = TestBed.runInInjectionContext(() => injectViewTransition());
+    const second = vi.fn();
+    run(() => {
+      throw new Error('boom');
+    });
+    run(second);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(second).toHaveBeenCalledTimes(1);
+  });
 });
