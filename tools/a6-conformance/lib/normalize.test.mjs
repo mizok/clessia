@@ -1329,3 +1329,15 @@ test('compare：port 只被 IPv6 [::1] 占著也算占用（base 聽在 ::1，he
     s.close();
   }
 });
+
+test('compare：分支名的 origin 與本機不同時挑新的那顆，分叉就報錯（10-16 本機未推的 commit 被 origin 舊版蓋掉）', async () => {
+  const { pickNewer } = await import('./serve.mjs');
+  // a ← b（b 是 a 的後代）；c 從 a 分出去
+  const anc = (x, y) => (x === 'a' && (y === 'b' || y === 'c')) || x === y;
+  assert.equal(pickNewer('a', 'b', anc), 'b'); // 本機領先（未推）→ 本機
+  assert.equal(pickNewer('b', 'a', anc), 'b'); // 本機落後 → origin
+  assert.equal(pickNewer('a', 'a', anc), 'a');
+  assert.equal(pickNewer(null, 'a', anc), 'a');
+  assert.equal(pickNewer('a', null, anc), 'a');
+  assert.throws(() => pickNewer('b', 'c', anc), /分叉/);
+});

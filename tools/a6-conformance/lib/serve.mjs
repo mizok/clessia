@@ -22,18 +22,34 @@ export async function freePort(from) {
     if (!(await taken(p, '127.0.0.1')) && !(await taken(p, '::1'))) return p;
 }
 
-/** ref → sha（先試 origin/<ref>，再試本地）。 */
+/** origin 與本機同名分支各一顆：挑新的（本機有未推的 commit 時用本機，本機久沒更新時用 origin），分叉就報錯。 */
+export function pickNewer(remote, local, isAncestor) {
+  if (!remote || !local || remote === local) return remote ?? local;
+  if (isAncestor(remote, local)) return local;
+  if (isAncestor(local, remote)) return remote;
+  throw new Error(`origin（${remote}）與本機（${local}）分叉了，請直接給 sha`);
+}
+
+/** ref → sha（sha、origin/<ref>、本機 <ref> 都試；分支名兩邊都有時見 pickNewer）。 */
 export function resolveRef(ref) {
   git(repo, 'fetch', '-q', 'origin');
-  // 分支名先用 origin 的（本地同名分支可能很久沒更新）；sha 兩個都試得到
-  for (const r of [`origin/${ref}`, ref]) {
+  const sha = (r) => {
     try {
       return git(repo, 'rev-parse', '--verify', '--short', `${r}^{commit}`);
     } catch {
-      /* 換下一個 */
+      return null;
     }
-  }
-  throw new Error(`找不到 ref：${ref}`);
+  };
+  const anc = (a, b) => {
+    try {
+      return (git(repo, 'merge-base', '--is-ancestor', a, b), true);
+    } catch {
+      return false;
+    }
+  };
+  const got = pickNewer(sha(`origin/${ref}`), sha(ref), anc);
+  if (!got) throw new Error(`找不到 ref：${ref}`);
+  return got;
 }
 
 /** nx serve 的 ready line（`➜  Local:`）帶顏色碼：`Local\x1b[22m:`，先去色再比（10-16 notify 席兩次等滿 600 秒） */
