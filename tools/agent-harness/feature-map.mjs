@@ -134,6 +134,7 @@ const AREAS = [
       'parent/trial.md',
       'public/enrollment.md',
       'public/trial.md',
+      'public/application-forms-a6.md',
     ],
   },
   {
