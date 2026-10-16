@@ -188,6 +188,13 @@ describe('FeeTemplatesComponent', () => {
       ).toEqual(['period']);
     });
 
+    // #1698：A6 fee-templates.html 在 ≤860 覆寫 `.chap`＝橫排、章名 28px（listRow）
+    it('章頭用 listRow：手機章名 28px', () => {
+      load(mixed());
+      const name = root().querySelector('[data-chapter] .chapter-head__name');
+      expect(name?.classList).toContain('text-[28px]');
+    });
+
     it('顯示停用方案：停用的排在章內最後、不重新打 API；鈕上寫停用數', () => {
       load(mixed());
       const calls = feeTemplates.list.mock.calls.length;

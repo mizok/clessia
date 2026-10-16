@@ -225,6 +225,15 @@ describe('StaffPage', () => {
       expect(chapterHeads()).toEqual(['管理員 2 位', '老師 1 位', '停用與封存 1 位']);
     });
 
+    // #1698：A6 staff.html 在 ≤860 覆寫 `.chap`＝橫排、章名 28px（listRow），不是共用的 26px
+    it('章頭用 listRow：手機章名 28px', () => {
+      show([person('a', { roles: ['admin'] })], { admin: 1, teacher: 0, inactiveOrArchived: 0 });
+      const name = (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-chapter] .chapter-head__name',
+      );
+      expect(name?.classList).toContain('text-[28px]');
+    });
+
     it('沒有人的章不顯示（kiosk 章只在有機台時出現）；沒有封存叫「已停用」', () => {
       show(
         [person('t', {}), person('off', { status: 'inactive' })],

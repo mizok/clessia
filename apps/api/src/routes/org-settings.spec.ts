@@ -113,6 +113,8 @@ describe('toOrgSettingsResponse', () => {
       prorationBasis: 'days',
       // #1073：還沒設定帳戶資訊 → null（家長頁退回「請洽行政人員」）
       paymentInfo: null,
+      // #1660：欄位不在（migration 還沒套）→ 設計稿的預設時間點
+      invoiceReminderOffsets: [-3, 0, 1, 7],
     });
   });
 
@@ -343,5 +345,136 @@ describe('PATCH /settings 的稽核紀錄（#828）', () => {
       fields: ['attendance_retroactive_days'],
       values: { attendance_retroactive_days: 30 },
     });
+  });
+});
+
+/**
+ * #1660（#1626 Q2）：家長繳費提醒時間點是機構設定，跟帳戶資訊同一道門檻（`manage_finance`）。
+ * 範圍 [-30, 60]、最多 6 個、不重複；存的時候排序。
+ */
+describe('invoiceReminderOffsets（#1660）', () => {
+  function appWith(permissions: string[]) {
+    const updates: Array<Record<string, unknown>> = [];
+    // DB 裡存的是非預設值 —— select 字串漏了這一欄的話，回應會落到預設的 [-3,0,1,7]
+    const row: Record<string, unknown> = {
+      id: 'org-1',
+      name: 'x',
+      attendance_mode: 'per_session',
+      invoice_reminder_offsets: [-1],
+    };
+    /** 只回 select 字串裡有的欄位（像 PostgREST 一樣），漏選的欄位就是不在 */
+    const project = (r: Record<string, unknown>, cols: string) =>
+      Object.fromEntries(
+        cols
+          .split(',')
+          .map((c) => c.trim())
+          .filter((c) => c in r)
+          .map((c) => [c, r[c]]),
+      );
+    const supabase = {
+      from(table: string) {
+        if (table === 'organizations') {
+          return {
+            select: (cols: string) => ({
+              eq: () => ({
+                single: () => Promise.resolve({ data: project(row, cols), error: null }),
+              }),
+            }),
+            update: (u: Record<string, unknown>) => {
+              updates.push(u);
+              return {
+                eq: () => ({
+                  select: (cols: string) => ({
+                    single: () =>
+                      Promise.resolve({ data: project({ ...row, ...u }, cols), error: null }),
+                  }),
+                }),
+              };
+            },
+          };
+        }
+        if (table === 'profiles') {
+          return {
+            select: () => ({
+              eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+          };
+        }
+        return { insert: () => Promise.resolve({ error: null }) }; // audit_logs
+      },
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set;
+      set('roles', ['admin']);
+      set('permissions', permissions);
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('supabase', supabase);
+      await next();
+    });
+    app.route('/', orgSettingsRoute as unknown as Hono);
+    const send = (offsets: unknown) =>
+      app.request('/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ invoiceReminderOffsets: offsets }),
+      });
+    const get = () => app.request('/settings');
+    return { send, updates, get };
+  }
+  const FINANCE = ['manage_org_settings', 'manage_finance'];
+
+  it('GET 與 PATCH 回的是 DB 裡的值，不是預設值（SELECT_FIELDS 要有這一欄）', async () => {
+    const { get, send } = appWith(['manage_org_settings', 'manage_finance']);
+    expect(await (await get()).json()).toMatchObject({ invoiceReminderOffsets: [-1] });
+    // 只改別的欄位：回應裡的時間點仍然是 DB 的 [-1]
+    const res = await send([-1]);
+    expect(await res.json()).toMatchObject({ invoiceReminderOffsets: [-1] });
+  });
+
+  it('有 manage_finance：存排序後的值，回應帶回來', async () => {
+    const { send, updates } = appWith(FINANCE);
+    const res = await send([7, -3, 0]);
+    expect(res.status).toBe(200);
+    expect(updates).toEqual([{ invoice_reminder_offsets: [-3, 0, 7] }]);
+    expect(await res.json()).toMatchObject({ invoiceReminderOffsets: [-3, 0, 7] });
+  });
+
+  it('只有 manage_org_settings：403，什麼都沒寫', async () => {
+    const { send, updates } = appWith(['manage_org_settings']);
+    expect((await send([-3])).status).toBe(403);
+    expect(updates).toEqual([]);
+  });
+
+  it.each([
+    ['7 個', [-5, -3, 0, 1, 2, 3, 7]],
+    ['重複', [1, 1]],
+    ['小於 -30', [-31]],
+    ['大於 60', [61]],
+    ['不是整數', [1.5]],
+  ])('%s → 400，什麼都沒寫', async (_l, offsets) => {
+    const { send, updates } = appWith(FINANCE);
+    expect((await send(offsets)).status).toBe(400);
+    expect(updates).toEqual([]);
+  });
+
+  it('邊界 [-30, 60]、6 個、空陣列都可以', async () => {
+    const { send } = appWith(FINANCE);
+    expect((await send([-30, -1, 0, 1, 30, 60])).status).toBe(200);
+    expect((await send([])).status).toBe(200);
+  });
+
+  it('沒有財務權限：GET 的回應裡沒有這個 key；有權限、欄位缺席退回預設', () => {
+    expect(
+      toOrgSettingsResponse({ id: 'o', invoice_reminder_offsets: [1] }, false),
+    ).not.toHaveProperty('invoiceReminderOffsets');
+    expect(toOrgSettingsResponse({ id: 'o' })).toMatchObject({
+      invoiceReminderOffsets: [-3, 0, 1, 7],
+    });
+  });
+
+  it('touchesFinanceSettings 認得它', () => {
+    expect(touchesFinanceSettings({ invoiceReminderOffsets: [] })).toBe(true);
   });
 });
