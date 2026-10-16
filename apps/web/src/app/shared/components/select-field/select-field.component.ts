@@ -17,6 +17,9 @@ export interface SelectFieldOption<T> {
 
 let seq = 0;
 
+/** 已經包過 alignOverlay 的 overlay（同一個實例只包一次） */
+const ALIGNED = new WeakSet<object>();
+
 /**
  * A6 的客製下拉（#991 P1，計畫席裁定選項 A：包 p-select＋pt）。
  *
@@ -48,6 +51,12 @@ export class SelectFieldComponent<T> {
    * 桌機 30px 高、12px 字。手機底部面板沿用一般尺寸。
    */
   readonly compact = input(false);
+  /** 表單欄位（#1665 公開表單）：標籤後加 A6 的必填星號（讀屏不念，必填由錯誤訊息說） */
+  readonly required = input(false);
+  /** 驗證沒過：框換成錯誤色（A6 `.is-bad`） */
+  readonly invalid = input(false);
+  /** 標籤字級：篩選列用 sm（預設）；表單欄位用 md，跟 A6 `.acset__l` 一樣大 */
+  readonly labelSize = input<'sm' | 'md'>('sm');
 
   protected readonly labelId = `select-field-${++seq}`;
   protected readonly filter = computed(() => this.options().length > 8);
@@ -58,7 +67,16 @@ export class SelectFieldComponent<T> {
     responsive: { breakpoint: '860px', direction: 'bottom' },
   };
 
-  protected readonly pt = computed<SelectPassThrough>(() =>
+  protected readonly pt = computed<SelectPassThrough>(() => {
+    const base = this.basePt() as Record<string, unknown> & { root: { class: string } };
+    if (!this.invalid()) return base as SelectPassThrough;
+    return {
+      ...base,
+      root: { class: `${base.root.class} border-error-700! hover:border-error-700!` },
+    } as SelectPassThrough;
+  });
+
+  private readonly basePt = computed<SelectPassThrough>(() =>
     this.compact()
       ? {
           ...PT,
@@ -78,6 +96,43 @@ export class SelectFieldComponent<T> {
 
   protected close(): void {
     this.select().hide(true);
+  }
+
+  /**
+   * PrimeNG 對 `appendTo` 給元素時仍用 absolutePosition —— 算的是**整份文件**的座標，
+   * 但原生 modal `<dialog>` 是 fixed 定位的容器，面板會多偏移一個「容器在畫面上的位置」
+   * （#1689 通知中心發送彈窗：桌機面板掉到觸發鈕下方約 200px）。這裡換成相對容器的座標。
+   * 手機的底部面板是 modal，不走 absolutePosition，不用換。
+   *
+   * 包住 overlay 的 `alignOverlay`，不是只在打開時換一次：打字篩選（>8 項，例如分校多的機構）
+   * 時 PrimeNG 會再定位一次，只換一次的話會被蓋回文件座標。
+   */
+  protected alignInContainer(): void {
+    const container = this.appendTo();
+    const overlay = this.select().overlayViewChild;
+    if (container === 'body' || !overlay || overlay.modal) return;
+    // 已經包過：這次打開時 PrimeNG 的 beforeEnter 已經透過 wrapper 換好了，onShow 再換會扣兩次
+    //（p-overlay 實例一直留著，第二次打開才會走到這裡；#1697 二讀抓到）
+    if (ALIGNED.has(overlay)) return;
+    ALIGNED.add(overlay);
+    const align = overlay.alignOverlay.bind(overlay);
+    overlay.alignOverlay = () => {
+      align();
+      this.shiftIntoContainer();
+    };
+    // 第一次：beforeEnter 跑的是還沒包的原版，所以這裡補換一次
+    this.shiftIntoContainer();
+  }
+
+  private shiftIntoContainer(): void {
+    const container = this.appendTo();
+    const overlay = this.select().overlayViewChild;
+    const el = overlay?.overlayEl as HTMLElement | undefined;
+    if (container === 'body' || !el || overlay?.modal) return;
+    const rect = container.getBoundingClientRect();
+    el.style.top = `${parseFloat(el.style.top) - rect.top - window.scrollY + container.scrollTop}px`;
+    // PrimeNG 寫的是 inset-inline-start（不是 left）
+    el.style.insetInlineStart = `${parseFloat(el.style.insetInlineStart) - rect.left - window.scrollX + container.scrollLeft}px`;
   }
 }
 

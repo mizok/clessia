@@ -6,6 +6,7 @@ import {
   IDENTITY_SQL,
   loadIdentityViaSql,
   loadMeExtrasViaSql,
+  loadNickname,
   type IdentityRows,
 } from '../lib/identity-sql';
 import { loadIdentity } from '../middleware/auth';
@@ -75,18 +76,20 @@ run('身分 SQL 對真 Postgres（Hyperdrive A）', () => {
     expect(withChildren).toBeGreaterThan(0);
   });
 
-  it('/api/me 的 profiles＋ba_user：SQL 與 REST 相同', async () => {
+  it('/api/me 的 profiles＋ba_user＋暱稱：SQL 與 REST 相同', async () => {
     const { rows: users } = await pool.query<{ user_id: string; org_id: string }>(
       `select u.id as user_id, u."orgId"::text as org_id from public.ba_user u where u."orgId" is not null`,
     );
     expect(users.length).toBeGreaterThan(0);
     for (const { user_id, org_id } of users) {
       const viaSql = await loadMeExtrasViaSql(pool, user_id, org_id);
-      const [p, u] = await Promise.all([
+      const [p, u, nickname] = await Promise.all([
         supabase.from('profiles').select('display_name').eq('id', user_id).maybeSingle(),
         supabase.from('ba_user').select('name, email, phone').eq('id', user_id).single(),
+        // #1665：REST 那條的暱稱規則（沒有 staff 列也是 null，跟 SQL 子查詢一致）
+        loadNickname(supabase, user_id, org_id),
       ]);
-      expect(viaSql, user_id).toEqual({ profile: p.data, baUser: u.data });
+      expect(viaSql, user_id).toEqual({ profile: p.data, baUser: u.data, nickname });
     }
   });
 

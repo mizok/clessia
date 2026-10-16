@@ -1,3 +1,4 @@
+import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -109,6 +110,7 @@ import {
 @Component({
   selector: 'app-dashboard',
   imports: [
+    ValueArriveDirective,
     StatusDotComponent,
     RouterLink,
     PhoneLeaveComponent,

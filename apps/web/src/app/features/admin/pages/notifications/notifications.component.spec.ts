@@ -4,6 +4,7 @@ import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
+import { AuthService } from '@core/auth.service';
 import { CampusesService } from '@core/campuses.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
@@ -31,6 +32,26 @@ describe('NotificationsComponent（管理端發布）', () => {
   const listMock = vi.fn();
   const createMock = vi.fn();
   const campusesMock = vi.fn();
+  /** #1686：發布要 `send_announcements`。多數測試的主題不是權限，預設有 */
+  let canSend = true;
+  const authStub = { hasPermission: (p: string) => p === 'send_announcements' && canSend };
+
+  // jsdom 沒有 <dialog> 的 modal 行為：只補開關狀態與 close 事件（照 sessions.page.spec）
+  const dialogProto = HTMLDialogElement.prototype;
+  const originalDialog = { showModal: dialogProto.showModal, close: dialogProto.close };
+
+  beforeEach(() => {
+    canSend = true;
+    dialogProto.showModal = function (this: HTMLDialogElement) {
+      this.open = true;
+    };
+    dialogProto.close = function (this: HTMLDialogElement) {
+      if (!this.open) return;
+      this.open = false;
+      this.dispatchEvent(new Event('close'));
+    };
+  });
+  afterEach(() => Object.assign(dialogProto, originalDialog));
 
   async function setup(data: Announcement[] = []) {
     listMock.mockReset();
@@ -49,6 +70,7 @@ describe('NotificationsComponent（管理端發布）', () => {
           useValue: { list: listMock, create: createMock },
         },
         { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: AuthService, useValue: authStub },
       ],
     }).compileComponents();
 
@@ -74,6 +96,7 @@ describe('NotificationsComponent（管理端發布）', () => {
         MessageService,
         { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
         { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: AuthService, useValue: authStub },
       ],
     }).compileComponents();
 
@@ -117,7 +140,7 @@ describe('NotificationsComponent（管理端發布）', () => {
   it('發布鍵只在送出中才 disabled —— 沒填也按得下去', async () => {
     await setup();
 
-    const btn = fixture.nativeElement.querySelector('.admin-notifications__composer button');
+    const btn = fixture.nativeElement.querySelector('[data-testid="publish"]');
     expect(btn.disabled).toBe(false);
   });
 
@@ -324,15 +347,21 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(fixture.nativeElement.querySelectorAll('app-page-open br')).toHaveLength(0);
     });
 
-    it('手機表單出血、桌機不出血；清單與表單的間距收緊（A6）', async () => {
+    // A6 `.chap`：每一章（含最後一章）上下 32px（手機 24px）、有下框（#1689 順手改）
+    it('分章的外框照 A6：上下內距、每章都有下框、兩欄 208px', async () => {
       await setup([announcement()]);
-      const composer = (fixture.nativeElement as HTMLElement).querySelector(
-        '.admin-notifications__composer',
+      const chapter = (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="chapter"]',
       )!;
-      expect([...composer.classList]).toEqual(
-        expect.arrayContaining(['-mx-4', 'wide:mx-0', 'rounded-none', 'wide:rounded-lg']),
+      expect([...chapter.classList]).toEqual(
+        expect.arrayContaining([
+          'py-6',
+          'wide:py-8',
+          'border-b',
+          'wide:grid-cols-[208px_minmax(0,1fr)]',
+        ]),
       );
-      expect(composer.parentElement!.classList).toContain('gap-3');
+      expect(chapter.classList).not.toContain('last:border-b-0');
     });
 
     it('載入中色面不宣稱「還沒有發布過公告」', async () => {
@@ -347,6 +376,7 @@ describe('NotificationsComponent（管理端發布）', () => {
           MessageService,
           { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
           { provide: CampusesService, useValue: { list: campusesMock } },
+          { provide: AuthService, useValue: authStub },
         ],
       }).compileComponents();
       const f = TestBed.createComponent(NotificationsComponent);
@@ -420,5 +450,146 @@ describe('NotificationsComponent（管理端發布）', () => {
     expect(el.querySelector('.reload-veil--stale')).not.toBeNull();
     expect(el.querySelector('.skeleton-list')).toBeNull();
     expect(el.querySelectorAll('[data-testid="announcement"]').length).toBe(1);
+  });
+
+  describe('「發送通知」權限（#1686）', () => {
+    it('沒有 send_announcements：看不到發布表單，列表照常', async () => {
+      canSend = false;
+      await setup([announcement()]);
+      const el: HTMLElement = fixture.nativeElement;
+
+      expect(el.querySelector('.admin-notifications__composer')).toBeNull();
+      expect(el.querySelectorAll('[data-testid="announcement"]')).toHaveLength(1);
+    });
+
+    it('有 send_announcements：發布表單在', async () => {
+      await setup();
+
+      expect(fixture.nativeElement.querySelector('.admin-notifications__composer')).not.toBeNull();
+    });
+  });
+
+  describe('發送通知改成彈窗（#1689）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const dialog = () => el().querySelector<HTMLDialogElement>('[data-testid="composer"]');
+    const openViaPageAction = () => {
+      el().querySelector<HTMLButtonElement>('.page-actions__header-primary button')!.click();
+      fixture.detectChanges();
+    };
+
+    it('頁面上沒有發布表單，只有列表；表單在彈窗裡、一開始是關的', async () => {
+      await setup([announcement()]);
+
+      expect(dialog()).not.toBeNull();
+      expect(dialog()!.open).toBe(false);
+      expect(dialog()!.querySelector('.admin-notifications__composer')).not.toBeNull();
+      expect(el().querySelectorAll('[data-testid="announcement"]')).toHaveLength(1);
+    });
+
+    it('按頁首的「發送通知」打開彈窗', async () => {
+      await setup([announcement()]);
+
+      openViaPageAction();
+
+      expect(dialog()!.open).toBe(true);
+    });
+
+    it('沒有 send_announcements：沒有入口、沒有彈窗、空狀態也沒有按鈕', async () => {
+      canSend = false;
+      await setup([]);
+
+      expect(el().querySelector('app-page-actions')).toBeNull();
+      expect(dialog()).toBeNull();
+      expect(el().querySelector('[data-testid="empty-send"]')).toBeNull();
+      expect(el().textContent).toContain('還沒有發布過公告。');
+    });
+
+    it('空狀態有權限時多一顆「發送通知」，按了開彈窗', async () => {
+      await setup([]);
+
+      el().querySelector<HTMLButtonElement>('[data-testid="empty-send"]')!.click();
+
+      expect(dialog()!.open).toBe(true);
+    });
+
+    it('沒填就按發布：彈窗不關、焦點到標題', async () => {
+      await setup([announcement()]);
+      openViaPageAction();
+
+      el().querySelector<HTMLButtonElement>('[data-testid="publish"]')!.click();
+      fixture.detectChanges();
+
+      expect(dialog()!.open).toBe(true);
+      expect(document.activeElement).toBe(el().querySelector('.admin-notifications__input'));
+    });
+
+    it('發布成功：關彈窗、toast、清空、重抓列表', async () => {
+      await setup([announcement()]);
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      openViaPageAction();
+      component['title'].set('停課通知');
+      component['body'].set('內容');
+      listMock.mockClear();
+
+      el().querySelector<HTMLButtonElement>('[data-testid="publish"]')!.click();
+
+      expect(dialog()!.open).toBe(false);
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: '已發布給全體老師（全部分校）' }),
+      );
+      expect(component['title']()).toBe('');
+      expect(listMock).toHaveBeenCalled();
+    });
+
+    it('發布失敗：彈窗不關、錯誤在彈窗裡、內容留著', async () => {
+      await setup([announcement()]);
+      createMock.mockReturnValue(throwError(() => new Error('boom')));
+      openViaPageAction();
+      component['title'].set('停課通知');
+      component['body'].set('內容');
+
+      el().querySelector<HTMLButtonElement>('[data-testid="publish"]')!.click();
+      fixture.detectChanges();
+
+      expect(dialog()!.open).toBe(true);
+      expect(dialog()!.querySelector('[role="alert"]')?.textContent).toContain('發布失敗');
+      expect(component['title']()).toBe('停課通知');
+    });
+
+    it('送出中按鈕寫「發布中…」並停用', async () => {
+      await setup([announcement()]);
+      createMock.mockReturnValue(NEVER);
+      openViaPageAction();
+      component['title'].set('停課通知');
+      component['body'].set('內容');
+
+      const btn = el().querySelector<HTMLButtonElement>('[data-testid="publish"]')!;
+      btn.click();
+      fixture.detectChanges();
+
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent?.trim()).toBe('發布中…');
+    });
+
+    it('取消或點背景關掉，草稿留著；點彈窗裡面不會關', async () => {
+      await setup([announcement()]);
+      openViaPageAction();
+      component['onTitleChange']('寫到一半');
+
+      dialog()!.querySelector<HTMLElement>('.admin-notifications__composer')!.click();
+      expect(dialog()!.open).toBe(true);
+
+      dialog()!.click(); // target＝dialog 本身＝點到 backdrop
+      expect(dialog()!.open).toBe(false);
+
+      openViaPageAction();
+      expect(component['title']()).toBe('寫到一半');
+      const cancel = [...dialog()!.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === '取消',
+      )!;
+      cancel.click();
+      expect(dialog()!.open).toBe(false);
+      expect(component['title']()).toBe('寫到一半');
+    });
   });
 });
