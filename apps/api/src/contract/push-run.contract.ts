@@ -215,6 +215,36 @@ run('推播排程對真 Postgres（#1661）', () => {
     expect(await push()).toMatchObject({ enqueued: 0 });
   });
 
+  it('兩個 run 同時跑（推播服務很慢）：同一則只送一次；送出期間沒有交易拖著', async () => {
+    await invoice(3);
+    await invoice(0);
+    const slow = () =>
+      runPush(pool, {
+        today,
+        batchSize: 10,
+        vapid,
+        subject: 'mailto:contract@example.invalid',
+        send: async (url) => {
+          sent.push(url);
+          // 「送出中」那一刻，認領那個交易還開著嗎？開著的話它對這幾列的列鎖還在，NOWAIT 會立刻失敗。
+          // （不用 pg_stat_activity 數「idle in transaction」：另一個 run 的短交易、共用 DB 的其他活動都會算進去）
+          try {
+            await q('SELECT id FROM push_deliveries WHERE org_id = $1 FOR UPDATE NOWAIT', [orgId]);
+            lockedDuringSend.push(false);
+          } catch {
+            lockedDuringSend.push(true);
+          }
+          await new Promise((r) => setTimeout(r, 300));
+          return { status: 201 };
+        },
+      });
+    const lockedDuringSend: boolean[] = [];
+    const [a, b] = await Promise.all([slow(), slow()]);
+    expect(a.delivered + b.delivered).toBe(2);
+    expect(sent).toHaveLength(2); // 兩則各一台，沒有重送
+    expect(lockedDuringSend).toEqual([false, false]);
+  });
+
   it('沒有訂閱 → 不排', async () => {
     await q('DELETE FROM push_subscriptions WHERE org_id = $1 AND user_id = $2', [orgId, mom]);
     await invoice(3);

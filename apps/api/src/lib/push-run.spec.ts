@@ -39,12 +39,11 @@ const sub = (
   auth: subId ? AUTH : null,
 });
 
-function fakePool(pending: Row[], locked = true) {
+function fakePool(pending: Row[]) {
   const sent: Array<{ sql: string; params?: unknown[] }> = [];
   const client = {
     query: async (sql: string, params?: unknown[]) => {
       sent.push({ sql, params });
-      if (/pg_try_advisory_xact_lock/.test(sql)) return { rows: [{ locked }], rowCount: 1 };
       if (/FROM organizations org/.test(sql)) return { rows: [], rowCount: 0 }; // 沒有要排入的
       if (/LEFT JOIN push_subscriptions/.test(sql))
         return { rows: pending, rowCount: pending.length };
@@ -57,29 +56,33 @@ function fakePool(pending: Row[], locked = true) {
   return { pool, sent, find };
 }
 
-async function run(pending: Row[], status: (url: string) => number, batchSize = 10, locked = true) {
-  const db = fakePool(pending, locked);
+async function run(pending: Row[], status: (url: string) => number, batchSize = 10) {
+  const db = fakePool(pending);
   const urls: string[] = [];
   const auths: string[] = [];
+  const signals: unknown[] = [];
   const result = await runPush(db.pool, {
     today: '2026-10-16',
     batchSize,
     vapid: await vapid(),
     subject: 'mailto:ops@example.com',
     send: async (url, init) => {
+      db.sent.push({ sql: `SEND ${url}` });
+      signals.push(init.signal);
       urls.push(url);
       auths.push((init.headers as Record<string, string>)['Authorization']!);
       return { status: status(url) };
     },
   });
-  return { result, urls, auths, ...db };
+  return { result, urls, auths, signals, ...db };
 }
 
 describe('runPush —— 送出（#1661）', () => {
-  it('成功的記 sent_at、更新 last_success_at；COMMIT', async () => {
+  it('成功的：認領時記 sent_at，回寫更新 last_success_at；COMMIT', async () => {
     const { result, find, sent } = await run([sub('d1', 's1')], () => 201);
     expect(result).toMatchObject({ attempted: 1, delivered: 1, removedSubscriptions: 0 });
     expect(find(/SET sent_at = now\(\)/)[0]!.params).toEqual([['d1']]);
+    expect(find(/last_error = NULL/)[0]!.params).toEqual([['d1']]);
     expect(find(/SET last_success_at = now\(\)/)[0]!.params).toEqual([['s1']]);
     expect(sent.at(-1)!.sql).toBe('COMMIT');
   });
@@ -152,11 +155,31 @@ describe('runPush —— 送出（#1661）', () => {
     expect(db.find(/last_error = x.err/)[0]!.params).toEqual([['d1'], ['HTTP 0']]);
   });
 
-  it('另一個 run 拿著鎖 → skipped，什麼都不做', async () => {
-    const { result, urls, find } = await run([sub('d1', 's1')], () => 201, 10, false);
-    expect(result).toMatchObject({ skipped: 'locked' });
-    expect(urls).toEqual([]);
-    expect(find(/INSERT INTO push_deliveries/)).toEqual([]);
+  it('送出期間沒有交易開著：認領 COMMIT 之後才送，送完才開回寫的交易', async () => {
+    const { sent } = await run([sub('d1', 's1'), sub('d2', 's2')], () => 201);
+    const order = sent.map((q) => q.sql.split(/\s+/)[0]);
+    const firstSend = order.indexOf('SEND');
+    const lastSend = order.lastIndexOf('SEND');
+    expect(order.slice(0, firstSend).at(-1)).toBe('COMMIT');
+    expect(order[lastSend + 1]).toBe('BEGIN');
+    expect(order.filter((o) => o === 'BEGIN')).toHaveLength(2);
+  });
+
+  it('認領用 FOR UPDATE SKIP LOCKED＋sent_at 記號：同時跑的另一個 run 拿不到同一則', async () => {
+    const { find } = await run([sub('d1', 's1')], () => 201);
+    expect(find(/FOR UPDATE SKIP LOCKED/)).toHaveLength(1);
+    expect(find(/SET sent_at = now\(\) WHERE id = ANY/)[0]!.params).toEqual([['d1']]);
+  });
+
+  it('每一次 fetch 都帶逾時的 AbortSignal', async () => {
+    const { signals } = await run([sub('d1', 'a'), sub('d2', 'b')], () => 201);
+    expect(signals).toHaveLength(2);
+    for (const sig of signals) expect(sig).toBeInstanceOf(AbortSignal);
+  });
+
+  it('沒送達的把 sent_at 改回 NULL（下一輪重試）', async () => {
+    const { find } = await run([sub('d1', 's1')], () => 500);
+    expect(find(/SET sent_at = NULL/)[0]!.params).toEqual([['d1'], ['HTTP 500']]);
   });
 });
 

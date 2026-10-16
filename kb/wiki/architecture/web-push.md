@@ -287,8 +287,12 @@ ALTER TABLE public.organizations
    不管 cron 一天跑 12 次、Workers 與自架 cron 同時開著、還是有人手動多打一次。
    **時間點在鍵裡、日期不在**（Q2）：機構改了設定，已經推過的時間點不會重推；新加的時間點只在
    `due_date + offset` 落在之後的日子才會觸發，不補發過去的。
-2. **送出一批**：取 `sent_at IS NULL AND attempts < 3` 最舊的 K 筆，對每筆的每台裝置送一次；任一台成功就記 `sent_at`；
-   404/410 刪訂閱；其他錯誤 `attempts + 1`、記 `last_error`，下一輪重試。
+2. **送出一批**，拆三段（#1661，**對外 fetch 期間沒有交易開著**，見 [[architecture/pg-pool-writes]] 規則 7）：
+   - 短交易**認領**：取 `sent_at IS NULL AND attempts < 3` 最舊的幾則 `FOR UPDATE SKIP LOCKED`，裝置數到 K 為止（一則不拆兩次 run），
+     把 `sent_at` 先設成 now() 當認領記號 —— 同時跑的另一個 run 不會再拿到
+   - 交易外**送出**：每台裝置一次 fetch，**每次 5 秒逾時**，全部並行；發送前再驗白名單（#1659）
+   - 短交易**回寫**：任一台成功就保留 `sent_at`；404/410 刪訂閱；都沒成功的把 `sent_at` 改回 NULL、`attempts + 1`、記 `last_error`，下一輪重試
+   - 取捨：認領後、回寫前 Worker 被砍，那幾則停在「已送」—— 寧可漏一則（下一個時間點還會提醒），不要重送
 3. 刪 90 天前的列。
 
 **今天要提醒哪些帳單**（未繳清 = `isOpenInvoice`，逾期 = `isOverdueOn`，日期基準 = `getCurrentTaipeiDateString()`，**全部重用既有定義**，不另寫一套）：

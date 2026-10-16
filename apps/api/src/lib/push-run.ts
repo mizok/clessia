@@ -12,8 +12,8 @@ import { buildPushRequest, vapidAuthorization, type VapidKeys } from './web-push
  * 每句都算一個；推播本身就要用掉 K 個。這是 pg-pool-writes.md 規則 1 之外的第二個理由（額度），
  * 交易包法與錯誤對應照那一頁。
  *
- * **整個 run 在一個交易裡，開頭拿 transaction 級的 advisory lock**：Workers cron 與自架 cron 同時開著、
- * 或有人手動多打一次，後到的直接回 `skipped: 'locked'`，不會同一則送兩次。
+ * **對外 fetch 期間沒有交易開著**（見 `runPush`）。Workers cron 與自架 cron 同時開著、或有人手動多打一次，
+ * 靠認領時的 `FOR UPDATE SKIP LOCKED`＋`sent_at` 記號，不會同一則送兩次。
  *
  * 這是系統工作，不屬於任何一個使用者 —— **跨 org 跑**，每一句都用資料本身的 org_id 關聯
  * （帳單的 org → 家長的 org → 訂閱的 org），不收任何外部指定的對象。
@@ -25,8 +25,8 @@ export const DEFAULT_PUSH_BATCH_SIZE = 10;
 const TTL_SECONDS = 86400;
 const MAX_ATTEMPTS = 3;
 const RETENTION_DAYS = 90;
-/** advisory lock 的鍵：工單號，跟別的鎖撞不到就好 */
-const RUN_LOCK_KEY = 1626;
+/** 每一次對推播服務的 fetch 最多等多久；逾時算失敗，下一輪重試 */
+export const SEND_TIMEOUT_MS = 5000;
 
 export interface PushRunOptions {
   /** 台北今天（`getCurrentTaipeiDateString()`），呼叫端決定 */
@@ -40,7 +40,6 @@ export interface PushRunOptions {
 }
 
 export interface PushRunResult {
-  readonly skipped?: 'locked';
   readonly enqueued: number;
   readonly attempted: number;
   readonly delivered: number;
@@ -143,43 +142,72 @@ interface PendingRow {
   auth: string | null;
 }
 
-async function sendBatch(db: PoolClient, opts: PushRunOptions) {
+interface Job {
+  readonly deliveryId: string;
+  readonly row: PendingRow;
+}
+
+/**
+ * 認領（短交易內）：取還沒送的最舊幾則，`FOR UPDATE SKIP LOCKED` 讓同時跑的另一個 run 拿不到同一列，
+ * 再把選中的 `sent_at` 先設成 now() 當「已認領」記號 —— 交易一結束鎖就放了，記號讓下一個 run 也不碰它。
+ * 送失敗的在回寫時把 `sent_at` 改回 NULL，下一輪重試。
+ */
+async function claim(db: PoolClient, batchSize: number): Promise<Job[]> {
   const { rows } = await db.query<PendingRow>(
     `SELECT d.id, d.payload, s.id AS sub_id, s.endpoint, s.p256dh, s.auth
      FROM (SELECT id, user_id, org_id, payload, created_at FROM push_deliveries
            WHERE sent_at IS NULL AND attempts < $2
-           ORDER BY created_at, id LIMIT $1) d
+           ORDER BY created_at, id LIMIT $1
+           FOR UPDATE SKIP LOCKED) d
      LEFT JOIN push_subscriptions s ON s.user_id = d.user_id AND s.org_id = d.org_id
      ORDER BY d.created_at, d.id`,
-    [opts.batchSize, MAX_ATTEMPTS],
+    [batchSize, MAX_ATTEMPTS],
   );
 
   // 依佇列順序把整則（含它所有裝置）放進這一批，直到裝置數用完；一則不拆到兩次 run
   const byDelivery = new Map<string, PendingRow[]>();
   for (const r of rows) byDelivery.set(r.id, [...(byDelivery.get(r.id) ?? []), r]);
   const noSubscription: string[] = [];
-  const jobs: Array<{ deliveryId: string; row: PendingRow }> = [];
+  const jobs: Job[] = [];
   for (const [id, subs] of byDelivery) {
     const devices = subs.filter((s) => s.sub_id !== null);
     if (devices.length === 0) {
       noSubscription.push(id); // 排入後訂閱被刪了：不再重試
       continue;
     }
-    if (jobs.length > 0 && jobs.length + devices.length > opts.batchSize) break;
+    if (jobs.length > 0 && jobs.length + devices.length > batchSize) break;
     for (const row of devices) jobs.push({ deliveryId: id, row });
   }
 
-  const send = opts.send ?? ((url, init) => fetch(url, init));
+  const claimed = [...new Set(jobs.map((j) => j.deliveryId))];
+  if (claimed.length > 0) {
+    await db.query('UPDATE push_deliveries SET sent_at = now() WHERE id = ANY($1::uuid[])', [
+      claimed,
+    ]);
+  }
+  if (noSubscription.length > 0) {
+    await db.query(
+      `UPDATE push_deliveries SET attempts = $2, last_error = 'NO_SUBSCRIPTION' WHERE id = ANY($1::uuid[])`,
+      [noSubscription, MAX_ATTEMPTS],
+    );
+  }
+  return jobs;
+}
+
+/** 送出（**交易外**）：每一次 fetch 都有逾時，推播服務再慢也不會讓任何交易或鎖跟著等 */
+async function send(jobs: readonly Job[], opts: PushRunOptions) {
+  const doSend = opts.send ?? ((url, init) => fetch(url, init));
   const auths = new Map<string, Promise<string>>(); // 每個推播服務一次 run 簽一次
-  const outcomes = await Promise.all(
+  return Promise.all(
     jobs.map(async ({ deliveryId, row }) => {
       const endpoint = row.endpoint as string;
       // 白名單發送前再驗一次（#1659）：不信 DB 裡存的值
       if (!isAllowedPushEndpoint(endpoint)) return { deliveryId, row, status: 'invalid' as const };
       try {
         const origin = new URL(endpoint).origin;
-        if (!auths.has(origin))
+        if (!auths.has(origin)) {
           auths.set(origin, vapidAuthorization(endpoint, opts.vapid, opts.subject));
+        }
         const { url, init } = await buildPushRequest(
           { endpoint, keys: { p256dh: row.p256dh as string, auth: row.auth as string } },
           JSON.stringify(row.payload),
@@ -189,14 +217,21 @@ async function sendBatch(db: PoolClient, opts: PushRunOptions) {
             topic: (row.payload as { topic?: string }).topic,
           },
         );
-        return { deliveryId, row, status: (await send(url, init)).status };
+        const res = await doSend(url, { ...init, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) });
+        return { deliveryId, row, status: res.status };
       } catch (err) {
+        // 逾時、網路錯誤：算這一台失敗，那則下一輪重試
         console.error('[push] send failed:', err instanceof Error ? err.message : err);
         return { deliveryId, row, status: 0 };
       }
     }),
   );
+}
 
+type Outcome = Awaited<ReturnType<typeof send>>[number];
+
+/** 回寫（短交易內）：送達的保留 sent_at；沒送達的把 sent_at 改回 NULL、attempts＋1 */
+async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
   const ok = (s: number | 'invalid') => typeof s === 'number' && s >= 200 && s < 300;
   // RFC 8030 §7.3 規定過期是 404；實務上也有 410，都當失效
   const gone = (s: number | 'invalid') => s === 404 || s === 410 || s === 'invalid';
@@ -224,53 +259,45 @@ async function sendBatch(db: PoolClient, opts: PushRunOptions) {
   }
   if (deliveredIds.size > 0) {
     await db.query(
-      `UPDATE push_deliveries SET sent_at = now(), attempts = attempts + 1, last_error = NULL
-       WHERE id = ANY($1::uuid[])`,
+      `UPDATE push_deliveries SET attempts = attempts + 1, last_error = NULL WHERE id = ANY($1::uuid[])`,
       [[...deliveredIds]],
     );
   }
   if (failed.length > 0) {
     await db.query(
-      `UPDATE push_deliveries d SET attempts = d.attempts + 1, last_error = x.err
+      `UPDATE push_deliveries d SET sent_at = NULL, attempts = d.attempts + 1, last_error = x.err
        FROM unnest($1::uuid[], $2::text[]) AS x(id, err) WHERE d.id = x.id`,
       [failed.map((f) => f.id), failed.map((f) => f.error)],
     );
   }
-  if (noSubscription.length > 0) {
-    await db.query(
-      `UPDATE push_deliveries SET attempts = $2, last_error = 'NO_SUBSCRIPTION' WHERE id = ANY($1::uuid[])`,
-      [noSubscription, MAX_ATTEMPTS],
-    );
-  }
-  return {
-    attempted: jobs.length,
-    delivered: deliveredIds.size,
-    removedSubscriptions: goneSubs.length,
-  };
+  return { delivered: deliveredIds.size, removedSubscriptions: goneSubs.length };
 }
 
+/**
+ * 三段，**對外 fetch 期間沒有任何交易開著**（計畫席 10-16：推播服務慢的話不能拖住交易與鎖；
+ * 正式 DB 的 postgres 角色有沒有 idle_in_transaction／statement_timeout 沒有實查，這個形狀不依賴它）：
+ *
+ * 1. 短交易：排入（去重鍵冪等）＋認領＋清 90 天前紀錄
+ * 2. 交易外：送出，每次 fetch 逾時 `SEND_TIMEOUT_MS`；全部並行，所以整段最多約一個逾時長
+ * 3. 短交易：回寫
+ *
+ * 已知取捨：第 1 段之後、第 3 段之前 Worker 被砍，認領的那幾則會停在「已送」—— 寧可漏一則提醒，
+ * 也不要重送（下一個時間點還會再提醒一次）。
+ */
 export async function runPush(pool: Pool, opts: PushRunOptions): Promise<PushRunResult> {
-  return withTx(pool, async (db) => {
-    const { rows } = await db.query<{ locked: boolean }>(
-      'SELECT pg_try_advisory_xact_lock($1) AS locked',
-      [RUN_LOCK_KEY],
-    );
-    if (!rows[0]?.locked) {
-      return {
-        skipped: 'locked',
-        enqueued: 0,
-        attempted: 0,
-        delivered: 0,
-        removedSubscriptions: 0,
-        purged: 0,
-      };
-    }
+  const { enqueued, jobs, purged } = await withTx(pool, async (db) => {
     const enqueued = await enqueue(db, opts.today);
-    const sent = await sendBatch(db, opts);
+    const jobs = await claim(db, opts.batchSize);
     const { rowCount } = await db.query(
       `DELETE FROM push_deliveries WHERE created_at < now() - make_interval(days => $1)`,
       [RETENTION_DAYS],
     );
-    return { enqueued, ...sent, purged: rowCount ?? 0 };
+    return { enqueued, jobs, purged: rowCount ?? 0 };
   });
+  if (jobs.length === 0) {
+    return { enqueued, attempted: 0, delivered: 0, removedSubscriptions: 0, purged };
+  }
+  const outcomes = await send(jobs, opts);
+  const written = await withTx(pool, (db) => writeBack(db, outcomes));
+  return { enqueued, attempted: jobs.length, ...written, purged };
 }
