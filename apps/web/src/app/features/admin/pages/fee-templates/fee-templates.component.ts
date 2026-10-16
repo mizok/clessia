@@ -352,48 +352,47 @@ export class FeeTemplatesComponent implements OnInit {
   }
 
   /**
-   * **樂觀刪除**（使用者 10-16 13:56 裁定，#1641 5b 第 1 點；取代原本「不做樂觀更新」的決定）。
+   * **等伺服器確認才淡出**（悲觀刪除）—— 全站刪除是樂觀的（#1641 5b 第 1 點），**這一頁是例外**。
    *
-   * 原本不做的理由仍然成立：FK 是 RESTRICT，被引用過的價目表後端會回 409 `IN_USE`，
-   * 所以這一頁「先淡出、再回來」比別頁常見。裁定接受這個代價，條件是**失敗一定放回去並說明**——
-   * 回滾收在 `injectOptimisticRemove`（有 spec），這裡只負責說明：`IN_USE` 問要不要改停用，其餘跳 toast。
+   * 計畫席 10-16 14:3x 裁定：FK 是 RESTRICT，被報名引用過的價目表後端會回 409 `IN_USE`，
+   * 而價目表幾乎都被引用過 —— 樂觀版會常常「先淡出又回來」，看起來像壞掉。
+   * 所以成功回來才淡出、其餘補位（動畫照舊）；失敗時那一列一直都在，只說明原因。
    */
   private deleteTemplate(target: FeeTemplate): void {
-    this.optimisticRemove(
-      this.templates,
-      (t) => t.id === target.id,
-      this.feeTemplatesService.delete(target.id),
-      {
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '刪除成功',
-            detail: `「${target.name}」已刪除`,
-          });
-          this.loadTemplates({ quiet: true, rows: true });
-        },
-        error: (err: any) => {
-          if (err.error?.code === 'IN_USE') {
-            this.confirm(
-              '無法刪除',
-              {
-                message: `「${target.name}」已經被報名引用，不能刪除。是否改為停用？停用後它不會出現在報名選單，但歷史報名仍看得懂。`,
-                acceptLabel: '改為停用',
-                rejectLabel: '取消',
-                acceptSeverity: 'warn',
-              },
-              () => this.setTemplateActive(target, false),
-            );
-            return;
-          }
-          this.messageService.add({
-            severity: 'error',
-            summary: '刪除失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-        },
+    this.feeTemplatesService.delete(target.id).subscribe({
+      next: () => {
+        this.viewTransition(
+          () => this.templates.update((list) => list.filter((t) => t.id !== target.id)),
+          { rows: true },
+        );
+        this.messageService.add({
+          severity: 'success',
+          summary: '刪除成功',
+          detail: `「${target.name}」已刪除`,
+        });
+        this.loadTemplates({ quiet: true, rows: true });
       },
-    );
+      error: (err) => {
+        if (err.error?.code === 'IN_USE') {
+          this.confirm(
+            '無法刪除',
+            {
+              message: `「${target.name}」已經被報名引用，不能刪除。是否改為停用？停用後它不會出現在報名選單，但歷史報名仍看得懂。`,
+              acceptLabel: '改為停用',
+              rejectLabel: '取消',
+              acceptSeverity: 'warn',
+            },
+            () => this.setTemplateActive(target, false),
+          );
+          return;
+        }
+        this.messageService.add({
+          severity: 'error',
+          summary: '刪除失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+      },
+    });
   }
 
   // ── 收費期間 ──────────────────────────────────────────────────────────────

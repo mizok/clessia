@@ -1,6 +1,6 @@
 import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { NEVER, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -101,10 +101,10 @@ describe('FeeTemplatesComponent', () => {
 
   /**
    * FK 是 RESTRICT：被報名引用過的價目表刪不掉，後端回 409 `IN_USE`。
-   * 刪除是樂觀的（使用者 10-16 裁定，#1641 5b）—— 按下就淡出，所以**失敗時一定要放回來**：
-   * 它其實還在資料庫裡。
+   * 這一頁是悲觀刪除（計畫席 10-16 裁定，全站樂觀刪除的例外）—— `IN_USE` 太常見，
+   * 樂觀版會常常「先淡出又回來」。所以失敗時那一列**從頭到尾都在**，它其實還在資料庫裡。
    */
-  it('刪除被引用的價目表失敗時，那一列放回畫面上', () => {
+  it('刪除被引用的價目表失敗時，那一列不會從畫面上消失', () => {
     const existing = template();
     internals().templates.set([existing]);
     feeTemplates.delete.mockReturnValue(
@@ -118,14 +118,19 @@ describe('FeeTemplatesComponent', () => {
     expect(internals().templates()).toEqual([existing]);
   });
 
-  it('刪除成功：按下就拿掉，並在背景重新取數（不回到骨架、不變淡）', () => {
+  it('刪除：伺服器確認之前那一列還在；成功才拿掉，並在背景重新取數（不回到骨架、不變淡）', () => {
     const existing = template();
     internals().templates.set([existing]);
+    const pending = new Subject<{ success: boolean }>();
+    feeTemplates.delete.mockReturnValue(pending);
     feeTemplates.list.mockReturnValue(NEVER);
     feeTemplates.list.mockClear();
 
     internals().deleteTemplate(existing);
+    expect(internals().templates()).toEqual([existing]);
 
+    pending.next({ success: true });
+    pending.complete();
     expect(internals().templates()).toEqual([]);
     expect(feeTemplates.list).toHaveBeenCalled();
     expect(internals().templatesLoading()).toBe(false);
