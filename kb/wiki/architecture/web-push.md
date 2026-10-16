@@ -292,7 +292,9 @@ ALTER TABLE public.organizations
      把 `sent_at` 先設成 now() 當認領記號 —— 同時跑的另一個 run 不會再拿到
    - 交易外**送出**：每台裝置一次 fetch，**每次 5 秒逾時**，全部並行；發送前再驗白名單（#1659）
    - 短交易**回寫**：任一台成功就保留 `sent_at`；404/410 刪訂閱；都沒成功的把 `sent_at` 改回 NULL、`attempts + 1`、記 `last_error`，下一輪重試
-   - 取捨：認領後、回寫前 Worker 被砍，那幾則停在「已送」—— 寧可漏一則（下一個時間點還會提醒），不要重送
+   - 認領時 `last_error` 記成 `__claimed__`（既有欄位，不加 migration）。認領後、回寫前 Worker 被砍（免費方案 CPU 超量會直接終止），
+     那幾則停在這個記號；**下一輪開頭把「記號還在、認領超過 10 分鐘」的重新開放**（`attempts + 1`，一則若每次都讓 Worker 被砍，三次就停）。
+     被砍時其實已送出的會重送一次，由裝置端 `tag = topic` 合併 —— 比無聲漏掉好
 3. 刪 90 天前的列。
 
 **今天要提醒哪些帳單**（未繳清 = `isOpenInvoice`，逾期 = `isOverdueOn`，日期基準 = `getCurrentTaipeiDateString()`，**全部重用既有定義**，不另寫一套）：

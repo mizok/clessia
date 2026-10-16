@@ -81,7 +81,7 @@ describe('runPush —— 送出（#1661）', () => {
   it('成功的：認領時記 sent_at，回寫更新 last_success_at；COMMIT', async () => {
     const { result, find, sent } = await run([sub('d1', 's1')], () => 201);
     expect(result).toMatchObject({ attempted: 1, delivered: 1, removedSubscriptions: 0 });
-    expect(find(/SET sent_at = now\(\)/)[0]!.params).toEqual([['d1']]);
+    expect(find(/SET sent_at = now\(\), last_error/)[0]!.params).toEqual([['d1'], '__claimed__']);
     expect(find(/last_error = NULL/)[0]!.params).toEqual([['d1']]);
     expect(find(/SET last_success_at = now\(\)/)[0]!.params).toEqual([['s1']]);
     expect(sent.at(-1)!.sql).toBe('COMMIT');
@@ -165,10 +165,20 @@ describe('runPush —— 送出（#1661）', () => {
     expect(order.filter((o) => o === 'BEGIN')).toHaveLength(2);
   });
 
-  it('認領用 FOR UPDATE SKIP LOCKED＋sent_at 記號：同時跑的另一個 run 拿不到同一則', async () => {
+  it('認領用 FOR UPDATE SKIP LOCKED＋sent_at／__claimed__ 記號：同時跑的另一個 run 拿不到同一則', async () => {
     const { find } = await run([sub('d1', 's1')], () => 201);
     expect(find(/FOR UPDATE SKIP LOCKED/)).toHaveLength(1);
-    expect(find(/SET sent_at = now\(\) WHERE id = ANY/)[0]!.params).toEqual([['d1']]);
+    expect(find(/SET sent_at = now\(\), last_error/)[0]!.params).toEqual([['d1'], '__claimed__']);
+  });
+
+  it('每一輪開頭先重新開放「認領超過 10 分鐘還沒回寫」的（attempts＋1，死循環三次就停）', async () => {
+    const { find, sent } = await run([], () => 201);
+    const reopen = find(/CLAIM_EXPIRED/);
+    expect(reopen[0]!.params).toEqual(['__claimed__', 10]);
+    expect(reopen[0]!.sql).toMatch(/attempts = attempts \+ 1/);
+    expect(sent.findIndex((q) => /CLAIM_EXPIRED/.test(q.sql))).toBeLessThan(
+      sent.findIndex((q) => /FOR UPDATE SKIP LOCKED/.test(q.sql)),
+    );
   });
 
   it('每一次 fetch 都帶逾時的 AbortSignal', async () => {
@@ -179,7 +189,10 @@ describe('runPush —— 送出（#1661）', () => {
 
   it('沒送達的把 sent_at 改回 NULL（下一輪重試）', async () => {
     const { find } = await run([sub('d1', 's1')], () => 500);
-    expect(find(/SET sent_at = NULL/)[0]!.params).toEqual([['d1'], ['HTTP 500']]);
+    expect(find(/SET sent_at = NULL, attempts = d.attempts/)[0]!.params).toEqual([
+      ['d1'],
+      ['HTTP 500'],
+    ]);
   });
 });
 

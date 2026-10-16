@@ -13,7 +13,7 @@ import { buildPushRequest, vapidAuthorization, type VapidKeys } from './web-push
  * 交易包法與錯誤對應照那一頁。
  *
  * **對外 fetch 期間沒有交易開著**（見 `runPush`）。Workers cron 與自架 cron 同時開著、或有人手動多打一次，
- * 靠認領時的 `FOR UPDATE SKIP LOCKED`＋`sent_at` 記號，不會同一則送兩次。
+ * 靠認領時的 `FOR UPDATE SKIP LOCKED`＋`sent_at`／`last_error` 記號，不會同一則送兩次。
  *
  * 這是系統工作，不屬於任何一個使用者 —— **跨 org 跑**，每一句都用資料本身的 org_id 關聯
  * （帳單的 org → 家長的 org → 訂閱的 org），不收任何外部指定的對象。
@@ -27,6 +27,13 @@ const MAX_ATTEMPTS = 3;
 const RETENTION_DAYS = 90;
 /** 每一次對推播服務的 fetch 最多等多久；逾時算失敗，下一輪重試 */
 export const SEND_TIMEOUT_MS = 5000;
+/**
+ * 認領記號（`last_error` 既有欄位，不加 migration）。回寫成功清成 NULL、失敗寫真正的錯誤；
+ * **還是這個記號＝認領之後沒回寫到**（Worker 被砍 —— 免費方案 CPU 超量就是這樣）。
+ */
+export const CLAIM_MARK = '__claimed__';
+/** 認領過了這麼久還沒回寫，就當那個 run 死了，重新開放。遠大於一次 run 的長度（送出最多約 5 秒） */
+export const RECLAIM_AFTER_MINUTES = 10;
 
 export interface PushRunOptions {
   /** 台北今天（`getCurrentTaipeiDateString()`），呼叫端決定 */
@@ -152,6 +159,21 @@ interface Job {
  * 再把選中的 `sent_at` 先設成 now() 當「已認領」記號 —— 交易一結束鎖就放了，記號讓下一個 run 也不碰它。
  * 送失敗的在回寫時把 `sent_at` 改回 NULL，下一輪重試。
  */
+/**
+ * 上一個 run 認領後沒回寫（被砍了）的，重新開放給這一輪。`attempts + 1`：一則若每次都讓 Worker 被砍，
+ * 三次之後就不再試，不會永遠卡著後面的。被砍時可能其實已經送出 —— 那種情況會重送一次，
+ * 由裝置端 `tag = topic` 合併成一則（#1663）；比無聲漏掉好。
+ */
+async function reopenAbandoned(db: PoolClient): Promise<number> {
+  const { rowCount } = await db.query(
+    `UPDATE push_deliveries
+     SET sent_at = NULL, attempts = attempts + 1, last_error = 'CLAIM_EXPIRED'
+     WHERE last_error = $1 AND sent_at < now() - make_interval(mins => $2)`,
+    [CLAIM_MARK, RECLAIM_AFTER_MINUTES],
+  );
+  return rowCount ?? 0;
+}
+
 async function claim(db: PoolClient, batchSize: number): Promise<Job[]> {
   const { rows } = await db.query<PendingRow>(
     `SELECT d.id, d.payload, s.id AS sub_id, s.endpoint, s.p256dh, s.auth
@@ -181,9 +203,10 @@ async function claim(db: PoolClient, batchSize: number): Promise<Job[]> {
 
   const claimed = [...new Set(jobs.map((j) => j.deliveryId))];
   if (claimed.length > 0) {
-    await db.query('UPDATE push_deliveries SET sent_at = now() WHERE id = ANY($1::uuid[])', [
-      claimed,
-    ]);
+    await db.query(
+      'UPDATE push_deliveries SET sent_at = now(), last_error = $2 WHERE id = ANY($1::uuid[])',
+      [claimed, CLAIM_MARK],
+    );
   }
   if (noSubscription.length > 0) {
     await db.query(
@@ -281,11 +304,12 @@ async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
  * 2. 交易外：送出，每次 fetch 逾時 `SEND_TIMEOUT_MS`；全部並行，所以整段最多約一個逾時長
  * 3. 短交易：回寫
  *
- * 已知取捨：第 1 段之後、第 3 段之前 Worker 被砍，認領的那幾則會停在「已送」—— 寧可漏一則提醒，
- * 也不要重送（下一個時間點還會再提醒一次）。
+ * 第 1 段之後、第 3 段之前 Worker 被砍（免費方案 CPU 超量會直接終止）：認領的那幾則停在 `CLAIM_MARK`，
+ * 下一輪開頭過了 `RECLAIM_AFTER_MINUTES` 就重新開放（`reopenAbandoned`）—— 不會無聲漏掉。
  */
 export async function runPush(pool: Pool, opts: PushRunOptions): Promise<PushRunResult> {
   const { enqueued, jobs, purged } = await withTx(pool, async (db) => {
+    await reopenAbandoned(db);
     const enqueued = await enqueue(db, opts.today);
     const jobs = await claim(db, opts.batchSize);
     const { rowCount } = await db.query(

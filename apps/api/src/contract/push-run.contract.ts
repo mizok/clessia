@@ -245,6 +245,56 @@ run('推播排程對真 Postgres（#1661）', () => {
     expect(lockedDuringSend).toEqual([false, false]);
   });
 
+  it('認領後 Worker 被砍：10 分鐘內不碰，過了 10 分鐘重送一次、而且只送一次', async () => {
+    await invoice(3);
+    // 「被砍」：送出永遠不回來，回寫永遠不會發生。這個 promise 故意不等（被砍的 run 就是這樣）
+    void runPush(pool, {
+      today,
+      batchSize: 10,
+      vapid,
+      subject: 'mailto:contract@example.invalid',
+      send: () => new Promise(() => undefined),
+    });
+    // 等到它認領完（第 1 段的交易 commit）
+    for (let i = 0; i < 50; i++) {
+      const [row] = await q<{ last_error: string | null }>(
+        'SELECT last_error FROM push_deliveries WHERE org_id = $1',
+        [orgId],
+      );
+      if (row?.last_error === '__claimed__') break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect((await deliveries())[0]).toBeDefined();
+    const stuck = await q<{ sent_at: string | null; last_error: string }>(
+      'SELECT sent_at, last_error FROM push_deliveries WHERE org_id = $1',
+      [orgId],
+    );
+    expect(stuck).toEqual([expect.objectContaining({ last_error: '__claimed__' })]);
+    expect(stuck[0]!.sent_at).not.toBeNull(); // 看起來像「已送」—— 沒有記號的話就無聲漏掉了
+
+    // 10 分鐘內：下一輪不碰它（那個 run 可能只是慢）
+    expect(await push()).toMatchObject({ attempted: 0 });
+    expect(sent).toEqual([]);
+
+    // 時間往前推 11 分鐘：下一輪重新開放並送出，一次
+    await q(
+      `UPDATE push_deliveries SET sent_at = sent_at - interval '11 minutes' WHERE org_id = $1`,
+      [orgId],
+    );
+    expect(await push()).toMatchObject({ attempted: 1, delivered: 1 });
+    expect(sent).toHaveLength(1);
+    const [done] = await q<{ sent_at: string | null; last_error: string | null; attempts: number }>(
+      'SELECT sent_at, last_error, attempts FROM push_deliveries WHERE org_id = $1',
+      [orgId],
+    );
+    expect(done).toMatchObject({ last_error: null, attempts: 2 }); // 重新開放 +1、送達 +1
+    expect(done!.sent_at).not.toBeNull();
+
+    // 再跑：不會再送
+    expect(await push()).toMatchObject({ attempted: 0 });
+    expect(sent).toHaveLength(1);
+  });
+
   it('沒有訂閱 → 不排', async () => {
     await q('DELETE FROM push_subscriptions WHERE org_id = $1 AND user_id = $2', [orgId, mom]);
     await invoice(3);
