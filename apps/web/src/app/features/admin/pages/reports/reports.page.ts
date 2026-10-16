@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -61,6 +62,7 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
   selector: 'app-reports',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     DecimalPipe,
     FormsModule,
     RouterLink,
@@ -179,9 +181,12 @@ export class ReportsPage implements OnInit {
       })
       .subscribe({
         next: (res) => {
-          this.summary.set(res.summary);
-          this.groups.set(res.groups);
-          this.loading.set(false);
+          // 舊內容（變淡中）平滑換成新資料（#1641 5b）
+          this.viewTransition(() => {
+            this.summary.set(res.summary);
+            this.groups.set(res.groups);
+            this.loading.set(false);
+          });
         },
         error: () => {
           // 清掉而不是留著 —— 舊數字配新篩選條件是最糟的騙法

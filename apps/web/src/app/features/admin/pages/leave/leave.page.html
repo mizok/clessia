@@ -131,137 +131,142 @@
     </div>
   }
 
-  @if (loading()) {
-    <div class="skeleton-list" aria-label="請假紀錄載入中">
+  <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
+  <app-reload-veil [loading]="loading()">
+    <div reloadSkeleton class="skeleton-list" aria-label="請假紀錄載入中">
       @for (i of [1, 2, 3]; track i) {
         <span class="skeleton-bar"></span>
       }
     </div>
-  } @else if (records().length === 0) {
-    <div data-testid="empty">
-      <p class="m-0 py-4 text-base text-zinc-700">
-        @if (tab() === 'pending') {
-          今天和之後都沒有請假。
-        } @else {
-          沒有符合這組篩選的請假。
-        }
-      </p>
-      <app-campus-scope-note />
-    </div>
-  } @else {
-    @if (tab() === 'all') {
-      <p class="m-0 text-md text-zinc-600 tabular-nums" data-testid="total">
-        共 <strong class="text-zinc-900">{{ totalRecords() }}</strong> 筆
-      </p>
-    }
-
-    <div>
-      @for (chapter of chapters(); track chapter.key) {
-        <section
-          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
-          [attr.aria-label]="chapter.name"
-          data-testid="chapter"
-        >
-          <app-chapter-head
-            class="block pt-4 wide:pt-8"
-            [name]="chapter.name"
-            [sub]="chapter.meta"
-            [count]="chapter.rows.length"
-            unit="位"
-          />
-          <div class="wide:pt-4">
-            @for (record of chapter.rows; track record.id) {
-              <details
-                class="group border-b border-surface-border last:border-b-0"
-                data-testid="leave-row"
-              >
-                <summary
-                  class="grid min-h-11 cursor-pointer list-none grid-cols-1 gap-x-6 gap-y-1 py-4 hover:bg-zinc-50 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] wide:items-baseline [&::-webkit-details-marker]:hidden"
-                >
-                  <span>
-                    <a
-                      class="inline-flex min-h-11 items-center text-lg font-bold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
-                      data-testid="student-link"
-                      [routerLink]="[studentRoute.replace(':id', record.studentId)]"
-                      (click)="$event.stopPropagation()"
-                      >{{ record.studentName }}</a
-                    >
-                    @if (record.startDate !== record.endDate) {
-                      <span class="ml-1.5 text-sm text-zinc-600" data-testid="days"
-                        >{{ calcDays(record.startDate, record.endDate) }} 天</span
-                      >
-                    }
-                  </span>
-                  <span class="text-md text-zinc-900 tabular-nums" data-testid="range">{{
-                    rangeText(record)
-                  }}</span>
-                  <span class="text-md text-zinc-700" data-testid="reason">{{
-                    record.reason ? record.reason : '沒寫原因'
-                  }}</span>
-                  <span class="text-sm text-zinc-600 tabular-nums wide:text-right" data-testid="by">
-                    {{ byText(record) }}
-                    @if (isLate(record)) {
-                      <span
-                        class="ml-1.5 rounded-sm bg-zinc-100 px-1.5 text-xs font-semibold whitespace-nowrap text-zinc-800"
-                        data-testid="late"
-                        >補請</span
-                      >
-                    }
-                  </span>
-                </summary>
-                <div class="flex flex-wrap items-center gap-2 pb-4">
-                  <p class="m-0 mr-auto text-md text-zinc-700">
-                    {{ record.startDate }} ~ {{ record.endDate }}
-                  </p>
-                  <button
-                    type="button"
-                    class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-                    data-testid="edit"
-                    (click)="openEditDialog(record)"
-                  >
-                    編輯
-                  </button>
-                  <button
-                    type="button"
-                    class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-                    data-testid="cancel"
-                    (click)="confirmDelete(record)"
-                  >
-                    取消請假
-                  </button>
-                </div>
-              </details>
-            }
-          </div>
-        </section>
+    @if (records().length === 0) {
+      <div data-testid="empty">
+        <p class="m-0 py-4 text-base text-zinc-700">
+          @if (tab() === 'pending') {
+            今天和之後都沒有請假。
+          } @else {
+            沒有符合這組篩選的請假。
+          }
+        </p>
+        <app-campus-scope-note />
+      </div>
+    } @else {
+      @if (tab() === 'all') {
+        <p class="m-0 text-md text-zinc-600 tabular-nums" data-testid="total">
+          共 <strong class="text-zinc-900">{{ totalRecords() }}</strong> 筆
+        </p>
       }
-    </div>
 
-    @if (totalPages() > 1) {
-      <nav
-        class="flex items-center justify-center gap-3 py-4 text-md text-zinc-600 tabular-nums"
-        aria-label="分頁"
-      >
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-          data-testid="prev-page"
-          [disabled]="currentPage() <= 1"
-          (click)="onPageStep(-1)"
+      <div>
+        @for (chapter of chapters(); track chapter.key) {
+          <section
+            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            [attr.aria-label]="chapter.name"
+            data-testid="chapter"
+          >
+            <app-chapter-head
+              class="block pt-4 wide:pt-8"
+              [name]="chapter.name"
+              [sub]="chapter.meta"
+              [count]="chapter.rows.length"
+              unit="位"
+            />
+            <div class="wide:pt-4">
+              @for (record of chapter.rows; track record.id) {
+                <details
+                  class="group border-b border-surface-border last:border-b-0"
+                  data-testid="leave-row"
+                >
+                  <summary
+                    class="grid min-h-11 cursor-pointer list-none grid-cols-1 gap-x-6 gap-y-1 py-4 hover:bg-zinc-50 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] wide:items-baseline [&::-webkit-details-marker]:hidden"
+                  >
+                    <span>
+                      <a
+                        class="inline-flex min-h-11 items-center text-lg font-bold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+                        data-testid="student-link"
+                        [routerLink]="[studentRoute.replace(':id', record.studentId)]"
+                        (click)="$event.stopPropagation()"
+                        >{{ record.studentName }}</a
+                      >
+                      @if (record.startDate !== record.endDate) {
+                        <span class="ml-1.5 text-sm text-zinc-600" data-testid="days"
+                          >{{ calcDays(record.startDate, record.endDate) }} 天</span
+                        >
+                      }
+                    </span>
+                    <span class="text-md text-zinc-900 tabular-nums" data-testid="range">{{
+                      rangeText(record)
+                    }}</span>
+                    <span class="text-md text-zinc-700" data-testid="reason">{{
+                      record.reason ? record.reason : '沒寫原因'
+                    }}</span>
+                    <span
+                      class="text-sm text-zinc-600 tabular-nums wide:text-right"
+                      data-testid="by"
+                    >
+                      {{ byText(record) }}
+                      @if (isLate(record)) {
+                        <span
+                          class="ml-1.5 rounded-sm bg-zinc-100 px-1.5 text-xs font-semibold whitespace-nowrap text-zinc-800"
+                          data-testid="late"
+                          >補請</span
+                        >
+                      }
+                    </span>
+                  </summary>
+                  <div class="flex flex-wrap items-center gap-2 pb-4">
+                    <p class="m-0 mr-auto text-md text-zinc-700">
+                      {{ record.startDate }} ~ {{ record.endDate }}
+                    </p>
+                    <button
+                      type="button"
+                      class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                      data-testid="edit"
+                      (click)="openEditDialog(record)"
+                    >
+                      編輯
+                    </button>
+                    <button
+                      type="button"
+                      class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                      data-testid="cancel"
+                      (click)="confirmDelete(record)"
+                    >
+                      取消請假
+                    </button>
+                  </div>
+                </details>
+              }
+            </div>
+          </section>
+        }
+      </div>
+
+      @if (totalPages() > 1) {
+        <nav
+          class="flex items-center justify-center gap-3 py-4 text-md text-zinc-600 tabular-nums"
+          aria-label="分頁"
         >
-          上一頁
-        </button>
-        <span data-testid="page-indicator">第 {{ currentPage() }}／{{ totalPages() }} 頁</span>
-        <button
-          type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-          data-testid="next-page"
-          [disabled]="currentPage() >= totalPages()"
-          (click)="onPageStep(1)"
-        >
-          下一頁
-        </button>
-      </nav>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="prev-page"
+            [disabled]="currentPage() <= 1"
+            (click)="onPageStep(-1)"
+          >
+            上一頁
+          </button>
+          <span data-testid="page-indicator">第 {{ currentPage() }}／{{ totalPages() }} 頁</span>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="next-page"
+            [disabled]="currentPage() >= totalPages()"
+            (click)="onPageStep(1)"
+          >
+            下一頁
+          </button>
+        </nav>
+      }
     }
-  }
+  </app-reload-veil>
 </div>

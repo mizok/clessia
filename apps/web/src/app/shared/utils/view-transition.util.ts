@@ -7,6 +7,12 @@ export const IN_PAGE_VT_ATTR = 'data-vt';
 let latestInPageVt = 0;
 
 /**
+ * 進行中的頁內 VT。新的一個要等它播完才開始（#1641 5b）：點擊時起了一個 VT、資料在它播完前就回來，
+ * 「套資料」那一個若直接開始，會把前一個截掉（W3C §6.1.1），畫面反而跳一下。
+ */
+let running: Promise<void> | null = null;
+
+/**
  * 頁內模式切換的同文件 view transition（#1641 項 4，設計稿 kb/wiki/architecture/motion.md）。
  *
  * ```ts
@@ -41,13 +47,17 @@ export function injectViewTransition(): (
   options?: ViewTransitionOptions,
 ) => void {
   const appRef = inject(ApplicationRef);
-  return (update, options) => {
+  const run = (update: () => void, options?: ViewTransitionOptions): void => {
     if (
       typeof document.startViewTransition !== 'function' ||
       document.hidden ||
       matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
       update();
+      return;
+    }
+    if (running) {
+      running.then(() => run(update, options));
       return;
     }
     const root = document.documentElement;
@@ -61,8 +71,15 @@ export function injectViewTransition(): (
     });
     // 不管成敗都要拿掉 —— 但只在自己還是最後一個的時候：被下一個頁內 VT 截掉時，
     // 這個 finished 會晚於下一個寫上屬性才結束，拿掉的話下一個的分段鈕就不會平移
-    vt.finished.finally(() => {
-      if (mine === latestInPageVt) root.removeAttribute(IN_PAGE_VT_ATTR);
-    });
+    // update 拋例外時 finished 會 reject —— 吞掉，否則 `running.then` 後面排隊的永遠不會跑（審核席 #1648）。
+    // 例外本身照樣從 updateCallbackDone 浮出，不會被這裡藏起來
+    const finished = vt.finished
+      .catch(() => undefined)
+      .finally(() => {
+        if (mine === latestInPageVt) root.removeAttribute(IN_PAGE_VT_ATTR);
+        if (running === finished) running = null;
+      });
+    running = finished;
   };
+  return run;
 }

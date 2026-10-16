@@ -5,7 +5,9 @@ import { IN_PAGE_VT_ATTR, injectViewTransition } from './view-transition.util';
 
 describe('injectViewTransition', () => {
   const original = document.startViewTransition;
-  afterEach(() => {
+  afterEach(async () => {
+    // 讓上一條的 VT 收尾（模組層的 running 會跨測試）
+    await new Promise((r) => setTimeout(r, 0));
     document.startViewTransition = original;
     vi.unstubAllGlobals();
   });
@@ -47,32 +49,62 @@ describe('injectViewTransition', () => {
     expect(update).toHaveBeenCalledTimes(1);
   });
 
-  it('被下一個頁內 VT 截掉：前一個結束時不拿掉後一個寫上的屬性', async () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: false }));
-    vi.spyOn(TestBed.inject(ApplicationRef), 'tick').mockImplementation(() => {});
-    const finishers: (() => void)[] = [];
-    document.startViewTransition = ((cb: () => void) => {
-      cb();
-      return { finished: new Promise<void>((r) => finishers.push(r)) };
-    }) as never;
-    const run = TestBed.runInInjectionContext(() => injectViewTransition());
-    run(() => {});
-    run(() => {});
-    finishers[0]();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(document.documentElement.getAttribute(IN_PAGE_VT_ATTR)).toBe('in-page');
-    finishers[1]();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(document.documentElement.hasAttribute(IN_PAGE_VT_ATTR)).toBe(false);
-  });
-
-  it('{ rows: true }：data-vt 寫 rows（.vt-row 的名字只在這時生效）；預設寫 in-page', () => {
+  it('{ rows: true }：data-vt 寫 rows（.vt-row 的名字只在這時生效）；預設寫 in-page', async () => {
     const { run } = setup({ supported: true, reduce: false });
     const seen: (string | null)[] = [];
     run(() => seen.push(document.documentElement.getAttribute(IN_PAGE_VT_ATTR)));
+    await new Promise((r) => setTimeout(r, 0));
     run(() => seen.push(document.documentElement.getAttribute(IN_PAGE_VT_ATTR)), { rows: true });
+    await new Promise((r) => setTimeout(r, 0));
     expect(seen).toEqual(['in-page', 'rows']);
+  });
+
+  it('前一個還在播：下一個等它播完才開始，不截斷它', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.spyOn(TestBed.inject(ApplicationRef), 'tick').mockImplementation(() => {});
+    const finishers: (() => void)[] = [];
+    const start = vi.fn((cb: () => void) => {
+      cb();
+      return { finished: new Promise<void>((r) => finishers.push(r)) };
+    });
+    document.startViewTransition = start as never;
+    const run = TestBed.runInInjectionContext(() => injectViewTransition());
+    const second = vi.fn();
+    run(() => {});
+    run(second);
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+    finishers[0]();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(second).toHaveBeenCalledTimes(1);
+    // 前一個收尾時不能拿掉後一個寫上的屬性（序號比對）
+    expect(document.documentElement.getAttribute(IN_PAGE_VT_ATTR)).toBe('in-page');
+    finishers[1]();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.documentElement.hasAttribute(IN_PAGE_VT_ATTR)).toBe(false);
+  });
+
+  it('前一個的 update 拋例外：後面排隊的照樣執行', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.spyOn(TestBed.inject(ApplicationRef), 'tick').mockImplementation(() => {});
+    document.startViewTransition = ((cb: () => void) => {
+      let finished: Promise<void>;
+      try {
+        cb();
+        finished = Promise.resolve();
+      } catch (e) {
+        finished = Promise.reject(e);
+      }
+      return { finished };
+    }) as never;
+    const run = TestBed.runInInjectionContext(() => injectViewTransition());
+    const second = vi.fn();
+    run(() => {
+      throw new Error('boom');
+    });
+    run(second);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(second).toHaveBeenCalledTimes(1);
   });
 });
