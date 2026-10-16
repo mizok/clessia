@@ -177,6 +177,17 @@ run('管理員每日摘要對真 DB（#1693）', () => {
       `INSERT INTO billing_periods (org_id, name, start_date, end_date) VALUES ($1, '遠期', $2, $3)`,
       [orgId, addDays(today, 40), addDays(today, 70)],
     );
+    // 日期窗的兩端（N＝14）：今天開始的不算（開始日 > 今天）、第 14 天開始的算（≤ 今天＋N）
+    for (const [name, offset] of [
+      ['今天開始', 0],
+      ['第14天', 14],
+      ['第15天', 15],
+    ] as const) {
+      await q(
+        `INSERT INTO billing_periods (org_id, name, start_date, end_date) VALUES ($1, $2, $3, $4)`,
+        [orgId, name, addDays(today, offset), addDays(today, offset + 30)],
+      );
+    }
     const inv = await one(
       `INSERT INTO invoices (org_id, student_id, due_date) VALUES ($1, $2, $3)`,
       [orgId, enrollmentsOf[0]![0], addDays(today, 30)],
@@ -298,8 +309,8 @@ run('管理員每日摘要對真 DB（#1693）', () => {
         );
         seen.add(route.data.length);
       }
-      // 分校 0 只剩一期、其他兩期都沒開、分校 5 沒有該開的：三種都比到
-      expect([...seen].sort()).toEqual([0, 1, 2]);
+      // 分校 0：近期＋第14天；其他：近期＋下一期＋第14天；分校 5 沒有該開的：三種都比到
+      expect([...seen].sort()).toEqual([0, 2, 3]);
     } finally {
       db.release();
     }
@@ -341,7 +352,7 @@ run('管理員每日摘要對真 DB（#1693）', () => {
     expect(result.totalMs).toBeLessThan(50); // 安全閥；實際數字看 log
   });
 
-  it('端到端：只給有 manage_finance 的管理員、照範圍算；同一天第二次 run 整段跳過', async () => {
+  it('端到端：只給在職、有 manage_finance 的管理員，照範圍算；同一天第二次 run 整段跳過', async () => {
     const [finance] = await q<{ user_id: string }>(
       `SELECT user_id FROM user_roles WHERE role = 'admin' AND permissions ? 'manage_finance'
          AND NOT permissions ? '*' AND NOT permissions ? 'all_campuses' ORDER BY user_id LIMIT 1`,
@@ -352,11 +363,22 @@ run('管理員每日摘要對真 DB（#1693）', () => {
                          AND (u2.permissions ? 'manage_finance' OR u2.permissions ? '*'))
        ORDER BY ur.user_id LIMIT 1`,
     );
-    expect(finance && noFinance).toBeTruthy();
-    for (const u of [finance!.user_id, noFinance!.user_id]) {
+    // 停用的財務管理員（保留類，二讀 @9eaffd9e）：有 manage_finance、範圍也對，但離職或停用了就收不到
+    const [inactive] = await q<{ user_id: string }>(
+      `SELECT user_id FROM user_roles WHERE role = 'admin'
+         AND (permissions ? 'manage_finance' OR permissions ? '*')
+         AND user_id <> $1 ORDER BY user_id LIMIT 1`,
+      [finance?.user_id],
+    );
+    expect(finance && noFinance && inactive).toBeTruthy();
+    for (const [u, status] of [
+      [finance!.user_id, 'active'],
+      [noFinance!.user_id, 'active'],
+      [inactive!.user_id, 'inactive'],
+    ] as const) {
       const staffId = await one(
-        `INSERT INTO staff (org_id, user_id, status, display_name) VALUES ($1, $2, 'active', '測試管理員')`,
-        [orgId, u],
+        `INSERT INTO staff (org_id, user_id, status, display_name) VALUES ($1, $2, $3, '測試管理員')`,
+        [orgId, u, status],
       );
       await q(`INSERT INTO staff_campuses (staff_id, campus_id) VALUES ($1, $2)`, [
         staffId,
@@ -404,6 +426,16 @@ run('管理員每日摘要對真 DB（#1693）', () => {
       sqls.length = 0;
       expect(await enqueueStaffDigests(counting, today, [orgId])).toBe(0);
       expect(sqls).toHaveLength(1); // 只有「今天排過沒」那一句
+
+      // 兩則各自獨立：逾期那則今天排過了、待開單還沒（例如白天有人作廢帳單，某一期變成待開）
+      // → 下一輪仍要算待開單，逾期不重發
+      await q(`DELETE FROM notifications WHERE org_id = $1 AND kind = 'unbilled_reminder'`, [
+        orgId,
+      ]);
+      expect(await enqueueStaffDigests(counting, today, [orgId])).toBe(1);
+      expect(
+        await q(`SELECT kind::text FROM notifications WHERE org_id = $1 ORDER BY kind`, [orgId]),
+      ).toEqual([{ kind: 'overdue_digest' }, { kind: 'unbilled_reminder' }]);
     } finally {
       db.release();
     }
