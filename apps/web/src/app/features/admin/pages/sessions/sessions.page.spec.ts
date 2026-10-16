@@ -409,6 +409,25 @@ describe('SessionsPage', () => {
     );
   });
 
+  // #1641 項 3：換週／換日資料套上時依方向淡入；從週切到日是模式切換，不給方向
+  it('換週／換日給方向；週視圖點一天（切回日視圖）不給', () => {
+    const c = component as unknown as {
+      setDay: (d: Date) => void;
+      setView: (v: 'day' | 'week') => void;
+      shiftWeek: (n: number) => void;
+      contentMotion: () => { dir: string } | null;
+    };
+    c.setDay(new Date(2026, 9, 7));
+    c.shiftWeek(1);
+    expect(c.contentMotion()?.dir).toBe('forward');
+    c.setDay(new Date(2026, 9, 13));
+    expect(c.contentMotion()?.dir).toBe('back');
+    c.setView('week');
+    const before = c.contentMotion();
+    c.setDay(new Date(2026, 9, 16));
+    expect(c.contentMotion()).toBe(before);
+  });
+
   describe('快速選取（#1174 G3）', () => {
     const ses = (id: string, over: Partial<Session> = {}) =>
       ({

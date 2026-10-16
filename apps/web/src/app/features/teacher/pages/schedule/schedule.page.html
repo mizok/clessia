@@ -112,14 +112,17 @@
           >
             <i class="pi pi-chevron-left" aria-hidden="true"></i>
           </button>
+          <!-- 選中底線是容器上的一條（appSelectedIndicator），換日時平移過去（#1641） -->
           <ul
             class="m-0 flex flex-1 list-none gap-[2px] overflow-x-auto overscroll-x-contain p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            [appSelectedIndicator]="selectedDate()"
+            [appStepMotion]="weekMotion()"
           >
             @for (day of weekBar(); track day.dateStr) {
               <li class="min-w-[52px] flex-1 shrink-0 wide:min-w-16">
                 <button
                   type="button"
-                  class="schedule-page__weekbar-day flex min-h-[52px] w-full cursor-pointer flex-col items-center gap-px border-0 border-b-2 border-solid border-b-transparent bg-transparent px-1 py-1.5 text-sm text-zinc-700 hover:bg-zinc-200 [&.schedule-page\_\_weekbar-day--selected]:border-b-accent-vivid [&.schedule-page\_\_weekbar-day--selected]:font-semibold"
+                  class="schedule-page__weekbar-day flex min-h-[52px] w-full cursor-pointer flex-col items-center gap-px border-0 border-b-2 border-solid border-b-transparent bg-transparent px-1 py-1.5 text-sm text-zinc-700 hover:bg-zinc-200 [&.schedule-page\_\_weekbar-day--selected]:font-semibold"
                   [class.schedule-page__weekbar-day--today]="day.isToday"
                   [class.schedule-page__weekbar-day--selected]="day.isSelected"
                   [attr.aria-current]="day.isToday ? 'date' : null"
@@ -218,6 +221,7 @@
     <section
       class="schedule-page__day mt-6 flex min-w-0 flex-col gap-2 wide:mt-8"
       aria-label="這一天的課"
+      [appStepMotion]="contentMotion()"
     >
       <!-- A6 `.day__h`：標題 22／28px 粗，底下一條細線；星期只寫單字（A6 全站一致） -->
       <h2
