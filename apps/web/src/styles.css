@@ -751,28 +751,62 @@
      Utilities
      ============================================================================= */
   /* =============================================================================
-     Skeleton Loading Animation (global override)
-     ============================================================================= */
-  @keyframes skeleton-wave {
-    0% {
+     骨架：掃光（shimmer）—— 全站一套（#1680，使用者 10-16 裁定）
+     =============================================================================
+     一道亮帶從左往右反覆掃過。**全站只有這一條規則**：canonical 是 `.skeleton`，
+     PrimeNG `<p-skeleton>` 產生的 `.p-skeleton` 與既有的 `.skeleton-bar` 掛在同一個選擇器上，
+     三者長得一模一樣 —— 新的骨架寫 `.skeleton`（大小用 utility 給），不要再自己畫灰塊。
+
+     原本的 `skeleton-wave` 用 `--p-surface-200` 對 `--p-surface-100`，兩個灰幾乎一樣，實際看不出在動。
+     現在是 A6 暖灰的 `--zinc-200` 底、`--zinc-50` 亮帶：看得出在掃，又不會刺眼。
+
+     亮帶的位置用 background-position 從右（100%）走到左（0%）：背景是元件寬的 3 倍、亮帶在正中，
+     所以看起來是亮帶從左邊進、右邊出。速度跟元件寬度成正比（寬的掃得快一點）—— 刻意不用
+     偽元素＋transform 做等速：`.p-skeleton` 的 `::after` 被 PrimeNG 佔著，兩套會打架。
+
+     橘帶上（`.skeleton--on-band`）換一組近黑／白的半透明 token：灰塊放在橘色上會變成髒髒的米色。
+     減少動態：不掃，只留靜態的底色（A6 a6.css:195 的全域規則同一個意思）。 */
+  :root {
+    --skeleton-base: var(--zinc-200);
+    --skeleton-shine: var(--zinc-50);
+    --skeleton-duration: 1.4s;
+  }
+  @keyframes skeleton-shimmer {
+    from {
       background-position: 100% 0;
     }
-    100% {
-      background-position: -100% 0;
+    to {
+      background-position: 0% 0;
     }
   }
-  .p-skeleton {
-    background: linear-gradient(
+  .skeleton,
+  .p-skeleton,
+  .skeleton-bar {
+    background-color: var(--skeleton-base) !important;
+    background-image: linear-gradient(
       90deg,
-      var(--p-surface-200) 0%,
-      var(--p-surface-100) 50%,
-      var(--p-surface-200) 100%
+      transparent 30%,
+      var(--skeleton-shine) 50%,
+      transparent 70%
     ) !important;
-    background-size: 200% 100% !important;
-    animation: skeleton-wave 1.5s linear infinite !important;
+    background-size: 300% 100% !important;
+    background-repeat: no-repeat !important;
+    animation: skeleton-shimmer var(--skeleton-duration) ease-in-out infinite !important;
+  }
+  .skeleton--on-band {
+    --skeleton-base: rgb(26 22 20 / 16%);
+    --skeleton-shine: rgb(255 255 255 / 34%);
   }
   .p-skeleton::after {
     display: none !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .p-skeleton,
+    .skeleton-bar {
+      animation: none !important;
+      background-image: none !important;
+    }
   }
   .skeleton-list {
     display: flex;
@@ -784,14 +818,6 @@
     display: block;
     height: 1rem;
     border-radius: 4px;
-    background: linear-gradient(
-      90deg,
-      var(--p-surface-200) 0%,
-      var(--p-surface-100) 50%,
-      var(--p-surface-200) 100%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-wave 1.5s linear infinite;
   }
   .skeleton-bar--label {
     width: 40%;
