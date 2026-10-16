@@ -2066,6 +2066,27 @@ describe('SessionsPage', () => {
       expect(day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate()).toBe(20260415);
     });
 
+    // #1641 項 3 審核席：「本週」一出現就把 ‹ › 往左推的話，連點下一週的第二下會落到別的按鈕上
+    it('「本週」鈕在桌機排在 ‹ 之前（出現時不推動箭頭）', () => {
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(1);
+      fixture.detectChanges();
+      expect(thisWeekBtn()!.classList).toContain('wide:order-first');
+    });
+
+    // #1641 項 3 審核席：換週失敗後殘留的方向，不能被下一次非換週的重查拿去用
+    it('換週查詢失敗後，非換週的重查成功不給方向', () => {
+      const c = component as unknown as {
+        shiftWeek: (n: number) => void;
+        loadSessions: () => void;
+        contentMotion: () => unknown;
+      };
+      sessionsServiceMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+      c.shiftWeek(1);
+      expect(c.contentMotion()).toBeNull();
+      c.loadSessions();
+      expect(c.contentMotion()).toBeNull();
+    });
+
     it('今天是這週的週日、但週日沒有課：週日格照樣出現', () => {
       vi.setSystemTime(new Date('2026-04-19T04:00:00Z')); // 台北週日中午
       (component as unknown as { loadSessions: () => void }).loadSessions();
