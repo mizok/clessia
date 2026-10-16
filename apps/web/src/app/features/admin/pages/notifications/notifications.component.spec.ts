@@ -726,6 +726,10 @@ describe('NotificationsComponent（管理端發布）', () => {
       ]);
       expect(qa('inbox-chapter')[0].textContent).toContain('未讀 1');
       expect(qa('inbox-chapter')[1].textContent).not.toContain('未讀');
+      // A6「1 則 · 未讀 1」是同一段字，不是小字補充（#1715）
+      expect(
+        qa('inbox-chapter')[0].querySelector('.chapter-head__tally')!.firstChild!.textContent,
+      ).toBe('1 則 · 未讀 1');
     });
 
     it('色面句：N 則未讀＋今天幾則；全部讀過；一則都沒有', async () => {
