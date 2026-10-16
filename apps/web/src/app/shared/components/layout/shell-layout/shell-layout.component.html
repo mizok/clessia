@@ -140,7 +140,9 @@
   </div>
 </div>
 
-<!-- 「更多」：照產品選單分組（NavigationService.moreGroups）。原生 popover：點外面、Esc 自動關 -->
+<!-- 「更多」：照產品選單分組（NavigationService.moreGroups）。原生 popover：點外面、Esc 自動關。
+     #1701：手機是兩欄**流排**（分組各自往下長，不是一列兩組對齊），最大高度與捲動由 onPopoverToggle 設；
+     還有東西在下面時底部淡出（data-more-below），到底就消失 -->
 @if (nav.moreGroups().length > 0) {
   <div
     class="m-0 max-w-[calc(100%-32px)] rounded-lg border border-surface-border bg-white px-5 py-4 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] max-wide:w-[340px] wide:w-fit"
@@ -148,30 +150,38 @@
     popover
     (toggle)="onPopoverToggle($event, 'more')"
   >
+    <!-- 捲動與淡出放在裡面這一層：遮罩掛在 popover 本身會連白底一起淡掉，後面的頁面透出來；
+         popover 本身（內距、display）維持 A6 的樣子 -->
     <div
-      class="grid grid-cols-2 gap-x-6 gap-y-6 wide:grid-cols-[repeat(3,max-content)] wide:gap-x-8"
+      data-part="more-scroll"
+      class="overflow-y-auto overscroll-contain data-more-below:[mask-image:linear-gradient(to_bottom,#000_calc(100%-48px),transparent)]"
+      (scroll)="markMoreBelow($event.target)"
     >
-      @for (group of nav.moreGroups(); track group.label ?? '') {
-        <div>
-          @if (group.label) {
-            <h3
-              class="m-0 mb-2 border-0 border-b border-solid border-zinc-200 pb-1.5 text-md font-bold tracking-[0.04em] text-zinc-800"
-            >
-              {{ group.label }}
-            </h3>
-          }
-          @for (item of group.items; track item.route) {
-            <a
-              class="flex min-h-11 items-center text-base leading-[1.5] font-normal text-zinc-900 no-underline underline-offset-[3px] hover:underline aria-[current=page]:font-semibold wide:block wide:min-h-0 wide:py-1"
-              [routerLink]="item.route"
-              routerLinkActive
-              ariaCurrentWhenActive="page"
-              (click)="hide('shell-more')"
-              >{{ item.label }}</a
-            >
-          }
-        </div>
-      }
+      <div
+        class="gap-x-6 max-wide:columns-2 wide:grid wide:grid-cols-[repeat(3,max-content)] wide:gap-x-8 wide:gap-y-6"
+      >
+        @for (group of nav.moreGroups(); track group.label ?? '') {
+          <div class="mb-6 break-inside-avoid last:mb-0 wide:mb-0">
+            @if (group.label) {
+              <h3
+                class="m-0 mb-2 border-0 border-b border-solid border-zinc-200 pb-1.5 text-md font-bold tracking-[0.04em] text-zinc-800"
+              >
+                {{ group.label }}
+              </h3>
+            }
+            @for (item of group.items; track item.route) {
+              <a
+                class="flex min-h-11 items-center text-base leading-[1.5] font-normal text-zinc-900 no-underline underline-offset-[3px] hover:underline aria-[current=page]:font-semibold wide:block wide:min-h-0 wide:py-1"
+                [routerLink]="item.route"
+                routerLinkActive
+                ariaCurrentWhenActive="page"
+                (click)="hide('shell-more')"
+                >{{ item.label }}</a
+              >
+            }
+          </div>
+        }
+      </div>
     </div>
   </div>
 }

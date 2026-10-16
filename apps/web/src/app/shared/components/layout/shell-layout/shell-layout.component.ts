@@ -122,11 +122,24 @@ export class ShellLayoutComponent {
         : Math.max(16, Math.min(r.left, window.innerWidth - pop.offsetWidth - 16));
     // 「更多」貼著按鈕下緣往下 8px（A6 a6.js）。帳戶／分校仍從頁首下緣算：按鈕在頁首裡置中，
     // 從它算會黏著頁首邊緣。「更多」鈕桌機縮成 27px 高（#1314 殼層）後不再有這個問題，照稿
-    Object.assign(pop.style, {
-      position: 'fixed',
-      left: `${left}px`,
-      top: `${(which === 'more' ? r.bottom : header.bottom) + 8}px`,
-    });
+    const top = (which === 'more' ? r.bottom : header.bottom) + 8;
+    Object.assign(pop.style, { position: 'fixed', left: `${left}px`, top: `${top}px` });
+    const scroller =
+      which === 'more' && pop.querySelector<HTMLElement>('[data-part="more-scroll"]');
+    if (scroller) {
+      // #1701：項目多的角色在矮手機上會被切掉。選單底到可視區底部留 16px，超出就裡面那層自己捲。
+      // 用 innerHeight 算成 px（不用 vh，c6）；扣掉 popover 的內距與框線。開著時改視窗大小會直接關掉（見下）
+      const chrome = pop.offsetHeight - scroller.offsetHeight;
+      scroller.style.maxHeight = `${Math.max(120, window.innerHeight - top - 16 - chrome)}px`;
+      this.markMoreBelow(scroller);
+    }
+  }
+
+  /** 下面還有東西沒捲到：底部淡出（看得出「還有」，不會以為到底了）。到底就拿掉 */
+  protected markMoreBelow(target: EventTarget | null) {
+    const el = target as HTMLElement | null;
+    if (!el) return;
+    el.toggleAttribute('data-more-below', el.scrollTop + el.clientHeight < el.scrollHeight - 1);
   }
 
   /** 原生 popover 裡點連結不會自己關 */
