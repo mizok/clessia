@@ -14,42 +14,54 @@ const B = 'org-b';
 
 afterEach(() => vi.restoreAllMocks());
 
-const seed = () =>
+const SESSIONS = [
+  {
+    id: 'ses-1',
+    org_id: A,
+    class_id: 'k1',
+    session_date: '2026-10-27',
+    teacher_id: 'st-sub', // 這堂代課：任課老師和代課老師都收
+    classes: { name: '數學 A 班' },
+  },
+  {
+    id: 'ses-2',
+    org_id: A,
+    class_id: 'k1',
+    session_date: '2026-10-20',
+    teacher_id: 'st-main',
+    classes: { name: '數學 A 班' },
+  },
+  {
+    id: 'ses-3',
+    org_id: A,
+    class_id: 'k2',
+    session_date: '2026-10-21',
+    teacher_id: 'st-k2',
+    classes: { name: '英文 B 班' },
+  },
+  {
+    id: 'ses-x',
+    org_id: B,
+    class_id: 'k9',
+    session_date: '2026-10-22',
+    teacher_id: 'st-k2',
+    classes: { name: '別人的班' },
+  },
+  // 跟 ses-3 同一天、同一班：同日取 id 小的那個分支要靠它
+  {
+    id: 'ses-4',
+    org_id: A,
+    class_id: 'k2',
+    session_date: '2026-10-21',
+    teacher_id: 'st-k2',
+    classes: { name: '英文 B 班' },
+  },
+];
+
+/** `reversed`：DB 回列的順序沒有保證（查詢沒有 order），反過來種一次模擬另一種順序 */
+const seed = (reversed = false) =>
   createMultiOrgDb({
-    sessions: [
-      {
-        id: 'ses-1',
-        org_id: A,
-        class_id: 'k1',
-        session_date: '2026-10-27',
-        teacher_id: 'st-sub', // 這堂代課：任課老師和代課老師都收
-        classes: { name: '數學 A 班' },
-      },
-      {
-        id: 'ses-2',
-        org_id: A,
-        class_id: 'k1',
-        session_date: '2026-10-20',
-        teacher_id: 'st-main',
-        classes: { name: '數學 A 班' },
-      },
-      {
-        id: 'ses-3',
-        org_id: A,
-        class_id: 'k2',
-        session_date: '2026-10-21',
-        teacher_id: 'st-k2',
-        classes: { name: '英文 B 班' },
-      },
-      {
-        id: 'ses-x',
-        org_id: B,
-        class_id: 'k9',
-        session_date: '2026-10-22',
-        teacher_id: 'st-k2',
-        classes: { name: '別人的班' },
-      },
-    ],
+    sessions: reversed ? [...SESSIONS].reverse() : SESSIONS,
     schedules: [
       { class_id: 'k1', teacher_id: 'st-main', classes: { org_id: A } },
       { class_id: 'k2', teacher_id: 'st-k2', classes: { org_id: A } },
@@ -118,6 +130,26 @@ describe('notifyLeaveForTeachers（#1693：學生請了老師的課）', () => {
       'u-main|王小明 請假：數學 A 班 10/27',
       'u-sub|王小明 請假：數學 A 班 10/27',
     ]);
+  });
+
+  it('同一批、DB 回列的順序不同 → 同一個去重鍵（跨日取最早、同日取 id 小的）', async () => {
+    const keys = async (reversed: boolean, sessionIds: string[]) => {
+      const db = seed(reversed);
+      await notifyLeaveForTeachers(db.client as SupabaseClient, input({ sessionIds }));
+      return db
+        .rows('notifications')
+        .map((n) => n['dedupe_key'])
+        .sort();
+    };
+    // 跨日：k1 的 ses-2（10/20）比 ses-1（10/27）早
+    expect(await keys(false, ['ses-1', 'ses-2'])).toEqual(await keys(true, ['ses-2', 'ses-1']));
+    expect(await keys(true, ['ses-1', 'ses-2'])).toEqual([
+      'leave:leave-1:k1:ses-2',
+      'leave:leave-1:k1:ses-2',
+    ]);
+    // 同日：k2 的 ses-3 與 ses-4 都是 10/21，取 id 小的 ses-3
+    expect(await keys(false, ['ses-3', 'ses-4'])).toEqual(['leave:leave-1:k2:ses-3']);
+    expect(await keys(true, ['ses-4', 'ses-3'])).toEqual(['leave:leave-1:k2:ses-3']);
   });
 
   it('替學生請假的人自己不收（管理員同時是任課老師）', async () => {
