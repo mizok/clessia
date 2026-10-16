@@ -58,6 +58,14 @@ Tags: `architecture`, `auth`, `workers`, `database`
 
 Links to: [[architecture/line-oauth-login]]
 
+## [[architecture/pg-pool-writes|經過 pg 連線池寫入]]
+
+PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
+
+Tags: `architecture`, `database`, `transaction`, `authorization`
+
+Links to: [[architecture/auth-pool-lifecycle]]
+
 ## [[architecture/authorization-scope|授權範圍 —— 分校、職務、細部權限]]
 
 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。

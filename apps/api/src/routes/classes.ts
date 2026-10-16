@@ -8,7 +8,8 @@ import { checkTeacherEligibility } from '../lib/teacher-eligibility';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
-import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
+import { deleteClasses, type ClassDeleteOutcome } from '../lib/class-delete';
+import { getAuth } from '../lib/get-auth';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { countEnrolledOn, type EnrollmentRange } from '../lib/session-roster';
 import { checkClassesPastSessions } from '../lib/class-past-sessions';
@@ -942,13 +943,60 @@ app.openapi(
   },
 );
 
+interface ClassDeleteFailure {
+  readonly http: 404 | 409 | 500;
+  readonly body: { error: string; code: string; classIds?: string[] };
+}
+
+/**
+ * 刪班級的交易入口（#1652）：拿這個請求的 pg 池、帶 org 與分校範圍，把「什麼都沒動」的結果對成 HTTP。
+ * **池不在就 500，不退回舊的 PostgREST 逐步刪** —— 那條就是沒有交易、會刪一半的 bug 本身。
+ */
+async function deleteClassesForRequest(
+  c: Context<AppEnv>,
+  ids: readonly string[],
+  onBlocked: 'abort' | 'skip',
+): Promise<Extract<ClassDeleteOutcome, { status: 'done' }> | ClassDeleteFailure> {
+  const pool = getAuth(c).pool;
+  if (!pool) return { http: 500, body: { error: '刪除班級失敗', code: 'DB_POOL_UNAVAILABLE' } };
+  let result: ClassDeleteOutcome;
+  try {
+    result = await deleteClasses(pool, {
+      orgId: c.get('orgId'),
+      ids,
+      scope: getCampusScope(c),
+      onBlocked,
+    });
+  } catch (err) {
+    console.error('[classes] delete transaction failed:', err);
+    return { http: 500, body: { error: '刪除班級失敗', code: 'DB_ERROR' } };
+  }
+  switch (result.status) {
+    case 'done':
+      return result;
+    case 'not-found':
+      return { http: 404, body: { error: '班級不存在', code: 'NOT_FOUND' } };
+    case 'has-invoice-items':
+      return {
+        http: 409,
+        body: {
+          error: '這個班已經有帳單，不能刪除，請改為停用',
+          code: 'HAS_INVOICE_ITEMS',
+          classIds: result.classIds,
+        },
+      };
+    case 'in-use':
+      return { http: 409, body: { error: '班級還有其他資料引用，無法刪除', code: 'IN_USE' } };
+  }
+}
+
 // DELETE /api/classes/batch
 app.openapi(
   createRoute({
     method: 'delete',
     path: '/batch',
     tags: ['Classes'],
-    summary: '批次刪除班級（有歷史課堂的略過）',
+    summary: '批次刪除班級（有歷史課堂或堂數包的略過；有帳單整批擋）',
     request: {
       body: {
         content: {
@@ -970,11 +1018,15 @@ app.openapi(
         },
       },
       404: {
-        description: '有班級不存在（含別 org 的 id）—— 整批不動',
+        description: '有班級不存在或不在分校範圍（含別 org 的 id）—— 整批不動',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      409: {
+        description: '有班級已有帳單明細（HAS_INVOICE_ITEMS，body 帶 classIds）—— 整批不動',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: {
-        description: '過去課堂守門查詢失敗（fail closed）或刪除本身失敗',
+        description: '交易失敗 —— 整批不動',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -986,34 +1038,20 @@ app.openapi(
     const { ids } = c.req.valid('json');
     if (ids.length === 0) return c.json({ deleted: 0, deletedIds: [], skipped: 0 }, 200);
 
-    // 任何一個 id 不屬於本 org → 整批 404，不略過（c1，#966 B2）
-    if ((await missingInOrg(supabase, 'classes', orgId, ids)).length > 0) {
-      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    // 範圍、守門、刪除全在同一個交易裡，跟單筆共用（#1652，見 lib/class-delete.ts）：
+    // 任何一個 id 不在 org／分校範圍 → 整批 404（c1，#966 B2）；有帳單明細 → 整批 409；
+    // 有過去課堂或堂數包的班略過。
+    const result = await deleteClassesForRequest(c, ids, 'skip');
+    if ('http' in result) {
+      if (result.http === 404) return c.json(result.body, 404);
+      if (result.http === 409) return c.json(result.body, 409);
+      return c.json(result.body, 500);
     }
-
-    // 查哪些班級有過去日期的課堂（有則視為已發生業務，不可刪除）
-    // TODO: 待老師點名功能完成後，改為查 status='completed'
-    // 查詢失敗一律 fail closed —— 不確定有沒有過去課堂時，整批都不准刪，
-    // 不能把「查不到答案」的班級誤判成「可以刪」。
-    const pastSessionsCheck = await checkClassesPastSessions(supabase, ids);
-    if (pastSessionsCheck.status === 'check-failed') {
-      return c.json(
-        { error: 'PAST_SESSIONS_CHECK_FAILED', code: 'PAST_SESSIONS_CHECK_FAILED' },
-        500,
-      );
-    }
-
-    const hasSessionsSet = pastSessionsCheck.classIdsWithPastSessions;
-    const toDeleteIds = ids.filter((id) => !hasSessionsSet.has(id));
+    const toDeleteIds = result.deletedIds;
     const skipped = ids.length - toDeleteIds.length;
-
     if (toDeleteIds.length === 0) {
       return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
     }
-
-    const { error } = await inOrg(supabase.from('classes').delete().in('id', toDeleteIds), orgId);
-    // 不能回 200 { deleted: 0 } —— 前端會跳「批次刪除完成」（#1651）
-    if (error) return c.json({ error: '刪除班級失敗', code: 'DB_ERROR' }, 500);
 
     logAudit(
       supabase,
@@ -1355,7 +1393,7 @@ app.openapi(
     method: 'delete',
     path: '/{id}',
     tags: ['Classes'],
-    summary: '刪除班級（無 sessions 才可刪）',
+    summary: '刪除班級（無過去課堂、堂數包、帳單才可刪）',
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
@@ -1367,11 +1405,11 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       409: {
-        description: '已有課堂記錄或已收費的堂數包，無法刪除',
+        description: '已有過去課堂、堂數包或帳單明細（HAS_INVOICE_ITEMS），無法刪除',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: {
-        description: '守門查詢失敗 —— 拒絕刪除（fail closed）',
+        description: '交易失敗 —— 什麼都沒刪（fail closed）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -1395,61 +1433,25 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    // 檢查是否有過去日期的課堂 — 有則視為曾實際發生業務，不可刪除，只能停用
-    // TODO: 待老師點名功能完成後，改為檢查 status='completed'
-    // 查詢失敗一律 fail closed —— 不確定有沒有過去課堂時，不准刪。
-    const pastSessionsCheck = await checkClassesPastSessions(supabase, [id]);
-    if (pastSessionsCheck.status === 'check-failed') {
-      return c.json(
-        { error: 'PAST_SESSIONS_CHECK_FAILED', code: 'PAST_SESSIONS_CHECK_FAILED' },
-        500,
-      );
+    // 範圍、守門、刪除全在同一個交易裡（#1652，見 lib/class-delete.ts）。上面那次讀只為了稽核的名字，
+    // 不是權威 —— 交易裡會用 FOR UPDATE 重做 org／分校範圍判斷。
+    const result = await deleteClassesForRequest(c, [id], 'abort');
+    if ('http' in result) {
+      if (result.http === 404) return c.json(result.body, 404);
+      if (result.http === 409) return c.json(result.body, 409);
+      return c.json(result.body, 500);
     }
-
-    if (pastSessionsCheck.classIdsWithPastSessions.has(id)) {
+    if (result.pastSessionIds.length > 0) {
       return c.json(
         { error: '此班級已有歷史課堂記錄，無法刪除，請改為停用', code: 'HAS_PAST_SESSIONS' },
         409,
       );
     }
-
-    // 刪班會連坐刪掉底下所有報名（見下方 CASCADE DELETE），而報名底下可能掛著
-    // 已收費的 session_packs（ON DELETE CASCADE）—— 「零過去課堂」不代表「零business」，
-    // 家長可能已付費但學生還沒上過任何一堂課。這條檢查跟 enrollments.ts 的單筆刪除
-    // 共用同一支 checkEnrollmentSessionPacks，見該檔註解（M8 稽核）。
-    const { data: classEnrollments, error: classEnrollmentsError } = await supabase
-      .from('enrollments')
-      .select('id')
-      .eq('org_id', orgId)
-      .eq('class_id', id);
-
-    if (classEnrollmentsError) {
-      return c.json({ error: 'ENROLLMENT_LOOKUP_FAILED', code: 'ENROLLMENT_LOOKUP_FAILED' }, 500);
-    }
-
-    const enrollmentIds = (classEnrollments ?? []).map((row) => row.id);
-    const sessionPacks = await checkEnrollmentSessionPacks({ supabase, orgId, enrollmentIds });
-
-    if (sessionPacks.status === 'check-failed') {
-      return c.json({ error: 'SESSION_PACK_CHECK_FAILED', code: 'SESSION_PACK_CHECK_FAILED' }, 500);
-    }
-
-    if (sessionPacks.status === 'has-session-pack') {
+    if (result.sessionPackIds.length > 0) {
       return c.json(
         { error: '此班級已有學生購買堂數包，無法刪除，請改為停用', code: 'HAS_SESSION_PACK' },
         409,
       );
-    }
-
-    // CASCADE DELETE: 刪除關聯資料
-    // `schedules` 沒有 org_id 欄位 —— 它的範圍由上面驗過的父班級保證
-    await inOrg(supabase.from('sessions').delete().eq('class_id', id), orgId);
-    await supabase.from('schedules').delete().eq('class_id', id);
-    await inOrg(supabase.from('enrollments').delete().eq('class_id', id), orgId);
-
-    const { error } = await inOrg(supabase.from('classes').delete().eq('id', id), orgId);
-    if (error) {
-      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
     logAudit(

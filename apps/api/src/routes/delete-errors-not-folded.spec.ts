@@ -1,14 +1,13 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import classesRoute from './classes';
 import studentsRoute from './students';
 
 /**
  * #1651：刪除失敗不能折成「看起來正常」的回應。
  * - 學生被帳單／成績的 FK RESTRICT 擋下 → 409，不是 404「學生不存在」（學生明明在畫面上）
  * - 學生刪除的其他 DB 錯誤 → 500；真的查無（PGRST116）才 404
- * - 班級批次刪除 DB 錯誤 → 500，不是 200 `{ deleted: 0 }`（前端會跳「批次刪除完成」）
+ * - 班級批次刪除 DB 錯誤 → 500：#1652 起走 pg 交易，守在 `classes.spec.ts` 的「交易結果 → HTTP」
  */
 
 const ID = '00000000-0000-0000-0000-000000000001';
@@ -88,27 +87,5 @@ describe('DELETE /api/students/:id —— 刪除失敗不折成 404（#1651）',
   it('成功 → 200', async () => {
     const res = await studentDelete({ data: { id: ID }, error: null });
     expect(res.status).toBe(200);
-  });
-});
-
-describe('DELETE /api/classes/batch —— DB 錯誤回 500，不是 200 deleted:0（#1651）', () => {
-  const batchDelete = (r: Result) =>
-    call(
-      classesRoute,
-      '/batch',
-      fakeDb({ 'select classes': { data: [{ id: ID }], error: null }, 'delete classes': r }),
-      { ids: [ID] },
-    );
-
-  it('刪除失敗 → 500', async () => {
-    const res = await batchDelete({ error: { message: 'boom' } });
-    expect(res.status).toBe(500);
-    expect(res.body).toMatchObject({ code: 'DB_ERROR' });
-  });
-
-  it('成功 → 200 deleted:1', async () => {
-    const res = await batchDelete({ error: null });
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ deleted: 1, deletedIds: [ID] });
   });
 });
