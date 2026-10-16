@@ -274,8 +274,12 @@ export class ContactBookPage implements OnInit {
     ref?.onClose.subscribe((created: ContactBookEntry | undefined) => {
       if (!created) return;
       // 寫完就從待辦名單移掉，不重打整份名單
-      this.viewTransition(() =>
-        this.missing.update((list) => list.filter((item) => item.studentId !== created.studentId)),
+      this.viewTransition(
+        () =>
+          this.missing.update((list) =>
+            list.filter((item) => item.studentId !== created.studentId),
+          ),
+        { rows: true },
       );
       // 新寫的那則若落在列表的區間內就該出現 —— 這裡重打列表比自己插入可靠
       this.load();
@@ -333,7 +337,7 @@ export class ContactBookPage implements OnInit {
 
   /** 未簽收是**前端篩**，資料沒變，不必重打 API */
   protected toggleUnsignedOnly(): void {
-    this.viewTransition(() => this.unsignedOnly.update((v) => !v));
+    this.viewTransition(() => this.unsignedOnly.update((v) => !v), { rows: true });
   }
 
   protected clearFilters(): void {

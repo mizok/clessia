@@ -202,25 +202,28 @@ export class ClassFormDialogComponent {
 
   protected addScheduleEntry(): void {
     this.formValidationMessage.set(null);
-    this.viewTransition(() =>
-      this.scheduleEntries.update((list) => [
-        ...list,
-        {
-          key: this.nextScheduleKey++,
-          weekday: 1,
-          startTime: '09:00',
-          endTime: '11:00',
-          teacherId: null,
-          effectiveTo: null,
-        },
-      ]),
+    this.viewTransition(
+      () =>
+        this.scheduleEntries.update((list) => [
+          ...list,
+          {
+            key: this.nextScheduleKey++,
+            weekday: 1,
+            startTime: '09:00',
+            endTime: '11:00',
+            teacherId: null,
+            effectiveTo: null,
+          },
+        ]),
+      { rows: true },
     );
   }
 
   protected removeScheduleEntry(index: number): void {
     this.formValidationMessage.set(null);
-    this.viewTransition(() =>
-      this.scheduleEntries.update((list) => list.filter((_, i) => i !== index)),
+    this.viewTransition(
+      () => this.scheduleEntries.update((list) => list.filter((_, i) => i !== index)),
+      { rows: true },
     );
   }
 

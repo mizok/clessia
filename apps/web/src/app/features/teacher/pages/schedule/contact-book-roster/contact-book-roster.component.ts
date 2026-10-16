@@ -122,8 +122,12 @@ export class ContactBookRosterComponent {
           ref?.onClose.subscribe((saved?: unknown) => {
             if (!saved) return;
             this.wroteAny.set(true);
-            this.viewTransition(() =>
-              this.students.update((list) => list.filter((s) => s.studentId !== student.studentId)),
+            this.viewTransition(
+              () =>
+                this.students.update((list) =>
+                  list.filter((s) => s.studentId !== student.studentId),
+                ),
+              { rows: true },
             );
           });
         },

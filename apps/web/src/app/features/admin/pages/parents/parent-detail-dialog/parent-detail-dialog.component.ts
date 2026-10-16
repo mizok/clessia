@@ -153,7 +153,7 @@ export class ParentDetailDialogComponent implements OnInit {
             this.parent.set(res.data);
             this.loading.set(false);
           };
-          if (animate) this.viewTransition(apply);
+          if (animate) this.viewTransition(apply, { rows: true });
           else apply();
         },
         error: () => {

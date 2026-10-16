@@ -111,11 +111,15 @@ export class InvoiceFormDialogComponent {
   }
 
   protected addItem(): void {
-    this.viewTransition(() => this.items.update((list) => [...list, this.newItem()]));
+    this.viewTransition(() => this.items.update((list) => [...list, this.newItem()]), {
+      rows: true,
+    });
   }
 
   protected removeItem(index: number): void {
-    this.viewTransition(() => this.items.update((list) => list.filter((_, i) => i !== index)));
+    this.viewTransition(() => this.items.update((list) => list.filter((_, i) => i !== index)), {
+      rows: true,
+    });
   }
 
   protected updateItem<K extends keyof DraftItem>(

@@ -166,8 +166,9 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
       if (!confirmed) return;
       this.subjectsService.delete(subject.id).subscribe({
         next: () => {
-          this.viewTransition(() =>
-            this.subjects.update((list) => list.filter((s) => s.id !== subject.id)),
+          this.viewTransition(
+            () => this.subjects.update((list) => list.filter((s) => s.id !== subject.id)),
+            { rows: true },
           );
           this.showNotice({
             severity: 'success',
@@ -202,7 +203,9 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     this.saving.set(true);
     this.subjectsService.create(name).subscribe({
       next: (res) => {
-        this.viewTransition(() => this.subjects.update((list) => [...list, res.data]));
+        this.viewTransition(() => this.subjects.update((list) => [...list, res.data]), {
+          rows: true,
+        });
         this.newSubjectName.set('');
         this.saving.set(false);
         this.showNotice({

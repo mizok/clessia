@@ -449,22 +449,24 @@ export class DashboardComponent {
         next: (checkin) => {
           // 用回應而不是樂觀更新 —— 到班時間是伺服器給的，猜一個會跟事實差幾秒。
           // 包在頁內 VT 裡：這位學生從「該到沒到」消失，其餘列補位（#1641 項 5）
-          this.viewTransition(() =>
-            this.workbench.update((current) =>
-              current === null
-                ? current
-                : {
-                    ...current,
-                    arrived: [
-                      ...current.arrived,
-                      {
-                        studentId: checkin.studentId,
-                        checkedInAt: checkin.checkedInAt,
-                        checkinId: checkin.id,
-                      },
-                    ],
-                  },
-            ),
+          this.viewTransition(
+            () =>
+              this.workbench.update((current) =>
+                current === null
+                  ? current
+                  : {
+                      ...current,
+                      arrived: [
+                        ...current.arrived,
+                        {
+                          studentId: checkin.studentId,
+                          checkedInAt: checkin.checkedInAt,
+                          checkinId: checkin.id,
+                        },
+                      ],
+                    },
+              ),
+            { rows: true },
           );
           this.boardBusy.set(null);
         },
@@ -482,12 +484,17 @@ export class DashboardComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.viewTransition(() =>
-            this.workbench.update((current) =>
-              current === null
-                ? current
-                : { ...current, arrived: current.arrived.filter((a) => a.checkinId !== checkinId) },
-            ),
+          this.viewTransition(
+            () =>
+              this.workbench.update((current) =>
+                current === null
+                  ? current
+                  : {
+                      ...current,
+                      arrived: current.arrived.filter((a) => a.checkinId !== checkinId),
+                    },
+              ),
+            { rows: true },
           );
           this.boardBusy.set(null);
         },
