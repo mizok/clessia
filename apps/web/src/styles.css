@@ -1141,6 +1141,105 @@
     view-transition-name: route-content;
   }
   /* =============================================================================
+     摺疊摘要列（A6 `.colls`／`.coll`，#1705）
+     -----------------------------------------------------------------------------
+     兩種寬度都收著的灰框：標題左、摘要右、箭頭；點開是嵌在灰框裡的白底內容。
+
+       <div class="colls">
+         <details class="coll" name="<這一組的名字>">
+           <summary class="coll__sum min-h-14 wide:min-h-16"><span class="coll__t">…</span><span class="coll__m">…</span></summary>
+           <div class="coll__body">…</div>
+         </details>
+       </div>
+
+     - **同一組一次只開一個**（使用者 2026-10-16 指定，a6-adoption-rules R5）：原生 `<details name>`
+       互斥，不寫 JS 狀態；不支援的瀏覽器退回各自開合。name 相同的 details 在整份文件裡互斥，
+       所以同一頁有兩組就給兩個名字。
+     - 高度過渡在 #1634 那段（`:where(details)::details-content`），減少動態時直接展開。
+     - 內容區最後一列不畫分隔線：各頁的列自己寫 `last:border-b-0`，而且列後面不能再接別的兄弟元素。
+     ============================================================================= */
+  .colls {
+    display: grid;
+    gap: var(--space-2);
+  }
+  .coll {
+    background: var(--zinc-100);
+    border-radius: var(--radius-lg);
+  }
+  .coll__sum {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    /* 最小高度（A6 手機 56／桌機 64）寫在模板上：`min-h-14 wide:min-h-16` —— 觸控尺寸 gate（A27）只讀模板的 class */
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-lg);
+    list-style: none;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+  }
+  .coll__sum::-webkit-details-marker {
+    display: none;
+  }
+  .coll__sum:hover {
+    background: var(--zinc-200);
+  }
+  .coll__sum:focus-visible {
+    outline: 2px solid var(--accent-500);
+    outline-offset: -2px;
+  }
+  /* 箭頭：A6 用邊框畫的 V，打開時轉成 ^ */
+  .coll__sum::after {
+    content: '';
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin: 0 4px 4px 0;
+    border-right: 1.5px solid var(--zinc-900);
+    border-bottom: 1.5px solid var(--zinc-900);
+    transform: rotate(45deg);
+    transition: transform var(--transition-fast);
+  }
+  .coll[open] > .coll__sum::after {
+    transform: rotate(-135deg);
+    margin-bottom: -4px;
+  }
+  .coll__t {
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    letter-spacing: -0.01em;
+    color: var(--zinc-900);
+  }
+  .coll__m {
+    margin-left: auto;
+    font-size: var(--text-base);
+    color: var(--zinc-700);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .coll__body {
+    margin: 0 var(--space-1) var(--space-1);
+    padding: var(--space-2) var(--space-5) var(--space-6);
+    background: #fff;
+    border-radius: var(--radius-md);
+  }
+  @media (max-width: 860px) {
+    .coll__sum {
+      padding-left: var(--space-4);
+      padding-right: var(--space-4);
+    }
+    .coll__t {
+      font-size: var(--text-lg);
+    }
+    .coll__m {
+      font-size: var(--text-md);
+    }
+    .coll__body {
+      padding-left: var(--space-4);
+      padding-right: var(--space-4);
+    }
+  }
+
+  /* =============================================================================
      Utilities
      ============================================================================= */
   .u-fill-route-child {

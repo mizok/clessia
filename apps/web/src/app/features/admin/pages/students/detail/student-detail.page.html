@@ -348,7 +348,7 @@
       }
     </section>
 
-    <div class="flex flex-col gap-2">
+    <div class="colls">
       <app-student-fold title="成績" [meta]="scoreMeta()">
         @for (subj of subjects(); track subj.subjectName) {
           <div
@@ -400,7 +400,9 @@
         } @else {
           <ul class="m-0 list-none p-0">
             @for (parent of s.parents; track parent.id) {
-              <li class="flex items-start gap-3 border-b border-surface-border py-4">
+              <li
+                class="flex items-start gap-3 border-b border-surface-border py-4 last:border-b-0"
+              >
                 <span
                   class="flex size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white select-none"
                   [style.--h]="getPersonHue(parent.id)"

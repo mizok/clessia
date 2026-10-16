@@ -136,6 +136,17 @@ describe('StudentDetailPage', () => {
     await fixture.whenStable();
   });
 
+  // #1705：學生檔案的摺疊列（含帳單章）同一組，一次只開一個 —— 帳單章是另一個元件，名字要自己對上
+  it('所有摺疊列（含帳單章）同一個 name', () => {
+    const colls = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLDetailsElement>(
+        'details.coll',
+      ),
+    ];
+    expect(colls.length).toBe(5); // 成績、帳單、紀錄、家長、基本資料
+    expect(new Set(colls.map((d) => d.getAttribute('name')))).toEqual(new Set(['student-folds']));
+  });
+
   it('loads student and enrollments from route params', () => {
     expect(studentsServiceMock['get']).toHaveBeenCalledWith(seedStudentId);
     expect(enrollmentsServiceMock.list).toHaveBeenCalledWith({
