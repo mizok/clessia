@@ -118,7 +118,7 @@ export async function harvestNames(page, source, ctx) {
 
 export async function capture(
   browser,
-  { source, file, url, width, storageState, appOpen = {}, rowParents = [] },
+  { source, file, url, width, storageState, opens = {}, rowParents = [] },
 ) {
   const { ctx, page, errors } = await openPage(browser, { source, url, width, storageState });
   const height = await growViewport(page, width);
@@ -147,6 +147,8 @@ export async function capture(
       .locator(`[popovertarget="${id}"]:not([popovertargetaction="hide"]) >> visible=true`)
       .first()
       .click();
+    // 點完把滑鼠移開：從底部升起的面板會把裡面的鈕放到游標底下，量到的是 hover 樣式（#1639 LINE 鍵）
+    await page.mouse.move(0, 0);
     await page.waitForTimeout(400);
     const open = await page.evaluate(
       (i) => document.getElementById(i)?.matches(':popover-open'),
@@ -161,8 +163,13 @@ export async function capture(
     await page.evaluate((i) => document.getElementById(i)?.hidePopover?.(), id).catch(() => {});
   }
 
-  for (const [id, { click, root }] of Object.entries(source === 'app' ? appOpen : {})) {
-    await page.locator(click).first().click();
+  // 不是 popovertarget 開的彈出物（app 的 PrimeNG、稿用 JS showPopover 的）：config 指定點哪顆、根在哪。
+  // 開啟鈕只在某些寬度出現（例如稿的手機登入面板）時，這一寬就當沒有
+  for (const [id, { click, root }] of Object.entries(opens)) {
+    const btn = page.locator(`${click} >> visible=true`).first();
+    if (!(await btn.count())) continue;
+    await btn.click();
+    await page.mouse.move(0, 0);
     await page.waitForTimeout(500);
     popovers[id] = (await page.locator(root).count())
       ? await page.evaluate(extractSource({ names, rowParents, root, prefix: `pop[${id}]` }))

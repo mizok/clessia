@@ -218,6 +218,7 @@ export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
 /**
  * 頁面對照：稿檔 ↔ app 路由。兩邊的原生 `[popovertarget]` 會自動逐一打開；
  * `appOpen` 放 app 端不是原生 popover 的彈出物（id 用 A6 那邊的，才配得上）；
+ * `a6Open` 同上、放稿端的（稿用 JS showPopover、沒有 popovertarget 的），id 跟 app 不同時在 `popovers` 對照；
  * `popovers` 放 A6 id → app id 的額外對照（殼層的在 SHELL_POPOVERS）；
  * `mapping` 放自動配不上的 part（A6 key → app key）。
  */
@@ -268,6 +269,9 @@ export const PAGES = {
     a6: 'pub-login.html',
     app: '/login',
     state: path.join(cache, 'state-guest.json'),
+    // 手機登入的底部面板：稿用 JS showPopover（<a data-ps-sheet>，不是 popovertarget），app 是原生 popover login-sheet
+    a6Open: { 'ps-sheet': { click: '[data-ps-sheet]', root: '#ps-sheet' } },
+    popovers: { 'ps-sheet': 'login-sheet' },
     deviations: [
       {
         // 手機點「登入」打開底部面板（popover），不是導航：角色照行為用 button（稿是 <a>）

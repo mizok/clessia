@@ -56,7 +56,7 @@ async function grab(page, source, w, rowParents = []) {
     url,
     width: w.width,
     storageState: source === 'app' ? (cfg.state ?? STATE) : undefined,
-    appOpen: cfg.appOpen,
+    opens: (source === 'app' ? cfg.appOpen : cfg.a6Open) ?? {},
     rowParents,
   });
 }
