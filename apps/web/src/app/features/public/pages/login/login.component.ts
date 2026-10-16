@@ -1,4 +1,12 @@
-import { Component, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '@core/auth.service';
@@ -30,7 +38,15 @@ export class LoginComponent {
    */
   protected readonly showRetry = signal(false);
 
+  private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
+
   constructor() {
+    // 手機底部面板搬到 <body>：它在模板裡的位置是 <main [inert]> 底下（停在品牌面時表單面是 inert），
+    // 進了 top layer 看得見，整棵子樹卻還是 inert —— LINE 鍵拿不到焦點、點擊穿到後面的 nav（#1639 二讀）。
+    // 搬出去之後元件銷毀時 Angular 不會收它（它不在 host 底下了），要自己移除。
+    afterNextRender(() => document.body.append(this.sheet().nativeElement));
+    inject(DestroyRef).onDestroy(() => this.sheet().nativeElement.remove());
+
     // OAuth 的失敗是被導回來時寫在網址上的，不是函式回傳值
     const oauthError = oauthErrorFor(this.route.snapshot.queryParamMap.get('error'));
     if (oauthError) {

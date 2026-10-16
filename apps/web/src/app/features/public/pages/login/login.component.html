@@ -44,9 +44,10 @@
   手機登入的底部面板（A6，#1636）：品牌面的「登入」用 popovertarget 開它，LINE 鍵在面板裡。
   按下去走同一個 signInWithLine（同一份送出中狀態），面板不收 —— 「前往 LINE...」與失敗訊息
   都要留在使用者眼前，收掉的話失敗會發生在看不見的表單面上。
-  桌機沒有入口會開它。進出場曲線由全站彈出物動態負責（#1634 的 overlay-motion）。
+  桌機沒有入口會開它。渲染後搬到 <body>（見 LoginComponent 建構子：模板位置在 inert 的 main 底下）。進出場曲線由全站彈出物動態負責（#1634 的 overlay-motion）。
 -->
 <div
+  #sheet
   id="login-sheet"
   popover
   aria-labelledby="login-sheet-title"
