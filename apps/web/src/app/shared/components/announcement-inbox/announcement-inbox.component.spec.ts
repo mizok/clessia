@@ -3,6 +3,7 @@ import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
+import { InboxBadgeService } from '@core/inbox-badge.service';
 
 import { AnnouncementInboxComponent } from './announcement-inbox.component';
 
@@ -28,6 +29,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
   const inboxMock = vi.fn();
   const markReadMock = vi.fn();
   const markAllReadMock = vi.fn();
+  const badge = { setAnnouncementsUnread: vi.fn() };
 
   async function setup(data: Announcement[] = [announcement()]) {
     inboxMock.mockReset();
@@ -46,6 +48,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
           provide: AnnouncementsService,
           useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
         },
+        { provide: InboxBadgeService, useValue: badge },
       ],
     }).compileComponents();
 
@@ -122,6 +125,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
           provide: AnnouncementsService,
           useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
         },
+        { provide: InboxBadgeService, useValue: badge },
       ],
     }).compileComponents();
 
@@ -150,6 +154,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
           provide: AnnouncementsService,
           useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
         },
+        { provide: InboxBadgeService, useValue: badge },
       ],
     }).compileComponents();
 
@@ -251,5 +256,54 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     expect(num.textContent).toBe('1');
     expect(animate).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
+  });
+
+  // #1683：頂欄角標跟著收件匣的數字走，不另外打
+  it('寫回頂欄角標：讀到、展開、翻回都跟著；讀取失敗不寫', async () => {
+    badge.setAnnouncementsUnread.mockReset();
+    await setup([announcement({ id: 'a' }), announcement({ id: 'b' })]);
+    expect(badge.setAnnouncementsUnread).toHaveBeenLastCalledWith(2);
+
+    markReadMock.mockReturnValue(throwError(() => new Error('boom')));
+    component['toggle'](component['announcements']()[0]!);
+    fixture.detectChanges();
+    expect(badge.setAnnouncementsUnread).toHaveBeenLastCalledWith(2); // 標記失敗翻回
+    markReadMock.mockReturnValue(of(undefined));
+    component['toggle'](component['announcements']()[1]!);
+    fixture.detectChanges();
+    expect(badge.setAnnouncementsUnread).toHaveBeenLastCalledWith(1);
+  });
+
+  /** 收件匣自己還沒讀到、或讀不到時，角標保留 InboxBadgeService 自己抓到的值（審核席 #1691 突變） */
+  describe('不寫回角標的時候', () => {
+    async function createWith(inbox: () => unknown) {
+      badge.setAnnouncementsUnread.mockReset();
+      inboxMock.mockReset();
+      inboxMock.mockImplementation(inbox);
+      await TestBed.configureTestingModule({
+        imports: [AnnouncementInboxComponent],
+        providers: [
+          {
+            provide: AnnouncementsService,
+            useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
+          },
+          { provide: InboxBadgeService, useValue: badge },
+        ],
+      }).compileComponents();
+      const f = TestBed.createComponent(AnnouncementInboxComponent);
+      f.componentRef.setInput('heading', '通知中心');
+      f.detectChanges();
+      return f;
+    }
+
+    it('讀取失敗：不寫（角標原本是 3 就還是 3，不會被寫成 0）', async () => {
+      await createWith(() => throwError(() => new Error('boom')));
+      expect(badge.setAnnouncementsUnread).not.toHaveBeenCalled();
+    });
+
+    it('載入完成前：不寫（不會先寫一個 0）', async () => {
+      await createWith(() => NEVER);
+      expect(badge.setAnnouncementsUnread).not.toHaveBeenCalled();
+    });
   });
 });
