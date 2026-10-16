@@ -91,6 +91,11 @@ describe('StudentBillingChapterComponent', () => {
     TestBed.resetTestingModule();
   });
 
+  it('跟學生檔案其他摺疊列同一組（name="student-folds"，#1705）', () => {
+    setup([], 0);
+    expect(el().querySelector('details.coll')!.getAttribute('name')).toBe('student-folds');
+  });
+
   it('摘要列：待繳金額讀 API，未逾期寫到期日', () => {
     setup([invoice({})], 4050);
     expect(service.list).toHaveBeenCalledWith({ studentId: 's1', pageSize: 200 });

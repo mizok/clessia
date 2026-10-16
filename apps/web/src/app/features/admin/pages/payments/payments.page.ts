@@ -473,12 +473,6 @@ export class PaymentsPage implements OnInit {
     if (open) this.loadChapter(key);
   }
 
-  protected toggleChapter(key: ChapterKey): void {
-    const open = !this.chapters()[key].open;
-    this.patchChapter(key, { open });
-    if (open) this.loadChapter(key);
-  }
-
   /** 逾期章的分頁（章節模式下 `invoices()` 就是逾期那張清單） */
   protected onChapterPage(event: PaginatorState): void {
     this.pageIndex.set(Math.floor((event.first ?? 0) / PAGE_SIZE) + 1);

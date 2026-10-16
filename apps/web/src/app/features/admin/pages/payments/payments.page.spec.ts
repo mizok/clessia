@@ -478,7 +478,7 @@ describe('PaymentsPage', () => {
         invoices.list.mockClear();
         expect(invoices.list).not.toHaveBeenCalled();
 
-        component['toggleChapter'](key);
+        component['onChapterToggle'](key, true);
         await render();
 
         expect(invoices.list).toHaveBeenCalledWith(
@@ -500,7 +500,7 @@ describe('PaymentsPage', () => {
             : listResponse([invoice({ id: 'paid', status: 'paid', netPaid: 4500 })]),
         )) as never);
 
-      component['toggleChapter']('paid');
+      component['onChapterToggle']('paid', true);
       await render();
 
       expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'paid' }));
@@ -819,8 +819,8 @@ describe('PaymentsPage', () => {
     });
 
     it('展開的章跟著換分校：頁碼歸 1、含已繳清章的多退那支；沒展開的章不多打', async () => {
-      component['toggleChapter']('dueSoon');
-      component['toggleChapter']('paid');
+      component['onChapterToggle']('dueSoon', true);
+      component['onChapterToggle']('paid', true);
       component['patchChapter']('dueSoon', { page: 2 });
       invoices.list.mockClear();
       await pick('c2');
@@ -879,7 +879,7 @@ describe('PaymentsPage', () => {
       });
 
       it('展開的章', async () => {
-        component['toggleChapter']('dueSoon');
+        component['onChapterToggle']('dueSoon', true);
         const a = new Subject<ReturnType<typeof listResponse>>();
         const b = new Subject<ReturnType<typeof listResponse>>();
         const queue = [a, b];
@@ -1073,7 +1073,9 @@ describe('PaymentsPage', () => {
     invoices.list.mockReturnValue(of(listResponse([same])));
     (component as unknown as { load: () => void }).load();
     await fixture.whenStable();
-    (component as unknown as { toggleChapter: (k: string) => void }).toggleChapter('dueSoon');
+    (
+      component as unknown as { onChapterToggle: (k: string, open: boolean) => void }
+    ).onChapterToggle('dueSoon', true);
     await fixture.whenStable();
     fixture.detectChanges();
 

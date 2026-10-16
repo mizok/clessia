@@ -863,6 +863,11 @@ describe('DashboardComponent（管理端）', () => {
         q('now-line')!.compareDocumentPosition(chapters[1]) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
       expect(q('coll-roster')!.textContent).toContain('到 1／2 · 請假 0');
+      // #1705：名冊跟請假、逾期同一組（「三塊摺疊列」那條的 fixture 不渲染名冊，在這裡守）
+      const roster = q('coll-roster') as HTMLDetailsElement;
+      expect(roster.classList).toContain('coll');
+      expect(roster.getAttribute('name')).toBe('dashboard-colls');
+      expect(roster.parentElement?.classList).toContain('colls');
       // #1705：各節包在自己的容器裡 —— 後面還有「今天的課表」連結，不包的話最後一節不是 last-child、底線會畫出來
       expect(chapters[chapters.length - 1].nextElementSibling).toBeNull();
     });
