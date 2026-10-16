@@ -11,6 +11,8 @@ import {
   type ElementRef,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
@@ -31,6 +33,7 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
 @Component({
   selector: 'app-notifications',
   imports: [
+    ReloadVeilComponent,
     DatePipe,
     FormsModule,
     ButtonModule,
@@ -56,6 +59,7 @@ export class NotificationsComponent {
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
+  private readonly viewTransition = injectViewTransition();
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly announcements = signal<Announcement[]>([]);
@@ -231,7 +235,7 @@ export class NotificationsComponent {
           this.title.set('');
           this.body.set('');
           this.submitting.set(false);
-          this.load();
+          this.load({ rows: true });
         },
         error: () => {
           this.submitting.set(false);
@@ -240,7 +244,8 @@ export class NotificationsComponent {
       });
   }
 
-  private load(): void {
+  /** `rows`：發布後的重抓，新的那則淡入（#1641 5b）；重抓期間舊的公告留著變淡 */
+  private load({ rows = false }: { rows?: boolean } = {}): void {
     this.loading.set(true);
     this.loadError.set(false);
 
@@ -249,8 +254,13 @@ export class NotificationsComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.announcements.set(res.data);
-          this.loading.set(false);
+          this.viewTransition(
+            () => {
+              this.announcements.set(res.data);
+              this.loading.set(false);
+            },
+            { rows },
+          );
         },
         error: () => {
           this.announcements.set([]);

@@ -404,4 +404,21 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(spy).not.toHaveBeenCalled();
     });
   });
+
+  // #1641 5b（使用者 10-16 裁定第 2、3 點）：發布後重抓時舊的公告留著變淡，不回到骨架
+  it('發布後重抓：舊的公告留著並變淡，不回到骨架', async () => {
+    await setup([announcement()]);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('[data-testid="announcement"]').length).toBe(1);
+
+    listMock.mockReturnValue(NEVER);
+    component['title'].set('停課通知');
+    component['body'].set('內容');
+    component['submit']();
+    fixture.detectChanges();
+
+    expect(el.querySelector('.reload-veil--stale')).not.toBeNull();
+    expect(el.querySelector('.skeleton-list')).toBeNull();
+    expect(el.querySelectorAll('[data-testid="announcement"]').length).toBe(1);
+  });
 });
