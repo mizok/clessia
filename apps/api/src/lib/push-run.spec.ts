@@ -152,7 +152,8 @@ describe('runPush —— push_status 狀態機（#1661，#1626 改版）', () =>
       sub('d3', 'e'),
     ];
     const { urls } = await run(pending, () => 201, 3);
-    expect(urls.map((u) => u.split('/').at(-1))).toEqual(['a', 'b']);
+    // 並行送出，完成順序不固定 —— 比集合
+    expect(urls.map((u) => u.split('/').at(-1)).sort()).toEqual(['a', 'b']);
   });
 
   it('同一個推播服務只簽一次 VAPID', async () => {
