@@ -712,6 +712,32 @@
   .p-button:disabled.p-button-outlined {
     border-color: var(--zinc-300) !important;
   }
+  /* 週列「選中底線」（#1641 項 3）：位置由 SelectedIndicatorDirective 量好寫進變數。
+     曲線同 #1634 的進場；第一次量完（--ready）才有 transition，進頁不會從左邊滑進來。 */
+  .selected-indicator {
+    position: relative;
+  }
+  .selected-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: var(--indicator-w, 0);
+    height: 2px;
+    background: var(--accent-vivid);
+    transform: translateX(var(--indicator-x, 0));
+    pointer-events: none;
+  }
+  .selected-indicator--ready::after {
+    transition:
+      transform 200ms var(--arrive),
+      width 200ms var(--arrive);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .selected-indicator--ready::after {
+      transition: none;
+    }
+  }
   /* =============================================================================
      Utilities
      ============================================================================= */
@@ -970,32 +996,6 @@
   }
   ::view-transition-new(route-content) {
     animation: 250ms ease-out vt-fade-in both;
-  }
-  /* 週列「選中底線」（#1641 項 3）：位置由 SelectedIndicatorDirective 量好寫進變數。
-     曲線同 #1634 的進場；第一次量完（--ready）才有 transition，進頁不會從左邊滑進來。 */
-  .selected-indicator {
-    position: relative;
-  }
-  .selected-indicator::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: var(--indicator-w, 0);
-    height: 2px;
-    background: var(--accent-vivid);
-    transform: translateX(var(--indicator-x, 0));
-    pointer-events: none;
-  }
-  .selected-indicator--ready::after {
-    transition:
-      transform 200ms var(--arrive),
-      width 200ms var(--arrive);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .selected-indicator--ready::after {
-      transition: none;
-    }
   }
   /* Tag the content areas that change on route navigation */
   .shell-route-wrapper,
