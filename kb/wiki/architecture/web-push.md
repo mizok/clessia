@@ -314,6 +314,9 @@ ALTER TABLE public.organizations
 - **10 ms CPU**：每台裝置要做一次 ECDH＋HKDF＋AES-GCM；VAPID JWT 每個推播服務（Google／Apple／Mozilla）每次 run 簽一次就好。
   **WebCrypto 一次運算花多少 CPU 時間：未證實，必須量。** 本 repo 已經被這個限制咬過一次（scrypt，[[architecture/line-oauth-login]]）。
 - 所以 **K（每次 run 送幾台裝置）是校準旋鈕**，不是寫死的常數：**#1657 在免費方案的真 Worker 上量**每則加密與每次 VAPID 簽章的 `cpuTime`（本機 `wrangler dev` 不執行 10ms 限制，量了不算），量完才定 K。
+  **#1657 實測（2026-10-16，免費方案的真 Worker，每種 7–22 次）**：每則加密 CPU 中位數約 0.3–0.5 ms，
+  VAPID 簽一次約 1 ms；「VAPID＋10 則」中位數 4 ms、最大 11 ms → **K = 10**（`PUSH_BATCH_SIZE` 可調），
+  一天 12 次 run ＝ 120 台裝置。DB 與 JSON 的那一半要等 #1661 上線後用 `wrangler tail` 看真實 run 的 `cpuTime`。
   送不動時照 Q8：先降 K、拉長窗口；仍不夠才升 Workers Paid，**升級前一定回報使用者**。
   一天 12 次 × K=20 = 240 台裝置／天；送不完的留到隔天的窗口前段（`TTL` 一天，過期的推播服務自己丟）。
 - **帳號裡現在用了幾個 Cron Trigger：未證實**（本 repo 沒有，但同一個 Cloudflare 帳號底下的其他 Worker 看不到）。這個設計只用 1 個。
