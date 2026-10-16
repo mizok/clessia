@@ -109,4 +109,20 @@ describe('ChapterHeadComponent', () => {
     expect(tally().classList.contains('text-xl')).toBe(true);
     expect(tally().classList.contains('text-lg')).toBe(false);
   });
+
+  // A6 人員／價目表／請假／考試的稿在 ≤860 覆寫 `.chap`：橫排、章名 28px、張數 14px（base）、上距 0（#1698）
+  it('listRow：手機橫排，章名 28px、張數 base；桌機照舊 44／xl', async () => {
+    await setup({ name: '老師', count: 12, unit: '位', listRow: true });
+    const box = host.querySelector('.chapter-head') as HTMLElement;
+    const h2 = host.querySelector('.chapter-head__name') as HTMLElement;
+    const tally = host.querySelector('.chapter-head__tally') as HTMLElement;
+
+    expect(box.classList.contains('flex-wrap')).toBe(true);
+    expect(h2.classList.contains('text-[28px]')).toBe(true);
+    expect(h2.classList.contains('text-[26px]')).toBe(false);
+    expect(h2.classList.contains('wide:text-[44px]')).toBe(true);
+    expect(tally.classList.contains('text-base')).toBe(true);
+    expect(tally.classList.contains('text-lg')).toBe(false);
+    expect(tally.classList.contains('wide:text-xl')).toBe(true);
+  });
 });
