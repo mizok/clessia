@@ -148,6 +148,7 @@ function nextMonthStart(month: string): string {
 /**
  * 以 id 取一張帳單，**org 與分校範圍都套**（#1381）。範圍外跟不存在一樣回 null → 路由回 404
  * （同 `findInOrg` 慣例：以 id 指名的單筆資源，不透露存在；計畫席 10-08 gate 裁定）。
+ * 查詢失敗丟（500），不是 404。
  */
 async function findScopedInvoice(
   c: Context<AppEnv>,
@@ -155,13 +156,15 @@ async function findScopedInvoice(
   columns: string,
 ): Promise<Record<string, unknown> | null> {
   const select: string = columns + INVOICE_SCOPE_EMBED;
-  const { data } = await c
+  const { data, error } = await c
     .get('supabase')
     .from('invoices')
     .select(select)
     .eq('id', id)
     .eq('org_id', c.get('orgId'))
     .maybeSingle();
+  // 讀取失敗丟（500），不折成 null —— 否則畫面跟「帳單不存在」一模一樣（#1630）
+  if (error) throw new Error(`findScopedInvoice failed: ${error.message}`);
   const row = (data as Record<string, unknown> | null) ?? null;
   return row && invoiceInScope(row, getCampusScope(c)) ? row : null;
 }
@@ -289,7 +292,6 @@ app.openapi(
     // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
     const derivedFilter = unpaidOnly || Boolean(params.status) || campusScope !== null;
 
-    // 催繳時間只在管理端列表帶（#1314 P3）—— 不進共用的 INVOICE_SELECT，家長端也用它
     const select: string = INVOICE_SELECT + (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
     // 搜尋先解析成學生 id（姓名或家長姓名），再當條件下 —— 兩條分頁路徑都吃得到。
     // 沒命中 = 空集合（`in.()` 零筆），不是「不篩」
