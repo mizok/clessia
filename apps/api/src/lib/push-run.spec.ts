@@ -39,11 +39,12 @@ const sub = (
   auth: subId ? AUTH : null,
 });
 
-function fakePool(pending: Row[]) {
+function fakePool(pending: Row[], fail?: RegExp) {
   const sent: Array<{ sql: string; params?: unknown[] }> = [];
   const client = {
     query: async (sql: string, params?: unknown[]) => {
       sent.push({ sql, params });
+      if (fail?.test(sql)) throw new Error('boom');
       if (/FROM organizations org/.test(sql)) return { rows: [], rowCount: 0 }; // 沒有要排入的
       if (/LEFT JOIN push_subscriptions/.test(sql))
         return { rows: pending, rowCount: pending.length };
@@ -56,8 +57,8 @@ function fakePool(pending: Row[]) {
   return { pool, sent, find };
 }
 
-async function run(pending: Row[], status: (url: string) => number, batchSize = 10) {
-  const db = fakePool(pending);
+async function run(pending: Row[], status: (url: string) => number, batchSize = 10, fail?: RegExp) {
+  const db = fakePool(pending, fail);
   const urls: string[] = [];
   const auths: string[] = [];
   const signals: unknown[] = [];
@@ -277,5 +278,39 @@ describe('reminderPayload（Q3：不放金額）', () => {
     });
     expect(p.topic).toHaveLength(32);
     expect(JSON.stringify(p)).not.toMatch(/\$|元|NT/);
+  });
+});
+
+describe('runPush —— 管理員每日摘要（#1693）', () => {
+  it('摘要出錯只退它自己的 SAVEPOINT、記 [notify]；同一個交易裡的繳費提醒照常送', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { result, find, sent } = await run(
+      [sub('d1', 's1')],
+      () => 201,
+      10,
+      /FROM organizations o\n/,
+    );
+    const order = sent.map((q) => q.sql);
+    const sp = order.indexOf('SAVEPOINT staff_digests');
+    expect(sp).toBeGreaterThan(-1);
+    expect(order).toContain('ROLLBACK TO SAVEPOINT staff_digests');
+    expect(order.indexOf('ROLLBACK TO SAVEPOINT staff_digests')).toBeGreaterThan(sp);
+    expect(order).not.toContain('ROLLBACK');
+    expect(find(/FOR UPDATE SKIP LOCKED/)).toHaveLength(1);
+    expect(result).toMatchObject({ digests: 0, attempted: 1, delivered: 1 });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'boom');
+    log.mockRestore();
+  });
+
+  it('帶 orgIds 時摘要也只跑那幾個 org；日期是呼叫端給的台北日期', async () => {
+    const db = fakePool([]);
+    await runPush(db.pool, {
+      today: '2026-10-16',
+      batchSize: 10,
+      vapid: await vapid(),
+      subject: 'mailto:ops@example.com',
+      orgIds: ['org-x'],
+    });
+    expect(db.find(/FROM organizations o\n/)[0]!.params).toEqual(['2026-10-16', ['org-x']]);
   });
 });
