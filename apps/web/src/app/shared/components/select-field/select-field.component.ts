@@ -51,6 +51,12 @@ export class SelectFieldComponent<T> {
    * 桌機 30px 高、12px 字。手機底部面板沿用一般尺寸。
    */
   readonly compact = input(false);
+  /** 表單欄位（#1665 公開表單）：標籤後加 A6 的必填星號（讀屏不念，必填由錯誤訊息說） */
+  readonly required = input(false);
+  /** 驗證沒過：框換成錯誤色（A6 `.is-bad`） */
+  readonly invalid = input(false);
+  /** 標籤字級：篩選列用 sm（預設）；表單欄位用 md，跟 A6 `.acset__l` 一樣大 */
+  readonly labelSize = input<'sm' | 'md'>('sm');
 
   protected readonly labelId = `select-field-${++seq}`;
   protected readonly filter = computed(() => this.options().length > 8);
@@ -61,7 +67,16 @@ export class SelectFieldComponent<T> {
     responsive: { breakpoint: '860px', direction: 'bottom' },
   };
 
-  protected readonly pt = computed<SelectPassThrough>(() =>
+  protected readonly pt = computed<SelectPassThrough>(() => {
+    const base = this.basePt() as Record<string, unknown> & { root: { class: string } };
+    if (!this.invalid()) return base as SelectPassThrough;
+    return {
+      ...base,
+      root: { class: `${base.root.class} border-error-700! hover:border-error-700!` },
+    } as SelectPassThrough;
+  });
+
+  private readonly basePt = computed<SelectPassThrough>(() =>
     this.compact()
       ? {
           ...PT,

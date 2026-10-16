@@ -1,7 +1,15 @@
 <div class="flex min-w-0 flex-col gap-1">
-  <span [id]="labelId" class="text-sm font-semibold text-zinc-700" [class.sr-only]="compact()">{{
-    label()
-  }}</span>
+  <span
+    [id]="labelId"
+    class="font-semibold text-zinc-700"
+    [class.text-sm]="labelSize() === 'sm'"
+    [class.text-md]="labelSize() === 'md'"
+    [class.sr-only]="compact()"
+    >{{ label() }}
+    @if (required()) {
+      <span class="text-error-700" aria-hidden="true">*</span>
+    }
+  </span>
   <p-select
     [options]="$any(options())"
     [ngModel]="value()"

@@ -1,3 +1,4 @@
+import { verifySolution } from 'altcha-lib';
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +9,12 @@ import { hashClientIp } from './application-common';
 import captchaRoute from './captcha';
 import enrollmentRoute from './enrollment-applications';
 import trialRoute from './trial-applications';
+
+// 照原樣跑，只是看得到有沒有被呼叫（「限速在機器人驗證之前」那條要它）
+vi.mock('altcha-lib', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('altcha-lib')>();
+  return { ...orig, verifySolution: vi.fn(orig.verifySolution) };
+});
 
 /**
  * #1126：公開表單的防濫用。順序 honeypot → rate limit → CAPTCHA → 原本的驗證與寫入（便宜的先擋）。
@@ -139,6 +146,32 @@ describe('honeypot', () => {
 });
 
 describe('rate limit', () => {
+  // 便宜的先擋（#1126 的順序 honeypot → rate limit → CAPTCHA）：被限速的人不必、也不該先跑一次驗證。
+  // 「帶錯」用簽章不符的 payload —— 格式壞掉的在呼叫 verifySolution 之前就被拒，順序調換也看不出來
+  it('限速在機器人驗證之前：同來源第 6 筆，沒帶或帶錯 token 都回 429（不是 400），也沒去驗', async () => {
+    const hash = await hashClientIp(IP, SECRET);
+    const recent = Array.from({ length: 5 }, (_, i) => ({
+      client_ip_hash: hash,
+      parent_phone: `09000000${10 + i}`,
+    }));
+    const wrong = await altchaPayload({ secret: 'someone-else' });
+
+    for (const token of [undefined, wrong]) {
+      vi.mocked(verifySolution).mockClear();
+      const db = seed(recent);
+      const { res, json } = await post(
+        db,
+        enrollmentBody(token ? { captchaToken: token } : {}),
+        token ? {} : { captcha: false },
+      );
+
+      expect(res.status, token ? '帶錯' : '沒帶').toBe(429);
+      expect(json.code).toBe('RATE_LIMITED');
+      expect(verifySolution).not.toHaveBeenCalled();
+      expect(written(db)).toHaveLength(0);
+    }
+  });
+
   it('寫入時存的是 IP 的 HMAC，不是原始 IP', async () => {
     const db = seed();
     await post(db, enrollmentBody());
