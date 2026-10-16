@@ -3,7 +3,7 @@ title: 視覺語言（方向 D：暖橘流場）
 summary: 白底為基、大面積暖橘作為入口色面、會動的線條場只住在 hero；橘面上一律近黑字，因為亮橘配白字撐不到 4.5:1。token 用值替換而不是改名，既有頁面自動跟上。
 category: architecture
 status: active
-updated: 2026-08-29
+updated: 2026-10-16
 tags: [architecture, design-system, tokens, animation]
 ---
 
@@ -96,6 +96,20 @@ tags: [architecture, design-system, tokens, animation]
 - 捲出畫面 / 切到背景分頁 → 停掉 rAF
 - 佈局未穩時 `resize()` 會回 false，**重試而不是放棄** —— 直接 return 的話動畫永遠不啟動，
   而且不會有任何錯誤訊息
+
+## 彈出物的進場與出場（#1634，A6 #990 ②）
+
+全站只有一處：`styles.css` 的「彈出物的進場與出場」段。**元件不要自己寫進出場動畫。**
+
+- 兩條曲線 `--arrive`／`--leave`（`:root`）；進 200ms、出 140ms，出場一律比進場短。
+- **原生 `<dialog>`／`[popover]`** 自動套用（`:where()`，權重 0）。預設方向：浮層往下 6px、dialog `scale(0.97)`。
+  換方向就掛 `overlay-motion` 加上修飾：`--from-right`（側面板 24px）、`--from-bottom`（底部面板，進 240ms）、
+  `--from-bottom-narrow`（只有 ≤860 是底部面板的，例如帳戶選單、全站搜尋）。
+- **PrimeNG 21** 的 `pMotion` 用 `getComputedStyle` 讀時長，所以這段改了，Dialog／DynamicDialog／ConfirmDialog、
+  Select／DatePicker／MultiSelect／AutoComplete／Popover、Drawer 全部跟著變，出場也會等完才拆 DOM。
+  注意 Select 那類的動畫是掛在外層 `<p-motion>`，不是 `.p-select-overlay`。
+- `prefers-reduced-motion`：不走過程，直接到終態。
+- 開關時沒有任何程式邏輯依賴動畫時長（toast 自己的 `LEAVE_MS` 除外，它有自己的動態）；新寫的不要依賴。
 
 ## 已知債（這支沒動）
 

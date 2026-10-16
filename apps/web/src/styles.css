@@ -772,6 +772,190 @@
     opacity: 0.6;
   }
   /* =============================================================================
+     彈出物的進場與出場（#1634，照 A6 #990 共用零件 ②：a6.css 644–672）
+     =============================================================================
+     曲線只有兩條：進場減速（--arrive）、出場加速（--leave）；出場一律比進場短
+     （進 200ms／出 140ms），否則下一個東西要等它或跟它疊在一起。
+     方向由 --pop-from 決定：浮層往下 6px、對話框 scale(0.97)、側面板從右 24px、
+     底部面板從底下（240ms）。元件要換方向就加 `overlay-motion overlay-motion--from-*`，
+     不要自己寫動畫。
+
+     兩條路收在這一段：
+     - 原生 `[popover]`／`<dialog>`：`@starting-style` ＋ `allow-discrete` 的 transition。
+       全部包在 `:where()`（權重 0），元件自己的樣式永遠蓋得過。
+     - PrimeNG 21：`pMotion` 套 `{name}-enter-active`／`-leave-active`，**時長用 getComputedStyle
+       讀**，所以在這裡改時長，它會等到動畫結束才拆 DOM，出場不會被截掉。
+     ⚠️ 這一段改了時長，全站所有 PrimeNG 的 Dialog／DynamicDialog／ConfirmDialog、
+     Select／DatePicker／MultiSelect／AutoComplete／Popover、Drawer 都會一起變。 */
+  :root {
+    --arrive: cubic-bezier(0.23, 1, 0.32, 1);
+    --leave: cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  :where([popover], dialog) {
+    --pop-from: translateY(6px);
+    opacity: 0;
+    transform: var(--pop-from);
+    transition:
+      opacity 0.14s var(--leave),
+      transform 0.14s var(--leave),
+      overlay 0.14s var(--leave) allow-discrete,
+      display 0.14s var(--leave) allow-discrete;
+  }
+  :where(dialog) {
+    --pop-from: scale(0.97);
+  }
+  :where([popover]:popover-open, dialog[open]) {
+    opacity: 1;
+    transform: none;
+    transition-duration: 0.2s;
+    transition-timing-function: var(--arrive);
+  }
+  @starting-style {
+    :where([popover]:popover-open, dialog[open]) {
+      opacity: 0;
+      transform: var(--pop-from);
+    }
+  }
+  :where([popover], dialog)::backdrop {
+    opacity: 0;
+    transition:
+      opacity 0.14s var(--leave),
+      overlay 0.14s allow-discrete,
+      display 0.14s allow-discrete;
+  }
+  :where([popover]:popover-open, dialog[open])::backdrop {
+    opacity: 1;
+    transition-duration: 0.2s;
+    transition-timing-function: var(--arrive);
+  }
+  @starting-style {
+    :where([popover]:popover-open, dialog[open])::backdrop {
+      opacity: 0;
+    }
+  }
+
+  /* 方向修飾（block 本身沒有樣式，只是讓修飾有歸屬） */
+  .overlay-motion--from-right {
+    --pop-from: translateX(24px);
+  }
+  .overlay-motion--from-bottom {
+    --pop-from: translateY(100%);
+  }
+  .overlay-motion--from-bottom:where(:popover-open, [open]) {
+    transition-duration: 0.24s;
+  }
+  /* 只有窄螢幕是底部面板的（例如全站搜尋）：桌機照浮層的 6px */
+  @media (max-width: 860px) {
+    .overlay-motion--from-bottom-narrow {
+      --pop-from: translateY(100%);
+    }
+    .overlay-motion--from-bottom-narrow:where(:popover-open, [open]) {
+      transition-duration: 0.24s;
+    }
+  }
+
+  /* toast 的容器也是 popover，但每一則 toast 自己有進出場（#1615，A6 `.toasts`）：容器不動 */
+  .toasts {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  /* 收合段落：內容高度有過渡，不是瞬間撐開（不支援 ::details-content 的瀏覽器維持瞬間展開）。
+     interpolate-size 只開在 details 上 —— A6 開在 :root，但那會讓全站既有的 height 過渡
+     開始能動到 auto，行為悄悄改變 */
+  :where(details) {
+    interpolate-size: allow-keywords;
+  }
+  :where(details)::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size 0.14s var(--leave),
+      content-visibility 0.14s allow-discrete;
+  }
+  :where(details[open])::details-content {
+    block-size: auto;
+    transition-duration: 0.2s;
+    transition-timing-function: var(--arrive);
+  }
+
+  /* PrimeNG：同一組曲線、時長、方向。keyframes 讀元素上的 --pop-from */
+  @keyframes overlay-arrive {
+    from {
+      opacity: 0;
+      transform: var(--pop-from);
+    }
+  }
+  @keyframes overlay-leave {
+    to {
+      opacity: 0;
+      transform: var(--pop-from);
+    }
+  }
+  .p-dialog-enter-active,
+  .p-dialog-leave-active {
+    --pop-from: scale(0.97);
+  }
+  .p-anchored-overlay-enter-active,
+  .p-anchored-overlay-leave-active {
+    --pop-from: translateY(6px);
+  }
+  .p-dialog-enter-active,
+  .p-anchored-overlay-enter-active {
+    animation: overlay-arrive 0.2s var(--arrive);
+  }
+  .p-dialog-leave-active,
+  .p-anchored-overlay-leave-active {
+    animation: overlay-leave 0.14s var(--leave);
+  }
+  /* Drawer：保留 PrimeNG 的整段位移（全站都是 position="bottom" 的底部面板），只換時長與曲線 */
+  .p-drawer-enter-left,
+  .p-drawer-enter-right,
+  .p-drawer-enter-top,
+  .p-drawer-enter-bottom,
+  .p-drawer-enter-full {
+    animation-duration: 0.24s;
+    animation-timing-function: var(--arrive);
+  }
+  .p-drawer-leave-left,
+  .p-drawer-leave-right,
+  .p-drawer-leave-top,
+  .p-drawer-leave-bottom,
+  .p-drawer-leave-full {
+    animation-duration: 0.14s;
+    animation-timing-function: var(--leave);
+  }
+  .p-overlay-mask-enter-active {
+    animation-duration: 0.2s;
+    animation-timing-function: var(--arrive);
+  }
+  .p-overlay-mask-leave-active {
+    animation-duration: 0.14s;
+    animation-timing-function: var(--leave);
+  }
+
+  /* 減少動態：不走過程，資訊照樣出現（目的地不省略）。PrimeNG 量到時長 0 會立刻完成 */
+  @media (prefers-reduced-motion: reduce) {
+    :where([popover], dialog),
+    :where([popover], dialog)::backdrop,
+    :where(details)::details-content {
+      transition: none;
+    }
+    .p-dialog-enter-active,
+    .p-dialog-leave-active,
+    .p-anchored-overlay-enter-active,
+    .p-anchored-overlay-leave-active,
+    .p-overlay-mask-enter-active,
+    .p-overlay-mask-leave-active,
+    [class*='p-drawer-enter-'],
+    [class*='p-drawer-leave-'] {
+      animation: none;
+    }
+  }
+
+  /* =============================================================================
      Route View Transitions
      ============================================================================= */
   @keyframes vt-fade-in {
