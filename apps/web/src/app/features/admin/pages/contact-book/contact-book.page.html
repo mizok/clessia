@@ -93,7 +93,8 @@
             @for (target of group.students; track target.studentId) {
               <button
                 type="button"
-                class="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-medium text-zinc-900 hover:border-zinc-500 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500"
+                [style.view-transition-name]="'missing-' + group.classId + '-' + target.studentId"
+                class="vt-row inline-flex min-h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-medium text-zinc-900 hover:border-zinc-500 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500"
                 data-testid="missing-write"
                 [attr.aria-label]="'補寫 ' + target.studentName + ' 的聯絡簿'"
                 (click)="writeMissing(target)"

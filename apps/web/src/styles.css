@@ -959,7 +959,8 @@
      分段鈕選中的那一顆帶 .vt-seg 與唯一的 view-transition-name，切換時平移到新位置；
      名字只在頁內 VT 期間（<html data-vt="in-page">）生效 —— 換頁時它要跟著內容區一起動，
      不能脫離出來單獨淡出。!important 是為了蓋過模板上的 inline style。 */
-  :root:not([data-vt='in-page']) .vt-seg {
+  :root:not([data-vt='in-page']) .vt-seg,
+  :root:not([data-vt='in-page']) .vt-row {
     view-transition-name: none !important;
   }
   ::view-transition-group(*.vt-seg) {
@@ -968,6 +969,28 @@
   }
   .vt-seg {
     view-transition-class: vt-seg;
+  }
+  /* 列表的新增／刪除／補位（#1641 項 5）：每一列帶 .vt-row 與唯一名字，增刪包在頁內 VT 裡。
+     其餘列平移補位；新出現的列（只有新畫面）照 A6 row-new 從上方 4px 淡入（a6.css:803）；
+     消失的列（只有舊畫面）淡出，出場比進場短。 */
+  .vt-row {
+    view-transition-class: vt-row;
+  }
+  ::view-transition-group(*.vt-row) {
+    animation-duration: 200ms;
+    animation-timing-function: var(--arrive);
+  }
+  ::view-transition-new(*.vt-row):only-child {
+    animation: 240ms var(--arrive) both vt-row-new;
+  }
+  ::view-transition-old(*.vt-row):only-child {
+    animation: 140ms var(--leave) both vt-fade-out;
+  }
+  @keyframes vt-row-new {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
   }
   /* =============================================================================
      Route View Transitions

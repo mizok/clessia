@@ -6,6 +6,7 @@ import {
   OnInit,
   signal,
 } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { FormsModule } from '@angular/forms';
@@ -50,6 +51,8 @@ interface ConflictPrompt {
 })
 export class ParentDetailDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
+  /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
+  private readonly viewTransition = injectViewTransition();
   private readonly ref = inject(DynamicDialogRef);
   private readonly parentsService = inject(ParentsService);
   private readonly enrollmentsService = inject(EnrollmentsService);
@@ -112,7 +115,7 @@ export class ParentDetailDialogComponent implements OnInit {
             summary: '已綁定',
             detail: `「${picked.name}」已關聯至「${detail.name}」`,
           });
-          this.loadParent();
+          this.loadParent(true);
         },
         error: () => {
           this.binding.set(false);
@@ -133,7 +136,8 @@ export class ParentDetailDialogComponent implements OnInit {
     this.loadParent();
   }
 
-  private loadParent(): void {
+  /** `animate`：綁定學生之後的重查，新的那一列淡入（#1641 項 5）；開啟對話框的第一次不動 */
+  private loadParent(animate = false): void {
     const parentId = (this.config.data?.parentId as string | undefined) ?? this.parent()?.id;
     if (!parentId) {
       this.loading.set(false);
@@ -145,8 +149,12 @@ export class ParentDetailDialogComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.parent.set(res.data);
-          this.loading.set(false);
+          const apply = () => {
+            this.parent.set(res.data);
+            this.loading.set(false);
+          };
+          if (animate) this.viewTransition(apply);
+          else apply();
         },
         error: () => {
           this.loading.set(false);

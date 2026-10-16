@@ -169,7 +169,8 @@
 
       @for (row of missingRows(); track row.student.studentId) {
         <article
-          class="grid gap-x-8 gap-y-1 border-b border-surface-border py-5 wide:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_auto] wide:items-center wide:gap-y-2 wide:py-6"
+          [style.view-transition-name]="'missing-' + row.student.studentId"
+          class="vt-row grid gap-x-8 gap-y-1 border-b border-surface-border py-5 wide:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_auto] wide:items-center wide:gap-y-2 wide:py-6"
           data-testid="call-row"
           [class.settled]="row.contactedAt !== null"
         >

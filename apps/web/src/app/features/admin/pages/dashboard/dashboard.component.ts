@@ -10,6 +10,7 @@ import {
   EnvironmentInjector,
   createEnvironmentInjector,
 } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -123,6 +124,8 @@ export class DashboardComponent {
   readonly page = input.required<RouteObj>();
 
   private readonly attendanceService = inject(AttendanceService);
+  /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
+  private readonly viewTransition = injectViewTransition();
   private readonly leaveService = inject(LeaveService);
   private readonly billingPeriodsService = inject(BillingPeriodsService);
   private readonly invoicesService = inject(InvoicesService);
@@ -444,21 +447,24 @@ export class DashboardComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (checkin) => {
-          // 用回應而不是樂觀更新 —— 到班時間是伺服器給的，猜一個會跟事實差幾秒
-          this.workbench.update((current) =>
-            current === null
-              ? current
-              : {
-                  ...current,
-                  arrived: [
-                    ...current.arrived,
-                    {
-                      studentId: checkin.studentId,
-                      checkedInAt: checkin.checkedInAt,
-                      checkinId: checkin.id,
-                    },
-                  ],
-                },
+          // 用回應而不是樂觀更新 —— 到班時間是伺服器給的，猜一個會跟事實差幾秒。
+          // 包在頁內 VT 裡：這位學生從「該到沒到」消失，其餘列補位（#1641 項 5）
+          this.viewTransition(() =>
+            this.workbench.update((current) =>
+              current === null
+                ? current
+                : {
+                    ...current,
+                    arrived: [
+                      ...current.arrived,
+                      {
+                        studentId: checkin.studentId,
+                        checkedInAt: checkin.checkedInAt,
+                        checkinId: checkin.id,
+                      },
+                    ],
+                  },
+            ),
           );
           this.boardBusy.set(null);
         },
@@ -476,10 +482,12 @@ export class DashboardComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.workbench.update((current) =>
-            current === null
-              ? current
-              : { ...current, arrived: current.arrived.filter((a) => a.checkinId !== checkinId) },
+          this.viewTransition(() =>
+            this.workbench.update((current) =>
+              current === null
+                ? current
+                : { ...current, arrived: current.arrived.filter((a) => a.checkinId !== checkinId) },
+            ),
           );
           this.boardBusy.set(null);
         },

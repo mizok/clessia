@@ -39,7 +39,8 @@
       <!-- Subject list -->
       @for (subject of subjects(); track subject.id) {
         <div
-          class="subject-manager__row flex cursor-default items-center gap-2 rounded-md p-2 [transition:background_0.15s] hover:bg-zinc-50"
+          [style.view-transition-name]="'subject-' + subject.id"
+          class="subject-manager__row vt-row flex cursor-default items-center gap-2 rounded-md p-2 [transition:background_0.15s] hover:bg-zinc-50"
         >
           @if (editingId() === subject.id) {
             <!-- Inline edit mode -->

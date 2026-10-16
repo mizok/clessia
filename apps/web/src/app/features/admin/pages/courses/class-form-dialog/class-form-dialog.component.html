@@ -167,9 +167,10 @@
         <p class="form-dialog__empty-note">尚未設定上課時間，點擊「新增時段」添加</p>
       } @else {
         <div class="flex flex-col gap-3 p-4">
-          @for (entry of scheduleEntries(); track $index) {
+          @for (entry of scheduleEntries(); track entry.key) {
             <div
-              class="relative flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3"
+              [style.view-transition-name]="'schedule-entry-' + entry.key"
+              class="vt-row relative flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3"
             >
               <!-- 看得到的圓是 24px，可點範圍是 44px（A27）。白色圖示疊 zinc-400 只有 2.60，zinc-500 過 3:1 -->
               <button

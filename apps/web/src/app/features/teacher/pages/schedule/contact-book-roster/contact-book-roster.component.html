@@ -21,7 +21,8 @@
     >
       @for (student of students(); track student.studentId) {
         <li
-          class="flex min-h-11 items-center justify-between gap-3 border-b border-b-solid border-b-surface-border p-2"
+          [style.view-transition-name]="'roster-' + student.studentId"
+          class="vt-row flex min-h-11 items-center justify-between gap-3 border-b border-b-solid border-b-surface-border p-2"
         >
           <span class="text-md">{{ student.studentName }}</span>
           <p-button

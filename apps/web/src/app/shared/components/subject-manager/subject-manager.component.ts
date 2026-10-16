@@ -1,4 +1,5 @@
 import { Component, inject, output, signal, OnDestroy, OnInit } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -41,6 +42,8 @@ interface SubjectManagerNotice {
 })
 export class SubjectManagerComponent implements OnInit, OnDestroy {
   private readonly subjectsService = inject(SubjectsService);
+  /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
+  private readonly viewTransition = injectViewTransition();
   private readonly dialogService = inject(DialogService);
   private readonly ref = inject(DynamicDialogRef, { optional: true });
   private readonly refData = inject(ReferenceDataService);
@@ -163,7 +166,9 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
       if (!confirmed) return;
       this.subjectsService.delete(subject.id).subscribe({
         next: () => {
-          this.subjects.update((list) => list.filter((s) => s.id !== subject.id));
+          this.viewTransition(() =>
+            this.subjects.update((list) => list.filter((s) => s.id !== subject.id)),
+          );
           this.showNotice({
             severity: 'success',
             summary: '已刪除',
@@ -197,7 +202,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     this.saving.set(true);
     this.subjectsService.create(name).subscribe({
       next: (res) => {
-        this.subjects.update((list) => [...list, res.data]);
+        this.viewTransition(() => this.subjects.update((list) => [...list, res.data]));
         this.newSubjectName.set('');
         this.saving.set(false);
         this.showNotice({
