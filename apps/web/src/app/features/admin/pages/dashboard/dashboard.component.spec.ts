@@ -863,6 +863,13 @@ describe('DashboardComponent（管理端）', () => {
         q('now-line')!.compareDocumentPosition(chapters[1]) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
       expect(q('coll-roster')!.textContent).toContain('到 1／2 · 請假 0');
+      // #1705：名冊跟請假、逾期同一組（「三塊摺疊列」那條的 fixture 不渲染名冊，在這裡守）
+      const roster = q('coll-roster') as HTMLDetailsElement;
+      expect(roster.classList).toContain('coll');
+      expect(roster.getAttribute('name')).toBe('dashboard-colls');
+      expect(roster.parentElement?.classList).toContain('colls');
+      // #1705：各節包在自己的容器裡 —— 後面還有「今天的課表」連結，不包的話最後一節不是 last-child、底線會畫出來
+      expect(chapters[chapters.length - 1].nextElementSibling).toBeNull();
     });
 
     it('逐堂點名模式不渲染「該到沒到」也不渲染名冊', async () => {
@@ -888,6 +895,20 @@ describe('DashboardComponent（管理端）', () => {
       expect(items[0]).toContain('家長 app · 感冒');
       expect(items[1]).toContain('櫃台');
       expect(q('coll-leaves')!.textContent).toContain('2 筆 · 已登記');
+    });
+
+    // #1705：A6 `.colls` 共用樣式＋同組互斥；內容區最後一列不畫分隔線
+    it('三塊摺疊列在同一個 .colls、同一個 name（一次只開一個）；逾期最後一列不畫線', async () => {
+      await setup({ permissions: ['manage_finance'], overdue: { count: 9, amount: 81050 } });
+
+      const colls = ['coll-leaves', 'coll-overdue'].map((id) => q(id) as HTMLDetailsElement);
+      for (const d of colls) {
+        expect(d.classList).toContain('coll');
+        expect(d.getAttribute('name')).toBe('dashboard-colls');
+        expect(d.parentElement?.classList).toContain('colls');
+      }
+      const items = qa('overdue-item');
+      expect(items[items.length - 1].classList).toContain('last:border-b-0');
     });
 
     it('逾期帳單：張數與金額來自伺服器摘要，列表是前幾筆', async () => {

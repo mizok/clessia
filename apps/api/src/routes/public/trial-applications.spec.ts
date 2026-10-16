@@ -39,7 +39,7 @@ function seed() {
   return createMultiOrgDb({
     organizations: [{ id: ORG, slug: 'demo' }],
     courses: [
-      { id: COURSE_OPEN, org_id: ORG, is_active: true },
+      { id: COURSE_OPEN, org_id: ORG, campus_id: 'c1', is_active: true },
       { id: COURSE_ONLY_ENDED, org_id: ORG, is_active: true },
       { id: COURSE_INACTIVE, org_id: ORG, is_active: false },
       { id: COURSE_ORG_B, org_id: ORG_B, is_active: true },
@@ -59,6 +59,11 @@ function seed() {
     ],
     public_applications: [],
     public_application_targets: [],
+    // #1693：分校 c1 有 manage_students 的管理員
+    staff: [{ id: 'st-1', user_id: 'u-admin', org_id: ORG, status: 'active' }],
+    user_roles: [{ user_id: 'u-admin', role: 'admin', permissions: ['manage_students'] }],
+    staff_campuses: [{ staff_id: 'st-1', campus_id: 'c1' }],
+    notifications: [],
   });
 }
 
@@ -140,6 +145,25 @@ describe('POST /api/public/trial-applications', () => {
     const { res } = await post(seed(), body({ courseIds: [COURSE_PARTLY_HIDDEN] }));
 
     expect(res.status).toBe(201);
+  });
+
+  it('送出成功：通知課程所在分校有 manage_students 的管理員（#1693）', async () => {
+    const db = seed();
+    const { json } = await post(db, body());
+
+    expect(db.rows('notifications')).toEqual([
+      expect.objectContaining({
+        user_id: 'u-admin',
+        kind: 'application_received',
+        dedupe_key: `application:${json.id}`,
+      }),
+    ]);
+  });
+
+  it('不收的申請不發通知', async () => {
+    const db = seed();
+    expect((await post(db, body({ courseIds: [COURSE_ORG_B] }))).res.status).toBe(400);
+    expect(db.rows('notifications')).toHaveLength(0);
   });
 
   it('聯絡方式、同意、空清單、未開放：跟報名同一套檢查', async () => {

@@ -81,7 +81,7 @@ describe('NavigationService —— 頂欄與「更多」', () => {
   const labels = (items: { label: string }[]) => items.map((i) => i.label);
   const groupLabels = (nav: NavigationService) => nav.moreGroups().map((g) => g.label);
 
-  it('管理員：頂欄是 儀表板／學生／課表／帳單，「更多」照分組、通知中心在最後無標題組', () => {
+  it('管理員：頂欄是 儀表板／學生／課表／帳單，「更多」照分組；通知中心移到鈴鐺（#1683）', () => {
     const nav = setup(['*']);
 
     expect(labels(nav.topItems())).toEqual(['儀表板', '學生', '課表', '帳單']);
@@ -92,11 +92,11 @@ describe('NavigationService —— 頂欄與「更多」', () => {
       '行政財務',
       '人事管理',
       '系統設定',
-      undefined,
     ]);
     // 已在頂欄的（課堂管理＝課表）不重複
     expect(labels(nav.moreGroups()[0].items)).toEqual(['課程管理', '課務異動']);
-    expect(labels(nav.moreGroups().at(-1)!.items)).toEqual(['通知中心']);
+    expect(nav.moreGroups().flatMap((g) => labels(g.items))).not.toContain('通知中心');
+    expect(nav.notificationsRoute()).toBe('/admin/notifications');
   });
 
   it('管理員沒有 manage_finance／manage_staff：頂欄少「帳單」，「更多」沒有對應分組', () => {
@@ -112,18 +112,20 @@ describe('NavigationService —— 頂欄與「更多」', () => {
     ).toEqual(['營收報表']);
   });
 
-  it('老師：頂欄 課表／學生／通知，沒有「更多」', () => {
+  it('老師：頂欄 課表／學生（「通知」移到鈴鐺，#1683），沒有「更多」', () => {
     const nav = setup([], 'teacher');
 
-    expect(labels(nav.topItems())).toEqual(['課表', '學生', '通知']);
+    expect(labels(nav.topItems())).toEqual(['課表', '學生']);
     expect(nav.moreGroups()).toEqual([]);
+    expect(nav.notificationsRoute()).toBe('/teacher/notifications');
   });
 
-  it('家長：頂欄 首頁／到班／成績／繳費，「更多」是 學習狀況／生活與繳費／行政服務／通知中心', () => {
+  it('家長：頂欄 首頁／到班／成績／繳費，「更多」是 學習狀況／生活與繳費／行政服務（通知中心移到鈴鐺）', () => {
     const nav = setup([], 'parent');
 
     expect(labels(nav.topItems())).toEqual(['首頁', '到班', '成績', '繳費']);
-    expect(groupLabels(nav)).toEqual(['學習狀況', '生活與繳費', '行政服務', undefined]);
+    expect(groupLabels(nav)).toEqual(['學習狀況', '生活與繳費', '行政服務']);
+    expect(nav.notificationsRoute()).toBe('/parent/notifications');
   });
 
   it.each<[UserRole, string[]]>([
@@ -131,11 +133,12 @@ describe('NavigationService —— 頂欄與「更多」', () => {
     ['admin', []],
     ['teacher', []],
     ['parent', []],
-  ])('%s（權限 %j）：頂欄＋「更多」＝原本的選單，不多不少不重複', (role, permissions) => {
+  ])('%s（權限 %j）：頂欄＋「更多」＋鈴鐺＝原本的選單，不多不少不重複', (role, permissions) => {
     const nav = setup(permissions, role);
-    const split = [...nav.topItems(), ...nav.moreGroups().flatMap((g) => g.items)].map(
-      (i) => i.route,
-    );
+    const split = [
+      ...[...nav.topItems(), ...nav.moreGroups().flatMap((g) => g.items)].map((i) => i.route),
+      nav.notificationsRoute()!,
+    ];
 
     expect(split.length).toBe(new Set(split).size);
     expect([...split].sort()).toEqual(

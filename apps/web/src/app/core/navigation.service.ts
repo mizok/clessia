@@ -33,7 +33,7 @@ const TOP_NAV: Record<UserRole, readonly (readonly [RouteObj, string])[]> = {
   teacher: [
     [RoutesCatalog.TEACHER_SCHEDULE, '課表'],
     [RoutesCatalog.TEACHER_STUDENTS, '學生'],
-    [RoutesCatalog.TEACHER_NOTIFICATIONS, '通知'],
+    // A6 這裡有「通知」—— 移到頂欄鈴鐺（#1683，a6-adoption-rules R5），同一個功能不留兩個入口
   ],
   parent: [
     [RoutesCatalog.PARENT_DASHBOARD, '首頁'],
@@ -43,6 +43,17 @@ const TOP_NAV: Record<UserRole, readonly (readonly [RouteObj, string])[]> = {
   ],
   // 機台不掛 ShellLayout，沒有頂欄（#1127）
   kiosk: [],
+};
+
+/**
+ * 頂欄鈴鐺導去的頁（#1683，使用者 10-16 裁定通知中心移出「更多」）：管理員是發布公告的通知中心，
+ * 老師與家長是各自的收件匣。這幾頁因此不再出現在頂欄導覽與「更多」。
+ */
+const NOTIFICATIONS: Record<UserRole, RouteObj | null> = {
+  admin: RoutesCatalog.ADMIN_NOTIFICATIONS,
+  teacher: RoutesCatalog.TEACHER_NOTIFICATIONS,
+  parent: RoutesCatalog.PARENT_NOTIFICATIONS,
+  kiosk: null,
 };
 
 @Injectable({
@@ -81,9 +92,17 @@ export class NavigationService {
     });
   });
 
-  /** 「更多」：頂欄以外的項目，依 NavigationGroup 宣告順序分組；沒有分組的排最後一組。 */
+  /** 鈴鐺的目的地；掃碼機台沒有（它不走 ShellLayout） */
+  readonly notificationsRoute = computed(() => {
+    const role = this.auth.activeRole();
+    return role ? (NOTIFICATIONS[role]?.absolutePath ?? null) : null;
+  });
+
+  /** 「更多」：頂欄與鈴鐺以外的項目，依 NavigationGroup 宣告順序分組；沒有分組的排最後一組。 */
   readonly moreGroups = computed<NavGroup[]>(() => {
     const top = new Set(this.topItems().map((i) => i.route));
+    const bell = this.notificationsRoute();
+    if (bell) top.add(bell);
     const rest = this.navItems().filter((i) => !top.has(i.route));
     const groups: NavGroup[] = NavigationGroup.values
       .map((g) => ({ label: g.label, items: rest.filter((i) => i.group === g) }))

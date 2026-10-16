@@ -476,7 +476,8 @@ describe('ContactBookPage', () => {
       );
     });
 
-    it('CB4 篩選中所有日段展開，摘要多一句顯示 N 則', async () => {
+    // #1705：同一組一次只開一個（使用者 2026-10-16 指定）—— 篩選中也只展開最新一天（原本 A6 是全部展開）
+    it('CB4 篩選中只展開最新一天（同組互斥），摘要多一句顯示 N 則', async () => {
       await load([
         entry({ id: 'a', entryDate: '2026-08-29' }),
         entry({ id: 'b', entryDate: '2026-08-28' }),
@@ -487,7 +488,10 @@ describe('ContactBookPage', () => {
       fixture.detectChanges();
 
       const days = Array.from(el().querySelectorAll<HTMLDetailsElement>('[data-testid="day"]'));
-      expect(days.map((d) => d.open)).toEqual([true, true]);
+      expect(days.map((d) => d.open)).toEqual([true, false]);
+      expect(new Set(days.map((d) => d.getAttribute('name')))).toEqual(
+        new Set(['contact-book-days']),
+      );
       expect(el().querySelector('[data-testid="shown"]')?.textContent).toBe('2');
     });
 

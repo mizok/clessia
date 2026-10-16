@@ -2,9 +2,11 @@ import { Component, HostListener, computed, inject, signal } from '@angular/core
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { AuthService, type UserRole } from '@core/auth.service';
+import { InboxBadgeService } from '@core/inbox-badge.service';
 import { NavigationService } from '@core/navigation.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
+import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
@@ -33,6 +35,7 @@ const WIDE = '(min-width: 861px)';
     InheritSizeDirective,
     OverlayContainerDirective,
     GlobalSearchComponent,
+    ValueArriveDirective,
   ],
   providers: [DialogService],
   templateUrl: './shell-layout.component.html',
@@ -42,6 +45,7 @@ export class ShellLayoutComponent {
   public readonly auth = inject(AuthService);
   protected readonly nav = inject(NavigationService);
   protected readonly campus = inject(CampusContextService);
+  protected readonly badge = inject(InboxBadgeService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
@@ -70,6 +74,18 @@ export class ShellLayoutComponent {
   protected readonly otherRoles = computed(() =>
     this.auth.roles().filter((role) => role !== this.auth.activeRole()),
   );
+
+  /** 鈴鐺角標：超過 99 寫 99+ */
+  protected readonly badgeText = computed(() => {
+    const n = this.badge.unread();
+    return n > 99 ? '99+' : String(n);
+  });
+  /** 螢幕閱讀器念的：角標本身 aria-hidden，數字寫在這裡 */
+  protected readonly bellLabel = computed(() => {
+    const n = this.badge.unread();
+    if (n > 0) return `通知，${n} 則未讀`;
+    return this.badge.hasInbox() ? '通知，沒有未讀' : '通知中心';
+  });
 
   protected readonly scrolled = signal(false);
   protected readonly moreOpen = signal(false);
