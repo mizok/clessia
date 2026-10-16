@@ -107,11 +107,16 @@ describe('teachersForSessions（#1693：任課班的老師 ∪ 該堂上課的�
       sessions: [
         { id: 'ses-1', org_id: A, class_id: 'k1', teacher_id: 'st-sub' }, // 這堂代課
         { id: 'ses-x', org_id: B, class_id: 'k9', teacher_id: 'st-other' },
+        // 不一致的資料：別的 org 的課堂，上課老師卻是本 org 的人 —— 只有 sessions 的 org 條件擋得住
+        { id: 'ses-cross', org_id: B, class_id: 'k9', teacher_id: 'st-k2' },
+        // 不一致的資料：本 org 的課堂指到別的 org 的班 —— 只有 schedules 的 classes.org_id 擋得住
+        { id: 'ses-odd', org_id: A, class_id: 'k8', teacher_id: null },
       ],
       schedules: [
         { class_id: 'k1', teacher_id: 'st-main', classes: { org_id: A } },
         { class_id: 'k2', teacher_id: 'st-k2', classes: { org_id: A } }, // 別的班
         { class_id: 'k9', teacher_id: 'st-other', classes: { org_id: B } },
+        { class_id: 'k8', teacher_id: 'st-k2', classes: { org_id: B } },
       ],
       staff: [
         { id: 'st-main', user_id: 'u-main', org_id: A, status: 'active' },
@@ -154,6 +159,14 @@ describe('teachersForSessions（#1693：任課班的老師 ∪ 該堂上課的�
     expect(await teachersForSessions(db().client, A, [], { extraStaffIds: ['st-other'] })).toEqual(
       [],
     );
+  });
+
+  it('別的 org 的課堂（就算老師是本 org 的人）→ 不收：sessions 帶 org 條件', async () => {
+    expect(await teachersForSessions(db().client, A, ['ses-cross'])).toEqual([]);
+  });
+
+  it('本 org 的課堂指到別的 org 的班 → 那個班的任課老師不收：schedules 經 classes 帶 org 條件', async () => {
+    expect(await teachersForSessions(db().client, A, ['ses-odd'])).toEqual([]);
   });
 
   it('做這個異動的人自己不收', async () => {
