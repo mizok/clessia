@@ -1196,3 +1196,58 @@ test('compare：分段計數、全站命中加總、head 新增的待修', async
   const t = md.split('\n').filter((l) => l.startsWith('| '));
   for (const l of t) assert.equal(l.split('|').length, t[0].split('|').length, l);
 });
+
+test('#1639：blockify 看 DOM 的父元素，不看父 part（PrimeNG dialog 是 flex，eyebrow 的 DOM 父層是 block）', async () => {
+  const { diffParts } = await import('./diff.mjs');
+  const p = (key, kind, display, parentDisplay) => ({
+    key,
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind,
+    role: kind === 'landmark' ? 'dialog' : 'p',
+    tpl: key.includes('選擇身分') ? '選擇身分' : '',
+    text: key.includes('選擇身分') ? '選擇身分' : '',
+    box: [0, 0, 72, 25],
+    style: { display, padding: '0px' },
+    ...(parentDisplay ? { parentDisplay } : {}),
+  });
+  const D = '>landmark:dialog[你好]';
+  const A = [
+    p(D, 'landmark', 'block'),
+    p(`${D}>text:p[選擇身分]`, 'text', 'inline-block', 'block'),
+  ];
+  const B = [p(D, 'landmark', 'flex'), p(`${D}>text:p[選擇身分]`, 'text', 'inline-block', 'block')];
+  const rows = diffParts({ parts: A }, { parts: B }, { [D]: D });
+  assert.deepEqual(
+    rows.filter((r) => r.status === '樣式' && r.a6.endsWith('[選擇身分]')),
+    [],
+  );
+});
+
+test('#1639：PrimeNG 元件根（host p-*）的 display 差歸工具限制，同列其他樣式差照算', async () => {
+  const { diffParts, classify } = await import('./diff.mjs');
+  const D = '>landmark:dialog[你好]';
+  const dlg = (display, host, bg = 'rgb(255, 255, 255)') => ({
+    key: D,
+    parent: null,
+    kind: 'landmark',
+    role: 'dialog',
+    tpl: '你好',
+    text: '',
+    box: [0, 0, 400, 300],
+    style: { display, padding: '0px', backgroundColor: bg },
+    ...(host ? { host } : {}),
+  });
+  const rows = (b) =>
+    classify(diffParts({ parts: [dlg('block')] }, { parts: [b] }, { [D]: D }), [], 1440);
+  const s = rows(dlg('flex', 'p-dialog')).filter((r) => r.status === '樣式');
+  assert.deepEqual(
+    s.map((r) => r.bucket),
+    ['工具限制'],
+    JSON.stringify(s),
+  );
+  // 不是 PrimeNG 根：照算待修
+  assert.equal(rows(dlg('flex')).find((r) => r.status === '樣式')?.bucket, '待修');
+  // 同列的底色差不被吃掉
+  const mixed = rows(dlg('flex', 'p-dialog', 'rgb(0, 0, 0)')).filter((r) => r.status === '樣式');
+  assert.deepEqual(mixed.map((r) => r.bucket).sort(), ['工具限制', '待修']);
+});

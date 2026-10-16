@@ -61,6 +61,14 @@ export async function openPage(browser, { source, url, width, height = 900, stor
         response: await route.fetch({ url: route.request().url().replace(BUILT_API, API_URL) }),
       }),
     );
+  // 稿的審稿膠囊不是頁面：一插進來就拿掉（proto.js 插的時間不定，等固定秒數不可靠），
+  // 連帶 a6.css 的 `body:has(.proto-pill)` 稿專用樣式也失效（公開頁品牌面多 72px padding-bottom，#1639）
+  if (source === 'a6')
+    await ctx.addInitScript(() => {
+      const drop = () =>
+        document.querySelectorAll('.proto-pill, .proto-all').forEach((e) => e.remove());
+      new MutationObserver(drop).observe(document, { childList: true, subtree: true });
+    });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

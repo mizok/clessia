@@ -88,6 +88,7 @@ export function matchParts(a6, app, mapping = {}) {
 const normBorder = (v) =>
   !v || /^0px/.test(v) || / none /.test(v) || /rgba\(0, 0, 0, 0\)/.test(v) ? 'none' : v;
 // 父層是 flex／grid 時，子項的 inline-* 會被 blockify（inline-flex → flex），不是真差
+// 父層＝DOM 的父元素（extract 記的 parentDisplay）；舊抓取沒有時才退回父 part（父 part 可能隔好幾層，#1639）
 const BLOCKIFY = {
   'inline-flex': 'flex',
   'inline-block': 'block',
@@ -148,6 +149,7 @@ export const LIMITS = {
   count: '同型段落數不同：父層配上了、對面有同型的沒配上，要人工對',
   sparse:
     '稿這裡是一份清單的列，app 這邊只有 1 個（或 0 個）容器：資料太少，工具無法確認是不是同一份清單',
+  host: '元件根的 display：PrimeNG 元件根元素用 flex 排內容（元件結構），子項的位置／尺寸另外比',
   variant: '列內有多種樣式（例如上課中的課塊）：工具只比最常見那種，其他變體人工看',
 };
 
@@ -624,8 +626,8 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
       );
     }
     const st = styleDiffs(
-      { ...withWrapper(a, A), parentDisplay: mA.get(a.parent)?.style?.display },
-      { ...withWrapper(b, B), parentDisplay: mB.get(b.parent)?.style?.display },
+      { ...withWrapper(a, A), parentDisplay: a.parentDisplay ?? mA.get(a.parent)?.style?.display },
+      { ...withWrapper(b, B), parentDisplay: b.parentDisplay ?? mB.get(b.parent)?.style?.display },
       tol,
     );
     // 偽元素只可能解釋「底色／框線一邊有、一邊沒有」，而且沒有的那邊要帶偽元素；其他樣式差照算
@@ -635,9 +637,13 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
       if (k !== 'backgroundColor' && !BORDERS.includes(k)) return false;
       return (a.pseudo && empty(a.style[k])) || (b.pseudo && empty(b.style[k]));
     };
-    const real = st.filter((d) => !viaPseudo(d)),
-      maybe = st.filter(viaPseudo);
+    // PrimeNG 元件根（host p-*）用 flex 排自己的內容：根的 display 是元件結構，子項幾何另外比（#1639）
+    const viaHost = (d) => d.startsWith('display ') && /^p-/.test(b.host ?? '');
+    const real = st.filter((d) => !viaPseudo(d) && !viaHost(d)),
+      maybe = st.filter(viaPseudo),
+      host = st.filter(viaHost);
     if (real.length) push('樣式', real.join('；'));
+    if (host.length) push('樣式', host.join('；'), LIMITS.host);
     if ((a.variants ?? 1) !== (b.variants ?? 1))
       push(
         '變體',

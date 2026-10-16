@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '../../..');
 const cache = path.join(os.homedir(), '.cache/clessia-a6-conformance');
@@ -36,8 +37,38 @@ export function hardRule(id) {
 }
 
 const RULES = 'kb/wiki/architecture/a6-adoption-rules.md'; // #1586
+/**
+ * A6 採用規則（R 條）當偏離出處：跟 hardRule 一樣行號執行時查（手抄的 :46-48 在規則檔長大後全漂了，#1639）。
+ * 讀 origin/main 的版本 —— 規則以 main 為準，工具分支上的副本可能是舊的或根本沒有。
+ */
+let rulesLines;
+export function rule(id, note = '') {
+  rulesLines ??= execFileSync('git', ['show', `origin/main:${RULES}`], {
+    cwd: root,
+    encoding: 'utf8',
+  }).split('\n');
+  const n = rulesLines.findIndex((l) => l.startsWith(`## ${id} `));
+  if (n < 0) throw new Error(`${RULES}（origin/main）找不到 ${id}`);
+  return `${RULES}:${n + 1}（${id}${note}）`;
+}
 
 export const DEVIATIONS = [
+  {
+    // R5 2026-10-16：公開頁入口不加「QR 到班打卡」—— 打卡改成先登入行政帳號、移到內部頁面（#1127）
+    status: '缺',
+    a6: 'landmark:navigation\\[公開頁\\]>control:link\\[QR到班打卡\\]$',
+    reason: '公開頁入口不加 QR 到班打卡：打卡已改成要先登入、移到內部頁面',
+    source: `${rule('R5')}「公開頁入口 QR 到班打卡」2026-10-16；#1636`,
+  },
+  {
+    // 上一條的連帶（手機）：入口列少了 QR 那一行（56px），品牌面中段用 margin:auto 置中 → 學程管家／標語下移一半
+    status: '位置',
+    widths: [360],
+    a6: 'landmark:complementary\\[\\]>(heading:h2\\[學程管家\\]|text:p\\[讓學習旅程更輕鬆\\])$',
+    detail: '^相對「complementary」 Δx 0、Δy \\+(2[4-9]|3[0-2])（',
+    reason: '連帶：入口列少 QR 那一行，品牌面中段置中，下移一半',
+    source: `${rule('R5')}「公開頁入口 QR 到班打卡」2026-10-16；#1636`,
+  },
   {
     // R3：44px 只約束基底（手機）；桌機高度跟稿不同是待修，所以只在 360 生效
     status: '尺寸',
@@ -45,7 +76,7 @@ export const DEVIATIONS = [
     widths: [360],
     detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
     reason: '可點元素基底高 ≥44px（觸控下限），只管手機',
-    source: `${RULES}:32-34（R3）；${hardRule('A27')}`,
+    source: `${rule('R3')}；${hardRule('A27')}`,
   },
   {
     // 硬性規則 A28：文字對比門檻。稿的 zinc-500（#786f69）在白底對比不足，app 升到 zinc-600（#57504b）。
@@ -62,7 +93,7 @@ export const DEVIATIONS = [
     widths: [360],
     detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline) → (inline-)?flex$',
     reason: '手機 44px 觸控高度用 flex 置中（取代稿的上下 padding）',
-    source: `${RULES}:32-34（R3）`,
+    source: `${rule('R3')}`,
   },
   {
     // R7：頂欄搜尋有建議清單＝combobox（稿是 searchbox）
@@ -70,7 +101,7 @@ export const DEVIATIONS = [
     a6: 'control:searchbox\\[全站搜尋\\]$',
     detail: '^control:searchbox → control:combobox$',
     reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
-    source: `${RULES}:46-48（R7）`,
+    source: `${rule('R7')}`,
   },
   {
     // R7（殼層席 B2）：手機搜尋鈕名「搜尋」→「搜尋學生」，名字講清楚搜的範圍
@@ -78,7 +109,7 @@ export const DEVIATIONS = [
     a6: 'landmark:banner\\[\\]>control:button\\[搜尋\\]$',
     detail: '^「搜尋」→「搜尋學生」$',
     reason: '可及名稱依元件行為：搜的範圍是學生／家長電話',
-    source: `${RULES}:46-48（R7）`,
+    source: `${rule('R7')}`,
   },
   // ── 帳單 gate（#1314 comment 6182400702）起：語意結構與角色（R7，#1590 擴寫）、分頁器（R2 例外）──
   {
@@ -86,35 +117,35 @@ export const DEVIATIONS = [
     status: '多',
     kind: 'list',
     reason: '語意結構依內容：列表用 ul／li，外觀照稿',
-    source: `${RULES}:46-48（R7，#1590）`,
+    source: `${rule('R7', '，#1590')}`,
   },
   {
     // D2：章名用 h2（稿是 div）
     status: '角色',
     detail: '^text:\\w+ → heading:h[1-6]$',
     reason: '語意結構依內容：章名用標題',
-    source: `${RULES}:46-48（R7，#1590）`,
+    source: `${rule('R7', '，#1590')}`,
   },
   {
     // D2：工具列外包一層 role=search landmark（稿沒有）；裡面多出來的鈕另外拆列
     status: '多',
     app: 'landmark:search\\[[^\\]]*\\]$',
     reason: '語意結構依內容：搜尋／篩選區包成 search landmark',
-    source: `${RULES}:46-48（R7，#1590）`,
+    source: `${rule('R7', '，#1590')}`,
   },
   {
     // D4：手機停靠列不加 role=toolbar（沒有方向鍵移動的行為就不加）
     status: '缺',
     a6: 'landmark:toolbar\\[主要動作\\]$',
     reason: '不為貼稿加沒有對應行為的角色：toolbar 要方向鍵移動，沒實作',
-    source: `${RULES}:50（R7 反向，#1590）`,
+    source: `${rule('R7', ' 反向，#1590')}`,
   },
   {
     // D3：伺服器分頁的分頁器，收不進「⋯」
     status: '多',
     host: '^p-paginator$',
     reason: '分頁器：伺服器分頁，沒有它看不到後面的資料，收不進「⋯」',
-    source: `${RULES}:30（R2 例外）；#1314 comment 6182400702`,
+    source: `${rule('R2', ' 例外')}；#1314 comment 6182400702`,
   },
   {
     // 列尾「⋯」：每一列的列動作（全站都是這個形，#1593 起改成全站通用）
@@ -122,14 +153,14 @@ export const DEVIATIONS = [
     // 兩種寫法：學生「某某 的更多動作」、帳單「更多：某某的帳單動作」
     detail: '「(更多：[^」]*|[^」]*的更多動作)」',
     reason: '列尾「⋯」：現況有、稿沒畫的列動作收進「⋯」',
-    source: `${RULES}:24-28（R2）`,
+    source: `${rule('R2')}`,
   },
   {
     status: '多',
     pop: 'more',
     app: 'control:link\\[(公開申請|到班打卡)\\]$',
     reason: '現況有、稿沒畫：收進「更多」選單，不刪',
-    source: `${RULES}:24-28（R2）`,
+    source: `${rule('R2')}`,
   },
 ];
 
@@ -170,6 +201,11 @@ export const SITE_WIDE = [
  */
 export const DATA_DEPENDENT = [
   {
+    // 選身分頁：稿的示範使用者 3 個身分（含家長）；seed 的多身分帳號最多 2 個（teacher0001＝管理員＋任課老師）
+    a6: 'landmark:dialog\\[\\{名\\}，你好\\]>control:button\\[家長',
+    reason: '身分數隨帳號：稿的示範使用者有 3 個身分，seed 的多身分帳號最多 2 個',
+  },
+  {
     a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)\\])',
     reason:
       '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `otherRoles().length > 0`）',
@@ -202,7 +238,7 @@ export const PAGES = {
         status: '多',
         app: 'control:button\\[(上一週|下一週)\\]$',
         reason: '換週箭頭：收不進「⋯」的入口，保留',
-        source: `${RULES}:30（R2 例外）；#1314 comment 6163635319`,
+        source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
       },
     ],
   },
@@ -214,13 +250,13 @@ export const PAGES = {
         status: '多',
         app: 'control:button\\[有#筆生效中的報名還沒開過帳單\\]$',
         reason: '未開單名單：使用者 10-08 逐項裁定「留」',
-        source: `${RULES}:26（R2）`,
+        source: `${rule('R2')}`,
       },
       {
         status: '多',
         app: 'control:button\\[更多動作\\]$',
         reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
-        source: `${RULES}:24-28（R2）`,
+        source: `${rule('R2')}`,
       },
     ],
   },
@@ -228,7 +264,22 @@ export const PAGES = {
   // 詳情頁的 id 取自本機示範庫：張宇軒（資料最完整的學生）、國中數學的第一個班、展示用小考 #90
   // 入口頁（10-16 使用者：「手機版的入口頁面設計也跟 A6 不一樣」）：各自的登入態。
   // 登入頁要未登入（guestGuard 會把已登入的轉走）；選身分要多身分帳號（seed 的 teacher0001＝admin＋teacher）
-  login: { a6: 'pub-login.html', app: '/login', state: path.join(cache, 'state-guest.json') },
+  login: {
+    a6: 'pub-login.html',
+    app: '/login',
+    state: path.join(cache, 'state-guest.json'),
+    deviations: [
+      {
+        // 手機點「登入」打開底部面板（popover），不是導航：角色照行為用 button（稿是 <a>）
+        status: '角色',
+        widths: [360],
+        a6: 'landmark:navigation\\[公開頁\\]>control:link\\[登入\\]$',
+        detail: '^control:link → control:button$',
+        reason: 'ARIA 角色依元件行為：手機「登入」打開底部面板，是按鈕',
+        source: `${rule('R7')}；#1639`,
+      },
+    ],
+  },
   'select-role': {
     a6: 'pub-select-role.html',
     app: '/select-role',

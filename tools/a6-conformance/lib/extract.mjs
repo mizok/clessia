@@ -258,6 +258,8 @@ export function extractParts(opts) {
             (x) => !['none', 'normal'].includes(getComputedStyle(el, x).content),
           ),
           style: style(el),
+          // blockify 判斷用：DOM 的父元素，不是父 part（#1639）
+          parentDisplay: el.parentElement ? getComputedStyle(el.parentElement).display : '',
           attrs: Object.fromEntries(
             [
               'aria-current',
