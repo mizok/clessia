@@ -32,6 +32,7 @@ export const PERMISSIONS = [
   'manage_org_settings',
   'view_reports',
   'all_campuses',
+  'send_announcements',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

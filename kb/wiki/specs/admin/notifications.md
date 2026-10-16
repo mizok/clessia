@@ -3,7 +3,7 @@ title: 通知中心（管理員）
 summary: 查看系統通知與課務異動通知。
 category: spec
 status: active
-updated: 2026-10-03
+updated: 2026-10-16
 tags: [specs, admin, notifications]
 ---
 
@@ -24,6 +24,15 @@ tags: [specs, admin, notifications]
 - 點擊展開完整內容
 - 全部標為已讀按鈕
 - 通知保留 90 天
+
+## 發布權限（#1686，2026-10-16 使用者裁定）
+
+- 發布公告要 `send_announcements`（人員管理的「發送通知」）。後端擋在 `POST /api/announcements`
+  這支路由上（`writeRequiresAdmin`），沒有就回 403；**不掛在 mount**，因為標已讀也是寫入，
+  掛在 mount 會擋到兼任老師或家長的管理員。之後若新增編輯或刪除端點，要掛同一個 guard。
+- 沒有這個權限的管理員照樣進得了這一頁、看得到已發布的公告，只是看不到發布入口。
+- 權限是 `*` 的管理員照 `hasPermission` 的語意也發得出去。
+- 上線時**沒有 backfill**（計畫席轉使用者裁定：現有管理員都不給，由人員管理勾選）。
 
 ## 資料依賴
 
