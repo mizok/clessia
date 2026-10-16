@@ -54,6 +54,13 @@ interface Row {
   read_at: string | null;
 }
 
+/**
+ * 清單一次最多回幾則。通知保留 90 天（排程會清，#1661），家長一個月頂多十幾則；
+ * 管理員的申請、老師的課務異動（#1693）可能多得多，所以不靠 90 天當上限。
+ * 第一版不做分頁 —— 前端只顯示最新的這些，舊的到期就清掉。
+ */
+const INBOX_LIMIT = 100;
+
 const app = new OpenAPIHono<AppEnv>();
 
 // GET /api/notifications/inbox
@@ -62,7 +69,7 @@ app.openapi(
     method: 'get',
     path: '/inbox',
     tags: ['Notifications'],
-    summary: '自己這個身分的通知（新的在前）',
+    summary: '自己這個身分的通知（新的在前，最多 100 則；total／unread 是全部的數）',
     responses: {
       200: {
         description: '通知與未讀數',
@@ -74,16 +81,32 @@ app.openapi(
   async (c) => {
     const role = notificationRoleFor(c.get('roles') ?? [], c.get('activeRole'));
     if (!role) return c.json({ data: [], meta: { total: 0, unread: 0 } }, 200);
-    const { data, error } = await c
-      .get('supabase')
-      .from('notifications')
-      .select('id, kind, payload, created_at, read_at')
-      .eq('user_id', c.get('userId'))
-      .eq('org_id', c.get('orgId'))
-      .eq('role', role)
-      .order('created_at', { ascending: false });
-    if (error) return c.json({ error: '讀取通知失敗', code: 'DB_ERROR' }, 500);
-    const rows = (data ?? []) as Row[];
+    const supabase = c.get('supabase');
+    const userId = c.get('userId');
+    const orgId = c.get('orgId');
+    // 清單只回最新的 INBOX_LIMIT 則；total／unread 由 DB 數（不是數回傳的那幾列），
+    // 角標（#1683）才不會在第 101 則之後停在 100。兩支各寫一次條件 —— 抽成泛型 helper 會撞 TS2589
+    const [list, unread] = await Promise.all([
+      supabase
+        .from('notifications')
+        .select('id, kind, payload, created_at, read_at', { count: 'exact' })
+        .eq('user_id', userId)
+        .eq('org_id', orgId)
+        .eq('role', role)
+        .order('created_at', { ascending: false })
+        .limit(INBOX_LIMIT),
+      supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('org_id', orgId)
+        .eq('role', role)
+        .is('read_at', null),
+    ]);
+    if (list.error || unread.error) {
+      return c.json({ error: '讀取通知失敗', code: 'DB_ERROR' }, 500);
+    }
+    const rows = (list.data ?? []) as Row[];
     return c.json(
       {
         data: rows.map((r) => ({
@@ -95,7 +118,7 @@ app.openapi(
           isRead: r.read_at !== null,
           link: r.payload?.url ?? null,
         })),
-        meta: { total: rows.length, unread: rows.filter((r) => r.read_at === null).length },
+        meta: { total: list.count ?? rows.length, unread: unread.count ?? 0 },
       },
       200,
     );

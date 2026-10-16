@@ -16,19 +16,24 @@ function memoryDb(rows: Row[]) {
   const from = () => {
     const filters: Array<(r: Row) => boolean> = [];
     let patch: Row | null = null;
+    let opts: { count?: string; head?: boolean } = {};
+    let limit = Infinity;
     const match = () => table.filter((r) => filters.every((f) => f(r)));
     const run = () => {
       const hit = match();
       if (patch) for (const r of hit) Object.assign(r, patch);
-      return { data: hit.map((r) => ({ ...r })), error: null };
+      const count = opts.count ? hit.length : null;
+      const data = opts.head ? null : hit.slice(0, limit).map((r) => ({ ...r }));
+      return { data, count, error: null };
     };
     const b: Record<string, unknown> = {
-      select: () => b,
+      select: (_cols: string, o?: { count?: string; head?: boolean }) => ((opts = o ?? {}), b),
+      limit: (n: number) => ((limit = n), b),
       order: () => b,
       eq: (k: string, v: unknown) => (filters.push((r) => r[k] === v), b),
       is: (k: string, v: unknown) => (filters.push((r) => (r[k] ?? null) === v), b),
       update: (p: Row) => ((patch = p), b),
-      maybeSingle: () => Promise.resolve({ data: run().data[0] ?? null, error: null }),
+      maybeSingle: () => Promise.resolve({ data: run().data?.[0] ?? null, error: null }),
       then: (ok: (v: unknown) => unknown, ng: (e: unknown) => unknown) =>
         Promise.resolve(run()).then(ok, ng),
     };
@@ -125,6 +130,22 @@ describe('GET /inbox（#1688）', () => {
       '/inbox',
     );
     expect(await empty.json()).toEqual({ data: [], meta: { total: 0, unread: 0 } });
+  });
+});
+
+describe('GET /inbox 的上限（#1688，計畫席讀 diff）', () => {
+  it('清單最多 100 則（新的在前）；total／unread 是 DB 數的全部，不是回傳的那幾列', async () => {
+    // 105 則：最舊的 3 則已讀，其餘未讀
+    const many = Array.from({ length: 105 }, (_, i) => ({
+      ...notification(1),
+      id: `n-${String(i).padStart(3, '0')}`,
+      created_at: new Date(Date.UTC(2026, 9, 1) + i * 60_000).toISOString(),
+      read_at: i < 3 ? '2026-10-15T00:00:00Z' : null,
+    }));
+    const res = await app(memoryDb(many))('GET', '/inbox');
+    const body = (await res.json()) as { data: unknown[]; meta: { total: number; unread: number } };
+    expect(body.data).toHaveLength(100);
+    expect(body.meta).toEqual({ total: 105, unread: 102 });
   });
 });
 
