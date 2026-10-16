@@ -56,6 +56,7 @@ import academyExamsRoute from './routes/academy-exams';
 import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
 import announcementsRoute from './routes/announcements';
+import notificationsRoute from './routes/notifications';
 import contactBookRoute from './routes/contact-book';
 import classLogsRoute from './routes/class-logs';
 
@@ -413,6 +414,8 @@ mount('/api/school-exams', schoolExamsRoute, ['admin', 'teacher'], {
 mount('/api/scores', scoresRoute, ['admin', 'teacher'], { write: 'basic_operations' });
 // 收件匣對 teacher/parent 開放；發布與管理端列表在 route 內另外要求 admin
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
+// 通知中心的「通知」來源（#1688）：每人自己的；依 active role 過濾，老師／管理員回空清單
+mount('/api/notifications', notificationsRoute, ANY_ROLE);
 // 聯絡簿與教務日誌：admin 與 teacher 都寫得到，老師的範圍在 route 內縮限到
 // 自己固定任課的班（lib/teacher-scope）。家長端的簽收與已閱是 P4。
 mount('/api/contact-book', contactBookRoute, ['admin', 'teacher'], { write: 'basic_operations' });

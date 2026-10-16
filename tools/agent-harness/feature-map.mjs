@@ -218,7 +218,8 @@ const AREAS = [
   {
     name: '通知',
     pages: ['admin/notifications', 'teacher/notifications', 'parent/notifications'],
-    routes: ['announcements'],
+    // notifications：通知中心的通知來源（#1688）
+    routes: ['announcements', 'notifications'],
     specs: ['admin/notifications.md', 'teacher/notifications.md', 'parent/notifications.md'],
   },
   // 後端沒有自己的 route 檔：`GET /api/sessions/changes` 掛在 sessions 底下（異動紀錄本來就
