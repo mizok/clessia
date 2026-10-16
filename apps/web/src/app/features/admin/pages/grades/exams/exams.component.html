@@ -239,6 +239,7 @@
             <app-chapter-head
               class="block pt-6 wide:pt-8"
               [name]="ch.name"
+              [stacked]="true"
               [count]="ch.rows.length"
               unit="場"
               [sub]="totalRows() > PAGE_SIZE ? '這一頁' : ''"

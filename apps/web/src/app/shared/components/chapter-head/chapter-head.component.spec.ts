@@ -63,15 +63,15 @@ describe('ChapterHeadComponent', () => {
     expect(box().classList.contains('flex-wrap')).toBe(false);
   });
 
-  it('章名字級真的掛上：預設 26px、stacked 34px；error 紅字（任意值 class 不能用 [class.x] 綁）', async () => {
+  it('章名字級真的掛上：預設 26px、stacked 32px（A6 `.chap` 手機，#1698）；error 紅字（任意值 class 不能用 [class.x] 綁）', async () => {
     await setup({ name: '帳單', count: 3, unit: '張' });
     const h2 = () => host.querySelector('.chapter-head__name') as HTMLElement;
     expect(h2().classList.contains('text-[26px]')).toBe(true);
-    expect(h2().classList.contains('text-[34px]')).toBe(false);
+    expect(h2().classList.contains('text-[32px]')).toBe(false);
 
     fixture.componentRef.setInput('stacked', true);
     fixture.detectChanges();
-    expect(h2().classList.contains('text-[34px]')).toBe(true);
+    expect(h2().classList.contains('text-[32px]')).toBe(true);
     expect(h2().classList.contains('text-[26px]')).toBe(false);
     expect(h2().classList.contains('wide:text-[44px]')).toBe(true);
     expect(h2().classList.contains('text-zinc-900')).toBe(true);
@@ -96,5 +96,17 @@ describe('ChapterHeadComponent', () => {
       ...host.querySelectorAll('h2, [data-testid="chapter-sub"], .chapter-head__tally'),
     ].map((e) => e.tagName + (e.getAttribute('data-testid') ?? ''));
     expect(order).toEqual(['H2', 'SPANchapter-sub', 'P']);
+  });
+
+  // A6：手機 `.chap`（上下疊）的張數跟桌機一樣是 xl（18px）；只有 `.chap--row`（橫排）縮成 lg（#1698）
+  it('張數字級：預設手機 lg、桌機 xl；stacked 手機也是 xl', async () => {
+    await setup({ name: '帳單', count: 3, unit: '張' });
+    const tally = () => host.querySelector('.chapter-head__tally') as HTMLElement;
+    expect([...tally().classList]).toEqual(expect.arrayContaining(['text-lg', 'wide:text-xl']));
+
+    fixture.componentRef.setInput('stacked', true);
+    fixture.detectChanges();
+    expect(tally().classList.contains('text-xl')).toBe(true);
+    expect(tally().classList.contains('text-lg')).toBe(false);
   });
 });
