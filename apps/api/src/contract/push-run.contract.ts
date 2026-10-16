@@ -41,6 +41,7 @@ run('推播排程對真 Postgres（#1661）', () => {
 
   const push = () =>
     runPush(pool, {
+      orgIds: [orgId], // 共用 DB 裡還有 seed 的帳單：只跑自己建的 org
       today,
       batchSize: 10,
       vapid,
@@ -238,6 +239,7 @@ run('推播排程對真 Postgres（#1661）', () => {
     await invoice(0);
     const slow = () =>
       runPush(pool, {
+        orgIds: [orgId], // 共用 DB 裡還有 seed 的帳單：只跑自己建的 org
         today,
         batchSize: 10,
         vapid,
@@ -267,6 +269,7 @@ run('推播排程對真 Postgres（#1661）', () => {
     await invoice(3);
     // 「被砍」：送出永遠不回來，回寫永遠不會發生。這個 promise 故意不等（被砍的 run 就是這樣）
     void runPush(pool, {
+      orgIds: [orgId], // 共用 DB 裡還有 seed 的帳單：只跑自己建的 org
       today,
       batchSize: 10,
       vapid,

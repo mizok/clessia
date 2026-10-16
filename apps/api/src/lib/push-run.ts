@@ -44,6 +44,11 @@ export interface PushRunOptions {
   readonly subject: string;
   /** 測試替身用；正式就是全域 fetch */
   readonly send?: (url: string, init: RequestInit) => Promise<{ status: number }>;
+  /**
+   * 只跑這幾個 org（契約測試用：共用的本機 DB 裡還有 seed 的帳單，全 org 跑會替它們產生通知）。
+   * 正式不帶 = 全部 org。
+   */
+  readonly orgIds?: readonly string[];
 }
 
 export interface PushRunResult {
@@ -56,6 +61,9 @@ export interface PushRunResult {
   readonly removedSubscriptions: number;
   readonly purged: number;
 }
+
+/** `null` = 全部 org（正式）；陣列 = 只跑這幾個（契約測試） */
+type Orgs = string[] | null;
 
 interface Candidate {
   invoice_id: string;
@@ -85,7 +93,8 @@ JOIN invoices i ON i.org_id = org.id AND i.due_date = $1::date - o.off AND i.voi
 JOIN students s ON s.id = i.student_id AND s.org_id = i.org_id
 JOIN parent_student_relations r ON r.student_id = i.student_id
 JOIN parents p ON p.id = r.parent_id AND p.org_id = i.org_id AND p.status = 'active' AND p.user_id IS NOT NULL
-WHERE EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = p.user_id AND ur.role = 'parent')`;
+WHERE EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = p.user_id AND ur.role = 'parent')
+  AND ($2::uuid[] IS NULL OR org.id = ANY($2))`;
 
 /** 鎖定畫面與通知中心都看得到 —— **不放金額**（#1626 Q3；排入當下寫好的金額之後也會過時） */
 export function reminderPayload(
@@ -108,8 +117,8 @@ export function reminderPayload(
   };
 }
 
-async function enqueue(db: PoolClient, today: string): Promise<number> {
-  const { rows } = await db.query<Candidate>(CANDIDATES_SQL, [today]);
+async function enqueue(db: PoolClient, today: string, orgs: Orgs): Promise<number> {
+  const { rows } = await db.query<Candidate>(CANDIDATES_SQL, [today, orgs]);
   const open = rows.filter((c) =>
     isOpenInvoice(
       deriveInvoiceStatus(
@@ -146,12 +155,13 @@ const RETRY_OR_FAIL = `CASE WHEN push_attempts + 1 >= ${MAX_ATTEMPTS} THEN 'fail
  * 算一次嘗試：一則若每次都讓 Worker 被砍，三次之後就 `failed`，不會永遠卡著後面的。
  * 被砍時可能其實已經送出 —— 那種情況會重送一次，由裝置端 `tag = topic` 合併（#1663）；比無聲漏掉好。
  */
-async function reopenAbandoned(db: PoolClient): Promise<number> {
+async function reopenAbandoned(db: PoolClient, orgs: Orgs): Promise<number> {
   const { rowCount } = await db.query(
     `UPDATE notifications
      SET push_status = ${RETRY_OR_FAIL}, push_attempts = push_attempts + 1, push_error = 'CLAIM_EXPIRED'
-     WHERE push_status = 'claimed' AND push_updated_at < now() - make_interval(mins => $1)`,
-    [RECLAIM_AFTER_MINUTES],
+     WHERE push_status = 'claimed' AND push_updated_at < now() - make_interval(mins => $1)
+       AND ($2::uuid[] IS NULL OR org_id = ANY($2))`,
+    [RECLAIM_AFTER_MINUTES, orgs],
   );
   return rowCount ?? 0;
 }
@@ -160,17 +170,18 @@ async function reopenAbandoned(db: PoolClient): Promise<number> {
  * 不推播的直接標 `skipped`（一句、整批）：沒有訂閱，或這一類的偏好關掉（偏好只管推播，Q-a）。
  * 先做這步，認領就只會拿到真的要推的 —— 不佔 K 的名額。
  */
-async function skipUnreachable(db: PoolClient): Promise<number> {
+async function skipUnreachable(db: PoolClient, orgs: Orgs): Promise<number> {
   const { rowCount } = await db.query(
     `UPDATE notifications n SET push_status = 'skipped', push_updated_at = now(),
        push_error = CASE WHEN NOT EXISTS (
          SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id
        ) THEN 'NO_SUBSCRIPTION' ELSE 'PUSH_DISABLED' END
-     WHERE n.push_status = 'pending'
+     WHERE n.push_status = 'pending' AND ($1::uuid[] IS NULL OR n.org_id = ANY($1))
        AND (NOT EXISTS (SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id)
             OR EXISTS (SELECT 1 FROM notification_preferences np
                        WHERE np.user_id = n.user_id AND np.org_id = n.org_id AND np.role = n.role
                          AND np.kind = n.kind AND NOT np.enabled))`,
+    [orgs],
   );
   return rowCount ?? 0;
 }
@@ -193,16 +204,20 @@ interface Job {
  * 認領（短交易內）：取 `pending` 最舊的幾則，`FOR UPDATE SKIP LOCKED` 讓同時跑的另一個 run 拿不到同一列，
  * 再標成 `claimed` —— 交易一結束鎖就放了，狀態讓下一個 run 也不碰它。
  */
-async function claim(db: PoolClient, batchSize: number): Promise<{ jobs: Job[]; skipped: number }> {
+async function claim(
+  db: PoolClient,
+  batchSize: number,
+  orgs: Orgs,
+): Promise<{ jobs: Job[]; skipped: number }> {
   const { rows } = await db.query<PendingRow>(
     `SELECT d.id, d.payload, s.id AS sub_id, s.endpoint, s.p256dh, s.auth
      FROM (SELECT id, user_id, org_id, payload, created_at FROM notifications
-           WHERE push_status = 'pending'
+           WHERE push_status = 'pending' AND ($2::uuid[] IS NULL OR org_id = ANY($2))
            ORDER BY created_at, id LIMIT $1
            FOR UPDATE SKIP LOCKED) d
      LEFT JOIN push_subscriptions s ON s.user_id = d.user_id AND s.org_id = d.org_id
      ORDER BY d.created_at, d.id`,
-    [batchSize],
+    [batchSize, orgs],
   );
 
   // 依佇列順序把整則（含它所有裝置）放進這一批，直到裝置數用完；一則不拆到兩次 run
@@ -329,14 +344,16 @@ async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
  * 3. 短交易：回寫
  */
 export async function runPush(pool: Pool, opts: PushRunOptions): Promise<PushRunResult> {
+  const orgs: Orgs = opts.orgIds ? [...opts.orgIds] : null;
   const first = await withTx(pool, async (db) => {
-    await reopenAbandoned(db);
-    const enqueued = await enqueue(db, opts.today);
-    const skippedUpfront = await skipUnreachable(db);
-    const { jobs, skipped } = await claim(db, opts.batchSize);
+    await reopenAbandoned(db, orgs);
+    const enqueued = await enqueue(db, opts.today, orgs);
+    const skippedUpfront = await skipUnreachable(db, orgs);
+    const { jobs, skipped } = await claim(db, opts.batchSize, orgs);
     const { rowCount } = await db.query(
-      `DELETE FROM notifications WHERE created_at < now() - make_interval(days => $1)`,
-      [RETENTION_DAYS],
+      `DELETE FROM notifications WHERE created_at < now() - make_interval(days => $1)
+       AND ($2::uuid[] IS NULL OR org_id = ANY($2))`,
+      [RETENTION_DAYS, orgs],
     );
     return { enqueued, jobs, skipped: skippedUpfront + skipped, purged: rowCount ?? 0 };
   });

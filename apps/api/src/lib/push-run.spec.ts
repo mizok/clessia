@@ -207,7 +207,7 @@ describe('runPush —— push_status 狀態機（#1661，#1626 改版）', () =>
   it('每一輪開頭先重新開放 claimed 超過 10 分鐘的（算一次嘗試，滿三次 failed）', async () => {
     const { find, sent } = await run([], () => 201);
     const reopen = find(/CLAIM_EXPIRED/)[0]!;
-    expect(reopen.params).toEqual([10]);
+    expect(reopen.params).toEqual([10, null]); // null = 全部 org（正式）
     expect(reopen.sql).toMatch(/WHERE push_status = 'claimed'/);
     expect(reopen.sql).toMatch(/WHEN push_attempts \+ 1 >= 3 THEN 'failed' ELSE 'pending'/);
     expect(sent.findIndex((q) => /CLAIM_EXPIRED/.test(q.sql))).toBeLessThan(
@@ -215,10 +215,24 @@ describe('runPush —— push_status 狀態機（#1661，#1626 改版）', () =>
     );
   });
 
+  it('不帶 orgIds（正式）＝每一句都跑全部 org；帶了就每一句都只跑那幾個', async () => {
+    const all = await run([sub('d1', 's1')], () => 201);
+    const scoped = (await all.find(/FROM organizations org/))[0]!;
+    expect(scoped.params).toEqual(['2026-10-16', null]);
+    for (const re of [
+      /CLAIM_EXPIRED/,
+      /push_error = CASE/,
+      /FOR UPDATE SKIP LOCKED/,
+      /DELETE FROM notifications/,
+    ]) {
+      expect(all.find(re)[0]!.sql).toMatch(/IS NULL OR (org\.id|n\.org_id|org_id) = ANY/);
+    }
+  });
+
   it('清 90 天前的通知（Q-b：不管已讀未讀）', async () => {
     const { find } = await run([], () => 201);
     const purge = find(/DELETE FROM notifications/)[0]!;
-    expect(purge.params).toEqual([90]);
+    expect(purge.params).toEqual([90, null]);
     expect(purge.sql).not.toMatch(/read_at/);
   });
 });
