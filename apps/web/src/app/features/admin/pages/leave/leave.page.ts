@@ -1,4 +1,5 @@
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { FormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
 import { TooltipModule } from 'primeng/tooltip';
@@ -36,6 +37,7 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
   selector: 'app-leave',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     CampusScopeNoteComponent,
     PageOpenComponent,
     PageActionsComponent,
@@ -228,9 +230,12 @@ export class LeavePage implements OnInit {
       })
       .subscribe({
         next: (res) => {
-          this.records.set(res.data);
-          this.totalRecords.set(res.meta.total);
-          this.loading.set(false);
+          // 舊內容（變淡中）平滑換成新資料（#1641 5b）
+          this.viewTransition(() => {
+            this.records.set(res.data);
+            this.totalRecords.set(res.meta.total);
+            this.loading.set(false);
+          });
         },
         error: () => {
           this.messageService.add({

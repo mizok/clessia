@@ -39,6 +39,7 @@
 @source './app/shared/components/page-open';
 @source './app/shared/components/campus-scope-note';
 @source './app/shared/components/toast';
+@source './app/shared/components/reload-veil';
 @source './app/shared/components/change-log-list';
 @source './app/shared/components/layout/global-search';
 @source './app/shared/components/layout/shell-layout';

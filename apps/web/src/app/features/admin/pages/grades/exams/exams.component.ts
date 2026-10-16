@@ -10,6 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -166,6 +167,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   selector: 'app-exams',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     PageActionsComponent,
     FormsModule,
     RouterModule,
@@ -520,24 +522,27 @@ export class ExamsComponent implements OnInit {
         .subscribe({
           next: (res) => {
             if (requestId !== this.latestListRequestId) return;
-            this.currentRows.set(
-              res.data.map((exam) => ({
-                kind: 'academy' as const,
-                id: exam.id,
-                name: exam.name,
-                examDate: exam.examDate,
-                status: exam.status,
-                examType: exam.examType,
-                ...academyScope(exam),
-                campusId: exam.campusId,
-                subjectId: exam.subjectId,
-                scoreCount: exam.scoreCount,
-                expectedCount: exam.expectedCount,
-                raw: exam,
-              })),
-            );
-            this.total.set(res.meta.total);
-            this.loading.set(false);
+            // 舊內容（變淡中）平滑換成新資料（#1641 5b）
+            this.viewTransition(() => {
+              this.currentRows.set(
+                res.data.map((exam) => ({
+                  kind: 'academy' as const,
+                  id: exam.id,
+                  name: exam.name,
+                  examDate: exam.examDate,
+                  status: exam.status,
+                  examType: exam.examType,
+                  ...academyScope(exam),
+                  campusId: exam.campusId,
+                  subjectId: exam.subjectId,
+                  scoreCount: exam.scoreCount,
+                  expectedCount: exam.expectedCount,
+                  raw: exam,
+                })),
+              );
+              this.total.set(res.meta.total);
+              this.loading.set(false);
+            });
           },
           error: () => {
             if (requestId !== this.latestListRequestId) return;
@@ -567,27 +572,29 @@ export class ExamsComponent implements OnInit {
       .subscribe({
         next: (res) => {
           if (requestId !== this.latestListRequestId) return;
-          this.currentRows.set(
-            res.data.map((exam) => ({
-              kind: 'school' as const,
-              id: exam.id,
-              name: exam.label,
-              examDate: exam.examDate,
-              status: exam.status,
-              scope: exam.schoolName
-                ? `${exam.schoolName} · ${exam.subjectId ? (exam.subjectName ?? '指定科目') : '全科目'}`
-                : exam.subjectId
-                  ? (exam.subjectName ?? '指定科目')
-                  : '全科目',
-              scoreCount: exam.scoreCount,
-              schoolId: exam.schoolId,
-              subjectId: exam.subjectId ?? null,
-              subjectName: exam.subjectName ?? null,
-              raw: exam,
-            })),
-          );
-          this.total.set(res.meta.total);
-          this.loading.set(false);
+          this.viewTransition(() => {
+            this.currentRows.set(
+              res.data.map((exam) => ({
+                kind: 'school' as const,
+                id: exam.id,
+                name: exam.label,
+                examDate: exam.examDate,
+                status: exam.status,
+                scope: exam.schoolName
+                  ? `${exam.schoolName} · ${exam.subjectId ? (exam.subjectName ?? '指定科目') : '全科目'}`
+                  : exam.subjectId
+                    ? (exam.subjectName ?? '指定科目')
+                    : '全科目',
+                scoreCount: exam.scoreCount,
+                schoolId: exam.schoolId,
+                subjectId: exam.subjectId ?? null,
+                subjectName: exam.subjectName ?? null,
+                raw: exam,
+              })),
+            );
+            this.total.set(res.meta.total);
+            this.loading.set(false);
+          });
         },
         error: () => {
           if (requestId !== this.latestListRequestId) return;
