@@ -974,7 +974,7 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: {
-        description: '過去課堂守門查詢失敗 —— 拒絕刪除（fail closed）',
+        description: '過去課堂守門查詢失敗（fail closed）或刪除本身失敗',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -1012,7 +1012,8 @@ app.openapi(
     }
 
     const { error } = await inOrg(supabase.from('classes').delete().in('id', toDeleteIds), orgId);
-    if (error) return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
+    // 不能回 200 { deleted: 0 } —— 前端會跳「批次刪除完成」（#1651）
+    if (error) return c.json({ error: '刪除班級失敗', code: 'DB_ERROR' }, 500);
 
     logAudit(
       supabase,
