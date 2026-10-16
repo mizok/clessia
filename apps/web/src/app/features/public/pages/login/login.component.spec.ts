@@ -172,3 +172,56 @@ describe('LoginComponent 讀網址上的連線異常標記', () => {
     expect(retryBtn()).toBeNull();
   });
 });
+
+/**
+ * 手機底部面板的 LINE 鍵（#1639 二讀擋點）：殼在停留品牌面時把 `<main>` 設成 inert，
+ * 而面板在模板裡住在 main 底下 —— 看得見、點不到。這裡模擬那個 inert 祖先。
+ */
+describe('LoginComponent 底部面板', () => {
+  afterEach(() => document.getElementById('login-sheet')?.remove());
+
+  async function setupInsideInertMain() {
+    const signInWithLine = vi.fn(() => Promise.resolve(null));
+    TestBed.configureTestingModule({
+      imports: [LoginComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: { signInWithLine } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map() } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    // 殼的 <main [inert]>：寫屬性不寫 .inert（jsdom 的 inert property 不會反映成屬性）
+    (fixture.nativeElement as HTMLElement).setAttribute('inert', '');
+    await fixture.whenStable();
+    const sheet = document.getElementById('login-sheet')!;
+    const lineBtn = [...sheet.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('使用 LINE 登入'),
+    )!;
+    return { fixture, sheet, lineBtn, signInWithLine };
+  }
+
+  it('面板不在任何 inert 祖先底下', async () => {
+    const { sheet } = await setupInsideInertMain();
+
+    expect(sheet.closest('[inert]')).toBeNull();
+  });
+
+  it('面板裡的 LINE 鍵走同一個 signInWithLine', async () => {
+    const { lineBtn, signInWithLine } = await setupInsideInertMain();
+
+    lineBtn.click();
+
+    expect(signInWithLine).toHaveBeenCalledOnce();
+  });
+
+  it('離開登入頁時面板跟著移除（它被搬出 host，Angular 不會替它收）', async () => {
+    const { fixture } = await setupInsideInertMain();
+
+    fixture.destroy();
+
+    expect(document.getElementById('login-sheet')).toBeNull();
+  });
+});

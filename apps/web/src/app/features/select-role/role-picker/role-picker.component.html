@@ -5,33 +5,58 @@
     >
       選擇身分
     </p>
-    <h2 class="m-0 mb-2 text-xl leading-tight font-bold tracking-[-0.01em] text-zinc-900">
+    <h2
+      id="role-picker-title"
+      class="m-0 mb-2 text-xl leading-tight font-bold tracking-[-0.01em] text-zinc-900"
+    >
       {{ displayName() }}，你好
     </h2>
-    <p class="m-0 text-sm leading-relaxed text-zinc-500">這個帳號有多個身分，請選擇要進入的介面</p>
+    <p class="m-0 text-sm leading-relaxed text-zinc-600">這個帳號有多個身分，請選擇要進入的介面</p>
   </div>
 
   <div class="flex flex-col gap-2">
     @for (opt of roleOptions(); track opt.role) {
       <button
-        class="role-picker__option group/opt flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left transition-[border-color,background,translate] duration-[120ms] ease-[ease] hover:border-accent-400 hover:bg-accent-50 active:translate-y-px [&.role-picker\_\_option--active]:border-accent-500 [&.role-picker\_\_option--active]:bg-accent-50"
+        class="role-picker__option group/opt flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left leading-normal transition-[border-color,background,translate] duration-[120ms] ease-[ease] hover:border-accent-400 hover:bg-accent-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 active:translate-y-px [&.role-picker\_\_option--active]:border-accent-500 [&.role-picker\_\_option--active]:bg-accent-50"
         type="button"
         [class.role-picker__option--active]="activeRole() === opt.role"
         (click)="selectRole(opt.role)"
       >
         <span
-          class="flex size-9 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-lg text-zinc-500 transition-[color,background] duration-[120ms] ease-[ease] group-hover/opt:bg-accent-100 group-hover/opt:text-accent-600 group-[.role-picker\_\_option--active]/opt:bg-accent-100 group-[.role-picker\_\_option--active]/opt:text-accent-600"
+          class="flex size-9 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-zinc-600 transition-[color,background] duration-[120ms] ease-[ease] group-hover/opt:bg-accent-100 group-hover/opt:text-accent-600 group-[.role-picker\_\_option--active]/opt:bg-accent-100 group-[.role-picker\_\_option--active]/opt:text-accent-600"
+          aria-hidden="true"
         >
-          <i class="pi" [class]="'pi ' + opt.icon" aria-hidden="true"></i>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path [attr.d]="opt.icon" />
+          </svg>
         </span>
         <span class="flex min-w-0 flex-1 flex-col">
           <span class="text-md font-semibold text-zinc-800">{{ opt.label }}</span>
-          <span class="text-sm text-zinc-500">{{ opt.description }}</span>
+          <span class="text-sm text-zinc-600">{{ opt.description }}</span>
         </span>
-        <i
-          class="pi pi-chevron-right shrink-0 text-sm text-zinc-300 transition-colors duration-[120ms] ease-[ease] group-hover/opt:text-accent-500"
+        <svg
+          class="shrink-0 text-zinc-400 transition-colors duration-[120ms] ease-[ease] group-hover/opt:text-accent-500"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
-        ></i>
+        >
+          <path d="M3 8h10M9 4l4 4-4 4" />
+        </svg>
       </button>
     }
   </div>

@@ -437,7 +437,16 @@
      所以要比一般 dialog 更寬鬆的內距。特異性刻意比上面的 `.p-dialog` 高一級，
      否則會被那條 `!important` 蓋掉。 */
   .p-dialog.role-picker-dialog {
-    --p-dialog-content-padding: var(--space-6) !important;
+    /* 照 A6 .rp-dlg：無框、圓角 xl、內距在卡片本身（#1636） */
+    --p-dialog-content-padding: 0 !important;
+    padding: var(--space-6);
+    border: 0;
+    border-radius: var(--radius-xl);
+  }
+  /* 內距搬到卡片之後，內容區的捲動裁切會切掉選項的焦點框（outline-offset 2px）。
+     最多三個身分，內容不會超過彈窗高度，不需要捲動 */
+  .p-dialog.role-picker-dialog .p-dialog-content {
+    overflow: visible;
   }
   /* ---- Standard inline header with breadcrumb and close button ---- */
   .dialog-header-inline {
