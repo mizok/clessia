@@ -3,7 +3,7 @@ title: 試聽申請表單
 summary: 新家長為孩子申請課程試聽。
 category: spec
 status: active
-updated: 2026-08-29
+updated: 2026-10-16
 tags: [specs, public, trial]
 ---
 
@@ -31,6 +31,7 @@ tags: [specs, public, trial]
   - Email（選填）
   - 手機號碼（選填）
   - Email 和手機至少填一個
+  - 與學生關係：父親/母親/其他（必填；A6 試聽稿沒有，#1637 Q1 裁定補上）
 
 - **學生資訊區塊**
   - 姓名（必填）
@@ -52,16 +53,21 @@ tags: [specs, public, trial]
 
 ### 安全機制
 
-- 機器人驗證（CAPTCHA）
-- 速率限制
+- 機器人驗證：預設自架的 ALTCHA，部署可設 `CAPTCHA_PROVIDER=turnstile` 改走 Turnstile；兩者都不能被略過（#1665 Q4′，見 [[architecture/deploying]]）
+- 速率限制（計數存在自己的 Postgres，c12）
 - Honeypot 欄位
+
+版面、文案、錯誤處理照 A6，見 [[specs/public/application-forms-a6]]。
 
 ## 資料依賴
 
-| 操作 | 資料表           |
-| ---- | ---------------- |
-| 讀取 | `courses`        |
-| 寫入 | `trial_requests` |
+| 操作 | 資料表                                                                              |
+| ---- | ----------------------------------------------------------------------------------- |
+| 讀取 | `GET /api/public/catalog`（`classes`＋`courses`，只列開放公開報名的開課班，#1665）  |
+| 寫入 | `public_applications`（`kind='trial'`）＋`public_application_targets`（每門課一列） |
+
+> 2026-10-16 訂正：這裡原本寫 `trial_requests`，那是**家長端（登入後）**的試聽申請表。
+> 公開表單從 #1124 起就寫 `public_applications`；行政在 `/admin/applications` 收件。
 
 ## PRD 參考
 
@@ -71,5 +77,5 @@ tags: [specs, public, trial]
 
 ## 實作註記
 
-- 需實作 CAPTCHA 與速率限制
-- 課程以分類顯示，每個課程顯示名稱與簡介
+- 課程依 courseId 合併、依科目分組；每列寫適合的年級、上課時段、有幾個班（A6）
+- 申請保存 6 個月，pg_cron 每天刪（#1637 Q2、Q3）
