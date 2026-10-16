@@ -13,6 +13,22 @@ const AttendanceResponsibleSchema = z.enum(['admin', 'teacher']).openapi('Attend
 /** 插班／退班比例試算的基準。預設 days —— 按天永遠算得出來，按堂依賴 sessions 已生成 */
 const ProrationBasisSchema = z.enum(['days', 'sessions']).openapi('ProrationBasis');
 
+/**
+ * 家長繳費提醒時間點（#1660，#1626 Q2）：相對到期日的天數，負 = 到期前、0 = 當天、正 = 逾期第 N 天。
+ * 範圍與上限跟 DB 的 CHECK（20261016073848_push_notifications）同一組；不重複只在這裡擋。
+ * 推播排程讀這一欄決定哪天推（kb/wiki/architecture/web-push.md §5）。
+ * ⚠️ 不是 `billingReminderDays`（#1305，行政的待開單提醒）。
+ */
+export const INVOICE_REMINDER_OFFSET_MIN = -30;
+export const INVOICE_REMINDER_OFFSET_MAX = 60;
+export const INVOICE_REMINDER_OFFSETS_MAX_COUNT = 6;
+export const DEFAULT_INVOICE_REMINDER_OFFSETS = [-3, 0, 1, 7];
+
+const InvoiceReminderOffsetsSchema = z
+  .array(z.number().int().min(INVOICE_REMINDER_OFFSET_MIN).max(INVOICE_REMINDER_OFFSET_MAX))
+  .max(INVOICE_REMINDER_OFFSETS_MAX_COUNT)
+  .refine((xs) => new Set(xs).size === xs.length, { message: '提醒時間點不能重複' });
+
 const OrgSettingsSchema = z
   .object({
     id: z.string().uuid(),
@@ -40,6 +56,8 @@ const OrgSettingsSchema = z
      * 歸財務設定：改它等於改家長匯款的去向。
      */
     paymentInfo: z.string().nullable().optional(),
+    /** 家長繳費提醒時間點（#1660），由小到大 */
+    invoiceReminderOffsets: z.array(z.number().int()).optional(),
   })
   .openapi('OrgSettings');
 
@@ -54,6 +72,8 @@ const UpdateOrgSettingsSchema = z
     prorationBasis: ProrationBasisSchema.optional(),
     /** 空字串存成 null（= 未設定） */
     paymentInfo: z.string().max(PAYMENT_INFO_MAX).nullable().optional(),
+    /** 存的時候排序；空陣列 = 不推任何繳費提醒 */
+    invoiceReminderOffsets: InvoiceReminderOffsetsSchema.optional(),
   })
   .openapi('UpdateOrgSettings');
 
@@ -74,6 +94,7 @@ export const FINANCE_SETTING_KEYS = [
   'mealDefaultPrice',
   'prorationBasis',
   'paymentInfo',
+  'invoiceReminderOffsets',
 ] as const;
 
 export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinance = true) {
@@ -94,6 +115,8 @@ export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinan
     mealDefaultPrice: Number(row['meal_default_price'] ?? 0),
     prorationBasis: (row['proration_basis'] as 'days' | 'sessions') ?? 'days',
     paymentInfo: normalizePaymentInfo(row['payment_info']),
+    invoiceReminderOffsets:
+      (row['invoice_reminder_offsets'] as number[] | undefined) ?? DEFAULT_INVOICE_REMINDER_OFFSETS,
   };
 }
 
@@ -110,7 +133,7 @@ const app = new OpenAPIHono<AppEnv>();
 app.use('/settings', writeRequiresAdmin('manage_org_settings'));
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, meal_default_price, proration_basis, payment_info';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, meal_default_price, proration_basis, payment_info, invoice_reminder_offsets';
 
 // GET /api/org/settings
 app.openapi(
@@ -196,6 +219,9 @@ app.openapi(
     if (body.prorationBasis !== undefined) updates['proration_basis'] = body.prorationBasis;
     if (body.paymentInfo !== undefined)
       updates['payment_info'] = normalizePaymentInfo(body.paymentInfo);
+    if (body.invoiceReminderOffsets !== undefined) {
+      updates['invoice_reminder_offsets'] = [...body.invoiceReminderOffsets].sort((a, b) => a - b);
+    }
 
     const { data, error } = await supabase
       .from('organizations')
