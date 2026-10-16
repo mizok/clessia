@@ -303,7 +303,7 @@ Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]]
 
 ## [[architecture/web-push|PWA＋Web Push 推播（設計稿，第一個用途：家長繳費提醒）]]
 
-設計稿（#1626，未批准）。手寫最小 service worker（只處理 push／notificationclick，不攔 fetch、不快取）＋ manifest，不用 @angular/service-worker，所以不碰 #1611 的 immutable 快取與 SPA 改寫。加密與 VAPID 簽章自寫在 WebCrypto 上（RFC 8291／8292，用 RFC 附的測試向量驗），Workers 與 Node 共用。三張表：push_subscriptions（一人多裝置、404/410 自動刪）、notification_preferences（沒有列＝開）、push_deliveries（UNIQUE(user_id, dedupe_key) 去重）。排程是 Cron Trigger 在早上窗口每 10 分鐘呼叫同一支受 CRON_SECRET 保護的端點，每次只送一小批 —— 免費方案每次 Cron 只有 10ms CPU、50 個外部 subrequest，批量是校準旋鈕，動工前先量。
+設計稿（#1626，8 題 10-16 全部裁定，仍是 draft —— 實作第一步量 CPU）。手寫最小 service worker（只處理 push／notificationclick，不攔 fetch、不快取）＋ manifest，不用 @angular/service-worker，不碰 #1611 的 immutable 快取。加密與 VAPID 自寫在 WebCrypto 上（RFC 8291／8292，用 RFC 測試向量驗），Workers 與 Node 共用。提醒時間點是機構設定 organizations.invoice_reminder_offsets（預設到期前 3 天、當天、逾期 1、7 天，最多 6 個，manage_finance），去重鍵含時間點。第一版只開家長，但偏好與發送紀錄帶 role，之後開給老師／行政不改 schema。Cron 台北 09:00–11:00 每 10 分鐘送一小批 —— 免費方案每次 Cron 只有 10ms CPU、50 個 subrequest，K 先量再定。實作拆成 #1657–#1663。
 
 Tags: `architecture`, `pwa`, `push`, `parent`, `billing`, `cron`, `c12`
 
