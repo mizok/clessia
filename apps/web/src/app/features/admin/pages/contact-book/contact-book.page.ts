@@ -300,8 +300,12 @@ export class ContactBookPage implements OnInit {
     });
   }
 
+  /**
+   * 只展開最新一天。#1705 起同一組一次只開一個（使用者 2026-10-16 指定，`<details name>` 互斥），
+   * 所以篩選中也不再全部展開（A6 原本是篩選時全開）。
+   */
   protected isDayOpen(index: number): boolean {
-    return index === 0 || this.hasFilters();
+    return index === 0;
   }
 
   protected dayTitle(date: string): string {
