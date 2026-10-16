@@ -64,7 +64,7 @@ function httpError(status: number, body: unknown, headers: Record<string, string
 
 async function setup(
   kind: FormKind,
-  overrides: Partial<Record<keyof PublicFormsService, unknown>> = {},
+  overrides: Partial<Record<keyof PublicFormsService, ReturnType<typeof vi.fn>>> = {},
 ) {
   const api = {
     catalog: vi.fn().mockResolvedValue(CATALOG),
@@ -307,6 +307,103 @@ describe('ApplicationFormComponent', () => {
       grade: '',
       targets: [],
       consent: false,
+    });
+  });
+
+  describe('機器人驗證：照 GET /api/public/captcha 的 provider 分流（#1665 Q4′）', () => {
+    function fakeTurnstile() {
+      const opts: Array<Record<string, (token?: string) => void>> = [];
+      const render = vi.fn((_el: HTMLElement, o: Record<string, unknown>) => {
+        opts.push(o as Record<string, (token?: string) => void>);
+        return 'w1';
+      });
+      const reset = vi.fn();
+      vi.stubGlobal('turnstile', { render, reset });
+      return { render, reset, cb: () => opts[0]! };
+    }
+
+    it('turnstile：一定渲染 widget（帶 site key、畫在那一列裡），用 widget 給的 token 送出', async () => {
+      const ts = fakeTurnstile();
+      const { c, api, fill, settle, text, fixture } = await setup('trial', {
+        captcha: vi.fn().mockResolvedValue({ provider: 'turnstile', siteKey: 'site-1' }),
+      });
+
+      expect(ts.render).toHaveBeenCalledTimes(1);
+      const [el, opts] = ts.render.mock.calls[0]!;
+      expect(opts).toMatchObject({ sitekey: 'site-1' });
+      expect(el).toBe(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-part=turnstile]'),
+      );
+      expect(api.solveAltcha).not.toHaveBeenCalled();
+      expect(text()).not.toContain('已通過機器人驗證');
+
+      ts.cb()['callback']!('ts-token');
+      await settle();
+      expect(text()).toContain('已通過機器人驗證');
+
+      fill();
+      c.toggleTarget('co1', true);
+      await c.submit();
+      expect(api.submit.mock.calls[0]![1]).toMatchObject({ captchaToken: 'ts-token' });
+    });
+
+    it('altcha：背景解題，不碰 Turnstile', async () => {
+      const ts = fakeTurnstile();
+      const { api, text } = await setup('trial');
+
+      expect(api.solveAltcha).toHaveBeenCalledTimes(1);
+      expect(ts.render).not.toHaveBeenCalled();
+      expect(text()).toContain('已通過機器人驗證');
+    });
+
+    it('altcha 算失敗或逾時：顯示「重試驗證」、按送出也不送；重試成功後才送得出去', async () => {
+      const solveAltcha = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('ALTCHA 解題逾時'))
+        .mockResolvedValueOnce('payload-2');
+      const { c, api, fill, settle, text, fixture } = await setup('trial', { solveAltcha });
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-part=captcha-failed]')).not.toBeNull();
+
+      fill();
+      c.toggleTarget('co1', true);
+      await c.submit();
+      await settle();
+      expect(api.submit).not.toHaveBeenCalled();
+      expect(text()).toContain('機器人驗證沒有完成，請按「重試驗證」後再送出');
+
+      [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('重試驗證'))!.click();
+      await settle();
+      expect(text()).toContain('已通過機器人驗證');
+
+      await c.submit();
+      expect(api.submit.mock.calls[0]![1]).toMatchObject({ captchaToken: 'payload-2' });
+    });
+
+    it('turnstile 驗證失敗：不送；重試是 reset 同一個 widget（不畫第二個），拿到新 token 才送', async () => {
+      const ts = fakeTurnstile();
+      const { c, api, fill, settle, text, fixture } = await setup('trial', {
+        captcha: vi.fn().mockResolvedValue({ provider: 'turnstile', siteKey: 'site-1' }),
+      });
+      ts.cb()['error-callback']!();
+      await settle();
+      expect(text()).toContain('機器人驗證沒有完成');
+
+      fill();
+      c.toggleTarget('co1', true);
+      await c.submit();
+      expect(api.submit).not.toHaveBeenCalled();
+
+      const el = fixture.nativeElement as HTMLElement;
+      [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('重試驗證'))!.click();
+      await settle();
+      expect(ts.reset).toHaveBeenCalledWith('w1');
+      expect(ts.render).toHaveBeenCalledTimes(1);
+
+      ts.cb()['callback']!('ts-token-2');
+      await settle();
+      await c.submit();
+      expect(api.submit.mock.calls[0]![1]).toMatchObject({ captchaToken: 'ts-token-2' });
     });
   });
 });

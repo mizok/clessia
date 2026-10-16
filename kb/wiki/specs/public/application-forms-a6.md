@@ -174,7 +174,7 @@ A6 的個資聲明（`D/pub-trial.html:174-177`）寫「保存 6 個月，可以
 1. 表單一打開，前端打 `GET /api/public/captcha`（`no-store`）：
    - `altcha` → `{ provider: 'altcha', challenge: { parameters, signature } }`。API 用 v2 `createChallenge`，`PBKDF2/SHA-256`、WebCrypto 版 `deriveKey`（`altcha-lib/algorithms/web/pbkdf2`）、確定式模式（帶 `counter` 5000–10000＋key 簽章，驗證只做 HMAC）、10 分鐘過期。cost 暫定 1000（官方範例 5000 在 Node 單執行緒要 4.7 秒），PR-4 在 Playwright CPU 降速 4 倍下量 widget 後定案。
    - `turnstile` → `{ provider: 'turnstile', siteKey }`（`TURNSTILE_SITE_KEY`）。site key 改由 API 給，web 的 `environment*.ts` 不再寫死。
-2. 前端：`altcha` 時用 `altcha@3.2.4` 的 `altcha/lib`（`solveChallenge`＋WebCrypto 的 `pbkdf2.deriveKey`）在背景解題，**不掛 `<altcha-widget>`** —— A6 只畫一列「已通過機器人驗證」，widget 自己的勾選框與文案用不到（PR-4 實作時改的；payload 格式跟 widget 交出的一樣）；`turnstile` 時掛 Turnstile widget。A6 那一列「已通過機器人驗證」等驗證完成才顯示；按送出時還沒好，就等它好了再送（處於送出中狀態）。
+2. 前端：`altcha` 時用 `altcha@3.2.4` 的 `altcha/lib`（`solveChallenge`＋WebCrypto 的 `pbkdf2.deriveKey`）在背景解題，**不掛 `<altcha-widget>`** —— A6 只畫一列「已通過機器人驗證」，widget 自己的勾選框與文案用不到（PR-4 實作時改的；payload 格式跟 widget 交出的一樣）；`turnstile` 時**一定要渲染 Turnstile widget**（token 只能從它拿；計畫席 10-16 16:31）。驗證失敗或逾時（ALTCHA 30 秒）顯示「重試驗證」，**這時不能送出**。A6 那一列「已通過機器人驗證」等驗證完成才顯示；按送出時還沒好，就等它好了再送（處於送出中狀態）。
 3. 兩支 `POST` 的 body 仍用 `captchaToken`（兩家共用一個欄位；ALTCHA 時是 widget 的 payload）。守門順序維持 **honeypot → 速率限制 → 機器人驗證**。ALTCHA 那一步：payload 是 base64(JSON `{ challenge: { parameters, signature }, solution }`)，解開後交給 v2 `verifySolution`（過期、簽章、解答都由它判），格式壞掉一律當沒通過。
 4. **金鑰**：`ALTCHA_HMAC_KEY`；沒設時用 `BETTER_AUTH_SECRET` 經 HMAC 衍生（題目簽章與 key 簽章各衍生一把）。
 

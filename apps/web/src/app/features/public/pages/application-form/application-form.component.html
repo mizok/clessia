@@ -507,12 +507,31 @@
           class="mt-4 mb-0 flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 p-3 text-md text-zinc-700"
           role="status"
         >
-          @if (captchaReady()) {
-            <i class="pi pi-check text-success-600" aria-hidden="true"></i>已通過機器人驗證
-          } @else if (captchaProvider() !== 'turnstile') {
-            <i class="pi pi-spinner pi-spin text-[12px]" aria-hidden="true"></i>正在確認不是機器人…
+          @switch (captchaState()) {
+            @case ('ready') {
+              <i class="pi pi-check text-success-600" aria-hidden="true"></i>已通過機器人驗證
+            }
+            @case ('failed') {
+              <i class="pi pi-exclamation-circle text-error-700" aria-hidden="true"></i
+              ><span data-part="captcha-failed">機器人驗證沒有完成</span>
+              <button
+                type="button"
+                class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-[inherit] font-semibold text-zinc-900 underline underline-offset-[3px]"
+                (click)="retryCaptcha()"
+              >
+                重試驗證
+              </button>
+            }
+            @default {
+              <!-- Turnstile 的 widget 自己會顯示進度，這一行只給 ALTCHA -->
+              @if (captchaProvider() !== 'turnstile') {
+                <i class="pi pi-spinner pi-spin text-[12px]" aria-hidden="true"></i
+                >正在確認不是機器人…
+              }
+            }
           }
-          <div #turnstileEl></div>
+          <!-- Turnstile widget 掛在這裡（一定要真的渲染，token 只能從它拿）；altcha 時是空的 -->
+          <div #turnstileEl data-part="turnstile"></div>
         </div>
 
         @if (failure(); as f) {

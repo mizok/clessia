@@ -3,6 +3,8 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  Injector,
+  afterNextRender,
   computed,
   inject,
   input,
@@ -59,6 +61,9 @@ declare global {
   }
 }
 
+/** 機器人驗證失敗或逾時：不送出，等使用者按「重試驗證」 */
+class CaptchaError extends Error {}
+
 const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 
 /**
@@ -81,6 +86,7 @@ export class ApplicationFormComponent {
   private readonly messages = inject(MessageService);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
 
   protected readonly grades = GRADE_LEVELS;
   protected readonly gradeLabel = gradeLabel;
@@ -100,7 +106,8 @@ export class ApplicationFormComponent {
   protected readonly why = signal('');
   protected readonly failure = signal<Failure | null>(null);
   protected readonly done = signal<DoneSummary | null>(null);
-  protected readonly captchaReady = signal(false);
+  /** 機器人驗證：還在算／算好了／失敗或逾時（要按「重試」，這時不能送出） */
+  protected readonly captchaState = signal<'pending' | 'ready' | 'failed'>('pending');
   protected readonly captchaProvider = signal<CaptchaConfig['provider'] | null>(null);
 
   protected readonly errors = computed(() =>
@@ -117,8 +124,10 @@ export class ApplicationFormComponent {
   private readonly privacy = viewChild<ElementRef<HTMLDialogElement>>('privacy');
   private readonly turnstileEl = viewChild<ElementRef<HTMLElement>>('turnstileEl');
 
-  /** 機器人驗證的結果；送出時 await 它（還沒算完就停在「送出中」） */
-  private captcha: Promise<string> | null = null;
+  /** 這一輪機器人驗證的結果；送出時 await 它（還沒算完就停在「送出中」） */
+  private captcha!: Promise<string>;
+  private resolveCaptcha: (token: string) => void = () => undefined;
+  private rejectCaptcha: (err: unknown) => void = () => undefined;
   private turnstileId: string | undefined;
   private destroyed = false;
 
@@ -184,43 +193,81 @@ export class ApplicationFormComponent {
 
   // ─── 機器人驗證 ───
 
-  private startCaptcha(): void {
-    this.captchaReady.set(false);
-    this.captcha = this.api.captcha().then((config) => {
-      this.captchaProvider.set(config.provider);
-      return config.provider === 'altcha'
-        ? this.api.solveAltcha(config.challenge)
-        : this.turnstileToken(config.siteKey);
+  /** 開新的一輪：狀態回到 pending，結果交給 resolveCaptcha／rejectCaptcha */
+  private newAttempt(): void {
+    this.captchaState.set('pending');
+    this.captcha = new Promise<string>((resolve, reject) => {
+      this.resolveCaptcha = resolve;
+      this.rejectCaptcha = reject;
     });
     this.captcha.then(
-      () => !this.destroyed && this.captchaReady.set(true),
-      () => undefined, // 送出時才處理（重取一次，再不行顯示「沒送出去」）
+      () => !this.destroyed && this.captchaState.set('ready'),
+      () => !this.destroyed && this.captchaState.set('failed'),
     );
   }
 
+  /**
+   * 照 `GET /api/public/captcha` 回的 provider 分流（#1665 Q4′）：
+   * - altcha：背景解題（`solveAltcha`，有逾時）
+   * - turnstile：**一定要渲染 Turnstile 的 widget** —— token 只能從 widget 拿到
+   */
+  private startCaptcha(): void {
+    this.newAttempt();
+    this.api.captcha().then(
+      (config) => {
+        this.captchaProvider.set(config.provider);
+        if (config.provider === 'altcha') {
+          this.api.solveAltcha(config.challenge).then(this.resolveCaptcha, this.rejectCaptcha);
+        } else {
+          this.mountTurnstile(config.siteKey).catch(this.rejectCaptcha);
+        }
+      },
+      (err) => this.rejectCaptcha(err),
+    );
+  }
+
+  /** 失敗或逾時之後的「重試」。Turnstile 已經畫過就 reset 同一個 widget，不再畫第二個 */
+  protected retryCaptcha(): void {
+    if (this.turnstileId && window.turnstile) {
+      this.newAttempt();
+      window.turnstile.reset(this.turnstileId);
+    } else {
+      this.startCaptcha();
+    }
+  }
+
   /** Turnstile（`CAPTCHA_PROVIDER=turnstile` 的部署才會走到）：載官方 script、在那一列裡畫 widget */
-  private async turnstileToken(siteKey: string): Promise<string> {
+  private async mountTurnstile(siteKey: string): Promise<void> {
     if (!window.turnstile) {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement('script');
         script.src = TURNSTILE_SRC;
         script.async = true;
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Turnstile 載入失敗'));
+        script.onerror = () => reject(new CaptchaError());
         document.head.appendChild(script);
       });
     }
+    // 表單剛切成 'form' 時還沒畫出來（load() 緊接著就呼叫 startCaptcha）：等下一次畫完再找掛點
+    if (!this.turnstileEl()) {
+      await new Promise<void>((resolve) =>
+        afterNextRender(() => resolve(), { injector: this.injector }),
+      );
+    }
     const el = this.turnstileEl()?.nativeElement;
-    if (!el || !window.turnstile) throw new Error('Turnstile 不可用');
-    return new Promise<string>((resolve, reject) => {
-      if (this.turnstileId) window.turnstile!.reset(this.turnstileId);
-      else {
-        this.turnstileId = window.turnstile!.render(el, {
-          sitekey: siteKey,
-          callback: resolve,
-          'error-callback': () => reject(new Error('Turnstile 驗證失敗')),
-        });
-      }
+    if (!el || !window.turnstile) throw new CaptchaError();
+    if (this.turnstileId) {
+      window.turnstile.reset(this.turnstileId);
+      return;
+    }
+    // callback 永遠交給「當下這一輪」：reset 之後的新 token 進新的 promise
+    this.turnstileId = window.turnstile.render(el, {
+      sitekey: siteKey,
+      callback: (token: string) => this.resolveCaptcha(token),
+      'error-callback': () => this.rejectCaptcha(new CaptchaError()),
+      'timeout-callback': () => this.rejectCaptcha(new CaptchaError()),
+      // token 過期（約 5 分鐘）：換新一輪，widget 自己會再拿一次
+      'expired-callback': () => this.newAttempt(),
     });
   }
 
@@ -251,16 +298,25 @@ export class ApplicationFormComponent {
     }
   }
 
-  /** 題目過期或驗不過：重新取一題、自動再算一次並重送；再失敗才往外丟（設計稿 §1） */
+  /**
+   * 機器人驗證沒過（失敗、逾時）**不送出**，丟 CaptchaError 讓使用者按重試。
+   * 伺服器回 CAPTCHA_FAILED（題目過期或驗不過）：重新取一題、自動再算一次並重送；再失敗才往外丟（設計稿 §1）。
+   */
   private async sendWithCaptcha() {
+    const token = async () => {
+      try {
+        return await this.captcha;
+      } catch {
+        throw new CaptchaError();
+      }
+    };
     const send = async () =>
-      this.api.submit(this.kind(), toPayload(this.kind(), this.values(), await this.captcha!));
+      this.api.submit(this.kind(), toPayload(this.kind(), this.values(), await token()));
     try {
       return await send();
     } catch (err) {
-      const captchaBroken = this.code(err) === 'CAPTCHA_FAILED' || !this.captchaReady();
-      if (!captchaBroken) throw err;
-      this.startCaptcha();
+      if (this.code(err) !== 'CAPTCHA_FAILED') throw err;
+      this.retryCaptcha();
       return send();
     }
   }
@@ -272,6 +328,9 @@ export class ApplicationFormComponent {
       const minutes = retryMinutes(err.headers.get('Retry-After'));
       const when = minutes ? `請 ${minutes} 分鐘後再試` : '請稍後再試';
       return { message: `送出太多次了，${when}${call}。你填的資料都還在。`, retry: false };
+    }
+    if (err instanceof CaptchaError) {
+      return { message: '機器人驗證沒有完成，請按「重試驗證」後再送出', retry: false };
     }
     if (this.code(err) === 'CAPTCHA_FAILED') {
       return { message: '驗證沒通過，請再按一次送出', retry: false };

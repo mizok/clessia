@@ -42,7 +42,12 @@ export class PublicFormsService {
   async solveAltcha(challenge: Extract<CaptchaConfig, { provider: 'altcha' }>['challenge']) {
     const { solveChallenge, pbkdf2 } = await import('altcha/lib');
     const typed = challenge as unknown as Parameters<typeof solveChallenge>[0]['challenge'];
-    const solution = await solveChallenge({ challenge: typed, deriveKey: pbkdf2.deriveKey });
+    // 逾時（預設 90 秒太久）回 null → 丟錯，畫面顯示「重試驗證」
+    const solution = await solveChallenge({
+      challenge: typed,
+      deriveKey: pbkdf2.deriveKey,
+      timeout: 30_000,
+    });
     if (!solution) throw new Error('ALTCHA 解題逾時');
     return btoa(JSON.stringify({ challenge, solution }));
   }
