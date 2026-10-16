@@ -1271,8 +1271,14 @@ test('#1639：稿的 button 沒重設 padding（瀏覽器預設 1px 6px）→ ap
       [],
       360,
     ).filter((r) => r.status === '樣式');
-  assert.deepEqual(run('button').map((r) => r.bucket), ['工具限制']);
-  assert.deepEqual(run('span').map((r) => r.bucket), ['待修']);
+  assert.deepEqual(
+    run('button').map((r) => r.bucket),
+    ['工具限制'],
+  );
+  assert.deepEqual(
+    run('span').map((r) => r.bucket),
+    ['待修'],
+  );
 });
 
 test('#1689：通知中心發布表單改彈窗（R5）—— 稿的 main>form 缺、app 的「發送通知」多都算偏離；稿量 #publish 分頁', async () => {
@@ -1303,7 +1309,10 @@ test('#1665 PR-4：公開表單「選項清單長度」的位置資料差只放�
     app: `>landmark:complementary[]>${key}`,
     detail: `相對「complementary」 ${d}（app − A6）`,
   });
-  const rows = [pos('heading:h2[學程管家]', 'Δx 0、Δy -115'), pos('heading:h2[學程管家]', 'Δx +40、Δy -115')];
+  const rows = [
+    pos('heading:h2[學程管家]', 'Δx 0、Δy -115'),
+    pos('heading:h2[學程管家]', 'Δx +40、Δy -115'),
+  ];
   const on = (page) =>
     classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])], 1440).map((x) => x.bucket);
   assert.deepEqual(on('trial'), ['已記錄偏離', '待修']);
@@ -1313,7 +1322,10 @@ test('#1665 PR-4：公開表單「選項清單長度」的位置資料差只放�
 
 test('compare：nx serve 的 ready line 帶顏色碼（Local\\x1b[22m:）也認得出來', async () => {
   const { isReady } = await import('./serve.mjs');
-  assert.equal(isReady('  \x1b[32m➜\x1b[39m  \x1b[1mLocal\x1b[22m:   http://localhost:4310/'), true);
+  assert.equal(
+    isReady('  \x1b[32m➜\x1b[39m  \x1b[1mLocal\x1b[22m:   http://localhost:4310/'),
+    true,
+  );
   assert.equal(isReady('Building...'), false);
 });
 
@@ -1340,4 +1352,24 @@ test('compare：分支名的 origin 與本機不同時挑新的那顆，分叉�
   assert.equal(pickNewer(null, 'a', anc), 'a');
   assert.equal(pickNewer('a', null, anc), 'a');
   assert.throws(() => pickNewer('b', 'c', anc), /分叉/);
+});
+
+test('compare：ref 的 package-lock 跟共用 node_modules 那份不同就要自己裝（10-16 head 80479203 多了 altcha，編不起來）', async () => {
+  const { lockMatches } = await import('./serve.mjs');
+  assert.equal(lockMatches('HEAD'), true);
+  assert.equal(lockMatches('80479203'), false); // main 加了 altcha
+});
+
+test('compare：nx serve 編譯錯誤（帶顏色碼的 ✘ [ERROR]）馬上認出來，不等滿 600 秒、也不量錯誤畫面', async () => {
+  const { buildFailed } = await import('./serve.mjs');
+  assert.equal(
+    buildFailed(
+      "\x1b[31m✘ \x1b[41;31m[\x1b[41;97mERROR\x1b[41;31m]\x1b[0m TS2307: Cannot find module 'altcha/lib'",
+    ),
+    true,
+  );
+  assert.equal(
+    buildFailed('▲ [WARNING] NG8113: X is not used\n  ➜  Local:   http://localhost:4310/'),
+    false,
+  );
 });
