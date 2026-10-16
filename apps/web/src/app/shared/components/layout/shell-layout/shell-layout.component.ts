@@ -6,6 +6,7 @@ import { InboxBadgeService } from '@core/inbox-badge.service';
 import { NavigationService } from '@core/navigation.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
+import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
@@ -34,6 +35,7 @@ const WIDE = '(min-width: 861px)';
     InheritSizeDirective,
     OverlayContainerDirective,
     GlobalSearchComponent,
+    ValueArriveDirective,
   ],
   providers: [DialogService],
   templateUrl: './shell-layout.component.html',
@@ -80,9 +82,9 @@ export class ShellLayoutComponent {
   });
   /** 螢幕閱讀器念的：角標本身 aria-hidden，數字寫在這裡 */
   protected readonly bellLabel = computed(() => {
-    if (!this.badge.hasInbox()) return '通知中心';
     const n = this.badge.unread();
-    return n > 0 ? `通知，${n} 則未讀` : '通知，沒有未讀';
+    if (n > 0) return `通知，${n} 則未讀`;
+    return this.badge.hasInbox() ? '通知，沒有未讀' : '通知中心';
   });
 
   protected readonly scrolled = signal(false);

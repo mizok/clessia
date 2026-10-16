@@ -495,10 +495,16 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(bell(el)!.classList).toContain('size-11');
     });
 
-    it('管理員：沒有角標，aria-label 是「通知中心」', async () => {
-      const { el } = await setup(['admin'], 'admin', true, { unread: 5 });
+    it('管理員：沒有未讀時 aria-label 是「通知中心」、沒有角標', async () => {
+      const { el } = await setup(['admin'], 'admin', true, { unread: 0 });
       expect(el.querySelector('[data-part=bell-badge]')).toBeNull();
       expect(bell(el)!.getAttribute('aria-label')).toBe('通知中心');
+    });
+
+    it('管理員也有通知（#1693）：有未讀就顯示角標', async () => {
+      const { el } = await setup(['admin'], 'admin', true, { unread: 5 });
+      expect(el.querySelector('[data-part=bell-badge]')!.textContent!.trim()).toBe('5');
+      expect(bell(el)!.getAttribute('aria-label')).toBe('通知，5 則未讀');
     });
 
     it.each<[number, string | null, string]>([
@@ -516,9 +522,16 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
 
     it('角標跟著 service 的數字變', async () => {
       const { el, badge, fixture } = await setup(['teacher'], 'teacher', true, { unread: 1 });
+      const num = el.querySelector<HTMLElement>('[data-part=bell-badge]')!;
+      vi.stubGlobal('matchMedia', () => ({ matches: false }));
+      const animate = vi.fn();
+      num.animate = animate;
+
       badge.unread.set(4);
       fixture.detectChanges();
-      expect(el.querySelector('[data-part=bell-badge]')!.textContent!.trim()).toBe('4');
+      expect(num.textContent!.trim()).toBe('4');
+      expect(animate).toHaveBeenCalledTimes(1); // 數字淡入（#1676）
+      vi.unstubAllGlobals();
     });
 
     it('沒有目的地（掃碼機台）：不畫鈴鐺', async () => {

@@ -1,10 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { NEVER, of, throwError } from 'rxjs';
+import { Router, provideRouter } from '@angular/router';
+import { NEVER, of, throwError, type Observable } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
+import { InboxBadgeService } from '@core/inbox-badge.service';
+import { NotificationsService, type AppNotification } from '@core/notifications.service';
 
-import { AnnouncementInboxComponent } from './announcement-inbox.component';
+import { AnnouncementInboxComponent, type InboxItem } from './announcement-inbox.component';
 
 function announcement(overrides: Partial<Announcement> = {}): Announcement {
   return {
@@ -21,6 +24,23 @@ function announcement(overrides: Partial<Announcement> = {}): Announcement {
   };
 }
 
+function notification(overrides: Partial<AppNotification> = {}): AppNotification {
+  return {
+    id: 'n1',
+    kind: 'invoice_due',
+    title: '十月學費即將到期',
+    body: '請於 10/20 前繳費。',
+    createdAt: '2026-08-19T02:00:00Z',
+    isRead: false,
+    link: null,
+    ...overrides,
+  };
+}
+
+function inboxOf<T extends { isRead: boolean }>(data: T[]) {
+  return of({ data, meta: { total: data.length, unread: data.filter((a) => !a.isRead).length } });
+}
+
 describe('AnnouncementInboxComponent（老師收件匣）', () => {
   let fixture: ComponentFixture<AnnouncementInboxComponent>;
   let component: AnnouncementInboxComponent;
@@ -28,24 +48,50 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
   const inboxMock = vi.fn();
   const markReadMock = vi.fn();
   const markAllReadMock = vi.fn();
+  const notifInboxMock = vi.fn();
+  const notifMarkReadMock = vi.fn();
+  const notifMarkAllReadMock = vi.fn();
+  const badge = { setAnnouncementsUnread: vi.fn(), setNotificationsUnread: vi.fn() };
 
-  async function setup(data: Announcement[] = [announcement()]) {
-    inboxMock.mockReset();
-    markReadMock.mockReset();
-    markAllReadMock.mockReset();
-    inboxMock.mockReturnValue(
-      of({ data, meta: { total: data.length, unread: data.filter((a) => !a.isRead).length } }),
-    );
+  /** 只設好 mock 的回傳，不建元件 —— 要改回傳的測試在 create() 前改 */
+  function mocks(data: Announcement[] = [announcement()], notifs: AppNotification[] = []): void {
+    for (const m of [
+      inboxMock,
+      markReadMock,
+      markAllReadMock,
+      notifInboxMock,
+      notifMarkReadMock,
+      notifMarkAllReadMock,
+      badge.setAnnouncementsUnread,
+      badge.setNotificationsUnread,
+    ])
+      m.mockReset();
+    inboxMock.mockReturnValue(inboxOf(data));
     markReadMock.mockReturnValue(of(undefined));
     markAllReadMock.mockReturnValue(of({ marked: 0 }));
+    notifInboxMock.mockReturnValue(inboxOf(notifs));
+    notifMarkReadMock.mockReturnValue(of(undefined));
+    notifMarkAllReadMock.mockReturnValue(of({ marked: 0 }));
+  }
 
+  async function create(): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [AnnouncementInboxComponent],
       providers: [
+        provideRouter([]),
         {
           provide: AnnouncementsService,
           useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
         },
+        {
+          provide: NotificationsService,
+          useValue: {
+            inbox: notifInboxMock,
+            markRead: notifMarkReadMock,
+            markAllRead: notifMarkAllReadMock,
+          },
+        },
+        { provide: InboxBadgeService, useValue: badge },
       ],
     }).compileComponents();
 
@@ -55,13 +101,23 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     fixture.detectChanges();
   }
 
+  async function setup(data: Announcement[] = [announcement()], notifs: AppNotification[] = []) {
+    mocks(data, notifs);
+    await create();
+  }
+
+  const items = () => component['items']() as InboxItem[];
+  const unread = () => component['unread']() as number;
+  const toggle = (item: InboxItem) => component['toggle'](item);
+  const markAllRead = () => component['markAllRead']();
+
   it('顯示未讀數', async () => {
     await setup([
       announcement({ id: 'a', isRead: false }),
       announcement({ id: 'b', isRead: true }),
     ]);
 
-    expect(component['unread']()).toBe(1);
+    expect(unread()).toBe(1);
     expect(fixture.nativeElement.textContent).toContain('1 則未讀');
   });
 
@@ -74,30 +130,30 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
   it('展開會標為已讀', async () => {
     await setup();
 
-    component['toggle'](component['announcements']()[0]);
+    toggle(items()[0]!);
 
     expect(markReadMock).toHaveBeenCalledWith('a1');
-    expect(component['unread']()).toBe(0);
+    expect(unread()).toBe(0);
   });
 
   // 已讀的不必再打一次 API
   it('展開已讀的公告不重複標記', async () => {
     await setup([announcement({ isRead: true })]);
 
-    component['toggle'](component['announcements']()[0]);
+    toggle(items()[0]!);
 
     expect(markReadMock).not.toHaveBeenCalled();
   });
 
   it('再點一次會收合', async () => {
     await setup();
-    const item = component['announcements']()[0];
+    const item = items()[0]!;
 
     component['toggle'](item);
-    expect(component['openId']()).toBe('a1');
+    expect(component['openKey']()).toBe('announcement:a1');
 
     component['toggle'](item);
-    expect(component['openId']()).toBeNull();
+    expect(component['openKey']()).toBeNull();
   });
 
   // 顯示成已讀但實際沒存到，下次進來又冒出來，比當下顯示未讀更糟
@@ -105,59 +161,35 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     await setup();
     markReadMock.mockReturnValue(throwError(() => new Error('boom')));
 
-    component['toggle'](component['announcements']()[0]);
+    toggle(items()[0]!);
 
-    expect(component['unread']()).toBe(1);
+    expect(unread()).toBe(1);
   });
 
   // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
   // 改成骨架列表後這裡改斷言骨架元素，不是文字。
   it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    mocks();
     inboxMock.mockReturnValue(NEVER);
+    await create();
 
-    await TestBed.configureTestingModule({
-      imports: [AnnouncementInboxComponent],
-      providers: [
-        {
-          provide: AnnouncementsService,
-          useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
-        },
-      ],
-    }).compileComponents();
-
-    const f = TestBed.createComponent(AnnouncementInboxComponent);
-    f.componentRef.setInput('heading', '通知中心');
-    f.detectChanges();
-
-    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(fixture.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
   });
 
-  it('沒有公告時顯示空狀態', async () => {
+  it('兩邊都沒有時顯示空狀態', async () => {
     await setup([]);
 
-    expect(fixture.nativeElement.textContent).toContain('目前沒有公告');
+    expect(fixture.nativeElement.textContent).toContain('目前沒有通知');
   });
 
-  it('查詢失敗顯示錯誤', async () => {
-    inboxMock.mockReset();
+  it('兩邊都查詢失敗才整頁錯誤', async () => {
+    mocks();
     inboxMock.mockReturnValue(throwError(() => new Error('boom')));
+    notifInboxMock.mockReturnValue(throwError(() => new Error('boom')));
+    await create();
 
-    await TestBed.configureTestingModule({
-      imports: [AnnouncementInboxComponent],
-      providers: [
-        {
-          provide: AnnouncementsService,
-          useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
-        },
-      ],
-    }).compileComponents();
-
-    const f = TestBed.createComponent(AnnouncementInboxComponent);
-    f.componentRef.setInput('heading', '通知中心');
-    f.detectChanges();
-
-    expect(f.componentInstance['loadError']()).toBe(true);
+    expect(component['loadError']()).toBe(true);
   });
 
   /**
@@ -187,7 +219,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
         announcement({ id: 'a2', isRead: true }),
         announcement({ id: 'a3', isRead: false }),
       ]);
-      (component as never as { markAllRead(): void }).markAllRead();
+      markAllRead();
 
       expect(markAllReadMock).toHaveBeenCalledTimes(1);
       expect(markReadMock).not.toHaveBeenCalled();
@@ -195,7 +227,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
 
     it('沒有未讀就不打 —— 不送一個什麼都不會標的請求', async () => {
       await setup([announcement({ id: 'a1', isRead: true })]);
-      (component as never as { markAllRead(): void }).markAllRead();
+      markAllRead();
 
       expect(markAllReadMock).not.toHaveBeenCalled();
     });
@@ -205,8 +237,8 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
         announcement({ id: 'a1', isRead: false }),
         announcement({ id: 'a2', isRead: false }),
       ]);
-      (component as never as { markAllRead(): void; unread(): number }).markAllRead();
-      expect((component as never as { unread(): number }).unread()).toBe(0);
+      markAllRead();
+      expect(unread()).toBe(0);
     });
 
     /**
@@ -223,9 +255,9 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
         announcement({ id: 'old', isRead: true }),
       ]);
       markAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
-      (component as never as { markAllRead(): void }).markAllRead();
+      markAllRead();
 
-      const list = (component as never as { announcements(): Announcement[] }).announcements();
+      const list = items();
       expect(list.find((a) => a.id === 'a1')?.isRead).toBe(false);
       expect(list.find((a) => a.id === 'a2')?.isRead).toBe(false);
       expect(list.find((a) => a.id === 'old')?.isRead).toBe(true);
@@ -243,13 +275,94 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     const animate = vi.fn();
     num.animate = animate;
 
-    (component as unknown as { toggle: (a: Announcement) => void }).toggle(
-      component['announcements']()[0]!,
-    );
+    toggle(items()[0]!);
     fixture.detectChanges();
 
     expect(num.textContent).toBe('1');
     expect(animate).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
+  });
+
+  describe('公告＋通知合併（#1683 第二段）', () => {
+    it('依時間合併，新的在前；列上標「公告」「繳費提醒」', async () => {
+      await setup(
+        [announcement({ id: 'a', publishedAt: '2026-08-18T02:00:00Z' })],
+        [notification({ id: 'n', createdAt: '2026-08-19T02:00:00Z' })],
+      );
+      expect(items().map((i) => `${i.source}:${i.id}`)).toEqual([
+        'notification:n',
+        'announcement:a',
+      ]);
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('繳費提醒 ·');
+      expect(text).toContain('公告 ·');
+      expect(unread()).toBe(2);
+    });
+
+    it('公告和通知同一個 id 也不會撞（展開的是點的那一列）', async () => {
+      await setup([announcement({ id: 'x' })], [notification({ id: 'x' })]);
+      const n = items().find((i) => i.source === 'notification')!;
+      toggle(n);
+      expect(component['openKey']()).toBe('notification:x');
+      expect(notifMarkReadMock).toHaveBeenCalledWith('x');
+      expect(markReadMock).not.toHaveBeenCalled();
+    });
+
+    it('通知有 link：點了先標已讀再導過去', async () => {
+      await setup([], [notification({ id: 'n', link: '/parent/payments' })]);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      toggle(items()[0]!);
+      expect(notifMarkReadMock).toHaveBeenCalledWith('n');
+      expect(navigate).toHaveBeenCalledWith('/parent/payments');
+      expect(unread()).toBe(0);
+    });
+
+    it('通知讀取失敗：公告照樣顯示，寫一行「通知暫時讀不到」', async () => {
+      mocks([announcement()]);
+      notifInboxMock.mockReturnValue(throwError(() => new Error('boom')));
+      await create();
+      expect(component['loadError']()).toBe(false);
+      expect(items()).toHaveLength(1);
+      expect(fixture.nativeElement.textContent).toContain('通知暫時讀不到');
+    });
+
+    it('全部標為已讀：兩支平行打；一邊失敗只翻那一邊，並提示再按一次', async () => {
+      mocks([announcement({ id: 'a' })], [notification({ id: 'n' })]);
+      notifMarkAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
+      await create();
+      markAllRead();
+      fixture.detectChanges();
+
+      expect(markAllReadMock).toHaveBeenCalledTimes(1);
+      expect(notifMarkAllReadMock).toHaveBeenCalledTimes(1);
+      expect(items().find((i) => i.id === 'a')?.isRead).toBe(true);
+      expect(items().find((i) => i.id === 'n')?.isRead).toBe(false);
+      expect(unread()).toBe(1);
+      expect(fixture.nativeElement.textContent).toContain('有一部分沒標成');
+    });
+
+    it('未讀數用伺服器的 meta.unread（通知清單最多 100 則，不數畫面上的）', async () => {
+      mocks([]);
+      notifInboxMock.mockReturnValue(
+        of({ data: [notification()], meta: { total: 150, unread: 120 } }),
+      );
+      await create();
+      expect(unread()).toBe(120);
+      markAllRead();
+      expect(unread()).toBe(0);
+      expect(notifMarkAllReadMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('寫回頂欄角標：讀到、讀了一則之後；讀取失敗那邊不寫（角標保留它自己的值）', async () => {
+      mocks([announcement({ id: 'a' }), announcement({ id: 'b' })]);
+      notifInboxMock.mockReturnValue(throwError(() => new Error('boom')));
+      await create();
+      expect(badge.setAnnouncementsUnread).toHaveBeenLastCalledWith(2);
+      expect(badge.setNotificationsUnread).not.toHaveBeenCalled();
+
+      toggle(items()[0]!);
+      fixture.detectChanges();
+      expect(badge.setAnnouncementsUnread).toHaveBeenLastCalledWith(1);
+    });
   });
 });
