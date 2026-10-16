@@ -355,17 +355,38 @@ describe('PATCH /settings 的稽核紀錄（#828）', () => {
 describe('invoiceReminderOffsets（#1660）', () => {
   function appWith(permissions: string[]) {
     const updates: Array<Record<string, unknown>> = [];
-    const row = { id: 'org-1', name: 'x', attendance_mode: 'per_session' };
+    // DB 裡存的是非預設值 —— select 字串漏了這一欄的話，回應會落到預設的 [-3,0,1,7]
+    const row: Record<string, unknown> = {
+      id: 'org-1',
+      name: 'x',
+      attendance_mode: 'per_session',
+      invoice_reminder_offsets: [-1],
+    };
+    /** 只回 select 字串裡有的欄位（像 PostgREST 一樣），漏選的欄位就是不在 */
+    const project = (r: Record<string, unknown>, cols: string) =>
+      Object.fromEntries(
+        cols
+          .split(',')
+          .map((c) => c.trim())
+          .filter((c) => c in r)
+          .map((c) => [c, r[c]]),
+      );
     const supabase = {
       from(table: string) {
         if (table === 'organizations') {
           return {
+            select: (cols: string) => ({
+              eq: () => ({
+                single: () => Promise.resolve({ data: project(row, cols), error: null }),
+              }),
+            }),
             update: (u: Record<string, unknown>) => {
               updates.push(u);
               return {
                 eq: () => ({
-                  select: () => ({
-                    single: () => Promise.resolve({ data: { ...row, ...u }, error: null }),
+                  select: (cols: string) => ({
+                    single: () =>
+                      Promise.resolve({ data: project({ ...row, ...u }, cols), error: null }),
                   }),
                 }),
               };
@@ -399,9 +420,18 @@ describe('invoiceReminderOffsets（#1660）', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ invoiceReminderOffsets: offsets }),
       });
-    return { send, updates };
+    const get = () => app.request('/settings');
+    return { send, updates, get };
   }
   const FINANCE = ['manage_org_settings', 'manage_finance'];
+
+  it('GET 與 PATCH 回的是 DB 裡的值，不是預設值（SELECT_FIELDS 要有這一欄）', async () => {
+    const { get, send } = appWith(['manage_org_settings', 'manage_finance']);
+    expect(await (await get()).json()).toMatchObject({ invoiceReminderOffsets: [-1] });
+    // 只改別的欄位：回應裡的時間點仍然是 DB 的 [-1]
+    const res = await send([-1]);
+    expect(await res.json()).toMatchObject({ invoiceReminderOffsets: [-1] });
+  });
 
   it('有 manage_finance：存排序後的值，回應帶回來', async () => {
     const { send, updates } = appWith(FINANCE);

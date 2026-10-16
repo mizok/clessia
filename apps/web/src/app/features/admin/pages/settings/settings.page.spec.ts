@@ -204,8 +204,32 @@ describe('SettingsPage', () => {
       saveReminderOffsets: () => void;
       pendingReminderOffset: () => number | null;
       reminderOffsets: () => number[];
+      savingReminderOffsets: () => boolean;
     };
     const page = () => component as unknown as Page;
+
+    it('加入比現有值小的天數：清單照時間排序，畫面上「到期前 10 天」在「到期前 3 天」前面', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      page().newReminderDirection = 'before';
+      page().newReminderDays = 10;
+      page().addReminderOffset();
+      expect(page().reminderOffsets()).toEqual([-10, -3, 0, 1, 7]);
+      fixture.detectChanges();
+      const text = bodyText();
+      expect(text.indexOf('到期前 10 天')).toBeGreaterThan(-1);
+      expect(text.indexOf('到期前 10 天')).toBeLessThan(text.indexOf('到期前 3 天'));
+    });
+
+    it('儲存失敗：跳錯誤、按鈕不再 loading（可以再按一次）', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
+      await setup();
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      page().saveReminderOffsets();
+      expect(page().savingReminderOffsets()).toBe(false);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
 
     it('沒有財務權限（回應沒有這個 key）→ 整張卡不畫', async () => {
       await setup();
