@@ -219,55 +219,86 @@
       }
     </section>
 
-    <!-- ── 催繳記錄 ─────────────────────────────────────────────────── -->
-    <section class="flex flex-col gap-3">
-      <h3 class="m-0 text-sm font-semibold text-zinc-700">催繳記錄</h3>
-      <p class="m-0 text-xs text-zinc-500">催繳只留紀錄，不會停課也不會擋住任何東西。</p>
-
-      @if (!isVoided()) {
-        <div class="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(96px,auto)_1fr_auto]">
-          <p-select
-            [options]="reminderMethodOptions"
-            optionLabel="label"
-            optionValue="value"
-            [ngModel]="reminderMethod()"
-            (ngModelChange)="reminderMethod.set($event)"
-            ariaLabel="催繳方式"
-          />
-          <input
-            type="text"
-            pInputText
-            maxlength="200"
-            placeholder="備註（選填）"
-            aria-label="催繳備註"
-            [ngModel]="reminderNote()"
-            (ngModelChange)="reminderNote.set($event)"
-          />
-          <p-button
-            label="記一次"
-            icon="pi pi-megaphone"
-            size="small"
-            [loading]="savingReminder()"
-            (onClick)="addReminder()"
-          />
-        </div>
-      }
-
-      @if (remindersLoading()) {
-        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">載入中…</p>
-      } @else if (reminders().length === 0) {
-        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-500">還沒有催繳過。</p>
+    <!-- ── 聯絡家長（#1625）：取代原本的「記一次催繳」──────────────────── -->
+    <section class="flex flex-col gap-3" aria-labelledby="invoice-contact-title">
+      <div class="flex items-center justify-between gap-3">
+        <h3 id="invoice-contact-title" class="m-0 text-sm font-semibold text-zinc-700">聯絡家長</h3>
+        @if (parents().length > 0) {
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-zinc-400 wide:h-8"
+            (click)="copyMessage()"
+          >
+            <i class="pi pi-copy text-xs" aria-hidden="true"></i>複製簡訊內文
+          </button>
+        }
+      </div>
+      @if (contactsLoading()) {
+        <p class="m-0 text-sm text-zinc-600">讀取家長聯絡方式…</p>
+      } @else if (contactsFailed()) {
+        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-600">
+          家長聯絡方式讀不到，請重新打開這張帳單。
+        </p>
+      } @else if (parents().length === 0) {
+        <p class="m-0 rounded-md bg-zinc-50 p-3 text-sm text-zinc-600">這位學生還沒有登記家長。</p>
       } @else {
         <ul class="m-0 flex list-none flex-col gap-2 p-0">
-          @for (reminder of reminders(); track reminder.id) {
-            <li class="flex items-baseline gap-3 text-sm">
-              <span class="shrink-0 font-medium text-zinc-700">
-                {{ REMINDER_METHOD_LABELS[reminder.method] }}
-              </span>
-              <span class="flex-auto text-zinc-600">{{ reminder.note ?? '—' }}</span>
-              <span class="shrink-0 text-xs text-zinc-500 tabular-nums">{{
-                reminder.createdAt | slice: 0 : 10
-              }}</span>
+          @for (p of parents(); track p.id) {
+            <li
+              class="flex flex-col gap-2 rounded-md border border-zinc-200 p-3"
+              data-testid="parent-contact"
+            >
+              <div class="flex items-baseline gap-2">
+                <span class="text-base font-semibold text-zinc-900">{{ p.name }}</span>
+                @if (p.relation) {
+                  <span class="text-sm text-zinc-600">{{ p.relation }}</span>
+                }
+                @if (p.isPrimary) {
+                  <span
+                    class="rounded-sm bg-zinc-100 px-1.5 py-px text-xs font-semibold text-zinc-800"
+                    >主要聯絡人</span
+                  >
+                }
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                @if (p.phone; as phone) {
+                  <a
+                    class="inline-flex h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
+                    [href]="telHref(phone)"
+                    [attr.aria-label]="'撥給' + p.name + ' ' + phone"
+                    ><i class="pi pi-phone text-xs" aria-hidden="true"></i>{{ phone }}</a
+                  >
+                  <a
+                    class="inline-flex h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
+                    [href]="smsHrefOf(phone)"
+                    [attr.aria-label]="'傳簡訊給' + p.name"
+                    ><i class="pi pi-comment text-xs" aria-hidden="true"></i>簡訊</a
+                  >
+                  <button
+                    type="button"
+                    class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 wide:h-8"
+                    [attr.aria-label]="'複製' + p.name + '的電話'"
+                    (click)="copy(phone, '電話')"
+                  >
+                    <i class="pi pi-clone text-xs" aria-hidden="true"></i>複製
+                  </button>
+                } @else {
+                  <span class="text-sm text-zinc-600">沒有留電話</span>
+                }
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                @if (p.email; as email) {
+                  <a
+                    class="inline-flex h-11 min-w-0 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:h-8"
+                    [href]="mailtoHrefOf(email)"
+                    [attr.aria-label]="'寄 email 給' + p.name"
+                    ><i class="pi pi-envelope text-xs" aria-hidden="true"></i
+                    ><span class="truncate">{{ email }}</span></a
+                  >
+                } @else {
+                  <span class="text-sm text-zinc-600">沒有留 email</span>
+                }
+              </div>
             </li>
           }
         </ul>

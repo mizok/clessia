@@ -3,9 +3,7 @@ import { DecimalPipe, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
-import { SelectModule } from 'primeng/select';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -17,12 +15,12 @@ import {
   INVOICE_STATUS_LABELS,
   InvoicesService,
   PAYMENT_METHOD_LABELS,
-  REMINDER_METHOD_LABELS,
   type Invoice,
+  type InvoiceParentContact,
+  type InvoicePaymentInfo,
   type PaymentKind,
-  type PaymentReminder,
-  type ReminderMethod,
 } from '@core/invoices.service';
+import { contactMessage, contactSubject, mailtoHref, smsHref, telHref } from '../contact-links';
 
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
@@ -38,14 +36,17 @@ import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-de
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
 /**
- * 帳單詳情：明細、收款記錄、催繳記錄，以及兩種列印。
+ * 帳單詳情：明細、收款記錄、聯絡家長（#1625），以及兩種列印。
  *
  * **為什麼是 dialog 不是獨立路由**：`routes-catalog` 沒有帳單詳情這條，而帳單永遠是
  * 從列表點進去的 —— 它不是會被 bookmark 或從選單進入的「家」。加一條路由就要同時動
  * catalog、`app.routes.ts`、`app.routes.spec.ts` 三個地方，換來一個沒有人會直接輸入的網址。
  *
- * **催繳的新增是頁內 inline 表單不是第三層 dialog**：只有兩個欄位（方式、備註），
- * 為它開一個疊在 dialog 上的 dialog 不划算，而且 modal 疊 modal 的焦點管理是額外的坑。
+ * **作廢是頁內 inline 面板不是第三層 dialog**：為它開一個疊在 dialog 上的 dialog 不划算，
+ * 而且 modal 疊 modal 的焦點管理是額外的坑。
+ *
+ * **催繳紀錄拿掉了（#1625）**：只記「有沒有用某種軟體催過」沒有意義，改成這裡直接聯絡家長 ——
+ * 撥號、簡訊、email 都預先帶好內文。家長個資只在單張 GET 回（授權跟著帳單走），列表不帶。
  *
  * 明細目前**唯讀** —— `POST/DELETE /{id}/items` 端點存在，但這一輪的工單沒有涵蓋
  * 「事後改明細」，沒有需求就不做按鈕。
@@ -63,10 +64,8 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
     SlicePipe,
     FormsModule,
     ButtonModule,
-    InputTextModule,
     TextareaModule,
     InlineNoticeComponent,
-    SelectModule,
     TooltipModule,
   ],
   templateUrl: './invoice-detail-dialog.component.html',
@@ -82,7 +81,6 @@ export class InvoiceDetailDialogComponent {
   protected readonly INVOICE_ITEM_TYPE_LABELS = INVOICE_ITEM_TYPE_LABELS;
   protected readonly INVOICE_STATUS_LABELS = INVOICE_STATUS_LABELS;
   protected readonly PAYMENT_METHOD_LABELS = PAYMENT_METHOD_LABELS;
-  protected readonly REMINDER_METHOD_LABELS = REMINDER_METHOD_LABELS;
 
   protected readonly invoice = signal<Invoice>(this.config.data.invoice);
   /** 有任何寫入就要讓列表重新取數，關閉時把最新的帳單帶回去 */
@@ -112,7 +110,7 @@ export class InvoiceDetailDialogComponent {
   });
 
   // ── 作廢（#898）─────────────────────────────────────────────────────
-  // 跟催繳一樣是頁內面板不是第三層 dialog（理由見檔頭）。
+  // 頁內面板不是第三層 dialog（理由見檔頭）。
   protected readonly isVoided = computed(() => this.invoice().status === 'void');
   protected readonly voidedSummary = computed(() => {
     const { voidedAt, voidReason } = this.invoice();
@@ -129,16 +127,29 @@ export class InvoiceDetailDialogComponent {
   protected readonly voiding = signal(false);
   protected readonly voidError = signal<string | null>(null);
 
-  // ── 催繳 ──────────────────────────────────────────────────────────────
-  protected readonly reminders = signal<PaymentReminder[]>([]);
-  protected readonly remindersLoading = signal(true);
-  protected readonly reminderMethod = signal<ReminderMethod>('line');
-  protected readonly reminderNote = signal('');
-  protected readonly savingReminder = signal(false);
+  // ── 聯絡家長（#1625）──────────────────────────────────────────────
+  // 列表帶進來的帳單沒有家長個資，開啟時打一次單張 GET
+  protected readonly parents = signal<InvoiceParentContact[]>([]);
+  private readonly paymentInfo = signal<InvoicePaymentInfo[]>([]);
+  protected readonly contactsLoading = signal(true);
+  protected readonly contactsFailed = signal(false);
 
-  protected readonly reminderMethodOptions = (
-    Object.keys(REMINDER_METHOD_LABELS) as ReminderMethod[]
-  ).map((value) => ({ value, label: REMINDER_METHOD_LABELS[value] }));
+  private readonly message = computed(() =>
+    contactMessage({
+      studentName: this.invoice().studentName ?? '貴子弟',
+      outstanding: this.outstandingAmount(),
+      dueDate: this.invoice().dueDate,
+      paymentInfo: this.paymentInfo(),
+    }),
+  );
+  protected readonly telHref = telHref;
+  protected readonly smsHrefOf = (phone: string) => smsHref(phone, this.message());
+  protected readonly mailtoHrefOf = (email: string) =>
+    mailtoHref(
+      email,
+      contactSubject(this.invoice().studentName ?? '貴子弟', this.outstandingAmount()),
+      this.message(),
+    );
 
   // ── 列印 ──────────────────────────────────────────────────────────────
   private readonly invoicePrintArea =
@@ -147,26 +158,38 @@ export class InvoiceDetailDialogComponent {
     viewChild.required<ElementRef<HTMLElement>>('receiptPrintArea');
 
   constructor() {
-    this.loadReminders();
+    this.loadContacts();
   }
 
   private get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
 
-  private loadReminders(): void {
-    this.remindersLoading.set(true);
-    this.service.listReminders(this.invoice().id).subscribe({
+  private loadContacts(): void {
+    this.service.get(this.invoice().id).subscribe({
       next: (res) => {
-        this.reminders.set(res.data);
-        this.remindersLoading.set(false);
+        this.parents.set(res.data.parents);
+        this.paymentInfo.set(res.data.paymentInfo);
+        this.contactsLoading.set(false);
       },
-      // 催繳讀不到不該讓整張帳單看不了 —— 這一塊自己失敗就好
+      // 聯絡方式讀不到不該讓整張帳單看不了 —— 這一塊自己失敗就好
       error: () => {
-        this.reminders.set([]);
-        this.remindersLoading.set(false);
+        this.contactsFailed.set(true);
+        this.contactsLoading.set(false);
       },
     });
+  }
+
+  /** 桌機撥不出去（#1625）：一鍵複製號碼或整段內文 */
+  protected copy(text: string, what: string): void {
+    navigator.clipboard?.writeText(text).then(
+      () => this.messageService.add({ severity: 'success', summary: `已複製${what}` }),
+      () => this.messageService.add({ severity: 'error', summary: '複製失敗', detail: text }),
+    );
+  }
+
+  protected copyMessage(): void {
+    this.copy(this.message(), '簡訊內文');
   }
 
   protected openPaymentDialog(kind: PaymentKind): void {
@@ -185,35 +208,6 @@ export class InvoiceDetailDialogComponent {
       this.invoice.set(updated);
       this.dirty.set(true);
     });
-  }
-
-  protected addReminder(): void {
-    this.savingReminder.set(true);
-    this.service
-      .createReminder(this.invoice().id, {
-        method: this.reminderMethod(),
-        note: this.reminderNote().trim() || undefined,
-      })
-      .subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '已記錄催繳',
-            detail: '這次追繳留下了紀錄',
-          });
-          this.reminderNote.set('');
-          this.savingReminder.set(false);
-          this.loadReminders();
-        },
-        error: (err) => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '記錄失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.savingReminder.set(false);
-        },
-      });
   }
 
   protected openVoidForm(): void {

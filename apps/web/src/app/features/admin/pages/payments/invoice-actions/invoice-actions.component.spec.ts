@@ -55,9 +55,9 @@ describe('InvoiceActionsComponent', () => {
   const labels = () =>
     Array.from(host.querySelectorAll('button')).map((b) => b.textContent?.trim());
 
-  it('未繳清：提醒＋收款，沒有收據', async () => {
+  it('未繳清：只有收款，沒有收據（「提醒」在 #1625 拿掉）', async () => {
     await setup(invoice());
-    expect(labels()).toEqual(['提醒', '收款']);
+    expect(labels()).toEqual(['收款']);
   });
 
   it('繳清：只有收據', async () => {
@@ -65,9 +65,9 @@ describe('InvoiceActionsComponent', () => {
     expect(labels()).toEqual(['收據']);
   });
 
-  it('部分繳：提醒、收款、收據都在', async () => {
+  it('部分繳：收款、收據都在', async () => {
     await setup(invoice({ status: 'partial', netPaid: 1000, payments: [payment] }));
-    expect(labels()).toEqual(['提醒', '收款', '收據']);
+    expect(labels()).toEqual(['收款', '收據']);
   });
 
   it('作廢：一顆都沒有', async () => {
@@ -75,29 +75,23 @@ describe('InvoiceActionsComponent', () => {
     expect(labels()).toEqual([]);
   });
 
-  it('每顆鈕的 aria-label 帶學生名（列表上有很多顆「提醒」，要分得出是誰的）', async () => {
+  it('每顆鈕的 aria-label 帶學生名（列表上有很多顆「收款」，要分得出是誰的）', async () => {
     await setup(invoice());
     const names = Array.from(host.querySelectorAll('button')).map((b) =>
       b.getAttribute('aria-label'),
     );
-    expect(names).toEqual(['記錄 王小明 的催繳', '記錄 王小明 的收款']);
+    expect(names).toEqual(['記錄 王小明 的收款']);
   });
 
-  it('點「提醒」發 remind 且帶 MouseEvent（頁面要把選單錨在這顆鈕）；收款、收據各發自己的事件', async () => {
+  it('收款、收據各發自己的事件', async () => {
     await setup(invoice({ status: 'partial', netPaid: 1000, payments: [payment] }));
     const events: string[] = [];
-    let target: unknown = null;
-    fixture.componentInstance.remind.subscribe((e) => {
-      events.push('remind');
-      target = e;
-    });
     fixture.componentInstance.collect.subscribe(() => events.push('collect'));
     fixture.componentInstance.receipt.subscribe(() => events.push('receipt'));
 
     for (const b of Array.from(host.querySelectorAll('button'))) b.click();
 
-    expect(events).toEqual(['remind', 'collect', 'receipt']);
-    expect(target).toBeInstanceOf(MouseEvent);
+    expect(events).toEqual(['collect', 'receipt']);
   });
 
   it('鈕高 ≥44px（A27 的 class 版）', async () => {
@@ -125,21 +119,22 @@ describe('InvoiceActionsComponent', () => {
         }
       ).overflowItems();
 
-    it('未繳清：主要鈕是「提醒」，收款收進 ⋯', async () => {
+    it('未繳清：主要鈕是「收款」，沒有其他動作所以沒有 ⋯', async () => {
       await setupCompact(invoice());
-      expect(labels()).toEqual(['提醒', '']);
-      expect(host.querySelector('button[aria-label^="更多"]')).not.toBeNull();
-      expect(overflow().map((i) => i.label)).toEqual(['收款']);
+      expect(labels()).toEqual(['收款']);
+      expect(host.querySelector('button[aria-label^="更多"]')).toBeNull();
+      expect(overflow()).toEqual([]);
     });
 
-    it('部分繳：提醒為主，收款與收據都在 ⋯；選單項目發自己的事件', async () => {
+    it('部分繳：收款為主，收據在 ⋯；選單項目發自己的事件', async () => {
       await setupCompact(invoice({ status: 'partial', netPaid: 1000, payments: [payment] }));
-      expect(overflow().map((i) => i.label)).toEqual(['收款', '收據']);
+      expect(labels()).toEqual(['收款', '']);
+      expect(overflow().map((i) => i.label)).toEqual(['收據']);
       const events: string[] = [];
       fixture.componentInstance.collect.subscribe(() => events.push('collect'));
       fixture.componentInstance.receipt.subscribe(() => events.push('receipt'));
       overflow().forEach((i) => i.command());
-      expect(events).toEqual(['collect', 'receipt']);
+      expect(events).toEqual(['receipt']);
     });
 
     it('繳清：只有「收據」一顆，沒有 ⋯', async () => {

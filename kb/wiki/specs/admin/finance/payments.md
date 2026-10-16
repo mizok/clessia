@@ -3,7 +3,7 @@ title: 繳費紀錄
 summary: 帳單與收款一對多，狀態由累計實收推導（未繳/部分繳/繳清）＋逾期是衍生標記；收現金或轉帳（附憑證圖）、開收據、印收費袋、催繳只做可見性。折扣引擎、強制啟用、六種狀態、分期計畫已於 2026-08-29 訪談否定。
 category: spec
 status: active
-updated: 2026-08-29
+updated: 2026-10-16
 tags: [specs, admin, finance, payments, invoices]
 ---
 
@@ -103,8 +103,8 @@ tags: [specs, admin, finance, payments, invoices]
 ### 催繳：可見性，不強制
 
 - 受訪公司用 LINE／電話追繳，**從未停課**。
-- 催繳記錄獨立表 `payment_reminders`（method: line/phone/other、note、created_by）——
-  這是業務資料，不塞 `audit_logs`。
+- ~~催繳記錄獨立表 `payment_reminders`~~ —— #1625 改成帳單詳情直接聯絡家長（見 billing-rules），
+  記錄催繳的 UI 與 API 已拿掉，表與既有資料保留。
 - 列表要能篩「逾期未繳」給行政當追繳清單。
 
 ### 多子女合繳
@@ -134,10 +134,10 @@ UX 之後可以加「一筆金額分配到多張帳單」的輔助，schema 不�
 
 ## 資料依賴
 
-| 操作 | 資料表                                                                        |
-| ---- | ----------------------------------------------------------------------------- |
-| 讀取 | `invoices`、`payment_records`、`payment_reminders`、`students`、`enrollments` |
-| 寫入 | `invoices`、`payment_records`、`payment_reminders`                            |
+| 操作 | 資料表                                                                                                         |
+| ---- | -------------------------------------------------------------------------------------------------------------- |
+| 讀取 | `invoices`、`payment_records`、`students`、`enrollments`、`parent_student_relations`、`ba_user`（唯讀，#1625） |
+| 寫入 | `invoices`、`payment_records`                                                                                  |
 
 > ✅ **三張表與端點都已存在**（A2 已合）：`apps/api/src/routes/invoices.ts`，掛載於
 > `/api/invoices`（`ADMIN_ONLY` + `manage_finance`）。狀態由後端推導後回傳
