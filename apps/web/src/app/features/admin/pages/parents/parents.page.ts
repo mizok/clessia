@@ -1,3 +1,6 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
   Component,
   OnInit,
@@ -60,6 +63,7 @@ import {
   selector: 'app-parents',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     PopoverModule,
     ChapterHeadComponent,
     PaginatorModule,
@@ -92,6 +96,11 @@ export class ParentsPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly destroyRef = inject(DestroyRef);
+  /** 重抓的資料平滑換上；增刪改造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  private readonly optimisticRemove = injectOptimisticRemove();
+  /** 這一輪重抓是增刪改造成的 —— 回應套上時列表帶名字（篩選、換頁不帶） */
+  private reloadRows = false;
   readonly page = input.required<RouteObj>();
 
   protected get overlayContainer(): HTMLElement | null {
@@ -232,9 +241,17 @@ export class ParentsPage implements OnInit {
     this.loadParents();
   }
 
-  /** 觸發取數。實際的請求在 `setupLoadPipeline()` 那條 `switchMap` 管線裡（#661） */
-  protected loadParents(): void {
-    this.loading.set(true);
+  /**
+   * 觸發取數。實際的請求在 `setupLoadPipeline()` 那條 `switchMap` 管線裡（#661）。
+   * `quiet`：封存成功後的背景重抓 —— 畫面已經是「封存了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：新增／編輯／匯入／停用造成的重抓，回應套上時那一列淡入、淡出或換章（篩選、換頁不帶）。
+   */
+  protected loadParents({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.reloadRows = rows;
+    if (!quiet) this.loading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
   }
@@ -270,10 +287,16 @@ export class ParentsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
-        this.parents.set(res.data);
-        this.total.set(res.meta.total);
-        this.summary.set(res.summary);
-        this.loading.set(false);
+        this.viewTransition(
+          () => {
+            this.parents.set(res.data);
+            this.total.set(res.meta.total);
+            this.summary.set(res.summary);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
       });
   }
 
@@ -356,7 +379,7 @@ export class ParentsPage implements OnInit {
       .subscribe((result?: { type: string; data: Parent; loginUrl: string }) => {
         if (!result) return;
         if (result.type === 'created') {
-          this.loadParents();
+          this.loadParents({ rows: true });
           this.openLoginLinkDialog(result.data, result.loginUrl);
         }
       });
@@ -370,7 +393,7 @@ export class ParentsPage implements OnInit {
       width: '720px',
       modal: true,
       appendTo: this.overlayContainer || 'body',
-      data: { onImported: () => this.loadParents() },
+      data: { onImported: () => this.loadParents({ rows: true }) },
     });
   }
 
@@ -397,7 +420,7 @@ export class ParentsPage implements OnInit {
               summary: '已儲存',
               detail: `「${res.data.name}」的資料已更新`,
             });
-            this.loadParents();
+            this.loadParents({ rows: true });
           });
       },
       error: () => {
@@ -427,7 +450,7 @@ export class ParentsPage implements OnInit {
           summary: '學生已建立',
           detail: `「${result.name}」已建立並關聯至「${parent.name}」`,
         });
-        this.loadParents();
+        this.loadParents({ rows: true });
       }
     });
   }
@@ -535,21 +558,28 @@ export class ParentsPage implements OnInit {
           ? this.parentsService.deactivate(parent.id)
           : this.parentsService.archive(parent.id);
 
-    req.subscribe({
+    const handlers = {
       next: () => {
         this.messageService.add({
           severity: 'success',
           summary: successMsg,
           detail: `「${parent.name}」${successMsg}`,
         });
-        this.loadParents();
+        this.loadParents({ quiet: action === 'archive', rows: true });
       },
-      error: (err) => {
+      error: (err: any) => {
         const detail =
           err.error?.code === 'ALREADY_ARCHIVED' ? '帳號已封存，無法再次操作' : '請稍後再試';
         this.messageService.add({ severity: 'error', summary: '操作失敗', detail });
       },
-    });
+    };
+    // 封存是樂觀的（#1641 5b 第 1 點）：能按封存時，篩選一定不含已封存（已封存的人選單停用），
+    // 所以封存＝離開清單。停用／啟用只是換章，等伺服器回來由重抓移過去。
+    if (action === 'archive') {
+      this.optimisticRemove(this.parents, (p) => p.id === parent.id, req, handlers);
+    } else {
+      req.subscribe(handlers);
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

@@ -212,6 +212,54 @@ describe('ParentsPage', () => {
     const injected = <T>(token: new (...args: never[]) => T) =>
       fixture.debugElement.injector.get(token);
 
+    // #1641 5b（使用者 10-16 裁定第 1 點）：封存是樂觀的 —— 按下就淡出；失敗要放回去並說明
+    type Page = {
+      parents: { set: (v: unknown[]) => void; (): { id: string }[] };
+      changeStatus: (p: unknown, a: string, m: string) => void;
+    };
+    const page = () => component as unknown as Page;
+    const ids = () =>
+      page()
+        .parents()
+        .map((p) => p.id);
+
+    it('封存失敗：那一列放回原位，並跳錯誤 toast（#1641 5b）', () => {
+      const add = vi.spyOn(injected(MessageService), 'add');
+      page().parents.set([
+        { id: 'a', name: '甲' },
+        { id: 'b', name: '乙' },
+      ]);
+      Object.assign(parentsServiceMock, {
+        archive: vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500 }))),
+      });
+      page().changeStatus({ id: 'b', name: '乙' }, 'archive', '已封存');
+      expect(ids()).toEqual(['a', 'b']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('封存成功：維持拿掉，背景重抓不變淡（#1641 5b）', () => {
+      page().parents.set([
+        { id: 'a', name: '甲' },
+        { id: 'b', name: '乙' },
+      ]);
+      // 這支 spec 的列表請求由測試手動完成；先當作第一次已經載完
+      (component as unknown as { loading: { set: (v: boolean) => void } }).loading.set(false);
+      Object.assign(parentsServiceMock, { archive: vi.fn(() => of({})) });
+      page().changeStatus({ id: 'b', name: '乙' }, 'archive', '已封存');
+      expect(ids()).toEqual(['a']);
+      expect((component as unknown as { loading: () => boolean }).loading()).toBe(false);
+    });
+
+    it('停用：等伺服器回來才動，不先拿掉（#1641 5b）', () => {
+      page().parents.set([
+        { id: 'a', name: '甲' },
+        { id: 'b', name: '乙' },
+      ]);
+      Object.assign(parentsServiceMock, { deactivate: vi.fn(() => new Subject()) });
+      page().changeStatus({ id: 'b', name: '乙' }, 'deactivate', '已停用');
+      expect(ids()).toEqual(['a', 'b']);
+    });
+
     it('編輯家長成功 → 成功 toast，並重抓列表', () => {
       vi.spyOn(injected(DialogService), 'open').mockReturnValue({
         onClose: of({ type: 'updated' }),
