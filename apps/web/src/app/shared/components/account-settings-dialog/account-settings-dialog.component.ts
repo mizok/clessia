@@ -5,9 +5,9 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
-import { AuthService } from '@core/auth.service';
+import { AuthService, type UserRole } from '@core/auth.service';
 import { environment } from '@env/environment';
 import { firstValueFrom } from 'rxjs';
 
@@ -25,6 +25,7 @@ export class AccountSettingsDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
   private readonly auth = inject(AuthService);
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly messages = inject(MessageService);
 
   protected readonly savingField = signal<FieldKey | null>(null);
   protected readonly savedField = signal<FieldKey | null>(null);
@@ -138,11 +139,21 @@ export class AccountSettingsDialogComponent {
     this.activating.set(true);
     this.activateError.set(null);
     this.http
-      .post(`${environment.apiUrl}/api/me/activate-parent`, {}, { withCredentials: true })
+      .post<{
+        roles: UserRole[];
+      }>(`${environment.apiUrl}/api/me/activate-parent`, {}, { withCredentials: true })
       .subscribe({
-        next: () => {
-          void this.auth.refreshRoles();
+        // 用回傳的角色，不重抓 /api/me（#1631）：重抓可能讀到 API 快取裡的舊角色，
+        // 那時這一區不會消失、帳戶選單也沒有「切換身分」，使用者以為沒有作用。
+        // 有了 parent 角色，`hasParentRole()` 讓整區消失，不能再按第二次
+        next: ({ roles }) => {
+          this.auth.adoptRoles(roles);
           this.activating.set(false);
+          this.messages.add({
+            severity: 'success',
+            summary: '已啟用家長身份',
+            detail: '可從帳戶選單切換到家長身份',
+          });
         },
         error: () => {
           this.activateError.set('啟用失敗，請稍後再試');
