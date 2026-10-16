@@ -816,6 +816,48 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(without.querySelector('[data-testid=kind]')!.textContent).toContain('系統通知');
     });
 
+    it('連結按著 Cmd／Ctrl／Shift 或中鍵點：交給瀏覽器開新分頁，不攔', async () => {
+      received = [notification({ link: '/admin/applications' })];
+      await setup();
+      const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      const go = qa('notification')[0].querySelector<HTMLAnchorElement>('[data-testid=go]')!;
+      for (const init of [
+        { metaKey: true },
+        { ctrlKey: true },
+        { shiftKey: true },
+        { button: 1 },
+      ]) {
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...init });
+        go.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+      }
+      expect(nav).not.toHaveBeenCalled();
+    });
+
+    // 清單最多 100 則：未讀數是伺服器的，畫面上的列不一定是全部
+    it('全部標為已讀：清單外的未讀也一起清掉（角標用伺服器的數，不是畫面上的列數）', async () => {
+      received = [notification(), notification({ id: 'n2' })];
+      receivedUnread = 130;
+      markAllReadMock.mockReturnValue(of({ marked: 130 }));
+      await setup();
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(130);
+      q('mark-all')!.click();
+      fixture.detectChanges();
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(0);
+      expect(q('tab-unread')).toBeNull();
+    });
+
+    it('全部標為已讀失敗：清單外的未讀也翻回', async () => {
+      received = [notification(), notification({ id: 'n2' })];
+      receivedUnread = 130;
+      markAllReadMock.mockReturnValue(throwError(() => new Error('x')));
+      await setup();
+      q('mark-all')!.click();
+      fixture.detectChanges();
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(130);
+      expect(q('tab-unread')!.textContent!.trim()).toBe('未讀 130');
+    });
+
     it('全部標為已讀：全部變已讀、角標 0、toast 寫標了幾則；沒有未讀時 aria-disabled 且不打', async () => {
       received = [notification(), notification({ id: 'n2' })];
       await setup();
