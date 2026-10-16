@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -213,6 +213,46 @@ describe('ClassDetailPage', () => {
       );
 
       expect(navigate).toHaveBeenCalledWith(['/admin/students', 'student-9']);
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 1 點）：移除是樂觀的 —— 按下就淡出；失敗要放回去並說明
+  describe('樂觀移除（#1641 5b）', () => {
+    type Page = {
+      enrollments: { set: (v: unknown[]) => void; (): { id: string }[] };
+      confirmRemove: (e: unknown) => void;
+    };
+    const page = () => component as unknown as Page;
+    const ids = () =>
+      page()
+        .enrollments()
+        .map((e) => e.id);
+    const accept = () =>
+      vi
+        .spyOn(fixture.debugElement.injector.get(DialogService), 'open')
+        .mockReturnValue({ onClose: of(true) } as never);
+
+    it('失敗：那一列放回原位，並跳錯誤 toast', () => {
+      accept();
+      page().enrollments.set([{ id: 'e1' }, { id: 'e2' }]);
+      enrollmentsServiceMock.delete.mockReturnValueOnce(
+        throwError(() => ({ error: { error: 'has_session_pack' } })),
+      );
+      page().confirmRemove({ id: 'e2', studentName: '乙' });
+      expect(ids()).toEqual(['e1', 'e2']);
+      expect(TestBed.inject(MessageService).add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error' }),
+      );
+    });
+
+    it('成功：維持拿掉，背景重抓不變淡', () => {
+      accept();
+      page().enrollments.set([{ id: 'e1' }, { id: 'e2' }]);
+      enrollmentsServiceMock.delete.mockReturnValueOnce(of(undefined));
+      enrollmentsServiceMock.list.mockReturnValueOnce(NEVER as never);
+      page().confirmRemove({ id: 'e2', studentName: '乙' });
+      expect(ids()).toEqual(['e1']);
+      expect(component['enrollmentsLoading']()).toBe(false);
     });
   });
 });

@@ -1,5 +1,6 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -67,6 +68,7 @@ describe('FeeTemplatesComponent', () => {
     await TestBed.configureTestingModule({
       imports: [FeeTemplatesComponent],
       providers: [
+        MessageService,
         { provide: FeeTemplatesService, useValue: feeTemplates },
         { provide: BillingPeriodsService, useValue: billingPeriods },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
@@ -83,6 +85,7 @@ describe('FeeTemplatesComponent', () => {
     templates: { set: (v: FeeTemplateListItem[]) => void; (): FeeTemplateListItem[] };
     periods: { set: (v: BillingPeriodListItem[]) => void; (): BillingPeriodListItem[] };
     loading: { set: (v: boolean) => void };
+    templatesLoading: () => boolean;
     deleteTemplate: (t: FeeTemplate) => void;
   };
   const internals = () => component as unknown as Internals;
@@ -98,7 +101,8 @@ describe('FeeTemplatesComponent', () => {
 
   /**
    * FK 是 RESTRICT：被報名引用過的價目表刪不掉，後端回 409 `IN_USE`。
-   * 樂觀更新在這裡是錯的 —— 那一列必須留著，因為它其實還在資料庫裡。
+   * 這一頁是悲觀刪除（計畫席 10-16 裁定，全站樂觀刪除的例外）—— `IN_USE` 太常見，
+   * 樂觀版會常常「先淡出又回來」。所以失敗時那一列**從頭到尾都在**，它其實還在資料庫裡。
    */
   it('刪除被引用的價目表失敗時，那一列不會從畫面上消失', () => {
     const existing = template();
@@ -114,14 +118,22 @@ describe('FeeTemplatesComponent', () => {
     expect(internals().templates()).toEqual([existing]);
   });
 
-  it('刪除成功會重新取數，不是自己從陣列裡挑掉', () => {
+  it('刪除：伺服器確認之前那一列還在；成功才拿掉，並在背景重新取數（不回到骨架、不變淡）', () => {
     const existing = template();
     internals().templates.set([existing]);
+    const pending = new Subject<{ success: boolean }>();
+    feeTemplates.delete.mockReturnValue(pending);
+    feeTemplates.list.mockReturnValue(NEVER);
     feeTemplates.list.mockClear();
 
     internals().deleteTemplate(existing);
+    expect(internals().templates()).toEqual([existing]);
 
+    pending.next({ success: true });
+    pending.complete();
+    expect(internals().templates()).toEqual([]);
     expect(feeTemplates.list).toHaveBeenCalled();
+    expect(internals().templatesLoading()).toBe(false);
   });
 
   it('收費期間依起始日新到舊排序 —— 後端已排好，前端不重排', () => {
@@ -174,6 +186,13 @@ describe('FeeTemplatesComponent', () => {
       expect(
         [...root().querySelectorAll('[data-chapter]')].map((c) => c.getAttribute('data-chapter')),
       ).toEqual(['period']);
+    });
+
+    // #1698：A6 fee-templates.html 在 ≤860 覆寫 `.chap`＝橫排、章名 28px（listRow）
+    it('章頭用 listRow：手機章名 28px', () => {
+      load(mixed());
+      const name = root().querySelector('[data-chapter] .chapter-head__name');
+      expect(name?.classList).toContain('text-[28px]');
     });
 
     it('顯示停用方案：停用的排在章內最後、不重新打 API；鈕上寫停用數', () => {

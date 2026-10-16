@@ -4,7 +4,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { environment } from '@env/environment';
 
-import { AuthService } from './auth.service';
+import { AuthService, EARLY_ME_TIMEOUT_MS } from './auth.service';
+import { CampusContextService } from './campus-context.service';
 
 const ME = {
   userId: 'u1',
@@ -97,6 +98,34 @@ describe('AuthService 開站', () => {
 });
 
 // ── refreshRoles ─────────────────────────────────────────────────────────────
+
+// #1607：頂欄日常頁的預設分校看「自己被指派的」；舊版 API 沒這欄時退回清單第一間
+describe('AuthService — 被指派的分校交給頂欄', () => {
+  const campuses = [
+    { id: 'a', name: '總校' },
+    { id: 'b', name: '二校' },
+  ];
+
+  async function dailyDefault(me: object) {
+    localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
+    const { service, http } = setup();
+    http.expectOne(ME_URL).flush(me);
+    await service.ready;
+    const ctx = TestBed.inject(CampusContextService);
+    ctx['refData'].campuses.set(campuses as never);
+    ctx['dailyUsers'].set(1);
+    return ctx.id();
+  }
+
+  it('/api/me 帶 assignedCampusIds：日常頁預設是指派的那間', async () => {
+    expect(await dailyDefault({ ...ME, assignedCampusIds: ['b'] })).toBe('b');
+  });
+
+  it('/api/me 沒帶這欄：退回清單第一間', async () => {
+    expect(await dailyDefault(ME)).toBe('a');
+  });
+});
 
 describe('AuthService — 讀不到 profile vs 沒有角色', () => {
   it('讀到資料時回 true，並把角色寫進 signal', async () => {
@@ -203,5 +232,82 @@ describe('AuthService — 500 vs 401', () => {
     expect(await result).toBe(true);
     expect(service.connectionError()).toBe(false);
     http.verify();
+  });
+});
+
+// ── index.html 先發的 /api/me（#1595 P3a）──────────────────────────────────────
+// 開站的 /api/me 提早到 HTML 解析時就發。用得上就不再打第二趟；用不上（失敗、逾時、
+// 5xx、不是 JSON）一律退回原本的 HttpClient 請求，開站不能因為它卡住。
+
+function setupWithEarly(early: Promise<Response>) {
+  (window as { __clessiaEarlyMe?: Promise<Response> }).__clessiaEarlyMe = early;
+  return setup();
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+describe('AuthService — 開站先發的 /api/me', () => {
+  afterEach(() => {
+    delete (window as { __clessiaEarlyMe?: unknown }).__clessiaEarlyMe;
+    vi.useRealTimers();
+  });
+
+  it('200：直接用它，不再打第二趟', async () => {
+    const { service, http } = setupWithEarly(Promise.resolve(json(ME)));
+    await service.ready;
+
+    expect(service.isAuthenticated()).toBe(true);
+    expect(service.permissions()).toEqual(['*']);
+    http.expectNone(ME_URL);
+  });
+
+  it('401：就是未登入（伺服器的確定答案），不再多問一趟、不算連線異常', async () => {
+    const { service, http } = setupWithEarly(Promise.resolve(json({}, 401)));
+    await service.ready;
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(service.connectionError()).toBe(false);
+    http.expectNone(ME_URL);
+  });
+
+  it('連線失敗：退回原流程', async () => {
+    const { service, http } = setupWithEarly(Promise.reject(new TypeError('Failed to fetch')));
+    await vi.waitFor(() => http.expectOne(ME_URL).flush(ME));
+    await service.ready;
+
+    expect(service.isAuthenticated()).toBe(true);
+  });
+
+  it('5xx 或不是 JSON（本機 dev server 回 index.html）：退回原流程', async () => {
+    for (const res of [json({}, 502), new Response('<!doctype html>', { status: 200 })]) {
+      TestBed.resetTestingModule();
+      const { service, http } = setupWithEarly(Promise.resolve(res));
+      await vi.waitFor(() => http.expectOne(ME_URL).flush(ME));
+      await service.ready;
+      expect(service.isAuthenticated()).toBe(true);
+    }
+  });
+
+  it('逾時：放棄它、退回原流程，開站不會卡住', async () => {
+    vi.useFakeTimers();
+    const { service, http } = setupWithEarly(new Promise<Response>(() => undefined));
+    await vi.advanceTimersByTimeAsync(EARLY_ME_TIMEOUT_MS);
+    http.expectOne(ME_URL).flush(ME);
+    await service.ready;
+
+    expect(service.isAuthenticated()).toBe(true);
+  });
+
+  it('只用一次：之後的 refreshRoles() 要打新的請求', async () => {
+    const { service, http } = setupWithEarly(Promise.resolve(json(ME)));
+    await service.ready;
+
+    // 拿走就清掉：留著的話，下一個讀它的人（重建的 AuthService、別的程式）拿到的是開站那份舊回應
+    expect((window as { __clessiaEarlyMe?: unknown }).__clessiaEarlyMe).toBeUndefined();
+
+    const result = service.refreshRoles();
+    http.expectOne(ME_URL).flush(ME);
+    expect(await result).toBe(true);
   });
 });

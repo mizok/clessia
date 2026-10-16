@@ -13,6 +13,7 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { DatePipe } from '@angular/common';
 import { Location } from '@angular/common';
@@ -32,7 +33,6 @@ import { CampusContextService } from '@core/campus-context.service';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import type { Campus } from '@core/campuses.service';
@@ -109,6 +109,13 @@ import {
 } from './schedule-day.util';
 import { SessionsActionsService } from './services/sessions-actions.service';
 import { todayLocal } from '@shared/utils/session-time.util';
+import { SelectedIndicatorDirective } from '@shared/directives/selected-indicator.directive';
+import {
+  StepMotionDirective,
+  stepMotion,
+  type StepDir,
+  type StepMotion,
+} from '@shared/directives/step-motion.directive';
 
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
@@ -127,8 +134,9 @@ const FETCH_LIMIT = 500;
   selector: 'app-sessions',
   standalone: true,
   imports: [
+    StepMotionDirective,
+    SelectedIndicatorDirective,
     CampusScopeNoteComponent,
-    ToastModule,
     PopupMenuComponent,
     DatePipe,
     SessionBatchComponent,
@@ -142,7 +150,7 @@ const FETCH_LIMIT = 500;
     LoadFailedComponent,
     PageOpenComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './sessions.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -150,6 +158,8 @@ export class SessionsPage implements OnInit {
   readonly page = input.required<RouteObj>();
 
   private readonly refData = inject(ReferenceDataService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   private readonly classesService = inject(ClassesService);
   private readonly coursesService = inject(CoursesService);
   private readonly enrollmentsService = inject(EnrollmentsService);
@@ -191,6 +201,8 @@ export class SessionsPage implements OnInit {
   >([]);
 
   private readonly sessionMenuRef = viewChild<PopupMenuComponent>('sessionMenu');
+  /** 課表工具列（A6 `#sx`）：點一天之後捲到這裡 */
+  private readonly toolbarRef = viewChild<ElementRef<HTMLElement>>('toolbar');
 
   // ── Filter state ───────────────────────────────────────────────────────
   /**
@@ -265,6 +277,22 @@ export class SessionsPage implements OnInit {
     if (!from) return '';
     return to ? `${format(from, 'M/d')}–${format(to, 'M/d')}` : format(from, 'M/d');
   });
+  /**
+   * 日／週鈕的選中態（A6 `schedule.css:357`：近黑底白字；另一顆透明底 zinc-700）。
+   * 整串由方法回傳而不是兩組 `[class.x]`：對比 gate 掃模板時會把同一個元素上的
+   * `text-zinc-700` 與 `bg-zinc-900` 當成疊在一起（其實互斥）。
+   */
+  protected viewBtnState(view: 'day' | 'week'): string {
+    return this.mode() === view ? 'bg-zinc-900 text-white' : 'bg-transparent text-zinc-700';
+  }
+
+  /** 色面標題的兩行（A6：「…堂課，」換行「…堂有異動。」）；篩選結果那句不拆 */
+  protected readonly headlineLines = computed<[string, string | null]>(() => {
+    const h = this.headline();
+    const i = this.mode() === 'results' ? -1 : h.indexOf('，');
+    return i < 0 ? [h, null] : [h.slice(0, i + 1), h.slice(i + 1)];
+  });
+
   protected readonly headline = computed(() => {
     if (this.mode() === 'results') {
       const range = this.rangeLabel();
@@ -767,9 +795,10 @@ export class SessionsPage implements OnInit {
     });
     ref?.onClose.subscribe((result?: MobileFilterDialogResult) => {
       if (result) {
-        // 手機篩選對話框裡的分校也寫回頂欄那一份（只有一個來源）；重查由頂欄的訂閱做
-        if ((result.campusIds[0] ?? null) !== this.campusCtx.id())
-          this.campusCtx.select(result.campusIds[0] ?? null);
+        // 手機篩選對話框裡的分校也寫回頂欄那一份（只有一個來源）；重查由頂欄的訂閱做。
+        // 日常頁沒有「全部分校」（#1607）：對話框沒給分校就不動頂欄
+        const campusId = result.campusIds[0];
+        if (campusId && campusId !== this.campusCtx.id()) this.campusCtx.select(campusId);
         this.selectedCourseIds.set(result.courseIds);
         this.selectedTeacherIds.set(result.teacherIds);
         this.selectedClassIds.set(result.classIds);
@@ -1013,37 +1042,94 @@ export class SessionsPage implements OnInit {
     return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   });
 
+  /**
+   * 週列的格子（#1620，A6 `.dtabs` 只畫週一～週六）。週日在三種情況出現：那週週日有課（不然那天的課在
+   * 日視圖沒有入口）、今天就是那週的週日（計畫席 10-15 補）、正停在週日（例如從異動跳過來）。
+   */
+  private readonly sundayHasSessions = signal(false);
+  private sundayChecked = '';
+  protected readonly stripDays = computed(() => {
+    const days = this.weekDays();
+    const sunday = days[6];
+    const show =
+      this.sundayHasSessions() || isSameDay(this.day(), sunday) || isSameDay(this.now(), sunday);
+    return show ? days : days.slice(0, 6);
+  });
+
+  /**
+   * 手機週列的日期字（#1620）：每格只剩約 38px，「10/12」會跟隔壁黏在一起（#1441 同一個坑）。
+   * 照月曆慣例只在第一格與跨月那天寫「月/日」，其餘寫日（9/28 29 30 10/1 2 3）；桌機照舊每格月/日。
+   */
+  protected stripDateShort(d: Date, first: boolean): string {
+    return first || d.getDate() === 1 ? format(d, 'M/d') : String(d.getDate());
+  }
+
+  /** 手機快速選取面板的標題（A6 `qs__day`：週四 10/1 · 今天） */
+  protected readonly sheetTitle = computed(() => {
+    const mode = this.mode();
+    if (mode === 'results') return '篩選結果';
+    if (mode === 'week') return this.weekLabel();
+    const d = this.day();
+    return `週${WEEKDAY[d.getDay()]} ${format(d, 'M/d')}${this.isToday() ? ' · 今天' : ''}`;
+  });
+
+  /** 換週或換分校才問一次（同一週換天不重查） */
+  private checkSunday(): void {
+    const sunday = format(this.weekDays()[6], 'yyyy-MM-dd');
+    const campusIds = this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined;
+    const key = `${sunday}|${campusIds?.join(',') ?? ''}`;
+    if (key === this.sundayChecked) return;
+    this.sundayChecked = key;
+    this.sundayHasSessions.set(false);
+    this.sessionsService.hasSessionsOn(sunday, campusIds).subscribe({
+      next: (has) => {
+        if (this.sundayChecked === key) this.sundayHasSessions.set(has);
+      },
+      error: () => {
+        // ponytail: 查不到就當沒有 —— 只是少一格入口，週視圖仍看得到週日
+        if (this.sundayChecked === key) this.sundayChecked = '';
+      },
+    });
+  }
+
   /** 日期條點某天：週視圖時也切回那天的日視圖（A6：週視圖點一天＝看那天） */
   protected setDay(d: Date): void {
     if (this.mode() === 'day' && isSameDay(d, this.day())) return;
+    // 從週切到日是模式切換，不給方向
+    const isStep = this.mode() === 'day';
     this.mode.set('day');
-    this.moveTo(d);
+    this.moveTo(d, isStep);
+    // A6 schedule.js:867：換了一天就捲到工具列（頂欄不在捲動區裡，不用扣它的高度）
+    this.toolbarRef()?.nativeElement.scrollIntoView?.({ block: 'start' });
   }
 
   /** 換日／週、換天都**留著勾**（#1174 G3）：快速選取勾的是跨天的（某老師這週、某班整期），批次列會說有幾堂不在畫面上 */
   protected setView(view: 'day' | 'week'): void {
     if (this.mode() === view) return;
-    this.mode.set(view);
-    this.loadSessions();
+    this.viewTransition(() => {
+      this.mode.set(view);
+      this.loadSessions();
+    });
   }
 
-  /** 上一週／下一週／回到今天：留在目前的日／週檢視 */
+  /** 上一週／下一週：留在目前的日／週檢視（A6 沒有換週，使用者 10-15 裁定保留，#1620） */
   protected shiftWeek(weeks: number): void {
     this.moveTo(addDays(this.day(), weeks * 7));
   }
 
-  protected goToday(): void {
+  /** 「本週」（#1620 計畫席選 b）：只在別週時出現；回到本週並選今天，日／週檢視不變 */
+  protected goThisWeek(): void {
     this.moveTo(new Date());
   }
 
-  private moveTo(d: Date): void {
-    this.day.set(startOfDay(d));
+  /** `isStep`＝留在同一個檢視往前或往後一步，資料回來時依方向淡入（#1641 項 3） */
+  private moveTo(d: Date, isStep = true): void {
+    const next = startOfDay(d);
+    const current = this.day().getTime();
+    this.pendingStep =
+      !isStep || next.getTime() === current ? null : next.getTime() > current ? 'forward' : 'back';
+    this.day.set(next);
     this.loadSessions();
-  }
-
-  /** 「跳到某天」小日曆（原生 date input，`yyyy-MM-dd`） */
-  protected jumpTo(value: string): void {
-    if (value) this.setDay(parseISO(value));
   }
 
   /** 週視圖手機那一行（A6 `.wm__s`）：幾堂、最擠的時段、停課、其他異動 */
@@ -1069,6 +1155,14 @@ export class SessionsPage implements OnInit {
   protected isSelectedDay(d: Date): boolean {
     return this.mode() === 'day' && isSameDay(d, this.day());
   }
+
+  /** 選中底線的重量時機：日檢視換天、切換日／週 */
+  protected readonly isSelectedDayKey = computed(() => `${this.mode()}|${this.day().getTime()}`);
+
+  /** 換週／換日的方向淡入（#1641 項 3）。資料套上的那一刻才給 —— 點擊當下畫面還是舊的 */
+  protected readonly contentMotion = signal<StepMotion | null>(null);
+  /** `moveTo` 記下方向，`loadSessions` 成功時才變成 motion；篩選等其他重查沒有方向 */
+  private pendingStep: StepDir | null = null;
 
   /** 篩選結果 → 回到課表：放掉範圍條件，回到單日甘特 */
   protected backToSchedule(): void {
@@ -1403,6 +1497,7 @@ export class SessionsPage implements OnInit {
           ? [this.weekDays()[0], this.weekDays()[6]]
           : this.listDateRange();
     this.now.set(new Date());
+    if (mode !== 'results') this.checkSunday();
     const rawIds = this.selectedTeacherIds();
     const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');
     const hasUnassigned = rawIds.includes('__unassigned__');
@@ -1465,6 +1560,8 @@ export class SessionsPage implements OnInit {
     this.sessionsService.list(listParams).subscribe({
       next: (res) => {
         this.sessions.set(res.data);
+        if (this.pendingStep) this.contentMotion.set(stepMotion(this.pendingStep));
+        this.pendingStep = null;
         this.totalSessions.set(res.meta.total);
         this.monthUnassignedCount.set(res.meta.monthUnassignedCount);
         this.todayPendingAttendanceCount.set(res.meta.todayPendingAttendanceCount);
@@ -1473,6 +1570,7 @@ export class SessionsPage implements OnInit {
         this.loadedOnce.set(true);
       },
       error: () => {
+        this.pendingStep = null;
         this.loading.set(false);
         // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments，#788）
         this.loadFailed.set(true);

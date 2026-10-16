@@ -44,6 +44,12 @@ import {
   weekdayIndex,
   type SessionPhase,
 } from './schedule.util';
+import {
+  StepMotionDirective,
+  stepMotion,
+  type StepDir,
+  type StepMotion,
+} from '@shared/directives/step-motion.directive';
 
 const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancellation: '停課' } as const;
 
@@ -63,6 +69,7 @@ const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancella
     ChildSwitcherComponent,
     ChildScopeGateComponent,
     EmptyStateComponent,
+    StepMotionDirective,
   ],
   templateUrl: './schedule.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -306,8 +313,11 @@ export class ScheduleComponent implements OnInit {
         if (hero) this.heroStore.set({ childId: r.childId, data: hero });
         if (week) this.weekStore.set({ childId: r.childId, data: week });
         this.loading.set(false);
+        if (this.pendingStep) this.contentMotion.set(stepMotion(this.pendingStep));
+        this.pendingStep = null;
       }),
       catchError(() => {
+        this.pendingStep = null;
         this.failed.set(true);
         this.loading.set(false);
         return of(null);
@@ -320,16 +330,28 @@ export class ScheduleComponent implements OnInit {
     if (childId) this.requestWeek(childId, this.monday(), this.thisMonday());
   }
 
+  /** 換週的方向淡入（#1641 項 3）：資料套上的那一刻才給，換孩子等其他重查沒有方向 */
+  protected readonly contentMotion = signal<StepMotion | null>(null);
+  private pendingStep: StepDir | null = null;
+
   protected shiftWeek(weeks: number): void {
-    this.pickedMonday.set(addDaysToDateString(this.monday(), weeks * 7));
+    this.goToMonday(addDaysToDateString(this.monday(), weeks * 7));
   }
 
   protected goThisWeek(): void {
-    this.pickedMonday.set(null);
+    this.goToMonday(null);
   }
 
   protected jumpTo(date: string): void {
-    if (date) this.pickedMonday.set(mondayOf(date));
+    if (date) this.goToMonday(mondayOf(date));
+  }
+
+  /** `null` = 回本週。yyyy-MM-dd 字串比大小就是日期先後 */
+  private goToMonday(picked: string | null): void {
+    const target = picked ?? this.thisMonday();
+    const current = this.monday();
+    this.pendingStep = target === current ? null : target > current ? 'forward' : 'back';
+    this.pickedMonday.set(picked);
   }
 
   protected open(s: ParentSession): void {

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { Pool } from 'pg';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createChildDb } from '../lib/child-db';
 import { PERMISSIONS } from '../lib/permissions';
@@ -15,6 +16,7 @@ import { PERMISSIONS } from '../lib/permissions';
  * 端點清單**不手抄**（c11）：從 app 的 OpenAPI 文件取所有 GET、path 沒有 `{param}` 的路由。
  * required query 參數從 `REQUIRED` 補；文件要求了而表裡沒有 → 紅，新端點不會默默漏掉。
  * `BRANCHES` 是會走到另一條查詢分支（alias embed、搜尋）的參數，每支多打一次。
+ * 分支以 `!` 開頭時取代 `ALWAYS`（那支端點的必帶參數跟這條分支互斥時用，例：`scope=all`）。
  *
  * 需要本機 Supabase（`npm run db:start`）。環境變數 `SUPABASE_URL`／`SUPABASE_SERVICE_ROLE_KEY`，
  * 由 `npm run test:contract` 從 `supabase status` 帶進來。
@@ -22,6 +24,10 @@ import { PERMISSIONS } from '../lib/permissions';
 
 const URL = process.env['SUPABASE_URL'];
 const KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+const sqlPool = process.env['DATABASE_URL']
+  ? new Pool({ connectionString: process.env['DATABASE_URL'] })
+  : null;
+afterAll(() => sqlPool?.end());
 
 const ctx: {
   orgId: string;
@@ -55,6 +61,15 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', ctx.studentScope);
       set('childDb', createChildDb(supabase as never, ctx.studentScope, ctx.orgId));
       set('campusScope', ctx.campusScope);
+      // /api/me 讀的顯示欄位（#1595 P2a）—— 真的 middleware 跟身分查詢一起帶，替身不查 staff/parents
+      // `/api/me` 先走 SQL（Hyperdrive A）：有 DATABASE_URL 就給真的 pool，讓每支端點也走過 SQL 那條。
+      // `end` 是 no-op —— authPoolCleanup 每個請求都會呼叫它，而這裡所有請求共用同一個 pool
+      set('auth', {
+        pool: sqlPool
+          ? { query: sqlPool.query.bind(sqlPool), end: async () => undefined }
+          : { end: async () => undefined },
+      });
+      set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
   };
@@ -100,6 +115,8 @@ const REQUIRED: Record<string, string> = {
   '/api/me/sessions dateFrom': '{monthStart}',
   '/api/me/sessions dateTo': '{today}',
   '/api/me/catalog childId': '{child}',
+  // 第一版只開家長的通知偏好（#1659）
+  '/api/me/notification-preferences role': 'parent',
 };
 
 /**
@@ -131,7 +148,6 @@ const PARAMS: Record<string, string> = {
   '/api/scores/class/{classId}/exam/{examId} classId': '{examClass}',
   '/api/scores/class/{classId}/exam/{examId} examId': '{academyExam}',
   '/api/invoices/{id} id': '{invoice}',
-  '/api/invoices/{id}/reminders id': '{invoice}',
 };
 
 /** 文件沒標 required、但路由邏輯要求至少一個的（不帶回 400）—— 每次都帶 */
@@ -164,6 +180,10 @@ const BRANCHES: Record<string, string[]> = {
   // 分校篩選（#1314 DB-campus）：BRANCHES 也過 fill()，{campus} 換成 seed 的一間
   '/api/invoices/summary': ['campusId={campus}'],
   '/api/billing-periods/upcoming-unbilled': ['campusId={campus}'],
+  // 成績總覽（#1314 G5）：academy_exams 的巢狀 embed＋分校篩選＋分頁撈齊
+  '/api/scores/overview': ['days=30', 'days=365&campusId={campus}'],
+  // 全部學生的成績聚合（#1314 G8）：scope=all 走分頁撈齊＋分校交集
+  '/api/scores/students': ['!scope=all', '!scope=all&campusId={campus}', '!scope=all&sort=grade'],
   // 管理端請假頁（#1314 LV1）：待處理＝endFrom 今天、依開始日排序
   '/api/leaves': ['endFrom=' + TODAY + '&order=start_asc', 'order=start_desc'],
   // 報名進出（#1507）：事件條件是 `and(…)` 包在 `.or()` 裡、退班截到今天 —— 替身驗不了 PostgREST 的解析
@@ -208,7 +228,15 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       Record<string, { parameters?: Array<{ name: string; in: string; required?: boolean }> }>
     >;
   };
-  const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
+  const env = {
+    ENVIRONMENT: 'contract',
+    WEB_URL: 'http://localhost:4200',
+    ALLOWED_ORIGINS: '',
+    // 推播（#1659）：契約要驗的是「開了推播的部署」那條路；沒設時的 404 由 me-push.spec 驗。
+    // 這是 RFC 8291 §5 範例的公鑰（公開測試向量，不是誰的金鑰）
+    VAPID_PUBLIC_KEY:
+      'BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8',
+  };
 
   beforeAll(async () => {
     const supabase = createClient(URL!, KEY!);
@@ -330,8 +358,15 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
         return `文件要求 required query [${required.join(', ')}]，REQUIRED 表沒有值`;
       base.push(`${name}=${encodeURIComponent(fill(value))}`);
     }
-    if (ALWAYS[template]) base.push(fill(ALWAYS[template]));
-    return [[], ...(BRANCHES[template] ?? []).map((b) => [fill(b)])].map((extra) => {
+    const always = ALWAYS[template] ? [fill(ALWAYS[template])] : [];
+    // 分支以 `!` 開頭＝取代 ALWAYS（例：scope=all 不能再帶 studentId）
+    return [null, ...(BRANCHES[template] ?? [])].map((branch) => {
+      const extra =
+        branch === null
+          ? always
+          : branch.startsWith('!')
+            ? [fill(branch.slice(1))]
+            : [...always, fill(branch)];
       const qs = [...base, ...extra].join('&');
       return qs ? `${path}?${qs}` : path;
     });

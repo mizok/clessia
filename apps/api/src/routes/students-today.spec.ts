@@ -169,13 +169,39 @@ async function list(
     mode?: 'daily_checkin' | 'per_session';
     campusScope?: string[] | null;
     teacher?: boolean;
+    /** 依序記下每次 `from(table)`，用來看查詢發出的先後 */
+    calls?: string[];
+    /** 這張表的查詢一律回 error（看錯誤路徑） */
+    failTable?: string;
   } = {},
 ) {
   const db = seed(opts.mode);
+  const calls = opts.calls ?? [];
+  const failing = () => {
+    const chain: Record<string, unknown> = {
+      then: (resolve: (v: unknown) => unknown) =>
+        resolve({ data: null, error: { message: `${opts.failTable} 壞了` } }),
+    };
+    for (const m of ['select', 'eq', 'in', 'gte', 'lte', 'order', 'range', 'or', 'not', 'is'])
+      chain[m] = () => chain;
+    return chain;
+  };
+  const client =
+    opts.calls || opts.failTable
+      ? new Proxy(db.client as { from: (table: string) => unknown }, {
+          get: (target, key, receiver) =>
+            key === 'from'
+              ? (table: string) => {
+                  calls.push(table);
+                  return table === opts.failTable ? failing() : target.from(table);
+                }
+              : Reflect.get(target, key, receiver),
+        })
+      : db.client;
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    set('supabase', client);
     set('orgId', ORG);
     set('userId', opts.teacher ? 'u-teacher' : 'u1');
     set('roles', opts.teacher ? ['teacher'] : ['admin']);
@@ -264,5 +290,34 @@ describe('GET /students —— 今日到班（#1314 SL1）', () => {
   it('老師：summary.today 只算任課班的學生（別班今天有課的不算）', async () => {
     const { body } = await list('', { teacher: true });
     expect(body.summary.today).toEqual({ any: 3, arrived: 1, not_yet: 0, missing: 1, on_leave: 1 });
+  });
+
+  // #1595 P3b-A：開頁預設（沒帶 today）時今日到班跟列表同時跑。串行的話，列表那一輪
+  // （列表＋在籍數＋年級計數，P3b-B 起年級計數是 1 支聚合，共 3 次 from('students')）
+  // 要等 daily_checkins 查完才發
+  it('沒帶 today：列表與年級計數不等今日到班查完就發出', async () => {
+    const calls: string[] = [];
+    const { body } = await list('', { calls });
+    expect(body.summary.today).toEqual({ any: 4, arrived: 1, not_yet: 1, missing: 1, on_leave: 1 });
+    const studentsBeforeCheckins = calls
+      .slice(0, calls.indexOf('daily_checkins'))
+      .filter((t) => t === 'students').length;
+    expect(studentsBeforeCheckins).toBeGreaterThanOrEqual(3);
+  });
+
+  it('帶 today：列表要用它的結果，所以照舊先算完今日到班', async () => {
+    const calls: string[] = [];
+    await list('today=missing', { calls });
+    const studentsBeforeCheckins = calls
+      .slice(0, calls.indexOf('daily_checkins'))
+      .filter((t) => t === 'students').length;
+    expect(studentsBeforeCheckins).toBeLessThan(3);
+  });
+
+  // 並行之後，沒帶 today 時今日到班的錯誤是在列表之後才收 —— 收的時候也要照樣回 500，
+  // 不能默默當成「今天沒人」
+  it('沒帶 today：今日課堂查詢失敗 → 500', async () => {
+    const { status } = await list('', { failTable: 'sessions' });
+    expect(status).toBe(500);
   });
 });

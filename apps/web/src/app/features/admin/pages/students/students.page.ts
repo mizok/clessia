@@ -1,3 +1,5 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
   Component,
   DestroyRef,
@@ -23,7 +25,6 @@ import { CampusContextService } from '@core/campus-context.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
@@ -83,6 +84,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
   selector: 'app-students',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     PopoverModule,
     PageActionsComponent,
     PageOpenComponent,
@@ -93,7 +95,6 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
     CommonModule,
     FormsModule,
     ButtonModule,
-    ToastModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,
@@ -103,11 +104,15 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
     LoadFailedComponent,
     PopupMenuComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './students.page.html',
 })
 export class StudentsPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  /** 重抓的資料平滑換上；增刪改造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  /** 這一輪重抓是增刪改造成的 —— 回應套上時列表帶名字（篩選、換頁不帶） */
+  private reloadRows = false;
   private readonly studentsService = inject(StudentsService);
 
   /** 搜尋輸入 —— 節流 + 去重之後才進 `loadStudents()`（#659） */
@@ -383,9 +388,14 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
-  /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#659） */
-  loadStudents(): void {
-    this.loading.set(true);
+  /**
+   * 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#659）。
+   * `quiet`：刪除成功後的背景重抓 —— 畫面已經是「刪掉了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：新增／編輯／停用造成的重抓，回應套上時那一列淡入、淡出或換章（篩選、換頁不帶）。
+   */
+  loadStudents({ quiet = false, rows = false }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.reloadRows = rows;
+    if (!quiet) this.loading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
   }
@@ -431,13 +441,19 @@ export class StudentsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res: StudentListResponse) => {
-        this.students.set(res.data);
-        this.total.set(res.meta.total);
-        this.summary.set(res.summary);
-        if (res.summary.today) this.todayCounts.set(res.summary.today);
-        // 只有第一頁才分得出「沒算」與「這個分校不支援」；翻頁（today 回 null）不改判
-        if (res.meta.page === 1) this.todayUnsupported.set(!res.summary.today);
-        this.loading.set(false);
+        this.viewTransition(
+          () => {
+            this.students.set(res.data);
+            this.total.set(res.meta.total);
+            this.summary.set(res.summary);
+            if (res.summary.today) this.todayCounts.set(res.summary.today);
+            // 只有第一頁才分得出「沒算」與「這個分校不支援」；翻頁（today 回 null）不改判
+            if (res.meta.page === 1) this.todayUnsupported.set(!res.summary.today);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
       });
   }
 
@@ -516,7 +532,7 @@ export class StudentsPage implements OnInit {
 
     if (ref) {
       ref.onClose.subscribe((updatedStudent) => {
-        if (updatedStudent) this.loadStudents();
+        if (updatedStudent) this.loadStudents({ rows: true });
       });
     }
   }
@@ -543,7 +559,7 @@ export class StudentsPage implements OnInit {
         summary: '已建立',
         detail: `「${createdStudent.name}」已建立`,
       });
-      this.loadStudents();
+      this.loadStudents({ rows: true });
     });
   }
 
@@ -574,15 +590,25 @@ export class StudentsPage implements OnInit {
     );
   }
 
+  /**
+   * **等伺服器確認才淡出**（悲觀刪除）—— 全站刪除是樂觀的（#1641 5b 第 1 點），**這一頁是例外**
+   * （計畫席 10-16 同意盤點時的判準）：前端只擋得住「有報名」的學生，而帳單、校內／學校成績
+   * 都是 FK RESTRICT —— 報名退掉之後留著帳單或成績的學生很常見，樂觀版會常常「先淡出又回來」。
+   * 所以成功回來才淡出、其餘補位；失敗時那一列一直都在，只說明原因。
+   */
   private deleteStudent(student: Student): void {
     this.studentsService.delete(student.id).subscribe({
       next: () => {
+        this.viewTransition(
+          () => this.students.update((list) => list.filter((s) => s.id !== student.id)),
+          { rows: true },
+        );
         this.messageService.add({
           severity: 'success',
           summary: '已刪除',
           detail: `「${student.name}」已刪除`,
         });
-        this.loadStudents();
+        this.loadStudents({ quiet: true, rows: true });
       },
       error: (err) => {
         this.messageService.add({
@@ -610,7 +636,7 @@ export class StudentsPage implements OnInit {
           summary: '已停用',
           detail: `「${student.name}」已停用`,
         });
-        this.loadStudents();
+        this.loadStudents({ rows: true });
       },
       error: (err) => {
         console.error('Failed to deactivate student', err);

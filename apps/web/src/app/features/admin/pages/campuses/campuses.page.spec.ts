@@ -1,5 +1,6 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { vi } from 'vitest';
@@ -34,6 +35,7 @@ describe('CampusesPage', () => {
     await TestBed.configureTestingModule({
       imports: [CampusesPage],
       providers: [
+        MessageService,
         {
           provide: CampusesService,
           useValue: campusesServiceMock,
@@ -210,6 +212,43 @@ describe('CampusesPage', () => {
       vi.advanceTimersByTime(300);
 
       expect(campusesServiceMock.list).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 1 點）：刪除是樂觀的 —— 按下就淡出；失敗要放回去並說明
+  describe('樂觀刪除', () => {
+    const campus = (id: string) => ({ id, name: `分校${id}` }) as unknown as Campus;
+    type Page = {
+      campuses: { set: (v: Campus[]) => void; (): Campus[] };
+      deleteCampus: (c: Campus) => void;
+    };
+    const page = () => component as unknown as Page;
+
+    it('失敗：那一列放回原位，並跳錯誤 toast', () => {
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      page().campuses.set([campus('a'), campus('b')]);
+      campusesServiceMock.delete.mockReturnValueOnce(
+        throwError(() => ({ error: { error: '伺服器錯誤' } })),
+      );
+      page().deleteCampus(campus('b'));
+      expect(
+        page()
+          .campuses()
+          .map((c) => c.id),
+      ).toEqual(['a', 'b']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('成功：維持拿掉，背景重抓不回到骨架', () => {
+      page().campuses.set([campus('a'), campus('b')]);
+      campusesServiceMock.list.mockReturnValue(NEVER);
+      page().deleteCampus(campus('b'));
+      expect(
+        page()
+          .campuses()
+          .map((c) => c.id),
+      ).toEqual(['a']);
+      expect(component.loading()).toBe(false);
     });
   });
 });

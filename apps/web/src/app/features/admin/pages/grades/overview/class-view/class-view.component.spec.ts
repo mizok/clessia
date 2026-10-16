@@ -1,3 +1,4 @@
+import { ToastComponent } from '@shared/components/toast/toast.component';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -20,9 +21,11 @@ describe('ClassViewComponent', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     await TestBed.configureTestingModule({
       imports: [ClassViewComponent],
       providers: [
+        MessageService,
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
@@ -31,12 +34,7 @@ describe('ClassViewComponent', () => {
     })
       .overrideComponent(ClassViewComponent, {
         set: {
-          providers: [
-            { provide: DialogService, useValue: { open: openMock } },
-            // **真的 MessageService，不是 `{ add: vi.fn() }`**：假物件沒有 observable，
-            // `<p-toast>` 就算不存在測試也看不出來（#809 就是這樣藏了一週）
-            { provide: MessageService, useValue: new MessageService() },
-          ],
+          providers: [{ provide: DialogService, useValue: { open: openMock } }],
         },
       })
       .compileComponents();
@@ -60,22 +58,21 @@ describe('ClassViewComponent', () => {
   });
 
   /**
-   * **#809：這支元件自己 `providers: [MessageService]`，所以它拿到的是自己的實例，
-   * 而 `<p-toast>` 訂閱的是注入它的那一層** —— 模板沒有出口的話，
-   * `messageService.add()` 的每一則都沒有訂閱者，畫面上零訊號。
-   *
-   * 斷言查的是 `document`（`appendTo="body"` 會把 toast 搬出元件），
-   * 而且查的是**渲染出來的訊息**，不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
+   * #809 → #1615：toast 的出口是全站唯一的 `<app-toast>`（掛在 App）。元件要是自己
+   * `providers: [MessageService]`，`add()` 就只進那一層，全站出口收不到 —— 畫面上零訊號。
+   * 查的是**出口渲染出來的訊息**，不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
    */
-  it('發出的 toast 有出口 —— DOM 裡真的長出訊息', () => {
+  it('發出的 toast 到得了全站出口 —— 出口裡真的長出訊息（#1615）', () => {
     fixture.detectChanges();
 
+    const outlet = TestBed.createComponent(ToastComponent);
     fixture.debugElement.injector
       .get(MessageService)
       .add({ severity: 'error', summary: '載入失敗', detail: '無法載入課程/班級列表' });
     fixture.detectChanges();
 
-    expect(document.querySelector('.p-toast-message')).not.toBeNull();
+    outlet.detectChanges();
+    expect((outlet.nativeElement as HTMLElement).querySelector('.toast')).not.toBeNull();
   });
 
   it('should start with no campus selected', () => {
@@ -83,12 +80,10 @@ describe('ClassViewComponent', () => {
     expect(component['searchText']()).toBe('');
   });
 
-  it('頂欄選了分校就用它、頁內分校下拉收起；頂欄是全部時頁內下拉才出現（#1138）', () => {
+  it('頁內沒有分校下拉，分校只跟頂欄走（#1607）', () => {
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
-    expect(
-      host.querySelector('[data-part=desktop-filters] p-select[placeholder="選擇分校"]'),
-    ).not.toBeNull();
+    expect(TestBed.inject(CampusContextService).allowAll()).toBe(false);
 
     TestBed.inject(CampusContextService).select('campus-9');
     fixture.detectChanges();
@@ -107,7 +102,7 @@ describe('ClassViewComponent', () => {
    * #809 讓這支的 toast 終於出得來了，但 toast 會消失，而退化畫面留著。
    */
   it('取數失敗時渲染「載入失敗」，不叫使用者調整篩選條件', () => {
-    component['onCampusChange']('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges(); // 載入由 campusId 的 toObservable 觸發
     const classRequests = http.match((r) => r.url.includes('/api/classes'));
     classRequests[0].flush(null, { status: 500, statusText: 'Server Error' });
@@ -119,7 +114,7 @@ describe('ClassViewComponent', () => {
   });
 
   it('重試鈕真的重打 /api/classes', () => {
-    component['onCampusChange']('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges(); // 載入由 campusId 的 toObservable 觸發
     http
       .match((r) => r.url.includes('/api/classes'))[0]
@@ -138,7 +133,7 @@ describe('ClassViewComponent', () => {
   });
 
   it('should load grouped classes with a single classes request on campus change', () => {
-    component['onCampusChange']('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges(); // 載入由 campusId 的 toObservable 觸發
     expect(component['campusId']()).toBe('campus-1');
 
@@ -272,7 +267,7 @@ describe('ClassViewComponent', () => {
       updatedAt: '',
     } as any;
 
-    component['localCampusId'].set('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
     component['openClassScores'](cls);
 
     expect(openMock).toHaveBeenCalledTimes(1);
@@ -284,7 +279,7 @@ describe('ClassViewComponent', () => {
   });
 
   it('row click 應以 todoOnly = false 開啟 dialog', () => {
-    component['localCampusId'].set('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges(); // 先讓換分校的那次載入跑完，再塞測試資料
     http.match((r) => r.url.includes('/api/classes')).forEach((r) => r.flush({ data: [] }));
     component['loadingGroups'].set(false);
@@ -329,7 +324,7 @@ describe('ClassViewComponent', () => {
   });
 
   it('點待登錄徽章應以 todoOnly = true 開啟 dialog，且不觸發 row click', () => {
-    component['localCampusId'].set('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges(); // 先讓換分校的那次載入跑完，再塞測試資料
     http.match((r) => r.url.includes('/api/classes')).forEach((r) => r.flush({ data: [] }));
     component['loadingGroups'].set(false);
@@ -375,7 +370,7 @@ describe('ClassViewComponent', () => {
   });
 
   it('renders course groups with class rows', () => {
-    component['localCampusId'].set('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges(); // 先讓換分校的那次載入跑完，再塞測試資料
     http.match((r) => r.url.includes('/api/classes')).forEach((r) => r.flush({ data: [] }));
     component['loadingGroups'].set(false);

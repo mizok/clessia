@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 import { getAuth } from '../lib/get-auth';
+import { loadMeExtrasViaSql, loadNickname, type MeExtras } from '../lib/identity-sql';
 import childrenRoute from './parent/children';
 import attendanceRoute from './parent/attendance';
 import gradesRoute from './parent/grades';
@@ -13,7 +14,10 @@ import sessionsRoute from './parent/sessions';
 import catalogRoute from './parent/catalog';
 import renewalRoute from './parent/renewal';
 import mealsRoute from './parent/meals';
+import mePushRoute from './me-push';
 import { inOrg } from '../lib/org-scope';
+import { NicknameSchema } from '../lib/validation';
+import { invalidateIdentity } from '../lib/identity-cache';
 
 const MeResponseSchema = z
   .object({
@@ -23,8 +27,12 @@ const MeResponseSchema = z
     email: z.string().nullable(),
     phone: z.string().nullable(),
     birthday: z.string().nullable(),
+    /** 對外暱稱（#1665 Q6′）。沒有 staff 身分的人（家長）一律 null */
+    nickname: z.string().nullable(),
     roles: z.array(z.string()),
     permissions: z.array(z.string()),
+    /** 被指派的分校（`staff_campuses`）。**只給前端挑預設分校**，範圍仍由後端 campusScope 判（c1） */
+    assignedCampusIds: z.array(z.string()),
   })
   .openapi('MeResponse');
 
@@ -38,6 +46,8 @@ const PatchMeSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .nullable()
       .optional(),
+    /** 只寫得進有 staff 身分的人自己那一列；家長帶了也不會寫到任何地方 */
+    nickname: NicknameSchema.optional(),
   })
   .openapi('PatchMeRequest');
 
@@ -64,15 +74,25 @@ app.openapi(
     const userId = c.get('userId');
     const orgId = c.get('orgId');
 
-    const [profileResult, rolesResult, staffResult, parentResult, baUserResult] = await Promise.all(
-      [
+    // 角色、權限、staff／parents 列都是 auth middleware 已經查好的（#1595 P2a）——
+    // 這裡原本各查一次，user_roles 那支跟 middleware 完全重複
+    const { staff, parent, assignedCampusIds } = c.get('selfRows');
+    // 先走 SQL（Hyperdrive，一次往返），失敗或形狀不對就走原本的兩支 REST（見 lib/identity-sql.ts）
+    const auth = getAuth(c);
+    const viaRest = async (): Promise<MeExtras> => {
+      const [p, u, nickname] = await Promise.all([
         supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
-        supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
-        supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
         supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
-      ],
-    );
+        staff ? loadNickname(supabase, userId, orgId) : null,
+      ]);
+      return {
+        profile: p.data as MeExtras['profile'],
+        baUser: u.data as MeExtras['baUser'],
+        nickname,
+      };
+    };
+    const { profile, baUser, nickname }: MeExtras =
+      (auth.pool ? await loadMeExtrasViaSql(auth.pool, userId, orgId) : null) ?? (await viaRest());
 
     return c.json(
       {
@@ -80,18 +100,18 @@ app.openapi(
         orgId,
         // profiles 不是可靠的來源 —— 見 lib/display-name.ts
         displayName: resolveDisplayName({
-          profile: profileResult.data,
-          staff: staffResult.data,
-          parent: parentResult.data,
-          baUser: baUserResult.data,
+          profile,
+          staff,
+          parent,
+          baUser,
         }),
-        email: (baUserResult.data?.email as string | null) ?? null,
-        phone: (baUserResult.data?.phone as string | null) ?? null,
-        birthday: (staffResult.data?.birthday as string | null) ?? null,
-        roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
-        permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
-          Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
-        ),
+        email: baUser?.email ?? null,
+        phone: baUser?.phone ?? null,
+        birthday: staff?.birthday ?? null,
+        nickname: staff ? nickname : null,
+        roles: c.get('roles'),
+        permissions: c.get('permissions'),
+        assignedCampusIds,
       },
       200,
     );
@@ -178,9 +198,15 @@ app.openapi(
       }
     }
 
-    if (body.birthday !== undefined) {
+    if (body.birthday !== undefined || body.nickname !== undefined) {
       await inOrg(
-        supabase.from('staff').update({ birthday: body.birthday }).eq('user_id', userId),
+        supabase
+          .from('staff')
+          .update({
+            ...(body.birthday === undefined ? {} : { birthday: body.birthday }),
+            ...(body.nickname === undefined ? {} : { nickname: body.nickname }),
+          })
+          .eq('user_id', userId),
         orgId,
       );
     }
@@ -195,6 +221,9 @@ app.openapi(
       ],
     );
 
+    // 寫入成功才清（#1631）：前端接著重抓 /api/me，不清的話同一個 isolate 會回快取裡的舊名字／生日
+    invalidateIdentity(userId);
+
     return c.json(
       {
         userId,
@@ -208,10 +237,13 @@ app.openapi(
         email: (baUserResult.data?.email as string | null) ?? null,
         phone: (baUserResult.data?.phone as string | null) ?? null,
         birthday: (staffResult.data?.birthday as string | null) ?? null,
+        nickname: staffResult.data ? await loadNickname(supabase, userId, orgId) : null,
         roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
         permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
           Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
         ),
+        // 改個人資料動不到分校指派，沿用 middleware 那份
+        assignedCampusIds: c.get('selfRows').assignedCampusIds,
       },
       200,
     );
@@ -284,10 +316,20 @@ app.openapi(
       return c.json({ error: '賦予角色失敗', code: 'GRANT_ROLE_FAILED' }, 500);
     }
 
-    const { data: rolesResult } = await supabase
+    // 寫入成功就清（#1631）：這個請求經過 middleware 時剛把**沒有 parent** 的身分存進快取，
+    // 不清的話前端接著打的 /api/me 在同一個 isolate 會拿到舊角色，30 秒內畫面毫無變化。
+    // 放在讀回之前：讀回失敗時寫入已經生效，快取裡那份確定是舊的，清掉只會多一次重查，不會放行
+    invalidateIdentity(userId);
+
+    const { data: rolesResult, error: rolesError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId);
+
+    // 讀回失敗不能回 200 {roles: []}：前端會照單全收，把畫面上的角色清空還跳「已啟用」
+    if (rolesError) {
+      return c.json({ error: '讀取角色失敗', code: 'READ_ROLES_FAILED' }, 500);
+    }
 
     return c.json(
       {
@@ -298,6 +340,8 @@ app.openapi(
   },
 );
 
+// 推播訂閱與通知偏好（#1659）：/push-config、/push-subscriptions、/notification-preferences
+app.route('/', mePushRoute);
 app.route('/children', childrenRoute);
 app.route('/attendance', attendanceRoute);
 app.route('/grades', gradesRoute);

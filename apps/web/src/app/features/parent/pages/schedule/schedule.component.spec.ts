@@ -193,6 +193,20 @@ describe('家長端課表 ScheduleComponent', () => {
     expect(host().querySelector('[data-part="week-label"]')!.textContent).toContain('（本週）');
   });
 
+  // #1641 項 3：換週的方向淡入，資料套上時才給
+  it('換週給方向：下一週往後、回本週往前；進頁沒有方向', () => {
+    const motion = () =>
+      (fixture.componentInstance as unknown as { contentMotion: () => { dir: string } | null })
+        .contentMotion();
+    expect(motion()).toBeNull();
+    (host().querySelector('[aria-label="下一週"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(motion()?.dir).toBe('forward');
+    [...host().querySelectorAll('button')].find((b) => b.textContent?.includes('回本週'))!.click();
+    fixture.detectChanges();
+    expect(motion()?.dir).toBe('back');
+  });
+
   it('沒有任何課的一週：寫「這週沒有課」，不是七個「沒課」', async () => {
     list.mockReturnValueOnce(of({ data: [] }));
     (host().querySelector('[aria-label="下一週"]') as HTMLButtonElement).click();

@@ -1,5 +1,3 @@
-<p-toast appendTo="body" [baseZIndex]="25000" />
-
 <app-page-open>
   <ng-container openTitle>
     @if (headline(); as line) {
@@ -412,6 +410,7 @@
         <!-- 確認列：有改動或還有人沒處理才出現（A6）。送出的 payload 與舊版一字不差 -->
         @if (showSaveBar()) {
           <div
+            data-toast-dock
             class="sticky bottom-4 z-[1] mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-900 px-4 py-3 text-white shadow-[0_16px_36px_-14px_rgb(26_22_20/45%)]"
             role="region"
             aria-label="確認名單"

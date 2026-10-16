@@ -1,22 +1,27 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
-import { logAudit, logAuditMany } from '../utils/audit';
+import { logAudit } from '../utils/audit';
 import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
+import { attachParentContacts, type ParentRelationRow } from '../lib/student-parents';
+import { paymentInfoEntries } from '../lib/payment-info';
+import { isPlaceholderEmail } from './parents';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import {
   enrollmentsInScope,
   INVOICE_SCOPE_EMBED,
   invoiceInScope,
+  invoiceTouchesScope,
   studentInScope,
 } from '../lib/invoice-campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { dueStateOn, whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
 import { summarizeInvoices } from '../lib/invoice-summary';
+import { fetchAllPages } from '../lib/fetch-all-pages';
 import {
   invoiceTotals,
   isOpenInvoice,
@@ -36,7 +41,6 @@ import {
 const ITEM_TYPES = ['tuition', 'meal', 'session_pack', 'adjustment'] as const;
 const PAYMENT_KINDS = ['payment', 'refund'] as const;
 const PAYMENT_METHODS = ['cash', 'transfer'] as const;
-const REMINDER_METHODS = ['line', 'phone', 'other'] as const;
 const INVOICE_STATUSES = ['unpaid', 'partial', 'paid', 'void', 'overrefunded'] as const;
 const DUE_STATES = ['overdue', 'dueSoon', 'notDue'] as const;
 
@@ -91,12 +95,30 @@ const InvoiceSchema = z
     voidReason: z.string().nullable(),
     items: z.array(InvoiceItemSchema),
     payments: z.array(PaymentRecordSchema),
-    /** 最近一次催繳（#1314 P3）。只有列表帶；沒催過是 null */
-    lastRemindedAt: z.string().nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
   .openapi('Invoice');
+
+/**
+ * 單張帳單才有的欄位（#1625 快速聯絡家長）。**列表不帶** —— 一次幾百張，不該順便帶出幾百位家長的個資。
+ * 家長只在帳單過了 `findScopedInvoice`（org＋分校範圍）之後才讀，授權跟著帳單走。
+ */
+const InvoiceDetailSchema = InvoiceSchema.extend({
+  parents: z.array(
+    z.object({
+      id: DbUuidSchema,
+      name: z.string(),
+      relation: z.string().nullable(),
+      phone: z.string().nullable(),
+      /** 只留電話的家長，`ba_user.email` 是系統產的 placeholder —— 回 null（沒有留 email） */
+      email: z.string().nullable(),
+      isPrimary: z.boolean(),
+    }),
+  ),
+  /** 帳單明細所屬分校的匯款資料（分校覆寫優先、以內容去重）；沒有班的單退回機構預設 */
+  paymentInfo: z.array(z.object({ campusName: z.string().nullable(), text: z.string() })),
+}).openapi('InvoiceDetail');
 
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
@@ -115,41 +137,7 @@ const CampusIdQuerySchema = DbUuidSchema.optional().openapi({
 
 const app = new OpenAPIHono<AppEnv>();
 
-const LIST_REMINDERS_EMBED = ', payment_reminders(created_at)';
-
-/**
- * 列表的一列：帳單本體＋最近一次催繳時間（#1314 P3，列內「提醒」鈕要它）。
- * ponytail: 每張單的催繳全撈再取最大值（量級個位數）；上千筆時改 `referencedTable` 的 order＋limit 1。
- */
-function toListedInvoice(row: Record<string, unknown>) {
-  const reminders = (row['payment_reminders'] as Array<{ created_at: string }> | null) ?? [];
-  // timestamptz 字串同格式同時區，字典序＝時間序
-  const lastRemindedAt = reminders.reduce<string | null>(
-    (latest, r) => (latest === null || r.created_at > latest ? r.created_at : latest),
-    null,
-  );
-  return { ...toInvoiceResponse(row), lastRemindedAt };
-}
-
-/**
- * 撈到底：每頁 1000（= `max_rows`）、翻到不足一頁為止 —— 一次撈會被 `max_rows` 靜默截斷。
- * `page` 每次要回一支**新的** builder（照穩定排序切 range）。任一頁失敗就回 error，不回半套。
- *
- * ponytail: O(全部帳單) 每次呼叫 —— 上限是帳單總數；量大時升級成 DB 側 view／RPC（migration）。
- */
-const PAGE = 1000;
-
-async function fetchAllPages(
-  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
-): Promise<{ rows: Array<Record<string, unknown>>; error: unknown }> {
-  const rows: Array<Record<string, unknown>> = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await page(from, from + PAGE - 1);
-    if (error) return { rows, error };
-    rows.push(...((data ?? []) as Array<Record<string, unknown>>));
-    if ((data ?? []).length < PAGE) return { rows, error: null };
-  }
-}
+// ponytail: 帳單列表／彙總撈到底（`lib/fetch-all-pages`）是 O(全部帳單) 每次呼叫；量大時升級成 DB 側 view／RPC
 
 /** 'YYYY-MM' → 下個月 1 號 'YYYY-MM-01' */
 function nextMonthStart(month: string): string {
@@ -160,6 +148,7 @@ function nextMonthStart(month: string): string {
 /**
  * 以 id 取一張帳單，**org 與分校範圍都套**（#1381）。範圍外跟不存在一樣回 null → 路由回 404
  * （同 `findInOrg` 慣例：以 id 指名的單筆資源，不透露存在；計畫席 10-08 gate 裁定）。
+ * 查詢失敗丟（500），不是 404。
  */
 async function findScopedInvoice(
   c: Context<AppEnv>,
@@ -167,13 +156,15 @@ async function findScopedInvoice(
   columns: string,
 ): Promise<Record<string, unknown> | null> {
   const select: string = columns + INVOICE_SCOPE_EMBED;
-  const { data } = await c
+  const { data, error } = await c
     .get('supabase')
     .from('invoices')
     .select(select)
     .eq('id', id)
     .eq('org_id', c.get('orgId'))
     .maybeSingle();
+  // 讀取失敗丟（500），不折成 null —— 否則畫面跟「帳單不存在」一模一樣（#1630）
+  if (error) throw new Error(`findScopedInvoice failed: ${error.message}`);
   const row = (data as Record<string, unknown> | null) ?? null;
   return row && invoiceInScope(row, getCampusScope(c)) ? row : null;
 }
@@ -301,9 +292,7 @@ app.openapi(
     // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
     const derivedFilter = unpaidOnly || Boolean(params.status) || campusScope !== null;
 
-    // 催繳時間只在管理端列表帶（#1314 P3）—— 不進共用的 INVOICE_SELECT，家長端也用它
-    const select: string =
-      INVOICE_SELECT + LIST_REMINDERS_EMBED + (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
+    const select: string = INVOICE_SELECT + (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
     // 搜尋先解析成學生 id（姓名或家長姓名），再當條件下 —— 兩條分頁路徑都吃得到。
     // 沒命中 = 空集合（`in.()` 零筆），不是「不篩」
     const search = params.search?.trim().replace(/[,()*%"\\]/g, '');
@@ -380,7 +369,7 @@ app.openapi(
         return c.json({ error: '讀取帳單失敗', code: 'LIST_FAILED', message: error.message }, 500);
       }
       const mapped = (data ?? []).map((row) =>
-        toListedInvoice(row as unknown as Record<string, unknown>),
+        toInvoiceResponse(row as unknown as Record<string, unknown>),
       );
       // DB 已經切好頁了 —— total 要拿 DB 的總數，不是這一頁的長度
       return c.json({ data: mapped, meta: { total: count ?? mapped.length, page, pageSize } }, 200);
@@ -397,7 +386,7 @@ app.openapi(
 
     let rows = fetched
       .filter((row) => invoiceInScope(row, campusScope))
-      .map((row) => toListedInvoice(row));
+      .map((row) => toInvoiceResponse(row));
     // 作廢單不在母體裡（#898）—— 它的 total − netPaid 是全額，放進來就是叫行政去催一張
     // 不存在的帳單。所以是 isOpenInvoice，不是 `!== 'paid'`
     if (unpaidOnly) rows = rows.filter((invoice) => isOpenInvoice(invoice.status));
@@ -454,6 +443,10 @@ app.openapi(
                 notDue: BucketSchema,
                 outstanding: z.number(),
                 month: z.object({ month: z.string(), billed: z.number(), received: z.number() }),
+                crossCampusOverdue: CountSchema.openapi({
+                  description:
+                    '被 campusId 篩選排除的跨校逾期帳單張數（儀表板「另有 N 張跨校帳單」）。不帶 campusId 恆 0',
+                }),
               })
               .openapi('InvoiceSummary'),
           },
@@ -467,7 +460,8 @@ app.openapi(
     const orgId = c.get('orgId');
 
     const { studentId, campusId } = c.req.valid('query');
-    const campusScope = campusFilterIds(getCampusScope(c), campusId);
+    const baseScope = getCampusScope(c);
+    const campusScope = campusFilterIds(baseScope, campusId);
     const select: string =
       'id, issued_at, due_date, voided_at, invoice_items(amount), payment_records(kind, amount)' +
       (campusScope === null ? '' : INVOICE_SCOPE_EMBED);
@@ -479,26 +473,42 @@ app.openapi(
     // 撈一半失敗就不回半套數字
     if (error) return c.json({ error: '查詢帳單彙總失敗', code: 'DB_ERROR' }, 500);
     const rows = fetched.filter((row) => invoiceInScope(row, campusScope));
+    // 跨校帳單 N（#1314 儀表板）：授權範圍內看得到、被篩選排除、但有班的明細也落在篩選範圍內。
+    // 純餐費跨校單不會被排除（兩校都看得到），所以不在這裡。逾期判準借 summarizeInvoices
+    const crossCampus =
+      campusScope === null
+        ? []
+        : fetched.filter(
+            (row) =>
+              invoiceInScope(row, baseScope) &&
+              !invoiceInScope(row, campusScope) &&
+              invoiceTouchesScope(row, campusScope),
+          );
 
-    // postgrest 的 numeric 回來是字串
-    const summary = summarizeInvoices(
-      rows.map((row) => ({
-        issuedAt: row['issued_at'] as string,
-        dueDate: (row['due_date'] as string | null) ?? null,
-        voided: Boolean(row['voided_at']),
-        items: ((row['invoice_items'] as Array<Record<string, unknown>> | null) ?? []).map(
-          (item) => ({ amount: Number(item['amount'] ?? 0) }),
-        ),
-        payments: ((row['payment_records'] as Array<Record<string, unknown>> | null) ?? []).map(
-          (p) => ({ kind: p['kind'] as 'payment' | 'refund', amount: Number(p['amount'] ?? 0) }),
-        ),
-      })),
-      getCurrentTaipeiDateString(),
-    );
+    const today = getCurrentTaipeiDateString();
+    const summary = summarizeInvoices(rows.map(toSummaryInvoice), today);
+    const crossCampusOverdue = {
+      count: summarizeInvoices(crossCampus.map(toSummaryInvoice), today).overdue.count,
+    };
 
-    return c.json(summary, 200);
+    return c.json({ ...summary, crossCampusOverdue }, 200);
   },
 );
+
+// postgrest 的 numeric 回來是字串
+function toSummaryInvoice(row: Record<string, unknown>) {
+  return {
+    issuedAt: row['issued_at'] as string,
+    dueDate: (row['due_date'] as string | null) ?? null,
+    voided: Boolean(row['voided_at']),
+    items: ((row['invoice_items'] as Array<Record<string, unknown>> | null) ?? []).map((item) => ({
+      amount: Number(item['amount'] ?? 0),
+    })),
+    payments: ((row['payment_records'] as Array<Record<string, unknown>> | null) ?? []).map(
+      (p) => ({ kind: p['kind'] as 'payment' | 'refund', amount: Number(p['amount'] ?? 0) }),
+    ),
+  };
+}
 
 // ============================================================
 // GET /api/invoices/:id
@@ -513,9 +523,13 @@ app.openapi(
     responses: {
       200: {
         description: '成功',
-        content: { 'application/json': { schema: z.object({ data: InvoiceSchema }) } },
+        content: { 'application/json': { schema: z.object({ data: InvoiceDetailSchema }) } },
       },
       404: { description: '不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: {
+        description: '讀取家長聯絡方式或匯款資料失敗',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -529,7 +543,80 @@ app.openapi(
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    return c.json({ data: toInvoiceResponse(data as unknown as Record<string, unknown>) }, 200);
+    // ⚠️ 以下兩段都在範圍判斷之後 —— 帳單看不到，就什麼家長都不讀（#1625 保留類）
+    const campusIds = [
+      ...new Set(
+        ((data['scope_items'] as Array<Record<string, unknown>> | null) ?? [])
+          .map(
+            (item) =>
+              (
+                (item['enrollments'] as Record<string, unknown> | null)?.['classes'] as
+                  Record<string, unknown> | null | undefined
+              )?.['campus_id'] as string | null | undefined,
+          )
+          .filter((campusId): campusId is string => !!campusId),
+      ),
+    ];
+    const [relations, campuses, org] = await Promise.all([
+      supabase
+        .from('parent_student_relations')
+        .select('id, is_primary, relation, parents(id, name, user_id)')
+        .eq('student_id', data['student_id'] as string),
+      campusIds.length === 0
+        ? Promise.resolve({ data: [] })
+        : supabase
+            .from('campuses')
+            .select('name, payment_info')
+            .eq('org_id', orgId)
+            .in('id', campusIds),
+      supabase.from('organizations').select('payment_info').eq('id', orgId).maybeSingle(),
+    ]);
+    // 任一支讀不到就整張失敗（#1625 計畫席擋點）—— 吞掉的話回應是「沒有家長／沒有留電話」，
+    // 跟真的沒有一模一樣，行政會以為聯絡不到而放棄
+    const contacts = relations.error
+      ? null
+      : await attachParentContacts(
+          supabase,
+          (relations.data ?? []) as unknown as ParentRelationRow[],
+        );
+    const readError =
+      relations.error ??
+      contacts?.error ??
+      ('error' in campuses ? campuses.error : null) ??
+      org.error;
+    if (readError || !contacts) {
+      return c.json({ error: '讀取家長聯絡方式失敗', code: 'SERVER_ERROR' }, 500);
+    }
+    // 預設網域跟 `generatePlaceholderEmail` 同一個，產生與判斷才對得上
+    const placeholderDomain = c.env?.PLACEHOLDER_EMAIL_DOMAIN ?? 'phone.internal';
+    const parents = contacts.parents
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        relation: p.relation,
+        phone: p.phone,
+        email: isPlaceholderEmail(p.email, placeholderDomain) ? null : p.email,
+        isPrimary: p.isPrimary,
+      }))
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
+    const paymentInfo = paymentInfoEntries(
+      ((campuses.data ?? []) as Array<{ name: string; payment_info: string | null }>).map((r) => ({
+        name: r.name,
+        paymentInfo: r.payment_info,
+      })),
+      (org.data as { payment_info?: string | null } | null)?.payment_info ?? null,
+    );
+
+    return c.json(
+      {
+        data: {
+          ...toInvoiceResponse(data as unknown as Record<string, unknown>),
+          parents,
+          paymentInfo,
+        },
+      },
+      200,
+    );
   },
 );
 
@@ -1099,237 +1186,7 @@ app.openapi(
   },
 );
 
-// ============================================================
-// POST /api/invoices/reminders/batch —— 逾期章「全部提醒」（#1314 P5）
-//
-// 送畫面上那批 id，不由後端重推「所有逾期」—— 看到的就是提醒的。
-// 整批驗、整批拒（同 sessions batch-* 與 #966 B2）：任一張不存在／別 org／範圍外 → 404，
-// 任一張作廢 → 409；存在檢查排在作廢之前，別 org 的 id 不會先拿到 409。
-// ============================================================
-app.openapi(
-  createRoute({
-    method: 'post',
-    path: '/reminders/batch',
-    tags: ['Invoices'],
-    summary: '批次記錄催繳',
-    request: {
-      body: {
-        content: {
-          'application/json': {
-            schema: z.object({
-              invoiceIds: z.array(DbUuidSchema).min(1).max(200),
-              method: z.enum(REMINDER_METHODS),
-              note: z.string().optional(),
-            }),
-          },
-        },
-      },
-    },
-    responses: {
-      201: {
-        description: '成功',
-        content: { 'application/json': { schema: z.object({ count: z.number().int() }) } },
-      },
-      404: {
-        description: '有帳單不存在',
-        content: { 'application/json': { schema: ErrorSchema } },
-      },
-      409: {
-        description: '有帳單已作廢',
-        content: { 'application/json': { schema: ErrorSchema } },
-      },
-      500: {
-        description: '查詢或寫入失敗',
-        content: { 'application/json': { schema: ErrorSchema } },
-      },
-    },
-  }),
-  async (c) => {
-    const supabase = c.get('supabase');
-    const orgId = c.get('orgId');
-    const userId = c.get('userId');
-    const body = c.req.valid('json');
-    const ids = [...new Set(body.invoiceIds)];
-
-    const select: string = 'id, voided_at' + INVOICE_SCOPE_EMBED;
-    const { data, error } = await supabase
-      .from('invoices')
-      .select(select)
-      .eq('org_id', orgId)
-      .in('id', ids);
-    if (error) return c.json({ error: '查詢帳單失敗', code: 'DB_ERROR' }, 500);
-
-    const campusScope = getCampusScope(c);
-    const found = ((data ?? []) as unknown as Array<Record<string, unknown>>).filter((row) =>
-      invoiceInScope(row, campusScope),
-    );
-    if (found.length !== ids.length) {
-      return c.json({ error: '有帳單不存在', code: 'NOT_FOUND' }, 404);
-    }
-    if (found.some((row) => row['voided_at'])) return c.json(VOIDED, 409);
-
-    const { error: insertError } = await supabase.from('payment_reminders').insert(
-      ids.map((invoiceId) => ({
-        invoice_id: invoiceId,
-        method: body.method,
-        note: body.note ?? null,
-        created_by: userId,
-      })),
-    );
-    if (insertError) return c.json({ error: '記錄催繳失敗', code: 'DB_ERROR' }, 500);
-
-    logAuditMany(
-      supabase,
-      {
-        orgId,
-        userId,
-        resourceType: 'invoice',
-        action: 'invoice.remind',
-        details: { method: body.method, batch: true },
-      },
-      ids.map((resourceId) => ({ resourceId })),
-      waitUntilFrom(c),
-    );
-
-    return c.json({ count: ids.length }, 201);
-  },
-);
-
-// ============================================================
-// 催繳：記錄與列表
-//
-// 規則 7：催繳是**業務資料**不塞 audit_logs —— 行政要看得到「這張催過幾次、怎麼催的」。
-// ============================================================
-app.openapi(
-  createRoute({
-    method: 'post',
-    path: '/{id}/reminders',
-    tags: ['Invoices'],
-    summary: '記錄一次催繳',
-    request: {
-      params: z.object({ id: DbUuidSchema }),
-      body: {
-        content: {
-          'application/json': {
-            schema: z.object({
-              method: z.enum(REMINDER_METHODS),
-              note: z.string().optional(),
-            }),
-          },
-        },
-      },
-    },
-    responses: {
-      201: {
-        description: '成功',
-        content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
-      },
-      404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
-      409: { description: '帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
-      500: { description: '寫入失敗', content: { 'application/json': { schema: ErrorSchema } } },
-    },
-  }),
-  async (c) => {
-    const supabase = c.get('supabase');
-    const orgId = c.get('orgId');
-    const userId = c.get('userId');
-    const { id } = c.req.valid('param');
-    const body = c.req.valid('json');
-
-    const invoice = await findScopedInvoice(c, id, 'id, voided_at');
-
-    if (!invoice) {
-      return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
-    }
-    if (invoice['voided_at']) return c.json(VOIDED, 409);
-
-    // 原本沒接 error：寫入失敗照回 201＋寫稽核（#1314 P5 順手修）
-    const { error: insertError } = await supabase.from('payment_reminders').insert({
-      invoice_id: id,
-      method: body.method,
-      note: body.note ?? null,
-      created_by: userId,
-    });
-    if (insertError) return c.json({ error: '記錄催繳失敗', code: 'DB_ERROR' }, 500);
-
-    // #901：同檔另外四支寫入都有稽核，只有這一支漏了。
-    // `details` 記管道（催繳爭議時要答得出「用哪個方式、什麼時候」）。
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId,
-        resourceType: 'invoice',
-        resourceId: id,
-        action: 'invoice.remind',
-        details: { method: body.method },
-      },
-      waitUntilFrom(c),
-    );
-
-    return c.json({ success: true }, 201);
-  },
-);
-
-app.openapi(
-  createRoute({
-    method: 'get',
-    path: '/{id}/reminders',
-    tags: ['Invoices'],
-    summary: '催繳記錄列表',
-    request: { params: z.object({ id: DbUuidSchema }) },
-    responses: {
-      200: {
-        description: '成功',
-        content: {
-          'application/json': {
-            schema: z.object({
-              data: z.array(
-                z.object({
-                  id: DbUuidSchema,
-                  method: z.enum(REMINDER_METHODS),
-                  note: z.string().nullable(),
-                  createdBy: z.string().nullable(),
-                  createdAt: z.string(),
-                }),
-              ),
-            }),
-          },
-        },
-      },
-      404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
-    },
-  }),
-  async (c) => {
-    const supabase = c.get('supabase');
-    const orgId = c.get('orgId');
-    const { id } = c.req.valid('param');
-
-    const invoice = await findScopedInvoice(c, id, 'id');
-
-    if (!invoice) {
-      return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
-    }
-
-    const { data } = await supabase
-      .from('payment_reminders')
-      .select('id, method, note, created_by, created_at')
-      .eq('invoice_id', id)
-      .order('created_at', { ascending: false });
-
-    return c.json(
-      {
-        data: (data ?? []).map((row) => ({
-          id: row['id'] as string,
-          method: row['method'] as (typeof REMINDER_METHODS)[number],
-          note: (row['note'] as string | null) ?? null,
-          createdBy: (row['created_by'] as string | null) ?? null,
-          createdAt: row['created_at'] as string,
-        })),
-      },
-      200,
-    );
-  },
-);
+// 催繳紀錄（`payment_reminders` 的三支端點、列表的 lastRemindedAt）在 #1625 拿掉：使用者裁定
+// 「只記錄有沒有用某種軟體催過」沒有意義，改成帳單詳情直接聯絡家長。表與既有資料保留（加法優先）。
 
 export default app;

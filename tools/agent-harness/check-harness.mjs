@@ -87,9 +87,6 @@ const TAILWIND_CONTRAST_EXEMPT = {
     'LINE 官方按鈕規範：白字＋#06C755（2.26:1）；按鈕文字粗體並有圖示。**既有的對比債**，1:1 搬家不改外觀（#991 E1 搬自原 SCSS 的 --line-brand，原版 gate 看不到 var 間接）',
   'apps/web/src/app/features/public/pages/login/login.component.html|text-[#06c755]|bg-white':
     '使用者指定的白底綠框 LINE 登入鈕（login 原 SCSS 註解：「使用者要的是白底綠框的輪廓感」）：文字與邊框同為 LINE 品牌綠 #06C755，疊白底只有 2.26:1。這是**既有的對比債**，1:1 搬家不改外觀；要修需要使用者改設計（#991 E1，原 SCSS 版 gate 看不到 var 間接）',
-  // ─ 純裝飾圖示：WCAG 1.4.11 明文豁免（同 CONTRAST_EXEMPT 的 empty-state 先例）─
-  'apps/web/src/app/features/select-role/role-picker/role-picker.component.html|text-zinc-300|bg-white':
-    '選項右側的 chevron（`aria-hidden`，旁邊必有身分名稱與說明文字，hover 變 accent）：純裝飾、不承載文字沒講的資訊——1.4.11 純裝飾豁免；原 SCSS 即 `--zinc-300`，1:1 搬家不改色（#991 E2）',
   // ─ gate 把「祖先的底色」當成文字的底色，而實際位置不在祖先上 ─
   'apps/web/src/app/shared/components/day-timeline/day-timeline.component.html|text-band-ink|bg-band-ink':
     '「現在」標籤是 2px 寬 `now` 標記線（bg-band-ink）的子元素，但定位在線**上方** `-top-[15px]`、水平置中，實際疊在橘帶本身（`--band-ink` 疊 band 底色已由 band-contrast gate 守地板 0.78）。gate 只看 DOM 祖先所以誤報 1:1；原 SCSS 版同一結構（#991 Z2）',
@@ -377,12 +374,16 @@ if (existsSync(apiIndex)) {
   // 所以放行的條件是「路徑在 /api/public/ 底下 **且** 出現在 authMiddleware 之前」，
   // 不是「路徑在 /api/public/ 底下」—— 後者會讓一支掛錯位置的公開端點綠著上線卻永遠 401。
   // 只認行首那一行 —— 註解裡也寫得出同一串字（index.ts 就有一處），找到註解會把位置算錯
+  //
+  // **第二個例外：系統排程端點 `/api/internal/*`（#1661）**。呼叫者是 cron，不是人 —— 沒有 session、
+  // 沒有角色可宣告；唯一的門是部署密鑰（`CRON_SECRET`，沒設就 404），寫在該路由檔裡。
+  // 條件同上：必須掛在 authMiddleware **之前**，否則 cron 永遠拿 401。
   const authAt = source.search(/^app\.use\('\/api\/\*', authMiddleware\)/m);
   for (const match of source.matchAll(/app\.route\('(\/api\/[^']+)'/g)) {
     const path = match[1];
-    if (path.startsWith('/api/public/')) {
+    if (path.startsWith('/api/public/') || path.startsWith('/api/internal/')) {
       if (authAt === -1 || match.index > authAt) {
-        fail(`${path} 是公開端點，必須掛在 app.use('/api/*', authMiddleware) 之前`);
+        fail(`${path} 不經登入，必須掛在 app.use('/api/*', authMiddleware) 之前`);
       }
       continue;
     }

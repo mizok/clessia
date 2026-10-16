@@ -1,14 +1,16 @@
 import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 // `Subject` 這個名字被 `@core/subjects.service` 的科目型別佔走了，所以 rxjs 的取別名。
-import { EMPTY, Subject as RxSubject, catchError, debounceTime, skip, switchMap } from 'rxjs';
+import { EMPTY, Subject as RxSubject, catchError, debounceTime, skip, switchMap, tap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -113,6 +115,7 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
   selector: 'app-staff',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     PageActionsComponent,
     PageOpenComponent,
     ChapterHeadComponent,
@@ -120,7 +123,6 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
     FormsModule,
     ButtonModule,
     SelectModule,
-    ToastModule,
     TooltipModule,
     IconFieldModule,
     InputIconModule,
@@ -129,7 +131,7 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
     LoadFailedComponent,
     PopupMenuComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './staff.page.html',
 })
 export class StaffPage implements OnInit {
@@ -138,6 +140,11 @@ export class StaffPage implements OnInit {
   protected readonly primaryAction: PageAction = { label: '新增人員', icon: 'pi pi-plus' };
 
   private readonly destroyRef = inject(DestroyRef);
+  /** 重抓的資料平滑換上；新增／刪除造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  private readonly optimisticRemove = injectOptimisticRemove();
+  /** 這一輪重抓是增刪改造成的 —— 回應套上時列表帶名字（篩選、換分校不帶） */
+  private reloadRows = false;
   private readonly dialogService = inject(DialogService);
   private readonly staffService = inject(StaffService);
 
@@ -412,7 +419,7 @@ export class StaffPage implements OnInit {
   );
 
   constructor() {
-    this.campusCtx.use();
+    this.campusCtx.use({ allowAll: true }); // 報表類：保留全部分校（#1607）
     // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
     toObservable(this.campusFilter)
       .pipe(skip(1), takeUntilDestroyed())
@@ -457,9 +464,17 @@ export class StaffPage implements OnInit {
     });
   }
 
-  /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
-  protected loadStaff(): void {
-    this.loading.set(true);
+  /**
+   * 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661）。
+   * `quiet`：封存成功後的背景重抓 —— 畫面已經是「封存了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：新增／編輯／停用／封存造成的重抓，回應套上時那一列淡入、淡出或換章（篩選不帶）。
+   */
+  protected loadStaff({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.reloadRows = rows;
+    if (!quiet) this.loading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
   }
@@ -499,9 +514,15 @@ export class StaffPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res: StaffListResponse) => {
-        this.staffList.set(res.data);
-        this.summary.set(res.summary);
-        this.loading.set(false);
+        this.viewTransition(
+          () => {
+            this.staffList.set(res.data);
+            this.summary.set(res.summary);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
       });
   }
 
@@ -551,7 +572,7 @@ export class StaffPage implements OnInit {
   private afterCreate(result?: { data?: Staff; loginUrl?: string | null }): void {
     if (!result) return;
     this.refData.invalidate('teachers');
-    this.loadStaff();
+    this.loadStaff({ rows: true });
 
     // 建完立刻給連結：櫃檯把 QR 給對方掃，是綁定成功率最高的時刻
     if (result.data && result.loginUrl) {
@@ -580,7 +601,7 @@ export class StaffPage implements OnInit {
       ref.onClose.subscribe((result?: KioskFormDialogResult) => {
         if (!result) return;
         if (staff) {
-          this.loadStaff();
+          this.loadStaff({ rows: true });
         } else {
           this.afterCreate(result);
         }
@@ -615,7 +636,7 @@ export class StaffPage implements OnInit {
       ref.onClose.subscribe((result) => {
         if (result) {
           this.refData.invalidate('teachers');
-          this.loadStaff();
+          this.loadStaff({ rows: true });
         }
       });
   }
@@ -673,16 +694,22 @@ export class StaffPage implements OnInit {
     );
   }
 
+  /**
+   * 樂觀封存（#1641 5b 第 1 點）：按下就淡出，失敗放回並說明。封存幾乎不會失敗（軟刪除，沒有 FK 擋）。
+   * 例外是狀態篩選「全部（含已封存）」：封存的人不會離開清單、只是換到「停用與封存」章 ——
+   * 先拿掉再被重抓放回來反而像壞掉，所以這時等伺服器回來，由重抓把那一列移過去。
+   */
   private archiveStaff(staff: Staff): void {
-    this.staffService.archive(staff.id).subscribe({
-      next: (res) => {
+    const request = this.staffService.archive(staff.id);
+    const handlers = {
+      next: (res: { unassignedSessions: number }) => {
         const detail =
           res.unassignedSessions > 0
             ? `「${staff.displayName}」已封存，${res.unassignedSessions} 堂未來課堂已設為待指派`
             : `「${staff.displayName}」已封存`;
         this.messageService.add({ severity: 'success', summary: '封存成功', detail });
         this.refData.invalidate('teachers');
-        this.loadStaff();
+        this.loadStaff({ quiet: true, rows: true });
       },
       error: (err: any) => {
         this.messageService.add({
@@ -691,7 +718,20 @@ export class StaffPage implements OnInit {
           detail: err.error?.error || '請稍後再試',
         });
       },
-    });
+    };
+    if (this.staffStatusFilter() === 'all') {
+      request.subscribe(handlers);
+      return;
+    }
+    // 成功的 toast 要用回應裡的 unassignedSessions，所以從 tap 接，不走 handlers.next（它不帶回應）
+    this.optimisticRemove(
+      this.staffList,
+      (s) => s.id === staff.id,
+      request.pipe(tap(handlers.next)),
+      {
+        error: handlers.error,
+      },
+    );
   }
 
   protected confirmDeactivate(staff: Staff): void {
@@ -730,7 +770,7 @@ export class StaffPage implements OnInit {
           detail: `「${staff.displayName}」已停用`,
         });
         this.refData.invalidate('teachers');
-        this.loadStaff();
+        this.loadStaff({ rows: true });
       },
       error: (err: any) => {
         this.messageService.add({
@@ -751,7 +791,7 @@ export class StaffPage implements OnInit {
           detail: `「${staff.displayName}」已重新啟用`,
         });
         this.refData.invalidate('teachers');
-        this.loadStaff();
+        this.loadStaff({ rows: true });
       },
       error: (err: any) => {
         this.messageService.add({

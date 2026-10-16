@@ -1,3 +1,4 @@
+import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -6,17 +7,20 @@ import {
   inject,
   input,
   signal,
+  type Signal,
   EnvironmentInjector,
   createEnvironmentInjector,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { format } from 'date-fns';
-import { catchError, of, type Observable } from 'rxjs';
+import { catchError, of, switchMap, tap, type Observable } from 'rxjs';
 
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { AuthService } from '@core/auth.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { BillingPeriodsService, type UpcomingUnbilledPeriod } from '@core/billing-periods.service';
 import { ContactLogsService } from '@core/contact-logs.service';
 import { InvoicesService, type Invoice } from '@core/invoices.service';
@@ -106,6 +110,7 @@ import {
 @Component({
   selector: 'app-dashboard',
   imports: [
+    ValueArriveDirective,
     StatusDotComponent,
     RouterLink,
     PhoneLeaveComponent,
@@ -121,6 +126,8 @@ export class DashboardComponent {
   readonly page = input.required<RouteObj>();
 
   private readonly attendanceService = inject(AttendanceService);
+  /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
+  private readonly viewTransition = injectViewTransition();
   private readonly leaveService = inject(LeaveService);
   private readonly billingPeriodsService = inject(BillingPeriodsService);
   private readonly invoicesService = inject(InvoicesService);
@@ -131,6 +138,7 @@ export class DashboardComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly campusCtx = inject(CampusContextService);
 
   /** 「現在」。每半分鐘更新一次 —— 「上課 40 分鐘了」與名冊的現在線會隨時間走 */
   private readonly now = signal(new Date());
@@ -441,21 +449,26 @@ export class DashboardComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (checkin) => {
-          // 用回應而不是樂觀更新 —— 到班時間是伺服器給的，猜一個會跟事實差幾秒
-          this.workbench.update((current) =>
-            current === null
-              ? current
-              : {
-                  ...current,
-                  arrived: [
-                    ...current.arrived,
-                    {
-                      studentId: checkin.studentId,
-                      checkedInAt: checkin.checkedInAt,
-                      checkinId: checkin.id,
+          // 用回應而不是樂觀更新 —— 到班時間是伺服器給的，猜一個會跟事實差幾秒。
+          // 包在頁內 VT 裡：這位學生從「該到沒到」消失，其餘列補位（#1641 項 5）
+          this.viewTransition(
+            () =>
+              this.workbench.update((current) =>
+                current === null
+                  ? current
+                  : {
+                      ...current,
+                      arrived: [
+                        ...current.arrived,
+                        {
+                          studentId: checkin.studentId,
+                          checkedInAt: checkin.checkedInAt,
+                          checkinId: checkin.id,
+                        },
+                      ],
                     },
-                  ],
-                },
+              ),
+            { rows: true },
           );
           this.boardBusy.set(null);
         },
@@ -473,10 +486,17 @@ export class DashboardComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.workbench.update((current) =>
-            current === null
-              ? current
-              : { ...current, arrived: current.arrived.filter((a) => a.checkinId !== checkinId) },
+          this.viewTransition(
+            () =>
+              this.workbench.update((current) =>
+                current === null
+                  ? current
+                  : {
+                      ...current,
+                      arrived: current.arrived.filter((a) => a.checkinId !== checkinId),
+                    },
+              ),
+            { rows: true },
           );
           this.boardBusy.set(null);
         },
@@ -514,6 +534,16 @@ export class DashboardComponent {
     { count: number; amount: number } | typeof FAILED | null
   >(null);
   protected readonly overdueList = signal<readonly Invoice[]>([]);
+  /** API 回的「跨校逾期帳單」張數；`null`＝還不知道／API 沒給／讀取失敗（都不畫那一行） */
+  private readonly crossCampusOverdue = signal<number | null>(null);
+  /**
+   * 財務卡下方「另有 N 張跨校帳單不在此分校統計內」的 N；**不該畫時是 `null`**：
+   * 頂欄沒選分校（全部分校就是全部，沒有「不在此分校」）、欄位缺、N = 0。
+   */
+  protected readonly crossCampusNote = computed(() => {
+    const count = this.crossCampusOverdue();
+    return this.campusCtx.id() !== null && count !== null && count > 0 ? count : null;
+  });
   protected readonly canSeeOverdue = computed(() => this.auth.hasPermission('manage_finance'));
   protected readonly overdueRoute = RoutesCatalog.ADMIN_PAYMENTS.absolutePath;
   protected readonly studentRoute = RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath;
@@ -531,6 +561,9 @@ export class DashboardComponent {
 
   /** 分校小字：只有今天的資料全落在同一個分校時才寫，跨分校的機構不挑一個 */
   protected readonly campusName = computed(() => {
+    // 頂欄選了分校就直接用它（整頁都是那間的資料）；選「全部」才從今天的資料推
+    const selected = this.campusCtx.id();
+    if (selected) return this.campusCtx.name();
     const names = new Set(
       [
         ...(this.workbench()?.sessions ?? []).map((s) => s.campusName),
@@ -680,60 +713,22 @@ export class DashboardComponent {
     // `takeUntilDestroyed` 的泛型是在呼叫點推導的 —— 存成 const 會把 T 定死成
     // `unknown`，後面每個 subscribe 的 res 都變 unknown。所以逐一 inline 呼叫。
 
+    // **整頁跟頂欄分校（#1314 DB-campus）**：每張卡一條 `bind`——分校一換先把那張卡清成
+    // 「還不知道」（舊數字配新分校是最糟的騙法），再用 `switchMap` 查；連換兩次時先送出的慢回應
+    // 會被丟掉，不會蓋掉後送出的。選「全部」＝不帶 `campusId`。
+    this.campusCtx.use({ allowAll: true }); // 報表類：保留全部分校（#1607）
+
     // ① Hero＋作業台主體：**一支取代兩支**（今日課表 + 點名模式）。
     // 形狀的判斷本來就該只有一份，在伺服器。日到班模式下這一支還順便帶回
     // 應到／已到／請假（連同家長電話與今天的聯絡），前端不必再打。
-    this.loadWorkbench();
-
-    /**
-     * 未點名課堂——**一支查完**。`endedOnly=true` 把「已經上完」的判斷搬到伺服器
-     * （#368），不用再拆成「昨天以前查 API、今天前端逐筆濾」兩段。`pageSize: 1`
-     * 取 `meta.total`，數字完全由伺服器算，前端不重算一次——這是計畫席當時的
-     * 硬性條件：後端能表達之後，卡片數字整個來自伺服器。
-     */
-    failSoft(
-      this.attendanceService.sessions({
-        ...this.untakenQuery(),
-        pageSize: 1,
-      }),
-    )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.untakenCount.set(res === FAILED ? FAILED : res.meta.total));
-
-    if (this.auth.hasPermission('manage_finance')) {
-      failSoft(this.billingPeriodsService.upcomingUnbilled())
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((res) => this.unbilledPeriods.set(res === FAILED ? FAILED : res.data));
-
-      // 逾期帳單（D6）：張數與金額由伺服器加總，列表只取前幾筆
-      failSoft(this.invoicesService.summary())
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((res) =>
-          this.overdueSummary.set(
-            res === FAILED ? FAILED : { count: res.overdue.count, amount: res.overdue.outstanding },
-          ),
-        );
-      failSoft(this.invoicesService.list({ overdue: true, pageSize: OVERDUE_PREVIEW }))
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((res) => this.overdueList.set(res === FAILED ? [] : res.data));
-    }
-
-    this.loadTodayLeaves();
-  }
-
-  /**
-   * 重抓「今日」—— 接到電話請假送出後叫（#964）：讓剛登記的假也出現在底下的看板上
-   * （日到班模式：從「該到沒到」移到請假）。只重抓會被請假改到的那兩支。
-   */
-  protected loadToday(): void {
-    this.loadWorkbench();
-    this.loadTodayLeaves();
-  }
-
-  private loadWorkbench(): void {
-    failSoft(this.workbenchService.today())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => {
+    this.bind(
+      () => {
+        this.todaySessions.set(null);
+        this.attendanceMode.set(null);
+        this.workbench.set(null);
+      },
+      (campusId) => this.workbenchService.today({ campusId }),
+      (res) => {
         if (res === FAILED) {
           this.todaySessions.set(FAILED);
           return;
@@ -741,13 +736,100 @@ export class DashboardComponent {
         this.todaySessions.set(res.sessions);
         this.attendanceMode.set(res.mode);
         this.workbench.set(res);
-      });
+      },
+      this.todayRefresh,
+    );
+
+    /**
+     * 未點名課堂——**一支查完**。`endedOnly=true` 把「已經上完」的判斷搬到伺服器
+     * （#368），不用再拆成「昨天以前查 API、今天前端逐筆濾」兩段。`pageSize: 1`
+     * 取 `meta.total`，數字完全由伺服器算，前端不重算一次——這是計畫席當時的
+     * 硬性條件：後端能表達之後，卡片數字整個來自伺服器。
+     */
+    this.bind(
+      () => this.untakenCount.set(null),
+      (campusId) =>
+        this.attendanceService.sessions({ ...this.untakenQuery(), pageSize: 1, campusId }),
+      (res) => this.untakenCount.set(res === FAILED ? FAILED : res.meta.total),
+    );
+
+    if (this.auth.hasPermission('manage_finance')) {
+      this.bind(
+        () => this.unbilledPeriods.set(null),
+        (campusId) => this.billingPeriodsService.upcomingUnbilled({ campusId }),
+        (res) => this.unbilledPeriods.set(res === FAILED ? FAILED : res.data),
+      );
+
+      // 逾期帳單（D6）：張數與金額由伺服器加總，列表只取前幾筆
+      this.bind(
+        () => {
+          this.overdueSummary.set(null);
+          this.crossCampusOverdue.set(null);
+        },
+        (campusId) => this.invoicesService.summary({ campusId }),
+        (res) => {
+          this.overdueSummary.set(
+            res === FAILED ? FAILED : { count: res.overdue.count, amount: res.overdue.outstanding },
+          );
+          // 失敗清成 null。⚠️ 目前**沒有路徑能在不換分校的情況下重打 summary**（這條 bind 沒有 refresh，
+          // 換分校又會先 reset），所以「失敗不動值」的突變在現況等價；給摘要加重新整理／輪詢時，
+          // 要補「同分校 N>0 → 失敗 → 那一行消失」的 spec（#1585 二讀）
+          this.crossCampusOverdue.set(
+            res === FAILED ? null : (res.crossCampusOverdue?.count ?? null),
+          );
+        },
+      );
+      this.bind(
+        () => this.overdueList.set([]),
+        (campusId) =>
+          this.invoicesService.list({ overdue: true, pageSize: OVERDUE_PREVIEW, campusId }),
+        (res) => this.overdueList.set(res === FAILED ? [] : res.data),
+      );
+    }
+
+    this.bind(
+      () => this.todayLeaves.set(null),
+      (campusId) => this.leaveService.list({ coverDate: this.todayIso, pageSize: 100, campusId }),
+      (res) => this.todayLeaves.set(res === FAILED ? FAILED : res.data),
+      this.todayRefresh,
+    );
   }
 
-  private loadTodayLeaves(): void {
-    failSoft(this.leaveService.list({ coverDate: this.todayIso, pageSize: 100 }))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.todayLeaves.set(res === FAILED ? FAILED : res.data));
+  /** 每次 +1 就重抓「今日」那兩支（作業台、今日請假） */
+  private readonly todayRefresh = signal(0);
+
+  /**
+   * 重抓「今日」—— 接到電話請假送出後叫（#964）：讓剛登記的假也出現在底下的看板上
+   * （日到班模式：從「該到沒到」移到請假）。只重抓會被請假改到的那兩支，且**不清畫面**（只有換分校才清）。
+   */
+  protected loadToday(): void {
+    this.todayRefresh.update((n) => n + 1);
+  }
+
+  /**
+   * 一張卡的取數：頂欄分校（與 `refresh`）一變就查。**分校換了才 `reset`**（`refresh` 只重查、不清）；
+   * `switchMap` 讓先送出的慢回應不會蓋掉後送出的。必須在建構子（注入環境）裡呼叫。
+   */
+  private bind<T>(
+    reset: () => void,
+    load: (campusId: string | undefined) => Observable<T>,
+    apply: (res: T | typeof FAILED) => void,
+    refresh?: Signal<number>,
+  ): void {
+    const query = computed(() => ({ campusId: this.campusCtx.id(), n: refresh?.() ?? 0 }));
+    let seen: string | null | undefined;
+    toObservable(query)
+      .pipe(
+        tap(({ campusId }) => {
+          if (campusId !== seen) {
+            seen = campusId;
+            reset();
+          }
+        }),
+        switchMap(({ campusId }) => failSoft(load(campusId ?? undefined))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(apply);
   }
 
   protected readonly leaveCount = computed(() => countOf(this.todayLeaves()));

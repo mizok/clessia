@@ -15,6 +15,8 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ScheduleQuickPicksComponent {
+  /** 桌機工具列那一列（A6 `.sx__row--q`）：一行、30px 高、提示字在框裡（#1620）；手機面板維持一般尺寸 */
+  readonly dense = input(false);
   /** 「這一整天」那顆的字（`今天`、`週三 10/7`）；週視圖沒有「這一天」，不給就不出這顆 */
   readonly dayName = input<string | null>(null);
   readonly teacherOptions = input.required<readonly SelectFieldOption<string>[]>();

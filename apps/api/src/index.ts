@@ -16,10 +16,12 @@ import type { StudentScope } from './lib/child-scope';
 import type { ChildDb } from './lib/child-db';
 import type { Auth, MagicLinkPayload } from './auth';
 import { authPoolCleanup, getAuth } from './lib/get-auth';
+import internalPushRoute from './routes/internal-push';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import loginLinksRoute from './routes/login-links';
 import billingPeriodsRoute from './routes/billing-periods';
 import feeTemplatesRoute from './routes/fee-templates';
+import publicCaptchaRoute from './routes/public/captcha';
 import publicCatalogRoute from './routes/public/catalog';
 import publicApplicationsRoute from './routes/public-applications';
 import publicEnrollmentApplicationsRoute from './routes/public/enrollment-applications';
@@ -55,6 +57,7 @@ import academyExamsRoute from './routes/academy-exams';
 import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
 import announcementsRoute from './routes/announcements';
+import notificationsRoute from './routes/notifications';
 import contactBookRoute from './routes/contact-book';
 import classLogsRoute from './routes/class-logs';
 
@@ -90,10 +93,32 @@ export type Bindings = {
    */
   PUBLIC_ORG_SLUG?: string;
   /**
-   * Cloudflare Turnstile 的 secret（#1126）—— **可選**：有設才對公開表單強制機器人驗證；
-   * 沒設只剩 rate limit＋honeypot（c12：客戶要能離開 Cloudflare）。走 `wrangler secret put`。
+   * 公開表單的機器人驗證用哪一家（#1665）：`altcha`（預設，自架 PoW、不連外，c12）或 `turnstile`。
+   * 兩種都一律驗，沒有「不驗」的設定（見 `routes/public/application-common.ts` 的 captchaProvider）。
    */
+  CAPTCHA_PROVIDER?: string;
+  /** ALTCHA 題目的 HMAC 金鑰（走 `wrangler secret put`）；可選，沒設從 BETTER_AUTH_SECRET 衍生 */
+  ALTCHA_HMAC_KEY?: string;
+  /** `CAPTCHA_PROVIDER=turnstile` 時必填（`wrangler secret put`）；沒設該模式一律 503 拒收 */
   TURNSTILE_SECRET_KEY?: string;
+  /** `CAPTCHA_PROVIDER=turnstile` 時給前端 widget 的 site key（非機密，`--var`） */
+  TURNSTILE_SITE_KEY?: string;
+  /**
+   * Web Push 的 VAPID 公鑰（#1659，非機密，`[env.production.vars]`）。**可選**：沒設 = 這份部署沒開推播，
+   * `/api/me/push-config` 回 404。產生方式見 `scripts/generate-vapid-keys.ts`（#1657）
+   */
+  VAPID_PUBLIC_KEY?: string;
+  /** VAPID 私鑰（#1661，**機密**，`wrangler secret put`）。沒設 = 排程回 500 PUSH_NOT_CONFIGURED */
+  VAPID_PRIVATE_KEY?: string;
+  /** VAPID 的 `sub`：`mailto:` 補習班聯絡信箱（#1661，非機密，vars） */
+  VAPID_SUBJECT?: string;
+  /**
+   * 推播排程端點的密鑰（#1661，**機密**，`wrangler secret put`）。**沒設 = `/api/internal/push/run` 一律 404、
+   * `scheduled()` 什麼都不做** —— 這份部署沒開推播排程。
+   */
+  CRON_SECRET?: string;
+  /** 每次 run 最多送幾台裝置（#1661）。沒設用 10（#1657 在免費方案實測）；自架可調大 */
+  PUSH_BATCH_SIZE?: string;
 };
 
 export type Variables = {
@@ -127,6 +152,16 @@ export type Variables = {
    * 只用這個** —— 見 `lib/child-db.ts`。
    */
   childDb: ChildDb;
+  /**
+   * 這個人自己的 staff／parents 列（只有顯示用欄位），由 auth middleware 跟身分查詢一起帶出來，
+   * 給 `/api/me` 省兩支查詢（#1595 P2a）。經身分快取，最遲 30 秒才反映修改。
+   */
+  selfRows: {
+    staff: { display_name?: string | null; birthday?: string | null } | null;
+    parent: { name?: string | null } | null;
+    /** 這個人在 `staff_campuses` 的分校（跟 campusScope 同一份）；前端挑預設分校用（#1607） */
+    assignedCampusIds: string[];
+  };
   supabase: SupabaseClient;
   /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */
   auth: Auth;
@@ -279,8 +314,13 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 // **必須在 authMiddleware 之前**：之後掛的每一支都會先被它要 session。
 app.use('/api/public/*', publicOrgMiddleware);
 app.route('/api/public/catalog', publicCatalogRoute);
+app.route('/api/public/captcha', publicCaptchaRoute);
 app.route('/api/public/enrollment-applications', publicEnrollmentApplicationsRoute);
 app.route('/api/public/trial-applications', publicTrialApplicationsRoute);
+
+// ── 推播排程（#1661）：唯一的門是 CRON_SECRET，見 routes/internal-push.ts ──────────
+// **必須在 authMiddleware 之前** —— cron 沒有 session。
+app.route('/api/internal/push', internalPushRoute);
 
 app.use('/api/*', authMiddleware);
 
@@ -395,6 +435,8 @@ mount('/api/school-exams', schoolExamsRoute, ['admin', 'teacher'], {
 mount('/api/scores', scoresRoute, ['admin', 'teacher'], { write: 'basic_operations' });
 // 收件匣對 teacher/parent 開放；發布與管理端列表在 route 內另外要求 admin
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
+// 通知中心的「通知」來源（#1688）：每人自己的；依 active role 過濾，老師／管理員回空清單
+mount('/api/notifications', notificationsRoute, ANY_ROLE);
 // 聯絡簿與教務日誌：admin 與 teacher 都寫得到，老師的範圍在 route 內縮限到
 // 自己固定任課的班（lib/teacher-scope）。家長端的簽收與已閱是 P4。
 mount('/api/contact-book', contactBookRoute, ['admin', 'teacher'], { write: 'basic_operations' });
@@ -440,4 +482,21 @@ app.notFound((c) => {
   return c.json({ error: 'Not Found', path: c.req.path }, 404);
 });
 
-export default app;
+/**
+ * Workers 的 Cron Trigger（#1661）：在行程內呼叫同一支 `/api/internal/push/run` —— 跟自架的系統 cron
+ * 走完全相同的程式碼路徑（c12）。`app` 本身照舊是預設匯出（`server.ts`、測試都用它），只多掛一個 handler。
+ */
+async function scheduled(_event: unknown, env: Bindings, ctx: ExecutionContext): Promise<void> {
+  if (!env.CRON_SECRET) return;
+  const res = await app.fetch(
+    new Request('https://cron.internal/api/internal/push/run', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${env.CRON_SECRET}` },
+    }),
+    env,
+    ctx,
+  );
+  if (!res.ok) console.error('[push] scheduled run failed:', res.status);
+}
+
+export default Object.assign(app, { scheduled });

@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
+import { attachParentContacts, type ParentRelationRow } from '../lib/student-parents';
 import { resolveStudentScope } from './students/teacher-scope';
 import { outOfCampusScope, teacherCannotRead } from './students/read-scope';
 import { taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
@@ -519,8 +520,8 @@ app.openapi(
     // ── 今日到班（#1314 SL1）──────────────────────────────────
     // 判準在 `lib/today-attendance.ts`，跟作業台同一份。只在帶 `today`、或第一頁（且沒說
     // `withToday=false`）時算 —— 多 4～5 支查詢，翻頁不必重算（計畫席 10-10 裁）。
-    let todayStatuses: Map<string, TodayStatus> | null = null;
-    if (todayFilter !== undefined || (page === 1 && withToday !== 'false')) {
+    type TodayResult = { statuses: Map<string, TodayStatus> | null } | { response: Response };
+    const loadToday = async (): Promise<TodayResult> => {
       const date = getCurrentTaipeiDateString();
       // 模式解析同作業台：單一分校用分校設定、多校用機構預設（同一個 ponytail 上限）
       const singleCampus = campusId ?? (campusIds?.length === 1 ? campusIds[0] : null);
@@ -534,7 +535,9 @@ app.openapi(
         if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', [...campusIds]);
         const { data: sessionRows, error: sessionsError } = await sessionsQuery;
         if (sessionsError) {
-          return c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500);
+          return {
+            response: c.json({ error: '讀取學生列表失敗', message: sessionsError.message }, 500),
+          };
         }
         const daily = await loadDailyAttendance(
           supabase,
@@ -542,20 +545,38 @@ app.openapi(
           date,
           ((sessionRows ?? []) as unknown as Array<Record<string, unknown>>).map(toTodaySession),
         );
-        todayStatuses = classifyToday(daily, date);
+        const todayStatuses = classifyToday(daily, date);
         // 老師只數得到自己的學生
         if (taughtStudentIds !== null) {
           const taught = new Set(taughtStudentIds);
           for (const id of todayStatuses.keys()) if (!taught.has(id)) todayStatuses.delete(id);
         }
+        return { statuses: todayStatuses };
       } else if (todayFilter !== undefined) {
         // ponytail: 逐堂點名的「到了沒」是每堂出勤紀錄，v1 不支援（計畫席 10-10 記可否決）——
         // 明講不支援，不默默回空（默默回空會看起來像「今天沒人」）
-        return c.json(
-          { error: '逐堂點名模式不支援今日到班篩選', code: 'TODAY_UNSUPPORTED_MODE' },
-          400,
-        );
+        return {
+          response: c.json(
+            { error: '逐堂點名模式不支援今日到班篩選', code: 'TODAY_UNSUPPORTED_MODE' },
+            400,
+          ),
+        };
       }
+      return { statuses: null };
+    };
+    // 帶 `today` 篩選時列表要用它的結果，只能先算；沒帶時（開頁預設）跟下面的列表同時跑，
+    // 不再排在列表前面多等 3–4 個往返（#1595 P3b-A）
+    const todayPromise: Promise<TodayResult> =
+      todayFilter !== undefined || (page === 1 && withToday !== 'false')
+        ? loadToday()
+        : Promise.resolve({ statuses: null });
+    // 列表先失敗、提早 return 時，這支的結果沒人等 —— 別讓它變成 unhandled rejection
+    todayPromise.catch(() => undefined);
+    let todayStatuses: Map<string, TodayStatus> | null = null;
+    if (todayFilter !== undefined) {
+      const today = await todayPromise;
+      if ('response' in today) return today.response;
+      todayStatuses = today.statuses;
     }
     const todayIds =
       todayFilter !== undefined && todayStatuses
@@ -591,35 +612,42 @@ app.openapi(
       .eq('is_active', true);
     if (scopedStudentIds) activeCountQuery = activeCountQuery.in('id', scopedStudentIds);
 
-    // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去
-    // 每級一支 head count 讓 DB 數 —— 撈列回來數會被 max_rows（1000）靜默截斷（同 courses bySubject）
-    const gradeCountQueries = GRADE_CHAPTERS.map((level) =>
-      withChapterFilters(
-        supabase
-          .from('students')
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .eq('grade', level),
-      ),
+    // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去。
+    // 讓 DB 用 GROUP BY 數（PostgREST 聚合，#1595 P3b-B）：一支查詢、每個年級一列（最多 13 列，
+    // 不會撞 max_rows 1000 —— 撈學生列回來自己數才會被靜默截斷，同 courses bySubject）。
+    // 原本是每級一支 head count，12 支加上列表、在籍數共 14 支，超過 Workers 每請求 6 條連線、排成 3 波。
+    // 需要 `pgrst.db_aggregates_enabled`（migration 20261015060000_postgrest_aggregates）。
+    const gradeCountQuery = withChapterFilters(
+      supabase.from('students').select('grade, count()').eq('org_id', orgId),
     );
 
-    const [{ data, error, count }, { count: activeCount }, ...gradeCounts] = await Promise.all([
+    const [{ data, error, count }, { count: activeCount }, gradeCounts] = await Promise.all([
       query,
       activeCountQuery,
-      ...gradeCountQueries,
+      gradeCountQuery,
     ]);
 
     if (error) {
       return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
     }
-    // 數不出來就不回 0
-    const gradeCountError = gradeCounts.find((r) => r.error)?.error;
-    if (gradeCountError) {
-      return c.json({ error: '讀取學生列表失敗', message: gradeCountError.message }, 500);
+    if (todayFilter === undefined) {
+      const today = await todayPromise;
+      if ('response' in today) return today.response;
+      todayStatuses = today.statuses;
     }
-    const byGrade = GRADE_CHAPTERS.map((level, i) => ({
+    // 數不出來就不回 0
+    if (gradeCounts.error) {
+      return c.json({ error: '讀取學生列表失敗', message: gradeCounts.error.message }, 500);
+    }
+    const countByGrade = new Map(
+      ((gradeCounts.data ?? []) as Array<{ grade: string | null; count: number }>).map((r) => [
+        r.grade,
+        r.count,
+      ]),
+    );
+    const byGrade = GRADE_CHAPTERS.map((level) => ({
       grade: level,
-      count: gradeCounts[i]?.count ?? 0,
+      count: countByGrade.get(level) ?? 0,
     }));
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
@@ -809,6 +837,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: StudentDetailSchema }) } },
       },
       404: { description: '學生不存在' },
+      500: { description: '讀取家長聯絡方式失敗' },
     },
   }),
   async (c) => {
@@ -838,42 +867,12 @@ app.openapi(
     }
 
     const row = data as Record<string, unknown>;
-    const relations =
-      (row['parent_student_relations'] as Array<{
-        id: string;
-        is_primary: boolean;
-        relation: string | null;
-        parents: { id: string; name: string; user_id: string } | null;
-      }>) ?? [];
-
-    const validRelations = relations.filter((r) => r.parents);
-    const userIds = validRelations.map((r) => r.parents!.user_id).filter(Boolean);
-
-    const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
-    if (userIds.length > 0) {
-      const { data: baUsers } = await supabase
-        .from('ba_user')
-        .select('id, email, phone')
-        .in('id', userIds);
-      for (const u of baUsers ?? []) {
-        baUserMap.set(u.id as string, {
-          email: (u.email as string | null) ?? null,
-          phone: (u.phone as string | null) ?? null,
-        });
-      }
+    const relations = (row['parent_student_relations'] as ParentRelationRow[]) ?? [];
+    // #1625：ba_user 讀不到原本被吞成「沒有留電話」，跟真的沒留分不出來 —— 改成 500
+    const { parents, error: contactsError } = await attachParentContacts(supabase, relations);
+    if (contactsError) {
+      return c.json({ error: '讀取家長聯絡方式失敗', code: 'SERVER_ERROR' }, 500);
     }
-
-    const parents = validRelations.map((r) => {
-      const baUser = baUserMap.get(r.parents!.user_id) ?? { email: null, phone: null };
-      return {
-        id: r.parents!.id,
-        name: r.parents!.name,
-        phone: baUser.phone,
-        email: baUser.email,
-        relation: r.relation,
-        isPrimary: r.is_primary,
-      };
-    });
 
     const parentNames = parents
       .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0))
@@ -972,8 +971,9 @@ app.openapi(
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: { description: '刪除成功' },
-      409: { description: '學生已有報名紀錄，無法刪除' },
+      409: { description: '學生已有報名、帳單或成績紀錄，無法刪除' },
       404: { description: '學生不存在' },
+      500: { description: '查詢或刪除失敗' },
     },
   }),
   async (c) => {
@@ -1006,7 +1006,17 @@ app.openapi(
       .select('id')
       .single();
 
-    if (error || !data) {
+    if (error) {
+      // 23503 = FK 違反：帳單、成績（invoices／academy／school exam scores 都是 RESTRICT）擋住刪除。
+      // 不能折成 404「學生不存在」—— 學生明明就在畫面上（#1651）
+      if (error.code === '23503') {
+        return c.json({ error: '學生已有帳單或成績紀錄，無法刪除', code: 'IN_USE' }, 409);
+      }
+      if (error.code !== 'PGRST116') {
+        return c.json({ error: '刪除學生失敗', code: 'DB_ERROR' }, 500);
+      }
+    }
+    if (!data) {
       return c.json({ error: '學生不存在' }, 404);
     }
 

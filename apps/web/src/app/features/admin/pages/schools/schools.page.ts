@@ -14,8 +14,8 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { TableModule } from 'primeng/table';
-import { ToastModule } from 'primeng/toast';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SchoolsService } from '@core/schools.service';
@@ -29,15 +29,14 @@ import { StatusDotComponent } from '@shared/components/status/status-dot/status-
   imports: [
     StatusDotComponent,
     FormsModule,
-    TableModule,
+    ReloadVeilComponent,
     ButtonModule,
     InputTextModule,
-    ToastModule,
     ConfirmDialogModule,
     EmptyStateComponent,
     LoadFailedComponent,
   ],
-  providers: [MessageService, ConfirmationService, DialogService],
+  providers: [ConfirmationService, DialogService],
   templateUrl: './schools.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -47,6 +46,10 @@ export class SchoolsPage implements OnInit {
   private readonly confirmationService = inject(ConfirmationService);
   private readonly dialogService = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
+  /** 重抓的資料平滑換上；新增／編輯造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  /** 這一輪重抓是增刪改造成的 —— 回應套上時列表帶名字（搜尋不帶） */
+  private reloadRows = false;
 
   /** 搜尋輸入 —— 節流 + 去重之後才進 `load()`（#661） */
   private readonly searchInput = new Subject<string>();
@@ -85,9 +88,14 @@ export class SchoolsPage implements OnInit {
     this.load();
   }
 
-  /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
-  protected load(): void {
-    this.loading.set(true);
+  /**
+   * 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661）。
+   * `quiet`：刪除成功後的背景重抓 —— 畫面已經是「刪掉了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：新增／編輯造成的重抓，回應套上時那一列淡入或淡出（搜尋不帶）。
+   */
+  protected load({ quiet = false, rows = false }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.reloadRows = rows;
+    if (!quiet) this.loading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
   }
@@ -116,8 +124,14 @@ export class SchoolsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((response) => {
-        this.schools.set(response.data);
-        this.loading.set(false);
+        this.viewTransition(
+          () => {
+            this.schools.set(response.data);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
       });
   }
 
@@ -141,7 +155,7 @@ export class SchoolsPage implements OnInit {
       summary: result.mode === 'create' ? '新增成功' : '更新成功',
       detail: name ? `${action}「${name}」` : action,
     });
-    this.load();
+    this.load({ rows: true });
   }
 
   protected onDelete(school: School): void {
@@ -164,14 +178,21 @@ export class SchoolsPage implements OnInit {
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '刪除',
       rejectLabel: '取消',
+      // 等伺服器確認才淡出（悲觀刪除）—— 全站刪除是樂觀的（#1641 5b 第 1 點），這一頁是例外
+      // （計畫席 10-16 同意盤點時的判準）：前端只擋得住有學生的學校，學校考試、考程也是
+      // FK RESTRICT（409 CONSTRAINT），樂觀版會「先淡出又回來」。
       accept: () => {
         this.schoolsService
           .delete(school.id)
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: () => {
+              this.viewTransition(
+                () => this.schools.update((list) => list.filter((s) => s.id !== school.id)),
+                { rows: true },
+              );
               this.messageService.add({ severity: 'success', summary: '已刪除' });
-              this.load();
+              this.load({ quiet: true, rows: true });
             },
             error: (error) => {
               this.messageService.add({

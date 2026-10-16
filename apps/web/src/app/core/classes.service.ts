@@ -27,6 +27,19 @@ export interface Class {
   maxStudents: number;
   /** 在籍人數（A6「17／24 人」）。列表 API 還沒帶時是 undefined，畫面退回「上限 N 人」 */
   enrolledCount?: number;
+  /**
+   * 最近一場有成績的校內考（#1314 G6，列表才有）。`avgScore` 是該場自己的尺度（配 `totalScore`），
+   * 只含 scored；`null`＝沒考過；`undefined`＝API 沒帶或查詢失敗，缺值不畫
+   */
+  latestExam?: {
+    examId: string;
+    name: string;
+    examDate: string;
+    totalScore: number;
+    avgScore: number | null;
+    failCount: number;
+    absentCount: number;
+  } | null;
   gradeLevels: string[];
   nextClassId: string | null;
   isActive: boolean;
@@ -39,6 +52,8 @@ export interface Class {
   defaultFeeTemplateId?: string | null;
   /** 家長端「推薦加選」的人工標記（#1118） */
   isRecommended?: boolean;
+  /** 出現在匿名的公開報名／試聽表單（#1665 Q5）；DB 預設 true。家長端不受影響 */
+  isPublicEnrollment?: boolean;
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
@@ -89,6 +104,7 @@ export interface CreateClassInput {
   /** 要 `manage_finance`；沒有時不要帶這個 key（帶了整筆 403） */
   defaultFeeTemplateId?: string | null;
   isRecommended?: boolean;
+  isPublicEnrollment?: boolean;
   startDate?: string | null;
   endDate?: string | null;
 }
@@ -102,6 +118,7 @@ export interface UpdateClassInput {
   /** 要 `manage_finance`；沒有時不要帶這個 key（帶了整筆 403） */
   defaultFeeTemplateId?: string | null;
   isRecommended?: boolean;
+  isPublicEnrollment?: boolean;
   startDate?: string | null;
   endDate?: string | null;
   isActive?: boolean;

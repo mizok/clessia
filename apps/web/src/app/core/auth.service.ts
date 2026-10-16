@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '@env/environment';
 import { authClient } from './auth-client';
+import { CampusContextService } from './campus-context.service';
 
 export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
 
@@ -12,6 +13,9 @@ export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
  * 字面值的話，改名時漏改一處是不會報錯的那種漂移。
  */
 export const ACTIVE_ROLE_STORAGE_KEY = 'clessia:active-role';
+
+/** index.html 先發的 `/api/me` 等這麼久還沒回就放棄、改走 HttpClient（不能卡住開站） */
+export const EARLY_ME_TIMEOUT_MS = 10_000;
 
 export interface Profile {
   id: string;
@@ -28,12 +32,15 @@ interface MeResponse {
   birthday: string | null;
   roles: UserRole[];
   permissions: string[];
+  /** 被指派的分校（#1607）；只拿來挑頂欄預設分校，不是權限。舊版 API 沒有這欄 */
+  assignedCampusIds?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
+  private readonly campusCtx = inject(CampusContextService);
 
   private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(
     null,
@@ -90,8 +97,12 @@ export class AuthService {
    * 任何資訊。
    */
   private async init(): Promise<void> {
+    // 只用一次：之後的 refreshRoles() 要的是「現在」的身分，不是開站那一份
+    const w = window as { __clessiaEarlyMe?: Promise<Response> };
+    const early = w.__clessiaEarlyMe ?? null;
+    delete w.__clessiaEarlyMe;
     try {
-      if (!(await this.loadProfile())) {
+      if (!(await this.loadProfile(early))) {
         this._user.set(null);
       }
     } finally {
@@ -125,11 +136,13 @@ export class AuthService {
    * 狀態下被叫的（見 account-settings-dialog），一次暫時性的 500 不該把
    * 正在編輯的人踢出畫面。
    */
-  private async loadProfile(): Promise<boolean> {
+  private async loadProfile(early: Promise<Response> | null = null): Promise<boolean> {
     try {
-      const me = await firstValueFrom(
-        this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
-      );
+      const me =
+        (early && (await this.takeEarlyMe(early))) ??
+        (await firstValueFrom(
+          this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
+        ));
 
       this._connectionError.set(false);
       this._user.set({ id: me.userId, email: me.email, name: me.displayName });
@@ -140,6 +153,7 @@ export class AuthService {
       });
       this._roles.set(me.roles);
       this._permissions.set(me.permissions);
+      this.campusCtx.setAssigned(me.assignedCampusIds ?? []);
 
       if (me.roles.length === 1) {
         this._activeRole.set(me.roles[0]);
@@ -161,9 +175,35 @@ export class AuthService {
         this._profile.set(null);
         this._roles.set([]);
         this._permissions.set([]);
+        this.campusCtx.setAssigned([]);
       }
 
       return false;
+    }
+  }
+
+  /**
+   * 接手 index.html 先發的 `/api/me`（#1595 P3a）。回 null＝這份不能用，呼叫端退回
+   * HttpClient 原流程：連線失敗、逾時、5xx、回的不是 JSON 都算。
+   * **401/403 是伺服器的確定答案**，照原流程的語意丟出去（＝未登入），不再多問一趟。
+   */
+  private async takeEarlyMe(early: Promise<Response>): Promise<MeResponse | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const res = await Promise.race([
+        early,
+        new Promise<never>((_, reject) => (timer = setTimeout(reject, EARLY_ME_TIMEOUT_MS))),
+      ]);
+      if (res.status === 401 || res.status === 403) {
+        throw new HttpErrorResponse({ status: res.status, url: res.url });
+      }
+      if (!res.ok) return null;
+      return (await res.json()) as MeResponse;
+    } catch (err) {
+      if (err instanceof HttpErrorResponse) throw err;
+      return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -174,6 +214,17 @@ export class AuthService {
 
   hasPermission(permission: string): boolean {
     return this.permissions().includes(permission) || this.permissions().includes('*');
+  }
+
+  /**
+   * 直接採用寫入 API 回傳的角色（#1631），不再重抓 `/api/me`。
+   *
+   * 重抓不可靠：API 的身分快取是 per-isolate 30 秒（#1595 P1b），寫入時只清得到當下那個
+   * isolate，重抓若落在別的 isolate 仍可能拿到舊角色 —— 啟用家長身份後畫面毫無變化。
+   * 寫入路由回的角色是寫完重新查表的，不經快取。
+   */
+  adoptRoles(roles: UserRole[]): void {
+    this._roles.set(roles);
   }
 
   /** 回傳有沒有讀到 —— 呼叫端要區分「讀不到」和「沒有角色」時會用到 */
@@ -232,6 +283,7 @@ export class AuthService {
     this._profile.set(null);
     this._roles.set([]);
     this._permissions.set([]);
+    this.campusCtx.setAssigned([]);
     this._activeRole.set(null);
     localStorage.removeItem(ACTIVE_ROLE_STORAGE_KEY);
     this.router.navigate(['/login']);

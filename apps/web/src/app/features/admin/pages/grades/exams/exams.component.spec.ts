@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
@@ -138,9 +140,11 @@ describe('ExamsComponent', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     await TestBed.configureTestingModule({
       imports: [ExamsComponent],
       providers: [
+        MessageService,
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
@@ -161,6 +165,12 @@ describe('ExamsComponent', () => {
 
   afterEach(() => {
     http.verify();
+  });
+
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
   });
 
   it('should create and load academy tab rows from server', () => {
@@ -382,6 +392,13 @@ describe('ExamsComponent', () => {
       fixture.detectChanges();
     }
 
+    // #1698：A6 exams.html 在 ≤860 覆寫 `.chap`＝橫排、章名 28px（listRow）
+    it('章頭用 listRow：手機章名 28px', () => {
+      openPending([mockAcademyExams[0]]);
+      const name = chapterEls()[0]?.querySelector('.chapter-head__name');
+      expect(name?.classList).toContain('text-[28px]');
+    });
+
     it('待處理：還沒登／登到一半兩章，各自場數；全部分頁沒有章', () => {
       openPending([mockAcademyExams[0], partialExam]);
       expect(chapterEls().map((e) => e.getAttribute('data-chapter'))).toEqual(['none', 'partial']);
@@ -550,6 +567,37 @@ describe('ExamsComponent', () => {
       );
       expect(after!.textContent).toContain('篩選：1 項');
       expect(after!.textContent).not.toContain('篩選：全部');
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 1 點）：刪除是樂觀的 —— 按下就淡出；失敗要放回去並說明
+  describe('樂觀刪除（#1641 5b）', () => {
+    const ids = () => (component['currentRows']() as Array<{ id: string }>).map((r) => r.id);
+    const target = () => component['currentRows']()[1]!;
+    const deleteReq = () =>
+      http.expectOne(
+        (req) =>
+          req.method === 'DELETE' && req.url === `${environment.apiUrl}/api/academy-exams/a2`,
+      );
+
+    it('失敗：那一列放回原位，並跳錯誤 toast', () => {
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      component['deleteExam'](target());
+      expect(ids()).toEqual(['a1']);
+      deleteReq().flush({ error: 'x' }, { status: 500, statusText: 'x' });
+      expect(ids()).toEqual(['a1', 'a2']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('成功：維持拿掉，背景重抓不變淡', async () => {
+      component['deleteExam'](target());
+      deleteReq().flush({});
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(ids()).toEqual(['a1']);
+      expect(component['loading']()).toBe(false);
+      // 背景重抓（列表＋待辦計數）這裡不關心回應
+      http.match(() => true);
     });
   });
 });

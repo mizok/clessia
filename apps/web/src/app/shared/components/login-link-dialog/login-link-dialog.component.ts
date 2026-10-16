@@ -2,7 +2,6 @@ import { Component, inject } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { QRCodeComponent } from 'angularx-qrcode';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
@@ -36,8 +35,7 @@ const NOTICE_BY_AUDIENCE: Record<LoginLinkAudience, string> = {
 @Component({
   selector: 'app-login-link-dialog',
   standalone: true,
-  imports: [ButtonModule, TooltipModule, ToastModule, QRCodeComponent, InlineNoticeComponent],
-  providers: [MessageService],
+  imports: [ButtonModule, TooltipModule, QRCodeComponent, InlineNoticeComponent],
   templateUrl: './login-link-dialog.component.html',
 })
 export class LoginLinkDialogComponent {

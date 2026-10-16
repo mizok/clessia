@@ -1,3 +1,6 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
   Component,
   OnInit,
@@ -10,7 +13,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -40,13 +42,13 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
   selector: 'app-class-detail',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     PageOpenComponent,
     RouterLink,
-    ToastModule,
     PopupMenuComponent,
     LoadFailedComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './class-detail.page.html',
 })
 export class ClassDetailPage implements OnInit {
@@ -58,6 +60,9 @@ export class ClassDetailPage implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  /** 重抓的名冊平滑換上；增刪造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  private readonly optimisticRemove = injectOptimisticRemove();
 
   readonly page = input<RouteObj | undefined>();
   readonly courseId = input<string | undefined>();
@@ -168,23 +173,35 @@ export class ClassDetailPage implements OnInit {
       });
   }
 
-  protected loadEnrollments(): void {
+  /**
+   * `quiet`：移除成功後的背景重抓 —— 畫面已經是「移掉了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：加入／複製／匯入／退班造成的重抓，回應套上時那一列淡入或淡出。
+   */
+  protected loadEnrollments({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
     const classId = this.resolvedClassId();
     if (!classId) {
       this.enrollmentsLoading.set(false);
       return;
     }
 
-    this.enrollmentsLoading.set(true);
+    if (!quiet) this.enrollmentsLoading.set(true);
     this.enrollmentsService
       .list({ classId, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.enrollments.set(
-            res.data.filter((e) => e.status !== 'withdrawal' && e.status !== 'void'),
+          this.viewTransition(
+            () => {
+              this.enrollments.set(
+                res.data.filter((e) => e.status !== 'withdrawal' && e.status !== 'void'),
+              );
+              this.enrollmentsLoading.set(false);
+            },
+            { rows },
           );
-          this.enrollmentsLoading.set(false);
         },
         error: () => this.enrollmentsLoading.set(false),
       });
@@ -204,7 +221,7 @@ export class ClassDetailPage implements OnInit {
       data: { enrollment },
     });
     ref?.onClose.subscribe((saved) => {
-      if (saved) this.loadEnrollments();
+      if (saved) this.loadEnrollments({ rows: true });
     });
   }
 
@@ -248,7 +265,7 @@ export class ClassDetailPage implements OnInit {
           summary: '加入完成',
           detail: parts.join('，'),
         });
-        this.loadEnrollments();
+        this.loadEnrollments({ rows: true });
       });
   }
 
@@ -265,7 +282,7 @@ export class ClassDetailPage implements OnInit {
     });
 
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
-      if (result === 'copied') this.loadEnrollments();
+      if (result === 'copied') this.loadEnrollments({ rows: true });
     });
   }
 
@@ -282,7 +299,7 @@ export class ClassDetailPage implements OnInit {
     });
 
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
-      if (result === 'imported') this.loadEnrollments();
+      if (result === 'imported') this.loadEnrollments({ rows: true });
     });
   }
 
@@ -297,7 +314,7 @@ export class ClassDetailPage implements OnInit {
             summary: '狀態已更新',
             detail: ENROLLMENT_STATUS_LABELS[status],
           });
-          this.loadEnrollments();
+          this.loadEnrollments({ rows: true });
         },
         error: () => {
           this.messageService.add({ severity: 'error', summary: '更新失敗', detail: '請稍後再試' });
@@ -343,27 +360,29 @@ export class ClassDetailPage implements OnInit {
         rejectLabel: '取消',
         acceptSeverity: 'danger',
       },
-      () => {
-        this.enrollmentsService
-          .delete(enrollment.id)
-          .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe({
+      // 樂觀移除（#1641 5b 第 1 點）：只有出勤 0 筆才給移除，被擋下的情況少見；失敗放回並說明
+      () =>
+        this.optimisticRemove(
+          this.enrollments,
+          (e) => e.id === enrollment.id,
+          this.enrollmentsService.delete(enrollment.id).pipe(takeUntilDestroyed(this.destroyRef)),
+          {
             next: () => {
               this.messageService.add({
                 severity: 'success',
                 summary: '已移除',
                 detail: `「${enrollment.studentName}」已從班級移除`,
               });
-              this.loadEnrollments();
+              this.loadEnrollments({ quiet: true, rows: true });
             },
-            error: (err) => {
+            error: (err: any) => {
               const code = err.error?.error;
               const detail =
                 code === 'has_attendance' ? '此學生已有出勤紀錄，請改用退班流程' : '請稍後再試';
               this.messageService.add({ severity: 'error', summary: '移除失敗', detail });
             },
-          });
-      },
+          },
+        ),
     );
   }
 

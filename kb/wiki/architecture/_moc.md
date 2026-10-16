@@ -58,6 +58,14 @@ Tags: `architecture`, `auth`, `workers`, `database`
 
 Links to: [[architecture/line-oauth-login]]
 
+## [[architecture/pg-pool-writes|經過 pg 連線池寫入]]
+
+PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
+
+Tags: `architecture`, `database`, `transaction`, `authorization`
+
+Links to: [[architecture/auth-pool-lifecycle]]
+
 ## [[architecture/authorization-scope|授權範圍 —— 分校、職務、細部權限]]
 
 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
@@ -292,3 +300,19 @@ Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
 Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
 
+
+## [[architecture/web-push|PWA＋Web Push 推播（設計稿，第一個用途：家長繳費提醒）]]
+
+設計稿（#1626，8 題 10-16 全部裁定，仍是 draft —— 實作第一步量 CPU）。手寫最小 service worker（只處理 push／notificationclick，不攔 fetch、不快取）＋ manifest，不用 @angular/service-worker，不碰 #1611 的 immutable 快取。加密與 VAPID 自寫在 WebCrypto 上（RFC 8291／8292，用 RFC 測試向量驗），Workers 與 Node 共用。提醒時間點是機構設定 organizations.invoice_reminder_offsets（預設到期前 3 天、當天、逾期 1、7 天，最多 6 個，manage_finance），去重鍵含時間點。第一版只開家長，但偏好與發送紀錄帶 role，之後開給老師／行政不改 schema。Cron 台北 09:00–11:00 每 10 分鐘送一小批 —— 免費方案每次 Cron 只有 10ms CPU、50 個 subrequest，K 先量再定。實作拆成 #1657–#1663。
+
+Tags: `architecture`, `pwa`, `push`, `parent`, `billing`, `cron`, `c12`
+
+Links to: [[architecture/deploying]], [[architecture/chunk-load-recovery]], [[architecture/announcements]], [[architecture/deploying]], [[architecture/line-oauth-login]]
+
+## [[architecture/motion|全站動態規則（設計稿：換頁方向、頁內切換、列表補位、數字變化）]]
+
+設計稿（#1635，未批准）。2026-10-16 在本機實跑盤點：頁內的狀態變化（換週、換日、日／週、篩選切換、tab）全部是瞬間替換；換頁只有內容區淡入淡出，而且沒有處理「減少動態」。提案：換頁依網址深度給方向（往深從右進、返回從左、同層只淡入淡出）；低頻的模式切換用同文件 view transition；連點型控制項（換週箭頭）不能用 VT —— 實測 VT 動畫期間的第二下點擊會被吞掉（規格：期間點擊一律打到 document element），改成內容層的 animate.enter；新增／刪除列照 A6 的 row-new，補位只在刪除時用 VT。曲線沿用 #1634 的 --arrive／--leave，不另訂。
+
+Tags: `architecture`, `motion`, `view-transition`, `a6`, `accessibility`, `performance`
+
+Links to: [[architecture/a6-adoption-rules]]

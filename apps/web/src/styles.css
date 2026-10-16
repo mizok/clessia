@@ -351,107 +351,10 @@
     min-height: 38px;
     font-size: var(--text-md);
   }
-  /* =============================================================================
-     Toast Styles
-     ============================================================================= */
   .p-inputnumber-input {
     min-width: 0;
   }
-  .p-toast {
-    opacity: 1;
-    z-index: 25000 !important;
-    top: calc(var(--app-header-height, 0px) + 20px) !important;
-  }
-  .p-toast .p-toast-message {
-    border-radius: var(--radius-lg);
-    box-shadow:
-      0 10px 25px -5px rgba(0, 0, 0, 0.1),
-      0 8px 10px -6px rgba(0, 0, 0, 0.1);
-    border: 1px solid transparent;
-    backdrop-filter: blur(8px);
-  }
-  .p-toast .p-toast-message .p-toast-message-content {
-    padding: var(--space-4);
-    gap: var(--space-3);
-  }
-  .p-toast .p-toast-message .p-toast-message-icon {
-    font-size: 1.25rem;
-  }
-  .p-toast .p-toast-message .p-toast-summary {
-    font-weight: var(--font-semibold);
-    font-size: var(--text-md);
-  }
-  .p-toast .p-toast-message .p-toast-detail {
-    font-size: var(--text-sm);
-    margin-top: 2px;
-    opacity: 0.9;
-  }
-  .p-toast .p-toast-message {
-    /* Success - Green tones */
-  }
-  .p-toast .p-toast-message.p-toast-message-success {
-    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-    border-color: #bbf7d0;
-    color: #166534;
-  }
-  .p-toast .p-toast-message.p-toast-message-success .p-toast-message-icon {
-    color: var(--success-600);
-  }
-  .p-toast .p-toast-message {
-    /* Error - Red tones */
-  }
-  .p-toast .p-toast-message.p-toast-message-error {
-    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-    border-color: #fecaca;
-    color: #991b1b;
-  }
-  .p-toast .p-toast-message.p-toast-message-error .p-toast-message-icon {
-    color: #dc2626;
-  }
-  .p-toast .p-toast-message {
-    /* Warning - Amber tones */
-  }
-  .p-toast .p-toast-message.p-toast-message-warn {
-    background: linear-gradient(135deg, var(--warning-50) 0%, var(--warning-100) 100%);
-    border-color: var(--warning-200);
-    color: var(--warning-800);
-  }
-  .p-toast .p-toast-message.p-toast-message-warn .p-toast-message-icon {
-    color: var(--warning-600);
-  }
-  .p-toast .p-toast-message {
-    /* Info —— 用 accent token 而不是硬編碼色值，換色系時才會跟著走 */
-  }
-  .p-toast .p-toast-message.p-toast-message-info {
-    background: linear-gradient(135deg, var(--accent-50) 0%, var(--accent-100) 100%);
-    border-color: var(--accent-400);
-    color: var(--accent-600);
-  }
-  .p-toast .p-toast-message.p-toast-message-info .p-toast-message-icon {
-    color: var(--accent-500);
-  }
-  .p-toast .p-toast-close-button {
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: var(--radius-sm);
-    transition: background var(--transition-fast);
-  }
-  .p-toast .p-toast-close-button:focus {
-    box-shadow: 0 0 0 2px var(--accent-500);
-  }
-  .p-toast {
-    /* Mobile responsiveness for Toast */
-  }
-  @media (max-width: 640px) {
-    .p-toast {
-      width: calc(var(--window-width, 100vw) - 32px) !important;
-      left: 16px !important;
-      right: 16px !important;
-    }
-    .p-toast .p-toast-message {
-      width: 100% !important;
-    }
-  }
+  /* Toast：全站唯一出口 app-toast（#1615），樣式在元件裡，這裡不再覆寫 PrimeNG 的 .p-toast */
   /* =============================================================================
      Confirm Dialog Styles
      ============================================================================= */
@@ -534,7 +437,16 @@
      所以要比一般 dialog 更寬鬆的內距。特異性刻意比上面的 `.p-dialog` 高一級，
      否則會被那條 `!important` 蓋掉。 */
   .p-dialog.role-picker-dialog {
-    --p-dialog-content-padding: var(--space-6) !important;
+    /* 照 A6 .rp-dlg：無框、圓角 xl、內距在卡片本身（#1636） */
+    --p-dialog-content-padding: 0 !important;
+    padding: var(--space-6);
+    border: 0;
+    border-radius: var(--radius-xl);
+  }
+  /* 內距搬到卡片之後，內容區的捲動裁切會切掉選項的焦點框（outline-offset 2px）。
+     最多三個身分，內容不會超過彈窗高度，不需要捲動 */
+  .p-dialog.role-picker-dialog .p-dialog-content {
+    overflow: visible;
   }
   /* ---- Standard inline header with breadcrumb and close button ---- */
   .dialog-header-inline {
@@ -643,6 +555,12 @@
     gap: var(--space-3);
   }
   .form-dialog__switch-label {
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+  }
+  /* 欄位下方的說明文字（#1665）：說明這個設定的後果，不是錯誤訊息 */
+  .form-dialog__hint {
+    margin: 0;
     font-size: var(--text-sm);
     color: var(--zinc-600);
   }
@@ -809,32 +727,94 @@
   .p-button:disabled.p-button-outlined {
     border-color: var(--zinc-300) !important;
   }
+  /* 週列「選中底線」（#1641 項 3）：位置由 SelectedIndicatorDirective 量好寫進變數。
+     曲線同 #1634 的進場；第一次量完（--ready）才有 transition，進頁不會從左邊滑進來。 */
+  .selected-indicator {
+    position: relative;
+  }
+  .selected-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: var(--indicator-w, 0);
+    height: 2px;
+    background: var(--accent-vivid);
+    transform: translateX(var(--indicator-x, 0));
+    pointer-events: none;
+  }
+  .selected-indicator--ready::after {
+    transition:
+      transform 200ms var(--arrive),
+      width 200ms var(--arrive);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .selected-indicator--ready::after {
+      transition: none;
+    }
+  }
   /* =============================================================================
      Utilities
      ============================================================================= */
   /* =============================================================================
-     Skeleton Loading Animation (global override)
-     ============================================================================= */
-  @keyframes skeleton-wave {
-    0% {
+     骨架：掃光（shimmer）—— 全站一套（#1680，使用者 10-16 裁定）
+     =============================================================================
+     一道亮帶從左往右反覆掃過。**全站只有這一條規則**：canonical 是 `.skeleton`，
+     PrimeNG `<p-skeleton>` 產生的 `.p-skeleton` 與既有的 `.skeleton-bar` 掛在同一個選擇器上，
+     三者長得一模一樣 —— 新的骨架寫 `.skeleton`（大小用 utility 給），不要再自己畫灰塊。
+
+     原本的 `skeleton-wave` 用 `--p-surface-200` 對 `--p-surface-100`，兩個灰幾乎一樣，實際看不出在動。
+     現在是 A6 暖灰的 `--zinc-200` 底、近白的亮帶：看得出在掃，又不會刺眼。
+     （第一版用 `--zinc-50` 當亮帶、背景 3 倍寬、ease-in-out：寬的列上幾乎看不出來 —— 實機截圖抓到的。）
+
+     亮帶的位置用 background-position 從右（100%）走到左（0%）：背景是元件寬的 2.5 倍、亮帶在正中，
+     所以看起來是亮帶從左邊進、右邊出，一輪約 2/3 的時間亮帶在元件上、其餘是兩次之間的空檔。
+     **等速（linear）**：ease-in-out 會讓亮帶在元件中段最快、大部分時間停在元件外，看起來像沒在動。速度跟元件寬度成正比（寬的掃得快一點）—— 刻意不用
+     偽元素＋transform 做等速：`.p-skeleton` 的 `::after` 被 PrimeNG 佔著，兩套會打架。
+
+     橘帶上（`.skeleton--on-band`）換一組近黑／白的半透明 token：灰塊放在橘色上會變成髒髒的米色。
+     減少動態：不掃，只留靜態的底色（A6 a6.css:195 的全域規則同一個意思）。 */
+  :root {
+    --skeleton-base: var(--zinc-200);
+    --skeleton-shine: rgb(255 255 255 / 90%);
+    --skeleton-duration: 1.4s;
+  }
+  @keyframes skeleton-shimmer {
+    from {
       background-position: 100% 0;
     }
-    100% {
-      background-position: -100% 0;
+    to {
+      background-position: 0% 0;
     }
   }
-  .p-skeleton {
-    background: linear-gradient(
+  .skeleton,
+  .p-skeleton,
+  .skeleton-bar {
+    background-color: var(--skeleton-base) !important;
+    background-image: linear-gradient(
       90deg,
-      var(--p-surface-200) 0%,
-      var(--p-surface-100) 50%,
-      var(--p-surface-200) 100%
+      transparent 45%,
+      var(--skeleton-shine) 50%,
+      transparent 55%
     ) !important;
-    background-size: 200% 100% !important;
-    animation: skeleton-wave 1.5s linear infinite !important;
+    background-size: 250% 100% !important;
+    background-repeat: no-repeat !important;
+    animation: skeleton-shimmer var(--skeleton-duration) linear infinite !important;
+  }
+  .skeleton--on-band {
+    --skeleton-base: rgb(26 22 20 / 16%);
+    --skeleton-shine: rgb(255 255 255 / 34%);
   }
   .p-skeleton::after {
     display: none !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .p-skeleton,
+    .skeleton-bar {
+      animation: none !important;
+      background-image: none !important;
+    }
   }
   .skeleton-list {
     display: flex;
@@ -846,18 +826,231 @@
     display: block;
     height: 1rem;
     border-radius: 4px;
-    background: linear-gradient(
-      90deg,
-      var(--p-surface-200) 0%,
-      var(--p-surface-100) 50%,
-      var(--p-surface-200) 100%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-wave 1.5s linear infinite;
   }
   .skeleton-bar--label {
     width: 40%;
     opacity: 0.6;
+  }
+  /* =============================================================================
+     彈出物的進場與出場（#1634，照 A6 #990 共用零件 ②：a6.css 644–672）
+     =============================================================================
+     曲線只有兩條：進場減速（--arrive）、出場加速（--leave）；出場一律比進場短
+     （進 200ms／出 140ms），否則下一個東西要等它或跟它疊在一起。
+     方向由 --pop-from 決定：浮層往下 6px、對話框 scale(0.97)、側面板從右 24px、
+     底部面板從底下（240ms）。元件要換方向就加 `overlay-motion overlay-motion--from-*`，
+     不要自己寫動畫。
+
+     兩條路收在這一段：
+     - 原生 `[popover]`／`<dialog>`：`@starting-style` ＋ `allow-discrete` 的 transition。
+       全部包在 `:where()`（權重 0），元件自己的樣式永遠蓋得過。
+     - PrimeNG 21：`pMotion` 套 `{name}-enter-active`／`-leave-active`，**時長用 getComputedStyle
+       讀**，所以在這裡改時長，它會等到動畫結束才拆 DOM，出場不會被截掉。
+     ⚠️ 這一段改了時長，全站所有 PrimeNG 的 Dialog／DynamicDialog／ConfirmDialog、
+     Select／DatePicker／MultiSelect／AutoComplete／Popover、Drawer 都會一起變。 */
+  :root {
+    --arrive: cubic-bezier(0.23, 1, 0.32, 1);
+    --leave: cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  :where([popover], dialog) {
+    --pop-from: translateY(6px);
+    opacity: 0;
+    transform: var(--pop-from);
+    transition:
+      opacity 0.14s var(--leave),
+      transform 0.14s var(--leave),
+      overlay 0.14s var(--leave) allow-discrete,
+      display 0.14s var(--leave) allow-discrete;
+  }
+  :where(dialog) {
+    --pop-from: scale(0.97);
+  }
+  :where([popover]:popover-open, dialog[open]) {
+    opacity: 1;
+    transform: none;
+    transition-duration: 0.2s;
+    transition-timing-function: var(--arrive);
+  }
+  @starting-style {
+    :where([popover]:popover-open, dialog[open]) {
+      opacity: 0;
+      transform: var(--pop-from);
+    }
+  }
+  :where([popover], dialog)::backdrop {
+    opacity: 0;
+    transition:
+      opacity 0.14s var(--leave),
+      overlay 0.14s allow-discrete,
+      display 0.14s allow-discrete;
+  }
+  :where([popover]:popover-open, dialog[open])::backdrop {
+    opacity: 1;
+    transition-duration: 0.2s;
+    transition-timing-function: var(--arrive);
+  }
+  @starting-style {
+    :where([popover]:popover-open, dialog[open])::backdrop {
+      opacity: 0;
+    }
+  }
+
+  /* 方向修飾（block 本身沒有樣式，只是讓修飾有歸屬） */
+  .overlay-motion--from-right {
+    --pop-from: translateX(24px);
+  }
+  .overlay-motion--from-bottom {
+    --pop-from: translateY(100%);
+  }
+  .overlay-motion--from-bottom:where(:popover-open, [open]) {
+    transition-duration: 0.24s;
+  }
+  /* 只有窄螢幕是底部面板的（例如全站搜尋）：桌機照浮層的 6px */
+  @media (max-width: 860px) {
+    .overlay-motion--from-bottom-narrow {
+      --pop-from: translateY(100%);
+    }
+    .overlay-motion--from-bottom-narrow:where(:popover-open, [open]) {
+      transition-duration: 0.24s;
+    }
+  }
+
+  /* toast 的容器也是 popover，但每一則 toast 自己有進出場（#1615，A6 `.toasts`）：容器不動 */
+  .toasts {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  /* 收合段落：內容高度有過渡，不是瞬間撐開（不支援 ::details-content 的瀏覽器維持瞬間展開）。
+     interpolate-size 只開在 details 上 —— A6 開在 :root，但那會讓全站既有的 height 過渡
+     開始能動到 auto，行為悄悄改變 */
+  :where(details) {
+    interpolate-size: allow-keywords;
+  }
+  :where(details)::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size 0.14s var(--leave),
+      content-visibility 0.14s allow-discrete;
+  }
+  :where(details[open])::details-content {
+    block-size: auto;
+    transition-duration: 0.2s;
+    transition-timing-function: var(--arrive);
+  }
+
+  /* PrimeNG：同一組曲線、時長、方向。keyframes 讀元素上的 --pop-from */
+  @keyframes overlay-arrive {
+    from {
+      opacity: 0;
+      transform: var(--pop-from);
+    }
+  }
+  @keyframes overlay-leave {
+    to {
+      opacity: 0;
+      transform: var(--pop-from);
+    }
+  }
+  .p-dialog-enter-active,
+  .p-dialog-leave-active {
+    --pop-from: scale(0.97);
+  }
+  .p-anchored-overlay-enter-active,
+  .p-anchored-overlay-leave-active {
+    --pop-from: translateY(6px);
+  }
+  .p-dialog-enter-active,
+  .p-anchored-overlay-enter-active {
+    animation: overlay-arrive 0.2s var(--arrive);
+  }
+  .p-dialog-leave-active,
+  .p-anchored-overlay-leave-active {
+    animation: overlay-leave 0.14s var(--leave);
+  }
+  /* Drawer：保留 PrimeNG 的整段位移（全站都是 position="bottom" 的底部面板），只換時長與曲線 */
+  .p-drawer-enter-left,
+  .p-drawer-enter-right,
+  .p-drawer-enter-top,
+  .p-drawer-enter-bottom,
+  .p-drawer-enter-full {
+    animation-duration: 0.24s;
+    animation-timing-function: var(--arrive);
+  }
+  .p-drawer-leave-left,
+  .p-drawer-leave-right,
+  .p-drawer-leave-top,
+  .p-drawer-leave-bottom,
+  .p-drawer-leave-full {
+    animation-duration: 0.14s;
+    animation-timing-function: var(--leave);
+  }
+  .p-overlay-mask-enter-active {
+    animation-duration: 0.2s;
+    animation-timing-function: var(--arrive);
+  }
+  .p-overlay-mask-leave-active {
+    animation-duration: 0.14s;
+    animation-timing-function: var(--leave);
+  }
+
+  /* 減少動態：不走過程，資訊照樣出現（目的地不省略）。PrimeNG 量到時長 0 會立刻完成 */
+  @media (prefers-reduced-motion: reduce) {
+    :where([popover], dialog),
+    :where([popover], dialog)::backdrop,
+    :where(details)::details-content {
+      transition: none;
+    }
+    .p-dialog-enter-active,
+    .p-dialog-leave-active,
+    .p-anchored-overlay-enter-active,
+    .p-anchored-overlay-leave-active,
+    .p-overlay-mask-enter-active,
+    .p-overlay-mask-leave-active,
+    [class*='p-drawer-enter-'],
+    [class*='p-drawer-leave-'] {
+      animation: none;
+    }
+  }
+
+  /* 頁內模式切換的同文件 VT（#1641 項 4，shared/utils/view-transition.util.ts）。
+     分段鈕選中的那一顆帶 .vt-seg 與唯一的 view-transition-name，切換時平移到新位置；
+     名字只在頁內 VT 期間（<html data-vt="in-page">）生效 —— 換頁時它要跟著內容區一起動，
+     不能脫離出來單獨淡出。!important 是為了蓋過模板上的 inline style。 */
+  :root:not([data-vt]) .vt-seg,
+  :root:not([data-vt='rows']) .vt-row {
+    view-transition-name: none !important;
+  }
+  ::view-transition-group(*.vt-seg) {
+    animation-duration: 200ms;
+    animation-timing-function: var(--arrive);
+  }
+  .vt-seg {
+    view-transition-class: vt-seg;
+  }
+  /* 列表的新增／刪除／補位（#1641 項 5）：每一列帶 .vt-row 與唯一名字，增刪包在頁內 VT 裡。
+     其餘列平移補位；新出現的列（只有新畫面）照 A6 row-new 從上方 4px 淡入（a6.css:803）；
+     消失的列（只有舊畫面）淡出，出場比進場短。 */
+  .vt-row {
+    view-transition-class: vt-row;
+  }
+  ::view-transition-group(*.vt-row) {
+    animation-duration: 200ms;
+    animation-timing-function: var(--arrive);
+  }
+  ::view-transition-new(*.vt-row):only-child {
+    animation: 240ms var(--arrive) both vt-row-new;
+  }
+  ::view-transition-old(*.vt-row):only-child {
+    animation: 140ms var(--leave) both vt-fade-out;
+  }
+  @keyframes vt-row-new {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
   }
   /* =============================================================================
      Route View Transitions
@@ -877,12 +1070,70 @@
   ::view-transition-new(root) {
     animation: none;
   }
-  /* Only the content area fades */
+  /* 換頁只動內容區（#1641，設計稿 kb/wiki/architecture/motion.md）。
+     曲線與時長沿用 #1634 的彈出物：進 200ms --arrive、出 140ms --leave，出場比進場短。
+     方向由 core/route-transition.ts 寫在 <html data-route-dir>：往深一層從右 24px 進、
+     返回從左進、同層（選單切換、設定 tab）只淡入淡出。
+     減少動態不在這裡處理 —— route-transition.ts 直接 skipTransition()，畫面瞬間換。 */
+  /* group 的預設是瀏覽器的 250ms ease，對齊進場的時長與曲線 */
+  ::view-transition-group(route-content) {
+    animation-duration: 200ms;
+    animation-timing-function: var(--arrive);
+  }
   ::view-transition-old(route-content) {
-    animation: 150ms ease-in vt-fade-out both;
+    animation: 140ms var(--leave) vt-fade-out both;
   }
   ::view-transition-new(route-content) {
-    animation: 250ms ease-out vt-fade-in both;
+    animation: 200ms var(--arrive) vt-fade-in both;
+  }
+  /* 同層（選單切換、設定 tab）只有淡入淡出、沒有位移，200ms 太快 —— 兩頁上方都是橘帶，
+     使用者回報「儀表板→學生看不出有動畫」（#1681，使用者 10-16 裁定 0.3–0.35 秒、不加位移）。
+     進 340ms、出 300ms：兩個都落在裁定範圍內，出場仍比進場短（A6 原則）。只動 lateral：
+     預設值也被頁內切換（日／週、篩選）沿用，那些要維持快。往深一層／返回維持 200／140ms。 */
+  :root[data-route-dir='lateral']::view-transition-group(route-content) {
+    animation-duration: 340ms;
+  }
+  :root[data-route-dir='lateral']::view-transition-old(route-content) {
+    animation-duration: 300ms;
+  }
+  :root[data-route-dir='lateral']::view-transition-new(route-content) {
+    animation-duration: 340ms;
+  }
+  :root[data-route-dir='forward']::view-transition-old(route-content) {
+    animation-name: vt-out-left;
+  }
+  :root[data-route-dir='forward']::view-transition-new(route-content) {
+    animation-name: vt-in-right;
+  }
+  :root[data-route-dir='back']::view-transition-old(route-content) {
+    animation-name: vt-out-right;
+  }
+  :root[data-route-dir='back']::view-transition-new(route-content) {
+    animation-name: vt-in-left;
+  }
+  @keyframes vt-out-left {
+    to {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
+  }
+  @keyframes vt-out-right {
+    to {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+  }
+  @keyframes vt-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+  }
+  @keyframes vt-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
   }
   /* Tag the content areas that change on route navigation */
   .shell-route-wrapper,

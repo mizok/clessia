@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { WindowSizeDirective } from '@shared/directives/window-size.directive';
 import { AppVersionService } from '@core/app-version.service';
+import { ToastComponent } from '@shared/components/toast/toast.component';
 
 /**
  * 這裡刻意只有 router-outlet。
@@ -13,11 +14,11 @@ import { AppVersionService } from '@core/app-version.service';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, WindowSizeDirective],
+  imports: [RouterOutlet, WindowSizeDirective, ToastComponent],
   templateUrl: './app.component.html',
 })
 export class App {
-  // 版本提示條是**唯一**掛在 root 的 UI。它沒有帶進任何依賴 ——
-  // 純標記 + 一個 signal，見 app.component.html 的註解。
+  // 掛在 root 的 UI 只有兩樣，都沒有帶進 PrimeNG 元件：版本提示條（純標記＋一個 signal，
+  // 見 app.component.html）與全站唯一的 toast 出口（#1615，只吃 primeng/api 的 MessageService）。
   protected readonly version = inject(AppVersionService);
 }

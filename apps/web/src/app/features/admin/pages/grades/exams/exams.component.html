@@ -1,5 +1,3 @@
-<p-toast appendTo="body" [baseZIndex]="25000" />
-
 <!--
   A6 版（#991 grades G1）：色面 → 灰工具列（待處理／全部、考試型態、新增考試；篩選列）→ 待登錄灰列 → 考試列。
   換版不換資料（計畫席裁 #991 grades Q1–Q7）：伺服器分頁照舊（Q5）；「待處理／全部」只是 statusFilter 的
@@ -54,7 +52,8 @@
         @for (opt of examTypeOptions; track opt.value) {
           <button
             type="button"
-            class="min-h-11 cursor-pointer rounded-sm border-0 bg-transparent px-3 text-md font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
+            class="vt-seg min-h-11 cursor-pointer rounded-sm border-0 bg-transparent px-3 text-md font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
+            [style.view-transition-name]="examType() === opt.value ? 'seg-exam-type' : null"
             [attr.aria-pressed]="examType() === opt.value"
             (click)="onExamTypeChange(opt.value)"
           >
@@ -187,98 +186,102 @@
     </p>
   }
 
-  @if (loading()) {
-    <div class="skeleton-list" aria-label="考試載入中">
+  <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
+  <app-reload-veil [loading]="loading()">
+    <div reloadSkeleton class="skeleton-list" aria-label="考試載入中">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <span class="skeleton-bar"></span>
       }
     </div>
-  } @else if (loadFailed()) {
-    <app-load-failed
-      description="沒有讀到考試資料，可能是連線問題"
-      (retry)="reloadListAndCounts()"
-    />
-  } @else if (currentRows().length === 0) {
-    @if (hasActiveFilters()) {
-      <app-empty-state
-        icon="pi pi-filter-slash"
-        title="無符合條件的結果"
-        campusScoped
-        description="請調整篩選條件，或清除篩選後查看全部考試"
-      >
-        <p-button
-          label="清除篩選"
+    @if (loadFailed()) {
+      <app-load-failed
+        description="沒有讀到考試資料，可能是連線問題"
+        (retry)="reloadListAndCounts()"
+      />
+    } @else if (currentRows().length === 0) {
+      @if (hasActiveFilters()) {
+        <app-empty-state
           icon="pi pi-filter-slash"
-          [outlined]="true"
-          severity="secondary"
-          (onClick)="clearFilters()"
-        />
-      </app-empty-state>
-    } @else {
-      <app-empty-state
-        icon="pi pi-inbox"
-        title="尚無考試資料"
-        campusScoped
-        description="點選「新增考試」建立補習班考試或學校考試"
-      >
-        <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
-      </app-empty-state>
-    }
-  } @else {
-    <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-    @let chs = chapters();
-    @if (chs) {
-      <!-- 待處理分頁依進度分章（#1314）：桌機左欄章名＋場數，右邊是考試列 -->
-      @for (ch of chs; track ch.key) {
-        <section
-          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
-          [attr.aria-label]="ch.name"
-          [attr.data-chapter]="ch.key"
+          title="無符合條件的結果"
+          campusScoped
+          description="請調整篩選條件，或清除篩選後查看全部考試"
         >
-          <app-chapter-head
-            class="block pt-6 wide:pt-8"
-            [name]="ch.name"
-            [count]="ch.rows.length"
-            unit="場"
-            [sub]="totalRows() > PAGE_SIZE ? '這一頁' : ''"
+          <p-button
+            label="清除篩選"
+            icon="pi pi-filter-slash"
+            [outlined]="true"
+            severity="secondary"
+            (onClick)="clearFilters()"
           />
-          <ul class="m-0 list-none p-0 wide:pt-4" [attr.aria-label]="ch.name">
-            @for (row of ch.rows; track row.kind + '-' + row.id) {
-              <ng-container
-                [ngTemplateOutlet]="examRow"
-                [ngTemplateOutletContext]="{ $implicit: row }"
-              />
-            }
-          </ul>
-        </section>
+        </app-empty-state>
+      } @else {
+        <app-empty-state
+          icon="pi pi-inbox"
+          title="尚無考試資料"
+          campusScoped
+          description="點選「新增考試」建立補習班考試或學校考試"
+        >
+          <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
+        </app-empty-state>
       }
     } @else {
-      <ul class="m-0 list-none border-t border-zinc-900 p-0" aria-label="考試">
-        @for (row of currentRows(); track row.kind + '-' + row.id) {
-          <ng-container
-            [ngTemplateOutlet]="examRow"
-            [ngTemplateOutletContext]="{ $implicit: row }"
-          />
-        }
-      </ul>
-    }
+      <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
-    @if (totalRows() > PAGE_SIZE) {
-      <p-paginator
-        [first]="(currentPage() - 1) * PAGE_SIZE"
-        [rows]="PAGE_SIZE"
-        [totalRecords]="totalRows()"
-        (onPageChange)="onPage({ page: $event.page ?? 0 })"
-      />
+      @let chs = chapters();
+      @if (chs) {
+        <!-- 待處理分頁依進度分章（#1314）：桌機左欄章名＋場數，右邊是考試列 -->
+        @for (ch of chs; track ch.key) {
+          <section
+            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            [attr.aria-label]="ch.name"
+            [attr.data-chapter]="ch.key"
+          >
+            <app-chapter-head
+              class="block pt-6 wide:pt-8"
+              [name]="ch.name"
+              [listRow]="true"
+              [count]="ch.rows.length"
+              unit="場"
+              [sub]="totalRows() > PAGE_SIZE ? '這一頁' : ''"
+            />
+            <ul class="m-0 list-none p-0 wide:pt-4" [attr.aria-label]="ch.name">
+              @for (row of ch.rows; track row.kind + '-' + row.id) {
+                <ng-container
+                  [ngTemplateOutlet]="examRow"
+                  [ngTemplateOutletContext]="{ $implicit: row }"
+                />
+              }
+            </ul>
+          </section>
+        }
+      } @else {
+        <ul class="m-0 list-none border-t border-zinc-900 p-0" aria-label="考試">
+          @for (row of currentRows(); track row.kind + '-' + row.id) {
+            <ng-container
+              [ngTemplateOutlet]="examRow"
+              [ngTemplateOutletContext]="{ $implicit: row }"
+            />
+          }
+        </ul>
+      }
+
+      @if (totalRows() > PAGE_SIZE) {
+        <p-paginator
+          [first]="(currentPage() - 1) * PAGE_SIZE"
+          [rows]="PAGE_SIZE"
+          [totalRecords]="totalRows()"
+          (onPageChange)="onPage({ page: $event.page ?? 0 })"
+        />
+      }
     }
-  }
+  </app-reload-veil>
 </div>
 
 <!-- 一列考試（扁平列表與分章共用）。`row` 是 `ExamRow` -->
 <ng-template #examRow let-row>
   <li
-    class="grid min-h-18 grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_44px] wide:gap-x-6"
+    [style.view-transition-name]="'exam-' + row.kind + '-' + row.id"
+    class="vt-row grid min-h-18 grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_44px] wide:gap-x-6"
   >
     <div class="col-start-1 row-start-1 min-w-0">
       <button

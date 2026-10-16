@@ -17,6 +17,7 @@ import {
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { providePrimeNG } from 'primeng/config';
+import { MessageService } from 'primeng/api';
 import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 
@@ -25,6 +26,7 @@ import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
 import { AuthService } from '@core/auth.service';
 import { handleChunkNavigationError, provideChunkRecovery } from '@core/chunk-recovery.providers';
+import { onRouteViewTransition } from '@core/route-transition';
 
 registerLocaleData(localeZhTW, 'zh-TW');
 
@@ -162,7 +164,8 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
-      withViewTransitions(),
+      // 換頁方向（往深／返回／同層）與「減少動態」：見 core/route-transition.ts（#1641）
+      withViewTransitions({ onViewTransitionCreated: onRouteViewTransition }),
       // 43 條路由全部 lazy 是為了初始 bundle 小，但沒有預載的話每頁第一次進入都要
       // 現場下載 chunk —— 使用者的體感是「每次跳轉都有微小延遲」。首屏渲染完之後
       // 讓瀏覽器閒時把其餘 chunk 拉完，初始 bundle 的大小不受影響。
@@ -190,6 +193,9 @@ export const appConfig: ApplicationConfig = {
       ripple: true,
     }),
     provideSystemClock(),
+    // 全站唯一的 toast 通道（#1615）：出口是 App 的 <app-toast>。元件不要再自己 provide，
+    // 不然訊息只進那一層、沒有人在聽
+    MessageService,
     // #951：讓 `/api/me` 跟 `/api/system-time` **同時**出發。
     //
     // 時鐘那個 initializer 會擋住啟動（同步前不能拿瀏覽器的時間算「今天」），而 AuthService

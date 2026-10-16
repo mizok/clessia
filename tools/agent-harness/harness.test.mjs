@@ -1906,6 +1906,16 @@ test('A23 的 org 表集合從 migration 推導：create 帶欄位、alter 補�
   assert.deepEqual([...tables].sort(), ['campuses', 'events']);
 });
 
+test('A23 的 org 表集合跟著 RENAME TO 走（#1687）；子表改名不會變成 org 表', () => {
+  const tables = orgTablesFromMigrations([
+    `create table public.push_deliveries (id uuid, org_id uuid not null);`,
+    `create table public.child (id uuid, parent_id uuid);`,
+    `ALTER TABLE public.push_deliveries RENAME TO notifications;\nALTER TABLE public.notifications RENAME COLUMN sent_at TO push_updated_at;`,
+    `alter table public.child rename to kid;`,
+  ]);
+  assert.deepEqual([...tables].sort(), ['notifications']);
+});
+
 test('A23 讀得到 OrgTable union（型別即清單，要跟 migration 對照）', () => {
   const src = `export type OrgTable =\n  | 'campuses'\n  | 'subjects';\nexport function inOrg() {}`;
   assert.deepEqual([...declaredOrgTables(src)].sort(), ['campuses', 'subjects']);

@@ -91,7 +91,7 @@ export class SelectRoleComponent {
     const ref = injector.get(DialogService).open(RolePickerComponent, {
       // 單一公式，不用斷點：原本 400px ＋ breakpoints { '640px': '90%' } 在 640px 寬時是 576、
       // 641px 時跳回 400（#1086）。% 不是 viewport 單位，不違反 c6。
-      width: 'min(400px, 90%)',
+      width: 'min(400px, calc(100% - 32px))',
       // 沒選角色就沒有下一步 —— 這個彈窗刻意關不掉
       closable: false,
       closeOnEscape: false,

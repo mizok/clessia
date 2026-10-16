@@ -6,7 +6,7 @@
     @for (s of g.sessions; track s.id) {
       <!-- 週視圖的窄欄（compact）：勾選欄收窄、不放 ⋯（點課本身就開同一個選單），班名才有地方放 -->
       <div
-        class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start border-b border-surface-border"
+        class="grid grid-cols-[minmax(0,1fr)_auto] items-start border-b border-surface-border wide:grid-cols-[auto_minmax(0,1fr)_auto]"
         [class.bg-zinc-100]="selectedIds().has(s.id)"
       >
         <!-- 手機沒有原地勾選框（A6）：勾課走「快速選取」面板，或長按一堂 -->

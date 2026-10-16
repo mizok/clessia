@@ -8,7 +8,8 @@ import { checkTeacherEligibility } from '../lib/teacher-eligibility';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
-import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
+import { deleteClasses, type ClassDeleteOutcome } from '../lib/class-delete';
+import { getAuth } from '../lib/get-auth';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { countEnrolledOn, type EnrollmentRange } from '../lib/session-roster';
 import { checkClassesPastSessions } from '../lib/class-past-sessions';
@@ -19,6 +20,7 @@ import type {
 } from '../domain/session-assignment/session-assignment.types';
 import { waitUntilFrom } from '../lib/wait-until';
 import { hasPermission } from '../lib/permissions';
+import { loadLatestExams, type LatestExam } from '../lib/class-latest-exam';
 import {
   normalizeTime,
   toMinutes,
@@ -65,6 +67,8 @@ const ClassSchema = z
     defaultFeeTemplateId: DbUuidSchema.nullable(),
     /** 家長端「推薦加選」的人工標記（#1118） */
     isRecommended: z.boolean(),
+    /** 出現在匿名的公開報名／試聽表單（#1665 Q5）；家長端不受影響 */
+    isPublicEnrollment: z.boolean(),
     scheduleCount: z.number().optional(),
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
@@ -76,6 +80,19 @@ const ClassSchema = z
     upcomingTeacherConflictCount: z.number().optional(),
     /** 列表才有：今天在籍的人數（`countEnrolledOn`，跟點名／課堂名單同一份規則）；A6「17／24 人」 */
     enrolledCount: z.number().int().optional(),
+    /** 列表才有：最近一場有成績的校內考（#1314 G6，`lib/class-latest-exam.ts`）；沒考過＝null，查詢失敗＝不回 */
+    latestExam: z
+      .object({
+        examId: z.string(),
+        name: z.string(),
+        examDate: z.string(),
+        totalScore: z.number(),
+        avgScore: z.number().nullable(),
+        failCount: z.number().int(),
+        absentCount: z.number().int(),
+      })
+      .nullable()
+      .optional(),
     schedules: z.array(ScheduleSchema).optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -107,6 +124,7 @@ const CreateClassSchema = z
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
     isRecommended: z.boolean().optional(),
+    isPublicEnrollment: z.boolean().optional(),
     // 不給就用 DB 的 default false（現況全是紙本）
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -130,6 +148,7 @@ const UpdateClassSchema = z
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
     isRecommended: z.boolean().optional(),
+    isPublicEnrollment: z.boolean().optional(),
     isActive: z.boolean().optional(),
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -319,6 +338,7 @@ interface ClassExtras {
   upcomingClassConflictCount?: number;
   upcomingTeacherConflictCount?: number;
   enrolledCount?: number;
+  latestExam?: LatestExam | null;
   updatedByName?: string | null;
 }
 
@@ -383,6 +403,8 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     usesContactBook: (row['uses_contact_book'] as boolean | undefined) ?? false,
     defaultFeeTemplateId: (row['default_fee_template_id'] as string | null | undefined) ?? null,
     isRecommended: (row['is_recommended'] as boolean | undefined) ?? false,
+    // DB 是 NOT NULL DEFAULT true（Q5′）；沒撈到就照 DB 預設
+    isPublicEnrollment: (row['is_public_enrollment'] as boolean | undefined) ?? true,
     scheduleCount: extras?.scheduleCount,
     scheduleTeacherIds: extras?.scheduleTeacherIds,
     hasUpcomingSessions: extras?.hasUpcomingSessions,
@@ -392,6 +414,7 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     upcomingClassConflictCount: extras?.upcomingClassConflictCount,
     upcomingTeacherConflictCount: extras?.upcomingTeacherConflictCount,
     enrolledCount: extras?.enrolledCount,
+    latestExam: extras?.latestExam,
     schedules: extras?.schedules?.map((s) => mapSchedule(s as Record<string, unknown>)),
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
@@ -562,6 +585,7 @@ app.openapi(
     const upcomingClassConflictCountMap: Record<string, number> = {};
     const upcomingTeacherConflictCountMap: Record<string, number> = {};
     const enrolledCountMap: Record<string, number> = {};
+    let latestExamMap: Map<string, LatestExam | null> | null = null;
 
     if (classIds.length > 0) {
       // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。這個變數同時餵給下面
@@ -570,33 +594,40 @@ app.openapi(
       const today = getCurrentTaipeiDateString();
       // #949：三支都只依賴 classIds，彼此互不相依 —— 同一輪發出去
       // （原本依序發四支，第四支是下面註解說的 any-sessions，已刪）。
-      const [sessionsResult, pastSessionsCheck, upcomingCancelledResult, enrollmentsResult] =
-        await Promise.all([
-          supabase
-            .from('sessions')
-            .select('id, class_id, session_date, start_time, end_time, teacher_id')
-            .in('class_id', classIds)
-            .gte('session_date', today)
-            .eq('status', 'scheduled'),
-          // TODO: 待老師點名功能完成後，改為查 status='completed'
-          // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
-          // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
-          checkClassesPastSessions(supabase, classIds),
-          supabase
-            .from('sessions')
-            .select('class_id')
-            .in('class_id', classIds)
-            .gte('session_date', today)
-            .eq('status', 'cancelled'),
-          // 在籍人數（A6「17／24 人」）：只撈本頁班級的在籍報名，在記憶體裡用 `countEnrolledOn`
-          // 數 —— 跟課堂名單、點名同一份「某天在不在籍」的規則（`lib/session-roster.ts`）
-          supabase
-            .from('enrollments')
-            .select('class_id, effective_from, effective_to')
-            .in('class_id', classIds)
-            .eq('status', 'active')
-            .eq('org_id', c.get('orgId')),
-        ]);
+      const [
+        sessionsResult,
+        pastSessionsCheck,
+        upcomingCancelledResult,
+        enrollmentsResult,
+        latestExams,
+      ] = await Promise.all([
+        supabase
+          .from('sessions')
+          .select('id, class_id, session_date, start_time, end_time, teacher_id')
+          .in('class_id', classIds)
+          .gte('session_date', today)
+          .eq('status', 'scheduled'),
+        // TODO: 待老師點名功能完成後，改為查 status='completed'
+        // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
+        // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
+        checkClassesPastSessions(supabase, classIds),
+        supabase
+          .from('sessions')
+          .select('class_id')
+          .in('class_id', classIds)
+          .gte('session_date', today)
+          .eq('status', 'cancelled'),
+        // 在籍人數（A6「17／24 人」）：只撈本頁班級的在籍報名，在記憶體裡用 `countEnrolledOn`
+        // 數 —— 跟課堂名單、點名同一份「某天在不在籍」的規則（`lib/session-roster.ts`）
+        supabase
+          .from('enrollments')
+          .select('class_id, effective_from, effective_to')
+          .in('class_id', classIds)
+          .eq('status', 'active')
+          .eq('org_id', c.get('orgId')),
+        loadLatestExams(supabase, c.get('orgId'), classIds),
+      ]);
+      latestExamMap = latestExams;
 
       const enrollmentRanges: EnrollmentRange[] = (
         (enrollmentsResult.data ?? []) as Array<Record<string, unknown>>
@@ -729,6 +760,7 @@ app.openapi(
           upcomingClassConflictCount: upcomingClassConflictCountMap[id] ?? 0,
           upcomingTeacherConflictCount: upcomingTeacherConflictCountMap[id] ?? 0,
           enrolledCount: enrolledCountMap[id],
+          latestExam: latestExamMap ? (latestExamMap.get(id) ?? null) : undefined,
         });
       }),
       meta: {
@@ -917,13 +949,60 @@ app.openapi(
   },
 );
 
+interface ClassDeleteFailure {
+  readonly http: 404 | 409 | 500;
+  readonly body: { error: string; code: string; classIds?: string[] };
+}
+
+/**
+ * 刪班級的交易入口（#1652）：拿這個請求的 pg 池、帶 org 與分校範圍，把「什麼都沒動」的結果對成 HTTP。
+ * **池不在就 500，不退回舊的 PostgREST 逐步刪** —— 那條就是沒有交易、會刪一半的 bug 本身。
+ */
+async function deleteClassesForRequest(
+  c: Context<AppEnv>,
+  ids: readonly string[],
+  onBlocked: 'abort' | 'skip',
+): Promise<Extract<ClassDeleteOutcome, { status: 'done' }> | ClassDeleteFailure> {
+  const pool = getAuth(c).pool;
+  if (!pool) return { http: 500, body: { error: '刪除班級失敗', code: 'DB_POOL_UNAVAILABLE' } };
+  let result: ClassDeleteOutcome;
+  try {
+    result = await deleteClasses(pool, {
+      orgId: c.get('orgId'),
+      ids,
+      scope: getCampusScope(c),
+      onBlocked,
+    });
+  } catch (err) {
+    console.error('[classes] delete transaction failed:', err);
+    return { http: 500, body: { error: '刪除班級失敗', code: 'DB_ERROR' } };
+  }
+  switch (result.status) {
+    case 'done':
+      return result;
+    case 'not-found':
+      return { http: 404, body: { error: '班級不存在', code: 'NOT_FOUND' } };
+    case 'has-invoice-items':
+      return {
+        http: 409,
+        body: {
+          error: '這個班已經有帳單，不能刪除，請改為停用',
+          code: 'HAS_INVOICE_ITEMS',
+          classIds: result.classIds,
+        },
+      };
+    case 'in-use':
+      return { http: 409, body: { error: '班級還有其他資料引用，無法刪除', code: 'IN_USE' } };
+  }
+}
+
 // DELETE /api/classes/batch
 app.openapi(
   createRoute({
     method: 'delete',
     path: '/batch',
     tags: ['Classes'],
-    summary: '批次刪除班級（有歷史課堂的略過）',
+    summary: '批次刪除班級（有歷史課堂或堂數包的略過；有帳單整批擋）',
     request: {
       body: {
         content: {
@@ -945,11 +1024,15 @@ app.openapi(
         },
       },
       404: {
-        description: '有班級不存在（含別 org 的 id）—— 整批不動',
+        description: '有班級不存在或不在分校範圍（含別 org 的 id）—— 整批不動',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      409: {
+        description: '有班級已有帳單明細（HAS_INVOICE_ITEMS，body 帶 classIds）—— 整批不動',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: {
-        description: '過去課堂守門查詢失敗 —— 拒絕刪除（fail closed）',
+        description: '交易失敗 —— 整批不動',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -961,33 +1044,20 @@ app.openapi(
     const { ids } = c.req.valid('json');
     if (ids.length === 0) return c.json({ deleted: 0, deletedIds: [], skipped: 0 }, 200);
 
-    // 任何一個 id 不屬於本 org → 整批 404，不略過（c1，#966 B2）
-    if ((await missingInOrg(supabase, 'classes', orgId, ids)).length > 0) {
-      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    // 範圍、守門、刪除全在同一個交易裡，跟單筆共用（#1652，見 lib/class-delete.ts）：
+    // 任何一個 id 不在 org／分校範圍 → 整批 404（c1，#966 B2）；有帳單明細 → 整批 409；
+    // 有過去課堂或堂數包的班略過。
+    const result = await deleteClassesForRequest(c, ids, 'skip');
+    if ('http' in result) {
+      if (result.http === 404) return c.json(result.body, 404);
+      if (result.http === 409) return c.json(result.body, 409);
+      return c.json(result.body, 500);
     }
-
-    // 查哪些班級有過去日期的課堂（有則視為已發生業務，不可刪除）
-    // TODO: 待老師點名功能完成後，改為查 status='completed'
-    // 查詢失敗一律 fail closed —— 不確定有沒有過去課堂時，整批都不准刪，
-    // 不能把「查不到答案」的班級誤判成「可以刪」。
-    const pastSessionsCheck = await checkClassesPastSessions(supabase, ids);
-    if (pastSessionsCheck.status === 'check-failed') {
-      return c.json(
-        { error: 'PAST_SESSIONS_CHECK_FAILED', code: 'PAST_SESSIONS_CHECK_FAILED' },
-        500,
-      );
-    }
-
-    const hasSessionsSet = pastSessionsCheck.classIdsWithPastSessions;
-    const toDeleteIds = ids.filter((id) => !hasSessionsSet.has(id));
+    const toDeleteIds = result.deletedIds;
     const skipped = ids.length - toDeleteIds.length;
-
     if (toDeleteIds.length === 0) {
       return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
     }
-
-    const { error } = await inOrg(supabase.from('classes').delete().in('id', toDeleteIds), orgId);
-    if (error) return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
 
     logAudit(
       supabase,
@@ -1136,6 +1206,9 @@ app.openapi(
         next_class_id: body.nextClassId ?? null,
         default_fee_template_id: body.defaultFeeTemplateId ?? null,
         ...(body.isRecommended === undefined ? {} : { is_recommended: body.isRecommended }),
+        ...(body.isPublicEnrollment === undefined
+          ? {}
+          : { is_public_enrollment: body.isPublicEnrollment }),
         ...(body.usesContactBook === undefined ? {} : { uses_contact_book: body.usesContactBook }),
         start_date: body.startDate ?? null,
         end_date: body.endDate ?? null,
@@ -1228,6 +1301,9 @@ app.openapi(
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
     if (body.usesContactBook !== undefined) updateData['uses_contact_book'] = body.usesContactBook;
     if (body.isRecommended !== undefined) updateData['is_recommended'] = body.isRecommended;
+    if (body.isPublicEnrollment !== undefined) {
+      updateData['is_public_enrollment'] = body.isPublicEnrollment;
+    }
     if (body.startDate !== undefined) updateData['start_date'] = body.startDate;
     if (body.endDate !== undefined) updateData['end_date'] = body.endDate;
 
@@ -1329,7 +1405,7 @@ app.openapi(
     method: 'delete',
     path: '/{id}',
     tags: ['Classes'],
-    summary: '刪除班級（無 sessions 才可刪）',
+    summary: '刪除班級（無過去課堂、堂數包、帳單才可刪）',
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
@@ -1341,11 +1417,11 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       409: {
-        description: '已有課堂記錄或已收費的堂數包，無法刪除',
+        description: '已有過去課堂、堂數包或帳單明細（HAS_INVOICE_ITEMS），無法刪除',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: {
-        description: '守門查詢失敗 —— 拒絕刪除（fail closed）',
+        description: '交易失敗 —— 什麼都沒刪（fail closed）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -1369,61 +1445,25 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    // 檢查是否有過去日期的課堂 — 有則視為曾實際發生業務，不可刪除，只能停用
-    // TODO: 待老師點名功能完成後，改為檢查 status='completed'
-    // 查詢失敗一律 fail closed —— 不確定有沒有過去課堂時，不准刪。
-    const pastSessionsCheck = await checkClassesPastSessions(supabase, [id]);
-    if (pastSessionsCheck.status === 'check-failed') {
-      return c.json(
-        { error: 'PAST_SESSIONS_CHECK_FAILED', code: 'PAST_SESSIONS_CHECK_FAILED' },
-        500,
-      );
+    // 範圍、守門、刪除全在同一個交易裡（#1652，見 lib/class-delete.ts）。上面那次讀只為了稽核的名字，
+    // 不是權威 —— 交易裡會用 FOR UPDATE 重做 org／分校範圍判斷。
+    const result = await deleteClassesForRequest(c, [id], 'abort');
+    if ('http' in result) {
+      if (result.http === 404) return c.json(result.body, 404);
+      if (result.http === 409) return c.json(result.body, 409);
+      return c.json(result.body, 500);
     }
-
-    if (pastSessionsCheck.classIdsWithPastSessions.has(id)) {
+    if (result.pastSessionIds.length > 0) {
       return c.json(
         { error: '此班級已有歷史課堂記錄，無法刪除，請改為停用', code: 'HAS_PAST_SESSIONS' },
         409,
       );
     }
-
-    // 刪班會連坐刪掉底下所有報名（見下方 CASCADE DELETE），而報名底下可能掛著
-    // 已收費的 session_packs（ON DELETE CASCADE）—— 「零過去課堂」不代表「零business」，
-    // 家長可能已付費但學生還沒上過任何一堂課。這條檢查跟 enrollments.ts 的單筆刪除
-    // 共用同一支 checkEnrollmentSessionPacks，見該檔註解（M8 稽核）。
-    const { data: classEnrollments, error: classEnrollmentsError } = await supabase
-      .from('enrollments')
-      .select('id')
-      .eq('org_id', orgId)
-      .eq('class_id', id);
-
-    if (classEnrollmentsError) {
-      return c.json({ error: 'ENROLLMENT_LOOKUP_FAILED', code: 'ENROLLMENT_LOOKUP_FAILED' }, 500);
-    }
-
-    const enrollmentIds = (classEnrollments ?? []).map((row) => row.id);
-    const sessionPacks = await checkEnrollmentSessionPacks({ supabase, orgId, enrollmentIds });
-
-    if (sessionPacks.status === 'check-failed') {
-      return c.json({ error: 'SESSION_PACK_CHECK_FAILED', code: 'SESSION_PACK_CHECK_FAILED' }, 500);
-    }
-
-    if (sessionPacks.status === 'has-session-pack') {
+    if (result.sessionPackIds.length > 0) {
       return c.json(
         { error: '此班級已有學生購買堂數包，無法刪除，請改為停用', code: 'HAS_SESSION_PACK' },
         409,
       );
-    }
-
-    // CASCADE DELETE: 刪除關聯資料
-    // `schedules` 沒有 org_id 欄位 —— 它的範圍由上面驗過的父班級保證
-    await inOrg(supabase.from('sessions').delete().eq('class_id', id), orgId);
-    await supabase.from('schedules').delete().eq('class_id', id);
-    await inOrg(supabase.from('enrollments').delete().eq('class_id', id), orgId);
-
-    const { error } = await inOrg(supabase.from('classes').delete().eq('id', id), orgId);
-    if (error) {
-      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
     logAudit(

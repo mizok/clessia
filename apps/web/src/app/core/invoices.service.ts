@@ -22,7 +22,6 @@ export type InvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void' | 'overrefund
 export type InvoiceItemType = 'tuition' | 'meal' | 'session_pack' | 'adjustment';
 export type PaymentKind = 'payment' | 'refund';
 export type PaymentMethod = 'cash' | 'transfer';
-export type ReminderMethod = 'line' | 'phone' | 'other';
 
 export const INVOICE_STATUS_LABELS: Readonly<Record<InvoiceStatus, string>> = {
   unpaid: '未繳',
@@ -50,12 +49,6 @@ export const INVOICE_ITEM_TYPE_LABELS: Readonly<Record<InvoiceItemType, string>>
 export const PAYMENT_METHOD_LABELS: Readonly<Record<PaymentMethod, string>> = {
   cash: '現金',
   transfer: '轉帳',
-};
-
-export const REMINDER_METHOD_LABELS: Readonly<Record<ReminderMethod, string>> = {
-  line: 'LINE',
-  phone: '電話',
-  other: '其他',
 };
 
 export interface InvoiceItem {
@@ -111,16 +104,28 @@ export interface Invoice {
   payments: PaymentRecord[];
   createdAt: string;
   updatedAt: string;
-  /** **只有列表回**（#1404）：最近一次催繳記錄的時間（ISO）；從沒催過是 null。單張 GET 沒有 */
-  lastRemindedAt?: string | null;
 }
 
-export interface PaymentReminder {
+/** 帳單學生的一位家長（#1625 快速聯絡）。沒有留電話／email 是 null，不是整列消失 */
+export interface InvoiceParentContact {
   id: string;
-  method: ReminderMethod;
-  note: string | null;
-  createdBy: string | null;
-  createdAt: string;
+  name: string;
+  relation: string | null;
+  phone: string | null;
+  email: string | null;
+  isPrimary: boolean;
+}
+
+/** 匯款資料（分校覆寫優先、以內容去重）；多筆時 `campusName` 標是哪個分校 */
+export interface InvoicePaymentInfo {
+  campusName: string | null;
+  text: string;
+}
+
+/** **只有單張 GET 回**（#1625）：列表不帶家長個資 */
+export interface InvoiceDetail extends Invoice {
+  parents: InvoiceParentContact[];
+  paymentInfo: InvoicePaymentInfo[];
 }
 
 export type DueState = 'overdue' | 'dueSoon' | 'notDue';
@@ -211,11 +216,6 @@ export interface RecordPaymentInput {
   note?: string;
 }
 
-export interface CreateReminderInput {
-  method: ReminderMethod;
-  note?: string;
-}
-
 interface SummaryBucket {
   count: number;
   outstanding: number;
@@ -243,6 +243,12 @@ export interface InvoiceSummary {
   outstanding: number;
   /** 本月（台北）開立的非作廢帳單：應收＝明細合計、已收＝至今淨收 */
   month: { month: string; billed: number; received: number };
+  /**
+   * 被 `campusId` 篩選排除的跨校**逾期**帳單張數（#1314 儀表板「另有 N 張跨校帳單」）：
+   * 授權範圍內看得到、有班的明細同時落在所選分校內外。不帶 `campusId` 恆 0；純餐費跨校單不計。
+   * 舊版 API 沒有這欄
+   */
+  crossCampusOverdue?: { count: number };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -262,8 +268,8 @@ export class InvoicesService {
     return this.http.get<InvoiceSummary>(`${this.endpoint}/summary`, { params: query });
   }
 
-  get(id: string): Observable<{ data: Invoice }> {
-    return this.http.get<{ data: Invoice }>(`${this.endpoint}/${id}`);
+  get(id: string): Observable<{ data: InvoiceDetail }> {
+    return this.http.get<{ data: InvoiceDetail }>(`${this.endpoint}/${id}`);
   }
 
   create(input: CreateInvoiceInput): Observable<{ data: Invoice }> {
@@ -289,25 +295,6 @@ export class InvoicesService {
   /** 收款與退費都走這支，差別只有 `kind`。回的是**整張帳單**（狀態已重新推導） */
   recordPayment(id: string, input: RecordPaymentInput): Observable<{ data: Invoice }> {
     return this.http.post<{ data: Invoice }>(`${this.endpoint}/${id}/payments`, input);
-  }
-
-  listReminders(id: string): Observable<{ data: PaymentReminder[] }> {
-    return this.http.get<{ data: PaymentReminder[] }>(`${this.endpoint}/${id}/reminders`);
-  }
-
-  /** 一次記錄多張的催繳（#1432）。送畫面上那批 id（上限 200），整批成功或整批失敗 */
-  createRemindersBatch(
-    invoiceIds: string[],
-    input: CreateReminderInput,
-  ): Observable<{ count: number }> {
-    return this.http.post<{ count: number }>(`${this.endpoint}/reminders/batch`, {
-      invoiceIds,
-      ...input,
-    });
-  }
-
-  createReminder(id: string, input: CreateReminderInput): Observable<{ success: boolean }> {
-    return this.http.post<{ success: boolean }>(`${this.endpoint}/${id}/reminders`, input);
   }
 }
 

@@ -104,20 +104,8 @@ const CASES = [
     applied: (db: Db) =>
       db.rows('classes').find((r) => r['id'] === CLASS_A)?.['is_active'] === false,
   },
-  {
-    name: 'DELETE /api/classes/batch',
-    theirs: ['DELETE', '/batch', { ids: [CLASS_A, CLASS_B] }],
-    mine: ['DELETE', '/batch', { ids: [CLASS_A] }, 200],
-    applied: (db: Db) => !db.rows('classes').some((r) => r['id'] === CLASS_A),
-  },
-  {
-    name: 'DELETE /api/classes/:id',
-    theirs: ['DELETE', `/${CLASS_B}`],
-    mine: ['DELETE', `/${CLASS_A}`, undefined, 200],
-    applied: (db: Db) =>
-      !db.rows('classes').some((r) => r['id'] === CLASS_A) &&
-      !db.rows('sessions').some((r) => r['class_id'] === CLASS_A),
-  },
+  // DELETE /api/classes/:id 與 /batch 走 pg 交易（#1652），不經過這個 supabase 替身 ——
+  // 跨 org 404 由 `contract/class-delete.contract.ts` 對真 Postgres 驗（含拿掉 org 條件的突變）。
   {
     name: 'POST /api/classes/:id/schedules',
     theirs: ['POST', `/${CLASS_B}/schedules`, SLOT],

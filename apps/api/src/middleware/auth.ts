@@ -3,6 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuth } from '../lib/get-auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { createLatencyProbe } from '../lib/supabase-latency-probe';
+import { getCachedIdentity, setCachedIdentity } from '../lib/identity-cache';
+import { loadIdentityViaSql, type IdentityRows } from '../lib/identity-sql';
 import { isAccountUsable } from './account-status';
 import { hasPermission } from '../lib/permissions';
 import { isCampusAllowed, resolveCampusScope } from '../lib/campus-scope';
@@ -50,24 +52,124 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   // 帳號狀態也在這裡查。這個檢查原本住在 POST /api/login，那支端點隨密碼登入一起被
   // 刪除時**檢查沒有搬家** —— 被停用的家長只要還握著 LINE 綁定就能繼續進系統。
   // 放在這裡的代價是每個請求多一次查詢，但它跟角色查詢平行發，不多一次往返。
+  //
+  // 結果在 isolate 內快取 IDENTITY_TTL_MS（30 秒）—— 上面「撤銷要立刻生效」因此變成
+  // 「最遲 30 秒生效」，上限由 lib/identity-cache.ts 與 auth.spec.ts 守（#1595 P1b）。
+  let identity = getCachedIdentity<IdentityRows>(session.user.id);
+  if (!identity) {
+    // 先走 SQL（Hyperdrive，一次往返、繞過 PostgREST）；失敗或形狀不對就走原本的 REST 三查
+    // （見 lib/identity-sql.ts）。兩條路回同一個形狀，下游的授權推導完全相同
+    const loaded =
+      (auth.pool ? await loadIdentityViaSql(auth.pool, session.user.id, orgId) : null) ??
+      (await loadIdentity(supabase, session.user.id, orgId));
+    if (!loaded) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    setCachedIdentity(session.user.id, loaded);
+    identity = loaded;
+  }
+  const { roleRows, staffRows, parentRows } = identity;
+
+  const statuses = [...staffRows, ...parentRows].map((row) => (row as { status: string }).status);
+
+  if (!isAccountUsable(statuses)) {
+    return c.json({ error: '帳號已停用，請聯繫管理員', code: 'ACCOUNT_DISABLED' }, 403);
+  }
+
+  c.set('userId', session.user.id);
+  c.set('orgId', orgId);
+  const roles = roleRows.map((row) => row.role as string);
+  c.set('roles', roles);
+  // 細部權限跟角色一樣**每個請求查表**（經 30 秒快取），不從 session 讀。
+  // 一個人可以有多個角色，權限是它們的聯集。
+  const permissions = roleRows.flatMap((row) =>
+    Array.isArray((row as { permissions?: unknown }).permissions)
+      ? ((row as { permissions: unknown[] }).permissions as string[])
+      : [],
+  );
+  c.set('permissions', permissions);
+  c.set('supabase', supabase);
+  const assignedCampusIds = staffRows.flatMap((row) => {
+    const links = (row as { staff_campuses?: { campus_id: string }[] | null }).staff_campuses;
+    return Array.isArray(links) ? links.map((link) => link.campus_id) : [];
+  });
+  // /api/me 顯示名稱與生日用（#1595 P2a）。跟授權欄位同一份快取，所以最遲 30 秒才反映修改。
+  // `assignedCampusIds` 是下面 campusScope 用的**同一份**，給前端挑預設分校（#1607），不是授權
+  c.set('selfRows', {
+    staff: (staffRows[0] as { display_name?: string | null; birthday?: string | null }) ?? null,
+    parent: (parentRows[0] as { name?: string | null }) ?? null,
+    assignedCampusIds,
+  });
+
+  // 前端目前選定的身分（見 lib/active-role.ts）。找不到或不是這個人的角色之一 → null，
+  // 呼叫端（例如 announcements 的 audienceFor）退回角色陣列的既有優先序規則。
+  c.set('activeRole', resolveActiveRole(c.req.header('X-Active-Role'), roles));
+
+  // 這個家長看得到哪些學生。`null` = 不是家長身分（不受限）；空陣列 = 是家長但沒有
+  // 任何 parent_student_relations（什麼都看不到）。見 lib/child-scope.ts、
+  // kb/wiki/architecture/parent-data-scope.md。
+  const studentScope = resolveStudentScope({
+    roles,
+    relatedStudentIds: parentRows.flatMap((row) => {
+      const links = (row as { parent_student_relations?: { student_id: string }[] | null })
+        .parent_student_relations;
+      return Array.isArray(links) ? links.map((link) => link.student_id) : [];
+    }),
+  });
+  c.set('studentScope', studentScope);
+  // 家長端 route 只拿得到這個，拿不到原始 supabase（見 lib/child-db.ts）。
+  c.set('childDb', createChildDb(supabase, studentScope, orgId));
+
+  // 看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的範圍
+  // 限制把關的老師與家長）；空陣列 = 一個分校都沒被指派，什麼都看不到。
+  c.set(
+    'campusScope',
+    resolveCampusScope({
+      roles: roles,
+      permissions: permissions,
+      assignedCampusIds,
+    }),
+  );
+
+  await next();
+
+  // ⚠️ 臨時：**在這裡印，不是讓探針自己猜「平行查詢跑完了沒」** ——
+  // 猜的版本會在第一支結束時就印出 `count: 1`。跟 `lib/get-auth.ts` 的池收尾
+  // 同一個形狀：收尾要等 response 成形。
+  const probeLine = probe.format(`${c.req.method} ${new URL(c.req.url).pathname}`);
+  if (probeLine) console.error(probeLine);
+
+  return;
+});
+
+/** 身分三查。任何一支失敗回 null（呼叫端回 500），失敗原因印進 log。 */
+export async function loadIdentity(
+  supabase: SupabaseClient,
+  userId: string,
+  orgId: string,
+): Promise<IdentityRows | null> {
   const [
     { data: roleRows, error: rolesError },
     { data: staffRows, error: staffError },
     { data: parentRows, error: parentError },
   ] = await Promise.all([
-    supabase.from('user_roles').select('role, permissions').eq('user_id', session.user.id),
+    // `user_roles` 沒有 org_id 欄位：它的 org 由 `ba_user.orgId`（session）決定，一個 user 只屬於一個 org
+    supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
     // 分校指派跟著 staff 一起查 —— 授權要在 middleware 層成立（c1），
     // 各路由自己去查的話總有一支會忘記，而忘記的方式是安靜的。
+    // display_name、birthday 是給 /api/me 的（#1595 P2a）：順手帶、跟著快取，省它自己再查一次
     supabase
       .from('staff')
-      .select('status, staff_campuses(campus_id)')
-      .eq('user_id', session.user.id),
+      .select('status, display_name, birthday, staff_campuses(campus_id)')
+      .eq('user_id', userId)
+      // staff／parents 的唯一鍵是 (user_id, org_id)：只用 user_id 的話，同一個人在別的 org 的列
+      // （停用狀態、別 org 的分校指派）會被合進來算（#1603，縱深防禦）
+      .eq('org_id', orgId),
     // `parent_student_relations` 跟 status 一起查 —— 理由跟 staff_campuses 那行一樣：
     // 授權要在 middleware 層成立（c1），各路由自己查的話總有一支會忘記。
     supabase
       .from('parents')
-      .select('status, parent_student_relations(student_id)')
-      .eq('user_id', session.user.id),
+      .select('status, name, parent_student_relations(student_id)')
+      .eq('user_id', userId)
+      .eq('org_id', orgId),
   ]);
 
   // **失敗的原因要留下來。** 這三個 error 物件原本讀完就丟 —— 於是這條路只會在正式站
@@ -91,74 +193,11 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
           .map(([table, error]) => `${table}=${(error as { message?: string })?.message ?? error}`)
           .join('; '),
     );
-    return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    return null;
   }
 
-  const statuses = [...(staffRows ?? []), ...(parentRows ?? [])].map(
-    (row) => (row as { status: string }).status,
-  );
-
-  if (!isAccountUsable(statuses)) {
-    return c.json({ error: '帳號已停用，請聯繫管理員', code: 'ACCOUNT_DISABLED' }, 403);
-  }
-
-  c.set('userId', session.user.id);
-  c.set('orgId', orgId);
-  const roles = (roleRows ?? []).map((row) => row.role as string);
-  c.set('roles', roles);
-  // 細部權限跟角色一樣**每個請求查表**，不從 session 讀 —— 撤銷權限要立刻生效。
-  // 一個人可以有多個角色，權限是它們的聯集。
-  const permissions = (roleRows ?? []).flatMap((row) =>
-    Array.isArray((row as { permissions?: unknown }).permissions)
-      ? ((row as { permissions: unknown[] }).permissions as string[])
-      : [],
-  );
-  c.set('permissions', permissions);
-  c.set('supabase', supabase);
-
-  // 前端目前選定的身分（見 lib/active-role.ts）。找不到或不是這個人的角色之一 → null，
-  // 呼叫端（例如 announcements 的 audienceFor）退回角色陣列的既有優先序規則。
-  c.set('activeRole', resolveActiveRole(c.req.header('X-Active-Role'), roles));
-
-  // 這個家長看得到哪些學生。`null` = 不是家長身分（不受限）；空陣列 = 是家長但沒有
-  // 任何 parent_student_relations（什麼都看不到）。見 lib/child-scope.ts、
-  // kb/wiki/architecture/parent-data-scope.md。
-  const studentScope = resolveStudentScope({
-    roles,
-    relatedStudentIds: (parentRows ?? []).flatMap((row) => {
-      const links = (row as { parent_student_relations?: { student_id: string }[] | null })
-        .parent_student_relations;
-      return Array.isArray(links) ? links.map((link) => link.student_id) : [];
-    }),
-  });
-  c.set('studentScope', studentScope);
-  // 家長端 route 只拿得到這個，拿不到原始 supabase（見 lib/child-db.ts）。
-  c.set('childDb', createChildDb(supabase, studentScope, orgId));
-
-  // 看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的範圍
-  // 限制把關的老師與家長）；空陣列 = 一個分校都沒被指派，什麼都看不到。
-  c.set(
-    'campusScope',
-    resolveCampusScope({
-      roles: roles,
-      permissions: permissions,
-      assignedCampusIds: (staffRows ?? []).flatMap((row) => {
-        const links = (row as { staff_campuses?: { campus_id: string }[] | null }).staff_campuses;
-        return Array.isArray(links) ? links.map((link) => link.campus_id) : [];
-      }),
-    }),
-  );
-
-  await next();
-
-  // ⚠️ 臨時：**在這裡印，不是讓探針自己猜「平行查詢跑完了沒」** ——
-  // 猜的版本會在第一支結束時就印出 `count: 1`。跟 `lib/get-auth.ts` 的池收尾
-  // 同一個形狀：收尾要等 response 成形。
-  const probeLine = probe.format(`${c.req.method} ${new URL(c.req.url).pathname}`);
-  if (probeLine) console.error(probeLine);
-
-  return;
-});
+  return { roleRows: roleRows ?? [], staffRows: staffRows ?? [], parentRows: parentRows ?? [] };
+}
 
 /**
  * 這個角色能不能呼叫這支 route。

@@ -1,4 +1,4 @@
-import { of } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { provideRouter } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
@@ -58,6 +58,7 @@ describe('LeavePage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     vi.useFakeTimers();
     leaveServiceMock.list.mockClear();
     leaveServiceMock.delete.mockClear();
@@ -99,6 +100,12 @@ describe('LeavePage', () => {
     vi.spyOn(messageService, 'add');
     fixture.detectChanges();
     await fixture.whenStable();
+  });
+
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
   });
 
   it('分校跟頂欄走：頂欄換分校回第一頁、帶 campusId 重查（#1138）', () => {
@@ -288,6 +295,16 @@ describe('LeavePage', () => {
       expect(chapters.map((g) => g.name)).toEqual(['今天', '明天', '4/15']);
       expect(chapters[0].rows.map((r) => r.id)).toEqual(['a', 'b']);
       expect(qa('chapter')).toHaveLength(3);
+    });
+
+    // #1698：A6 leave.html 在 ≤860 覆寫 `.chap`＝橫排、章名 28px（listRow）
+    it('章頭用 listRow：手機章名 28px', () => {
+      respond([rec({ id: 'a', startDate: '2026-04-10' })]);
+      component['loadRecords']();
+      fixture.detectChanges();
+
+      const name = (fixture.nativeElement as HTMLElement).querySelector('.chapter-head__name');
+      expect(name?.classList).toContain('text-[28px]');
     });
 
     it('全部分頁依開始日分章，不把進行中的歸到今天', () => {
@@ -481,6 +498,37 @@ describe('LeavePage', () => {
       leaveServiceMock.list.mockClear();
       q('next-page')!.click();
       expect(calls()[0][0]['page']).toBe(2);
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 1 點）：完整刪除是樂觀的；截斷那一列不會消失，等伺服器回來
+  describe('刪除的動態（#1641 5b）', () => {
+    const other = { ...activeRecord, id: 'leave-0' };
+    const ids = () => component['records']().map((r: LeaveRequest) => r.id);
+
+    it('完整刪除失敗：那一列放回原位，並跳錯誤 toast', () => {
+      const add = vi.spyOn(messageService, 'add');
+      component['records'].set([other, activeRecord]);
+      leaveServiceMock.delete.mockReturnValueOnce(throwError(() => new Error('x')) as never);
+      component['executeDelete'](activeRecord, 'full', '已刪除', '');
+      expect(ids()).toEqual(['leave-0', 'leave-1']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('完整刪除成功：維持拿掉，背景重抓不變淡', () => {
+      component['records'].set([other, activeRecord]);
+      component['loading'].set(false);
+      leaveServiceMock.list.mockReturnValueOnce(NEVER as never);
+      component['executeDelete'](activeRecord, 'full', '已刪除', '');
+      expect(ids()).toEqual(['leave-0']);
+      expect(component['loading']()).toBe(false);
+    });
+
+    it('截斷：伺服器還沒回時那一列不動', () => {
+      component['records'].set([other, activeRecord]);
+      leaveServiceMock.delete.mockReturnValueOnce(new Subject() as never);
+      component['executeDelete'](activeRecord, 'truncate', '已結束', '');
+      expect(ids()).toEqual(['leave-0', 'leave-1']);
     });
   });
 });

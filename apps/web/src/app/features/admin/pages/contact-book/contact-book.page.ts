@@ -1,3 +1,4 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -6,7 +7,6 @@ import { Subject, catchError, map, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -40,6 +40,7 @@ import {
   PERIOD_OPTIONS,
 } from './contact-book.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 const DEFAULT_RANGE_DAYS = 7;
 
@@ -62,16 +63,16 @@ const DEFAULT_RANGE_DAYS = 7;
   selector: 'app-admin-contact-book',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     FormsModule,
     ButtonModule,
     DatePickerModule,
-    ToastModule,
     EmptyStateComponent,
     StudentAutocompleteComponent,
     SelectFieldComponent,
     PageOpenComponent,
   ],
-  providers: [MessageService, DialogService],
+  providers: [DialogService],
   templateUrl: './contact-book.page.html',
 })
 export class ContactBookPage implements OnInit {
@@ -89,6 +90,10 @@ export class ContactBookPage implements OnInit {
    * 伺服器認知的那一段錯開**，而使用者看到的只是「這幾天好像少了一筆」（#467 同族）。
    */
   private readonly systemClock = inject(SystemClockService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
+  /** 這一輪重抓是補寫造成的 —— 回應套上時列表帶名字 */
+  private reloadRows = false;
   private get today(): string {
     return this.systemClock.todayTaipei();
   }
@@ -196,13 +201,22 @@ export class ContactBookPage implements OnInit {
         takeUntilDestroyed(),
       )
       .subscribe((data) => {
-        this.entries.set(data ?? []);
-        this.failed.set(data === null);
-        this.loading.set(false);
+        // 舊內容（變淡中）平滑換成新資料；補寫造成的重抓帶 rows，那一則淡入（#1641 5b）
+        this.viewTransition(
+          () => {
+            this.entries.set(data ?? []);
+            this.failed.set(data === null);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
       });
   }
 
-  protected load(): void {
+  /** `rows`：補寫造成的重抓，新的那一則淡入（換條件不帶） */
+  protected load({ rows = false }: { rows?: boolean } = {}): void {
+    this.reloadRows = rows;
     this.loading.set(true);
     this.failed.set(false);
 
@@ -273,9 +287,15 @@ export class ContactBookPage implements OnInit {
     ref?.onClose.subscribe((created: ContactBookEntry | undefined) => {
       if (!created) return;
       // 寫完就從待辦名單移掉，不重打整份名單
-      this.missing.update((list) => list.filter((item) => item.studentId !== created.studentId));
+      this.viewTransition(
+        () =>
+          this.missing.update((list) =>
+            list.filter((item) => item.studentId !== created.studentId),
+          ),
+        { rows: true },
+      );
       // 新寫的那則若落在列表的區間內就該出現 —— 這裡重打列表比自己插入可靠
-      this.load();
+      this.load({ rows: true });
       this.loadHero();
     });
   }
@@ -330,7 +350,7 @@ export class ContactBookPage implements OnInit {
 
   /** 未簽收是**前端篩**，資料沒變，不必重打 API */
   protected toggleUnsignedOnly(): void {
-    this.unsignedOnly.update((v) => !v);
+    this.viewTransition(() => this.unsignedOnly.update((v) => !v), { rows: true });
   }
 
   protected clearFilters(): void {

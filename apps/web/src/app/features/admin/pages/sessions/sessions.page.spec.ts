@@ -1,3 +1,4 @@
+import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
@@ -46,6 +47,7 @@ describe('SessionsPage', () => {
   });
   const sessionsServiceMock = {
     list: vi.fn(() => of(makeListResponse())),
+    hasSessionsOn: vi.fn((_date: string, _campusIds?: string[]) => of(false)),
     listChanges: vi.fn(() => of({ data: [], meta: { total: 0, page: 1, pageSize: 100 } })),
     batchAssignTeacher: vi.fn(() =>
       of({ updated: 0, skippedConflicts: 0, skippedNotEligible: 0, conflicts: [], dryRun: true }),
@@ -124,7 +126,10 @@ describe('SessionsPage', () => {
     routeFragment.next(null);
     // 頂欄分校記在 localStorage（CampusContextService）—— 不清的話上一條測試選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     sessionsServiceMock.list.mockClear();
+    sessionsServiceMock.hasSessionsOn.mockReset();
+    sessionsServiceMock.hasSessionsOn.mockReturnValue(of(false));
     sessionsServiceMock.batchAssignTeacher.mockClear();
     sessionsServiceMock.batchUpdateTime.mockClear();
     sessionsServiceMock.batchCancel.mockClear();
@@ -136,6 +141,7 @@ describe('SessionsPage', () => {
     await TestBed.configureTestingModule({
       imports: [SessionsPage],
       providers: [
+        MessageService,
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -189,6 +195,12 @@ describe('SessionsPage', () => {
     });
     router = TestBed.inject(Router);
     await fixture.whenStable();
+  });
+
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
   });
 
   it('should create', () => {
@@ -397,6 +409,25 @@ describe('SessionsPage', () => {
     );
   });
 
+  // #1641 項 3：換週／換日資料套上時依方向淡入；從週切到日是模式切換，不給方向
+  it('換週／換日給方向；週視圖點一天（切回日視圖）不給', () => {
+    const c = component as unknown as {
+      setDay: (d: Date) => void;
+      setView: (v: 'day' | 'week') => void;
+      shiftWeek: (n: number) => void;
+      contentMotion: () => { dir: string } | null;
+    };
+    c.setDay(new Date(2026, 9, 7));
+    c.shiftWeek(1);
+    expect(c.contentMotion()?.dir).toBe('forward');
+    c.setDay(new Date(2026, 9, 13));
+    expect(c.contentMotion()?.dir).toBe('back');
+    c.setView('week');
+    const before = c.contentMotion();
+    c.setDay(new Date(2026, 9, 16));
+    expect(c.contentMotion()).toBe(before);
+  });
+
   describe('快速選取（#1174 G3）', () => {
     const ses = (id: string, over: Partial<Session> = {}) =>
       ({
@@ -524,6 +555,31 @@ describe('SessionsPage', () => {
         expect.objectContaining({ campusIds: ['campus-b'], courseIds: ['math-b'] }),
       );
     });
+
+    it('手機篩選沒帶分校回來：不把頂欄寫回全部分校（#1607）', async () => {
+      const ctx = TestBed.inject(CampusContextService);
+      ctx.select('campus-b');
+      vi.spyOn(
+        (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+          .dialogService,
+        'open',
+      ).mockReturnValue({
+        onClose: of({
+          campusIds: [],
+          courseIds: [],
+          teacherIds: [],
+          classIds: [],
+          studentIds: [],
+          statuses: [],
+        }),
+      });
+
+      (component as unknown as { openMobileFiltersDialog: () => void }).openMobileFiltersDialog();
+      await fixture.whenStable();
+
+      expect(ctx.id()).toBe('campus-b');
+      expect(localStorage.getItem('clessia.campusContext')).toBe('campus-b');
+    });
   });
 
   it('隱藏停課：狀態收成正常＋已完成；回到課表時恢復全部', () => {
@@ -563,6 +619,7 @@ describe('SessionsPage', () => {
     await TestBed.configureTestingModule({
       imports: [SessionsPage],
       providers: [
+        MessageService,
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -1553,6 +1610,7 @@ describe('SessionsPage', () => {
       await TestBed.configureTestingModule({
         imports: [SessionsPage],
         providers: [
+          MessageService,
           provideRouter([]),
           {
             provide: ActivatedRoute,
@@ -1611,19 +1669,18 @@ describe('SessionsPage', () => {
 
     // #1441：360px 時週日期條字黏在一起。jsdom 不跑 Tailwind，
     // 這裡釘的是意圖（手機字級），結果由 PR 的 360 實拍證明。
-    it('週日期條七格用手機字級（<md text-sm、md 以上 text-lg），上下週鈕手機收窄', async () => {
+    it('週日期條用 A6 字級（手機 text-base、桌機 text-lg）；上下週鈕 44 見方', async () => {
       await settle();
       const el = fixture.nativeElement as HTMLElement;
-      const dates = el.querySelectorAll('nav[aria-label="選擇日期"] button b');
-      expect(dates.length).toBe(7);
-      for (const b of Array.from(dates)) {
-        expect(b.classList.contains('text-sm')).toBe(true);
-        expect(b.classList.contains('md:text-lg')).toBe(true);
-      }
+      const mobile = el.querySelectorAll('[data-part="dtabs"] button b.wide\\:hidden');
+      const desktop = el.querySelectorAll('[data-part="dtabs"] button b.max-wide\\:hidden');
+      expect(mobile.length).toBe(6);
+      expect(desktop.length).toBe(6);
+      for (const b of Array.from(mobile)) expect(b.classList.contains('text-base')).toBe(true);
+      for (const b of Array.from(desktop)) expect(b.classList.contains('wide:text-lg')).toBe(true);
       for (const label of ['上一週', '下一週']) {
         const btn = el.querySelector(`button[aria-label="${label}"]`) as HTMLElement;
-        expect(btn.classList.contains('w-8'), label).toBe(true);
-        expect(btn.classList.contains('h-11'), label).toBe(true);
+        expect(btn.classList.contains('size-11'), label).toBe(true);
       }
     });
   });
@@ -1645,6 +1702,7 @@ describe('SessionsPage', () => {
       await TestBed.configureTestingModule({
         imports: [SessionsPage],
         providers: [
+          MessageService,
           provideRouter([]),
           {
             provide: ActivatedRoute,
@@ -1829,6 +1887,352 @@ describe('SessionsPage', () => {
       expect(
         (fixture.nativeElement as HTMLElement).querySelector('app-page-open')?.textContent,
       ).not.toContain('未指派');
+    });
+  });
+
+  /** #1314 conformance（課表）：工具列的 A6 樣式——選中態、日期條、今天標籤、快速選取 */
+  describe('A6 工具列樣式', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const viewBtn = (label: string) =>
+      Array.from(el().querySelectorAll('[aria-label="檢視"] button')).find(
+        (b) => b.textContent?.trim() === label,
+      ) as HTMLElement;
+    const setMode = (m: string) => {
+      (component as unknown as { mode: { set: (v: string) => void } }).mode.set(m);
+      fixture.detectChanges();
+    };
+
+    it('日／週：選中＝近黑底白字，另一顆透明＋zinc-700；切換後兩邊對調', () => {
+      setMode('day');
+      expect(viewBtn('日').classList.contains('bg-zinc-900')).toBe(true);
+      expect(viewBtn('日').classList.contains('text-white')).toBe(true);
+      expect(viewBtn('週').classList.contains('bg-transparent')).toBe(true);
+      expect(viewBtn('週').classList.contains('text-zinc-700')).toBe(true);
+      expect(viewBtn('週').classList.contains('bg-zinc-900')).toBe(false);
+
+      setMode('week');
+      expect(viewBtn('週').classList.contains('bg-zinc-900')).toBe(true);
+      expect(viewBtn('日').classList.contains('bg-zinc-900')).toBe(false);
+      expect(viewBtn('日').classList.contains('text-zinc-700')).toBe(true);
+    });
+
+    it('日／週：外框是白底的一整塊（A6 .vsw 量到 #fff、padding 2px、圓角 6px），未選那顆透明在白底上', () => {
+      const group = el().querySelector('[aria-label="檢視"]')!;
+      expect(group.classList.contains('bg-white')).toBe(true);
+      expect(group.classList.contains('bg-zinc-100')).toBe(false);
+      expect(group.classList.contains('p-0.5')).toBe(true);
+      expect(group.classList.contains('rounded-md')).toBe(true);
+    });
+
+    it('日／週：手機 44、桌機 32 高（A27 只管基底），字級 text-lg', () => {
+      const b = viewBtn('日');
+      expect(b.classList.contains('h-11')).toBe(true);
+      expect(b.classList.contains('wide:h-8')).toBe(true);
+      expect(b.classList.contains('text-lg')).toBe(true);
+    });
+
+    it('日期條：選中的那天日期 zinc-900、週X zinc-700；其餘日期 zinc-700、週X zinc-500；今天是 <i>', () => {
+      setMode('day');
+      const tabs = Array.from(el().querySelectorAll('[data-part="dtabs"] button'));
+      const sel = tabs.filter((t) => t.getAttribute('aria-current') === 'date');
+      expect(sel.length).toBe(1);
+      for (const t of tabs) {
+        const isSel = t === sel[0];
+        const b = t.querySelector('b')!;
+        expect(t.classList.contains('text-zinc-700'), '選中 → 按鈕 zinc-700').toBe(isSel);
+        expect(t.classList.contains('text-zinc-500'), '未選 → 按鈕 zinc-500').toBe(!isSel);
+        expect(b.classList.contains('text-zinc-900')).toBe(isSel);
+        expect(b.classList.contains('text-zinc-700')).toBe(!isSel);
+        expect(t.classList.contains('leading-[1.25]')).toBe(true);
+      }
+    });
+
+    it('「今天」標籤是 <i>（A6 role），而且只有今天那一格有', () => {
+      const labels = el().querySelectorAll('[data-part="dtabs"] i');
+      expect(labels.length).toBe(1); // 固定時鐘 4/15 在預設那週裡，所以一定有；0 個（改成 span）要紅
+      for (const i of Array.from(labels)) {
+        expect(i.textContent?.trim()).toBe('今天');
+        expect(i.classList.contains('not-italic')).toBe(true);
+      }
+    });
+
+    it('快速選取：純文字（A6 沒畫圖示）、桌機跟旁邊的 ⋯／本週等高 44（使用者 10-15 要求，偏離 A6 的 30）；開了之後變「完成」', () => {
+      const desktop = Array.from(el().querySelectorAll('button[aria-pressed]')).find((b) =>
+        b.classList.contains('wide:inline-flex'),
+      ) as HTMLElement;
+      expect(desktop.textContent?.trim()).toBe('快速選取');
+      expect(desktop.classList.contains('h-11')).toBe(true);
+      expect(desktop.className).not.toContain('wide:h-[30px]');
+      expect(desktop.querySelector('i')).toBeNull();
+      expect(desktop.classList.contains('border-zinc-300')).toBe(true); // A6 桌機淺框
+      expect(desktop.classList.contains('bg-transparent')).toBe(true);
+      (component as unknown as { picking: { set: (v: boolean) => void } }).picking.set(true);
+      fixture.detectChanges();
+      expect(desktop.textContent?.trim()).toBe('完成');
+      expect(desktop.getAttribute('aria-pressed')).toBe('true');
+      // #1620：A6「完成」＝近黑實心＋勾
+      expect(desktop.classList.contains('aria-pressed:bg-zinc-900')).toBe(true);
+      expect(desktop.classList.contains('aria-pressed:text-white')).toBe(true);
+      expect(desktop.querySelector('svg')).not.toBeNull();
+    });
+
+    it('手機快速選取：A6 量到的是自然寬度（不是全寬）、白底、44 高、圖示拿掉；所在列靠右', () => {
+      const mobile = Array.from(el().querySelectorAll('button')).find(
+        (b) => b.classList.contains('wide:hidden') && b.textContent?.includes('快速選取'),
+      ) as HTMLElement;
+      expect(mobile.classList.contains('flex-1')).toBe(false);
+      expect(mobile.classList.contains('bg-white')).toBe(true);
+      expect(mobile.classList.contains('border-zinc-900')).toBe(true); // A6 手機是近黑框（桌機是淺框）
+      expect(mobile.classList.contains('h-11')).toBe(true);
+      expect(mobile.querySelector('i')).toBeNull();
+      expect(mobile.parentElement!.classList.contains('max-wide:ml-auto')).toBe(true);
+    });
+
+    it('工具列上方沒有框線（#1620 使用者裁定 2）；手機在日期條之後換行、靠右', () => {
+      const tools = el().querySelector('.more-menu-trigger')!.parentElement!;
+      expect(tools.classList.contains('border-t')).toBe(false);
+      expect(tools.classList.contains('max-wide:order-6')).toBe(true);
+      expect(tools.classList.contains('max-wide:ml-auto')).toBe(true);
+      expect(
+        el().querySelector('[data-part="dtabs"]')!.classList.contains('max-wide:order-2'),
+      ).toBe(true);
+    });
+  });
+
+  /** #1620 使用者裁定 1：週列照 A6 `.dtabs`（週一～週六、和日／週同一列），保留 ‹ › 換週 */
+  describe('週列（#1620）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const tabs = () => Array.from(el().querySelectorAll('[data-part="dtabs"] button'));
+
+    it('沒有週日的課：只有週一～週六', async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(tabs().map((t) => t.querySelector('span')?.textContent?.trim())).toEqual([
+        '週一',
+        '週二',
+        '週三',
+        '週四',
+        '週五',
+        '週六',
+      ]);
+      expect(sessionsServiceMock.hasSessionsOn.mock.calls.at(-1)?.[0]).toBe('2026-04-19');
+    });
+
+    it('這週週日有課：多一格週日（不然日視圖沒有入口）', async () => {
+      sessionsServiceMock.hasSessionsOn.mockReturnValue(of(true));
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(1);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(sessionsServiceMock.hasSessionsOn.mock.calls.at(-1)?.[0]).toBe('2026-04-26');
+      expect(tabs().at(-1)?.querySelector('span')?.textContent?.trim()).toBe('週日');
+      expect(tabs()).toHaveLength(7);
+    });
+
+    it('同一週換天不重查週日', async () => {
+      await fixture.whenStable();
+      const n = sessionsServiceMock.hasSessionsOn.mock.calls.length;
+      (tabs()[0] as HTMLElement).click();
+      fixture.detectChanges();
+      expect(sessionsServiceMock.hasSessionsOn.mock.calls.length).toBe(n);
+    });
+
+    it('手機日期字：第一格與跨月那天寫月/日，其餘寫日（#1441：360 寬「10/12」會黏在一起）', () => {
+      const short = () =>
+        tabs().map((t) => t.querySelector('b.wide\\:hidden')?.textContent?.trim());
+      expect(short()).toEqual(['4/13', '14', '15', '16', '17', '18']);
+      const fn = (component as unknown as { stripDateShort: (d: Date, f: boolean) => string })
+        .stripDateShort;
+      expect(fn(new Date(2026, 9, 1), false)).toBe('10/1');
+      expect(fn(new Date(2026, 8, 28), true)).toBe('9/28');
+      expect(fn(new Date(2026, 8, 29), false)).toBe('29');
+      // 桌機每格都是月/日
+      expect(tabs()[1].querySelector('b.max-wide\\:hidden')?.textContent?.trim()).toBe('4/14');
+    });
+
+    const thisWeekBtn = () =>
+      Array.from(el().querySelectorAll('button')).find((b) => b.textContent?.trim() === '本週');
+
+    it('本週時沒有「本週」鈕（版面同 A6）；別週時出現在 ‹ › 旁，點了回本週並選今天', () => {
+      expect(thisWeekBtn()).toBeUndefined();
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(-2);
+      fixture.detectChanges();
+      const btn = thisWeekBtn()!;
+      expect(btn).toBeDefined();
+      btn.click();
+      fixture.detectChanges();
+      expect(thisWeekBtn()).toBeUndefined();
+      const day = (component as unknown as { day: () => Date }).day();
+      expect(day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate()).toBe(20260415);
+    });
+
+    // #1641 項 3 審核席：「本週」一出現就把 ‹ › 往左推的話，連點下一週的第二下會落到別的按鈕上
+    it('「本週」鈕在桌機排在 ‹ 之前（出現時不推動箭頭）', () => {
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(1);
+      fixture.detectChanges();
+      expect(thisWeekBtn()!.classList).toContain('wide:order-first');
+    });
+
+    // #1641 項 3 審核席：換週失敗後殘留的方向，不能被下一次非換週的重查拿去用
+    it('換週查詢失敗後，非換週的重查成功不給方向', () => {
+      const c = component as unknown as {
+        shiftWeek: (n: number) => void;
+        loadSessions: () => void;
+        contentMotion: () => unknown;
+      };
+      sessionsServiceMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+      c.shiftWeek(1);
+      expect(c.contentMotion()).toBeNull();
+      c.loadSessions();
+      expect(c.contentMotion()).toBeNull();
+    });
+
+    it('今天是這週的週日、但週日沒有課：週日格照樣出現', () => {
+      vi.setSystemTime(new Date('2026-04-19T04:00:00Z')); // 台北週日中午
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      fixture.detectChanges();
+      expect(sessionsServiceMock.hasSessionsOn).toHaveReturned();
+      expect(tabs().at(-1)?.querySelector('span')?.textContent?.trim()).toBe('週日');
+    });
+
+    it('沒有「回到今天」、沒有日曆跳日；‹ › 換週還在', () => {
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(1);
+      fixture.detectChanges();
+      expect(el().textContent).not.toContain('回到今天');
+      expect(el().querySelector('input[type="date"]')).toBeNull();
+      expect(el().querySelector('[title="跳到某天"], [aria-label="跳到某天"]')).toBeNull();
+      expect(el().querySelector('button[aria-label="上一週"]')).not.toBeNull();
+      expect(el().querySelector('button[aria-label="下一週"]')).not.toBeNull();
+    });
+
+    it('點一天：捲到工具列（A6 schedule.js:867）', () => {
+      const spy = vi.fn();
+      Element.prototype.scrollIntoView = spy;
+      (tabs()[0] as HTMLElement).click();
+      fixture.detectChanges();
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('手機面板標題帶日期：週三 4/15 · 今天（A6 qs__day）', () => {
+      const title = (component as unknown as { sheetTitle: () => string }).sheetTitle;
+      expect(title()).toBe('週三 4/15 · 今天');
+      (tabs()[0] as HTMLElement).click();
+      fixture.detectChanges();
+      expect(title()).toBe('週一 4/13');
+    });
+  });
+
+  /** #1314 conformance E：A6 `.pkl` 每天都印；日名除了「今天」後面有空格；全停課寫「整天停課」 */
+  describe('今天最滿一行', () => {
+    const line = () =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="peak-line"]',
+      ) as HTMLElement | null;
+    const flat = () => line()?.textContent?.replace(/\s+/g, ' ').trim();
+    const sess = (over: Record<string, unknown>) =>
+      ({
+        id: 's1',
+        sessionDate: '2026-04-15',
+        startTime: '17:00:00',
+        endTime: '18:00:00',
+        status: 'scheduled',
+        teacherId: 't1',
+        teacherName: '甲',
+        className: '國二數學',
+        classId: 'c1',
+        assignmentStatus: 'assigned',
+        ...over,
+      }) as never;
+    async function show(list: unknown[]) {
+      sessionsServiceMock.list.mockReturnValue(of(makeListResponse(list as never)));
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('一堂：今天（固定時鐘 4/15）→「今天最滿 17:00–18:00 · 同時 1 班」，日名後沒有空格', async () => {
+      await show([sess({})]);
+      expect(flat()).toBe('今天最滿 17:00–18:00 · 同時 1 班');
+    });
+
+    it('兩堂同時：同時 2 班；非今天的日子日名後有一個空格', async () => {
+      await show([sess({ id: 'a' }), sess({ id: 'b', teacherId: 't2' })]);
+      expect(flat()).toContain('同時 2 班');
+      (component as unknown as { day: { set: (d: Date) => void } }).day.set(
+        new Date('2026-04-16T00:00:00'),
+      );
+      fixture.detectChanges();
+      expect(flat()).toMatch(/^週四 4\/16 最滿/);
+    });
+
+    // conformance F：A6 `.gb__main` padding-right 30、`.gb__name／.gb__meta` 行高 1.3、軸列「老師」標籤內距 8／12
+    it('甘特課塊：右內距 30（留給 ⋯）、班名與時間行高 1.3；軸列標籤上下 8、右 12', async () => {
+      await show([sess({})]);
+      const root = fixture.nativeElement as HTMLElement;
+      const block = root.querySelector(
+        'app-schedule-gantt button[data-session-menu]',
+      ) as HTMLElement;
+      expect(block.classList.contains('pr-[30px]')).toBe(true);
+      const [name, meta] = Array.from(block.querySelectorAll(':scope > span'));
+      expect(name.classList.contains('leading-[1.3]')).toBe(true);
+      expect(meta.classList.contains('leading-[1.3]')).toBe(true);
+      const axis = Array.from(root.querySelectorAll('app-schedule-gantt div')).find(
+        (d) => d.textContent?.trim() === '老師',
+      ) as HTMLElement;
+      expect(axis.classList.contains('py-2')).toBe(true);
+      expect(axis.classList.contains('pr-3')).toBe(true);
+    });
+
+    it('全部停課：「整天停課」，不寫最滿', async () => {
+      await show([sess({ status: 'cancelled' })]);
+      expect(flat()).toBe('今天整天停課');
+    });
+  });
+
+  /** conformance：色面標題兩行（A6「…堂課，<br>…堂有異動。」）；篩選結果那句不拆 */
+  describe('色面標題兩行', () => {
+    // 課表頁有沒有傳 compact 沒有別的東西在守（page-open 元件本身的 spec 只守「有傳會怎樣」）
+    it('課表的色面開了 compact：標題 40／26、內距上 32／下 24（A6 schedule.css:10-11,277）', () => {
+      const el = fixture.nativeElement as HTMLElement;
+      const h1 = el.querySelector('app-page-open h1') as HTMLElement;
+      expect(h1.classList.contains('wide:text-[40px]')).toBe(true);
+      expect(h1.classList.contains('text-[26px]')).toBe(true);
+      expect(h1.classList.contains('wide:text-[48px]')).toBe(false);
+      const wrap = el.querySelector('app-page-open section > div.page-wrap') as HTMLElement;
+      expect(wrap.classList.contains('pt-8')).toBe(true);
+      expect(wrap.classList.contains('pb-6')).toBe(true);
+    });
+
+    const h1 = () => (fixture.nativeElement as HTMLElement).querySelector('h1') as HTMLElement;
+    it('日／週：逗號後換行（一個 <br>）；文字內容連起來仍是原句', async () => {
+      sessionsServiceMock.list.mockReturnValue(
+        of(
+          makeListResponse([
+            {
+              id: 's1',
+              sessionDate: '2026-04-15',
+              startTime: '17:00:00',
+              endTime: '18:00:00',
+              status: 'scheduled',
+              teacherId: 't1',
+              teacherName: '甲',
+              className: '國二數學',
+              classId: 'c1',
+              assignmentStatus: 'assigned',
+            } as never,
+          ]),
+        ),
+      );
+      (component as unknown as { loadSessions: () => void }).loadSessions();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(h1().querySelectorAll('br').length).toBe(1);
+      expect(h1().textContent?.replace(/\s+/g, '')).toBe('今天1堂課，沒有異動。');
+    });
+    it('篩選結果：不拆行', async () => {
+      (component as unknown as { mode: { set: (v: string) => void } }).mode.set('results');
+      fixture.detectChanges();
+      expect(h1().querySelectorAll('br').length).toBe(0);
     });
   });
 });

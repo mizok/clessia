@@ -35,6 +35,7 @@ import {
   groupByDate,
   sessionChipLabel,
 } from './attendance.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 type RangeMode = 'recent10' | 'recent30' | 'month';
 
@@ -68,6 +69,8 @@ export class AttendancePage implements OnInit {
 
   private readonly childScope = inject(ChildScopeService);
   private readonly attendanceService = inject(ParentAttendanceService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
 
   protected readonly rangeOptions = RANGE_OPTIONS;
   protected readonly rangeMode = signal<RangeMode>('recent10');
@@ -136,7 +139,7 @@ export class AttendancePage implements OnInit {
   }
 
   protected onRangeChange(mode: RangeMode | null): void {
-    this.rangeMode.set(mode ?? 'recent10');
+    this.viewTransition(() => this.rangeMode.set(mode ?? 'recent10'));
   }
 
   protected onMonthChange(month: Date | null): void {

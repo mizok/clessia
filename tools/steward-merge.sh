@@ -5,7 +5,10 @@
 # 反射會在忙的時候失效 —— 合完 #268 反射性刪分支,害疊在上面的 #276 被 GitHub
 # 自動關閉。charter 的「原子化讓紀律不必存在」適用於這裡。
 #
-#   tools/steward-merge.sh <PR 編號> [--dry-run] [--delete-branch]
+#   tools/steward-merge.sh <PR 編號> <審過的 SHA> [--dry-run] [--delete-branch]
+#
+# <審過的 SHA> 必填（至少 7 碼）：審核席二讀時看的那一顆。head 對不上就拒絕 —— 作者常在等 CI 時
+# 再推一顆，腳本若只鎖「執行當下讀到的 head」，會把沒審過的 commit 合進去（2026-10-16 #1656）。
 #
 # 預設**不刪分支**(2026-10-14 計畫席定:作者可能還要在分支上補東西、也方便回查)。
 # 要刪才帶 --delete-branch,仍會先查有沒有 PR 疊在上面。
@@ -14,9 +17,11 @@
 set -euo pipefail
 
 REPO="${STEWARD_REPO:-mizok/clessia}"
-PR="${1:?用法: $0 <PR 編號> [--dry-run] [--delete-branch]}"
+USAGE="用法: $0 <PR 編號> <審過的 SHA> [--dry-run] [--delete-branch]"
+PR="${1:?$USAGE}"
+REVIEWED="${2:?$USAGE}"
 DRY=""; DEL=""
-for a in "${@:2}"; do
+for a in "${@:3}"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --delete-branch) DEL=1 ;;
@@ -75,11 +80,15 @@ if echo "$files" | grep -q '^herdr-team/backlog\.md$'; then
    再推。(它只由計畫席在 main 上改,PR 帶到它就是舊底被拖上來了)"
 fi
 
-# ── 4. 鎖住驗過的 SHA ───────────────────────────────────────────────────
-# 查證與合併之間的空窗塞得下一次 force push,交給平台原子化。
+# ── 4. 鎖住審過的 SHA ───────────────────────────────────────────────────
+# head 必須是審核席審過的那一顆;之後 --match-head-commit 帶它,查證與合併之間
+# 的空窗再推一顆也會被平台拒絕(原子化)。
+[[ "$REVIEWED" =~ ^[0-9a-f]{7,40}$ ]] || die "審過的 SHA 格式不對($REVIEWED)—— 要 7~40 碼小寫 hex"
 head=$(q headRefOid); branch=$(q headRefName)
+echo "審過的 SHA     = $REVIEWED"
 echo "head           = $head"
 echo "branch         = $branch"
+[[ "$head" == "$REVIEWED"* ]] || die "head($head)不是審過的那一顆($REVIEWED)—— 作者又推了,先重審再合"
 
 # ── 5. 先查有沒有 PR 疊在這個分支上(決定事後刪不刪)────────────────────
 # GitHub 會把 base 分支消失的 PR 自動關閉。
@@ -94,7 +103,11 @@ if [ -n "$DRY" ]; then
 fi
 
 # ── 6. 合併 ─────────────────────────────────────────────────────────────
-gh pr merge "$PR" -R "$REPO" --squash --match-head-commit "$head"
+# squash 標題固定用「PR 標題 (#N)」：不帶 --subject 時 GitHub 會拿第一顆 commit 當標題
+# （#1577 合進 main 變成「wip: …」，計畫席 10-15 定）
+subject="$(q title) (#$PR)"
+echo "subject        = $subject"
+gh pr merge "$PR" -R "$REPO" --squash --match-head-commit "$head" --subject "$subject"
 sleep 5
 
 # ── 7. 確認真的合了才可能刪分支 ─────────────────────────────────────────

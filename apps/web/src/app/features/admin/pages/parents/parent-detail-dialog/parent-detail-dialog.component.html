@@ -104,7 +104,8 @@
         <ul class="flex flex-col gap-2 m-0 p-0 list-none">
           @for (student of parentDetail.students; track student.id) {
             <li
-              class="flex items-center justify-between gap-3 py-3 px-4 border border-zinc-200 rounded-[8px] bg-zinc-50"
+              [style.view-transition-name]="'parent-student-' + student.id"
+              class="vt-row flex items-center justify-between gap-3 py-3 px-4 border border-zinc-200 rounded-[8px] bg-zinc-50"
             >
               <div class="flex flex-col gap-1 min-w-0">
                 <span class="text-[15px] font-medium text-zinc-900">{{ student.name }}</span>

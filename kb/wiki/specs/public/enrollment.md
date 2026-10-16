@@ -3,7 +3,7 @@ title: 新生報名表單
 summary: 新家長為孩子提交報名申請。
 category: spec
 status: active
-updated: 2026-08-29
+updated: 2026-10-16
 tags: [specs, public, enrollment]
 ---
 
@@ -63,16 +63,21 @@ tags: [specs, public, enrollment]
 
 ### 安全機制
 
-- 機器人驗證（CAPTCHA）
-- 速率限制
+- 機器人驗證：預設自架的 ALTCHA，部署可設 `CAPTCHA_PROVIDER=turnstile` 改走 Turnstile；兩者都不能被略過（#1665 Q4′，見 [[architecture/deploying]]）
+- 速率限制（計數存在自己的 Postgres，c12）
 - Honeypot 欄位
+
+版面、文案、錯誤處理照 A6，見 [[specs/public/application-forms-a6]]。
 
 ## 資料依賴
 
-| 操作 | 資料表                                |
-| ---- | ------------------------------------- |
-| 讀取 | `classes`, `courses`, `fee_templates` |
-| 寫入 | `enrollment_requests`                 |
+| 操作 | 資料表                                                                                               |
+| ---- | ---------------------------------------------------------------------------------------------------- |
+| 讀取 | `GET /api/public/catalog`（`classes`, `courses`, `fee_templates`；只列開放公開報名的開課班，#1665）  |
+| 寫入 | `public_applications`（`kind='enrollment'`）＋`public_application_targets`（每班一列，額滿的標候補） |
+
+> 2026-10-16 訂正：這裡原本寫 `enrollment_requests`，那是**家長端（登入後）**的報名申請表。
+> 公開表單從 #1123 起就寫 `public_applications`；行政在 `/admin/applications` 收件。
 
 ## PRD 參考
 
@@ -82,5 +87,6 @@ tags: [specs, public, enrollment]
 
 ## 實作註記
 
-- 需顯示剩餘名額
-- 需實作 CAPTCHA 與速率限制
+- 顯示剩餘名額（「剩 N 位」）；額滿的照樣可勾，送出後登記候補
+- 老師只顯示**暱稱**，沒設暱稱就不顯示（#1637 Q6，絕不退回本名）
+- 申請保存 6 個月，pg_cron 每天刪（#1637 Q2、Q3）

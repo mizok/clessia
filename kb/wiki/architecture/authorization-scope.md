@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-10-10
+updated: 2026-10-16
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -417,6 +417,20 @@ fail-closed 的授權一旦打開，**沒有資料的人看到的是空白不是
 
 > 建議把 1 做成一支冪等的 migration 或腳本，而不是手動 UPDATE ——
 > 手動的那一種在第二個機構上線時一定會被忘記。
+
+## 撤銷多久生效（#1595 P1b，2026-10-15）
+
+兩個快取，兩個上限。**改任一個上限都是改政策，不是調效能參數。**
+
+| 撤銷什麼 | 最長延遲 | 誰造成的 | 守在哪 |
+| --- | --- | --- | --- |
+| 登出、踢 session、ban（session 本身失效） | **5 分鐘** | Better Auth session cookie cache（`apps/api/src/auth.ts` 的 `cookieCache.maxAge`） | Better Auth 行為，無 spec |
+| 角色、細部權限、帳號停用、分校指派、家長關聯 | **30 秒** | `authMiddleware` 身分三查的 per-isolate 快取（`apps/api/src/lib/identity-cache.ts`） | `middleware/auth.spec.ts`「撤銷最遲 30 秒生效」，上限寫死在 spec |
+
+- 30 秒快取**寫入點不主動清除**（計畫席 10-15 裁定）：管理員改自己的權限，畫面最多 30 秒仍舊。
+- **唯一例外：改自己的 `/api/me` 寫入**（`POST /api/me/activate-parent`、`PATCH /api/me`，#1631）成功後清掉**這個使用者在當下 isolate** 的快取（`invalidateIdentity`）。原因是寫入那個請求經過 middleware 時剛存進**舊**身分，前端立刻讀回就一定撞到（啟用家長身份後按鈕沒反應）。只清得到當下 isolate，所以前端另外直接採用寫入回傳的角色（`AuthService.adoptRoles`），不靠重抓。寫入失敗不清。守在 `routes/me-identity-cache.spec.ts`。
+- 只快取**成功**的查詢結果；失敗每次重查，不會變成 30 秒的 500。
+- 為什麼要快取：Worker → Supabase REST 每次 ~100–150ms，其中 PostgREST＋DB 只占 1–15ms（#1595 P0），慢在往返；每支受保護 API 原本固定 3 支身分查詢。
 
 ## 不做什麼
 

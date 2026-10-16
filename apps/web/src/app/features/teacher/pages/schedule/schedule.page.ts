@@ -28,6 +28,13 @@ import { AttendanceService, type EventSessionSummary } from '@core/attendance.se
 import { SessionsService } from '@core/sessions.service';
 import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
+import { SelectedIndicatorDirective } from '@shared/directives/selected-indicator.directive';
+import {
+  StepMotionDirective,
+  stepMotion,
+  type StepDir,
+  type StepMotion,
+} from '@shared/directives/step-motion.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { hasSessionStarted } from '@shared/utils/session-time.util';
@@ -83,6 +90,8 @@ function defaultDay(weekStart: Date, todayStr: string): string {
     StatusDotComponent,
     DataChipComponent,
     LoadFailedComponent,
+    StepMotionDirective,
+    SelectedIndicatorDirective,
   ],
   providers: [DialogService],
   templateUrl: './schedule.page.html',
@@ -273,13 +282,24 @@ export class SchedulePage implements OnInit {
     this.loadSessions();
   }
 
+  /**
+   * 換週／換日的方向淡入（#1641 項 3）。`contentMotion` 給當天清單（換日、換週都動），
+   * `weekMotion` 給週列（只有換週動）。換週要等資料回來才給 —— 見 `pendingWeekStep`。
+   */
+  protected readonly contentMotion = signal<StepMotion | null>(null);
+  protected readonly weekMotion = signal<StepMotion | null>(null);
+  /** 換週的方向先記著，`loadSessions` 成功套上資料時才變成 motion；失敗就丟掉 */
+  private pendingWeekStep: StepDir | null = null;
+
   protected prevWeek(): void {
+    this.pendingWeekStep = 'back';
     this.currentWeekStart.update((d) => subWeeks(d, 1));
     this.resetSelectedDate();
     this.loadSessions();
   }
 
   protected nextWeek(): void {
+    this.pendingWeekStep = 'forward';
     this.currentWeekStart.update((d) => addWeeks(d, 1));
     this.resetSelectedDate();
     this.loadSessions();
@@ -291,6 +311,11 @@ export class SchedulePage implements OnInit {
   }
 
   protected selectDay(dateStr: string): void {
+    const current = this.selectedDate();
+    if (dateStr !== current) {
+      // yyyy-MM-dd 字串比大小就是日期先後
+      this.contentMotion.set(stepMotion(dateStr > current ? 'forward' : 'back'));
+    }
     this.selectedDate.set(dateStr);
   }
 
@@ -369,8 +394,15 @@ export class SchedulePage implements OnInit {
         next: (response) => {
           this.sessions.set(response.data);
           this.loading.set(false);
+          if (this.pendingWeekStep) {
+            const m = stepMotion(this.pendingWeekStep);
+            this.contentMotion.set(m);
+            this.weekMotion.set(m);
+            this.pendingWeekStep = null;
+          }
         },
         error: () => {
+          this.pendingWeekStep = null;
           this.sessions.set([]);
           this.loadError.set(true);
           this.loading.set(false);

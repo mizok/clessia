@@ -16,6 +16,8 @@ function createApp(options: {
   campusIds?: string[];
   /** 這個請求的分校範圍。null = 不受分校限制（多數測試的主題不是分校） */
   campusScope?: readonly string[] | null;
+  /** 細部權限（#1686）。發布要 `send_announcements`；預設空陣列＝沒有 */
+  permissions?: readonly string[];
 }) {
   const filters: Array<[string, unknown]> = [];
   const upserted: Array<Record<string, unknown>> = [];
@@ -96,6 +98,7 @@ function createApp(options: {
     context.set('userId', 'user-1');
     context.set('roles', options.roles);
     context.set('campusScope', options.campusScope ?? null);
+    context.set('permissions', options.permissions ?? []);
     await next();
   });
   app.route('/api/announcements', announcementsApp);
@@ -228,7 +231,11 @@ describe('公告的稽核（#911）', () => {
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   async function publish(campusScope: readonly string[] | null) {
-    const { app, inserted } = createApp({ roles: ['admin'], campusScope });
+    const { app, inserted } = createApp({
+      roles: ['admin'],
+      campusScope,
+      permissions: ['send_announcements'],
+    });
     const res = await app.request('/api/announcements', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -292,5 +299,84 @@ describe('公告的稽核（#911）', () => {
 
     expect(upserted).toHaveLength(2); // 確認真的走到寫入那一步，不是提早返回
     expect(auditRows(inserted)).toEqual([]);
+  });
+});
+
+describe('「發送通知」權限（#1686）', () => {
+  const announcementInserts = (inserted: Array<{ table: string; row: unknown }>) =>
+    inserted.filter((i) => i.table === 'announcements');
+
+  async function publish(options: Parameters<typeof createApp>[0]) {
+    const { app, inserted } = createApp(options);
+    const res = await app.request('/api/announcements', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: '颱風停課', body: '明天停課', audience: 'all_parents' }),
+    });
+    return { status: res.status, body: await res.json(), inserted };
+  }
+
+  it('管理員沒有 send_announcements → 403，而且沒有寫入', async () => {
+    const { status, body, inserted } = await publish({
+      roles: ['admin'],
+      permissions: ['basic_operations', 'manage_staff'],
+    });
+
+    expect(status).toBe(403);
+    expect(body).toEqual({ error: '權限不足', code: 'FORBIDDEN' });
+    expect(announcementInserts(inserted)).toEqual([]);
+  });
+
+  it('有 send_announcements → 201', async () => {
+    const { status, inserted } = await publish({
+      roles: ['admin'],
+      permissions: ['send_announcements'],
+    });
+
+    expect(status).toBe(201);
+    expect(announcementInserts(inserted)).toHaveLength(1);
+  });
+
+  // `*` 通吃（hasPermission 的語意）：bootstrap 的第一個管理員上線後照樣發得出去
+  it('`*` → 201', async () => {
+    const { status } = await publish({ roles: ['admin'], permissions: ['*'] });
+
+    expect(status).toBe(201);
+  });
+
+  it('老師、家長 → 403（角色層，不是靠權限）', async () => {
+    for (const roles of [['teacher'], ['parent']]) {
+      const { status, inserted } = await publish({ roles, permissions: ['*'] });
+      expect(status).toBe(403);
+      expect(announcementInserts(inserted)).toEqual([]);
+    }
+  });
+
+  it('沒有這個權限的管理員照樣讀得到列表', async () => {
+    const { app } = createApp({ roles: ['admin'], permissions: [] });
+    const res = await app.request('/api/announcements');
+
+    expect(res.status).toBe(200);
+  });
+
+  /**
+   * **guard 只掛在 POST / 上，不掛在 mount 的 `{ write }`。** 標已讀也是寫入，而
+   * `requireAdminPermission` 對「有 admin 角色」的人一律看權限、不看 active role ——
+   * 掛在 mount 的話，兼任老師或家長的管理員以那個身分標已讀會被 403。
+   */
+  it('兼任老師、沒有 send_announcements 的管理員照樣能標已讀', async () => {
+    const { app, upserted } = createApp({
+      roles: ['admin', 'teacher'],
+      permissions: ['view_reports'],
+    });
+    const one = await app.request(
+      '/api/announcements/00000000-0000-0000-0000-00000000a001/read',
+      { method: 'POST' },
+    );
+    const all = await app.request('/api/announcements/read-all', { method: 'POST' });
+
+    expect(one.status).toBe(204);
+    expect(all.status).toBe(200);
+    expect(upserted).toHaveLength(1);
   });
 });

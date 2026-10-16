@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <title>找不到頁面 · Clessia</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <!--
+    #1595 1b：伺服器上找不到的路徑會看到這一頁（打錯網址、舊書籤、已不存在的檔案）。
+    有了這支檔，Cloudflare Pages 就不會進 SPA 模式把它們全部改寫成 index.html ——
+    SPA 路由由 _redirects 明列。純 HTML/CSS、零依賴，色值同 index.html 的開站畫面。
+  -->
+    <style>
+      body {
+        margin: 0;
+        background-color: #f4f4f5; /* zinc-100 */
+        color: #18181b; /* zinc-900 */
+        font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      .not-found {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        min-height: 100%;
+        padding: 96px 16px;
+        text-align: center;
+      }
+      .not-found__brand {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+      }
+      .not-found__text {
+        margin: 0;
+        color: #52525b; /* zinc-600 */
+      }
+      .not-found__link {
+        padding: 10px 20px;
+        border-radius: 8px;
+        background-color: #ff6a3d; /* accent-vivid */
+        color: #18181b;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .not-found__link:focus-visible {
+        outline: 2px solid #18181b;
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="not-found">
+      <p class="not-found__brand">CLESSIA</p>
+      <h1 class="not-found__text">找不到這個頁面，網址可能打錯了，或頁面已經移除。</h1>
+      <a class="not-found__link" href="/">回首頁</a>
+    </main>
+  </body>
+</html>

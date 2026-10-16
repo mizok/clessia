@@ -14,6 +14,7 @@ import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { catchError, forkJoin, map, of } from 'rxjs';
 
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
 import { InvoicesService } from '@core/invoices.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
@@ -40,6 +41,8 @@ import { payableAmount } from '../../courses/class-detail/enrollment-billing.uti
 })
 export class UninvoicedDialogComponent {
   private readonly enrollmentsService = inject(EnrollmentsService);
+  /** 跟帳單頁同一個分校範圍（#1314）：頁面上的「有 N 筆」與這裡列的是同一批 */
+  private readonly campusCtx = inject(CampusContextService);
   private readonly feeTemplatesService = inject(FeeTemplatesService);
   private readonly invoicesService = inject(InvoicesService);
   private readonly ref = inject(DynamicDialogRef);
@@ -67,7 +70,12 @@ export class UninvoicedDialogComponent {
   constructor() {
     forkJoin({
       list: this.enrollmentsService
-        .list({ hasInvoice: false, status: 'active', pageSize: 100 })
+        .list({
+          hasInvoice: false,
+          status: 'active',
+          campusId: this.campusCtx.id() ?? undefined,
+          pageSize: 100,
+        })
         .pipe(catchError(() => of(null))),
       templates: this.feeTemplatesService.list({ isActive: true }).pipe(catchError(() => of(null))),
     })

@@ -75,8 +75,9 @@ export class ShellLayoutComponent {
   protected readonly moreOpen = signal(false);
   protected readonly accountOpen = signal(false);
   protected readonly campusOpen = signal(false);
+  /** 「全部分校」只給報表頁（#1607）；日常頁一次只看一間 */
   protected readonly campusChoices = computed(() => [
-    { id: null as string | null, name: '全部分校' },
+    ...(this.campus.allowAll() ? [{ id: null as string | null, name: '全部分校' }] : []),
     ...this.campus.campuses().map((c) => ({ id: c.id as string | null, name: c.name })),
   ]);
 
@@ -103,11 +104,12 @@ export class ShellLayoutComponent {
       which !== 'more'
         ? Math.max(16, r.right - pop.offsetWidth)
         : Math.max(16, Math.min(r.left, window.innerWidth - pop.offsetWidth - 16));
-    // 從頁首下緣往下 8px，不從按鈕下緣：按鈕在頁首裡置中，從它算會黏著頁首邊緣
+    // 「更多」貼著按鈕下緣往下 8px（A6 a6.js）。帳戶／分校仍從頁首下緣算：按鈕在頁首裡置中，
+    // 從它算會黏著頁首邊緣。「更多」鈕桌機縮成 27px 高（#1314 殼層）後不再有這個問題，照稿
     Object.assign(pop.style, {
       position: 'fixed',
       left: `${left}px`,
-      top: `${header.bottom + 8}px`,
+      top: `${(which === 'more' ? r.bottom : header.bottom) + 8}px`,
     });
   }
 

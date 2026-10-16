@@ -4,11 +4,9 @@ import {
   DestroyRef,
   OnInit,
   computed,
-  effect,
   inject,
   input,
   signal,
-  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
@@ -18,7 +16,6 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -65,13 +62,12 @@ interface CourseGroup {
     EmptyStateComponent,
     PageOpenComponent,
     RouterLink,
-    ToastModule,
     LoadFailedComponent,
   ],
   templateUrl: './class-view.component.html',
   host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [DialogService, MessageService],
+  providers: [DialogService],
 })
 export class ClassViewComponent implements OnInit {
   private readonly classesService = inject(ClassesService);
@@ -89,13 +85,11 @@ export class ClassViewComponent implements OnInit {
   }));
 
   /**
-   * 分校跟頂欄走（#1138，計畫席裁定）：這頁一定要一間分校才有東西看。
-   * 頂欄選了分校就用它（頁內下拉收起）；頂欄是「全部」時頁內留下拉，預設第一間。
+   * 分校跟頂欄走（#1138）：這頁一定要一間分校才有東西看。日常頁的頂欄沒有「全部分校」
+   * （#1607），所以頁內的分校下拉拿掉了。
    */
   private readonly campusCtx = inject(CampusContextService);
-  private readonly localCampusId = signal<string>('');
-  protected readonly campusId = computed(() => this.campusCtx.id() ?? this.localCampusId());
-  protected readonly showCampusPicker = computed(() => this.campusCtx.id() === null);
+  protected readonly campusId = computed(() => this.campusCtx.id() ?? '');
   protected readonly searchText = signal('');
   protected readonly selectedGrades = signal<GradeLevel[]>([]);
   protected readonly subjectIdFilter = signal<string | null>(null);
@@ -112,10 +106,6 @@ export class ClassViewComponent implements OnInit {
   protected readonly loadingTodoMap = signal(false);
 
   private todoMapRequestToken = 0;
-
-  protected readonly campusOptions = computed(() =>
-    this.refData.campuses().map((campus) => ({ label: campus.name, value: campus.id })),
-  );
 
   protected readonly subjectOptions = computed(() =>
     this.refData.subjects().map((subject) => ({
@@ -171,13 +161,7 @@ export class ClassViewComponent implements OnInit {
 
   constructor() {
     this.campusCtx.use();
-    effect(() => {
-      const campuses = this.refData.campuses();
-      if (campuses.length === 0) return;
-      if (untracked(() => this.localCampusId())) return;
-      this.localCampusId.set(campuses[0].id);
-    });
-    // 分校一定下來（頂欄或頁內預設）就載；之後任一邊換了再載
+    // 分校一定下來（頂欄選的或預設）就載；頂欄換了再載
     toObservable(this.campusId)
       .pipe(filter(Boolean), takeUntilDestroyed())
       .subscribe(() => this.loadGroups());
@@ -186,10 +170,6 @@ export class ClassViewComponent implements OnInit {
   ngOnInit(): void {
     this.refData.loadCampuses();
     this.refData.loadSubjects();
-  }
-
-  protected onCampusChange(id: string): void {
-    this.localCampusId.set(id);
   }
 
   protected onSearchChange(text: string): void {
@@ -223,8 +203,8 @@ export class ClassViewComponent implements OnInit {
           subjectId: this.subjectIdFilter(),
         },
         options: {
-          // 頂欄選了分校時對話框不給選（空清單 = 不出那一欄）
-          campusOptions: this.showCampusPicker() ? this.campusOptions() : [],
+          // 分校只在頂欄選（#1607）；空清單 = 對話框不出那一欄
+          campusOptions: [],
           gradeOptions: this.gradeOptions,
           subjectOptions: this.subjectOptions(),
         },
@@ -383,15 +363,8 @@ export class ClassViewComponent implements OnInit {
   }
 
   private applyMobileFilterSnapshot(snapshot: ClassViewFilterSnapshot): void {
-    const prevCampusId = this.campusId();
-    const nextCampusId = snapshot.campusId;
-
     this.searchText.set(snapshot.search);
     this.selectedGrades.set(snapshot.selectedGrades);
     this.subjectIdFilter.set(snapshot.subjectId);
-
-    if (this.showCampusPicker() && prevCampusId !== nextCampusId) {
-      this.onCampusChange(nextCampusId);
-    }
   }
 }

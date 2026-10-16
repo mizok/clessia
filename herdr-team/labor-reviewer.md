@@ -138,7 +138,7 @@ gh pr diff <n> -R <repo> --name-only                     # 動了什麼
 它報 `<舊 sha> success` 的那一刻 head 確實是那顆。**事件沒有錯,錯的是拿一則帶著
 過期 sha 的事件去問「現在能不能合」。**
 
-對這一席的意義:`steward-merge.sh` 鎖 SHA 所以安全;**而別席與使用者親合時
+對這一席的意義:`steward-merge.sh` 鎖的是**你帶進去的審過 SHA**(第二個參數,必填),所以安全;**而別席與使用者親合時
 手上多半是一則通知,不是現查** —— 收到「某某綠了可以收」時,自己再查一次 head。
 
 ### 驗收指令自己也會踩兩點 diff
@@ -461,7 +461,10 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 6. **未分層 vs `@layer`**:`ViewEncapsulation.None` 的元件 SCSS 是**未分層**,贏過 `@layer utilities`;同一個元素上要蓋它得用 `!`(#1365 的 audit-log time)。
 7. **A28 對比豁免兩個陷阱**:暫刪一筆應紅在真違規(訊息有『對比 X』);加一筆指向不存在違規的假鍵應紅『豁免過期』。**兩個都紅才算 gate 活著**;誤報型要確認兩個 class 真的是相反條件。
 8. **harness 測試動到 fixture 尋找**:暫把 `check-harness.mjs` 的兩條 gate 訊息改掉,應恰好 A20 與 A27/A24 兩條 not ok。
-9. **合併前同呼叫重讀 head**;授權後作者可能又推一顆(#1313 的教訓),`steward-merge.sh` 鎖的是 head,但回報要寫『合併時 head』。
+9. **`steward-merge.sh <PR> <審過的 SHA>`,SHA 必填**:帶二讀時實際驗過的那一顆(不是授權訊息裡的、也不是現查的 head)。
+   head 對不上腳本就停,`--match-head-commit` 也帶它。**2026-10-16 #1656 的教訓**:我審過 `3bf54a6a`,作者在等 CI 時推了
+   `e08607dc`,舊版腳本鎖的是「執行當下讀到的 head」,把沒審過的那顆合進去了(事後補審沒問題,但流程是先合後審)。
+   作者常在等 CI 時追加 commit,**「等 CI → 合併」寫成一串時尤其會發生**;腳本停下來就重審那幾顆,再帶新 SHA 跑一次。
 10. **暫存檔不要用 `rm -rf`**:分類器會擋(10-08 #1380 我的暫存清理被擋);用 `mktemp -d`,或只 `rm -f` 自己建的單一檔。
 
 ---
@@ -551,3 +554,57 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 每支合併回報固定：`PR → merge commit（head、CI、檔案數、有無 migration）`＋`併 main 後的測試數`＋`每個突變→紅哪一支 spec`＋
 **沒被 spec 守到的**（明講「不擋／擋」及理由）＋**沒驗的**（Tailwind 渲染、實機、登入態）。**一個要求的突變沒轉紅就不合**
 （這輪因此擋了 #1537、#1540、#1542、#1549、#1551、#1559 各一次，作者補 spec 後全部重跑轉紅才合）；沒擋的缺口寫進回報讓計畫席決定。
+
+## 10-15～10-16 代合（約 60 支，含 4 支 migration）學到的，一頁版
+
+**只放知識。** 狀態看 PR 與 issue；交接當下的佇列寫在交接 PR 的說明裡。
+
+### 一、合併動作
+
+- **`tools/steward-merge.sh <PR> <審過的 SHA>`，SHA 必填**（#1666）。帶的是二讀時實際驗過的那一顆，不是授權訊息裡的、也不是現查的 head。
+  #1656 就是作者在等 CI 時又推一顆、舊腳本鎖了「執行當下的 head」，把沒審過的 commit 合進去。
+- 把「等 mergeable 不是 UNKNOWN → steward-merge → 找 merge commit 的 verify run → `gh run watch`」寫成一支拋棄式小腳本，
+  每一支都用它。主線一動 mergeable 就變 UNKNOWN 幾十秒，手動重試很容易漏。
+- **疊在別支上的 PR，前一支 squash 合進 main 後一定衝突**（add/add）。**請作者 merge main，不要建議 rebase**——
+  已推的分支不 rebase、不 force push（計畫席 10-16 糾正過我）。
+- **作者說「你先前審過」要自己查**：#1697 作者以為我審過，其實沒有。照 SHA 重審。
+
+### 二、CI 的紅不一定是程式
+
+- `supabase/setup-cli@v1` 的「Failed to resolve latest Supabase CLI release: rate limit exceeded」會讓 seed-reset／api-contract 紅。
+  看 `gh run view <id> --log-failed`，是這行就 `gh run rerun <id> --failed`。
+- **main 上 verify workflow 只要有一個 job 紅，migrate 就不會觸發**。migration 合併後 seed-reset 被 rate limit 打紅，
+  第二支 migrate 遲遲不出現——重跑那個 job 綠了才出現。
+- `build web` 起來半秒就 `Segmentation fault`（exit 139）是 runner 問題：本機 production build 綠、`rerun --failed` 綠。
+- 但 **api-contract 的 `AssertionError` 是真的**（#1675 `/api/me/push-config` 404、#1672 SQL 與 REST 欄位不一致）。先讀 log 再判斷。
+
+### 三、突變
+
+- **「搬順序」的突變要純搬**：在新位置加一次、同時拿掉原位置那一次。只加不拿會因為「被呼叫兩次」而紅，看起來守住了，其實沒有（#1677 限速在 PoW 之前）。
+- **等價突變要指認出來，不要逼作者補 spec**：`paramMap` 同步發值時 loading 初值是 true 或 false 結果一樣（#1674）；
+  家長沒有 staff 列時「家長也回暱稱」不會改變輸出（#1672）；單筆路由只傳一個 id 時 abort／skip 一樣（#1655）。
+- **悲觀刪除要對「改成先拿掉」做突變**；每個寫「悲觀」的動作都要有「沒回時不動」「失敗一直都在＋toast」兩支（#1674 退過一次）。
+- 突變讓測試**卡死**（例如排隊的 promise 永遠不 resolve）也算守住，但要停掉背景程序再還原檔案。macOS 沒有 `timeout` 指令。
+- scratchpad（`/private/tmp/...`）會被清，`mut.py` 不見了就重建；別把它當永久工具。
+
+### 四、migration
+
+- **交易乾跑**：`(echo BEGIN; cat migration.sql; echo <驗證 SELECT>; echo ROLLBACK) | psql "$DB_URL"`。pg_cron 的 `cron.schedule` 也會被 ROLLBACK 收掉。
+  能測「中止條件」就測（#1690 先塞一列再跑，確認 RAISE）。最後查 `to_regclass`／enum 值確認沒殘留。
+- `ALTER TYPE … ADD VALUE` 在交易裡可以，但同一個交易不能用新值（#1696 只加不用）。
+- **連續兩支 migration**：第一支合 → 凍結 → 它的 migrate 進 waiting → 合第二支 → 第二支也 waiting → 兩個連結一起回報。
+  **沒有 migration 的 PR 也別在兩支都 Approve 之前合**：它的 commit 也會觸發一個 migrate run，多一個 waiting 會干擾使用者依序 Approve（#1669 因此延後）。
+- 部署接在 migrate completed 之後（deploy.yml），所以「api 讀新欄位」的 PR 跟 migration 同批合沒問題——但手動先部署 api 就會壞。
+
+### 五、實機驗證（不寫正式、不寫共用 DB）
+
+- 本機 api 沒有 LINE 金鑰：`npx wrangler dev --port 8788 --inspector-port 9339 --env-file <主 checkout>/apps/api/.dev.vars --var LINE_CLIENT_ID:dummy --var LINE_CLIENT_SECRET:dummy`，
+  不改任何檔。web 寫死打 8787（常被別席佔用），用 Playwright `page.route('http://localhost:8787/**')` 轉到 8788；
+  `page.route('https://access.line.me/**')` 攔下並記網址，**走到授權頁就停**。
+- **起 dev server 前先 `lsof` 看埠**：4200 被別席佔用時 `nx serve` 會直接退出，你連到的是別人的 app（#1639 重驗時我量錯過一次）。
+- **量動態不等於驗互動**：#1639 逐幀全綠，但面板在 `<main inert>` 底下、LINE 鍵點不到——要實點，用 `elementFromPoint` 看打到誰。
+
+### 六、依賴與環境
+
+- main 加了新依賴（`altcha-lib` 在 apps/api、`altcha` 在根目錄）之後，**根目錄與 apps/api 都要 `npm ci`**，否則 typecheck／build／harness 會以「找不到模組」紅，看起來像 PR 壞了。
+- 本機 DB 的 migration 狀態會被 db-reset 席改變；跑契約測試前查 `supabase_migrations.schema_migrations`，知道自己測的是哪個 schema。

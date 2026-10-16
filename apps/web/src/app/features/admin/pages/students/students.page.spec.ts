@@ -5,7 +5,7 @@ import { Popover } from 'primeng/popover';
 import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 
 import { StudentsService, type StudentListResponse } from '@core/students.service';
@@ -76,6 +76,7 @@ describe('StudentsPage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     pending.length = 0;
     studentsServiceMock.list.mockClear();
     studentsServiceMock.update.mockClear();
@@ -119,6 +120,12 @@ describe('StudentsPage', () => {
     fixture.detectChanges();
   });
 
+  it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
+  });
+
   it('should create', () => {
     expect(component).toBeTruthy();
   });
@@ -138,7 +145,7 @@ describe('StudentsPage', () => {
       expect(pending[0].params.campusId).toBeUndefined();
     });
 
-    it('換分校：回第一頁、帶新的 campusId 重查；換回全部分校就不帶', () => {
+    it('換分校：回第一頁、帶新的 campusId 重查；日常頁沒有全部分校（#1607）', () => {
       (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 2 });
       expect(pending.at(-1)?.params.page).toBe(3);
 
@@ -148,7 +155,7 @@ describe('StudentsPage', () => {
       );
 
       selectCampus(null);
-      expect(pending.at(-1)?.params.campusId).toBeUndefined();
+      expect(pending.at(-1)?.params.campusId).toBe('campus-1');
     });
 
     it('清除篩選不動分校', () => {
@@ -605,6 +612,50 @@ describe('StudentsPage', () => {
       expect((component as any).pageMenuItems().map((i: { label: string }) => i.label)).toEqual([
         '列印本頁到班卡',
       ]);
+    });
+  });
+
+  // #1641 5b：學生刪除是悲觀的 —— 帳單、成績都是 FK RESTRICT，等伺服器確認才淡出
+  describe('悲觀刪除（#1641 5b）', () => {
+    type Page = {
+      students: { set: (v: unknown[]) => void; (): { id: string }[] };
+      loading: { set: (v: boolean) => void; (): boolean };
+      deleteStudent: (s: unknown) => void;
+    };
+    const page = () => component as any as Page;
+    const ids = () =>
+      page()
+        .students()
+        .map((s) => s.id);
+    const rows = () => [
+      { id: 'a', name: '甲' },
+      { id: 'b', name: '乙' },
+    ];
+
+    it('伺服器還沒回：那一列不動', () => {
+      page().students.set(rows());
+      studentsServiceMock.delete.mockReturnValueOnce(new Subject() as never);
+      page().deleteStudent({ id: 'b', name: '乙' });
+      expect(ids()).toEqual(['a', 'b']);
+    });
+
+    it('成功：拿掉那一列，背景重抓不變淡', () => {
+      page().students.set(rows());
+      page().loading.set(false);
+      page().deleteStudent({ id: 'b', name: '乙' });
+      expect(ids()).toEqual(['a']);
+      expect(page().loading()).toBe(false);
+    });
+
+    it('失敗：那一列一直都在，並跳錯誤 toast', () => {
+      const add = vi.spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+      page().students.set(rows());
+      studentsServiceMock.delete.mockReturnValueOnce(
+        throwError(() => ({ error: { error: '這位學生有帳單紀錄' } })) as never,
+      );
+      page().deleteStudent({ id: 'b', name: '乙' });
+      expect(ids()).toEqual(['a', 'b']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
     });
   });
 });

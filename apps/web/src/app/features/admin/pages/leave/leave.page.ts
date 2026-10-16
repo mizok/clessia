@@ -1,7 +1,7 @@
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { FormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
-import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageService, ConfirmationService, ConfirmEventType } from 'primeng/api';
@@ -31,11 +31,14 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 @Component({
   selector: 'app-leave',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     CampusScopeNoteComponent,
     PageOpenComponent,
     PageActionsComponent,
@@ -44,12 +47,11 @@ import {
     RouterLink,
     FormsModule,
     DatePickerModule,
-    ToastModule,
     TooltipModule,
     ConfirmDialogModule,
     DynamicDialogModule,
   ],
-  providers: [MessageService, ConfirmationService, DialogService],
+  providers: [ConfirmationService, DialogService],
   templateUrl: './leave.page.html',
 })
 export class LeavePage implements OnInit {
@@ -68,6 +70,9 @@ export class LeavePage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly studentsService = inject(StudentsService);
   private readonly destroyRef = inject(DestroyRef);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
+  private readonly optimisticRemove = injectOptimisticRemove();
 
   protected readonly loading = signal(false);
   protected readonly records = signal<LeaveRequest[]>([]);
@@ -202,10 +207,17 @@ export class LeavePage implements OnInit {
     this.loadCounts();
   }
 
-  protected loadRecords(): void {
+  /**
+   * `quiet`：刪除或截斷成功後的背景重抓 —— 畫面已經是結果了，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：登記／編輯／刪除造成的重抓，回應套上時那一列淡入、淡出或就地更新（換條件不帶）。
+   */
+  protected loadRecords({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
     const today = this.systemClock.todayTaipei();
     const pending = this.tab() === 'pending';
-    this.loading.set(true);
+    if (!quiet) this.loading.set(true);
     this.leaveService
       .list({
         campusId: this.campusCtx.id() ?? undefined,
@@ -227,9 +239,15 @@ export class LeavePage implements OnInit {
       })
       .subscribe({
         next: (res) => {
-          this.records.set(res.data);
-          this.totalRecords.set(res.meta.total);
-          this.loading.set(false);
+          // 舊內容（變淡中）平滑換成新資料（#1641 5b）
+          this.viewTransition(
+            () => {
+              this.records.set(res.data);
+              this.totalRecords.set(res.meta.total);
+              this.loading.set(false);
+            },
+            { rows },
+          );
         },
         error: () => {
           this.messageService.add({
@@ -262,9 +280,11 @@ export class LeavePage implements OnInit {
 
   protected setTab(tab: 'pending' | 'all'): void {
     if (this.tab() === tab) return;
-    this.tab.set(tab);
-    this.currentPage.set(1);
-    this.loadRecords();
+    this.viewTransition(() => {
+      this.tab.set(tab);
+      this.currentPage.set(1);
+      this.loadRecords();
+    });
   }
 
   protected onStudentQuery(query: string): void {
@@ -321,7 +341,7 @@ export class LeavePage implements OnInit {
           detail: `${leave.studentName} 的請假已登記`,
         });
         this.currentPage.set(1);
-        this.loadRecords();
+        this.loadRecords({ rows: true });
         this.loadCounts();
       }
     });
@@ -344,7 +364,7 @@ export class LeavePage implements OnInit {
           summary: '已更新',
           detail: `${leave.studentName} 的請假已更新`,
         });
-        this.loadRecords();
+        this.loadRecords({ rows: true });
         this.loadCounts();
       }
     });
@@ -458,16 +478,22 @@ export class LeavePage implements OnInit {
     });
   }
 
+  /**
+   * `full`（取消或刪除整筆）是樂觀的：按下就淡出，失敗放回並說明（#1641 5b 第 1 點）。
+   * `truncate`（進行中的假提早結束）**那一列不會消失**，只是結束日改了 —— 沒有東西可以先拿掉，
+   * 所以等伺服器回來，由重抓就地換上新的結束日。
+   */
   private executeDelete(
     record: LeaveRequest,
     mode: 'truncate' | 'full',
     summary: string,
     detail: string,
   ): void {
-    this.leaveService.delete(record.id, mode).subscribe({
+    const request = this.leaveService.delete(record.id, mode);
+    const handlers = {
       next: () => {
         this.messageService.add({ severity: 'success', summary, detail });
-        this.loadRecords();
+        this.loadRecords({ quiet: true, rows: true });
         this.loadCounts();
       },
       error: () => {
@@ -477,7 +503,12 @@ export class LeavePage implements OnInit {
           detail: '操作失敗，請稍後再試',
         });
       },
-    });
+    };
+    if (mode === 'full') {
+      this.optimisticRemove(this.records, (r) => r.id === record.id, request, handlers);
+    } else {
+      request.subscribe(handlers);
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -8,8 +9,6 @@ import { skip } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
 
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import {
@@ -38,6 +37,7 @@ import {
   billedBreakdown,
   revenueHeadline,
 } from './reports.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 /**
  * 營收報表 —— 見 kb/wiki/specs/admin/finance/reports.md。
@@ -62,17 +62,16 @@ import {
   selector: 'app-reports',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     DecimalPipe,
     FormsModule,
     RouterLink,
     ButtonModule,
     SelectModule,
     SelectButtonModule,
-    ToastModule,
     PageOpenComponent,
     EmptyStateComponent,
   ],
-  providers: [MessageService],
   templateUrl: './reports.page.html',
 })
 export class ReportsPage implements OnInit {
@@ -94,6 +93,8 @@ export class ReportsPage implements OnInit {
   protected readonly courses = signal<Course[]>([]);
 
   private readonly systemClock = inject(SystemClockService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   /** 月份下拉（RP1）：預設上個完整月。換算成 from/to 在 util，這裡只存選了哪一項 */
   protected readonly periodOptions = reportPeriods(this.systemClock.todayTaipei());
   protected readonly period = signal(DEFAULT_PERIOD);
@@ -144,7 +145,7 @@ export class ReportsPage implements OnInit {
   protected readonly hasFilters = computed(() => this.courseId() !== null);
 
   constructor() {
-    this.campusCtx.use();
+    this.campusCtx.use({ allowAll: true }); // 報表類：保留全部分校（#1607）
     // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
     toObservable(this.campusId)
       .pipe(skip(1), takeUntilDestroyed())
@@ -180,9 +181,12 @@ export class ReportsPage implements OnInit {
       })
       .subscribe({
         next: (res) => {
-          this.summary.set(res.summary);
-          this.groups.set(res.groups);
-          this.loading.set(false);
+          // 舊內容（變淡中）平滑換成新資料（#1641 5b）
+          this.viewTransition(() => {
+            this.summary.set(res.summary);
+            this.groups.set(res.groups);
+            this.loading.set(false);
+          });
         },
         error: () => {
           // 清掉而不是留著 —— 舊數字配新篩選條件是最糟的騙法
@@ -201,8 +205,10 @@ export class ReportsPage implements OnInit {
 
   protected onGroupByChange(value: RevenueGroupBy): void {
     if (this.groupBy() === value) return;
-    this.groupBy.set(value);
-    this.load();
+    this.viewTransition(() => {
+      this.groupBy.set(value);
+      this.load();
+    });
   }
 
   protected onCourseChange(value: string | null): void {

@@ -49,6 +49,7 @@ describe('ReportsPage', () => {
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
     reports.revenue.mockReset().mockReturnValue(of(response()));
     courses.list.mockReset().mockReturnValue(of({ data: [], meta: {} }));
 
@@ -66,6 +67,12 @@ describe('ReportsPage', () => {
     fixture.componentRef.setInput('page', { label: '營收報表' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  it('報表類：頂欄保留「全部分校」（#1607）', () => {
+    const ctx = TestBed.inject(CampusContextService);
+    expect(ctx.inUse()).toBe(true);
+    expect(ctx.allowAll()).toBe(true);
   });
 
   it('should create', () => {
@@ -438,6 +445,97 @@ describe('ReportsPage', () => {
       expect(q('cell-overdue').classList.contains('text-error-700')).toBe(red);
       expect(q('cell-overdue').classList.contains('font-semibold')).toBe(red);
       expect(q('group-total').lastElementChild!.classList.contains('text-error-700')).toBe(red);
+    });
+
+    /**
+     * 合計列每一格的數值（取自 API `summary`，不是前端加各組）。
+     * 五個數字互質、各組數字刻意跟 summary 不同：任何一格被拿掉、換位置、或改成「各組加總」都會紅。
+     * 每格斷言「標籤＋千分位數字」，手機的小標籤（`wide:hidden`）也在同一個 td 裡。
+     */
+    describe('合計列每一格', () => {
+      const cells = () =>
+        Array.from(q('group-total').children).map((c) => c.textContent!.replace(/\s+/g, ''));
+
+      it.each([
+        [
+          '五格都有值',
+          figures({
+            received: 120001,
+            refunded: 3002,
+            billed: 250003,
+            outstanding: 70004,
+            overdueOutstanding: 9005,
+          }),
+          ['合計', '實收120,001', '退款3,002', '已開帳250,003', '應收未收70,004', '其中逾期9,005'],
+        ],
+        [
+          '全 0 也要印 0（不是空白）',
+          figures(),
+          ['合計', '實收0', '退款0', '已開帳0', '應收未收0', '其中逾期0'],
+        ],
+        [
+          '千分位邊界 999／1,000',
+          figures({
+            received: 999,
+            refunded: 1000,
+            billed: 1001,
+            outstanding: 9999,
+            overdueOutstanding: 10000,
+          }),
+          ['合計', '實收999', '退款1,000', '已開帳1,001', '應收未收9,999', '其中逾期10,000'],
+        ],
+      ] as const)('%s', async (_name, summary, expected) => {
+        await feed(
+          response({
+            summary,
+            // 各組數字跟 summary 不同：合計若改成前端加總就對不上
+            groups: [
+              g('中山校', {
+                received: 11,
+                refunded: 22,
+                billed: 33,
+                outstanding: 44,
+                overdueOutstanding: 55,
+              }),
+              g('文山校', {
+                received: 66,
+                refunded: 77,
+                billed: 88,
+                outstanding: 99,
+                overdueOutstanding: 111,
+              }),
+            ],
+          }),
+        );
+        expect(cells()).toEqual([...expected]);
+      });
+
+      it('合計列的欄序與表頭一致（實收、退款、已開帳、應收未收、其中逾期），逾期格 >0 才紅', async () => {
+        await feed(
+          response({
+            summary: figures({
+              received: 5,
+              refunded: 4,
+              billed: 3,
+              outstanding: 2,
+              overdueOutstanding: 1,
+            }),
+            groups: [g('中山校', { billed: 3 })],
+          }),
+        );
+        const heads = Array.from(q('group-table').querySelectorAll('thead th')).map((t) =>
+          t.textContent!.trim(),
+        );
+        const tdLabels = Array.from(q('group-total').children)
+          .slice(1)
+          .map((c) => c.querySelector('small')!.textContent!.trim());
+        expect(tdLabels).toEqual(heads.slice(1));
+        expect(q('group-total').lastElementChild!.classList.contains('text-error-700')).toBe(true);
+        // 其他四格不紅
+        for (const c of Array.from(q('group-total').children).slice(0, -1)) {
+          expect(c.classList.contains('text-error-700')).toBe(false);
+        }
+      });
     });
 
     it('畫面上的列序：已開帳大到小、模糊桶最後（只換順序）', async () => {

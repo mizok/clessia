@@ -1,5 +1,3 @@
-<p-toast appendTo="body" />
-
 <div class="flex flex-col gap-4">
   <div
     class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
@@ -99,6 +97,82 @@
             icon="pi pi-check"
             [loading]="savingBillingReminder()"
             (onClick)="saveBillingReminderDays()"
+          />
+        </div>
+      </div>
+    }
+
+    <!-- #1660：家長繳費提醒時間點。財務設定，同上 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
+    @if (settings()?.invoiceReminderOffsets !== undefined) {
+      <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
+        <h3
+          id="settings-invoice-reminder-title"
+          class="m-0 mb-2 text-base font-semibold text-zinc-800"
+        >
+          家長繳費提醒
+        </h3>
+        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
+          在這些時間點推播提醒家長繳費（台北時間早上 9–11 點送出），最多
+          {{ reminderMaxCount }}
+          個。同一張帳單、同一個時間點只會提醒一次；改了設定，已經提醒過的不會再送。
+          有開啟通知的家長會收到推播；沒開的家長，也會在通知中心看到這則提醒。
+        </p>
+        @if (reminderOffsets().length === 0) {
+          <p class="m-0 mb-4 text-sm text-zinc-500">目前沒有設定，不會推播任何繳費提醒。</p>
+        } @else {
+          <ul
+            class="m-0 mb-4 flex list-none flex-wrap gap-2 p-0"
+            aria-labelledby="settings-invoice-reminder-title"
+          >
+            @for (offset of reminderOffsets(); track offset) {
+              <li
+                class="flex items-center gap-1 rounded-full border border-zinc-200 py-1 pl-3 pr-1 text-sm text-zinc-700"
+              >
+                {{ reminderLabel(offset) }}
+                <p-button
+                  icon="pi pi-times"
+                  [text]="true"
+                  [rounded]="true"
+                  size="small"
+                  severity="secondary"
+                  [ariaLabel]="'移除「' + reminderLabel(offset) + '」'"
+                  (onClick)="removeReminderOffset(offset)"
+                />
+              </li>
+            }
+          </ul>
+        }
+        <div class="flex flex-col items-stretch gap-3 md:flex-row md:items-center">
+          <p-selectbutton
+            [options]="reminderDirectionOptions"
+            [(ngModel)]="newReminderDirection"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            ariaLabelledBy="settings-invoice-reminder-title"
+          />
+          <p-inputnumber
+            [(ngModel)]="newReminderDays"
+            [min]="newReminderDirection === 'before' ? 0 : 1"
+            [max]="newReminderDirection === 'before' ? 30 : 60"
+            suffix=" 天"
+            ariaLabel="天數"
+          />
+          <p-button
+            label="加入"
+            icon="pi pi-plus"
+            severity="secondary"
+            [disabled]="pendingReminderOffset() === null"
+            (onClick)="addReminderOffset()"
+          />
+        </div>
+        <p class="m-0 mt-2 text-xs text-zinc-500">到期前 0–30 天（0 = 到期當天）、逾期 1–60 天。</p>
+        <div class="mt-3 flex justify-end">
+          <p-button
+            label="儲存"
+            icon="pi pi-check"
+            [loading]="savingReminderOffsets()"
+            (onClick)="saveReminderOffsets()"
           />
         </div>
       </div>
