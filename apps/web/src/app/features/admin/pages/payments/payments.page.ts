@@ -27,6 +27,7 @@ import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService, type MenuItem } from 'primeng/api';
+import { AppVersionService } from '@core/app-version.service';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -173,6 +174,7 @@ export class PaymentsPage implements OnInit {
     return this.campusCtx.id() ?? undefined;
   }
   private readonly messageService = inject(MessageService);
+  private readonly version = inject(AppVersionService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
@@ -625,7 +627,9 @@ export class PaymentsPage implements OnInit {
         summary: '已匯出',
         detail: `${rows.length} 張帳單（Excel）`,
       });
-    } catch {
+    } catch (err) {
+      // 舊分頁要不到 xlsx 的 chunk（#1718）：亮新版提示條，不說「匯出失敗、請稍後再試」（再試也一樣）
+      if (this.version.recoverFromImportFailure(err)) return;
       this.messageService.add({ severity: 'error', summary: '匯出失敗', detail: '請稍後再試' });
     } finally {
       this.exporting.set(false);

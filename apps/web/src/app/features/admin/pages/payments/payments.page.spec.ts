@@ -1,4 +1,5 @@
 import { MessageService } from 'primeng/api';
+import { AppVersionService } from '@core/app-version.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Popover } from 'primeng/popover';
@@ -600,6 +601,25 @@ describe('PaymentsPage', () => {
       );
       expect(writeFile).toHaveBeenCalledWith(expect.anything(), `帳單_${month}_只有逾期.xlsx`);
       vi.doUnmock('xlsx');
+    });
+
+    // #1718：部署後的舊分頁按匯出，xlsx 的 chunk 已經不在 —— 顯示新版提示條，不是「匯出失敗，請稍後再試」
+    it('匯出撞到舊版 chunk：亮新版提示條，不跳「匯出失敗」', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const toasts: { severity: string }[] = [];
+      vi.spyOn(component['messageService'], 'add').mockImplementation((m) => {
+        toasts.push(m as { severity: string });
+      });
+      invoices.list.mockClear();
+      invoices.list.mockReturnValue(
+        throwError(() => new TypeError('Failed to fetch dynamically imported module: /x.js')),
+      );
+
+      await component['exportInvoices']({ hide: vi.fn() } as never);
+
+      expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
+      expect(toasts.filter((t) => t.severity === 'error')).toEqual([]);
+      expect(component['exporting']()).toBe(false);
     });
 
     it('匯出超過一頁：用 meta.total 判斷收完', async () => {

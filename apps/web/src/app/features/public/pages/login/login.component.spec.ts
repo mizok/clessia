@@ -3,6 +3,7 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService } from '@core/auth.service';
+import { AppVersionService } from '@core/app-version.service';
 
 import { LoginComponent } from './login.component';
 
@@ -101,6 +102,49 @@ describe('LoginComponent', () => {
 
     expect(c.error()).toBe('LINE 登入失敗');
     expect(c.submitting()).toBe(false);
+  });
+
+  // #1718：失敗的是我們的 API（連線層），不是 LINE；而使用者實際上是重新整理之後就好了
+  it('連不上伺服器（fetch 丟 TypeError）：叫人重新整理，不說「無法連線到 LINE」', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { c } = setup(new TypeError('Failed to fetch'));
+
+    await c.signInWithLine();
+
+    expect(c.error()).toBe('連不上伺服器，請重新整理頁面後再試');
+    expect(c.error()).not.toContain('LINE');
+    expect(warn).toHaveBeenCalledWith('[line-login]', 'TypeError: Failed to fetch');
+    warn.mockRestore();
+  });
+
+  // 計畫席：log 時不要把 token 或網址的 query 印出來
+  it('記下原始錯誤時，網址的 query 遮掉', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { c } = setup(
+      new Error('boom at https://api.x/api/auth/sign-in/social?state=abc&token=SECRET more'),
+    );
+
+    await c.signInWithLine();
+
+    const logged = warn.mock.calls.flat().join(' ');
+    expect(logged).not.toContain('SECRET');
+    expect(logged).not.toContain('state=abc');
+    expect(logged).toContain('https://api.x/api/auth/sign-in/social?…');
+    warn.mockRestore();
+  });
+
+  it('舊版 chunk（將來 auth client 改 lazy 時）：亮新版提示條，不顯示業務錯誤', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { c } = setup(
+      new TypeError('Failed to fetch dynamically imported module: https://x/chunk-A.js'),
+    );
+
+    await c.signInWithLine();
+
+    expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
+    expect(c.error()).toBeNull();
+    expect(c.submitting()).toBe(false);
+    vi.restoreAllMocks();
   });
 
   // 例外沒被接住的話按鈕會永遠卡在「登入中」

@@ -17,6 +17,7 @@ import { MessageService } from 'primeng/api';
 import { GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SystemClockService } from '@core/system-clock.service';
+import { AppVersionService } from '@core/app-version.service';
 
 import {
   RELATION_OPTIONS,
@@ -84,6 +85,7 @@ export class ApplicationFormComponent {
   readonly kind = input.required<FormKind>();
 
   private readonly api = inject(PublicFormsService);
+  private readonly version = inject(AppVersionService);
   private readonly messages = inject(MessageService);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly destroyRef = inject(DestroyRef);
@@ -207,7 +209,11 @@ export class ApplicationFormComponent {
     });
     this.captcha.then(
       () => !this.destroyed && this.captchaState.set('ready'),
-      () => !this.destroyed && this.captchaState.set('failed'),
+      // 舊分頁要不到 altcha 的 chunk（#1718）：另外亮新版提示條 —— 不然「重試驗證」按幾次都一樣
+      (err) => {
+        this.version.recoverFromImportFailure(err);
+        if (!this.destroyed) this.captchaState.set('failed');
+      },
     );
   }
 

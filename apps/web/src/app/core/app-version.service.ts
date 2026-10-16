@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { hasReloadBeenAttempted, markReloadAttempted } from './chunk-recovery';
+import { hasReloadBeenAttempted, isChunkLoadFailure, markReloadAttempted } from './chunk-recovery';
 
 /**
  * 「這個分頁手上的版本已經過期了」這件事的唯一狀態來源。
@@ -33,6 +33,21 @@ export class AppVersionService {
     return true;
   }
 
+  /**
+   * 按鈕或元件裡的 `import()` 失敗（#1718）。是舊版 chunk 就亮提示條、回 `true` ——
+   * 呼叫端看到 `true` 就**不要**顯示成業務錯誤（「匯出失敗」「無法連線」那種，使用者會一直重試）。
+   *
+   * **不自動重載**，跟導覽失敗不同：按鈕觸發的當下，畫面上可能有使用者選好的檔案、填好的表單，
+   * 重載會沒收它們。讓他自己按提示條的「重新載入」。
+   */
+  recoverFromImportFailure(error: unknown): boolean {
+    if (!isChunkLoadFailure(error)) return false;
+    // 原始訊息要留（同 ChunkAwareErrorHandler）：真實措辭要線上撞到才能確認
+    console.warn('[chunk] 按鈕裡的 import() 撞到舊版 chunk，顯示更新提示：', error);
+    this.markStale();
+    return true;
+  }
+
   /** 預載撞到舊 chunk —— 只立旗標不動作 */
   markStale(): void {
     this.isStale.set(true);
@@ -43,5 +58,4 @@ export class AppVersionService {
     markReloadAttempted();
     location.reload();
   }
-
 }

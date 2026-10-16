@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DailyCheckinsService, type DailyCheckinConfirmation } from '@core/daily-checkins.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { AppVersionService } from '@core/app-version.service';
 import { CheckinStationComponent, RESULT_SECONDS } from './checkin-station.component';
 
 import { QR_DECODER_FACTORY } from './qr-camera';
@@ -187,6 +188,24 @@ describe('CheckinStationComponent —— 相機', () => {
       audio: false,
     });
     expect(el.textContent).toContain('把 QR Code 放進框內');
+  });
+
+  // #1718：舊分頁要不到 jsqr 的 chunk —— 不是相機壞了，不顯示「相機無法使用」，亮新版提示條
+  it('解碼器的 chunk 要不到：鏡頭關回去、不顯示相機錯誤，亮新版提示條', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    TestBed.overrideProvider(QR_DECODER_FACTORY, {
+      useValue: async () => {
+        throw new TypeError('Failed to fetch dynamically imported module: https://x/chunk-A.js');
+      },
+    });
+    const { el, click, fixture } = await setup(vi.fn());
+    click('checkin-camera-open');
+    await settle(fixture);
+
+    expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
+    expect(stopTrack).toHaveBeenCalled();
+    expect(el.querySelector('[data-testid="checkin-camera-open"]')).not.toBeNull();
+    expect(el.textContent).not.toContain('無法使用');
   });
 
   it('機台（auto）：一進頁就開鏡頭', async () => {

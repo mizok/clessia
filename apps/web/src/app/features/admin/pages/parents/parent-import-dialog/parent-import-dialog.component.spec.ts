@@ -4,6 +4,7 @@ import { of, throwError } from 'rxjs';
 import * as XLSX from 'xlsx';
 
 import { ParentsService } from '@core/parents.service';
+import { AppVersionService } from '@core/app-version.service';
 
 import { ParentImportDialogComponent } from './parent-import-dialog.component';
 
@@ -181,5 +182,22 @@ describe('ParentImportDialogComponent', () => {
 
       expect(onImported).not.toHaveBeenCalled();
     });
+  });
+
+  // #1718：舊分頁要不到 xlsx 的 chunk —— 亮新版提示條，不當成解析錯誤記 console.error
+  it('xlsx 的 chunk 要不到：亮新版提示條、退回選檔那一步、不記成解析錯誤', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(
+      component as never as { parseExcelFile(f: File): Promise<unknown[][]> },
+      'parseExcelFile',
+    ).mockRejectedValue(
+      new TypeError('Failed to fetch dynamically imported module: https://x/chunk-A.js'),
+    );
+    const rows = await parse(new File(['x'], 'a.xlsx'));
+    expect(rows).toEqual([]);
+    expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
+    expect(error).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 });

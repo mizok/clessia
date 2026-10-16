@@ -6,6 +6,7 @@ import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
+import { AppVersionService } from '@core/app-version.service';
 /**
  * **`xlsx` 只在真的要解析檔案時才載入。**
  *
@@ -82,6 +83,7 @@ export class ParentImportDialogComponent {
     onImported?: () => void;
   }> | null;
   private readonly parentsService = inject(ParentsService);
+  private readonly version = inject(AppVersionService);
 
   protected readonly step = signal<1 | 2 | 3 | 4>(1);
   protected readonly rows = signal<ParsedRow[]>([]);
@@ -178,7 +180,8 @@ export class ParentImportDialogComponent {
       this.submitResult.set(null);
       this.step.set(2);
     } catch (error: unknown) {
-      console.error('解析 Excel 失敗:', error);
+      // 舊分頁要不到 xlsx 的 chunk（#1718）：亮新版提示條；畫面一樣退回選檔那一步
+      if (!this.version.recoverFromImportFailure(error)) console.error('解析 Excel 失敗:', error);
       this.rows.set([]);
       this.step.set(1);
     }
