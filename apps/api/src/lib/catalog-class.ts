@@ -7,14 +7,15 @@ import { DbUuidSchema } from './validation';
  * 開課班目錄的「班 → 卡片」映射。**家長目錄（#1152）與公開目錄（#1125）共用** ——
  * 時段過濾、費用（停用範本回 null）、名額下限 0 只有一份，兩邊各寫一份遲早會漂。
  *
- * 各自加的東西留在各自的路由：家長目錄加老師名與 `matchesGrade`；公開目錄不回老師名。
+ * 各自加的東西留在各自的路由：家長目錄加老師名與 `matchesGrade`；公開目錄只回老師**暱稱**、
+ * 外加分校聯絡資訊（`campuses(phone, address)` 只有公開目錄用到，家長目錄的映射不取）。
  */
 
 /** 兩邊都要的欄位。老師名只有家長目錄要，所以 `schedules` 的 teacher 由呼叫端決定要不要接 */
 export const catalogClassSelect = (scheduleExtra = '') => `
   id, name, grade_levels, max_students, is_active, end_date, is_recommended,
   courses(id, name, description, is_active, subjects(name)),
-  campuses(name),
+  campuses(name, phone, address),
   schedules(weekday, start_time, end_time, effective_to${scheduleExtra}),
   fee_template:fee_templates!default_fee_template_id(amount, billing_mode, is_active)
 `;

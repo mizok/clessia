@@ -1,3 +1,5 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
@@ -45,7 +47,6 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
-import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { FilterToggleComponent } from '@shared/components/filter-toggle/filter-toggle.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -123,11 +124,11 @@ const emptyChapter = (): ChapterState => ({
   selector: 'app-payments',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     InvoiceActionsComponent,
     NgTemplateOutlet,
     PopupMenuComponent,
     RouterLink,
-    ChapterHeadComponent,
     FilterToggleComponent,
     StatusDotComponent,
     DecimalPipe,
@@ -158,6 +159,11 @@ export class PaymentsPage implements OnInit {
   readonly due = input<string | undefined>();
 
   private readonly service = inject(InvoicesService);
+  /** 重抓的資料平滑換上；帳本變動造成的重抓帶 rows（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  private reloadRows = false;
+  /** 這一輪重抓要帶 rows 的章（`loadChapter` 設、回應套上時取走） */
+  private readonly chapterReloadRows = new Set<ChapterKey>();
   private readonly destroyRef = inject(DestroyRef);
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly campusCtx = inject(CampusContextService);
@@ -481,7 +487,10 @@ export class PaymentsPage implements OnInit {
    * （通常寥寥幾張、`pageSize` 取上限）、後面才是繳清的分頁，分頁器只數繳清的 ——
    * 列表一次只收一個 `status`，所以是兩支請求。多退只在第 1 頁出現，翻頁不重複。
    */
-  protected loadChapter(key: ChapterKey): void {
+  /** `rows`：帳本變動後的重抓，那一列淡入、淡出或就地更新（#1641 5b）；展開、換頁不帶 */
+  protected loadChapter(key: ChapterKey, { rows = false }: { rows?: boolean } = {}): void {
+    if (rows) this.chapterReloadRows.add(key);
+    else this.chapterReloadRows.delete(key);
     this.patchChapter(key, { loading: true, failed: false });
     this.chapterRequests[key].next();
   }
@@ -532,14 +541,14 @@ export class PaymentsPage implements OnInit {
 
   /** 做了任何會改變帳本的事之後：列表、彙總、（展開中的）已繳清章都要重抓 */
   private refreshAll(): void {
-    this.load();
+    this.load({ rows: true });
     this.loadSummary();
-    this.reloadOpenChapters();
+    this.reloadOpenChapters({ rows: true });
   }
 
-  private reloadOpenChapters(): void {
+  private reloadOpenChapters(options: { rows?: boolean } = {}): void {
     for (const key of CHAPTER_KEYS) {
-      if (this.chapters()[key].open) this.loadChapter(key);
+      if (this.chapters()[key].open) this.loadChapter(key, options);
     }
   }
 
@@ -635,7 +644,9 @@ export class PaymentsPage implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
-  protected load(): void {
+  /** `rows`：帳本變動後的重抓，那一列淡入、淡出或就地更新（#1641 5b）；篩選、換頁不帶 */
+  protected load({ rows = false }: { rows?: boolean } = {}): void {
+    this.reloadRows = rows;
     this.loading.set(true);
     this.failed.set(false);
     this.loadRequests.next();
@@ -685,13 +696,18 @@ export class PaymentsPage implements OnInit {
           ),
           takeUntilDestroyed(this.destroyRef),
         )
-        .subscribe(([main, over]) =>
-          this.patchChapter(key, {
-            rows: [...(over?.data ?? []), ...main.data],
-            total: main.meta.total,
-            loading: false,
-          }),
-        );
+        .subscribe(([main, over]) => {
+          // 舊內容（變淡中）平滑換成新資料（#1641 5b）
+          this.viewTransition(
+            () =>
+              this.patchChapter(key, {
+                rows: [...(over?.data ?? []), ...main.data],
+                total: main.meta.total,
+                loading: false,
+              }),
+            { rows: this.chapterReloadRows.delete(key) },
+          );
+        });
     }
 
     this.loadRequests
@@ -724,9 +740,16 @@ export class PaymentsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
-        this.invoices.set(res.data);
-        this.totalRecords.set(res.meta.total);
-        this.loading.set(false);
+        // 舊內容（變淡中）平滑換成新資料（#1641 5b）
+        this.viewTransition(
+          () => {
+            this.invoices.set(res.data);
+            this.totalRecords.set(res.meta.total);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
       });
   }
 

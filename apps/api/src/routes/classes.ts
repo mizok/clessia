@@ -67,6 +67,8 @@ const ClassSchema = z
     defaultFeeTemplateId: DbUuidSchema.nullable(),
     /** 家長端「推薦加選」的人工標記（#1118） */
     isRecommended: z.boolean(),
+    /** 出現在匿名的公開報名／試聽表單（#1665 Q5）；家長端不受影響 */
+    isPublicEnrollment: z.boolean(),
     scheduleCount: z.number().optional(),
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
@@ -122,6 +124,7 @@ const CreateClassSchema = z
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
     isRecommended: z.boolean().optional(),
+    isPublicEnrollment: z.boolean().optional(),
     // 不給就用 DB 的 default false（現況全是紙本）
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -145,6 +148,7 @@ const UpdateClassSchema = z
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
     isRecommended: z.boolean().optional(),
+    isPublicEnrollment: z.boolean().optional(),
     isActive: z.boolean().optional(),
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -399,6 +403,8 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     usesContactBook: (row['uses_contact_book'] as boolean | undefined) ?? false,
     defaultFeeTemplateId: (row['default_fee_template_id'] as string | null | undefined) ?? null,
     isRecommended: (row['is_recommended'] as boolean | undefined) ?? false,
+    // DB 是 NOT NULL DEFAULT true（Q5′）；沒撈到就照 DB 預設
+    isPublicEnrollment: (row['is_public_enrollment'] as boolean | undefined) ?? true,
     scheduleCount: extras?.scheduleCount,
     scheduleTeacherIds: extras?.scheduleTeacherIds,
     hasUpcomingSessions: extras?.hasUpcomingSessions,
@@ -1200,6 +1206,9 @@ app.openapi(
         next_class_id: body.nextClassId ?? null,
         default_fee_template_id: body.defaultFeeTemplateId ?? null,
         ...(body.isRecommended === undefined ? {} : { is_recommended: body.isRecommended }),
+        ...(body.isPublicEnrollment === undefined
+          ? {}
+          : { is_public_enrollment: body.isPublicEnrollment }),
         ...(body.usesContactBook === undefined ? {} : { uses_contact_book: body.usesContactBook }),
         start_date: body.startDate ?? null,
         end_date: body.endDate ?? null,
@@ -1292,6 +1301,9 @@ app.openapi(
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
     if (body.usesContactBook !== undefined) updateData['uses_contact_book'] = body.usesContactBook;
     if (body.isRecommended !== undefined) updateData['is_recommended'] = body.isRecommended;
+    if (body.isPublicEnrollment !== undefined) {
+      updateData['is_public_enrollment'] = body.isPublicEnrollment;
+    }
     if (body.startDate !== undefined) updateData['start_date'] = body.startDate;
     if (body.endDate !== undefined) updateData['end_date'] = body.endDate;
 

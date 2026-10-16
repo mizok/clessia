@@ -76,6 +76,7 @@ describe('StaffFormDialogComponent', () => {
     };
     c.formData.set({
       displayName: '王老師',
+      nickname: ' 小王老師 ',
       email: 'teacher@example.com',
       phone: '',
       birthday: null,
@@ -90,6 +91,8 @@ describe('StaffFormDialogComponent', () => {
     c.save();
 
     expect(staffServiceMock.create).toHaveBeenCalled();
+    // #1665 Q6：對外暱稱去頭尾空白後送出
+    expect((staffServiceMock.create as any).mock.calls[0][0].nickname).toBe('小王老師');
     expect(closeMock).toHaveBeenCalledWith({
       data: { id: 'staff-1' },
       loginUrl: 'https://x/verify?token=t',

@@ -3,9 +3,13 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 /**
  * 章頭（A6 `.chap__side`）：大字章名＋章名下的張數。
  *
- * 桌機是左欄直排（章名 44px、張數在下），手機橫排（章名 26px、張數接在同一行）——
- * 那是 A6 的 `chap` 與 `chap--row` 的合併。**欄位本身（左欄＋右側內容的 grid）不在這裡**：
- * 各頁的右側內容不一樣（課程列、帳單列、表格），grid 由頁面自己擺；這個元件只管「字」。
+ * 桌機是左欄直排（章名 44px、張數 18px 在下）。手機有三種，照各頁的 A6 稿（#1698）：
+ * - `stacked`＝A6 `.chap`：一樣上下疊，章名 32px、張數 18px（家長、通知中心）
+ * - 預設＝A6 `.chap--row`：橫排，章名 26px、張數 16px 接在同一行（課程、學生、帳單）
+ * - `listRow`＝A6 清單頁在 ≤860 覆寫的 `.chap`：橫排，章名 28px、張數 14px（人員、價目表、請假、考試，
+ *   各頁稿的 `<style>` 裡）。**開 #1698 時只看了 a6.css 的共用值、以為這四頁是上下疊，conformance 抓到才改**
+ *
+ * **欄位本身（左欄＋右側內容的 grid）不在這裡**：各頁的右側內容不一樣（課程列、帳單列、表格），grid 由頁面自己擺；這個元件只管「字」。
  *
  * 張數後面要接別的（「待收 NT$ 81,050」）就投影進來。
  */
@@ -25,8 +29,10 @@ export class ChapterHeadComponent {
   readonly unit = input('');
   /** `error`＝逾期等需要立刻處理的章（A6 `.chap__big--overdue`） */
   readonly tone = input<'default' | 'error'>('default');
-  /** 手機也上下堆疊（A6 `chap`，家長頁）；預設手機橫排（`chap--row`，帳單頁） */
+  /** 手機也上下堆疊（A6 `.chap`）；預設手機橫排（A6 `.chap--row`）。各頁照自己的稿選 */
   readonly stacked = input(false);
+  /** A6 清單頁的手機章頭（人員、價目表、請假、考試）：橫排、章名 28px、張數 14px。跟 `stacked` 互斥 */
+  readonly listRow = input(false);
 
   /**
    * 章名的 class。**整串寫在 TS 裡、用 `[class]` 綁** —— 任意值 class（`text-[34px]`）
@@ -36,7 +42,14 @@ export class ChapterHeadComponent {
   protected readonly nameClass = computed(
     () =>
       'chapter-head__name m-0 leading-none font-bold tracking-[-0.04em] wide:text-[44px] ' +
-      (this.stacked() ? 'text-[34px] ' : 'text-[26px] ') +
+      (this.stacked() ? 'text-[32px] ' : this.listRow() ? 'text-[28px] ' : 'text-[26px] ') +
       (this.tone() === 'error' ? 'text-error-700' : 'text-zinc-900'),
+  );
+
+  /** 張數：A6 `.chap__tally` 是 xl，只有 `.chap--row` 在手機縮成 lg */
+  protected readonly tallyClass = computed(
+    () =>
+      'chapter-head__tally m-0 font-bold tracking-[-0.02em] text-zinc-900 tabular-nums wide:mt-3 wide:text-xl ' +
+      (this.stacked() ? 'mt-3 text-xl' : this.listRow() ? 'text-base' : 'text-lg'),
   );
 }

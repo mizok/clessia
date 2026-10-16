@@ -239,6 +239,7 @@
             <app-chapter-head
               class="block pt-6 wide:pt-8"
               [name]="ch.name"
+              [listRow]="true"
               [count]="ch.rows.length"
               unit="場"
               [sub]="totalRows() > PAGE_SIZE ? '這一頁' : ''"
@@ -279,7 +280,8 @@
 <!-- 一列考試（扁平列表與分章共用）。`row` 是 `ExamRow` -->
 <ng-template #examRow let-row>
   <li
-    class="grid min-h-18 grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_44px] wide:gap-x-6"
+    [style.view-transition-name]="'exam-' + row.kind + '-' + row.id"
+    class="vt-row grid min-h-18 grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_44px] wide:gap-x-6"
   >
     <div class="col-start-1 row-start-1 min-w-0">
       <button

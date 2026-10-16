@@ -46,6 +46,7 @@ const PERMISSION_META: Record<Permission, { label: string; description: string }
     label: '跨分校',
     description: '不受指派分校限制，看得到全機構的資料',
   },
+  send_announcements: { label: '發送通知', description: '發布公告給老師與家長' },
 };
 
 export const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] =
@@ -92,6 +93,7 @@ export class StaffFormDialogComponent {
 
   protected readonly formData = signal({
     displayName: this.staff()?.displayName ?? '',
+    nickname: this.staff()?.nickname ?? '',
     email: this.staff()?.email ?? '',
     phone: this.staff()?.phone ?? '',
     birthday: (this.staff()?.birthday
@@ -190,6 +192,8 @@ export class StaffFormDialogComponent {
 
     const commonInput = {
       displayName: form.displayName.trim(),
+      // 空字串＝清掉；API 端同一條 NicknameSchema 也會 trim
+      nickname: form.nickname.trim() || null,
       phone: form.phone.trim() || null,
       birthday: form.birthday ? this.formatDate(form.birthday) : null,
       notes: form.notes.trim() || null,

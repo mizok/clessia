@@ -166,6 +166,7 @@
             <app-chapter-head
               class="block pt-4 wide:pt-8"
               [name]="chapter.name"
+              [listRow]="true"
               [sub]="chapter.meta"
               [count]="chapter.rows.length"
               unit="位"
@@ -173,8 +174,9 @@
             <div class="wide:pt-4">
               @for (record of chapter.rows; track record.id) {
                 <details
-                  class="group border-b border-surface-border last:border-b-0"
+                  class="vt-row group border-b border-surface-border last:border-b-0"
                   data-testid="leave-row"
+                  [style.view-transition-name]="'leave-' + record.id"
                 >
                   <summary
                     class="grid min-h-11 cursor-pointer list-none grid-cols-1 gap-x-6 gap-y-1 py-4 hover:bg-zinc-50 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] wide:items-baseline [&::-webkit-details-marker]:hidden"

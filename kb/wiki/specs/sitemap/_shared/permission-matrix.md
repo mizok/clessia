@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, _shared, admin, authorization]
 created: 2026-09-13
-updated: 2026-10-10
+updated: 2026-10-16
 ---
 
 # 權限變體矩陣（管理端）
@@ -50,7 +50,7 @@ updated: 2026-10-10
 | `admin10` | `[]` |
 | `admin11` | `["*"]` |
 | `admin.lin` / `admin.wang` | `["basic_operations", "manage_students"]` |
-| `teacher0001` | `["view_reports"]`（多重角色，不在本輪矩陣裡） |
+| `teacher0001` | `["view_reports", "send_announcements"]`（多重角色；`send_announcements` 是 #1686 加的，adminNN 已用完所以掛在這裡。值寫在 `seed.sql` 權限矩陣段**和** `seed-demo.sql` 第 4 段，後者後跑會蓋掉前者，兩邊要一致） |
 
 ⚠️ **`all_campuses` 會污染其他每一欄的讀法。** 沒有它的管理員只看得到
 `staff_campuses` 指派給他的分校，而 `admin01`～`admin08` **一個都沒有 `all_campuses`** ——
