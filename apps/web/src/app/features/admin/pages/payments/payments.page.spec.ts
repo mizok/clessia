@@ -1035,4 +1035,21 @@ describe('PaymentsPage', () => {
       expect(count.querySelector('.pi-chevron-down')).toBeNull();
     });
   });
+
+  // #1641 5b：同一張帳單可能同時在上方清單與展開的章裡 —— view-transition-name 全頁唯一，撞名整個 VT 會被跳過
+  it('同一張帳單同時出現在上方清單與展開的章：列名不撞', async () => {
+    const same = invoice({ id: 'inv-1' });
+    invoices.list.mockReturnValue(of(listResponse([same])));
+    (component as unknown as { load: () => void }).load();
+    await fixture.whenStable();
+    (component as unknown as { toggleChapter: (k: string) => void }).toggleChapter('dueSoon');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const names = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.vt-row'),
+    ).map((el) => el.style.getPropertyValue('view-transition-name'));
+    expect(names.length).toBeGreaterThan(1);
+    expect(new Set(names).size).toBe(names.length);
+  });
 });

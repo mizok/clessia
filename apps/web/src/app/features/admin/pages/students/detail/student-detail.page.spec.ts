@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of, throwError, type Observable } from 'rxjs';
+import { BehaviorSubject, NEVER, of, throwError, type Observable } from 'rxjs';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { StudentDetailPage } from './student-detail.page';
@@ -549,6 +549,32 @@ describe('StudentDetailPage', () => {
       );
 
       expect(navigate).toHaveBeenCalledWith(['/admin/courses', 'course-1', 'classes', 'class-1']);
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 3 點）：只有第一次進頁才是骨架；之後重抓保留舊內容並變淡
+  describe('這學期的課：載入（#1641 5b）', () => {
+    it('第一次進頁、名單還沒回來：顯示骨架', async () => {
+      enrollmentsServiceMock.list.mockReturnValueOnce(NEVER as never);
+      const first = TestBed.createComponent(StudentDetailPage);
+      first.detectChanges();
+      await first.whenStable();
+      const el = first.nativeElement as HTMLElement;
+      expect(el.querySelector('app-reload-veil p-skeleton')).not.toBeNull();
+      expect(el.querySelector('.reload-veil--stale')).toBeNull();
+    });
+
+    it('重抓：舊內容留著並變淡，不回到骨架', () => {
+      enrollmentsServiceMock.list.mockReturnValueOnce(NEVER as never);
+      (
+        fixture.componentInstance as unknown as { loadEnrollments: (id: string) => void }
+      ).loadEnrollments(seedStudentId);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.reload-veil--stale')).not.toBeNull();
+      expect(el.querySelector('app-reload-veil p-skeleton')).toBeNull();
+      // 這支 spec 的學生有一筆報名（三年級數學 A）—— 重抓期間它還在
+      expect(el.querySelectorAll('[data-testid="enrollment-item"]').length).toBeGreaterThan(0);
     });
   });
 });

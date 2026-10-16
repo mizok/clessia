@@ -1,3 +1,5 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { Component, OnInit, inject, signal, computed, DestroyRef, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
@@ -83,6 +85,7 @@ interface ConflictPrompt {
   selector: 'app-student-detail',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     StatusDotComponent,
     DataChipComponent,
     CommonModule,
@@ -108,6 +111,7 @@ export class StudentDetailPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly viewTransition = injectViewTransition();
   private readonly scoresService = inject(ScoresService);
   private readonly leaveService = inject(LeaveService);
   private readonly clock = inject(SystemClockService);
@@ -237,7 +241,11 @@ export class StudentDetailPage implements OnInit {
   protected readonly dateWithWeekday = dateWithWeekday;
   readonly loading = signal(true);
   protected readonly enrollments = signal<Enrollment[]>([]);
-  protected readonly enrollmentsLoading = signal(false);
+  /**
+   * 初始是 true：`app-reload-veil` 把「第一次 loading 變 false」當成載入過一次，
+   * 初始若是 false，第一次進頁就會跳過骨架、直接顯示空的「載入中」（#1641 5b）
+   */
+  protected readonly enrollmentsLoading = signal(true);
   protected readonly notice = signal<InlineNoticeState | null>(null);
   protected readonly conflictPrompt = signal<ConflictPrompt | null>(null);
   protected readonly enrollingClassId = signal<string | null>(null);
@@ -389,7 +397,7 @@ export class StudentDetailPage implements OnInit {
       .subscribe((updated: Enrollment | undefined) => {
         if (!updated) return;
         const id = this.route.snapshot.paramMap.get('id');
-        if (id) this.loadEnrollments(id);
+        if (id) this.loadEnrollments(id, { rows: true });
       });
   }
 
@@ -436,7 +444,7 @@ export class StudentDetailPage implements OnInit {
             detail: `「${s.name}」已加入「${cls.name}」。這筆還沒有計費設定 —— 在下方該筆報名上點「設定計費」補上，否則不會產生帳單。`,
           });
           const id = this.route.snapshot.paramMap.get('id');
-          if (id) this.loadEnrollments(id);
+          if (id) this.loadEnrollments(id, { rows: true });
         },
         error: (err) => {
           this.enrollingClassId.set(null);
@@ -478,17 +486,23 @@ export class StudentDetailPage implements OnInit {
       });
   }
 
-  private loadEnrollments(studentId: string): void {
+  /** `rows`：加入班級／改報名／請假造成的重抓，那一列淡入、淡出或就地更新（#1641 5b） */
+  private loadEnrollments(studentId: string, { rows = false }: { rows?: boolean } = {}): void {
     this.enrollmentsLoading.set(true);
     this.enrollmentsService
       .list({ studentId, pageSize: 50 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.allEnrollments.set(res.data);
           const current = res.data.filter((e) => ['active', 'pending_payment'].includes(e.status));
-          this.enrollments.set(current);
-          this.enrollmentsLoading.set(false);
+          this.viewTransition(
+            () => {
+              this.allEnrollments.set(res.data);
+              this.enrollments.set(current);
+              this.enrollmentsLoading.set(false);
+            },
+            { rows },
+          );
           this.loadAttendance(
             studentId,
             current.map((e) => e.effectiveFrom),
@@ -564,7 +578,7 @@ export class StudentDetailPage implements OnInit {
           detail: `${s.name} 的請假已送出`,
         });
         this.loadLeaves(s.id);
-        this.loadEnrollments(s.id);
+        this.loadEnrollments(s.id, { rows: true });
       });
   }
 

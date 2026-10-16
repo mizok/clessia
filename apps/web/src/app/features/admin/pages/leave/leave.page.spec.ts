@@ -1,4 +1,4 @@
-import { of } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { provideRouter } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
@@ -488,6 +488,37 @@ describe('LeavePage', () => {
       leaveServiceMock.list.mockClear();
       q('next-page')!.click();
       expect(calls()[0][0]['page']).toBe(2);
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 1 點）：完整刪除是樂觀的；截斷那一列不會消失，等伺服器回來
+  describe('刪除的動態（#1641 5b）', () => {
+    const other = { ...activeRecord, id: 'leave-0' };
+    const ids = () => component['records']().map((r: LeaveRequest) => r.id);
+
+    it('完整刪除失敗：那一列放回原位，並跳錯誤 toast', () => {
+      const add = vi.spyOn(messageService, 'add');
+      component['records'].set([other, activeRecord]);
+      leaveServiceMock.delete.mockReturnValueOnce(throwError(() => new Error('x')) as never);
+      component['executeDelete'](activeRecord, 'full', '已刪除', '');
+      expect(ids()).toEqual(['leave-0', 'leave-1']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('完整刪除成功：維持拿掉，背景重抓不變淡', () => {
+      component['records'].set([other, activeRecord]);
+      component['loading'].set(false);
+      leaveServiceMock.list.mockReturnValueOnce(NEVER as never);
+      component['executeDelete'](activeRecord, 'full', '已刪除', '');
+      expect(ids()).toEqual(['leave-0']);
+      expect(component['loading']()).toBe(false);
+    });
+
+    it('截斷：伺服器還沒回時那一列不動', () => {
+      component['records'].set([other, activeRecord]);
+      leaveServiceMock.delete.mockReturnValueOnce(new Subject() as never);
+      component['executeDelete'](activeRecord, 'truncate', '已結束', '');
+      expect(ids()).toEqual(['leave-0', 'leave-1']);
     });
   });
 });

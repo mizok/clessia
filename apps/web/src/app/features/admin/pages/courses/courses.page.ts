@@ -1,3 +1,5 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
   Component,
   DestroyRef,
@@ -88,6 +90,7 @@ interface CourseChapter {
   selector: 'app-courses',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     ChapterHeadComponent,
     PageActionsComponent,
     ClassRowComponent,
@@ -130,6 +133,10 @@ export class CoursesPage implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly browserStateService = inject(BrowserStateService);
   private readonly destroyRef = inject(DestroyRef);
+  /** 重抓的資料平滑換上；增刪改造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  /** 這一輪課程重抓是增刪改造成的 —— 回應套上時列表帶名字、保留展開與勾選 */
+  private reloadRows = false;
   private readonly filterState = inject(CoursesFilterStateService);
 
   protected get overlayContainer(): HTMLElement | null {
@@ -490,9 +497,13 @@ export class CoursesPage implements OnInit {
     });
   }
 
-  protected loadAll(): void {
-    this.loadClasses();
-    this.loadCourses();
+  /**
+   * `quiet`：刪除成功後的背景重抓 —— 畫面已經是「刪掉了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：新增／編輯／刪除／停用造成的重抓，那一列淡入、淡出或就地更新，**展開與勾選保留**。
+   */
+  protected loadAll(options: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.loadClasses(options);
+    this.loadCourses(options);
   }
 
   private loadFilterOptions(): void {
@@ -501,9 +512,9 @@ export class CoursesPage implements OnInit {
     this.refData.loadTeachers();
   }
 
-  private loadClasses(): void {
+  private loadClasses({ rows = false }: { rows?: boolean } = {}): void {
     this.classesService.list({ pageSize: 0 }).subscribe({
-      next: (res) => this.classes.set(res.data),
+      next: (res) => this.viewTransition(() => this.classes.set(res.data), { rows }),
       error: (err) => console.error('Failed to load classes', err),
     });
   }
@@ -532,8 +543,13 @@ export class CoursesPage implements OnInit {
   }
 
   /** 觸發取數。實際的請求在 `setupLoadPipeline()` 的那條 `switchMap` 管線裡（#661） */
-  protected loadCourses(): void {
-    this.loading.set(true);
+  /** `quiet`／`rows` 同 `loadAll`；篩選、換頁不帶，回來時照舊收起展開、清掉勾選 */
+  protected loadCourses({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.reloadRows = rows;
+    if (!quiet) this.loading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
   }
@@ -574,14 +590,25 @@ export class CoursesPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
-        this.courses.set(res.data);
-        this.total.set(res.meta?.total ?? res.data.length);
-        this.subjectCounts.set(
-          Object.fromEntries((res.summary?.bySubject ?? []).map((b) => [b.subjectId, b.count])),
+        const rows = this.reloadRows;
+        this.reloadRows = false;
+        this.viewTransition(
+          () => {
+            this.courses.set(res.data);
+            this.total.set(res.meta?.total ?? res.data.length);
+            this.subjectCounts.set(
+              Object.fromEntries((res.summary?.bySubject ?? []).map((b) => [b.subjectId, b.count])),
+            );
+            // 增刪改造成的重抓保留展開與勾選 —— 否則剛刪掉的那一班所在的課程整組收起來，
+            // 那一列的淡出根本看不到（#1641 5b）。換條件才重設
+            if (!rows) {
+              this.expandedCourseIds.set(new Set());
+              this.selectedClassIds.set(new Set());
+            }
+            this.loading.set(false);
+          },
+          { rows },
         );
-        this.expandedCourseIds.set(new Set());
-        this.selectedClassIds.set(new Set());
-        this.loading.set(false);
       });
   }
 
@@ -955,7 +982,11 @@ export class CoursesPage implements OnInit {
       () => {
         this.classesService.batchDelete(ids).subscribe({
           next: (res) => {
-            this.classes.update((list) => list.filter((cl) => !res.deletedIds.includes(cl.id)));
+            this.viewTransition(
+              () =>
+                this.classes.update((list) => list.filter((cl) => !res.deletedIds.includes(cl.id))),
+              { rows: true },
+            );
             this.selectedClassIds.set(new Set());
             const detail =
               res.skipped > 0
@@ -1001,7 +1032,7 @@ export class CoursesPage implements OnInit {
 
     if (ref)
       ref.onClose.subscribe((result) => {
-        if (result) this.loadAll();
+        if (result) this.loadAll({ rows: true });
       });
   }
 
@@ -1021,7 +1052,7 @@ export class CoursesPage implements OnInit {
     if (ref)
       ref.onClose.subscribe((result: Course | undefined) => {
         if (!result) return;
-        this.loadAll();
+        this.loadAll({ rows: true });
       });
   }
 
@@ -1035,9 +1066,15 @@ export class CoursesPage implements OnInit {
         acceptSeverity: 'danger',
       },
       () => {
+        // 等伺服器確認才淡出（悲觀刪除）—— 全站刪除是樂觀的（#1641 5b 第 1 點），這一頁是例外
+        // （計畫席 10-16 同意盤點時的判準）：課程底下有班就回 409 HAS_CLASSES，很常見
         this.coursesService.delete(course.id).subscribe({
           next: () => {
-            this.loadAll();
+            this.viewTransition(
+              () => this.courses.update((list) => list.filter((c) => c.id !== course.id)),
+              { rows: true },
+            );
+            this.loadAll({ quiet: true, rows: true });
             this.messageService.add({
               severity: 'success',
               summary: '刪除成功',
@@ -1057,7 +1094,7 @@ export class CoursesPage implements OnInit {
                 () => {
                   this.coursesService.update(course.id, { isActive: false }).subscribe({
                     next: () => {
-                      this.loadAll();
+                      this.loadAll({ rows: true });
                       this.messageService.add({
                         severity: 'success',
                         summary: '已停用',
@@ -1103,7 +1140,7 @@ export class CoursesPage implements OnInit {
 
     if (ref)
       ref.onClose.subscribe((result) => {
-        if (result) this.loadAll();
+        if (result) this.loadAll({ rows: true });
       });
   }
 
@@ -1124,7 +1161,7 @@ export class CoursesPage implements OnInit {
 
     if (ref)
       ref.onClose.subscribe((result) => {
-        if (result) this.loadAll();
+        if (result) this.loadAll({ rows: true });
       });
   }
 
@@ -1168,7 +1205,7 @@ export class CoursesPage implements OnInit {
             },
           });
         } else if (result) {
-          this.loadAll();
+          this.loadAll({ rows: true });
         }
       });
   }
@@ -1258,7 +1295,7 @@ export class CoursesPage implements OnInit {
       });
       if (ref)
         ref.onClose.subscribe((result) => {
-          if (result) this.loadAll();
+          if (result) this.loadAll({ rows: true });
         });
     } else {
       this.openConfirmDialog(
@@ -1272,7 +1309,7 @@ export class CoursesPage implements OnInit {
         () => {
           this.classesService.toggleActive(cls.id).subscribe({
             next: () => {
-              this.loadAll();
+              this.loadAll({ rows: true });
               this.messageService.add({
                 severity: 'success',
                 summary: '啟用成功',
@@ -1305,7 +1342,7 @@ export class CoursesPage implements OnInit {
         () => {
           this.classesService.toggleActive(cls.id).subscribe({
             next: () => {
-              this.loadAll();
+              this.loadAll({ rows: true });
               this.messageService.add({
                 severity: 'success',
                 summary: '已停用',
@@ -1334,9 +1371,15 @@ export class CoursesPage implements OnInit {
         acceptSeverity: 'danger',
       },
       () => {
+        // 等伺服器確認才淡出（悲觀刪除，同上）：有歷史課堂、堂數包、帳單都會擋（#1652），
+        // 而且刪班會連帶刪課堂與報名，同頁課程的班數、人數都會變 —— 成功後重抓對齊
         this.classesService.delete(cls.id).subscribe({
           next: () => {
-            this.loadAll();
+            this.viewTransition(
+              () => this.classes.update((list) => list.filter((c) => c.id !== cls.id)),
+              { rows: true },
+            );
+            this.loadAll({ quiet: true, rows: true });
             this.messageService.add({
               severity: 'success',
               summary: '刪除成功',
@@ -1385,7 +1428,7 @@ export class CoursesPage implements OnInit {
           )
           .subscribe({
             next: () => {
-              this.loadAll();
+              this.loadAll({ rows: true });
               this.messageService.add({
                 severity: 'success',
                 summary: '已停用',
