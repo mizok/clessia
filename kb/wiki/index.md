@@ -50,6 +50,7 @@
 - [[architecture/teaching-log-view]] — M1 第一個畫面。選老師 + 期間，列出課堂並加總時數。不計算薪資，設計原則是可追溯——代課、停課、缺點名證據都看得見。
 - [[architecture/timeline-density]] — lane 式時間軸的高度隨並行數長，密集日會把主入口推到摺線下。換成固定高度的密度圖；但「濃度」不能用透明度做——橘帶上整個可用透明度區間只有 1.40:1，編碼必須是柱高。
 - [[architecture/vendor-relationship]] — 賣一套系統、客戶自付基礎設施、收維護費。客戶必須隨時能帶著資料離開 —— 這條原則否決了多租戶，也否決了任何 vendor lock-in。
+- [[architecture/web-push]] — 設計稿（#1626，未批准）。手寫最小 service worker（只處理 push／notificationclick，不攔 fetch、不快取）＋ manifest，不用 @angular/service-worker，所以不碰 #1611 的 immutable 快取與 SPA 改寫。加密與 VAPID 簽章自寫在 WebCrypto 上（RFC 8291／8292，用 RFC 附的測試向量驗），Workers 與 Node 共用。三張表：push_subscriptions（一人多裝置、404/410 自動刪）、notification_preferences（沒有列＝開）、push_deliveries（UNIQUE(user_id, dedupe_key) 去重）。排程是 Cron Trigger 在早上窗口每 10 分鐘呼叫同一支受 CRON_SECRET 保護的端點，每次只送一小批 —— 免費方案每次 Cron 只有 10ms CPU、50 個外部 subrequest，批量是校準旋鈕，動工前先量。
 
 ## Flows (4)
 - [[flows/attendance]] — 本文件整理 PRD 6.4-6.5，並補充 4.16 的模式定義，說明「日到班（Check-in）」如何轉成課堂出勤（Attendance），以及管理員如何補登與補請假。
