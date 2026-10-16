@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import { deriveInvoiceStatus, isOpenInvoice, type PaymentRow } from './invoice-status';
 import { withTx } from './pg-tx';
 import { isAllowedPushEndpoint } from './push-endpoint';
+import { enqueueStaffDigests } from './staff-digests';
 import { buildPushRequest, vapidAuthorization, type VapidKeys } from './web-push';
 
 /**
@@ -60,6 +61,8 @@ export interface PushRunOptions {
 export interface PushRunResult {
   /** 新產生的通知（通知中心看得到的） */
   readonly enqueued: number;
+  /** 新產生的管理員每日摘要（#1693，不推播） */
+  readonly digests: number;
   /** 不推播的（沒有訂閱或偏好關掉） */
   readonly skipped: number;
   readonly attempted: number;
@@ -348,10 +351,31 @@ async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
 }
 
 /**
+ * 管理員的每日摘要（#1693）。包在 SAVEPOINT 裡：它出錯只退它自己那段、只記 log，
+ * 不能拖垮同一個交易裡家長的繳費提醒。
+ */
+async function staffDigests(db: PoolClient, today: string, orgs: Orgs): Promise<number> {
+  await db.query('SAVEPOINT staff_digests');
+  try {
+    const n = await enqueueStaffDigests(db, today, orgs);
+    await db.query('RELEASE SAVEPOINT staff_digests');
+    return n;
+  } catch (err) {
+    await db.query('ROLLBACK TO SAVEPOINT staff_digests');
+    console.error(
+      '[notify] 管理員每日摘要失敗（繳費提醒照常）:',
+      err instanceof Error ? err.message : err,
+    );
+    return 0;
+  }
+}
+
+/**
  * 三段，**對外 fetch 期間沒有任何交易開著**（計畫席 10-16：推播服務慢的話不能拖住交易與鎖；
  * 正式 DB 的 postgres 角色有沒有 idle_in_transaction／statement_timeout 沒有實查，這個形狀不依賴它）：
  *
- * 1. 短交易：重新開放被砍的 → 排入通知（去重鍵冪等）→ 不推播的標 skipped → 認領 → 清 90 天前的通知
+ * 1. 短交易：重新開放被砍的 → 排入通知（去重鍵冪等）→ 管理員每日摘要（SAVEPOINT）→ 不推播的標 skipped →
+ *    認領（這輪排入了摘要就跳過，留給下一輪）→ 清 90 天前的通知
  * 2. 交易外：送出，每次 fetch 逾時 `SEND_TIMEOUT_MS`；全部並行，所以整段最多約一個逾時長
  * 3. 短交易：回寫
  */
@@ -360,20 +384,34 @@ export async function runPush(pool: Pool, opts: PushRunOptions): Promise<PushRun
   const first = await withTx(pool, async (db) => {
     await reopenAbandoned(db, orgs);
     const enqueued = await enqueue(db, opts.today, orgs);
+    const digests = await staffDigests(db, opts.today, orgs);
     const skippedUpfront = await skipUnreachable(db, orgs);
-    const { jobs, skipped } = await claim(db, opts.batchSize, orgs);
+    // 這個 run 排入了摘要 → 先不認領推播，留給 10 分鐘後的下一輪（計畫席 10-16 裁）：
+    // 一天一次的摘要再加上推播（#1657：最大 11ms），會超過免費方案一次 Cron 的 10ms。
+    // 看的是「真的寫進去」而不是「有算」—— 沒有財務管理員的 org 每輪都會算一次，用後者推播會永遠送不出去
+    // ponytail: 那幾輪的重算不擋推播，只吃一點 CPU；升級做法見 staff-digests.ts（記「今天算過了」的日期欄）
+    const { jobs, skipped } =
+      digests > 0 ? { jobs: [], skipped: 0 } : await claim(db, opts.batchSize, orgs);
     const { rowCount } = await db.query(
       `DELETE FROM notifications WHERE created_at < now() - make_interval(days => $1)
        AND ($2::uuid[] IS NULL OR org_id = ANY($2))`,
       [RETENTION_DAYS, orgs],
     );
-    return { enqueued, jobs, skipped: skippedUpfront + skipped, purged: rowCount ?? 0 };
+    return { enqueued, digests, jobs, skipped: skippedUpfront + skipped, purged: rowCount ?? 0 };
   });
-  const { enqueued, jobs, skipped, purged } = first;
+  const { enqueued, digests, jobs, skipped, purged } = first;
   if (jobs.length === 0) {
-    return { enqueued, skipped, attempted: 0, delivered: 0, removedSubscriptions: 0, purged };
+    return {
+      enqueued,
+      digests,
+      skipped,
+      attempted: 0,
+      delivered: 0,
+      removedSubscriptions: 0,
+      purged,
+    };
   }
   const outcomes = await send(jobs, opts);
   const written = await withTx(pool, (db) => writeBack(db, outcomes));
-  return { enqueued, skipped, attempted: jobs.length, ...written, purged };
+  return { enqueued, digests, skipped, attempted: jobs.length, ...written, purged };
 }
