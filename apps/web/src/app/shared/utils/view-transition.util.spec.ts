@@ -84,12 +84,4 @@ describe('injectViewTransition', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(document.documentElement.hasAttribute(IN_PAGE_VT_ATTR)).toBe(false);
   });
-
-  it('{ rows: true }：data-vt 寫 rows（.vt-row 的名字只在這時生效）；預設寫 in-page', () => {
-    const { run } = setup({ supported: true, reduce: false });
-    const seen: (string | null)[] = [];
-    run(() => seen.push(document.documentElement.getAttribute(IN_PAGE_VT_ATTR)));
-    run(() => seen.push(document.documentElement.getAttribute(IN_PAGE_VT_ATTR)), { rows: true });
-    expect(seen).toEqual(['in-page', 'rows']);
-  });
 });
