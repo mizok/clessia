@@ -245,14 +245,30 @@ ALTER TABLE public.organizations
 
 狀態機只看瀏覽器給的事實，不猜：
 
-| 狀態           | 怎麼判斷                                                                                     | 畫面                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| 不支援，可安裝 | iOS 且 不是 standalone（`matchMedia('(display-mode: standalone)')`／`navigator.standalone`） | 「先把 Clessia 加入主畫面」：分享鈕 → 加入主畫面，三步驟圖示；附「iOS 16.4 以上」                       |
-| 不支援         | 沒有 `PushManager` 或 `Notification`，且不是上一列                                           | 「這個瀏覽器收不到通知，請改用電話聯絡補習班」—— 不藏起來，明講                                         |
-| 尚未決定       | `Notification.permission === 'default'`                                                      | 一顆「開啟繳費提醒」按鈕（按了才 `requestPermission`）                                                  |
-| 已開啟         | `granted` 且有訂閱                                                                           | 各類型開關＋「這台裝置已開啟」＋「關閉這台裝置的通知」                                                  |
-| 被拒絕         | `denied`                                                                                     | **瀏覽器不讓網頁再問一次**，只能說明怎麼去系統設定打開（iOS：設定 → 通知 → Clessia；Android：網站設定） |
-| 已授權但沒訂閱 | `granted` 但 `pushManager.getSubscription()` 是 null（換金鑰、被清掉）                       | 開啟時自動重訂，不打擾使用者                                                                            |
+| 狀態           | 怎麼判斷                                                                                     | 畫面                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 不支援，可安裝 | iOS 且 不是 standalone（`matchMedia('(display-mode: standalone)')`／`navigator.standalone`） | 「先把 Clessia 加入主畫面」：分享鈕 → 加入主畫面，三步驟圖示；附「iOS 16.4 以上」                                                       |
+| 不支援         | 沒有 `PushManager` 或 `Notification`，且不是上一列                                           | 「這個瀏覽器收不到通知，請改用電話聯絡補習班」—— 不藏起來，明講                                                                         |
+| 尚未決定       | `Notification.permission === 'default'`                                                      | 一顆「開啟繳費提醒」按鈕（按了才 `requestPermission`）                                                                                  |
+| 已開啟         | `granted` 且有訂閱                                                                           | 各類型開關＋「這台裝置已開啟」＋「關閉這台裝置的通知」                                                                                  |
+| 被拒絕         | `denied`                                                                                     | **瀏覽器不讓網頁再問一次**，只能說明怎麼去系統設定打開（iOS：設定 → 通知 → Clessia；Android：網站設定）                                 |
+| 已授權但沒訂閱 | `granted` 但 `pushManager.getSubscription()` 是 null（換金鑰、被清掉）                       | 開啟時自動重訂，不打擾使用者                                                                                                            |
+| 推播服務沒開   | `granted`，但 `register`／`subscribe` 丟 `DOMException`（Brave 預設關閉 Web Push）           | 說明怎麼打開（Brave：brave://settings/privacy →「Use Google services for push messaging」→ 重新整理），沒有按鈕；註明通知中心照樣收得到 |
+
+**已知限制：Brave 預設關閉 Web Push**（2026-10-16，#1679 實機）。`PushManager`／`Notification` 都在、權限也給得出去，
+但 `subscribe` 會失敗。功能偵測分不出來（Brave 刻意不讓網頁辨識），只能在 `subscribe` 失敗時才知道 → 上表「推播服務沒開」那一列。
+Brave 的使用者要自己到 brave://settings/privacy 打開「Use Google services for push messaging」。
+
+**失敗不能停在「偵測中」**（#1679 實機抓到兩個）：
+
+- 偵測途中伺服器讀寫失敗（讀公鑰、存訂閱）：退回「尚未決定」，那顆「開啟」就是重試，畫面另寫「沒有設定成功」
+- 伺服器沒存到訂閱時，**瀏覽器那一份也要取消**：留著的話下次偵測看到「金鑰相同」就判成「已開啟」，
+  但伺服器根本沒有這台，永遠收不到
+
+**驗收工具的坑**：Playwright 的 `newContext()` 是無痕，無痕沒有 Push API；`headless` 預設的 headless shell 一律拒絕通知權限。
+要 `launchPersistentContext(dir, { channel: 'chromium' })`。而 Chrome for Testing 沒有 Google API 金鑰，訂閱到的是
+`jmt17.google.com`，不在 `lib/push-endpoint.ts` 的白名單裡，所以伺服器回 400 —— **真送到裝置那一段要用真的 Chrome 或手機驗**；
+service worker 的 `push` 處理可以用 CDP `ServiceWorker.deliverPushMessage` 驗。
 
 **入口**：
 
@@ -389,6 +405,15 @@ ALTER TABLE public.organizations
 - **類型開關是「這個人的這個身分」**（`notification_preferences`，帶 `role`），在任何一台裝置上改，所有裝置都生效
 - 第一版兩個類型：「帳單即將到期」、「帳單逾期」；關掉的類型在排入時就被濾掉，不會進佇列
 - 「已開啟通知的裝置」列表（顯示 `user_agent` 的簡化名稱與開啟日期）可以個別移除 —— 手機掉了、換手機時用得到
+- **「這台裝置被關掉了」不自動重訂**（#1663 實作時補，計畫席 10-16 同意）：§4 的「已授權但沒訂閱 → 自動重訂」只適用於換金鑰、
+  訂閱被瀏覽器清掉的情況。**使用者自己按「關閉這台裝置的通知」、以及登出**，留下的也是「已授權但沒訂閱」——
+  不分開的話，關掉的下一秒就被自動打開；更糟的是登出後**下一個登入這台裝置的家長，會因為上一個人授權過而被默默訂閱**
+  （權限是整台裝置、整個網域的，不是跟著帳號）。所以這兩種情況在 `localStorage` 記一個旗標（`clessia:push-off`），
+  有旗標就停在「這台裝置的通知已關閉」＋「開啟這台裝置的通知」，等本人再按一次；按了才清掉旗標。
+  旗標丟了（私密瀏覽、清資料）最壞是自動重訂一次 —— 那是權限本來就允許的狀態，不是越權。
+- **登出前先刪這台裝置的訂閱**（#1663）：`AuthService.signOut` 在清掉 session **之前**呼叫 `DELETE /api/me/push-subscriptions`
+  （要帶登入 cookie），再取消瀏覽器的訂閱並記下上面那個旗標。最多等 3 秒，失敗或逾時照樣登出 —— 網路壞掉不能讓人登不出去；
+  伺服器那筆之後送不到（推播服務回 404／410）會被清掉。
 
 **機構端（行政）**：系統設定「繳費」區塊新增「家長繳費提醒時間點」—— 可新增、刪除，選「到期前 N 天」或「逾期第 N 天」，
 最多 6 個；只有 `manage_finance` 看得到、改得了（Q2）。這取代舊規格的「繳費到期前提醒 3 天」（從未實作），

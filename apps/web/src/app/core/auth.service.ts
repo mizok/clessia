@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '@env/environment';
 import { authClient } from './auth-client';
 import { CampusContextService } from './campus-context.service';
+import { PushService } from './push.service';
 
 export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
 
@@ -41,6 +42,7 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
   private readonly campusCtx = inject(CampusContextService);
+  private readonly push = inject(PushService);
 
   private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(
     null,
@@ -278,6 +280,10 @@ export class AuthService {
   }
 
   async signOut() {
+    // **先刪這台裝置的推播訂閱，再登出**（#1663）：不刪的話，上一個人的繳費提醒會繼續跳到
+    // 這台裝置上 —— 換手機給家人用、補習班櫃台的共用平板都會遇到。DELETE 要帶登入 cookie，
+    // 所以一定排在 signOut 之前；它自己最多等 3 秒，失敗也不擋登出。
+    await this.push.forgetThisDevice();
     await authClient.signOut({ fetchOptions: { credentials: 'include' } });
     this._user.set(null);
     this._profile.set(null);
