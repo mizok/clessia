@@ -124,11 +124,14 @@ export class ShellLayoutComponent {
     // 從它算會黏著頁首邊緣。「更多」鈕桌機縮成 27px 高（#1314 殼層）後不再有這個問題，照稿
     const top = (which === 'more' ? r.bottom : header.bottom) + 8;
     Object.assign(pop.style, { position: 'fixed', left: `${left}px`, top: `${top}px` });
-    if (which === 'more') {
-      // #1701：項目多的角色在矮手機上會被切掉。到可視區底部留 16px，超出就選單自己捲。
-      // popover 在 top layer，`100%` 就是可視高 —— 不用 vh（c6），跟帳戶抽屜的 max-h 同一個寫法
-      pop.style.maxHeight = `calc(100% - ${top + 16}px)`;
-      this.markMoreBelow(pop.querySelector('[data-part="more-scroll"]'));
+    const scroller =
+      which === 'more' && pop.querySelector<HTMLElement>('[data-part="more-scroll"]');
+    if (scroller) {
+      // #1701：項目多的角色在矮手機上會被切掉。選單底到可視區底部留 16px，超出就裡面那層自己捲。
+      // 用 innerHeight 算成 px（不用 vh，c6）；扣掉 popover 的內距與框線。開著時改視窗大小會直接關掉（見下）
+      const chrome = pop.offsetHeight - scroller.offsetHeight;
+      scroller.style.maxHeight = `${Math.max(120, window.innerHeight - top - 16 - chrome)}px`;
+      this.markMoreBelow(scroller);
     }
   }
 

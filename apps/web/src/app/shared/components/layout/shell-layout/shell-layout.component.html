@@ -145,15 +145,16 @@
      還有東西在下面時底部淡出（data-more-below），到底就消失 -->
 @if (nav.moreGroups().length > 0) {
   <div
-    class="m-0 max-w-[calc(100%-32px)] overflow-hidden rounded-lg border border-surface-border bg-white text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] open:flex open:flex-col max-wide:w-[340px] wide:w-fit"
+    class="m-0 max-w-[calc(100%-32px)] rounded-lg border border-surface-border bg-white px-5 py-4 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] max-wide:w-[340px] wide:w-fit"
     id="shell-more"
     popover
     (toggle)="onPopoverToggle($event, 'more')"
   >
-    <!-- 捲動與淡出放在裡面這一層：遮罩掛在 popover 本身會連白底一起淡掉，後面的頁面透出來 -->
+    <!-- 捲動與淡出放在裡面這一層：遮罩掛在 popover 本身會連白底一起淡掉，後面的頁面透出來；
+         popover 本身（內距、display）維持 A6 的樣子 -->
     <div
       data-part="more-scroll"
-      class="min-h-0 overflow-y-auto overscroll-contain px-5 py-4 data-more-below:[mask-image:linear-gradient(to_bottom,#000_calc(100%-48px),transparent)]"
+      class="overflow-y-auto overscroll-contain data-more-below:[mask-image:linear-gradient(to_bottom,#000_calc(100%-48px),transparent)]"
       (scroll)="markMoreBelow($event.target)"
     >
       <div

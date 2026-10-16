@@ -474,16 +474,14 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
      * #1701：手機 360×640 時「更多」被切掉兩項（人員管理、系統設定）。保底：最大高度到可視區底部留 16px，
      * 超出就選單自己捲。選單在 top layer，`100%` 就是可視高 —— 不用 vh（c6）
      */
-    it('更多：最大高度＝可視高扣掉上緣與底部 16px，超出自己捲', async () => {
+    it('更多：捲動層最大高度＝可視高扣掉上緣與底部 16px（px，不用 vh），popover 本身不動', async () => {
       await place('more');
       const pop = document.getElementById('shell-more')!;
-      expect(pop.style.maxHeight).toBe('calc(100% - 65px)'); // 49 + 16
-      // 捲的是裡面那層：popover 本身 flex 欄、超出藏起來
-      expect(pop.classList).toContain('open:flex');
-      expect(pop.querySelector('[data-part="more-scroll"]')!.classList).toContain(
-        'overflow-y-auto',
-      );
-      expect(pop.style.maxHeight).not.toMatch(/v[hw]/);
+      const scroller = pop.querySelector<HTMLElement>('[data-part="more-scroll"]')!;
+      expect(scroller.style.maxHeight).toBe(`${window.innerHeight - 49 - 16}px`);
+      expect(scroller.classList).toContain('overflow-y-auto');
+      expect(pop.style.maxHeight).toBe('');
+      expect(pop.classList).toContain('px-5'); // 內距留在 popover，維持 A6
     });
 
     it('分校：不加最大高度（只有「更多」會長）', async () => {
