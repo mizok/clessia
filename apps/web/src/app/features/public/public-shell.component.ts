@@ -29,9 +29,6 @@ export class PublicShellComponent {
   protected readonly publicRoutes = RoutesCatalog.values.filter((r) => !r.role && r.showInMenu);
   protected readonly formFragment = FORM_FRAGMENT;
   protected readonly loginPath = RoutesCatalog.PUBLIC_LOGIN.absolutePath;
-  /** 入口連結。桌機：13px 細連結、本頁 1.5px 底框；手機：16px/600、高 44、本頁 2px 底框 */
-  protected readonly linkClass =
-    'block border-0 border-b-[1.5px] border-solid border-transparent pb-0.5 text-md leading-normal font-medium text-zinc-900 no-underline opacity-72 transition-[opacity,border-color] duration-150 hover:border-[rgb(26_22_20/40%)] hover:opacity-100 min-[1025px]:pointer-coarse:py-3 max-[1024px]:inline-flex max-[1024px]:min-h-11 max-[1024px]:items-center max-[1024px]:border-b-2 max-[1024px]:p-0 max-[1024px]:text-lg max-[1024px]:font-semibold max-[1024px]:opacity-100';
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -57,13 +54,14 @@ export class PublicShellComponent {
     () => this.path() === RoutesCatalog.PUBLIC_SELECT_ROLE.absolutePath,
   );
   protected readonly page = computed(() => RoutesCatalog.findByAbsolutePath(this.path()));
-  /** 不在四條入口裡的頁（綁定 LINE、選擇身分）：手機上多一條本頁連結，否則從品牌面回不到它 */
-  protected readonly pageOutsideMenu = computed(() => {
-    const page = this.page();
-    return page && !this.publicRoutes.includes(page) ? page : null;
-  });
-
   protected readonly isMobile = signal(false);
+  /** 不在四條入口裡的頁（綁定 LINE、選擇身分）：手機上多一條本頁連結，否則從品牌面回不到它 */
+  protected readonly navItems = computed(() => {
+    const page = this.page();
+    return this.isMobile() && page && !this.publicRoutes.includes(page)
+      ? [page, ...this.publicRoutes]
+      : this.publicRoutes;
+  });
   protected readonly isRight = computed(() => {
     if (!this.isMobile()) return false;
     const url = this.url();

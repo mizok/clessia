@@ -443,6 +443,11 @@
     border: 0;
     border-radius: var(--radius-xl);
   }
+  /* 內距搬到卡片之後，內容區的捲動裁切會切掉選項的焦點框（outline-offset 2px）。
+     最多三個身分，內容不會超過彈窗高度，不需要捲動 */
+  .p-dialog.role-picker-dialog .p-dialog-content {
+    overflow: visible;
+  }
   /* ---- Standard inline header with breadcrumb and close button ---- */
   .dialog-header-inline {
     display: flex;

@@ -20,7 +20,7 @@
     >
       <!-- 手機字標撐到一行放得下的最大（7 個字母約佔 0.72 屏寬） -->
       <a
-        class="mb-8 inline-block self-start max-[1024px]:self-stretch text-[40px] leading-none font-bold tracking-[-0.04em] text-inherit no-underline max-[1024px]:mb-0 max-[1024px]:text-[calc(var(--window-width,390px)*0.14)] max-[1024px]:tracking-[-0.045em]"
+        class="mb-8 inline-block min-h-11 self-start max-[1024px]:self-stretch min-[1025px]:min-h-0 text-[40px] leading-none font-bold tracking-[-0.04em] text-inherit no-underline max-[1024px]:mb-0 max-[1024px]:text-[calc(var(--window-width,390px)*0.14)] max-[1024px]:tracking-[-0.045em]"
         [routerLink]="loginPath"
         >Clessia</a
       >
@@ -43,23 +43,11 @@
       aria-label="公開頁"
       class="relative z-1 mt-auto mb-5 flex flex-wrap gap-x-5 gap-y-2 max-[1024px]:mx-0 max-[1024px]:mt-5 max-[1024px]:mb-0 max-[1024px]:gap-x-6 max-[1024px]:gap-y-3"
     >
-      @if (isMobile() && pageOutsideMenu(); as page) {
-        <a
-          [class]="linkClass"
-          class="border-zinc-900!"
-          [routerLink]="page.absolutePath"
-          [fragment]="formFragment"
-          [state]="pushedState"
-          aria-current="page"
-          >{{ page.label }}</a
-        >
-      }
-      @for (item of publicRoutes; track item.absolutePath) {
+      @for (item of navItems(); track item.absolutePath) {
         @if (isMobile() && isLogin() && item.absolutePath === loginPath) {
           <button
             type="button"
-            [class]="linkClass"
-            class="cursor-pointer border-zinc-900! bg-transparent p-0 font-[inherit]"
+            class="inline-flex min-h-11 items-center border-0 border-b-2 border-solid border-transparent p-0 text-lg leading-normal font-semibold text-zinc-900 no-underline transition-[opacity,border-color] duration-150 hover:border-[rgb(26_22_20/40%)] hover:opacity-100 min-[1025px]:block min-[1025px]:min-h-0 min-[1025px]:border-b-[1.5px] min-[1025px]:pb-0.5 min-[1025px]:text-md min-[1025px]:font-medium min-[1025px]:opacity-72 min-[1025px]:pointer-coarse:py-3 cursor-pointer border-zinc-900! bg-transparent font-[inherit] min-[1025px]:font-semibold! min-[1025px]:opacity-100!"
             popovertarget="login-sheet"
             aria-current="page"
           >
@@ -67,11 +55,11 @@
           </button>
         } @else {
           <a
-            [class]="linkClass"
+            class="inline-flex min-h-11 items-center border-0 border-b-2 border-solid border-transparent p-0 text-lg leading-normal font-semibold text-zinc-900 no-underline transition-[opacity,border-color] duration-150 hover:border-[rgb(26_22_20/40%)] hover:opacity-100 min-[1025px]:block min-[1025px]:min-h-0 min-[1025px]:border-b-[1.5px] min-[1025px]:pb-0.5 min-[1025px]:text-md min-[1025px]:font-medium min-[1025px]:opacity-72 min-[1025px]:pointer-coarse:py-3"
             [routerLink]="item.absolutePath"
             [fragment]="isMobile() ? formFragment : undefined"
             [state]="isMobile() ? pushedState : undefined"
-            routerLinkActive="opacity-100! font-semibold! border-zinc-900!"
+            routerLinkActive="border-zinc-900! min-[1025px]:font-semibold! min-[1025px]:opacity-100!"
             ariaCurrentWhenActive="page"
             [routerLinkActiveOptions]="{
               paths: 'exact',
