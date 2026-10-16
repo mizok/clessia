@@ -947,7 +947,7 @@ export class CoursesPage implements OnInit {
     this.openConfirmDialog(
       '批次刪除',
       {
-        message: `確定要刪除這 ${ids.length} 個班級嗎？已有歷史課堂記錄的班級將自動略過（請改為停用）。此操作無法復原。`,
+        message: `確定要刪除這 ${ids.length} 個班級嗎？已有歷史課堂或堂數包的班級將自動略過（請改為停用）；有帳單的班級會讓整批都不刪。此操作無法復原。`,
         acceptLabel: '刪除',
         rejectLabel: '取消',
         acceptSeverity: 'danger',
@@ -959,7 +959,7 @@ export class CoursesPage implements OnInit {
             this.selectedClassIds.set(new Set());
             const detail =
               res.skipped > 0
-                ? `已刪除 ${res.deleted} 個，略過 ${res.skipped} 個（已有歷史課堂記錄）`
+                ? `已刪除 ${res.deleted} 個，略過 ${res.skipped} 個（已有歷史課堂或堂數包）`
                 : `已刪除 ${res.deleted} 個班級`;
             this.messageService.add({
               severity: res.skipped > 0 ? 'warn' : 'success',
@@ -968,6 +968,14 @@ export class CoursesPage implements OnInit {
             });
           },
           error: (err) => {
+            if (err.error?.code === 'HAS_INVOICE_ITEMS') {
+              const billed = (err.error.classIds as string[])
+                .map((id) => classMap.get(id))
+                .filter((cl): cl is Class => !!cl);
+              const names = billed.map((cl) => `「${cl.name}」`).join('、');
+              this.offerDeactivate(billed, `${names}已經有帳單，不能刪除，這次一個都沒有刪`);
+              return;
+            }
             this.messageService.add({
               severity: 'error',
               summary: '批次刪除失敗',
@@ -1336,6 +1344,10 @@ export class CoursesPage implements OnInit {
             });
           },
           error: (err) => {
+            if (err.error?.code === 'HAS_INVOICE_ITEMS') {
+              this.offerDeactivate([cls], `「${cls.name}」已經有帳單，不能刪除`);
+              return;
+            }
             this.messageService.add({
               severity: 'error',
               summary: '刪除失敗',
@@ -1343,6 +1355,51 @@ export class CoursesPage implements OnInit {
             });
           },
         });
+      },
+    );
+  }
+
+  /**
+   * 有帳單的班不能刪（#1652，使用者裁定）—— 給停用的入口。用 `batchSetActive(…, false)` 而不是
+   * `toggleActive`：後者是翻轉，對已停用的班會變成「啟用」。全都已停用就只說明、不給按鈕。
+   */
+  private offerDeactivate(classes: Class[], reason: string): void {
+    const active = classes.filter((cl) => cl.isActive);
+    if (active.length === 0) {
+      this.messageService.add({ severity: 'error', summary: '無法刪除', detail: reason });
+      return;
+    }
+    this.openConfirmDialog(
+      '無法刪除',
+      {
+        message: `${reason}。是否改為停用？`,
+        acceptLabel: '停用',
+        rejectLabel: '取消',
+        acceptSeverity: 'warn',
+      },
+      () => {
+        this.classesService
+          .batchSetActive(
+            active.map((cl) => cl.id),
+            false,
+          )
+          .subscribe({
+            next: () => {
+              this.loadAll();
+              this.messageService.add({
+                severity: 'success',
+                summary: '已停用',
+                detail: active.map((cl) => `「${cl.name}」`).join('、') + '已停用',
+              });
+            },
+            error: (err) => {
+              this.messageService.add({
+                severity: 'error',
+                summary: '停用失敗',
+                detail: err.error?.error || '請稍後再試',
+              });
+            },
+          });
       },
     );
   }

@@ -1055,4 +1055,68 @@ describe('CoursesPage', () => {
       expect(chapterHeads()).toEqual(['國文']);
     });
   });
+
+  // #1652（使用者裁定）：有帳單的班不能刪，給停用入口；用明確的「設為停用」，不是翻轉
+  describe('刪除被帳單擋下 → 改為停用（#1652）', () => {
+    const cls = (id: string, isActive = true) =>
+      ({
+        id,
+        name: `班${id}`,
+        isActive,
+        hasPastSessions: false,
+        endDate: null,
+      }) as unknown as Class;
+    const billed = (classIds: string[]) =>
+      throwError(() => ({ error: { code: 'HAS_INVOICE_ITEMS', error: 'x', classIds } }));
+
+    type Page = {
+      openConfirmDialog: (h: string, d: { message: string }, ok: () => void) => void;
+      confirmDeleteClass: (c: Class) => void;
+      batchDelete: () => void;
+      classes: { set: (v: Class[]) => void };
+      selectedClassIds: { set: (v: Set<string>) => void };
+    };
+    let page: Page;
+    let dialogs: string[];
+    let add: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      page = component as unknown as Page;
+      dialogs = [];
+      // 確認框一律按「確定」，記下訊息
+      page.openConfirmDialog = (_h, d, ok) => {
+        dialogs.push(d.message);
+        ok();
+      };
+      add = TestBed.inject(MessageService).add as ReturnType<typeof vi.fn>;
+      add.mockClear();
+      classesServiceMock.batchSetActive.mockClear();
+    });
+
+    it('單筆：409 HAS_INVOICE_ITEMS → 問要不要停用 → 設為停用（false），不是翻轉', () => {
+      Object.assign(classesServiceMock, { delete: vi.fn(() => billed(['a'])) });
+      page.confirmDeleteClass(cls('a'));
+      expect(dialogs.at(-1)).toContain('「班a」已經有帳單，不能刪除。是否改為停用？');
+      expect(classesServiceMock.batchSetActive).toHaveBeenCalledWith(['a'], false);
+    });
+
+    it('單筆：班已經停用 → 只說明，不給停用按鈕', () => {
+      Object.assign(classesServiceMock, { delete: vi.fn(() => billed(['a'])) });
+      page.confirmDeleteClass(cls('a', false));
+      expect(dialogs).toHaveLength(1); // 只有刪除確認那一個
+      expect(classesServiceMock.batchSetActive).not.toHaveBeenCalled();
+      expect(add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', detail: '「班a」已經有帳單，不能刪除' }),
+      );
+    });
+
+    it('批次：標出被擋的那幾班、說整批沒刪，只停用那幾班', () => {
+      Object.assign(classesServiceMock, { batchDelete: vi.fn(() => billed(['b'])) });
+      page.classes.set([cls('a'), cls('b')]);
+      page.selectedClassIds.set(new Set(['a', 'b']));
+      page.batchDelete();
+      expect(dialogs.at(-1)).toContain('「班b」已經有帳單，不能刪除，這次一個都沒有刪');
+      expect(classesServiceMock.batchSetActive).toHaveBeenCalledWith(['b'], false);
+    });
+  });
 });
