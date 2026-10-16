@@ -516,9 +516,16 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
 
     it('角標跟著 service 的數字變', async () => {
       const { el, badge, fixture } = await setup(['teacher'], 'teacher', true, { unread: 1 });
+      const num = el.querySelector<HTMLElement>('[data-part=bell-badge]')!;
+      vi.stubGlobal('matchMedia', () => ({ matches: false }));
+      const animate = vi.fn();
+      num.animate = animate;
+
       badge.unread.set(4);
       fixture.detectChanges();
-      expect(el.querySelector('[data-part=bell-badge]')!.textContent!.trim()).toBe('4');
+      expect(num.textContent!.trim()).toBe('4');
+      expect(animate).toHaveBeenCalledTimes(1); // 數字淡入（#1676）
+      vi.unstubAllGlobals();
     });
 
     it('沒有目的地（掃碼機台）：不畫鈴鐺', async () => {

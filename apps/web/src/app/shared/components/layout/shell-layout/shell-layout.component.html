@@ -68,7 +68,7 @@
           }
         }
         <!-- 通知鈴鐺（#1683，A6 偏離：使用者 10-16 指定，a6-adoption-rules R5）：帳戶左邊，桌機手機都在。
-             管理員導到通知中心（發布公告）、沒有角標；老師家長導到收件匣，有未讀才顯示數字 -->
+             管理員導到通知中心（發布公告）、沒有角標；老師家長導到收件匣，有未讀才顯示數字；數字變了淡入（#1676） -->
         @if (nav.notificationsRoute(); as bellRoute) {
           <a
             data-part="bell"
@@ -82,6 +82,7 @@
             @if (badge.hasInbox() && badge.unread() > 0) {
               <span
                 data-part="bell-badge"
+                [appValueArrive]="badgeText()"
                 class="absolute top-1 right-0.5 h-[18px] min-w-[18px] rounded-full bg-accent-vivid px-1 text-center text-[11px] leading-[18px] font-bold text-zinc-900 tabular-nums"
                 aria-hidden="true"
                 >{{ badgeText() }}</span

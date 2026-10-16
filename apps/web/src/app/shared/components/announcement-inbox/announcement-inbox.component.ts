@@ -5,6 +5,7 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   input,
   signal,
@@ -12,6 +13,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
+import { InboxBadgeService } from '@core/inbox-badge.service';
 
 /**
  * 公告收件匣 —— **老師與家長是同一個東西**。
@@ -44,6 +46,7 @@ export class AnnouncementInboxComponent {
 
   private readonly announcementsService = inject(AnnouncementsService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly badge = inject(InboxBadgeService);
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal(false);
@@ -54,6 +57,12 @@ export class AnnouncementInboxComponent {
   protected readonly unread = computed(() => this.announcements().filter((a) => !a.isRead).length);
 
   constructor() {
+    // 讀到、展開、全部標為已讀（含失敗翻回）之後，頂欄角標跟著這裡的數字走，不另外打（#1683）。
+    // 讀取失敗或還在載入時不寫 —— 角標保留它自己抓到的值
+    effect(() => {
+      const n = this.unread();
+      if (!this.loading() && !this.loadError()) this.badge.setAnnouncementsUnread(n);
+    });
     this.load();
   }
 

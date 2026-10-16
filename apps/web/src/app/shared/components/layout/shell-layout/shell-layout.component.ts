@@ -6,6 +6,7 @@ import { InboxBadgeService } from '@core/inbox-badge.service';
 import { NavigationService } from '@core/navigation.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
+import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
@@ -34,6 +35,7 @@ const WIDE = '(min-width: 861px)';
     InheritSizeDirective,
     OverlayContainerDirective,
     GlobalSearchComponent,
+    ValueArriveDirective,
   ],
   providers: [DialogService],
   templateUrl: './shell-layout.component.html',
