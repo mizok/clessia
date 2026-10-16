@@ -7,5 +7,4 @@ export const environment = {
   // 跨站部署時踩過 Partitioned 打斷 OAuth state cookie 的坑。
   // 見 kb/wiki/architecture/line-oauth-login.md
   apiUrl: '',
-  turnstileSiteKey: 'YOUR_TURNSTILE_SITE_KEY',
 };

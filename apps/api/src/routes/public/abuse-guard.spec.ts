@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { altchaPayload } from '../../test-utils/altcha-payload';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 import { publicOrgMiddleware } from '../../lib/public-org';
 import { hashClientIp } from './application-common';
+import captchaRoute from './captcha';
 import enrollmentRoute from './enrollment-applications';
 import trialRoute from './trial-applications';
 
@@ -11,7 +13,8 @@ import trialRoute from './trial-applications';
  * #1126：公開表單的防濫用。順序 honeypot → rate limit → CAPTCHA → 原本的驗證與寫入（便宜的先擋）。
  * - honeypot 有值：回 201 假 id、不寫（不讓機器人知道被擋）
  * - 同來源 1 小時 5 筆、同聯絡方式 24 小時同類 3 筆 → 429；計數存在自己的 DB（c12）
- * - Turnstile 可選：`TURNSTILE_SECRET_KEY` 有設才檢查；驗證服務打不通 → 503（fail-closed）
+ * - 機器人驗證（#1665）：預設 ALTCHA；`CAPTCHA_PROVIDER=turnstile` 改走 Turnstile；
+ *   **兩種都不能被略過** —— 沒帶、驗不過 → 400，設定不完整或驗證服務打不通 → 503（fail-closed）
  */
 
 const ORG = '00000000-0000-0000-0000-00000000000a';
@@ -33,6 +36,7 @@ function seed(existing: Array<Record<string, unknown>> = []) {
         max_students: 20,
         is_active: true,
         end_date: null,
+        is_public_enrollment: true,
         courses: { is_active: true },
       },
     ],
@@ -62,8 +66,17 @@ const enrollmentBody = (extra: Record<string, unknown> = {}) => ({
 async function post(
   db: ReturnType<typeof seed>,
   payload: unknown,
-  opts: { route?: 'enrollment' | 'trial'; env?: Record<string, unknown>; ip?: string | null } = {},
+  opts: {
+    route?: 'enrollment' | 'trial';
+    env?: Record<string, unknown>;
+    ip?: string | null;
+    /** 預設自動附一份有效的 ALTCHA 解答；false＝不附 */
+    captcha?: false;
+  } = {},
 ) {
+  if (opts.captcha !== false && !(payload as { captchaToken?: string }).captchaToken) {
+    payload = { ...(payload as object), captchaToken: await altchaPayload() };
+  }
   const app = new Hono();
   app.use('*', async (c, next) => {
     (c as unknown as { set: (k: string, v: unknown) => void }).set('supabase', db.client);
@@ -235,27 +248,135 @@ describe('rate limit', () => {
   });
 });
 
-describe('CAPTCHA（Turnstile，可選）', () => {
-  const withSecret = { TURNSTILE_SECRET_KEY: 'turnstile-secret' };
-
-  it('沒設 secret：不檢查，也不打 siteverify', async () => {
+describe('機器人驗證：預設 ALTCHA', () => {
+  it('沒設 CAPTCHA_PROVIDER：沒帶解答 → 400 CAPTCHA_FAILED，不寫、不連外', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
+    const db = seed();
+    const { res, json } = await post(db, enrollmentBody(), { captcha: false });
 
-    expect((await post(seed(), enrollmentBody())).res.status).toBe(201);
+    expect(res.status).toBe(400);
+    expect(json.code).toBe('CAPTCHA_FAILED');
+    expect(written(db)).toHaveLength(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('設了：沒帶 token → 400 CAPTCHA_FAILED，不寫', async () => {
+  it('正確的解答通過 → 201，且沒有打任何外部服務（c12）', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
     const db = seed();
-    const { res, json } = await post(db, enrollmentBody(), { env: withSecret });
+    const { res } = await post(db, enrollmentBody({ captchaToken: await altchaPayload() }));
+
+    expect(res.status).toBe(201);
+    expect(written(db)).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('過期的解答被拒 → 400，不寫', async () => {
+    const db = seed();
+    const expired = await altchaPayload({ expiresAt: Math.floor(Date.now() / 1000) - 1 });
+    const { res, json } = await post(db, enrollmentBody({ captchaToken: expired }));
 
     expect(res.status).toBe(400);
     expect(json.code).toBe('CAPTCHA_FAILED');
     expect(written(db)).toHaveLength(0);
   });
 
-  it('設了：siteverify 說不過 → 400；說過 → 201（帶 secret、token、remoteip）', async () => {
+  it('簽章不符被拒：別的金鑰簽的、或題目被改過 → 400', async () => {
+    for (const token of [
+      await altchaPayload({ secret: 'someone-else' }),
+      await altchaPayload({ tamper: true }),
+    ]) {
+      const db = seed();
+      const { res, json } = await post(db, enrollmentBody({ captchaToken: token }));
+      expect(res.status).toBe(400);
+      expect(json.code).toBe('CAPTCHA_FAILED');
+      expect(written(db)).toHaveLength(0);
+    }
+  });
+
+  it('格式壞掉的 payload（含 widget test 模式的 challenge: null）→ 400', async () => {
+    for (const token of [
+      'not-base64!!',
+      btoa('{"x":1}'),
+      btoa(JSON.stringify({ challenge: null, solution: null, test: true })),
+    ]) {
+      const { json } = await post(seed(), enrollmentBody({ captchaToken: token }));
+      expect(json.code).toBe('CAPTCHA_FAILED');
+    }
+  });
+
+  it('設了 ALTCHA_HMAC_KEY：用它簽，BETTER_AUTH_SECRET 衍生的那把就不認', async () => {
+    const env = { ALTCHA_HMAC_KEY: 'dedicated-key' };
+    const viaDedicated = await altchaPayload({ hmacKey: 'dedicated-key' });
+    expect(
+      (await post(seed(), enrollmentBody({ captchaToken: viaDedicated }), { env })).res.status,
+    ).toBe(201);
+    expect(
+      (await post(seed(), enrollmentBody({ captchaToken: await altchaPayload() }), { env })).json
+        .code,
+    ).toBe('CAPTCHA_FAILED');
+  });
+
+  it('不認得的 CAPTCHA_PROVIDER → 503，不退回不驗', async () => {
+    const db = seed();
+    const { res, json } = await post(db, enrollmentBody(), { env: { CAPTCHA_PROVIDER: 'none' } });
+
+    expect(res.status).toBe(503);
+    expect(json.code).toBe('CAPTCHA_UNAVAILABLE');
+    expect(written(db)).toHaveLength(0);
+  });
+
+  it('試聽端點走同一套：沒帶解答 → 400', async () => {
+    const { json } = await post(
+      seed(),
+      {
+        parent: { name: '林爸爸', phone: '0912345678', relation: 'father' },
+        student: { name: '林小美', grade: 'P5', school: '信義國小' },
+        courseIds: [COURSE],
+        consent: true,
+      },
+      { route: 'trial', captcha: false },
+    );
+    expect(json.code).toBe('CAPTCHA_FAILED');
+  });
+});
+
+describe('機器人驗證：CAPTCHA_PROVIDER=turnstile', () => {
+  const turnstile = { CAPTCHA_PROVIDER: 'turnstile', TURNSTILE_SECRET_KEY: 'turnstile-secret' };
+
+  it('沒設 TURNSTILE_SECRET_KEY → 503 拒收（不退回不驗）', async () => {
+    const db = seed();
+    const { res, json } = await post(db, enrollmentBody({ captchaToken: 'x' }), {
+      env: { CAPTCHA_PROVIDER: 'turnstile' },
+    });
+
+    expect(res.status).toBe(503);
+    expect(json.code).toBe('CAPTCHA_UNAVAILABLE');
+    expect(written(db)).toHaveLength(0);
+  });
+
+  it('沒帶 token → 400 CAPTCHA_FAILED，不寫', async () => {
+    const db = seed();
+    const { res, json } = await post(db, enrollmentBody(), { env: turnstile, captcha: false });
+
+    expect(res.status).toBe(400);
+    expect(json.code).toBe('CAPTCHA_FAILED');
+    expect(written(db)).toHaveLength(0);
+  });
+
+  it('ALTCHA 的解答在 turnstile 模式不算數（交給 siteverify 判，說不過 → 400）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false }))),
+    );
+    const { json } = await post(seed(), enrollmentBody({ captchaToken: await altchaPayload() }), {
+      env: turnstile,
+    });
+    expect(json.code).toBe('CAPTCHA_FAILED');
+  });
+
+  it('siteverify 說不過 → 400；說過 → 201（帶 secret、token、remoteip）', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ success: false })))
@@ -263,11 +384,10 @@ describe('CAPTCHA（Turnstile，可選）', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     expect(
-      (await post(seed(), enrollmentBody({ captchaToken: 'bad' }), { env: withSecret })).json.code,
+      (await post(seed(), enrollmentBody({ captchaToken: 'bad' }), { env: turnstile })).json.code,
     ).toBe('CAPTCHA_FAILED');
     expect(
-      (await post(seed(), enrollmentBody({ captchaToken: 'good' }), { env: withSecret })).res
-        .status,
+      (await post(seed(), enrollmentBody({ captchaToken: 'good' }), { env: turnstile })).res.status,
     ).toBe(201);
     const sent = fetchMock.mock.calls[1]![1].body as FormData;
     expect(sent.get('secret')).toBe('turnstile-secret');
@@ -278,12 +398,56 @@ describe('CAPTCHA（Turnstile，可選）', () => {
   it('siteverify 打不通 → 503 CAPTCHA_UNAVAILABLE（不放行），不寫', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')));
     const db = seed();
-    const { res, json } = await post(db, enrollmentBody({ captchaToken: 'x' }), {
-      env: withSecret,
-    });
+    const { res, json } = await post(db, enrollmentBody({ captchaToken: 'x' }), { env: turnstile });
 
     expect(res.status).toBe(503);
     expect(json.code).toBe('CAPTCHA_UNAVAILABLE');
     expect(written(db)).toHaveLength(0);
+  });
+});
+
+describe('GET /api/public/captcha', () => {
+  async function get(env: Record<string, unknown> = {}) {
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const db = seed();
+      (c as unknown as { set: (k: string, v: unknown) => void }).set('supabase', db.client);
+      await next();
+    });
+    app.use('*', publicOrgMiddleware);
+    app.route('/', captchaRoute as unknown as Hono);
+    const res = await app.request(
+      '/',
+      {},
+      { PUBLIC_ORG_SLUG: 'demo', BETTER_AUTH_SECRET: SECRET, ...env },
+    );
+    return { res, json: (await res.json()) as any };
+  }
+
+  it('預設：回一道簽過、10 分鐘後過期的 ALTCHA 題目，不給快取', async () => {
+    const { res, json } = await get();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(json.provider).toBe('altcha');
+    expect(json.challenge.parameters.algorithm).toBe('PBKDF2/SHA-256');
+    expect(json.challenge.parameters.expiresAt).toBe(Math.floor(Date.now() / 1000) + 600);
+    expect(json.challenge.signature).toMatch(/^[0-9a-f]{64}$/);
+    expect(json.challenge.parameters.keySignature).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('turnstile：回 site key；缺 site key 或 secret → 503', async () => {
+    const full = {
+      CAPTCHA_PROVIDER: 'turnstile',
+      TURNSTILE_SECRET_KEY: 's',
+      TURNSTILE_SITE_KEY: 'site-1',
+    };
+    expect((await get(full)).json).toEqual({ provider: 'turnstile', siteKey: 'site-1' });
+    expect((await get({ ...full, TURNSTILE_SITE_KEY: '' })).res.status).toBe(503);
+    expect((await get({ ...full, TURNSTILE_SECRET_KEY: '' })).res.status).toBe(503);
+  });
+
+  it('不認得的 provider → 503', async () => {
+    expect((await get({ CAPTCHA_PROVIDER: 'hcaptcha' })).res.status).toBe(503);
   });
 });

@@ -20,6 +20,7 @@ import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import loginLinksRoute from './routes/login-links';
 import billingPeriodsRoute from './routes/billing-periods';
 import feeTemplatesRoute from './routes/fee-templates';
+import publicCaptchaRoute from './routes/public/captcha';
 import publicCatalogRoute from './routes/public/catalog';
 import publicApplicationsRoute from './routes/public-applications';
 import publicEnrollmentApplicationsRoute from './routes/public/enrollment-applications';
@@ -90,10 +91,16 @@ export type Bindings = {
    */
   PUBLIC_ORG_SLUG?: string;
   /**
-   * Cloudflare Turnstile 的 secret（#1126）—— **可選**：有設才對公開表單強制機器人驗證；
-   * 沒設只剩 rate limit＋honeypot（c12：客戶要能離開 Cloudflare）。走 `wrangler secret put`。
+   * 公開表單的機器人驗證用哪一家（#1665）：`altcha`（預設，自架 PoW、不連外，c12）或 `turnstile`。
+   * 兩種都一律驗，沒有「不驗」的設定（見 `routes/public/application-common.ts` 的 captchaProvider）。
    */
+  CAPTCHA_PROVIDER?: string;
+  /** ALTCHA 題目的 HMAC 金鑰（走 `wrangler secret put`）；可選，沒設從 BETTER_AUTH_SECRET 衍生 */
+  ALTCHA_HMAC_KEY?: string;
+  /** `CAPTCHA_PROVIDER=turnstile` 時必填（`wrangler secret put`）；沒設該模式一律 503 拒收 */
   TURNSTILE_SECRET_KEY?: string;
+  /** `CAPTCHA_PROVIDER=turnstile` 時給前端 widget 的 site key（非機密，`--var`） */
+  TURNSTILE_SITE_KEY?: string;
   /**
    * Web Push 的 VAPID 公鑰（#1659，非機密，`[env.production.vars]`）。**可選**：沒設 = 這份部署沒開推播，
    * `/api/me/push-config` 回 404。產生方式見 `scripts/generate-vapid-keys.ts`（#1657）
@@ -294,6 +301,7 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 // **必須在 authMiddleware 之前**：之後掛的每一支都會先被它要 session。
 app.use('/api/public/*', publicOrgMiddleware);
 app.route('/api/public/catalog', publicCatalogRoute);
+app.route('/api/public/captcha', publicCaptchaRoute);
 app.route('/api/public/enrollment-applications', publicEnrollmentApplicationsRoute);
 app.route('/api/public/trial-applications', publicTrialApplicationsRoute);
 

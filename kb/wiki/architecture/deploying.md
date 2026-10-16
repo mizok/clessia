@@ -138,18 +138,23 @@ Worker route 的優先權高於 Pages，所以 `/api/*` 會被 Worker 接走，�
 沒有它，任何非根路徑重新整理都會 404——Angular 的路由在瀏覽器端，
 `/admin/students` 在伺服器上沒有對應檔案。`200` 是 rewrite 不是 302。
 
-## 公開表單（報名、試聽）的開關與防濫用（#1125、#1126）
+## 公開表單（報名、試聽）的開關與防濫用（#1125、#1126、#1665）
 
-| 設定 | 種類 | 說明 |
-| --- | --- | --- |
-| `PUBLIC_ORG_SLUG` | 非機密（`[env.production.vars]`） | 公開頁屬於哪個 org。**沒設＝所有 `/api/public/*` 回 404**（關著） |
-| `TURNSTILE_SECRET_KEY` | 機密（`wrangler secret put`） | **可選**。有設才對公開表單強制 Cloudflare Turnstile；沒設只剩速率限制＋honeypot。可選是為了 c12：客戶要能離開 Cloudflare（後路：ALTCHA，自架 PoW，未實作） |
+| 設定                   | 種類                              | 說明                                                                                                                           |
+| ---------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `PUBLIC_ORG_SLUG`      | 非機密（`[env.production.vars]`） | 公開頁屬於哪個 org。**沒設＝所有 `/api/public/*` 回 404**（關著）                                                              |
+| `CAPTCHA_PROVIDER`     | 非機密（`--var`／`[vars]`）       | 機器人驗證用哪一家：`altcha`（**預設**，自架 PoW、不連外，c12）或 `turnstile`。**沒有「不驗」的選項**；不認得的值一律 503 拒收 |
+| `ALTCHA_HMAC_KEY`      | 機密（`wrangler secret put`）     | 可選。ALTCHA 題目簽章的金鑰；沒設從 `BETTER_AUTH_SECRET` 衍生，所以少設也不會變成沒驗證                                        |
+| `TURNSTILE_SECRET_KEY` | 機密（`wrangler secret put`）     | `CAPTCHA_PROVIDER=turnstile` 時**必填**；缺了公開表單一律 503（不退回不驗）                                                    |
+| `TURNSTILE_SITE_KEY`   | 非機密（`--var`）                 | `CAPTCHA_PROVIDER=turnstile` 時必填；前端從 `GET /api/public/captcha` 拿，不寫死在 web 的 environment                          |
 
 - **速率限制的計數存在自己的 Postgres**（`public_applications.client_ip_hash`，只存 HMAC），不用 KV／Durable Objects（c12）。
   數字在 `routes/public/application-common.ts` 的 `RATE_LIMITS`（同來源 1 小時 5 筆、同聯絡方式 24 小時同類 3 筆）。
 - 來源 IP 依序讀 `CF-Connecting-IP` → `X-Real-IP` → `X-Forwarded-For`。**Node 自架時必須放在會覆寫這些標頭的反向代理後面**，
   否則對方自己帶標頭就能換「來源」繞過 IP 那條（聯絡方式那條仍在）。
-- **開公開頁之前**：先設好 `TURNSTILE_SECRET_KEY`（或確定不要），再設 `PUBLIC_ORG_SLUG`。
+- **守門順序** honeypot → 速率限制 → 機器人驗證（`guardSubmission`）。ALTCHA 沒有重放防護表：同一份解答 10 分鐘內可重送，
+  速率限制壓住它能拿到的額度；要加的話記在 Postgres，不用 KV（c12）。
+- **開公開頁之前**：預設 ALTCHA 不用另外設；要用 Turnstile 就先設好 `CAPTCHA_PROVIDER=turnstile` 與兩把金鑰，再設 `PUBLIC_ORG_SLUG`。
 
 ## Hyperdrive（正式環境的資料庫連線）
 
@@ -219,11 +224,11 @@ c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑�
 
 **預期與判準 —— 量的時候不要看錯欄位**：
 
-| 端點形狀 | 預期 |
-| --- | --- |
-| 不碰 DB（`system-time`） | **可能略慢**：多一段入口 SJC → 新加坡的轉送。**這不是沒效** |
-| 查 1 次 DB（`magic-verify`） | **大致持平或小降**：往返從「Worker↔DB」移到「入口↔Worker」 |
-| 一個請求依序查 N 次（多數業務 API：auth 身分查詢 + 業務查詢） | **主要受益者**：省下約 (N−1) × 0.36s |
+| 端點形狀                                                      | 預期                                                        |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| 不碰 DB（`system-time`）                                      | **可能略慢**：多一段入口 SJC → 新加坡的轉送。**這不是沒效** |
+| 查 1 次 DB（`magic-verify`）                                  | **大致持平或小降**：往返從「Worker↔DB」移到「入口↔Worker」  |
+| 一個請求依序查 N 次（多數業務 API：auth 身分查詢 + 業務查詢） | **主要受益者**：省下約 (N−1) × 0.36s                        |
 
 依序看三樣：
 
@@ -240,9 +245,9 @@ c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑�
 
 **TTFB（各 10 次中位數，同一台機器、同一支腳本、兩輪確認不是抖動）**：
 
-| 端點 | 部署前 | 部署後 | 差 | 預期 |
-| --- | --- | --- | --- | --- |
-| `system-time`（0 次 DB） | 0.07 / 0.06 | 0.14 / 0.14 | **+0.08** | **略慢 —— 符合**（多一段 TPE→SIN） |
+| 端點                      | 部署前      | 部署後      | 差        | 預期                                  |
+| ------------------------- | ----------- | ----------- | --------- | ------------------------------------- |
+| `system-time`（0 次 DB）  | 0.07 / 0.06 | 0.14 / 0.14 | **+0.08** | **略慢 —— 符合**（多一段 TPE→SIN）    |
 | `magic-verify`（1 次 DB） | 0.26 / 0.23 | 0.17 / 0.16 | **−0.08** | 預期「持平或小降」—— **比預期好一點** |
 
 > **這一組前後都是 `colo=TPE`**（部署前 09:11 與 09:12 兩輪、部署後兩輪，全部 TPE），
@@ -261,10 +266,10 @@ c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑�
 `lib/supabase-latency-probe.ts` 的 `format()` 在 `stats.count === 0` 時回 `null`，
 所以**未登入的請求不會印 `[probe]`** —— 它們一次 DB 都沒查。實測（部署前後各一次，同一方法）：
 
-| | 事件 | 我的請求 | log 筆數 | `[probe]` |
-| --- | --- | --- | --- | --- |
-| 部署前 | 8 | 8 | **17** | **0** |
-| 部署後 | 10 | 10 | **20** | **0** |
+|        | 事件 | 我的請求 | log 筆數 | `[probe]` |
+| ------ | ---- | -------- | -------- | --------- |
+| 部署前 | 8    | 8        | **17**   | **0**     |
+| 部署後 | 10   | 10       | **20**   | **0**     |
 
 **log 筆數非 0 是正控** —— 捕獲管道是活的，所以那個 `0` 是「**沒有 `[probe]` 行**」，
 **不是「log 沒抓到」**。（兩者在 `grep -c` 的輸出上都是 `0`。）
@@ -277,10 +282,10 @@ c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑�
 
 > **判準先寫在前面**（計畫席 2026-10-01 採用）：
 >
-> | 查詢是怎麼跑的 | `wallTime` 會接近 |
-> | --- | --- |
-> | **循序** N 支 | **`合計`**（各查詢耗時的總和） |
-> | **並行** N 支 | **`最慢`**，而 `合計` 明顯大於它 |
+> | 查詢是怎麼跑的 | `wallTime` 會接近                |
+> | -------------- | -------------------------------- |
+> | **循序** N 支  | **`合計`**（各查詢耗時的總和）   |
+> | **並行** N 支  | **`最慢`**，而 `合計` 明顯大於它 |
 >
 > **`合計 / 最慢` 的比值本身就是並行度**：N 支全並行時約等於 N、循序時約等於 1。
 > **判準：`wallTime` 從「≈合計」變成「≈最慢」= 並行生效；沒變 = 沒生效。**
@@ -317,11 +322,11 @@ c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑�
 
 同一台機器、同一支腳本，三次觀察到三個入口機房：
 
-| 時間 | `colo` |
-| --- | --- |
-| 2026-09-30 17:00 | **SJC**（聖荷西） |
-| 2026-10-01 09:1x–10:4x | **TPE**（台北） |
-| 2026-10-01 12:2x | **NRT**（東京） |
+| 時間                   | `colo`            |
+| ---------------------- | ----------------- |
+| 2026-09-30 17:00       | **SJC**（聖荷西） |
+| 2026-10-01 09:1x–10:4x | **TPE**（台北）   |
+| 2026-10-01 12:2x       | **NRT**（東京）   |
 
 **沒有人改過任何設定。** 而入口機房決定了「使用者 → Worker」那一段的距離,
 所以**任何 TTFB 比較都可能在比兩個不同的入口** —— 2026-09-30 → 10-01 那組
@@ -388,14 +393,14 @@ while i < len(s):
 同一天 10:4x 又部署一次（api `07cda777`，**placement 設定完全沒動**、`colo=TPE`、
 `cf-placement: remote-SIN` 都一樣），連量四輪：
 
-| 輪 | `system-time` 中位 | `magic-verify` 中位 |
-| --- | --- | --- |
-| 09:4x ① | 0.14 | 0.17 |
-| 09:4x ② | 0.14 | 0.16 |
-| 10:4x ① | 0.27 | 0.29 |
-| 10:4x ② | 0.17 | 0.29 |
-| 10:4x ③ | 0.20 | 0.28 |
-| 10:4x ④ | 0.18 | 0.19 |
+| 輪      | `system-time` 中位 | `magic-verify` 中位 |
+| ------- | ------------------ | ------------------- |
+| 09:4x ① | 0.14               | 0.17                |
+| 09:4x ② | 0.14               | 0.16                |
+| 10:4x ① | 0.27               | 0.29                |
+| 10:4x ② | 0.17               | 0.29                |
+| 10:4x ③ | 0.20               | 0.28                |
+| 10:4x ④ | 0.18               | 0.19                |
 
 **設定沒變，而 `magic-verify` 的中位數在 0.16～0.29 之間跑** —— **跨度 0.13，
 比上面量到的「placement 讓它快 0.08」還大。**
@@ -412,6 +417,7 @@ while i < len(s):
 > 而我拿它回答了「placement 的效果有多大」—— 那是另一個維度。
 
 **現在能說的**：
+
 - **判準 a 成立**（`cf-placement: remote-SIN`，可重複觀察、不是數字）
 - **0 次 DB 的端點沒有變快**（符合預期）
 - **1 次 DB 的端點：量不出可歸因的差** —— 官方文件本來就說「每個請求只查一次時不會改善」，
@@ -450,16 +456,16 @@ while i < len(s):
 跑 `migrate-plan.mjs` 的 `plan` 拿不到 secret。結構由 `tools/agent-harness/migrate-workflow.test.mjs` 守 ——
 要改 migrate.yml 先讀它。
 
-| 規則 | 理由 |
-| --- | --- |
-| **永不帶 `--include-all`** | 中間漏套（#915 的形狀）時 CLI 會以 `Found local migration files to be inserted before the last migration on remote database.` 拒絕 —— 補哪一支要人決定 |
-| backfill 檔**第一行**寫 `-- clessia:apply after-deploy` | schema 要「套完才部署」、backfill 要「部署完才套」（#905），一次 `db push` 拆不開；有標記的 plan 不自動套，部署完由使用者 dispatch（填 `deployed_sha`） |
+| 規則                                                                                                                                                                      | 理由                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **永不帶 `--include-all`**                                                                                                                                                | 中間漏套（#915 的形狀）時 CLI 會以 `Found local migration files to be inserted before the last migration on remote database.` 拒絕 —— 補哪一支要人決定                                                                                                                                                                                                                                                                                                                                                                                       |
+| backfill 檔**第一行**寫 `-- clessia:apply after-deploy`                                                                                                                   | schema 要「套完才部署」、backfill 要「部署完才套」（#905），一次 `db push` 拆不開；有標記的 plan 不自動套，部署完由使用者 dispatch（填 `deployed_sha`）                                                                                                                                                                                                                                                                                                                                                                                      |
 | schema 與 backfill **同批待套 → 先套 schema，backfill 留著**（plan 判 `apply`、backfill 列 `deferred`；apply 把它從 runner 的 checkout 拿掉再 push；部署完照常 dispatch） | 10-10 事故前這裡是「要分批合、同批 plan 會紅」。`20261010020730_invoice_no` 與它的 backfill 同時進了 main，**之後每顆 main 的 plan 都紅、全部沒部署**；而已提交的 migration 不能改（c3）也不能刪，紅燈沒有出口 —— 規則把一個合併順序的失誤變成整條部署線停擺。拿掉的檔套完後是「本機有、遠端沒有、比遠端最新還新」的正常待套，dispatch 套得上（CLI 2.119.0 對拋棄式 DB 實測）。**只拿正式 DB 還沒有、且第一行真的帶標記的** —— 已在正式 DB 的檔若從本機拿掉，CLI 以 `Remote migration versions not found in local migrations directory` 拒絕 |
-| 同批裡有比 backfill **還新**的 schema → 仍然紅 | 先套它，backfill 就成了「比遠端最新還舊卻沒套」（#915 的形狀），CI 不帶 `--include-all`，dispatch 也套不上。先部署並 dispatch 掉 backfill，這批 schema 才走 |
-| 一支檔是一個隱式 transaction | 失敗整支回滾、不留 history 列。**兩顆 apply 同時被按也靠它**：後到的那顆撞 `schema_migrations` 主鍵、整支回滾（含 DML），不會套兩次（#1146 用 CLI 2.119.0 對拋棄式 DB 實測：計數只 +1） |
-| `CREATE/DROP INDEX CONCURRENTLY`、`REINDEX … CONCURRENTLY`、`VACUUM`、`ALTER SYSTEM`、`CLUSTER` **獨立成一支只有那一句的檔** | CLI 遇到它們會先 flush、單獨執行 —— 同一支檔被拆成多個 transaction。跟 DML 混在一起時，兩顆同時套會讓 DML **套兩次**（#1146 實測：計數 +2） |
-| 套壞了用新的 migration 往前修 | c3：已提交的檔不可改；沒有 down migration |
-| 檔頭寫「套完才部署或部署完才套都安全」要自己核 | 純加欄不等於 api 讀不到也沒事：`20261004031232_billing_reminder_days`（#1307）檔頭說「新程式碼讀不到就退回 14」，但那只對 `upcoming-unbilled` 成立；`routes/org-settings.ts` 的 `SELECT_FIELDS` 也讀新欄，欄位不存在時 `GET／PUT /api/org/settings` 直接報錯。**api 的 select 讀了新欄的 migration 一律是 schema 類，先套完才能部署**（CI 的 migrate→deploy 順序天然滿足，手動先部署 api 就會壞）。已提交的檔不改（c3），記在這裡 |
+| 同批裡有比 backfill **還新**的 schema → 仍然紅                                                                                                                            | 先套它，backfill 就成了「比遠端最新還舊卻沒套」（#915 的形狀），CI 不帶 `--include-all`，dispatch 也套不上。先部署並 dispatch 掉 backfill，這批 schema 才走                                                                                                                                                                                                                                                                                                                                                                                  |
+| 一支檔是一個隱式 transaction                                                                                                                                              | 失敗整支回滾、不留 history 列。**兩顆 apply 同時被按也靠它**：後到的那顆撞 `schema_migrations` 主鍵、整支回滾（含 DML），不會套兩次（#1146 用 CLI 2.119.0 對拋棄式 DB 實測：計數只 +1）                                                                                                                                                                                                                                                                                                                                                      |
+| `CREATE/DROP INDEX CONCURRENTLY`、`REINDEX … CONCURRENTLY`、`VACUUM`、`ALTER SYSTEM`、`CLUSTER` **獨立成一支只有那一句的檔**                                              | CLI 遇到它們會先 flush、單獨執行 —— 同一支檔被拆成多個 transaction。跟 DML 混在一起時，兩顆同時套會讓 DML **套兩次**（#1146 實測：計數 +2）                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 套壞了用新的 migration 往前修                                                                                                                                             | c3：已提交的檔不可改；沒有 down migration                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 檔頭寫「套完才部署或部署完才套都安全」要自己核                                                                                                                            | 純加欄不等於 api 讀不到也沒事：`20261004031232_billing_reminder_days`（#1307）檔頭說「新程式碼讀不到就退回 14」，但那只對 `upcoming-unbilled` 成立；`routes/org-settings.ts` 的 `SELECT_FIELDS` 也讀新欄，欄位不存在時 `GET／PUT /api/org/settings` 直接報錯。**api 的 select 讀了新欄的 migration 一律是 schema 類，先套完才能部署**（CI 的 migrate→deploy 順序天然滿足，手動先部署 api 就會壞）。已提交的檔不改（c3），記在這裡                                                                                                            |
 
 **設定**（一次性，使用者做）：GitHub repo → Settings → Environments 建 `prod-db`（Required reviewers =
 使用者、Deployment branches = `main`）與 `prod-db-plan`（只限 `main`），兩者各放 environment secret
