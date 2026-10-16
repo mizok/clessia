@@ -461,8 +461,12 @@ export class PaymentsPage implements OnInit {
     this.chapters.update((all) => ({ ...all, [key]: { ...all[key], ...patch } }));
   }
 
-  protected toggleChapter(key: ChapterKey): void {
-    const open = !this.chapters()[key].open;
+  /**
+   * `<details name>` 的 toggle（#1705）：使用者點開、或瀏覽器因為同組互斥把它收起來，都走這裡。
+   * 跟狀態一樣就不動 —— `[open]` 綁定自己寫回去的那一次也會發 toggle，不能因此重抓。
+   */
+  protected onChapterToggle(key: ChapterKey, open: boolean): void {
+    if (this.chapters()[key].open === open) return;
     this.patchChapter(key, { open });
     if (open) this.loadChapter(key);
   }

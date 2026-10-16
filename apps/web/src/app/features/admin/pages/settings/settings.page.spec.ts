@@ -192,4 +192,96 @@ describe('SettingsPage', () => {
 
     expect(bodyText()).not.toContain('待開單提醒');
   });
+
+  // #1660（#1626 Q2）：家長繳費提醒時間點
+  describe('家長繳費提醒（#1660）', () => {
+    const WITH_FINANCE: OrgSettings = { ...DAILY_CHECKIN, invoiceReminderOffsets: [-3, 0, 1, 7] };
+    type Page = {
+      newReminderDirection: 'before' | 'after';
+      newReminderDays: number;
+      addReminderOffset: () => void;
+      removeReminderOffset: (o: number) => void;
+      saveReminderOffsets: () => void;
+      pendingReminderOffset: () => number | null;
+      reminderOffsets: () => number[];
+      savingReminderOffsets: () => boolean;
+    };
+    const page = () => component as unknown as Page;
+
+    it('加入比現有值小的天數：清單照時間排序，畫面上「到期前 10 天」在「到期前 3 天」前面', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      page().newReminderDirection = 'before';
+      page().newReminderDays = 10;
+      page().addReminderOffset();
+      expect(page().reminderOffsets()).toEqual([-10, -3, 0, 1, 7]);
+      fixture.detectChanges();
+      const text = bodyText();
+      expect(text.indexOf('到期前 10 天')).toBeGreaterThan(-1);
+      expect(text.indexOf('到期前 10 天')).toBeLessThan(text.indexOf('到期前 3 天'));
+    });
+
+    it('儲存失敗：跳錯誤、按鈕不再 loading（可以再按一次）', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
+      await setup();
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      page().saveReminderOffsets();
+      expect(page().savingReminderOffsets()).toBe(false);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('沒有財務權限（回應沒有這個 key）→ 整張卡不畫', async () => {
+      await setup();
+      expect(bodyText()).not.toContain('家長繳費提醒');
+    });
+
+    it('有財務權限：用人話列出時間點', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      expect(bodyText()).toContain('到期前 3 天');
+      expect(bodyText()).toContain('到期當天');
+      expect(bodyText()).toContain('逾期第 1 天');
+      expect(bodyText()).toContain('逾期第 7 天');
+      // 新模型：沒開推播的家長也有通知（計畫席 10-16 定的文案）
+      expect(bodyText()).toContain('沒開的家長，也會在通知中心看到這則提醒');
+      expect(bodyText()).not.toContain('才收得到');
+    });
+
+    it('加入「逾期 14 天」、移除「到期當天」，儲存送出排序後的值', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      page().newReminderDirection = 'after';
+      page().newReminderDays = 14;
+      page().addReminderOffset();
+      page().removeReminderOffset(0);
+      page().saveReminderOffsets();
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        invoiceReminderOffsets: [-3, 1, 7, 14],
+      });
+    });
+
+    it('重複、範圍外、已滿 6 個都加不進去', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      page().newReminderDirection = 'before';
+      page().newReminderDays = 3; // 已有 -3
+      expect(page().pendingReminderOffset()).toBeNull();
+      page().newReminderDays = 31;
+      expect(page().pendingReminderOffset()).toBeNull();
+      page().newReminderDirection = 'after';
+      page().newReminderDays = 0; // 逾期第 0 天不存在（那是「到期當天」）
+      expect(page().pendingReminderOffset()).toBeNull();
+      page().newReminderDays = 61;
+      expect(page().pendingReminderOffset()).toBeNull();
+
+      for (const d of [20, 30]) {
+        page().newReminderDays = d;
+        page().addReminderOffset();
+      }
+      expect(page().reminderOffsets()).toHaveLength(6);
+      page().newReminderDays = 40;
+      expect(page().pendingReminderOffset()).toBeNull();
+    });
+  });
 });

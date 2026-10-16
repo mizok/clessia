@@ -382,4 +382,24 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       expect(badge.setAnnouncementsUnread).toHaveBeenLastCalledWith(1);
     });
   });
+
+  /** 收件匣自己還沒讀到、或讀不到時，角標保留 InboxBadgeService 自己抓到的值（審核席 #1691 突變） */
+  describe('不寫回角標的時候', () => {
+    it('公告讀取失敗：不寫公告那一支（角標原本是 3 就還是 3）', async () => {
+      mocks([], [notification()]);
+      inboxMock.mockReturnValue(throwError(() => new Error('boom')));
+      await create();
+      expect(badge.setAnnouncementsUnread).not.toHaveBeenCalled();
+      expect(badge.setNotificationsUnread).toHaveBeenLastCalledWith(1);
+    });
+
+    it('載入完成前：兩支都不寫（不會先寫一個 0）', async () => {
+      mocks();
+      inboxMock.mockReturnValue(NEVER);
+      notifInboxMock.mockReturnValue(NEVER);
+      await create();
+      expect(badge.setAnnouncementsUnread).not.toHaveBeenCalled();
+      expect(badge.setNotificationsUnread).not.toHaveBeenCalled();
+    });
+  });
 });
