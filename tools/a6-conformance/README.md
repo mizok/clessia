@@ -49,9 +49,18 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 # 已有在跑的 web：--base-url http://localhost:4205 --head-url http://localhost:4206
 ```
 
-同一個工具版本對兩個 app 版本各跑一次。每個 ref 開臨時 detached worktree（共用 node_modules）、起一個
-web、量完收掉（停 server、移 worktree）。API 與登入兩邊共用，表上會註明。輸出在
-`A6_OUT/compare/<頁>-<base>-<head>.md`：
+同一個工具版本對兩個 app 版本各跑一次。每個 ref **每次執行**開一個自己的臨時 detached worktree
+（`~/.cache/clessia-a6-conformance/wt/<sha>-<pid>-<亂數>`，同時跑幾個 compare 都不互相干擾）、起一個 web、
+量完收掉（停 server、只移自己的 worktree）。API 與登入兩邊共用，表上會註明。
+
+- ref 是分支名時，origin 與本機挑新的那顆（本機有未推的 commit 就用本機）；兩邊分叉就報錯，請直接給 sha
+- 那個 ref 的 `package-lock.json` 跟本 repo 工作目錄的一樣 → 借用本 repo 的 `node_modules`；不一樣 → 在臨時
+  worktree 裡 `npm ci`（log：`~/.cache/clessia-a6-conformance/install-*.log`）
+- 冷編譯可能要幾分鐘（上限 600 秒）。編譯錯誤（`✘ [ERROR]`）會馬上停、報 log 路徑，不量 vite 的錯誤畫面；
+  起不來或編譯失敗時 worktree 留著供查，看完自己刪（`git worktree remove --force <路徑>`）
+- web 的 log：`~/.cache/clessia-a6-conformance/serve-<worktree>-<port>.log`
+
+輸出在 `A6_OUT/compare/<頁>-<base>-<head>.md`：
 
 - 表頭：工具 commit（**有未提交修改會標出來＝不可重現**）、base／head 的 ref 與 sha
 - 每個寬度一張：殼層／頁面 × 待修／已記錄偏離／資料差／工具限制（base → head），全站（#1591）條數與命中處數

@@ -1407,3 +1407,24 @@ test('#1697：整塊搬走的偏離（whole）—— 表單整個進彈窗，裡
     ['已記錄偏離', '待修', '待修'],
   );
 });
+
+test('compare：每次執行一個獨立的 worktree（同 sha 同時兩個 compare 不共用，收尾只刪自己的）', async () => {
+  const { wtDir } = await import('./serve.mjs');
+  const a = wtDir('357c3303');
+  const b = wtDir('357c3303');
+  assert.notEqual(a, b);
+  assert.match(a, new RegExp(`/wt/357c3303-${process.pid}-[0-9a-f]+$`));
+});
+
+test('compare：兩個 compare 同時挑到同一個 port —— 認得出 port 被占（換 port 重起），ready 要是自己的 port', async () => {
+  const { portTaken, isReady } = await import('./serve.mjs');
+  assert.equal(
+    portTaken(
+      " \x1b[41m NX \x1b[0m  Port 4310 is already in use. Use '--port' to specify a different port.",
+    ),
+    true,
+  );
+  assert.equal(portTaken('  ➜  Local:   http://localhost:4310/'), false);
+  assert.equal(isReady('  ➜  Local:   http://localhost:4310/', 4310), true);
+  assert.equal(isReady('  ➜  Local:   http://localhost:4310/', 4311), false);
+});
