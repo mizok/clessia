@@ -33,6 +33,7 @@ describe('CoursesPage', () => {
     list: vi.fn((): Observable<unknown> => of({ data: [] })),
     batchSetActive: vi.fn(() => of({ updated: 0 })),
     delete: vi.fn(),
+    batchDelete: vi.fn(),
   };
   const refDataMock = {
     campuses: signal<unknown[]>([]),
@@ -1172,6 +1173,77 @@ describe('CoursesPage', () => {
       expect(TestBed.inject(MessageService).add).toHaveBeenCalledWith(
         expect.objectContaining({ severity: 'error' }),
       );
+    });
+  });
+
+  // #1641 5b：刪課程（409 HAS_CLASSES 常見）與批次刪班也是悲觀的 —— 審核席 #1674 的突變：
+  // 改成先拿掉 spec 照樣全綠，所以兩條路徑各補「沒回時不動」「失敗一直都在＋toast」
+  describe('刪除課程、批次刪班：悲觀（#1641 5b）', () => {
+    type Page = {
+      courses: { set: (v: unknown[]) => void; (): { id: string }[] };
+      classes: { set: (v: Class[]) => void; (): Class[] };
+      selectedClassIds: { set: (v: Set<string>) => void };
+      confirmDeleteCourse: (c: unknown) => void;
+      batchDelete: () => void;
+    };
+    const page = () => component as unknown as Page;
+    const course = (id: string) => ({ id, name: `課${id}` });
+    const cls = (id: string) => ({ id, courseId: 'course-1', name: `班${id}` }) as Class;
+    const accept = () =>
+      vi
+        .spyOn(fixture.debugElement.injector.get(DialogService), 'open')
+        .mockReturnValue({ onClose: of(true) } as never);
+    const courseIds = () =>
+      page()
+        .courses()
+        .map((c) => c.id);
+    const classIds = () =>
+      page()
+        .classes()
+        .map((c) => c.id);
+    const toastedError = () =>
+      expect(TestBed.inject(MessageService).add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error' }),
+      );
+
+    it('刪課程，伺服器還沒回：那一門課不動', () => {
+      accept();
+      page().courses.set([course('a'), course('b')]);
+      coursesServiceMock.delete.mockReturnValueOnce(new Subject());
+      page().confirmDeleteCourse(course('b'));
+      expect(courseIds()).toEqual(['a', 'b']);
+    });
+
+    it('刪課程失敗：那一門課一直都在，並跳錯誤 toast', () => {
+      accept();
+      page().courses.set([course('a'), course('b')]);
+      coursesServiceMock.delete.mockReturnValueOnce(
+        throwError(() => ({ error: { error: '伺服器錯誤' } })),
+      );
+      page().confirmDeleteCourse(course('b'));
+      expect(courseIds()).toEqual(['a', 'b']);
+      toastedError();
+    });
+
+    it('批次刪班，伺服器還沒回：勾的那幾班不動', () => {
+      accept();
+      page().classes.set([cls('a'), cls('b'), cls('c')]);
+      page().selectedClassIds.set(new Set(['b', 'c']));
+      classesServiceMock.batchDelete.mockReturnValueOnce(new Subject());
+      page().batchDelete();
+      expect(classIds()).toEqual(['a', 'b', 'c']);
+    });
+
+    it('批次刪班失敗：勾的那幾班一直都在，並跳錯誤 toast', () => {
+      accept();
+      page().classes.set([cls('a'), cls('b'), cls('c')]);
+      page().selectedClassIds.set(new Set(['b', 'c']));
+      classesServiceMock.batchDelete.mockReturnValueOnce(
+        throwError(() => ({ error: { error: '伺服器錯誤' } })),
+      );
+      page().batchDelete();
+      expect(classIds()).toEqual(['a', 'b', 'c']);
+      toastedError();
     });
   });
 });
