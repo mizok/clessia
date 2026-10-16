@@ -403,7 +403,26 @@ export const PAGES = {
   leave: { a6: 'leave.html', app: '/admin/leave' },
   staff: { a6: 'staff.html', app: '/admin/staff' },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
-  notifications: { a6: 'notifications.html', app: '/admin/notifications' },
+  notifications: {
+    // 稿預設是「收到的」分頁；app 這頁對應「發布公告」，稿認網址 #publish（稿內說明）
+    a6: 'notifications.html#publish',
+    app: '/admin/notifications',
+    deviations: [
+      {
+        // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
+        status: '缺',
+        a6: 'landmark:main\\[\\]>landmark:form\\[\\]$',
+        reason: '發布表單改成彈窗，頁面只放已發布列表（使用者指定）',
+        source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
+      },
+      {
+        status: '多',
+        app: 'landmark:main\\[\\]>control:button\\[發送通知\\]$',
+        reason: '發布表單改成彈窗：工具列「發送通知」是它的入口',
+        source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
+      },
+    ],
+  },
   meals: { a6: 'meals.html', app: '/admin/meals' },
   reports: { a6: 'reports.html', app: '/admin/reports' },
   'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },

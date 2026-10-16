@@ -1274,3 +1274,21 @@ test('#1639：稿的 button 沒重設 padding（瀏覽器預設 1px 6px）→ ap
   assert.deepEqual(run('button').map((r) => r.bucket), ['工具限制']);
   assert.deepEqual(run('span').map((r) => r.bucket), ['待修']);
 });
+
+test('#1689：通知中心發布表單改彈窗（R5）—— 稿的 main>form 缺、app 的「發送通知」多都算偏離；稿量 #publish 分頁', async () => {
+  const { classify } = await import('./diff.mjs');
+  const { DEVIATIONS, PAGES } = await import('./config.mjs');
+  const n = PAGES.notifications;
+  assert.equal(n.a6, 'notifications.html#publish');
+  const rows = [
+    { status: '缺', kind: 'landmark', a6: 'landmark:main[]>landmark:form[]', app: null },
+    { status: '多', kind: 'control', a6: null, app: 'landmark:main[]>control:button[發送通知]' },
+    { status: '多', kind: 'control', a6: null, app: 'landmark:main[]>control:button[別的]' },
+  ];
+  const out = classify(rows, [...DEVIATIONS, ...n.deviations], 1440);
+  assert.deepEqual(
+    out.map((x) => x.bucket),
+    ['已記錄偏離', '已記錄偏離', '待修'],
+  );
+  assert.match(out[0].dev.source, /（R5）「通知中心發布表單」2026-10-16；#1689/);
+});

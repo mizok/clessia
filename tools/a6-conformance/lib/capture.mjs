@@ -36,7 +36,7 @@ async function growViewport(page, width) {
 
 /** 稿的互動觸發點：從頁內與 a6.js 等腳本原始碼抓 `[data-*]` 選擇器，再數畫面上有幾個。 */
 function hookSelectors(file) {
-  const html = fs.readFileSync(path.join(A6_DIR, file), 'utf8');
+  const html = fs.readFileSync(path.join(A6_DIR, file.split('#')[0]), 'utf8'); // 稿檔可帶 #分頁
   const srcs = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => path.join(A6_DIR, m[1]));
   const text = [
     html,
