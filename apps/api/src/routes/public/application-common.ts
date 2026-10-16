@@ -105,17 +105,21 @@ export async function altchaSecrets(env: { ALTCHA_HMAC_KEY?: string; BETTER_AUTH
 }
 
 /**
- * 出題參數：PBKDF2/SHA-256、counter 5000–10000、10 分鐘過期照 altcha-lib 官方範例；
- * cost 從範例的 5000 降到 1000 —— 實測（10-16，wrangler dev＋Node 單執行緒）cost 5000 要 4.7 秒，
- * 手機會超過設計稿 0.5–2 秒的目標。**暫定值**：PR-4 用 Playwright CPU 降速 4 倍量 widget 後定案，
- * 量到的數字寫回這裡。
+ * 出題參數：PBKDF2/SHA-256、10 分鐘過期照 altcha-lib 官方範例；cost 與 counter 是 #1665 PR-4 量出來的：
+ * Playwright、360 寬、CDP CPU 降速 4 倍、開發版 build，從拿到題目到畫面寫「已通過」——
+ * - 官方範例的 cost 5000：Node 單執行緒就要 4.7 秒（PR-2）
+ * - cost 1000／counter 5000–10000：14–18 秒
+ * - cost 1000／counter 500–1000：中位 4.3 秒（2.4–5.1）
+ * - **cost 500／counter 300–600：中位 2.0 秒、最慢 2.5 秒；不降速 0.3–0.4 秒** ← 採用
+ * 每一次嘗試是一次 WebCrypto 呼叫，呼叫開銷大於 PBKDF2 本身，所以降 counter 比降 cost 有效。
+ * PoW 只是減速帶，擋量靠速率限制（RATE_LIMITS）。
  * 確定式模式（帶 counter＋key 簽章）：伺服器出題算一次 PBKDF2、驗證只做 HMAC，Workers 的 CPU 吃得下。
  * 演算法用 WebCrypto 版（`algorithms/web/*`）—— Workers 與 Node 都有 `crypto.subtle`。
  */
 export const ALTCHA_PARAMS = {
-  cost: 1_000,
-  counterMin: 5_000,
-  counterMax: 10_000,
+  cost: 500,
+  counterMin: 300,
+  counterMax: 600,
   ttlSeconds: 10 * 60,
 } as const;
 

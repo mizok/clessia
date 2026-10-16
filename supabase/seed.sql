@@ -1667,3 +1667,25 @@ BEGIN
 
   RAISE NOTICE '權限矩陣帳號完成（#759）：% 個單一權限 + 1 個空權限', array_length(v_perms, 1);
 END $$;
+
+-- ── send_announcements（#1686）：給 teacher0001 的 admin 身分，不佔 adminNN ─────────────
+-- adminNN 已經用完了：01～09 各一個權限，10 是 `[]`，11 是 `*` 那一欄的對照
+-- （permission-matrix.md）。新建帳號會撞到 c2 的豁免上限。所以這個權限掛在既有的
+-- 多重角色帳號上：admin＋teacher，`["view_reports","send_announcements"]`。
+-- 它剛好也是 #1686 那個回歸的現場：**沒有這個權限、兼任老師的管理員要照樣能標已讀**，
+-- 反過來的情況（有這個權限、以老師身分登入）由這個帳號來驗。
+--
+-- ⚠️ **seed-demo.sql 第 4 段會再寫一次同一列**（後跑的贏，見上面那條 `[]` 的教訓），
+-- 那邊的值要跟這裡一致。只改這裡的話，`db:reset` 之後這個權限會被靜靜蓋掉。
+DO $$
+DECLARE
+  v_uid TEXT;
+BEGIN
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app';
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION '權限矩陣段：找不到 teacher0001，send_announcements 沒有帳號可掛';
+  END IF;
+  INSERT INTO public.user_roles (user_id, role, permissions)
+  VALUES (v_uid, 'admin', to_jsonb(ARRAY['view_reports', 'send_announcements']))
+  ON CONFLICT (user_id, role) DO UPDATE SET permissions = EXCLUDED.permissions;
+END $$;

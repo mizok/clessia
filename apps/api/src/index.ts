@@ -102,6 +102,11 @@ export type Bindings = {
   TURNSTILE_SECRET_KEY?: string;
   /** `CAPTCHA_PROVIDER=turnstile` 時給前端 widget 的 site key（非機密，`--var`） */
   TURNSTILE_SITE_KEY?: string;
+  /**
+   * Web Push 的 VAPID 公鑰（#1659，非機密，`[env.production.vars]`）。**可選**：沒設 = 這份部署沒開推播，
+   * `/api/me/push-config` 回 404。產生方式見 `scripts/generate-vapid-keys.ts`（#1657）
+   */
+  VAPID_PUBLIC_KEY?: string;
 };
 
 export type Variables = {

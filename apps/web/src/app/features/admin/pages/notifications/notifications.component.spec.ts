@@ -4,6 +4,7 @@ import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
+import { AuthService } from '@core/auth.service';
 import { CampusesService } from '@core/campuses.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
@@ -31,6 +32,13 @@ describe('NotificationsComponent（管理端發布）', () => {
   const listMock = vi.fn();
   const createMock = vi.fn();
   const campusesMock = vi.fn();
+  /** #1686：發布要 `send_announcements`。多數測試的主題不是權限，預設有 */
+  let canSend = true;
+  const authStub = { hasPermission: (p: string) => p === 'send_announcements' && canSend };
+
+  beforeEach(() => {
+    canSend = true;
+  });
 
   async function setup(data: Announcement[] = []) {
     listMock.mockReset();
@@ -49,6 +57,7 @@ describe('NotificationsComponent（管理端發布）', () => {
           useValue: { list: listMock, create: createMock },
         },
         { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: AuthService, useValue: authStub },
       ],
     }).compileComponents();
 
@@ -74,6 +83,7 @@ describe('NotificationsComponent（管理端發布）', () => {
         MessageService,
         { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
         { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: AuthService, useValue: authStub },
       ],
     }).compileComponents();
 
@@ -347,6 +357,7 @@ describe('NotificationsComponent（管理端發布）', () => {
           MessageService,
           { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
           { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: AuthService, useValue: authStub },
         ],
       }).compileComponents();
       const f = TestBed.createComponent(NotificationsComponent);
@@ -420,5 +431,22 @@ describe('NotificationsComponent（管理端發布）', () => {
     expect(el.querySelector('.reload-veil--stale')).not.toBeNull();
     expect(el.querySelector('.skeleton-list')).toBeNull();
     expect(el.querySelectorAll('[data-testid="announcement"]').length).toBe(1);
+  });
+
+  describe('「發送通知」權限（#1686）', () => {
+    it('沒有 send_announcements：看不到發布表單，列表照常', async () => {
+      canSend = false;
+      await setup([announcement()]);
+      const el: HTMLElement = fixture.nativeElement;
+
+      expect(el.querySelector('.admin-notifications__composer')).toBeNull();
+      expect(el.querySelectorAll('[data-testid="announcement"]')).toHaveLength(1);
+    });
+
+    it('有 send_announcements：發布表單在', async () => {
+      await setup();
+
+      expect(fixture.nativeElement.querySelector('.admin-notifications__composer')).not.toBeNull();
+    });
   });
 });

@@ -115,6 +115,8 @@ const REQUIRED: Record<string, string> = {
   '/api/me/sessions dateFrom': '{monthStart}',
   '/api/me/sessions dateTo': '{today}',
   '/api/me/catalog childId': '{child}',
+  // 第一版只開家長的通知偏好（#1659）
+  '/api/me/notification-preferences role': 'parent',
 };
 
 /**
@@ -226,7 +228,15 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       Record<string, { parameters?: Array<{ name: string; in: string; required?: boolean }> }>
     >;
   };
-  const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
+  const env = {
+    ENVIRONMENT: 'contract',
+    WEB_URL: 'http://localhost:4200',
+    ALLOWED_ORIGINS: '',
+    // 推播（#1659）：契約要驗的是「開了推播的部署」那條路；沒設時的 404 由 me-push.spec 驗。
+    // 這是 RFC 8291 §5 範例的公鑰（公開測試向量，不是誰的金鑰）
+    VAPID_PUBLIC_KEY:
+      'BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8',
+  };
 
   beforeAll(async () => {
     const supabase = createClient(URL!, KEY!);

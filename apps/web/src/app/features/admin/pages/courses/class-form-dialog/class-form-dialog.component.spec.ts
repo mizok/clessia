@@ -306,6 +306,24 @@ describe('ClassFormDialogComponent', () => {
     expect((classesServiceMock.create as any).mock.calls[0][0].isRecommended).toBe(true);
   });
 
+  /** #1665 Q5′：新班預設開放公開報名（跟 DB 預設一致）；關掉後送出帶 false */
+  it('開放公開報名：預設開、有說明文字，關掉後送出帶 isPublicEnrollment: false', () => {
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('開放公開報名');
+    expect(text).toContain('關掉之後，公開的報名、試聽表單看不到這一班');
+    expect((component as any).isPublicEnrollment()).toBe(true);
+    (component as any).formData.set({
+      name: '測試班級',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+    });
+    (component as any).isPublicEnrollment.set(false);
+    (component as any).save();
+
+    expect((classesServiceMock.create as any).mock.calls[0][0].isPublicEnrollment).toBe(false);
+  });
+
   // #1641 項 5：原本 track $index —— 刪中間一列時 Angular 移掉的是最後一個節點，
   // 再把其餘節點重綁，所以「被刪的那一列淡出」會播在錯的列上
   it('刪掉中間的時段：其餘時段的 DOM 節點不換（track 用穩定 key）', () => {

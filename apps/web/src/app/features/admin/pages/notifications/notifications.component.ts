@@ -24,6 +24,7 @@ import {
   type Announcement,
   type AnnouncementAudience,
 } from '@core/announcements.service';
+import { AuthService } from '@core/auth.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { taipeiDateString } from '@core/system-clock.service';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
@@ -51,6 +52,13 @@ export class NotificationsComponent {
   private readonly campusesService = inject(CampusesService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly messageService = inject(MessageService);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * #1686：發布要「發送通知」權限。沒有的人照樣進得來、看得到已發布的公告（使用者裁定），
+   * 只是看不到發布入口。API 那邊的 POST 也會回 403 —— 這裡只是不讓人填完才被拒。
+   */
+  protected readonly canSend = computed(() => this.auth.hasPermission('send_announcements'));
 
   private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('titleInput');
   private readonly bodyInput = viewChild<ElementRef<HTMLTextAreaElement>>('bodyInput');

@@ -44,4 +44,31 @@ describe('SelectFieldComponent', () => {
     expect(fixture.componentInstance.value()).toBe('v2');
     expect(changes).toContain('v2');
   });
+
+  // #1665 公開表單：表單欄位要 A6 `.acset__l` 的字級、必填星號、驗證沒過的紅框；預設都不變（篩選列照舊）
+  it('預設：標籤 sm、沒有星號、沒有紅框', async () => {
+    const { fixture, select } = await setup(opts(3));
+    const label = fixture.nativeElement.querySelector(`#${select.ariaLabelledBy}`) as HTMLElement;
+    expect(label.classList).toContain('text-sm');
+    expect(label.textContent).not.toContain('*');
+    expect(
+      JSON.stringify((fixture.componentInstance as unknown as { pt: () => unknown }).pt()),
+    ).not.toContain('border-error-700');
+  });
+
+  it('labelSize md、required、invalid：字級 md、星號 aria-hidden、框換錯誤色', async () => {
+    const { fixture } = await setup(opts(3));
+    fixture.componentRef.setInput('labelSize', 'md');
+    fixture.componentRef.setInput('required', true);
+    fixture.componentRef.setInput('invalid', true);
+    fixture.detectChanges();
+    const select = fixture.debugElement.query(By.directive(Select)).componentInstance as Select;
+    const label = fixture.nativeElement.querySelector(`#${select.ariaLabelledBy}`) as HTMLElement;
+
+    expect(label.classList).toContain('text-md');
+    expect(label.querySelector('[aria-hidden="true"]')?.textContent?.trim()).toBe('*');
+    expect(
+      JSON.stringify((fixture.componentInstance as unknown as { pt: () => unknown }).pt()),
+    ).toContain('border-error-700');
+  });
 });
