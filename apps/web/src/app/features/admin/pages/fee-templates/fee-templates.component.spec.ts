@@ -1,6 +1,6 @@
 import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -85,6 +85,7 @@ describe('FeeTemplatesComponent', () => {
     templates: { set: (v: FeeTemplateListItem[]) => void; (): FeeTemplateListItem[] };
     periods: { set: (v: BillingPeriodListItem[]) => void; (): BillingPeriodListItem[] };
     loading: { set: (v: boolean) => void };
+    templatesLoading: () => boolean;
     deleteTemplate: (t: FeeTemplate) => void;
   };
   const internals = () => component as unknown as Internals;
@@ -100,9 +101,10 @@ describe('FeeTemplatesComponent', () => {
 
   /**
    * FK 是 RESTRICT：被報名引用過的價目表刪不掉，後端回 409 `IN_USE`。
-   * 樂觀更新在這裡是錯的 —— 那一列必須留著，因為它其實還在資料庫裡。
+   * 刪除是樂觀的（使用者 10-16 裁定，#1641 5b）—— 按下就淡出，所以**失敗時一定要放回來**：
+   * 它其實還在資料庫裡。
    */
-  it('刪除被引用的價目表失敗時，那一列不會從畫面上消失', () => {
+  it('刪除被引用的價目表失敗時，那一列放回畫面上', () => {
     const existing = template();
     internals().templates.set([existing]);
     feeTemplates.delete.mockReturnValue(
@@ -116,14 +118,17 @@ describe('FeeTemplatesComponent', () => {
     expect(internals().templates()).toEqual([existing]);
   });
 
-  it('刪除成功會重新取數，不是自己從陣列裡挑掉', () => {
+  it('刪除成功：按下就拿掉，並在背景重新取數（不回到骨架、不變淡）', () => {
     const existing = template();
     internals().templates.set([existing]);
+    feeTemplates.list.mockReturnValue(NEVER);
     feeTemplates.list.mockClear();
 
     internals().deleteTemplate(existing);
 
+    expect(internals().templates()).toEqual([]);
     expect(feeTemplates.list).toHaveBeenCalled();
+    expect(internals().templatesLoading()).toBe(false);
   });
 
   it('收費期間依起始日新到舊排序 —— 後端已排好，前端不重排', () => {

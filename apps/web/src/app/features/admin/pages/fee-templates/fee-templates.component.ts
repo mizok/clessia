@@ -8,6 +8,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, switchMap } from 'rxjs';
 import { DecimalPipe } from '@angular/common';
@@ -67,6 +69,7 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     ChapterHeadComponent,
     DecimalPipe,
     FormsModule,
@@ -122,6 +125,10 @@ export class FeeTemplatesComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
+  private readonly optimisticRemove = injectOptimisticRemove();
+  /** 這一輪重抓是新增／刪除／停用造成的 —— 回應套上時列表帶名字（篩選不帶，#1641 5b） */
+  private templatesReloadRows = false;
+  private periodsReloadRows = false;
   protected readonly showInactive = signal(false);
 
   /**
@@ -236,8 +243,13 @@ export class FeeTemplatesComponent implements OnInit {
   // ── 價目表 ────────────────────────────────────────────────────────────────
 
   /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
-  protected loadTemplates(): void {
-    this.templatesLoading.set(true);
+  /** `quiet`：刪除成功後的背景重抓，不再變淡；`rows`：新增／刪除／停用造成的，那一列淡入或淡出（#1641 5b） */
+  protected loadTemplates({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.templatesReloadRows = rows;
+    if (!quiet) this.templatesLoading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
   }
@@ -268,8 +280,14 @@ export class FeeTemplatesComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
-        this.templates.set(res.data);
-        this.templatesLoading.set(false);
+        this.viewTransition(
+          () => {
+            this.templates.set(res.data);
+            this.templatesLoading.set(false);
+          },
+          { rows: this.templatesReloadRows },
+        );
+        this.templatesReloadRows = false;
       });
   }
 
@@ -296,7 +314,7 @@ export class FeeTemplatesComponent implements OnInit {
       data: { template: target ?? null },
     });
     ref?.onClose.subscribe((saved) => {
-      if (saved) this.loadTemplates();
+      if (saved) this.loadTemplates({ rows: true });
     });
   }
 
@@ -308,7 +326,7 @@ export class FeeTemplatesComponent implements OnInit {
           summary: isActive ? '已啟用' : '已停用',
           detail: `「${target.name}」${isActive ? '已重新啟用' : '不會再出現在報名選單'}`,
         });
-        this.loadTemplates();
+        this.loadTemplates({ rows: true });
       },
       error: (err) => {
         this.messageService.add({
@@ -334,51 +352,69 @@ export class FeeTemplatesComponent implements OnInit {
   }
 
   /**
-   * **不做樂觀更新。** FK 是 RESTRICT，被引用過的價目表後端會回 409 `IN_USE` ——
-   * 先從陣列挑掉再回滾，中間那一瞬間畫面是騙人的，而且回滾很容易寫錯。
-   * 成功就重新取數，失敗就只顯示錯誤、什麼都不動。
+   * **樂觀刪除**（使用者 10-16 13:56 裁定，#1641 5b 第 1 點；取代原本「不做樂觀更新」的決定）。
+   *
+   * 原本不做的理由仍然成立：FK 是 RESTRICT，被引用過的價目表後端會回 409 `IN_USE`，
+   * 所以這一頁「先淡出、再回來」比別頁常見。裁定接受這個代價，條件是**失敗一定放回去並說明**——
+   * 回滾收在 `injectOptimisticRemove`（有 spec），這裡只負責說明：`IN_USE` 問要不要改停用，其餘跳 toast。
    */
   private deleteTemplate(target: FeeTemplate): void {
-    this.feeTemplatesService.delete(target.id).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '刪除成功',
-          detail: `「${target.name}」已刪除`,
-        });
-        this.loadTemplates();
+    this.optimisticRemove(
+      this.templates,
+      (t) => t.id === target.id,
+      this.feeTemplatesService.delete(target.id),
+      {
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '刪除成功',
+            detail: `「${target.name}」已刪除`,
+          });
+          this.loadTemplates({ quiet: true, rows: true });
+        },
+        error: (err: any) => {
+          if (err.error?.code === 'IN_USE') {
+            this.confirm(
+              '無法刪除',
+              {
+                message: `「${target.name}」已經被報名引用，不能刪除。是否改為停用？停用後它不會出現在報名選單，但歷史報名仍看得懂。`,
+                acceptLabel: '改為停用',
+                rejectLabel: '取消',
+                acceptSeverity: 'warn',
+              },
+              () => this.setTemplateActive(target, false),
+            );
+            return;
+          }
+          this.messageService.add({
+            severity: 'error',
+            summary: '刪除失敗',
+            detail: err.error?.error || '請稍後再試',
+          });
+        },
       },
-      error: (err) => {
-        if (err.error?.code === 'IN_USE') {
-          this.confirm(
-            '無法刪除',
-            {
-              message: `「${target.name}」已經被報名引用，不能刪除。是否改為停用？停用後它不會出現在報名選單，但歷史報名仍看得懂。`,
-              acceptLabel: '改為停用',
-              rejectLabel: '取消',
-              acceptSeverity: 'warn',
-            },
-            () => this.setTemplateActive(target, false),
-          );
-          return;
-        }
-        this.messageService.add({
-          severity: 'error',
-          summary: '刪除失敗',
-          detail: err.error?.error || '請稍後再試',
-        });
-      },
-    });
+    );
   }
 
   // ── 收費期間 ──────────────────────────────────────────────────────────────
 
-  protected loadPeriods(): void {
-    this.periodsLoading.set(true);
+  /** 同 `loadTemplates` 的 `quiet`／`rows`（#1641 5b） */
+  protected loadPeriods({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.periodsReloadRows = rows;
+    if (!quiet) this.periodsLoading.set(true);
     this.billingPeriodsService.list().subscribe({
       next: (res) => {
-        this.periods.set(res.data);
-        this.periodsLoading.set(false);
+        this.viewTransition(
+          () => {
+            this.periods.set(res.data);
+            this.periodsLoading.set(false);
+          },
+          { rows: this.periodsReloadRows },
+        );
+        this.periodsReloadRows = false;
       },
       error: () => {
         this.messageService.add({
@@ -406,7 +442,7 @@ export class FeeTemplatesComponent implements OnInit {
       data: { period: target ?? null },
     });
     ref?.onClose.subscribe((saved) => {
-      if (saved) this.loadPeriods();
+      if (saved) this.loadPeriods({ rows: true });
     });
   }
 
@@ -423,24 +459,30 @@ export class FeeTemplatesComponent implements OnInit {
     );
   }
 
+  /** 樂觀刪除：先淡出，失敗就放回去並跳 toast（#1641 5b 第 1 點） */
   private deletePeriod(target: BillingPeriod): void {
-    this.billingPeriodsService.delete(target.id).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '刪除成功',
-          detail: `「${target.name}」已刪除`,
-        });
-        this.loadPeriods();
+    this.optimisticRemove(
+      this.periods,
+      (p) => p.id === target.id,
+      this.billingPeriodsService.delete(target.id),
+      {
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '刪除成功',
+            detail: `「${target.name}」已刪除`,
+          });
+          this.loadPeriods({ quiet: true, rows: true });
+        },
+        error: (err: any) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '刪除失敗',
+            detail: err.error?.error || '請稍後再試',
+          });
+        },
       },
-      error: (err) => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '刪除失敗',
-          detail: err.error?.error || '請稍後再試',
-        });
-      },
-    });
+    );
   }
 
   private confirm(header: string, data: ConfirmDialogData, onAccept: () => void): void {
