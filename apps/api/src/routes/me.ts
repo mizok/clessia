@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 import { getAuth } from '../lib/get-auth';
@@ -52,6 +53,25 @@ const PatchMeSchema = z
 
 const ErrorSchema = z.object({ error: z.string(), code: z.string() });
 
+/**
+ * 自己 staff 列的對外暱稱（#1665）。**查不到、或查詢出錯（例如欄位還沒套上）一律當 null**，
+ * 不讓 /api/me 因為一個顯示欄位整支失敗 —— 見 lib/identity-sql.ts 的 MeExtras 註解。
+ */
+async function loadNickname(
+  supabase: SupabaseClient,
+  userId: string,
+  orgId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('staff')
+    .select('nickname')
+    .eq('user_id', userId)
+    .eq('org_id', orgId)
+    .maybeSingle();
+  if (error) return null;
+  return ((data as { nickname?: unknown } | null)?.nickname as string | null | undefined) ?? null;
+}
+
 const app = new OpenAPIHono<AppEnv>();
 
 // GET /api/me
@@ -79,13 +99,18 @@ app.openapi(
     // 先走 SQL（Hyperdrive，一次往返），失敗或形狀不對就走原本的兩支 REST（見 lib/identity-sql.ts）
     const auth = getAuth(c);
     const viaRest = async (): Promise<MeExtras> => {
-      const [p, u] = await Promise.all([
+      const [p, u, nickname] = await Promise.all([
         supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
         supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
+        staff ? loadNickname(supabase, userId, orgId) : null,
       ]);
-      return { profile: p.data as MeExtras['profile'], baUser: u.data as MeExtras['baUser'] };
+      return {
+        profile: p.data as MeExtras['profile'],
+        baUser: u.data as MeExtras['baUser'],
+        nickname,
+      };
     };
-    const { profile, baUser }: MeExtras =
+    const { profile, baUser, nickname }: MeExtras =
       (auth.pool ? await loadMeExtrasViaSql(auth.pool, userId, orgId) : null) ?? (await viaRest());
 
     return c.json(
@@ -102,7 +127,7 @@ app.openapi(
         email: baUser?.email ?? null,
         phone: baUser?.phone ?? null,
         birthday: staff?.birthday ?? null,
-        nickname: staff?.nickname ?? null,
+        nickname: staff ? nickname : null,
         roles: c.get('roles'),
         permissions: c.get('permissions'),
         assignedCampusIds,
@@ -209,11 +234,7 @@ app.openapi(
       [
         supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
         supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-        supabase
-          .from('staff')
-          .select('display_name, birthday, nickname')
-          .eq('user_id', userId)
-          .maybeSingle(),
+        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
         supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
         supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
       ],
@@ -235,7 +256,7 @@ app.openapi(
         email: (baUserResult.data?.email as string | null) ?? null,
         phone: (baUserResult.data?.phone as string | null) ?? null,
         birthday: (staffResult.data?.birthday as string | null) ?? null,
-        nickname: (staffResult.data?.nickname as string | null) ?? null,
+        nickname: staffResult.data ? await loadNickname(supabase, userId, orgId) : null,
         roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
         permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
           Array.isArray(r.permissions) ? (r.permissions as string[]) : [],

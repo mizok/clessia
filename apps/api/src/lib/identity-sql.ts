@@ -32,7 +32,7 @@ export interface Queryable {
  * `$1` = user id（text，= ba_user.id），`$2` = org id（session 的 ba_user.orgId）。
  * - `staff`／`parents` 過濾 `org_id`（c1；唯一鍵是 (user_id, org_id)，#1603）。
  * - `user_roles` **沒有 org_id 欄位**：它的 org 由 ba_user.orgId 決定，一個 user 只屬於一個 org。
- * - 欄位與巢狀形狀照 REST 那三支的 select（`status, display_name, birthday, nickname, staff_campuses(campus_id)`、
+ * - 欄位與巢狀形狀照 REST 那三支的 select（`status, display_name, birthday, staff_campuses(campus_id)`、
  *   `status, name, parent_student_relations(student_id)`、`role, permissions`）。
  */
 export const IDENTITY_SQL = `
@@ -45,7 +45,6 @@ select
   coalesce((
     select json_agg(json_build_object(
       'status', s.status, 'display_name', s.display_name, 'birthday', s.birthday,
-      'nickname', s.nickname,
       'staff_campuses', coalesce((
         select json_agg(json_build_object('campus_id', sc.campus_id))
         from public.staff_campuses sc where sc.staff_id = s.id
@@ -76,7 +75,6 @@ type Loose = Partial<
     | 'status'
     | 'display_name'
     | 'birthday'
-    | 'nickname'
     | 'staff_campuses'
     | 'name'
     | 'parent_student_relations'
@@ -104,7 +102,6 @@ export function parseIdentityRow(rows: unknown[]): IdentityRows | null {
     typeof s.status === 'string' &&
     isStrOrNull(s.display_name) &&
     isStrOrNull(s.birthday) &&
-    isStrOrNull(s.nickname) &&
     listOf(s.staff_campuses, (x) => isObj(x) && typeof x.campus_id === 'string');
   const parentOk = (p: unknown) =>
     isObj(p) &&
@@ -151,25 +148,34 @@ export async function loadIdentityViaSql(
   }
 }
 
-/** `/api/me` 另外要的兩張表：`profiles` 的顯示名稱（舊來源，見 lib/display-name.ts）、`ba_user` 的聯絡資料 */
+/**
+ * `/api/me` 另外要的：`profiles` 的顯示名稱（舊來源，見 lib/display-name.ts）、`ba_user` 的聯絡資料、
+ * 自己 staff 列的對外暱稱（#1665 Q6′）。
+ *
+ * **暱稱刻意不放進 auth middleware 的身分查詢**（計畫席 10-16 裁）：那是每個請求的必經路徑，
+ * 新欄位萬一還沒套上，select 它會全站壞、連 REST 退路一起壞。放在這裡，壞的只有 /api/me，
+ * 而且 REST 那條會把它當成 null 繼續跑（`routes/me.ts` 的 loadNickname）。
+ */
 export interface MeExtras {
   profile: { display_name: string | null } | null;
   baUser: { name: string | null; email: string | null; phone: string | null } | null;
+  nickname: string | null;
 }
 
 /**
  * `ba_user` 只讀不寫（c2）。`$1` user id、`$2` org id。
  * `profiles` **只用 id 查、不過濾 org_id**：它的 org_id 是 Supabase Auth 時代的舊欄位，只有 seed 會寫、
  * 刻意不被信任（`org-source.spec.ts` 守）；`profiles.id` 就是 `ba_user.id`，一個 user 只屬於一個 org。
- * `$2` 沒用到但保留，讓兩支 SQL 的參數形狀一致。
+ * `staff` 的唯一鍵是 (user_id, org_id)（#1603），所以暱稱那個子查詢最多一列。
  */
 export const ME_EXTRAS_SQL = `
 select
   (select pr.display_name from public.profiles pr where pr.id = $1) as profile_display_name,
   (select count(*) from public.profiles pr where pr.id = $1)::int as profile_rows,
+  (select s.nickname from public.staff s where s.user_id = $1 and s.org_id = $2::uuid) as staff_nickname,
   u.name, u.email, u.phone
 from public.ba_user u
-where u.id = $1 and $2::text is not null
+where u.id = $1
 `;
 
 /** 一次往返；失敗或形狀不對回 null（呼叫端走 REST） */
@@ -184,7 +190,7 @@ export async function loadMeExtrasViaSql(
     const ok =
       rows.length === 1 &&
       row !== undefined &&
-      ['profile_display_name', 'name', 'email', 'phone'].every(
+      ['profile_display_name', 'staff_nickname', 'name', 'email', 'phone'].every(
         (k) => row[k] === null || typeof row[k] === 'string',
       ) &&
       (row['profile_rows'] === 0 || row['profile_rows'] === 1);
@@ -202,6 +208,7 @@ export async function loadMeExtrasViaSql(
         email: row['email'] as string | null,
         phone: row['phone'] as string | null,
       },
+      nickname: row['staff_nickname'] as string | null,
     };
   } catch (err) {
     console.error(
