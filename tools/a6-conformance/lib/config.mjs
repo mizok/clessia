@@ -226,6 +226,14 @@ export const PAGES = {
   },
   // 以下只登稿檔 ↔ 路由（#1314 多出功能盤點，10-15）；偏離與情境之後各頁對齊時再補。
   // 詳情頁的 id 取自本機示範庫：張宇軒（資料最完整的學生）、國中數學的第一個班、展示用小考 #90
+  // 入口頁（10-16 使用者：「手機版的入口頁面設計也跟 A6 不一樣」）：各自的登入態。
+  // 登入頁要未登入（guestGuard 會把已登入的轉走）；選身分要多身分帳號（seed 的 teacher0001＝admin＋teacher）
+  login: { a6: 'pub-login.html', app: '/login', state: path.join(cache, 'state-guest.json') },
+  'select-role': {
+    a6: 'pub-select-role.html',
+    app: '/select-role',
+    state: path.join(cache, 'state-multi.json'),
+  },
   student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
   parents: { a6: 'parents.html', app: '/admin/parents' },
   courses: { a6: 'courses.html', app: '/admin/courses' },

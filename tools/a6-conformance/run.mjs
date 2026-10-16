@@ -55,7 +55,7 @@ async function grab(page, source, w, rowParents = []) {
     file: cfg.a6,
     url,
     width: w.width,
-    storageState: source === 'app' ? STATE : undefined,
+    storageState: source === 'app' ? (cfg.state ?? STATE) : undefined,
     appOpen: cfg.appOpen,
     rowParents,
   });
@@ -253,7 +253,7 @@ try {
               source,
               url,
               width: w.width,
-              storageState: source === 'app' ? STATE : undefined,
+              storageState: source === 'app' ? (cfg.state ?? STATE) : undefined,
             });
             const names = await harvestNames(pg, source, ctx);
             const r = await runScenario(pg, { steps: sc[source], names });
