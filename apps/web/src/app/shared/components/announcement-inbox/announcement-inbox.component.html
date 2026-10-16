@@ -20,10 +20,15 @@
         全部標為已讀
       </button>
     }
+    @if (markAllPartial()) {
+      <p class="announcement-inbox__state m-0 text-[0.875rem] text-error-600" role="status">
+        有一部分沒標成，請再按一次。
+      </p>
+    }
   </header>
 
   @if (loading()) {
-    <div class="skeleton-list" aria-label="公告載入中">
+    <div class="skeleton-list" aria-label="通知載入中">
       @for (i of [1, 2, 3]; track i) {
         <span class="skeleton-bar"></span>
       }
@@ -32,53 +37,60 @@
     <p class="announcement-inbox__state announcement-inbox__state--error m-0 text-error-600">
       查詢失敗，請稍後再試。
     </p>
-  } @else if (announcements().length === 0) {
-    <p class="announcement-inbox__state m-0 text-muted">目前沒有公告。</p>
   } @else {
-    <ul class="announcement-inbox__list m-0 flex max-w-[560px] list-none flex-col p-0">
-      @for (item of announcements(); track item.id) {
-        <li
-          class="announcement-inbox__item border-b border-b-solid border-b-surface-border"
-          [class.announcement-inbox__item--unread]="!item.isRead"
-        >
-          <button
-            type="button"
-            class="announcement-inbox__summary flex min-h-11 w-full cursor-pointer flex-wrap items-baseline justify-between gap-2 border-0 bg-transparent px-2 py-3 text-left"
-            (click)="toggle(item)"
+    @if (partialError(); as message) {
+      <p class="announcement-inbox__state announcement-inbox__state--error m-0 text-error-600">
+        {{ message }}
+      </p>
+    }
+    @if (items().length === 0) {
+      <p class="announcement-inbox__state m-0 text-muted">目前沒有通知。</p>
+    } @else {
+      <ul class="announcement-inbox__list m-0 flex max-w-[560px] list-none flex-col p-0">
+        @for (item of items(); track keyOf(item)) {
+          <li
+            class="announcement-inbox__item border-b border-b-solid border-b-surface-border"
+            [class.announcement-inbox__item--unread]="!item.isRead"
           >
-            <span
-              class="announcement-inbox__item-title flex items-center gap-2 text-[1rem]"
-              [class.font-semibold]="!item.isRead"
+            <button
+              type="button"
+              class="announcement-inbox__summary flex min-h-11 w-full cursor-pointer flex-wrap items-baseline justify-between gap-2 border-0 bg-transparent px-2 py-3 text-left"
+              (click)="toggle(item)"
             >
-              @if (!item.isRead) {
-                <span
-                  class="announcement-inbox__dot size-2 rounded-full bg-accent-500"
-                  aria-label="未讀"
-                ></span>
-              }
-              {{ item.title }}
-            </span>
-            <span class="announcement-inbox__meta text-[0.875rem] text-muted">
-              {{ item.publishedAt | date: 'MM/dd HH:mm' }}
-              @if (item.campusName) {
-                · {{ item.campusName }}
-              }
-            </span>
-          </button>
+              <span
+                class="announcement-inbox__item-title flex items-center gap-2 text-[1rem]"
+                [class.font-semibold]="!item.isRead"
+              >
+                @if (!item.isRead) {
+                  <span
+                    class="announcement-inbox__dot size-2 rounded-full bg-accent-500"
+                    aria-label="未讀"
+                  ></span>
+                }
+                {{ item.title }}
+              </span>
+              <span class="announcement-inbox__meta text-[0.875rem] text-muted">
+                {{ item.label }} · {{ item.at | date: 'MM/dd HH:mm' }}
+                @if (item.campusName) {
+                  · {{ item.campusName }}
+                }
+              </span>
+            </button>
 
-          @if (openId() === item.id) {
-            <div class="announcement-inbox__body px-2 pb-3">
-              <!-- prettier-ignore -->
-              <p class="announcement-inbox__text m-0 leading-[1.7] whitespace-pre-wrap">{{ item.body }}</p>
-              @if (item.createdByName) {
-                <p class="announcement-inbox__author mx-0 mt-2 mb-0 text-[0.875rem] text-muted">
-                  —— {{ item.createdByName }}
-                </p>
-              }
-            </div>
-          }
-        </li>
-      }
-    </ul>
+            @if (openKey() === keyOf(item)) {
+              <div class="announcement-inbox__body px-2 pb-3">
+                <!-- prettier-ignore -->
+                <p class="announcement-inbox__text m-0 leading-[1.7] whitespace-pre-wrap">{{ item.body }}</p>
+                @if (item.author) {
+                  <p class="announcement-inbox__author mx-0 mt-2 mb-0 text-[0.875rem] text-muted">
+                    —— {{ item.author }}
+                  </p>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
   }
 </div>
