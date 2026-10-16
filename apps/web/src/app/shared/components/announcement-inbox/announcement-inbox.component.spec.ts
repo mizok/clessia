@@ -402,4 +402,44 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       expect(badge.setNotificationsUnread).not.toHaveBeenCalled();
     });
   });
+
+  /** 審核席 #1710 突變 */
+  describe('全部標為已讀的邊界', () => {
+    it('畫面上的都已讀、但伺服器說還有未讀（清單上限 100 之外）：照樣送出', async () => {
+      mocks([]);
+      notifInboxMock.mockReturnValue(
+        of({ data: [notification({ isRead: true })], meta: { total: 150, unread: 30 } }),
+      );
+      await create();
+      markAllRead();
+      expect(notifMarkAllReadMock).toHaveBeenCalledTimes(1);
+      expect(unread()).toBe(0);
+    });
+
+    it('一邊失敗出現提示 → 再按一次兩邊都成功 → 提示消失', async () => {
+      mocks([announcement({ id: 'a' })], [notification({ id: 'n' })]);
+      notifMarkAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
+      await create();
+      markAllRead();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('有一部分沒標成');
+
+      notifMarkAllReadMock.mockReturnValue(of({ marked: 1 }));
+      markAllRead();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('有一部分沒標成');
+      expect(unread()).toBe(0);
+    });
+  });
+
+  it.each([
+    ['schedule_change', '課務異動'],
+    ['leave_for_my_class', '請假'],
+    ['invoice_overdue', '繳費提醒'],
+    ['something_new', '通知'],
+  ])('通知 kind %s 的標籤是「%s」', async (kind, label) => {
+    await setup([], [notification({ kind })]);
+    expect(items()[0]!.label).toBe(label);
+    expect(fixture.nativeElement.textContent).toContain(`${label} ·`);
+  });
 });
