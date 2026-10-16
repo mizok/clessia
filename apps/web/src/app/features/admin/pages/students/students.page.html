@@ -143,150 +143,152 @@
 </div>
 
 <div class="page-wrap flex flex-col gap-4 pt-0 pb-28 wide:pb-32">
-  @if (loading()) {
-    <div class="skeleton-list">
+  <app-reload-veil [loading]="loading()">
+    <div reloadSkeleton class="skeleton-list">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <span class="skeleton-bar"></span>
       }
     </div>
-  } @else if (loadFailed()) {
-    <app-load-failed description="沒有讀到學生資料，可能是連線問題" (retry)="loadStudents()" />
-  } @else if (students().length === 0) {
-    @if (narrowed()) {
-      <p class="m-0 text-base text-zinc-700">
-        沒有符合「{{ searchQuery() || '這組篩選' }}」的學生。試試只打姓氏，或按
-        <button
-          type="button"
-          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-base font-semibold text-zinc-900 underline underline-offset-4"
-          (click)="clearFilters()"
-        >
-          清除篩選
-        </button>
-        。
-      </p>
-    } @else {
-      <app-empty-state
-        icon="pi pi-users"
-        title="尚未有學生資料"
-        description="學生資料可能由報名流程自動建立，也可以直接在這裡手動新增"
-      >
-        <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-      </app-empty-state>
-    }
-  } @else {
-    <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-    @if (narrowed()) {
-      <p class="m-0 mt-4 flex flex-wrap items-baseline gap-x-3 text-md text-zinc-600 wide:mt-6">
-        <span
-          >顯示 <strong class="text-zinc-900 tabular-nums">{{ total() }}</strong> 位
-          @if (statusFilter() === 'active') {
-            （共 {{ activeStudentCount() }}）
-          }
-        </span>
-        <button
-          type="button"
-          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
-          (click)="clearFilters()"
-        >
-          清除篩選
-        </button>
-      </p>
-    }
-
-    <div>
-      @for (chapter of chapters(); track chapter.grade + chapter.rows[0].id) {
-        <section
-          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
-          [attr.aria-label]="gradeLabels[chapter.grade]"
-          [attr.data-chapter]="chapter.grade"
-        >
-          <app-chapter-head
-            class="block pt-4 wide:pt-8"
-            [name]="gradeLabels[chapter.grade]"
-            [count]="chapterTally(chapter.grade)"
-            unit="位"
-          />
-          <ul
-            class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1 wide:pt-6"
+    @if (loadFailed()) {
+      <app-load-failed description="沒有讀到學生資料，可能是連線問題" (retry)="loadStudents()" />
+    } @else if (students().length === 0) {
+      @if (narrowed()) {
+        <p class="m-0 text-base text-zinc-700">
+          沒有符合「{{ searchQuery() || '這組篩選' }}」的學生。試試只打姓氏，或按
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-base font-semibold text-zinc-900 underline underline-offset-4"
+            (click)="clearFilters()"
           >
-            @for (student of chapter.rows; track student.id) {
-              <li
-                class="group/row relative flex min-w-0 items-center border-b border-zinc-200 wide:block wide:border-b-0"
-                [class.opacity-70]="isQuiet(student)"
-              >
-                <a
-                  [routerLink]="['/admin/students', student.id]"
-                  class="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 py-1 no-underline wide:block wide:min-h-11 wide:py-2"
+            清除篩選
+          </button>
+          。
+        </p>
+      } @else {
+        <app-empty-state
+          icon="pi pi-users"
+          title="尚未有學生資料"
+          description="學生資料可能由報名流程自動建立，也可以直接在這裡手動新增"
+        >
+          <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+        </app-empty-state>
+      }
+    } @else {
+      <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+
+      @if (narrowed()) {
+        <p class="m-0 mt-4 flex flex-wrap items-baseline gap-x-3 text-md text-zinc-600 wide:mt-6">
+          <span
+            >顯示 <strong class="text-zinc-900 tabular-nums">{{ total() }}</strong> 位
+            @if (statusFilter() === 'active') {
+              （共 {{ activeStudentCount() }}）
+            }
+          </span>
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+            (click)="clearFilters()"
+          >
+            清除篩選
+          </button>
+        </p>
+      }
+
+      <div>
+        @for (chapter of chapters(); track chapter.grade + chapter.rows[0].id) {
+          <section
+            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            [attr.aria-label]="gradeLabels[chapter.grade]"
+            [attr.data-chapter]="chapter.grade"
+          >
+            <app-chapter-head
+              class="block pt-4 wide:pt-8"
+              [name]="gradeLabels[chapter.grade]"
+              [count]="chapterTally(chapter.grade)"
+              unit="位"
+            />
+            <ul
+              class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1 wide:pt-6"
+            >
+              @for (student of chapter.rows; track student.id) {
+                <li
+                  class="vt-row group/row relative flex min-w-0 items-center border-b border-zinc-200 wide:block wide:border-b-0"
+                  [class.opacity-70]="isQuiet(student)"
+                  [style.view-transition-name]="'student-' + student.id"
                 >
-                  <span
-                    class="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-[0.01em] underline-offset-4 group-hover/row:underline"
-                    [class.text-zinc-900]="!isQuiet(student)"
-                    [class.text-zinc-600]="isQuiet(student)"
-                    [class.font-medium]="isQuiet(student)"
+                  <a
+                    [routerLink]="['/admin/students', student.id]"
+                    class="flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 py-1 no-underline wide:block wide:min-h-11 wide:py-2"
                   >
-                    <span class="truncate">{{ student.name }}</span>
-                    @if (!student.isActive) {
+                    <span
+                      class="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-[0.01em] underline-offset-4 group-hover/row:underline"
+                      [class.text-zinc-900]="!isQuiet(student)"
+                      [class.text-zinc-600]="isQuiet(student)"
+                      [class.font-medium]="isQuiet(student)"
+                    >
+                      <span class="truncate">{{ student.name }}</span>
+                      @if (!student.isActive) {
+                        <span
+                          class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-zinc-100 text-zinc-700"
+                          >已停用</span
+                        >
+                      } @else if (student.enrollmentState === 'pending_payment') {
+                        <span
+                          class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-warning-50 text-warning-800 shadow-[inset_0_0_0_1px_var(--warning-200)]"
+                          >{{ flagLabels.pending_payment }}</span
+                        >
+                      } @else if (student.enrollmentState === 'suspended') {
+                        <span
+                          class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-zinc-100 text-zinc-700"
+                          >{{ flagLabels.suspended }}</span
+                        >
+                      } @else if (student.enrollmentState === 'withdrawal') {
+                        <span
+                          class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap text-zinc-700 shadow-[inset_0_0_0_1px_var(--zinc-300)]"
+                          >{{ flagLabels.withdrawal }}</span
+                        >
+                      }
+                    </span>
+                    @if (todayMeta(student); as meta) {
                       <span
-                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-zinc-100 text-zinc-700"
-                        >已停用</span
-                      >
-                    } @else if (student.enrollmentState === 'pending_payment') {
-                      <span
-                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-warning-50 text-warning-800 shadow-[inset_0_0_0_1px_var(--warning-200)]"
-                        >{{ flagLabels.pending_payment }}</span
-                      >
-                    } @else if (student.enrollmentState === 'suspended') {
-                      <span
-                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-zinc-100 text-zinc-700"
-                        >{{ flagLabels.suspended }}</span
-                      >
-                    } @else if (student.enrollmentState === 'withdrawal') {
-                      <span
-                        class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap text-zinc-700 shadow-[inset_0_0_0_1px_var(--zinc-300)]"
-                        >{{ flagLabels.withdrawal }}</span
+                        class="flex-none text-sm whitespace-nowrap tabular-nums wide:mt-px wide:block"
+                        [class.text-zinc-600]="!meta.missing"
+                        [class.text-error-700]="meta.missing"
+                        [class.font-semibold]="meta.missing"
+                        >{{ meta.text }}</span
                       >
                     }
-                  </span>
-                  @if (todayMeta(student); as meta) {
-                    <span
-                      class="flex-none text-sm whitespace-nowrap tabular-nums wide:mt-px wide:block"
-                      [class.text-zinc-600]="!meta.missing"
-                      [class.text-error-700]="meta.missing"
-                      [class.font-semibold]="meta.missing"
-                      >{{ meta.text }}</span
-                    >
-                  }
-                </a>
-                <!-- 現況有、A6 沒畫：編輯／停用／刪除／列印這張到班卡。桌機 hover／focus 才出現，觸控裝置一直在 -->
-                <div
-                  class="flex-none wide:absolute wide:top-1/2 wide:right-0 wide:-translate-y-1/2 wide:opacity-0 wide:group-focus-within/row:opacity-100 wide:group-hover/row:opacity-100 [@media(hover:none)]:opacity-100"
-                >
-                  <p-button
-                    icon="pi pi-ellipsis-h"
-                    [rounded]="true"
-                    [text]="true"
-                    severity="secondary"
-                    [ariaLabel]="student.name + ' 的更多動作'"
-                    (onClick)="openActionMenu($event, student)"
-                  />
-                </div>
-              </li>
-            }
-          </ul>
-        </section>
-      }
-    </div>
+                  </a>
+                  <!-- 現況有、A6 沒畫：編輯／停用／刪除／列印這張到班卡。桌機 hover／focus 才出現，觸控裝置一直在 -->
+                  <div
+                    class="flex-none wide:absolute wide:top-1/2 wide:right-0 wide:-translate-y-1/2 wide:opacity-0 wide:group-focus-within/row:opacity-100 wide:group-hover/row:opacity-100 [@media(hover:none)]:opacity-100"
+                  >
+                    <p-button
+                      icon="pi pi-ellipsis-h"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      [ariaLabel]="student.name + ' 的更多動作'"
+                      (onClick)="openActionMenu($event, student)"
+                    />
+                  </div>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      </div>
 
-    @if (total() > PAGE_SIZE) {
-      <p-paginator
-        [first]="pageFirst()"
-        [rows]="PAGE_SIZE"
-        [totalRecords]="total()"
-        [showCurrentPageReport]="true"
-        currentPageReportTemplate="第 {currentPage} / {totalPages} 頁，共 {totalRecords} 位"
-        (onPageChange)="onPage($event)"
-      />
+      @if (total() > PAGE_SIZE) {
+        <p-paginator
+          [first]="pageFirst()"
+          [rows]="PAGE_SIZE"
+          [totalRecords]="total()"
+          [showCurrentPageReport]="true"
+          currentPageReportTemplate="第 {currentPage} / {totalPages} 頁，共 {totalRecords} 位"
+          (onPageChange)="onPage($event)"
+        />
+      }
     }
-  }
+  </app-reload-veil>
 </div>

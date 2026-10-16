@@ -50,10 +50,12 @@ import {
             載入中…
           </p>
         }
-        <!-- 變淡 140ms --leave、回來 200ms --arrive（同 #1634：出場比進場短） -->
+        <!-- 變淡 140ms --leave、回來 200ms --arrive（同 #1634：出場比進場短）。
+             兩條都掛 motion-safe：變淡那條是任意變體，比 motion-reduce:transition-none 更具體，
+             原本會蓋過它 —— 開了「減少動態」照樣淡 140ms（#1641 5b 錄影抓到） -->
         <!-- inert：滑鼠和鍵盤都碰不到舊內容（不只 pointer-events —— 審核席 #1648） -->
         <div
-          class="reload-veil__body [transition:opacity_200ms_var(--arrive)] motion-reduce:transition-none [.reload-veil--stale>&]:opacity-40 [.reload-veil--stale>&]:[transition:opacity_140ms_var(--leave)]"
+          class="reload-veil__body motion-safe:[transition:opacity_200ms_var(--arrive)] [.reload-veil--stale>&]:opacity-40 motion-safe:[.reload-veil--stale>&]:[transition:opacity_140ms_var(--leave)]"
           [inert]="phase() === 'stale'"
         >
           <ng-content />
