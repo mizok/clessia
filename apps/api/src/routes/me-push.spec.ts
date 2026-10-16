@@ -105,7 +105,9 @@ describe('isAllowedPushEndpoint', () => {
     ['https://fcm.googleapis.com.evil.example.com/x', false],
     ['https://evil.com/?x=fcm.googleapis.com', false], // 網域藏在 query 裡
     ['https://x.fcm.googleapis.com/fcm/send/abc', false], // 逐字比對，不收子網域
-    ['https://push.apple.com/abc', false], // 只收 web.push.apple.com
+    ['https://push.apple.com/abc', false], // 後綴要以「.」接，裸網域不算
+    ['https://api.push.apple.com/abc', true], // WebKit 官方範圍 *.push.apple.com
+    ['https://evilpush.apple.com/abc', false],
     ['https://evilnotify.windows.com/x', false], // WNS 後綴要以「.」接
     ['https://user:pw@fcm.googleapis.com/x', false], // 帶帳密
     ['not a url', false],
