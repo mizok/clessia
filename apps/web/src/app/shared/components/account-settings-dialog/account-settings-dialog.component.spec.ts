@@ -63,6 +63,24 @@ describe('AccountSettingsDialogComponent —— 啟用家長身份（#1631）', 
     http.verify();
   });
 
+  it.each([
+    ['不含 parent', ['admin']],
+    ['空陣列', []],
+  ])('回 200 但角色%s：不套用、不跳成功、顯示錯誤、按鈕還在', (_label, roles) => {
+    const { fixture, http, auth, add, activate } = setup();
+    const el = fixture.nativeElement as HTMLElement;
+
+    activate();
+    http.expectOne((r) => r.url.endsWith('/api/me/activate-parent')).flush({ roles });
+    fixture.detectChanges();
+
+    expect(auth.adoptRoles).not.toHaveBeenCalled();
+    expect(auth.roles()).toEqual(['admin']);
+    expect(add).not.toHaveBeenCalled();
+    expect(el.textContent).toContain('啟用失敗');
+    expect(el.textContent).toContain('啟用家長身份');
+  });
+
   it('失敗：角色不變、顯示錯誤、按鈕還在', () => {
     const { fixture, http, auth, add, activate } = setup();
     const el = fixture.nativeElement as HTMLElement;

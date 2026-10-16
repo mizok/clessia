@@ -297,14 +297,20 @@ app.openapi(
       return c.json({ error: '賦予角色失敗', code: 'GRANT_ROLE_FAILED' }, 500);
     }
 
-    const { data: rolesResult } = await supabase
+    // 寫入成功就清（#1631）：這個請求經過 middleware 時剛把**沒有 parent** 的身分存進快取，
+    // 不清的話前端接著打的 /api/me 在同一個 isolate 會拿到舊角色，30 秒內畫面毫無變化。
+    // 放在讀回之前：讀回失敗時寫入已經生效，快取裡那份確定是舊的，清掉只會多一次重查，不會放行
+    invalidateIdentity(userId);
+
+    const { data: rolesResult, error: rolesError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId);
 
-    // 寫入成功才清（#1631）：這個請求經過 middleware 時剛把**沒有 parent** 的身分存進快取，
-    // 不清的話前端接著打的 /api/me 在同一個 isolate 會拿到舊角色，30 秒內畫面毫無變化
-    invalidateIdentity(userId);
+    // 讀回失敗不能回 200 {roles: []}：前端會照單全收，把畫面上的角色清空還跳「已啟用」
+    if (rolesError) {
+      return c.json({ error: '讀取角色失敗', code: 'READ_ROLES_FAILED' }, 500);
+    }
 
     return c.json(
       {

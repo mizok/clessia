@@ -147,8 +147,13 @@ export class AccountSettingsDialogComponent {
         // 那時這一區不會消失、帳戶選單也沒有「切換身分」，使用者以為沒有作用。
         // 有了 parent 角色，`hasParentRole()` 讓整區消失，不能再按第二次
         next: ({ roles }) => {
-          this.auth.adoptRoles(roles);
           this.activating.set(false);
+          // 回傳沒有 parent ＝ 回應不可信，不套用（套了會把畫面上的角色換成錯的那份）
+          if (!roles.includes('parent')) {
+            this.activateError.set('啟用失敗，請稍後再試');
+            return;
+          }
+          this.auth.adoptRoles(roles);
           this.messages.add({
             severity: 'success',
             summary: '已啟用家長身份',

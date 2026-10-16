@@ -31,6 +31,7 @@ function fakeDb() {
     ba_user: [{ id: 'u1', name: 'n', email: 'a@example.com', phone: null }],
   };
   const failWrites = new Set<string>();
+  const failReads = new Set<string>();
 
   const from = (table: string) => {
     const filters: [string, unknown][] = [];
@@ -43,7 +44,12 @@ function fakeDb() {
           staff_campuses: [],
           parent_student_relations: [],
         }));
-    const result = () => Promise.resolve({ data: rows(), error: null });
+    const result = () =>
+      Promise.resolve(
+        failReads.has(table)
+          ? { data: null, error: { message: 'boom' } }
+          : { data: rows(), error: null },
+      );
     const writeResult = (apply: () => void) => {
       if (failWrites.has(table)) return eqable(Promise.resolve({ error: { message: 'boom' } }));
       apply();
@@ -69,7 +75,7 @@ function fakeDb() {
     };
     return builder;
   };
-  return { tables, failWrites, client: { from } };
+  return { tables, failWrites, failReads, client: { from } };
 }
 
 let db = fakeDb();
@@ -115,6 +121,20 @@ describe('/api/me 自己的寫入之後立刻讀回新值（#1631）', () => {
 
     expect(getCachedIdentity('u1')).toBeDefined(); // 失敗不清
     expect((await me(a)).roles).toEqual(['admin']);
+  });
+
+  it('寫入成功但讀回角色失敗 → 500，不是 200 {roles: []}；快取已清（寫入已生效，舊的那份不能留）', async () => {
+    const a = app();
+    await me(a); // 先把舊身分存進快取，activate 這個請求的 middleware 才不必讀 user_roles
+    db.failReads.add('user_roles');
+
+    const res = await a.request('/api/me/activate-parent', { method: 'POST' });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ code: 'READ_ROLES_FAILED' });
+    expect(getCachedIdentity('u1')).toBeUndefined();
+
+    db.failReads.clear();
+    expect((await me(a)).roles).toEqual(['admin', 'parent']);
   });
 
   it('改名字 → 立刻 GET /api/me 就是新名字', async () => {
