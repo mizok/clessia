@@ -67,9 +67,10 @@ export const portTaken = (log) => /Port \d+ is already in use/.test(plain(log));
 export const buildFailed = (log) => /✘ \[ERROR\]/.test(plain(log));
 
 /** 這個 ref 的 package-lock 跟共用 node_modules（本 repo 工作目錄）那份一樣嗎。 */
-export const lockMatches = (sha) =>
-  git(repo, 'show', `${sha}:package-lock.json`) ===
-  fs.readFileSync(path.join(repo, 'package-lock.json'), 'utf8').trim();
+export const lockMatches = (
+  sha,
+  shared = fs.readFileSync(path.join(repo, 'package-lock.json'), 'utf8'),
+) => git(repo, 'show', `${sha}:package-lock.json`) === shared.trim();
 
 const CACHE = path.join(os.homedir(), '.cache/clessia-a6-conformance');
 /** 每次執行一個 worktree（10-16：同 sha 的兩個 compare 共用時，先收尾的把另一個的 worktree 移掉）。 */

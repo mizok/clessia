@@ -1355,9 +1355,15 @@ test('compare：分支名的 origin 與本機不同時挑新的那顆，分叉�
 });
 
 test('compare：ref 的 package-lock 跟共用 node_modules 那份不同就要自己裝（10-16 head 80479203 多了 altcha，編不起來）', async () => {
+  const { execFileSync } = await import('node:child_process');
   const { lockMatches } = await import('./serve.mjs');
-  assert.equal(lockMatches('HEAD'), true);
-  assert.equal(lockMatches('80479203'), false); // main 加了 altcha
+  // 共用那份固定拿 altcha 進 main 之前的 lock（7836f788），不看工作目錄 —— merge main 之後工作目錄也有 altcha
+  const before = execFileSync('git', ['show', '7836f788:package-lock.json'], {
+    encoding: 'utf8',
+    maxBuffer: 64 << 20,
+  });
+  assert.equal(lockMatches('7836f788', before), true);
+  assert.equal(lockMatches('80479203', before), false); // main 加了 altcha
 });
 
 test('compare：nx serve 編譯錯誤（帶顏色碼的 ✘ [ERROR]）馬上認出來，不等滿 600 秒、也不量錯誤畫面', async () => {
