@@ -193,19 +193,8 @@
         @if (loadError()) {
           <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
         } @else if (announcements().length === 0) {
-          <div class="flex flex-col items-start gap-3 pt-6 wide:pt-8">
-            <p class="m-0 text-base text-zinc-700">還沒有發布過公告。</p>
-            @if (canSend()) {
-              <button
-                type="button"
-                class="inline-flex h-11 cursor-pointer items-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
-                data-testid="empty-send"
-                (click)="openComposer()"
-              >
-                發送通知
-              </button>
-            }
-          </div>
+          <!-- 空狀態不另放「發送通知」：頁首工具列已經有主按鈕（使用者 10-16 截圖指出重複） -->
+          <p class="m-0 pt-6 text-base text-zinc-700 wide:pt-8">還沒有發布過公告。</p>
         } @else {
           @for (chapter of chapters(); track chapter.key) {
             <!-- A6 `.chap`：上下 32px（手機 24px）、每一章（含最後一章）都有下框、兩欄間距 32px（手機 12px） -->

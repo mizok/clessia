@@ -565,12 +565,12 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(el().textContent).toContain('還沒有發布過公告。');
     });
 
-    it('空狀態有權限時多一顆「發送通知」，按了開彈窗', async () => {
+    it('空狀態有權限也不另放「發送通知」：主按鈕只在頁首一顆', async () => {
       await setup([]);
 
-      el().querySelector<HTMLButtonElement>('[data-testid="empty-send"]')!.click();
-
-      expect(dialog()!.open).toBe(true);
+      expect(el().textContent).toContain('還沒有發布過公告。');
+      expect(el().querySelector('[data-testid="empty-send"]')).toBeNull();
+      expect(el().querySelectorAll('app-page-actions')).toHaveLength(1);
     });
 
     it('沒填就按發布：彈窗不關、焦點到標題', async () => {
