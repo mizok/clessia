@@ -233,23 +233,16 @@
         </div>
         <div class="grid grid-cols-1 gap-x-4 min-[561px]:grid-cols-2">
           <div class="mb-4" [attr.data-invalid]="!!error('grade')">
-            <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-grade"
-              >年級 <span class="text-error-700" aria-hidden="true">*</span></label
-            >
-            <select
-              id="f-grade"
-              class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
-              [class.border-error-700!]="!!error('grade')"
-              aria-required="true"
-              aria-describedby="e-grade"
-              [attr.aria-invalid]="!!error('grade')"
-              (change)="text('grade', $event)"
-            >
-              <option value="" [selected]="!values().grade">選擇年級</option>
-              @for (g of grades; track g) {
-                <option [value]="g" [selected]="values().grade === g">{{ gradeLabel(g) }}</option>
-              }
-            </select>
+            <!-- A6 的客製下拉（a6.js 把 select 換成 .dd）：用共用的 app-select-field（#991 P1） -->
+            <app-select-field
+              label="年級"
+              labelSize="md"
+              [required]="true"
+              [invalid]="!!error('grade')"
+              [options]="gradeOptions"
+              [value]="values().grade || null"
+              (valueChange)="set('grade', $event ?? '')"
+            />
             @if (error('grade'); as msg) {
               <p
                 id="e-grade"
@@ -321,12 +314,15 @@
                     />
                     <span>
                       <span class="text-base font-semibold">{{ o.name }}</span>
-                      @if (fits(o.gradeLevels)) {
-                        <span
-                          class="ml-2 inline-flex rounded-sm border border-zinc-900 px-1.5 align-[1px] text-xs leading-[18px] font-semibold"
-                          >適合{{ gradeLabel(values().grade) }}</span
-                        >
-                      }
+                      <!-- A6 `.pick__fitbox`：容器永遠在，符合年級才放徽章 -->
+                      <span>
+                        @if (fits(o.gradeLevels)) {
+                          <span
+                            class="ml-2 inline-flex rounded-sm border border-zinc-900 px-1.5 align-[1px] text-xs leading-[18px] font-semibold"
+                            >適合{{ gradeLabel(values().grade) }}</span
+                          >
+                        }
+                      </span>
                       <span class="mt-0.5 block text-md text-zinc-600">{{ o.detail }}</span>
                     </span>
                   </label>
@@ -354,12 +350,15 @@
                       <span class="flex flex-wrap justify-between gap-x-3 gap-y-0.5">
                         <span>
                           <span class="text-base font-semibold">{{ o.name }}</span>
-                          @if (fits(o.gradeLevels)) {
-                            <span
-                              class="ml-2 inline-flex rounded-sm border border-zinc-900 px-1.5 align-[1px] text-xs leading-[18px] font-semibold"
-                              >適合{{ gradeLabel(values().grade) }}</span
-                            >
-                          }
+                          <!-- A6 `.pick__fitbox`：容器永遠在，符合年級才放徽章 -->
+                          <span>
+                            @if (fits(o.gradeLevels)) {
+                              <span
+                                class="ml-2 inline-flex rounded-sm border border-zinc-900 px-1.5 align-[1px] text-xs leading-[18px] font-semibold"
+                                >適合{{ gradeLabel(values().grade) }}</span
+                              >
+                            }
+                          </span>
                         </span>
                         @if (o.fee) {
                           <span class="text-base font-semibold whitespace-nowrap tabular-nums">{{
@@ -442,7 +441,7 @@
           >
           <textarea
             id="f-note"
-            class="block w-full min-w-0 resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+            class="min-h-24 w-full min-w-0 resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 align-top font-[inherit] leading-[1.5] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
             rows="3"
             maxlength="500"
             [placeholder]="
@@ -485,7 +484,7 @@
             <span
               >我同意補習班依<button
                 type="button"
-                class="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-zinc-900 underline underline-offset-[3px]"
+                class="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[length:inherit] leading-[inherit] text-zinc-900 underline underline-offset-[3px]"
                 (click)="$event.preventDefault(); openPrivacy()"
               >
                 個資使用聲明</button
@@ -503,7 +502,7 @@
         </div>
 
         <!-- 機器人驗證：ALTCHA 在背景算，算完才寫「已通過」；Turnstile 的 widget 畫在這一列裡 -->
-        <div
+        <p
           class="mt-4 mb-0 flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 p-3 text-md text-zinc-700"
           role="status"
         >
@@ -530,9 +529,10 @@
               }
             }
           }
-          <!-- Turnstile widget 掛在這裡（一定要真的渲染，token 只能從它拿）；altcha 時是空的 -->
-          <div #turnstileEl data-part="turnstile"></div>
-        </div>
+        </p>
+        <!-- Turnstile widget 掛在這一列下面（一定要真的渲染，token 只能從它拿）；altcha 時是空的。
+             放在 <p> 外：<p> 裡不能有 <div>，A6 那一列是 <p> -->
+        <div #turnstileEl data-part="turnstile" class="empty:hidden"></div>
 
         @if (failure(); as f) {
           <div class="mt-4 mb-0 flex gap-2 text-base text-error-700" role="alert">
@@ -555,7 +555,7 @@
         <div class="mt-6 flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            class="inline-flex h-11 flex-[1_1_100%] cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent-vivid bg-accent-vivid px-6 text-base font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 active:border-accent-400 active:bg-accent-400 min-[561px]:flex-none"
+            class="inline-flex h-11 flex-[1_1_100%] cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent-vivid bg-accent-vivid px-6 text-base font-semibold leading-[1.5] whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 active:border-accent-400 active:bg-accent-400 min-[561px]:flex-none"
             [attr.aria-busy]="submitting()"
           >
             @if (submitting()) {
@@ -632,9 +632,7 @@
                   d.values.phone ? '打 ' + d.values.phone : '寄信到 ' + d.values.email
                 }}，跟你約試聽的日期與班級。
               </li>
-              <li>
-                試聽當天直接到 {{ campusText(d.campuses) }} 找櫃台。
-              </li>
+              <li>試聽當天直接到 {{ campusText(d.campuses) }} 找櫃台。</li>
               <li>
                 試聽後想報名，可以<a
                   class="font-semibold text-zinc-900 underline-offset-[3px]"

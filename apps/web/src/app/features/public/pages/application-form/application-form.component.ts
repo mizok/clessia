@@ -12,8 +12,9 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { MessageService } from 'primeng/api';
-import { GRADE_LEVELS } from '@core/students.service';
+import { GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SystemClockService } from '@core/system-clock.service';
 
@@ -75,7 +76,7 @@ const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?ren
  */
 @Component({
   selector: 'app-application-form',
-  imports: [RouterLink],
+  imports: [RouterLink, SelectFieldComponent],
   templateUrl: './application-form.component.html',
   host: { class: 'flex w-full flex-col items-center' },
 })
@@ -88,7 +89,11 @@ export class ApplicationFormComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
 
-  protected readonly grades = GRADE_LEVELS;
+  /** 第一項是 A6 的「選擇年級」（稿的 `<option value="">`）；選它等於還沒選 */
+  protected readonly gradeOptions = [
+    { label: '選擇年級', value: null as GradeLevel | null },
+    ...GRADE_LEVELS.map((g) => ({ label: gradeLabel(g), value: g as GradeLevel | null })),
+  ];
   protected readonly gradeLabel = gradeLabel;
   protected readonly relations = RELATION_OPTIONS;
   protected readonly trialPath = RoutesCatalog.PUBLIC_TRIAL.absolutePath;
