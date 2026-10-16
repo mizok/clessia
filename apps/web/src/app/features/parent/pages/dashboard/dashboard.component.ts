@@ -4,12 +4,14 @@ import { ChildScopeService } from '@core/child-scope.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
+import { PushPromptComponent } from './push-prompt/push-prompt.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [
+    PushPromptComponent,
     EmptyStateComponent,
     PageOpenComponent,
     ChildSwitcherComponent,

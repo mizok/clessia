@@ -1,0 +1,142 @@
+<section
+  class="push-settings flex flex-col gap-3 border-b border-surface-border px-4 py-5"
+  aria-labelledby="push-settings-title"
+  data-testid="push-settings"
+  [attr.data-state]="push.state()"
+>
+  <h2 id="push-settings-title" class="m-0 text-lg font-semibold text-zinc-900">繳費提醒通知</h2>
+
+  @switch (push.state()) {
+    @case ('loading') {
+      <p class="m-0 text-md text-zinc-600" aria-busy="true">讀取這台裝置的通知設定…</p>
+    }
+    @case ('installable') {
+      <p class="m-0 text-md text-zinc-700">
+        iPhone、iPad 要先把 Clessia <strong>加入主畫面</strong>，才能收到通知（iOS 16.4 以上）。
+      </p>
+      <ol
+        class="m-0 flex list-none flex-col gap-2 p-0 text-md text-zinc-900"
+        data-testid="ios-steps"
+      >
+        <li class="flex items-center gap-3">
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-zinc-100">
+            <i class="pi pi-upload" aria-hidden="true"></i>
+          </span>
+          按 Safari 下方的「分享」
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-zinc-100">
+            <i class="pi pi-plus-circle" aria-hidden="true"></i>
+          </span>
+          選「加入主畫面」
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-zinc-100">
+            <i class="pi pi-bell" aria-hidden="true"></i>
+          </span>
+          從主畫面打開 Clessia，回到這一頁開啟通知
+        </li>
+      </ol>
+    }
+    @case ('unsupported') {
+      <p class="m-0 text-md text-zinc-700">這個瀏覽器收不到通知，帳單問題請直接電話聯絡補習班。</p>
+    }
+    @case ('not-configured') {
+      <p class="m-0 text-md text-zinc-700">這間補習班還沒有開啟手機通知。</p>
+    }
+    @case ('default') {
+      <p class="m-0 text-md text-zinc-700">帳單快到期、或逾期還沒繳時，手機會跳出通知提醒你。</p>
+      <p-button
+        class="self-start"
+        label="開啟繳費提醒"
+        icon="pi pi-bell"
+        [loading]="busy()"
+        (onClick)="enable()"
+      />
+    }
+    @case ('off') {
+      <p class="m-0 text-md text-zinc-700">這台裝置的通知已關閉。</p>
+      <p-button
+        class="self-start"
+        label="開啟這台裝置的通知"
+        icon="pi pi-bell"
+        [loading]="busy()"
+        (onClick)="enable()"
+      />
+    }
+    @case ('enabled') {
+      <p class="m-0 flex items-center gap-2 text-md font-semibold text-zinc-900">
+        <i class="pi pi-check-circle text-success-600" aria-hidden="true"></i>
+        這台裝置已開啟通知
+      </p>
+      <p-button
+        class="self-start"
+        label="關閉這台裝置的通知"
+        severity="secondary"
+        [outlined]="true"
+        [loading]="busy()"
+        (onClick)="disableHere()"
+      />
+    }
+    @case ('denied') {
+      <!-- 瀏覽器不讓網頁再問一次 —— 只能說明怎麼去設定打開，不放一顆按了沒反應的按鈕 -->
+      <p class="m-0 text-md text-zinc-700">通知被關掉了，網頁沒辦法再問一次，要到設定裡打開：</p>
+      @if (ios) {
+        <p class="m-0 text-md font-semibold text-zinc-900" data-testid="denied-how">
+          設定 → 通知 → Clessia → 允許通知
+        </p>
+      } @else {
+        <p class="m-0 text-md font-semibold text-zinc-900" data-testid="denied-how">
+          網址列左邊的圖示 → 網站設定 → 通知 → 允許
+        </p>
+      }
+    }
+  }
+
+  @if (failed()) {
+    <p class="m-0 text-md text-error-700" role="alert">沒有設定成功，請再試一次。</p>
+  }
+
+  @if (available(push.state()) && preferences().length > 0) {
+    <fieldset class="m-0 flex flex-col gap-1 border-0 p-0" data-testid="push-kinds">
+      <legend class="mb-1 p-0 text-md font-semibold text-zinc-900">要通知哪些事</legend>
+      <p class="m-0 mb-1 text-sm text-zinc-600">你所有已開啟通知的裝置都會一起套用。</p>
+      @for (pref of preferences(); track pref.kind) {
+        <label class="flex min-h-11 items-center justify-between gap-4 text-md text-zinc-900">
+          {{ kindLabels[pref.kind] }}
+          <p-toggleswitch
+            [ngModel]="pref.enabled"
+            (ngModelChange)="togglePreference(pref.kind, $event)"
+          />
+        </label>
+      }
+    </fieldset>
+  }
+
+  @if (available(push.state()) && devices().length > 0) {
+    <div class="flex flex-col gap-1" data-testid="push-devices">
+      <h3 class="m-0 text-md font-semibold text-zinc-900">已開啟通知的裝置</h3>
+      <ul class="m-0 list-none p-0">
+        @for (device of devices(); track device.id) {
+          <li
+            class="flex min-h-11 items-center justify-between gap-4 border-b border-surface-border py-1 last:border-b-0"
+          >
+            <span class="text-md text-zinc-900">
+              {{ deviceName(device.userAgent) }}
+              <span class="text-sm text-zinc-600"
+                >· {{ device.createdAt | date: 'yyyy/M/d' }} 開啟</span
+              >
+            </span>
+            <p-button
+              label="移除"
+              severity="secondary"
+              [text]="true"
+              [ariaLabel]="'移除 ' + deviceName(device.userAgent)"
+              (onClick)="removeDevice(device)"
+            />
+          </li>
+        }
+      </ul>
+    </div>
+  }
+</section>
