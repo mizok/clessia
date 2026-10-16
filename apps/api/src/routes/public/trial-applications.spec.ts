@@ -21,6 +21,8 @@ const COURSE_ONLY_ENDED = id(22);
 const COURSE_INACTIVE = id(23);
 const COURSE_ORG_B = id(24);
 const COURSE_NO_CLASS = id(25);
+const COURSE_HIDDEN = id(26);
+const COURSE_PARTLY_HIDDEN = id(27);
 
 const cls = (cid: string, courseId: string, extra: Record<string, unknown> = {}) => ({
   id: cid,
@@ -28,6 +30,7 @@ const cls = (cid: string, courseId: string, extra: Record<string, unknown> = {})
   course_id: courseId,
   is_active: true,
   end_date: null,
+  is_public_enrollment: true,
   courses: { is_active: true },
   ...extra,
 });
@@ -41,12 +44,18 @@ function seed() {
       { id: COURSE_INACTIVE, org_id: ORG, is_active: false },
       { id: COURSE_ORG_B, org_id: ORG_B, is_active: true },
       { id: COURSE_NO_CLASS, org_id: ORG, is_active: true },
+      { id: COURSE_HIDDEN, org_id: ORG, is_active: true },
+      { id: COURSE_PARTLY_HIDDEN, org_id: ORG, is_active: true },
     ],
     classes: [
       cls(id(11), COURSE_OPEN),
       cls(id(12), COURSE_ONLY_ENDED, { end_date: '2026-10-03' }),
       cls(id(13), COURSE_INACTIVE, { courses: { is_active: false } }),
       cls(id(14), COURSE_ORG_B, { org_id: ORG_B }),
+      cls(id(15), COURSE_HIDDEN, { is_public_enrollment: false }),
+      // 一門課有一班藏起來、一班開放：照收
+      cls(id(16), COURSE_PARTLY_HIDDEN, { is_public_enrollment: false }),
+      cls(id(17), COURSE_PARTLY_HIDDEN),
     ],
     public_applications: [],
     public_application_targets: [],
@@ -117,6 +126,7 @@ describe('POST /api/public/trial-applications', () => {
     ['停用的課程', COURSE_INACTIVE],
     ['別 org 的課程', COURSE_ORG_B],
     ['沒有任何班的課程', COURSE_NO_CLASS],
+    ['開課班全都關掉公開報名的課程（#1665 Q5）', COURSE_HIDDEN],
   ])('%s：400 INVALID_COURSE，整筆不寫', async (_label, courseId) => {
     const db = seed();
     const { res, json } = await post(db, body({ courseIds: [COURSE_OPEN, courseId] }));
@@ -124,6 +134,12 @@ describe('POST /api/public/trial-applications', () => {
     expect(res.status).toBe(400);
     expect(json.code).toBe('INVALID_COURSE');
     expect(db.rows('public_applications')).toHaveLength(0);
+  });
+
+  it('一門課只要有一個開放公開報名的開課班就收（#1665 Q5）', async () => {
+    const { res } = await post(seed(), body({ courseIds: [COURSE_PARTLY_HIDDEN] }));
+
+    expect(res.status).toBe(201);
   });
 
   it('聯絡方式、同意、空清單、未開放：跟報名同一套檢查', async () => {

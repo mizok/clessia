@@ -138,7 +138,7 @@ gh pr diff <n> -R <repo> --name-only                     # 動了什麼
 它報 `<舊 sha> success` 的那一刻 head 確實是那顆。**事件沒有錯,錯的是拿一則帶著
 過期 sha 的事件去問「現在能不能合」。**
 
-對這一席的意義:`steward-merge.sh` 鎖 SHA 所以安全;**而別席與使用者親合時
+對這一席的意義:`steward-merge.sh` 鎖的是**你帶進去的審過 SHA**(第二個參數,必填),所以安全;**而別席與使用者親合時
 手上多半是一則通知,不是現查** —— 收到「某某綠了可以收」時,自己再查一次 head。
 
 ### 驗收指令自己也會踩兩點 diff
@@ -461,7 +461,10 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 6. **未分層 vs `@layer`**:`ViewEncapsulation.None` 的元件 SCSS 是**未分層**,贏過 `@layer utilities`;同一個元素上要蓋它得用 `!`(#1365 的 audit-log time)。
 7. **A28 對比豁免兩個陷阱**:暫刪一筆應紅在真違規(訊息有『對比 X』);加一筆指向不存在違規的假鍵應紅『豁免過期』。**兩個都紅才算 gate 活著**;誤報型要確認兩個 class 真的是相反條件。
 8. **harness 測試動到 fixture 尋找**:暫把 `check-harness.mjs` 的兩條 gate 訊息改掉,應恰好 A20 與 A27/A24 兩條 not ok。
-9. **合併前同呼叫重讀 head**;授權後作者可能又推一顆(#1313 的教訓),`steward-merge.sh` 鎖的是 head,但回報要寫『合併時 head』。
+9. **`steward-merge.sh <PR> <審過的 SHA>`,SHA 必填**:帶二讀時實際驗過的那一顆(不是授權訊息裡的、也不是現查的 head)。
+   head 對不上腳本就停,`--match-head-commit` 也帶它。**2026-10-16 #1656 的教訓**:我審過 `3bf54a6a`,作者在等 CI 時推了
+   `e08607dc`,舊版腳本鎖的是「執行當下讀到的 head」,把沒審過的那顆合進去了(事後補審沒問題,但流程是先合後審)。
+   作者常在等 CI 時追加 commit,**「等 CI → 合併」寫成一串時尤其會發生**;腳本停下來就重審那幾顆,再帶新 SHA 跑一次。
 10. **暫存檔不要用 `rm -rf`**:分類器會擋(10-08 #1380 我的暫存清理被擋);用 `mktemp -d`,或只 `rm -f` 自己建的單一檔。
 
 ---

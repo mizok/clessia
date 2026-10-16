@@ -102,13 +102,14 @@ app.openapi(
     const today = getCurrentTaipeiDateString();
     const { data: rows, error } = await supabase
       .from('classes')
-      .select('id, max_students, is_active, end_date, courses(is_active)')
+      .select('id, max_students, is_active, end_date, is_public_enrollment, courses(is_active)')
       .eq('org_id', orgId)
       .in('id', classIds);
     if (error) return failed();
     const open = new Map(
       ((rows ?? []) as Row[])
-        .filter((row) => isOpenClass(row, today))
+        // #1665 Q5：行政關掉公開報名的班，公開端跟「沒有這個班」一樣
+        .filter((row) => isOpenClass(row, today) && row['is_public_enrollment'] === true)
         .map((row) => [row['id'] as string, row]),
     );
     // 別 org、不存在、停用、已結束、課程停用 —— 都跟「沒有這個班」一樣回（不透露哪一種）
