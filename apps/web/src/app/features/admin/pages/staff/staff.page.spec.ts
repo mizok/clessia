@@ -232,6 +232,8 @@ describe('StaffPage', () => {
         '[data-chapter] .chapter-head__name',
       );
       expect(name?.classList).toContain('text-[28px]');
+      // #1715：A6 `.chap` 手機上內距 24px（章頭上的 pt-6），原本 pt-4 差 8px
+      expect(name!.closest('app-chapter-head')!.classList).toContain('pt-6');
     });
 
     it('沒有人的章不顯示（kiosk 章只在有機台時出現）；沒有封存叫「已停用」', () => {
