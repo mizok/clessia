@@ -1,15 +1,10 @@
-<details class="group border-b border-surface-border">
-  <summary
-    class="flex min-h-11 cursor-pointer list-none items-center gap-3 bg-zinc-100 px-4 py-3 hover:bg-zinc-200 [&::-webkit-details-marker]:hidden"
-  >
-    <h2 class="m-0 text-lg font-bold text-zinc-900">{{ title() }}</h2>
-    <span class="ml-auto text-md text-zinc-700">{{ meta() }}</span>
-    <i
-      class="pi pi-chevron-down text-xs text-zinc-700 transition-transform group-open:rotate-180"
-      aria-hidden="true"
-    ></i>
+<!-- A6 `.coll`（#1705 共用樣式）；學生檔案的摺疊列同一組一次只開一個（name="student-folds"，帳單章也是這一組） -->
+<details class="coll" name="student-folds">
+  <summary class="coll__sum min-h-14 wide:min-h-16">
+    <h2 class="coll__t m-0">{{ title() }}</h2>
+    <span class="coll__m">{{ meta() }}</span>
   </summary>
-  <div class="bg-white px-4 py-2">
+  <div class="coll__body">
     <ng-content />
   </div>
 </details>

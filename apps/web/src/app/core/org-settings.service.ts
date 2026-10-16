@@ -40,6 +40,11 @@ export interface OrgSettings {
    * 也是財務設定：沒有 `manage_finance` 時這個 key 不存在。
    */
   paymentInfo?: string | null;
+  /**
+   * 家長繳費提醒時間點（#1660）：相對到期日的天數，負＝到期前、0＝當天、正＝逾期第 N 天，由小到大。
+   * 財務設定：沒有 `manage_finance` 時這個 key 不存在。不是 `billingReminderDays`（行政的待開單提醒）
+   */
+  invoiceReminderOffsets?: number[];
 }
 
 export interface UpdateOrgSettingsInput {
@@ -53,6 +58,8 @@ export interface UpdateOrgSettingsInput {
   prorationBasis?: 'days' | 'sessions';
   /** 空白存成 null（= 未設定）。要 `manage_finance` */
   paymentInfo?: string | null;
+  /** 最多 6 個、不重複、[-30, 60]。要 `manage_finance` */
+  invoiceReminderOffsets?: number[];
 }
 
 @Injectable({ providedIn: 'root' })

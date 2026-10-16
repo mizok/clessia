@@ -438,11 +438,10 @@ describe('PaymentsPage', () => {
       expect(paid?.count).toBe(17);
       // 已繳清章寫「收到」（後端加總的繳清淨收），不是「待收」
       expect(text()).toContain('17 張 · 收到 NT$ 151,700');
-      // 箭頭一律向下（A6）
-      expect((fixture.nativeElement as HTMLElement).querySelector('.pi-chevron-right')).toBeNull();
+      // 三章都是共用的摺疊摘要列（#1705）；箭頭由 .coll__sum::after 畫，不再用圖示
       expect(
         (fixture.nativeElement as HTMLElement).querySelectorAll(
-          '.bg-zinc-100 > button[aria-expanded] .pi-chevron-down',
+          '.colls > details.coll > summary.coll__sum',
         ).length,
       ).toBe(3);
       // 順序照 A6
@@ -479,7 +478,7 @@ describe('PaymentsPage', () => {
         invoices.list.mockClear();
         expect(invoices.list).not.toHaveBeenCalled();
 
-        component['toggleChapter'](key);
+        component['onChapterToggle'](key, true);
         await render();
 
         expect(invoices.list).toHaveBeenCalledWith(
@@ -501,7 +500,7 @@ describe('PaymentsPage', () => {
             : listResponse([invoice({ id: 'paid', status: 'paid', netPaid: 4500 })]),
         )) as never);
 
-      component['toggleChapter']('paid');
+      component['onChapterToggle']('paid', true);
       await render();
 
       expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'paid' }));
@@ -820,8 +819,8 @@ describe('PaymentsPage', () => {
     });
 
     it('展開的章跟著換分校：頁碼歸 1、含已繳清章的多退那支；沒展開的章不多打', async () => {
-      component['toggleChapter']('dueSoon');
-      component['toggleChapter']('paid');
+      component['onChapterToggle']('dueSoon', true);
+      component['onChapterToggle']('paid', true);
       component['patchChapter']('dueSoon', { page: 2 });
       invoices.list.mockClear();
       await pick('c2');
@@ -880,7 +879,7 @@ describe('PaymentsPage', () => {
       });
 
       it('展開的章', async () => {
-        component['toggleChapter']('dueSoon');
+        component['onChapterToggle']('dueSoon', true);
         const a = new Subject<ReturnType<typeof listResponse>>();
         const b = new Subject<ReturnType<typeof listResponse>>();
         const queue = [a, b];
@@ -1020,19 +1019,51 @@ describe('PaymentsPage', () => {
       );
     });
 
-    it('到期分組列：外層是 div（不是 region landmark）；標題 16／18px 粗；張數靠右；箭頭是按鈕的同層元素', async () => {
+    // #1705：A6 `.colls`（區塊之間 space-2）＋ `<details name>` 同組互斥
+    it('到期分組列：.colls 裡三個 details.coll，同一個 name；標題與摘要用 coll__t／coll__m；不是 region landmark', async () => {
       await render();
-      const rows = Array.from(el().querySelectorAll('div.rounded-lg.bg-zinc-100'));
+      const group = el().querySelector('.colls')!;
+      const rows = Array.from(
+        group.querySelectorAll(':scope > details.coll'),
+      ) as HTMLDetailsElement[];
       expect(rows).toHaveLength(3);
+      expect(new Set(rows.map((d) => d.getAttribute('name')))).toEqual(
+        new Set(['payments-chapters']),
+      );
       expect(el().querySelector('section[aria-label="7 天內到期"]')).toBeNull();
-      const btn = rows[0].querySelector('button')!;
-      has(btn, 'min-h-16', 'px-4', 'wide:px-5', 'py-3');
-      const [title, count, chevron] = Array.from(btn.children);
-      has(title, 'text-[16px]', 'wide:text-[18px]', 'font-bold');
-      has(count, 'ml-auto', 'text-md', 'wide:text-base', 'text-zinc-700');
-      expect(chevron.className).toContain('pi-chevron-down');
-      // 箭頭不在張數那個 span 裡
-      expect(count.querySelector('.pi-chevron-down')).toBeNull();
+      const sum = rows[0].querySelector(':scope > summary.coll__sum')!;
+      expect(sum.querySelector('.coll__t')?.textContent?.trim()).toBe('7 天內到期');
+      expect(sum.querySelector('.coll__m')?.textContent).toContain('張');
+      // 內容一直在（高度過渡才量得到），白底包在 coll__body
+      expect(rows[0].querySelector(':scope > .coll__body')).not.toBeNull();
+    });
+
+    it('瀏覽器收起一章（同組互斥）：狀態跟著關、不重抓；點開才抓', async () => {
+      await render();
+      invoices.list.mockClear();
+      component['onChapterToggle']('dueSoon', true);
+      expect(component['chapters']().dueSoon.open).toBe(true);
+      expect(invoices.list).toHaveBeenCalled();
+
+      invoices.list.mockClear();
+      // [open] 綁定寫回去那一次也會發 toggle：狀態一樣就不動、不重抓
+      component['onChapterToggle']('dueSoon', true);
+      expect(invoices.list).not.toHaveBeenCalled();
+
+      component['onChapterToggle']('dueSoon', false);
+      expect(component['chapters']().dueSoon.open).toBe(false);
+      expect(invoices.list).not.toHaveBeenCalled();
+    });
+
+    it('章裡最後一列不畫分隔線', async () => {
+      invoices.list.mockReturnValue(
+        of(listResponse([invoice({ id: 'x1' }), invoice({ id: 'x2' })])),
+      );
+      component['onChapterToggle']('dueSoon', true);
+      await render();
+      const rows = el().querySelectorAll('details.coll .coll__body li.vt-row');
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[rows.length - 1].classList).toContain('last:border-b-0');
     });
   });
 
@@ -1042,7 +1073,9 @@ describe('PaymentsPage', () => {
     invoices.list.mockReturnValue(of(listResponse([same])));
     (component as unknown as { load: () => void }).load();
     await fixture.whenStable();
-    (component as unknown as { toggleChapter: (k: string) => void }).toggleChapter('dueSoon');
+    (
+      component as unknown as { onChapterToggle: (k: string, open: boolean) => void }
+    ).onChapterToggle('dueSoon', true);
     await fixture.whenStable();
     fixture.detectChanges();
 
