@@ -60,7 +60,7 @@ export const DEVIATIONS = [
     // 管理員項目比稿多，360×640 會被切掉。分組在欄裡的位置跟稿不同是刻意的
     status: '位置',
     widths: [360],
-    app: '^landmark:popover\\[\\]>(heading:h3|control:link)\\[',
+    pop: 'more',
     detail: '^相對「popover」 ',
     reason: '手機「更多」兩欄流排：分組各自往下長，位置跟稿的整列對齊不同',
     source: `${rule('R5')}「手機「更多」選單排法與捲動」2026-10-16；#1701`,
