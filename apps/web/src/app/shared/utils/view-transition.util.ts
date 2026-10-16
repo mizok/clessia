@@ -3,6 +3,9 @@ import { ApplicationRef, inject } from '@angular/core';
 /** 頁內 VT 進行中時掛在 `<html>` 上；styles.css 用它決定 `.vt-seg` 的名字生不生效 */
 export const IN_PAGE_VT_ATTR = 'data-vt';
 
+/** 最後一次頁內 VT 的序號。被下一個 VT 截掉的那個，結束時不能拿掉後一個剛寫上的屬性 */
+let latestInPageVt = 0;
+
 /**
  * 頁內模式切換的同文件 view transition（#1641 項 4，設計稿 kb/wiki/architecture/motion.md）。
  *
@@ -36,6 +39,7 @@ export function injectViewTransition(): (update: () => void) => void {
       return;
     }
     const root = document.documentElement;
+    const mine = ++latestInPageVt;
     root.setAttribute(IN_PAGE_VT_ATTR, 'in-page');
     const vt = document.startViewTransition(() => {
       update();
@@ -43,7 +47,10 @@ export function injectViewTransition(): (update: () => void) => void {
       // 這裡同步跑一次變更偵測，讓新畫面在 callback 回傳前就畫進 DOM。
       appRef.tick();
     });
-    // 被下一個 VT（含換頁）中斷時 finished 一樣會結束，所以不管成敗都拿掉
-    vt.finished.finally(() => root.removeAttribute(IN_PAGE_VT_ATTR));
+    // 不管成敗都要拿掉 —— 但只在自己還是最後一個的時候：被下一個頁內 VT 截掉時，
+    // 這個 finished 會晚於下一個寫上屬性才結束，拿掉的話下一個的分段鈕就不會平移
+    vt.finished.finally(() => {
+      if (mine === latestInPageVt) root.removeAttribute(IN_PAGE_VT_ATTR);
+    });
   };
 }

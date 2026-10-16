@@ -1,7 +1,7 @@
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { injectViewTransition } from './view-transition.util';
+import { IN_PAGE_VT_ATTR, injectViewTransition } from './view-transition.util';
 
 describe('injectViewTransition', () => {
   const original = document.startViewTransition;
@@ -45,5 +45,26 @@ describe('injectViewTransition', () => {
     run(update);
     expect(start).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it('被下一個頁內 VT 截掉：前一個結束時不拿掉後一個寫上的屬性', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.spyOn(TestBed.inject(ApplicationRef), 'tick').mockImplementation(() => {});
+    const finishers: (() => void)[] = [];
+    document.startViewTransition = ((cb: () => void) => {
+      cb();
+      return { finished: new Promise<void>((r) => finishers.push(r)) };
+    }) as never;
+    const run = TestBed.runInInjectionContext(() => injectViewTransition());
+    run(() => {});
+    run(() => {});
+    finishers[0]();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.documentElement.getAttribute(IN_PAGE_VT_ATTR)).toBe('in-page');
+    finishers[1]();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.documentElement.hasAttribute(IN_PAGE_VT_ATTR)).toBe(false);
   });
 });
