@@ -243,6 +243,9 @@ describe('SettingsPage', () => {
       expect(bodyText()).toContain('到期當天');
       expect(bodyText()).toContain('逾期第 1 天');
       expect(bodyText()).toContain('逾期第 7 天');
+      // 新模型：沒開推播的家長也有通知（計畫席 10-16 定的文案）
+      expect(bodyText()).toContain('沒開的家長，也會在通知中心看到這則提醒');
+      expect(bodyText()).not.toContain('才收得到');
     });
 
     it('加入「逾期 14 天」、移除「到期當天」，儲存送出排序後的值', async () => {

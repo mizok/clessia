@@ -113,11 +113,9 @@
         </h3>
         <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
           在這些時間點推播提醒家長繳費（台北時間早上 9–11 點送出），最多
-          {{
-            reminderMaxCount
-          }}
+          {{ reminderMaxCount }}
           個。同一張帳單、同一個時間點只會提醒一次；改了設定，已經提醒過的不會再送。
-          要家長開啟通知才收得到。
+          有開啟通知的家長會收到推播；沒開的家長，也會在通知中心看到這則提醒。
         </p>
         @if (reminderOffsets().length === 0) {
           <p class="m-0 mb-4 text-sm text-zinc-500">目前沒有設定，不會推播任何繳費提醒。</p>
