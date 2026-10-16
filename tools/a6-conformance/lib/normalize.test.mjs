@@ -1251,3 +1251,26 @@ test('#1639：PrimeNG 元件根（host p-*）的 display 差歸工具限制，�
   const mixed = rows(dlg('flex', 'p-dialog', 'rgb(0, 0, 0)')).filter((r) => r.status === '樣式');
   assert.deepEqual(mixed.map((r) => r.bucket).sort(), ['工具限制', '待修']);
 });
+
+test('#1639：稿的 button 沒重設 padding（瀏覽器預設 1px 6px）→ app 0 歸工具限制；span 上同樣的 padding 照算', async () => {
+  const { diffParts, classify } = await import('./diff.mjs');
+  const K = '>landmark:popover[登入]>control:button[關閉]';
+  const part = (role, padding) => ({
+    key: K,
+    parent: null,
+    kind: role === 'button' ? 'control' : 'text',
+    role,
+    tpl: '關閉',
+    text: '',
+    box: [0, 0, 36, 44],
+    style: { display: 'grid', padding },
+  });
+  const run = (role) =>
+    classify(
+      diffParts({ parts: [part(role, '1px 6px')] }, { parts: [part(role, '0px')] }, { [K]: K }),
+      [],
+      360,
+    ).filter((r) => r.status === '樣式');
+  assert.deepEqual(run('button').map((r) => r.bucket), ['工具限制']);
+  assert.deepEqual(run('span').map((r) => r.bucket), ['待修']);
+});

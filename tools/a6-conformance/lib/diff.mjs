@@ -150,6 +150,7 @@ export const LIMITS = {
   sparse:
     '稿這裡是一份清單的列，app 這邊只有 1 個（或 0 個）容器：資料太少，工具無法確認是不是同一份清單',
   host: '元件根的 display：PrimeNG 元件根元素用 flex 排內容（元件結構），子項的位置／尺寸另外比',
+  ua: '瀏覽器預設：稿的 button 沒重設 padding（1px 6px），app 重設成 0；尺寸另外比',
   variant: '列內有多種樣式（例如上課中的課塊）：工具只比最常見那種，其他變體人工看',
 };
 
@@ -639,11 +640,15 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
     };
     // PrimeNG 元件根（host p-*）用 flex 排自己的內容：根的 display 是元件結構，子項幾何另外比（#1639）
     const viaHost = (d) => d.startsWith('display ') && /^p-/.test(b.host ?? '');
-    const real = st.filter((d) => !viaPseudo(d) && !viaHost(d)),
+    // 稿的 <button> 沒重設 padding，computed 是瀏覽器預設 1px 6px；app 重設成 0。尺寸另外比，這項不可比（#1639 關閉鈕）
+    const viaUA = (d) => d === 'padding 1px 6px → 0px' && a.role === 'button';
+    const real = st.filter((d) => !viaPseudo(d) && !viaHost(d) && !viaUA(d)),
       maybe = st.filter(viaPseudo),
-      host = st.filter(viaHost);
+      host = st.filter(viaHost),
+      ua = st.filter(viaUA);
     if (real.length) push('樣式', real.join('；'));
     if (host.length) push('樣式', host.join('；'), LIMITS.host);
+    if (ua.length) push('樣式', ua.join('；'), LIMITS.ua);
     if ((a.variants ?? 1) !== (b.variants ?? 1))
       push(
         '變體',
