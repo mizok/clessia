@@ -1,18 +1,26 @@
 import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DialogService } from 'primeng/dynamicdialog';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
+import { forkJoin, of } from 'rxjs';
 
 import {
   PublicApplicationsService,
   type PublicApplication,
   type PublicApplicationStatus,
 } from '@core/public-applications.service';
+import {
+  ParentRequestsService,
+  type ParentRequest,
+  type ParentRequestGroup,
+  type TrialRequestStatus,
+} from '@core/parent-requests.service';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
@@ -25,18 +33,54 @@ const STATUS_OPTIONS: Array<{ label: string; value: PublicApplicationStatus }> =
   { label: '垃圾送件', value: 'spam' },
 ];
 
-/** 篩選：「待處理」是 new＋contacted 兩個狀態，其餘一對一 */
-const FILTERS: Array<{ label: string; statuses: PublicApplicationStatus[] }> = [
-  { label: '待處理', statuses: ['new', 'contacted'] },
-  { label: '已轉入', statuses: ['converted'] },
-  { label: '不受理', statuses: ['rejected'] },
-  { label: '垃圾送件', statuses: ['spam'] },
+/**
+ * 篩選：同一個分頁對兩種來源各自的狀態（#1707 範圍說明 §2）。
+ * 只有一邊有的分頁（進行中、已取消只有家長 App；垃圾送件只有公開表單），另一邊不打。
+ */
+const FILTERS: Array<{
+  label: string;
+  statuses: PublicApplicationStatus[];
+  group: ParentRequestGroup | null;
+}> = [
+  { label: '待處理', statuses: ['new', 'contacted'], group: 'pending' },
+  { label: '進行中', statuses: [], group: 'active' },
+  { label: '已轉入', statuses: ['converted'], group: 'done' },
+  { label: '不受理', statuses: ['rejected'], group: 'rejected' },
+  { label: '已取消', statuses: [], group: 'cancelled' },
+  { label: '垃圾送件', statuses: ['spam'], group: null },
 ];
+
+/** 家長 App 申請的狀態標籤（報名、試聽兩套） */
+const PARENT_STATUS_LABELS: Record<string, string> = {
+  pending: '待審核',
+  waitlist: '候補',
+  awaiting_payment: '已核准・待繳費',
+  completed: '已完成',
+  rejected: '已拒絕',
+  cancelled: '已取消',
+  expired: '已過期',
+};
+
+const TRIAL_STATUS_OPTIONS: Array<{ label: string; value: TrialRequestStatus }> = [
+  { label: '待安排', value: 'pending' },
+  { label: '已排定', value: 'scheduled' },
+  { label: '已完成', value: 'completed' },
+  { label: '已取消', value: 'cancelled' },
+];
+
+/** 報名在這裡只能拒絕；已核准（帳單開了）之後不能拒絕 —— 跟 API 的 409 同一條規則 */
+const REJECTABLE = ['pending', 'waitlist'];
+
+type Item =
+  | { source: 'public'; createdAt: string; value: PublicApplication }
+  | { source: 'parent'; createdAt: string; value: ParentRequest };
 
 const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } as const;
 
 /**
  * 公開申請（#1245）：公開報名／試聽表單（#1123、#1124）送進來的、還沒建檔的人。
+ * **＋家長在 app 裡送的申請（#1707）**：兩支 API 平行打、依時間合在一份；兩套狀態不合併，分頁共用。
+ * 家長 App 的報名只能拒絕（原因家長看得到），核准是金額路徑、另開 #1726；試聽改狀態。
  *
  * 狀態是聯絡流程，任意切換。「建立家長」開既有的新增家長表單並預填 ——
  * **不自動改狀態、不自動建學生或報名**：rules/enrollment-rules.md 1.4 是首次收款才建主資料，
@@ -46,12 +90,21 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
  */
 @Component({
   selector: 'app-applications',
-  imports: [DatePipe, FormsModule, ButtonModule, SelectModule, TextareaModule, PageOpenComponent],
+  imports: [
+    DatePipe,
+    FormsModule,
+    RouterLink,
+    ButtonModule,
+    SelectModule,
+    TextareaModule,
+    PageOpenComponent,
+  ],
   providers: [DialogService],
   templateUrl: './applications.page.html',
 })
 export class ApplicationsPage {
   private readonly service = inject(PublicApplicationsService);
+  private readonly parentRequests = inject(ParentRequestsService);
   private readonly messages = inject(MessageService);
   private readonly dialog = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -65,10 +118,30 @@ export class ApplicationsPage {
   ];
   protected readonly gradeLabels = GRADE_LEVEL_LABELS;
   protected readonly relationLabels = RELATION_LABELS;
+  protected readonly parentStatusLabels = PARENT_STATUS_LABELS;
+  protected readonly trialStatusOptions = TRIAL_STATUS_OPTIONS;
 
   protected readonly filter = signal(FILTERS[0]!);
   protected readonly kind = signal<'enrollment' | 'trial' | null>(null);
   protected readonly applications = signal<PublicApplication[]>([]);
+  protected readonly requests = signal<ParentRequest[]>([]);
+  /** 兩種來源依時間合在一份，新的在前 */
+  protected readonly items = computed<Item[]>(() =>
+    [
+      ...this.applications().map((value) => ({
+        source: 'public' as const,
+        createdAt: value.createdAt,
+        value,
+      })),
+      ...this.requests().map((value) => ({
+        source: 'parent' as const,
+        createdAt: value.createdAt,
+        value,
+      })),
+    ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  );
+  /** 正在填拒絕原因的那一筆 */
+  protected readonly rejectingId = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
@@ -79,12 +152,18 @@ export class ApplicationsPage {
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
-    this.service
-      .list({ statuses: this.filter().statuses, kind: this.kind() })
+    const { statuses, group } = this.filter();
+    const kind = this.kind();
+    // ponytail: 一邊失敗整頁算失敗（可重試）；真的常常一邊壞再改成各自顯示
+    forkJoin([
+      statuses.length > 0 ? this.service.list({ statuses, kind }) : of({ data: [] }),
+      group ? this.parentRequests.list({ group, kind }) : of({ data: [] }),
+    ])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (res) => {
-          this.applications.set(res.data);
+        next: ([pub, parent]) => {
+          this.applications.set(pub.data);
+          this.requests.set(parent.data);
           this.loading.set(false);
         },
         error: () => {
@@ -127,6 +206,41 @@ export class ApplicationsPage {
         prefill: { name: app.parent.name, email: app.parent.email, phone: app.parent.phone },
       },
     });
+  }
+
+  protected canReject(r: ParentRequest): boolean {
+    return r.kind === 'enrollment' && REJECTABLE.includes(r.status);
+  }
+
+  protected startReject(r: ParentRequest): void {
+    this.rejectingId.set(r.id);
+  }
+
+  /** 原因必填（家長看得到）；空白不送 */
+  protected submitReject(r: ParentRequest, value: string): void {
+    const reason = value.trim();
+    if (!reason) return;
+    this.parentRequests.reject(r.id, reason).subscribe({
+      next: (res) => {
+        this.replaceRequest(res.data);
+        this.rejectingId.set(null);
+      },
+      error: () =>
+        this.messages.add({ severity: 'error', summary: '拒絕失敗', detail: '請稍後再試' }),
+    });
+  }
+
+  protected setTrialStatus(r: ParentRequest, status: TrialRequestStatus): void {
+    if (status === r.status) return;
+    this.parentRequests.setTrialStatus(r.id, status).subscribe({
+      next: (res) => this.replaceRequest(res.data),
+      error: () =>
+        this.messages.add({ severity: 'error', summary: '儲存失敗', detail: '請稍後再試' }),
+    });
+  }
+
+  private replaceRequest(next: ParentRequest): void {
+    this.requests.update((list) => list.map((r) => (r.id === next.id ? next : r)));
   }
 
   private patch(
