@@ -1316,3 +1316,16 @@ test('compare：nx serve 的 ready line 帶顏色碼（Local\\x1b[22m:）也認�
   assert.equal(isReady('  \x1b[32m➜\x1b[39m  \x1b[1mLocal\x1b[22m:   http://localhost:4310/'), true);
   assert.equal(isReady('Building...'), false);
 });
+
+test('compare：port 只被 IPv6 [::1] 占著也算占用（base 聽在 ::1，head 不能再挑同一個）', async () => {
+  const net = await import('node:net');
+  const { freePort } = await import('./serve.mjs');
+  const s = net.createServer();
+  await new Promise((r) => s.listen(0, '::1', r));
+  const { port } = s.address();
+  try {
+    assert.notEqual(await freePort(port), port);
+  } finally {
+    s.close();
+  }
+});

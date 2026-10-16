@@ -294,14 +294,15 @@ try {
     const tool = git('rev-parse', '--short', 'HEAD');
     const toolDirty = git('status', '--porcelain', '--', '.') !== '';
     const sides = {};
-    for (const side of ['base', 'head']) {
-      const ref = flags[side] ?? '(現成的 web)';
-      const web = flags[`${side}-url`]
-        ? { url: flags[`${side}-url`], sha: '—', stop: () => {} }
-        : await startWeb(ref);
-      sides[side] = { ref, sha: web.sha, web };
-    }
     try {
+      // 起 web 也在 try 裡：head 起不來時，已經起好的 base 照樣在 finally 收掉
+      for (const side of ['base', 'head']) {
+        const ref = flags[side] ?? '(現成的 web)';
+        const web = flags[`${side}-url`]
+          ? { url: flags[`${side}-url`], sha: '—', stop: () => {} }
+          : await startWeb(ref);
+        sides[side] = { ref, sha: web.sha, web };
+      }
       for (const page of pages) {
         const widths = WIDTHS.map((w) => ({ width: w.width }));
         for (const side of ['base', 'head']) {
@@ -328,7 +329,7 @@ try {
         console.log(md, `\n→ ${file}`);
       }
     } finally {
-      for (const side of ['base', 'head']) await sides[side].web.stop();
+      for (const side of ['base', 'head']) await sides[side]?.web.stop();
     }
   } else {
     console.log(

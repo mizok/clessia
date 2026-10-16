@@ -6,15 +6,21 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
-const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' }).trim();
+const git = (cwd, ...a) =>
+  execFileSync('git', a, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const repo = git(import.meta.dirname, 'rev-parse', '--show-toplevel');
 
-const freePort = (from) =>
+// IPv4、IPv6 各試一次：vite 聽在 [::1] 時，不指定 host 的 listen 照樣成功（10-16 base 占 ::1:4310，head 又挑 4310）
+const taken = (port, host) =>
   new Promise((resolve) => {
     const s = net.createServer();
-    s.once('error', () => resolve(freePort(from + 1)));
-    s.listen(from, () => s.close(() => resolve(from)));
+    s.once('error', (e) => resolve(e.code !== 'EADDRNOTAVAIL')); // 機器沒有 IPv6 不算占用
+    s.listen(port, host, () => s.close(() => resolve(false)));
   });
+export async function freePort(from) {
+  for (let p = from; ; p++)
+    if (!(await taken(p, '127.0.0.1')) && !(await taken(p, '::1'))) return p;
+}
 
 /** ref → sha（先試 origin/<ref>，再試本地）。 */
 export function resolveRef(ref) {
