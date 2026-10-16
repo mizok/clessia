@@ -48,7 +48,7 @@ const trial = (n: number, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-function seed() {
+function seed(extraEnrollments: Record<string, unknown>[] = []) {
   return createMultiOrgDb({
     enrollment_requests: [
       enrollment(1),
@@ -56,6 +56,7 @@ function seed() {
       enrollment(3, { status: 'awaiting_payment' }),
       enrollment(4, { status: 'cancelled' }),
       enrollment(5, { org_id: ORG_B }),
+      ...extraEnrollments,
     ],
     trial_requests: [trial(6), trial(7, { status: 'scheduled' })],
     parents: [
@@ -186,6 +187,40 @@ describe('PATCH /api/parent-requests/:kind/:id', () => {
       action: 'update',
     });
     expect(JSON.stringify(audit!['details'])).toContain('waitlist');
+  });
+
+  // 審核席 #1728：update 也要帶 org_id（c1）。別 org 塞一筆同 id 的列，它不能被改到
+  it('寫入也帶 org_id：別 org 同 id 的列不會被改到', async () => {
+    const db = seed([enrollment(1, { org_id: ORG_B })]);
+    const res = await patch(db, `/enrollment/${id(1)}`, { status: 'rejected', rejectReason: 'x' });
+    expect(res.status).toBe(200);
+    const rows = db.rows('enrollment_requests').filter((r) => r['id'] === id(1));
+    expect(rows.find((r) => r['org_id'] === ORG)!['status']).toBe('rejected');
+    expect(rows.find((r) => r['org_id'] === ORG_B)!['status']).toBe('pending');
+  });
+
+  // 審核席 #1728：讀完到寫入之間被別人核准了（#1726 上線後會發生）—— 不能蓋掉已開帳單的那一筆
+  it('讀完之後被搶先核准：409，不蓋掉', async () => {
+    const db = seed();
+    const client = db.client as { from: (t: string) => any };
+    const from = client.from.bind(client);
+    let calls = 0;
+    client.from = (t: string) => {
+      // 第 2 次碰這張表＝route 要寫入了；先讓「別人」把它核准
+      if (t === 'enrollment_requests' && ++calls === 2) {
+        void from(t)
+          .update({ status: 'awaiting_payment' })
+          .eq('id', id(1))
+          .then(() => undefined);
+      }
+      return from(t);
+    };
+    const res = await patch(db, `/enrollment/${id(1)}`, { status: 'rejected', rejectReason: 'x' });
+    const row = db.rows('enrollment_requests').find((r) => r['id'] === id(1))!;
+    expect(row['status']).toBe('awaiting_payment');
+    expect(res.status).toBe(409);
+    expect(row['reject_reason']).toBeNull();
+    expect(db.rows('audit_logs')).toHaveLength(0);
   });
 
   it('拒絕沒寫原因：400，沒改', async () => {
