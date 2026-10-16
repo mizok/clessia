@@ -20,6 +20,7 @@ const cls = (cid: string, extra: Record<string, unknown> = {}) => ({
   id: cid,
   org_id: ORG,
   name: `班 ${cid.slice(-2)}`,
+  campus_id: 'c1',
   max_students: 2,
   is_active: true,
   end_date: null,
@@ -47,6 +48,11 @@ function seed() {
     ],
     public_applications: [],
     public_application_targets: [],
+    // #1693：分校 c1 有 manage_students 的管理員
+    staff: [{ id: 'st-1', user_id: 'u-admin', org_id: ORG, status: 'active' }],
+    user_roles: [{ user_id: 'u-admin', role: 'admin', permissions: ['manage_students'] }],
+    staff_campuses: [{ staff_id: 'st-1', campus_id: 'c1' }],
+    notifications: [],
   });
 }
 
@@ -131,6 +137,20 @@ describe('POST /api/public/enrollment-applications', () => {
     expect(json.code).toBe('INVALID_CLASS');
     expect(db.rows('public_applications')).toHaveLength(0);
     expect(db.rows('public_application_targets')).toHaveLength(0);
+    expect(db.rows('notifications')).toHaveLength(0);
+  });
+
+  it('送出成功：通知班所在分校有 manage_students 的管理員（#1693）', async () => {
+    const db = seed();
+    const { json } = await post(db, body());
+
+    expect(db.rows('notifications')).toEqual([
+      expect.objectContaining({
+        user_id: 'u-admin',
+        kind: 'application_received',
+        dedupe_key: `application:${json.id}`,
+      }),
+    ]);
   });
 
   it('沒有 email 也沒有手機：400 EMAIL_OR_PHONE_REQUIRED', async () => {

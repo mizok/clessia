@@ -1,4 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { notifyNewApplication } from '../../lib/notify-events';
+import { waitUntilFrom } from '../../lib/wait-until';
 
 import type { AppEnv } from '../../index';
 import { isOpenClass, type Row } from '../../lib/catalog-class';
@@ -115,6 +117,18 @@ app.openapi(
       courseIds.map((courseId) => ({ course_id: courseId })),
     );
     if (!applicationId) return failed();
+
+    // #1693：通知分校的管理員（有 manage_students 的）。背景跑、不擋回應；失敗只記 log
+    const job = notifyNewApplication(supabase, {
+      orgId,
+      applicationId,
+      kind: 'trial',
+      studentName: body.student.name,
+      courseIds: courseIds,
+    });
+    const wu = waitUntilFrom(c);
+    if (wu) wu(job);
+    else await job;
 
     return c.json({ id: applicationId }, 201);
   },
