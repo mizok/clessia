@@ -69,6 +69,22 @@ describe('onRouteViewTransition', () => {
     expect(document.documentElement.hasAttribute(ROUTE_DIR_ATTR)).toBe(false);
   });
 
+  it('快速連續換頁：前一個結束時不拿掉後一個的方向', async () => {
+    stubReducedMotion(false);
+    const first = info(snap(['admin'], ['students']), snap(['admin'], ['students'], ['1']));
+    const second = info(snap(['admin'], ['students'], ['1']), snap(['admin'], ['students']));
+    onRouteViewTransition(first.info);
+    onRouteViewTransition(second.info);
+    first.finish();
+    await first.transition.finished;
+    await Promise.resolve();
+    expect(document.documentElement.getAttribute(ROUTE_DIR_ATTR)).toBe('back');
+    second.finish();
+    await second.transition.finished;
+    await Promise.resolve();
+    expect(document.documentElement.hasAttribute(ROUTE_DIR_ATTR)).toBe(false);
+  });
+
   it('減少動態：跳過 transition、不寫方向', () => {
     stubReducedMotion(true);
     const t = info(snap(['admin'], ['students']), snap(['admin'], ['students'], ['1']));
