@@ -289,6 +289,14 @@ export const PAGES = {
     app: '/select-role',
     state: path.join(cache, 'state-multi.json'),
   },
+  // 公開表單（#1665 PR-4）：未登入也進得來，用訪客登入態（跟登入頁同一份）。
+  // 偏離（試聽補「與學生的關係」等，a6-adoption-rules R5 10-16 那幾列）等第一次 diff 跑出 app 端的 key 再登，不憑空寫 regex
+  trial: { a6: 'pub-trial.html', app: '/trial', state: path.join(cache, 'state-guest.json') },
+  enrollment: {
+    a6: 'pub-enrollment.html',
+    app: '/enrollment',
+    state: path.join(cache, 'state-guest.json'),
+  },
   student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
   parents: { a6: 'parents.html', app: '/admin/parents' },
   courses: { a6: 'courses.html', app: '/admin/courses' },
