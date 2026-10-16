@@ -39,7 +39,7 @@ const LABEL: Record<ScheduleNoticeKind, string> = {
 };
 
 /** `2026-10-20` → `10/20` */
-const shortDate = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+export const shortDate = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 
 export interface ScheduleChangeClassGroup {
   readonly name: string;
@@ -52,7 +52,7 @@ export interface ScheduleChangeClassGroup {
 export async function groupByClass(
   supabase: SupabaseClient,
   orgId: string,
-  rows: readonly ScheduleChangeNoticeRow[],
+  rows: readonly Omit<ScheduleChangeNoticeRow, 'change_type' | 'batch_id'>[],
 ): Promise<Map<string, ScheduleChangeClassGroup>> {
   const { data, error } = await supabase
     .from('sessions')

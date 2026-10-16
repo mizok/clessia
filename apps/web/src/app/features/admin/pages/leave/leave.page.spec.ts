@@ -305,6 +305,8 @@ describe('LeavePage', () => {
 
       const name = (fixture.nativeElement as HTMLElement).querySelector('.chapter-head__name');
       expect(name?.classList).toContain('text-[28px]');
+      // #1715：A6 `.chap` 手機上內距 24px（章頭上的 pt-6），原本 pt-4 差 8px
+      expect(name!.closest('app-chapter-head')!.classList).toContain('pt-6');
     });
 
     it('全部分頁依開始日分章，不把進行中的歸到今天', () => {
