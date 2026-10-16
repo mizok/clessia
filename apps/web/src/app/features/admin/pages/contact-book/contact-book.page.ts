@@ -1,3 +1,4 @@
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -62,6 +63,7 @@ const DEFAULT_RANGE_DAYS = 7;
   selector: 'app-admin-contact-book',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     FormsModule,
     ButtonModule,
     DatePickerModule,
@@ -90,6 +92,8 @@ export class ContactBookPage implements OnInit {
   private readonly systemClock = inject(SystemClockService);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
+  /** 這一輪重抓是補寫造成的 —— 回應套上時列表帶名字 */
+  private reloadRows = false;
   private get today(): string {
     return this.systemClock.todayTaipei();
   }
@@ -197,13 +201,22 @@ export class ContactBookPage implements OnInit {
         takeUntilDestroyed(),
       )
       .subscribe((data) => {
-        this.entries.set(data ?? []);
-        this.failed.set(data === null);
-        this.loading.set(false);
+        // 舊內容（變淡中）平滑換成新資料；補寫造成的重抓帶 rows，那一則淡入（#1641 5b）
+        this.viewTransition(
+          () => {
+            this.entries.set(data ?? []);
+            this.failed.set(data === null);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
       });
   }
 
-  protected load(): void {
+  /** `rows`：補寫造成的重抓，新的那一則淡入（換條件不帶） */
+  protected load({ rows = false }: { rows?: boolean } = {}): void {
+    this.reloadRows = rows;
     this.loading.set(true);
     this.failed.set(false);
 
@@ -282,7 +295,7 @@ export class ContactBookPage implements OnInit {
         { rows: true },
       );
       // 新寫的那則若落在列表的區間內就該出現 —— 這裡重打列表比自己插入可靠
-      this.load();
+      this.load({ rows: true });
       this.loadHero();
     });
   }

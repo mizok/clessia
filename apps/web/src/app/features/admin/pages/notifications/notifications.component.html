@@ -105,50 +105,52 @@
   </section>
 
   <section aria-label="已發布">
-    @if (loading()) {
-      <div class="skeleton-list" aria-label="已發布公告載入中">
+    <app-reload-veil [loading]="loading()">
+      <div reloadSkeleton class="skeleton-list" aria-label="已發布公告載入中">
         @for (i of [1, 2, 3]; track i) {
           <span class="skeleton-bar"></span>
         }
       </div>
-    } @else if (loadError()) {
-      <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
-    } @else if (announcements().length === 0) {
-      <p class="m-0 text-base text-zinc-700">還沒有發布過公告。</p>
-    } @else {
-      @for (chapter of chapters(); track chapter.key) {
-        <section
-          class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
-          [attr.aria-label]="chapter.name"
-          data-testid="chapter"
-        >
-          <app-chapter-head
-            class="block pt-4 wide:pt-8"
-            [name]="chapter.name"
-            [count]="chapter.items.length"
-            unit="則"
-          />
-          <ul class="m-0 list-none p-0 wide:pt-4">
-            @for (item of chapter.items; track item.id) {
-              <li
-                class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 border-b border-surface-border py-4 last:border-b-0"
-                data-testid="announcement"
-              >
-                <span class="text-base font-semibold text-zinc-900">{{ item.title }}</span>
-                <span
-                  class="col-start-2 row-span-2 row-start-1 inline-flex h-[22px] items-center self-center rounded-full px-2 text-sm font-semibold whitespace-nowrap text-zinc-800 ring-1 ring-zinc-300 ring-inset"
-                  data-testid="audience"
-                  >{{ AUDIENCE_LABELS[item.audience] }}</span
+      @if (loadError()) {
+        <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
+      } @else if (announcements().length === 0) {
+        <p class="m-0 text-base text-zinc-700">還沒有發布過公告。</p>
+      } @else {
+        @for (chapter of chapters(); track chapter.key) {
+          <section
+            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            [attr.aria-label]="chapter.name"
+            data-testid="chapter"
+          >
+            <app-chapter-head
+              class="block pt-4 wide:pt-8"
+              [name]="chapter.name"
+              [count]="chapter.items.length"
+              unit="則"
+            />
+            <ul class="m-0 list-none p-0 wide:pt-4">
+              @for (item of chapter.items; track item.id) {
+                <li
+                  class="vt-row grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 border-b border-surface-border py-4 last:border-b-0"
+                  data-testid="announcement"
+                  [style.view-transition-name]="'announcement-' + item.id"
                 >
-                <span class="text-sm text-zinc-600 tabular-nums" data-testid="meta">
-                  {{ item.publishedAt | date: 'yyyy/MM/dd HH:mm' : '+0800' }} ·
-                  {{ item.campusName ?? '全部分校' }}
-                </span>
-              </li>
-            }
-          </ul>
-        </section>
+                  <span class="text-base font-semibold text-zinc-900">{{ item.title }}</span>
+                  <span
+                    class="col-start-2 row-span-2 row-start-1 inline-flex h-[22px] items-center self-center rounded-full px-2 text-sm font-semibold whitespace-nowrap text-zinc-800 ring-1 ring-zinc-300 ring-inset"
+                    data-testid="audience"
+                    >{{ AUDIENCE_LABELS[item.audience] }}</span
+                  >
+                  <span class="text-sm text-zinc-600 tabular-nums" data-testid="meta">
+                    {{ item.publishedAt | date: 'yyyy/MM/dd HH:mm' : '+0800' }} ·
+                    {{ item.campusName ?? '全部分校' }}
+                  </span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
       }
-    }
+    </app-reload-veil>
   </section>
 </div>

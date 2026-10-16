@@ -1,6 +1,6 @@
 ---
 title: 公開試聽申請、我要報名表單照 A6（設計稿）
-summary: 設計稿（#1637；Q1–Q6、Q5′、Q6′ 已於 10-16 裁定完畢）。後端（public_applications、/api/public/*、honeypot＋Postgres 速率限制）與行政收件頁（/admin/applications）早已上線，缺的是 /trial、/enrollment 兩個前端頁。依裁定加：試聽表單補「與學生關係」（A6 偏離）、機器人驗證改用自架的 ALTCHA（拿掉 Turnstile）、班級「開放公開報名」旗標、老師暱稱（對外只露暱稱，沒設就不露）、申請保存 6 個月由 pg_cron 刪除；三個 schema 變更合成一支 migration。拆成四支實作單。
+summary: 設計稿（#1637；Q1–Q6、Q5′、Q6′ 已於 10-16 裁定完畢）。後端（public_applications、/api/public/*、honeypot＋Postgres 速率限制）與行政收件頁（/admin/applications）早已上線，缺的是 /trial、/enrollment 兩個前端頁。依裁定加：試聽表單補「與學生關係」（A6 偏離）、機器人驗證預設自架的 ALTCHA、部署可切換成 Turnstile、班級「開放公開報名」旗標、老師暱稱（對外只露暱稱，沒設就不露）、申請保存 6 個月由 pg_cron 刪除；三個 schema 變更合成一支 migration。拆成四支實作單。
 category: spec
 status: draft
 updated: 2026-10-16
@@ -9,7 +9,7 @@ tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 
 # 公開試聽申請、我要報名表單照 A6（設計稿）
 
-> **狀態：設計稿。Q1–Q6（15:04）、Q6 補充（15:09）、Q5′／Q6′（15:25）已全部裁定（#1637 留言），沒有待裁題。**
+> **狀態：設計稿。Q1–Q6（15:04）、Q6 補充（15:09）、Q5′／Q6′（15:25）已全部裁定（#1637 留言）；Q4′（15:38，#1665 留言）改了 Q4 的範圍，沒有待裁題。**
 > 實作照 §6 拆單，每一單仍走 `clessia-feature-slice`；migration 屬保留類，正式 DB 由使用者 Approve。
 > 稿：`.design-explorations/973-layout/a6-editorial/pub-trial.html`、`pub-enrollment.html`（以下 `D/`）。
 > A6 全採（[[architecture/a6-adoption-rules]]），偏離逐條列在 §1 與該頁 R5。
@@ -30,13 +30,13 @@ tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 
 依裁定，除了把兩個前端頁照 A6 做出來，還要做：
 
-| 裁定   | 內容                                                                                    | 落在哪                         |
-| ------ | --------------------------------------------------------------------------------------- | ------------------------------ |
-| Q1     | 試聽表單**補**「與學生關係」，行政頁照常顯示                                            | 前端（§1）                     |
-| Q2＋Q3 | 申請保存 6 個月，pg_cron 每天刪，**已轉入的也刪**                                       | migration（§4.3）              |
-| Q4     | 機器人驗證改用 **ALTCHA**（自架、不連外），**拿掉 Turnstile**；honeypot、速率限制照舊   | API＋前端（§4.4）              |
-| Q5     | 班級加「開放公開報名」旗標，行政在班級設定切換，公開目錄只列開放的班                    | migration＋API＋行政頁（§3）   |
-| Q6     | 暱稱：staff 加 `nickname`（所有人員都能設），對外只露暱稱，**沒設就不露，絕不退回本名** | migration＋API＋行政頁（§4.5） |
+| 裁定    | 內容                                                                                                                      | 落在哪                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Q1      | 試聽表單**補**「與學生關係」，行政頁照常顯示                                                                              | 前端（§1）                     |
+| Q2＋Q3  | 申請保存 6 個月，pg_cron 每天刪，**已轉入的也刪**                                                                         | migration（§4.3）              |
+| Q4＋Q4′ | 機器人驗證**預設 ALTCHA**（自架、不連外），**Turnstile 保留為可切換的部署設定**；兩者都不能被略過；honeypot、速率限制照舊 | API＋前端（§4.4）              |
+| Q5      | 班級加「開放公開報名」旗標，行政在班級設定切換，公開目錄只列開放的班                                                      | migration＋API＋行政頁（§3）   |
+| Q6      | 暱稱：staff 加 `nickname`（所有人員都能設），對外只露暱稱，**沒設就不露，絕不退回本名**                                   | migration＋API＋行政頁（§4.5） |
 
 ---
 
@@ -156,7 +156,9 @@ A6 的個資聲明（`D/pub-trial.html:174-177`）寫「保存 6 個月，可以
 
 ### 4.4 機器人驗證：ALTCHA（Q4）
 
-**為什麼是 ALTCHA**：MIT 授權、proof-of-work，伺服器端出題與驗算都在自己的程式裡，不連任何外部服務（c12）。Turnstile 是 Cloudflare 的服務，自架的客戶用不了，**照裁定拿掉**。
+**為什麼預設 ALTCHA**：MIT 授權、proof-of-work，伺服器端出題與驗算都在自己的程式裡，不連任何外部服務（c12）。Turnstile 是 Cloudflare 的服務，自架的客戶用不了 —— **Q4′（15:38）裁定保留為可選**：部署設 `CAPTCHA_PROVIDER=turnstile` 才走它，沒設預設 `altcha`。
+
+**兩者都不能被略過**（Q4′ 原文要求 spec 守住）：沒附、驗不過 → 400 `CAPTCHA_FAILED`；`CAPTCHA_PROVIDER` 是不認得的值、或設成 turnstile 卻缺 `TURNSTILE_SECRET_KEY` → 503 `CAPTCHA_UNAVAILABLE`。**沒有「不驗」的設定**（原本「沒設 Turnstile secret 就不驗」的行為拿掉）。
 
 **釘的版本與出處**（2026-10-16 查 npm，都已發布滿兩週）：
 
@@ -167,32 +169,24 @@ A6 的個資聲明（`D/pub-trial.html:174-177`）寫「保存 6 個月，可以
 
 `altcha-lib` 的預設入口是 v2 API；v1 在另一個子路徑 `altcha-lib/v1`。**這裡只用 v2，不用 v1。**
 
-流程：
+流程（PR-2 實作後的樣子）：
 
-1. 表單一打開，前端打 `GET /api/public/altcha-challenge`。API 用 v2 的 `createChallenge(options)` 出題：
-   - `algorithm` 用 `'PBKDF2/SHA-256'` 或 `'SHA-256'`。WebCrypto 就做得到；README 對「WinterCG runtimes」的建議就是用 WebCrypto 演算法。
-   - `deriveKey` 用該演算法對應的實作（README 的 `/docs/algorithms.md`）。
-   - `hmacSignatureSecret` 用第 4 點的金鑰。
-   - `expiresAt` 設成現在加 10 分鐘（單位是秒，也可以傳 Date）。
-   - 難度由 `cost`（和 `keyPrefix`）控制，目標是一般手機約 0.5–2 秒算完。實作時在 Playwright CPU 降速 4 倍下量，量到的值寫進程式註解。
-2. 前端用 widget 的 web component `<altcha-widget>`，設 `auto="onload"`，背景自動算，不顯示勾選框。A6 那一列「已通過機器人驗證」等它算完才顯示；按送出時還沒算完，就等它算完再送（處於送出中狀態）。
-3. 兩支 `POST` 的 body：`captchaToken` 改成 `altcha`（widget 交出的 payload）。`application-common.ts` 的守門順序維持 **honeypot → 速率限制 → 機器人驗證**，第三步換成 v2 的 `verifySolution(options)`：
-   - options 傳 `challenge`、`solution`、`hmacSignatureSecret`、`deriveKey`。
-   - **過期由它自己檢查**：回傳的 `expired` 為真就拒收，不用另外帶參數。
-   - `verified` 不是 true → 400 `CAPTCHA_FAILED`。
-   - spec 至少要有三條：過期的解答被拒、簽章不符被拒、正確的解答通過。
-4. **金鑰**：環境變數 `ALTCHA_HMAC_KEY`；沒設時用 `BETTER_AUTH_SECRET` 經 HMAC 衍生一把（同 IP 雜湊的做法）。所以**驗證一律開著**，自架的人不會因為少設一個變數而沒有驗證。
-5. **拿掉**：`TURNSTILE_SECRET_KEY` 的讀取與 siteverify 呼叫（`application-common.ts:79`、`:153-170`）、web `environment*.ts` 的 `turnstileSiteKey`、`captchaToken` 欄位；相關 spec 改寫成 ALTCHA 版。
+1. 表單一打開，前端打 `GET /api/public/captcha`（`no-store`）：
+   - `altcha` → `{ provider: 'altcha', challenge: { parameters, signature } }`。API 用 v2 `createChallenge`，`PBKDF2/SHA-256`、WebCrypto 版 `deriveKey`（`altcha-lib/algorithms/web/pbkdf2`）、確定式模式（帶 `counter` 5000–10000＋key 簽章，驗證只做 HMAC）、10 分鐘過期。cost 暫定 1000（官方範例 5000 在 Node 單執行緒要 4.7 秒），PR-4 在 Playwright CPU 降速 4 倍下量 widget 後定案。
+   - `turnstile` → `{ provider: 'turnstile', siteKey }`（`TURNSTILE_SITE_KEY`）。site key 改由 API 給，web 的 `environment*.ts` 不再寫死。
+2. 前端：`altcha` 時用 `<altcha-widget>`，把上面那份題目直接交給它算（`auto="onload"`，不顯示勾選框）；`turnstile` 時掛 Turnstile widget。A6 那一列「已通過機器人驗證」等驗證完成才顯示；按送出時還沒好，就等它好了再送（處於送出中狀態）。
+3. 兩支 `POST` 的 body 仍用 `captchaToken`（兩家共用一個欄位；ALTCHA 時是 widget 的 payload）。守門順序維持 **honeypot → 速率限制 → 機器人驗證**。ALTCHA 那一步：payload 是 base64(JSON `{ challenge: { parameters, signature }, solution }`)，解開後交給 v2 `verifySolution`（過期、簽章、解答都由它判），格式壞掉一律當沒通過。
+4. **金鑰**：`ALTCHA_HMAC_KEY`；沒設時用 `BETTER_AUTH_SECRET` 經 HMAC 衍生（題目簽章與 key 簽章各衍生一把）。
 
-**未證實（實作 PR-2 第一步先查，查不到就停下回報）**：
+**§4.4 原本列的三個未證實項，PR-2 第一步查完（10-16）**：
 
-- **`altcha-lib` 能不能在 Cloudflare Workers 上跑**：README 的相容表只列 Node.js 20+、Bun 1+、Deno 2+、「WinterCG runtimes（用 WebCrypto 演算法）」，**沒有點名 Workers**。Workers 是 WinterCG 成員，但這是推論。驗證方式：在 `wrangler dev` 下實際出題並驗一次。
-- **widget 3.2.4 交出的 payload 怎麼拆成 v2 `verifySolution` 要的 `challenge`＋`solution`**：v2 改了題目格式，README 指向 `/docs/advanced-usage.md`，我還沒讀到具體格式，不寫死。
-- **widget 3.x 解的是不是 lib v2 的題目格式**：widget README 寫的是「Next-Gen PoW」和 Argon2／Scrypt，沒有直接寫對應 lib 的哪一版。
+- **Workers 上能不能跑**：可以。`altcha-lib` 2.5.0 的 `algorithms/web/*` 與簽章只用 `crypto.subtle`；在 `wrangler dev`（workerd）下實際出題 → 解題 → 送出，正確解答過守門、竄改與未附回 `CAPTCHA_FAILED`。
+- **widget payload 格式**：altcha 3.2.4 `dist/main/altcha.js` 的 `verify()` 交出 `btoa(JSON.stringify({ challenge: { parameters, signature }, solution }))`；只有題目帶 `_version: 1` 時才改出 v1 格式。test 模式交 `{ challenge: null, … }`，API 拒收。
+- **widget 3.x 解的是不是 lib v2 題目**：是。widget 內建的就是 lib v2 的 `createChallenge`／`solveChallengeWorkers`（`dist/lib/index.js`），counterMode `uint32`。
 
 **刻意不做重放防護表**：同一份解答在 10 分鐘有效期內可以重送。不另建「用過的題目」表，因為速率限制已經把同一來源壓在每小時 5 筆、同一聯絡方式每天 3 筆，重送拿不到更多額度。程式碼用 `ponytail:` 註解寫明這個上限與升級路徑：出現濫用時，加一張 Postgres 表記錄用過的 signature，過期就刪。（README 有 `/docs/store.md`，可以參考它的介面，但儲存一律放 Postgres，不用 KV，c12。）
 
-**載入**：widget 只在 `/trial`、`/enrollment` lazy 載入，不進主 bundle。
+**載入**：widget（ALTCHA 或 Turnstile 擇一）只在 `/trial`、`/enrollment` lazy 載入，不進主 bundle。
 
 ### 4.5 暱稱（Q6，15:09 補充：開給所有 staff）
 
@@ -247,7 +241,7 @@ SELECT cron.schedule(
 | 單   | 內容                                                                                                                                                                                                                                                                | 類別                    | 依賴       |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ---------- |
 | PR-1 | **migration（§5）＋公開目錄 API**：開放旗標過濾、兩支 POST 拒收不開放的班／課、`teacherNicknames`（含「無暱稱不露本名」spec）、`campuses` 聯絡資訊（§4.2）                                                                                                          | **保留類**（migration） | —          |
-| PR-2 | **ALTCHA 換掉 Turnstile（API 端）**：先查掉 §4.4 的三個未證實；challenge 端點、`verifySolution`、金鑰衍生、拿掉 Turnstile；`abuse-guard.spec.ts` 改寫                                                                                                               | 保留類（防濫用屬安全）  | —          |
+| PR-2 | **ALTCHA 為預設、Turnstile 可切換（API 端）**：先查掉 §4.4 的三個未證實；`GET /api/public/captcha`、`verifySolution`、金鑰衍生、`CAPTCHA_PROVIDER`；`abuse-guard.spec.ts` 改寫                                                                                      | 保留類（防濫用屬安全）  | —          |
 | PR-3 | **行政頁**：班級 dialog 的「開放公開報名」開關＋課程頁「不公開」小標、人員表單的「對外暱稱」欄（所有人員）；班級／人員更新 API 收這兩欄；帳號設定 dialog 加暱稱欄（只對 staff 顯示）與 `/api/me` 對應更新（Q6′）                                                    | 一般                    | PR-1       |
 | PR-4 | **公開表單前端**：`/trial`、`/enrollment` 照 A6（§1）、ALTCHA widget、成功／失敗畫面；訂正 `specs/public/trial.md`、`enrollment.md` 已過期的資料依賴（寫 `trial_requests`／`enrollment_requests`，實際是 `public_applications`）；a6-adoption-rules R5 登記 Q1 偏離 | 一般                    | PR-1、PR-2 |
 
@@ -262,6 +256,7 @@ PR-4 的驗收照 [[architecture/a6-adoption-rules]] R4：附 `tools/a6-conforma
 - 寄確認信或簡訊、LINE 通知（LINE Messaging API 已否決）。
 - 行政頁的單筆刪除按鈕（§4.3）。
 - ALTCHA 的重放防護表（§4.4）。
+- 「不驗」的機器人驗證設定（Q4′：兩者都不能被略過）。
 - 年級清單合併到 `packages/shared-types`（§1）。
 
 ## 8. 裁定紀錄（#1637 留言）
@@ -270,14 +265,15 @@ PR-4 的驗收照 [[architecture/a6-adoption-rules]] R4：附 `tools/a6-conforma
 
 ### 已裁
 
-| #                | 裁定                                                                                   |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| Q1               | 試聽表單補「與學生關係」，行政頁顯示；登記為 A6 偏離                                   |
-| Q2               | pg_cron 每天刪超過 6 個月的申請（一支 migration，要 Approve）                          |
-| Q3               | 已轉入的申請到期也刪                                                                   |
-| Q4               | 加機器人驗證，用 ALTCHA；不用 Turnstile；honeypot、速率限制保留                        |
-| Q5               | 班級加「開放公開報名」旗標，行政在班級設定切換，公開目錄只列開放的班                   |
-| Q6               | staff 加 nickname，對外只公開暱稱；沒暱稱不顯示，絕不退回本名；spec 守住               |
-| Q6 補充（15:09） | 暱稱開給所有 staff（含管理員、行政）；對外只露實際出現在公開頁的人（目前只有任課老師） |
-| Q5′（15:25）     | `is_public_enrollment` 預設 `true`                                                     |
-| Q6′（15:25）     | 本人可在帳號設定改自己的暱稱；管理員也可在人員管理改                                   |
+| #                   | 裁定                                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| Q1                  | 試聽表單補「與學生關係」，行政頁顯示；登記為 A6 偏離                                         |
+| Q2                  | pg_cron 每天刪超過 6 個月的申請（一支 migration，要 Approve）                                |
+| Q3                  | 已轉入的申請到期也刪                                                                         |
+| Q4                  | 加機器人驗證，用 ALTCHA；不用 Turnstile；honeypot、速率限制保留                              |
+| Q4′（15:38，#1665） | 折衷：預設 ALTCHA，保留可切換成 Turnstile 的部署設定（`CAPTCHA_PROVIDER`）；兩者都不能被略過 |
+| Q5                  | 班級加「開放公開報名」旗標，行政在班級設定切換，公開目錄只列開放的班                         |
+| Q6                  | staff 加 nickname，對外只公開暱稱；沒暱稱不顯示，絕不退回本名；spec 守住                     |
+| Q6 補充（15:09）    | 暱稱開給所有 staff（含管理員、行政）；對外只露實際出現在公開頁的人（目前只有任課老師）       |
+| Q5′（15:25）        | `is_public_enrollment` 預設 `true`                                                           |
+| Q6′（15:25）        | 本人可在帳號設定改自己的暱稱；管理員也可在人員管理改                                         |

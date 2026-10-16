@@ -75,6 +75,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 type ExamKind = 'academy' | 'school';
@@ -252,6 +253,7 @@ export class ExamsComponent implements OnInit {
   private readonly campusCtx = inject(CampusContextService);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
+  private readonly optimisticRemove = injectOptimisticRemove();
   protected readonly campusId = this.campusCtx.id;
   protected readonly schoolId = signal<string | null>(null);
   protected readonly subjectId = signal<string | null>(null);
@@ -292,6 +294,8 @@ export class ExamsComponent implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly PAGE_SIZE = PAGE_SIZE;
   private readonly reloadToken = signal(0);
+  /** 下一次列表重抓要不要變淡、列要不要帶名字（`reloadListAndCounts` 設、`loadExamRows` 取走） */
+  private reloadMode = { quiet: false, rows: false };
   private latestListRequestId = 0;
 
   private readonly listQuery = computed(() => ({
@@ -486,7 +490,9 @@ export class ExamsComponent implements OnInit {
     reloadToken: number;
   }): void {
     const requestId = ++this.latestListRequestId;
-    this.loading.set(true);
+    const mode = this.reloadMode;
+    this.reloadMode = { quiet: false, rows: false };
+    if (!mode.quiet) this.loading.set(true);
 
     const dateFrom = this.resolveDateFrom(query.timeRange);
     // `todo` 家族三個值都是「還沒登完」，只是分不分級；它們都不是 exam 的
@@ -523,26 +529,29 @@ export class ExamsComponent implements OnInit {
           next: (res) => {
             if (requestId !== this.latestListRequestId) return;
             // 舊內容（變淡中）平滑換成新資料（#1641 5b）
-            this.viewTransition(() => {
-              this.currentRows.set(
-                res.data.map((exam) => ({
-                  kind: 'academy' as const,
-                  id: exam.id,
-                  name: exam.name,
-                  examDate: exam.examDate,
-                  status: exam.status,
-                  examType: exam.examType,
-                  ...academyScope(exam),
-                  campusId: exam.campusId,
-                  subjectId: exam.subjectId,
-                  scoreCount: exam.scoreCount,
-                  expectedCount: exam.expectedCount,
-                  raw: exam,
-                })),
-              );
-              this.total.set(res.meta.total);
-              this.loading.set(false);
-            });
+            this.viewTransition(
+              () => {
+                this.currentRows.set(
+                  res.data.map((exam) => ({
+                    kind: 'academy' as const,
+                    id: exam.id,
+                    name: exam.name,
+                    examDate: exam.examDate,
+                    status: exam.status,
+                    examType: exam.examType,
+                    ...academyScope(exam),
+                    campusId: exam.campusId,
+                    subjectId: exam.subjectId,
+                    scoreCount: exam.scoreCount,
+                    expectedCount: exam.expectedCount,
+                    raw: exam,
+                  })),
+                );
+                this.total.set(res.meta.total);
+                this.loading.set(false);
+              },
+              { rows: mode.rows },
+            );
           },
           error: () => {
             if (requestId !== this.latestListRequestId) return;
@@ -572,29 +581,32 @@ export class ExamsComponent implements OnInit {
       .subscribe({
         next: (res) => {
           if (requestId !== this.latestListRequestId) return;
-          this.viewTransition(() => {
-            this.currentRows.set(
-              res.data.map((exam) => ({
-                kind: 'school' as const,
-                id: exam.id,
-                name: exam.label,
-                examDate: exam.examDate,
-                status: exam.status,
-                scope: exam.schoolName
-                  ? `${exam.schoolName} · ${exam.subjectId ? (exam.subjectName ?? '指定科目') : '全科目'}`
-                  : exam.subjectId
-                    ? (exam.subjectName ?? '指定科目')
-                    : '全科目',
-                scoreCount: exam.scoreCount,
-                schoolId: exam.schoolId,
-                subjectId: exam.subjectId ?? null,
-                subjectName: exam.subjectName ?? null,
-                raw: exam,
-              })),
-            );
-            this.total.set(res.meta.total);
-            this.loading.set(false);
-          });
+          this.viewTransition(
+            () => {
+              this.currentRows.set(
+                res.data.map((exam) => ({
+                  kind: 'school' as const,
+                  id: exam.id,
+                  name: exam.label,
+                  examDate: exam.examDate,
+                  status: exam.status,
+                  scope: exam.schoolName
+                    ? `${exam.schoolName} · ${exam.subjectId ? (exam.subjectName ?? '指定科目') : '全科目'}`
+                    : exam.subjectId
+                      ? (exam.subjectName ?? '指定科目')
+                      : '全科目',
+                  scoreCount: exam.scoreCount,
+                  schoolId: exam.schoolId,
+                  subjectId: exam.subjectId ?? null,
+                  subjectName: exam.subjectName ?? null,
+                  raw: exam,
+                })),
+              );
+              this.total.set(res.meta.total);
+              this.loading.set(false);
+            },
+            { rows: mode.rows },
+          );
         },
         error: () => {
           if (requestId !== this.latestListRequestId) return;
@@ -721,7 +733,16 @@ export class ExamsComponent implements OnInit {
     return format(subMonths(new Date(), months), 'yyyy-MM-dd');
   }
 
-  protected reloadListAndCounts(): void {
+  /**
+   * `quiet`：刪除成功後的背景重抓 —— 畫面已經是「刪掉了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：新增／編輯／結束／重開造成的重抓，回應套上時那一列淡入、淡出或就地更新（換條件不帶）。
+   * 列表是 `listQuery` 的 effect 觸發的，所以這兩個旗標放在欄位上、由下一次 `loadExamRows` 取走。
+   */
+  protected reloadListAndCounts({
+    quiet = false,
+    rows = false,
+  }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.reloadMode = { quiet, rows };
     this.loadFailed.set(false);
     this.reloadToken.update((v) => v + 1);
     this.loadTodoCounts();
@@ -808,7 +829,7 @@ export class ExamsComponent implements OnInit {
     ref.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result: AcademyExamFormDialogResult | undefined) => {
-        if (result) this.reloadListAndCounts();
+        if (result) this.reloadListAndCounts({ rows: true });
       });
   }
 
@@ -826,7 +847,7 @@ export class ExamsComponent implements OnInit {
     ref.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result: SchoolExamFormDialogResult | undefined) => {
-        if (result) this.reloadListAndCounts();
+        if (result) this.reloadListAndCounts({ rows: true });
       });
   }
 
@@ -854,7 +875,7 @@ export class ExamsComponent implements OnInit {
           summary: '已結束',
           detail: `「${row.name}」已結束`,
         });
-        this.reloadListAndCounts();
+        this.reloadListAndCounts({ rows: true });
       },
       error: () => {
         this.messageService.add({
@@ -878,7 +899,7 @@ export class ExamsComponent implements OnInit {
           summary: '已重新開啟',
           detail: `「${row.name}」已恢復為進行中`,
         });
-        this.reloadListAndCounts();
+        this.reloadListAndCounts({ rows: true });
       },
       error: () => {
         this.messageService.add({
@@ -902,28 +923,37 @@ export class ExamsComponent implements OnInit {
     );
   }
 
+  /**
+   * 樂觀刪除（#1641 5b 第 1 點）：按下就淡出，失敗放回並說明。
+   * 有成績的考試選單本來就停用（`scoreCount > 0`），所以「被佔用而刪不掉」很少見。
+   */
   private deleteExam(row: ExamRow): void {
     const call$ =
       row.kind === 'academy'
         ? this.academyExamsService.delete(row.id)
         : this.schoolExamsService.delete(row.id);
-    call$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '已刪除',
-          detail: `「${row.name}」已刪除`,
-        });
-        this.reloadListAndCounts();
+    this.optimisticRemove(
+      this.currentRows,
+      (r) => r.kind === row.kind && r.id === row.id,
+      call$.pipe(takeUntilDestroyed(this.destroyRef)),
+      {
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '已刪除',
+            detail: `「${row.name}」已刪除`,
+          });
+          this.reloadListAndCounts({ quiet: true, rows: true });
+        },
+        error: () => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '刪除失敗',
+            detail: '無法刪除考試（可能已有成績紀錄）',
+          });
+        },
       },
-      error: () => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '刪除失敗',
-          detail: '無法刪除考試（可能已有成績紀錄）',
-        });
-      },
-    });
+    );
   }
 
   private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
