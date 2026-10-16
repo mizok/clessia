@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import type { AppEnv } from '../index';
+import { isAllowedPushEndpoint } from '../lib/push-endpoint';
 import { DbUuidSchema } from '../lib/validation';
 
 /**
@@ -8,30 +9,6 @@ import { DbUuidSchema } from '../lib/validation';
  * 掛在 `/api/me` 底下（ANY_ROLE），**一切都是「自己的」**：`user_id`／`org_id` 一律取自 session，
  * body 只收裝置給的東西（c1）。
  */
-
-/**
- * 推播服務的網域白名單。#1661 的 Worker 會對 endpoint 發 POST —— 不限制的話，
- * 任何登入的人都能讓我們的 Worker 去打任意網址。新瀏覽器的推播服務不在這裡，就加一行。
- */
-const PUSH_SERVICE_HOST_SUFFIXES = [
-  'fcm.googleapis.com', // Chrome、Edge（新版）、Samsung Internet、Opera
-  'push.services.mozilla.com', // Firefox
-  'push.apple.com', // Safari（macOS 13+、iOS 16.4+ 加入主畫面）
-  'notify.windows.com', // 舊版 Edge（WNS）
-] as const;
-
-export function isAllowedPushEndpoint(endpoint: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(endpoint);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== 'https:') return false;
-  return PUSH_SERVICE_HOST_SUFFIXES.some(
-    (s) => url.hostname === s || url.hostname.endsWith(`.${s}`),
-  );
-}
 
 /**
  * 每個角色開放哪些通知類型。**第一版只有家長**（#1626 Q7）；之後開放老師／行政是在這裡加一列，

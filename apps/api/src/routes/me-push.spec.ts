@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import mePushRoute, { isAllowedPushEndpoint } from './me-push';
+import { isAllowedPushEndpoint } from '../lib/push-endpoint';
+import mePushRoute from './me-push';
 
 /**
  * #1659：推播訂閱與偏好 —— 「一切都是自己的」。替身是一個**真的會套用過濾條件**的記憶體表，
@@ -102,7 +103,11 @@ describe('isAllowedPushEndpoint', () => {
     ['http://fcm.googleapis.com/fcm/send/abc', false], // 不是 https
     ['https://evil.example.com/fcm.googleapis.com', false],
     ['https://fcm.googleapis.com.evil.example.com/x', false],
-    ['https://evilpush.apple.com/x', false], // 後綴要以「.」接
+    ['https://evil.com/?x=fcm.googleapis.com', false], // 網域藏在 query 裡
+    ['https://x.fcm.googleapis.com/fcm/send/abc', false], // 逐字比對，不收子網域
+    ['https://push.apple.com/abc', false], // 只收 web.push.apple.com
+    ['https://evilnotify.windows.com/x', false], // WNS 後綴要以「.」接
+    ['https://user:pw@fcm.googleapis.com/x', false], // 帶帳密
     ['not a url', false],
   ])('%s → %s', (url, ok) => expect(isAllowedPushEndpoint(url)).toBe(ok));
 });
