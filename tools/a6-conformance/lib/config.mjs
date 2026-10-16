@@ -201,6 +201,15 @@ export const SITE_WIDE = [
  */
 export const DATA_DEPENDENT = [
   {
+    // 公開表單（#1665）：課程／開課班是資料（稿的示範課程 vs seed），稿的國文、自然組只有 1–2 項，工具認不成列
+    a6: 'landmark:region\\[想(試聽的課程|報名的開課班)可以選好幾個\\]>(control:checkbox|text:span)\\[',
+    reason: '公開表單的選項是資料：稿的示範課程與 seed 的開課班不同，項目少的組認不成列',
+  },
+  {
+    app: '>text:span~2>text:span$',
+    reason: '公開報名列的「剩 N 位」：說明行文案隨資料，配不上時落在錯位的 span 底下',
+  },
+  {
     // 選身分頁：稿的示範使用者 3 個身分（含家長）；seed 的多身分帳號最多 2 個（teacher0001＝管理員＋任課老師）
     a6: 'landmark:dialog\\[\\{名\\}，你好\\]>control:button\\[家長',
     reason: '身分數隨帳號：稿的示範使用者有 3 個身分，seed 的多身分帳號最多 2 個',
@@ -222,6 +231,77 @@ export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
  * `popovers` 放 A6 id → app id 的額外對照（殼層的在 SHELL_POPOVERS）；
  * `mapping` 放自動配不上的 part（A6 key → app key）。
  */
+/**
+ * 公開試聽／報名表單共用的偏離（#1665 PR-4，兩張稿逐字是同一套 `.pf`）。
+ * 年級下拉：稿的 `.dd` 是 a6.js 把 <select> 換成「一顆 button＋span」；app 用共用的 app-select-field
+ * （PrimeNG p-select＋pt，#991 P1 計畫席裁定選項 A），結構是 combobox＋觸發鈕＋標籤 span，外觀用 pt 對齊。
+ */
+const SELECT_FIELD = 'app-select-field（p-select＋pt）對 A6 .dd：結構不同、外觀對齊';
+const SELECT_FIELD_SOURCE = 'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
+const PUBLIC_FORM_DEVIATIONS = [
+  {
+    status: '缺',
+    a6: 'control:button\\[選擇：選擇年級\\]>text:span\\[選擇年級\\]$',
+    reason: SELECT_FIELD,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    status: '角色',
+    a6: 'landmark:region\\[學生資訊\\]>text:label\\[年級\\]$',
+    detail: '^text:label → text:span$',
+    reason: `${SELECT_FIELD}（標籤是 aria-labelledby 指到的 span）`,
+    source: `${SELECT_FIELD_SOURCE}；${rule('R7')}`,
+  },
+  {
+    status: '文案',
+    a6: 'landmark:region\\[學生資訊\\]>control:button\\[選擇：選擇年級\\]$',
+    app: 'control:button\\[dropdown trigger\\]$',
+    reason: `${SELECT_FIELD}（稿的整顆按鈕被配到 PrimeNG 的箭頭鈕）`,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    status: '樣式',
+    a6: 'landmark:region\\[學生資訊\\]>control:button\\[選擇：選擇年級\\]$',
+    app: 'control:button\\[dropdown trigger\\]$',
+    reason: `${SELECT_FIELD}（稿的整顆按鈕被配到 PrimeNG 的箭頭鈕）`,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    status: '多',
+    app: 'landmark:region\\[學生資訊\\]>control:combobox\\[年級\\*?\\]$',
+    reason: SELECT_FIELD,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    // 稿上的「新」是設計說明（這一列是新加的），不是畫面內容；a6.js 的 ddLabel 也把 .new 剔掉
+    status: '缺',
+    a6: 'text:p\\[已通過機器人驗證\\]>text:span\\[新\\]$',
+    reason: '稿的「新」標記是設計說明，不是畫面內容',
+    source: '.design-explorations a6.js ddLabel（剔除 .new）',
+  },
+  {
+    // 資料：選項清單的長度隨資料（稿的示範課程 vs seed 的開課班），它下面的欄位與品牌面高度跟著移
+    status: '位置',
+    a6: '(landmark:region\\[想(試聽的課程|報名的開課班)可以選好幾個\\]>(text:p\\[|text:label\\[|control:textbox\\[)|landmark:complementary\\[\\]>(landmark:navigation|heading:h2|text:p))',
+    reason: '資料：選項清單的長度與科目順序隨資料，下面的欄位、品牌面的入口列跟著移',
+    source: '#1665 PR-4 conformance（10-16）',
+  },
+  {
+    // 資料：報名列的說明行文案隨資料（稿有老師名、seed 多分校時寫分校名），配不上就變成列內 span 錯位
+    status: '位置',
+    a6: '>row>text:span~2$',
+    reason: '資料：報名列說明行（老師暱稱、分校）隨資料，文案配不上時列內 span 錯位',
+    source: '#1665 PR-4 conformance（10-16）',
+  },
+  {
+    // 資料：報名列的說明行文案隨資料（稿有老師名、seed 多分校時寫分校名），配不上就變成列內 span 錯位
+    status: '樣式',
+    a6: '>row>text:span~2$',
+    reason: '資料：報名列說明行（老師暱稱、分校）隨資料，文案配不上時列內 span 錯位',
+    source: '#1665 PR-4 conformance（10-16）',
+  },
+];
+
 export const PAGES = {
   students: {
     a6: 'students.html',
@@ -289,13 +369,27 @@ export const PAGES = {
     app: '/select-role',
     state: path.join(cache, 'state-multi.json'),
   },
-  // 公開表單（#1665 PR-4）：未登入也進得來，用訪客登入態（跟登入頁同一份）。
-  // 偏離（試聽補「與學生的關係」等，a6-adoption-rules R5 10-16 那幾列）等第一次 diff 跑出 app 端的 key 再登，不憑空寫 regex
-  trial: { a6: 'pub-trial.html', app: '/trial', state: path.join(cache, 'state-guest.json') },
+  // 公開表單（#1665 PR-4）：未登入也進得來，用訪客登入態（跟登入頁同一份）。偏離是 10-16 第一次 diff 跑出來的 key
+  trial: {
+    a6: 'pub-trial.html',
+    app: '/trial',
+    state: path.join(cache, 'state-guest.json'),
+    deviations: [
+      {
+        // #1637 Q1：試聽稿沒有「與學生的關係」，使用者指定補上（版面照報名稿同一欄）
+        status: '多',
+        app: 'landmark:region\\[家長資訊\\]>(text:p\\[與學生的關係\\]|row(>control:radio)?)$',
+        reason: '試聽表單補「與學生的關係」（使用者指定的 A6 偏離）',
+        source: `${rule('R5')}「公開試聽表單與學生的關係」2026-10-16；#1637 Q1`,
+      },
+      ...PUBLIC_FORM_DEVIATIONS,
+    ],
+  },
   enrollment: {
     a6: 'pub-enrollment.html',
     app: '/enrollment',
     state: path.join(cache, 'state-guest.json'),
+    deviations: PUBLIC_FORM_DEVIATIONS,
   },
   student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
   parents: { a6: 'parents.html', app: '/admin/parents' },
