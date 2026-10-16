@@ -111,14 +111,16 @@ export class SelectFieldComponent<T> {
     const container = this.appendTo();
     const overlay = this.select().overlayViewChild;
     if (container === 'body' || !overlay || overlay.modal) return;
-    if (!ALIGNED.has(overlay)) {
-      ALIGNED.add(overlay);
-      const align = overlay.alignOverlay.bind(overlay);
-      overlay.alignOverlay = () => {
-        align();
-        this.shiftIntoContainer();
-      };
-    }
+    // 已經包過：這次打開時 PrimeNG 的 beforeEnter 已經透過 wrapper 換好了，onShow 再換會扣兩次
+    //（p-overlay 實例一直留著，第二次打開才會走到這裡；#1697 二讀抓到）
+    if (ALIGNED.has(overlay)) return;
+    ALIGNED.add(overlay);
+    const align = overlay.alignOverlay.bind(overlay);
+    overlay.alignOverlay = () => {
+      align();
+      this.shiftIntoContainer();
+    };
+    // 第一次：beforeEnter 跑的是還沒包的原版，所以這裡補換一次
     this.shiftIntoContainer();
   }
 

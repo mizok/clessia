@@ -69,7 +69,14 @@ describe('SelectFieldComponent', () => {
         };
         (select as unknown as { overlayViewChild: unknown }).overlayViewChild = overlay;
         select.onShow.emit({} as never);
-        return Object.assign(overlayEl, { realign: () => overlay.alignOverlay() });
+        return Object.assign(overlayEl, {
+          realign: () => overlay.alignOverlay(),
+          // 關掉再打開：p-overlay 實例一直留著，PrimeNG 每次打開都先在 beforeEnter alignOverlay、再發 onShow
+          reopen: () => {
+            overlay.alignOverlay();
+            select.onShow.emit({} as never);
+          },
+        });
       });
     }
 
@@ -94,6 +101,18 @@ describe('SelectFieldComponent', () => {
 
       expect(overlay.style.top).toBe('472px');
       expect(overlay.style.insetInlineStart).toBe('24px');
+    });
+
+    // #1697 二讀抓到：第二次打開時 wrapper 已經換過一次，onShow 不能再換（不然扣兩次：472 → 274）
+    it('關掉再打開：座標只換一次', async () => {
+      const overlay = await showWith(dialogAt(198, 340));
+      overlay.reopen();
+
+      expect(overlay.style.top).toBe('472px');
+      expect(overlay.style.insetInlineStart).toBe('24px');
+
+      overlay.reopen();
+      expect(overlay.style.top).toBe('472px');
     });
 
     it('掛在 body 時不動', async () => {
