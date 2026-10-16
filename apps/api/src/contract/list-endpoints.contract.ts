@@ -146,7 +146,6 @@ const PARAMS: Record<string, string> = {
   '/api/scores/class/{classId}/exam/{examId} classId': '{examClass}',
   '/api/scores/class/{classId}/exam/{examId} examId': '{academyExam}',
   '/api/invoices/{id} id': '{invoice}',
-  '/api/invoices/{id}/reminders id': '{invoice}',
 };
 
 /** 文件沒標 required、但路由邏輯要求至少一個的（不帶回 400）—— 每次都帶 */
