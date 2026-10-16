@@ -18,7 +18,13 @@ function memoryDb(rows: Row[]) {
     let patch: Row | null = null;
     let opts: { count?: string; head?: boolean } = {};
     let limit = Infinity;
-    const match = () => table.filter((r) => filters.every((f) => f(r)));
+    let sort: { col: string; asc: boolean } | null = null;
+    const match = () => {
+      const hit = table.filter((r) => filters.every((f) => f(r)));
+      if (!sort) return hit;
+      const { col, asc } = sort;
+      return [...hit].sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1));
+    };
     const run = () => {
       const hit = match();
       if (patch) for (const r of hit) Object.assign(r, patch);
@@ -29,7 +35,10 @@ function memoryDb(rows: Row[]) {
     const b: Record<string, unknown> = {
       select: (_cols: string, o?: { count?: string; head?: boolean }) => ((opts = o ?? {}), b),
       limit: (n: number) => ((limit = n), b),
-      order: () => b,
+      order: (col: string, o?: { ascending?: boolean }) => (
+        (sort = { col, asc: o?.ascending ?? true }),
+        b
+      ),
       eq: (k: string, v: unknown) => (filters.push((r) => r[k] === v), b),
       is: (k: string, v: unknown) => (filters.push((r) => (r[k] ?? null) === v), b),
       update: (p: Row) => ((patch = p), b),
@@ -95,9 +104,10 @@ describe('GET /inbox（#1688）', () => {
     const res = await app(memoryDb(others))('GET', '/inbox');
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: Array<{ id: string }>; meta: unknown };
-    expect(body.data.map((d) => d.id)).toEqual([ID(1), ID(2)]);
+    // 新的在前：ID(2)（10-12）先於 ID(1)（10-11）
+    expect(body.data.map((d) => d.id)).toEqual([ID(2), ID(1)]);
     expect(body.meta).toEqual({ total: 2, unread: 1 });
-    expect(body.data[0]).toEqual({
+    expect(body.data[1]).toEqual({
       id: ID(1),
       kind: 'invoice_due',
       title: '繳費提醒',
@@ -143,8 +153,14 @@ describe('GET /inbox 的上限（#1688，計畫席讀 diff）', () => {
       read_at: i < 3 ? '2026-10-15T00:00:00Z' : null,
     }));
     const res = await app(memoryDb(many))('GET', '/inbox');
-    const body = (await res.json()) as { data: unknown[]; meta: { total: number; unread: number } };
+    const body = (await res.json()) as {
+      data: Array<{ id: string }>;
+      meta: { total: number; unread: number };
+    };
     expect(body.data).toHaveLength(100);
+    // 回來的是**最新的** 100 則、新的在前：n-104 … n-005；最舊的 5 則（n-000…n-004）不在清單裡
+    expect(body.data[0]!.id).toBe('n-104');
+    expect(body.data.at(-1)!.id).toBe('n-005');
     expect(body.meta).toEqual({ total: 105, unread: 102 });
   });
 });
