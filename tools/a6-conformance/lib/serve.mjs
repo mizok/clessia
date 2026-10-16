@@ -30,6 +30,9 @@ export function resolveRef(ref) {
   throw new Error(`找不到 ref：${ref}`);
 }
 
+/** nx serve 的 ready line（`➜  Local:`）帶顏色碼：`Local\x1b[22m:`，先去色再比（10-16 notify 席兩次等滿 600 秒） */
+export const isReady = (log) => /Local:/.test(log.replace(/\x1b\[[\d;]*m/g, ''));
+
 // 新 worktree 沒有 nx／esbuild 快取，冷編譯實測超過 300 秒（10-15）；給 600 秒
 export async function startWeb(ref, { timeoutMs = 600_000 } = {}) {
   const sha = resolveRef(ref);
@@ -72,7 +75,7 @@ export async function startWeb(ref, { timeoutMs = 600_000 } = {}) {
     const ok = await fetch(url)
       .then((r) => r.ok)
       .catch(() => false);
-    if (ok && /Local:/.test(fs.readFileSync(log, 'utf8'))) break;
+    if (ok && isReady(fs.readFileSync(log, 'utf8'))) break;
     await new Promise((r) => setTimeout(r, 3000));
   }
   console.warn(`  ${ref}（${sha}）→ ${url}`);

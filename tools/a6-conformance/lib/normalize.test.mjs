@@ -1310,3 +1310,9 @@ test('#1665 PR-4：公開表單「選項清單長度」的位置資料差只放�
   assert.deepEqual(on('enrollment'), ['已記錄偏離', '待修']);
   assert.deepEqual(on('login'), ['待修', '待修']);
 });
+
+test('compare：nx serve 的 ready line 帶顏色碼（Local\\x1b[22m:）也認得出來', async () => {
+  const { isReady } = await import('./serve.mjs');
+  assert.equal(isReady('  \x1b[32m➜\x1b[39m  \x1b[1mLocal\x1b[22m:   http://localhost:4310/'), true);
+  assert.equal(isReady('Building...'), false);
+});
