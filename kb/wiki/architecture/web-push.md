@@ -39,13 +39,15 @@ Web Push 只需要「有一支註冊好的 service worker，而且它處理 `pus
 那是這張單沒有要的東西，而它跟現有的兩個設計會互相干擾：
 
 1. **它會自己快取 `index.html` 和所有 chunk，版本由 `ngsw.json` 的雜湊決定**
-   （[Angular：Service worker in production](https://angular.dev/ecosystem/service-workers/devops)）。
+   （快取的對象與 `index` 設定見 [Angular：Service worker configuration](https://angular.dev/ecosystem/service-workers/config)；版本與 `ngsw.json` 雜湊見 [Angular：Service worker in production](https://angular.dev/ecosystem/service-workers/devops)）。
    [[architecture/chunk-load-recovery]] 處理的「舊分頁要不到新 chunk」會多一層：瀏覽器快取之外還有 SW 快取，
    而 SW 的版本切換是「下次載入才生效」—— 換版後第一次開到的是舊版。
 2. **它對導覽請求會回快取的 `index.html`**，#1611 刻意讓「不存在的路徑回 `404.html`」那條，
    在 SW 接管的分頁上就不再成立（雜湊檔本身因為有副檔名不受影響）。
+   出處：[Angular：Service worker configuration](https://angular.dev/ecosystem/service-workers/config) 的 `navigationUrls` 預設（全部網址，排除最後一段帶副檔名的與含 `__` 的）
+   與 `navigationRequestStrategy` 預設 `performance`（回快取的 index 檔）。
 3. 出事時的退場方式是「刪掉 `ngsw.json`」或「永久在同一個網址提供 `safety-worker.js`」
-   （同上文件）—— **永久**是官方原話。
+   （[Angular：Service worker in production](https://angular.dev/ecosystem/service-workers/devops)）—— **永久**是官方原話。
 
 手寫的 `sw.js` 不註冊 `fetch` 監聽器，**瀏覽器的所有請求照舊走網路與 HTTP 快取**，
 跟 #1611 的 `_headers` 完全無關。
@@ -107,7 +109,8 @@ Chrome 從 108（行動）／112（桌機）起，選單裡的「安裝應用程
 1. 需要的原語 Workers 全都有：ECDSA（簽 VAPID JWT）、ECDH（協商）、HKDF、AES-GCM
    （[Workers：Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)）。
    **⚠️ 那頁沒有逐條寫出 P-256 曲線**，實作第一步就是在 `wrangler dev` 跑一次 `generateKey({name:'ECDH', namedCurve:'P-256'})` 確認。
-2. Node ≥ 20 的 `globalThis.crypto.subtle` 是同一套 API，**c12 的 Node 自架路徑跑同一份程式碼，不用任何分支**。
+2. Node ≥ 20 的 `globalThis.crypto.subtle` 是同一套 API（[Node.js：Web Crypto API](https://nodejs.org/api/webcrypto.html)；ECDH／ECDSA／HKDF／AES-GCM 都在。
+   那頁沒寫哪一版起全域不需旗標、也沒逐條列 P-256 → 實作時在 Node 端同樣跑一次 `generateKey` 確認），**c12 的 Node 自架路徑跑同一份程式碼，不用任何分支**。
 3. **RFC 8291 第 5 節附了固定金鑰的完整範例，附錄 A 列了每一步的中間值**
    （[RFC 8291](https://www.rfc-editor.org/rfc/rfc8291.html)）—— 單元測試直接對那組向量，加密寫錯一個 byte 就紅。
    這比信任一個沒有測試向量的第三方套件更可驗證。
@@ -251,7 +254,7 @@ CREATE INDEX push_deliveries_pending_idx ON public.push_deliveries (created_at) 
 - `POST /api/internal/push/run` 註冊在 `app.use('/api/*', authMiddleware)` **之前**（跟 `/api/system-time` 同一個做法，`index.ts` 已有註解說明）。
 - `Authorization: Bearer <CRON_SECRET>`，`CRON_SECRET` 是 `wrangler secret`（使用者自己設）。
   **沒設 `CRON_SECRET` → 一律 404**（跟 `PUBLIC_ORG_SLUG` 沒設就關著同一個慣例）。
-- 比對用**固定時間比較**。注意 `crypto.subtle.timingSafeEqual` 是 Workers 專屬、Node 沒有 → 用「兩邊各做一次 HMAC-SHA256 再逐 byte XOR」的寫法，兩邊都能跑（c12）。
+- 比對用**固定時間比較**。注意 `crypto.subtle.timingSafeEqual` 是 Workers 專屬（官方原話「non-standard extension」，[Workers：Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)）、Node 的 Web Crypto 沒有 → 用「兩邊各做一次 HMAC-SHA256 再逐 byte XOR」的寫法，兩邊都能跑（c12）。
 
 ### 每一次 run 做什麼
 
