@@ -1,7 +1,16 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 
 import sessionsApp from './sessions';
+
+// #1693：課務異動通知的接線（收件人與內容由 notify-schedule.spec 守）
+vi.mock('../lib/notify-schedule', () => ({
+  queueScheduleChangeNotice: vi.fn(async () => undefined),
+}));
+const queued = vi.mocked(queueScheduleChangeNotice);
+beforeEach(() => queued.mockClear());
 
 /**
  * `PATCH /api/sessions/batch-substitute`（#1110）與 batch-assign-teacher 的分校檢查。
@@ -264,6 +273,8 @@ describe('PATCH /api/sessions/batch-substitute（#1110）', () => {
         original_teacher_name: '李老師',
       }),
     ]);
+    // #1693：通知收到的就是寫進流水的那幾列（原老師、代課老師、同一顆 batch_id）
+    expect(queued).toHaveBeenCalledWith(expect.anything(), arg(insert, 'insert'));
   });
 
   it('兩次呼叫的 batch_id 不同（#1195）', async () => {
@@ -295,6 +306,7 @@ describe('PATCH /api/sessions/batch-substitute（#1110）', () => {
     });
     expect(res.status).toBe(500);
     expect(((await res.json()) as { code: string }).code).toBe('SUBSTITUTE_LOG_FAILED');
+    expect(queued).not.toHaveBeenCalled();
 
     const reverts = queries
       .filter((q) => q.table === 'sessions' && has(q, 'update'))
@@ -342,5 +354,42 @@ describe('PATCH /api/sessions/batch-assign-teacher —— 分校檢查（#1110�
     expect(res.status).toBe(200);
     expect(((await res.json()) as { updated: number }).updated).toBe(1);
     expect(writes(queries)).toHaveLength(1);
+    // #1693：不寫流水的換老師也通知（Q3），原老師與新老師都帶
+    expect(queued).toHaveBeenCalledWith(expect.anything(), [
+      expect.objectContaining({
+        session_id: id(1),
+        change_type: 'assign_teacher',
+        original_teacher_id: T1,
+        substitute_teacher_id: SUB,
+      }),
+    ]);
+  });
+});
+
+describe('POST /api/sessions/:id/substitute —— 課務異動通知（#1693）', () => {
+  it('成功 → 排入一次，帶原老師與代課老師', async () => {
+    // 單堂的查詢多半是 maybeSingle（回一列），其餘照批次那份 resolver
+    const single: Record<string, unknown> = {
+      sessions: { ...session(1), classes: { campus_id: 'campus-1', name: 'A 班' } },
+      classes: { course_id: 'course-1', campus_id: 'campus-1' },
+      courses: { subject_id: 'math' },
+    };
+    const { app } = createApp((q) =>
+      has(q, 'maybeSingle') && q.table in single ? { data: single[q.table] } : resolver()(q),
+    );
+    const res = await app.request(`/api/sessions/${id(1)}/substitute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ substituteTeacherId: SUB }),
+    });
+    expect(res.status).toBe(200);
+    expect(queued).toHaveBeenCalledWith(expect.anything(), [
+      {
+        session_id: id(1),
+        change_type: 'substitute',
+        original_teacher_id: T1,
+        substitute_teacher_id: SUB,
+      },
+    ]);
   });
 });

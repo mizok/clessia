@@ -60,12 +60,12 @@ describe('InboxBadgeService', () => {
     }
   });
 
-  // 計畫席裁 (b)：管理員的通知等 #1692（「收到的」列表）一起上，不讓角標亮了卻清不掉
-  it('管理員：兩支都不打、角標 0', () => {
+  // #1692：管理員在通知中心「收到的」分頁清得掉，角標只算通知
+  it('管理員：不打公告收件匣，角標只算通知（#1693）', () => {
     const { badge, inbox, notifInbox } = setup('admin', [3], [4]);
     expect(inbox).not.toHaveBeenCalled();
-    expect(notifInbox).not.toHaveBeenCalled();
-    expect(badge.unread()).toBe(0);
+    expect(notifInbox).toHaveBeenCalledTimes(1);
+    expect(badge.unread()).toBe(4);
     expect(badge.hasInbox()).toBe(false);
   });
 
