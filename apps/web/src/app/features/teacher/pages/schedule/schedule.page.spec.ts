@@ -857,4 +857,47 @@ describe('SchedulePage', () => {
       expect(text).not.toContain('讀不到點名設定');
     });
   });
+
+  // #1641 項 3：換週／換日的方向淡入。方向要等資料套上才給（點擊當下畫面還是舊的）
+  describe('換週／換日的方向', () => {
+    type Motion = { dir: 'forward' | 'back' } | null;
+    type Steps = {
+      contentMotion: () => Motion;
+      weekMotion: () => Motion;
+      nextWeek: () => void;
+      prevWeek: () => void;
+      selectDay: (d: string) => void;
+    };
+    const steps = () => component as unknown as Steps;
+
+    it('進頁時沒有方向', async () => {
+      await setup();
+      expect(steps().contentMotion()).toBeNull();
+      expect(steps().weekMotion()).toBeNull();
+    });
+
+    it('下一週往後、上一週往前；週列與當天清單一起動', async () => {
+      await setup();
+      steps().nextWeek();
+      expect(steps().contentMotion()?.dir).toBe('forward');
+      expect(steps().weekMotion()?.dir).toBe('forward');
+      steps().prevWeek();
+      expect(steps().contentMotion()?.dir).toBe('back');
+    });
+
+    it('換週查失敗：不給方向（錯誤畫面不該滑進來）', async () => {
+      await setup({ sessionsFails: true });
+      steps().nextWeek();
+      expect(steps().contentMotion()).toBeNull();
+    });
+
+    it('換日看日期先後，週列不動', async () => {
+      await setup({ selectDate: '2027-03-03' });
+      steps().selectDay('2027-03-05');
+      expect(steps().contentMotion()?.dir).toBe('forward');
+      steps().selectDay('2027-03-02');
+      expect(steps().contentMotion()?.dir).toBe('back');
+      expect(steps().weekMotion()).toBeNull();
+    });
+  });
 });

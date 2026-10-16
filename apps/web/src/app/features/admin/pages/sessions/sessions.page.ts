@@ -109,6 +109,13 @@ import {
 } from './schedule-day.util';
 import { SessionsActionsService } from './services/sessions-actions.service';
 import { todayLocal } from '@shared/utils/session-time.util';
+import { SelectedIndicatorDirective } from '@shared/directives/selected-indicator.directive';
+import {
+  StepMotionDirective,
+  stepMotion,
+  type StepDir,
+  type StepMotion,
+} from '@shared/directives/step-motion.directive';
 
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
@@ -127,6 +134,8 @@ const FETCH_LIMIT = 500;
   selector: 'app-sessions',
   standalone: true,
   imports: [
+    StepMotionDirective,
+    SelectedIndicatorDirective,
     CampusScopeNoteComponent,
     PopupMenuComponent,
     DatePipe,
@@ -1086,8 +1095,10 @@ export class SessionsPage implements OnInit {
   /** 日期條點某天：週視圖時也切回那天的日視圖（A6：週視圖點一天＝看那天） */
   protected setDay(d: Date): void {
     if (this.mode() === 'day' && isSameDay(d, this.day())) return;
+    // 從週切到日是模式切換，不給方向
+    const isStep = this.mode() === 'day';
     this.mode.set('day');
-    this.moveTo(d);
+    this.moveTo(d, isStep);
     // A6 schedule.js:867：換了一天就捲到工具列（頂欄不在捲動區裡，不用扣它的高度）
     this.toolbarRef()?.nativeElement.scrollIntoView?.({ block: 'start' });
   }
@@ -1111,8 +1122,13 @@ export class SessionsPage implements OnInit {
     this.moveTo(new Date());
   }
 
-  private moveTo(d: Date): void {
-    this.day.set(startOfDay(d));
+  /** `isStep`＝留在同一個檢視往前或往後一步，資料回來時依方向淡入（#1641 項 3） */
+  private moveTo(d: Date, isStep = true): void {
+    const next = startOfDay(d);
+    const current = this.day().getTime();
+    this.pendingStep =
+      !isStep || next.getTime() === current ? null : next.getTime() > current ? 'forward' : 'back';
+    this.day.set(next);
     this.loadSessions();
   }
 
@@ -1139,6 +1155,14 @@ export class SessionsPage implements OnInit {
   protected isSelectedDay(d: Date): boolean {
     return this.mode() === 'day' && isSameDay(d, this.day());
   }
+
+  /** 選中底線的重量時機：日檢視換天、切換日／週 */
+  protected readonly isSelectedDayKey = computed(() => `${this.mode()}|${this.day().getTime()}`);
+
+  /** 換週／換日的方向淡入（#1641 項 3）。資料套上的那一刻才給 —— 點擊當下畫面還是舊的 */
+  protected readonly contentMotion = signal<StepMotion | null>(null);
+  /** `moveTo` 記下方向，`loadSessions` 成功時才變成 motion；篩選等其他重查沒有方向 */
+  private pendingStep: StepDir | null = null;
 
   /** 篩選結果 → 回到課表：放掉範圍條件，回到單日甘特 */
   protected backToSchedule(): void {
@@ -1536,6 +1560,8 @@ export class SessionsPage implements OnInit {
     this.sessionsService.list(listParams).subscribe({
       next: (res) => {
         this.sessions.set(res.data);
+        if (this.pendingStep) this.contentMotion.set(stepMotion(this.pendingStep));
+        this.pendingStep = null;
         this.totalSessions.set(res.meta.total);
         this.monthUnassignedCount.set(res.meta.monthUnassignedCount);
         this.todayPendingAttendanceCount.set(res.meta.todayPendingAttendanceCount);
@@ -1544,6 +1570,7 @@ export class SessionsPage implements OnInit {
         this.loadedOnce.set(true);
       },
       error: () => {
+        this.pendingStep = null;
         this.loading.set(false);
         // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments，#788）
         this.loadFailed.set(true);

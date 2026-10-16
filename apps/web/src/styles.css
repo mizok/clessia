@@ -721,6 +721,32 @@
   .p-button:disabled.p-button-outlined {
     border-color: var(--zinc-300) !important;
   }
+  /* 週列「選中底線」（#1641 項 3）：位置由 SelectedIndicatorDirective 量好寫進變數。
+     曲線同 #1634 的進場；第一次量完（--ready）才有 transition，進頁不會從左邊滑進來。 */
+  .selected-indicator {
+    position: relative;
+  }
+  .selected-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: var(--indicator-w, 0);
+    height: 2px;
+    background: var(--accent-vivid);
+    transform: translateX(var(--indicator-x, 0));
+    pointer-events: none;
+  }
+  .selected-indicator--ready::after {
+    transition:
+      transform 200ms var(--arrive),
+      width 200ms var(--arrive);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .selected-indicator--ready::after {
+      transition: none;
+    }
+  }
   /* =============================================================================
      Utilities
      ============================================================================= */
@@ -1010,12 +1036,57 @@
   ::view-transition-new(root) {
     animation: none;
   }
-  /* Only the content area fades */
+  /* 換頁只動內容區（#1641，設計稿 kb/wiki/architecture/motion.md）。
+     曲線與時長沿用 #1634 的彈出物：進 200ms --arrive、出 140ms --leave，出場比進場短。
+     方向由 core/route-transition.ts 寫在 <html data-route-dir>：往深一層從右 24px 進、
+     返回從左進、同層（選單切換、設定 tab）只淡入淡出。
+     減少動態不在這裡處理 —— route-transition.ts 直接 skipTransition()，畫面瞬間換。 */
+  /* group 的預設是瀏覽器的 250ms ease，對齊進場的時長與曲線 */
+  ::view-transition-group(route-content) {
+    animation-duration: 200ms;
+    animation-timing-function: var(--arrive);
+  }
   ::view-transition-old(route-content) {
-    animation: 150ms ease-in vt-fade-out both;
+    animation: 140ms var(--leave) vt-fade-out both;
   }
   ::view-transition-new(route-content) {
-    animation: 250ms ease-out vt-fade-in both;
+    animation: 200ms var(--arrive) vt-fade-in both;
+  }
+  :root[data-route-dir='forward']::view-transition-old(route-content) {
+    animation-name: vt-out-left;
+  }
+  :root[data-route-dir='forward']::view-transition-new(route-content) {
+    animation-name: vt-in-right;
+  }
+  :root[data-route-dir='back']::view-transition-old(route-content) {
+    animation-name: vt-out-right;
+  }
+  :root[data-route-dir='back']::view-transition-new(route-content) {
+    animation-name: vt-in-left;
+  }
+  @keyframes vt-out-left {
+    to {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
+  }
+  @keyframes vt-out-right {
+    to {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+  }
+  @keyframes vt-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+  }
+  @keyframes vt-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
   }
   /* Tag the content areas that change on route navigation */
   .shell-route-wrapper,
