@@ -23,6 +23,31 @@ describe('ChapterHeadComponent', () => {
     );
   });
 
+  // #1715：A6 `<p class="chap__tally">6 門</p>` —— 單位跟數字同一段字、同字級，不是另一個小字 span
+  it('單位跟張數是同一段字，不拆成 span（A6 `.chap__tally`）', async () => {
+    await setup({ name: '國文', count: 6, unit: '門' });
+    const tally = host.querySelector('.chapter-head__tally') as HTMLElement;
+    expect(tally.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+    expect(tally.firstChild?.textContent).toBe('6 門');
+    expect([...tally.querySelectorAll('span')].some((s) => s.textContent?.includes('門'))).toBe(
+      false,
+    );
+  });
+
+  // #1715：A6 `.chap__big` 是 block —— 直排時撐滿那一欄；只有手機橫排（`.chap--row`）縮成字寬
+  it('直排（桌機、stacked）子項撐滿，手機橫排才 baseline 對齊', async () => {
+    await setup({ name: '帳單', count: 3, unit: '張' });
+    const box = () => host.querySelector('.chapter-head') as HTMLElement;
+    expect([...box().classList]).toEqual(
+      expect.arrayContaining(['items-baseline', 'wide:flex-col', 'wide:items-stretch']),
+    );
+
+    fixture.componentRef.setInput('stacked', true);
+    fixture.detectChanges();
+    expect(box().classList.contains('items-stretch')).toBe(true);
+    expect(box().classList.contains('items-baseline')).toBe(false);
+  });
+
   it('count 是 null 就不顯示張數 —— 前端再濾過、API 數字對不上時不編數字', async () => {
     await setup({ name: '國文', count: null, unit: '門' });
 
