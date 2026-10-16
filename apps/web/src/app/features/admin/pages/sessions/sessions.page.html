@@ -68,16 +68,18 @@
         >
           <i class="pi pi-chevron-left text-sm" aria-hidden="true"></i>
         </button>
+        <!-- 選中底線是容器上的一條，換日時平移過去（#1641）；週視圖沒有選中的天，底線收掉 -->
         <div
           class="flex min-w-0 gap-0.5 max-wide:order-2 max-wide:flex-1 max-wide:gap-0"
           data-part="dtabs"
+          [appSelectedIndicator]="isSelectedDayKey()"
+          indicatorFor='[aria-current="date"]'
         >
           @for (d of stripDays(); track d.getTime()) {
             <button
               type="button"
               class="grid min-h-11 min-w-0 flex-1 cursor-pointer justify-items-center border-0 border-b-2 bg-transparent px-px pt-1 pb-1.5 leading-[1.25] hover:border-b-zinc-500 wide:min-w-16 wide:flex-none wide:px-2 wide:py-1.5"
-              [class.border-transparent]="!isSelectedDay(d)"
-              [class.border-accent-vivid]="isSelectedDay(d)"
+              [class.border-transparent]="true"
               [class.text-zinc-500]="!isSelectedDay(d)"
               [class.text-zinc-700]="isSelectedDay(d)"
               [attr.aria-current]="isSelectedDay(d) ? 'date' : null"
@@ -111,11 +113,13 @@
         >
           <i class="pi pi-chevron-right text-sm" aria-hidden="true"></i>
         </button>
-        <!-- 「本週」（#1620 計畫席選 b）：停在別週才出現，本週的版面仍同 A6 -->
+        <!-- 「本週」（#1620 計畫席選 b）：停在別週才出現，本週的版面仍同 A6。
+             桌機排在 ‹ 左邊（wide:order-first）：這組靠右對齊，排在 › 右邊的話它一出現
+             整組就被往左推，連點「下一週」的第二下會落到別的按鈕上（#1641 實測：繞回本週） -->
         @if (!isThisWeek()) {
           <button
             type="button"
-            class="inline-flex h-11 shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 max-wide:order-5 max-wide:mt-2 wide:ml-1"
+            class="inline-flex h-11 shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 max-wide:order-5 max-wide:mt-2 wide:order-first wide:mr-1"
             (click)="goThisWeek()"
           >
             本週
@@ -237,166 +241,169 @@
       />
     </div>
   }
-  @if (loadFailed()) {
-    <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
-  } @else if (loading() && !loadedOnce()) {
-    <div class="skeleton-list" aria-label="課表載入中">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
-  } @else if (mode() === 'results') {
-    <div
-      class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-zinc-100 py-1 pr-1 pl-4"
-    >
-      <p class="m-0 text-md text-zinc-700">
-        <b class="text-zinc-900">篩選中</b>
-        @if (rangeLabel()) {
-          · {{ rangeLabel() }}
+  <!-- 換週／換日：資料套上時依方向淡入（#1641 項 3）。批次列在外面 —— 它是 fixed，不能被 transform 帶著走 -->
+  <div [appStepMotion]="contentMotion()">
+    @if (loadFailed()) {
+      <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
+    } @else if (loading() && !loadedOnce()) {
+      <div class="skeleton-list" aria-label="課表載入中">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <span class="skeleton-bar"></span>
         }
-        · {{ displayedTotal() }} 堂
-        @if (displayedTotal() > displayedSessions().length) {
-          （只列出前 {{ displayedSessions().length }} 堂）
-        }
-      </p>
-      <button
-        type="button"
-        class="ml-auto inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-md font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
-        (click)="backToSchedule()"
+      </div>
+    } @else if (mode() === 'results') {
+      <div
+        class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-zinc-100 py-1 pr-1 pl-4"
       >
-        <i class="pi pi-times text-sm" aria-hidden="true"></i>
-        回到課表
-      </button>
-    </div>
-    @for (ch of resultChapters(); track ch.date) {
-      <section class="mt-8 first-of-type:mt-0" [attr.aria-label]="ch.date">
-        <h2 class="m-0 mb-2 text-xl font-bold tracking-tight text-zinc-900 tabular-nums">
-          {{ ch.date | date: 'M/d' }} 週{{ weekdayLabel(ch.date) }}
-        </h2>
-        <app-schedule-list
-          [groups]="ch.groups"
+        <p class="m-0 text-md text-zinc-700">
+          <b class="text-zinc-900">篩選中</b>
+          @if (rangeLabel()) {
+            · {{ rangeLabel() }}
+          }
+          · {{ displayedTotal() }} 堂
+          @if (displayedTotal() > displayedSessions().length) {
+            （只列出前 {{ displayedSessions().length }} 堂）
+          }
+        </p>
+        <button
+          type="button"
+          class="ml-auto inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-md font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
+          (click)="backToSchedule()"
+        >
+          <i class="pi pi-times text-sm" aria-hidden="true"></i>
+          回到課表
+        </button>
+      </div>
+      @for (ch of resultChapters(); track ch.date) {
+        <section class="mt-8 first-of-type:mt-0" [attr.aria-label]="ch.date">
+          <h2 class="m-0 mb-2 text-xl font-bold tracking-tight text-zinc-900 tabular-nums">
+            {{ ch.date | date: 'M/d' }} 週{{ weekdayLabel(ch.date) }}
+          </h2>
+          <app-schedule-list
+            [groups]="ch.groups"
+            [selectedIds]="selectedIds()"
+            [now]="now()"
+            (toggle)="toggleSelect($event)"
+            (longPress)="onLongPress($event)"
+            (menu)="onMenuRequested($event)"
+          />
+        </section>
+      } @empty {
+        <p class="m-0 py-8 text-base text-zinc-700">沒有符合條件的課堂。</p>
+        <app-campus-scope-note />
+      }
+    } @else if (mode() === 'week') {
+      <!-- 週視圖（桌機）：每天一欄，欄內是精簡版的分組清單 -->
+      <div class="hidden grid-cols-7 wide:grid">
+        @for (d of week(); track d.date; let i = $index) {
+          @let today = isTodayDate(weekDays()[i]);
+          <section
+            class="min-w-0 border-l border-surface-border px-3 pb-6 first:border-l-0 first:pl-0"
+            [class.bg-zinc-50]="today"
+            [attr.aria-label]="'週' + weekdayLabel(d.date) + ' ' + (weekDays()[i] | date: 'M/d')"
+          >
+            <header class="mb-2 border-b border-zinc-900 pt-3 pb-2">
+              <p class="m-0 text-md" [class.text-zinc-600]="!today" [class.font-bold]="today">
+                週{{ weekdayLabel(d.date) }}{{ today ? ' · 今天' : '' }}
+              </p>
+              <p class="m-0 text-2xl leading-tight font-bold tracking-tight tabular-nums">
+                {{ weekDays()[i] | date: 'M/d' }}
+              </p>
+              <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
+                {{ d.sessions.length }} 堂 · 最多同時
+                <b class="text-zinc-900">{{ d.maxConcurrent }}</b>
+              </p>
+              <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
+                {{ d.changed ? '異動 ' + d.changed : '沒有異動' }}
+              </p>
+              @if (picking() && d.sessions.length) {
+                <button
+                  type="button"
+                  class="mt-1 inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
+                  (click)="pickDay(d.date)"
+                >
+                  勾選這一整天
+                </button>
+              }
+            </header>
+            <app-schedule-list
+              [groups]="d.groups"
+              [selectedIds]="selectedIds()"
+              [clashIds]="d.clashIds"
+              [now]="now()"
+              [compact]="true"
+              (toggle)="toggleSelect($event)"
+              (menu)="onMenuRequested($event)"
+            />
+          </section>
+        }
+      </div>
+      <!-- 週視圖（手機）：每天一行摘要，點了看那天 -->
+      <div class="wide:hidden">
+        @for (d of week(); track d.date; let i = $index) {
+          @let today = isTodayDate(weekDays()[i]);
+          <button
+            type="button"
+            class="grid min-h-16 w-full cursor-pointer grid-cols-[minmax(0,1fr)_16px] items-center gap-x-2 gap-y-0.5 border-0 border-b border-surface-border bg-transparent px-0 py-3 text-left text-zinc-900"
+            (click)="setDay(weekDays()[i])"
+          >
+            <span class="text-lg" [class.font-bold]="today"
+              ><b>週{{ weekdayLabel(d.date) }}</b> {{ weekDays()[i] | date: 'M/d'
+              }}{{ today ? ' · 今天' : '' }}</span
+            >
+            <i
+              class="pi pi-chevron-right col-start-2 row-span-2 row-start-1 text-sm"
+              aria-hidden="true"
+            ></i>
+            <span class="text-md text-zinc-600 tabular-nums">{{ weekRowSummary(d) }}</span>
+          </button>
+        }
+      </div>
+    } @else if (layout(); as l) {
+      <!-- A6 `.pkl`：有課就印；整天都停課寫「整天停課」。日名後面除了「今天」都有一個空格 -->
+      @if (l.peak; as peak) {
+        <p
+          class="m-0 mt-4 mb-2 text-md font-normal text-zinc-700 tabular-nums"
+          data-testid="peak-line"
+        >
+          {{ dayName() }}{{ isToday() ? '' : ' ' }}最滿
+          <b class="text-zinc-900">{{ peak.from }}–{{ peak.to }}</b> · 同時 {{ peak.count }} 班
+        </p>
+      } @else {
+        <p
+          class="m-0 mt-4 mb-2 text-md font-normal text-zinc-700 tabular-nums"
+          data-testid="peak-line"
+        >
+          {{ dayName() }}整天停課
+        </p>
+      }
+      <div class="hidden wide:block">
+        <app-schedule-gantt
+          [layout]="l"
           [selectedIds]="selectedIds()"
+          [now]="now()"
+          [isToday]="isToday()"
+          [picking]="picking()"
+          (toggle)="toggleSelect($event)"
+          (menu)="onMenuRequested($event)"
+        />
+      </div>
+      <div class="wide:hidden">
+        <app-schedule-list
+          [groups]="dayGroups()"
+          [selectedIds]="selectedIds()"
+          [clashIds]="clashIds()"
           [now]="now()"
           (toggle)="toggleSelect($event)"
           (longPress)="onLongPress($event)"
           (menu)="onMenuRequested($event)"
         />
-      </section>
-    } @empty {
-      <p class="m-0 py-8 text-base text-zinc-700">沒有符合條件的課堂。</p>
+      </div>
+    } @else {
+      <p class="m-0 py-8 text-base text-zinc-700">{{ dayName() }}沒有排課。</p>
       <app-campus-scope-note />
     }
-  } @else if (mode() === 'week') {
-    <!-- 週視圖（桌機）：每天一欄，欄內是精簡版的分組清單 -->
-    <div class="hidden grid-cols-7 wide:grid">
-      @for (d of week(); track d.date; let i = $index) {
-        @let today = isTodayDate(weekDays()[i]);
-        <section
-          class="min-w-0 border-l border-surface-border px-3 pb-6 first:border-l-0 first:pl-0"
-          [class.bg-zinc-50]="today"
-          [attr.aria-label]="'週' + weekdayLabel(d.date) + ' ' + (weekDays()[i] | date: 'M/d')"
-        >
-          <header class="mb-2 border-b border-zinc-900 pt-3 pb-2">
-            <p class="m-0 text-md" [class.text-zinc-600]="!today" [class.font-bold]="today">
-              週{{ weekdayLabel(d.date) }}{{ today ? ' · 今天' : '' }}
-            </p>
-            <p class="m-0 text-2xl leading-tight font-bold tracking-tight tabular-nums">
-              {{ weekDays()[i] | date: 'M/d' }}
-            </p>
-            <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
-              {{ d.sessions.length }} 堂 · 最多同時
-              <b class="text-zinc-900">{{ d.maxConcurrent }}</b>
-            </p>
-            <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
-              {{ d.changed ? '異動 ' + d.changed : '沒有異動' }}
-            </p>
-            @if (picking() && d.sessions.length) {
-              <button
-                type="button"
-                class="mt-1 inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
-                (click)="pickDay(d.date)"
-              >
-                勾選這一整天
-              </button>
-            }
-          </header>
-          <app-schedule-list
-            [groups]="d.groups"
-            [selectedIds]="selectedIds()"
-            [clashIds]="d.clashIds"
-            [now]="now()"
-            [compact]="true"
-            (toggle)="toggleSelect($event)"
-            (menu)="onMenuRequested($event)"
-          />
-        </section>
-      }
-    </div>
-    <!-- 週視圖（手機）：每天一行摘要，點了看那天 -->
-    <div class="wide:hidden">
-      @for (d of week(); track d.date; let i = $index) {
-        @let today = isTodayDate(weekDays()[i]);
-        <button
-          type="button"
-          class="grid min-h-16 w-full cursor-pointer grid-cols-[minmax(0,1fr)_16px] items-center gap-x-2 gap-y-0.5 border-0 border-b border-surface-border bg-transparent px-0 py-3 text-left text-zinc-900"
-          (click)="setDay(weekDays()[i])"
-        >
-          <span class="text-lg" [class.font-bold]="today"
-            ><b>週{{ weekdayLabel(d.date) }}</b> {{ weekDays()[i] | date: 'M/d'
-            }}{{ today ? ' · 今天' : '' }}</span
-          >
-          <i
-            class="pi pi-chevron-right col-start-2 row-span-2 row-start-1 text-sm"
-            aria-hidden="true"
-          ></i>
-          <span class="text-md text-zinc-600 tabular-nums">{{ weekRowSummary(d) }}</span>
-        </button>
-      }
-    </div>
-  } @else if (layout(); as l) {
-    <!-- A6 `.pkl`：有課就印；整天都停課寫「整天停課」。日名後面除了「今天」都有一個空格 -->
-    @if (l.peak; as peak) {
-      <p
-        class="m-0 mt-4 mb-2 text-md font-normal text-zinc-700 tabular-nums"
-        data-testid="peak-line"
-      >
-        {{ dayName() }}{{ isToday() ? '' : ' ' }}最滿
-        <b class="text-zinc-900">{{ peak.from }}–{{ peak.to }}</b> · 同時 {{ peak.count }} 班
-      </p>
-    } @else {
-      <p
-        class="m-0 mt-4 mb-2 text-md font-normal text-zinc-700 tabular-nums"
-        data-testid="peak-line"
-      >
-        {{ dayName() }}整天停課
-      </p>
-    }
-    <div class="hidden wide:block">
-      <app-schedule-gantt
-        [layout]="l"
-        [selectedIds]="selectedIds()"
-        [now]="now()"
-        [isToday]="isToday()"
-        [picking]="picking()"
-        (toggle)="toggleSelect($event)"
-        (menu)="onMenuRequested($event)"
-      />
-    </div>
-    <div class="wide:hidden">
-      <app-schedule-list
-        [groups]="dayGroups()"
-        [selectedIds]="selectedIds()"
-        [clashIds]="clashIds()"
-        [now]="now()"
-        (toggle)="toggleSelect($event)"
-        (longPress)="onLongPress($event)"
-        (menu)="onMenuRequested($event)"
-      />
-    </div>
-  } @else {
-    <p class="m-0 py-8 text-base text-zinc-700">{{ dayName() }}沒有排課。</p>
-    <app-campus-scope-note />
-  }
+  </div>
 
   <app-session-batch
     [selectedCount]="selectedCount()"
