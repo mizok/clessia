@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { altchaPayload } from '../../test-utils/altcha-payload';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 import { publicOrgMiddleware } from '../../lib/public-org';
 import applicationsRoute from './enrollment-applications';
@@ -72,9 +73,10 @@ async function post(
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
+      // 機器人驗證另有 abuse-guard.spec；這裡一律附有效解答
+      body: JSON.stringify({ captchaToken: await altchaPayload(), ...(payload as object) }),
     },
-    { PUBLIC_ORG_SLUG: slug },
+    { PUBLIC_ORG_SLUG: slug, BETTER_AUTH_SECRET: 'test-secret' },
   );
   return { res, json: (await res.json()) as any };
 }
