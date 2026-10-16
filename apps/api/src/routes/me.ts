@@ -1,9 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 import { getAuth } from '../lib/get-auth';
-import { loadMeExtrasViaSql, type MeExtras } from '../lib/identity-sql';
+import { loadMeExtrasViaSql, loadNickname, type MeExtras } from '../lib/identity-sql';
 import childrenRoute from './parent/children';
 import attendanceRoute from './parent/attendance';
 import gradesRoute from './parent/grades';
@@ -52,25 +51,6 @@ const PatchMeSchema = z
   .openapi('PatchMeRequest');
 
 const ErrorSchema = z.object({ error: z.string(), code: z.string() });
-
-/**
- * 自己 staff 列的對外暱稱（#1665）。**查不到、或查詢出錯（例如欄位還沒套上）一律當 null**，
- * 不讓 /api/me 因為一個顯示欄位整支失敗 —— 見 lib/identity-sql.ts 的 MeExtras 註解。
- */
-async function loadNickname(
-  supabase: SupabaseClient,
-  userId: string,
-  orgId: string,
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('staff')
-    .select('nickname')
-    .eq('user_id', userId)
-    .eq('org_id', orgId)
-    .maybeSingle();
-  if (error) return null;
-  return ((data as { nickname?: unknown } | null)?.nickname as string | null | undefined) ?? null;
-}
 
 const app = new OpenAPIHono<AppEnv>();
 

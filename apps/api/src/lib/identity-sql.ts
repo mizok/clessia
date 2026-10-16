@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 /**
  * 身分三查改走 SQL（Hyperdrive），一次往返（#1595 Hyperdrive A）。
  *
@@ -177,6 +178,25 @@ select
 from public.ba_user u
 where u.id = $1
 `;
+
+/**
+ * REST 那條的暱稱（`routes/me.ts` 的退路、PATCH 讀回；契約測試用同一支比 SQL）。
+ * **查不到、或查詢出錯（例如欄位還沒套上）一律當 null**，不讓 /api/me 因為一個顯示欄位整支失敗。
+ */
+export async function loadNickname(
+  supabase: SupabaseClient,
+  userId: string,
+  orgId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('staff')
+    .select('nickname')
+    .eq('user_id', userId)
+    .eq('org_id', orgId)
+    .maybeSingle();
+  if (error) return null;
+  return ((data as { nickname?: unknown } | null)?.nickname as string | null | undefined) ?? null;
+}
 
 /** 一次往返；失敗或形狀不對回 null（呼叫端走 REST） */
 export async function loadMeExtrasViaSql(
