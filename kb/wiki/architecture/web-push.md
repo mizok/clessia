@@ -17,17 +17,17 @@ tags: [architecture, pwa, push, parent, billing, cron, settings, c12]
 
 ## 結論先講
 
-| 問題           | 建議                                                                                                           |
-| -------------- | -------------------------------------------------------------------------------------------------------------- |
-| Service worker | **手寫一支 `sw.js`，只處理 `push` 與 `notificationclick`**，不攔 `fetch`、不快取任何東西                       |
-| Angular SW     | **第一版不用** `@angular/service-worker`（理由見 §1）                                                          |
-| 加密／簽章     | **自寫在 WebCrypto 上**（RFC 8291 aes128gcm＋RFC 8292 VAPID），零新依賴，Workers 與 Node ≥ 20 跑同一份         |
-| 資料表         | `push_subscriptions`、`notification_preferences`、`push_deliveries` 三張＋`organizations` 一欄，一支 migration |
-| 提醒時間點     | **機構設定**（Q2）：預設到期前 3 天、當天、逾期第 1、7 天；最多 6 個；`manage_finance` 才能看與改              |
-| 對象           | **第一版只開家長**（Q7）；偏好與發送紀錄帶 `role`，之後開給老師／行政不必改 schema                             |
-| 排程           | Workers Cron Trigger（UTC）在早上窗口每 10 分鐘觸發；自架用系統 cron 打同一支端點，`CRON_SECRET` 保護          |
-| 最大的風險     | **免費方案每次 Cron 只有 10ms CPU、50 個外部 subrequest** —— 一次只能送一小批，批量要先量（#1657）             |
-| 費用           | 目前查到的全部在免費額度內；**唯一可能要花錢的是「量完發現 10ms 不夠」→ Workers Paid 每月 5 美元**（§7）       |
+| 問題           | 建議                                                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Service worker | **手寫一支 `sw.js`，只處理 `push` 與 `notificationclick`**，不攔 `fetch`、不快取任何東西                                                        |
+| Angular SW     | **第一版不用** `@angular/service-worker`（理由見 §1）                                                                                           |
+| 加密／簽章     | **自寫在 WebCrypto 上**（RFC 8291 aes128gcm＋RFC 8292 VAPID），零新依賴，Workers 與 Node ≥ 20 跑同一份                                          |
+| 資料表         | `push_subscriptions`、`notification_preferences`、`notifications`（原 `push_deliveries`，#1687 改名）三張＋`organizations` 一欄，兩支 migration |
+| 提醒時間點     | **機構設定**（Q2）：預設到期前 3 天、當天、逾期第 1、7 天；最多 6 個；`manage_finance` 才能看與改                                               |
+| 對象           | **第一版只開家長**（Q7）；偏好與發送紀錄帶 `role`，之後開給老師／行政不必改 schema                                                              |
+| 排程           | Workers Cron Trigger（UTC）在早上窗口每 10 分鐘觸發；自架用系統 cron 打同一支端點，`CRON_SECRET` 保護                                           |
+| 最大的風險     | **免費方案每次 Cron 只有 10ms CPU、50 個外部 subrequest** —— 一次只能送一小批，批量要先量（#1657）                                              |
+| 費用           | 目前查到的全部在免費額度內；**唯一可能要花錢的是「量完發現 10ms 不夠」→ Workers Paid 每月 5 美元**（§7）                                        |
 
 ---
 
@@ -204,7 +204,10 @@ ALTER TABLE public.organizations
 - **`endpoint` UNIQUE，訂閱時 upsert 並覆寫 `user_id`**：補習班的共用平板、家長換手機給另一位家長登入，同一個 endpoint 要跟著**現在登入的人**走。
   **登出時前端先呼叫 `DELETE /api/me/push-subscriptions`（帶自己的 endpoint）再登出** —— 否則上一個人的繳費提醒會跳在下一個人的裝置上。
 - **失效自動清**：送出回 `404` 或 `410` 就刪那一列。RFC 8030 §7.3 規定過期是 `404`；實務上推播服務也會回 `410`（**未證實**哪家回哪個），兩個都當失效處理。
-- **`push_deliveries` 這一版只是發送佇列**，不是通知中心的收件匣。之後公告要「站內＋推播」時再決定要不要合併 —— 現在合併是替想像中的需求設計。
+- **~~`push_deliveries` 這一版只是發送佇列~~ → 已改（使用者 10-16 17:04，#1687）**：通知是一筆紀錄，推播只是送達管道。
+  `push_deliveries` 改名成 `notifications`，加 `read_at`（通知中心 #1683 的已讀）與 `push_status`（pending／claimed／sent／skipped／failed）；
+  `sent_at`／`attempts`／`last_error` 改名成 `push_updated_at`／`push_attempts`／`push_error`。上面的 SQL 是第一版的原樣，現況以 migration 為準。
+  **沒開推播的家長也有通知**（通知中心算未讀）；**偏好只管推播**（Q-a），關掉的那一類照樣有通知、只是 `skipped`。
 - **偏好和發送紀錄都帶 `role`，訂閱不帶**：通知權限是一台裝置一個網站給的，跟現在用哪個身分無關；
   同一台裝置上「以家長身分收繳費提醒」「以老師身分收課務異動」靠 `role` 分開。第一版只會寫 `parent`。
 - **保留期**：每次 run 順手刪 `created_at` 超過 90 天的列（Q4）。刪掉後同一個去重鍵理論上可以再排入，
@@ -281,21 +284,20 @@ ALTER TABLE public.organizations
 
 ### 每一次 run 做什麼
 
-1. **排入**（冪等）：找出今天要提醒的帳單 → 推導收件家長 → 過濾掉關閉該類型的人、沒有任何訂閱的人 →
-   `INSERT INTO push_deliveries ... ON CONFLICT (user_id, dedupe_key) DO NOTHING`。
+1. **排入通知**（冪等）：找出今天要提醒的帳單 → 推導收件家長 → `INSERT INTO notifications ... ON CONFLICT (user_id, dedupe_key) DO NOTHING`。
+   **不看訂閱、不看偏好**（#1687 改版）—— 那兩個只決定推不推播。
    `dedupe_key = invoice_reminder:<invoice_id>:<offset>`，**同一張帳單、同一位家長、同一個時間點只會有一列**——
    不管 cron 一天跑 12 次、Workers 與自架 cron 同時開著、還是有人手動多打一次。
    **時間點在鍵裡、日期不在**（Q2）：機構改了設定，已經推過的時間點不會重推；新加的時間點只在
    `due_date + offset` 落在之後的日子才會觸發，不補發過去的。
-2. **送出一批**，拆三段（#1661，**對外 fetch 期間沒有交易開著**，見 [[architecture/pg-pool-writes]] 規則 7）：
-   - 短交易**認領**：取 `sent_at IS NULL AND attempts < 3` 最舊的幾則 `FOR UPDATE SKIP LOCKED`，裝置數到 K 為止（一則不拆兩次 run），
-     把 `sent_at` 先設成 now() 當認領記號 —— 同時跑的另一個 run 不會再拿到
-   - 交易外**送出**：每台裝置一次 fetch，**每次 5 秒逾時**，全部並行；發送前再驗白名單（#1659）
-   - 短交易**回寫**：任一台成功就保留 `sent_at`；404/410 刪訂閱；都沒成功的把 `sent_at` 改回 NULL、`attempts + 1`、記 `last_error`，下一輪重試
-   - 認領時 `last_error` 記成 `__claimed__`（既有欄位，不加 migration）。認領後、回寫前 Worker 被砍（免費方案 CPU 超量會直接終止），
-     那幾則停在這個記號；**下一輪開頭把「記號還在、認領超過 10 分鐘」的重新開放**（`attempts + 1`，一則若每次都讓 Worker 被砍，三次就停）。
+2. **推播一批**，`push_status` 狀態機、拆三段（#1661，**對外 fetch 期間沒有交易開著**，見 [[architecture/pg-pool-writes]] 規則 7）：
+   - 開頭：`claimed` 超過 10 分鐘還沒回寫＝那個 run 被砍了（免費方案 CPU 超量會直接終止）→ 回到 `pending`，算一次嘗試（滿三次 `failed`）。
      被砍時其實已送出的會重送一次，由裝置端 `tag = topic` 合併 —— 比無聲漏掉好
-3. 刪 90 天前的列。
+   - 不推播的整批標 `skipped`：沒有訂閱（`NO_SUBSCRIPTION`）或這一類偏好關掉（`PUSH_DISABLED`）。不算失敗、不重試、不佔 K
+   - 短交易**認領**：`pending` 最舊的幾則 `FOR UPDATE SKIP LOCKED`，裝置數到 K 為止（一則不拆兩次 run），標成 `claimed`
+   - 交易外**送出**：每台裝置一次 fetch，**每次 5 秒逾時**，全部並行；發送前再驗白名單（#1659）
+   - 短交易**回寫**：任一台成功 → `sent`；404/410 刪訂閱；都沒成功 → 回到 `pending`、`push_attempts + 1`、記 `push_error`（滿三次 `failed`）
+3. 刪 90 天前的通知（Q-b：**不管已讀未讀**）。
 
 **今天要提醒哪些帳單**（未繳清 = `isOpenInvoice`，逾期 = `isOverdueOn`，日期基準 = `getCurrentTaipeiDateString()`，**全部重用既有定義**，不另寫一套）：
 

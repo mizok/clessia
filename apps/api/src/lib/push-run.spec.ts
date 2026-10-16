@@ -5,8 +5,8 @@ import { reminderPayload, runPush } from './push-run';
 import { toB64u } from './web-push';
 
 /**
- * #1661 送出那一段的形狀：預算、404／410 清訂閱、白名單再驗、VAPID 每個服務簽一次、鎖不到就跳過。
- * 排入的 SQL 語意（收件人、偏好、去重）在 `contract/push-run.contract.ts` 對真 Postgres 驗。
+ * #1661 run 的形狀：push_status 狀態機、預算、404／410 清訂閱、白名單再驗、VAPID 每個服務簽一次、
+ * 送出期間沒有交易。排入與 skipped 的 SQL 語意（收件人、偏好、去重）在 `contract/push-run.contract.ts` 對真 Postgres 驗。
  */
 
 // RFC 8291 的收件端公鑰 —— 加密要一把合法的 P-256 點
@@ -77,23 +77,35 @@ async function run(pending: Row[], status: (url: string) => number, batchSize = 
   return { result, urls, auths, signals, ...db };
 }
 
-describe('runPush —— 送出（#1661）', () => {
-  it('成功的：認領時記 sent_at，回寫更新 last_success_at；COMMIT', async () => {
+describe('runPush —— push_status 狀態機（#1661，#1626 改版）', () => {
+  const claimUpdate = /SET push_status = 'claimed'/;
+  const sentUpdate = /SET push_status = 'sent'/;
+  const failUpdate = /FROM unnest\(\$1::uuid\[\], \$2::text\[\]\) AS x\(id, err\)/;
+
+  it('成功：認領成 claimed → 回寫成 sent、更新 last_success_at；COMMIT', async () => {
     const { result, find, sent } = await run([sub('d1', 's1')], () => 201);
     expect(result).toMatchObject({ attempted: 1, delivered: 1, removedSubscriptions: 0 });
-    expect(find(/SET sent_at = now\(\), last_error/)[0]!.params).toEqual([['d1'], '__claimed__']);
-    expect(find(/last_error = NULL/)[0]!.params).toEqual([['d1']]);
+    expect(find(claimUpdate)[0]!.params).toEqual([['d1']]);
+    expect(find(sentUpdate)[0]!.params).toEqual([['d1']]);
     expect(find(/SET last_success_at = now\(\)/)[0]!.params).toEqual([['s1']]);
     expect(sent.at(-1)!.sql).toBe('COMMIT');
   });
 
-  it('404 與 410 都刪訂閱；那則記失敗，下一輪重試', async () => {
+  it('失敗：回到 pending（滿三次 failed）、push_attempts＋1、記錯誤', async () => {
+    const { find } = await run([sub('d1', 's1')], () => 500);
+    const q = find(failUpdate)[0]!;
+    expect(q.params).toEqual([['d1'], ['HTTP 500']]);
+    expect(q.sql).toMatch(/WHEN push_attempts \+ 1 >= 3 THEN 'failed' ELSE 'pending'/);
+    expect(find(sentUpdate)).toEqual([]);
+  });
+
+  it('404 與 410 都刪訂閱；那則記失敗', async () => {
     const { result, find } = await run([sub('d1', 's1'), sub('d1', 's2')], (u) =>
       u.endsWith('s1') ? 404 : 410,
     );
     expect(result).toMatchObject({ delivered: 0, removedSubscriptions: 2 });
     expect(find(/DELETE FROM push_subscriptions/)[0]!.params).toEqual([['s1', 's2']]);
-    expect(find(/last_error = x.err/)[0]!.params).toEqual([['d1'], ['HTTP 404, HTTP 410']]);
+    expect(find(failUpdate)[0]!.params).toEqual([['d1'], ['HTTP 404, HTTP 410']]);
   });
 
   it('一台成功一台 500：算送達，不重送', async () => {
@@ -101,20 +113,34 @@ describe('runPush —— 送出（#1661）', () => {
       u.endsWith('s1') ? 201 : 500,
     );
     expect(result).toMatchObject({ delivered: 1 });
-    expect(find(/last_error = x.err/)).toEqual([]);
+    expect(find(failUpdate)).toEqual([]);
   });
 
   it('DB 裡存的 endpoint 不在白名單：不送、刪掉那個訂閱', async () => {
     const { urls, find } = await run([sub('d1', 's1', 'https://evil.example.com/x')], () => 201);
     expect(urls).toEqual([]);
     expect(find(/DELETE FROM push_subscriptions/)[0]!.params).toEqual([['s1']]);
-    expect(find(/last_error = x.err/)[0]!.params).toEqual([['d1'], ['ENDPOINT_NOT_ALLOWED']]);
+    expect(find(failUpdate)[0]!.params).toEqual([['d1'], ['ENDPOINT_NOT_ALLOWED']]);
   });
 
-  it('排入後訂閱被刪光：不送，標 NO_SUBSCRIPTION 不再重試', async () => {
-    const { urls, find } = await run([sub('d1', null)], () => 201);
+  it('認領時訂閱已經被刪光：不送，標 skipped／NO_SUBSCRIPTION（不是失敗）', async () => {
+    const { result, urls, find } = await run([sub('d1', null)], () => 201);
     expect(urls).toEqual([]);
-    expect(find(/NO_SUBSCRIPTION/)[0]!.params).toEqual([['d1'], 3]);
+    expect(result).toMatchObject({ skipped: 1, attempted: 0 });
+    const q = find(/push_error = 'NO_SUBSCRIPTION'\s+WHERE id = ANY/)[0]!;
+    expect(q.sql).toMatch(/push_status = 'skipped'/);
+    expect(q.params).toEqual([['d1']]);
+  });
+
+  it('認領前先把不推播的整批標 skipped（沒有訂閱、偏好關掉）—— 不佔 K 的名額', async () => {
+    const { find, sent } = await run([sub('d1', 's1')], () => 201);
+    const skip = find(
+      /SET push_status = 'skipped', push_updated_at = now\(\),\s+push_error = CASE/,
+    )[0]!;
+    expect(skip.sql).toMatch(/notification_preferences/);
+    expect(skip.sql).toMatch(/np\.kind = n\.kind AND NOT np\.enabled/);
+    const at = (re: RegExp) => sent.findIndex((q) => re.test(q.sql));
+    expect(at(/push_error = CASE/)).toBeLessThan(at(/FOR UPDATE SKIP LOCKED/));
   });
 
   it('裝置數用完就停，一則不拆兩次 run', async () => {
@@ -152,7 +178,7 @@ describe('runPush —— 送出（#1661）', () => {
       },
     });
     expect(result).toMatchObject({ delivered: 0 });
-    expect(db.find(/last_error = x.err/)[0]!.params).toEqual([['d1'], ['HTTP 0']]);
+    expect(db.find(failUpdate)[0]!.params).toEqual([['d1'], ['HTTP 0']]);
   });
 
   it('送出期間沒有交易開著：認領 COMMIT 之後才送，送完才開回寫的交易', async () => {
@@ -165,20 +191,10 @@ describe('runPush —— 送出（#1661）', () => {
     expect(order.filter((o) => o === 'BEGIN')).toHaveLength(2);
   });
 
-  it('認領用 FOR UPDATE SKIP LOCKED＋sent_at／__claimed__ 記號：同時跑的另一個 run 拿不到同一則', async () => {
+  it('認領只拿 pending、FOR UPDATE SKIP LOCKED：同時跑的另一個 run 拿不到同一則', async () => {
     const { find } = await run([sub('d1', 's1')], () => 201);
-    expect(find(/FOR UPDATE SKIP LOCKED/)).toHaveLength(1);
-    expect(find(/SET sent_at = now\(\), last_error/)[0]!.params).toEqual([['d1'], '__claimed__']);
-  });
-
-  it('每一輪開頭先重新開放「認領超過 10 分鐘還沒回寫」的（attempts＋1，死循環三次就停）', async () => {
-    const { find, sent } = await run([], () => 201);
-    const reopen = find(/CLAIM_EXPIRED/);
-    expect(reopen[0]!.params).toEqual(['__claimed__', 10]);
-    expect(reopen[0]!.sql).toMatch(/attempts = attempts \+ 1/);
-    expect(sent.findIndex((q) => /CLAIM_EXPIRED/.test(q.sql))).toBeLessThan(
-      sent.findIndex((q) => /FOR UPDATE SKIP LOCKED/.test(q.sql)),
-    );
+    const select = find(/FOR UPDATE SKIP LOCKED/)[0]!;
+    expect(select.sql).toMatch(/WHERE push_status = 'pending'/);
   });
 
   it('每一次 fetch 都帶逾時的 AbortSignal', async () => {
@@ -187,12 +203,22 @@ describe('runPush —— 送出（#1661）', () => {
     for (const sig of signals) expect(sig).toBeInstanceOf(AbortSignal);
   });
 
-  it('沒送達的把 sent_at 改回 NULL（下一輪重試）', async () => {
-    const { find } = await run([sub('d1', 's1')], () => 500);
-    expect(find(/SET sent_at = NULL, attempts = d.attempts/)[0]!.params).toEqual([
-      ['d1'],
-      ['HTTP 500'],
-    ]);
+  it('每一輪開頭先重新開放 claimed 超過 10 分鐘的（算一次嘗試，滿三次 failed）', async () => {
+    const { find, sent } = await run([], () => 201);
+    const reopen = find(/CLAIM_EXPIRED/)[0]!;
+    expect(reopen.params).toEqual([10]);
+    expect(reopen.sql).toMatch(/WHERE push_status = 'claimed'/);
+    expect(reopen.sql).toMatch(/WHEN push_attempts \+ 1 >= 3 THEN 'failed' ELSE 'pending'/);
+    expect(sent.findIndex((q) => /CLAIM_EXPIRED/.test(q.sql))).toBeLessThan(
+      sent.findIndex((q) => /FOR UPDATE SKIP LOCKED/.test(q.sql)),
+    );
+  });
+
+  it('清 90 天前的通知（Q-b：不管已讀未讀）', async () => {
+    const { find } = await run([], () => 201);
+    const purge = find(/DELETE FROM notifications/)[0]!;
+    expect(purge.params).toEqual([90]);
+    expect(purge.sql).not.toMatch(/read_at/);
   });
 });
 

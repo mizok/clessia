@@ -7,7 +7,7 @@ import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { toB64u } from '../lib/web-push';
 
 /**
- * #1661：推播排程的**排入**對真 Postgres 跑 —— 收件人推導、偏好、去重、未繳清，這些是 SQL 語意。
+ * #1661：通知排程對真 Postgres 跑 —— 收件人推導、去重、未繳清、push_status（含 skipped），這些是 SQL 語意。
  *
  * 自己建一個 org（分校、學生、帳單、家長列）；家長的帳號**借 seed 既有的 parent 使用者**
  * —— 不寫 ba_user（c2）。跑完逐張刪掉（replica 模式：作廢帳單的明細刪不掉，見 class-delete.contract）。
@@ -51,8 +51,17 @@ run('推播排程對真 Postgres（#1661）', () => {
       },
     });
   const deliveries = () =>
-    q<{ user_id: string; dedupe_key: string; kind: string; payload: { body: string } }>(
-      'SELECT user_id, dedupe_key, kind, payload FROM push_deliveries WHERE org_id = $1 ORDER BY dedupe_key',
+    q<{
+      user_id: string;
+      dedupe_key: string;
+      kind: string;
+      payload: { body: string };
+      push_status: string;
+      push_error: string | null;
+      read_at: string | null;
+    }>(
+      `SELECT user_id, dedupe_key, kind, payload, push_status, push_error, read_at
+       FROM notifications WHERE org_id = $1 ORDER BY dedupe_key`,
       [orgId],
     );
   /** 到期日 = 今天 + days 的未繳帳單（一筆 1000 元明細） */
@@ -133,7 +142,7 @@ run('推播排程對真 Postgres（#1661）', () => {
       );
       await db.query('DELETE FROM notification_preferences WHERE org_id = $1', [org]);
       for (const t of [
-        'push_deliveries',
+        'notifications',
         'push_subscriptions',
         'payment_records',
         'invoices',
@@ -193,14 +202,23 @@ run('推播排程對真 Postgres（#1661）', () => {
     expect((await deliveries()).map((d) => d.kind)).toEqual(['invoice_overdue']);
   });
 
-  it('家長關掉這一類 → 不排', async () => {
+  it('家長關掉這一類的推播 → 通知照樣有、算未讀，只是不推（Q-a：偏好只管推播）', async () => {
     await invoice(0);
     await q(
       `INSERT INTO notification_preferences (user_id, org_id, role, kind, enabled)
        VALUES ($1, $2, 'parent', 'invoice_due', false)`,
       [mom, orgId],
     );
-    expect(await push()).toMatchObject({ enqueued: 0 });
+    expect(await push()).toMatchObject({ enqueued: 1, skipped: 1, attempted: 0 });
+    expect(await deliveries()).toEqual([
+      expect.objectContaining({
+        user_id: mom,
+        push_status: 'skipped',
+        push_error: 'PUSH_DISABLED',
+        read_at: null,
+      }),
+    ]);
+    expect(sent).toEqual([]);
   });
 
   it('繳清的、作廢的 → 不排', async () => {
@@ -229,7 +247,7 @@ run('推播排程對真 Postgres（#1661）', () => {
           // 「送出中」那一刻，認領那個交易還開著嗎？開著的話它對這幾列的列鎖還在，NOWAIT 會立刻失敗。
           // （不用 pg_stat_activity 數「idle in transaction」：另一個 run 的短交易、共用 DB 的其他活動都會算進去）
           try {
-            await q('SELECT id FROM push_deliveries WHERE org_id = $1 FOR UPDATE NOWAIT', [orgId]);
+            await q('SELECT id FROM notifications WHERE org_id = $1 FOR UPDATE NOWAIT', [orgId]);
             lockedDuringSend.push(false);
           } catch {
             lockedDuringSend.push(true);
@@ -257,20 +275,19 @@ run('推播排程對真 Postgres（#1661）', () => {
     });
     // 等到它認領完（第 1 段的交易 commit）
     for (let i = 0; i < 50; i++) {
-      const [row] = await q<{ last_error: string | null }>(
-        'SELECT last_error FROM push_deliveries WHERE org_id = $1',
+      const [row] = await q<{ push_status: string }>(
+        'SELECT push_status FROM notifications WHERE org_id = $1',
         [orgId],
       );
-      if (row?.last_error === '__claimed__') break;
+      if (row?.push_status === 'claimed') break;
       await new Promise((r) => setTimeout(r, 20));
     }
     expect((await deliveries())[0]).toBeDefined();
-    const stuck = await q<{ sent_at: string | null; last_error: string }>(
-      'SELECT sent_at, last_error FROM push_deliveries WHERE org_id = $1',
+    const stuck = await q<{ push_status: string }>(
+      'SELECT push_status FROM notifications WHERE org_id = $1',
       [orgId],
     );
-    expect(stuck).toEqual([expect.objectContaining({ last_error: '__claimed__' })]);
-    expect(stuck[0]!.sent_at).not.toBeNull(); // 看起來像「已送」—— 沒有記號的話就無聲漏掉了
+    expect(stuck).toEqual([{ push_status: 'claimed' }]); // 沒有明確狀態的話，這裡會看起來像「已送」而無聲漏掉
 
     // 10 分鐘內：下一輪不碰它（那個 run 可能只是慢）
     expect(await push()).toMatchObject({ attempted: 0 });
@@ -278,26 +295,38 @@ run('推播排程對真 Postgres（#1661）', () => {
 
     // 時間往前推 11 分鐘：下一輪重新開放並送出，一次
     await q(
-      `UPDATE push_deliveries SET sent_at = sent_at - interval '11 minutes' WHERE org_id = $1`,
+      `UPDATE notifications SET push_updated_at = push_updated_at - interval '11 minutes' WHERE org_id = $1`,
       [orgId],
     );
     expect(await push()).toMatchObject({ attempted: 1, delivered: 1 });
     expect(sent).toHaveLength(1);
-    const [done] = await q<{ sent_at: string | null; last_error: string | null; attempts: number }>(
-      'SELECT sent_at, last_error, attempts FROM push_deliveries WHERE org_id = $1',
-      [orgId],
-    );
-    expect(done).toMatchObject({ last_error: null, attempts: 2 }); // 重新開放 +1、送達 +1
-    expect(done!.sent_at).not.toBeNull();
+    const [done] = await q<{
+      push_status: string;
+      push_error: string | null;
+      push_attempts: number;
+    }>('SELECT push_status, push_error, push_attempts FROM notifications WHERE org_id = $1', [
+      orgId,
+    ]);
+    expect(done).toEqual({ push_status: 'sent', push_error: null, push_attempts: 2 }); // 重新開放 +1、送達 +1
 
     // 再跑：不會再送
     expect(await push()).toMatchObject({ attempted: 0 });
     expect(sent).toHaveLength(1);
   });
 
-  it('沒有訂閱 → 不排', async () => {
+  it('沒開推播（沒有訂閱）→ 通知照樣有、算未讀，只是不推；不是失敗、不重試', async () => {
     await q('DELETE FROM push_subscriptions WHERE org_id = $1 AND user_id = $2', [orgId, mom]);
     await invoice(3);
-    expect(await push()).toMatchObject({ enqueued: 0 });
+    expect(await push()).toMatchObject({ enqueued: 1, skipped: 1, attempted: 0 });
+    expect(await deliveries()).toEqual([
+      expect.objectContaining({
+        user_id: mom,
+        push_status: 'skipped',
+        push_error: 'NO_SUBSCRIPTION',
+        read_at: null,
+      }),
+    ]);
+    expect(await push()).toMatchObject({ enqueued: 0, skipped: 0, attempted: 0 }); // 不重試
+    expect(sent).toEqual([]);
   });
 });
