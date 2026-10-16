@@ -84,7 +84,7 @@ export class ShellLayoutComponent {
   protected readonly bellLabel = computed(() => {
     const n = this.badge.unread();
     if (n > 0) return `通知，${n} 則未讀`;
-    return this.badge.hasInbox() ? '通知，沒有未讀' : '通知中心';
+    return '通知，沒有未讀';
   });
 
   protected readonly scrolled = signal(false);
