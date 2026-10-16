@@ -307,6 +307,32 @@ const PUBLIC_FORM_DEVIATIONS = [
   },
 ];
 
+/** 通知中心兩個分頁共用的分頁列（#1692）：稿的「新」標記、分頁 44px（R3） */
+const NOTIFICATIONS_TABS = [
+  {
+    // 稿上的「新」是設計說明（這個分頁、這顆鈕是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
+    status: '缺',
+    a6: '>text:span\\[新\\]$',
+    reason: '稿的「新」標記是設計說明，不是畫面內容',
+    source: '.design-explorations a6.js ddLabel（剔除 .new）',
+  },
+  {
+    status: '文案',
+    a6: 'control:button\\[[^\\]]*新\\]$',
+    detail: '^「(.+)新」→「\\1」$',
+    reason: '稿的「新」標記是設計說明，拿掉之後文案相同',
+    source: '.design-explorations a6.js ddLabel（剔除 .new）',
+  },
+  {
+    // 稿的 .tlink 高 26（padding 2px），app 照 R3 撐到 44
+    status: '尺寸',
+    a6: 'landmark:navigation\\[通知\\]>control:button\\[[^\\]]*\\]$',
+    detail: '^高 \\d+→44',
+    reason: '可點元素的基底高度 ≥ 44px',
+    source: `${rule('R3')}`,
+  },
+];
+
 export const PAGES = {
   students: {
     a6: 'students.html',
@@ -416,36 +442,14 @@ export const PAGES = {
     mapping: {
       '>control:button[全部標為已讀新]': '>landmark:main[]>control:button[全部標為已讀]',
     },
-    deviations: [
-      {
-        // 稿上的「新」是設計說明（這個分頁、這顆鈕是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
-        status: '缺',
-        a6: '>text:span\\[新\\]$',
-        reason: '稿的「新」標記是設計說明，不是畫面內容',
-        source: '.design-explorations a6.js ddLabel（剔除 .new）',
-      },
-      {
-        status: '文案',
-        a6: 'control:button\\[[^\\]]*新\\]$',
-        detail: '^「(.+)新」→「\\1」$',
-        reason: '稿的「新」標記是設計說明，拿掉之後文案相同',
-        source: '.design-explorations a6.js ddLabel（剔除 .new）',
-      },
-      {
-        // 稿的 .tlink 高 26（padding 2px），app 照 R3 撐到 44
-        status: '尺寸',
-        a6: 'landmark:navigation\\[通知\\]>control:button\\[[^\\]]*\\]$',
-        detail: '^高 \\d+→44',
-        reason: '可點元素的基底高度 ≥ 44px',
-        source: `${rule('R3')}`,
-      },
-    ],
+    deviations: NOTIFICATIONS_TABS,
   },
   'notifications-publish': {
     // 「發布公告」分頁：稿與 app 都認網址 #publish
     a6: 'notifications.html#publish',
     app: '/admin/notifications#publish',
     deviations: [
+      ...NOTIFICATIONS_TABS,
       {
         // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
         status: '缺',

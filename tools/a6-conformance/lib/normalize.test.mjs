@@ -1447,6 +1447,8 @@ test('#1692：通知中心量預設分頁「收到的」—— 稿的「新」�
     n.deviations.some((d) => /form/.test(d.a6 ?? '')),
     false,
   );
+  // 分頁列兩個分頁都有，「新」與 R3 那幾條發布分頁也要掛
+  for (const d of n.deviations) assert.ok(PAGES['notifications-publish'].deviations.includes(d));
 
   const tab = '>landmark:navigation[通知]>control:button[收到的未讀#新]';
   const appTab = '>landmark:main[]>landmark:navigation[通知]>control:button[收到的未讀#]';
