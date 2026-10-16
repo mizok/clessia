@@ -89,6 +89,7 @@
 | [labor-20261016-2120-notifyapi.md](labor-20261016-2120-notifyapi.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-2120-notifyapi` |
 | [labor-20261016-1534-forms.md](labor-20261016-1534-forms.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-1534-forms` |
 | [labor-20261016-1420-motion.md](labor-20261016-1420-motion.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-1420-motion` |
+| [labor-20261016-2039-front.md](labor-20261016-2039-front.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-2039-front` |
 | [usability-admin.md](usability-admin.md)         | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin`     |
 | [labor-db-reset.md](labor-db-reset.md)           | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`      |
 
