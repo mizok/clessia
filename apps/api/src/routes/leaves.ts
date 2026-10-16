@@ -7,6 +7,7 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Context } from 'hono';
 import { waitUntilFrom } from '../lib/wait-until';
+import { notifyLeaveForTeachers } from '../lib/notify-leave';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
@@ -123,6 +124,8 @@ interface LeaveValidationInput {
 }
 
 interface LeaveAttendanceSessionRow extends CancellableSession {
+  /** 查詢有選就有；單元測試的 fixture 可以省略 */
+  readonly id?: string;
   readonly class_id: string;
 }
 
@@ -361,11 +364,12 @@ async function findConflictingLeave(
  * **新增一張假是新的人工判斷，撤銷一張假不該回頭改寫別人已經做完的事。**
  *
  * 建立請假與編輯後「新增的日子」共用這一支 —— 兩條路徑各寫一份的話，
- * 「哪些課堂算數」的規則會在兩個地方各自漂移。
+ * 「哪些課堂算數」的規則會在兩個地方各自漂移。`sessionIds` 是蓋到的那幾堂，
+ * 老師的請假通知（#1693）用同一份答案，不另算一次。
  */
 async function applyLeaveAttendance(
   input: LeaveAttendanceRangeInput & { readonly recordedBy: string },
-): Promise<number> {
+): Promise<{ readonly synced: number; readonly sessionIds: string[] }> {
   const { supabase, orgId, studentId, recordedBy, from, to } = input;
 
   const { data: rawEvents } = await supabase
@@ -383,7 +387,7 @@ async function applyLeaveAttendance(
   const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
     coversEvent(input.window, ev),
   );
-  if (events.length === 0) return 0;
+  if (events.length === 0) return { synced: 0, sessionIds: [] };
 
   const classIds = Array.from(
     new Set(
@@ -420,13 +424,17 @@ async function applyLeaveAttendance(
     enrollments: (enrollments ?? []) as LeaveAttendanceEnrollmentRow[],
   });
 
-  if (attendanceUpserts.length === 0) return 0;
+  if (attendanceUpserts.length === 0) return { synced: 0, sessionIds: [] };
 
   await supabase
     .from('attendance_records')
     .upsert(attendanceUpserts, { onConflict: 'student_id,event_id' });
 
-  return attendanceUpserts.length;
+  const covered = new Set(attendanceUpserts.map((u) => u.event_id));
+  const sessionIds = (events as LeaveAttendanceEventRow[])
+    .filter((ev) => covered.has(ev.id))
+    .flatMap((ev) => toSessionRows(ev.sessions).flatMap((r) => (r.id ? [r.id] : [])));
+  return { synced: attendanceUpserts.length, sessionIds };
 }
 
 /**
@@ -613,7 +621,7 @@ async function updateBoundSessions(
           from: applyWindow.startDate,
           to: applyWindow.endDate,
           window: applyWindow,
-        })
+        }).then((r) => r.synced)
       : 0;
 
   const resourceName = buildLeaveAuditResourceName({
@@ -927,7 +935,7 @@ app.openapi(
     }
 
     // 3. 自動更新這張假蓋得到、且該學生實際有報名的 attendance_records → on_leave
-    const syncedCount = await applyLeaveAttendance({
+    const { synced: syncedCount, sessionIds: coveredSessionIds } = await applyLeaveAttendance({
       supabase,
       orgId,
       studentId: body.studentId,
@@ -956,6 +964,18 @@ app.openapi(
         waitUntilFrom(c),
       );
     }
+
+    // #1693：通知那幾堂的老師（假單、綁定、出勤都寫成功之後；背景跑、失敗只記 log）
+    const notice = notifyLeaveForTeachers(supabase, {
+      orgId,
+      actorUserId: userId,
+      leaveId: leave.id as string,
+      studentName: (leave as any).students?.name ?? '',
+      sessionIds: coveredSessionIds,
+    });
+    const wu = waitUntilFrom(c);
+    if (wu) wu(notice);
+    else await notice;
 
     const row = {
       ...leave,
@@ -1176,15 +1196,17 @@ app.openapi(
 
       let syncedCount = 0;
       for (const range of added) {
-        syncedCount += await applyLeaveAttendance({
-          supabase,
-          orgId,
-          studentId,
-          recordedBy: userId,
-          from: range.startDate,
-          to: range.endDate,
-          window: nextWindow,
-        });
+        syncedCount += (
+          await applyLeaveAttendance({
+            supabase,
+            orgId,
+            studentId,
+            recordedBy: userId,
+            from: range.startDate,
+            to: range.endDate,
+            window: nextWindow,
+          })
+        ).synced;
       }
 
       // 稽核沿用刪除／建立那兩條路徑的 action 名稱 —— 同一件事在稽核上要查得到同一個字，

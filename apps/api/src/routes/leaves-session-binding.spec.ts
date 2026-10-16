@@ -1,8 +1,15 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { notifyLeaveForTeachers } from '../lib/notify-leave';
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import leavesApp from './leaves';
+
+// #1693：老師的請假通知 —— 通知的堂要跟寫成 on_leave 的堂同一份（收件人由 notify-leave.spec 守）
+vi.mock('../lib/notify-leave', () => ({ notifyLeaveForTeachers: vi.fn(async () => undefined) }));
+const noticed = vi.mocked(notifyLeaveForTeachers);
+const noticedSessions = () => [...(noticed.mock.calls[0]?.[1].sessionIds ?? [])].sort();
+afterEach(() => noticed.mockClear());
 
 /**
  * #1114 請假綁定堂次。設計：kb/wiki/architecture/leave-session-binding.md。
@@ -225,6 +232,13 @@ describe('POST /api/leaves —— sessionIds', () => {
     const db = seed();
     expect((await post(appWith(db), { sessionIds: [S_AM] })).status).toBe(201);
     expect(onLeaveEvents(db)).toEqual([EV_AM]);
+    expect(noticed).toHaveBeenCalledTimes(1);
+    expect(noticed.mock.calls[0]![1]).toMatchObject({
+      orgId: ORG,
+      actorUserId: 'user-1',
+      leaveId: db.rows('leave_requests')[0]!['id'],
+    });
+    expect(noticedSessions()).toEqual([S_AM]);
   });
 
   it('別 org 的堂：400，不寫任何列（c1）', async () => {
@@ -234,6 +248,7 @@ describe('POST /api/leaves —— sessionIds', () => {
     expect(((await res.json()) as { sessionId: string }).sessionId).toBe(S_OTHER_ORG);
     expect(db.rows('leave_requests')).toHaveLength(0);
     expect(db.rows('leave_request_sessions')).toHaveLength(0);
+    expect(noticed).not.toHaveBeenCalled();
   });
 
   it('學生那天不在籍的堂、停課的堂：400 並指名哪一堂', async () => {
@@ -267,12 +282,14 @@ describe('POST /api/leaves —— 單日時間窗假只寫重疊的堂（順帶�
     const res = await post(appWith(db), { startTime: '13:00', endTime: '17:00' });
     expect(res.status).toBe(201);
     expect(onLeaveEvents(db)).toEqual([EV_PM]);
+    expect(noticedSessions()).toEqual([S_PM]);
   });
 
   it('沒綁定、沒時間：當天全部在籍的堂照舊都寫', async () => {
     const db = seed();
     expect((await post(appWith(db), {})).status).toBe(201);
     expect(onLeaveEvents(db)).toEqual([EV_AM, EV_PM].sort());
+    expect(noticedSessions()).toEqual([S_AM, S_PM].sort());
   });
 });
 
