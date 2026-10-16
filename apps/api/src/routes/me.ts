@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 import { getAuth } from '../lib/get-auth';
-import { loadMeExtrasViaSql, type MeExtras } from '../lib/identity-sql';
+import { loadMeExtrasViaSql, loadNickname, type MeExtras } from '../lib/identity-sql';
 import childrenRoute from './parent/children';
 import attendanceRoute from './parent/attendance';
 import gradesRoute from './parent/grades';
@@ -16,6 +16,7 @@ import renewalRoute from './parent/renewal';
 import mealsRoute from './parent/meals';
 import mePushRoute from './me-push';
 import { inOrg } from '../lib/org-scope';
+import { NicknameSchema } from '../lib/validation';
 import { invalidateIdentity } from '../lib/identity-cache';
 
 const MeResponseSchema = z
@@ -26,6 +27,8 @@ const MeResponseSchema = z
     email: z.string().nullable(),
     phone: z.string().nullable(),
     birthday: z.string().nullable(),
+    /** 對外暱稱（#1665 Q6′）。沒有 staff 身分的人（家長）一律 null */
+    nickname: z.string().nullable(),
     roles: z.array(z.string()),
     permissions: z.array(z.string()),
     /** 被指派的分校（`staff_campuses`）。**只給前端挑預設分校**，範圍仍由後端 campusScope 判（c1） */
@@ -43,6 +46,8 @@ const PatchMeSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .nullable()
       .optional(),
+    /** 只寫得進有 staff 身分的人自己那一列；家長帶了也不會寫到任何地方 */
+    nickname: NicknameSchema.optional(),
   })
   .openapi('PatchMeRequest');
 
@@ -75,13 +80,18 @@ app.openapi(
     // 先走 SQL（Hyperdrive，一次往返），失敗或形狀不對就走原本的兩支 REST（見 lib/identity-sql.ts）
     const auth = getAuth(c);
     const viaRest = async (): Promise<MeExtras> => {
-      const [p, u] = await Promise.all([
+      const [p, u, nickname] = await Promise.all([
         supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
         supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
+        staff ? loadNickname(supabase, userId, orgId) : null,
       ]);
-      return { profile: p.data as MeExtras['profile'], baUser: u.data as MeExtras['baUser'] };
+      return {
+        profile: p.data as MeExtras['profile'],
+        baUser: u.data as MeExtras['baUser'],
+        nickname,
+      };
     };
-    const { profile, baUser }: MeExtras =
+    const { profile, baUser, nickname }: MeExtras =
       (auth.pool ? await loadMeExtrasViaSql(auth.pool, userId, orgId) : null) ?? (await viaRest());
 
     return c.json(
@@ -98,6 +108,7 @@ app.openapi(
         email: baUser?.email ?? null,
         phone: baUser?.phone ?? null,
         birthday: staff?.birthday ?? null,
+        nickname: staff ? nickname : null,
         roles: c.get('roles'),
         permissions: c.get('permissions'),
         assignedCampusIds,
@@ -187,9 +198,15 @@ app.openapi(
       }
     }
 
-    if (body.birthday !== undefined) {
+    if (body.birthday !== undefined || body.nickname !== undefined) {
       await inOrg(
-        supabase.from('staff').update({ birthday: body.birthday }).eq('user_id', userId),
+        supabase
+          .from('staff')
+          .update({
+            ...(body.birthday === undefined ? {} : { birthday: body.birthday }),
+            ...(body.nickname === undefined ? {} : { nickname: body.nickname }),
+          })
+          .eq('user_id', userId),
         orgId,
       );
     }
@@ -220,6 +237,7 @@ app.openapi(
         email: (baUserResult.data?.email as string | null) ?? null,
         phone: (baUserResult.data?.phone as string | null) ?? null,
         birthday: (staffResult.data?.birthday as string | null) ?? null,
+        nickname: staffResult.data ? await loadNickname(supabase, userId, orgId) : null,
         roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
         permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
           Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
