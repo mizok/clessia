@@ -156,19 +156,43 @@ A6 的個資聲明（`D/pub-trial.html:174-177`）寫「保存 6 個月，可以
 
 ### 4.4 機器人驗證：ALTCHA（Q4）
 
-**為什麼是 ALTCHA**：MIT 授權、proof-of-work，伺服器端只做 HMAC 驗算，不連任何外部服務 —— 部署到 Cloudflare、Vercel 或自己的機器都一樣（c12）。Turnstile 是 Cloudflare 的服務，自架的客戶用不了，**照裁定拿掉**。
+**為什麼是 ALTCHA**：MIT 授權、proof-of-work，伺服器端出題與驗算都在自己的程式裡，不連任何外部服務（c12）。Turnstile 是 Cloudflare 的服務，自架的客戶用不了，**照裁定拿掉**。
+
+**釘的版本與出處**（2026-10-16 查 npm，都已發布滿兩週）：
+
+| 套件                    | 版本    | 發布日     | 出處                                                                                                                |
+| ----------------------- | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `altcha-lib`（伺服器）  | `2.5.0` | 2026-09-10 | <https://github.com/altcha-org/altcha-lib>（README「API Reference → v2」；2.6.0 未滿兩週，兩版這兩段 API 逐字相同） |
+| `altcha`（前端 widget） | `3.2.4` | 2026-09-30 | <https://github.com/altcha-org/altcha>                                                                              |
+
+`altcha-lib` 的預設入口是 v2 API；v1 在另一個子路徑 `altcha-lib/v1`。**這裡只用 v2，不用 v1。**
 
 流程：
 
-1. 表單一打開，前端打 `GET /api/public/altcha-challenge`。API 用 `altcha-lib`（伺服器端，WebCrypto，Workers 與 Node 都能跑）的 `createChallenge` 出題，**有效期 10 分鐘**（題目裡的 `expires`）。難度 `maxNumber` 要讓一般手機約 0.5–2 秒算完：實作時在 Playwright 的 CPU 降速 4 倍下量，數字寫進程式註解。
-2. 前端用 ALTCHA 的 widget（web component `<altcha-widget>`），**不顯示勾選框、背景自動算**；算完的 payload 放進表單。A6 那一列「已通過機器人驗證」算完才顯示；按送出時還沒算完，就等它算完再送（送出中狀態）。
-3. 兩支 `POST` 的 body：`captchaToken` 改成 `altcha`（payload 字串）。`application-common.ts` 的守門順序維持 **honeypot → 速率限制 → 機器人驗證**，第三步換成 `altcha-lib` 的 `verifySolution`，**要開啟過期檢查**（2.x 同時有 options 物件與舊的位置參數兩種寫法，實作時依釘的版本選一種，spec 要有一條「過期的解答被拒」）。沒帶或驗不過 → 400 `CAPTCHA_FAILED`。
-4. **金鑰**：環境變數 `ALTCHA_HMAC_KEY`；沒設時用 `BETTER_AUTH_SECRET` 經 HMAC 衍生一把（同 IP 雜湊的做法），所以**驗證一律開著**，自架的人不會因為少設一個變數而裸奔。
+1. 表單一打開，前端打 `GET /api/public/altcha-challenge`。API 用 v2 的 `createChallenge(options)` 出題：
+   - `algorithm` 用 `'PBKDF2/SHA-256'` 或 `'SHA-256'`。WebCrypto 就做得到；README 對「WinterCG runtimes」的建議就是用 WebCrypto 演算法。
+   - `deriveKey` 用該演算法對應的實作（README 的 `/docs/algorithms.md`）。
+   - `hmacSignatureSecret` 用第 4 點的金鑰。
+   - `expiresAt` 設成現在加 10 分鐘（單位是秒，也可以傳 Date）。
+   - 難度由 `cost`（和 `keyPrefix`）控制，目標是一般手機約 0.5–2 秒算完。實作時在 Playwright CPU 降速 4 倍下量，量到的值寫進程式註解。
+2. 前端用 widget 的 web component `<altcha-widget>`，設 `auto="onload"`，背景自動算，不顯示勾選框。A6 那一列「已通過機器人驗證」等它算完才顯示；按送出時還沒算完，就等它算完再送（處於送出中狀態）。
+3. 兩支 `POST` 的 body：`captchaToken` 改成 `altcha`（widget 交出的 payload）。`application-common.ts` 的守門順序維持 **honeypot → 速率限制 → 機器人驗證**，第三步換成 v2 的 `verifySolution(options)`：
+   - options 傳 `challenge`、`solution`、`hmacSignatureSecret`、`deriveKey`。
+   - **過期由它自己檢查**：回傳的 `expired` 為真就拒收，不用另外帶參數。
+   - `verified` 不是 true → 400 `CAPTCHA_FAILED`。
+   - spec 至少要有三條：過期的解答被拒、簽章不符被拒、正確的解答通過。
+4. **金鑰**：環境變數 `ALTCHA_HMAC_KEY`；沒設時用 `BETTER_AUTH_SECRET` 經 HMAC 衍生一把（同 IP 雜湊的做法）。所以**驗證一律開著**，自架的人不會因為少設一個變數而沒有驗證。
 5. **拿掉**：`TURNSTILE_SECRET_KEY` 的讀取與 siteverify 呼叫（`application-common.ts:79`、`:153-170`）、web `environment*.ts` 的 `turnstileSiteKey`、`captchaToken` 欄位；相關 spec 改寫成 ALTCHA 版。
 
-**刻意不做重放防護表**：同一份解答在 10 分鐘有效期內可以重送。不另建「用過的題目」表，理由是速率限制已經把同一來源壓在每小時 5 筆、同一聯絡方式每天 3 筆，重放拿不到更多額度。程式碼用 `ponytail:` 註解寫明這個上限與升級路徑（出現濫用時加一張 Postgres 表記錄已用的 signature，到期刪）。
+**未證實（實作 PR-2 第一步先查，查不到就停下回報）**：
 
-**套件版本**：`altcha`（widget）與 `altcha-lib`（伺服器）釘確切版本，且至少發布兩週以上；widget 只在 `/trial`、`/enrollment` lazy 載入，不進主 bundle。
+- **`altcha-lib` 能不能在 Cloudflare Workers 上跑**：README 的相容表只列 Node.js 20+、Bun 1+、Deno 2+、「WinterCG runtimes（用 WebCrypto 演算法）」，**沒有點名 Workers**。Workers 是 WinterCG 成員，但這是推論。驗證方式：在 `wrangler dev` 下實際出題並驗一次。
+- **widget 3.2.4 交出的 payload 怎麼拆成 v2 `verifySolution` 要的 `challenge`＋`solution`**：v2 改了題目格式，README 指向 `/docs/advanced-usage.md`，我還沒讀到具體格式，不寫死。
+- **widget 3.x 解的是不是 lib v2 的題目格式**：widget README 寫的是「Next-Gen PoW」和 Argon2／Scrypt，沒有直接寫對應 lib 的哪一版。
+
+**刻意不做重放防護表**：同一份解答在 10 分鐘有效期內可以重送。不另建「用過的題目」表，因為速率限制已經把同一來源壓在每小時 5 筆、同一聯絡方式每天 3 筆，重送拿不到更多額度。程式碼用 `ponytail:` 註解寫明這個上限與升級路徑：出現濫用時，加一張 Postgres 表記錄用過的 signature，過期就刪。（README 有 `/docs/store.md`，可以參考它的介面，但儲存一律放 Postgres，不用 KV，c12。）
+
+**載入**：widget 只在 `/trial`、`/enrollment` lazy 載入，不進主 bundle。
 
 ### 4.5 暱稱（Q6，15:09 補充：開給所有 staff）
 
@@ -223,7 +247,7 @@ SELECT cron.schedule(
 | 單   | 內容                                                                                                                                                                                                                                                                | 類別                    | 依賴       |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ---------- |
 | PR-1 | **migration（§5）＋公開目錄 API**：開放旗標過濾、兩支 POST 拒收不開放的班／課、`teacherNicknames`（含「無暱稱不露本名」spec）、`campuses` 聯絡資訊（§4.2）                                                                                                          | **保留類**（migration） | —          |
-| PR-2 | **ALTCHA 換掉 Turnstile（API 端）**：challenge 端點、`verifySolution`、金鑰衍生、拿掉 Turnstile；`abuse-guard.spec.ts` 改寫                                                                                                                                         | 保留類（防濫用屬安全）  | —          |
+| PR-2 | **ALTCHA 換掉 Turnstile（API 端）**：先查掉 §4.4 的三個未證實；challenge 端點、`verifySolution`、金鑰衍生、拿掉 Turnstile；`abuse-guard.spec.ts` 改寫                                                                                                               | 保留類（防濫用屬安全）  | —          |
 | PR-3 | **行政頁**：班級 dialog 的「開放公開報名」開關＋課程頁「不公開」小標、人員表單的「對外暱稱」欄（所有人員）；班級／人員更新 API 收這兩欄；Q6′ 若開放，帳號設定 dialog 加暱稱欄與 `/api/me` 對應更新                                                                  | 一般                    | PR-1       |
 | PR-4 | **公開表單前端**：`/trial`、`/enrollment` 照 A6（§1）、ALTCHA widget、成功／失敗畫面；訂正 `specs/public/trial.md`、`enrollment.md` 已過期的資料依賴（寫 `trial_requests`／`enrollment_requests`，實際是 `public_applications`）；a6-adoption-rules R5 登記 Q1 偏離 | 一般                    | PR-1、PR-2 |
 
