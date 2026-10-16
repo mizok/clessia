@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-10-10
+updated: 2026-10-16
 ---
 
 # 部署
@@ -155,6 +155,27 @@ Worker route 的優先權高於 Pages，所以 `/api/*` 會被 Worker 接走，�
 - **守門順序** honeypot → 速率限制 → 機器人驗證（`guardSubmission`）。ALTCHA 沒有重放防護表：同一份解答 10 分鐘內可重送，
   速率限制壓住它能拿到的額度；要加的話記在 Postgres，不用 KV（c12）。
 - **開公開頁之前**：預設 ALTCHA 不用另外設；要用 Turnstile 就先設好 `CAPTCHA_PROVIDER=turnstile` 與兩把金鑰，再設 `PUBLIC_ORG_SLUG`。
+
+## 推播（Web Push，#1626／#1661）
+
+設計見 [[architecture/web-push]]。四個必要設定加一個可選，**沒設＝推播關著**（訂閱端點回 404、排程什麼都不做）：
+
+| 設定                | 種類                              | 說明                                                                                                                            |
+| ------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `VAPID_PUBLIC_KEY`  | 非機密（`[env.production.vars]`） | `npx tsx apps/api/src/scripts/generate-vapid-keys.ts` 印出的公鑰。**不要輪替** —— 換了所有既有訂閱失效                          |
+| `VAPID_SUBJECT`     | 非機密（vars）                    | `mailto:<補習班聯絡信箱>`，推播服務出問題時聯絡用                                                                               |
+| `VAPID_PRIVATE_KEY` | 機密（`wrangler secret put`）     | 同一次產生的私鑰；只印在你的終端機，不寫檔                                                                                      |
+| `CRON_SECRET`       | 機密（`wrangler secret put`）     | 排程端點的密鑰，自己產一串長亂數（例：`openssl rand -base64 32`）。**沒設＝`/api/internal/push/run` 404、`scheduled()` 不做事** |
+| `PUSH_BATCH_SIZE`   | 非機密，可選                      | 每次 run 最多送幾台裝置。沒設用 10（#1657 在免費方案實測）；送不完照 #1626 Q8 先降批量、拉長時段，**升級付費前回報使用者**      |
+
+- **Workers**：`wrangler.toml` 的 `[env.production.triggers]` 已經掛好 Cron（UTC `*/10 1-2 * * *` ＝台北 09:00–10:50）。
+  `scheduled()` 在行程內呼叫同一支端點。
+- **自架（Node，c12）**：系統 cron 每 10 分鐘打一次同一支端點：
+  `*/10 9-10 * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://<網域>/api/internal/push/run`
+  （系統 cron 用主機時區；主機不是台北時間的話自己換算）。Workers 與自架 cron 同時開著也不會送兩次：
+  每次 run 開頭拿 advisory lock，排入有去重鍵。
+- **開啟順序**：migration `20261016073848_push_notifications` 已套 → 設 VAPID 三項 → 部署 → 設 `CRON_SECRET`。
+  CRON_SECRET 最後設，前面任何一步沒好，排程都還是關著。
 
 ## Hyperdrive（正式環境的資料庫連線）
 

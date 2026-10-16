@@ -16,6 +16,7 @@ import type { StudentScope } from './lib/child-scope';
 import type { ChildDb } from './lib/child-db';
 import type { Auth, MagicLinkPayload } from './auth';
 import { authPoolCleanup, getAuth } from './lib/get-auth';
+import internalPushRoute from './routes/internal-push';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import loginLinksRoute from './routes/login-links';
 import billingPeriodsRoute from './routes/billing-periods';
@@ -107,6 +108,17 @@ export type Bindings = {
    * `/api/me/push-config` 回 404。產生方式見 `scripts/generate-vapid-keys.ts`（#1657）
    */
   VAPID_PUBLIC_KEY?: string;
+  /** VAPID 私鑰（#1661，**機密**，`wrangler secret put`）。沒設 = 排程回 500 PUSH_NOT_CONFIGURED */
+  VAPID_PRIVATE_KEY?: string;
+  /** VAPID 的 `sub`：`mailto:` 補習班聯絡信箱（#1661，非機密，vars） */
+  VAPID_SUBJECT?: string;
+  /**
+   * 推播排程端點的密鑰（#1661，**機密**，`wrangler secret put`）。**沒設 = `/api/internal/push/run` 一律 404、
+   * `scheduled()` 什麼都不做** —— 這份部署沒開推播排程。
+   */
+  CRON_SECRET?: string;
+  /** 每次 run 最多送幾台裝置（#1661）。沒設用 10（#1657 在免費方案實測）；自架可調大 */
+  PUSH_BATCH_SIZE?: string;
 };
 
 export type Variables = {
@@ -306,6 +318,10 @@ app.route('/api/public/captcha', publicCaptchaRoute);
 app.route('/api/public/enrollment-applications', publicEnrollmentApplicationsRoute);
 app.route('/api/public/trial-applications', publicTrialApplicationsRoute);
 
+// ── 推播排程（#1661）：唯一的門是 CRON_SECRET，見 routes/internal-push.ts ──────────
+// **必須在 authMiddleware 之前** —— cron 沒有 session。
+app.route('/api/internal/push', internalPushRoute);
+
 app.use('/api/*', authMiddleware);
 
 // 分校範圍：請求指名了不屬於自己的分校就 403。掛全域而不是各路由自己檢查 ——
@@ -466,4 +482,21 @@ app.notFound((c) => {
   return c.json({ error: 'Not Found', path: c.req.path }, 404);
 });
 
-export default app;
+/**
+ * Workers 的 Cron Trigger（#1661）：在行程內呼叫同一支 `/api/internal/push/run` —— 跟自架的系統 cron
+ * 走完全相同的程式碼路徑（c12）。`app` 本身照舊是預設匯出（`server.ts`、測試都用它），只多掛一個 handler。
+ */
+async function scheduled(_event: unknown, env: Bindings, ctx: ExecutionContext): Promise<void> {
+  if (!env.CRON_SECRET) return;
+  const res = await app.fetch(
+    new Request('https://cron.internal/api/internal/push/run', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${env.CRON_SECRET}` },
+    }),
+    env,
+    ctx,
+  );
+  if (!res.ok) console.error('[push] scheduled run failed:', res.status);
+}
+
+export default Object.assign(app, { scheduled });
