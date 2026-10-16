@@ -41,6 +41,7 @@
 - [[architecture/parent-class-logs-read]] — 家長端第二實例，照 parent-read-endpoints.md 的樣板抄：childDb 兩層防線、複用 admin 的 select/mapper、allowlist 欄位過濾。這支的特殊之處是 class_logs 是班級層級不是學生層級，childDb 現有 API 假設表上有 student_id 欄位，需要擴充一個新方法。等 STOP 批准，teacher-pages 的 v1b 讀取頁與發布按鈕卡在這支上。
 - [[architecture/parent-data-scope]] — 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。
 - [[architecture/parent-read-endpoints]] — 家長端 P4 主體的 API 側設計。三支 GET-only 端點複用既有 admin 查詢邏輯（attendance.ts / scores.ts / invoices.ts 的 select 常數與 mapper），走 childDb + 顯式 childId 查詢參數（403 不回空），欄位過濾表逐支列出，錨點聚合數字放進各自 meta 不另開 dashboard 端點。等 STOP 批准。
+- [[architecture/pg-pool-writes]] — PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
 - [[architecture/role-authorization]] — 掛載的 route 曾經只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
 - [[architecture/session-makeup]] — 停課的課堂可以被另一堂課補回來。連結存在 sessions.makeup_for_session_id 這個自我參照 FK 上，只為可解釋性——計費完全不需要它，因為補課那堂本來就會扣、停掉的那堂本來就不扣。
 - [[architecture/teacher-class-log]] — 一班一天一篇的教學紀錄與作業，從課堂卡的 bottom sheet 寫入。v1a 只寫草稿、刻意不放發布按鈕——因為發布不可逆而下游（家長端可見、LINE 推播）都還不存在。
@@ -135,7 +136,7 @@
 - [[specs/parent/renewal]] — 預覽即將自動續課的內容，申請異動。
 - [[specs/parent/schedule]] — 查看孩子的課表和課堂詳情。
 - [[specs/parent/trial]] — 已有帳號的家長為孩子申請試聽其他課程。
-- [[specs/public/application-forms-a6]] — 設計稿（#1637；Q1–Q6 已裁、剩 Q5′ 預設值）：公開試聽／報名表單照 A6；補關係欄、ALTCHA 取代 Turnstile、班級公開旗標、老師暱稱、申請保存 6 個月（一支 migration），拆四單。
+- [[specs/public/application-forms-a6]] — 設計稿（#1637；Q1–Q6 已裁、剩 Q5′／Q6′）：公開試聽／報名表單照 A6；補關係欄、ALTCHA 取代 Turnstile、班級公開旗標、所有人員可設暱稱（對外只露任課老師）、申請保存 6 個月（一支 migration），拆四單。
 - [[specs/public/enrollment]] — 新家長為孩子提交報名申請。
 - [[specs/public/login]] — 一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
 - [[specs/public/qr-checkin]] — 學生掃碼完成當日到班登記。

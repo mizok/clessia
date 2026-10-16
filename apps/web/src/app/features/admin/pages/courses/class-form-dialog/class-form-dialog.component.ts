@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
@@ -29,6 +30,8 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
 import { ConflictWarningDialogComponent } from './conflict-warning-dialog/conflict-warning-dialog.component';
 
 export interface ScheduleFormEntry {
+  /** 前端用的穩定 key（#1641 項 5）：`@for` 用它 track（新增的時段還沒有 id）。不送 API */
+  key: number;
   id?: string;
   weekday: number | null;
   startTime: string;
@@ -64,6 +67,8 @@ export interface ScheduleFormEntry {
 })
 export class ClassFormDialogComponent {
   private readonly classesService = inject(ClassesService);
+  /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
+  private readonly viewTransition = injectViewTransition();
   private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly dialogService = inject(DialogService);
@@ -146,8 +151,10 @@ export class ClassFormDialogComponent {
     return start ?? undefined;
   });
 
+  private nextScheduleKey = 0;
   protected readonly scheduleEntries = signal<ScheduleFormEntry[]>(
     (this.cls()?.schedules ?? []).map((s) => ({
+      key: this.nextScheduleKey++,
       id: s.id,
       weekday: s.weekday,
       startTime: s.startTime.substring(0, 5),
@@ -195,21 +202,29 @@ export class ClassFormDialogComponent {
 
   protected addScheduleEntry(): void {
     this.formValidationMessage.set(null);
-    this.scheduleEntries.update((list) => [
-      ...list,
-      {
-        weekday: 1,
-        startTime: '09:00',
-        endTime: '11:00',
-        teacherId: null,
-        effectiveTo: null,
-      },
-    ]);
+    this.viewTransition(
+      () =>
+        this.scheduleEntries.update((list) => [
+          ...list,
+          {
+            key: this.nextScheduleKey++,
+            weekday: 1,
+            startTime: '09:00',
+            endTime: '11:00',
+            teacherId: null,
+            effectiveTo: null,
+          },
+        ]),
+      { rows: true },
+    );
   }
 
   protected removeScheduleEntry(index: number): void {
     this.formValidationMessage.set(null);
-    this.scheduleEntries.update((list) => list.filter((_, i) => i !== index));
+    this.viewTransition(
+      () => this.scheduleEntries.update((list) => list.filter((_, i) => i !== index)),
+      { rows: true },
+    );
   }
 
   protected updateScheduleEntry(index: number, field: keyof ScheduleFormEntry, value: any): void {

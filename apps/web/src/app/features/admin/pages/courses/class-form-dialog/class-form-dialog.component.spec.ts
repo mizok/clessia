@@ -305,4 +305,25 @@ describe('ClassFormDialogComponent', () => {
 
     expect((classesServiceMock.create as any).mock.calls[0][0].isRecommended).toBe(true);
   });
+
+  // #1641 項 5：原本 track $index —— 刪中間一列時 Angular 移掉的是最後一個節點，
+  // 再把其餘節點重綁，所以「被刪的那一列淡出」會播在錯的列上
+  it('刪掉中間的時段：其餘時段的 DOM 節點不換（track 用穩定 key）', () => {
+    const c = component as unknown as {
+      addScheduleEntry: () => void;
+      removeScheduleEntry: (i: number) => void;
+    };
+    c.addScheduleEntry();
+    c.addScheduleEntry();
+    c.addScheduleEntry();
+    fixture.detectChanges();
+    const rows = () =>
+      Array.from(fixture.nativeElement.querySelectorAll('.vt-row')) as HTMLElement[];
+    const [, , third] = rows();
+    expect(rows()).toHaveLength(3);
+    c.removeScheduleEntry(1);
+    fixture.detectChanges();
+    expect(rows()).toHaveLength(2);
+    expect(rows()[1]).toBe(third);
+  });
 });

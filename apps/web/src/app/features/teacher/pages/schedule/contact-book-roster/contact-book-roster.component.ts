@@ -6,6 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -38,6 +39,8 @@ export interface ContactBookRosterInput {
 })
 export class ContactBookRosterComponent {
   private readonly config = inject(DynamicDialogConfig);
+  /** 列表增刪的頁內 VT（#1641 項 5）：新列淡入、刪掉的淡出、其餘補位 */
+  private readonly viewTransition = injectViewTransition();
   private readonly ref = inject(DynamicDialogRef);
   private readonly contactBook = inject(ContactBookService);
   private readonly dialogService = inject(DialogService);
@@ -119,7 +122,13 @@ export class ContactBookRosterComponent {
           ref?.onClose.subscribe((saved?: unknown) => {
             if (!saved) return;
             this.wroteAny.set(true);
-            this.students.update((list) => list.filter((s) => s.studentId !== student.studentId));
+            this.viewTransition(
+              () =>
+                this.students.update((list) =>
+                  list.filter((s) => s.studentId !== student.studentId),
+                ),
+              { rows: true },
+            );
           });
         },
         error: () => {
