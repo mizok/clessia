@@ -504,6 +504,8 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     it.each<[number, string | null, string]>([
       [0, null, '通知，沒有未讀'],
       [3, '3', '通知，3 則未讀'],
+      [99, '99', '通知，99 則未讀'],
+      [100, '99+', '通知，100 則未讀'],
       [120, '99+', '通知，120 則未讀'],
     ])('家長未讀 %d：角標 %s、aria-label「%s」（角標本身 aria-hidden）', async (n, text, label) => {
       const { el } = await setup(['parent'], 'parent', true, { unread: n });

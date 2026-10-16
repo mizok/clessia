@@ -273,4 +273,37 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     fixture.detectChanges();
     expect(badge.setAnnouncementsUnread).toHaveBeenLastCalledWith(1);
   });
+
+  /** 收件匣自己還沒讀到、或讀不到時，角標保留 InboxBadgeService 自己抓到的值（審核席 #1691 突變） */
+  describe('不寫回角標的時候', () => {
+    async function createWith(inbox: () => unknown) {
+      badge.setAnnouncementsUnread.mockReset();
+      inboxMock.mockReset();
+      inboxMock.mockImplementation(inbox);
+      await TestBed.configureTestingModule({
+        imports: [AnnouncementInboxComponent],
+        providers: [
+          {
+            provide: AnnouncementsService,
+            useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
+          },
+          { provide: InboxBadgeService, useValue: badge },
+        ],
+      }).compileComponents();
+      const f = TestBed.createComponent(AnnouncementInboxComponent);
+      f.componentRef.setInput('heading', '通知中心');
+      f.detectChanges();
+      return f;
+    }
+
+    it('讀取失敗：不寫（角標原本是 3 就還是 3，不會被寫成 0）', async () => {
+      await createWith(() => throwError(() => new Error('boom')));
+      expect(badge.setAnnouncementsUnread).not.toHaveBeenCalled();
+    });
+
+    it('載入完成前：不寫（不會先寫一個 0）', async () => {
+      await createWith(() => NEVER);
+      expect(badge.setAnnouncementsUnread).not.toHaveBeenCalled();
+    });
+  });
 });
