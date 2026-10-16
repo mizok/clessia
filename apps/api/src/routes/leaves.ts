@@ -509,6 +509,28 @@ export function toLeaveResponse(row: Record<string, unknown>) {
  * （跟 `diffLeaveDateRanges` 同一個理由：整段重做會讓已點名那堂的紀錄在一次編輯裡換作者）。
  * 原本是整天型 → 舊的整張 revert、新的綁定 apply（語意整個換掉，沒有可以保留的交集）。
  */
+/**
+ * #1693：通知那幾堂的老師。一律在假單、綁定、出勤都寫成功之後呼叫；背景跑，失敗只記 log。
+ * 建立時傳全部蓋到的堂，編輯時**只傳新增的那幾堂**（計畫席 10-16 裁）。
+ */
+async function queueLeaveNotice(
+  c: Context<AppEnv>,
+  leaveId: string,
+  studentName: string,
+  sessionIds: readonly string[],
+): Promise<void> {
+  const job = notifyLeaveForTeachers(c.get('supabase'), {
+    orgId: c.get('orgId'),
+    actorUserId: c.get('userId'),
+    leaveId,
+    studentName,
+    sessionIds,
+  });
+  const wu = waitUntilFrom(c);
+  if (wu) wu(job);
+  else await job;
+}
+
 async function updateBoundSessions(
   c: Context<AppEnv>,
   input: {
@@ -611,7 +633,7 @@ async function updateBoundSessions(
           window: revertWindow,
         })
       : 0;
-  const syncedCount =
+  const applied =
     applyWindow.boundSessions.length > 0
       ? await applyLeaveAttendance({
           supabase,
@@ -621,8 +643,20 @@ async function updateBoundSessions(
           from: applyWindow.startDate,
           to: applyWindow.endDate,
           window: applyWindow,
-        }).then((r) => r.synced)
-      : 0;
+        })
+      : { synced: 0, sessionIds: [] };
+  const syncedCount = applied.synced;
+  // 只通知新增的堂：原本就綁定的，`applyWindow` 已經只有新增那幾堂；原本是日期區間型的，
+  // 舊區間裡的日子老師之前已經收過，只通知區間外的
+  // ponytail: 舊的是單日時間窗型時，同日原本沒蓋到的堂也會被當成收過；要精準就改用 coversEvent 比對
+  const dateOf = new Map(nextWindow.boundSessions.map((b) => [b.sessionId, b.date]));
+  const newlyCovered = prevBound
+    ? applied.sessionIds
+    : applied.sessionIds.filter((sid) => {
+        const date = dateOf.get(sid) ?? '';
+        return date < prevWindow.startDate || date > prevWindow.endDate;
+      });
+  await queueLeaveNotice(c, id, input.studentName, newlyCovered);
 
   const resourceName = buildLeaveAuditResourceName({
     studentName: input.studentName,
@@ -965,17 +999,12 @@ app.openapi(
       );
     }
 
-    // #1693：通知那幾堂的老師（假單、綁定、出勤都寫成功之後；背景跑、失敗只記 log）
-    const notice = notifyLeaveForTeachers(supabase, {
-      orgId,
-      actorUserId: userId,
-      leaveId: leave.id as string,
-      studentName: (leave as any).students?.name ?? '',
-      sessionIds: coveredSessionIds,
-    });
-    const wu = waitUntilFrom(c);
-    if (wu) wu(notice);
-    else await notice;
+    await queueLeaveNotice(
+      c,
+      leave.id as string,
+      (leave as any).students?.name ?? '',
+      coveredSessionIds,
+    );
 
     const row = {
       ...leave,
@@ -1195,19 +1224,21 @@ app.openapi(
       }
 
       let syncedCount = 0;
+      const addedSessionIds: string[] = [];
       for (const range of added) {
-        syncedCount += (
-          await applyLeaveAttendance({
-            supabase,
-            orgId,
-            studentId,
-            recordedBy: userId,
-            from: range.startDate,
-            to: range.endDate,
-            window: nextWindow,
-          })
-        ).synced;
+        const applied = await applyLeaveAttendance({
+          supabase,
+          orgId,
+          studentId,
+          recordedBy: userId,
+          from: range.startDate,
+          to: range.endDate,
+          window: nextWindow,
+        });
+        syncedCount += applied.synced;
+        addedSessionIds.push(...applied.sessionIds);
       }
+      await queueLeaveNotice(c, id, studentName, addedSessionIds);
 
       // 稽核沿用刪除／建立那兩條路徑的 action 名稱 —— 同一件事在稽核上要查得到同一個字，
       // 否則「這張假的出勤被動過幾次」得先知道有幾種說法

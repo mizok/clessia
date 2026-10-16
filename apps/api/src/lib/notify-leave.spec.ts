@@ -95,7 +95,7 @@ describe('notifyLeaveForTeachers（#1693：學生請了老師的課）', () => {
       org_id: A,
       role: 'teacher',
       kind: 'leave_for_my_class',
-      dedupe_key: 'leave:leave-1:k2',
+      dedupe_key: 'leave:leave-1:k2:ses-3',
       payload: { title: '學生請假', url: '/teacher/schedule' },
       push_status: 'skipped',
       push_error: 'ROLE_PUSH_DISABLED',
@@ -106,6 +106,18 @@ describe('notifyLeaveForTeachers（#1693：學生請了老師的課）', () => {
     const db = seed();
     await notifyLeaveForTeachers(db.client as SupabaseClient, input({ sessionIds: ['ses-3'] }));
     expect(sent(db)).toEqual(['u-k2|王小明 請假：英文 B 班 10/21']);
+  });
+
+  it('同一張假延長（同班新的堂）收第二則；同一批重送不重複', async () => {
+    const db = seed();
+    await notifyLeaveForTeachers(db.client as SupabaseClient, input({ sessionIds: ['ses-2'] }));
+    await notifyLeaveForTeachers(db.client as SupabaseClient, input({ sessionIds: ['ses-2'] }));
+    await notifyLeaveForTeachers(db.client as SupabaseClient, input({ sessionIds: ['ses-1'] }));
+    expect(sent(db)).toEqual([
+      'u-main|王小明 請假：數學 A 班 10/20',
+      'u-main|王小明 請假：數學 A 班 10/27',
+      'u-sub|王小明 請假：數學 A 班 10/27',
+    ]);
   });
 
   it('替學生請假的人自己不收（管理員同時是任課老師）', async () => {

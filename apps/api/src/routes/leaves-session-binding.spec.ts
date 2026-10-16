@@ -389,6 +389,50 @@ describe('PATCH /api/leaves/:id —— 綁定替換', () => {
   });
 });
 
+describe('PATCH /api/leaves/:id —— 老師通知只發新增的堂（#1693，計畫席 10-16 裁）', () => {
+  const patch = (db: ReturnType<typeof createMultiOrgDb>, leaveId: string, body: object) =>
+    appWith(db).request(`/api/leaves/${leaveId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const create = async (db: ReturnType<typeof createMultiOrgDb>, body: Record<string, unknown>) => {
+    const res = await post(appWith(db), body);
+    expect(res.status).toBe(201);
+    noticed.mockClear();
+    return ((await res.json()) as { id: string }).id;
+  };
+
+  it('綁定型換堂：保留的、拿掉的都不通知，只通知新增的', async () => {
+    const db = seed();
+    const leaveId = await create(db, { sessionIds: [S_AM, S_PM] });
+    expect((await patch(db, leaveId, { sessionIds: [S_AM, S_D2] })).status).toBe(200);
+    expect(noticed.mock.calls[0]![1]).toMatchObject({ leaveId, actorUserId: 'user-1' });
+    expect(noticedSessions()).toEqual([S_D2]);
+  });
+
+  it('日期區間型延長一天：只通知新增那天的堂', async () => {
+    const db = seed();
+    const leaveId = await create(db, {});
+    expect((await patch(db, leaveId, { endDate: D2 })).status).toBe(200);
+    expect(noticedSessions()).toEqual([S_D2]);
+  });
+
+  it('日期區間型改成綁定堂次：舊區間裡的日子不再通知，只通知區間外的', async () => {
+    const db = seed();
+    const leaveId = await create(db, {});
+    expect((await patch(db, leaveId, { sessionIds: [S_PM, S_D2] })).status).toBe(200);
+    expect(noticedSessions()).toEqual([S_D2]);
+  });
+
+  it('只改事由：沒有新增的堂，不通知', async () => {
+    const db = seed();
+    const leaveId = await create(db, { sessionIds: [S_AM] });
+    expect((await patch(db, leaveId, { reason: '發燒' })).status).toBe(200);
+    expect(noticedSessions()).toEqual([]);
+  });
+});
+
 describe('DELETE /api/leaves/:id —— 綁定型', () => {
   it('full：revert 只回綁定的堂，同日別堂的 on_leave 不動', async () => {
     const db = seed({
