@@ -15,6 +15,7 @@ import { InputTextModule } from 'primeng/inputtext';
 
 import { DailyCheckinsService, type DailyCheckinConfirmation } from '@core/daily-checkins.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { AppVersionService } from '@core/app-version.service';
 import { checkinFailure, checkinView, type CheckinFailure } from './checkin-view';
 import { QR_DECODER_FACTORY, cameraErrorState, type QrDecoder } from './qr-camera';
 
@@ -45,6 +46,7 @@ type CameraState = 'off' | 'starting' | 'scanning' | 'denied' | 'unavailable';
 export class CheckinStationComponent {
   private readonly checkins = inject(DailyCheckinsService);
   private readonly clock = inject(SystemClockService);
+  private readonly version = inject(AppVersionService);
   private readonly createDecoder = inject(QR_DECODER_FACTORY);
   private readonly codeInput = viewChild<ElementRef<HTMLInputElement>>('codeInput');
   private readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
@@ -109,6 +111,11 @@ export class CheckinStationComponent {
       this.scanTimer = setInterval(() => void this.scanOnce(), SCAN_INTERVAL_MS);
     } catch (err) {
       this.stopCamera();
+      // 舊分頁要不到 jsqr 的 chunk（#1718）：不是相機的問題，別顯示「相機無法使用」；亮新版提示條、相機回到關閉
+      if (this.version.recoverFromImportFailure(err)) {
+        this.cameraState.set('off');
+        return;
+      }
       this.cameraState.set(cameraErrorState(err));
     }
   }

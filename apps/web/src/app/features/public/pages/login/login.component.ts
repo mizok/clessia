@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
+import { AppVersionService } from '@core/app-version.service';
 import { AuthService } from '@core/auth.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { oauthErrorFor } from './oauth-error';
@@ -25,6 +26,7 @@ import { oauthErrorFor } from './oauth-error';
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);
+  private readonly version = inject(AppVersionService);
   private readonly route = inject(ActivatedRoute);
 
   protected readonly error = signal<string | null>(null);
@@ -83,11 +85,22 @@ export class LoginComponent {
         this.error.set(errorMsg);
       }
       // 成功的話瀏覽器已經被導去 LINE，這裡不會再執行到
-    } catch {
-      // 不接住的話按鈕會永遠卡在「登入中」
-      this.error.set('無法連線到 LINE，請稍後再試');
+    } catch (err) {
+      // 不接住的話按鈕會永遠卡在「登入中」。
+      // 舊版 chunk（現在這條路上沒有 import()，將來 auth client 改 lazy 時才會有）：亮提示條就好
+      if (this.version.recoverFromImportFailure(err)) return;
+      // #1718：原本寫「無法連線到 LINE」—— 但丟例外的是我們的 API（連線層），不是 LINE，
+      // 而使用者實際上是重新整理之後就好了。原始錯誤記下來，下次撞到才查得到（原本整個丟掉）
+      console.warn('[line-login]', redactedError(err));
+      this.error.set('連不上伺服器，請重新整理頁面後再試');
     } finally {
       this.submitting.set(false);
     }
   }
+}
+
+/** 只留錯誤名與訊息；網址的 query（OAuth 的 state、token）遮掉，不印進 console（#1718 計畫席） */
+function redactedError(err: unknown): string {
+  const text = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return text.replace(/\?[^\s]*/g, '?…');
 }

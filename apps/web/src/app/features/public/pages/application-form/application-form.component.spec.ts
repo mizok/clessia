@@ -6,6 +6,7 @@ import { MessageService } from 'primeng/api';
 import { vi } from 'vitest';
 
 import { SystemClockService } from '@core/system-clock.service';
+import { AppVersionService } from '@core/app-version.service';
 
 import { ApplicationFormComponent } from './application-form.component';
 import type { FormKind, FormValues, PublicCatalog } from './application-form.model';
@@ -354,6 +355,20 @@ describe('ApplicationFormComponent', () => {
       expect(api.solveAltcha).toHaveBeenCalledTimes(1);
       expect(ts.render).not.toHaveBeenCalled();
       expect(text()).toContain('已通過機器人驗證');
+    });
+
+    // #1718：舊分頁要不到 altcha 的 chunk —— 「重試驗證」按幾次都一樣，另外亮新版提示條
+    it('altcha 的 chunk 要不到：亮新版提示條（驗證照樣算失敗、不能送）', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const solveAltcha = vi
+        .fn()
+        .mockRejectedValue(
+          new TypeError('Failed to fetch dynamically imported module: https://x/chunk-A.js'),
+        );
+      const { fixture } = await setup('trial', { solveAltcha });
+      const el = fixture.nativeElement as HTMLElement;
+      expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
+      expect(el.querySelector('[data-part=captcha-failed]')).not.toBeNull();
     });
 
     it('altcha 算失敗或逾時：顯示「重試驗證」、按送出也不送；重試成功後才送得出去', async () => {

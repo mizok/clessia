@@ -4,6 +4,7 @@ import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { EnrollmentsService, type BatchMatchResultItem } from '@core/enrollments.service';
+import { AppVersionService } from '@core/app-version.service';
 import { SchoolsService } from '@core/schools.service';
 
 import { RosterImportDialogComponent } from './roster-import-dialog.component';
@@ -248,5 +249,23 @@ describe('RosterImportDialogComponent', () => {
     component['close']();
 
     expect(closeMock).toHaveBeenCalledWith('imported');
+  });
+
+  // #1718：舊分頁要不到 xlsx 的 chunk —— 不是檔案的問題，不叫人去檢查檔案
+  it('xlsx 的 chunk 要不到：不顯示「檔案讀取失敗」，亮新版提示條', async () => {
+    await setup();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(
+      component as never as { parseWorkbook(f: File): Promise<unknown[][]> },
+      'parseWorkbook',
+    ).mockRejectedValue(
+      new TypeError('Failed to fetch dynamically imported module: https://x/chunk-A.js'),
+    );
+    await (component as never as { readFile(f: File): Promise<void> }).readFile(
+      new File(['x'], 'a.xlsx'),
+    );
+    expect(component['parseError']()).toBeNull();
+    expect(component['busy']()).toBe(false);
+    expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
   });
 });

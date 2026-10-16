@@ -21,6 +21,7 @@ import {
   type ScheduleConflictWarning,
 } from '@core/enrollments.service';
 import { SchoolsService } from '@core/schools.service';
+import { AppVersionService } from '@core/app-version.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 import {
@@ -55,6 +56,7 @@ interface ReviewRow {
 export class RosterImportDialogComponent {
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly schoolsService = inject(SchoolsService);
+  private readonly version = inject(AppVersionService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
   private readonly destroyRef = inject(DestroyRef);
@@ -157,7 +159,9 @@ export class RosterImportDialogComponent {
 
       this.rows.set(parsed.rows);
       this.loadSchools();
-    } catch {
+    } catch (err) {
+      // 舊分頁要不到 xlsx 的 chunk（#1718）：不是檔案的問題，別叫人去檢查檔案
+      if (this.version.recoverFromImportFailure(err)) return;
       this.parseError.set('檔案讀取失敗，請確認是 .xlsx 或 .csv');
     } finally {
       this.busy.set(false);
