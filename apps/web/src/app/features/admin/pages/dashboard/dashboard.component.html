@@ -110,7 +110,8 @@
                 } @else if (card.value === 'error') {
                   <ng-container [ngTemplateOutlet]="valueError" />
                 } @else {
-                  {{ card.value }}
+                  <!-- 數字換了就從下方淡入（#1641 項 6）；從載入中變成有值不算 -->
+                  <span [appValueArrive]="card.value">{{ card.value }}</span>
                 }
               </span>
               <span class="min-w-0">
@@ -392,7 +393,9 @@
                   <p class="mt-1 mb-0 text-md font-semibold text-zinc-900">{{ name }}</p>
                 }
                 <p class="mt-1 mb-0 text-md text-zinc-600 tabular-nums">
-                  到 {{ chapter.arrivedCount }}／{{ chapter.people.length }}
+                  到
+                  <span [appValueArrive]="chapter.arrivedCount">{{ chapter.arrivedCount }}</span
+                  >／{{ chapter.people.length }}
                 </p>
               </div>
               <ul class="m-0 grid list-none gap-x-6 p-0 wide:grid-cols-2">

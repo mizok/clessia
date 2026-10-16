@@ -1,3 +1,4 @@
+import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -33,7 +34,7 @@ import { AnnouncementsService, type Announcement } from '@core/announcements.ser
  */
 @Component({
   selector: 'app-announcement-inbox',
-  imports: [DatePipe],
+  imports: [DatePipe, ValueArriveDirective],
   templateUrl: './announcement-inbox.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
