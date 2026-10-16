@@ -19,7 +19,7 @@ import {
  * ```
  *
  * - **只有第一次、還沒載入過**才顯示 `[reloadSkeleton]`。
- * - 之後每次重抓（換條件、新增刪除後的重查）**舊內容留著、變淡到 40%、不能點**（不讓人對舊資料動手），
+ * - 之後每次重抓（換條件、新增刪除後的重查）**舊內容留著、變淡到 40%、`inert`**（滑鼠鍵盤都不能對舊資料動手），
  *   頂端疊一個「載入中…」（A6 的處理中：`aria-busy`＋12px 轉圈）。疊在上面而不是插在上方，版面不會被推動。
  * - 新資料回來時要平滑換上，由呼叫端把「套資料」那一行包在 `injectViewTransition()` 裡 —— 這裡不管。
  *
@@ -51,8 +51,10 @@ import {
           </p>
         }
         <!-- 變淡 140ms --leave、回來 200ms --arrive（同 #1634：出場比進場短） -->
+        <!-- inert：滑鼠和鍵盤都碰不到舊內容（不只 pointer-events —— 審核席 #1648） -->
         <div
-          class="reload-veil__body [transition:opacity_200ms_var(--arrive)] motion-reduce:transition-none [.reload-veil--stale>&]:pointer-events-none [.reload-veil--stale>&]:opacity-40 [.reload-veil--stale>&]:[transition:opacity_140ms_var(--leave)]"
+          class="reload-veil__body [transition:opacity_200ms_var(--arrive)] motion-reduce:transition-none [.reload-veil--stale>&]:opacity-40 [.reload-veil--stale>&]:[transition:opacity_140ms_var(--leave)]"
+          [inert]="phase() === 'stale'"
         >
           <ng-content />
         </div>
