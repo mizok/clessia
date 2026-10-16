@@ -97,3 +97,55 @@ describe('AccountSettingsDialogComponent —— 啟用家長身份（#1631）', 
     expect(el.textContent).toContain('啟用家長身份');
   });
 });
+
+/** #1665 Q6′：本人可以改自己的對外暱稱；暱稱存在 staff 列上，所以只對人員身分顯示 */
+describe('AccountSettingsDialogComponent —— 對外暱稱（#1665）', () => {
+  async function setup(roles: UserRole[], nickname: string | null) {
+    TestBed.configureTestingModule({
+      imports: [AccountSettingsDialogComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: AuthService,
+          useValue: {
+            roles: signal(roles),
+            refreshRoles: vi.fn(),
+            profile: () => null,
+            user: () => null,
+          },
+        },
+        { provide: MessageService, useValue: { add: vi.fn() } },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AccountSettingsDialogComponent);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http.expectOne((r) => r.method === 'GET' && r.url.endsWith('/api/me')).flush({ nickname });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const input = () => el.querySelector<HTMLInputElement>('#account-nickname');
+    return { fixture, http, input };
+  }
+
+  it('老師：帶出現有暱稱；儲存送去頭尾空白的值，清空送 null', async () => {
+    const { fixture, http, input } = await setup(['teacher'], '王老師');
+    await fixture.whenStable();
+    expect(input()?.value).toBe('王老師');
+
+    const save = (value: string) => {
+      (fixture.componentInstance as unknown as { nickname: string }).nickname = value;
+      (fixture.componentInstance as unknown as { saveNickname: () => void }).saveNickname();
+      return http.expectOne((r) => r.method === 'PATCH' && r.url.endsWith('/api/me')).request.body;
+    };
+    expect(save('  大文老師 ')).toEqual({ nickname: '大文老師' });
+    expect(save('   ')).toEqual({ nickname: null });
+  });
+
+  it('只有家長身分：不顯示暱稱欄（沒有 staff 列可以寫）', async () => {
+    const { input } = await setup(['parent'], null);
+    expect(input()).toBeNull();
+  });
+});

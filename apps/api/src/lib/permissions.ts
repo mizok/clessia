@@ -21,6 +21,9 @@ export const PERMISSIONS = [
   // 跨分校。**沒有它的管理員只看得到 `staff_campuses` 指派給他的分校** ——
   // 用明確的權限宣告，而不是「沒有指派列就看得到全部」那種 fail-open 的讀法。
   'all_campuses',
+  // 發布公告（#1686）。只擋 POST /api/announcements（路由上的 writeRequiresAdmin），
+  // 讀取與標已讀不受影響 —— 沒有它的管理員照樣看得到已發布的公告。
+  'send_announcements',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

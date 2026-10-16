@@ -231,4 +231,25 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       expect(list.find((a) => a.id === 'old')?.isRead).toBe(true);
     });
   });
+
+  // #1641 項 6：未讀數換了就從下方淡入（A6 dd__v.is-new）；掛在只包數字的元素上
+  it('讀了一則：未讀數那個數字重播淡入', async () => {
+    await setup([announcement({ id: 'a' }), announcement({ id: 'b' })]);
+    const num = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+      '.announcement-inbox__badge span',
+    )!;
+    expect(num.textContent).toBe('2');
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    const animate = vi.fn();
+    num.animate = animate;
+
+    (component as unknown as { toggle: (a: Announcement) => void }).toggle(
+      component['announcements']()[0]!,
+    );
+    fixture.detectChanges();
+
+    expect(num.textContent).toBe('1');
+    expect(animate).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
 });

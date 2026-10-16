@@ -150,4 +150,27 @@ describe('/api/me 自己的寫入之後立刻讀回新值（#1631）', () => {
 
     expect((await me(a)).displayName).toBe('新名');
   });
+
+  it('改暱稱（#1665 Q6′）→ 去頭尾空白後存、立刻讀得到；空字串＝清掉；超過 20 字 400 不寫', async () => {
+    const a = app();
+    const patch = (nickname: string) =>
+      a.request('/api/me', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ nickname }),
+      });
+    const nickname = async () => ((await me(a)) as unknown as { nickname: string | null }).nickname;
+    expect(await nickname()).toBeNull();
+
+    expect((await patch('  小王老師 ')).status).toBe(200);
+    expect(db.tables['staff']![0]!['nickname']).toBe('小王老師');
+    expect(await nickname()).toBe('小王老師');
+
+    expect((await patch('字'.repeat(21))).status).toBe(400);
+    expect(db.tables['staff']![0]!['nickname']).toBe('小王老師');
+
+    expect((await patch('   ')).status).toBe(200);
+    expect(db.tables['staff']![0]!['nickname']).toBeNull();
+    expect(await nickname()).toBeNull();
+  });
 });

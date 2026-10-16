@@ -177,3 +177,22 @@ describe('PUT /api/classes/:id —— isRecommended（#1118）', () => {
     expect(db.rows('classes')[0]!['is_recommended']).toBe(true);
   });
 });
+
+/** #1665 Q5：班級開放公開報名的旗標。同 isRecommended，門檻是 `manage_courses` */
+describe('PUT /api/classes/:id —— isPublicEnrollment（#1665）', () => {
+  it('沒撈到欄位時回 DB 預設 true；寫入 false 後回 false；沒帶 key 不動', async () => {
+    const db = seed();
+    const first = await call(db, 'PUT', `/${CLASS_A}`, { name: '改名' }, ['manage_courses']);
+    expect(((await first.json()) as any).data.isPublicEnrollment).toBe(true);
+
+    const res = await call(db, 'PUT', `/${CLASS_A}`, { isPublicEnrollment: false }, [
+      'manage_courses',
+    ]);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).data.isPublicEnrollment).toBe(false);
+    expect(db.rows('classes')[0]!['is_public_enrollment']).toBe(false);
+
+    await call(db, 'PUT', `/${CLASS_A}`, { name: '再改名' }, ['manage_courses']);
+    expect(db.rows('classes')[0]!['is_public_enrollment']).toBe(false);
+  });
+});

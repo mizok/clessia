@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import { requireRoles } from '../middleware/auth';
+import { requireRoles, writeRequiresAdmin } from '../middleware/auth';
 import { audienceFor, campusOrFilter } from './announcements/visibility';
 import { campusFilterIds, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -212,7 +212,11 @@ app.openapi(
     path: '/',
     tags: ['Announcements'],
     summary: '發布公告',
-    middleware: [requireRoles('admin')] as const,
+    // #1686：發布要「發送通知」權限。**掛在這支路由上，不掛在 index.ts 的 mount `{ write }`** ——
+    // 標已讀（/{id}/read、/read-all）也是寫入，而 requireAdminPermission 對有 admin 角色的人
+    // 一律看權限、不看 active role：掛在 mount 會讓兼任老師或家長的管理員連標已讀都 403。
+    // **之後新增編輯或刪除公告的端點，要掛同一個 guard。**
+    middleware: [requireRoles('admin'), writeRequiresAdmin('send_announcements')] as const,
     request: { body: { content: { 'application/json': { schema: CreateSchema } } } },
     responses: {
       201: {
@@ -220,7 +224,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: AnnouncementSchema }) } },
       },
       403: {
-        description: '沒有這個分校的權限',
+        description: '沒有 send_announcements 權限，或沒有這個分校的權限',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
