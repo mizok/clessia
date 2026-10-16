@@ -292,3 +292,11 @@ Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
 Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
 
+
+## [[architecture/web-push|PWA＋Web Push 推播（設計稿，第一個用途：家長繳費提醒）]]
+
+設計稿（#1626，未批准）。手寫最小 service worker（只處理 push／notificationclick，不攔 fetch、不快取）＋ manifest，不用 @angular/service-worker，所以不碰 #1611 的 immutable 快取與 SPA 改寫。加密與 VAPID 簽章自寫在 WebCrypto 上（RFC 8291／8292，用 RFC 附的測試向量驗），Workers 與 Node 共用。三張表：push_subscriptions（一人多裝置、404/410 自動刪）、notification_preferences（沒有列＝開）、push_deliveries（UNIQUE(user_id, dedupe_key) 去重）。排程是 Cron Trigger 在早上窗口每 10 分鐘呼叫同一支受 CRON_SECRET 保護的端點，每次只送一小批 —— 免費方案每次 Cron 只有 10ms CPU、50 個外部 subrequest，批量是校準旋鈕，動工前先量。
+
+Tags: `architecture`, `pwa`, `push`, `parent`, `billing`, `cron`, `c12`
+
+Links to: [[architecture/deploying]], [[architecture/chunk-load-recovery]], [[architecture/announcements]], [[architecture/deploying]], [[architecture/line-oauth-login]]
