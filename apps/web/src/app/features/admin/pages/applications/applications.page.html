@@ -38,7 +38,7 @@
   } @else if (items().length === 0) {
     <p class="text-md text-zinc-600">沒有{{ filter().label }}的申請。</p>
   } @else {
-    <ul class="flex flex-col gap-3">
+    <ul class="flex list-none flex-col gap-3">
       @for (item of items(); track item.source + item.value.id) {
         @if (item.source === 'parent') {
           <!-- #1707：家長登入後在 app 送的申請。家長、學生都已建檔，所以沒有「建立家長」，改成連到學生檔案 -->

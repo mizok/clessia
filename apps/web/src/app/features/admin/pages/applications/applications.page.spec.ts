@@ -169,6 +169,13 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     expect(card.textContent).toContain('目前請到學生檔案手動報名');
   });
 
+  // 外層清單原本沒有 list-none：li 在 flex 容器裡仍是 list-item，每張卡片左邊多一個圓點（#1245 起就有）
+  it('卡片清單不顯示項目符號', async () => {
+    const { el } = await setup();
+    const list = el.querySelector('[data-testid="parent-request-card"]')!.parentElement!;
+    expect(list.classList).toContain('list-none');
+  });
+
   it('只有一邊有的分頁：另一邊不打（已取消只有家長 App、垃圾送件只有公開表單）', async () => {
     const { fixture, parents, service } = await setup();
     const p = page(fixture);
