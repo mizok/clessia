@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
@@ -559,6 +560,37 @@ describe('ExamsComponent', () => {
       );
       expect(after!.textContent).toContain('篩選：1 項');
       expect(after!.textContent).not.toContain('篩選：全部');
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 1 點）：刪除是樂觀的 —— 按下就淡出；失敗要放回去並說明
+  describe('樂觀刪除（#1641 5b）', () => {
+    const ids = () => (component['currentRows']() as Array<{ id: string }>).map((r) => r.id);
+    const target = () => component['currentRows']()[1]!;
+    const deleteReq = () =>
+      http.expectOne(
+        (req) =>
+          req.method === 'DELETE' && req.url === `${environment.apiUrl}/api/academy-exams/a2`,
+      );
+
+    it('失敗：那一列放回原位，並跳錯誤 toast', () => {
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      component['deleteExam'](target());
+      expect(ids()).toEqual(['a1']);
+      deleteReq().flush({ error: 'x' }, { status: 500, statusText: 'x' });
+      expect(ids()).toEqual(['a1', 'a2']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('成功：維持拿掉，背景重抓不變淡', async () => {
+      component['deleteExam'](target());
+      deleteReq().flush({});
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(ids()).toEqual(['a1']);
+      expect(component['loading']()).toBe(false);
+      // 背景重抓（列表＋待辦計數）這裡不關心回應
+      http.match(() => true);
     });
   });
 });
