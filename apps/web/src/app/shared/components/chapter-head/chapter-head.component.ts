@@ -35,6 +35,16 @@ export class ChapterHeadComponent {
   readonly listRow = input(false);
 
   /**
+   * 外框：直排（桌機左欄、手機 `stacked`）時子項撐滿那一欄（A6 `.chap__big` 是 block，#1715）；
+   * 只有手機橫排（A6 `.chap--row`）是 baseline 對齊、縮成字寬。
+   */
+  protected readonly boxClass = computed(
+    () =>
+      'chapter-head flex wide:flex-col wide:items-stretch wide:gap-x-0 ' +
+      (this.stacked() ? 'flex-col items-stretch' : 'flex-wrap items-baseline gap-x-3'),
+  );
+
+  /**
    * 章名的 class。**整串寫在 TS 裡、用 `[class]` 綁** —— 任意值 class（`text-[34px]`）
    * 不能寫成 `[class.text-[34px]]`：方括號會讓 Angular 的綁定名稱解析失敗，
    * 而且是靜默失效（沒有編譯錯誤、class 就是沒掛上）。

@@ -491,6 +491,8 @@ describe('StudentsPage', () => {
       expect(chapters.map((c) => c.getAttribute('data-chapter'))).toEqual(['P5', 'J3']);
       expect(chapters[1].textContent).toContain('48');
       expect(chapters[1].querySelectorAll('li').length).toBe(2);
+      // #1715：A6 `.chap` 手機上內距 24px（章頭上的 pt-6），原本 pt-4 差 8px
+      expect(chapters[0].querySelector('app-chapter-head')!.classList).toContain('pt-6');
     });
 
     it('預設只列在籍（isActive=true）', () => {

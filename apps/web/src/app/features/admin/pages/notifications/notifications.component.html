@@ -104,17 +104,14 @@
             [attr.aria-label]="chapter.name"
             data-testid="inbox-chapter"
           >
+            <!-- A6「2 則 · 未讀 1」是同一段字（不是小字補充），所以寫進 unit、不投影（#1715） -->
             <app-chapter-head
               class="block"
               [name]="chapter.name"
               [count]="chapter.items.length"
               [stacked]="true"
-              unit="則"
-            >
-              @if (chapter.unread > 0) {
-                · 未讀 {{ chapter.unread }}
-              }
-            </app-chapter-head>
+              [unit]="chapter.unread > 0 ? '則 · 未讀 ' + chapter.unread : '則'"
+            />
             <div>
               @for (item of chapter.items; track item.id) {
                 <!-- A6 `.nt`：未讀＝橘點＋粗體（不用紅，紅留給錯誤與逾期） -->

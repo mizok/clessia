@@ -1,9 +1,4 @@
-<div
-  class="chapter-head flex items-baseline wide:flex-col wide:gap-x-0"
-  [class.flex-col]="stacked()"
-  [class.flex-wrap]="!stacked()"
-  [class.gap-x-3]="!stacked()"
->
+<div [class]="boxClass()">
   <h2 [class]="nameClass()">
     {{ name() }}
   </h2>
@@ -15,13 +10,9 @@
     >
   }
   @if (count() !== null) {
-    <p [class]="tallyClass()">
-      {{ count() }}
-      @if (unit()) {
-        <span class="text-md font-medium tracking-normal text-zinc-600">{{ unit() }}</span>
-      }
-      <span class="text-md font-medium tracking-normal text-zinc-600"><ng-content /></span>
-    </p>
+    <!-- A6 `.chap__tally`：「12 位」是同一段字、同字級；只有投影進來的補充說明是小字（`.chap__tally span`） -->
+    <!-- prettier-ignore -->
+    <p [class]="tallyClass()">{{ count() }} {{ unit() }}<span class="text-md font-medium tracking-normal text-zinc-600"><ng-content /></span></p>
   }
   <!-- 章頭的行動（A6 `.chap__act`）：投影帶 `chapterActions` 屬性的元素 -->
   <ng-content select="[chapterActions]" />
