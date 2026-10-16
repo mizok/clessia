@@ -546,7 +546,7 @@ export class ParentsPage implements OnInit {
       },
       error: (err) => {
         const detail =
-          err.error?.error === 'ALREADY_ARCHIVED' ? '帳號已封存，無法再次操作' : '請稍後再試';
+          err.error?.code === 'ALREADY_ARCHIVED' ? '帳號已封存，無法再次操作' : '請稍後再試';
         this.messageService.add({ severity: 'error', summary: '操作失敗', detail });
       },
     });

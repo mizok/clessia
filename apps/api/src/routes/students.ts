@@ -971,8 +971,9 @@ app.openapi(
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: { description: '刪除成功' },
-      409: { description: '學生已有報名紀錄，無法刪除' },
+      409: { description: '學生已有報名、帳單或成績紀錄，無法刪除' },
       404: { description: '學生不存在' },
+      500: { description: '查詢或刪除失敗' },
     },
   }),
   async (c) => {
@@ -1005,7 +1006,17 @@ app.openapi(
       .select('id')
       .single();
 
-    if (error || !data) {
+    if (error) {
+      // 23503 = FK 違反：帳單、成績（invoices／academy／school exam scores 都是 RESTRICT）擋住刪除。
+      // 不能折成 404「學生不存在」—— 學生明明就在畫面上（#1651）
+      if (error.code === '23503') {
+        return c.json({ error: '學生已有帳單或成績紀錄，無法刪除', code: 'IN_USE' }, 409);
+      }
+      if (error.code !== 'PGRST116') {
+        return c.json({ error: '刪除學生失敗', code: 'DB_ERROR' }, 500);
+      }
+    }
+    if (!data) {
       return c.json({ error: '學生不存在' }, 404);
     }
 
