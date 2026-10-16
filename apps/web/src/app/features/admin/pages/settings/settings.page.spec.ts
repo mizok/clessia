@@ -192,4 +192,69 @@ describe('SettingsPage', () => {
 
     expect(bodyText()).not.toContain('待開單提醒');
   });
+
+  // #1660（#1626 Q2）：家長繳費提醒時間點
+  describe('家長繳費提醒（#1660）', () => {
+    const WITH_FINANCE: OrgSettings = { ...DAILY_CHECKIN, invoiceReminderOffsets: [-3, 0, 1, 7] };
+    type Page = {
+      newReminderDirection: 'before' | 'after';
+      newReminderDays: number;
+      addReminderOffset: () => void;
+      removeReminderOffset: (o: number) => void;
+      saveReminderOffsets: () => void;
+      pendingReminderOffset: () => number | null;
+      reminderOffsets: () => number[];
+    };
+    const page = () => component as unknown as Page;
+
+    it('沒有財務權限（回應沒有這個 key）→ 整張卡不畫', async () => {
+      await setup();
+      expect(bodyText()).not.toContain('家長繳費提醒');
+    });
+
+    it('有財務權限：用人話列出時間點', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      expect(bodyText()).toContain('到期前 3 天');
+      expect(bodyText()).toContain('到期當天');
+      expect(bodyText()).toContain('逾期第 1 天');
+      expect(bodyText()).toContain('逾期第 7 天');
+    });
+
+    it('加入「逾期 14 天」、移除「到期當天」，儲存送出排序後的值', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      page().newReminderDirection = 'after';
+      page().newReminderDays = 14;
+      page().addReminderOffset();
+      page().removeReminderOffset(0);
+      page().saveReminderOffsets();
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        invoiceReminderOffsets: [-3, 1, 7, 14],
+      });
+    });
+
+    it('重複、範圍外、已滿 6 個都加不進去', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(WITH_FINANCE));
+      await setup();
+      page().newReminderDirection = 'before';
+      page().newReminderDays = 3; // 已有 -3
+      expect(page().pendingReminderOffset()).toBeNull();
+      page().newReminderDays = 31;
+      expect(page().pendingReminderOffset()).toBeNull();
+      page().newReminderDirection = 'after';
+      page().newReminderDays = 0; // 逾期第 0 天不存在（那是「到期當天」）
+      expect(page().pendingReminderOffset()).toBeNull();
+      page().newReminderDays = 61;
+      expect(page().pendingReminderOffset()).toBeNull();
+
+      for (const d of [20, 30]) {
+        page().newReminderDays = d;
+        page().addReminderOffset();
+      }
+      expect(page().reminderOffsets()).toHaveLength(6);
+      page().newReminderDays = 40;
+      expect(page().pendingReminderOffset()).toBeNull();
+    });
+  });
 });

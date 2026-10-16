@@ -57,6 +57,20 @@ export class SettingsPage implements OnInit {
   protected billingReminderDaysValue = 14;
   protected readonly savingBillingReminder = signal(false);
 
+  /**
+   * #1660：家長繳費提醒時間點（負＝到期前、0＝當天、正＝逾期第 N 天）。同帳戶資訊：只在回應帶了這個 key
+   * （有財務權限）時畫。範圍跟 API／DB 的限制同一組：最多 6 個、到期前 0–30 天、逾期 1–60 天
+   */
+  protected readonly reminderOffsets = signal<number[]>([]);
+  protected readonly savingReminderOffsets = signal(false);
+  protected newReminderDirection: 'before' | 'after' = 'before';
+  protected newReminderDays = 3;
+  protected readonly reminderMaxCount = 6;
+  protected readonly reminderDirectionOptions = [
+    { label: '到期前', value: 'before' },
+    { label: '逾期', value: 'after' },
+  ];
+
   protected readonly attendanceResponsibleOptions = [
     { label: '行政負責', value: 'admin' },
     { label: '老師負責', value: 'teacher' },
@@ -81,6 +95,7 @@ export class SettingsPage implements OnInit {
         this.attendanceResponsibleValue = s.attendanceResponsible;
         this.paymentInfoValue = s.paymentInfo ?? '';
         this.billingReminderDaysValue = s.billingReminderDays ?? 14;
+        this.reminderOffsets.set(s.invoiceReminderOffsets ?? []);
         this.loading.set(false);
       },
       // **不發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast + 留著的錯誤畫面
@@ -159,6 +174,59 @@ export class SettingsPage implements OnInit {
         },
         error: () => {
           this.savingBillingReminder.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '錯誤',
+            detail: '儲存失敗，請稍後再試',
+          });
+        },
+      });
+  }
+
+  protected reminderLabel(offset: number): string {
+    if (offset < 0) return `到期前 ${-offset} 天`;
+    if (offset === 0) return '到期當天';
+    return `逾期第 ${offset} 天`;
+  }
+
+  /** 表單上「到期前／逾期 N 天」換成存的值；不合法（範圍外、重複、已滿）回 null */
+  protected pendingReminderOffset(): number | null {
+    const days = Math.trunc(this.newReminderDays ?? NaN);
+    const before = this.newReminderDirection === 'before';
+    if (!Number.isFinite(days) || days < (before ? 0 : 1) || days > (before ? 30 : 60)) return null;
+    const offset = before ? -days : days;
+    const current = this.reminderOffsets();
+    if (current.length >= this.reminderMaxCount || current.includes(offset)) return null;
+    return offset;
+  }
+
+  protected addReminderOffset(): void {
+    const offset = this.pendingReminderOffset();
+    if (offset === null) return;
+    this.reminderOffsets.update((xs) => [...xs, offset].sort((a, b) => a - b));
+  }
+
+  protected removeReminderOffset(offset: number): void {
+    this.reminderOffsets.update((xs) => xs.filter((x) => x !== offset));
+  }
+
+  protected saveReminderOffsets(): void {
+    this.savingReminderOffsets.set(true);
+    this.orgSettingsService
+      .updateSettings({ invoiceReminderOffsets: this.reminderOffsets() })
+      .subscribe({
+        next: (s) => {
+          this.settings.set(s);
+          this.reminderOffsets.set(s.invoiceReminderOffsets ?? []);
+          this.savingReminderOffsets.set(false);
+          this.messageService.add({
+            severity: 'success',
+            summary: '已儲存',
+            detail: '提醒時間點已更新',
+          });
+        },
+        error: () => {
+          this.savingReminderOffsets.set(false);
           this.messageService.add({
             severity: 'error',
             summary: '錯誤',
