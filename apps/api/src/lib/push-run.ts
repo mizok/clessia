@@ -6,14 +6,18 @@ import { isAllowedPushEndpoint } from './push-endpoint';
 import { buildPushRequest, vapidAuthorization, type VapidKeys } from './web-push';
 
 /**
- * 推播排程的一次 run（#1661，設計稿 kb/wiki/architecture/web-push.md §5）：排入 → 送一批 → 清舊紀錄。
+ * 通知排程的一次 run（#1661，#1626 改版；設計稿 kb/wiki/architecture/web-push.md §5）。
+ *
+ * **通知是一筆紀錄，推播只是送達管道**（使用者 10-16 17:04）：符合條件的家長每人一筆 `notifications`，
+ * 在通知中心（#1683）算未讀 —— **不管有沒有開推播、有沒有關掉偏好**。推播在之後的認領才決定：
+ * 沒有訂閱、或這一類的偏好關掉（偏好只管推播，Q-a）→ `skipped`，不算失敗、不重試。
+ *
+ * `push_status`：`pending → claimed → sent`；送失敗回到 `pending`（`push_attempts + 1`，滿三次 `failed`）；
+ * `claimed` 超過 10 分鐘沒回寫＝那個 run 被砍了，重新開放（同樣 +1，滿三次 `failed`）。
  *
  * **走 pg pool，不用 supabase-js**：免費方案每次 Cron 只有 50 個 subrequest，supabase-js 走 HTTP、
- * 每句都算一個；推播本身就要用掉 K 個。這是 pg-pool-writes.md 規則 1 之外的第二個理由（額度），
- * 交易包法與錯誤對應照那一頁。
- *
- * **對外 fetch 期間沒有交易開著**（見 `runPush`）。Workers cron 與自架 cron 同時開著、或有人手動多打一次，
- * 靠認領時的 `FOR UPDATE SKIP LOCKED`＋`sent_at`／`last_error` 記號，不會同一則送兩次。
+ * 每句都算一個；推播本身就要用掉 K 個（pg-pool-writes.md 規則 1 的第二個理由）。
+ * **對外 fetch 期間沒有交易開著**（規則 7，見 `runPush`）。
  *
  * 這是系統工作，不屬於任何一個使用者 —— **跨 org 跑**，每一句都用資料本身的 org_id 關聯
  * （帳單的 org → 家長的 org → 訂閱的 org），不收任何外部指定的對象。
@@ -24,14 +28,10 @@ export const DEFAULT_PUSH_BATCH_SIZE = 10;
 /** 帳單提醒隔天才收到就沒意義（RFC 8030 §5.2） */
 const TTL_SECONDS = 86400;
 const MAX_ATTEMPTS = 3;
+/** 通知（含通知中心裡沒讀的）保留 90 天（#1626 Q4、Q-b）—— 這支 run 負責清 */
 const RETENTION_DAYS = 90;
 /** 每一次對推播服務的 fetch 最多等多久；逾時算失敗，下一輪重試 */
 export const SEND_TIMEOUT_MS = 5000;
-/**
- * 認領記號（`last_error` 既有欄位，不加 migration）。回寫成功清成 NULL、失敗寫真正的錯誤；
- * **還是這個記號＝認領之後沒回寫到**（Worker 被砍 —— 免費方案 CPU 超量就是這樣）。
- */
-export const CLAIM_MARK = '__claimed__';
 /** 認領過了這麼久還沒回寫，就當那個 run 死了，重新開放。遠大於一次 run 的長度（送出最多約 5 秒） */
 export const RECLAIM_AFTER_MINUTES = 10;
 
@@ -47,7 +47,10 @@ export interface PushRunOptions {
 }
 
 export interface PushRunResult {
+  /** 新產生的通知（通知中心看得到的） */
   readonly enqueued: number;
+  /** 不推播的（沒有訂閱或偏好關掉） */
+  readonly skipped: number;
   readonly attempted: number;
   readonly delivered: number;
   readonly removedSubscriptions: number;
@@ -66,7 +69,8 @@ interface Candidate {
 }
 
 /**
- * 今天要提醒的「帳單 × 時間點 × 家長」。這裡只做關聯與過濾（作廢、時間點、收件人、偏好、有沒有訂閱）；
+ * 今天要提醒的「帳單 × 時間點 × 家長」。這裡只做關聯與過濾（作廢、時間點、收件人）；
+ * **不看訂閱、不看偏好** —— 那兩個只決定推不推播，通知照樣要有。
  * **未繳清**交給既有的 `deriveInvoiceStatus`＋`isOpenInvoice`，不在 SQL 另寫一套。
  */
 const CANDIDATES_SQL = `
@@ -81,15 +85,9 @@ JOIN invoices i ON i.org_id = org.id AND i.due_date = $1::date - o.off AND i.voi
 JOIN students s ON s.id = i.student_id AND s.org_id = i.org_id
 JOIN parent_student_relations r ON r.student_id = i.student_id
 JOIN parents p ON p.id = r.parent_id AND p.org_id = i.org_id AND p.status = 'active' AND p.user_id IS NOT NULL
-WHERE EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = p.user_id AND ur.role = 'parent')
-  AND EXISTS (SELECT 1 FROM push_subscriptions ps WHERE ps.user_id = p.user_id AND ps.org_id = i.org_id)
-  AND NOT EXISTS (
-    SELECT 1 FROM notification_preferences np
-    WHERE np.user_id = p.user_id AND np.org_id = i.org_id AND np.role = 'parent' AND NOT np.enabled
-      AND np.kind = (CASE WHEN o.off <= 0 THEN 'invoice_due' ELSE 'invoice_overdue' END)::notification_kind
-  )`;
+WHERE EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = p.user_id AND ur.role = 'parent')`;
 
-/** 鎖定畫面看得到 —— **不放金額**（#1626 Q3） */
+/** 鎖定畫面與通知中心都看得到 —— **不放金額**（#1626 Q3；排入當下寫好的金額之後也會過時） */
 export function reminderPayload(
   c: Pick<Candidate, 'invoice_id' | 'due_date' | 'offset' | 'student_name'>,
 ) {
@@ -123,7 +121,7 @@ async function enqueue(db: PoolClient, today: string): Promise<number> {
   );
   if (open.length === 0) return 0;
   const { rowCount } = await db.query(
-    `INSERT INTO push_deliveries (org_id, user_id, role, kind, dedupe_key, payload)
+    `INSERT INTO notifications (org_id, user_id, role, kind, dedupe_key, payload)
      SELECT x.org_id, x.user_id, 'parent', x.kind, x.dedupe_key, x.payload
      FROM unnest($1::uuid[], $2::text[], $3::notification_kind[], $4::text[], $5::jsonb[])
        AS x(org_id, user_id, kind, dedupe_key, payload)
@@ -136,6 +134,43 @@ async function enqueue(db: PoolClient, today: string): Promise<number> {
       open.map((c) => `invoice_reminder:${c.invoice_id}:${c.offset}`),
       open.map((c) => JSON.stringify(reminderPayload(c))),
     ],
+  );
+  return rowCount ?? 0;
+}
+
+/** 失敗一次之後的狀態：還沒滿三次回 pending 重試，滿了就 failed */
+const RETRY_OR_FAIL = `CASE WHEN push_attempts + 1 >= ${MAX_ATTEMPTS} THEN 'failed' ELSE 'pending' END::push_status`;
+
+/**
+ * 上一個 run 認領後沒回寫（被砍了 —— 免費方案 CPU 超量會直接終止）的，重新開放給這一輪。
+ * 算一次嘗試：一則若每次都讓 Worker 被砍，三次之後就 `failed`，不會永遠卡著後面的。
+ * 被砍時可能其實已經送出 —— 那種情況會重送一次，由裝置端 `tag = topic` 合併（#1663）；比無聲漏掉好。
+ */
+async function reopenAbandoned(db: PoolClient): Promise<number> {
+  const { rowCount } = await db.query(
+    `UPDATE notifications
+     SET push_status = ${RETRY_OR_FAIL}, push_attempts = push_attempts + 1, push_error = 'CLAIM_EXPIRED'
+     WHERE push_status = 'claimed' AND push_updated_at < now() - make_interval(mins => $1)`,
+    [RECLAIM_AFTER_MINUTES],
+  );
+  return rowCount ?? 0;
+}
+
+/**
+ * 不推播的直接標 `skipped`（一句、整批）：沒有訂閱，或這一類的偏好關掉（偏好只管推播，Q-a）。
+ * 先做這步，認領就只會拿到真的要推的 —— 不佔 K 的名額。
+ */
+async function skipUnreachable(db: PoolClient): Promise<number> {
+  const { rowCount } = await db.query(
+    `UPDATE notifications n SET push_status = 'skipped', push_updated_at = now(),
+       push_error = CASE WHEN NOT EXISTS (
+         SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id
+       ) THEN 'NO_SUBSCRIPTION' ELSE 'PUSH_DISABLED' END
+     WHERE n.push_status = 'pending'
+       AND (NOT EXISTS (SELECT 1 FROM push_subscriptions s WHERE s.user_id = n.user_id AND s.org_id = n.org_id)
+            OR EXISTS (SELECT 1 FROM notification_preferences np
+                       WHERE np.user_id = n.user_id AND np.org_id = n.org_id AND np.role = n.role
+                         AND np.kind = n.kind AND NOT np.enabled))`,
   );
   return rowCount ?? 0;
 }
@@ -155,35 +190,19 @@ interface Job {
 }
 
 /**
- * 認領（短交易內）：取還沒送的最舊幾則，`FOR UPDATE SKIP LOCKED` 讓同時跑的另一個 run 拿不到同一列，
- * 再把選中的 `sent_at` 先設成 now() 當「已認領」記號 —— 交易一結束鎖就放了，記號讓下一個 run 也不碰它。
- * 送失敗的在回寫時把 `sent_at` 改回 NULL，下一輪重試。
+ * 認領（短交易內）：取 `pending` 最舊的幾則，`FOR UPDATE SKIP LOCKED` 讓同時跑的另一個 run 拿不到同一列，
+ * 再標成 `claimed` —— 交易一結束鎖就放了，狀態讓下一個 run 也不碰它。
  */
-/**
- * 上一個 run 認領後沒回寫（被砍了）的，重新開放給這一輪。`attempts + 1`：一則若每次都讓 Worker 被砍，
- * 三次之後就不再試，不會永遠卡著後面的。被砍時可能其實已經送出 —— 那種情況會重送一次，
- * 由裝置端 `tag = topic` 合併成一則（#1663）；比無聲漏掉好。
- */
-async function reopenAbandoned(db: PoolClient): Promise<number> {
-  const { rowCount } = await db.query(
-    `UPDATE push_deliveries
-     SET sent_at = NULL, attempts = attempts + 1, last_error = 'CLAIM_EXPIRED'
-     WHERE last_error = $1 AND sent_at < now() - make_interval(mins => $2)`,
-    [CLAIM_MARK, RECLAIM_AFTER_MINUTES],
-  );
-  return rowCount ?? 0;
-}
-
-async function claim(db: PoolClient, batchSize: number): Promise<Job[]> {
+async function claim(db: PoolClient, batchSize: number): Promise<{ jobs: Job[]; skipped: number }> {
   const { rows } = await db.query<PendingRow>(
     `SELECT d.id, d.payload, s.id AS sub_id, s.endpoint, s.p256dh, s.auth
-     FROM (SELECT id, user_id, org_id, payload, created_at FROM push_deliveries
-           WHERE sent_at IS NULL AND attempts < $2
+     FROM (SELECT id, user_id, org_id, payload, created_at FROM notifications
+           WHERE push_status = 'pending'
            ORDER BY created_at, id LIMIT $1
            FOR UPDATE SKIP LOCKED) d
      LEFT JOIN push_subscriptions s ON s.user_id = d.user_id AND s.org_id = d.org_id
      ORDER BY d.created_at, d.id`,
-    [batchSize, MAX_ATTEMPTS],
+    [batchSize],
   );
 
   // 依佇列順序把整則（含它所有裝置）放進這一批，直到裝置數用完；一則不拆到兩次 run
@@ -194,7 +213,7 @@ async function claim(db: PoolClient, batchSize: number): Promise<Job[]> {
   for (const [id, subs] of byDelivery) {
     const devices = subs.filter((s) => s.sub_id !== null);
     if (devices.length === 0) {
-      noSubscription.push(id); // 排入後訂閱被刪了：不再重試
+      noSubscription.push(id); // skipUnreachable 之後訂閱才被刪：一樣不推
       continue;
     }
     if (jobs.length > 0 && jobs.length + devices.length > batchSize) break;
@@ -204,17 +223,18 @@ async function claim(db: PoolClient, batchSize: number): Promise<Job[]> {
   const claimed = [...new Set(jobs.map((j) => j.deliveryId))];
   if (claimed.length > 0) {
     await db.query(
-      'UPDATE push_deliveries SET sent_at = now(), last_error = $2 WHERE id = ANY($1::uuid[])',
-      [claimed, CLAIM_MARK],
+      `UPDATE notifications SET push_status = 'claimed', push_updated_at = now() WHERE id = ANY($1::uuid[])`,
+      [claimed],
     );
   }
   if (noSubscription.length > 0) {
     await db.query(
-      `UPDATE push_deliveries SET attempts = $2, last_error = 'NO_SUBSCRIPTION' WHERE id = ANY($1::uuid[])`,
-      [noSubscription, MAX_ATTEMPTS],
+      `UPDATE notifications SET push_status = 'skipped', push_updated_at = now(), push_error = 'NO_SUBSCRIPTION'
+       WHERE id = ANY($1::uuid[])`,
+      [noSubscription],
     );
   }
-  return jobs;
+  return { jobs, skipped: noSubscription.length };
 }
 
 /** 送出（**交易外**）：每一次 fetch 都有逾時，推播服務再慢也不會讓任何交易或鎖跟著等 */
@@ -253,7 +273,7 @@ async function send(jobs: readonly Job[], opts: PushRunOptions) {
 
 type Outcome = Awaited<ReturnType<typeof send>>[number];
 
-/** 回寫（短交易內）：送達的保留 sent_at；沒送達的把 sent_at 改回 NULL、attempts＋1 */
+/** 回寫（短交易內）：送達 → `sent`；沒送達 → 回到 `pending`（滿三次 `failed`）並記錯誤 */
 async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
   const ok = (s: number | 'invalid') => typeof s === 'number' && s >= 200 && s < 300;
   // RFC 8030 §7.3 規定過期是 404；實務上也有 410，都當失效
@@ -282,13 +302,17 @@ async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
   }
   if (deliveredIds.size > 0) {
     await db.query(
-      `UPDATE push_deliveries SET attempts = attempts + 1, last_error = NULL WHERE id = ANY($1::uuid[])`,
+      `UPDATE notifications
+       SET push_status = 'sent', push_updated_at = now(), push_attempts = push_attempts + 1, push_error = NULL
+       WHERE id = ANY($1::uuid[])`,
       [[...deliveredIds]],
     );
   }
   if (failed.length > 0) {
     await db.query(
-      `UPDATE push_deliveries d SET sent_at = NULL, attempts = d.attempts + 1, last_error = x.err
+      `UPDATE notifications d
+       SET push_status = ${RETRY_OR_FAIL},
+           push_attempts = d.push_attempts + 1, push_error = x.err
        FROM unnest($1::uuid[], $2::text[]) AS x(id, err) WHERE d.id = x.id`,
       [failed.map((f) => f.id), failed.map((f) => f.error)],
     );
@@ -300,28 +324,27 @@ async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
  * 三段，**對外 fetch 期間沒有任何交易開著**（計畫席 10-16：推播服務慢的話不能拖住交易與鎖；
  * 正式 DB 的 postgres 角色有沒有 idle_in_transaction／statement_timeout 沒有實查，這個形狀不依賴它）：
  *
- * 1. 短交易：排入（去重鍵冪等）＋認領＋清 90 天前紀錄
+ * 1. 短交易：重新開放被砍的 → 排入通知（去重鍵冪等）→ 不推播的標 skipped → 認領 → 清 90 天前的通知
  * 2. 交易外：送出，每次 fetch 逾時 `SEND_TIMEOUT_MS`；全部並行，所以整段最多約一個逾時長
  * 3. 短交易：回寫
- *
- * 第 1 段之後、第 3 段之前 Worker 被砍（免費方案 CPU 超量會直接終止）：認領的那幾則停在 `CLAIM_MARK`，
- * 下一輪開頭過了 `RECLAIM_AFTER_MINUTES` 就重新開放（`reopenAbandoned`）—— 不會無聲漏掉。
  */
 export async function runPush(pool: Pool, opts: PushRunOptions): Promise<PushRunResult> {
-  const { enqueued, jobs, purged } = await withTx(pool, async (db) => {
+  const first = await withTx(pool, async (db) => {
     await reopenAbandoned(db);
     const enqueued = await enqueue(db, opts.today);
-    const jobs = await claim(db, opts.batchSize);
+    const skippedUpfront = await skipUnreachable(db);
+    const { jobs, skipped } = await claim(db, opts.batchSize);
     const { rowCount } = await db.query(
-      `DELETE FROM push_deliveries WHERE created_at < now() - make_interval(days => $1)`,
+      `DELETE FROM notifications WHERE created_at < now() - make_interval(days => $1)`,
       [RETENTION_DAYS],
     );
-    return { enqueued, jobs, purged: rowCount ?? 0 };
+    return { enqueued, jobs, skipped: skippedUpfront + skipped, purged: rowCount ?? 0 };
   });
+  const { enqueued, jobs, skipped, purged } = first;
   if (jobs.length === 0) {
-    return { enqueued, attempted: 0, delivered: 0, removedSubscriptions: 0, purged };
+    return { enqueued, skipped, attempted: 0, delivered: 0, removedSubscriptions: 0, purged };
   }
   const outcomes = await send(jobs, opts);
   const written = await withTx(pool, (db) => writeBack(db, outcomes));
-  return { enqueued, attempted: jobs.length, ...written, purged };
+  return { enqueued, skipped, attempted: jobs.length, ...written, purged };
 }
