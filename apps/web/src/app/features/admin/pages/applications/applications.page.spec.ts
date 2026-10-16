@@ -176,6 +176,27 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     expect(list.classList).toContain('list-none');
   });
 
+  // 每個分頁對兩種來源各打什麼（#1707 範圍說明 §2）；null＝那一邊不打
+  it.each<[string, string[] | null, string | null]>([
+    ['待處理', ['new', 'contacted'], 'pending'],
+    ['進行中', null, 'active'],
+    ['已轉入', ['converted'], 'done'],
+    ['不受理', ['rejected'], 'rejected'],
+    ['已取消', null, 'cancelled'],
+    ['垃圾送件', ['spam'], null],
+  ])('分頁「%s」：公開表單 statuses=%j、家長 App group=%s', async (label, statuses, group) => {
+    const { fixture, parents, service } = await setup();
+    const p = page(fixture);
+    service.list.mockClear();
+    parents.list.mockClear();
+    p.setFilter(p.filters.find((f: { label: string }) => f.label === label));
+
+    if (statuses) expect(service.list).toHaveBeenCalledWith({ statuses, kind: null });
+    else expect(service.list).not.toHaveBeenCalled();
+    if (group) expect(parents.list).toHaveBeenCalledWith({ group, kind: null });
+    else expect(parents.list).not.toHaveBeenCalled();
+  });
+
   it('只有一邊有的分頁：另一邊不打（已取消只有家長 App、垃圾送件只有公開表單）', async () => {
     const { fixture, parents, service } = await setup();
     const p = page(fixture);
@@ -209,6 +230,15 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     const card = el.querySelector('[data-testid="parent-request-card"]')!;
     expect(card.textContent).toContain('已拒絕');
     expect(card.textContent).toContain('這班已經額滿');
+  });
+
+  it('待審核、候補的報名：有拒絕鈕（跟 API 可拒絕的狀態同一條）', async () => {
+    for (const status of ['pending', 'waitlist']) {
+      TestBed.resetTestingModule();
+      const { el } = await setup([req({ status })]);
+      const buttons = [...el.querySelectorAll('[data-testid="parent-request-card"] button')];
+      expect(buttons.some((b) => b.textContent?.includes('拒絕'))).toBe(true);
+    }
   });
 
   it('已拒絕、待繳費的報名：沒有拒絕鈕', async () => {
