@@ -7,6 +7,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import {
   A6_DIR,
+  API_URL,
   APP_URL,
   DATA_DEPENDENT,
   DEVIATIONS,
@@ -316,7 +317,7 @@ try {
             toolDirty,
             base: sides.base,
             head: sides.head,
-            api: process.env.A6_API_URL ?? 'http://localhost:8887',
+            api: API_URL,
             state: path.basename(STATE),
             page,
             cfg: PAGES[page],
