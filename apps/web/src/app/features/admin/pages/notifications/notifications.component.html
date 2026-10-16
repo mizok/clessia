@@ -85,7 +85,7 @@
 
 @if (tab() === 'inbox') {
   <div class="page-wrap flex flex-col pb-12">
-    <section aria-label="收到的">
+    <div>
       @if (inboxLoading()) {
         <div class="skeleton-list pt-6 wide:pt-8" aria-label="通知載入中">
           @for (i of [1, 2, 3]; track i) {
@@ -179,7 +179,7 @@
         }
         <p class="m-0 py-6 text-sm text-zinc-600">通知保留 90 天。</p>
       }
-    </section>
+    </div>
   </div>
 } @else {
   <div class="page-wrap flex flex-col pb-12">

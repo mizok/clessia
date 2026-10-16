@@ -437,7 +437,7 @@ describe('NotificationsComponent（管理端發布）', () => {
           { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
           { provide: CampusesService, useValue: { list: campusesMock } },
           { provide: AuthService, useValue: authStub },
-        ...extraProviders(),
+          ...extraProviders(),
         ],
       }).compileComponents();
       const f = TestBed.createComponent(NotificationsComponent);
@@ -826,7 +826,7 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(markAllReadMock).toHaveBeenCalledTimes(1);
       expect(qa('notification').every((r) => r.getAttribute('data-read') === 'true')).toBe(true);
       expect(setNotificationsUnread).toHaveBeenLastCalledWith(0);
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ detail: '已把 2 則標為已讀' }));
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ summary: '已把 2 則標為已讀' }));
 
       expect(q('mark-all')!.getAttribute('aria-disabled')).toBe('true');
       q('mark-all')!.click();

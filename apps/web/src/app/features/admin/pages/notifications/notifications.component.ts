@@ -180,11 +180,8 @@ export class NotificationsComponent {
     this.setRead(ids, true, count);
     this.notificationsService.markAllRead().subscribe({
       next: (res) =>
-        this.messageService.add({
-          severity: 'success',
-          summary: '已標為已讀',
-          detail: `已把 ${res.marked} 則標為已讀`,
-        }),
+        // A6 `A2.toast('已把 N 則標為已讀')` 一行字（稿上的「復原」不做，見上）
+        this.messageService.add({ severity: 'success', summary: `已把 ${res.marked} 則標為已讀` }),
       error: () => {
         this.setRead(ids, false, count);
         this.markError.set('沒有標成已讀，請再按一次。');
