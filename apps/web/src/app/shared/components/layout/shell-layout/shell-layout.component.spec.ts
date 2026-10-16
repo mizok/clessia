@@ -6,6 +6,7 @@ import { provideRouter } from '@angular/router';
 import { providePrimeNG } from 'primeng/config';
 
 import { AuthService, type UserRole } from '@core/auth.service';
+import { InboxBadgeService } from '@core/inbox-badge.service';
 import { NavigationService } from '@core/navigation.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { ShellLayoutComponent } from './shell-layout.component';
@@ -32,8 +33,17 @@ function stubAuth(roles: UserRole[], activeRole: UserRole | null) {
 
 const item = (label: string, route: string) => ({ label, route, icon: '' });
 
-async function setup(roles: UserRole[], activeRole: UserRole | null, more = true) {
+async function setup(
+  roles: UserRole[],
+  activeRole: UserRole | null,
+  more = true,
+  bell: { route?: string | null; unread?: number } = {},
+) {
   const auth = stubAuth(roles, activeRole);
+  const badge = {
+    unread: signal(bell.unread ?? 0),
+    hasInbox: signal(activeRole === 'teacher' || activeRole === 'parent'),
+  };
   TestBed.configureTestingModule({
     imports: [ShellLayoutComponent],
     providers: [
@@ -49,15 +59,19 @@ async function setup(roles: UserRole[], activeRole: UserRole | null, more = true
           moreGroups: signal(
             more ? [{ label: '課務管理', items: [item('課務異動', '/admin/changes')] }] : [],
           ),
+          notificationsRoute: signal(
+            bell.route === undefined ? `/${activeRole}/notifications` : bell.route,
+          ),
         },
       },
+      { provide: InboxBadgeService, useValue: badge },
     ],
   });
   const fixture = TestBed.createComponent(ShellLayoutComponent);
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
-  return { fixture, auth, el: fixture.nativeElement as HTMLElement };
+  return { fixture, auth, badge, el: fixture.nativeElement as HTMLElement };
 }
 
 const switchItems = (el: HTMLElement) =>
@@ -455,6 +469,70 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
 
     it('分校：仍從頁首下緣 56 + 8 = 64px', async () => {
       expect(await place('campus')).toBe('64px');
+    });
+  });
+
+  /** #1683：通知中心從「更多」移到頂欄鈴鐺，三個角色都要有（A6 偏離，R5） */
+  describe('通知鈴鐺', () => {
+    const bell = (el: HTMLElement) => el.querySelector<HTMLAnchorElement>('[data-part=bell]');
+
+    it.each<[UserRole, string]>([
+      ['admin', '/admin/notifications'],
+      ['teacher', '/teacher/notifications'],
+      ['parent', '/parent/notifications'],
+    ])('%s：有鈴鐺、連到 %s、放在帳戶按鈕左邊', async (role, href) => {
+      const { el } = await setup([role], role);
+      const link = bell(el)!;
+
+      expect(link.getAttribute('href')).toBe(href);
+      const account = el.querySelector('[popovertarget="shell-account"]')!;
+      expect(link.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(link.parentElement).toBe(account.parentElement);
+    });
+
+    it('觸控目標 44px（size-11，R3）', async () => {
+      const { el } = await setup(['parent'], 'parent');
+      expect(bell(el)!.classList).toContain('size-11');
+    });
+
+    it('管理員：沒有角標，aria-label 是「通知中心」', async () => {
+      const { el } = await setup(['admin'], 'admin', true, { unread: 5 });
+      expect(el.querySelector('[data-part=bell-badge]')).toBeNull();
+      expect(bell(el)!.getAttribute('aria-label')).toBe('通知中心');
+    });
+
+    it.each<[number, string | null, string]>([
+      [0, null, '通知，沒有未讀'],
+      [3, '3', '通知，3 則未讀'],
+      [99, '99', '通知，99 則未讀'],
+      [100, '99+', '通知，100 則未讀'],
+      [120, '99+', '通知，120 則未讀'],
+    ])('家長未讀 %d：角標 %s、aria-label「%s」（角標本身 aria-hidden）', async (n, text, label) => {
+      const { el } = await setup(['parent'], 'parent', true, { unread: n });
+      const badge = el.querySelector('[data-part=bell-badge]');
+
+      expect(badge?.textContent?.trim() ?? null).toBe(text);
+      if (badge) expect(badge.getAttribute('aria-hidden')).toBe('true');
+      expect(bell(el)!.getAttribute('aria-label')).toBe(label);
+    });
+
+    it('角標跟著 service 的數字變', async () => {
+      const { el, badge, fixture } = await setup(['teacher'], 'teacher', true, { unread: 1 });
+      const num = el.querySelector<HTMLElement>('[data-part=bell-badge]')!;
+      vi.stubGlobal('matchMedia', () => ({ matches: false }));
+      const animate = vi.fn();
+      num.animate = animate;
+
+      badge.unread.set(4);
+      fixture.detectChanges();
+      expect(num.textContent!.trim()).toBe('4');
+      expect(animate).toHaveBeenCalledTimes(1); // 數字淡入（#1676）
+      vi.unstubAllGlobals();
+    });
+
+    it('沒有目的地（掃碼機台）：不畫鈴鐺', async () => {
+      const { el } = await setup(['kiosk'], 'kiosk', true, { route: null });
+      expect(bell(el)).toBeNull();
     });
   });
 });

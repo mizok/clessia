@@ -1,0 +1,12 @@
+{
+  "name": "a6-conformance",
+  "private": true,
+  "type": "module",
+  "description": "A6 稿 ↔ app 的結構／幾何／行為比對工具（#1314）。獨立安裝，不進 root 依賴樹。",
+  "scripts": {
+    "test": "node --test 'lib/**/*.test.mjs'"
+  },
+  "dependencies": {
+    "playwright": "1.60.0"
+  }
+}

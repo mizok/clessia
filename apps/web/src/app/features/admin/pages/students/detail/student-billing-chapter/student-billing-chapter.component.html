@@ -1,9 +1,8 @@
-<details class="group/chapter group border-b border-surface-border">
-  <summary
-    class="flex min-h-11 cursor-pointer list-none items-center gap-3 bg-zinc-100 px-4 py-3 hover:bg-zinc-200 [&::-webkit-details-marker]:hidden"
-  >
-    <h2 class="m-0 text-lg font-bold text-zinc-900">帳單</h2>
-    <span class="ml-auto text-md text-zinc-700" data-testid="billing-summary">
+<!-- A6 `.coll`（#1705 共用樣式）；跟學生檔案其他摺疊列同一組（name="student-folds"），一次只開一個 -->
+<details class="coll" name="student-folds">
+  <summary class="coll__sum min-h-14 wide:min-h-16">
+    <h2 class="coll__t m-0">帳單</h2>
+    <span class="coll__m" data-testid="billing-summary">
       @if (loading() || failed() || totalOutstanding() === null) {
         {{ failed() ? '載入失敗' : '' }}
       } @else if (totalOutstanding()! > 0) {
@@ -18,15 +17,11 @@
         沒有待繳
       }
     </span>
-    <i
-      class="pi pi-chevron-down text-xs text-zinc-700 transition-transform group-open:rotate-180"
-      aria-hidden="true"
-    ></i>
   </summary>
 
-  <div class="bg-white">
+  <div class="coll__body">
     @if (failed()) {
-      <p class="m-0 px-4 py-6 text-base text-zinc-700">
+      <p class="m-0 py-6 text-base text-zinc-700">
         帳單載入失敗。<button
           type="button"
           class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-base font-semibold text-accent-700 underline"
@@ -36,11 +31,11 @@
         </button>
       </p>
     } @else if (!loading() && invoices().length === 0) {
-      <p class="m-0 px-4 py-6 text-base text-zinc-700">還沒有帳單。</p>
+      <p class="m-0 py-6 text-base text-zinc-700">還沒有帳單。</p>
     } @else {
       <ul class="m-0 list-none p-0">
         @for (invoice of invoices(); track invoice.id) {
-          <li class="flex flex-col gap-2 border-b border-surface-border px-4 py-4 last:border-b-0">
+          <li class="flex flex-col gap-2 border-b border-surface-border py-4 last:border-b-0">
             <div class="flex flex-col gap-2 wide:flex-row wide:items-start wide:gap-x-4">
               <div class="min-w-0 flex-1">
                 <div class="text-base font-semibold text-zinc-900">
@@ -96,7 +91,7 @@
         }
       </ul>
     }
-    <p class="m-0 px-4 py-3">
+    <p class="m-0 pt-3">
       <a
         class="inline-flex min-h-11 items-center gap-1 text-md font-semibold text-accent-700 no-underline hover:underline"
         [routerLink]="allInvoicesLink"

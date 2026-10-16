@@ -231,24 +231,17 @@
           />
         }
       } @else {
-        <div class="flex flex-col gap-2">
+        <!-- A6 `.colls`（#1705 共用樣式）：每天一塊，同一組一次只開一個 -->
+        <div class="colls">
           @for (day of dayGroups(); track day.date; let i = $index) {
-            <details class="group rounded-lg bg-zinc-50" [open]="isDayOpen(i)" data-testid="day">
-              <summary
-                class="flex min-h-14 cursor-pointer list-none items-center gap-4 rounded-lg px-4 py-3 hover:bg-zinc-100 wide:px-5 [&::-webkit-details-marker]:hidden"
-              >
-                <span class="text-lg font-bold tracking-[-0.01em] text-zinc-900 tabular-nums">{{
-                  dayTitle(day.date)
-                }}</span>
-                <span class="ml-auto text-md text-zinc-700 tabular-nums" data-testid="day-meta"
+            <details class="coll" name="contact-book-days" [open]="isDayOpen(i)" data-testid="day">
+              <summary class="coll__sum min-h-14 wide:min-h-16">
+                <span class="coll__t tabular-nums">{{ dayTitle(day.date) }}</span>
+                <span class="coll__m" data-testid="day-meta"
                   >{{ day.entries.length }} 則 · {{ day.unsigned }} 則未簽收</span
                 >
-                <i
-                  class="pi pi-chevron-down text-xs text-zinc-700 transition-transform group-open:rotate-180"
-                  aria-hidden="true"
-                ></i>
               </summary>
-              <div class="mx-1 mb-1 rounded-md bg-white px-4 py-2 wide:px-5">
+              <div class="coll__body">
                 @for (entry of day.entries; track entry.id) {
                   <button
                     type="button"
