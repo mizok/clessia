@@ -17,6 +17,9 @@ export interface SelectFieldOption<T> {
 
 let seq = 0;
 
+/** 已經包過 alignOverlay 的 overlay（同一個實例只包一次） */
+const ALIGNED = new WeakSet<object>();
+
 /**
  * A6 的客製下拉（#991 P1，計畫席裁定選項 A：包 p-select＋pt）。
  *
@@ -78,6 +81,41 @@ export class SelectFieldComponent<T> {
 
   protected close(): void {
     this.select().hide(true);
+  }
+
+  /**
+   * PrimeNG 對 `appendTo` 給元素時仍用 absolutePosition —— 算的是**整份文件**的座標，
+   * 但原生 modal `<dialog>` 是 fixed 定位的容器，面板會多偏移一個「容器在畫面上的位置」
+   * （#1689 通知中心發送彈窗：桌機面板掉到觸發鈕下方約 200px）。這裡換成相對容器的座標。
+   * 手機的底部面板是 modal，不走 absolutePosition，不用換。
+   *
+   * 包住 overlay 的 `alignOverlay`，不是只在打開時換一次：打字篩選（>8 項，例如分校多的機構）
+   * 時 PrimeNG 會再定位一次，只換一次的話會被蓋回文件座標。
+   */
+  protected alignInContainer(): void {
+    const container = this.appendTo();
+    const overlay = this.select().overlayViewChild;
+    if (container === 'body' || !overlay || overlay.modal) return;
+    if (!ALIGNED.has(overlay)) {
+      ALIGNED.add(overlay);
+      const align = overlay.alignOverlay.bind(overlay);
+      overlay.alignOverlay = () => {
+        align();
+        this.shiftIntoContainer();
+      };
+    }
+    this.shiftIntoContainer();
+  }
+
+  private shiftIntoContainer(): void {
+    const container = this.appendTo();
+    const overlay = this.select().overlayViewChild;
+    const el = overlay?.overlayEl as HTMLElement | undefined;
+    if (container === 'body' || !el || overlay?.modal) return;
+    const rect = container.getBoundingClientRect();
+    el.style.top = `${parseFloat(el.style.top) - rect.top - window.scrollY + container.scrollTop}px`;
+    // PrimeNG 寫的是 inset-inline-start（不是 left）
+    el.style.insetInlineStart = `${parseFloat(el.style.insetInlineStart) - rect.left - window.scrollX + container.scrollLeft}px`;
   }
 }
 
