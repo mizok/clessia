@@ -439,7 +439,7 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
    * 「更多」鈕桌機縮成 27px 後，從頁首算會比稿低 15px（工具量到的 Δy）。
    */
   describe('彈窗定位', () => {
-    const place = async (which: 'more' | 'campus') => {
+    const place = async (which: 'more' | 'campus', before?: (pop: HTMLElement) => void) => {
       const campus = {
         inUse: signal(true),
         allowAll: signal(true),
@@ -462,6 +462,7 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       opener.getBoundingClientRect = rect({ left: 300, right: 348, top: 14, bottom: 41 });
       header.getBoundingClientRect = rect({ bottom: 56 });
       const pop = document.getElementById(popId)!;
+      before?.(pop);
       (
         fixture.componentInstance as unknown as {
           onPopoverToggle: (e: unknown, w: 'more' | 'campus') => void;
@@ -482,6 +483,34 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(scroller.classList).toContain('overflow-y-auto');
       expect(pop.style.maxHeight).toBe('');
       expect(pop.classList).toContain('px-5'); // 內距留在 popover，維持 A6
+    });
+
+    // 審核席 #1721 突變：替身裡 popover 與捲動層一樣高（chrome 0）時，不扣內距＋框線也會綠
+    it('更多：扣掉 popover 的內距與框線（chrome），不然選單底部超出、最後一兩項被切掉', async () => {
+      const height = (el: HTMLElement, h: number) =>
+        Object.defineProperty(el, 'offsetHeight', { get: () => h, configurable: true });
+      await place('more', (pop) => {
+        height(pop, 500);
+        height(pop.querySelector<HTMLElement>('[data-part="more-scroll"]')!, 466); // 16+16 內距、1+1 框線
+      });
+      const scroller = document.querySelector<HTMLElement>(
+        '#shell-more [data-part="more-scroll"]',
+      )!;
+      expect(scroller.style.maxHeight).toBe(`${window.innerHeight - 49 - 16 - 34}px`);
+    });
+
+    it('更多：可視高極矮時，捲動層至少留 120px（不會縮成 0 或負的）', async () => {
+      const original = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+      Object.defineProperty(window, 'innerHeight', { value: 100, configurable: true });
+      try {
+        await place('more');
+        const scroller = document.querySelector<HTMLElement>(
+          '#shell-more [data-part="more-scroll"]',
+        )!;
+        expect(scroller.style.maxHeight).toBe('120px');
+      } finally {
+        if (original) Object.defineProperty(window, 'innerHeight', original);
+      }
     });
 
     it('分校：不加最大高度（只有「更多」會長）', async () => {
@@ -600,6 +629,14 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       metrics.scrollTop = 50;
       pop.dispatchEvent(new Event('scroll'));
       expect(pop.hasAttribute('data-more-below')).toBe(true);
+    });
+
+    // 審核席 #1721 突變：高 DPI 螢幕捲到底時 scrollTop 是小數，差不到 1px 也算到底
+    it('捲到底差不到 1px（高 DPI 的小數 scrollTop）：算到底，淡出拿掉', async () => {
+      const { pop, metrics } = await openMore();
+      metrics.scrollTop = 199.5;
+      pop.dispatchEvent(new Event('scroll'));
+      expect(pop.hasAttribute('data-more-below')).toBe(false);
     });
 
     it('放得下：不標', async () => {
