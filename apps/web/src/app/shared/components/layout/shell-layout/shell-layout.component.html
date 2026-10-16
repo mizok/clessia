@@ -67,6 +67,28 @@
             </button>
           }
         }
+        <!-- 通知鈴鐺（#1683，A6 偏離：使用者 10-16 指定，a6-adoption-rules R5）：帳戶左邊，桌機手機都在。
+             管理員導到通知中心（發布公告）、沒有角標；老師家長導到收件匣，有未讀才顯示數字 -->
+        @if (nav.notificationsRoute(); as bellRoute) {
+          <a
+            data-part="bell"
+            class="relative inline-grid size-11 shrink-0 place-items-center rounded-md text-zinc-300 no-underline hover:bg-zinc-800 hover:text-white aria-[current=page]:bg-zinc-800 aria-[current=page]:text-white"
+            [routerLink]="bellRoute"
+            routerLinkActive
+            ariaCurrentWhenActive="page"
+            [attr.aria-label]="bellLabel()"
+          >
+            <i class="pi pi-bell text-[18px]" aria-hidden="true"></i>
+            @if (badge.hasInbox() && badge.unread() > 0) {
+              <span
+                data-part="bell-badge"
+                class="absolute top-1 right-0.5 h-[18px] min-w-[18px] rounded-full bg-accent-vivid px-1 text-center text-[11px] leading-[18px] font-bold text-zinc-900 tabular-nums"
+                aria-hidden="true"
+                >{{ badgeText() }}</span
+              >
+            }
+          </a>
+        }
         @if (auth.activeRole(); as role) {
           <button
             class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white max-wide:pr-1 max-wide:pl-1.5 wide:-mr-1.5"

@@ -2,6 +2,7 @@ import { Component, HostListener, computed, inject, signal } from '@angular/core
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { AuthService, type UserRole } from '@core/auth.service';
+import { InboxBadgeService } from '@core/inbox-badge.service';
 import { NavigationService } from '@core/navigation.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
@@ -42,6 +43,7 @@ export class ShellLayoutComponent {
   public readonly auth = inject(AuthService);
   protected readonly nav = inject(NavigationService);
   protected readonly campus = inject(CampusContextService);
+  protected readonly badge = inject(InboxBadgeService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
@@ -70,6 +72,18 @@ export class ShellLayoutComponent {
   protected readonly otherRoles = computed(() =>
     this.auth.roles().filter((role) => role !== this.auth.activeRole()),
   );
+
+  /** 鈴鐺角標：超過 99 寫 99+ */
+  protected readonly badgeText = computed(() => {
+    const n = this.badge.unread();
+    return n > 99 ? '99+' : String(n);
+  });
+  /** 螢幕閱讀器念的：角標本身 aria-hidden，數字寫在這裡 */
+  protected readonly bellLabel = computed(() => {
+    if (!this.badge.hasInbox()) return '通知中心';
+    const n = this.badge.unread();
+    return n > 0 ? `通知，${n} 則未讀` : '通知，沒有未讀';
+  });
 
   protected readonly scrolled = signal(false);
   protected readonly moreOpen = signal(false);
