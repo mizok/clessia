@@ -36,6 +36,7 @@ import {
   billedBreakdown,
   revenueHeadline,
 } from './reports.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 /**
  * 營收報表 —— 見 kb/wiki/specs/admin/finance/reports.md。
@@ -90,6 +91,8 @@ export class ReportsPage implements OnInit {
   protected readonly courses = signal<Course[]>([]);
 
   private readonly systemClock = inject(SystemClockService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   /** 月份下拉（RP1）：預設上個完整月。換算成 from/to 在 util，這裡只存選了哪一項 */
   protected readonly periodOptions = reportPeriods(this.systemClock.todayTaipei());
   protected readonly period = signal(DEFAULT_PERIOD);
@@ -197,8 +200,10 @@ export class ReportsPage implements OnInit {
 
   protected onGroupByChange(value: RevenueGroupBy): void {
     if (this.groupBy() === value) return;
-    this.groupBy.set(value);
-    this.load();
+    this.viewTransition(() => {
+      this.groupBy.set(value);
+      this.load();
+    });
   }
 
   protected onCourseChange(value: string | null): void {

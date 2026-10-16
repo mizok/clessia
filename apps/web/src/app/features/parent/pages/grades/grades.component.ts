@@ -43,6 +43,7 @@ import {
   periodOptions,
   type PeriodFilter,
 } from './grades.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 /**
  * **必須 ≤ API 的上限**（`apps/api/src/routes/parent/grades.ts` 的
@@ -78,6 +79,8 @@ export class GradesComponent implements OnInit {
 
   private readonly childScope = inject(ChildScopeService);
   private readonly gradesService = inject(ParentGradesService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   protected readonly today = inject(SystemClockService).todayTaipei;
   protected readonly rangeOptions = RANGE_OPTIONS;
   protected readonly monthDay = monthDay;
@@ -168,7 +171,7 @@ export class GradesComponent implements OnInit {
   }
 
   protected onRangeChange(range: RangeFilter): void {
-    this.rangeFilter.set(range);
+    this.viewTransition(() => this.rangeFilter.set(range));
   }
 
   protected clearFilters(): void {

@@ -63,7 +63,10 @@
             @for (opt of rangeOptions; track opt.value) {
               <button
                 type="button"
-                class="grades__range-btn min-h-11 flex-1 cursor-pointer rounded-lg border border-solid border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-700 aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
+                class="grades__range-btn vt-seg min-h-11 flex-1 cursor-pointer rounded-lg border border-solid border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-700 aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
+                [style.view-transition-name]="
+                  rangeFilter() === opt.value ? 'seg-grades-range' : null
+                "
                 [attr.aria-pressed]="rangeFilter() === opt.value"
                 (click)="onRangeChange(opt.value)"
               >

@@ -74,6 +74,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -247,6 +248,8 @@ export class ExamsComponent implements OnInit {
   protected readonly examType = signal<ExamTypeFilter>('academy');
   /** 分校跟頂欄走（#1138）：頁內與手機篩選的分校下拉拿掉；只作用在校內考（段考看學校） */
   private readonly campusCtx = inject(CampusContextService);
+  /** 頁內模式切換的同文件 VT（#1641 項 4） */
+  private readonly viewTransition = injectViewTransition();
   protected readonly campusId = this.campusCtx.id;
   protected readonly schoolId = signal<string | null>(null);
   protected readonly subjectId = signal<string | null>(null);
@@ -599,7 +602,10 @@ export class ExamsComponent implements OnInit {
 
   // ── Filter handlers ───────────────────────────────────────────────────
   protected onExamTypeChange(value: ExamTypeFilter | null): void {
-    const next = value ?? 'academy';
+    this.viewTransition(() => this.applyExamType(value ?? 'academy'));
+  }
+
+  private applyExamType(next: ExamTypeFilter): void {
     // 切到 school 時把 academy 專屬的分級篩選降回不分級的「待登錄」——
     // 留著的話會送出一個 school 不認得的參數，結果是空清單，
     // **而空清單跟「真的沒有」長得一模一樣**
