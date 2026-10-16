@@ -132,7 +132,11 @@ export type Variables = {
    * 給 `/api/me` 省兩支查詢（#1595 P2a）。經身分快取，最遲 30 秒才反映修改。
    */
   selfRows: {
-    staff: { display_name?: string | null; birthday?: string | null } | null;
+    staff: {
+      display_name?: string | null;
+      birthday?: string | null;
+      nickname?: string | null;
+    } | null;
     parent: { name?: string | null } | null;
     /** 這個人在 `staff_campuses` 的分校（跟 campusScope 同一份）；前端挑預設分校用（#1607） */
     assignedCampusIds: string[];

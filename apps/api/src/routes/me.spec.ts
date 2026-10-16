@@ -47,7 +47,7 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
   it('只查 profiles 與 ba_user；角色、權限、名稱、生日來自 middleware', async () => {
     const queried: string[] = [];
     const res = await appWith(queried, {
-      staff: { display_name: '王主任', birthday: '1990-01-02' },
+      staff: { display_name: '王主任', birthday: '1990-01-02', nickname: '王老師' },
       parent: null,
       assignedCampusIds: [],
     }).request('/api/me');
@@ -57,6 +57,7 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
     expect(await res.json()).toMatchObject({
       displayName: '王主任',
       birthday: '1990-01-02',
+      nickname: '王老師',
       email: 'a@example.com',
       phone: '0912',
       roles: ['admin', 'teacher'],
@@ -70,7 +71,11 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
       parent: { name: '林媽媽' },
       assignedCampusIds: [],
     }).request('/api/me');
-    expect(await res.json()).toMatchObject({ displayName: '林媽媽', birthday: null });
+    expect(await res.json()).toMatchObject({
+      displayName: '林媽媽',
+      birthday: null,
+      nickname: null,
+    });
   });
 
   // #1607：前端挑預設分校用。值就是 middleware 算 campusScope 的那份，不另查

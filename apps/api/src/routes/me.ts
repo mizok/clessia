@@ -15,6 +15,7 @@ import catalogRoute from './parent/catalog';
 import renewalRoute from './parent/renewal';
 import mealsRoute from './parent/meals';
 import { inOrg } from '../lib/org-scope';
+import { NicknameSchema } from '../lib/validation';
 import { invalidateIdentity } from '../lib/identity-cache';
 
 const MeResponseSchema = z
@@ -25,6 +26,8 @@ const MeResponseSchema = z
     email: z.string().nullable(),
     phone: z.string().nullable(),
     birthday: z.string().nullable(),
+    /** 對外暱稱（#1665 Q6′）。沒有 staff 身分的人（家長）一律 null */
+    nickname: z.string().nullable(),
     roles: z.array(z.string()),
     permissions: z.array(z.string()),
     /** 被指派的分校（`staff_campuses`）。**只給前端挑預設分校**，範圍仍由後端 campusScope 判（c1） */
@@ -42,6 +45,8 @@ const PatchMeSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .nullable()
       .optional(),
+    /** 只寫得進有 staff 身分的人自己那一列；家長帶了也不會寫到任何地方 */
+    nickname: NicknameSchema.optional(),
   })
   .openapi('PatchMeRequest');
 
@@ -97,6 +102,7 @@ app.openapi(
         email: baUser?.email ?? null,
         phone: baUser?.phone ?? null,
         birthday: staff?.birthday ?? null,
+        nickname: staff?.nickname ?? null,
         roles: c.get('roles'),
         permissions: c.get('permissions'),
         assignedCampusIds,
@@ -186,9 +192,15 @@ app.openapi(
       }
     }
 
-    if (body.birthday !== undefined) {
+    if (body.birthday !== undefined || body.nickname !== undefined) {
       await inOrg(
-        supabase.from('staff').update({ birthday: body.birthday }).eq('user_id', userId),
+        supabase
+          .from('staff')
+          .update({
+            ...(body.birthday === undefined ? {} : { birthday: body.birthday }),
+            ...(body.nickname === undefined ? {} : { nickname: body.nickname }),
+          })
+          .eq('user_id', userId),
         orgId,
       );
     }
@@ -197,7 +209,11 @@ app.openapi(
       [
         supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
         supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
+        supabase
+          .from('staff')
+          .select('display_name, birthday, nickname')
+          .eq('user_id', userId)
+          .maybeSingle(),
         supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
         supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
       ],
@@ -219,6 +235,7 @@ app.openapi(
         email: (baUserResult.data?.email as string | null) ?? null,
         phone: (baUserResult.data?.phone as string | null) ?? null,
         birthday: (staffResult.data?.birthday as string | null) ?? null,
+        nickname: (staffResult.data?.nickname as string | null) ?? null,
         roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
         permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
           Array.isArray(r.permissions) ? (r.permissions as string[]) : [],

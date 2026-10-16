@@ -94,7 +94,12 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   // /api/me 顯示名稱與生日用（#1595 P2a）。跟授權欄位同一份快取，所以最遲 30 秒才反映修改。
   // `assignedCampusIds` 是下面 campusScope 用的**同一份**，給前端挑預設分校（#1607），不是授權
   c.set('selfRows', {
-    staff: (staffRows[0] as { display_name?: string | null; birthday?: string | null }) ?? null,
+    staff:
+      (staffRows[0] as {
+        display_name?: string | null;
+        birthday?: string | null;
+        nickname?: string | null;
+      }) ?? null,
     parent: (parentRows[0] as { name?: string | null }) ?? null,
     assignedCampusIds,
   });
@@ -155,10 +160,10 @@ export async function loadIdentity(
     supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
     // 分校指派跟著 staff 一起查 —— 授權要在 middleware 層成立（c1），
     // 各路由自己去查的話總有一支會忘記，而忘記的方式是安靜的。
-    // display_name、birthday 是給 /api/me 的（#1595 P2a）：順手帶、跟著快取，省它自己再查一次
+    // display_name、birthday、nickname 是給 /api/me 的（#1595 P2a、#1665）：順手帶、跟著快取，省它自己再查一次
     supabase
       .from('staff')
-      .select('status, display_name, birthday, staff_campuses(campus_id)')
+      .select('status, display_name, birthday, nickname, staff_campuses(campus_id)')
       .eq('user_id', userId)
       // staff／parents 的唯一鍵是 (user_id, org_id)：只用 user_id 的話，同一個人在別的 org 的列
       // （停用狀態、別 org 的分校指派）會被合進來算（#1603，縱深防禦）

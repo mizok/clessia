@@ -541,7 +541,13 @@ describe('authMiddleware 的 selfRows（#1595 P2a）', () => {
     const rows: Record<string, unknown[]> = {
       user_roles: [{ role: 'admin', permissions: [] }],
       staff: [
-        { status: 'active', display_name: '王主任', birthday: '1990-01-02', staff_campuses: [] },
+        {
+          status: 'active',
+          display_name: '王主任',
+          birthday: '1990-01-02',
+          nickname: '王老師',
+          staff_campuses: [],
+        },
       ],
       parents: [{ status: 'active', name: '王媽媽', parent_student_relations: [] }],
     };
@@ -560,9 +566,10 @@ describe('authMiddleware 的 selfRows（#1595 P2a）', () => {
 
     expect(selects['staff']).toMatch(/\bdisplay_name\b/);
     expect(selects['staff']).toMatch(/\bbirthday\b/);
+    expect(selects['staff']).toMatch(/\bnickname\b/);
     expect(selects['parents']).toMatch(/\bname\b/);
     expect(body).toMatchObject({
-      staff: { display_name: '王主任', birthday: '1990-01-02' },
+      staff: { display_name: '王主任', birthday: '1990-01-02', nickname: '王老師' },
       parent: { name: '王媽媽' },
     });
   });
@@ -695,6 +702,7 @@ describe('authMiddleware 的身分 SQL 路徑與 REST 退路（Hyperdrive A）',
       status: 'active',
       display_name: '王主任',
       birthday: '1990-01-02',
+      nickname: null,
       staff_campuses: [{ campus_id: 'c-1' }, { campus_id: 'c-2' }],
     },
   ];

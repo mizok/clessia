@@ -14,6 +14,7 @@ const GOOD = {
       status: 'active',
       display_name: '王主任',
       birthday: '1990-01-02',
+      nickname: null,
       staff_campuses: [{ campus_id: 'c-1' }],
     },
   ],

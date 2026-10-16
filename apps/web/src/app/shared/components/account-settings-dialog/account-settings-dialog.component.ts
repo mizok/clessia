@@ -11,7 +11,7 @@ import { AuthService, type UserRole } from '@core/auth.service';
 import { environment } from '@env/environment';
 import { firstValueFrom } from 'rxjs';
 
-type FieldKey = 'displayName' | 'email' | 'phone' | 'birthday';
+type FieldKey = 'displayName' | 'nickname' | 'email' | 'phone' | 'birthday';
 
 @Component({
   selector: 'app-account-settings-dialog',
@@ -36,8 +36,13 @@ export class AccountSettingsDialogComponent {
   protected readonly saving = computed(() => this.savingField() !== null);
 
   protected readonly hasParentRole = computed(() => this.auth.roles().includes('parent'));
+  /** 暱稱存在 staff 列上（#1665 Q6′）：只有人員身分看得到這一欄；純家長沒有可寫的地方 */
+  protected readonly hasStaffRole = computed(() =>
+    this.auth.roles().some((role) => role === 'admin' || role === 'teacher'),
+  );
 
   protected displayName = this.auth.profile()?.display_name ?? '';
+  protected nickname = '';
   protected email = this.auth.user()?.email ?? '';
   protected phone = '';
   protected birthday: Date | null = null;
@@ -54,12 +59,14 @@ export class AccountSettingsDialogComponent {
           email: string | null;
           phone: string | null;
           birthday: string | null;
+          nickname: string | null;
         }>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
       );
       this.displayName = me.displayName;
       this.email = me.email ?? '';
       this.phone = me.phone ?? '';
       this.birthday = me.birthday ? new Date(me.birthday) : null;
+      this.nickname = me.nickname ?? '';
     } catch {
       // silently ignore — 初始值已從 auth.user() 設定
     }
@@ -67,6 +74,11 @@ export class AccountSettingsDialogComponent {
 
   protected saveDisplayName() {
     this.patchMe('displayName', { displayName: this.displayName.trim() });
+  }
+
+  /** 空字串＝清掉（API 存 null） */
+  protected saveNickname() {
+    this.patchMe('nickname', { nickname: this.nickname.trim() || null });
   }
 
   protected saveBirthday() {

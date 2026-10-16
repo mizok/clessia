@@ -41,6 +41,8 @@ export interface Staff {
   userId: string;
   orgId: string;
   displayName: string;
+  /** 對外暱稱（#1665 Q6）；公開頁只露暱稱，沒設就不露這個人 */
+  nickname?: string | null;
   phone: string | null;
   email: string;
   birthday: string | null;
@@ -96,6 +98,7 @@ export interface StaffQueryParams {
 
 export interface CreateStaffInput {
   displayName: string;
+  nickname?: string | null;
   /** 掃碼機台不給，由後端產生佔位值 */
   email?: string;
   phone?: string | null;
@@ -109,6 +112,7 @@ export interface CreateStaffInput {
 
 export interface UpdateStaffInput {
   displayName?: string;
+  nickname?: string | null;
   phone?: string | null;
   birthday?: string | null;
   notes?: string | null;

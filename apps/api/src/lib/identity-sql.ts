@@ -32,7 +32,7 @@ export interface Queryable {
  * `$1` = user id（text，= ba_user.id），`$2` = org id（session 的 ba_user.orgId）。
  * - `staff`／`parents` 過濾 `org_id`（c1；唯一鍵是 (user_id, org_id)，#1603）。
  * - `user_roles` **沒有 org_id 欄位**：它的 org 由 ba_user.orgId 決定，一個 user 只屬於一個 org。
- * - 欄位與巢狀形狀照 REST 那三支的 select（`status, display_name, birthday, staff_campuses(campus_id)`、
+ * - 欄位與巢狀形狀照 REST 那三支的 select（`status, display_name, birthday, nickname, staff_campuses(campus_id)`、
  *   `status, name, parent_student_relations(student_id)`、`role, permissions`）。
  */
 export const IDENTITY_SQL = `
@@ -45,6 +45,7 @@ select
   coalesce((
     select json_agg(json_build_object(
       'status', s.status, 'display_name', s.display_name, 'birthday', s.birthday,
+      'nickname', s.nickname,
       'staff_campuses', coalesce((
         select json_agg(json_build_object('campus_id', sc.campus_id))
         from public.staff_campuses sc where sc.staff_id = s.id
@@ -75,6 +76,7 @@ type Loose = Partial<
     | 'status'
     | 'display_name'
     | 'birthday'
+    | 'nickname'
     | 'staff_campuses'
     | 'name'
     | 'parent_student_relations'
@@ -102,6 +104,7 @@ export function parseIdentityRow(rows: unknown[]): IdentityRows | null {
     typeof s.status === 'string' &&
     isStrOrNull(s.display_name) &&
     isStrOrNull(s.birthday) &&
+    isStrOrNull(s.nickname) &&
     listOf(s.staff_campuses, (x) => isObj(x) && typeof x.campus_id === 'string');
   const parentOk = (p: unknown) =>
     isObj(p) &&

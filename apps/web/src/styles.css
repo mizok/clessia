@@ -558,6 +558,12 @@
     font-size: var(--text-sm);
     color: var(--zinc-600);
   }
+  /* 欄位下方的說明文字（#1665）：說明這個設定的後果，不是錯誤訊息 */
+  .form-dialog__hint {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+  }
   .form-dialog__section {
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-lg);

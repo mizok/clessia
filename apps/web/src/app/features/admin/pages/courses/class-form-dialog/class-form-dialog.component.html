@@ -77,6 +77,27 @@
       </div>
     </div>
 
+    <!-- 開放公開報名（#1665 Q5）：匿名的報名／試聽表單看不看得到這一班 -->
+    <div class="form-dialog__field">
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label" for="class-public-enrollment">開放公開報名</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            inputId="class-public-enrollment"
+            [ngModel]="isPublicEnrollment()"
+            (ngModelChange)="isPublicEnrollment.set($event)"
+            [disabled]="loading()"
+          />
+          <span class="form-dialog__switch-label">{{
+            isPublicEnrollment() ? '開放' : '不公開'
+          }}</span>
+        </div>
+      </div>
+      <p class="form-dialog__hint">
+        關掉之後，公開的報名、試聽表單看不到這一班；已送來的申請不受影響
+      </p>
+    </div>
+
     <!-- 目錄參考價（#1175，要 manage_finance） -->
     @if (canSetFee) {
       <div class="form-dialog__field">

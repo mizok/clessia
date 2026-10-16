@@ -49,6 +49,50 @@
       }
     </div>
 
+    <!-- 對外暱稱（#1665 Q6′）：存在 staff 列上，所以只有人員身分看得到 -->
+    @if (hasStaffRole()) {
+      <div class="form-dialog__field">
+        <label class="form-dialog__label" for="account-nickname">對外暱稱</label>
+        <div class="account-settings__input-row flex items-center gap-2">
+          <input
+            id="account-nickname"
+            pInputText
+            class="min-w-0 flex-1"
+            maxlength="20"
+            placeholder="例：王老師"
+            [(ngModel)]="nickname"
+            [disabled]="saving()"
+          />
+          <span class="account-settings__save-btn shrink-0 self-center">
+            @if (savedField() === 'nickname') {
+              <p-button
+                ariaLabel="暱稱已儲存"
+                icon="pi pi-check"
+                size="small"
+                severity="success"
+                [outlined]="true"
+                [disabled]="true"
+              />
+            } @else {
+              <p-button
+                label="儲存"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [loading]="savingField() === 'nickname'"
+                [disabled]="saving()"
+                (onClick)="saveNickname()"
+              />
+            }
+          </span>
+        </div>
+        <p class="form-dialog__hint">對外的頁面只會顯示暱稱；不填就不顯示你</p>
+        @if (fieldError()?.field === 'nickname') {
+          <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
+        }
+      </div>
+    }
+
     <div class="form-dialog__field">
       <label class="form-dialog__label">生日</label>
       <div class="account-settings__input-row flex items-center gap-2">
