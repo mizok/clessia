@@ -56,6 +56,16 @@ export function rule(id, note = '') {
 
 export const DEVIATIONS = [
   {
+    // R5 2026-10-16（#1701）：手機「更多」改兩欄流排（分組各自往下長），不是稿的一列兩組對齊 ——
+    // 管理員項目比稿多，360×640 會被切掉。分組在欄裡的位置跟稿不同是刻意的
+    status: '位置',
+    widths: [360],
+    app: '^landmark:popover\\[\\]>(heading:h3|control:link)\\[',
+    detail: '^相對「popover」 ',
+    reason: '手機「更多」兩欄流排：分組各自往下長，位置跟稿的整列對齊不同',
+    source: `${rule('R5')}「手機「更多」選單排法與捲動」2026-10-16；#1701`,
+  },
+  {
     // R5 2026-10-16：公開頁入口不加「QR 到班打卡」—— 打卡改成先登入行政帳號、移到內部頁面（#1127）
     status: '缺',
     a6: 'landmark:navigation\\[公開頁\\]>control:link\\[QR到班打卡\\]$',
