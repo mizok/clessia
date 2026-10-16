@@ -22,19 +22,18 @@
 </app-page-open>
 
 <div class="bg-zinc-100">
-  <div
-    class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16"
-    role="toolbar"
-    aria-label="通知"
-  >
+  <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16">
     <nav class="flex items-center gap-4" aria-label="通知">
       <button
         type="button"
-        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap hover:text-zinc-900"
         data-testid="tab-inbox"
         [class.border-zinc-900]="tab() === 'inbox'"
         [class.font-semibold]="tab() === 'inbox'"
+        [class.text-zinc-900]="tab() === 'inbox'"
         [class.border-transparent]="tab() !== 'inbox'"
+        [class.font-medium]="tab() !== 'inbox'"
+        [class.text-zinc-600]="tab() !== 'inbox'"
         [attr.aria-current]="tab() === 'inbox' ? 'page' : null"
         [style.view-transition-name]="tab() === 'inbox' ? 'seg-notifications-tab' : null"
         (click)="setTab('inbox')"
@@ -48,11 +47,14 @@
       </button>
       <button
         type="button"
-        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap hover:text-zinc-900"
         data-testid="tab-publish"
         [class.border-zinc-900]="tab() === 'publish'"
         [class.font-semibold]="tab() === 'publish'"
+        [class.text-zinc-900]="tab() === 'publish'"
         [class.border-transparent]="tab() !== 'publish'"
+        [class.font-medium]="tab() !== 'publish'"
+        [class.text-zinc-600]="tab() !== 'publish'"
         [attr.aria-current]="tab() === 'publish' ? 'page' : null"
         [style.view-transition-name]="tab() === 'publish' ? 'seg-notifications-tab' : null"
         (click)="setTab('publish')"
