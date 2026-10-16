@@ -392,6 +392,13 @@ describe('ExamsComponent', () => {
       fixture.detectChanges();
     }
 
+    // #1698：A6 exams.html 在 ≤860 覆寫 `.chap`＝橫排、章名 28px（listRow）
+    it('章頭用 listRow：手機章名 28px', () => {
+      openPending([mockAcademyExams[0]]);
+      const name = chapterEls()[0]?.querySelector('.chapter-head__name');
+      expect(name?.classList).toContain('text-[28px]');
+    });
+
     it('待處理：還沒登／登到一半兩章，各自場數；全部分頁沒有章', () => {
       openPending([mockAcademyExams[0], partialExam]);
       expect(chapterEls().map((e) => e.getAttribute('data-chapter'))).toEqual(['none', 'partial']);

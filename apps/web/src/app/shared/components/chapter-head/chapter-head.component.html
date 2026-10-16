@@ -15,10 +15,7 @@
     >
   }
   @if (count() !== null) {
-    <p
-      class="chapter-head__tally m-0 text-lg font-bold tracking-[-0.02em] text-zinc-900 tabular-nums wide:mt-3 wide:text-xl"
-      [class.mt-3]="stacked()"
-    >
+    <p [class]="tallyClass()">
       {{ count() }}
       @if (unit()) {
         <span class="text-md font-medium tracking-normal text-zinc-600">{{ unit() }}</span>
