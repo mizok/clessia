@@ -132,6 +132,57 @@ describe('PushService（#1663，設計稿 web-push.md §4 狀態表）', () => {
     expect(subscribe).not.toHaveBeenCalled();
   });
 
+  /**
+   * 瀏覽器的推播服務沒開（Brave 預設關閉、Chromium 沒有推播服務）：`subscribe` 丟 DOMException。
+   * 實機抓到的：這裡沒接住會一直停在 loading（「讀取這台裝置的通知設定…」），而且不會出現任何說明。
+   */
+  it('推播服務沒開（subscribe 丟 AbortError）：push-blocked，不送伺服器、不停在 loading', async () => {
+    const { subscribe } = browser({ permission: 'granted', current: null });
+    subscribe.mockRejectedValueOnce(
+      new DOMException('Registration failed - push service not available', 'AbortError'),
+    );
+    const { service, http } = setup();
+    const done = service.refresh();
+    await reply(http, 'GET', `${ME}/push-config`, { publicKey: KEY_A });
+    await done;
+    expect(service.state()).toBe('push-blocked');
+    expect(http.match(`${ME}/push-subscriptions`)).toHaveLength(0);
+  });
+
+  it('伺服器存訂閱失敗：照樣往上丟（畫面寫「沒有設定成功」），不當成推播服務沒開', async () => {
+    const { unsubscribe } = browser({ permission: 'granted', current: null });
+    const { service, http } = setup();
+    const done = service.refresh();
+    await reply(http, 'GET', `${ME}/push-config`, { publicKey: KEY_A });
+    let req!: TestRequest;
+    await vi.waitFor(() => {
+      const found = http.match(`${ME}/push-subscriptions`);
+      expect(found.length).toBe(1);
+      req = found[0]!;
+    });
+    req.flush({}, { status: 500, statusText: 'x' });
+    await expect(done).rejects.toBeTruthy();
+    // 不能停在 loading（畫面一直「讀取…」、沒有按鈕可以重試）：退回 default，那顆「開啟」就是重試
+    expect(service.state()).toBe('default');
+    // 瀏覽器那一份也要取消：留著的話下次 refresh 看到「金鑰相同」就判成 enabled，但伺服器根本沒有這台（實機抓到）
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('讀公鑰失敗（非 404）：一樣往上丟、退回 default', async () => {
+    browser({ permission: 'granted', current: null });
+    const { service, http } = setup();
+    const done = service.refresh();
+    let req!: TestRequest;
+    await vi.waitFor(() => {
+      const found = http.match(`${ME}/push-config`);
+      expect(found.length).toBe(1);
+      req = found[0]!;
+    });
+    req.flush({}, { status: 500, statusText: 'x' });
+    await expect(done).rejects.toBeTruthy();
+    expect(service.state()).toBe('default');
+  });
+
   it('已授權但訂閱不見了：自動重訂並送給伺服器', async () => {
     const { subscribe } = browser({ permission: 'granted', current: null });
     const { service, http } = setup();

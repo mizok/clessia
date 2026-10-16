@@ -50,6 +50,8 @@ export class PushSettingsComponent implements OnInit {
   protected readonly devices = signal<PushDevice[]>([]);
   /** 被拒絕時的說明要看平台：iOS 在系統設定、其餘在瀏覽器的網站設定 */
   protected readonly ios = /iP(hone|ad|od)/.test(navigator.userAgent);
+  /** Brave 預設關閉 Web Push（push-blocked 時給它專屬的打開步驟） */
+  protected readonly brave = 'brave' in navigator;
 
   ngOnInit(): void {
     void this.load();

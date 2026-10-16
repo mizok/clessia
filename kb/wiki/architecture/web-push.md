@@ -245,14 +245,30 @@ ALTER TABLE public.organizations
 
 狀態機只看瀏覽器給的事實，不猜：
 
-| 狀態           | 怎麼判斷                                                                                     | 畫面                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| 不支援，可安裝 | iOS 且 不是 standalone（`matchMedia('(display-mode: standalone)')`／`navigator.standalone`） | 「先把 Clessia 加入主畫面」：分享鈕 → 加入主畫面，三步驟圖示；附「iOS 16.4 以上」                       |
-| 不支援         | 沒有 `PushManager` 或 `Notification`，且不是上一列                                           | 「這個瀏覽器收不到通知，請改用電話聯絡補習班」—— 不藏起來，明講                                         |
-| 尚未決定       | `Notification.permission === 'default'`                                                      | 一顆「開啟繳費提醒」按鈕（按了才 `requestPermission`）                                                  |
-| 已開啟         | `granted` 且有訂閱                                                                           | 各類型開關＋「這台裝置已開啟」＋「關閉這台裝置的通知」                                                  |
-| 被拒絕         | `denied`                                                                                     | **瀏覽器不讓網頁再問一次**，只能說明怎麼去系統設定打開（iOS：設定 → 通知 → Clessia；Android：網站設定） |
-| 已授權但沒訂閱 | `granted` 但 `pushManager.getSubscription()` 是 null（換金鑰、被清掉）                       | 開啟時自動重訂，不打擾使用者                                                                            |
+| 狀態           | 怎麼判斷                                                                                     | 畫面                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 不支援，可安裝 | iOS 且 不是 standalone（`matchMedia('(display-mode: standalone)')`／`navigator.standalone`） | 「先把 Clessia 加入主畫面」：分享鈕 → 加入主畫面，三步驟圖示；附「iOS 16.4 以上」                                                       |
+| 不支援         | 沒有 `PushManager` 或 `Notification`，且不是上一列                                           | 「這個瀏覽器收不到通知，請改用電話聯絡補習班」—— 不藏起來，明講                                                                         |
+| 尚未決定       | `Notification.permission === 'default'`                                                      | 一顆「開啟繳費提醒」按鈕（按了才 `requestPermission`）                                                                                  |
+| 已開啟         | `granted` 且有訂閱                                                                           | 各類型開關＋「這台裝置已開啟」＋「關閉這台裝置的通知」                                                                                  |
+| 被拒絕         | `denied`                                                                                     | **瀏覽器不讓網頁再問一次**，只能說明怎麼去系統設定打開（iOS：設定 → 通知 → Clessia；Android：網站設定）                                 |
+| 已授權但沒訂閱 | `granted` 但 `pushManager.getSubscription()` 是 null（換金鑰、被清掉）                       | 開啟時自動重訂，不打擾使用者                                                                                                            |
+| 推播服務沒開   | `granted`，但 `register`／`subscribe` 丟 `DOMException`（Brave 預設關閉 Web Push）           | 說明怎麼打開（Brave：brave://settings/privacy →「Use Google services for push messaging」→ 重新整理），沒有按鈕；註明通知中心照樣收得到 |
+
+**已知限制：Brave 預設關閉 Web Push**（2026-10-16，#1679 實機）。`PushManager`／`Notification` 都在、權限也給得出去，
+但 `subscribe` 會失敗。功能偵測分不出來（Brave 刻意不讓網頁辨識），只能在 `subscribe` 失敗時才知道 → 上表「推播服務沒開」那一列。
+Brave 的使用者要自己到 brave://settings/privacy 打開「Use Google services for push messaging」。
+
+**失敗不能停在「偵測中」**（#1679 實機抓到兩個）：
+
+- 偵測途中伺服器讀寫失敗（讀公鑰、存訂閱）：退回「尚未決定」，那顆「開啟」就是重試，畫面另寫「沒有設定成功」
+- 伺服器沒存到訂閱時，**瀏覽器那一份也要取消**：留著的話下次偵測看到「金鑰相同」就判成「已開啟」，
+  但伺服器根本沒有這台，永遠收不到
+
+**驗收工具的坑**：Playwright 的 `newContext()` 是無痕，無痕沒有 Push API；`headless` 預設的 headless shell 一律拒絕通知權限。
+要 `launchPersistentContext(dir, { channel: 'chromium' })`。而 Chrome for Testing 沒有 Google API 金鑰，訂閱到的是
+`jmt17.google.com`，不在 `lib/push-endpoint.ts` 的白名單裡，所以伺服器回 400 —— **真送到裝置那一段要用真的 Chrome 或手機驗**；
+service worker 的 `push` 處理可以用 CDP `ServiceWorker.deliverPushMessage` 驗。
 
 **入口**：
 

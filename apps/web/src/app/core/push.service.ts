@@ -24,7 +24,12 @@ export type PushState =
   /** 已授權，但這台裝置被關掉了（使用者自己關、或登出）—— 等本人再按一次，不自動重訂 */
   | 'off'
   /** 被拒絕：瀏覽器不讓網頁再問一次，只能去系統設定打開 */
-  | 'denied';
+  | 'denied'
+  /**
+   * 已授權，但瀏覽器的推播服務不給訂閱（`register`／`subscribe` 丟 DOMException）。
+   * 實例：**Brave 預設關閉 Web Push**，要到 brave://settings/privacy 開「Use Google services for push messaging」
+   */
+  | 'push-blocked';
 
 export type NotificationKind = 'invoice_due' | 'invoice_overdue';
 
@@ -60,8 +65,27 @@ export class PushService {
 
   readonly state = signal<PushState>('loading');
 
-  /** 偵測這台裝置的狀態；已授權但訂閱不見了或金鑰換了，就自動重訂（不打擾使用者） */
+  /**
+   * 偵測這台裝置的狀態；已授權但訂閱不見了或金鑰換了，就自動重訂（不打擾使用者）。
+   *
+   * **失敗不能停在 loading**（#1679 實機抓到：畫面一直「讀取…」、沒有按鈕）：
+   * - 瀏覽器的推播服務不給（DOMException，Brave 預設關閉 Web Push）→ `push-blocked`
+   * - 其他（伺服器讀寫失敗）→ 退回 `default`（它的「開啟」就是重試），照樣往上丟讓畫面寫「沒有設定成功」
+   */
   async refresh(): Promise<void> {
+    try {
+      await this.detect();
+    } catch (err) {
+      if (err instanceof DOMException) {
+        this.state.set('push-blocked');
+        return;
+      }
+      if (this.state() === 'loading') this.state.set('default');
+      throw err;
+    }
+  }
+
+  private async detect(): Promise<void> {
     if (!pushSupported()) {
       this.state.set(isIos() && !isStandalone() ? 'installable' : 'unsupported');
       return;
@@ -170,13 +194,20 @@ export class PushService {
       applicationServerKey: base64UrlToBytes(key),
     });
     const json = sub.toJSON();
-    await firstValueFrom(
-      this.http.post(`${this.base}/push-subscriptions`, {
-        endpoint: sub.endpoint,
-        keys: { p256dh: json.keys?.['p256dh'], auth: json.keys?.['auth'] },
-        userAgent: navigator.userAgent.slice(0, 300),
-      }),
-    );
+    try {
+      await firstValueFrom(
+        this.http.post(`${this.base}/push-subscriptions`, {
+          endpoint: sub.endpoint,
+          keys: { p256dh: json.keys?.['p256dh'], auth: json.keys?.['auth'] },
+          userAgent: navigator.userAgent.slice(0, 300),
+        }),
+      );
+    } catch (err) {
+      // 伺服器沒存到就把瀏覽器那一份也取消 —— 留著的話下次 refresh 看到「金鑰相同」會判成 enabled，
+      // 畫面寫「已開啟」但伺服器根本沒有這台，永遠收不到（#1679 實機抓到）
+      await sub.unsubscribe().catch(() => undefined);
+      throw err;
+    }
     this.state.set('enabled');
   }
 

@@ -121,6 +121,28 @@ describe('PushSettingsComponent', () => {
     expect(buttons(el).filter((b) => b?.includes('開啟'))).toEqual([]);
   });
 
+  // 實機抓到的（#1679）：推播服務沒開時原本一直停在「讀取…」。Brave 預設關閉 Web Push
+  it('推播服務沒開：說明怎麼打開，沒有按鈕；通知中心照樣收得到', async () => {
+    const { fixture, el } = setup('push-blocked');
+    await settle(fixture);
+    expect(el.querySelector('[data-testid="blocked-how"]')).not.toBeNull();
+    expect(buttons(el).filter((b) => b?.includes('開啟'))).toEqual([]);
+    expect(text(el)).toContain('通知中心照樣收得到');
+  });
+
+  it('推播服務沒開、而且是 Brave：寫出 Brave 的設定路徑', async () => {
+    Object.defineProperty(navigator, 'brave', { value: {}, configurable: true });
+    try {
+      const { fixture, el } = setup('push-blocked');
+      await settle(fixture);
+      expect(el.querySelector('[data-testid="blocked-how"]')!.textContent).toContain(
+        'brave://settings/privacy',
+      );
+    } finally {
+      delete (navigator as { brave?: unknown }).brave;
+    }
+  });
+
   it('類型開關存不進去：開關放回原本的樣子', async () => {
     const { fixture, push } = setup('enabled', {
       savePreferences: vi.fn(() => throwError(() => new Error('x'))),

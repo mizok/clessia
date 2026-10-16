@@ -80,6 +80,21 @@
         (onClick)="disableHere()"
       />
     }
+    @case ('push-blocked') {
+      <!-- 已授權，但瀏覽器的推播服務不給訂閱（Brave 預設關閉 Web Push）。按鈕幫不上忙，只說明怎麼打開 -->
+      @if (brave) {
+        <p class="m-0 text-md text-zinc-700">Brave 預設關閉手機通知，要先打開：</p>
+        <p class="m-0 text-md font-semibold text-zinc-900" data-testid="blocked-how">
+          網址列輸入 brave://settings/privacy → 打開「Use Google services for push messaging」→
+          重新整理這一頁
+        </p>
+      } @else {
+        <p class="m-0 text-md text-zinc-700" data-testid="blocked-how">
+          這個瀏覽器的推播服務沒有開，收不到通知。可以改用 Chrome 或 Safari。
+        </p>
+      }
+      <p class="m-0 text-sm text-zinc-600">通知中心照樣收得到，也照樣算未讀。</p>
+    }
     @case ('denied') {
       <!-- 瀏覽器不讓網頁再問一次 —— 只能說明怎麼去設定打開，不放一顆按了沒反應的按鈕 -->
       <p class="m-0 text-md text-zinc-700">通知被關掉了，網頁沒辦法再問一次，要到設定裡打開：</p>
