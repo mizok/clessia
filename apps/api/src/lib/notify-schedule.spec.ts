@@ -98,6 +98,29 @@ describe('notifyScheduleChange（#1693：課務異動 → 任課老師，一批�
     });
   });
 
+  // 每一種的標題與內文都要斷言：換老師（assign_teacher）不是 DB 的 enum，是路由自己湊的列，
+  // 只有這裡守得住它的文字（二讀 @aa973ca3 抓到）
+  it.each([
+    ['reschedule', '調課'],
+    ['substitute', '代課'],
+    ['cancellation', '停課'],
+    ['uncancel', '復課'],
+    ['time_change', '改時間'],
+    ['makeup', '補課'],
+    ['creation', '加開課堂'],
+    ['assign_teacher', '換老師'],
+  ] as const)('%s → 標題「課務異動：%s」，內文帶班名、日期與種類', async (kind, label) => {
+    const db = seed();
+    await notifyScheduleChange(db.client as SupabaseClient, {
+      orgId: A,
+      actorUserId: 'u-admin',
+      rows: [{ session_id: 'ses-3', change_type: kind }],
+    });
+    expect(db.rows('notifications').map((n) => n['payload'])).toEqual([
+      { title: `課務異動：${label}`, body: `英文 B 班 10/21 ${label}`, url: '/teacher/schedule' },
+    ]);
+  });
+
   it('代課：原老師與代課老師都收（代課老師不是任課老師也收）', async () => {
     const db = seed();
     await notifyScheduleChange(db.client as SupabaseClient, {
