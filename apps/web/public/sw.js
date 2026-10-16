@@ -34,7 +34,9 @@ self.addEventListener('push', (event) => {
 // 點通知：已經有開著的分頁就 focus 並導過去，沒有才開新的（設計稿 §6）
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url || '/parent', self.location.origin).href;
+  // 只導到自己網站：payload 的 url 若是別的網域（不該發生，但不信它），就退回家長首頁
+  const target = new URL(event.notification.data?.url || '/parent', self.location.origin);
+  const url = target.origin === self.location.origin ? target.href : `${self.location.origin}/parent`;
   event.waitUntil(
     (async () => {
       const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

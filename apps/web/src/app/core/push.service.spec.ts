@@ -27,24 +27,30 @@ function browser(opts: {
   supported?: boolean;
   ua?: string;
   standalone?: boolean;
+  /** iPadOS 13 起回報成 Mac，靠觸控點分辨 */
+  touch?: number;
 }) {
-  const unsubscribe = vi.fn(async () => true);
+  // 跟瀏覽器一樣：取消之後 getSubscription 回 null
+  const unsubscribe = vi.fn(async () => ((current = null), true));
   const made = (key: string) => ({
     endpoint: 'https://fcm.googleapis.com/fcm/send/x',
     options: { applicationServerKey: bytes(key) },
     toJSON: () => ({ keys: { p256dh: 'p', auth: 'a' } }),
     unsubscribe,
   });
-  let current = opts.current ? made(opts.current.key) : null;
+  let current: ReturnType<typeof made> | null = opts.current ? made(opts.current.key) : null;
   const subscribe = vi.fn(async () => (current = made(KEY_A)));
   const pushManager = { getSubscription: vi.fn(async () => current), subscribe };
   const registration = { pushManager };
   if (opts.supported === false) {
-    vi.stubGlobal('navigator', { userAgent: opts.ua ?? 'Mozilla/5.0', maxTouchPoints: 0 });
+    vi.stubGlobal('navigator', {
+      userAgent: opts.ua ?? 'Mozilla/5.0',
+      maxTouchPoints: opts.touch ?? 0,
+    });
   } else {
     vi.stubGlobal('navigator', {
       userAgent: opts.ua ?? 'Mozilla/5.0 (Linux; Android 14)',
-      maxTouchPoints: 0,
+      maxTouchPoints: opts.touch ?? 0,
       serviceWorker: {
         register: vi.fn(async () => registration),
         getRegistration: vi.fn(async () => registration),
@@ -236,6 +242,86 @@ describe('PushService（#1663，設計稿 web-push.md §4 狀態表）', () => {
     await done;
     expect(unsubscribe).toHaveBeenCalled();
     expect(localStorage.getItem(PUSH_OFF_KEY)).toBe('1');
+  });
+
+  /** 審核席 #1679 突變：登出不能被推播卡住或丟錯 */
+  describe('登出前刪訂閱：不擋登出', () => {
+    const takeDelete = (http: HttpTestingController) =>
+      http.match((r) => r.method === 'DELETE' && r.url === `${ME}/push-subscriptions`);
+
+    it('DELETE 回錯：照樣結束（不往上丟），仍記下「關掉了」', async () => {
+      browser({ permission: 'granted', current: { key: KEY_A } });
+      const { service, http } = setup();
+      const done = service.forgetThisDevice();
+      let del!: TestRequest;
+      await vi.waitFor(() => {
+        const found = takeDelete(http);
+        expect(found.length).toBe(1);
+        del = found[0]!;
+      });
+      del.flush({}, { status: 500, statusText: 'x' });
+      await expect(done).resolves.toBeUndefined();
+      expect(localStorage.getItem(PUSH_OFF_KEY)).toBe('1');
+    });
+
+    it('DELETE 一直不回：3 秒後照樣結束', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] });
+      try {
+        browser({ permission: 'granted', current: { key: KEY_A } });
+        const { service, http } = setup();
+        let finished = false;
+        const done = service.forgetThisDevice().then(() => (finished = true));
+        // 讓 getRegistration／getSubscription 的 await 跑完、DELETE 送出
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+        expect(takeDelete(http)).toHaveLength(1); // 取走、永遠不回
+        await vi.advanceTimersByTimeAsync(2999);
+        expect(finished).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        await done;
+        expect(finished).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it('本人按「關閉這台」之後：下一次偵測不自動重訂（off）', async () => {
+    const { subscribe } = browser({ permission: 'granted', current: { key: KEY_A } });
+    const { service, http } = setup();
+    const off = service.disableHere();
+    let del!: TestRequest;
+    await vi.waitFor(() => {
+      const found = http.match((r) => r.method === 'DELETE');
+      expect(found.length).toBe(1);
+      del = found[0]!;
+    });
+    del.flush({ deleted: 1 });
+    await off;
+    expect(service.state()).toBe('off');
+
+    const again = service.refresh();
+    await reply(http, 'GET', `${ME}/push-config`, { publicKey: KEY_A });
+    await again;
+    expect(service.state()).toBe('off');
+    expect(subscribe).not.toHaveBeenCalled();
+  });
+
+  it('iPadOS（回報成 Mac、有觸控點）而且不是從主畫面開的：installable', async () => {
+    browser({
+      supported: false,
+      ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15',
+      touch: 5,
+    });
+    const { service } = setup();
+    await service.refresh();
+    expect(service.state()).toBe('installable');
+  });
+
+  it('真的 Mac（沒有觸控點）：unsupported，不叫人加入主畫面', async () => {
+    browser({ supported: false, ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' });
+    const { service } = setup();
+    await service.refresh();
+    expect(service.state()).toBe('unsupported');
   });
 
   it('按「開啟」：清掉「關掉了」的記號，問權限、訂閱', async () => {
