@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { NEVER, of, throwError, type Observable } from 'rxjs';
+import { NEVER, Observable, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
@@ -315,6 +315,23 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       expect(notifMarkReadMock).toHaveBeenCalledWith('n');
       expect(navigate).toHaveBeenCalledWith('/parent/payments');
       expect(unread()).toBe(0);
+    });
+
+    it('點有 link 的通知、導頁之後標已讀的請求不被取消；失敗時角標一起翻回', async () => {
+      await setup([], [notification({ id: 'n', link: '/parent/payments' })]);
+      vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      let fail!: (e: unknown) => void;
+      notifMarkReadMock.mockReturnValue(
+        new Observable<void>((sub) => {
+          fail = (e) => sub.error(e);
+        }),
+      );
+      toggle(items()[0]!);
+      expect(badge.setNotificationsUnread).toHaveBeenLastCalledWith(0);
+
+      fixture.destroy(); // 導頁 → 元件 destroy
+      fail(new Error('boom'));
+      expect(badge.setNotificationsUnread).toHaveBeenLastCalledWith(1);
     });
 
     it('通知讀取失敗：公告照樣顯示，寫一行「通知暫時讀不到」', async () => {

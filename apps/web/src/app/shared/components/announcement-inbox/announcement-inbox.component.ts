@@ -5,7 +5,6 @@ import {
   Component,
   DestroyRef,
   computed,
-  effect,
   inject,
   input,
   signal,
@@ -168,11 +167,6 @@ export class AnnouncementInboxComponent {
   protected readonly openKey = signal<string | null>(null);
 
   constructor() {
-    effect(() => {
-      const u = this.unreadBy();
-      if (u.announcement !== null) this.badge.setAnnouncementsUnread(u.announcement);
-      if (u.notification !== null) this.badge.setNotificationsUnread(u.notification);
-    });
     this.load();
   }
 
@@ -193,13 +187,16 @@ export class AnnouncementInboxComponent {
   /**
    * 樂觀更新：先把畫面標成已讀，再送請求。
    * 失敗就翻回未讀 —— 顯示成已讀但實際沒存到，下次進來又冒出來才是更糟的體驗。
+   *
+   * **標已讀的請求不跟元件同生死**（不掛 `takeUntilDestroyed`）：點有 `link` 的通知會馬上導頁、
+   * 元件跟著 destroy，掛了的話 POST 會被取消，回來還是未讀（#1683 第二段實機抓到）。
+   * 翻回時角標也一起翻（`setRead` 直接寫角標，不靠元件的 effect）。
    */
   private markRead(item: InboxItem): void {
     this.setRead(item.source, [item.id], true);
 
     this.api[item.source]
       .markRead(item.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ error: () => this.setRead(item.source, [item.id], false) });
   }
 
@@ -220,15 +217,13 @@ export class AnnouncementInboxComponent {
       if (count === 0 && ids.length === 0) continue;
 
       this.setRead(source, ids, true, count);
-      this.api[source]
-        .markAllRead()
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          error: () => {
-            this.setRead(source, ids, false, count);
-            this.markAllPartial.set(true);
-          },
-        });
+      // 同 markRead：按完馬上離開頁面也要送得到
+      this.api[source].markAllRead().subscribe({
+        error: () => {
+          this.setRead(source, ids, false, count);
+          this.markAllPartial.set(true);
+        },
+      });
     }
   }
 
@@ -244,6 +239,15 @@ export class AnnouncementInboxComponent {
       if (n === null) return u;
       return { ...u, [source]: Math.max(0, n + (isRead ? -delta : delta)) };
     });
+    this.syncBadge(source);
+  }
+
+  /** 頂欄角標跟著這裡的數字走，不另外打。讀取失敗那邊（null）不寫，角標保留它自己抓到的值 */
+  private syncBadge(source: Source): void {
+    const n = this.unreadBy()[source];
+    if (n === null) return;
+    if (source === 'announcement') this.badge.setAnnouncementsUnread(n);
+    else this.badge.setNotificationsUnread(n);
   }
 
   private load(): void {
@@ -259,6 +263,7 @@ export class AnnouncementInboxComponent {
           next: (res) => {
             this.lists.update((l) => ({ ...l, [source]: res.data }));
             this.unreadBy.update((u) => ({ ...u, [source]: res.meta.unread }));
+            this.syncBadge(source);
             done();
           },
           error: () => {

@@ -3,6 +3,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService } from '@core/announcements.service';
+import { NotificationsService } from '@core/notifications.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 import { NotificationsComponent } from './notifications.component';
@@ -24,6 +25,7 @@ describe('ParentNotificationsComponent', () => {
             isRead: false,
           },
         ],
+        meta: { total: 1, unread: 1 },
       }),
     ),
     markRead: vi.fn(() => of({})),
@@ -35,7 +37,18 @@ describe('ParentNotificationsComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
-      providers: [{ provide: AnnouncementsService, useValue: announcementsServiceMock }],
+      providers: [
+        { provide: AnnouncementsService, useValue: announcementsServiceMock },
+        // 通知那一支（#1683 第二段）：空的，這一層只驗接線
+        {
+          provide: NotificationsService,
+          useValue: {
+            inbox: () => of({ data: [], meta: { total: 0, unread: 0 } }),
+            markRead: () => of(undefined),
+            markAllRead: () => of({ marked: 0 }),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(NotificationsComponent);
