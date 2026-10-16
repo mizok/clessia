@@ -135,6 +135,7 @@
 - [[specs/parent/renewal]] — 預覽即將自動續課的內容，申請異動。
 - [[specs/parent/schedule]] — 查看孩子的課表和課堂詳情。
 - [[specs/parent/trial]] — 已有帳號的家長為孩子申請試聽其他課程。
+- [[specs/public/application-forms-a6]] — 設計稿（#1637，未批准）：公開試聽／報名表單照 A6；後端與行政收件已上線，只缺前端頁與四個缺口（試聽關係欄、分校聯絡資訊、個資保存期限、captcha）。
 - [[specs/public/enrollment]] — 新家長為孩子提交報名申請。
 - [[specs/public/login]] — 一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
 - [[specs/public/qr-checkin]] — 學生掃碼完成當日到班登記。
