@@ -374,12 +374,16 @@ if (existsSync(apiIndex)) {
   // 所以放行的條件是「路徑在 /api/public/ 底下 **且** 出現在 authMiddleware 之前」，
   // 不是「路徑在 /api/public/ 底下」—— 後者會讓一支掛錯位置的公開端點綠著上線卻永遠 401。
   // 只認行首那一行 —— 註解裡也寫得出同一串字（index.ts 就有一處），找到註解會把位置算錯
+  //
+  // **第二個例外：系統排程端點 `/api/internal/*`（#1661）**。呼叫者是 cron，不是人 —— 沒有 session、
+  // 沒有角色可宣告；唯一的門是部署密鑰（`CRON_SECRET`，沒設就 404），寫在該路由檔裡。
+  // 條件同上：必須掛在 authMiddleware **之前**，否則 cron 永遠拿 401。
   const authAt = source.search(/^app\.use\('\/api\/\*', authMiddleware\)/m);
   for (const match of source.matchAll(/app\.route\('(\/api\/[^']+)'/g)) {
     const path = match[1];
-    if (path.startsWith('/api/public/')) {
+    if (path.startsWith('/api/public/') || path.startsWith('/api/internal/')) {
       if (authAt === -1 || match.index > authAt) {
-        fail(`${path} 是公開端點，必須掛在 app.use('/api/*', authMiddleware) 之前`);
+        fail(`${path} 不經登入，必須掛在 app.use('/api/*', authMiddleware) 之前`);
       }
       continue;
     }

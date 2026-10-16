@@ -33,6 +33,8 @@ Better Auth 每個請求本來就建一個 `pg` 池（`getAuth(c).pool`，正式
 
 1. **只在「多步寫入必須全有或全無」時用。** 單句寫入照舊走 supabase-js —— PostgREST
    那一句本身就是交易，改走池只是多一套寫法。
+   **第二個正當理由是 subrequest 額度**（#1661 推播排程）：免費方案一次 Cron 只有 50 個 subrequest，
+   supabase-js 走 HTTP、每句都算一個；pg 走 Hyperdrive 不算。這種情況用池讀寫，但未必需要交易。
 2. **用 `withTx(pool, fn)` 包**（`apps/api/src/lib/pg-tx.ts`）：BEGIN → fn → COMMIT；
    fn 丟例外就 ROLLBACK 後原樣丟出；ROLLBACK 也失敗（連線壞了）就 `release(err)`
    讓池丟掉那條連線。不要自己手寫 BEGIN／COMMIT。
@@ -54,7 +56,11 @@ Better Auth 每個請求本來就建一個 `pg` 池（`getAuth(c).pool`，正式
    | 其他例外                          | 500，整筆已回滾；**不要折成 404**（#1651 的教訓）      |
    | `getAuth(c).pool` 不在            | 500。**不能退回沒有交易的舊寫法** —— 那條就是 bug 本身 |
 
-7. **要有契約測試對真 Postgres**（`apps/api/src/contract/*.contract.ts`，CI 的 api-contract job 跑）。
+7. **交易裡不做對外 I/O**（#1661）：fetch 第三方服務期間交易開著，對方一慢，交易與它握的鎖就跟著拖；
+   正式 DB 有沒有 `idle_in_transaction_session_timeout` 之類的逾時也不該由程式碼去賭。要「先佔住、再對外、再回寫」時，
+   拆成**短交易認領**（`FOR UPDATE SKIP LOCKED`＋在列上留認領記號）→ **交易外**對外呼叫（每次都帶逾時）→ **短交易回寫**。
+   範本：`apps/api/src/lib/push-run.ts`；契約測試在對外呼叫的當下用另一條連線 `FOR UPDATE NOWAIT` 證明鎖已經放了。
+8. **要有契約測試對真 Postgres**（`apps/api/src/contract/*.contract.ts`，CI 的 api-contract job 跑）。
    SQL 語意（org 條件、FOR UPDATE、FK）替身驗不出來；替身只驗交易形狀（BEGIN／ROLLBACK／release）。
    契約測試自己建資料、自己清，不碰 seed。
 
