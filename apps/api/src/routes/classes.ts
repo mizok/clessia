@@ -19,6 +19,7 @@ import type {
   BatchAssignConflict,
 } from '../domain/session-assignment/session-assignment.types';
 import { waitUntilFrom } from '../lib/wait-until';
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import { hasPermission } from '../lib/permissions';
 import { loadLatestExams, type LatestExam } from '../lib/class-latest-exam';
 import {
@@ -2349,6 +2350,22 @@ app.openapi(
         return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
       }
 
+      // #1693：這支不寫流水，通知照樣發（Q3）；原老師與新老師都收
+      const batchId = crypto.randomUUID();
+      const previousTeacher = new Map(
+        (classSessions ?? []).map((s) => [s.id as string, (s.teacher_id as string | null) ?? null]),
+      );
+      await queueScheduleChangeNotice(
+        c,
+        plan.updatedIds.map((sessionId) => ({
+          session_id: sessionId,
+          change_type: 'assign_teacher' as const,
+          batch_id: batchId,
+          original_teacher_id: previousTeacher.get(sessionId) ?? null,
+          substitute_teacher_id: body.toTeacherId,
+        })),
+      );
+
       logAudit(
         supabase,
         {
@@ -2633,6 +2650,16 @@ app.openapi(
         return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
       }
 
+      // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+      await queueScheduleChangeNotice(
+        c,
+        processableIds.map((sessionId) => ({
+          session_id: sessionId,
+          change_type: 'reschedule' as const,
+          batch_id: batchId,
+        })),
+      );
+
       logAudit(
         supabase,
         {
@@ -2799,6 +2826,16 @@ app.openapi(
       if (insertChangeError) {
         return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
       }
+
+      // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+      await queueScheduleChangeNotice(
+        c,
+        processableIds.map((sessionId) => ({
+          session_id: sessionId,
+          change_type: 'cancellation' as const,
+          batch_id: batchId,
+        })),
+      );
 
       logAudit(
         supabase,
@@ -3094,6 +3131,17 @@ app.openapi(
         return c.json({ error: reopenError.message, code: 'DB_ERROR' }, 400);
       }
 
+      // #1693：這支不寫流水，通知照樣發（Q3）
+      const batchId = crypto.randomUUID();
+      await queueScheduleChangeNotice(
+        c,
+        processableIds.map((sessionId) => ({
+          session_id: sessionId,
+          change_type: 'uncancel' as const,
+          batch_id: batchId,
+        })),
+      );
+
       logAudit(
         supabase,
         {
@@ -3225,6 +3273,16 @@ app.openapi(
       if (insertError) {
         return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
       }
+
+      // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+      await queueScheduleChangeNotice(
+        c,
+        sessionIds.map((sessionId) => ({
+          session_id: sessionId,
+          change_type: 'cancellation' as const,
+          batch_id: batchId,
+        })),
+      );
 
       // 同 `/{id}/sessions/batch-cancel` 的稽核形狀（#1336）—— 整班未來課全停是影響最大的批次動作
       logAudit(

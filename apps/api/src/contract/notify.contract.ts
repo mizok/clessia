@@ -3,7 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import { Pool } from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { adminsForCampuses, notify, teachersForSessions } from '../lib/notify';
+import {
+  adminsForCampuses,
+  notify,
+  teachersForSessionGroups,
+  teachersForSessions,
+} from '../lib/notify';
+import { groupByClass } from '../lib/notify-schedule';
 
 /**
  * #1693：收件人推導對**真的** PostgREST 跑，結果要跟「同一題用 SQL 獨立算一次」逐筆相同
@@ -108,6 +114,48 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
       if (bySql.length > 0) nonEmpty++;
     }
     expect(nonEmpty).toBeGreaterThan(0); // 全空的話什麼都沒比到
+  });
+
+  it('課務異動一批跨班：groupByClass＋teachersForSessionGroups 每班與 SQL 逐筆相同（#1693）', async () => {
+    // 同一個 org 裡挑兩個班、各兩堂，當成同一批
+    const picked = await q<{ id: string; org_id: string; class_id: string; name: string }>(
+      `WITH k AS (
+         SELECT s.org_id, s.class_id FROM sessions s GROUP BY s.org_id, s.class_id
+         HAVING count(*) >= 2 ORDER BY s.org_id, s.class_id LIMIT 2)
+       SELECT s.id, s.org_id, s.class_id, c.name FROM k
+       CROSS JOIN LATERAL (SELECT id, org_id, class_id FROM sessions
+         WHERE class_id = k.class_id ORDER BY session_date, id LIMIT 2) s
+       JOIN classes c ON c.id = s.class_id`,
+    );
+    const orgId = picked[0]!.org_id;
+    const rows = picked
+      .filter((p) => p.org_id === orgId)
+      .map((p) => ({ session_id: p.id, change_type: 'cancellation' as const }));
+    expect(new Set(picked.filter((p) => p.org_id === orgId).map((p) => p.class_id)).size).toBe(2);
+
+    const groups = await groupByClass(supabase, orgId, rows);
+    const recipients = await teachersForSessionGroups(supabase, orgId, groups);
+    for (const p of picked.filter((x) => x.org_id === orgId)) {
+      expect(groups.get(p.class_id)?.name).toBe(p.name); // classes(name) 的嵌入真的取得到
+    }
+    let nonEmpty = 0;
+    for (const [classId, g] of groups) {
+      const bySql = (
+        await q<{ user_id: string }>(
+          `SELECT DISTINCT st.user_id FROM staff st
+           JOIN user_roles ur ON ur.user_id = st.user_id AND ur.role = 'teacher'
+           WHERE st.org_id = $1 AND st.status = 'active' AND st.id IN (
+             SELECT teacher_id FROM sessions WHERE id = ANY($2) AND org_id = $1 AND teacher_id IS NOT NULL
+             UNION
+             SELECT sc.teacher_id FROM schedules sc JOIN classes c ON c.id = sc.class_id
+             WHERE c.org_id = $1 AND sc.class_id = $3 AND sc.teacher_id IS NOT NULL)`,
+          [orgId, g.sessionIds, classId],
+        )
+      ).map((r) => r.user_id);
+      expect(sorted(recipients.get(classId) ?? [])).toEqual(sorted(bySql));
+      if (bySql.length > 0) nonEmpty++;
+    }
+    expect(nonEmpty).toBeGreaterThan(0);
   });
 
   it('notify：寫進去就是 skipped／ROLE_PUSH_DISABLED；同一個鍵再寫一次不會多一則', async () => {

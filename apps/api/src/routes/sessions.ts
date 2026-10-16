@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { buildSubstitutedAwayEntries, type SubstitutedAwayRow } from './sessions/substituted-away';
@@ -1354,6 +1355,9 @@ app.openapi(createSessionRoute, async (c) => {
     return c.json({ error: '加開課堂失敗', code: 'CREATE_LOG_FAILED' }, 500);
   }
 
+  // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+  await queueScheduleChangeNotice(c, [{ session_id: sessionId, change_type: 'creation' }]);
+
   // 讀回列表的形狀（新課堂沒有 event、沒有點名，只差在籍人數要查）
   const [{ data: row }, { data: enrollmentRows }] = await Promise.all([
     supabase
@@ -1887,6 +1891,9 @@ app.openapi(setSessionMakeupRoute, async (c) => {
     return c.json({ error: '設定補課失敗', code: 'MAKEUP_LOG_FAILED' }, 500);
   }
 
+  // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+  await queueScheduleChangeNotice(c, [{ session_id: id, change_type: 'makeup' }]);
+
   return c.json({ ok: true }, 200);
 });
 
@@ -2091,6 +2098,9 @@ app.openapi(cancelSessionRoute, async (c) => {
   if (insertError) {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
   }
+
+  // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+  await queueScheduleChangeNotice(c, [{ session_id: id, change_type: 'cancellation' }]);
 
   logAudit(
     supabase,
@@ -2376,6 +2386,16 @@ app.openapi(substituteSessionRoute, async (c) => {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
   }
 
+  // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+  await queueScheduleChangeNotice(c, [
+    {
+      session_id: id,
+      change_type: 'substitute',
+      original_teacher_id: sessionState.teacherId ?? null,
+      substitute_teacher_id: body.substituteTeacherId,
+    },
+  ]);
+
   logAudit(
     supabase,
     {
@@ -2596,6 +2616,9 @@ app.openapi(rescheduleSessionRoute, async (c) => {
   if (insertError) {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
   }
+
+  // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+  await queueScheduleChangeNotice(c, [{ session_id: id, change_type: 'reschedule' }]);
 
   logAudit(
     supabase,
@@ -2967,6 +2990,20 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
   }
 
   if (!dryRun) {
+    // #1693：這支不寫流水（#1100 §2），通知照樣發（Q3）；原老師與新老師都收
+    const batchId = crypto.randomUUID();
+    const previousTeacher = new Map(sortedTargets.map((t) => [t.id, t.teacher_id]));
+    await queueScheduleChangeNotice(
+      c,
+      updatedIds.map((sessionId) => ({
+        session_id: sessionId,
+        change_type: 'assign_teacher' as const,
+        batch_id: batchId,
+        original_teacher_id: previousTeacher.get(sessionId) ?? null,
+        substitute_teacher_id: body.teacherId,
+      })),
+    );
+
     logAudit(
       supabase,
       {
@@ -3244,20 +3281,19 @@ app.openapi(batchSubstituteRoute, async (c) => {
 
     // ② 逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195）
     const batchId = crypto.randomUUID();
-    const { error: logError } = await supabase.from('schedule_changes').insert(
-      processable.map((s) => ({
-        org_id: orgId,
-        session_id: s.id,
-        change_type: 'substitute' as const,
-        original_teacher_id: s.teacher_id,
-        original_teacher_name: nameById.get(s.teacher_id as string) ?? null,
-        substitute_teacher_id: substituteId,
-        reason: body.reason ?? null,
-        created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
-        operation_source: 'batch' as const,
-        batch_id: batchId,
-      })),
-    );
+    const changeRows = processable.map((s) => ({
+      org_id: orgId,
+      session_id: s.id,
+      change_type: 'substitute' as const,
+      original_teacher_id: s.teacher_id,
+      original_teacher_name: nameById.get(s.teacher_id as string) ?? null,
+      substitute_teacher_id: substituteId,
+      reason: body.reason ?? null,
+      created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+      operation_source: 'batch' as const,
+      batch_id: batchId,
+    }));
+    const { error: logError } = await supabase.from('schedule_changes').insert(changeRows);
     if (logError) {
       // 補償：照原老師分組改回去
       const reverts = await Promise.all(
@@ -3279,6 +3315,9 @@ app.openapi(batchSubstituteRoute, async (c) => {
       );
       return c.json({ error: '批次代課失敗', code: 'SUBSTITUTE_LOG_FAILED' }, 500);
     }
+
+    // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+    await queueScheduleChangeNotice(c, changeRows);
 
     logAudit(
       supabase,
@@ -3544,6 +3583,9 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
     if (insertChangeError) {
       return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
     }
+
+    // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+    await queueScheduleChangeNotice(c, changes);
   }
 
   if (!dryRun) {
@@ -3894,26 +3936,25 @@ app.openapi(batchRescheduleRoute, async (c) => {
       .select('display_name')
       .eq('id', userId)
       .maybeSingle();
-    const { error: logError } = await supabase.from('schedule_changes').insert(
-      processable.map((t) => {
-        const l = landing.get(t.id)!;
-        return {
-          org_id: orgId,
-          session_id: t.id,
-          change_type: 'reschedule' as const,
-          original_session_date: t.session_date,
-          original_start_time: t.start_time,
-          original_end_time: t.end_time,
-          new_session_date: l.date,
-          new_start_time: l.start,
-          new_end_time: l.end,
-          reason: body.reason ?? null,
-          created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
-          operation_source: 'batch' as const,
-          batch_id: batchId,
-        };
-      }),
-    );
+    const changeRows = processable.map((t) => {
+      const l = landing.get(t.id)!;
+      return {
+        org_id: orgId,
+        session_id: t.id,
+        change_type: 'reschedule' as const,
+        original_session_date: t.session_date,
+        original_start_time: t.start_time,
+        original_end_time: t.end_time,
+        new_session_date: l.date,
+        new_start_time: l.start,
+        new_end_time: l.end,
+        reason: body.reason ?? null,
+        created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+        operation_source: 'batch' as const,
+        batch_id: batchId,
+      };
+    });
+    const { error: logError } = await supabase.from('schedule_changes').insert(changeRows);
     if (logError) {
       const reverted = await moveBack(moved);
       console.error(
@@ -3922,6 +3963,9 @@ app.openapi(batchRescheduleRoute, async (c) => {
       );
       return c.json({ error: '批次調課失敗', code: 'RESCHEDULE_LOG_FAILED' }, 500);
     }
+
+    // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+    await queueScheduleChangeNotice(c, changeRows);
 
     logAudit(
       supabase,
@@ -4092,32 +4136,34 @@ app.openapi(batchCancelRoute, async (c) => {
       return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
     }
 
-    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
-      buildBatchSessionChangeInserts({
-        orgId,
-        batchId: crypto.randomUUID(),
-        createdByName: profile?.display_name ?? null,
-        changeType: 'cancellation',
-        sessionStates: targetSessions
-          .filter((session) => processableIds.includes(session.id))
-          .map((session) => ({
-            sessionId: session.id,
-            assignmentStatus: session.teacher_id ? 'assigned' : 'unassigned',
-            status: session.status,
-            classId: session.class_id,
-            sessionDate: session.session_date,
-            startTime: session.start_time,
-            endTime: session.end_time,
-            teacherId: session.teacher_id,
-            teacherName: null,
-          })),
-        reason: body.reason ?? null,
-      }),
-    );
+    const changeRows = buildBatchSessionChangeInserts({
+      orgId,
+      batchId: crypto.randomUUID(),
+      createdByName: profile?.display_name ?? null,
+      changeType: 'cancellation',
+      sessionStates: targetSessions
+        .filter((session) => processableIds.includes(session.id))
+        .map((session) => ({
+          sessionId: session.id,
+          assignmentStatus: session.teacher_id ? 'assigned' : 'unassigned',
+          status: session.status,
+          classId: session.class_id,
+          sessionDate: session.session_date,
+          startTime: session.start_time,
+          endTime: session.end_time,
+          teacherId: session.teacher_id,
+          teacherName: null,
+        })),
+      reason: body.reason ?? null,
+    });
+    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(changeRows);
 
     if (insertChangeError) {
       return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
     }
+
+    // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+    await queueScheduleChangeNotice(c, changeRows);
   }
 
   if (!dryRun) {
@@ -4496,31 +4542,33 @@ app.openapi(batchUncancelRoute, async (c) => {
       .eq('id', userId)
       .maybeSingle();
 
-    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
-      buildBatchSessionChangeInserts({
-        orgId,
-        batchId: crypto.randomUUID(),
-        createdByName: profile?.display_name ?? null,
-        changeType: 'uncancel',
-        sessionStates: targetSessions
-          .filter((session) => processableIds.includes(session.id))
-          .map((session) => ({
-            sessionId: session.id,
-            assignmentStatus: session.teacher_id ? 'assigned' : 'unassigned',
-            status: session.status,
-            classId: session.class_id,
-            sessionDate: session.session_date,
-            startTime: session.start_time,
-            endTime: session.end_time,
-            teacherId: session.teacher_id,
-            teacherName: null,
-          })),
-      }),
-    );
+    const changeRows = buildBatchSessionChangeInserts({
+      orgId,
+      batchId: crypto.randomUUID(),
+      createdByName: profile?.display_name ?? null,
+      changeType: 'uncancel',
+      sessionStates: targetSessions
+        .filter((session) => processableIds.includes(session.id))
+        .map((session) => ({
+          sessionId: session.id,
+          assignmentStatus: session.teacher_id ? 'assigned' : 'unassigned',
+          status: session.status,
+          classId: session.class_id,
+          sessionDate: session.session_date,
+          startTime: session.start_time,
+          endTime: session.end_time,
+          teacherId: session.teacher_id,
+          teacherName: null,
+        })),
+    });
+    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(changeRows);
 
     if (insertChangeError) {
       return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
     }
+
+    // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+    await queueScheduleChangeNotice(c, changeRows);
   }
 
   if (!dryRun) {

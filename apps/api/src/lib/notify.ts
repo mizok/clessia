@@ -150,49 +150,105 @@ export async function teachersForSessions(
   sessionIds: readonly string[],
   options: { readonly extraStaffIds?: readonly string[]; readonly excludeUserId?: string } = {},
 ): Promise<string[]> {
-  const staffIds = new Set(options.extraStaffIds ?? []);
-  if (sessionIds.length > 0) {
+  const groups = await teachersForSessionGroups(
+    supabase,
+    orgId,
+    new Map([['all', { sessionIds, extraStaffIds: options.extraStaffIds }]]),
+    { excludeUserId: options.excludeUserId },
+  );
+  return groups.get('all') ?? [];
+}
+
+/**
+ * `teachersForSessions` 的分組版：一次查完、**查詢句數固定（4 句），不隨組數成長** ——
+ * 課務異動一批可能跨好幾個班，每班一則通知，逐班呼叫會把 subrequest 吃光。
+ * 每組的收件人只算**那一組的課堂**（別班的老師不會因為同一批而收到）。
+ */
+export async function teachersForSessionGroups<K>(
+  supabase: SupabaseClient,
+  orgId: string,
+  groups: ReadonlyMap<
+    K,
+    { readonly sessionIds: readonly string[]; readonly extraStaffIds?: readonly string[] }
+  >,
+  options: { readonly excludeUserId?: string } = {},
+): Promise<Map<K, string[]>> {
+  const allSessionIds = [...new Set([...groups.values()].flatMap((g) => g.sessionIds))];
+  const sessionById = new Map<string, { class_id: string; teacher_id: string | null }>();
+  const classTeachers = new Map<string, string[]>();
+  if (allSessionIds.length > 0) {
     const { data: sessions, error } = await supabase
       .from('sessions')
-      .select('class_id, teacher_id')
+      .select('id, class_id, teacher_id')
       .eq('org_id', orgId)
-      .in('id', sessionIds);
+      .in('id', allSessionIds);
     if (error) throw new Error(`查詢課堂失敗：${error.message}`);
-    const rows = (sessions ?? []) as Array<{ class_id: string; teacher_id: string | null }>;
-    for (const r of rows) if (r.teacher_id) staffIds.add(r.teacher_id);
-    const classIds = [...new Set(rows.map((r) => r.class_id))];
+    for (const r of (sessions ?? []) as Array<{
+      id: string;
+      class_id: string;
+      teacher_id: string | null;
+    }>) {
+      sessionById.set(r.id, r);
+    }
+    const classIds = [...new Set([...sessionById.values()].map((r) => r.class_id))];
     if (classIds.length > 0) {
       // schedules 沒有 org_id —— org 的界線走 classes（同 taughtClassIds）
       const { data: schedules, error: schedError } = await supabase
         .from('schedules')
-        .select('teacher_id, classes!inner(org_id)')
+        .select('class_id, teacher_id, classes!inner(org_id)')
         .eq('classes.org_id', orgId)
         .in('class_id', classIds);
       if (schedError) throw new Error(`查詢任課老師失敗：${schedError.message}`);
-      for (const s of (schedules ?? []) as Array<{ teacher_id: string | null }>) {
-        if (s.teacher_id) staffIds.add(s.teacher_id);
+      for (const s of (schedules ?? []) as Array<{ class_id: string; teacher_id: string | null }>) {
+        if (s.teacher_id) {
+          classTeachers.set(s.class_id, [...(classTeachers.get(s.class_id) ?? []), s.teacher_id]);
+        }
       }
     }
   }
-  if (staffIds.size === 0) return [];
+
+  const staffByGroup = new Map<K, Set<string>>();
+  for (const [key, g] of groups) {
+    const staffIds = new Set(g.extraStaffIds ?? []);
+    for (const id of g.sessionIds) {
+      const s = sessionById.get(id);
+      if (!s) continue;
+      if (s.teacher_id) staffIds.add(s.teacher_id);
+      for (const t of classTeachers.get(s.class_id) ?? []) staffIds.add(t);
+    }
+    staffByGroup.set(key, staffIds);
+  }
+  const out = new Map<K, string[]>([...groups.keys()].map((k) => [k, []]));
+  const allStaffIds = [...new Set([...staffByGroup.values()].flatMap((s) => [...s]))];
+  if (allStaffIds.length === 0) return out;
 
   const { data: staff, error: staffError } = await supabase
     .from('staff')
-    .select('user_id')
+    .select('id, user_id')
     .eq('org_id', orgId)
     .eq('status', 'active')
-    .in('id', [...staffIds]);
+    .in('id', allStaffIds);
   if (staffError) throw new Error(`查詢教職員失敗：${staffError.message}`);
-  const userIds = [...new Set(((staff ?? []) as Array<{ user_id: string }>).map((s) => s.user_id))];
-  if (userIds.length === 0) return [];
+  const userByStaff = new Map(
+    ((staff ?? []) as Array<{ id: string; user_id: string }>).map((s) => [s.id, s.user_id]),
+  );
+  if (userByStaff.size === 0) return out;
 
   const { data: teachers, error: rolesError } = await supabase
     .from('user_roles')
     .select('user_id')
     .eq('role', 'teacher')
-    .in('user_id', userIds);
+    .in('user_id', [...new Set(userByStaff.values())]);
   if (rolesError) throw new Error(`查詢角色失敗：${rolesError.message}`);
-  const out = new Set(((teachers ?? []) as Array<{ user_id: string }>).map((t) => t.user_id));
-  if (options.excludeUserId) out.delete(options.excludeUserId);
-  return [...out];
+  const isTeacher = new Set(((teachers ?? []) as Array<{ user_id: string }>).map((t) => t.user_id));
+
+  for (const [key, staffIds] of staffByGroup) {
+    const users = new Set<string>();
+    for (const id of staffIds) {
+      const u = userByStaff.get(id);
+      if (u && isTeacher.has(u) && u !== options.excludeUserId) users.add(u);
+    }
+    out.set(key, [...users]);
+  }
+  return out;
 }
