@@ -409,6 +409,25 @@ describe('SessionsPage', () => {
     );
   });
 
+  // #1641 項 3：換週／換日資料套上時依方向淡入；從週切到日是模式切換，不給方向
+  it('換週／換日給方向；週視圖點一天（切回日視圖）不給', () => {
+    const c = component as unknown as {
+      setDay: (d: Date) => void;
+      setView: (v: 'day' | 'week') => void;
+      shiftWeek: (n: number) => void;
+      contentMotion: () => { dir: string } | null;
+    };
+    c.setDay(new Date(2026, 9, 7));
+    c.shiftWeek(1);
+    expect(c.contentMotion()?.dir).toBe('forward');
+    c.setDay(new Date(2026, 9, 13));
+    expect(c.contentMotion()?.dir).toBe('back');
+    c.setView('week');
+    const before = c.contentMotion();
+    c.setDay(new Date(2026, 9, 16));
+    expect(c.contentMotion()).toBe(before);
+  });
+
   describe('快速選取（#1174 G3）', () => {
     const ses = (id: string, over: Partial<Session> = {}) =>
       ({
@@ -2045,6 +2064,27 @@ describe('SessionsPage', () => {
       expect(thisWeekBtn()).toBeUndefined();
       const day = (component as unknown as { day: () => Date }).day();
       expect(day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate()).toBe(20260415);
+    });
+
+    // #1641 項 3 審核席：「本週」一出現就把 ‹ › 往左推的話，連點下一週的第二下會落到別的按鈕上
+    it('「本週」鈕在桌機排在 ‹ 之前（出現時不推動箭頭）', () => {
+      (component as unknown as { shiftWeek: (n: number) => void }).shiftWeek(1);
+      fixture.detectChanges();
+      expect(thisWeekBtn()!.classList).toContain('wide:order-first');
+    });
+
+    // #1641 項 3 審核席：換週失敗後殘留的方向，不能被下一次非換週的重查拿去用
+    it('換週查詢失敗後，非換週的重查成功不給方向', () => {
+      const c = component as unknown as {
+        shiftWeek: (n: number) => void;
+        loadSessions: () => void;
+        contentMotion: () => unknown;
+      };
+      sessionsServiceMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+      c.shiftWeek(1);
+      expect(c.contentMotion()).toBeNull();
+      c.loadSessions();
+      expect(c.contentMotion()).toBeNull();
     });
 
     it('今天是這週的週日、但週日沒有課：週日格照樣出現', () => {
