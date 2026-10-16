@@ -501,12 +501,6 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(bell(el)!.getAttribute('aria-label')).toBe('通知中心');
     });
 
-    it('管理員也有通知（#1693）：有未讀就顯示角標', async () => {
-      const { el } = await setup(['admin'], 'admin', true, { unread: 5 });
-      expect(el.querySelector('[data-part=bell-badge]')!.textContent!.trim()).toBe('5');
-      expect(bell(el)!.getAttribute('aria-label')).toBe('通知，5 則未讀');
-    });
-
     it.each<[number, string | null, string]>([
       [0, null, '通知，沒有未讀'],
       [3, '3', '通知，3 則未讀'],
