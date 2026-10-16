@@ -26,7 +26,7 @@
  * - **不驗值**：`.eq('org_id', somethingElse)` 也算過。
  */
 
-/** 從 migration 文字推導「有 `org_id` 欄位的表」。照檔名順序餵進來（時間戳 = 套用順序）。 */
+/** 從 migration 文字推導「有 `org_id` 欄位的表」（create／add column／rename to／drop）。照檔名順序餵進來（時間戳 = 套用順序）。 */
 export function orgTablesFromMigrations(sqlTexts) {
   const tables = new Set();
   for (const raw of sqlTexts) {
@@ -47,6 +47,9 @@ export function orgTablesFromMigrations(sqlTexts) {
       } else {
         const stmt = rest.slice(0, rest.indexOf(';') === -1 ? undefined : rest.indexOf(';'));
         if (/add\s+column\s+(?:if\s+not\s+exists\s+)?org_id\b/i.test(stmt)) tables.add(table);
+        // 改名（#1687 push_deliveries → notifications）：org 表的身分跟著新名字走
+        const renamed = stmt.match(/^\s*rename\s+to\s+(?:public\.)?"?(\w+)"?/i);
+        if (renamed && tables.delete(table)) tables.add(renamed[1].toLowerCase());
       }
     }
   }
