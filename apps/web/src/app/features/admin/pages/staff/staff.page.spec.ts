@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService } from '@core/campuses.service';
 import { CampusContextService } from '@core/campus-context.service';
@@ -57,6 +57,7 @@ describe('StaffPage', () => {
   const staffServiceMock = {
     list: vi.fn(() => of(buildStaffResponse())),
     createLoginLink: vi.fn(() => of({ url: 'https://x/verify?token=t', expiresInSeconds: 86400 })),
+    archive: vi.fn(),
   };
   const dialogServiceMock = { open: vi.fn(() => ({ onClose: of(undefined) })) };
   const refDataMock = {
@@ -72,6 +73,7 @@ describe('StaffPage', () => {
     staffServiceMock.list.mockReset();
     staffServiceMock.list.mockReturnValue(of(buildStaffResponse()));
     staffServiceMock.createLoginLink.mockClear();
+    staffServiceMock.archive.mockReset();
     dialogServiceMock.open.mockClear();
 
     await TestBed.configureTestingModule({
@@ -849,6 +851,55 @@ describe('StaffPage', () => {
       expect(row.textContent).toContain('啟用中');
       expect(row.textContent).toContain('0912-345-678');
       expect(row.querySelector('a[href^="tel:"]')).toBeNull();
+    });
+  });
+
+  // #1641 5b（使用者 10-16 裁定第 1 點）：封存是樂觀的 —— 按下就淡出；失敗要放回去並說明
+  describe('樂觀封存', () => {
+    const person = (id: string) =>
+      ({ id, displayName: `人員${id}`, status: 'active', roles: ['teacher'] }) as unknown as Staff;
+    type Page = {
+      staffList: { set: (v: Staff[]) => void; (): Staff[] };
+      staffStatusFilter: { set: (v: string) => void };
+      archiveStaff: (s: Staff) => void;
+    };
+    const page = () => component as unknown as Page;
+    const ids = () =>
+      page()
+        .staffList()
+        .map((s) => s.id);
+
+    it('失敗：那一列放回原位，並跳錯誤 toast', () => {
+      const add = vi.spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+      page().staffList.set([person('a'), person('b')]);
+      staffServiceMock.archive.mockReturnValueOnce(
+        throwError(() => ({ error: { error: '伺服器錯誤' } })),
+      );
+      page().archiveStaff(person('b'));
+      expect(ids()).toEqual(['a', 'b']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
+
+    it('成功：維持拿掉、toast 帶回應的待指派堂數，背景重抓不變淡', () => {
+      const add = vi.spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+      page().staffList.set([person('a'), person('b')]);
+      staffServiceMock.archive.mockReturnValueOnce(of({ unassignedSessions: 3 }));
+      staffServiceMock.list.mockReturnValue(NEVER);
+      page().archiveStaff(person('b'));
+      expect(ids()).toEqual(['a']);
+      expect(component.loading()).toBe(false);
+      expect(add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'success', detail: expect.stringContaining('3 堂') }),
+      );
+    });
+
+    it('篩選「全部」：封存的人只是換章，等伺服器回來才動，不先拿掉', () => {
+      page().staffList.set([person('a'), person('b')]);
+      page().staffStatusFilter.set('all');
+      const pending = new Subject<{ unassignedSessions: number }>();
+      staffServiceMock.archive.mockReturnValueOnce(pending);
+      page().archiveStaff(person('b'));
+      expect(ids()).toEqual(['a', 'b']);
     });
   });
 });

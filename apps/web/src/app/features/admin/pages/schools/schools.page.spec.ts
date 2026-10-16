@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ConfirmationService, MessageService } from 'primeng/api';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 
 import { SchoolsService, type SchoolListResponse } from '@core/schools.service';
@@ -30,6 +30,7 @@ describe('SchoolsPage', () => {
       pending.push({ search: params.search, subject });
       return subject.asObservable();
     }),
+    delete: vi.fn(),
   };
 
   viBeforeEach(() => {
@@ -45,6 +46,7 @@ describe('SchoolsPage', () => {
   beforeEach(async () => {
     pending.length = 0;
     schoolsServiceMock.list.mockClear();
+    schoolsServiceMock.delete.mockReset();
 
     await TestBed.configureTestingModule({
       imports: [SchoolsPage],
@@ -243,6 +245,54 @@ describe('SchoolsPage', () => {
       });
 
       expect(confirmSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // #1641 5b：p-table 改成原生表格＋@for，每一列有穩定身分才能各自淡入淡出
+  describe('列表與悲觀刪除（#1641 5b）', () => {
+    const rowIds = () =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('tbody tr.vt-row'),
+      ).map((tr) => tr.style.getPropertyValue('view-transition-name'));
+    const loaded = () => {
+      pending[0]!.subject.next(res(['甲國中', '乙國中']));
+      fixture.detectChanges();
+    };
+    const deleteSecond = () => {
+      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
+      vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
+        c.accept?.();
+        return confirmationService;
+      });
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete({
+        id: 'school-1',
+        name: '乙國中',
+        studentCount: 0,
+      });
+      fixture.detectChanges();
+    };
+
+    it('每一列帶 vt-row 與以 id 為名的 view-transition-name', () => {
+      loaded();
+      expect(rowIds()).toEqual(['school-school-0', 'school-school-1']);
+    });
+
+    it('刪除成功才拿掉那一列', () => {
+      loaded();
+      schoolsServiceMock.delete.mockReturnValueOnce(of(undefined));
+      deleteSecond();
+      expect(rowIds()).toEqual(['school-school-0']);
+    });
+
+    it('刪除失敗：那一列一直都在，並跳錯誤 toast', () => {
+      loaded();
+      const add = vi.spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+      schoolsServiceMock.delete.mockReturnValueOnce(
+        throwError(() => ({ error: { error: '這間學校還有學校考試', code: 'CONSTRAINT' } })),
+      );
+      deleteSecond();
+      expect(rowIds()).toEqual(['school-school-0', 'school-school-1']);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
     });
   });
 });

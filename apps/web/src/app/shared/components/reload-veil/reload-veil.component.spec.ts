@@ -78,4 +78,15 @@ describe('ReloadVeilComponent', () => {
     expect(q('.reload-veil--stale')).toBeNull();
     expect(q('.reload-veil')?.hasAttribute('aria-busy')).toBe(false);
   });
+
+  // 減少動態時不能有過程（設計稿 motion.md 共通規則）：每一條 transition 都要掛 motion-safe。
+  // 變淡那條是任意變體，比 motion-reduce:transition-none 更具體，曾經蓋過它（#1641 5b）。
+  it('變淡與回來的 transition 都只在 motion-safe 時生效', () => {
+    const { q, step } = setup();
+    step(false);
+    const tokens = (q('.reload-veil__body')?.getAttribute('class') ?? '').split(/\s+/);
+    const transitions = tokens.filter((t) => t.includes('transition'));
+    expect(transitions.length).toBeGreaterThan(0);
+    expect(transitions.filter((t) => !t.startsWith('motion-safe:'))).toEqual([]);
+  });
 });
