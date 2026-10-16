@@ -1281,11 +1281,12 @@ test('#1639：稿的 button 沒重設 padding（瀏覽器預設 1px 6px）→ ap
   );
 });
 
-test('#1689：通知中心發布表單改彈窗（R5）—— 稿的 main>form 缺、app 的「發送通知」多都算偏離；稿量 #publish 分頁', async () => {
+test('#1689：通知中心發布表單改彈窗（R5）—— 稿的 main>form 缺、app 的「發送通知」多都算偏離；兩邊都量 #publish 分頁', async () => {
   const { classify } = await import('./diff.mjs');
   const { DEVIATIONS, PAGES } = await import('./config.mjs');
-  const n = PAGES.notifications;
+  const n = PAGES['notifications-publish'];
   assert.equal(n.a6, 'notifications.html#publish');
+  assert.equal(n.app, '/admin/notifications#publish');
   const rows = [
     { status: '缺', kind: 'landmark', a6: 'landmark:main[]>landmark:form[]', app: null },
     { status: '多', kind: 'control', a6: null, app: 'landmark:main[]>control:button[發送通知]' },
@@ -1395,7 +1396,7 @@ test('#1697：整塊搬走的偏離（whole）—— 表單整個進彈窗，裡
       { key: `${form}>control:button[發布]`, kind: 'control', tpl: '發布' },
     ],
   };
-  const devs = [...DEVIATIONS, ...PAGES.notifications.deviations];
+  const devs = [...DEVIATIONS, ...PAGES['notifications-publish'].deviations];
   const out = classify([row], devs, 1440);
   assert.deepEqual(
     out.map((x) => [x.a6, x.bucket]),
@@ -1433,4 +1434,78 @@ test('compare：兩個 compare 同時挑到同一個 port —— 認得出 port 
   assert.equal(portTaken('  ➜  Local:   http://localhost:4310/'), false);
   assert.equal(isReady('  ➜  Local:   http://localhost:4310/', 4310), true);
   assert.equal(isReady('  ➜  Local:   http://localhost:4310/', 4311), false);
+});
+
+test('#1692：通知中心量預設分頁「收到的」—— 稿的「新」標記與分頁 44px（R3）算偏離，其餘照舊待修', async () => {
+  const { classify, matchParts } = await import('./diff.mjs');
+  const { DEVIATIONS, PAGES } = await import('./config.mjs');
+  const n = PAGES.notifications;
+  assert.equal(n.a6, 'notifications.html');
+  assert.equal(n.app, '/admin/notifications');
+  // 發布表單那兩條偏離只屬於發布分頁
+  assert.equal(
+    n.deviations.some((d) => /form/.test(d.a6 ?? '')),
+    false,
+  );
+  // 分頁列兩個分頁都有，「新」與 R3 那幾條發布分頁也要掛
+  for (const d of n.deviations) assert.ok(PAGES['notifications-publish'].deviations.includes(d));
+
+  const tab = '>landmark:navigation[通知]>control:button[收到的未讀#新]';
+  const appTab = '>landmark:main[]>landmark:navigation[通知]>control:button[收到的未讀#]';
+  const rows = [
+    { status: '缺', kind: 'text', a6: `${tab}>text:span[新]`, app: null },
+    {
+      status: '文案',
+      kind: 'control',
+      a6: tab,
+      app: appTab,
+      detail: '「收到的未讀#新」→「收到的未讀#」',
+    },
+    // 拿掉「新」之後還不一樣，就是真的文案差
+    {
+      status: '文案',
+      kind: 'control',
+      a6: tab,
+      app: appTab,
+      detail: '「收到的未讀#新」→「收到的」',
+    },
+    {
+      status: '尺寸',
+      kind: 'control',
+      a6: '>landmark:navigation[通知]>control:button[發布公告]',
+      app: '>landmark:main[]>landmark:navigation[通知]>control:button[發布公告]',
+      detail: '高 26→44',
+    },
+    // 高度沒撐到 44 就不是 R3，照舊待修
+    {
+      status: '尺寸',
+      kind: 'control',
+      a6: '>landmark:navigation[通知]>control:button[發布公告]',
+      app: '>landmark:main[]>landmark:navigation[通知]>control:button[發布公告]',
+      detail: '高 26→40',
+    },
+    // 別的尺寸差不吃 R3 那條
+    {
+      status: '尺寸',
+      kind: 'control',
+      a6: '>landmark:navigation[通知]>control:button[發布公告]',
+      app: '>landmark:main[]>landmark:navigation[通知]>control:button[發布公告]',
+      detail: '寬 60→90',
+    },
+    { status: '缺', kind: 'text', a6: '>landmark:region[今天]>text:span[別的]', app: null },
+  ];
+  assert.deepEqual(
+    classify(rows, [...DEVIATIONS, ...n.deviations], 1440).map((x) => x.bucket),
+    ['已記錄偏離', '已記錄偏離', '待修', '已記錄偏離', '待修', '待修', '待修'],
+  );
+
+  // 「全部標為已讀新」↔「全部標為已讀」靠 mapping 配起來，不會變成一缺一多
+  const a6Key = '>control:button[全部標為已讀新]';
+  const appKey = '>landmark:main[]>control:button[全部標為已讀]';
+  const pairs = matchParts(
+    [{ key: a6Key, kind: 'control' }],
+    [{ key: appKey, kind: 'control' }],
+    n.mapping,
+  );
+  assert.equal(pairs.get(a6Key), appKey);
 });

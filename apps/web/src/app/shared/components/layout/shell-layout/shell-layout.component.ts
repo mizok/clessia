@@ -82,9 +82,9 @@ export class ShellLayoutComponent {
   });
   /** 螢幕閱讀器念的：角標本身 aria-hidden，數字寫在這裡 */
   protected readonly bellLabel = computed(() => {
-    if (!this.badge.hasInbox()) return '通知中心';
     const n = this.badge.unread();
-    return n > 0 ? `通知，${n} 則未讀` : '通知，沒有未讀';
+    if (n > 0) return `通知，${n} 則未讀`;
+    return '通知，沒有未讀';
   });
 
   protected readonly scrolled = signal(false);
