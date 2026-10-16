@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { altchaPayload } from '../../test-utils/altcha-payload';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 import { publicOrgMiddleware } from '../../lib/public-org';
 import applicationsRoute from './enrollment-applications';
@@ -22,6 +23,7 @@ const cls = (cid: string, extra: Record<string, unknown> = {}) => ({
   max_students: 2,
   is_active: true,
   end_date: null,
+  is_public_enrollment: true,
   courses: { is_active: true },
   ...extra,
 });
@@ -36,6 +38,7 @@ function seed() {
       cls(id(14), { end_date: '2026-10-03' }),
       cls(id(15), { courses: { is_active: false } }),
       cls(id(16), { org_id: ORG_B }),
+      cls(id(17), { is_public_enrollment: false }),
     ],
     enrollments: [
       { org_id: ORG, class_id: id(12), student_id: 's1', status: 'active' },
@@ -72,9 +75,10 @@ async function post(
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
+      // 機器人驗證另有 abuse-guard.spec；這裡一律附有效解答
+      body: JSON.stringify({ captchaToken: await altchaPayload(), ...(payload as object) }),
     },
-    { PUBLIC_ORG_SLUG: slug },
+    { PUBLIC_ORG_SLUG: slug, BETTER_AUTH_SECRET: 'test-secret' },
   );
   return { res, json: (await res.json()) as any };
 }
@@ -118,6 +122,7 @@ describe('POST /api/public/enrollment-applications', () => {
     ['已結束的班', id(14)],
     ['課程停用的班', id(15)],
     ['不存在的班', id(99)],
+    ['關掉公開報名的班（#1665 Q5）', id(17)],
   ])('%s：400 INVALID_CLASS，整筆不寫', async (_label, classId) => {
     const db = seed();
     const { res, json } = await post(db, body({ classIds: [id(11), classId] }));

@@ -138,6 +138,9 @@ updated: 2026-10-03
 | 角色管理 | 指派或變更帳號角色與權限             | `perm_manage_roles`     |
 | 報表查看 | 查看營收與統計報表                   | `perm_view_reports`     |
 | 跨分校   | 不受指派分校限制，看得到全機構的資料 | `perm_all_campuses`     |
+| 發送通知 | 發布公告給老師與家長 | `perm_send_announcements` |
+
+> 「發送通知」是 #1686（2026-10-16）加的第 9 個，上面「8 個」的實測早於它。
 
 > **這 8 個就是 `user_roles.permissions` 的來源** —— `manage_finance` 與 `view_reports`
 > 正是 [[specs/sitemap/admin/fee-templates]] 與 [[specs/sitemap/admin/reports]] 的門檻。

@@ -238,4 +238,18 @@ describe('ClassRowComponent', () => {
       expect(fixture.nativeElement.querySelector('[data-part=generate]')).toBeNull();
     });
   });
+
+  // #1665 Q5：讓人知道為什麼公開頁上找不到它。沒帶旗標（舊資料）照 DB 預設當作開放
+  it('關掉公開報名的班才標「不公開」', async () => {
+    await setup(makeClass({ isPublicEnrollment: false }));
+    expect(fixture.nativeElement.querySelector('[data-part=not-public]')?.textContent).toContain(
+      '不公開',
+    );
+
+    for (const flag of [true, undefined]) {
+      fixture.componentRef.setInput('cls', makeClass({ isPublicEnrollment: flag }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-part=not-public]')).toBeNull();
+    }
+  });
 });

@@ -85,6 +85,10 @@ BETTER_AUTH_URL = "https://demo.clessia.cc"
 ALLOWED_ORIGINS = ""
 SUPABASE_URL = "https://hjzfitxusqvpllpjtkkf.supabase.co"
 LINE_CLIENT_ID = "2011235423"
+# 推播（#1661）：拿到 VAPID 金鑰後在這裡補兩行（非機密），私鑰與 CRON_SECRET 走 `wrangler secret put`。
+# 步驟見 kb/wiki/architecture/deploying.md「推播」一節。
+# VAPID_PUBLIC_KEY = "<generate-vapid-keys.ts 印出的公鑰>"
+# VAPID_SUBJECT = "mailto:<補習班聯絡信箱>"
 # WEB_URL / BETTER_AUTH_URL / ALLOWED_ORIGINS / SUPABASE_URL 由部署時設定：
 #   npx wrangler deploy --env production \
 #     --var WEB_URL:https://xxx.pages.dev \
@@ -120,3 +124,11 @@ LINE_CLIENT_ID = "2011235423"
 [[env.production.hyperdrive]]
 binding = "HYPERDRIVE"
 id = "3ed039ca0967497e81e9262cb4a367a4"
+
+# ── 推播排程（#1661）────────────────────────────────────────────────────────
+# Cron 是 UTC：01:00–02:50 UTC = 台北 09:00–10:50，每 10 分鐘一次、一天 12 次（#1626 Q4）。
+# 直接寫在 env.production 底下，不賭頂層會不會繼承。
+# **沒設 CRON_SECRET 時 scheduled() 什麼都不做**（src/index.ts），所以先掛上也無害。
+# 免費方案每帳號 5 個 Cron Trigger，這裡用 1 個。
+[env.production.triggers]
+crons = ["*/10 1-2 * * *"]

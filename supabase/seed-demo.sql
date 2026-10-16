@@ -675,14 +675,15 @@ BEGIN
   -- ── 4. 多重角色 + 只有 view_reports 的管理員（同一個帳號，一石二鳥）─────
   -- 全庫本來 0 個多重角色帳號，於是 /select-role 的角色選擇彈窗
   -- **任何帳號都開不出來**，shell-layout 的角色切換入口同理。
-  -- 這裡給一位沒帶課的老師加上 admin 角色，權限只給 view_reports：
+  -- 這裡給一位沒帶課的老師加上 admin 角色，權限給 view_reports＋send_announcements
+  -- （後者是 #1686 權限矩陣的帳號，seed.sql 權限矩陣段有同一個值，兩邊要一致）：
   --   * 兩個角色 → 登入後進 /select-role 的彈窗
   --   * 選 admin 進去 → /admin/reports 進得去，
   --     而 fee-templates / meals / payments 被 permissionGuard 導回 /admin
   SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app';
   IF v_uid IS NOT NULL THEN
     INSERT INTO public.user_roles (user_id, role, permissions)
-    VALUES (v_uid, 'admin', '["view_reports"]'::jsonb)
+    VALUES (v_uid, 'admin', '["view_reports", "send_announcements"]'::jsonb)
     ON CONFLICT (user_id, role) DO UPDATE SET permissions = EXCLUDED.permissions;
   END IF;
 
