@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 
 import sessionsApp from './sessions';
 
@@ -14,6 +16,13 @@ import {
   sessionListSelect,
   SESSION_CHANGES_SELECT,
 } from './sessions';
+
+// #1693：課務異動通知的接線（收件人與內容由 notify-schedule.spec 守）
+vi.mock('../lib/notify-schedule', () => ({
+  queueScheduleChangeNotice: vi.fn(async () => undefined),
+}));
+const queued = vi.mocked(queueScheduleChangeNotice);
+beforeEach(() => queued.mockClear());
 
 describe('session history mapping', () => {
   it('builds a creation history entry for session creation fallback', () => {
@@ -423,6 +432,9 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
     const writes = calls.filter((c) => c.table === 'sessions' || c.table === 'schedule_changes');
     expect(writes[0]).toMatchObject({ table: 'sessions', op: 'update' });
     expect(writes[1]).toMatchObject({ table: 'schedule_changes', op: 'insert' });
+    expect(queued).toHaveBeenCalledWith(expect.anything(), [
+      { session_id: SESSION_ID, change_type: 'makeup' },
+    ]);
   });
 
   it('⚠️ 流水寫失敗 → 把 FK 補償回去，不留「FK 有、流水沒有」', async () => {

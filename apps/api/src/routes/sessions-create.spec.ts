@@ -1,7 +1,16 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 
 import sessionsApp from './sessions';
+
+// #1693：課務異動通知的接線（收件人與內容由 notify-schedule.spec 守）
+vi.mock('../lib/notify-schedule', () => ({
+  queueScheduleChangeNotice: vi.fn(async () => undefined),
+}));
+const queued = vi.mocked(queueScheduleChangeNotice);
+beforeEach(() => queued.mockClear());
 
 /**
  * `POST /api/sessions` 加開單堂（#1109）與歷程不重複合成 creation。
@@ -189,6 +198,9 @@ describe('POST /api/sessions —— 加開單堂（#1109）', () => {
     };
     expect(json.data).toMatchObject({ id: NEW_ID, teacherName: '王老師', hasChanges: true });
     expect(json.data.latestChange.type).toBe('creation');
+    expect(queued).toHaveBeenCalledWith(expect.anything(), [
+      { session_id: NEW_ID, change_type: 'creation' },
+    ]);
   });
 
   it('不帶老師 → unassigned，不查老師衝突', async () => {
@@ -258,6 +270,7 @@ describe('POST /api/sessions —— 加開單堂（#1109）', () => {
     const res = await post(app, body);
     expect(res.status).toBe(500);
     expect(((await res.json()) as { code: string }).code).toBe('CREATE_LOG_FAILED');
+    expect(queued).not.toHaveBeenCalled();
     const deletes = queries.filter((q) => q.table === 'sessions' && has(q, 'delete'));
     expect(deletes).toHaveLength(1);
     expect(has(deletes[0], 'eq', 'id', NEW_ID)).toBe(true);

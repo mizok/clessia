@@ -1,7 +1,16 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 
 import coursesApp from './courses';
+
+// #1693：課務異動通知的接線（收件人與內容由 notify-schedule.spec 守）
+vi.mock('../lib/notify-schedule', () => ({
+  queueScheduleChangeNotice: vi.fn(async () => undefined),
+}));
+const queued = vi.mocked(queueScheduleChangeNotice);
+beforeEach(() => queued.mockClear());
 
 /**
  * 課程停用連帶取消未來課堂（`PUT /courses/{id}`，`deactivateMode: 'cancel_future_sessions'`）
@@ -97,5 +106,11 @@ describe('PUT /api/courses/{id} 停用並取消未來課堂 —— 流水標成�
     expect(rows[0]!.batch_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(new Set(rows.map((r) => r.batch_id)).size).toBe(1);
     expect(rows[0]!.reason).toBe('課程停用');
+    expect(queued).toHaveBeenCalledWith(
+      expect.anything(),
+      rows.map((r) =>
+        expect.objectContaining({ change_type: 'cancellation', batch_id: r.batch_id }),
+      ),
+    );
   });
 });

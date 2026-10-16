@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
@@ -634,6 +635,16 @@ app.openapi(updateRoute, async (c) => {
           );
           return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
         }
+
+        // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+        await queueScheduleChangeNotice(
+          c,
+          sessionIds.map((sessionId) => ({
+            session_id: sessionId,
+            change_type: 'cancellation' as const,
+            batch_id: batchId,
+          })),
+        );
 
         cancelledFutureSessions = sessionIds.length;
       }

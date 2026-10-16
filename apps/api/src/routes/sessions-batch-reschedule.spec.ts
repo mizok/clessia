@@ -1,7 +1,16 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 
 import sessionsApp, { resolveRescheduleDate } from './sessions';
+
+// #1693：課務異動通知的接線（收件人與內容由 notify-schedule.spec 守）
+vi.mock('../lib/notify-schedule', () => ({
+  queueScheduleChangeNotice: vi.fn(async () => undefined),
+}));
+const queued = vi.mocked(queueScheduleChangeNotice);
+beforeEach(() => queued.mockClear());
 
 /**
  * `PATCH /api/sessions/batch-reschedule`（#1111）。
@@ -314,6 +323,7 @@ describe('PATCH /api/sessions/batch-reschedule（#1111）', () => {
         operation_source: 'batch',
       }),
     );
+    expect(queued).toHaveBeenCalledWith(expect.anything(), arg(insert, 'insert'));
   });
 
   it('流水寫失敗 → 全部照原落點搬回，500 RESCHEDULE_LOG_FAILED', async () => {
@@ -324,6 +334,7 @@ describe('PATCH /api/sessions/batch-reschedule（#1111）', () => {
     const res = await patch(app, { sessionIds: [id(1), id(2)], dayOffset: 1, dryRun: false });
     expect(res.status).toBe(500);
     expect(((await res.json()) as { code: string }).code).toBe('RESCHEDULE_LOG_FAILED');
+    expect(queued).not.toHaveBeenCalled();
     const reverts = sessionUpdates(queries)
       .slice(2)
       .map((q) => [arg(q, 'update'), arg(q, 'in', 1)]);
