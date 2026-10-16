@@ -1,11 +1,15 @@
 import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { NEVER, of, throwError } from 'rxjs';
+import { Location } from '@angular/common';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
 import { AuthService } from '@core/auth.service';
 import { CampusesService } from '@core/campuses.service';
+import { InboxBadgeService } from '@core/inbox-badge.service';
+import { NotificationsService, type AppNotification } from '@core/notifications.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 import { NotificationsComponent } from './notifications.component';
@@ -25,6 +29,19 @@ function announcement(overrides: Partial<Announcement> = {}): Announcement {
   };
 }
 
+function notification(overrides: Partial<AppNotification> = {}): AppNotification {
+  return {
+    id: 'n1',
+    kind: 'application_received',
+    title: '新的試聽申請',
+    body: '王小明的家長送出了試聽申請。',
+    createdAt: '2026-10-16T01:00:00Z',
+    isRead: false,
+    link: '/admin/applications',
+    ...overrides,
+  };
+}
+
 describe('NotificationsComponent（管理端發布）', () => {
   let fixture: ComponentFixture<NotificationsComponent>;
   let component: NotificationsComponent;
@@ -36,12 +53,53 @@ describe('NotificationsComponent（管理端發布）', () => {
   let canSend = true;
   const authStub = { hasPermission: (p: string) => p === 'send_announcements' && canSend };
 
+  /**
+   * #1692：預設分頁是「收到的」。發布那半的既有測試都在 `#publish` 上跑（fragment 預設 publish），
+   * 收件匣的測試自己把它設成 null。
+   */
+  let fragment: string | null = 'publish';
+  let received: AppNotification[] = [];
+  let receivedUnread: number | null = null;
+  const notifInboxMock = vi.fn();
+  const markReadMock = vi.fn();
+  const markAllReadMock = vi.fn();
+  const setNotificationsUnread = vi.fn();
+  const extraProviders = () => [
+    provideRouter([]),
+    { provide: ActivatedRoute, useValue: { snapshot: { fragment } } },
+    {
+      provide: NotificationsService,
+      useValue: { inbox: notifInboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
+    },
+    { provide: InboxBadgeService, useValue: { setNotificationsUnread } },
+  ];
+
   // jsdom 沒有 <dialog> 的 modal 行為：只補開關狀態與 close 事件（照 sessions.page.spec）
   const dialogProto = HTMLDialogElement.prototype;
   const originalDialog = { showModal: dialogProto.showModal, close: dialogProto.close };
 
   beforeEach(() => {
     canSend = true;
+    fragment = 'publish';
+    received = [];
+    receivedUnread = null;
+    notifInboxMock.mockReset();
+    notifInboxMock.mockImplementation(() =>
+      of({
+        data: received,
+        meta: {
+          total: received.length,
+          unread: receivedUnread ?? received.filter((n) => !n.isRead).length,
+        },
+      }),
+    );
+    markReadMock.mockReset();
+    markReadMock.mockReturnValue(of(undefined));
+    markAllReadMock.mockReset();
+    markAllReadMock.mockImplementation(() =>
+      of({ marked: receivedUnread ?? received.filter((n) => !n.isRead).length }),
+    );
+    setNotificationsUnread.mockReset();
     dialogProto.showModal = function (this: HTMLDialogElement) {
       this.open = true;
     };
@@ -71,6 +129,7 @@ describe('NotificationsComponent（管理端發布）', () => {
         },
         { provide: CampusesService, useValue: { list: campusesMock } },
         { provide: AuthService, useValue: authStub },
+        ...extraProviders(),
       ],
     }).compileComponents();
 
@@ -97,6 +156,7 @@ describe('NotificationsComponent（管理端發布）', () => {
         { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
         { provide: CampusesService, useValue: { list: campusesMock } },
         { provide: AuthService, useValue: authStub },
+        ...extraProviders(),
       ],
     }).compileComponents();
 
@@ -377,6 +437,7 @@ describe('NotificationsComponent（管理端發布）', () => {
           { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
           { provide: CampusesService, useValue: { list: campusesMock } },
           { provide: AuthService, useValue: authStub },
+          ...extraProviders(),
         ],
       }).compileComponents();
       const f = TestBed.createComponent(NotificationsComponent);
@@ -504,12 +565,12 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(el().textContent).toContain('還沒有發布過公告。');
     });
 
-    it('空狀態有權限時多一顆「發送通知」，按了開彈窗', async () => {
+    it('空狀態有權限也不另放「發送通知」：主按鈕只在頁首一顆', async () => {
       await setup([]);
 
-      el().querySelector<HTMLButtonElement>('[data-testid="empty-send"]')!.click();
-
-      expect(dialog()!.open).toBe(true);
+      expect(el().textContent).toContain('還沒有發布過公告。');
+      expect(el().querySelector('[data-testid="empty-send"]')).toBeNull();
+      expect(el().querySelectorAll('app-page-actions')).toHaveLength(1);
     });
 
     it('沒填就按發布：彈窗不關、焦點到標題', async () => {
@@ -590,6 +651,258 @@ describe('NotificationsComponent（管理端發布）', () => {
       cancel.click();
       expect(dialog()!.open).toBe(false);
       expect(component['title']()).toBe('寫到一半');
+    });
+  });
+
+  describe('收到的（#1692）', () => {
+    const q = (id: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        `[data-testid="${id}"]`,
+      ) as HTMLElement | null;
+    const qa = (id: string) => [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+        `[data-testid="${id}"]`,
+      ),
+    ];
+    /** 展開一列：jsdom 的 <details> 設 open 不會發 toggle，自己發 */
+    function expand(row: HTMLElement): void {
+      (row as HTMLDetailsElement).open = true;
+      row.dispatchEvent(new Event('toggle'));
+      fixture.detectChanges();
+    }
+
+    beforeEach(() => {
+      fragment = null;
+      // 台北 2026-10-16（四）18:00
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-16T10:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('預設打開「收到的」，分頁列寫未讀數；`#publish` 直接開發布', async () => {
+      received = [notification(), notification({ id: 'n2', isRead: true })];
+      await setup();
+      expect(q('tab-inbox')!.getAttribute('aria-current')).toBe('page');
+      expect(q('tab-unread')!.textContent!.trim()).toBe('未讀 1');
+      expect(qa('notification')).toHaveLength(2);
+      expect(qa('announcement')).toHaveLength(0);
+
+      TestBed.resetTestingModule();
+      fragment = 'publish';
+      await setup([announcement()]);
+      expect(q('tab-publish')!.getAttribute('aria-current')).toBe('page');
+      expect(qa('notification')).toHaveLength(0);
+      expect(qa('announcement')).toHaveLength(1);
+    });
+
+    it('切分頁只換網址的 hash，不進歷史', async () => {
+      await setup();
+      const location = TestBed.inject(Location);
+      const spy = vi.spyOn(location, 'replaceState');
+      q('tab-publish')!.click();
+      fixture.detectChanges();
+      expect(spy).toHaveBeenLastCalledWith(expect.stringMatching(/#publish$/));
+      expect(q('mark-all')).toBeNull();
+      q('tab-inbox')!.click();
+      fixture.detectChanges();
+      expect(spy).toHaveBeenLastCalledWith(expect.not.stringContaining('#'));
+      expect(q('mark-all')).not.toBeNull();
+    });
+
+    it('依今天／昨天／這週／更早分章，台北日界線切；章頭寫則數與未讀', async () => {
+      received = [
+        notification({ id: 'today', createdAt: '2026-10-15T16:00:00Z' }), // 台北 10/16 00:00
+        notification({ id: 'yday', createdAt: '2026-10-15T15:59:00Z', isRead: true }), // 10/15 23:59
+        notification({ id: 'week', createdAt: '2026-10-10T00:00:00Z' }), // 10/10＝今天往前 6 天
+        notification({ id: 'old', createdAt: '2026-10-09T15:59:00Z' }), // 10/9 23:59
+      ];
+      await setup();
+      const chapters = component['inboxChapters']();
+      expect(chapters.map((c) => [c.name, c.items.map((i) => i.id)])).toEqual([
+        ['今天', ['today']],
+        ['昨天', ['yday']],
+        ['這週', ['week']],
+        ['更早', ['old']],
+      ]);
+      expect(qa('inbox-chapter')[0].textContent).toContain('未讀 1');
+      expect(qa('inbox-chapter')[1].textContent).not.toContain('未讀');
+    });
+
+    it('色面句：N 則未讀＋今天幾則；全部讀過；一則都沒有', async () => {
+      received = [
+        notification({ id: 'a' }),
+        notification({ id: 'b', createdAt: '2026-10-14T01:00:00Z' }),
+      ];
+      await setup();
+      expect(component['headline']()).toEqual({ first: '2 則未讀，', second: '今天 1 則新通知。' });
+
+      TestBed.resetTestingModule();
+      received = [notification({ isRead: true })];
+      await setup();
+      expect(component['headline']()).toEqual({ first: '通知都看過了。', second: null });
+
+      TestBed.resetTestingModule();
+      received = [];
+      await setup();
+      expect(component['headline']()).toEqual({ first: '還沒有收到通知。', second: null });
+      expect(fixture.nativeElement.textContent).toContain('通知保留 90 天。');
+    });
+
+    it('未讀數用伺服器的 meta.unread，不數畫面上的（清單最多 100 則）', async () => {
+      received = [notification()];
+      receivedUnread = 130;
+      await setup();
+      expect(q('tab-unread')!.textContent!.trim()).toBe('未讀 130');
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(130);
+    });
+
+    it('展開＝已讀：橘點與粗體拿掉、角標寫回；已讀的再展開不打 API', async () => {
+      received = [notification(), notification({ id: 'n2', isRead: true })];
+      await setup();
+      const [unreadRow, readRow] = qa('notification');
+      expect(unreadRow.querySelector('[data-testid=title]')!.classList).toContain('font-bold');
+
+      expand(unreadRow);
+      expect(markReadMock).toHaveBeenCalledWith('n1');
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(0);
+      expect(qa('notification')[0].getAttribute('data-read')).toBe('true');
+      expect(qa('notification')[0].querySelector('[data-testid=title]')!.classList).not.toContain(
+        'font-bold',
+      );
+
+      expand(readRow);
+      expect(markReadMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('標已讀失敗：翻回未讀、角標翻回、寫一行錯誤', async () => {
+      received = [notification()];
+      markReadMock.mockReturnValue(throwError(() => new Error('x')));
+      await setup();
+      expand(qa('notification')[0]);
+      expect(qa('notification')[0].getAttribute('data-read')).toBe('false');
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(1);
+      expect(fixture.nativeElement.textContent).toContain('沒標成已讀');
+    });
+
+    // #1710 實機抓到的：點有 link 的通知馬上導頁，元件 destroy 會把 POST 一起取消
+    it('標已讀的請求不跟元件同生死：送出後馬上離開頁面也照樣送到', async () => {
+      received = [notification()];
+      const pending = new Subject<void>();
+      markReadMock.mockReturnValue(pending.asObservable());
+      await setup();
+      expand(qa('notification')[0]);
+      fixture.destroy();
+      // 掛了 takeUntilDestroyed 的話，destroy 當下就退訂（HttpClient 會取消請求）
+      expect(pending.observed).toBe(true);
+      expect(markReadMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('有 link 才有連結，字照 kind；點了走 router；沒列到的 kind 寫「系統通知」', async () => {
+      received = [
+        notification({ kind: 'overdue_digest', link: '/admin/billing' }),
+        notification({ id: 'n2', kind: 'something_new', link: null }),
+      ];
+      await setup();
+      const router = TestBed.inject(Router);
+      const nav = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const [withLink, without] = qa('notification');
+      expect(withLink.querySelector('[data-testid=kind]')!.textContent).toContain('逾期帳單');
+      const go = withLink.querySelector<HTMLAnchorElement>('[data-testid=go]')!;
+      expect(go.textContent).toContain('看逾期帳單');
+      expect(go.getAttribute('href')).toBe('/admin/billing');
+      go.click();
+      expect(nav).toHaveBeenCalledWith('/admin/billing');
+      expect(without.querySelector('[data-testid=go]')).toBeNull();
+      expect(without.querySelector('[data-testid=kind]')!.textContent).toContain('系統通知');
+    });
+
+    it('連結按著 Cmd／Ctrl／Shift 或中鍵點：交給瀏覽器開新分頁，不攔', async () => {
+      received = [notification({ link: '/admin/applications' })];
+      await setup();
+      const nav = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      const go = qa('notification')[0].querySelector<HTMLAnchorElement>('[data-testid=go]')!;
+      for (const init of [
+        { metaKey: true },
+        { ctrlKey: true },
+        { shiftKey: true },
+        { button: 1 },
+      ]) {
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...init });
+        go.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+      }
+      expect(nav).not.toHaveBeenCalled();
+    });
+
+    // 清單最多 100 則：未讀數是伺服器的，畫面上的列不一定是全部
+    it('全部標為已讀：清單外的未讀也一起清掉（角標用伺服器的數，不是畫面上的列數）', async () => {
+      received = [notification(), notification({ id: 'n2' })];
+      receivedUnread = 130;
+      markAllReadMock.mockReturnValue(of({ marked: 130 }));
+      await setup();
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(130);
+      q('mark-all')!.click();
+      fixture.detectChanges();
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(0);
+      expect(q('tab-unread')).toBeNull();
+    });
+
+    it('全部標為已讀失敗：清單外的未讀也翻回', async () => {
+      received = [notification(), notification({ id: 'n2' })];
+      receivedUnread = 130;
+      markAllReadMock.mockReturnValue(throwError(() => new Error('x')));
+      await setup();
+      q('mark-all')!.click();
+      fixture.detectChanges();
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(130);
+      expect(q('tab-unread')!.textContent!.trim()).toBe('未讀 130');
+    });
+
+    it('全部標為已讀：全部變已讀、角標 0、toast 寫標了幾則；沒有未讀時 aria-disabled 且不打', async () => {
+      received = [notification(), notification({ id: 'n2' })];
+      await setup();
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      expect(q('mark-all')!.getAttribute('aria-disabled')).toBe('false');
+      q('mark-all')!.click();
+      fixture.detectChanges();
+      expect(markAllReadMock).toHaveBeenCalledTimes(1);
+      expect(qa('notification').every((r) => r.getAttribute('data-read') === 'true')).toBe(true);
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(0);
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ summary: '已把 2 則標為已讀' }));
+
+      expect(q('mark-all')!.getAttribute('aria-disabled')).toBe('true');
+      q('mark-all')!.click();
+      expect(markAllReadMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('全部標為已讀失敗：全部翻回、沒有成功 toast、寫一行錯誤', async () => {
+      received = [notification(), notification({ id: 'n2' })];
+      markAllReadMock.mockReturnValue(throwError(() => new Error('x')));
+      await setup();
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      q('mark-all')!.click();
+      fixture.detectChanges();
+      expect(qa('notification').every((r) => r.getAttribute('data-read') === 'false')).toBe(true);
+      expect(setNotificationsUnread).toHaveBeenLastCalledWith(2);
+      expect(toast).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).toContain('沒有標成已讀，請再按一次。');
+    });
+
+    it('讀取失敗：寫查詢失敗，不寫回角標', async () => {
+      notifInboxMock.mockImplementation(() => throwError(() => new Error('x')));
+      await setup();
+      expect(fixture.nativeElement.textContent).toContain('查詢失敗，請稍後再試。');
+      expect(setNotificationsUnread).not.toHaveBeenCalled();
+      expect(component['headline']()).toBeNull();
+    });
+
+    it('沒有 send_announcements：分頁列照樣在，發布分頁是唯讀清單', async () => {
+      canSend = false;
+      await setup([announcement()]);
+      q('tab-publish')!.click();
+      fixture.detectChanges();
+      expect(qa('announcement')).toHaveLength(1);
+      expect(fixture.nativeElement.querySelector('app-page-actions')).toBeNull();
     });
   });
 });

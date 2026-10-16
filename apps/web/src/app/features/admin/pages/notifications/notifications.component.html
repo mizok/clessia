@@ -1,11 +1,12 @@
 <!--
-  A6 版（#1314 NT3）：色面（已發布幾則、上一則是哪天）→ 依月份分章的已發布。
-  A6 這頁還有「收到的」分頁（管理員收件匣＝#1692）——不在這裡，所以沒有分頁列與「全部標為已讀」。
-  副標拿掉（稿：對象在表單裡選；舊副標還寫「給老師」）。
+  A6 版（#1314 NT3、#1692）：色面 → 灰工具列（分頁「收到的／發布公告」＋該分頁的行動）→ 分頁內容。
+  - 收到的（預設，#1692）：管理員自己的通知，依「今天／昨天／這週／更早」分章；每列是 <details>，展開＝已讀。
+    「全部標為已讀」沒有復原（沒有標回未讀的 API），改成成功後 toast 寫標了幾則（計畫席 gate）。
+  - 發布公告（`#publish`）：依月份分章的已發布。副標拿掉（稿：對象在表單裡選）。
 
   **發布表單不在頁面上，在彈窗裡（#1689，使用者指定的 A6 偏離，a6-adoption-rules R5）**：
-  「不要讓發送通知的表單和通知列表混在一起」。入口是工具列的「發送通知」（手機在底部托盤），
-  沒有 `send_announcements`（#1686）的人看不到入口、也沒有彈窗。
+  「不要讓發送通知的表單和通知列表混在一起」。入口是發布分頁工具列的「發送通知」（手機在底部托盤），
+  沒有 `send_announcements`（#1686）的人看不到入口、也沒有彈窗，發布分頁對他是唯讀清單。
 -->
 <app-page-open>
   <ng-container openTitle>
@@ -20,48 +21,88 @@
   </ng-container>
 </app-page-open>
 
-@if (canSend()) {
-  <!-- 灰工具列只在桌機有東西（主要行動）；手機上主要行動在托盤，這一列沒有高度也沒有底色 -->
-  <div class="min-[640.02px]:bg-zinc-100">
-    <div class="page-wrap flex items-center min-[640.02px]:min-h-16 min-[640.02px]:py-3">
-      <div class="ml-auto">
+<div class="bg-zinc-100">
+  <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16">
+    <nav class="flex items-center gap-4" aria-label="通知">
+      <button
+        type="button"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap hover:text-zinc-900"
+        data-testid="tab-inbox"
+        [class.border-zinc-900]="tab() === 'inbox'"
+        [class.font-semibold]="tab() === 'inbox'"
+        [class.text-zinc-900]="tab() === 'inbox'"
+        [class.border-transparent]="tab() !== 'inbox'"
+        [class.font-medium]="tab() !== 'inbox'"
+        [class.text-zinc-600]="tab() !== 'inbox'"
+        [attr.aria-current]="tab() === 'inbox' ? 'page' : null"
+        [style.view-transition-name]="tab() === 'inbox' ? 'seg-notifications-tab' : null"
+        (click)="setTab('inbox')"
+      >
+        收到的
+        @if (unread() > 0) {
+          <span class="text-sm font-normal text-zinc-600 tabular-nums" data-testid="tab-unread"
+            >未讀 {{ unread() }}</span
+          >
+        }
+      </button>
+      <button
+        type="button"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap hover:text-zinc-900"
+        data-testid="tab-publish"
+        [class.border-zinc-900]="tab() === 'publish'"
+        [class.font-semibold]="tab() === 'publish'"
+        [class.text-zinc-900]="tab() === 'publish'"
+        [class.border-transparent]="tab() !== 'publish'"
+        [class.font-medium]="tab() !== 'publish'"
+        [class.text-zinc-600]="tab() !== 'publish'"
+        [attr.aria-current]="tab() === 'publish' ? 'page' : null"
+        [style.view-transition-name]="tab() === 'publish' ? 'seg-notifications-tab' : null"
+        (click)="setTab('publish')"
+      >
+        發布公告
+      </button>
+    </nav>
+
+    <div class="ml-auto flex">
+      @if (tab() === 'inbox') {
+        <!-- 沒有未讀時 aria-disabled（A6）：留在原位、念得出來，按了不做事 -->
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 wide:h-9"
+          data-testid="mark-all"
+          [attr.aria-disabled]="unread() === 0"
+          (click)="markAllRead()"
+        >
+          <i class="pi pi-check" aria-hidden="true"></i>
+          全部標為已讀
+        </button>
+      } @else if (canSend()) {
         <app-page-actions [primary]="sendAction" (primaryClick)="openComposer()" />
-      </div>
+      }
     </div>
   </div>
-}
+</div>
 
-<div class="page-wrap flex flex-col pb-12">
-  <section aria-label="已發布">
-    <app-reload-veil [loading]="loading()">
-      <div reloadSkeleton class="skeleton-list pt-6 wide:pt-8" aria-label="已發布公告載入中">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
-      @if (loadError()) {
-        <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
-      } @else if (announcements().length === 0) {
-        <div class="flex flex-col items-start gap-3 pt-6 wide:pt-8">
-          <p class="m-0 text-base text-zinc-700">還沒有發布過公告。</p>
-          @if (canSend()) {
-            <button
-              type="button"
-              class="inline-flex h-11 cursor-pointer items-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
-              data-testid="empty-send"
-              (click)="openComposer()"
-            >
-              發送通知
-            </button>
+@if (tab() === 'inbox') {
+  <div class="page-wrap flex flex-col pb-12">
+    <div>
+      @if (inboxLoading()) {
+        <div class="skeleton-list pt-6 wide:pt-8" aria-label="通知載入中">
+          @for (i of [1, 2, 3]; track i) {
+            <span class="skeleton-bar"></span>
           }
         </div>
+      } @else if (inboxError()) {
+        <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
       } @else {
-        @for (chapter of chapters(); track chapter.key) {
-          <!-- A6 `.chap`：上下 32px（手機 24px）、每一章（含最後一章）都有下框、兩欄間距 32px（手機 12px） -->
+        @if (markError(); as message) {
+          <p class="m-0 pt-6 text-error-600 wide:pt-8" role="alert">{{ message }}</p>
+        }
+        @for (chapter of inboxChapters(); track chapter.name) {
           <section
             class="grid grid-cols-1 gap-3 border-b border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="chapter.name"
-            data-testid="chapter"
+            data-testid="inbox-chapter"
           >
             <app-chapter-head
               class="block"
@@ -69,33 +110,133 @@
               [count]="chapter.items.length"
               [stacked]="true"
               unit="則"
-            />
-            <ul class="m-0 list-none p-0">
-              @for (item of chapter.items; track item.id) {
-                <li
-                  class="vt-row grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 border-b border-surface-border py-4 last:border-b-0"
-                  data-testid="announcement"
-                  [style.view-transition-name]="'announcement-' + item.id"
-                >
-                  <span class="text-base font-semibold text-zinc-900">{{ item.title }}</span>
-                  <span
-                    class="col-start-2 row-span-2 row-start-1 block h-[22px] self-center rounded-full px-2 text-sm leading-[18px] font-semibold whitespace-nowrap text-zinc-800 ring-1 ring-zinc-300 ring-inset"
-                    data-testid="audience"
-                    >{{ AUDIENCE_LABELS[item.audience] }}</span
-                  >
-                  <span class="text-sm text-zinc-600 tabular-nums" data-testid="meta">
-                    {{ item.publishedAt | date: 'yyyy/MM/dd HH:mm' : '+0800' }} ·
-                    {{ item.campusName ?? '全部分校' }}
-                  </span>
-                </li>
+            >
+              @if (chapter.unread > 0) {
+                · 未讀 {{ chapter.unread }}
               }
-            </ul>
+            </app-chapter-head>
+            <div>
+              @for (item of chapter.items; track item.id) {
+                <!-- A6 `.nt`：未讀＝橘點＋粗體（不用紅，紅留給錯誤與逾期） -->
+                <details
+                  class="border-b border-surface-border"
+                  data-testid="notification"
+                  [attr.data-read]="item.isRead"
+                  (toggle)="onToggle($event, item)"
+                >
+                  <summary
+                    class="grid min-h-11 cursor-pointer list-none grid-cols-[12px_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 py-4 wide:grid-cols-[12px_96px_minmax(0,1fr)_auto] wide:gap-3 [&::-webkit-details-marker]:hidden"
+                  >
+                    <span
+                      class="size-2 self-center rounded-full bg-accent-500"
+                      [class.invisible]="item.isRead"
+                      aria-hidden="true"
+                    ></span>
+                    <span
+                      class="col-start-2 row-start-1 inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-zinc-700 wide:col-auto wide:row-auto"
+                      data-testid="kind"
+                    >
+                      <i class="pi text-sm {{ kindOf(item.kind).icon }}" aria-hidden="true"></i>
+                      {{ kindOf(item.kind).label }}
+                    </span>
+                    <span
+                      class="col-span-2 col-start-2 row-start-2 text-base wide:col-auto wide:col-span-1 wide:row-auto"
+                      [class.font-bold]="!item.isRead"
+                      [class.text-zinc-900]="!item.isRead"
+                      [class.font-medium]="item.isRead"
+                      [class.text-zinc-700]="item.isRead"
+                      data-testid="title"
+                      >{{ item.title }}
+                      @if (!item.isRead) {
+                        <span class="sr-only">（未讀）</span>
+                      }
+                    </span>
+                    <span
+                      class="col-start-3 row-start-1 text-sm whitespace-nowrap text-zinc-600 tabular-nums wide:col-auto wide:row-auto"
+                      >{{ item.createdAt | date: 'M/d HH:mm' : '+0800' }}</span
+                    >
+                  </summary>
+                  <div
+                    class="flex flex-wrap items-center gap-3 pb-4 pl-6 wide:pl-[calc(12px+96px+24px)]"
+                  >
+                    <!-- prettier-ignore -->
+                    <p class="m-0 mr-auto max-w-[64ch] text-md leading-relaxed whitespace-pre-wrap text-zinc-800">{{ item.body }}</p>
+                    @if (item.link; as link) {
+                      <a
+                        class="inline-flex h-11 items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:h-8"
+                        data-testid="go"
+                        [href]="link"
+                        (click)="go($event, link)"
+                        >{{ kindOf(item.kind).go
+                        }}<i class="pi pi-arrow-right text-sm" aria-hidden="true"></i
+                      ></a>
+                    }
+                  </div>
+                </details>
+              }
+            </div>
           </section>
         }
+        <p class="m-0 py-6 text-sm text-zinc-600">通知保留 90 天。</p>
       }
-    </app-reload-veil>
-  </section>
-</div>
+    </div>
+  </div>
+} @else {
+  <div class="page-wrap flex flex-col pb-12">
+    <section aria-label="已發布">
+      <app-reload-veil [loading]="loading()">
+        <div reloadSkeleton class="skeleton-list pt-6 wide:pt-8" aria-label="已發布公告載入中">
+          @for (i of [1, 2, 3]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+        @if (loadError()) {
+          <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
+        } @else if (announcements().length === 0) {
+          <!-- 空狀態不另放「發送通知」：頁首工具列已經有主按鈕（使用者 10-16 截圖指出重複） -->
+          <p class="m-0 pt-6 text-base text-zinc-700 wide:pt-8">還沒有發布過公告。</p>
+        } @else {
+          @for (chapter of chapters(); track chapter.key) {
+            <!-- A6 `.chap`：上下 32px（手機 24px）、每一章（含最後一章）都有下框、兩欄間距 32px（手機 12px） -->
+            <section
+              class="grid grid-cols-1 gap-3 border-b border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
+              [attr.aria-label]="chapter.name"
+              data-testid="chapter"
+            >
+              <app-chapter-head
+                class="block"
+                [name]="chapter.name"
+                [count]="chapter.items.length"
+                [stacked]="true"
+                unit="則"
+              />
+              <ul class="m-0 list-none p-0">
+                @for (item of chapter.items; track item.id) {
+                  <li
+                    class="vt-row grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 border-b border-surface-border py-4 last:border-b-0"
+                    data-testid="announcement"
+                    [style.view-transition-name]="'announcement-' + item.id"
+                  >
+                    <span class="text-base font-semibold text-zinc-900">{{ item.title }}</span>
+                    <span
+                      class="col-start-2 row-span-2 row-start-1 block h-[22px] self-center rounded-full px-2 text-sm leading-[18px] font-semibold whitespace-nowrap text-zinc-800 ring-1 ring-zinc-300 ring-inset"
+                      data-testid="audience"
+                      >{{ AUDIENCE_LABELS[item.audience] }}</span
+                    >
+                    <span class="text-sm text-zinc-600 tabular-nums" data-testid="meta">
+                      {{ item.publishedAt | date: 'yyyy/MM/dd HH:mm' : '+0800' }} ·
+                      {{ item.campusName ?? '全部分校' }}
+                    </span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        }
+      </app-reload-veil>
+    </section>
+  </div>
+}
 
 @if (canSend()) {
   <!--
