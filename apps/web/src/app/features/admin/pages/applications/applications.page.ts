@@ -225,8 +225,20 @@ export class ApplicationsPage {
         this.replaceRequest(res.data);
         this.rejectingId.set(null);
       },
-      error: () =>
-        this.messages.add({ severity: 'error', summary: '拒絕失敗', detail: '請稍後再試' }),
+      error: (err: { status?: number }) => {
+        // 409＝被搶先核准（帳單開了）：再試也一樣，說清楚並重抓，讓卡片換成現在的狀態
+        if (err.status === 409) {
+          this.rejectingId.set(null);
+          this.messages.add({
+            severity: 'warn',
+            summary: '這筆已經不是待審核',
+            detail: '已重新整理',
+          });
+          this.load();
+          return;
+        }
+        this.messages.add({ severity: 'error', summary: '拒絕失敗', detail: '請稍後再試' });
+      },
     });
   }
 
@@ -234,8 +246,11 @@ export class ApplicationsPage {
     if (status === r.status) return;
     this.parentRequests.setTrialStatus(r.id, status).subscribe({
       next: (res) => this.replaceRequest(res.data),
-      error: () =>
-        this.messages.add({ severity: 'error', summary: '儲存失敗', detail: '請稍後再試' }),
+      error: () => {
+        // 下拉已經在畫面上選了新值；換一個新物件讓它重畫回原本的狀態
+        this.replaceRequest({ ...r });
+        this.messages.add({ severity: 'error', summary: '儲存失敗', detail: '請稍後再試' });
+      },
     });
   }
 

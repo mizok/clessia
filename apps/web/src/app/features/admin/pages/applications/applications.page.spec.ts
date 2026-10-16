@@ -241,6 +241,42 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     }
   });
 
+  it('拒絕回 409（被搶先核准）：說清楚、收起原因欄、重抓；其他錯誤寫稍後再試', async () => {
+    const { fixture, parents, el } = await setup();
+    const p = page(fixture);
+    const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+    parents.reject.mockReturnValueOnce(throwError(() => ({ status: 409 })));
+    p.startReject(req());
+    parents.list.mockClear();
+    p.submitReject(req(), '額滿');
+    fixture.detectChanges();
+    expect(toast).toHaveBeenLastCalledWith(
+      expect.objectContaining({ summary: '這筆已經不是待審核' }),
+    );
+    expect(p.rejectingId()).toBeNull();
+    expect(parents.list).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('textarea[aria-label^="拒絕原因"]')).toBeNull();
+
+    parents.reject.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    p.startReject(req());
+    parents.list.mockClear();
+    p.submitReject(req(), '額滿');
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ summary: '拒絕失敗' }));
+    expect(parents.list).not.toHaveBeenCalled();
+  });
+
+  it('試聽改狀態失敗：那一列換成新物件（讓下拉重畫回原狀態）', async () => {
+    const trial = req({ id: 't1', kind: 'trial', status: 'pending' });
+    const { fixture, parents } = await setup([trial]);
+    const p = page(fixture);
+    parents.setTrialStatus.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    const before = p.requests()[0];
+    p.setTrialStatus(before, 'scheduled');
+    const after = p.requests()[0];
+    expect(after).not.toBe(before);
+    expect(after.status).toBe('pending');
+  });
+
   it('已拒絕、待繳費的報名：沒有拒絕鈕', async () => {
     for (const status of ['rejected', 'awaiting_payment']) {
       TestBed.resetTestingModule();
