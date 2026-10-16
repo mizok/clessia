@@ -218,7 +218,8 @@ const AREAS = [
   {
     name: '通知',
     pages: ['admin/notifications', 'teacher/notifications', 'parent/notifications'],
-    routes: ['announcements'],
+    // me-push：推播訂閱與通知偏好（#1659）—— 家長「通知」頁上方的通知設定吃它（web-push.md §4）
+    routes: ['announcements', 'me-push'],
     specs: ['admin/notifications.md', 'teacher/notifications.md', 'parent/notifications.md'],
   },
   // 後端沒有自己的 route 檔：`GET /api/sessions/changes` 掛在 sessions 底下（異動紀錄本來就

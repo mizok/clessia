@@ -14,7 +14,7 @@ import {
   getCampusScope,
   grantsWiderThanScope,
 } from '../lib/campus-scope';
-import { DbUuidSchema } from '../lib/validation';
+import { DbUuidSchema, NicknameSchema } from '../lib/validation';
 import { findInOrg, inOrg } from '../lib/org-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { generatePlaceholderEmail } from './parents';
@@ -44,6 +44,8 @@ const StaffSchema = z
     userId: DbUuidSchema,
     orgId: DbUuidSchema,
     displayName: z.string(),
+    /** 對外暱稱（#1665 Q6）。公開頁只露暱稱，沒設就不露這個人 */
+    nickname: z.string().nullable(),
     phone: z.string().nullable(),
     email: z.email(),
     birthday: z.string().nullable(),
@@ -100,6 +102,7 @@ const StaffListResponseSchema = z
 const CreateStaffSchema = z
   .object({
     displayName: z.string().min(1).max(100).openapi({ description: '姓名' }),
+    nickname: NicknameSchema.optional(),
     email: z.email().optional().openapi({
       description: 'Email（產生一次性登入連結時的查人鍵）；掃碼機台不給，由系統產生佔位值',
     }),
@@ -119,6 +122,7 @@ const CreateStaffSchema = z
 const UpdateStaffSchema = z
   .object({
     displayName: z.string().min(1).max(100).optional(),
+    nickname: NicknameSchema.optional(),
     phone: z.string().max(30).nullable().optional(),
     birthday: DateStringSchema.nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
@@ -295,6 +299,7 @@ function mapStaff(
     userId,
     orgId: row['org_id'] as string,
     displayName: row['display_name'] as string,
+    nickname: (row['nickname'] as string | null | undefined) ?? null,
     phone: baUser.phone,
     email: baUser.email ?? '',
     birthday: row['birthday'] as string | null,
@@ -1146,6 +1151,7 @@ app.openapi(createRouteDef, async (c) => {
       user_id: authUserId,
       org_id: orgId,
       display_name: body.displayName,
+      nickname: body.nickname ?? null,
       birthday: body.birthday || null,
       notes: body.notes || null,
       status: 'active',
@@ -1404,6 +1410,7 @@ app.openapi(updateRoute, async (c) => {
 
   const updateData: Record<string, unknown> = {};
   if (body.displayName !== undefined) updateData['display_name'] = body.displayName;
+  if (body.nickname !== undefined) updateData['nickname'] = body.nickname;
   if (body.birthday !== undefined) updateData['birthday'] = body.birthday;
   if (body.notes !== undefined) updateData['notes'] = body.notes;
   if (body.status !== undefined) updateData['status'] = body.status;

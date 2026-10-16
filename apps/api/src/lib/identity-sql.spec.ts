@@ -111,6 +111,7 @@ describe('loadMeExtrasViaSql', () => {
     const row = {
       profile_display_name: '舊名',
       profile_rows: 1,
+      staff_nickname: '王老師',
       name: 'n',
       email: 'e',
       phone: null,
@@ -119,6 +120,7 @@ describe('loadMeExtrasViaSql', () => {
     expect(await loadMeExtrasViaSql(db, 'u', 'o')).toEqual({
       profile: { display_name: '舊名' },
       baUser: { name: 'n', email: 'e', phone: null },
+      nickname: '王老師',
     });
 
     db.query.mockResolvedValue({ rows: [{ ...row, profile_display_name: null, profile_rows: 0 }] });
@@ -130,6 +132,19 @@ describe('loadMeExtrasViaSql', () => {
     [
       'email 不是字串',
       [{ profile_display_name: null, profile_rows: 0, name: 'n', email: 1, phone: null }],
+    ],
+    [
+      'staff_nickname 不是字串也不是 null（#1665）',
+      [
+        {
+          profile_display_name: null,
+          profile_rows: 0,
+          staff_nickname: 1,
+          name: 'n',
+          email: 'e',
+          phone: null,
+        },
+      ],
     ],
     [
       'profile_rows 是 2',

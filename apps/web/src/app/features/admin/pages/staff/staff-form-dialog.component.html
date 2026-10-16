@@ -31,6 +31,23 @@
       }
     </div>
 
+    <!-- 對外暱稱（#1665 Q6）：所有人員都能設 -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label" for="staff-nickname">對外暱稱</label>
+      <input
+        id="staff-nickname"
+        type="text"
+        pInputText
+        maxlength="20"
+        [ngModel]="formData().nickname"
+        (ngModelChange)="updateForm('nickname', $event)"
+        placeholder="例：王老師"
+        [disabled]="loading()"
+        class="w-full"
+      />
+      <p class="form-dialog__hint">對外的頁面只會顯示暱稱；不填就不顯示這個人</p>
+    </div>
+
     <!-- Email -->
     <div class="form-dialog__field">
       <label class="form-dialog__label"> Email<span class="form-dialog__required">*</span> </label>

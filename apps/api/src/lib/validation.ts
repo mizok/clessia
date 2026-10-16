@@ -26,3 +26,15 @@ export const DbUuidSchema = z.string().regex(DB_UUID_PATTERN, 'Invalid UUID').op
 });
 
 export const NullableDbUuidSchema = DbUuidSchema.nullable();
+
+/**
+ * 對外暱稱（#1665 Q6）：頭尾空白去掉；空字串＝清掉（存 null）。長度同 DB 的 `staff_nickname_len`（1–20）。
+ * 人員管理（管理員改別人）與帳號設定（本人改自己）共用這一條，不另設審核。
+ */
+export const NicknameSchema = z
+  .string()
+  .trim()
+  .max(20, '暱稱最多 20 字')
+  .transform((v) => v || null)
+  .nullable()
+  .openapi({ description: '對外暱稱；公開頁只顯示暱稱，沒設就不顯示這個人' });

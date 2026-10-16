@@ -165,6 +165,7 @@ describe('#680 PUT /api/staff/:id —— 改 roles 時沒帶 permissions 不得�
   /** 記下每一次 insert，測試才看得到「重建出來的那一列帶什麼權限」 */
   function fakeDb() {
     const inserted: Array<{ table: string; rows: unknown }> = [];
+    const updated: Array<{ table: string; patch: Record<string, unknown> }> = [];
 
     const make = (table: string) => {
       const builder: Record<string, unknown> = {};
@@ -175,7 +176,10 @@ describe('#680 PUT /api/staff/:id —— 改 roles 時沒帶 permissions 不得�
           inserted.push({ table, rows });
           return chain();
         },
-        update: () => chain(),
+        update: (patch: Record<string, unknown>) => {
+          updated.push({ table, patch });
+          return chain();
+        },
         delete: () => chain(),
         eq: () => chain(),
         in: () => chain(),
@@ -204,7 +208,7 @@ describe('#680 PUT /api/staff/:id —— 改 roles 時沒帶 permissions 不得�
       return builder;
     };
 
-    return { inserted, from: (table: string) => make(table) };
+    return { inserted, updated, from: (table: string) => make(table) };
   }
 
   async function put(body: unknown) {
@@ -234,8 +238,17 @@ describe('#680 PUT /api/staff/:id —— 改 roles 時沒帶 permissions 不得�
       .find((row) => (row as { role?: string }).role === 'admin') as
       { permissions?: string[] } | undefined;
 
-    return { status: res.status, adminRow };
+    const staffPatch = db.updated.find((u) => u.table === 'staff')?.patch;
+    return { status: res.status, adminRow, staffPatch };
   }
+
+  // #1665 Q6：暱稱開給所有人員（老師、行政、管理員）；跟帳號設定同一條 NicknameSchema
+  it('nickname：去頭尾空白後寫；空字串寫 null；沒帶 key 不動；超過 20 字 400', async () => {
+    expect((await put({ nickname: ' 大文老師 ' })).staffPatch).toEqual({ nickname: '大文老師' });
+    expect((await put({ nickname: '' })).staffPatch).toEqual({ nickname: null });
+    expect((await put({ displayName: '陳大文' })).staffPatch).not.toHaveProperty('nickname');
+    expect((await put({ nickname: '字'.repeat(21) })).status).toBe(400);
+  });
 
   it('不帶 permissions 時沿用既有的，不是清成空陣列', async () => {
     const { status, adminRow } = await put({ roles: ['admin'] });

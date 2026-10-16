@@ -72,6 +72,10 @@
         [class.text-zinc-600]="!cls().isActive"
         >{{ cls().isActive ? '啟用' : '停用' }}</span
       >
+      <!-- #1665 Q5：讓人知道為什麼公開頁上找不到它 -->
+      @if (cls().isPublicEnrollment === false) {
+        <span data-part="not-public" class="text-sm font-semibold text-zinc-600">不公開</span>
+      }
       @if ((cls().upcomingUnassignedCount ?? 0) > 0) {
         <button
           type="button"

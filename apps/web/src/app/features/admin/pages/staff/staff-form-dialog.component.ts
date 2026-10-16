@@ -93,6 +93,7 @@ export class StaffFormDialogComponent {
 
   protected readonly formData = signal({
     displayName: this.staff()?.displayName ?? '',
+    nickname: this.staff()?.nickname ?? '',
     email: this.staff()?.email ?? '',
     phone: this.staff()?.phone ?? '',
     birthday: (this.staff()?.birthday
@@ -191,6 +192,8 @@ export class StaffFormDialogComponent {
 
     const commonInput = {
       displayName: form.displayName.trim(),
+      // 空字串＝清掉；API 端同一條 NicknameSchema 也會 trim
+      nickname: form.nickname.trim() || null,
       phone: form.phone.trim() || null,
       birthday: form.birthday ? this.formatDate(form.birthday) : null,
       notes: form.notes.trim() || null,
