@@ -102,12 +102,28 @@ function seed() {
   });
 }
 
-async function call(path: string, scope: readonly string[] | null = [CA]) {
+/** 指定那張表的查詢一律回 error（其餘照常）—— 守「讀不到不能裝成沒有」 */
+function failingOn(client: unknown, table: string): unknown {
+  const result = { data: null, error: { message: 'boom' } };
+  const chain: unknown = new Proxy(() => undefined, {
+    get: (_t, key) =>
+      key === 'then' ? (resolve: (v: unknown) => void) => resolve(result) : () => chain,
+  });
+  const real = client as { from: (t: string) => unknown };
+  return new Proxy(real, {
+    get: (target, key) =>
+      key === 'from'
+        ? (name: string) => (name === table ? chain : target.from(name))
+        : Reflect.get(target, key),
+  });
+}
+
+async function call(path: string, scope: readonly string[] | null = [CA], failTable?: string) {
   const db = seed();
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    set('supabase', failTable ? failingOn(db.client, failTable) : db.client);
     set('orgId', ORG);
     set('userId', 'admin-a');
     set('roles', ['admin']);
@@ -161,6 +177,16 @@ describe('單張帳單帶家長聯絡方式（#1625）', () => {
     expect(JSON.stringify(body)).not.toContain('0922000111');
     expect(JSON.stringify(body)).not.toContain('lee@example.com');
   });
+
+  // #1625 計畫席擋點：任一支讀不到就 500，不能回「沒有家長／沒有留電話」騙人
+  it.each(['parent_student_relations', 'ba_user', 'campuses', 'organizations'])(
+    '%s 讀不到 → 500，不回空的家長清單',
+    async (table) => {
+      const { status, body } = await call(`/${IN_A}`, [CA], table);
+      expect(status).toBe(500);
+      expect(body).not.toHaveProperty('data');
+    },
+  );
 
   it('列表不帶家長聯絡方式與匯款資料', async () => {
     const { status, body } = await call('/', null);

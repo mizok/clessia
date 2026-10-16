@@ -524,6 +524,10 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: InvoiceDetailSchema }) } },
       },
       404: { description: '不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: {
+        description: '讀取家長聯絡方式或匯款資料失敗',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -565,11 +569,25 @@ app.openapi(
             .in('id', campusIds),
       supabase.from('organizations').select('payment_info').eq('id', orgId).maybeSingle(),
     ]);
+    // 任一支讀不到就整張失敗（#1625 計畫席擋點）—— 吞掉的話回應是「沒有家長／沒有留電話」，
+    // 跟真的沒有一模一樣，行政會以為聯絡不到而放棄
+    const contacts = relations.error
+      ? null
+      : await attachParentContacts(
+          supabase,
+          (relations.data ?? []) as unknown as ParentRelationRow[],
+        );
+    const readError =
+      relations.error ??
+      contacts?.error ??
+      ('error' in campuses ? campuses.error : null) ??
+      org.error;
+    if (readError || !contacts) {
+      return c.json({ error: '讀取家長聯絡方式失敗', code: 'SERVER_ERROR' }, 500);
+    }
     // 預設網域跟 `generatePlaceholderEmail` 同一個，產生與判斷才對得上
     const placeholderDomain = c.env?.PLACEHOLDER_EMAIL_DOMAIN ?? 'phone.internal';
-    const parents = (
-      await attachParentContacts(supabase, (relations.data ?? []) as unknown as ParentRelationRow[])
-    )
+    const parents = contacts.parents
       .map((p) => ({
         id: p.id,
         name: p.name,

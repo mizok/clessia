@@ -837,6 +837,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: StudentDetailSchema }) } },
       },
       404: { description: '學生不存在' },
+      500: { description: '讀取家長聯絡方式失敗' },
     },
   }),
   async (c) => {
@@ -867,7 +868,11 @@ app.openapi(
 
     const row = data as Record<string, unknown>;
     const relations = (row['parent_student_relations'] as ParentRelationRow[]) ?? [];
-    const parents = await attachParentContacts(supabase, relations);
+    // #1625：ba_user 讀不到原本被吞成「沒有留電話」，跟真的沒留分不出來 —— 改成 500
+    const { parents, error: contactsError } = await attachParentContacts(supabase, relations);
+    if (contactsError) {
+      return c.json({ error: '讀取家長聯絡方式失敗', code: 'SERVER_ERROR' }, 500);
+    }
 
     const parentNames = parents
       .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0))
