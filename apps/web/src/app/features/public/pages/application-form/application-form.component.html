@@ -1,0 +1,718 @@
+<!--
+  A6 公開表單（`.pf`，pub-trial.html／pub-enrollment.html 逐字相同的那一套）。
+  手機優先：基底＝手機，`min-[561px]:` 兩欄、`min-[1025px]:` 桌機字級、`wide:` 輸入框字級（A6 860px 斷點）。
+  `data-invalid` 是「捲到第一個錯的欄位」的掛點。
+-->
+@switch (view()) {
+  @case ('loading') {
+    <p class="m-0 w-full max-w-[560px] py-8 text-base text-zinc-600" role="status">載入中…</p>
+  }
+  @case ('disabled') {
+    <div class="w-full max-w-[560px] pb-12">
+      <h1
+        class="m-0 text-[28px] leading-[1.2] font-bold tracking-[-0.03em] min-[1025px]:text-[32px]"
+      >
+        {{ kind() === 'trial' ? '試聽申請' : '我要報名' }}
+      </h1>
+      <p class="mt-2 mb-0 text-lg text-zinc-700">這個補習班目前沒有開放線上申請，請直接來電。</p>
+    </div>
+  }
+  @case ('load-failed') {
+    <div class="w-full max-w-[560px] pb-12" role="alert">
+      <p class="m-0 text-base text-error-700">讀不到課程資料，請再試一次。</p>
+      <button
+        type="button"
+        class="mt-4 inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        (click)="reload()"
+      >
+        重試
+      </button>
+    </div>
+  }
+  @case ('form') {
+    <form
+      class="w-full max-w-[560px] pb-12"
+      novalidate
+      (submit)="$event.preventDefault(); submit()"
+    >
+      <p class="m-0 text-sm font-semibold tracking-[0.04em] text-zinc-600">
+        {{ kind() === 'trial' ? '試聽服務' : '報名服務' }}
+      </p>
+      <h1
+        class="mt-2 mb-0 text-[28px] leading-[1.2] font-bold tracking-[-0.03em] min-[1025px]:text-[32px]"
+      >
+        {{ kind() === 'trial' ? '試聽申請' : '我要報名' }}
+      </h1>
+      <p class="mt-2 mb-0 text-lg text-zinc-700">
+        @if (kind() === 'trial') {
+          填寫表單預約試聽課程。補習班收到後會打電話跟你約時間。
+        } @else {
+          填寫表單完成報名流程。補習班審核後會寄繳費單給你。
+        }
+      </p>
+      <p class="mt-5 mb-0 rounded-md bg-zinc-100 px-4 py-3 text-base text-zinc-800">
+        @if (kind() === 'trial') {
+          已經想好要上哪一班？可以直接<a
+            class="font-semibold text-zinc-900 underline-offset-[3px]"
+            [routerLink]="enrollmentPath"
+            >填報名表</a
+          >。
+        } @else {
+          若想先試聽再決定，請填寫<a
+            class="font-semibold text-zinc-900 underline-offset-[3px]"
+            [routerLink]="trialPath"
+            >試聽申請表單</a
+          >。
+        }
+      </p>
+
+      <!-- ── 家長資訊 ── -->
+      <section class="mt-8" aria-labelledby="h-parent">
+        <h2
+          id="h-parent"
+          class="mt-0 mb-4 border-b border-zinc-200 pb-2 text-[13px] font-bold text-zinc-800"
+        >
+          家長資訊
+        </h2>
+        <div class="mb-4" [attr.data-invalid]="!!error('parentName')">
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-parentName"
+            >家長姓名 <span class="text-error-700" aria-hidden="true">*</span></label
+          >
+          <input
+            id="f-parentName"
+            class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+            [class.border-error-700!]="!!error('parentName')"
+            type="text"
+            placeholder="例：王小明"
+            autocomplete="name"
+            aria-required="true"
+            aria-describedby="e-parentName"
+            [attr.aria-invalid]="!!error('parentName')"
+            [value]="values().parentName"
+            (input)="text('parentName', $event)"
+          />
+          @if (error('parentName'); as msg) {
+            <p
+              id="e-parentName"
+              class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+            >
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+            </p>
+          }
+        </div>
+        <div class="grid grid-cols-1 gap-x-4 min-[561px]:grid-cols-2">
+          <div class="mb-4" [attr.data-invalid]="!!error('email')">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-email"
+              >Email</label
+            >
+            <input
+              id="f-email"
+              class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+              [class.border-error-700!]="!!error('email')"
+              type="email"
+              placeholder="name@example.com"
+              autocomplete="email"
+              aria-describedby="h-email e-email"
+              [attr.aria-invalid]="!!error('email')"
+              [value]="values().email"
+              (input)="text('email', $event)"
+            />
+            <p id="h-email" class="mt-1 mb-0 text-md text-zinc-600">
+              不是登入帳號，是之後寄登入連結用的
+            </p>
+            @if (error('email'); as msg) {
+              <p
+                id="e-email"
+                class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+              >
+                <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+              </p>
+            }
+          </div>
+          <div class="mb-4" [attr.data-invalid]="!!error('phone')">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-phone"
+              >手機號碼</label
+            >
+            <input
+              id="f-phone"
+              class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+              [class.border-error-700!]="!!error('phone')"
+              type="tel"
+              inputmode="tel"
+              placeholder="0912-345-678"
+              autocomplete="tel"
+              aria-describedby="e-phone"
+              [attr.aria-invalid]="!!error('phone')"
+              [value]="values().phone"
+              (input)="text('phone', $event)"
+            />
+            @if (error('phone'); as msg) {
+              <p
+                id="e-phone"
+                class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+              >
+                <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+              </p>
+            }
+          </div>
+        </div>
+        <p class="-mt-2 mb-0 text-md text-zinc-600">Email 和手機至少填一個，補習班才聯絡得到你。</p>
+        <!-- 與學生的關係：報名稿的那一欄；試聽稿沒有，Q1 裁定補上（a6-adoption-rules R5） -->
+        <div
+          class="mt-4 mb-4"
+          role="radiogroup"
+          aria-labelledby="l-relation"
+          aria-describedby="e-relation"
+          aria-required="true"
+          [attr.data-invalid]="!!error('relation')"
+        >
+          <p id="l-relation" class="mt-0 mb-1 block text-md font-semibold text-zinc-700">
+            與學生的關係 <span class="text-error-700" aria-hidden="true">*</span>
+          </p>
+          <div class="flex flex-wrap gap-2">
+            @for (r of relations; track r.value) {
+              <label
+                class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-zinc-300 px-4 text-base has-checked:border-zinc-900 has-checked:font-semibold has-checked:shadow-[inset_0_0_0_1px_var(--zinc-900)]"
+                [class.border-error-700!]="!!error('relation')"
+              >
+                <input
+                  class="m-0 size-[18px] accent-zinc-900"
+                  type="radio"
+                  name="relation"
+                  [value]="r.value"
+                  [checked]="values().relation === r.value"
+                  (change)="set('relation', r.value)"
+                />{{ r.label }}
+              </label>
+            }
+          </div>
+          @if (error('relation'); as msg) {
+            <p
+              id="e-relation"
+              class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+            >
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+            </p>
+          }
+        </div>
+      </section>
+
+      <!-- ── 學生資訊 ── -->
+      <section class="mt-8" aria-labelledby="h-kid">
+        <h2
+          id="h-kid"
+          class="mt-0 mb-4 border-b border-zinc-200 pb-2 text-[13px] font-bold text-zinc-800"
+        >
+          學生資訊
+        </h2>
+        <div class="mb-4" [attr.data-invalid]="!!error('studentName')">
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-studentName"
+            >學生姓名 <span class="text-error-700" aria-hidden="true">*</span></label
+          >
+          <input
+            id="f-studentName"
+            class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+            [class.border-error-700!]="!!error('studentName')"
+            type="text"
+            placeholder="例：王柏翰"
+            autocomplete="off"
+            aria-required="true"
+            aria-describedby="e-studentName"
+            [attr.aria-invalid]="!!error('studentName')"
+            [value]="values().studentName"
+            (input)="text('studentName', $event)"
+          />
+          @if (error('studentName'); as msg) {
+            <p
+              id="e-studentName"
+              class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+            >
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+            </p>
+          }
+        </div>
+        <div class="grid grid-cols-1 gap-x-4 min-[561px]:grid-cols-2">
+          <div class="mb-4" [attr.data-invalid]="!!error('grade')">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-grade"
+              >年級 <span class="text-error-700" aria-hidden="true">*</span></label
+            >
+            <select
+              id="f-grade"
+              class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+              [class.border-error-700!]="!!error('grade')"
+              aria-required="true"
+              aria-describedby="e-grade"
+              [attr.aria-invalid]="!!error('grade')"
+              (change)="text('grade', $event)"
+            >
+              <option value="" [selected]="!values().grade">選擇年級</option>
+              @for (g of grades; track g) {
+                <option [value]="g" [selected]="values().grade === g">{{ gradeLabel(g) }}</option>
+              }
+            </select>
+            @if (error('grade'); as msg) {
+              <p
+                id="e-grade"
+                class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+              >
+                <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+              </p>
+            }
+          </div>
+          <div class="mb-4" [attr.data-invalid]="!!error('school')">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-school"
+              >就讀學校 <span class="text-error-700" aria-hidden="true">*</span></label
+            >
+            <input
+              id="f-school"
+              class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+              [class.border-error-700!]="!!error('school')"
+              type="text"
+              placeholder="例：興隆國小"
+              autocomplete="off"
+              aria-required="true"
+              aria-describedby="e-school"
+              [attr.aria-invalid]="!!error('school')"
+              [value]="values().school"
+              (input)="text('school', $event)"
+            />
+            @if (error('school'); as msg) {
+              <p
+                id="e-school"
+                class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+              >
+                <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+              </p>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 課程／開課班 ── -->
+      <section class="mt-8" aria-labelledby="h-targets">
+        <h2
+          id="h-targets"
+          class="mt-0 mb-4 border-b border-zinc-200 pb-2 text-[13px] font-bold text-zinc-800"
+        >
+          {{ kind() === 'trial' ? '想試聽的課程' : '想報名的開課班'
+          }}<small class="ml-2 font-medium text-zinc-600">可以選好幾個</small>
+        </h2>
+        <div
+          class="mb-4"
+          role="group"
+          aria-labelledby="h-targets"
+          aria-describedby="e-targets"
+          [attr.data-invalid]="!!error('targets')"
+        >
+          @if (kind() === 'trial') {
+            @for (group of courseGroups(); track group.subject) {
+              <div class="mt-4 first:mt-0">
+                <p class="mt-0 mb-2 text-md font-semibold text-zinc-700">{{ group.subject }}</p>
+                @for (o of group.options; track o.id) {
+                  <label
+                    class="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-zinc-200 p-3 hover:border-zinc-400 has-checked:border-zinc-900 has-checked:shadow-[inset_0_0_0_1px_var(--zinc-900)] [&+&]:mt-2"
+                    [class.border-error-700!]="!!error('targets')"
+                  >
+                    <input
+                      class="m-0 mt-0.5 size-[18px] flex-none accent-zinc-900"
+                      type="checkbox"
+                      [checked]="checked(o.id)"
+                      (change)="toggleTarget(o.id, $any($event.target).checked)"
+                    />
+                    <span>
+                      <span class="text-base font-semibold">{{ o.name }}</span>
+                      @if (fits(o.gradeLevels)) {
+                        <span
+                          class="ml-2 inline-flex rounded-sm border border-zinc-900 px-1.5 align-[1px] text-xs leading-[18px] font-semibold"
+                          >適合{{ gradeLabel(values().grade) }}</span
+                        >
+                      }
+                      <span class="mt-0.5 block text-md text-zinc-600">{{ o.detail }}</span>
+                    </span>
+                  </label>
+                }
+              </div>
+            } @empty {
+              <p class="m-0 text-base text-zinc-600">目前沒有開放試聽的課程，請直接來電。</p>
+            }
+          } @else {
+            @for (group of classGroups(); track group.subject) {
+              <div class="mt-4 first:mt-0">
+                <p class="mt-0 mb-2 text-md font-semibold text-zinc-700">{{ group.subject }}</p>
+                @for (o of group.options; track o.id) {
+                  <label
+                    class="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-zinc-200 p-3 hover:border-zinc-400 has-checked:border-zinc-900 has-checked:shadow-[inset_0_0_0_1px_var(--zinc-900)] [&+&]:mt-2"
+                    [class.border-error-700!]="!!error('targets')"
+                  >
+                    <input
+                      class="m-0 mt-0.5 size-[18px] flex-none accent-zinc-900"
+                      type="checkbox"
+                      [checked]="checked(o.id)"
+                      (change)="toggleTarget(o.id, $any($event.target).checked)"
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span class="flex flex-wrap justify-between gap-x-3 gap-y-0.5">
+                        <span>
+                          <span class="text-base font-semibold">{{ o.name }}</span>
+                          @if (fits(o.gradeLevels)) {
+                            <span
+                              class="ml-2 inline-flex rounded-sm border border-zinc-900 px-1.5 align-[1px] text-xs leading-[18px] font-semibold"
+                              >適合{{ gradeLabel(values().grade) }}</span
+                            >
+                          }
+                        </span>
+                        @if (o.fee) {
+                          <span class="text-base font-semibold whitespace-nowrap tabular-nums">{{
+                            o.fee
+                          }}</span>
+                        }
+                      </span>
+                      <span class="mt-0.5 block text-md text-zinc-600"
+                        >{{ o.detail }}{{ o.detail ? ' · ' : ''
+                        }}<span class="font-semibold text-zinc-900">{{
+                          o.full ? '已額滿 · 勾選即登記候補' : '剩 ' + o.seats + ' 位'
+                        }}</span></span
+                      >
+                    </span>
+                  </label>
+                }
+              </div>
+            } @empty {
+              <p class="m-0 text-base text-zinc-600">目前沒有開放報名的班級，請直接來電。</p>
+            }
+          }
+          @if (error('targets'); as msg) {
+            <p
+              id="e-targets"
+              class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+            >
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+            </p>
+          }
+        </div>
+
+        @if (kind() === 'trial') {
+          <div class="mb-4">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-preferredTimes"
+              >方便的時段（選填）</label
+            >
+            <input
+              id="f-preferredTimes"
+              class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+              type="text"
+              maxlength="100"
+              placeholder="例：週三晚上、週六上午"
+              autocomplete="off"
+              [value]="values().preferredTimes"
+              (input)="text('preferredTimes', $event)"
+            />
+          </div>
+        } @else {
+          <div class="mb-4" [attr.data-invalid]="!!error('startDate')">
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-startDate"
+              >期望開始日期（選填）</label
+            >
+            <input
+              id="f-startDate"
+              class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+              [class.border-error-700!]="!!error('startDate')"
+              type="date"
+              [min]="today()"
+              aria-describedby="h-startDate e-startDate"
+              [attr.aria-invalid]="!!error('startDate')"
+              [value]="values().startDate"
+              (input)="text('startDate', $event)"
+            />
+            <p id="h-startDate" class="mt-1 mb-0 text-md text-zinc-600">
+              沒填的話，補習班會從最近一堂課開始安排
+            </p>
+            @if (error('startDate'); as msg) {
+              <p
+                id="e-startDate"
+                class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+              >
+                <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+              </p>
+            }
+          </div>
+        }
+        <div class="mb-4">
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="f-note"
+            >備註（選填）</label
+          >
+          <textarea
+            id="f-note"
+            class="block w-full min-w-0 resize-y rounded-md border border-zinc-300 bg-white px-3 py-2 font-[inherit] text-lg text-zinc-900 focus:border-zinc-900 focus:outline-none wide:text-base"
+            rows="3"
+            maxlength="500"
+            [placeholder]="
+              kind() === 'trial'
+                ? '例：孩子數學比較弱，想先看看程度'
+                : '例：兄弟姊妹一起報名、想從下個月開始'
+            "
+            [value]="values().note"
+            (input)="text('note', $event)"
+          ></textarea>
+        </div>
+      </section>
+
+      <!-- honeypot：真人看不到、機器人照 DOM 填表會填到；有值時 API 回假成功、不寫 -->
+      <div class="hidden" aria-hidden="true">
+        <label
+          >網站
+          <input
+            name="website"
+            tabindex="-1"
+            autocomplete="off"
+            [value]="values().website"
+            (input)="text('website', $event)"
+        /></label>
+      </div>
+
+      <!-- ── 同意與送出 ── -->
+      <section class="mt-8" aria-label="同意與送出">
+        <div class="mb-4" [attr.data-invalid]="!!error('consent')">
+          <label class="flex min-h-11 cursor-pointer items-start gap-3 text-base">
+            <input
+              id="f-consent"
+              class="m-0 mt-[3px] size-[18px] flex-none accent-zinc-900"
+              type="checkbox"
+              aria-describedby="e-consent"
+              [attr.aria-invalid]="!!error('consent')"
+              [checked]="values().consent"
+              (change)="set('consent', $any($event.target).checked)"
+            />
+            <span
+              >我同意補習班依<button
+                type="button"
+                class="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-zinc-900 underline underline-offset-[3px]"
+                (click)="$event.preventDefault(); openPrivacy()"
+              >
+                個資使用聲明</button
+              >，用以上資料{{ kind() === 'trial' ? '聯絡試聽事宜' : '處理報名與繳費' }}。</span
+            >
+          </label>
+          @if (error('consent'); as msg) {
+            <p
+              id="e-consent"
+              class="mt-1 mb-0 flex items-center gap-1 text-md font-medium text-error-700"
+            >
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ msg }}
+            </p>
+          }
+        </div>
+
+        <!-- 機器人驗證：ALTCHA 在背景算，算完才寫「已通過」；Turnstile 的 widget 畫在這一列裡 -->
+        <div
+          class="mt-4 mb-0 flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 p-3 text-md text-zinc-700"
+          role="status"
+        >
+          @if (captchaReady()) {
+            <i class="pi pi-check text-success-600" aria-hidden="true"></i>已通過機器人驗證
+          } @else if (captchaProvider() !== 'turnstile') {
+            <i class="pi pi-spinner pi-spin text-[12px]" aria-hidden="true"></i>正在確認不是機器人…
+          }
+          <div #turnstileEl></div>
+        </div>
+
+        @if (failure(); as f) {
+          <div class="mt-4 mb-0 flex gap-2 text-base text-error-700" role="alert">
+            <i class="pi pi-exclamation-circle mt-[3px] flex-none" aria-hidden="true"></i>
+            <span
+              >{{ f.message }}
+              @if (f.retry) {
+                <button
+                  type="button"
+                  class="ml-1 inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-[inherit] font-semibold text-zinc-900 underline underline-offset-[3px]"
+                  (click)="submit()"
+                >
+                  重試
+                </button>
+              }
+            </span>
+          </div>
+        }
+
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            class="inline-flex h-11 flex-[1_1_100%] cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent-vivid bg-accent-vivid px-6 text-base font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 active:border-accent-400 active:bg-accent-400 min-[561px]:flex-none"
+            [attr.aria-busy]="submitting()"
+          >
+            @if (submitting()) {
+              <i class="pi pi-spinner pi-spin text-[12px]" aria-hidden="true"></i>送出中…
+            } @else {
+              {{ kind() === 'trial' ? '送出試聽申請' : '送出報名申請' }}
+            }
+          </button>
+          <p
+            #whyEl
+            class="m-0 text-md"
+            [class.text-zinc-600]="!why()"
+            [class.text-error-700]="!!why()"
+            aria-live="polite"
+          >
+            {{ why() }}
+          </p>
+        </div>
+      </section>
+    </form>
+  }
+  @case ('done') {
+    @if (done(); as d) {
+      <div id="done" class="w-full max-w-[560px] pb-12 focus:outline-none" tabindex="-1">
+        <span class="grid size-12 place-items-center rounded-full bg-zinc-100" aria-hidden="true">
+          <i class="pi pi-check text-[24px]"></i>
+        </span>
+        <h1
+          class="mt-4 mb-0 text-[28px] leading-[1.2] font-bold tracking-[-0.03em] min-[1025px]:text-[32px]"
+        >
+          @if (kind() === 'trial') {
+            試聽申請已送出
+          } @else {
+            {{ d.allWaitlist ? '已登記候補' : '申請已送出' }}
+          }
+        </h1>
+        <p class="mt-2 mb-0 text-lg text-zinc-700">
+          @if (kind() === 'trial') {
+            謝謝你，我們收到了。
+          } @else if (d.allWaitlist) {
+            已額滿，已為您登記候補，補習班會主動聯絡。
+          } @else {
+            謝謝你，補習班收到 {{ d.values.studentName }} 的報名申請了。
+            @if (d.waitlistNames.length) {
+              <br />其中 {{ d.waitlistNames.join('、') }} 已額滿，已為您登記候補，補習班會主動聯絡。
+            }
+          }
+        </p>
+        <div class="mt-5 rounded-md bg-zinc-100 p-4 text-base leading-[1.7]">
+          <b class="font-semibold">{{ d.values.studentName }}</b
+          >（{{ gradeLabel(d.values.grade) }} · {{ d.values.school }}）
+          @if (kind() === 'enrollment') {
+            · 家長 {{ d.values.parentName }}（{{ relationLabel(d.values.relation) }}）
+          }
+          @for (line of d.lines; track $index) {
+            <br />{{ line }}
+          }
+          @if (kind() === 'trial' && d.values.preferredTimes) {
+            <br />方便的時段：{{ d.values.preferredTimes }}
+          }
+          @if (kind() === 'enrollment' && d.values.startDate) {
+            <br />希望 {{ monthDay(d.values.startDate) }} 開始
+          }
+        </div>
+
+        <section class="mt-8">
+          <h2 class="mt-0 mb-4 border-b border-zinc-200 pb-2 text-[13px] font-bold text-zinc-800">
+            接下來
+          </h2>
+          <ol class="mt-3 mb-0 pl-[1.3em] text-base leading-[1.8] text-zinc-800">
+            @if (kind() === 'trial') {
+              <li>
+                補習班會在 1–2 個工作天內{{
+                  d.values.phone ? '打 ' + d.values.phone : '寄信到 ' + d.values.email
+                }}，跟你約試聽的日期與班級。
+              </li>
+              <li>
+                試聽當天直接到 {{ campusText(d.campuses) }} 找櫃台。
+              </li>
+              <li>
+                試聽後想報名，可以<a
+                  class="font-semibold text-zinc-900 underline-offset-[3px]"
+                  [routerLink]="enrollmentPath"
+                  >填報名表</a
+                >，或請櫃台幫你登記。
+              </li>
+            } @else {
+              <li>
+                補習班審核你的申請，1–2 個工作天內{{
+                  d.values.phone ? '打 ' + d.values.phone : '寄信到 ' + d.values.email
+                }}跟你確認。
+              </li>
+              <li>
+                審核通過後寄繳費單給你：金額、繳費期限、付款方式。金額以繳費單為準（可以跟櫃台談月繳或期繳）。
+              </li>
+              <li>付款後通知補習班，確認收款就開始上課。</li>
+              <li>
+                補習班會給你一個一次性的登入連結，點開用 LINE
+                登入，之後就能看孩子的課表、到班與成績。
+              </li>
+            }
+          </ol>
+        </section>
+
+        @if (d.campuses.length) {
+          <section class="mt-8">
+            <h2 class="mt-0 mb-4 border-b border-zinc-200 pb-2 text-[13px] font-bold text-zinc-800">
+              {{ kind() === 'trial' ? '等不及？直接打給我們' : '有問題直接打給我們' }}
+            </h2>
+            @for (c of d.campuses; track c.name) {
+              @if (c.phone) {
+                <a
+                  class="mt-2 inline-flex min-h-11 items-center gap-2 text-xl font-bold text-zinc-900 tabular-nums no-underline"
+                  [href]="tel(c.phone)"
+                  ><i class="pi pi-phone" aria-hidden="true"></i>{{ c.phone }}
+                  @if (d.campuses.length > 1) {
+                    <span class="text-md font-medium text-zinc-600">{{ c.name }}</span>
+                  }
+                </a>
+                <br />
+              }
+            }
+          </section>
+        }
+
+        <div class="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 active:bg-zinc-100"
+            (click)="again()"
+          >
+            {{ kind() === 'trial' ? '再幫另一個孩子申請' : '再幫另一個孩子報名' }}
+          </button>
+          <a
+            class="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 active:bg-zinc-100"
+            [routerLink]="kind() === 'trial' ? enrollmentPath : trialPath"
+            >{{ kind() === 'trial' ? '看報名表' : '先申請試聽' }}</a
+          >
+        </div>
+        <p class="mt-6 mb-0 text-md text-zinc-600">
+          已經是我們的家長？<a
+            class="font-semibold text-zinc-900 underline-offset-[3px]"
+            [routerLink]="loginPath"
+            >用 LINE 登入</a
+          >，{{ kind() === 'trial' ? '在家長端申請比較快' : '在家長端報名可以看審核進度' }}。
+        </p>
+      </div>
+    }
+  }
+}
+
+<!-- 個資使用聲明（A6 `.acset`）：手機是底部面板、桌機置中。點背景或 ✕ 關掉 -->
+<dialog
+  #privacy
+  aria-labelledby="privacy-title"
+  class="m-0 mt-auto min-h-11 max-h-[calc(100%-24px)] w-full max-w-none rounded-t-xl border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-[rgb(26_22_20/40%)] wide:m-auto wide:max-h-[calc(100%-48px)] wide:w-[min(480px,calc(100%-32px))] wide:rounded-lg"
+  (click)="closePrivacy($event)"
+>
+  <div>
+    <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
+      <h2 id="privacy-title" class="m-0 text-xl font-bold">個資使用聲明</h2>
+      <button
+        type="button"
+        class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
+        aria-label="關閉"
+        (click)="closePrivacy()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p class="m-0 px-6 pt-2 pb-6 text-base leading-[1.7] text-zinc-800">
+      本補習班蒐集你填寫的家長與學生資料，只用於{{
+        kind() === 'trial' ? '聯絡試聽、安排課程與後續報名' : '審核報名、開立繳費單與開通帳號'
+      }}。這份申請保存 6 個月後刪除；你可以隨時{{
+        phone() ? '打 ' + phone() + ' ' : '來電'
+      }}要求查詢、更正或刪除。
+    </p>
+  </div>
+</dialog>
