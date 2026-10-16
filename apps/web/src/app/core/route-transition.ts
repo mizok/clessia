@@ -13,6 +13,12 @@ export type RouteDirection = 'forward' | 'back' | 'lateral';
 /** 方向寫在 `<html data-route-dir>` 上，styles.css 的 `::view-transition-*(route-content)` 讀它 */
 export const ROUTE_DIR_ATTR = 'data-route-dir';
 
+/**
+ * 最後一次換頁 VT 的序號。快速連續換頁時，前一個被新的 `startViewTransition` 以 AbortError 跳過，
+ * 它的 `finished` 晚於後一個寫上方向才結束 —— 不比對的話會把後一個的方向拿掉（#1642 審核席抓到）。
+ */
+let latestRouteVt = 0;
+
 /** 從根往下走到最深的那一層，把每一層的網址段數加總 */
 export function urlDepth(snapshot: ActivatedRouteSnapshot | null | undefined): number {
   let depth = 0;
@@ -41,7 +47,10 @@ export function onRouteViewTransition({ transition, from, to }: ViewTransitionIn
     return;
   }
   const root = document.documentElement;
+  const mine = ++latestRouteVt;
   root.setAttribute(ROUTE_DIR_ATTR, routeDirection(urlDepth(from), urlDepth(to)));
-  // finished 在 skip 時也會 resolve；被下一個 VT 中斷時同樣要清，所以不管成敗都拿掉
-  transition.finished.finally(() => root.removeAttribute(ROUTE_DIR_ATTR));
+  // 不管成敗都要拿掉，但只在自己還是最後一個的時候（見 latestRouteVt）
+  transition.finished.finally(() => {
+    if (mine === latestRouteVt) root.removeAttribute(ROUTE_DIR_ATTR);
+  });
 }
