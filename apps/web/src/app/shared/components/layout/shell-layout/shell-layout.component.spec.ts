@@ -360,13 +360,20 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       },
     );
 
-    it('「更多」彈窗：手機 340 寬／桌機內容寬；2 欄 → 桌機 3 欄、欄距 32', async () => {
+    it('「更多」彈窗：手機 340 寬／桌機內容寬；手機 2 欄流排（#1701）→ 桌機 3 欄、欄距 32', async () => {
       const { el } = await setup(['admin'], 'admin');
       const pop = el.querySelector('#shell-more')!;
       has(pop, 'max-wide:w-[340px]', 'wide:w-fit');
       expect(cls(pop)).not.toContain('w-[340px]');
-      const grid = pop.querySelector('div')!;
-      has(grid, 'grid-cols-2', 'wide:grid-cols-[repeat(3,max-content)]', 'wide:gap-x-8', 'gap-y-6');
+      const grid = pop.querySelector('[data-part="more-scroll"] > div')!;
+      has(
+        grid,
+        'max-wide:columns-2',
+        'wide:grid',
+        'wide:grid-cols-[repeat(3,max-content)]',
+        'wide:gap-x-8',
+        'wide:gap-y-6',
+      );
     });
 
     it('「更多」群組標題 h3：13px 粗、zinc-800、字距、下方 1px 線；項目 14px 常規字重、桌機 29px', async () => {
@@ -463,6 +470,27 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       return pop.style.top;
     };
 
+    /**
+     * #1701：手機 360×640 時「更多」被切掉兩項（人員管理、系統設定）。保底：最大高度到可視區底部留 16px，
+     * 超出就選單自己捲。選單在 top layer，`100%` 就是可視高 —— 不用 vh（c6）
+     */
+    it('更多：最大高度＝可視高扣掉上緣與底部 16px，超出自己捲', async () => {
+      await place('more');
+      const pop = document.getElementById('shell-more')!;
+      expect(pop.style.maxHeight).toBe('calc(100% - 65px)'); // 49 + 16
+      // 捲的是裡面那層：popover 本身 flex 欄、超出藏起來
+      expect(pop.classList).toContain('open:flex');
+      expect(pop.querySelector('[data-part="more-scroll"]')!.classList).toContain(
+        'overflow-y-auto',
+      );
+      expect(pop.style.maxHeight).not.toMatch(/v[hw]/);
+    });
+
+    it('分校：不加最大高度（只有「更多」會長）', async () => {
+      await place('campus');
+      expect(document.getElementById('shell-campus')!.style.maxHeight).toBe('');
+    });
+
     it('更多：按鈕下緣 41 + 8 = 49px（不是頁首下緣 56 + 8）', async () => {
       expect(await place('more')).toBe('49px');
     });
@@ -533,6 +561,58 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     it('沒有目的地（掃碼機台）：不畫鈴鐺', async () => {
       const { el } = await setup(['kiosk'], 'kiosk', true, { route: null });
       expect(bell(el)).toBeNull();
+    });
+  });
+
+  /** #1701：手機的「更多」看得出「下面還有」，到底才消失 */
+  describe('更多選單：下面還有', () => {
+    async function openMore() {
+      const { fixture, el } = await setup(['admin'], 'admin');
+      const host = document.getElementById('shell-more')!;
+      const pop = host.querySelector<HTMLElement>('[data-part="more-scroll"]')!;
+      const metrics = { scrollTop: 0, clientHeight: 400, scrollHeight: 600 };
+      for (const k of Object.keys(metrics) as (keyof typeof metrics)[])
+        Object.defineProperty(pop, k, { get: () => metrics[k], configurable: true });
+      (
+        fixture.componentInstance as unknown as {
+          onPopoverToggle: (e: unknown, w: 'more') => void;
+        }
+      ).onPopoverToggle({ target: host, newState: 'open' }, 'more');
+      return { pop, host, metrics, el };
+    }
+
+    it('超出：打開就標 data-more-below（底部淡出）—— 標在捲動層，不是 popover（不然白底跟著淡掉）', async () => {
+      const { pop, host } = await openMore();
+      expect(pop.hasAttribute('data-more-below')).toBe(true);
+      expect(host.hasAttribute('data-more-below')).toBe(false);
+      expect(host.className).not.toContain('mask-image');
+    });
+
+    it('捲到底：拿掉；往回捲：又出現', async () => {
+      const { pop, metrics } = await openMore();
+      metrics.scrollTop = 200;
+      pop.dispatchEvent(new Event('scroll'));
+      expect(pop.hasAttribute('data-more-below')).toBe(false);
+      metrics.scrollTop = 50;
+      pop.dispatchEvent(new Event('scroll'));
+      expect(pop.hasAttribute('data-more-below')).toBe(true);
+    });
+
+    it('放得下：不標', async () => {
+      const { pop, metrics } = await openMore();
+      metrics.scrollHeight = 400;
+      pop.dispatchEvent(new Event('scroll'));
+      expect(pop.hasAttribute('data-more-below')).toBe(false);
+    });
+
+    // (b)：手機是欄式流排，分組不從中間斷開 —— 不是「一列兩組對齊」（那會被最長的那組撐高）
+    it('手機是兩欄流排，分組不斷開', async () => {
+      await openMore();
+      const list = document.querySelector('#shell-more [data-part="more-scroll"] > div')!;
+      expect(list.classList).toContain('max-wide:columns-2');
+      expect(list.classList).not.toContain('grid-cols-2');
+      for (const g of Array.from(list.children))
+        expect(g.classList).toContain('break-inside-avoid');
     });
   });
 });
