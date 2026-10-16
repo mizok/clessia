@@ -495,8 +495,8 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(bell(el)!.classList).toContain('size-11');
     });
 
-    it('管理員：沒有角標，aria-label 是「通知中心」', async () => {
-      const { el } = await setup(['admin'], 'admin', true, { unread: 5 });
+    it('管理員：沒有未讀時 aria-label 是「通知中心」、沒有角標', async () => {
+      const { el } = await setup(['admin'], 'admin', true, { unread: 0 });
       expect(el.querySelector('[data-part=bell-badge]')).toBeNull();
       expect(bell(el)!.getAttribute('aria-label')).toBe('通知中心');
     });
