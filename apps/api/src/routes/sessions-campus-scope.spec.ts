@@ -1,7 +1,14 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import sessionsApp from './sessions';
+
+vi.mock('../lib/notify-schedule', () => ({
+  queueScheduleChangeNotice: vi.fn(async () => undefined),
+}));
+const queued = vi.mocked(queueScheduleChangeNotice);
+beforeEach(() => queued.mockClear());
 
 /**
  * sessions 寫入端點的分校範圍（#1221）：path／body 只帶課堂 id，全域 campusRequestGuard
@@ -14,7 +21,7 @@ interface RecordedQuery {
   readonly ops: string[];
 }
 
-function createApp(classCampus: string, campusScope: string[] | null) {
+function createApp(classCampus: string, campusScope: string[] | null, status = 'scheduled') {
   const queries: RecordedQuery[] = [];
   const sessionRow = {
     id: SESSION_ID,
@@ -22,7 +29,7 @@ function createApp(classCampus: string, campusScope: string[] | null) {
     session_date: '2026-10-20',
     start_time: '09:00:00',
     end_time: '11:00:00',
-    status: 'scheduled',
+    status,
     assignment_status: 'assigned',
     teacher_id: 'teacher-1',
     classes: { campus_id: classCampus },
@@ -112,6 +119,7 @@ describe('sessions 寫入端點的分校範圍（#1221）', () => {
     expect(res.status).toBe(403);
     expect(((await res.json()) as { code: string }).code).toBe('FORBIDDEN');
     expect(writes(queries)).toHaveLength(0);
+    expect(queued).not.toHaveBeenCalled(); // #1693：沒寫入就沒有通知
   });
 
   it.each(cases)('%s %s：同校的受限管理員不被分校擋', async (method, path, body) => {
@@ -124,5 +132,40 @@ describe('sessions 寫入端點的分校範圍（#1221）', () => {
     const { app } = createApp('campus-2', null);
     const res = await send(app, method, path, body);
     expect(res.status).not.toBe(403);
+  });
+
+  // #1693：寫入成功之後排入課務異動通知（收件人與內容由 notify-schedule.spec 守）。
+  // 單堂代課在這份 fixture 走不到成功（老師資格要查科目與分校），批次復課要停課狀態的課堂（下面另一條）
+  const kinds: Record<string, string> = {
+    cancel: 'cancellation',
+    reschedule: 'reschedule',
+    'batch-update-time': 'time_change',
+    'batch-cancel': 'cancellation',
+  };
+  const kindOf = (path: string) => kinds[path.split('/').pop()!];
+  it.each(cases.filter(([, path]) => kindOf(path)))(
+    '%s %s：成功 → 排入一次課務異動通知',
+    async (method, path, body) => {
+      const { app } = createApp('campus-2', null);
+      const res = await send(app, method, path, body);
+      expect(res.status).toBe(200);
+      expect(queued).toHaveBeenCalledTimes(1);
+      expect(queued.mock.calls[0]![1]).toEqual([
+        expect.objectContaining({ session_id: SESSION_ID, change_type: kindOf(path) }),
+      ]);
+    },
+  );
+
+  it('PATCH batch-uncancel：成功 → 排入一次課務異動通知（uncancel）', async () => {
+    const { app } = createApp('campus-2', null, 'cancelled');
+    const res = await send(app, 'PATCH', 'batch-uncancel', {
+      sessionIds: [SESSION_ID],
+      dryRun: false,
+    });
+    expect(res.status).toBe(200);
+    expect(queued).toHaveBeenCalledTimes(1);
+    expect(queued.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({ session_id: SESSION_ID, change_type: 'uncancel' }),
+    ]);
   });
 });
