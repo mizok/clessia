@@ -3,11 +3,17 @@ title: 報名審核
 summary: 審核家長提交的報名申請。
 category: spec
 status: active
-updated: 2026-03-17
+updated: 2026-10-16
 tags: [specs, admin, enrollment, enrollment-requests]
 ---
 
 # 報名審核
+
+> **2026-10-16 現況（#1707）**：這一頁（`/admin/enrollment-requests`）**從來沒有做過**。家長登入後送的報名／試聽申請
+> 併進 **`/admin/applications`**，跟公開表單的申請同一頁（使用者裁定 (a)，行政只看一個地方）。
+> API 是 `/api/parent-requests`（`manage_students`＋分校範圍）。目前管理端只能**拒絕報名（附原因）**、
+> 改試聽狀態；**核准**（開繳費單、建 enrollment）另開 #1726。下面是 2026-03 的原始規格，資料表沒有「來源」欄，
+> 來源篩選那段不成立。
 
 **路徑**: `/admin/enrollment-requests`
 **角色**: Admin
