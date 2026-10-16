@@ -297,6 +297,16 @@ describe('LeavePage', () => {
       expect(qa('chapter')).toHaveLength(3);
     });
 
+    // #1698：A6 leave.html 在 ≤860 覆寫 `.chap`＝橫排、章名 28px（listRow）
+    it('章頭用 listRow：手機章名 28px', () => {
+      respond([rec({ id: 'a', startDate: '2026-04-10' })]);
+      component['loadRecords']();
+      fixture.detectChanges();
+
+      const name = (fixture.nativeElement as HTMLElement).querySelector('.chapter-head__name');
+      expect(name?.classList).toContain('text-[28px]');
+    });
+
     it('全部分頁依開始日分章，不把進行中的歸到今天', () => {
       component['tab'].set('all');
       respond([rec({ id: 'a', startDate: '2026-04-08', endDate: '2026-04-12' })]);
