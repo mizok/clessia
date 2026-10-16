@@ -200,63 +200,67 @@
           這學期的課
         </h2>
       </div>
-      @if (enrollmentsLoading()) {
-        <p-skeleton height="48px" styleClass="mt-4" />
-      } @else if (enrollments().length === 0) {
-        <p class="m-0 py-6 text-base text-zinc-700">尚未加入任何班級。</p>
-      } @else {
-        <ul class="m-0 list-none p-0">
-          @for (enrollment of enrollments(); track enrollment.id) {
-            <li class="border-b border-surface-border">
-              <div
-                class="group flex min-h-11 cursor-pointer items-center gap-4 py-5 select-none hover:bg-zinc-50 focus-visible:bg-zinc-50"
-                data-testid="enrollment-item"
-                role="button"
-                tabindex="0"
-                (click)="navigateToClass(enrollment.courseId, enrollment.classId)"
-                (keydown.enter)="navigateToClass(enrollment.courseId, enrollment.classId)"
-                (keydown.space)="navigateToClass(enrollment.courseId, enrollment.classId)"
+      <app-reload-veil [loading]="enrollmentsLoading()">
+        <p-skeleton reloadSkeleton height="48px" styleClass="mt-4" />
+        @if (enrollments().length === 0) {
+          <p class="m-0 py-6 text-base text-zinc-700">尚未加入任何班級。</p>
+        } @else {
+          <ul class="m-0 list-none p-0">
+            @for (enrollment of enrollments(); track enrollment.id) {
+              <li
+                class="vt-row border-b border-surface-border"
+                [style.view-transition-name]="'enrollment-' + enrollment.id"
               >
-                <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span
-                    class="text-xl font-semibold tracking-[-0.01em] text-zinc-900 group-hover:underline group-hover:underline-offset-4"
-                    >{{ enrollment.className }}</span
-                  >
-                  <span class="text-md text-zinc-600">{{
-                    scheduleText(enrollment) || enrollment.courseName
-                  }}</span>
+                <div
+                  class="group flex min-h-11 cursor-pointer items-center gap-4 py-5 select-none hover:bg-zinc-50 focus-visible:bg-zinc-50"
+                  data-testid="enrollment-item"
+                  role="button"
+                  tabindex="0"
+                  (click)="navigateToClass(enrollment.courseId, enrollment.classId)"
+                  (keydown.enter)="navigateToClass(enrollment.courseId, enrollment.classId)"
+                  (keydown.space)="navigateToClass(enrollment.courseId, enrollment.classId)"
+                >
+                  <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span
+                      class="text-xl font-semibold tracking-[-0.01em] text-zinc-900 group-hover:underline group-hover:underline-offset-4"
+                      >{{ enrollment.className }}</span
+                    >
+                    <span class="text-md text-zinc-600">{{
+                      scheduleText(enrollment) || enrollment.courseName
+                    }}</span>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-3">
+                    <!--
+                      只在**沒有計費模式**時出現（#638）。「還沒開帳」是合法的暫時狀態，
+                      不在這裡標 —— 條件寫在 `needsBillingSetup()` 上方。
+                      **沒有模式的報名是一筆永遠收不到錢的報名**，不是「還在等」，所以用警示色。
+                    -->
+                    @if (needsBillingSetup(enrollment)) {
+                      <p-button
+                        label="設定計費"
+                        icon="pi pi-exclamation-triangle"
+                        severity="warn"
+                        size="small"
+                        [text]="true"
+                        (onClick)="openBillingSetup($event, enrollment)"
+                      />
+                    }
+                    @if (enrollment.status !== 'active') {
+                      <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
+                        ENROLLMENT_STATUS_LABELS[enrollment.status]
+                      }}</app-status-dot>
+                    }
+                    <i
+                      class="pi pi-chevron-right text-[11px] text-zinc-600 transition-transform group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    ></i>
+                  </div>
                 </div>
-                <div class="flex shrink-0 items-center gap-3">
-                  <!--
-                    只在**沒有計費模式**時出現（#638）。「還沒開帳」是合法的暫時狀態，
-                    不在這裡標 —— 條件寫在 `needsBillingSetup()` 上方。
-                    **沒有模式的報名是一筆永遠收不到錢的報名**，不是「還在等」，所以用警示色。
-                  -->
-                  @if (needsBillingSetup(enrollment)) {
-                    <p-button
-                      label="設定計費"
-                      icon="pi pi-exclamation-triangle"
-                      severity="warn"
-                      size="small"
-                      [text]="true"
-                      (onClick)="openBillingSetup($event, enrollment)"
-                    />
-                  }
-                  @if (enrollment.status !== 'active') {
-                    <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
-                      ENROLLMENT_STATUS_LABELS[enrollment.status]
-                    }}</app-status-dot>
-                  }
-                  <i
-                    class="pi pi-chevron-right text-[11px] text-zinc-600 transition-transform group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  ></i>
-                </div>
-              </div>
-            </li>
-          }
-        </ul>
-      }
+              </li>
+            }
+          </ul>
+        }
+      </app-reload-veil>
     </section>
 
     <!-- 到班：一天一格（他有課的那天），格子自己寫字，不靠圖例 -->
