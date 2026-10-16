@@ -2,7 +2,6 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import type { AppEnv } from '../index';
 import { getCampusScope, type CampusScope } from '../lib/campus-scope';
-import { inOrg } from '../lib/org-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -265,8 +264,17 @@ app.openapi(
       return c.json({ error: '這筆申請已經不是待審核，不能拒絕', code: 'NOT_REJECTABLE' }, 409);
     }
 
-    const { error } = await inOrg(supabase.from(TABLE[kind]).update(patch).eq('id', id), orgId);
+    // 報名的拒絕帶上「狀態還是可拒絕」當條件：讀完到寫入之間別人可能已經核准了（#1726 上線後就會發生），
+    // 沒寫到任何一列就是被搶先了 → 409，不蓋掉已經開了帳單的那一筆（審核席 #1728 建議）
+    // 直接 `.eq('org_id')` 不經 `inOrg`：條件式的 builder 交給 inOrg 會撞 TS2589（同上面的讀取）
+    const update = supabase.from(TABLE[kind]).update(patch).eq('org_id', orgId).eq('id', id);
+    const { data: written, error } = await (
+      kind === 'enrollment' ? update.in('status', REJECTABLE) : update
+    ).select('id');
     if (error) return c.json({ error: '更新失敗', code: 'UPDATE_FAILED' }, 500);
+    if (!written || (written as unknown[]).length === 0) {
+      return c.json({ error: '這筆申請已經不是待審核，不能拒絕', code: 'NOT_REJECTABLE' }, 409);
+    }
 
     const after = { ...prev, ...patch };
     const contacts = await contactsOf(supabase, orgId, [prev['requested_by'] as string]);

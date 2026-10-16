@@ -122,7 +122,7 @@ const AREAS = [
       'parent/renewal',
       'parent/trial',
     ],
-    routes: ['enrollments', 'public-applications'],
+    routes: ['enrollments', 'public-applications', 'parent-requests'],
     specs: [
       'admin/enrollment/enrollment.md',
       'admin/enrollment/enrollment-requests.md',
