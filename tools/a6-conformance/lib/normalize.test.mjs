@@ -1476,6 +1476,14 @@ test('#1692：通知中心量預設分頁「收到的」—— 稿的「新」�
       app: '>landmark:main[]>landmark:navigation[通知]>control:button[發布公告]',
       detail: '高 26→44',
     },
+    // 高度沒撐到 44 就不是 R3，照舊待修
+    {
+      status: '尺寸',
+      kind: 'control',
+      a6: '>landmark:navigation[通知]>control:button[發布公告]',
+      app: '>landmark:main[]>landmark:navigation[通知]>control:button[發布公告]',
+      detail: '高 26→40',
+    },
     // 別的尺寸差不吃 R3 那條
     {
       status: '尺寸',
@@ -1488,7 +1496,7 @@ test('#1692：通知中心量預設分頁「收到的」—— 稿的「新」�
   ];
   assert.deepEqual(
     classify(rows, [...DEVIATIONS, ...n.deviations], 1440).map((x) => x.bucket),
-    ['已記錄偏離', '已記錄偏離', '待修', '已記錄偏離', '待修', '待修'],
+    ['已記錄偏離', '已記錄偏離', '待修', '已記錄偏離', '待修', '待修', '待修'],
   );
 
   // 「全部標為已讀新」↔「全部標為已讀」靠 mapping 配起來，不會變成一缺一多
