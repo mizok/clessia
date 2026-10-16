@@ -14,9 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
-import { SelectModule } from 'primeng/select';
 
 import {
   AUDIENCE_LABELS,
@@ -28,7 +26,12 @@ import { AuthService } from '@core/auth.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { taipeiDateString } from '@core/system-clock.service';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 
 @Component({
@@ -37,10 +40,10 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
     ReloadVeilComponent,
     DatePipe,
     FormsModule,
-    ButtonModule,
-    SelectModule,
     ChapterHeadComponent,
+    PageActionsComponent,
     PageOpenComponent,
+    SelectFieldComponent,
   ],
   templateUrl: './notifications.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,6 +65,10 @@ export class NotificationsComponent {
 
   private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('titleInput');
   private readonly bodyInput = viewChild<ElementRef<HTMLTextAreaElement>>('bodyInput');
+  private readonly composer = viewChild<ElementRef<HTMLDialogElement>>('composer');
+
+  /** 頁面的主要行動（#1689）：發布表單在彈窗裡，不在頁面上 */
+  protected readonly sendAction: PageAction = { label: '發送通知', icon: 'pi pi-send' };
 
   protected readonly AUDIENCE_LABELS = AUDIENCE_LABELS;
 
@@ -191,6 +198,24 @@ export class NotificationsComponent {
     this.clearError('body');
   }
 
+  protected onAudienceChange(value: AnnouncementAudience | null): void {
+    if (value) this.audience.set(value);
+  }
+
+  protected openComposer(): void {
+    this.composer()?.nativeElement.showModal();
+  }
+
+  /** 關掉不清草稿 —— 再打開時內容還在，送出成功才清空 */
+  protected closeComposer(): void {
+    this.composer()?.nativeElement.close();
+  }
+
+  /** 點背景關掉：dialog 沒有內距，點到 dialog 本身就是點到 backdrop */
+  protected onComposerBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeComposer();
+  }
+
   constructor() {
     this.campusesService
       .list()
@@ -243,6 +268,7 @@ export class NotificationsComponent {
           this.title.set('');
           this.body.set('');
           this.submitting.set(false);
+          this.closeComposer();
           this.load({ rows: true });
         },
         error: () => {
