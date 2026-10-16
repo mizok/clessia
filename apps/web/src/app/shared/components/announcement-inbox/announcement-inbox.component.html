@@ -5,7 +5,7 @@
       @if (unread() > 0) {
         <span
           class="announcement-inbox__badge rounded-full bg-accent-50 px-2 py-1 text-[0.75rem] font-medium text-accent-600"
-          >{{ unread() }} 則未讀</span
+          ><span [appValueArrive]="unread()">{{ unread() }}</span> 則未讀</span
         >
       }
     </h1>
