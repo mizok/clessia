@@ -46,6 +46,7 @@ const PERMISSION_META: Record<Permission, { label: string; description: string }
     label: '跨分校',
     description: '不受指派分校限制，看得到全機構的資料',
   },
+  send_announcements: { label: '發送通知', description: '發布公告給老師與家長' },
 };
 
 export const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] =
