@@ -1,13 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { of } from 'rxjs';
+import { provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   PublicApplicationsService,
   type PublicApplication,
 } from '@core/public-applications.service';
+import { ParentRequestsService, type ParentRequest } from '@core/parent-requests.service';
 import { ApplicationsPage } from './applications.page';
 
 /**
@@ -33,7 +35,32 @@ const app = (extra: Partial<PublicApplication> = {}): PublicApplication => ({
   ...extra,
 });
 
-async function setup() {
+/** #1707：家長在 app 送的申請 */
+const req = (extra: Partial<ParentRequest> = {}): ParentRequest => ({
+  id: 'r1',
+  kind: 'enrollment',
+  status: 'pending',
+  createdAt: '2026-10-05T01:00:00Z',
+  student: { id: 'stu-1', name: '林小華' },
+  parent: { name: '林媽媽', phone: '0912000111' },
+  target: { name: '國二數學 B', campusName: '大安校' },
+  preferredStartDate: '2026-11-01',
+  preferredTimes: null,
+  note: '想上週六班',
+  rejectReason: null,
+  ...extra,
+});
+
+async function setup(parentData: ParentRequest[] = [req()]) {
+  const parents = {
+    list: vi.fn().mockReturnValue(of({ data: parentData })),
+    reject: vi.fn((id: string, reason: string) =>
+      of({ data: req({ id, status: 'rejected', rejectReason: reason }) }),
+    ),
+    setTrialStatus: vi.fn((id: string, status: string) =>
+      of({ data: req({ id, kind: 'trial', status }) }),
+    ),
+  };
   const service = {
     list: vi.fn().mockReturnValue(of({ data: [app()] })),
     update: vi.fn((_id: string, patch: object) =>
@@ -44,7 +71,9 @@ async function setup() {
   await TestBed.configureTestingModule({
     imports: [ApplicationsPage],
     providers: [
+      provideRouter([]),
       { provide: PublicApplicationsService, useValue: service },
+      { provide: ParentRequestsService, useValue: parents },
       { provide: MessageService, useValue: { add: vi.fn() } },
     ],
   })
@@ -56,7 +85,7 @@ async function setup() {
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
-  return { fixture, service, dialog, el: fixture.nativeElement as HTMLElement };
+  return { fixture, service, parents, dialog, el: fixture.nativeElement as HTMLElement };
 }
 
 describe('ApplicationsPage（#1245）', () => {
@@ -103,5 +132,182 @@ describe('ApplicationsPage（#1245）', () => {
       prefill: { name: '王媽媽', email: null, phone: '0912345678' },
     });
     expect(service.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #1707：家長登入後在 app 送的申請，跟公開申請同一頁（使用者裁定 (a)）。兩套狀態不合併，分頁共用；
+ * 報名只能拒絕（原因家長看得到）、核准另開 #1726；試聽改狀態。
+ */
+describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
+  const page = (f: { componentInstance: unknown }) => f.componentInstance as any;
+  const cards = (el: HTMLElement) =>
+    [
+      ...el.querySelectorAll(
+        '[data-testid="application-card"], [data-testid="parent-request-card"]',
+      ),
+    ].map((c) => c.getAttribute('data-testid'));
+
+  it('待處理：兩支都打，依時間合在一份（新的在前）；卡片標「家長 App」', async () => {
+    const { parents, service, el } = await setup();
+
+    expect(service.list).toHaveBeenCalledWith({ statuses: ['new', 'contacted'], kind: null });
+    expect(parents.list).toHaveBeenCalledWith({ group: 'pending', kind: null });
+    expect(cards(el)).toEqual(['parent-request-card', 'application-card']);
+
+    const card = el.querySelector('[data-testid="parent-request-card"]')!;
+    expect(card.textContent).toContain('家長 App');
+    expect(card.textContent).toContain('報名');
+    expect(card.textContent).toContain('林媽媽');
+    expect(card.querySelector('a[href="tel:0912000111"]')).not.toBeNull();
+    expect(card.querySelector('a[href="/admin/students/stu-1"]')?.textContent).toContain('林小華');
+    expect(card.textContent).toContain('國二數學 B');
+    expect(card.textContent).toContain('大安校');
+    expect(card.textContent).toContain('2026-11-01');
+    expect(card.textContent).toContain('想上週六班');
+    // 核准是金額路徑，另開 #1726 —— 先告訴行政去哪裡做
+    expect(card.textContent).toContain('目前請到學生檔案手動報名');
+  });
+
+  // 外層清單原本沒有 list-none：li 在 flex 容器裡仍是 list-item，每張卡片左邊多一個圓點（#1245 起就有）
+  it('卡片清單不顯示項目符號', async () => {
+    const { el } = await setup();
+    const list = el.querySelector('[data-testid="parent-request-card"]')!.parentElement!;
+    expect(list.classList).toContain('list-none');
+  });
+
+  // 每個分頁對兩種來源各打什麼（#1707 範圍說明 §2）；null＝那一邊不打
+  it.each<[string, string[] | null, string | null]>([
+    ['待處理', ['new', 'contacted'], 'pending'],
+    ['進行中', null, 'active'],
+    ['已轉入', ['converted'], 'done'],
+    ['不受理', ['rejected'], 'rejected'],
+    ['已取消', null, 'cancelled'],
+    ['垃圾送件', ['spam'], null],
+  ])('分頁「%s」：公開表單 statuses=%j、家長 App group=%s', async (label, statuses, group) => {
+    const { fixture, parents, service } = await setup();
+    const p = page(fixture);
+    service.list.mockClear();
+    parents.list.mockClear();
+    p.setFilter(p.filters.find((f: { label: string }) => f.label === label));
+
+    if (statuses) expect(service.list).toHaveBeenCalledWith({ statuses, kind: null });
+    else expect(service.list).not.toHaveBeenCalled();
+    if (group) expect(parents.list).toHaveBeenCalledWith({ group, kind: null });
+    else expect(parents.list).not.toHaveBeenCalled();
+  });
+
+  it('只有一邊有的分頁：另一邊不打（已取消只有家長 App、垃圾送件只有公開表單）', async () => {
+    const { fixture, parents, service } = await setup();
+    const p = page(fixture);
+    const tab = (label: string) => p.filters.find((f: { label: string }) => f.label === label);
+
+    service.list.mockClear();
+    parents.list.mockClear();
+    p.setFilter(tab('已取消'));
+    expect(service.list).not.toHaveBeenCalled();
+    expect(parents.list).toHaveBeenCalledWith({ group: 'cancelled', kind: null });
+
+    service.list.mockClear();
+    parents.list.mockClear();
+    p.setFilter(tab('垃圾送件'));
+    expect(parents.list).not.toHaveBeenCalled();
+    expect(service.list).toHaveBeenCalledWith({ statuses: ['spam'], kind: null });
+  });
+
+  it('拒絕報名：原因必填；送出後卡片換成已拒絕＋原因', async () => {
+    const { fixture, parents, el } = await setup();
+    const p = page(fixture);
+
+    p.startReject(req());
+    fixture.detectChanges();
+    p.submitReject(req(), '   ');
+    expect(parents.reject).not.toHaveBeenCalled();
+
+    p.submitReject(req(), ' 這班已經額滿 ');
+    fixture.detectChanges();
+    expect(parents.reject).toHaveBeenCalledWith('r1', '這班已經額滿');
+    const card = el.querySelector('[data-testid="parent-request-card"]')!;
+    expect(card.textContent).toContain('已拒絕');
+    expect(card.textContent).toContain('這班已經額滿');
+  });
+
+  it('待審核、候補的報名：有拒絕鈕（跟 API 可拒絕的狀態同一條）', async () => {
+    for (const status of ['pending', 'waitlist']) {
+      TestBed.resetTestingModule();
+      const { el } = await setup([req({ status })]);
+      const buttons = [...el.querySelectorAll('[data-testid="parent-request-card"] button')];
+      expect(buttons.some((b) => b.textContent?.includes('拒絕'))).toBe(true);
+    }
+  });
+
+  it('拒絕回 409（被搶先核准）：說清楚、收起原因欄、重抓；其他錯誤寫稍後再試', async () => {
+    const { fixture, parents, el } = await setup();
+    const p = page(fixture);
+    const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+    parents.reject.mockReturnValueOnce(throwError(() => ({ status: 409 })));
+    p.startReject(req());
+    parents.list.mockClear();
+    p.submitReject(req(), '額滿');
+    fixture.detectChanges();
+    expect(toast).toHaveBeenLastCalledWith(
+      expect.objectContaining({ summary: '這筆已經不是待審核' }),
+    );
+    expect(p.rejectingId()).toBeNull();
+    expect(parents.list).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('textarea[aria-label^="拒絕原因"]')).toBeNull();
+
+    parents.reject.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    p.startReject(req());
+    parents.list.mockClear();
+    p.submitReject(req(), '額滿');
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ summary: '拒絕失敗' }));
+    expect(parents.list).not.toHaveBeenCalled();
+  });
+
+  it('試聽改狀態失敗：那一列換成新物件（讓下拉重畫回原狀態）', async () => {
+    const trial = req({ id: 't1', kind: 'trial', status: 'pending' });
+    const { fixture, parents } = await setup([trial]);
+    const p = page(fixture);
+    parents.setTrialStatus.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    const before = p.requests()[0];
+    p.setTrialStatus(before, 'scheduled');
+    const after = p.requests()[0];
+    expect(after).not.toBe(before);
+    expect(after.status).toBe('pending');
+  });
+
+  it('已拒絕、待繳費的報名：沒有拒絕鈕', async () => {
+    for (const status of ['rejected', 'awaiting_payment']) {
+      TestBed.resetTestingModule();
+      const { el } = await setup([req({ status })]);
+      const buttons = [...el.querySelectorAll('[data-testid="parent-request-card"] button')];
+      expect(buttons.some((b) => b.textContent?.includes('拒絕'))).toBe(false);
+    }
+  });
+
+  it('試聽：改狀態送出', async () => {
+    const trial = req({
+      id: 't1',
+      kind: 'trial',
+      preferredStartDate: null,
+      preferredTimes: '平日晚上',
+    });
+    const { fixture, parents, el } = await setup([trial]);
+    expect(el.textContent).toContain('平日晚上');
+
+    page(fixture).setTrialStatus(trial, 'pending'); // 沒變不送
+    expect(parents.setTrialStatus).not.toHaveBeenCalled();
+    page(fixture).setTrialStatus(trial, 'scheduled');
+    expect(parents.setTrialStatus).toHaveBeenCalledWith('t1', 'scheduled');
+  });
+
+  it('家長 App 那支讀不到：整頁顯示讀取失敗（可重試）', async () => {
+    TestBed.resetTestingModule();
+    const { fixture, parents } = await setup();
+    parents.list.mockReturnValue(throwError(() => new Error('boom')));
+    page(fixture).load();
+    fixture.detectChanges();
+    expect(page(fixture).failed()).toBe(true);
   });
 });
