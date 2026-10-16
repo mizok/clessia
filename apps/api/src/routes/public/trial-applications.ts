@@ -88,13 +88,14 @@ app.openapi(
     const today = getCurrentTaipeiDateString();
     const { data: rows, error } = await supabase
       .from('classes')
-      .select('id, course_id, is_active, end_date, courses(is_active)')
+      .select('id, course_id, is_active, end_date, is_public_enrollment, courses(is_active)')
       .eq('org_id', orgId)
       .in('course_id', courseIds);
     if (error) return failed();
     const openCourses = new Set(
       ((rows ?? []) as Row[])
-        .filter((row) => isOpenClass(row, today))
+        // #1665 Q5：一門課至少要有一個「開放公開報名」的開課班才收試聽
+        .filter((row) => isOpenClass(row, today) && row['is_public_enrollment'] === true)
         .map((row) => row['course_id'] as string),
     );
     // 別 org、不存在、停用、沒有開放班 —— 都跟「沒有這門課」一樣回（不透露哪一種）
