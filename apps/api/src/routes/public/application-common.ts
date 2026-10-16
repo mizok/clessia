@@ -1,4 +1,6 @@
 import { z } from '@hono/zod-openapi';
+import { createChallenge, verifySolution, type Challenge, type Solution } from 'altcha-lib';
+import { deriveKey } from 'altcha-lib/algorithms/web/pbkdf2';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Context } from 'hono';
 
@@ -37,14 +39,16 @@ export const ApplicantFields = {
   consent: z.literal(true),
   /** honeypot（#1126）：前端藏起來的欄位，真人不會填。有值就回假成功、不寫 */
   website: z.string().max(500).optional(),
-  /** Cloudflare Turnstile 的 token（#1126）；部署沒設 `TURNSTILE_SECRET_KEY` 時不看 */
-  captchaToken: z.string().max(2048).optional(),
+  /**
+   * 機器人驗證（#1665）：`CAPTCHA_PROVIDER=altcha`（預設）時是 ALTCHA widget 交出的 payload，
+   * `turnstile` 時是 Turnstile token。哪一種由 `GET /api/public/captcha` 告訴前端。
+   */
+  captchaToken: z.string().max(4096).optional(),
 };
 
 /**
  * 速率限制（#1126，計畫席裁：數字是起點、可調）。計數直接數 `public_applications` ——
  * c12 不准用 Workers KV／Durable Objects／Cloudflare Rate Limiting。
- * ALTCHA（MIT 自架 proof-of-work）是客戶不要 Cloudflare 時取代 Turnstile 的後路，這裡沒做。
  */
 export const RATE_LIMITS = {
   /** 同一來源（IP hash）一小時內，報名＋試聽合計 */
@@ -77,6 +81,143 @@ export function clientIp(c: Context<AppEnv>): string | null {
 }
 
 const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+/**
+ * 機器人驗證用哪一家（#1665，使用者 10-16 15:38 裁）：預設 ALTCHA（自架 PoW、不連外，c12），
+ * 部署可設 `CAPTCHA_PROVIDER=turnstile` 改走 Cloudflare Turnstile。**兩種都不能被略過**：
+ * 設成 turnstile 卻沒設金鑰、或設了不認得的值，一律 503 拒收，不退回「不驗」。
+ */
+export function captchaProvider(c: Context<AppEnv>): 'altcha' | 'turnstile' | null {
+  const v = c.env.CAPTCHA_PROVIDER?.trim().toLowerCase() || 'altcha';
+  return v === 'altcha' || v === 'turnstile' ? v : null;
+}
+
+/**
+ * ALTCHA 金鑰：`ALTCHA_HMAC_KEY`，沒設就從 `BETTER_AUTH_SECRET` 衍生（同 IP 雜湊的做法）——
+ * 所以自架的人少設一個變數也不會變成沒有驗證。題目簽章與 derived key 簽章用兩把不同的鑰。
+ */
+export async function altchaSecrets(env: { ALTCHA_HMAC_KEY?: string; BETTER_AUTH_SECRET: string }) {
+  const base = env.ALTCHA_HMAC_KEY?.trim() || env.BETTER_AUTH_SECRET;
+  return {
+    hmacSignatureSecret: await hashClientIp('altcha-challenge', base),
+    hmacKeySignatureSecret: await hashClientIp('altcha-key', base),
+  };
+}
+
+/**
+ * 出題參數：PBKDF2/SHA-256、counter 5000–10000、10 分鐘過期照 altcha-lib 官方範例；
+ * cost 從範例的 5000 降到 1000 —— 實測（10-16，wrangler dev＋Node 單執行緒）cost 5000 要 4.7 秒，
+ * 手機會超過設計稿 0.5–2 秒的目標。**暫定值**：PR-4 用 Playwright CPU 降速 4 倍量 widget 後定案，
+ * 量到的數字寫回這裡。
+ * 確定式模式（帶 counter＋key 簽章）：伺服器出題算一次 PBKDF2、驗證只做 HMAC，Workers 的 CPU 吃得下。
+ * 演算法用 WebCrypto 版（`algorithms/web/*`）—— Workers 與 Node 都有 `crypto.subtle`。
+ */
+export const ALTCHA_PARAMS = {
+  cost: 1_000,
+  counterMin: 5_000,
+  counterMax: 10_000,
+  ttlSeconds: 10 * 60,
+} as const;
+
+export async function createAltchaChallenge(c: Context<AppEnv>): Promise<Challenge> {
+  const { counterMin, counterMax } = ALTCHA_PARAMS;
+  const counter =
+    counterMin + (crypto.getRandomValues(new Uint32Array(1))[0]! % (counterMax - counterMin));
+  return createChallenge({
+    algorithm: 'PBKDF2/SHA-256',
+    cost: ALTCHA_PARAMS.cost,
+    counter,
+    deriveKey,
+    expiresAt: Math.floor(Date.now() / 1000) + ALTCHA_PARAMS.ttlSeconds,
+    ...(await altchaSecrets(c.env)),
+  });
+}
+
+/**
+ * 驗 widget 交出的 payload：base64(JSON `{ challenge: { parameters, signature }, solution }`)
+ * —— altcha 3.2.4 widget 原始碼 `dist/main/altcha.js` 的 verify()。過期、簽章不符、解錯都由
+ * `verifySolution` 判；格式壞掉（含 widget test 模式的 `challenge: null`）一律當沒通過。
+ *
+ * ponytail: 沒有重放防護 —— 同一份解答 10 分鐘內可重送；速率限制（來源每小時 5、聯絡方式每天 3）
+ * 已經壓住重送能拿到的額度。出現濫用時加一張 Postgres 表記用過的 signature、過期就刪（不用 KV，c12）。
+ */
+export async function verifyAltchaPayload(c: Context<AppEnv>, payload: string): Promise<boolean> {
+  let decoded: { challenge?: Challenge | null; solution?: Solution | null };
+  try {
+    decoded = JSON.parse(atob(payload));
+  } catch {
+    return false;
+  }
+  const { challenge, solution } = decoded ?? {};
+  if (
+    !challenge?.parameters ||
+    typeof challenge.signature !== 'string' ||
+    typeof solution?.counter !== 'number' ||
+    typeof solution.derivedKey !== 'string'
+  ) {
+    return false;
+  }
+  try {
+    const result = await verifySolution({
+      challenge,
+      solution,
+      deriveKey,
+      ...(await altchaSecrets(c.env)),
+    });
+    return result.verified === true;
+  } catch {
+    return false;
+  }
+}
+
+const captchaFailed: GuardResult = {
+  kind: 'reject',
+  status: 400,
+  body: { error: '機器人驗證沒有通過，請重試', code: 'CAPTCHA_FAILED' },
+};
+const captchaUnavailable: GuardResult = {
+  kind: 'reject',
+  status: 503,
+  body: { error: '驗證服務暫時無法使用，請稍後再試', code: 'CAPTCHA_UNAVAILABLE' },
+};
+
+/** 沒通過回拒收結果；通過回 null */
+async function verifyCaptcha(
+  c: Context<AppEnv>,
+  token: string | undefined,
+  ip: string | null,
+): Promise<GuardResult | null> {
+  const provider = captchaProvider(c);
+  if (!provider) return captchaUnavailable;
+  if (provider === 'turnstile' && !c.env.TURNSTILE_SECRET_KEY?.trim()) return captchaUnavailable;
+  if (!token) {
+    return {
+      kind: 'reject',
+      status: 400,
+      body: { error: '請完成機器人驗證', code: 'CAPTCHA_FAILED' },
+    };
+  }
+
+  if (provider === 'altcha') return (await verifyAltchaPayload(c, token)) ? null : captchaFailed;
+
+  const form = new FormData();
+  form.append('secret', c.env.TURNSTILE_SECRET_KEY!.trim());
+  form.append('response', token);
+  if (ip) form.append('remoteip', ip);
+  try {
+    const res = await fetch(TURNSTILE_VERIFY, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`siteverify ${res.status}`);
+    const ok = ((await res.json()) as { success?: boolean }).success === true;
+    return ok ? null : captchaFailed;
+  } catch {
+    // fail-closed：驗證服務掛了不放行
+    return captchaUnavailable;
+  }
+}
 
 export type GuardResult =
   | { kind: 'pass'; ipHash: string | null }
@@ -150,45 +291,8 @@ export async function guardSubmission(
     if (n >= RATE_LIMITS.perContactPerDay) return rateLimited(24 * 60 * 60);
   }
 
-  // Turnstile 可選（c12：客戶要能離開 Cloudflare）—— 沒設 secret 就不檢查
-  const secret = c.env.TURNSTILE_SECRET_KEY?.trim();
-  if (secret) {
-    if (!body.captchaToken) {
-      return {
-        kind: 'reject',
-        status: 400,
-        body: { error: '請完成機器人驗證', code: 'CAPTCHA_FAILED' },
-      };
-    }
-    const form = new FormData();
-    form.append('secret', secret);
-    form.append('response', body.captchaToken);
-    if (ip) form.append('remoteip', ip);
-    let ok: boolean;
-    try {
-      const res = await fetch(TURNSTILE_VERIFY, {
-        method: 'POST',
-        body: form,
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok) throw new Error(`siteverify ${res.status}`);
-      ok = ((await res.json()) as { success?: boolean }).success === true;
-    } catch {
-      // fail-closed：驗證服務掛了不放行
-      return {
-        kind: 'reject',
-        status: 503,
-        body: { error: '驗證服務暫時無法使用，請稍後再試', code: 'CAPTCHA_UNAVAILABLE' },
-      };
-    }
-    if (!ok) {
-      return {
-        kind: 'reject',
-        status: 400,
-        body: { error: '機器人驗證沒有通過，請重試', code: 'CAPTCHA_FAILED' },
-      };
-    }
-  }
+  const captcha = await verifyCaptcha(c, body.captchaToken, ip);
+  if (captcha) return captcha;
 
   return { kind: 'pass', ipHash };
 }
