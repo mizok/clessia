@@ -1,0 +1,444 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
+
+const root = path.resolve(import.meta.dirname, '../../..');
+const cache = path.join(os.homedir(), '.cache/clessia-a6-conformance');
+
+/** A6 稿不進版控：路徑走環境變數，預設 repo 內 gitignore 掉的那份。 */
+export const A6_DIR =
+  process.env.A6_DIR ?? path.join(root, '.design-explorations/973-layout/a6-editorial');
+export const APP_URL = process.env.A6_APP_URL ?? 'http://localhost:4200';
+export const API_URL = process.env.A6_API_URL ?? 'http://localhost:8787';
+export const STATE = process.env.A6_STATE ?? path.join(cache, 'state-admin.json');
+export const OUT = process.env.A6_OUT ?? path.join(cache, 'out');
+
+export const WIDTHS = [
+  { tag: 'd', width: 1440 },
+  { tag: 'm', width: 360 },
+];
+
+/**
+ * 刻意偏離 A6 的地方（#1314 gate 10-15：每條要 key／條件＋理由＋出處，不能用「近似」帶過）。
+ * 命中的差異列歸「已記錄偏離」，不算待修。欄位是 regex 字串：status（差異類別，必填）、
+ * detail（差異文字）、a6／app（part key）、kind（part 種類）。頁面專屬的放 PAGES[頁].deviations。
+ * `whole: true`：缺／多的整塊搬走（例：表單整個進彈窗），裡面的子 part 跟著歸偏離；不標的話子 part
+ * 拆出來各自算（R7 包裝層那種：包裝是偏離、裡面真的多出來的東西照算）。
+ */
+/**
+ * 硬性規則（constitution-enforcement.md 的 A 條）當偏離出處：條號手寫、行號執行時查，不會漂。
+ * 查不到那一條就直接報錯（條文被改名或刪掉時，偏離也該重審）。
+ */
+const ENFORCEMENT = 'kb/wiki/architecture/constitution-enforcement.md';
+export function hardRule(id) {
+  const lines = fs.readFileSync(path.join(root, ENFORCEMENT), 'utf8').split('\n');
+  const n = lines.findIndex((l) => l.startsWith(`| ${id} `));
+  if (n < 0) throw new Error(`${ENFORCEMENT} 找不到 ${id}`);
+  return `${ENFORCEMENT}:${n + 1}（${id}）`;
+}
+
+const RULES = 'kb/wiki/architecture/a6-adoption-rules.md'; // #1586
+/**
+ * A6 採用規則（R 條）當偏離出處：跟 hardRule 一樣行號執行時查（手抄的 :46-48 在規則檔長大後全漂了，#1639）。
+ * 讀 origin/main 的版本 —— 規則以 main 為準，工具分支上的副本可能是舊的或根本沒有。
+ */
+let rulesLines;
+export function rule(id, note = '') {
+  rulesLines ??= execFileSync('git', ['show', `origin/main:${RULES}`], {
+    cwd: root,
+    encoding: 'utf8',
+  }).split('\n');
+  const n = rulesLines.findIndex((l) => l.startsWith(`## ${id} `));
+  if (n < 0) throw new Error(`${RULES}（origin/main）找不到 ${id}`);
+  return `${RULES}:${n + 1}（${id}${note}）`;
+}
+
+export const DEVIATIONS = [
+  {
+    // R5 2026-10-16：公開頁入口不加「QR 到班打卡」—— 打卡改成先登入行政帳號、移到內部頁面（#1127）
+    status: '缺',
+    a6: 'landmark:navigation\\[公開頁\\]>control:link\\[QR到班打卡\\]$',
+    reason: '公開頁入口不加 QR 到班打卡：打卡已改成要先登入、移到內部頁面',
+    source: `${rule('R5')}「公開頁入口 QR 到班打卡」2026-10-16；#1636`,
+  },
+  {
+    // 上一條的連帶（手機）：入口列少了 QR 那一行（56px），品牌面中段用 margin:auto 置中 → 學程管家／標語下移一半
+    status: '位置',
+    widths: [360],
+    a6: 'landmark:complementary\\[\\]>(heading:h2\\[學程管家\\]|text:p\\[讓學習旅程更輕鬆\\])$',
+    detail: '^相對「complementary」 Δx 0、Δy \\+(2[4-9]|3[0-2])（',
+    reason: '連帶：入口列少 QR 那一行，品牌面中段置中，下移一半',
+    source: `${rule('R5')}「公開頁入口 QR 到班打卡」2026-10-16；#1636`,
+  },
+  {
+    // R3：44px 只約束基底（手機）；桌機高度跟稿不同是待修，所以只在 360 生效
+    status: '尺寸',
+    kind: 'control',
+    widths: [360],
+    detail: '^高 \\d+→(4[4-9]|[5-9]\\d)',
+    reason: '可點元素基底高 ≥44px（觸控下限），只管手機',
+    source: `${rule('R3')}；${hardRule('A27')}`,
+  },
+  {
+    // 硬性規則 A28：文字對比門檻。稿的 zinc-500（#786f69）在白底對比不足，app 升到 zinc-600（#57504b）。
+    // 只拆這一項（item），同一列的其他樣式差照算
+    status: '樣式',
+    item: '^color rgb\\(120, 111, 105\\) → rgb\\(87, 80, 75\\)$',
+    reason: '文字對比門檻：zinc-500 對比不足，升 zinc-600',
+    source: hardRule('A28'),
+  },
+  {
+    // R3 連帶：手機 44px 的可點元素用 flex 垂直置中，取代稿的上下 padding
+    status: '樣式',
+    kind: 'control',
+    widths: [360],
+    detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline) → (inline-)?flex$',
+    reason: '手機 44px 觸控高度用 flex 置中（取代稿的上下 padding）',
+    source: `${rule('R3')}`,
+  },
+  {
+    // R7：頂欄搜尋有建議清單＝combobox（稿是 searchbox）
+    status: '角色',
+    a6: 'control:searchbox\\[全站搜尋\\]$',
+    detail: '^control:searchbox → control:combobox$',
+    reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
+    source: `${rule('R7')}`,
+  },
+  {
+    // R7（殼層席 B2）：手機搜尋鈕名「搜尋」→「搜尋學生」，名字講清楚搜的範圍
+    status: '文案',
+    a6: 'landmark:banner\\[\\]>control:button\\[搜尋\\]$',
+    detail: '^「搜尋」→「搜尋學生」$',
+    reason: '可及名稱依元件行為：搜的範圍是學生／家長電話',
+    source: `${rule('R7')}`,
+  },
+  // ── 帳單 gate（#1314 comment 6182400702）起：語意結構與角色（R7，#1590 擴寫）、分頁器（R2 例外）──
+  {
+    // D1：列表用 ul／li（稿是 div 格線）
+    status: '多',
+    kind: 'list',
+    reason: '語意結構依內容：列表用 ul／li，外觀照稿',
+    source: `${rule('R7', '，#1590')}`,
+  },
+  {
+    // D2：章名用 h2（稿是 div）
+    status: '角色',
+    detail: '^text:\\w+ → heading:h[1-6]$',
+    reason: '語意結構依內容：章名用標題',
+    source: `${rule('R7', '，#1590')}`,
+  },
+  {
+    // D2：工具列外包一層 role=search landmark（稿沒有）；裡面多出來的鈕另外拆列
+    status: '多',
+    app: 'landmark:search\\[[^\\]]*\\]$',
+    reason: '語意結構依內容：搜尋／篩選區包成 search landmark',
+    source: `${rule('R7', '，#1590')}`,
+  },
+  {
+    // D4：手機停靠列不加 role=toolbar（沒有方向鍵移動的行為就不加）
+    status: '缺',
+    a6: 'landmark:toolbar\\[主要動作\\]$',
+    reason: '不為貼稿加沒有對應行為的角色：toolbar 要方向鍵移動，沒實作',
+    source: `${rule('R7', ' 反向，#1590')}`,
+  },
+  {
+    // D3：伺服器分頁的分頁器，收不進「⋯」
+    status: '多',
+    host: '^p-paginator$',
+    reason: '分頁器：伺服器分頁，沒有它看不到後面的資料，收不進「⋯」',
+    source: `${rule('R2', ' 例外')}；#1314 comment 6182400702`,
+  },
+  {
+    // 列尾「⋯」：每一列的列動作（全站都是這個形，#1593 起改成全站通用）
+    status: '多',
+    // 兩種寫法：學生「某某 的更多動作」、帳單「更多：某某的帳單動作」
+    detail: '「(更多：[^」]*|[^」]*的更多動作)」',
+    reason: '列尾「⋯」：現況有、稿沒畫的列動作收進「⋯」',
+    source: `${rule('R2')}`,
+  },
+  {
+    status: '多',
+    pop: 'more',
+    app: 'control:link\\[(公開申請|到班打卡)\\]$',
+    reason: '現況有、稿沒畫：收進「更多」選單，不刪',
+    source: `${rule('R2')}`,
+  },
+];
+
+/**
+ * 全站項（#1591）：每頁都量到的同一組差異，報告收成每頁一條「全站」，不計入頁面待修。
+ * `strip`：從樣式差裡拿掉的項目；`stripProps`＋`a6`：對符合 A6 key 的 part 拿掉這些屬性的差；
+ * `rows`：整列歸全站的 part（regex 對 A6 key）。
+ */
+export const SITE_WIDE = [
+  {
+    label: '全站基底字級、字重：app 13px／500，稿 14px／400',
+    issue: '#1591',
+    strip: ['fontSize 14px → 13px', 'fontWeight 400 → 500', 'lineHeight 21px → 19.5px'],
+  },
+  {
+    // D7（#1593）：頁面搜尋框的底色與框線來自全站共用 class；頂欄的全站搜尋屬殼層，不在這條
+    label: '頁面搜尋框底色、框線（全站共用 class）',
+    issue: '#1591',
+    a6: '^(?!>landmark:banner).*control:searchbox\\[[^\\]]*\\]$',
+    stripProps: [
+      'backgroundColor',
+      'borderTop',
+      'borderRight',
+      'borderBottom',
+      'borderLeft',
+      'borderRadius',
+    ],
+  },
+  {
+    label: 'main 範圍與盒子樣式：app 的 main 包住色面（結構範圍不同）、底色／padding／display 不同',
+    issue: '#1591',
+    rows: '^>landmark:main\\[\\]$',
+  },
+];
+
+/**
+ * 只在某些資料下才出現的 part（regex 對 A6／app 的 part key）。沒配上時歸資料差、不算缺／多。
+ */
+export const DATA_DEPENDENT = [
+  {
+    // 公開表單（#1665）：課程／開課班是資料（稿的示範課程 vs seed），稿的國文、自然組只有 1–2 項，工具認不成列
+    a6: 'landmark:region\\[想(試聽的課程|報名的開課班)可以選好幾個\\]>(control:checkbox|text:span)\\[',
+    reason: '公開表單的選項是資料：稿的示範課程與 seed 的開課班不同，項目少的組認不成列',
+  },
+  {
+    app: '>text:span~2>text:span$',
+    reason: '公開報名列的「剩 N 位」：說明行文案隨資料，配不上時落在錯位的 span 底下',
+  },
+  {
+    // 選身分頁：稿的示範使用者 3 個身分（含家長）；seed 的多身分帳號最多 2 個（teacher0001＝管理員＋任課老師）
+    a6: 'landmark:dialog\\[\\{名\\}，你好\\]>control:button\\[家長',
+    reason: '身分數隨帳號：稿的示範使用者有 3 個身分，seed 的多身分帳號最多 2 個',
+  },
+  {
+    a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)\\])',
+    reason:
+      '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `otherRoles().length > 0`）',
+  },
+];
+
+/** 殼層的彈出物：A6 popover id → app popover id（每頁都有）。 */
+export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
+
+/**
+ * 頁面對照：稿檔 ↔ app 路由。兩邊的原生 `[popovertarget]` 會自動逐一打開；
+ * `appOpen` 放 app 端不是原生 popover 的彈出物（id 用 A6 那邊的，才配得上）；
+ * `a6Open` 同上、放稿端的（稿用 JS showPopover、沒有 popovertarget 的），id 跟 app 不同時在 `popovers` 對照；
+ * `popovers` 放 A6 id → app id 的額外對照（殼層的在 SHELL_POPOVERS）；
+ * `mapping` 放自動配不上的 part（A6 key → app key）。
+ */
+/**
+ * 公開試聽／報名表單共用的偏離（#1665 PR-4，兩張稿逐字是同一套 `.pf`）。
+ * 年級下拉：稿的 `.dd` 是 a6.js 把 <select> 換成「一顆 button＋span」；app 用共用的 app-select-field
+ * （PrimeNG p-select＋pt，#991 P1 計畫席裁定選項 A），結構是 combobox＋觸發鈕＋標籤 span，外觀用 pt 對齊。
+ */
+const SELECT_FIELD = 'app-select-field（p-select＋pt）對 A6 .dd：結構不同、外觀對齊';
+const SELECT_FIELD_SOURCE =
+  'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
+const PUBLIC_FORM_DEVIATIONS = [
+  {
+    status: '缺',
+    a6: 'control:button\\[選擇：選擇年級\\]>text:span\\[選擇年級\\]$',
+    reason: SELECT_FIELD,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    status: '角色',
+    a6: 'landmark:region\\[學生資訊\\]>text:label\\[年級\\]$',
+    detail: '^text:label → text:span$',
+    reason: `${SELECT_FIELD}（標籤是 aria-labelledby 指到的 span）`,
+    source: `${SELECT_FIELD_SOURCE}；${rule('R7')}`,
+  },
+  {
+    status: '文案',
+    a6: 'landmark:region\\[學生資訊\\]>control:button\\[選擇：選擇年級\\]$',
+    app: 'control:button\\[dropdown trigger\\]$',
+    reason: `${SELECT_FIELD}（稿的整顆按鈕被配到 PrimeNG 的箭頭鈕）`,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    status: '樣式',
+    a6: 'landmark:region\\[學生資訊\\]>control:button\\[選擇：選擇年級\\]$',
+    app: 'control:button\\[dropdown trigger\\]$',
+    reason: `${SELECT_FIELD}（稿的整顆按鈕被配到 PrimeNG 的箭頭鈕）`,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    status: '多',
+    app: 'landmark:region\\[學生資訊\\]>control:combobox\\[年級\\*?\\]$',
+    reason: SELECT_FIELD,
+    source: SELECT_FIELD_SOURCE,
+  },
+  {
+    // 稿上的「新」是設計說明（這一列是新加的），不是畫面內容；a6.js 的 ddLabel 也把 .new 剔掉
+    status: '缺',
+    a6: 'text:p\\[已通過機器人驗證\\]>text:span\\[新\\]$',
+    reason: '稿的「新」標記是設計說明，不是畫面內容',
+    source: '.design-explorations a6.js ddLabel（剔除 .new）',
+  },
+  {
+    // 資料：選項清單的長度隨資料（稿的示範課程 vs seed 的開課班），它下面的欄位與品牌面高度跟著移
+    status: '位置',
+    a6: '(landmark:region\\[想(試聽的課程|報名的開課班)可以選好幾個\\]>(text:p\\[|text:label\\[|control:textbox\\[)|landmark:complementary\\[\\]>(landmark:navigation|heading:h2|text:p))',
+    // 只放過垂直位移（清單變長變短只會推上推下）；大小隨資料、不設上限。只掛試聽／報名兩頁，/login 的品牌面不吃這條
+    detail: '^相對「[^」]+」 Δx 0、',
+    reason: '資料：選項清單的長度與科目順序隨資料，下面的欄位、品牌面的入口列跟著移',
+    source: '#1665 PR-4 conformance（10-16）',
+  },
+  {
+    // 資料：報名列的說明行文案隨資料（稿有老師名、seed 多分校時寫分校名），配不上就變成列內 span 錯位
+    status: '位置',
+    a6: '>row>text:span~2$',
+    reason: '資料：報名列說明行（老師暱稱、分校）隨資料，文案配不上時列內 span 錯位',
+    source: '#1665 PR-4 conformance（10-16）',
+  },
+  {
+    // 資料：報名列的說明行文案隨資料（稿有老師名、seed 多分校時寫分校名），配不上就變成列內 span 錯位
+    status: '樣式',
+    a6: '>row>text:span~2$',
+    reason: '資料：報名列說明行（老師暱稱、分校）隨資料，文案配不上時列內 span 錯位',
+    source: '#1665 PR-4 conformance（10-16）',
+  },
+];
+
+export const PAGES = {
+  students: {
+    a6: 'students.html',
+    app: '/admin/students',
+    // app 的篩選是 PrimeNG Popover（不是原生 popover）：點哪顆、內容根在哪
+    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
+    // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
+    behaveIgnore: ['^[高國小][一二三四五六]#?$'],
+  },
+  schedule: {
+    a6: 'schedule.html',
+    app: '/admin/sessions',
+    deviations: [
+      {
+        status: '多',
+        app: 'control:button\\[(上一週|下一週)\\]$',
+        reason: '換週箭頭：收不進「⋯」的入口，保留',
+        source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
+      },
+    ],
+  },
+  billing: {
+    a6: 'billing.html',
+    app: '/admin/payments',
+    deviations: [
+      {
+        status: '多',
+        app: 'control:button\\[有#筆生效中的報名還沒開過帳單\\]$',
+        reason: '未開單名單：使用者 10-08 逐項裁定「留」',
+        source: `${rule('R2')}`,
+      },
+      {
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${rule('R2')}`,
+      },
+    ],
+  },
+  // 以下只登稿檔 ↔ 路由（#1314 多出功能盤點，10-15）；偏離與情境之後各頁對齊時再補。
+  // 詳情頁的 id 取自本機示範庫：張宇軒（資料最完整的學生）、國中數學的第一個班、展示用小考 #90
+  // 入口頁（10-16 使用者：「手機版的入口頁面設計也跟 A6 不一樣」）：各自的登入態。
+  // 登入頁要未登入（guestGuard 會把已登入的轉走）；選身分要多身分帳號（seed 的 teacher0001＝admin＋teacher）
+  login: {
+    a6: 'pub-login.html',
+    app: '/login',
+    state: path.join(cache, 'state-guest.json'),
+    // 手機登入的底部面板：稿用 JS showPopover（<a data-ps-sheet>，不是 popovertarget），app 是原生 popover login-sheet
+    a6Open: { 'ps-sheet': { click: '[data-ps-sheet]', root: '#ps-sheet' } },
+    popovers: { 'ps-sheet': 'login-sheet' },
+    deviations: [
+      {
+        // 手機點「登入」打開底部面板（popover），不是導航：角色照行為用 button（稿是 <a>）
+        status: '角色',
+        widths: [360],
+        a6: 'landmark:navigation\\[公開頁\\]>control:link\\[登入\\]$',
+        detail: '^control:link → control:button$',
+        reason: 'ARIA 角色依元件行為：手機「登入」打開底部面板，是按鈕',
+        source: `${rule('R7')}；#1639`,
+      },
+    ],
+  },
+  'select-role': {
+    a6: 'pub-select-role.html',
+    app: '/select-role',
+    state: path.join(cache, 'state-multi.json'),
+  },
+  // 公開表單（#1665 PR-4）：未登入也進得來，用訪客登入態（跟登入頁同一份）。偏離是 10-16 第一次 diff 跑出來的 key
+  trial: {
+    a6: 'pub-trial.html',
+    app: '/trial',
+    state: path.join(cache, 'state-guest.json'),
+    deviations: [
+      {
+        // #1637 Q1：試聽稿沒有「與學生的關係」，使用者指定補上（版面照報名稿同一欄）
+        status: '多',
+        app: 'landmark:region\\[家長資訊\\]>(text:p\\[與學生的關係\\]|row(>control:radio)?)$',
+        reason: '試聽表單補「與學生的關係」（使用者指定的 A6 偏離）',
+        source: `${rule('R5')}「公開試聽表單與學生的關係」2026-10-16；#1637 Q1`,
+      },
+      ...PUBLIC_FORM_DEVIATIONS,
+    ],
+  },
+  enrollment: {
+    a6: 'pub-enrollment.html',
+    app: '/enrollment',
+    state: path.join(cache, 'state-guest.json'),
+    deviations: PUBLIC_FORM_DEVIATIONS,
+  },
+  student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
+  parents: { a6: 'parents.html', app: '/admin/parents' },
+  courses: { a6: 'courses.html', app: '/admin/courses' },
+  class: {
+    a6: 'class.html',
+    app: '/admin/courses/dc2f0b1a-7e79-4b6e-a61e-8bbac3eec5a6/classes/1deffd57-e069-4d72-98bf-41415ec01967',
+  },
+  dashboard: { a6: 'dashboard.html', app: '/admin/dashboard' },
+  enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
+  leave: { a6: 'leave.html', app: '/admin/leave' },
+  staff: { a6: 'staff.html', app: '/admin/staff' },
+  'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
+  notifications: {
+    // 稿預設是「收到的」分頁；app 這頁對應「發布公告」，稿認網址 #publish（稿內說明）
+    a6: 'notifications.html#publish',
+    app: '/admin/notifications',
+    deviations: [
+      {
+        // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
+        status: '缺',
+        whole: true, // 整個表單搬進彈窗：裡面的列、「發布」鈕跟著歸偏離
+        a6: 'landmark:main\\[\\]>landmark:form\\[\\]$',
+        reason: '發布表單改成彈窗，頁面只放已發布列表（使用者指定）',
+        source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
+      },
+      {
+        status: '多',
+        app: 'landmark:main\\[\\]>control:button\\[發送通知\\]$',
+        reason: '發布表單改成彈窗：工具列「發送通知」是它的入口',
+        source: `${rule('R5')}「通知中心發布表單」2026-10-16；#1689`,
+      },
+    ],
+  },
+  meals: { a6: 'meals.html', app: '/admin/meals' },
+  reports: { a6: 'reports.html', app: '/admin/reports' },
+  'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },
+  changes: { a6: 'changes.html', app: '/admin/changes' },
+  exams: { a6: 'exams.html', app: '/admin/grades/exams' },
+  scores: {
+    a6: 'scores.html',
+    app: '/admin/grades/exams/academy/5bce4763-b20c-4dd5-9f7e-2b7e500e3a22/scores',
+  },
+  grades: { a6: 'grades.html', app: '/admin/grades/overview' },
+  'grades-class': { a6: 'grades-class.html', app: '/admin/grades/overview/class' },
+  'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
+};
