@@ -3,7 +3,7 @@ title: 計費與收款規則
 summary: 內部人訪談定案的金流業務規則：三種計費模式（月繳/期繳/堂數制）、金額永遠可人工覆寫（不做折扣引擎）、插班退班共用比例試算、帳單與收款一對多、欠繳只做可見性不做強制；開錯的帳單作廢不刪除、淨額歸零才能作廢、不可撤銷。
 category: rule
 status: active
-updated: 2026-09-30
+updated: 2026-10-16
 tags: [rules, billing, payments, invoices]
 ---
 
@@ -63,8 +63,11 @@ tags: [rules, billing, payments, invoices]
 - 受訪公司用 LINE／電話追繳，**從未停課** —— 不做欠繳自動停課。
 - 「欠」的定義：過了 `invoices.due_date` 未繳清。due_date 預設 = 開帳日 + org 設定天數
   （14–21 天，對齊「發袋後兩三週沒回音才催」的實際節奏），每張可改。
-- 催繳記錄獨立表 `payment_reminders(invoice_id, method: line/phone/other, note, created_by)`
-  —— 是業務資料不塞 audit_logs。LINE 推播可當提醒管道。
+- **追繳＝快速聯絡家長（#1625，使用者 2026-10-16 裁定）**：只記「有沒有用某種軟體催過」沒有意義，
+  要的是讓行政快速聯絡到那位家長。帳單詳情列出學生的**所有家長**（姓名、關係、電話、email），
+  撥號（`tel:`）、簡訊（`sms:`，內文預帶學生、未收金額、期限、匯款帳戶）、email（`mailto:`）、桌機一鍵複製；
+  沒留電話／email 要寫出來。家長個資只在單張帳單回（授權跟著帳單），列表不帶。
+  「記一次催繳」的 UI 與 API 已拿掉；`payment_reminders` 表與既有資料保留（加法優先）。
 
 ## 8. 缺課不退不抵
 

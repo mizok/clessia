@@ -177,7 +177,6 @@ describe('帳單的分校範圍（#1381）—— 讀', () => {
     for (const target of [CROSS, MEAL_B, OTHER]) {
       expect((await call(db, 'GET', `/${target}`)).body).toMatchObject({ code: 'NOT_FOUND' });
     }
-    expect((await call(db, 'GET', `/${OTHER}/reminders`)).status).toBe(404);
   });
 });
 
@@ -227,7 +226,6 @@ describe('帳單的分校範圍（#1381）—— 寫：範圍外 404 且沒寫�
     ['DELETE', `/${OTHER}/items/${id(50)}`, undefined],
     ['POST', `/${OTHER}/payments`, { amount: 100, method: 'cash' }],
     ['POST', `/${OTHER}/void`, { reason: '測試' }],
-    ['POST', `/${OTHER}/reminders`, { method: 'phone' }],
   ];
 
   it.each(writes)('%s %s', async (method, path, body) => {
@@ -235,21 +233,21 @@ describe('帳單的分校範圍（#1381）—— 寫：範圍外 404 且沒寫�
     const before = {
       items: db.rows('invoice_items').length,
       payments: db.rows('payment_records').length,
-      reminders: db.rows('payment_reminders').length,
     };
     const res = await call(db, method, path, { body });
     expect(res.status).toBe(404);
     expect(db.rows('invoice_items')).toHaveLength(before.items);
     expect(db.rows('payment_records')).toHaveLength(before.payments);
-    expect(db.rows('payment_reminders')).toHaveLength(before.reminders);
     expect(db.rows('invoices').find((r) => r['id'] === OTHER)?.['voided_at']).toBeNull();
   });
 
   it('範圍內的單照常寫得進去（對照組）', async () => {
     const db = seed();
-    const res = await call(db, 'POST', `/${VISIBLE}/reminders`, { body: { method: 'phone' } });
+    const res = await call(db, 'POST', `/${VISIBLE}/payments`, {
+      body: { amount: 100, method: 'cash' },
+    });
     expect(res.status).toBe(201);
-    expect(db.rows('payment_reminders')).toHaveLength(1);
+    expect(db.rows('payment_records')).toHaveLength(1);
   });
 
   it('開單指名範圍外的學生 → 404 STUDENT_NOT_FOUND，沒開出來', async () => {

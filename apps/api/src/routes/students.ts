@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
+import { attachParentContacts, type ParentRelationRow } from '../lib/student-parents';
 import { resolveStudentScope } from './students/teacher-scope';
 import { outOfCampusScope, teacherCannotRead } from './students/read-scope';
 import { taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
@@ -836,6 +837,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: StudentDetailSchema }) } },
       },
       404: { description: '學生不存在' },
+      500: { description: '讀取家長聯絡方式失敗' },
     },
   }),
   async (c) => {
@@ -865,42 +867,12 @@ app.openapi(
     }
 
     const row = data as Record<string, unknown>;
-    const relations =
-      (row['parent_student_relations'] as Array<{
-        id: string;
-        is_primary: boolean;
-        relation: string | null;
-        parents: { id: string; name: string; user_id: string } | null;
-      }>) ?? [];
-
-    const validRelations = relations.filter((r) => r.parents);
-    const userIds = validRelations.map((r) => r.parents!.user_id).filter(Boolean);
-
-    const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
-    if (userIds.length > 0) {
-      const { data: baUsers } = await supabase
-        .from('ba_user')
-        .select('id, email, phone')
-        .in('id', userIds);
-      for (const u of baUsers ?? []) {
-        baUserMap.set(u.id as string, {
-          email: (u.email as string | null) ?? null,
-          phone: (u.phone as string | null) ?? null,
-        });
-      }
+    const relations = (row['parent_student_relations'] as ParentRelationRow[]) ?? [];
+    // #1625：ba_user 讀不到原本被吞成「沒有留電話」，跟真的沒留分不出來 —— 改成 500
+    const { parents, error: contactsError } = await attachParentContacts(supabase, relations);
+    if (contactsError) {
+      return c.json({ error: '讀取家長聯絡方式失敗', code: 'SERVER_ERROR' }, 500);
     }
-
-    const parents = validRelations.map((r) => {
-      const baUser = baUserMap.get(r.parents!.user_id) ?? { email: null, phone: null };
-      return {
-        id: r.parents!.id,
-        name: r.parents!.name,
-        phone: baUser.phone,
-        email: baUser.email,
-        relation: r.relation,
-        isPrimary: r.is_primary,
-      };
-    });
 
     const parentNames = parents
       .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0))

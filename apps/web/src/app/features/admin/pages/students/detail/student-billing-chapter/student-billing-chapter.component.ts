@@ -136,7 +136,7 @@ export class StudentBillingChapterComponent implements OnInit {
       appendTo: this.overlayContainerService.getContainer() || 'body',
       data: { invoice },
     });
-    // 只有真的動過（作廢、收款、催繳）才重抓
+    // 只有真的動過（作廢、收款）才重抓
     ref?.onClose.subscribe((updated: Invoice | undefined) => {
       if (updated) this.load();
     });

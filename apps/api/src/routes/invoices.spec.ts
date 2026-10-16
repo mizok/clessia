@@ -281,88 +281,6 @@ describe('GET /api/invoices —— outstanding / dueWithin（#639）', () => {
   });
 });
 
-/**
- * **#901：`POST /{id}/reminders` 漏接稽核。**
- *
- * 同檔另外四支寫入（`:353 / :432 / :478 / :564`）都有 `logAudit`，只有催繳沒有。
- *
- * ⚠️ **查「有沒有稽核」要 grep `logAudit(` 本身，不要 grep action 字串** ——
- * 收款那支的 action 是三元運算不是字面量
- * （`body.kind === 'refund' ? 'refund' : 'payment'`，`invoices.ts:571`），
- * `grep -oE "action: '[a-z_.]+'"` 抓不到它，會讓人以為它也漏了。
- */
-describe('POST /api/invoices/{id}/reminders —— 稽核（#901）', () => {
-  const INVOICE = '00000000-0000-0000-0000-00000000001a';
-
-  /** 記下所有 `insert`，好斷言 `audit_logs` 真的多了一列 */
-  function recordingSupabase(inserts: Array<{ table: string; rows: unknown }>, found = true) {
-    const builder: Record<string, unknown> = {};
-    let table = '';
-    const chain = () => builder as never;
-    Object.assign(builder, {
-      select: () => chain(),
-      eq: () => chain(),
-      insert: (rows: unknown) => {
-        inserts.push({ table, rows });
-        return Promise.resolve({ error: null });
-      },
-      maybeSingle: () =>
-        Promise.resolve({
-          data: table === 'invoices' ? (found ? { id: INVOICE } : null) : null,
-          error: null,
-        }),
-    });
-
-    return {
-      from(name: string) {
-        table = name;
-        return builder;
-      },
-    };
-  }
-
-  async function remind(inserts: Array<{ table: string; rows: unknown }>, found = true) {
-    const res = await appWith(recordingSupabase(inserts, found)).request(`/${INVOICE}/reminders`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ method: 'line', note: '第一次催繳' }),
-    });
-    // fire-and-forget + 兩層 await，不排空 microtask 佇列的話會斷言在寫入之前
-    await new Promise((r) => setTimeout(r, 0));
-    return res;
-  }
-
-  const auditRowsIn = (inserts: Array<{ table: string; rows: unknown }>) =>
-    inserts.filter((i) => i.table === 'audit_logs').map((i) => i.rows);
-
-  it('記錄一次催繳之後 audit_logs 多一列，記得住用哪個管道', async () => {
-    const inserts: Array<{ table: string; rows: unknown }> = [];
-
-    await remind(inserts);
-
-    expect(inserts.some((i) => i.table === 'payment_reminders')).toBe(true);
-    expect(auditRowsIn(inserts)).toEqual([
-      expect.objectContaining({
-        resource_type: 'invoice',
-        resource_id: INVOICE,
-        action: 'invoice.remind',
-        details: expect.objectContaining({ method: 'line' }),
-      }),
-    ]);
-  });
-
-  // 帳單不存在時提早 404，**什麼都沒寫，所以也不該有稽核**。
-  it('帳單不存在時兩張表都不寫', async () => {
-    const inserts: Array<{ table: string; rows: unknown }> = [];
-
-    const res = await remind(inserts, false);
-
-    expect(res.status).toBe(404);
-    expect(inserts.some((i) => i.table === 'payment_reminders')).toBe(false);
-    expect(auditRowsIn(inserts)).toEqual([]);
-  });
-});
-
 // ============================================================
 // #898 帳單作廢
 // ============================================================
@@ -607,7 +525,13 @@ describe('POST /api/invoices/{id}/void —— 成功', () => {
     expect(res.status).toBe(200);
     const update = fake.chains.find((c) => c.table === 'invoices' && fake.has(c, 'update'));
     expect(update && fake.argsOf(update, 'update')).toEqual([
-      [expect.objectContaining({ voided_by: 'u1', void_reason: '開錯月', voided_at: expect.any(String) })],
+      [
+        expect.objectContaining({
+          voided_by: 'u1',
+          void_reason: '開錯月',
+          voided_at: expect.any(String),
+        }),
+      ],
     ]);
     expect(update && fake.argsOf(update, 'is')).toEqual([['voided_at', null]]);
     expect(update && fake.argsOf(update, 'eq')).toEqual(
@@ -661,7 +585,13 @@ describe('POST /api/invoices/{id}/void —— 成功', () => {
     const fake = voidScenario();
     const res = await postVoid(fake.client);
     const { data } = (await res.json()) as {
-      data: { status: string; voidedAt: string; voidedBy: string; voidReason: string; total: number };
+      data: {
+        status: string;
+        voidedAt: string;
+        voidedBy: string;
+        voidReason: string;
+        total: number;
+      };
     };
 
     expect(data).toMatchObject({
@@ -687,17 +617,20 @@ describe('POST /api/invoices/{id}/void —— 成功', () => {
 });
 
 /**
- * 作廢單凍結：API 這層給看得懂的 409，DB trigger 兜底 —— **但催繳沒有 trigger**
- * （`payment_reminders` 不影響金額），所以催繳那支 API 這層是唯一一層。
+ * 作廢單凍結：API 這層給看得懂的 409，DB trigger 兜底。
+ *（原本還有催繳那支，#1625 連端點一起拿掉了。）
  */
 describe('作廢單上的寫入 → 409 INVOICE_VOIDED', () => {
-  const voided = voidableRow({ voided_at: '2026-09-01T00:00:00Z', voided_by: 'u1', void_reason: 'x' });
+  const voided = voidableRow({
+    voided_at: '2026-09-01T00:00:00Z',
+    voided_by: 'u1',
+    void_reason: 'x',
+  });
 
   const cases: Array<[string, string, string, unknown]> = [
     ['新增明細', 'POST', `/${VOID_ID}/items`, { type: 'adjustment', amount: -100 }],
     ['刪除明細', 'DELETE', `/${VOID_ID}/items/00000000-0000-0000-0000-000000000077`, undefined],
     ['記收款', 'POST', `/${VOID_ID}/payments`, { amount: 100, method: 'cash' }],
-    ['催繳', 'POST', `/${VOID_ID}/reminders`, { method: 'line' }],
   ];
 
   for (const [label, method, path, body] of cases) {
@@ -723,7 +656,12 @@ describe('作廢單上的寫入 → 409 INVOICE_VOIDED', () => {
 describe('GET /api/invoices —— 作廢單', () => {
   const rows = [
     invoiceRow({ id: '00000000-0000-0000-0000-000000000001', amount: 1000, paid: 0 }),
-    { ...invoiceRow({ id: '00000000-0000-0000-0000-000000000002', amount: 1000, paid: 0 }), voided_at: '2026-09-01T00:00:00Z', voided_by: 'u1', void_reason: 'x' },
+    {
+      ...invoiceRow({ id: '00000000-0000-0000-0000-000000000002', amount: 1000, paid: 0 }),
+      voided_at: '2026-09-01T00:00:00Z',
+      voided_by: 'u1',
+      void_reason: 'x',
+    },
   ];
 
   // 裁決 C：預設列出（灰顯在前端），稽核軌跡要看得到

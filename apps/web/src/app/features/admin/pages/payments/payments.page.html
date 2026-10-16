@@ -1,5 +1,3 @@
-<app-popup-menu #remindMenu [model]="remindMenuItems()" />
-
 <!--
   A6 版（#991）：色面 → 灰工具列（搜尋、篩選、新增）→ 帳單表格。
   換版不換資料：A6 稿的「依狀態分章」「十月應收／已收長條」「列上提醒／收款鈕」要的資料這頁沒有
@@ -89,12 +87,9 @@
       />
       <app-page-actions
         class="wide:order-3 wide:ml-auto"
-        [primary]="primaryAction()"
-        [secondary]="secondaryAction()"
+        [primary]="primaryAction"
         [primaryOnDesktop]="false"
-        [secondaryOnDesktop]="false"
-        (primaryClick)="onPrimaryAction($event, remindMenu)"
-        (secondaryClick)="openCreateDialog()"
+        (primaryClick)="openCreateDialog()"
       >
         <!-- A6 `.btn--cta` 13px/600、padding 0 16、高 36；手機基底 44（A27）。只在桌機（手機由底部托盤承擔） -->
         <button
@@ -248,18 +243,6 @@
             NT$ {{ s.overdue.outstanding | number }}
           </p>
         }
-        @if (remindAllIds().length > 0) {
-          <!-- A6：「全部提醒」在章頭（桌機）；手機由底部托盤承擔 -->
-          <div class="mt-3 hidden wide:block">
-            <button
-              type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-solid border-zinc-300 bg-white gap-1.5 px-3 text-[12px] leading-[1.5] font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:min-h-0 wide:h-[30px]"
-              (click)="openRemindMenu($event, remindMenu, null)"
-            >
-              全部提醒（{{ remindAllIds().length }}）
-            </button>
-          </div>
-        }
       </div>
       <div class="flex min-w-0 flex-col gap-3">
         @if (invoices().length === 0) {
@@ -320,9 +303,6 @@
             }
             {{ dueText(invoice) }}
           </span>
-          @if (remindedText(invoice); as reminded) {
-            <div class="text-md font-normal text-zinc-600">{{ reminded }}</div>
-          }
         </div>
         <div
           class="col-start-2 row-start-1 text-right text-lg font-semibold text-zinc-900 tabular-nums wide:col-start-3"
@@ -333,7 +313,6 @@
           [compact]="true"
           class="col-start-2 row-start-2 justify-self-end wide:col-start-4 wide:row-start-1"
           [invoice]="invoice"
-          (remind)="openRemindMenu($event, remindMenu, invoice)"
           (collect)="collect(invoice)"
           (receipt)="openDetail(invoice)"
         />
@@ -558,7 +537,6 @@
           <td appRtColCell="actions">
             <app-invoice-actions
               [invoice]="invoice"
-              (remind)="openRemindMenu($event, remindMenu, invoice)"
               (collect)="collect(invoice)"
               (receipt)="openDetail(invoice)"
             />
