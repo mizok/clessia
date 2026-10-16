@@ -72,120 +72,135 @@
 
     <!-- Content Area -->
     <div>
-      @if (loading()) {
+      <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
+      <app-reload-veil [loading]="loading()">
         <!-- Skeleton Loading -->
-        <div class="skeleton-list">
+        <div reloadSkeleton class="skeleton-list">
           @for (i of [1, 2, 3, 4, 5]; track i) {
             <span class="skeleton-bar"></span>
           }
         </div>
-      } @else if (loadFailed()) {
-        <app-load-failed description="沒有讀到分校清單，可能是連線問題" (retry)="loadCampuses()" />
-      } @else if (campuses().length === 0) {
-        <!-- Empty State -->
-        @if (searchQuery()) {
-          <app-empty-state
-            icon="pi pi-search"
-            title="找不到符合的分校"
-            [description]="'沒有找到符合「' + searchQuery() + '」的分校，請嘗試其他關鍵字'"
-          >
-            <p-button
-              label="清除搜尋"
-              [text]="true"
-              severity="secondary"
-              (onClick)="onSearchChange('')"
-            />
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-building"
-            title="尚未建立分校"
-            description="開始建立您的第一個分校來管理補習班營運"
-          >
-            <p-button label="新增分校" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-          </app-empty-state>
-        }
-      } @else {
-        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-        <app-responsive-table
-          [headTemplate]="headTpl"
-          [bodyTemplate]="bodyTpl"
-          [pagination]="pagination()"
-          (page)="onPage($event)"
-        />
-
-        <ng-template #headTpl>
-          <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">
-              分校名稱
-            </th>
-            <th appRtColDef="address" [appRtColDefMinWidth]="200" [appRtColDefPriority]="3">
-              地址
-            </th>
-            <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">電話</th>
-            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">狀態</th>
-            <th
-              appRtColDef="actions"
-              [appRtColDefMinWidth]="56"
-              [appRtColDefPriority]="0"
-              [appRtColDefCollapsible]="false"
-              aria-hidden="true"
-            ></th>
-          </tr>
-        </ng-template>
-
-        <ng-template #bodyTpl>
-          @for (campus of campuses(); track campus.id) {
-            <tr appRtRow [appRtRow]="campus" [appRtRowId]="campus.id">
-              <td appRtColCell="name">
-                <div class="flex items-center gap-2 font-semibold text-zinc-900">
-                  <span
-                    class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent-50 text-sm text-accent-600"
-                  >
-                    <i class="pi pi-building"></i>
-                  </span>
-                  <span>{{ campus.name }}</span>
-                </div>
-              </td>
-              <td appRtColCell="address">
-                @if (campus.address) {
-                  <span class="text-sm text-zinc-600">{{ campus.address }}</span>
-                } @else {
-                  <span class="text-sm text-zinc-500 italic">未填寫</span>
-                }
-              </td>
-              <td appRtColCell="phone">
-                @if (campus.phone) {
-                  <a
-                    [href]="'tel:' + campus.phone"
-                    class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
-                  >
-                    {{ campus.phone }}
-                  </a>
-                } @else {
-                  <span class="text-sm text-zinc-500 italic">未填寫</span>
-                }
-              </td>
-              <td appRtColCell="status">
-                <app-status-dot [tone]="campus.isActive ? 'done' : 'inactive'">{{
-                  campus.isActive ? '啟用' : '停用'
-                }}</app-status-dot>
-              </td>
-              <td class="responsive-table__cell" style="text-align: center">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [rounded]="true"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="campus.name + ' 的操作'"
-                  (onClick)="openActionMenu($event, campus)"
-                />
-              </td>
-            </tr>
+        @if (loadFailed()) {
+          <app-load-failed
+            description="沒有讀到分校清單，可能是連線問題"
+            (retry)="loadCampuses()"
+          />
+        } @else if (campuses().length === 0) {
+          <!-- Empty State -->
+          @if (searchQuery()) {
+            <app-empty-state
+              icon="pi pi-search"
+              title="找不到符合的分校"
+              [description]="'沒有找到符合「' + searchQuery() + '」的分校，請嘗試其他關鍵字'"
+            >
+              <p-button
+                label="清除搜尋"
+                [text]="true"
+                severity="secondary"
+                (onClick)="onSearchChange('')"
+              />
+            </app-empty-state>
+          } @else {
+            <app-empty-state
+              icon="pi pi-building"
+              title="尚未建立分校"
+              description="開始建立您的第一個分校來管理補習班營運"
+            >
+              <p-button label="新增分校" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+            </app-empty-state>
           }
-        </ng-template>
-      }
+        } @else {
+          <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+
+          <app-responsive-table
+            [headTemplate]="headTpl"
+            [bodyTemplate]="bodyTpl"
+            [pagination]="pagination()"
+            (page)="onPage($event)"
+          />
+
+          <ng-template #headTpl>
+            <tr>
+              <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">
+                分校名稱
+              </th>
+              <th appRtColDef="address" [appRtColDefMinWidth]="200" [appRtColDefPriority]="3">
+                地址
+              </th>
+              <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
+                電話
+              </th>
+              <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">
+                狀態
+              </th>
+              <th
+                appRtColDef="actions"
+                [appRtColDefMinWidth]="56"
+                [appRtColDefPriority]="0"
+                [appRtColDefCollapsible]="false"
+                aria-hidden="true"
+              ></th>
+            </tr>
+          </ng-template>
+
+          <ng-template #bodyTpl>
+            @for (campus of campuses(); track campus.id) {
+              <tr
+                appRtRow
+                [appRtRow]="campus"
+                [appRtRowId]="campus.id"
+                class="vt-row"
+                [style.view-transition-name]="'campus-' + campus.id"
+              >
+                <td appRtColCell="name">
+                  <div class="flex items-center gap-2 font-semibold text-zinc-900">
+                    <span
+                      class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent-50 text-sm text-accent-600"
+                    >
+                      <i class="pi pi-building"></i>
+                    </span>
+                    <span>{{ campus.name }}</span>
+                  </div>
+                </td>
+                <td appRtColCell="address">
+                  @if (campus.address) {
+                    <span class="text-sm text-zinc-600">{{ campus.address }}</span>
+                  } @else {
+                    <span class="text-sm text-zinc-500 italic">未填寫</span>
+                  }
+                </td>
+                <td appRtColCell="phone">
+                  @if (campus.phone) {
+                    <a
+                      [href]="'tel:' + campus.phone"
+                      class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
+                    >
+                      {{ campus.phone }}
+                    </a>
+                  } @else {
+                    <span class="text-sm text-zinc-500 italic">未填寫</span>
+                  }
+                </td>
+                <td appRtColCell="status">
+                  <app-status-dot [tone]="campus.isActive ? 'done' : 'inactive'">{{
+                    campus.isActive ? '啟用' : '停用'
+                  }}</app-status-dot>
+                </td>
+                <td class="responsive-table__cell" style="text-align: center">
+                  <p-button
+                    icon="pi pi-ellipsis-v"
+                    [rounded]="true"
+                    [text]="true"
+                    severity="secondary"
+                    [ariaLabel]="campus.name + ' 的操作'"
+                    (onClick)="openActionMenu($event, campus)"
+                  />
+                </td>
+              </tr>
+            }
+          </ng-template>
+        }
+      </app-reload-veil>
     </div>
   </div>
 </div>

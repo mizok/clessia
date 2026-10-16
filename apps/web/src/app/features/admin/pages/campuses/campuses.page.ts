@@ -1,4 +1,7 @@
 import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
+import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
+import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -56,6 +59,7 @@ import {
   selector: 'app-campuses',
   standalone: true,
   imports: [
+    ReloadVeilComponent,
     PageActionsComponent,
     StatusDotComponent,
     CommonModule,
@@ -88,6 +92,11 @@ export class CampusesPage implements OnInit {
     inactiveCount: 0,
   });
   private readonly campusesService = inject(CampusesService);
+  /** 重抓的資料平滑換上；新增／刪除造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
+  private readonly viewTransition = injectViewTransition();
+  private readonly optimisticRemove = injectOptimisticRemove();
+  /** 這一輪重抓是新增／刪除／停用造成的 —— 回應套上時列表帶名字（篩選、換頁不帶） */
+  private reloadRows = false;
   private readonly destroyRef = inject(DestroyRef);
 
   /** 搜尋輸入 —— 節流 + 去重之後才進 `loadCampuses()`（#661） */
@@ -198,8 +207,13 @@ export class CampusesPage implements OnInit {
   }
 
   /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
-  loadCampuses(): void {
-    this.loading.set(true);
+  /**
+   * `quiet`：刪除成功後的背景重抓 —— 畫面已經是「刪掉了」，不再變淡（#1641 5b 第 1 點）。
+   * `rows`：新增／刪除／停用造成的重抓，回應套上時那一列淡入或淡出。
+   */
+  loadCampuses({ quiet = false, rows = false }: { quiet?: boolean; rows?: boolean } = {}): void {
+    this.reloadRows = rows;
+    if (!quiet) this.loading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
   }
@@ -234,10 +248,16 @@ export class CampusesPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res: CampusListResponse) => {
-        this.campuses.set(res.data);
-        this.total.set(res.meta.total);
-        this.summary.set(res.summary);
-        this.loading.set(false);
+        this.viewTransition(
+          () => {
+            this.campuses.set(res.data);
+            this.total.set(res.meta.total);
+            this.summary.set(res.summary);
+            this.loading.set(false);
+          },
+          { rows: this.reloadRows },
+        );
+        this.reloadRows = false;
         this.refData.invalidate('campuses');
       });
   }
@@ -261,7 +281,7 @@ export class CampusesPage implements OnInit {
 
     if (ref) {
       ref.onClose.subscribe((newCampus) => {
-        if (newCampus) this.loadCampuses();
+        if (newCampus) this.loadCampuses({ rows: true });
       });
     }
   }
@@ -277,7 +297,7 @@ export class CampusesPage implements OnInit {
 
     if (ref) {
       ref.onClose.subscribe((updatedCampus) => {
-        if (updatedCampus) this.loadCampuses();
+        if (updatedCampus) this.loadCampuses({ rows: true });
       });
     }
   }
@@ -305,38 +325,44 @@ export class CampusesPage implements OnInit {
     );
   }
 
+  /** 樂觀刪除：先淡出，失敗就放回去並說明（#1641 5b 第 1 點） */
   private deleteCampus(campus: Campus): void {
-    this.campusesService.delete(campus.id).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '刪除成功',
-          detail: `「${campus.name}」已刪除`,
-        });
-        this.loadCampuses();
-      },
-      error: (err) => {
-        console.error('Failed to delete campus', err);
-        if (err.error?.code === 'HAS_COURSES') {
-          this.openConfirmDialog(
-            '無法刪除',
-            {
-              message: `「${campus.name}」底下還有課程，無法刪除。是否改為停用？`,
-              acceptLabel: '停用',
-              rejectLabel: '取消',
-              acceptSeverity: 'warn',
-            },
-            () => this.deactivateCampus(campus),
-          );
-        } else {
+    this.optimisticRemove(
+      this.campuses,
+      (c) => c.id === campus.id,
+      this.campusesService.delete(campus.id),
+      {
+        next: () => {
           this.messageService.add({
-            severity: 'error',
-            summary: '刪除失敗',
-            detail: err.error?.error || '請稍後再試',
+            severity: 'success',
+            summary: '刪除成功',
+            detail: `「${campus.name}」已刪除`,
           });
-        }
+          this.loadCampuses({ quiet: true, rows: true });
+        },
+        error: (err: any) => {
+          console.error('Failed to delete campus', err);
+          if (err.error?.code === 'HAS_COURSES') {
+            this.openConfirmDialog(
+              '無法刪除',
+              {
+                message: `「${campus.name}」底下還有課程，無法刪除。是否改為停用？`,
+                acceptLabel: '停用',
+                rejectLabel: '取消',
+                acceptSeverity: 'warn',
+              },
+              () => this.deactivateCampus(campus),
+            );
+          } else {
+            this.messageService.add({
+              severity: 'error',
+              summary: '刪除失敗',
+              detail: err.error?.error || '請稍後再試',
+            });
+          }
+        },
       },
-    });
+    );
   }
 
   confirmDeactivate(campus: Campus): void {
@@ -369,7 +395,7 @@ export class CampusesPage implements OnInit {
     this.campusesService.update(campus.id, { isActive: false }).subscribe({
       next: () => {
         if (!this.showInactiveCampuses()) this.showInactiveCampuses.set(true);
-        this.loadCampuses();
+        this.loadCampuses({ rows: true });
         this.messageService.add({
           severity: 'success',
           summary: '已停用',
@@ -390,7 +416,7 @@ export class CampusesPage implements OnInit {
   private activateCampus(campus: Campus): void {
     this.campusesService.update(campus.id, { isActive: true }).subscribe({
       next: () => {
-        this.loadCampuses();
+        this.loadCampuses({ rows: true });
         this.messageService.add({
           severity: 'success',
           summary: '已啟用',
