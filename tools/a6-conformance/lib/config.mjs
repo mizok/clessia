@@ -283,6 +283,8 @@ const PUBLIC_FORM_DEVIATIONS = [
     // 資料：選項清單的長度隨資料（稿的示範課程 vs seed 的開課班），它下面的欄位與品牌面高度跟著移
     status: '位置',
     a6: '(landmark:region\\[想(試聽的課程|報名的開課班)可以選好幾個\\]>(text:p\\[|text:label\\[|control:textbox\\[)|landmark:complementary\\[\\]>(landmark:navigation|heading:h2|text:p))',
+    // 只放過垂直位移（清單變長變短只會推上推下）；大小隨資料、不設上限。只掛試聽／報名兩頁，/login 的品牌面不吃這條
+    detail: '^相對「[^」]+」 Δx 0、',
     reason: '資料：選項清單的長度與科目順序隨資料，下面的欄位、品牌面的入口列跟著移',
     source: '#1665 PR-4 conformance（10-16）',
   },

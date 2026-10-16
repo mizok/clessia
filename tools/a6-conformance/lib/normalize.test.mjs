@@ -1292,3 +1292,21 @@ test('#1689：通知中心發布表單改彈窗（R5）—— 稿的 main>form �
   );
   assert.match(out[0].dev.source, /（R5）「通知中心發布表單」2026-10-16；#1689/);
 });
+
+test('#1665 PR-4：公開表單「選項清單長度」的位置資料差只放過試聽／報名頁的純 Δy；/login 品牌面位移照報', async () => {
+  const { classify } = await import('./diff.mjs');
+  const { DEVIATIONS, PAGES } = await import('./config.mjs');
+  const pos = (key, d) => ({
+    status: '位置',
+    kind: 'text',
+    a6: `>landmark:complementary[]>${key}`,
+    app: `>landmark:complementary[]>${key}`,
+    detail: `相對「complementary」 ${d}（app − A6）`,
+  });
+  const rows = [pos('heading:h2[學程管家]', 'Δx 0、Δy -115'), pos('heading:h2[學程管家]', 'Δx +40、Δy -115')];
+  const on = (page) =>
+    classify(rows, [...DEVIATIONS, ...(PAGES[page].deviations ?? [])], 1440).map((x) => x.bucket);
+  assert.deepEqual(on('trial'), ['已記錄偏離', '待修']);
+  assert.deepEqual(on('enrollment'), ['已記錄偏離', '待修']);
+  assert.deepEqual(on('login'), ['待修', '待修']);
+});
