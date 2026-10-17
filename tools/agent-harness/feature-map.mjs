@@ -174,7 +174,7 @@ const AREAS = [
     name: '請假',
     pages: ['admin/leave'],
     routes: ['leaves'],
-    specs: ['admin/student-affairs/leave.md'],
+    specs: ['admin/student-affairs/leave.md', 'parent/leave.md'],
   },
   {
     name: '考試與成績',
