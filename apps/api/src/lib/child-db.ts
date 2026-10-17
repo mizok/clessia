@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudentScope } from './child-scope';
 import { notifyLeaveForTeachers } from './notify-leave';
+import { logAudit } from '../utils/audit';
 
 /**
  * 只能由這支檔案自己的 `pluck()` 產生的 id 清單。
@@ -44,6 +45,19 @@ export type ScopedIds = readonly string[] & { readonly [scopedIdsBrand]: true };
 export function createChildDb(supabase: SupabaseClient, scope: StudentScope, orgId: string) {
   /** 寫入用：`null`（不是家長）在寫入面一律 fail-closed，跟讀取面的「不加條件」刻意不同 */
   const writableIds = scope === null ? [] : [...scope];
+
+  /** 這張假是不是 scope 內孩子的（同 org、student_id 在 scope）。不是就回 null —— notifyLeave／recordLeave 的共同前提 */
+  const ownLeave = async (leaveId: string, columns: string): Promise<unknown> => {
+    if (writableIds.length === 0) return null;
+    const { data } = await supabase
+      .from('leave_requests')
+      .select(columns)
+      .eq('id', leaveId)
+      .eq('org_id', orgId)
+      .in('student_id', writableIds)
+      .maybeSingle();
+    return data ?? null;
+  };
 
   return {
     /**
@@ -186,16 +200,9 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
       sessionIds: readonly string[],
       actorUserId: string,
     ): Promise<boolean> {
-      if (writableIds.length === 0) return false;
-      const { data } = await supabase
-        .from('leave_requests')
-        .select('id, students(name)')
-        .eq('id', leaveId)
-        .eq('org_id', orgId)
-        .in('student_id', writableIds)
-        .maybeSingle();
-      if (!data) return false;
-      const student = (data as { students?: { name?: string } | null }).students;
+      const leave = await ownLeave(leaveId, 'id, students(name)');
+      if (!leave) return false;
+      const student = (leave as { students?: { name?: string } | null }).students;
       await notifyLeaveForTeachers(supabase, {
         orgId,
         actorUserId,
@@ -203,6 +210,47 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
         studentName: student?.name ?? '',
         sessionIds,
       });
+      return true;
+    },
+
+    /**
+     * 家長請假的稽核（#1695，計畫席 10-17）。家長補請會把缺席改成請假、沒有人核對，
+     * 事後要查得到是誰、什麼時候、改了哪幾堂。`audit_logs` 不是孩子的資料、走不了 scope 寫入，
+     * 所以跟 `notifyLeave` 一樣是窄能力：**先確認這張假屬於 scope 內的孩子**，不是就不寫、回 false。
+     *
+     * - actor 是 session 的使用者（呼叫端傳 `c.get('userId')`）
+     * - 日期從 DB 的假單讀，不吃呼叫端
+     * - **不帶個資全文**：`resourceName` 只有「家長請假／日期」，不寫學生或家長的名字；
+     *   details 只有身分、堂數與補請的堂數
+     */
+    async recordLeave(
+      leaveId: string,
+      counts: { readonly sessionCount: number; readonly retroactiveSessionCount: number },
+      actorUserId: string,
+      waitUntil?: (promise: Promise<unknown>) => void,
+    ): Promise<boolean> {
+      const leave = (await ownLeave(leaveId, 'id, start_date, end_date')) as {
+        start_date?: string;
+        end_date?: string;
+      } | null;
+      if (!leave) return false;
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId: actorUserId,
+          resourceType: 'leave',
+          resourceId: leaveId,
+          resourceName: `家長請假 / ${leave.start_date} ~ ${leave.end_date}`,
+          action: 'create',
+          details: {
+            submittedByRole: 'parent',
+            sessionCount: counts.sessionCount,
+            retroactiveSessionCount: counts.retroactiveSessionCount,
+          },
+        },
+        waitUntil,
+      );
       return true;
     },
 
