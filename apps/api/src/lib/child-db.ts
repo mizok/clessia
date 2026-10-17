@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudentScope } from './child-scope';
+import { notifyLeaveForTeachers } from './notify-leave';
 
 /**
  * 只能由這支檔案自己的 `pluck()` 產生的 id 清單。
@@ -135,6 +136,26 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
         },
 
         /**
+         * 一批 upsert（#1695 家長請假寫 `on_leave`）。範圍檢查照 `insertMany`：
+         * **任一列的學生不在 scope 就整批不送**；空陣列當成拒絕；`org_id` 一律蓋成 session 的。
+         */
+        async upsert(
+          rows: Record<string, unknown>[],
+          onConflict: string,
+        ): Promise<{ error: unknown; outOfScope: boolean }> {
+          const allowed = rows.every((row) => {
+            const studentId = row[studentIdColumn];
+            return typeof studentId === 'string' && writableIds.includes(studentId);
+          });
+          if (rows.length === 0 || !allowed) return { error: null, outOfScope: true };
+          const { error } = await supabase.from(table).upsert(
+            rows.map((row) => ({ ...row, org_id: orgId })),
+            { onConflict },
+          );
+          return { error, outOfScope: false };
+        },
+
+        /**
          * 改資料。回傳的 builder **已經帶 `org_id` 與 scope 條件**，scope 外的列根本選不到。
          * 學生欄位與 `org_id` 不允許被改（把一筆申請「過戶」給別的學生或別的 org）。
          */
@@ -149,6 +170,40 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
             .in(studentIdColumn, writableIds);
         },
       };
+    },
+
+    /**
+     * 家長請假之後通知老師（#1695）。通知是寫**別人**（老師、管理員）的 `notifications` 列，
+     * 走不了 scope 寫入，所以做成一個窄能力：家長端路由拿不到原始 client，只能叫這一支。
+     *
+     * **先確認這張假屬於 scope 內的孩子**（同 org、`student_id` 在 scope），不是就什麼都不發、回 false ——
+     * 帶別人的 leaveId 進來不會替別的孩子發通知。`sessionIds` 只是提示，收件人由
+     * `notifyLeaveForTeachers` 自己從堂次推導（c1）；學生名也由這裡讀，不吃呼叫端給的。
+     * 失敗只記 log（通知不擋請假）。
+     */
+    async notifyLeave(
+      leaveId: string,
+      sessionIds: readonly string[],
+      actorUserId: string,
+    ): Promise<boolean> {
+      if (writableIds.length === 0) return false;
+      const { data } = await supabase
+        .from('leave_requests')
+        .select('id, students(name)')
+        .eq('id', leaveId)
+        .eq('org_id', orgId)
+        .in('student_id', writableIds)
+        .maybeSingle();
+      if (!data) return false;
+      const student = (data as { students?: { name?: string } | null }).students;
+      await notifyLeaveForTeachers(supabase, {
+        orgId,
+        actorUserId,
+        leaveId,
+        studentName: student?.name ?? '',
+        sessionIds,
+      });
+      return true;
     },
 
     /**

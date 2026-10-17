@@ -24,6 +24,16 @@ import {
   type LeaveWindow,
 } from '../lib/leave-covers-session';
 import { isEnrolledOn } from '../lib/session-roster';
+import {
+  buildLeaveAttendanceUpserts,
+  coversEvent,
+  getLeaveValidationError,
+  type LeaveAttendanceEnrollmentRow,
+  type LeaveAttendanceEventRow,
+} from '../lib/leave-attendance';
+
+// 判準搬到 lib/ 讓家長端共用（#1695）；既有的 spec 從這裡 import，維持出口
+export { buildLeaveAttendanceUpserts, getLeaveValidationError };
 
 const LeaveRequestSchema = z
   .object({
@@ -116,39 +126,6 @@ function toHHmm(t: string | null | undefined): string | null {
   return t.slice(0, 5); // "HH:MM:SS" → "HH:MM"
 }
 
-interface LeaveValidationInput {
-  readonly startDate: string;
-  readonly endDate: string;
-  readonly startTime?: string | null;
-  readonly endTime?: string | null;
-}
-
-interface LeaveAttendanceSessionRow extends CancellableSession {
-  /** 查詢有選就有；單元測試的 fixture 可以省略 */
-  readonly id?: string;
-  readonly class_id: string;
-}
-
-interface LeaveAttendanceEventRow {
-  readonly id: string;
-  readonly event_date: string;
-  readonly sessions: LeaveAttendanceSessionRow | LeaveAttendanceSessionRow[] | null;
-}
-
-interface LeaveAttendanceEnrollmentRow {
-  readonly class_id: string;
-  readonly effective_from: string;
-  readonly effective_to: string | null;
-}
-
-interface BuildLeaveAttendanceUpsertsInput {
-  readonly orgId: string;
-  readonly studentId: string;
-  readonly recordedBy: string;
-  readonly events: ReadonlyArray<LeaveAttendanceEventRow>;
-  readonly enrollments: ReadonlyArray<LeaveAttendanceEnrollmentRow>;
-}
-
 interface LeaveAuditResourceNameInput {
   readonly studentName?: string | null;
   readonly startDate: string;
@@ -164,48 +141,6 @@ export function buildLeaveAttendanceAuditDetails(removedRecordCount: number) {
   // 改名會讓舊紀錄跟新紀錄對不起來。**值的意思變了**：現在是真的刪掉幾筆紀錄，
   // 而不是「區間裡有幾個 event」（後者跟這個學生根本無關）。
   return { affectedEventCount: removedRecordCount };
-}
-
-export function getLeaveValidationError(input: LeaveValidationInput): string | null {
-  if (input.endDate < input.startDate) {
-    return '結束日期不可早於開始日期';
-  }
-
-  if (
-    input.startDate === input.endDate &&
-    input.startTime &&
-    input.endTime &&
-    input.endTime < input.startTime
-  ) {
-    return '同一天請假的結束時間不可早於開始時間';
-  }
-
-  return null;
-}
-
-export function buildLeaveAttendanceUpserts(input: BuildLeaveAttendanceUpsertsInput) {
-  return input.events
-    .filter((eventRow) =>
-      input.enrollments.some((enrollment) => {
-        const sessionRows = toSessionRows(eventRow.sessions);
-
-        return sessionRows.some(
-          (sessionRow) =>
-            enrollment.class_id === sessionRow.class_id &&
-            !isCancelledSession(sessionRow) &&
-            enrollment.effective_from <= eventRow.event_date &&
-            (!enrollment.effective_to || enrollment.effective_to >= eventRow.event_date),
-        );
-      }),
-    )
-    .map((eventRow) => ({
-      org_id: input.orgId,
-      student_id: input.studentId,
-      event_id: eventRow.id,
-      status: 'on_leave' as const,
-      recorded_by: input.recordedBy,
-      recorded_by_role: 'system',
-    }));
 }
 
 export interface LeaveDateRange {
@@ -263,15 +198,6 @@ interface LeaveAttendanceRangeInput {
   readonly to: string;
   /** 只動這張假蓋得到的堂（`leaveCoversSession`） */
   readonly window: LeaveWindow;
-}
-
-function coversEvent(window: LeaveWindow, ev: Record<string, any>): boolean {
-  return leaveCoversSession(window, {
-    sessionId: toSessionRows(ev['sessions'] as { id: string } | null)[0]?.id ?? null,
-    date: ev['event_date'] as string,
-    startTime: (ev['start_time'] as string | null) ?? null,
-    endTime: (ev['end_time'] as string | null) ?? null,
-  });
 }
 
 /** 只蓋指定堂次的視窗 —— 編輯綁定時，新增／拿掉的那幾堂各自當成一張假去 apply／revert */
