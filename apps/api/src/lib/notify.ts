@@ -19,7 +19,8 @@ export type StaffNotificationKind =
   | 'overdue_digest'
   | 'unbilled_reminder'
   | 'schedule_change'
-  | 'leave_for_my_class';
+  | 'leave_for_my_class'
+  | 'leave_streak';
 
 export interface StaffNotification {
   readonly orgId: string;
