@@ -116,6 +116,17 @@ function seed() {
   });
 }
 
+/** 某張表的查詢一律回錯（其餘照替身） */
+function failingOn(db: ReturnType<typeof createMultiOrgDb>, table: string) {
+  const client = db.client as { from: (t: string) => unknown };
+  const failed = { data: null, error: { code: 'XX000', message: 'boom' } };
+  const chain: unknown = new Proxy(() => chain, {
+    get: (_t, prop) =>
+      prop === 'then' ? (ok: (v: unknown) => unknown) => ok(failed) : () => chain,
+  });
+  return { ...db, client: { from: (t: string) => (t === table ? chain : client.from(t)) } };
+}
+
 function appWith(db: ReturnType<typeof createMultiOrgDb>, scope: CampusScope = null) {
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
@@ -214,6 +225,17 @@ describe('GET /api/leave-streaks/students/:id —— 已處理的段帶標的人
 });
 
 describe('GET /api/leave-streaks/students/:id —— 標的人不是本機構教職員', () => {
+  it.each(['ba_user', 'staff'])(
+    '標的人名字查詢失敗（%s）：500，不默默少一個名字（#1741 二讀）',
+    async (table) => {
+      load.mockResolvedValue({ threshold: 3, byStudent: new Map([[STU, [streak(D1, D2, true)]]]) });
+      const res = await appWith(failingOn(seed(), table)).request(
+        `/api/leave-streaks/students/${STU}`,
+      );
+      expect(res.status).toBe(500);
+    },
+  );
+
   it('退回帳號名（ba_user.name）', async () => {
     const reviewed = streak(D1, D2, true);
     load.mockResolvedValue({
