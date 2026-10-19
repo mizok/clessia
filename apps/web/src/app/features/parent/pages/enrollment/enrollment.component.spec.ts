@@ -373,6 +373,27 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(dialog.querySelector('a[href="/parent/payments"]')).not.toBeNull();
     });
 
+    it('取消失敗：錯誤 toast、詳情不關、按鈕可以再按且真的再送', async () => {
+      await setup({ requests: records, fragment: 'records' });
+      api.cancelEnrollmentRequest.mockReturnValue(
+        throwError(() => ({ status: 409, error: { error: '這筆申請已經在審核', code: 'X' } })),
+      );
+      el().querySelector<HTMLButtonElement>('[data-request="r-pend"]')!.click();
+      await Promise.resolve(); // showModal 在 microtask
+      fixture.detectChanges();
+      expect(el().querySelector('dialog')!.open).toBe(true);
+      btn(/取消這筆申請/)!.click();
+      fixture.detectChanges();
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', summary: '這筆申請已經在審核' }),
+      );
+      expect(el().querySelector('dialog')!.open).toBe(true);
+      const again = btn(/取消這筆申請/)!;
+      expect(again.getAttribute('aria-disabled')).toBe('false');
+      again.click();
+      expect(api.cancelEnrollmentRequest).toHaveBeenCalledTimes(2);
+    });
+
     it('待審核、候補可以取消（Q8）；其他狀態沒有取消鈕', async () => {
       await setup({
         requests: [...records, req({ id: 'r-wl', status: 'waitlist' })],
