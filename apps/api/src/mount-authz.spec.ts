@@ -69,6 +69,19 @@ const EXPECTED: Record<string, Expected> = {
   '/api/reports': { roles: ADMIN, all: 'view_reports' },
 };
 
+/**
+ * **不經過 mount 守衛**、直接 `app.route()` 掛的路由（手寫白名單）。它們沒有角色門：
+ * 公開表單走 `publicOrgMiddleware`（`/api/public/*`），推播排程走自己的 token（`internal-push.ts`）。
+ * 有人用 `app.route` 掛新路由 = 那支完全沒有授權 → 下面對帳紅，逼人決定它該不該進 mount。
+ */
+const UNMOUNTED = [
+  '/api/public/catalog',
+  '/api/public/captcha',
+  '/api/public/enrollment-applications',
+  '/api/public/trial-applications',
+  '/api/internal/push',
+];
+
 const ALL_ROLES: readonly Role[] = ['admin', 'teacher', 'parent', 'kiosk'];
 
 const ctx: { roles: string[]; permissions: string[] } = { roles: [], permissions: [] };
@@ -119,10 +132,19 @@ async function probe(
 }
 
 describe('mount() 的授權（#1730）', () => {
+  // 只抽「路徑」做數量對帳；期望的角色與權限一律手寫在表上
+  const source = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8');
+
   it('index.ts 的 mount 跟這張表一一對得上（新路由忘了列進來就紅）', () => {
-    const source = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8');
-    const mounted = [...source.matchAll(/^mount\('([^']+)'/gm)].map((m) => m[1]).sort();
+    // `\s*`：Prettier 會把超過 100 字的呼叫折成 `mount(⏎  '/api/…',`
+    const mounted = [...source.matchAll(/^mount\(\s*'([^']+)'/gm)].map((m) => m[1]).sort();
     expect(mounted).toEqual(Object.keys(EXPECTED).sort());
+  });
+
+  it('直接 app.route 掛的（不經過 mount 守衛）只有白名單那幾支', () => {
+    // mount() 函式裡那行是 `app.route(path, route)`，第一個參數不是字串字面值，不會被抓到
+    const direct = [...source.matchAll(/app\.route\(\s*'([^']+)'/g)].map((m) => m[1]).sort();
+    expect(direct).toEqual([...UNMOUNTED].sort());
   });
 
   describe.each(Object.entries(EXPECTED))('%s', (path, exp) => {
