@@ -1,19 +1,293 @@
-import { Component, input } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  viewChild,
+  type ElementRef,
+} from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MessageService } from 'primeng/api';
+import { format, parseISO } from 'date-fns';
+
 import { RouteObj } from '@core/smart-enums/routes-catalog';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { ChildScopeService } from '@core/child-scope.service';
+import {
+  ParentApplicationsService,
+  type EnrollmentRequestStatus,
+  type ParentCatalogClass,
+  type ParentEnrollmentRequest,
+} from '@core/parent-applications.service';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { todayLocal } from '@shared/utils/session-time.util';
+import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
+import {
+  REQUEST_TAG_CLASS,
+  RequestRowComponent,
+  type RequestTagTone,
+} from '../../shared/request-row/request-row.component';
+
+/**
+ * 家長端報名申請（#1727 ③，A6 p-enrollment，設計稿 kb/wiki/specs/parent/applications.md）。
+ *
+ * - 兩分頁「新增申請／申請紀錄」（`#records`）。**不用頁首孩子切換器**：表單裡選孩子、紀錄混列所有孩子（A6）
+ * - 選班：依科目分組、可搜尋；已在班上（目錄 `enrolled`）、申請中、已登記候補的列出但不能選、寫原因
+ * - 額滿的班送出鈕變「登記候補」（使用者 10/03 裁），送 `waitlist: true`
+ * - 待付款：核准路徑還沒有（#1726），詳情先寫「已核准，請到繳費頁付款」（設計稿 Q3 (a) 過渡）
+ * - 取消：待審核、候補都可以（Q8）。API 的取消不能復原，所以 toast 沒有「復原」
+ */
+
+type Tab = 'new' | 'records';
+
+const STATUS: Record<EnrollmentRequestStatus, [string, RequestTagTone]> = {
+  pending: ['待審核', 'quiet'],
+  awaiting_payment: ['待付款', 'warn'],
+  completed: ['已完成', 'ok'],
+  rejected: ['已拒絕', 'error'],
+  cancelled: ['已取消', 'off'],
+  expired: ['已過期', 'off'],
+  waitlist: ['已登記候補', 'line'],
+};
+
+const WEEKDAY = ['', '一', '二', '三', '四', '五', '六', '日'];
+const PER = { monthly: '月', period: '期', session_pack: '堂數包' } as const;
 
 @Component({
   selector: 'app-enrollment',
   standalone: true,
-  imports: [EmptyStateComponent],
-  template: `
-    <app-empty-state
-      [icon]="'pi ' + page().icon"
-      [title]="page().label"
-      description="這個功能還在準備中，完成後就會出現在這裡。"
-    />
-  `,
+  imports: [PageOpenComponent, ChildScopeGateComponent, RequestRowComponent, RouterLink],
+  templateUrl: './enrollment.component.html',
 })
 export class EnrollmentComponent {
   readonly page = input.required<RouteObj>();
+
+  private readonly api = inject(ParentApplicationsService);
+  private readonly childScope = inject(ChildScopeService);
+  private readonly messages = inject(MessageService);
+
+  protected readonly tab = signal<Tab>(
+    inject(ActivatedRoute).snapshot.fragment === 'records' ? 'records' : 'new',
+  );
+  protected readonly kids = this.childScope.children;
+  protected readonly today = todayLocal();
+
+  // ── 新增申請 ──
+  /** 預設選「目前在看的孩子」（共用切換器記住的那一個），少一步 */
+  protected readonly sid = signal<string>(this.childScope.activeChildId() ?? '');
+  protected readonly cid = signal('');
+  protected readonly q = signal('');
+  protected readonly start = signal('');
+  protected readonly note = signal('');
+  protected readonly classes = signal<ParentCatalogClass[]>([]);
+  protected readonly sending = signal(false);
+  protected readonly sendError = signal<string | null>(null);
+
+  // ── 申請紀錄 ──
+  protected readonly requests = signal<ParentEnrollmentRequest[]>([]);
+  protected readonly detail = signal<ParentEnrollmentRequest | null>(null);
+  protected readonly cancelling = signal(false);
+  private readonly detailDialog = viewChild<ElementRef<HTMLDialogElement>>('detailDialog');
+
+  protected readonly status = STATUS;
+  protected readonly tagClass = REQUEST_TAG_CLASS;
+
+  protected readonly headline = computed(() => {
+    const pay = this.requests().filter((r) => r.status === 'awaiting_payment').length;
+    const wait = this.requests().filter((r) => r.status === 'pending').length;
+    if (!pay && !wait) return { first: '申請都處理完了。', second: null };
+    const parts = [pay && `${pay} 筆等你繳費`, wait && `${wait} 筆在等補習班審核`].filter(
+      (p): p is string => !!p,
+    );
+    return parts.length === 2
+      ? { first: `${parts[0]}，`, second: `${parts[1]}。` }
+      : { first: `${parts[0]}。`, second: null };
+  });
+
+  protected readonly sorted = computed(() =>
+    [...this.requests()].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')),
+  );
+
+  /** 依科目分組（沒有科目用課程名），搜尋課程或班名 */
+  protected readonly groups = computed(() => {
+    const q = this.q().trim();
+    const list = this.classes().filter(
+      (c) => !q || `${c.className}${c.subject ?? ''}${c.courseName ?? ''}`.includes(q),
+    );
+    const bySubject = new Map<string, ParentCatalogClass[]>();
+    for (const c of list) {
+      const key = c.subject ?? c.courseName ?? '其他';
+      bySubject.set(key, [...(bySubject.get(key) ?? []), c]);
+    }
+    return [...bySubject].map(([subject, items]) => ({ subject, items }));
+  });
+
+  protected readonly selected = computed(
+    () => this.classes().find((c) => c.classId === this.cid()) ?? null,
+  );
+  protected readonly isFull = computed(() => (this.selected()?.remainingSeats ?? 1) <= 0);
+
+  protected readonly missing = computed(() =>
+    [!this.sid() && '孩子', !this.cid() && '開課班', !this.start() && '開始日期'].filter(
+      (m): m is string => !!m,
+    ),
+  );
+
+  constructor() {
+    this.childScope.load();
+    this.loadRequests();
+    effect(() => {
+      const sid = this.sid();
+      if (!sid) return;
+      this.api.catalog(sid).subscribe({ next: (res) => this.classes.set(res.data) });
+    });
+  }
+
+  protected setTab(tab: Tab): void {
+    this.tab.set(tab);
+    history.replaceState(null, '', tab === 'records' ? '#records' : location.pathname);
+  }
+
+  protected pickKid(id: string): void {
+    this.sid.set(id);
+    this.cid.set('');
+  }
+
+  /** 不能選的原因：已在班上、申請中、已登記候補；可以選 → null */
+  protected busy(c: ParentCatalogClass): string | null {
+    if (c.enrolled) return '已在班上';
+    const mine = this.requests().filter(
+      (r) => r.studentId === this.sid() && r.classId === c.classId,
+    );
+    if (mine.some((r) => r.status === 'pending' || r.status === 'awaiting_payment'))
+      return '申請中';
+    if (mine.some((r) => r.status === 'waitlist')) return '已登記候補';
+    return null;
+  }
+
+  protected slotText(c: ParentCatalogClass): string {
+    const slots = c.slots.map((s) => `每週${WEEKDAY[s.weekday]} ${s.startTime}–${s.endTime}`);
+    return [...slots, ...c.teacherNames].join(' · ');
+  }
+
+  protected feeText(c: ParentCatalogClass): string | null {
+    return c.fee ? `${c.fee.amount.toLocaleString('zh-TW')} 元／${PER[c.fee.billingMode]}` : null;
+  }
+
+  protected submit(): void {
+    if (this.sending() || this.missing().length) return;
+    const kid = this.kids().find((k) => k.id === this.sid());
+    const c = this.selected()!;
+    const waitlist = this.isFull();
+    this.sending.set(true);
+    this.sendError.set(null);
+    this.api
+      .createEnrollmentRequest({
+        studentId: this.sid(),
+        classId: this.cid(),
+        preferredStartDate: this.start(),
+        note: this.note().trim() || undefined,
+        waitlist,
+      })
+      .subscribe({
+        next: () => {
+          this.sending.set(false);
+          this.messages.add({
+            severity: 'success',
+            summary: waitlist
+              ? '已額滿，已為您登記候補，補習班會主動聯絡'
+              : `已送出 ${kid?.name ?? ''}「${c.className}」的申請，補習班審核後會通知你`,
+          });
+          this.cid.set('');
+          this.q.set('');
+          this.loadRequests();
+          this.setTab('records');
+        },
+        error: (err) => {
+          this.sending.set(false);
+          // 錯誤留在表單、填的不清（CLASS_FULL：剛好被搶走最後一個位子 → 重抓目錄，按鈕會變「登記候補」）
+          this.sendError.set(err?.error?.error ?? '送出失敗，請檢查網路後再試');
+          if (err?.error?.code === 'CLASS_FULL') {
+            this.api.catalog(this.sid()).subscribe({ next: (res) => this.classes.set(res.data) });
+          }
+        },
+      });
+  }
+
+  // ── 詳情 ──
+  protected openDetail(r: ParentEnrollmentRequest): void {
+    this.detail.set(r);
+    queueMicrotask(() => this.detailDialog()?.nativeElement.showModal());
+  }
+
+  protected closeDetail(): void {
+    this.detailDialog()?.nativeElement.close();
+  }
+
+  protected onDetailBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeDetail();
+  }
+
+  protected canCancel(r: ParentEnrollmentRequest): boolean {
+    return r.status === 'pending' || r.status === 'waitlist';
+  }
+
+  protected cancel(r: ParentEnrollmentRequest): void {
+    if (this.cancelling()) return;
+    this.cancelling.set(true);
+    this.api.cancelEnrollmentRequest(r.id).subscribe({
+      next: () => {
+        this.cancelling.set(false);
+        this.closeDetail();
+        this.messages.add({ severity: 'success', summary: `已取消 ${r.className ?? ''} 的申請` });
+        this.loadRequests();
+      },
+      error: (err) => {
+        this.cancelling.set(false);
+        this.messages.add({
+          severity: 'error',
+          summary: err?.error?.error ?? '取消失敗，請稍後再試',
+        });
+      },
+    });
+  }
+
+  protected md(iso: string | null): string {
+    return iso ? format(parseISO(iso), 'M/d') : '';
+  }
+
+  protected meta(r: ParentEnrollmentRequest): string {
+    return `${r.studentName ?? ''} · ${this.md(r.createdAt)} 送出`;
+  }
+
+  /** 時間軸（rules/enrollment-rules.md §1 的狀態機）：已走過的實心、還沒到的空心 */
+  protected steps(r: ParentEnrollmentRequest): Array<{ text: string; done: boolean; at?: string }> {
+    const sent = { text: '送出申請', done: true, at: this.md(r.createdAt) };
+    const todo = (text: string) => ({ text, done: false });
+    const done = (text: string) => ({ text, done: true });
+    switch (r.status) {
+      case 'pending':
+        return [sent, todo('補習班審核'), todo('繳費'), todo('完成報名')];
+      case 'awaiting_payment':
+        return [sent, done('審核通過，開立繳費單'), todo('繳費（櫃台確認收款）'), todo('完成報名')];
+      case 'completed':
+        return [sent, done('審核通過，開立繳費單'), done('補習班確認收款'), done('完成報名')];
+      case 'rejected':
+        return [sent, done('未通過審核')];
+      case 'cancelled':
+        return [sent, done('你取消了這筆申請')];
+      case 'expired':
+        return [sent, done('審核通過，開立繳費單'), done('繳費期限已過，申請過期')];
+      case 'waitlist':
+        return [
+          { text: '登記候補（這班已額滿）', done: true, at: this.md(r.createdAt) },
+          todo('有名額時補習班會主動聯絡'),
+        ];
+    }
+  }
+
+  private loadRequests(): void {
+    this.api.enrollmentRequests().subscribe({ next: (res) => this.requests.set(res.data) });
+  }
 }

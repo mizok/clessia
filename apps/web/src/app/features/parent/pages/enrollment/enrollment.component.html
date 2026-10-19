@@ -1,0 +1,341 @@
+<!--
+  A6 p-enrollment（#1727 ③）：色面標題回答「我的申請走到哪了」→ 灰工具列分頁「新增申請／申請紀錄」→ 分頁內容。
+  分頁照 admin/notifications 的寫法（按鈕＋aria-current，`#records` 可直接連）。
+-->
+<app-page-open>
+  <ng-container openTitle>
+    @if (kids().length) {
+      {{ headline().first }}
+      @if (headline().second) {
+        <br />{{ headline().second }}
+      }
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
+</app-page-open>
+
+<app-child-scope-gate>
+  <div class="bg-zinc-100">
+    <div class="page-wrap flex flex-wrap items-center gap-x-5 gap-y-2 py-3 wide:min-h-16">
+      <nav class="flex items-center gap-5" aria-label="報名申請">
+        @for (
+          t of [
+            { key: 'new', label: '新增申請' },
+            { key: 'records', label: '申請紀錄' },
+          ];
+          track t.key
+        ) {
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap hover:text-zinc-900 wide:min-h-10"
+            [class.border-zinc-900]="tab() === t.key"
+            [class.font-semibold]="tab() === t.key"
+            [class.text-zinc-900]="tab() === t.key"
+            [class.border-transparent]="tab() !== t.key"
+            [class.font-medium]="tab() !== t.key"
+            [class.text-zinc-600]="tab() !== t.key"
+            [attr.aria-current]="tab() === t.key ? 'true' : null"
+            (click)="setTab($any(t.key))"
+          >
+            {{ t.label }}
+            @if (t.key === 'records') {
+              <span class="text-sm font-normal text-zinc-600 tabular-nums">{{
+                requests().length
+              }}</span>
+            }
+          </button>
+        }
+      </nav>
+    </div>
+  </div>
+
+  <div class="page-wrap pb-12">
+    @if (tab() === 'new') {
+      <form
+        class="mt-8 grid max-w-[760px] gap-8 max-wide:mt-6 max-wide:gap-6"
+        novalidate
+        (submit)="$event.preventDefault()"
+      >
+        <!-- 1 孩子：只有一個時只寫名字 -->
+        <fieldset class="m-0 grid min-w-0 gap-3 border-0 p-0">
+          <legend class="mb-3 flex items-center gap-2 p-0 text-lg font-bold">
+            <span
+              class="inline-grid size-6 place-items-center rounded-full bg-zinc-900 text-sm text-white tabular-nums"
+              >1</span
+            >幫哪個孩子報名
+          </legend>
+          @if (kids().length === 1) {
+            <p class="m-0 text-base font-semibold">{{ kids()[0].name }}</p>
+          } @else {
+            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="孩子">
+              @for (k of kids(); track k.id) {
+                <label
+                  class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-[input:checked]:border-zinc-900 has-[input:checked]:shadow-[inset_0_0_0_1px_var(--zinc-900)] max-wide:h-11"
+                >
+                  <input
+                    type="radio"
+                    name="sid"
+                    class="m-0 accent-zinc-900"
+                    [value]="k.id"
+                    [checked]="sid() === k.id"
+                    (change)="pickKid(k.id)"
+                  />{{ k.name }}
+                </label>
+              }
+            </div>
+          }
+        </fieldset>
+
+        <!-- 2 開課班：依科目分組、可搜尋；不能選的寫原因 -->
+        <fieldset class="m-0 grid min-w-0 gap-3 border-0 p-0">
+          <legend class="mb-3 flex items-center gap-2 p-0 text-lg font-bold">
+            <span
+              class="inline-grid size-6 place-items-center rounded-full bg-zinc-900 text-sm text-white tabular-nums"
+              >2</span
+            >選開課班
+          </legend>
+          <label
+            class="flex h-10 max-w-[420px] items-center gap-2 rounded-md border border-solid border-zinc-300 px-3 text-zinc-600 focus-within:border-zinc-900 max-wide:h-11 max-wide:max-w-none"
+          >
+            <i class="pi pi-search" aria-hidden="true"></i>
+            <input
+              type="search"
+              class="min-w-0 flex-1 border-0 bg-transparent text-base text-zinc-900 outline-none [font:inherit]"
+              placeholder="搜尋課程或班名"
+              aria-label="搜尋課程或班名"
+              [value]="q()"
+              (input)="q.set($any($event.target).value)"
+            />
+          </label>
+          <div>
+            @for (g of groups(); track g.subject) {
+              <h3 class="mt-4 mb-2 text-[13px] font-bold tracking-[0.04em] text-zinc-800">
+                {{ g.subject }}
+              </h3>
+              @for (c of g.items; track c.classId) {
+                @let why = busy(c);
+                <label
+                  class="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md border border-solid border-zinc-300 bg-white px-4 py-3 hover:border-zinc-500 has-[input:checked]:border-zinc-900 has-[input:checked]:shadow-[inset_0_0_0_1px_var(--zinc-900)] has-[input:disabled]:cursor-default has-[input:disabled]:bg-zinc-50 has-[input:disabled]:text-zinc-600 max-wide:grid-cols-[auto_minmax(0,1fr)] [&+&]:mt-2"
+                >
+                  <input
+                    type="radio"
+                    name="cid"
+                    class="m-0 size-[18px] accent-zinc-900"
+                    [value]="c.classId"
+                    [checked]="cid() === c.classId"
+                    [disabled]="!!why"
+                    (change)="cid.set(c.classId)"
+                  />
+                  <span class="text-base font-semibold">{{ c.className }}</span>
+                  <span
+                    class="col-start-3 row-span-2 row-start-1 text-right text-md tabular-nums max-wide:col-start-2 max-wide:row-span-1 max-wide:row-start-auto max-wide:text-left"
+                  >
+                    @if (feeText(c); as fee) {
+                      <b class="block text-base text-zinc-900 max-wide:mr-2 max-wide:inline">{{
+                        fee
+                      }}</b>
+                    }
+                    @if (why) {
+                      <span>{{ why }}</span>
+                    } @else if (c.remainingSeats <= 0) {
+                      <span class="font-semibold text-error-700">已額滿 · 可登記候補</span>
+                    } @else {
+                      <span [class]="c.remainingSeats <= 3 ? 'font-semibold text-error-700' : ''"
+                        >剩 {{ c.remainingSeats }} 位</span
+                      >
+                    }
+                  </span>
+                  <span class="col-start-2 text-md text-zinc-600 tabular-nums">{{
+                    slotText(c)
+                  }}</span>
+                </label>
+              }
+            } @empty {
+              <p class="m-0 text-md text-zinc-600">
+                @if (q().trim()) {
+                  沒有符合「{{ q().trim() }}」的開課班。
+                } @else {
+                  目前沒有開放報名的開課班。
+                }
+              </p>
+            }
+          </div>
+          <p class="m-0 text-md text-zinc-600">
+            想先看課程介紹、老師、上課地點？到
+            <a routerLink="/parent/add-course" class="text-zinc-900 underline">加選課程</a> 瀏覽。
+          </p>
+        </fieldset>
+
+        <!-- 3 開始日期（A6 原生 date） -->
+        <div class="grid min-w-0 gap-3">
+          <label class="flex items-center gap-2 text-lg font-bold" for="enroll-start">
+            <span
+              class="inline-grid size-6 place-items-center rounded-full bg-zinc-900 text-sm text-white tabular-nums"
+              >3</span
+            >希望哪天開始上
+          </label>
+          <input
+            id="enroll-start"
+            type="date"
+            class="h-10 w-full max-w-[360px] rounded-md border border-solid border-zinc-300 bg-white px-3 text-base [font:inherit] focus:border-zinc-900 focus:outline-none max-wide:h-11 max-wide:max-w-none"
+            [min]="today"
+            [value]="start()"
+            (input)="start.set($any($event.target).value)"
+          />
+        </div>
+
+        <!-- 4 備註 -->
+        <div class="grid min-w-0 gap-3">
+          <label class="flex items-center gap-2 text-lg font-bold" for="enroll-note">
+            <span
+              class="inline-grid size-6 place-items-center rounded-full bg-zinc-900 text-sm text-white tabular-nums"
+              >4</span
+            >備註 <span class="text-md font-medium text-zinc-600">選填</span>
+          </label>
+          <textarea
+            id="enroll-note"
+            rows="3"
+            class="w-full rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 text-base [font:inherit] focus:border-zinc-900 focus:outline-none"
+            placeholder="例如：孩子程度、方便的上課時段"
+            [value]="note()"
+            (input)="note.set($any($event.target).value)"
+          ></textarea>
+        </div>
+
+        <!-- 送出：不鎖死，旁邊一行寫還差什麼；失敗訊息寫在同一行（A6 apf__foot） -->
+        <div class="flex flex-wrap items-center gap-3 border-t border-solid border-zinc-200 pt-5">
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 max-wide:flex-1 wide:h-9"
+            [attr.aria-disabled]="missing().length > 0 || sending()"
+            (click)="submit()"
+          >
+            {{ sending() ? '送出中…' : isFull() ? '登記候補' : '送出申請' }}
+          </button>
+          <p
+            class="m-0 text-md"
+            [class.text-error-700]="!!sendError()"
+            [class.text-zinc-700]="!sendError()"
+            aria-live="polite"
+          >
+            {{ sendError() ?? (missing().length ? '還沒填：' + missing().join('、') : '') }}
+          </p>
+        </div>
+      </form>
+    } @else {
+      <div class="mt-6">
+        @for (r of sorted(); track r.id) {
+          <app-request-row
+            [id]="r.id"
+            [title]="r.className ?? '—'"
+            [tag]="status[r.status][0]"
+            [tone]="status[r.status][1]"
+            [meta]="meta(r)"
+            (open)="openDetail(r)"
+          />
+        } @empty {
+          <p class="m-0 text-md text-zinc-600">還沒有送過報名申請。</p>
+        }
+      </div>
+    }
+  </div>
+</app-child-scope-gate>
+
+<!-- 申請詳情：A6 的唯讀 sheet（桌機置中、手機底部面板，#1634 overlay-motion） -->
+<dialog
+  #detailDialog
+  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(480px,calc(100%-32px))] flex-col overflow-y-auto rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200 open:flex"
+  aria-labelledby="enroll-detail-title"
+  (click)="onDetailBackdrop($event)"
+  (close)="detail.set(null)"
+>
+  @if (detail(); as r) {
+    <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
+      <h2 id="enroll-detail-title" class="m-0 text-xl font-bold">申請詳情</h2>
+      <button
+        type="button"
+        class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
+        aria-label="關閉"
+        (click)="closeDetail()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="grid gap-5 px-6 pt-2 pb-6 max-wide:px-4">
+      <p class="m-0">
+        <span
+          [class]="
+            'inline-flex items-center rounded-full py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap ' +
+            tagClass[status[r.status][1]]
+          "
+          >{{ status[r.status][0] }}</span
+        >
+      </p>
+      <dl
+        class="m-0 grid grid-cols-[7em_minmax(0,1fr)] gap-x-4 gap-y-2 text-base max-wide:grid-cols-[5.5em_minmax(0,1fr)]"
+      >
+        <dt class="text-zinc-600">孩子</dt>
+        <dd class="m-0 font-medium">{{ r.studentName }}</dd>
+        <dt class="text-zinc-600">開課班</dt>
+        <dd class="m-0 font-medium">{{ r.className }}</dd>
+        <dt class="text-zinc-600">希望開始</dt>
+        <dd class="m-0 font-medium">{{ md(r.preferredStartDate) || '—' }}</dd>
+        <dt class="text-zinc-600">備註</dt>
+        <dd class="m-0 font-medium">{{ r.note || '—' }}</dd>
+      </dl>
+      @if (r.status === 'awaiting_payment') {
+        <div class="rounded-md bg-zinc-100 p-4 text-base">
+          <h3 class="m-0 mb-2 text-[13px] font-bold text-zinc-800">繳費</h3>
+          <p class="m-0">
+            已核准，請到繳費頁付款：<a routerLink="/parent/payments" class="text-zinc-900 underline"
+              >前往繳費</a
+            >
+          </p>
+        </div>
+      }
+      @if (r.status === 'rejected' && r.rejectReason) {
+        <div class="rounded-md bg-zinc-100 p-4 text-base">
+          <h3 class="m-0 mb-2 text-[13px] font-bold text-zinc-800">補習班的說明</h3>
+          <p class="m-0">{{ r.rejectReason }}</p>
+        </div>
+      }
+      <ol class="m-0 grid gap-3 border-0 border-l-2 border-solid border-zinc-200 pl-4">
+        @for (s of steps(r); track s.text) {
+          <li
+            class="relative list-none text-md before:absolute before:top-1.5 before:left-[calc(-1*var(--space-4)-6px)] before:size-2.5 before:rounded-full before:content-['']"
+            [class]="
+              s.done
+                ? 'before:bg-zinc-900'
+                : 'text-zinc-600 before:bg-white before:shadow-[inset_0_0_0_2px_var(--zinc-400)]'
+            "
+          >
+            {{ s.text }}
+            @if (s.at) {
+              <small class="block text-zinc-600 tabular-nums">{{ s.at }}</small>
+            }
+          </li>
+        }
+      </ol>
+    </div>
+    @if (canCancel(r)) {
+      <div class="flex flex-wrap justify-end gap-2 px-6 pb-6 max-wide:px-4">
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+          (click)="closeDetail()"
+        >
+          關閉
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+          [attr.aria-disabled]="cancelling()"
+          (click)="cancel(r)"
+        >
+          {{ cancelling() ? '取消中…' : '取消這筆申請' }}
+        </button>
+      </div>
+    }
+  }
+</dialog>
