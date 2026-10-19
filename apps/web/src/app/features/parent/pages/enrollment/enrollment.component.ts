@@ -1,15 +1,16 @@
 import {
   Component,
   computed,
-  effect,
   inject,
   input,
   signal,
   viewChild,
   type ElementRef,
 } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
+import { filter, finalize, switchMap } from 'rxjs';
 import { format, parseISO } from 'date-fns';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -137,11 +138,14 @@ export class EnrollmentComponent {
   constructor() {
     this.childScope.load();
     this.loadRequests();
-    effect(() => {
-      const sid = this.sid();
-      if (!sid) return;
-      this.api.catalog(sid).subscribe({ next: (res) => this.classes.set(res.data) });
-    });
+    // switchMap：快速換孩子時丟掉前一個孩子還沒回來的目錄，免得晚到的舊回應蓋掉新孩子的
+    toObservable(this.sid)
+      .pipe(
+        filter(Boolean),
+        switchMap((sid) => this.api.catalog(sid)),
+        takeUntilDestroyed(),
+      )
+      .subscribe({ next: (res) => this.classes.set(res.data) });
   }
 
   protected setTab(tab: Tab): void {
@@ -190,9 +194,10 @@ export class EnrollmentComponent {
         note: this.note().trim() || undefined,
         waitlist,
       })
+      // finalize：成功、失敗都解除「送出中」（kb/wiki/lessons/submit-busy-flag-finalize.md）
+      .pipe(finalize(() => this.sending.set(false)))
       .subscribe({
         next: () => {
-          this.sending.set(false);
           this.messages.add({
             severity: 'success',
             summary: waitlist
@@ -205,7 +210,6 @@ export class EnrollmentComponent {
           this.setTab('records');
         },
         error: (err) => {
-          this.sending.set(false);
           // 錯誤留在表單、填的不清（CLASS_FULL：剛好被搶走最後一個位子 → 重抓目錄，按鈕會變「登記候補」）
           this.sendError.set(err?.error?.error ?? '送出失敗，請檢查網路後再試');
           if (err?.error?.code === 'CLASS_FULL') {
@@ -236,21 +240,22 @@ export class EnrollmentComponent {
   protected cancel(r: ParentEnrollmentRequest): void {
     if (this.cancelling()) return;
     this.cancelling.set(true);
-    this.api.cancelEnrollmentRequest(r.id).subscribe({
-      next: () => {
-        this.cancelling.set(false);
-        this.closeDetail();
-        this.messages.add({ severity: 'success', summary: `已取消 ${r.className ?? ''} 的申請` });
-        this.loadRequests();
-      },
-      error: (err) => {
-        this.cancelling.set(false);
-        this.messages.add({
-          severity: 'error',
-          summary: err?.error?.error ?? '取消失敗，請稍後再試',
-        });
-      },
-    });
+    this.api
+      .cancelEnrollmentRequest(r.id)
+      .pipe(finalize(() => this.cancelling.set(false)))
+      .subscribe({
+        next: () => {
+          this.closeDetail();
+          this.messages.add({ severity: 'success', summary: `已取消 ${r.className ?? ''} 的申請` });
+          this.loadRequests();
+        },
+        error: (err) => {
+          this.messages.add({
+            severity: 'error',
+            summary: err?.error?.error ?? '取消失敗，請稍後再試',
+          });
+        },
+      });
   }
 
   protected md(iso: string | null): string {
