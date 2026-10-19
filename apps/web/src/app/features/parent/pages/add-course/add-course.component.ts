@@ -71,7 +71,8 @@ export class AddCourseComponent {
   protected readonly q = signal('');
   protected readonly subject = signal<string | null>(null);
   protected readonly weekday = signal<number | null>(null);
-  protected readonly weekdayOptions = [1, 2, 3, 4, 5, 6].map((w) => ({
+  // A6 只列週一～六；DB 與管理端開班都有週日（7），補上，不然週日的班篩不出來（R5 2026-10-19）
+  protected readonly weekdayOptions = [1, 2, 3, 4, 5, 6, 7].map((w) => ({
     label: `週${WEEKDAY[w]}`,
     value: w,
   }));

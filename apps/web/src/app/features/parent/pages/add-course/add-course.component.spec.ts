@@ -358,6 +358,27 @@ describe('AddCourseComponent（家長端加選課程）', () => {
       expect(dialog().textContent).toContain('這班已額滿，已為您登記候補，補習班會主動聯絡。');
     });
 
+    it('換一班加選：上一班填的開始日期、備註不帶過來', async () => {
+      await setup({ classes: [cls({ classId: 'c-a' }), cls({ classId: 'c-b' })] });
+      await openCard('c-a');
+      tap(btn(/加選此課程/, dialog()));
+      setDate('2026-11-01');
+      cmp().close();
+      fixture.detectChanges();
+      await openCard('c-b');
+      tap(btn(/加選此課程/, dialog()));
+      expect(dialog().querySelector<HTMLInputElement>('input[type="date"]')!.value).toBe('');
+      expect(dialog().textContent).toContain('還沒填：開始日期');
+    });
+
+    it('剛好剩 1 位：還能加選，不是額滿', async () => {
+      await setup({ classes: [cls({ remainingSeats: 1 })] });
+      expect(card('c-math').textContent).toContain('剩 1 位');
+      expect(card('c-math').textContent).not.toContain('已額滿');
+      await openCard('c-math');
+      expect(btn(/加選此課程/, dialog())).toBeDefined();
+    });
+
     it('已送出申請的班：詳情只有「查看申請狀態」', async () => {
       await setup({ requests: [req({ classId: 'c-math' })] });
       await openCard('c-math');
@@ -385,6 +406,35 @@ describe('AddCourseComponent（家長端加選課程）', () => {
       expect(again.getAttribute('aria-disabled')).toBe('false');
       again.click();
       expect(api.createEnrollmentRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('重送時清掉上一次的錯誤', async () => {
+      await setup();
+      api.createEnrollmentRequest.mockReturnValue(
+        throwError(() => ({ status: 0, error: { error: '上一次的錯誤', code: 'X' } })),
+      );
+      await openCard('c-math');
+      tap(btn(/加選此課程/, dialog()));
+      setDate('2026-11-01');
+      tap(btn(/送出加選申請/, dialog()));
+      expect(dialog().textContent).toContain('上一次的錯誤');
+      api.createEnrollmentRequest.mockReturnValue(new Subject()); // 第二次還在送
+      tap(btn(/送出加選申請/, dialog()));
+      expect(dialog().textContent).not.toContain('上一次的錯誤');
+      expect(dialog().textContent).toContain('送出中…');
+    });
+
+    it('星期篩選有週日', async () => {
+      await setup({
+        classes: [
+          cls({ classId: 'c-sun', slots: [{ weekday: 7, startTime: '09:00', endTime: '11:00' }] }),
+          cls({ classId: 'c-tue' }),
+        ],
+      });
+      expect(cmp().weekdayOptions.map((o: { value: number }) => o.value)).toContain(7);
+      cmp().weekday.set(7);
+      fixture.detectChanges();
+      expect(cards()).toEqual(['c-sun']);
     });
 
     it('CLASS_FULL（剛好被搶走最後一位）：重抓目錄，按鈕變「登記候補」', async () => {
