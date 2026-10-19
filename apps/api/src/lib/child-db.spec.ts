@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import { notifyLeaveStreaks } from './leave-streak';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 
 // notifyLeave 的收件人推導是 notify-leave 自己的事（有自己的 spec）；這裡只驗「發不發、發給哪張假」
@@ -8,6 +9,7 @@ vi.mock('./notify-leave', () => ({
   notifyLeaveForTeachers: vi.fn(async () => undefined),
   notifyLeaveForAdmins: vi.fn(async () => undefined),
 }));
+vi.mock('./leave-streak', () => ({ notifyLeaveStreaks: vi.fn(async () => undefined) }));
 import { createChildDb, type ScopedIds } from './child-db';
 
 /** 只實作 `.from().select().in()` 這條鏈，並記下每次呼叫收到的參數。 */
@@ -490,6 +492,57 @@ describe('createChildDb —— notifyLeave', () => {
     expect(await none.notifyLeave('leave-mine', ['s1'], 'parent-1', false)).toBe(false);
     expect(notifyLeaveForTeachers).not.toHaveBeenCalled();
     expect(notifyLeaveForAdmins).not.toHaveBeenCalled();
+  });
+});
+
+/** #1732：家長請假後的連續請假偵測 —— 只對 scope 內孩子的假，學生與日期從 DB 讀 */
+describe('createChildDb —— checkLeaveStreak', () => {
+  const leaves = [
+    {
+      id: 'leave-mine',
+      org_id: 'org-1',
+      student_id: 'stu-mine',
+      start_date: '2026-10-20',
+      end_date: '2026-10-22',
+    },
+    {
+      id: 'leave-other',
+      org_id: 'org-1',
+      student_id: 'stu-other',
+      start_date: '2026-10-20',
+      end_date: '2026-10-20',
+    },
+    {
+      id: 'leave-org2',
+      org_id: 'org-2',
+      student_id: 'stu-mine',
+      start_date: '2026-10-20',
+      end_date: '2026-10-20',
+    },
+  ];
+
+  it('自己孩子的假：用假單的學生與日期偵測', async () => {
+    vi.mocked(notifyLeaveStreaks).mockClear();
+    const db = createMultiOrgDb({ leave_requests: leaves });
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    expect(await childDb.checkLeaveStreak('leave-mine')).toBe(true);
+    expect(notifyLeaveStreaks).toHaveBeenCalledWith(db.client, {
+      orgId: 'org-1',
+      studentId: 'stu-mine',
+      from: '2026-10-20',
+      to: '2026-10-22',
+    });
+  });
+
+  it('別人孩子的 leaveId、別 org 的假、不是家長：一律不偵測', async () => {
+    vi.mocked(notifyLeaveStreaks).mockClear();
+    const db = createMultiOrgDb({ leave_requests: leaves });
+    const mine = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    const none = createChildDb(db.client as never, null, 'org-1');
+    expect(await mine.checkLeaveStreak('leave-other')).toBe(false);
+    expect(await mine.checkLeaveStreak('leave-org2')).toBe(false);
+    expect(await none.checkLeaveStreak('leave-mine')).toBe(false);
+    expect(notifyLeaveStreaks).not.toHaveBeenCalled();
   });
 });
 
