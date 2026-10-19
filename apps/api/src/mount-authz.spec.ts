@@ -82,6 +82,23 @@ const UNMOUNTED = [
   '/api/internal/push',
 ];
 
+/**
+ * 執行期 `app.routes` 裡，**不在任何 mount／白名單前綴底下**、允許存在的註冊（`方法 路徑`，手寫）。
+ * 全域 middleware、健康檢查、OpenAPI 文件、Better Auth、系統時間。多一條 = 有人繞過 mount 直接掛東西。
+ */
+const OUTSIDE_MOUNTS = [
+  'ALL /*',
+  'ALL /api/*',
+  'ALL /api/public/*',
+  'GET /',
+  'GET /health',
+  'GET /openapi.json',
+  'GET /docs',
+  'GET /api/system-time',
+  'GET /api/auth/*',
+  'POST /api/auth/*',
+];
+
 const ALL_ROLES: readonly Role[] = ['admin', 'teacher', 'parent', 'kiosk'];
 
 const ctx: { roles: string[]; permissions: string[] } = { roles: [], permissions: [] };
@@ -143,6 +160,37 @@ describe('mount() 的授權（#1730）', () => {
 
   // 路徑用變數或模板字串寫（`mount(SNEAKY, …)`、``app.route(`/api/x`, …)``）時，上面兩條抽路徑的 regex
   // 抓不到 → 多一道「呼叫次數」對帳，不管參數怎麼寫（#1751 二讀）
+  // 文字對帳寫法再多也補不完（`app['route'](…)`、`app.get('/api/x', …)` 都繞得過）——
+  // 直接看執行期 Hono 實際註冊了什麼（#1751 二讀）。上面的文字對帳留著當第二道
+  it('執行期：每一條註冊的路由都在 mount／白名單前綴底下，或是明列的例外', async () => {
+    const app = (await import('./index')).default as unknown as {
+      routes: ReadonlyArray<{ method: string; path: string }>;
+    };
+    const prefixes = [...Object.keys(EXPECTED), ...UNMOUNTED];
+    const stray = [
+      ...new Set(
+        app.routes
+          .filter((r) => !prefixes.some((p) => r.path === p || r.path.startsWith(`${p}/`)))
+          .map((r) => `${r.method} ${r.path}`),
+      ),
+    ].sort();
+    expect(stray).toEqual([...OUTSIDE_MOUNTS].sort());
+  });
+
+  // Hono 照註冊順序跑：同一個前綴底下，若有 handler 比 mount 的守衛早註冊，它就跑在角色檢查之前
+  it('執行期：每個 mount 前綴底下，第一條註冊的就是 mount 的守衛', async () => {
+    const app = (await import('./index')).default as unknown as {
+      routes: ReadonlyArray<{ method: string; path: string }>;
+    };
+    const early = Object.keys(EXPECTED).flatMap((prefix) => {
+      const first = app.routes.find((r) => r.path === prefix || r.path.startsWith(`${prefix}/`));
+      return first && first.method === 'ALL' && first.path === prefix
+        ? []
+        : [`${prefix}：第一條是 ${first?.method} ${first?.path}`];
+    });
+    expect(early).toEqual([]);
+  });
+
   it('呼叫次數也對得上：mount( 的次數＝表的筆數、app.route( 的次數＝白名單＋mount() 裡那一行', () => {
     // 排除 `function mount(` 定義本身；縮排在區塊裡的呼叫也算
     const mountCalls = source.match(/(?<![\w.$])(?<!function\s+)mount\(/g) ?? [];
