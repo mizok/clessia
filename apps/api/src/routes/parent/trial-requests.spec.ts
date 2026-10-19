@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
-import trialRequestsRoute from './trial-requests';
+import trialRequestsRoute, { SELECT } from './trial-requests';
 
 /**
  * 家長端試聽申請（#1120）。真的 `createChildDb` 疊在照條件過濾的替身上（同 enrollment-requests）。
@@ -191,5 +191,14 @@ describe('GET /api/me/trial-requests', () => {
     };
     expect(pick('t-done')).toEqual(['2026-10-21', '18:30', '20:00']);
     expect(pick('t-wait')).toEqual([null, null, null]);
+  });
+});
+
+// 替身不看 select 欄位（一律回整列），上面的 spec 守不住「select 有沒有撈」—— 直接斷言（同 #1742 的做法）
+describe('試聽申請的 select', () => {
+  it('有撈 scheduled_date、scheduled_start_time、scheduled_end_time', () => {
+    expect(SELECT).toContain('scheduled_date');
+    expect(SELECT).toContain('scheduled_start_time');
+    expect(SELECT).toContain('scheduled_end_time');
   });
 });

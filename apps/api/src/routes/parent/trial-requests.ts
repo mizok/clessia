@@ -48,7 +48,7 @@ const ErrorSchema = z
   .object({ error: z.string(), code: z.string() })
   .openapi('ParentTrialRequestError');
 
-const SELECT =
+export const SELECT =
   'id, student_id, course_id, status, preferred_times, note, created_at, scheduled_date, scheduled_start_time, scheduled_end_time, students(name), courses(name)';
 
 /** 進行中的試聽 —— 同門課只能一筆（migration 的 partial unique） */

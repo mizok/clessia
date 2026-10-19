@@ -66,7 +66,7 @@ const ErrorSchema = z
   .object({ error: z.string(), code: z.string() })
   .openapi('ParentEnrollmentRequestError');
 
-const SELECT =
+export const SELECT =
   'id, student_id, class_id, status, preferred_start_date, note, reject_reason, billing_mode, created_at, students(name), classes(name)';
 
 /** 佔名額的申請狀態以外，「還在進行中」的申請 —— 同班只能有一筆（migration 的 partial unique） */

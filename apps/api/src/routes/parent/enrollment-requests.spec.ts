@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
-import enrollmentRequestsRoute from './enrollment-requests';
+import enrollmentRequestsRoute, { SELECT } from './enrollment-requests';
 
 /**
  * 家長端報名申請（#1119）。用**真的** `createChildDb` 疊在照條件過濾的替身上 ——
@@ -220,5 +220,12 @@ describe('POST /api/me/enrollment-requests/:id/cancel', () => {
 
   it('別人孩子的申請：404（跟不存在一樣），不動', async () => {
     expect(await cancel('pending', OTHER_CHILD)).toEqual({ status: 404, stored: 'pending' });
+  });
+});
+
+// 替身不看 select 欄位（一律回整列），上面的 spec 守不住「select 有沒有撈」—— 直接斷言（同 #1742 的做法）
+describe('報名申請的 select', () => {
+  it('有撈 billing_mode', () => {
+    expect(SELECT).toContain('billing_mode');
   });
 });
