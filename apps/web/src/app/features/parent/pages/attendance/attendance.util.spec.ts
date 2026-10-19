@@ -17,6 +17,8 @@ const record = (overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendan
   sessionStatus: 'scheduled',
   status: 'present',
   note: null,
+  leaveSubmittedBy: null,
+  leaveReason: null,
   ...overrides,
 });
 

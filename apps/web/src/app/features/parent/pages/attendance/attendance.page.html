@@ -107,7 +107,15 @@
                       {{ record.note }}
                     </p>
                   }
-                  @if (!record.startTime && !record.note) {
+                  <!-- 設計稿 §5：家長送的寫原因；補習班登記的不帶原因（可能是內部備註，計畫席 10-19 裁 (A)） -->
+                  @if (record.leaveSubmittedBy; as by) {
+                    <p class="attendance__record-leave m-0 text-sm text-zinc-600">
+                      請假{{ record.leaveReason ? '：' + record.leaveReason : '' }}（{{
+                        by === 'parent' ? '家長送出' : '補習班登記'
+                      }}）
+                    </p>
+                  }
+                  @if (!record.startTime && !record.note && !record.leaveSubmittedBy) {
                     <p class="attendance__record-note m-0 text-sm text-zinc-600">沒有更多資訊</p>
                   }
                 </div>
