@@ -14,6 +14,7 @@ import sessionsRoute from './parent/sessions';
 import catalogRoute from './parent/catalog';
 import renewalRoute from './parent/renewal';
 import mealsRoute from './parent/meals';
+import leavesRoute from './parent/leaves';
 import mePushRoute from './me-push';
 import { inOrg } from '../lib/org-scope';
 import { NicknameSchema } from '../lib/validation';
@@ -353,5 +354,6 @@ app.route('/enrollment-requests', enrollmentRequestsRoute);
 app.route('/trial-requests', trialRequestsRoute);
 app.route('/sessions', sessionsRoute);
 app.route('/catalog', catalogRoute);
+app.route('/leaves', leavesRoute);
 
 export default app;
