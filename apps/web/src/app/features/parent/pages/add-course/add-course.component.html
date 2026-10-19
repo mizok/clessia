@@ -1,0 +1,365 @@
+<!--
+  A6 p-add-course（#1727 ⑤）：色面「{孩子}可以加選 N 個班」＋孩子切換器 → 灰工具列（關鍵字、科目、星期）→ 課程卡片。
+  卡片整張是按鈕，點開詳情；詳情 → 加選表單 → 完成，都在同一個原生 <dialog> 裡換內容。
+-->
+<app-page-open>
+  <app-child-switcher openBack class="mb-3 block" />
+  <ng-container openTitle>
+    @if (kid(); as k) {
+      @if (pool().length) {
+        {{ k.name }}可以加選<br />{{ pool().length }} 個班。
+      } @else {
+        {{ k.name }}目前沒有<br />可以加選的班。
+      }
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
+  <ng-container openSub>{{ kid() ? '依孩子的年級挑過；已經在上的班不列。' : '' }}</ng-container>
+</app-page-open>
+
+<app-child-scope-gate>
+  <div class="bg-zinc-100">
+    <div class="page-wrap flex flex-wrap items-center gap-3 py-3 wide:min-h-16">
+      <label
+        class="flex h-10 min-w-0 flex-[1_1_240px] items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-zinc-600 focus-within:border-zinc-900 max-wide:h-11 max-wide:basis-full wide:max-w-[320px]"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+        <input
+          type="search"
+          class="min-w-0 flex-1 border-0 bg-transparent text-base text-zinc-900 outline-none [font:inherit]"
+          placeholder="搜尋課程或班名"
+          aria-label="搜尋課程或班名"
+          [value]="q()"
+          (input)="q.set($any($event.target).value)"
+        />
+      </label>
+      <p-select
+        class="max-wide:flex-[1_1_40%]"
+        styleClass="w-full"
+        [options]="subjectOptions()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部科目"
+        ariaLabel="科目"
+        [showClear]="true"
+        [ngModel]="subject()"
+        (ngModelChange)="subject.set($event)"
+      />
+      <p-select
+        class="max-wide:flex-[1_1_40%]"
+        styleClass="w-full"
+        [options]="weekdayOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="星期不限"
+        ariaLabel="星期"
+        [showClear]="true"
+        [ngModel]="weekday()"
+        (ngModelChange)="weekday.set($event)"
+      />
+    </div>
+  </div>
+
+  <div class="page-wrap pb-12">
+    <p class="mt-6 mb-0 flex flex-wrap items-baseline gap-x-3 gap-y-2 text-md text-zinc-600">
+      @if (filtered()) {
+        <span
+          >符合 <strong class="text-zinc-900 tabular-nums">{{ list().length }}</strong> 個</span
+        >
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-semibold text-zinc-900 underline underline-offset-[3px] [font:inherit]"
+          (click)="clear()"
+        >
+          清除篩選
+        </button>
+      } @else {
+        <span>推薦的排在前面</span>
+      }
+    </p>
+    <div
+      class="mt-4 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3 max-wide:grid-cols-1"
+    >
+      @for (c of list(); track c.classId) {
+        @let mine = applied(c);
+        <button
+          type="button"
+          class="grid min-h-11 cursor-pointer content-start gap-2 rounded-lg border border-solid border-zinc-300 bg-white p-5 text-left text-zinc-900 [font:inherit] hover:border-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
+          [attr.data-class]="c.classId"
+          (click)="show(c)"
+        >
+          @if (c.isRecommended || mine === 'sent') {
+            <span class="flex flex-wrap gap-2">
+              @if (c.isRecommended) {
+                <span
+                  class="inline-flex items-center rounded-full px-2 py-0.5 text-sm leading-[1.4] font-semibold text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-400)]"
+                  >推薦加選</span
+                >
+              }
+              @if (mine === 'sent') {
+                <span
+                  class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-sm leading-[1.4] font-semibold text-zinc-700"
+                  >已送出申請</span
+                >
+              }
+            </span>
+          }
+          <span class="text-md font-semibold text-zinc-600">{{ c.subject ?? c.courseName }}</span>
+          <span class="text-xl font-bold tracking-[-0.01em]">{{ c.className }}</span>
+          <span class="text-md text-zinc-700 tabular-nums">{{ metaText(c) }}</span>
+          @if (c.conflictsWith) {
+            <span class="flex items-center gap-1 text-md font-semibold text-warning-800"
+              ><i class="pi pi-exclamation-triangle" aria-hidden="true"></i>跟
+              {{ c.conflictsWith }} 撞時間</span
+            >
+          }
+          <span
+            class="mt-2 flex items-baseline justify-between gap-3 border-t border-solid border-zinc-200 pt-3 text-md tabular-nums"
+          >
+            <b class="text-lg">{{ feeText(c) ?? '費用洽補習班' }}</b>
+            <span
+              [class.font-semibold]="c.remainingSeats <= 3"
+              [class.text-error-700]="c.remainingSeats <= 3"
+              >{{ seatText(c) }}</span
+            >
+          </span>
+        </button>
+      } @empty {
+        <p class="m-0 text-md text-zinc-600">
+          目前沒有適合的可加選課程。
+          @if (!filtered()) {
+            有新開的班會出現在這裡，也可以到
+            <a
+              routerLink="/parent/trial"
+              class="inline-flex min-h-11 items-center text-zinc-900 underline"
+              >試聽申請</a
+            >
+            請補習班推薦。
+          }
+        </p>
+      }
+    </div>
+  </div>
+</app-child-scope-gate>
+
+<dialog
+  #dialog
+  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(480px,calc(100%-32px))] flex-col overflow-y-auto rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200 open:flex"
+  aria-labelledby="add-course-title"
+  (click)="onBackdrop($event)"
+  (close)="onClosed()"
+>
+  @if (open(); as c) {
+    @let full = isFull(c);
+    <div class="flex items-center justify-between pt-4 pr-4 pb-2 pl-6">
+      <h2 id="add-course-title" class="m-0 text-xl font-bold">
+        @switch (step()) {
+          @case ('detail') {
+            {{ c.className }}
+          }
+          @case ('apply') {
+            {{ full ? '登記候補' : '加選' }} {{ c.className }}
+          }
+          @case ('done') {
+            {{ wasWaitlist() ? '已登記候補' : '已送出加選申請' }}
+          }
+        }
+      </h2>
+      <button
+        type="button"
+        class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
+        aria-label="關閉"
+        (click)="close()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    @switch (step()) {
+      @case ('detail') {
+        <div class="grid gap-5 px-6 pt-2 pb-6 max-wide:px-4">
+          <p class="m-0 text-md font-semibold text-zinc-600">
+            {{ c.subject ?? c.courseName }}
+            @if (c.isRecommended) {
+              <span
+                class="ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-sm leading-[1.4] font-semibold text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-400)]"
+                >推薦加選</span
+              >
+            }
+          </p>
+          @if (c.courseDescription) {
+            <p class="m-0 text-base">{{ c.courseDescription }}</p>
+          }
+          <dl
+            class="m-0 grid grid-cols-[7em_minmax(0,1fr)] gap-x-4 gap-y-2 text-base max-wide:grid-cols-[5.5em_minmax(0,1fr)]"
+          >
+            <dt class="text-zinc-600">上課時間</dt>
+            <dd class="m-0 font-medium tabular-nums">{{ slotText(c) || '—' }}</dd>
+            <dt class="text-zinc-600">老師</dt>
+            <dd class="m-0 font-medium">{{ c.teacherNames.join('、') || '—' }}</dd>
+            <dt class="text-zinc-600">地點</dt>
+            <dd class="m-0 font-medium">{{ c.campusName ?? '—' }}</dd>
+            <dt class="text-zinc-600">人數</dt>
+            <dd class="m-0 font-medium tabular-nums">
+              <span
+                [class.font-semibold]="c.remainingSeats <= 3"
+                [class.text-error-700]="c.remainingSeats <= 3"
+                >{{ c.maxStudents - c.remainingSeats }} / {{ c.maxStudents }} 人{{
+                  full ? '（已額滿）' : ''
+                }}</span
+              >
+            </dd>
+            <dt class="text-zinc-600">費用</dt>
+            <dd class="m-0 font-medium tabular-nums">{{ feeText(c) ?? '費用洽補習班' }}</dd>
+          </dl>
+          @if (c.conflictsWith) {
+            <p class="m-0 flex items-center gap-1 text-md font-semibold text-warning-800">
+              <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>跟{{ kid()?.name }}的
+              {{ c.conflictsWith }} 撞時間
+            </p>
+          }
+        </div>
+        <div class="flex flex-wrap justify-end gap-2 px-6 pb-6 max-wide:px-4">
+          @if (applied(c); as mine) {
+            <a
+              routerLink="/parent/enrollment"
+              fragment="records"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              >{{ mine === 'waitlist' ? '已登記候補 · 查看紀錄' : '查看申請狀態' }}</a
+            >
+          } @else {
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+              (click)="close()"
+            >
+              關閉
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 max-wide:flex-1 wide:h-9"
+              (click)="toApply(c)"
+            >
+              {{ full ? '登記候補' : '加選此課程' }}
+            </button>
+          }
+        </div>
+      }
+      @case ('apply') {
+        <form
+          class="grid gap-5 px-6 pt-2 pb-6 max-wide:px-4"
+          novalidate
+          (submit)="$event.preventDefault()"
+        >
+          <p class="m-0 text-md text-zinc-600 tabular-nums">
+            {{ kid()?.name }} · {{ slotText(c) }}{{ full ? ' · 這班已額滿' : '' }}
+          </p>
+          @if (!full) {
+            <fieldset class="m-0 grid gap-2 border-0 p-0">
+              <legend class="mb-2 p-0 text-base font-semibold">繳費週期</legend>
+              <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="繳費週期">
+                @for (m of ['monthly', 'period']; track m) {
+                  <label
+                    class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-[input:checked]:border-zinc-900 has-[input:checked]:shadow-[inset_0_0_0_1px_var(--zinc-900)] max-wide:h-11"
+                  >
+                    <input
+                      type="radio"
+                      name="mode"
+                      class="m-0 accent-zinc-900"
+                      [value]="m"
+                      [checked]="mode() === m"
+                      (change)="mode.set($any(m))"
+                    />{{ modeLabel($any(m)) }}
+                  </label>
+                }
+              </div>
+            </fieldset>
+            <div class="grid gap-2">
+              <label class="text-base font-semibold" for="add-start">希望哪天開始上</label>
+              <input
+                id="add-start"
+                type="date"
+                class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base [font:inherit] focus:border-zinc-900 focus:outline-none max-wide:h-11"
+                [min]="today"
+                [value]="start()"
+                (input)="start.set($any($event.target).value)"
+              />
+            </div>
+          }
+          <div class="grid gap-2">
+            <label class="text-base font-semibold" for="add-note"
+              >備註 <span class="text-md font-medium text-zinc-600">選填</span></label
+            >
+            <textarea
+              id="add-note"
+              rows="3"
+              class="w-full rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 text-base [font:inherit] focus:border-zinc-900 focus:outline-none"
+              [placeholder]="full ? '例如：可以接受別的時段' : '例如：孩子程度、想先試聽'"
+              [value]="note()"
+              (input)="note.set($any($event.target).value)"
+            ></textarea>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 border-t border-solid border-zinc-200 pt-5">
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 max-wide:flex-1 wide:h-9"
+              [attr.aria-disabled]="missing().length > 0 || sending()"
+              (click)="submit()"
+            >
+              {{ sending() ? '送出中…' : full ? '登記候補' : '送出加選申請' }}
+            </button>
+            <p
+              class="m-0 text-md"
+              [class.text-error-700]="!!sendError()"
+              [class.text-zinc-700]="!sendError()"
+              aria-live="polite"
+            >
+              {{ sendError() ?? (missing().length ? '還沒填：' + missing().join('、') : '') }}
+            </p>
+          </div>
+        </form>
+      }
+      @case ('done') {
+        <div class="grid gap-5 px-6 pt-2 pb-6 max-wide:px-4">
+          <p class="m-0 text-base">
+            {{
+              wasWaitlist()
+                ? '這班已額滿，已為您登記候補，補習班會主動聯絡。'
+                : '補習班審核通過後會開繳費單，並在「報名申請」通知你。'
+            }}
+          </p>
+          <dl
+            class="m-0 grid grid-cols-[7em_minmax(0,1fr)] gap-x-4 gap-y-2 text-base max-wide:grid-cols-[5.5em_minmax(0,1fr)]"
+          >
+            <dt class="text-zinc-600">孩子</dt>
+            <dd class="m-0 font-medium">{{ kid()?.name }}</dd>
+            <dt class="text-zinc-600">開課班</dt>
+            <dd class="m-0 font-medium">{{ c.className }}</dd>
+            @if (!wasWaitlist()) {
+              <dt class="text-zinc-600">繳費</dt>
+              <dd class="m-0 font-medium">{{ modeLabel(mode()) }}</dd>
+              <dt class="text-zinc-600">希望開始</dt>
+              <dd class="m-0 font-medium tabular-nums">{{ start() }}</dd>
+            }
+          </dl>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2 px-6 pb-6 max-wide:px-4">
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+            (click)="close()"
+          >
+            繼續瀏覽
+          </button>
+          <a
+            routerLink="/parent/enrollment"
+            fragment="records"
+            class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold text-zinc-900 no-underline hover:border-accent-vivid-2 hover:bg-accent-vivid-2 max-wide:flex-1 wide:h-9"
+            >{{ wasWaitlist() ? '查看紀錄' : '查看申請狀態' }}</a
+          >
+        </div>
+      }
+    }
+  }
+</dialog>

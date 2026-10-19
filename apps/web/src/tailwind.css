@@ -79,6 +79,7 @@
 @source './app/features/parent/pages/enrollment';
 @source './app/features/parent/shared/request-row';
 @source './app/features/parent/pages/trial';
+@source './app/features/parent/pages/add-course';
 @source './app/shared/components/checkin-station';
 @source './app/shared/components/filter-chip';
 @source './app/shared/components/collapsible';
