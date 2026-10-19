@@ -290,7 +290,7 @@
             <!-- #1732：連續請假滿 N 個上課日、還沒處理 → 小標，連到學生檔案帳單章 -->
             @if (streakDays().get(invoice.studentId); as days) {
               <a
-                class="group/streak ml-1.5 inline-flex min-h-11 shrink-0 items-center no-underline"
+                class="group/streak ml-1.5 inline-flex min-h-11 shrink-0 items-center no-underline wide:min-h-0"
                 [routerLink]="['/admin/students', invoice.studentId]"
                 fragment="billing"
                 data-testid="streak-pill"
@@ -513,7 +513,7 @@
               >
               @if (streakDays().get(invoice.studentId); as days) {
                 <a
-                  class="group/streak ml-1.5 inline-flex min-h-11 shrink-0 items-center no-underline"
+                  class="group/streak ml-1.5 inline-flex min-h-11 shrink-0 items-center no-underline wide:min-h-0"
                   [routerLink]="['/admin/students', invoice.studentId]"
                   fragment="billing"
                   data-testid="streak-pill"

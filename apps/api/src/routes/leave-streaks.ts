@@ -226,7 +226,7 @@ app.openapi(
       const reviewerIds = [
         ...new Set(streaks.flatMap((s) => (s.review?.reviewed_by ? [s.review.reviewed_by] : []))),
       ];
-      const [meals, enrollments, reviewers] = await Promise.all([
+      const [meals, enrollments, reviewers, accounts] = await Promise.all([
         supabase
           .from('meal_records')
           .select('meal_date, unit_price, invoice_items(period_month)')
@@ -251,15 +251,22 @@ app.openapi(
               .select('user_id, display_name')
               .eq('org_id', orgId)
               .in('user_id', reviewerIds),
+        // 不是這個機構教職員的帳號（例如 seed 的 Demo Admin）退回帳號名；ba_user 只讀（c2）
+        reviewerIds.length === 0
+          ? Promise.resolve({ data: [], error: null })
+          : supabase.from('ba_user').select('id, name').in('id', reviewerIds),
       ]);
-      const queryError = meals.error ?? enrollments.error ?? reviewers.error;
+      const queryError = meals.error ?? enrollments.error ?? reviewers.error ?? accounts.error;
       if (queryError) throw new Error(queryError.message);
-      const names = new Map(
-        ((reviewers.data ?? []) as Row[]).map((r) => [
-          r['user_id'] as string,
-          r['display_name'] as string,
-        ]),
-      );
+      const names = new Map<string, string>([
+        ...((accounts.data ?? []) as Row[]).map(
+          (r) => [r['id'] as string, r['name'] as string] as const,
+        ),
+        // 教職員名優先（後放的蓋掉前面的）
+        ...((reviewers.data ?? []) as Row[]).map(
+          (r) => [r['user_id'] as string, r['display_name'] as string] as const,
+        ),
+      ]);
       const mealRows = (meals.data ?? []) as Row[];
       const enrollmentRows = (enrollments.data ?? []) as Row[];
 

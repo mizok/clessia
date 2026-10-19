@@ -108,6 +108,10 @@ function seed() {
       { user_id: 'u', org_id: ORG, display_name: '王主任' },
       { user_id: 'u', org_id: OTHER, display_name: '別家的人' },
     ],
+    ba_user: [
+      { id: 'u', name: '帳號名' },
+      { id: 'u-outsider', name: 'Demo Admin' },
+    ],
     audit_logs: [],
   });
 }
@@ -206,6 +210,21 @@ describe('GET /api/leave-streaks/students/:id —— 已處理的段帶標的人
       reviewerName: '王主任',
       reviewedAt: 't',
     });
+  });
+});
+
+describe('GET /api/leave-streaks/students/:id —— 標的人不是本機構教職員', () => {
+  it('退回帳號名（ba_user.name）', async () => {
+    const reviewed = streak(D1, D2, true);
+    load.mockResolvedValue({
+      threshold: 3,
+      byStudent: new Map([
+        [STU, [{ ...reviewed, review: { ...reviewed.review!, reviewed_by: 'u-outsider' } }]],
+      ]),
+    });
+    const res = await appWith(seed()).request(`/api/leave-streaks/students/${STU}`);
+    const body = (await res.json()) as { data: Array<{ review: { reviewerName: string } }> };
+    expect(body.data[0]!.review.reviewerName).toBe('Demo Admin');
   });
 });
 
