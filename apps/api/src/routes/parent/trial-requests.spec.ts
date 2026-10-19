@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
@@ -43,6 +43,29 @@ function appFor(db: ReturnType<typeof createMultiOrgDb>, roles = ['parent']) {
   app.route('/', trialRequestsRoute as unknown as Hono);
   return app;
 }
+
+/** 讓 campuses 的查詢回錯（替身沒有錯誤注入，同 leaves.spec 的寫法） */
+function failCampuses(db: ReturnType<typeof createMultiOrgDb>) {
+  const client = db.client as { from: (table: string) => Record<string, unknown> };
+  const realFrom = client.from.bind(client);
+  const failing = {
+    eq: () => failing,
+    in: () => failing,
+    then: (resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: { code: 'XX000', message: 'boom' } }),
+  };
+  vi.spyOn(client, 'from').mockImplementation(((table: string) => {
+    const builder = realFrom(table);
+    return table === 'campuses' ? { ...builder, select: () => failing } : builder;
+  }) as never);
+  return db;
+}
+
+const withCampus = (extra: Record<string, Array<Record<string, unknown>>> = {}) =>
+  seed({
+    campuses: [{ id: 'cp-main', org_id: ORG, name: '總校', phone: '02-2345-6789' }],
+    ...extra,
+  });
 
 async function submit(body: Record<string, unknown>, db = seed(), roles?: string[]) {
   const res = await appFor(db, roles).request('/', {
@@ -138,6 +161,18 @@ describe('POST /api/me/trial-requests', () => {
     expect((await submit({ courseIds: [MATH] }, db)).status).toBe(201);
   });
 
+  // 已經寫進去了，讀分校失敗不該讓家長以為沒送出（列表重抓會有電話）
+  it('寫入後讀分校失敗：照樣 201，分校欄位是 null', async () => {
+    const db = failCampuses(
+      withCampus({ courses: [{ id: MATH, org_id: ORG, is_active: true, campus_id: 'cp-main' }] }),
+    );
+    const { status, body, rows } = await submit({ courseIds: [MATH] }, db);
+
+    expect(status).toBe(201);
+    expect(rows).toHaveLength(1);
+    expect([body.data[0].campusName, body.data[0].campusPhone]).toEqual([null, null]);
+  });
+
   it('沒選課：400', async () => {
     expect((await submit({ courseIds: [] })).status).toBe(400);
   });
@@ -227,6 +262,27 @@ describe('GET /api/me/trial-requests', () => {
     expect(pick('t-nophone')).toEqual(['二校', null]);
     expect(pick('t-foreign')).toEqual([null, null]);
     expect(pick('t-none')).toEqual([null, null]);
+  });
+
+  // fail-closed：讀不到分校就回 500，不回一份「沒有電話」的列表讓家長以為補習班沒留電話
+  it('讀分校失敗：500', async () => {
+    const db = failCampuses(
+      withCampus({
+        trial_requests: [
+          {
+            id: 't1',
+            org_id: ORG,
+            student_id: MY_CHILD,
+            course_id: MATH,
+            status: 'pending',
+            courses: { name: '數學', campus_id: 'cp-main' },
+          },
+        ],
+      }),
+    );
+    const res = await appFor(db).request('/');
+
+    expect(res.status).toBe(500);
   });
 });
 
