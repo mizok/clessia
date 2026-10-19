@@ -111,6 +111,23 @@ describe('LeaveFormDialogComponent', () => {
     });
   });
 
+  // A6 form()：送出鈕不鎖死，旁邊一行寫還差什麼；填好就消失
+  it('還沒填：列出缺的必填欄；送出鈕不 disabled（aria-disabled）', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const why = () => el.querySelector('[aria-live="polite"]')!.textContent!.trim();
+    expect(why()).toBe('還沒填：學生、開始日期、結束日期');
+    const go = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('送出請假'))!;
+    expect(go.disabled).toBe(false);
+    expect(go.getAttribute('aria-disabled')).toBe('true');
+    const dialog = component as any;
+    dialog.selectedStudent = { id: 's1', name: '甲' };
+    dialog.startDate = new Date('2026-04-02');
+    dialog.endDate = new Date('2026-04-02');
+    fixture.detectChanges();
+    expect(why()).toBe('');
+    expect(go.getAttribute('aria-disabled')).toBe('false');
+  });
+
   it('renders the shared student autocomplete field', () => {
     expect(fixture.nativeElement.querySelector('app-student-autocomplete')).not.toBeNull();
   });

@@ -1,6 +1,5 @@
 import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { TextareaModule } from 'primeng/textarea';
 import { SelectModule } from 'primeng/select';
@@ -46,7 +45,6 @@ function toTimeDate(time: string | null): Date | null {
   standalone: true,
   imports: [
     FormsModule,
-    ButtonModule,
     DatePickerModule,
     TextareaModule,
     SelectModule,
@@ -102,78 +100,73 @@ function toTimeDate(time: string | null): Date | null {
         </div>
       }
 
-      <div class="grid gap-3">
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-zinc-700"
-            >開始日期時間 <span class="text-error-600">*</span></label
-          >
-          <div class="grid grid-cols-2 gap-3">
+      <!-- A6 forms.leave：四個欄各自有標籤，桌機兩兩並排、手機一欄一列 -->
+      <div class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2">
+        @for (f of dateFields; track f.key) {
+          <div class="flex min-w-0 flex-col gap-1">
+            <label class="text-md font-semibold text-zinc-700" [attr.for]="'leave-' + f.key"
+              >{{ f.label }}
+              @if (f.required) {
+                <span class="text-error-700" aria-hidden="true">*</span>
+              }
+            </label>
             <p-datepicker
-              [(ngModel)]="startDate"
-              placeholder="開始日期"
+              [inputId]="'leave-' + f.key"
+              [ngModel]="this[f.key]"
+              (ngModelChange)="this[f.key] = $event"
+              [placeholder]="f.label"
+              [timeOnly]="f.time"
+              [hourFormat]="'24'"
               dateFormat="yy-mm-dd"
-              styleClass="w-full"
-              [appendTo]="appendTo()"
-            />
-            <p-datepicker
-              [(ngModel)]="startTime"
-              [timeOnly]="true"
-              hourFormat="24"
-              placeholder="開始時間"
+              [minDate]="f.key === 'endDate' ? (startDate ?? undefined) : undefined"
               styleClass="w-full"
               [appendTo]="appendTo()"
             />
           </div>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-zinc-700"
-            >結束日期時間 <span class="text-error-600">*</span></label
-          >
-          <div class="grid grid-cols-2 gap-3">
-            <p-datepicker
-              [(ngModel)]="endDate"
-              placeholder="結束日期"
-              dateFormat="yy-mm-dd"
-              [minDate]="startDate ?? undefined"
-              styleClass="w-full"
-              [appendTo]="appendTo()"
-            />
-            <p-datepicker
-              [(ngModel)]="endTime"
-              [timeOnly]="true"
-              hourFormat="24"
-              placeholder="結束時間"
-              styleClass="w-full"
-              [appendTo]="appendTo()"
-            />
-          </div>
+        }
+        <div class="flex min-w-0 flex-col gap-1 wide:col-span-2">
+          <label class="text-md font-semibold text-zinc-700" for="leave-reason">原因（選填）</label>
+          <textarea
+            id="leave-reason"
+            pTextarea
+            [(ngModel)]="reason"
+            placeholder="請假原因"
+            rows="3"
+            class="w-full"
+          ></textarea>
         </div>
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label class="text-sm font-medium text-zinc-700">原因（選填）</label>
-        <textarea
-          pTextarea
-          [(ngModel)]="reason"
-          placeholder="請假原因"
-          rows="3"
-          style="width:100%"
-        ></textarea>
+      <!--
+        A6 form() 的底部：必填沒填時送出鈕不鎖死，旁邊一行寫還差什麼（#723：disabled 會把「為什麼不行」藏起來）；
+        處理中寫「送出中…」。送出失敗的訊息也寫在這一行，填的內容不清。
+      -->
+      <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+        <p
+          class="m-0 mr-auto text-md max-wide:basis-full"
+          [class.text-error-700]="!!errorMessage()"
+          [class.text-zinc-600]="!errorMessage()"
+          aria-live="polite"
+        >
+          {{ errorMessage() ?? missingHint() }}
+        </p>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+          [disabled]="saving()"
+          (click)="cancel()"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+          [attr.aria-disabled]="!canSubmit() || saving()"
+          (click)="submit()"
+        >
+          {{ saving() ? (editing ? '儲存中…' : '送出中…') : editing ? '儲存變更' : '送出請假' }}
+        </button>
       </div>
-
-      <div class="flex justify-end gap-3 pt-2">
-        <p-button label="取消" severity="secondary" (onClick)="cancel()" [disabled]="saving()" />
-        <p-button
-          [label]="editing ? '儲存變更' : '送出請假'"
-          icon="pi pi-check"
-          [loading]="saving()"
-          (onClick)="submit()"
-          [disabled]="!canSubmit()"
-        />
-      </div>
-      @if (errorMessage()) {
-        <p class="-mt-2 text-right text-sm text-error-600">{{ errorMessage() }}</p>
-      }
     </div>
   `,
 })
@@ -216,6 +209,14 @@ export class LeaveFormDialogComponent implements OnInit {
   protected startTime: Date | null = null;
   protected endTime: Date | null = null;
   protected reason = '';
+
+  /** 四個日期時間欄（A6 forms.leave 的欄名）；時間選填（管理端一直是選填，後端也收 null） */
+  protected readonly dateFields = [
+    { key: 'startDate', label: '開始日期', time: false, required: true },
+    { key: 'startTime', label: '開始時間', time: true, required: false },
+    { key: 'endDate', label: '結束日期', time: false, required: true },
+    { key: 'endTime', label: '結束時間', time: true, required: false },
+  ] as const;
 
   protected readonly saving = signal(false);
   protected readonly studentSuggestions = signal<Student[]>([]);
@@ -266,6 +267,18 @@ export class LeaveFormDialogComponent implements OnInit {
     );
   }
 
+  /** A6「還沒填：…」：必填沒填的欄名 */
+  protected missingHint(): string {
+    const missing = [
+      ...(this.fixedStudentName() === null && !isStudentSelection(this.selectedStudent)
+        ? ['學生']
+        : []),
+      ...(this.startDate ? [] : ['開始日期']),
+      ...(this.endDate ? [] : ['結束日期']),
+    ];
+    return missing.length ? `還沒填：${missing.join('、')}` : '';
+  }
+
   protected searchStudents(query: string): void {
     this.studentsService
       .list({
@@ -282,6 +295,7 @@ export class LeaveFormDialogComponent implements OnInit {
   }
 
   protected submit(): void {
+    if (this.saving()) return;
     const student = this.selectedStudent;
     if (!this.editing && !this.presetStudent() && !isStudentSelection(student)) {
       this.errorMessage.set('請從建議清單選擇一位學生');
