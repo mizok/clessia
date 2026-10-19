@@ -204,7 +204,12 @@ const AREAS = [
     name: '繳費',
     pages: ['admin/payments', 'admin/fee-templates', 'parent/payments'],
     routes: ['fee-templates', 'billing-periods', 'invoices'],
-    specs: ['admin/finance/payments.md', 'admin/finance/fee-templates.md', 'parent/payments.md'],
+    specs: [
+      'admin/finance/payments.md',
+      'admin/finance/fee-templates.md',
+      'admin/finance/leave-streak-waiver.md',
+      'parent/payments.md',
+    ],
   },
   {
     // `routes` 有值但頁面還沒接上 —— 狀態不會因此變好看：`wired` 是看頁面有沒有
