@@ -88,6 +88,7 @@
 @source './app/shared/components/audit-log-dialog';
 @source './app/shared/components/login-link-dialog';
 @source './app/shared/components/parent-form-dialog';
+@source './app/shared/components/leave-form-dialog';
 @source './app/shared/components/contact-book-entry-dialog';
 @source './app/shared/components/class-picker-dialog';
 @source './app/shared/components/session-advanced-filters-dialog';

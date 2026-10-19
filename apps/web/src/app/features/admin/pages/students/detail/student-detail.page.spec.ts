@@ -7,7 +7,7 @@ import { StudentDetailPage } from './student-detail.page';
 import { StudentsService, type StudentAttendanceDays } from '@core/students.service';
 import { ScoresService } from '@core/scores.service';
 import { LeaveService } from '@core/leave.service';
-import { LeaveFormDialogComponent } from '../../leave/leave-form-dialog.component';
+import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 

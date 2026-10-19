@@ -130,6 +130,7 @@
       "apps/web/src/app/shared/components/jdenticon-avatar",
       "apps/web/src/app/shared/components/layout/global-search",
       "apps/web/src/app/shared/components/layout/shell-layout",
+      "apps/web/src/app/shared/components/leave-form-dialog",
       "apps/web/src/app/shared/components/login-link-dialog",
       "apps/web/src/app/shared/components/page-actions",
       "apps/web/src/app/shared/components/page-band",
