@@ -187,8 +187,8 @@ export async function loadLeaveStreaks(
         .select('student_id, event_id, events!inner(event_date)')
         .eq('org_id', orgId)
         .in('student_id', ids)
-        // 系統沒有遲到格；舊資料若有 late 也算到（同 students/attendance-days.ts）
-        .in('status', ['present', 'late'])
+        // enum 只有 present／absent／on_leave（沒有 late）；在 SQL 裡過濾，`in(..., 'late')` 會整支 400
+        .eq('status', 'present')
         .gte('events.event_date', from)
         .lte('events.event_date', to)
         .order('id')

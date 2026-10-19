@@ -76,8 +76,8 @@ run('連續請假偵測對真 DB（#1732）', () => {
         [orgId, date, campus],
       );
       await q(
-        `INSERT INTO sessions (org_id, class_id, session_date, start_time, end_time, status, event_id)
-         VALUES ($1, $2, $3, '18:00', '20:00', $4, $5)`,
+        `INSERT INTO sessions (org_id, class_id, session_date, start_time, end_time, status, event_id, assignment_status)
+         VALUES ($1, $2, $3, '18:00', '20:00', $4, $5, 'unassigned')`,
         [orgId, classId, date, status, event],
       );
       return event;
