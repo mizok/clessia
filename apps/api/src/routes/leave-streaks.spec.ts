@@ -101,6 +101,10 @@ function seed() {
         classes: { name: '國二數學', leave_deducts_session: true },
       },
     ],
+    staff: [
+      { user_id: 'u', org_id: ORG, display_name: '王主任' },
+      { user_id: 'u', org_id: OTHER, display_name: '別家的人' },
+    ],
     audit_logs: [],
   });
 }
@@ -178,6 +182,20 @@ describe('GET /api/leave-streaks/students/:id（學生檔案明細）', () => {
         },
       ],
       review: null,
+    });
+  });
+});
+
+describe('GET /api/leave-streaks/students/:id —— 已處理的段帶標的人（§4.1「王主任 10/20」）', () => {
+  it('reviewerName 讀本 org 的教職員名', async () => {
+    load.mockResolvedValue({ threshold: 3, byStudent: new Map([[STU, [streak(D1, D2, true)]]]) });
+    const res = await appWith(seed()).request(`/api/leave-streaks/students/${STU}`);
+    const body = (await res.json()) as { data: Array<{ review: unknown }> };
+    expect(body.data[0]!.review).toEqual({
+      id: REVIEW,
+      reviewedBy: 'u',
+      reviewerName: '王主任',
+      reviewedAt: 't',
     });
   });
 });

@@ -29,7 +29,13 @@ const MAX_STUDENTS = 100;
 const ErrorSchema = z.object({ error: z.string(), code: z.string().optional() });
 
 const ReviewSchema = z
-  .object({ id: z.string(), reviewedBy: z.string().nullable(), reviewedAt: z.string() })
+  .object({
+    id: z.string(),
+    reviewedBy: z.string().nullable(),
+    /** 標的人在這個機構的教職員名（`staff.display_name`）；帳號刪了或不是教職員 → null */
+    reviewerName: z.string().nullable(),
+    reviewedAt: z.string(),
+  })
   .nullable();
 
 const StreakDetailSchema = z
@@ -81,11 +87,12 @@ function recentRange() {
   };
 }
 
-const toReview = (streak: ReviewedLeaveStreak) =>
+const toReview = (streak: ReviewedLeaveStreak, names: ReadonlyMap<string, string> = new Map()) =>
   streak.review
     ? {
         id: streak.review.id,
         reviewedBy: streak.review.reviewed_by,
+        reviewerName: names.get(streak.review.reviewed_by ?? '') ?? null,
         reviewedAt: streak.review.reviewed_at,
       }
     : null;
@@ -216,7 +223,10 @@ app.openapi(
       const classIds = [
         ...new Set(streaks.flatMap((s) => s.days.flatMap((d) => d.sessions.map((x) => x.classId)))),
       ];
-      const [meals, enrollments] = await Promise.all([
+      const reviewerIds = [
+        ...new Set(streaks.flatMap((s) => (s.review?.reviewed_by ? [s.review.reviewed_by] : []))),
+      ];
+      const [meals, enrollments, reviewers] = await Promise.all([
         supabase
           .from('meal_records')
           .select('meal_date, unit_price, invoice_items(period_month)')
@@ -234,10 +244,22 @@ app.openapi(
           .eq('student_id', id)
           .neq('status', 'void')
           .in('class_id', classIds),
+        reviewerIds.length === 0
+          ? Promise.resolve({ data: [], error: null })
+          : supabase
+              .from('staff')
+              .select('user_id, display_name')
+              .eq('org_id', orgId)
+              .in('user_id', reviewerIds),
       ]);
-      if (meals.error || enrollments.error) {
-        throw new Error((meals.error ?? enrollments.error)!.message);
-      }
+      const queryError = meals.error ?? enrollments.error ?? reviewers.error;
+      if (queryError) throw new Error(queryError.message);
+      const names = new Map(
+        ((reviewers.data ?? []) as Row[]).map((r) => [
+          r['user_id'] as string,
+          r['display_name'] as string,
+        ]),
+      );
       const mealRows = (meals.data ?? []) as Row[];
       const enrollmentRows = (enrollments.data ?? []) as Row[];
 
@@ -288,7 +310,7 @@ app.openapi(
               sessionCount,
             };
           }),
-          review: toReview(streak),
+          review: toReview(streak, names),
         };
       });
       return c.json({ threshold, data }, 200);
@@ -401,6 +423,7 @@ app.openapi(
         data: {
           id: data['id'] as string,
           reviewedBy: (data['reviewed_by'] as string | null) ?? null,
+          reviewerName: null,
           reviewedAt: data['reviewed_at'] as string,
         },
       },
