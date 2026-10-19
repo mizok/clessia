@@ -219,14 +219,32 @@ app.openapi(
       await childDb.from('attendance_records', 'student_id').upsert(upserts, 'student_id,event_id');
     }
 
-    // 5. 通知老師（背景，失敗不擋）。管理員的 leave_received 等 migration（#1695 第 2 張）；
+    // 5. 稽核（計畫席 10-17）：補請把缺席改成請假、沒有人核對，事後要查得到改了幾堂、幾堂是補請。
+    //    「開始時間已過」用台北時間比（session 的日期與時間都是台北的牆上時間）
+    const startedAt = (s: Row) => {
+      const event = s['events'] as Row | null;
+      const start = ((event?.['start_time'] ?? s['start_time']) as string | null) ?? '00:00';
+      return Date.parse(`${s['session_date'] as string}T${start.slice(0, 5)}:00+08:00`);
+    };
+    const now = Date.now();
+    const wu = waitUntilFrom(c);
+    await childDb.recordLeave(
+      leave['id'] as string,
+      {
+        sessionCount: covered.length,
+        retroactiveSessionCount: covered.filter((s) => startedAt(s) <= now).length,
+      },
+      userId,
+      wu,
+    );
+
+    // 6. 通知老師（背景，失敗不擋）。管理員的 leave_received 等 migration（#1695 第 2 張）；
     //    #1732 的連續請假偵測也掛在這裡之後（kb/wiki/specs/admin/finance/leave-streak-waiver.md §3）
     const job = childDb.notifyLeave(
       leave['id'] as string,
       covered.map((s) => s['id'] as string),
       userId,
     );
-    const wu = waitUntilFrom(c);
     if (wu) wu(job);
     else await job;
 

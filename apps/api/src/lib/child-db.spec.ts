@@ -472,3 +472,70 @@ describe('createChildDb —— notifyLeave', () => {
     expect(notifyLeaveForTeachers).not.toHaveBeenCalled();
   });
 });
+
+/** #1695：家長請假的稽核 —— 只有 scope 內孩子的假才寫，不帶個資 */
+describe('createChildDb —— recordLeave', () => {
+  const leaves = [
+    {
+      id: 'leave-mine',
+      org_id: 'org-1',
+      student_id: 'stu-mine',
+      start_date: '2026-10-20',
+      end_date: '2026-10-21',
+    },
+    {
+      id: 'leave-other',
+      org_id: 'org-1',
+      student_id: 'stu-other',
+      start_date: '2026-10-20',
+      end_date: '2026-10-20',
+    },
+    {
+      id: 'leave-org2',
+      org_id: 'org-2',
+      student_id: 'stu-mine',
+      start_date: '2026-10-20',
+      end_date: '2026-10-20',
+    },
+  ];
+  /** logAudit 是背景寫入：收下它的 promise 再等完 */
+  async function record(childDb: ReturnType<typeof createChildDb>, leaveId: string) {
+    const pending: Promise<unknown>[] = [];
+    const ok = await childDb.recordLeave(
+      leaveId,
+      { sessionCount: 3, retroactiveSessionCount: 1 },
+      'parent-1',
+      (p) => pending.push(p),
+    );
+    await Promise.all(pending);
+    return ok;
+  }
+
+  it('自己孩子的假：寫一筆 leave／create，actor 是 session 的使用者，日期讀 DB、不帶學生名', async () => {
+    const db = createMultiOrgDb({ leave_requests: leaves, audit_logs: [] });
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+
+    expect(await record(childDb, 'leave-mine')).toBe(true);
+    expect(db.rows('audit_logs')).toHaveLength(1);
+    expect(db.rows('audit_logs')[0]).toMatchObject({
+      org_id: 'org-1',
+      user_id: 'parent-1',
+      resource_type: 'leave',
+      resource_id: 'leave-mine',
+      resource_name: '家長請假 / 2026-10-20 ~ 2026-10-21',
+      action: 'create',
+      details: { submittedByRole: 'parent', sessionCount: 3, retroactiveSessionCount: 1 },
+    });
+  });
+
+  it('別人孩子的假、別 org 的假、不是家長：一律不寫', async () => {
+    const db = createMultiOrgDb({ leave_requests: leaves, audit_logs: [] });
+    const mine = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    const none = createChildDb(db.client as never, null, 'org-1');
+
+    expect(await record(mine, 'leave-other')).toBe(false);
+    expect(await record(mine, 'leave-org2')).toBe(false);
+    expect(await record(none, 'leave-mine')).toBe(false);
+    expect(db.rows('audit_logs')).toHaveLength(0);
+  });
+});

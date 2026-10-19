@@ -87,6 +87,7 @@ function seed(extra: Record<string, Array<Record<string, unknown>>> = {}) {
     ],
     leave_requests: [],
     attendance_records: [],
+    audit_logs: [],
     ...extra,
   });
 }
@@ -149,6 +150,32 @@ describe('POST /api/me/leaves', () => {
     const call = vi.mocked(notifyLeaveForTeachers).mock.calls[0]![1];
     expect([...call.sessionIds].sort()).toEqual(['s-eng-1020', 's-math-1020', 's-math-1022']);
     expect(call.leaveId).toBe(leaves[0]!['id']);
+  });
+
+  // 計畫席 10-17：補請把缺席改成請假、沒有人核對 —— 稽核要記蓋到幾堂、幾堂是補請，不帶個資
+  it('稽核：記 parent、蓋到的堂數與補請（開始時間已過）的堂數；名字不進 resource_name', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T09:00:00Z')); // 台北 10/20 17:00：英文 14:00 已開始、數學 18:00 還沒
+    try {
+      const db = seed();
+      const { status, leaves } = await submit(
+        { startDate: '2026-10-01', endDate: '2026-10-22' },
+        db,
+      );
+      await new Promise((r) => setTimeout(r, 0)); // logAudit 在背景寫
+      expect(status).toBe(201);
+      const audit = db.rows('audit_logs');
+      expect(audit).toHaveLength(1);
+      expect(audit[0]).toMatchObject({
+        user_id: 'parent-user',
+        resource_type: 'leave',
+        resource_id: leaves[0]!['id'],
+        resource_name: '家長請假 / 2026-10-01 ~ 2026-10-22',
+        details: { submittedByRole: 'parent', sessionCount: 4, retroactiveSessionCount: 2 },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('單日時間窗只蓋時間重疊的堂（判準同管理端）', async () => {
@@ -233,18 +260,19 @@ describe('POST /api/me/leaves', () => {
     expect(status).toBe(201);
   });
 
-  it('別人的孩子：403，不寫任何資料、不通知', async () => {
-    const { status, body, leaves, records } = await submit({
-      studentId: OTHER_CHILD,
-      startDate: '2026-10-20',
-      endDate: '2026-10-20',
-    });
+  it('別人的孩子：403，不寫任何資料、不通知、不寫稽核', async () => {
+    const db0 = seed();
+    const { status, body, leaves, records } = await submit(
+      { studentId: OTHER_CHILD, startDate: '2026-10-20', endDate: '2026-10-20' },
+      db0,
+    );
 
     expect(status).toBe(403);
     expect(body.code).toBe('NOT_YOUR_CHILD');
     expect(leaves).toHaveLength(0);
     expect(records).toHaveLength(0);
     expect(notifyLeaveForTeachers).not.toHaveBeenCalled();
+    expect(db0.rows('audit_logs')).toHaveLength(0);
   });
 
   it('不是家長：403', async () => {
