@@ -207,6 +207,18 @@ describe('SettingsPage', () => {
     expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ leaveWaiverDays: 5 });
   });
 
+  it('leaveWaiverDays 儲存失敗：跳錯誤、按鈕不再 loading', async () => {
+    orgSettingsServiceMock.getSettings.mockReturnValue(
+      of({ ...DAILY_CHECKIN, leaveWaiverDays: 3 }),
+    );
+    orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
+    await setup();
+    const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+    component['saveLeaveWaiverDays']();
+    expect(component['savingLeaveWaiver']()).toBe(false);
+    expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+  });
+
   it('回應裡沒有 leaveWaiverDays（沒有財務權限）→ 不畫', async () => {
     await setup();
 

@@ -197,6 +197,41 @@ describe('leaveWaiverDays（#1732）', () => {
   it('改它算動到財務設定', () => {
     expect(touchesFinanceSettings({ leaveWaiverDays: 4 })).toBe(true);
   });
+
+  // 二讀突變（#1738）：DB 存非預設值 7，select 漏欄位會落到預設 3
+  const FIN = ['manage_org_settings', 'manage_finance'];
+  it('GET 與 PATCH 回的是 DB 裡的值（SELECT_FIELDS 要有這一欄）', async () => {
+    const { get, sendBody } = appWith(FIN, { leave_waiver_days: 7 });
+    expect(await (await get()).json()).toMatchObject({ leaveWaiverDays: 7 });
+    expect(await (await sendBody({ mealDefaultPrice: 80 })).json()).toMatchObject({
+      leaveWaiverDays: 7,
+    });
+  });
+
+  it('PATCH 真的寫進 leave_waiver_days', async () => {
+    const { sendBody, updates } = appWith(FIN, { leave_waiver_days: 7 });
+    const res = await sendBody({ leaveWaiverDays: 5 });
+    expect(res.status).toBe(200);
+    expect(updates).toEqual([{ leave_waiver_days: 5 }]);
+    expect(await res.json()).toMatchObject({ leaveWaiverDays: 5 });
+  });
+
+  it.each([
+    [1, 400],
+    [2, 200],
+    [30, 200],
+    [31, 400],
+  ])('邊界：%i → %i（DB 的 CHECK 也擋，但那樣會變 500）', async (days, status) => {
+    const { sendBody, updates } = appWith(FIN, { leave_waiver_days: 7 });
+    expect((await sendBody({ leaveWaiverDays: days })).status).toBe(status);
+    expect(updates).toEqual(status === 200 ? [{ leave_waiver_days: days }] : []);
+  });
+
+  it('只有 manage_org_settings：403，什麼都沒寫', async () => {
+    const { sendBody, updates } = appWith(['manage_org_settings']);
+    expect((await sendBody({ leaveWaiverDays: 5 })).status).toBe(403);
+    expect(updates).toEqual([]);
+  });
 });
 
 describe('touchesFinanceSettings', () => {
@@ -372,77 +407,87 @@ describe('PATCH /settings 的稽核紀錄（#828）', () => {
  * #1660（#1626 Q2）：家長繳費提醒時間點是機構設定，跟帳戶資訊同一道門檻（`manage_finance`）。
  * 範圍 [-30, 60]、最多 6 個、不重複；存的時候排序。
  */
-describe('invoiceReminderOffsets（#1660）', () => {
-  function appWith(permissions: string[]) {
-    const updates: Array<Record<string, unknown>> = [];
-    // DB 裡存的是非預設值 —— select 字串漏了這一欄的話，回應會落到預設的 [-3,0,1,7]
-    const row: Record<string, unknown> = {
-      id: 'org-1',
-      name: 'x',
-      attendance_mode: 'per_session',
-      invoice_reminder_offsets: [-1],
-    };
-    /** 只回 select 字串裡有的欄位（像 PostgREST 一樣），漏選的欄位就是不在 */
-    const project = (r: Record<string, unknown>, cols: string) =>
-      Object.fromEntries(
-        cols
-          .split(',')
-          .map((c) => c.trim())
-          .filter((c) => c in r)
-          .map((c) => [c, r[c]]),
-      );
-    const supabase = {
-      from(table: string) {
-        if (table === 'organizations') {
-          return {
-            select: (cols: string) => ({
+/** 照 select 字串投影的 organizations 替身（#1660 起）；`extra` 是 DB 裡已經存的非預設值 */
+function appWith(
+  permissions: string[],
+  extra: Record<string, unknown> = { invoice_reminder_offsets: [-1] },
+) {
+  const updates: Array<Record<string, unknown>> = [];
+  // DB 裡存的是非預設值 —— select 字串漏了這一欄的話，回應會落到預設的 [-3,0,1,7]
+  const row: Record<string, unknown> = {
+    id: 'org-1',
+    name: 'x',
+    attendance_mode: 'per_session',
+    ...extra,
+  };
+  /** 只回 select 字串裡有的欄位（像 PostgREST 一樣），漏選的欄位就是不在 */
+  const project = (r: Record<string, unknown>, cols: string) =>
+    Object.fromEntries(
+      cols
+        .split(',')
+        .map((c) => c.trim())
+        .filter((c) => c in r)
+        .map((c) => [c, r[c]]),
+    );
+  const supabase = {
+    from(table: string) {
+      if (table === 'organizations') {
+        return {
+          select: (cols: string) => ({
+            eq: () => ({
+              single: () => Promise.resolve({ data: project(row, cols), error: null }),
+            }),
+          }),
+          update: (u: Record<string, unknown>) => {
+            updates.push(u);
+            return {
               eq: () => ({
-                single: () => Promise.resolve({ data: project(row, cols), error: null }),
-              }),
-            }),
-            update: (u: Record<string, unknown>) => {
-              updates.push(u);
-              return {
-                eq: () => ({
-                  select: (cols: string) => ({
-                    single: () =>
-                      Promise.resolve({ data: project({ ...row, ...u }, cols), error: null }),
-                  }),
+                select: (cols: string) => ({
+                  single: () =>
+                    Promise.resolve({ data: project({ ...row, ...u }, cols), error: null }),
                 }),
-              };
-            },
-          };
-        }
-        if (table === 'profiles') {
-          return {
-            select: () => ({
-              eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
-            }),
-          };
-        }
-        return { insert: () => Promise.resolve({ error: null }) }; // audit_logs
-      },
-    };
-    const app = new Hono();
-    app.use('*', async (c, next) => {
-      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set;
-      set('roles', ['admin']);
-      set('permissions', permissions);
-      set('orgId', 'org-1');
-      set('userId', 'user-1');
-      set('supabase', supabase);
-      await next();
+              }),
+            };
+          },
+        };
+      }
+      if (table === 'profiles') {
+        return {
+          select: () => ({
+            eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+          }),
+        };
+      }
+      return { insert: () => Promise.resolve({ error: null }) }; // audit_logs
+    },
+  };
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    const set = (c as unknown as { set: (k: string, v: unknown) => void }).set;
+    set('roles', ['admin']);
+    set('permissions', permissions);
+    set('orgId', 'org-1');
+    set('userId', 'user-1');
+    set('supabase', supabase);
+    await next();
+  });
+  app.route('/', orgSettingsRoute as unknown as Hono);
+  const send = (offsets: unknown) =>
+    app.request('/settings', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ invoiceReminderOffsets: offsets }),
     });
-    app.route('/', orgSettingsRoute as unknown as Hono);
-    const send = (offsets: unknown) =>
-      app.request('/settings', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ invoiceReminderOffsets: offsets }),
-      });
-    const get = () => app.request('/settings');
-    return { send, updates, get };
-  }
+  const get = () => app.request('/settings');
+  const sendBody = (body: object) =>
+    app.request('/settings', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  return { send, updates, get, sendBody };
+}
+describe('invoiceReminderOffsets（#1660）', () => {
   const FINANCE = ['manage_org_settings', 'manage_finance'];
 
   it('GET 與 PATCH 回的是 DB 裡的值，不是預設值（SELECT_FIELDS 要有這一欄）', async () => {
