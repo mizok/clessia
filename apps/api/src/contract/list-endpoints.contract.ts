@@ -413,7 +413,9 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
   });
 
   // #1455：頁數超出結果（PostgREST 416 PGRST103）要是空頁 200、total 照實，不是 500／400
-  it('有 page 參數的列表：page=999 也 200，data 是空的', async () => {
+  // 只斷言 200：有的端點收 page 但某些模式不分頁（例：/api/meals 的單日名冊），回的就不是空的。
+  // 「空頁＋total 照實」由 lib/empty-page-on-416.spec 用真的 supabase-js 驗
+  it('有 page 參數的列表：page=999 也 200（不是 500／400）', async () => {
     ctx.campusScope = null;
     const paged = Object.entries(doc.paths)
       .filter(([path, ops]) => {
@@ -438,10 +440,9 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       ctx.role = ROLE[path] ?? 'admin';
       const url = `${list[0]}${list[0]!.includes('?') ? '&' : '?'}page=999`;
       const res = await app.request(url, {}, env);
-      const body = (await res.json().catch(() => null)) as { data?: unknown } | null;
-      if (res.status !== 200) failures.push(`${url} → ${res.status}`);
-      else if (Array.isArray(body?.data) && body.data.length > 0)
-        failures.push(`${url} → 不是空頁`);
+      if (res.status !== 200) {
+        failures.push(`${url} → ${res.status} ${(await res.text()).slice(0, 120)}`);
+      }
     }
     ctx.role = 'admin';
     expect(failures).toEqual([]);
