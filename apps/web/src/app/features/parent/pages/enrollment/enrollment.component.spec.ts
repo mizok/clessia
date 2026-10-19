@@ -152,10 +152,15 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
           cls({ classId: 'c-req', className: '國三理化 A 班', subject: '理化' }),
           cls({ classId: 'c-wl', className: '國三國文 A 班', subject: '國文' }),
           cls({ classId: 'c-low', className: '國三數學 B 班', remainingSeats: 2 }),
+          cls({ classId: 'c-pay', className: '國三數學 C 班' }),
         ],
         requests: [
           req({ id: 'r-a', classId: 'c-req', status: 'pending' }),
           req({ id: 'r-b', classId: 'c-wl', status: 'waitlist' }),
+          // 已核准待繳費也算「申請中」
+          req({ id: 'r-c', classId: 'c-pay', status: 'awaiting_payment' }),
+          // 別的孩子的申請不影響這個孩子能不能選
+          req({ id: 'r-d', classId: 'c-open', status: 'pending', studentId: 'kid-2' }),
         ],
       });
       expect([...el().querySelectorAll('h3')].map((h) => h.textContent!.trim())).toEqual(
@@ -165,6 +170,7 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(pick('c-in').disabled).toBe(true);
       expect(pick('c-req').disabled).toBe(true);
       expect(pick('c-wl').disabled).toBe(true);
+      expect(pick('c-pay').disabled).toBe(true);
       expect(text()).toContain('已在班上');
       expect(text()).toContain('申請中');
       expect(text()).toContain('已登記候補');
