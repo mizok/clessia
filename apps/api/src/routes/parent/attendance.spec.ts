@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ATTENDANCE_SELECT } from '../../lib/attendance-query';
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 
@@ -320,6 +321,12 @@ describe('GET /api/me/attendance —— 請假的堂：誰登記的、原因', (
     const { byId } = await get();
     expect(byId['bound-a']).toEqual(['parent', '只請 A 堂']);
     expect(byId['bound-b']).toEqual([null, null]);
+  });
+
+  // 替身不看 select 欄位（一律回整列），所以上一條守不住「select 有沒有撈 sessions.id」。
+  // 沒撈到的話 sessionId 是 null ＝日層級查詢，綁定型的假會套到當天每一堂（leave-covers-session.ts）
+  it('出勤查詢有撈 sessions 的 id（綁定型假靠它對堂）', () => {
+    expect(ATTENDANCE_SELECT.replace(/\s+/g, '')).toContain('sessions(id,');
   });
 
   it('讀假單失敗：500（不回半套資料）', async () => {
