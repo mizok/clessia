@@ -141,6 +141,17 @@ describe('mount() 的授權（#1730）', () => {
     expect(mounted).toEqual(Object.keys(EXPECTED).sort());
   });
 
+  // 路徑用變數或模板字串寫（`mount(SNEAKY, …)`、``app.route(`/api/x`, …)``）時，上面兩條抽路徑的 regex
+  // 抓不到 → 多一道「呼叫次數」對帳，不管參數怎麼寫（#1751 二讀）
+  it('呼叫次數也對得上：mount( 的次數＝表的筆數、app.route( 的次數＝白名單＋mount() 裡那一行', () => {
+    // 排除 `function mount(` 定義本身；縮排在區塊裡的呼叫也算
+    const mountCalls = source.match(/(?<![\w.$])(?<!function\s+)mount\(/g) ?? [];
+    expect(mountCalls).toHaveLength(Object.keys(EXPECTED).length);
+    // 任何 `.route(`（含把 app 換個名字再掛）都算
+    const routeCalls = source.match(/\.route\(/g) ?? [];
+    expect(routeCalls).toHaveLength(UNMOUNTED.length + 1);
+  });
+
   it('直接 app.route 掛的（不經過 mount 守衛）只有白名單那幾支', () => {
     // mount() 函式裡那行是 `app.route(path, route)`，第一個參數不是字串字面值，不會被抓到
     const direct = [...source.matchAll(/app\.route\(\s*'([^']+)'/g)].map((m) => m[1]).sort();
