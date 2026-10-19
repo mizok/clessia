@@ -351,6 +351,35 @@ describe('LeaveFormDialogComponent 嵌入（家長端）', () => {
     expect(closed).not.toHaveBeenCalled();
   });
 
+  // 審核席突變：失敗後沒有把 saving 放掉，按鈕會卡在「送出中…」、submit() 開頭也擋掉重送
+  it('送出失敗 → 錯誤留在表單、按鈕回到「送出請假」、再按一次會再送', async () => {
+    const create = vi
+      .fn()
+      .mockReturnValueOnce(
+        throwError(() => ({
+          status: 409,
+          error: { error: '這段時間已經請過假了', code: 'LEAVE_OVERLAP' },
+        })),
+      )
+      .mockReturnValueOnce(of({ data: { id: 'leave-2' } }));
+    const { f, c, closed } = await setup(create);
+    const go = () =>
+      [...(f.nativeElement as HTMLElement).querySelectorAll('button')].find((b) =>
+        /送出/.test(b.textContent ?? ''),
+      )!;
+
+    go().click();
+    f.detectChanges();
+    expect(c.errorMessage()).toBe('這段時間已經請過假了');
+    expect(go().textContent!.trim()).toBe('送出請假');
+    expect(go().getAttribute('aria-disabled')).toBe('false');
+
+    go().click();
+    f.detectChanges();
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(closed).toHaveBeenCalledWith({ data: { id: 'leave-2' } });
+  });
+
   it('網路失敗：通用訊息、不關', async () => {
     const create = vi.fn(() =>
       throwError(() => ({ status: 0, error: new ProgressEvent('error') })),
