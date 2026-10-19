@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
-import { notifyLeaveForTeachers } from './notify-leave';
+import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 
 /**
  * #1693 有學生請了老師的課 → 那幾堂的老師。替身真的套條件：拿掉 org 條件或分組，
@@ -176,6 +176,147 @@ describe('notifyLeaveForTeachers（#1693：學生請了老師的課）', () => {
       },
     } as unknown as SupabaseClient;
     await expect(notifyLeaveForTeachers(broken, input())).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'db down');
+  });
+});
+
+/** #1695 家長請假 → 被請假的堂所屬分校、有 basic_operations 的管理員（`leave_received`） */
+describe('notifyLeaveForAdmins（#1695：家長請假通知分校管理員）', () => {
+  const adminDb = () =>
+    createMultiOrgDb({
+      sessions: [
+        // 刻意晚的放前面：內文要取日期最早那堂
+        {
+          id: 'ses-late',
+          org_id: A,
+          session_date: '2026-10-27',
+          classes: { name: '數學 A 班', campus_id: 'c1' },
+        },
+        {
+          id: 'ses-c1',
+          org_id: A,
+          session_date: '2026-10-20',
+          classes: { name: '數學 A 班', campus_id: 'c1' },
+        },
+        {
+          id: 'ses-c2',
+          org_id: A,
+          session_date: '2026-10-21',
+          classes: { name: '英文 B 班', campus_id: 'c2' },
+        },
+        {
+          id: 'ses-x',
+          org_id: B,
+          session_date: '2026-10-22',
+          classes: { name: '別人的班', campus_id: 'c2' },
+        },
+      ],
+      staff: [
+        { id: 's-c1', user_id: 'u-c1', org_id: A, status: 'active' },
+        { id: 's-c2', user_id: 'u-c2', org_id: A, status: 'active' },
+        { id: 's-star', user_id: 'u-star', org_id: A, status: 'active' },
+        { id: 's-weak', user_id: 'u-weak', org_id: A, status: 'active' },
+        { id: 's-other', user_id: 'u-other', org_id: B, status: 'active' },
+      ],
+      user_roles: [
+        { user_id: 'u-c1', role: 'admin', permissions: ['basic_operations'] },
+        { user_id: 'u-c2', role: 'admin', permissions: ['basic_operations'] },
+        { user_id: 'u-star', role: 'admin', permissions: ['*'] },
+        { user_id: 'u-weak', role: 'admin', permissions: ['manage_finance'] },
+        { user_id: 'u-other', role: 'admin', permissions: ['*'] },
+      ],
+      staff_campuses: [
+        { staff_id: 's-c1', campus_id: 'c1' },
+        { staff_id: 's-c2', campus_id: 'c2' },
+        { staff_id: 's-star', campus_id: 'c1' },
+        { staff_id: 's-weak', campus_id: 'c1' },
+        { staff_id: 's-other', campus_id: 'c2' },
+      ],
+      notifications: [],
+    });
+
+  const adminInput = (over: Partial<Parameters<typeof notifyLeaveForAdmins>[1]> = {}) => ({
+    orgId: A,
+    leaveId: 'leave-1',
+    studentName: '王小明',
+    reason: '發燒',
+    sessionIds: ['ses-late', 'ses-c1'],
+    retroactive: false,
+    ...over,
+  });
+
+  const got = (db: ReturnType<typeof adminDb>) =>
+    db
+      .rows('notifications')
+      .map((n) => {
+        const p = n['payload'] as { title: string; body: string };
+        return `${n['user_id']}|${p.title}|${p.body}`;
+      })
+      .sort();
+
+  it('只發給這幾堂所屬分校、有 basic_operations（或 *）的管理員；內容取最早那堂、去重鍵、連結、不推播', async () => {
+    const db = adminDb();
+    await notifyLeaveForAdmins(db.client as SupabaseClient, adminInput());
+    expect(got(db)).toEqual([
+      'u-c1|家長請假|王小明的家長請假：10/20（二）數學 A 班 等 2 堂，原因：發燒',
+      'u-star|家長請假|王小明的家長請假：10/20（二）數學 A 班 等 2 堂，原因：發燒',
+    ]);
+    expect(db.rows('notifications').find((n) => n['user_id'] === 'u-c1')).toMatchObject({
+      org_id: A,
+      role: 'admin',
+      kind: 'leave_received',
+      dedupe_key: 'leave:leave-1:u-c1',
+      payload: { url: '/admin/leave' },
+      push_status: 'skipped',
+      push_error: 'ROLE_PUSH_DISABLED',
+    });
+  });
+
+  it('跨分校的假：兩邊分校的管理員都收，一人一則', async () => {
+    const db = adminDb();
+    await notifyLeaveForAdmins(
+      db.client as SupabaseClient,
+      adminInput({ sessionIds: ['ses-c1', 'ses-c2'], reason: null }),
+    );
+    expect(got(db)).toEqual([
+      'u-c1|家長請假|王小明的家長請假：10/20（二）數學 A 班 等 2 堂',
+      'u-c2|家長請假|王小明的家長請假：10/20（二）數學 A 班 等 2 堂',
+      'u-star|家長請假|王小明的家長請假：10/20（二）數學 A 班 等 2 堂',
+    ]);
+  });
+
+  it('蓋到已開始的課：標題標「補請」；重送同一張不重複', async () => {
+    const db = adminDb();
+    await notifyLeaveForAdmins(
+      db.client as SupabaseClient,
+      adminInput({ sessionIds: ['ses-c2'], retroactive: true, reason: '  ' }),
+    );
+    await notifyLeaveForAdmins(
+      db.client as SupabaseClient,
+      adminInput({ sessionIds: ['ses-c2'], retroactive: true, reason: '  ' }),
+    );
+    expect(got(db)).toEqual([
+      'u-c2|家長請假（補請）|王小明的家長請假：10/21（三）英文 B 班',
+      // `*` 是全分校
+      'u-star|家長請假（補請）|王小明的家長請假：10/21（三）英文 B 班',
+    ]);
+  });
+
+  it('別的 org 的課堂不算；沒蓋到任何堂就不發', async () => {
+    const db = adminDb();
+    await notifyLeaveForAdmins(db.client as SupabaseClient, adminInput({ sessionIds: ['ses-x'] }));
+    await notifyLeaveForAdmins(db.client as SupabaseClient, adminInput({ sessionIds: [] }));
+    expect(got(db)).toEqual([]);
+  });
+
+  it('查詢失敗不丟例外，只記 [notify] log', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const broken = {
+      from: () => {
+        throw new Error('db down');
+      },
+    } as unknown as SupabaseClient;
+    await expect(notifyLeaveForAdmins(broken, adminInput())).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'db down');
   });
 });

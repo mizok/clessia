@@ -255,24 +255,26 @@ app.openapi(
       return Date.parse(`${s['session_date'] as string}T${start.slice(0, 5)}:00+08:00`);
     };
     const now = Date.now();
+    const retroactiveSessionCount = changed.filter((s) => startedAt(s) <= now).length;
     const wu = waitUntilFrom(c);
     await childDb.recordLeave(
       leave['id'] as string,
       {
         sessionCount: changed.length,
-        retroactiveSessionCount: changed.filter((s) => startedAt(s) <= now).length,
+        retroactiveSessionCount,
         skippedAttendedCount,
       },
       userId,
       wu,
     );
 
-    // 7. 通知老師（背景，失敗不擋），只列真的改成請假的堂。管理員的 leave_received 等 migration（#1695 第 2 張）；
+    // 7. 通知老師與分校管理員（背景，失敗不擋），只列真的改成請假的堂；有一堂已經開始，管理員那則標「補請」。
     //    #1732 的連續請假偵測也掛在這裡之後（kb/wiki/specs/admin/finance/leave-streak-waiver.md §3）
     const job = childDb.notifyLeave(
       leave['id'] as string,
       changed.map((s) => s['id'] as string),
       userId,
+      retroactiveSessionCount > 0,
     );
     if (wu) wu(job);
     else await job;
