@@ -22,7 +22,7 @@ import {
 import { StudentsService, type Student } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
-import { LeaveFormDialogComponent } from './leave-form-dialog.component';
+import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';

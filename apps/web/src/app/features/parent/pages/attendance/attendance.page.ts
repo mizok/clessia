@@ -7,9 +7,12 @@ import {
   input,
   signal,
   untracked,
+  viewChild,
+  type ElementRef,
 } from '@angular/core';
+import { MessageService } from 'primeng/api';
 import { FormsModule } from '@angular/forms';
-import { subDays, format, startOfMonth, endOfMonth } from 'date-fns';
+import { subDays, format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -22,6 +25,8 @@ import {
 } from '@core/parent-attendance.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
+import type { CreateLeaveInput } from '@core/leave.service';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
@@ -61,6 +66,7 @@ const PAGE_SIZE = 50;
     StatusDotComponent,
     DataChipComponent,
     EmptyStateComponent,
+    LeaveFormDialogComponent,
   ],
   templateUrl: './attendance.page.html',
 })
@@ -69,6 +75,7 @@ export class AttendancePage implements OnInit {
 
   private readonly childScope = inject(ChildScopeService);
   private readonly attendanceService = inject(ParentAttendanceService);
+  private readonly messageService = inject(MessageService);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
 
@@ -82,6 +89,17 @@ export class AttendancePage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly expandedId = signal<string | null>(null);
+
+  /** 幫孩子請假（#1695，A6 p-attendance `forms.leave`）：學生固定是目前選中的孩子 */
+  protected readonly activeChild = this.childScope.activeChild;
+  protected readonly leaveOpen = signal(false);
+  private readonly leaveDialog = viewChild<ElementRef<HTMLDialogElement>>('leaveDialog');
+  /** 送出時記下填的開始日期，toast 要寫「已登記 {孩子} {M/D} 請假」 */
+  private leaveStart: string | null = null;
+  protected readonly createLeave = (body: CreateLeaveInput) => {
+    this.leaveStart = body.startDate;
+    return this.attendanceService.createLeave(body);
+  };
 
   /**
    * 本月缺席次數（錨點）。`null` = 還沒有值，**不是 0**。
@@ -144,6 +162,31 @@ export class AttendancePage implements OnInit {
 
   protected onMonthChange(month: Date | null): void {
     this.selectedMonth.set(month ?? new Date());
+  }
+
+  protected openLeave(): void {
+    this.leaveOpen.set(true);
+    // 等 @if 把表單畫進 dialog 再 showModal（焦點才落得到第一個欄位）
+    queueMicrotask(() => this.leaveDialog()?.nativeElement.showModal());
+  }
+
+  protected closeLeave(): void {
+    this.leaveDialog()?.nativeElement.close();
+  }
+
+  /** 點背景（dialog 本身，不是裡面的表單）關掉，同 A6 `form()` */
+  protected onLeaveBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeLeave();
+  }
+
+  protected onLeaveClosed(result: unknown): void {
+    this.closeLeave();
+    const child = this.activeChild();
+    if (!result || !child) return;
+    const start = this.leaveStart ? format(parseISO(this.leaveStart), 'M/d') : '';
+    this.messageService.add({ severity: 'success', summary: `已登記 ${child.name} ${start} 請假` });
+    // 重抓目前期間：範圍內的課就地變「請假」
+    this.load(child.id, 1);
   }
 
   protected toggleExpanded(record: ParentAttendanceRecord): void {

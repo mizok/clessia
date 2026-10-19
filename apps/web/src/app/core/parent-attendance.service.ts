@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
+import type { CreateLeaveInput } from '@core/leave.service';
 
 /** 三態，跟系統的既有出勤狀態一致——**沒有「遲到」**，全系統從來沒有這個狀態 */
 export type ParentAttendanceStatus = 'present' | 'absent' | 'on_leave';
@@ -70,5 +71,13 @@ export class ParentAttendanceService {
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
 
     return this.http.get<ParentAttendanceListResponse>(this.base, { params: query });
+  }
+
+  /**
+   * 家長幫孩子請假（#1695，`POST /api/me/leaves`）：送出即生效。錯誤碼 `NO_SESSIONS`／`ALL_ATTENDED`（400）、
+   * `LEAVE_OVERLAP`（409）由共用表單顯示在表單裡
+   */
+  createLeave(body: CreateLeaveInput): Observable<unknown> {
+    return this.http.post(`${environment.apiUrl}/api/me/leaves`, body);
   }
 }

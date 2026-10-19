@@ -12,7 +12,7 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { StudentsService } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { LeavePage } from './leave.page';
-import { LeaveFormDialogComponent } from './leave-form-dialog.component';
+import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
 describe('LeavePage', () => {
