@@ -137,6 +137,7 @@
 - [[specs/parent/attendance]] — 查看孩子的到班歷史。
 - [[specs/parent/dashboard]] — 家長首頁，快速掌握孩子今日狀況。
 - [[specs/parent/enrollment]] — 已有帳號的家長為孩子加報課程、查看申請狀態。
+- [[specs/parent/leave]] — 設計稿（#1695，10-17 已批准）：家長在到班紀錄頁幫孩子請假（照 A6，時間區間、只能請還沒開始的課、沒有課就擋），/api/me/leaves 與管理端共用建立核心，通知管理員（leave_received）與任課老師。
 - [[specs/parent/grades]] — 查看孩子的考試成績。
 - [[specs/parent/meals]] — 查看孩子的餐費紀錄。
 - [[specs/parent/notifications]] — 查看課務異動通知。
