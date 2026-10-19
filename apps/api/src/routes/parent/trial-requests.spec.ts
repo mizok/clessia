@@ -192,6 +192,42 @@ describe('GET /api/me/trial-requests', () => {
     expect(pick('t-done')).toEqual(['2026-10-21', '18:30', '20:00']);
     expect(pick('t-wait')).toEqual([null, null, null]);
   });
+
+  // #1727 Q-b：試聽沒有取消鈕，詳情要放分校電話。課程的分校讀不到（別 org、沒這間）或沒填電話 → null
+  it('帶課程所屬分校的名稱與電話；讀不到或沒電話 → null', async () => {
+    const row = (id: string, campusId: string | null) => ({
+      id,
+      org_id: ORG,
+      student_id: MY_CHILD,
+      course_id: MATH,
+      status: 'pending',
+      courses: { name: '數學', campus_id: campusId },
+    });
+    const db = seed({
+      campuses: [
+        { id: 'cp-main', org_id: ORG, name: '總校', phone: '02-2345-6789' },
+        { id: 'cp-nophone', org_id: ORG, name: '二校', phone: '  ' },
+        { id: 'cp-foreign', org_id: 'org-2', name: '別家', phone: '03-000-0000' },
+      ],
+      trial_requests: [
+        row('t-main', 'cp-main'),
+        row('t-nophone', 'cp-nophone'),
+        row('t-foreign', 'cp-foreign'),
+        row('t-none', null),
+      ],
+    });
+    const body = (await (await appFor(db).request('/')).json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+    const pick = (id: string) => {
+      const r = body.data.find((x) => x['id'] === id)!;
+      return [r['campusName'], r['campusPhone']];
+    };
+    expect(pick('t-main')).toEqual(['總校', '02-2345-6789']);
+    expect(pick('t-nophone')).toEqual(['二校', null]);
+    expect(pick('t-foreign')).toEqual([null, null]);
+    expect(pick('t-none')).toEqual([null, null]);
+  });
 });
 
 // 替身不看 select 欄位（一律回整列），上面的 spec 守不住「select 有沒有撈」—— 直接斷言（同 #1742 的做法）
@@ -200,5 +236,9 @@ describe('試聽申請的 select', () => {
     expect(SELECT).toContain('scheduled_date');
     expect(SELECT).toContain('scheduled_start_time');
     expect(SELECT).toContain('scheduled_end_time');
+  });
+
+  it('課程有撈 campus_id（分校電話靠它查）', () => {
+    expect(SELECT).toMatch(/courses\([^)]*campus_id/);
   });
 });
