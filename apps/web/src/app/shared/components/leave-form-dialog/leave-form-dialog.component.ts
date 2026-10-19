@@ -1,10 +1,11 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { TextareaModule } from 'primeng/textarea';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import type { Observable } from 'rxjs';
 import { format, parseISO } from 'date-fns';
 import {
   StudentsService,
@@ -53,7 +54,9 @@ function toTimeDate(time: string | null): Date | null {
   ],
   template: `
     <div class="flex flex-col gap-5 py-2">
-      @if (fixedStudentName(); as fixedName) {
+      <!-- 嵌入（家長端）時學生寫在外框的副標，這裡不出學生欄（A6 forms.leave） -->
+      @if (student()) {
+      } @else if (fixedStudentName(); as fixedName) {
         <div class="flex w-full flex-col gap-1.5">
           <label class="text-sm font-medium text-zinc-700">學生</label>
           <strong>{{ fixedName }}</strong>
@@ -110,7 +113,7 @@ function toTimeDate(time: string | null): Date | null {
               placeholder="開始日期"
               dateFormat="yy-mm-dd"
               styleClass="w-full"
-              appendTo="body"
+              [appendTo]="appendTo()"
             />
             <p-datepicker
               [(ngModel)]="startTime"
@@ -118,7 +121,7 @@ function toTimeDate(time: string | null): Date | null {
               hourFormat="24"
               placeholder="開始時間"
               styleClass="w-full"
-              appendTo="body"
+              [appendTo]="appendTo()"
             />
           </div>
         </div>
@@ -133,7 +136,7 @@ function toTimeDate(time: string | null): Date | null {
               dateFormat="yy-mm-dd"
               [minDate]="startDate ?? undefined"
               styleClass="w-full"
-              appendTo="body"
+              [appendTo]="appendTo()"
             />
             <p-datepicker
               [(ngModel)]="endTime"
@@ -141,7 +144,7 @@ function toTimeDate(time: string | null): Date | null {
               hourFormat="24"
               placeholder="結束時間"
               styleClass="w-full"
-              appendTo="body"
+              [appendTo]="appendTo()"
             />
           </div>
         </div>
@@ -175,20 +178,34 @@ function toTimeDate(time: string | null): Date | null {
   `,
 })
 export class LeaveFormDialogComponent implements OnInit {
-  private readonly dialogRef = inject(DynamicDialogRef);
+  /** 管理端由 DialogService 開（有 ref）；家長端直接嵌在頁面的 `<dialog>` 裡（沒有 ref，靠 `closed`） */
+  private readonly dialogRef = inject(DynamicDialogRef, { optional: true });
+  private readonly config = inject(DynamicDialogConfig, { optional: true });
   private readonly studentsService = inject(StudentsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly leaveService = inject(LeaveService);
   // 編輯模式：`data.leave` 有值。換學生等於撤掉再開一張（PATCH 沒有 studentId），所以學生唯讀。
-  protected readonly editing: LeaveRequest | null =
-    inject(DynamicDialogConfig, { optional: true })?.data?.leave ?? null;
+  protected readonly editing: LeaveRequest | null = this.config?.data?.leave ?? null;
+
+  /**
+   * 嵌入用（家長端，#1695）：學生固定是這一位，不出學生欄；A6 `forms.leave` 的預設
+   * 今天 17:00–21:00 也只在這條路帶（管理端的行為不變）
+   */
+  readonly student = input<{ id: string; name: string } | null>(null);
+  /** 嵌入用：送出走哪支 API（家長端是 `/api/me/leaves`）；沒給就是管理端的 `LeaveService.create` */
+  readonly create = input<((body: CreateLeaveInput) => Observable<unknown>) | null>(null);
+  /** 嵌入在原生 `<dialog>`（top layer）裡時，日期面板要掛在 dialog 上，掛到 body 會被蓋住 */
+  readonly appendTo = input<HTMLElement | 'body'>('body');
+  /** 嵌入用：送出成功帶回建立的假、取消帶 null（DialogService 開的走 `dialogRef.close`） */
+  readonly closed = output<unknown>();
 
   // 預帶學生（學生檔案的「登記請假」）：`data.student` 有值就跟編輯一樣學生唯讀，不給選
-  protected readonly presetStudent: { id: string; name: string } | null =
-    inject(DynamicDialogConfig, { optional: true })?.data?.student ?? null;
+  protected presetStudent(): { id: string; name: string } | null {
+    return this.config?.data?.student ?? this.student();
+  }
 
   protected fixedStudentName(): string | null {
-    return this.editing?.studentName ?? this.presetStudent?.name ?? null;
+    return this.editing?.studentName ?? this.presetStudent()?.name ?? null;
   }
 
   protected selectedCampusId: string | null = null;
@@ -226,7 +243,12 @@ export class LeaveFormDialogComponent implements OnInit {
       this.reason = leave.reason ?? '';
       return;
     }
-    if (this.presetStudent) return;
+    if (this.student()) {
+      this.startDate = this.endDate = new Date();
+      this.startTime = toTimeDate('17:00');
+      this.endTime = toTimeDate('21:00');
+    }
+    if (this.presetStudent()) return;
     this.refData.loadCampuses();
   }
 
@@ -261,7 +283,7 @@ export class LeaveFormDialogComponent implements OnInit {
 
   protected submit(): void {
     const student = this.selectedStudent;
-    if (!this.editing && !this.presetStudent && !isStudentSelection(student)) {
+    if (!this.editing && !this.presetStudent() && !isStudentSelection(student)) {
       this.errorMessage.set('請從建議清單選擇一位學生');
       return;
     }
@@ -293,21 +315,24 @@ export class LeaveFormDialogComponent implements OnInit {
       endTime: this.endTime ? format(this.endTime, 'HH:mm') : null,
       reason: this.reason || null,
     };
-    const request$ = this.editing
+    const create = (body: CreateLeaveInput) =>
+      this.create()?.(body) ?? this.leaveService.create(body);
+    const request$: Observable<unknown> = this.editing
       ? this.leaveService.update(this.editing.id, fields)
-      : this.leaveService.create({
-          studentId: this.presetStudent?.id ?? (student as Student).id,
-          ...fields,
-        } satisfies CreateLeaveInput);
+      : create({ studentId: this.presetStudent()?.id ?? (student as Student).id, ...fields });
 
     request$.subscribe({
       next: (leave) => {
         this.saving.set(false);
-        this.dialogRef.close(leave);
+        this.close(leave);
       },
       error: (err) => {
         this.saving.set(false);
-        const msg = err?.error?.message;
+        // 錯誤留在表單、填的不清（#1695 §5）。家長端回 `{ error, code }`，管理端回 `{ error, message }`
+        const msg =
+          err?.error?.code === 'NO_SESSIONS'
+            ? `這段時間 ${this.fixedStudentName()} 沒有課`
+            : (err?.error?.message ?? (err?.error?.code ? err.error.error : undefined));
         this.errorMessage.set(
           msg ?? (this.editing ? '儲存失敗，請稍後再試' : '新增請假失敗，請稍後再試'),
         );
@@ -316,6 +341,11 @@ export class LeaveFormDialogComponent implements OnInit {
   }
 
   protected cancel(): void {
-    this.dialogRef.close(null);
+    this.close(null);
+  }
+
+  private close(result: unknown): void {
+    if (this.dialogRef) this.dialogRef.close(result);
+    else this.closed.emit(result);
   }
 }

@@ -442,6 +442,14 @@ export const PAGES = {
   dashboard: { a6: 'dashboard.html', app: '/admin/dashboard' },
   enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
   leave: { a6: 'leave.html', app: '/admin/leave' },
+  // 家長端到班紀錄（#1695 第 3 張）：家長登入態；「幫孩子請假」兩邊都是 JS 打開的 <dialog>（稿 a6.js form()、app 原生 showModal）
+  'p-attendance': {
+    a6: 'p-attendance.html',
+    app: '/parent/attendance',
+    state: path.join(cache, 'state-parent.json'),
+    a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
+    appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
+  },
   staff: { a6: 'staff.html', app: '/admin/staff' },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {
