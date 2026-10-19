@@ -145,12 +145,20 @@ describe('GET /api/me/catalog', () => {
       expect(body.code).toBe('CHILD_OUT_OF_SCOPE');
     });
 
-    it('只回本 org、啟用中、未結束、孩子今天沒在籍的班；已結束的舊報名不影響', async () => {
+    // #1727 Q5 (a)：孩子已在班上的**也回**、標 enrolled（報名頁要「列出但不能選、寫原因」，A6 p-enrollment）；
+    // 加選、試聽頁在前端濾掉。已結束的舊報名不算在班上
+    it('只回本 org、啟用中、未結束的班；孩子今天在籍的標 enrolled，已結束的舊報名不算', async () => {
       const { res, body } = await get(appWith(seed()));
       expect(res.status).toBe(200);
-      expect(body.data.map((c: { classId: string }) => c.classId).sort()).toEqual(
-        [CLS_MATH, CLS_ENG, CLS_OLD].sort(),
+      const enrolled = Object.fromEntries(
+        body.data.map((c: { classId: string; enrolled: boolean }) => [c.classId, c.enrolled]),
       );
+      expect(enrolled).toEqual({
+        [CLS_MATH]: false,
+        [CLS_ENG]: false,
+        [CLS_ENROLLED]: true,
+        [CLS_OLD]: false,
+      });
     });
 
     /**
@@ -165,8 +173,71 @@ describe('GET /api/me/catalog', () => {
       );
 
       expect(body.data.map((c: { classId: string }) => c.classId).sort()).toEqual(
-        [CLS_MATH, CLS_ENG].sort(),
+        [CLS_MATH, CLS_ENG, CLS_ENROLLED].sort(),
       );
+    });
+  });
+
+  // #1727 Q5 (a)：A6 p-add-course「直接標出撞時間的班」—— 用孩子今天在籍的班、今天仍有效的時段算
+  describe('conflictsWith', () => {
+    const slot = (
+      weekday: number,
+      start: string,
+      end: string,
+      effective_to: string | null = null,
+    ) => ({
+      weekday,
+      start_time: start,
+      end_time: end,
+      teacher_id: 't-1',
+      effective_to,
+      teacher: { display_name: '王老師' },
+    });
+    const conflicts = async () => {
+      const { body } = await get(
+        appWith(
+          seed({
+            // 在籍的班 CLS_ENROLLED 用預設：週二 18–20（有效）、週四 18–20（已失效）
+            [CLS_MATH]: { schedules: [slot(2, '19:00:00', '21:00:00')] }, // 重疊一小時
+            [CLS_ENG]: {
+              schedules: [slot(2, '20:00:00', '21:00:00'), slot(4, '18:00:00', '20:00:00')],
+            }, // 接著上、撞的是已失效時段
+            // 舊報名（已結束）的班當作別的班：它的時段不該算孩子的課
+            [CLS_OLD]: { schedules: [slot(2, '17:00:00', '18:30:00')] },
+          }),
+        ),
+      );
+      return Object.fromEntries(
+        body.data.map((c: { classId: string; conflictsWith: string | null }) => [
+          c.classId,
+          c.conflictsWith,
+        ]),
+      );
+    };
+
+    it('時段重疊 → 回撞到的在籍班名；接著上、撞到已失效時段 → null；在籍的班自己 → null', async () => {
+      const result = await conflicts();
+      expect(result[CLS_MATH]).toBe('班 13');
+      expect(result[CLS_ENG]).toBeNull();
+      expect(result[CLS_ENROLLED]).toBeNull();
+    });
+
+    it('已結束的舊報名不算孩子現在的課：別的班跟它撞不標', async () => {
+      const { body } = await get(
+        appWith(
+          seed({
+            [CLS_MATH]: { schedules: [slot(6, '10:00:00', '12:00:00')] },
+            [CLS_OLD]: { schedules: [slot(6, '10:00:00', '12:00:00')] },
+          }),
+        ),
+      );
+      const math = body.data.find((c: { classId: string }) => c.classId === CLS_MATH);
+      expect(math.conflictsWith).toBeNull();
+    });
+
+    it('舊報名的班本身撞到在籍班時照標（它對孩子是可加選的班）', async () => {
+      const result = await conflicts();
+      expect(result[CLS_OLD]).toBe('班 13');
     });
   });
 
@@ -190,6 +261,9 @@ describe('GET /api/me/catalog', () => {
         matchesGrade: true,
         fee: null,
         isRecommended: false,
+        enrolled: false,
+        // 預設時段都是週二 18–20，跟在籍的 CLS_ENROLLED 撞
+        conflictsWith: '班 13',
       });
     });
 
