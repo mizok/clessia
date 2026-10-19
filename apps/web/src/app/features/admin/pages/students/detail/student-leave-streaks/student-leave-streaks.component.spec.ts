@@ -124,6 +124,31 @@ describe('StudentLeaveStreaksComponent（#1732）', () => {
     expect(el.querySelector('button')).toBeNull();
   });
 
+  it('已處理的日期用台北日：UTC 10/19 16:30＝台北 10/20 00:30 → 寫 10/20', async () => {
+    const { text } = await setup([
+      streak({
+        review: {
+          id: 'r1',
+          reviewedBy: 'u',
+          reviewerName: '王主任',
+          reviewedAt: '2026-10-19T16:30:00Z',
+        },
+      }),
+    ]);
+    expect(text()).toContain('王主任 10/20');
+  });
+
+  it('標記失敗（非 409）：跳錯誤、按鈕可以再按', async () => {
+    const { el, fixture } = await setup([streak()]);
+    service.markReviewed.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    el.querySelector('button')!.click();
+    fixture.detectChanges();
+    expect(add).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', summary: '標記失敗' }),
+    );
+    expect(el.querySelector('button')!.disabled).toBe(false);
+  });
+
   it('標為已處理：送這一段的起訖、重抓、toast 帶復原；按復原會刪那一列再重抓', async () => {
     const { el } = await setup([streak()]);
     service.markReviewed.mockReturnValue(

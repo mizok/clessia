@@ -756,6 +756,58 @@ describe('PaymentsPage', () => {
       expect(pills[0]!.getAttribute('href')).toBe('/admin/students/stu-2#billing');
     });
 
+    const settle = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80)); // debounce
+      fixture.detectChanges();
+    };
+    const pills = () => [...el().querySelectorAll('[data-testid="streak-pill"]')];
+
+    it('連續請假：API 一次最多 100 個 → 101 位學生分兩批（100＋1）', async () => {
+      leaveStreaks.flags.mockClear();
+      leaveStreaks.flags.mockReturnValue(of({ data: [] }));
+      const rows = Array.from({ length: 101 }, (_, n) =>
+        invoice({
+          id: `inv-${n}`,
+          studentId: `stu-${String(n).padStart(3, '0')}`,
+          dueDate: '2020-01-01',
+        }),
+      );
+      await loadOverdue(rows);
+      await settle();
+      const sizes = leaveStreaks.flags.mock.calls.slice(-2).map(([ids]) => ids.length);
+      expect(sizes).toEqual([100, 1]);
+    });
+
+    it('同一位學生兩段（3 天、5 天）：小標寫最大的 5', async () => {
+      leaveStreaks.flags.mockReturnValue(
+        of({
+          data: [
+            { studentId: 'stu-1', firstDay: '2026-09-01', lastDay: '2026-09-03', days: 5 },
+            { studentId: 'stu-1', firstDay: '2026-10-14', lastDay: '2026-10-16', days: 3 },
+          ],
+        }),
+      );
+      await loadOverdue();
+      await settle();
+      expect(pills().map((p) => p.textContent!.trim())).toEqual(['連請 5 天']);
+    });
+
+    it('查詢失敗一次之後，學生換了照常再抓、會畫（失敗不能讓整條訂閱斷掉）', async () => {
+      leaveStreaks.flags.mockReturnValueOnce(throwError(() => new Error('x')));
+      await loadOverdue();
+      await settle();
+      expect(pills()).toHaveLength(0);
+
+      leaveStreaks.flags.mockReturnValue(
+        of({
+          data: [{ studentId: 'stu-9', firstDay: '2026-10-14', lastDay: '2026-10-16', days: 3 }],
+        }),
+      );
+      await loadOverdue([invoice({ id: 'inv-9', studentId: 'stu-9', dueDate: '2020-01-01' })]);
+      await settle();
+      expect(pills()).toHaveLength(1);
+    });
+
     it('連續請假查詢失敗：不畫小標，帳單照常', async () => {
       leaveStreaks.flags.mockReturnValue(throwError(() => new Error('x')));
       await loadOverdue();

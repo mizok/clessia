@@ -13,6 +13,7 @@ import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { MessageService } from 'primeng/api';
 
 import { LeaveStreaksService, type LeaveStreakDetail } from '@core/leave-streaks.service';
+import { taipeiDateString } from '@core/system-clock.service';
 
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -99,7 +100,9 @@ export class StudentLeaveStreaksComponent implements OnInit {
 
   protected reviewedLine(streak: LeaveStreakDetail): string {
     const r = streak.review!;
-    const at = `${Number(r.reviewedAt.slice(5, 7))}/${Number(r.reviewedAt.slice(8, 10))}`;
+    // reviewedAt 是 UTC 的 timestamptz：直接切字串，台北 00:00–07:59 標的會變成前一天
+    const day = taipeiDateString(Date.parse(r.reviewedAt));
+    const at = `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}`;
     return `已處理：${this.range(streak)}，${r.reviewerName ? `${r.reviewerName} ` : ''}${at}`;
   }
 
