@@ -608,3 +608,48 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 
 - main 加了新依賴（`altcha-lib` 在 apps/api、`altcha` 在根目錄）之後，**根目錄與 apps/api 都要 `npm ci`**，否則 typecheck／build／harness 會以「找不到模組」紅，看起來像 PR 壞了。
 - 本機 DB 的 migration 狀態會被 db-reset 席改變；跑契約測試前查 `supabase_migrations.schema_migrations`，知道自己測的是哪個 schema。
+
+## 10-16～10-19 代合（約 35 支，含 1 支 migration）學到的，一頁版
+
+**只放知識。** 這一任大約四成的 PR 第一輪被擋，幾乎全是「刻意改壞一個判斷，測試全綠」。狀態看 PR。
+
+### 一、我自己的突變會失準 —— 先確認它真的跑了
+
+- **zsh 不拆 `$VAR`**：把 spec 清單放進字串變數，vitest 收到一整串路徑、一支都沒跑，輸出只剩契約那幾行（#1716 第一輪）。**用陣列 `"${SPECS[@]}"`**；每次看到摘要少了單元那行，就當這輪無效。
+- **grep 過濾會吃掉真正的結果**：契約輸出裡有「50 位管理員 **×** 200 張帳單」，含失敗符號，`head` 先截到它（#1720）；harness 失敗印的是 `✖` 不是 `✗`（#1728 本機漏看）。先 `grep -v` 雜訊，摘要行要看到 `Tests` 才算數。
+- **突變要換掉呼叫本身**：`const job = f(); … if (wu) wu(job)` 這種寫法，拿掉 `wu(job)` 不算拿掉呼叫，promise 一建立就開跑（#1711）。
+- **`if (false)` 可能讓 TS 收窄失敗 → 編譯錯 → spec 一支都沒跑**（#1679 的 `key === null`）。改成能編譯的寫法（改回傳值）再跑。
+- **錨點命中兩次**：同一句在 `insertMany` 和 `upsert` 都有、或註解裡也有（#1709、#1734）。`mut.py` 的 assert 會擋，但要記得重跑。
+
+### 二、反覆抓到缺口的地方（新 PR 先從這裡下手）
+
+- **掛載層的授權**：`mount()` 的角色與權限在整個 repo 原本沒有任何測試。#1728 拿掉 `manage_students` 全套 api＋契約都綠，計畫席裁「不放行」，作者補了真 app 的 mount spec；通用版另開 #1730。**新路由一律對 `index.ts` 的 mount 做突變。**
+- **fail-closed**：讀取失敗時的分支最常沒 spec，而它通常就是防線本身（#1734 讀出勤失敗 → 會把出席蓋成請假）。
+- **只有一個孩子／一則／一期的 fixture 測不出範圍**：兄弟姊妹（#1734）、兩個 org 同 id（#1728）、超過 100 則（#1703、#1710）、剛好落在邊界那天（#1720 日期窗）。
+- **共用元件的使用端**：元件 spec 守的是 input 做什麼，不守哪幾頁有用它（#1704 四頁拿掉 `listRow` 全綠）。
+- **opt-in 的開關與 aria／修飾鍵**：Cmd／Ctrl＋點被攔（#1713）、`name` 沒在同一組（#1709）。
+
+### 三、設計層的問題要找出來交給計畫席，不要只看「測試有沒有守」
+
+- **共用判準在新的呼叫端可能不再安全**：`buildLeaveAttendanceUpserts` 一律覆寫既有出勤，管理端是人工判斷所以 OK，家長端補請就會把出席蓋成請假、少扣堂（#1734）。讀共用函式時問一句：**新呼叫者的信任等級跟舊的一樣嗎？**
+- **讀完再寫的時序**：先讀狀態判斷、再 update 而不帶狀態條件（#1728 拒絕 vs 之後的核准）。建議 `.in('status', …)`＋0 列回 409。
+- 這兩件都是我列選項、計畫席裁，我傾向哪個要寫出來但不自己決定。
+
+### 四、合併動作
+
+- **UNSTABLE 不一定是紅**：同一顆 commit 上有被 concurrency 取消的 check 也會 UNSTABLE（#1714）。在同一顆上 `gh run rerun <取消的那個>` 轉綠後就 CLEAN。
+- **head 會在你審的時候變**：等 CI 時又推一顆（#1713、#1678）。`steward-merge` 帶審過的 SHA 會擋下，這是對的；重審新那顆。
+- **作者說「只改了 spec／只 merge main」要自己證**：`git diff <merge-base> <head> -- . ':!*.spec.ts' | git patch-id --stable` 跟計畫席讀過的那顆比（#1716、#1717、#1720）。**跟「現在的 main」比會看到別支剛合的內容，要跟共同祖先比**（#1709 一度誤判成 5000 行刪除）。
+- **squash 疊 PR**：下層合了，上層 merge main 會整批衝突。作者「全取 ours」之前，先確認 main 上那幾個檔跟下層審過的 head 是 0 行差（#1713）。
+- **GitHub API 逾時**：`steward-merge` 可能卡住或半途失敗（10-17）。重跑前先 `gh pr view --json state` 確認沒合；腳本自己會重核 head。
+
+### 五、migration（#1728）
+
+- **migrate 的 head 不一定是 PR 的 merge commit**：harness 自動重生的 `[skip ci]` 會疊上去，migrate 跑在那顆上。用 `gh run list --workflow migrate.yml --limit 3` 找，不要用 `--commit <merge>` 篩。
+- **確認 waiting 是對的**：`plan` 的 log 有「migration 差集」與檔名，跟 PR 的 migration 對得上才回報連結。
+- 「照抄既有 CHECK 再加值」的 migration：先 `grep` 找出最後一支改那個 CHECK 的，再跟本機 DB 的 `pg_get_constraintdef` 比，確認新版是超集。
+
+### 六、溝通
+
+- 席位退場後 herdr 找不到它（`agent_not_found`）；跨 session 的來訊用 `SendMessage` 回 `from=` 的 uds 位址。
+- 計畫席 `agent_blocked`（等人工輸入）時訊息送不到，**之後要記得重送**，不然它會在沒看到你的待裁事項下做決定（#1728 那次）。

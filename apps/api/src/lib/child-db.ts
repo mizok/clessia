@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudentScope } from './child-scope';
-import { notifyLeaveForTeachers } from './notify-leave';
+import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 import { logAudit } from '../utils/audit';
 
 /**
@@ -194,22 +194,31 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
      * 帶別人的 leaveId 進來不會替別的孩子發通知。`sessionIds` 只是提示，收件人由
      * `notifyLeaveForTeachers` 自己從堂次推導（c1）；學生名也由這裡讀，不吃呼叫端給的。
      * 失敗只記 log（通知不擋請假）。
+     *
+     * 同一支也發管理員那則（`leave_received`，分校範圍＋`basic_operations`，`notifyLeaveForAdmins` 自己推導）；
+     * 原因從 DB 的假單讀。`retroactive` 是路由算好的「蓋到的課有一堂已經開始」，只影響標題的「補請」。
      */
     async notifyLeave(
       leaveId: string,
       sessionIds: readonly string[],
       actorUserId: string,
+      retroactive: boolean,
     ): Promise<boolean> {
-      const leave = await ownLeave(leaveId, 'id, students(name)');
+      const leave = await ownLeave(leaveId, 'id, reason, students(name)');
       if (!leave) return false;
-      const student = (leave as { students?: { name?: string } | null }).students;
-      await notifyLeaveForTeachers(supabase, {
-        orgId,
-        actorUserId,
-        leaveId,
-        studentName: student?.name ?? '',
-        sessionIds,
-      });
+      const row = leave as { reason?: string | null; students?: { name?: string } | null };
+      const studentName = row.students?.name ?? '';
+      await Promise.all([
+        notifyLeaveForTeachers(supabase, { orgId, actorUserId, leaveId, studentName, sessionIds }),
+        notifyLeaveForAdmins(supabase, {
+          orgId,
+          leaveId,
+          studentName,
+          reason: row.reason ?? null,
+          sessionIds,
+          retroactive,
+        }),
+      ]);
       return true;
     },
 

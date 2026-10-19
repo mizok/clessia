@@ -46,6 +46,7 @@ const KINDS: Record<string, { label: string; icon: string; go: string }> = {
   unbilled_reminder: { label: '待開單', icon: 'pi-file', go: '看帳單' },
   schedule_change: { label: '課務異動', icon: 'pi-calendar', go: '看這堂' },
   leave_for_my_class: { label: '請假', icon: 'pi-user-minus', go: '看請假' },
+  leave_received: { label: '家長請假', icon: 'pi-user-minus', go: '看請假' },
 };
 const OTHER_KIND = { label: '系統通知', icon: 'pi-bell', go: '前往' };
 
