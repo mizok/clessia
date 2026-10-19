@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Bindings } from '../index';
 import { type LatencyProbe } from './supabase-latency-probe';
+import { emptyPageOnRangeNotSatisfiable } from './empty-page-on-416';
 import { retryOnFutureIat } from './retry-future-iat';
 
 export function createSupabaseClient(
@@ -39,7 +40,11 @@ export function createServiceClientFromEnv(env: Bindings, probe?: LatencyProbe):
       persistSession: false,
     },
     // 偶發的 `JWT issued at future` 讀取重試一次（#1612，減輕不是根治）。probe 在內層：
-    // 重試的那一次也會被計時、算進支數
-    global: { fetch: retryOnFutureIat(probe?.fetch ?? ((input, init) => fetch(input, init))) },
+    // 重試的那一次也會被計時、算進支數。最外層：頁數超出結果 → 空頁（#1455，所有分頁列表共用）
+    global: {
+      fetch: emptyPageOnRangeNotSatisfiable(
+        retryOnFutureIat(probe?.fetch ?? ((input, init) => fetch(input, init))),
+      ),
+    },
   });
 }

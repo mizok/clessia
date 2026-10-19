@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createServiceClientFromEnv } from '../lib/supabase';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -50,7 +51,11 @@ vi.mock('../middleware/auth', async (importOriginal) => {
   return {
     ...original,
     authMiddleware: createMiddleware(async (c, next) => {
-      const supabase = createClient(URL!, KEY!);
+      // 正式的 client 工廠：fetch 包裝（#1612 重試、#1455 超出頁數＝空頁）跟上線一樣
+      const supabase = createServiceClientFromEnv({
+        SUPABASE_URL: URL!,
+        SUPABASE_SECRET_KEY: KEY!,
+      } as never);
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
       set('supabase', supabase);
       set('orgId', ctx.orgId);
@@ -405,6 +410,41 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       ctx.userId = staffUser;
       ctx.studentScope = null;
     }
+  });
+
+  // #1455：頁數超出結果（PostgREST 416 PGRST103）要是空頁 200、total 照實，不是 500／400
+  it('有 page 參數的列表：page=999 也 200，data 是空的', async () => {
+    ctx.campusScope = null;
+    const paged = Object.entries(doc.paths)
+      .filter(([path, ops]) => {
+        const params = ops['get']?.parameters ?? [];
+        return (
+          !SKIP_PREFIX.some((p) => path.startsWith(p)) &&
+          !isMe(path) &&
+          params.some((p) => p.in === 'query' && p.name === 'page')
+        );
+      })
+      .map(([path, ops]) => ({
+        path,
+        required: (ops['get']!.parameters ?? [])
+          .filter((p) => p.in === 'query' && p.required)
+          .map((p) => p.name),
+      }));
+    expect(paged.length).toBeGreaterThan(5); // 文件抽不到就是測了個寂寞
+    const failures: string[] = [];
+    for (const { path, required } of paged) {
+      const list = urls(path, required);
+      if (typeof list === 'string') continue; // 缺 fixture 的已由「每支都 200」那條報
+      ctx.role = ROLE[path] ?? 'admin';
+      const url = `${list[0]}${list[0]!.includes('?') ? '&' : '?'}page=999`;
+      const res = await app.request(url, {}, env);
+      const body = (await res.json().catch(() => null)) as { data?: unknown } | null;
+      if (res.status !== 200) failures.push(`${url} → ${res.status}`);
+      else if (Array.isArray(body?.data) && body.data.length > 0)
+        failures.push(`${url} → 不是空頁`);
+    }
+    ctx.role = 'admin';
+    expect(failures).toEqual([]);
   });
 
   it('不受限的管理員：每支都 200', async () => {
