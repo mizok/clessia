@@ -180,6 +180,12 @@ Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/local-manual-v
 
 Tags: `lessons`, `status-table-blind-spot`
 
+## [[lessons/submit-busy-flag-finalize|「送出中」要在 finalize 裡解除，spec 要守「失敗後可以再按」]]
+
+送出鈕的 busy 旗標（sending／saving）在 next 跟 error 各寫一次 set(false)，漏一邊就永遠卡在「送出中」，而 submit() 開頭的守門又擋住重送。2026-10 審核席在 #1673、#1738、#1740、#1741、#1748 連抓五次突變全綠。寫法用 finalize；spec 斷言「失敗 → 按鈕可以再按、再按真的有送」。
+
+Tags: `lessons`, `forms`, `rxjs`, `testing`, `mutation`
+
 ## [[lessons/workers-fanout-costs-before-the-db|並行 fan-out 在碰到資料庫之前就已經變慢了]]
 
 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。

@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -25,6 +25,7 @@ const PAGE = {
 };
 
 const KID = { id: 'kid-1', name: '林子晴', grade: 'junior_3', school: null };
+const KID2 = { id: 'kid-2', name: '林子安', grade: 'junior_1', school: null };
 
 const cls = (over: Partial<ParentCatalogClass> = {}): ParentCatalogClass => ({
   classId: 'c-open',
@@ -91,6 +92,7 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       classes?: ParentCatalogClass[];
       requests?: ParentEnrollmentRequest[];
       fragment?: string;
+      kids?: Array<typeof KID>;
     } = {},
   ) {
     api = {
@@ -109,7 +111,7 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
         {
           provide: ChildScopeService,
           useValue: {
-            children: signal([KID]).asReadonly(),
+            children: signal(opts.kids ?? [KID]).asReadonly(),
             activeChildId: signal(KID.id).asReadonly(),
             activeChild: signal(KID).asReadonly(),
             status: () => 'ready' as const,
@@ -179,16 +181,64 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       ).toContain('剩 2 位');
     });
 
-    it('搜尋課程或班名', async () => {
+    // 班名裡沒有「英文」「會話」：只有比對科目／課程名才搜得到（審核席突變：只比班名）
+    it('搜尋班名、科目、課程名', async () => {
       await setup({
-        classes: [cls(), cls({ classId: 'c-eng', className: '國三英文 A 班', subject: '英文' })],
+        classes: [
+          cls(),
+          cls({ classId: 'c-eng', className: 'A 班', subject: '英文', courseName: '國三課程' }),
+          cls({ classId: 'c-talk', className: 'B 班', subject: null, courseName: '英語會話' }),
+        ],
       });
-      const q = el().querySelector<HTMLInputElement>('input[type="search"]')!;
-      q.value = '英文';
-      q.dispatchEvent(new Event('input'));
-      fixture.detectChanges();
+      const search = (v: string) => {
+        const q = el().querySelector<HTMLInputElement>('input[type="search"]')!;
+        q.value = v;
+        q.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+      };
+      search('英文');
       expect(el().querySelector('input[value="c-open"]')).toBeNull();
       expect(el().querySelector('input[value="c-eng"]')).not.toBeNull();
+      search('會話');
+      expect(el().querySelector('input[value="c-talk"]')).not.toBeNull();
+      expect(el().querySelector('input[value="c-eng"]')).toBeNull();
+    });
+
+    it('換孩子：清掉已選的班、重抓那個孩子的目錄', async () => {
+      await setup({ kids: [KID, KID2] });
+      pick('c-open').click();
+      setDate('2026-11-01');
+      expect(text()).not.toContain('還沒填');
+      el().querySelector<HTMLInputElement>('input[name="sid"][value="kid-2"]')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(api.catalog).toHaveBeenLastCalledWith('kid-2');
+      expect(pick('c-open').checked).toBe(false);
+      expect(text()).toContain('還沒填：開課班');
+    });
+
+    // 審核席：effect 直接 subscribe 時，慢回來的舊孩子目錄會蓋掉新孩子的
+    it('快速換孩子：先 A 再 B、A 晚回來 → 畫面是 B 的目錄', async () => {
+      await setup({ kids: [KID, KID2] });
+      const replies: Record<string, Subject<{ data: ParentCatalogClass[] }>> = {
+        'kid-1': new Subject(),
+        'kid-2': new Subject(),
+      };
+      api.catalog.mockImplementation((sid: string) => replies[sid]);
+      const choose = async (id: string) => {
+        el().querySelector<HTMLInputElement>(`input[name="sid"][value="${id}"]`)!.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+      };
+      await choose('kid-2');
+      await choose('kid-1');
+      await choose('kid-2');
+      replies['kid-2'].next({ data: [cls({ classId: 'c-b', className: '國一數學 B 班' })] });
+      replies['kid-1'].next({ data: [cls({ classId: 'c-a', className: '國三數學 A 班' })] });
+      fixture.detectChanges();
+      expect(el().querySelector('input[value="c-b"]')).not.toBeNull();
+      expect(el().querySelector('input[value="c-a"]')).toBeNull();
     });
 
     it('還沒填：開課班、開始日期（孩子只有一個時預設選好）', async () => {
@@ -253,6 +303,26 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(text()).toContain('這個班已經有一筆申請在處理中');
       expect(pick('c-open').checked).toBe(true);
       expect((fixture.componentInstance as any).tab()).toBe('new');
+      // 失敗後按鈕要能再按（kb/wiki/lessons/submit-busy-flag-finalize.md）
+      const again = btn(/送出申請/)!;
+      expect(again.getAttribute('aria-disabled')).toBe('false');
+      again.click();
+      expect(api.createEnrollmentRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('CLASS_FULL（剛好被搶走最後一位）：重抓目錄，按鈕變「登記候補」', async () => {
+      await setup();
+      api.createEnrollmentRequest.mockReturnValue(
+        throwError(() => ({ status: 409, error: { error: '這個班已額滿', code: 'CLASS_FULL' } })),
+      );
+      pick('c-open').click();
+      setDate('2026-11-01');
+      api.catalog.mockClear();
+      api.catalog.mockReturnValue(of({ data: [cls({ remainingSeats: 0 })] }));
+      btn(/送出申請/)!.click();
+      fixture.detectChanges();
+      expect(api.catalog).toHaveBeenCalledTimes(1);
+      expect(btn(/登記候補/)).toBeDefined();
     });
   });
 
@@ -308,10 +378,18 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
         requests: [...records, req({ id: 'r-wl', status: 'waitlist' })],
         fragment: 'records',
       });
-      el().querySelector<HTMLButtonElement>('[data-request="r-rej"]')!.click();
+      for (const id of ['r-rej', 'r-pay']) {
+        el().querySelector<HTMLButtonElement>(`[data-request="${id}"]`)!.click();
+        fixture.detectChanges();
+        expect(btn(/取消這筆申請/)).toBeUndefined();
+        (fixture.componentInstance as any).closeDetail();
+        fixture.detectChanges();
+      }
+      el().querySelector<HTMLButtonElement>('[data-request="r-pend"]')!.click();
       fixture.detectChanges();
-      expect(btn(/取消這筆申請/)).toBeUndefined();
+      expect(btn(/取消這筆申請/)).toBeDefined();
       (fixture.componentInstance as any).closeDetail();
+      fixture.detectChanges();
       el().querySelector<HTMLButtonElement>('[data-request="r-wl"]')!.click();
       fixture.detectChanges();
       btn(/取消這筆申請/)!.click();
