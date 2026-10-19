@@ -47,6 +47,8 @@ const OrgSettingsSchema = z
     invoiceDueDays: z.number().int().min(0).optional(),
     /** 待開單提醒的提前天數（#1305）：期的開始日前這麼多天，儀表板「待開單」就會出現 */
     billingReminderDays: z.number().int().min(1).max(90).optional(),
+    /** 連續請假滿幾個上課日可以不收費（#1732）：只用來提醒，不改帳單 */
+    leaveWaiverDays: z.number().int().min(2).max(30).optional(),
     /** 餐費的預設單價。單價存在每一筆餐記錄上，這只是開單時的起始值 */
     mealDefaultPrice: z.number().int().min(0).optional(),
     prorationBasis: ProrationBasisSchema.optional(),
@@ -68,6 +70,7 @@ const UpdateOrgSettingsSchema = z
     attendanceRetroactiveDays: z.coerce.number().int().min(0).optional(),
     invoiceDueDays: z.coerce.number().int().min(0).optional(),
     billingReminderDays: z.coerce.number().int().min(1).max(90).optional(),
+    leaveWaiverDays: z.coerce.number().int().min(2).max(30).optional(),
     mealDefaultPrice: z.coerce.number().int().min(0).optional(),
     prorationBasis: ProrationBasisSchema.optional(),
     /** 空字串存成 null（= 未設定） */
@@ -91,6 +94,7 @@ const UpdateOrgSettingsSchema = z
 export const FINANCE_SETTING_KEYS = [
   'invoiceDueDays',
   'billingReminderDays',
+  'leaveWaiverDays',
   'mealDefaultPrice',
   'prorationBasis',
   'paymentInfo',
@@ -112,6 +116,7 @@ export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinan
     ...base,
     invoiceDueDays: (row['invoice_due_days'] as number) ?? 14,
     billingReminderDays: (row['billing_reminder_days'] as number | undefined) ?? 14,
+    leaveWaiverDays: (row['leave_waiver_days'] as number | undefined) ?? 3,
     mealDefaultPrice: Number(row['meal_default_price'] ?? 0),
     prorationBasis: (row['proration_basis'] as 'days' | 'sessions') ?? 'days',
     paymentInfo: normalizePaymentInfo(row['payment_info']),
@@ -133,7 +138,7 @@ const app = new OpenAPIHono<AppEnv>();
 app.use('/settings', writeRequiresAdmin('manage_org_settings'));
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, meal_default_price, proration_basis, payment_info, invoice_reminder_offsets';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, leave_waiver_days, meal_default_price, proration_basis, payment_info, invoice_reminder_offsets';
 
 // GET /api/org/settings
 app.openapi(
@@ -215,6 +220,7 @@ app.openapi(
     if (body.billingReminderDays !== undefined) {
       updates['billing_reminder_days'] = body.billingReminderDays;
     }
+    if (body.leaveWaiverDays !== undefined) updates['leave_waiver_days'] = body.leaveWaiverDays;
     if (body.mealDefaultPrice !== undefined) updates['meal_default_price'] = body.mealDefaultPrice;
     if (body.prorationBasis !== undefined) updates['proration_basis'] = body.prorationBasis;
     if (body.paymentInfo !== undefined)

@@ -34,6 +34,7 @@ export type OrgTable =
   | 'invoice_no_counters'
   | 'leave_requests'
   | 'leave_request_sessions'
+  | 'leave_streak_reviews'
   | 'meal_records'
   | 'notification_preferences'
   | 'notifications'

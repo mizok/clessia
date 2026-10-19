@@ -193,6 +193,26 @@ describe('SettingsPage', () => {
     expect(bodyText()).not.toContain('待開單提醒');
   });
 
+  /** #1732：連續請假可不收費的門檻 —— 財務設定，同上 */
+  it('有 leaveWaiverDays 這個 key → 顯示，儲存送 leaveWaiverDays', async () => {
+    orgSettingsServiceMock.getSettings.mockReturnValue(
+      of({ ...DAILY_CHECKIN, leaveWaiverDays: 3 }),
+    );
+    await setup();
+
+    expect(bodyText()).toContain('連續請假可不收費');
+    component['leaveWaiverDaysValue'] = 5;
+    component['saveLeaveWaiverDays']();
+
+    expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ leaveWaiverDays: 5 });
+  });
+
+  it('回應裡沒有 leaveWaiverDays（沒有財務權限）→ 不畫', async () => {
+    await setup();
+
+    expect(bodyText()).not.toContain('連續請假可不收費');
+  });
+
   // #1660（#1626 Q2）：家長繳費提醒時間點
   describe('家長繳費提醒（#1660）', () => {
     const WITH_FINANCE: OrgSettings = { ...DAILY_CHECKIN, invoiceReminderOffsets: [-3, 0, 1, 7] };

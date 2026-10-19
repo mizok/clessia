@@ -109,6 +109,7 @@ describe('toOrgSettingsResponse', () => {
       // 欄位不在的舊 org 用 14 —— 對齊 billing_rules 規則 7 的「發袋後兩三週」節奏
       invoiceDueDays: 14,
       billingReminderDays: 14,
+      leaveWaiverDays: 3,
       mealDefaultPrice: 0,
       prorationBasis: 'days',
       // #1073：還沒設定帳戶資訊 → null（家長頁退回「請洽行政人員」）
@@ -176,6 +177,25 @@ describe('billingReminderDays（#1305）', () => {
     expect(toOrgSettingsResponse({ id: 'o', billing_reminder_days: 7 }, false)).not.toHaveProperty(
       'billingReminderDays',
     );
+  });
+});
+
+describe('leaveWaiverDays（#1732）', () => {
+  it('有財務權限：回設定值；欄位缺席退回 3', () => {
+    expect(toOrgSettingsResponse({ id: 'o', leave_waiver_days: 5 })).toMatchObject({
+      leaveWaiverDays: 5,
+    });
+    expect(toOrgSettingsResponse({ id: 'o' })).toMatchObject({ leaveWaiverDays: 3 });
+  });
+
+  it('沒有財務權限：回應裡沒有這個 key', () => {
+    expect(toOrgSettingsResponse({ id: 'o', leave_waiver_days: 5 }, false)).not.toHaveProperty(
+      'leaveWaiverDays',
+    );
+  });
+
+  it('改它算動到財務設定', () => {
+    expect(touchesFinanceSettings({ leaveWaiverDays: 4 })).toBe(true);
   });
 });
 

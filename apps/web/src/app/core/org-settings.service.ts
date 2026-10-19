@@ -31,6 +31,8 @@ export interface OrgSettings {
   invoiceDueDays?: number;
   /** 待開單提醒的提前天數（#1305，1–90）。財務設定：沒有 `manage_finance` 時這個 key 不存在 */
   billingReminderDays?: number;
+  /** 連續請假滿幾個上課日可以不收費（#1732，2–30）。只用來提醒。財務設定：沒有 `manage_finance` 時這個 key 不存在 */
+  leaveWaiverDays?: number;
   /** 餐費預設單價（單價實際存在每一筆餐記錄上） */
   mealDefaultPrice?: number;
   /** 插班／退班比例試算的基準，預設 days */
@@ -54,6 +56,7 @@ export interface UpdateOrgSettingsInput {
   invoiceDueDays?: number;
   /** 待開單提醒的提前天數（#1305，1–90）。財務設定：沒有 `manage_finance` 時這個 key 不存在 */
   billingReminderDays?: number;
+  leaveWaiverDays?: number;
   mealDefaultPrice?: number;
   prorationBasis?: 'days' | 'sessions';
   /** 空白存成 null（= 未設定）。要 `manage_finance` */
