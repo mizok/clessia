@@ -84,18 +84,27 @@ const UNMOUNTED = [
 
 /**
  * 執行期 `app.routes` 裡，**不在任何 mount／白名單前綴底下**、允許存在的註冊（`方法 路徑`，手寫）。
- * 全域 middleware、健康檢查、OpenAPI 文件、Better Auth、系統時間。多一條 = 有人繞過 mount 直接掛東西。
+ * **照實際註冊次數列，比的是多重集合**：同一個「方法＋路徑」再多掛一次（例如再一個 `ALL /api/*`
+ * 的後門 middleware）也要紅（#1751 四讀 N12／N13）。
  */
 const OUTSIDE_MOUNTS = [
+  // 全域：logger、cors、authPoolCleanup
   'ALL /*',
+  'ALL /*',
+  'ALL /*',
+  // authMiddleware、campusRequestGuard
   'ALL /api/*',
-  'ALL /api/public/*',
+  'ALL /api/*',
+  'ALL /api/public/*', // publicOrgMiddleware
   'GET /',
   'GET /health',
   'GET /openapi.json',
   'GET /docs',
-  'GET /api/system-time',
+  'GET /api/system-time', // 註冊在 authMiddleware 之前，刻意公開
+  // Better Auth：兩次 app.on(['POST', 'GET'], '/api/auth/*')
   'GET /api/auth/*',
+  'GET /api/auth/*',
+  'POST /api/auth/*',
   'POST /api/auth/*',
 ];
 
@@ -167,13 +176,11 @@ describe('mount() 的授權（#1730）', () => {
       routes: ReadonlyArray<{ method: string; path: string }>;
     };
     const prefixes = [...Object.keys(EXPECTED), ...UNMOUNTED];
-    const stray = [
-      ...new Set(
-        app.routes
-          .filter((r) => !prefixes.some((p) => r.path === p || r.path.startsWith(`${p}/`)))
-          .map((r) => `${r.method} ${r.path}`),
-      ),
-    ].sort();
+    // 不去重：重複註冊也算一條
+    const stray = app.routes
+      .filter((r) => !prefixes.some((p) => r.path === p || r.path.startsWith(`${p}/`)))
+      .map((r) => `${r.method} ${r.path}`)
+      .sort();
     expect(stray).toEqual([...OUTSIDE_MOUNTS].sort());
   });
 
