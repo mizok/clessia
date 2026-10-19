@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
-import { TextareaModule } from 'primeng/textarea';
+import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import type { Observable } from 'rxjs';
@@ -46,7 +46,7 @@ function toTimeDate(time: string | null): Date | null {
   imports: [
     FormsModule,
     DatePickerModule,
-    TextareaModule,
+    InputTextModule,
     SelectModule,
     StudentAutocompleteComponent,
   ],
@@ -101,7 +101,12 @@ function toTimeDate(time: string | null): Date | null {
       }
 
       <!-- A6 forms.leave：四個欄各自有標籤，桌機兩兩並排、手機一欄一列 -->
-      <div class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2">
+      <!-- ngNoForm：A6 的欄位包在 <form> 裡，但這裡的 ngModel 是 standalone，不要 NgForm -->
+      <form
+        ngNoForm
+        class="grid grid-cols-1 gap-x-3 gap-y-4 wide:grid-cols-2"
+        (submit)="$event.preventDefault()"
+      >
         @for (f of dateFields; track f.key) {
           <div class="flex min-w-0 flex-col gap-1">
             <label class="text-md font-semibold text-zinc-700" [attr.for]="'leave-' + f.key"
@@ -126,16 +131,18 @@ function toTimeDate(time: string | null): Date | null {
         }
         <div class="flex min-w-0 flex-col gap-1 wide:col-span-2">
           <label class="text-md font-semibold text-zinc-700" for="leave-reason">原因（選填）</label>
-          <textarea
+          <!-- A6 是單行文字欄 -->
+          <input
             id="leave-reason"
-            pTextarea
+            type="text"
+            pInputText
             [(ngModel)]="reason"
             placeholder="請假原因"
-            rows="3"
+            autocomplete="off"
             class="w-full"
-          ></textarea>
+          />
         </div>
-      </div>
+      </form>
 
       <!--
         A6 form() 的底部：必填沒填時送出鈕不鎖死，旁邊一行寫還差什麼（#723：disabled 會把「為什麼不行」藏起來）；
@@ -152,7 +159,7 @@ function toTimeDate(time: string | null): Date | null {
         </p>
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
           [disabled]="saving()"
           (click)="cancel()"
         >
@@ -160,7 +167,7 @@ function toTimeDate(time: string | null): Date | null {
         </button>
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
           [attr.aria-disabled]="!canSubmit() || saving()"
           (click)="submit()"
         >
