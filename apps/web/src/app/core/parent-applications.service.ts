@@ -51,6 +51,9 @@ export interface ParentTrialRequest {
   scheduledDate: string | null;
   scheduledStartTime: string | null;
   scheduledEndTime: string | null;
+  /** 課程所屬分校（#1750）：要取消或改時間得打電話；讀不到或沒填 → null */
+  campusName: string | null;
+  campusPhone: string | null;
 }
 
 export interface CreateTrialRequest {
