@@ -34,6 +34,8 @@ const EnrollmentRequestSchema = z
     preferredStartDate: z.string().nullable(),
     note: z.string().nullable(),
     rejectReason: z.string().nullable(),
+    /** 家長送出時選的繳費週期（#1727 Q1 (b)）；沒選 → null，行政核准時再定 */
+    billingMode: z.enum(['monthly', 'period', 'session_pack']).nullable(),
     createdAt: z.string().nullable(),
   })
   .openapi('ParentEnrollmentRequest');
@@ -48,6 +50,11 @@ const CreateSchema = z
       .optional(),
     note: z.string().max(500).optional(),
     /**
+     * 繳費週期（#1727 Q1 (b)）：只收月繳／期繳 —— 堂數制是行政議定的，家長不能選（計畫席 10-19 B (b)）。
+     * 不對照班級的預設範本：`default_fee_template_id` 只用於顯示（20261003122743），行政核准時再對
+     */
+    billingMode: z.enum(['monthly', 'period']).optional(),
+    /**
      * 額滿時家長**明確選擇**登記候補（使用者 10-03 裁）。只是「同意」，不是「宣告額滿」——
      * 額滿與否由伺服器數，有位子時送 true 照樣是 pending。
      */
@@ -60,7 +67,7 @@ const ErrorSchema = z
   .openapi('ParentEnrollmentRequestError');
 
 const SELECT =
-  'id, student_id, class_id, status, preferred_start_date, note, reject_reason, created_at, students(name), classes(name)';
+  'id, student_id, class_id, status, preferred_start_date, note, reject_reason, billing_mode, created_at, students(name), classes(name)';
 
 /** 佔名額的申請狀態以外，「還在進行中」的申請 —— 同班只能有一筆（migration 的 partial unique） */
 const OPEN_STATUSES = ['pending', 'waitlist', 'awaiting_payment'];
@@ -81,6 +88,7 @@ function toResponse(row: Record<string, unknown>) {
     preferredStartDate: (row['preferred_start_date'] as string | null) ?? null,
     note: (row['note'] as string | null) ?? null,
     rejectReason: (row['reject_reason'] as string | null) ?? null,
+    billingMode: (row['billing_mode'] as 'monthly' | 'period' | 'session_pack' | null) ?? null,
     createdAt: (row['created_at'] as string | null) ?? null,
   };
 }
@@ -220,6 +228,7 @@ app.openapi(
           status: full ? 'waitlist' : 'pending',
           preferred_start_date: body.preferredStartDate ?? null,
           note: body.note ?? null,
+          billing_mode: body.billingMode ?? null,
           requested_by: c.get('userId'),
         },
         SELECT,

@@ -77,6 +77,24 @@ describe('POST /api/me/enrollment-requests', () => {
     });
   });
 
+  // #1727 Q1 (b)：家長選的繳費週期；堂數制行政議定、家長不能選（計畫席 10-19 B (b)）
+  it('繳費週期：月繳／期繳照存、回應帶回；沒選是 null', async () => {
+    const monthly = await submit({ classId: CLASS_OPEN, billingMode: 'monthly' });
+    expect(monthly.status).toBe(201);
+    expect(monthly.body.billingMode).toBe('monthly');
+    expect(monthly.rows[0]!['billing_mode']).toBe('monthly');
+
+    const none = await submit({ classId: CLASS_OPEN });
+    expect(none.body.billingMode).toBeNull();
+    expect(none.rows[0]!['billing_mode']).toBeNull();
+  });
+
+  it('繳費週期選堂數制：400，沒寫', async () => {
+    const { status, rows } = await submit({ classId: CLASS_OPEN, billingMode: 'session_pack' });
+    expect(status).toBe(400);
+    expect(rows).toHaveLength(0);
+  });
+
   it('額滿、沒說要候補：409 CLASS_FULL，沒寫', async () => {
     const { status, body, rows } = await submit({ classId: CLASS_FULL });
 

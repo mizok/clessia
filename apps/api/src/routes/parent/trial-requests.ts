@@ -25,6 +25,13 @@ const TrialRequestSchema = z
     preferredTimes: z.string().nullable(),
     note: z.string().nullable(),
     createdAt: z.string().nullable(),
+    /**
+     * 排定的試聽日期與時間（#1727 Q2 (b)，`20261019100312`）。還沒排 → null。
+     * 管理端填日期另開單；那之前家長端列表寫「已安排 · 補習班會跟你聯絡時間」
+     */
+    scheduledDate: z.string().nullable(),
+    scheduledStartTime: z.string().nullable(),
+    scheduledEndTime: z.string().nullable(),
   })
   .openapi('ParentTrialRequest');
 
@@ -42,7 +49,7 @@ const ErrorSchema = z
   .openapi('ParentTrialRequestError');
 
 const SELECT =
-  'id, student_id, course_id, status, preferred_times, note, created_at, students(name), courses(name)';
+  'id, student_id, course_id, status, preferred_times, note, created_at, scheduled_date, scheduled_start_time, scheduled_end_time, students(name), courses(name)';
 
 /** 進行中的試聽 —— 同門課只能一筆（migration 的 partial unique） */
 const OPEN_STATUSES = ['pending', 'scheduled'];
@@ -61,8 +68,14 @@ function toResponse(row: Record<string, unknown>) {
     preferredTimes: (row['preferred_times'] as string | null) ?? null,
     note: (row['note'] as string | null) ?? null,
     createdAt: (row['created_at'] as string | null) ?? null,
+    scheduledDate: (row['scheduled_date'] as string | null) ?? null,
+    scheduledStartTime: hhmm(row['scheduled_start_time']),
+    scheduledEndTime: hhmm(row['scheduled_end_time']),
   };
 }
+
+/** DB 的 time 是 `HH:MM:SS`，回 `HH:MM` */
+const hhmm = (t: unknown) => (typeof t === 'string' ? t.slice(0, 5) : null);
 
 const notParent = { error: '不是家長身分', code: 'NOT_PARENT' } as const;
 const isParent = (roles: readonly string[] | undefined) => (roles ?? []).includes('parent');
