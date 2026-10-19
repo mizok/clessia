@@ -349,6 +349,26 @@ describe('TrialComponent（家長端試聽申請）', () => {
       expect(text()).toContain('另外還有 1 筆試聽已排好、1 筆在等安排。');
     });
 
+    // 邊界兩側（審核席突變 >= → >）：今天的試聽還沒上完，要上頁首；昨天的已經過了
+    it('排在今天的上頁首；排在昨天的不上', async () => {
+      await setup({
+        requests: [
+          trial({ id: 'y', status: 'scheduled', scheduledDate: '2026-10-18', courseName: '國文' }),
+          trial({ id: 't', status: 'scheduled', scheduledDate: '2026-10-19', courseName: '數學' }),
+        ],
+      });
+      expect(title()).toBe('林子晴 10/19（一） 去試聽數學。');
+    });
+
+    it('只有排在昨天的：不上頁首', async () => {
+      await setup({
+        requests: [
+          trial({ id: 'y', status: 'scheduled', scheduledDate: '2026-10-18', courseName: '國文' }),
+        ],
+      });
+      expect(title()).toBe('想讓孩子先上一堂看看？');
+    });
+
     it('已安排但還沒日期的不上頁首；只有待處理 → 寫筆數', async () => {
       await setup({
         requests: [trial({ id: 'a', status: 'scheduled' }), trial({ id: 'b', status: 'pending' })],
