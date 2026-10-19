@@ -55,6 +55,8 @@ const ParentLeaveSchema = z.object({
   startTime: z.string().nullable(),
   endTime: z.string().nullable(),
   reason: z.string().nullable(),
+  /** 已經點成出席等狀態、這張假沒有改動的堂數（計畫席 10-19 (a)） */
+  skippedAttendedCount: z.number().int(),
 });
 
 const SESSION_SELECT =
@@ -179,7 +181,29 @@ app.openapi(
       return c.json({ error: '這段時間已經請過假了', code: 'LEAVE_OVERLAP' }, 409);
     }
 
-    // 3. 寫入（scoped insert；org_id 由 childDb 蓋）
+    // 3. 家長端只改「沒有出勤紀錄」或「缺席」的堂（計畫席 10-19 裁 (a)）：已經點成出席等其他狀態的一律不動。
+    //    補請的原意是把缺席翻成請假，不是讓家長覆寫老師的點名（會少扣堂、少算出席）。**管理端不套這條**（人工判斷，可以覆寫）
+    const coveredEventIds = covered.flatMap((s) =>
+      s['event_id'] ? [s['event_id'] as string] : [],
+    );
+    const recordResult =
+      coveredEventIds.length === 0
+        ? { data: [], error: null }
+        : await childDb
+            .from('attendance_records', 'student_id')
+            .select('event_id, status')
+            .eq('student_id', studentId)
+            .in('event_id', coveredEventIds);
+    if (recordResult.error) return failed();
+    const keep = new Set(
+      ((recordResult.data ?? []) as unknown as Row[])
+        .filter((r) => r['status'] !== 'absent' && r['status'] !== 'on_leave')
+        .map((r) => r['event_id'] as string),
+    );
+    const changed = covered.filter((s) => !(s['event_id'] && keep.has(s['event_id'] as string)));
+    const skippedAttendedCount = covered.length - changed.length;
+
+    // 4. 寫入（scoped insert；org_id 由 childDb 蓋）
     const inserted = await childDb.from('leave_requests', 'student_id').insert(
       {
         student_id: studentId,
@@ -197,12 +221,12 @@ app.openapi(
     const leave = inserted.data as Row | null;
     if (inserted.error || !leave) return failed();
 
-    // 4. 有 event 的堂寫成 on_leave（沒 event 的堂是懶生成，讀取時由 leaveCoversSession 推導，同管理端）
+    // 5. 可以改的、有 event 的堂寫成 on_leave（沒 event 的堂是懶生成，讀取時由 leaveCoversSession 推導，同管理端）
     const upserts = buildLeaveAttendanceUpserts({
       orgId,
       studentId,
       recordedBy: userId,
-      events: covered
+      events: changed
         .filter((s) => s['event_id'])
         .map((s) => ({
           id: s['event_id'] as string,
@@ -219,7 +243,7 @@ app.openapi(
       await childDb.from('attendance_records', 'student_id').upsert(upserts, 'student_id,event_id');
     }
 
-    // 5. 稽核（計畫席 10-17）：補請把缺席改成請假、沒有人核對，事後要查得到改了幾堂、幾堂是補請。
+    // 6. 稽核（計畫席 10-17）：補請把缺席改成請假、沒有人核對，事後要查得到改了幾堂、幾堂是補請、略過幾堂已點名的。
     //    「開始時間已過」用台北時間比（session 的日期與時間都是台北的牆上時間）
     const startedAt = (s: Row) => {
       const event = s['events'] as Row | null;
@@ -231,18 +255,19 @@ app.openapi(
     await childDb.recordLeave(
       leave['id'] as string,
       {
-        sessionCount: covered.length,
-        retroactiveSessionCount: covered.filter((s) => startedAt(s) <= now).length,
+        sessionCount: changed.length,
+        retroactiveSessionCount: changed.filter((s) => startedAt(s) <= now).length,
+        skippedAttendedCount,
       },
       userId,
       wu,
     );
 
-    // 6. 通知老師（背景，失敗不擋）。管理員的 leave_received 等 migration（#1695 第 2 張）；
+    // 7. 通知老師（背景，失敗不擋），只列真的改成請假的堂。管理員的 leave_received 等 migration（#1695 第 2 張）；
     //    #1732 的連續請假偵測也掛在這裡之後（kb/wiki/specs/admin/finance/leave-streak-waiver.md §3）
     const job = childDb.notifyLeave(
       leave['id'] as string,
-      covered.map((s) => s['id'] as string),
+      changed.map((s) => s['id'] as string),
       userId,
     );
     if (wu) wu(job);
@@ -259,6 +284,7 @@ app.openapi(
           startTime: time(leave['start_time']),
           endTime: time(leave['end_time']),
           reason: (leave['reason'] as string | null) ?? null,
+          skippedAttendedCount,
         },
       },
       201,

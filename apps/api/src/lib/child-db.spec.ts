@@ -503,7 +503,7 @@ describe('createChildDb —— recordLeave', () => {
     const pending: Promise<unknown>[] = [];
     const ok = await childDb.recordLeave(
       leaveId,
-      { sessionCount: 3, retroactiveSessionCount: 1 },
+      { sessionCount: 3, retroactiveSessionCount: 1, skippedAttendedCount: 2 },
       'parent-1',
       (p) => pending.push(p),
     );
@@ -524,7 +524,12 @@ describe('createChildDb —— recordLeave', () => {
       resource_id: 'leave-mine',
       resource_name: '家長請假 / 2026-10-20 ~ 2026-10-21',
       action: 'create',
-      details: { submittedByRole: 'parent', sessionCount: 3, retroactiveSessionCount: 1 },
+      details: {
+        submittedByRole: 'parent',
+        sessionCount: 3,
+        retroactiveSessionCount: 1,
+        skippedAttendedCount: 2,
+      },
     });
   });
 

@@ -221,11 +221,15 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
      * - actor 是 session 的使用者（呼叫端傳 `c.get('userId')`）
      * - 日期從 DB 的假單讀，不吃呼叫端
      * - **不帶個資全文**：`resourceName` 只有「家長請假／日期」，不寫學生或家長的名字；
-     *   details 只有身分、堂數與補請的堂數
+     *   details 只有身分、改成請假的堂數、其中補請的堂數、略過的已點名堂數
      */
     async recordLeave(
       leaveId: string,
-      counts: { readonly sessionCount: number; readonly retroactiveSessionCount: number },
+      counts: {
+        readonly sessionCount: number;
+        readonly retroactiveSessionCount: number;
+        readonly skippedAttendedCount: number;
+      },
       actorUserId: string,
       waitUntil?: (promise: Promise<unknown>) => void,
     ): Promise<boolean> {
@@ -247,6 +251,7 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
             submittedByRole: 'parent',
             sessionCount: counts.sessionCount,
             retroactiveSessionCount: counts.retroactiveSessionCount,
+            skippedAttendedCount: counts.skippedAttendedCount,
           },
         },
         waitUntil,

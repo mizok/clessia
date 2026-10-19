@@ -92,24 +92,33 @@ function seed(extra: Record<string, Array<Record<string, unknown>>> = {}) {
   });
 }
 
-function appFor(db: ReturnType<typeof createMultiOrgDb>, roles = ['parent']) {
+function appFor(
+  db: ReturnType<typeof createMultiOrgDb>,
+  roles = ['parent'],
+  scope: string[] = [MY_CHILD],
+) {
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
     set('roles', roles);
     set('orgId', ORG);
     set('userId', 'parent-user');
-    set('studentScope', [MY_CHILD]);
-    set('childDb', createChildDb(db.client as never, [MY_CHILD], ORG));
+    set('studentScope', scope);
+    set('childDb', createChildDb(db.client as never, scope, ORG));
     await next();
   });
   app.route('/', leavesRoute as unknown as Hono);
   return app;
 }
 
-async function submit(body: Record<string, unknown>, db = seed(), roles?: string[]) {
+async function submit(
+  body: Record<string, unknown>,
+  db = seed(),
+  roles?: string[],
+  scope?: string[],
+) {
   vi.mocked(notifyLeaveForTeachers).mockClear();
-  const res = await appFor(db, roles).request('/', {
+  const res = await appFor(db, roles, scope).request('/', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ studentId: MY_CHILD, ...body }),
@@ -171,11 +180,96 @@ describe('POST /api/me/leaves', () => {
         resource_type: 'leave',
         resource_id: leaves[0]!['id'],
         resource_name: '家長請假 / 2026-10-01 ~ 2026-10-22',
-        details: { submittedByRole: 'parent', sessionCount: 4, retroactiveSessionCount: 2 },
+        details: {
+          submittedByRole: 'parent',
+          sessionCount: 4,
+          retroactiveSessionCount: 2,
+          skippedAttendedCount: 0,
+        },
       });
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // 計畫席 10-19 裁 (a)：家長只能把「沒有紀錄」或「缺席」翻成請假，老師點的出席不動
+  it('補請：出席的堂維持出席、缺席的改成請假、沒有紀錄的改成請假；略過的堂數回在回應與稽核、通知不列', async () => {
+    const db = seed({
+      sessions: [
+        session('s-present', MATH, '2026-10-06'),
+        session('s-absent', MATH, '2026-10-07'),
+        session('s-none', MATH, '2026-10-08'),
+        session('s-lazy', MATH, '2026-10-09', { event_id: null, events: null }),
+      ],
+      attendance_records: [
+        {
+          org_id: ORG,
+          student_id: MY_CHILD,
+          event_id: 'ev-s-present',
+          status: 'present',
+          recorded_by: 'teacher-1',
+        },
+        {
+          org_id: ORG,
+          student_id: MY_CHILD,
+          event_id: 'ev-s-absent',
+          status: 'absent',
+          recorded_by: 'teacher-1',
+        },
+        // 別的孩子在同一堂出席，不影響這個孩子
+        {
+          org_id: ORG,
+          student_id: OTHER_CHILD,
+          event_id: 'ev-s-none',
+          status: 'present',
+          recorded_by: 'teacher-1',
+        },
+      ],
+    });
+    const { status, body, records } = await submit(
+      { startDate: '2026-10-06', endDate: '2026-10-09' },
+      db,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(status).toBe(201);
+    expect(body.data.skippedAttendedCount).toBe(1);
+    const mine = Object.fromEntries(
+      records
+        .filter((r) => r['student_id'] === MY_CHILD)
+        .map((r) => [r['event_id'], [r['status'], r['recorded_by']]]),
+    );
+    expect(mine).toEqual({
+      'ev-s-present': ['present', 'teacher-1'],
+      'ev-s-absent': ['on_leave', 'parent-user'],
+      'ev-s-none': ['on_leave', 'parent-user'],
+    });
+    expect(db.rows('audit_logs')[0]?.['details']).toMatchObject({
+      sessionCount: 3,
+      skippedAttendedCount: 1,
+    });
+    const call = vi.mocked(notifyLeaveForTeachers).mock.calls[0]![1];
+    expect([...call.sessionIds].sort()).toEqual(['s-absent', 's-lazy', 's-none']);
+  });
+
+  it('兄弟姊妹在同一堂出席，不影響這個孩子（讀出勤只看這個孩子，不是整個 scope）', async () => {
+    const db = seed({
+      sessions: [session('s-shared', MATH, '2026-10-06')],
+      attendance_records: [
+        { org_id: ORG, student_id: OTHER_CHILD, event_id: 'ev-s-shared', status: 'present' },
+      ],
+    });
+    const { status, body, records } = await submit(
+      { startDate: '2026-10-06', endDate: '2026-10-06' },
+      db,
+      ['parent'],
+      [MY_CHILD, OTHER_CHILD],
+    );
+
+    expect(status).toBe(201);
+    expect(body.data.skippedAttendedCount).toBe(0);
+    expect(records.find((r) => r['student_id'] === MY_CHILD)?.['status']).toBe('on_leave');
+    expect(records.find((r) => r['student_id'] === OTHER_CHILD)?.['status']).toBe('present');
   });
 
   it('單日時間窗只蓋時間重疊的堂（判準同管理端）', async () => {
