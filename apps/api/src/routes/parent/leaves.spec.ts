@@ -226,11 +226,17 @@ describe('POST /api/me/leaves', () => {
         },
       ],
     });
-    const { status, body, records } = await submit(
-      { startDate: '2026-10-06', endDate: '2026-10-09' },
-      db,
-    );
-    await new Promise((r) => setTimeout(r, 0));
+    // 全部都已經上過：補請堂數＝真的改成請假的三堂，**不含**被略過的出席那堂
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-19T04:00:00Z'));
+    let result: Awaited<ReturnType<typeof submit>>;
+    try {
+      result = await submit({ startDate: '2026-10-06', endDate: '2026-10-09' }, db);
+      await new Promise((r) => setTimeout(r, 0));
+    } finally {
+      vi.useRealTimers();
+    }
+    const { status, body, records } = result;
 
     expect(status).toBe(201);
     expect(body.data.skippedAttendedCount).toBe(1);
@@ -246,10 +252,64 @@ describe('POST /api/me/leaves', () => {
     });
     expect(db.rows('audit_logs')[0]?.['details']).toMatchObject({
       sessionCount: 3,
+      retroactiveSessionCount: 3,
       skippedAttendedCount: 1,
     });
     const call = vi.mocked(notifyLeaveForTeachers).mock.calls[0]![1];
     expect([...call.sessionIds].sort()).toEqual(['s-absent', 's-lazy', 's-none']);
+  });
+
+  /** 什麼都沒寫：不建單、不寫出勤、不通知、不稽核 */
+  function expectNothingWritten(
+    db: ReturnType<typeof seed>,
+    before: { leaves: number; records: number },
+  ) {
+    expect(db.rows('leave_requests')).toHaveLength(before.leaves);
+    expect(db.rows('attendance_records')).toHaveLength(before.records);
+    expect(db.rows('audit_logs')).toHaveLength(0);
+    expect(notifyLeaveForTeachers).not.toHaveBeenCalled();
+  }
+
+  // 審核席：讀不到既有出勤就不知道哪幾堂已經點成出席 —— 不能 fail-open 把出席蓋成請假
+  it('讀既有出勤失敗：500（fail-closed），什麼都不寫', async () => {
+    const db = seed();
+    const client = db.client as { from: (table: string) => Record<string, unknown> };
+    const realFrom = client.from.bind(client);
+    const failing = {
+      eq: () => failing,
+      in: () => failing,
+      then: (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { code: 'XX000', message: 'boom' } }),
+    };
+    vi.spyOn(client, 'from').mockImplementation(((table: string) => {
+      const builder = realFrom(table);
+      return table === 'attendance_records' ? { ...builder, select: () => failing } : builder;
+    }) as never);
+
+    const { status } = await submit({ startDate: '2026-10-20', endDate: '2026-10-20' }, db);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(status).toBe(500);
+    expectNothingWritten(db, { leaves: 0, records: 0 });
+  });
+
+  // 計畫席 10-19：每一堂都已經點成出席，這張假什麼都不會改 —— 不建單
+  it('區間內每一堂都已經出席：400 ALL_ATTENDED，什麼都不寫', async () => {
+    const db = seed({
+      sessions: [session('s-a', MATH, '2026-10-06'), session('s-b', ENGLISH, '2026-10-06')],
+      attendance_records: [
+        { org_id: ORG, student_id: MY_CHILD, event_id: 'ev-s-a', status: 'present' },
+        { org_id: ORG, student_id: MY_CHILD, event_id: 'ev-s-b', status: 'present' },
+      ],
+    });
+
+    const { status, body } = await submit({ startDate: '2026-10-06', endDate: '2026-10-06' }, db);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(status).toBe(400);
+    expect(body.code).toBe('ALL_ATTENDED');
+    expectNothingWritten(db, { leaves: 0, records: 2 });
+    expect(db.rows('attendance_records').map((r) => r['status'])).toEqual(['present', 'present']);
   });
 
   it('兄弟姊妹在同一堂出席，不影響這個孩子（讀出勤只看這個孩子，不是整個 scope）', async () => {

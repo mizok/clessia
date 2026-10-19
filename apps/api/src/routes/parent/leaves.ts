@@ -79,7 +79,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: ParentLeaveSchema }) } },
       },
       400: {
-        description: '日期無效／這段時間沒有課（NO_SESSIONS）',
+        description: '日期無效／這段時間沒有課（NO_SESSIONS）／課都已經點成出席（ALL_ATTENDED）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       403: {
@@ -202,6 +202,10 @@ app.openapi(
     );
     const changed = covered.filter((s) => !(s['event_id'] && keep.has(s['event_id'] as string)));
     const skippedAttendedCount = covered.length - changed.length;
+    // 每一堂都已經點成出席：這張假什麼都不會改，不建單（計畫席 10-19）
+    if (changed.length === 0) {
+      return c.json({ error: '這段時間的課都已經點成出席了', code: 'ALL_ATTENDED' }, 400);
+    }
 
     // 4. 寫入（scoped insert；org_id 由 childDb 蓋）
     const inserted = await childDb.from('leave_requests', 'student_id').insert(
