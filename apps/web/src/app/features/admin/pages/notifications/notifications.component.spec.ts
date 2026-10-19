@@ -820,6 +820,15 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(without.querySelector('[data-testid=kind]')!.textContent).toContain('系統通知');
     });
 
+    // #1695：家長請假的收件人就是管理員，少了這一條會退回「系統通知」
+    it('家長請假（leave_received）：標籤「家長請假」、連結字「看請假」', async () => {
+      received = [notification({ kind: 'leave_received', link: '/admin/leave' })];
+      await setup();
+      const row = qa('notification')[0];
+      expect(row.querySelector('[data-testid=kind]')!.textContent).toContain('家長請假');
+      expect(row.querySelector('[data-testid=go]')!.textContent).toContain('看請假');
+    });
+
     it('連結按著 Cmd／Ctrl／Shift 或中鍵點：交給瀏覽器開新分頁，不攔', async () => {
       received = [notification({ link: '/admin/applications' })];
       await setup();

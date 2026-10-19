@@ -201,6 +201,20 @@ describe('POST /api/me/leaves', () => {
     }
   });
 
+  // 審核席突變：`> 0` 改成 `> 1` 要轉紅 —— 恰好一堂已開始也算補請
+  it('通知管理員：區間裡恰好一堂已開始 → 標補請', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T07:00:00Z')); // 台北 10/20 15:00：只有英文 14:00 那堂已開始
+    try {
+      const { status } = await submit({ startDate: '2026-10-20', endDate: '2026-10-22' });
+      expect(status).toBe(201);
+      const call = vi.mocked(notifyLeaveForAdmins).mock.calls[0]![1];
+      expect(call.retroactive).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('通知管理員：蓋到的課都還沒開始 → 不標補請；只列真的改成請假的堂', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-19T00:00:00Z'));
