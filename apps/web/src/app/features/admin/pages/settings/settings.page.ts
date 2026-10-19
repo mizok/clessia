@@ -57,6 +57,10 @@ export class SettingsPage implements OnInit {
   protected billingReminderDaysValue = 14;
   protected readonly savingBillingReminder = signal(false);
 
+  /** #1732：連續請假可不收費的門檻。財務設定，同上 */
+  protected leaveWaiverDaysValue = 3;
+  protected readonly savingLeaveWaiver = signal(false);
+
   /**
    * #1660：家長繳費提醒時間點（負＝到期前、0＝當天、正＝逾期第 N 天）。同帳戶資訊：只在回應帶了這個 key
    * （有財務權限）時畫。範圍跟 API／DB 的限制同一組：最多 6 個、到期前 0–30 天、逾期 1–60 天
@@ -95,6 +99,7 @@ export class SettingsPage implements OnInit {
         this.attendanceResponsibleValue = s.attendanceResponsible;
         this.paymentInfoValue = s.paymentInfo ?? '';
         this.billingReminderDaysValue = s.billingReminderDays ?? 14;
+        this.leaveWaiverDaysValue = s.leaveWaiverDays ?? 3;
         this.reminderOffsets.set(s.invoiceReminderOffsets ?? []);
         this.loading.set(false);
       },
@@ -147,6 +152,29 @@ export class SettingsPage implements OnInit {
         },
         error: () => {
           this.savingResponsible.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '錯誤',
+            detail: '儲存失敗，請稍後再試',
+          });
+        },
+      });
+  }
+
+  /** #1732：連續請假滿這麼多個上課日，提醒有財務權限的人（2–30）。系統不改帳單 */
+  protected saveLeaveWaiverDays(): void {
+    this.savingLeaveWaiver.set(true);
+    this.orgSettingsService
+      .updateSettings({ leaveWaiverDays: this.leaveWaiverDaysValue })
+      .subscribe({
+        next: (s) => {
+          this.settings.set(s);
+          this.leaveWaiverDaysValue = s.leaveWaiverDays ?? 3;
+          this.savingLeaveWaiver.set(false);
+          this.messageService.add({ severity: 'success', summary: '已儲存', detail: '天數已更新' });
+        },
+        error: () => {
+          this.savingLeaveWaiver.set(false);
           this.messageService.add({
             severity: 'error',
             summary: '錯誤',
