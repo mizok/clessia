@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../index';
 import { isChildAllowed } from '../../lib/child-scope';
 import { DbUuidSchema } from '../../lib/validation';
+import { waitUntilFrom } from '../../lib/wait-until';
 
 /**
  * 家長端試聽申請（#1120；specs/parent/trial.md、flows/trial.md）。
@@ -203,7 +204,17 @@ app.openapi(
       return c.json({ error: '送出試聽申請失敗', code: 'SERVER_ERROR' }, 500);
     }
 
-    return c.json({ data: (data as Record<string, unknown>[]).map(toResponse) }, 201);
+    // #1731：通知分校管理員，同一次送出（多門課）合成一則（計畫席 10-19 Q7 (b)）。背景跑、失敗不擋
+    const rows = data as Record<string, unknown>[];
+    const job = childDb.notifyRequests(
+      'trial',
+      rows.map((r) => r['id'] as string),
+    );
+    const wu = waitUntilFrom(c);
+    if (wu) wu(job);
+    else await job;
+
+    return c.json({ data: rows.map(toResponse) }, 201);
   },
 );
 

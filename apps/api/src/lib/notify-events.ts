@@ -10,13 +10,20 @@ import { adminsForCampuses, notify } from './notify';
 /**
  * 公開表單送進來的報名／試聽申請 → 通知申請所指班級或課程所在分校的管理員，
  * **而且要有 `manage_students`**：申請頁（`/admin/applications`）連讀都要這個權限（計畫席 10-16 再裁）。
- * 家長登入後送的申請不在這裡 —— 管理端還沒有地方處理它們（計畫席另開單）。
+ * 家長在 App 裡送的申請（#1731）也走這支：`source: 'parent'`，由 `childDb.notifyRequests` 呼叫。
  */
 export async function notifyNewApplication(
   supabase: SupabaseClient,
   input: {
     readonly orgId: string;
     readonly applicationId: string;
+    /**
+     * 申請從哪裡來：公開表單（預設）去重鍵 `application:<id>`；家長 App `parent_request:<kind>:<id>`，
+     * 兩種申請是不同的表，id 空間分開（#1731）
+     */
+    readonly source?: 'public' | 'parent';
+    /** 同一次送出的申請筆數：家長端試聽一次多門課是多筆申請，合成一則（計畫席 10-19 Q7 (b)） */
+    readonly requestCount?: number;
     readonly kind: 'enrollment' | 'trial';
     readonly studentName: string;
     readonly classIds?: readonly string[];
@@ -57,9 +64,15 @@ export async function notifyNewApplication(
         userId,
         role: 'admin' as const,
         kind: 'application_received' as const,
-        dedupeKey: `application:${input.applicationId}`,
+        dedupeKey:
+          input.source === 'parent'
+            ? `parent_request:${input.kind}:${input.applicationId}`
+            : `application:${input.applicationId}`,
         title: `新的${label}申請`,
-        body: `${input.studentName} 送出${label}申請`,
+        body:
+          (input.requestCount ?? 1) > 1
+            ? `${input.studentName} 送出 ${input.requestCount} 門${label}申請`
+            : `${input.studentName} 送出${label}申請`,
         url: '/admin/applications',
       })),
     );

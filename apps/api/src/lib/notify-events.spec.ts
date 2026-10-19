@@ -115,6 +115,31 @@ describe('notifyNewApplication（公開表單的申請 → 分校範圍＋manage
     ]);
   });
 
+  // #1731：家長 App 送的申請，去重鍵跟公開表單分開；試聽一次多門課合成一則（計畫席 10-19 Q7 (b)）
+  it('家長 App 送的：去重鍵 parent_request:<kind>:<id>，多筆合成一則「送出 N 門」', async () => {
+    const db = seed();
+    await notifyNewApplication(db.client as SupabaseClient, {
+      orgId: A,
+      applicationId: 'req-1',
+      source: 'parent',
+      kind: 'trial',
+      studentName: '李小華',
+      courseIds: ['r1', 'r1'],
+      requestCount: 2,
+    });
+    expect(db.rows('notifications')).toEqual([
+      expect.objectContaining({
+        user_id: 'u-c1',
+        dedupe_key: 'parent_request:trial:req-1',
+        payload: {
+          title: '新的試聽申請',
+          body: '李小華 送出 2 門試聽申請',
+          url: '/admin/applications',
+        },
+      }),
+    ]);
+  });
+
   it('查詢失敗不丟例外，只記 [notify] log', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const broken = {
