@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
-import { notifyLeaveForTeachers } from './notify-leave';
+import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 
 // notifyLeave 的收件人推導是 notify-leave 自己的事（有自己的 spec）；這裡只驗「發不發、發給哪張假」
-vi.mock('./notify-leave', () => ({ notifyLeaveForTeachers: vi.fn(async () => undefined) }));
+vi.mock('./notify-leave', () => ({
+  notifyLeaveForTeachers: vi.fn(async () => undefined),
+  notifyLeaveForAdmins: vi.fn(async () => undefined),
+}));
 import { createChildDb, type ScopedIds } from './child-db';
 
 /** 只實作 `.from().select().in()` 這條鏈，並記下每次呼叫收到的參數。 */
@@ -440,17 +443,24 @@ describe('createChildDb —— upsert', () => {
 /** #1695：通知是寫別人的列 —— 只有 scope 內孩子的假才會發 */
 describe('createChildDb —— notifyLeave', () => {
   const leaves = [
-    { id: 'leave-mine', org_id: 'org-1', student_id: 'stu-mine', students: { name: '林小華' } },
+    {
+      id: 'leave-mine',
+      org_id: 'org-1',
+      student_id: 'stu-mine',
+      reason: '看牙醫',
+      students: { name: '林小華' },
+    },
     { id: 'leave-other', org_id: 'org-1', student_id: 'stu-other', students: { name: '別人' } },
     { id: 'leave-org2', org_id: 'org-2', student_id: 'stu-mine', students: { name: '林小華' } },
   ];
 
-  it('自己孩子的假：發，學生名由這裡讀（不吃呼叫端）', async () => {
+  it('自己孩子的假：老師與管理員都發，學生名與原因由這裡讀（不吃呼叫端）', async () => {
     vi.mocked(notifyLeaveForTeachers).mockClear();
+    vi.mocked(notifyLeaveForAdmins).mockClear();
     const db = createMultiOrgDb({ leave_requests: leaves });
     const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
 
-    expect(await childDb.notifyLeave('leave-mine', ['s1'], 'parent-1')).toBe(true);
+    expect(await childDb.notifyLeave('leave-mine', ['s1'], 'parent-1', true)).toBe(true);
     expect(notifyLeaveForTeachers).toHaveBeenCalledWith(db.client, {
       orgId: 'org-1',
       actorUserId: 'parent-1',
@@ -458,18 +468,28 @@ describe('createChildDb —— notifyLeave', () => {
       studentName: '林小華',
       sessionIds: ['s1'],
     });
+    expect(notifyLeaveForAdmins).toHaveBeenCalledWith(db.client, {
+      orgId: 'org-1',
+      leaveId: 'leave-mine',
+      studentName: '林小華',
+      reason: '看牙醫',
+      sessionIds: ['s1'],
+      retroactive: true,
+    });
   });
 
   it('別人孩子的 leaveId、別 org 的假、不是家長：一律不發', async () => {
     vi.mocked(notifyLeaveForTeachers).mockClear();
+    vi.mocked(notifyLeaveForAdmins).mockClear();
     const db = createMultiOrgDb({ leave_requests: leaves });
     const mine = createChildDb(db.client as never, ['stu-mine'], 'org-1');
     const none = createChildDb(db.client as never, null, 'org-1');
 
-    expect(await mine.notifyLeave('leave-other', ['s1'], 'parent-1')).toBe(false);
-    expect(await mine.notifyLeave('leave-org2', ['s1'], 'parent-1')).toBe(false);
-    expect(await none.notifyLeave('leave-mine', ['s1'], 'parent-1')).toBe(false);
+    expect(await mine.notifyLeave('leave-other', ['s1'], 'parent-1', false)).toBe(false);
+    expect(await mine.notifyLeave('leave-org2', ['s1'], 'parent-1', false)).toBe(false);
+    expect(await none.notifyLeave('leave-mine', ['s1'], 'parent-1', false)).toBe(false);
     expect(notifyLeaveForTeachers).not.toHaveBeenCalled();
+    expect(notifyLeaveForAdmins).not.toHaveBeenCalled();
   });
 });
 

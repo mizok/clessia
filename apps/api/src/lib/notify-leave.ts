@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { notify, teachersForSessionGroups } from './notify';
+import { adminsForCampuses, notify, teachersForSessionGroups } from './notify';
 import { groupByClass, shortDate } from './notify-schedule';
 
 /**
@@ -60,5 +60,77 @@ export async function notifyLeaveForTeachers(
     );
   } catch (err) {
     console.error('[notify] 請假通知失敗（假單已寫入）:', err instanceof Error ? err.message : err);
+  }
+}
+
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
+
+/**
+ * 家長幫孩子請假 → 被請假的那幾堂所屬分校、有 `basic_operations`（或 `*`）的管理員（#1695 `leave_received`，
+ * 設計稿 kb/wiki/specs/parent/leave.md §4）。
+ *
+ * - 一張假、一個管理員只收一則（`dedupe_key = leave:<leaveId>:<userId>`），不管蓋到幾堂幾班
+ * - 分校由堂次的班推導（c1），不吃呼叫端；`sessionIds` 只是「真的改成請假的那幾堂」
+ * - `retroactive`：蓋到的課有一堂已經開始 → 標題標「補請」（沒有人核對，方便行政事後看）
+ * - 不丟例外：假單已經寫入，失敗只記 `[notify]` log
+ */
+export async function notifyLeaveForAdmins(
+  supabase: SupabaseClient,
+  input: {
+    readonly orgId: string;
+    readonly leaveId: string;
+    readonly studentName: string;
+    readonly reason: string | null;
+    readonly sessionIds: readonly string[];
+    readonly retroactive: boolean;
+  },
+): Promise<void> {
+  try {
+    if (input.sessionIds.length === 0) return;
+    const { data, error } = await supabase
+      .from('sessions')
+      .select('id, session_date, classes(name, campus_id)')
+      .eq('org_id', input.orgId)
+      .in('id', [...input.sessionIds]);
+    if (error) throw new Error(error.message);
+    const sessions = (
+      (data ?? []) as Array<{
+        id: string;
+        session_date: string;
+        classes:
+          { name: string; campus_id: string } | Array<{ name: string; campus_id: string }> | null;
+      }>
+    )
+      .map((s) => ({ ...s, cls: Array.isArray(s.classes) ? s.classes[0] : s.classes }))
+      .sort((a, b) => a.session_date.localeCompare(b.session_date) || a.id.localeCompare(b.id));
+    const campusIds = [...new Set(sessions.flatMap((s) => (s.cls ? [s.cls.campus_id] : [])))];
+    if (campusIds.length === 0) return;
+    const recipients = await adminsForCampuses(supabase, input.orgId, campusIds, {
+      permission: 'basic_operations',
+    });
+
+    const first = sessions[0]!;
+    const weekday = WEEKDAY[new Date(`${first.session_date}T00:00:00Z`).getUTCDay()];
+    const count = sessions.length > 1 ? ` 等 ${sessions.length} 堂` : '';
+    const reason = input.reason?.trim() ? `，原因：${input.reason.trim()}` : '';
+    const body = `${input.studentName}的家長請假：${shortDate(first.session_date)}（${weekday}）${first.cls?.name ?? ''}${count}${reason}`;
+    await notify(
+      supabase,
+      recipients.map((userId) => ({
+        orgId: input.orgId,
+        userId,
+        role: 'admin' as const,
+        kind: 'leave_received' as const,
+        dedupeKey: `leave:${input.leaveId}:${userId}`,
+        title: input.retroactive ? '家長請假（補請）' : '家長請假',
+        body,
+        url: '/admin/leave',
+      })),
+    );
+  } catch (err) {
+    console.error(
+      '[notify] 家長請假通知管理員失敗（假單已寫入）:',
+      err instanceof Error ? err.message : err,
+    );
   }
 }

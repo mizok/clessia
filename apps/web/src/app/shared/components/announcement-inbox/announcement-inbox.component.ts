@@ -42,6 +42,7 @@ const KIND_LABELS: Record<string, string> = {
   invoice_overdue: '繳費提醒',
   schedule_change: '課務異動',
   leave_for_my_class: '請假',
+  leave_received: '請假',
 };
 
 const SOURCE_NAMES: Record<Source, string> = { announcement: '公告', notification: '通知' };

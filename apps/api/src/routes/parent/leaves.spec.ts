@@ -2,12 +2,15 @@ import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createChildDb } from '../../lib/child-db';
-import { notifyLeaveForTeachers } from '../../lib/notify-leave';
+import { notifyLeaveForAdmins, notifyLeaveForTeachers } from '../../lib/notify-leave';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 import leavesRoute from './leaves';
 
 // 收件人推導是 notify-leave 自己的事；這裡只驗「發了、發給哪幾堂」
-vi.mock('../../lib/notify-leave', () => ({ notifyLeaveForTeachers: vi.fn(async () => undefined) }));
+vi.mock('../../lib/notify-leave', () => ({
+  notifyLeaveForTeachers: vi.fn(async () => undefined),
+  notifyLeaveForAdmins: vi.fn(async () => undefined),
+}));
 
 /**
  * 家長幫孩子請假（#1695）。真的 `createChildDb` 疊在照條件過濾的替身上（同 trial-requests）。
@@ -118,6 +121,7 @@ async function submit(
   scope?: string[],
 ) {
   vi.mocked(notifyLeaveForTeachers).mockClear();
+  vi.mocked(notifyLeaveForAdmins).mockClear();
   const res = await appFor(db, roles, scope).request('/', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -187,6 +191,39 @@ describe('POST /api/me/leaves', () => {
           skippedAttendedCount: 0,
         },
       });
+      // 有堂已經開始 → 管理員那則標「補請」
+      expect(vi.mocked(notifyLeaveForAdmins).mock.calls[0]![1]).toMatchObject({
+        leaveId: leaves[0]!['id'],
+        retroactive: true,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // 審核席突變：`> 0` 改成 `> 1` 要轉紅 —— 恰好一堂已開始也算補請
+  it('通知管理員：區間裡恰好一堂已開始 → 標補請', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T07:00:00Z')); // 台北 10/20 15:00：只有英文 14:00 那堂已開始
+    try {
+      const { status } = await submit({ startDate: '2026-10-20', endDate: '2026-10-22' });
+      expect(status).toBe(201);
+      const call = vi.mocked(notifyLeaveForAdmins).mock.calls[0]![1];
+      expect(call.retroactive).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('通知管理員：蓋到的課都還沒開始 → 不標補請；只列真的改成請假的堂', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-19T00:00:00Z'));
+    try {
+      const { status } = await submit({ startDate: '2026-10-20', endDate: '2026-10-22' });
+      expect(status).toBe(201);
+      const call = vi.mocked(notifyLeaveForAdmins).mock.calls[0]![1];
+      expect(call.retroactive).toBe(false);
+      expect([...call.sessionIds].sort()).toEqual(['s-eng-1020', 's-math-1020', 's-math-1022']);
     } finally {
       vi.useRealTimers();
     }
@@ -268,6 +305,7 @@ describe('POST /api/me/leaves', () => {
     expect(db.rows('attendance_records')).toHaveLength(before.records);
     expect(db.rows('audit_logs')).toHaveLength(0);
     expect(notifyLeaveForTeachers).not.toHaveBeenCalled();
+    expect(notifyLeaveForAdmins).not.toHaveBeenCalled();
   }
 
   // 審核席：讀不到既有出勤就不知道哪幾堂已經點成出席 —— 不能 fail-open 把出席蓋成請假
