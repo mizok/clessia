@@ -225,18 +225,22 @@ describe('GET /api/me/attendance —— 請假的堂：誰登記的、原因', (
     date: string,
     role: 'parent' | 'admin',
     reason: string,
+    window: { startTime?: string; endTime?: string; boundSessionIds?: string[] } = {},
   ) => ({
     id,
     org_id: ORG,
     student_id: studentId,
     start_date: date,
     end_date: date,
-    start_time: null,
-    end_time: null,
+    start_time: window.startTime ?? null,
+    end_time: window.endTime ?? null,
     reason,
     submitted_by: 'u',
     submitted_by_role: role,
-    leave_request_sessions: [],
+    leave_request_sessions: (window.boundSessionIds ?? []).map((id) => ({
+      session_id: id,
+      sessions: { session_date: date },
+    })),
   });
 
   const db = () =>
@@ -247,6 +251,11 @@ describe('GET /api/me/attendance —— 請假的堂：誰登記的、原因', (
         // 這個孩子 10/22 沒有假單（例如老師直接點成請假）；同一天兄弟姊妹跟別人家的孩子有
         record('no-own-leave', '2026-10-22', 'on_leave'),
         record('present', '2026-10-20', 'present'),
+        // 審核席：同一天兩張不同時段的假，18:00 那堂要對到 18–20 那張（時間有參與對應）
+        record('evening', '2026-10-23', 'on_leave'),
+        // 審核席：同一天兩堂、同一個時段，綁定型的假只綁 A 堂（sessionId 有參與對應）
+        record('bound-a', '2026-10-24', 'on_leave'),
+        record('bound-b', '2026-10-24', 'on_leave'),
       ],
       leave_requests: [
         leave('l-mine', ME, '2026-10-20', 'parent', '看牙醫'),
@@ -255,6 +264,18 @@ describe('GET /api/me/attendance —— 請假的堂：誰登記的、原因', (
         leave('l-stranger', STRANGER, '2026-10-22', 'parent', '別人家的原因'),
         // 這張蓋到 present 那堂的日期，但出席的堂不帶假單資訊
         leave('l-present-day', ME, '2026-10-20', 'parent', '看牙醫'),
+        // 放在前面：不看時間的話 find 會先拿到這張
+        leave('l-afternoon', ME, '2026-10-23', 'parent', '下午看醫生', {
+          startTime: '14:00:00',
+          endTime: '16:00:00',
+        }),
+        leave('l-evening', ME, '2026-10-23', 'admin', '內部：晚上那堂', {
+          startTime: '18:00:00',
+          endTime: '20:00:00',
+        }),
+        leave('l-bound-a', ME, '2026-10-24', 'parent', '只請 A 堂', {
+          boundSessionIds: ['ses-bound-a'],
+        }),
       ],
     });
 
@@ -287,6 +308,18 @@ describe('GET /api/me/attendance —— 請假的堂：誰登記的、原因', (
     expect(byId['no-own-leave']).toEqual([null, null]);
     expect(text).not.toContain('弟弟的原因');
     expect(text).not.toContain('別人家的原因');
+  });
+
+  it('同一天家長 14–16、補習班 18–20：18:00 那堂對到補習班那張 → school、原因 null', async () => {
+    const { text, byId } = await get();
+    expect(byId['evening']).toEqual(['school', null]);
+    expect(text).not.toContain('下午看醫生');
+  });
+
+  it('綁定堂次的假只對到綁的那一堂：同一天同時段的另一堂不帶', async () => {
+    const { byId } = await get();
+    expect(byId['bound-a']).toEqual(['parent', '只請 A 堂']);
+    expect(byId['bound-b']).toEqual([null, null]);
   });
 
   it('讀假單失敗：500（不回半套資料）', async () => {
