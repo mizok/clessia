@@ -287,6 +287,20 @@
               [routerLink]="['/admin/students', invoice.studentId]"
               ><span class="truncate">{{ invoice.studentName ?? '未知學生' }}</span></a
             >
+            <!-- #1732：連續請假滿 N 個上課日、還沒處理 → 小標，連到學生檔案帳單章 -->
+            @if (streakDays().get(invoice.studentId); as days) {
+              <a
+                class="group/streak ml-1.5 inline-flex min-h-11 shrink-0 items-center no-underline"
+                [routerLink]="['/admin/students', invoice.studentId]"
+                fragment="billing"
+                data-testid="streak-pill"
+                [attr.aria-label]="'連續請假 ' + days + ' 個上課日，看明細'"
+                ><span
+                  class="rounded-full bg-warning-100 px-2 text-sm font-semibold text-warning-800 group-hover/streak:underline"
+                  >連請 {{ days }} 天</span
+                ></a
+              >
+            }
             @if (gradeLabel(invoice.studentGrade); as grade) {
               <span class="ml-1.5 shrink-0 text-base font-normal text-zinc-500 wide:inline"
                 >· {{ grade }}</span
@@ -497,6 +511,19 @@
                 [routerLink]="['/admin/students', invoice.studentId]"
                 >{{ invoice.studentName ?? '未知學生' }}</a
               >
+              @if (streakDays().get(invoice.studentId); as days) {
+                <a
+                  class="group/streak ml-1.5 inline-flex min-h-11 shrink-0 items-center no-underline"
+                  [routerLink]="['/admin/students', invoice.studentId]"
+                  fragment="billing"
+                  data-testid="streak-pill"
+                  [attr.aria-label]="'連續請假 ' + days + ' 個上課日，看明細'"
+                  ><span
+                    class="rounded-full bg-warning-100 px-2 text-sm font-semibold text-warning-800 group-hover/streak:underline"
+                    >連請 {{ days }} 天</span
+                  ></a
+                >
+              }
             </td>
             <td appRtColCell="issued">
               <span class="text-zinc-600 tabular-nums group-data-void/row:text-zinc-500">{{

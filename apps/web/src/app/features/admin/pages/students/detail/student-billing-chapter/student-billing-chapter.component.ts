@@ -1,7 +1,17 @@
-import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  OnInit,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -17,6 +27,8 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SystemClockService } from '@core/system-clock.service';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
+import { AuthService } from '@core/auth.service';
+import { StudentLeaveStreaksComponent } from '../student-leave-streaks/student-leave-streaks.component';
 import { InvoiceDetailDialogComponent } from '../../../payments/invoice-detail-dialog/invoice-detail-dialog.component';
 import { daysOverdue, isOverdue, outstanding } from '../../../payments/payments.util';
 
@@ -32,7 +44,7 @@ import { daysOverdue, isOverdue, outstanding } from '../../../payments/payments.
 @Component({
   selector: 'app-student-billing-chapter',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, StatusDotComponent],
+  imports: [DecimalPipe, RouterLink, StatusDotComponent, StudentLeaveStreaksComponent],
   // 帳單詳情 dialog 的結果訊息走全站的 MessageService（#1615）
   providers: [DialogService],
   templateUrl: './student-billing-chapter.component.html',
@@ -45,6 +57,19 @@ export class StudentBillingChapterComponent implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly clock = inject(SystemClockService);
   private readonly destroyRef = inject(DestroyRef);
+
+  /** #1732：連續請假可不收費的明細只給財務（API 也擋） */
+  protected readonly canFinance = inject(AuthService).hasPermission('manage_finance');
+  /** 從「連續請假」通知點進來（`#billing`）就直接打開這一章 */
+  protected readonly openFromLink = inject(ActivatedRoute).snapshot.fragment === 'billing';
+
+  constructor() {
+    // 路由沒開 anchorScrolling：自己捲過來
+    const host = inject(ElementRef<HTMLElement>);
+    afterNextRender(() => {
+      if (this.openFromLink) host.nativeElement.querySelector('#billing')?.scrollIntoView?.();
+    });
+  }
 
   /** 學生檔案的工具列（收款鈕、紀錄時間軸）讀這幾個——同一份資料不重打 API */
   readonly invoices = signal<Invoice[]>([]);

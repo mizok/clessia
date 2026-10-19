@@ -12,6 +12,7 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { InvoicesService, type Invoice, type InvoiceSummary } from '@core/invoices.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { CampusContextService } from '@core/campus-context.service';
+import { LeaveStreaksService } from '@core/leave-streaks.service';
 
 import { PaymentsPage } from './payments.page';
 
@@ -82,6 +83,8 @@ describe('PaymentsPage', () => {
     list: vi.fn((_params?: unknown) => of({ data: [], meta: { total: 0 } })),
   };
 
+  const leaveStreaks = { flags: vi.fn((_ids: readonly string[]) => of({ data: [] as unknown[] })) };
+
   beforeEach(async () => {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
@@ -98,6 +101,7 @@ describe('PaymentsPage', () => {
         { provide: InvoicesService, useValue: invoices },
         { provide: EnrollmentsService, useValue: enrollments },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        { provide: LeaveStreaksService, useValue: leaveStreaks },
       ],
     }).compileComponents();
 
@@ -732,6 +736,34 @@ describe('PaymentsPage', () => {
       component['load']();
       await render();
     };
+
+    // #1732：連續請假滿 N 個上課日還沒處理 → 名字旁「連請 N 天」，連到學生檔案的帳單章
+    it('連續請假小標：只問畫面上的學生、有未處理的段才畫，連到 #billing', async () => {
+      leaveStreaks.flags.mockClear();
+      leaveStreaks.flags.mockReturnValue(
+        of({
+          data: [{ studentId: 'stu-2', firstDay: '2026-10-14', lastDay: '2026-10-16', days: 3 }],
+        }),
+      );
+      await loadOverdue();
+      await new Promise((resolve) => setTimeout(resolve, 80)); // debounce
+      fixture.detectChanges();
+
+      expect(leaveStreaks.flags).toHaveBeenLastCalledWith(['stu-1', 'stu-2']);
+      const pills = el().querySelectorAll('[data-testid="streak-pill"]');
+      expect(pills).toHaveLength(1);
+      expect(pills[0]!.textContent).toContain('連請 3 天');
+      expect(pills[0]!.getAttribute('href')).toBe('/admin/students/stu-2#billing');
+    });
+
+    it('連續請假查詢失敗：不畫小標，帳單照常', async () => {
+      leaveStreaks.flags.mockReturnValue(throwError(() => new Error('x')));
+      await loadOverdue();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      fixture.detectChanges();
+      expect(el().querySelectorAll('[data-testid="streak-pill"]')).toHaveLength(0);
+      expect(el().querySelector('a[href="/admin/students/stu-1"]')).not.toBeNull();
+    });
 
     it('姓名連到學生檔案；整列不是按鈕，沒有「的帳單詳情」那顆整列可點的鈕', async () => {
       await loadOverdue();
