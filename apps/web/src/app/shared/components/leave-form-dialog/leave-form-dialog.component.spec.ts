@@ -111,6 +111,23 @@ describe('LeaveFormDialogComponent', () => {
     });
   });
 
+  // A6 form()：送出鈕不鎖死，旁邊一行寫還差什麼；填好就消失
+  it('還沒填：列出缺的必填欄；送出鈕不 disabled（aria-disabled）', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const why = () => el.querySelector('[aria-live="polite"]')!.textContent!.trim();
+    expect(why()).toBe('還沒填：學生、開始日期、結束日期');
+    const go = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('送出請假'))!;
+    expect(go.disabled).toBe(false);
+    expect(go.getAttribute('aria-disabled')).toBe('true');
+    const dialog = component as any;
+    dialog.selectedStudent = { id: 's1', name: '甲' };
+    dialog.startDate = new Date('2026-04-02');
+    dialog.endDate = new Date('2026-04-02');
+    fixture.detectChanges();
+    expect(why()).toBe('');
+    expect(go.getAttribute('aria-disabled')).toBe('false');
+  });
+
   it('renders the shared student autocomplete field', () => {
     expect(fixture.nativeElement.querySelector('app-student-autocomplete')).not.toBeNull();
   });
@@ -251,5 +268,134 @@ describe('LeaveFormDialogComponent 預帶學生（學生檔案的「登記請假
     expect(leaveServiceMock.create).toHaveBeenCalledWith(
       expect.objectContaining({ studentId: 's9', startDate: '2026-10-12' }),
     );
+  });
+});
+
+// #1695：家長端嵌在頁面的 <dialog> 裡（沒有 DynamicDialogRef），學生固定、送出走家長端 API
+describe('LeaveFormDialogComponent 嵌入（家長端）', () => {
+  const leaveServiceMock = { create: vi.fn() };
+  const referenceDataServiceMock = { campuses: signal<Campus[]>([]), loadCampuses: vi.fn() };
+
+  async function setup(create: ReturnType<typeof vi.fn>) {
+    leaveServiceMock.create.mockClear();
+    referenceDataServiceMock.loadCampuses.mockClear();
+    await TestBed.configureTestingModule({
+      imports: [LeaveFormDialogComponent],
+      providers: [
+        { provide: StudentsService, useValue: { list: vi.fn() } },
+        { provide: ReferenceDataService, useValue: referenceDataServiceMock },
+        { provide: LeaveService, useValue: leaveServiceMock },
+      ],
+    }).compileComponents();
+    const f = TestBed.createComponent(LeaveFormDialogComponent);
+    f.componentRef.setInput('student', { id: 'kid-1', name: '林子晴' });
+    f.componentRef.setInput('create', create);
+    const closed = vi.fn();
+    f.componentInstance.closed.subscribe(closed);
+    f.detectChanges();
+    const c = f.componentInstance as unknown as {
+      startDate: Date;
+      endDate: Date;
+      startTime: Date;
+      endTime: Date;
+      reason: string;
+      submit: () => void;
+      errorMessage: () => string | null;
+    };
+    return { f, c, closed };
+  }
+
+  it('不出學生欄、不載入分校；預設今天 17:00–21:00（A6 forms.leave）', async () => {
+    const { f, c } = await setup(vi.fn());
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('app-student-autocomplete')).toBeNull();
+    expect(el.textContent).not.toContain('學生');
+    expect(referenceDataServiceMock.loadCampuses).not.toHaveBeenCalled();
+    const today = new Date();
+    expect(c.startDate.toDateString()).toBe(today.toDateString());
+    expect(c.endDate.toDateString()).toBe(today.toDateString());
+    expect([c.startTime.getHours(), c.startTime.getMinutes()]).toEqual([17, 0]);
+    expect([c.endTime.getHours(), c.endTime.getMinutes()]).toEqual([21, 0]);
+  });
+
+  it('送出走給的 create（不走管理端 API），成功由 closed 帶回', async () => {
+    const create = vi.fn(() => of({ data: { id: 'leave-9' } }));
+    const { c, closed } = await setup(create);
+    c.reason = '看牙醫';
+    c.submit();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentId: 'kid-1',
+        startTime: '17:00',
+        endTime: '21:00',
+        reason: '看牙醫',
+      }),
+    );
+    expect(leaveServiceMock.create).not.toHaveBeenCalled();
+    expect(closed).toHaveBeenCalledWith({ data: { id: 'leave-9' } });
+  });
+
+  it.each([
+    [400, 'NO_SESSIONS', '這段時間沒有課', '這段時間 林子晴 沒有課'],
+    [409, 'LEAVE_OVERLAP', '這段時間已經請過假了', '這段時間已經請過假了'],
+    [400, 'ALL_ATTENDED', '這段時間的課都已經點成出席了', '這段時間的課都已經點成出席了'],
+  ])('%s %s：錯誤留在表單、填的不清、不關', async (status, code, error, shown) => {
+    const create = vi.fn(() => throwError(() => ({ status, error: { error, code } })));
+    const { f, c, closed } = await setup(create);
+    c.reason = '家裡有事';
+    c.submit();
+    f.detectChanges();
+    expect(c.errorMessage()).toBe(shown);
+    expect((f.nativeElement as HTMLElement).textContent).toContain(shown);
+    expect(c.reason).toBe('家裡有事');
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  // 審核席突變：失敗後沒有把 saving 放掉，按鈕會卡在「送出中…」、submit() 開頭也擋掉重送
+  it('送出失敗 → 錯誤留在表單、按鈕回到「送出請假」、再按一次會再送', async () => {
+    const create = vi
+      .fn()
+      .mockReturnValueOnce(
+        throwError(() => ({
+          status: 409,
+          error: { error: '這段時間已經請過假了', code: 'LEAVE_OVERLAP' },
+        })),
+      )
+      .mockReturnValueOnce(of({ data: { id: 'leave-2' } }));
+    const { f, c, closed } = await setup(create);
+    const go = () =>
+      [...(f.nativeElement as HTMLElement).querySelectorAll('button')].find((b) =>
+        /送出/.test(b.textContent ?? ''),
+      )!;
+
+    go().click();
+    f.detectChanges();
+    expect(c.errorMessage()).toBe('這段時間已經請過假了');
+    expect(go().textContent!.trim()).toBe('送出請假');
+    expect(go().getAttribute('aria-disabled')).toBe('false');
+
+    go().click();
+    f.detectChanges();
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(closed).toHaveBeenCalledWith({ data: { id: 'leave-2' } });
+  });
+
+  it('網路失敗：通用訊息、不關', async () => {
+    const create = vi.fn(() =>
+      throwError(() => ({ status: 0, error: new ProgressEvent('error') })),
+    );
+    const { c, closed } = await setup(create);
+    c.submit();
+    expect(c.errorMessage()).toBe('新增請假失敗，請稍後再試');
+    expect(closed).not.toHaveBeenCalled();
+  });
+
+  it('取消：closed 帶 null', async () => {
+    const { f, closed } = await setup(vi.fn());
+    const cancel = [...(f.nativeElement as HTMLElement).querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('取消'),
+    )!;
+    cancel.click();
+    expect(closed).toHaveBeenCalledWith(null);
   });
 });

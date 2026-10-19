@@ -38,7 +38,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
-import { LeaveFormDialogComponent } from '../../leave/leave-form-dialog.component';
+import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import {
   ATTENDANCE_CELL_LABELS,
   ATTENDANCE_STATE_LABELS,

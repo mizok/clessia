@@ -2,6 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { MessageService } from 'primeng/api';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { ChildScopeService } from '@core/child-scope.service';
 import {
@@ -64,11 +67,32 @@ describe('AttendancePage', () => {
   let listMock: ReturnType<typeof vi.fn>;
   let activeChildId: ReturnType<typeof signal<string | null>>;
   let childScopeLoad: ReturnType<typeof vi.fn>;
+  let activeChild: ReturnType<typeof signal<{ id: string; name: string } | null>>;
+  let createLeaveMock: ReturnType<typeof vi.fn>;
+  let toastMock: ReturnType<typeof vi.fn>;
+
+  // jsdom 沒有 <dialog> 的 modal 行為：只補開關狀態與 close 事件（照 notifications.component.spec）
+  const dialogProto = HTMLDialogElement.prototype;
+  const originalDialog = { showModal: dialogProto.showModal, close: dialogProto.close };
+  beforeEach(() => {
+    dialogProto.showModal = function (this: HTMLDialogElement) {
+      this.open = true;
+    };
+    dialogProto.close = function (this: HTMLDialogElement) {
+      if (!this.open) return;
+      this.open = false;
+      this.dispatchEvent(new Event('close'));
+    };
+  });
+  afterEach(() => Object.assign(dialogProto, originalDialog));
 
   function createComponent(
     response: ParentAttendanceListResponse | (() => never) = emptyResponse(),
   ) {
     activeChildId = signal<string | null>(null);
+    activeChild = signal<{ id: string; name: string } | null>(null);
+    createLeaveMock = vi.fn(() => of({ data: { id: 'leave-1' } }));
+    toastMock = vi.fn();
     childScopeLoad = vi.fn();
     listMock = vi.fn(() =>
       typeof response === 'function' ? throwError(() => new Error('boom')) : of(response),
@@ -85,14 +109,21 @@ describe('AttendancePage', () => {
             // 所以「0 個孩子卻有 activeChildId」是現實中不存在的狀態，
             // 而 `app-child-scope-gate`（#749）會把它擋掉。
             children: () => [{ id: 'child-1', name: '測試孩子' }],
-            activeChild: () => null,
+            activeChild: activeChild.asReadonly(),
             status: () => 'ready' as const,
             canSwitch: () => false,
             setActiveChild: vi.fn(),
             load: childScopeLoad,
           },
         },
-        { provide: ParentAttendanceService, useValue: { list: listMock } },
+        {
+          provide: ParentAttendanceService,
+          useValue: { list: listMock, createLeave: createLeaveMock },
+        },
+        { provide: MessageService, useValue: { add: toastMock } },
+        // 共用請假表單注入的管理端 service（嵌入時不會打）要有 HttpClient 才建得起來
+        provideHttpClient(),
+        provideHttpClientTesting(),
       ],
     });
 
@@ -359,6 +390,7 @@ describe('AttendancePage', () => {
           },
         },
         { provide: ParentAttendanceService, useValue: { list: listMock } },
+        { provide: MessageService, useValue: { add: vi.fn() } },
       ],
     });
     fixture = TestBed.createComponent(AttendancePage);
@@ -377,5 +409,84 @@ describe('AttendancePage', () => {
     pending.complete();
     fixture.detectChanges();
     expect(host.querySelectorAll('.skeleton-list').length).toBe(0);
+  });
+  // #1695 第 3 張：A6 p-attendance 的「幫孩子請假」
+  describe('幫孩子請假', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const leaveButton = () =>
+      [...el().querySelectorAll('button')].find((b) => b.textContent?.includes('幫孩子請假'));
+
+    function withChild() {
+      createComponent();
+      activeChild.set({ id: 'child-1', name: '測試孩子' });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+    }
+
+    it('沒有選中的孩子時不出現；有就出現在工具列', () => {
+      createComponent();
+      expect(leaveButton()).toBeUndefined();
+      activeChild.set({ id: 'child-1', name: '測試孩子' });
+      fixture.detectChanges();
+      expect(leaveButton()).toBeDefined();
+    });
+
+    it('打開：對話框裡是共用表單，學生固定是目前的孩子（不出學生欄），副標寫孩子名', async () => {
+      withChild();
+      leaveButton()!.click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      const dialog = el().querySelector('dialog')!;
+      expect(dialog.open).toBe(true);
+      expect(dialog.textContent).toContain('登記請假');
+      expect(dialog.textContent).toContain('測試孩子 · 這段時間的課都會標成請假');
+      expect(dialog.querySelector('app-leave-form-dialog')).not.toBeNull();
+      expect(dialog.querySelector('app-student-autocomplete')).toBeNull();
+    });
+
+    it('送出成功：打家長端 API、關掉、toast「已登記 {孩子} {M/D} 請假」、重抓目前期間', async () => {
+      withChild();
+      leaveButton()!.click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      listMock.mockClear();
+      const form = fixture.debugElement.query((d) => d.name === 'app-leave-form-dialog')
+        .componentInstance as { startDate: Date; endDate: Date; submit: () => void };
+      form.startDate = new Date(2026, 9, 20);
+      form.endDate = new Date(2026, 9, 21);
+      form.submit();
+      fixture.detectChanges();
+
+      expect(createLeaveMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          studentId: 'child-1',
+          startDate: '2026-10-20',
+          endDate: '2026-10-21',
+          startTime: '17:00',
+          endTime: '21:00',
+        }),
+      );
+      expect(el().querySelector('dialog')!.open).toBe(false);
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'success', summary: '已登記 測試孩子 10/20 請假' }),
+      );
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({ childId: 'child-1', page: 1 }),
+      );
+    });
+
+    it('取消：關掉、不打 API、不 toast', async () => {
+      withChild();
+      leaveButton()!.click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      [...el().querySelectorAll<HTMLButtonElement>('dialog button')]
+        .find((b) => b.textContent?.includes('取消'))!
+        .click();
+      fixture.detectChanges();
+      expect(el().querySelector('dialog')!.open).toBe(false);
+      expect(createLeaveMock).not.toHaveBeenCalled();
+      expect(toastMock).not.toHaveBeenCalled();
+    });
   });
 });
