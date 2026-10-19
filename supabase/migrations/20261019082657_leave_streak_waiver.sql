@@ -9,7 +9,8 @@
 --   3. leave_streak_reviews：「已處理」（使用者 10-17 裁 Q2）。一列 = 某位學生某一段被標為已處理；
 --      之後那段被延長（起訖往外長）就不再被這列完整涵蓋 → 重新出現。
 --      授權只在 Hono middleware（c1）；RLS 開著、沒有 policy ＝ fail-closed 後盾（同其他業務表）。
---      reviewed_by 只是**參照** ba_user（不寫它，c2），ON DELETE RESTRICT 照 requested_by 的寫法。
+--      reviewed_by 只是**參照** ba_user（不寫它，c2）。**可以是 NULL、ON DELETE SET NULL**（計畫席 10-19）：
+--      RESTRICT 會讓「標過一次已處理」的帳號之後走 Better Auth 刪不掉；誰標的另有稽核紀錄。
 --
 -- 純加欄、加值、加表，沒有 backfill、不動既有欄位。**但它是 schema 類、要先套完才能部署**：
 -- 同一支 PR 的 routes/org-settings.ts `SELECT_FIELDS` 讀 leave_waiver_days，欄位不存在時
@@ -29,7 +30,7 @@ CREATE TABLE public.leave_streak_reviews (
   student_id  uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
   first_day   date NOT NULL,
   last_day    date NOT NULL,
-  reviewed_by text NOT NULL REFERENCES public.ba_user(id) ON DELETE RESTRICT,
+  reviewed_by text REFERENCES public.ba_user(id) ON DELETE SET NULL,
   reviewed_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT leave_streak_reviews_days_check CHECK (first_day <= last_day),
   CONSTRAINT leave_streak_reviews_student_days_key UNIQUE (student_id, first_day, last_day)

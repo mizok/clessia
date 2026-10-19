@@ -3,7 +3,7 @@ title: 連續請假滿 N 個上課日可不收費：提醒行政（設計稿）
 summary: 設計稿（#1732；使用者 10-17 已裁三題）。不成文規定「請假照收，但連續請假滿 N 個上課日，這 N 天可以不收」，系統只偵測與提醒、由行政手動調帳單或堂數，**不碰任何計費與開單邏輯**。偵測以學生為單位、某天所有有課的班都請假才算一個請假日、相鄰假單接得起來就合併、N 是機構設定（預設 3）。假單寫入後（管理端與之後的家長端 #1695 共用同一個核心）背景偵測，達標就發站內通知給有 manage_finance 的管理員；帳單頁與學生檔案的標記在讀取時現算；管理員可把一段標為「已處理」，之後被延長會重新出現。一支 migration（機構設定欄位、`leave_streak_reviews` 表、通知 enum），拆三支實作單。待裁 Q1–Q7 已於 10-17 裁定。
 category: spec
 status: accepted
-updated: 2026-10-17
+updated: 2026-10-19
 tags: [specs, finance, leave, attendance, notifications, migration]
 ---
 
@@ -135,7 +135,7 @@ detectStreaks(classDays, leaves, attended, n) → Streak[]
 ## 6. Migration（一支，保留類）
 
 ```sql
--- 照 20261004031232_billing_reminder_days.sql：純加欄＋預設值，部署前後套都安全
+-- 照 20261004031232_billing_reminder_days.sql：純加欄＋預設值。schema 類，先套才部署（org-settings 的 select 讀新欄）
 ALTER TABLE public.organizations
   ADD COLUMN leave_waiver_days smallint NOT NULL DEFAULT 3
   CHECK (leave_waiver_days BETWEEN 2 AND 30);
@@ -150,7 +150,7 @@ CREATE TABLE public.leave_streak_reviews (
   student_id  uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
   first_day   date NOT NULL,
   last_day    date NOT NULL,
-  reviewed_by text NOT NULL REFERENCES public.ba_user(id) ON DELETE RESTRICT,
+  reviewed_by text REFERENCES public.ba_user(id) ON DELETE SET NULL,
   reviewed_at timestamptz NOT NULL DEFAULT now(),
   CHECK (first_day <= last_day),
   UNIQUE (student_id, first_day, last_day)
@@ -159,7 +159,10 @@ CREATE INDEX leave_streak_reviews_student_idx ON public.leave_streak_reviews (st
 ALTER TABLE public.leave_streak_reviews ENABLE ROW LEVEL SECURITY;
 ```
 
-沒有 backfill。不動任何既有欄位。`reviewed_by` 只是**參照** `ba_user`（不寫它，c2），`ON DELETE RESTRICT` 照既有的 `requested_by` 寫法（人員走停用，不會真的刪帳號）。
+沒有 backfill。不動任何既有欄位。**是 schema 類、要先套 migration 再部署**：`routes/org-settings.ts` 的 `SELECT_FIELDS`
+讀 `leave_waiver_days`，欄位不存在時設定的讀寫直接報錯（[[architecture/deploying]] #1307 的教訓；原稿寫「部署前後套都安全」不成立，10-19 改正）。
+`reviewed_by` 只是**參照** `ba_user`（不寫它，c2），**可以是 NULL、`ON DELETE SET NULL`**（計畫席 10-19 讀 PR-1 改）：
+`RESTRICT` 會讓標過一次「已處理」的帳號之後走 Better Auth 刪不掉；誰標的另有稽核紀錄。
 
 ## 7. 明確不做
 
