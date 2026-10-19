@@ -20,6 +20,7 @@ const STU = '33333333-3333-4333-8333-333333333333';
 const STU2 = '44444444-4444-4444-8444-444444444444';
 const ALIEN = '55555555-5555-4555-8555-555555555555';
 const REVIEW = '66666666-6666-4666-8666-666666666666';
+const ALIEN_REVIEW = '77777777-7777-4777-8777-777777777777';
 
 const streak = (firstDay: string, lastDay: string, review = false): ReviewedLeaveStreak => ({
   firstDay,
@@ -68,6 +69,8 @@ function seed() {
     ],
     leave_streak_reviews: [
       { id: REVIEW, org_id: ORG, student_id: STU, first_day: D1, last_day: D2 },
+      // 別 org 的列、student_id 撞上本 org 的學生（c1：刪除只看 student_id 會刪到它）
+      { id: ALIEN_REVIEW, org_id: OTHER, student_id: STU, first_day: D1, last_day: D2 },
     ],
     meal_records: [
       {
@@ -142,6 +145,12 @@ describe('GET /api/leave-streaks?studentIds=（帳單頁）', () => {
     });
   });
 
+  it('不分校受限也只問本 org 的學生（c1）', async () => {
+    load.mockResolvedValue({ threshold: 3, byStudent: new Map() });
+    await appWith(seed()).request(`/api/leave-streaks?studentIds=${STU},${ALIEN}`);
+    expect(load.mock.calls[0]![2]).toEqual([STU]);
+  });
+
   it('超過 100 個或不是 uuid：400', async () => {
     const many = Array.from({ length: 101 }, () => crypto.randomUUID()).join(',');
     expect((await appWith(seed()).request(`/api/leave-streaks?studentIds=${many}`)).status).toBe(
@@ -214,7 +223,7 @@ describe('POST /api/leave-streaks/students/:id/reviews（標為已處理）', ()
     const res = await post(db, STU, { firstDay: D1, lastDay: addDays(D2, 1) });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { code: string }).code).toBe('STREAK_NOT_FOUND');
-    expect(db.rows('leave_streak_reviews')).toHaveLength(1);
+    expect(db.rows('leave_streak_reviews')).toHaveLength(2);
   });
 
   it('現存而且未處理 → 201，寫一列＋稽核（reviewed_by 會被 SET NULL，誰標的以稽核為準）', async () => {
@@ -259,7 +268,7 @@ describe('DELETE /api/leave-streaks/students/:id/reviews/:reviewId（復原）',
   it('刪掉那一列＋稽核', async () => {
     const db = seed();
     expect((await del(db, STU, REVIEW)).status).toBe(204);
-    expect(db.rows('leave_streak_reviews')).toHaveLength(0);
+    expect(db.rows('leave_streak_reviews')).toHaveLength(1);
     await vi.waitFor(() =>
       expect(db.rows('audit_logs')).toContainEqual(
         expect.objectContaining({ action: 'unmark_leave_streak_reviewed' }),
@@ -267,9 +276,15 @@ describe('DELETE /api/leave-streaks/students/:id/reviews/:reviewId（復原）',
     );
   });
 
+  it('別 org 的列（student_id 一樣）：404，不刪（c1）', async () => {
+    const db = seed();
+    expect((await del(db, STU, ALIEN_REVIEW)).status).toBe(404);
+    expect(db.rows('leave_streak_reviews').map((r) => r['id'])).toContain(ALIEN_REVIEW);
+  });
+
   it('掛在別的學生名下：404，不刪', async () => {
     const db = seed();
     expect((await del(db, STU2, REVIEW)).status).toBe(404);
-    expect(db.rows('leave_streak_reviews')).toHaveLength(1);
+    expect(db.rows('leave_streak_reviews')).toHaveLength(2);
   });
 });

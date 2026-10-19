@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import type { LeaveWindow } from './leave-covers-session';
 import {
   detectLeaveStreaks,
   formatLeaveStreakNotice,
+  notifyLeaveStreaks,
   reviewCovering,
   type StreakSession,
 } from './leave-streak';
@@ -160,5 +162,112 @@ describe('formatLeaveStreakNotice', () => {
       title: '林小華連續請假 3 個上課日',
       body: '10/14（三）、10/16（五）、10/19（一），這幾天的費用可以不收。點進去看明細。',
     });
+  });
+});
+
+/**
+ * #1739 二讀：通知的三道過濾要有測試守 —— 收件人要 manage_finance、已處理的段不發、只發跟這張假相交的段。
+ * 走真的 `adminsForCampuses`／`notify`（替身照條件過濾），不是替身回固定收件人。
+ */
+describe('notifyLeaveStreaks（收件人與要發哪幾段）', () => {
+  const ORG = 'org-1';
+  const STU = 'stu-1';
+  // 10/5–10/7 一段舊的（沒處理）、10/8 有來、10/12–10/14 這次的
+  const DATES = ['05', '06', '07', '08', '12', '13', '14'].map((d) => `2026-10-${d}`);
+
+  function seed(reviews: Array<Record<string, unknown>> = []) {
+    return createMultiOrgDb({
+      organizations: [{ id: ORG, leave_waiver_days: 3 }],
+      students: [{ id: STU, org_id: ORG, name: '林小華' }],
+      enrollments: [
+        {
+          org_id: ORG,
+          student_id: STU,
+          class_id: 'c1',
+          status: 'active',
+          effective_from: '2026-09-01',
+          effective_to: null,
+        },
+      ],
+      sessions: DATES.map((date) => ({
+        id: `s-${date}`,
+        org_id: ORG,
+        class_id: 'c1',
+        session_date: date,
+        start_time: '18:00',
+        end_time: '20:00',
+        status: 'scheduled',
+        event_id: null,
+        events: null,
+        classes: { name: '國二數學', campus_id: 'campus-1' },
+      })),
+      attendance_records: [],
+      daily_checkins: [],
+      leave_requests: [
+        {
+          id: 'l-old',
+          org_id: ORG,
+          student_id: STU,
+          start_date: '2026-10-05',
+          end_date: '2026-10-07',
+        },
+        {
+          id: 'l-new',
+          org_id: ORG,
+          student_id: STU,
+          start_date: '2026-10-12',
+          end_date: '2026-10-14',
+        },
+      ],
+      leave_streak_reviews: reviews,
+      // 同分校兩位在職管理員：一位有財務權限、一位沒有；另一位有財務權限但在別的分校
+      staff: [
+        { id: 'st-fin', org_id: ORG, user_id: 'u-fin', status: 'active' },
+        { id: 'st-ops', org_id: ORG, user_id: 'u-ops', status: 'active' },
+        { id: 'st-far', org_id: ORG, user_id: 'u-far', status: 'active' },
+      ],
+      user_roles: [
+        { user_id: 'u-fin', role: 'admin', permissions: ['manage_finance'] },
+        { user_id: 'u-ops', role: 'admin', permissions: ['basic_operations', 'manage_students'] },
+        { user_id: 'u-far', role: 'admin', permissions: ['manage_finance'] },
+      ],
+      staff_campuses: [
+        { staff_id: 'st-fin', campus_id: 'campus-1' },
+        { staff_id: 'st-ops', campus_id: 'campus-1' },
+        { staff_id: 'st-far', campus_id: 'campus-2' },
+      ],
+      notifications: [],
+    });
+  }
+  const run = (db: ReturnType<typeof seed>) =>
+    notifyLeaveStreaks(db.client as never, {
+      orgId: ORG,
+      studentId: STU,
+      from: '2026-10-12',
+      to: '2026-10-14',
+    });
+
+  it('只發給那幾堂分校內有 manage_finance 的管理員；只發跟這張假相交的那一段', async () => {
+    const db = seed();
+    await run(db);
+    expect(db.rows('notifications').map((n) => [n['user_id'], n['kind'], n['dedupe_key']])).toEqual(
+      [['u-fin', 'leave_streak', `leave_streak:${STU}:2026-10-12:2026-10-14`]],
+    );
+  });
+
+  it('那一段已經被「已處理」完整涵蓋：不發', async () => {
+    const db = seed([
+      {
+        id: 'r1',
+        org_id: ORG,
+        student_id: STU,
+        first_day: '2026-10-12',
+        last_day: '2026-10-14',
+        reviewed_by: 'u-fin',
+        reviewed_at: 't',
+      },
+    ]);
+    await run(db);
+    expect(db.rows('notifications')).toEqual([]);
   });
 });
