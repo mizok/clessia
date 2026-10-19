@@ -140,8 +140,43 @@ run('連續請假偵測對真 DB（#1732）', () => {
     );
   }, 60_000);
 
+  // students／classes 等的 org FK 不是 CASCADE：照 staff-digests.contract 的收法，關掉 FK 觸發逐表刪
   afterAll(async () => {
-    if (orgId) await pool.query('DELETE FROM organizations WHERE id = $1', [orgId]);
+    if (orgId) {
+      const db = await pool.connect();
+      try {
+        await db.query('BEGIN');
+        await db.query('SET LOCAL session_replication_role = replica');
+        await db.query(
+          'DELETE FROM staff_campuses WHERE staff_id IN (SELECT id FROM staff WHERE org_id = $1)',
+          [orgId],
+        );
+        for (const t of [
+          'notifications',
+          'leave_streak_reviews',
+          'meal_records',
+          'daily_checkins',
+          'attendance_records',
+          'leave_requests',
+          'enrollments',
+          'students',
+          'staff',
+          'sessions',
+          'events',
+          'classes',
+          'courses',
+          'subjects',
+          'campuses',
+          'audit_logs',
+        ]) {
+          await db.query(`DELETE FROM ${t} WHERE org_id = $1`, [orgId]);
+        }
+        await db.query('COMMIT');
+      } finally {
+        db.release();
+      }
+      await pool.query('DELETE FROM organizations WHERE id = $1', [orgId]);
+    }
     await pool.end();
   });
 
