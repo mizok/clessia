@@ -562,7 +562,21 @@ export const PAGES = {
     app: '/admin/grades/exams/academy/5bce4763-b20c-4dd5-9f7e-2b7e500e3a22/scores',
   },
   grades: { a6: 'grades.html', app: '/admin/grades/overview' },
-  'grades-class': { a6: 'grades-class.html', app: '/admin/grades/overview/class' },
+  'grades-class': {
+    a6: 'grades-class.html',
+    app: '/admin/grades/overview/class',
+    deviations: [
+      {
+        // 舊有新無：稿的章頭只有課程名＋「N 個班」，app 在章名下保留科目小字
+        status: '多',
+        host: '^app-chapter-head$',
+        app: 'landmark:region\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        reason: '章名下保留科目小字：課程名不保證含科目，照稿拿掉這頁就看不到科目',
+        source:
+          'kb/wiki/architecture/a6-adoption-rules.md R5（2026-10-21）；https://github.com/mizok/clessia/pull/1769#issuecomment-6310159607',
+      },
+    ],
+  },
   'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
   // 黏住的行為檢查才量得到（A6 的 .wc__h／.cg__dh、#save）
