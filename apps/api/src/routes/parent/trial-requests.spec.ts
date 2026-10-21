@@ -6,7 +6,7 @@ import { notifyNewApplication } from '../../lib/notify-events';
 vi.mock('../../lib/notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
-import trialRequestsRoute, { SELECT } from './trial-requests';
+import trialRequestsRoute, { COURSE_SELECT, SELECT } from './trial-requests';
 
 /**
  * 家長端試聽申請（#1120）。真的 `createChildDb` 疊在照條件過濾的替身上（同 enrollment-requests）。
@@ -46,6 +46,29 @@ function appFor(db: ReturnType<typeof createMultiOrgDb>, roles = ['parent']) {
   app.route('/', trialRequestsRoute as unknown as Hono);
   return app;
 }
+
+/** 讓 campuses 的查詢回錯（替身沒有錯誤注入，同 leaves.spec 的寫法） */
+function failCampuses(db: ReturnType<typeof createMultiOrgDb>) {
+  const client = db.client as { from: (table: string) => Record<string, unknown> };
+  const realFrom = client.from.bind(client);
+  const failing = {
+    eq: () => failing,
+    in: () => failing,
+    then: (resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: { code: 'XX000', message: 'boom' } }),
+  };
+  vi.spyOn(client, 'from').mockImplementation(((table: string) => {
+    const builder = realFrom(table);
+    return table === 'campuses' ? { ...builder, select: () => failing } : builder;
+  }) as never);
+  return db;
+}
+
+const withCampus = (extra: Record<string, Array<Record<string, unknown>>> = {}) =>
+  seed({
+    campuses: [{ id: 'cp-main', org_id: ORG, name: '總校', phone: '02-2345-6789' }],
+    ...extra,
+  });
 
 async function submit(body: Record<string, unknown>, db = seed(), roles?: string[]) {
   vi.mocked(notifyNewApplication).mockClear();
@@ -159,6 +182,34 @@ describe('POST /api/me/trial-requests', () => {
     expect((await submit({ courseIds: [MATH] }, db)).status).toBe(201);
   });
 
+  // 審核席 T1：送出成功的回應也帶分校名稱與電話（課程沒分校 → null）
+  it('送出成功：回應帶各課程分校的名稱與電話', async () => {
+    const db = withCampus({
+      courses: [
+        { id: MATH, org_id: ORG, is_active: true, campus_id: 'cp-main' },
+        { id: ENGLISH, org_id: ORG, is_active: true, campus_id: null },
+      ],
+    });
+    const { status, body } = await submit({ courseIds: [MATH, ENGLISH] }, db);
+
+    expect(status).toBe(201);
+    const by = (id: string) => body.data.find((r: { courseId: string }) => r.courseId === id);
+    expect([by(MATH).campusName, by(MATH).campusPhone]).toEqual(['總校', '02-2345-6789']);
+    expect([by(ENGLISH).campusName, by(ENGLISH).campusPhone]).toEqual([null, null]);
+  });
+
+  // 已經寫進去了，讀分校失敗不該讓家長以為沒送出（列表重抓會有電話）
+  it('寫入後讀分校失敗：照樣 201，分校欄位是 null', async () => {
+    const db = failCampuses(
+      withCampus({ courses: [{ id: MATH, org_id: ORG, is_active: true, campus_id: 'cp-main' }] }),
+    );
+    const { status, body, rows } = await submit({ courseIds: [MATH] }, db);
+
+    expect(status).toBe(201);
+    expect(rows).toHaveLength(1);
+    expect([body.data[0].campusName, body.data[0].campusPhone]).toEqual([null, null]);
+  });
+
   it('沒選課：400', async () => {
     expect((await submit({ courseIds: [] })).status).toBe(400);
   });
@@ -213,6 +264,63 @@ describe('GET /api/me/trial-requests', () => {
     expect(pick('t-done')).toEqual(['2026-10-21', '18:30', '20:00']);
     expect(pick('t-wait')).toEqual([null, null, null]);
   });
+
+  // #1727 Q-b：試聽沒有取消鈕，詳情要放分校電話。課程的分校讀不到（別 org、沒這間）或沒填電話 → null
+  it('帶課程所屬分校的名稱與電話；讀不到或沒電話 → null', async () => {
+    const row = (id: string, campusId: string | null) => ({
+      id,
+      org_id: ORG,
+      student_id: MY_CHILD,
+      course_id: MATH,
+      status: 'pending',
+      courses: { name: '數學', campus_id: campusId },
+    });
+    const db = seed({
+      campuses: [
+        { id: 'cp-main', org_id: ORG, name: '總校', phone: '02-2345-6789' },
+        { id: 'cp-nophone', org_id: ORG, name: '二校', phone: '  ' },
+        { id: 'cp-foreign', org_id: 'org-2', name: '別家', phone: '03-000-0000' },
+      ],
+      trial_requests: [
+        row('t-main', 'cp-main'),
+        row('t-nophone', 'cp-nophone'),
+        row('t-foreign', 'cp-foreign'),
+        row('t-none', null),
+      ],
+    });
+    const body = (await (await appFor(db).request('/')).json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+    const pick = (id: string) => {
+      const r = body.data.find((x) => x['id'] === id)!;
+      return [r['campusName'], r['campusPhone']];
+    };
+    expect(pick('t-main')).toEqual(['總校', '02-2345-6789']);
+    expect(pick('t-nophone')).toEqual(['二校', null]);
+    expect(pick('t-foreign')).toEqual([null, null]);
+    expect(pick('t-none')).toEqual([null, null]);
+  });
+
+  // fail-closed：讀不到分校就回 500，不回一份「沒有電話」的列表讓家長以為補習班沒留電話
+  it('讀分校失敗：500', async () => {
+    const db = failCampuses(
+      withCampus({
+        trial_requests: [
+          {
+            id: 't1',
+            org_id: ORG,
+            student_id: MY_CHILD,
+            course_id: MATH,
+            status: 'pending',
+            courses: { name: '數學', campus_id: 'cp-main' },
+          },
+        ],
+      }),
+    );
+    const res = await appFor(db).request('/');
+
+    expect(res.status).toBe(500);
+  });
 });
 
 // 替身不看 select 欄位（一律回整列），上面的 spec 守不住「select 有沒有撈」—— 直接斷言（同 #1742 的做法）
@@ -221,5 +329,14 @@ describe('試聽申請的 select', () => {
     expect(SELECT).toContain('scheduled_date');
     expect(SELECT).toContain('scheduled_start_time');
     expect(SELECT).toContain('scheduled_end_time');
+  });
+
+  it('送出前的課程查詢有撈 campus_id（送出回應的分校靠它，審核席 T4）', () => {
+    expect(COURSE_SELECT).toContain('campus_id');
+    expect(COURSE_SELECT).toContain('is_active');
+  });
+
+  it('課程有撈 campus_id（分校電話靠它查）', () => {
+    expect(SELECT).toMatch(/courses\([^)]*campus_id/);
   });
 });
