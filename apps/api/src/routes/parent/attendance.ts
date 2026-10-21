@@ -6,6 +6,11 @@ import {
   flattenAttendanceRow,
   toAttendanceResponse,
 } from '../../lib/attendance-query';
+import {
+  LEAVE_WINDOW_COLUMNS,
+  leaveCoversSession,
+  toLeaveWindow,
+} from '../../lib/leave-covers-session';
 import { DbUuidSchema } from '../../lib/validation';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 
@@ -32,6 +37,17 @@ const ParentAttendanceRecordSchema = z
     sessionStatus: z.enum(['scheduled', 'completed', 'cancelled']).nullable(),
     status: z.enum(['present', 'absent', 'on_leave']),
     note: z.string().nullable(),
+    /**
+     * 請假的堂（`on_leave`）是誰登記的：家長自己送的（`parent`）或補習班登記的（`school`）。
+     * 不回是誰、不回 user id。不是請假、或找不到蓋到這堂的假單 → `null`（#1695 第 4 張）
+     */
+    leaveSubmittedBy: z.enum(['parent', 'school']).nullable(),
+    /**
+     * 請假原因。**只回家長自己送的**；補習班登記的一律 `null` —— 管理端的原因欄沒有告訴行政
+     * 「家長看得到」，寫的可能是內部備註（計畫席 10-19 裁 (A)，升級到全部顯示待使用者裁定）。
+     * 在 API 層就不回，不是只在前端藏
+     */
+    leaveReason: z.string().nullable(),
     // recordedBy / recordedByRole 不回：內部經手人 id 與角色標記，
     // 對家長是無意義的亂碼，窗口裁決已補進遮蔽清單
   })
@@ -62,8 +78,11 @@ const ErrorSchema = z
   .object({ error: z.string(), code: z.string() })
   .openapi('ParentAttendanceError');
 
-function toParentAttendanceRecord(row: Record<string, unknown>) {
+type Row = Record<string, unknown>;
+
+function toParentAttendanceRecord(row: Row, leave: Row | null) {
   const full = toAttendanceResponse(row);
+  const byParent = leave?.['submitted_by_role'] === 'parent';
   return {
     id: full.id,
     eventId: full.eventId,
@@ -75,6 +94,8 @@ function toParentAttendanceRecord(row: Record<string, unknown>) {
     sessionStatus: full.sessionStatus,
     status: full.status,
     note: full.note,
+    leaveSubmittedBy: leave ? (byParent ? ('parent' as const) : ('school' as const)) : null,
+    leaveReason: byParent ? ((leave?.['reason'] as string | null) ?? null) : null,
   };
 }
 
@@ -157,12 +178,44 @@ app.openapi(
       return c.json({ error: '讀取出缺席紀錄失敗', code: 'FETCH_ATTENDANCE_FAILED' }, 500);
     }
 
-    const rawRows = (data ?? []) as unknown as Record<string, unknown>[];
-    const rows = rawRows.map((r) => flattenAttendanceRow(r));
+    const rawRows = (data ?? []) as unknown as Row[];
+
+    // 請假的堂是哪一張假蓋到的：出勤紀錄沒有連到假單，照管理端的判準（`leaveCoversSession`）推導。
+    // 假單也走 childDb，而且疊 `.eq('student_id', childId)` —— 只讀這個孩子的（兄弟姊妹的假不能混進來）
+    const eventOf = (r: Row) => (r['events'] ?? {}) as Row;
+    const leaveDates = rawRows
+      .filter((r) => r['status'] === 'on_leave')
+      .map((r) => eventOf(r)['event_date'] as string)
+      .sort();
+    let leaves: Row[] = [];
+    if (leaveDates.length > 0) {
+      const leaveResult = await childDb
+        .from('leave_requests', 'student_id')
+        .select(`reason, submitted_by_role, ${LEAVE_WINDOW_COLUMNS}`)
+        .eq('student_id', childId)
+        .lte('start_date', leaveDates[leaveDates.length - 1]!)
+        .gte('end_date', leaveDates[0]!);
+      if (leaveResult.error) {
+        return c.json({ error: '讀取出缺席紀錄失敗', code: 'FETCH_ATTENDANCE_FAILED' }, 500);
+      }
+      leaves = (leaveResult.data ?? []) as unknown as Row[];
+    }
+    const leaveFor = (r: Row): Row | null => {
+      if (r['status'] !== 'on_leave') return null;
+      const event = eventOf(r);
+      const session = ((event['sessions'] ?? []) as Row[])[0];
+      const window = {
+        sessionId: (session?.['id'] as string | undefined) ?? null,
+        date: event['event_date'] as string,
+        startTime: (event['start_time'] as string | null) ?? null,
+        endTime: (event['end_time'] as string | null) ?? null,
+      };
+      return leaves.find((l) => leaveCoversSession(toLeaveWindow(l), window)) ?? null;
+    };
 
     return c.json(
       {
-        data: rows.map(toParentAttendanceRecord),
+        data: rawRows.map((r) => toParentAttendanceRecord(flattenAttendanceRow(r), leaveFor(r))),
         meta: {
           total: count ?? 0,
           page,

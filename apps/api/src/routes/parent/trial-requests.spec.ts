@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { notifyNewApplication } from '../../lib/notify-events';
+
+vi.mock('../../lib/notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 import trialRequestsRoute from './trial-requests';
@@ -45,6 +48,7 @@ function appFor(db: ReturnType<typeof createMultiOrgDb>, roles = ['parent']) {
 }
 
 async function submit(body: Record<string, unknown>, db = seed(), roles?: string[]) {
+  vi.mocked(notifyNewApplication).mockClear();
   const res = await appFor(db, roles).request('/', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -66,6 +70,23 @@ describe('POST /api/me/trial-requests', () => {
       [MATH, 'pending', ORG, 'parent-user'],
       [ENGLISH, 'pending', ORG, 'parent-user'],
     ]);
+  });
+
+  // #1731（計畫席 10-19 Q7 (b)）：一次送多門課＝同一次送出，管理員只收一則
+  it('一次兩門課：只通知一次，兩門課都帶、筆數 2', async () => {
+    const { rows } = await submit({ courseIds: [MATH, ENGLISH] });
+    expect(notifyNewApplication).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(notifyNewApplication).mock.calls[0]![1];
+    expect(call).toMatchObject({ orgId: ORG, source: 'parent', kind: 'trial', requestCount: 2 });
+    expect([...call.courseIds!].sort()).toEqual([ENGLISH, MATH].sort());
+    expect(call.applicationId).toBe(rows.map((r) => r['id'] as string).sort()[0]);
+  });
+
+  it('被擋下的（停開的課、別人孩子）：不通知', async () => {
+    await submit({ courseIds: [CLOSED] });
+    expect(notifyNewApplication).not.toHaveBeenCalled();
+    await submit({ studentId: OTHER_CHILD, courseIds: [MATH] });
+    expect(notifyNewApplication).not.toHaveBeenCalled();
   });
 
   it('同一門課送兩次（陣列重複）只建一筆', async () => {

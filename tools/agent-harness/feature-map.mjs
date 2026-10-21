@@ -129,6 +129,7 @@ const AREAS = [
       'admin/enrollment/renewals.md',
       'admin/enrollment/trials.md',
       'parent/enrollment.md',
+      'parent/applications.md',
       'parent/add-course.md',
       'parent/renewal.md',
       'parent/trial.md',

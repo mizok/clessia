@@ -5,11 +5,13 @@ import { notifyLeaveStreaks } from './leave-streak';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 
 // notifyLeave 的收件人推導是 notify-leave 自己的事（有自己的 spec）；這裡只驗「發不發、發給哪張假」
+vi.mock('./notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
 vi.mock('./notify-leave', () => ({
   notifyLeaveForTeachers: vi.fn(async () => undefined),
   notifyLeaveForAdmins: vi.fn(async () => undefined),
 }));
 vi.mock('./leave-streak', () => ({ notifyLeaveStreaks: vi.fn(async () => undefined) }));
+import { notifyNewApplication } from './notify-events';
 import { createChildDb, type ScopedIds } from './child-db';
 
 /** 只實作 `.from().select().in()` 這條鏈，並記下每次呼叫收到的參數。 */
@@ -615,5 +617,72 @@ describe('createChildDb —— recordLeave', () => {
     expect(await record(mine, 'leave-org2')).toBe(false);
     expect(await record(none, 'leave-mine')).toBe(false);
     expect(db.rows('audit_logs')).toHaveLength(0);
+  });
+});
+
+/** #1731：家長 App 送出的申請通知分校管理員 —— 只有這次送出的、scope 內孩子的申請才發 */
+describe('createChildDb —— notifyRequests', () => {
+  const kid = { name: '林小華' };
+  const tables = {
+    enrollment_requests: [
+      { id: 'er-mine', org_id: 'org-1', student_id: 'stu-mine', class_id: 'k1', students: kid },
+      {
+        id: 'er-other',
+        org_id: 'org-1',
+        student_id: 'stu-other',
+        class_id: 'k1',
+        students: { name: '別人' },
+      },
+      { id: 'er-org2', org_id: 'org-2', student_id: 'stu-mine', class_id: 'k9', students: kid },
+    ],
+    trial_requests: [
+      { id: 'tr-b', org_id: 'org-1', student_id: 'stu-mine', course_id: 'c2', students: kid },
+      { id: 'tr-a', org_id: 'org-1', student_id: 'stu-mine', course_id: 'c1', students: kid },
+    ],
+  };
+
+  it('報名：自己孩子的一筆 → 發，班與學生名由這裡讀', async () => {
+    vi.mocked(notifyNewApplication).mockClear();
+    const db = createMultiOrgDb(tables);
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    expect(await childDb.notifyRequests('enrollment', ['er-mine'])).toBe(true);
+    expect(notifyNewApplication).toHaveBeenCalledWith(db.client, {
+      orgId: 'org-1',
+      applicationId: 'er-mine',
+      source: 'parent',
+      kind: 'enrollment',
+      studentName: '林小華',
+      classIds: ['k1'],
+      requestCount: 1,
+    });
+  });
+
+  it('試聽一次兩門：合成一則，識別碼取 id 最小的那筆（重送同一批同一個鍵）', async () => {
+    vi.mocked(notifyNewApplication).mockClear();
+    const db = createMultiOrgDb(tables);
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    expect(await childDb.notifyRequests('trial', ['tr-b', 'tr-a'])).toBe(true);
+    expect(notifyNewApplication).toHaveBeenCalledTimes(1);
+    expect(notifyNewApplication).toHaveBeenCalledWith(
+      db.client,
+      expect.objectContaining({
+        applicationId: 'tr-a',
+        kind: 'trial',
+        courseIds: ['c1', 'c2'],
+        requestCount: 2,
+      }),
+    );
+  });
+
+  it('混了別人孩子的、別 org 的、不是家長：一律不發', async () => {
+    vi.mocked(notifyNewApplication).mockClear();
+    const db = createMultiOrgDb(tables);
+    const mine = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+    const none = createChildDb(db.client as never, null, 'org-1');
+    expect(await mine.notifyRequests('enrollment', ['er-mine', 'er-other'])).toBe(false);
+    expect(await mine.notifyRequests('enrollment', ['er-org2'])).toBe(false);
+    expect(await mine.notifyRequests('enrollment', [])).toBe(false);
+    expect(await none.notifyRequests('enrollment', ['er-mine'])).toBe(false);
+    expect(notifyNewApplication).not.toHaveBeenCalled();
   });
 });
