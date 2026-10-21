@@ -465,6 +465,12 @@ export const PAGES = {
     app: '/parent/trial#records',
     state: path.join(cache, 'state-parent.json'),
   },
+  // 家長端加選課程（#1727 ⑤）：卡片點開是 JS 打開的 <dialog>（稿 sheet()、app 原生 showModal）
+  'p-add-course': {
+    a6: 'p-add-course.html',
+    app: '/parent/add-course',
+    state: path.join(cache, 'state-parent.json'),
+  },
   // 家長端到班紀錄（#1695 第 3 張）：家長登入態；「幫孩子請假」兩邊都是 JS 打開的 <dialog>（稿 a6.js form()、app 原生 showModal）
   'p-attendance': {
     a6: 'p-attendance.html',
