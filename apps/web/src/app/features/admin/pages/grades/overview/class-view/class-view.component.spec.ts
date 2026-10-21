@@ -475,6 +475,85 @@ describe('ClassViewComponent', () => {
     expect(host.querySelector('[data-part=count]')).toBeNull();
   });
 
+  // 審核席 G5／G6／G7：四個條件各自單獨開，計數列都要出現
+  it.each([
+    ['只打搜尋', () => component['searchText'].set('A班')],
+    ['只篩年級', () => component['selectedGrades'].set(['J1'])],
+    ['只篩科目', () => component['subjectIdFilter'].set('sub-1')],
+    [
+      '只開待登錄',
+      () => {
+        component['todoMap'].set({ cl1: { count: 1, examId: 'e1' } });
+        component['todoOnly'].set(true);
+      },
+    ],
+  ])('%s：出現「顯示 N 個班（共 M）」', (_label, apply) => {
+    const host = renderRows([cls()]);
+    expect(host.querySelector('[data-part=count]')).toBeNull();
+    apply();
+    fixture.detectChanges();
+    expect(host.querySelector('[data-part=count]')).not.toBeNull();
+  });
+
+  it('有考試但沒人有分數（avgScore null）：平均寫「—」不寫 0', () => {
+    const host = renderRows([
+      cls({
+        latestExam: {
+          examId: 'e1',
+          name: '期中',
+          examDate: '2026-09-30',
+          totalScore: 100,
+          avgScore: null,
+          failCount: 0,
+          absentCount: 0,
+        },
+      }),
+    ]);
+    expect(
+      host.querySelector('[data-part=class-avg]')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('— 平均');
+  });
+
+  it('待登錄還在算：籌碼顯示讀取中、不先寫數字', () => {
+    TestBed.inject(CampusContextService).select('campus-1');
+    fixture.detectChanges();
+    http.match((r) => r.url.includes('/api/classes'))[0].flush({ data: [cls()], meta: {} });
+    fixture.detectChanges(); // todo 查詢還沒回
+
+    const chip = (fixture.nativeElement as HTMLElement).querySelector('[data-part=todo-chip]')!;
+    expect(chip.querySelector('[aria-label=計算中]')).not.toBeNull();
+    expect(chip.textContent?.replace(/\s+/g, '')).toBe('待登錄');
+  });
+
+  /** 篩選浮層掛在 body（p-popover），從篩選鈕打開 */
+  function openFilterPop(host: HTMLElement): HTMLElement | null {
+    host.querySelector<HTMLButtonElement>('[data-part=filter-btn]')!.click();
+    fixture.detectChanges();
+    return document.querySelector<HTMLElement>('[data-part=filter-pop]');
+  }
+
+  it('篩選鈕的 aria-expanded 跟著浮層開關（G17）', async () => {
+    const host = renderRows([cls()]);
+    const btn = host.querySelector('[data-part=filter-btn]')!;
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    expect(openFilterPop(host)).not.toBeNull();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('浮層的「清除篩選」只在有篩選條件時出現（G20）', () => {
+    const host = renderRows([cls()]);
+    const pop = openFilterPop(host)!;
+    const clearIn = () =>
+      [...pop.querySelectorAll('button')].some((b) => b.textContent?.trim() === '清除篩選');
+    expect(clearIn()).toBe(false);
+
+    component['subjectIdFilter'].set('sub-1');
+    fixture.detectChanges();
+    expect(clearIn()).toBe(true);
+  });
+
   /** 一班的 fixture；`over` 蓋過預設欄位 */
   function cls(over: Record<string, unknown> = {}) {
     return {
