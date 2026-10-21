@@ -508,7 +508,20 @@ export const PAGES = {
       },
     ],
   },
-  meals: { a6: 'meals.html', app: '/admin/meals' },
+  meals: {
+    a6: 'meals.html',
+    app: '/admin/meals',
+    deviations: [
+      {
+        status: '黏住',
+        a6: 'landmark:region\\[確認名單\\]$',
+        detail: '稿宣告了 sticky 但捲動時沒黏住',
+        reason:
+          '稿的 .savebar 被只有自己高的 div 框住、捲動時不會動（稿的 bug）；app 確認列有黏是對的，手機 offset 照 app 現狀',
+        source: 'https://github.com/mizok/clessia/pull/1761#issuecomment-6309038184（計畫席裁定）',
+      },
+    ],
+  },
   reports: { a6: 'reports.html', app: '/admin/reports' },
   'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },
   changes: { a6: 'changes.html', app: '/admin/changes' },
