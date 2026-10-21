@@ -35,7 +35,7 @@
     @if (inactiveCampusCount() > 0) {
       <button
         type="button"
-        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px] [font-family:inherit]"
+        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md leading-[1.5] font-semibold text-zinc-900 underline underline-offset-[3px] [font-family:inherit] wide:block wide:min-h-0"
         (click)="toggleShowInactiveCampuses()"
       >
         {{ showInactiveCampuses() ? '隱藏停用的' : '顯示停用的 ' + inactiveCampusCount() + ' 個' }}
