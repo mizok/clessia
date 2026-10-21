@@ -71,6 +71,50 @@ function seed() {
 
 type Db = ReturnType<typeof seed>;
 
+/** 一條查詢鏈：每一步都回自己，`await`／`maybeSingle` 時給 `result` */
+function failing(result: unknown): unknown {
+  const q: Record<string, unknown> = {};
+  for (const m of ['select', 'eq', 'in', 'order', 'limit', 'is', 'gte', 'lte', 'neq'])
+    q[m] = () => q;
+  q['maybeSingle'] = () => Promise.resolve(result);
+  q['single'] = () => Promise.resolve(result);
+  q['then'] = (ok: (v: unknown) => unknown) => Promise.resolve(result).then(ok);
+  return q;
+}
+
+/**
+ * 讓替身照真 DB 的樣子出錯 —— `createMultiOrgDb` 不會：
+ * - `classes.eq('id', <不是 UUID>)` → 22P02（uuid 欄位收到 'batch-set-active' 這種字串，PostgREST 就是這樣回）
+ * - `classes.select('campus_id')`（批次停用的範圍查詢）→ 讀取失敗（`failCampusRead`）
+ */
+function realisticErrors(db: Db, opts: { failCampusRead?: boolean } = {}) {
+  const client = db.client as unknown as { from: (t: string) => Record<string, unknown> };
+  const from = client.from.bind(client);
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  client.from = (t: string) => {
+    const q = from(t);
+    if (t !== 'classes') return q;
+    const select = (q['select'] as (...a: unknown[]) => Record<string, unknown>).bind(q);
+    q['select'] = (cols: string, ...rest: unknown[]) => {
+      if (opts.failCampusRead && cols === 'campus_id') {
+        return failing({ data: null, error: { message: 'boom' } }) as Record<string, unknown>;
+      }
+      const chain = select(cols, ...rest);
+      const eq = (chain['eq'] as (...a: unknown[]) => unknown).bind(chain);
+      chain['eq'] = (col: string, v: unknown) =>
+        col === 'id' && typeof v === 'string' && !UUID.test(v)
+          ? failing({
+              data: null,
+              error: { code: '22P02', message: 'invalid input syntax for type uuid' },
+            })
+          : eq(col, v);
+      return chain;
+    };
+    return q;
+  };
+  return db;
+}
+
 async function call(
   db: Db,
   method: string,
@@ -175,7 +219,34 @@ describe.each(PATH_WRITES)('%s', (_name, method, path, body) => {
   });
 });
 
+describe('路徑段不是班級 id 的寫入（/batch-set-active、/check-conflicts）', () => {
+  // `/:id/*` 也吃得到這幾支；中介層要認得出它們不是班級 id，不然受限的管理員打過來，
+  // 拿 'batch-set-active' 去查 uuid 欄位 → 真 DB 22P02 → 500
+  it('受限的管理員批次停用自己的班：200，不是 500', async () => {
+    const db = realisticErrors(seed());
+    expect(await call(db, 'PATCH', '/batch-set-active', { ids: [MINE], isActive: false })).toBe(
+      200,
+    );
+  });
+
+  it('受限的管理員查撞課：不是 500', async () => {
+    const db = realisticErrors(seed());
+    const status = await call(db, 'POST', '/check-conflicts', {
+      schedules: [{ ...SLOT, teacherId: null }],
+    });
+    expect(status).not.toBe(500);
+  });
+});
+
 describe('id 在 body 裡的寫入', () => {
+  it('PATCH /batch-set-active：範圍查詢讀失敗 → 500，不放行（fail-closed），一個都沒停', async () => {
+    const db = realisticErrors(seed(), { failCampusRead: true });
+    expect(await call(db, 'PATCH', '/batch-set-active', { ids: [MINE], isActive: false })).toBe(
+      500,
+    );
+    expect(db.rows('classes').every((r) => r['is_active'] === true)).toBe(true);
+  });
+
   it('PATCH /batch-set-active：混了一個分校 2 的班 → 整批 403，兩個都沒停；只有自己的 → 200', async () => {
     const db = seed();
     expect(
