@@ -547,7 +547,7 @@ const classWriteGuard = createMiddleware<AppEnv>(async (c, next) => {
   }
   return next();
 });
-app.use('/:id', classWriteGuard);
+// `/:id/*` 也吃得到 `/:id` 本身（改班、刪班）—— 兩條都掛是多餘的，campus-scope-classes.spec 守著
 app.use('/:id/*', classWriteGuard);
 
 // GET /api/classes
