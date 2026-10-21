@@ -60,7 +60,7 @@ test('頂欄不在捲動容器裡（app 殼層）：沒有捲動容器，效果�
   assert.equal(stickyVerdict(a6, r, 'sticky top 0px → 無', true), null);
 });
 
-test('sticky 被只有自己高的容器框住（稿 meals 的 .savebar）：宣告了但沒黏 → 工具限制，不算待修', async () => {
+test('sticky 被只有自己高的容器框住（稿 meals 的 .savebar）：宣告了但沒黏 → 列出來給偏離認領', async () => {
   const bar = (wrap) =>
     `${'<p>列</p>'.repeat(60)}<div ${wrap ? '' : 'style="display:contents"'}><div role="region" aria-label="儲存" style="position:sticky;bottom:16px">儲存</div></div>`;
   const key = '>landmark:main[內容]>landmark:region[儲存]';
@@ -68,7 +68,9 @@ test('sticky 被只有自己高的容器框住（稿 meals 的 .savebar）：宣
   const ok = (await probe(shell(bar(false)), key, 'bottom')).r;
   assert.equal(framed.visible, false);
   assert.equal(ok.visible, true);
-  assert.ok(stickyVerdict(framed, ok, 'sticky bottom 16px → bottom 16px', false).limit);
+  const v = stickyVerdict(framed, ok, 'sticky bottom 16px → bottom 16px', false);
+  assert.match(v.detail, /稿宣告了 sticky 但捲動時沒黏住/);
+  assert.equal(v.limit, undefined); // 待修欄，讓 config 的偏離認領
 });
 
 test('fixed 面板裡的捲動區：body overflow hidden 高 0 不當裁切框（稿登入頁手機 .ps__bar）', async () => {
@@ -163,4 +165,19 @@ test('S3 稿不黏也看得到（natural）：稿這裡沒得比，不是待修'
   const app = { ...T, visible: false };
   assert.ok(stickyVerdict(a6, app, 'p', true).limit);
   assert.equal(stickyVerdict(a6, app, 'p', false), null);
+});
+
+test('落點量釘點容器、不量 part：章頭裡張數離章名多遠不算黏住的差', async () => {
+  const side = (gap) =>
+    shell(
+      `<section aria-label="國三" style="display:grid;grid-template-columns:200px 1fr">
+        <div style="position:sticky;top:24px;align-self:start"><h2 style="margin:0">國三</h2>
+        <p style="margin:${gap}px 0 0">3 位</p></div><ul>${'<li>學生</li>'.repeat(5)}</ul></section>`,
+    );
+  const key = '>landmark:main[內容]>landmark:region[國三]>text:p[#位]';
+  const [a, b] = [(await probe(side(12), key)).r, (await probe(side(30), key)).r];
+  assert.equal(a.found && b.found, true);
+  assert.equal(a.at, 56 + 24);
+  assert.equal(b.at, a.at);
+  assert.equal(stickyVerdict(a, b, 'sticky top 24px → top 24px', false), null);
 });
