@@ -352,6 +352,9 @@ describe('ClassViewComponent', () => {
     const todoReqs = http.match((r) => r.url.includes('/api/academy-exams'));
     expect(todoReqs.map((r) => r.request.params.get('class_id'))).toEqual(['cl1', 'cl2']);
     expect(todoReqs[0].request.params.get('todo')).toBe('true');
+    // 徽章連「最早那場」：API 預設 date_desc，不帶 order 拿到的是最晚那場
+    expect(todoReqs[0].request.params.get('order')).toBe('date_asc');
+    expect(todoReqs[0].request.params.get('pageSize')).toBe('1');
     todoReqs[0].flush({ data: [{ id: 'exam-7' }], meta: { total: 3 } });
     todoReqs[1].flush({ data: [], meta: { total: 0 } });
 

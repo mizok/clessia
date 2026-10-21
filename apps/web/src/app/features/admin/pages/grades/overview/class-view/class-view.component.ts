@@ -305,7 +305,8 @@ export class ClassViewComponent implements OnInit {
 
     this.loadingTodoMap.set(true);
     const requests = classIds.map((classId) =>
-      this.academyExamsService.list({ classId, todo: true, pageSize: 1 }).pipe(
+      // 照日期由早到晚取第一筆＝徽章連過去的「最早那場」（API 預設 date_desc 會拿到最晚那場）
+      this.academyExamsService.list({ classId, todo: true, pageSize: 1, order: 'date_asc' }).pipe(
         map((res) => ({ classId, count: res.meta.total, examId: res.data[0]?.id ?? null })),
         catchError(() => of({ classId, count: 0, examId: null })),
       ),
