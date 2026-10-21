@@ -1,4 +1,4 @@
-import { Directive, inject, OnInit, input, HostListener } from '@angular/core';
+import { DestroyRef, Directive, inject, OnInit, input, HostListener } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 
 /**
@@ -31,9 +31,21 @@ export class WindowSizeDirective implements OnInit {
   readonly heightVar = input('--window-height');
 
   private readonly document = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit() {
     this.updateSize();
+    // 手機鍵盤（#1776）：版面視窗不跟著鍵盤縮，visual viewport 會（iOS 捲動時還會往下移）。
+    // 底部抽屜用 --keyboard-inset 讓出被鍵盤蓋住的那一截
+    const vv = this.document.defaultView?.visualViewport;
+    if (!vv) return;
+    const update = () => this.updateKeyboardInset();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    this.destroyRef.onDestroy(() => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    });
   }
 
   @HostListener('window:resize')
@@ -53,5 +65,13 @@ export class WindowSizeDirective implements OnInit {
     const root = this.document.documentElement;
     root.style.setProperty(this.widthVar(), `${width}px`);
     root.style.setProperty(this.heightVar(), `${height}px`);
+    this.updateKeyboardInset();
+  }
+
+  private updateKeyboardInset() {
+    const window = this.document.defaultView;
+    const vv = window?.visualViewport;
+    const inset = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+    this.document.documentElement.style.setProperty('--keyboard-inset', `${inset}px`);
   }
 }

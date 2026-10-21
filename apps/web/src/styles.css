@@ -391,9 +391,11 @@
      Global Dialog & Form Patterns
      PrimeNG dialogs are teleported to <body>, so these must be global.
      ============================================================================= */
+  /* 幾何照 A6 `.acset`（#1776）：置中在整個視窗、離上下各 24px（`max-height: calc(100% - 48px)`）。
+     原本扣的是殼層內容高（不含頂欄），彈窗離底 40px。遮罩本來就蓋住整個視窗（含頂欄）。 */
   .p-dialog {
-    max-height: calc(var(--shell-layout-body-height) - var(--space-3) * 2) !important;
-    max-width: calc(var(--shell-layout-body-width) - var(--space-3) * 2) !important;
+    max-height: calc(var(--window-height, 100%) - var(--space-6) * 2) !important;
+    max-width: calc(var(--window-width, 100%) - var(--space-4) * 2) !important;
     --p-dialog-content-padding: var(--space-4) !important;
   }
   .p-dialog .p-dialog-header {
@@ -404,10 +406,28 @@
     border-top: 1px solid var(--zinc-200);
     padding: var(--space-4) var(--space-6);
   }
-  @media (max-width: 640px) {
-    .p-dialog {
-      max-width: calc(var(--window-width, 100vw) - var(--space-2) * 2);
+  /* 手機：貼底抽屜（A6 ≤860 `.acset { width: 100%; margin: auto 0 0; max-height: calc(100% - 24px);
+     上兩角圓 }`，#1776）。遮罩與彈窗的排版是 PrimeNG 寫的 inline style（align-items、width），
+     只能 !important 蓋（同 roster-sheet）。鍵盤升起時版面視窗不縮、visual viewport 會：遮罩底部讓出
+     --keyboard-inset（WindowSizeDirective 量），高上限也扣掉它；底部 safe-area 由彈窗自己墊（底色蓋住）。
+     選角色彈窗（/select-role）稿上是置中卡片，不在此列。c6：不用 viewport 單位 */
+  @media (max-width: 860px) {
+    .p-dialog-mask:has(> .p-dialog:not(.role-picker-dialog)) {
+      align-items: flex-end !important;
+      padding-bottom: var(--keyboard-inset, 0px);
     }
+    .p-dialog:not(.role-picker-dialog) {
+      width: 100% !important;
+      max-width: none !important;
+      max-height: calc(
+        var(--window-height, 100%) - var(--keyboard-inset, 0px) - var(--space-6)
+      ) !important;
+      margin: 0;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+  }
+  @media (max-width: 640px) {
     .p-dialog .p-dialog-header,
     .p-dialog .p-dialog-footer {
       padding: var(--space-3) !important;
@@ -963,6 +983,13 @@
   .p-dialog-enter-active,
   .p-dialog-leave-active {
     --pop-from: scale(0.97);
+  }
+  /* 手機的彈窗是貼底抽屜（#1776）：從底部升起 */
+  @media (max-width: 860px) {
+    .p-dialog-enter-active:not(.role-picker-dialog),
+    .p-dialog-leave-active:not(.role-picker-dialog) {
+      --pop-from: translateY(100%);
+    }
   }
   .p-anchored-overlay-enter-active,
   .p-anchored-overlay-leave-active {
