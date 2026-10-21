@@ -24,8 +24,8 @@ const PAGE = {
   showInMenu: true,
 };
 
-const KID = { id: 'kid-1', name: '林子晴', grade: 'junior_3', school: null };
-const KID2 = { id: 'kid-2', name: '林子安', grade: 'junior_1', school: null };
+const KID = { id: 'kid-1', name: '林子晴', grade: 'J3', school: null };
+const KID2 = { id: 'kid-2', name: '林子安', grade: 'J1', school: null };
 
 const cls = (over: Partial<ParentCatalogClass> = {}): ParentCatalogClass => ({
   classId: 'c-open',
@@ -259,6 +259,21 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(api.catalog).toHaveBeenCalledWith(KID.id);
       expect(text()).toContain('還沒填：開課班、開始日期');
       expect(text()).not.toContain('還沒填：孩子');
+    });
+
+    // 審核席 G1：孩子名旁的年級（API 回代碼 J3，畫面寫國三）
+    it('孩子名旁寫年級：一個孩子「名字（國三）」；多個孩子每顆選項都有年級', async () => {
+      await setup();
+      expect(text()).toContain('林子晴（國三）');
+      TestBed.resetTestingModule();
+      await setup({ kids: [KID, KID2] });
+      const opt = (id: string) =>
+        el()
+          .querySelector(`input[name="sid"][value="${id}"]`)!
+          .closest('label')!
+          .textContent!.replace(/\s+/g, '');
+      expect(opt('kid-1')).toBe('林子晴國三');
+      expect(opt('kid-2')).toBe('林子安國一');
     });
 
     it('還沒填：開課班、開始日期（孩子只有一個時預設選好）', async () => {
