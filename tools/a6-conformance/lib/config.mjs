@@ -496,6 +496,17 @@ export const PAGES = {
       'campus-form': { click: 'button:has-text("新增分校")', root: 'dialog[open]' },
     },
     deviations: [
+      ...[
+        { status: '位置', detail: '^相對' },
+        { status: '樣式', detail: 'display' },
+      ].map((d) => ({
+        // 教室對話框：稿的容納人數用了 money 欄型，前面多一個「NT$」，輸入框被推右、變 block
+        pop: 'rooms',
+        a6: 'control:textbox\\[容納人數\\]$',
+        ...d,
+        reason: '稿誤用 money 欄型（容量不是金額），手機上還會擠出畫面',
+        source: '計畫席 10-21 裁定（#1785）',
+      })),
       {
         // 稿上的「新」是設計說明（教室數、⋮ 的教室是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
         status: '缺',
