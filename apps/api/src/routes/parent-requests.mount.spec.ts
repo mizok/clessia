@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 
@@ -40,10 +40,18 @@ vi.mock('../middleware/auth', async (importOriginal) => {
 
 const env = { ENVIRONMENT: 'test', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
 
+type TestApp = {
+  request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response>;
+  routes: ReadonlyArray<{ method: string; path: string }>;
+};
+let app: TestApp;
+// #1580：整個 app 的動態 import（transform 幾秒）放在 hook、逾時另計 ——
+// 放在第一條測試裡會算進那條的 5 秒，機器忙時前幾條逾時、吃到模組快取的後面幾條又過
+beforeAll(async () => {
+  app = (await import('../index')).default as unknown as TestApp;
+}, 30_000);
+
 async function call(method: 'GET' | 'PATCH') {
-  const app = (await import('../index')).default as unknown as {
-    request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response>;
-  };
   return method === 'GET'
     ? app.request('/api/parent-requests', {}, env)
     : app.request(
