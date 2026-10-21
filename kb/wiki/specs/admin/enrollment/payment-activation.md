@@ -1,16 +1,16 @@
 ---
 title: 收款後報名轉正式、申請轉完成（設計稿）
-summary: 設計稿（#1778，保留類、改既有記收款路徑 → 合併由使用者決定；待裁 Q1–Q6）。核准後報名是 pending_payment、申請是 awaiting_payment，現在沒有任何路徑把它們往前推，而月結只對 active 開單 —— 卡在 pending_payment 的學生下個月不會被開帳。建議：記收款那一刻在同一個交易裡判斷 —— 這張帳單上有明細的 pending_payment 報名，第一筆收款（含定金）就轉 active；帳單繳清時，連到這些報名的 awaiting_payment 申請轉 completed。退費、作廢不倒轉。手動把報名轉 active 也一併完成申請。記收款路由改走 withTx（順便關掉退費「先查淨額再寫」的競態）。
+summary: 設計稿（#1778，已裁 2026-10-21；保留類、改既有記收款路徑 → 合併由使用者決定）。核准後報名是 pending_payment、申請是 awaiting_payment，原本沒有任何路徑把它們往前推，而月結只對 active 開單。已裁：記收款同一個交易裡，第一筆收款（含定金）就把這張帳單上的 pending_payment 報名轉 active；帳單繳清時把連到它們的 awaiting_payment 申請轉 completed，並發站內＋推播通知家長（新 notification_kind enrollment_completed，migration 獨立 PR）。退費、作廢不倒轉；行政手動轉 active 也一併完成申請；多報名的帳單照帳單算。記收款路由改走 withTx（順便關掉退費先查淨額再寫的競態）。
 category: spec
-status: draft
+status: accepted
 updated: 2026-10-21
-tags: [specs, admin, enrollment, enrollment-requests, billing, payments, design]
+tags: [specs, admin, enrollment, enrollment-requests, billing, payments, notifications, design]
 sources: [https://github.com/mizok/clessia/issues/1778]
 ---
 
 # 收款後報名轉正式、申請轉完成（設計稿）
 
-> **狀態：待裁（Q1–Q6）。保留類：改的是既有「記收款」路徑（`POST /api/invoices/:id/payments`），合併由使用者決定。**
+> **狀態：已裁（使用者 2026-10-21，計畫席轉記於 #1787，見 §4）。保留類：改的是既有「記收款」路徑（`POST /api/invoices/:id/payments`），合併由使用者決定。**
 > 從 [[specs/admin/enrollment/approve-request]] Q7 拆出（使用者 10-21 裁：另開單）。
 > 規則來源：[[rules/enrollment-rules]] §1.4–1.5、[[rules/billing-rules]] 規則 4（帳單狀態由收款推導）、規則 6（定金）、規則 9（作廢）。
 
@@ -40,6 +40,8 @@ sources: [https://github.com/mizok/clessia/issues/1778]
    部分繳時申請維持 `awaiting_payment`（家長端繼續看到「還差 N 元」）。
 3. 退費（`kind = refund`）**不倒轉**（Q3）：報名已經在上課、月結已經開；要退班走退班。
 4. 手動 `PATCH /api/enrollments/:id/status` 把 `pending_payment` 轉 `active` 時，同一個交易把連到它的 `awaiting_payment` 申請轉 `completed`（Q4）—— 「依實務分批啟用」的人工路徑也不留下懸著的申請。
+5. **通知家長**（Q5 (b)）：申請轉 `completed` 時（1.2 或 1.4 任一條路），發一則站內＋推播「○○ 的報名已完成」給申請學生的家長，深連到申請詳情。
+   只有**申請**完成才發 —— 直接報名沒有申請，家長本來就是在櫃台辦的。
 
 不限於從申請來的報名：**直接報名選 `pending_payment` 的也一樣**（Q2）—— 規則 1.5 說的是「報名」，不是「申請」。
 
@@ -69,6 +71,9 @@ COMMIT
 
 - 交易外（rule 7）：既有的收款 `logAudit` 照舊；**另記** `enrollment.activate`（`details.via = 'payment'`, `paymentId`）與
   `enrollment_request.complete`，各自一筆，`resourceId` 指那筆報名／申請 —— 查「這個學生什麼時候轉正式」查得到。
+- 交易外（rule 7）發通知：對每筆 `completed` 的申請呼叫 `notifyEnrollmentCompleted`（新，放 `lib/notify-events.ts`），
+  形狀照抄 #1777 的 `notifyEnrollmentApproved` —— 收件人是 `parent_student_relations` 的家長、`role: 'parent'`、
+  `push_status` 用欄位預設（pending，排程推播）、`dedupe_key = enrollment_completed:<requestId>`；用 `waitUntil` 背景跑，**失敗只記 log、不回滾收款**。
 - 回應多帶 `activatedEnrollmentIds`、`completedRequestIds`，前端 toast 寫「已記收款，○○ 轉為正式」。
 - 推導 `paid` 用 `lib/invoice-status.ts` 同一支函式（交易內 SELECT 明細與收退款後算），不另寫一份判斷。
 - 申請條件用「本帳單明細的報名」而不是只用 1. 剛轉的那批：報名可能先因定金轉了 `active`，**繳清那一筆**才完成申請。
@@ -80,10 +85,14 @@ COMMIT
 
 只加一件事：`pending_payment → active` 時，同一個交易把 `enrollment_id = 這筆` 且 `awaiting_payment` 的申請轉 `completed`（Q4）。
 這支現在是 supabase-js 單句；改成 `withTx`（鎖報名列、改狀態、改申請）。其他轉換不動。
+COMMIT 後同 2.1 發 `notifyEnrollmentCompleted`、記 `enrollment_request.complete` 稽核（`details.via = 'manual'`）。
 
-### 2.3 不做 migration
+### 2.3 Migration：只加一個通知種類
 
-狀態值、欄位都已存在（`enrollment_request_status` 有 `completed`、`enrollments.status_changed_at` 已有）。Q5 選 (b) 才要加 `notification_kind`。
+狀態值、欄位都已存在（`enrollment_request_status` 有 `completed`、`enrollments.status_changed_at` 已有）。
+Q5 (b) 要一個新值：`ALTER TYPE public.notification_kind ADD VALUE IF NOT EXISTS 'enrollment_completed'`（照 `20261021055600_notification_kind_enrollment_approved.sql`）。
+純加列舉值、舊程式碼不寫它，「先套後部署」安全；`ADD VALUE` 不跟使用它的語句同交易 —— 這支只加值。**獨立 PR，使用者 Approve**；實作的 PR 要等它套上正式並部署。
+家長端通知中心（`announcement-inbox`）的種類對照表要加這個值（#1777 加 `enrollment_approved` 的同一處）。
 
 ## 3. 前端
 
@@ -92,39 +101,27 @@ COMMIT
 - **家長端申請頁**：`completed` 寫「已完成報名」；`awaiting_payment` 而帳單部分繳時寫「已收 N 元，還差 M 元」（現有帳單方塊已帶 `netPaid`）。
   #1773 的「已繳清，等補習班確認」在這張合併後**不會再出現**（繳清的同一個交易就完成申請），文案拿掉。
 
-## 4. 待裁
+## 4. 裁定（使用者 2026-10-21，計畫席轉記於 #1787）
 
-**Q1　報名在什麼時候轉 `active`？**
-(a) **建議**：**第一筆收款**（含定金、部分繳）。規則 6 寫 `pending_payment` 承接「定金未繳」、§1.4 寫「首次收款（含部分繳費）」；
-而且月結只對 `active` 開單 —— 等繳清才轉，繳了定金在上課的學生下個月會被月結漏掉。
-(b) 繳清才轉（跟申請同一個點）。簡單一致，但月結漏開的問題要另外處理（例如月結也挑 `pending_payment`）。
-(c) 不自動，一律行政手動確認（現況的 PATCH）。不改收款路徑，但「沒有人去按」就永遠卡著 —— 這張單存在的原因。
+| 題                              | 裁定                                                                                                       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Q1 報名何時轉 `active`          | (a) **第一筆收款**（含定金、部分繳）；申請在帳單繳清時轉 `completed`                                       |
+| Q2 直接報名的 `pending_payment` | 照建議：適用（同帳單、同狀態，不看從哪條路建的）                                                           |
+| Q3 退費／作廢倒轉               | 照建議：**不倒轉**；退錢走退費、退班走退班                                                                 |
+| Q4 手動轉 `active` 是否完成申請 | 照建議：要，同一個交易                                                                                     |
+| Q5 完成時通知家長               | **(b)** 站內＋推播「○○ 的報名已完成」；新 `notification_kind`（`enrollment_completed`），migration 獨立 PR |
+| Q6 一張帳單多個報名             | 照建議：照**帳單**算，第一筆收款轉全部 `pending_payment` 報名，繳清時完成連到它們的申請                    |
 
-**Q2　直接報名選了 `pending_payment` 的（不是從申請來的）也適用嗎？**
-**建議**：適用。規則說的是「報名」；同一張帳單、同一種狀態，從哪條路建的不該有不同結局。
-
-**Q3　轉正式之後退費、或帳單作廢，要不要倒轉回 `pending_payment`／`awaiting_payment`？**
-**建議**：**不倒轉**。報名已經在上課、可能已月結開了下一張；退錢是退費、退班是退班，各走各的路（規則 3：退班有自己的比例試算）。
-作廢本來就要淨額 0 才能做，等於已經退費歸零 —— 照上面一樣不倒轉。
-
-**Q4　行政手動把報名轉 `active`（分批啟用）時，要不要順便完成申請？**
-**建議**：要。不然申請永遠停在 `awaiting_payment`，家長端一直顯示待付款。
-
-**Q5　完成時要通知家長嗎？**
-(a) **建議**：不另發。家長是當面或轉帳後通知櫃台才記收款的，當下就知道；家長端申請頁狀態自己會變。
-(b) 發站內＋推播「○○ 的報名已完成」（要加 `notification_kind`，migration 獨立 PR，使用者 Approve）。
-
-**Q6　一張帳單有好幾個報名的明細時（手動開單、加明細），怎麼算？**
-**建議**：照**帳單**算 —— 收款記在帳單上，不分到明細（現況沒有「這筆錢付哪一列」的資料）。所以第一筆收款會把這張帳單上**所有** `pending_payment` 報名一起轉正式；
-繳清時把連到它們的申請一起完成。核准開的帳單只有一列，這題只影響行政手動併單的情況。
+被否決的選項：Q1 (b) 繳清才轉 —— 繳了定金在上課的學生會被月結漏開；Q1 (c) 只靠手動 —— 沒人按就永遠卡著；Q5 (a) 不另發。
 
 ## 5. 拆單
 
-| #   | 類型   | 內容                                                                                                                                          |
-| --- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | 保留類 | 記收款改 `withTx`＋轉正式／完成申請＋稽核＋契約測試（定金轉 active、繳清才 complete、退費不倒轉、併發退費）—— **使用者親合**                  |
-| 2   | 保留類 | `PATCH /enrollments/:id/status` 的 `pending_payment → active` 一併完成申請（withTx）                                                          |
-| 3   | 一般類 | 前端：記收款 toast、收件頁「已完成」、家長端 `completed`／部分繳文案（拿掉「已繳清，等補習班確認」）                                          |
-| —   | 規則   | 合併時改 [[rules/enrollment-rules]] §1.5、[[flows/enrollment]] 步驟 4、`architecture/enrollment-admin-view.md` 的「pending_payment 是死狀態」 |
+| #   | 類型      | 內容                                                                                                                                                          |
+| --- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | migration | `notification_kind` 加 `enrollment_completed`（Q5 (b)；獨立 PR，使用者 Approve）                                                                              |
+| 1   | 保留類    | 記收款改 `withTx`＋轉正式／完成申請＋稽核＋通知家長＋契約測試（定金轉 active、繳清才 complete、退費不倒轉、併發退費）—— **使用者親合**；依賴 0 套上正式並部署 |
+| 2   | 保留類    | `PATCH /enrollments/:id/status` 的 `pending_payment → active` 一併完成申請＋通知（withTx）；依賴 0                                                            |
+| 3   | 一般類    | 前端：記收款 toast、收件頁「已完成」、家長端 `completed`／部分繳文案（拿掉「已繳清，等補習班確認」）、通知中心種類對照                                        |
+| —   | 規則      | 合併時改 [[rules/enrollment-rules]] §1.5、[[flows/enrollment]] 步驟 4、`architecture/enrollment-admin-view.md` 的「pending_payment 是死狀態」                 |
 
 順手（不在這張）：`features/admin/pages/enrollments/enrollments.page.ts:156` 的註解「沒有流程會產生 pending_payment」已不成立（核准會產生）。
