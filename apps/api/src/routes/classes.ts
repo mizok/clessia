@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
@@ -8,6 +9,7 @@ import { checkTeacherEligibility } from '../lib/teacher-eligibility';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
+import { classWriteScope, resourceCampusAllowed } from '../lib/campus-write-guard';
 import { deleteClasses, type ClassDeleteOutcome } from '../lib/class-delete';
 import { getAuth } from '../lib/get-auth';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
@@ -525,6 +527,29 @@ interface BatchSessionConflictItem {
 
 const app = new OpenAPIHono<AppEnv>();
 
+/**
+ * **寫入面的分校範圍（#1797）**：路徑帶班級 id 的寫入（改班、停用、刪除、時段 CRUD、產生／批次改課堂…）
+ * 一律先比班級的分校 —— 只管 A 校的管理員改不到 B 校的班。讀取面早就套了 `applyCampusFilter`，
+ * 唯獨這裡的寫入沒接（scores／sessions／class-logs 都有）。
+ *
+ * 掛成中介層而不是逐支加：之後新增的 `/{id}/…` 寫入自動被守住，不會有「新的那支忘了加」。
+ * - 不受限（scope null）直接放行，不多查一次
+ * - 範圍外 → 403（同 #1783 `campusForClassrooms`）；別 org 或不存在 → 交給路由自己回 404
+ * - 路徑段不是 UUID（`/batch`、`/check-conflicts`）不是班級 id，放行 —— 那幾支在路由裡自己比
+ */
+const CLASS_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const classWriteGuard = createMiddleware<AppEnv>(async (c, next) => {
+  const scope = getCampusScope(c);
+  const id = c.req.param('id');
+  if (c.req.method === 'GET' || scope === null || !id || !CLASS_ID.test(id)) return next();
+  if ((await classWriteScope(c.get('supabase'), c.get('orgId'), scope, id)) === 'out-of-scope') {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+  return next();
+});
+// `/:id/*` 也吃得到 `/:id` 本身（改班、刪班）—— 兩條都掛是多餘的，campus-scope-classes.spec 守著
+app.use('/:id/*', classWriteGuard);
+
 // GET /api/classes
 app.openapi(
   createRoute({
@@ -931,6 +956,10 @@ app.openapi(
       },
     },
     responses: {
+      403: {
+        description: '不在分校範圍（#1797）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       200: {
         description: '成功',
         content: { 'application/json': { schema: z.object({ updated: z.number() }) } },
@@ -951,6 +980,19 @@ app.openapi(
     // 任何一個 id 不屬於本 org → 整批 404，不略過（c1，#966 B2）
     if ((await missingInOrg(supabase, 'classes', orgId, ids)).length > 0) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
+    // 任何一個不在分校範圍 → 整批 403，不略過（#1797；id 在 body 裡，路徑中介層看不到）
+    const scope = getCampusScope(c);
+    if (scope !== null) {
+      const { data: rows, error: scopeError } = await supabase
+        .from('classes')
+        .select('campus_id')
+        .eq('org_id', orgId)
+        .in('id', ids);
+      if (scopeError) throw new Error(`batch-set-active scope failed: ${scopeError.message}`);
+      if ((rows ?? []).some((r) => !scope.includes(r['campus_id'] as string))) {
+        return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+      }
     }
 
     const { data, error } = await inOrg(
@@ -1189,7 +1231,7 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       403: {
-        description: '設定目錄參考價需要 manage_finance（#1175）',
+        description: '設定目錄參考價需要 manage_finance（#1175）；或課程不在分校範圍（#1797）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       409: {
@@ -1214,6 +1256,10 @@ app.openapi(
 
     if (!course) {
       return c.json({ error: '課程不存在', code: 'COURSE_NOT_FOUND' }, 400);
+    }
+    // 新班開在課程的分校：受限者只能在自己的分校開班（#1797）
+    if (!resourceCampusAllowed(getCampusScope(c), course.campus_id as string | null)) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
     if (!(course.is_active as boolean)) {
       return c.json({ error: '課程已停用，無法新增班級', code: 'COURSE_INACTIVE' }, 409);
