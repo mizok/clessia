@@ -1,6 +1,6 @@
 # Specs — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-13
+> Auto-maintained by `kb:map`. Last updated: 2026-10-21
 
 ---
 
@@ -36,13 +36,21 @@ Tags: `specs`, `admin`, `dashboard`
 
 Links to: [[architecture/admin-dashboard-v1]]
 
+## [[specs/admin/enrollment/approve-request|核准家長的報名申請（開繳費單、建報名、轉待付款；設計稿）]]
+
+設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
+
+Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `invoices`, `parent`, `design`
+
+Links to: [[rules/enrollment-rules]], [[rules/billing-rules]], [[specs/parent/applications]], [[architecture/pg-pool-writes]], [[architecture/pg-pool-writes]]
+
 ## [[specs/admin/enrollment/enrollment|學生報名]]
 
 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 
 Tags: `specs`, `admin`, `enrollment`
 
-Links to: [[architecture/enrollment-admin-view]], [[rules/enrollment-rules|報名與繳費規則]], [[flows/enrollment|報名申請流程]]
+Links to: [[architecture/enrollment-admin-view]], [[rules/enrollment-rules]], [[rules/enrollment-rules|報名與繳費規則]], [[flows/enrollment|報名申請流程]]
 
 ## [[specs/admin/enrollment/enrollment-requests|報名審核]]
 
@@ -76,6 +84,14 @@ Tags: `specs`, `admin`, `finance`, `fee-templates`, `billing-periods`
 
 Links to: [[rules/billing-rules]], [[rules/billing-rules]]
 
+## [[specs/admin/finance/leave-streak-waiver|連續請假滿 N 個上課日可不收費：提醒行政（設計稿）]]
+
+設計稿（#1732，10-17 已批准）：連續請假滿 N 個上課日（機構設定，預設 3）可不收費，系統只偵測與提醒有財務權限的管理員、不碰計費；以學生為單位、某天每一堂都請假才算、相鄰假單合併；標記讀取時現算，可標「已處理」（延長會重新出現）；一支 migration，拆三單。
+
+Tags: `specs`, `finance`, `leave`, `attendance`, `notifications`, `migration`
+
+Links to: [[rules/billing-rules]], [[architecture/leave-session-binding]], [[architecture/deploying]], [[rules/billing-rules]], [[rules/attendance-rules]], [[rules/meal-rules]]
+
 ## [[specs/admin/finance/meals|餐費管理]]
 
 每日名單勾選：每生每日一筆餐記錄（單價在筆上、訂了沒、收不收費是人工開關），月底加總未結算的筆數開帳單。餐別維度與逐筆手動輸入金額已於 2026-08-29 訪談否定。
@@ -106,6 +122,8 @@ Links to: [[rules/billing-rules]], [[rules/billing-rules]]
 
 Tags: `specs`, `admin`, `notifications`
 
+Links to: [[a6-adoption-rules]]
+
 ## [[specs/admin/roles-and-auth|角色與帳號管理規格]]
 
 三個角色（admin / teacher / parent）存在 user_roles，細部權限存在 user_roles.permissions。密碼登入已於 2026-08 移除，改為 LINE OAuth + 一次性登入連結。
@@ -134,7 +152,7 @@ Tags: `specs`, `admin`, `student-affairs`, `grades`
 
 Tags: `specs`, `admin`, `student-affairs`, `leave`
 
-Links to: [[rules/attendance-rules|出勤與請假規則]], [[flows/attendance|到班與出勤流程]]
+Links to: [[rules/attendance-rules]], [[rules/attendance-rules]], [[rules/attendance-rules|出勤與請假規則]], [[flows/attendance|到班與出勤流程]]
 
 ## [[specs/admin/student-affairs/parents|家長資料]]
 
@@ -158,11 +176,15 @@ Links to: [[flows/enrollment|報名申請流程]], [[specs/admin/enrollment/enro
 
 Tags: `specs`, `admin`, `system`, `campuses`
 
+Links to: [[architecture/payment-info]]
+
 ## [[specs/admin/system/settings|系統設定]]
 
 全域系統參數設定。
 
 Tags: `specs`, `admin`, `system`, `settings`
+
+Links to: [[architecture/web-push]], [[specs/admin/finance/leave-streak-waiver]], [[architecture/payment-info]]
 
 ## [[specs/admin/system/staff|人員管理]]
 
@@ -181,6 +203,14 @@ Tags: `specs`, `BRAINSTORM_PROMPT`
 瀏覽並加選新課程（以課程探索為中心）。
 
 Tags: `specs`, `parent`, `add-course`
+
+## [[specs/parent/applications|家長端送申請與申請紀錄（報名／試聽／加選，設計稿）]]
+
+家長端「報名」「試聽」「加選」三頁目前是空殼（#1727）。照 A6 p-enrollment／p-trial／p-add-course 全採：報名、試聽兩頁各有「新增申請／申請紀錄」分頁，加選頁是課程卡片探索、送出走報名申請。後端 API 大多已在（enrollment-requests、trial-requests、catalog），缺的是目錄的「已在班上／撞時間」、繳費週期與試聽日期欄、待付款的帳單，以及家長送出後通知分校管理員（#1731）。計畫席 10-19 依「A6 全採、操作體驗優先」裁定 Q1–Q8（Q4 待使用者，暫照建議）。
+
+Tags: `specs`, `parent`, `enrollment`, `trial`, `add-course`, `design`
+
+Links to: [[specs/parent/enrollment]], [[specs/parent/trial]], [[specs/parent/add-course]], [[architecture/deploying]]
 
 ## [[specs/parent/attendance|到班紀錄]]
 
@@ -206,11 +236,23 @@ Tags: `specs`, `parent`, `enrollment`
 
 Tags: `specs`, `parent`, `grades`
 
+Links to: [[architecture/parent-grades-period-filter]]
+
+## [[specs/parent/leave|幫孩子請假（家長端，設計稿）]]
+
+設計稿（#1695，10-17 已批准）：家長在到班紀錄頁幫孩子請假（照 A6，時間區間、只能請還沒開始的課、沒有課就擋），/api/me/leaves 與管理端共用建立核心，通知管理員（leave_received）與任課老師。
+
+Tags: `specs`, `parent`, `attendance`, `leave`, `design`
+
+Links to: [[rules/attendance-rules]], [[architecture/parent-data-scope]], [[specs/admin/finance/leave-streak-waiver]], [[specs/admin/finance/leave-streak-waiver]]
+
 ## [[specs/parent/meals|餐費紀錄]]
 
 查看孩子的餐費紀錄。
 
 Tags: `specs`, `parent`, `meals`
+
+Links to: [[rules/meal-rules]]
 
 ## [[specs/parent/notifications|通知中心（家長）]]
 
@@ -223,6 +265,8 @@ Tags: `specs`, `parent`, `notifications`
 查看繳費單和繳費紀錄。
 
 Tags: `specs`, `parent`, `payments`
+
+Links to: [[architecture/payment-info]]
 
 ## [[specs/parent/renewal|續課資訊]]
 
@@ -242,13 +286,21 @@ Tags: `specs`, `parent`, `schedule`
 
 Tags: `specs`, `parent`, `trial`
 
+## [[specs/public/application-forms-a6|公開試聽申請、我要報名表單照 A6（設計稿）]]
+
+設計稿（#1637；全部已裁）：公開試聽／報名表單照 A6；補關係欄、機器人驗證預設 ALTCHA（可切換 Turnstile）、班級公開旗標、所有人員可設暱稱（對外只露任課老師）、申請保存 6 個月（一支 migration），拆四單。
+
+Tags: `specs`, `public`, `trial`, `enrollment`, `a6`, `security`, `privacy`, `migration`
+
+Links to: [[architecture/a6-adoption-rules]], [[architecture/a6-adoption-rules]], [[rules/enrollment-rules]], [[flows/trial]], [[architecture/a6-adoption-rules]]
+
 ## [[specs/public/enrollment|新生報名表單]]
 
 新家長為孩子提交報名申請。
 
 Tags: `specs`, `public`, `enrollment`
 
-Links to: [[architecture/line-oauth-login]]
+Links to: [[architecture/line-oauth-login]], [[architecture/deploying]], [[specs/public/application-forms-a6]]
 
 ## [[specs/public/login|登入頁]]
 
@@ -264,13 +316,15 @@ Links to: [[architecture/line-oauth-login]], [[architecture/login-experience]], 
 
 Tags: `specs`, `public`, `qr-checkin`
 
+Links to: [[architecture/kiosk-checkin]]
+
 ## [[specs/public/trial|試聽申請表單]]
 
 新家長為孩子申請課程試聽。
 
 Tags: `specs`, `public`, `trial`
 
-Links to: [[architecture/line-oauth-login]]
+Links to: [[architecture/line-oauth-login]], [[architecture/deploying]], [[specs/public/application-forms-a6]]
 
 ## [[specs/README|Clessia 頁面規格文件]]
 
@@ -284,7 +338,7 @@ Tags: `specs`, `README`
 
 Tags: `sitemap`, `_shared`, `parent`, `teacher`
 
-Links to: [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]]
+Links to: [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/audit-log-dialog]]
 
 ## [[specs/sitemap/_shared/attendance-roster-panel|點名面板（子頁面，多頁共用）]]
 
@@ -292,7 +346,7 @@ AttendanceRosterPanelComponent 的 UI 地圖：三個頁面開得到，逐生出
 
 Tags: `sitemap`, `_shared`, `admin`, `teacher`
 
-Links to: [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/teacher/schedule]], [[specs/sitemap/admin/attendance]]
+Links to: [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/teacher/schedule]], [[specs/sitemap/admin/attendance]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/subject-manager]]
 
 ## [[specs/sitemap/_shared/audit-log-dialog|操作紀錄對話框（子頁面，6 頁共用）]]
 
@@ -326,19 +380,29 @@ Tags: `sitemap`, `_shared`, `parent`
 
 Links to: [[specs/sitemap/parent/dashboard]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/parent/grades]], [[specs/sitemap/parent/payments]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/public/select-role]], [[specs/sitemap/README|方法頁]]
 
+## [[specs/sitemap/_shared/permission-matrix|權限變體矩陣（管理端）]]
+
+九個細部權限各自改變什麼 —— 側欄、進得去哪些頁、頁內按鈕、資料範圍；以及前端只擋四條路由這件事。
+
+Tags: `sitemap`, `_shared`, `admin`, `authorization`
+
+Links to: [[specs/sitemap/_shared/shell-layout]]
+
 ## [[specs/sitemap/_shared/public-shell|公開頁外框（PublicShell，login / trial / enrollment / qr-checkin / link-line / select-role 共用）]]
 
 六個公開頁共用的外框：橘色品牌面（字標、標語、流場動畫、四條輕量連結、版權）+ 白色主面。
 
 Tags: `sitemap`, `_shared`, `public`, `rwd`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/public/login]]
 
 ## [[specs/sitemap/_shared/shell-layout|外框（ShellLayout，admin / teacher / parent 共用）]]
 
 三個角色共用的外框：左側選單與右上角色徽章；選單項目依角色與 permissions 動態產生。640px 以下換成底欄 + 「更多」面板。
 
 Tags: `sitemap`, `_shared`, `admin`, `teacher`, `parent`, `rwd`
+
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/parent-child-switcher]]
 
 ## [[specs/sitemap/_shared/student-form-dialog|學生表單對話框（子頁面，3 頁共用）]]
 
@@ -352,7 +416,7 @@ SubjectManagerComponent 的 UI 地圖：科目清單、行內改名、被引用�
 
 Tags: `sitemap`, `_shared`, `admin`
 
-Links to: [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/admin/staff]], [[specs/sitemap/admin/courses]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/README|方法頁]]
+Links to: [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/admin/staff]], [[specs/sitemap/admin/courses]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/admin/settings-subjects]]
 
 ## [[specs/sitemap/admin/attendance|課堂出勤紀錄（/admin/attendance）]]
 
@@ -360,7 +424,7 @@ Links to: [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/admin/staff
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/sessions]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/sessions]]
+Links to: [[specs/sitemap/admin/sessions]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/sessions]]
 
 ## [[specs/sitemap/admin/changes|課務異動（/admin/changes）]]
 
@@ -368,7 +432,7 @@ Links to: [[specs/sitemap/admin/sessions]], [[specs/sitemap/_shared/audit-log-di
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]]
 
 ## [[specs/sitemap/admin/contact-book|聯絡簿（/admin/contact-book）]]
 
@@ -376,7 +440,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/contact-book-entry-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/notifications]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/contact-book-entry-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/notifications]]
 
 ## [[specs/sitemap/admin/courses|課程管理（/admin/courses）]]
 
@@ -384,7 +448,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/contac
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/admin/courses-courseId-classes-classId]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/admin/courses-courseId-classes-classId]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/admin/courses-courseId-classes-classId|開課班詳情（/admin/courses/:courseId/classes/:classId）]]
 
@@ -392,7 +456,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/admin/dashboard|儀表板（/admin/dashboard）]]
 
@@ -400,7 +464,7 @@ Links to: [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/shell-layout]
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/admin/enrollments|報名進出（/admin/enrollments）]]
 
@@ -408,7 +472,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/attend
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/changes]], [[specs/sitemap/admin/courses-courseId-classes-classId]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/changes]], [[specs/sitemap/admin/courses-courseId-classes-classId]]
 
 ## [[specs/sitemap/admin/fee-templates|費用方案管理（/admin/fee-templates）]]
 
@@ -416,7 +480,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/meals]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/meals]]
 
 ## [[specs/sitemap/admin/grades|考務與成績（/admin/grades）]]
 
@@ -424,7 +488,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/admin/grades-exams]]
+Links to: [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/admin/settings]]
 
 ## [[specs/sitemap/admin/grades-exams|考試管理（/admin/grades/exams）]]
 
@@ -432,7 +496,7 @@ Links to: [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/admin/grades-exa
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/grades]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-exams-type-id-scores]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/grades]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-exams-type-id-scores]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]]
 
 ## [[specs/sitemap/admin/grades-exams-type-id-scores|成績登錄（/admin/grades/exams/:type/:id/scores）]]
 
@@ -440,7 +504,7 @@ Links to: [[specs/sitemap/admin/grades]], [[specs/sitemap/_shared/shell-layout]]
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-exams]]
 
 ## [[specs/sitemap/admin/grades-overview|成績總覽（/admin/grades/overview）]]
 
@@ -448,7 +512,7 @@ Links to: [[specs/sitemap/admin/grades-exams]], [[specs/sitemap/_shared/shell-la
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview-student]], [[specs/sitemap/admin/grades-overview-class]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview-student]], [[specs/sitemap/admin/grades-overview-class]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/admin/grades-overview-class|班級視角（/admin/grades/overview/class）]]
 
@@ -456,7 +520,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-o
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/admin/grades-exams-type-id-scores]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-exams]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/admin/grades-exams-type-id-scores]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-exams]]
 
 ## [[specs/sitemap/admin/grades-overview-student|學生視角（/admin/grades/overview/student）]]
 
@@ -464,7 +528,7 @@ Links to: [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview-class]], [[specs/sitemap/admin/students]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/grades-overview-class]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/grades-overview-class]]
 
 ## [[specs/sitemap/admin/index|管理員根路由（/admin）]]
 
@@ -472,7 +536,7 @@ Links to: [[specs/sitemap/admin/grades-overview]], [[specs/sitemap/_shared/shell
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/dashboard]]
+Links to: [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/dashboard]]
 
 ## [[specs/sitemap/admin/leave|學生請假管理（/admin/leave）]]
 
@@ -480,7 +544,7 @@ Links to: [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/dashboard]]
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/parents]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/parents]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/students]]
 
 ## [[specs/sitemap/admin/meals|餐費管理（/admin/meals）]]
 
@@ -488,7 +552,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/fee-templates]]
 
 ## [[specs/sitemap/admin/notifications|通知中心（/admin/notifications）]]
 
@@ -496,7 +560,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/README|方法�
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/admin/parents|家長管理（/admin/parents）]]
 
@@ -504,7 +568,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/students]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/students]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/students]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/students]]
 
 ## [[specs/sitemap/admin/payments|繳費紀錄（/admin/payments）]]
 
@@ -512,7 +576,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/meals]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/admin/meals]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/contact-book]], [[specs/sitemap/admin/notifications]], [[specs/sitemap/admin/enrollments]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/meals]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/admin/meals]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/admin/contact-book]], [[specs/sitemap/admin/notifications]], [[specs/sitemap/admin/enrollments]], [[specs/sitemap/admin/fee-templates]]
 
 ## [[specs/sitemap/admin/reports|營收報表（/admin/reports）]]
 
@@ -520,7 +584,7 @@ Links to: [[specs/sitemap/admin/meals]], [[specs/sitemap/_shared/shell-layout]],
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/admin/sessions|課堂管理（/admin/sessions）]]
 
@@ -528,7 +592,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/admin/settings|系統設定（/admin/settings）]]
 
@@ -536,7 +600,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/README|方法�
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings-campuses]], [[specs/sitemap/admin/settings-schools]], [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/admin/settings-general]], [[specs/sitemap/admin/settings-schools]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings-campuses]], [[specs/sitemap/admin/settings-schools]], [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/admin/settings-general]], [[specs/sitemap/admin/courses]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings-campuses]], [[specs/sitemap/admin/settings-schools]], [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/admin/settings-general]], [[specs/sitemap/admin/settings-schools]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings-campuses]], [[specs/sitemap/admin/settings-schools]], [[specs/sitemap/admin/settings-subjects]], [[specs/sitemap/admin/settings-general]], [[specs/sitemap/admin/courses]]
 
 ## [[specs/sitemap/admin/settings-campuses|分校設定（/admin/settings/campuses）]]
 
@@ -544,7 +608,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]]
 
 ## [[specs/sitemap/admin/settings-general|一般設定（/admin/settings/general）]]
 
@@ -552,7 +616,7 @@ Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/admin/dashboard]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/admin/meals]], [[specs/sitemap/admin/reports]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/admin/dashboard]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/admin/meals]], [[specs/sitemap/admin/reports]]
 
 ## [[specs/sitemap/admin/settings-schools|學校管理（/admin/settings/schools）]]
 
@@ -560,7 +624,7 @@ Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]]
 
 ## [[specs/sitemap/admin/settings-subjects|科目設定（/admin/settings/subjects）]]
 
@@ -568,7 +632,7 @@ Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/admin/courses]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/courses]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/subject-manager]]
 
 ## [[specs/sitemap/admin/staff|人員管理（/admin/staff）]]
 
@@ -576,7 +640,7 @@ Links to: [[specs/sitemap/admin/settings]], [[specs/sitemap/_shared/shell-layout
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/admin/fee-templates]], [[specs/sitemap/admin/reports]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/admin/payments]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/parents]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/admin/fee-templates]], [[specs/sitemap/admin/reports]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/admin/payments]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/parents]]
 
 ## [[specs/sitemap/admin/students|學生管理（/admin/students）]]
 
@@ -584,7 +648,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/audit-
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/admin/courses]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/_shared/confirm-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/sessions]]
 
 ## [[specs/sitemap/admin/students-id|學生詳情（/admin/students/:id）]]
 
@@ -592,7 +656,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/studen
 
 Tags: `sitemap`, `admin`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/parents]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/admin/students]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/permission-matrix]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/parents]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/admin/students]], [[specs/sitemap/_shared/student-form-dialog]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/students]], [[specs/sitemap/admin/leave]]
 
 ## [[specs/sitemap/parent/add-course|加選課程（/parent/add-course）]]
 
@@ -600,7 +664,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/admin/parents]
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/parent/attendance|到班紀錄（/parent/attendance）]]
 
@@ -608,7 +672,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/parent-child-switcher]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/parent/payments]]
 
 ## [[specs/sitemap/parent/dashboard|儀表板（/parent/dashboard）]]
 
@@ -616,7 +680,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/parent/index]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher]]
+Links to: [[specs/sitemap/parent/index]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/parent/enrollment|報名申請（/parent/enrollment）]]
 
@@ -624,7 +688,7 @@ Links to: [[specs/sitemap/parent/index]], [[specs/sitemap/_shared/shell-layout]]
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/parent/grades|成績查閱（/parent/grades）]]
 
@@ -640,7 +704,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/parent/dashboard]], [[specs/sitemap/parent/dashboard]]
+Links to: [[specs/sitemap/parent/dashboard]], [[specs/sitemap/parent/dashboard]], [[specs/sitemap/parent/dashboard]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher]]
 
 ## [[specs/sitemap/parent/meals|餐費紀錄（/parent/meals）]]
 
@@ -648,7 +712,7 @@ Links to: [[specs/sitemap/parent/dashboard]], [[specs/sitemap/parent/dashboard]]
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/parent/notifications|通知中心（/parent/notifications）]]
 
@@ -664,7 +728,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/announ
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/parent-child-switcher]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/README|方法頁]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/parent/renewal|續課資訊（/parent/renewal）]]
 
@@ -672,7 +736,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/parent/schedule|課表查看（/parent/schedule）]]
 
@@ -680,7 +744,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/parent/trial|試聽申請（/parent/trial）]]
 
@@ -688,7 +752,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/parent/attendance]]
 
 ## [[specs/sitemap/public/enrollment|我要報名（/enrollment）]]
 
@@ -720,7 +784,7 @@ Links to: [[specs/sitemap/_shared/public-shell]], [[specs/sitemap/README|方法�
 
 Tags: `sitemap`, `public`
 
-Links to: [[specs/sitemap/_shared/public-shell]], [[specs/sitemap/_shared/public-shell]], [[specs/sitemap/_shared/public-shell]]
+Links to: [[specs/public/qr-checkin]], [[architecture/kiosk-checkin]]
 
 ## [[specs/sitemap/public/select-role|選擇角色（/select-role）]]
 
@@ -744,7 +808,7 @@ Links to: [[specs/sitemap/_shared/public-shell]], [[specs/sitemap/_shared/public
 
 Tags: `sitemap`, `method`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/public/login]], [[specs/sitemap/public/trial]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/public-shell]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/public-shell]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/admin/fee-templates]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/parent/payments]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/parent/attendance]], [[specs/sitemap/public/login]], [[specs/sitemap/public/trial]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/public-shell]], [[specs/sitemap/_shared/attendance-roster-panel]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/public-shell]]
 
 ## [[specs/sitemap/teacher/dashboard|老師儀表板（/teacher/dashboard）—— 已刪除，只留 redirect]]
 
@@ -752,7 +816,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/attend
 
 Tags: `sitemap`, `teacher`
 
-Links to: [[specs/sitemap/admin/attendance]], [[specs/sitemap/teacher/schedule]]
+Links to: [[specs/sitemap/admin/attendance]], [[specs/sitemap/teacher/schedule]], [[specs/sitemap/teacher/schedule]]
 
 ## [[specs/sitemap/teacher/index|老師根路由（/teacher）]]
 
@@ -760,7 +824,7 @@ Links to: [[specs/sitemap/admin/attendance]], [[specs/sitemap/teacher/schedule]]
 
 Tags: `sitemap`, `teacher`
 
-Links to: [[specs/sitemap/teacher/dashboard]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/schedule]], [[specs/sitemap/teacher/students]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/teacher/schedule]]
+Links to: [[specs/sitemap/teacher/dashboard]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/schedule]], [[specs/sitemap/teacher/students]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/teacher/schedule]], [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/teacher/notifications|通知中心（/teacher/notifications）]]
 
@@ -820,7 +884,7 @@ Tags: `specs`, `teacher`, `notifications`
 
 Tags: `specs`, `teacher`, `schedule`
 
-Links to: [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-today-flow]], [[architecture/teacher-class-log]], [[architecture/teacher-contact-book]], [[architecture/teacher-today-flow]]
+Links to: [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-today-flow]], [[architecture/teacher-class-log]], [[rules/contact-book-rules]], [[architecture/teacher-today-flow]]
 
 ## [[specs/teacher/students|學生]]
 
