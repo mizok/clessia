@@ -148,9 +148,11 @@ function toTimeDate(time: string | null): Date | null {
         A6 form() 的底部：必填沒填時送出鈕不鎖死，旁邊一行寫還差什麼（#723：disabled 會把「為什麼不行」藏起來）；
         處理中寫「送出中…」。送出失敗的訊息也寫在這一行，填的內容不清。
         黏在捲動區底（A6 .fdlg__foot）：表單一長，送出鈕不跟著內容捲走；內容從它後面捲過，底色不透明。
+        sticky 會扣掉捲動容器的 padding（容器 pb 16px，動作列就浮在離底 16px，下面露出捲動的內容），
+        所以底部留白由外框用 --leave-foot-pb 交給動作列自己撐（家長端含 safe-area）；沒設就是 0。
       -->
       <div
-        class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-white pt-2"
+        class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-white pt-2 pb-(--leave-foot-pb)"
       >
         <p
           class="m-0 mr-auto text-md max-wide:basis-full"

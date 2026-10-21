@@ -134,7 +134,8 @@ describe('LeaveFormDialogComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     const go = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('送出請假'))!;
     const bar = go.parentElement!;
-    for (const c of ['sticky', 'bottom-0', 'bg-white']) expect(bar.classList).toContain(c);
+    for (const c of ['sticky', 'bottom-0', 'bg-white', 'pb-(--leave-foot-pb)'])
+      expect(bar.classList).toContain(c);
   });
 
   it('renders the shared student autocomplete field', () => {
