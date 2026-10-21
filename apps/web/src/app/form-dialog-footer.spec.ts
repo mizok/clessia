@@ -22,6 +22,7 @@ describe('表單彈窗動作列貼底（#1772）', () => {
     expect(rule('.p-dialog .p-dialog-content:has(.form-dialog__footer)')).toMatch(
       /padding-bottom:\s*0/,
     );
-    expect(rule('.form-dialog__footer')).toMatch(/padding-bottom:/);
+    // A6 `.fdlg__foot { padding: 0 24px 24px }`：按鈕下留 24px
+    expect(rule('.form-dialog__footer')).toMatch(/padding-bottom:\s*var\(--space-6\)/);
   });
 });
