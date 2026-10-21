@@ -56,6 +56,10 @@ const CreateCampusSchema = z
     address: z.string().max(255).nullable().optional().openapi({ description: '分校地址' }),
     phone: z.string().max(30).nullable().optional().openapi({ description: '分校電話' }),
     isActive: z.boolean().optional().openapi({ description: '是否啟用' }),
+    /** 同 UpdateCampus：要 `manage_org_settings`；不帶／null = 沿用機構預設（A6 新增表單就有這欄，#1314 SE3） */
+    attendanceMode: z.enum(['per_session', 'daily_checkin']).nullable().optional(),
+    /** 同 UpdateCampus：要 `manage_finance`；不帶／空白 = 沿用機構預設 */
+    paymentInfo: z.string().max(PAYMENT_INFO_MAX).nullable().optional(),
   })
   .openapi('CreateCampus');
 
@@ -385,6 +389,14 @@ const createCampusRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '帶了出勤模式／帳戶資訊但沒有對應權限',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
     409: {
       description: '分校名稱重複',
       content: {
@@ -413,6 +425,21 @@ app.openapi(createCampusRoute, async (c) => {
     insertData['is_active'] = body.isActive;
   }
 
+  // 門檻跟 PUT 同一個（#1112、#1073）—— 不然沒權限的人改用「新建一個」就繞過了
+  const permissions = c.get('permissions') ?? [];
+  if (body.attendanceMode !== undefined) {
+    if (!hasPermission(permissions, 'manage_org_settings')) {
+      return c.json({ error: '沒有權限設定分校的出勤模式', code: 'FORBIDDEN' }, 403);
+    }
+    insertData['attendance_mode'] = body.attendanceMode;
+  }
+  if (body.paymentInfo !== undefined) {
+    if (!hasPermission(permissions, 'manage_finance')) {
+      return c.json({ error: '需要「財務管理」才能設定帳戶資訊', code: 'FORBIDDEN' }, 403);
+    }
+    insertData['payment_info'] = normalizePaymentInfo(body.paymentInfo);
+  }
+
   const { data, error } = await supabase.from('campuses').insert(insertData).select('*').single();
 
   if (error) {
@@ -439,6 +466,8 @@ app.openapi(createCampusRoute, async (c) => {
         address: data.address,
         phone: data.phone,
         is_active: data.is_active,
+        attendance_mode: data.attendance_mode,
+        payment_info: data.payment_info,
       }),
     },
     waitUntilFrom(c),

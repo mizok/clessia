@@ -476,3 +476,66 @@ describe('campuses —— org 與分校範圍（#1133）', () => {
     expect((await call('PUT', MINE, [MINE])).status).toBe(200);
   });
 });
+
+/**
+ * #1314 SE3：A6 的新增分校表單就有出勤模式與帳戶。門檻跟 PUT 一樣 ——
+ * 不擋的話，沒有 manage_org_settings／manage_finance 的人改用「新建一個分校」就繞過了。
+ */
+describe('POST /api/campuses —— 出勤模式與帳戶（#1314 SE3）', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+
+  async function post(body: unknown, permissions: string[]) {
+    const db = createMultiOrgDb({ campuses: [] });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', permissions);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', campusesRoute.default as unknown as Hono);
+    const res = await app.request('/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return { status: res.status, rows: db.rows('campuses') };
+  }
+
+  it('有權限：兩欄寫得進去（帳戶空白存 null）', async () => {
+    const { status, rows } = await post(
+      { name: '新店', attendanceMode: 'per_session', paymentInfo: '新店專戶' },
+      ['manage_org_settings', 'manage_finance'],
+    );
+    expect(status).toBe(201);
+    expect(rows[0]).toMatchObject({ attendance_mode: 'per_session', payment_info: '新店專戶' });
+
+    const blank = await post({ name: '木柵', paymentInfo: '  ' }, ['manage_finance']);
+    expect(blank.rows[0]?.['payment_info']).toBeNull();
+  });
+
+  it('帶出勤模式但沒有 manage_org_settings：403，沒建', async () => {
+    const { status, rows } = await post({ name: '新店', attendanceMode: 'per_session' }, [
+      'manage_finance',
+    ]);
+    expect(status).toBe(403);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('帶帳戶但沒有 manage_finance：403，沒建', async () => {
+    const { status, rows } = await post({ name: '新店', paymentInfo: '詐騙帳戶' }, [
+      'manage_org_settings',
+    ]);
+    expect(status).toBe(403);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('兩欄都不帶：不需要任何細部權限', async () => {
+    expect((await post({ name: '新店' }, [])).status).toBe(201);
+  });
+});
