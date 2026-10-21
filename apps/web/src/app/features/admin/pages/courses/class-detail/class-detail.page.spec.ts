@@ -140,6 +140,33 @@ describe('ClassDetailPage', () => {
     expect(message).not.toContain('不留紀錄');
   });
 
+  it('上課時段：老師下面寫教室（A6 class.html「教室 X」／「沒有指定教室」，#1796）', async () => {
+    const slot = (id: string, classroomName: string | null) => ({
+      id,
+      classId: 'class-1',
+      weekday: 1,
+      startTime: '19:00:00',
+      endTime: '20:30:00',
+      teacherId: null,
+      teacherName: '王老師',
+      effectiveTo: null,
+      classroomId: classroomName ? 'room-1' : null,
+      classroomName,
+    });
+    const cmp = fixture.componentInstance as any;
+    cmp.cls.update((c: Record<string, unknown>) => ({
+      ...c,
+      schedules: [slot('s1', 'A 教室'), slot('s2', null)],
+    }));
+    cmp.tab.set('schedule');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const rooms = [...fixture.nativeElement.querySelectorAll('[data-classroom]')].map(
+      (e: Element) => e.textContent!.trim(),
+    );
+    expect(rooms).toEqual(['教室 A 教室', '沒有指定教室']);
+  });
+
   it('shows grade chips in the hero summary block', () => {
     // A6 換版（#991 courses C2）：年級寫在色面副標裡，掛點是 data-part=grade
     const gradeChip = fixture.nativeElement.querySelector('[data-part=grade]');

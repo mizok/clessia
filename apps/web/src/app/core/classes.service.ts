@@ -12,6 +12,9 @@ export interface Schedule {
   teacherId: string | null;
   teacherName?: string;
   effectiveTo: string | null;
+  /** 指定的教室（#1796）；null = 不指定 */
+  classroomId: string | null;
+  classroomName: string | null;
 }
 
 export interface Class {
@@ -130,6 +133,8 @@ export interface CreateScheduleInput {
   endTime: string;
   teacherId: string | null;
   effectiveTo?: string | null;
+  /** 要跟班級同一個分校（API 不同分校回 409）；null = 不指定 */
+  classroomId?: string | null;
 }
 
 export interface SessionPreview {

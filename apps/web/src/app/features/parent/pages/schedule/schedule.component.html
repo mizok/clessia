@@ -203,7 +203,13 @@
           }
         </dd>
         <dt class="text-zinc-600">分校</dt>
-        <dd class="m-0">{{ s.campusName ?? '—' }}</dd>
+        <!-- A6 p-schedule：分校 · 教室（#1796） -->
+        <dd class="m-0">
+          {{ s.campusName ?? '—' }}
+          @if (s.classroomName) {
+            · {{ s.classroomName }}
+          }
+        </dd>
         <dt class="text-zinc-600">出勤</dt>
         <dd class="m-0" data-part="attendance">
           {{ attendanceText() }}
