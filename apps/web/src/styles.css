@@ -609,9 +609,15 @@
     justify-content: flex-end;
     gap: var(--space-3);
     padding-top: calc(var(--space-4) + var(--space-2));
-    padding-bottom: var(--space-4);
+    /* A6 `.fdlg__foot` 底部 24px，動作列本身貼著彈窗底（content 底部 padding 歸 0，見下一條） */
+    padding-bottom: var(--space-6);
     border-top: 1px solid var(--zinc-100);
     background: var(--color-white);
+  }
+  /* sticky 會扣掉捲動容器的 padding：content 底部的 16px 留著，動作列就浮在離底 16px、 */
+  /* 底下露出捲動中的內容（#1772，conformance 黏住檢查量到）。底部留白交給動作列自己的 padding-bottom。 */
+  .p-dialog .p-dialog-content:has(.form-dialog__footer) {
+    padding-bottom: 0;
   }
   .form-dialog__empty-note {
     padding: var(--space-4);
