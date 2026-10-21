@@ -126,7 +126,8 @@
       description="請嘗試調整篩選條件"
     />
   } @else {
-    <!-- A6 grades-class：課程分章（.chap）—— 桌機左欄章名＋「N 個班」（黏住），右邊是班級列 -->
+    <!-- A6 grades-class：課程分章（.chap）—— 桌機左欄章名＋「N 個班」（黏住），右邊是班級列。
+         章名下的科目小字稿沒有：舊有新無，使用者 10-21 裁定保留（課程名不保證含科目；a6-adoption-rules R5） -->
     @for (group of filteredGroups(); track group.courseId) {
       <section
         class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
@@ -136,6 +137,7 @@
         <app-chapter-head
           class="block pt-6 wide:pt-8"
           [name]="group.courseName"
+          [sub]="group.subjectName"
           [count]="group.classes.length"
           unit="個班"
           [stacked]="true"
