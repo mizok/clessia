@@ -124,4 +124,9 @@ ALTER TABLE public.classrooms ENABLE ROW LEVEL SECURITY; -- 沒有 policy：fail
 | 3   | 一般類    | 分校頁：列上教室數、⋮ 教室對話框、表單加狀態／出勤模式／帳戶標籤                            |
 | —   | 另開單    | Q2 (a) 的時段指定教室 UI＋家長端「分校 · 教室」顯示；API 要驗教室跟班級同分校（不同 → 409） |
 
+**時段指定教室（#1796）**：`POST/PUT /api/classes/{id}/schedules[/{sid}]` 收 `classroomId`（null = 不指定）。
+教室不在本 org（或不存在）→ 404 `CLASSROOM_NOT_FOUND`；本 org 但跟班級不同分校 → 409 `CLASSROOM_CAMPUS_MISMATCH`。
+PUT **只在真的換了教室才驗**（同 #854 老師）：班級換過分校的舊時段，帶著原教室改時間不會被鎖死。
+時段回應帶 `classroomId`／`classroomName`；家長課表的課堂帶 `classroomName`（從排課時段來，手動加的堂、補課是 null）。
+
 規格同步：實作合併時更新 [[specs/admin/system/campuses]] 的「銀行帳戶資訊」（依 Q1）與「教室管理」兩段。

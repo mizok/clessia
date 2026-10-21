@@ -34,6 +34,8 @@ interface SessionSeed {
   event_id?: string | null;
   teacher_id?: string | null;
   schedule_teacher_id?: string | null;
+  /** 排課時段指定的教室名（#1796） */
+  classroom?: string | null;
   schedule_changes?: Record<string, unknown>[];
 }
 
@@ -55,6 +57,7 @@ function session(seed: SessionSeed) {
       ? {
           teacher_id: scheduleTeacherId,
           teacher: scheduleTeacherId === 't-lin' ? TEACHER_LIN : TEACHER_WANG,
+          classrooms: seed.classroom ? { name: seed.classroom } : null,
         }
       : null,
     classes: {
@@ -204,6 +207,7 @@ describe('GET /api/me/sessions', () => {
         className: '班 101',
         courseName: '國中數學',
         campusName: '信義校',
+        classroomName: null,
         teacherName: '王老師',
         isSubstitute: false,
         originalTeacherName: null,
@@ -211,6 +215,30 @@ describe('GET /api/me/sessions', () => {
         changes: [],
         attendance: null,
       });
+    });
+
+    it('時段指定了教室：帶教室名（A6 p-schedule「分校 · 教室」）；沒有時段的堂（手動加、補課）是 null', async () => {
+      const seed = baseSeed({
+        sessions: [
+          session({
+            id: id(301),
+            class_id: CLASS_A,
+            session_date: '2026-10-05',
+            classroom: 'A 教室',
+          }),
+          session({
+            id: id(302),
+            class_id: CLASS_A,
+            session_date: '2026-10-06',
+            schedule_teacher_id: null,
+          }),
+        ],
+      });
+      const { body } = await get(appWith(seed));
+      expect(body.data.map((s: { classroomName: string | null }) => s.classroomName)).toEqual([
+        'A 教室',
+        null,
+      ]);
     });
 
     it('代課：露實際上課的老師，isSubstitute = true 並帶原任課老師', async () => {
