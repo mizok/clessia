@@ -157,6 +157,19 @@ describe('POST /api/invoices/{id}/payments（#1778）', () => {
         ['enrollment_request', 'req-1', 'complete'],
       ]),
     );
+    // 「這個學生什麼時候、因為哪一筆收款轉正式」查得到
+    const audit = (type: string) => db.rows('audit_logs').find((r) => r['resource_type'] === type);
+    expect(audit('enrollment')?.['details']).toMatchObject({
+      before: { status: 'pending_payment' },
+      after: { status: 'active' },
+      via: 'payment',
+      paymentId: 'p-1',
+    });
+    expect(audit('enrollment_request')?.['details']).toMatchObject({
+      via: 'payment',
+      paymentId: 'p-1',
+      invoice_id: INVOICE,
+    });
     expect(h.notify).toHaveBeenCalledTimes(1);
     expect(h.notify).toHaveBeenCalledWith(expect.anything(), {
       orgId: ORG,

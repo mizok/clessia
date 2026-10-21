@@ -48,7 +48,12 @@ run('記收款的交易對真 Postgres（#1778）', () => {
   }
 
   /** 一個學生在這班的報名（狀態 `status`），連到它的申請（`awaiting_payment`） */
-  async function enrollee(orgId: string, classId: string, status = 'pending_payment') {
+  async function enrollee(
+    orgId: string,
+    classId: string,
+    status = 'pending_payment',
+    requestStatus = 'awaiting_payment',
+  ) {
     const studentId = await one(
       `INSERT INTO students (org_id, name, grade) VALUES ($1, '小明', 'J1')`,
       [orgId],
@@ -60,8 +65,8 @@ run('記收款的交易對真 Postgres（#1778）', () => {
     );
     const requestId = await one(
       `INSERT INTO enrollment_requests (org_id, student_id, class_id, status, enrollment_id, requested_by)
-       VALUES ($1, $2, $3, 'awaiting_payment', $4, $5)`,
-      [orgId, studentId, classId, enrollmentId, userId],
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [orgId, studentId, classId, requestStatus, enrollmentId, userId],
     );
     return { studentId, enrollmentId, requestId };
   }
@@ -216,6 +221,42 @@ run('記收款的交易對真 Postgres（#1778）', () => {
 
     expect(r.status === 'done' && r.activated).toEqual([]);
     expect(await status('enrollments', s.enrollmentId)).toBe('withdrawal');
+  });
+
+  it('繳清只完成 awaiting_payment 的申請：已取消、已拒絕的連到同一張單也不動', async () => {
+    const { orgId, classId } = await newOrg();
+    const live = await enrollee(orgId, classId);
+    const cancelled = await enrollee(orgId, classId, 'pending_payment', 'cancelled');
+    const rejected = await enrollee(orgId, classId, 'pending_payment', 'rejected');
+    const inv = await invoice(orgId, live.studentId, [
+      live.enrollmentId,
+      cancelled.enrollmentId,
+      rejected.enrollmentId,
+    ]);
+
+    const r = await pay(orgId, inv, 9000);
+
+    expect(r.status === 'done' && r.completed.map((x) => x.id)).toEqual([live.requestId]);
+    expect(await status('enrollment_requests', cancelled.requestId)).toBe('cancelled');
+    expect(await status('enrollment_requests', rejected.requestId)).toBe('rejected');
+  });
+
+  it('退費不轉正式（Q3）：帳單上還是 pending_payment 的報名，退費之後仍是 pending_payment', async () => {
+    const { orgId, classId } = await newOrg();
+    const s = await enrollee(orgId, classId);
+    const inv = await invoice(orgId, s.studentId, [s.enrollmentId]);
+    // 收款直接寫進表（繞過轉正式）：只為了讓帳單有淨額可以退
+    await q(
+      `INSERT INTO payment_records (org_id, invoice_id, kind, amount, method, recorded_by)
+       VALUES ($1, $2, 'payment', 1000, 'cash', $3)`,
+      [orgId, inv, userId],
+    );
+
+    const r = await pay(orgId, inv, 500, 'refund');
+
+    expect(r).toMatchObject({ status: 'done', activated: [], completed: [] });
+    expect(await status('enrollments', s.enrollmentId)).toBe('pending_payment');
+    expect(await status('enrollment_requests', s.requestId)).toBe('awaiting_payment');
   });
 
   it('退費不倒轉（Q3）：報名維持 active、申請維持 completed', async () => {
