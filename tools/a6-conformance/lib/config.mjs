@@ -450,6 +450,29 @@ export const PAGES = {
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
   },
+  // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由；列上的教室數是 SE3（schema 沒有教室）
+  campuses: {
+    a6: 'settings.html#campuses',
+    app: '/admin/settings/campuses',
+    deviations: [
+      {
+        // SE3：稿的列有第三欄「N 間教室」，schema 沒有教室 —— app 少一欄，名稱欄因此較寬
+        status: '尺寸',
+        a6: '>landmark:main\\[\\]>row>text:div$',
+        detail: '^寬 ',
+        reason: '列上沒有教室數欄（schema 沒有教室），名稱欄較寬',
+        source: '#1314 SE3（教室子頁、列上教室數，待 schema）',
+      },
+      {
+        // 稿的「操作紀錄」只在桌機（only-d）；手機收進頁首「⋯」，不刪（計畫席 10-21 裁）
+        status: '多',
+        widths: [360],
+        app: 'control:button\\[分校的更多動作\\]$',
+        reason: '手機的操作紀錄：稿沒畫，收進頁首「⋯」',
+        source: `${rule('R2')}；#1755 計畫席 10-21`,
+      },
+    ],
+  },
   staff: { a6: 'staff.html', app: '/admin/staff' },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {

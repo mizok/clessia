@@ -4,7 +4,6 @@ import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // PrimeNG
@@ -14,16 +13,8 @@ import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { CampusFormDialogComponent } from './campus-form-dialog.component';
 
-// Responsive Table
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
+import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 
 // Services
 import {
@@ -33,6 +24,7 @@ import {
   CreateCampusInput,
   UpdateCampusInput,
 } from '@core/campuses.service';
+import { OrgSettingsService, type AttendanceMode } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 
@@ -43,17 +35,13 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 
-import { IconFieldModule } from 'primeng/iconfield';
-import { InputIconModule } from 'primeng/inputicon';
-import { TooltipModule } from 'primeng/tooltip';
-import { SkeletonModule } from 'primeng/skeleton';
-import { InputTextModule } from 'primeng/inputtext';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+
+const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', daily_checkin: '日到班' };
 
 @Component({
   selector: 'app-campuses',
@@ -61,21 +49,11 @@ import {
   imports: [
     ReloadVeilComponent,
     PageActionsComponent,
-    StatusDotComponent,
-    CommonModule,
     FormsModule,
     ButtonModule,
-    InputIconModule,
-    IconFieldModule,
-    TooltipModule,
-    SkeletonModule,
-    InputTextModule,
     EmptyStateComponent,
     PopupMenuComponent,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
+    PaginatorModule,
     LoadFailedComponent,
   ],
   providers: [DialogService],
@@ -170,18 +148,36 @@ export class CampusesPage implements OnInit {
     return items;
   });
 
+  /** 手機頁首的「⋯」：操作紀錄收在這裡（R2） */
+  protected readonly pageMenuItems: MenuItem[] = [
+    { label: '操作紀錄', icon: 'pi pi-history', command: () => this.openAuditLog() },
+  ];
+
   protected openActionMenu(event: MouseEvent, campus: Campus): void {
     this.selectedCampus.set(campus);
     this.actionMenu().toggle(event);
   }
 
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
+  protected readonly pagination = computed(() => ({
     first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-    rows: this.PAGE_SIZE,
-    totalRecords: this.total(),
   }));
 
+  /** 機構預設的出勤模式：分校的 `attendanceMode` 是 null 時沿用它 */
+  private readonly orgSettings = inject(OrgSettingsService);
+
+  /**
+   * 列上的出勤模式（A6：自己改過、跟預設不同的標出來）。
+   * null → 預設值＋「（沿用預設）」；預設還沒讀到或讀失敗 → 只寫「沿用機構預設」，不猜
+   */
+  protected modeText(campus: Campus): string {
+    const def = this.orgSettings.settings()?.attendanceMode ?? null;
+    if (!campus.attendanceMode) return def ? `${MODE[def]}（沿用預設）` : '沿用機構預設';
+    const label = MODE[campus.attendanceMode];
+    return def && campus.attendanceMode !== def ? `${label}（跟預設不同）` : label;
+  }
+
   ngOnInit(): void {
+    if (this.orgSettings.status() !== 'ready') this.orgSettings.load();
     this.setupLoadPipeline();
 
     // 搜尋：節流 + 去重，然後才觸發取數。
@@ -266,8 +262,8 @@ export class CampusesPage implements OnInit {
     this.searchInput.next(value);
   }
 
-  protected onPage(event: ResponsiveTablePageEvent): void {
-    this.currentPage.set(event.page + 1);
+  protected onPage(event: PaginatorState): void {
+    this.currentPage.set((event.page ?? 0) + 1);
     this.loadCampuses();
   }
 
