@@ -1,6 +1,7 @@
 import {
   Component,
   computed,
+  linkedSignal,
   inject,
   input,
   signal,
@@ -83,7 +84,8 @@ export class TrialComponent {
   protected readonly kids = this.childScope.children;
 
   // ── 新增申請 ──
-  protected readonly sid = signal<string>(this.childScope.activeChildId() ?? '');
+  // linkedSignal：直接打開這頁時孩子名單還沒載完，activeChildId 晚到 —— 跟著它走，家長自己選了才固定
+  protected readonly sid = linkedSignal<string>(() => this.childScope.activeChildId() ?? '');
   protected readonly picked = signal<string[]>([]);
   protected readonly times = signal<string[]>([]);
   protected readonly slot = signal('');
