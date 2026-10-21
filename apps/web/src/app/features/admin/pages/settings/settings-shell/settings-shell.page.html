@@ -20,7 +20,7 @@
     <nav class="flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="系統設定">
       @for (tab of tabs; track tab.value) {
         <a
-          class="inline-flex min-h-11 items-center gap-1 border-0 border-b-[1.5px] border-solid px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap no-underline hover:text-zinc-900 wide:min-h-10"
+          class="inline-flex min-h-11 items-center gap-1 border-0 border-b-[1.5px] border-solid px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap no-underline hover:text-zinc-900 wide:min-h-0"
           [class.border-zinc-900]="activeTab() === tab.value"
           [class.font-semibold]="activeTab() === tab.value"
           [class.text-zinc-900]="activeTab() === tab.value"
@@ -34,7 +34,7 @@
         >
           {{ tab.label }}
           @if (count(tab.value) !== null) {
-            <span class="text-base leading-[1.5] font-normal text-zinc-600 tabular-nums">{{
+            <span class="text-sm leading-[1.5] font-normal text-zinc-600 tabular-nums">{{
               count(tab.value)
             }}</span>
           }
