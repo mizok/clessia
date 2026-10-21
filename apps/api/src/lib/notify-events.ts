@@ -80,3 +80,70 @@ export async function notifyNewApplication(
     console.error('[notify] 申請通知失敗（申請已寫入）:', err instanceof Error ? err.message : err);
   }
 }
+
+/**
+ * 報名申請核准（#1726，使用者 10-21 裁 Q1 (b)：站內＋推播）→ **這個學生在本 org 的家長**每人一則。
+ *
+ * - 收件人：`parent_student_relations` 指到這個學生、`parents` 在本 org、`status = 'active'`（家長一定有帳號，`user_id` NOT NULL）。
+ *   關聯表沒有 org 欄，org 由 `parents.org_id` 把關（c1）。
+ * - 寫成 `role: 'parent'`、`push_status` 用欄位預設（pending）—— 推播由排程（`lib/push-run.ts`）送，
+ *   沒訂閱或這類偏好關掉在那裡 skip；通知中心照樣看得到（#1626）。所以這裡不走 `notify()`（那支寫死教職員不推播）。
+ * - 去重鍵 `enrollment_approved:<申請 id>`：一筆申請只會核准一次，重送不重複。
+ * - **不丟例外**：核准已經成功了，通知是附帶的。
+ */
+export async function notifyEnrollmentApproved(
+  supabase: SupabaseClient,
+  input: {
+    readonly orgId: string;
+    readonly requestId: string;
+    readonly studentId: string;
+    readonly studentName: string;
+    readonly className: string;
+    readonly amount: number;
+    readonly dueDate: string;
+  },
+): Promise<void> {
+  try {
+    const { data: links, error: linkError } = await supabase
+      .from('parent_student_relations')
+      .select('parent_id')
+      .eq('student_id', input.studentId);
+    if (linkError) throw new Error(linkError.message);
+    const parentIds = [
+      ...new Set((links ?? []).map((r) => (r as { parent_id: string }).parent_id)),
+    ];
+    if (parentIds.length === 0) return;
+
+    const { data: parents, error: parentError } = await supabase
+      .from('parents')
+      .select('user_id')
+      .eq('org_id', input.orgId)
+      .eq('status', 'active')
+      .in('id', parentIds);
+    if (parentError) throw new Error(parentError.message);
+    const userIds = [
+      ...new Set(((parents ?? []) as Array<{ user_id: string }>).map((p) => p.user_id)),
+    ];
+    if (userIds.length === 0) return;
+
+    const [, m, d] = input.dueDate.split('-');
+    const { error } = await supabase.from('notifications').upsert(
+      userIds.map((userId) => ({
+        org_id: input.orgId,
+        user_id: userId,
+        role: 'parent',
+        kind: 'enrollment_approved',
+        dedupe_key: `enrollment_approved:${input.requestId}`,
+        payload: {
+          title: '報名已核准',
+          body: `${input.studentName} 報名 ${input.className} 已核准，請在 ${Number(m)}/${Number(d)} 前繳 ${input.amount.toLocaleString('zh-TW')} 元`,
+          url: '/parent/enrollment#records',
+        },
+      })),
+      { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true },
+    );
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    console.error('[notify] 核准通知失敗（核准已成功）:', err instanceof Error ? err.message : err);
+  }
+}

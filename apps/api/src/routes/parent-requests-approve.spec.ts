@@ -13,7 +13,9 @@ const h = vi.hoisted(() => ({
   pool: {} as unknown,
   approve: vi.fn(),
   conflicts: [] as unknown[],
+  notify: vi.fn(async () => undefined),
 }));
+vi.mock('../lib/notify-events', () => ({ notifyEnrollmentApproved: h.notify }));
 vi.mock('../lib/get-auth', () => ({ getAuth: () => ({ pool: h.pool }) }));
 vi.mock('../lib/enrollment-approve', () => ({ approveEnrollmentRequest: h.approve }));
 vi.mock('./enrollments/validation', () => ({
@@ -118,6 +120,7 @@ describe('POST /api/parent-requests/enrollment/{id}/approve（#1726）', () => {
     h.conflicts = [];
     h.approve.mockReset();
     h.approve.mockResolvedValue(DONE);
+    h.notify.mockClear();
   });
 
   it('核准成功 → 200 帶帳單編號與金額；交易拿到本 org、範圍、台北開帳日', async () => {
@@ -141,6 +144,24 @@ describe('POST /api/parent-requests/enrollment/{id}/approve（#1726）', () => {
         issuedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       }),
     );
+  });
+
+  it('核准成功才通知家長（Q1 (b)）：帶學生、班、金額、期限、申請 id', async () => {
+    await call().res;
+    expect(h.notify).toHaveBeenCalledWith(expect.anything(), {
+      orgId: ORG,
+      requestId: REQ,
+      studentId: 'stu-1',
+      studentName: '林小華',
+      className: '國二數學 A',
+      amount: 3100,
+      dueDate: '2026-11-04',
+    });
+
+    h.notify.mockClear();
+    h.approve.mockResolvedValue({ status: 'class-full' });
+    await call().res;
+    expect(h.notify).not.toHaveBeenCalled();
   });
 
   it('核准記一筆稽核：action approve，帶帳單與金額', async () => {
