@@ -12,6 +12,8 @@ export interface Campus {
   isActive: boolean;
   /** 帳戶資訊覆寫（#1073）。null = 沿用機構預設 */
   paymentInfo: string | null;
+  /** 出勤模式（#1112）。null = 沿用機構預設（`OrgSettings.attendanceMode`） */
+  attendanceMode: 'per_session' | 'daily_checkin' | null;
   createdAt: string;
   updatedAt: string;
 }
