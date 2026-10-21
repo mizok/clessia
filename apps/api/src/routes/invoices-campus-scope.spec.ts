@@ -6,6 +6,13 @@ vi.mock('../lib/taipei-date', async (importOriginal) => ({
   getCurrentTaipeiDateString: () => '2026-10-08',
 }));
 
+// 記收款走交易（#1778，`lib/record-payment.ts`，對真 DB 的驗證在 contract/）；這裡只驗範圍外擋在交易之前
+const rp = vi.hoisted(() => ({
+  record: vi.fn(async () => ({ status: 'done', paymentId: 'p-1', activated: [], completed: [] })),
+}));
+vi.mock('../lib/get-auth', () => ({ getAuth: () => ({ pool: {} }) }));
+vi.mock('../lib/record-payment', () => ({ recordPayment: rp.record }));
+
 import { createMultiOrgDb, withMaxRows } from '../test-utils/multi-org-db';
 import invoicesRoute from './invoices';
 
@@ -229,6 +236,7 @@ describe('帳單的分校範圍（#1381）—— 寫：範圍外 404 且沒寫�
   ];
 
   it.each(writes)('%s %s', async (method, path, body) => {
+    rp.record.mockClear();
     const db = seed();
     const before = {
       items: db.rows('invoice_items').length,
@@ -238,6 +246,7 @@ describe('帳單的分校範圍（#1381）—— 寫：範圍外 404 且沒寫�
     expect(res.status).toBe(404);
     expect(db.rows('invoice_items')).toHaveLength(before.items);
     expect(db.rows('payment_records')).toHaveLength(before.payments);
+    expect(rp.record).not.toHaveBeenCalled();
     expect(db.rows('invoices').find((r) => r['id'] === OTHER)?.['voided_at']).toBeNull();
   });
 
@@ -247,7 +256,10 @@ describe('帳單的分校範圍（#1381）—— 寫：範圍外 404 且沒寫�
       body: { amount: 100, method: 'cash' },
     });
     expect(res.status).toBe(201);
-    expect(db.rows('payment_records')).toHaveLength(1);
+    expect(rp.record).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ invoiceId: VISIBLE }),
+    );
   });
 
   it('開單指名範圍外的學生 → 404 STUDENT_NOT_FOUND，沒開出來', async () => {

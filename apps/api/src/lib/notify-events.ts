@@ -82,10 +82,36 @@ export async function notifyNewApplication(
 }
 
 /**
+ * 這個學生在本 org 的家長帳號：`parent_student_relations` 指到學生、`parents` 在本 org、`status = 'active'`
+ * （家長一定有帳號，`user_id` NOT NULL）。關聯表沒有 org 欄，org 由 `parents.org_id` 把關（c1）。查詢失敗丟例外。
+ */
+async function activeParentUserIds(
+  supabase: SupabaseClient,
+  orgId: string,
+  studentId: string,
+): Promise<string[]> {
+  const { data: links, error: linkError } = await supabase
+    .from('parent_student_relations')
+    .select('parent_id')
+    .eq('student_id', studentId);
+  if (linkError) throw new Error(linkError.message);
+  const parentIds = [...new Set((links ?? []).map((r) => (r as { parent_id: string }).parent_id))];
+  if (parentIds.length === 0) return [];
+
+  const { data: parents, error: parentError } = await supabase
+    .from('parents')
+    .select('user_id')
+    .eq('org_id', orgId)
+    .eq('status', 'active')
+    .in('id', parentIds);
+  if (parentError) throw new Error(parentError.message);
+  return [...new Set(((parents ?? []) as Array<{ user_id: string }>).map((p) => p.user_id))];
+}
+
+/**
  * 報名申請核准（#1726，使用者 10-21 裁 Q1 (b)：站內＋推播）→ **這個學生在本 org 的家長**每人一則。
  *
- * - 收件人：`parent_student_relations` 指到這個學生、`parents` 在本 org、`status = 'active'`（家長一定有帳號，`user_id` NOT NULL）。
- *   關聯表沒有 org 欄，org 由 `parents.org_id` 把關（c1）。
+ * - 收件人見 `activeParentUserIds`。
  * - 寫成 `role: 'parent'`、`push_status` 用欄位預設（pending）—— 推播由排程（`lib/push-run.ts`）送，
  *   沒訂閱或這類偏好關掉在那裡 skip；通知中心照樣看得到（#1626）。所以這裡不走 `notify()`（那支寫死教職員不推播）。
  * - 去重鍵 `enrollment_approved:<申請 id>`：一筆申請只會核准一次，重送不重複。
@@ -104,26 +130,7 @@ export async function notifyEnrollmentApproved(
   },
 ): Promise<void> {
   try {
-    const { data: links, error: linkError } = await supabase
-      .from('parent_student_relations')
-      .select('parent_id')
-      .eq('student_id', input.studentId);
-    if (linkError) throw new Error(linkError.message);
-    const parentIds = [
-      ...new Set((links ?? []).map((r) => (r as { parent_id: string }).parent_id)),
-    ];
-    if (parentIds.length === 0) return;
-
-    const { data: parents, error: parentError } = await supabase
-      .from('parents')
-      .select('user_id')
-      .eq('org_id', input.orgId)
-      .eq('status', 'active')
-      .in('id', parentIds);
-    if (parentError) throw new Error(parentError.message);
-    const userIds = [
-      ...new Set(((parents ?? []) as Array<{ user_id: string }>).map((p) => p.user_id)),
-    ];
+    const userIds = await activeParentUserIds(supabase, input.orgId, input.studentId);
     if (userIds.length === 0) return;
 
     const [, m, d] = input.dueDate.split('-');
@@ -145,5 +152,45 @@ export async function notifyEnrollmentApproved(
     if (error) throw new Error(error.message);
   } catch (err) {
     console.error('[notify] 核准通知失敗（核准已成功）:', err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * 報名申請完成（#1778，使用者 10-21 裁 Q5 (b)：站內＋推播）→ 這個學生在本 org 的家長每人一則。
+ * 帳單繳清、或行政手動把報名轉正式時，申請轉 `completed` 才發；直接報名沒有申請，不發。
+ * 寫法同 `notifyEnrollmentApproved`（家長、推播走排程、去重鍵 `enrollment_completed:<申請 id>`、不丟例外）。
+ */
+export async function notifyEnrollmentCompleted(
+  supabase: SupabaseClient,
+  input: {
+    readonly orgId: string;
+    readonly requestId: string;
+    readonly studentId: string;
+    readonly studentName: string;
+    readonly className: string;
+  },
+): Promise<void> {
+  try {
+    const userIds = await activeParentUserIds(supabase, input.orgId, input.studentId);
+    if (userIds.length === 0) return;
+
+    const { error } = await supabase.from('notifications').upsert(
+      userIds.map((userId) => ({
+        org_id: input.orgId,
+        user_id: userId,
+        role: 'parent',
+        kind: 'enrollment_completed',
+        dedupe_key: `enrollment_completed:${input.requestId}`,
+        payload: {
+          title: '報名已完成',
+          body: `${input.studentName} 報名 ${input.className} 已完成`,
+          url: '/parent/enrollment#records',
+        },
+      })),
+      { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true },
+    );
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    console.error('[notify] 完成通知失敗（收款已記）:', err instanceof Error ? err.message : err);
   }
 }

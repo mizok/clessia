@@ -1,7 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
-import { logAudit } from '../utils/audit';
+import { logAudit, logAuditMany } from '../utils/audit';
+import { getAuth } from '../lib/get-auth';
+import { recordPayment, type RecordPaymentOutcome } from '../lib/record-payment';
+import { notifyEnrollmentCompleted } from '../lib/notify-events';
 import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -903,8 +906,18 @@ app.openapi(
   },
 );
 
+const ChangedRowSchema = z.object({
+  id: z.string(),
+  studentId: z.string(),
+  studentName: z.string(),
+  className: z.string(),
+});
+
 // ============================================================
 // POST /api/invoices/:id/payments —— 記一筆收款或退費
+//
+// 收款同一個交易裡把這張帳單上的 `pending_payment` 報名轉正式、繳清時完成申請（#1778，
+// 交易本體在 `lib/record-payment.ts`）。退費在鎖住帳單之後才數淨額，兩筆退費同時進來不會一起超過。
 //
 // `receipt_no` **不由 API 指定**：DB 的 BEFORE INSERT trigger 在同一個交易裡取號
 // （見 migration 檔頭）。API 讀 max+1 再寫的話兩筆同時進來就會撞號。
@@ -935,11 +948,21 @@ app.openapi(
     },
     responses: {
       201: {
-        description: '成功',
-        content: { 'application/json': { schema: z.object({ data: InvoiceSchema }) } },
+        description:
+          '成功；收款時一併帶出這筆轉為正式的報名、繳清而完成的申請（#1778，退費兩個都是空陣列）',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: InvoiceSchema,
+              activatedEnrollments: z.array(ChangedRowSchema),
+              completedRequests: z.array(ChangedRowSchema),
+            }),
+          },
+        },
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: '寫入失敗', content: { 'application/json': { schema: ErrorSchema } } },
       409: {
         description: '帳單已作廢，或退費超過這張帳單已收的淨額（REFUND_EXCEEDS_PAID）',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -953,32 +976,50 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
+    // 分校範圍在這裡擋（範圍外 = 404）；作廢先擋一次省一趟交易，交易裡鎖住帳單再判一次（併發作廢）
     const invoice = await findScopedInvoice(c, id, 'id, voided_at');
-
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
     if (invoice['voided_at']) return c.json(VOIDED, 409);
+    // 收款與轉正式要全有或全無，不退回 supabase-js 逐句寫（pg-pool-writes rule 6）
+    const pool = getAuth(c).pool;
+    if (!pool) return c.json({ error: '記錄失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
 
-    // **退費不得超過這張帳單已收的淨額**（#1034 裁決 C）。收 1,000、退 1,500 會讓淨額變 −500，
-    // 帳務上沒有意義（輸入錯誤，或跨帳單的補償 —— 那該開新帳單），而家長端會把它算成新欠款。
-    // ⚠️ 只擋在 API：兩筆退費同時進來時各自讀到同一個淨額，仍可能一起超過。
-    // 要完全擋住得在 DB trigger 裡判（同 #898 淨額歸零的做法），另開。
-    if (body.kind === 'refund') {
-      const { data: rows, error: paidError } = await supabase
-        .from('payment_records')
-        .select('kind, amount')
-        .eq('org_id', orgId)
-        .eq('invoice_id', id);
-      if (paidError) {
-        return c.json({ error: paidError.message, code: 'DB_ERROR' }, 400);
-      }
-      const { net } = invoiceTotals([], (rows ?? []) as PaymentRow[]);
-      if (body.amount > net) {
-        const max = Math.max(0, net).toLocaleString('en-US');
+    const kind = body.kind ?? 'payment';
+    const today = getCurrentTaipeiDateString();
+    let r: RecordPaymentOutcome;
+    try {
+      r = await recordPayment(pool, {
+        orgId,
+        userId,
+        invoiceId: id,
+        kind,
+        amount: body.amount,
+        method: body.method,
+        // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
+        paidAt: body.paidAt ?? today,
+        proofPath: body.proofPath ?? null,
+        note: body.note ?? null,
+        today,
+      });
+    } catch (err) {
+      console.error('[invoices] record payment failed', err);
+      return c.json({ error: '記錄失敗', code: 'SERVER_ERROR' }, 500);
+    }
+
+    switch (r.status) {
+      case 'not-found':
+        return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
+      case 'voided':
+        return c.json(VOIDED, 409);
+      // **退費不得超過這張帳單已收的淨額**（#1034 裁決 C）。收 1,000、退 1,500 會讓淨額變 −500，
+      // 帳務上沒有意義（輸入錯誤，或跨帳單的補償 —— 那該開新帳單），而家長端會把它算成新欠款。
+      case 'refund-exceeds-paid': {
+        const max = Math.max(0, r.net).toLocaleString('en-US');
         return c.json(
           {
-            error: `退費超過已收：這張帳單已收淨額 ${net.toLocaleString('en-US')} 元，最多可退 ${max} 元`,
+            error: `退費超過已收：這張帳單已收淨額 ${r.net.toLocaleString('en-US')} 元，最多可退 ${max} 元`,
             code: 'REFUND_EXCEEDS_PAID',
           },
           409,
@@ -986,25 +1027,9 @@ app.openapi(
       }
     }
 
-    const { error } = await supabase.from('payment_records').insert({
-      org_id: orgId,
-      invoice_id: id,
-      kind: body.kind ?? 'payment',
-      amount: body.amount,
-      method: body.method,
-      // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
-      paid_at: body.paidAt ?? getCurrentTaipeiDateString(),
-      proof_path: body.proofPath ?? null,
-      note: body.note ?? null,
-      recorded_by: userId,
-    });
-
-    if (error) {
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-    }
-
     const { data } = await supabase.from('invoices').select(INVOICE_SELECT).eq('id', id).single();
 
+    const wu = waitUntilFrom(c);
     logAudit(
       supabase,
       {
@@ -1012,12 +1037,67 @@ app.openapi(
         userId,
         resourceType: 'payment_record',
         resourceId: id,
-        action: body.kind === 'refund' ? 'refund' : 'payment',
+        action: kind === 'refund' ? 'refund' : 'payment',
       },
-      waitUntilFrom(c),
+      wu,
     );
+    // 「這個學生什麼時候轉正式」查得到：報名、申請各自一列
+    logAuditMany(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment',
+        action: 'update',
+        details: {
+          before: { status: 'pending_payment' },
+          after: { status: 'active' },
+          via: 'payment',
+          paymentId: r.paymentId,
+        },
+      },
+      r.activated.map((e) => ({
+        resourceId: e.id,
+        resourceName: `${e.studentName}（${e.className}）`,
+      })),
+      wu,
+    );
+    logAuditMany(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment_request',
+        action: 'complete',
+        details: { via: 'payment', paymentId: r.paymentId, invoice_id: id },
+      },
+      r.completed.map((q) => ({
+        resourceId: q.id,
+        resourceName: `${q.studentName}（${q.className}）`,
+      })),
+      wu,
+    );
+    // 交易外發（pg-pool-writes rule 7）；失敗只記 log，收款不回滾
+    for (const q of r.completed) {
+      const job = notifyEnrollmentCompleted(supabase, {
+        orgId,
+        requestId: q.id,
+        studentId: q.studentId,
+        studentName: q.studentName,
+        className: q.className,
+      });
+      if (wu) wu(job);
+      else await job;
+    }
 
-    return c.json({ data: toInvoiceResponse(data as unknown as Record<string, unknown>) }, 201);
+    return c.json(
+      {
+        data: toInvoiceResponse(data as unknown as Record<string, unknown>),
+        activatedEnrollments: [...r.activated],
+        completedRequests: [...r.completed],
+      },
+      201,
+    );
   },
 );
 
