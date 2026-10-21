@@ -451,7 +451,20 @@ export const PAGES = {
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
   },
   // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由；列上的教室數是 SE3（schema 沒有教室）
-  campuses: { a6: 'settings.html#campuses', app: '/admin/settings/campuses' },
+  campuses: {
+    a6: 'settings.html#campuses',
+    app: '/admin/settings/campuses',
+    deviations: [
+      {
+        // SE3：稿的列有第三欄「N 間教室」，schema 沒有教室 —— app 少一欄，名稱欄因此較寬
+        status: '尺寸',
+        a6: '>landmark:main\\[\\]>row>text:div$',
+        detail: '^寬 ',
+        reason: '列上沒有教室數欄（schema 沒有教室），名稱欄較寬',
+        source: '#1314 SE3（教室子頁、列上教室數，待 schema）',
+      },
+    ],
+  },
   staff: { a6: 'staff.html', app: '/admin/staff' },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {

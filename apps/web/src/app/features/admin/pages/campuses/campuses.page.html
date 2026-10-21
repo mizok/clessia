@@ -10,7 +10,7 @@
     <i class="pi pi-search" aria-hidden="true"></i>
     <input
       type="search"
-      class="min-w-0 flex-1 border-0 bg-transparent text-base text-zinc-900 outline-none [font:inherit]"
+      class="min-w-0 flex-1 border-0 bg-transparent px-0.5 py-px text-base text-zinc-900 outline-none [font:inherit]"
       placeholder="找分校名稱、地址或電話"
       aria-label="找分校"
       [ngModel]="searchQuery()"
@@ -35,7 +35,7 @@
     @if (inactiveCampusCount() > 0) {
       <button
         type="button"
-        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-semibold text-zinc-900 underline underline-offset-[3px] [font:inherit]"
+        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px] [font-family:inherit]"
         (click)="toggleShowInactiveCampuses()"
       >
         {{ showInactiveCampuses() ? '隱藏停用的' : '顯示停用的 ' + inactiveCampusCount() + ' 個' }}
