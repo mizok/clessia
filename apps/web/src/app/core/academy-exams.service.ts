@@ -115,6 +115,13 @@ export interface ExamTodoCountResponse {
   partial: number;
 }
 
+export interface ClassExamTodo {
+  classId: string;
+  count: number;
+  /** 最早那場待登錄的考試（徽章連過去的登錄頁） */
+  firstExamId: string;
+}
+
 export interface CreateAcademyExamInput {
   name: string;
   examType: AcademyExamType;
@@ -154,6 +161,13 @@ export class AcademyExamsService {
   list(params?: AcademyExamListParams): Observable<AcademyExamListResponse> {
     return this.http.get<AcademyExamListResponse>(this.base, {
       params: this.toQueryParams(params),
+    });
+  }
+
+  /** 每班的待登錄場數＋最早那場（只列有待登錄的班，#1782）；範圍同列表 */
+  todoByClass(campusId?: string): Observable<{ data: ClassExamTodo[] }> {
+    return this.http.get<{ data: ClassExamTodo[] }>(`${this.base}/todo-by-class`, {
+      params: campusId ? { campus_id: campusId } : {},
     });
   }
 

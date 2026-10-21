@@ -821,6 +821,136 @@ app.openapi(todoCountRoute, async (c) => {
   return c.json({ count: none + partial, none, partial }, 200);
 });
 
+const todoByClassRoute = createRoute({
+  method: 'get',
+  path: '/todo-by-class',
+  tags: ['AcademyExams'],
+  summary: '每班的待登錄場數＋最早那場（成績班級視圖用，#1782）',
+  request: {
+    query: z.object({
+      campus_id: DbUuidSchema.optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: '只列有待登錄的班',
+      content: {
+        'application/json': {
+          schema: z.object({
+            data: z.array(
+              z.object({
+                classId: z.string(),
+                count: z.number().int().min(1),
+                firstExamId: z.string(),
+              }),
+            ),
+          }),
+        },
+      },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    400: {
+      description: '查詢失敗',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+/**
+ * 取代班級視圖原本「每班一支 `GET /?class_id=…&todo=true&pageSize=1`」的 N+1（#1782）。
+ *
+ * **範圍跟列表一樣**：考試照 `applyCampusFilter` 收在分校範圍內（`campus_id` 只能縮小）；
+ * 老師只看參加班級裡有自己任課班的考試，**而且只回自己任課的班** —— 列表帶 `class_id`
+ * 時是跟任課範圍取交集，這裡沒有 `class_id`，等於把每一班都交集一次。
+ *
+ * 判準跟列表的 `todo` 同一支 `classifyAcademyExamTodo`，而且是**考試層級**的：一場考試
+ * 沒登完，它的每個參加班都算一場待登錄（跟原本逐班查列表得到的數字相同）。
+ */
+app.openapi(todoByClassRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const { campus_id: campusId } = c.req.valid('query');
+
+  const scope = await loadExamScope(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+  });
+  if ('forbidden' in scope) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+
+  let activeQuery = supabase
+    .from('academy_exams')
+    .select('id, exam_date')
+    .eq('org_id', orgId)
+    .eq('status', 'active');
+  activeQuery = applyCampusFilter(activeQuery, 'campus_id', getCampusScope(c), campusId);
+  const { data: activeRows, error: activeError } = await activeQuery;
+  if (activeError) {
+    return c.json({ error: activeError.message, code: 'DB_ERROR' }, 400);
+  }
+  const activeExams = ((activeRows ?? []) as Array<{ id: string; exam_date: string }>).map(
+    (row) => ({ id: row.id, examDate: row.exam_date }),
+  );
+  if (activeExams.length === 0) {
+    return c.json({ data: [] }, 200);
+  }
+
+  const { data: linkRows, error: linkError } = await supabase
+    .from('academy_exam_classes')
+    .select('exam_id, class_id')
+    .in(
+      'exam_id',
+      activeExams.map((exam) => exam.id),
+    );
+  if (linkError) {
+    return c.json({ error: linkError.message, code: 'DB_ERROR' }, 400);
+  }
+  const classesByExam = new Map<string, string[]>();
+  for (const row of (linkRows ?? []) as Array<{ exam_id: string; class_id: string }>) {
+    // 沒有任課班的老師在這裡就被濾成空 —— 回空，不是回全部
+    if (!scope.isAdmin && !scope.taught.includes(row.class_id)) continue;
+    classesByExam.set(row.exam_id, [...(classesByExam.get(row.exam_id) ?? []), row.class_id]);
+  }
+  // 老師：沒有自己班的考試不算分母（也不必替它撈名單）
+  const candidates = activeExams.filter((exam) => classesByExam.has(exam.id));
+  if (candidates.length === 0) {
+    return c.json({ data: [] }, 200);
+  }
+
+  const { expected, recorded, scoresError } = await loadAcademyExamCounts(
+    supabase,
+    orgId,
+    candidates,
+  );
+  if (scoresError) {
+    return c.json({ error: scoresError, code: 'DB_ERROR' }, 400);
+  }
+
+  // 由早到晚，同一天照 id —— 第一個碰到的就是該班「最早那場」（徽章連過去的登錄頁）
+  const todoExams = candidates
+    .filter(
+      (exam) =>
+        classifyAcademyExamTodo(recorded.get(exam.id) ?? 0, expected.get(exam.id) ?? 0) !== null,
+    )
+    .sort((a, b) => a.examDate.localeCompare(b.examDate) || a.id.localeCompare(b.id));
+
+  const byClass = new Map<string, { classId: string; count: number; firstExamId: string }>();
+  for (const exam of todoExams) {
+    for (const classId of classesByExam.get(exam.id) ?? []) {
+      const entry = byClass.get(classId);
+      if (entry) entry.count += 1;
+      else byClass.set(classId, { classId, count: 1, firstExamId: exam.id });
+    }
+  }
+
+  return c.json({ data: [...byClass.values()] }, 200);
+});
+
 const getRoute = createRoute({
   method: 'get',
   path: '/{id}',
