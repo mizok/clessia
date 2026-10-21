@@ -3,6 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, Subject, of, throwError } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
+import { OrgSettingsService } from '@core/org-settings.service';
+import { signal } from '@angular/core';
 import { vi } from 'vitest';
 
 import { CampusesPage } from './campuses.page';
@@ -28,7 +30,16 @@ describe('CampusesPage', () => {
     delete: vi.fn(() => of({})),
   };
 
+  const orgSettings = signal<{ attendanceMode: 'per_session' | 'daily_checkin' } | null>({
+    attendanceMode: 'daily_checkin',
+  });
+  let orgStatus: 'unloaded' | 'ready' = 'ready';
+  const orgLoad = vi.fn();
+
   beforeEach(async () => {
+    orgSettings.set({ attendanceMode: 'daily_checkin' });
+    orgStatus = 'ready';
+    orgLoad.mockClear();
     campusesServiceMock.list.mockReset();
     campusesServiceMock.list.mockReturnValue(of(buildCampusResponse()));
 
@@ -39,6 +50,10 @@ describe('CampusesPage', () => {
         {
           provide: CampusesService,
           useValue: campusesServiceMock,
+        },
+        {
+          provide: OrgSettingsService,
+          useValue: { settings: orgSettings, status: () => orgStatus, load: orgLoad },
         },
         {
           provide: OverlayContainerService,
@@ -103,6 +118,7 @@ describe('CampusesPage', () => {
         phone: null,
         isActive: true,
         paymentInfo: null,
+        attendanceMode: null,
         createdAt: '2026-03-11T00:00:00.000Z',
         updatedAt: '2026-03-11T00:00:00.000Z',
       },
@@ -126,7 +142,7 @@ describe('CampusesPage', () => {
     fixture.detectChanges();
 
     const statValues = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('.campuses__stat-value'),
+      (fixture.nativeElement as HTMLElement).querySelectorAll('[data-count] b'),
     ).map((element) => element.textContent?.trim() ?? '');
 
     expect(statValues).toEqual(['38', '33', '5']);
@@ -143,6 +159,7 @@ describe('CampusesPage', () => {
       phone: null,
       isActive: true,
       paymentInfo: null,
+      attendanceMode: null,
       createdAt: '2026-03-11T00:00:00.000Z',
       updatedAt: '2026-03-11T00:00:00.000Z',
     };
@@ -249,6 +266,198 @@ describe('CampusesPage', () => {
           .map((c) => c.id),
       ).toEqual(['a']);
       expect(component.loading()).toBe(false);
+    });
+  });
+
+  // A6 settings.html#campuses 的列（#1314 SE 插單）
+  describe('A6 列', () => {
+    const c = (over: Partial<Campus>): Campus => ({
+      id: 'cp',
+      orgId: 'org-1',
+      name: '文山旗艦校',
+      address: '台北市羅斯福路 12 號',
+      phone: '02-2930-1000',
+      isActive: true,
+      paymentInfo: null,
+      attendanceMode: null,
+      createdAt: '2026-03-11T00:00:00.000Z',
+      updatedAt: '2026-03-11T00:00:00.000Z',
+      ...over,
+    });
+    const show = async (
+      data: Campus[],
+      summary = { total: data.length, activeCount: data.length, inactiveCount: 0 },
+    ) => {
+      campusesServiceMock.list.mockReturnValue(
+        of(
+          buildCampusResponse({
+            data,
+            summary,
+            meta: { total: data.length, page: 1, pageSize: 20, totalPages: 1 },
+          }),
+        ),
+      );
+      component.loadCampuses();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    const row = (id: string) =>
+      (fixture.nativeElement as HTMLElement).querySelector(`[data-campus="${id}"]`)!;
+    const text = () => (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+
+    it('名稱＋地址｜電話＋出勤模式｜⋮；沒填寫的寫「未填寫」；停用的加小字', async () => {
+      await show([
+        c({ id: 'a' }),
+        c({ id: 'b', name: '信義分校', address: null, phone: null, isActive: false }),
+      ]);
+      expect(row('a').textContent).toContain('台北市羅斯福路 12 號');
+      expect(row('a').textContent).toContain('02-2930-1000');
+      expect(row('a').querySelector('button[aria-label="文山旗艦校 的更多動作"]')).not.toBeNull();
+      expect(row('b').textContent).toContain('地址未填寫');
+      expect(row('b').textContent).toContain('電話未填寫');
+      expect(row('b').querySelector('small')!.textContent).toContain('已停用');
+      expect(row('a').textContent).not.toContain('已停用');
+    });
+
+    it('出勤模式：沒設 → 機構預設＋沿用預設；跟預設不同的標出來；同預設只寫模式', async () => {
+      await show([
+        c({ id: 'n', attendanceMode: null }),
+        c({ id: 'd', attendanceMode: 'per_session' }),
+        c({ id: 's', attendanceMode: 'daily_checkin' }),
+      ]);
+      const mode = (id: string) => row(id).querySelector('[data-mode]')!.textContent!.trim();
+      expect(mode('n')).toBe('日到班（沿用預設）');
+      expect(mode('d')).toBe('隨堂點名（跟預設不同）');
+      expect(mode('s')).toBe('日到班');
+    });
+
+    it('機構預設還沒讀到：沒設的寫「沿用機構預設」，有設的不標差異', async () => {
+      orgSettings.set(null);
+      await show([c({ id: 'n' }), c({ id: 'd', attendanceMode: 'per_session' })]);
+      expect(row('n').querySelector('[data-mode]')!.textContent!.trim()).toBe('沿用機構預設');
+      expect(row('d').querySelector('[data-mode]')!.textContent!.trim()).toBe('隨堂點名');
+    });
+
+    it('停用的預設隱藏：「顯示停用的 N 個」→ 不帶 isActive 重抓；再按「隱藏停用的」', async () => {
+      await show([c({ id: 'a' })], { total: 3, activeCount: 1, inactiveCount: 2 });
+      expect(campusesServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isActive: true }),
+      );
+      const toggle = () =>
+        [
+          ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+        ].find((b) => /停用的/.test(b.textContent ?? ''))!;
+      expect(toggle().textContent!.trim()).toBe('顯示停用的 2 個');
+      toggle().click();
+      fixture.detectChanges();
+      expect(campusesServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isActive: undefined }),
+      );
+      expect(toggle().textContent!.trim()).toBe('隱藏停用的');
+    });
+
+    it('沒有停用的：不出現切換鈕', async () => {
+      await show([c({ id: 'a' })]);
+      expect(text()).not.toContain('顯示停用的');
+    });
+
+    it('搜尋找不到：寫怎麼找＋清除搜尋', async () => {
+      (component as unknown as { searchQuery: { set: (v: string) => void } }).searchQuery.set(
+        'xyz',
+      );
+      await show([], { total: 3, activeCount: 3, inactiveCount: 0 });
+      expect(text()).toContain('找不到「xyz」。可以用分校名、路名或電話找。');
+      expect(
+        [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].some(
+          (b) => b.textContent!.trim() === '清除搜尋',
+        ),
+      ).toBe(true);
+    });
+
+    // R2（計畫席 10-21）：手機不拿掉操作紀錄，收進頁首「⋯」
+    it('手機頁首「⋯」裡有操作紀錄，按了開操作紀錄', async () => {
+      await show([c({ id: 'a' })]);
+      const more = (fixture.nativeElement as HTMLElement).querySelector(
+        'button[aria-label="分校的更多動作"]',
+      );
+      expect(more).not.toBeNull();
+      const open = vi.spyOn(component, 'openAuditLog').mockImplementation(() => undefined);
+      const items = (
+        component as unknown as { pageMenuItems: { label: string; command: () => void }[] }
+      ).pageMenuItems;
+      expect(items.map((i) => i.label)).toEqual(['操作紀錄']);
+      items[0].command();
+      expect(open).toHaveBeenCalled();
+    });
+
+    // 審核席 C2：機構預設沒載過就載；載過不重載
+    it('機構設定還沒載：進頁就載一次；已載好不重載', async () => {
+      expect(orgLoad).not.toHaveBeenCalled();
+      orgStatus = 'unloaded';
+      const again = TestBed.createComponent(CampusesPage);
+      again.detectChanges();
+      await again.whenStable();
+      expect(orgLoad).toHaveBeenCalledTimes(1);
+    });
+
+    // 審核席 C3／C4：paginator 剛好一頁不出現、多一筆才出現；翻頁頁碼是 page + 1
+    it('剛好一頁不出 paginator；多一筆才出；翻到第 2 頁打 page: 2', async () => {
+      const many = (n: number) =>
+        Array.from({ length: Math.min(n, LIST_PAGE_SIZE) }, (_, i) => c({ id: 'p' + i }));
+      const page = async (total: number) => {
+        campusesServiceMock.list.mockReturnValue(
+          of(
+            buildCampusResponse({
+              data: many(total),
+              summary: { total, activeCount: total, inactiveCount: 0 },
+              meta: {
+                total,
+                page: 1,
+                pageSize: LIST_PAGE_SIZE,
+                totalPages: Math.ceil(total / LIST_PAGE_SIZE),
+              },
+            }),
+          ),
+        );
+        component.loadCampuses();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        return (fixture.nativeElement as HTMLElement).querySelector('p-paginator');
+      };
+      expect(await page(LIST_PAGE_SIZE)).toBeNull();
+      expect(await page(LIST_PAGE_SIZE + 1)).not.toBeNull();
+      (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 1 });
+      expect(campusesServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+    });
+
+    // 審核席 C7：清除搜尋真的清掉關鍵字並重抓
+    it('找不到時按清除搜尋：關鍵字清空、不帶 search 重抓', async () => {
+      vi.useFakeTimers();
+      try {
+        const type = (v: string) =>
+          (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange(v);
+        campusesServiceMock.list.mockReturnValue(
+          of(buildCampusResponse({ summary: { total: 3, activeCount: 3, inactiveCount: 0 } })),
+        );
+        type('xyz');
+        vi.advanceTimersByTime(300);
+        fixture.detectChanges();
+        const clear = [
+          ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+        ].find((b) => b.textContent!.trim() === '清除搜尋')!;
+        clear.click();
+        vi.advanceTimersByTime(300);
+        expect((component as unknown as { searchQuery: () => string }).searchQuery()).toBe('');
+        expect(campusesServiceMock.list).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: undefined }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
