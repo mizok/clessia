@@ -72,6 +72,8 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
     catalog: ReturnType<typeof vi.fn>;
   };
   let toast: ReturnType<typeof vi.fn>;
+  let kidsSig: ReturnType<typeof signal<Array<typeof KID>>>;
+  let activeSig: ReturnType<typeof signal<string | null>>;
 
   const dialogProto = HTMLDialogElement.prototype;
   const originalDialog = { showModal: dialogProto.showModal, close: dialogProto.close };
@@ -93,6 +95,8 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       requests?: ParentEnrollmentRequest[];
       fragment?: string;
       kids?: Array<typeof KID>;
+      /** 孩子名單晚到（直接打開這頁）：一開始 activeChildId 是 null */
+      lateKids?: boolean;
     } = {},
   ) {
     api = {
@@ -102,6 +106,8 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       catalog: vi.fn(() => of({ data: opts.classes ?? [cls()] })),
     };
     toast = vi.fn();
+    kidsSig = signal(opts.lateKids ? [] : (opts.kids ?? [KID]));
+    activeSig = signal<string | null>(opts.lateKids ? null : KID.id);
     await TestBed.configureTestingModule({
       imports: [EnrollmentComponent],
       providers: [
@@ -111,8 +117,8 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
         {
           provide: ChildScopeService,
           useValue: {
-            children: signal(opts.kids ?? [KID]).asReadonly(),
-            activeChildId: signal(KID.id).asReadonly(),
+            children: kidsSig.asReadonly(),
+            activeChildId: activeSig.asReadonly(),
             activeChild: signal(KID).asReadonly(),
             status: () => 'ready' as const,
             canSwitch: () => false,
@@ -239,6 +245,20 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       fixture.detectChanges();
       expect(el().querySelector('input[value="c-b"]')).not.toBeNull();
       expect(el().querySelector('input[value="c-a"]')).toBeNull();
+    });
+
+    // 瀏覽器實測抓到：直接打開這頁時孩子名單晚到，孩子欄一直是空的、目錄也不抓
+    it('孩子名單晚到：載完之後預設選好、抓那個孩子的目錄', async () => {
+      await setup({ lateKids: true });
+      expect(api.catalog).not.toHaveBeenCalled();
+      kidsSig.set([KID]);
+      activeSig.set(KID.id);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(api.catalog).toHaveBeenCalledWith(KID.id);
+      expect(text()).toContain('還沒填：開課班、開始日期');
+      expect(text()).not.toContain('還沒填：孩子');
     });
 
     it('還沒填：開課班、開始日期（孩子只有一個時預設選好）', async () => {
