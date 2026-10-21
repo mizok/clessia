@@ -87,8 +87,12 @@ export function probeInPage({ key, axis }) {
     short,
     visible: seen(r, c),
     natural: seen(natural(), c),
-    // 黏在哪：離視窗那一邊的距離（使用者看到的位置；app 頂欄在捲動區外，同一個 top 值落點不同）
-    at: Math.round(after ? r[start] : (v ? innerHeight : innerWidth) - r[end]),
+    // 黏在哪：釘點容器（最上層 sticky 祖先，沒有就是自己）離視窗那一邊的距離 —— 使用者看到的位置
+    // （app 頂欄在捲動區外，同一個 top 值落點不同）。量容器不量 part：章頭裡張數離章名多遠是靜態「位置」的事
+    at: (() => {
+      const q = (anchor ?? el).getBoundingClientRect();
+      return Math.round(after ? q[start] : (v ? innerHeight : innerWidth) - q[end]);
+    })(),
   };
   pad.remove();
   for (const s of scrollers) s[S] = 0;
@@ -156,10 +160,13 @@ export function stickyVerdict(a6, app, pins, pinsDiffer, axis = 'top') {
     };
   if (!a6.visible && app.visible && testable(app))
     // 稿宣告了 sticky 卻沒黏住：多半是被只有自己高的容器框住（scores.html 的註解講過這個坑）。
-    // 稿的意圖是黏，app 黏著不見得錯 —— 交給人看，不算待修
-    return /^sticky 無/.test(pins)
-      ? { detail: `${pins}；捲動後稿被捲走，app 仍黏在視窗內（多黏）` }
-      : lim('稿宣告了 sticky 但捲動時沒黏住（容器框住了它），app 有黏，依稿的意圖人工看');
+    // 稿的意圖是黏，app 黏著不見得錯 —— 裁過的登記成偏離（config DEVIATIONS）
+    // 不標工具限制：要讓 config 的偏離認領（稿的 bug、app 照意圖做，例：meals .savebar）
+    return {
+      detail: /^sticky 無/.test(pins)
+        ? `${pins}；捲動後稿被捲走，app 仍黏在視窗內（多黏）`
+        : `${pins}；稿宣告了 sticky 但捲動時沒黏住（容器框住了它），app 有黏`,
+    };
   return null;
 }
 
