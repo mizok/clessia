@@ -195,7 +195,7 @@ app.openapi(
     }
 
     const [courses, enrolled, open] = await Promise.all([
-      childDb.orgRef('courses').select('id, is_active').in('id', courseIds),
+      childDb.orgRef('courses').select('id, is_active, campus_id').in('id', courseIds),
       // 規格「排除孩子已報名的課程」：在籍＋待繳費的班所屬的課
       childDb
         .from('enrollments', 'student_id')
@@ -213,7 +213,11 @@ app.openapi(
       return c.json({ error: '讀取課程狀態失敗', code: 'SERVER_ERROR' }, 500);
     }
 
-    const found = (courses.data ?? []) as unknown as Array<{ id: string; is_active: boolean }>;
+    const found = (courses.data ?? []) as unknown as Array<{
+      id: string;
+      is_active: boolean;
+      campus_id: string | null;
+    }>;
     if (found.length !== courseIds.length) {
       return c.json({ error: '課程不存在', code: 'COURSE_NOT_FOUND' }, 404);
     }
@@ -266,8 +270,17 @@ app.openapi(
     else await job;
 
     // 分校讀不到不擋送出（已經寫進去了）：這次回應少電話，列表重抓會有
-    const { campuses } = await campusesOf(childDb, rows);
-    return c.json({ data: rows.map((row) => toResponse(row, campuses)) }, 201);
+    // 寫入回來的列不一定帶課程 embed：分校用剛剛查過的課程補上
+    const campusOf = new Map(found.map((course) => [course.id, course.campus_id]));
+    const withCourse = rows.map((row) => ({
+      ...row,
+      courses: {
+        ...(embedOne(row['courses'] as Embed) ?? {}),
+        campus_id: campusOf.get(row['course_id'] as string) ?? null,
+      },
+    }));
+    const { campuses } = await campusesOf(childDb, withCourse);
+    return c.json({ data: withCourse.map((row) => toResponse(row, campuses)) }, 201);
   },
 );
 
