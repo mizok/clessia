@@ -90,7 +90,9 @@ describe('DELETE /api/classes —— 交易結果 → HTTP（#1652）', () => {
       from: () => {
         const q: Record<string, unknown> = {};
         for (const m of ['select', 'eq', 'in', 'insert']) q[m] = () => q;
-        q['maybeSingle'] = () => Promise.resolve({ data: { id: CLASS, name: 'x' }, error: null });
+        // 班在呼叫者的分校範圍內（#1797 的寫入守衛會先比分校）
+        q['maybeSingle'] = () =>
+          Promise.resolve({ data: { id: CLASS, name: 'x', campus_id: 'campus-1' }, error: null });
         q['then'] = (ok: (v: unknown) => unknown) =>
           Promise.resolve({ data: null, error: null }).then(ok);
         return q;
