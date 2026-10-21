@@ -344,6 +344,31 @@ const NOTIFICATIONS_TABS = [
   },
 ];
 
+/**
+ * 表單彈窗（#1772）：稿用 JS 開（A2.form → `dialog.fdlg`），app 是 DialogService 的 `.p-dialog`（共用 `.form-dialog`）。
+ * id 兩邊同名才配得上。量動作列黏底（稿 `.fdlg__foot { position: sticky; bottom: 0 }`）與彈窗裡的 part。
+ */
+const formOpen = (a6Click, appClick) => ({
+  a6Open: { root: 'dialog[open]', click: a6Click },
+  appOpen: { root: '.p-dialog:has(.form-dialog)', click: appClick },
+});
+const FORM_DIALOGS = {
+  courses: {
+    'new-course': formOpen('[data-newc]', 'button:has-text("新增課程")'),
+    'new-class': formOpen('[data-newk]', 'button:has-text("新增班")'),
+  },
+  staff: { 'new-staff': formOpen('[data-new]', 'button:has-text("新增人員")') },
+  parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
+  exams: {
+    'new-exam': formOpen('[data-new]', [
+      'button:has-text("新增考試")',
+      '[role=menuitem]:has-text("補習班")',
+    ]),
+  },
+};
+const opensOf = (page, side) =>
+  Object.fromEntries(Object.entries(FORM_DIALOGS[page] ?? {}).map(([id, o]) => [id, o[side]]));
+
 export const PAGES = {
   students: {
     a6: 'students.html',
@@ -434,8 +459,18 @@ export const PAGES = {
     deviations: PUBLIC_FORM_DEVIATIONS,
   },
   student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
-  parents: { a6: 'parents.html', app: '/admin/parents' },
-  courses: { a6: 'courses.html', app: '/admin/courses' },
+  parents: {
+    a6: 'parents.html',
+    app: '/admin/parents',
+    a6Open: opensOf('parents', 'a6Open'),
+    appOpen: opensOf('parents', 'appOpen'),
+  },
+  courses: {
+    a6: 'courses.html',
+    app: '/admin/courses',
+    a6Open: opensOf('courses', 'a6Open'),
+    appOpen: opensOf('courses', 'appOpen'),
+  },
   class: {
     a6: 'class.html',
     app: '/admin/courses/dc2f0b1a-7e79-4b6e-a61e-8bbac3eec5a6/classes/1deffd57-e069-4d72-98bf-41415ec01967',
@@ -466,6 +501,12 @@ export const PAGES = {
     app: '/parent/trial#records',
     state: path.join(cache, 'state-parent.json'),
   },
+  // 家長端加選課程（#1727 ⑤）：卡片點開是 JS 打開的 <dialog>（稿 sheet()、app 原生 showModal）
+  'p-add-course': {
+    a6: 'p-add-course.html',
+    app: '/parent/add-course',
+    state: path.join(cache, 'state-parent.json'),
+  },
   // 家長端到班紀錄（#1695 第 3 張）：家長登入態；「幫孩子請假」兩邊都是 JS 打開的 <dialog>（稿 a6.js form()、app 原生 showModal）
   'p-attendance': {
     a6: 'p-attendance.html',
@@ -476,18 +517,43 @@ export const PAGES = {
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
   settings: { a6: 'settings.html', app: '/admin/settings/general' },
-  // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由；列上的教室數是 SE3（schema 沒有教室）
+  // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由
   campuses: {
     a6: 'settings.html#campuses',
     app: '/admin/settings/campuses',
+    // 教室對話框（SE3）：第一列的 ⋮ › 教室
+    a6Open: {
+      rooms: { click: ['[data-cm]', '#cm [data-rooms]'], root: 'dialog.fdlg' },
+      'campus-form': { click: '[data-new-campus]', root: 'dialog.fdlg' },
+    },
+    appOpen: {
+      rooms: {
+        click: [
+          '[data-campus] button[aria-label$="的更多動作"]',
+          '.popup-menu__item-wrapper button:has-text("教室")',
+        ],
+        root: 'dialog[open]',
+      },
+      'campus-form': { click: 'button:has-text("新增分校")', root: 'dialog[open]' },
+    },
     deviations: [
+      ...[
+        { status: '位置', detail: '^相對' },
+        { status: '樣式', detail: 'display' },
+      ].map((d) => ({
+        // 教室對話框：稿的容納人數用了 money 欄型，前面多一個「NT$」，輸入框被推右、變 block
+        pop: 'rooms',
+        a6: 'control:textbox\\[容納人數\\]$',
+        ...d,
+        reason: '稿誤用 money 欄型（容量不是金額），手機上還會擠出畫面',
+        source: '計畫席 10-21 裁定（#1785）',
+      })),
       {
-        // SE3：稿的列有第三欄「N 間教室」，schema 沒有教室 —— app 少一欄，名稱欄因此較寬
-        status: '尺寸',
-        a6: '>landmark:main\\[\\]>row>text:div$',
-        detail: '^寬 ',
-        reason: '列上沒有教室數欄（schema 沒有教室），名稱欄較寬',
-        source: '#1314 SE3（教室子頁、列上教室數，待 schema）',
+        // 稿上的「新」是設計說明（教室數、⋮ 的教室是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
+        status: '缺',
+        a6: '>text:span\\[新\\]$',
+        reason: '稿的「新」標記是設計說明，不是畫面內容',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
       },
       {
         // 稿的「操作紀錄」只在桌機（only-d）；手機收進頁首「⋯」，不刪（計畫席 10-21 裁）
@@ -499,7 +565,12 @@ export const PAGES = {
       },
     ],
   },
-  staff: { a6: 'staff.html', app: '/admin/staff' },
+  staff: {
+    a6: 'staff.html',
+    app: '/admin/staff',
+    a6Open: opensOf('staff', 'a6Open'),
+    appOpen: opensOf('staff', 'appOpen'),
+  },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {
     // 預設分頁「收到的」（#1692 起 app 也有）；「發布公告」是 notifications-publish
@@ -550,13 +621,32 @@ export const PAGES = {
   reports: { a6: 'reports.html', app: '/admin/reports' },
   'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },
   changes: { a6: 'changes.html', app: '/admin/changes' },
-  exams: { a6: 'exams.html', app: '/admin/grades/exams' },
+  exams: {
+    a6: 'exams.html',
+    app: '/admin/grades/exams',
+    a6Open: opensOf('exams', 'a6Open'),
+    appOpen: opensOf('exams', 'appOpen'),
+  },
   scores: {
     a6: 'scores.html',
     app: '/admin/grades/exams/academy/5bce4763-b20c-4dd5-9f7e-2b7e500e3a22/scores',
   },
   grades: { a6: 'grades.html', app: '/admin/grades/overview' },
-  'grades-class': { a6: 'grades-class.html', app: '/admin/grades/overview/class' },
+  'grades-class': {
+    a6: 'grades-class.html',
+    app: '/admin/grades/overview/class',
+    deviations: [
+      {
+        // 舊有新無：稿的章頭只有課程名＋「N 個班」，app 在章名下保留科目小字
+        status: '多',
+        host: '^app-chapter-head$',
+        app: 'landmark:region\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        reason: '章名下保留科目小字：課程名不保證含科目，照稿拿掉這頁就看不到科目',
+        source:
+          'kb/wiki/architecture/a6-adoption-rules.md R5（2026-10-21）；https://github.com/mizok/clessia/pull/1769#issuecomment-6310159607',
+      },
+    ],
+  },
   'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
   // 黏住的行為檢查才量得到（A6 的 .wc__h／.cg__dh、#save）

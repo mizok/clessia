@@ -169,4 +169,12 @@ describe('ChapterHeadComponent', () => {
     const box = host.querySelector('.chapter-head') as HTMLElement;
     expect(box.classList.contains('wide:sticky')).toBe(false);
   });
+
+  // A6 grades-class 的章名是課程全名，稿用 inline 把桌機也縮成 32px
+  it('compact：桌機章名 32px（不是 44）', async () => {
+    await setup({ name: '國中數學', stacked: true, compact: true });
+    const name = host.querySelector('.chapter-head__name') as HTMLElement;
+    expect(name.classList.contains('wide:text-[32px]')).toBe(true);
+    expect(name.classList.contains('wide:text-[44px]')).toBe(false);
+  });
 });

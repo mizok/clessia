@@ -100,6 +100,7 @@
 - [[lessons/silent-tool-failures]] — 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。
 - [[lessons/status-table-blind-spot]] — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 - [[lessons/submit-busy-flag-finalize]] — 送出鈕的 busy 旗標（sending／saving）在 next 跟 error 各寫一次 set(false)，漏一邊就永遠卡在「送出中」，而 submit() 開頭的守門又擋住重送。2026-10 審核席在 #1673、#1738、#1740、#1741、#1748 連抓五次突變全綠。寫法用 finalize；spec 斷言「失敗 → 按鈕可以再按、再按真的有送」。
+- [[lessons/template-handler-false-prevents-default]] — (click)="$event.target === dialog && close()" 點在 dialog 裡面時整句是 false，Angular 把 false 當成 preventDefault —— 對話框裡的 radio 點不下去。DOM 事件的 handler 要嘛呼叫方法、要嘛確保不回 false。
 - [[lessons/workers-fanout-costs-before-the-db]] — 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。
 
 ## Patterns (1)
@@ -122,6 +123,7 @@
 - [[specs/admin/calendar]] — 以日曆視圖查看全校課堂，快速進入課堂詳情。
 - [[specs/admin/dashboard]] — 管理員首頁，六張卡各回答一個問題並跳到功能的家；經營區用 view_reports 蓋住。
 - [[specs/admin/enrollment/approve-request]] — 設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
+- [[specs/admin/enrollment/payment-activation]] — 設計稿（#1778，已裁 2026-10-21；保留類、改既有記收款路徑 → 合併由使用者決定）。核准後報名是 pending_payment、申請是 awaiting_payment，原本沒有任何路徑把它們往前推，而月結只對 active 開單。已裁：記收款同一個交易裡，第一筆收款（含定金）就把這張帳單上的 pending_payment 報名轉 active；帳單繳清時把連到它們的 awaiting_payment 申請轉 completed，並發站內＋推播通知家長（新 notification_kind enrollment_completed，migration 獨立 PR）。退費、作廢不倒轉；行政手動轉 active 也一併完成申請；多報名的帳單照帳單算。記收款路由改走 withTx（順便關掉退費先查淨額再寫的競態）。
 - [[specs/admin/enrollment/enrollment]] — 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 - [[specs/admin/enrollment/enrollment-requests]] — 審核家長提交的報名申請。
 - [[specs/admin/enrollment/renewals]] — 查看續課狀態、處理異動申請。

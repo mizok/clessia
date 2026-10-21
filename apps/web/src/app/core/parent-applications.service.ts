@@ -23,6 +23,17 @@ export interface ParentEnrollmentRequest {
   rejectReason: string | null;
   billingMode: 'monthly' | 'period' | 'session_pack' | null;
   createdAt: string | null;
+  /** 待付款時：核准開的那張帳單（#1726）；其他狀態或帳單作廢沒重開 → null */
+  invoice: {
+    id: string;
+    invoiceNo: string | null;
+    total: number;
+    netPaid: number;
+    dueDate: string | null;
+    status: string;
+  } | null;
+  /** 待付款時：申請班級分校的帳戶（分校 → 機構預設）；沒設定 → null */
+  paymentInfo: string | null;
 }
 
 export interface CreateEnrollmentRequest {

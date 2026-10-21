@@ -41,6 +41,9 @@ npm test --prefix tools/a6-conformance                   # spec
 app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，不會拿登入頁去比。
 
 頁面對照（稿檔 ↔ 路由、非原生彈出物怎麼打開、手動配對）在 `lib/config.mjs` 的 `PAGES`。
+非原生彈出物（`a6Open`／`appOpen`）：`click` 可給陣列依序點（app 的「新增考試」先開選單再選補習班）；
+量完先按 Escape，PrimeNG 動態彈窗不吃的話改點根裡的「取消」／關閉鈕 —— 不關掉的話遮罩會擋住後面每一次點擊。
+A6 用 JS 開的表單彈窗（`A2.form` → `dialog.fdlg`）集中在 config 的 `FORM_DIALOGS`（#1772）。
 
 ## PR 驗收：`compare`
 
