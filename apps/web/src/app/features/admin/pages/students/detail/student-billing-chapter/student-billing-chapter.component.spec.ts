@@ -1,11 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { StudentBillingChapterComponent } from './student-billing-chapter.component';
+import { AuthService } from '@core/auth.service';
 import { InvoicesService, type Invoice } from '@core/invoices.service';
+import { LeaveStreaksService } from '@core/leave-streaks.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { signal } from '@angular/core';
@@ -55,6 +57,7 @@ describe('StudentBillingChapterComponent', () => {
     outstandingTotal: number,
     today = '2026-10-09',
     fail = false,
+    opts: { finance?: boolean; fragment?: string | null } = {},
   ) {
     service.list.mockReturnValue(
       fail
@@ -72,6 +75,15 @@ describe('StudentBillingChapterComponent', () => {
         { provide: InvoicesService, useValue: service },
         { provide: SystemClockService, useValue: { todayTaipei: signal(today) } },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        {
+          provide: AuthService,
+          useValue: { hasPermission: (p: string) => !!opts.finance && p === 'manage_finance' },
+        },
+        { provide: ActivatedRoute, useValue: { snapshot: { fragment: opts.fragment ?? null } } },
+        {
+          provide: LeaveStreaksService,
+          useValue: { forStudent: () => of({ threshold: 3, data: [] }) },
+        },
       ],
     });
     TestBed.overrideComponent(StudentBillingChapterComponent, {
@@ -89,6 +101,25 @@ describe('StudentBillingChapterComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     TestBed.resetTestingModule();
+  });
+
+  // #1732：連續請假明細卡只給財務；通知連到 #billing 時直接打開這一章
+  it('有 manage_finance 才放連續請假明細', () => {
+    setup([], 0, undefined, false, { finance: true });
+    expect(el().querySelector('app-student-leave-streaks')).not.toBeNull();
+    TestBed.resetTestingModule();
+    setup([], 0);
+    expect(el().querySelector('app-student-leave-streaks')).toBeNull();
+  });
+
+  it('網址帶 #billing：這一章打開、id 是 billing', () => {
+    setup([], 0, undefined, false, { fragment: 'billing' });
+    const details = el().querySelector('details.coll') as HTMLDetailsElement;
+    expect(details.id).toBe('billing');
+    expect(details.open).toBe(true);
+    TestBed.resetTestingModule();
+    setup([], 0);
+    expect((el().querySelector('details.coll') as HTMLDetailsElement).open).toBe(false);
   });
 
   it('跟學生檔案其他摺疊列同一組（name="student-folds"，#1705）', () => {

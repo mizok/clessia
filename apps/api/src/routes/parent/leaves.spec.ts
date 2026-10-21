@@ -2,11 +2,14 @@ import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createChildDb } from '../../lib/child-db';
+import { notifyLeaveStreaks } from '../../lib/leave-streak';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from '../../lib/notify-leave';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 import leavesRoute from './leaves';
 
 // 收件人推導是 notify-leave 自己的事；這裡只驗「發了、發給哪幾堂」
+// #1732：連續請假偵測的演算法由 leave-streak.spec 守；這裡只驗「建單後偵測、用這張假的日期」
+vi.mock('../../lib/leave-streak', () => ({ notifyLeaveStreaks: vi.fn(async () => undefined) }));
 vi.mock('../../lib/notify-leave', () => ({
   notifyLeaveForTeachers: vi.fn(async () => undefined),
   notifyLeaveForAdmins: vi.fn(async () => undefined),
@@ -122,6 +125,7 @@ async function submit(
 ) {
   vi.mocked(notifyLeaveForTeachers).mockClear();
   vi.mocked(notifyLeaveForAdmins).mockClear();
+  vi.mocked(notifyLeaveStreaks).mockClear();
   const res = await appFor(db, roles, scope).request('/', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -166,6 +170,18 @@ describe('POST /api/me/leaves', () => {
   });
 
   // 計畫席 10-17：補請把缺席改成請假、沒有人核對 —— 稽核要記蓋到幾堂、幾堂是補請，不帶個資
+  it('建單之後偵測連續請假（#1732）：用假單的學生與日期', async () => {
+    const { status } = await submit({ startDate: '2026-10-20', endDate: '2026-10-22' });
+    expect(status).toBe(201);
+    expect(notifyLeaveStreaks).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifyLeaveStreaks).mock.calls[0]![1]).toMatchObject({
+      orgId: ORG,
+      studentId: MY_CHILD,
+      from: '2026-10-20',
+      to: '2026-10-22',
+    });
+  });
+
   it('稽核：記 parent、蓋到的堂數與補請（開始時間已過）的堂數；名字不進 resource_name', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-20T09:00:00Z')); // 台北 10/20 17:00：英文 14:00 已開始、數學 18:00 還沒
@@ -432,6 +448,7 @@ describe('POST /api/me/leaves', () => {
     expect(leaves).toHaveLength(1);
     expect(records).toHaveLength(0);
     expect(notifyLeaveForTeachers).not.toHaveBeenCalled();
+    expect(notifyLeaveStreaks).not.toHaveBeenCalled();
   });
 
   it('別的孩子已有的假不算重疊（重疊只看自己這個孩子）', async () => {

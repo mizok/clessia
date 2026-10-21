@@ -269,7 +269,6 @@ app.openapi(
     );
 
     // 7. 通知老師與分校管理員（背景，失敗不擋），只列真的改成請假的堂；有一堂已經開始，管理員那則標「補請」。
-    //    #1732 的連續請假偵測也掛在這裡之後（kb/wiki/specs/admin/finance/leave-streak-waiver.md §3）
     const job = childDb.notifyLeave(
       leave['id'] as string,
       changed.map((s) => s['id'] as string),
@@ -278,6 +277,11 @@ app.openapi(
     );
     if (wu) wu(job);
     else await job;
+
+    // 8. 連續請假滿 N 個上課日 → 提醒財務管理員（#1732，背景，失敗不擋；不告訴家長，Q3）
+    const streakJob = childDb.checkLeaveStreak(leave['id'] as string);
+    if (wu) wu(streakJob);
+    else await streakJob;
 
     const time = (t: unknown) => (typeof t === 'string' ? t.slice(0, 5) : null);
     return c.json(

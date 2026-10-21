@@ -126,6 +126,7 @@ const AREAS = [
     specs: [
       'admin/enrollment/enrollment.md',
       'admin/enrollment/enrollment-requests.md',
+      'admin/enrollment/approve-request.md',
       'admin/enrollment/renewals.md',
       'admin/enrollment/trials.md',
       'parent/enrollment.md',
@@ -204,7 +205,8 @@ const AREAS = [
     // 否則「已掛載 API」會膨脹成「這頁碰過幾張表」，失去「這區接通了沒有」的意義。
     name: '繳費',
     pages: ['admin/payments', 'admin/fee-templates', 'parent/payments'],
-    routes: ['fee-templates', 'billing-periods', 'invoices'],
+    // leave-streaks（#1732）：連續請假可不收費的提醒，帳單頁與學生檔案帳單章讀它（設計稿在這區）
+    routes: ['fee-templates', 'billing-periods', 'invoices', 'leave-streaks'],
     specs: [
       'admin/finance/payments.md',
       'admin/finance/fee-templates.md',
