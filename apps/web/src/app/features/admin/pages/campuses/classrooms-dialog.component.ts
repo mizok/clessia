@@ -14,17 +14,6 @@ import { MessageService } from 'primeng/api';
 import type { Observable } from 'rxjs';
 
 import { CampusesService, type Campus, type Classroom } from '@core/campuses.service';
-import {
-  A6_BTN,
-  A6_BTN_CTA,
-  A6_BTN_DANGER,
-  A6_CLOSE,
-  A6_DIALOG,
-  A6_FOOT,
-  A6_FORM,
-  A6_INPUT,
-  A6_LABEL,
-} from './a6-form';
 
 /**
  * 分校的教室（#1314 SE3，A6 settings.html#campuses「⋮ › 教室」的 `form()`）。
@@ -44,7 +33,7 @@ import {
   template: `
     <dialog
       #dialog
-      [class]="a6.dialog"
+      class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200"
       aria-labelledby="classrooms-title"
       (click)="onBackdrop($event)"
       (close)="onClosed()"
@@ -57,7 +46,7 @@ import {
               @if (loadFailed()) {
                 沒有讀到教室清單。<button
                   type="button"
-                  class="cursor-pointer border-0 bg-transparent p-0 font-semibold text-zinc-900 underline [font:inherit]"
+                  class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-semibold text-zinc-900 underline [font:inherit] wide:min-h-0"
                   (click)="load()"
                 >
                   重試
@@ -72,7 +61,7 @@ import {
                     >{{ roomLabel(room)
                     }}<button
                       type="button"
-                      class="-my-1 ml-0.5 inline-grid size-7 cursor-pointer place-items-center rounded-md border-0 bg-transparent align-middle text-zinc-700 hover:bg-zinc-100 max-wide:size-11"
+                      class="ml-0.5 inline-grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent align-middle text-zinc-700 hover:bg-zinc-100 wide:-my-1 wide:size-7"
                       [attr.aria-label]="room.name + ' 的更多動作'"
                       (click)="openRoomMenu($event, room)"
                     >
@@ -83,7 +72,12 @@ import {
               }
             </p>
           </div>
-          <button type="button" [class]="a6.close" aria-label="關閉" (click)="close()">
+          <button
+            type="button"
+            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 wide:size-10"
+            aria-label="關閉"
+            (click)="close()"
+          >
             <i class="pi pi-times" aria-hidden="true"></i>
           </button>
         </div>
@@ -96,12 +90,17 @@ import {
             <span class="mr-auto"
               >刪除「{{ room.name }}」？指定這間教室的時段會改回不指定教室。</span
             >
-            <button type="button" [class]="btn" [disabled]="busy()" (click)="deleting.set(null)">
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
+              [disabled]="busy()"
+              (click)="deleting.set(null)"
+            >
               取消
             </button>
             <button
               type="button"
-              [class]="dangerBtn"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-error-700 bg-error-700 text-white"
               [attr.aria-disabled]="busy()"
               (click)="remove(room)"
             >
@@ -111,9 +110,13 @@ import {
         }
 
         <!-- A6 .acset__body.fdlg__body：桌機兩欄（名稱、容量各半），手機一欄 -->
-        <form ngNoForm [class]="a6.form" (submit)="$event.preventDefault(); submit()">
+        <form
+          ngNoForm
+          class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+          (submit)="$event.preventDefault(); submit()"
+        >
           <div class="min-w-0">
-            <label [class]="a6.label" for="room-name"
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-name"
               >{{ editing() ? '教室名稱' : '新增教室' }}
               <span class="text-error-700" aria-hidden="true">*</span></label
             >
@@ -124,38 +127,44 @@ import {
               maxlength="50"
               autocomplete="off"
               placeholder="例如：C 教室"
-              [class]="input"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
               [ngModel]="name()"
               (ngModelChange)="name.set($event); error.set(null)"
             />
           </div>
           <div class="min-w-0">
-            <label [class]="a6.label" for="room-capacity">容納人數</label>
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-capacity"
+              >容納人數</label
+            >
             <input
               id="room-capacity"
               type="text"
               inputmode="numeric"
               autocomplete="off"
-              [class]="input"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
               [(ngModel)]="capacity"
             />
           </div>
           <div class="col-span-full min-w-0">
-            <label [class]="a6.label" for="room-equipment">設備（選填）</label>
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="room-equipment"
+              >設備（選填）</label
+            >
             <input
               id="room-equipment"
               type="text"
               maxlength="200"
               autocomplete="off"
               placeholder="例如：投影機、白板"
-              [class]="input"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
               [(ngModel)]="equipment"
             />
           </div>
         </form>
 
         <!-- A6 .fdlg__foot：必填沒填不鎖死送出鈕，旁邊寫還差什麼（#723）；失敗訊息也寫這裡，填的內容不清。黏在捲動區底 -->
-        <div [class]="a6.foot">
+        <div
+          class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-inherit px-6 pt-3 pb-6 max-wide:px-4 max-wide:pt-2 max-wide:pb-[calc(16px+env(safe-area-inset-bottom,0px))]"
+        >
           <p
             class="m-0 mr-auto text-md max-wide:basis-full"
             [class.text-error-700]="!!error()"
@@ -166,7 +175,7 @@ import {
           </p>
           <button
             type="button"
-            [class]="btn"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
             [disabled]="busy()"
             (click)="editing() ? stopEditing() : close()"
           >
@@ -174,7 +183,7 @@ import {
           </button>
           <button
             type="button"
-            [class]="ctaBtn"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
             [attr.aria-disabled]="!!missingHint() || busy()"
             (click)="submit()"
           >
@@ -190,10 +199,18 @@ import {
         (toggle)="onMenuToggle($event)"
         class="m-0 min-w-36 rounded-lg border border-solid border-zinc-200 bg-white p-1 text-md text-zinc-900 shadow-[0_10px_15px_-3px_rgba(0,0,0,0.08)]"
       >
-        <button type="button" [class]="menuItem" (click)="startEditing()">
+        <button
+          type="button"
+          class="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left [font:inherit] hover:bg-zinc-100 wide:min-h-9"
+          (click)="startEditing()"
+        >
           <i class="pi pi-pencil text-sm" aria-hidden="true"></i>改名／修改
         </button>
-        <button type="button" [class]="menuItem + ' text-error-700'" (click)="askDelete()">
+        <button
+          type="button"
+          class="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left [font:inherit] hover:bg-zinc-100 wide:min-h-9 text-error-700"
+          (click)="askDelete()"
+        >
           <i class="pi pi-trash text-sm" aria-hidden="true"></i>刪除
         </button>
       </div>
@@ -209,20 +226,6 @@ export class ClassroomsDialogComponent {
 
   /** 關掉時發出；`true` = 有新增／改／刪，列上的教室數要重數 */
   readonly closed = output<boolean>();
-
-  protected readonly btn = A6_BTN;
-  protected readonly ctaBtn = A6_BTN_CTA;
-  protected readonly dangerBtn = A6_BTN_DANGER;
-  protected readonly input = A6_INPUT;
-  protected readonly a6 = {
-    dialog: A6_DIALOG,
-    close: A6_CLOSE,
-    form: A6_FORM,
-    label: A6_LABEL,
-    foot: A6_FOOT,
-  };
-  protected readonly menuItem =
-    'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left [font:inherit] hover:bg-zinc-100 max-wide:min-h-11';
 
   protected readonly campus = signal<Campus | null>(null);
   /** null = 還在讀 */

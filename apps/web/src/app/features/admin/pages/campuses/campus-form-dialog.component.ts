@@ -24,16 +24,6 @@ import {
   SelectFieldComponent,
   type SelectFieldOption,
 } from '@shared/components/select-field/select-field.component';
-import {
-  A6_BTN,
-  A6_BTN_CTA,
-  A6_CLOSE,
-  A6_DIALOG,
-  A6_FOOT,
-  A6_FORM,
-  A6_INPUT,
-  A6_LABEL,
-} from './a6-form';
 
 type Mode = '' | 'per_session' | 'daily_checkin';
 
@@ -43,9 +33,9 @@ type Mode = '' | 'per_session' | 'daily_checkin';
  * 欄位照稿：名稱*｜電話＋狀態（各半）｜地址｜出勤紀錄模式｜帳戶。兩處跟稿不同：
  * - **帳戶**：稿拆「收款銀行＋帳號」兩欄；使用者 10-21 裁不拆（SE3 Q1，R5）—— 多帳戶、LINE Pay 寫不進兩欄，
  *   維持一個多行欄位，標籤用稿的「收款帳戶」語氣。
- * - **出勤模式、帳戶只在編輯、且有權限時出現**：建立的 API 不收這兩欄（新分校先沿用機構預設）；
- *   出勤模式要 `manage_org_settings`（#1112）、帳戶要 `manage_finance`（#1073）—— 沒權限的人帶了這個 key，
- *   API 403，整張表單（改名、改電話）一起存不了。
+ * - **出勤模式、帳戶只在有權限時出現**（新增、編輯都是）：出勤模式要 `manage_org_settings`（#1112）、
+ *   帳戶要 `manage_finance`（#1073）—— 沒權限的人帶了這個 key，API 403，整張表單（改名、改電話）一起存不了。
+ *   稿的出勤模式沒有「沿用機構預設」；app 保留（null＝跟著「一般」走，改了機構預設會跟著變 —— 舊有新無不刪，R2）。
  *
  * 原生 `<dialog>`（同教室對話框）。
  */
@@ -56,7 +46,7 @@ type Mode = '' | 'per_session' | 'daily_checkin';
   template: `
     <dialog
       #dialog
-      [class]="a6.dialog"
+      class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] overflow-y-auto overscroll-contain rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200"
       aria-labelledby="campus-form-title"
       (click)="onBackdrop($event)"
       (close)="onClosed()"
@@ -71,14 +61,23 @@ type Mode = '' | 'per_session' | 'daily_checkin';
               <p class="m-0 mt-0.5 text-md text-zinc-600">建好之後就可以在這個分校開課</p>
             }
           </div>
-          <button type="button" [class]="a6.close" aria-label="關閉" (click)="close()">
+          <button
+            type="button"
+            class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 wide:size-10"
+            aria-label="關閉"
+            (click)="close()"
+          >
             <i class="pi pi-times" aria-hidden="true"></i>
           </button>
         </div>
 
-        <form ngNoForm [class]="a6.form" (submit)="$event.preventDefault(); save()">
+        <form
+          ngNoForm
+          class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+          (submit)="$event.preventDefault(); save()"
+        >
           <div class="col-span-full min-w-0">
-            <label [class]="a6.label" for="campus-name"
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-name"
               >分校名稱 <span class="text-error-700" aria-hidden="true">*</span></label
             >
             <input
@@ -88,25 +87,29 @@ type Mode = '' | 'per_session' | 'daily_checkin';
               autocomplete="off"
               placeholder="例如：台北分校"
               [attr.autofocus]="autofocus() ? '' : null"
-              [class]="a6.input"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
               [ngModel]="name()"
               (ngModelChange)="name.set($event); error.set(null)"
             />
           </div>
           <div class="min-w-0">
-            <label [class]="a6.label" for="campus-phone">電話</label>
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-phone"
+              >電話</label
+            >
             <input
               id="campus-phone"
               type="text"
               maxlength="30"
               autocomplete="off"
               placeholder="02-12345678"
-              [class]="a6.input"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
               [(ngModel)]="phone"
             />
           </div>
           <div class="min-w-0">
-            <span [class]="a6.label" id="campus-status-label">狀態</span>
+            <span class="mb-1 block text-md font-semibold text-zinc-700" id="campus-status-label"
+              >狀態</span
+            >
             <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
             <div
               class="flex flex-wrap gap-2"
@@ -129,14 +132,16 @@ type Mode = '' | 'per_session' | 'daily_checkin';
             </div>
           </div>
           <div class="col-span-full min-w-0">
-            <label [class]="a6.label" for="campus-address">地址</label>
+            <label class="mb-1 block text-md font-semibold text-zinc-700" for="campus-address"
+              >地址</label
+            >
             <input
               id="campus-address"
               type="text"
               maxlength="255"
               autocomplete="off"
               placeholder="完整收件地址"
-              [class]="a6.input"
+              class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] tabular-nums hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
               [(ngModel)]="address"
             />
           </div>
@@ -155,7 +160,11 @@ type Mode = '' | 'per_session' | 'daily_checkin';
           }
           @if (canEditPaymentInfo()) {
             <div class="col-span-full min-w-0">
-              <label [class]="a6.label" for="campus-payment-info">收款帳戶</label>
+              <label
+                class="mb-1 block text-md font-semibold text-zinc-700"
+                for="campus-payment-info"
+                >收款帳戶</label
+              >
               <textarea
                 id="campus-payment-info"
                 rows="4"
@@ -169,7 +178,9 @@ type Mode = '' | 'per_session' | 'daily_checkin';
         </form>
 
         <!-- A6 .fdlg__foot：必填沒填不鎖死送出鈕，旁邊寫還差什麼（#723）；失敗訊息也寫這裡，填的內容不清 -->
-        <div [class]="a6.foot">
+        <div
+          class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-inherit px-6 pt-3 pb-6 max-wide:px-4 max-wide:pt-2 max-wide:pb-[calc(16px+env(safe-area-inset-bottom,0px))]"
+        >
           <p
             class="m-0 mr-auto text-md max-wide:basis-full"
             [class.text-error-700]="!!error()"
@@ -178,12 +189,17 @@ type Mode = '' | 'per_session' | 'daily_checkin';
           >
             {{ error() ?? missingHint() }}
           </p>
-          <button type="button" [class]="a6.btn" [disabled]="loading()" (click)="close()">
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-zinc-300 bg-white hover:border-zinc-400 hover:bg-zinc-50"
+            [disabled]="loading()"
+            (click)="close()"
+          >
             取消
           </button>
           <button
             type="button"
-            [class]="a6.cta"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:opacity-55 wide:h-9 border-accent-vivid bg-accent-vivid hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
             [attr.aria-disabled]="!!missingHint() || loading()"
             (click)="save()"
           >
@@ -204,16 +220,6 @@ export class CampusFormDialogComponent {
   /** 關掉時發出；存成功帶那一筆分校，取消帶 null */
   readonly closed = output<Campus | null>();
 
-  protected readonly a6 = {
-    dialog: A6_DIALOG,
-    close: A6_CLOSE,
-    form: A6_FORM,
-    label: A6_LABEL,
-    input: A6_INPUT,
-    foot: A6_FOOT,
-    btn: A6_BTN,
-    cta: A6_BTN_CTA,
-  };
   protected readonly statusOptions = [
     { label: '啟用', value: true },
     { label: '停用', value: false },
@@ -239,14 +245,12 @@ export class CampusFormDialogComponent {
   protected paymentInfo = '';
   private saved: Campus | null = null;
 
-  /** 出勤模式：跟機構預設同一個門檻；只在編輯（建立的 API 不收） */
-  protected readonly canEditAttendanceMode = computed(
-    () => this.campus() !== null && this.auth.hasPermission('manage_org_settings'),
+  /** 出勤模式：跟機構預設同一個門檻 */
+  protected readonly canEditAttendanceMode = computed(() =>
+    this.auth.hasPermission('manage_org_settings'),
   );
-  /** 帳戶（#1073）：改帳號＝改家長匯款的去向；只在編輯 */
-  protected readonly canEditPaymentInfo = computed(
-    () => this.campus() !== null && this.auth.hasPermission('manage_finance'),
-  );
+  /** 帳戶（#1073）：改帳號＝改家長匯款的去向 */
+  protected readonly canEditPaymentInfo = computed(() => this.auth.hasPermission('manage_finance'));
   protected readonly missingHint = computed(() => (this.name().trim() ? null : '還沒填：分校名稱'));
 
   /** `campus` 給了是編輯，沒給是新增。每次打開都是新的一輪 */
@@ -295,22 +299,18 @@ export class CampusFormDialogComponent {
       phone: this.phone.trim() || null,
       isActive: this.isActive(),
     };
+    const input: CreateCampusInput & UpdateCampusInput = {
+      ...base,
+      // 沒權限就不帶這個 key —— 帶了 API 會 403，整張表單一起存不了
+      ...(this.canEditAttendanceMode() ? { attendanceMode: this.attendanceMode() || null } : {}),
+      ...(this.canEditPaymentInfo()
+        ? { paymentInfo: this.paymentInfo.trim() ? this.paymentInfo : null }
+        : {}),
+    };
     const editing = this.campus();
-    let request$: Observable<{ data: Campus }>;
-    if (editing) {
-      const input: UpdateCampusInput = {
-        ...base,
-        // 沒權限就不帶這個 key —— 帶了 API 會 403，整張表單一起存不了
-        ...(this.canEditAttendanceMode() ? { attendanceMode: this.attendanceMode() || null } : {}),
-        ...(this.canEditPaymentInfo()
-          ? { paymentInfo: this.paymentInfo.trim() ? this.paymentInfo : null }
-          : {}),
-      };
-      request$ = this.campusesService.update(editing.id, input);
-    } else {
-      const input: CreateCampusInput = base;
-      request$ = this.campusesService.create(input);
-    }
+    const request$: Observable<{ data: Campus }> = editing
+      ? this.campusesService.update(editing.id, input)
+      : this.campusesService.create(input);
 
     this.loading.set(true);
     this.error.set(null);

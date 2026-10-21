@@ -64,6 +64,10 @@ export interface CreateCampusInput {
   address?: string | null;
   phone?: string | null;
   isActive?: boolean;
+  /** 要 `manage_org_settings`，沒有的人不要送這個 key（同 UpdateCampusInput） */
+  attendanceMode?: 'per_session' | 'daily_checkin' | null;
+  /** 要 `manage_finance`，沒有的人不要送這個 key */
+  paymentInfo?: string | null;
 }
 
 export interface UpdateCampusInput {

@@ -140,10 +140,10 @@ describe('CampusFormDialogComponent —— A6 campusForm（#1314 SE3）', () => 
     expect(update.mock.calls[0]?.[1]).toMatchObject({ isActive: false });
   });
 
-  it('新增：有狀態、預設啟用；不出出勤模式與帳戶（建立的 API 不收）；成功關掉並帶回那一筆', () => {
+  it('新增：狀態預設啟用；有權限就出出勤模式與帳戶（A6 新增表單就有）；成功關掉並帶回那一筆', () => {
     const { el, create, closed, add, save, type } = setup(['*'], null);
-    expect(el.textContent).not.toContain('出勤紀錄模式');
-    expect(el.querySelector('textarea')).toBeNull();
+    expect(el.textContent).toContain('出勤紀錄模式');
+    expect(el.querySelector('textarea')).not.toBeNull();
 
     type('campus-name', ' 新分校 ');
     save();
@@ -152,9 +152,21 @@ describe('CampusFormDialogComponent —— A6 campusForm（#1314 SE3）', () => 
       address: null,
       phone: null,
       isActive: true,
+      attendanceMode: null,
+      paymentInfo: null,
     });
     expect(add).toHaveBeenCalledWith(expect.objectContaining({ summary: '已新增分校「新分校」' }));
     expect(closed).toHaveBeenCalledWith(CAMPUS);
+  });
+
+  it('新增、沒有細部權限：不出兩欄，body 不帶 key', () => {
+    const { el, create, save, type } = setup([], null);
+    expect(el.textContent).not.toContain('出勤紀錄模式');
+    expect(el.querySelector('textarea')).toBeNull();
+    type('campus-name', '新分校');
+    save();
+    expect(create.mock.calls[0]?.[0]).not.toHaveProperty('attendanceMode');
+    expect(create.mock.calls[0]?.[0]).not.toHaveProperty('paymentInfo');
   });
 
   it('名稱沒填：送出鈕不鎖、寫出還差什麼，不送請求', () => {
