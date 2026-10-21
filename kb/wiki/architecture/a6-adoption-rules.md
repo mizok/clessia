@@ -6,7 +6,7 @@ tags: [architecture, design-system, a6, conformance]
 status: developing
 sources: [https://github.com/mizok/clessia/issues/1314]
 created: 2026-10-15
-updated: 2026-10-16
+updated: 2026-10-21
 ---
 
 # A6 採用規則
