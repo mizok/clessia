@@ -5,6 +5,7 @@ import { logAudit, logAuditMany } from '../utils/audit';
 import { getAuth } from '../lib/get-auth';
 import { recordPayment, type RecordPaymentOutcome } from '../lib/record-payment';
 import { notifyEnrollmentCompleted } from '../lib/notify-events';
+import { syncLeaveAttendanceForEnrollment } from '../lib/enrollment-leave-sync';
 import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -954,7 +955,13 @@ app.openapi(
           'application/json': {
             schema: z.object({
               data: InvoiceSchema,
-              activatedEnrollments: z.array(ChangedRowSchema),
+              activatedEnrollments: z.array(
+                ChangedRowSchema.extend({
+                  classId: z.string(),
+                  effectiveFrom: z.string(),
+                  effectiveTo: z.string().nullable(),
+                }),
+              ),
               completedRequests: z.array(ChangedRowSchema),
             }),
           },
@@ -1077,6 +1084,23 @@ app.openapi(
       })),
       wu,
     );
+    // 轉正式跟手動 PATCH 成 active 同一個副作用：既有整天假回補 `on_leave`（計畫席 10-21）。
+    // 交易外跑，失敗只記 log，收款不回滾
+    for (const e of r.activated) {
+      const job = syncLeaveAttendanceForEnrollment({
+        supabase,
+        orgId,
+        studentId: e.studentId,
+        classId: e.classId,
+        effectiveFrom: e.effectiveFrom,
+        effectiveTo: e.effectiveTo,
+        recordedBy: userId,
+      }).catch((err: unknown) =>
+        console.error('[invoices] 收款轉正式後回補請假出勤失敗（收款已記）:', err),
+      );
+      if (wu) wu(job);
+      else await job;
+    }
     // 交易外發（pg-pool-writes rule 7）；失敗只記 log，收款不回滾
     for (const q of r.completed) {
       const job = notifyEnrollmentCompleted(supabase, {

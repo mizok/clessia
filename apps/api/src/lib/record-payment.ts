@@ -37,6 +37,13 @@ export interface ChangedRow {
   readonly className: string;
 }
 
+/** 轉正式的報名多帶班與起訖：交易外要拿它回補整天假的出勤（`lib/enrollment-leave-sync.ts`） */
+export interface ActivatedRow extends ChangedRow {
+  readonly classId: string;
+  readonly effectiveFrom: string;
+  readonly effectiveTo: string | null;
+}
+
 export type RecordPaymentOutcome =
   | { readonly status: 'not-found' }
   | { readonly status: 'voided' }
@@ -44,7 +51,7 @@ export type RecordPaymentOutcome =
   | {
       readonly status: 'done';
       readonly paymentId: string;
-      readonly activated: readonly ChangedRow[];
+      readonly activated: readonly ActivatedRow[];
       readonly completed: readonly ChangedRow[];
     };
 
@@ -110,8 +117,9 @@ export async function recordPayment(
       `WITH done AS (
          UPDATE enrollments SET status = 'active', status_changed_at = $3
           WHERE org_id = $2 AND status = 'pending_payment' AND id IN (${INVOICE_ENROLLMENTS})
-          RETURNING id, student_id, class_id)
-       SELECT d.id, d.student_id, s.name AS student_name, c.name AS class_name
+          RETURNING id, student_id, class_id, effective_from, effective_to)
+       SELECT d.id, d.student_id, s.name AS student_name, c.name AS class_name, d.class_id,
+              d.effective_from::text AS effective_from, d.effective_to::text AS effective_to
          FROM done d JOIN students s ON s.id = d.student_id JOIN classes c ON c.id = d.class_id`,
       [invoiceId, orgId, input.today],
     );
@@ -143,7 +151,12 @@ export async function recordPayment(
     return {
       status: 'done',
       paymentId,
-      activated: activated.rows.map(toChanged),
+      activated: activated.rows.map((r) => ({
+        ...toChanged(r),
+        classId: r['class_id'] as string,
+        effectiveFrom: r['effective_from'] as string,
+        effectiveTo: (r['effective_to'] as string | null) ?? null,
+      })),
       completed: completed.rows.map(toChanged),
     };
   });

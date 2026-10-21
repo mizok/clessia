@@ -145,7 +145,15 @@ run('記收款的交易對真 Postgres（#1778）', () => {
     expect(r.status).toBe('done');
     if (r.status !== 'done') return;
     expect(r.activated).toEqual([
-      { id: s.enrollmentId, studentId: s.studentId, studentName: '小明', className: '數學A' },
+      {
+        id: s.enrollmentId,
+        studentId: s.studentId,
+        studentName: '小明',
+        className: '數學A',
+        classId,
+        effectiveFrom: '2026-10-01',
+        effectiveTo: null,
+      },
     ]);
     expect(r.completed).toEqual([]);
     const [e] = await q<{ status: string; d: string }>(
@@ -243,7 +251,10 @@ run('記收款的交易對真 Postgres（#1778）', () => {
     await pay(orgId, inv, 1000);
     await pay(orgId, inv, 400, 'refund');
 
-    expect(await pay(orgId, inv, 700, 'refund')).toEqual({ status: 'refund-exceeds-paid', net: 600 });
+    expect(await pay(orgId, inv, 700, 'refund')).toEqual({
+      status: 'refund-exceeds-paid',
+      net: 600,
+    });
     expect((await pay(orgId, inv, 600, 'refund')).status).toBe('done');
   });
 

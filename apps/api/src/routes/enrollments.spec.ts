@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as enrollmentsRoute from './enrollments';
+import { buildEnrollmentLeaveAttendanceUpserts } from '../lib/enrollment-leave-sync';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { countEnrolledOn } from '../lib/session-roster';
@@ -1273,36 +1274,9 @@ describe('copy-from-class helper logic', () => {
 });
 
 describe('leave backfill helper logic', () => {
-  const buildEnrollmentLeaveAttendanceUpserts = (enrollmentsRoute as Record<string, unknown>)[
-    'buildEnrollmentLeaveAttendanceUpserts'
-  ] as
-    | ((input: {
-        orgId: string;
-        studentId: string;
-        recordedBy: string;
-        events: Array<{
-          id: string;
-          event_date: string;
-          sessions?: { status?: string | null } | Array<{ status?: string | null }> | null;
-        }>;
-        leaves: Array<{
-          start_date: string;
-          end_date: string;
-          leave_request_sessions?: Array<{ session_id: string }>;
-        }>;
-      }) => Array<{
-        org_id: string;
-        student_id: string;
-        event_id: string;
-        status: 'on_leave';
-        recorded_by: string;
-        recorded_by_role: 'system';
-      }>)
-    | undefined;
-
   // #1114 裁定 3：綁定堂次的假綁的是具體那幾堂，新報名的班的堂不在假單意圖內
   it('綁定堂次的假不回補到新報名的班；整天型照舊回補', () => {
-    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+    const rows = buildEnrollmentLeaveAttendanceUpserts({
       orgId: 'org-1',
       studentId: 'student-1',
       recordedBy: 'user-1',
@@ -1326,7 +1300,7 @@ describe('leave backfill helper logic', () => {
   it('停課的課堂不回填 on_leave（#568）', () => {
     expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
 
-    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+    const rows = buildEnrollmentLeaveAttendanceUpserts({
       orgId: 'org-1',
       studentId: 'student-1',
       recordedBy: 'user-1',
@@ -1341,7 +1315,7 @@ describe('leave backfill helper logic', () => {
   });
 
   it('停課的課堂以陣列形狀回來時也要排除（PostgREST 實際回的就是陣列）', () => {
-    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+    const rows = buildEnrollmentLeaveAttendanceUpserts({
       orgId: 'org-1',
       studentId: 'student-1',
       recordedBy: 'user-1',
@@ -1356,7 +1330,7 @@ describe('leave backfill helper logic', () => {
   // 而不是讓整批 `on_leave` 靜靜消失。少了這支，下一個人會把那個方向當成漏寫的守衛
   // 然後「修好」它。跟 `lib/cancelled-session.ts` 的檔頭是同一條。
   it('沒帶 status 時照舊寫入 —— 這是刻意的退化方向', () => {
-    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+    const rows = buildEnrollmentLeaveAttendanceUpserts({
       orgId: 'org-1',
       studentId: 'student-1',
       recordedBy: 'user-1',
@@ -1370,7 +1344,7 @@ describe('leave backfill helper logic', () => {
   it('回填先請假後入班時，將落在請假區間內的課堂改為 on_leave', () => {
     expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
 
-    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+    const rows = buildEnrollmentLeaveAttendanceUpserts({
       orgId: 'org-1',
       studentId: 'student-1',
       recordedBy: 'user-1',
@@ -1396,7 +1370,7 @@ describe('leave backfill helper logic', () => {
   it('沒有重疊請假時不回填 attendance', () => {
     expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
 
-    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+    const rows = buildEnrollmentLeaveAttendanceUpserts({
       orgId: 'org-1',
       studentId: 'student-1',
       recordedBy: 'user-1',
