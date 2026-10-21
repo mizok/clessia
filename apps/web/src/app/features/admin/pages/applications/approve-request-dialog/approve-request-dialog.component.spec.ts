@@ -310,6 +310,141 @@ describe('ApproveRequestDialogComponent（#1726）', () => {
     expect(closed).toHaveBeenCalledWith({ invoiceNo: 'INV-1' });
   });
 
+  it('議定金額：試算帶 agreedAmount（不帶 feeTemplateId），首期＝議定價的比例；沒改首期就不送 amount', async () => {
+    const { c, el, parents, enrollments, render, click } = await setup(
+      req({ defaultFeeTemplateId: 'm1' }),
+    );
+    enrollments.prorationPreview.mockImplementation((p: { agreedAmount?: number }) =>
+      of({
+        fullAmount: p.agreedAmount ?? 3000,
+        amount: p.agreedAmount !== undefined ? Math.round((p.agreedAmount * 2) / 3) : 2000,
+        note: null,
+        periodStart: '',
+        periodEnd: '',
+      }),
+    );
+    c.agreedAmount.set(2700);
+    c.adjustmentNote.set('手足');
+    await render();
+    expect(enrollments.prorationPreview).toHaveBeenLastCalledWith({
+      periodMonth: '2026-11',
+      effectiveFrom: '2026-11-11',
+      agreedAmount: 2700,
+    });
+    expect(c.finalAmount()).toBe(1800);
+    expect(el.querySelector('[data-testid="suggested"]')!.textContent).toContain('試算 1800 元');
+
+    click('submit');
+    const body = parents.approve.mock.calls[0][1];
+    expect(body).toEqual({
+      billingMode: 'monthly',
+      feeTemplateId: 'm1',
+      effectiveFrom: '2026-11-11',
+      agreedAmount: 2700,
+      adjustmentNote: '手足',
+    });
+    expect('amount' in body).toBe(false);
+  });
+
+  it('價目表選單只列目前模式的啟用中範本；換模式清掉不同模式的已選範本', async () => {
+    const { c, render } = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    const optionIds = () => c.templateOptions().map((o: { value: string }) => o.value);
+    expect(optionIds()).toEqual(['m1', 'm2']);
+    expect(c.templateId()).toBe('m1');
+
+    c.setMode('period');
+    await render();
+    expect(optionIds()).toEqual(['p1']);
+    expect(c.templateId()).toBe('p1');
+
+    // 堂數制沒有班級預設、只有一張 → 換成那張，月繳的 m1 不能留著
+    c.setMode('session_pack');
+    expect(optionIds()).toEqual(['s1']);
+    expect(c.templateId()).toBe('s1');
+  });
+
+  it('期繳：兩期都涵蓋生效起 → 取最晚開始那期（同 API ORDER BY start_date DESC）', async () => {
+    const early = { id: 'bp-early', name: '全年', startDate: '2026-08-01', endDate: '2027-07-31' };
+    const late = { id: 'bp-late', name: '上學期', startDate: '2026-09-01', endDate: '2027-01-31' };
+    for (const periods of [
+      [early, late],
+      [late, early],
+    ]) {
+      TestBed.resetTestingModule();
+      const { enrollments, render } = await setup(req({ billingMode: 'period' }), periods);
+      await render();
+      expect(enrollments.prorationPreview).toHaveBeenLastCalledWith(
+        expect.objectContaining({ billingPeriodId: 'bp-late' }),
+      );
+    }
+  });
+
+  const conflictError = () =>
+    throwError(() => ({
+      status: 409,
+      error: {
+        code: 'SCHEDULE_CONFLICT',
+        details: {
+          conflicts: [
+            {
+              studentId: 'stu-1',
+              conflictingClassId: 'c9',
+              conflictingClassName: '英文 A',
+              conflictingCourseName: '國二英文',
+              weekday: 3,
+              startTime: '19:00:00',
+              endTime: '21:00:00',
+            },
+          ],
+        },
+      },
+    }));
+
+  it('撞課後「仍要核准」回額滿：收掉撞課清單與「仍要核准」、寫額滿', async () => {
+    const { parents, el, render, click, hint } = await setup(req({ defaultFeeTemplateId: 'm1' }));
+    await render();
+    parents.approve
+      .mockReturnValueOnce(conflictError())
+      .mockReturnValueOnce(throwError(() => ({ status: 409, error: { code: 'CLASS_FULL' } })));
+    click('submit');
+    await render();
+    expect(el.querySelector('[data-testid="conflicts"]')).not.toBeNull();
+
+    click('force-approve');
+    await render();
+    expect(el.querySelector('[data-testid="conflicts"]')).toBeNull();
+    expect(el.querySelector('[data-testid="force-approve"]')).toBeNull();
+    expect(el.querySelector('[data-testid="submit"]')).not.toBeNull();
+    expect(hint()).toContain('這班已額滿');
+  });
+
+  it.each<[string, (c: any) => void]>([
+    ['模式', (c) => c.setMode('period')],
+    ['價目表', (c) => c.templateId.set('m2')],
+    ['議定金額', (c) => c.agreedAmount.set(2500)],
+    ['生效起', (c) => c.effectiveFrom.set('2026-11-18')],
+    ['首期金額', (c) => c.amountInput.set(1500)],
+    ['繳費期限', (c) => c.dueDate.set('2026-11-30')],
+    ['堂數', (c) => c.sessionCount.set(8)],
+  ])(
+    '撞課後改了%s：收掉撞課清單，主按鈕回到「核准」（不會帶 skipConflictCheck 送沒檢查過的值）',
+    async (_label, change) => {
+      const { c, parents, el, render, click } = await setup(req({ defaultFeeTemplateId: 'm1' }));
+      await render();
+      parents.approve.mockReturnValueOnce(conflictError());
+      click('submit');
+      await render();
+      expect(el.querySelector('[data-testid="force-approve"]')).not.toBeNull();
+
+      change(c);
+      await render();
+      expect(el.querySelector('[data-testid="conflicts"]')).toBeNull();
+      expect(el.querySelector('[data-testid="force-approve"]')).toBeNull();
+      expect(el.querySelector('[data-testid="submit"]')).not.toBeNull();
+      expect(c.errorMessage()).toBeNull();
+    },
+  );
+
   it.each([
     [409, 'CLASS_FULL', undefined, '這班已額滿'],
     [409, 'NOT_APPROVABLE', undefined, '這筆申請已經不是待審核（可能已被處理），請重新整理'],

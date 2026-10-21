@@ -1,4 +1,14 @@
-import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
@@ -430,6 +440,26 @@ export class ApproveRequestDialogComponent implements OnInit {
         ),
       )
       .subscribe((p) => this.preview.set(p));
+
+    // 撞課清單只對「當時送出的那組值」成立：任何欄位一改就收掉，主按鈕回到「核准」，
+    // 免得「仍要核准」帶 skipConflictCheck 送出沒檢查過的新日期（審核席 #1775）
+    effect(() => {
+      // 只為了追蹤這幾個欄位
+      void [
+        this.mode(),
+        this.templateId(),
+        this.agreedAmount(),
+        this.effectiveFrom(),
+        this.amountInput(),
+        this.dueDate(),
+        this.sessionCount(),
+      ];
+      untracked(() => {
+        if (this.conflicts().length === 0) return;
+        this.conflicts.set([]);
+        this.errorMessage.set(null);
+      });
+    });
   }
 
   ngOnInit(): void {
