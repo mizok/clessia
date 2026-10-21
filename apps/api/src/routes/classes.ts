@@ -43,6 +43,9 @@ const ScheduleSchema = z
     teacherId: DbUuidSchema.nullable(),
     teacherName: z.string().optional(),
     effectiveTo: z.string().nullable(),
+    /** 指定的教室（#1796）；null = 不指定。教室刪掉時 DB 會把它設回 null */
+    classroomId: DbUuidSchema.nullable(),
+    classroomName: z.string().nullable(),
   })
   .openapi('Schedule');
 
@@ -172,6 +175,8 @@ const CreateScheduleSchema = z
     endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     teacherId: DbUuidSchema.nullable().optional(),
     effectiveTo: z.string().nullable().optional(),
+    /** 要跟班級同一個分校（#1796）；null = 不指定 */
+    classroomId: DbUuidSchema.nullable().optional(),
   })
   .openapi('CreateSchedule');
 
@@ -324,7 +329,28 @@ function mapSchedule(row: Record<string, unknown>) {
     teacherId: (row['teacher_id'] as string | null) ?? null,
     teacherName: (row['staff'] as { display_name: string } | null)?.display_name,
     effectiveTo: (row['effective_to'] as string | null) ?? null,
+    classroomId: (row['classroom_id'] as string | null) ?? null,
+    classroomName: (row['classrooms'] as { name: string } | null)?.name ?? null,
   };
+}
+
+/**
+ * 時段指定的教室要屬於本 org、**而且跟班級同一個分校**（#1796）。
+ * FK 只保證教室存在，擋不住別 org、別分校的教室（#1765 migration 註解：由 API 驗）。
+ * 不在本 org（或不存在）→ 404；在本 org 但別分校 → 409。查詢失敗丟（500），不折成「通過」。
+ */
+async function classroomProblem(
+  supabase: AppEnv['Variables']['supabase'],
+  orgId: string,
+  classCampusId: string | null,
+  classroomId: string,
+): Promise<{ status: 404 | 409; error: string; code: string } | null> {
+  const room = await findInOrg(supabase, 'classrooms', orgId, classroomId, 'campus_id');
+  if (!room) return { status: 404, error: '教室不存在', code: 'CLASSROOM_NOT_FOUND' };
+  if (room['campus_id'] !== classCampusId) {
+    return { status: 409, error: '教室不在這個班級的分校', code: 'CLASSROOM_CAMPUS_MISMATCH' };
+  }
+  return null;
 }
 
 interface ClassExtras {
@@ -530,7 +556,7 @@ app.openapi(
     let dbQuery = supabase
       .from('classes')
       .select(
-        '*, courses(name, grade_levels, subjects(id, name)), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)',
+        '*, courses(name, grade_levels, subjects(id, name)), campuses(name), schedules(*, staff(display_name), classrooms(name)), ba_user!updated_by(name)',
         {
           count: 'exact',
         },
@@ -1109,7 +1135,7 @@ app.openapi(
       .eq('org_id', orgId)
       .single();
     const scheduleQuery = applyClassDetailScheduleScope(
-      supabase.from('schedules').select('*, staff(display_name)') as any,
+      supabase.from('schedules').select('*, staff(display_name), classrooms(name)') as any,
       id,
     ) as any;
 
@@ -1509,7 +1535,7 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       409: {
-        description: '時段重複',
+        description: '時段重複，或教室不在這個班級的分校（CLASSROOM_CAMPUS_MISMATCH）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -1527,7 +1553,7 @@ app.openapi(
       'classes',
       orgId,
       id,
-      'name, courses(name), campuses(name)',
+      'name, campus_id, courses(name), campuses(name)',
     );
     if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
@@ -1536,6 +1562,15 @@ app.openapi(
     // 指名的老師要屬於本 org（c1，#966 B5a）。任課資格（分校／科目）是 #854 的另一題，不在這裡
     if (body.teacherId && !(await findInOrg(supabase, 'staff', orgId, body.teacherId))) {
       return c.json({ error: '老師不存在', code: 'TEACHER_NOT_FOUND' }, 404);
+    }
+    if (body.classroomId) {
+      const problem = await classroomProblem(
+        supabase,
+        orgId,
+        (cls['campus_id'] as string | null) ?? null,
+        body.classroomId,
+      );
+      if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
     }
 
     const { data, error } = await supabase
@@ -1547,8 +1582,9 @@ app.openapi(
         end_time: body.endTime,
         teacher_id: body.teacherId ?? null,
         effective_to: body.effectiveTo ?? null,
+        classroom_id: body.classroomId ?? null,
       })
-      .select('*, staff(display_name)')
+      .select('*, staff(display_name), classrooms(name)')
       .single();
 
     if (error) {
@@ -1567,7 +1603,12 @@ app.openapi(
         resourceId: id,
         resourceName: classAuditResourceName(cls),
         action: 'add_schedule',
-        details: { weekday: body.weekday, startTime: body.startTime, endTime: body.endTime },
+        details: {
+          weekday: body.weekday,
+          startTime: body.startTime,
+          endTime: body.endTime,
+          classroomId: body.classroomId ?? null,
+        },
       },
       waitUntilFrom(c),
     );
@@ -1601,7 +1642,8 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       409: {
-        description: '這位老師未被指派到本分校或科目（#854，跟代課同一個錯誤碼）',
+        description:
+          '這位老師未被指派到本分校或科目（#854，跟代課同一個錯誤碼）；或教室不在這個班級的分校（CLASSROOM_CAMPUS_MISMATCH，#1796）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -1613,7 +1655,8 @@ app.openapi(
     const body = c.req.valid('json');
 
     // `schedules` 沒有 org_id 欄位，要驗的是父班級屬於本 org（c1，#966 B2）
-    if (!(await findInOrg(supabase, 'classes', orgId, id))) {
+    const cls = await findInOrg(supabase, 'classes', orgId, id, 'campus_id');
+    if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
@@ -1630,7 +1673,7 @@ app.openapi(
      */
     const { data: existingSchedule } = await supabase
       .from('schedules')
-      .select('id, class_id, teacher_id')
+      .select('id, class_id, teacher_id, classroom_id')
       .eq('id', sid)
       .eq('class_id', id)
       .maybeSingle();
@@ -1680,19 +1723,35 @@ app.openapi(
       }
     }
 
+    // 教室同老師：**只在真的換了才驗**。前端把既有 classroomId 原封送回，班級後來換了分校的話，
+    // 一律驗會讓那筆時段從此改不動（同上面 #854 的理由）；null 是改回不指定，不用驗
+    const classroomChanged =
+      body.classroomId !== undefined &&
+      body.classroomId !== ((existingSchedule?.['classroom_id'] as string | null) ?? null);
+    if (classroomChanged && body.classroomId) {
+      const problem = await classroomProblem(
+        supabase,
+        orgId,
+        (cls['campus_id'] as string | null) ?? null,
+        body.classroomId,
+      );
+      if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
+    }
+
     const updateData: Record<string, unknown> = {};
     if (body.weekday !== undefined) updateData['weekday'] = body.weekday;
     if (body.startTime !== undefined) updateData['start_time'] = body.startTime;
     if (body.endTime !== undefined) updateData['end_time'] = body.endTime;
     if (body.teacherId !== undefined) updateData['teacher_id'] = body.teacherId;
     if (body.effectiveTo !== undefined) updateData['effective_to'] = body.effectiveTo;
+    if (body.classroomId !== undefined) updateData['classroom_id'] = body.classroomId;
 
     const { data, error } = await supabase
       .from('schedules')
       .update(updateData)
       .eq('id', sid)
       .eq('class_id', id)
-      .select('*, staff(display_name)')
+      .select('*, staff(display_name), classrooms(name)')
       .single();
 
     if (error || !data) {

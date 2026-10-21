@@ -21,7 +21,7 @@ const MAX_WINDOW_DAYS = 42;
 const SESSION_SELECT = `
   id, event_id, session_date, start_time, end_time, status, class_id, teacher_id,
   teacher:staff!teacher_id(display_name),
-  schedules!schedule_id(teacher_id, teacher:staff!teacher_id(display_name)),
+  schedules!schedule_id(teacher_id, teacher:staff!teacher_id(display_name), classrooms(name)),
   classes!inner(name, campuses(name), courses(name)),
   schedule_changes(
     change_type,
@@ -54,6 +54,11 @@ const ParentSessionSchema = z
     className: z.string().nullable(),
     courseName: z.string().nullable(),
     campusName: z.string().nullable(),
+    /**
+     * 時段指定的教室（#1796；A6 p-schedule「分校 · 教室」）。從排課時段來 ——
+     * 手動加的堂、補課沒有時段，就是 null
+     */
+    classroomName: z.string().nullable(),
     /** 實際上課的老師（代課時是代課老師） */
     teacherName: z.string().nullable(),
     isSubstitute: z.boolean(),
@@ -234,6 +239,7 @@ app.openapi(
         className: (classRow?.['name'] as string | undefined) ?? null,
         courseName: (one(classRow?.['courses'])?.['name'] as string | undefined) ?? null,
         campusName: (one(classRow?.['campuses'])?.['name'] as string | undefined) ?? null,
+        classroomName: (one(schedule?.['classrooms'])?.['name'] as string | undefined) ?? null,
         teacherName: nameOf(s['teacher']),
         isSubstitute,
         originalTeacherName: isSubstitute ? nameOf(schedule?.['teacher']) : null,
