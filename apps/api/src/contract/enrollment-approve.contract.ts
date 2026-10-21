@@ -280,6 +280,67 @@ run('核准家長報名申請的交易對真 Postgres（#1726）', () => {
     expect(item).toEqual({ billing_period_id: periodId, period_month: null });
   });
 
+  it('期繳：生效起不在任何期內（只有更早結束的期）→ no-billing-period，不掛到最晚那期', async () => {
+    const s = await setup();
+    const periodTpl = await one(
+      `INSERT INTO fee_templates (org_id, name, billing_mode, amount) VALUES ($1, 'q', 'period', 20000)`,
+      [s.orgId],
+    );
+    await q(
+      `INSERT INTO billing_periods (org_id, name, start_date, end_date) VALUES ($1, 'old', '2026-01-01', '2026-06-30')`,
+      [s.orgId],
+    );
+    expect(
+      await approveEnrollmentRequest(pool, {
+        ...s.base,
+        billingMode: 'period',
+        feeTemplateId: periodTpl,
+      }),
+    ).toEqual({ status: 'no-billing-period' });
+    expect(await written(s.orgId)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('停用的價目表 → invalid-fee-template', async () => {
+    const s = await setup();
+    await q(`UPDATE fee_templates SET is_active = false WHERE id = $1`, [s.monthly]);
+    expect(await approveEnrollmentRequest(pool, s.base)).toEqual({
+      status: 'invalid-fee-template',
+    });
+  });
+
+  it('議定價 0 → zero-amount，什麼都沒寫', async () => {
+    const s = await setup();
+    expect(
+      await approveEnrollmentRequest(pool, { ...s.base, agreedAmount: 0, adjustmentNote: '免費' }),
+    ).toEqual({ status: 'zero-amount' });
+    expect(await written(s.orgId)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('到期日照機構設定的 invoice_due_days（不是寫死 14）', async () => {
+    const s = await setup();
+    await q(`UPDATE organizations SET invoice_due_days = 21 WHERE id = $1`, [s.orgId]);
+    expect(await approveEnrollmentRequest(pool, s.base)).toMatchObject({
+      status: 'done',
+      dueDate: '2026-11-11',
+    });
+  });
+
+  it('議定價優先於價目表：首期＝議定價的比例，報名存下議定價與原因', async () => {
+    const s = await setup();
+    const r = await approveEnrollmentRequest(pool, {
+      ...s.base,
+      agreedAmount: 6200,
+      adjustmentNote: '兄弟檔',
+    });
+    expect(r).toMatchObject({ status: 'done', amount: 2000 });
+    if (r.status !== 'done') return;
+    const [e] = await q<{ agreed_amount: string; adjustment_note: string }>(
+      `SELECT agreed_amount, adjustment_note FROM enrollments WHERE id = $1`,
+      [r.enrollmentId],
+    );
+    expect(e).toEqual({ agreed_amount: '6200', adjustment_note: '兄弟檔' });
+  });
+
   it('堂數制：不按比例、明細 type session_pack、多一列 session_packs 連回明細', async () => {
     const s = await setup();
     const r = await approveEnrollmentRequest(pool, {

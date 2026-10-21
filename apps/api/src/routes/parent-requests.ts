@@ -360,7 +360,7 @@ app.openapi(
         },
       },
       400: {
-        description: '價目表不符、金額改了沒寫原因、金額 0',
+        description: '價目表不符、金額改了沒寫原因、金額 0、期限早於開帳日',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       403: {
@@ -392,13 +392,19 @@ app.openapi(
     const pool = getAuth(c).pool;
     if (!pool) return c.json({ error: '核准失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
 
+    const issuedAt = getCurrentTaipeiDateString();
+    if (body.dueDate && body.dueDate < issuedAt) {
+      return c.json({ error: '繳費期限不能早於開帳日', code: 'DUE_BEFORE_ISSUE' }, 400);
+    }
+
     const scope = getCampusScope(c);
-    const { data: found } = await supabase
+    const { data: found, error: readError } = await supabase
       .from(TABLE.enrollment)
       .select(SELECT.enrollment)
       .eq('org_id', orgId)
       .eq('id', id)
       .maybeSingle();
+    if (readError) return c.json({ error: '核准失敗', code: 'SERVER_ERROR' }, 500);
     if (!found || !visible('enrollment', found as Row, scope)) {
       return c.json({ error: '找不到這筆申請', code: 'NOT_FOUND' }, 404);
     }
@@ -443,7 +449,7 @@ app.openapi(
         effectiveFrom: body.effectiveFrom,
         amount: body.amount ?? null,
         amountNote: body.amountNote ?? null,
-        issuedAt: getCurrentTaipeiDateString(),
+        issuedAt,
         dueDate: body.dueDate ?? null,
         sessionCount: body.sessionCount ?? null,
       });

@@ -58,6 +58,8 @@ function call(
     body?: unknown;
     permissions?: string[];
     scope?: readonly string[] | null;
+    /** 讀申請那一句回 DB 錯誤 */
+    failRead?: boolean;
   } = {},
 ) {
   const db = createMultiOrgDb({
@@ -68,7 +70,17 @@ function call(
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', db.client);
+    const failing = {
+      select: () => failing,
+      eq: () => failing,
+      maybeSingle: async () => ({ data: null, error: { message: 'boom' } }),
+    };
+    set(
+      'supabase',
+      opts.failRead
+        ? { from: (t: string) => (t === 'enrollment_requests' ? failing : db.client.from(t)) }
+        : db.client,
+    );
     set('orgId', ORG);
     set('userId', 'admin-1');
     set('roles', ['admin']);
@@ -204,6 +216,20 @@ describe('POST /api/parent-requests/enrollment/{id}/approve（#1726）', () => {
     h.approve.mockRejectedValue(new Error('boom'));
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect((await call().res).status).toBe(500);
+  });
+
+  it('繳費期限早於開帳日 → 400，不碰交易', async () => {
+    const { status, body } = await json(call({ body: { ...BODY, dueDate: '2000-01-01' } }).res);
+    expect(status).toBe(400);
+    expect(body.code).toBe('DUE_BEFORE_ISSUE');
+    expect(h.approve).not.toHaveBeenCalled();
+  });
+
+  it('讀申請失敗 → 500，不是 404', async () => {
+    const { status, body } = await json(call({ failRead: true }).res);
+    expect(status).toBe(500);
+    expect(body.code).toBe('SERVER_ERROR');
+    expect(h.approve).not.toHaveBeenCalled();
   });
 
   it('議定金額沒寫原因、堂數制沒填堂數 → 400（不碰交易）', async () => {
