@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { notifyEnrollmentApproved } from '../lib/notify-events';
+import { notifyEnrollmentApproved, notifyEnrollmentCompleted } from '../lib/notify-events';
 
 /**
  * #1726 拆單 6：核准後通知家長，對**真的** PostgREST 跑 —— 收件人範圍（本 org、啟用、有帳號；
@@ -129,6 +129,50 @@ run('核准後通知家長對真 DB（#1726 拆單 6）', () => {
         },
       });
     }
+  });
+
+  // #1778：繳清完成申請的通知 —— 新的列舉值 `enrollment_completed`（#1788）真的寫得進去，
+  // 收件人跟核准共用 `activeParentUserIds`（本 org、啟用中、關聯到這個學生）
+  it('完成通知：同一群收件人、kind enrollment_completed、去重', async () => {
+    const orgA = await newOrg();
+    const orgB = await newOrg();
+    const student = await one(`INSERT INTO students (org_id, name, grade) VALUES ($1, 'x', 'J1')`, [
+      orgA,
+    ]);
+    const mom = await parent(orgA, users[0]!);
+    const inactive = await parent(orgA, users[2]!, 'inactive');
+    const otherOrg = await parent(orgB, users[3]!);
+    for (const p of [mom, inactive, otherOrg]) await link(p, student);
+
+    const input = {
+      orgId: orgA,
+      requestId: randomUUID(),
+      studentId: student,
+      studentName: '林小華',
+      className: '國二數學 A',
+    };
+    await notifyEnrollmentCompleted(supabase, input);
+    await notifyEnrollmentCompleted(supabase, input); // 重送不重複
+
+    const rows = await q<{ user_id: string }>(
+      `SELECT user_id, role::text, kind::text, push_status::text, dedupe_key, payload
+         FROM notifications WHERE org_id = ANY($1)`,
+      [[orgA, orgB]],
+    );
+    expect(rows).toEqual([
+      {
+        user_id: users[0],
+        role: 'parent',
+        kind: 'enrollment_completed',
+        push_status: 'pending',
+        dedupe_key: `enrollment_completed:${input.requestId}`,
+        payload: {
+          title: '報名已完成',
+          body: '林小華 報名 國二數學 A 已完成',
+          url: '/parent/enrollment#records',
+        },
+      },
+    ]);
   });
 
   it('學生沒有任何家長：什麼都不寫、不丟例外', async () => {
