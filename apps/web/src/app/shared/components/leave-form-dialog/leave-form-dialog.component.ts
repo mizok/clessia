@@ -40,6 +40,16 @@ function toTimeDate(time: string | null): Date | null {
   return new Date(2000, 0, 1, h, m);
 }
 
+/**
+ * 管理端用 DialogService 開這支時的 contentStyle。動作列 sticky 會扣掉捲動容器的底部 padding
+ * （`.p-dialog-content` 20px）：浮在離底 20px、底下露出捲動的內容。所以 content 底部歸 0，
+ * 同樣的 20px 改由動作列自己撐（`--leave-foot-pb`，家長端外框也是這樣交進來）。
+ */
+export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
+  'padding-bottom': '0',
+  '--leave-foot-pb': 'var(--space-5)',
+};
+
 @Component({
   selector: 'app-leave-form-dialog',
   standalone: true,

@@ -3,7 +3,10 @@ import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
-import { LeaveFormDialogComponent } from './leave-form-dialog.component';
+import {
+  LEAVE_DIALOG_CONTENT_STYLE,
+  LeaveFormDialogComponent,
+} from './leave-form-dialog.component';
 import { StudentsService } from '@core/students.service';
 import { LeaveService } from '@core/leave.service';
 import { ReferenceDataService } from '@core/reference-data.service';
@@ -136,6 +139,11 @@ describe('LeaveFormDialogComponent', () => {
     const bar = go.parentElement!;
     for (const c of ['sticky', 'bottom-0', 'bg-white', 'pb-(--leave-foot-pb)'])
       expect(bar.classList).toContain(c);
+  });
+
+  it('DialogService 開時的 contentStyle：底部 padding 歸 0、改由動作列撐（--leave-foot-pb）', () => {
+    expect(LEAVE_DIALOG_CONTENT_STYLE['padding-bottom']).toBe('0');
+    expect(LEAVE_DIALOG_CONTENT_STYLE['--leave-foot-pb']).toBeTruthy();
   });
 
   it('renders the shared student autocomplete field', () => {
