@@ -1,3 +1,4 @@
+import { OverlayContainerService } from '@core/overlay-container.service';
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { FormsModule } from '@angular/forms';
@@ -22,7 +23,10 @@ import {
 import { StudentsService, type Student } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
-import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
+import {
+  LEAVE_DIALOG_CONTENT_STYLE,
+  LeaveFormDialogComponent,
+} from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
@@ -68,6 +72,9 @@ export class LeavePage implements OnInit {
   private readonly confirmationService = inject(ConfirmationService);
   private readonly systemClock = inject(SystemClockService);
   private readonly dialogService = inject(DialogService);
+  // 彈窗掛在殼層的 overlay 容器：#166 的 max-height（--shell-layout-body-height）才吃得到，
+  // 長表單才會在彈窗裡捲、動作列才黏得住（掛 body 時整個彈窗超出視窗，#1768 量到）
+  private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly studentsService = inject(StudentsService);
   private readonly destroyRef = inject(DestroyRef);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
@@ -329,6 +336,8 @@ export class LeavePage implements OnInit {
       header: '登記請假',
       width: '480px',
       modal: true,
+      appendTo: this.overlayContainerService.getContainer() || 'body',
+      contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
     });
 
     if (!ref) return;
@@ -352,6 +361,8 @@ export class LeavePage implements OnInit {
       header: '編輯請假',
       width: '480px',
       modal: true,
+      appendTo: this.overlayContainerService.getContainer() || 'body',
+      contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
       data: { leave: record },
     });
 

@@ -5,6 +5,11 @@ import { getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
+import { approveEnrollmentRequest } from '../lib/enrollment-approve';
+import { getAuth } from '../lib/get-auth';
+import { hasPermission } from '../lib/permissions';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { checkEnrollmentPreconditions } from './enrollments/validation';
 
 /**
  * 管理端：家長登入後在 app 裡送的報名（`enrollment_requests`）／試聽（`trial_requests`）申請（#1707）。
@@ -17,8 +22,9 @@ import { waitUntilFrom } from '../lib/wait-until';
  *   班或課程被刪會 CASCADE 刪掉申請，所以沒有「目標不見了」的孤兒（public_applications 才有）。
  * - **兩套狀態不合併**（範圍說明 §2）：報名是「審核 → 待繳費 → 完成」，試聽是「排定 → 完成」。
  *   列表用 `group` 把兩套對到同一組分頁（待處理／進行中／已完成／不受理／已取消）。
- * - **報名在這裡只能拒絕**：核准＝開繳費單＋建 enrollment，是金額路徑，另開 #1726。
- *   已經 `awaiting_payment`（帳單開了）的不能拒絕，409。
+ * - **報名的拒絕**走 PATCH；已經 `awaiting_payment`（帳單開了）的不能拒絕，409。
+ * - **報名的核准**走 `POST /enrollment/{id}/approve`（#1726，金額路徑）：建報名＋開帳單＋申請轉待付款，
+ *   一個交易（`lib/enrollment-approve.ts`）。要 `manage_students` **且** `manage_finance`（使用者 10-21 裁 Q6）。
  * - 試聽四個狀態任意切換（誤標要改得回來，同 public-applications）。
  */
 
@@ -38,7 +44,7 @@ const REJECTABLE = ['pending', 'waitlist'];
 
 const SELECT = {
   enrollment: `id, status, preferred_start_date, note, reject_reason, requested_by, created_at,
-    student_id, students(name), classes(name, campus_id, campuses(name))`,
+    student_id, class_id, students(name), classes(name, campus_id, campuses(name))`,
   trial: `id, status, preferred_times, note, requested_by, created_at,
     student_id, students(name), courses(name, campus_id, campuses(name))`,
 } as const;
@@ -296,6 +302,227 @@ app.openapi(
     );
 
     return c.json({ data: toResponse(kind, after, contacts) }, 200);
+  },
+);
+
+// POST /api/parent-requests/enrollment/{id}/approve —— 核准報名申請（#1726）
+const ApproveSchema = z
+  .object({
+    billingMode: z.enum(['monthly', 'period', 'session_pack']),
+    feeTemplateId: DbUuidSchema,
+    /** 議定價；填了要附原因（enrollment-rules 5.3） */
+    agreedAmount: z.number().int().min(0).optional(),
+    adjustmentNote: z.string().trim().min(1).max(500).optional(),
+    effectiveFrom: z.string().date(),
+    /** 行政改過的首期金額；不給 = 伺服器試算值。跟試算不同要附 `amountNote` */
+    amount: z.number().int().min(0).optional(),
+    amountNote: z.string().trim().max(500).optional(),
+    /** 不給 = 開帳日 + 機構設定天數 */
+    dueDate: z.string().date().optional(),
+    /** 堂數制必填 */
+    sessionCount: z.number().int().min(1).max(1000).optional(),
+    skipConflictCheck: z.boolean().optional(),
+  })
+  .refine((v) => v.agreedAmount === undefined || Boolean(v.adjustmentNote), {
+    message: '議定金額要寫原因',
+    path: ['adjustmentNote'],
+  })
+  .refine((v) => v.billingMode !== 'session_pack' || v.sessionCount !== undefined, {
+    message: '堂數制要填堂數',
+    path: ['sessionCount'],
+  });
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/enrollment/{id}/approve',
+    tags: ['ParentRequests'],
+    summary: '核准家長的報名申請：建待繳費報名、開帳單、申請轉待付款（一個交易）',
+    request: {
+      params: z.object({ id: DbUuidSchema }),
+      body: { content: { 'application/json': { schema: ApproveSchema } } },
+    },
+    responses: {
+      200: {
+        description: '已核准',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.object({
+                enrollmentId: z.string(),
+                invoiceId: z.string(),
+                invoiceNo: z.string().nullable(),
+                amount: z.number(),
+                dueDate: z.string(),
+              }),
+            }),
+          },
+        },
+      },
+      400: {
+        description: '價目表不符、金額改了沒寫原因、金額 0、期限早於開帳日',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      403: {
+        description: '沒有財務權限',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      404: {
+        description: '不存在或不在範圍內',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      409: {
+        description: '不是待審核／候補、額滿、已在班上、撞課、沒有涵蓋的繳費期',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+
+    // 會開帳單：收件頁的 manage_students 之外還要 manage_finance（Q6）
+    if (!hasPermission(c.get('permissions') ?? [], 'manage_finance')) {
+      return c.json({ error: '核准會開帳單，需要財務權限', code: 'FINANCE_REQUIRED' }, 403);
+    }
+    const pool = getAuth(c).pool;
+    if (!pool) return c.json({ error: '核准失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+
+    const issuedAt = getCurrentTaipeiDateString();
+    if (body.dueDate && body.dueDate < issuedAt) {
+      return c.json({ error: '繳費期限不能早於開帳日', code: 'DUE_BEFORE_ISSUE' }, 400);
+    }
+
+    const scope = getCampusScope(c);
+    const { data: found, error: readError } = await supabase
+      .from(TABLE.enrollment)
+      .select(SELECT.enrollment)
+      .eq('org_id', orgId)
+      .eq('id', id)
+      .maybeSingle();
+    if (readError) return c.json({ error: '核准失敗', code: 'SERVER_ERROR' }, 500);
+    if (!found || !visible('enrollment', found as Row, scope)) {
+      return c.json({ error: '找不到這筆申請', code: 'NOT_FOUND' }, 404);
+    }
+    const prev = found as Row;
+
+    // 撞課是提醒不是守門（同直接報名）：列出來，行政勾「仍要報名」再送
+    if (!body.skipConflictCheck) {
+      const pre = await checkEnrollmentPreconditions({
+        supabase,
+        orgId,
+        classId: prev['class_id'] as string,
+        studentIds: [prev['student_id'] as string],
+        effectiveFrom: body.effectiveFrom,
+        effectiveTo: null,
+      });
+      if (pre.error?.code === 'SERVER_ERROR') {
+        return c.json({ error: '核准失敗', code: 'SERVER_ERROR' }, 500);
+      }
+      if (pre.conflicts.length > 0) {
+        return c.json(
+          {
+            error: '跟孩子的其他班撞時間',
+            code: 'SCHEDULE_CONFLICT',
+            details: { conflicts: [...pre.conflicts] },
+          },
+          409,
+        );
+      }
+    }
+
+    let r: Awaited<ReturnType<typeof approveEnrollmentRequest>>;
+    try {
+      r = await approveEnrollmentRequest(pool, {
+        orgId,
+        userId,
+        requestId: id,
+        scope,
+        billingMode: body.billingMode,
+        feeTemplateId: body.feeTemplateId,
+        agreedAmount: body.agreedAmount ?? null,
+        adjustmentNote: body.adjustmentNote ?? null,
+        effectiveFrom: body.effectiveFrom,
+        amount: body.amount ?? null,
+        amountNote: body.amountNote ?? null,
+        issuedAt,
+        dueDate: body.dueDate ?? null,
+        sessionCount: body.sessionCount ?? null,
+      });
+    } catch (err) {
+      console.error('[parent-requests] approve failed', err);
+      return c.json({ error: '核准失敗', code: 'SERVER_ERROR' }, 500);
+    }
+
+    switch (r.status) {
+      case 'not-found':
+        return c.json({ error: '找不到這筆申請', code: 'NOT_FOUND' }, 404);
+      case 'not-approvable':
+        return c.json({ error: '這筆申請已經不是待審核', code: 'NOT_APPROVABLE' }, 409);
+      case 'class-full':
+        return c.json({ error: '這班已額滿', code: 'CLASS_FULL' }, 409);
+      case 'already-enrolled':
+        return c.json({ error: '孩子已經在這班', code: 'ALREADY_ENROLLED' }, 409);
+      case 'no-billing-period':
+        return c.json({ error: '沒有涵蓋開始日期的繳費期', code: 'NO_BILLING_PERIOD' }, 409);
+      case 'invalid-fee-template':
+        return c.json(
+          { error: '價目表不存在、已停用或計費方式不符', code: 'INVALID_FEE_TEMPLATE' },
+          400,
+        );
+      case 'amount-note-required':
+        return c.json(
+          {
+            error: '首期金額跟試算不同，要寫原因',
+            code: 'AMOUNT_NOTE_REQUIRED',
+            details: { suggested: r.suggested },
+          },
+          400,
+        );
+      case 'zero-amount':
+        return c.json({ error: '首期金額不能是 0', code: 'ZERO_AMOUNT' }, 400);
+    }
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment_request',
+        resourceId: id,
+        resourceName: `${one(prev['students'])?.['name'] ?? ''}（${targetOf('enrollment', prev)?.['name'] ?? ''}）`,
+        action: 'approve',
+        details: {
+          before: { status: prev['status'] },
+          after: { status: 'awaiting_payment' },
+          enrollment_id: r.enrollmentId,
+          invoice_id: r.invoiceId,
+          invoice_no: r.invoiceNo,
+          billing_mode: body.billingMode,
+          fee_template_id: body.feeTemplateId,
+          amount: r.amount,
+          due_date: r.dueDate,
+        },
+      },
+      waitUntilFrom(c),
+    );
+
+    return c.json(
+      {
+        data: {
+          enrollmentId: r.enrollmentId,
+          invoiceId: r.invoiceId,
+          invoiceNo: r.invoiceNo,
+          amount: r.amount,
+          dueDate: r.dueDate,
+        },
+      },
+      200,
+    );
   },
 );
 

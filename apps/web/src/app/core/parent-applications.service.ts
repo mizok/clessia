@@ -46,6 +46,34 @@ export interface CreateEnrollmentRequest {
   billingMode?: 'monthly' | 'period';
 }
 
+export type TrialRequestStatus = 'pending' | 'scheduled' | 'completed' | 'cancelled';
+
+export interface ParentTrialRequest {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  courseId: string;
+  courseName: string | null;
+  status: TrialRequestStatus;
+  preferredTimes: string | null;
+  note: string | null;
+  createdAt: string | null;
+  /** 排定的試聽日期與時間（`HH:MM`）；還沒排 → null（管理端填日期是 #1747） */
+  scheduledDate: string | null;
+  scheduledStartTime: string | null;
+  scheduledEndTime: string | null;
+  /** 課程所屬分校（#1750）：要取消或改時間得打電話；讀不到或沒填 → null */
+  campusName: string | null;
+  campusPhone: string | null;
+}
+
+export interface CreateTrialRequest {
+  studentId: string;
+  courseIds: string[];
+  preferredTimes?: string;
+  note?: string;
+}
+
 export interface ParentCatalogClass {
   classId: string;
   className: string;
@@ -87,6 +115,15 @@ export class ParentApplicationsService {
       `${this.base}/enrollment-requests/${id}/cancel`,
       {},
     );
+  }
+
+  trialRequests(): Observable<{ data: ParentTrialRequest[] }> {
+    return this.http.get<{ data: ParentTrialRequest[] }>(`${this.base}/trial-requests`);
+  }
+
+  /** 一門課一筆；回這次建立的全部 */
+  createTrialRequests(body: CreateTrialRequest): Observable<{ data: ParentTrialRequest[] }> {
+    return this.http.post<{ data: ParentTrialRequest[] }>(`${this.base}/trial-requests`, body);
   }
 
   catalog(childId: string): Observable<{ data: ParentCatalogClass[] }> {

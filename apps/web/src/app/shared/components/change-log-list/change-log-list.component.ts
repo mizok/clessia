@@ -20,7 +20,7 @@ import {
  */
 const WIDE = {
   chapter: 'wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-5',
-  chapterHead: 'wide:sticky wide:top-4 wide:block wide:self-start',
+  chapterHead: 'wide:sticky wide:top-sticky-chapter wide:block wide:self-start',
   day: 'wide:text-[44px]',
   dayMeta: 'wide:mt-0.5',
   count: 'wide:mt-3 wide:text-xl',
