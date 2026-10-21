@@ -23,6 +23,10 @@ export interface ParentAttendanceRecord {
   sessionStatus: 'scheduled' | 'completed' | 'cancelled' | null;
   status: ParentAttendanceStatus;
   note: string | null;
+  /** 請假的堂是誰登記的；不是請假或找不到假單 → null（#1695 第 4 張） */
+  leaveSubmittedBy: 'parent' | 'school' | null;
+  /** 請假原因：只有家長自己送的才有，補習班登記的 API 一律回 null（計畫席 10-19 裁 (A)） */
+  leaveReason: string | null;
 }
 
 export interface ParentAttendanceListResponse {

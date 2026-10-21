@@ -58,6 +58,8 @@ function record(overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendan
     sessionStatus: 'scheduled',
     status: 'present',
     note: null,
+    leaveSubmittedBy: null,
+    leaveReason: null,
     ...overrides,
   };
 }
@@ -223,6 +225,33 @@ describe('AttendancePage', () => {
     (fixture.nativeElement.querySelector('.attendance__record') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.attendance__record-detail')).toBeNull();
+  });
+
+  // #1695 第 4 張（設計稿 §5，計畫席 10-19 裁 (A)）
+  it.each([
+    ['parent', '看牙醫', '請假：看牙醫（家長送出）'],
+    ['parent', null, '請假（家長送出）'],
+    ['school', null, '請假（補習班登記）'],
+  ] as const)('展開請假的堂：%s／%s →「%s」', (by, reason, text) => {
+    createComponent({
+      data: [
+        record({
+          status: 'on_leave',
+          startTime: null,
+          endTime: null,
+          leaveSubmittedBy: by,
+          leaveReason: reason,
+        }),
+      ],
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 1 },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.attendance__record') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const detail = fixture.nativeElement.querySelector('.attendance__record-detail') as HTMLElement;
+    expect(detail.textContent!.replace(/\s+/g, '')).toContain(text);
+    expect(detail.textContent).not.toContain('沒有更多資訊');
   });
 
   it('載入失敗顯示失敗狀態', () => {

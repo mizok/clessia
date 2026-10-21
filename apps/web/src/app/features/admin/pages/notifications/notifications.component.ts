@@ -47,6 +47,8 @@ const KINDS: Record<string, { label: string; icon: string; go: string }> = {
   schedule_change: { label: '課務異動', icon: 'pi-calendar', go: '看這堂' },
   leave_for_my_class: { label: '請假', icon: 'pi-user-minus', go: '看請假' },
   leave_received: { label: '家長請假', icon: 'pi-user-minus', go: '看請假' },
+  // #1732：連到學生檔案的帳單章（#billing）
+  leave_streak: { label: '連續請假', icon: 'pi-calendar-minus', go: '看明細' },
 };
 const OTHER_KIND = { label: '系統通知', icon: 'pi-bell', go: '前往' };
 

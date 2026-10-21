@@ -8,7 +8,9 @@ import {
   firstValueFrom,
   catchError,
   debounceTime,
+  distinctUntilChanged,
   filter,
+  map,
   forkJoin,
   of,
   skip,
@@ -16,6 +18,7 @@ import {
 } from 'rxjs';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { LeaveStreaksService } from '@core/leave-streaks.service';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
@@ -410,7 +413,44 @@ export class PaymentsPage implements OnInit {
   });
   protected readonly PAGE_SIZE = PAGE_SIZE;
 
+  /**
+   * #1732：畫面上出現的學生 → 未處理的連續請假天數（帳單頁名字旁的「連請 N 天」小標）。
+   * 讀取時現算、只回有沒有＋天數，明細在學生檔案。失敗就不畫（提醒，不擋帳單頁）。
+   */
+  protected readonly streakDays = signal<ReadonlyMap<string, number>>(new Map());
+  private readonly leaveStreaksService = inject(LeaveStreaksService);
+  private readonly visibleStudentIds = computed(() => {
+    const ids = new Set(this.invoices().map((i) => i.studentId));
+    for (const key of CHAPTER_KEYS) for (const i of this.chapters()[key].rows) ids.add(i.studentId);
+    return [...ids].sort().join(',');
+  });
+
   constructor() {
+    toObservable(this.visibleStudentIds)
+      .pipe(
+        debounceTime(50),
+        distinctUntilChanged(),
+        switchMap((joined) => {
+          const ids = joined ? joined.split(',') : [];
+          // API 一次最多 100 個
+          const batches = Array.from({ length: Math.ceil(ids.length / 100) }, (_, n) =>
+            this.leaveStreaksService.flags(ids.slice(n * 100, n * 100 + 100)),
+          );
+          return batches.length === 0
+            ? of([])
+            : forkJoin(batches).pipe(
+                map((all) => all.flatMap((res) => res.data)),
+                catchError(() => of([])),
+              );
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((flags) => {
+        const days = new Map<string, number>();
+        for (const f of flags) days.set(f.studentId, Math.max(days.get(f.studentId) ?? 0, f.days));
+        this.streakDays.set(days);
+      });
+
     this.campusCtx.use();
     // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校：頁碼歸 1、列表／摘要／展開的章／待開帳數全部重抓
     toObservable(this.campusCtx.id)
