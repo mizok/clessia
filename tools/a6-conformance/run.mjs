@@ -82,7 +82,7 @@ async function settleSticky(page, w, rows, rowParents) {
     tB,
   );
   pend.forEach((r, i) => {
-    const v = stickyVerdict(ra.get(tA[i]), rb.get(tB[i]), r.detail, r.probe.differ);
+    const v = stickyVerdict(ra.get(tA[i]), rb.get(tB[i]), r.detail, r.probe.differ, r.probe.axis);
     stat.items.push({
       a6: r.a6,
       app: r.app,

@@ -15,7 +15,7 @@ const shell = (
   <header style="height:56px">頂欄</header><main aria-label="內容">${inner}</main>`;
 const chap = (side) =>
   `<section aria-label="國三" style="display:grid;grid-template-columns:200px 1fr">
-    <div style="${side}"><h2>國三</h2></div><ul>${'<li>學生</li>'.repeat(5)}</ul></section>`;
+    <div style="${side}"><h2 style="margin:0">國三</h2></div><ul>${'<li>學生</li>'.repeat(5)}</ul></section>`;
 
 async function probe(html, key, axis = 'top') {
   const page = await browser.newPage({ viewport: { width: 800, height: 700 } });
@@ -34,7 +34,15 @@ test('sticky 祖先帶進 part：釘點與 offset（sticky 容器本身不是 pa
 
 test('黏住的章頭：資料只有 5 列也墊得出差別，捲過去仍在視窗內', async () => {
   const { r } = await probe(shell(chap('position:sticky;top:80px;align-self:start')), KEY);
-  assert.deepEqual(r, { found: true, scroller: true, short: false, visible: true, natural: false });
+  const { at, ...rest } = r;
+  assert.deepEqual(rest, {
+    found: true,
+    scroller: true,
+    short: false,
+    visible: true,
+    natural: false,
+  });
+  assert.equal(at, 56 + 80); // 頂欄 56 在捲動區外
 });
 
 test('拿掉 sticky（突變）：捲走 → 判成 app 被捲走', async () => {
@@ -69,4 +77,24 @@ test('fixed 面板裡的捲動區：body overflow hidden 高 0 不當裁切框�
     <div style="position:sticky;top:0"><button>返回</button></div><p>表單</p></main></section>`;
   const { r } = await probe(html, '>landmark:main[內容]>control:button[返回]');
   assert.equal(r.visible, true);
+});
+
+test('兩邊都黏住但落點不同：app 頂欄在捲動區外，照抄稿的 top 80px 會低一個頂欄 → 待修', async () => {
+  const side = 'position:sticky;align-self:start;top:';
+  // 稿：整頁捲、頂欄自己 sticky
+  const a6 = (
+    await probe(
+      `<style>body{margin:0}</style><header style="position:sticky;top:0;height:56px">頂欄</header>
+      <main aria-label="內容">${chap(side + '80px')}</main>`,
+      KEY,
+    )
+  ).r;
+  const copied = (await probe(shell(chap(side + '80px')), KEY)).r;
+  const fixed = (await probe(shell(chap(side + '24px')), KEY)).r;
+  assert.deepEqual([a6.at, copied.at, fixed.at], [80, 136, 80]);
+  assert.match(
+    stickyVerdict(a6, copied, 'sticky top 80px → top 80px', false).detail,
+    /離視窗頂 80px → 136px/,
+  );
+  assert.equal(stickyVerdict(a6, fixed, 'sticky top 80px → top 24px', true), null);
 });

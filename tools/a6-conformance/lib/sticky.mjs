@@ -80,12 +80,15 @@ export function probeInPage({ key, axis }) {
     short = sc[S] - before < need - 1;
   }
   const c = clip();
+  const r = el.getBoundingClientRect();
   const out = {
     found: true,
     scroller: !!sc,
     short,
-    visible: seen(el.getBoundingClientRect(), c),
+    visible: seen(r, c),
     natural: seen(natural(), c),
+    // 黏在哪：離視窗那一邊的距離（使用者看到的位置；app 頂欄在捲動區外，同一個 top 值落點不同）
+    at: Math.round(after ? r[start] : (v ? innerHeight : innerWidth) - r[end]),
   };
   pad.remove();
   for (const s of scrollers) s[S] = 0;
@@ -137,7 +140,7 @@ export async function probeSticky(browser, o, targets) {
  * 稿這裡「捲得出差別」（有捲動容器、捲得到、不黏時會離開視窗）才比：稿還看得到＝該黏，app 也要看得到；
  * 稿被捲走＝不該黏，app 卻黏著（而且 app 那邊同樣捲得出差別）＝多黏。
  */
-export function stickyVerdict(a6, app, pins, pinsDiffer) {
+export function stickyVerdict(a6, app, pins, pinsDiffer, axis = 'top') {
   const lim = (why) => ({ detail: `${pins}；${why}`, limit: LIMIT });
   if (!a6.found || !app.found) return lim('行為檢查找不回元素');
   const testable = (x) => x.scroller && !x.short && !x.natural;
@@ -147,6 +150,10 @@ export function stickyVerdict(a6, app, pins, pinsDiffer) {
   // app 捲不出差別（沒有捲動容器、捲不到）：看得到可能只是因為沒捲走，不能當作有黏住
   if (a6.visible && app.scroller && (app.short || app.natural))
     return lim('app 這裡捲不出差別（墊高後仍捲不到），看得到不代表有黏住');
+  if (a6.visible && app.visible && testable(app) && Math.abs(a6.at - app.at) > 4)
+    return {
+      detail: `${pins}；兩邊都黏住，但黏在離視窗${/^(top|left)/.test(axis) ? '頂' : '底'} ${a6.at}px → ${app.at}px`,
+    };
   if (!a6.visible && app.visible && testable(app))
     // 稿宣告了 sticky 卻沒黏住：多半是被只有自己高的容器框住（scores.html 的註解講過這個坑）。
     // 稿的意圖是黏，app 黏著不見得錯 —— 交給人看，不算待修
