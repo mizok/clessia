@@ -21,7 +21,9 @@ import {
   getCampusScope,
   type CampusScope,
 } from '../lib/campus-scope';
-import { logAudit } from '../utils/audit';
+import { logAudit, logAuditMany } from '../utils/audit';
+import { activatePendingEnrollment, type ChangedRow } from '../lib/record-payment';
+import { notifyEnrollmentCompleted } from '../lib/notify-events';
 import { waitUntilFrom } from '../lib/wait-until';
 import { auditFieldDiff } from '../lib/audit-diff';
 import {
@@ -857,6 +859,20 @@ app.openapi(
       updates['effective_to'] = today;
     }
 
+    // #1778 拆單 2（Q4）：待付款轉正式，連到它的待付款申請同一個交易轉完成。
+    // ponytail: 交易已寫好狀態，下面的逐句寫再寫一次同樣的值，只為了拿回應形狀
+    let completed: readonly ChangedRow[] = [];
+    if (existing.status === 'pending_payment' && status === 'active') {
+      const pool = getAuth(c).pool;
+      if (!pool) return c.json({ error: 'DB_POOL_UNAVAILABLE' }, 500);
+      ({ completed } = await activatePendingEnrollment(pool, {
+        orgId,
+        enrollmentId: id,
+        today,
+        reason: updates['status_reason'] as string | null,
+      }));
+    }
+
     const { data, error } = await supabase
       .from('enrollments')
       .update(updates)
@@ -886,6 +902,31 @@ app.openapi(
       },
       waitUntilFrom(c),
     );
+    logAuditMany(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment_request',
+        action: 'complete',
+        details: { via: 'manual', enrollment_id: id },
+      },
+      completed.map((q) => ({ resourceId: q.id, resourceName: `${q.studentName}（${q.className}）` })),
+      waitUntilFrom(c),
+    );
+    // 交易外發（pg-pool-writes rule 7）；失敗只記 log，狀態不回滾
+    for (const q of completed) {
+      const job = notifyEnrollmentCompleted(supabase, {
+        orgId,
+        requestId: q.id,
+        studentId: q.studentId,
+        studentName: q.studentName,
+        className: q.className,
+      });
+      const wu = waitUntilFrom(c);
+      if (wu) wu(job);
+      else await job;
+    }
 
     if (data.status === 'active') {
       await syncLeaveAttendanceForEnrollment({

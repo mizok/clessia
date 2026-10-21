@@ -157,8 +157,7 @@ export async function notifyEnrollmentApproved(
 
 /**
  * 報名申請完成（#1778，使用者 10-21 裁 Q5 (b)：站內＋推播）→ 這個學生在本 org 的家長每人一則。
- * 帳單繳清、申請轉 `completed` 時發；直接報名沒有申請，不發。
- * （行政手動把報名轉正式時一併完成申請、發這則，是 #1778 拆單 2，待做）
+ * 帳單繳清、或行政手動把報名轉正式（拆單 2），申請轉 `completed` 時發；直接報名沒有申請，不發。
  * 寫法同 `notifyEnrollmentApproved`（家長、推播走排程、去重鍵 `enrollment_completed:<申請 id>`、不丟例外）。
  */
 export async function notifyEnrollmentCompleted(
