@@ -100,9 +100,27 @@ function baseSeed(extra: Record<string, Record<string, unknown>[]> = {}) {
 
 function appWith(
   seed: Record<string, readonly Record<string, unknown>[]>,
-  opts: { roles?: string[]; scope?: readonly string[] | null } = {},
+  opts: {
+    roles?: string[];
+    scope?: readonly string[] | null;
+    /** 攔下每張表收到的 select 字串（替身不解析 select，嵌入少了也照樣綠） */
+    selects?: Array<[string, string]>;
+  } = {},
 ) {
   const db = createMultiOrgDb(seed);
+  if (opts.selects) {
+    const client = db.client as unknown as { from: (t: string) => Record<string, unknown> };
+    const from = client.from.bind(client);
+    client.from = (t: string) => {
+      const q = from(t);
+      const select = (q['select'] as (...a: unknown[]) => unknown).bind(q);
+      q['select'] = (cols: string, ...rest: unknown[]) => {
+        opts.selects!.push([t, cols]);
+        return select(cols, ...rest);
+      };
+      return q;
+    };
+  }
   const scope = opts.scope === undefined ? [CHILD, SIBLING] : opts.scope;
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -215,6 +233,15 @@ describe('GET /api/me/sessions', () => {
         changes: [],
         attendance: null,
       });
+    });
+
+    it('課堂查詢真的嵌了時段的教室（classrooms(name)）—— 替身不解析 select，要直接看字串', async () => {
+      const selects: Array<[string, string]> = [];
+      await get(appWith(baseSeed(), { selects }));
+      const sessionSelect = selects.find(([t]) => t === 'sessions')?.[1] ?? '';
+      expect(sessionSelect.replace(/\s+/g, '')).toMatch(
+        /schedules!schedule_id\(.*classrooms\(name\)\),classes!inner/,
+      );
     });
 
     it('時段指定了教室：帶教室名（A6 p-schedule「分校 · 教室」）；沒有時段的堂（手動加、補課）是 null', async () => {
