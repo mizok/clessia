@@ -243,6 +243,7 @@ function buildCampus(id: string, name: string): Campus {
     phone: null,
     isActive: true,
     paymentInfo: null,
+    attendanceMode: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
