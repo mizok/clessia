@@ -60,6 +60,8 @@ const req = (over: Partial<ParentEnrollmentRequest> = {}): ParentEnrollmentReque
   rejectReason: null,
   billingMode: null,
   createdAt: '2026-10-18T02:00:00Z',
+  invoice: null,
+  paymentInfo: null,
   ...over,
 });
 
@@ -395,7 +397,58 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(text()).toContain('1 筆在等補習班審核');
     });
 
-    it('詳情：已拒絕顯示補習班的說明；待付款寫「已核准，請到繳費頁付款」並連到繳費頁（Q3 (a) 過渡）', async () => {
+    const INV = {
+      id: 'inv-1',
+      invoiceNo: 'INV-2610-001',
+      total: 3100,
+      netPaid: 0,
+      dueDate: '2026-11-04',
+      status: 'unpaid',
+    };
+    const openPay = async (over: Partial<ParentEnrollmentRequest>) => {
+      await setup({
+        requests: [req({ id: 'r-pay', status: 'awaiting_payment', ...over })],
+        fragment: 'records',
+      });
+      el().querySelector<HTMLButtonElement>('[data-request="r-pay"]')!.click();
+      fixture.detectChanges();
+      return el().querySelector('dialog')!;
+    };
+
+    it('待付款詳情（A6，#1726）：這筆申請的帳單金額、期限，付款方式，申請班級分校的帳戶', async () => {
+      const dialog = await openPay({
+        invoice: INV,
+        paymentInfo: '臺灣銀行 景美分行（004）\n帳號 0123',
+      });
+      const t = dialog.textContent!;
+      expect(t).toContain('繳費單');
+      expect(t).toContain('3,100 元');
+      expect(t).toContain('繳費期限 11/4');
+      expect(t).toContain('告訴櫃台帳號末五碼');
+      expect(t).toContain('臺灣銀行 景美分行（004）');
+      expect(t).not.toContain('已核准，請到繳費頁付款');
+    });
+
+    it('待付款部分繳：寫已收與還差多少', async () => {
+      const dialog = await openPay({ invoice: { ...INV, netPaid: 1000, status: 'partial' } });
+      expect(dialog.textContent).toContain('已收 1,000 元，還差 2,100 元');
+    });
+
+    it('待付款已繳清：寫等補習班確認，不再列帳戶', async () => {
+      const dialog = await openPay({
+        invoice: { ...INV, netPaid: 3100, status: 'paid' },
+        paymentInfo: '某帳戶',
+      });
+      expect(dialog.textContent).toContain('已繳清 3,100 元，等補習班確認');
+      expect(dialog.textContent).not.toContain('某帳戶');
+    });
+
+    it('待付款但沒設帳戶：寫請洽行政', async () => {
+      const dialog = await openPay({ invoice: INV, paymentInfo: null });
+      expect(dialog.textContent).toContain('帳戶資訊請洽補習班行政人員');
+    });
+
+    it('詳情：已拒絕顯示補習班的說明；待付款但帳單作廢沒重開 → 退回「請到繳費頁」並連到繳費頁', async () => {
       await setup({ requests: records, fragment: 'records' });
       el().querySelector<HTMLButtonElement>('[data-request="r-rej"]')!.click();
       fixture.detectChanges();
