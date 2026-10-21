@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../index';
+import type { ChildDb } from '../../lib/child-db';
 import { isChildAllowed } from '../../lib/child-scope';
 import { DbUuidSchema } from '../../lib/validation';
 import { waitUntilFrom } from '../../lib/wait-until';
@@ -26,6 +27,19 @@ const TrialRequestSchema = z
     preferredTimes: z.string().nullable(),
     note: z.string().nullable(),
     createdAt: z.string().nullable(),
+    /**
+     * 排定的試聽日期與時間（#1727 Q2 (b)，`20261019100312`）。還沒排 → null。
+     * 管理端填日期另開單；那之前家長端列表寫「已安排 · 補習班會跟你聯絡時間」
+     */
+    scheduledDate: z.string().nullable(),
+    scheduledStartTime: z.string().nullable(),
+    scheduledEndTime: z.string().nullable(),
+    /**
+     * 課程所屬分校（#1727 Q-b）：試聽沒有取消鈕，要取消或改時間得打電話給分校。
+     * 分校讀不到或沒填電話 → null，家長端寫「請打電話給補習班」不放號碼
+     */
+    campusName: z.string().nullable(),
+    campusPhone: z.string().nullable(),
   })
   .openapi('ParentTrialRequest');
 
@@ -42,16 +56,45 @@ const ErrorSchema = z
   .object({ error: z.string(), code: z.string() })
   .openapi('ParentTrialRequestError');
 
-const SELECT =
-  'id, student_id, course_id, status, preferred_times, note, created_at, students(name), courses(name)';
+export const SELECT =
+  'id, student_id, course_id, status, preferred_times, note, created_at, scheduled_date, scheduled_start_time, scheduled_end_time, students(name), courses(name, campus_id)';
+
+/** 送出前查課程：停開檢查＋回應的分校（寫入回來的列不一定帶課程 embed） */
+export const COURSE_SELECT = 'id, is_active, campus_id';
 
 /** 進行中的試聽 —— 同門課只能一筆（migration 的 partial unique） */
 const OPEN_STATUSES = ['pending', 'scheduled'];
 
-type Embed = { name?: string | null } | Array<{ name?: string | null }> | null | undefined;
-const embedName = (value: Embed) => (Array.isArray(value) ? value[0] : value)?.name ?? null;
+type Embed =
+  | { name?: string | null; campus_id?: string | null }
+  | Array<{ name?: string | null; campus_id?: string | null }>
+  | null
+  | undefined;
+const embedOne = (value: Embed) => (Array.isArray(value) ? value[0] : value) ?? null;
+const embedName = (value: Embed) => embedOne(value)?.name ?? null;
 
-function toResponse(row: Record<string, unknown>) {
+type Campus = { name: string | null; phone: string | null };
+
+/** 列上的課程所屬分校（名稱、電話）。走 orgRef：分校是參考資料，不是孩子的資料 */
+async function campusesOf(childDb: ChildDb, rows: Record<string, unknown>[]) {
+  const ids = [
+    ...new Set(
+      rows
+        .map((row) => embedOne(row['courses'] as Embed)?.campus_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  if (!ids.length) return { campuses: new Map<string, Campus>(), error: null };
+  const { data, error } = await childDb.orgRef('campuses').select('id, name, phone').in('id', ids);
+  const campuses = new Map(
+    ((data ?? []) as unknown as Array<{ id: string } & Campus>).map((c) => [c.id, c]),
+  );
+  return { campuses, error };
+}
+
+function toResponse(row: Record<string, unknown>, campuses: Map<string, Campus>) {
+  const campusId = embedOne(row['courses'] as Embed)?.campus_id;
+  const campus = campusId ? campuses.get(campusId) : undefined;
   return {
     id: row['id'] as string,
     studentId: row['student_id'] as string,
@@ -62,8 +105,16 @@ function toResponse(row: Record<string, unknown>) {
     preferredTimes: (row['preferred_times'] as string | null) ?? null,
     note: (row['note'] as string | null) ?? null,
     createdAt: (row['created_at'] as string | null) ?? null,
+    scheduledDate: (row['scheduled_date'] as string | null) ?? null,
+    scheduledStartTime: hhmm(row['scheduled_start_time']),
+    scheduledEndTime: hhmm(row['scheduled_end_time']),
+    campusName: campus?.name ?? null,
+    campusPhone: campus?.phone?.trim() || null,
   };
 }
+
+/** DB 的 time 是 `HH:MM:SS`，回 `HH:MM` */
+const hhmm = (t: unknown) => (typeof t === 'string' ? t.slice(0, 5) : null);
 
 const notParent = { error: '不是家長身分', code: 'NOT_PARENT' } as const;
 const isParent = (roles: readonly string[] | undefined) => (roles ?? []).includes('parent');
@@ -97,10 +148,13 @@ app.openapi(
       .from('trial_requests', 'student_id')
       .select(SELECT);
     if (error) return c.json({ error: '讀取試聽申請失敗', code: 'FETCH_FAILED' }, 500);
+    const raw = (data ?? []) as unknown as Record<string, unknown>[];
+    const { campuses, error: campusError } = await campusesOf(c.get('childDb'), raw);
+    if (campusError) return c.json({ error: '讀取試聽申請失敗', code: 'FETCH_FAILED' }, 500);
 
     // 最新在上（規格）。ponytail: 記憶體排序，理由同 enrollment-requests
-    const rows = ((data ?? []) as unknown as Record<string, unknown>[])
-      .map(toResponse)
+    const rows = raw
+      .map((row) => toResponse(row, campuses))
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
     return c.json({ data: rows }, 200);
   },
@@ -144,7 +198,7 @@ app.openapi(
     }
 
     const [courses, enrolled, open] = await Promise.all([
-      childDb.orgRef('courses').select('id, is_active').in('id', courseIds),
+      childDb.orgRef('courses').select(COURSE_SELECT).in('id', courseIds),
       // 規格「排除孩子已報名的課程」：在籍＋待繳費的班所屬的課
       childDb
         .from('enrollments', 'student_id')
@@ -162,7 +216,11 @@ app.openapi(
       return c.json({ error: '讀取課程狀態失敗', code: 'SERVER_ERROR' }, 500);
     }
 
-    const found = (courses.data ?? []) as unknown as Array<{ id: string; is_active: boolean }>;
+    const found = (courses.data ?? []) as unknown as Array<{
+      id: string;
+      is_active: boolean;
+      campus_id: string | null;
+    }>;
     if (found.length !== courseIds.length) {
       return c.json({ error: '課程不存在', code: 'COURSE_NOT_FOUND' }, 404);
     }
@@ -214,7 +272,18 @@ app.openapi(
     if (wu) wu(job);
     else await job;
 
-    return c.json({ data: rows.map(toResponse) }, 201);
+    // 分校讀不到不擋送出（已經寫進去了）：這次回應少電話，列表重抓會有
+    // 寫入回來的列不一定帶課程 embed：分校用剛剛查過的課程補上
+    const campusOf = new Map(found.map((course) => [course.id, course.campus_id]));
+    const withCourse = rows.map((row) => ({
+      ...row,
+      courses: {
+        ...(embedOne(row['courses'] as Embed) ?? {}),
+        campus_id: campusOf.get(row['course_id'] as string) ?? null,
+      },
+    }));
+    const { campuses } = await campusesOf(childDb, withCourse);
+    return c.json({ data: withCourse.map((row) => toResponse(row, campuses)) }, 201);
   },
 );
 

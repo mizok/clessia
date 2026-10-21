@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { PERMISSIONS } from './lib/permissions';
 
@@ -139,6 +139,17 @@ vi.mock('./middleware/auth', async (importOriginal) => {
 
 const env = { ENVIRONMENT: 'test', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
 
+type TestApp = {
+  request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response>;
+  routes: ReadonlyArray<{ method: string; path: string }>;
+};
+let app: TestApp;
+// #1580：整個 app 的動態 import（transform 幾秒）放在 hook、逾時另計 ——
+// 放在第一條測試裡會算進那條的 5 秒，機器忙時前幾條逾時、吃到模組快取的後面幾條又過
+beforeAll(async () => {
+  app = (await import('./index')).default as unknown as TestApp;
+}, 30_000);
+
 async function probe(
   path: string,
   method: 'GET' | 'POST',
@@ -148,9 +159,6 @@ async function probe(
 ) {
   ctx.roles = roles;
   ctx.permissions = permissions;
-  const app = (await import('./index')).default as unknown as {
-    request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response>;
-  };
   // POST 帶一個驗證不過的空物件：過了 mount 就停在路由的 400，不會真的寫進任何東西
   const init: RequestInit =
     method === 'POST'
@@ -174,9 +182,6 @@ describe('mount() 的授權（#1730）', () => {
   // 文字對帳寫法再多也補不完（`app['route'](…)`、`app.get('/api/x', …)` 都繞得過）——
   // 直接看執行期 Hono 實際註冊了什麼（#1751 二讀）。上面的文字對帳留著當第二道
   it('執行期：每一條註冊的路由都在 mount／白名單前綴底下，或是明列的例外', async () => {
-    const app = (await import('./index')).default as unknown as {
-      routes: ReadonlyArray<{ method: string; path: string }>;
-    };
     const prefixes = [...Object.keys(EXPECTED), ...UNMOUNTED];
     // 不去重：重複註冊也算一條
     const stray = app.routes
@@ -188,9 +193,6 @@ describe('mount() 的授權（#1730）', () => {
 
   // Hono 照註冊順序跑：同一個前綴底下，若有 handler 比 mount 的守衛早註冊，它就跑在角色檢查之前
   it('執行期：每個 mount 前綴底下，第一條註冊的就是 mount 的守衛', async () => {
-    const app = (await import('./index')).default as unknown as {
-      routes: ReadonlyArray<{ method: string; path: string }>;
-    };
     const early = Object.keys(EXPECTED).flatMap((prefix) => {
       const first = app.routes.find((r) => r.path === prefix || r.path.startsWith(`${prefix}/`));
       return first && first.method === 'ALL' && first.path === prefix

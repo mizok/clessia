@@ -91,7 +91,7 @@ const AREAS = [
     name: '分校',
     pages: ['admin/campuses'],
     routes: ['campuses'],
-    specs: ['admin/system/campuses.md'],
+    specs: ['admin/system/campuses.md', 'admin/system/campus-classrooms.md'],
   },
   { name: '學校', pages: ['admin/schools'], routes: ['schools'], specs: [] },
   { name: '科目', pages: ['admin/subjects'], routes: ['subjects'], specs: [] },
@@ -126,6 +126,7 @@ const AREAS = [
     specs: [
       'admin/enrollment/enrollment.md',
       'admin/enrollment/enrollment-requests.md',
+      'admin/enrollment/approve-request.md',
       'admin/enrollment/renewals.md',
       'admin/enrollment/trials.md',
       'parent/enrollment.md',

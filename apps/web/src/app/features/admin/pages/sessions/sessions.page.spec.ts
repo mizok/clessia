@@ -409,6 +409,29 @@ describe('SessionsPage', () => {
     );
   });
 
+  // A6 `.wc__h { position: sticky; top: 56px }`：稿的 56 是它自己在捲動區裡的頂欄；app 頂欄在捲動區外，
+  // 貼著捲動區頂（top 0）才落在同一處。黏住時底下的課會從它後面捲過，底色要不透明（今天那欄 zinc-50）
+  it('週視圖每天的欄頭黏在捲動區頂、底色不透明', async () => {
+    const c = component as unknown as {
+      setDay: (d: Date) => void;
+      setView: (v: 'day' | 'week') => void;
+    };
+    c.setDay(new Date(2026, 9, 7));
+    c.setView('week');
+    await fixture.whenStable();
+    const heads = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+        'section[aria-label^="週"] > header',
+      ),
+    ];
+    expect(heads.length).toBeGreaterThan(0);
+    for (const h of heads) {
+      expect(h.classList.contains('sticky')).toBe(true);
+      expect(h.classList.contains('top-0')).toBe(true);
+      expect(h.classList.contains('bg-white') || h.classList.contains('bg-zinc-50')).toBe(true);
+    }
+  });
+
   // #1641 項 3：換週／換日資料套上時依方向淡入；從週切到日是模式切換，不給方向
   it('換週／換日給方向；週視圖點一天（切回日視圖）不給', () => {
     const c = component as unknown as {

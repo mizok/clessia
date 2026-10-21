@@ -4,13 +4,12 @@ import { Type } from '@angular/core';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 
 import { AddCourseComponent } from './add-course/add-course.component';
-import { EnrollmentComponent } from './enrollment/enrollment.component';
 import { MealsComponent } from './meals/meals.component';
 import { RenewalComponent } from './renewal/renewal.component';
 import { TrialComponent } from './trial/trial.component';
 
 /**
- * 家長端有五頁是同一個（課表查看已在 #1314 換成真頁） `EmptyStateComponent` 佔位頁，元件逐字同構。
+ * 家長端有四頁是同一個（課表查看已在 #1314、報名申請已在 #1727 換成真頁） `EmptyStateComponent` 佔位頁，元件逐字同構。
  *
  * **寫成一支表格驅動的測試而不是五份複本**：五份會各自腐化，而這條不變量
  * （「空狀態圖示跟選單圖示是同一個」）對六頁的意義完全相同。
@@ -25,13 +24,12 @@ const PLACEHOLDER_PAGES: ReadonlyArray<{
   readonly route: RouteObj;
 }> = [
   { name: '試聽申請', component: TrialComponent, route: RoutesCatalog.PARENT_TRIAL },
-  { name: '報名申請', component: EnrollmentComponent, route: RoutesCatalog.PARENT_ENROLLMENT },
   { name: '加選課程', component: AddCourseComponent, route: RoutesCatalog.PARENT_ADD_COURSE },
   { name: '續課資訊', component: RenewalComponent, route: RoutesCatalog.PARENT_RENEWAL },
   { name: '餐費紀錄', component: MealsComponent, route: RoutesCatalog.PARENT_MEALS },
 ];
 
-describe('家長端的五支 EmptyState 佔位頁', () => {
+describe('家長端的 EmptyState 佔位頁', () => {
   async function render(
     component: Type<unknown>,
     route: RouteObj,
