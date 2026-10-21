@@ -12,7 +12,10 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { StudentsService } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { LeavePage } from './leave.page';
-import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
+import {
+  LEAVE_DIALOG_CONTENT_STYLE,
+  LeaveFormDialogComponent,
+} from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
 describe('LeavePage', () => {
@@ -225,6 +228,21 @@ describe('LeavePage', () => {
     );
     // 重載列表一支＋重取兩個分頁張數與今天進行中的假三支
     expect(leaveServiceMock.list.mock.calls.length).toBe(listCalls + 4);
+  });
+
+  // 動作列 sticky 會扣掉 .p-dialog-content 的底部 padding（浮在離底 20px、底下露內容）：
+  // 管理端兩個入口都要把 padding 交給動作列（#1768）
+  it('新增／編輯請假的彈窗都帶 LEAVE_DIALOG_CONTENT_STYLE', () => {
+    dialogServiceMock.open.mockReturnValue({ onClose: { subscribe: () => undefined } });
+    (component as any).openCreateDialog();
+    (component as any).openEditDialog(activeRecord);
+    for (const call of dialogServiceMock.open.mock.calls.filter(
+      (c: unknown[]) => c[0] === LeaveFormDialogComponent,
+    )) {
+      expect(call[1].contentStyle).toBe(LEAVE_DIALOG_CONTENT_STYLE);
+      expect(call[1].appendTo).toBeDefined(); // 掛 overlay 容器，max-height 才吃得到
+    }
+    expect(dialogServiceMock.open).toHaveBeenCalledTimes(2);
   });
 
   describe('A6 版（#1314 LV1／LV3）', () => {

@@ -214,6 +214,13 @@
    */
   --breakpoint-wide: 861px;
 
+  /*
+   * 章頭黏住的位置（`top-sticky-chapter`）：A6 `.chap__side { top: 80px }` 的 80 含稿自己在捲動區裡的
+   * 56px 頂欄；app 頂欄在殼層的捲動區外，所以要 24px 才落在視窗同一處（conformance 黏住檢查量的是落點）。
+   * 殼層頂欄高度改了、或改成整頁捲動，這個值要跟著重算。
+   */
+  --spacing-sticky-chapter: 24px;
+
   --container-mobile: 640px;
   --container-tablet-portrait: 768px;
   --container-tablet-landscape: 1024px;

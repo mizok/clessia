@@ -3,7 +3,10 @@ import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
-import { LeaveFormDialogComponent } from './leave-form-dialog.component';
+import {
+  LEAVE_DIALOG_CONTENT_STYLE,
+  LeaveFormDialogComponent,
+} from './leave-form-dialog.component';
 import { StudentsService } from '@core/students.service';
 import { LeaveService } from '@core/leave.service';
 import { ReferenceDataService } from '@core/reference-data.service';
@@ -127,6 +130,21 @@ describe('LeaveFormDialogComponent', () => {
     fixture.detectChanges();
     expect(why()).toBe('');
     expect(go.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  // A6 `.fdlg__foot { position: sticky; bottom: 0; background: inherit }`：表單一長（手機、選了好幾天），
+  // 送出鈕不能跟著內容捲走（#166 的同一個坑，這支沒用 .form-dialog__footer）
+  it('動作列黏在捲動區底、底色不透明', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const go = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('送出請假'))!;
+    const bar = go.parentElement!;
+    for (const c of ['sticky', 'bottom-0', 'bg-white', 'pb-(--leave-foot-pb)'])
+      expect(bar.classList).toContain(c);
+  });
+
+  it('DialogService 開時的 contentStyle：底部 padding 歸 0、改由動作列撐（--leave-foot-pb）', () => {
+    expect(LEAVE_DIALOG_CONTENT_STYLE['padding-bottom']).toBe('0');
+    expect(LEAVE_DIALOG_CONTENT_STYLE['--leave-foot-pb']).toBeTruthy();
   });
 
   it('renders the shared student autocomplete field', () => {

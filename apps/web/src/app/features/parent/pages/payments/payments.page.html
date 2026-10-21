@@ -125,8 +125,10 @@
             class="payments__section grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
             [attr.aria-label]="chapter.name"
           >
+            <!-- 稿（p-payments）不是 .chap，章頭不黏 -->
             <app-chapter-head
               class="block pt-6 wide:pt-8"
+              [pinned]="false"
               [name]="chapter.name"
               [count]="hasMore() ? null : chapter.rows.length"
               unit="張"

@@ -10,15 +10,7 @@ export interface EnrollmentPreconditionInput {
 }
 
 export type EnrollmentPreconditionError =
-  | { code: 'CLASS_NOT_FOUND'; message: string }
-  | {
-      code: 'OVER_QUOTA';
-      message: string;
-      quota: number;
-      currentActive: number;
-      adding: number;
-    }
-  | { code: 'SERVER_ERROR'; message: string };
+  { code: 'CLASS_NOT_FOUND'; message: string } | { code: 'SERVER_ERROR'; message: string };
 
 export interface StudentScheduleConflict {
   readonly studentId: string;
@@ -74,7 +66,7 @@ export async function checkEnrollmentPreconditions(
 
   const { data: cls, error: classError } = await supabase
     .from('classes')
-    .select('id, max_students')
+    .select('id')
     .eq('id', classId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -93,50 +85,7 @@ export async function checkEnrollmentPreconditions(
     };
   }
 
-  const { count: currentActive, error: countError } = await supabase
-    .from('enrollments')
-    .select('*', { count: 'exact', head: true })
-    .eq('class_id', classId)
-    .eq('org_id', orgId)
-    .in('status', ['active', 'pending_payment']);
-
-  if (countError) {
-    return {
-      error: { code: 'SERVER_ERROR', message: countError.message },
-      conflicts: [],
-    };
-  }
-
-  const { count: alreadyIn, error: alreadyInError } = await supabase
-    .from('enrollments')
-    .select('*', { count: 'exact', head: true })
-    .eq('class_id', classId)
-    .eq('org_id', orgId)
-    .in('status', ['active', 'pending_payment'])
-    .in('student_id', uniqueStudentIds);
-
-  if (alreadyInError) {
-    return {
-      error: { code: 'SERVER_ERROR', message: alreadyInError.message },
-      conflicts: [],
-    };
-  }
-
-  const projectedAdd = uniqueStudentIds.length - (alreadyIn ?? 0);
-  const quota = cls.max_students ?? Number.MAX_SAFE_INTEGER;
-
-  if ((currentActive ?? 0) + projectedAdd > quota) {
-    return {
-      error: {
-        code: 'OVER_QUOTA',
-        message: '班級人數已達上限',
-        quota: cls.max_students ?? 0,
-        currentActive: currentActive ?? 0,
-        adding: projectedAdd,
-      },
-      conflicts: [],
-    };
-  }
+  // 名額不在這裡判斷：要跟寫入同一個交易、鎖住班級才算數，見 `lib/class-seats.ts`（#1726 Q9）
 
   const { data: targetSchedules, error: targetSchedulesError } = await supabase
     .from('schedules')

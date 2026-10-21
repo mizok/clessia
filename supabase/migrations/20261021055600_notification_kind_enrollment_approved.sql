@@ -1,0 +1,12 @@
+-- ============================================================
+-- 家長通知種類：報名申請已核准（#1726，設計稿 kb/wiki/specs/admin/enrollment/approve-request.md §4）
+--
+--   enrollment_approved  家長：孩子的報名申請已核准、帳單已開（金額、繳費期限），深連到申請詳情
+--
+-- 使用者 10-21 裁 Q1 (b)：核准當下發站內＋推播（不接 LINE Messaging API）。
+-- 給家長的種類原本只有 invoice_due／invoice_overdue（到期前後才發），核准到到期之間家長不知道已核准。
+--
+-- 純加列舉值，「套完才部署」或「部署完才套」都安全：舊程式碼不會寫這個值。
+-- ADD VALUE 不能跟「使用這個新值」放在同一個交易（20260906083827）—— 這支只加值、不用它。
+-- ============================================================
+ALTER TYPE public.notification_kind ADD VALUE IF NOT EXISTS 'enrollment_approved';

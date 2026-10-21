@@ -304,7 +304,13 @@
             [class.bg-zinc-50]="today"
             [attr.aria-label]="'週' + weekdayLabel(d.date) + ' ' + (weekDays()[i] | date: 'M/d')"
           >
-            <header class="mb-2 border-b border-zinc-900 pt-3 pb-2">
+            <!-- A6 `.wc__h` 黏在頂欄下緣（稿 top 56px＝它自己在捲動區裡的頂欄；app 頂欄在捲動區外 → top 0）。
+                 課會從它後面捲過，底色要不透明 -->
+            <header
+              class="sticky top-0 z-[3] mb-2 border-b border-zinc-900 pt-3 pb-2"
+              [class.bg-white]="!today"
+              [class.bg-zinc-50]="today"
+            >
               <p class="m-0 text-md" [class.text-zinc-600]="!today" [class.font-bold]="today">
                 週{{ weekdayLabel(d.date) }}{{ today ? ' · 今天' : '' }}
               </p>
