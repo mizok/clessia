@@ -4,6 +4,46 @@ import * as enrollmentsRoute from './enrollments';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { countEnrolledOn } from '../lib/session-roster';
+import type { NewEnrollment } from '../lib/class-seats';
+
+/**
+ * 名額＋寫入走 pg 交易（#1726 Q9，`lib/class-seats.ts`）。SQL 語意（鎖、ON CONFLICT、org）在
+ * `contract/class-seats.contract.ts` 對真 Postgres 驗；這裡替身掉，各組測試用 `seatLock.impl`
+ * 接到自己的假資料上。
+ */
+interface SeatInput {
+  orgId: string;
+  classId: string;
+  rows: NewEnrollment[];
+}
+const seatLock = vi.hoisted(() => ({
+  impl: null as null | ((input: SeatInput) => Promise<unknown>),
+}));
+vi.mock('../lib/get-auth', () => ({ getAuth: () => ({ pool: {} }) }));
+vi.mock('../lib/class-seats', () => ({
+  enrollWithSeatLock: (_pool: unknown, input: SeatInput) =>
+    seatLock.impl
+      ? seatLock.impl(input)
+      : Promise.resolve({ status: 'done', inserted: [] as unknown[] }),
+}));
+
+/** NewEnrollment → supabase insert 的 snake_case 形狀（替身寫進假資料、斷言寫入內容用） */
+function seatRowPayload(input: SeatInput, r: NewEnrollment): Record<string, unknown> {
+  return {
+    org_id: input.orgId,
+    class_id: input.classId,
+    student_id: r.studentId,
+    status: r.status,
+    effective_from: r.effectiveFrom,
+    effective_to: r.effectiveTo ?? null,
+    billing_mode: r.billingMode ?? null,
+    fee_template_id: r.feeTemplateId ?? null,
+    agreed_amount: r.agreedAmount ?? null,
+    adjustment_note: r.adjustmentNote ?? null,
+    notes: r.notes ?? null,
+    created_by: r.createdBy,
+  };
+}
 
 interface FakeSupabaseDataSet {
   readonly classes?: unknown[];
@@ -173,6 +213,36 @@ function createMockEnrollmentsSupabase(seed: MockEnrollmentsRouteData) {
     enrollments: [...(seed.enrollments ?? [])],
     nextId: 1,
     duplicateOnInsert: seed.duplicateOnInsert ?? new Set<string>(),
+  };
+
+  // 名額與寫入：照 lib/class-seats 的語意對這份假資料做
+  seatLock.impl = async (input) => {
+    const cls = state.classes.find((x) => x.id === input.classId && x.org_id === input.orgId);
+    if (!cls) return { status: 'not-found' };
+    const seated = state.enrollments.filter(
+      (e) =>
+        e.class_id === input.classId &&
+        e.org_id === input.orgId &&
+        ['active', 'pending_payment'].includes(String(e.status)),
+    );
+    const ids = [...new Set(input.rows.map((r) => r.studentId))];
+    const adding = ids.length - seated.filter((e) => ids.includes(String(e.student_id))).length;
+    if (cls.max_students !== null && seated.length + adding > cls.max_students) {
+      return {
+        status: 'over-quota',
+        quota: cls.max_students,
+        currentActive: seated.length,
+        adding,
+      };
+    }
+    const inserted: Array<{ id: string; studentId: string }> = [];
+    for (const r of input.rows) {
+      const { data } = await createEnrollmentsQueryForRoutes(state)
+        .insert(seatRowPayload(input, r))
+        .single();
+      if (data) inserted.push({ id: String((data as { id: string }).id), studentId: r.studentId });
+    }
+    return { status: 'done', inserted };
   };
 
   return {
@@ -583,44 +653,6 @@ describe('POST /api/enrollments/batch result mapping', () => {
 describe('checkEnrollmentPreconditions', () => {
   const orgId = 'org-1';
   const classId = 'class-1';
-
-  it('returns OVER_QUOTA when projected enrollment exceeds class max students', async () => {
-    const supabase = createFakeSupabase({
-      classes: [{ id: classId, org_id: orgId, max_students: 2 }],
-      enrollments: [
-        {
-          org_id: orgId,
-          class_id: classId,
-          student_id: 'existing-1',
-          status: 'active',
-        },
-        {
-          org_id: orgId,
-          class_id: classId,
-          student_id: 'existing-2',
-          status: 'pending_payment',
-        },
-      ],
-    });
-
-    const result = await checkEnrollmentPreconditions({
-      supabase: supabase as never,
-      orgId,
-      classId,
-      studentIds: ['student-1'],
-      effectiveFrom: '2026-04-09',
-      effectiveTo: null,
-    });
-
-    expect(result.error).toEqual({
-      code: 'OVER_QUOTA',
-      message: '班級人數已達上限',
-      quota: 2,
-      currentActive: 2,
-      adding: 1,
-    });
-    expect(result.conflicts).toEqual([]);
-  });
 
   it('returns schedule conflicts when an active enrollment overlaps target schedules', async () => {
     const supabase = createFakeSupabase({
@@ -1204,16 +1236,6 @@ describe('copy-from-class helper logic', () => {
       })
     | undefined;
 
-  const isCopyFromClassOverQuota = (enrollmentsRoute as Record<string, unknown>)[
-    'isCopyFromClassOverQuota'
-  ] as
-    | ((input: {
-        currentActiveCount: number | null;
-        maxStudents: number | null;
-        toInsertCount: number;
-      }) => boolean)
-    | undefined;
-
   it('dedupes source rows and skips students already in target active set', () => {
     expect(buildCopyFromClassPlan).toBeTypeOf('function');
 
@@ -1247,30 +1269,6 @@ describe('copy-from-class helper logic', () => {
       toInsertStudentIds: ['student-1', 'student-2'],
       skipped: 0,
     });
-  });
-
-  it('detects over quota when projected active exceeds max students', () => {
-    expect(isCopyFromClassOverQuota).toBeTypeOf('function');
-
-    const isOverQuota = isCopyFromClassOverQuota?.({
-      currentActiveCount: 18,
-      maxStudents: 20,
-      toInsertCount: 3,
-    });
-
-    expect(isOverQuota).toBe(true);
-  });
-
-  it('uses 9999 fallback when max students is null', () => {
-    expect(isCopyFromClassOverQuota).toBeTypeOf('function');
-
-    const isOverQuota = isCopyFromClassOverQuota?.({
-      currentActiveCount: 5000,
-      maxStudents: null,
-      toInsertCount: 10,
-    });
-
-    expect(isOverQuota).toBe(false);
   });
 });
 
@@ -1627,6 +1625,13 @@ describe('B3 —— 報名的計費 API', () => {
     const filters: Array<[string, unknown]> = [];
     const inserted: Array<Record<string, unknown>> = [];
     const selects: string[] = [];
+    seatLock.impl = async (input) => {
+      for (const r of input.rows) inserted.push(seatRowPayload(input, r));
+      return {
+        status: 'done',
+        inserted: input.rows.map((r) => ({ id: 'new-enrollment', studentId: r.studentId })),
+      };
+    };
     // #846：`logAudit` 會先查 `profiles` 再寫 `audit_logs` —— **缺任何一邊它就在自己的
     // try/catch 裡靜默失敗**，於是「有沒有寫稽核」在這組 fixture 裡不可觀察
     // （leaves.spec 的檔頭記過同一個坑）
