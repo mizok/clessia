@@ -119,6 +119,19 @@ describe('CampusFormDialogComponent —— A6 campusForm（#1314 SE3）', () => 
     expect(update.mock.calls[1]?.[1]).toMatchObject({ attendanceMode: 'daily_checkin' });
   });
 
+  it('編輯：出勤模式帶分校目前的值 —— 只改電話就存，不會悄悄改回沿用預設', () => {
+    const { update, save, type } = setup(['manage_org_settings'], {
+      ...CAMPUS,
+      attendanceMode: 'per_session',
+    });
+    type('campus-phone', '02-1234-5678');
+    save();
+    expect(update.mock.calls[0]?.[1]).toMatchObject({
+      phone: '02-1234-5678',
+      attendanceMode: 'per_session',
+    });
+  });
+
   it('沒有 manage_org_settings：沒有選單，body 不帶 attendanceMode', () => {
     const { el, update, save } = setup([]);
 

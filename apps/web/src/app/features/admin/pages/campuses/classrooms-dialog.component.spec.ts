@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { MessageService } from 'primeng/api';
 
@@ -7,19 +7,27 @@ import { CampusesService, type Campus, type Classroom } from '@core/campuses.ser
 import { ClassroomsDialogComponent } from './classrooms-dialog.component';
 
 const CAMPUS = { id: 'cp-1', name: '中正分校' } as Campus;
-const room = (id: string, name: string, capacity: number | null = 30): Classroom => ({
+const room = (
+  id: string,
+  name: string,
+  capacity: number | null = 30,
+  equipment: string | null = null,
+): Classroom => ({
   id,
   campusId: 'cp-1',
   name,
   capacity,
-  equipment: null,
+  equipment,
   createdAt: '',
   updatedAt: '',
 });
 
 /** #1314 SE3：A6 settings.html#campuses「⋮ › 教室」＋改名／刪除（Q4） */
 describe('ClassroomsDialogComponent', () => {
-  function setup(rooms: Classroom[] = [room('r1', 'A 教室'), room('r2', 'B 教室', null)]) {
+  function setup(
+    rooms: Classroom[] = [room('r1', 'A 教室'), room('r2', 'B 教室', null)],
+    desktop = true,
+  ) {
     const service = {
       listClassrooms: vi.fn(() => of({ data: rooms })),
       createClassroom: vi.fn((_c: string, input: unknown) => of({ data: input })),
@@ -35,7 +43,7 @@ describe('ClassroomsDialogComponent', () => {
       ],
     });
     const fixture = TestBed.createComponent(ClassroomsDialogComponent);
-    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    vi.stubGlobal('matchMedia', () => ({ matches: desktop }));
     // jsdom 沒有 showModal／popover；close() 照瀏覽器發 close 事件
     const dialogProto = HTMLDialogElement.prototype as any;
     dialogProto.showModal ??= function (this: HTMLDialogElement) {
@@ -138,6 +146,85 @@ describe('ClassroomsDialogComponent', () => {
       capacity: 30,
       equipment: null,
     });
+  });
+
+  it('改名：設備帶入原值 —— 只改名就存，設備不會被清掉', () => {
+    const { fixture, cmp, service, type, go } = setup();
+    cmp.startEditing(room('r1', 'A 教室', 30, '投影機'));
+    fixture.detectChanges();
+    type('room-name', 'A1 教室');
+    go();
+    expect(service.updateClassroom).toHaveBeenCalledWith('cp-1', 'r1', {
+      name: 'A1 教室',
+      capacity: 30,
+      equipment: '投影機',
+    });
+  });
+
+  it('刪掉的正是改名中的那間：欄位回到新增，再送出是新增，不會 PUT 一間不存在的', () => {
+    const { fixture, cmp, service, type, go } = setup();
+    const a = room('r1', 'A 教室');
+    cmp.startEditing(a);
+    cmp.remove(a);
+    fixture.detectChanges();
+    expect(cmp.editing()).toBeNull();
+
+    type('room-name', 'C 教室');
+    go();
+    expect(service.updateClassroom).not.toHaveBeenCalled();
+    expect(service.createClassroom).toHaveBeenCalledTimes(1);
+  });
+
+  it('送出鈕連點：請求還沒回來時第二下不送（鈕只是 aria-disabled，擋在 submit）', () => {
+    const { cmp, service, type, go } = setup();
+    const pending = new Subject<unknown>();
+    service.createClassroom.mockReturnValue(pending as never);
+    type('room-name', 'C 教室');
+    go();
+    cmp.submit(); // 第一下之後鈕的字變「新增中…」，直接打 submit
+
+    expect(service.createClassroom).toHaveBeenCalledTimes(1);
+  });
+
+  it('刪除連點：請求還沒回來時第二下不送', () => {
+    const { cmp, service } = setup();
+    service.deleteClassroom.mockReturnValue(new Subject() as never);
+    const a = room('r1', 'A 教室');
+    cmp.remove(a);
+    cmp.remove(a);
+    expect(service.deleteClassroom).toHaveBeenCalledTimes(1);
+  });
+
+  it('「⋯」：點開；同一間再點收起來（不是再開一次）；點另一間換過去', () => {
+    const { el, fixture } = setup();
+    // jsdom 沒有 popover API：開／關照瀏覽器發 toggle 事件
+    const menu = el.querySelector('[popover]') as HTMLElement & Record<string, unknown>;
+    const toggle = (newState: string) =>
+      menu.dispatchEvent(Object.assign(new Event('toggle'), { newState }));
+    menu['showPopover'] = vi.fn(() => toggle('open'));
+    menu['hidePopover'] = vi.fn(() => toggle('closed'));
+    const dots = (name: string) =>
+      el.querySelector(`button[aria-label="${name} 的更多動作"]`) as HTMLButtonElement;
+
+    dots('A 教室').click();
+    fixture.detectChanges();
+    expect(menu['showPopover']).toHaveBeenCalledTimes(1);
+
+    dots('A 教室').click();
+    expect(menu['hidePopover']).toHaveBeenCalledTimes(1);
+    expect(menu['showPopover']).toHaveBeenCalledTimes(1);
+
+    dots('A 教室').click();
+    dots('B 教室').click();
+    expect(menu['showPopover']).toHaveBeenCalledTimes(3);
+  });
+
+  it('桌機聚焦第一欄；手機不聚焦（不要一開就彈鍵盤）', () => {
+    const desk = setup(undefined, true).el.querySelector('#room-name')!;
+    expect(desk.hasAttribute('autofocus')).toBe(true);
+    TestBed.resetTestingModule();
+    const phone = setup(undefined, false).el.querySelector('#room-name')!;
+    expect(phone.hasAttribute('autofocus')).toBe(false);
   });
 
   it('刪除：就地確認後刪，副標拿掉那間，toast 寫受影響時段；關掉時回 true', () => {
