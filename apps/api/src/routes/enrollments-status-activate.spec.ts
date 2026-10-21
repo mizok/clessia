@@ -39,6 +39,8 @@ async function patch(from: string, body: Record<string, unknown>) {
         status: from,
         effective_from: '2026-10-01',
         effective_to: null,
+        status_changed_at: '2026-10-20',
+        status_reason: null,
       },
     ],
     audit_logs: [],
@@ -86,13 +88,17 @@ describe('PATCH /api/enrollments/:id/status：待付款轉正式完成申請（#
     const { status, body, db } = await patch('pending_payment', { status: 'active' });
 
     expect(status).toBe(200);
-    expect(body.data.status).toBe('active');
+    // 交易之後只讀不寫：替身的交易沒動這張表，回應讀到的就是原值
+    expect(body.data.status).toBe('pending_payment');
     expect(h.activate).toHaveBeenCalledWith(h.pool, {
       orgId: ORG,
       enrollmentId: ENR,
       today: '2026-10-21',
       reason: null,
     });
+    expect(db.rows('audit_logs').map((r) => r['resource_type'])).toEqual(
+      expect.arrayContaining(['enrollment', 'enrollment_request']),
+    );
     const audit = db.rows('audit_logs').find((r) => r['resource_type'] === 'enrollment_request');
     expect(audit).toMatchObject({
       resource_id: 'req-1',
@@ -107,6 +113,20 @@ describe('PATCH /api/enrollments/:id/status：待付款轉正式完成申請（#
       studentName: '小明',
       className: '數學A',
     });
+  });
+
+  it('交易沒轉（被收款先轉走）：不寫、不蓋收款的日期與原因、不留報名稽核、不通知', async () => {
+    h.activate.mockResolvedValue({ activated: false, completed: [] });
+
+    const { status, db } = await patch('pending_payment', { status: 'active' });
+
+    expect(status).toBe(200);
+    expect(db.rows('enrollments')[0]).toMatchObject({
+      status: 'pending_payment',
+      status_changed_at: '2026-10-20',
+    });
+    expect(db.rows('audit_logs')).toEqual([]);
+    expect(h.notify).not.toHaveBeenCalled();
   });
 
   it.each([
