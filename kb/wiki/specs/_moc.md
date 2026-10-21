@@ -44,6 +44,12 @@ Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `invoice
 
 Links to: [[rules/enrollment-rules]], [[rules/billing-rules]], [[specs/parent/applications]], [[architecture/pg-pool-writes]], [[architecture/pg-pool-writes]], [[architecture/a6-adoption-rules]], [[architecture/a6-adoption-rules]]
 
+## [[specs/admin/enrollment/payment-activation|收款後報名轉正式、申請轉完成（設計稿）]]
+
+設計稿（#1778，已裁 2026-10-21；保留類、改既有記收款路徑 → 合併由使用者決定）。核准後報名是 pending_payment、申請是 awaiting_payment，原本沒有任何路徑把它們往前推，而月結只對 active 開單。已裁：記收款同一個交易裡，第一筆收款（含定金）就把這張帳單上的 pending_payment 報名轉 active；帳單繳清時把連到它們的 awaiting_payment 申請轉 completed，並發站內＋推播通知家長（新 notification_kind enrollment_completed，migration 獨立 PR）。退費、作廢不倒轉；行政手動轉 active 也一併完成申請；多報名的帳單照帳單算。記收款路由改走 withTx（順便關掉退費先查淨額再寫的競態）。
+
+Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `payments`, `design`
+
 ## [[specs/admin/enrollment/enrollment|學生報名]]
 
 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
@@ -901,4 +907,3 @@ Links to: [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-t
 Tags: `specs`, `teacher`, `students`
 
 Links to: [[specs/teacher/attendance]]
-
