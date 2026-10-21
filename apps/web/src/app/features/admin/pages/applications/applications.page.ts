@@ -1,5 +1,13 @@
 import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  type ElementRef,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -21,9 +29,11 @@ import {
   type ParentRequestGroup,
   type TrialRequestStatus,
 } from '@core/parent-requests.service';
+import { AuthService } from '@core/auth.service';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
+import { ApproveRequestDialogComponent } from './approve-request-dialog/approve-request-dialog.component';
 
 const STATUS_OPTIONS: Array<{ label: string; value: PublicApplicationStatus }> = [
   { label: '新申請', value: 'new' },
@@ -68,7 +78,7 @@ const TRIAL_STATUS_OPTIONS: Array<{ label: string; value: TrialRequestStatus }> 
   { label: '已取消', value: 'cancelled' },
 ];
 
-/** 報名在這裡只能拒絕；已核准（帳單開了）之後不能拒絕 —— 跟 API 的 409 同一條規則 */
+/** 待審核、候補才能核准或拒絕；已核准（帳單開了）之後不能 —— 跟 API 的 409 同一條規則 */
 const REJECTABLE = ['pending', 'waitlist'];
 
 type Item =
@@ -80,7 +90,7 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
 /**
  * 公開申請（#1245）：公開報名／試聽表單（#1123、#1124）送進來的、還沒建檔的人。
  * **＋家長在 app 裡送的申請（#1707）**：兩支 API 平行打、依時間合在一份；兩套狀態不合併，分頁共用。
- * 家長 App 的報名只能拒絕（原因家長看得到），核准是金額路徑、另開 #1726；試聽改狀態。
+ * 家長 App 的報名可核准（開帳單，#1726）或拒絕（原因家長看得到）；試聽改狀態。
  *
  * 狀態是聯絡流程，任意切換。「建立家長」開既有的新增家長表單並預填 ——
  * **不自動改狀態、不自動建學生或報名**：rules/enrollment-rules.md 1.4 是首次收款才建主資料，
@@ -98,6 +108,7 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
     SelectModule,
     TextareaModule,
     PageOpenComponent,
+    ApproveRequestDialogComponent,
   ],
   providers: [DialogService],
   templateUrl: './applications.page.html',
@@ -108,6 +119,11 @@ export class ApplicationsPage {
   private readonly messages = inject(MessageService);
   private readonly dialog = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly approveDialog = viewChild<ElementRef<HTMLDialogElement>>('approveDialog');
+
+  /** 核准會開帳單：收件頁的 manage_students 之外還要 manage_finance（spec Q6） */
+  private readonly auth = inject(AuthService);
+  protected readonly canApprove = computed(() => this.auth.hasPermission('manage_finance'));
 
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly filters = FILTERS;
@@ -140,6 +156,8 @@ export class ApplicationsPage {
       })),
     ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   );
+  /** 正在核准的那一筆（對話框開著） */
+  protected readonly approving = signal<ParentRequest | null>(null);
   /** 正在填拒絕原因的那一筆 */
   protected readonly rejectingId = signal<string | null>(null);
   protected readonly loading = signal(true);
@@ -240,6 +258,32 @@ export class ApplicationsPage {
         this.messages.add({ severity: 'error', summary: '拒絕失敗', detail: '請稍後再試' });
       },
     });
+  }
+
+  protected openApprove(r: ParentRequest): void {
+    this.approving.set(r);
+    // 等 @if 把表單畫進 dialog 再 showModal（焦點才落得到第一個欄位）
+    queueMicrotask(() => this.approveDialog()?.nativeElement.showModal());
+  }
+
+  protected closeApprove(): void {
+    this.approveDialog()?.nativeElement.close();
+  }
+
+  /** 點背景（dialog 本身，不是裡面的表單）關掉，同 A6 `form()` */
+  protected onApproveBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeApprove();
+  }
+
+  /** 成功：toast 帳單編號、重抓（這筆移到「進行中」）；取消只關 */
+  protected onApproveClosed(result: { invoiceNo: string | null } | null): void {
+    this.closeApprove();
+    if (!result) return;
+    this.messages.add({
+      severity: 'success',
+      summary: `已核准，帳單 ${result.invoiceNo ?? ''} 已開`,
+    });
+    this.load();
   }
 
   protected setTrialStatus(r: ParentRequest, status: TrialRequestStatus): void {
