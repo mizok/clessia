@@ -234,11 +234,29 @@ run('推播排程對真 Postgres（#1661）', () => {
     expect(await push()).toMatchObject({ enqueued: 0 });
   });
 
-  it('兩個 run 同時跑（推播服務很慢）：同一則只送一次；送出期間沒有交易拖著', async () => {
+  /**
+   * #1802：原本「兩個 run 同時跑」與「送出中沒有交易拖著」寫在同一支，送出時用 NOWAIT 鎖整個 org 的通知 ——
+   * 那會撞上**另一個 run** 合法的短交易，或兩則送出的 NOWAIT 撞在同一刻互鎖（CI 偶發 [true, false]）。
+   * 拆成兩支，各自確定：同時跑只驗「只送一次」（SKIP LOCKED，不看時序）；鎖只在單一 run 裡驗。
+   */
+  it('兩個 run 同時跑：同一則只送一次', async () => {
     await invoice(3);
     await invoice(0);
-    const slow = () =>
-      runPush(pool, {
+    /**
+     * 兩個 run 一定要**重疊**，不然並行保護退化成循序跑兩次（審核席 #1804）。不用 sleep 撐時間，用關卡：
+     * 每個 run 的送出要等**兩個 run 都過了認領**才回 —— 「過了認領」= 開始送出了，或沒領到東西已經結束。
+     * 所以第二個 run 認領的那一刻，第一個 run 領走的列一定還在送、還沒回寫（`claimed`），正是要驗的時刻。
+     * 這支不查鎖（那是下一支的事），送出不在交易裡，不會互卡。
+     */
+    let pastClaim = 0;
+    let bothClaimed!: () => void;
+    const claimed = new Promise<void>((r) => (bothClaimed = r));
+    const run = () => {
+      let marked = false;
+      const mark = () => {
+        if (!marked && (marked = true) && ++pastClaim === 2) bothClaimed();
+      };
+      return runPush(pool, {
         orgIds: [orgId], // 共用 DB 裡還有 seed 的帳單：只跑自己建的 org
         today,
         batchSize: 10,
@@ -246,22 +264,57 @@ run('推播排程對真 Postgres（#1661）', () => {
         subject: 'mailto:contract@example.invalid',
         send: async (url) => {
           sent.push(url);
-          // 「送出中」那一刻，認領那個交易還開著嗎？開著的話它對這幾列的列鎖還在，NOWAIT 會立刻失敗。
-          // （不用 pg_stat_activity 數「idle in transaction」：另一個 run 的短交易、共用 DB 的其他活動都會算進去）
+          mark();
+          await claimed;
+          return { status: 201 };
+        },
+      }).finally(mark); // 沒領到東西的 run 不會進 send：結束時算它過了認領
+    };
+    const [a, b] = await Promise.all([run(), run()]);
+    expect(a.delivered + b.delivered).toBe(2);
+    expect(sent).toHaveLength(2); // 兩則各一台，沒有重送
+  });
+
+  it('送出中（推播服務很慢）沒有交易拖著：認領的交易在送出前就結束了', async () => {
+    await invoice(3);
+    await invoice(0);
+    // 先排入、不認領（batchSize 0），讓通知列先 commit —— 同一個交易裡剛排入的列，別的連線看不到，
+    // NOWAIT 查到 0 列就永遠「沒鎖」，送出若真的留在認領交易裡也驗不出來
+    await runPush(pool, {
+      orgIds: [orgId],
+      today,
+      batchSize: 0,
+      vapid,
+      subject: 'mailto:contract@example.invalid',
+      send: async () => {
+        throw new Error('batchSize 0 不該送出');
+      },
+    });
+    const lockedDuringSend: boolean[] = [];
+    let checks: Promise<void> = Promise.resolve();
+    await runPush(pool, {
+      orgIds: [orgId],
+      today,
+      batchSize: 10,
+      vapid,
+      subject: 'mailto:contract@example.invalid',
+      send: async (url) => {
+        sent.push(url);
+        // 認領那個交易還開著嗎？開著的話它對這幾列的列鎖還在，NOWAIT 會立刻失敗。
+        // 只有這一個 run，沒有別的交易會碰這個 org 的通知。兩則的送出是並行的（Promise.all），
+        // 兩次查詢排隊，不然查詢本身（FOR UPDATE）會鎖到彼此
+        checks = checks.then(async () => {
           try {
             await q('SELECT id FROM notifications WHERE org_id = $1 FOR UPDATE NOWAIT', [orgId]);
             lockedDuringSend.push(false);
           } catch {
             lockedDuringSend.push(true);
           }
-          await new Promise((r) => setTimeout(r, 300));
-          return { status: 201 };
-        },
-      });
-    const lockedDuringSend: boolean[] = [];
-    const [a, b] = await Promise.all([slow(), slow()]);
-    expect(a.delivered + b.delivered).toBe(2);
-    expect(sent).toHaveLength(2); // 兩則各一台，沒有重送
+        });
+        await checks;
+        return { status: 201 };
+      },
+    });
     expect(lockedDuringSend).toEqual([false, false]);
   });
 
