@@ -1,206 +1,142 @@
-<div class="flex flex-col gap-4">
-  <!-- Page Header -->
-  <header
-    class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
+<!--
+  A6 settings.html#campuses：搜尋 → 統計一行（N 個分校 · 啟用中 · 已停用 ＋「顯示停用的 N 個」）→ 一列一個分校。
+  列：名稱（停用加小字）＋地址｜電話＋出勤模式｜⋮。殼（settings-shell）擁有 h1 與分頁，這裡不再放標題。
+  A6 列上的教室數（SE3，schema 沒有教室）不做，記在 PR 的已記錄偏離。
+-->
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <label
+    class="flex h-10 min-w-0 flex-[1_1_280px] items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-zinc-600 focus-within:border-zinc-900 max-wide:h-11 wide:max-w-[420px]"
   >
-    <div class="flex flex-col gap-1">
-      <h1 class="m-0 text-lg font-semibold text-zinc-900">分校管理</h1>
-      <p class="m-0 text-sm text-zinc-500">管理您的補習班分校資訊</p>
-    </div>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+    <i class="pi pi-search" aria-hidden="true"></i>
+    <input
+      type="search"
+      class="min-w-0 flex-1 border-0 bg-transparent px-0.5 py-px text-base text-zinc-900 outline-none [font:inherit]"
+      placeholder="找分校名稱、地址或電話"
+      aria-label="找分校"
+      [ngModel]="searchQuery()"
+      (ngModelChange)="onSearchChange($event)"
+    />
+  </label>
+  <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+    <!-- 桌機：操作紀錄直接放；手機收進「⋯」（A6 只在桌機畫，R2：稿沒畫的收進⋯、不刪） -->
+    <span class="hidden min-[640.02px]:contents">
       <p-button
         label="操作紀錄"
-        icon="pi pi-history"
         [outlined]="true"
         severity="secondary"
         (onClick)="openAuditLog()"
       />
-    </app-page-actions>
-  </header>
+    </span>
+    <button
+      type="button"
+      class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 min-[640.02px]:hidden"
+      aria-label="分校的更多動作"
+      (click)="pageMenu.toggle($event)"
+    >
+      <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+    </button>
+  </app-page-actions>
+  <app-popup-menu #pageMenu [model]="pageMenuItems" />
+</div>
 
-  <div class="flex flex-col gap-4">
-    <!-- Toolbar with Search -->
-    <div class="clessia-filter-bar flex flex-wrap items-center gap-3">
-      <div class="clessia-filter-search w-full min-w-0 wide:w-80">
-        <p-iconfield iconPosition="left">
-          <p-inputicon styleClass="pi pi-search" />
-          <input
-            type="text"
-            pInputText
-            placeholder="搜尋分校名稱、地址或電話..."
-            [ngModel]="searchQuery()"
-            (ngModelChange)="onSearchChange($event)"
-            class="clessia-filter-search-input"
-          />
-        </p-iconfield>
-      </div>
-      @if (inactiveCampusCount() > 0 || showInactiveCampuses()) {
-        <p-button
-          [label]="showInactiveCampuses() ? '隱藏停用分校' : '顯示停用分校'"
-          [icon]="showInactiveCampuses() ? 'pi pi-eye-slash' : 'pi pi-eye'"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="toggleShowInactiveCampuses()"
-        />
+@if (!loading() && summary().total > 0) {
+  <p
+    class="mt-4 mb-0 flex flex-wrap items-center gap-x-4 gap-y-2 text-md text-zinc-600 tabular-nums"
+    data-count
+  >
+    <span
+      ><b class="text-zinc-900">{{ summary().total }}</b> 個分校 ·
+      <b class="text-zinc-900">{{ activeCampusCount() }}</b> 啟用中 ·
+      <b class="text-zinc-900">{{ inactiveCampusCount() }}</b> 已停用</span
+    >
+    @if (inactiveCampusCount() > 0) {
+      <button
+        type="button"
+        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md leading-[1.5] font-semibold text-zinc-900 underline underline-offset-[3px] [font-family:inherit] wide:block wide:min-h-0"
+        (click)="toggleShowInactiveCampuses()"
+      >
+        {{ showInactiveCampuses() ? '隱藏停用的' : '顯示停用的 ' + inactiveCampusCount() + ' 個' }}
+      </button>
+    }
+  </p>
+}
+
+<div class="mt-2">
+  <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
+  <app-reload-veil [loading]="loading()">
+    <div reloadSkeleton class="skeleton-list">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
       }
     </div>
-
-    <!-- Stats Summary -->
-    @if (!loading() && campuses().length > 0) {
-      <div class="flex flex-wrap gap-4 rounded-lg bg-zinc-50 px-4 py-3 wide:gap-6 wide:px-6">
-        <div class="flex items-center gap-2">
-          <span class="campuses__stat-value text-lg font-bold text-zinc-900">{{
-            summary().total
-          }}</span>
-          <span class="text-sm text-zinc-500">個分校</span>
+    @if (loadFailed()) {
+      <app-load-failed description="沒有讀到分校清單，可能是連線問題" (retry)="loadCampuses()" />
+    } @else if (campuses().length === 0) {
+      @if (searchQuery()) {
+        <p class="m-0 flex flex-wrap items-center gap-3 py-8 text-base text-zinc-700">
+          找不到「{{ searchQuery() }}」。可以用分校名、路名或電話找。
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-3 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-8"
+            (click)="onSearchChange('')"
+          >
+            清除搜尋
+          </button>
+        </p>
+      } @else {
+        <app-empty-state
+          icon="pi pi-building"
+          title="尚未建立分校"
+          description="開始建立您的第一個分校來管理補習班營運"
+        >
+          <p-button label="新增分校" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+        </app-empty-state>
+      }
+    } @else {
+      <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+      @for (campus of campuses(); track campus.id) {
+        <div
+          class="vt-row grid min-h-[68px] grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-x-5 gap-y-1 border-0 border-b border-solid border-zinc-200 py-3 max-wide:grid-cols-[minmax(0,1fr)_44px] max-wide:gap-x-3"
+          [attr.data-campus]="campus.id"
+          [style.view-transition-name]="'campus-' + campus.id"
+        >
+          <div class="min-w-0">
+            <div class="text-lg font-bold" [class.text-zinc-600]="!campus.isActive">
+              {{ campus.name }}
+              @if (!campus.isActive) {
+                <small class="ml-2 text-sm font-normal text-zinc-600">已停用</small>
+              }
+            </div>
+            <span class="mt-0.5 block text-sm text-zinc-600">{{
+              campus.address || '地址未填寫'
+            }}</span>
+          </div>
+          <div class="min-w-0 text-md text-zinc-800 max-wide:col-start-1">
+            {{ campus.phone || '電話未填寫' }}
+            <small class="mt-0.5 block text-sm text-zinc-600" data-mode>{{
+              modeText(campus)
+            }}</small>
+          </div>
+          <div class="flex justify-end max-wide:col-start-2 max-wide:row-start-1">
+            <button
+              type="button"
+              class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 wide:size-10"
+              [attr.aria-label]="campus.name + ' 的更多動作'"
+              (click)="openActionMenu($event, campus)"
+            >
+              <i class="pi pi-ellipsis-v" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="campuses__stat-value text-lg font-bold text-zinc-900">{{
-            activeCampusCount()
-          }}</span>
-          <span class="text-sm text-zinc-500">啟用中</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="campuses__stat-value text-lg font-bold text-zinc-900">{{
-            inactiveCampusCount()
-          }}</span>
-          <span class="text-sm text-zinc-500">已停用</span>
-        </div>
-      </div>
+      }
+      @if (total() > PAGE_SIZE) {
+        <p-paginator
+          [first]="pagination().first"
+          [rows]="PAGE_SIZE"
+          [totalRecords]="total()"
+          (onPageChange)="onPage($event)"
+        />
+      }
     }
-
-    <!-- Content Area -->
-    <div>
-      <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
-      <app-reload-veil [loading]="loading()">
-        <!-- Skeleton Loading -->
-        <div reloadSkeleton class="skeleton-list">
-          @for (i of [1, 2, 3, 4, 5]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-        @if (loadFailed()) {
-          <app-load-failed
-            description="沒有讀到分校清單，可能是連線問題"
-            (retry)="loadCampuses()"
-          />
-        } @else if (campuses().length === 0) {
-          <!-- Empty State -->
-          @if (searchQuery()) {
-            <app-empty-state
-              icon="pi pi-search"
-              title="找不到符合的分校"
-              [description]="'沒有找到符合「' + searchQuery() + '」的分校，請嘗試其他關鍵字'"
-            >
-              <p-button
-                label="清除搜尋"
-                [text]="true"
-                severity="secondary"
-                (onClick)="onSearchChange('')"
-              />
-            </app-empty-state>
-          } @else {
-            <app-empty-state
-              icon="pi pi-building"
-              title="尚未建立分校"
-              description="開始建立您的第一個分校來管理補習班營運"
-            >
-              <p-button label="新增分校" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-            </app-empty-state>
-          }
-        } @else {
-          <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-          <app-responsive-table
-            [headTemplate]="headTpl"
-            [bodyTemplate]="bodyTpl"
-            [pagination]="pagination()"
-            (page)="onPage($event)"
-          />
-
-          <ng-template #headTpl>
-            <tr>
-              <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">
-                分校名稱
-              </th>
-              <th appRtColDef="address" [appRtColDefMinWidth]="200" [appRtColDefPriority]="3">
-                地址
-              </th>
-              <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
-                電話
-              </th>
-              <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">
-                狀態
-              </th>
-              <th
-                appRtColDef="actions"
-                [appRtColDefMinWidth]="56"
-                [appRtColDefPriority]="0"
-                [appRtColDefCollapsible]="false"
-                aria-hidden="true"
-              ></th>
-            </tr>
-          </ng-template>
-
-          <ng-template #bodyTpl>
-            @for (campus of campuses(); track campus.id) {
-              <tr
-                appRtRow
-                [appRtRow]="campus"
-                [appRtRowId]="campus.id"
-                class="vt-row"
-                [style.view-transition-name]="'campus-' + campus.id"
-              >
-                <td appRtColCell="name">
-                  <div class="flex items-center gap-2 font-semibold text-zinc-900">
-                    <span
-                      class="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent-50 text-sm text-accent-600"
-                    >
-                      <i class="pi pi-building"></i>
-                    </span>
-                    <span>{{ campus.name }}</span>
-                  </div>
-                </td>
-                <td appRtColCell="address">
-                  @if (campus.address) {
-                    <span class="text-sm text-zinc-600">{{ campus.address }}</span>
-                  } @else {
-                    <span class="text-sm text-zinc-500 italic">未填寫</span>
-                  }
-                </td>
-                <td appRtColCell="phone">
-                  @if (campus.phone) {
-                    <a
-                      [href]="'tel:' + campus.phone"
-                      class="inline-flex min-h-11 items-center text-accent-600 no-underline transition-colors hover:text-accent-500 hover:underline"
-                    >
-                      {{ campus.phone }}
-                    </a>
-                  } @else {
-                    <span class="text-sm text-zinc-500 italic">未填寫</span>
-                  }
-                </td>
-                <td appRtColCell="status">
-                  <app-status-dot [tone]="campus.isActive ? 'done' : 'inactive'">{{
-                    campus.isActive ? '啟用' : '停用'
-                  }}</app-status-dot>
-                </td>
-                <td class="responsive-table__cell" style="text-align: center">
-                  <p-button
-                    icon="pi pi-ellipsis-v"
-                    [rounded]="true"
-                    [text]="true"
-                    severity="secondary"
-                    [ariaLabel]="campus.name + ' 的操作'"
-                    (onClick)="openActionMenu($event, campus)"
-                  />
-                </td>
-              </tr>
-            }
-          </ng-template>
-        }
-      </app-reload-veil>
-    </div>
-  </div>
+  </app-reload-veil>
 </div>
