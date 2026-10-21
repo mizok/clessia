@@ -517,18 +517,43 @@ export const PAGES = {
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
   settings: { a6: 'settings.html', app: '/admin/settings/general' },
-  // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由；列上的教室數是 SE3（schema 沒有教室）
+  // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由
   campuses: {
     a6: 'settings.html#campuses',
     app: '/admin/settings/campuses',
+    // 教室對話框（SE3）：第一列的 ⋮ › 教室
+    a6Open: {
+      rooms: { click: ['[data-cm]', '#cm [data-rooms]'], root: 'dialog.fdlg' },
+      'campus-form': { click: '[data-new-campus]', root: 'dialog.fdlg' },
+    },
+    appOpen: {
+      rooms: {
+        click: [
+          '[data-campus] button[aria-label$="的更多動作"]',
+          '.popup-menu__item-wrapper button:has-text("教室")',
+        ],
+        root: 'dialog[open]',
+      },
+      'campus-form': { click: 'button:has-text("新增分校")', root: 'dialog[open]' },
+    },
     deviations: [
+      ...[
+        { status: '位置', detail: '^相對' },
+        { status: '樣式', detail: 'display' },
+      ].map((d) => ({
+        // 教室對話框：稿的容納人數用了 money 欄型，前面多一個「NT$」，輸入框被推右、變 block
+        pop: 'rooms',
+        a6: 'control:textbox\\[容納人數\\]$',
+        ...d,
+        reason: '稿誤用 money 欄型（容量不是金額），手機上還會擠出畫面',
+        source: '計畫席 10-21 裁定（#1785）',
+      })),
       {
-        // SE3：稿的列有第三欄「N 間教室」，schema 沒有教室 —— app 少一欄，名稱欄因此較寬
-        status: '尺寸',
-        a6: '>landmark:main\\[\\]>row>text:div$',
-        detail: '^寬 ',
-        reason: '列上沒有教室數欄（schema 沒有教室），名稱欄較寬',
-        source: '#1314 SE3（教室子頁、列上教室數，待 schema）',
+        // 稿上的「新」是設計說明（教室數、⋮ 的教室是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
+        status: '缺',
+        a6: '>text:span\\[新\\]$',
+        reason: '稿的「新」標記是設計說明，不是畫面內容',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
       },
       {
         // 稿的「操作紀錄」只在桌機（only-d）；手機收進頁首「⋯」，不刪（計畫席 10-21 裁）

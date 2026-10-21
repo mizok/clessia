@@ -125,15 +125,16 @@ export async function harvestNames(page, source, ctx) {
 /**
  * 打開一個彈出物，回傳它的根選擇器（沒打開＝null；開啟鈕這一寬不存在＝undefined）。
  * 原生 `[popovertarget]` 直接點；不是的（app 的 PrimeNG、稿用 JS showPopover 的）照 config 的 `opens`
- * 指定點哪顆、根在哪。開啟鈕只在某些寬度出現（例如稿的手機登入面板）時，這一寬就當沒有。
+ * 指定點哪顆（陣列＝依序點）、根在哪。開啟鈕只在某些寬度出現（例如稿的手機登入面板）時，這一寬就當沒有。
  */
 export async function openPop(page, id, opens = {}) {
   if (opens[id]) {
     const { click, root } = opens[id];
-    // click 可以是陣列：依序點（app 的「新增考試」先開選單、再選「補習班考試」）
-    for (const sel of [].concat(click)) {
+    // click 可以是陣列：依序點（app 的「新增考試」先開選單、再選「補習班考試」；分校 ⋮ 再點「教室」）。
+    // 第一顆不在這一寬 = 這一寬沒有（undefined）；後面那顆找不到 = 開了選單卻沒有那一項，記成缺（null）
+    for (const [i, sel] of [].concat(click).entries()) {
       const btn = page.locator(`${sel} >> visible=true`).first();
-      if (!(await btn.count())) return undefined;
+      if (!(await btn.count())) return i === 0 ? undefined : null;
       await btn.click();
       await page.waitForTimeout(400);
     }

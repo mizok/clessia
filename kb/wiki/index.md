@@ -100,6 +100,7 @@
 - [[lessons/silent-tool-failures]] — 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。
 - [[lessons/status-table-blind-spot]] — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 - [[lessons/submit-busy-flag-finalize]] — 送出鈕的 busy 旗標（sending／saving）在 next 跟 error 各寫一次 set(false)，漏一邊就永遠卡在「送出中」，而 submit() 開頭的守門又擋住重送。2026-10 審核席在 #1673、#1738、#1740、#1741、#1748 連抓五次突變全綠。寫法用 finalize；spec 斷言「失敗 → 按鈕可以再按、再按真的有送」。
+- [[lessons/template-handler-false-prevents-default]] — (click)="$event.target === dialog && close()" 點在 dialog 裡面時整句是 false，Angular 把 false 當成 preventDefault —— 對話框裡的 radio 點不下去。DOM 事件的 handler 要嘛呼叫方法、要嘛確保不回 false。
 - [[lessons/workers-fanout-costs-before-the-db]] — 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。
 
 ## Patterns (1)

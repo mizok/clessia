@@ -12,6 +12,7 @@ import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { CampusFormDialogComponent } from './campus-form-dialog.component';
+import { ClassroomsDialogComponent } from './classrooms-dialog.component';
 
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
@@ -55,6 +56,8 @@ const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', dail
     PopupMenuComponent,
     PaginatorModule,
     LoadFailedComponent,
+    ClassroomsDialogComponent,
+    CampusFormDialogComponent,
   ],
   providers: [DialogService],
   templateUrl: './campuses.page.html',
@@ -99,7 +102,7 @@ export class CampusesPage implements OnInit {
   }
 
   // State
-  readonly campuses = signal<Campus[]>([]);
+  readonly campuses = signal<CampusListResponse['data']>([]);
   readonly loading = signal(true);
   /** 取數失敗。**不能沿用 `campuses().length === 0`** —— 那兩個空狀態在失敗時都是謊話（#812） */
   readonly loadFailed = signal(false);
@@ -121,6 +124,7 @@ export class CampusesPage implements OnInit {
     if (!campus) return [];
     const items: MenuItem[] = [
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(campus) },
+      { label: '教室', icon: 'pi pi-th-large', command: () => this.openClassrooms(campus) },
       { separator: true },
     ];
     if (campus.isActive) {
@@ -267,35 +271,27 @@ export class CampusesPage implements OnInit {
     this.loadCampuses();
   }
 
+  /** 分校表單（A6 campusForm，原生 dialog）。存成功才重抓，那一列淡入 */
+  private readonly campusForm = viewChild.required(CampusFormDialogComponent);
   openCreateDialog(): void {
-    const ref = this.dialogService.open(CampusFormDialogComponent, {
-      width: '450px',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer || 'body',
-    });
-
-    if (ref) {
-      ref.onClose.subscribe((newCampus) => {
-        if (newCampus) this.loadCampuses({ rows: true });
-      });
-    }
+    this.campusForm().open();
   }
 
   openEditDialog(campus: Campus): void {
-    const ref = this.dialogService.open(CampusFormDialogComponent, {
-      width: '450px',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer || 'body',
-      data: { campus },
-    });
+    this.campusForm().open(campus);
+  }
 
-    if (ref) {
-      ref.onClose.subscribe((updatedCampus) => {
-        if (updatedCampus) this.loadCampuses({ rows: true });
-      });
-    }
+  protected onCampusFormClosed(saved: Campus | null): void {
+    if (saved) this.loadCampuses({ rows: true });
+  }
+
+  /** 教室對話框（#1314 SE3）。有改過才重抓（安靜重抓：列上的教室數） */
+  private readonly classroomsDialog = viewChild.required(ClassroomsDialogComponent);
+  openClassrooms(campus: Campus): void {
+    this.classroomsDialog().open(campus);
+  }
+  protected onClassroomsClosed(changed: boolean): void {
+    if (changed) this.loadCampuses({ quiet: true });
   }
 
   openAuditLog(): void {

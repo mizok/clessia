@@ -57,6 +57,14 @@ export class ScheduleListComponent {
     clearTimeout(this.timer);
   }
 
+  /**
+   * 長按中才擋系統選單。**不能寫成模板裡的 `pressed && $event.preventDefault()`** ——
+   * 事件綁定的值是 `false` 時 Angular 會自己 preventDefault，沒長按反而全擋（#1786）
+   */
+  protected onContextMenu(event: Event): void {
+    if (this.pressed) event.preventDefault();
+  }
+
   protected onMain(event: Event, s: Session): void {
     if (this.pressed) {
       this.pressed = false;
