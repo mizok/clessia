@@ -609,6 +609,41 @@ describe('GET /api/academy-exams/todo-by-class —— 每班待登錄一次帶�
     });
   });
 
+  it('別 org 沒登完的考試不進回應 —— 它的班、它的考試 id 都不能回出去（c1）', async () => {
+    const tables = {
+      ...TABLES,
+      academy_exams: [
+        ...TABLES.academy_exams,
+        { ...exam('e-other-org', 'campus-1', '2026-09-01'), org_id: 'org-2' },
+      ],
+      academy_exam_classes: [...TABLES.academy_exam_classes, link('e-other-org', 'X')],
+      enrollments: [...TABLES.enrollments, enroll('X', 's-x')],
+    };
+    const { body } = await createApp(tables, { roles: ['admin'] })();
+    expect(body.data.map((row) => row.classId).sort()).toEqual(['A', 'B', 'C']);
+    expect(body.data.map((row) => row.firstExamId)).not.toContain('e-other-org');
+  });
+
+  it('同一天兩場都沒登：firstExamId 取 id 較小的那場，不看 DB 回傳順序', async () => {
+    const tables = {
+      ...TABLES,
+      // 故意讓 id 較大的排前面：沒有 tie-break 就會拿到 e-same-b
+      academy_exams: [
+        ...TABLES.academy_exams,
+        exam('e-same-b', 'campus-1', '2026-09-05'),
+        exam('e-same-a', 'campus-1', '2026-09-05'),
+      ],
+      academy_exam_classes: [
+        ...TABLES.academy_exam_classes,
+        link('e-same-b', 'D'),
+        link('e-same-a', 'D'),
+      ],
+      enrollments: [...TABLES.enrollments, enroll('D', 's-d')],
+    };
+    const { body } = await createApp(tables, { roles: ['admin'] })();
+    expect(byClass(body.data)['D']).toEqual({ count: 2, firstExamId: 'e-same-a' });
+  });
+
   it('只管分校 1 的管理員看不到分校 2 的班；指名分校 2 也撐不大範圍', async () => {
     const get = createApp(TABLES, { roles: ['admin'], campusScope: ['campus-1'] });
     expect(Object.keys(byClass((await get()).body.data)).sort()).toEqual(['A', 'B']);
