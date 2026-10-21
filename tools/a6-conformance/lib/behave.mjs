@@ -12,7 +12,7 @@ function target(page, t) {
     .nth(t.nth ?? 0);
 }
 
-async function step(page, s) {
+export async function step(page, s) {
   if (s.click) await target(page, s.click).click();
   else if (s.fill) await target(page, s.fill[0]).fill(s.fill[1]);
   else if (s.press) await page.keyboard.press(s.press);
