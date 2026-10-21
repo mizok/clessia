@@ -6,7 +6,7 @@ import { notifyNewApplication } from '../../lib/notify-events';
 vi.mock('../../lib/notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
-import trialRequestsRoute from './trial-requests';
+import trialRequestsRoute, { SELECT } from './trial-requests';
 
 /**
  * 家長端試聽申請（#1120）。真的 `createChildDb` 疊在照條件過濾的替身上（同 enrollment-requests）。
@@ -184,5 +184,42 @@ describe('GET /api/me/trial-requests', () => {
 
     expect(res.status).toBe(200);
     expect(body.data.map((r) => r.id)).toEqual(['t-mine']);
+  });
+
+  // #1727 Q2 (b)：已排定的試聽帶日期與時間（時間去掉秒）；還沒排的都是 null
+  it('帶排定的日期與時間', async () => {
+    const db = seed({
+      trial_requests: [
+        {
+          id: 't-done',
+          org_id: ORG,
+          student_id: MY_CHILD,
+          course_id: MATH,
+          status: 'scheduled',
+          scheduled_date: '2026-10-21',
+          scheduled_start_time: '18:30:00',
+          scheduled_end_time: '20:00:00',
+        },
+        { id: 't-wait', org_id: ORG, student_id: MY_CHILD, course_id: ENGLISH, status: 'pending' },
+      ],
+    });
+    const body = (await (await appFor(db).request('/')).json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+    const pick = (id: string) => {
+      const r = body.data.find((x) => x['id'] === id)!;
+      return [r['scheduledDate'], r['scheduledStartTime'], r['scheduledEndTime']];
+    };
+    expect(pick('t-done')).toEqual(['2026-10-21', '18:30', '20:00']);
+    expect(pick('t-wait')).toEqual([null, null, null]);
+  });
+});
+
+// 替身不看 select 欄位（一律回整列），上面的 spec 守不住「select 有沒有撈」—— 直接斷言（同 #1742 的做法）
+describe('試聽申請的 select', () => {
+  it('有撈 scheduled_date、scheduled_start_time、scheduled_end_time', () => {
+    expect(SELECT).toContain('scheduled_date');
+    expect(SELECT).toContain('scheduled_start_time');
+    expect(SELECT).toContain('scheduled_end_time');
   });
 });
