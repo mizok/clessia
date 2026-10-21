@@ -3,7 +3,7 @@ title: 計費與收款規則
 summary: 內部人訪談定案的金流業務規則：三種計費模式（月繳/期繳/堂數制）、金額永遠可人工覆寫（不做折扣引擎）、插班退班共用比例試算、帳單與收款一對多、欠繳只做可見性不做強制；開錯的帳單作廢不刪除、淨額歸零才能作廢、不可撤銷。
 category: rule
 status: active
-updated: 2026-10-16
+updated: 2026-10-19
 tags: [rules, billing, payments, invoices]
 ---
 
@@ -73,6 +73,10 @@ tags: [rules, billing, payments, invoices]
 
 - 月/期繳：缺課不補償；特例走「下期帳單人工調整」（規則 2）。
 - 堂數制唯一的結構化決定：**「請假那堂扣不扣堂」是一個設定值**（org 或班級層級）。
+- **例外：連續請假滿 N 個上課日（機構設定 `leave_waiver_days`，預設 3），這 N 天可以不收**（#1732）——
+  餐費、月繳／期繳、堂數制三種都適用。系統**只提醒**有 `manage_finance` 的管理員，由行政手動調整帳單或堂數
+  （規則 2 的人工調整）；不自動改任何金額。算法見 [[rules/attendance-rules]] §4、設計見
+  [[specs/admin/finance/leave-streak-waiver]]。
 
 ## 9. 帳單作廢：作廢不刪除（使用者 2026-09-30 裁定，#898）
 
