@@ -45,6 +45,7 @@ const KIND_LABELS: Record<string, string> = {
   leave_received: '請假',
   leave_streak: '連續請假',
   enrollment_approved: '報名',
+  enrollment_completed: '報名',
 };
 
 const SOURCE_NAMES: Record<Source, string> = { announcement: '公告', notification: '通知' };

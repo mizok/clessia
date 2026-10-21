@@ -3,7 +3,7 @@ title: 報名申請流程
 summary: 本文件整理 PRD 6.3（並對齊 4.17 的來源/狀態定義），描述報名申請到繳費完成的完整作業流，涵蓋公開報名、家長端報名、加選、續課加選與管理員快速流程。
 category: flow
 status: active
-updated: 2026-03-17
+updated: 2026-10-21
 tags: [flows, enrollment]
 ---
 
@@ -66,9 +66,10 @@ tags: [flows, enrollment]
 
 - 觸發條件：管理員在繳費管理確認收款。
 - 系統動作：
-  1. 更新繳費單狀態（部分繳費或已繳清）。
-  2. 更新 Enrollment Request（已繳清時轉 `completed`）。
-  3. Enrollment 由 `pending_payment` 轉 `active`（依收款策略可部分啟用）。
+  1. 更新繳費單狀態（部分繳費或已繳清；由收款推導）。
+  2. Enrollment 由 `pending_payment` 轉 `active`：**第一筆收款**（含定金）就轉，同一張單上的報名一起轉（#1778）。
+  3. 已繳清時 Enrollment Request 轉 `completed`，通知家長「報名已完成」（站內＋推播）。
+     1–3 在記收款的同一個交易裡；退費、作廢不倒轉。
   4. 發送帳號通知（如有 Email）。
 
 ## 5. 特別規則：`public_form` 來源
