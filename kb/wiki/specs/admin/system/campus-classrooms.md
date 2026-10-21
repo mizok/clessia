@@ -22,7 +22,7 @@ sources: [https://github.com/mizok/clessia/issues/1314]
 | 帳戶     | **已存在**：`campuses.payment_info`（多行自由文字，null＝沿用 `organizations.payment_info`）。分校表單已有欄位，`manage_finance` 才看得到、改得了 | `20261003071532_payment_info.sql`、`campus-form-dialog.component.html` |
 | 狀態開關 | API `PUT /api/campuses/{id}` 已收 `isActive`；表單沒有欄位（列表的停用顯示在 #1755）                                                              | `routes/campuses.ts` UpdateCampusSchema                                |
 | 出勤模式 | API 已收 `attendanceMode`（null＝沿用機構預設，要 `manage_org_settings`）；表單沒有欄位                                                           | `routes/campuses.ts:450-454`                                           |
-| 授權     | `/api/campuses` 掛 `ADMIN_ONLY`；單筆讀寫走 `resourceCampusAllowed(campusScope, id)`，範圍外 404                                                  | `index.ts:393`、`routes/campuses.ts:438`                               |
+| 授權     | `/api/campuses` 掛 `ADMIN_ONLY`；寫入走 `resourceCampusAllowed(campusScope, id)`，**範圍外 403 `FORBIDDEN`**；別 org／不存在 404 `NOT_FOUND`      | `index.ts:393`、`routes/campuses.ts:438,472,560`                       |
 
 ## 1. A6 長什麼樣（全採）
 
@@ -61,13 +61,16 @@ ALTER TABLE public.classrooms ENABLE ROW LEVEL SECURITY; -- 沒有 policy：fail
 
 ## 3. API（保留類）
 
-掛在 `/api/campuses/{id}/classrooms`（同一支 route 檔，同一個 `ADMIN_ONLY`，先過 `resourceCampusAllowed`，範圍外 404）：
+掛在 `/api/campuses/{id}/classrooms`（同一支 route 檔，同一個 `ADMIN_ONLY`，先過 `resourceCampusAllowed`）：
+
+- **分校不在 org／不存在 → 404 `NOT_FOUND`；分校在 org 但不在 campusScope → 403 `FORBIDDEN`** —— 跟分校本身的寫入一致（#1133），讀寫都同一個判準。
+- `org_id` **由伺服器從分校列帶**：先以 `id`＋`orgId` 查到分校，再用那一列的 `org_id` 寫入，不收前端給的。
 
 | 方法     | 路徑                        | 說明                                                                             |
 | -------- | --------------------------- | -------------------------------------------------------------------------------- |
 | `GET`    | `/{id}/classrooms`          | 該分校的教室，依名稱排序                                                         |
 | `POST`   | `/{id}/classrooms`          | `{ name, capacity?, equipment? }`；同分校同名 23505 → 409 `CLASSROOM_NAME_TAKEN` |
-| `PUT`    | `/{id}/classrooms/{roomId}` | 同上欄位；`roomId` 不屬於這個分校／org → 404                                     |
+| `PUT`    | `/{id}/classrooms/{roomId}` | 同上欄位；`roomId` 不屬於這個分校（或別 org）→ 404                               |
 | `DELETE` | `/{id}/classrooms/{roomId}` | 硬刪（Q2 (a) 時時段上的教室變「不指定」，回應帶受影響時段數讓前端寫進 toast）    |
 
 - 分校列表 `GET /api/campuses` 每列加 `classroomCount`（一次 `select campus_id` 計數，不 N+1）。
@@ -104,11 +107,11 @@ ALTER TABLE public.classrooms ENABLE ROW LEVEL SECURITY; -- 沒有 policy：fail
 
 ## 6. 拆單
 
-| #   | 類型      | 內容                                                             |
-| --- | --------- | ---------------------------------------------------------------- |
-| 1   | migration | `classrooms` 表（＋ Q2 (a) 的 `schedules.classroom_id`）         |
-| 2   | 保留類    | 教室 CRUD API＋列表 `classroomCount`＋稽核＋spec                 |
-| 3   | 一般類    | 分校頁：列上教室數、⋮ 教室對話框、表單加狀態／出勤模式／帳戶標籤 |
-| —   | 另開單    | Q2 (a) 的時段指定教室 UI＋家長端「分校 · 教室」顯示              |
+| #   | 類型      | 內容                                                                                        |
+| --- | --------- | ------------------------------------------------------------------------------------------- |
+| 1   | migration | `classrooms` 表（＋ Q2 (a) 的 `schedules.classroom_id`）                                    |
+| 2   | 保留類    | 教室 CRUD API＋列表 `classroomCount`＋稽核＋spec                                            |
+| 3   | 一般類    | 分校頁：列上教室數、⋮ 教室對話框、表單加狀態／出勤模式／帳戶標籤                            |
+| —   | 另開單    | Q2 (a) 的時段指定教室 UI＋家長端「分校 · 教室」顯示；API 要驗教室跟班級同分校（不同 → 409） |
 
 規格同步：實作合併時更新 [[specs/admin/system/campuses]] 的「銀行帳戶資訊」（依 Q1）與「教室管理」兩段。
