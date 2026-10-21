@@ -124,7 +124,10 @@
         [attr.aria-label]="formatGrade(chap.grade)"
         data-part="grade-chapter"
       >
-        <div class="flex items-baseline gap-3 wide:sticky wide:top-sticky-chapter wide:block wide:self-start">
+        <div
+          class="flex items-baseline gap-3 wide:sticky wide:top-sticky-chapter wide:block wide:self-start"
+          data-testid="chapter-head"
+        >
           <div class="text-[28px] leading-none font-bold tracking-[-0.04em] wide:text-[44px]">
             {{ formatGrade(chap.grade) }}
           </div>

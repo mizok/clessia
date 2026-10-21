@@ -455,6 +455,17 @@ export const PAGES = {
     app: '/parent/enrollment#records',
     state: path.join(cache, 'state-parent.json'),
   },
+  // 家長端試聽申請（#1727 ④）：一門課一列（稿一列一班，R5 2026-10-19）
+  'p-trial': {
+    a6: 'p-trial.html',
+    app: '/parent/trial',
+    state: path.join(cache, 'state-parent.json'),
+  },
+  'p-trial-records': {
+    a6: 'p-trial.html#records',
+    app: '/parent/trial#records',
+    state: path.join(cache, 'state-parent.json'),
+  },
   // 家長端到班紀錄（#1695 第 3 張）：家長登入態；「幫孩子請假」兩邊都是 JS 打開的 <dialog>（稿 a6.js form()、app 原生 showModal）
   'p-attendance': {
     a6: 'p-attendance.html',

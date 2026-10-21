@@ -38,7 +38,10 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
-import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
+import {
+  LEAVE_DIALOG_CONTENT_STYLE,
+  LeaveFormDialogComponent,
+} from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import {
   ATTENDANCE_CELL_LABELS,
   ATTENDANCE_STATE_LABELS,
@@ -567,6 +570,7 @@ export class StudentDetailPage implements OnInit {
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: { student: { id: s.id, name: s.name } },
+      contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
     });
     ref?.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))

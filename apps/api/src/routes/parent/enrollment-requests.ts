@@ -1,6 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../index';
+import type { ChildDb } from '../../lib/child-db';
 import { isChildAllowed } from '../../lib/child-scope';
+import { INVOICE_SELECT, toInvoiceResponse } from '../../lib/invoice-query';
+import { pickPaymentInfo } from '../../lib/payment-info';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
 import { waitUntilFrom } from '../../lib/wait-until';
@@ -11,7 +14,9 @@ import { waitUntilFrom } from '../../lib/wait-until';
  * 班級與名額走 `childDb.orgRef()`／`activeEnrollmentCount()`（只帶 org、只回數字）。
  * 設計見 kb/wiki/architecture/parent-data-scope.md「家長端的寫入」。
  *
- * 核准（開帳、建 enrollment）不在這裡 —— 那是管理端、而且是金額路徑。
+ * 核准（開帳、建 enrollment）不在這裡 —— 那是管理端、而且是金額路徑（#1726）。
+ * 待付款的申請帶出**這筆申請自己的帳單**與帳戶（#1726 §3）：申請 → `enrollment_id` → 明細 → 帳單，
+ * 全走 childDb；帳戶取**申請的班級**的分校（孩子可能第一次來這個分校）。
  */
 
 const StatusSchema = z.enum([
@@ -38,6 +43,22 @@ const EnrollmentRequestSchema = z
     /** 家長送出時選的繳費週期（#1727 Q1 (b)）；沒選 → null，行政核准時再定 */
     billingMode: z.enum(['monthly', 'period', 'session_pack']).nullable(),
     createdAt: z.string().nullable(),
+    /**
+     * 待付款時：核准開的那張帳單（這筆報名最早開立、未作廢的那張）。其他狀態、
+     * 或帳單被作廢沒重開 → null（前端退回「請到繳費頁」）
+     */
+    invoice: z
+      .object({
+        id: z.string(),
+        invoiceNo: z.string().nullable(),
+        total: z.number(),
+        netPaid: z.number(),
+        dueDate: z.string().nullable(),
+        status: z.string(),
+      })
+      .nullable(),
+    /** 待付款時：申請班級所在分校的帳戶資訊（分校 → 機構預設）；其他狀態或都沒設定 → null */
+    paymentInfo: z.string().nullable(),
   })
   .openapi('ParentEnrollmentRequest');
 
@@ -68,7 +89,7 @@ const ErrorSchema = z
   .openapi('ParentEnrollmentRequestError');
 
 export const SELECT =
-  'id, student_id, class_id, status, preferred_start_date, note, reject_reason, billing_mode, created_at, students(name), classes(name)';
+  'id, student_id, class_id, status, preferred_start_date, note, reject_reason, billing_mode, enrollment_id, created_at, students(name), classes(name, campus_id)';
 
 /** 佔名額的申請狀態以外，「還在進行中」的申請 —— 同班只能有一筆（migration 的 partial unique） */
 const OPEN_STATUSES = ['pending', 'waitlist', 'awaiting_payment'];
@@ -91,7 +112,84 @@ function toResponse(row: Record<string, unknown>) {
     rejectReason: (row['reject_reason'] as string | null) ?? null,
     billingMode: (row['billing_mode'] as 'monthly' | 'period' | 'session_pack' | null) ?? null,
     createdAt: (row['created_at'] as string | null) ?? null,
+    invoice: null as z.infer<typeof EnrollmentRequestSchema>['invoice'],
+    paymentInfo: null as string | null,
   };
+}
+
+type PaymentExtra = {
+  invoice: z.infer<typeof EnrollmentRequestSchema>['invoice'];
+  paymentInfo: string | null;
+};
+
+type Embedded = Record<string, unknown> | Array<Record<string, unknown>> | null | undefined;
+const embedded = (v: Embedded) => (Array.isArray(v) ? v[0] : v) ?? null;
+
+/**
+ * 待付款申請的帳單與帳戶（#1726 §3）。帳單：同一個孩子的帳單裡，明細指向這筆報名、未作廢、
+ * 最早開立的那張（核准開的；作廢重開也找得到新的）。讀法全走 childDb。
+ */
+async function attachPayment(
+  childDb: ChildDb,
+  rows: Record<string, unknown>[],
+): Promise<{
+  error: unknown;
+  extra: Map<string, PaymentExtra>;
+}> {
+  const extra = new Map<string, PaymentExtra>();
+  const awaiting = rows.filter((r) => r['status'] === 'awaiting_payment');
+  if (awaiting.length === 0) return { error: null, extra };
+
+  const studentIds = [...new Set(awaiting.map((r) => r['student_id'] as string))];
+  const campusIds = [
+    ...new Set(
+      awaiting
+        .map((r) => embedded(r['classes'] as Embedded)?.['campus_id'] as string | null)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const [invoices, campuses, org] = await Promise.all([
+    childDb.from('invoices', 'student_id').select(INVOICE_SELECT).in('student_id', studentIds),
+    campusIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : childDb.orgRef('campuses').select('id, payment_info').in('id', campusIds),
+    childDb.orgPaymentInfo(),
+  ]);
+  const error = invoices.error ?? campuses.error ?? org.error;
+  if (error) return { error, extra };
+
+  const mapped = ((invoices.data ?? []) as unknown as Record<string, unknown>[])
+    .map(toInvoiceResponse)
+    .filter((inv) => inv.voidedAt === null)
+    .sort((a, b) => (a.issuedAt + a.createdAt).localeCompare(b.issuedAt + b.createdAt));
+  const campusInfo = new Map(
+    ((campuses.data ?? []) as unknown as Array<{ id: string; payment_info: unknown }>).map((c) => [
+      c.id,
+      c.payment_info,
+    ]),
+  );
+
+  for (const r of awaiting) {
+    const enrollmentId = r['enrollment_id'] as string | null;
+    const inv = enrollmentId
+      ? mapped.find((i) => i.items.some((item) => item.enrollmentId === enrollmentId))
+      : undefined;
+    const campusId = embedded(r['classes'] as Embedded)?.['campus_id'] as string | undefined;
+    extra.set(r['id'] as string, {
+      invoice: inv
+        ? {
+            id: inv.id,
+            invoiceNo: inv.invoiceNo,
+            total: inv.total,
+            netPaid: inv.netPaid,
+            dueDate: inv.dueDate,
+            status: inv.status,
+          }
+        : null,
+      paymentInfo: pickPaymentInfo(campusId ? campusInfo.get(campusId) : null, org.paymentInfo),
+    });
+  }
+  return { error: null, extra };
 }
 
 const notParent = { error: '不是家長身分', code: 'NOT_PARENT' } as const;
@@ -128,9 +226,15 @@ app.openapi(
       return c.json({ error: '讀取報名申請失敗', code: 'FETCH_FAILED' }, 500);
     }
 
+    const raw = (data ?? []) as unknown as Record<string, unknown>[];
+    const { error: payError, extra } = await attachPayment(c.get('childDb'), raw);
+    if (payError) {
+      return c.json({ error: '讀取報名申請失敗', code: 'FETCH_FAILED' }, 500);
+    }
+
     // 最新在上（規格）。ponytail: 記憶體排序 —— 一個家長的申請是個位數到數十筆；真的多了改 DB order＋分頁
-    const rows = ((data ?? []) as unknown as Record<string, unknown>[])
-      .map(toResponse)
+    const rows = raw
+      .map((row) => ({ ...toResponse(row), ...extra.get(row['id'] as string) }))
       .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
     return c.json({ data: rows }, 200);
   },
