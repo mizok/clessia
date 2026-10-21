@@ -44,7 +44,8 @@ const REJECTABLE = ['pending', 'waitlist'];
 
 const SELECT = {
   enrollment: `id, status, preferred_start_date, note, reject_reason, requested_by, created_at,
-    student_id, class_id, students(name), classes(name, campus_id, campuses(name))`,
+    student_id, class_id, billing_mode, students(name),
+    classes(name, campus_id, default_fee_template_id, campuses(name))`,
   trial: `id, status, preferred_times, note, requested_by, created_at,
     student_id, students(name), courses(name, campus_id, campuses(name))`,
 } as const;
@@ -67,6 +68,10 @@ const RequestSchema = z
     note: z.string().nullable(),
     /** 報名被拒絕時寫給家長看的原因 */
     rejectReason: z.string().nullable(),
+    /** 報名才有（核准對話框用，#1726）：開課班、家長選的繳費週期、班級預設價目表（只用於預選） */
+    classId: z.string().nullable(),
+    billingMode: z.enum(['monthly', 'period', 'session_pack']).nullable(),
+    defaultFeeTemplateId: z.string().nullable(),
   })
   .openapi('ParentRequest');
 
@@ -110,6 +115,11 @@ function toResponse(kind: Kind, row: Row, contacts: Map<string, Contact>) {
     preferredTimes: (row['preferred_times'] as string | null) ?? null,
     note: (row['note'] as string | null) ?? null,
     rejectReason: (row['reject_reason'] as string | null) ?? null,
+    classId: (row['class_id'] as string | null | undefined) ?? null,
+    billingMode:
+      (row['billing_mode'] as 'monthly' | 'period' | 'session_pack' | null | undefined) ?? null,
+    defaultFeeTemplateId:
+      (target?.['default_fee_template_id'] as string | null | undefined) ?? null,
   };
 }
 
