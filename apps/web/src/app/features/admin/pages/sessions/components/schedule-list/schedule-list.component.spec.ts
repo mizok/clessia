@@ -66,6 +66,21 @@ describe('ScheduleListComponent —— 手機長按（#1174 G3）', () => {
     expect(row.classList.contains('wide:grid-cols-[auto_minmax(0,1fr)_auto]')).toBe(true);
   });
 
+  // #1786：舊寫法 `pressed && $event.preventDefault()` 在沒長按時值是 false，Angular 照樣擋掉
+  it('沒長按時右鍵選單照常出（不 preventDefault）；長按中才擋', () => {
+    const { main, press } = setup();
+    const ctx = () => {
+      const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      main.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    expect(ctx()).toBe(false);
+
+    press('touch');
+    vi.advanceTimersByTime(500);
+    expect(ctx()).toBe(true);
+  });
+
   it('滑鼠沒有長按', () => {
     const { press, long } = setup();
     press('mouse');
