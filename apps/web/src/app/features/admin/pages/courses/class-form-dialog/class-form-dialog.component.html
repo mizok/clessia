@@ -233,6 +233,17 @@
                   (ngModelChange)="updateScheduleEntry($index, 'endTime', $event)"
                   [disabled]="loading()"
                 />
+                <!-- #1796：A6 courses.html 時段的「教室」（不指定／這個分校的教室） -->
+                <p-select
+                  [options]="classroomOptions()"
+                  [ngModel]="entry.classroomId"
+                  (ngModelChange)="updateScheduleEntry($index, 'classroomId', $event)"
+                  placeholder="不指定"
+                  ariaLabel="教室"
+                  [disabled]="loading()"
+                  [appendTo]="'body'"
+                  styleClass="min-w-[110px]"
+                />
               </div>
               <!-- teacher selection removed per D4: 老師指派改由行事曆批次操作處理 -->
             </div>

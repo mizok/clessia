@@ -25,6 +25,7 @@ import {
   ScheduleConflict,
 } from '@core/classes.service';
 import { Course } from '@core/courses.service';
+import { CampusesService } from '@core/campuses.service';
 import { Staff } from '@core/staff.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { ConflictWarningDialogComponent } from './conflict-warning-dialog/conflict-warning-dialog.component';
@@ -38,6 +39,8 @@ export interface ScheduleFormEntry {
   endTime: string;
   teacherId: string | null;
   effectiveTo: string | null;
+  /** 指定的教室（#1796）；null = 不指定 */
+  classroomId: string | null;
 }
 
 @Component({
@@ -75,6 +78,7 @@ export class ClassFormDialogComponent {
   private readonly config = inject(DynamicDialogConfig);
   private readonly auth = inject(AuthService);
   private readonly feeTemplatesService = inject(FeeTemplatesService);
+  private readonly campusesService = inject(CampusesService);
 
   protected readonly loading = signal(false);
   protected readonly cls = signal<Class | null>(this.config.data?.cls ?? null);
@@ -100,6 +104,15 @@ export class ClassFormDialogComponent {
   protected readonly isPublicEnrollment = signal(this.cls()?.isPublicEnrollment ?? true);
 
   constructor() {
+    // 用課程的分校就是班級的分校：班級建立時取自課程，之後班級、課程都沒有改分校的 API
+    // （UpdateClassSchema／UpdateCourseSchema 都沒有 campus 欄位），兩邊不會分歧
+    const campusId = this.course()?.campusId;
+    if (campusId) {
+      this.campusesService
+        .listClassrooms(campusId)
+        // 讀不到就只剩「不指定」＋既有時段的那幾間 —— 表單照樣能存
+        .subscribe({ next: (res) => this.campusRooms.set(res.data), error: () => undefined });
+    }
     // 只列使用中的範本 —— 停用的 API 會擋（停用的價目表不再對外報價）
     if (this.canSetFee) {
       this.feeTemplatesService
@@ -163,8 +176,26 @@ export class ClassFormDialogComponent {
       endTime: s.endTime.substring(0, 5),
       teacherId: s.teacherId,
       effectiveTo: s.effectiveTo,
+      classroomId: s.classroomId ?? null,
     })),
   );
+
+  /**
+   * 教室下拉（#1796，A6 courses.html 時段「教室 · 不指定」）：只列這個班分校的教室。
+   * 既有時段指的教室先放進來 —— 清單還沒讀到、或讀失敗時，已選的那間照樣顯示得出名字
+   */
+  private readonly campusRooms = signal<Array<{ id: string; name: string }>>([]);
+  protected readonly classroomOptions = computed(() => {
+    const byId = new Map<string, string>();
+    for (const s of this.cls()?.schedules ?? []) {
+      if (s.classroomId) byId.set(s.classroomId, s.classroomName ?? '');
+    }
+    for (const r of this.campusRooms()) byId.set(r.id, r.name);
+    return [
+      { label: '不指定', value: null as string | null },
+      ...[...byId].map(([value, label]) => ({ label, value: value as string | null })),
+    ];
+  });
 
   protected readonly breadcrumb = computed(() => {
     const c = this.course();
@@ -215,6 +246,7 @@ export class ClassFormDialogComponent {
             endTime: '11:00',
             teacherId: null,
             effectiveTo: null,
+            classroomId: null,
           },
         ]),
       { rows: true },
@@ -405,7 +437,8 @@ export class ClassFormDialogComponent {
         e.startTime !== orig.startTime.substring(0, 5) ||
         e.endTime !== orig.endTime.substring(0, 5) ||
         e.teacherId !== orig.teacherId ||
-        e.effectiveTo !== orig.effectiveTo
+        e.effectiveTo !== orig.effectiveTo ||
+        e.classroomId !== (orig.classroomId ?? null)
       );
     });
 
@@ -420,6 +453,7 @@ export class ClassFormDialogComponent {
           endTime: e.endTime,
           teacherId: e.teacherId,
           effectiveTo: e.effectiveTo,
+          classroomId: e.classroomId,
         })
         .toPromise(),
     );
@@ -461,6 +495,7 @@ export class ClassFormDialogComponent {
       endTime: entry.endTime,
       teacherId: entry.teacherId,
       effectiveTo: entry.effectiveTo,
+      classroomId: entry.classroomId,
     };
     this.classesService.addSchedule(classId, input).subscribe({
       next: () => this.addSchedulesSequentially(classId, entries, index + 1, onComplete),

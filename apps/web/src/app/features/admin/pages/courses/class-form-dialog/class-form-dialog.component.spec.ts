@@ -9,6 +9,7 @@ import { ClassFormDialogComponent } from './class-form-dialog.component';
 import { ClassesService } from '@core/classes.service';
 import { AuthService } from '@core/auth.service';
 import { FeeTemplatesService } from '@core/fee-templates.service';
+import { CampusesService } from '@core/campuses.service';
 
 describe('ClassFormDialogComponent', () => {
   let fixture: ComponentFixture<ClassFormDialogComponent>;
@@ -24,12 +25,24 @@ describe('ClassFormDialogComponent', () => {
   let canManageFinance = false;
   let feeTemplatesMock: { list: ReturnType<typeof vi.fn> };
 
+  let campusesMock: { listClassrooms: ReturnType<typeof vi.fn> };
   beforeEach(async () => {
+    campusesMock = {
+      listClassrooms: vi.fn().mockReturnValue(
+        of({
+          data: [
+            { id: 'room-a', name: 'A 教室' },
+            { id: 'room-b', name: 'B 教室' },
+          ],
+        }),
+      ),
+    };
     classesServiceMock = {
       checkScheduleConflicts: vi.fn().mockReturnValue(of({ conflicts: [] })),
       create: vi.fn().mockReturnValue(of({ data: { id: 'class-1' } as any })),
       update: vi.fn().mockReturnValue(of({ data: { id: 'class-1' } as any })),
       deleteSchedule: vi.fn().mockReturnValue(of({ success: true })),
+      updateSchedule: vi.fn().mockReturnValue(of({ data: {} })),
       addSchedule: vi.fn().mockReturnValue(
         of({
           data: {
@@ -80,6 +93,7 @@ describe('ClassFormDialogComponent', () => {
           useValue: { hasPermission: (p: string) => p === 'manage_finance' && canManageFinance },
         },
         { provide: FeeTemplatesService, useValue: feeTemplatesMock },
+        { provide: CampusesService, useValue: campusesMock },
         {
           provide: DynamicDialogConfig,
           useValue: {
@@ -184,6 +198,83 @@ describe('ClassFormDialogComponent', () => {
       saveWithConflict();
       conflictClose$.next(undefined);
       expect(classesServiceMock.create as any).not.toHaveBeenCalled();
+    });
+  });
+
+  /** #1796：時段指定教室（A6 courses.html 時段「教室 · 不指定」） */
+  describe('時段的教室', () => {
+    const recreate = (cls: Record<string, unknown> | null) => {
+      TestBed.inject(DynamicDialogConfig).data.cls = cls;
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    };
+    const existing = (classroomId: string | null, classroomName: string | null) => ({
+      id: 'class-1',
+      name: '舊班',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+      schedules: [
+        {
+          id: 'sch-1',
+          classId: 'class-1',
+          weekday: 1,
+          startTime: '09:00:00',
+          endTime: '11:00:00',
+          teacherId: null,
+          effectiveTo: null,
+          classroomId,
+          classroomName,
+        },
+      ],
+    });
+    const labels = () =>
+      (component as any).classroomOptions().map((o: { label: string }) => o.label);
+
+    it('選項：「不指定」＋這個班分校的教室', () => {
+      expect(campusesMock.listClassrooms).toHaveBeenCalledWith('campus-1');
+      expect(labels()).toEqual(['不指定', 'A 教室', 'B 教室']);
+    });
+
+    it('新增時段選了教室：送出帶 classroomId', async () => {
+      (component as any).formData.set({
+        name: '測試班級',
+        maxStudents: 20,
+        nextClassId: null,
+        isActive: true,
+      });
+      (component as any).addScheduleEntry();
+      (component as any).updateScheduleEntry(0, 'classroomId', 'room-b');
+      (component as any).save();
+      await fixture.whenStable();
+      expect(classesServiceMock.addSchedule).toHaveBeenCalledWith(
+        'class-1',
+        expect.objectContaining({ classroomId: 'room-b' }),
+      );
+    });
+
+    it('編輯：只換教室也算改了，送 updateSchedule；沒改不送', async () => {
+      recreate(existing('room-a', 'A 教室'));
+      (component as any).save();
+      await fixture.whenStable();
+      expect(classesServiceMock.updateSchedule).not.toHaveBeenCalled();
+
+      recreate(existing('room-a', 'A 教室'));
+      (component as any).updateScheduleEntry(0, 'classroomId', null);
+      (component as any).save();
+      await fixture.whenStable();
+      expect(classesServiceMock.updateSchedule).toHaveBeenCalledWith(
+        'class-1',
+        'sch-1',
+        expect.objectContaining({ classroomId: null }),
+      );
+    });
+
+    it('教室清單讀失敗：下拉照樣能用，已選的那間照樣有名字', () => {
+      campusesMock.listClassrooms.mockReturnValue(throwError(() => new Error('x')));
+      recreate(existing('room-old', '舊教室'));
+      expect(labels()).toEqual(['不指定', '舊教室']);
     });
   });
 

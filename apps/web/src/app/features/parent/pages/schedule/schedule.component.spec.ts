@@ -33,6 +33,7 @@ function session(over: Partial<ParentSession>): ParentSession {
     className: '國三數學 B 班',
     courseName: '國中數學',
     campusName: '文山旗艦校',
+    classroomName: null,
     teacherName: '游佩珊',
     isSubstitute: false,
     originalTeacherName: null,
@@ -50,6 +51,7 @@ const SESSIONS: ParentSession[] = [
     startTime: '19:00:00',
     endTime: '20:30:00',
     className: '國三自然 B 班',
+    classroomName: '小教室',
     examCount: 1,
     attendance: { status: 'present', checkedInAt: '2026-10-07T08:52:00Z' },
   }),
@@ -196,8 +198,9 @@ describe('家長端課表 ScheduleComponent', () => {
   // #1641 項 3：換週的方向淡入，資料套上時才給
   it('換週給方向：下一週往後、回本週往前；進頁沒有方向', () => {
     const motion = () =>
-      (fixture.componentInstance as unknown as { contentMotion: () => { dir: string } | null })
-        .contentMotion();
+      (
+        fixture.componentInstance as unknown as { contentMotion: () => { dir: string } | null }
+      ).contentMotion();
     expect(motion()).toBeNull();
     (host().querySelector('[aria-label="下一週"]') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -224,10 +227,14 @@ describe('家長端課表 ScheduleComponent', () => {
     );
     expect(host().querySelector('[data-part="exam"]')!.textContent).toContain('這天有 1 場小考');
     expect(homework).toHaveBeenCalled();
+    // #1796：A6 p-schedule 詳情「分校 · 教室」；沒指定教室的只寫分校
+    const kv = () => host().textContent!.replace(/\s+/g, ' ');
+    expect(kv()).toContain('文山旗艦校 · 小教室');
 
     // 上課中那堂：作業取 c1＋今天，不拿到別班同一天的
     card('live').click();
     fixture.detectChanges();
+    expect(kv()).not.toContain('文山旗艦校 ·');
     const hw = host().querySelector('[data-part="homework"]')!.textContent!;
     expect(hw).toContain('講義 p.42–45');
     expect(hw).not.toContain('別班的作業');

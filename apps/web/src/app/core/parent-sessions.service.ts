@@ -28,6 +28,8 @@ export interface ParentSession {
   className: string | null;
   courseName: string | null;
   campusName: string | null;
+  /** 排課時段指定的教室（#1796）；手動加的堂、補課、沒指定 → null */
+  classroomName: string | null;
   teacherName: string | null;
   isSubstitute: boolean;
   originalTeacherName: string | null;
