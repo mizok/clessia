@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudentScope } from './child-scope';
+import { notifyNewApplication } from './notify-events';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 import { logAudit } from '../utils/audit';
 
@@ -232,6 +233,45 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
      * - **不帶個資全文**：`resourceName` 只有「家長請假／日期」，不寫學生或家長的名字；
      *   details 只有身分、改成請假的堂數、其中補請的堂數、略過的已點名堂數
      */
+    /**
+     * 家長在 App 送出報名／試聽申請之後通知分校管理員（#1731，規則照 #1711：班或課程所在分校、`manage_students`）。
+     * 通知寫的是**別人**的 `notifications` 列，走不了 scope 寫入，所以跟 `notifyLeave` 一樣是窄能力：
+     * **這次送出的每一筆都要是 scope 內孩子的、同 org 的**，少一筆對不上就整批不發、回 false。
+     *
+     * - 班／課程與學生名從 DB 的申請讀，不吃呼叫端
+     * - 同一次送出（試聽一次多門課＝多筆）合成一則；識別碼取 id 最小的那筆，重送同一批是同一個去重鍵
+     * - 失敗只記 log（`notifyNewApplication` 不丟例外）
+     */
+    async notifyRequests(
+      kind: 'enrollment' | 'trial',
+      requestIds: readonly string[],
+    ): Promise<boolean> {
+      const ids = [...new Set(requestIds)];
+      if (writableIds.length === 0 || ids.length === 0) return false;
+      const target = kind === 'enrollment' ? 'class_id' : 'course_id';
+      const { data, error } = await supabase
+        .from(kind === 'enrollment' ? 'enrollment_requests' : 'trial_requests')
+        .select(`id, ${target}, students(name)`)
+        .eq('org_id', orgId)
+        .in('id', ids)
+        .in('student_id', writableIds);
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      if (error || rows.length !== ids.length) return false;
+      rows.sort((a, b) => String(a['id']).localeCompare(String(b['id'])));
+      const student = rows[0]!['students'] as { name?: string } | null;
+      const targets = rows.map((r) => r[target] as string);
+      await notifyNewApplication(supabase, {
+        orgId,
+        applicationId: rows[0]!['id'] as string,
+        source: 'parent',
+        kind,
+        studentName: student?.name ?? '',
+        ...(kind === 'enrollment' ? { classIds: targets } : { courseIds: targets }),
+        requestCount: rows.length,
+      });
+      return true;
+    },
+
     async recordLeave(
       leaveId: string,
       counts: {

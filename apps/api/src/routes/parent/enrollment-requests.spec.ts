@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { notifyNewApplication } from '../../lib/notify-events';
+
+vi.mock('../../lib/notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 import enrollmentRequestsRoute from './enrollment-requests';
@@ -49,6 +52,7 @@ function appFor(db: ReturnType<typeof createMultiOrgDb>, roles = ['parent'], sco
 }
 
 async function submit(body: Record<string, unknown>, db = seed(), roles?: string[]) {
+  vi.mocked(notifyNewApplication).mockClear();
   const res = await appFor(db, roles).request('/', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -75,6 +79,32 @@ describe('POST /api/me/enrollment-requests', () => {
       requested_by: 'parent-user',
       status: 'pending',
     });
+  });
+
+  // #1731：送出成功才通知分校管理員（去重鍵跟公開表單分開），走 childDb 的窄能力
+  it('送出成功：通知一次，帶這筆申請與它的班', async () => {
+    const { rows } = await submit({ classId: CLASS_OPEN });
+    expect(notifyNewApplication).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifyNewApplication).mock.calls[0]![1]).toMatchObject({
+      orgId: ORG,
+      applicationId: rows[0]!['id'],
+      source: 'parent',
+      kind: 'enrollment',
+      classIds: [CLASS_OPEN],
+      requestCount: 1,
+    });
+  });
+
+  it('登記候補也通知（行政要知道有人在排）', async () => {
+    await submit({ classId: CLASS_FULL, waitlist: true });
+    expect(notifyNewApplication).toHaveBeenCalledTimes(1);
+  });
+
+  it('被擋下的（額滿沒說候補、別人孩子）：不通知', async () => {
+    await submit({ classId: CLASS_FULL });
+    expect(notifyNewApplication).not.toHaveBeenCalled();
+    await submit({ classId: CLASS_OPEN, studentId: OTHER_CHILD });
+    expect(notifyNewApplication).not.toHaveBeenCalled();
   });
 
   it('額滿、沒說要候補：409 CLASS_FULL，沒寫', async () => {
