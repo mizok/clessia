@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
@@ -33,7 +34,8 @@ const CampusSchema = z
 
 const CampusListResponseSchema = z
   .object({
-    data: z.array(CampusSchema),
+    /** `classroomCount`：列上的「N 間教室／還沒有教室」（#1314 SE3） */
+    data: z.array(CampusSchema.extend({ classroomCount: z.number() })),
     summary: z.object({
       total: z.number(),
       activeCount: z.number(),
@@ -54,6 +56,10 @@ const CreateCampusSchema = z
     address: z.string().max(255).nullable().optional().openapi({ description: '分校地址' }),
     phone: z.string().max(30).nullable().optional().openapi({ description: '分校電話' }),
     isActive: z.boolean().optional().openapi({ description: '是否啟用' }),
+    /** 同 UpdateCampus：要 `manage_org_settings`；不帶／null = 沿用機構預設（A6 新增表單就有這欄，#1314 SE3） */
+    attendanceMode: z.enum(['per_session', 'daily_checkin']).nullable().optional(),
+    /** 同 UpdateCampus：要 `manage_finance`；不帶／空白 = 沿用機構預設 */
+    paymentInfo: z.string().max(PAYMENT_INFO_MAX).nullable().optional(),
   })
   .openapi('CreateCampus');
 
@@ -69,6 +75,37 @@ const UpdateCampusSchema = z
     paymentInfo: z.string().max(PAYMENT_INFO_MAX).nullable().optional(),
   })
   .openapi('UpdateCampus');
+
+// #1314 SE3：分校的教室（設計稿 kb/wiki/specs/admin/system/campus-classrooms.md §3）
+const ClassroomSchema = z
+  .object({
+    id: DbUuidSchema,
+    campusId: DbUuidSchema,
+    name: z.string(),
+    /** 只顯示，不擋班級人數上限（Q3）；null = 沒填 */
+    capacity: z.number().nullable(),
+    equipment: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('Classroom');
+
+// 長度跟 DB 的 CHECK 一致（`20261021055640_classrooms.sql`）；空白先 trim 掉，否則撞 CHECK 變 500
+const ClassroomBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(50).openapi({ example: 'C 教室' }),
+    capacity: z.number().int().positive().nullable().optional().openapi({ example: 20 }),
+    equipment: z
+      .string()
+      .trim()
+      .max(200)
+      .nullable()
+      .optional()
+      .openapi({ example: '投影機、白板' }),
+  })
+  .openapi('ClassroomBody');
+
+const ClassroomParamsSchema = z.object({ id: DbUuidSchema, roomId: DbUuidSchema });
 
 const ErrorSchema = z
   .object({
@@ -99,6 +136,18 @@ function mapCampus(row: Record<string, unknown>) {
     isActive: row['is_active'] as boolean,
     attendanceMode: (row['attendance_mode'] as 'per_session' | 'daily_checkin' | null) ?? null,
     paymentInfo: normalizePaymentInfo(row['payment_info']),
+    createdAt: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
+  };
+}
+
+function mapClassroom(row: Record<string, unknown>) {
+  return {
+    id: row['id'] as string,
+    campusId: row['campus_id'] as string,
+    name: row['name'] as string,
+    capacity: (row['capacity'] as number | null) ?? null,
+    equipment: (row['equipment'] as string | null) ?? null,
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
@@ -215,7 +264,26 @@ app.openapi(listRoute, async (c) => {
     console.error('DB Error:', error);
   }
 
-  const campuses = (data || []).map((row) => mapCampus(row as Record<string, unknown>));
+  // 教室數：這一頁的分校一次撈 campus_id 自己數，不 N+1（#1314 SE3）。
+  // 讀失敗就 500 —— 印「還沒有教室」會讓人以為真的沒有而重建一輪
+  const pageIds = (data || []).map((row) => (row as { id: string }).id);
+  const classroomCount = new Map<string, number>();
+  if (pageIds.length > 0) {
+    const { data: rooms, error: roomsError } = await supabase
+      .from('classrooms')
+      .select('campus_id')
+      .eq('org_id', orgId)
+      .in('campus_id', pageIds);
+    if (roomsError) throw new Error(`classrooms count failed: ${roomsError.message}`);
+    for (const room of (rooms ?? []) as Array<{ campus_id: string }>) {
+      classroomCount.set(room.campus_id, (classroomCount.get(room.campus_id) ?? 0) + 1);
+    }
+  }
+
+  const campuses = (data || []).map((row) => ({
+    ...mapCampus(row as Record<string, unknown>),
+    classroomCount: classroomCount.get((row as { id: string }).id) ?? 0,
+  }));
   const total = count || 0;
 
   if (summaryError) {
@@ -321,6 +389,14 @@ const createCampusRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '帶了出勤模式／帳戶資訊但沒有對應權限',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
     409: {
       description: '分校名稱重複',
       content: {
@@ -349,6 +425,21 @@ app.openapi(createCampusRoute, async (c) => {
     insertData['is_active'] = body.isActive;
   }
 
+  // 門檻跟 PUT 同一個（#1112、#1073）—— 不然沒權限的人改用「新建一個」就繞過了
+  const permissions = c.get('permissions') ?? [];
+  if (body.attendanceMode !== undefined) {
+    if (!hasPermission(permissions, 'manage_org_settings')) {
+      return c.json({ error: '沒有權限設定分校的出勤模式', code: 'FORBIDDEN' }, 403);
+    }
+    insertData['attendance_mode'] = body.attendanceMode;
+  }
+  if (body.paymentInfo !== undefined) {
+    if (!hasPermission(permissions, 'manage_finance')) {
+      return c.json({ error: '需要「財務管理」才能設定帳戶資訊', code: 'FORBIDDEN' }, 403);
+    }
+    insertData['payment_info'] = normalizePaymentInfo(body.paymentInfo);
+  }
+
   const { data, error } = await supabase.from('campuses').insert(insertData).select('*').single();
 
   if (error) {
@@ -375,6 +466,8 @@ app.openapi(createCampusRoute, async (c) => {
         address: data.address,
         phone: data.phone,
         is_active: data.is_active,
+        attendance_mode: data.attendance_mode,
+        payment_info: data.payment_info,
       }),
     },
     waitUntilFrom(c),
@@ -601,6 +694,291 @@ app.openapi(deleteRoute, async (c) => {
   );
 
   return c.json({ success: true }, 200);
+});
+
+// ============================================================
+// 分校的教室（#1314 SE3）—— 判準跟分校本身的寫入一致（#1133）：
+// 分校範圍外 403、不存在／別 org 404；讀寫同一個判準。
+// ============================================================
+
+const classroomErrorResponses = {
+  403: {
+    description: '不在自己管的分校範圍',
+    content: { 'application/json': { schema: ErrorSchema } },
+  },
+  404: {
+    description: '分校或教室不存在',
+    content: { 'application/json': { schema: ErrorSchema } },
+  },
+};
+
+/**
+ * 分校範圍＋org 檢查，過了回分校那一列。**寫教室時 `org_id` 用這一列的**，不收前端給的 ——
+ * `classrooms` 的 FK 只保證分校存在，擋不住「別 org 的分校、本 org 的 org_id」這種組合。
+ */
+async function campusForClassrooms(c: Context<AppEnv>, id: string) {
+  if (!resourceCampusAllowed(getCampusScope(c), id)) {
+    return {
+      ok: false,
+      res: c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403),
+    } as const;
+  }
+  const campus = await findInOrg(
+    c.get('supabase'),
+    'campuses',
+    c.get('orgId'),
+    id,
+    'id, org_id, name',
+  );
+  if (!campus) {
+    return { ok: false, res: c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404) } as const;
+  }
+  return { ok: true, campus } as const;
+}
+
+/** 教室要同時屬於本 org **和這個分校** —— 只驗 org 的話，A 校的網址改得到 B 校的教室 */
+async function findClassroom(c: Context<AppEnv>, campusId: string, roomId: string) {
+  const { data, error } = await inOrg(
+    c.get('supabase').from('classrooms').select('*').eq('id', roomId).eq('campus_id', campusId),
+    c.get('orgId'),
+  ).maybeSingle();
+  if (error) throw new Error(`findClassroom failed: ${error.message}`);
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
+const nameTaken = (c: Context<AppEnv>) =>
+  c.json({ error: '這個分校已有同名教室', code: 'CLASSROOM_NAME_TAKEN' }, 409);
+
+// GET /api/campuses/:id/classrooms
+const listClassroomsRoute = createRoute({
+  method: 'get',
+  path: '/{id}/classrooms',
+  tags: ['Campuses'],
+  summary: '分校的教室（依名稱排序）',
+  request: { params: z.object({ id: DbUuidSchema }) },
+  responses: {
+    200: {
+      description: '成功',
+      content: { 'application/json': { schema: z.object({ data: z.array(ClassroomSchema) }) } },
+    },
+    ...classroomErrorResponses,
+  },
+});
+
+app.openapi(listClassroomsRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const found = await campusForClassrooms(c, id);
+  if (!found.ok) return found.res;
+
+  const { data, error } = await inOrg(
+    c.get('supabase').from('classrooms').select('*').eq('campus_id', id),
+    c.get('orgId'),
+  ).order('name', { ascending: true });
+  if (error) throw new Error(`list classrooms failed: ${error.message}`);
+
+  return c.json(
+    { data: (data ?? []).map((row) => mapClassroom(row as Record<string, unknown>)) },
+    200,
+  );
+});
+
+// POST /api/campuses/:id/classrooms
+const createClassroomRoute = createRoute({
+  method: 'post',
+  path: '/{id}/classrooms',
+  tags: ['Campuses'],
+  summary: '新增教室',
+  request: {
+    params: z.object({ id: DbUuidSchema }),
+    body: { content: { 'application/json': { schema: ClassroomBodySchema } } },
+  },
+  responses: {
+    201: {
+      description: '成功',
+      content: { 'application/json': { schema: z.object({ data: ClassroomSchema }) } },
+    },
+    ...classroomErrorResponses,
+    409: {
+      description: '同分校已有同名教室',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+app.openapi(createClassroomRoute, async (c) => {
+  const { id } = c.req.valid('param');
+  const found = await campusForClassrooms(c, id);
+  if (!found.ok) return found.res;
+  const body = c.req.valid('json');
+
+  const { data, error } = await c
+    .get('supabase')
+    .from('classrooms')
+    .insert({
+      org_id: found.campus['org_id'],
+      campus_id: id,
+      name: body.name,
+      capacity: body.capacity ?? null,
+      equipment: body.equipment || null,
+    })
+    .select('*')
+    .single();
+  if (error) {
+    if (error.code === '23505') return nameTaken(c);
+    throw new Error(`create classroom failed: ${error.message}`);
+  }
+
+  logAudit(
+    c.get('supabase'),
+    {
+      orgId: c.get('orgId'),
+      userId: c.get('userId'),
+      resourceType: 'campus',
+      resourceId: id,
+      resourceName: found.campus['name'] as string,
+      action: 'classroom.create',
+      details: {
+        classroomId: data.id,
+        ...auditFieldDiff(null, {
+          name: data.name,
+          capacity: data.capacity,
+          equipment: data.equipment,
+        }),
+      },
+    },
+    waitUntilFrom(c),
+  );
+
+  return c.json({ data: mapClassroom(data as Record<string, unknown>) }, 201);
+});
+
+// PUT /api/campuses/:id/classrooms/:roomId
+const updateClassroomRoute = createRoute({
+  method: 'put',
+  path: '/{id}/classrooms/{roomId}',
+  tags: ['Campuses'],
+  summary: '修改教室（改名、容量、設備）',
+  request: {
+    params: ClassroomParamsSchema,
+    body: { content: { 'application/json': { schema: ClassroomBodySchema } } },
+  },
+  responses: {
+    200: {
+      description: '成功',
+      content: { 'application/json': { schema: z.object({ data: ClassroomSchema }) } },
+    },
+    ...classroomErrorResponses,
+    409: {
+      description: '同分校已有同名教室',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+app.openapi(updateClassroomRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const { id, roomId } = c.req.valid('param');
+  const found = await campusForClassrooms(c, id);
+  if (!found.ok) return found.res;
+  const before = await findClassroom(c, id, roomId);
+  if (!before) return c.json({ error: '教室不存在', code: 'NOT_FOUND' }, 404);
+  const body = c.req.valid('json');
+
+  const updateData: Record<string, unknown> = { name: body.name };
+  if (body.capacity !== undefined) updateData['capacity'] = body.capacity;
+  if (body.equipment !== undefined) updateData['equipment'] = body.equipment || null;
+
+  const { data, error } = await inOrg(
+    supabase.from('classrooms').update(updateData).eq('id', roomId).eq('campus_id', id),
+    orgId,
+  )
+    .select('*')
+    .single();
+  if (error) {
+    if (error.code === '23505') return nameTaken(c);
+    throw new Error(`update classroom failed: ${error.message}`);
+  }
+
+  logAudit(
+    c.get('supabase'),
+    {
+      orgId: c.get('orgId'),
+      userId: c.get('userId'),
+      resourceType: 'campus',
+      resourceId: id,
+      resourceName: found.campus['name'] as string,
+      action: 'classroom.update',
+      details: { classroomId: roomId, ...auditFieldDiff(before, updateData) },
+    },
+    waitUntilFrom(c),
+  );
+
+  return c.json({ data: mapClassroom(data as Record<string, unknown>) }, 200);
+});
+
+// DELETE /api/campuses/:id/classrooms/:roomId
+const deleteClassroomRoute = createRoute({
+  method: 'delete',
+  path: '/{id}/classrooms/{roomId}',
+  tags: ['Campuses'],
+  summary: '刪除教室',
+  description: '硬刪；指定這間教室的時段改回「不指定」（FK ON DELETE SET NULL，Q4）',
+  request: { params: ClassroomParamsSchema },
+  responses: {
+    200: {
+      description: '成功；`affectedSchedules` = 改回不指定的時段數（給前端寫進 toast）',
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean(), affectedSchedules: z.number() }),
+        },
+      },
+    },
+    ...classroomErrorResponses,
+  },
+});
+
+app.openapi(deleteClassroomRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const { id, roomId } = c.req.valid('param');
+  const found = await campusForClassrooms(c, id);
+  if (!found.ok) return found.res;
+  const existing = await findClassroom(c, id, roomId);
+  if (!existing) return c.json({ error: '教室不存在', code: 'NOT_FOUND' }, 404);
+
+  // schedules 沒有 org_id；教室已驗過屬於本 org 本分校，以 classroom_id 數即可。
+  // ponytail: 數與刪不同交易，併發改時段時 toast 的數字可能差一兩個 —— 只是提示，不值得 withTx
+  const { count, error: countError } = await supabase
+    .from('schedules')
+    .select('id', { count: 'exact', head: true })
+    .eq('classroom_id', roomId);
+  if (countError) throw new Error(`count schedules failed: ${countError.message}`);
+
+  const { error } = await inOrg(
+    supabase.from('classrooms').delete().eq('id', roomId).eq('campus_id', id),
+    c.get('orgId'),
+  );
+  if (error) throw new Error(`delete classroom failed: ${error.message}`);
+
+  logAudit(
+    supabase,
+    {
+      orgId: c.get('orgId'),
+      userId: c.get('userId'),
+      resourceType: 'campus',
+      resourceId: id,
+      resourceName: found.campus['name'] as string,
+      action: 'classroom.delete',
+      details: {
+        classroomId: roomId,
+        affectedSchedules: count ?? 0,
+        ...auditDeleteSnapshot(existing, ['name', 'capacity', 'equipment']),
+      },
+    },
+    waitUntilFrom(c),
+  );
+
+  return c.json({ success: true, affectedSchedules: count ?? 0 }, 200);
 });
 
 export default app;
