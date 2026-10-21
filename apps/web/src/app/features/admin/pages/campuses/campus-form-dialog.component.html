@@ -40,6 +40,25 @@
     />
   </div>
 
+  <!-- 狀態（A6 campusForm 的「狀態」radio） -->
+  <div class="form-dialog__field">
+    <span class="form-dialog__label" id="campus-status-label">狀態</span>
+    <div class="flex gap-4" role="radiogroup" aria-labelledby="campus-status-label">
+      @for (opt of statusOptions; track opt.label) {
+        <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-md wide:min-h-0">
+          <input
+            type="radio"
+            name="campus-status"
+            [checked]="formData().isActive === opt.value"
+            [disabled]="loading()"
+            (change)="updateForm('isActive', opt.value)"
+          />
+          {{ opt.label }}
+        </label>
+      }
+    </div>
+  </div>
+
   <!-- Address -->
   <div class="form-dialog__field">
     <label class="form-dialog__label">地址</label>
@@ -54,9 +73,28 @@
     />
   </div>
 
+  @if (canEditAttendanceMode()) {
+    <div class="form-dialog__field">
+      <label class="form-dialog__label" for="campus-attendance-mode">出勤紀錄模式</label>
+      <select
+        id="campus-attendance-mode"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900"
+        [ngModel]="formData().attendanceMode"
+        (ngModelChange)="updateForm('attendanceMode', $event)"
+        [disabled]="loading()"
+      >
+        <option value="">沿用機構預設</option>
+        <option value="daily_checkin">日到班</option>
+        <option value="per_session">隨堂點名</option>
+      </select>
+      <p class="m-0 mt-1 text-sm text-zinc-600">預設跟著「一般」的設定</p>
+    </div>
+  }
+
   @if (canEditPaymentInfo()) {
     <div class="form-dialog__field">
-      <label class="form-dialog__label" for="campus-payment-info">家長付款帳戶資訊</label>
+      <!-- A6 拆成「收款銀行＋帳號」兩欄；使用者 10-21 裁不拆（SE3 Q1，R5 偏離）：多帳戶、LINE Pay 寫不進兩欄 -->
+      <label class="form-dialog__label" for="campus-payment-info">收款帳戶</label>
       <textarea
         id="campus-payment-info"
         pTextarea
@@ -64,7 +102,7 @@
         maxlength="1000"
         [ngModel]="formData().paymentInfo"
         (ngModelChange)="updateForm('paymentInfo', $event)"
-        placeholder="留白＝沿用系統設定裡的機構帳戶資訊"
+        placeholder="例如：台灣銀行 景美分行（004）&#10;帳號 000-000-000000&#10;留白＝沿用「一般」設定的機構帳戶"
         [disabled]="loading()"
         class="w-full"
       ></textarea>

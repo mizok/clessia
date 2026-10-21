@@ -12,6 +12,7 @@ import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { CampusFormDialogComponent } from './campus-form-dialog.component';
+import { ClassroomsDialogComponent } from './classrooms-dialog.component';
 
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
@@ -99,7 +100,7 @@ export class CampusesPage implements OnInit {
   }
 
   // State
-  readonly campuses = signal<Campus[]>([]);
+  readonly campuses = signal<CampusListResponse['data']>([]);
   readonly loading = signal(true);
   /** 取數失敗。**不能沿用 `campuses().length === 0`** —— 那兩個空狀態在失敗時都是謊話（#812） */
   readonly loadFailed = signal(false);
@@ -121,6 +122,7 @@ export class CampusesPage implements OnInit {
     if (!campus) return [];
     const items: MenuItem[] = [
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(campus) },
+      { label: '教室', icon: 'pi pi-th-large', command: () => this.openClassrooms(campus) },
       { separator: true },
     ];
     if (campus.isActive) {
@@ -296,6 +298,19 @@ export class CampusesPage implements OnInit {
         if (updatedCampus) this.loadCampuses({ rows: true });
       });
     }
+  }
+
+  /** 教室對話框（#1314 SE3）。關掉就安靜重抓 —— 刪除後按遮罩關掉也要把列上的教室數更新 */
+  openClassrooms(campus: Campus): void {
+    const ref = this.dialogService.open(ClassroomsDialogComponent, {
+      width: '520px',
+      modal: true,
+      showHeader: false,
+      dismissableMask: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { campus },
+    });
+    ref?.onClose.subscribe(() => this.loadCampuses({ quiet: true }));
   }
 
   openAuditLog(): void {

@@ -7,7 +7,9 @@ import { OrgSettingsService } from '@core/org-settings.service';
 import { signal } from '@angular/core';
 import { vi } from 'vitest';
 
+import { DialogService } from 'primeng/dynamicdialog';
 import { CampusesPage } from './campuses.page';
+import { ClassroomsDialogComponent } from './classrooms-dialog.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('CampusesPage', () => {
@@ -271,8 +273,11 @@ describe('CampusesPage', () => {
 
   // A6 settings.html#campuses 的列（#1314 SE 插單）
   describe('A6 列', () => {
-    const c = (over: Partial<Campus>): Campus => ({
+    const c = (
+      over: Partial<Campus & { classroomCount: number }>,
+    ): Campus & { classroomCount: number } => ({
       id: 'cp',
+      classroomCount: 0,
       orgId: 'org-1',
       name: '文山旗艦校',
       address: '台北市羅斯福路 12 號',
@@ -285,7 +290,7 @@ describe('CampusesPage', () => {
       ...over,
     });
     const show = async (
-      data: Campus[],
+      data: Array<Campus & { classroomCount: number }>,
       summary = { total: data.length, activeCount: data.length, inactiveCount: 0 },
     ) => {
       campusesServiceMock.list.mockReturnValue(
@@ -318,6 +323,33 @@ describe('CampusesPage', () => {
       expect(row('b').textContent).toContain('電話未填寫');
       expect(row('b').querySelector('small')!.textContent).toContain('已停用');
       expect(row('a').textContent).not.toContain('已停用');
+    });
+
+    it('教室數（#1314 SE3）：「N 間教室」／「還沒有教室」', async () => {
+      await show([c({ id: 'a', classroomCount: 3 }), c({ id: 'b' })]);
+      const rooms = (id: string) => row(id).querySelector('[data-rooms]')!.textContent!.trim();
+      expect(rooms('a')).toBe('3 間教室');
+      expect(rooms('b')).toBe('還沒有教室');
+    });
+
+    it('⋮ 有「教室」，按了開教室對話框（帶分校），關掉就安靜重抓教室數', async () => {
+      const campus = c({ id: 'a' });
+      const onClose = new Subject<unknown>();
+      const open = vi
+        .spyOn(fixture.debugElement.injector.get(DialogService), 'open')
+        .mockReturnValue({ onClose } as never);
+      (component as any).selectedCampus.set(campus);
+      const item = (component as any)
+        .actionMenuItems()
+        .find((i: { label?: string }) => i.label === '教室');
+      item.command();
+      expect(open.mock.calls[0]?.[0]).toBe(ClassroomsDialogComponent);
+      expect((open.mock.calls[0]?.[1] as { data: unknown }).data).toEqual({ campus });
+
+      campusesServiceMock.list.mockClear();
+      onClose.next(undefined);
+      expect(campusesServiceMock.list).toHaveBeenCalledTimes(1);
+      expect(component.loading()).toBe(false);
     });
 
     it('出勤模式：沒設 → 機構預設＋沿用預設；跟預設不同的標出來；同預設只寫模式', async () => {

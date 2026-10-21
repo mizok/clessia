@@ -36,7 +36,18 @@ export class CampusFormDialogComponent {
     address: this.campus()?.address ?? '',
     phone: this.campus()?.phone ?? '',
     paymentInfo: this.campus()?.paymentInfo ?? '',
+    isActive: this.campus()?.isActive ?? true,
+    /** '' = 沿用機構預設（null） */
+    attendanceMode: (this.campus()?.attendanceMode ?? '') as '' | 'per_session' | 'daily_checkin',
   });
+
+  /**
+   * 出勤模式（A6「出勤紀錄模式」）：跟機構預設同一個門檻 `manage_org_settings`（#1112）。
+   * 只在編輯時 —— 建立的 API 不收，新分校先沿用機構預設。
+   */
+  protected readonly canEditAttendanceMode = computed(
+    () => this.isEditing() && this.auth.hasPermission('manage_org_settings'),
+  );
 
   /**
    * #1073：帳戶資訊覆寫只給有 `manage_finance` 的人改（改帳號＝改家長匯款的去向）。
@@ -45,6 +56,11 @@ export class CampusFormDialogComponent {
   protected readonly canEditPaymentInfo = computed(
     () => this.isEditing() && this.auth.hasPermission('manage_finance'),
   );
+
+  protected readonly statusOptions = [
+    { label: '啟用', value: true },
+    { label: '停用', value: false },
+  ] as const;
 
   protected readonly isEditing = computed(() => this.campus() !== null);
 
@@ -66,6 +82,8 @@ export class CampusFormDialogComponent {
         name: form.name.trim(),
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
+        isActive: form.isActive,
+        ...(this.canEditAttendanceMode() ? { attendanceMode: form.attendanceMode || null } : {}),
         // 沒有財務權限就不帶這個 key —— 帶了 API 會 403，整張表單（改名、改電話）一起存不了
         ...(this.canEditPaymentInfo()
           ? { paymentInfo: form.paymentInfo.trim() ? form.paymentInfo : null }
@@ -95,6 +113,7 @@ export class CampusFormDialogComponent {
         name: form.name.trim(),
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
+        isActive: form.isActive,
       };
 
       this.campusesService.create(input).subscribe({

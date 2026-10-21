@@ -1,7 +1,6 @@
 <!--
   A6 settings.html#campuses：搜尋 → 統計一行（N 個分校 · 啟用中 · 已停用 ＋「顯示停用的 N 個」）→ 一列一個分校。
-  列：名稱（停用加小字）＋地址｜電話＋出勤模式｜⋮。殼（settings-shell）擁有 h1 與分頁，這裡不再放標題。
-  A6 列上的教室數（SE3，schema 沒有教室）不做，記在 PR 的已記錄偏離。
+  列：名稱（停用加小字）＋地址｜電話＋出勤模式｜教室數｜⋮。殼（settings-shell）擁有 h1 與分頁，這裡不再放標題。
 -->
 <div class="flex flex-wrap items-center justify-between gap-3">
   <label
@@ -96,7 +95,7 @@
       <app-popup-menu #actionMenu [model]="actionMenuItems()" />
       @for (campus of campuses(); track campus.id) {
         <div
-          class="vt-row grid min-h-[68px] grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_44px] items-center gap-x-5 gap-y-1 border-0 border-b border-solid border-zinc-200 py-3 max-wide:grid-cols-[minmax(0,1fr)_44px] max-wide:gap-x-3"
+          class="vt-row grid min-h-[68px] grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_44px] items-center gap-x-5 gap-y-1 border-0 border-b border-solid border-zinc-200 py-3 max-wide:grid-cols-[minmax(0,1fr)_44px] max-wide:gap-x-3"
           [attr.data-campus]="campus.id"
           [style.view-transition-name]="'campus-' + campus.id"
         >
@@ -116,6 +115,9 @@
             <small class="mt-0.5 block text-sm text-zinc-600" data-mode>{{
               modeText(campus)
             }}</small>
+          </div>
+          <div class="min-w-0 text-md text-zinc-800 max-wide:col-start-1" data-rooms>
+            {{ campus.classroomCount ? campus.classroomCount + ' 間教室' : '還沒有教室' }}
           </div>
           <div class="flex justify-end max-wide:col-start-2 max-wide:row-start-1">
             <button
