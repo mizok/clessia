@@ -224,6 +224,23 @@ describe('GET /api/me/enrollment-requests', () => {
   });
 });
 
+/** 讓某張表的讀取回錯（替身沒有錯誤注入；同 trial-requests.spec 的 failCampuses） */
+function failTable(db: ReturnType<typeof createMultiOrgDb>, table: string) {
+  const client = db.client as { from: (table: string) => Record<string, unknown> };
+  const realFrom = client.from.bind(client);
+  const failed = { data: null, error: { code: 'XX000', message: 'boom' } };
+  const failing: Record<string, unknown> = {
+    eq: () => failing,
+    in: () => failing,
+    maybeSingle: async () => failed,
+    then: (resolve: (v: unknown) => void) => resolve(failed),
+  };
+  vi.spyOn(client, 'from').mockImplementation(((t: string) => {
+    const builder = realFrom(t);
+    return t === table ? { ...builder, select: () => failing } : builder;
+  }) as never);
+}
+
 describe('GET /api/me/enrollment-requests 的待付款帳單與帳戶（#1726 §3）', () => {
   const CAMPUS = 'campus-1';
   const ENR = 'enr-1';
@@ -302,6 +319,45 @@ describe('GET /api/me/enrollment-requests 的待付款帳單與帳戶（#1726 §
     });
     expect(data[0].invoice).toBeNull();
   });
+
+  it('兩個孩子各有一筆待付款：各自拿到自己的帳單', async () => {
+    const db = seed({
+      organizations: [{ id: ORG, payment_info: '機構帳戶' }],
+      campuses: [{ id: CAMPUS, org_id: ORG, payment_info: '分校帳戶 004-123' }],
+      enrollment_requests: [
+        req(),
+        req({ id: 'r-2', student_id: OTHER_CHILD, enrollment_id: 'enr-2' }),
+      ],
+      invoices: [
+        invoice('a'),
+        invoice('b', {
+          student_id: OTHER_CHILD,
+          invoice_items: [{ id: 'b-i', type: 'tuition', enrollment_id: 'enr-2', amount: '2000' }],
+        }),
+      ],
+    });
+    const res = await appFor(db, ['parent'], [MY_CHILD, OTHER_CHILD]).request('/');
+    const data = ((await res.json()) as any).data as Array<{ id: string; invoice: any }>;
+    const byId = Object.fromEntries(data.map((r) => [r.id, r.invoice?.id ?? null]));
+    expect(byId).toEqual({ 'r-1': 'a', 'r-2': 'b' });
+  });
+
+  // fail-closed：讀不到帳單或帳戶就 500，不回「沒有帳單、沒有帳戶」讓家長以為不用繳
+  it.each(['invoices', 'campuses', 'organizations'])(
+    '讀 %s 失敗：500 FETCH_FAILED',
+    async (table) => {
+      const db = seed({
+        organizations: [{ id: ORG, payment_info: '機構帳戶' }],
+        campuses: [{ id: CAMPUS, org_id: ORG, payment_info: '分校帳戶' }],
+        enrollment_requests: [req()],
+        invoices: [invoice('a')],
+      });
+      failTable(db, table);
+      const res = await appFor(db).request('/');
+      expect(res.status).toBe(500);
+      expect(((await res.json()) as any).code).toBe('FETCH_FAILED');
+    },
+  );
 
   it('分校沒設帳戶 → 機構預設', async () => {
     const db = seed({
