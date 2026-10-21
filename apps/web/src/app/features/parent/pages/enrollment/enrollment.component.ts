@@ -289,14 +289,15 @@ export class EnrollmentComponent {
         return [sent, done('未通過審核')];
       case 'cancelled':
         return [sent, done('你取消了這筆申請')];
-      case 'expired':
-        return [sent, done('審核通過，開立繳費單'), done('繳費期限已過，申請過期')];
       case 'waitlist':
         return [
           { text: '登記候補（這班已額滿）', done: true, at: this.md(r.createdAt) },
           todo('有名額時補習班會主動聯絡'),
         ];
     }
+    // expired：enum 有這個值，但沒有任何路徑會走到（不自動過期，R5 2026-10-21／#1758）。
+    // 不替它編一段「繳費期限已過」的故事，只留送出那一步
+    return [sent];
   }
 
   private loadRequests(): void {

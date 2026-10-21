@@ -429,6 +429,16 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(api.cancelEnrollmentRequest).toHaveBeenCalledTimes(2);
     });
 
+    // R5 2026-10-21（#1758）：待付款不會自動過期 —— 詳情不寫「繳費期限已過」這種不存在的流程
+    it('已過期（enum 有、實際不會出現）：時間軸只有送出申請', async () => {
+      await setup({ requests: [req({ id: 'r-exp', status: 'expired' })], fragment: 'records' });
+      el().querySelector<HTMLButtonElement>('[data-request="r-exp"]')!.click();
+      fixture.detectChanges();
+      const dialog = el().querySelector('dialog')!;
+      expect(dialog.querySelectorAll('ol li')).toHaveLength(1);
+      expect(dialog.textContent).not.toContain('繳費期限已過');
+    });
+
     it('待審核、候補可以取消（Q8）；其他狀態沒有取消鈕', async () => {
       await setup({
         requests: [...records, req({ id: 'r-wl', status: 'waitlist' })],
