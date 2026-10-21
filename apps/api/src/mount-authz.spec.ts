@@ -66,6 +66,8 @@ const EXPECTED: Record<string, Expected> = {
   '/api/session-packs': { roles: ADMIN, all: 'manage_finance' },
   '/api/meals': { roles: ADMIN, all: 'manage_finance' },
   '/api/billing-runs': { roles: ADMIN, all: 'manage_finance' },
+  // #1732：連續請假可不收費的明細有餐費單價、計費方式，讀也擋
+  '/api/leave-streaks': { roles: ADMIN, all: 'manage_finance' },
   '/api/reports': { roles: ADMIN, all: 'view_reports' },
 };
 

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudentScope } from './child-scope';
+import { notifyLeaveStreaks } from './leave-streak';
 import { notifyNewApplication } from './notify-events';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 import { logAudit } from '../utils/audit';
@@ -386,6 +387,28 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
           return supabase.from(table).select(columns, options).in(column, ids);
         },
       };
+    },
+
+    /**
+     * 家長請假之後的連續請假偵測（#1732，設計稿 kb/wiki/specs/admin/finance/leave-streak-waiver.md §3）。
+     * 偵測要讀這個孩子的課表與出勤、通知要寫**別人**（財務管理員）的列，走不了 scope，所以跟
+     * `notifyLeave` 一樣是窄能力：**先確認這張假屬於 scope 內的孩子**，不是就回 false。
+     * 學生與日期從 DB 的假單讀，不吃呼叫端。失敗只記 log（`notifyLeaveStreaks` 不丟例外）。
+     */
+    async checkLeaveStreak(leaveId: string): Promise<boolean> {
+      const leave = (await ownLeave(leaveId, 'id, student_id, start_date, end_date')) as {
+        student_id: string;
+        start_date: string;
+        end_date: string;
+      } | null;
+      if (!leave) return false;
+      await notifyLeaveStreaks(supabase, {
+        orgId,
+        studentId: leave.student_id,
+        from: leave.start_date,
+        to: leave.end_date,
+      });
+      return true;
     },
   };
 }
