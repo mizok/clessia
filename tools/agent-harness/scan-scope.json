@@ -97,6 +97,7 @@
       "apps/web/src/app/features/admin/pages/students",
       "apps/web/src/app/features/admin/pages/subjects",
       "apps/web/src/app/features/kiosk",
+      "apps/web/src/app/features/parent/pages/add-course",
       "apps/web/src/app/features/parent/pages/attendance",
       "apps/web/src/app/features/parent/pages/dashboard",
       "apps/web/src/app/features/parent/pages/enrollment",
