@@ -104,8 +104,27 @@ function seed() {
         classes: { name: '國二數學', leave_deducts_session: true },
       },
     ],
+    staff: [
+      { user_id: 'u', org_id: ORG, display_name: '王主任' },
+      { user_id: 'u', org_id: OTHER, display_name: '別家的人' },
+    ],
+    ba_user: [
+      { id: 'u', name: '帳號名' },
+      { id: 'u-outsider', name: 'Demo Admin' },
+    ],
     audit_logs: [],
   });
+}
+
+/** 某張表的查詢一律回錯（其餘照替身） */
+function failingOn(db: ReturnType<typeof createMultiOrgDb>, table: string) {
+  const client = db.client as { from: (t: string) => unknown };
+  const failed = { data: null, error: { code: 'XX000', message: 'boom' } };
+  const chain: unknown = new Proxy(() => chain, {
+    get: (_t, prop) =>
+      prop === 'then' ? (ok: (v: unknown) => unknown) => ok(failed) : () => chain,
+  });
+  return { ...db, client: { from: (t: string) => (t === table ? chain : client.from(t)) } };
 }
 
 function appWith(db: ReturnType<typeof createMultiOrgDb>, scope: CampusScope = null) {
@@ -188,6 +207,46 @@ describe('GET /api/leave-streaks/students/:id（學生檔案明細）', () => {
       ],
       review: null,
     });
+  });
+});
+
+describe('GET /api/leave-streaks/students/:id —— 已處理的段帶標的人（§4.1「王主任 10/20」）', () => {
+  it('reviewerName 讀本 org 的教職員名', async () => {
+    load.mockResolvedValue({ threshold: 3, byStudent: new Map([[STU, [streak(D1, D2, true)]]]) });
+    const res = await appWith(seed()).request(`/api/leave-streaks/students/${STU}`);
+    const body = (await res.json()) as { data: Array<{ review: unknown }> };
+    expect(body.data[0]!.review).toEqual({
+      id: REVIEW,
+      reviewedBy: 'u',
+      reviewerName: '王主任',
+      reviewedAt: 't',
+    });
+  });
+});
+
+describe('GET /api/leave-streaks/students/:id —— 標的人不是本機構教職員', () => {
+  it.each(['ba_user', 'staff'])(
+    '標的人名字查詢失敗（%s）：500，不默默少一個名字（#1741 二讀）',
+    async (table) => {
+      load.mockResolvedValue({ threshold: 3, byStudent: new Map([[STU, [streak(D1, D2, true)]]]) });
+      const res = await appWith(failingOn(seed(), table)).request(
+        `/api/leave-streaks/students/${STU}`,
+      );
+      expect(res.status).toBe(500);
+    },
+  );
+
+  it('退回帳號名（ba_user.name）', async () => {
+    const reviewed = streak(D1, D2, true);
+    load.mockResolvedValue({
+      threshold: 3,
+      byStudent: new Map([
+        [STU, [{ ...reviewed, review: { ...reviewed.review!, reviewed_by: 'u-outsider' } }]],
+      ]),
+    });
+    const res = await appWith(seed()).request(`/api/leave-streaks/students/${STU}`);
+    const body = (await res.json()) as { data: Array<{ review: { reviewerName: string } }> };
+    expect(body.data[0]!.review.reviewerName).toBe('Demo Admin');
   });
 });
 
