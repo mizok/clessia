@@ -1,8 +1,8 @@
 ---
 title: 分校的教室與帳戶（#1314 SE3，設計稿）
-summary: 設計稿（#1314 SE3，保留類、要 migration，待裁）。照 A6 settings.html#campuses：分校 ⋮ 的「教室」對話框（列出教室、新增：名稱、容納人數、設備選填）、列上「N 間教室／還沒有教室」、分校表單加狀態與出勤模式。schema 只缺教室：新表 classrooms（分校底下，名稱分校內唯一、容量選填、設備選填）。帳戶**已存在**（campuses.payment_info，#1073 使用者裁一個多行欄位）—— A6 畫成「收款銀行＋帳號」兩欄，跟既有裁定衝突，建議維持一欄（舊有新無：多帳戶、LINE Pay、現金時段會寫不進去）。狀態、出勤模式 API 早已收，只差表單。A6 在班級時段也用教室（class.html、courses.html），建議同一支 migration 先加 schedules.classroom_id、UI 另開單。
+summary: 設計稿（#1314 SE3，保留類、要 migration；10-21 已裁）。照 A6 settings.html#campuses：分校 ⋮ 的「教室」對話框（列出教室、新增：名稱、容納人數、設備選填）、列上「N 間教室／還沒有教室」、分校表單加狀態與出勤模式。schema 只缺教室：新表 classrooms（分校底下，名稱分校內唯一、容量選填、設備選填）。帳戶**已存在**（campuses.payment_info，#1073 使用者裁一個多行欄位）—— A6 畫成「收款銀行＋帳號」兩欄，使用者裁不拆、維持一欄，登記 A6 偏離（舊有新無：多帳戶、LINE Pay、現金時段會寫不進去）。狀態、出勤模式 API 早已收，只差表單。A6 在班級時段也用教室（class.html、courses.html），同一支 migration 先加 schedules.classroom_id（可空、SET NULL）、UI 另開單（計畫席裁）。
 category: spec
-status: draft
+status: accepted
 updated: 2026-10-21
 tags: [specs, admin, system, campuses, classrooms, migration, design, a6]
 sources: [https://github.com/mizok/clessia/issues/1314]
@@ -10,7 +10,7 @@ sources: [https://github.com/mizok/clessia/issues/1314]
 
 # 分校的教室與帳戶（設計稿）
 
-> **狀態：草稿，待裁（§5）。保留類（新表＋寫入路徑），migration 獨立 PR、CI 代套、使用者 Approve（[[architecture/deploying]]）。**
+> **狀態：已裁定（2026-10-21，#1760 留言 6309042081：Q1、Q3–Q5 使用者裁，Q2 計畫席裁；全照建議）。保留類（新表＋寫入路徑），migration 獨立 PR、CI 代套、使用者 Approve（[[architecture/deploying]]）。**
 > 既有規格 [[specs/admin/system/campuses]] 寫了「教室管理（分校子頁籤）」與「銀行帳戶（戶名、銀行、帳號）」，但兩者都沒做；
 > 列表的 A6 化（純前端）在 #1755，這份只管 SE3 剩下要 schema 的部分。
 
@@ -83,7 +83,17 @@ ALTER TABLE public.classrooms ENABLE ROW LEVEL SECURITY; -- 沒有 policy：fail
 - 教室對話框照 A6：副標列現有教室；A6 只畫了新增 —— **編輯／刪除**沿用 R2（舊有新無不刪）的精神補在副標每間教室後面的小「⋯」（Q4）。
 - 分校表單：加狀態（radio）、出勤模式（select，含「沿用機構預設」，`manage_org_settings` 才出現）、帳戶（見 Q1）。
 
-## 5. 待裁（每題附建議）
+## 5. 裁定（2026-10-21，#1760 留言 6309042081）
+
+| 題                | 裁定                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Q1 帳戶拆兩欄     | （使用者）**不拆**，維持 `campuses.payment_info` 一個多行欄位；A6「收款銀行＋帳號」登記偏離（[[architecture/a6-adoption-rules]] R5） |
+| Q2 時段指定教室   | （計畫席）同一支 migration 先加 `schedules.classroom_id`（可空、`ON DELETE SET NULL`），UI 另開單                                    |
+| Q3 容量擋班級上限 | （使用者）不擋，只顯示                                                                                                               |
+| Q4 改名、刪除     | （使用者）可以；被時段指定的教室刪了，時段改回未指定                                                                                 |
+| Q5 停用狀態       | （使用者）不做                                                                                                                       |
+
+## 5.1 原題與建議（留存）
 
 **Q1　帳戶要照 A6 拆成「收款銀行＋帳號」兩欄嗎？**（既有：一個多行欄位，#1073 使用者裁）
 (a) **建議**：維持一個多行欄位，表單標籤改成 A6 的語氣（「收款帳戶」、placeholder 示範「台灣銀行 景美分行（004）／帳號 …」）。不動 schema。
