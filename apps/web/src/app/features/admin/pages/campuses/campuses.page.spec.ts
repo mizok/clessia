@@ -33,9 +33,13 @@ describe('CampusesPage', () => {
   const orgSettings = signal<{ attendanceMode: 'per_session' | 'daily_checkin' } | null>({
     attendanceMode: 'daily_checkin',
   });
+  let orgStatus: 'unloaded' | 'ready' = 'ready';
+  const orgLoad = vi.fn();
 
   beforeEach(async () => {
     orgSettings.set({ attendanceMode: 'daily_checkin' });
+    orgStatus = 'ready';
+    orgLoad.mockClear();
     campusesServiceMock.list.mockReset();
     campusesServiceMock.list.mockReturnValue(of(buildCampusResponse()));
 
@@ -49,7 +53,7 @@ describe('CampusesPage', () => {
         },
         {
           provide: OrgSettingsService,
-          useValue: { settings: orgSettings, status: () => 'ready', load: vi.fn() },
+          useValue: { settings: orgSettings, status: () => orgStatus, load: orgLoad },
         },
         {
           provide: OverlayContainerService,
@@ -385,6 +389,75 @@ describe('CampusesPage', () => {
       expect(items.map((i) => i.label)).toEqual(['操作紀錄']);
       items[0].command();
       expect(open).toHaveBeenCalled();
+    });
+
+    // 審核席 C2：機構預設沒載過就載；載過不重載
+    it('機構設定還沒載：進頁就載一次；已載好不重載', async () => {
+      expect(orgLoad).not.toHaveBeenCalled();
+      orgStatus = 'unloaded';
+      const again = TestBed.createComponent(CampusesPage);
+      again.detectChanges();
+      await again.whenStable();
+      expect(orgLoad).toHaveBeenCalledTimes(1);
+    });
+
+    // 審核席 C3／C4：paginator 剛好一頁不出現、多一筆才出現；翻頁頁碼是 page + 1
+    it('剛好一頁不出 paginator；多一筆才出；翻到第 2 頁打 page: 2', async () => {
+      const many = (n: number) =>
+        Array.from({ length: Math.min(n, LIST_PAGE_SIZE) }, (_, i) => c({ id: 'p' + i }));
+      const page = async (total: number) => {
+        campusesServiceMock.list.mockReturnValue(
+          of(
+            buildCampusResponse({
+              data: many(total),
+              summary: { total, activeCount: total, inactiveCount: 0 },
+              meta: {
+                total,
+                page: 1,
+                pageSize: LIST_PAGE_SIZE,
+                totalPages: Math.ceil(total / LIST_PAGE_SIZE),
+              },
+            }),
+          ),
+        );
+        component.loadCampuses();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        return (fixture.nativeElement as HTMLElement).querySelector('p-paginator');
+      };
+      expect(await page(LIST_PAGE_SIZE)).toBeNull();
+      expect(await page(LIST_PAGE_SIZE + 1)).not.toBeNull();
+      (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 1 });
+      expect(campusesServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+    });
+
+    // 審核席 C7：清除搜尋真的清掉關鍵字並重抓
+    it('找不到時按清除搜尋：關鍵字清空、不帶 search 重抓', async () => {
+      vi.useFakeTimers();
+      try {
+        const type = (v: string) =>
+          (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange(v);
+        campusesServiceMock.list.mockReturnValue(
+          of(buildCampusResponse({ summary: { total: 3, activeCount: 3, inactiveCount: 0 } })),
+        );
+        type('xyz');
+        vi.advanceTimersByTime(300);
+        fixture.detectChanges();
+        const clear = [
+          ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+        ].find((b) => b.textContent!.trim() === '清除搜尋')!;
+        clear.click();
+        vi.advanceTimersByTime(300);
+        expect((component as unknown as { searchQuery: () => string }).searchQuery()).toBe('');
+        expect(campusesServiceMock.list).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: undefined }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
