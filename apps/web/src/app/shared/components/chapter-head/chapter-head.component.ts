@@ -34,6 +34,8 @@ export class ChapterHeadComponent {
   readonly stacked = input(false);
   /** A6 清單頁的手機章頭（人員、價目表、請假、考試）：橫排、章名 28px、張數 14px。跟 `stacked` 互斥 */
   readonly listRow = input(false);
+  /** 桌機黏住（A6 `.chap__side`）。稿上不是 `.chap` 的頁（家長帳單）關掉，不然是稿沒有的多黏 */
+  readonly pinned = input(true);
 
   /**
    * 外框：直排（桌機左欄、手機 `stacked`）時子項撐滿那一欄（A6 `.chap__big` 是 block，#1715）；
@@ -41,12 +43,12 @@ export class ChapterHeadComponent {
    *
    * 桌機黏住（A6 `.chap__side { position: sticky; top: 80px }`，≤860 static）：黏的是這層、不是宿主 ——
    * 宿主是頁面 grid 的格子（預設 stretch，撐滿整章，黏住的範圍就是整章），而各頁在宿主上放的
-   * padding 不一樣（pt-8、pt-4）。`top-6`：稿的 80px 含它自己在捲動區裡的頂欄（56＋24），
-   * app 頂欄在殼層捲動區外，24px 才落在同一處。
+   * padding 不一樣（pt-8、pt-4）。位置是 `top-sticky-chapter`（tailwind.css 的 token，說明在那裡）。
    */
   protected readonly boxClass = computed(
     () =>
-      'chapter-head flex wide:sticky wide:top-6 wide:flex-col wide:items-stretch wide:gap-x-0 ' +
+      'chapter-head flex wide:flex-col wide:items-stretch wide:gap-x-0 ' +
+      (this.pinned() ? 'wide:sticky wide:top-sticky-chapter ' : '') +
       (this.stacked() ? 'flex-col items-stretch' : 'flex-wrap items-baseline gap-x-3'),
   );
 

@@ -159,8 +159,14 @@ describe('ChapterHeadComponent', () => {
       await setup({ name: '國文', ...inputs });
       const box = host.querySelector('.chapter-head') as HTMLElement;
       expect(box.classList.contains('wide:sticky')).toBe(true);
-      expect(box.classList.contains('wide:top-6')).toBe(true);
+      expect(box.classList.contains('wide:top-sticky-chapter')).toBe(true);
       expect(box.classList.contains('sticky')).toBe(false);
     }
+  });
+
+  it('pinned=false 不黏（稿上不是 .chap 的頁，例：家長帳單）', async () => {
+    await setup({ name: '待繳', pinned: false });
+    const box = host.querySelector('.chapter-head') as HTMLElement;
+    expect(box.classList.contains('wide:sticky')).toBe(false);
   });
 });
