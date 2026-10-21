@@ -1,6 +1,6 @@
 ---
 title: 核准家長的報名申請（開繳費單、建報名、轉待付款；設計稿）
-summary: 設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
+summary: 設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額（直接報名不拿鎖的競態另列 Q9）、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
 category: spec
 status: draft
 updated: 2026-10-21
@@ -60,7 +60,9 @@ sources: [https://github.com/mizok/clessia/issues/1726]
 
 1. `SELECT … FROM enrollment_requests WHERE id=$1 AND org_id=$2 FOR UPDATE` —— 不在、或班不在 campusScope → 404；
    status 不是 `pending`／`waitlist` → 409 `REQUEST_NOT_APPROVABLE`（併發的拒絕／取消／重複核准都落在這）。
-2. `SELECT … FROM classes WHERE id=$1 AND org_id=$2 FOR UPDATE` —— 鎖班，名額判斷跟別人的核准／直接報名序列化。
+2. `SELECT … FROM classes WHERE id=$1 AND org_id=$2 FOR UPDATE` —— 鎖班，**核准與核准之間**的名額判斷序列化。
+   ⚠️ 直接報名（`POST /api/enrollments`、`/batch`、`/copy-from-class`）現在先讀後寫、**不拿這把鎖**（§0），
+   所以核准與直接報名仍可能同時擠進最後一位。要真的擋住，那幾條也得在交易裡鎖同一列班再數 —— 見 Q9、拆單 1b。
 3. 重數佔名額；`count >= max_students` → 409 `CLASS_FULL`（候補也一樣，見 Q3）。
 4. 驗價目表屬於本 org、啟用中、模式相符；期繳驗 `billing_period_id` 屬於本 org 且涵蓋生效起。
 5. `INSERT enrollments (status='pending_payment', billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from)`；
@@ -110,6 +112,7 @@ paymentInfo: PaymentInfo | null; // pickPaymentInfo(班級分校, org)
 | #   | 類型      | 內容                                                                      |
 | --- | --------- | ------------------------------------------------------------------------- |
 | 1   | 保留類    | 核准 API（交易、名額、帳單、申請轉態）＋ spec 測試（併發、23505、週期欄） |
+| 1b  | 保留類    | 只在 Q9 選 (a)：直接報名三條路的名額判斷改走同一支「鎖班＋數名額」函式（withTx） |
 | 2   | 一般類    | 管理端核准對話框（試算、原因、衝堂確認）                                  |
 | 3   | 保留類    | 家長端申請 API 帶 `invoice`／`paymentInfo`（childDb）                     |
 | 4   | 一般類    | 家長端待付款詳情照 A6                                                     |
@@ -144,6 +147,11 @@ paymentInfo: PaymentInfo | null; // pickPaymentInfo(班級分校, org)
 
 **Q7　付清之後誰把報名轉 `active`、申請轉 `completed`？**（規則 1.5，目前沒有任何路徑會做）
 **建議**：**另開單**（收款路徑，也是保留類）。這張只核准；家長端看到帳單繳清時寫「已繳清，等補習班確認」，不會卡在一個看起來沒動的「待付款」。
+
+**Q9　直接報名不拿鎖，核准與它仍可能一起擠進最後一位，要不要一起修？**（審核席 #1758 指出）
+(a) **建議**：要 —— 拆單 1b，把直接報名的名額判斷搬進交易、鎖同一列班，跟核准共用同一支函式（pg-pool-writes rule 5：同一件事只能有一份守門）。
+(b) 不修，接受極少見的超收一位（兩個行政同一秒對同一班的最後一個位子動作），額滿時行政自己退一位。
+現況直接報名彼此之間本來就有同樣的競態，(b) 等於維持現狀。
 
 **Q8　核准時能不能「不開帳單」**（A6 直接報名有「不建立（已收款或免費）」）？
 **建議**：不行 —— 規則 1.2 核准就是開帳單；已收現金的，核准後在帳單上直接記收款。要免費就走直接報名。
