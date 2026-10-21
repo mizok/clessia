@@ -6,7 +6,7 @@ import { notifyNewApplication } from '../../lib/notify-events';
 vi.mock('../../lib/notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
-import trialRequestsRoute, { SELECT } from './trial-requests';
+import trialRequestsRoute, { COURSE_SELECT, SELECT } from './trial-requests';
 
 /**
  * 家長端試聽申請（#1120）。真的 `createChildDb` 疊在照條件過濾的替身上（同 enrollment-requests）。
@@ -329,6 +329,11 @@ describe('試聽申請的 select', () => {
     expect(SELECT).toContain('scheduled_date');
     expect(SELECT).toContain('scheduled_start_time');
     expect(SELECT).toContain('scheduled_end_time');
+  });
+
+  it('送出前的課程查詢有撈 campus_id（送出回應的分校靠它，審核席 T4）', () => {
+    expect(COURSE_SELECT).toContain('campus_id');
+    expect(COURSE_SELECT).toContain('is_active');
   });
 
   it('課程有撈 campus_id（分校電話靠它查）', () => {

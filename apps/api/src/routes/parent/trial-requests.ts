@@ -59,6 +59,9 @@ const ErrorSchema = z
 export const SELECT =
   'id, student_id, course_id, status, preferred_times, note, created_at, scheduled_date, scheduled_start_time, scheduled_end_time, students(name), courses(name, campus_id)';
 
+/** 送出前查課程：停開檢查＋回應的分校（寫入回來的列不一定帶課程 embed） */
+export const COURSE_SELECT = 'id, is_active, campus_id';
+
 /** 進行中的試聽 —— 同門課只能一筆（migration 的 partial unique） */
 const OPEN_STATUSES = ['pending', 'scheduled'];
 
@@ -195,7 +198,7 @@ app.openapi(
     }
 
     const [courses, enrolled, open] = await Promise.all([
-      childDb.orgRef('courses').select('id, is_active, campus_id').in('id', courseIds),
+      childDb.orgRef('courses').select(COURSE_SELECT).in('id', courseIds),
       // 規格「排除孩子已報名的課程」：在籍＋待繳費的班所屬的課
       childDb
         .from('enrollments', 'student_id')
