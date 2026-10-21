@@ -6,6 +6,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { approveEnrollmentRequest } from '../lib/enrollment-approve';
+import { notifyEnrollmentApproved } from '../lib/notify-events';
 import { getAuth } from '../lib/get-auth';
 import { hasPermission } from '../lib/permissions';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
@@ -510,6 +511,20 @@ app.openapi(
       },
       waitUntilFrom(c),
     );
+
+    // 通知家長（Q1 (b)，站內＋推播）。背景跑、不擋回應；失敗只記 log
+    const job = notifyEnrollmentApproved(supabase, {
+      orgId,
+      requestId: id,
+      studentId: r.studentId,
+      studentName: (one(prev['students'])?.['name'] as string | undefined) ?? '',
+      className: (targetOf('enrollment', prev)?.['name'] as string | undefined) ?? '',
+      amount: r.amount,
+      dueDate: r.dueDate,
+    });
+    const wu = waitUntilFrom(c);
+    if (wu) wu(job);
+    else await job;
 
     return c.json(
       {
