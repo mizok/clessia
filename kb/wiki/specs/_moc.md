@@ -42,7 +42,7 @@ Links to: [[architecture/admin-dashboard-v1]]
 
 Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `invoices`, `parent`, `design`
 
-Links to: [[rules/enrollment-rules]], [[rules/billing-rules]], [[specs/parent/applications]], [[architecture/pg-pool-writes]], [[architecture/pg-pool-writes]]
+Links to: [[rules/enrollment-rules]], [[rules/billing-rules]], [[specs/parent/applications]], [[architecture/pg-pool-writes]], [[architecture/pg-pool-writes]], [[architecture/a6-adoption-rules]], [[architecture/a6-adoption-rules]]
 
 ## [[specs/admin/enrollment/enrollment|學生報名]]
 
@@ -169,6 +169,14 @@ Links to: [[architecture/line-oauth-login]], [[architecture/line-oauth-login]], 
 Tags: `specs`, `admin`, `student-affairs`, `students`
 
 Links to: [[flows/enrollment|報名申請流程]], [[specs/admin/enrollment/enrollment|學生報名 spec]]
+
+## [[specs/admin/system/campus-classrooms|分校的教室與帳戶（#1314 SE3，設計稿）]]
+
+設計稿（#1314 SE3，保留類、要 migration；10-21 已裁）。照 A6 settings.html#campuses：分校 ⋮ 的「教室」對話框（列出教室、新增：名稱、容納人數、設備選填）、列上「N 間教室／還沒有教室」、分校表單加狀態與出勤模式。schema 只缺教室：新表 classrooms（分校底下，名稱分校內唯一、容量選填、設備選填）。帳戶**已存在**（campuses.payment_info，#1073 使用者裁一個多行欄位）—— A6 畫成「收款銀行＋帳號」兩欄，使用者裁不拆、維持一欄，登記 A6 偏離（舊有新無：多帳戶、LINE Pay、現金時段會寫不進去）。狀態、出勤模式 API 早已收，只差表單。A6 在班級時段也用教室（class.html、courses.html），同一支 migration 先加 schedules.classroom_id（可空、SET NULL）、UI 另開單（計畫席裁）。
+
+Tags: `specs`, `admin`, `system`, `campuses`, `classrooms`, `migration`, `design`, `a6`
+
+Links to: [[architecture/deploying]], [[specs/admin/system/campuses]], [[architecture/pg-pool-writes]], [[architecture/a6-adoption-rules]], [[specs/admin/system/campuses]]
 
 ## [[specs/admin/system/campuses|分校設定]]
 

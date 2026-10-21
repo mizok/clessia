@@ -283,7 +283,8 @@ export const routes: Routes = [
               {
                 path: '',
                 pathMatch: 'full',
-                redirectTo: RoutesCatalog.ADMIN_CAMPUSES.relativePath,
+                // A6：直接打開系統設定落在「一般」（第一個分頁）
+                redirectTo: RoutesCatalog.ADMIN_SETTINGS_GENERAL.relativePath,
               },
               {
                 path: RoutesCatalog.ADMIN_CAMPUSES.relativePath,
