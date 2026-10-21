@@ -78,7 +78,12 @@ function call(
     set(
       'supabase',
       opts.failRead
-        ? { from: (t: string) => (t === 'enrollment_requests' ? failing : db.client.from(t)) }
+        ? {
+            from: (t: string) =>
+              t === 'enrollment_requests'
+                ? failing
+                : (db.client as { from: (t: string) => unknown }).from(t),
+          }
         : db.client,
     );
     set('orgId', ORG);
