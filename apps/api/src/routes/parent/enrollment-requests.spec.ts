@@ -224,6 +224,105 @@ describe('GET /api/me/enrollment-requests', () => {
   });
 });
 
+describe('GET /api/me/enrollment-requests 的待付款帳單與帳戶（#1726 §3）', () => {
+  const CAMPUS = 'campus-1';
+  const ENR = 'enr-1';
+  const req = (extra: Record<string, unknown> = {}) => ({
+    id: 'r-1',
+    org_id: ORG,
+    student_id: MY_CHILD,
+    class_id: CLASS_OPEN,
+    status: 'awaiting_payment',
+    enrollment_id: ENR,
+    created_at: '2026-10-20T00:00:00Z',
+    // 替身不做 embed：班的分校直接放在列上（同正式回傳的形狀）
+    classes: { name: '國二數學 A', campus_id: CAMPUS },
+    ...extra,
+  });
+  const invoice = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    org_id: ORG,
+    student_id: MY_CHILD,
+    invoice_no: `INV-${id}`,
+    issued_at: '2026-10-21',
+    due_date: '2026-11-04',
+    created_at: '2026-10-21T00:00:00Z',
+    voided_at: null,
+    invoice_items: [{ id: `${id}-i`, type: 'tuition', enrollment_id: ENR, amount: '3100' }],
+    payment_records: [{ id: `${id}-p`, kind: 'payment', amount: '1000' }],
+    ...extra,
+  });
+  const read = async (extra: Record<string, Array<Record<string, unknown>>>) => {
+    const db = seed({
+      organizations: [{ id: ORG, payment_info: '機構帳戶' }],
+      campuses: [{ id: CAMPUS, org_id: ORG, payment_info: '分校帳戶 004-123' }],
+      ...extra,
+    });
+    const res = await appFor(db).request('/');
+    return { status: res.status, data: ((await res.json()) as any).data as any[] };
+  };
+
+  it('待付款：帶這筆報名的帳單（總額、已收、期限）與申請班級分校的帳戶', async () => {
+    const { status, data } = await read({
+      enrollment_requests: [req()],
+      invoices: [invoice('a')],
+    });
+    expect(status).toBe(200);
+    expect(data[0].invoice).toEqual({
+      id: 'a',
+      invoiceNo: 'INV-a',
+      total: 3100,
+      netPaid: 1000,
+      dueDate: '2026-11-04',
+      status: 'partial',
+    });
+    expect(data[0].paymentInfo).toBe('分校帳戶 004-123');
+  });
+
+  it('作廢的跳過、取同一筆報名最早開立的那張；別筆報名的帳單不算', async () => {
+    const { data } = await read({
+      enrollment_requests: [req()],
+      invoices: [
+        invoice('void', { issued_at: '2026-10-01', voided_at: '2026-10-02T00:00:00Z' }),
+        invoice('later', { issued_at: '2026-12-01' }),
+        invoice('other', {
+          issued_at: '2026-09-01',
+          invoice_items: [{ id: 'x', type: 'tuition', enrollment_id: 'enr-other', amount: '1' }],
+        }),
+        invoice('first', { issued_at: '2026-10-21' }),
+      ],
+    });
+    expect(data[0].invoice.id).toBe('first');
+  });
+
+  it('別人孩子的帳單即使指著同一個 enrollment_id 也拿不到（childDb 範圍）', async () => {
+    const { data } = await read({
+      enrollment_requests: [req()],
+      invoices: [invoice('theirs', { student_id: OTHER_CHILD })],
+    });
+    expect(data[0].invoice).toBeNull();
+  });
+
+  it('分校沒設帳戶 → 機構預設', async () => {
+    const db = seed({
+      organizations: [{ id: ORG, payment_info: '機構帳戶' }],
+      campuses: [{ id: CAMPUS, org_id: ORG, payment_info: '  ' }],
+      enrollment_requests: [req()],
+      invoices: [invoice('a')],
+    });
+    const data = ((await (await appFor(db).request('/')).json()) as any).data;
+    expect(data[0].paymentInfo).toBe('機構帳戶');
+  });
+
+  it('不是待付款的列：invoice 與 paymentInfo 都是 null', async () => {
+    const { data } = await read({
+      enrollment_requests: [req({ status: 'pending', enrollment_id: null })],
+      invoices: [invoice('a')],
+    });
+    expect(data[0]).toMatchObject({ invoice: null, paymentInfo: null });
+  });
+});
+
 describe('POST /api/me/enrollment-requests/:id/cancel', () => {
   const R = '00000000-0000-4000-8000-0000000000e1';
   const cancel = async (status: string, studentId = MY_CHILD) => {
@@ -257,5 +356,10 @@ describe('POST /api/me/enrollment-requests/:id/cancel', () => {
 describe('報名申請的 select', () => {
   it('有撈 billing_mode', () => {
     expect(SELECT).toContain('billing_mode');
+  });
+
+  it('有撈 enrollment_id 與班的 campus_id（待付款帳單與帳戶，#1726）', () => {
+    expect(SELECT).toContain('enrollment_id');
+    expect(SELECT).toContain('classes(name, campus_id)');
   });
 });
