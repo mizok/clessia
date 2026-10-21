@@ -470,3 +470,216 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
     });
   });
 });
+
+describe('GET /api/academy-exams/todo-by-class —— 每班待登錄一次帶回（#1782）', () => {
+  type Row = Record<string, unknown>;
+  interface Tables {
+    staff: Row[];
+    schedules: Row[];
+    academy_exams: Row[];
+    academy_exam_classes: Row[];
+    enrollments: Row[];
+    academy_scores: Row[];
+  }
+
+  /**
+   * 照查詢條件真的過濾的記憶體替身：分校範圍、任課範圍都要**真的少掉列**才紅得起來，
+   * 只記「有沒有下 `.in`」的話，下在錯的查詢上也會綠。
+   * 巢狀欄位（`classes.org_id`）不看；select 只投影平的欄位名。
+   */
+  function createApp(
+    tables: Tables,
+    ctx: { roles: string[]; userId?: string; campusScope?: readonly string[] | null },
+  ) {
+    const supabase = {
+      from(table: keyof Tables) {
+        const filters: Array<(row: Row) => boolean> = [];
+        let columns = '';
+        const run = () => {
+          const rows = (tables[table] ?? []).filter((row) => filters.every((f) => f(row)));
+          const wanted = columns
+            .split(',')
+            .map((col) => col.trim())
+            .filter((col) => /^\w+$/.test(col));
+          return rows.map((row) =>
+            Object.fromEntries(Object.entries(row).filter(([key]) => wanted.includes(key))),
+          );
+        };
+        const query: Record<string, unknown> = {
+          select: (cols: string) => {
+            columns = cols;
+            return query;
+          },
+          eq: (col: string, value: unknown) => {
+            if (!col.includes('.')) filters.push((row) => row[col] === value);
+            return query;
+          },
+          neq: (col: string, value: unknown) => {
+            filters.push((row) => row[col] !== value);
+            return query;
+          },
+          in: (col: string, values: unknown[]) => {
+            filters.push((row) => values.includes(row[col]));
+            return query;
+          },
+          maybeSingle: () => Promise.resolve({ data: run()[0] ?? null, error: null }),
+          then: (onfulfilled?: (value: unknown) => unknown) =>
+            Promise.resolve({ data: run(), error: null }).then(onfulfilled),
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', ctx.userId ?? 'user-admin');
+      context.set('roles', ctx.roles);
+      context.set('campusScope', ctx.campusScope ?? null);
+      await next();
+    });
+    app.route('/api/academy-exams', academyExamsApp);
+
+    return async (queryString = '') => {
+      const response = await app.request(
+        `/api/academy-exams/todo-by-class${queryString}`,
+        {},
+        undefined,
+        { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+      );
+      return {
+        status: response.status,
+        body: (await response.json()) as {
+          data: Array<{ classId: string; count: number; firstExamId: string }>;
+        },
+      };
+    };
+  }
+
+  // A、B 在分校 1（老師 t1 只教 A），C 在分校 2。每班一位學生。
+  const exam = (id: string, campus: string, date: string, status = 'active') => ({
+    id,
+    org_id: 'org-1',
+    campus_id: campus,
+    exam_date: date,
+    status,
+  });
+  const link = (exam_id: string, class_id: string) => ({ exam_id, class_id });
+  const enroll = (class_id: string, student_id: string) => ({
+    org_id: 'org-1',
+    class_id,
+    student_id,
+    status: 'active',
+    effective_from: '2026-01-01',
+    effective_to: null,
+  });
+  const TABLES: Tables = {
+    staff: [{ id: 'staff-t1', user_id: 'user-t1', org_id: 'org-1' }],
+    schedules: [{ class_id: 'A', teacher_id: 'staff-t1' }],
+    academy_exams: [
+      exam('e-late', 'campus-1', '2026-10-01'), // A、B 都沒登
+      exam('e-early', 'campus-1', '2026-09-20'), // 只有 A，沒登
+      exam('e-done', 'campus-1', '2026-09-10'), // 只有 B，登完了
+      exam('e-c2', 'campus-2', '2026-09-01'), // 分校 2 的 C，沒登
+      exam('e-closed', 'campus-1', '2026-08-01', 'closed'), // 已結束，不算
+    ],
+    academy_exam_classes: [
+      link('e-late', 'A'),
+      link('e-late', 'B'),
+      link('e-early', 'A'),
+      link('e-done', 'B'),
+      link('e-c2', 'C'),
+      link('e-closed', 'A'),
+    ],
+    enrollments: [enroll('A', 's-a'), enroll('B', 's-b'), enroll('C', 's-c')],
+    academy_scores: [{ exam_id: 'e-done', student_id: 's-b' }],
+  };
+  const byClass = (data: Array<{ classId: string }>) =>
+    Object.fromEntries(data.map(({ classId, ...rest }) => [classId, rest]));
+
+  it('管理員不受限：每班的待登錄場數＋最早那場；登完的、已結束的不算', async () => {
+    const { status, body } = await createApp(TABLES, { roles: ['admin'] })();
+    expect(status).toBe(200);
+    expect(byClass(body.data)).toEqual({
+      A: { count: 2, firstExamId: 'e-early' },
+      B: { count: 1, firstExamId: 'e-late' },
+      C: { count: 1, firstExamId: 'e-c2' },
+    });
+  });
+
+  it('別 org 沒登完的考試不進回應 —— 它的班、它的考試 id 都不能回出去（c1）', async () => {
+    const tables = {
+      ...TABLES,
+      academy_exams: [
+        ...TABLES.academy_exams,
+        { ...exam('e-other-org', 'campus-1', '2026-09-01'), org_id: 'org-2' },
+      ],
+      academy_exam_classes: [...TABLES.academy_exam_classes, link('e-other-org', 'X')],
+      enrollments: [...TABLES.enrollments, enroll('X', 's-x')],
+    };
+    const { body } = await createApp(tables, { roles: ['admin'] })();
+    expect(body.data.map((row) => row.classId).sort()).toEqual(['A', 'B', 'C']);
+    expect(body.data.map((row) => row.firstExamId)).not.toContain('e-other-org');
+  });
+
+  it('同一天兩場都沒登：firstExamId 取 id 較小的那場，不看 DB 回傳順序', async () => {
+    const tables = {
+      ...TABLES,
+      // 故意讓 id 較大的排前面：沒有 tie-break 就會拿到 e-same-b
+      academy_exams: [
+        ...TABLES.academy_exams,
+        exam('e-same-b', 'campus-1', '2026-09-05'),
+        exam('e-same-a', 'campus-1', '2026-09-05'),
+      ],
+      academy_exam_classes: [
+        ...TABLES.academy_exam_classes,
+        link('e-same-b', 'D'),
+        link('e-same-a', 'D'),
+      ],
+      enrollments: [...TABLES.enrollments, enroll('D', 's-d')],
+    };
+    const { body } = await createApp(tables, { roles: ['admin'] })();
+    expect(byClass(body.data)['D']).toEqual({ count: 2, firstExamId: 'e-same-a' });
+  });
+
+  it('只管分校 1 的管理員看不到分校 2 的班；指名分校 2 也撐不大範圍', async () => {
+    const get = createApp(TABLES, { roles: ['admin'], campusScope: ['campus-1'] });
+    expect(Object.keys(byClass((await get()).body.data)).sort()).toEqual(['A', 'B']);
+    expect((await get('?campus_id=00000000-0000-4000-8000-000000000002')).body.data).toEqual([]);
+  });
+
+  it('不受限的管理員指名分校：只回那間分校的班', async () => {
+    const tables = {
+      ...TABLES,
+      academy_exams: TABLES.academy_exams.map((row) =>
+        row['campus_id'] === 'campus-2'
+          ? { ...row, campus_id: '00000000-0000-4000-8000-000000000002' }
+          : row,
+      ),
+    };
+    const { body } = await createApp(tables, { roles: ['admin'] })(
+      '?campus_id=00000000-0000-4000-8000-000000000002',
+    );
+    expect(byClass(body.data)).toEqual({ C: { count: 1, firstExamId: 'e-c2' } });
+  });
+
+  it('老師只拿到自己任課的班 —— 同一場考試的別班（B）不回', async () => {
+    const { status, body } = await createApp(TABLES, { roles: ['teacher'], userId: 'user-t1' })();
+    expect(status).toBe(200);
+    expect(byClass(body.data)).toEqual({ A: { count: 2, firstExamId: 'e-early' } });
+  });
+
+  it('沒有任課班的老師回空，不是回全部', async () => {
+    const tables = { ...TABLES, schedules: [] };
+    const { status, body } = await createApp(tables, { roles: ['teacher'], userId: 'user-t1' })();
+    expect(status).toBe(200);
+    expect(body.data).toEqual([]);
+  });
+
+  it('沒有教職員列的老師 403', async () => {
+    const { status } = await createApp(TABLES, { roles: ['teacher'], userId: 'user-nobody' })();
+    expect(status).toBe(403);
+  });
+});

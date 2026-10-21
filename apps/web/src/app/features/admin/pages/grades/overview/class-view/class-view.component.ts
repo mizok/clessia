@@ -29,7 +29,7 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { AcademyExamsService } from '@core/academy-exams.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { catchError, filter, forkJoin, map, of } from 'rxjs';
+import { catchError, filter, map, of } from 'rxjs';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 
 import { ClassScoresDialogComponent } from './class-scores-dialog/class-scores-dialog.component';
@@ -295,31 +295,28 @@ export class ClassViewComponent implements OnInit {
 
   private loadTodoExamCounts(classes: Class[]): void {
     const token = ++this.todoMapRequestToken;
-    const classIds = classes.map((cls) => cls.id);
 
-    if (classIds.length === 0) {
+    if (classes.length === 0) {
       this.todoMap.set({});
       this.loadingTodoMap.set(false);
       return;
     }
 
     this.loadingTodoMap.set(true);
-    const requests = classIds.map((classId) =>
-      // 照日期由早到晚取第一筆＝徽章連過去的「最早那場」（API 預設 date_desc 會拿到最晚那場）
-      this.academyExamsService.list({ classId, todo: true, pageSize: 1, order: 'date_asc' }).pipe(
-        map((res) => ({ classId, count: res.meta.total, examId: res.data[0]?.id ?? null })),
-        catchError(() => of({ classId, count: 0, examId: null })),
-      ),
-    );
-
-    forkJoin(requests)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    // 一支帶回每班的待登錄（#1782；原本是每班一支列表查詢）。失敗就當沒有待登錄，跟原本一樣
+    this.academyExamsService
+      .todoByClass(this.campusId())
+      .pipe(
+        map(({ data }) => data),
+        catchError(() => of([])),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe((items) => {
         if (token !== this.todoMapRequestToken) return;
 
         const next: Record<string, TodoInfo> = {};
-        for (const { classId, ...todo } of items) {
-          next[classId] = todo;
+        for (const { classId, count, firstExamId } of items) {
+          next[classId] = { count, examId: firstExamId };
         }
 
         this.todoMap.set(next);

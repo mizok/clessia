@@ -342,7 +342,7 @@ describe('ClassViewComponent', () => {
     expect(openMock).not.toHaveBeenCalled();
   });
 
-  it('待登錄場數與連結的那一場都從每班的 todo 查詢來（pageSize 1，取第一筆）', () => {
+  it('待登錄一支請求帶回（#1782，不再每班一支）：只帶分校、沒列到的班是 0', () => {
     TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges();
     http
@@ -350,18 +350,12 @@ describe('ClassViewComponent', () => {
       .flush({ data: [cls({ id: 'cl1' }), cls({ id: 'cl2' })], meta: {} });
 
     const todoReqs = http.match((r) => r.url.includes('/api/academy-exams'));
-    expect(todoReqs.map((r) => r.request.params.get('class_id'))).toEqual(['cl1', 'cl2']);
-    expect(todoReqs[0].request.params.get('todo')).toBe('true');
-    // 徽章連「最早那場」：API 預設 date_desc，不帶 order 拿到的是最晚那場
-    expect(todoReqs[0].request.params.get('order')).toBe('date_asc');
-    expect(todoReqs[0].request.params.get('pageSize')).toBe('1');
-    todoReqs[0].flush({ data: [{ id: 'exam-7' }], meta: { total: 3 } });
-    todoReqs[1].flush({ data: [], meta: { total: 0 } });
+    expect(todoReqs).toHaveLength(1);
+    expect(todoReqs[0].request.url).toMatch(/\/api\/academy-exams\/todo-by-class$/);
+    expect(todoReqs[0].request.params.get('campus_id')).toBe('campus-1');
+    todoReqs[0].flush({ data: [{ classId: 'cl1', count: 3, firstExamId: 'exam-7' }] });
 
-    expect(component['todoMap']()).toEqual({
-      cl1: { count: 3, examId: 'exam-7' },
-      cl2: { count: 0, examId: null },
-    });
+    expect(component['todoMap']()).toEqual({ cl1: { count: 3, examId: 'exam-7' } });
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelectorAll('[data-part=class-todo]')).toHaveLength(1);
@@ -596,9 +590,7 @@ describe('ClassViewComponent', () => {
     TestBed.inject(CampusContextService).select('campus-1');
     fixture.detectChanges();
     http.match((r) => r.url.includes('/api/classes'))[0].flush({ data: classes, meta: {} });
-    http
-      .match((r) => r.url.includes('/api/academy-exams'))
-      .forEach((r) => r.flush({ data: [], meta: { total: 0 } }));
+    http.match((r) => r.url.includes('/api/academy-exams')).forEach((r) => r.flush({ data: [] }));
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
