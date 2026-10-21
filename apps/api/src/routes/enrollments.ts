@@ -9,6 +9,8 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { inOrg } from '../lib/org-scope';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
+import { enrollWithSeatLock } from '../lib/class-seats';
+import { getAuth } from '../lib/get-auth';
 import {
   ENROLLMENT_EVENT_KINDS,
   buildPeriodFilter,
@@ -307,12 +309,6 @@ interface CopyFromClassPlan {
   skipped: number;
 }
 
-interface CopyFromClassQuotaInput {
-  currentActiveCount: number | null;
-  maxStudents: number | null;
-  toInsertCount: number;
-}
-
 interface EnrollmentLeaveRequestRow {
   start_date: string;
   end_date: string;
@@ -340,12 +336,6 @@ export function buildCopyFromClassPlan(
     toInsertStudentIds,
     skipped: sourceStudentIds.length - toInsertStudentIds.length,
   };
-}
-
-export function isCopyFromClassOverQuota(input: CopyFromClassQuotaInput): boolean {
-  const maxStudents = input.maxStudents ?? 9999;
-  const currentActiveCount = input.currentActiveCount ?? 0;
-  return currentActiveCount + input.toInsertCount > maxStudents;
 }
 
 /**
@@ -751,16 +741,6 @@ app.openapi(
       switch (preconditions.error.code) {
         case 'CLASS_NOT_FOUND':
           return c.json({ error: preconditions.error.message, code: 'CLASS_NOT_FOUND' }, 404);
-        case 'OVER_QUOTA':
-          return c.json(
-            {
-              error: preconditions.error.message,
-              code: 'OVER_QUOTA',
-              quota: preconditions.error.quota,
-              currentActive: preconditions.error.currentActive,
-            },
-            400,
-          );
         case 'SERVER_ERROR':
           return c.json({ error: preconditions.error.message, code: 'SERVER_ERROR' }, 500);
       }
@@ -778,34 +758,61 @@ app.openapi(
       );
     }
 
+    // 名額判斷與寫入在同一個交易、鎖住班級（#1726 Q9）—— 先數再另一個請求寫，兩人會同時搶到最後一位
+    const pool = getAuth(c).pool;
+    if (!pool) return c.json({ error: '建立報名失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+    let outcome: Awaited<ReturnType<typeof enrollWithSeatLock>>;
+    try {
+      outcome = await enrollWithSeatLock(pool, {
+        orgId,
+        classId: body.classId,
+        rows: [
+          {
+            studentId: body.studentId,
+            status: body.status ?? 'active',
+            effectiveFrom,
+            effectiveTo,
+            billingMode: body.billingMode ?? null,
+            feeTemplateId: body.feeTemplateId ?? null,
+            agreedAmount: body.agreedAmount ?? null,
+            adjustmentNote: body.adjustmentNote ?? null,
+            notes: body.notes ?? null,
+            createdBy: userId,
+          },
+        ],
+      });
+    } catch (err) {
+      console.error('[enrollments] create failed', err);
+      return c.json({ error: '建立報名失敗' }, 500);
+    }
+    if (outcome.status === 'not-found') {
+      return c.json({ error: '班級不存在', code: 'CLASS_NOT_FOUND' }, 404);
+    }
+    if (outcome.status === 'over-quota') {
+      return c.json(
+        {
+          error: '班級人數已達上限',
+          code: 'OVER_QUOTA',
+          quota: outcome.quota,
+          currentActive: outcome.currentActive,
+        },
+        400,
+      );
+    }
+    const created = outcome.inserted[0];
+    if (!created) return c.json({ error: '此學生已在此班', code: 'ALREADY_ENROLLED' }, 409);
+
     const { data, error } = await supabase
       .from('enrollments')
-      .insert({
-        org_id: orgId,
-        class_id: body.classId,
-        student_id: body.studentId,
-        status: body.status ?? 'active',
-        billing_mode: body.billingMode ?? null,
-        fee_template_id: body.feeTemplateId ?? null,
-        agreed_amount: body.agreedAmount ?? null,
-        adjustment_note: body.adjustmentNote ?? null,
-        effective_from: effectiveFrom,
-        effective_to: effectiveTo,
-        notes: body.notes ?? null,
-        created_by: userId,
-      })
       .select(
         // 跟列表 `buildSelect` 同形狀（字面寫才拿得到列型別）；schedules 給 classSchedule（#1314 SD1）
         'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
+      .eq('id', created.id)
+      .eq('org_id', orgId)
       .single();
 
-    if (error) {
-      if (error.code === '23505') {
-        return c.json({ error: '此學生已在此班', code: 'ALREADY_ENROLLED' }, 409);
-      }
-      return c.json({ error: error.message }, 500);
-    }
+    if (error) return c.json({ error: error.message }, 500);
 
     if ((body.status ?? 'active') === 'active') {
       await syncLeaveAttendanceForEnrollment({
@@ -1226,18 +1233,6 @@ app.openapi(
       switch (preconditions.error.code) {
         case 'CLASS_NOT_FOUND':
           return c.json({ error: 'CLASS_NOT_FOUND', code: 'CLASS_NOT_FOUND' }, 404);
-        case 'OVER_QUOTA':
-          // 帶數字才有辦法告訴使用者超了幾個 —— 只說「已達上限」等於要他自己去數
-          return c.json(
-            {
-              error: preconditions.error.message,
-              code: 'OVER_QUOTA',
-              quota: preconditions.error.quota,
-              currentActive: preconditions.error.currentActive,
-              adding: preconditions.error.adding,
-            },
-            400,
-          );
         case 'SERVER_ERROR':
           return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
       }
@@ -1255,44 +1250,65 @@ app.openapi(
       );
     }
 
-    const results: z.infer<typeof BatchCreateResultItemSchema>[] = [];
-
-    for (const studentId of uniqueStudentIds) {
-      const { data, error } = await supabase
-        .from('enrollments')
-        .insert({
-          org_id: orgId,
-          class_id: classId,
-          student_id: studentId,
-          status: 'active',
-          effective_from: startDate,
-          billing_mode: billingMode ?? null,
-          fee_template_id: feeTemplateId ?? null,
-          agreed_amount: agreedAmount ?? null,
-          adjustment_note: adjustmentNote ?? null,
-          created_by: userId,
-        })
-        .select('id')
-        .single();
-
-      if (error) {
-        if (error.code === '23505') {
-          results.push({ studentId, status: 'already_exists' });
-        } else {
-          results.push({ studentId, status: 'error', message: error.message });
-        }
-      } else {
-        results.push({ studentId, status: 'enrolled', enrollmentId: data.id });
-        await syncLeaveAttendanceForEnrollment({
-          supabase,
-          orgId,
+    // 名額與寫入同一個交易（#1726 Q9）；名額不夠整批不寫，已在班上的跳過
+    const pool = getAuth(c).pool;
+    if (!pool) return c.json({ error: '伺服器錯誤', code: 'DB_POOL_UNAVAILABLE' }, 500);
+    let outcome: Awaited<ReturnType<typeof enrollWithSeatLock>>;
+    try {
+      outcome = await enrollWithSeatLock(pool, {
+        orgId,
+        classId,
+        rows: uniqueStudentIds.map((studentId) => ({
           studentId,
-          classId,
+          status: 'active' as const,
           effectiveFrom: startDate,
-          effectiveTo: null,
-          recordedBy: userId,
-        });
-      }
+          billingMode: billingMode ?? null,
+          feeTemplateId: feeTemplateId ?? null,
+          agreedAmount: agreedAmount ?? null,
+          adjustmentNote: adjustmentNote ?? null,
+          createdBy: userId,
+        })),
+      });
+    } catch (err) {
+      console.error('[enrollments] batch create failed', err);
+      return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    }
+    if (outcome.status === 'not-found') {
+      return c.json({ error: 'CLASS_NOT_FOUND', code: 'CLASS_NOT_FOUND' }, 404);
+    }
+    if (outcome.status === 'over-quota') {
+      // 帶數字才有辦法告訴使用者超了幾個 —— 只說「已達上限」等於要他自己去數
+      return c.json(
+        {
+          error: '班級人數已達上限',
+          code: 'OVER_QUOTA',
+          quota: outcome.quota,
+          currentActive: outcome.currentActive,
+          adding: outcome.adding,
+        },
+        400,
+      );
+    }
+
+    const insertedBy = new Map(outcome.inserted.map((r) => [r.studentId, r.id]));
+    const results: z.infer<typeof BatchCreateResultItemSchema>[] = uniqueStudentIds.map(
+      (studentId) => {
+        const enrollmentId = insertedBy.get(studentId);
+        return enrollmentId
+          ? { studentId, status: 'enrolled' as const, enrollmentId }
+          : { studentId, status: 'already_exists' as const };
+      },
+    );
+    for (const { studentId } of outcome.inserted) {
+      await syncLeaveAttendanceForEnrollment({
+        supabase,
+        orgId,
+        studentId,
+        classId,
+        effectiveFrom: startDate,
+        effectiveTo: null,
+        recordedBy: userId,
+      });
     }
 
     /**
@@ -1467,7 +1483,7 @@ app.openapi(
 
     const { data: targetClass, error: targetClassError } = await supabase
       .from('classes')
-      .select('id, max_students')
+      .select('id')
       .eq('id', targetClassId)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -1515,43 +1531,37 @@ app.openapi(
       return c.json({ copied: 0, skipped }, 200);
     }
 
-    const { count: currentActiveCount, error: countError } = await supabase
-      .from('enrollments')
-      .select('*', { count: 'exact', head: true })
-      .eq('class_id', targetClassId)
-      .eq('org_id', orgId)
-      .in('status', ['active', 'pending_payment']);
-
-    if (countError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
-
-    const maxStudents =
-      typeof targetClass.max_students === 'number' ? targetClass.max_students : null;
-    if (
-      isCopyFromClassOverQuota({
-        currentActiveCount: currentActiveCount ?? null,
-        maxStudents,
-        toInsertCount: toInsertStudentIds.length,
-      })
-    ) {
-      return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
-    }
-
+    // 名額與寫入同一個交易、鎖住目標班（#1726 Q9）
+    const pool = getAuth(c).pool;
+    if (!pool) return c.json({ error: '伺服器錯誤', code: 'DB_POOL_UNAVAILABLE' }, 500);
     // 台北時間，不是 UTC —— 同一個理由：見上面單筆建立那處的說明
     const today = getCurrentTaipeiDateString();
-    const rows = toInsertStudentIds.map((studentId) => ({
-      org_id: orgId,
-      class_id: targetClassId,
-      student_id: studentId,
-      status: 'active' as const,
-      effective_from: today,
-      created_by: userId,
-    }));
-
-    const { error: insertError } = await supabase.from('enrollments').insert(rows);
-    if (insertError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    let outcome: Awaited<ReturnType<typeof enrollWithSeatLock>>;
+    try {
+      outcome = await enrollWithSeatLock(pool, {
+        orgId,
+        classId: targetClassId,
+        rows: toInsertStudentIds.map((studentId) => ({
+          studentId,
+          status: 'active' as const,
+          effectiveFrom: today,
+          createdBy: userId,
+        })),
+      });
+    } catch (err) {
+      console.error('[enrollments] copy-from-class failed', err);
+      return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    }
+    if (outcome.status === 'not-found') return c.json({ error: 'TARGET_CLASS_NOT_FOUND' }, 404);
+    if (outcome.status === 'over-quota') {
+      return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
+    }
+    // 跟 plan 之間有人搶先報進來的，ON CONFLICT 跳過 —— 算進 skipped
+    const copiedIds = outcome.inserted.map((r) => r.studentId);
+    const totalSkipped = skipped + toInsertStudentIds.length - copiedIds.length;
 
     await Promise.all(
-      toInsertStudentIds.map((studentId) =>
+      copiedIds.map((studentId) =>
         syncLeaveAttendanceForEnrollment({
           supabase,
           orgId,
@@ -1573,20 +1583,20 @@ app.openapi(
         userId,
         resourceType: 'enrollment',
         resourceId: targetClassId,
-        resourceName: `複製名單 / ${toInsertStudentIds.length} 人`,
+        resourceName: `複製名單 / ${copiedIds.length} 人`,
         action: 'create',
         details: {
           source_class_id: sourceClassId,
           target_class_id: targetClassId,
-          student_ids: toInsertStudentIds,
-          copied: toInsertStudentIds.length,
-          skipped,
+          student_ids: copiedIds,
+          copied: copiedIds.length,
+          skipped: totalSkipped,
         },
       },
       waitUntilFrom(c),
     );
 
-    return c.json({ copied: toInsertStudentIds.length, skipped }, 200);
+    return c.json({ copied: copiedIds.length, skipped: totalSkipped }, 200);
   },
 );
 

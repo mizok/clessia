@@ -3,7 +3,7 @@ title: 報名與繳費規則
 summary: 報名審核、繳費關聯與直接報名規範。2026-08-29 依訪談定案的 billing-rules 對齊：繳費狀態由收款推導（三態）、單一 due_date 無寬限期機制、金額調整是議價不是折扣類型。2026-09-06 新增第 8 節：學生的分校歸屬不隨退班消失。
 category: rule
 status: active
-updated: 2026-10-16
+updated: 2026-10-21
 tags: [rules, enrollment-rules]
 ---
 
@@ -20,8 +20,10 @@ tags: [rules, enrollment-rules]
    - 家長可自行取消 `pending`／`waitlist` 的申請；核准之後要聯絡補習班。
    - **管理端在 `/admin/applications` 處理**（#1707，跟公開表單的申請同一頁）：API `/api/parent-requests`，
      `manage_students`、讀也擋；分校範圍看**班**的分校（試聽看**課程**的分校）—— 學生的分校來自 enrollment，送申請時還沒有。
-     目前只能**拒絕**（必填原因，家長看得到 `rejectReason`），`awaiting_payment` 之後不能拒絕（帳單已開）；
-     核准（下面第 2 點）尚未實作（#1726）。試聽申請的狀態（排定／完成／取消）任意切換。都記稽核。
+     **拒絕**必填原因（家長看得到 `rejectReason`），`awaiting_payment` 之後不能拒絕（帳單已開）。
+     **核准**（下面第 2 點，#1726）：`POST /api/parent-requests/enrollment/{id}/approve`，要 `manage_students` **且**
+     `manage_finance`；一個交易建報名、開帳單、轉待付款，候補可核准、額滿 409（設計見
+     [[specs/admin/enrollment/approve-request]]）。管理端對話框尚未上線。試聽申請的狀態（排定／完成／取消）任意切換。都記稽核。
    - **公開表單（沒登入的新家長，#1123）不走這張表**：寫進 `public_applications`（未驗證的申請，狀態是聯絡流程
      `new → contacted → converted／rejected／spam`），**不建家長、學生、帳號**（那是 1.4 首次收款時的事）。
      額滿判定與名額同公開目錄（`lib/catalog-class.ts` 的 `takenSeats`），額滿班記為候補。管理員聯絡後走既有建檔與報名。
