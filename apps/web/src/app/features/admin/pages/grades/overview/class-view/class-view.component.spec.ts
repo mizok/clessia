@@ -411,6 +411,8 @@ describe('ClassViewComponent', () => {
     const head = chap.querySelector('app-chapter-head') as HTMLElement;
     expect(head?.parentElement).toBe(chap);
     expect(head.textContent?.replace(/\s+/g, '')).toContain('1個班');
+    // 稿的章名是課程全名，桌機 32px（chapter-head compact），不是預設 44px
+    expect(head.querySelector('.chapter-head__name')!.classList).toContain('wide:text-[32px]');
     expect(chap.className).toContain('wide:grid-cols-[13rem_minmax(0,1fr)]');
     expect(host.textContent).toContain('數學進階');
     expect(host.textContent).toContain('A班');
