@@ -24,6 +24,7 @@ describe('WindowSizeDirective', () => {
   afterEach(() => {
     document.documentElement.style.removeProperty('--window-width');
     document.documentElement.style.removeProperty('--window-height');
+    document.documentElement.style.removeProperty('--keyboard-inset');
   });
 
   function render() {
@@ -70,5 +71,25 @@ describe('WindowSizeDirective', () => {
     expect(document.documentElement.style.getPropertyValue('--window-height')).toBe(
       `${window.innerHeight}px`,
     );
+  });
+
+  /**
+   * 手機鍵盤（#1776）：版面視窗（innerHeight）不跟著鍵盤縮，visual viewport 會。
+   * 底部抽屜要讓出「被鍵盤蓋住的那一截」，不然送出鈕在鍵盤底下。
+   */
+  it('--keyboard-inset＝版面視窗高 − visual viewport 的高與位移；沒有鍵盤是 0', () => {
+    const vv = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0 });
+    Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true });
+    render();
+    const inset = () => document.documentElement.style.getPropertyValue('--keyboard-inset');
+    expect(inset()).toBe('0px');
+
+    vv.height = window.innerHeight - 300; // 鍵盤升起
+    vv.dispatchEvent(new Event('resize'));
+    expect(inset()).toBe('300px');
+
+    vv.offsetTop = 40; // iOS 捲動時 visual viewport 往下移
+    vv.dispatchEvent(new Event('scroll'));
+    expect(inset()).toBe('260px');
   });
 });
