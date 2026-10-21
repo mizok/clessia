@@ -427,6 +427,8 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(t).toContain('告訴櫃台帳號末五碼');
       expect(t).toContain('臺灣銀行 景美分行（004）');
       expect(t).not.toContain('已核准，請到繳費頁付款');
+      // 還沒收過錢：不寫「已收 0 元」
+      expect(t).not.toContain('已收');
     });
 
     it('待付款部分繳：寫已收與還差多少', async () => {
