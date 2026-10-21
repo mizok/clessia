@@ -594,7 +594,9 @@ describe('MealsComponent', () => {
       await load([person('a')]);
       expect(q('meals-note').textContent).toContain('人工判斷');
       expect(q('meals-note').closest('[class*="sticky"]')).toBeNull();
-      const bar = fixture.nativeElement.querySelector('[class*="sticky"]') as HTMLElement;
+      // 指名底部確認列：章頭（桌機 wide:sticky）也是 sticky
+      const bar = fixture.nativeElement.querySelector('[aria-label="確認名單"]') as HTMLElement;
+      expect(bar.className).toContain('sticky');
       expect(bar.textContent).not.toContain('人工判斷');
       expect(bar.textContent).toContain('共 1 位');
     });

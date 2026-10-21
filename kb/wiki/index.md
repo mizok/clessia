@@ -115,7 +115,7 @@
 - [[rules/session-status-rules]] — sessions.status 目前只有 scheduled 與 cancelled 會被寫入，completed 沒有任何寫入路徑；這一頁記錄哪些程式碼依賴這個現況、誰會在 completed 第一次被寫入的那天改變行為，以及刪除守門為什麼用 OR 而不是替換條件。
 - [[rules/teaching-log-rules]] — 訪談最大發現：各科老師的教務日誌（教學紀錄+作業安排）現靠紙本拍照進 LINE 相簿、行政再轉貼到年級群組，粒度錯誤導致沒修課的學生也收到作業；系統應以班級名冊為粒度，日誌發布即自動送達該班家長端＋推播。
 
-## Specs (116)
+## Specs (117)
 - [[specs/admin/academic/calendar]] — 統一行事曆介面，管理員可瀏覽課堂並直接處理停課、代課、調課。
 - [[specs/admin/academic/classes]] — 管理開課班，設定上課時間，產生課堂。
 - [[specs/admin/academic/courses]] — /admin/courses 的課程列表 —— 管理員瀏覽與維護課程，是開課班（classes）的上層分類。
@@ -138,6 +138,7 @@
 - [[specs/admin/student-affairs/leave]] — 建立和查詢請假紀錄。請假只能由管理員建立，支援事後補請。
 - [[specs/admin/student-affairs/parents]] — 管理家長帳號，關聯學生，處理帳號相關操作。
 - [[specs/admin/student-affairs/students]] — 查詢、新增與編輯學生基本資料。學生資料有兩種來源： - 公開報名：家長透過報名頁填寫，繳費完成後自動建立 - 管理員手動新增：管理員直接在後台建立，適用於內部人員子女入學、現場報名等情境
+- [[specs/admin/system/campus-classrooms]] — 設計稿（#1314 SE3，保留類、要 migration；10-21 已裁）。照 A6 settings.html#campuses：分校 ⋮ 的「教室」對話框（列出教室、新增：名稱、容納人數、設備選填）、列上「N 間教室／還沒有教室」、分校表單加狀態與出勤模式。schema 只缺教室：新表 classrooms（分校底下，名稱分校內唯一、容量選填、設備選填）。帳戶**已存在**（campuses.payment_info，#1073 使用者裁一個多行欄位）—— A6 畫成「收款銀行＋帳號」兩欄，使用者裁不拆、維持一欄，登記 A6 偏離（舊有新無：多帳戶、LINE Pay、現金時段會寫不進去）。狀態、出勤模式 API 早已收，只差表單。A6 在班級時段也用教室（class.html、courses.html），同一支 migration 先加 schedules.classroom_id（可空、SET NULL）、UI 另開單（計畫席裁）。
 - [[specs/admin/system/campuses]] — 管理分校資訊與教室。
 - [[specs/admin/system/settings]] — 全域系統參數設定。
 - [[specs/admin/system/staff]] — 管理管理員、老師帳號。
@@ -237,4 +238,4 @@
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-**Total: 214 pages**
+**Total: 215 pages**

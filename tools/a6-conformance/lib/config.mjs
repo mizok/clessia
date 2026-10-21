@@ -455,6 +455,17 @@ export const PAGES = {
     app: '/parent/enrollment#records',
     state: path.join(cache, 'state-parent.json'),
   },
+  // 家長端試聽申請（#1727 ④）：一門課一列（稿一列一班，R5 2026-10-19）
+  'p-trial': {
+    a6: 'p-trial.html',
+    app: '/parent/trial',
+    state: path.join(cache, 'state-parent.json'),
+  },
+  'p-trial-records': {
+    a6: 'p-trial.html#records',
+    app: '/parent/trial#records',
+    state: path.join(cache, 'state-parent.json'),
+  },
   // 家長端到班紀錄（#1695 第 3 張）：家長登入態；「幫孩子請假」兩邊都是 JS 打開的 <dialog>（稿 a6.js form()、app 原生 showModal）
   'p-attendance': {
     a6: 'p-attendance.html',
@@ -463,6 +474,8 @@ export const PAGES = {
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
   },
+  // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
+  settings: { a6: 'settings.html', app: '/admin/settings/general' },
   // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由；列上的教室數是 SE3（schema 沒有教室）
   campuses: {
     a6: 'settings.html#campuses',
