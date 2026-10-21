@@ -1,7 +1,7 @@
 <!--
   A6 版（#991 grades G4，grades-class.html）：色面（返回成績總覽、N 個班／M 個班還沒登）→ 灰工具列
-  （搜尋、篩選、待登錄籌碼）→ 依課程分章的班級列。換版不換資料：A6 的「N 人在班」「最近一次考試平均」
-  缺資料不做；「待登錄 N」照現況是場數、點了開對話框停在待登錄（計畫席裁 #991 grades 第 5 點）。
+  （搜尋、待登錄籌碼、「篩選：…」浮層）→ 依課程分章的班級列（N 人在班、最近一場校內考、平均）。
+  「待登錄 N」照現況是場數（計畫席裁 #991 grades 第 5 點），連到最早那場的成績登錄頁（#1762）。
 -->
 <app-page-open>
   <a
@@ -21,84 +21,108 @@
 </app-page-open>
 
 <div class="bg-zinc-100">
-  <div class="page-wrap flex flex-col gap-3 py-3 wide:flex-row wide:items-end wide:gap-4">
-    <label class="flex min-w-0 flex-col gap-1 wide:w-72">
-      <span class="text-sm font-semibold text-zinc-700">搜尋</span>
-      <input
-        pInputText
-        type="search"
-        class="h-11 w-full"
-        [ngModel]="searchText()"
-        (ngModelChange)="onSearchChange($event)"
-        placeholder="找課程或班級"
-      />
-    </label>
+  <div class="page-wrap flex flex-wrap items-center gap-3 py-3" role="search" aria-label="篩選班級">
+    <input
+      pInputText
+      type="search"
+      class="h-11 min-w-0 flex-1 wide:w-72 wide:flex-none"
+      aria-label="搜尋課程或班級"
+      [ngModel]="searchText()"
+      (ngModelChange)="onSearchChange($event)"
+      placeholder="找課程或班級"
+    />
 
-    <!-- 桌機：篩選攤開（A6 收在 popover 裡；這裡欄位少，攤開少一次點擊） -->
-    <div class="hidden gap-3 wide:flex wide:items-end" data-part="desktop-filters">
-      <div class="flex min-w-40 flex-col gap-1">
-        <span class="text-sm font-semibold text-zinc-700" id="cv-f-grade">年級</span>
-        <p-multiselect
-          [options]="gradeOptions"
-          [ngModel]="selectedGrades()"
-          (ngModelChange)="onGradeFilterChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="全部年級"
-          [showClear]="true"
-          [maxSelectedLabels]="2"
-          ariaLabelledBy="cv-f-grade"
-          styleClass="w-full"
-        />
-      </div>
-      <div class="flex min-w-40 flex-col gap-1">
-        <span class="text-sm font-semibold text-zinc-700" id="cv-f-subject">科目</span>
-        <p-select
-          [options]="subjectOptions()"
-          [ngModel]="subjectIdFilter()"
-          (ngModelChange)="onSubjectFilterChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="全部科目"
-          [showClear]="true"
-          ariaLabelledBy="cv-f-subject"
-          styleClass="w-full"
-        />
-      </div>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2 wide:ml-auto">
-      <!-- 手機：其餘條件收進篩選對話框 -->
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      @if (loadingTodoMap() || todoClassCount() > 0) {
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border px-4 text-md font-semibold whitespace-nowrap aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white not-aria-pressed:border-zinc-300 not-aria-pressed:bg-white not-aria-pressed:text-zinc-900"
+          data-part="todo-chip"
+          [attr.aria-pressed]="todoOnly()"
+          (click)="toggleTodoOnly()"
+        >
+          待登錄
+          @if (loadingTodoMap()) {
+            <i class="pi pi-spinner pi-spin text-sm" aria-label="計算中"></i>
+          } @else {
+            <span class="tabular-nums">{{ todoClassCount() }}</span>
+          }
+        </button>
+      }
       <button
         type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
-        (click)="openMobileFilterDialog()"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        data-part="filter-btn"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="filtersOpen()"
+        (click)="filterPopover.toggle($event)"
       >
         <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
-        篩選
-        @if (mobileFilterCount() > 0) {
-          <span
-            class="inline-grid min-w-5 place-items-center rounded-full bg-zinc-900 px-1.5 text-xs font-bold text-white"
-            >{{ mobileFilterCount() }}</span
-          >
-        }
-      </button>
-      <button
-        type="button"
-        class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border px-4 text-md font-semibold whitespace-nowrap aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white not-aria-pressed:border-zinc-300 not-aria-pressed:bg-white not-aria-pressed:text-zinc-900"
-        [attr.aria-pressed]="todoOnly()"
-        (click)="toggleTodoOnly()"
-      >
-        待登錄
-        @if (loadingTodoMap()) {
-          <i class="pi pi-spinner pi-spin text-sm" aria-label="計算中"></i>
-        } @else {
-          <span class="tabular-nums">{{ todoClassCount() }}</span>
-        }
+        篩選：{{ filterSummary() }}
       </button>
     </div>
   </div>
 </div>
+
+<!-- A6 .pop：貼在「篩選」鈕下（exams 頁同款）。分校只在頂欄選（#1607），所以沒有那一欄 -->
+<p-popover
+  #filterPopover
+  styleClass="filter-popover"
+  (onShow)="filtersOpen.set(true)"
+  (onHide)="filtersOpen.set(false)"
+>
+  <div class="flex w-[260px] max-w-full flex-col gap-3" data-part="filter-pop">
+    <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="cv-f-grade">年級</span>
+      <p-multiselect
+        [options]="gradeOptions"
+        [ngModel]="selectedGrades()"
+        (ngModelChange)="onGradeFilterChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部年級"
+        [showClear]="true"
+        [maxSelectedLabels]="2"
+        ariaLabelledBy="cv-f-grade"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="cv-f-subject">科目</span>
+      <p-select
+        [options]="subjectOptions()"
+        [ngModel]="subjectIdFilter()"
+        (ngModelChange)="onSubjectFilterChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部科目"
+        [showClear]="true"
+        ariaLabelledBy="cv-f-subject"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="flex items-center justify-between">
+      @if (hasFilters()) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+      }
+      <button
+        type="button"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800"
+        (click)="filterPopover.hide()"
+      >
+        完成
+      </button>
+    </div>
+  </div>
+</p-popover>
 
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
   @if (!campusId()) {
@@ -126,6 +150,27 @@
       description="請嘗試調整篩選條件"
     />
   } @else {
+    @if (narrowed()) {
+      <p
+        class="m-0 mb-2 flex flex-wrap items-baseline gap-x-3 text-md text-zinc-600"
+        data-part="count"
+      >
+        <span
+          >顯示 <strong class="text-zinc-900 tabular-nums">{{ shownClassCount() }}</strong> 個班（共
+          {{ classCount() }}）
+          @if (todoOnly()) {
+            · 只看有待登錄的
+          }
+        </span>
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+      </p>
+    }
     <!-- A6 grades-class：課程分章（.chap）—— 桌機左欄章名＋「N 個班」（黏住），右邊是班級列。
          章名下的科目小字稿沒有：舊有新無，使用者 10-21 裁定保留（課程名不保證含科目；a6-adoption-rules R5） -->
     @for (group of filteredGroups(); track group.courseId) {
@@ -145,14 +190,15 @@
         />
         <div class="pt-3 pb-6 wide:py-8">
           @for (cls of group.classes; track cls.classInfo.id) {
-            <!-- A6 .crow：主按鈕與「待登錄」徽章是兄弟，不是巢狀按鈕 -->
+            <!-- A6 .crow：主按鈕與「待登錄」徽章是兄弟，不是巢狀互動元素 -->
             <div
               class="grid grid-cols-1 items-center gap-x-3 border-b border-surface-border pb-3 wide:grid-cols-[minmax(0,1fr)_auto] wide:pb-0"
             >
               <button
                 type="button"
-                class="group grid min-h-11 w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 border-0 bg-transparent py-4 text-left"
+                class="group grid min-h-11 w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_4rem] items-center gap-x-6 gap-y-2 border-0 bg-transparent py-4 text-left wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_88px]"
                 data-part="class-row"
+                aria-haspopup="dialog"
                 (click)="openClassScores(cls.classInfo)"
               >
                 <span class="min-w-0">
@@ -160,34 +206,62 @@
                     class="block text-lg font-semibold text-zinc-900 group-hover:underline group-hover:underline-offset-4"
                     >{{ cls.classInfo.name }}</span
                   >
-                  <span class="block text-sm text-zinc-600">
-                    @if (cls.classInfo.campusName) {
-                      {{ cls.classInfo.campusName }} ·
-                    }
+                  <span class="block text-sm text-zinc-600" data-part="class-meta">
                     @if (cls.gradeLabels) {
                       {{ cls.gradeLabels }} ·
                     }
+                    @if (cls.classInfo.enrolledCount !== undefined) {
+                      {{ cls.classInfo.enrolledCount }} 人在班 ·
+                    }
                     上限 {{ cls.classInfo.maxStudents }} 人
+                    @if (cls.classInfo.campusName) {
+                      · {{ cls.classInfo.campusName }}
+                    }
                   </span>
                 </span>
-                <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
+                <!-- latestExam：undefined＝API 沒帶，不畫；null＝還沒考過 -->
+                @if (cls.classInfo.latestExam !== undefined) {
+                  @let exam = cls.classInfo.latestExam;
+                  <span
+                    class="col-span-full row-start-2 text-sm text-zinc-600 wide:col-span-1 wide:row-start-auto"
+                    data-part="class-last"
+                  >
+                    @if (exam) {
+                      最近：<b class="font-semibold text-zinc-900">{{ exam.name }}</b>（{{
+                        formatMonthDay(exam.examDate)
+                      }}） · 不及格 {{ exam.failCount }} 人
+                      @if (exam.absentCount) {
+                        · 缺考 {{ exam.absentCount }}
+                      }
+                    } @else {
+                      還沒有考試
+                    }
+                  </span>
+                  <span
+                    class="col-start-2 row-start-1 text-right text-xl font-bold text-zinc-900 tabular-nums wide:col-start-auto"
+                    data-part="class-avg"
+                  >
+                    {{ exam && exam.avgScore !== null ? formatAvg(exam.avgScore) : '—' }}
+                    <small class="block text-xs font-medium text-zinc-600">平均</small>
+                  </span>
+                }
               </button>
-              @if (getTodoExamCount(cls.classInfo.id) > 0) {
-                <button
-                  type="button"
-                  class="inline-flex min-h-11 cursor-pointer items-center gap-1 justify-self-start rounded-full border border-zinc-900 bg-white px-3 text-sm font-semibold whitespace-nowrap text-zinc-900 hover:bg-zinc-100 wide:justify-self-end"
+              @if (todoExamId(cls.classInfo.id); as examId) {
+                <a
+                  class="inline-flex min-h-11 items-center gap-1 justify-self-start rounded-full border border-zinc-900 bg-white px-3 text-sm font-semibold whitespace-nowrap text-zinc-900 no-underline hover:bg-zinc-100 wide:justify-self-end"
                   data-part="class-todo"
+                  [routerLink]="['/admin/grades/exams', 'academy', examId, 'scores']"
                   [attr.aria-label]="
                     '待登錄 ' +
                     getTodoExamCount(cls.classInfo.id) +
-                    '：查看 ' +
+                    '：登錄 ' +
                     cls.classInfo.name +
-                    ' 的待登錄考試'
+                    ' 的成績'
                   "
-                  (click)="openClassScores(cls.classInfo, true)"
                 >
+                  <i class="pi pi-pencil text-xs" aria-hidden="true"></i>
                   待登錄 {{ getTodoExamCount(cls.classInfo.id) }}
-                </button>
+                </a>
               }
             </div>
           }

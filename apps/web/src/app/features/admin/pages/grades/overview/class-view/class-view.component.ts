@@ -16,7 +16,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { DialogService } from 'primeng/dynamicdialog';
-import { MessageService } from 'primeng/api';
+import { PopoverModule } from 'primeng/popover';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
@@ -31,16 +31,17 @@ import { catchError, filter, forkJoin, map, of } from 'rxjs';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 
 import { ClassScoresDialogComponent } from './class-scores-dialog/class-scores-dialog.component';
-import {
-  ClassViewFilterDialogComponent,
-  type ClassViewFilterDialogResult,
-  type ClassViewFilterSnapshot,
-} from './class-view-filter-dialog/class-view-filter-dialog.component';
 
 interface ClassItem {
   readonly classInfo: Class;
   readonly gradeLabels: string;
   readonly gradeLevels: GradeLevel[];
+}
+
+/** 這班的待登錄：場數＋最早要登的那一場（徽章連過去的登錄頁） */
+interface TodoInfo {
+  readonly count: number;
+  readonly examId: string | null;
 }
 
 interface CourseGroup {
@@ -60,6 +61,7 @@ interface CourseGroup {
     MultiSelectModule,
     SelectModule,
     InputTextModule,
+    PopoverModule,
     EmptyStateComponent,
     PageOpenComponent,
     RouterLink,
@@ -76,7 +78,6 @@ export class ClassViewComponent implements OnInit {
   private readonly refData = inject(ReferenceDataService);
   private readonly academyExamsService = inject(AcademyExamsService);
   private readonly dialogService = inject(DialogService);
-  private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly page = input<RouteObj>();
@@ -96,6 +97,8 @@ export class ClassViewComponent implements OnInit {
   protected readonly selectedGrades = signal<GradeLevel[]>([]);
   protected readonly subjectIdFilter = signal<string | null>(null);
   protected readonly todoOnly = signal(false);
+  /** 篩選浮層開著與否（鈕的 aria-expanded）；外點擊關掉由 Popover 的 onHide 回寫 */
+  protected readonly filtersOpen = signal(false);
 
   protected readonly courseGroups = signal<CourseGroup[]>([]);
   protected readonly loadingGroups = signal(true);
@@ -104,7 +107,7 @@ export class ClassViewComponent implements OnInit {
    * 「無符合的課程／請嘗試調整篩選條件」，也就是**叫使用者去做一件不會有用的事**（#812）。
    */
   protected readonly loadFailed = signal(false);
-  protected readonly todoExamCountMap = signal<Record<string, number>>({});
+  protected readonly todoMap = signal<Record<string, TodoInfo>>({});
   protected readonly loadingTodoMap = signal(false);
 
   private todoMapRequestToken = 0;
@@ -122,15 +125,32 @@ export class ClassViewComponent implements OnInit {
   );
 
   protected readonly todoClassCount = computed(
-    () => Object.values(this.todoExamCountMap()).filter((count) => count > 0).length,
+    () => Object.values(this.todoMap()).filter((todo) => todo.count > 0).length,
   );
 
-  protected readonly mobileFilterCount = computed(() => {
-    let count = 0;
-    if (this.selectedGrades().length > 0) count += 1;
-    if (this.subjectIdFilter()) count += 1;
-    return count;
+  /** A6 篩選鈕上的「篩選：國一 · 數學」；沒條件是「全部」 */
+  protected readonly filterSummary = computed(() => {
+    const grades = this.selectedGrades().map((grade) => GRADE_LEVEL_LABELS[grade]);
+    const subjectId = this.subjectIdFilter();
+    const subject = subjectId
+      ? this.subjectOptions().find((option) => option.value === subjectId)?.label
+      : undefined;
+    const parts = [grades.join('、'), subject].filter(Boolean);
+    return parts.length ? parts.join(' · ') : '全部';
   });
+
+  protected readonly hasFilters = computed(
+    () => this.selectedGrades().length > 0 || !!this.subjectIdFilter(),
+  );
+
+  /** A6 的「顯示 N 個班（共 M）」：搜尋、篩選、待登錄任一有開就出現 */
+  protected readonly narrowed = computed(
+    () => !!this.searchText().trim() || this.hasFilters() || this.todoOnly(),
+  );
+
+  protected readonly shownClassCount = computed(() =>
+    this.filteredGroups().reduce((n, group) => n + group.classes.length, 0),
+  );
 
   protected readonly filteredGroups = computed<CourseGroup[]>(() => {
     const text = this.searchText().trim().toLowerCase();
@@ -190,51 +210,33 @@ export class ClassViewComponent implements OnInit {
     this.todoOnly.update((value) => !value);
   }
 
-  protected openMobileFilterDialog(): void {
-    const ref = this.dialogService.open(ClassViewFilterDialogComponent, {
-      width: '420px',
-      breakpoints: { '640px': '95%' },
-      modal: true,
-      showHeader: false,
-      appendTo: 'body',
-      data: {
-        initial: {
-          campusId: this.campusId(),
-          search: this.searchText(),
-          selectedGrades: this.selectedGrades(),
-          subjectId: this.subjectIdFilter(),
-        },
-        options: {
-          // 分校只在頂欄選（#1607）；空清單 = 對話框不出那一欄
-          campusOptions: [],
-          gradeOptions: this.gradeOptions,
-          subjectOptions: this.subjectOptions(),
-        },
-      },
-    });
-
-    if (!ref) return;
-
-    ref.onClose
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result?: ClassViewFilterDialogResult) => {
-        if (!result) return;
-        if (result.cleared) {
-          this.searchText.set('');
-          this.selectedGrades.set([]);
-          this.subjectIdFilter.set(null);
-          return;
-        }
-        if (!result.snapshot) return;
-        this.applyMobileFilterSnapshot(result.snapshot);
-      });
+  protected clearFilters(): void {
+    this.searchText.set('');
+    this.selectedGrades.set([]);
+    this.subjectIdFilter.set(null);
+    this.todoOnly.set(false);
   }
 
   protected getTodoExamCount(classId: string): number {
-    return this.todoExamCountMap()[classId] ?? 0;
+    return this.todoMap()[classId]?.count ?? 0;
   }
 
-  protected openClassScores(cls: Class, todoOnly = false): void {
+  protected todoExamId(classId: string): string | null {
+    return this.todoMap()[classId]?.examId ?? null;
+  }
+
+  /** 平均是那一場自己的尺度；整數照印，其餘一位小數（同成績登錄頁） */
+  protected formatAvg(value: number): string {
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+
+  /** A6「（10/12）」：不補零的月／日 */
+  protected formatMonthDay(date: string): string {
+    const [, month, day] = date.split('-').map(Number);
+    return `${month}/${day}`;
+  }
+
+  protected openClassScores(cls: Class): void {
     this.dialogService.open(ClassScoresDialogComponent, {
       width: '900px',
       breakpoints: { '640px': '95%' },
@@ -248,7 +250,6 @@ export class ClassViewComponent implements OnInit {
       data: {
         class: cls,
         campusId: this.campusId() || null,
-        todoOnly,
       },
     });
   }
@@ -257,7 +258,7 @@ export class ClassViewComponent implements OnInit {
   protected loadGroups(): void {
     if (!this.campusId()) {
       this.courseGroups.set([]);
-      this.todoExamCountMap.set({});
+      this.todoMap.set({});
       this.loadingGroups.set(false);
       return;
     }
@@ -282,7 +283,7 @@ export class ClassViewComponent implements OnInit {
         error: () => {
           this.loadFailed.set(true);
           this.courseGroups.set([]);
-          this.todoExamCountMap.set({});
+          this.todoMap.set({});
           this.loadingGroups.set(false);
         },
       });
@@ -293,7 +294,7 @@ export class ClassViewComponent implements OnInit {
     const classIds = classes.map((cls) => cls.id);
 
     if (classIds.length === 0) {
-      this.todoExamCountMap.set({});
+      this.todoMap.set({});
       this.loadingTodoMap.set(false);
       return;
     }
@@ -301,8 +302,8 @@ export class ClassViewComponent implements OnInit {
     this.loadingTodoMap.set(true);
     const requests = classIds.map((classId) =>
       this.academyExamsService.list({ classId, todo: true, pageSize: 1 }).pipe(
-        map((res) => ({ classId, count: res.meta.total })),
-        catchError(() => of({ classId, count: 0 })),
+        map((res) => ({ classId, count: res.meta.total, examId: res.data[0]?.id ?? null })),
+        catchError(() => of({ classId, count: 0, examId: null })),
       ),
     );
 
@@ -311,12 +312,12 @@ export class ClassViewComponent implements OnInit {
       .subscribe((items) => {
         if (token !== this.todoMapRequestToken) return;
 
-        const next: Record<string, number> = {};
-        for (const item of items) {
-          next[item.classId] = item.count;
+        const next: Record<string, TodoInfo> = {};
+        for (const { classId, ...todo } of items) {
+          next[classId] = todo;
         }
 
-        this.todoExamCountMap.set(next);
+        this.todoMap.set(next);
         this.loadingTodoMap.set(false);
       });
   }
@@ -362,11 +363,5 @@ export class ClassViewComponent implements OnInit {
     const first = GRADE_LEVEL_LABELS[sorted[0]];
     const last = GRADE_LEVEL_LABELS[sorted[sorted.length - 1]];
     return first === last ? first : `${first}～${last}`;
-  }
-
-  private applyMobileFilterSnapshot(snapshot: ClassViewFilterSnapshot): void {
-    this.searchText.set(snapshot.search);
-    this.selectedGrades.set(snapshot.selectedGrades);
-    this.subjectIdFilter.set(snapshot.subjectId);
   }
 }
