@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { extractSource } from './extract.mjs';
 import { A6_DIR, API_URL } from './config.mjs';
+import { step } from './behave.mjs';
 
 // web 的 API 網址寫死 8787（environment.ts）。自己的 API 起在別的 port 時，在瀏覽器層轉送，
 // 不必改 repo 檔案、也不碰別席的 8787。
@@ -49,7 +50,10 @@ function hookSelectors(file) {
 }
 
 /** 開一個 context＋頁面並載入；app 端轉送 API、被導離目標路由就報錯。 */
-export async function openPage(browser, { source, url, width, height = 900, storageState }) {
+export async function openPage(
+  browser,
+  { source, url, width, height = 900, storageState, prep = [] },
+) {
   const ctx = await browser.newContext({
     viewport: { width, height },
     storageState,
@@ -78,6 +82,8 @@ export async function openPage(browser, { source, url, width, height = 900, stor
       `app 被導到 ${page.url()}：登入態失效或 API 沒在跑（${API_URL}）。重跑 login.mjs`,
     );
   await page.waitForTimeout(1200);
+  // 量之前先操作（config 的 `prep`）：切到週視圖、改一格分數讓儲存列出現。`widths` 限定只在某些寬度做
+  for (const st of prep) if (!st.widths || st.widths.includes(width)) await step(page, st);
   return { ctx, page, errors };
 }
 
@@ -116,11 +122,46 @@ export async function harvestNames(page, source, ctx) {
   }, EXTRA_NAMES);
 }
 
+/**
+ * 打開一個彈出物，回傳它的根選擇器（沒打開＝null；開啟鈕這一寬不存在＝undefined）。
+ * 原生 `[popovertarget]` 直接點；不是的（app 的 PrimeNG、稿用 JS showPopover 的）照 config 的 `opens`
+ * 指定點哪顆、根在哪。開啟鈕只在某些寬度出現（例如稿的手機登入面板）時，這一寬就當沒有。
+ */
+export async function openPop(page, id, opens = {}) {
+  if (opens[id]) {
+    const { click, root } = opens[id];
+    const btn = page.locator(`${click} >> visible=true`).first();
+    if (!(await btn.count())) return undefined;
+    await btn.click();
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(500);
+    return (await page.locator(root).count()) ? root : null;
+  }
+  const btn = page
+    .locator(`[popovertarget="${id}"]:not([popovertargetaction="hide"]) >> visible=true`)
+    .first();
+  if (!(await btn.count())) return undefined;
+  await btn.click();
+  // 點完把滑鼠移開：從底部升起的面板會把裡面的鈕放到游標底下，量到的是 hover 樣式（#1639 LINE 鍵）
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(400);
+  const open = await page.evaluate((i) => document.getElementById(i)?.matches(':popover-open'), id);
+  return open ? `[id="${id}"]` : null;
+}
+
+export async function closePop(page, id, opens = {}) {
+  if (opens[id]) {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  } else
+    await page.evaluate((i) => document.getElementById(i)?.hidePopover?.(), id).catch(() => {});
+}
+
 export async function capture(
   browser,
-  { source, file, url, width, storageState, opens = {}, rowParents = [] },
+  { source, file, url, width, storageState, opens = {}, rowParents = [], prep },
 ) {
-  const { ctx, page, errors } = await openPage(browser, { source, url, width, storageState });
+  const { ctx, page, errors } = await openPage(browser, { source, url, width, storageState, prep });
   const height = await growViewport(page, width);
   const names = await harvestNames(page, source, ctx);
 
@@ -142,41 +183,14 @@ export async function capture(
   });
   const popovers = {};
   const popShots = {}; // 浮層開著時的截圖（多出功能盤點要裁圖）
-  for (const id of targets) {
-    await page
-      .locator(`[popovertarget="${id}"]:not([popovertargetaction="hide"]) >> visible=true`)
-      .first()
-      .click();
-    // 點完把滑鼠移開：從底部升起的面板會把裡面的鈕放到游標底下，量到的是 hover 樣式（#1639 LINE 鍵）
-    await page.mouse.move(0, 0);
-    await page.waitForTimeout(400);
-    const open = await page.evaluate(
-      (i) => document.getElementById(i)?.matches(':popover-open'),
-      id,
-    );
-    popovers[id] = open
-      ? await page.evaluate(
-          extractSource({ names, rowParents, root: `[id="${id}"]`, prefix: `pop[${id}]` }),
-        )
-      : null;
-    if (open) popShots[id] = await page.screenshot();
-    await page.evaluate((i) => document.getElementById(i)?.hidePopover?.(), id).catch(() => {});
-  }
-
-  // 不是 popovertarget 開的彈出物（app 的 PrimeNG、稿用 JS showPopover 的）：config 指定點哪顆、根在哪。
-  // 開啟鈕只在某些寬度出現（例如稿的手機登入面板）時，這一寬就當沒有
-  for (const [id, { click, root }] of Object.entries(opens)) {
-    const btn = page.locator(`${click} >> visible=true`).first();
-    if (!(await btn.count())) continue;
-    await btn.click();
-    await page.mouse.move(0, 0);
-    await page.waitForTimeout(500);
-    popovers[id] = (await page.locator(root).count())
+  for (const id of [...targets, ...Object.keys(opens)]) {
+    const root = await openPop(page, id, opens);
+    if (root === undefined) continue; // 開啟鈕這一寬沒有
+    popovers[id] = root
       ? await page.evaluate(extractSource({ names, rowParents, root, prefix: `pop[${id}]` }))
       : null;
-    if (popovers[id]) popShots[id] = await page.screenshot();
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    if (root) popShots[id] = await page.screenshot();
+    await closePop(page, id, opens);
   }
 
   const hooks =

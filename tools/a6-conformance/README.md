@@ -20,6 +20,8 @@ npx --prefix tools/a6-conformance playwright install chromium   # 機器上沒�
 ( set -a; . apps/api/.dev.vars; set +a; WEB_URL=http://localhost:4200 \
   LOGIN_EMAIL=admin@demo.clessia.app npx tsx apps/api/src/scripts/login-link.ts )
 node tools/a6-conformance/login.mjs '<印出的連結>'
+# 多身分帳號（teacher0001 也是家長）會被導到 /select-role：state 檔的 origins 補
+#   localStorage clessia:active-role=teacher（state-teacher.json，t-students 用）
 
 node tools/a6-conformance/run.mjs inventory              # 全部頁；或指定 students schedule …
 node tools/a6-conformance/run.mjs diff students
@@ -108,6 +110,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 | 位置   | 相對**最近的已配對祖先**，Δx 或 Δy 超過 ±4px；彈出物根沒有祖先時，距頁頂與距視窗底取差小的（手機抽屜貼底） |
 | 尺寸   | 寬／高超過 ±4px 或 ±3%（取大）                                                                             |
 | 樣式   | computed style 不同；字級／行高 ±0.5px，其餘逐字                                                           |
+| 黏住   | 捲動後，稿還黏在視窗內的 part 在 app 被捲走（或反過來：app 多黏）。只比效果，不比寫法 —— 見下節            |
 | 資料差 | 列數、文字長度、隨資料增減的同型區塊造成的差 —— **不算設計差**，排最後                                     |
 
 資料差的判定：`DATA_DEPENDENT`（config）列出的「只在某些資料下出現」的 part（例：「切換身分」只在多身分帳號出現）；清單列數不同；文字不同只解釋**寬度**（高度要行數也不同才算）；同父層下已有同型兄弟
@@ -161,6 +164,35 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 
 **參考容器**：最近的已配對祖先，但跳過「兩邊包的範圍不同」的（≥3 個或 ≥20% 子項一邊在裡面、一邊在外面，
 例如 app 的 main 包住色面）。跳過後沒有祖先可用時，改量跟**上方最近一個已配對 part** 的間距。
+
+## 黏住（sticky）
+
+靜態幾何是在撐開到內容全高的視窗裡量的，什麼都不捲 —— sticky 漏了也量不出來（10-21 使用者發現 A6 的
+章節左欄、彈窗動作列、週視圖欄頭在 app 大多沒黏，工具卻是「待修 0」）。所以分兩步：
+
+1. **提名**（`diff.mjs`）：extract 給每個 part 記「被誰釘住」（`pin`：自己或最近的 `position: sticky` 祖先，
+   含 `top／bottom／left／right`）。sticky 容器常不是 part（A6 的 `.chap__side` 是 div），所以記在裡面的 part 上。
+   任一邊是**某個釘點最上層的 part**（父 part 不在同一個釘點）就提名一列，細節是兩邊的 offset（`sticky top 80px → 無`）。
+2. **行為檢查**（`lib/sticky.mjs`，`diff` 時自動跑）：兩邊各用正常視窗高（`WIDTHS` 的 `height`）再開一次頁，
+   往釘住的方向捲到「不黏就會離開視窗」，看元素還在不在可視區（視窗 ∩ 會裁切的祖先，該軸至少一半）：
+   - top／left：最近的捲動容器捲到元素不黏時的位置整個越過起點；bottom／right：捲回起點，不黏時要在終點之外
+   - **墊高**：資料少時容器太短、黏不黏都捲不出差別。量的時候暫插一塊兩個視窗長的空白 —— 有 sticky 的插在釘點的
+     容器裡（黏住的範圍才會變長），沒有的插在最近的捲動容器裡（插在元素旁邊會把 dialog 的 footer 撐爆）
+   - 捲動容器只算 overflow auto／scroll 的祖先；html／body 是 `overflow: hidden` 時文件不算（app 殼層）
+
+判定（`stickyVerdict`）：效果一致的**不列**（報告表頭記「提名 N 處、一致 M 處」，看得出有沒有真的檢查）；
+
+| 情況                                                                        | 歸欄                       |
+| --------------------------------------------------------------------------- | -------------------------- |
+| 稿捲過去還在、app 被捲走                                                    | 待修                       |
+| 稿被捲走、app 還黏著，而稿**沒有**宣告 sticky（多黏）                       | 待修                       |
+| 稿宣告了 sticky 卻沒黏住（被只有自己高的容器框住，例：meals 的 `.savebar`） | 工具限制，依稿的意圖人工看 |
+| 稿這裡捲不出效果、或 app 墊高後仍捲不到                                     | 工具限制                   |
+| app 那邊沒有捲動容器（頂欄在殼層的捲動區外）                                | 一致                       |
+
+彈出物裡的也會檢查（重新打開同一個彈出物再捲）。要先操作才出現的（週視圖、改過分數才出現的儲存列）用
+`PAGES[頁].prep`：`{ a6: [步驟], app: [步驟] }`，步驟格式同 `scenarios.mjs`，可加 `widths` 只在某些寬度做。
+每頁每寬的逐項結果存在 `A6_OUT/<頁>/sticky-<d|m>.json`。
 
 ## 第三層：互動情境（`behave`）
 
