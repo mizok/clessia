@@ -21,6 +21,7 @@ export type SeatCheck =
   | { readonly status: 'not-found' }
   | {
       readonly status: 'over-quota';
+      readonly campusId: string;
       readonly quota: number;
       readonly currentActive: number;
       readonly adding: number;
@@ -60,7 +61,13 @@ export async function lockClassSeats(
   const adding = ids.length - Number(counted[0]?.already ?? 0);
 
   if (cls.max_students !== null && currentActive + adding > cls.max_students) {
-    return { status: 'over-quota', quota: cls.max_students, currentActive, adding };
+    return {
+      status: 'over-quota',
+      campusId: cls.campus_id,
+      quota: cls.max_students,
+      currentActive,
+      adding,
+    };
   }
   return { status: 'ok', campusId: cls.campus_id };
 }

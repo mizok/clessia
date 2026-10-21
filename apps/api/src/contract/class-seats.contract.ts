@@ -131,7 +131,7 @@ run('班級名額的鎖對真 Postgres（#1726 Q9）', () => {
   it('超過上限整批不寫', async () => {
     const { orgId, classId, students } = await setup(1, 2);
     const r = await enrollWithSeatLock(pool, { orgId, classId, rows: students.map(row) });
-    expect(r).toEqual({ status: 'over-quota', quota: 1, currentActive: 0, adding: 2 });
+    expect(r).toMatchObject({ status: 'over-quota', quota: 1, currentActive: 0, adding: 2 });
     expect(await seated(classId)).toBe(0);
   });
 
