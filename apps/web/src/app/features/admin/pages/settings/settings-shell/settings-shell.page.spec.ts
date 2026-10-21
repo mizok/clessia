@@ -205,6 +205,16 @@ describe('SettingsShellPage', () => {
       expect(title()).toBe('1個分校在營運。');
     });
 
+    // 審核席 H4：重抓失敗不能留著上一次的數字（那是過期的正面斷言）
+    it('先成功、切分頁重抓失敗 → 標題退回頁名', async () => {
+      await setup('general', true, [campus({ id: 'a' })]);
+      expect(title()).toBe('1個分校在營運，全部用日到班。');
+      campusList.mockReturnValue(throwError(() => new Error('offline')));
+      events.next(new NavigationEnd(3, '/admin/settings/schools', '/admin/settings/schools'));
+      fixture.detectChanges();
+      expect(title()).toBe(RoutesCatalog.ADMIN_SETTINGS.label);
+    });
+
     it('切分頁後重抓（別的分頁新增、停用之後標題跟著對）', async () => {
       await setup('general', true, [campus({ id: 'a' })]);
       const before = campusList.mock.calls.length;
