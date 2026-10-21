@@ -186,6 +186,21 @@ describe('POST /{id}/classrooms', () => {
 });
 
 describe('PUT /{id}/classrooms/{roomId}', () => {
+  it('設備清成空白：存 null 不是空字串（同新增）', async () => {
+    const { call, rooms } = setup();
+    await call('PUT', `/${MINE}/classrooms/${ROOM_A}`, { name: 'A 教室', equipment: '投影機' });
+    expect(rooms().find((r) => r['id'] === ROOM_A)?.['equipment']).toBe('投影機');
+
+    const { status, body } = await call('PUT', `/${MINE}/classrooms/${ROOM_A}`, {
+      name: 'A 教室',
+      equipment: '   ',
+    });
+
+    expect(status).toBe(200);
+    expect(body.data.equipment).toBeNull();
+    expect(rooms().find((r) => r['id'] === ROOM_A)?.['equipment']).toBeNull();
+  });
+
   it('改名＋容量：寫進去，稽核記 from/to', async () => {
     const { call, rooms, db } = setup();
     const { status } = await call('PUT', `/${MINE}/classrooms/${ROOM_A}`, {

@@ -28,6 +28,7 @@ import { AcademyExamsService } from '@core/academy-exams.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { catchError, filter, forkJoin, map, of } from 'rxjs';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 
 import { ClassScoresDialogComponent } from './class-scores-dialog/class-scores-dialog.component';
 import {
@@ -63,6 +64,7 @@ interface CourseGroup {
     PageOpenComponent,
     RouterLink,
     LoadFailedComponent,
+    ChapterHeadComponent,
   ],
   templateUrl: './class-view.component.html',
   host: { class: 'block' },

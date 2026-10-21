@@ -485,7 +485,7 @@ describe('POST /api/campuses —— 出勤模式與帳戶（#1314 SE3）', () =>
   const ORG = '00000000-0000-0000-0000-0000000000aa';
 
   async function post(body: unknown, permissions: string[]) {
-    const db = createMultiOrgDb({ campuses: [] });
+    const db = createMultiOrgDb({ campuses: [], audit_logs: [], profiles: [] });
     const app = new Hono();
     app.use('*', async (c, next) => {
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -504,8 +504,19 @@ describe('POST /api/campuses —— 出勤模式與帳戶（#1314 SE3）', () =>
       headers: { 'content-type': 'application/json' },
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    return { status: res.status, rows: db.rows('campuses') };
+    return { status: res.status, rows: db.rows('campuses'), audits: db.rows('audit_logs') };
   }
+
+  it('新增時寫了出勤模式、帳戶 → 稽核查得到（帳戶要 manage_finance 才能寫，寫了什麼要留痕）', async () => {
+    const { audits } = await post(
+      { name: '新店', attendanceMode: 'per_session', paymentInfo: '新店專戶' },
+      ['manage_org_settings', 'manage_finance'],
+    );
+    const audit = audits.find((r) => r['action'] === 'create');
+    expect(audit?.['details']).toMatchObject({
+      to: { attendance_mode: 'per_session', payment_info: '新店專戶' },
+    });
+  });
 
   it('有權限：兩欄寫得進去（帳戶空白存 null）', async () => {
     const { status, rows } = await post(

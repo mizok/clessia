@@ -344,6 +344,31 @@ const NOTIFICATIONS_TABS = [
   },
 ];
 
+/**
+ * 表單彈窗（#1772）：稿用 JS 開（A2.form → `dialog.fdlg`），app 是 DialogService 的 `.p-dialog`（共用 `.form-dialog`）。
+ * id 兩邊同名才配得上。量動作列黏底（稿 `.fdlg__foot { position: sticky; bottom: 0 }`）與彈窗裡的 part。
+ */
+const formOpen = (a6Click, appClick) => ({
+  a6Open: { root: 'dialog[open]', click: a6Click },
+  appOpen: { root: '.p-dialog:has(.form-dialog)', click: appClick },
+});
+const FORM_DIALOGS = {
+  courses: {
+    'new-course': formOpen('[data-newc]', 'button:has-text("新增課程")'),
+    'new-class': formOpen('[data-newk]', 'button:has-text("新增班")'),
+  },
+  staff: { 'new-staff': formOpen('[data-new]', 'button:has-text("新增人員")') },
+  parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
+  exams: {
+    'new-exam': formOpen('[data-new]', [
+      'button:has-text("新增考試")',
+      '[role=menuitem]:has-text("補習班")',
+    ]),
+  },
+};
+const opensOf = (page, side) =>
+  Object.fromEntries(Object.entries(FORM_DIALOGS[page] ?? {}).map(([id, o]) => [id, o[side]]));
+
 export const PAGES = {
   students: {
     a6: 'students.html',
@@ -434,8 +459,18 @@ export const PAGES = {
     deviations: PUBLIC_FORM_DEVIATIONS,
   },
   student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
-  parents: { a6: 'parents.html', app: '/admin/parents' },
-  courses: { a6: 'courses.html', app: '/admin/courses' },
+  parents: {
+    a6: 'parents.html',
+    app: '/admin/parents',
+    a6Open: opensOf('parents', 'a6Open'),
+    appOpen: opensOf('parents', 'appOpen'),
+  },
+  courses: {
+    a6: 'courses.html',
+    app: '/admin/courses',
+    a6Open: opensOf('courses', 'a6Open'),
+    appOpen: opensOf('courses', 'appOpen'),
+  },
   class: {
     a6: 'class.html',
     app: '/admin/courses/dc2f0b1a-7e79-4b6e-a61e-8bbac3eec5a6/classes/1deffd57-e069-4d72-98bf-41415ec01967',
@@ -464,6 +499,12 @@ export const PAGES = {
   'p-trial-records': {
     a6: 'p-trial.html#records',
     app: '/parent/trial#records',
+    state: path.join(cache, 'state-parent.json'),
+  },
+  // 家長端加選課程（#1727 ⑤）：卡片點開是 JS 打開的 <dialog>（稿 sheet()、app 原生 showModal）
+  'p-add-course': {
+    a6: 'p-add-course.html',
+    app: '/parent/add-course',
     state: path.join(cache, 'state-parent.json'),
   },
   // 家長端到班紀錄（#1695 第 3 張）：家長登入態；「幫孩子請假」兩邊都是 JS 打開的 <dialog>（稿 a6.js form()、app 原生 showModal）
@@ -524,7 +565,12 @@ export const PAGES = {
       },
     ],
   },
-  staff: { a6: 'staff.html', app: '/admin/staff' },
+  staff: {
+    a6: 'staff.html',
+    app: '/admin/staff',
+    a6Open: opensOf('staff', 'a6Open'),
+    appOpen: opensOf('staff', 'appOpen'),
+  },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {
     // 預設分頁「收到的」（#1692 起 app 也有）；「發布公告」是 notifications-publish
@@ -575,13 +621,32 @@ export const PAGES = {
   reports: { a6: 'reports.html', app: '/admin/reports' },
   'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },
   changes: { a6: 'changes.html', app: '/admin/changes' },
-  exams: { a6: 'exams.html', app: '/admin/grades/exams' },
+  exams: {
+    a6: 'exams.html',
+    app: '/admin/grades/exams',
+    a6Open: opensOf('exams', 'a6Open'),
+    appOpen: opensOf('exams', 'appOpen'),
+  },
   scores: {
     a6: 'scores.html',
     app: '/admin/grades/exams/academy/5bce4763-b20c-4dd5-9f7e-2b7e500e3a22/scores',
   },
   grades: { a6: 'grades.html', app: '/admin/grades/overview' },
-  'grades-class': { a6: 'grades-class.html', app: '/admin/grades/overview/class' },
+  'grades-class': {
+    a6: 'grades-class.html',
+    app: '/admin/grades/overview/class',
+    deviations: [
+      {
+        // 舊有新無：稿的章頭只有課程名＋「N 個班」，app 在章名下保留科目小字
+        status: '多',
+        host: '^app-chapter-head$',
+        app: 'landmark:region\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        reason: '章名下保留科目小字：課程名不保證含科目，照稿拿掉這頁就看不到科目',
+        source:
+          'kb/wiki/architecture/a6-adoption-rules.md R5（2026-10-21）；https://github.com/mizok/clessia/pull/1769#issuecomment-6310159607',
+      },
+    ],
+  },
   'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
   // 黏住的行為檢查才量得到（A6 的 .wc__h／.cg__dh、#save）

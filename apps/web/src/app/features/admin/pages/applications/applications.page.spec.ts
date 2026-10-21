@@ -3,13 +3,17 @@ import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   PublicApplicationsService,
   type PublicApplication,
 } from '@core/public-applications.service';
 import { ParentRequestsService, type ParentRequest } from '@core/parent-requests.service';
+import { AuthService } from '@core/auth.service';
+import { BillingPeriodsService } from '@core/billing-periods.service';
+import { EnrollmentsService } from '@core/enrollments.service';
+import { FeeTemplatesService } from '@core/fee-templates.service';
 import { ApplicationsPage } from './applications.page';
 
 /**
@@ -48,10 +52,13 @@ const req = (extra: Partial<ParentRequest> = {}): ParentRequest => ({
   preferredTimes: null,
   note: '想上週六班',
   rejectReason: null,
+  classId: 'cls-1',
+  billingMode: 'monthly',
+  defaultFeeTemplateId: null,
   ...extra,
 });
 
-async function setup(parentData: ParentRequest[] = [req()]) {
+async function setup(parentData: ParentRequest[] = [req()], permissions = ['manage_finance']) {
   const parents = {
     list: vi.fn().mockReturnValue(of({ data: parentData })),
     reject: vi.fn((id: string, reason: string) =>
@@ -75,6 +82,11 @@ async function setup(parentData: ParentRequest[] = [req()]) {
       { provide: PublicApplicationsService, useValue: service },
       { provide: ParentRequestsService, useValue: parents },
       { provide: MessageService, useValue: { add: vi.fn() } },
+      { provide: AuthService, useValue: { hasPermission: (p: string) => permissions.includes(p) } },
+      // 核准對話框（#1726）開起來會讀這三支；這裡只驗頁面怎麼開、關、toast
+      { provide: FeeTemplatesService, useValue: { list: () => of({ data: [] }) } },
+      { provide: BillingPeriodsService, useValue: { list: () => of({ data: [] }) } },
+      { provide: EnrollmentsService, useValue: { prorationPreview: () => of(null) } },
     ],
   })
     .overrideComponent(ApplicationsPage, {
@@ -137,7 +149,7 @@ describe('ApplicationsPage（#1245）', () => {
 
 /**
  * #1707：家長登入後在 app 送的申請，跟公開申請同一頁（使用者裁定 (a)）。兩套狀態不合併，分頁共用；
- * 報名只能拒絕（原因家長看得到）、核准另開 #1726；試聽改狀態。
+ * 報名可核准（#1726）或拒絕（原因家長看得到）；試聽改狀態。
  */
 describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
   const page = (f: { componentInstance: unknown }) => f.componentInstance as any;
@@ -165,8 +177,7 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     expect(card.textContent).toContain('大安校');
     expect(card.textContent).toContain('2026-11-01');
     expect(card.textContent).toContain('想上週六班');
-    // 核准是金額路徑，另開 #1726 —— 先告訴行政去哪裡做
-    expect(card.textContent).toContain('目前請到學生檔案手動報名');
+    expect(card.textContent).not.toContain('目前請到學生檔案手動報名');
   });
 
   // 外層清單原本沒有 list-none：li 在 flex 容器裡仍是 list-item，每張卡片左邊多一個圓點（#1245 起就有）
@@ -309,5 +320,83 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     page(fixture).load();
     fixture.detectChanges();
     expect(page(fixture).failed()).toBe(true);
+  });
+
+  describe('核准（#1726）', () => {
+    // jsdom 沒有 <dialog> 的 modal 行為：只補開關狀態與 close 事件（照家長端請假）
+    const dialogProto = HTMLDialogElement.prototype;
+    const originalDialog = { showModal: dialogProto.showModal, close: dialogProto.close };
+    beforeEach(() => {
+      dialogProto.showModal = function (this: HTMLDialogElement) {
+        this.open = true;
+      };
+      dialogProto.close = function (this: HTMLDialogElement) {
+        if (!this.open) return;
+        this.open = false;
+        this.dispatchEvent(new Event('close'));
+      };
+    });
+    afterEach(() => Object.assign(dialogProto, originalDialog));
+
+    const approveButton = (el: HTMLElement) =>
+      [
+        ...el.querySelectorAll<HTMLButtonElement>('[data-testid="parent-request-card"] button'),
+      ].find((b) => b.textContent?.trim() === '核准');
+
+    it('待審核：拒絕旁有核准鈕；點了開對話框', async () => {
+      TestBed.resetTestingModule();
+      const { fixture, el } = await setup();
+      const button = approveButton(el)!;
+      expect(button.disabled).toBe(false);
+      button.click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      const dialog = el.querySelector<HTMLDialogElement>('dialog')!;
+      expect(dialog.open).toBe(true);
+      expect(dialog.querySelector('app-approve-request-dialog')).not.toBeNull();
+      expect(dialog.textContent).toContain('林小華');
+    });
+
+    it('沒有 manage_finance：核准鈕停用、寫「需要財務權限」（Q6）', async () => {
+      TestBed.resetTestingModule();
+      const { el } = await setup([req()], []);
+      expect(approveButton(el)!.disabled).toBe(true);
+      expect(el.querySelector('[data-testid="parent-request-card"]')!.textContent).toContain(
+        '需要財務權限',
+      );
+    });
+
+    it('待繳費：沒有核准鈕', async () => {
+      TestBed.resetTestingModule();
+      const { el } = await setup([req({ status: 'awaiting_payment' })]);
+      expect(approveButton(el)).toBeUndefined();
+    });
+
+    it('核准成功：關對話框、toast 帳單編號、重抓；取消只關', async () => {
+      TestBed.resetTestingModule();
+      const { fixture, parents, el } = await setup();
+      const p = page(fixture);
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+
+      p.openApprove(req());
+      await Promise.resolve();
+      fixture.detectChanges();
+      parents.list.mockClear();
+      p.onApproveClosed(null);
+      fixture.detectChanges();
+      expect(el.querySelector<HTMLDialogElement>('dialog')!.open).toBe(false);
+      expect(p.approving()).toBeNull();
+      expect(toast).not.toHaveBeenCalled();
+      expect(parents.list).not.toHaveBeenCalled();
+
+      p.openApprove(req());
+      await Promise.resolve();
+      p.onApproveClosed({ invoiceNo: 'INV-202610-0001' });
+      expect(el.querySelector<HTMLDialogElement>('dialog')!.open).toBe(false);
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ summary: '已核准，帳單 INV-202610-0001 已開' }),
+      );
+      expect(parents.list).toHaveBeenCalledTimes(1);
+    });
   });
 });

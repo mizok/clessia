@@ -134,6 +134,7 @@ const REQUIRED: Record<string, string> = {
 const PARAMS: Record<string, string> = {
   '/api/courses/{id} id': '{course}',
   '/api/campuses/{id} id': '{campus}',
+  '/api/campuses/{id}/classrooms id': '{campus}',
   '/api/staff/{id} id': '{teacher}',
   '/api/classes/{id} id': '{class}',
   '/api/classes/{id}/sessions/preview id': '{class}',

@@ -130,16 +130,13 @@ export async function harvestNames(page, source, ctx) {
 export async function openPop(page, id, opens = {}) {
   if (opens[id]) {
     const { click, root } = opens[id];
-    // 陣列＝依序點（先開 ⋮ 選單、再點裡面那一項才出現的對話框）；第一顆不在這一寬就當沒有
-    const steps = Array.isArray(click) ? click : [click];
-    for (const [i, sel] of steps.entries()) {
+    // click 可以是陣列：依序點（app 的「新增考試」先開選單、再選「補習班考試」；分校 ⋮ 再點「教室」）。
+    // 第一顆不在這一寬 = 這一寬沒有（undefined）；後面那顆找不到 = 開了選單卻沒有那一項，記成缺（null）
+    for (const [i, sel] of [].concat(click).entries()) {
       const btn = page.locator(`${sel} >> visible=true`).first();
-      if (!(await btn.count())) {
-        if (i === 0) return undefined;
-        return null;
-      }
+      if (!(await btn.count())) return i === 0 ? undefined : null;
       await btn.click();
-      if (i < steps.length - 1) await page.waitForTimeout(300);
+      await page.waitForTimeout(400);
     }
     await page.mouse.move(0, 0);
     await page.waitForTimeout(500);
@@ -161,6 +158,17 @@ export async function closePop(page, id, opens = {}) {
   if (opens[id]) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
+    // PrimeNG 動態彈窗不一定吃 Escape；沒關掉的話遮罩會擋住後面每一次點擊 —— 點根裡的取消／關閉
+    const { root } = opens[id];
+    if (await page.locator(`${root} >> visible=true`).count()) {
+      const x = page
+        .locator(root)
+        .locator('button:has-text("取消"), [aria-label="關閉"], [aria-label="Close"]')
+        .filter({ visible: true })
+        .first();
+      if (await x.count()) await x.click();
+      await page.waitForTimeout(400);
+    }
   } else
     await page.evaluate((i) => document.getElementById(i)?.hidePopover?.(), id).catch(() => {});
 }
