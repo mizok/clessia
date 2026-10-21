@@ -15,8 +15,9 @@ export const STATE = process.env.A6_STATE ?? path.join(cache, 'state-admin.json'
 export const OUT = process.env.A6_OUT ?? path.join(cache, 'out');
 
 export const WIDTHS = [
-  { tag: 'd', width: 1440 },
-  { tag: 'm', width: 360 },
+  // height：黏住的行為檢查用的視窗高（其餘量測把視窗撐到內容全高，不捲）
+  { tag: 'd', width: 1440, height: 900 },
+  { tag: 'm', width: 360, height: 780 },
 ];
 
 /**
@@ -450,6 +451,29 @@ export const PAGES = {
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
   },
+  // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由；列上的教室數是 SE3（schema 沒有教室）
+  campuses: {
+    a6: 'settings.html#campuses',
+    app: '/admin/settings/campuses',
+    deviations: [
+      {
+        // SE3：稿的列有第三欄「N 間教室」，schema 沒有教室 —— app 少一欄，名稱欄因此較寬
+        status: '尺寸',
+        a6: '>landmark:main\\[\\]>row>text:div$',
+        detail: '^寬 ',
+        reason: '列上沒有教室數欄（schema 沒有教室），名稱欄較寬',
+        source: '#1314 SE3（教室子頁、列上教室數，待 schema）',
+      },
+      {
+        // 稿的「操作紀錄」只在桌機（only-d）；手機收進頁首「⋯」，不刪（計畫席 10-21 裁）
+        status: '多',
+        widths: [360],
+        app: 'control:button\\[分校的更多動作\\]$',
+        reason: '手機的操作紀錄：稿沒畫，收進頁首「⋯」',
+        source: `${rule('R2')}；#1755 計畫席 10-21`,
+      },
+    ],
+  },
   staff: { a6: 'staff.html', app: '/admin/staff' },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {
@@ -496,4 +520,61 @@ export const PAGES = {
   grades: { a6: 'grades.html', app: '/admin/grades/overview' },
   'grades-class': { a6: 'grades-class.html', app: '/admin/grades/overview/class' },
   'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
+  // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
+  // 黏住的行為檢查才量得到（A6 的 .wc__h／.cg__dh、#save）
+  'schedule-week': {
+    a6: 'schedule.html',
+    app: '/admin/sessions',
+    prep: {
+      a6: [{ click: '[data-view="week"]', settle: 800 }],
+      app: [{ click: { role: 'button', name: '^週$' }, settle: 1500 }],
+    },
+  },
+  'scores-dirty': {
+    a6: 'scores.html',
+    // scores 用的那份已結束（輸入框 disabled），儲存列出不來；這份是 seed 裡進行中的
+    app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
+    // app 手機是點列開 sheet 編輯（稿是行內輸入），只在桌機改分數
+    prep: {
+      a6: [{ fill: ['input[aria-label$="的分數"]:not([disabled])', '77'], widths: [1440] }],
+      // p-inputnumber 不吃 fill（不走 input 事件），逐鍵打
+      app: [
+        { click: 'input[aria-label$="的分數"]:not([disabled])', widths: [1440] },
+        { press: 'Control+A', widths: [1440] },
+        { press: '7', widths: [1440] },
+        { press: '7', widths: [1440], settle: 800 },
+      ],
+    },
+  },
+  settings: { a6: 'settings.html', app: '/admin/settings/general' },
+  't-schedule': {
+    a6: 't-schedule.html',
+    app: '/teacher/schedule',
+    state: path.join(cache, 'state-teacher.json'),
+  },
+  't-notifications': {
+    a6: 't-notifications.html',
+    app: '/teacher/notifications',
+    state: path.join(cache, 'state-teacher.json'),
+  },
+  'p-schedule': {
+    a6: 'p-schedule.html',
+    app: '/parent/schedule',
+    state: path.join(cache, 'state-parent.json'),
+  },
+  'p-payments': {
+    a6: 'p-payments.html',
+    app: '/parent/payments',
+    state: path.join(cache, 'state-parent.json'),
+  },
+  'p-notifications': {
+    a6: 'p-notifications.html',
+    app: '/parent/notifications',
+    state: path.join(cache, 'state-parent.json'),
+  },
+  't-students': {
+    a6: 't-students.html',
+    app: '/teacher/students',
+    state: path.join(cache, 'state-teacher.json'),
+  },
 };

@@ -36,6 +36,14 @@ Tags: `specs`, `admin`, `dashboard`
 
 Links to: [[architecture/admin-dashboard-v1]]
 
+## [[specs/admin/enrollment/approve-request|核准家長的報名申請（開繳費單、建報名、轉待付款；設計稿）]]
+
+設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
+
+Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `invoices`, `parent`, `design`
+
+Links to: [[rules/enrollment-rules]], [[rules/billing-rules]], [[specs/parent/applications]], [[architecture/pg-pool-writes]], [[architecture/pg-pool-writes]], [[architecture/a6-adoption-rules]], [[architecture/a6-adoption-rules]]
+
 ## [[specs/admin/enrollment/enrollment|學生報名]]
 
 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
@@ -164,11 +172,11 @@ Links to: [[flows/enrollment|報名申請流程]], [[specs/admin/enrollment/enro
 
 ## [[specs/admin/system/campus-classrooms|分校的教室與帳戶（#1314 SE3，設計稿）]]
 
-設計稿（#1314 SE3，保留類、要 migration，待裁）。照 A6 settings.html#campuses：分校 ⋮ 的「教室」對話框（列出教室、新增：名稱、容納人數、設備選填）、列上「N 間教室／還沒有教室」、分校表單加狀態與出勤模式。schema 只缺教室：新表 classrooms（分校底下，名稱分校內唯一、容量選填、設備選填）。帳戶**已存在**（campuses.payment_info，#1073 使用者裁一個多行欄位）—— A6 畫成「收款銀行＋帳號」兩欄，跟既有裁定衝突，建議維持一欄（舊有新無：多帳戶、LINE Pay、現金時段會寫不進去）。狀態、出勤模式 API 早已收，只差表單。A6 在班級時段也用教室（class.html、courses.html），建議同一支 migration 先加 schedules.classroom_id、UI 另開單。
+設計稿（#1314 SE3，保留類、要 migration；10-21 已裁）。照 A6 settings.html#campuses：分校 ⋮ 的「教室」對話框（列出教室、新增：名稱、容納人數、設備選填）、列上「N 間教室／還沒有教室」、分校表單加狀態與出勤模式。schema 只缺教室：新表 classrooms（分校底下，名稱分校內唯一、容量選填、設備選填）。帳戶**已存在**（campuses.payment_info，#1073 使用者裁一個多行欄位）—— A6 畫成「收款銀行＋帳號」兩欄，使用者裁不拆、維持一欄，登記 A6 偏離（舊有新無：多帳戶、LINE Pay、現金時段會寫不進去）。狀態、出勤模式 API 早已收，只差表單。A6 在班級時段也用教室（class.html、courses.html），同一支 migration 先加 schedules.classroom_id（可空、SET NULL）、UI 另開單（計畫席裁）。
 
 Tags: `specs`, `admin`, `system`, `campuses`, `classrooms`, `migration`, `design`, `a6`
 
-Links to: [[architecture/deploying]], [[specs/admin/system/campuses]], [[architecture/pg-pool-writes]], [[specs/admin/system/campuses]]
+Links to: [[architecture/deploying]], [[specs/admin/system/campuses]], [[architecture/pg-pool-writes]], [[architecture/a6-adoption-rules]], [[specs/admin/system/campuses]]
 
 ## [[specs/admin/system/campuses|分校設定]]
 

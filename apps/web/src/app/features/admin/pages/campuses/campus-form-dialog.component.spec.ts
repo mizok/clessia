@@ -16,6 +16,7 @@ const CAMPUS: Campus = {
   phone: null,
   isActive: true,
   paymentInfo: '中正專戶',
+  attendanceMode: null,
   createdAt: '2026-01-01',
   updatedAt: '2026-01-01',
 };

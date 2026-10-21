@@ -32,6 +32,13 @@ const ParentCatalogClassSchema = CatalogClassSchema.extend({
   teacherNames: z.array(z.string()),
   /** 孩子的年級在 `gradeLevels` 裡，或 `gradeLevels` 為空（不限）。前端預設篩、可切換顯示全部 */
   matchesGrade: z.boolean(),
+  /**
+   * 這個孩子今天已在這班（#1727 Q5 (a)）。報名頁「列出但不能選、寫原因」（A6 p-enrollment）；
+   * 加選、試聽頁在前端濾掉
+   */
+  enrolled: z.boolean(),
+  /** 跟孩子今天在籍的哪一班的每週時段重疊（A6 p-add-course「跟 ○○ 班撞時間」）；沒撞、或自己就在籍 → null */
+  conflictsWith: z.string().nullable(),
 }).openapi('ParentCatalogClass');
 
 const ListResponseSchema = z
@@ -89,10 +96,28 @@ app.openapi(
       effectiveTo: r['effective_to'] ?? null,
     }));
 
-    // ponytail: 結束日與「今天在籍」在記憶體濾 —— 一間補習班的開課班是幾十到幾百班
-    const classes = ((classResult.data ?? []) as Row[]).filter(
-      (row) => isOpenClass(row, today) && countEnrolledOn(ranges, row['id'], today) === 0,
+    // ponytail: 結束日與「今天在籍」在記憶體算 —— 一間補習班的開課班是幾十到幾百班
+    const isEnrolled = (row: Row) => countEnrolledOn(ranges, row['id'], today) > 0;
+    const classes = ((classResult.data ?? []) as Row[]).filter((row) => isOpenClass(row, today));
+    // 撞時間：拿孩子今天在籍的班（不管還開不開放）今天仍有效的時段比；同一天、時間區間有重疊才算（接著上不算）
+    const mySlots = ((classResult.data ?? []) as Row[]).filter(isEnrolled).flatMap((row) =>
+      liveSchedules(row, today).map((s) => ({
+        className: row['name'] as string,
+        weekday: s['weekday'] as number,
+        start: s['start_time'] as string,
+        end: s['end_time'] as string,
+      })),
     );
+    const conflictOf = (row: Row): string | null =>
+      liveSchedules(row, today)
+        .map(
+          (s) =>
+            mySlots.find(
+              (m) =>
+                m.weekday === s['weekday'] && m.start < s['end_time'] && s['start_time'] < m.end,
+            )?.className,
+        )
+        .find((name): name is string => !!name) ?? null;
 
     const { counts, error: countError } = await childDb.activeEnrollmentCounts(
       classes.map((row) => row['id'] as string),
@@ -112,6 +137,8 @@ app.openapi(
             ),
           ],
           matchesGrade: gradeLevels.length === 0 || (!!grade && gradeLevels.includes(grade)),
+          enrolled: isEnrolled(row),
+          conflictsWith: isEnrolled(row) ? null : conflictOf(row),
         };
       })
       // 推薦的排最前（#1118，規格「推薦加選的優先顯示」），其餘照課程名→班名

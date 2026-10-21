@@ -25,6 +25,7 @@ import { behaveMarkdown, inventoryMarkdown } from './lib/report.mjs';
 import { classify, diffParts, diffMarkdown } from './lib/diff.mjs';
 import { collectExtras, extrasJson, extrasMarkdown } from './lib/extras.mjs';
 import { compareMarkdown } from './lib/compare.mjs';
+import { probeSticky, stickyVerdict } from './lib/sticky.mjs';
 import { startWeb } from './lib/serve.mjs';
 import { execFileSync } from 'node:child_process';
 
@@ -47,19 +48,55 @@ const save = (dir, name, cap) => {
     fs.writeFileSync(path.join(dir, `${name}.pop-${id}.png`), png);
 };
 
-async function grab(page, source, w, rowParents = []) {
+/** 一邊（稿或 app）的開頁參數。 */
+function side(page, source, w, rowParents = []) {
   const cfg = PAGES[page];
   if (!cfg) throw new Error(`不認得的頁：${page}（可用：${Object.keys(PAGES).join('、')}）`);
-  const url = source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : appUrl + cfg.app;
-  return capture(browser, {
+  return {
     source,
     file: cfg.a6,
-    url,
+    url: source === 'a6' ? 'file://' + path.join(A6_DIR, cfg.a6) : appUrl + cfg.app,
     width: w.width,
     storageState: source === 'app' ? (cfg.state ?? STATE) : undefined,
     opens: (source === 'app' ? cfg.appOpen : cfg.a6Open) ?? {},
+    prep: cfg.prep?.[source],
     rowParents,
+  };
+}
+const grab = (page, source, w, rowParents) => capture(browser, side(page, source, w, rowParents));
+
+/**
+ * 黏住的提名列（diffParts 的 `probe`）→ 兩邊用正常視窗高真的捲一次，依效果收斂：
+ * 效果一致的拿掉，app 被捲走（或多黏）的留成待修，判定不了的標工具限制。回傳統計。
+ */
+async function settleSticky(page, w, rows, rowParents) {
+  const pend = rows.filter((r) => r.probe);
+  const stat = { checked: pend.length, same: 0, items: [] };
+  if (!pend.length) return stat;
+  const tA = pend.map((r) => ({ pop: r.pop, key: r.a6, axis: r.probe.axis }));
+  const tB = pend.map((r) => ({ pop: r.appPop ?? r.pop, key: r.app, axis: r.probe.axis }));
+  const ra = await probeSticky(browser, { ...side(page, 'a6', w), height: w.height }, tA);
+  const rb = await probeSticky(
+    browser,
+    { ...side(page, 'app', w, rowParents), height: w.height },
+    tB,
+  );
+  pend.forEach((r, i) => {
+    const v = stickyVerdict(ra.get(tA[i]), rb.get(tB[i]), r.detail, r.probe.differ, r.probe.axis);
+    stat.items.push({
+      a6: r.a6,
+      app: r.app,
+      pins: r.detail,
+      A6: ra.get(tA[i]),
+      APP: rb.get(tB[i]),
+      v,
+    });
+    if (!v) {
+      stat.same++;
+      rows.splice(rows.indexOf(r), 1);
+    } else Object.assign(r, { detail: v.detail, limit: v.limit, probe: undefined });
   });
+  return stat;
 }
 
 /** 一頁的第二層（兩寬）：抓兩邊、配對、彈出物各自配對、分欄。存 JSON／截圖。 */
@@ -103,8 +140,9 @@ async function diffPage(page) {
           { [pa[0].key]: pb[0].key },
           opts,
         ))
-          rows.push({ ...r, pop: ia });
+          rows.push({ ...r, pop: ia, appPop: ib });
     }
+    const sticky = await settleSticky(page, w, rows, [...new Set(rowParents)]);
     const out = classify(
       rows,
       [...DEVIATIONS, ...(PAGES[page].deviations ?? [])],
@@ -112,7 +150,8 @@ async function diffPage(page) {
       SITE_WIDE,
     );
     fs.writeFileSync(path.join(dir, `diff-${w.tag}.json`), JSON.stringify(out, null, 1));
-    sections.push({ width: w.width, tag: w.tag, rows: out, a6, app });
+    fs.writeFileSync(path.join(dir, `sticky-${w.tag}.json`), JSON.stringify(sticky, null, 1));
+    sections.push({ width: w.width, tag: w.tag, rows: out, a6, app, sticky });
   }
   return sections;
 }

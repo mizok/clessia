@@ -6,7 +6,7 @@ import { notifyNewApplication } from '../../lib/notify-events';
 vi.mock('../../lib/notify-events', () => ({ notifyNewApplication: vi.fn(async () => undefined) }));
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
-import enrollmentRequestsRoute from './enrollment-requests';
+import enrollmentRequestsRoute, { SELECT } from './enrollment-requests';
 
 /**
  * 家長端報名申請（#1119）。用**真的** `createChildDb` 疊在照條件過濾的替身上 ——
@@ -79,6 +79,24 @@ describe('POST /api/me/enrollment-requests', () => {
       requested_by: 'parent-user',
       status: 'pending',
     });
+  });
+
+  // #1727 Q1 (b)：家長選的繳費週期；堂數制行政議定、家長不能選（計畫席 10-19 B (b)）
+  it('繳費週期：月繳／期繳照存、回應帶回；沒選是 null', async () => {
+    const monthly = await submit({ classId: CLASS_OPEN, billingMode: 'monthly' });
+    expect(monthly.status).toBe(201);
+    expect(monthly.body.billingMode).toBe('monthly');
+    expect(monthly.rows[0]!['billing_mode']).toBe('monthly');
+
+    const none = await submit({ classId: CLASS_OPEN });
+    expect(none.body.billingMode).toBeNull();
+    expect(none.rows[0]!['billing_mode']).toBeNull();
+  });
+
+  it('繳費週期選堂數制：400，沒寫', async () => {
+    const { status, rows } = await submit({ classId: CLASS_OPEN, billingMode: 'session_pack' });
+    expect(status).toBe(400);
+    expect(rows).toHaveLength(0);
   });
 
   // #1731：送出成功才通知分校管理員（去重鍵跟公開表單分開），走 childDb 的窄能力
@@ -232,5 +250,12 @@ describe('POST /api/me/enrollment-requests/:id/cancel', () => {
 
   it('別人孩子的申請：404（跟不存在一樣），不動', async () => {
     expect(await cancel('pending', OTHER_CHILD)).toEqual({ status: 404, stored: 'pending' });
+  });
+});
+
+// 替身不看 select 欄位（一律回整列），上面的 spec 守不住「select 有沒有撈」—— 直接斷言（同 #1742 的做法）
+describe('報名申請的 select', () => {
+  it('有撈 billing_mode', () => {
+    expect(SELECT).toContain('billing_mode');
   });
 });

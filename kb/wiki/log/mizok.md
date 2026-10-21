@@ -6,7 +6,7 @@
 
 ## [2026-10-21] map | Rebuilt index + 6 MOCs
 - Pages indexed: 214
-- Total links: 656
+- Total links: 657
 - Orphan pages: 88
 
 ## [2026-09-13] map | Rebuilt index + 6 MOCs
