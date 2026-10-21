@@ -235,7 +235,7 @@
                 @if (cls.classInfo.latestExam !== undefined) {
                   @let exam = cls.classInfo.latestExam;
                   <span
-                    class="col-span-full row-start-2 text-sm text-zinc-600 wide:col-span-1 wide:col-start-2 wide:row-start-1"
+                    class="col-span-full row-start-2 text-sm leading-[18px] text-zinc-600 wide:col-span-1 wide:col-start-2 wide:row-start-1"
                     data-part="class-last"
                   >
                     @if (exam) {
@@ -250,7 +250,7 @@
                     }
                   </span>
                   <span
-                    class="col-start-2 row-start-1 text-right text-xl font-bold text-zinc-900 tabular-nums wide:col-start-3"
+                    class="col-start-2 row-start-1 text-right text-xl leading-[27px] font-bold text-zinc-900 tabular-nums wide:col-start-3"
                     data-part="class-avg"
                   >
                     {{ exam && exam.avgScore !== null ? formatAvg(exam.avgScore) : '—' }}
