@@ -1,0 +1,96 @@
+<!-- #1732：連續請假可不收費。沒有達標段就整塊不畫 -->
+@if (streaks().length > 0) {
+  <section
+    class="flex flex-col gap-3 pb-4"
+    aria-label="連續請假可不收費"
+    data-testid="leave-streaks"
+  >
+    @for (streak of streaks(); track key(streak)) {
+      @if (streak.review) {
+        <details
+          class="rounded-md border border-surface-border px-4 py-2"
+          data-testid="streak-reviewed"
+        >
+          <summary class="flex min-h-11 cursor-pointer items-center text-md text-zinc-700">
+            {{ reviewedLine(streak) }}
+          </summary>
+          <ng-container
+            [ngTemplateOutlet]="detail"
+            [ngTemplateOutletContext]="{ $implicit: streak }"
+          />
+        </details>
+      } @else {
+        <article
+          class="flex flex-col gap-3 rounded-md border border-warning-200 bg-warning-50 p-4"
+          data-testid="streak-open"
+        >
+          <header class="flex flex-col gap-1">
+            <h3 class="m-0 text-base font-semibold text-warning-800">
+              連續請假 {{ streak.days.length }} 個上課日，這幾天的費用可以不收
+            </h3>
+            <p class="m-0 text-md text-zinc-700">
+              系統不會自動改帳單或堂數，請自行調整後標為已處理。
+            </p>
+          </header>
+          <ng-container
+            [ngTemplateOutlet]="detail"
+            [ngTemplateOutletContext]="{ $implicit: streak }"
+          />
+          <div>
+            <button
+              type="button"
+              class="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-60"
+              [disabled]="busy() === key(streak)"
+              (click)="markReviewed(streak)"
+            >
+              標為已處理
+            </button>
+          </div>
+        </article>
+      }
+    }
+  </section>
+}
+
+<ng-template #detail let-streak>
+  <dl class="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-md text-zinc-700">
+    <dt class="font-semibold text-zinc-900">日期</dt>
+    <dd class="m-0">
+      <ul class="m-0 list-none p-0">
+        @for (day of streak.days; track day.date) {
+          <li>
+            <span class="tabular-nums">{{ dayLabel(day.date) }}</span>
+            @for (s of day.sessions; track s.sessionId) {
+              <span class="text-zinc-600">
+                · {{ s.className }}
+                @if (s.startTime) {
+                  {{ ' ' + s.startTime }}
+                }
+              </span>
+            }
+          </li>
+        }
+      </ul>
+    </dd>
+    <dt class="font-semibold text-zinc-900">餐費</dt>
+    <dd class="m-0" data-testid="streak-meals">
+      @if (streak.meals.length === 0) {
+        這幾天沒有訂餐
+      } @else {
+        訂了而且收費 {{ streak.meals.length }} 餐，共 NT$
+        <span class="tabular-nums">{{ mealTotal(streak) | number }}</span>
+        @if (invoicedMonths(streak); as months) {
+          <span class="text-zinc-600">（已開在 {{ months }}帳單）</span>
+        }
+      }
+    </dd>
+    <dt class="font-semibold text-zinc-900">學費</dt>
+    <dd class="m-0">
+      <ul class="m-0 list-none p-0">
+        @for (e of streak.enrollments; track e.classId) {
+          <li>{{ e.className }}：{{ enrollmentNote(e) }}</li>
+        }
+      </ul>
+    </dd>
+  </dl>
+</ng-template>

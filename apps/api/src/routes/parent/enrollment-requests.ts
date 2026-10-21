@@ -3,6 +3,7 @@ import type { AppEnv } from '../../index';
 import { isChildAllowed } from '../../lib/child-scope';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
+import { waitUntilFrom } from '../../lib/wait-until';
 
 /**
  * 家長端報名申請（#1119；specs/parent/enrollment.md、rules/enrollment-rules.md 1）。
@@ -241,6 +242,14 @@ app.openapi(
       }
       return c.json({ error: '送出申請失敗', code: 'SERVER_ERROR' }, 500);
     }
+
+    // #1731：通知分校管理員（manage_students），背景跑、失敗不擋；候補也通知（行政要知道有人在排）
+    const job = childDb.notifyRequests('enrollment', [
+      (data as Record<string, unknown>)['id'] as string,
+    ]);
+    const wu = waitUntilFrom(c);
+    if (wu) wu(job);
+    else await job;
 
     return c.json(toResponse(data as Record<string, unknown>), 201);
   },

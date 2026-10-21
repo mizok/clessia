@@ -18,7 +18,7 @@
 <app-child-scope-gate>
   <div class="bg-zinc-100">
     <div class="page-wrap flex flex-wrap items-center gap-x-5 gap-y-2 py-3 wide:min-h-16">
-      <nav class="flex items-center gap-5" aria-label="報名申請">
+      <nav class="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label="報名申請">
         @for (
           t of [
             { key: 'new', label: '新增申請' },
@@ -26,9 +26,9 @@
           ];
           track t.key
         ) {
-          <button
-            type="button"
-            class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap hover:text-zinc-900 wide:min-h-10"
+          <a
+            [attr.href]="'#' + t.key"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base no-underline leading-[1.5] whitespace-nowrap hover:text-zinc-900 wide:min-h-10"
             [class.border-zinc-900]="tab() === t.key"
             [class.font-semibold]="tab() === t.key"
             [class.text-zinc-900]="tab() === t.key"
@@ -36,15 +36,15 @@
             [class.font-medium]="tab() !== t.key"
             [class.text-zinc-600]="tab() !== t.key"
             [attr.aria-current]="tab() === t.key ? 'true' : null"
-            (click)="setTab($any(t.key))"
+            (click)="$event.preventDefault(); setTab($any(t.key))"
           >
             {{ t.label }}
             @if (t.key === 'records') {
-              <span class="text-sm font-normal text-zinc-600 tabular-nums">{{
+              <span class="text-base leading-[1.5] font-normal text-zinc-600 tabular-nums">{{
                 requests().length
               }}</span>
             }
-          </button>
+          </a>
         }
       </nav>
     </div>
@@ -66,7 +66,9 @@
             >幫哪個孩子報名
           </legend>
           @if (kids().length === 1) {
-            <p class="m-0 text-base font-semibold">{{ kids()[0].name }}</p>
+            <p class="m-0 text-base font-semibold">
+              {{ kids()[0].name }}（{{ gradeLabel(kids()[0].grade) }}）
+            </p>
           } @else {
             <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="孩子">
               @for (k of kids(); track k.id) {
@@ -80,7 +82,8 @@
                     [value]="k.id"
                     [checked]="sid() === k.id"
                     (change)="pickKid(k.id)"
-                  />{{ k.name }}
+                  />{{ k.name
+                  }}<span class="text-md font-medium text-zinc-600">{{ gradeLabel(k.grade) }}</span>
                 </label>
               }
             </div>
@@ -101,7 +104,7 @@
             <i class="pi pi-search" aria-hidden="true"></i>
             <input
               type="search"
-              class="min-w-0 flex-1 border-0 bg-transparent text-base text-zinc-900 outline-none [font:inherit]"
+              class="min-w-0 flex-1 border-0 bg-transparent px-0.5 py-px text-base text-zinc-900 outline-none [font:inherit]"
               placeholder="搜尋課程或班名"
               aria-label="搜尋課程或班名"
               [value]="q()"
@@ -165,7 +168,7 @@
             想先看課程介紹、老師、上課地點？到
             <a
               routerLink="/parent/add-course"
-              class="inline-flex min-h-11 items-center text-zinc-900 underline"
+              class="inline-flex min-h-11 items-center underline wide:inline wide:min-h-0"
               >加選課程</a
             >
             瀏覽。
@@ -212,7 +215,7 @@
         <div class="flex flex-wrap items-center gap-3 border-t border-solid border-zinc-200 pt-5">
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 max-wide:flex-1 wide:h-9"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 max-wide:flex-1 wide:h-9"
             [attr.aria-disabled]="missing().length > 0 || sending()"
             (click)="submit()"
           >
@@ -271,7 +274,7 @@
       <p class="m-0">
         <span
           [class]="
-            'inline-flex items-center rounded-full py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap ' +
+            'inline-flex items-center gap-1 rounded-full py-0.5 text-sm leading-[1.4] whitespace-nowrap ' +
             tagClass[status[r.status][1]]
           "
           >{{ status[r.status][0] }}</span

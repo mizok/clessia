@@ -821,6 +821,15 @@ describe('NotificationsComponent（管理端發布）', () => {
     });
 
     // #1695：家長請假的收件人就是管理員，少了這一條會退回「系統通知」
+    // #1732：財務管理員收的連續請假提醒
+    it('連續請假（leave_streak）：標籤「連續請假」、連結字「看明細」', async () => {
+      received = [notification({ kind: 'leave_streak', link: '/admin/students/s1#billing' })];
+      await setup();
+      const row = qa('notification')[0];
+      expect(row.querySelector('[data-testid=kind]')!.textContent).toContain('連續請假');
+      expect(row.querySelector('[data-testid=go]')!.textContent).toContain('看明細');
+    });
+
     it('家長請假（leave_received）：標籤「家長請假」、連結字「看請假」', async () => {
       received = [notification({ kind: 'leave_received', link: '/admin/leave' })];
       await setup();

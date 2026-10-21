@@ -1,5 +1,5 @@
 <!-- A6 `.coll`（#1705 共用樣式）；跟學生檔案其他摺疊列同一組（name="student-folds"），一次只開一個 -->
-<details class="coll" name="student-folds">
+<details id="billing" class="coll scroll-mt-4" name="student-folds" [open]="openFromLink">
   <summary class="coll__sum min-h-14 wide:min-h-16">
     <h2 class="coll__t m-0">帳單</h2>
     <span class="coll__m" data-testid="billing-summary">
@@ -20,6 +20,9 @@
   </summary>
 
   <div class="coll__body">
+    @if (canFinance) {
+      <app-student-leave-streaks [studentId]="studentId()" />
+    }
     @if (failed()) {
       <p class="m-0 py-6 text-base text-zinc-700">
         帳單載入失敗。<button
