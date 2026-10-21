@@ -7,7 +7,10 @@ import { StudentDetailPage } from './student-detail.page';
 import { StudentsService, type StudentAttendanceDays } from '@core/students.service';
 import { ScoresService } from '@core/scores.service';
 import { LeaveService } from '@core/leave.service';
-import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
+import {
+  LEAVE_DIALOG_CONTENT_STYLE,
+  LeaveFormDialogComponent,
+} from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
@@ -456,6 +459,8 @@ describe('StudentDetailPage', () => {
         LeaveFormDialogComponent,
         expect.objectContaining({
           data: { student: { id: seedStudentId, name: '出勤測試學生01' } },
+          // 動作列 sticky 的底部留白交給動作列（#1768）
+          contentStyle: LEAVE_DIALOG_CONTENT_STYLE,
         }),
       );
     });
