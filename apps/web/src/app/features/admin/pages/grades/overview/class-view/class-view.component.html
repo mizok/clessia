@@ -126,64 +126,72 @@
       description="請嘗試調整篩選條件"
     />
   } @else {
+    <!-- A6 grades-class：課程分章（.chap）—— 桌機左欄章名＋「N 個班」（黏住），右邊是班級列。
+         章名下的科目小字稿沒有：舊有新無，使用者 10-21 裁定保留（課程名不保證含科目；a6-adoption-rules R5） -->
     @for (group of filteredGroups(); track group.courseId) {
-      <section class="mb-8 last:mb-0" data-part="course-group" [attr.aria-label]="group.courseName">
-        <h2 class="m-0 flex flex-wrap items-baseline gap-x-3 border-b border-zinc-900 pb-2">
-          <span class="text-xl font-bold text-zinc-900">{{ group.courseName }}</span>
-          <span class="text-sm font-normal text-zinc-600">
-            {{ group.subjectName }}
-            @if (group.gradeRange) {
-              · {{ group.gradeRange }}
-            }
-          </span>
-        </h2>
-        @for (cls of group.classes; track cls.classInfo.id) {
-          <!-- A6 .crow：主按鈕與「待登錄」徽章是兄弟，不是巢狀按鈕 -->
-          <div
-            class="grid grid-cols-1 items-center gap-x-3 border-b border-surface-border pb-3 wide:grid-cols-[minmax(0,1fr)_auto] wide:pb-0"
-          >
-            <button
-              type="button"
-              class="group grid min-h-11 w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 border-0 bg-transparent py-4 text-left"
-              data-part="class-row"
-              (click)="openClassScores(cls.classInfo)"
+      <section
+        class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+        data-part="course-group"
+        [attr.aria-label]="group.courseName"
+      >
+        <app-chapter-head
+          class="block pt-6 wide:pt-8"
+          [name]="group.courseName"
+          [sub]="group.subjectName"
+          [count]="group.classes.length"
+          unit="個班"
+          [stacked]="true"
+          [compact]="true"
+        />
+        <div class="pt-3 pb-6 wide:py-8">
+          @for (cls of group.classes; track cls.classInfo.id) {
+            <!-- A6 .crow：主按鈕與「待登錄」徽章是兄弟，不是巢狀按鈕 -->
+            <div
+              class="grid grid-cols-1 items-center gap-x-3 border-b border-surface-border pb-3 wide:grid-cols-[minmax(0,1fr)_auto] wide:pb-0"
             >
-              <span class="min-w-0">
-                <span
-                  class="block text-lg font-semibold text-zinc-900 group-hover:underline group-hover:underline-offset-4"
-                  >{{ cls.classInfo.name }}</span
-                >
-                <span class="block text-sm text-zinc-600">
-                  @if (cls.classInfo.campusName) {
-                    {{ cls.classInfo.campusName }} ·
-                  }
-                  @if (cls.gradeLabels) {
-                    {{ cls.gradeLabels }} ·
-                  }
-                  上限 {{ cls.classInfo.maxStudents }} 人
-                </span>
-              </span>
-              <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
-            </button>
-            @if (getTodoExamCount(cls.classInfo.id) > 0) {
               <button
                 type="button"
-                class="inline-flex min-h-11 cursor-pointer items-center gap-1 justify-self-start rounded-full border border-zinc-900 bg-white px-3 text-sm font-semibold whitespace-nowrap text-zinc-900 hover:bg-zinc-100 wide:justify-self-end"
-                data-part="class-todo"
-                [attr.aria-label]="
-                  '待登錄 ' +
-                  getTodoExamCount(cls.classInfo.id) +
-                  '：查看 ' +
-                  cls.classInfo.name +
-                  ' 的待登錄考試'
-                "
-                (click)="openClassScores(cls.classInfo, true)"
+                class="group grid min-h-11 w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 border-0 bg-transparent py-4 text-left"
+                data-part="class-row"
+                (click)="openClassScores(cls.classInfo)"
               >
-                待登錄 {{ getTodoExamCount(cls.classInfo.id) }}
+                <span class="min-w-0">
+                  <span
+                    class="block text-lg font-semibold text-zinc-900 group-hover:underline group-hover:underline-offset-4"
+                    >{{ cls.classInfo.name }}</span
+                  >
+                  <span class="block text-sm text-zinc-600">
+                    @if (cls.classInfo.campusName) {
+                      {{ cls.classInfo.campusName }} ·
+                    }
+                    @if (cls.gradeLabels) {
+                      {{ cls.gradeLabels }} ·
+                    }
+                    上限 {{ cls.classInfo.maxStudents }} 人
+                  </span>
+                </span>
+                <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
               </button>
-            }
-          </div>
-        }
+              @if (getTodoExamCount(cls.classInfo.id) > 0) {
+                <button
+                  type="button"
+                  class="inline-flex min-h-11 cursor-pointer items-center gap-1 justify-self-start rounded-full border border-zinc-900 bg-white px-3 text-sm font-semibold whitespace-nowrap text-zinc-900 hover:bg-zinc-100 wide:justify-self-end"
+                  data-part="class-todo"
+                  [attr.aria-label]="
+                    '待登錄 ' +
+                    getTodoExamCount(cls.classInfo.id) +
+                    '：查看 ' +
+                    cls.classInfo.name +
+                    ' 的待登錄考試'
+                  "
+                  (click)="openClassScores(cls.classInfo, true)"
+                >
+                  待登錄 {{ getTodoExamCount(cls.classInfo.id) }}
+                </button>
+              }
+            </div>
+          }
+        </div>
       </section>
     }
   }

@@ -405,7 +405,17 @@ describe('ClassViewComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.querySelector('[data-part=course-group]')).not.toBeNull();
+    // A6 grades-class：課程分章（.chap），左欄是共用章頭（桌機黏住）＋「N 個班」，右邊是班級列
+    const chap = host.querySelector('[data-part=course-group]') as HTMLElement;
+    expect(chap).not.toBeNull();
+    const head = chap.querySelector('app-chapter-head') as HTMLElement;
+    expect(head?.parentElement).toBe(chap);
+    expect(head.textContent?.replace(/\s+/g, '')).toContain('1個班');
+    // 稿的章名是課程全名，桌機 32px（chapter-head compact），不是預設 44px
+    expect(head.querySelector('.chapter-head__name')!.classList).toContain('wide:text-[32px]');
+    // 章名下保留科目小字（舊有新無，使用者 10-21 裁；課程名不保證含科目）
+    expect(head.querySelector('[data-testid=chapter-sub]')?.textContent?.trim()).toBe('數學');
+    expect(chap.className).toContain('wide:grid-cols-[13rem_minmax(0,1fr)]');
     expect(host.textContent).toContain('數學進階');
     expect(host.textContent).toContain('A班');
     expect(host.textContent).toContain('上限 20 人');

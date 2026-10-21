@@ -38,7 +38,8 @@ import {
  * - 兩分頁「新增申請／申請紀錄」（`#records`）。**不用頁首孩子切換器**：表單裡選孩子、紀錄混列所有孩子（A6）
  * - 選班：依科目分組、可搜尋；已在班上（目錄 `enrolled`）、申請中、已登記候補的列出但不能選、寫原因
  * - 額滿的班送出鈕變「登記候補」（使用者 10/03 裁），送 `waitlist: true`
- * - 待付款：核准路徑還沒有（#1726），詳情先寫「已核准，請到繳費頁付款」（設計稿 Q3 (a) 過渡）
+ * - 待付款：詳情顯示這筆申請自己的帳單（金額、期限、已收）與申請班級分校的帳戶（A6，#1726 §3）；
+ *   帳單被作廢沒重開時退回「請到繳費頁」
  * - 取消：待審核、候補都可以（Q8）。API 的取消不能復原，所以 toast 沒有「復原」
  */
 
@@ -265,6 +266,10 @@ export class EnrollmentComponent {
       });
   }
 
+  protected money(n: number): string {
+    return n.toLocaleString('zh-TW');
+  }
+
   protected md(iso: string | null): string {
     return iso ? format(parseISO(iso), 'M/d') : '';
   }
@@ -289,14 +294,15 @@ export class EnrollmentComponent {
         return [sent, done('未通過審核')];
       case 'cancelled':
         return [sent, done('你取消了這筆申請')];
-      case 'expired':
-        return [sent, done('審核通過，開立繳費單'), done('繳費期限已過，申請過期')];
       case 'waitlist':
         return [
           { text: '登記候補（這班已額滿）', done: true, at: this.md(r.createdAt) },
           todo('有名額時補習班會主動聯絡'),
         ];
     }
+    // expired：enum 有這個值，但沒有任何路徑會走到（不自動過期，R5 2026-10-21／#1758）。
+    // 不替它編一段「繳費期限已過」的故事，只留送出那一步
+    return [sent];
   }
 
   private loadRequests(): void {

@@ -6,6 +6,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { approveEnrollmentRequest } from '../lib/enrollment-approve';
+import { notifyEnrollmentApproved } from '../lib/notify-events';
 import { getAuth } from '../lib/get-auth';
 import { hasPermission } from '../lib/permissions';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
@@ -44,7 +45,8 @@ const REJECTABLE = ['pending', 'waitlist'];
 
 const SELECT = {
   enrollment: `id, status, preferred_start_date, note, reject_reason, requested_by, created_at,
-    student_id, class_id, students(name), classes(name, campus_id, campuses(name))`,
+    student_id, class_id, billing_mode, students(name),
+    classes(name, campus_id, default_fee_template_id, campuses(name))`,
   trial: `id, status, preferred_times, note, requested_by, created_at,
     student_id, students(name), courses(name, campus_id, campuses(name))`,
 } as const;
@@ -67,6 +69,10 @@ const RequestSchema = z
     note: z.string().nullable(),
     /** 報名被拒絕時寫給家長看的原因 */
     rejectReason: z.string().nullable(),
+    /** 報名才有（核准對話框用，#1726）：開課班、家長選的繳費週期、班級預設價目表（只用於預選） */
+    classId: z.string().nullable(),
+    billingMode: z.enum(['monthly', 'period', 'session_pack']).nullable(),
+    defaultFeeTemplateId: z.string().nullable(),
   })
   .openapi('ParentRequest');
 
@@ -110,6 +116,11 @@ function toResponse(kind: Kind, row: Row, contacts: Map<string, Contact>) {
     preferredTimes: (row['preferred_times'] as string | null) ?? null,
     note: (row['note'] as string | null) ?? null,
     rejectReason: (row['reject_reason'] as string | null) ?? null,
+    classId: (row['class_id'] as string | null | undefined) ?? null,
+    billingMode:
+      (row['billing_mode'] as 'monthly' | 'period' | 'session_pack' | null | undefined) ?? null,
+    defaultFeeTemplateId:
+      (target?.['default_fee_template_id'] as string | null | undefined) ?? null,
   };
 }
 
@@ -510,6 +521,20 @@ app.openapi(
       },
       waitUntilFrom(c),
     );
+
+    // 通知家長（Q1 (b)，站內＋推播）。背景跑、不擋回應；失敗只記 log
+    const job = notifyEnrollmentApproved(supabase, {
+      orgId,
+      requestId: id,
+      studentId: r.studentId,
+      studentName: (one(prev['students'])?.['name'] as string | undefined) ?? '',
+      className: (targetOf('enrollment', prev)?.['name'] as string | undefined) ?? '',
+      amount: r.amount,
+      dueDate: r.dueDate,
+    });
+    const wu = waitUntilFrom(c);
+    if (wu) wu(job);
+    else await job;
 
     return c.json(
       {

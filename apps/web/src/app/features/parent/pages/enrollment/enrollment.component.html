@@ -293,15 +293,44 @@
         <dd class="m-0 font-medium">{{ r.note || '—' }}</dd>
       </dl>
       @if (r.status === 'awaiting_payment') {
+        <!-- A6 p-enrollment 的繳費單方塊（#1726 §3）：這筆申請自己的帳單＋申請班級分校的帳戶 -->
         <div class="rounded-md bg-zinc-100 p-4 text-base">
-          <h3 class="m-0 mb-2 text-[13px] font-bold text-zinc-800">繳費</h3>
-          <p class="m-0">
-            已核准，請到繳費頁付款：<a
-              routerLink="/parent/payments"
-              class="inline-flex min-h-11 items-center text-zinc-900 underline"
-              >前往繳費</a
-            >
-          </p>
+          <h3 class="m-0 mb-2 text-[13px] font-bold text-zinc-800">繳費單</h3>
+          @if (r.invoice; as inv) {
+            @if (inv.status === 'paid') {
+              <p class="m-0">已繳清 {{ money(inv.total) }} 元，等補習班確認後完成報名。</p>
+            } @else {
+              <p class="m-0">
+                金額 <b class="tabular-nums">{{ money(inv.total) }} 元</b>
+                @if (inv.dueDate) {
+                  · 繳費期限 <b class="tabular-nums">{{ md(inv.dueDate) }}</b>
+                }
+              </p>
+              @if (inv.netPaid > 0) {
+                <p class="m-0 mt-1 text-zinc-600">
+                  已收 {{ money(inv.netPaid) }} 元，還差 {{ money(inv.total - inv.netPaid) }} 元
+                </p>
+              }
+              <p class="m-0 mt-2">
+                現金：到補習班櫃台繳。轉帳：匯到下面的帳戶，再打電話或 LINE 告訴櫃台帳號末五碼。
+              </p>
+              @if (r.paymentInfo) {
+                <!-- white-space: pre-line：不能讓 prettier 折出前後換行 -->
+                <!-- prettier-ignore -->
+                <p class="m-0 mt-2 font-medium [overflow-wrap:anywhere] whitespace-pre-line">{{ r.paymentInfo }}</p>
+              } @else {
+                <p class="m-0 mt-2 text-zinc-600">帳戶資訊請洽補習班行政人員。</p>
+              }
+            }
+          } @else {
+            <p class="m-0">
+              已核准，請到繳費頁付款：<a
+                routerLink="/parent/payments"
+                class="inline-flex min-h-11 items-center text-zinc-900 underline"
+                >前往繳費</a
+              >
+            </p>
+          }
         </div>
       }
       @if (r.status === 'rejected' && r.rejectReason) {
