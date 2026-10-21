@@ -29,7 +29,13 @@ const enrollment = (n: number, extra: Record<string, unknown> = {}) => ({
   requested_by: 'user-parent-1',
   created_at: `2026-10-0${n % 9}T00:00:00Z`,
   students: { name: '林小華' },
-  classes: { name: '國二數學 A', campus_id: CAMPUS_A, campuses: { name: '信義分校' } },
+  billing_mode: 'monthly',
+  classes: {
+    name: '國二數學 A',
+    campus_id: CAMPUS_A,
+    default_fee_template_id: 'tpl-1',
+    campuses: { name: '信義分校' },
+  },
   ...extra,
 });
 
@@ -116,6 +122,9 @@ describe('GET /api/parent-requests', () => {
       preferredTimes: null,
       note: '想上週六班',
       rejectReason: null,
+      classId: 'cls-1',
+      billingMode: 'monthly',
+      defaultFeeTemplateId: 'tpl-1',
     });
     expect(body.data.find((a: { id: string }) => a.id === id(6))).toMatchObject({
       kind: 'trial',
