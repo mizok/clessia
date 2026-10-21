@@ -33,6 +33,7 @@ import sessionPacksRoute from './routes/session-packs';
 import mealsRoute from './routes/meals';
 import billingRunsRoute from './routes/billing-runs';
 import reportsRoute from './routes/reports';
+import leaveStreaksRoute from './routes/leave-streaks';
 import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
@@ -456,6 +457,8 @@ mount('/api/invoices', invoicesRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/session-packs', sessionPacksRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/meals', mealsRoute, ADMIN_ONLY, { all: 'manage_finance' });
 mount('/api/billing-runs', billingRunsRoute, ADMIN_ONLY, { all: 'manage_finance' });
+// #1732 連續請假可不收費的提醒：讀寫都是財務的事（明細有餐費單價、計費方式）
+mount('/api/leave-streaks', leaveStreaksRoute, ADMIN_ONLY, { all: 'manage_finance' });
 
 // 報表是**唯讀**，用 view_reports 不是 manage_finance —— 老闆可能只給主任看營收
 // 而不給動錢（見 kb/wiki/specs/admin/finance/reports.md）

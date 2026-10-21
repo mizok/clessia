@@ -20,7 +20,8 @@ export type StaffNotificationKind =
   | 'unbilled_reminder'
   | 'schedule_change'
   | 'leave_for_my_class'
-  | 'leave_received';
+  | 'leave_received'
+  | 'leave_streak';
 
 export interface StaffNotification {
   readonly orgId: string;
