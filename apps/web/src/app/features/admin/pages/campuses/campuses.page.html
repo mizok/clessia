@@ -18,8 +18,25 @@
     />
   </label>
   <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-    <p-button label="操作紀錄" [outlined]="true" severity="secondary" (onClick)="openAuditLog()" />
+    <!-- 桌機：操作紀錄直接放；手機收進「⋯」（A6 只在桌機畫，R2：稿沒畫的收進⋯、不刪） -->
+    <span class="hidden min-[640.02px]:contents">
+      <p-button
+        label="操作紀錄"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openAuditLog()"
+      />
+    </span>
+    <button
+      type="button"
+      class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 min-[640.02px]:hidden"
+      aria-label="分校的更多動作"
+      (click)="pageMenu.toggle($event)"
+    >
+      <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+    </button>
   </app-page-actions>
+  <app-popup-menu #pageMenu [model]="pageMenuItems" />
 </div>
 
 @if (!loading() && summary().total > 0) {

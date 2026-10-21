@@ -463,6 +463,14 @@ export const PAGES = {
         reason: '列上沒有教室數欄（schema 沒有教室），名稱欄較寬',
         source: '#1314 SE3（教室子頁、列上教室數，待 schema）',
       },
+      {
+        // 稿的「操作紀錄」只在桌機（only-d）；手機收進頁首「⋯」，不刪（計畫席 10-21 裁）
+        status: '多',
+        widths: [360],
+        app: 'control:button\\[分校的更多動作\\]$',
+        reason: '手機的操作紀錄：稿沒畫，收進頁首「⋯」',
+        source: `${rule('R2')}；#1755 計畫席 10-21`,
+      },
     ],
   },
   staff: { a6: 'staff.html', app: '/admin/staff' },

@@ -370,5 +370,21 @@ describe('CampusesPage', () => {
         ),
       ).toBe(true);
     });
+
+    // R2（計畫席 10-21）：手機不拿掉操作紀錄，收進頁首「⋯」
+    it('手機頁首「⋯」裡有操作紀錄，按了開操作紀錄', async () => {
+      await show([c({ id: 'a' })]);
+      const more = (fixture.nativeElement as HTMLElement).querySelector(
+        'button[aria-label="分校的更多動作"]',
+      );
+      expect(more).not.toBeNull();
+      const open = vi.spyOn(component, 'openAuditLog').mockImplementation(() => undefined);
+      const items = (
+        component as unknown as { pageMenuItems: { label: string; command: () => void }[] }
+      ).pageMenuItems;
+      expect(items.map((i) => i.label)).toEqual(['操作紀錄']);
+      items[0].command();
+      expect(open).toHaveBeenCalled();
+    });
   });
 });

@@ -148,6 +148,11 @@ export class CampusesPage implements OnInit {
     return items;
   });
 
+  /** 手機頁首的「⋯」：操作紀錄收在這裡（R2） */
+  protected readonly pageMenuItems: MenuItem[] = [
+    { label: '操作紀錄', icon: 'pi pi-history', command: () => this.openAuditLog() },
+  ];
+
   protected openActionMenu(event: MouseEvent, campus: Campus): void {
     this.selectedCampus.set(campus);
     this.actionMenu().toggle(event);
