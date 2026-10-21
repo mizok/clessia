@@ -150,4 +150,17 @@ describe('ChapterHeadComponent', () => {
     expect(tally.classList.contains('text-lg')).toBe(false);
     expect(tally.classList.contains('wide:text-xl')).toBe(true);
   });
+
+  // A6 `.chap__side { position: sticky; top: 80px }`，≤860 改回 static。稿的頂欄在捲動區裡（80＝頂欄 56＋24）；
+  // app 頂欄在殼層的捲動區外，所以是 top 24px 才落在同一個地方（conformance 黏住檢查量的是落點）
+  it('桌機章頭黏在捲動區頂下 24px（A6 .chap__side）；手機不黏', async () => {
+    for (const inputs of [{}, { stacked: true }, { listRow: true }]) {
+      TestBed.resetTestingModule();
+      await setup({ name: '國文', ...inputs });
+      const box = host.querySelector('.chapter-head') as HTMLElement;
+      expect(box.classList.contains('wide:sticky')).toBe(true);
+      expect(box.classList.contains('wide:top-6')).toBe(true);
+      expect(box.classList.contains('sticky')).toBe(false);
+    }
+  });
 });

@@ -9,7 +9,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
  * - `listRow`＝A6 清單頁在 ≤860 覆寫的 `.chap`：橫排，章名 28px、張數 14px（人員、價目表、請假、考試，
  *   各頁稿的 `<style>` 裡）。**開 #1698 時只看了 a6.css 的共用值、以為這四頁是上下疊，conformance 抓到才改**
  *
- * **欄位本身（左欄＋右側內容的 grid）不在這裡**：各頁的右側內容不一樣（課程列、帳單列、表格），grid 由頁面自己擺；這個元件只管「字」。
+ * **欄位本身（左欄＋右側內容的 grid）不在這裡**：各頁的右側內容不一樣（課程列、帳單列、表格），grid 由頁面自己擺；這個元件只管「字」
+ * 與桌機的黏住（宿主要是 grid 的直屬格子、不能 `self-start`，見 `boxClass`）。
  *
  * 張數後面要接別的（「待收 NT$ 81,050」）就投影進來。
  */
@@ -37,10 +38,15 @@ export class ChapterHeadComponent {
   /**
    * 外框：直排（桌機左欄、手機 `stacked`）時子項撐滿那一欄（A6 `.chap__big` 是 block，#1715）；
    * 只有手機橫排（A6 `.chap--row`）是 baseline 對齊、縮成字寬。
+   *
+   * 桌機黏住（A6 `.chap__side { position: sticky; top: 80px }`，≤860 static）：黏的是這層、不是宿主 ——
+   * 宿主是頁面 grid 的格子（預設 stretch，撐滿整章，黏住的範圍就是整章），而各頁在宿主上放的
+   * padding 不一樣（pt-8、pt-4）。`top-6`：稿的 80px 含它自己在捲動區裡的頂欄（56＋24），
+   * app 頂欄在殼層捲動區外，24px 才落在同一處。
    */
   protected readonly boxClass = computed(
     () =>
-      'chapter-head flex wide:flex-col wide:items-stretch wide:gap-x-0 ' +
+      'chapter-head flex wide:sticky wide:top-6 wide:flex-col wide:items-stretch wide:gap-x-0 ' +
       (this.stacked() ? 'flex-col items-stretch' : 'flex-wrap items-baseline gap-x-3'),
   );
 
