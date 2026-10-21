@@ -1,17 +1,47 @@
+<!--
+  A6 settings.html：色面「N 個分校在營運，…」→ 灰工具列的分頁連結（一般、分校、學校、科目＋筆數）→ 分頁內容。
+  分頁是真連結（可以新分頁開、可以複製網址），一般點擊才在 app 內導航。
+-->
 <app-page-open>
-  <ng-container openTitle
-    ><span class="settings-shell__title">{{ page().label }}</span></ng-container
-  >
+  <ng-container openTitle>
+    @if (headline(); as h) {
+      {{ h.first }}
+      @if (h.second) {
+        <br />{{ h.second }}
+      }
+    } @else {
+      <span class="settings-shell__title">{{ page().label }}</span>
+    }
+  </ng-container>
 </app-page-open>
 
-<div class="page-wrap pt-4">
-  <p-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
-    <p-tablist>
+<div class="bg-zinc-100">
+  <div class="page-wrap flex flex-wrap items-center gap-x-5 gap-y-2 py-3 wide:min-h-16">
+    <nav class="flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="系統設定">
       @for (tab of tabs; track tab.value) {
-        <p-tab [value]="tab.value">{{ tab.label }}</p-tab>
+        <a
+          class="inline-flex min-h-11 items-center gap-1 border-0 border-b-[1.5px] border-solid px-0 py-0.5 text-base leading-[1.5] whitespace-nowrap no-underline hover:text-zinc-900 wide:min-h-10"
+          [class.border-zinc-900]="activeTab() === tab.value"
+          [class.font-semibold]="activeTab() === tab.value"
+          [class.text-zinc-900]="activeTab() === tab.value"
+          [class.border-transparent]="activeTab() !== tab.value"
+          [class.font-medium]="activeTab() !== tab.value"
+          [class.text-zinc-600]="activeTab() !== tab.value"
+          [attr.href]="tab.href"
+          [attr.aria-current]="activeTab() === tab.value ? 'page' : null"
+          [attr.data-tab]="tab.value"
+          (click)="go($event, tab.value)"
+        >
+          {{ tab.label }}
+          @if (count(tab.value) !== null) {
+            <span class="text-base leading-[1.5] font-normal text-zinc-600 tabular-nums">{{
+              count(tab.value)
+            }}</span>
+          }
+        </a>
       }
-    </p-tablist>
-  </p-tabs>
+    </nav>
+  </div>
 </div>
 
 <div class="page-wrap pt-6 pb-12 wide:pt-8">

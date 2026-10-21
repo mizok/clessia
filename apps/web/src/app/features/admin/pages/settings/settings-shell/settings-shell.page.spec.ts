@@ -1,9 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
-import { Subject } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
+import { signal } from '@angular/core';
 import { vi } from 'vitest';
 
+import { CampusesService, type Campus } from '@core/campuses.service';
+import { OrgSettingsService } from '@core/org-settings.service';
+import { SchoolsService } from '@core/schools.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
+import { SubjectsService } from '@core/subjects.service';
 
 import { SettingsShellPage } from './settings-shell.page';
 
@@ -47,16 +52,41 @@ describe('SettingsShellPage', () => {
     },
   };
 
-  async function setup(currentPath: string | null = 'campuses', advanced = true) {
+  const campus = (over: Partial<Campus>): Campus =>
+    ({ id: 'c', name: '分校', isActive: true, attendanceMode: null, ...over }) as Campus;
+  let campusList: ReturnType<typeof vi.fn>;
+  const orgSettings = signal<{ attendanceMode: 'per_session' | 'daily_checkin' } | null>(null);
+
+  async function setup(
+    currentPath: string | null = 'campuses',
+    advanced = true,
+    data: Campus[] | null = null,
+  ) {
     tabPath = currentPath;
     childAdvanced = advanced;
     routerMock.navigate.mockReset();
+    orgSettings.set({ attendanceMode: 'daily_checkin' });
+    campusList = vi.fn(() =>
+      data
+        ? of({ data, summary: { total: data.length, activeCount: 0, inactiveCount: 0 }, meta: {} })
+        : throwError(() => new Error('offline')),
+    );
 
     await TestBed.configureTestingModule({
       imports: [SettingsShellPage],
       providers: [
         { provide: Router, useValue: routerMock },
         { provide: ActivatedRoute, useValue: routeMock },
+        { provide: CampusesService, useValue: { list: campusList } },
+        {
+          provide: SchoolsService,
+          useValue: { list: () => of({ data: [], meta: { total: 128 } }) },
+        },
+        { provide: SubjectsService, useValue: { list: () => of({ data: [{}, {}, {}] }) } },
+        {
+          provide: OrgSettingsService,
+          useValue: { settings: orgSettings, status: () => 'ready', load: vi.fn() },
+        },
       ],
     }).compileComponents();
 
@@ -66,7 +96,7 @@ describe('SettingsShellPage', () => {
     fixture.detectChanges();
   }
 
-  // 這頁原本直接從 tabs 開始，沒有頁標——全站唯一（Tester #15）
+  // 這頁原本直接從 tabs 開始，沒有頁標——全站唯一（Tester #15）；分校讀不到時退回頁名
   it('有頁標，不是直接從 tabs 開始', async () => {
     await setup('subjects');
 
@@ -93,24 +123,94 @@ describe('SettingsShellPage', () => {
   it('子路由還沒解析時先給第一個 tab，不是空值', async () => {
     await setup(null);
 
-    expect(component['activeTab']()).toBe('campuses');
+    expect(component['activeTab']()).toBe('general');
   });
 
-  it('切 tab 是導航，不是切本地變數', async () => {
+  const link = (tab: string) =>
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+      `a[data-tab="${tab}"]`,
+    )!;
+
+  it('切分頁是導航，不是切本地變數；連結是真網址', async () => {
     await setup('campuses');
 
-    component['onTabChange']('schools');
+    expect(link('schools').getAttribute('href')).toBe('/admin/settings/schools');
+    link('schools').click();
 
     expect(routerMock.navigate).toHaveBeenCalledWith(['schools'], expect.anything());
   });
 
-  // p-tabs 的 valueChange 型別帶 undefined —— 送出去會導到 /admin/settings/undefined
-  it('valueChange 給 undefined 時不導航', async () => {
+  // 連結是真網址：⌘／Ctrl 點擊要開新分頁，app 不攔
+  it('⌘／Ctrl 點擊交給瀏覽器，不在 app 內導航', async () => {
     await setup('campuses');
 
-    component['onTabChange'](undefined);
+    const e = new MouseEvent('click', { metaKey: true, bubbles: true, cancelable: true });
+    link('schools').dispatchEvent(e);
 
     expect(routerMock.navigate).not.toHaveBeenCalled();
+  });
+
+  it('A6 順序「一般、分校、學校、科目」；當前分頁 aria-current；分校／學校／科目帶筆數', async () => {
+    await setup('schools', true, [campus({ id: 'a' }), campus({ id: 'b' })]);
+
+    const tabs = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('nav[aria-label="系統設定"] a'),
+    ];
+    expect(tabs.map((a) => a.textContent!.replace(/\s+/g, ''))).toEqual([
+      '一般',
+      '分校2',
+      '學校128',
+      '科目3',
+    ]);
+    expect(link('schools').getAttribute('aria-current')).toBe('page');
+    expect(link('general').getAttribute('aria-current')).toBeNull();
+  });
+
+  it('0 筆也寫 0（不是不顯示）', async () => {
+    await setup('general', true, []);
+    expect(link('campuses').textContent!.replace(/\s+/g, '')).toBe('分校0');
+  });
+
+  describe('色面標題（A6：分校怎麼在營運）', () => {
+    const title = () =>
+      (fixture.nativeElement as HTMLElement).querySelector('h1')!.textContent!.replace(/\s+/g, '');
+
+    it('全部日到班（沒設的沿用機構預設）；停用的不算', async () => {
+      await setup('general', true, [
+        campus({ id: 'a' }),
+        campus({ id: 'b', attendanceMode: 'daily_checkin' }),
+        campus({ id: 'off', isActive: false, attendanceMode: 'per_session' }),
+      ]);
+      expect(title()).toBe('2個分校在營運，全部用日到班。');
+    });
+
+    it('混用：寫幾個用日到班', async () => {
+      await setup('general', true, [
+        campus({ id: 'a' }),
+        campus({ id: 'b', attendanceMode: 'per_session' }),
+        campus({ id: 'c', attendanceMode: 'per_session' }),
+      ]);
+      expect(title()).toBe('3個分校在營運，1個用日到班。');
+    });
+
+    it('全部隨堂點名', async () => {
+      await setup('general', true, [campus({ id: 'a', attendanceMode: 'per_session' })]);
+      expect(title()).toBe('1個分校在營運，全部用隨堂點名。');
+    });
+
+    it('機構預設還沒讀到、又有沒設模式的分校：只寫在營運幾個，不猜', async () => {
+      await setup('general', true, [campus({ id: 'a' })]);
+      orgSettings.set(null);
+      fixture.detectChanges();
+      expect(title()).toBe('1個分校在營運。');
+    });
+
+    it('切分頁後重抓（別的分頁新增、停用之後標題跟著對）', async () => {
+      await setup('general', true, [campus({ id: 'a' })]);
+      const before = campusList.mock.calls.length;
+      events.next(new NavigationEnd(2, '/admin/settings/campuses', '/admin/settings/campuses'));
+      expect(campusList.mock.calls.length).toBe(before + 1);
+    });
   });
 
   it('導航之後 tab 跟著換 —— 瀏覽器上一頁也要對', async () => {
@@ -127,10 +227,10 @@ describe('SettingsShellPage', () => {
     await setup();
 
     expect(component['tabs'].map((t) => t.value)).toEqual([
+      RoutesCatalog.ADMIN_SETTINGS_GENERAL.relativePath,
       RoutesCatalog.ADMIN_CAMPUSES.relativePath,
       RoutesCatalog.ADMIN_SCHOOLS.relativePath,
       RoutesCatalog.ADMIN_SUBJECTS.relativePath,
-      RoutesCatalog.ADMIN_SETTINGS_GENERAL.relativePath,
     ]);
   });
 });
