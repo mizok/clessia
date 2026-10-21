@@ -147,8 +147,11 @@ function toTimeDate(time: string | null): Date | null {
       <!--
         A6 form() 的底部：必填沒填時送出鈕不鎖死，旁邊一行寫還差什麼（#723：disabled 會把「為什麼不行」藏起來）；
         處理中寫「送出中…」。送出失敗的訊息也寫在這一行，填的內容不清。
+        黏在捲動區底（A6 .fdlg__foot）：表單一長，送出鈕不跟著內容捲走；內容從它後面捲過，底色不透明。
       -->
-      <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+      <div
+        class="sticky bottom-0 z-[1] flex flex-wrap items-center justify-end gap-2 bg-white pt-2"
+      >
         <p
           class="m-0 mr-auto text-md max-wide:basis-full"
           [class.text-error-700]="!!errorMessage()"

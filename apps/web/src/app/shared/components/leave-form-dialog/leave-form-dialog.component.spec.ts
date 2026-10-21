@@ -128,6 +128,15 @@ describe('LeaveFormDialogComponent', () => {
     expect(go.getAttribute('aria-disabled')).toBe('false');
   });
 
+  // A6 `.fdlg__foot { position: sticky; bottom: 0; background: inherit }`：表單一長（手機、選了好幾天），
+  // 送出鈕不能跟著內容捲走（#166 的同一個坑，這支沒用 .form-dialog__footer）
+  it('動作列黏在捲動區底、底色不透明', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const go = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('送出請假'))!;
+    const bar = go.parentElement!;
+    for (const c of ['sticky', 'bottom-0', 'bg-white']) expect(bar.classList).toContain(c);
+  });
+
   it('renders the shared student autocomplete field', () => {
     expect(fixture.nativeElement.querySelector('app-student-autocomplete')).not.toBeNull();
   });
