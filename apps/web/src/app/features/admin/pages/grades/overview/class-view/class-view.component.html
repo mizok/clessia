@@ -215,10 +215,10 @@
               >
                 <span class="min-w-0">
                   <span
-                    class="block text-lg font-semibold text-zinc-900 group-hover:underline group-hover:underline-offset-4"
+                    class="block text-lg leading-6 font-semibold text-zinc-900 group-hover:underline group-hover:underline-offset-4"
                     >{{ cls.classInfo.name }}</span
                   >
-                  <span class="block text-sm text-zinc-600" data-part="class-meta">
+                  <span class="block text-sm leading-[18px] text-zinc-600" data-part="class-meta">
                     @if (cls.gradeLabels) {
                       {{ cls.gradeLabels }} ·
                     }
@@ -250,7 +250,7 @@
                     }
                   </span>
                   <span
-                    class="col-start-2 row-start-1 text-right text-xl leading-tight font-bold text-zinc-900 tabular-nums wide:col-start-3"
+                    class="col-start-2 row-start-1 text-right text-xl font-bold text-zinc-900 tabular-nums wide:col-start-3"
                     data-part="class-avg"
                   >
                     {{ exam && exam.avgScore !== null ? formatAvg(exam.avgScore) : '—' }}
