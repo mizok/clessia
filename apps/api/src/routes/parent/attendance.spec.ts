@@ -1,5 +1,9 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { ATTENDANCE_SELECT } from '../../lib/attendance-query';
+import { createChildDb } from '../../lib/child-db';
+import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 
 import attendanceRoute from './attendance';
 
@@ -183,5 +187,164 @@ describe('GET /api/me/attendance —— 月度統計對 events 下條件，就�
     for (const call of countSelects) {
       expect(call.cols).toContain('events!inner');
     }
+  });
+});
+
+/**
+ * #1695 第 4 張：請假的堂帶「誰登記的」與原因（計畫席 10-19 裁 (A)）。
+ * 用真的 `createChildDb` ＋會套條件的替身：拿掉 `.eq('student_id', childId)`，兄弟姊妹的假就會混進來。
+ */
+describe('GET /api/me/attendance —— 請假的堂：誰登記的、原因', () => {
+  const ORG = 'org-1';
+  const ME = '00000000-0000-0000-0000-0000000000a1';
+  const SIBLING = '00000000-0000-0000-0000-0000000000a2';
+  const STRANGER = '00000000-0000-0000-0000-0000000000b1';
+
+  const record = (id: string, date: string, status: string) => ({
+    id,
+    org_id: ORG,
+    student_id: ME,
+    event_id: `ev-${id}`,
+    status,
+    note: null,
+    recorded_by: 'x',
+    recorded_by_role: 'admin',
+    created_at: `${date}T00:00:00Z`,
+    updated_at: `${date}T00:00:00Z`,
+    students: { name: '林小華' },
+    events: {
+      event_date: date,
+      start_time: '18:00',
+      end_time: '20:00',
+      campuses: { name: '本校' },
+      sessions: [{ id: `ses-${id}`, status: 'scheduled', classes: { name: '數學 A' } }],
+    },
+  });
+  const leave = (
+    id: string,
+    studentId: string,
+    date: string,
+    role: 'parent' | 'admin',
+    reason: string,
+    window: { startTime?: string; endTime?: string; boundSessionIds?: string[] } = {},
+  ) => ({
+    id,
+    org_id: ORG,
+    student_id: studentId,
+    start_date: date,
+    end_date: date,
+    start_time: window.startTime ?? null,
+    end_time: window.endTime ?? null,
+    reason,
+    submitted_by: 'u',
+    submitted_by_role: role,
+    leave_request_sessions: (window.boundSessionIds ?? []).map((id) => ({
+      session_id: id,
+      sessions: { session_date: date },
+    })),
+  });
+
+  const db = () =>
+    createMultiOrgDb({
+      attendance_records: [
+        record('by-parent', '2026-10-20', 'on_leave'),
+        record('by-school', '2026-10-21', 'on_leave'),
+        // 這個孩子 10/22 沒有假單（例如老師直接點成請假）；同一天兄弟姊妹跟別人家的孩子有
+        record('no-own-leave', '2026-10-22', 'on_leave'),
+        record('present', '2026-10-20', 'present'),
+        // 審核席：同一天兩張不同時段的假，18:00 那堂要對到 18–20 那張（時間有參與對應）
+        record('evening', '2026-10-23', 'on_leave'),
+        // 審核席：同一天兩堂、同一個時段，綁定型的假只綁 A 堂（sessionId 有參與對應）
+        record('bound-a', '2026-10-24', 'on_leave'),
+        record('bound-b', '2026-10-24', 'on_leave'),
+      ],
+      leave_requests: [
+        leave('l-mine', ME, '2026-10-20', 'parent', '看牙醫'),
+        leave('l-school', ME, '2026-10-21', 'admin', '內部：家長電話態度不佳'),
+        leave('l-sibling', SIBLING, '2026-10-22', 'parent', '弟弟的原因'),
+        leave('l-stranger', STRANGER, '2026-10-22', 'parent', '別人家的原因'),
+        // 這張蓋到 present 那堂的日期，但出席的堂不帶假單資訊
+        leave('l-present-day', ME, '2026-10-20', 'parent', '看牙醫'),
+        // 放在前面：不看時間的話 find 會先拿到這張
+        leave('l-afternoon', ME, '2026-10-23', 'parent', '下午看醫生', {
+          startTime: '14:00:00',
+          endTime: '16:00:00',
+        }),
+        leave('l-evening', ME, '2026-10-23', 'admin', '內部：晚上那堂', {
+          startTime: '18:00:00',
+          endTime: '20:00:00',
+        }),
+        leave('l-bound-a', ME, '2026-10-24', 'parent', '只請 A 堂', {
+          boundSessionIds: ['ses-bound-a'],
+        }),
+      ],
+    });
+
+  async function get(fixture = db()) {
+    const childDb = createChildDb(fixture.client as never, [ME, SIBLING], ORG);
+    const res = await appWith(['parent'], [ME, SIBLING], childDb).request(`/?childId=${ME}`);
+    const text = await res.text();
+    const body = JSON.parse(text) as { data: Array<Record<string, unknown>> };
+    const byId = Object.fromEntries(
+      (body.data ?? []).map((r) => [r['id'], [r['leaveSubmittedBy'], r['leaveReason']]]),
+    );
+    return { status: res.status, text, byId };
+  }
+
+  it('家長送的：parent＋原因；補習班登記的：school、原因 null；出席的堂不帶', async () => {
+    const { status, byId } = await get();
+    expect(status).toBe(200);
+    expect(byId['by-parent']).toEqual(['parent', '看牙醫']);
+    expect(byId['by-school']).toEqual(['school', null]);
+    expect(byId['present']).toEqual([null, null]);
+  });
+
+  it('補習班登記的原因不在回應裡（API 就不回，不是只在前端藏）', async () => {
+    const { text } = await get();
+    expect(text).not.toContain('內部：家長電話態度不佳');
+  });
+
+  it('只讀這個孩子的假：兄弟姊妹、別人家孩子同一天的假不會套到這堂', async () => {
+    const { text, byId } = await get();
+    expect(byId['no-own-leave']).toEqual([null, null]);
+    expect(text).not.toContain('弟弟的原因');
+    expect(text).not.toContain('別人家的原因');
+  });
+
+  it('同一天家長 14–16、補習班 18–20：18:00 那堂對到補習班那張 → school、原因 null', async () => {
+    const { text, byId } = await get();
+    expect(byId['evening']).toEqual(['school', null]);
+    expect(text).not.toContain('下午看醫生');
+  });
+
+  it('綁定堂次的假只對到綁的那一堂：同一天同時段的另一堂不帶', async () => {
+    const { byId } = await get();
+    expect(byId['bound-a']).toEqual(['parent', '只請 A 堂']);
+    expect(byId['bound-b']).toEqual([null, null]);
+  });
+
+  // 替身不看 select 欄位（一律回整列），所以上一條守不住「select 有沒有撈 sessions.id」。
+  // 沒撈到的話 sessionId 是 null ＝日層級查詢，綁定型的假會套到當天每一堂（leave-covers-session.ts）
+  it('出勤查詢有撈 sessions 的 id（綁定型假靠它對堂）', () => {
+    expect(ATTENDANCE_SELECT.replace(/\s+/g, '')).toContain('sessions(id,');
+  });
+
+  it('讀假單失敗：500（不回半套資料）', async () => {
+    const fixture = db();
+    const client = fixture.client as { from: (table: string) => Record<string, unknown> };
+    const realFrom = client.from.bind(client);
+    const failing: Record<string, unknown> = {
+      eq: () => failing,
+      in: () => failing,
+      lte: () => failing,
+      gte: () => failing,
+      then: (ok: (v: unknown) => unknown) =>
+        Promise.resolve({ data: null, error: { message: 'boom' } }).then(ok),
+    };
+    vi.spyOn(client, 'from').mockImplementation((table: string) =>
+      table === 'leave_requests' ? { select: () => failing } : realFrom(table),
+    );
+    const { status } = await get(fixture);
+    expect(status).toBe(500);
   });
 });

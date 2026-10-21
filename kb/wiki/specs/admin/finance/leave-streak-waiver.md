@@ -89,10 +89,14 @@ detectStreaks(classDays, leaves, attended, n) → Streak[]
 
 新端點（都只給有 `manage_finance` 的人；沒有的人 403，畫面也不顯示）：
 
-| 端點                                                    | 用途                                                                       |
-| ------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `GET /api/students/:id/leave-streaks`                   | 學生檔案：這位學生近期的達標段，**含明細**                                 |
-| `GET /api/leave-streaks?studentIds=…`（最多 100 個 id） | 帳單頁：一次問這一頁出現的學生有沒有達標段，**只回有沒有＋天數**，不回明細 |
+| 端點                                          | 用途                                                                       |
+| --------------------------------------------- | -------------------------------------------------------------------------- |
+| `GET /api/leave-streaks/students/:id`         | 學生檔案：這位學生近期的達標段，**含明細**                                 |
+| `GET /api/leave-streaks?studentIds=…`（≤100） | 帳單頁：一次問這一頁出現的學生有沒有達標段，**只回有沒有＋天數**，不回明細 |
+
+> **路徑在實作時（PR-2，10-19）從 `/api/students/:id/leave-streaks` 改成 `/api/leave-streaks/students/:id`**：
+> `/api/students` 那段 mount 的寫入門是 `manage_students`，只有財務權限的人按「標為已處理」會先被它擋掉
+> （同 contact-logs 獨立 mount 的理由）。整支 `/api/leave-streaks` 掛 `{ all: 'manage_finance' }`。
 
 「近期」＝最後一天落在**今天往前 62 天到往後 62 天**之間的段（跟偵測同一個窗；已處理見 §4.1）。
 
@@ -119,7 +123,7 @@ detectStreaks(classDays, leaves, attended, n) → Streak[]
   - **縮短**（銷掉其中一天但仍達標）→ 仍被涵蓋 → 維持已處理，不再打擾
   - 縮到不達標 → 本來就不算一段，不顯示
 - **學生檔案**：未處理的段照常一張明細卡；已處理的段收成一行「已處理：10/14–10/17，王主任 10/20」，可展開看明細（查帳用），沒有按鈕。
-- **端點**：`POST /api/students/:id/leave-streaks/reviews`（body `{ firstDay, lastDay }`）、`DELETE /api/students/:id/leave-streaks/reviews/:reviewId`（復原）。
+- **端點**：`POST /api/leave-streaks/students/:id/reviews`（body `{ firstDay, lastDay }`）、`DELETE /api/leave-streaks/students/:id/reviews/:reviewId`（復原）。標記與復原都寫 `audit_logs`（`resource_type = 'student'`，`mark_leave_streak_reviewed`／`unmark_leave_streak_reviewed`）—— `reviewed_by` 會在帳號刪除時變 NULL，誰標的以稽核為準。
   **授權**：org 範圍（c1，`org_id` 過濾）＋該生在呼叫者的分校範圍內（`outOfCampusScope`，同學生檔案的讀取範圍）＋ `manage_finance`。
   寫入時伺服器**重算一次**這位學生的段，`{ firstDay, lastDay }` 必須正好是一個現存的達標段，不是就 409（防止前端送任意區間）。
 - 讀取端點（§4 那兩支）回傳的每一段帶 `review: { id, reviewedBy, reviewedAt } | null`；帳單頁那支只回未處理的。

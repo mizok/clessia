@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { notifyLeaveStreaks } from '../lib/leave-streak';
 import { notifyLeaveForTeachers } from '../lib/notify-leave';
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import leavesApp from './leaves';
@@ -10,6 +11,11 @@ vi.mock('../lib/notify-leave', () => ({ notifyLeaveForTeachers: vi.fn(async () =
 const noticed = vi.mocked(notifyLeaveForTeachers);
 const noticedSessions = () => [...(noticed.mock.calls[0]?.[1].sessionIds ?? [])].sort();
 afterEach(() => noticed.mockClear());
+
+// #1732：連續請假偵測 —— 建立與改長才跑，改短、只改事由不跑（演算法由 leave-streak.spec 守）
+vi.mock('../lib/leave-streak', () => ({ notifyLeaveStreaks: vi.fn(async () => undefined) }));
+const streakChecked = vi.mocked(notifyLeaveStreaks);
+afterEach(() => streakChecked.mockClear());
 
 /**
  * #1114 請假綁定堂次。設計：kb/wiki/architecture/leave-session-binding.md。
@@ -430,6 +436,55 @@ describe('PATCH /api/leaves/:id —— 老師通知只發新增的堂（#1693，
     const leaveId = await create(db, { sessionIds: [S_AM] });
     expect((await patch(db, leaveId, { reason: '發燒' })).status).toBe(200);
     expect(noticedSessions()).toEqual([]);
+  });
+});
+
+describe('POST／PATCH /api/leaves —— 連續請假偵測（#1732）', () => {
+  const patch = (db: ReturnType<typeof createMultiOrgDb>, leaveId: string, body: object) =>
+    appWith(db).request(`/api/leaves/${leaveId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const create = async (db: ReturnType<typeof createMultiOrgDb>, body: Record<string, unknown>) => {
+    const res = await post(appWith(db), body);
+    expect(res.status).toBe(201);
+    return ((await res.json()) as { id: string }).id;
+  };
+
+  it('建立：以假單的日期區間偵測', async () => {
+    const db = seed();
+    await create(db, {});
+    expect(streakChecked).toHaveBeenCalledTimes(1);
+    expect(streakChecked.mock.calls[0]![1]).toMatchObject({ orgId: ORG, from: D, to: D });
+  });
+
+  it('日期區間型延長：用新的區間再偵測一次', async () => {
+    const db = seed();
+    const leaveId = await create(db, {});
+    streakChecked.mockClear();
+    expect((await patch(db, leaveId, { endDate: D2 })).status).toBe(200);
+    expect(streakChecked.mock.calls[0]![1]).toMatchObject({ from: D, to: D2 });
+  });
+
+  it('改短、只改事由：不偵測（不重發）', async () => {
+    const db = seed();
+    const leaveId = await create(db, { endDate: D2 });
+    streakChecked.mockClear();
+    expect((await patch(db, leaveId, { endDate: D })).status).toBe(200);
+    expect((await patch(db, leaveId, { reason: '發燒' })).status).toBe(200);
+    expect(streakChecked).not.toHaveBeenCalled();
+  });
+
+  it('綁定型加堂：偵測；只拿掉堂：不偵測', async () => {
+    const db = seed();
+    const leaveId = await create(db, { sessionIds: [S_AM] });
+    streakChecked.mockClear();
+    expect((await patch(db, leaveId, { sessionIds: [S_AM, S_D2] })).status).toBe(200);
+    expect(streakChecked).toHaveBeenCalledTimes(1);
+    streakChecked.mockClear();
+    expect((await patch(db, leaveId, { sessionIds: [S_AM] })).status).toBe(200);
+    expect(streakChecked).not.toHaveBeenCalled();
   });
 });
 
