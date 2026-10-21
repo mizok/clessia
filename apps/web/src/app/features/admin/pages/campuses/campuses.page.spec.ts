@@ -7,7 +7,7 @@ import { OrgSettingsService } from '@core/org-settings.service';
 import { signal } from '@angular/core';
 import { vi } from 'vitest';
 
-import { DialogService } from 'primeng/dynamicdialog';
+import { By } from '@angular/platform-browser';
 import { CampusesPage } from './campuses.page';
 import { ClassroomsDialogComponent } from './classrooms-dialog.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
@@ -332,22 +332,22 @@ describe('CampusesPage', () => {
       expect(rooms('b')).toBe('還沒有教室');
     });
 
-    it('⋮ 有「教室」，按了開教室對話框（帶分校），關掉就安靜重抓教室數', async () => {
+    it('⋮ 有「教室」，按了打開教室對話框（帶分校）；有改過才安靜重抓教室數', async () => {
       const campus = c({ id: 'a' });
-      const onClose = new Subject<unknown>();
-      const open = vi
-        .spyOn(fixture.debugElement.injector.get(DialogService), 'open')
-        .mockReturnValue({ onClose } as never);
+      const dialog = fixture.debugElement.query(By.directive(ClassroomsDialogComponent))
+        .componentInstance as ClassroomsDialogComponent;
+      const open = vi.spyOn(dialog, 'open').mockImplementation(() => undefined);
       (component as any).selectedCampus.set(campus);
-      const item = (component as any)
+      (component as any)
         .actionMenuItems()
-        .find((i: { label?: string }) => i.label === '教室');
-      item.command();
-      expect(open.mock.calls[0]?.[0]).toBe(ClassroomsDialogComponent);
-      expect((open.mock.calls[0]?.[1] as { data: unknown }).data).toEqual({ campus });
+        .find((i: { label?: string }) => i.label === '教室')
+        .command();
+      expect(open).toHaveBeenCalledWith(campus);
 
       campusesServiceMock.list.mockClear();
-      onClose.next(undefined);
+      dialog.closed.emit(false);
+      expect(campusesServiceMock.list).not.toHaveBeenCalled();
+      dialog.closed.emit(true);
       expect(campusesServiceMock.list).toHaveBeenCalledTimes(1);
       expect(component.loading()).toBe(false);
     });

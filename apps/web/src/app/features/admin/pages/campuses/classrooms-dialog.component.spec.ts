@@ -2,7 +2,6 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { MessageService } from 'primeng/api';
-import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { CampusesService, type Campus, type Classroom } from '@core/campuses.service';
 import { ClassroomsDialogComponent } from './classrooms-dialog.component';
@@ -27,18 +26,28 @@ describe('ClassroomsDialogComponent', () => {
       updateClassroom: vi.fn((_c: string, _r: string, input: unknown) => of({ data: input })),
       deleteClassroom: vi.fn(() => of({ success: true, affectedSchedules: 2 })),
     };
-    const close = vi.fn();
     const add = vi.fn();
     TestBed.configureTestingModule({
       imports: [ClassroomsDialogComponent],
       providers: [
         { provide: CampusesService, useValue: service },
         { provide: MessageService, useValue: { add } },
-        { provide: DynamicDialogRef, useValue: { close } },
-        { provide: DynamicDialogConfig, useValue: { data: { campus: CAMPUS } } },
       ],
     });
     const fixture = TestBed.createComponent(ClassroomsDialogComponent);
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    // jsdom 沒有 showModal／popover；close() 照瀏覽器發 close 事件
+    const dialogProto = HTMLDialogElement.prototype as any;
+    dialogProto.showModal ??= function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    };
+    dialogProto.close = function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+      this.dispatchEvent(new Event('close'));
+    };
+    const close = vi.fn();
+    fixture.componentInstance.closed.subscribe(close);
+    fixture.componentInstance.open(CAMPUS);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     const cmp = fixture.componentInstance as any;

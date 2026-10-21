@@ -56,6 +56,8 @@ const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', dail
     PopupMenuComponent,
     PaginatorModule,
     LoadFailedComponent,
+    ClassroomsDialogComponent,
+    CampusFormDialogComponent,
   ],
   providers: [DialogService],
   templateUrl: './campuses.page.html',
@@ -269,48 +271,27 @@ export class CampusesPage implements OnInit {
     this.loadCampuses();
   }
 
+  /** 分校表單（A6 campusForm，原生 dialog）。存成功才重抓，那一列淡入 */
+  private readonly campusForm = viewChild.required(CampusFormDialogComponent);
   openCreateDialog(): void {
-    const ref = this.dialogService.open(CampusFormDialogComponent, {
-      width: '450px',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer || 'body',
-    });
-
-    if (ref) {
-      ref.onClose.subscribe((newCampus) => {
-        if (newCampus) this.loadCampuses({ rows: true });
-      });
-    }
+    this.campusForm().open();
   }
 
   openEditDialog(campus: Campus): void {
-    const ref = this.dialogService.open(CampusFormDialogComponent, {
-      width: '450px',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer || 'body',
-      data: { campus },
-    });
-
-    if (ref) {
-      ref.onClose.subscribe((updatedCampus) => {
-        if (updatedCampus) this.loadCampuses({ rows: true });
-      });
-    }
+    this.campusForm().open(campus);
   }
 
-  /** 教室對話框（#1314 SE3）。關掉就安靜重抓 —— 刪除後按遮罩關掉也要把列上的教室數更新 */
+  protected onCampusFormClosed(saved: Campus | null): void {
+    if (saved) this.loadCampuses({ rows: true });
+  }
+
+  /** 教室對話框（#1314 SE3）。有改過才重抓（安靜重抓：列上的教室數） */
+  private readonly classroomsDialog = viewChild.required(ClassroomsDialogComponent);
   openClassrooms(campus: Campus): void {
-    const ref = this.dialogService.open(ClassroomsDialogComponent, {
-      width: '520px',
-      modal: true,
-      showHeader: false,
-      dismissableMask: true,
-      appendTo: this.overlayContainer || 'body',
-      data: { campus },
-    });
-    ref?.onClose.subscribe(() => this.loadCampuses({ quiet: true }));
+    this.classroomsDialog().open(campus);
+  }
+  protected onClassroomsClosed(changed: boolean): void {
+    if (changed) this.loadCampuses({ quiet: true });
   }
 
   openAuditLog(): void {
