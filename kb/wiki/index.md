@@ -122,6 +122,7 @@
 - [[specs/admin/calendar]] — 以日曆視圖查看全校課堂，快速進入課堂詳情。
 - [[specs/admin/dashboard]] — 管理員首頁，六張卡各回答一個問題並跳到功能的家；經營區用 view_reports 蓋住。
 - [[specs/admin/enrollment/approve-request]] — 設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
+- [[specs/admin/enrollment/payment-activation]] — 設計稿（#1778，保留類、改既有記收款路徑 → 合併由使用者決定；待裁 Q1–Q6）。核准後報名是 pending_payment、申請是 awaiting_payment，現在沒有任何路徑把它們往前推，而月結只對 active 開單 —— 卡在 pending_payment 的學生下個月不會被開帳。建議：記收款那一刻在同一個交易裡判斷 —— 這張帳單上有明細的 pending_payment 報名，第一筆收款（含定金）就轉 active；帳單繳清時，連到這些報名的 awaiting_payment 申請轉 completed。退費、作廢不倒轉。手動把報名轉 active 也一併完成申請。記收款路由改走 withTx（順便關掉退費「先查淨額再寫」的競態）。
 - [[specs/admin/enrollment/enrollment]] — 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 - [[specs/admin/enrollment/enrollment-requests]] — 審核家長提交的報名申請。
 - [[specs/admin/enrollment/renewals]] — 查看續課狀態、處理異動申請。
