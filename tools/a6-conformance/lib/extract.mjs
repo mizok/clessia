@@ -35,7 +35,13 @@ export const STYLE_PROPS = [
  * （那是人名、金額），只留角色＋序號。
  */
 export function extractParts(opts) {
-  const { root: rootSel = 'body', names = [], prefix = '', rowParents = [] } = opts ?? {};
+  const {
+    root: rootSel = 'body',
+    names = [],
+    prefix = '',
+    rowParents = [],
+    tag = false,
+  } = opts ?? {};
   // 稿在這些父層有列（資料多）：app 這邊資料少（1～2 列）也要認成列，兩邊才配得上
   const noList = (k) =>
     k
@@ -203,6 +209,29 @@ export function extractParts(opts) {
     return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
   };
 
+  // 黏住（sticky）：自己或最近的 sticky 祖先。sticky 容器常不是 part（A6 的 .chap__side 是 div），
+  // 所以每個 part 記「被誰釘住」；id 區分同一頁的不同釘點，diff 只報每個釘點最上層的 part
+  const pinMemo = new Map();
+  const pinOf = (el) => {
+    if (!el || el === document.documentElement) return null;
+    if (pinMemo.has(el)) return pinMemo.get(el);
+    const s = getComputedStyle(el);
+    const r =
+      s.position === 'sticky'
+        ? {
+            id: pinMemo.size + 1,
+            at: ['top', 'bottom', 'left', 'right']
+              .filter((k) => s[k] !== 'auto')
+              .map((k) => `${k} ${s[k]}`)
+              .join(' '),
+          }
+        : pinOf(el.parentElement);
+    pinMemo.set(el, r);
+    return r;
+  };
+  // tag：把 key → 元素留在 window（行為檢查要拿 key 找回元素；不改 DOM）
+  const els = tag ? (window.__a6els = new Map()) : null;
+
   const parts = [];
   const byKey = new Map();
   // 遞迴：ctx = { key, counts（同層 segment 計數）, inRow, rowSeen（這一列已算過的 key）}
@@ -239,6 +268,7 @@ export function extractParts(opts) {
         c.kind === 'mapped'
           ? seg
           : `${ctx.key}>${c.kind === 'row' || sib === 1 ? seg : `${seg}~${sib}`}`;
+      if (els && !els.has(key)) els.set(key, el);
       let p = byKey.get(key);
       if (!p) {
         p = {
@@ -258,6 +288,7 @@ export function extractParts(opts) {
             (x) => !['none', 'normal'].includes(getComputedStyle(el, x).content),
           ),
           style: style(el),
+          pin: pinOf(el),
           // blockify 判斷用：DOM 的父元素，不是父 part（#1639）
           parentDisplay: el.parentElement ? getComputedStyle(el.parentElement).display : '',
           attrs: Object.fromEntries(
