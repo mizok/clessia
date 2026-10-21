@@ -60,6 +60,8 @@ const req = (over: Partial<ParentEnrollmentRequest> = {}): ParentEnrollmentReque
   rejectReason: null,
   billingMode: null,
   createdAt: '2026-10-18T02:00:00Z',
+  invoice: null,
+  paymentInfo: null,
   ...over,
 });
 
