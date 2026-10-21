@@ -1,6 +1,6 @@
 ---
 title: 核准家長的報名申請（開繳費單、建報名、轉待付款；設計稿）
-summary: 設計稿（#1726，保留類、金額路徑；使用者 10-21 已裁 Q1–Q8，Q9 待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額（直接報名不拿鎖的競態另列 Q9）、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。核准當下發站內＋推播給家長（新 notification_kind，migration 獨立 PR）。核准要 manage_students＋manage_finance；這版支援堂數制。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
+summary: 設計稿（#1726，保留類、金額路徑；使用者 10-21 已裁 Q1–Q8、計畫席代裁 Q9）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額（Q9 (a)：直接報名也改走同一支鎖班函式，拆單 1b）、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。核准當下發站內＋推播給家長（新 notification_kind，migration 獨立 PR）。核准要 manage_students＋manage_finance；這版支援堂數制。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
 category: spec
 status: accepted
 updated: 2026-10-21
@@ -10,7 +10,7 @@ sources: [https://github.com/mizok/clessia/issues/1726]
 
 # 核准家長的報名申請（設計稿）
 
-> **狀態：已裁定（使用者 2026-10-21，計畫席轉記於 #1758；Q1–Q8 全照建議）。Q9 未裁，未裁前拆單 1b 不開。**
+> **狀態：已裁定（使用者 2026-10-21，計畫席轉記於 #1758；Q1–Q8 全照建議；Q9 計畫席代裁 (a)，#1758 留言 6309042456）。**
 > 保留類（金額路徑）：每張實作 PR 開之前先報計畫席。
 > 規則來源：[[rules/enrollment-rules]] §1.2（核准＝建繳費單＋建 `pending_payment` 報名＋申請轉 `awaiting_payment`）、
 > [[rules/billing-rules]]（定價＋人工覆寫、比例試算是建議值、單一 `due_date`）。
@@ -108,19 +108,21 @@ paymentInfo: PaymentInfo | null; // pickPaymentInfo(班級分校, org)
 
 ## 5. 拆單
 
-| #   | 類型      | 內容                                                                             |
-| --- | --------- | -------------------------------------------------------------------------------- |
-| 1   | 保留類    | 核准 API（交易、名額、帳單、申請轉態）＋ spec 測試（併發、23505、週期欄）        |
-| 1b  | 保留類    | 只在 Q9 選 (a)：直接報名三條路的名額判斷改走同一支「鎖班＋數名額」函式（withTx） |
-| 2   | 一般類    | 管理端核准對話框（試算、原因、衝堂確認）                                         |
-| 3   | 保留類    | 家長端申請 API 帶 `invoice`／`paymentInfo`（childDb）                            |
-| 4   | 一般類    | 家長端待付款詳情照 A6                                                            |
-| 5   | migration | `notification_kind` 加值（Q1 (b) 已裁；獨立 PR）                                 |
-| 6   | 保留類    | 核准後發站內＋推播給家長（依賴 5 套上正式）                                      |
+| #   | 類型      | 內容                                                                          |
+| --- | --------- | ----------------------------------------------------------------------------- |
+| 1   | 保留類    | 核准 API（交易、名額、帳單、申請轉態）＋ spec 測試（併發、23505、週期欄）     |
+| 1b  | 保留類    | Q9 (a) 已裁：直接報名三條路的名額判斷改走同一支「鎖班＋數名額」函式（withTx） |
+| 2   | 一般類    | 管理端核准對話框（試算、原因、衝堂確認）                                      |
+| 3   | 保留類    | 家長端申請 API 帶 `invoice`／`paymentInfo`（childDb）                         |
+| 4   | 一般類    | 家長端待付款詳情照 A6                                                         |
+| 5   | migration | `notification_kind` 加值（Q1 (b) 已裁；獨立 PR）                              |
+| 6   | 保留類    | 核准後發站內＋推播給家長（依賴 5 套上正式）                                   |
+
+**順序：1b 在 1 之前或同一張**（計畫席 10-21）—— 兩條路要共用同一把鎖，1 先上線就有競態。
 
 規則同步：`enrollment-rules.md` §1.1「核准尚未實作」那句、`enrollment-requests.md` 頁首現況、`parent/applications.md` Q3 過渡，實作合併時一起改。
 
-## 6. 裁定（使用者 2026-10-21，計畫席轉記於 #1758）
+## 6. 裁定（使用者 2026-10-21，計畫席轉記於 #1758；Q9 計畫席代裁）
 
 | 題                     | 裁定                                                                                      |
 | ---------------------- | ----------------------------------------------------------------------------------------- |
@@ -132,7 +134,7 @@ paymentInfo: PaymentInfo | null; // pickPaymentInfo(班級分校, org)
 | Q6 核准權限            | `manage_students` **且** `manage_finance`                                                 |
 | Q7 付清後轉正式        | 另開單                                                                                    |
 | Q8 核准可不開帳單      | 不行，核准一定開帳單                                                                      |
-| Q9 直接報名不拿鎖      | **未裁**（不在 10-21 的裁定裡），未裁前拆單 1b 不開                                       |
+| Q9 直接報名不拿鎖      | （計畫席代裁）(a) 拆單 1b：直接報名三條路的名額判斷進交易、共用鎖班函式（保留類）         |
 | A6 申請自動過期        | 這版不做，維持規則「不自動失效」，登記為 A6 偏離（[[architecture/a6-adoption-rules]] R5） |
 
 ## 6.1 原題與建議（留存）
