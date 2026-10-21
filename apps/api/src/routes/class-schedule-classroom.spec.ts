@@ -69,13 +69,14 @@ function setup(scheduleRoom: string | null = null) {
     return { status: res.status, body: (await res.json()) as any };
   };
   const schedules = () => db.rows('schedules');
+  const audits = () => db.rows('audit_logs');
   const roomOf = (sid: string) => schedules().find((r) => r['id'] === sid)?.['classroom_id'];
-  return { call, schedules, roomOf };
+  return { call, schedules, roomOf, audits };
 }
 
 describe('POST /api/classes/{id}/schedules —— 指定教室（#1796）', () => {
-  it('同分校的教室：寫進去，回應帶 classroomId', async () => {
-    const { call, schedules } = setup();
+  it('同分校的教室：寫進去，回應帶 classroomId；稽核記得指定了哪間', async () => {
+    const { call, schedules, audits } = setup();
     const { status, body } = await call('POST', `/${CLASS}/schedules`, {
       ...SLOT,
       classroomId: ROOM_SAME,
@@ -83,6 +84,10 @@ describe('POST /api/classes/{id}/schedules —— 指定教室（#1796）', () =
     expect(status).toBe(201);
     expect(body.data.classroomId).toBe(ROOM_SAME);
     expect(schedules().find((r) => r['weekday'] === 2)?.['classroom_id']).toBe(ROOM_SAME);
+    await new Promise((r) => setTimeout(r, 0)); // 稽核在背景寫
+    expect(audits().find((r) => r['action'] === 'add_schedule')?.['details']).toMatchObject({
+      classroomId: ROOM_SAME,
+    });
   });
 
   it('不帶或 null：不指定', async () => {
