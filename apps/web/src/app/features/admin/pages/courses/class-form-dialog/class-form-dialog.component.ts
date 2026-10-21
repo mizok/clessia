@@ -104,6 +104,8 @@ export class ClassFormDialogComponent {
   protected readonly isPublicEnrollment = signal(this.cls()?.isPublicEnrollment ?? true);
 
   constructor() {
+    // 用課程的分校就是班級的分校：班級建立時取自課程，之後班級、課程都沒有改分校的 API
+    // （UpdateClassSchema／UpdateCourseSchema 都沒有 campus 欄位），兩邊不會分歧
     const campusId = this.course()?.campusId;
     if (campusId) {
       this.campusesService
