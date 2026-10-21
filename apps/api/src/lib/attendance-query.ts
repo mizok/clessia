@@ -14,7 +14,7 @@
 export const ATTENDANCE_SELECT = `
   id, org_id, student_id, event_id, status, note, recorded_by, recorded_by_role, created_at, updated_at,
   students!inner(name),
-  events!inner(event_date, start_time, end_time, campus_id, campuses(name), sessions(class_id, status, classes(name)))
+  events!inner(event_date, start_time, end_time, campus_id, campuses(name), sessions(id, class_id, status, classes(name)))
 `;
 
 export function flattenAttendanceRow(r: Record<string, unknown>) {
