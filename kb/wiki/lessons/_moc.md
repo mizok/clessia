@@ -186,6 +186,12 @@ Tags: `lessons`, `status-table-blind-spot`
 
 Tags: `lessons`, `forms`, `rxjs`, `testing`, `mutation`
 
+## [[lessons/template-handler-false-prevents-default|模板事件運算式回 false，Angular 會替你 preventDefault]]
+
+(click)="$event.target === dialog && close()" 點在 dialog 裡面時整句是 false，Angular 把 false 當成 preventDefault —— 對話框裡的 radio 點不下去。DOM 事件的 handler 要嘛呼叫方法、要嘛確保不回 false。
+
+Tags: `lessons`, `angular`, `template`, `events`, `dialog`
+
 ## [[lessons/workers-fanout-costs-before-the-db|並行 fan-out 在碰到資料庫之前就已經變慢了]]
 
 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。

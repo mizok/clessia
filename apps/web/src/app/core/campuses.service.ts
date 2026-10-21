@@ -18,8 +18,27 @@ export interface Campus {
   updatedAt: string;
 }
 
+/** 分校的教室（#1314 SE3） */
+export interface Classroom {
+  id: string;
+  campusId: string;
+  name: string;
+  /** 只顯示，不擋班級人數上限；null = 沒填 */
+  capacity: number | null;
+  equipment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClassroomInput {
+  name: string;
+  capacity?: number | null;
+  equipment?: string | null;
+}
+
 export interface CampusListResponse {
-  data: Campus[];
+  /** 列表才帶 `classroomCount`（列上的「N 間教室」） */
+  data: Array<Campus & { classroomCount: number }>;
   summary: {
     total: number;
     activeCount: number;
@@ -44,6 +63,11 @@ export interface CreateCampusInput {
   name: string;
   address?: string | null;
   phone?: string | null;
+  isActive?: boolean;
+  /** 要 `manage_org_settings`，沒有的人不要送這個 key（同 UpdateCampusInput） */
+  attendanceMode?: 'per_session' | 'daily_checkin' | null;
+  /** 要 `manage_finance`，沒有的人不要送這個 key */
+  paymentInfo?: string | null;
 }
 
 export interface UpdateCampusInput {
@@ -51,6 +75,8 @@ export interface UpdateCampusInput {
   address?: string | null;
   phone?: string | null;
   isActive?: boolean;
+  /** null = 改回沿用機構預設。要 `manage_org_settings`，沒有的人不要送這個 key */
+  attendanceMode?: 'per_session' | 'daily_checkin' | null;
   /** null／空白 = 改回沿用機構預設。要 `manage_finance`，沒有的人不要送這個 key */
   paymentInfo?: string | null;
 }
@@ -83,6 +109,35 @@ export class CampusesService {
 
   delete(id: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.endpoint}/${id}`);
+  }
+
+  listClassrooms(campusId: string): Observable<{ data: Classroom[] }> {
+    return this.http.get<{ data: Classroom[] }>(`${this.endpoint}/${campusId}/classrooms`);
+  }
+
+  createClassroom(campusId: string, input: ClassroomInput): Observable<{ data: Classroom }> {
+    return this.http.post<{ data: Classroom }>(`${this.endpoint}/${campusId}/classrooms`, input);
+  }
+
+  updateClassroom(
+    campusId: string,
+    roomId: string,
+    input: ClassroomInput,
+  ): Observable<{ data: Classroom }> {
+    return this.http.put<{ data: Classroom }>(
+      `${this.endpoint}/${campusId}/classrooms/${roomId}`,
+      input,
+    );
+  }
+
+  /** `affectedSchedules`：指定這間教室、改回「不指定」的時段數 */
+  deleteClassroom(
+    campusId: string,
+    roomId: string,
+  ): Observable<{ success: boolean; affectedSchedules: number }> {
+    return this.http.delete<{ success: boolean; affectedSchedules: number }>(
+      `${this.endpoint}/${campusId}/classrooms/${roomId}`,
+    );
   }
 
   private toListParams(params?: CampusQueryParams): Record<string, string | number | boolean> {
