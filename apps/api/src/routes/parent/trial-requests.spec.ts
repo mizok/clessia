@@ -182,6 +182,22 @@ describe('POST /api/me/trial-requests', () => {
     expect((await submit({ courseIds: [MATH] }, db)).status).toBe(201);
   });
 
+  // 審核席 T1：送出成功的回應也帶分校名稱與電話（課程沒分校 → null）
+  it('送出成功：回應帶各課程分校的名稱與電話', async () => {
+    const db = withCampus({
+      courses: [
+        { id: MATH, org_id: ORG, is_active: true, campus_id: 'cp-main' },
+        { id: ENGLISH, org_id: ORG, is_active: true, campus_id: null },
+      ],
+    });
+    const { status, body } = await submit({ courseIds: [MATH, ENGLISH] }, db);
+
+    expect(status).toBe(201);
+    const by = (id: string) => body.data.find((r: { courseId: string }) => r.courseId === id);
+    expect([by(MATH).campusName, by(MATH).campusPhone]).toEqual(['總校', '02-2345-6789']);
+    expect([by(ENGLISH).campusName, by(ENGLISH).campusPhone]).toEqual([null, null]);
+  });
+
   // 已經寫進去了，讀分校失敗不該讓家長以為沒送出（列表重抓會有電話）
   it('寫入後讀分校失敗：照樣 201，分校欄位是 null', async () => {
     const db = failCampuses(
