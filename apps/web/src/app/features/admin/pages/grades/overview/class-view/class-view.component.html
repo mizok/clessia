@@ -21,22 +21,34 @@
 </app-page-open>
 
 <div class="bg-zinc-100">
-  <div class="page-wrap flex flex-wrap items-center gap-3 py-3" role="search" aria-label="篩選班級">
-    <input
-      pInputText
-      type="search"
-      class="h-11 min-w-0 flex-1 wide:w-72 wide:flex-none"
-      aria-label="搜尋課程或班級"
-      [ngModel]="searchText()"
-      (ngModelChange)="onSearchChange($event)"
-      placeholder="找課程或班級"
-    />
+  <!-- 手機：搜尋框滿寬一列，籌碼與「篩選」落到下一行右靠；桌機一列（A6 .tsearch／學生頁同款） -->
+  <div
+    class="page-wrap clessia-filter-bar flex flex-wrap items-center gap-3 py-3 wide:min-h-16 wide:gap-4"
+    role="search"
+    aria-label="篩選班級"
+  >
+    <div
+      class="clessia-filter-search min-w-full wide:w-[25rem] wide:max-w-[25rem] wide:min-w-0 wide:flex-none"
+    >
+      <p-iconfield iconPosition="left">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          type="search"
+          pInputText
+          placeholder="找課程或班級"
+          aria-label="搜尋課程或班級"
+          [ngModel]="searchText()"
+          (ngModelChange)="onSearchChange($event)"
+          class="clessia-filter-search-input"
+        />
+      </p-iconfield>
+    </div>
 
     <div class="ml-auto flex flex-wrap items-center gap-2">
       @if (loadingTodoMap() || todoClassCount() > 0) {
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full border px-4 text-md font-semibold whitespace-nowrap aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white not-aria-pressed:border-zinc-300 not-aria-pressed:bg-white not-aria-pressed:text-zinc-900"
+          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border px-4 leading-normal text-md font-semibold whitespace-nowrap aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white not-aria-pressed:border-zinc-300 not-aria-pressed:bg-white not-aria-pressed:text-zinc-900"
           data-part="todo-chip"
           [attr.aria-pressed]="todoOnly()"
           (click)="toggleTodoOnly()"
@@ -51,7 +63,7 @@
       }
       <button
         type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
         data-part="filter-btn"
         aria-haspopup="dialog"
         [attr.aria-expanded]="filtersOpen()"
@@ -223,7 +235,7 @@
                 @if (cls.classInfo.latestExam !== undefined) {
                   @let exam = cls.classInfo.latestExam;
                   <span
-                    class="col-span-full row-start-2 text-sm text-zinc-600 wide:col-span-1 wide:row-start-auto"
+                    class="col-span-full row-start-2 text-sm text-zinc-600 wide:col-span-1 wide:col-start-2 wide:row-start-1"
                     data-part="class-last"
                   >
                     @if (exam) {
@@ -238,7 +250,7 @@
                     }
                   </span>
                   <span
-                    class="col-start-2 row-start-1 text-right text-xl font-bold text-zinc-900 tabular-nums wide:col-start-auto"
+                    class="col-start-2 row-start-1 text-right text-xl leading-tight font-bold text-zinc-900 tabular-nums wide:col-start-3"
                     data-part="class-avg"
                   >
                     {{ exam && exam.avgScore !== null ? formatAvg(exam.avgScore) : '—' }}

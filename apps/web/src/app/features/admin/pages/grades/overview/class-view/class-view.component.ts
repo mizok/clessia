@@ -15,6 +15,8 @@ import { CampusContextService } from '@core/campus-context.service';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
 import { DialogService } from 'primeng/dynamicdialog';
 import { PopoverModule } from 'primeng/popover';
 
@@ -61,6 +63,8 @@ interface CourseGroup {
     MultiSelectModule,
     SelectModule,
     InputTextModule,
+    IconFieldModule,
+    InputIconModule,
     PopoverModule,
     EmptyStateComponent,
     PageOpenComponent,
