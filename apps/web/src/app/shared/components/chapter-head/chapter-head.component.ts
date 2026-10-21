@@ -36,6 +36,8 @@ export class ChapterHeadComponent {
   readonly listRow = input(false);
   /** 桌機黏住（A6 `.chap__side`）。稿上不是 `.chap` 的頁（家長帳單）關掉，不然是稿沒有的多黏 */
   readonly pinned = input(true);
+  /** 桌機章名 32px（A6 grades-class 的章名是課程全名，稿用 inline 從 44 縮成 32） */
+  readonly compact = input(false);
 
   /**
    * 外框：直排（桌機左欄、手機 `stacked`）時子項撐滿那一欄（A6 `.chap__big` 是 block，#1715）；
@@ -59,7 +61,8 @@ export class ChapterHeadComponent {
    */
   protected readonly nameClass = computed(
     () =>
-      'chapter-head__name m-0 leading-none font-bold tracking-[-0.04em] wide:text-[44px] ' +
+      'chapter-head__name m-0 leading-none font-bold tracking-[-0.04em] ' +
+      (this.compact() ? 'wide:text-[32px] ' : 'wide:text-[44px] ') +
       (this.stacked() ? 'text-[32px] ' : this.listRow() ? 'text-[28px] ' : 'text-[26px] ') +
       (this.tone() === 'error' ? 'text-error-700' : 'text-zinc-900'),
   );
