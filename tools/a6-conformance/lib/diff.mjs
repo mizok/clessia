@@ -660,8 +660,24 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
         LIMITS.variant,
       );
     if (maybe.length) push('樣式', maybe.join('；'), LIMITS.pseudo);
+    // 黏住：每個釘點最上層的 part（自己或 sticky 祖先跟父 part 的不是同一個）。這裡只提名，
+    // 寫法不同效果可能一樣（app 把動作列放在捲動區外），由行為檢查收斂（lib/sticky.mjs、run.mjs）
+    const topPin = (p, m) => !!p.pin && p.pin.id !== m.get(p.parent)?.pin?.id;
+    if (topPin(a, mA) || topPin(b, mB)) {
+      const pa = a.pin?.at ?? '',
+        pb = b.pin?.at ?? '';
+      rows.push({
+        status: '黏住',
+        kind: a.kind,
+        host: b.host,
+        a6: ak,
+        app: bk,
+        detail: `sticky ${pa || '無'} → ${pb || '無'}`,
+        probe: { axis: (pa || pb).split(' ')[0] || 'top', differ: pa !== pb },
+      });
+    }
   }
-  const order = { 缺: 0, 角色: 1, 文案: 2, 位置: 3, 尺寸: 4, 樣式: 5, 多: 6, 資料差: 7 };
+  const order = { 缺: 0, 角色: 1, 文案: 2, 位置: 3, 黏住: 3.5, 尺寸: 4, 樣式: 5, 多: 6, 資料差: 7 };
   return rows.sort((x, y) => order[x.status] - order[y.status]);
 }
 
@@ -712,6 +728,13 @@ export function diffMarkdown(page, cfg, sections) {
         `| ${s.width}px ${name} | ${BUCKETS.map((b) => s.rows.filter((r) => r.bucket === b && sel(r)).length).join(' | ')} |`,
       );
   L.push('');
+  // 黏住的行為檢查：效果一致的不列，只在這裡記數（看得出工具有沒有真的檢查過）
+  for (const s of sections)
+    if (s.sticky)
+      L.push(
+        `黏住行為檢查 ${s.width}px：提名 ${s.sticky.checked} 處（任一邊有 sticky 的最上層 part），捲動後效果一致 ${s.sticky.same} 處，其餘以「黏住」列在下表。`,
+        '',
+      );
   const cell = (t) => String(t).replace(/\|/g, '\\|');
   for (const s of sections) {
     L.push(`## ${s.width}px`, '');
