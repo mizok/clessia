@@ -3,6 +3,7 @@ import type { AppEnv } from '../../index';
 import type { ChildDb } from '../../lib/child-db';
 import { isChildAllowed } from '../../lib/child-scope';
 import { DbUuidSchema } from '../../lib/validation';
+import { waitUntilFrom } from '../../lib/wait-until';
 
 /**
  * 家長端試聽申請（#1120；specs/parent/trial.md、flows/trial.md）。
@@ -81,10 +82,7 @@ async function campusesOf(childDb: ChildDb, rows: Record<string, unknown>[]) {
     ),
   ];
   if (!ids.length) return { campuses: new Map<string, Campus>(), error: null };
-  const { data, error } = await childDb
-    .orgRef('campuses')
-    .select('id, name, phone')
-    .in('id', ids);
+  const { data, error } = await childDb.orgRef('campuses').select('id, name, phone').in('id', ids);
   const campuses = new Map(
     ((data ?? []) as unknown as Array<{ id: string } & Campus>).map((c) => [c.id, c]),
   );
@@ -257,12 +255,19 @@ app.openapi(
       return c.json({ error: '送出試聽申請失敗', code: 'SERVER_ERROR' }, 500);
     }
 
-    // 分校讀不到不擋送出（已經寫進去了）：這次回應少電話，列表重抓會有
-    const { campuses } = await campusesOf(childDb, data as Record<string, unknown>[]);
-    return c.json(
-      { data: (data as Record<string, unknown>[]).map((row) => toResponse(row, campuses)) },
-      201,
+    // #1731：通知分校管理員，同一次送出（多門課）合成一則（計畫席 10-19 Q7 (b)）。背景跑、失敗不擋
+    const rows = data as Record<string, unknown>[];
+    const job = childDb.notifyRequests(
+      'trial',
+      rows.map((r) => r['id'] as string),
     );
+    const wu = waitUntilFrom(c);
+    if (wu) wu(job);
+    else await job;
+
+    // 分校讀不到不擋送出（已經寫進去了）：這次回應少電話，列表重抓會有
+    const { campuses } = await campusesOf(childDb, rows);
+    return c.json({ data: rows.map((row) => toResponse(row, campuses)) }, 201);
   },
 );
 

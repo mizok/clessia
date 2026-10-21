@@ -15,6 +15,7 @@ import { format, parseISO } from 'date-fns';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import {
   ParentApplicationsService,
   type EnrollmentRequestStatus,
@@ -146,6 +147,10 @@ export class EnrollmentComponent {
         takeUntilDestroyed(),
       )
       .subscribe({ next: (res) => this.classes.set(res.data) });
+  }
+
+  protected gradeLabel(grade: string | null): string {
+    return GRADE_LEVEL_LABELS[grade as GradeLevel] ?? grade ?? '';
   }
 
   protected setTab(tab: Tab): void {

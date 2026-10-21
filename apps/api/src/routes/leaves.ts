@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Context } from 'hono';
 import { waitUntilFrom } from '../lib/wait-until';
 import { notifyLeaveForTeachers } from '../lib/notify-leave';
+import { notifyLeaveStreaks } from '../lib/leave-streak';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
@@ -457,6 +458,27 @@ async function queueLeaveNotice(
   else await job;
 }
 
+/**
+ * #1732：假單建立或改長之後，背景偵測這段日期有沒有接成「連續請假滿 N 個上課日」，達標就提醒
+ * 有 `manage_finance` 的管理員。只提醒、不改帳單；失敗只記 log（`lib/leave-streak.ts`）。
+ * 不看 `queueLeaveNotice` 的 sessionIds：還沒生成 event 的未來課堂不在那裡面，但照樣是上課日。
+ */
+async function queueLeaveStreakCheck(
+  c: Context<AppEnv>,
+  studentId: string,
+  window: Pick<LeaveWindow, 'startDate' | 'endDate'>,
+): Promise<void> {
+  const job = notifyLeaveStreaks(c.get('supabase'), {
+    orgId: c.get('orgId'),
+    studentId,
+    from: window.startDate,
+    to: window.endDate,
+  });
+  const wu = waitUntilFrom(c);
+  if (wu) wu(job);
+  else await job;
+}
+
 async function updateBoundSessions(
   c: Context<AppEnv>,
   input: {
@@ -583,6 +605,8 @@ async function updateBoundSessions(
         return date < prevWindow.startDate || date > prevWindow.endDate;
       });
   await queueLeaveNotice(c, id, input.studentName, newlyCovered);
+  // 只有變長才可能接出新的段；改短不重發（設計稿 §3）
+  if (!prevBound || added.length > 0) await queueLeaveStreakCheck(c, studentId, nextWindow);
 
   const resourceName = buildLeaveAuditResourceName({
     studentName: input.studentName,
@@ -931,6 +955,7 @@ app.openapi(
       (leave as any).students?.name ?? '',
       coveredSessionIds,
     );
+    await queueLeaveStreakCheck(c, body.studentId, window);
 
     const row = {
       ...leave,
@@ -1165,6 +1190,8 @@ app.openapi(
         addedSessionIds.push(...applied.sessionIds);
       }
       await queueLeaveNotice(c, id, studentName, addedSessionIds);
+      // 只有變長才可能接出新的段；改短不重發（設計稿 §3）
+      if (added.length > 0) await queueLeaveStreakCheck(c, studentId, nextWindow);
 
       // 稽核沿用刪除／建立那兩條路徑的 action 名稱 —— 同一件事在稽核上要查得到同一個字，
       // 否則「這張假的出勤被動過幾次」得先知道有幾種說法

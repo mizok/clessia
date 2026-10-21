@@ -8,12 +8,13 @@ export type RequestTagTone = 'quiet' | 'warn' | 'ok' | 'error' | 'off' | 'line';
 
 /** 狀態標籤的樣式（詳情裡同一顆標籤也用它） */
 export const REQUEST_TAG_CLASS: Record<RequestTagTone, string> = {
-  quiet: 'bg-zinc-100 px-2 text-zinc-700',
-  warn: 'bg-warning-50 px-2 text-warning-800 shadow-[inset_0_0_0_1px_var(--warning-200)]',
-  ok: 'pr-2 text-success-600',
-  error: 'text-error-700',
+  quiet: 'bg-zinc-100 px-2 font-semibold text-zinc-700',
+  warn: 'bg-warning-50 px-2 font-semibold text-warning-800 shadow-[inset_0_0_0_1px_var(--warning-200)]',
+  ok: 'pr-2 font-semibold text-success-600',
+  error: 'font-semibold text-error-700',
+  // A6 .tag--off：字重 500（其他 600）—— 字重放在各色調裡，免得跟基底的 600 打架
   off: 'pr-2 font-medium text-zinc-600',
-  line: 'px-2 text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-400)]',
+  line: 'px-2 font-semibold text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-400)]',
 };
 
 @Component({
@@ -26,13 +27,13 @@ export const REQUEST_TAG_CLASS: Record<RequestTagTone, string> = {
       [attr.data-request]="id()"
       (click)="open.emit()"
     >
-      <span class="text-lg font-semibold underline-offset-4 group-hover:underline">{{
+      <span class="text-lg leading-6 font-semibold underline-offset-4 group-hover:underline">{{
         title()
       }}</span>
       <span class="row-span-2 flex items-center gap-2">
         <span
           [class]="
-            'inline-flex items-center rounded-full py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap ' +
+            'inline-flex items-center gap-1 rounded-full py-0.5 text-sm leading-[1.4] whitespace-nowrap ' +
             toneClass()
           "
           >{{ tag() }}</span
