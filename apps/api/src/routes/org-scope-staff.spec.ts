@@ -91,9 +91,7 @@ const CASES = [
     suffix: '',
     body: { displayName: '改名' },
     status: 200,
-    applied: (db: Db) =>
-      staffA(db)?.['display_name'] === '改名' &&
-      db.rows('profiles').find((r) => r['id'] === USER_A)?.['display_name'] === '改名',
+    applied: (db: Db) => staffA(db)?.['display_name'] === '改名',
   },
   {
     name: 'PATCH /api/staff/:id/archive',

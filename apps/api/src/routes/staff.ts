@@ -6,7 +6,7 @@ import { mintLoginLinkForRequest } from './login-links/mint';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { isOrphanAuthUser } from '../lib/orphan-auth-user';
-import { PERMISSIONS } from '../lib/permissions';
+import { PERMISSIONS, WILDCARD_PERMISSION } from '../lib/permissions';
 import { addedPermissions, checkRoleAssignment } from '../lib/role-assignment';
 import {
   campusFilterIds,
@@ -33,6 +33,14 @@ const AssignableStaffRoleSchema = z.enum(['admin', 'teacher']).openapi('Assignab
 // 詞彙表的家在 lib/permissions.ts —— 那裡有 harness gate 守著「每個權限都要有
 // mount 真的用到」。這裡只是把它變成 zod。
 const PermissionSchema = z.enum(PERMISSIONS).openapi('Permission');
+/**
+ * 讀出來與 PUT 送回去的權限多一個 `*`（全部權限，#1829）。GET 原本把它濾掉，
+ * 表單於是顯示全沒勾、存檔就把 `["*"]` 蓋成 `[]`。能不能**發出** `*` 由
+ * `checkRoleAssignment` 的「只能發自己有的」把關 —— 只有本身持有 `*` 的人可以。
+ */
+const HeldPermissionSchema = z
+  .union([PermissionSchema, z.literal(WILDCARD_PERMISSION)])
+  .openapi('HeldPermission');
 
 const StaffStatusSchema = z.enum(['active', 'inactive', 'archived']).openapi('StaffStatus');
 
@@ -57,7 +65,7 @@ const StaffSchema = z
     updatedAt: z.string(),
     campusIds: z.array(DbUuidSchema),
     roles: z.array(StaffRoleSchema),
-    permissions: z.array(PermissionSchema),
+    permissions: z.array(HeldPermissionSchema),
   })
   .openapi('Staff');
 
@@ -115,7 +123,10 @@ const CreateStaffSchema = z
       .array(StaffRoleSchema)
       .min(1)
       .openapi({ description: '角色：admin、teacher（可多選）；kiosk 只能單獨給（#1127）' }),
-    permissions: z.array(PermissionSchema).optional().openapi({ description: '管理員權限清單' }),
+    permissions: z
+      .array(HeldPermissionSchema)
+      .optional()
+      .openapi({ description: '管理員權限清單；`*`＝全部權限，只有本身持有 `*` 的人能發' }),
   })
   .openapi('CreateStaff');
 
@@ -134,7 +145,7 @@ const UpdateStaffSchema = z
       .optional()
       .openapi({ description: '角色（可多選）' }),
     status: StaffStatusSchema.optional(),
-    permissions: z.array(PermissionSchema).optional(),
+    permissions: z.array(HeldPermissionSchema).optional(),
   })
   .openapi('UpdateStaff');
 
@@ -161,7 +172,7 @@ const QueryParamsSchema = z.object({
 // ============================================================
 
 type StaffRole = z.infer<typeof StaffRoleSchema>;
-type Permission = z.infer<typeof PermissionSchema>;
+type Permission = z.infer<typeof HeldPermissionSchema>;
 
 interface RoleInfo {
   roles: StaffRole[];
@@ -216,8 +227,8 @@ function normalizePermissions(permissions: unknown): Permission[] {
     return [];
   }
 
-  return permissions.filter((permission): permission is Permission =>
-    PermissionSchema.options.includes(permission as Permission),
+  return permissions.filter(
+    (permission): permission is Permission => HeldPermissionSchema.safeParse(permission).success,
   );
 }
 
@@ -1368,14 +1379,34 @@ app.openapi(updateRoute, async (c) => {
     );
   }
 
+  // 改自己時要知道原本的角色與權限，才分得出「原樣送回」與「真的改了」（#1829）
+  const touchesRoleAssignment = body.roles !== undefined || body.permissions !== undefined;
+  let selfPrior: { roles: string[]; permissions: string[] } | undefined;
+  if (touchesRoleAssignment && userId === requesterUserId) {
+    const { data: priorRows } = await supabase
+      .from('user_roles')
+      .select('role, permissions')
+      .eq('user_id', userId)
+      .in('role', ['admin', 'teacher']);
+    const rows = (priorRows ?? []) as Array<{ role: string; permissions?: unknown }>;
+    const adminPermissions = rows.find((row) => row.role === 'admin')?.permissions;
+    selfPrior = {
+      roles: rows.map((row) => row.role),
+      permissions: Array.isArray(adminPermissions) ? (adminPermissions as string[]) : [],
+    };
+  }
+
   // 改人事資料是 `manage_staff`（mount 擋過了）；**指定角色與權限是 `manage_roles`**，
   // 而且不論有什麼權限都不能改自己 —— 提權的路要經過另一個人；也只能發出自己有的權限。
   const assignment = checkRoleAssignment({
     permissions: c.get('permissions') ?? [],
     requesterUserId,
     targetUserId: userId,
-    touchesRoleAssignment: body.roles !== undefined || body.permissions !== undefined,
+    touchesRoleAssignment,
     grantedPermissions,
+    selfPrior,
+    nextRoles: body.roles,
+    nextPermissions: body.permissions,
   });
   if (!assignment.ok) {
     return c.json({ error: assignment.message, code: 'FORBIDDEN' }, 403);
@@ -1428,17 +1459,6 @@ app.openapi(updateRoute, async (c) => {
   // Sync phone to ba_user (staff.phone column no longer exists)
   if (body.phone !== undefined) {
     await supabase.from('ba_user').update({ phone: body.phone }).eq('id', userId);
-  }
-
-  if (body.displayName !== undefined) {
-    const { error: updateProfileError } = await inOrg(
-      supabase.from('profiles').update({ display_name: body.displayName }).eq('id', userId),
-      orgId,
-    );
-
-    if (updateProfileError) {
-      return c.json({ error: updateProfileError.message, code: 'UPDATE_PROFILE_FAILED' }, 400);
-    }
   }
 
   if (body.campusIds !== undefined) {

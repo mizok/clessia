@@ -428,7 +428,7 @@ fail-closed 的授權一旦打開，**沒有資料的人看到的是空白不是
 | 角色、細部權限、帳號停用、分校指派、家長關聯 | **30 秒** | `authMiddleware` 身分三查的 per-isolate 快取（`apps/api/src/lib/identity-cache.ts`） | `middleware/auth.spec.ts`「撤銷最遲 30 秒生效」，上限寫死在 spec |
 
 - 30 秒快取**寫入點不主動清除**（計畫席 10-15 裁定）：管理員改自己的權限，畫面最多 30 秒仍舊。
-- **唯一例外：改自己的 `/api/me` 寫入**（`POST /api/me/activate-parent`、`PATCH /api/me`，#1631）成功後清掉**這個使用者在當下 isolate** 的快取（`invalidateIdentity`）。原因是寫入那個請求經過 middleware 時剛存進**舊**身分，前端立刻讀回就一定撞到（啟用家長身份後按鈕沒反應）。只清得到當下 isolate，所以前端另外直接採用寫入回傳的角色（`AuthService.adoptRoles`），不靠重抓。寫入失敗不清。守在 `routes/me-identity-cache.spec.ts`。
+- **唯一例外：改自己的 `/api/me` 寫入**（`PATCH /api/me`，#1631）成功後清掉**這個使用者在當下 isolate** 的快取（`invalidateIdentity`）。原因是寫入那個請求經過 middleware 時剛存進**舊**身分，前端立刻讀回就一定撞到（改名後標題列還是舊名）。寫入失敗不清。守在 `routes/me-identity-cache.spec.ts`。原本的 `POST /api/me/activate-parent` 與前端的 `AuthService.adoptRoles` 已隨 #1844 移除；家長頁把教職員設為家長時也會順手清一下，但那是別人的身分，最遲 30 秒才生效。
 - 只快取**成功**的查詢結果；失敗每次重查，不會變成 30 秒的 500。
 - 為什麼要快取：Worker → Supabase REST 每次 ~100–150ms，其中 PostgREST＋DB 只占 1–15ms（#1595 P0），慢在往返；每支受保護 API 原本固定 3 支身分查詢。
 

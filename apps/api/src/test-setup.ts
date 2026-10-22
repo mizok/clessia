@@ -47,7 +47,7 @@ afterEach(() => {
     '這個測試裡有東西靜默失敗了（正式站會被 try/catch 吞掉，測試裡不該吞）：\n  ' +
       lines +
       '\n\n通常是假的 supabase 替身少了鏈式方法。`logAudit` 走的是\n' +
-      "  from('profiles').select().eq().maybeSingle()  →  from('audit_logs').insert()\n" +
-      '兩段都要在替身上存在。',
+      "  from('audit_logs').insert()（名字由 lib/display-name.ts 的 loadDisplayName 查，查不到不會擋）\n" +
+      'insert 要在替身上存在。',
   );
 });

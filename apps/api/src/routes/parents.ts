@@ -11,6 +11,12 @@ import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
 import { inOrg } from '../lib/org-scope';
 import { checkChildren, replaceParentChildren } from '../lib/parent-children';
+import { invalidateIdentity } from '../lib/identity-cache';
+import {
+  decideExistingAccount,
+  findExistingAccounts,
+  linkStaffAsParent,
+} from '../lib/staff-as-parent';
 
 // ============================================================
 // Schemas
@@ -93,6 +99,11 @@ const CreateParentSchema = z
     phone: z.string().max(20).optional(),
     studentIds: z.array(DbUuidSchema).optional(),
     notes: z.string().max(2000).nullable().optional(),
+    /**
+     * #1844：Email／手機已是本機構教職員的帳號時，畫面確認後帶回 409 `STAFF_ACCOUNT_EXISTS` 給的 `userId`，
+     * 表示「把這位教職員設為家長」。後端會重新判斷，只在仍然是同一個人時才做。
+     */
+    linkExistingUserId: z.string().min(1).optional(),
   })
   .openapi('CreateParent');
 
@@ -146,6 +157,28 @@ export function toParentResponse(
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
+}
+
+/** #1844 擋下時的訊息（判斷在 lib/staff-as-parent.ts，這裡只是把碼翻成人看得懂的話） */
+function rejectMessage(code: string, details?: Record<string, unknown>): string {
+  switch (code) {
+    case 'DUPLICATE_EMAIL':
+      return 'Email 已被使用';
+    case 'DUPLICATE_PHONE':
+      return '此手機已被使用';
+    case 'ACCOUNT_CONFLICT':
+      return 'Email 與手機分別屬於不同帳號';
+    case 'PARENT_ALREADY_EXISTS':
+      return details?.['name']
+        ? `已經是家長「${String(details['name'])}」，請到列表編輯那一筆`
+        : '這個帳號已經是家長，請到列表編輯那一筆';
+    case 'SELF_LINK_FORBIDDEN':
+      return '請由其他管理員把你設為家長';
+    case 'STAFF_NOT_ACTIVE':
+      return `${String(details?.['staffName'] ?? '這位教職員')} 的教職員帳號已停用，不能設為家長`;
+    default:
+      return '無法建立家長';
+  }
 }
 
 function isDuplicateEmailError(message: string): boolean {
@@ -475,6 +508,102 @@ app.openapi(
 
     if (!body.email && !body.phone) {
       return c.json({ error: 'Email 或手機號碼至少填一個', code: 'EMAIL_OR_PHONE_REQUIRED' }, 400);
+    }
+
+    // #1844：Email／手機已經是某個帳號 —— 能不能把那位教職員設為家長（規格 parents.md 那張表）。
+    // 查詢失敗時退回原本的行為：照常走 createUser，既有帳號由它回 409 DUPLICATE_*
+    const existing = decideExistingAccount(
+      await findExistingAccounts(supabase, orgId, { email: body.email, phone: body.phone }).catch(
+        (err: unknown) => {
+          console.error('[parents] 查既有帳號失敗，照舊建帳號:', err);
+          return [];
+        },
+      ),
+      { orgId, requesterUserId: c.get('userId'), permissions: c.get('permissions') ?? [] },
+    );
+    if (existing.kind === 'reject') {
+      return c.json(
+        {
+          error: rejectMessage(existing.code, existing.details),
+          code: existing.code,
+          ...(existing.details ? { details: existing.details } : {}),
+        },
+        existing.status,
+      );
+    }
+    if (existing.kind === 'link') {
+      const { userId, staffName } = existing;
+      if (!body.linkExistingUserId) {
+        return c.json(
+          {
+            error: `這是 ${staffName}（教職員）的帳號，要把他設為家長嗎？`,
+            code: 'STAFF_ACCOUNT_EXISTS',
+            details: { userId, staffName },
+          },
+          409,
+        );
+      }
+      if (body.linkExistingUserId !== userId) {
+        return c.json({ error: '帳號資料已經變了，請重新送出', code: 'LINK_TARGET_CHANGED' }, 409);
+      }
+      const pool = getAuth(c).pool;
+      if (!pool) return c.json({ error: '設為家長失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+      const out = await linkStaffAsParent(pool, {
+        orgId,
+        userId,
+        name: staffName,
+        notes: body.notes ?? null,
+        studentIds: body.studentIds ?? [],
+        scope: getCampusScope(c),
+      }).catch((err: unknown) => {
+        console.error('[parents] 設為家長失敗:', err);
+        return null;
+      });
+      if (!out) return c.json({ error: '設為家長失敗', code: 'LINK_PARENT_FAILED' }, 500);
+      if (out.status === 'out-of-scope') {
+        return c.json({ error: '有孩子不在你的分校範圍內', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
+      }
+      if (out.status === 'student-not-found') {
+        return c.json({ error: '有孩子不屬於本機構', code: 'STUDENT_NOT_FOUND' }, 404);
+      }
+      if (out.status === 'already-parent') {
+        return c.json(
+          { error: rejectMessage('PARENT_ALREADY_EXISTS'), code: 'PARENT_ALREADY_EXISTS' },
+          409,
+        );
+      }
+
+      // 只清得到當下這個 isolate：對方最遲 30 秒才看得到家長身分（lib/identity-cache.ts）
+      invalidateIdentity(userId);
+      const parentId = out.parent['id'] as string;
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId: c.get('userId'),
+          resourceType: 'parent',
+          resourceId: parentId,
+          resourceName: staffName,
+          action: 'create',
+          details: { linkedExistingUser: true },
+        },
+        waitUntilFrom(c),
+      );
+      return c.json(
+        {
+          data: toParentResponse(out.parent, new Set(body.studentIds ?? []).size, {
+            email: body.email ?? null,
+            phone: body.phone ?? null,
+          }),
+          // 對方已經有帳號、平常怎麼登入就怎麼登入，不發新的登入連結
+          loginUrl: null,
+        },
+        201,
+      );
+    }
+    // 沒有既有帳號，卻帶著確認過的 id：那個帳號在兩次送出之間不見了（或 Email／手機改了）
+    if (body.linkExistingUserId) {
+      return c.json({ error: '帳號資料已經變了，請重新送出', code: 'LINK_TARGET_CHANGED' }, 409);
     }
 
     // #1843：孩子要屬於本 org、受限管理員還要在範圍內 —— 在建帳號之前驗，擋下來就什麼都沒建

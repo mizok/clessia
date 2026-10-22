@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { loadDisplayName } from '../lib/display-name';
 import { waitUntilFrom } from '../lib/wait-until';
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import type { AppEnv } from '../index';
@@ -1323,11 +1324,7 @@ app.openapi(createSessionRoute, async (c) => {
   }
   const sessionId = (created as { id: string }).id;
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', userId)
-    .maybeSingle();
+  const actorName = await loadDisplayName(supabase, orgId, userId);
 
   // ② 寫流水
   const { error: logError } = await supabase.from('schedule_changes').insert({
@@ -1338,7 +1335,7 @@ app.openapi(createSessionRoute, async (c) => {
     new_start_time: startTime,
     new_end_time: endTime,
     reason: body.reason ?? null,
-    created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+    created_by_name: actorName,
     operation_source: 'single',
   });
   if (logError) {
@@ -1860,11 +1857,7 @@ app.openapi(setSessionMakeupRoute, async (c) => {
     return c.json({ error: '那堂停課已經有補課了', code: 'MAKEUP_TARGET_ALREADY_COVERED' }, 409);
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', userId)
-    .maybeSingle();
+  const actorName = await loadDisplayName(supabase, orgId, userId);
 
   // ② 再寫流水
   const { error: logError } = await supabase.from('schedule_changes').insert({
@@ -1872,7 +1865,7 @@ app.openapi(setSessionMakeupRoute, async (c) => {
     session_id: id,
     change_type: 'makeup',
     reason: `補 ${(target as { session_date: string }).session_date} 停課`,
-    created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+    created_by_name: actorName,
   });
 
   if (logError) {
@@ -2074,15 +2067,7 @@ app.openapi(cancelSessionRoute, async (c) => {
     return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profileError) {
-    return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
-  }
+  const actorName = await loadDisplayName(supabase, orgId, userId);
 
   const { error: insertError } = await supabase.from('schedule_changes').insert(
     buildSingleSessionChangeInsert({
@@ -2090,7 +2075,7 @@ app.openapi(cancelSessionRoute, async (c) => {
       sessionId: id,
       changeType: 'cancellation',
       sessionState,
-      createdByName: profile?.display_name ?? null,
+      createdByName: actorName,
       reason: body.reason ?? null,
     }),
   );
@@ -2360,15 +2345,7 @@ app.openapi(substituteSessionRoute, async (c) => {
     return c.json({ error: '更新失敗', code: 'UPDATE_FAILED' }, 400);
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profileError) {
-    return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
-  }
+  const actorName = await loadDisplayName(supabase, orgId, userId);
 
   const { error: insertError } = await supabase.from('schedule_changes').insert(
     buildSingleSessionChangeInsert({
@@ -2376,7 +2353,7 @@ app.openapi(substituteSessionRoute, async (c) => {
       sessionId: id,
       changeType: 'substitute',
       sessionState,
-      createdByName: profile?.display_name ?? null,
+      createdByName: actorName,
       reason: body.reason ?? null,
       substituteTeacherId: body.substituteTeacherId,
     }),
@@ -2589,15 +2566,7 @@ app.openapi(rescheduleSessionRoute, async (c) => {
     return c.json({ error: '更新失敗', code: 'UPDATE_FAILED' }, 400);
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profileError) {
-    return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
-  }
+  const actorName = await loadDisplayName(supabase, orgId, userId);
 
   const { error: insertError } = await supabase.from('schedule_changes').insert(
     buildSingleSessionChangeInsert({
@@ -2605,7 +2574,7 @@ app.openapi(rescheduleSessionRoute, async (c) => {
       sessionId: id,
       changeType: 'reschedule',
       sessionState,
-      createdByName: profile?.display_name ?? null,
+      createdByName: actorName,
       reason: body.reason ?? null,
       newSessionDate: body.newSessionDate,
       newStartTime,
@@ -3254,13 +3223,13 @@ app.openapi(batchSubstituteRoute, async (c) => {
 
   if (!dryRun && processableIds.length > 0) {
     const originalTeacherIds = [...new Set(processable.map((s) => s.teacher_id as string))];
-    const [{ data: nameRows }, { data: profile }] = await Promise.all([
+    const [{ data: nameRows }, actorName] = await Promise.all([
       supabase
         .from('staff')
         .select('id, display_name')
         .eq('org_id', orgId)
         .in('id', originalTeacherIds),
-      supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+      loadDisplayName(supabase, orgId, userId),
     ]);
     const nameById = new Map(
       ((nameRows ?? []) as Array<{ id: string; display_name: string | null }>).map((r) => [
@@ -3289,7 +3258,7 @@ app.openapi(batchSubstituteRoute, async (c) => {
       original_teacher_name: nameById.get(s.teacher_id as string) ?? null,
       substitute_teacher_id: substituteId,
       reason: body.reason ?? null,
-      created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+      created_by_name: actorName,
       operation_source: 'batch' as const,
       batch_id: batchId,
     }));
@@ -3546,20 +3515,12 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileError) {
-      return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
-    }
+    const actorName = await loadDisplayName(supabase, orgId, userId);
 
     const changes = buildBatchSessionChangeInserts({
       orgId,
       batchId: crypto.randomUUID(),
-      createdByName: profile?.display_name ?? null,
+      createdByName: actorName,
       changeType: 'time_change',
       sessionStates: targetSessions
         .filter((session) => processableIds.includes(session.id))
@@ -3931,11 +3892,7 @@ app.openapi(batchRescheduleRoute, async (c) => {
 
     // ② 逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195）
     const batchId = crypto.randomUUID();
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .maybeSingle();
+    const actorName = await loadDisplayName(supabase, orgId, userId);
     const changeRows = processable.map((t) => {
       const l = landing.get(t.id)!;
       return {
@@ -3949,7 +3906,7 @@ app.openapi(batchRescheduleRoute, async (c) => {
         new_start_time: l.start,
         new_end_time: l.end,
         reason: body.reason ?? null,
-        created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+        created_by_name: actorName,
         operation_source: 'batch' as const,
         batch_id: batchId,
       };
@@ -4126,20 +4083,12 @@ app.openapi(batchCancelRoute, async (c) => {
       return c.json({ error: cancelError.message, code: 'DB_ERROR' }, 400);
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileError) {
-      return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
-    }
+    const actorName = await loadDisplayName(supabase, orgId, userId);
 
     const changeRows = buildBatchSessionChangeInserts({
       orgId,
       batchId: crypto.randomUUID(),
-      createdByName: profile?.display_name ?? null,
+      createdByName: actorName,
       changeType: 'cancellation',
       sessionStates: targetSessions
         .filter((session) => processableIds.includes(session.id))
@@ -4536,16 +4485,12 @@ app.openapi(batchUncancelRoute, async (c) => {
       }
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .maybeSingle();
+    const actorName = await loadDisplayName(supabase, orgId, userId);
 
     const changeRows = buildBatchSessionChangeInserts({
       orgId,
       batchId: crypto.randomUUID(),
-      createdByName: profile?.display_name ?? null,
+      createdByName: actorName,
       changeType: 'uncancel',
       sessionStates: targetSessions
         .filter((session) => processableIds.includes(session.id))

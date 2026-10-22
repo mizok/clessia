@@ -341,7 +341,8 @@
       <!--
         其餘三章（A6 `.colls`）：收成摘要列，展開才抓；已繳清章的多退併在最前面。
         同一組一次只開一個（#1705，`<details name>`）：開了另一章，瀏覽器會收起這章並發 toggle，
-        `onChapterToggle` 把狀態對回來。內容一直渲染（沒抓到時是「載入中…」），高度過渡才有東西可量。
+        `onChapterToggle` 把狀態對回來。內容一直渲染（沒抓到時是骨架），高度過渡才有東西可量。
+        骨架換成列表時高度用滑的（appHeightFollow，#1853）。
       -->
       @if (chapterList().length) {
         <div class="colls">
@@ -363,9 +364,18 @@
                   }
                 </span>
               </summary>
-              <div class="coll__body">
-                <app-reload-veil [loading]="chapter.state.loading">
-                  <p reloadSkeleton class="m-0 py-3 text-sm text-zinc-600">載入中…</p>
+              <div class="coll__body" appHeightFollow>
+                <app-reload-veil class="block" [loading]="chapter.state.loading">
+                  <div
+                    reloadSkeleton
+                    class="flex flex-col gap-5 py-4"
+                    role="status"
+                    aria-label="載入中…"
+                  >
+                    @for (i of [1, 2, 3]; track i) {
+                      <span class="skeleton-bar"></span>
+                    }
+                  </div>
                   @if (chapter.state.failed) {
                     <p class="m-0 py-3 text-sm text-zinc-600">
                       沒有讀到這一章的帳單

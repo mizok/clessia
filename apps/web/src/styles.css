@@ -222,10 +222,12 @@
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
   }
+  /* 基底照 A6（`shared/world.css` 的 body：14px、不指定字重＝400；#1591）。
+     原本 13px／500 —— 每一頁 conformance 都量到同一組差，屬於這裡，不是各頁 */
   body {
     font-family: var(--font-sans);
-    font-size: var(--text-md);
-    font-weight: var(--font-medium);
+    font-size: var(--text-base);
+    font-weight: var(--font-normal);
     color: var(--zinc-900);
     background-color: var(--zinc-100);
     line-height: var(--leading-normal);
@@ -345,11 +347,39 @@
       max-width: 320px;
     }
   }
+  /* 框畫在外層、input 透明（A6 `.tbar .tsearch`：label 帶框，裡面的 input 沒有底與框；#1591／D7） */
+  .clessia-filter-search {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    border: 1px solid var(--zinc-300);
+    border-radius: var(--radius-md);
+    background: #fff;
+  }
+  .clessia-filter-search:focus-within {
+    border-color: var(--zinc-900);
+  }
+  .clessia-filter-search > .p-iconfield {
+    flex: 1;
+  }
   .clessia-filter-search .p-inputtext,
   .clessia-filter-search-input {
     width: 100%;
     min-height: 38px;
-    font-size: var(--text-md);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: var(--text-base);
+  }
+  @media (max-width: 860px) {
+    .clessia-filter-search {
+      min-height: 48px;
+    }
+    .clessia-filter-search .p-inputtext,
+    .clessia-filter-search-input {
+      font-size: var(--text-lg);
+    }
   }
   .p-inputnumber-input {
     min-width: 0;
@@ -1258,8 +1288,9 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
+  /* 灰框 12px（A6 是 4px，使用者 10-22 嫌太窄，a6-adoption-rules R5）。列的分隔線畫在白底裡，跟著內縮 */
   .coll__body {
-    margin: 0 var(--space-1) var(--space-1);
+    margin: 0 var(--space-3) var(--space-3);
     padding: var(--space-2) var(--space-5) var(--space-6);
     background: #fff;
     border-radius: var(--radius-md);

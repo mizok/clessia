@@ -534,3 +534,237 @@ describe('#833 人員刪除與孤兒 ba_user', () => {
     });
   });
 });
+
+/**
+ * #1829：`["*"]`（全部權限）要能讀出來、原樣存回去；持有 `*` 的人可以替自己加減
+ * 非 admin 角色，但不能改自己的權限、不能拿掉自己的 admin。
+ *
+ * 原本 GET 把 `*` 濾掉 → 表單全沒勾 → 別人替這個帳號存檔，admin 列就被重建成 `[]`。
+ */
+describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const STAFF = '00000000-0000-0000-0000-0000000000d9';
+  const ME = 'me-user';
+
+  interface Setup {
+    /** 被改的那個人；等於 `ME` 就是改自己 */
+    readonly targetUser: string;
+    /** 請求者的權限（auth middleware 塞的） */
+    readonly requesterPermissions: string[];
+    /** 被改的人原本在 user_roles 的列 */
+    readonly priorRows: Array<{ role: string; permissions: string[] }>;
+    /** 請求者的分校範圍；沒給＝不受限 */
+    readonly scope?: string[] | null;
+  }
+
+  function fakeDb(setup: Setup) {
+    const inserted: Array<{ role?: string; permissions?: string[] }> = [];
+    const deletes: string[] = [];
+    const updated: Array<{ table: string; patch: Record<string, unknown> }> = [];
+    const adminRow = setup.priorRows.find((row) => row.role === 'admin');
+
+    const make = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      // 照 `.in('role', …)` 過濾（#1831 二讀 R2：讀 selfPrior 的條件要真的生效，替身不能全吐）
+      let roleIn: string[] | null = null;
+      Object.assign(builder, {
+        select: () => chain(),
+        insert: (rows: unknown) => {
+          if (table === 'user_roles') inserted.push(...(Array.isArray(rows) ? rows : [rows]));
+          return chain();
+        },
+        update: (patch: Record<string, unknown>) => {
+          updated.push({ table, patch });
+          return chain();
+        },
+        delete: () => {
+          deletes.push(table);
+          return chain();
+        },
+        eq: () => chain(),
+        in: (column: string, values: string[]) => {
+          if (column === 'role') roleIn = values;
+          return chain();
+        },
+        order: () => chain(),
+        limit: () => chain(),
+        maybeSingle: () =>
+          Promise.resolve({
+            data:
+              table === 'staff'
+                ? { id: STAFF, user_id: setup.targetUser, org_id: ORG, display_name: '某人' }
+                : table === 'user_roles'
+                  ? // checkUserIsAdmin（請求者是 admin）與「原本的 admin 權限」共用這一條
+                    { role: 'admin', permissions: adminRow?.permissions ?? [] }
+                  : null,
+            error: null,
+          }),
+        single: () => Promise.resolve({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) =>
+          resolve({
+            data:
+              table === 'user_roles'
+                ? setup.priorRows
+                    .filter((row) => !roleIn || roleIn.includes(row.role))
+                    .map((row) => ({ ...row, user_id: setup.targetUser }))
+                : [],
+            count: 0,
+            error: null,
+          }),
+      });
+      return builder;
+    };
+
+    return { inserted, deletes, updated, from: (table: string) => make(table) };
+  }
+
+  function appWith(setup: Setup) {
+    const db = fakeDb(setup);
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db);
+      set('orgId', ORG);
+      set('userId', ME);
+      set('roles', ['admin']);
+      set('permissions', setup.requesterPermissions);
+      set('campusScope', setup.scope ?? null);
+      await next();
+    });
+    app.route('/', staffRoute.default as unknown as Hono);
+    return { app, db };
+  }
+
+  async function put(setup: Setup, body: unknown) {
+    const { app, db } = appWith(setup);
+    const res = await app.request(`/${STAFF}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, db };
+  }
+
+  const superMe: Setup = {
+    targetUser: ME,
+    requesterPermissions: ['*'],
+    priorRows: [{ role: 'admin', permissions: ['*'] }],
+  };
+
+  it('GET 讀得到 `*` —— 不再被濾掉', async () => {
+    const { app } = appWith({ ...superMe, targetUser: 'someone' });
+    const res = await app.request(`/${STAFF}`);
+    const body = (await res.json()) as { data: { permissions: string[] } };
+
+    expect(res.status).toBe(200);
+    expect(body.data.permissions).toEqual(['*']);
+  });
+
+  it('`*` 的人替自己加 teacher → 200，admin 列仍是 ["*"]', async () => {
+    const { status, db } = await put(superMe, { roles: ['admin', 'teacher'], permissions: ['*'] });
+
+    expect(status).toBe(200);
+    expect(db.inserted).toEqual([
+      { user_id: ME, role: 'admin', permissions: ['*'] },
+      { user_id: ME, role: 'teacher', permissions: [] },
+    ]);
+  });
+
+  it('`*` 的人改自己的 permissions → 403，什麼都沒動', async () => {
+    const { status, db } = await put(superMe, { roles: ['admin'], permissions: ['manage_staff'] });
+
+    expect(status).toBe(403);
+    expect(db.deletes).toEqual([]);
+  });
+
+  it('`*` 的人拿掉自己的 admin → 403', async () => {
+    const { status, db } = await put(
+      { ...superMe, priorRows: [...superMe.priorRows, { role: 'teacher', permissions: [] }] },
+      { roles: ['teacher'] },
+    );
+
+    expect(status).toBe(403);
+    expect(db.deletes).toEqual([]);
+  });
+
+  it('沒有 `*` 的人替自己加 teacher → 403', async () => {
+    const own = ['manage_staff', 'manage_roles'];
+    const { status } = await put(
+      {
+        targetUser: ME,
+        requesterPermissions: own,
+        priorRows: [{ role: 'admin', permissions: own }],
+      },
+      { roles: ['admin', 'teacher'], permissions: own },
+    );
+
+    expect(status).toBe(403);
+  });
+
+  it('`*` 的人替自己改名（表單照樣帶 roles／permissions）→ 200，角色權限不變', async () => {
+    const { status, db } = await put(superMe, {
+      displayName: '新名字',
+      roles: ['admin'],
+      permissions: ['*'],
+    });
+
+    expect(status).toBe(200);
+    expect(db.updated.find((u) => u.table === 'staff')?.patch).toEqual({ display_name: '新名字' });
+    expect(db.inserted).toEqual([{ user_id: ME, role: 'admin', permissions: ['*'] }]);
+  });
+
+  it('沒有 `*` 的管理員（有 manage_roles）替別人設 ["*"] → 403', async () => {
+    const { status, db } = await put(
+      {
+        targetUser: 'someone',
+        requesterPermissions: ['manage_staff', 'manage_roles'],
+        priorRows: [{ role: 'admin', permissions: ['basic_operations'] }],
+      },
+      { roles: ['admin'], permissions: ['*'] },
+    );
+
+    expect(status).toBe(403);
+    expect(db.deletes).toEqual([]);
+  });
+
+  it('替原本是 `*` 的帳號原樣存檔 → 仍是 ["*"]', async () => {
+    const { status, db } = await put(
+      { ...superMe, targetUser: 'someone' },
+      { displayName: '某人', roles: ['admin'], permissions: ['*'] },
+    );
+
+    expect(status).toBe(200);
+    expect(db.inserted).toEqual([{ user_id: 'someone', role: 'admin', permissions: ['*'] }]);
+  });
+
+  // #1831 二讀 Q8：沒帶 roles＝不動，要拿原本的角色比，不是當成「拿掉全部」
+  it('`*` 的人改自己、只帶原樣的 permissions（沒帶 roles）→ 200', async () => {
+    const { status } = await put(superMe, { displayName: '新名字', permissions: ['*'] });
+    expect(status).toBe(200);
+  });
+
+  // R2：讀 selfPrior 要包含 admin 列（.in('role', ['admin','teacher'])）—— 讀不到就會把改名誤判成拿掉 admin
+  it('`*` 管理員兼老師替自己改名 → 200（selfPrior 讀得到 admin 與 teacher 兩列）', async () => {
+    const { status } = await put(
+      { ...superMe, priorRows: [...superMe.priorRows, { role: 'teacher', permissions: [] }] },
+      { displayName: '新名字', roles: ['admin', 'teacher'], permissions: ['*'] },
+    );
+    expect(status).toBe(200);
+  });
+
+  // C1：受限分校的管理員碰 `*` 帳號 —— `*` 涵蓋 all_campuses，原樣存回也擋（說明裡的第二個行為變動）
+  it('受限分校的管理員替 `*` 帳號原樣存檔 → 403', async () => {
+    const { status, db } = await put(
+      {
+        targetUser: 'someone',
+        requesterPermissions: ['manage_staff', 'manage_roles'],
+        priorRows: [{ role: 'admin', permissions: ['*'] }],
+        scope: ['campus-1'],
+      },
+      { roles: ['admin'], permissions: ['*'] },
+    );
+    expect(status).toBe(403);
+    expect(db.deletes).toEqual([]);
+  });
+});

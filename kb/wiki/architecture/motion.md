@@ -76,6 +76,16 @@ Playwright（獨立瀏覽器 context，不碰共用的 Chrome session），admin
 - **減少動態**：一律關掉位移與過程，資訊直接出現。Chrome 官方提醒「減少動態」不等於完全不要動，建議改用更輕微的動畫（[Chrome：Same-document view transitions](https://developer.chrome.com/docs/web-platform/view-transitions/same-document)），**但 A6 的做法是全部關掉**（`a6.css:195` 把 transition 壓到 0.01ms）。A6 全採（[[architecture/a6-adoption-rules]] R1），所以照 A6。
 - **不支援 VT 的瀏覽器直接瞬間切換**，不做替代動畫。
 
+### 縮放：viewport `maximum-scale=1`（#1867）
+
+iOS Safari 聚焦字級小於 16px 的輸入框會自動放大整頁（#1817 之後基底是 14px，全站輸入框都會中）。使用者 10-22 裁定**禁止放大**：
+`index.html` 的 viewport 加 `maximum-scale=1`，**不加** `user-scalable=no`。推翻了原本「觸控裝置輸入框至少 16px、不關縮放」的做法。
+
+- iOS 10 以後的 Safari 忽略 scale 限制，使用者自己兩指放大仍然可以；Android Chrome 會遵守，兩指放大被擋 —— 使用者接受的取捨。
+- 輸入框字級照設計稿，不強制 16px。
+- `app/ios-input-zoom.spec.ts` 守 meta（有 `maximum-scale=1`、沒有 `user-scalable`）。
+- Playwright WebKit 的 iPhone 模擬**重現不了**聚焦放大（main 上 14px 的輸入框聚焦後 `visualViewport.scale` 也是 1），所以模擬器的 scale=1 不能當作這個問題修好的證據，要實機確認。
+
 ### 換頁：依網址深度決定方向
 
 | 從 → 到                            | 例                                     | 動態                                          |
@@ -114,6 +124,15 @@ Playwright（獨立瀏覽器 context，不碰共用的 Chrome session），admin
 - **補位**：只在刪除時用 VT，畫面上看得到的列各給一個唯一名字，共用的動畫樣式用 `view-transition-class` 寫一次（同上 Chrome 文件）。新增不需要補位動畫：新列從上方淡入，下面的列只是被往下推。
 - **前提是 `@for` 用真正的 id 當 `track`**。repo 裡有 11 處 `track $index`，大多是固定清單；套用到某個列表之前要先檢查那一處，否則被刪的會是錯的那一列。
 - 「重新整理整份列表」（篩選、換分校）不算新增或刪除，照「頁內模式切換」處理，**不讓每一列都跑一次進場**。
+
+### 資料回來撐開版面：高度滑過去（#1853）
+
+使用者 10-22：「跳改成滑沒有問題」。骨架換成真資料、內容變高變矮這種**不是使用者操作造成**的位移，不用 VT（VT 期間點擊被吞，§3），
+改成容器高度用 WAAPI 從舊高度滑到新高度：`shared/directives/height-follow.directive.ts`（`appHeightFollow`，200ms `--arrive`）。
+
+- 掛在容器上，量的是它的**第一個子元素**（要是 block）。第一次從 0 長出來（例如 `<details>` 剛打開）不動 —— 那段交給元件自己的展開過渡，不疊兩段。
+- 減少動態時不動；動畫中 `overflow: clip`，結束就拿掉。
+- 舊內容是空的時候（第一次載入、上次失敗）不要再包 VT 換場 —— 沒有東西可以交叉淡化，只剩高度要滑。
 
 ### 數字變化
 

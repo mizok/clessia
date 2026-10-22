@@ -32,9 +32,11 @@ import {
     @if (phase() === 'initial') {
       <ng-content select="[reloadSkeleton]" />
     } @else {
+      <!-- min-h-8：重抓時舊內容是空的（例：上次失敗後按重試），膠囊（約 30px）也要整顆露出，不被下面的東西切掉（#1853） -->
       <div
         class="reload-veil relative"
         [class.reload-veil--stale]="phase() === 'stale'"
+        [class.min-h-8]="phase() === 'stale'"
         [class.cursor-progress]="phase() === 'stale'"
         [attr.aria-busy]="phase() === 'stale' ? 'true' : null"
       >

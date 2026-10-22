@@ -720,6 +720,70 @@ export const PAGES = {
     app: '/parent/payments',
     state: path.join(cache, 'state-parent.json'),
   },
+  'p-meals': {
+    a6: 'p-meals.html',
+    app: '/parent/meals',
+    state: path.join(cache, 'state-parent.json'),
+    popovers: { mexp: 'meals-export' },
+    deviations: [
+      {
+        status: '缺',
+        a6: 'landmark:popover\\[匯出餐費\\]>text:span\\[新\\]$',
+        reason: '稿的「新」標記是設計說明（產品原本沒有匯出），不是畫面內容',
+        source: '.design-explorations p-meals.html notes「匯出」列',
+      },
+      {
+        status: '多',
+        app: 'control:combobox\\[期間\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      {
+        status: '多',
+        app: 'control:button\\[dropdown trigger\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      // 稿一列四欄（日期、餐別、備註、金額）；API 沒有餐別（meal-rules 每生每日一筆）、
+      // 不回行政備註（#1117 計畫席裁定的欄位 allowlist），app 一列兩欄 —— 列內的 span 配對因此錯位
+      ...['缺', '多', '位置', '樣式'].map((status) => ({
+        status,
+        a6: status === '多' ? undefined : '>row>(row|text:span(~\\d)?)$',
+        app: status === '缺' ? undefined : '>row>(row|text:span(~\\d)?)$',
+        reason: '明細列少了餐別、備註兩欄：API 沒有這兩項資料',
+        source: 'apps/api/src/routes/parent/meals.ts（#1117 欄位 allowlist）',
+      })),
+    ],
+  },
+  'p-dashboard': {
+    a6: 'p-dashboard.html',
+    app: '/parent/dashboard',
+    state: path.join(cache, 'state-parent.json'),
+    deviations: [
+      // 稿每一節標題後的「新」是設計說明（產品原本沒有這一節），不是畫面內容
+      {
+        status: '缺',
+        a6: 'heading:h2\\[[^\\]]*新\\]>text:span\\[新\\]$',
+        reason: '稿的「新」標記是設計說明，不是畫面內容',
+        source: '.design-explorations p-dashboard.html notes「整頁」列',
+      },
+      {
+        status: '文案',
+        a6: '(heading:h2|landmark:region)\\[[^\\]]*新\\]$',
+        detail: '^「[^」]*新」→',
+        reason: '稿的「新」標記是設計說明，不是畫面內容',
+        source: '.design-explorations p-dashboard.html notes「整頁」列',
+      },
+      // 續課預告條（.pd-renew）：沒有自動開單日，算不出 T-5～T-0 的出現窗口
+      ...['缺', '文案', '位置', '樣式', '尺寸'].map((status) => ({
+        status,
+        a6: 'control:link\\[申請異動\\]$|text:span\\[[^\\]]*續課預告',
+        reason:
+          '續課預告條這次不做：沒有自動開單日，算不出出現窗口（計畫席 10-22 裁定，使用者已裁定自動續課先不做）',
+        source: 'kb/wiki/flows/renewal.md:21-31（T 的定義）',
+      })),
+    ],
+  },
   'p-notifications': {
     a6: 'p-notifications.html',
     app: '/parent/notifications',

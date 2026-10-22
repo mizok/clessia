@@ -376,13 +376,24 @@ export class ParentsPage implements OnInit {
     if (!ref) return;
     ref.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result?: { type: string; data: Parent; loginUrl: string }) => {
-        if (!result) return;
-        if (result.type === 'created') {
-          this.loadParents({ rows: true });
-          this.openLoginLinkDialog(result.data, result.loginUrl);
-        }
-      });
+      .subscribe(
+        (result?: { type: string; data: Parent; loginUrl: string; linkedStaff?: boolean }) => {
+          if (!result) return;
+          if (result.type === 'created') {
+            this.loadParents({ rows: true });
+            // #1844：設為家長的是已有帳號的教職員，沒有新的登入連結可給
+            if (result.linkedStaff) {
+              this.messageService.add({
+                severity: 'success',
+                summary: `已把 ${result.data.name} 設為家長`,
+                detail: '稍後重新整理即可切換到家長身分',
+              });
+              return;
+            }
+            this.openLoginLinkDialog(result.data, result.loginUrl);
+          }
+        },
+      );
   }
 
   protected openImportDialog(): void {

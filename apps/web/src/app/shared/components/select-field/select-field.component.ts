@@ -51,6 +51,8 @@ export class SelectFieldComponent<T> {
    * 桌機 30px 高、12px 字。手機底部面板沿用一般尺寸。
    */
   readonly compact = input(false);
+  /** 標籤只給讀屏（A6 `<span class="sr">`，例如餐費頁的「期間」、聯絡簿的篩選列與區塊標題列 #1877）；框的尺寸不變 */
+  readonly hideLabel = input(false);
   /** 表單欄位（#1665 公開表單）：標籤後加 A6 的必填星號（讀屏不念，必填由錯誤訊息說） */
   readonly required = input(false);
   /** 驗證沒過：框換成錯誤色（A6 `.is-bad`） */

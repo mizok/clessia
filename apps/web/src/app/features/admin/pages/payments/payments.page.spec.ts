@@ -5,7 +5,7 @@ import { By } from '@angular/platform-browser';
 import { Popover } from 'primeng/popover';
 import { format } from 'date-fns';
 import { provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -1157,6 +1157,18 @@ describe('PaymentsPage', () => {
       component['onChapterToggle']('dueSoon', false);
       expect(component['chapters']().dueSoon.open).toBe(false);
       expect(invoices.list).not.toHaveBeenCalled();
+    });
+
+    // #1853：章的初始狀態若是 loading=false，reload-veil 會當成「載入過」，第一次展開就走重抓：
+    // 膠囊疊在空列表上、被下一章切掉。第一次要是骨架
+    it('第一次展開、資料還沒回來：顯示骨架，不是疊在空列表上的重抓膠囊', async () => {
+      await render();
+      invoices.list.mockReturnValue(NEVER);
+      component['onChapterToggle']('dueSoon', true);
+      await render();
+      const body = el().querySelector('details.coll .coll__body')!;
+      expect(body.querySelector('[role="status"] .skeleton-bar')).not.toBeNull();
+      expect(body.querySelector('.reload-veil__status')).toBeNull();
     });
 
     it('章裡最後一列不畫分隔線', async () => {

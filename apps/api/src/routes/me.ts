@@ -81,18 +81,16 @@ app.openapi(
     // 先走 SQL（Hyperdrive，一次往返），失敗或形狀不對就走原本的兩支 REST（見 lib/identity-sql.ts）
     const auth = getAuth(c);
     const viaRest = async (): Promise<MeExtras> => {
-      const [p, u, nickname] = await Promise.all([
-        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+      const [u, nickname] = await Promise.all([
         supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
         staff ? loadNickname(supabase, userId, orgId) : null,
       ]);
       return {
-        profile: p.data as MeExtras['profile'],
         baUser: u.data as MeExtras['baUser'],
         nickname,
       };
     };
-    const { profile, baUser, nickname }: MeExtras =
+    const { baUser, nickname }: MeExtras =
       (auth.pool ? await loadMeExtrasViaSql(auth.pool, userId, orgId) : null) ?? (await viaRest());
 
     return c.json(
@@ -101,7 +99,6 @@ app.openapi(
         orgId,
         // profiles 不是可靠的來源 —— 見 lib/display-name.ts
         displayName: resolveDisplayName({
-          profile,
           staff,
           parent,
           baUser,
@@ -212,15 +209,12 @@ app.openapi(
       );
     }
 
-    const [profileResult, rolesResult, staffResult, parentResult, baUserResult] = await Promise.all(
-      [
-        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
-        supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
-        supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
-        supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
-      ],
-    );
+    const [rolesResult, staffResult, parentResult, baUserResult] = await Promise.all([
+      supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
+      supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
+      supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
+      supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
+    ]);
 
     // 寫入成功才清（#1631）：前端接著重抓 /api/me，不清的話同一個 isolate 會回快取裡的舊名字／生日
     invalidateIdentity(userId);
@@ -230,7 +224,6 @@ app.openapi(
         userId,
         orgId: c.get('orgId'),
         displayName: resolveDisplayName({
-          profile: profileResult.data,
           staff: staffResult.data,
           parent: parentResult.data,
           baUser: baUserResult.data,
@@ -245,105 +238,6 @@ app.openapi(
         ),
         // 改個人資料動不到分校指派，沿用 middleware 那份
         assignedCampusIds: c.get('selfRows').assignedCampusIds,
-      },
-      200,
-    );
-  },
-);
-
-// POST /api/me/activate-parent
-app.openapi(
-  createRoute({
-    method: 'post',
-    path: '/activate-parent',
-    tags: ['Me'],
-    summary: '啟用家長身份',
-    responses: {
-      200: {
-        description: '啟用成功',
-        content: {
-          'application/json': {
-            schema: z.object({ roles: z.array(z.string()) }),
-          },
-        },
-      },
-      500: {
-        description: '伺服器錯誤',
-        content: { 'application/json': { schema: ErrorSchema } },
-      },
-    },
-  }),
-  async (c) => {
-    const supabase = c.get('supabase');
-    const userId = c.get('userId');
-    const orgId = c.get('orgId');
-
-    // Step 1：取得或建立 parents 記錄
-    const { data: existingParent } = await supabase
-      .from('parents')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('org_id', orgId)
-      .maybeSingle();
-
-    if (!existingParent) {
-      // 名字：員工姓名（同 org，middleware 已查好）→ 帳號名。原本只讀 profiles、讀不到就寫死
-      // 「家長」—— 沒有任何路徑會新增 profiles 列（lib/display-name.ts），於是管理員啟用家長身份後，
-      // 家長列表多出一位叫「家長」的人，本人以為自己不在列表裡（10-22 正式環境）。
-      // profiles 已經沒有人新增，這裡不再讀它。
-      const { data: baUser } = await supabase
-        .from('ba_user')
-        .select('name')
-        .eq('id', userId)
-        .maybeSingle();
-      const name =
-        resolveDisplayName({
-          staff: c.get('selfRows').staff,
-          baUser: baUser as { name?: string | null } | null,
-        }) || '家長'; // ponytail: 兩處都空才會走到（ba_user.name NOT NULL，只可能是空字串），留著是因為 parents.name NOT NULL
-
-      const { error: parentError } = await supabase.from('parents').insert({
-        user_id: userId,
-        org_id: orgId,
-        name,
-        status: 'active',
-      });
-
-      if (parentError) {
-        return c.json({ error: '建立家長資料失敗', code: 'CREATE_PARENT_FAILED' }, 500);
-      }
-    }
-
-    // Step 2：新增 parent role
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .upsert(
-        { user_id: userId, role: 'parent', permissions: [] },
-        { onConflict: 'user_id,role', ignoreDuplicates: true },
-      );
-
-    if (roleError) {
-      return c.json({ error: '賦予角色失敗', code: 'GRANT_ROLE_FAILED' }, 500);
-    }
-
-    // 寫入成功就清（#1631）：這個請求經過 middleware 時剛把**沒有 parent** 的身分存進快取，
-    // 不清的話前端接著打的 /api/me 在同一個 isolate 會拿到舊角色，30 秒內畫面毫無變化。
-    // 放在讀回之前：讀回失敗時寫入已經生效，快取裡那份確定是舊的，清掉只會多一次重查，不會放行
-    invalidateIdentity(userId);
-
-    const { data: rolesResult, error: rolesError } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
-
-    // 讀回失敗不能回 200 {roles: []}：前端會照單全收，把畫面上的角色清空還跳「已啟用」
-    if (rolesError) {
-      return c.json({ error: '讀取角色失敗', code: 'READ_ROLES_FAILED' }, 500);
-    }
-
-    return c.json(
-      {
-        roles: (rolesResult ?? []).map((r: { role: string }) => r.role),
       },
       200,
     );

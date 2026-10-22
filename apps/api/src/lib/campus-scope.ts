@@ -1,4 +1,4 @@
-import { hasPermission } from './permissions';
+import { hasPermission, WILDCARD_PERMISSION } from './permissions';
 
 /**
  * 取用 `campusScope` 時只需要 `c.get`，**刻意不收整個 `Context<AppEnv>`** ——
@@ -245,5 +245,9 @@ export function grantsWiderThanScope(
   scope: CampusScope,
   grantedPermissions: readonly string[] | undefined,
 ): boolean {
-  return scope !== null && (grantedPermissions ?? []).includes('all_campuses');
+  // `*` 涵蓋 all_campuses（#1829 起 PUT 收得到 `*`）
+  return (
+    scope !== null &&
+    (grantedPermissions ?? []).some((p) => p === 'all_campuses' || p === WILDCARD_PERMISSION)
+  );
 }

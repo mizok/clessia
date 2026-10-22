@@ -71,6 +71,7 @@
 @source './app/features/kiosk';
 @source './app/features/parent/pages/payments';
 @source './app/features/parent/pages/attendance';
+@source './app/features/parent/pages/meals';
 @source './app/features/parent/pages/grades';
 @source './app/features/parent/shared/child-switcher';
 @source './app/features/parent/shared/push-settings';

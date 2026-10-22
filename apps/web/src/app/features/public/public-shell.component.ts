@@ -5,6 +5,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map, startWith } from 'rxjs';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
+import { PublicFormsService } from './pages/application-form/public-forms.service';
 
 /** 手機的右面（表單面）用網址片段表示：重新整理、瀏覽器返回鍵都跟著同一個狀態走 */
 const FORM_FRAGMENT = 'form';
@@ -73,10 +74,19 @@ export class PublicShellComponent {
     );
   });
 
+  /** 品牌面的主標（#1858）。讀不到（沒開放公開頁、斷線）就不顯示，不擋任何入口 */
+  protected readonly orgName = signal<string | null>(null);
+
   /** 入口連結推進歷史時帶的記號：返回列看到它就 back（跟瀏覽器返回鍵同一條路） */
   protected readonly pushedState = { publicForm: true };
 
   constructor() {
+    inject(PublicFormsService)
+      .org()
+      .then(
+        ({ name }) => this.orgName.set(name),
+        () => undefined,
+      );
     const mq = matchMedia('(max-width: 1024px)');
     const sync = () => this.isMobile.set(mq.matches);
     sync();
