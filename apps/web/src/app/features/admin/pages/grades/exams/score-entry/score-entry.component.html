@@ -16,14 +16,17 @@
     @if (examInfo(); as info) {
       {{ info.name }}
       <!-- A6 `.tag--live`（進行中：近黑底白字）／`.tag--quiet`（已完成） -->
-      <span
-        class="ml-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-base leading-[1.4] font-semibold tracking-[normal]"
-        [class.bg-zinc-900]="info.status === 'active'"
-        [class.text-white]="info.status === 'active'"
-        [class.bg-zinc-100]="info.status !== 'active'"
-        [class.text-zinc-700]="info.status !== 'active'"
-        >{{ getStatusLabel(info.status) }}</span
-      >
+      @if (info.status === 'active') {
+        <span
+          class="ml-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-base leading-[1.4] font-semibold tracking-[normal] bg-zinc-900 text-white"
+          >{{ getStatusLabel(info.status) }}</span
+        >
+      } @else {
+        <span
+          class="ml-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-base leading-[1.4] font-semibold tracking-[normal] bg-zinc-100 text-zinc-700"
+          >{{ getStatusLabel(info.status) }}</span
+        >
+      }
     } @else if (loading()) {
       <span
         class="skeleton skeleton--on-band inline-block h-[1em] w-[6ch] rounded-sm align-middle"
@@ -37,9 +40,11 @@
         {{ sub.campus }} ›
       }
       @if (sub.classLink; as link) {
-        <a class="text-inherit underline-offset-[3px] hover:underline" [routerLink]="link">{{
-          sub.className
-        }}</a>
+        <a
+          class="inline-flex min-h-11 items-center text-inherit underline-offset-[3px] hover:underline wide:inline wide:min-h-0"
+          [routerLink]="link"
+          >{{ sub.className }}</a
+        >
       } @else {
         {{ sub.className }}
       }
