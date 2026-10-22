@@ -778,6 +778,75 @@ export const PAGES = {
     app: '/admin/sessions',
     // 稿的今天（973-layout/shared/stress.js：2026-10-01 17:40，週四）；不對齊的話週四／週五兩欄成對地差
     clock: '2026-10-01T17:40:00+08:00',
+    deviations: [
+      {
+        status: '多',
+        app: 'control:button\\[(上一週|下一週)\\]$',
+        reason: '換週箭頭：收不進「⋯」的入口，保留（同日檢視）',
+        source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
+      },
+      {
+        status: '尺寸',
+        a6: '>landmark:main\\[\\]>control:button\\[快速選取\\]$',
+        detail: '^高 30→40$',
+        reason: '灰帶工具列控制項全部同高：桌機 40',
+        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
+      },
+      {
+        // 連帶：app 的 main 包住色面（全站 #1591），工具列在 main 裡的位置多了色面高（1440：147、360：118）；
+        // 橫向是 ‹ › 佔了位置
+        status: '位置',
+        a6: '>landmark:main\\[\\]>control:button\\[(週.#(今天)?|快速選取|日|週)\\]$',
+        detail: '^相對「main」 Δx -?\\d+、Δy \\+(1[01]\\d|14\\d)（',
+        reason: '連帶：app 的 main 包住色面，工具列在 main 裡多了色面的高度；橫向是換週箭頭佔位',
+        source: `#1591（全站）；${rule('R2', ' 例外')}`,
+      },
+      {
+        // 資料：seed 那週每天 1–2 堂、沒有異動；稿每天 14–18 堂、有異動
+        status: '文案',
+        a6: '>text:div\\[異動#\\]$',
+        detail: '^「異動#」→「沒有異動」$',
+        reason: '資料差：seed 那幾天沒有異動',
+        source: '#1923（本機 seed 2026-09-28 那週）',
+      },
+      {
+        status: '位置',
+        a6: '>text:div\\[#堂·最多同時\\]>text:b\\[#\\]$',
+        detail: '^相對「#堂·最多同時」 Δx -\\d、Δy 0（',
+        reason: '資料差：堂數位數不同（稿 18 堂、seed 1 堂），後面的數字跟著左移',
+        source: '#1923（本機 seed 2026-09-28 那週）',
+      },
+      {
+        status: '樣式',
+        a6: '>row>control:button>text:span$',
+        detail: '^color rgb\\(26, 22, 20\\) → rgb\\(87, 80, 75\\)$',
+        reason: '資料差：配對到的那一堂是停課（灰字＋刪除線），稿的那一堂不是',
+        source: '#1923（本機 seed 10/3 停課那堂）',
+      },
+      {
+        // 一天只有一個分組時，工具的列判斷（≥2 個同簽名容器）認不出列，整組被當成具名元件
+        status: '多',
+        app: '>landmark:region\\[週.#\\]>(text:div\\[開始· #堂\\](>text:b\\[#\\])?|control:button\\[[^\\]]*(：看看能做什麼|的操作)\\])$',
+        reason:
+          '資料差：seed 那天只有一個開始時間，工具不把單一分組認成列（稿每天十幾堂）；列的形狀在有兩組的週六欄已配對',
+        source: '#1923（本機 seed）；tools/a6-conformance/lib/extract.mjs isRow',
+      },
+      {
+        status: '缺',
+        a6: '>landmark:region\\[週.#\\]>row>control:button~\\d+$',
+        detail: '列內條件式',
+        reason:
+          '資料差：稿的部分列（10 列裡 4 列）多一顆按鈕，跟著課堂狀態出現；seed 那幾堂沒有那種狀態',
+        source: '#1923（工具判定「列內條件式，可能隨資料」）',
+      },
+      {
+        // 異動 API 用伺服器的真實日期篩「今天起」，工具的 clock 只管得到瀏覽器
+        status: '缺',
+        a6: '>landmark:main\\[\\]>landmark:region\\[近期異動\\](>.*)?$',
+        reason: '工具限制：跑馬燈的資料由伺服器以真實日期篩選，clock 對不到稿的 10/1',
+        source: '#1923；tools/a6-conformance/lib/capture.mjs clock',
+      },
+    ],
     prep: {
       a6: [{ click: '[data-view="week"]', settle: 800 }],
       app: [{ click: { role: 'button', name: '^週$' }, settle: 1500 }],
