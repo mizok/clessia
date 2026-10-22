@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A6 排版 · 公開申請（#1874 版面稿，非 A6 原稿）</title>
+<link rel="stylesheet" href="../shared/world.css">
+<link rel="stylesheet" href="a6.css">
+<style>
+  /* #1874 版面稿：A6 沒畫申請收件頁，零件全部借自 A6 既有頁 ——
+     色面句（各頁 open）、灰帶工具列（parents .tbar）、狀態 .tlink（students 篩選）、
+     章（parents .chap）、列（parents .prow）、列動作 ⋯（parents .pmenu）、身分小字（enrollments .kind） */
+  .count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3); margin-top: var(--space-6); font-size: var(--text-md); color: var(--zinc-600); }
+  .count strong { color: var(--zinc-900); }
+  .tabs { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-5); }
+  .tabs .tlink { color: var(--on-ink-2); }
+  .tabs .tlink[aria-current='true'] { color: var(--on-ink); border-bottom-color: var(--on-ink); }
+  .tabs .tlink__n { color: var(--on-ink-3); }
+
+  .alist { list-style: none; margin: 0; padding: 0; }
+  /* 列：誰（學生＋年級／家長＋電話）｜想上什麼（班 · 分校，希望時段）｜送件時間｜主動作＋⋯ */
+  .arow { display: grid; grid-template-columns: minmax(15rem, 1fr) minmax(0, 1.4fr) 6rem 10rem; align-items: center; gap: var(--space-2) var(--space-6); padding: var(--space-4) 0; border-bottom: 1px solid var(--surface-border); }
+  .arow:last-child { border-bottom: 0; }
+  .arow__name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); font-size: var(--text-lg); font-weight: var(--font-semibold); }
+  .arow__name a { color: inherit; text-decoration: none; }
+  .arow__name a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .arow__g { font-size: var(--text-sm); font-weight: var(--font-medium); color: var(--zinc-600); }
+  .arow__who { display: block; margin-top: 2px; font-size: var(--text-md); color: var(--zinc-700); }
+  .arow__who a { color: var(--zinc-900); text-decoration: underline; text-decoration-color: var(--zinc-300); text-underline-offset: 3px; font-variant-numeric: tabular-nums; }
+  .arow__what { font-size: var(--text-md); min-width: 0; }
+  .arow__c { display: block; }
+  .arow__cls { font-weight: var(--font-semibold); }
+  .arow__who a { white-space: nowrap; }
+  .arow__wish { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-600); }
+  .arow__note { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--zinc-700); }
+  .arow__note::before { content: '備註：'; color: var(--zinc-600); }
+  .arow__at { font-size: var(--text-sm); color: var(--zinc-600); font-variant-numeric: tabular-nums; text-align: right; }
+  .arow__at b { display: block; font-weight: var(--font-semibold); color: var(--zinc-900); }
+  .arow__act { display: flex; align-items: center; gap: var(--space-2); justify-self: end; }
+  .arow__more { width: 40px; height: 40px; padding: 0; justify-content: center; border-color: transparent; background: none; color: var(--zinc-700); }
+  .arow__more:hover { background: var(--zinc-100); color: var(--zinc-900); }
+  .src { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--radius-full); font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--zinc-700); box-shadow: inset 0 0 0 1px var(--zinc-300); white-space: nowrap; }
+  .wait { color: var(--warning-800); font-weight: var(--font-semibold); }
+  .sched { display: block; margin-top: 2px; font-size: var(--text-md); font-weight: var(--font-semibold); color: var(--zinc-900); font-variant-numeric: tabular-nums; }
+  .ink { background: var(--zinc-900); border-color: var(--zinc-900); color: #fff; }
+  .ink:hover { background: var(--zinc-700); border-color: var(--zinc-700); }
+  .chap__hint { margin-top: var(--space-2); font-size: var(--text-sm); color: var(--zinc-600); line-height: 1.5; }
+  @media (max-width: 860px) {
+    .arow { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-3); }
+    .arow > .arow__what { grid-column: 1 / -1; grid-row: 2; }
+    .arow > .arow__at { grid-column: 1; grid-row: 3; text-align: left; }
+    .arow > .arow__at b { display: inline; margin-right: 6px; }
+    .arow > .arow__act { grid-column: 2; grid-row: 3; }
+    .arow > :first-child { grid-column: 1 / -1; }
+    .tabs { width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+  }
+</style>
+</head>
+<body data-direction="a6">
+<div id="app"></div>
+<script src="../shared/data.js"></script>
+<script src="../shared/flow.js"></script>
+<script src="../shared/proto.js"></script>
+<script src="a6.js"></script>
+<script>
+(function () {
+  const { C, icon, shell, esc, phone } = A2;
+  const S = C.students;
+  const cls = (i) => C.classes[i % C.classes.length];
+  const campus = (i) => C.campuses[i % C.campuses.length];
+  // 章＝這一筆要你做什麼。主動作放列上，其餘收進 ⋯
+  const CH = [
+    { k: 'enroll', name: '報名', hint: '家長在 app 送的。核准會建報名並開首期帳單', act: '核准', menu: ['拒絕（寫原因，家長看得到）', '查看學生檔案'] },
+    { k: 'trial', name: '試聽', hint: '排好時間家長端會看到', act: '排時間', menu: ['改試聽狀態', '查看學生檔案'] },
+    { k: 'lead', name: '新家長', hint: '公開表單送進來的。聯絡過再建檔', act: '建立家長', menu: ['聯絡狀態', '櫃檯備註', '標成垃圾送件'] },
+  ];
+  const A = [
+    { ch: 'enroll', s: 0, src: '家長 App', c: [1], at: '10/22 14:05', wish: '11 月開始' },
+    { ch: 'enroll', s: 3, src: '家長 App', c: [4], at: '10/21 20:41', note: '想跟哥哥同一班' },
+    { ch: 'enroll', s: 7, src: '公開表單', c: [2, 5], at: '10/20 09:12', waitlist: true },
+    { ch: 'trial', s: 9, src: '家長 App', c: [3], at: '10/22 11:30', wish: '週六上午' },
+    { ch: 'trial', s: 12, src: '公開表單', c: [6], at: '10/21 16:02', sched: '10/25（六）10:00–11:30' },
+    { ch: 'lead', s: 15, src: '公開表單', c: [0], at: '10/22 08:47', note: '晚上 8 點後再打', status: '還沒聯絡' },
+    { ch: 'lead', s: 18, src: '公開表單', c: [7, 2], at: '10/19 13:20', status: '聯絡過' },
+  ];
+  const tabs = [['待處理', 6], ['進行中', 1], ['已轉入', 14], ['已結案', 9]];
+
+  const row = (a) => {
+    const s = S[a.s], ch = CH.find((x) => x.k === a.ch);
+    // 主動作：深色只給「核准」（會開帳單，是這頁最重的一步）；排好時間的試聽換成「改時間」
+    const primary = `<button class="btn${a.ch === 'enroll' ? ' ink' : ''}" type="button">${a.ch === 'lead' ? icon.plus : ''}${a.sched ? '改時間' : ch.act}</button>`;
+    return `<li class="arow">
+      <div>
+        <span class="arow__name"><a href="student.html">${esc(s.name)}</a><span class="arow__g">${s.gradeLabel}</span><span class="src">${a.src}</span></span>
+        <span class="arow__who">${esc(s.parent.name)}（${s.parent.relation}） · <a href="tel:${s.parent.phone}">${phone(s.parent.phone)}</a></span>
+      </div>
+      <div class="arow__what">
+        ${a.c.map((i, n) => `<span class="arow__c"><span class="arow__cls">${esc(cls(i).name)}</span><span class="muted"> · ${campus(i)}</span>${a.waitlist && n === a.c.length - 1 ? ' <span class="wait">候補</span>' : ''}</span>`).join('')}
+        ${a.sched ? `<span class="sched">試聽：${a.sched}</span>` : ''}
+        ${a.wish ? `<span class="arow__wish">希望：${esc(a.wish)}</span>` : ''}
+        ${a.status ? `<span class="arow__wish">聯絡狀態：${esc(a.status)}</span>` : ''}
+        ${a.note ? `<span class="arow__note">${esc(a.note)}</span>` : ''}
+      </div>
+      <div class="arow__at"><b>${a.at.split(' ')[0]}</b>${a.at.split(' ')[1]} 送出</div>
+      <div class="arow__act">${primary}<button class="btn arow__more" type="button" aria-label="${esc(s.name)} 的其他動作" title="${ch.menu.join('、')}">${icon.dots}</button></div>
+    </li>`;
+  };
+
+  shell({
+    page: 'applications',
+    title: '4 筆申請等你處理，<br>2 堂試聽還沒排時間。',
+    sub: '公開表單送進來的新家長（聯絡過再建檔），以及家長在 app 裡送的報名、試聽申請。',
+    bar: `<label class="tsearch">${icon.search}<input type="search" placeholder="找學生、家長姓名或電話" aria-label="搜尋申請"></label>
+      <div class="tabs" role="tablist" aria-label="狀態">${tabs.map(([l, n], i) => `<button class="tlink" type="button" role="tab" aria-current="${i === 0}">${l} <span class="tlink__n">${n}</span></button>`).join('')}</div>
+      <div class="tbar__act"><select class="acset__in" aria-label="申請類型" style="width:auto;min-width:140px;height:40px"><option>全部類型</option><option>報名</option><option>試聽</option><option>新家長</option></select></div>`,
+    phase: 2200,
+  }, CH.map((ch) => {
+    const a = A.filter((x) => x.ch === ch.k);
+    return `<section class="chap" aria-label="${ch.name}">
+      <div class="chap__side"><div class="chap__big">${ch.name}</div><p class="chap__tally">${a.length} 筆</p><p class="chap__hint">${ch.hint}</p></div>
+      <ul class="alist">${a.map(row).join('')}</ul></section>`;
+  }).join(''));
+  document.querySelectorAll('.proto-pill, .proto-all').forEach((e) => e.remove());
+})();
+</script>
+</body>
+</html>
