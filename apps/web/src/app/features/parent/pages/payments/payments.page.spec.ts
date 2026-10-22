@@ -125,9 +125,9 @@ describe('PaymentsPage', () => {
     fixture.detectChanges();
 
     // 千分位（#1444）：12345 讀成「一萬二千三百四十五」要停一下，12,345 不用
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '12,345',
-    );
+    expect(
+      fixture.nativeElement.querySelector('.payments__stats dd')?.textContent?.replace(/\s+/g, ''),
+    ).toBe('12,345元');
   });
 
   it('列：金額不折行、副行整段換行（#1444，360px 的「3,600／元」）', () => {
@@ -157,10 +157,16 @@ describe('PaymentsPage', () => {
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
-    const values = Array.from(fixture.nativeElement.querySelectorAll('.band-anchor__value')).map(
-      (e: unknown) => (e as HTMLElement).textContent?.trim(),
+    // A6 .open__stats：dl／dt（標籤）／dd（數字＋「元」）
+    const stats = fixture.nativeElement.querySelector('dl.payments__stats') as HTMLElement;
+    const values = Array.from(stats.querySelectorAll('dd')).map((e) =>
+      e.textContent?.replace(/\s+/g, ''),
     );
-    expect(values).toEqual(['2,400', '44,160']);
+    expect(values).toEqual(['2,400元', '44,160元']);
+    expect(Array.from(stats.querySelectorAll('dt')).map((e) => e.textContent?.trim())).toEqual([
+      '待繳 · 1 張',
+      '本學期已繳',
+    ]);
     expect(fixture.nativeElement.textContent).toContain('本學期已繳');
     fixture.destroy();
     TestBed.resetTestingModule();
@@ -168,7 +174,7 @@ describe('PaymentsPage', () => {
     createComponent({ data: [invoice()], meta: { ...meta, term: null } });
     activeChildId.set('child-1');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelectorAll('.band-anchor__value')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelectorAll('.payments__stats dd')).toHaveLength(1);
     expect(fixture.nativeElement.textContent).not.toContain('本學期已繳');
   });
 
@@ -209,7 +215,7 @@ describe('PaymentsPage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    const names = Array.from(fixture.nativeElement.querySelectorAll('.chapter-head__name')).map(
+    const names = Array.from(fixture.nativeElement.querySelectorAll('.payments__section h2')).map(
       (e: unknown) => (e as HTMLElement).textContent?.trim(),
     );
     expect(names).toEqual(['待繳', '已繳清']);
@@ -231,7 +237,7 @@ describe('PaymentsPage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    const sections = fixture.nativeElement.querySelectorAll('.chapter-head__name');
+    const sections = fixture.nativeElement.querySelectorAll('.payments__section h2');
     expect(
       Array.from(sections).map((el: unknown) => (el as HTMLElement).textContent?.trim()),
     ).toEqual(['待繳', '已繳清']);

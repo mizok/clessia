@@ -257,19 +257,25 @@ export class SessionsPage implements OnInit {
   protected readonly clashIds = computed(() => this.layout()?.clashIds ?? new Set<string>());
   protected readonly dayGroups = computed(() => groupByStart(this.displayedSessions()));
   protected readonly resultChapters = computed(() => groupByDate(this.displayedSessions()));
-  protected readonly week = computed(() =>
-    summarizeWeek(
+  /**
+   * 週視圖的欄（#1923：A6 只畫週一～週六）。週日欄跟週列同一條規則（`stripDays`），另外**那週週日有課就一定留**
+   * —— `sundayHasSessions` 是另外查的，還沒回來或查失敗時不能讓已經拿到的週日課從欄與色面的堂數裡消失。
+   */
+  protected readonly week = computed(() => {
+    const days = summarizeWeek(
       this.weekDays().map((d) => format(d, 'yyyy-MM-dd')),
       this.displayedSessions(),
-    ),
-  );
+    );
+    const showSunday = this.stripDays().length === 7 || days[6].sessions.length > 0;
+    return showSunday ? days : days.slice(0, 6);
+  });
   protected readonly isThisWeek = computed(() =>
     isSameDay(this.weekDays()[0], startOfWeek(this.now(), { weekStartsOn: 1 })),
   );
-  /** 工具列的週區間字（`9/28 – 10/4`） */
+  /** 工具列的週區間字（`9/28 – 10/3`；週日欄出現時到週日） */
   protected readonly weekLabel = computed(() => {
     const d = this.weekDays();
-    return `${format(d[0], 'M/d')} – ${format(d[6], 'M/d')}`;
+    return `${format(d[0], 'M/d')} – ${format(d[this.week().length - 1], 'M/d')}`;
   });
   /** 一次最多拿幾堂（甘特與篩選結果都不分頁） */
   protected readonly FETCH_LIMIT = FETCH_LIMIT;

@@ -60,6 +60,7 @@ function side(page, source, w, rowParents = []) {
     storageState: source === 'app' ? (cfg.state ?? STATE) : undefined,
     opens: (source === 'app' ? cfg.appOpen : cfg.a6Open) ?? {},
     prep: cfg.prep?.[source],
+    clock: source === 'app' ? cfg.clock : undefined,
     rowParents,
   };
 }
@@ -294,6 +295,7 @@ try {
               url,
               width: w.width,
               storageState: source === 'app' ? (cfg.state ?? STATE) : undefined,
+              clock: source === 'app' ? cfg.clock : undefined,
             });
             const names = await harvestNames(pg, source, ctx);
             const r = await runScenario(pg, { steps: sc[source], names });

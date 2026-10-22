@@ -208,6 +208,15 @@ export class ScoresService {
     }>(`${this.base}/students`, { params: query });
   }
 
+  /**
+   * 成績匯出 CSV（#1100 #40）。範圍由後端決定（老師範圍 ∩ 分校範圍 ∩ 這裡帶的學生），
+   * 帶了範圍外的學生也撈不到。拿 **blob**：後端給 Excel 的 UTF-8 BOM 用 text 解會被吃掉。
+   * 超過上限回 413，錯誤本體是 JSON blob。
+   */
+  exportCsv(body: { studentIds?: string[]; campusId?: string }): Observable<Blob> {
+    return this.http.post(`${this.base}/export`, body, { responseType: 'blob' });
+  }
+
   private toQueryParams(params?: ScoreListParams): Record<string, string | number | boolean> {
     if (!params) return {};
 
