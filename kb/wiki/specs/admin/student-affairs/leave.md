@@ -3,7 +3,7 @@ title: 請假管理
 summary: 建立和查詢請假紀錄。請假只能由管理員建立，支援事後補請。
 category: spec
 status: active
-updated: 2026-10-10
+updated: 2026-10-23
 tags: [specs, admin, student-affairs, leave]
 ---
 
@@ -81,7 +81,8 @@ tags: [specs, admin, student-affairs, leave]
 - **分章**：待處理依「今天／明天／之後的日期」，**進行中的跨日假歸今天**；全部依開始日由新到舊。章在翻頁時可能從頁首接續。
 - **補請**不是欄位：建立日（台北）晚於 `startDate` 就標「補請」。
 - **取消請假**的確認文案照 [[rules/attendance-rules]] §6–7：未來假＝不影響任何出缺席；已結束／進行中＝還沒點名的日子回到「還沒點名」、**已點過名的日子不會動**（舊文案寫「同步恢復出勤狀態」，與 API 不符，已改）。
-- **後續項（缺 API／資料，未做）**：批次請假（`POST /leaves/batch`）、課程／開課班篩選（list 加 `classId`）、列內課堂清單（列帶 `sessions[]`）、年級、取消前的影響筆數預覽（`GET /leaves/:id/impact`）。
+- **後續項（缺 API／資料，未做）**：批次請假（`POST /leaves/batch`）、課程／開課班篩選（list 加 `classId`）、列內課堂清單（列帶 `sessions[]`）、年級。
+- **取消前的影響預覽**（#1100 #33）：`GET /leaves/:id/impact?mode=truncate|full` 回 `{ revertCount, keptCount }` —— 這個學生在那段範圍內的 `on_leave`，還沒點名的會被刪（回到「還沒點名」）、已點名的不動。範圍與 DELETE 共用 `cancelPlan`（不會預覽一段、刪另一段）；只算已經生成的出勤事件。確認窗把數字接在原本文案後面；讀不到就照原文案開，不擋取消。
 
 ## 資料依賴
 
