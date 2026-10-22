@@ -356,6 +356,66 @@ describe('SchedulePage', () => {
           }),
         );
       });
+
+      // 審核席 #1812 二讀存活的突變（C2–C5），一條一條釘住
+      const openSpy = (onClose: unknown = of(undefined)) =>
+        vi
+          .spyOn(fixture.debugElement.injector.get(DialogService), 'open')
+          .mockReturnValue({ onClose } as never);
+      const clickArrivals = () =>
+        (
+          [...fixture.nativeElement.querySelectorAll('.schedule-page__actions button')].find(
+            (b: HTMLElement) => b.textContent?.trim() === '到班名單',
+          ) as HTMLButtonElement
+        ).click();
+
+      it('C2：過去的課開名單時 isToday 是 false（沒有「他到了」）', async () => {
+        await setup({
+          attendanceResponsible: 'teacher',
+          sessions: [{ ...DAILY_LIVE[0], eventDate: MONDAY_THIS_WEEK }],
+          selectDate: MONDAY_THIS_WEEK,
+        });
+        const open = openSpy();
+        clickArrivals();
+        expect(open).toHaveBeenCalledWith(
+          ArrivalRosterSheetComponent,
+          expect.objectContaining({ data: expect.objectContaining({ isToday: false }) }),
+        );
+      });
+
+      it('C3：名單關閉時記了到班 → 重抓本週；沒記 → 不重抓', async () => {
+        await setup({ attendanceResponsible: 'teacher', sessions: DAILY_LIVE.slice(0, 1) });
+        const before = sessionsSpy.mock.calls.length;
+        openSpy(of(true));
+        clickArrivals();
+        expect(sessionsSpy.mock.calls.length).toBe(before + 1);
+
+        vi.restoreAllMocks();
+        openSpy(of(false));
+        clickArrivals();
+        expect(sessionsSpy.mock.calls.length).toBe(before + 1);
+      });
+
+      it('C4：不能點名的課（沒有出勤事件、或停課）開不出名單', async () => {
+        await setup({ attendanceResponsible: 'teacher', sessions: DAILY_LIVE.slice(0, 1) });
+        const open = openSpy();
+        const page = component as unknown as { openArrivals(s: unknown): void };
+        page.openArrivals({ ...DAILY_LIVE[0], eventId: null });
+        page.openArrivals({ ...DAILY_LIVE[0], status: 'cancelled' });
+        expect(open).not.toHaveBeenCalled();
+      });
+
+      it('C5：今天已經下課的日到班，「到班名單」不再是亮橘主鈕', async () => {
+        await setup({
+          attendanceResponsible: 'teacher',
+          sessions: [{ ...DAILY_LIVE[0], startTime: '09:00', endTime: '10:00' }],
+        });
+        const btn = [
+          ...fixture.nativeElement.querySelectorAll('.schedule-page__actions button'),
+        ].find((b: HTMLElement) => b.textContent?.trim() === '到班名單') as HTMLElement;
+        expect(btn).toBeTruthy();
+        expect(btn.className).not.toContain('bg-accent-vivid');
+      });
     });
   });
 

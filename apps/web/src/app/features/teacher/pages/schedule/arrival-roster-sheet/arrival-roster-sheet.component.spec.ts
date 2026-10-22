@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { vi } from 'vitest';
 
@@ -108,6 +108,28 @@ describe('ArrivalRosterSheetComponent（#1314 TS3 到班名單）', () => {
     expect(text()).toContain('到 2／3');
     (fixture.componentInstance as unknown as { close(): void }).close();
     expect(closeMock).toHaveBeenCalledWith(true);
+  });
+
+  // 審核席 #1812 二讀 B4：剛好在這之前掃了卡（alreadyCheckedIn）→ 照實寫「掃碼到」，不說成老師標記
+  it('B4：後端回 alreadyCheckedIn → 列寫「掃碼到」，不寫「老師標記」', async () => {
+    await render();
+    checkInMock.mockReturnValue(
+      of({ checkedInAt: '2027-03-05T09:30:00Z', alreadyCheckedIn: true }),
+    );
+    markButtons()[0]!.click();
+    fixture.detectChanges();
+    expect(text()).toContain('17:30 掃碼到');
+    expect(text()).not.toContain('老師標記');
+  });
+
+  // B10：請求還在飛的時候再按一次，不送第二支
+  it('B10：記到班的請求還沒回來時，再按不會送第二次', async () => {
+    await render();
+    checkInMock.mockReturnValue(NEVER);
+    const c = fixture.componentInstance as unknown as { markArrived(s: RosterStudent): void };
+    c.markArrived(STUDENTS[1]!);
+    c.markArrived(STUDENTS[1]!);
+    expect(checkInMock).toHaveBeenCalledTimes(1);
   });
 
   it('記失敗 → 講出來、列維持「還沒到」，不假裝成功', async () => {
