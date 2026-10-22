@@ -172,13 +172,13 @@ describe('CampusesPage', () => {
 
     const items = (
       component as unknown as {
-        actionMenuItems: () => { label?: string; itemClass?: string; separator?: boolean }[];
+        actionMenuItems: () => { label?: string; danger?: boolean; separator?: boolean }[];
       }
     ).actionMenuItems();
 
     const deleteIndex = items.findIndex((item) => item.label === '刪除分校');
     expect(deleteIndex).toBeGreaterThan(0);
-    expect(items[deleteIndex].itemClass).toBe('text-red-500');
+    expect(items[deleteIndex].danger).toBe(true);
     expect(items[deleteIndex - 1].separator).toBe(true);
   });
 
