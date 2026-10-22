@@ -828,7 +828,11 @@ app.openapi(
       if (campusIds) enrollments = enrollments.in('classes.campus_id', [...campusIds]);
       if (classId) enrollments = enrollments.eq('class_id', classId);
       if (courseId) enrollments = enrollments.eq('classes.course_id', courseId);
-      const { data: matched } = await enrollments;
+      const { data: matched, error: matchedError } = await enrollments;
+      // 讀失敗不能當成「一個學生都沒有」回空列表（#1928）
+      if (matchedError) {
+        return c.json({ error: '讀取請假紀錄失敗', message: matchedError.message }, 500);
+      }
 
       const matchedStudentIds = Array.from(
         new Set(

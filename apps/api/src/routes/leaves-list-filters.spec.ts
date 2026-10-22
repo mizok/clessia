@@ -10,7 +10,9 @@ import leavesApp from './leaves';
 const CLASS = '11111111-1111-4111-8111-111111111111';
 const COURSE = '22222222-2222-4222-8222-222222222222';
 
-function setup(opts: { enrolled?: string[]; campusScope?: readonly string[] | null } = {}) {
+function setup(
+  opts: { enrolled?: string[]; campusScope?: readonly string[] | null; enrollError?: boolean } = {},
+) {
   const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
   const supabase = {
     from(table: string) {
@@ -21,14 +23,18 @@ function setup(opts: { enrolled?: string[]; campusScope?: readonly string[] | nu
       for (const op of ['select', 'eq', 'in', 'gte', 'lte', 'order', 'range'])
         builder[op] = chain(op);
       builder['then'] = (resolve: (v: unknown) => unknown) =>
-        resolve({
-          data:
-            table === 'enrollments'
-              ? (opts.enrolled ?? ['stu-1']).map((student_id) => ({ student_id }))
-              : [],
-          count: 0,
-          error: null,
-        });
+        resolve(
+          table === 'enrollments' && opts.enrollError
+            ? { data: null, error: { message: 'boom' } }
+            : {
+                data:
+                  table === 'enrollments'
+                    ? (opts.enrolled ?? ['stu-1']).map((student_id) => ({ student_id }))
+                    : [],
+                count: 0,
+                error: null,
+              },
+        );
       return builder;
     },
   };
@@ -93,5 +99,13 @@ describe('GET /api/leaves —— 課程／開課班篩選（#1100 #31）', () =>
     const { app, calls } = setup();
     await app.request('/');
     expect(of(calls, 'enrollments')).toEqual([]);
+  });
+
+  // #1928：讀失敗原本被當成「這個班一個學生都沒有」→ 回空列表 200
+  it('報名讀取失敗 → 500，不是空列表', async () => {
+    const { app, calls } = setup({ enrollError: true });
+    const res = await app.request(`/?classId=${CLASS}`);
+    expect(res.status).toBe(500);
+    expect(calls.some((c) => c.table === 'leave_requests' && c.op === 'range')).toBe(false);
   });
 });
