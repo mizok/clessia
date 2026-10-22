@@ -852,6 +852,7 @@ app.openapi(
           },
         },
       },
+      500: { description: '讀取失敗（#1928：不再當成「沒有衝突」回 200）' },
     },
   }),
   async (c) => {
@@ -867,7 +868,15 @@ app.openapi(
     const teacherIds = [...new Set(schedulesToCheck.map((s) => s.teacherId as string))];
 
     // Step 1: 取得此 org 的所有班級 id（確保跨組織隔離）
-    const { data: orgClasses } = await supabase.from('classes').select('id').eq('org_id', orgId);
+    const { data: orgClasses, error: classesError } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('org_id', orgId);
+    // 讀取失敗不能當成「這個 org 沒有班」→「沒有衝突」（#1928）。前端在這支失敗時照常儲存，不會被擋
+    if (classesError) {
+      console.error('check-conflicts classes read error:', classesError);
+      return c.json({ error: '讀取班級失敗', code: 'DB_ERROR' }, 500);
+    }
     let orgClassIds = (orgClasses || []).map((c) => c.id as string);
 
     if (excludeClassId) {
@@ -885,9 +894,10 @@ app.openapi(
       .in('teacher_id', teacherIds)
       .in('class_id', orgClassIds);
 
+    // 原本 soft-fail 回 200「沒有衝突」—— 班一多 `.in()` 就 414，使用者看到的是「沒撞課」（#1928）
     if (error) {
       console.error('check-conflicts DB error:', error);
-      return c.json({ conflicts: [] }, 200); // soft-fail
+      return c.json({ error: '讀取時段失敗', code: 'DB_ERROR' }, 500);
     }
 
     type ConflictItem = {
