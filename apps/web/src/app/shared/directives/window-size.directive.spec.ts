@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
@@ -91,5 +92,30 @@ describe('WindowSizeDirective', () => {
     vv.offsetTop = 40; // iOS 捲動時 visual viewport 往下移
     vv.dispatchEvent(new Event('scroll'));
     expect(inset()).toBe('260px');
+  });
+
+  // #1905：iOS 搜尋面板高度歸 0 的根源 —— 變數一旦寫成 0，用它算 max-height 的面板與對話框都塌成 0
+  it('量到 0 或非有限值就不寫，保留上一個值', () => {
+    render();
+    const height = () => document.documentElement.style.getPropertyValue('--window-height');
+    const width = () => document.documentElement.style.getPropertyValue('--window-width');
+    const before = { h: height(), w: width() };
+    expect(before.h).not.toBe('');
+
+    for (const bad of [0, NaN, Infinity]) {
+      const h = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(bad);
+      const w = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(bad);
+      window.dispatchEvent(new Event('resize'));
+      expect(height()).toBe(before.h);
+      expect(width()).toBe(before.w);
+      h.mockRestore();
+      w.mockRestore();
+    }
+
+    // 正常值照寫
+    const h = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(700);
+    window.dispatchEvent(new Event('resize'));
+    expect(height()).toBe('700px');
+    h.mockRestore();
   });
 });
