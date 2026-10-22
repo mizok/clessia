@@ -422,12 +422,35 @@ export class LeavePage implements OnInit {
     });
   }
 
+  /**
+   * 先問後端這次會動到幾堂（#1100 #33），把數字接在確認文案後面再開窗。
+   * 讀不到就照原本的文案開 —— 預覽是加分，不能擋住取消
+   */
+  private withImpact(
+    record: LeaveRequest,
+    mode: 'truncate' | 'full',
+    open: (line: string) => void,
+  ): void {
+    this.leaveService
+      .impact(record.id, mode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ data }) => open(`\n${impactLine(data)}`),
+        error: () => open(''),
+      });
+  }
+
   private confirmPastDelete(record: LeaveRequest): void {
+    this.withImpact(record, 'full', (line) => this.openPastDelete(record, line));
+  }
+
+  private openPastDelete(record: LeaveRequest, impact: string): void {
     this.confirmationService.confirm({
       // 舊文案寫「同步恢復對應課堂的出勤狀態」—— 與 rules §6／API 不符：已點過名的日子不動
       message:
         `${record.studentName} 的請假（${record.startDate} ~ ${record.endDate}）已經結束。\n` +
-        `取消後，還沒點名的日子，請假紀錄會被刪掉、回到「還沒點名」；已經點過名的日子不會動。\n` +
+        `取消後，還沒點名的日子，請假紀錄會被刪掉、回到「還沒點名」；已經點過名的日子不會動。` +
+        `${impact}\n` +
         `此操作無法復原。`,
       header: '取消歷史請假',
       icon: 'pi pi-exclamation-triangle',
@@ -439,6 +462,10 @@ export class LeavePage implements OnInit {
   }
 
   private confirmActiveDelete(record: LeaveRequest): void {
+    this.withImpact(record, 'truncate', (line) => this.openActiveDelete(record, line));
+  }
+
+  private openActiveDelete(record: LeaveRequest, impact: string): void {
     // **這兩個日期只出現在訊息裡，真正的截斷是後端 `truncate` 做的** ——
     // 所以它們是在**轉述後端做了什麼**，必須用後端的曆法。差一天的話，
     // 一個已經完成的破壞性操作會被告知一個錯的日期。
@@ -451,7 +478,9 @@ export class LeavePage implements OnInit {
       message:
         `${record.studentName} 的假目前進行中（${record.startDate} ~ ${record.endDate}）。\n` +
         `・取消剩餘假期：保留到 ${yesterday}，今天起還沒點名的課回到「還沒點名」。\n` +
-        `・完全刪除：整張假撤銷；還沒點名的日子都回到「還沒點名」，已經點過名的日子不會動。`,
+        `・完全刪除：整張假撤銷；還沒點名的日子都回到「還沒點名」，已經點過名的日子不會動。` +
+        // 這一窗的數字是「取消剩餘假期」的；完全刪除的數字在下一窗
+        (impact ? `\n取消剩餘假期${impact.trim().replace('實際會動到', '')}` : ''),
       header: '取消進行中假期',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '取消剩餘假期',
@@ -472,10 +501,15 @@ export class LeavePage implements OnInit {
   }
 
   private confirmFullActiveDelete(record: LeaveRequest): void {
+    this.withImpact(record, 'full', (line) => this.openFullActiveDelete(record, line));
+  }
+
+  private openFullActiveDelete(record: LeaveRequest, impact: string): void {
     this.confirmationService.confirm({
       message:
         `確定要完全刪除 ${record.studentName} 的請假紀錄（${record.startDate} ~ ${record.endDate}）？\n` +
-        `整張假都會撤銷：還沒點名的日子（含已過去的）回到「還沒點名」，已經點過名的日子不會動。\n` +
+        `整張假都會撤銷：還沒點名的日子（含已過去的）回到「還沒點名」，已經點過名的日子不會動。` +
+        `${impact}\n` +
         `此操作無法復原。`,
       header: '完全刪除請假紀錄',
       icon: 'pi pi-exclamation-triangle',
@@ -535,4 +569,13 @@ function monthDay(date: string): string {
 /** 台北日期字串的星期（用正午避開時區邊界） */
 function weekdayOf(date: string): string {
   return `週${WEEKDAYS[new Date(`${date}T12:00:00+08:00`).getUTCDay()]}`;
+}
+
+/** 預覽的那一句（#1100 #33）。0／0 也要說 —— 「沒有任何紀錄會動」本身就是使用者要的答案 */
+export function impactLine(i: { revertCount: number; keptCount: number }): string {
+  if (i.revertCount === 0 && i.keptCount === 0) return '目前沒有任何出缺席紀錄會被改動。';
+  const parts = [];
+  if (i.revertCount > 0) parts.push(`${i.revertCount} 堂會回到「還沒點名」`);
+  if (i.keptCount > 0) parts.push(`${i.keptCount} 堂已點名，維持請假`);
+  return `實際會動到：${parts.join('、')}。`;
 }

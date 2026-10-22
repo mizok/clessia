@@ -162,6 +162,7 @@ const PARAMS: Record<string, string> = {
   '/api/scores/class/{classId}/exam/{examId} classId': '{examClass}',
   '/api/scores/class/{classId}/exam/{examId} examId': '{academyExam}',
   '/api/invoices/{id} id': '{invoice}',
+  '/api/leaves/{id}/impact id': '{leave}',
 };
 
 /** 文件沒標 required、但路由邏輯要求至少一個的（不帶回 400）—— 每次都帶 */
@@ -312,6 +313,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
     ids['{academyExam}'] = await first('academy_exams');
     ids['{schoolExam}'] = await first('school_exams');
     ids['{invoice}'] = await first('invoices');
+    ids['{leave}'] = await first('leave_requests');
 
     // 有班的那場校內考，classId／examId 要對得上
     const { data: examClass, error: examClassError } = await supabase
