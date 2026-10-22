@@ -129,4 +129,26 @@ describe('GlobalSearchComponent', () => {
       expect(cls(btn)).toContain(c);
     expect(cls(btn).some((c) => c.includes('hover:bg'))).toBe(false);
   });
+
+  /** #1889：手機開鍵盤後整頁可滑 —— 面板高度跟可視區（扣 --keyboard-inset），只有結果列表自己捲 */
+  it('手機面板：底部讓出鍵盤、高度上限扣鍵盤；列表自己捲且不把捲動傳到背後', () => {
+    const cls = (e: Element | null) => (e as HTMLElement).className.split(/\s+/);
+    const panel = el.querySelector('[popover]')!;
+    expect(cls(panel)).toContain('max-wide:bottom-(--keyboard-inset)');
+    expect(
+      cls(panel).some((c) => c.startsWith('max-wide:max-h-') && c.includes('--keyboard-inset')),
+    ).toBe(true);
+    expect(cls(panel)).toContain('max-wide:overflow-hidden');
+    // display 只在打開時給 —— 寫死 flex 會蓋掉 UA 的 [popover]:not(:popover-open){display:none}
+    expect(cls(panel)).toContain('max-wide:open:flex');
+    expect(cls(panel)).not.toContain('max-wide:flex');
+    const list = el.querySelector('#global-search-list')!;
+    for (const c of [
+      'max-wide:min-h-0',
+      'max-wide:flex-1',
+      'max-wide:overflow-y-auto',
+      'overscroll-contain',
+    ])
+      expect(cls(list)).toContain(c);
+  });
 });
