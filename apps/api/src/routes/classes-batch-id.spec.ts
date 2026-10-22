@@ -29,7 +29,17 @@ function createApp(status = 'scheduled') {
   const queries: RecordedQuery[] = [];
   const resolve = (q: RecordedQuery) => {
     const has = (name: string) => q.ops.some((op) => op.name === name);
-    if (q.table === 'classes') return { data: { id: CLASS, name: 'A 班', campus_id: 'campus-1' } };
+    // updated_by／ba_user：GET 班級的「最後修改者」（#1839）。嵌的 ba_user 是帳號名，員工姓名另外查
+    if (q.table === 'classes')
+      return {
+        data: {
+          id: CLASS,
+          name: 'A 班',
+          campus_id: 'campus-1',
+          updated_by: 'u-editor',
+          ba_user: { name: '帳號名' },
+        },
+      };
     // 衝突檢查（同班依日期、新老師的忙碌時段）回空：這份替身只管寫入的形狀
     const byDate = q.ops.some(
       (op) =>
@@ -49,7 +59,10 @@ function createApp(status = 'scheduled') {
         })),
       };
     }
-    if (q.table === 'profiles') return { data: { display_name: '行政 A' } };
+    if (q.table === 'ba_user')
+      return {
+        data: { name: '帳號名', staff: [{ display_name: '行政 A', org_id: 'org-1' }], parents: [] },
+      };
     return { data: [] };
   };
   const supabase = {
@@ -103,9 +116,12 @@ describe('PATCH /api/classes/{id}/sessions/batch-cancel —— 流水標成批�
     const rows = insert!.ops.find((op) => op.name === 'insert')!.args[0] as Array<{
       operation_source: string;
       batch_id: string;
+      created_by_name: string | null;
     }>;
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => r.operation_source === 'batch')).toBe(true);
+    // #1839：操作者名字取員工姓名（loadDisplayName），不是 profiles（沒有人寫了，新人一律是 null）
+    expect(rows.every((r) => r.created_by_name === '行政 A')).toBe(true);
     expect(rows[0].batch_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(new Set(rows.map((r) => r.batch_id)).size).toBe(1);
     expect(queued).toHaveBeenCalledWith(expect.anything(), [
@@ -138,8 +154,13 @@ describe('POST /api/classes/{id}/cancel-future-sessions —— 寫稽核（#1336
     });
     const changes = queries
       .find((q) => q.table === 'schedule_changes' && q.ops.some((op) => op.name === 'insert'))!
-      .ops.find((op) => op.name === 'insert')!.args[0] as Array<{ batch_id: string }>;
+      .ops.find((op) => op.name === 'insert')!.args[0] as Array<{
+      batch_id: string;
+      created_by_name: string | null;
+    }>;
     expect(row!['details'].batchId).toBe(changes[0]!.batch_id);
+    // #1839：流水的操作者名字是員工姓名
+    expect(changes.every((r) => r.created_by_name === '行政 A')).toBe(true);
     expect(queued).toHaveBeenCalledWith(
       expect.anything(),
       [S1, S2].map((s) => ({
@@ -209,5 +230,22 @@ describe('課務異動通知：不寫流水的兩支也通知（#1693 Q3），�
         substitute_teacher_id: '44444444-4444-4444-8444-444444444444',
       }),
     ]);
+  });
+});
+
+/**
+ * #1839 二讀：班級的「最後修改者」是**別人**的名字（updated_by ≠ 請求者）。原本讀 profiles，
+ * 新人一律拿不到。要拿到員工姓名，而不是退到班級查詢嵌的帳號名。
+ */
+describe('GET /api/classes/{id} —— 最後修改者用員工姓名（#1839）', () => {
+  it('updatedByName 是修改者在本 org 的員工姓名（不是帳號名、不是 null）', async () => {
+    const { app, queries } = createApp();
+    const res = await app.request(`/api/classes/${CLASS}`);
+    expect(res.status).toBe(200);
+    expect(
+      ((await res.json()) as { data: { updatedByName: string | null } }).data.updatedByName,
+    ).toBe('行政 A');
+    const lookup = queries.find((q) => q.table === 'ba_user');
+    expect(lookup?.ops).toContainEqual({ name: 'eq', args: ['id', 'u-editor'] });
   });
 });

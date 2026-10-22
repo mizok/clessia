@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { loadDisplayName } from '../lib/display-name';
 import { waitUntilFrom } from '../lib/wait-until';
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import type { AppEnv } from '../index';
@@ -605,11 +606,7 @@ app.openapi(updateRoute, async (c) => {
         }
 
         // 取得操作者名稱
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('display_name')
-          .eq('id', userId)
-          .maybeSingle();
+        const actorName = await loadDisplayName(supabase, orgId, userId);
 
         // 為每堂課建立 schedule_change 紀錄（整門課一次停用 = 一批，#1195；同班級停用）
         const batchId = crypto.randomUUID();
@@ -620,7 +617,7 @@ app.openapi(updateRoute, async (c) => {
           batch_id: batchId,
           change_type: 'cancellation',
           reason: '課程停用',
-          created_by_name: profile?.display_name ?? null,
+          created_by_name: actorName,
         }));
 
         const { error: insertError } = await supabase

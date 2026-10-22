@@ -1430,17 +1430,6 @@ app.openapi(updateRoute, async (c) => {
     await supabase.from('ba_user').update({ phone: body.phone }).eq('id', userId);
   }
 
-  if (body.displayName !== undefined) {
-    const { error: updateProfileError } = await inOrg(
-      supabase.from('profiles').update({ display_name: body.displayName }).eq('id', userId),
-      orgId,
-    );
-
-    if (updateProfileError) {
-      return c.json({ error: updateProfileError.message, code: 'UPDATE_PROFILE_FAILED' }, 400);
-    }
-  }
-
   if (body.campusIds !== undefined) {
     const uniqueCampusIds = Array.from(new Set(body.campusIds));
 
