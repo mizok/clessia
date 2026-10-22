@@ -58,6 +58,8 @@ function setup(opts: {
   campusScope?: string[] | null;
   academy?: ReturnType<typeof academyRow>[];
   staffRow?: boolean;
+  /** 這張表的查詢回 error */
+  failTable?: string;
 }) {
   const queries: Q[] = [];
   const academy = opts.academy ?? [
@@ -103,7 +105,11 @@ function setup(opts: {
           get(_t, prop: string) {
             if (prop === 'then')
               return (ok?: (v: unknown) => unknown) =>
-                Promise.resolve({ data: resolve(q), error: null }).then(ok);
+                Promise.resolve(
+                  q.table === opts.failTable
+                    ? { data: null, error: { message: 'boom' } }
+                    : { data: resolve(q), error: null },
+                ).then(ok);
             return (...args: unknown[]) => (q.ops.push({ name: prop, args }), proxy);
           },
         },
@@ -193,6 +199,49 @@ describe('POST /api/scores/export（#1100 #40）', () => {
     const res = await post({});
     expect(res.status).toBe(413);
     expect(((await res.json()) as { code: string }).code).toBe('TOO_MANY_ROWS');
+  });
+
+  // 計畫席讀 diff：任一段失敗就整份失敗 —— 校內考那半失敗的話檔案只剩段考，看起來卻是完整的
+  it.each(['academy_scores', 'school_scores', 'academy_exam_classes'])(
+    '%s 讀失敗 → 500，不回 CSV',
+    async (table) => {
+      const { post } = setup({ failTable: table });
+      const res = await post({});
+      expect(res.status).toBe(500);
+      expect(res.headers.get('content-type')).not.toContain('text/csv');
+    },
+  );
+
+  it('學生清單切批查（每批 ≤ 100 個 id）：250 位 → 3 批，結果合併', async () => {
+    const ids = Array.from(
+      { length: 250 },
+      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    );
+    const { post, queries } = setup({ academy: [academyRow('a1', ids[249]!, '最後一批的人', 70)] });
+    const out = await lines(await post({ studentIds: ids }));
+    const batches = queries
+      .filter((q) => q.table === 'academy_scores')
+      .map(
+        (q) =>
+          q.ops.find((o) => o.name === 'in' && o.args[0] === 'student_id')!.args[1] as string[],
+      );
+    expect(batches.map((b) => b.length)).toEqual([100, 100, 50]);
+    expect(new Set(batches.flat()).size).toBe(250);
+    expect(out[1]).toContain('最後一批的人');
+  });
+
+  it('切批之後整份重新依考試日新到舊排（不是一批一批接）', async () => {
+    const ids = Array.from(
+      { length: 150 },
+      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    );
+    const older = academyRow('old', ids[0]!, '第一批', 60);
+    const newer = academyRow('new', ids[149]!, '第二批', 70);
+    newer.academy_exams = { ...newer.academy_exams, exam_date: '2026-10-20' };
+    older.academy_exams = { ...older.academy_exams, exam_date: '2026-09-01' };
+    const { post } = setup({ academy: [older, newer] });
+    const out = await lines(await post({ studentIds: ids }));
+    expect(out.slice(1).map((l) => l.split(',')[0])).toEqual(['第二批', '第一批']);
   });
 
   it('studentIds 超過 3000 → 400', async () => {

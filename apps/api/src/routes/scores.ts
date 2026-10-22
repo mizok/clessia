@@ -457,10 +457,16 @@ async function collectScoreRecords(
     dateFrom?: string;
     dateTo?: string;
     searchKeyword: string | null;
+    /**
+     * 任一段查詢失敗就丟出去（匯出用，#1100 #40）。預設（列表）維持原本的行為：記 log、少那一半照回 ——
+     * 匯出不能這樣：校內考那半失敗的話檔案只剩段考，看起來卻是完整的
+     */
+    strict?: boolean;
   },
 ): Promise<ScoreRecord[]> {
   const { readable, academyExamIds, studentId, type, subjectId, dateFrom, dateTo, searchKeyword } =
     filters;
+  const strict = filters.strict ?? false;
   const results: ScoreRecord[] = [];
 
   // Fetch academy scores (unless type is explicitly 'school')
@@ -576,6 +582,7 @@ async function collectScoreRecords(
     const academyRows = Array.from(academyRowMap.values());
 
     if (academyError) {
+      if (strict) throw new Error(`讀校內考成績失敗：${academyError.message}`);
       console.error('Academy scores query error:', academyError);
     } else {
       for (const row of academyRows ?? []) {
@@ -686,6 +693,7 @@ async function collectScoreRecords(
     const schoolRows = Array.from(schoolRowMap.values());
 
     if (schoolError) {
+      if (strict) throw new Error(`讀段考成績失敗：${schoolError.message}`);
       console.error('School scores query error:', schoolError);
     } else {
       for (const row of schoolRows ?? []) {
@@ -807,6 +815,17 @@ app.openapi(listRoute, async (c) => {
 /** 一次匯出的列數上限 */
 const SCORE_EXPORT_ROW_LIMIT = 20000;
 
+/**
+ * `.in()` 一批最多幾個 id。PostgREST 走 GET，id 進 URL —— 本機實測：短 select 帶 500 個 uuid 就
+ * 414 URI too long；成績的 select 本身就長（巢狀 embed），帶 200 個也 414。100 個實打 200。
+ * 那個錯誤在替身裡不會出現，由 `list-endpoints.contract` 的 3000 個 id 那條守。匯出一律切批
+ */
+const IN_BATCH = 100;
+const batches = <T>(items: readonly T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / IN_BATCH) }, (_, i) =>
+    items.slice(i * IN_BATCH, (i + 1) * IN_BATCH),
+  );
+
 const STATUS_LABELS: Record<ScoreRecord['status'], string> = {
   scored: '正常',
   absent: '缺考',
@@ -826,35 +845,46 @@ async function examClassOfStudent(
   const academy = records.filter((r) => r.type === 'academy');
   if (academy.length === 0) return out;
 
-  const examIds = [...new Set(academy.map((r) => r.examId))];
-  const links = await fetchAllRows<{
+  type Link = {
     exam_id: string;
     class_id: string;
     classes: { name: string; courses: { name: string } | null } | null;
-  }>(
-    (from, to) =>
-      supabase
-        .from('academy_exam_classes')
-        .select('exam_id, class_id, classes!inner(name, org_id, courses(name))')
-        .in('exam_id', examIds)
-        .eq('classes.org_id', orgId)
-        .order('exam_id')
-        .order('class_id')
-        .range(from, to) as never,
-  );
+  };
+  const links: Link[] = [];
+  for (const examIds of batches([...new Set(academy.map((r) => r.examId))])) {
+    links.push(
+      ...(await fetchAllRows<Link>(
+        (from, to) =>
+          supabase
+            .from('academy_exam_classes')
+            .select('exam_id, class_id, classes!inner(name, org_id, courses(name))')
+            .in('exam_id', examIds)
+            .eq('classes.org_id', orgId)
+            .order('exam_id')
+            .order('class_id')
+            .range(from, to) as never,
+      )),
+    );
+  }
   const classIds = [...new Set(links.map((l) => l.class_id))];
   if (classIds.length === 0) return out;
-  const studentIds = [...new Set(academy.map((r) => r.studentId))];
-  const enrolled = await fetchAllRows<{ student_id: string; class_id: string }>((from, to) =>
-    supabase
-      .from('enrollments')
-      .select('student_id, class_id')
-      .eq('org_id', orgId)
-      .in('class_id', classIds)
-      .in('student_id', studentIds)
-      .order('id')
-      .range(from, to),
-  );
+  const enrolled: Array<{ student_id: string; class_id: string }> = [];
+  for (const classBatch of batches(classIds)) {
+    for (const studentIds of batches([...new Set(academy.map((r) => r.studentId))])) {
+      enrolled.push(
+        ...(await fetchAllRows<{ student_id: string; class_id: string }>((from, to) =>
+          supabase
+            .from('enrollments')
+            .select('student_id, class_id')
+            .eq('org_id', orgId)
+            .in('class_id', classBatch)
+            .in('student_id', studentIds)
+            .order('id')
+            .range(from, to),
+        )),
+      );
+    }
+  }
   const enrolledSet = new Set(enrolled.map((e) => `${e.student_id}:${e.class_id}`));
   const sortedLinks = [...links].sort((a, b) =>
     (a.classes?.name ?? '').localeCompare(b.classes?.name ?? '', 'zh-Hant'),
@@ -890,7 +920,8 @@ const exportRoute = createRoute({
   },
   responses: {
     200: { description: 'CSV', content: { 'text/csv': { schema: z.string() } } },
-    400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    400: { description: '參數錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: '匯出失敗', content: { 'application/json': { schema: ErrorSchema } } },
     403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
     413: { description: '筆數超過上限', content: { 'application/json': { schema: ErrorSchema } } },
   },
@@ -925,11 +956,20 @@ app.openapi(exportRoute, async (c) => {
   if (readable !== null && readable.length === 0) return csvResponse([]);
 
   try {
-    const records = await collectScoreRecords(supabase, orgId, {
-      readable,
-      academyExamIds: null,
-      searchKeyword: null,
-    });
+    // 學生清單切批查（URL 長度），合併後再依考試日排；`null`＝不限，一次查
+    const records: ScoreRecord[] = [];
+    for (const batch of readable === null ? [null] : batches(readable)) {
+      records.push(
+        ...(await collectScoreRecords(supabase, orgId, {
+          readable: batch,
+          academyExamIds: null,
+          searchKeyword: null,
+          strict: true,
+        })),
+      );
+      if (records.length > SCORE_EXPORT_ROW_LIMIT) break;
+    }
+    records.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
     if (records.length > SCORE_EXPORT_ROW_LIMIT) {
       return c.json(
         {
@@ -952,11 +992,9 @@ app.openapi(exportRoute, async (c) => {
       ]),
     );
   } catch (error) {
+    // 任一段失敗就整份失敗 —— 不回一份少了一半的檔案
     console.error('Scores export error:', error);
-    return c.json(
-      { error: error instanceof Error ? error.message : '匯出失敗', code: 'DB_ERROR' },
-      400,
-    );
+    return c.json({ error: '匯出失敗，請稍後再試', code: 'DB_ERROR' }, 500);
   }
 });
 
