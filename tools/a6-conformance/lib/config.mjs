@@ -93,6 +93,14 @@ export const DEVIATIONS = [
     source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
   },
   {
+    // 同一條：通知中心從「更多」移到頂欄鈴鐺，「更多」裡不再有它
+    status: '缺',
+    pop: 'more',
+    a6: '>landmark:popover\\[\\]>control:link\\[通知中心\\]$',
+    reason: '通知中心從「更多」移到頂欄鈴鐺',
+    source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
+  },
+  {
     // 同一條：老師頂欄導覽的「通知」一起拿掉（同一個功能不留兩個入口）
     status: '缺',
     a6: '>landmark:navigation\\[主要導覽\\]>control:link\\[通知\\]$',
