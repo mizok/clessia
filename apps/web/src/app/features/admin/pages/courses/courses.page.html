@@ -126,11 +126,7 @@
   }
 
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list" aria-label="課程載入中">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="課程載入中" chapter [count]="4" />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到課程資料，可能是連線問題" (retry)="loadCourses()" />
     } @else if (courseGroups().length === 0) {

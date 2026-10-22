@@ -53,6 +53,8 @@ export interface Staff {
   nickname?: string | null;
   phone: string | null;
   email: string;
+  /** 登入過沒有（#1100 #38，同家長列表）。false＝還沒登入過，列上標小標提醒發登入連結 */
+  hasLoggedIn?: boolean;
   birthday: string | null;
   notes: string | null;
   subjectIds: string[];

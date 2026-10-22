@@ -204,16 +204,15 @@
 
 <div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   <!-- 提示直接連到修法（kb/wiki/architecture/admin-todo-alerts.md 的共用元件）—— 不是一個死路的數字 -->
-  <app-todo-banner [count]="uninvoicedCount()" (action)="openUninvoiced()">
-    有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
-  </app-todo-banner>
+  <!-- 提示是資料回來才出現的：滑出來，不是一下把整個清單往下推（#1859） -->
+  <div appHeightFollow appHeightFollowGrow>
+    <app-todo-banner class="block" [count]="uninvoicedCount()" (action)="openUninvoiced()">
+      有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
+    </app-todo-banner>
+  </div>
 
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="帳單載入中" chapter [lines]="1" [count]="6" />
     @if (failed()) {
       <app-empty-state
         icon="pi pi-exclamation-circle"
@@ -367,16 +366,7 @@
               </summary>
               <div class="coll__body" appHeightFollow>
                 <app-reload-veil class="block" [loading]="chapter.state.loading">
-                  <div
-                    reloadSkeleton
-                    class="flex flex-col gap-5 py-4"
-                    role="status"
-                    aria-label="載入中…"
-                  >
-                    @for (i of [1, 2, 3]; track i) {
-                      <span class="skeleton-bar"></span>
-                    }
-                  </div>
+                  <app-skeleton reloadSkeleton label="載入中…" [lines]="1" [count]="3" />
                   @if (chapter.state.failed) {
                     <p class="m-0 py-3 text-sm text-zinc-600">
                       沒有讀到這一章的帳單

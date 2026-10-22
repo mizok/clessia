@@ -33,11 +33,7 @@
 
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
   @if (loading()) {
-    <div class="skeleton-list" aria-label="成績總覽載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="成績總覽載入中" heading [count]="4" />
   } @else if (loadFailed()) {
     <app-load-failed description="沒有讀到考試資料，可能是連線問題" (retry)="load()" />
   } @else {

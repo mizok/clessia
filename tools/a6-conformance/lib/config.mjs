@@ -670,6 +670,53 @@ export const PAGES = {
         source:
           'kb/wiki/architecture/a6-adoption-rules.md R5（2026-10-21）；https://github.com/mizok/clessia/pull/1769#issuecomment-6310159607',
       },
+      // ── #1762 收尾（10-23）：剩下的不是設計差 ──
+      // 頁面搜尋框：框畫在 input 上（共用 p-iconfield＋.clessia-filter-search，全站同款），稿畫在外層
+      // label.tsearch；量到的是 input，所以寬高、padding、位置都不同。高度由 #1903 全站一起定
+      // （使用者 10-23 裁：工具列控制項電腦 40、手機 44），不在這頁補
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: '^>control:searchbox\\[搜尋課程或班級\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      // 資料：稿的示範班都是單一年級、最近一場是「第三次小考」；seed 的班跨年級（國一～國三）、考試名不同
+      {
+        status: '文案',
+        // 年級範圍、考試名不同；seed 的班還沒考過 →「還沒有考試」、平均「—」
+        detail:
+          '^(「[^」]*(第三次小考|(國[一二三]|小[五六])·)[^」]*」→「|「最近：[^」]*」→「|「#」→「—」$)',
+        reason: '資料：班級年級範圍、最近一場考試（有沒有、名稱、平均）隨資料',
+        source: `${rule('R5')}「成績班級視圖的資料差」2026-10-23；#1762`,
+      },
+      // 資料：課程順序、每門課幾個班、哪幾班有待登錄隨資料
+      {
+        status: '缺',
+        a6: '>landmark:region\\[[^\\]]*\\]>(control:link\\[待登錄#\\]|.*text:b\\[[^\\]]*\\])$',
+        reason: '資料：哪幾班有待登錄、有沒有考過隨資料',
+        source: `${rule('R5')}「成績班級視圖的資料差」2026-10-23；#1762`,
+      },
+      {
+        status: '多',
+        app: '>landmark:region\\[[^\\]]*\\]>control:button\\[[^\\]]*\\]$',
+        reason: '資料：每門課的班數隨資料',
+        source: `${rule('R5')}「成績班級視圖的資料差」2026-10-23；#1762`,
+      },
+      {
+        status: '位置',
+        detail: '^相對上方「[^」]+」 Δx 0、Δy -\\d{3,}（',
+        reason: '資料：課程順序隨資料（稿的國中數學在第一章，seed 在最後）',
+        source: `${rule('R5')}「成績班級視圖的資料差」2026-10-23；#1762`,
+      },
+      {
+        // 手機：seed 的年級範圍較長，說明行換兩行，右欄平均跟著置中往下
+        status: '位置',
+        widths: [360],
+        app: '>control:button\\[[^\\]]*\\]>text:span\\[(#|—)\\]$',
+        detail: '^相對「[^」]+」 Δx 0、Δy \\+\\d+（',
+        reason: '資料：說明行換行與否隨年級範圍長度，平均跟著垂直置中',
+        source: `${rule('R5')}「成績班級視圖的資料差」2026-10-23；#1762`,
+      },
     ],
   },
   'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },

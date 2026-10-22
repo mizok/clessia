@@ -6,7 +6,7 @@
 <app-page-open>
   <a
     openBack
-    class="mb-2 inline-flex min-h-11 items-center gap-1.5 text-md font-semibold text-band-ink no-underline hover:underline hover:underline-offset-4"
+    class="mb-4 inline-flex min-h-11 items-center gap-1 text-md font-medium text-band-ink-muted no-underline hover:text-band-ink hover:underline hover:underline-offset-[3px] wide:min-h-0"
     routerLink="/admin/grades/overview"
   >
     <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>成績總覽
@@ -145,11 +145,7 @@
       description="選擇分校後即可瀏覽該校的課程與班級"
     />
   } @else if (loadingGroups()) {
-    <div class="skeleton-list" aria-label="課程列表載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="課程列表載入中" [count]="3" />
   } @else if (loadFailed()) {
     <app-load-failed
       description="沒有讀到這個分校的課程與班級，可能是連線問題"
@@ -188,12 +184,12 @@
          章名下的科目小字稿沒有：舊有新無，使用者 10-21 裁定保留（課程名不保證含科目；a6-adoption-rules R5） -->
     @for (group of filteredGroups(); track group.courseId) {
       <section
-        class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+        class="grid grid-cols-1 gap-3 border-b border-zinc-200 py-6 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
         data-part="course-group"
         [attr.aria-label]="group.courseName"
       >
         <app-chapter-head
-          class="block pt-6 wide:pt-8"
+          class="block"
           [name]="group.courseName"
           [sub]="group.subjectName"
           [count]="group.classes.length"
@@ -201,7 +197,7 @@
           [stacked]="true"
           [compact]="true"
         />
-        <div class="pt-3 pb-6 wide:py-8">
+        <div>
           @for (cls of group.classes; track cls.classInfo.id) {
             <!-- A6 .crow：主按鈕與「待登錄」徽章是兄弟，不是巢狀互動元素 -->
             <div
@@ -219,7 +215,7 @@
                     class="block text-lg leading-6 font-semibold text-zinc-900 group-hover:underline group-hover:underline-offset-4"
                     >{{ cls.classInfo.name }}</span
                   >
-                  <span class="block text-sm leading-[18px] text-zinc-600" data-part="class-meta">
+                  <span class="text-sm leading-[18px] text-zinc-600" data-part="class-meta">
                     @if (cls.gradeLabels) {
                       {{ cls.gradeLabels }} ·
                     }
@@ -254,13 +250,15 @@
                     data-part="class-avg"
                   >
                     {{ exam && exam.avgScore !== null ? formatAvg(exam.avgScore) : '—' }}
-                    <small class="block text-xs font-medium text-zinc-600">平均</small>
+                    <small class="block text-xs leading-normal font-medium text-zinc-600"
+                      >平均</small
+                    >
                   </span>
                 }
               </button>
               @if (todoExamId(cls.classInfo.id); as examId) {
                 <a
-                  class="inline-flex min-h-11 items-center gap-1 justify-self-start rounded-full border border-zinc-900 bg-white px-3 text-sm font-semibold whitespace-nowrap text-zinc-900 no-underline hover:bg-zinc-100 wide:justify-self-end"
+                  class="inline-flex min-h-11 items-center gap-1 justify-self-start rounded-full wide:min-h-[30px] border border-zinc-900 bg-white px-3 text-sm font-semibold whitespace-nowrap text-zinc-900 no-underline hover:bg-zinc-100 wide:justify-self-end"
                   data-part="class-todo"
                   [routerLink]="['/admin/grades/exams', 'academy', examId, 'scores']"
                   [attr.aria-label]="

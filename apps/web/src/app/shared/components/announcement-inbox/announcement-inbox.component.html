@@ -1,96 +1,138 @@
-<div class="announcement-inbox flex flex-col gap-4 p-4">
-  <header class="announcement-inbox__header">
-    <h1 class="announcement-inbox__title m-0 flex items-center gap-3 text-[1.5rem] font-semibold">
-      {{ heading() }}
-      @if (unread() > 0) {
-        <span
-          class="announcement-inbox__badge rounded-full bg-accent-50 px-2 py-1 text-[0.75rem] font-medium text-accent-600"
-          ><span [appValueArrive]="unread()">{{ unread() }}</span> 則未讀</span
-        >
+<!--
+  A6 t-notifications／p-notifications（#1888）：色面句 → 灰帶工具列（未讀數＋全部標為已讀）→
+  依「今天／昨天／這週／更早」分章 → 底部保留期限。整頁出血由 app-page-open 觸發（shell 的 :has），
+  本體自己包 page-wrap，左緣跟其他頁同一條。
+  呼叫端插槽：`[inboxOpen]` 接在色面句下面（家長的推播提示），`[inboxTools]` 放在工具列右側（家長的通知設定）。
+-->
+<div class="announcement-inbox">
+  <app-page-open>
+    <ng-container openTitle>
+      @if (headline(); as line) {
+        {{ line.first }}
+        @if (line.second) {
+          <br />{{ line.second }}
+        }
+      } @else {
+        {{ heading() }}
       }
-    </h1>
+    </ng-container>
+    <ng-content select="[inboxOpen]" />
+  </app-page-open>
 
-    <!-- 沒有未讀就沒有可做的事 —— 不放一顆按了不會發生任何事的按鈕 -->
-    @if (unread() > 0) {
-      <button
-        type="button"
-        class="announcement-inbox__mark-all min-h-11 cursor-pointer self-start rounded-lg border border-solid border-zinc-300 bg-transparent px-3 py-0 text-[0.85rem] text-zinc-700 hover:bg-zinc-50"
-        (click)="markAllRead()"
-      >
-        全部標為已讀
-      </button>
-    }
+  <div class="bg-zinc-100">
+    <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16">
+      <p class="announcement-inbox__count m-0 text-base text-zinc-900">
+        <strong>
+          @if (unread() > 0) {
+            <span [appValueArrive]="unread()">{{ unread() }}</span> 則未讀
+          } @else {
+            沒有未讀
+          }
+        </strong>
+      </p>
+      <div class="ml-auto flex flex-wrap items-center gap-2">
+        <ng-content select="[inboxTools]" />
+        <!-- 沒有未讀就沒有可做的事 —— 不放一顆按了不會發生任何事的按鈕（A6 hidden） -->
+        @if (unread() > 0) {
+          <button
+            type="button"
+            class="announcement-inbox__mark-all inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+            (click)="markAllRead()"
+          >
+            <i class="pi pi-check" aria-hidden="true"></i>
+            全部標為已讀
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="page-wrap flex flex-col pb-12">
     @if (markAllPartial()) {
-      <p class="announcement-inbox__state m-0 text-[0.875rem] text-error-600" role="status">
+      <p class="announcement-inbox__state m-0 pt-6 text-error-600 wide:pt-8" role="status">
         有一部分沒標成，請再按一次。
       </p>
     }
-  </header>
-
-  @if (loading()) {
-    <div class="skeleton-list" aria-label="通知載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
-  } @else if (loadError()) {
-    <p class="announcement-inbox__state announcement-inbox__state--error m-0 text-error-600">
-      查詢失敗，請稍後再試。
-    </p>
-  } @else {
-    @if (partialError(); as message) {
-      <p class="announcement-inbox__state announcement-inbox__state--error m-0 text-error-600">
-        {{ message }}
+    @if (loading()) {
+      <app-skeleton label="通知載入中" chapter [count]="3" />
+    } @else if (loadError()) {
+      <p class="announcement-inbox__state m-0 pt-6 text-error-600 wide:pt-8">
+        查詢失敗，請稍後再試。
       </p>
-    }
-    @if (items().length === 0) {
-      <p class="announcement-inbox__state m-0 text-muted">目前沒有通知。</p>
     } @else {
-      <ul class="announcement-inbox__list m-0 flex max-w-[560px] list-none flex-col p-0">
-        @for (item of items(); track keyOf(item)) {
-          <li
-            class="announcement-inbox__item border-b border-b-solid border-b-surface-border"
-            [class.announcement-inbox__item--unread]="!item.isRead"
+      @if (partialError(); as message) {
+        <p class="announcement-inbox__state m-0 pt-6 text-error-600 wide:pt-8">{{ message }}</p>
+      }
+      <!-- 一則都沒有：色面句已經寫「還沒有收到通知。」，本體不再重複一行 -->
+      @if (items().length > 0) {
+        @for (chapter of chapters(); track chapter.name) {
+          <!-- A6 `.chap`：上下 32px（手機 24px）、每一章都有下框、兩欄間距 32px（手機 12px） -->
+          <section
+            class="announcement-inbox__chapter grid grid-cols-1 gap-3 border-b border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
+            [attr.aria-label]="chapter.name"
           >
-            <button
-              type="button"
-              class="announcement-inbox__summary flex min-h-11 w-full cursor-pointer flex-wrap items-baseline justify-between gap-2 border-0 bg-transparent px-2 py-3 text-left"
-              (click)="toggle(item)"
-            >
-              <span
-                class="announcement-inbox__item-title flex items-center gap-2 text-[1rem]"
-                [class.font-semibold]="!item.isRead"
-              >
-                @if (!item.isRead) {
-                  <span
-                    class="announcement-inbox__dot size-2 rounded-full bg-accent-500"
-                    aria-label="未讀"
-                  ></span>
-                }
-                {{ item.title }}
-              </span>
-              <span class="announcement-inbox__meta text-[0.875rem] text-muted">
-                {{ item.label }} · {{ item.at | date: 'MM/dd HH:mm' }}
-                @if (item.campusName) {
-                  · {{ item.campusName }}
-                }
-              </span>
-            </button>
-
-            @if (openKey() === keyOf(item)) {
-              <div class="announcement-inbox__body px-2 pb-3">
-                <!-- prettier-ignore -->
-                <p class="announcement-inbox__text m-0 leading-[1.7] whitespace-pre-wrap">{{ item.body }}</p>
-                @if (item.author) {
-                  <p class="announcement-inbox__author mx-0 mt-2 mb-0 text-[0.875rem] text-muted">
-                    —— {{ item.author }}
-                  </p>
-                }
-              </div>
-            }
-          </li>
+            <app-chapter-head
+              class="block"
+              [name]="chapter.name"
+              [count]="chapter.items.length"
+              [stacked]="true"
+              [unit]="chapter.unread > 0 ? '則 · 未讀 ' + chapter.unread : '則'"
+            />
+            <div>
+              @for (item of chapter.items; track keyOf(item)) {
+                <!-- A6 `.nt`：未讀＝橘點＋粗體（不用紅，紅留給錯誤與逾期）；一次只開一則 -->
+                <details
+                  class="announcement-inbox__item border-b border-surface-border"
+                  [class.announcement-inbox__item--unread]="!item.isRead"
+                  [open]="openKey() === keyOf(item)"
+                >
+                  <summary
+                    class="announcement-inbox__summary grid min-h-11 cursor-pointer list-none grid-cols-[12px_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 py-4 wide:grid-cols-[12px_minmax(0,1fr)_auto] wide:gap-3 [&::-webkit-details-marker]:hidden"
+                    (click)="$event.preventDefault(); toggle(item)"
+                  >
+                    <span
+                      class="announcement-inbox__dot size-2 self-center rounded-full bg-accent-500"
+                      [class.invisible]="item.isRead"
+                      aria-hidden="true"
+                    ></span>
+                    <span
+                      class="announcement-inbox__item-title text-base"
+                      [class.font-bold]="!item.isRead"
+                      [class.text-zinc-900]="!item.isRead"
+                      [class.font-medium]="item.isRead"
+                      [class.text-zinc-700]="item.isRead"
+                      >{{ item.title }}
+                      @if (!item.isRead) {
+                        <span class="sr-only">（未讀）</span>
+                      }
+                    </span>
+                    <!-- 列上的標籤（公告／繳費提醒…）A6 沒有：稿畫的時候收件匣只有公告，#1683 起併了通知 -->
+                    <span
+                      class="announcement-inbox__meta col-start-2 text-sm whitespace-nowrap text-zinc-600 tabular-nums wide:col-auto"
+                      >{{ item.label }} · {{ item.at | date: 'M/d HH:mm' : '+0800' }}
+                      @if (item.campusName) {
+                        · {{ item.campusName }}
+                      }
+                    </span>
+                  </summary>
+                  <div class="announcement-inbox__body pb-4 pl-6">
+                    <!-- prettier-ignore -->
+                    <p class="announcement-inbox__text m-0 max-w-[64ch] text-md leading-relaxed whitespace-pre-wrap text-zinc-800">{{ item.body }}</p>
+                    @if (item.author) {
+                      <p class="announcement-inbox__author mx-0 mt-1 mb-0 text-sm text-zinc-600">
+                        —— {{ item.author }}
+                      </p>
+                    }
+                  </div>
+                </details>
+              }
+            </div>
+          </section>
         }
-      </ul>
+        <p class="announcement-inbox__keep m-0 py-6 text-sm text-zinc-600">
+          通知保留 90 天，公告會一直留著。
+        </p>
+      }
     }
-  }
+  </div>
 </div>

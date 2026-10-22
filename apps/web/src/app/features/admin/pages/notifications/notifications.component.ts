@@ -36,6 +36,7 @@ import {
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type Tab = 'inbox' | 'publish';
 
@@ -44,7 +45,8 @@ const KINDS: Record<string, { label: string; icon: string; go: string }> = {
   application_received: { label: '新申請', icon: 'pi-inbox', go: '看申請' },
   overdue_digest: { label: '逾期帳單', icon: 'pi-exclamation-circle', go: '看逾期帳單' },
   unbilled_reminder: { label: '待開單', icon: 'pi-file', go: '看帳單' },
-  schedule_change: { label: '課務異動', icon: 'pi-calendar', go: '看這堂' },
+  // #1023：連到課務異動頁（列表），不是單堂
+  schedule_change: { label: '課務異動', icon: 'pi-calendar', go: '看課務異動' },
   leave_for_my_class: { label: '請假', icon: 'pi-user-minus', go: '看請假' },
   leave_received: { label: '家長請假', icon: 'pi-user-minus', go: '看請假' },
   // #1732：連到學生檔案的帳單章（#billing）
@@ -60,6 +62,7 @@ const OTHER_KIND = { label: '系統通知', icon: 'pi-bell', go: '前往' };
 @Component({
   selector: 'app-notifications',
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     DatePipe,
     FormsModule,

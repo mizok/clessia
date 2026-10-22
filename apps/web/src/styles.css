@@ -499,7 +499,8 @@
     gap: var(--space-4);
     padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--zinc-100);
-    background: var(--zinc-50) / 0.5;
+    /* 沒有底色＝透明（#1387）：原本的 `background: var(--zinc-50) / 0.5` 是 SCSS 除法殘留、從沒生效過；
+       計畫席 10-23 裁維持透明，A6 `.acset__head`（a6.css:445）也沒有底色 */
   }
   .dialog-header-inline__content {
     display: flex;
@@ -865,12 +866,7 @@
       background-image: none !important;
     }
   }
-  .skeleton-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-5);
-    padding: var(--space-4) var(--space-6);
-  }
+  /* 清單的骨架是共用元件 `app-skeleton`（#1879：形狀與寬度跟內容一樣）；`.skeleton-list` 只剩它的 block 名 */
   .skeleton-bar {
     display: block;
     height: 1rem;

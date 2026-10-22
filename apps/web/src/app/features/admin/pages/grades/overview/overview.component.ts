@@ -15,6 +15,7 @@ import { SystemClockService, addDaysToDateString } from '@core/system-clock.serv
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /**
  * 成績總覽入口（A6 grades.html，#991 grades G3）。計畫席裁 Q6：只放現有 API 拿得到的 ——
@@ -24,7 +25,7 @@ import { PageOpenComponent } from '@shared/components/page-open/page-open.compon
 @Component({
   selector: 'app-overview',
   standalone: true,
-  imports: [RouterLink, PageOpenComponent, LoadFailedComponent],
+  imports: [SkeletonComponent, RouterLink, PageOpenComponent, LoadFailedComponent],
   templateUrl: './overview.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

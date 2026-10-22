@@ -118,11 +118,17 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
 
   it('課務異動一批跨班：groupByClass＋teachersForSessionGroups 每班與 SQL 逐筆相同（#1693）', async () => {
     // 同一個 org 裡挑兩個班、各兩堂，當成同一批
-    const picked = await q<{ id: string; org_id: string; class_id: string; name: string }>(
+    const picked = await q<{
+      id: string;
+      org_id: string;
+      class_id: string;
+      name: string;
+      campus_id: string | null;
+    }>(
       `WITH k AS (
          SELECT s.org_id, s.class_id FROM sessions s GROUP BY s.org_id, s.class_id
          HAVING count(*) >= 2 ORDER BY s.org_id, s.class_id LIMIT 2)
-       SELECT s.id, s.org_id, s.class_id, c.name FROM k
+       SELECT s.id, s.org_id, s.class_id, c.name, c.campus_id FROM k
        CROSS JOIN LATERAL (SELECT id, org_id, class_id FROM sessions
          WHERE class_id = k.class_id ORDER BY session_date, id LIMIT 2) s
        JOIN classes c ON c.id = s.class_id`,
@@ -137,6 +143,8 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
     const recipients = await teachersForSessionGroups(supabase, orgId, groups);
     for (const p of picked.filter((x) => x.org_id === orgId)) {
       expect(groups.get(p.class_id)?.name).toBe(p.name); // classes(name) 的嵌入真的取得到
+      // #1023：管理員依班的分校挑，campus_id 要真的從嵌入取得到
+      expect(groups.get(p.class_id)?.campusId).toBe(p.campus_id);
     }
     let nonEmpty = 0;
     for (const [classId, g] of groups) {

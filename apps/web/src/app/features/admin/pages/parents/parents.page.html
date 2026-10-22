@@ -96,11 +96,7 @@
 
 <div class="page-wrap flex flex-col gap-4 pt-2 pb-12">
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="家長載入中" chapter [count]="4" />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到家長資料，可能是連線問題" (retry)="loadParents()" />
     } @else if (parents().length === 0) {

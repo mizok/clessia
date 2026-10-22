@@ -87,11 +87,7 @@
   <div class="page-wrap flex flex-col pb-12">
     <div>
       @if (inboxLoading()) {
-        <div class="skeleton-list pt-6 wide:pt-8" aria-label="通知載入中">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
+        <app-skeleton label="通知載入中" chapter [count]="3" />
       } @else if (inboxError()) {
         <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
       } @else {
@@ -182,11 +178,7 @@
   <div class="page-wrap flex flex-col pb-12">
     <section aria-label="已發布">
       <app-reload-veil [loading]="loading()">
-        <div reloadSkeleton class="skeleton-list pt-6 wide:pt-8" aria-label="已發布公告載入中">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
+        <app-skeleton reloadSkeleton label="已發布公告載入中" chapter [count]="3" />
         @if (loadError()) {
           <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
         } @else if (announcements().length === 0) {

@@ -126,11 +126,7 @@
 
   <app-reload-veil [loading]="loading()">
     <!-- Skeleton Loading -->
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="人員載入中" chapter [lines]="1" [count]="4" />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到人員資料，可能是連線問題" (retry)="loadStaff()" />
     } @else if (visibleRows().length === 0) {
@@ -231,6 +227,17 @@
                           >{{ getRoleLabel(role) }}</span
                         >
                       }
+                    }
+                    <!-- #1100 #38（同家長列表）：只標啟用中的人；機台不是人在登入，不標 -->
+                    @if (
+                      staff.hasLoggedIn === false &&
+                      staff.status === 'active' &&
+                      !staff.roles.includes('kiosk')
+                    ) {
+                      <span
+                        class="shrink-0 rounded-full border border-solid border-zinc-300 px-2 text-xs leading-5 whitespace-nowrap text-zinc-600"
+                        >還沒登入過</span
+                      >
                     }
                     @if (staff.roles.includes('admin')) {
                       <button

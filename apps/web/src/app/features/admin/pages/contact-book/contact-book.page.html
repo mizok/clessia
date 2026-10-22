@@ -58,11 +58,7 @@
     </div>
 
     @if (missingLoading()) {
-      <div class="skeleton-list" aria-label="缺漏名單載入中">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton label="缺漏名單載入中" [count]="3" />
     } @else if (missingFailed()) {
       <p class="m-0 text-sm text-zinc-600">
         缺漏名單讀不到。
@@ -190,11 +186,7 @@
     }
 
     <app-reload-veil [loading]="loading()">
-      <div reloadSkeleton class="skeleton-list">
-        @for (i of [1, 2, 3, 4, 5]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton reloadSkeleton label="聯絡簿載入中" [count]="5" />
       @if (failed()) {
         <app-empty-state
           icon="pi pi-exclamation-circle"
