@@ -84,7 +84,8 @@ describe('SettingsPage', () => {
     const LAST = {
       id: 'gp-1',
       academicYear: 115,
-      executedAt: '2026-09-01T02:00:00Z',
+      // 台北 9/1 凌晨 1 點 —— UTC 還是 8/31，日期要照台北寫
+      executedAt: '2026-08-31T17:00:00Z',
       revertedAt: null,
       revertible: true,
       studentCount: 42,

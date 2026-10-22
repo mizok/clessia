@@ -1,5 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal, input } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -45,6 +46,7 @@ import { GradePromotionDialogComponent } from './grade-promotion-dialog/grade-pr
     InputTextModule,
     LoadFailedComponent,
     RouterLink,
+    DatePipe,
   ],
   templateUrl: './settings.page.html',
   providers: [DialogService],

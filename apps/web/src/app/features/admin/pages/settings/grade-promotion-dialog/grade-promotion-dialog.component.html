@@ -21,7 +21,7 @@
     <div class="flex flex-col gap-5 text-md text-zinc-700">
       @if (result(); as r) {
         <p class="m-0" role="status">
-          {{ r.academicYear }} 學年：{{ consequence(r.promotedCount, r.graduatedCount) }}。30
+          {{ r.academicYear }} 學年：{{ doneText(r.promotedCount, r.graduatedCount) }}。30
           天內可以在設定頁復原。
         </p>
       } @else if (p.alreadyPromoted) {
@@ -59,9 +59,9 @@
             </p>
             <ul class="m-0 flex list-none flex-col gap-1 p-0">
               @for (s of p.schoolMismatch; track s.studentId) {
-                <li class="flex flex-wrap gap-x-2">
+                <li class="flex flex-wrap items-center gap-x-2">
                   <a
-                    class="font-semibold text-zinc-900 underline underline-offset-[3px]"
+                    class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-[3px]"
                     [routerLink]="studentPath(s.studentId)"
                     (click)="close()"
                     >{{ s.name }}</a
@@ -85,9 +85,9 @@
             </p>
             <ul class="m-0 flex list-none flex-col gap-1 p-0">
               @for (s of p.graduatesWithEnrollments; track s.studentId) {
-                <li class="flex flex-wrap gap-x-2">
+                <li class="flex flex-wrap items-center gap-x-2">
                   <a
-                    class="font-semibold text-zinc-900 underline underline-offset-[3px]"
+                    class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-[3px]"
                     [routerLink]="studentPath(s.studentId)"
                     (click)="close()"
                     >{{ s.name }}</a
@@ -112,6 +112,7 @@
         <button
           pButton
           class="min-h-11"
+          class="shrink-0 whitespace-nowrap"
           label="取消"
           severity="secondary"
           size="small"

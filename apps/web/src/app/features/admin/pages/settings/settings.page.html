@@ -382,11 +382,11 @@
             } @else if (lastPromotion(); as last) {
               <p class="m-0 text-md text-zinc-700 tabular-nums" role="status">
                 上次執行：{{ last.academicYear }} 學年，{{
-                  last.executedAt.slice(0, 10).replaceAll('-', '/')
+                  last.executedAt | date: 'yyyy/MM/dd' : '+0800'
                 }}，{{ last.studentCount }}
                 位學生
                 @if (last.revertedAt) {
-                  · 已於 {{ last.revertedAt.slice(0, 10).replaceAll('-', '/') }} 復原
+                  · 已於 {{ last.revertedAt | date: 'yyyy/MM/dd' : '+0800' }} 復原
                 } @else if (!last.revertible) {
                   · 超過 30 天，不能復原
                 }
@@ -403,7 +403,7 @@
                     @for (s of r.skipped; track s.studentId) {
                       <li>
                         <a
-                          class="font-semibold text-zinc-900 underline underline-offset-[3px]"
+                          class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-[3px]"
                           [routerLink]="studentPath(s.studentId)"
                           >{{ s.name }}</a
                         >

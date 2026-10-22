@@ -63,6 +63,16 @@ export class GradePromotionDialogComponent {
       .join('；');
   }
 
+  /** 完成畫面是事後敘述，不是確認鈕的祈使句 */
+  protected doneText(promoted: number, graduated: number): string {
+    return [
+      promoted > 0 ? `${promoted} 位學生升了一個年級` : '',
+      graduated > 0 ? `${graduated} 位高三改成停用（畢業）` : '',
+    ]
+      .filter(Boolean)
+      .join('；');
+  }
+
   protected execute(): void {
     this.executing.set(true);
     this.executeError.set(null);

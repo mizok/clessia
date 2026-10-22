@@ -84,6 +84,7 @@ describe('GradePromotionDialogComponent', () => {
 
     expect(service.execute).toHaveBeenCalledTimes(1);
     expect(text()).toContain('學年升級完成');
+    expect(text()).toContain('13 位學生升了一個年級；2 位高三改成停用（畢業）');
     expect(text()).toContain('林小華');
     expect(button('把 13 位')).toBeUndefined();
     button('關閉')!.click();
