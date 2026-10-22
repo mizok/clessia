@@ -77,17 +77,17 @@
             />
           } @else {
             <!-- Display mode -->
-            <span class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
-              <span class="subject-manager__name text-lg leading-normal font-bold text-zinc-900">{{
-                subject.name
-              }}</span>
+            <div class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
+              <div class="subject-manager__name text-lg leading-normal font-bold text-zinc-900">
+                {{ subject.name }}
+              </div>
               <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到。沒被用到也講（A6） -->
               <span class="subject-manager__usage-hint text-sm leading-normal text-zinc-600">{{
                 deleteBlockReason(subject) ?? '還沒被用到'
               }}</span>
-            </span>
+            </div>
             <!-- A6 `.icobtn`：40px 無框圖示鈕，兩顆間距 4px -->
-            <span class="flex gap-1">
+            <div class="flex gap-1">
               <button
                 type="button"
                 class="grid size-10 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
@@ -114,7 +114,7 @@
               >
                 <i class="pi pi-trash" aria-hidden="true"></i>
               </button>
-            </span>
+            </div>
           }
         </div>
       }
