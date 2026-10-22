@@ -1129,8 +1129,11 @@
   :root[data-route-dir='lateral']::view-transition-old(route-content) {
     animation-duration: 300ms;
   }
+  /* 同層也要一點方向感（#1849，使用者 10-22）：新內容固定從右邊 12px 淡入，比往深一層的 24px 小，兩種換頁
+     分得出來；舊內容原地淡出（沿用預設的 vt-fade-out），不往左推 —— 推了會看起來像「返回」 */
   :root[data-route-dir='lateral']::view-transition-new(route-content) {
     animation-duration: 340ms;
+    animation-name: vt-in-right-near;
   }
   :root[data-route-dir='forward']::view-transition-old(route-content) {
     animation-name: vt-out-left;
@@ -1160,6 +1163,12 @@
     from {
       opacity: 0;
       transform: translateX(24px);
+    }
+  }
+  @keyframes vt-in-right-near {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
     }
   }
   @keyframes vt-in-left {
