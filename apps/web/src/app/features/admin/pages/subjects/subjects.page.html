@@ -1,12 +1,9 @@
-<div class="flex flex-col gap-4">
-  <header
-    class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
-  >
-    <div class="flex flex-col gap-1">
-      <h1 class="m-0 text-lg font-semibold text-zinc-900">科目管理</h1>
-      <p class="m-0 text-sm text-zinc-500">管理課程科目分類，供課程設定與老師資格篩選使用</p>
-    </div>
-  </header>
+<!--
+  A6 settings.html#subjects：一句說明（.lede）→ 科目列 → 新增列。
+  殼（settings-shell）擁有 h1 與分頁，這裡不再放標題（同分校分頁）。
+-->
+<p class="m-0 max-w-[64ch] text-base text-zinc-700">
+  課程設定與老師資格篩選會用到。被課程或考試用到的科目不能刪，可以改名。
+</p>
 
-  <app-subject-manager />
-</div>
+<app-subject-manager />
