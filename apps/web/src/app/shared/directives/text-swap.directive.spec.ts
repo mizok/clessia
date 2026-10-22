@@ -6,12 +6,12 @@ import { TextSwapDirective } from './text-swap.directive';
 @Component({
   imports: [TextSwapDirective],
   template: `<div>
-    <p appTextSwap>
+    <p appTextSwap id="swap-host">
       @if (text(); as t) {
         @if (bold()) {
           <b>{{ t }}</b>
         } @else {
-          {{ t }}
+          <span id="swap-inner">{{ t }}</span>
         }
       } @else {
         <span class="skeleton"></span>
@@ -83,6 +83,9 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     const [clone] = clones();
     expect(clone?.textContent?.trim()).toBe('學生管理');
     expect(clone?.getAttribute('aria-hidden')).toBe('true');
+    // 複本不能帶 id：同一頁出現兩個一樣的 id，label／aria 參照會指錯（根節點與子節點都要拿掉）
+    expect(clone?.hasAttribute('id')).toBe(false);
+    expect(clone?.querySelector('[id]')).toBeNull();
     expect(clone?.style.pointerEvents).toBe('none');
     expect(clone?.style.position).toBe('absolute');
     expect(host.contains(clone!)).toBe(false);
