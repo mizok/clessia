@@ -145,15 +145,18 @@ describe('HeightFollowDirective', () => {
     expect(animate).not.toHaveBeenCalled();
   });
 
-  it('距離長的滑久一點：500px 以內 200ms，1300px 是 500ms 封頂（#1859 第 4 張：--arrive 第一幀不再跳掉 1/3）', async () => {
+  it('距離長的滑久一點：500px 以內 200ms，800px 是 320ms（每 px 0.4ms），1500px 是 500ms 封頂（#1859 第 4 張：--arrive 第一幀不再跳掉 1/3）', async () => {
     const { animate, resize } = await setup();
     resize(100, 100);
     resize(300, 300);
-    resize(1600, 1600);
+    await Promise.resolve(); // 前一段滑完
+    resize(1100, 1100); // 800px → 每 px 0.4ms
+    await Promise.resolve();
+    resize(2600, 2600);
     const durations = animate.mock.calls.map(
       (c) => (c as unknown as [Keyframe[], KeyframeAnimationOptions])[1].duration,
     );
-    expect(durations).toEqual([200, 500]);
+    expect(durations).toEqual([200, 320, 500]);
   });
 
   it('appHeightFollowGrow：頁面剛畫出來那次只記下；之後從 0 長出來、收回 0 都滑', async () => {
@@ -183,5 +186,22 @@ describe('HeightFollowDirective', () => {
     expect(anim.play).not.toHaveBeenCalled();
     (raf.mock.calls[0]![0] as FrameRequestCallback)(0);
     expect(anim.play).toHaveBeenCalled();
+  });
+
+  it('下一幀之前又變了：被取消的那一段，下一幀不會被叫回來 play（第二審核席 #1902）', async () => {
+    const { animate, resize } = await setup();
+    const raf = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', raf);
+    resize(100, 100);
+    resize(800, 800); // 第一段建立、停在第一格，等下一幀
+    resize(300, 300); // 下一幀之前又變：第一段被取消、第二段建立
+    const [first, second] = animate.mock.results.map(
+      (r) => r.value as { cancel: Mock; play: Mock },
+    );
+    expect(first!.cancel).toHaveBeenCalled();
+    (raf.mock.calls[0]![0] as FrameRequestCallback)(0);
+    (raf.mock.calls[1]![0] as FrameRequestCallback)(0);
+    expect(first!.play).not.toHaveBeenCalled();
+    expect(second!.play).toHaveBeenCalled();
   });
 });

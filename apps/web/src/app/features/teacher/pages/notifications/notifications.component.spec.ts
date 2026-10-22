@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MessageService } from 'primeng/api';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -43,6 +44,7 @@ describe('TeacherNotificationsComponent', () => {
       imports: [NotificationsComponent],
       providers: [
         { provide: AnnouncementsService, useValue: announcementsServiceMock },
+        { provide: MessageService, useValue: { add: vi.fn() } },
         // 通知那一支（#1683 第二段）：空的，這一層只驗接線
         {
           provide: NotificationsService,
@@ -75,7 +77,10 @@ describe('TeacherNotificationsComponent', () => {
     expect(announcementsServiceMock.inbox).toHaveBeenCalledWith();
   });
 
-  it('標題用路由的 label', () => {
-    expect(fixture.nativeElement.textContent).toContain(RoutesCatalog.TEACHER_NOTIFICATIONS.label);
+  // A6：色面句是這一頁的那句話（未讀數），頁名只在資料還沒到時頂著
+  it('色面句寫未讀數，不是頁名', () => {
+    const h1 = (fixture.nativeElement as HTMLElement).querySelector('app-page-open h1')!;
+    expect(h1.textContent).toContain('1 則未讀，');
+    expect(h1.textContent).not.toContain(RoutesCatalog.TEACHER_NOTIFICATIONS.label);
   });
 });
