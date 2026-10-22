@@ -136,4 +136,26 @@ describe('POST /check-conflicts（#1928）', () => {
     expect(res.status).toBe(200);
     expect(tables).toEqual(['schedules']);
   });
+
+  // 替身不解析 select：`classes!inner` 沒寫，org 條件只濾嵌入那層、別 org 的時段照樣回來。
+  // 真 PostgREST 的行為由 contract/check-conflicts.contract.ts 守，這裡是便宜的第一道
+  it('時段查詢的 select 用 classes!inner、條件下在 classes.org_id 與 teacher_id', async () => {
+    const db = seed();
+    const client = db.client as unknown as { from: (t: string) => Record<string, unknown> };
+    const from = client.from.bind(client);
+    const seen: unknown[][] = [];
+    client.from = (t: string) => {
+      const q = from(t);
+      for (const m of ['select', 'eq', 'in']) {
+        const orig = (q[m] as (...a: unknown[]) => unknown).bind(q);
+        q[m] = (...a: unknown[]) => (seen.push([t, m, ...a]), orig(...a));
+      }
+      return q;
+    };
+    await check(db, { schedules: [{ ...SLOT, teacherId: TEACHER }] });
+    const select = seen.find((c) => c[0] === 'schedules' && c[1] === 'select')?.[2] as string;
+    expect(select).toMatch(/(^|[\s,])classes!inner\(/);
+    expect(seen).toContainEqual(['schedules', 'eq', 'classes.org_id', ORG]);
+    expect(seen).toContainEqual(['schedules', 'in', 'teacher_id', [TEACHER]]);
+  });
 });

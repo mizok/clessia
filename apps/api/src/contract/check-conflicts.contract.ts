@@ -118,8 +118,37 @@ run('排課衝突預檢：1200 個班的 org（#1928）', () => {
     ctx.orgId = mine.orgId;
     teacherId = mine.staffId;
     targetClassId = mine.classId;
-    // 別家 org：一模一樣的時段（不同的 staff），不能漏進來
-    await seedOrg('#1928 契約：撞課預檢（別家）', 3, 2);
+    // 別家 org：一模一樣的時段（別家自己的老師），不能漏進來
+    const other = await seedOrg('#1928 契約：撞課預檢（別家）', 3, 2);
+    // 別家的班、但 teacher_id 是**本 org 那位老師**（FK 不擋跨 org 的髒資料）：只有 `classes!inner` ＋
+    // `classes.org_id` 擋得住它 —— 拿掉 `!inner` 時 org 條件只濾掉嵌入那層，這筆時段本身照樣回來
+    const [otherOrgClass] = await q<{ id: string }>(
+      "select id from classes where org_id = $1 and name = '班1'",
+      [other.orgId],
+    );
+    await q(
+      `insert into schedules (class_id, teacher_id, weekday, start_time, end_time)
+       values ($1, $2, 2, '14:30', '15:30')`,
+      [otherOrgClass!.id, teacherId],
+    );
+    // 本 org 另一位老師、同一個時段：只有老師篩選擋得住它
+    // staff 一人一 org 一筆：第二位老師用另一個既有帳號（只讀 ba_user，c2）
+    const [anotherUser] = await q<{ id: string }>('select id from ba_user where id <> $1 limit 1', [
+      ctx.userId,
+    ]);
+    const [otherTeacher] = await q<{ id: string }>(
+      "insert into staff (org_id, user_id, display_name) values ($1, $2, '李老師') returning id",
+      [ctx.orgId, anotherUser!.id],
+    );
+    const [otherClass] = await q<{ id: string }>(
+      "select id from classes where org_id = $1 and name = '班10'",
+      [ctx.orgId],
+    );
+    await q(
+      `insert into schedules (class_id, teacher_id, weekday, start_time, end_time)
+       values ($1, $2, 2, '14:30', '15:30')`,
+      [otherClass!.id, otherTeacher!.id],
+    );
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -154,7 +183,8 @@ run('排課衝突預檢：1200 個班的 org（#1928）', () => {
     };
   };
 
-  it('第 1150 班的撞課查得到（200，只有本 org 那一筆）', async () => {
+  // 只回這一筆：別家 org 掛著本 org 老師 id 的時段（守 !inner＋org）、本 org 另一位老師的同時段（守老師篩選）都不能出現
+  it('第 1150 班的撞課查得到（200，只有本 org、這位老師的那一筆）', async () => {
     const res = await check({
       schedules: [{ weekday: 2, startTime: '14:00', endTime: '15:00', teacherId }],
     });
