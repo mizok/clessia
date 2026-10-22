@@ -18,6 +18,12 @@ import { DbUuidSchema } from '../../lib/validation';
  *   `planTuitionItems` 同一條，預覽的數字就是 run 會開的數字）；升班 → 新班的預設範本整期，
  *   沒設就 `null`（前端顯示「待確認」）—— 原報名的議定價不一定適用新班
  * - **不回自動開單日**：系統給不出真的值
+ *
+ * 計畫席 10-22（家長端續課頁）：
+ * - `teacherNames`：下期那個班、下期仍有效的時段的老師（`schedules.teacher_id → staff`）。
+ *   **只收同機構的 staff、只回 display_name** —— 嵌入不經 orgRef 的 org 過濾（同下一班那條）
+ * - `hasMonthlyEnrollments`：這個孩子有沒有在讀的月繳報名。期繳清單是空的時候，前端用它決定要不要說
+ *   「月繳的課每月照常開單，不列在這裡」（沒上課的孩子不說）
  */
 
 const ScheduleSlotSchema = z.object({
@@ -35,6 +41,8 @@ const RenewalItemSchema = z
     /** 下期換到 `next_class_id` 那個班（升班） */
     upgraded: z.boolean(),
     schedules: z.array(ScheduleSlotSchema),
+    /** 下期時段的老師（去重、同機構） */
+    teacherNames: z.array(z.string()),
     estimatedAmount: z.number().nullable(),
     /** `enrollment`＝照這筆報名的價格比例試算；`next_class_default`＝新班的預設參考價；`null`＝算不出來 */
     estimateSource: z.enum(['enrollment', 'next_class_default']).nullable(),
@@ -48,6 +56,8 @@ const ResponseSchema = z
         .object({ name: z.string(), startDate: z.string(), endDate: z.string() })
         .nullable(),
       items: z.array(RenewalItemSchema),
+      /** 這個孩子有在讀的月繳報名（月繳不列在預覽裡） */
+      hasMonthlyEnrollments: z.boolean(),
     }),
   })
   .openapi('ParentRenewalPreviewResponse');
@@ -62,13 +72,15 @@ const many = (value: unknown): Row[] =>
 // ⚠️ 下一期的班要用**欄位名** `next_class_id(...)` 嵌入（多對一、回物件或 null）。
 // 寫成 `classes!next_class_id(...)` 會被 PostgREST 讀成**反向**（「誰把我當下一班」，回陣列）——
 // 本機實打抓到的（#1121），替身不會告訴你方向反了。
+const SCHEDULE_SELECT =
+  'schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name, org_id))';
 const CLASS_SELECT = `
   id, name, end_date,
   courses(name),
-  schedules(weekday, start_time, end_time, effective_to),
+  ${SCHEDULE_SELECT},
   next_class:next_class_id(
     id, name, org_id,
-    schedules(weekday, start_time, end_time, effective_to),
+    ${SCHEDULE_SELECT},
     fee_template:fee_templates!default_fee_template_id(amount, is_active)
   )
 `;
@@ -106,15 +118,27 @@ app.openapi(
     const orgId = c.get('orgId');
     const today = getCurrentTaipeiDateString();
 
-    const { data: periodRows, error: periodError } = await childDb
-      .orgRef('billing_periods')
-      .select('name, start_date, end_date')
-      .gt('start_date', today)
-      .order('start_date', { ascending: true })
-      .limit(1);
-    if (periodError) return failed();
-    const period = ((periodRows ?? []) as unknown as Row[])[0];
-    if (!period) return c.json({ data: { nextPeriod: null, items: [] } }, 200);
+    const [periodRes, monthlyRes] = await Promise.all([
+      childDb
+        .orgRef('billing_periods')
+        .select('name, start_date, end_date')
+        .gt('start_date', today)
+        .order('start_date', { ascending: true })
+        .limit(1),
+      childDb
+        .from('enrollments', 'student_id')
+        .select('id')
+        .eq('student_id', childId)
+        .eq('status', 'active')
+        .eq('billing_mode', 'monthly')
+        .limit(1),
+    ]);
+    if (periodRes.error || monthlyRes.error) return failed();
+    const hasMonthlyEnrollments = ((monthlyRes.data ?? []) as unknown[]).length > 0;
+    const period = ((periodRes.data ?? []) as unknown as Row[])[0];
+    if (!period) {
+      return c.json({ data: { nextPeriod: null, items: [], hasMonthlyEnrollments } }, 200);
+    }
     const nextPeriod = {
       name: period['name'] as string,
       startDate: period['start_date'] as string,
@@ -132,7 +156,9 @@ app.openapi(
     const enrollments = ((enrollmentRows ?? []) as unknown as Row[]).filter(
       (row) => !row['effective_to'] || row['effective_to'] >= nextPeriod.startDate,
     );
-    if (enrollments.length === 0) return c.json({ data: { nextPeriod, items: [] } }, 200);
+    if (enrollments.length === 0) {
+      return c.json({ data: { nextPeriod, items: [], hasMonthlyEnrollments } }, 200);
+    }
 
     const { data: classRows, error: classError } = await childDb
       .orgRef('classes')
@@ -146,17 +172,18 @@ app.openapi(
       ((classRows ?? []) as unknown as Row[]).map((row) => [row['id'] as string, row]),
     );
 
-    const slotsInPeriod = (classRow: Row | null) =>
+    const liveInPeriod = (classRow: Row | null) =>
       many(classRow?.['schedules'])
         .filter((s) => !s['effective_to'] || s['effective_to'] >= nextPeriod.startDate)
         .sort(
           (a, b) => a['weekday'] - b['weekday'] || a['start_time'].localeCompare(b['start_time']),
-        )
-        .map((s) => ({
-          weekday: s['weekday'] as number,
-          startTime: (s['start_time'] as string).slice(0, 5),
-          endTime: (s['end_time'] as string).slice(0, 5),
-        }));
+        );
+    const slotsInPeriod = (classRow: Row | null) =>
+      liveInPeriod(classRow).map((s) => ({
+        weekday: s['weekday'] as number,
+        startTime: (s['start_time'] as string).slice(0, 5),
+        endTime: (s['end_time'] as string).slice(0, 5),
+      }));
 
     const items = enrollments.flatMap((enrollment) => {
       const current = classById.get(enrollment['class_id'] as string);
@@ -204,13 +231,21 @@ app.openapi(
           nextClassName: (target?.['name'] as string) ?? (current['name'] as string),
           upgraded,
           schedules: slotsInPeriod(target),
+          teacherNames: [
+            ...new Set(
+              liveInPeriod(target)
+                .map((s) => one(s['teacher']))
+                .filter((t) => t?.['org_id'] === orgId && !!t?.['display_name'])
+                .map((t) => t!['display_name'] as string),
+            ),
+          ],
           estimatedAmount,
           estimateSource,
         },
       ];
     });
 
-    return c.json({ data: { nextPeriod, items } }, 200);
+    return c.json({ data: { nextPeriod, items, hasMonthlyEnrollments } }, 200);
   },
 );
 

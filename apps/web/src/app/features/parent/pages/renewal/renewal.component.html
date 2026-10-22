@@ -1,0 +1,125 @@
+<!--
+  A6 p-renewal（計畫席 10-22）：色面「{孩子}下期續 N 個班」＋孩子切換器 → 灰面狀態列 → 下期的課（只供檢視）
+  → 合計 → 加選連結。自動開單日、申請異動、異動處理中**不畫**（系統沒有那些行為，#1122；偏離 R5）。
+-->
+<app-page-open>
+  <app-child-switcher openBack class="mb-3 block" />
+  <ng-container openTitle>
+    @if (childName() && preview()) {
+      @if (items().length) {
+        {{ childName() }}下期<br />續 {{ items().length }} 個班。
+      } @else {
+        {{ childName() }}目前沒有<br />即將到來的續課。
+      }
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
+  <ng-container openSub>
+    @if (items().length && preview()?.nextPeriod; as period) {
+      下期 {{ period.name }} · {{ md(period.startDate) }} – {{ md(period.endDate) }}
+    }
+  </ng-container>
+</app-page-open>
+
+<app-child-scope-gate>
+  <div class="page-wrap pb-12">
+    @switch (state().kind) {
+      @case ('loading') {
+        <p class="m-0 py-6 text-zinc-600" role="status">讀取中…</p>
+      }
+      @case ('failed') {
+        <p class="m-0 py-6 text-zinc-700" role="alert">讀不到續課資訊，請稍後再試。</p>
+      }
+      @case ('ready') {
+        @if (items().length) {
+          <div
+            class="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg bg-zinc-100 px-5 py-4 max-wide:mt-6 max-wide:p-4"
+            data-testid="renewal-state"
+          >
+            <i class="pi pi-info-circle flex-none" aria-hidden="true"></i>
+            <p class="m-0 flex-[1_1_280px] text-base">下期費用將於開學前由補習班開立。</p>
+          </div>
+
+          <section class="mt-8" aria-labelledby="renewal-h">
+            <div
+              class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-0 border-b border-solid border-surface-border pb-3"
+            >
+              <h2
+                id="renewal-h"
+                class="m-0 text-3xl leading-tight font-bold tracking-[-0.025em] max-wide:text-2xl"
+              >
+                下期的課
+              </h2>
+              <span class="text-md text-zinc-600">只供檢視</span>
+            </div>
+            @for (item of items(); track item.enrollmentId) {
+              <div
+                class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 border-0 border-b border-solid border-surface-border py-4"
+                data-testid="renewal-row"
+              >
+                <p class="m-0 flex flex-wrap items-center gap-2 text-lg font-semibold">
+                  {{ item.nextClassName }}
+                  @if (item.upgraded) {
+                    <span
+                      class="rounded px-2 text-sm font-semibold text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-400)]"
+                      >升級</span
+                    >
+                  }
+                </p>
+                <p class="m-0 text-md text-zinc-600 tabular-nums">
+                  @if (item.upgraded) {
+                    <s>{{ item.currentClassName }}</s> →
+                  }
+                  {{ meta(item) }}
+                </p>
+                <p
+                  class="col-start-2 row-span-2 row-start-1 m-0 self-center text-right text-lg font-bold tabular-nums"
+                >
+                  @if (item.estimatedAmount !== null) {
+                    {{ money(item.estimatedAmount) }} 元
+                  } @else {
+                    待確認
+                  }
+                  <small class="block text-sm font-medium text-zinc-600">期繳，預計</small>
+                </p>
+              </div>
+            }
+            <p
+              class="m-0 flex justify-between gap-4 py-4 text-base font-semibold tabular-nums"
+              data-testid="renewal-sum"
+            >
+              <span>下期合計（預計）</span>
+              @if (total() !== null) {
+                <span>{{ money(total()!) }} 元</span>
+              } @else {
+                <span class="text-right font-medium text-zinc-700">部分金額待補習班確認</span>
+              }
+            </p>
+          </section>
+        } @else {
+          <p
+            class="m-0 max-w-[56ch] py-6 leading-relaxed text-zinc-700"
+            data-testid="renewal-empty"
+          >
+            目前沒有即將到來的續課。
+            @if (preview()?.hasMonthlyEnrollments) {
+              <br />月繳的課每月照常開單，不列在這裡。
+            }
+          </p>
+        }
+
+        <div
+          class="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3 border-0 border-t border-solid border-zinc-900 pt-5 text-base"
+        >
+          <span>想加選其他課程？</span>
+          <a
+            routerLink="/parent/add-course"
+            class="inline-flex h-11 items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+            >瀏覽可加選課程<i class="pi pi-arrow-right text-sm" aria-hidden="true"></i
+          ></a>
+        </div>
+      }
+    }
+  </div>
+</app-child-scope-gate>

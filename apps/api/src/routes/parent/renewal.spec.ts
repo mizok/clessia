@@ -135,7 +135,9 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
 
   it('沒有下一期 → nextPeriod null、items 空', async () => {
     const res = await request(fakeChildDb({ periods: [], enrollments: [], classes: [] }));
-    expect(await res.json()).toEqual({ data: { nextPeriod: null, items: [] } });
+    expect(await res.json()).toEqual({
+      data: { nextPeriod: null, items: [], hasMonthlyEnrollments: false },
+    });
   });
 
   it('沿用原班：跟期 run 同一條 —— 議定價優先、整期在讀就是全額；只列下期仍在讀的', async () => {
@@ -165,6 +167,7 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
         upgraded: false,
         // 12/31 就失效的時段不列
         schedules: [{ weekday: 3, startTime: '19:00', endTime: '21:00' }],
+        teacherNames: [],
         estimatedAmount: 15000,
         estimateSource: 'enrollment',
       },
@@ -293,7 +296,106 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
       'estimatedAmount',
       'nextClassName',
       'schedules',
+      'teacherNames',
       'upgraded',
     ]);
+  });
+
+  // ── 計畫席 10-22：家長端續課頁要的兩欄 ─────────────────────────────────────
+  const teacher = (name: string, orgId = 'org-1') => ({ display_name: name, org_id: orgId });
+
+  it('teacherNames：下期仍有效時段的老師，去重；別機構的 staff、已失效時段的老師不回', async () => {
+    const res = await request(
+      fakeChildDb({
+        periods: [PERIOD],
+        enrollments: [enrollment('e1', 't')],
+        classes: [
+          {
+            id: 't',
+            name: '國二數學 A',
+            end_date: null,
+            courses: { name: '數學' },
+            schedules: [
+              { ...slot(1), teacher: teacher('游佩珊') },
+              { ...slot(3), teacher: [teacher('游佩珊')] },
+              { ...slot(4), teacher: teacher('別家老師', 'org-2') },
+              { ...slot(5, '2026-12-31'), teacher: teacher('已離開的老師') },
+              { ...slot(6), teacher: null },
+            ],
+            next_class: null,
+          },
+        ],
+      }),
+    );
+    const item = ((await res.json()) as { data: { items: Row[] } }).data.items[0]!;
+    expect(item['teacherNames']).toEqual(['游佩珊']);
+    expect(JSON.stringify(item)).not.toContain('org-');
+  });
+
+  it('teacherNames：升班時是新班的老師', async () => {
+    const res = await request(
+      fakeChildDb({
+        periods: [PERIOD],
+        enrollments: [enrollment('e-up', 'up2')],
+        classes: [
+          {
+            id: 'up2',
+            name: '國二英文',
+            end_date: '2027-01-20',
+            courses: { name: '英文' },
+            schedules: [{ ...slot(2), teacher: teacher('舊班老師') }],
+            next_class: {
+              id: 'n',
+              org_id: 'org-1',
+              name: '國三英文',
+              schedules: [{ ...slot(5), teacher: teacher('江承睿') }],
+              fee_template: null,
+            },
+          },
+        ],
+      }),
+    );
+    const item = ((await res.json()) as { data: { items: Row[] } }).data.items[0]!;
+    expect(item['teacherNames']).toEqual(['江承睿']);
+  });
+
+  it('hasMonthlyEnrollments：這個孩子有在讀的月繳才 true（兄弟姊妹、已退的不算）；沒有下一期也回', async () => {
+    const run = async (enrollments: Row[], periods: Row[] = [PERIOD]) =>
+      (
+        (await (await request(fakeChildDb({ periods, enrollments, classes: CLASSES }))).json()) as {
+          data: { hasMonthlyEnrollments: boolean };
+        }
+      ).data.hasMonthlyEnrollments;
+
+    expect(await run([enrollment('m', 'stay', { billing_mode: 'monthly' })])).toBe(true);
+    expect(await run([enrollment('m', 'stay', { billing_mode: 'monthly' })], [])).toBe(true);
+    expect(
+      await run([enrollment('m', 'stay', { billing_mode: 'monthly', student_id: SIBLING })]),
+    ).toBe(false);
+    expect(
+      await run([enrollment('m', 'stay', { billing_mode: 'monthly', status: 'withdrawn' })]),
+    ).toBe(false);
+    expect(await run([enrollment('p', 'stay')])).toBe(false);
+  });
+
+  it('月繳那支讀失敗 → 500（不當成沒有月繳）', async () => {
+    const db = fakeChildDb({ periods: [PERIOD], enrollments: [], classes: CLASSES });
+    const from = db.from;
+    db.from = (table: string) => ({
+      select: (cols?: string) =>
+        cols === 'id'
+          ? {
+              eq: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    limit: () => Promise.resolve({ data: null, error: { message: 'x' } }),
+                  }),
+                }),
+              }),
+            }
+          : from(table).select(),
+    });
+    const res = await request(db);
+    expect(res.status).toBe(500);
   });
 });
