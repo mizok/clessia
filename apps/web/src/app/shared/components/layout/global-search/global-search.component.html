@@ -33,11 +33,15 @@
   手機面板開鍵盤（#1889）：iOS 鍵盤升起時版面視窗不縮、visual viewport 會。面板原本用 100% 算高（版面視窗），
   下半截被鍵盤蓋住，iOS 為了露出輸入框去捲版面視窗，整頁就跟著能滑。改成底部讓出 --keyboard-inset、
   高度上限也扣掉它（WindowSizeDirective 量，同 #1776 的底部抽屜，c6 不用 vh）；面板本身不捲，只有結果列表捲，
-  列表 overscroll-contain 不把捲動傳到背後。display 只在打開時給（open:），寫死會蓋掉 popover 收起時的 display:none。
+  列表 overscroll-contain 不把捲動傳到背後。
+  #1905（iOS 面板高度歸 0）：高度上限**不用 --window-height** —— 它只要是 0（例如 innerHeight 還沒量好；WebKit 模擬把它設 0 重現得出歸 0），
+  calc 變負數 → max-height 0 → overflow-hidden 整塊不見。改用 100%（popover 是 fixed，包含區塊就是視窗），
+  再用 max() 墊 120px 下限（把手＋輸入框＋一列）。列表用 flex-auto 不用 flex-1：高度不定的直向 flex 裡，
+  WebKit 可能把 flex-basis 0% 當成 0。display 只在打開時給（open:），寫死會蓋掉 popover 收起時的 display:none。
 -->
 <div
   #panel
-  class="overlay-motion overlay-motion--from-bottom-narrow m-0 rounded-lg border border-surface-border bg-white p-1 text-zinc-900 shadow-[0_16px_36px_-14px_rgb(26_22_20/32%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-(--keyboard-inset) max-wide:max-h-[calc(var(--window-height,100%)_-_var(--keyboard-inset,0px)_-_48px)] max-wide:w-full max-wide:max-w-none max-wide:flex-col max-wide:overflow-hidden max-wide:open:flex max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:px-3 max-wide:pb-6 max-wide:backdrop:bg-zinc-900/40"
+  class="overlay-motion overlay-motion--from-bottom-narrow m-0 rounded-lg border border-surface-border bg-white p-1 text-zinc-900 shadow-[0_16px_36px_-14px_rgb(26_22_20/32%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-(--keyboard-inset) max-wide:max-h-[max(120px,calc(100%_-_var(--keyboard-inset,0px)_-_48px))] max-wide:w-full max-wide:max-w-none max-wide:flex-col max-wide:overflow-hidden max-wide:open:flex max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:px-3 max-wide:pb-6 max-wide:backdrop:bg-zinc-900/40"
   popover
   aria-label="搜尋學生"
   [style.position]="pos() ? 'fixed' : null"
@@ -72,7 +76,7 @@
 
   <div
     id="global-search-list"
-    class="overscroll-contain max-wide:min-h-0 max-wide:flex-1 max-wide:overflow-y-auto"
+    class="overscroll-contain max-wide:min-h-0 max-wide:flex-auto max-wide:overflow-y-auto"
     role="listbox"
     aria-label="搜尋結果"
   >
