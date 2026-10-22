@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { loadDisplayName } from '../lib/display-name';
 import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
@@ -1193,17 +1194,11 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    // 查修改者姓名（profiles.id = ba_user.id，每個登入用戶都有 profile）
-    let updatedByName: string | null = null;
+    // 最後修改者的姓名（#1839：原本讀 profiles，那張表已經沒有人寫，新的人一律是 null）
     const updatedByUserId = classResult.data.updated_by as string | null;
-    if (updatedByUserId) {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', updatedByUserId)
-        .maybeSingle();
-      updatedByName = profileData?.display_name ?? null;
-    }
+    const updatedByName = updatedByUserId
+      ? await loadDisplayName(supabase, orgId, updatedByUserId)
+      : null;
 
     return c.json(
       {
@@ -2734,11 +2729,7 @@ app.openapi(
         targetSessions.map((session) => [session.id, session.session_date]),
       );
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', userId)
-        .maybeSingle();
+      const actorName = await loadDisplayName(supabase, orgId, userId);
 
       const batchId = crypto.randomUUID();
       const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
@@ -2753,7 +2744,7 @@ app.openapi(
           new_start_time: newStartTime,
           new_end_time: newEndTime,
           reason: '批次改時間',
-          created_by_name: profile?.display_name ?? null,
+          created_by_name: actorName,
         })),
       );
 
@@ -2914,11 +2905,7 @@ app.openapi(
         return c.json({ error: cancelError.message, code: 'DB_ERROR' }, 400);
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', userId)
-        .maybeSingle();
+      const actorName = await loadDisplayName(supabase, orgId, userId);
 
       const batchId = crypto.randomUUID();
       const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
@@ -2930,7 +2917,7 @@ app.openapi(
           batch_id: batchId,
           change_type: 'cancellation',
           reason: '批次停課',
-          created_by_name: profile?.display_name ?? null,
+          created_by_name: actorName,
         })),
       );
 
@@ -3361,11 +3348,7 @@ app.openapi(
       }
 
       // 取得操作者名稱
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', userId)
-        .maybeSingle();
+      const actorName = await loadDisplayName(supabase, orgId, userId);
 
       // 為每堂課建立 schedule_change 紀錄（整個班一次停用 = 一批，#1195）
       const batchId = crypto.randomUUID();
@@ -3376,7 +3359,7 @@ app.openapi(
         batch_id: batchId,
         change_type: 'cancellation',
         reason: '班級停用',
-        created_by_name: profile?.display_name ?? null,
+        created_by_name: actorName,
       }));
 
       const { error: insertError } = await supabase.from('schedule_changes').insert(changeRecords);
