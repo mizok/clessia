@@ -7,6 +7,7 @@ import { BillingPeriodsService } from '@core/billing-periods.service';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { GradePromotionsService } from '@core/grade-promotions.service';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { SettingsPage } from './settings.page';
 
@@ -162,6 +163,42 @@ describe('SettingsPage', () => {
       component['gradePromotionDayValue'] = '2/29';
 
       expect(component['pendingGradePromotionDay']()).toBe('02-29');
+    });
+
+    /** 二讀：確認框回 false（取消）不能 revert；回 true 才 revert */
+    it.each([
+      [false, 0],
+      [true, 1],
+    ])('復原確認框回 %s → revert 呼叫 %i 次', async (answer, times) => {
+      permissions = ['manage_students', 'all_campuses'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [LAST] }));
+      gradePromotionsMock.revert.mockReturnValue(of({ revertedCount: 1, skipped: [] }));
+      await setup();
+      const dialog = (component as unknown as { dialogService: DialogService }).dialogService;
+      vi.spyOn(dialog, 'open').mockReturnValue({
+        onClose: of(answer),
+      } as unknown as DynamicDialogRef);
+
+      component['confirmRevert'](LAST);
+
+      expect(gradePromotionsMock.revert).toHaveBeenCalledTimes(times);
+    });
+
+    /** 二讀：對話框回 true（有執行）才重讀紀錄，回 false 不讀 */
+    it.each([
+      [true, 2],
+      [false, 1],
+    ])('升級對話框關閉回 %s → 紀錄讀 %i 次', async (executed, times) => {
+      permissions = ['manage_students', 'all_campuses'];
+      await setup();
+      const dialog = (component as unknown as { dialogService: DialogService }).dialogService;
+      vi.spyOn(dialog, 'open').mockReturnValue({
+        onClose: of(executed),
+      } as unknown as DynamicDialogRef);
+
+      component['openGradePromotion']();
+
+      expect(gradePromotionsMock.history).toHaveBeenCalledTimes(times);
     });
 
     /** 設計稿 §3：跳過的名單是行政接下來的工作，要留在段內，不跟著 toast 消失 */

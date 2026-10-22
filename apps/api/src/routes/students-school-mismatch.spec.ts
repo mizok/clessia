@@ -24,6 +24,8 @@ function appWith(
   schools: Array<Record<string, unknown>>,
   /** 記下 `from('schools')` 上的 `eq` —— 別機構的學校不能進子句，替身的資料擋不出這件事 */
   schoolEqs: Array<[string, unknown]> = [],
+  /** schools 讀取回 error（二讀：讀失敗不能被當成「沒有學校」而回空結果） */
+  schoolsFail = false,
 ) {
   const db = createMultiOrgDb({
     students: [
@@ -46,6 +48,14 @@ function appWith(
       from: (table: string) => {
         const builder = client.from(table);
         if (table !== 'schools') return builder;
+        if (schoolsFail) {
+          const failing: Record<string, unknown> = {
+            then: (ok: (v: unknown) => unknown) =>
+              Promise.resolve({ data: null, error: { message: 'boom' } }).then(ok),
+          };
+          for (const m of ['select', 'eq']) failing[m] = () => failing;
+          return failing;
+        }
         const eq = builder.eq.bind(builder);
         return Object.assign(builder, {
           eq: (k: string, v: unknown) => (schoolEqs.push([k, v]), eq(k, v)),
@@ -104,6 +114,11 @@ describe('GET /students?schoolMismatch=true（#1820）', () => {
     const eqs: Array<[string, unknown]> = [];
     await ids(appWith(SCHOOLS, eqs), 'schoolMismatch=true');
     expect(eqs).toContainEqual(['org_id', ORG]);
+  });
+
+  it('讀 schools 失敗 → 500（不能退化成空結果或不篩）', async () => {
+    const res = await appWith(SCHOOLS, [], true).request('/?withToday=false&schoolMismatch=true');
+    expect(res.status).toBe(500);
   });
 
   /** 子句是 null（沒有任何組合可能不合）→ 空結果，不能退化成「不篩」 */
