@@ -344,6 +344,9 @@
     display: flex;
     align-items: center;
     height: var(--tbar-control);
+    /* 上面那段的 flex: 1（basis 0%）在直向 flex 的工具列裡（手機的老師學生頁）會蓋掉 height、縮回內容高 38；
+       min-height 直向也會遵守（#1903） */
+    min-height: var(--tbar-control);
     border: 1px solid var(--zinc-300);
     border-radius: var(--radius-md);
     background: #fff;
