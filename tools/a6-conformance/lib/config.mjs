@@ -458,7 +458,22 @@ export const PAGES = {
     state: path.join(cache, 'state-guest.json'),
     deviations: PUBLIC_FORM_DEVIATIONS,
   },
-  student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
+  student: {
+    a6: 'student.html',
+    app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee',
+    deviations: [
+      {
+        // 色面上方「學生名冊」返回連結手機 44 高（稿 20），下面的標題、副行、統計整組往下。
+        // 標題行高對齊稿（#1925：手機 1.2）之前，標題比稿矮 8.8px 剛好抵掉一部分，統計才沒被量出來
+        status: '位置',
+        widths: [360],
+        a6: 'landmark:region\\[這一頁的摘要\\]>text:(dt|dd)(\\[[^\\]]*\\])?(~\\d)?$',
+        detail: '^相對「這一頁的摘要」 Δx 0、Δy \\+\\d+（',
+        reason: '連帶：返回連結手機 44px（觸控下限），色面裡下面的內容整組往下',
+        source: `${rule('R3')}；#1925`,
+      },
+    ],
+  },
   parents: {
     a6: 'parents.html',
     app: '/admin/parents',
