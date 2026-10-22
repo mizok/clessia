@@ -420,7 +420,7 @@ describe('DashboardComponent（管理端）', () => {
   it('未點名卡還在載入時顯示骨架條，不是站在數字位置上的純文字', async () => {
     await setup({ pending: true });
     // pending 讓 workbench 也不回 → mode 未知 → 卡片本身隱藏；骨架出現在 Hero
-    expect(q('band-skeleton') ?? el().querySelector('.skeleton-bar')).not.toBeNull();
+    expect(q('band-skeleton') ?? el().querySelector('.skeleton-list .skeleton')).not.toBeNull();
   });
 
   it('今日課表列出今天的課，依開始時間排序', async () => {
@@ -954,7 +954,11 @@ describe('DashboardComponent（管理端）', () => {
     const text = el().textContent as string;
     expect(text).not.toContain('今日尚無排課');
     expect(text).not.toContain('今天沒有人請假');
-    expect(el().querySelector('.skeleton-bar')).not.toBeNull();
+    expect(el().querySelector('.skeleton-list .skeleton')).not.toBeNull();
+    // 主段本身的骨架（#1859 第 4 張：主段從第一幀就在）—— 不能靠請假那欄的骨架過
+    expect(
+      el().querySelector('section[aria-label="今日作業載入中"] .skeleton-list'),
+    ).not.toBeNull();
   });
 
   it('今天沒課時顯示空狀態', async () => {

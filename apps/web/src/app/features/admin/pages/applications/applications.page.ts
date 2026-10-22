@@ -40,6 +40,7 @@ import {
 } from '@shared/components/select-field/select-field.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
 import { ApproveRequestDialogComponent } from './approve-request-dialog/approve-request-dialog.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const STATUS_OPTIONS: Array<{ label: string; value: PublicApplicationStatus }> = [
   { label: '新申請', value: 'new' },
@@ -128,6 +129,7 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
 @Component({
   selector: 'app-applications',
   imports: [
+    SkeletonComponent,
     DatePipe,
     FormsModule,
     RouterLink,

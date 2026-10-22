@@ -148,6 +148,7 @@
       "apps/web/src/app/shared/components/search-field",
       "apps/web/src/app/shared/components/select-field",
       "apps/web/src/app/shared/components/session-advanced-filters-dialog",
+      "apps/web/src/app/shared/components/skeleton",
       "apps/web/src/app/shared/components/status",
       "apps/web/src/app/shared/components/student-autocomplete",
       "apps/web/src/app/shared/components/subject-manager",

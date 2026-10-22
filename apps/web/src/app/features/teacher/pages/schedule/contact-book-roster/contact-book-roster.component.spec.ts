@@ -71,7 +71,7 @@ describe('ContactBookRosterComponent', () => {
     f.detectChanges();
 
     expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(f.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
   it('只列這一堂課的班，別班的缺漏不混進來', async () => {
