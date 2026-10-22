@@ -302,3 +302,49 @@ describe('GET /api/reports/revenue —— 作廢單不算應收（#898）', () =
     expect(body.summary.overdueOutstanding).toBe(3000);
   });
 });
+
+/**
+ * #1100 #40：CSV 公式注入的跳脫在 `lib/csv`，營收明細也走它 —— 收款備註是行政打的字，
+ * 開頭是 = 的值 Excel 會當公式執行。這條守「營收 CSV 真的經過那層跳脫」。
+ */
+describe('GET /api/reports/revenue.csv —— 備註的公式注入被跳脫（#1100 #40）', () => {
+  it('備註開頭是 = → 前面補單引號；金額照原樣', async () => {
+    const payment = {
+      kind: 'payment',
+      amount: 1200,
+      paid_at: '2026-09-05',
+      note: '=HYPERLINK("http://x")',
+      invoices: invoiceRow({
+        id: 'inv-1',
+        issuedAt: '2026-09-01',
+        dueDate: '2026-09-30',
+        amount: 1200,
+        paid: 1200,
+        campusId: CAMPUS_MINE,
+        campusName: '中正分校',
+      }),
+    };
+    const make = (rows: unknown[]) => {
+      const b: Record<string, unknown> = {};
+      for (const op of ['select', 'eq', 'gte', 'lte', 'order']) b[op] = () => b;
+      b['then'] = (resolve: (v: unknown) => unknown) => resolve({ data: rows, error: null });
+      return b;
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', { from: (t: string) => make(t === 'payment_records' ? [payment] : []) });
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', reportsRoute as unknown as Hono);
+
+    const res = await app.request('/revenue.csv?dateFrom=2026-09-01&dateTo=2026-09-30');
+    expect(res.status).toBe(200);
+    const [, row] = (await res.text()).replace(/^﻿/, '').split('\r\n');
+    expect(row).toBe(`2026-09-05,中正分校,數學,1200,實收,"'=HYPERLINK(""http://x"")"`);
+  });
+});
