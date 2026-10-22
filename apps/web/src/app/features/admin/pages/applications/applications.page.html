@@ -102,6 +102,66 @@
                   [ariaLabel]="'試聽狀態：' + r.student.name"
                   appendTo="body"
                 />
+                <!-- #1747：已排定的日期給行政看、家長端也顯示同一份；地點用課程所在的分校 -->
+                @if (schedulingId() === r.id) {
+                  <div class="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+                    <input
+                      #sDate
+                      type="date"
+                      class="h-11 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit]"
+                      [attr.aria-label]="'試聽日期：' + r.student.name"
+                      [value]="r.scheduledDate ?? ''"
+                      required
+                    />
+                    <div class="flex items-center gap-2">
+                      <input
+                        #sStart
+                        type="time"
+                        class="h-11 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit]"
+                        [attr.aria-label]="'開始時間：' + r.student.name"
+                        [value]="r.scheduledStartTime ?? ''"
+                      />
+                      –
+                      <input
+                        #sEnd
+                        type="time"
+                        class="h-11 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit]"
+                        [attr.aria-label]="'結束時間：' + r.student.name"
+                        [value]="r.scheduledEndTime ?? ''"
+                      />
+                    </div>
+                    <p-button
+                      label="確定排定"
+                      styleClass="h-11"
+                      (onClick)="submitSchedule(r, sDate.value, sStart.value, sEnd.value)"
+                    />
+                    <p-button
+                      label="取消"
+                      [text]="true"
+                      styleClass="h-11"
+                      (onClick)="schedulingId.set(null)"
+                    />
+                  </div>
+                  <p class="m-0 text-sm text-zinc-600">日期必填，時間可以之後再補；家長端會看到</p>
+                } @else if (r.status === 'scheduled') {
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="m-0 text-md text-zinc-900 tabular-nums" data-testid="trial-schedule">
+                      @if (r.scheduledDate) {
+                        試聽：{{ mdw(r.scheduledDate) }} {{ r.scheduledStartTime ?? ''
+                        }}{{ r.scheduledEndTime ? '–' + r.scheduledEndTime : '' }}
+                      } @else {
+                        還沒填試聽日期
+                      }
+                    </p>
+                    <p-button
+                      [label]="r.scheduledDate ? '改時間' : '填日期'"
+                      [outlined]="true"
+                      severity="secondary"
+                      styleClass="h-11"
+                      (onClick)="schedulingId.set(r.id)"
+                    />
+                  </div>
+                }
               } @else {
                 <p class="text-md font-semibold text-zinc-900">
                   {{ parentStatusLabels[r.status] ?? r.status }}
