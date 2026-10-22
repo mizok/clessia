@@ -3,15 +3,31 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { teacherCanReadEvent } from './attendance-read-scope';
 
-function stub(options: { teacherId?: string; staffError?: boolean; sessionsError?: boolean }) {
+/** staff 列：預設這位使用者在 org-1 是 'me'；`staffOrg` 改掉它所屬的機構（守 staff 查詢一定要帶 org_id） */
+function stub(options: {
+  teacherId?: string;
+  staffError?: boolean;
+  sessionsError?: boolean;
+  staffOrg?: string;
+}) {
+  const staffRows = [{ id: 'me', user_id: 'user-1', org_id: options.staffOrg ?? 'org-1' }];
   return {
     from(table: string) {
+      const filters: Record<string, unknown> = {};
       const query: Record<string, unknown> = {
         select: () => query,
-        eq: () => query,
+        eq: (column: string, value: unknown) => {
+          filters[column] = value;
+          return query;
+        },
         maybeSingle: () =>
           Promise.resolve({
-            data: { id: 'me' },
+            data:
+              staffRows.find((row) =>
+                Object.entries(filters).every(
+                  ([column, value]) => row[column as keyof typeof row] === value,
+                ),
+              ) ?? null,
             error: options.staffError ? { message: 'boom' } : null,
           }),
         then: (onfulfilled?: ((value: unknown) => unknown) | null) =>
@@ -58,5 +74,10 @@ describe('teacherCanReadEvent', () => {
     await expect(teacherCanReadEvent(stub({}), { ...params, roles: ['parent'] })).resolves.toBe(
       false,
     );
+  });
+
+  // 同一個人在另一個機構也有 staff 列、而且正是那堂課的老師：staff 查詢不帶 org_id 就會被當成自己的課
+  it('別的機構的 staff 列不算自己（staff 查詢一定要以 org_id 過濾）', async () => {
+    await expect(teacherCanReadEvent(stub({ staffOrg: 'org-2' }), params)).resolves.toBe(false);
   });
 });
