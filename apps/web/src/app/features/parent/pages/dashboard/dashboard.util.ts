@@ -1,4 +1,4 @@
-import { addDaysToDateString } from '@core/system-clock.service';
+import { addDaysToDateString, taipeiDateString } from '@core/system-clock.service';
 import type { ParentCatalogClass } from '@core/parent-applications.service';
 import type { ParentInvoice } from '@core/parent-billing.service';
 import type { ParentScoreRecord } from '@core/parent-grades.service';
@@ -136,7 +136,8 @@ export function examRows(
       if (r.status === 'absent') tags.push({ tone: 'warn', label: '缺考' });
       if (full) tags.push({ tone: 'ok', label: '滿分' });
       if (fail) tags.push({ tone: 'error', label: '不及格' });
-      if (daysBetween(r.createdAt.slice(0, 10), today) <= 7)
+      // 登錄時間是 ISO 時戳：先換成台北的日期再跟台北的 today 比（台北 00:00–08:00 登錄的，UTC 日期會早一天）
+      if (daysBetween(taipeiDateString(Date.parse(r.createdAt)), today) <= 7)
         tags.push({ tone: 'quiet', label: '新成績' });
       return {
         key: r.id,
@@ -186,7 +187,10 @@ export function latestLogs(logs: readonly ParentClassLog[]): ParentClassLog[] {
 
 // ── 推薦加選 ──────────────────────────────────────────────────────────────────
 
-/** 同年級、還沒報的班取 3 個；推薦的排前（API 已排）。同年級的不夠就補其他沒報的 */
+/**
+ * 推薦加選：同年級、還沒報的取 3 個（推薦的排前，API 已排）。**同年級一班都沒有時**才改取其他還沒報的 ——
+ * 同 A6 p-dashboard 的 `recs.length ? recs : 其他沒報的`；同年級只有 1 班就只給 1 班，不補別的年級（#1837 二讀確認）
+ */
 export function recommendations(catalog: readonly ParentCatalogClass[]): ParentCatalogClass[] {
   const open = catalog.filter((c) => !c.enrolled);
   const fit = open.filter((c) => c.matchesGrade);

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError, type Observable } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -44,7 +44,15 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
   let load: ReturnType<typeof vi.fn>;
   let activeChildId: ReturnType<typeof signal<string | null>>;
 
-  function create(opts: { sessionsFail?: boolean; checkin?: string } = {}) {
+  function create(
+    opts: {
+      sessionsFail?: boolean;
+      checkin?: string;
+      totalDue?: number;
+      /** 換掉課表回應（換孩子、指定課堂時用） */
+      sessions?: (childId: string) => Observable<{ data: ParentSession[] }>;
+    } = {},
+  ) {
     load = vi.fn();
     activeChildId = signal<string | null>(null);
     TestBed.configureTestingModule({
@@ -68,15 +76,17 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
         {
           provide: ParentSessionsService,
           useValue: {
-            list: () =>
-              opts.sessionsFail
-                ? throwError(() => new Error('boom'))
-                : of({
-                    data: [
-                      ses(TODAY, { examCount: 1, examNames: ['第四次小考'] }),
-                      ses('2026-10-24', { status: 'cancelled', className: '國三英文' }),
-                    ],
-                  }),
+            list: (childId: string) =>
+              opts.sessions
+                ? opts.sessions(childId)
+                : opts.sessionsFail
+                  ? throwError(() => new Error('boom'))
+                  : of({
+                      data: [
+                        ses(TODAY, { examCount: 1, examNames: ['第四次小考'] }),
+                        ses('2026-10-24', { status: 'cancelled', className: '國三英文' }),
+                      ],
+                    }),
             homework: () =>
               of({
                 data: [
@@ -121,7 +131,13 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
                     createdAt: '2026-10-01',
                   },
                 ],
-                meta: { total: 1, page: 1, pageSize: 50, totalDue: 4800, paymentInfo: [] },
+                meta: {
+                  total: 1,
+                  page: 1,
+                  pageSize: 50,
+                  totalDue: opts.totalDue ?? 4800,
+                  paymentInfo: [],
+                },
               }),
           },
         },
@@ -198,5 +214,68 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     create({ sessionsFail: true });
     expect(el().textContent).toContain('沒有讀到課表');
     expect(el().querySelector('.dashboard__pay')).toBeTruthy();
+  });
+
+  // ── #1837 二讀 ──
+
+  it('換孩子：上一個孩子的回應晚到，不能蓋掉新孩子的內容', () => {
+    const late = new Subject<{ data: ParentSession[] }>();
+    create({
+      sessions: (childId) =>
+        childId === 'child-1' ? late : of({ data: [ses(TODAY, { className: '國二理化' })] }),
+    });
+    activeChildId.set('child-2');
+    fixture.detectChanges();
+    expect(el().querySelector('.dashboard__lesson')?.textContent).toContain('國二理化');
+
+    late.next({ data: [ses(TODAY, { className: '上一個孩子的課' })] });
+    late.complete();
+    fixture.detectChanges();
+    expect(el().querySelector('.dashboard__lesson')?.textContent).toContain('國二理化');
+    expect(el().textContent).not.toContain('上一個孩子的課');
+  });
+
+  it('沒有待繳金額（totalDue 0）→ 不出待繳條', () => {
+    create({ totalDue: 0 });
+    expect(el().querySelector('.dashboard__pay')).toBeNull();
+  });
+
+  it('代課的課寫「林 老師代課」', () => {
+    create({
+      sessions: () => of({ data: [ses(TODAY, { teacherName: '林', isSubstitute: true })] }),
+    });
+    expect(el().querySelector('.dashboard__lesson')?.textContent).toContain('林 老師代課');
+  });
+
+  it('正在上的課帶「上課中」；還沒開始的不帶', () => {
+    create({
+      sessions: () =>
+        of({
+          data: [
+            ses(TODAY, { sessionId: 'now', startTime: '14:00:00', endTime: '16:00:00' }),
+            ses(TODAY, { sessionId: 'later' }),
+          ],
+        }),
+    });
+    const rows = el().querySelectorAll('.dashboard__lesson');
+    expect(rows[0].textContent).toContain('上課中');
+    expect(rows[1].textContent).not.toContain('上課中');
+  });
+
+  it('詳情對話框：點背景才關，點裡面的內容不關', () => {
+    create();
+    const c = fixture.componentInstance as unknown as {
+      closeDetail: () => void;
+      onDialogClick: (e: MouseEvent) => void;
+    };
+    const close = vi.spyOn(c, 'closeDetail').mockImplementation(() => undefined);
+    const dialog = el().querySelector('dialog')!;
+    const inner = document.createElement('div');
+    dialog.appendChild(inner);
+
+    inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(close).not.toHaveBeenCalled();
+    dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });

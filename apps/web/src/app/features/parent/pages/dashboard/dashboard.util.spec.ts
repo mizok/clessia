@@ -214,3 +214,117 @@ describe('dashboard.util', () => {
     expect(slotsLabel(c('a'))).toBe('週三 18:00–20:00');
   });
 });
+
+/** #1837 二讀：邊界照 ±1 給 fixture —— 每一條都對應一個原本存活的突變 */
+describe('dashboard.util 邊界（#1837 二讀）', () => {
+  const inv = (dueDate: string): ParentInvoice => ({
+    id: 'i',
+    invoiceNo: null,
+    issuedAt: '2026-10-01',
+    dueDate,
+    status: 'unpaid',
+    voidedAt: null,
+    total: 5000,
+    netPaid: 0,
+    items: [],
+    payments: [],
+    createdAt: '2026-10-01',
+  });
+  const labels = (r: { tags: readonly { label: string }[] }) => r.tags.map((t) => t.label);
+
+  it('剛好及格線（60／100）不是不及格；59 才是', () => {
+    const [ok] = examRows([score({ score: 60 })], [], TODAY);
+    const [fail] = examRows([score({ score: 59 })], [], TODAY);
+    expect(labels(ok)).not.toContain('不及格');
+    expect(labels(fail)).toContain('不及格');
+  });
+
+  it('及格線是滿分六成「進位」：7 分制及格 5 分，考 4 分不及格', () => {
+    const [row] = examRows([score({ score: 4, totalScore: 7 })], [], TODAY);
+    expect(row.meta).toBe('及格 5 分');
+    expect(labels(row)).toContain('不及格');
+  });
+
+  it('今天到期是「今天到期」琥珀，不是逾期；昨天才是逾期 1 天', () => {
+    expect(payStrip([inv(TODAY)], TODAY)?.tag).toEqual({ tone: 'warn', label: '今天到期' });
+    expect(payStrip([inv('2026-10-21')], TODAY)?.tag).toEqual({
+      tone: 'error',
+      label: '逾期 1 天',
+    });
+  });
+
+  it('第 3 天到期有琥珀；第 4 天沒有', () => {
+    expect(payStrip([inv('2026-10-25')], TODAY)?.tag).toEqual({
+      tone: 'warn',
+      label: '3 天後到期',
+    });
+    expect(payStrip([inv('2026-10-26')], TODAY)?.tag).toBeNull();
+  });
+
+  it('第 7 天登錄的成績還是「新成績」；第 8 天不是', () => {
+    const [d7] = examRows([score({ createdAt: '2026-10-15T04:00:00Z' })], [], TODAY);
+    const [d8] = examRows([score({ createdAt: '2026-10-14T04:00:00Z' })], [], TODAY);
+    expect(labels(d7)).toContain('新成績');
+    expect(labels(d8)).not.toContain('新成績');
+  });
+
+  it('「新成績」用台北日期：台北 10-15 早上 7 點（UTC 10-14）登錄的，第 7 天仍是新成績', () => {
+    const [row] = examRows([score({ createdAt: '2026-10-14T23:00:00Z' })], [], TODAY);
+    expect(labels(row)).toContain('新成績');
+  });
+
+  it('第 7 天要考的會列；第 8 天不列', () => {
+    const rows = examRows(
+      [],
+      [
+        ses('2026-10-29', { examNames: ['第 7 天'] }),
+        ses('2026-10-30', { examNames: ['第 8 天'] }),
+      ],
+      TODAY,
+    );
+    expect(rows.map((r) => r.title)).toEqual(['國三數學 · 第 7 天']);
+  });
+
+  it('停課那堂的考試不列', () => {
+    const rows = examRows(
+      [],
+      [ses('2026-10-24', { status: 'cancelled', examNames: ['小考'] })],
+      TODAY,
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it('今天沒課：第 3 天的課要列，第 4 天的不列', () => {
+    const { rows } = shownSessions([ses('2026-10-25'), ses('2026-10-26')], TODAY);
+    expect(rows.map((s) => s.date)).toEqual(['2026-10-25']);
+  });
+
+  it('兩堂只請了一堂 → 不是「今天請假」', () => {
+    const daily = new Set(['campus-1']);
+    const leave = { status: 'on_leave' as const, checkedInAt: null };
+    expect(
+      arrivalLine(
+        [ses(TODAY, { attendance: leave }), ses(TODAY, { startTime: '19:00:00' })],
+        undefined,
+        daily,
+        '15:00',
+      ),
+    ).toBe('還沒到，17:00 有課。');
+  });
+
+  it('剛好上課那分鐘還沒刷卡 → 「還沒到班。」，不是「還沒到，17:00 有課」', () => {
+    expect(arrivalLine([ses(TODAY)], undefined, new Set(['campus-1']), '17:00')).toBe('還沒到班。');
+  });
+
+  it('推薦：同年級只有 1 班就只給 1 班，不補別的年級（同 A6）；一班都沒有才給別的', () => {
+    const c = (id: string, matchesGrade: boolean) =>
+      ({ classId: id, matchesGrade, enrolled: false }) as ParentCatalogClass;
+    expect(
+      recommendations([c('a', true), c('x', false), c('y', false)]).map((r) => r.classId),
+    ).toEqual(['a']);
+    expect(recommendations([c('x', false), c('y', false)]).map((r) => r.classId)).toEqual([
+      'x',
+      'y',
+    ]);
+  });
+});
