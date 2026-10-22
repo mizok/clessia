@@ -40,12 +40,19 @@ function fakeDb(rows: Rows, failures: Failures | readonly string[] = {}) {
   const writes: Array<{ table: string; payload: unknown }> = [];
   const make = (table: string) => {
     const data = rows[table] ?? [];
+    // `maybeSingle` 照 eq 條件挑列 —— 只比列上有的欄位（多數 fixture 只填了要測的那幾欄）
+    const eqs: Array<[string, unknown]> = [];
+    const picked = () => data.filter((r) => eqs.every(([c, v]) => !(c in r) || r[c] === v));
     const terminal = {
+      eq: (c: string, v: unknown) => {
+        eqs.push([c, v]);
+        return builder;
+      },
       maybeSingle: () =>
         Promise.resolve(
           f.failingSingle?.includes(table)
             ? { data: null, error: { message: `${table} 讀取失敗` } }
-            : { data: data[0] ?? null, error: null },
+            : { data: picked()[0] ?? null, error: null },
         ),
       single: () => Promise.resolve({ data: data[0] ?? null, error: null }),
       insert: (payload: unknown) => {
@@ -58,7 +65,11 @@ function fakeDb(rows: Rows, failures: Failures | readonly string[] = {}) {
           return { select: () => Promise.resolve({ data: null, error: { message: '寫入失敗' } }) };
         }
         // 已經有卡（UNIQUE student_id＋checkin_date 衝突）：ignoreDuplicates 回空陣列，lib 會回頭讀那一筆
-        if (table === 'daily_checkins' && data.length > 0) {
+        const day = (payload as Record<string, unknown>)['checkin_date'];
+        if (
+          table === 'daily_checkins' &&
+          data.some((r) => !('checkin_date' in r) || r['checkin_date'] === day)
+        ) {
           return { select: () => Promise.resolve({ data: [], error: null }) };
         }
         // 打卡 upsert 接 `.select()`：回剛寫入的那一列
@@ -261,6 +272,15 @@ describe('POST /roster/{eventId}/check-in —— 他到了', () => {
     expect(r.json?.error).toContain('景美分校');
     // 擋在任何寫入之前：沒有打卡 upsert，也沒有 attendance_records
     expect(r.writes).toHaveLength(0);
+  });
+
+  // 審核席 E8：讀既有卡要限「當天」—— 前一天別校的卡不能擋今天
+  it('前一天有別校的卡、今天沒有 → 照常 201，不擋', async () => {
+    const r = await checkIn(
+      happy({ daily_checkins: [{ campus_id: B, checkin_date: '2026-04-05' }] }),
+    );
+    expect(r.status).toBe(201);
+    expect(r.json?.alreadyCheckedIn).toBe(false);
   });
 
   it('卡在同一校（或卡沒帶分校）→ 照常回 alreadyCheckedIn，時間是第一次那筆', async () => {
