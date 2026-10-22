@@ -1,12 +1,12 @@
 import { Component, inject } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import type { Permission } from '@core/staff.service';
+import { WILDCARD_PERMISSION, type HeldPermission } from '@core/staff.service';
 import { PERMISSION_OPTIONS } from '../staff-form-dialog.component';
 
 export interface PermissionListDialogData {
   staffName: string;
-  permissions: readonly Permission[];
+  permissions: readonly HeldPermission[];
 }
 
 /**
@@ -25,9 +25,10 @@ export class PermissionListDialogComponent {
   private readonly data = inject(DynamicDialogConfig<PermissionListDialogData>).data!;
 
   protected readonly staffName = this.data.staffName;
-  protected readonly items = PERMISSION_OPTIONS.filter((o) =>
-    this.data.permissions.includes(o.value),
-  );
+  /** `*`＝全部權限（#1829），列出整張詞彙表 */
+  protected readonly items = this.data.permissions.includes(WILDCARD_PERMISSION)
+    ? PERMISSION_OPTIONS
+    : PERMISSION_OPTIONS.filter((o) => this.data.permissions.includes(o.value));
 
   protected close(): void {
     this.ref.close();

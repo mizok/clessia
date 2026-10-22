@@ -37,6 +37,13 @@ export const PERMISSIONS = [
 
 export type Permission = (typeof PERMISSIONS)[number];
 
+/**
+ * 全部權限（含日後新增的）。後端 `lib/permissions.ts` 的 `WILDCARD_PERMISSION`。
+ * 帳號身上存的是 `["*"]` 而不是逐項列舉 —— 畫面要認得它，存檔要原樣送回（#1829）。
+ */
+export const WILDCARD_PERMISSION = '*';
+export type HeldPermission = Permission | typeof WILDCARD_PERMISSION;
+
 export interface Staff {
   id: string;
   userId: string;
@@ -55,7 +62,7 @@ export interface Staff {
   updatedAt: string;
   campusIds: string[];
   roles: StaffRole[];
-  permissions: Permission[];
+  permissions: HeldPermission[];
 }
 
 export interface StaffListResponse {
@@ -108,7 +115,7 @@ export interface CreateStaffInput {
   subjectIds?: string[];
   campusIds: string[];
   roles: StaffRole[];
-  permissions?: Permission[];
+  permissions?: HeldPermission[];
 }
 
 export interface UpdateStaffInput {
@@ -121,7 +128,7 @@ export interface UpdateStaffInput {
   campusIds?: string[];
   roles?: StaffRole[];
   status?: StaffStatus;
-  permissions?: Permission[];
+  permissions?: HeldPermission[];
 }
 
 @Injectable({

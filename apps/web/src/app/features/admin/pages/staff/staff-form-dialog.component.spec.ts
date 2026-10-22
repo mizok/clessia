@@ -5,7 +5,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { StaffService } from '@core/staff.service';
+import { PERMISSIONS, StaffService } from '@core/staff.service';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 
@@ -227,5 +227,83 @@ describe('StaffFormDialogComponent', () => {
         expect(item.querySelector('.permission-item__desc')?.textContent?.trim()).toBeTruthy();
       }
     });
+  });
+});
+
+/**
+ * #1829：帳號是 `["*"]`（全部權限）時，原本每一框都沒勾 —— 有人打開直接存檔，
+ * 就把 `*` 蓋成 `[]`。現在要全勾、沒動過就原樣送回 `*`。
+ */
+describe('StaffFormDialogComponent —— `*` 全部權限（#1829）', () => {
+  const update = vi.fn((_id: string, _input: unknown) => of({ data: { id: 'staff-1' } }));
+
+  function setup() {
+    update.mockClear();
+    TestBed.configureTestingModule({
+      imports: [StaffFormDialogComponent],
+      providers: [
+        { provide: StaffService, useValue: { update } },
+        { provide: MessageService, useValue: { add: vi.fn() } },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+        { provide: DialogService, useValue: { open: vi.fn() } },
+        { provide: OverlayContainerService, useValue: { getContainer: () => 'body' } },
+        {
+          provide: DynamicDialogConfig,
+          useValue: {
+            data: {
+              staff: {
+                id: 'staff-1',
+                displayName: '老闆',
+                email: 'boss@example.com',
+                campusIds: ['campus-1'],
+                subjectIds: [],
+                roles: ['admin'],
+                permissions: ['*'],
+              },
+              campuses: [{ id: 'campus-1', name: '示範分校' }],
+              subjects: [],
+            },
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(StaffFormDialogComponent);
+    fixture.detectChanges();
+    return {
+      fixture,
+      c: fixture.componentInstance as unknown as {
+        save: () => void;
+        togglePermission: (p: string, checked: boolean) => void;
+      },
+    };
+  }
+
+  it('每一框都顯示勾選，並標示「全部權限」', async () => {
+    const { fixture } = setup();
+    // ngModel 寫值是非同步的：等一輪再畫一次，checkbox 才會反映 model
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const boxes = Array.from(el.querySelectorAll<HTMLInputElement>('input[id^="perm_"]'));
+
+    expect(boxes.length).toBe(PERMISSIONS.length);
+    expect(boxes.every((box) => box.checked)).toBe(true);
+    expect(el.querySelector('[data-testid="all-permissions-note"]')).not.toBeNull();
+  });
+
+  it('開了不改直接存，permissions 仍是 ["*"]', () => {
+    const { c } = setup();
+    c.save();
+
+    expect(update).toHaveBeenCalledWith('staff-1', expect.objectContaining({ permissions: ['*'] }));
+  });
+
+  it('取消其中一項 → 展開成逐項清單、拿掉那一項', () => {
+    const { c } = setup();
+    c.togglePermission('manage_finance', false);
+    c.save();
+
+    const sent = (update.mock.calls[0]?.[1] as { permissions: string[] }).permissions;
+    expect(sent).toEqual(PERMISSIONS.filter((p) => p !== 'manage_finance'));
   });
 });
