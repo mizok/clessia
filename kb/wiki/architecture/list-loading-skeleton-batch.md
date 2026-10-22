@@ -4,10 +4,17 @@ summary: #508——#426 掃到但根因不同的 10 個檔案，逐檔分類後�
 category: architecture
 tags: [architecture, ux, loading]
 status: proposed
-updated: 2026-09-06
+updated: 2026-10-22
 ---
 
 # 十個檔案的載入態跳版問題
+
+> **2026-10-22 更新（#1879）**：下面說的「重用 `.skeleton-list`」那套配方已經換掉。舊的全域 `.skeleton-list`
+> 帶 24px 左右內距、裡面是三條等長細條 —— 骨架比內容左右各縮一截、形狀也不像（使用者 10-22：「這些 skeleton
+> 長度不能跟內容一樣長嗎？」）。現在清單的骨架一律用共用元件 `app-skeleton`
+> （`shared/components/skeleton/`）：列／卡片／章節三種形狀、不帶內距，細條包在跟內容同字級的行裡，
+> 每一列的高度就是內容那一列的高度。`.skeleton-list` 只剩它的 block 名，`skeleton.component.spec.ts`
+> 擋住再有人手刻。分類的理由（「整塊被文字取代」＝跳版）照舊成立。
 
 ## 背景
 
