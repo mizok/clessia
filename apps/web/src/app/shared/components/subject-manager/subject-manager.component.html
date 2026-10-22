@@ -78,41 +78,43 @@
           } @else {
             <!-- Display mode -->
             <span class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
-              <span class="subject-manager__name text-lg font-bold text-zinc-900">{{
+              <span class="subject-manager__name text-lg leading-normal font-bold text-zinc-900">{{
                 subject.name
               }}</span>
               <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到。沒被用到也講（A6） -->
-              <span class="subject-manager__usage-hint text-sm text-zinc-600">{{
+              <span class="subject-manager__usage-hint text-sm leading-normal text-zinc-600">{{
                 deleteBlockReason(subject) ?? '還沒被用到'
               }}</span>
             </span>
-            <p-button
-              icon="pi pi-pencil"
-              [rounded]="true"
-              [text]="true"
-              severity="secondary"
-              size="small"
-              (onClick)="startEdit(subject)"
-              pTooltip="改名"
-              tooltipPosition="top"
-              [ariaLabel]="'改名 ' + subject.name"
-            />
-            <!-- 被用到的不灰掉：按了跳說明（A6「不是只灰掉」），外觀降成淡色提示不能刪 -->
-            <p-button
-              icon="pi pi-trash"
-              [rounded]="true"
-              [text]="true"
-              [severity]="deleteBlockReason(subject) ? 'secondary' : 'danger'"
-              size="small"
-              [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
-              tooltipPosition="top"
-              [ariaLabel]="
-                deleteBlockReason(subject)
-                  ? '刪除 ' + subject.name + '（使用中，不能刪，按了看原因）'
-                  : '刪除 ' + subject.name
-              "
-              (onClick)="confirmDelete(subject)"
-            />
+            <!-- A6 `.icobtn`：40px 無框圖示鈕，兩顆間距 4px -->
+            <span class="flex gap-1">
+              <button
+                type="button"
+                class="grid size-10 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
+                pTooltip="改名"
+                tooltipPosition="top"
+                [attr.aria-label]="'改名 ' + subject.name"
+                (click)="startEdit(subject)"
+              >
+                <i class="pi pi-pencil" aria-hidden="true"></i>
+              </button>
+              <!-- 被用到的不灰掉：按了跳說明（A6「不是只灰掉」），只把圖示降成淡色 -->
+              <button
+                type="button"
+                class="grid size-10 cursor-pointer place-items-center rounded-md border-0 bg-transparent hover:bg-zinc-100"
+                [class]="deleteBlockReason(subject) ? 'text-zinc-400' : 'text-zinc-800'"
+                [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
+                tooltipPosition="top"
+                [attr.aria-label]="
+                  deleteBlockReason(subject)
+                    ? '刪除 ' + subject.name + '（使用中，不能刪，按了看原因）'
+                    : '刪除 ' + subject.name
+                "
+                (click)="confirmDelete(subject)"
+              >
+                <i class="pi pi-trash" aria-hidden="true"></i>
+              </button>
+            </span>
           }
         </div>
       }
