@@ -331,6 +331,53 @@ describe('GET /api/me/grades —— 任課老師、登錄者（#1926）', () => 
     expect(byId['sc9']).toMatchObject({ recordedByName: null });
   });
 
+  it('登錄者是多機構人員：只認本機構那筆（別機構的排前面也不拿）；只有別機構那筆 → null', async () => {
+    const staff = (...rows: Array<{ display_name: string; org_id: string }>) => ({
+      ...ACADEMY_ROW,
+      creator: { staff: rows },
+    });
+    const { body } = await get(
+      fakeChildDb(
+        [
+          {
+            ...staff(
+              { display_name: '別家的人', org_id: 'org-x' },
+              { display_name: '本家的人', org_id: ORG_ID },
+            ),
+            id: 'm1',
+          },
+          { ...staff({ display_name: '別家的人', org_id: 'org-x' }), id: 'm2' },
+        ],
+        [],
+        0,
+        0,
+      ),
+    );
+    const byId = Object.fromEntries(body.data.map((r) => [r['id'], r]));
+    expect(byId['m1']!['recordedByName']).toBe('本家的人');
+    expect(byId['m2']!['recordedByName']).toBeNull();
+    expect(JSON.stringify(body.data)).not.toContain('別家的人');
+  });
+
+  it('對不到登錄者（帳號已刪、不是人員）→ 名字嚴格是 null，退路不回 created_by 的 id', async () => {
+    const CREATOR_ID = 'user-creator-123';
+    const { body } = await get(
+      fakeChildDb(
+        [
+          { ...ACADEMY_ROW, id: 'd1', created_by: CREATOR_ID, creator: null },
+          { ...ACADEMY_ROW, id: 'd2', created_by: CREATOR_ID, creator: { staff: [] } },
+        ],
+        [],
+        0,
+        0,
+      ),
+    );
+    const byId = Object.fromEntries(body.data.map((r) => [r['id'], r]));
+    expect(byId['d1']!['recordedByName']).toBeNull();
+    expect(byId['d2']!['recordedByName']).toBeNull();
+    expect(JSON.stringify(body.data)).not.toContain(CREATOR_ID);
+  });
+
   it('只回名字：沒有任何老師／登錄者的 id 或聯絡方式', async () => {
     const { body } = await get(fakeChildDb([ROW_WITH_RECORDER], [], 0, 0));
     const keys = Object.keys(body.data[0]!);
