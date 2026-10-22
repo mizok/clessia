@@ -3,7 +3,7 @@ title: 成績查閱
 summary: 查詢所有學生成績。
 category: spec
 status: active
-updated: 2026-10-04
+updated: 2026-10-23
 tags: [specs, admin, student-affairs, grades]
 ---
 
@@ -36,6 +36,14 @@ tags: [specs, admin, student-affairs, grades]
 
 - 依篩選條件匯出 CSV
 - 欄位：學生姓名、開課班、考試名稱、課程、日期、分數、狀態
+- **現況**（#1100 #40）：學生視角（`/admin/grades/overview` 的學生分頁）工具列的下載圖示＋面板（A6 grades-student）。
+  範圍「照目前的篩選（N 位）」＝畫面上那份學生名單、「全部學生」＝不帶名單。API `POST /api/scores/export`
+  `{ studentIds?, campusId? }`：範圍＝`resolveScoreScope`（老師範圍 ∩ 分校範圍）∩ 頂欄分校 ∩ `studentIds`，
+  帶了範圍外的學生撈不到（不報錯）。`studentIds` 上限 3000；超過 20000 列回 413（不截斷）。
+  開課班／課程＝那場校內考掛的班裡、學生有報名的那班；段考跟班無關，兩欄留空。缺考／補考不寫分數。
+  字串開頭是 = + - @ 的會補單引號（CSV 公式注入，`lib/csv`，營收 CSV 共用）。
+  成績走 pg pool 的一條 SQL（學生 id 用 `= ANY($2::uuid[])` 當參數）：走 PostgREST 的話 id 進 GET URL 會 414、
+  切批又撞 Workers 每請求 50 個 subrequest。pool 不在、或任一段查詢失敗就整份 500，不回少了一半的檔案。
 
 ## API 語意（#1115，2026-10-04）
 

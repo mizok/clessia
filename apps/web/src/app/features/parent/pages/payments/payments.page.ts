@@ -21,9 +21,7 @@ import {
   type ParentInvoiceListResponse,
 } from '@core/parent-billing.service';
 import { SystemClockService } from '@core/system-clock.service';
-import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
@@ -50,13 +48,11 @@ const PAGE_SIZE = 20;
     DecimalPipe,
     NgTemplateOutlet,
     RouterLink,
-    ChapterHeadComponent,
     StatusDotComponent,
     DrawerModule,
     PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
-    BandAnchorComponent,
     EmptyStateComponent,
   ],
   templateUrl: './payments.page.html',

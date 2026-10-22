@@ -370,12 +370,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
 
   const endpoints = (which: 'staff' | 'me') =>
     Object.entries(doc.paths)
-      .filter(
-        ([path, ops]) =>
-          ops['get'] &&
-          !isPublic(path) &&
-          isMe(path) === (which === 'me'),
-      )
+      .filter(([path, ops]) => ops['get'] && !isPublic(path) && isMe(path) === (which === 'me'))
       .map(([path, ops]) => ({
         path,
         required: (ops['get']!.parameters ?? [])
@@ -524,6 +519,33 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
   it('不受限的管理員：每支都 200', async () => {
     ctx.campusScope = null;
     expect(await hitAll()).toEqual([]);
+  });
+
+  // #1100 #40：成績匯出帶上限 3000 個學生 id。成績走 pg pool 的 SQL（`= ANY($2::uuid[])`）——
+  // 走 PostgREST 的話 id 進 GET URL 會 414、切批又會撞 Workers 的 subrequest 上限。
+  // 這條對真 DB 跑那條 SQL（欄位名、型別轉換、org 條件），替身驗不到
+  it('成績匯出：帶 3000 個學生 id 也 200（.in() 有切批，不撞 URL 長度）', async () => {
+    ctx.campusScope = null;
+    const studentIds = [
+      ids['{student}']!,
+      ...Array.from(
+        { length: 2999 },
+        (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      ),
+    ];
+    const res = await app.request(
+      '/api/scores/export',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studentIds }),
+      },
+      env,
+    );
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/csv');
+    // 那位真的學生有成績 → 不只有標頭（SQL 真的撈得到，不是空結果也綠）
+    if (sqlPool) expect((await res.text()).split('\r\n').length).toBeGreaterThan(1);
   });
 
   // 分校範圍的 `!inner`／alias embed 只在受限時（scope 非 null）才出現在查詢裡。
