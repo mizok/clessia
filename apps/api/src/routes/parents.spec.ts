@@ -21,6 +21,7 @@ const pgState = {
   inOrg: null as string[] | null, // null＝傳進來的都算
   inScope: null as string[] | null,
   sent: [] as string[],
+  parentInsert23505: false,
 };
 const pgAnswer = (sql: string, params: unknown[] = []) => {
   pgState.sent.push(sql.trim().split(/\s+/).slice(0, 3).join(' '));
@@ -30,7 +31,9 @@ const pgAnswer = (sql: string, params: unknown[] = []) => {
     return pgState.current.map((student_id) => ({ student_id }));
   if (/FROM students WHERE/.test(sql))
     return ids.filter((i) => !pgState.inOrg || pgState.inOrg.includes(i)).map((id) => ({ id }));
-  // #1844：設為家長的交易建出來的那一列
+  // #1844：設為家長的交易建出來的那一列（parentInsert23505：模擬另一個請求先建好了）
+  if (/^\s*INSERT INTO parents/.test(sql) && pgState.parentInsert23505)
+    throw Object.assign(new Error('duplicate key'), { code: '23505' });
   if (/^\s*INSERT INTO parents/.test(sql))
     return [
       {
@@ -1016,6 +1019,8 @@ describe('POST /api/parents —— 把本機構教職員設為家長（#1844）'
   const KID = '22222222-2222-4222-8222-222222222222';
   const TEACHER = 'u-teacher';
 
+  /** 這張表的查詢回 error（#1844 二讀：查既有帳號任一支失敗 → 退回原本建帳號的流程） */
+  let failingTable: string | null = null;
   const accounts = {
     ba_user: [] as Array<Record<string, unknown>>,
     user_roles: [] as Array<Record<string, unknown>>,
@@ -1053,7 +1058,9 @@ describe('POST /api/parents —— 把本機構教職員設為家長（#1844）'
       inOrg: null,
       inScope: null,
       sent: [],
+      parentInsert23505: false,
     });
+    failingTable = null;
     createdUsers.length = 0;
   });
 
@@ -1073,8 +1080,12 @@ describe('POST /api/parents —— 把本機構教職員設為家長（#1844）'
         delete: () => (writes.push(`delete ${table}`), chain()),
         single: () => Promise.resolve({ data: null, error: null }),
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
-          resolve({ data: rows(), error: null }),
+        then: (resolve: (v: { data: unknown[] | null; error: unknown }) => unknown) =>
+          resolve(
+            table === failingTable
+              ? { data: null, error: { message: 'boom' } }
+              : { data: rows(), error: null },
+          ),
       });
       return builder;
     };
@@ -1198,5 +1209,35 @@ describe('POST /api/parents —— 把本機構教職員設為家長（#1844）'
     expect(res.status).toBe(409);
     expect(json['code']).toBe('STAFF_NOT_ACTIVE');
     expect(pgState.sent).toEqual([]);
+  });
+
+  // #1844 二讀：matchedBy 要分得出是手機對到的 —— 否則前端把錯誤寫在 Email 欄
+  it('只用手機對到別機構的帳號 → DUPLICATE_PHONE（不是 DUPLICATE_EMAIL）', async () => {
+    teacher({ orgId: 'org-2' });
+    accounts.ba_user[0]!['phone'] = '0912345678';
+    const { res, json } = await post({ email: undefined, phone: '0912345678' });
+    expect(res.status).toBe(409);
+    expect(json['code']).toBe('DUPLICATE_PHONE');
+  });
+
+  it.each(['user_roles', 'staff', 'parents'])(
+    '查既有帳號時 %s 讀失敗 → 退回原本流程（照常建新帳號），不會走到設為家長',
+    async (table) => {
+      teacher();
+      failingTable = table;
+      const { json } = await post({});
+      // 有退回原本流程：叫了 createUser（真環境裡它會對既有帳號回 409）。之後的步驟是這個替身做不完的，不在這支驗
+      expect(createdUsers).toEqual(['wang@example.com']);
+      expect(json['code']).not.toBe('STAFF_ACCOUNT_EXISTS');
+      expect(pgState.sent).not.toContain('INSERT INTO parents');
+    },
+  );
+
+  it('兩個人同時把同一個帳號設為家長：後到的撞唯一鍵 → 409 PARENT_ALREADY_EXISTS，不是 500', async () => {
+    teacher();
+    pgState.parentInsert23505 = true;
+    const { res, json } = await post({ linkExistingUserId: TEACHER });
+    expect(res.status).toBe(409);
+    expect(json['code']).toBe('PARENT_ALREADY_EXISTS');
   });
 });

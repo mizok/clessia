@@ -185,6 +185,63 @@ describe('ParentFormDialogComponent', () => {
       );
     });
 
+    // #1844 二讀：確認區塊的「不要」—— 收起來、不送出
+    it('按「不要」→ 確認收起，不會再送一次', () => {
+      parentsServiceMock.create.mockReturnValueOnce(staffExists() as never);
+      fill().save();
+      fixture.detectChanges();
+      const calls = parentsServiceMock.create.mock.calls.length;
+
+      const no = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find(
+        (b) => b.textContent?.trim() === '不要',
+      )!;
+      no.click();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('要把他設為家長嗎');
+      expect(parentsServiceMock.create.mock.calls.length).toBe(calls);
+    });
+
+    it('出錯後送出鈕不會一直轉（loading 復原）', () => {
+      parentsServiceMock.create.mockReturnValueOnce(
+        throwError(() => ({ error: { error: 'x', code: 'STAFF_NOT_ACTIVE' } })) as never,
+      );
+      fill().save();
+      expect((component as unknown as { loading: () => boolean }).loading()).toBe(false);
+    });
+
+    it('先出現確認、再遇到別的錯誤 → 舊的確認框收掉，只顯示新的錯誤', () => {
+      parentsServiceMock.create.mockReturnValueOnce(staffExists() as never);
+      const c = fill();
+      c.save();
+      parentsServiceMock.create.mockReturnValueOnce(
+        throwError(() => ({
+          error: { error: '王老師 的教職員帳號已停用，不能設為家長', code: 'STAFF_NOT_ACTIVE' },
+        })) as never,
+      );
+      c.confirmLink();
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).not.toContain('要把他設為家長嗎');
+      expect(text).toContain('的教職員帳號已停用');
+    });
+
+    // handleError 依 code 對應訊息（原本拿訊息比對碼，這兩行永遠進不去）
+    it.each([
+      ['DUPLICATE_EMAIL', '此 Email 已被使用'],
+      ['DUPLICATE_PHONE', '此手機號碼已被使用'],
+    ])('後端回 %s → 顯示「%s」（不是後端的原始訊息）', (code, shown) => {
+      parentsServiceMock.create.mockReturnValueOnce(
+        throwError(() => ({ error: { error: 'raw server text', code } })) as never,
+      );
+      fill().save();
+      fixture.detectChanges();
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain(shown);
+      expect(text).not.toContain('raw server text');
+    });
+
     it('其他擋下的情況（已經是家長、教職員停用…）→ 顯示後端的訊息', () => {
       parentsServiceMock.create.mockReturnValueOnce(
         throwError(() => ({
