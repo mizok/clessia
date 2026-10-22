@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 
 /**
  * A6 的開場色面（#991 殼切片 S1）：每頁一塊全寬橘面，放「這一頁的那句話」，流場在裡面。
@@ -14,10 +15,14 @@ import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.com
  *
  * 具名插槽：`openBack`（返回連結，學生檔案起）、`openTitle`、`openSub`，其餘內容接在下面。
  * ponytail: A6 的統計列（`stats`）等第一個需要的頁再加。
+ *
+ * **高度變化用滑的**（#1859，使用者 10-22「跳改成滑沒有問題」）：標題常是資料回來才換成兩行、
+ * 副行與孩子切換器也是晚到，原本整頁一次被往下推 20–55px。色面掛 `appHeightFollow`
+ * （shared/directives/height-follow.directive.ts，#1861），內容高度變了就從舊高度滑到新高度。
  */
 @Component({
   selector: 'app-page-open',
-  imports: [FlowFieldComponent],
+  imports: [FlowFieldComponent, HeightFollowDirective],
   templateUrl: './page-open.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },

@@ -1,10 +1,10 @@
 ---
 title: 工具靜默地不做你以為它在做的事
-summary: 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。2026-09-06 補上「這一族的大聲那一半」：同一個知識點常有兩個失敗方向，報錯的那半當場就被修掉所以從沒被記錄。 2026-09-07 補上第一筆方向相反的：查得到，但查到的不是它（`grep -c` 數到的是散文註解不是程式碼）。2026-09-13 補上措辭最強的一種：工具明講 `successfully resolved`，而它解析到的是另一個 checkout 的同名檔（#782）。
+summary: 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。2026-09-06 補上「這一族的大聲那一半」：同一個知識點常有兩個失敗方向，報錯的那半當場就被修掉所以從沒被記錄。 2026-09-07 補上第一筆方向相反的：查得到，但查到的不是它（`grep -c` 數到的是散文註解不是程式碼）。2026-09-13 補上措辭最強的一種：工具明講 `successfully resolved`，而它解析到的是另一個 checkout 的同名檔（#782）。2026-10-22 補上方向最危險的一種：以為是「讀」，其實又「寫」了一次（Playwright `route.fetch({ url })` 沿用原請求的方法與 body）。
 category: lessons
 tags: [lessons, silent-failure, tooling, verification]
 status: active
-updated: 2026-09-13
+updated: 2026-10-22
 ---
 
 # 工具靜默地不做你以為它在做的事
@@ -392,6 +392,27 @@ error TS2305: Module '"@clessia/shared-types"' has no exported member 'PROBE_782
 
 兩者的共同點：**worktree 讓「同一個路徑」有了兩個答案**，
 而多數工具的錯誤訊息是照「只有一個答案」的世界寫的。
+
+## 以為在讀，其實又寫了一次：`route.fetch({ url })` 沿用原請求（#1828／#1833）
+
+**實例**（2026-10-22，labor-20261022-1429-promo）：走查腳本用 Playwright 攔設定頁的 `PATCH /api/org/settings`，
+想「不寫共用本機 DB、改回讀到的值＋這次送的」，於是在攔截器裡寫了：
+
+```js
+const cur = await (await route.fetch({ url: API + path })).json(); // 以為是 GET
+return route.fulfill({ body: JSON.stringify({ ...cur, ...req.postDataJSON() }) });
+```
+
+`route.fetch()` 的覆寫只換你指定的欄位，**沒寫的 method、headers、postData 全部沿用被攔下的那個請求** ——
+這一行就是把同一個 PATCH 原封不動送到真 API。畫面完全正確（回應本來就是「讀到的值＋這次送的」），
+攔截看起來生效；兩次走查之後，共用本機 DB 的機構設定被改掉兩欄（另一席跑測試時會讀到 08-15 的升級日）。
+是第三輪走查開新 context、讀到「應該沒存進去」的值才露餡。
+
+### 判準
+
+- 在攔截器裡「另外讀一次」時，**明確寫出 `method: 'GET'`、`postData: undefined`**，不要只給 `url`。
+- 「不寫共用資料」的走查，收尾**直接查 DB 或 audit_logs** 確認沒動到，不要用畫面判斷 ——
+  畫面在「有寫」和「沒寫」兩種情況下逐字相同，這正是這一頁的母題。
 
 ## 為什麼這一頁在 `kb/` 而不在 charter 或通則清單裡
 

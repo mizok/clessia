@@ -24,6 +24,7 @@ import gradePromotionsRoute from './routes/grade-promotions';
 import feeTemplatesRoute from './routes/fee-templates';
 import publicCaptchaRoute from './routes/public/captcha';
 import publicCatalogRoute from './routes/public/catalog';
+import publicOrgRoute from './routes/public/org';
 import publicApplicationsRoute from './routes/public-applications';
 import parentRequestsRoute from './routes/parent-requests';
 import publicEnrollmentApplicationsRoute from './routes/public/enrollment-applications';
@@ -317,6 +318,7 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 // **必須在 authMiddleware 之前**：之後掛的每一支都會先被它要 session。
 app.use('/api/public/*', publicOrgMiddleware);
 app.route('/api/public/catalog', publicCatalogRoute);
+app.route('/api/public/org', publicOrgRoute);
 app.route('/api/public/captcha', publicCaptchaRoute);
 app.route('/api/public/enrollment-applications', publicEnrollmentApplicationsRoute);
 app.route('/api/public/trial-applications', publicTrialApplicationsRoute);

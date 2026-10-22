@@ -10,7 +10,7 @@
 >
   <!-- 品牌面：桌機在左；手機是左面（第一屏），上＝字標、中＝tagline、下＝入口 -->
   <aside
-    class="sticky top-0 isolate flex h-[var(--window-height,100%)] flex-col overflow-hidden bg-[linear-gradient(150deg,var(--accent-vivid)_0%,var(--accent-vivid-2)_100%)] p-8 text-zinc-900 after:pointer-events-none after:absolute after:inset-0 after:z-0 after:bg-[linear-gradient(168deg,rgb(255_106_61/90%)_0%,rgb(255_106_61/62%)_34%,rgb(255_106_61/10%)_68%,rgb(255_106_61/0%)_88%)] after:content-[''] max-[1024px]:relative max-[1024px]:h-full max-[1024px]:w-(--window-width,390px) max-[1024px]:flex-none max-[1024px]:overflow-y-auto max-[1024px]:px-5 max-[1024px]:pt-8 max-[1024px]:pb-5 max-[1024px]:after:bg-[linear-gradient(180deg,rgb(255_106_61/55%)_0%,rgb(255_106_61/0%)_30%,rgb(255_106_61/0%)_62%,rgb(255_106_61/70%)_100%)]"
+    class="sticky top-0 isolate flex h-[var(--window-height,100%)] flex-col overflow-hidden bg-[linear-gradient(150deg,var(--accent-vivid)_0%,var(--accent-vivid-2)_100%)] p-8 text-zinc-900 after:pointer-events-none after:absolute after:inset-0 after:z-0 after:bg-[linear-gradient(168deg,rgb(255_106_61/90%)_0%,rgb(255_106_61/62%)_34%,rgb(255_106_61/10%)_68%,rgb(255_106_61/0%)_88%)] after:content-[''] max-[1024px]:relative max-[1024px]:h-full max-[1024px]:w-(--window-width,390px) max-[1024px]:flex-none max-[1024px]:overflow-y-auto max-[1024px]:px-5 max-[1024px]:pt-8 max-[1024px]:pb-[calc(var(--space-5)+env(safe-area-inset-bottom,0px))] max-[1024px]:after:bg-[linear-gradient(180deg,rgb(255_106_61/55%)_0%,rgb(255_106_61/0%)_30%,rgb(255_106_61/0%)_62%,rgb(255_106_61/70%)_100%)]"
     [inert]="isRight()"
   >
     <app-flow-field [density]="0.8" [speed]="1" />
@@ -18,17 +18,31 @@
     <div
       class="relative z-1 max-[1024px]:flex max-[1024px]:min-h-0 max-[1024px]:flex-1 max-[1024px]:flex-col"
     >
-      <!-- 手機字標撐到一行放得下的最大（7 個字母約佔 0.72 屏寬） -->
+      <!-- 補習班名稱當主標，Clessia 退成頂端一行小字的產品名（使用者 10-22 選 A，#1858；A6 是大字 Clessia，R5） -->
       <a
-        class="mb-8 inline-block min-h-11 self-start max-[1024px]:self-stretch min-[1025px]:min-h-0 text-[40px] leading-none font-bold tracking-[-0.04em] text-inherit no-underline max-[1024px]:mb-0 max-[1024px]:text-[calc(var(--window-width,390px)*0.14)] max-[1024px]:tracking-[-0.045em]"
+        class="inline-flex min-h-11 items-center gap-1.5 self-start text-[20px] leading-none font-bold tracking-[-0.02em] text-inherit no-underline min-[1025px]:min-h-0"
         [routerLink]="loginPath"
-        >Clessia</a
+        >Clessia<span class="text-[15px] font-semibold tracking-normal opacity-80"
+          >· 學程管家</span
+        ></a
       >
-      <h2
-        class="mx-0 mt-4 mb-1 text-lg leading-tight font-semibold opacity-90 max-[1024px]:mt-auto max-[1024px]:mb-2 max-[1024px]:text-[calc(var(--window-width,390px)*0.082)] max-[1024px]:leading-[1.15] max-[1024px]:tracking-[-0.02em] max-[1024px]:opacity-100"
+      <!-- 名稱是另一支請求回來的：外層一直在（手機的 mt-auto 掛在這裡，版面不跟著跳），
+           回來時 grid-rows 0fr → 1fr 滑開（motion.md「跳改成滑」）；PUBLIC_ORG_SLUG 沒設＝404，就一直收著 -->
+      <div
+        class="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 ease-(--arrive) motion-reduce:transition-none max-[1024px]:mt-auto [&.is-on]:grid-rows-[1fr]"
+        [class.is-on]="orgName()"
       >
-        學程管家
-      </h2>
+        <div class="min-h-0 overflow-hidden">
+          <!-- 沒有名稱就不渲染：空的 h2 會被讀屏念成一個沒有內容的標題 -->
+          @if (orgName(); as name) {
+            <h2
+              class="mx-0 mt-6 mb-1 text-[36px] leading-[1.1] font-bold tracking-[-0.03em] max-[1024px]:mt-0 max-[1024px]:mb-2 max-[1024px]:text-[calc(var(--window-width,390px)*0.1)]"
+            >
+              {{ name }}
+            </h2>
+          }
+        </div>
+      </div>
       <p
         class="m-0 mb-8 text-md font-medium opacity-78 max-[1024px]:mb-auto max-[1024px]:text-lg max-[1024px]:opacity-85"
       >
@@ -73,9 +87,8 @@
       }
     </nav>
 
-    <p class="relative z-1 m-0 text-sm opacity-62 max-[1024px]:hidden">
-      &copy; 2025 Clessia Academy
-    </p>
+    <!-- 手機也放（使用者 10-22，#1858）；品牌面的 padding-bottom 已含 safe-area -->
+    <p class="relative z-1 m-0 text-sm opacity-62 max-[1024px]:mt-4">&copy; 2025 Clessia Academy</p>
   </aside>
 
   <!-- 白面：承載表單。手機是右面，頂端一列「← 返回＋頁名」 -->

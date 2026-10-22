@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -139,7 +139,15 @@ export class ApplicationsPage {
   protected readonly trialStatusOptions = TRIAL_STATUS_OPTIONS;
 
   protected readonly filter = signal(FILTERS[0]!);
-  protected readonly kind = signal<'enrollment' | 'trial' | null>(null);
+  /**
+   * 通知連過來會帶 `?kind=enrollment|trial`（#1821 申請提醒，點了要落在對應分頁）；其他值當沒帶。
+   * 只在進頁時讀一次，之後切換不回寫網址
+   */
+  protected readonly kind = signal<'enrollment' | 'trial' | null>(
+    ((k) => (k === 'enrollment' || k === 'trial' ? k : null))(
+      inject(ActivatedRoute).snapshot.queryParamMap.get('kind'),
+    ),
+  );
   protected readonly applications = signal<PublicApplication[]>([]);
   protected readonly requests = signal<ParentRequest[]>([]);
   /** 兩種來源依時間合在一份，新的在前 */

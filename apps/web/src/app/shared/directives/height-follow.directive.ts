@@ -14,7 +14,8 @@ const ARRIVE_FALLBACK = 'cubic-bezier(0.23, 1, 0.32, 1)';
  * </div>
  * ```
  *
- * 量的是宿主的**第一個子元素**（要是 block —— inline 的自訂元素量不到高度），動的是宿主的 `height`。
+ * 量的是宿主的**第一個在文流中的子元素**（要是 block —— inline 的自訂元素量不到高度），動的是宿主的 `height`。
+ * 絕對／固定定位的子元素跳過（#1859：頁首色面的第一個子元素是鋪滿的流場層，它的高度跟著宿主變，量它會自己追自己）。
  * 只在「本來就有高度」的內容變高變矮時動：第一次出現（例如 `<details>` 剛打開、內容從 0 長出來）
  * 交給那個元件自己的展開過渡，不疊兩段。減少動態、沒有 WAAPI／ResizeObserver 時不動。
  *
@@ -28,7 +29,10 @@ export class HeightFollowDirective {
   constructor() {
     const destroyRef = inject(DestroyRef);
     afterNextRender(() => {
-      const content = this.host.firstElementChild;
+      const content =
+        [...this.host.children].find(
+          (el) => !/^(absolute|fixed)$/.test(getComputedStyle(el).position),
+        ) ?? null;
       if (!content || typeof ResizeObserver === 'undefined') return;
       let last = 0;
       let hostHeight = this.host.offsetHeight;
