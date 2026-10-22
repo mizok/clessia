@@ -170,7 +170,7 @@ async function scanMealItems(
   // 沒有 pool（單元測試的精簡 app）才走 REST；那條 id 多了照樣 414，但已經會回 500、不會改到錢
   let totals: Map<string, number>;
   if (db) {
-    totals = await sqlRead('餐費蓋章總額', stampedTotalsViaSql(db, itemIds));
+    totals = await sqlRead('餐費蓋章總額', stampedTotalsViaSql(db, orgId, itemIds));
   } else {
     const stamped = await mustReadAll('餐費蓋章總額', (from, to) =>
       supabase

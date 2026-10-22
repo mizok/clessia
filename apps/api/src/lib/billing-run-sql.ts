@@ -91,15 +91,17 @@ export async function mealStudentsInScopeViaSql(
  */
 export async function stampedTotalsViaSql(
   db: Queryable,
+  orgId: string,
   itemIds: readonly string[],
 ): Promise<Map<string, number>> {
   if (itemIds.length === 0) return new Map();
   const { rows } = await db.query(
     `select m.invoice_item_id, sum(m.unit_price)::text as total
        from public.meal_records m
-      where m.invoice_item_id = any($1::uuid[])
+      where m.org_id = $1::uuid
+        and m.invoice_item_id = any($2::uuid[])
       group by m.invoice_item_id`,
-    [itemIds],
+    [orgId, itemIds],
   );
   return new Map(
     (rows as Array<{ invoice_item_id: string; total: string }>).map((r) => [
