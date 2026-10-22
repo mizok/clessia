@@ -9,9 +9,10 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ChildScopeService } from '@core/child-scope.service';
 import {
   ParentAttendanceService,
-  type ParentAttendanceListResponse,
-  type ParentAttendanceRecord,
+  type ParentAttendanceDayRow,
+  type ParentAttendanceDaysResponse,
 } from '@core/parent-attendance.service';
+import { SystemClockService, taipeiDateString } from '@core/system-clock.service';
 import { ParentSessionsService, type ParentSession } from '@core/parent-sessions.service';
 import { AttendancePage } from './attendance.page';
 
@@ -24,10 +25,10 @@ const PAGE = {
   showInMenu: true,
 };
 
-function emptyResponse(): ParentAttendanceListResponse {
+function emptyResponse(): ParentAttendanceDaysResponse {
   return {
     data: [],
-    meta: { total: 0, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+    meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
   };
 }
 
@@ -41,15 +42,24 @@ function emptyResponse(): ParentAttendanceListResponse {
  * 用本地時間欄位而不是 `toISOString()`：頁面的範圍計算走 date-fns 的本地時區，
  * UTC 會在台北凌晨差一天。
  */
+/**
+ * 假「現在」：台北 12:00（#1810 起頁面的今天與現在都來自 `SystemClockService`）。
+ * 取執行當天的台北日期，所以日期仍是相對的（不會掉出近 10 天）；時刻固定在中午，
+ * 「還沒上／上課中／沒有紀錄」的斷言才不會隨跑測試的時刻變。
+ */
+const FAKE_TODAY = taipeiDateString(Date.now());
+const FAKE_NOW_MS = Date.parse(`${FAKE_TODAY}T04:00:00Z`);
+
 function daysAgoIso(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const d = new Date(`${FAKE_TODAY}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
 }
 
-function record(overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendanceRecord {
+function record(overrides: Partial<ParentAttendanceDayRow> = {}): ParentAttendanceDayRow {
   return {
     id: 'r1',
+    sessionId: 'r1',
     eventId: 'e1',
     eventDate: daysAgoIso(0),
     startTime: '09:00',
@@ -62,6 +72,9 @@ function record(overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendan
     note: null,
     leaveSubmittedBy: null,
     leaveReason: null,
+    derived: null,
+    teacherName: null,
+    classroomName: null,
     ...overrides,
   };
 }
@@ -93,7 +106,7 @@ describe('AttendancePage', () => {
   afterEach(() => Object.assign(dialogProto, originalDialog));
 
   function createComponent(
-    response: ParentAttendanceListResponse | (() => never) = emptyResponse(),
+    response: ParentAttendanceDaysResponse | (() => never) = emptyResponse(),
   ) {
     activeChildId = signal<string | null>(null);
     activeChild = signal<{ id: string; name: string } | null>(null);
@@ -126,9 +139,10 @@ describe('AttendancePage', () => {
         },
         {
           provide: ParentAttendanceService,
-          useValue: { list: listMock, createLeave: createLeaveMock, checkins: checkinsMock },
+          useValue: { days: listMock, createLeave: createLeaveMock, checkins: checkinsMock },
         },
         { provide: ParentSessionsService, useValue: { list: todayMock } },
+        { provide: SystemClockService, useValue: { nowEpochMs: () => FAKE_NOW_MS } },
         { provide: MessageService, useValue: { add: toastMock } },
         // 共用請假表單注入的管理端 service（嵌入時不會打）要有 HttpClient 才建得起來
         provideHttpClient(),
@@ -159,30 +173,21 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(listMock).toHaveBeenCalledWith({
-      childId: 'child-1',
-      dateFrom: daysAgoIso(9),
-      dateTo: daysAgoIso(0),
-      page: 1,
-      pageSize: 100,
-    });
+    // #1810：一支查完整個窗（不分頁），查詢的窗就是畫天數的窗
+    expect(listMock).toHaveBeenCalledTimes(1);
+    expect(listMock).toHaveBeenCalledWith('child-1', daysAgoIso(9), daysAgoIso(0));
     expect(checkinsMock).toHaveBeenCalledWith('child-1', daysAgoIso(9), daysAgoIso(0));
     expect(todayMock).toHaveBeenCalledWith('child-1', daysAgoIso(0), daysAgoIso(0));
   });
 
-  it('紀錄一頁拿不完就接著拿，整段期間都畫得出來', () => {
-    createComponent();
-    listMock.mockImplementation(({ page }: { page: number }) =>
-      of({
-        data: [record({ id: `r${page}`, eventDate: daysAgoIso(page) })],
-        meta: { total: 101, page, pageSize: 100, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
-      }),
-    );
+  // 設計稿 §6 不變式：窗內回來的每一列都畫得出來（列數＝各天加總），沒有列被 buildDays 丟掉
+  it('回來的每一列都落在某一天：畫出的列數＝回來的列數', () => {
+    const rows = [0, 1, 4, 9].map((n) => record({ id: `r${n}`, eventDate: daysAgoIso(n) }));
+    createComponent({ data: rows, meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 } });
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(listMock.mock.calls.map((c) => c[0].page)).toEqual([1, 2]);
-    expect(fixture.nativeElement.querySelectorAll('.attendance__record').length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('.attendance__record').length).toBe(rows.length);
   });
 
   it('換孩子會重新查', () => {
@@ -194,7 +199,7 @@ describe('AttendancePage', () => {
     activeChildId.set('child-2');
     fixture.detectChanges();
 
-    expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ childId: 'child-2' }));
+    expect(listMock).toHaveBeenCalledWith('child-2', expect.any(String), expect.any(String));
   });
 
   it('一天一章，日期新到舊', () => {
@@ -206,7 +211,7 @@ describe('AttendancePage', () => {
         record({ id: 'r2', eventDate: older, status: 'absent', className: '英文班' }),
         record({ id: 'r1', eventDate: newer }),
       ],
-      meta: { total: 2, page: 1, pageSize: 50, monthlyAbsentCount: 1, monthlyOnLeaveCount: 0 },
+      meta: { monthlyAbsentCount: 1, monthlyOnLeaveCount: 0 },
     });
     comp.onRangeChange('recent30');
     activeChildId.set('child-1');
@@ -222,7 +227,7 @@ describe('AttendancePage', () => {
   it('期間內每一天都有一章：沒紀錄的日子一行「今日無課」——避免跟載入失敗混淆', () => {
     createComponent({
       data: [record({ id: 'r1', eventDate: daysAgoIso(0) })],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -242,7 +247,7 @@ describe('AttendancePage', () => {
     it('日到班分校的課：有刷卡寫「HH:mm 到班」', () => {
       createComponent({
         data: [record({ eventDate: daysAgoIso(1) })],
-        meta: { total: 1, page: 1, pageSize: 100, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+        meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
       });
       checkinsMock.mockReturnValue(
         of({ data: [{ date: daysAgoIso(1), time: '16:42' }], dailyCheckinCampusIds: ['daily'] }),
@@ -256,7 +261,7 @@ describe('AttendancePage', () => {
     it('隨堂點名分校的課沒有到班行；到班時間讀失敗也照樣列出紀錄', () => {
       createComponent({
         data: [record({ eventDate: daysAgoIso(1), campusId: 'per-session' })],
-        meta: { total: 1, page: 1, pageSize: 100, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+        meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
       });
       activeChildId.set('child-1');
       fixture.detectChanges();
@@ -324,7 +329,7 @@ describe('AttendancePage', () => {
   it('點課堂列內展開，再點一次收合', () => {
     createComponent({
       data: [record({ note: '準時到班' })],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -358,7 +363,7 @@ describe('AttendancePage', () => {
           leaveReason: reason,
         }),
       ],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 1 },
+      meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 1 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -371,7 +376,7 @@ describe('AttendancePage', () => {
   it('載入失敗顯示失敗狀態', () => {
     createComponent((() => {
       throw new Error('unused');
-    }) as unknown as ParentAttendanceListResponse);
+    }) as unknown as ParentAttendanceDaysResponse);
     activeChildId.set('child-1');
     fixture.detectChanges();
 
@@ -380,7 +385,7 @@ describe('AttendancePage', () => {
   it('錨點顯示本月缺席數，不把請假算進去', () => {
     createComponent({
       data: [record()],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 2, monthlyOnLeaveCount: 5 },
+      meta: { monthlyAbsentCount: 2, monthlyOnLeaveCount: 5 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -397,7 +402,7 @@ describe('AttendancePage', () => {
   it('錨點文案標明「本月」——列表區間可以不是本月，數字卻永遠是本月', () => {
     const comp = createComponent({
       data: [record()],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 3, monthlyOnLeaveCount: 0 },
+      meta: { monthlyAbsentCount: 3, monthlyOnLeaveCount: 0 },
     });
     comp.onRangeChange('recent30');
     activeChildId.set('child-1');
@@ -411,7 +416,7 @@ describe('AttendancePage', () => {
   it('缺席 0 次照樣顯示錨點——0 是好消息，不是沒有資料', () => {
     createComponent({
       data: [record()],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -428,7 +433,7 @@ describe('AttendancePage', () => {
     // 第一次就失敗的話 monthlyAbsent 本來就是 null，那樣寫的測試對守衛沒有辨識力
     const comp = createComponent({
       data: [record()],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 4, monthlyOnLeaveCount: 0 },
+      meta: { monthlyAbsentCount: 4, monthlyOnLeaveCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -453,7 +458,7 @@ describe('AttendancePage', () => {
     it('停課仍然掛著請假時，兩件事都說得出來', () => {
       createComponent({
         data: [record({ status: 'on_leave', sessionStatus: 'cancelled', className: '數學班' })],
-        meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 1 },
+        meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 1 },
       });
       activeChildId.set('child-1');
       fixture.detectChanges();
@@ -472,7 +477,7 @@ describe('AttendancePage', () => {
     it('正常的課堂不長出 chip', () => {
       createComponent({
         data: [record({ sessionStatus: 'scheduled' })],
-        meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+        meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
       });
       activeChildId.set('child-1');
       fixture.detectChanges();
@@ -484,7 +489,7 @@ describe('AttendancePage', () => {
     it('沒有課堂的紀錄標成「非課堂」—— 不能跟正常的課長得一樣', () => {
       createComponent({
         data: [record({ sessionStatus: null, className: null })],
-        meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+        meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
       });
       activeChildId.set('child-1');
       fixture.detectChanges();
@@ -525,7 +530,7 @@ describe('AttendancePage', () => {
    * 斷言照工單的狀態表：延遲中 `records().length === 0`（現在的 `days()` 同樣在空清單時就排滿整段期間，守衛照樣判 `records()`）。
    */
   it('載入中（原始清單還是空的）要渲染 skeleton，不能謊稱「今日無課」', () => {
-    const pending = new Subject<ParentAttendanceListResponse>();
+    const pending = new Subject<ParentAttendanceDaysResponse>();
     activeChildId = signal<string | null>(null);
     childScopeLoad = vi.fn();
     listMock = vi.fn(() => pending.asObservable());
@@ -548,11 +553,12 @@ describe('AttendancePage', () => {
         {
           provide: ParentAttendanceService,
           useValue: {
-            list: listMock,
+            days: listMock,
             checkins: () => of({ data: [], dailyCheckinCampusIds: [] }),
           },
         },
         { provide: ParentSessionsService, useValue: { list: () => of({ data: [] }) } },
+        { provide: SystemClockService, useValue: { nowEpochMs: () => FAKE_NOW_MS } },
         { provide: MessageService, useValue: { add: vi.fn() } },
       ],
     });
@@ -633,9 +639,7 @@ describe('AttendancePage', () => {
       expect(toastMock).toHaveBeenCalledWith(
         expect.objectContaining({ severity: 'success', summary: '已登記 測試孩子 10/20 請假' }),
       );
-      expect(listMock).toHaveBeenCalledWith(
-        expect.objectContaining({ childId: 'child-1', page: 1 }),
-      );
+      expect(listMock).toHaveBeenCalledWith('child-1', expect.any(String), expect.any(String));
     });
 
     it('取消：關掉、不打 API、不 toast', async () => {
@@ -651,5 +655,85 @@ describe('AttendancePage', () => {
       expect(createLeaveMock).not.toHaveBeenCalled();
       expect(toastMock).not.toHaveBeenCalled();
     });
+  });
+
+  // #1810：沒點名的堂也列出來；展開帶「老師 · 教室」（#1809 併入）與推導的依據
+  describe('列出還沒點名的堂（#1810）', () => {
+    const open = (text: string) => {
+      const btn = [...fixture.nativeElement.querySelectorAll('.attendance__record')].find(
+        (b: HTMLElement) => b.textContent?.includes(text),
+      ) as HTMLButtonElement;
+      btn.click();
+      fixture.detectChanges();
+    };
+
+    it('沒紀錄的過去堂寫「沒有紀錄」，不是缺席；日到班推導寫「出席」並在展開說依到班刷卡', () => {
+      createComponent({
+        data: [
+          record({ id: 'a', className: '英文班', status: null, eventDate: daysAgoIso(1) }),
+          record({
+            id: 'b',
+            className: '國文班',
+            status: null,
+            derived: 'checkin',
+            eventDate: daysAgoIso(2),
+          }),
+        ],
+        meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+      const text = () => fixture.nativeElement.textContent as string;
+      const statuses = [...fixture.nativeElement.querySelectorAll('.attendance__status')].map(
+        (el: HTMLElement) => el.textContent?.trim(),
+      );
+      expect(statuses).toEqual(['沒有紀錄', '出席']);
+
+      open('國文班');
+      expect(text()).toContain('依到班刷卡');
+    });
+
+    it('展開寫「老師 · 教室」；缺哪個就不寫哪個', () => {
+      createComponent({
+        data: [
+          record({ id: 'a', className: '英文班', teacherName: '王老師', classroomName: 'A 教室' }),
+          record({ id: 'b', className: '國文班', teacherName: '李老師', startTime: '11:00' }),
+        ],
+        meta: { monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      open('英文班');
+      expect(
+        fixture.nativeElement.querySelector('.attendance__record-teacher')?.textContent?.trim(),
+      ).toBe('王老師 · A 教室');
+      open('國文班');
+      expect(
+        fixture.nativeElement.querySelector('.attendance__record-teacher')?.textContent?.trim(),
+      ).toBe('李老師');
+    });
+  });
+
+  // 審核席 #1819 二讀 Y3：選過去的月份，查詢的窗要跟畫的窗一致 —— 到那個月的月底，不是今天
+  it('選過去的月份 → days() 收到那個月的 1 號到月底', () => {
+    const comp = createComponent() as unknown as {
+      onRangeChange: (mode: 'month') => void;
+      onMonthChange: (month: string) => void;
+    };
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    const d = new Date(`${FAKE_TODAY.slice(0, 7)}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - 1);
+    const prev = d.toISOString().slice(0, 7);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
+      .toISOString()
+      .slice(0, 10);
+
+    comp.onRangeChange('month');
+    comp.onMonthChange(prev);
+    fixture.detectChanges();
+
+    expect(listMock).toHaveBeenLastCalledWith('child-1', `${prev}-01`, last);
   });
 });
