@@ -3,6 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { OrgSettingsService, type OrgSettings } from '@core/org-settings.service';
+import { BillingPeriodsService } from '@core/billing-periods.service';
+import { provideRouter } from '@angular/router';
 
 import { SettingsPage } from './settings.page';
 
@@ -22,6 +24,7 @@ describe('SettingsPage', () => {
     getSettings: vi.fn(),
     updateSettings: vi.fn(),
   };
+  const billingPeriodsMock = { list: vi.fn() };
 
   /** ngOnInit 在第一次 `detectChanges()` 跑，所以取數的結果要在建立元件之前就決定 */
   async function setup() {
@@ -29,7 +32,9 @@ describe('SettingsPage', () => {
       imports: [SettingsPage],
       providers: [
         MessageService,
+        provideRouter([]),
         { provide: OrgSettingsService, useValue: orgSettingsServiceMock },
+        { provide: BillingPeriodsService, useValue: billingPeriodsMock },
       ],
     }).compileComponents();
 
@@ -54,6 +59,7 @@ describe('SettingsPage', () => {
     vi.clearAllMocks();
     orgSettingsServiceMock.getSettings.mockReturnValue(of(DAILY_CHECKIN));
     orgSettingsServiceMock.updateSettings.mockReturnValue(of(DAILY_CHECKIN));
+    billingPeriodsMock.list.mockReturnValue(of({ data: [] }));
   });
 
   it('should create', async () => {
@@ -317,6 +323,97 @@ describe('SettingsPage', () => {
       expect(page().reminderOffsets()).toHaveLength(6);
       page().newReminderDays = 40;
       expect(page().pendingReminderOffset()).toBeNull();
+    });
+  });
+
+  // #1314 SE2a：財務設定收成「繳費」段、加「學期與繳費週期」段（A6 general 的 .colls）
+  describe('一般分頁的可收合段（#1314 SE2a）', () => {
+    const FINANCE: OrgSettings = {
+      ...DAILY_CHECKIN,
+      invoiceDueDays: 7,
+      invoiceReminderOffsets: [-3, 0],
+      billingReminderDays: 14,
+      leaveWaiverDays: 3,
+      paymentInfo: null,
+    };
+    const period = (id: string, name: string, start: string, end: string) => ({
+      id,
+      orgId: 'org-1',
+      name,
+      startDate: start,
+      endDate: end,
+      createdAt: '',
+      updatedAt: '',
+      overlappingEnrollmentCount: 0,
+    });
+    /** 逐個子元素取字再以空白接起來 —— textContent 直接串會把相鄰兩個 span 黏在一起 */
+    const byChild = (el: Element) =>
+      Array.from(el.children)
+        .map((c) => c.textContent?.replace(/\s+/g, ' ').trim())
+        .join(' ');
+    const summaries = () =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('summary')).map(byChild);
+
+    it('沒有財務權限（回應沒有財務 key）→ 兩段都不畫，也不讀週期', async () => {
+      await setup();
+      expect(summaries()).toEqual([]);
+      expect(billingPeriodsMock.list).not.toHaveBeenCalled();
+    });
+
+    it('有財務權限 → 「繳費」摘要寫生效值、「週期」摘要寫幾個', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValue(
+        of({ data: [period('p1', '114 上', '2025-09-01', '2026-01-31')] }),
+      );
+      await setup();
+      expect(summaries()).toEqual([
+        '繳費 期限 7 天 · 提醒 到期前 3 天、到期當天',
+        '學期與繳費週期 1 個週期',
+      ]);
+    });
+
+    it('週期列表新到舊，連到費用方案頁管理', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValue(
+        of({
+          data: [
+            period('p1', '114 上', '2025-09-01', '2026-01-31'),
+            period('p2', '114 下', '2026-02-01', '2026-06-30'),
+          ],
+        }),
+      );
+      await setup();
+      const items = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('ul[aria-label="繳費週期"] li'),
+      ).map(byChild);
+      expect(items).toEqual(['114 下 2026/02/01 – 2026/06/30', '114 上 2025/09/01 – 2026/01/31']);
+      const link = (fixture.nativeElement as HTMLElement).querySelector(
+        'a[href="/admin/fee-templates"]',
+      );
+      expect(link?.textContent).toContain('到費用方案頁');
+    });
+
+    it('週期讀失敗 → 講讀不到，不畫「還沒有週期」', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValue(throwError(() => new Error('boom')));
+      await setup();
+      expect(bodyText()).toContain('沒有讀到繳費週期');
+      expect(bodyText()).not.toContain('還沒有週期');
+    });
+
+    it('預設繳費期限：顯示讀到的值，儲存送 invoiceDueDays', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      orgSettingsServiceMock.updateSettings.mockReturnValue(of({ ...FINANCE, invoiceDueDays: 10 }));
+      await setup();
+      expect(bodyText()).toContain('預設繳費期限');
+      const page = component as unknown as {
+        invoiceDueDaysValue: number;
+        saveInvoiceDueDays: () => void;
+      };
+      expect(page.invoiceDueDaysValue).toBe(7);
+      page.invoiceDueDaysValue = 10;
+      page.saveInvoiceDueDays();
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ invoiceDueDays: 10 });
     });
   });
 });
