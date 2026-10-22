@@ -180,7 +180,7 @@ describe('SettingsPage', () => {
   });
 
   /** #1305：待開單提醒天數 —— 財務設定，同帳戶資訊：沒有這個 key 就整段不畫 */
-  it('有 billingReminderDays 這個 key → 顯示，儲存送 billingReminderDays', async () => {
+  it('有 billingReminderDays 這個 key → 顯示，儲存只送 billingReminderDays（沒讀到的欄不寫回）', async () => {
     orgSettingsServiceMock.getSettings.mockReturnValue(
       of({ ...DAILY_CHECKIN, billingReminderDays: 14 }),
     );
@@ -188,7 +188,7 @@ describe('SettingsPage', () => {
 
     expect(bodyText()).toContain('待開單提醒');
     component['billingReminderDaysValue'] = 7;
-    component['saveBillingReminderDays']();
+    component['saveFinanceBasics']();
 
     expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ billingReminderDays: 7 });
   });
@@ -208,7 +208,7 @@ describe('SettingsPage', () => {
 
     expect(bodyText()).toContain('連續請假可不收費');
     component['leaveWaiverDaysValue'] = 5;
-    component['saveLeaveWaiverDays']();
+    component['saveFinanceBasics']();
 
     expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ leaveWaiverDays: 5 });
   });
@@ -220,8 +220,8 @@ describe('SettingsPage', () => {
     orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
     await setup();
     const add = vi.spyOn(TestBed.inject(MessageService), 'add');
-    component['saveLeaveWaiverDays']();
-    expect(component['savingLeaveWaiver']()).toBe(false);
+    component['saveFinanceBasics']();
+    expect(component['savingFinanceBasics']()).toBe(false);
     expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
   });
 
@@ -367,7 +367,7 @@ describe('SettingsPage', () => {
       );
       await setup();
       expect(summaries()).toEqual([
-        '繳費 期限 7 天 · 提醒 到期前 3 天、到期當天',
+        '繳費 期限 7 天 · 到期前 3 天、到期當天提醒',
         '學期與繳費週期 1 個週期',
       ]);
     });
@@ -408,12 +408,17 @@ describe('SettingsPage', () => {
       expect(bodyText()).toContain('預設繳費期限');
       const page = component as unknown as {
         invoiceDueDaysValue: number;
-        saveInvoiceDueDays: () => void;
+        saveFinanceBasics: () => void;
       };
       expect(page.invoiceDueDaysValue).toBe(7);
       page.invoiceDueDaysValue = 10;
-      page.saveInvoiceDueDays();
-      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ invoiceDueDays: 10 });
+      page.saveFinanceBasics();
+      // kv 一顆儲存：三欄一起送（都有讀到才送 —— 只有一欄的情況見上面兩支）
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        invoiceDueDays: 10,
+        billingReminderDays: 14,
+        leaveWaiverDays: 3,
+      });
     });
   });
 });

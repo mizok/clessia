@@ -14,6 +14,7 @@ import {
   type AttendanceMode,
   type AttendanceResponsible,
   type OrgSettings,
+  type UpdateOrgSettingsInput,
 } from '@core/org-settings.service';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 
@@ -59,14 +60,12 @@ export class SettingsPage implements OnInit {
 
   /** #1305：待開單提醒天數。同帳戶資訊：只在回應帶了這個 key（有財務權限）時畫 */
   protected billingReminderDaysValue = 14;
-  protected readonly savingBillingReminder = signal(false);
 
   /**
    * 預設繳費期限（開帳時 due_date 的預設天數，`invoice_due_days`）。#1314 SE2a 之前**沒有畫面能改**，
    * A6「繳費」段的第一欄。財務設定，同帳戶資訊
    */
   protected invoiceDueDaysValue = 14;
-  protected readonly savingInvoiceDue = signal(false);
 
   /**
    * 學期與繳費週期（#1314 SE2a，A6「學期與繳費週期」段）。這裡**只列**，增刪改在費用方案頁 ——
@@ -99,15 +98,15 @@ export class SettingsPage implements OnInit {
   protected readonly financeSummary = computed(() => {
     const due = this.settings()?.invoiceDueDays;
     const offsets = this.settings()?.invoiceReminderOffsets ?? [];
+    // A6 的語序是「到期前 3 天提醒」；這裡時間點可以有好幾個，用頓號接
     const remind = offsets.length
-      ? `提醒 ${offsets.map((o) => this.reminderLabel(o)).join('、')}`
+      ? `${offsets.map((o) => this.reminderLabel(o)).join('、')}提醒`
       : '不推播提醒';
     return due === undefined ? remind : `期限 ${due} 天 · ${remind}`;
   });
 
   /** #1732：連續請假可不收費的門檻。財務設定，同上 */
   protected leaveWaiverDaysValue = 3;
-  protected readonly savingLeaveWaiver = signal(false);
 
   /**
    * #1660：家長繳費提醒時間點（負＝到期前、0＝當天、正＝逾期第 N 天）。同帳戶資訊：只在回應帶了這個 key
@@ -212,6 +211,45 @@ export class SettingsPage implements OnInit {
       });
   }
 
+  /** 「繳費」段的數字欄位（A6 kv）共用一顆儲存 */
+  protected readonly savingFinanceBasics = signal(false);
+
+  /**
+   * 「繳費」段 kv 的三欄一起存（A6 一段一顆儲存）。**只送回應裡有的 key** —— 畫面沒畫的欄位
+   * 不能拿預設值寫回去（同 #805 的理由）
+   */
+  protected saveFinanceBasics(): void {
+    const s = this.settings();
+    const input: UpdateOrgSettingsInput = {};
+    if (s?.invoiceDueDays !== undefined) input.invoiceDueDays = this.invoiceDueDaysValue;
+    if (s?.billingReminderDays !== undefined)
+      input.billingReminderDays = this.billingReminderDaysValue;
+    if (s?.leaveWaiverDays !== undefined) input.leaveWaiverDays = this.leaveWaiverDaysValue;
+    this.savingFinanceBasics.set(true);
+    this.orgSettingsService.updateSettings(input).subscribe({
+      next: (saved) => {
+        this.settings.set(saved);
+        this.invoiceDueDaysValue = saved.invoiceDueDays ?? 14;
+        this.billingReminderDaysValue = saved.billingReminderDays ?? 14;
+        this.leaveWaiverDaysValue = saved.leaveWaiverDays ?? 3;
+        this.savingFinanceBasics.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: '已儲存',
+          detail: '繳費設定已更新',
+        });
+      },
+      error: () => {
+        this.savingFinanceBasics.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: '錯誤',
+          detail: '儲存失敗，請稍後再試',
+        });
+      },
+    });
+  }
+
   protected loadPeriods(): void {
     this.periodsFailed.set(false);
     this.billingPeriodsService.list().subscribe({
@@ -222,81 +260,6 @@ export class SettingsPage implements OnInit {
         this.periodsFailed.set(true);
       },
     });
-  }
-
-  /** 開帳時 due_date 的預設天數（0 以上）。已開的帳單不受影響 */
-  protected saveInvoiceDueDays(): void {
-    this.savingInvoiceDue.set(true);
-    this.orgSettingsService.updateSettings({ invoiceDueDays: this.invoiceDueDaysValue }).subscribe({
-      next: (s) => {
-        this.settings.set(s);
-        this.invoiceDueDaysValue = s.invoiceDueDays ?? 14;
-        this.savingInvoiceDue.set(false);
-        this.messageService.add({
-          severity: 'success',
-          summary: '已儲存',
-          detail: '繳費期限已更新',
-        });
-      },
-      error: () => {
-        this.savingInvoiceDue.set(false);
-        this.messageService.add({
-          severity: 'error',
-          summary: '錯誤',
-          detail: '儲存失敗，請稍後再試',
-        });
-      },
-    });
-  }
-
-  /** #1732：連續請假滿這麼多個上課日，提醒有財務權限的人（2–30）。系統不改帳單 */
-  protected saveLeaveWaiverDays(): void {
-    this.savingLeaveWaiver.set(true);
-    this.orgSettingsService
-      .updateSettings({ leaveWaiverDays: this.leaveWaiverDaysValue })
-      .subscribe({
-        next: (s) => {
-          this.settings.set(s);
-          this.leaveWaiverDaysValue = s.leaveWaiverDays ?? 3;
-          this.savingLeaveWaiver.set(false);
-          this.messageService.add({ severity: 'success', summary: '已儲存', detail: '天數已更新' });
-        },
-        error: () => {
-          this.savingLeaveWaiver.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '錯誤',
-            detail: '儲存失敗，請稍後再試',
-          });
-        },
-      });
-  }
-
-  /** #1305：期的開始日前這麼多天，儀表板「待開單」就會出現（1–90） */
-  protected saveBillingReminderDays(): void {
-    this.savingBillingReminder.set(true);
-    this.orgSettingsService
-      .updateSettings({ billingReminderDays: this.billingReminderDaysValue })
-      .subscribe({
-        next: (s) => {
-          this.settings.set(s);
-          this.billingReminderDaysValue = s.billingReminderDays ?? 14;
-          this.savingBillingReminder.set(false);
-          this.messageService.add({
-            severity: 'success',
-            summary: '已儲存',
-            detail: '提醒天數已更新',
-          });
-        },
-        error: () => {
-          this.savingBillingReminder.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '錯誤',
-            detail: '儲存失敗，請稍後再試',
-          });
-        },
-      });
   }
 
   protected reminderLabel(offset: number): string {

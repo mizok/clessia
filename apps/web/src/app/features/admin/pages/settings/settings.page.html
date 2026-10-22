@@ -89,114 +89,64 @@
             ></i
           ></span>
         </summary>
-        <div class="flex flex-col gap-4 pb-6">
-          @if (settings()?.invoiceDueDays !== undefined) {
-            <div
-              class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6"
-            >
-              <h3
-                id="settings-invoice-due-title"
-                class="m-0 mb-2 text-base font-semibold text-zinc-800"
-              >
-                預設繳費期限
-              </h3>
-              <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-                建立帳單時，繳費期限預設是開單後這麼多天。已經開出去的帳單不受影響。
-              </p>
-              <p-inputnumber
-                [(ngModel)]="invoiceDueDaysValue"
-                [min]="0"
-                suffix=" 天"
-                ariaLabelledBy="settings-invoice-due-title"
-              />
-              <div class="mt-3 flex justify-end">
-                <p-button
-                  label="儲存"
-                  icon="pi pi-check"
-                  [loading]="savingInvoiceDue()"
-                  (onClick)="saveInvoiceDueDays()"
-                />
-              </div>
-            </div>
-          }
-
+        <div class="pb-6">
           <!--
-          #1073：財務設定 —— 沒有 manage_finance 時 API 回應裡沒有這個 key，整段不畫
-          （畫一個讀不到值的空欄位，按儲存就會把機構的帳戶清掉）。
-        -->
-          <!-- #1305：財務設定，同帳戶資訊 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
-          @if (settings()?.billingReminderDays !== undefined) {
-            <div
-              class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6"
-            >
-              <h3
-                id="settings-billing-reminder-title"
-                class="m-0 mb-2 text-base font-semibold text-zinc-800"
-              >
-                待開單提醒
-              </h3>
-              <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-                期的開始日前這麼多天，儀表板的「待開單」就會列出還沒開單的期（1–90 天）。
-              </p>
-              <p-inputnumber
-                [(ngModel)]="billingReminderDaysValue"
-                [min]="1"
-                [max]="90"
-                suffix=" 天"
-                ariaLabelledBy="settings-billing-reminder-title"
-              />
-              <div class="mt-3 flex justify-end">
-                <p-button
-                  label="儲存"
-                  icon="pi pi-check"
-                  [loading]="savingBillingReminder()"
-                  (onClick)="saveBillingReminderDays()"
+            A6 settings general 的 .kv：一欄一列（label 包欄位＋小字說明），整組一顆「儲存」。
+            每一欄只在回應帶了那個 key（有財務權限）時畫；儲存也只送畫出來的那幾欄。
+          -->
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            @if (settings()?.invoiceDueDays !== undefined) {
+              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+                預設繳費期限（天）
+                <p-inputnumber [(ngModel)]="invoiceDueDaysValue" [min]="0" styleClass="w-full" />
+                <small class="font-normal text-zinc-600"
+                  >建立帳單時的預設天數；已開的帳單不受影響</small
+                >
+              </label>
+            }
+            @if (settings()?.billingReminderDays !== undefined) {
+              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+                待開單提醒（天）
+                <p-inputnumber
+                  [(ngModel)]="billingReminderDaysValue"
+                  [min]="1"
+                  [max]="90"
+                  styleClass="w-full"
                 />
-              </div>
-            </div>
-          }
-
-          <!-- #1732：財務設定，同上 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
-          @if (settings()?.leaveWaiverDays !== undefined) {
-            <div
-              class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6"
-            >
-              <h3
-                id="settings-leave-waiver-title"
-                class="m-0 mb-2 text-base font-semibold text-zinc-800"
-              >
-                連續請假可不收費
-              </h3>
-              <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-                學生連續請假滿這麼多個上課日（週末與沒課的日子不算中斷），提醒有財務管理權限的人；系統不會自動改帳單（2–30
-                天）。
-              </p>
-              <p-inputnumber
-                [(ngModel)]="leaveWaiverDaysValue"
-                [min]="2"
-                [max]="30"
-                suffix=" 個上課日"
-                ariaLabelledBy="settings-leave-waiver-title"
-              />
-              <div class="mt-3 flex justify-end">
-                <p-button
-                  label="儲存"
-                  icon="pi pi-check"
-                  [loading]="savingLeaveWaiver()"
-                  (onClick)="saveLeaveWaiverDays()"
+                <small class="font-normal text-zinc-600"
+                  >期的開始日前這麼多天，儀表板列出還沒開單的期（1–90）</small
+                >
+              </label>
+            }
+            @if (settings()?.leaveWaiverDays !== undefined) {
+              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+                連續請假可不收費（上課日）
+                <p-inputnumber
+                  [(ngModel)]="leaveWaiverDaysValue"
+                  [min]="2"
+                  [max]="30"
+                  styleClass="w-full"
                 />
-              </div>
-            </div>
-          }
+                <small class="font-normal text-zinc-600"
+                  >連續請假滿這麼多個上課日，提醒有財務權限的人；不改帳單（2–30）</small
+                >
+              </label>
+            }
+          </div>
+          <div class="mt-4 flex">
+            <p-button
+              label="儲存"
+              [loading]="savingFinanceBasics()"
+              (onClick)="saveFinanceBasics()"
+            />
+          </div>
 
           <!-- #1660：家長繳費提醒時間點。財務設定，同上 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
           @if (settings()?.invoiceReminderOffsets !== undefined) {
-            <div
-              class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6"
-            >
+            <div class="mt-6 max-w-[640px]">
               <h3
                 id="settings-invoice-reminder-title"
-                class="m-0 mb-2 text-base font-semibold text-zinc-800"
+                class="m-0 mb-1 text-sm font-semibold text-zinc-700"
               >
                 家長繳費提醒
               </h3>
@@ -258,7 +208,7 @@
               <p class="m-0 mt-2 text-xs text-zinc-500">
                 到期前 0–30 天（0 = 到期當天）、逾期 1–60 天。
               </p>
-              <div class="mt-3 flex justify-end">
+              <div class="mt-3 flex">
                 <p-button
                   label="儲存"
                   icon="pi pi-check"
@@ -270,12 +220,10 @@
           }
 
           @if (settings()?.paymentInfo !== undefined) {
-            <div
-              class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6"
-            >
+            <div class="mt-6 max-w-[640px]">
               <h3
                 id="settings-payment-info-title"
-                class="m-0 mb-2 text-base font-semibold text-zinc-800"
+                class="m-0 mb-1 text-sm font-semibold text-zinc-700"
               >
                 家長付款帳戶資訊
               </h3>
@@ -291,7 +239,7 @@
                 aria-labelledby="settings-payment-info-title"
                 [(ngModel)]="paymentInfoValue"
               ></textarea>
-              <div class="mt-3 flex justify-end">
+              <div class="mt-3 flex">
                 <p-button
                   label="儲存"
                   icon="pi pi-check"
