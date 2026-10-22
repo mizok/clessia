@@ -16,6 +16,8 @@ import {
   StaffRole,
   PERMISSIONS,
   Permission,
+  HeldPermission,
+  WILDCARD_PERMISSION,
   CreateStaffInput,
   UpdateStaffInput,
 } from '@core/staff.service';
@@ -106,12 +108,16 @@ export class StaffFormDialogComponent {
     // 靜默地記成老師 —— 建立者只是沒去取消一個預先勾好的框，而那個人會出現在
     // 排課、代課、鐘點費的候選名單裡。省一次點擊，換一筆要人工才發現的髒資料。
     roles: this.staff()?.roles ?? ([] as StaffRole[]),
-    permissions: this.staff()?.permissions ?? [],
+    permissions: this.staff()?.permissions ?? ([] as HeldPermission[]),
   });
 
   protected readonly isEditing = computed(() => this.staff() !== null);
   protected readonly isAdminRole = computed(() => this.formData().roles.includes('admin'));
   protected readonly isTeacherRole = computed(() => this.formData().roles.includes('teacher'));
+  /** 帳號持有 `*`（全部權限）—— 每一項都顯示勾選，沒動過就原樣送回 `*`（#1829） */
+  protected readonly hasAllPermissions = computed(() =>
+    this.formData().permissions.includes(WILDCARD_PERMISSION),
+  );
 
   protected readonly campusOptions = computed(() =>
     this.campuses().map((c) => ({ label: c.name, value: c.id })),
@@ -291,8 +297,15 @@ export class StaffFormDialogComponent {
     });
   }
 
+  protected hasPermission(permission: Permission): boolean {
+    return this.hasAllPermissions() || this.formData().permissions.includes(permission);
+  }
+
   protected togglePermission(permission: Permission, checked: boolean): void {
-    const current = this.formData().permissions;
+    // 從 `*` 取消一項：展開成逐項清單再拿掉它。勾選在 `*` 下本來就是勾著的，不用動。
+    const current: HeldPermission[] = this.hasAllPermissions()
+      ? [...PERMISSIONS]
+      : this.formData().permissions;
     if (checked) {
       this.updateForm('permissions', [...current, permission]);
     } else {

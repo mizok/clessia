@@ -37,7 +37,7 @@ describe('checkRoleAssignment', () => {
 
   // 這一條是重點：`*` 擋得住「權限不足」，擋不住「自己批准自己」。
   // 唯一的超級管理員如果能改自己，一次手滑就做出一個沒有人救得回來的機構。
-  it('`*` 也不能改自己', () => {
+  it('`*` 也不能改自己（沒給 selfPrior 時照舊一律擋）', () => {
     expect(checkRoleAssignment({ ...base, permissions: ['*'], targetUserId: 'me' })).toMatchObject({
       ok: false,
       reason: 'self',
@@ -98,5 +98,100 @@ describe('addedPermissions', () => {
       'basic_operations',
     ]);
     expect(addedPermissions(['manage_finance'], [])).toEqual([]);
+  });
+});
+
+/**
+ * **改自己**（#1829）：加一個非 admin 角色不會多任何權限，不是提權 ——
+ * 持有 `*` 的人可以替自己加減；權限仍然不能改、admin 仍然不能拿掉。
+ */
+describe('checkRoleAssignment —— 改自己（#1829）', () => {
+  const selfBase = {
+    ...base,
+    permissions: ['*'],
+    targetUserId: 'me',
+    selfPrior: { roles: ['admin'], permissions: ['*'] },
+  };
+
+  it('`*` 替自己加 teacher → 可以', () => {
+    expect(checkRoleAssignment({ ...selfBase, nextRoles: ['admin', 'teacher'] })).toEqual({
+      ok: true,
+    });
+  });
+
+  it('`*` 替自己拿掉 teacher → 可以', () => {
+    expect(
+      checkRoleAssignment({
+        ...selfBase,
+        selfPrior: { roles: ['admin', 'teacher'], permissions: ['*'] },
+        nextRoles: ['admin'],
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it('`*` 改自己的權限 → self', () => {
+    expect(checkRoleAssignment({ ...selfBase, nextPermissions: ['manage_staff'] })).toMatchObject({
+      ok: false,
+      reason: 'self',
+    });
+  });
+
+  it('`*` 拿掉自己的 admin → self', () => {
+    expect(checkRoleAssignment({ ...selfBase, nextRoles: ['teacher'] })).toMatchObject({
+      ok: false,
+      reason: 'self',
+    });
+  });
+
+  it('沒有 `*` 的人替自己加 teacher → self', () => {
+    expect(
+      checkRoleAssignment({
+        ...selfBase,
+        permissions: ['manage_staff', 'manage_roles'],
+        selfPrior: { roles: ['admin'], permissions: ['manage_staff', 'manage_roles'] },
+        nextRoles: ['admin', 'teacher'],
+      }),
+    ).toMatchObject({ ok: false, reason: 'self' });
+  });
+
+  // 表單存檔永遠帶 roles / permissions —— 沒變就是沒改，改姓名不該被擋
+  it('角色與權限都原樣送回 → 可以（不論有沒有 `*`）', () => {
+    expect(
+      checkRoleAssignment({ ...selfBase, nextRoles: ['admin'], nextPermissions: ['*'] }),
+    ).toEqual({ ok: true });
+    expect(
+      checkRoleAssignment({
+        ...selfBase,
+        permissions: ['manage_staff'],
+        selfPrior: { roles: ['admin'], permissions: ['manage_staff'] },
+        nextRoles: ['admin'],
+        nextPermissions: ['manage_staff'],
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it('集合比較：重複值不會讓不同的清單被當成一樣', () => {
+    expect(
+      checkRoleAssignment({
+        ...selfBase,
+        selfPrior: { roles: ['admin'], permissions: ['manage_staff', 'manage_roles'] },
+        nextPermissions: ['manage_staff', 'manage_staff'],
+      }),
+    ).toMatchObject({ ok: false, reason: 'self' });
+  });
+});
+
+describe('checkRoleAssignment —— `*` 本身也只有持有者能發（#1829）', () => {
+  it('有 manage_roles、沒有 `*` 的人發 `*` → exceeds-own', () => {
+    expect(checkRoleAssignment({ ...base, grantedPermissions: ['*'] })).toMatchObject({
+      ok: false,
+      reason: 'exceeds-own',
+    });
+  });
+
+  it('持有 `*` 的人發 `*` → 可以', () => {
+    expect(checkRoleAssignment({ ...base, permissions: ['*'], grantedPermissions: ['*'] })).toEqual(
+      { ok: true },
+    );
   });
 });
