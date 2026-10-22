@@ -40,6 +40,10 @@ const OrgSettingsSchema = z
     attendanceMode: AttendanceModeSchema,
     attendanceResponsible: AttendanceResponsibleSchema,
     attendanceRetroactiveDays: z.number().int().min(0),
+    /** 學年升級日（`MM-DD`，#1820）。只用來提醒管理員，不自動執行 */
+    gradePromotionMonthDay: z.string(),
+    /** 升級日前幾天提醒（0＝不提醒） */
+    gradePromotionReminderDays: z.number().int().min(0).max(60),
     // 下面三個是**財務設定**，只回給有 `manage_finance` 的管理員。
     // 老師與其他管理員拿到的回應裡沒有這幾個 key —— 不是 0、不是 null，是不存在，
     // 因為「餐費單價是 0」跟「你不該知道餐費單價」是兩件不同的事。
@@ -68,6 +72,11 @@ const UpdateOrgSettingsSchema = z
     attendanceMode: AttendanceModeSchema.optional(),
     attendanceResponsible: AttendanceResponsibleSchema.optional(),
     attendanceRetroactiveDays: z.coerce.number().int().min(0).optional(),
+    gradePromotionMonthDay: z
+      .string()
+      .regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/, '格式要是 MM-DD')
+      .optional(),
+    gradePromotionReminderDays: z.coerce.number().int().min(0).max(60).optional(),
     invoiceDueDays: z.coerce.number().int().min(0).optional(),
     billingReminderDays: z.coerce.number().int().min(1).max(90).optional(),
     leaveWaiverDays: z.coerce.number().int().min(2).max(30).optional(),
@@ -108,6 +117,8 @@ export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinan
     attendanceMode: row['attendance_mode'] as 'per_session' | 'daily_checkin',
     attendanceResponsible: (row['attendance_responsible'] as 'admin' | 'teacher') ?? 'admin',
     attendanceRetroactiveDays: (row['attendance_retroactive_days'] as number) ?? 0,
+    gradePromotionMonthDay: (row['grade_promotion_month_day'] as string | undefined) ?? '09-01',
+    gradePromotionReminderDays: (row['grade_promotion_reminder_days'] as number | undefined) ?? 7,
   };
 
   if (!includeFinance) return base;
@@ -138,7 +149,7 @@ const app = new OpenAPIHono<AppEnv>();
 app.use('/settings', writeRequiresAdmin('manage_org_settings'));
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, leave_waiver_days, meal_default_price, proration_basis, payment_info, invoice_reminder_offsets';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, leave_waiver_days, meal_default_price, proration_basis, payment_info, invoice_reminder_offsets, grade_promotion_month_day, grade_promotion_reminder_days';
 
 // GET /api/org/settings
 app.openapi(
@@ -216,6 +227,10 @@ app.openapi(
       updates['attendance_responsible'] = body.attendanceResponsible;
     if (body.attendanceRetroactiveDays !== undefined)
       updates['attendance_retroactive_days'] = body.attendanceRetroactiveDays;
+    if (body.gradePromotionMonthDay !== undefined)
+      updates['grade_promotion_month_day'] = body.gradePromotionMonthDay;
+    if (body.gradePromotionReminderDays !== undefined)
+      updates['grade_promotion_reminder_days'] = body.gradePromotionReminderDays;
     if (body.invoiceDueDays !== undefined) updates['invoice_due_days'] = body.invoiceDueDays;
     if (body.billingReminderDays !== undefined) {
       updates['billing_reminder_days'] = body.billingReminderDays;

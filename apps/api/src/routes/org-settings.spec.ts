@@ -106,6 +106,9 @@ describe('toOrgSettingsResponse', () => {
       attendanceMode: 'per_session',
       attendanceResponsible: 'admin',
       attendanceRetroactiveDays: 0,
+      // #1820：欄位不在 → 預設升級日 9/1、提前 7 天提醒
+      gradePromotionMonthDay: '09-01',
+      gradePromotionReminderDays: 7,
       // 欄位不在的舊 org 用 14 —— 對齊 billing_rules 規則 7 的「發袋後兩三週」節奏
       invoiceDueDays: 14,
       billingReminderDays: 14,

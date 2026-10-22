@@ -1,0 +1,279 @@
+import type { Pool } from 'pg';
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  academicYearOf,
+  levelOfGrade,
+  nextGrade,
+  promoteGrades,
+  promotionPlan,
+  revertPromotion,
+  type PlanStudent,
+} from './grade-promotion';
+
+/**
+ * #1820 學年升級。純函式在這裡驗；交易的「形狀」用替身 pool 驗（哪幾句、哪一步停、回什麼）；
+ * 真正的 SQL 語意（org 條件、部分唯一索引、FOR UPDATE、復原）在 `contract/grade-promotion.contract.ts` 對真 Postgres 驗。
+ */
+
+describe('nextGrade／levelOfGrade／academicYearOf', () => {
+  it('升級表：小六→國一、國三→高一、高三→畢業（null）', () => {
+    expect(nextGrade('P1')).toBe('P2');
+    expect(nextGrade('P6')).toBe('J1');
+    expect(nextGrade('J3')).toBe('S1');
+    expect(nextGrade('S2')).toBe('S3');
+    expect(nextGrade('S3')).toBeNull();
+  });
+
+  it('學制', () => {
+    expect(levelOfGrade('P6')).toBe('elementary');
+    expect(levelOfGrade('J1')).toBe('junior');
+    expect(levelOfGrade('S3')).toBe('senior');
+  });
+
+  it('學年：8/1 起算新學年（民國年）', () => {
+    expect(academicYearOf('2026-07-31')).toBe(114);
+    expect(academicYearOf('2026-08-01')).toBe(115);
+    expect(academicYearOf('2027-01-15')).toBe(115);
+  });
+});
+
+describe('promotionPlan（預覽）', () => {
+  const s = (over: Partial<PlanStudent>): PlanStudent => ({
+    id: 'x',
+    name: '某某',
+    grade: 'J1',
+    schoolName: null,
+    schoolLevel: null,
+    activeClassNames: [],
+    ...over,
+  });
+
+  it('各變動人數照年級順序、升級與畢業人數', () => {
+    const plan = promotionPlan([
+      s({ id: 'a', grade: 'J3' }),
+      s({ id: 'b', grade: 'P6' }),
+      s({ id: 'c', grade: 'J3' }),
+      s({ id: 'd', grade: 'S3' }),
+    ]);
+    expect(plan.transitions).toEqual([
+      { from: 'P6', to: 'J1', count: 1 },
+      { from: 'J3', to: 'S1', count: 2 },
+      { from: 'S3', to: null, count: 1 },
+    ]);
+    expect(plan.promotedCount).toBe(3);
+    expect(plan.graduatedCount).toBe(1);
+  });
+
+  it('學校要更新：新年級的學制跟學校不合（國三升高一、學校是國中）；學校沒填學制的不列', () => {
+    const plan = promotionPlan([
+      s({ id: 'a', name: '甲', grade: 'J3', schoolName: '明湖國中', schoolLevel: 'junior' }),
+      s({ id: 'b', name: '乙', grade: 'J1', schoolName: '明湖國中', schoolLevel: 'junior' }),
+      s({ id: 'c', name: '丙', grade: 'J3', schoolName: '某校', schoolLevel: null }),
+    ]);
+    expect(plan.schoolMismatch).toEqual([
+      { studentId: 'a', name: '甲', schoolName: '明湖國中', newGrade: 'S1' },
+    ]);
+  });
+
+  it('高三還有在籍報名：列出來（停用不連動報名）；沒有報名的高三不列', () => {
+    const plan = promotionPlan([
+      s({ id: 'a', name: '甲', grade: 'S3', activeClassNames: ['高三數學'] }),
+      s({ id: 'b', name: '乙', grade: 'S3' }),
+    ]);
+    expect(plan.graduatesWithEnrollments).toEqual([
+      { studentId: 'a', name: '甲', classNames: ['高三數學'] },
+    ]);
+  });
+});
+
+type Rows = Array<Record<string, unknown>>;
+
+/** 依 SQL 回答的替身 pool；記下送出的每一句 */
+function fakePool(answer: (sql: string) => Rows | Error) {
+  const sent: Array<{ sql: string; params?: unknown[] }> = [];
+  const release = vi.fn();
+  const client = {
+    query: async (sql: string, params?: unknown[]) => {
+      sent.push({ sql, params });
+      const out = answer(sql);
+      if (out instanceof Error) throw out;
+      return { rows: out, rowCount: out.length };
+    },
+    release,
+  };
+  const pool = { connect: async () => client } as unknown as Pool;
+  const verbs = () => sent.map((q) => q.sql.trim().split(/\s+/)[0]);
+  const find = (re: RegExp) => sent.find((q) => re.test(q.sql));
+  return { pool, sent, verbs, find, release };
+}
+
+const PROMOTE = { orgId: 'org-1', userId: 'u-1', academicYear: 115 };
+
+describe('promoteGrades —— 交易形狀', () => {
+  it('同學年已有未復原的紀錄 → already-promoted，什麼都沒寫、ROLLBACK 也沒有（COMMIT 空交易）', async () => {
+    const db = fakePool((sql) => (/FROM grade_promotions/.test(sql) ? [{ id: 'p0' }] : []));
+    expect(await promoteGrades(db.pool, PROMOTE)).toEqual({ status: 'already-promoted' });
+    expect(db.verbs().filter((v) => v === 'INSERT' || v === 'UPDATE')).toEqual([]);
+  });
+
+  it('升級：在讀學生 FOR UPDATE、批次 UPDATE（高三停用、年級不變）、寫明細，COMMIT', async () => {
+    const db = fakePool((sql) => {
+      if (/^INSERT INTO grade_promotions/.test(sql.trim())) return [{ id: 'p1' }];
+      if (/FROM students/.test(sql))
+        return [
+          { id: 's1', grade: 'J3' },
+          { id: 's2', grade: 'S3' },
+        ];
+      return [];
+    });
+    expect(await promoteGrades(db.pool, PROMOTE)).toEqual({
+      status: 'done',
+      promotionId: 'p1',
+      promotedCount: 1,
+      graduatedCount: 1,
+    });
+    // 撈學生只撈在讀的、而且鎖住
+    expect(db.find(/FROM students/)!.sql).toMatch(/is_active = true[\s\S]*FOR UPDATE/);
+    const update = db.find(/^\s*UPDATE students/)!;
+    expect(update.params).toEqual(['org-1', ['s1', 's2'], ['S1', 'S3'], [false, true]]);
+    expect(update.sql).toMatch(/is_active = NOT v\.graduated/);
+    const items = db.find(/INSERT INTO grade_promotion_items/)!;
+    expect(items.params).toEqual([
+      'p1',
+      'org-1',
+      ['s1', 's2'],
+      ['J3', 'S3'],
+      ['S1', 'S3'],
+      [false, true],
+    ]);
+    expect(db.verbs().at(-1)).toBe('COMMIT');
+    expect(db.release).toHaveBeenCalled();
+  });
+
+  it('兩個人同時按：後到的撞部分唯一索引（23505）→ already-promoted，整筆已回滾', async () => {
+    const db = fakePool((sql) =>
+      /^INSERT INTO grade_promotions/.test(sql.trim())
+        ? Object.assign(new Error('dup'), { code: '23505' })
+        : [],
+    );
+    expect(await promoteGrades(db.pool, PROMOTE)).toEqual({ status: 'already-promoted' });
+    expect(db.verbs()).toContain('ROLLBACK');
+  });
+
+  it('其他錯誤：ROLLBACK 後原樣丟出（路由對成 500）', async () => {
+    const db = fakePool((sql) =>
+      /^\s*UPDATE students/.test(sql)
+        ? new Error('boom')
+        : /FROM students/.test(sql)
+          ? [{ id: 's1', grade: 'J1' }]
+          : /^INSERT INTO grade_promotions/.test(sql.trim())
+            ? [{ id: 'p1' }]
+            : [],
+    );
+    await expect(promoteGrades(db.pool, PROMOTE)).rejects.toThrow('boom');
+    expect(db.verbs()).toContain('ROLLBACK');
+  });
+
+  it('每一句都帶 org_id 參數', async () => {
+    const db = fakePool((sql) =>
+      /^INSERT INTO grade_promotions/.test(sql.trim())
+        ? [{ id: 'p1' }]
+        : /FROM students/.test(sql)
+          ? [{ id: 's1', grade: 'J1' }]
+          : [],
+    );
+    await promoteGrades(db.pool, PROMOTE);
+    for (const q of db.sent.filter((x) => !/^(BEGIN|COMMIT)/.test(x.sql))) {
+      expect(q.params, q.sql).toContain('org-1');
+    }
+  });
+});
+
+describe('revertPromotion —— 交易形狀', () => {
+  const NOW = new Date('2026-09-10T00:00:00Z');
+  const input = { orgId: 'org-1', userId: 'u-1', promotionId: 'p1', now: NOW };
+  const promo = (over: Record<string, unknown> = {}) => [
+    { executed_at: new Date('2026-09-01T01:00:00Z'), reverted_at: null, ...over },
+  ];
+
+  it('找不到 → not-found；已復原 → already-reverted；超過 30 天 → expired；都不寫', async () => {
+    for (const [rows, status] of [
+      [[], 'not-found'],
+      [promo({ reverted_at: new Date() }), 'already-reverted'],
+      [promo({ executed_at: new Date('2026-08-01T00:00:00Z') }), 'expired'],
+    ] as const) {
+      const db = fakePool((sql) => (/FROM grade_promotions/.test(sql) ? [...rows] : []));
+      expect(await revertPromotion(db.pool, input)).toEqual({ status });
+      expect(db.verbs().filter((v) => v === 'UPDATE')).toEqual([]);
+    }
+  });
+
+  it('只還原「現在仍是升級後狀態」的學生；手改過的跳過並列出；畢業的恢復在讀', async () => {
+    const db = fakePool((sql) => {
+      if (/FROM grade_promotions/.test(sql)) return promo();
+      if (/FROM grade_promotion_items/.test(sql))
+        return [
+          // 照升級後：還原
+          {
+            student_id: 's1',
+            name: '甲',
+            from_grade: 'J3',
+            to_grade: 'S1',
+            graduated: false,
+            grade: 'S1',
+            is_active: true,
+          },
+          // 畢業停用、還是停用：還原（恢復在讀）
+          {
+            student_id: 's2',
+            name: '乙',
+            from_grade: 'S3',
+            to_grade: 'S3',
+            graduated: true,
+            grade: 'S3',
+            is_active: false,
+          },
+          // 升級後被手改成 S2：跳過
+          {
+            student_id: 's3',
+            name: '丙',
+            from_grade: 'J3',
+            to_grade: 'S1',
+            graduated: false,
+            grade: 'S2',
+            is_active: true,
+          },
+          // 畢業後被手動恢復在讀：跳過
+          {
+            student_id: 's4',
+            name: '丁',
+            from_grade: 'S3',
+            to_grade: 'S3',
+            graduated: true,
+            grade: 'S3',
+            is_active: true,
+          },
+        ];
+      return [];
+    });
+    expect(await revertPromotion(db.pool, input)).toEqual({
+      status: 'done',
+      revertedCount: 2,
+      skipped: [
+        { studentId: 's3', name: '丙' },
+        { studentId: 's4', name: '丁' },
+      ],
+    });
+    const update = db.find(/^\s*UPDATE students/)!;
+    expect(update.params).toEqual(['org-1', ['s1', 's2'], ['J3', 'S3']]);
+    expect(update.sql).toMatch(/is_active = true/);
+    expect(db.find(/UPDATE grade_promotions SET reverted_at/)!.params).toEqual([
+      'p1',
+      'org-1',
+      NOW.toISOString(),
+      'u-1',
+    ]);
+    expect(db.verbs().at(-1)).toBe('COMMIT');
+  });
+});
