@@ -58,13 +58,10 @@ describe('章頭桌機黏住（A6 .chap__side，#1766）', () => {
     for (const c of PINNED) expect(line).toContain(c);
   });
 
-  it('家長帳單：稿不是 .chap，章頭不黏（反向）', () => {
-    const tags = tagsWith(
-      read('features/parent/pages/payments/payments.page.html'),
-      '<app-chapter-head',
-    );
-    expect(tags).toHaveLength(1);
-    expect(tags[0]).toContain('[pinned]="false"');
+  it('家長帳單：稿不是 .chap，是 .sec 標題列 —— 不用 chapter-head、也不黏（反向，#1924）', () => {
+    const src = read('features/parent/pages/payments/payments.page.html');
+    expect(src).not.toContain('<app-chapter-head');
+    expect(src).not.toContain('wide:sticky');
   });
 
   it('其他用 chapter-head 的頁都沒關掉黏住', () => {
@@ -73,11 +70,9 @@ describe('章頭桌機黏住（A6 .chap__side，#1766）', () => {
         const p = join(dir, n);
         return statSync(p).isDirectory() ? files(p) : n.endsWith('.html') ? [p] : [];
       });
-    const off = files(APP)
-      .filter((f) => !f.endsWith('parent/pages/payments/payments.page.html'))
-      .filter((f) =>
-        tagsWith(readFileSync(f, 'utf8'), '<app-chapter-head').some((t) => t.includes('pinned')),
-      );
+    const off = files(APP).filter((f) =>
+      tagsWith(readFileSync(f, 'utf8'), '<app-chapter-head').some((t) => t.includes('pinned')),
+    );
     expect(off).toEqual([]);
   });
 });
