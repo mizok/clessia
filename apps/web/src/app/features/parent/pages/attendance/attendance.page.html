@@ -142,18 +142,18 @@
                     [attr.aria-controls]="'rec-' + record.id"
                     (click)="toggleExpanded(record)"
                   >
+                    <!-- #1810：沒點名的堂也在 —— 還沒上／上課中／沒有紀錄（永遠不寫成缺席） -->
+                    @let st = status(record);
                     <span
                       class="attendance__status"
                       [class]="
-                        record.sessionStatus !== 'cancelled' && record.status === 'absent'
+                        st.tone === 'absent'
                           ? 'font-bold text-error-700'
-                          : record.sessionStatus !== 'cancelled' && record.status === 'present'
+                          : st.tone === 'present'
                             ? 'font-bold'
                             : 'font-semibold text-zinc-600'
                       "
-                      >{{
-                        record.sessionStatus === 'cancelled' ? '停課' : statusLabels[record.status]
-                      }}</span
+                      >{{ st.label }}</span
                     >
                     <span class="attendance__record-class font-semibold text-zinc-900"
                       >{{ record.className ?? '—' }}
@@ -181,15 +181,23 @@
                       class="attendance__record-detail grid gap-1 rounded-b-md bg-zinc-100 pt-2 pr-3 pb-3 pl-[calc(44px+var(--space-3)+var(--space-2))] text-md text-zinc-800 wide:pl-[calc(56px+var(--space-3)*2)]"
                       [id]="'rec-' + record.id"
                     >
+                      <!-- A6「老師 · 教室」（#1809 併入 #1810）；後端只回顯示名 -->
+                      @if (record.teacherName || record.classroomName) {
+                        <span class="attendance__record-teacher">{{ teacherLine(record) }}</span>
+                      }
                       <!-- 分校：A6 沒畫，跨分校的孩子要分得出是哪一校的課（R2，收進展開） -->
                       @if (record.campusName) {
                         <span class="attendance__record-campus">{{ record.campusName }}</span>
+                      }
+                      @if (record.derived === 'checkin') {
+                        <!-- 日到班：刷卡一次，當天的課都算到（計畫席 10-22 裁定 3） -->
+                        <span class="attendance__record-derived">依到班刷卡</span>
                       }
                       @if (record.sessionStatus === 'cancelled') {
                         <span>補習班停課</span>
                       }
                       <!-- #1742：家長送的寫原因；補習班登記的不帶原因（可能是內部備註，計畫席 10-19 裁 (A)） -->
-                      @if (record.status === 'on_leave') {
+                      @if (record.status === 'on_leave' || record.derived === 'leave') {
                         <span class="attendance__record-leave"
                           >請假{{ record.leaveReason ? '：' + record.leaveReason : ''
                           }}{{
