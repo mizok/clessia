@@ -245,7 +245,7 @@ const AREAS = [
   {
     name: '系統設定',
     pages: ['admin/settings'],
-    routes: ['org-settings'],
+    routes: ['org-settings', 'grade-promotions'],
     specs: ['admin/system/settings.md'],
   },
   {
