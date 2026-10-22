@@ -82,7 +82,7 @@
         @if (compact()) {
           <button
             type="button"
-            class="absolute top-1 -right-1 grid size-7 cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
+            class="absolute top-1 -right-1 grid size-11 cursor-pointer wide:size-7 place-items-center rounded-sm border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
             [attr.aria-label]="s.className + ' 的操作'"
             [attr.data-session-menu]="s.id"
             (click)="menu.emit({ event: $event, session: s })"
