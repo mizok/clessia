@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/taipei-date', () => ({ getCurrentTaipeiDateString: () => '2026-10-04' }));
 
-import renewalRoute from './renewal';
+import renewalRoute, { CLASS_SELECT } from './renewal';
 
 const CHILD = '00000000-0000-0000-0000-000000000001';
 const SIBLING = '00000000-0000-0000-0000-000000000002';
@@ -303,6 +303,14 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
 
   // ── 計畫席 10-22：家長端續課頁要的兩欄 ─────────────────────────────────────
   const teacher = (name: string, orgId = 'org-1') => ({ display_name: name, org_id: orgId });
+
+  // 替身不解析 select 字串：拿掉老師嵌入替身照樣回 fixture 的 teacher，要直接攔字串（第二審核席 #1838）
+  it('select 在本班與下一班的時段都嵌了老師（display_name、org_id）', () => {
+    const embed = /schedules\([^)]*teacher:staff!teacher_id\(display_name, org_id\)\)/g;
+    expect(CLASS_SELECT.match(embed)).toHaveLength(2);
+    const next = CLASS_SELECT.slice(CLASS_SELECT.indexOf('next_class:'));
+    expect(next).toMatch(embed);
+  });
 
   it('teacherNames：下期仍有效時段的老師，去重；別機構的 staff、已失效時段的老師不回', async () => {
     const res = await request(

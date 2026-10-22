@@ -74,7 +74,7 @@ const many = (value: unknown): Row[] =>
 // 本機實打抓到的（#1121），替身不會告訴你方向反了。
 const SCHEDULE_SELECT =
   'schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name, org_id))';
-const CLASS_SELECT = `
+export const CLASS_SELECT = `
   id, name, end_date,
   courses(name),
   ${SCHEDULE_SELECT},

@@ -165,6 +165,12 @@ describe('RenewalComponent', () => {
     expect(scope.load).toHaveBeenCalled();
   });
 
+  it('有下一期但沒有要續的課：副行不出現（期別只在有續課時寫）', async () => {
+    await setup({ 'kid-1': { items: [] } });
+    expect(el().textContent).not.toContain('2027 上學期');
+    expect(el().textContent).not.toContain('2/1');
+  });
+
   it('加選連結到 /parent/add-course', async () => {
     await setup({ 'kid-1': {} });
     expect(el().querySelector('a[href="/parent/add-course"]')!.textContent).toContain(
