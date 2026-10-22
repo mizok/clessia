@@ -135,7 +135,7 @@
       <!-- 快速選取（#1174 G3）：桌機開關工具列下的「一次勾：」那一列；手機打開底部面板 -->
       <button
         type="button"
-        class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 wide:inline-flex wide:px-3 wide:text-md aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
+        class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 wide:inline-flex wide:px-3 wide:text-sm aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
         [attr.aria-pressed]="picking()"
         (click)="picking.set(!picking())"
       >
@@ -278,6 +278,7 @@
             {{ ch.date | date: 'M/d' }} 週{{ weekdayLabel(ch.date) }}
           </h2>
           <app-schedule-list
+            [picking]="picking()"
             [groups]="ch.groups"
             [selectedIds]="selectedIds()"
             [now]="now()"
@@ -292,7 +293,12 @@
       }
     } @else if (mode() === 'week') {
       <!-- 週視圖（桌機）：每天一欄，欄內是精簡版的分組清單 -->
-      <div class="hidden grid-cols-7 wide:grid">
+      <!-- 欄數跟著 week()：週日沒課就六欄（A6 只畫週一～週六，#1923） -->
+      <div
+        class="hidden wide:grid"
+        [class.grid-cols-6]="week().length === 6"
+        [class.grid-cols-7]="week().length === 7"
+      >
         @for (d of week(); track d.date; let i = $index) {
           @let today = isTodayDate(weekDays()[i]);
           <section
@@ -307,19 +313,20 @@
               [class.bg-white]="!today"
               [class.bg-zinc-50]="today"
             >
-              <p class="m-0 text-md" [class.text-zinc-600]="!today" [class.font-bold]="today">
+              <!-- 四行都是 div（A6 `.wc__h` 的 wc__dow／wc__date／wc__sum）；日期行高 1.1 -->
+              <div class="text-md" [class.text-zinc-600]="!today" [class.font-bold]="today">
                 週{{ weekdayLabel(d.date) }}{{ today ? ' · 今天' : '' }}
-              </p>
-              <p class="m-0 text-2xl leading-tight font-bold tracking-tight tabular-nums">
+              </div>
+              <div class="text-2xl leading-[1.1] font-bold tracking-tight tabular-nums">
                 {{ weekDays()[i] | date: 'M/d' }}
-              </p>
-              <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
+              </div>
+              <div class="mt-0.5 text-sm text-zinc-700 tabular-nums">
                 {{ d.sessions.length }} 堂 · 最多同時
                 <b class="text-zinc-900">{{ d.maxConcurrent }}</b>
-              </p>
-              <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
+              </div>
+              <div class="mt-0.5 text-sm text-zinc-700 tabular-nums">
                 {{ d.changed ? '異動 ' + d.changed : '沒有異動' }}
-              </p>
+              </div>
               @if (picking() && d.sessions.length) {
                 <button
                   type="button"
@@ -331,6 +338,7 @@
               }
             </header>
             <app-schedule-list
+              [picking]="picking()"
               [groups]="d.groups"
               [selectedIds]="selectedIds()"
               [clashIds]="d.clashIds"
@@ -394,6 +402,7 @@
       </div>
       <div class="wide:hidden">
         <app-schedule-list
+          [picking]="picking()"
           [groups]="dayGroups()"
           [selectedIds]="selectedIds()"
           [clashIds]="clashIds()"
