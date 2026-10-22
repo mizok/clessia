@@ -287,16 +287,24 @@ app.openapi(
       .maybeSingle();
 
     if (!existingParent) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', userId)
-        .single();
+      // 名字跟 /api/me 走同一條（profiles → staff → ba_user，見 lib/display-name.ts）。
+      // 原本只讀 profiles、讀不到就寫死「家長」—— profiles 多半沒有列，於是管理員啟用家長身份後，
+      // 家長列表多出一位叫「家長」的人，本人以為自己不在列表裡（10-22 正式環境）
+      const [{ data: profile }, { data: baUser }] = await Promise.all([
+        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+        supabase.from('ba_user').select('name').eq('id', userId).maybeSingle(),
+      ]);
+      const name =
+        resolveDisplayName({
+          profile: profile as { display_name?: string | null } | null,
+          staff: c.get('selfRows').staff,
+          baUser: baUser as { name?: string | null } | null,
+        }) || '家長'; // ponytail: 三處都空才會走到（Better Auth 的 name 是必填），留著是因為 parents.name NOT NULL
 
       const { error: parentError } = await supabase.from('parents').insert({
         user_id: userId,
         org_id: orgId,
-        name: (profile as Record<string, unknown> | null)?.['display_name'] ?? '家長',
+        name,
         status: 'active',
       });
 

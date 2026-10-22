@@ -3,7 +3,7 @@ title: 角色與帳號管理規格
 summary: 三個角色（admin / teacher / parent）存在 user_roles，細部權限存在 user_roles.permissions。密碼登入已於 2026-08 移除，改為 LINE OAuth + 一次性登入連結。
 category: spec
 status: active
-updated: 2026-08-28
+updated: 2026-10-22
 tags: [specs, admin, roles-and-auth]
 ---
 
@@ -117,7 +117,8 @@ tags: [specs, admin, roles-and-auth]
 
 1. 個人帳號設定 → 點「啟用家長身份」→ 確認提示
 2. 系統直接呼叫 `POST /api/me/activate-parent`（無需填入子女資料）
-3. API 在 `user_roles` 寫入 `parent` 角色
+3. API 在 `user_roles` 寫入 `parent` 角色；還沒有 `parents` 列時建一列，名字跟 `/api/me` 同一條取法（`resolveDisplayName`：profiles → 員工姓名 → `ba_user.name`）。
+   原本讀不到 profiles 就寫死「家長」，管理員啟用後在家長列表上變成一位叫「家長」的人（2026-10-22 修）
 4. 下次切換角色時，家長選項出現在 `/select-role` 頁面
 
 > **設計決策**：啟用時不強制綁定子女，子女管理延後至家長 Portal 內處理。

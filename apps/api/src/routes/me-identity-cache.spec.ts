@@ -137,6 +137,24 @@ describe('/api/me 自己的寫入之後立刻讀回新值（#1631）', () => {
     expect((await me(a)).roles).toEqual(['admin', 'parent']);
   });
 
+  /**
+   * 家長列的名字不能寫死成「家長」：正式環境的管理員啟用家長身份後，家長列表上多了一位「家長」，
+   * 使用者以為自己不在列表裡。profiles 多半沒有列（見 lib/display-name.ts），
+   * 要跟 /api/me 走同一條 resolveDisplayName（staff → ba_user）。
+   */
+  it('啟用家長身份建的家長列，名字沿用員工姓名（profiles 沒有列時）', async () => {
+    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(db.tables['parents']).toMatchObject([{ user_id: 'u1', org_id: 'o1', name: '舊名' }]);
+  });
+
+  it('不是員工就用 ba_user.name', async () => {
+    db.tables['staff'] = [];
+    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(db.tables['parents']).toMatchObject([{ name: 'n' }]);
+  });
+
   it('改名字 → 立刻 GET /api/me 就是新名字', async () => {
     const a = app();
     expect((await me(a)).displayName).toBe('舊名');
