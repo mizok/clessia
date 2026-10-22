@@ -45,5 +45,5 @@ describe('SkeletonComponent（#1879）', () => {
       (p) => p !== self && /class="skeleton-list[\s"]/.test(readFileSync(p, 'utf8')),
     );
     expect(offenders).toEqual([]);
-  });
+  }, 30_000); // 同步讀過整個 app 的模板：機器負載高時實測 7.4 秒，預設 5 秒會逾時假紅
 });

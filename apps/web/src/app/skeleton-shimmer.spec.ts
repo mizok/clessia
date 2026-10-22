@@ -53,5 +53,5 @@ describe('骨架掃光（#1680）', () => {
       return /bg-band-rule[^"]*opacity-45|animate-pulse/.test(text);
     });
     expect(offenders).toEqual([]);
-  });
+  }, 30_000); // 同步讀過整個 app 的模板：機器負載高時會超過預設 5 秒逾時（同 skeleton.component.spec）
 });
