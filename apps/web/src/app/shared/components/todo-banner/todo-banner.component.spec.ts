@@ -47,6 +47,18 @@ describe('TodoBannerComponent', () => {
     expect(button.textContent).toContain('筆待處理');
   });
 
+  // #1855：使用者選 C —— 淡橘底＋淡橘框、近黑字；不再是淡黃警示色，字也不能是深橘紅（#388）
+  it('high 色調：accent-50 底、accent-200 框、zinc-900 字，沒有 warning 色票', () => {
+    host.count = 3;
+    fixture.detectChanges();
+    const cls = (fixture.nativeElement.querySelector('button') as HTMLElement).className;
+    expect(cls).toContain('bg-accent-50');
+    expect(cls).toContain('border-accent-200');
+    expect(cls).toContain('text-zinc-900');
+    expect(cls).not.toMatch(/warning-/);
+    expect(cls).not.toMatch(/text-accent-(5|6|7)00/);
+  });
+
   it('點擊會發出 action 事件', () => {
     host.count = 1;
     fixture.detectChanges();

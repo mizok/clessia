@@ -1,0 +1,213 @@
+<!--
+  A6 版（p-meals.html）：色面（這個月幾餐、多少錢）→ 灰工具列（期間、匯出）→ 每月一個摺疊區。
+  API 沒有餐別、不回行政備註（#1117 裁定），所以稿的「餐別」「備註」兩欄不畫；
+  也不知道併進哪一張帳單，「併入 N 月的帳單」改成連到繳費紀錄。
+-->
+<app-page-open>
+  <app-child-switcher openBack class="mb-3 block" />
+  <ng-container openTitle>
+    @if (childName() && hero(); as h) {
+      {{ childName() }} 這個月<br />{{ h.meals }} 餐，{{ h.amount | number }} 元。
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
+  <ng-container openSub>
+    @if (childName()) {
+      @if (unitPrice() !== null) {
+        一個便當 {{ unitPrice() | number }} 元 ·
+      }
+      每月月底併入帳單
+    }
+  </ng-container>
+</app-page-open>
+
+<app-child-scope-gate>
+  <div class="bg-zinc-100">
+    <div
+      class="page-wrap flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 py-3 wide:min-h-16 wide:gap-x-4"
+    >
+      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+        <app-select-field
+          class="meals__period min-w-[9em] max-wide:flex-1"
+          label="期間"
+          [hideLabel]="true"
+          [options]="periodOptions"
+          [value]="period()"
+          (valueChange)="setPeriod($event ?? '3')"
+        />
+        @if (period() === 'custom') {
+          <span class="flex flex-wrap items-center gap-2 text-md text-zinc-700">
+            <input
+              type="month"
+              class="h-11 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:h-10"
+              aria-label="從"
+              [max]="maxMonth"
+              [value]="customFrom()"
+              (change)="customFrom.set($any($event.target).value || customFrom())"
+            />
+            到
+            <input
+              type="month"
+              class="h-11 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:h-10"
+              aria-label="到"
+              [max]="maxMonth"
+              [value]="customTo()"
+              (change)="customTo.set($any($event.target).value || customTo())"
+            />
+          </span>
+        }
+      </div>
+      <div class="ml-auto flex items-center">
+        <button
+          #exportTrigger
+          type="button"
+          class="meals__export inline-flex size-12 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
+          popovertarget="meals-export"
+          aria-label="匯出"
+          title="匯出"
+          [disabled]="records().length === 0"
+        >
+          <i class="pi pi-download" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 匯出（A6 .xp）：原生 popover。桌機貼著按鈕往下開，手機是底部面板 -->
+  <div
+    #exportPopover
+    id="meals-export"
+    popover
+    class="m-0 w-[340px] rounded-lg border border-surface-border bg-white p-0 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] max-wide:fixed max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:overflow-y-auto max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:bg-zinc-200 max-wide:backdrop:bg-zinc-900/40"
+    aria-labelledby="meals-export-title"
+    (toggle)="placeExport($event, exportTrigger)"
+  >
+    <div class="flex items-center gap-2 pt-4 pr-3 pb-2 pl-5">
+      <h2 id="meals-export-title" class="m-0 text-lg font-bold">匯出餐費</h2>
+      <button
+        type="button"
+        class="ml-auto grid size-11 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 wide:size-9"
+        popovertarget="meals-export"
+        popovertargetaction="hide"
+        aria-label="關閉"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="grid gap-4 px-5 pt-2 pb-5 max-wide:pb-8">
+      <div class="grid gap-2">
+        <span class="text-md font-bold tracking-[0.04em] text-zinc-800">範圍</span>
+        <span class="meals__export-scope text-base"
+          >{{ rangeLabel() }} · {{ records().length }} 筆</span
+        >
+      </div>
+      <div class="grid gap-2">
+        <span class="text-md font-bold tracking-[0.04em] text-zinc-800">欄位</span>
+        <span class="text-base">日期、金額、收費</span>
+      </div>
+      <div class="grid gap-2">
+        <span class="text-md font-bold tracking-[0.04em] text-zinc-800">格式</span>
+        <span class="text-base">CSV</span>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+          popovertarget="meals-export"
+          popovertargetaction="hide"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          class="meals__export-go inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent-vivid leading-[1.5] bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 max-wide:flex-1 wide:h-9"
+          (click)="exportCsv(exportPopover)"
+        >
+          匯出
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="meals__content page-wrap pt-6 pb-6 wide:pt-8">
+    @if (rangeError(); as error) {
+      <p class="meals__range-error m-0 text-md text-error-700">{{ error }}</p>
+    } @else if (loading() && records().length === 0) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到餐費紀錄，可能是連線問題"
+      />
+    } @else if (months().length === 0) {
+      <div class="meals__empty mt-2 rounded-lg bg-zinc-100 p-6">
+        <p class="m-0 text-lg font-bold">這段期間沒有餐費紀錄</p>
+        <p class="m-0 mt-1 text-zinc-700">{{ rangeLabel() }}沒有訂餐。</p>
+        @if (period() !== '6') {
+          <p class="m-0 mt-3">
+            <button
+              type="button"
+              class="h-11 cursor-pointer rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:bg-zinc-50 wide:h-9"
+              (click)="setPeriod('6')"
+            >
+              看近 6 個月
+            </button>
+          </p>
+        }
+      </div>
+    } @else {
+      <div class="colls">
+        @for (month of months(); track month.month; let first = $first) {
+          <details class="coll" name="meals-months" [open]="first">
+            <summary class="coll__sum min-h-14 flex-wrap wide:min-h-16">
+              <span class="coll__t">{{ monthLabel(month.month) }}</span>
+              <span class="meals__state text-md font-medium text-zinc-700">{{
+                month.settled ? '已併入帳單' : '還沒結算 · 月底併入帳單'
+              }}</span>
+              <span class="coll__m"
+                ><b>{{ month.totalAmount | number }} 元</b> · {{ month.meals }} 餐</span
+              >
+            </summary>
+            <div class="coll__body">
+              @if (month.settled) {
+                <p class="m-0 my-2 text-md font-medium text-zinc-700">
+                  已併入帳單 ·
+                  <a
+                    routerLink="/parent/payments"
+                    class="inline-flex min-h-11 items-center text-zinc-900 underline-offset-[3px]"
+                    >看繳費紀錄</a
+                  >
+                </p>
+              }
+              <div class="grid">
+                <div
+                  class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 border-b border-zinc-200 py-3 text-sm font-semibold text-zinc-600 max-wide:hidden"
+                >
+                  <span>日期</span><span class="text-right">金額</span>
+                </div>
+                @for (record of month.records; track record.date) {
+                  <div
+                    class="meals__row grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 border-b border-zinc-200 py-3 text-base tabular-nums last:border-b-0"
+                  >
+                    <span>{{ dayLabel(record.date) }}</span>
+                    <span
+                      class="text-right"
+                      [class]="record.amount ? 'font-semibold' : 'font-medium text-zinc-600'"
+                      >{{ record.amount ? (record.amount | number) + ' 元' : '不收費' }}</span
+                    >
+                  </div>
+                }
+              </div>
+            </div>
+          </details>
+        }
+      </div>
+    }
+  </div>
+</app-child-scope-gate>

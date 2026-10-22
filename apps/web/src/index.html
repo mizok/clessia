@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <title>Clessia</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- maximum-scale=1：iOS Safari 聚焦 < 16px 的輸入框不再自動放大整頁（使用者 10-22 裁，#1867）。
+         刻意不加 user-scalable=no —— iOS 10+ 會忽略 scale 限制，兩指放大仍可用；Android Chrome 會擋，是接受的取捨 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <!--
     #1595 P3a：/api/me 在這裡就先發，跟 main.js 的下載＋bootstrap 重疊，不用等 Angular 起來才問。
     AuthService 首次載入接手這個 promise（見 takeEarlyMe）；失敗、逾時、回的不是 JSON
