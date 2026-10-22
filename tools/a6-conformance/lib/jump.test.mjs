@@ -13,6 +13,16 @@ test('一次跳 300px：maxJump 300，記下哪一幀、哪一塊', () => {
   assert.equal(r.block, 1);
 });
 
+test('往上收也算跳動：佔位比內容高、資料回來往上收 400px 是 400，不是 0', () => {
+  const r = maxJumps([
+    { t: 0, tops: [0, 900] },
+    { t: 16, tops: [0, 500] },
+  ]);
+  assert.equal(r.maxJump, 400);
+  assert.equal(r.at, 16);
+  assert.equal(r.block, 1);
+});
+
 test('滑過去（每幀幾 px）：maxJump 是最大那一步，不是總位移', () => {
   const tops = [200, 230, 260, 280, 295, 300];
   const r = maxJumps(tops.map((y, i) => ({ t: i * 16, tops: [0, y] })));
