@@ -94,6 +94,18 @@ describe('FeeTemplatesComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  // #1859 第 4 張：載入中的骨架比實際內容高，資料回來往上收（手機單幀 0.370）
+  it('兩個區塊高度用滑的：掛 appHeightFollow，內層保留 flex flex-col（版面不變）', () => {
+    for (const id of ['h-ft', 'h-bp']) {
+      const s = (fixture.nativeElement as HTMLElement).querySelector(
+        `section[aria-labelledby="${id}"]`,
+      )!;
+      expect(s.hasAttribute('appheightfollow')).toBe(true);
+      expect(s.children).toHaveLength(1);
+      expect(s.children[0]!.classList).toContain('flex-col');
+    }
+  });
+
   it('兩個區塊各自取數 —— 價目表與收費期間都會載入', () => {
     expect(feeTemplates.list).toHaveBeenCalled();
     expect(billingPeriods.list).toHaveBeenCalled();

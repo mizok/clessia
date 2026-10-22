@@ -304,6 +304,21 @@ describe('DashboardComponent（管理端）', () => {
   }
 
   // 「已經上完」整個是伺服器算的（`endedOnly`）——前端只讀 meta.total，不再自己合併
+  // #1859 第 4 張：「今日課表」等區塊隨資料大幅變高（本機 193 → 1587px），手機整頁往上下跳
+  it('主要區塊高度用滑的：掛 appHeightFollow，裡面包一層讓它量', async () => {
+    await setup();
+    const sections = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll(
+        'section[aria-labelledby^="dashboard-"]',
+      ),
+    ];
+    expect(sections.length).toBeGreaterThan(0);
+    for (const s of sections) {
+      expect(s.hasAttribute('appheightfollow')).toBe(true);
+      expect(s.children).toHaveLength(1);
+    }
+  });
+
   it('報表類：頂欄保留「全部分校」（#1607）', async () => {
     await setup();
     const ctx = TestBed.inject(CampusContextService);

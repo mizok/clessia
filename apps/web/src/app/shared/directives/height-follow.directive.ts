@@ -66,6 +66,9 @@ export class HeightFollowDirective {
       ],
       { duration: DURATION_MS, easing },
     );
+    // 新建的動畫在 ready 之前是「等待中」，效果要等下一幀才套用（WAAPI）；設定 currentTime 讓它這一幀就生效，
+    // 不留一幀「先畫出新高度」的空檔。ponytail: 實際畫面上有沒有那一幀，layout-shift 量不出來（它也記 RO 之前的排版），未量到差異
+    anim.currentTime = 0;
     this.anim = anim;
     anim.finished
       .then(() => {
