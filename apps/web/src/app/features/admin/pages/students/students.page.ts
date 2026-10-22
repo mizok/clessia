@@ -165,6 +165,8 @@ export class StudentsPage implements OnInit {
   /** 預設只列在籍（A6 名冊沒有「停用」；要看停用的人在篩選面板第三列，#1314 SL 裁定） */
   protected readonly statusFilter = signal<StudentStatusFilter>('active');
   protected readonly todayFilter = signal<StudentTodayFilter | null>(null);
+  /** 學制跟年級不合（#1820 設計稿 §4）：學年升級後要改學校的學生，升級完也找得到 */
+  protected readonly schoolMismatch = signal(false);
   protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   /**
@@ -213,6 +215,7 @@ export class StudentsPage implements OnInit {
       grade ? GRADE_LEVEL_LABELS[grade] : '',
       today ? this.todayOptions.find((o) => o.value === today)!.label : '',
       status === 'active' ? '' : status === 'inactive' ? '已停用' : '含停用',
+      this.schoolMismatch() ? '學制跟年級不合' : '',
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(' · ') : '全部';
   });
@@ -220,7 +223,8 @@ export class StudentsPage implements OnInit {
     () =>
       this.selectedGrade() !== null ||
       this.todayFilter() !== null ||
-      this.statusFilter() !== 'active',
+      this.statusFilter() !== 'active' ||
+      this.schoolMismatch(),
   );
   /** 搜尋或任何篩選生效：色面標題改「符合篩選的 N 位」，名冊上方出現「顯示 N 位 · 清除篩選」 */
   protected readonly narrowed = computed(() => this.searchQuery() !== '' || this.hasFilter());
@@ -412,6 +416,7 @@ export class StudentsPage implements OnInit {
               pageSize: this.PAGE_SIZE,
               isActive: STATUS_TO_IS_ACTIVE[this.statusFilter()],
               today: this.todayFilter() ?? undefined,
+              schoolMismatch: this.schoolMismatch() || undefined,
               campusId: this.campusCtx.id() ?? undefined,
             })
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
@@ -480,12 +485,19 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
+  protected onSchoolMismatchChange(value: boolean): void {
+    this.schoolMismatch.set(value);
+    this.currentPage.set(1);
+    this.loadStudents();
+  }
+
   /** 搜尋與所有篩選一起清（只清篩選、搜尋還在，使用者會以為沒清乾淨） */
   protected clearFilters(): void {
     this.searchQuery.set('');
     this.selectedGrade.set(null);
     this.todayFilter.set(null);
     this.statusFilter.set('active');
+    this.schoolMismatch.set(false);
     this.currentPage.set(1);
     this.loadStudents();
   }
