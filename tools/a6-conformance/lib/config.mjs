@@ -762,6 +762,48 @@ export const PAGES = {
     app: '/parent/schedule',
     state: path.join(cache, 'state-parent.json'),
   },
+  'p-grades': {
+    a6: 'p-grades.html',
+    app: '/parent/grades',
+    // 量的時候要換成「孩子都有成績」的家長（#1926：attendance-parent-02），這份預設的孩子沒有成績
+    state: path.join(cache, 'state-parent.json'),
+    deviations: [
+      {
+        status: '缺',
+        a6: 'control:button\\[(課程|學期)：[^\\]]*\\](>text:span\\[[^\\]]*\\])?$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      {
+        status: '多',
+        app: 'control:combobox\\[(課程|學期)\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      {
+        status: '多',
+        app: 'control:button\\[dropdown trigger\\](~\\d+)?$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      // 孩子切換鈕的形狀（大字名＋年級、可及名稱「目前看的是 X，切換孩子」）是全家長頁的殼層差異，另開 #1932；
+      // 這頁不先修，免得跟殼層單各改一半
+      ...['缺', '文案', '樣式'].map((status) => ({
+        status,
+        a6: '>landmark:region\\[這一頁的摘要\\]>control:button\\[目前看的是\\{名\\}，切換孩子\\](>text:span\\[[^\\]]*\\])?$',
+        reason: '孩子切換鈕的形狀：家長頁共用的殼層差異，在 #1932 一次修',
+        source: '#1932（#1314 盤點，計畫席 10-23 派）',
+      })),
+      {
+        // 工具只把登入者（家長）的名字換成 {名}；孩子名（seed 的「出勤測試學生 N」帶數字）沒被換，句子其餘相同
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>heading:h1\\[\\{名\\}',
+        detail: '^「\\{名\\}([^」]*)」→「[^」]+\\1」$',
+        reason: '工具限制：孩子名字沒被樣板化成 {名}（只換登入者的名字），句子其餘一樣',
+        source: '#1926；tools/a6-conformance/lib/capture.mjs harvestNames',
+      },
+    ],
+  },
   'p-payments': {
     a6: 'p-payments.html',
     app: '/parent/payments',

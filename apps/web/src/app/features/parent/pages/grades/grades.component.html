@@ -22,11 +22,22 @@
     }
   </ng-container>
   @if (!loading() && records().length > 0) {
-    <div
-      class="grades__stats mt-6 flex border-t border-band-rule pt-5 [&_.band-anchor__figure]:justify-start [&_.band-anchor__value]:text-[32px] [&_.band-anchor__value]:tracking-[-0.03em] wide:[&_.band-anchor__value]:text-[40px] [&_.band-anchor__unit]:pb-0 [&_.band-anchor__unit]:text-base"
+    <!-- A6 `.open__stats`（a6.css:75–81）：dl，數字（dd）排在標籤（dt）上面；同家長到班頁的寫法 -->
+    <dl
+      class="grades__stats mt-5 mb-0 flex max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-0 border-t border-solid border-band-rule pt-4 text-band-ink wide:mt-8 wide:gap-x-12 wide:gap-y-5 wide:pt-5"
     >
-      <app-band-anchor [value]="recentCount()" unit="筆">新成績 · 過去 7 天登錄</app-band-anchor>
-    </div>
+      <div class="m-0 flex flex-col">
+        <dd
+          class="m-0 order-first text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+        >
+          {{ recentCount()
+          }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">筆</small>
+        </dd>
+        <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
+          新成績 · 過去 7 天登錄
+        </dt>
+      </div>
+    </dl>
   }
 </app-page-open>
 <div class="grades flex min-h-full flex-col">
@@ -37,33 +48,38 @@
   -->
   <app-child-scope-gate>
     @if (records().length > 0) {
+      <!-- A6 灰帶工具列：課程、學期（A6 客製下拉）＋期間分段鈕；高度走 tbar-control（R5 #1903） -->
       <div class="grades__filters bg-zinc-100">
-        <div class="page-wrap flex flex-wrap items-center gap-3 py-4">
-          <p-select
+        <div
+          class="page-wrap flex min-h-16 flex-wrap items-center gap-2 py-3 wide:gap-x-4 wide:gap-y-3 [&_.p-select]:tbar-control"
+        >
+          <app-select-field
+            class="grades__class-filter min-w-[9em] max-wide:flex-1"
+            label="課程"
+            [hideLabel]="true"
             [options]="classOptions()"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="全部課程"
-            ariaLabel="課程"
-            styleClass="w-full"
-            [showClear]="true"
-            [ngModel]="classFilter()"
-            (ngModelChange)="onClassChange($event)"
+            [value]="classFilter()"
+            (valueChange)="onClassChange($event)"
           />
-          <p-select
+          <app-select-field
+            class="grades__period-filter min-w-[9em] max-wide:flex-1"
+            label="學期"
+            [hideLabel]="true"
             [options]="periodOptions()"
-            optionLabel="label"
-            optionValue="value"
-            ariaLabel="學期"
-            styleClass="w-full"
-            [ngModel]="periodFilter() ?? 'all'"
-            (ngModelChange)="onPeriodChange($event)"
+            [value]="periodFilter() ?? 'all'"
+            (valueChange)="onPeriodChange($event)"
           />
-          <div class="grades__range flex w-full gap-1 wide:w-auto" role="group" aria-label="期間">
+          <!-- A6 `.seg`（p-grades.html:10–13）：外框包整組、鈕之間只有左分隔線、鈕沒有各自的框；
+               鈕高走 tbar-control（桌機 40，稿 38 —— R5 #1903 工具列同高） -->
+          <div
+            class="grades__range flex flex-[1_1_100%] overflow-hidden rounded-md border border-solid border-zinc-300 bg-white wide:flex-none"
+            role="group"
+            aria-label="期間"
+          >
             @for (opt of rangeOptions; track opt.value) {
               <button
                 type="button"
-                class="grades__range-btn vt-seg min-h-11 flex-1 cursor-pointer rounded-lg border border-solid border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-700 aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
+                class="grades__range-btn vt-seg tbar-control flex-1 cursor-pointer border-0 bg-white px-2 text-md leading-normal text-zinc-900 not-first:border-l not-first:border-solid not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:flex-none wide:px-4"
                 [style.view-transition-name]="
                   rangeFilter() === opt.value ? 'seg-grades-range' : null
                 "

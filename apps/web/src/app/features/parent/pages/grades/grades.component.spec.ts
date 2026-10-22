@@ -124,7 +124,7 @@ describe('GradesComponent', () => {
     expect(listMock).toHaveBeenCalledWith({ childId: 'child-1', pageSize: 100 });
   });
 
-  it('band anchor 直接用 meta.recentCount', () => {
+  it('色面的「新成績」直接用 meta.recentCount；A6 是 dl，數字在 dd、標籤在 dt（#1926）', () => {
     createComponent({
       data: [record()],
       meta: { total: 1, page: 1, pageSize: 100, recentCount: 3, periods: [] },
@@ -132,9 +132,9 @@ describe('GradesComponent', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '3',
-    );
+    const stats = fixture.nativeElement.querySelector('dl.grades__stats') as HTMLElement;
+    expect(stats.querySelector('dd')?.textContent?.replace(/\s/g, '')).toBe('3筆');
+    expect(stats.querySelector('dt')?.textContent?.trim()).toBe('新成績 · 過去 7 天登錄');
   });
 
   it('依課程分組顯示；段考（沒有班）歸「學校段考」放最後', () => {
