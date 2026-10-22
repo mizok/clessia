@@ -84,4 +84,16 @@ export class ReportsService {
 
     return this.http.get<RevenueResponse>(`${this.endpoint}/revenue`, { params: query });
   }
+
+  /**
+   * 營收明細 CSV（一列一筆收款，跟報表同一組歸屬邏輯）。
+   * 拿 **blob 不拿 text**：後端加了 UTF-8 BOM 給 Excel 認中文，解成字串時 BOM 會被吃掉。
+   * 超過筆數上限回 413，錯誤本體也是 blob（JSON），`error.text()` 再解。
+   */
+  revenueCsv(params: Omit<RevenueQueryParams, 'groupBy'>): Observable<Blob> {
+    const query: Record<string, string> = { dateFrom: params.dateFrom, dateTo: params.dateTo };
+    if (params.campusId) query['campusId'] = params.campusId;
+    if (params.courseId) query['courseId'] = params.courseId;
+    return this.http.get(`${this.endpoint}/revenue.csv`, { params: query, responseType: 'blob' });
+  }
 }
