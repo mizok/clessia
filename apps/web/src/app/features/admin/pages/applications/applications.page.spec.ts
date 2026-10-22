@@ -387,6 +387,31 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
       expect(input(el, '開始時間').value).toBe('19:00');
     });
 
+    it.each([
+      [{ scheduledDate: '2026-11-04' }, '試聽：11/4（三）'],
+      [{ scheduledDate: '2026-11-04', scheduledStartTime: '19:00' }, '試聽：11/4（三）19:00'],
+    ])('只有日期、只有開始時間：不出現多餘的「–」或 null（%o）', async (extra, expected) => {
+      const trial = req({ id: 't1', kind: 'trial', status: 'scheduled', ...extra });
+      const { el } = await setup([trial]);
+      const text = el
+        .querySelector('[data-testid="trial-schedule"]')!
+        .textContent!.replace(/\s+/g, '');
+      expect(text).toBe(expected);
+    });
+
+    it('表單按「取消」：收起表單、不送出', async () => {
+      const trial = req({ id: 't1', kind: 'trial' });
+      const { fixture, parents, el } = await setup([trial]);
+      page(fixture).setTrialStatus(trial, 'scheduled');
+      fixture.detectChanges();
+      // 頁上別處也有「取消」（例：拒絕原因），要按的是日期表單裡那顆
+      button(input(el, '試聽日期').closest('div')!.parentElement as HTMLElement, '取消').click();
+      fixture.detectChanges();
+      expect(page(fixture).schedulingId()).toBeNull();
+      expect(input(el, '試聽日期')).toBeNull();
+      expect(parents.setTrialStatus).not.toHaveBeenCalled();
+    });
+
     it('400（時間不合法）：說出後端原因，表單留著', async () => {
       const trial = req({ id: 't1', kind: 'trial' });
       const { fixture, parents } = await setup([trial]);

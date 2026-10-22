@@ -43,7 +43,7 @@ const GROUPS = {
 /** 拒絕只收這兩個：`awaiting_payment` 已經開了帳單，拒絕會留下一張沒人處理的帳單 */
 const REJECTABLE = ['pending', 'waitlist'];
 
-const SELECT = {
+export const SELECT = {
   enrollment: `id, status, preferred_start_date, note, reject_reason, requested_by, created_at,
     student_id, class_id, billing_mode, students(name),
     classes(name, campus_id, default_fee_template_id, campuses(name))`,

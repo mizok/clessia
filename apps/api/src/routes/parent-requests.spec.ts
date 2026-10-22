@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
-import parentRequestsRoute from './parent-requests';
+import parentRequestsRoute, { SELECT } from './parent-requests';
 
 /**
  * #1707：管理端處理家長登入後送的報名（enrollment_requests）／試聽（trial_requests）申請。
@@ -341,6 +341,34 @@ describe('PATCH /api/parent-requests/:kind/:id', () => {
       scheduledStartTime: '19:00',
       scheduledEndTime: '20:30',
     };
+
+    // 替身不解析 select 字串：拿掉這三欄替身照樣回 fixture 上的值，要直接攔字串（第二審核席 #1836）
+    it('試聽的 select 有撈排定三欄', () => {
+      for (const col of ['scheduled_date', 'scheduled_start_time', 'scheduled_end_time']) {
+        expect(SELECT.trial).toContain(col);
+      }
+    });
+
+    it('改期：稽核的 before 是舊的排定、after 是新的', async () => {
+      const db = seed();
+      await patch(db, `/trial/${id(6)}`, { status: 'scheduled', ...schedule });
+      await patch(db, `/trial/${id(6)}`, { status: 'scheduled', scheduledDate: '2026-11-11' });
+      const details = db.rows('audit_logs')[1]!['details'] as {
+        before: Record<string, unknown>;
+        after: Record<string, unknown>;
+      };
+      expect(details.before).toMatchObject({
+        status: 'scheduled',
+        scheduledDate: '2026-11-04',
+        scheduledStartTime: '19:00',
+        scheduledEndTime: '20:30',
+      });
+      expect(details.after).toMatchObject({
+        scheduledDate: '2026-11-11',
+        scheduledStartTime: null,
+        scheduledEndTime: null,
+      });
+    });
 
     it('排定寫入日期與時間，回應帶 HH:MM，稽核帶前後值', async () => {
       const db = seed();
