@@ -124,6 +124,107 @@ tags: [specs, parent, attendance]
 | 現況有、稿沒畫：分校名                     | 收進展開內容（R2） | 跨分校的孩子要分得出是哪一校的課                                         |
 | 現況有、稿沒畫：「非課堂」標籤             | 保留在列上         | `sessionStatus` 是 null 時跟正常課堂分開（#514）                         |
 
+## 列出還沒點名的堂（#1810，設計稿 2026-10-22，待計畫席批）
+
+> 這一節是設計，**批准前不寫程式**。補的是上面 §4 偏離表第三列：A6 的堂狀態有「沒有紀錄／還沒上／上課中」，
+> 而現在列表的來源是 `attendance_records` —— 沒點名的堂根本不在清單裡，家長看到的是「那天沒課」。
+
+### 1. 來源：課堂為主、左接出勤，再把漏網的紀錄併回來
+
+新端點 `GET /api/me/attendance/days?childId&dateFrom&dateTo`（唯讀，**保留類：家長讀取面**），一列＝一堂：
+
+1. **課堂**：這個孩子「那天在籍」的班（見 §3）在窗內的 `sessions`，含停課。
+2. **左接**這個孩子在那堂的 `attendance_records`（`event_id`）。
+3. **再併回**窗內這個孩子所有的 `attendance_records` 裡，**沒被 1 收到的**那些（非課堂事件、`sessionStatus` 是 null 的 #514，
+   以及在籍判斷收不到但確實有紀錄的堂）。**保證：窗內每一筆出勤紀錄恰好出現一次** —— 只靠課堂當來源的話，
+   有紀錄的堂會因為在籍判斷沒收到而從清單消失，那是比「沒點名的堂不見」更糟的錯。
+
+範圍照家長端既有作法：先 `isChildAllowed`；`childDb.from('enrollments','student_id').pluck(…, childId)` 拿 `ScopedIds`，
+`fromScopedIds('sessions','class_id', ids)` 查堂；出勤、假單都走 `childDb.from(…,'student_id')` 再疊 `.eq('student_id', childId)`
+（兄弟姊妹不混）。窗上限 42 天（同 `/api/me/sessions`；近 30 天、選月份 ≤ 31 天都在內），倒置或超過回 400。
+
+**為什麼不直接改 `/api/me/sessions`**：它是課表、首頁共用的，在籍判斷沒看報名狀態（暫停、待繳費的班也算），
+而且不併回「沒被課堂收到的紀錄」。在那支上改判準會連帶改掉課表 —— 另起一支，課表不動。
+**既有 `GET /api/me/attendance` 先不刪**（加法優先）：月度錨點仍由它算；確認沒有別的呼叫端後另開單收掉。
+
+### 2. 每列回什麼（allowlist）
+
+`key`（`sessionId` ?? `eventId`）、`date`、`startTime`、`endTime`、`className`、`campusId`、`campusName`、
+`sessionStatus`（`scheduled|completed|cancelled|null`）、`status`（`present|absent|on_leave|null`，**null＝沒有紀錄**）、
+`note`、`leaveSubmittedBy`、`leaveReason`（#1742 規則不變：補習班登記的不回原因）、`leaveDerived`（見 §4-b）、
+`teacherName`、`classroomName`（顯示名，同 `/api/me/sessions` 已核准的形狀；**不回** user id、staff id、聯絡方式）。
+`meta.monthlyAbsentCount`／`monthlyOnLeaveCount` 照搬既有算法（紀錄為準、自然月至今）。
+**不回** `recorded_by`、`recorded_by_role`、列 id 以外的內部欄位。
+
+### 3. 「那天在籍」的判準（要裁 1）
+
+一律依**課堂當天**判（rules/attendance-rules §8、#950），在現有 `isEnrolledOn`（生效區間）之外再看報名狀態：
+
+| 報名狀態          | 收哪些堂                                                             |
+| ----------------- | -------------------------------------------------------------------- |
+| `active`          | 生效區間內                                                           |
+| `withdrawal` 退班 | 生效區間內（退班會把 `effective_to` 寫成退班當天，之後的堂自然不收） |
+| `suspended` 暫停  | 生效區間內、**且早於 `status_changed_at`**（暫停那天起不收）         |
+| `pending_payment` | 不收（還沒開始上課）                                                 |
+| `void` 作廢       | 不收（這筆報名視同不存在）                                           |
+
+不收的堂若**有出勤紀錄**，照 §1-3 併回 —— 判準錯了也只會多列，不會吃掉紀錄。
+**已知限制**：暫停後又恢復的報名，`status_changed_at` 被恢復那天蓋掉，暫停期間的堂會列成「沒有紀錄」。
+
+### 4. 每一堂顯示什麼（前端判，`now` 來自 `SystemClockService` → `taipeiWallClock`）
+
+| 情況                                                       | 狀態字               |
+| ---------------------------------------------------------- | -------------------- |
+| 停課（`sessionStatus = cancelled`）                        | `停課`（優先於一切） |
+| 有紀錄                                                     | 出席／請假／缺席     |
+| 沒紀錄、有假單蓋到這堂（`leaveCoversSession`，同點名名單） | `請假`（要裁 2）     |
+| 沒紀錄、還沒開始（今天）                                   | `還沒上`             |
+| 沒紀錄、上課中                                             | `上課中`             |
+| 沒紀錄、已下課                                             | `沒有紀錄`           |
+
+- **沒有紀錄永遠不寫成缺席**（rules §6：沒有紀錄是訊號，不是待填的空格）。錨點仍只算紀錄上的缺席。
+- 停課的堂若有 `on_leave` 紀錄（停課前請的假，#502）：列上寫 `停課`，展開寫「原本已請假」。
+- **要裁 3：日到班的堂沒紀錄、但當天有刷卡**（掃碼只替「刷卡當下已存在的 event」寫出勤，event 是讀取時才補建，
+  兩者會分岔 —— TS3 #1811 處理過同一件事）。選項：(a) 照紀錄寫 `沒有紀錄`，靠上方到班行「16:12 到班」說明；
+  (b) 推導成 `出席`、展開寫「依到班刷卡」。**建議 (b)**：日到班的規則就是「刷卡＝當天的課都到了」（rules §1.1），
+  (a) 會讓同一天出現「16:12 到班」＋「沒有紀錄」兩句互相打架。推導用同一條 `checkinCoversSession`（卡帶分校只算那一校）。
+
+### 5. 時間窗與「以天分頁」
+
+- 窗＝畫面選的區間（近 10 天／近 30 天／選月份，**含今天、不含未來**；未來的堂是課表的事）。**一次查完整個窗**，
+  不做伺服器分頁 —— 一個孩子一個月的堂是兩位數；前端每次多露 10 天（`載入更多（還有 N 天）`，#1814 已做）。
+- 排序：日期新到舊，同一天照開始時間。
+
+### 6. `fillMissingDays` 那類陷阱怎麼防（AGENTS.md test:timetravel 段）
+
+用日期窗重建列表的陷阱是「窗外的資料不是排到後面，是整筆消失」。這張的守法：
+
+1. **窗只算一次**：`dateRange()` 同時是 API 的 `dateFrom/dateTo` 與畫面的天數骨架，不各算一份。
+2. **伺服器依課堂日期篩**（`session_date`／`events.event_date`），不是現在的 `created_at` 排序分頁 —— 回來的每一列必然落在窗內。
+3. **spec 釘兩條不變式**：(a) 回傳列數 ＝ 各天列數加總（沒有列被 `buildDays` 丟掉）；(b) 窗內每筆出勤紀錄恰好出現一次（§1-3）。
+4. **今天與現在**從 `SystemClockService`＋`taipeiWallClock` 取（#1814 版還用 `new Date()`／`todayLocal()`，這張一起換掉）；
+   spec 的 fixture 日期一律相對假時鐘，不寫死。
+5. 交付前跑 `npm run test:timetravel`（AGENTS.md 觸發條件 2：動到用日期窗重建列表的程式碼）。
+
+### 7. 跟 #1814、#1809 的先後（同一頁、檔案重疊）
+
+三張都動 `routes/parent/attendance.ts`、`features/parent/pages/attendance/attendance.page.*`、`attendance.util.*`、
+`core/parent-attendance.service.ts` 與本檔。
+
+- **#1814（classroom 席，開著）先合**：它換了 A6 版型、`buildDays`、以天分頁與到班行，這張疊在它上面改「列的來源」。
+- **#1809（老師 · 教室）建議併進這張**：新端點本來就帶 `teacherName`／`classroomName`（§2），#1809 若照原計畫改舊的
+  `/api/me/attendance`，這張一換來源那段就白做。兩個選項請裁（要裁 4）：
+  (A) **#1809 併入 #1810**，classroom 席不做 #1809（建議）；
+  (B) 照原計畫 #1814 → #1809 → #1810，#1810 開工前等 #1809 合，並把 #1809 的欄位搬到新端點。
+- 這張開工時間：#1814 合進 main 之後；開工前 merge main，不在 #1814 的分支上疊。
+
+### 8. 驗證計畫
+
+- API：權限（非家長 403、別人的孩子 403、兄弟姊妹不混）、窗（倒置／>42 天 400）、在籍判準五種狀態各一支、
+  §1-3 併回（非課堂事件、在籍收不到但有紀錄）、停課、讀取失敗回 500（每一支查詢）、allowlist（不回內部欄位）。
+- 前端：§4 每一種狀態字、日到班推導（含「卡在別校不算」）、§6 兩條不變式、`test:timetravel`。
+- A6：`tools/a6-conformance` 的 `p-attendance`，報告附在 PR。
+
 ## 資料依賴
 
 | 操作 | 資料表                                                            |
