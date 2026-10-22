@@ -8,6 +8,9 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { getAuth } from '../lib/get-auth';
+import { isParentWithinScope } from '../lib/parent-campus-scope';
+import { withTx } from '../lib/pg-tx';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { schoolMismatchClause, type SchoolLevel } from '../lib/grade-promotion';
@@ -790,6 +793,8 @@ app.openapi(
         description: '建立成功',
         content: { 'application/json': { schema: z.object({ data: StudentSchema }) } },
       },
+      403: { description: '家長不在你的分校範圍內' },
+      404: { description: '家長不存在（或不屬於本機構）' },
       500: {
         description: '建立失敗',
         content: {
@@ -822,27 +827,69 @@ app.openapi(
       insertPayload['emergency_contact_phone'] = body.emergencyContactPhone;
     if (body.notes !== undefined) insertPayload['notes'] = body.notes;
 
+    // 帶 parentId（家長頁「新增孩子」）：#1845 —— 家長要屬於本 org（別 org／不存在一律 404，
+    // 不透露存在）、受限管理員還要在範圍內（403）。都在寫入之前擋。
+    // 判準同家長列表：還沒有孩子的家長，受限管理員看不到也掛不上（#821 接受的限制）
+    if (body.parentId) {
+      const { data: parent } = await supabase
+        .from('parents')
+        .select('id')
+        .eq('id', body.parentId)
+        .eq('org_id', orgId)
+        .maybeSingle();
+      if (!parent) return c.json({ error: '找不到這位家長', code: 'PARENT_NOT_FOUND' }, 404);
+      if (!(await isParentWithinScope(supabase, getCampusScope(c), body.parentId)))
+        return c.json({ error: '這位家長不在你的分校範圍內', code: 'PARENT_OUT_OF_SCOPE' }, 403);
+    }
+
+    let studentId: string;
+    if (body.parentId) {
+      // 學生與關聯一個交易：原本關聯插入失敗時錯誤被吞掉，回 201 但學生沒有家長
+      const pool = getAuth(c).pool;
+      if (!pool) return c.json({ error: '建立學生失敗', message: 'DB_POOL_UNAVAILABLE' }, 500);
+      const parentId = body.parentId;
+      // 欄位名來自上面寫死的 insertPayload，值一律參數化
+      const cols = Object.keys(insertPayload);
+      try {
+        studentId = await withTx(pool, async (db) => {
+          const { rows } = await db.query<{ id: string }>(
+            `INSERT INTO students (${cols.join(', ')})
+             VALUES (${cols.map((_, n) => `$${n + 1}`).join(', ')}) RETURNING id`,
+            cols.map((k) => insertPayload[k]),
+          );
+          await db.query(
+            `INSERT INTO parent_student_relations (parent_id, student_id, is_primary, relation)
+             VALUES ($1, $2, true, NULL)`,
+            [parentId, rows[0]!.id],
+          );
+          return rows[0]!.id;
+        });
+      } catch (err) {
+        return c.json({ error: '建立學生失敗', message: (err as Error).message ?? '' }, 500);
+      }
+    } else {
+      const { data: inserted, error } = await supabase
+        .from('students')
+        .insert(insertPayload)
+        .select('id')
+        .single();
+      if (error || !inserted) {
+        return c.json({ error: '建立學生失敗', message: error?.message ?? '' }, 500);
+      }
+      studentId = (inserted as { id: string }).id;
+    }
+
     const { data, error } = await supabase
       .from('students')
-      .insert(insertPayload)
       .select('*, schools(id, name, short_name)')
+      .eq('id', studentId)
+      .eq('org_id', orgId)
       .single();
-
     if (error || !data) {
       return c.json({ error: '建立學生失敗', message: error?.message ?? '' }, 500);
     }
 
     const student = StudentSchema.parse(toStudentResponse(data as Record<string, unknown>));
-
-    // 建立家長關聯（若有提供 parentId）
-    if (body.parentId) {
-      await supabase.from('parent_student_relations').insert({
-        parent_id: body.parentId,
-        student_id: student.id,
-        is_primary: true,
-        relation: null,
-      });
-    }
 
     return c.json({ data: student }, 201);
   },
