@@ -97,7 +97,10 @@ export async function loadDailyAttendance(
   // 在籍條件**與點名名單同源**（`status = 'active'` + 生效區間涵蓋當天）——
   // #178 已經在 daily-checkins.ts 建立這個先例，照抄不另立一份。
   // 兩邊條件不一致會生出「有出勤紀錄但名單上沒這個人」的鬼影。
-  const [{ data: enrollmentRows }, { data: checkinRows }] = await Promise.all([
+  const [
+    { data: enrollmentRows, error: enrollmentError },
+    { data: checkinRows, error: checkinError },
+  ] = await Promise.all([
     supabase
       .from('enrollments')
       .select('student_id, class_id, students(name, grade)')
@@ -112,6 +115,9 @@ export async function loadDailyAttendance(
       .eq('org_id', orgId)
       .eq('checkin_date', date),
   ]);
+  // 讀取失敗不能當成空的（#1928）：在籍空＝今天沒人該來、打卡空＝全部「該到沒到」。呼叫端由全域 onError 回 500
+  if (enrollmentError) throw new Error(`讀取今天的在籍名單失敗：${enrollmentError.message}`);
+  if (checkinError) throw new Error(`讀取今天的打卡失敗：${checkinError.message}`);
 
   // 一個學生可能在今天的兩個班都有課 —— 只列一次，`firstSession` 取最早那堂
   const sessionByClass = new Map(held.map((session) => [session.classId, session]));
@@ -162,13 +168,15 @@ export async function loadDailyAttendance(
   const studentIds = expected.map((student) => student.studentId);
   let onLeave: DailyLeave[] = [];
   if (studentIds.length > 0) {
-    const { data: leaveRows } = await supabase
+    const { data: leaveRows, error: leaveError } = await supabase
       .from('leave_requests')
       .select(`student_id, submitted_by_role, reason, ${LEAVE_WINDOW_COLUMNS}`)
       .eq('org_id', orgId)
       .in('student_id', studentIds)
       .lte('start_date', date)
       .gte('end_date', date);
+    // 請假讀失敗 → 請假的學生會顯示成「該到沒到」（#1928）
+    if (leaveError) throw new Error(`讀取今天的請假失敗：${leaveError.message}`);
 
     const nameById = new Map(expected.map((student) => [student.studentId, student.studentName]));
 
