@@ -232,6 +232,7 @@ describe('GET /api/me/sessions', () => {
         isSubstitute: false,
         originalTeacherName: null,
         examCount: 0,
+        examNames: [],
         changes: [],
         attendance: null,
       });
@@ -244,6 +245,14 @@ describe('GET /api/me/sessions', () => {
       expect(sessionSelect.replace(/\s+/g, '')).toMatch(
         /schedules!schedule_id\(.*classrooms\(name\)\),classes!inner/,
       );
+    });
+
+    // #1835 二讀：替身不解析 select，拿掉 name 時 examNames 會在正式 DB 變成 [undefined]，測試卻全綠
+    it('校內考查詢真的選了考試名稱（academy_exams!inner(exam_date, name)）—— 要直接看字串', async () => {
+      const selects: Array<[string, string]> = [];
+      await get(appWith(baseSeed(), { selects }));
+      const examSelect = selects.find(([t]) => t === 'academy_exam_classes')?.[1] ?? '';
+      expect(examSelect.replace(/\s+/g, '')).toContain('academy_exams!inner(exam_date,name)');
     });
 
     it('時段指定了教室：帶教室名（A6 p-schedule「分校 · 教室」）；沒有時段的堂（手動加、補課）是 null', async () => {
@@ -289,17 +298,18 @@ describe('GET /api/me/sessions', () => {
       });
     });
 
-    it('同班同日有校內考：examCount 為場數；別天、別班的不算', async () => {
+    it('同班同日有校內考：examCount 為場數、examNames 為名稱；別天、別班的不算', async () => {
       const seed = baseSeed({
         academy_exam_classes: [
-          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05' } },
-          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05' } },
-          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-06' } },
-          { class_id: CLASS_SIBLING, academy_exams: { exam_date: '2026-10-05' } },
+          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05', name: '第四次小考' } },
+          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05', name: '單字測驗' } },
+          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-06', name: '別天' } },
+          { class_id: CLASS_SIBLING, academy_exams: { exam_date: '2026-10-05', name: '別班' } },
         ],
       });
       const { body } = await get(appWith(seed));
       expect(body.data[0].examCount).toBe(2);
+      expect(body.data[0].examNames).toEqual(['第四次小考', '單字測驗']);
     });
 
     it('有課務異動：changes[] 帶改期的新舊時間，不帶原因與經手人', async () => {

@@ -59,6 +59,8 @@ const EXPECTED: Record<string, Expected> = {
   '/api/class-logs': { roles: STAFF, write: 'basic_operations' },
   '/api/login-links': { roles: ADMIN },
   '/api/billing-periods': { roles: ADMIN, all: 'manage_finance' },
+  // #1820：讀寫都要 manage_students；all_campuses 在路由內擋
+  '/api/grade-promotions': { roles: ADMIN, all: 'manage_students' },
   '/api/fee-templates': { roles: ADMIN, all: 'manage_finance' },
   '/api/public-applications': { roles: ADMIN, all: 'manage_students' },
   '/api/parent-requests': { roles: ADMIN, all: 'manage_students' },

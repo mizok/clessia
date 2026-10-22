@@ -93,6 +93,13 @@ export class PageActionsComponent {
   protected readonly secondaryClass =
     'border-zinc-300 bg-white text-zinc-900 enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50';
 
+  /**
+   * 手機托盤按鈕照 A6 `.dock .btn`（#1591）：48 高、14px／600、`0 16px`。
+   * 標頭那一份掛在容器上（模板的 `page-actions__header`），連頁面投影進來的鈕一起管
+   */
+  protected readonly dockClass =
+    'h-12 gap-1.5 px-4 py-0 text-base leading-normal [&_.p-button-label]:font-semibold';
+
   protected onSecondary(event: MouseEvent): void {
     if (this.secondary()?.disabled) return;
     this.secondaryClick.emit(event);
