@@ -126,7 +126,12 @@ export class ClassDetailPage implements OnInit {
       });
       items.push({ separator: true });
       if (e.attendanceCount === 0) {
-        items.push({ label: '移除', icon: 'pi pi-trash', command: () => this.confirmRemove(e) });
+        items.push({
+          label: '移除',
+          icon: 'pi pi-trash',
+          danger: true,
+          command: () => this.confirmRemove(e),
+        });
       } else {
         items.push({
           label: '退班',

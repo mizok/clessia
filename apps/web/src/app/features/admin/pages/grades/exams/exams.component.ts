@@ -389,7 +389,7 @@ export class ExamsComponent implements OnInit {
     items.push({
       label: '刪除',
       icon: 'pi pi-trash',
-      styleClass: 'p-menuitem--danger',
+      danger: true,
       disabled: row.scoreCount > 0,
       command: () => this.confirmDeleteExam(row),
     });

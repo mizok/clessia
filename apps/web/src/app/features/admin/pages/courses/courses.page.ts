@@ -742,7 +742,7 @@ export class CoursesPage implements OnInit {
         label: hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程',
         icon: 'pi pi-trash',
         disabled: hasClasses,
-        itemClass: 'text-red-500',
+        danger: true,
         command: () => this.confirmDeleteCourse(course),
       },
     ]);
@@ -786,14 +786,13 @@ export class CoursesPage implements OnInit {
       {
         label: cls.isActive ? '停用班級' : '啟用班級',
         icon: cls.isActive ? 'pi pi-ban' : 'pi pi-check-circle',
-        itemClass: cls.isActive ? 'text-orange-500' : 'text-green-500',
         command: () => this.confirmToggleActive(cls),
       },
       {
         label: cls.hasPastSessions ? '已有歷史課堂，無法刪除' : '刪除班級',
         icon: 'pi pi-trash',
         disabled: cls.hasPastSessions,
-        itemClass: 'text-red-500',
+        danger: true,
         command: () => this.confirmDeleteClass(cls),
       },
     ]);

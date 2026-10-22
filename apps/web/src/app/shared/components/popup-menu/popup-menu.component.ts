@@ -106,6 +106,9 @@ export class PopupMenuComponent implements OnDestroy {
     const classes = ['popup-menu__item'];
     if (item.disabled) {
       classes.push('popup-menu__item--disabled');
+    } else if (item['danger']) {
+      // 刪除類（A6 .acct-menu__item--danger，#1360）；不能按的那一列是說明文字，不上紅
+      classes.push('popup-menu__item--danger');
     }
     const extraClass = (item['itemClass'] ?? item.styleClass) as string | undefined;
     if (extraClass) {

@@ -352,7 +352,7 @@ export class StudentsPage implements OnInit {
         label: student.hasEnrollments ? '已有報名紀錄，無法刪除' : '刪除學生',
         icon: 'pi pi-trash',
         disabled: student.hasEnrollments,
-        styleClass: student.hasEnrollments ? '' : 'text-red-500',
+        danger: true,
         command: () => this.confirmDelete(student),
       },
     ];

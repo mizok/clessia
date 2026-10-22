@@ -198,6 +198,7 @@ export class FeeTemplatesComponent implements OnInit {
         : {
             label: '刪除',
             icon: 'pi pi-trash',
+            danger: true,
             command: () => this.confirmDeleteTemplate(target),
           },
     ];
@@ -209,7 +210,12 @@ export class FeeTemplatesComponent implements OnInit {
     return [
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openPeriodDialog(target) },
       { separator: true },
-      { label: '刪除', icon: 'pi pi-trash', command: () => this.confirmDeletePeriod(target) },
+      {
+        label: '刪除',
+        icon: 'pi pi-trash',
+        danger: true,
+        command: () => this.confirmDeletePeriod(target),
+      },
     ];
   });
 
