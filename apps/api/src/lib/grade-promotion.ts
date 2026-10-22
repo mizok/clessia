@@ -51,6 +51,34 @@ export function academicYearOf(taipeiDate: string): number {
 /** 復原期限（裁定 C） */
 export const REVERT_WINDOW_DAYS = 30;
 
+/**
+ * 升級前提醒（設計稿 §2，裁定 B：升級日只用來提醒）。`today` 是台北日期。
+ *
+ * 看「今天或之後最近的一個升級日」：距離在 0–`days` 天內就該提醒（含升級日當天 —— 排程漏跑一天也還補得到）。
+ * `days` 0＝不提醒。2/29 在平年落到 2/28。回傳的 `academicYear` 同那天按「執行」會寫進的學年
+ * （`academicYearOf`），呼叫端用它判斷「那一學年已經升過」。
+ */
+export function promotionReminderDue(
+  monthDay: string,
+  days: number,
+  today: string,
+): { date: string; daysUntil: number; academicYear: number } | null {
+  if (days <= 0) return null;
+  const [m, d] = monthDay.split('-').map(Number) as [number, number];
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = Number(today.slice(0, 4));
+  for (const y of [year, year + 1]) {
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const date = `${y}-${pad(m)}-${pad(Math.min(d, lastDay))}`;
+    if (date < today) continue;
+    const daysUntil = Math.round(
+      (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
+    );
+    return daysUntil <= days ? { date, daysUntil, academicYear: academicYearOf(date) } : null;
+  }
+  return null;
+}
+
 export interface PlanStudent {
   id: string;
   name: string;
