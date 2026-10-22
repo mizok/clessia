@@ -15,6 +15,38 @@ const ms = (pseudo: string, root = ":root[data-route-dir='lateral']") => {
   return Number(/(\d+)ms/.exec(body)?.[1]);
 };
 
+/** 某條 VT 規則的宣告區塊原文 */
+const rule = (pseudo: string, root = ":root[data-route-dir='lateral']") => {
+  const escaped = `${root}::view-transition-${pseudo}(route-content)`.replace(
+    /[[\]()'.:-]/g,
+    '\\$&',
+  );
+  return new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+};
+const keyframes = (name: string) =>
+  new RegExp(`@keyframes ${name}\\s*\\{([\\s\\S]*?)\\n  \\}`).exec(css)?.[1] ?? '';
+
+describe('同層換頁的方向（#1849，使用者 10-22）', () => {
+  it('新內容從右邊 12px 淡入', () => {
+    const name = /animation-name:\s*([\w-]+)/.exec(rule('new'))?.[1] ?? '';
+    expect(name).not.toBe('');
+    const kf = keyframes(name);
+    expect(kf).toMatch(/translateX\(12px\)/);
+    expect(kf).toMatch(/opacity:\s*0/);
+  });
+
+  it('舊內容原地淡出：同層不指定位移的出場動畫（沿用預設的 vt-fade-out）', () => {
+    // `animation:` 簡寫也能帶入有位移的 keyframes，兩種寫法都不准（第二審核席 #1860）
+    expect(rule('old')).not.toMatch(/animation(-name)?\s*:/);
+    expect(keyframes('vt-fade-out')).not.toMatch(/translate/);
+  });
+
+  it('往深一層／返回維持 24px', () => {
+    expect(keyframes('vt-in-right')).toMatch(/translateX\(24px\)/);
+    expect(keyframes('vt-out-left')).toMatch(/translateX\(-24px\)/);
+  });
+});
+
 describe('同層換頁時長（#1681）', () => {
   it('進場、出場都在 300–350ms，出場比進場短', () => {
     const enter = ms('new');
