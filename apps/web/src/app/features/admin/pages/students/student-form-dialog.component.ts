@@ -132,6 +132,8 @@ export class StudentFormDialogComponent {
               id: currentSchool.id,
               name: currentSchool.name,
               shortName: currentSchool.shortName,
+              // 學生資料只帶學校名；選單用不到學制
+              level: null,
               isActive: false,
               studentCount: 0,
               createdAt: '',
