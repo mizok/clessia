@@ -267,7 +267,7 @@ async function findConflictingLeave(
   studentId: string,
   next: LeaveWindow,
   excludeId?: string,
-): Promise<{ start_date: string; end_date: string } | null> {
+): Promise<{ start_date: string; end_date: string } | null | 'read-failed'> {
   let query = supabase
     .from('leave_requests')
     .select(`id, ${LEAVE_WINDOW_COLUMNS}`)
@@ -275,7 +275,14 @@ async function findConflictingLeave(
     .eq('student_id', studentId);
   if (excludeId) query = query.neq('id', excludeId);
   // 區間有交集是「可能重疊」的必要條件（綁定型的區間＝綁定堂的最早／最晚），再用判準細分
-  const { data } = await query.lte('start_date', next.endDate).gte('end_date', next.startDate);
+  const { data, error } = await query
+    .lte('start_date', next.endDate)
+    .gte('end_date', next.startDate);
+  // 讀不到 ≠ 沒有重疊（#1957）：當成空的就會照寫，重複請假就是這樣進來的
+  if (error) {
+    console.error('[leaves] 重疊檢查讀取失敗:', error.message);
+    return 'read-failed';
+  }
   const hit = ((data ?? []) as Array<Record<string, unknown>>).find((row) =>
     leavesConflict(toLeaveWindow(row), next),
   );
@@ -587,6 +594,9 @@ async function updateBoundSessions(
   const nextWindow = boundWindow(resolved.sessions);
 
   const overlap = await findConflictingLeave(supabase, orgId, studentId, nextWindow, id);
+  if (overlap === 'read-failed') {
+    return c.json({ error: '請假資料讀取失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+  }
   if (overlap) {
     return c.json(
       {
@@ -950,6 +960,9 @@ app.openapi(
 
     // 1. 衝突檢查：同學生是否有重疊的請假紀錄（判準 `leavesConflict`）
     const overlap = await findConflictingLeave(supabase, orgId, body.studentId, window);
+    if (overlap === 'read-failed') {
+      return c.json({ error: '請假資料讀取失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+    }
 
     if (overlap) {
       return c.json(
@@ -1215,6 +1228,9 @@ app.openapi(
     if (rangeChanged) {
       // 排除自己 —— 少了 excludeId，每一次編輯都會跟自己撞成 409
       const overlap = await findConflictingLeave(supabase, orgId, studentId, nextWindow, id);
+      if (overlap === 'read-failed') {
+        return c.json({ error: '請假資料讀取失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+      }
 
       if (overlap) {
         return c.json(

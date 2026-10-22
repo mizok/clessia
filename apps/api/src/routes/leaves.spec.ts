@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import leavesApp from './leaves';
 import {
@@ -439,7 +439,7 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
  * 所以這裡守的是**過濾條件本身**，不只是回應碼。
  */
 describe('POST /api/leaves —— 重疊檢查', () => {
-  function createApp(existing: Array<{ start_date: string; end_date: string }>) {
+  function createApp(existing: Array<{ start_date: string; end_date: string }>, failRead = false) {
     const filters: Array<[string, unknown]> = [];
     const inserted: Array<Record<string, unknown>> = [];
 
@@ -506,6 +506,11 @@ describe('POST /api/leaves —— 重疊檢查', () => {
           },
           upsert: () => Promise.resolve({ error: null }),
           then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
+            if (failRead && table === 'leave_requests') {
+              return Promise.resolve({ data: null, error: { message: 'boom' } }).then(
+                onfulfilled ?? undefined,
+              );
+            }
             const data =
               table === 'leave_requests'
                 ? existing.filter((row) => predicates.every((match) => match(row)))
@@ -536,8 +541,9 @@ describe('POST /api/leaves —— 重疊檢查', () => {
   async function create(
     existing: Array<{ start_date: string; end_date: string }>,
     body: { startDate: string; endDate: string },
+    failRead = false,
   ) {
-    const { app, filters, inserted } = createApp(existing);
+    const { app, filters, inserted } = createApp(existing, failRead);
     const response = await app.request(
       '/api/leaves',
       {
@@ -553,6 +559,17 @@ describe('POST /api/leaves —— 重疊檢查', () => {
     );
     return { status: response.status, filters, inserted };
   }
+
+  it('重疊檢查讀取失敗 → 500，不當成「沒有重疊」照寫（#1957）', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { status, inserted } = await create(
+      [],
+      { startDate: '2026-04-05', endDate: '2026-04-07' },
+      true,
+    );
+    expect(status).toBe(500);
+    expect(inserted).toEqual([]);
+  });
 
   it('完全重疊 → 409，而且不會寫進去', async () => {
     const { status, inserted } = await create(
