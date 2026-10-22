@@ -451,18 +451,20 @@ async function leaveAttendanceImpact(
   input: LeaveAttendanceRangeInput,
 ): Promise<{ revertCount: number; keptCount: number }> {
   const { supabase, orgId, studentId, from, to } = input;
-  const { data: rawEvents } = await supabase
+  // 讀失敗要丟出去（路由回 500）：吞掉就會回 0／0，前端說「不影響任何出缺席」—— 那是錯的答案
+  const { data: rawEvents, error: eventsError } = await supabase
     .from('events')
     .select('id, event_date, start_time, end_time, attendance_taken_at, sessions(id)')
     .eq('org_id', orgId)
     .gte('event_date', from)
     .lte('event_date', to);
+  if (eventsError) throw new Error(`讀出勤事件失敗：${eventsError.message}`);
   const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
     coversEvent(input.window, ev),
   );
   if (events.length === 0) return { revertCount: 0, keptCount: 0 };
 
-  const { data: records } = await supabase
+  const { data: records, error: recordsError } = await supabase
     .from('attendance_records')
     .select('event_id')
     .eq('org_id', orgId)
@@ -472,6 +474,7 @@ async function leaveAttendanceImpact(
       'event_id',
       events.map((e) => e['id'] as string),
     );
+  if (recordsError) throw new Error(`讀出勤紀錄失敗：${recordsError.message}`);
   const taken = new Set(
     events.filter((e) => e['attendance_taken_at'] != null).map((e) => e['id'] as string),
   );
@@ -1362,6 +1365,7 @@ app.openapi(
       },
       403: { description: '沒有這個分校的權限' },
       404: { description: '找不到請假紀錄' },
+      500: { description: '讀取影響筆數失敗' },
     },
   }),
   async (c) => {
@@ -1394,14 +1398,20 @@ app.openapi(
       plan.kind === 'truncate-bound'
         ? { from: plan.revert.startDate, to: plan.revert.endDate }
         : { from: plan.from, to: plan.to };
-    const impact = await leaveAttendanceImpact({
-      supabase,
-      orgId,
-      studentId,
-      ...range,
-      window: plan.revert,
-    });
-    return c.json({ data: impact }, 200);
+    try {
+      const impact = await leaveAttendanceImpact({
+        supabase,
+        orgId,
+        studentId,
+        ...range,
+        window: plan.revert,
+      });
+      return c.json({ data: impact }, 200);
+    } catch (err) {
+      // 前端讀不到預覽就照原文案開窗（不擋取消），所以這裡明確回錯，不回一個猜的 0
+      console.error('[leaves] impact', err);
+      return c.json({ error: '讀取影響筆數失敗' }, 500);
+    }
   },
 );
 

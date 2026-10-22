@@ -225,7 +225,11 @@ describe('取消請假的邊界（#1910 二讀）', () => {
   });
 
   const LEAVE = '11111111-1111-4111-8111-111111111111';
-  function routeApp(leave: Record<string, unknown>, events: Array<Record<string, unknown>>) {
+  function routeApp(
+    leave: Record<string, unknown>,
+    events: Array<Record<string, unknown>>,
+    failTable?: string,
+  ) {
     const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
     const result = (table: string, ops: Array<{ op: string; args: unknown[] }>) => {
       if (table === 'events') return events;
@@ -244,7 +248,11 @@ describe('取消請假的邊界（#1910 二讀）', () => {
             get(_t, prop: string) {
               if (prop === 'then')
                 return (ok?: (v: unknown) => unknown) =>
-                  Promise.resolve({ data: result(table, ops), error: null }).then(ok);
+                  Promise.resolve(
+                    table === failTable
+                      ? { data: null, error: { message: 'boom' } }
+                      : { data: result(table, ops), error: null },
+                  ).then(ok);
               if (prop === 'single' || prop === 'maybeSingle')
                 return () =>
                   Promise.resolve({
@@ -327,5 +335,16 @@ describe('取消請假的邊界（#1910 二讀）', () => {
     );
     const res = await app.request(`/${LEAVE}/impact?mode=full`);
     expect(await res.json()).toEqual({ data: { revertCount: 1, keptCount: 0 } });
+  });
+
+  // 計畫席讀 diff：讀失敗不能回 0／0 —— 前端會說「不影響任何出缺席」
+  it.each(['events', 'attendance_records'])('預覽：%s 讀失敗 → 500，不回猜的 0', async (table) => {
+    const { app } = routeApp(
+      leaveRow(),
+      [{ id: 'e23', event_date: TODAY, attendance_taken_at: null, sessions: { id: 's1' } }],
+      table,
+    );
+    const res = await app.request(`/${LEAVE}/impact?mode=full`);
+    expect(res.status).toBe(500);
   });
 });
