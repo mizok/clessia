@@ -18,11 +18,18 @@ export function buildSchoolListQuery(params: { search?: string; isActive?: boole
 
 const app = new OpenAPIHono<AppEnv>();
 
+/**
+ * 學制（#1314 SE4）。null＝未分類 —— 既有學校在 backfill 之前都是 null，畫面放最後一章「未分類」，
+ * 不從校名猜（猜的那一份只在 backfill 跑一次，之後由行政自己改）。
+ */
+const SchoolLevelSchema = z.enum(['elementary', 'junior', 'senior']).nullable();
+
 const SchoolSchema = z
   .object({
     id: DbUuidSchema,
     name: z.string(),
     shortName: z.string().nullable(),
+    level: SchoolLevelSchema,
     isActive: z.boolean(),
     studentCount: z.number().int(),
     createdAt: z.string(),
@@ -45,6 +52,7 @@ const CreateSchoolSchema = z
   .object({
     name: z.string().min(1).max(100),
     shortName: z.string().max(20).nullable().optional(),
+    level: SchoolLevelSchema.optional(),
     isActive: z.boolean().optional(),
   })
   .openapi('CreateSchool');
@@ -53,6 +61,7 @@ const UpdateSchoolSchema = z
   .object({
     name: z.string().min(1).max(100).optional(),
     shortName: z.string().max(20).nullable().optional(),
+    level: SchoolLevelSchema.optional(),
     isActive: z.boolean().optional(),
   })
   .openapi('UpdateSchool');
@@ -61,6 +70,7 @@ interface SchoolWithCountRow {
   id: string;
   name: string;
   short_name: string | null;
+  level: 'elementary' | 'junior' | 'senior' | null;
   is_active: boolean;
   students: Array<{ count: number | null }> | null;
   created_at: string;
@@ -92,7 +102,7 @@ app.openapi(listRoute, async (c) => {
 
   let query = supabase
     .from('schools')
-    .select('id, name, short_name, is_active, created_at, updated_at, students(count)', {
+    .select('id, name, short_name, level, is_active, created_at, updated_at, students(count)', {
       count: 'exact',
     })
     .eq('org_id', orgId)
@@ -108,6 +118,7 @@ app.openapi(listRoute, async (c) => {
     id: row.id,
     name: row.name,
     shortName: row.short_name,
+    level: row.level ?? null,
     isActive: row.is_active,
     studentCount: Array.isArray(row.students) ? (row.students[0]?.count ?? 0) : 0,
     createdAt: row.created_at,
@@ -145,9 +156,10 @@ app.openapi(createRouteDef, async (c) => {
       org_id: orgId,
       name: body.name.trim(),
       short_name: body.shortName?.trim() || null,
+      level: body.level ?? null,
       is_active: body.isActive ?? true,
     })
-    .select('id, name, short_name, is_active, created_at, updated_at')
+    .select('id, name, short_name, level, is_active, created_at, updated_at')
     .single();
 
   if (error) {
@@ -171,6 +183,7 @@ app.openapi(createRouteDef, async (c) => {
       details: auditFieldDiff(null, {
         name: data.name,
         short_name: data.short_name,
+        level: data.level,
         is_active: data.is_active,
       }),
     },
@@ -183,6 +196,7 @@ app.openapi(createRouteDef, async (c) => {
         id: data.id,
         name: data.name,
         shortName: data.short_name,
+        level: data.level ?? null,
         isActive: data.is_active,
         studentCount: 0,
         createdAt: data.created_at,
@@ -223,6 +237,7 @@ app.openapi(updateRouteDef, async (c) => {
   const payload: Record<string, unknown> = {};
   if (body.name !== undefined) payload['name'] = body.name.trim();
   if (body.shortName !== undefined) payload['short_name'] = body.shortName?.trim() || null;
+  if (body.level !== undefined) payload['level'] = body.level;
   if (body.isActive !== undefined) payload['is_active'] = body.isActive;
   if (Object.keys(payload).length === 0) return c.json({ success: true }, 200);
 

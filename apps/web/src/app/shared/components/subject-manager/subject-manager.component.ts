@@ -143,10 +143,40 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     if (subject.courseCount > 0) parts.push(`${subject.courseCount} 個課程`);
     if (subject.academyExamCount > 0) parts.push(`${subject.academyExamCount} 場校內考`);
     if (parts.length === 0) return null;
-    return `已被${parts.join('、')}使用中，無法刪除`;
+    return `已被 ${parts.join('、')}使用中，無法刪除`;
+  }
+
+  /**
+   * 被用到的科目按刪除：**跳說明，不是只灰掉**（A6 settings#subjects）。灰掉的鈕不說為什麼，
+   * 而行政真正想做的通常是整理名稱 —— 說明裡直接給改名的出口。
+   */
+  private explainBlocked(subject: Subject): void {
+    const parts: string[] = [];
+    if (subject.courseCount > 0) parts.push(`${subject.courseCount} 個課程`);
+    if (subject.academyExamCount > 0) parts.push(`${subject.academyExamCount} 場校內考`);
+    const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
+      header: `「${subject.name}」不能刪除`,
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: 'body',
+      data: {
+        message: `已被 ${parts.join('、')}使用中。要整理名稱可以改名；不再開課的科目留著不影響。`,
+        acceptLabel: '改名',
+        rejectLabel: '關閉',
+        acceptSeverity: 'secondary',
+      } satisfies ConfirmDialogData,
+    });
+    dialogRef?.onClose.subscribe((rename) => {
+      if (rename) this.startEdit(subject);
+    });
   }
 
   protected confirmDelete(subject: Subject): void {
+    if (this.deleteBlockReason(subject)) {
+      this.explainBlocked(subject);
+      return;
+    }
     const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
       header: '確認刪除科目',
       width: '420px',
@@ -196,6 +226,15 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
         severity: 'warning',
         summary: '尚未輸入科目名稱',
         detail: '請先輸入名稱再新增',
+      });
+      return;
+    }
+    // 重名先在這裡擋：API 也會回 409，但那要等一趟往返，而清單就在眼前
+    if (this.subjects().some((s) => s.name === name)) {
+      this.showNotice({
+        severity: 'warning',
+        summary: `已經有「${name}」了`,
+        detail: '同名的科目不能重複新增',
       });
       return;
     }
