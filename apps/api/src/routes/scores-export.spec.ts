@@ -131,19 +131,20 @@ describe('POST /api/scores/export（#1100 #40）', () => {
     expect(pg.calls[0]!.params).toEqual(['org-1', null, 20001]);
   });
 
-  // 替身不跑 SQL：org 條件只能斷言字串（真的語意由契約測試對真 DB 驗）
-  it('SQL 每一張表都帶 org 條件（成績靠考試的 org、班與報名各自的 org）', async () => {
+  // 替身不跑 SQL：這條只是便宜的第一道（regex 帶左邊界 —— 'se.org_id' 不能冒充 'e.org_id'，#1922 二讀）。
+  // 真的語意（兩個 org、跨 org 髒資料）由 contract/scores-export.contract.ts 對真 DB 驗
+  it('SQL 每一段都帶 org 條件與學生篩選（別名分得開）', async () => {
     await setup({})({});
     const sql = pg.calls[0]!.sql.replace(/\s+/g, ' ');
     for (const cond of [
-      'e.org_id = $1',
-      'se.org_id = $1',
-      'c.org_id = $1',
-      'en.org_id = $1',
-      's.student_id = ANY($2::uuid[])',
-      'ss.student_id = ANY($2::uuid[])',
+      /(?<![\w.])e\.org_id = \$1/,
+      /(?<![\w.])se\.org_id = \$1/,
+      /(?<![\w.])c\.org_id = \$1/,
+      /(?<![\w.])en\.org_id = \$1/,
+      /(?<![\w.])s\.student_id = ANY\(\$2::uuid\[\]\)/,
+      /(?<![\w.])ss\.student_id = ANY\(\$2::uuid\[\]\)/,
     ])
-      expect(sql).toContain(cond);
+      expect(sql).toMatch(cond);
   });
 
   it('「照目前的篩選」：只送帶來的學生', async () => {

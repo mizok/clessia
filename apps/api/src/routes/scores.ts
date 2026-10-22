@@ -788,7 +788,7 @@ const EXPORT_STATUS_LABELS: Record<string, string> = {
  * 開課班／課程：那場校內考掛的班裡、這個學生有報名的那班（報名不分狀態，同篩選；跨班考試取班名排前面的）。
  * 段考跟班無關 → NULL。`$2` 是 NULL ＝不限學生（不受限的管理員按「全部學生」）
  */
-const SCORE_EXPORT_SQL = `
+export const SCORE_EXPORT_SQL = `
 SELECT * FROM (
   SELECT st.name AS student_name, k.class_name, e.name AS exam_name, k.course_name,
          e.exam_date::text AS exam_date, s.score::float8 AS score, s.status::text AS status
