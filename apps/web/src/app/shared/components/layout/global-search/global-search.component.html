@@ -29,9 +29,15 @@
   <i class="pi pi-search" aria-hidden="true"></i>
 </button>
 
+<!--
+  手機面板開鍵盤（#1889）：iOS 鍵盤升起時版面視窗不縮、visual viewport 會。面板原本用 100% 算高（版面視窗），
+  下半截被鍵盤蓋住，iOS 為了露出輸入框去捲版面視窗，整頁就跟著能滑。改成底部讓出 --keyboard-inset、
+  高度上限也扣掉它（WindowSizeDirective 量，同 #1776 的底部抽屜，c6 不用 vh）；面板本身不捲，只有結果列表捲，
+  列表 overscroll-contain 不把捲動傳到背後。display 只在打開時給（open:），寫死會蓋掉 popover 收起時的 display:none。
+-->
 <div
   #panel
-  class="overlay-motion overlay-motion--from-bottom-narrow m-0 rounded-lg border border-surface-border bg-white p-1 text-zinc-900 shadow-[0_16px_36px_-14px_rgb(26_22_20/32%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:overflow-y-auto max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:px-3 max-wide:pb-6 max-wide:backdrop:bg-zinc-900/40"
+  class="overlay-motion overlay-motion--from-bottom-narrow m-0 rounded-lg border border-surface-border bg-white p-1 text-zinc-900 shadow-[0_16px_36px_-14px_rgb(26_22_20/32%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-(--keyboard-inset) max-wide:max-h-[calc(var(--window-height,100%)_-_var(--keyboard-inset,0px)_-_48px)] max-wide:w-full max-wide:max-w-none max-wide:flex-col max-wide:overflow-hidden max-wide:open:flex max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:px-3 max-wide:pb-6 max-wide:backdrop:bg-zinc-900/40"
   popover
   aria-label="搜尋學生"
   [style.position]="pos() ? 'fixed' : null"
@@ -41,11 +47,11 @@
   (toggle)="onToggle($event)"
 >
   <div
-    class="mx-auto mt-1 mb-2 h-1 w-9 rounded-full bg-zinc-300 wide:hidden"
+    class="mx-auto mt-1 mb-2 h-1 w-9 shrink-0 touch-none rounded-full bg-zinc-300 wide:hidden"
     aria-hidden="true"
   ></div>
   <label
-    class="mx-1 mb-1 flex h-11 items-center gap-2 rounded-md border border-zinc-300 px-3 text-zinc-600 focus-within:border-zinc-900 wide:hidden"
+    class="mx-1 mb-1 flex h-11 shrink-0 touch-none items-center gap-2 rounded-md border border-zinc-300 px-3 text-zinc-600 focus-within:border-zinc-900 wide:hidden"
   >
     <i class="pi pi-search text-sm" aria-hidden="true"></i>
     <input
@@ -64,7 +70,12 @@
     />
   </label>
 
-  <div id="global-search-list" role="listbox" aria-label="搜尋結果">
+  <div
+    id="global-search-list"
+    class="overscroll-contain max-wide:min-h-0 max-wide:flex-1 max-wide:overflow-y-auto"
+    role="listbox"
+    aria-label="搜尋結果"
+  >
     @if (!query().trim()) {
       <p class="m-0 p-3 text-md text-zinc-600">打學生名字，或家長電話的後四碼</p>
     } @else if (failed()) {

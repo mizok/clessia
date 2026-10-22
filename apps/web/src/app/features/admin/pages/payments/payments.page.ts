@@ -27,6 +27,7 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { PopoverModule, type Popover } from 'primeng/popover';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -152,6 +153,7 @@ const emptyChapter = (): ChapterState => ({
     InputIconModule,
     InputTextModule,
     PopoverModule,
+    FitPopoverDirective,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,

@@ -5,6 +5,7 @@ import {
   DestroyRef,
   OnInit,
   computed,
+  effect,
   inject,
   input,
   signal,
@@ -29,6 +30,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { PopoverModule } from 'primeng/popover';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import type { Popover } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
@@ -106,6 +108,7 @@ interface CourseChapter {
     DatePickerModule,
     ToggleSwitchModule,
     PopoverModule,
+    FitPopoverDirective,
     PaginatorModule,
     TooltipModule,
     RouterModule,
@@ -172,15 +175,29 @@ export class CoursesPage implements OnInit {
   // ---- Selection ----
   /** 批次選取模式（A6 預設沒有勾選框）：從工具列「⋯」進入、退出會清掉勾選 */
   protected readonly selectionMode = signal(false);
-  protected readonly pageMenuItems = computed<MenuItem[]>(() => [
+  /** 目前分校、篩選下畫面上有沒有任何一個班 —— 沒有就不給進批次選取，勾不到東西只會困惑（#1872） */
+  protected readonly hasVisibleClasses = computed(() =>
+    this.courseGroups().some((g) => g.classes.length > 0),
+  );
+  protected readonly pageMenuItems = computed<MenuItem[]>(() =>
     this.selectionMode()
-      ? { label: '結束批次選取', icon: 'pi pi-times', command: () => this.exitSelectionMode() }
-      : {
-          label: '批次選取',
-          icon: 'pi pi-check-square',
-          command: () => this.selectionMode.set(true),
-        },
-  ]);
+      ? [{ label: '結束批次選取', icon: 'pi pi-times', command: () => this.exitSelectionMode() }]
+      : this.hasVisibleClasses()
+        ? [
+            {
+              label: '批次選取',
+              icon: 'pi pi-check-square',
+              command: () => this.selectionMode.set(true),
+            },
+          ]
+        : [],
+  );
+  /** 批次模式中篩到一個班都沒有：自動退出並清勾選。載入中不算（換條件的空窗不是真的沒班） */
+  private readonly exitSelectionWhenNoClasses = effect(() => {
+    if (this.selectionMode() && !this.loading() && !this.hasVisibleClasses()) {
+      this.exitSelectionMode();
+    }
+  });
   protected readonly selectedClassIds = signal<Set<string>>(new Set());
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
@@ -705,7 +722,7 @@ export class CoursesPage implements OnInit {
         command: () => this.openEditCourseDialog(course),
       },
       // 手機的工具列放不下「⋯」，批次選取的入口收在這裡（桌機在工具列）
-      ...(this.isMobile()
+      ...(this.isMobile() && (this.selectionMode() || this.hasVisibleClasses())
         ? [
             this.selectionMode()
               ? {
