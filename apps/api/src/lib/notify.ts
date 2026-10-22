@@ -21,6 +21,8 @@ export type StaffNotificationKind =
   | 'schedule_change'
   | 'leave_for_my_class'
   | 'leave_received'
+  | 'application_overdue'
+  | 'trial_followup'
   | 'leave_streak';
 
 export interface StaffNotification {

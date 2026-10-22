@@ -24,7 +24,7 @@ type Orgs = string[] | null;
 /** 讀不到設定時的天數，同 `billing-periods.ts` */
 const DEFAULT_REMINDER_DAYS = 14;
 
-interface Recipient {
+export interface Recipient {
   org_id: string;
   user_id: string;
   roles: string[];
@@ -63,7 +63,7 @@ FROM organizations o
 WHERE ($2::uuid[] IS NULL OR o.id = ANY($2))`;
 
 /** 本 org、active、有 admin 角色的教職員；角色與權限是 user_roles 各列的聯集（同 middleware/auth.ts） */
-const RECIPIENTS_SQL = `
+export const RECIPIENTS_SQL = `
 SELECT st.org_id, st.user_id,
        array_agg(DISTINCT ur.role::text) AS roles,
        COALESCE((SELECT array_agg(p) FROM user_roles u2
