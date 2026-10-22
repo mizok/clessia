@@ -92,6 +92,55 @@
       <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
       篩選
     </button>
+
+    <!-- 匯出（#1100 #40，A6 工具列下載圖示＋面板，照帳單的匯出） -->
+    <button
+      type="button"
+      class="inline-flex size-11 cursor-pointer items-center justify-center self-start rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto wide:self-end"
+      aria-label="匯出"
+      title="匯出"
+      data-testid="export-toggle"
+      (click)="exportPanel.toggle($event)"
+    >
+      <i class="pi pi-download" aria-hidden="true"></i>
+    </button>
+    <p-popover #exportPanel appendTo="body">
+      <form
+        class="flex w-80 flex-col gap-3"
+        aria-labelledby="sv-export-h"
+        data-testid="export-panel"
+        (submit)="$event.preventDefault(); exportScores(exportPanel)"
+      >
+        <h2 id="sv-export-h" class="m-0 text-base font-semibold text-zinc-900">匯出成績</h2>
+        <fieldset class="m-0 flex flex-col gap-2 border-0 p-0">
+          <legend class="mb-1 p-0 text-sm font-semibold text-zinc-700">範圍</legend>
+          <label class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900">
+            <input
+              type="radio"
+              name="sv-export-range"
+              value="filtered"
+              [checked]="exportRange() === 'filtered'"
+              (change)="exportRange.set('filtered')"
+            />
+            照目前的篩選<span class="text-zinc-600">{{ totalStudents() }} 位</span>
+          </label>
+          <label class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900">
+            <input
+              type="radio"
+              name="sv-export-range"
+              value="all"
+              [checked]="exportRange() === 'all'"
+              (change)="exportRange.set('all')"
+            />
+            全部學生
+          </label>
+        </fieldset>
+        <p class="m-0 text-sm text-zinc-600">
+          欄位：學生姓名、開課班、考試名稱、課程、日期、分數、狀態。格式：CSV。
+        </p>
+        <p-button type="submit" label="匯出" icon="pi pi-download" [loading]="exporting()" />
+      </form>
+    </p-popover>
   </div>
 </div>
 

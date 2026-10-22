@@ -16,6 +16,10 @@ import { CampusContextService } from '@core/campus-context.service';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
+import { Popover, PopoverModule } from 'primeng/popover';
+import { ButtonModule } from 'primeng/button';
+import { ScoresService } from '@core/scores.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { DialogService } from 'primeng/dynamicdialog';
 import { RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
@@ -67,6 +71,8 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     SelectModule,
     InputTextModule,
     PaginatorModule,
+    PopoverModule,
+    ButtonModule,
     EmptyStateComponent,
     LoadFailedComponent,
   ],
@@ -80,6 +86,8 @@ export class StudentViewComponent implements OnInit {
   private readonly schoolsService = inject(SchoolsService);
   private readonly dialogService = inject(DialogService);
   private readonly messageService = inject(MessageService);
+  private readonly scoresService = inject(ScoresService);
+  private readonly systemClock = inject(SystemClockService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** 搜尋輸入 —— 節流之後才進 `resetAndReload()`（#661） */
@@ -402,5 +410,53 @@ export class StudentViewComponent implements OnInit {
     if (status === 'active') return true;
     if (status === 'inactive') return false;
     return undefined;
+  }
+
+  /** 匯出面板（#1100 #40，A6 grades-student `.xp`）：照目前的篩選（畫面上這些學生）或全部學生 */
+  protected readonly exportRange = signal<'filtered' | 'all'>('filtered');
+  protected readonly exporting = signal(false);
+
+  protected exportScores(panel: Popover): void {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    const filtered = this.exportRange() === 'filtered';
+    const students = this.filteredStudents();
+    this.scoresService
+      .exportCsv({
+        ...(filtered ? { studentIds: students.map((s) => s.id) } : {}),
+        campusId: this.campusId() || undefined,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `成績_${this.systemClock.todayTaipei()}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+          this.exporting.set(false);
+          panel.hide();
+          this.messageService.add({
+            severity: 'success',
+            summary: '已匯出',
+            detail: filtered
+              ? `已匯出 ${students.length} 位學生的成績（CSV）`
+              : '已匯出全部學生的成績（CSV）',
+          });
+        },
+        error: async (err: { error?: unknown }) => {
+          // 413（超過筆數上限）的本體是 JSON blob，帶「請先篩選再匯出」
+          let detail = '請稍後再試';
+          try {
+            if (err.error instanceof Blob)
+              detail = (JSON.parse(await err.error.text()) as { error?: string }).error ?? detail;
+          } catch {
+            // 不是 JSON：用預設訊息
+          }
+          this.exporting.set(false);
+          this.messageService.add({ severity: 'error', summary: '匯出失敗', detail });
+        },
+      });
   }
 }
