@@ -29,6 +29,17 @@ export interface ParentRequest {
   billingMode: BillingMode | null;
   /** 班級預設價目表（只用於預選，#1727 B (b)） */
   defaultFeeTemplateId: string | null;
+  /** 試聽才有（#1747）：排定日期 YYYY-MM-DD、時間 HH:MM；還沒排或報名都是 null */
+  scheduledDate: string | null;
+  scheduledStartTime: string | null;
+  scheduledEndTime: string | null;
+}
+
+/** 試聽轉「已排定」：日期必填、時間選填（後端也擋）；已排定再送一次＝改期 */
+export interface TrialSchedule {
+  scheduledDate: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
 }
 
 /** `POST /enrollment/:id/approve`（#1726）：沒給的欄位由伺服器決定（試算金額、機構預設期限） */
@@ -91,7 +102,14 @@ export class ParentRequestsService {
     );
   }
 
-  setTrialStatus(id: string, status: TrialRequestStatus): Observable<{ data: ParentRequest }> {
-    return this.http.patch<{ data: ParentRequest }>(`${this.endpoint}/trial/${id}`, { status });
+  setTrialStatus(
+    id: string,
+    status: TrialRequestStatus,
+    schedule?: TrialSchedule,
+  ): Observable<{ data: ParentRequest }> {
+    return this.http.patch<{ data: ParentRequest }>(`${this.endpoint}/trial/${id}`, {
+      status,
+      ...schedule,
+    });
   }
 }

@@ -71,8 +71,8 @@
     <!--
       #1314 SE2a（A6 general 的 .colls）：財務設定收成可收合的「繳費」段，收起來時摘要寫生效值。
       沒有 manage_finance 時 API 回應沒有財務 key —— 整段不畫（同下面各卡的規則）。
-      稿的「續課」「學年升級」兩段不畫：系統沒有那些行為（#1314 SE2 對照，#1820 另案、自動續課不做）。
-      「報名流程」段（#1821）不是財務設定，畫在這個 @if 外面（上面）。
+      稿的「續課」段不畫：系統沒有那個行為（#1314 SE2 對照，自動續課不做）。
+      「報名流程」（#1821，上面）、「學年升級」（#1820，下面）不是財務設定，畫在這個 @if 外面。
     -->
     <!-- #1821 報名流程（A6 kvSec「報名流程」）：申請放太久、試聽後還沒報名的提醒天數，0＝關 -->
     <details
@@ -359,5 +359,128 @@
         </div>
       </details>
     }
+
+    <!--
+      #1820 學年升級（A6 general 的 kvSec「學年升級」＋設計稿 §2–§3）。
+      升級日只用來提醒，不自動執行（裁定 B）；「預覽並執行」與復原要 manage_students＋all_campuses（裁定 E）
+    -->
+    <details
+      class="settings-page__coll group max-w-[760px] border-0 border-b border-solid border-zinc-200"
+    >
+      <summary
+        class="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
+      >
+        <span class="text-lg font-bold text-zinc-900">學年升級</span>
+        <span class="flex items-center gap-2 text-md text-zinc-600 tabular-nums"
+          >{{ gradePromotionSummary() }}
+          <i
+            class="pi pi-chevron-down text-xs transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          ></i
+        ></span>
+      </summary>
+      <div class="flex flex-col gap-6 pb-6">
+        <div>
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+              升級日（月/日）
+              <input
+                pInputText
+                class="w-full"
+                inputmode="numeric"
+                [(ngModel)]="gradePromotionDayValue"
+                [attr.aria-invalid]="pendingGradePromotionDay() === null"
+              />
+              <small class="font-normal text-zinc-600">
+                @if (pendingGradePromotionDay() === null) {
+                  <span class="text-red-700">請填真的日期，例如 9/1</span>
+                } @else {
+                  每年這天前提醒管理員升級；系統不會自己升
+                }
+              </small>
+            </label>
+            <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+              升級前提醒（天）
+              <p-inputnumber
+                [(ngModel)]="gradePromotionReminderDaysValue"
+                [min]="0"
+                [max]="60"
+                styleClass="w-full"
+              />
+              <small class="font-normal text-zinc-600"
+                >升級日前幾天通知管理員確認（0 = 不提醒）</small
+              >
+            </label>
+          </div>
+          <div class="mt-4 flex">
+            <p-button
+              label="儲存"
+              [loading]="savingGradePromotion()"
+              [disabled]="pendingGradePromotionDay() === null"
+              (onClick)="saveGradePromotion()"
+            />
+          </div>
+        </div>
+
+        @if (canPromote()) {
+          <div class="flex flex-col gap-3 border-0 border-t border-solid border-zinc-100 pt-4">
+            <p class="m-0 text-md text-zinc-700">
+              把在讀的學生一次升一個年級，高三改成停用（畢業）。執行前會先列出各年級人數與要處理的名單。
+            </p>
+            @if (promotionHistoryFailed()) {
+              <app-load-failed
+                description="沒有讀到升級紀錄，可能是連線問題"
+                (retry)="loadPromotionHistory()"
+              />
+            } @else if (lastPromotion(); as last) {
+              <p class="m-0 text-md text-zinc-700 tabular-nums" role="status">
+                上次執行：{{ last.academicYear }} 學年，{{
+                  last.executedAt | date: 'yyyy/MM/dd' : '+0800'
+                }}，{{ last.studentCount }}
+                位學生
+                @if (last.revertedAt) {
+                  · 已於 {{ last.revertedAt | date: 'yyyy/MM/dd' : '+0800' }} 復原
+                } @else if (!last.revertible) {
+                  · 超過 30 天，不能復原
+                }
+              </p>
+            }
+            @if (revertResult(); as r) {
+              <div class="text-md text-zinc-700" role="status">
+                <p class="m-0">已復原 {{ r.revertedCount }} 位學生。</p>
+                @if (r.skipped.length > 0) {
+                  <p class="m-0 mt-1">
+                    下面 {{ r.skipped.length }} 位升級後年級被改過，沒有還原，請到學生資料確認：
+                  </p>
+                  <ul class="m-0 mt-1 flex list-none flex-wrap gap-x-3 gap-y-1 p-0">
+                    @for (s of r.skipped; track s.studentId) {
+                      <li>
+                        <a
+                          class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-[3px]"
+                          [routerLink]="studentPath(s.studentId)"
+                          >{{ s.name }}</a
+                        >
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+            <div class="flex flex-wrap gap-3">
+              <p-button label="預覽並執行" (onClick)="openGradePromotion()" />
+              @if (lastPromotion()?.revertible) {
+                <p-button
+                  label="復原上次升級"
+                  severity="secondary"
+                  [outlined]="true"
+                  [loading]="reverting()"
+                  (onClick)="confirmRevert(lastPromotion()!)"
+                />
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </details>
   }
 </div>

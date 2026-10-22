@@ -9,6 +9,7 @@ import {
   promotionPlan,
   promotionReminderDue,
   revertPromotion,
+  schoolMismatchClause,
   type PlanStudent,
 } from './grade-promotion';
 
@@ -77,6 +78,36 @@ describe('promotionReminderDue（升級前提醒）', () => {
   it('2/29 在平年落到 2/28', () => {
     expect(promotionReminderDue('02-29', 3, '2027-02-26')?.date).toBe('2027-02-28');
     expect(promotionReminderDue('02-29', 3, '2028-02-26')?.date).toBe('2028-02-29');
+  });
+});
+
+describe('schoolMismatchClause（名冊「學制跟年級不合」）', () => {
+  it('每個學制的年級配上「別的學制」的學校；未分類的學校不算', () => {
+    expect(
+      schoolMismatchClause([
+        { id: 'e', level: 'elementary' },
+        { id: 'j', level: 'junior' },
+        { id: 's', level: 'senior' },
+        { id: 'n', level: null },
+      ]),
+    ).toBe(
+      [
+        'and(grade.in.(P1,P2,P3,P4,P5,P6),school_id.in.(j,s))',
+        'and(grade.in.(J1,J2,J3),school_id.in.(e,s))',
+        'and(grade.in.(S1,S2,S3),school_id.in.(e,j))',
+      ].join(','),
+    );
+  });
+
+  it('沒有別的學制可對時略過那一支', () => {
+    expect(schoolMismatchClause([{ id: 'j', level: 'junior' }])).toBe(
+      'and(grade.in.(P1,P2,P3,P4,P5,P6),school_id.in.(j)),and(grade.in.(S1,S2,S3),school_id.in.(j))',
+    );
+  });
+
+  it('沒有學校或全是未分類 → null（呼叫端要回空，不是不篩）', () => {
+    expect(schoolMismatchClause([])).toBeNull();
+    expect(schoolMismatchClause([{ id: 'n', level: null }])).toBeNull();
   });
 });
 

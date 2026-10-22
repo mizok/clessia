@@ -59,7 +59,7 @@ async function call(method: 'GET' | 'PATCH') {
         {
           method,
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ status: 'scheduled' }),
+          body: JSON.stringify({ status: 'scheduled', scheduledDate: '2026-11-04' }),
         },
         env,
       );

@@ -24,6 +24,10 @@ export interface OrgSettings {
   attendanceMode: AttendanceMode;
   attendanceResponsible: AttendanceResponsible;
   attendanceRetroactiveDays: number;
+  /** 學年升級日（`MM-DD`，#1820）。只用來提醒管理員，不自動執行 */
+  gradePromotionMonthDay: string;
+  /** 升級日前幾天提醒（0＝不提醒，0–60） */
+  gradePromotionReminderDays: number;
   /** 申請送出幾天還沒處理就提醒（#1821，0＝關，0–30） */
   applicationReviewDays: number;
   /** 試聽日之後幾天還沒報名就提醒跟進（#1821，0＝關，0–30） */
@@ -57,6 +61,8 @@ export interface UpdateOrgSettingsInput {
   attendanceMode?: AttendanceMode;
   attendanceResponsible?: AttendanceResponsible;
   attendanceRetroactiveDays?: number;
+  gradePromotionMonthDay?: string;
+  gradePromotionReminderDays?: number;
   applicationReviewDays?: number;
   trialFollowupDays?: number;
   invoiceDueDays?: number;

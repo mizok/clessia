@@ -55,6 +55,9 @@ const req = (extra: Partial<ParentRequest> = {}): ParentRequest => ({
   classId: 'cls-1',
   billingMode: 'monthly',
   defaultFeeTemplateId: null,
+  scheduledDate: null,
+  scheduledStartTime: null,
+  scheduledEndTime: null,
   ...extra,
 });
 
@@ -69,8 +72,8 @@ async function setup(
     reject: vi.fn((id: string, reason: string) =>
       of({ data: req({ id, status: 'rejected', rejectReason: reason }) }),
     ),
-    setTrialStatus: vi.fn((id: string, status: string) =>
-      of({ data: req({ id, kind: 'trial', status }) }),
+    setTrialStatus: vi.fn((id: string, status: string, schedule?: object) =>
+      of({ data: req({ id, kind: 'trial', status, ...schedule }) }),
     ),
   };
   const service = {
@@ -307,7 +310,7 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     const p = page(fixture);
     parents.setTrialStatus.mockReturnValueOnce(throwError(() => ({ status: 500 })));
     const before = p.requests()[0];
-    p.setTrialStatus(before, 'scheduled');
+    p.setTrialStatus(before, 'completed');
     const after = p.requests()[0];
     expect(after).not.toBe(before);
     expect(after.status).toBe('pending');
@@ -334,8 +337,123 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
 
     page(fixture).setTrialStatus(trial, 'pending'); // 沒變不送
     expect(parents.setTrialStatus).not.toHaveBeenCalled();
-    page(fixture).setTrialStatus(trial, 'scheduled');
-    expect(parents.setTrialStatus).toHaveBeenCalledWith('t1', 'scheduled');
+    page(fixture).setTrialStatus(trial, 'completed');
+    expect(parents.setTrialStatus).toHaveBeenCalledWith('t1', 'completed', undefined);
+  });
+
+  // ── #1747 試聽排定日期（計畫席 10-22：日期必填、時間選填）──────────────────
+  describe('試聽排定日期（#1747）', () => {
+    const input = (el: HTMLElement, label: string) =>
+      el.querySelector<HTMLInputElement>(`input[aria-label^="${label}"]`)!;
+    const button = (el: HTMLElement, text: string) =>
+      [...el.querySelectorAll('button')].find((b) => b.textContent?.includes(text))!;
+
+    it('選「已排定」不直接送：下拉彈回原狀態，展開日期表單', async () => {
+      const trial = req({ id: 't1', kind: 'trial' });
+      const { fixture, parents, el } = await setup([trial]);
+      page(fixture).setTrialStatus(trial, 'scheduled');
+      fixture.detectChanges();
+
+      expect(parents.setTrialStatus).not.toHaveBeenCalled();
+      expect(page(fixture).requests()[0]!.status).toBe('pending');
+      expect(page(fixture).requests()[0]).not.toBe(trial);
+      expect(input(el, '試聽日期')).toBeTruthy();
+    });
+
+    it('填日期與時間按確定：送 scheduled＋三欄，成功收起表單、顯示日期', async () => {
+      const trial = req({ id: 't1', kind: 'trial' });
+      const { fixture, parents, el } = await setup([trial]);
+      page(fixture).setTrialStatus(trial, 'scheduled');
+      fixture.detectChanges();
+      input(el, '試聽日期').value = '2026-11-04';
+      input(el, '開始時間').value = '19:00';
+      input(el, '結束時間').value = '20:30';
+      button(el, '確定排定').click();
+      fixture.detectChanges();
+
+      expect(parents.setTrialStatus).toHaveBeenCalledWith('t1', 'scheduled', {
+        scheduledDate: '2026-11-04',
+        scheduledStartTime: '19:00',
+        scheduledEndTime: '20:30',
+      });
+      expect(page(fixture).schedulingId()).toBeNull();
+      expect(
+        el.querySelector('[data-testid="trial-schedule"]')!.textContent!.replace(/\s+/g, ''),
+      ).toBe('試聽：11/4（三）19:00–20:30');
+    });
+
+    it('沒填日期不送；時間沒填就不帶（不送空字串）', async () => {
+      const trial = req({ id: 't1', kind: 'trial' });
+      const { fixture, parents } = await setup([trial]);
+      page(fixture).submitSchedule(trial, '', '19:00', '');
+      expect(parents.setTrialStatus).not.toHaveBeenCalled();
+
+      page(fixture).submitSchedule(trial, '2026-11-04', '', '');
+      expect(parents.setTrialStatus).toHaveBeenCalledWith('t1', 'scheduled', {
+        scheduledDate: '2026-11-04',
+      });
+    });
+
+    it('已排定：顯示日期與「改時間」，表單帶入原值', async () => {
+      const trial = req({
+        id: 't1',
+        kind: 'trial',
+        status: 'scheduled',
+        scheduledDate: '2026-11-04',
+        scheduledStartTime: '19:00',
+      });
+      const { fixture, el } = await setup([trial]);
+      expect(el.querySelector('[data-testid="trial-schedule"]')!.textContent).toContain(
+        '11/4（三）',
+      );
+      button(el, '改時間').click();
+      fixture.detectChanges();
+      expect(input(el, '試聽日期').value).toBe('2026-11-04');
+      expect(input(el, '開始時間').value).toBe('19:00');
+    });
+
+    it.each([
+      [{ scheduledDate: '2026-11-04' }, '試聽：11/4（三）'],
+      [{ scheduledDate: '2026-11-04', scheduledStartTime: '19:00' }, '試聽：11/4（三）19:00'],
+    ])('只有日期、只有開始時間：不出現多餘的「–」或 null（%o）', async (extra, expected) => {
+      const trial = req({ id: 't1', kind: 'trial', status: 'scheduled', ...extra });
+      const { el } = await setup([trial]);
+      const text = el
+        .querySelector('[data-testid="trial-schedule"]')!
+        .textContent!.replace(/\s+/g, '');
+      expect(text).toBe(expected);
+    });
+
+    it('表單按「取消」：收起表單、不送出', async () => {
+      const trial = req({ id: 't1', kind: 'trial' });
+      const { fixture, parents, el } = await setup([trial]);
+      page(fixture).setTrialStatus(trial, 'scheduled');
+      fixture.detectChanges();
+      // 頁上別處也有「取消」（例：拒絕原因），要按的是日期表單裡那顆
+      button(input(el, '試聽日期').closest('div')!.parentElement as HTMLElement, '取消').click();
+      fixture.detectChanges();
+      expect(page(fixture).schedulingId()).toBeNull();
+      expect(input(el, '試聽日期')).toBeNull();
+      expect(parents.setTrialStatus).not.toHaveBeenCalled();
+    });
+
+    it('400（時間不合法）：說出後端原因，表單留著', async () => {
+      const trial = req({ id: 't1', kind: 'trial' });
+      const { fixture, parents } = await setup([trial]);
+      const messages = TestBed.inject(MessageService) as unknown as {
+        add: ReturnType<typeof vi.fn>;
+      };
+      parents.setTrialStatus.mockReturnValueOnce(
+        throwError(() => ({ status: 400, error: { error: '結束時間要晚於開始時間' } })),
+      );
+      page(fixture).setTrialStatus(trial, 'scheduled');
+      page(fixture).submitSchedule(trial, '2026-11-04', '19:00', '18:00');
+
+      expect(messages.add).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: '結束時間要晚於開始時間' }),
+      );
+      expect(page(fixture).schedulingId()).toBe('t1');
+    });
   });
 
   it('家長 App 那支讀不到：整頁顯示讀取失敗（可重試）', async () => {

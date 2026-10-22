@@ -43,11 +43,12 @@ const GROUPS = {
 /** 拒絕只收這兩個：`awaiting_payment` 已經開了帳單，拒絕會留下一張沒人處理的帳單 */
 const REJECTABLE = ['pending', 'waitlist'];
 
-const SELECT = {
+export const SELECT = {
   enrollment: `id, status, preferred_start_date, note, reject_reason, requested_by, created_at,
     student_id, class_id, billing_mode, students(name),
     classes(name, campus_id, default_fee_template_id, campuses(name))`,
   trial: `id, status, preferred_times, note, requested_by, created_at,
+    scheduled_date, scheduled_start_time, scheduled_end_time,
     student_id, students(name), courses(name, campus_id, campuses(name))`,
 } as const;
 const TABLE = { enrollment: 'enrollment_requests', trial: 'trial_requests' } as const;
@@ -73,6 +74,10 @@ const RequestSchema = z
     classId: z.string().nullable(),
     billingMode: z.enum(['monthly', 'period', 'session_pack']).nullable(),
     defaultFeeTemplateId: z.string().nullable(),
+    /** 試聽才有（#1747）：排定的日期（YYYY-MM-DD）與時間（HH:MM）；報名、還沒排都是 null */
+    scheduledDate: z.string().nullable(),
+    scheduledStartTime: z.string().nullable(),
+    scheduledEndTime: z.string().nullable(),
   })
   .openapi('ParentRequest');
 
@@ -84,6 +89,16 @@ type Row = Record<string, any>;
 const one = (v: unknown): Row | null => (Array.isArray(v) ? v[0] : v) ?? null;
 const targetOf = (kind: Kind, row: Row) =>
   one(kind === 'enrollment' ? row['classes'] : row['courses']);
+
+/** 稽核用：試聽才帶排定的日期與時間 */
+const scheduleOf = (kind: Kind, row: Row) =>
+  kind === 'trial'
+    ? {
+        scheduledDate: row['scheduled_date'] ?? null,
+        scheduledStartTime: hhmm(row['scheduled_start_time']),
+        scheduledEndTime: hhmm(row['scheduled_end_time']),
+      }
+    : {};
 
 function visible(kind: Kind, row: Row, scope: CampusScope): boolean {
   if (scope === null) return true;
@@ -121,8 +136,15 @@ function toResponse(kind: Kind, row: Row, contacts: Map<string, Contact>) {
       (row['billing_mode'] as 'monthly' | 'period' | 'session_pack' | null | undefined) ?? null,
     defaultFeeTemplateId:
       (target?.['default_fee_template_id'] as string | null | undefined) ?? null,
+    scheduledDate: (row['scheduled_date'] as string | null | undefined) ?? null,
+    scheduledStartTime: hhmm(row['scheduled_start_time']),
+    scheduledEndTime: hhmm(row['scheduled_end_time']),
   };
 }
+
+/** DB 的 time 是 `HH:MM:SS`，回 `HH:MM`（同 routes/parent/trial-requests.ts） */
+const hhmm = (t: unknown) => (typeof t === 'string' ? t.slice(0, 5) : null);
+const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 /**
  * 送申請的家長：名字取本 org 的 `parents`（同一個帳號可能在別的 org 也是家長），電話取 `ba_user`
@@ -225,6 +247,10 @@ app.openapi(
               status: z.string(),
               /** 報名拒絕時必填，家長看得到 */
               rejectReason: z.string().trim().max(500).optional(),
+              /** 試聽轉「已排定」時必填（#1747）；時間選填。已排定再送一次＝改期，整組換掉 */
+              scheduledDate: z.string().date().optional(),
+              scheduledStartTime: HHMM.optional(),
+              scheduledEndTime: HHMM.optional(),
             }),
           },
         },
@@ -236,7 +262,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: RequestSchema }) } },
       },
       400: {
-        description: '狀態不合法或缺拒絕原因',
+        description: '狀態不合法、缺拒絕原因，或試聽排定缺日期／時間不合法',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       404: {
@@ -265,6 +291,24 @@ app.openapi(
       patch['reject_reason'] = body.rejectReason;
     } else if (!(TRIAL_STATUSES as readonly string[]).includes(body.status)) {
       return invalid('試聽狀態不合法');
+    } else {
+      // #1747（計畫席 10-22）：轉已排定日期必填、時間選填；轉回待處理清空；完成／取消保留。
+      // 時間的規則跟 DB CHECK 同一套，這裡先擋成 400，不讓 CHECK 噴 500
+      const { scheduledDate: date, scheduledStartTime: start, scheduledEndTime: end } = body;
+      const badSchedule = (error: string) => c.json({ error, code: 'INVALID_SCHEDULE' }, 400);
+      if (body.status === 'scheduled') {
+        if (!date) return badSchedule('排定試聽要填日期');
+        if (end && (!start || end <= start)) return badSchedule('結束時間要晚於開始時間');
+        patch['scheduled_date'] = date;
+        patch['scheduled_start_time'] = start ?? null;
+        patch['scheduled_end_time'] = end ?? null;
+      } else if (date || start || end) {
+        return badSchedule('日期與時間只在排定時填');
+      } else if (body.status === 'pending') {
+        patch['scheduled_date'] = null;
+        patch['scheduled_start_time'] = null;
+        patch['scheduled_end_time'] = null;
+      }
     }
 
     const { data: before } = await supabase
@@ -305,8 +349,16 @@ app.openapi(
         resourceName: `${one(prev['students'])?.['name'] ?? ''}（${targetOf(kind, prev)?.['name'] ?? ''}）`,
         action: 'update',
         details: {
-          before: { status: prev['status'], rejectReason: prev['reject_reason'] ?? null },
-          after: { status: after['status'], rejectReason: after['reject_reason'] ?? null },
+          before: {
+            status: prev['status'],
+            rejectReason: prev['reject_reason'] ?? null,
+            ...scheduleOf(kind, prev),
+          },
+          after: {
+            status: after['status'],
+            rejectReason: after['reject_reason'] ?? null,
+            ...scheduleOf(kind, after),
+          },
         },
       },
       waitUntilFrom(c),
