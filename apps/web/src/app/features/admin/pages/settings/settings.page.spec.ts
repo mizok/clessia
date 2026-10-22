@@ -310,6 +310,90 @@ describe('SettingsPage', () => {
     });
   });
 
+  /** #1882：出勤兩段改成可收合的列，跟下面各段一致 */
+  describe('出勤兩段收成可收合的列（#1882）', () => {
+    const colls = () => [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLDetailsElement>(
+        'details.settings-page__coll',
+      ),
+    ];
+    const summaryOf = (title: string) =>
+      colls()
+        .find((d) => d.querySelector('summary')?.textContent?.includes(title))
+        ?.querySelector('summary');
+    const summaryText = (title: string) => {
+      const el = summaryOf(title);
+      return el
+        ? [...el.children].map((c) => c.textContent?.replace(/\s+/g, ' ').trim()).join(' ')
+        : undefined;
+    };
+
+    it('出勤紀錄模式、誰負責點名排最前面，全部預設收起；摘要寫存著的值', async () => {
+      await setup();
+
+      const titles = colls().map((d) => d.querySelector('summary span')?.textContent?.trim());
+      expect(titles.slice(0, 2)).toEqual(['出勤紀錄模式', '誰負責點名']);
+      expect(colls().every((d) => !d.open)).toBe(true);
+      expect(summaryText('出勤紀錄模式')).toBe('出勤紀錄模式 日到班');
+      expect(summaryText('誰負責點名')).toBe('誰負責點名 行政負責');
+    });
+
+    // 收起來之後分段鈕旁邊沒有可見標題，讀屏靠 aria-labelledby 指回列標題
+    it('兩組分段鈕的 aria-labelledby 指到各自的列標題', async () => {
+      await setup();
+      const root = fixture.nativeElement as HTMLElement;
+      const labelOf = (title: string) => {
+        const row = colls().find((d) => d.querySelector('summary')?.textContent?.includes(title))!;
+        const ids = row
+          .querySelector('[aria-labelledby]')!
+          .getAttribute('aria-labelledby')!
+          .split(/\s+/);
+        return ids.map((id) => root.querySelector(`#${id}`)?.textContent?.trim());
+      };
+      expect(labelOf('出勤紀錄模式')).toContain('出勤紀錄模式');
+      expect(labelOf('誰負責點名')).toContain('誰負責點名');
+    });
+
+    it('還沒按儲存的選擇不改摘要；儲存成功後摘要跟著改', async () => {
+      await setup();
+      orgSettingsServiceMock.updateSettings.mockReturnValue(
+        of({ ...DAILY_CHECKIN, attendanceMode: 'per_session', attendanceResponsible: 'teacher' }),
+      );
+
+      component['attendanceModeValue'] = 'per_session';
+      fixture.detectChanges();
+      expect(summaryText('出勤紀錄模式')).toBe('出勤紀錄模式 日到班');
+
+      component['saveAttendanceMode']();
+      component['attendanceResponsibleValue'] = 'teacher';
+      component['saveAttendanceResponsible']();
+      fixture.detectChanges();
+      expect(summaryText('出勤紀錄模式')).toBe('出勤紀錄模式 隨堂點名');
+      expect(summaryText('誰負責點名')).toBe('誰負責點名 老師負責');
+    });
+
+    it('儲存失敗：分段鈕退回存著的值、按鈕不再轉圈、出錯誤提示；摘要不變', async () => {
+      await setup();
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
+
+      component['attendanceModeValue'] = 'per_session';
+      component['saveAttendanceMode']();
+      component['attendanceResponsibleValue'] = 'teacher';
+      component['saveAttendanceResponsible']();
+      fixture.detectChanges();
+
+      expect(component['attendanceModeValue']).toBe('daily_checkin');
+      expect(component['attendanceResponsibleValue']).toBe('admin');
+      expect(component['saving']()).toBe(false);
+      expect(component['savingResponsible']()).toBe(false);
+      expect(toast).toHaveBeenCalledTimes(2);
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+      expect(summaryText('出勤紀錄模式')).toBe('出勤紀錄模式 日到班');
+      expect(summaryText('誰負責點名')).toBe('誰負責點名 行政負責');
+    });
+  });
+
   /**
    * #1073：補習班帳戶資訊（家長待付款頁要看）。它是財務設定 —— API 只回給有
    * `manage_finance` 的人（key 不存在 ≠ null），所以沒有那個 key 就整段不畫：
@@ -517,7 +601,7 @@ describe('SettingsPage', () => {
     it('沒有財務權限（回應沒有財務 key）→ 財務兩段都不畫，也不讀週期；學年升級不是財務，照畫', async () => {
       await setup();
       // 報名流程（#1821）、學年升級（#1820）不是財務設定，照畫
-      expect(summaries()).toEqual([
+      expect(summaries().slice(2)).toEqual([
         '報名流程 審核 3 天 · 試聽跟進 1 天',
         '學年升級 每年 9/1 · 前 7 天提醒',
       ]);
@@ -530,7 +614,7 @@ describe('SettingsPage', () => {
         of({ data: [period('p1', '114 上', '2025-09-01', '2026-01-31')] }),
       );
       await setup();
-      expect(summaries()).toEqual([
+      expect(summaries().slice(2)).toEqual([
         '報名流程 審核 3 天 · 試聽跟進 1 天',
         '繳費 期限 7 天 · 到期前 3 天、到期當天提醒',
         '學期與繳費週期 1 個週期',
@@ -607,7 +691,7 @@ describe('SettingsPage', () => {
         of({ ...FINANCE, invoiceReminderOffsets: [] }),
       );
       await setup();
-      expect(summaries()[1]).toBe('繳費 期限 7 天 · 不推播提醒');
+      expect(summaries()[3]).toBe('繳費 期限 7 天 · 不推播提醒');
     });
 
     // 二讀突變 F14：重試成功之後失敗訊息不能還掛著
@@ -629,8 +713,9 @@ describe('SettingsPage', () => {
 
   describe('報名流程段（#1821）', () => {
     const summary = () =>
-      (fixture.nativeElement as HTMLElement)
-        .querySelector('summary')!
+      // 前兩段是出勤（#1882），報名流程是第三段
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('summary')]
+        .find((el) => el.textContent?.includes('報名流程'))!
         .textContent!.replace(/\s+/g, ' ')
         .trim();
 
