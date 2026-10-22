@@ -56,6 +56,39 @@ export interface ParentAttendanceListResponse {
   };
 }
 
+/**
+ * `GET /api/me/attendance/days`（#1810）的一列：**一堂課**，不是一筆出勤紀錄 ——
+ * 沒點名的堂也在（`status` 是 null）。設計見 kb/wiki/specs/parent/attendance.md「列出還沒點名的堂」。
+ */
+export interface ParentAttendanceDayRow {
+  /** 穩定鍵：有課堂用課堂 id，非課堂事件用出勤紀錄 id */
+  id: string;
+  sessionId: string | null;
+  eventId: string | null;
+  eventDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  campusId: string | null;
+  campusName: string | null;
+  className: string | null;
+  sessionStatus: 'scheduled' | 'completed' | 'cancelled' | null;
+  /** 出勤紀錄上寫的；`null`＝沒有紀錄 —— **不等於缺席** */
+  status: ParentAttendanceStatus | null;
+  /** 沒紀錄時的推導：`leave` 有假單蓋到、`checkin` 日到班當天刷了卡 */
+  derived: 'leave' | 'checkin' | null;
+  note: string | null;
+  leaveSubmittedBy: 'parent' | 'school' | null;
+  leaveReason: string | null;
+  teacherName: string | null;
+  classroomName: string | null;
+}
+
+export interface ParentAttendanceDaysResponse {
+  data: ParentAttendanceDayRow[];
+  /** 同 `ParentAttendanceListResponse.meta` 的兩個月度數字（紀錄為準、自然月至今） */
+  meta: { monthlyAbsentCount: number; monthlyOnLeaveCount: number };
+}
+
 /** `GET /api/me/attendance/checkins`（#1075）：每日到班時間＋哪些分校是日到班 */
 export interface ParentCheckinsResponse {
   /** 每一次到班：日期與台北時間 `HH:mm` */
@@ -85,6 +118,17 @@ export class ParentAttendanceService {
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
 
     return this.http.get<ParentAttendanceListResponse>(this.base, { params: query });
+  }
+
+  /** 窗內每一堂（含沒點名的）。區間最多 42 天，後端擋（#1810） */
+  days(
+    childId: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Observable<ParentAttendanceDaysResponse> {
+    return this.http.get<ParentAttendanceDaysResponse>(`${this.base}/days`, {
+      params: { childId, dateFrom, dateTo },
+    });
   }
 
   /** 區間最多 366 天，後端擋 */
