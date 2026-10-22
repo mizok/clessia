@@ -26,6 +26,7 @@ function session(over: Partial<ParentSession> = {}): ParentSession {
     isSubstitute: false,
     originalTeacherName: null,
     examCount: 0,
+    examNames: [],
     changes: [],
     attendance: null,
     ...over,
