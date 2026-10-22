@@ -153,6 +153,29 @@ describe('LeaveBatchDialogComponent', () => {
     expect(ref.close).toHaveBeenCalledWith({ created: 1 });
   });
 
+  // 送出鈕只有 aria-disabled（#723：不鎖死、旁邊寫為什麼），按得下去 —— submit() 開頭的 saving 檢查是擋連點的唯一一道。
+  // 後端是先查重疊再寫，同一位並行兩支擋不住，會重複請假（#1954 二讀）
+  it('第一批還沒回來前再按一次：每位學生只送一次', () => {
+    const pending: Array<() => void> = [];
+    leave.create.mockImplementation(
+      (input: { studentId: string }) =>
+        new Observable<{ id: string }>((sub) => {
+          pending.push(() => (sub.next({ id: `lv-${input.studentId}` }), sub.complete()));
+        }),
+    );
+    c.onSessionChange('ses-1');
+    c.toggleAll();
+    c.submit();
+    c.submit();
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('[data-testid="batch-submit"]')!
+      .click();
+    expect(leave.create).toHaveBeenCalledTimes(2);
+    expect(leave.create.mock.calls.map(([i]) => i.studentId).sort()).toEqual(['s1', 's2']);
+    pending.forEach((done) => done());
+    expect(ref.close).toHaveBeenCalledWith({ created: 2 });
+  });
+
   it('並行最多 3 個請求', () => {
     // 10 位、每個請求都掛著不回 → 同時在飛的只能有 3 個
     const pending: Array<() => void> = [];
