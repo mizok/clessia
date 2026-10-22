@@ -247,6 +247,14 @@ describe('GET /api/me/sessions', () => {
       );
     });
 
+    // #1835 二讀：替身不解析 select，拿掉 name 時 examNames 會在正式 DB 變成 [undefined]，測試卻全綠
+    it('校內考查詢真的選了考試名稱（academy_exams!inner(exam_date, name)）—— 要直接看字串', async () => {
+      const selects: Array<[string, string]> = [];
+      await get(appWith(baseSeed(), { selects }));
+      const examSelect = selects.find(([t]) => t === 'academy_exam_classes')?.[1] ?? '';
+      expect(examSelect.replace(/\s+/g, '')).toContain('academy_exams!inner(exam_date,name)');
+    });
+
     it('時段指定了教室：帶教室名（A6 p-schedule「分校 · 教室」）；沒有時段的堂（手動加、補課）是 null', async () => {
       const seed = baseSeed({
         sessions: [
