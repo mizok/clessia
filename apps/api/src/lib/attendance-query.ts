@@ -23,6 +23,7 @@ export function flattenAttendanceRow(r: Record<string, unknown>) {
     event_date?: string;
     start_time?: string | null;
     end_time?: string | null;
+    campus_id?: string | null;
     campuses?: { name?: string } | null;
     sessions?: Array<{
       status?: string | null;
@@ -39,6 +40,7 @@ export function flattenAttendanceRow(r: Record<string, unknown>) {
     event_date: events?.event_date ?? '',
     start_time: events?.start_time ?? null,
     end_time: events?.end_time ?? null,
+    campus_id: events?.campus_id ?? null,
     campus_name: events?.campuses?.name ?? null,
     class_name: events?.sessions?.[0]?.classes?.name ?? null,
     // **沒有 session 的 event（活動、公告）回 null，不是猜一個預設值** ——
@@ -69,7 +71,8 @@ export function toAttendanceResponse(row: Record<string, unknown>) {
     campusName: (row['campus_name'] as string | null) ?? null,
     className: (row['class_name'] as string | null) ?? null,
     /** 課堂本身的狀態。`null` = 這個 event 沒有對應的課堂（活動、公告） */
-    sessionStatus: (row['session_status'] as 'scheduled' | 'completed' | 'cancelled' | null) ?? null,
+    sessionStatus:
+      (row['session_status'] as 'scheduled' | 'completed' | 'cancelled' | null) ?? null,
     status: row['status'] as 'present' | 'absent' | 'on_leave',
     note: (row['note'] as string | null) ?? null,
     recordedBy: (row['recorded_by'] as string | null) ?? null,

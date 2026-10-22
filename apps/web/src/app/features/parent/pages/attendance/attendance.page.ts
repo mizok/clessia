@@ -11,11 +11,8 @@ import {
   type ElementRef,
 } from '@angular/core';
 import { MessageService } from 'primeng/api';
-import { FormsModule } from '@angular/forms';
-import { subDays, format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
-
-import { DatePickerModule } from 'primeng/datepicker';
-import { SelectButtonModule } from 'primeng/selectbutton';
+import { EMPTY, catchError, expand, forkJoin, map, of, reduce } from 'rxjs';
+import { format, parseISO } from 'date-fns';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
@@ -23,11 +20,11 @@ import {
   ParentAttendanceService,
   type ParentAttendanceRecord,
 } from '@core/parent-attendance.service';
+import { ParentSessionsService, type ParentSession } from '@core/parent-sessions.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import type { CreateLeaveInput } from '@core/leave.service';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { todayLocal } from '@shared/utils/session-time.util';
@@ -35,9 +32,10 @@ import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switch
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {
   ATTENDANCE_STATUS_LABELS,
-  ATTENDANCE_STATUS_TONE,
-  fillMissingDays,
-  groupByDate,
+  addDays,
+  buildDays,
+  heroLine,
+  monthDay,
   sessionChipLabel,
 } from './attendance.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
@@ -45,25 +43,23 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
 type RangeMode = 'recent10' | 'recent30' | 'month';
 
 const RANGE_OPTIONS: Array<{ label: string; value: RangeMode }> = [
-  { label: '近10天', value: 'recent10' },
-  { label: '近30天', value: 'recent30' },
+  { label: '近 10 天', value: 'recent10' },
+  { label: '近 30 天', value: 'recent30' },
   { label: '選月份', value: 'month' },
 ];
 
-const PAGE_SIZE = 50;
+/** 一個月最多三十來天的紀錄，100 筆一頁通常一次拿完；拿不完就接著拿（期間要畫成完整的「天」） */
+const PAGE_SIZE = 100;
+/** 近 30 天／選月份一次多畫幾天（A6 `st.shown += 14`）；近 10 天全畫 */
+const DAYS_STEP = 14;
 
 @Component({
   selector: 'app-attendance',
   standalone: true,
   imports: [
-    FormsModule,
-    DatePickerModule,
-    SelectButtonModule,
     PageOpenComponent,
-    BandAnchorComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
-    StatusDotComponent,
     DataChipComponent,
     EmptyStateComponent,
     LeaveFormDialogComponent,
@@ -75,17 +71,24 @@ export class AttendancePage implements OnInit {
 
   private readonly childScope = inject(ChildScopeService);
   private readonly attendanceService = inject(ParentAttendanceService);
+  private readonly sessionsService = inject(ParentSessionsService);
   private readonly messageService = inject(MessageService);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
 
   protected readonly rangeOptions = RANGE_OPTIONS;
   protected readonly rangeMode = signal<RangeMode>('recent10');
-  protected readonly selectedMonth = signal<Date>(new Date());
+  /** `YYYY-MM`（A6 `<input type="month">`） */
+  protected readonly selectedMonth = signal(todayLocal().slice(0, 7));
+  protected readonly maxMonth = todayLocal().slice(0, 7);
 
   protected readonly records = signal<ParentAttendanceRecord[]>([]);
-  protected readonly total = signal(0);
-  protected readonly page_ = signal(1);
+  /** 日期 → 台北 `HH:mm`（#1075 每日到班） */
+  protected readonly checkins = signal<ReadonlyMap<string, string>>(new Map());
+  protected readonly dailyCampusIds = signal<ReadonlySet<string>>(new Set());
+  /** 今天、沒停課的堂（色面句要知道今天有沒有課，出勤紀錄要點完名才有） */
+  private readonly todaySessions = signal<ParentSession[] | null>(null);
+  protected readonly shown = signal(DAYS_STEP);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly expandedId = signal<string | null>(null);
@@ -113,32 +116,51 @@ export class AttendancePage implements OnInit {
    */
   protected readonly monthlyAbsent = signal<number | null>(null);
 
-  /**
-   * 近10天補回沒有紀錄的日期（「今日無課」）——短區間裡缺一天會被誤讀成
-   * 「那天資料沒進來」，跟長區間不同。近30天/整月不補，那會炸出大量空白列。
-   */
-  protected readonly groups = computed(() => {
-    const raw = groupByDate(this.records());
-    if (this.rangeMode() !== 'recent10') return raw;
-    const { dateFrom } = this.dateRange();
-    if (!dateFrom) return raw;
-    return fillMissingDays(raw, dateFrom, todayLocal());
+  protected readonly childName = computed(() => this.activeChild()?.name ?? null);
+
+  /** 色面第二行（設計稿 §3）；`null` = 標題退回「到班紀錄」 */
+  protected readonly heroTail = computed(() => {
+    const sessions = this.todaySessions();
+    if (!this.childName() || sessions === null) return null;
+    return heroLine(
+      sessions,
+      this.checkins().get(todayLocal()),
+      this.dailyCampusIds(),
+      format(new Date(), 'HH:mm'),
+    );
   });
-  protected readonly hasMore = computed(() => this.records().length < this.total());
+
+  /** 期間內每一天（A6 一天一章） */
+  protected readonly days = computed(() => {
+    const { dateFrom, dateTo } = this.dateRange();
+    return buildDays(
+      this.records(),
+      this.checkins(),
+      this.dailyCampusIds(),
+      dateFrom,
+      dateTo,
+      todayLocal(),
+    );
+  });
+  protected readonly visibleDays = computed(() =>
+    this.rangeMode() === 'recent10' ? this.days() : this.days().slice(0, this.shown()),
+  );
+  protected readonly countLine = computed(() => {
+    const { dateFrom, dateTo } = this.dateRange();
+    return `${monthDay(dateFrom)}–${monthDay(dateTo)}，共 ${this.days().length} 天`;
+  });
   protected readonly statusLabels = ATTENDANCE_STATUS_LABELS;
-  protected readonly statusTone = ATTENDANCE_STATUS_TONE;
   protected readonly sessionChipLabel = sessionChipLabel;
 
-  private readonly dateRange = computed<{ dateFrom?: string; dateTo?: string }>(() => {
+  /** A6 `range()`：近 N 天含今天；選月份到月底或今天（取早的） */
+  private readonly dateRange = computed<{ dateFrom: string; dateTo: string }>(() => {
+    const today = todayLocal();
     const mode = this.rangeMode();
-    const now = new Date();
-    if (mode === 'recent10') return { dateFrom: format(subDays(now, 10), 'yyyy-MM-dd') };
-    if (mode === 'recent30') return { dateFrom: format(subDays(now, 30), 'yyyy-MM-dd') };
-    const month = this.selectedMonth();
-    return {
-      dateFrom: format(startOfMonth(month), 'yyyy-MM-dd'),
-      dateTo: format(endOfMonth(month), 'yyyy-MM-dd'),
-    };
+    if (mode === 'recent10') return { dateFrom: addDays(today, -9), dateTo: today };
+    if (mode === 'recent30') return { dateFrom: addDays(today, -29), dateTo: today };
+    const first = `${this.selectedMonth()}-01`;
+    const last = addDays(`${addDays(first, 32).slice(0, 7)}-01`, -1);
+    return { dateFrom: first, dateTo: last < today ? last : today };
   });
 
   constructor() {
@@ -148,7 +170,7 @@ export class AttendancePage implements OnInit {
       const childId = this.childScope.activeChildId();
       this.dateRange();
       if (!childId) return;
-      untracked(() => this.load(childId, 1));
+      untracked(() => this.load(childId));
     });
   }
 
@@ -156,12 +178,19 @@ export class AttendancePage implements OnInit {
     this.childScope.load();
   }
 
-  protected onRangeChange(mode: RangeMode | null): void {
-    this.viewTransition(() => this.rangeMode.set(mode ?? 'recent10'));
+  protected onRangeChange(mode: RangeMode): void {
+    this.viewTransition(() => {
+      this.rangeMode.set(mode);
+      this.shown.set(DAYS_STEP);
+      this.expandedId.set(null);
+    });
   }
 
-  protected onMonthChange(month: Date | null): void {
-    this.selectedMonth.set(month ?? new Date());
+  protected onMonthChange(month: string): void {
+    if (!month) return;
+    this.selectedMonth.set(month);
+    this.shown.set(DAYS_STEP);
+    this.expandedId.set(null);
   }
 
   protected openLeave(): void {
@@ -186,7 +215,7 @@ export class AttendancePage implements OnInit {
     const start = this.leaveStart ? format(parseISO(this.leaveStart), 'M/d') : '';
     this.messageService.add({ severity: 'success', summary: `已登記 ${child.name} ${start} 請假` });
     // 重抓目前期間：範圍內的課就地變「請假」
-    this.load(child.id, 1);
+    this.load(child.id);
   }
 
   protected toggleExpanded(record: ParentAttendanceRecord): void {
@@ -194,36 +223,69 @@ export class AttendancePage implements OnInit {
   }
 
   protected loadMore(): void {
-    const childId = this.childScope.activeChildId();
-    if (!childId) return;
-    this.load(childId, this.page_() + 1, true);
+    this.shown.update((n) => n + DAYS_STEP);
   }
 
-  private load(childId: string, page: number, append = false): void {
+  /**
+   * 三支一起：期間的出勤紀錄（拿到底）、期間的到班時間、今天的堂。
+   * 到班與今天的堂讀失敗不擋列表 —— 少的是到班行與色面句，紀錄照樣看得到
+   */
+  private load(childId: string): void {
     this.loading.set(true);
     this.failed.set(false);
     const { dateFrom, dateTo } = this.dateRange();
+    const today = todayLocal();
+    const page = (n: number) =>
+      this.attendanceService.list({ childId, dateFrom, dateTo, page: n, pageSize: PAGE_SIZE });
 
-    this.attendanceService
-      .list({ childId, dateFrom, dateTo, page, pageSize: PAGE_SIZE })
-      .subscribe({
-        next: (res) => {
-          this.records.set(append ? [...this.records(), ...res.data] : res.data);
-          this.total.set(res.meta.total);
-          this.monthlyAbsent.set(res.meta.monthlyAbsentCount);
-          this.page_.set(page);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.failed.set(true);
-          this.loading.set(false);
-          if (!append) {
-            this.records.set([]);
-            this.total.set(0);
-            // 整批查失敗時把錨點收回去 —— 留著一個「0 次缺席」等於用失敗換來一則好消息
-            this.monthlyAbsent.set(null);
-          }
-        },
-      });
+    const records$ = page(1).pipe(
+      expand((res) =>
+        res.meta.page * PAGE_SIZE < res.meta.total ? page(res.meta.page + 1) : EMPTY,
+      ),
+      reduce(
+        (acc, res) => ({
+          data: [...acc.data, ...res.data],
+          monthlyAbsent: res.meta.monthlyAbsentCount,
+        }),
+        { data: [] as ParentAttendanceRecord[], monthlyAbsent: 0 },
+      ),
+    );
+    // 色面句要今天的刷卡；期間不含今天（選了過去的月份）就多查今天一天，不把區間拉長（後端上限 366 天）
+    const checkinsIn = (from: string, to: string) =>
+      this.attendanceService.checkins(childId, from, to).pipe(catchError(() => of(null)));
+    const checkins$ =
+      dateTo === today
+        ? checkinsIn(dateFrom, dateTo)
+        : forkJoin([checkinsIn(dateFrom, dateTo), checkinsIn(today, today)]).pipe(
+            map(([range, now]) =>
+              range && now
+                ? {
+                    data: [...range.data, ...now.data],
+                    dailyCheckinCampusIds: range.dailyCheckinCampusIds,
+                  }
+                : null,
+            ),
+          );
+    const today$ = this.sessionsService
+      .list(childId, today, today)
+      .pipe(catchError(() => of(null)));
+
+    forkJoin([records$, checkins$, today$]).subscribe({
+      next: ([records, checkins, todays]) => {
+        this.records.set(records.data);
+        this.monthlyAbsent.set(records.monthlyAbsent);
+        this.checkins.set(new Map((checkins?.data ?? []).map((k) => [k.date, k.time])));
+        this.dailyCampusIds.set(new Set(checkins?.dailyCheckinCampusIds ?? []));
+        this.todaySessions.set(todays ? todays.data.filter((x) => x.status !== 'cancelled') : null);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.failed.set(true);
+        this.loading.set(false);
+        this.records.set([]);
+        // 整批查失敗時把錨點收回去 —— 留著一個「0 次缺席」等於用失敗換來一則好消息
+        this.monthlyAbsent.set(null);
+      },
+    });
   }
 }

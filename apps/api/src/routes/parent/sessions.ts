@@ -22,7 +22,7 @@ const SESSION_SELECT = `
   id, event_id, session_date, start_time, end_time, status, class_id, teacher_id,
   teacher:staff!teacher_id(display_name),
   schedules!schedule_id(teacher_id, teacher:staff!teacher_id(display_name), classrooms(name)),
-  classes!inner(name, campuses(name), courses(name)),
+  classes!inner(name, campus_id, campuses(name), courses(name)),
   schedule_changes(
     change_type,
     original_session_date, original_start_time, original_end_time,
@@ -53,6 +53,8 @@ const ParentSessionSchema = z
     classId: DbUuidSchema,
     className: z.string().nullable(),
     courseName: z.string().nullable(),
+    /** 班的分校（#1075）：家長到班頁拿它對 `dailyCheckinCampusIds`，判斷今天的課要不要刷卡 */
+    campusId: z.string().nullable(),
     campusName: z.string().nullable(),
     /**
      * 時段指定的教室（#1796；A6 p-schedule「分校 · 教室」）。從排課時段來 ——
@@ -238,6 +240,7 @@ app.openapi(
         classId: s['class_id'] as string,
         className: (classRow?.['name'] as string | undefined) ?? null,
         courseName: (one(classRow?.['courses'])?.['name'] as string | undefined) ?? null,
+        campusId: (classRow?.['campus_id'] as string | undefined) ?? null,
         campusName: (one(classRow?.['campuses'])?.['name'] as string | undefined) ?? null,
         classroomName: (one(schedule?.['classrooms'])?.['name'] as string | undefined) ?? null,
         teacherName: nameOf(s['teacher']),
