@@ -52,6 +52,15 @@ function seed() {
         checked_in_at: '2026-10-01T08:00:00+00:00',
       },
       {
+        // dateTo（10-22）之後的卡：查詢區間外，不能回
+        id: 'k4',
+        org_id: ORG,
+        campus_id: 'c-daily',
+        student_id: MINE,
+        checkin_date: '2026-10-25',
+        checked_in_at: '2026-10-25T08:00:00+00:00',
+      },
+      {
         id: 'k2',
         org_id: ORG,
         campus_id: 'c-daily',
@@ -63,8 +72,28 @@ function seed() {
   });
 }
 
-async function get(query: string, roles = ['parent'], scope: readonly string[] = [MINE, SIBLING]) {
+/** 一條查詢鏈：每一步都回自己，`await`／`maybeSingle` 時回讀取失敗 */
+function failing(): unknown {
+  const result = { data: null, error: { message: 'boom' } };
+  const q: Record<string, unknown> = {};
+  for (const m of ['select', 'eq', 'in', 'gte', 'lte', 'order']) q[m] = () => q;
+  q['maybeSingle'] = () => Promise.resolve(result);
+  q['then'] = (ok: (v: unknown) => unknown) => Promise.resolve(result).then(ok);
+  return q;
+}
+
+async function get(
+  query: string,
+  roles = ['parent'],
+  scope: readonly string[] = [MINE, SIBLING],
+  failTable?: string,
+) {
   const db = seed();
+  if (failTable) {
+    const client = db.client as unknown as { from: (t: string) => unknown };
+    const from = client.from.bind(client);
+    client.from = (t: string) => (t === failTable ? failing() : from(t));
+  }
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -99,6 +128,24 @@ describe('GET /api/me/attendance/checkins（#1075）', () => {
     expect(tooLong.status).toBe(400);
     expect(tooLong.body.code).toBe('INVALID_RANGE');
     expect((await get(`childId=${MINE}&dateFrom=2026-10-22&dateTo=2026-10-21`)).status).toBe(400);
+  });
+
+  // 讀失敗不能變成 200＋空清單：到班行會被讀成「沒有到班紀錄」或整個消失
+  it.each([
+    ['daily_checkins', '到班紀錄'],
+    ['enrollments', '報名（分校來源）'],
+    ['classes', '班級（分校來源）'],
+    ['organizations', '機構出勤模式（dailyCheckinCampusIds）'],
+  ])('讀 %s 失敗（%s）→ 500 FETCH_CHECKINS_FAILED', async (table) => {
+    const { status, body } = await get(
+      `childId=${MINE}&dateFrom=2026-10-10&dateTo=2026-10-22`,
+      ['parent'],
+      [MINE, SIBLING],
+      table,
+    );
+
+    expect(status).toBe(500);
+    expect(body.code).toBe('FETCH_CHECKINS_FAILED');
   });
 
   it('不是家長 → 403；孩子不在範圍 → 403', async () => {

@@ -46,6 +46,11 @@ describe('attendance.util', () => {
       expect(arrivalLine([record()], undefined, DAILY, false)?.text).toBe('沒有到班紀錄');
     });
 
+    it('兩堂只請了一堂、沒刷卡 → 不是「這天不用到」（另一堂要到）', () => {
+      const half = [record({ status: 'on_leave' }), record({ id: 'r2' })];
+      expect(arrivalLine(half, undefined, DAILY, false)?.text).toBe('沒有到班紀錄');
+    });
+
     it('當天的課全在隨堂點名分校 → 不畫（就算有刷卡）；有一堂在日到班分校就畫', () => {
       const session = record({ campusId: 'per-session' });
       expect(arrivalLine([session], '16:42', DAILY, false)).toBeNull();
