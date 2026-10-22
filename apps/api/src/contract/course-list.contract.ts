@@ -77,6 +77,11 @@ vi.mock('../middleware/auth', async (importOriginal) => {
   };
 });
 
+interface CoursesBody {
+  data: Array<{ activeClassCount: number }>;
+  summary: { bySubject: unknown[] };
+}
+
 run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', () => {
   let app: { request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response> };
   const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
@@ -179,13 +184,13 @@ run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', (
     await q('delete from organizations where id = $1', [otherOrg]);
   });
 
-  const fallbackLogs = (log: ReturnType<typeof vi.spyOn>) =>
+  const fallbackLogs = (log: { mock: { calls: unknown[][] } }) =>
     log.mock.calls.filter((c) => String(c[0]).includes('[courses-sql]')).length;
 
   const hit = async (url: string, usePool: boolean) => {
     ctx.usePool = usePool;
     const res = await app.request(url, {}, env);
-    return { status: res.status, body: await res.json() };
+    return { status: res.status, body: (await res.json()) as CoursesBody };
   };
 
   it('每種分校範圍 × 指定分校 × 篩選：兩條路回應完全相同，SQL 沒有退回 builder', async () => {
@@ -240,7 +245,7 @@ run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', (
   it('有資料可比（不是兩邊都空）：不受限時有課、有班數、有章節', async () => {
     const { body } = await hit('/api/courses?pageSize=0', true);
     expect(body.data.length).toBeGreaterThan(10);
-    expect(body.data.some((c: { activeClassCount: number }) => c.activeClassCount > 0)).toBe(true);
+    expect(body.data.some((c) => c.activeClassCount > 0)).toBe(true);
     expect(body.summary.bySubject.length).toBeGreaterThan(1);
   });
 });
