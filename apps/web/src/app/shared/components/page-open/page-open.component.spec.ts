@@ -1,8 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PageOpenComponent } from './page-open.component';
+import { PageOpenComponent, slideHeightOnResize } from './page-open.component';
 
 @Component({
   imports: [PageOpenComponent],
@@ -83,5 +83,88 @@ describe('PageOpenComponent 標題字級', () => {
       expect(h1(f).classList.contains('wide:text-[72px]')).toBe(true);
       expect(h1(f).classList.contains('wide:text-[40px]')).toBe(false);
     });
+  });
+});
+
+describe('slideHeightOnResize（#1859：內容高度變了用滑的）', () => {
+  let fire: () => void;
+  let reduced = false;
+  const rect = (height: number, width = 400) => ({ height, width }) as DOMRect;
+
+  beforeEach(() => {
+    reduced = false;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: () => void) {
+          fire = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal('matchMedia', () => ({ matches: reduced }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function setup(start: DOMRect) {
+    let contentRect = start;
+    let bandHeight = start.height;
+    const running: Array<{ cancel: ReturnType<typeof vi.fn> }> = [];
+    const band = {
+      animate: vi.fn(() => {
+        const a = { cancel: vi.fn() };
+        running.push(a);
+        return a;
+      }),
+      getAnimations: () => running,
+      getBoundingClientRect: () => rect(bandHeight),
+    } as unknown as HTMLElement;
+    const content = { getBoundingClientRect: () => contentRect } as unknown as HTMLElement;
+    slideHeightOnResize(band, content);
+    return {
+      band: band as unknown as { animate: ReturnType<typeof vi.fn> },
+      running,
+      resize: (r: DOMRect) => {
+        contentRect = r;
+        fire();
+      },
+      setBand: (h: number) => (bandHeight = h),
+    };
+  }
+
+  it('標題晚到撐高：色面從舊高度滑到新高度', () => {
+    const t = setup(rect(100));
+    t.resize(rect(154));
+    expect(t.band.animate).toHaveBeenCalledWith(
+      [{ height: '100px' }, { height: '154px' }],
+      expect.objectContaining({ duration: 200 }),
+    );
+  });
+
+  it('寬度也變了（視窗縮放換行）不滑；高度沒變不滑', () => {
+    const t = setup(rect(100));
+    t.resize(rect(154, 300));
+    t.resize(rect(154, 300));
+    expect(t.band.animate).not.toHaveBeenCalled();
+  });
+
+  it('減少動態：不滑', () => {
+    reduced = true;
+    const t = setup(rect(100));
+    t.resize(rect(154));
+    expect(t.band.animate).not.toHaveBeenCalled();
+  });
+
+  it('連續變化：從畫面上目前的高度接著滑，並取消前一段', () => {
+    const t = setup(rect(100));
+    t.resize(rect(154));
+    t.setBand(130); // 前一段滑到一半
+    t.resize(rect(120));
+    expect(t.running[0]!.cancel).toHaveBeenCalled();
+    expect(t.band.animate).toHaveBeenLastCalledWith(
+      [{ height: '130px' }, { height: '120px' }],
+      expect.anything(),
+    );
   });
 });

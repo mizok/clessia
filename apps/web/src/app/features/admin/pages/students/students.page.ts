@@ -153,6 +153,11 @@ export class StudentsPage implements OnInit {
    * 之後兩者在狀態上相同，而畫面只看狀態，於是失敗會被渲染成「尚未有學生資料」（#788）。
    */
   readonly loadFailed = signal(false);
+  /**
+   * 翻頁重抓時色面標題留著（#1859）：總數不會因為翻頁改變，原本先縮回頁名、資料回來再撐開，
+   * 一次翻頁跳兩下。篩選、新增等其餘重抓照舊退回頁名 —— 舊數字配新篩選是騙人的（同 reports 頁）
+   */
+  protected readonly keepTitle = signal(false);
   readonly searchQuery = signal('');
   readonly selectedGrade = signal<GradeLevel | null>(null);
   readonly summary = signal<StudentListResponse['summary']>({
@@ -393,8 +398,13 @@ export class StudentsPage implements OnInit {
    * `quiet`：刪除成功後的背景重抓 —— 畫面已經是「刪掉了」，不再變淡（#1641 5b 第 1 點）。
    * `rows`：新增／編輯／停用造成的重抓，回應套上時那一列淡入、淡出或換章（篩選、換頁不帶）。
    */
-  loadStudents({ quiet = false, rows = false }: { quiet?: boolean; rows?: boolean } = {}): void {
+  loadStudents({
+    quiet = false,
+    rows = false,
+    keepTitle = false,
+  }: { quiet?: boolean; rows?: boolean; keepTitle?: boolean } = {}): void {
     this.reloadRows = rows;
+    this.keepTitle.set(keepTitle);
     if (!quiet) this.loading.set(true);
     this.loadFailed.set(false);
     this.loadRequests.next();
@@ -492,7 +502,7 @@ export class StudentsPage implements OnInit {
 
   protected onPage(event: PaginatorState): void {
     this.currentPage.set((event.page ?? 0) + 1);
-    this.loadStudents();
+    this.loadStudents({ keepTitle: true });
   }
 
   protected navigateToDetail(student: Student): void {

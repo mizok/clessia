@@ -7,7 +7,7 @@
 -->
 <app-page-open>
   <ng-container openTitle>
-    @if (loading() || loadFailed()) {
+    @if ((loading() && !keepTitle()) || loadFailed()) {
       {{ page().label }}
     } @else if (narrowed()) {
       符合篩選的 {{ total() }} 位學生。

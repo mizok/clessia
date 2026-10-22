@@ -576,6 +576,24 @@ describe('StudentsPage', () => {
       expect((component as any).todayCounts().any).toBe(3);
     });
 
+    it('翻頁重抓時色面標題留著；換篩選重抓時退回頁名（#1859）', () => {
+      const title = () => {
+        fixture.detectChanges();
+        return (fixture.nativeElement as HTMLElement).querySelector('h1')!.textContent!.trim();
+      };
+      respond([row('a', '王一', 'J3')]);
+      const loaded = title();
+      expect(loaded).not.toBe('學生');
+
+      (component as any).onPage({ page: 1 });
+      expect((component as any).loading()).toBe(true);
+      expect(title()).toBe(loaded);
+      respond([row('b', '李二', 'J3')], {}, 2);
+
+      (component as any).onGradeChange('J3');
+      expect(title()).toBe((component as any).page().label);
+    });
+
     it('清除篩選：搜尋、年級、今天、狀態一起清，只重查一次，清完同一個字還送得出去', () => {
       respond([row('a', '王一', 'J3')]);
       type('王');
