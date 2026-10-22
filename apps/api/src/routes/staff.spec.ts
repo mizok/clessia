@@ -553,6 +553,8 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
     readonly requesterPermissions: string[];
     /** 被改的人原本在 user_roles 的列 */
     readonly priorRows: Array<{ role: string; permissions: string[] }>;
+    /** 請求者的分校範圍；沒給＝不受限 */
+    readonly scope?: string[] | null;
   }
 
   function fakeDb(setup: Setup) {
@@ -564,6 +566,8 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
     const make = (table: string) => {
       const builder: Record<string, unknown> = {};
       const chain = () => builder as never;
+      // 照 `.in('role', …)` 過濾（#1831 二讀 R2：讀 selfPrior 的條件要真的生效，替身不能全吐）
+      let roleIn: string[] | null = null;
       Object.assign(builder, {
         select: () => chain(),
         insert: (rows: unknown) => {
@@ -579,7 +583,10 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
           return chain();
         },
         eq: () => chain(),
-        in: () => chain(),
+        in: (column: string, values: string[]) => {
+          if (column === 'role') roleIn = values;
+          return chain();
+        },
         order: () => chain(),
         limit: () => chain(),
         maybeSingle: () =>
@@ -598,7 +605,9 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
           resolve({
             data:
               table === 'user_roles'
-                ? setup.priorRows.map((row) => ({ ...row, user_id: setup.targetUser }))
+                ? setup.priorRows
+                    .filter((row) => !roleIn || roleIn.includes(row.role))
+                    .map((row) => ({ ...row, user_id: setup.targetUser }))
                 : [],
             count: 0,
             error: null,
@@ -620,7 +629,7 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
       set('userId', ME);
       set('roles', ['admin']);
       set('permissions', setup.requesterPermissions);
-      set('campusScope', null);
+      set('campusScope', setup.scope ?? null);
       await next();
     });
     app.route('/', staffRoute.default as unknown as Hono);
@@ -727,5 +736,35 @@ describe('#1829 PUT /api/staff/:id —— `*` 與改自己', () => {
 
     expect(status).toBe(200);
     expect(db.inserted).toEqual([{ user_id: 'someone', role: 'admin', permissions: ['*'] }]);
+  });
+
+  // #1831 二讀 Q8：沒帶 roles＝不動，要拿原本的角色比，不是當成「拿掉全部」
+  it('`*` 的人改自己、只帶原樣的 permissions（沒帶 roles）→ 200', async () => {
+    const { status } = await put(superMe, { displayName: '新名字', permissions: ['*'] });
+    expect(status).toBe(200);
+  });
+
+  // R2：讀 selfPrior 要包含 admin 列（.in('role', ['admin','teacher'])）—— 讀不到就會把改名誤判成拿掉 admin
+  it('`*` 管理員兼老師替自己改名 → 200（selfPrior 讀得到 admin 與 teacher 兩列）', async () => {
+    const { status } = await put(
+      { ...superMe, priorRows: [...superMe.priorRows, { role: 'teacher', permissions: [] }] },
+      { displayName: '新名字', roles: ['admin', 'teacher'], permissions: ['*'] },
+    );
+    expect(status).toBe(200);
+  });
+
+  // C1：受限分校的管理員碰 `*` 帳號 —— `*` 涵蓋 all_campuses，原樣存回也擋（說明裡的第二個行為變動）
+  it('受限分校的管理員替 `*` 帳號原樣存檔 → 403', async () => {
+    const { status, db } = await put(
+      {
+        targetUser: 'someone',
+        requesterPermissions: ['manage_staff', 'manage_roles'],
+        priorRows: [{ role: 'admin', permissions: ['*'] }],
+        scope: ['campus-1'],
+      },
+      { roles: ['admin'], permissions: ['*'] },
+    );
+    expect(status).toBe(403);
+    expect(db.deletes).toEqual([]);
   });
 });
