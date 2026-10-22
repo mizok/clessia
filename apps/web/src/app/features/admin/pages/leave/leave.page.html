@@ -76,11 +76,11 @@
 <div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   @if (tab() === 'all') {
     <!--
-      全部分頁才有篩選（A6 `.ff`）：灰色圓角面板、常開、欄位帶標籤。稿另有課程／開課班（缺 API，LV2）
-      與分校（跟頂欄走，#1138），所以只有學生與日期範圍。手機全寬灰面、兩欄各一列。
+      全部分頁才有篩選（A6 `.ff`）：灰色圓角面板、常開、欄位帶標籤。學生、課程、開課班（#1100 #31）、
+      日期範圍；分校跟頂欄走（#1138）。手機全寬灰面、每欄一列。
     -->
     <div
-      class="clessia-filter-bar -mx-4 grid gap-3 bg-zinc-100 p-4 wide:mx-0 wide:grid-cols-[minmax(0,18rem)_minmax(0,18rem)_auto] wide:items-end wide:rounded-lg"
+      class="clessia-filter-bar -mx-4 grid gap-3 bg-zinc-100 p-4 wide:mx-0 wide:grid-cols-[repeat(4,minmax(0,14rem))_auto] wide:items-end wide:rounded-lg"
       role="search"
       aria-label="篩選請假紀錄"
       data-testid="filters"
@@ -99,6 +99,42 @@
           (valueChange)="onStudentChange($event)"
         />
       </div>
+      <label
+        class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+        data-testid="course-filter"
+      >
+        課程
+        <p-select
+          styleClass="w-full"
+          [options]="courseOptions()"
+          optionLabel="label"
+          optionValue="value"
+          [filter]="true"
+          filterBy="label"
+          [ngModel]="courseId()"
+          (ngModelChange)="onCourseChange($event)"
+          [appendTo]="'body'"
+          ariaLabel="課程"
+        />
+      </label>
+      <label
+        class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
+        data-testid="class-filter"
+      >
+        開課班
+        <p-select
+          styleClass="w-full"
+          [options]="classOptions()"
+          optionLabel="label"
+          optionValue="value"
+          [filter]="true"
+          filterBy="label"
+          [ngModel]="classId()"
+          (ngModelChange)="onClassChange($event)"
+          [appendTo]="'body'"
+          ariaLabel="開課班"
+        />
+      </label>
       <div
         class="flex min-w-0 flex-col gap-1 text-sm font-semibold text-zinc-700"
         data-testid="date-filter"
