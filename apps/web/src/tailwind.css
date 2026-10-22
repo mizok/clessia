@@ -82,6 +82,7 @@
 @source './app/features/parent/pages/trial';
 @source './app/features/parent/pages/add-course';
 @source './app/features/parent/pages/renewal';
+@source './app/features/parent/pages/notifications';
 @source './app/shared/components/checkin-station';
 @source './app/shared/components/filter-chip';
 @source './app/shared/components/collapsible';
@@ -111,6 +112,7 @@
 @source './app/shared/components/flow-field';
 @source './app/shared/components/jdenticon-avatar';
 @source './app/shared/components/status';
+@source './app/shared/components/skeleton';
 @source './app/features/admin/pages/staff';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */

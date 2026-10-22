@@ -134,11 +134,7 @@
     @if (rangeError(); as error) {
       <p class="meals__range-error m-0 text-md text-error-700">{{ error }}</p>
     } @else if (loading() && records().length === 0) {
-      <div class="skeleton-list">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton label="餐費紀錄載入中" [count]="3" />
     } @else if (failed()) {
       <app-empty-state
         icon="pi pi-exclamation-circle"

@@ -54,6 +54,7 @@ import {
   weekdayChar,
 } from './dashboard.util';
 import { PushPromptComponent } from './push-prompt/push-prompt.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type Detail =
   | { kind: 'session'; session: ParentSession }
@@ -79,6 +80,7 @@ interface Loaded {
   selector: 'app-dashboard',
   standalone: true,
   imports: [
+    SkeletonComponent,
     DecimalPipe,
     NgTemplateOutlet,
     RouterLink,

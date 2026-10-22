@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { NEVER, Observable, of, throwError } from 'rxjs';
+import { MessageService } from 'primeng/api';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
@@ -52,6 +53,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
   const notifMarkReadMock = vi.fn();
   const notifMarkAllReadMock = vi.fn();
   const badge = { setAnnouncementsUnread: vi.fn(), setNotificationsUnread: vi.fn() };
+  const messages = { add: vi.fn() };
 
   /** 只設好 mock 的回傳，不建元件 —— 要改回傳的測試在 create() 前改 */
   function mocks(data: Announcement[] = [announcement()], notifs: AppNotification[] = []): void {
@@ -64,6 +66,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       notifMarkAllReadMock,
       badge.setAnnouncementsUnread,
       badge.setNotificationsUnread,
+      messages.add,
     ])
       m.mockReset();
     inboxMock.mockReturnValue(inboxOf(data));
@@ -92,6 +95,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
           },
         },
         { provide: InboxBadgeService, useValue: badge },
+        { provide: MessageService, useValue: messages },
       ],
     }).compileComponents();
 
@@ -174,13 +178,15 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     await create();
 
     expect(fixture.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(fixture.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(fixture.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
-  it('兩邊都沒有時顯示空狀態', async () => {
+  it('兩邊都沒有時：色面句寫「還沒有收到通知。」，本體不重複、不畫保留期限', async () => {
     await setup([]);
 
-    expect(fixture.nativeElement.textContent).toContain('目前沒有通知');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text.match(/還沒有收到通知|目前沒有通知/g)).toEqual(['還沒有收到通知']);
+    expect(text).not.toContain('通知保留 90 天');
   });
 
   it('兩邊都查詢失敗才整頁錯誤', async () => {
@@ -268,7 +274,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
   it('讀了一則：未讀數那個數字重播淡入', async () => {
     await setup([announcement({ id: 'a' }), announcement({ id: 'b' })]);
     const num = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
-      '.announcement-inbox__badge span',
+      '.announcement-inbox__count span',
     )!;
     expect(num.textContent).toBe('2');
     vi.stubGlobal('matchMedia', () => ({ matches: false }));
@@ -429,6 +435,126 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).not.toContain('有一部分沒標成');
       expect(unread()).toBe(0);
+    });
+  });
+
+  describe('A6 排版（#1888）', () => {
+    // 台北 2026-08-20 10:00
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-20T02:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const text = () => (fixture.nativeElement as HTMLElement).textContent!;
+    const h1 = () => (fixture.nativeElement as HTMLElement).querySelector('app-page-open h1')!;
+
+    it('依今天／昨天／這週／更早分章（台北日期），空的章不畫，章頭寫則數與未讀', async () => {
+      await setup(
+        [
+          announcement({ id: 'today', publishedAt: '2026-08-19T17:00:00Z' }), // 台北 8/20 01:00
+          announcement({ id: 'yday', publishedAt: '2026-08-19T15:00:00Z', isRead: true }), // 8/19 23:00
+          announcement({ id: 'old', publishedAt: '2026-08-01T02:00:00Z', isRead: true }),
+        ],
+        [notification({ id: 'week', createdAt: '2026-08-15T02:00:00Z' })],
+      );
+      const chapters = component['chapters']() as { name: string; items: InboxItem[]; unread: number }[];
+      expect(chapters.map((c) => [c.name, c.items.map((i) => i.id), c.unread])).toEqual([
+        ['今天', ['today'], 1],
+        ['昨天', ['yday'], 0],
+        ['這週', ['week'], 1],
+        ['更早', ['old'], 0],
+      ]);
+      const sections = (fixture.nativeElement as HTMLElement).querySelectorAll('.announcement-inbox__chapter');
+      expect(Array.from(sections).map((x) => x.getAttribute('aria-label'))).toEqual([
+        '今天',
+        '昨天',
+        '這週',
+        '更早',
+      ]);
+    });
+
+    // 「這週」＝今天往前 6 天內（A6 `d > addDays(T, -7)`）：第 6 天還在這週、第 7 天就是更早
+    it('「這週」邊界：往前第 6 天算這週、第 7 天算更早', async () => {
+      await setup([
+        announcement({ id: 'd6', publishedAt: '2026-08-14T02:00:00Z' }), // 台北 8/14
+        announcement({ id: 'd7', publishedAt: '2026-08-13T02:00:00Z' }), // 台北 8/13
+      ]);
+      const chapters = component['chapters']() as { name: string; items: InboxItem[] }[];
+      expect(chapters.map((c) => [c.name, c.items.map((i) => i.id)])).toEqual([
+        ['這週', ['d6']],
+        ['更早', ['d7']],
+      ]);
+    });
+
+    it('沒有東西的章不畫（只有今天與更早，就沒有昨天、這週）', async () => {
+      await setup([
+        announcement({ id: 'today', publishedAt: '2026-08-20T01:00:00Z' }),
+        announcement({ id: 'old', publishedAt: '2026-08-01T01:00:00Z' }),
+      ]);
+      const names = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.announcement-inbox__chapter'),
+      ).map((x) => x.getAttribute('aria-label'));
+      expect(names).toEqual(['今天', '更早']);
+    });
+
+    it('色面句：「N 則未讀，／今天 M 則新通知。」', async () => {
+      await setup([
+        announcement({ id: 'a', publishedAt: '2026-08-20T01:00:00Z' }),
+        announcement({ id: 'b', publishedAt: '2026-08-01T01:00:00Z' }),
+      ]);
+      expect(h1().textContent).toContain('2 則未讀，');
+      expect(h1().textContent).toContain('今天 1 則新通知。');
+    });
+
+    it('色面句：全部讀過「通知都看過了。」、空的「還沒有收到通知。」、載入中退回頁名', async () => {
+      await setup([announcement({ isRead: true })]);
+      expect(h1().textContent?.trim()).toBe('通知都看過了。');
+      TestBed.resetTestingModule();
+      await setup([]);
+      expect(h1().textContent?.trim()).toBe('還沒有收到通知。');
+      TestBed.resetTestingModule();
+      mocks();
+      inboxMock.mockReturnValue(NEVER);
+      await create();
+      expect(h1().textContent?.trim()).toBe('通知中心');
+    });
+
+    it('工具列寫未讀數；沒有未讀寫「沒有未讀」', async () => {
+      await setup([announcement({ isRead: true })]);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.announcement-inbox__count')!
+          .textContent,
+      ).toContain('沒有未讀');
+    });
+
+    it('全部標為已讀：兩支都回來後 toast 一則，N 是伺服器實際標的合計', async () => {
+      mocks([announcement({ id: 'a' })], [notification({ id: 'n' })]);
+      markAllReadMock.mockReturnValue(of({ marked: 1 }));
+      notifMarkAllReadMock.mockReturnValue(of({ marked: 3 }));
+      await create();
+      markAllRead();
+      expect(messages.add).toHaveBeenCalledTimes(1);
+      expect(messages.add).toHaveBeenCalledWith({ severity: 'success', summary: '已把 4 則標為已讀' });
+    });
+
+    it('全部標為已讀：一邊失敗，照樣 toast 成功那邊標的數；全失敗不 toast', async () => {
+      mocks([announcement({ id: 'a' })], [notification({ id: 'n' })]);
+      markAllReadMock.mockReturnValue(of({ marked: 1 }));
+      notifMarkAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
+      await create();
+      markAllRead();
+      expect(messages.add).toHaveBeenCalledWith({ severity: 'success', summary: '已把 1 則標為已讀' });
+
+      messages.add.mockReset();
+      markAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
+      markAllRead();
+      expect(messages.add).not.toHaveBeenCalled();
+    });
+
+    it('底部寫保留期限：通知 90 天、公告一直留著（API 只清通知，#1661）', async () => {
+      await setup();
+      expect(text()).toContain('通知保留 90 天，公告會一直留著。');
     });
   });
 

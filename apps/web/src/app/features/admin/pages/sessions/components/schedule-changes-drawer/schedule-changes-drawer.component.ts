@@ -23,6 +23,7 @@ import { ChangeLogListComponent } from '@shared/components/change-log-list/chang
 import { CHANGE_TYPE_LABELS } from '@shared/components/change-log-list/change-log.util';
 import { SearchFieldComponent } from '@shared/components/search-field/search-field.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 抽屜一次拿一頁到底（API 上限 100）；超過的請到「全部異動」頁翻頁 */
 const DRAWER_PAGE_SIZE = 100;
@@ -40,7 +41,13 @@ const UNFILTERABLE = new Set(['creation', 'makeup']);
  */
 @Component({
   selector: 'app-schedule-changes-drawer',
-  imports: [ChangeLogListComponent, RouterLink, SearchFieldComponent, SelectFieldComponent],
+  imports: [
+    SkeletonComponent,
+    ChangeLogListComponent,
+    RouterLink,
+    SearchFieldComponent,
+    SelectFieldComponent,
+  ],
   templateUrl: './schedule-changes-drawer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

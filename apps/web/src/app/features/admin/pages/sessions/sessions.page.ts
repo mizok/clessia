@@ -116,6 +116,7 @@ import {
   type StepDir,
   type StepMotion,
 } from '@shared/directives/step-motion.directive';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
@@ -134,6 +135,7 @@ const FETCH_LIMIT = 500;
   selector: 'app-sessions',
   standalone: true,
   imports: [
+    SkeletonComponent,
     StepMotionDirective,
     SelectedIndicatorDirective,
     CampusScopeNoteComponent,

@@ -161,11 +161,14 @@
 
 <div class="page-wrap flex flex-col gap-4 pt-0 pb-28 wide:pb-32">
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton
+      reloadSkeleton
+      label="學生載入中"
+      chapter
+      shape="cards"
+      [chapters]="2"
+      [count]="8"
+    />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到學生資料，可能是連線問題" (retry)="loadStudents()" />
     } @else if (students().length === 0) {

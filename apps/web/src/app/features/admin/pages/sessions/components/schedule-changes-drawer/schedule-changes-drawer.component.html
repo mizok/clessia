@@ -46,11 +46,7 @@
 
   <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
     @if (loading()) {
-      <div class="skeleton-list pt-4" aria-label="課務異動載入中">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton class="pt-4" label="課務異動載入中" [count]="3" />
     } @else if (loadError()) {
       <p class="m-0 pt-4 text-base text-error-700" role="alert">查詢失敗，請稍後再試。</p>
     } @else if (entries().length === 0) {

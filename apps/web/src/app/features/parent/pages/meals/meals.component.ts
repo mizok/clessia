@@ -26,6 +26,7 @@ import {
   monthsToDates,
   periodMonths,
 } from './meals.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /**
  * 家長端餐費紀錄（A6 p-meals）：色面＝這個月幾餐、多少錢 → 工具列（期間、匯出）→ 每月一個摺疊區。
@@ -35,6 +36,7 @@ import {
   selector: 'app-meals',
   standalone: true,
   imports: [
+    SkeletonComponent,
     DecimalPipe,
     RouterLink,
     PageOpenComponent,

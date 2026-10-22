@@ -13,7 +13,7 @@ import {
  *
  * ```html
  * <app-reload-veil [loading]="loading()">
- *   <div reloadSkeleton class="skeleton-list">…</div>
+ *   <app-skeleton reloadSkeleton label="…載入中" />
  *   @if (failed()) {…} @else if (rows().length === 0) {…} @else {…}
  * </app-reload-veil>
  * ```

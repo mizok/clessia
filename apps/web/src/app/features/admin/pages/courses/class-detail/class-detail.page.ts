@@ -37,11 +37,13 @@ import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dial
 import { RosterImportDialogComponent } from './roster-import-dialog/roster-import-dialog.component';
 import { EnrollmentBillingDialogComponent } from './enrollment-billing-dialog/enrollment-billing-dialog.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 @Component({
   selector: 'app-class-detail',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     PageOpenComponent,
     RouterLink,
