@@ -14,7 +14,7 @@
             <dt
               class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-base"
             >
-              堂待點名
+              {{ hasDaily() ? '堂待點名（隨堂）' : '堂待點名' }}
             </dt>
             <dd
               class="m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
@@ -304,13 +304,16 @@
               </p>
 
               <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-md text-zinc-700">
-                @if (isRetroactiveLocked(session)) {
+                @if (isDaily(session) && session.status !== 'cancelled') {
+                  <!-- 日到班（#1314 TS3）：掃碼就算到，沒有點名狀態，也沒有補登窗 -->
+                  <span class="tabular-nums">{{ arrivalLine(session) }}</span>
+                } @else if (isRetroactiveLocked(session)) {
                   <app-status-dot tone="inactive">點名已截止</app-status-dot>
                 } @else if (display(session); as d) {
                   <app-status-dot [tone]="d.tone">{{ d.label }}</app-status-dot>
                 }
 
-                @if (session.takenAt) {
+                @if (session.takenAt && !isDaily(session)) {
                   <span class="flex gap-2 tabular-nums">
                     <span class="text-success-600"> 到 {{ session.presentCount }} </span>
                     <span class="text-warning-600"> 假 {{ session.onLeaveCount }} </span>
@@ -323,7 +326,19 @@
             <div
               class="schedule-page__actions flex flex-wrap gap-2 empty:hidden wide:min-w-32 wide:flex-col wide:items-stretch"
             >
+              @if (isDaily(session) && canTakeAttendance(session) && !isUpcoming(session)) {
+                <!-- 日到班：到班名單（誰掃了碼、誰還沒到）；今天的課可記「他到了」，行政負責時唯讀 -->
+                <button
+                  type="button"
+                  class="min-h-11"
+                  [class]="isLive(session) ? BTN_PRIMARY : BTN"
+                  (click)="openArrivals(session)"
+                >
+                  到班名單
+                </button>
+              }
               @if (
+                !isDaily(session) &&
                 isTeacherLed() &&
                 canTakeAttendance(session) &&
                 !isUpcoming(session) &&
@@ -338,7 +353,12 @@
                   {{ session.takenAt ? '修改點名' : '開始點名' }}
                 </button>
               }
-              @if (!isTeacherLed() && canTakeAttendance(session) && !isUpcoming(session)) {
+              @if (
+                !isDaily(session) &&
+                !isTeacherLed() &&
+                canTakeAttendance(session) &&
+                !isUpcoming(session)
+              ) {
                 <!--
                   #920：行政負責點名的機構，老師仍要看得到自己課堂的名單與到／假／缺（rules/attendance-rules.md），
                   只是不能點、不能改 —— 面板開唯讀模式，API 對老師的寫入一律 403。

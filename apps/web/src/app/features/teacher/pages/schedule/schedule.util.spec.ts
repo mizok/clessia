@@ -4,6 +4,7 @@ import type { ChangeLogEntry } from '@core/sessions.service';
 
 import {
   ATTENDANCE_TONE_LABELS,
+  arrivalLine,
   attendanceDisplay,
   attendanceTone,
   canTakeAttendance,
@@ -11,6 +12,7 @@ import {
   canWriteContactBook,
   changeItems,
   daySummary,
+  isDailyCheckin,
   nextSession,
   openerLine,
   sessionStateText,
@@ -41,6 +43,8 @@ function session(over: Partial<EventSessionSummary>): EventSessionSummary {
     onLeaveCount: 0,
     absentCount: 0,
     takenAt: null,
+    attendanceMode: 'per_session',
+    checkedInCount: null,
     ...over,
   };
 }
@@ -540,6 +544,45 @@ describe('sessionStateText（#1314 TS-B 狀態字）', () => {
     expect(sessionStateText({ ...cls, eventDate: '2027-03-06' }, at('23:59'))).toBe('還沒開始');
     expect(sessionStateText({ ...cls, eventDate: '2027-03-06' }, at('00:00', '2027-03-06'))).toBe(
       '還有 1020 分開始',
+    );
+  });
+});
+
+describe('日到班的課（#1314 TS3）', () => {
+  const daily = (over: Partial<EventSessionSummary> = {}) =>
+    session({ attendanceMode: 'daily_checkin', checkedInCount: 0, ...over });
+
+  it('上完了沒點名也不是「漏點名」—— 日到班沒有逐堂點名', () => {
+    const now = new Date('2026-09-01T08:00:00');
+    expect(attendanceTone(daily(), now)).toBe('done');
+    expect(attendanceTone(session({}), now)).toBe('overdue');
+  });
+
+  it('還沒上完 → pending；停課仍是 inactive', () => {
+    const now = new Date('2026-08-31T08:00:00');
+    expect(attendanceTone(daily(), now)).toBe('pending');
+    expect(attendanceTone(daily({ status: 'cancelled' }), now)).toBe('inactive');
+  });
+
+  it('橘帶「待點名」與週條的點不算日到班的課', () => {
+    const now = new Date('2026-09-01T08:00:00');
+    expect(weekAnchor([daily(), session({})], now).overdue).toBe(1);
+    expect(daySummary([daily()], now, true).tone).toBe('done');
+  });
+
+  it('isDailyCheckin 只看後端給的模式', () => {
+    expect(isDailyCheckin(daily())).toBe(true);
+    expect(isDailyCheckin(session({}))).toBe(false);
+  });
+
+  it('arrivalLine：今天「到 a／n · 還沒到 x · 請假 y」，過去只有到班數，未來只說模式', () => {
+    const s = daily({ enrolledCount: 26, checkedInCount: 21, onLeaveCount: 1 });
+    expect(arrivalLine(s, '2026-08-31')).toBe('日到班 · 掃碼 到 21／26 · 還沒到 4 · 請假 1');
+    expect(arrivalLine(s, '2026-09-01')).toBe('日到班 · 掃碼 到 21／26');
+    expect(arrivalLine(s, '2026-08-30')).toBe('日到班 · 掃碼就算到');
+    // 沒人請假就不印「請假 0」
+    expect(arrivalLine(daily({ enrolledCount: 3, checkedInCount: 1 }), '2026-08-31')).toBe(
+      '日到班 · 掃碼 到 1／3 · 還沒到 2',
     );
   });
 });
