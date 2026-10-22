@@ -117,7 +117,7 @@ tags: [specs, admin, roles-and-auth]
 
 1. 個人帳號設定 → 點「啟用家長身份」→ 確認提示
 2. 系統直接呼叫 `POST /api/me/activate-parent`（無需填入子女資料）
-3. API 在 `user_roles` 寫入 `parent` 角色；還沒有 `parents` 列時建一列，名字跟 `/api/me` 同一條取法（`resolveDisplayName`：profiles → 員工姓名 → `ba_user.name`）。
+3. API 在 `user_roles` 寫入 `parent` 角色；還沒有 `parents` 列時建一列，名字取員工姓名（同 org）→ `ba_user.name`（不讀 `profiles`：已經沒有任何路徑會新增它的列）。
    原本讀不到 profiles 就寫死「家長」，管理員啟用後在家長列表上變成一位叫「家長」的人（2026-10-22 修）
 4. 下次切換角色時，家長選項出現在 `/select-role` 頁面
 

@@ -148,6 +148,14 @@ describe('/api/me 自己的寫入之後立刻讀回新值（#1631）', () => {
     expect(db.tables['parents']).toMatchObject([{ user_id: 'u1', org_id: 'o1', name: '舊名' }]);
   });
 
+  // profiles 已經沒有人新增列；殘留的舊列不能蓋過員工姓名
+  it('有殘留的 profiles 列也不讀它', async () => {
+    db.tables['profiles'] = [{ id: 'u1', display_name: '過時的名字' }];
+    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(db.tables['parents']).toMatchObject([{ name: '舊名' }]);
+  });
+
   it('不是員工就用 ba_user.name', async () => {
     db.tables['staff'] = [];
     const res = await app().request('/api/me/activate-parent', { method: 'POST' });
