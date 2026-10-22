@@ -24,13 +24,21 @@ export interface PopoverPlacement {
 export function placePopover(o: {
   anchorTop: number;
   anchorBottom: number;
+  /**
+   * 看得到的那一塊的上緣（`visualViewport.offsetTop`）。按鈕的座標是 layout viewport 的；
+   * iOS 鍵盤彈出、兩指放大時看得到的那塊不從 0 開始（二讀）。預設 0
+   */
+  viewportTop?: number;
   viewportHeight: number;
   naturalHeight: number;
   chrome: number;
 }): PopoverPlacement {
-  const below = o.viewportHeight - o.anchorBottom - GAP - MARGIN;
-  const above = o.anchorTop - GAP - MARGIN;
+  const top0 = o.viewportTop ?? 0;
+  const below = top0 + o.viewportHeight - o.anchorBottom - GAP - MARGIN;
+  const above = o.anchorTop - top0 - GAP - MARGIN;
+  // 剛好放得下、或上下一樣大都不翻（嚴格大於）
   const up = o.naturalHeight > below && above > below;
+  // 視窗矮到兩邊都不夠時 space 會是負的：夾到 0，否則翻上去的 top 會跑到按鈕下面
   const space = Math.max(0, up ? above : below);
   const height = Math.min(o.naturalHeight, space);
   return {
@@ -94,16 +102,19 @@ export class FitPopoverDirective {
     const naturalHeight = box.offsetHeight;
     const chrome = naturalHeight - content.offsetHeight;
     const r = target.getBoundingClientRect();
+    const vv = globalThis.visualViewport;
     const p = placePopover({
       anchorTop: r.top,
       anchorBottom: r.bottom,
-      viewportHeight: globalThis.visualViewport?.height ?? document.documentElement.clientHeight,
+      viewportTop: vv?.offsetTop ?? 0,
+      viewportHeight: vv?.height ?? document.documentElement.clientHeight,
       naturalHeight,
       chrome,
     });
     content.style.maxHeight = `${p.contentMax}px`;
     content.style.overflowY = 'auto';
     content.style.overscrollBehavior = 'contain';
+    // PrimeNG 掛在 body 用文件座標：加回捲動量
     box.style.top = `${p.top + scrollY}px`;
     // 箭頭朝向：PrimeNG 翻上去時加這個 class（箭頭畫在下緣）
     box.classList.toggle('p-popover-flipped', p.up);

@@ -1,19 +1,25 @@
-import { describe, expect, it } from 'vitest';
-import { placePopover } from './fit-popover.directive';
+import { Component, EventEmitter, forwardRef } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { Popover } from 'primeng/popover';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { FitPopoverDirective, placePopover } from './fit-popover.directive';
 
-/** #1873：篩選浮層依可用空間放。視窗 700 高，按鈕在 y=200–244 */
+/** #1873：篩選浮層依可用空間放。視窗 700 高，按鈕在 y=200–244；GAP 10＋MARGIN 8＝18 */
 const base = { anchorTop: 200, anchorBottom: 244, viewportHeight: 700, chrome: 30 };
+const BELOW = 700 - 244 - 18;
 
 describe('placePopover（#1873）', () => {
   it('下方放得下：放下方、不翻', () => {
     const p = placePopover({ ...base, naturalHeight: 300 });
-    expect(p).toEqual({ up: false, top: 244, contentMax: 700 - 244 - 18 - 30 });
+    expect(p).toEqual({ up: false, top: 244, contentMax: BELOW - 30 });
   });
 
   it('下方放不下、下方仍比上方大：留在下方，最大高度＝下方空間（內部捲動）', () => {
     const p = placePopover({ ...base, naturalHeight: 900 });
     expect(p.up).toBe(false);
-    expect(p.contentMax).toBe(700 - 244 - 18 - 30);
+    expect(p.contentMax).toBe(BELOW - 30);
   });
 
   it('按鈕在下半部、下方放不下：翻到上方，貼著按鈕往上長', () => {
@@ -28,5 +34,179 @@ describe('placePopover（#1873）', () => {
     expect(p.top).toBe(560 - (560 - 18));
     expect(p.top).toBeGreaterThanOrEqual(0);
     expect(p.contentMax).toBe(560 - 18 - 30);
+  });
+
+  // 二讀補的邊界
+  it('剛好放得下（naturalHeight＝下方空間）：不翻', () => {
+    const p = placePopover({
+      ...base,
+      anchorTop: 560,
+      anchorBottom: 604,
+      naturalHeight: 700 - 604 - 18,
+    });
+    expect(p.up).toBe(false);
+  });
+
+  it('上下一樣大、兩邊都放不下：不翻（留在下方）', () => {
+    // 上方 = 340 − 18、下方 = 700 − 360 − 18，兩邊都是 322
+    const p = placePopover({ ...base, anchorTop: 340, anchorBottom: 360, naturalHeight: 900 });
+    expect(p.up).toBe(false);
+  });
+
+  it('視窗矮到兩邊都不夠（可用空間為負）：top 不會跑到按鈕下面、contentMax 不為負', () => {
+    const p = placePopover({
+      anchorTop: 10,
+      anchorBottom: 30,
+      viewportHeight: 30,
+      naturalHeight: 200,
+      chrome: 30,
+    });
+    expect(p.up).toBe(true);
+    expect(p.top).toBe(10);
+    expect(p.contentMax).toBe(0);
+  });
+
+  it('看得到的那塊不從 0 開始（visualViewport.offsetTop，鍵盤彈出／放大）：上下空間都以它為準', () => {
+    const p = placePopover({
+      ...base,
+      viewportTop: 300,
+      anchorTop: 400,
+      anchorBottom: 444,
+      naturalHeight: 600,
+    });
+    // 下方 = 300 + 700 − 444 − 18 = 538；上方 = 400 − 300 − 18 = 82
+    expect(p.up).toBe(false);
+    expect(p.contentMax).toBe(538 - 30);
+  });
+});
+
+/** 假的 PrimeNG Popover：只有 directive 用到的幾個成員 */
+@Component({
+  selector: 'p-popover',
+  template: '',
+  providers: [{ provide: Popover, useExisting: forwardRef(() => FakePopover) }],
+})
+class FakePopover {
+  readonly onShow = new EventEmitter<null>();
+  readonly onHide = new EventEmitter<null>();
+  container: HTMLElement | null = null;
+  target: HTMLElement | null = null;
+}
+
+@Component({
+  imports: [FakePopover, FitPopoverDirective],
+  template: `<p-popover appFitPopover />`,
+})
+class HostComponent {}
+
+describe('FitPopoverDirective（#1873）', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function setup(anchor: { top: number; bottom: number }) {
+    let notify: () => void = () => undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: () => void) {
+          notify = cb;
+        }
+        observe = observe;
+        disconnect = disconnect;
+      },
+    );
+    vi.stubGlobal('visualViewport', { height: 700, offsetTop: 0 });
+    vi.stubGlobal('scrollY', 100);
+
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+    const pop = fixture.debugElement.children[0].injector.get(FakePopover);
+
+    const box = document.createElement('div');
+    const content = document.createElement('div');
+    content.className = 'p-popover-content';
+    const inner = document.createElement('div');
+    content.append(inner);
+    box.append(content);
+    let natural = 300;
+    Object.defineProperty(box, 'offsetHeight', { get: () => natural });
+    Object.defineProperty(content, 'offsetHeight', { get: () => natural - 30 });
+    const target = document.createElement('button');
+    let rect = anchor;
+    target.getBoundingClientRect = () => ({ top: rect.top, bottom: rect.bottom }) as DOMRect;
+    pop.container = box;
+    pop.target = target;
+
+    return {
+      pop,
+      box,
+      content,
+      inner,
+      observe,
+      disconnect,
+      resize: (h: number, a?: { top: number; bottom: number }) => {
+        natural = h;
+        if (a) rect = a;
+        notify();
+      },
+    };
+  }
+
+  it('打開：內容區設最大高度、top 加上捲動量、盯內容高度；放下方時沒有翻轉 class', () => {
+    const { pop, box, content, inner, observe } = setup({ top: 200, bottom: 244 });
+    pop.onShow.emit(null);
+    expect(content.style.maxHeight).toBe(`${BELOW - 30}px`);
+    expect(content.style.overflowY).toBe('auto');
+    expect(box.style.top).toBe(`${244 + 100}px`);
+    expect(box.classList).not.toContain('p-popover-flipped');
+    expect(observe).toHaveBeenCalledWith(inner);
+  });
+
+  it('翻上去：箭頭改畫下緣（p-popover-flipped 與 data 屬性）', () => {
+    const { pop, box } = setup({ top: 560, bottom: 604 });
+    pop.onShow.emit(null);
+    expect(box.classList).toContain('p-popover-flipped');
+    expect(box.getAttribute('data-p-popover-flipped')).toBe('true');
+    expect(box.style.top).toBe(`${560 - 300 + 100}px`);
+  });
+
+  it('內容變長（打開含歷史班級）：重算位置與最大高度；翻回下方時拿掉翻轉 class', () => {
+    const { pop, box, content, resize } = setup({ top: 560, bottom: 604 });
+    pop.onShow.emit(null);
+    expect(box.classList).toContain('p-popover-flipped');
+    resize(400, { top: 200, bottom: 244 });
+    expect(box.style.top).toBe(`${244 + 100}px`);
+    expect(content.style.maxHeight).toBe(`${BELOW - 30}px`);
+    expect(box.classList).not.toContain('p-popover-flipped');
+    expect(box.hasAttribute('data-p-popover-flipped')).toBe(false);
+  });
+
+  it('關閉：停止觀察', () => {
+    const { pop, disconnect } = setup({ top: 200, bottom: 244 });
+    pop.onShow.emit(null);
+    pop.onHide.emit(null);
+    expect(disconnect).toHaveBeenCalled();
+  });
+});
+
+/** 掛載點：篩選浮層一律要掛 appFitPopover —— 第七頁忘了掛就會回到原本的 bug */
+describe('filter-popover 掛載點（#1873）', () => {
+  const APP = resolve(process.cwd(), 'apps/web/src/app');
+  const htmls = (dir: string): string[] =>
+    readdirSync(dir).flatMap((n) => {
+      const p = join(dir, n);
+      return statSync(p).isDirectory() ? htmls(p) : n.endsWith('.html') ? [p] : [];
+    });
+
+  it('每個 styleClass="filter-popover" 的 <p-popover> 都帶 appFitPopover', () => {
+    const tags = htmls(APP).flatMap((f) =>
+      [...readFileSync(f, 'utf8').matchAll(/<p-popover\b[^>]*>/g)]
+        .map((m) => m[0])
+        .filter((t) => t.includes('styleClass="filter-popover"'))
+        .map((t) => ({ f: f.slice(APP.length + 1), t })),
+    );
+    expect(tags.length).toBeGreaterThanOrEqual(6);
+    expect(tags.filter(({ t }) => !/\bappFitPopover\b/.test(t)).map(({ f }) => f)).toEqual([]);
   });
 });
