@@ -151,13 +151,22 @@ export class MealsComponent implements OnInit {
     });
   }
 
+  /** 色面也一樣：換孩子很快時，上一個孩子的本月回應晚到不能蓋掉（#1834 二讀） */
+  private thisMonthSeq = 0;
+
   private loadThisMonth(childId: string): void {
     const month = this.today.slice(0, 7);
     const [dateFrom, dateTo] = monthsToDates(month, month, this.today);
+    const seq = ++this.thisMonthSeq;
+    // 先清掉：新孩子的回應到之前，色面不能還寫著上一個孩子的數字
     this.thisMonth.set(null);
     this.mealsService.list({ childId, dateFrom, dateTo }).subscribe({
-      next: (res) => this.thisMonth.set(res.data),
-      error: () => this.thisMonth.set(null),
+      next: (res) => {
+        if (seq === this.thisMonthSeq) this.thisMonth.set(res.data);
+      },
+      error: () => {
+        if (seq === this.thisMonthSeq) this.thisMonth.set(null);
+      },
     });
   }
 
