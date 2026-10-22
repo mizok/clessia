@@ -232,6 +232,7 @@ describe('GET /api/me/sessions', () => {
         isSubstitute: false,
         originalTeacherName: null,
         examCount: 0,
+        examNames: [],
         changes: [],
         attendance: null,
       });
@@ -289,17 +290,18 @@ describe('GET /api/me/sessions', () => {
       });
     });
 
-    it('同班同日有校內考：examCount 為場數；別天、別班的不算', async () => {
+    it('同班同日有校內考：examCount 為場數、examNames 為名稱；別天、別班的不算', async () => {
       const seed = baseSeed({
         academy_exam_classes: [
-          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05' } },
-          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05' } },
-          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-06' } },
-          { class_id: CLASS_SIBLING, academy_exams: { exam_date: '2026-10-05' } },
+          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05', name: '第四次小考' } },
+          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-05', name: '單字測驗' } },
+          { class_id: CLASS_A, academy_exams: { exam_date: '2026-10-06', name: '別天' } },
+          { class_id: CLASS_SIBLING, academy_exams: { exam_date: '2026-10-05', name: '別班' } },
         ],
       });
       const { body } = await get(appWith(seed));
       expect(body.data[0].examCount).toBe(2);
+      expect(body.data[0].examNames).toEqual(['第四次小考', '單字測驗']);
     });
 
     it('有課務異動：changes[] 帶改期的新舊時間，不帶原因與經手人', async () => {
