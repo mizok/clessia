@@ -3,7 +3,7 @@ title: 家長端送申請與申請紀錄（報名／試聽／加選，設計稿�
 summary: 家長端「報名」「試聽」「加選」三頁目前是空殼（#1727）。照 A6 p-enrollment／p-trial／p-add-course 全採：報名、試聽兩頁各有「新增申請／申請紀錄」分頁，加選頁是課程卡片探索、送出走報名申請。後端 API 大多已在（enrollment-requests、trial-requests、catalog），缺的是目錄的「已在班上／撞時間」、繳費週期與試聽日期欄、待付款的帳單，以及家長送出後通知分校管理員（#1731）。計畫席 10-19 依「A6 全採、操作體驗優先」裁定 Q1–Q8（Q4 待使用者，暫照建議）。
 category: spec
 status: accepted
-updated: 2026-10-21
+updated: 2026-10-22
 tags: [specs, parent, enrollment, trial, add-course, design]
 sources:
   [https://github.com/mizok/clessia/issues/1727, https://github.com/mizok/clessia/issues/1731]
@@ -51,7 +51,7 @@ sources:
 - **#1731 通知**（保留類）：`notifyNewApplication` 的去重鍵改成呼叫端給（公開表單維持 `application:<id>`），收件人規則不變（班或課程的分校、`manage_students`）。家長端路由拿不到原始 client（A19），做成 `childDb` 的窄能力：先確認這些申請都屬於 scope 內的孩子才發（同 `notifyLeave`）。**沿用 `application_received`，不加 enum、不需要 migration**。
   - **同一次送出合成一則**（Q7 (b)）：試聽一次送多門課是多筆申請，管理員只收一則「送出 N 門試聽申請」。去重鍵用那次送出的識別碼：`parent_request:<kind>:<那次送出寫入的第一筆 id>`（同一次的 id 排序後取最小，重送同一批不重複）。
 - **繳費週期**（Q1 (b)）：`enrollment_requests.billing_mode`（沿用 `public.billing_mode`、nullable、不加 CHECK，#1745）。API **只擋 `session_pack`**（堂數制行政議定），月繳／期繳都收，行政核准時再對（計畫席 10-19 B (b)）。**不對照班級的預設範本**：`default_fee_template_id` 只用於顯示，拿它當硬性限制等於給它多一個沒有的語意。前端：班有啟用中的預設範本時預選那個方式，家長可以改。
-- **試聽日期**（Q2 (b)）：`trial_requests` 加日期／時間欄（migration 獨立一張 PR）。管理端填日期、家長端顯示日期**另開單**；這一版家長端列表寫「已安排 · 補習班會跟你聯絡時間」當過渡。
+- **試聽日期**（Q2 (b)）：`trial_requests` 加日期／時間欄（migration 獨立一張 PR）。管理端填日期、家長端顯示日期**另開單**；這一版家長端列表寫「已安排 · 補習班會跟你聯絡時間」當過渡。**#1747 已做**：管理端轉已排定時日期必填、時間選填（規則見 `specs/admin/enrollment/enrollment-requests.md` 開頭）；過渡文案只剩舊資料（已排定但沒日期）會看到。
 - **待付款的帳單與帳戶**（Q3）：**(b) 併入 #1726**。目前沒有任何路徑會把申請變成待付款（管理端只能拒絕，`routes/parent-requests.ts:17-21`）；核准怎麼開帳單、帳單怎麼連回申請是 #1726（金額路徑）要設計的，現在照推測的鏈寫等於替沒定的設計寫程式。**過渡用 (a)**：待付款寫「已核准，請到繳費頁付款」，連到 `/parent/payments`。
 - **目錄補兩個欄位**（Q5 (a)，保留類：家長端讀取路徑）：每個班加 `enrolled`（這個孩子已在班上，active／pending_payment）與 `conflictsWith`（跟孩子現在哪個班的每週時段重疊，回班名或 null）。以 `childId` 計、走 childDb。
 

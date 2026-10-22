@@ -10,6 +10,7 @@ import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
 import { inOrg } from '../lib/org-scope';
+import { checkChildren, replaceParentChildren } from '../lib/parent-children';
 
 // ============================================================
 // Schemas
@@ -437,7 +438,16 @@ app.openapi(
         description: '資料驗證錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      403: {
+        description: '要掛的孩子不在你的分校範圍內（#1843）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      404: {
+        description: '要掛的孩子不屬於本機構（#1843）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       409: { description: '重複帳號', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -465,6 +475,23 @@ app.openapi(
 
     if (!body.email && !body.phone) {
       return c.json({ error: 'Email 或手機號碼至少填一個', code: 'EMAIL_OR_PHONE_REQUIRED' }, 400);
+    }
+
+    // #1843：孩子要屬於本 org、受限管理員還要在範圍內 —— 在建帳號之前驗，擋下來就什麼都沒建
+    if (body.studentIds?.length) {
+      const pool = getAuth(c).pool;
+      if (!pool) return c.json({ error: '建立家長失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+      const check = await checkChildren(pool, orgId, getCampusScope(c), [
+        ...new Set(body.studentIds),
+      ]).catch(() => null);
+      if (check === null)
+        return c.json({ error: '建立家長失敗', code: 'CHECK_STUDENTS_FAILED' }, 500);
+      // 別 org／不存在 404、範圍外 403 —— 同 studentWriteScope 的三態
+      if (check !== 'ok') {
+        return check === 'out-of-scope'
+          ? c.json({ error: '有孩子不在你的分校範圍內', code: 'STUDENT_OUT_OF_SCOPE' }, 403)
+          : c.json({ error: '有孩子不屬於本機構', code: 'STUDENT_NOT_FOUND' }, 404);
+      }
     }
 
     const auth = getAuth(c);
@@ -723,7 +750,11 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: ParentSchema }) } },
       },
       400: { description: '更新失敗', content: { 'application/json': { schema: ErrorSchema } } },
-      404: { description: '家長不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      404: {
+        description: '家長不存在，或要掛的孩子不屬於本機構',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -753,6 +784,30 @@ app.openapi(
 
     const existingRow = existing as Record<string, unknown>;
 
+    // studentIds 全量替換（#1843）：一個交易、只動差集。**先做這一步** —— 孩子驗不過（別 org、
+    // 範圍外）時整個請求擋下，名字、Email 都還沒改
+    if (body.studentIds !== undefined) {
+      const pool = getAuth(c).pool;
+      if (!pool) return c.json({ error: '更新孩子失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+      const outcome = await replaceParentChildren(pool, {
+        orgId,
+        parentId: id,
+        studentIds: body.studentIds,
+        scope: getCampusScope(c),
+      }).catch(() => null);
+      if (outcome === null) {
+        return c.json({ error: '更新孩子失敗', code: 'UPDATE_RELATIONS_FAILED' }, 500);
+      }
+      if (outcome.status === 'not-found') {
+        return c.json({ error: '家長不存在', code: 'NOT_FOUND' }, 404);
+      }
+      if (outcome.status !== 'done') {
+        return outcome.status === 'out-of-scope'
+          ? c.json({ error: '有孩子不在你的分校範圍內', code: 'STUDENT_OUT_OF_SCOPE' }, 403)
+          : c.json({ error: '有孩子不屬於本機構', code: 'STUDENT_NOT_FOUND' }, 404);
+      }
+    }
+
     // 更新 parents 表
     const updatePayload: Record<string, unknown> = {};
     if (body.name !== undefined) updatePayload['name'] = body.name;
@@ -779,25 +834,6 @@ app.openapi(
 
     if (body.phone !== undefined) {
       await supabase.from('ba_user').update({ phone: body.phone }).eq('id', userId);
-    }
-
-    // studentIds 全量替換
-    if (body.studentIds !== undefined) {
-      await supabase.from('parent_student_relations').delete().eq('parent_id', id);
-      if (body.studentIds.length > 0) {
-        const relations = body.studentIds.map((sid) => ({
-          parent_id: id,
-          student_id: sid,
-          is_primary: false,
-          relation: null,
-        }));
-        const { error: relError } = await supabase
-          .from('parent_student_relations')
-          .insert(relations);
-        if (relError) {
-          return c.json({ error: relError.message, code: 'UPDATE_RELATIONS_FAILED' }, 400);
-        }
-      }
     }
 
     // 讀取更新後的資料
