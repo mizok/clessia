@@ -215,12 +215,29 @@ const BRANCHES: Record<string, string[]> = {
  */
 const isMe = (path: string) => path === '/api/me' || path.startsWith('/api/me/');
 
-/** 不在這支測試範圍的前綴：`/api/public/*` 走公開 org middleware（要 `PUBLIC_ORG_SLUG`） */
-const SKIP_PREFIX = ['/api/public/'];
+/**
+ * 公開端點（`/api/public/*`，免登入）走 `publicOrgMiddleware`，**不走 authMiddleware**：
+ * org 從部署設定 `PUBLIC_ORG_SLUG` 解析、service client 自己從 env 建（`lib/public-org.ts`），
+ * 所以這組用 `publicEnv`（帶真的 URL／金鑰＋seed org 的 slug）打，不靠上面的替身 middleware。
+ */
+const isPublic = (path: string) => path.startsWith('/api/public/');
+
+/**
+ * 公開端點裡**不打**的非 GET —— 每一支都要寫理由（新的公開寫入端點會讓「清單對得上」那條紅）。
+ * 兩支都是送出表單，`guardSubmission` 依序擋 honeypot → 頻率限制 → 機器人驗證（`verifyCaptcha`，
+ * ALTCHA PoW 或 Turnstile），沒過就回 400 `CAPTCHA_FAILED`，後面的查詢跑不到。要過就得在測試裡解 PoW
+ * 或連 Cloudflare，而且會真的寫一筆申請進共用的 DB。
+ * ⚠️ 所以它們送出之後的查詢形狀（開課班名額、寫入申請）**這支驗不到**，是已知缺口；目前只有各自的 spec 走替身。
+ */
+const PUBLIC_WRITES_SKIPPED: Record<string, string> = {
+  'POST /api/public/enrollment-applications': '要過機器人驗證（captcha），且會寫入申請',
+  'POST /api/public/trial-applications': '要過機器人驗證（captcha），且會寫入申請',
+};
 
 const ids: Record<string, string> = {};
 let changeUser = '';
 const parentUser: { userId: string; children: string[] } = { userId: '', children: [] };
+let publicSlug = '';
 const fill = (value: string) => value.replace(/\{\w+\}/g, (token) => ids[token] ?? token);
 
 if ((!URL || !KEY) && process.env['CONTRACT_REQUIRED']) {
@@ -335,6 +352,13 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       { session_date: string; staff: { user_id: string } } | undefined;
     ids['{changeDate}'] = changeSession?.session_date ?? TODAY;
     changeUser = changeSession?.staff.user_id ?? '';
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('slug')
+      .eq('id', ctx.orgId)
+      .single();
+    if (orgError || !org?.slug) throw new Error(`seed 的 org 沒有 slug：${orgError?.message}`);
+    publicSlug = org.slug as string;
     ids['{today}'] = TODAY;
     ids['{monthStart}'] = `${TODAY.slice(0, 7)}-01`;
 
@@ -347,7 +371,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       .filter(
         ([path, ops]) =>
           ops['get'] &&
-          !SKIP_PREFIX.some((p) => path.startsWith(p)) &&
+          !isPublic(path) &&
           isMe(path) === (which === 'me'),
       )
       .map(([path, ops]) => ({
@@ -430,7 +454,7 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       .filter(([path, ops]) => {
         const params = ops['get']?.parameters ?? [];
         return (
-          !SKIP_PREFIX.some((p) => path.startsWith(p)) &&
+          !isPublic(path) &&
           !isMe(path) &&
           params.some((p) => p.in === 'query' && p.name === 'page')
         );
@@ -455,6 +479,44 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
     }
     ctx.role = 'admin';
     expect(failures).toEqual([]);
+  });
+
+  it('公開端點（/api/public/*）：每支 GET 都 200（catalog、org、captcha）', async () => {
+    const publicEnv = {
+      ...env,
+      SUPABASE_URL: URL!,
+      SUPABASE_SECRET_KEY: KEY!,
+      PUBLIC_ORG_SLUG: publicSlug,
+      // ALTCHA 的 HMAC 金鑰沒設時從這裡衍生（captcha 那支出題要用）；CAPTCHA_PROVIDER 不設＝altcha，不連外
+      BETTER_AUTH_SECRET: 'contract',
+    };
+    const gets = Object.entries(doc.paths)
+      .filter(([path, ops]) => isPublic(path) && ops['get'])
+      .map(([path]) => path);
+    expect(gets.length).toBeGreaterThanOrEqual(3); // 文件抽不到就是測了個寂寞
+    const failures: string[] = [];
+    for (const path of gets) {
+      if (/\{\w+\}/.test(path)) {
+        failures.push(`${path}：公開端點有 path 參數，這支測試還沒有 fixture`);
+        continue;
+      }
+      const res = await app.request(path, {}, publicEnv);
+      if (res.status !== 200) {
+        failures.push(`${path} → ${res.status} ${(await res.text()).slice(0, 200)}`);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it('公開端點的非 GET：不打的每一支都寫了理由，清單跟文件對得上', () => {
+    const writes = Object.entries(doc.paths).flatMap(([path, ops]) =>
+      isPublic(path)
+        ? Object.keys(ops)
+            .filter((m) => m !== 'get')
+            .map((m) => `${m.toUpperCase()} ${path}`)
+        : [],
+    );
+    expect(writes.sort()).toEqual(Object.keys(PUBLIC_WRITES_SKIPPED).sort());
   });
 
   it('不受限的管理員：每支都 200', async () => {

@@ -10,11 +10,10 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { MessageService } from 'primeng/api';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { MessageService, type MenuItem } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { DialogService } from 'primeng/dynamicdialog';
-import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
 import { forkJoin, of } from 'rxjs';
 
@@ -33,6 +32,12 @@ import {
 import { AuthService } from '@core/auth.service';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
+import {
+  SelectFieldComponent,
+  type SelectFieldOption,
+} from '@shared/components/select-field/select-field.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
 import { ApproveRequestDialogComponent } from './approve-request-dialog/approve-request-dialog.component';
 
@@ -82,9 +87,29 @@ const TRIAL_STATUS_OPTIONS: Array<{ label: string; value: TrialRequestStatus }> 
 /** 待審核、候補才能核准或拒絕；已核准（帳單開了）之後不能 —— 跟 API 的 409 同一條規則 */
 const REJECTABLE = ['pending', 'waitlist'];
 
+const TRIAL_STATUS_LABELS: Record<string, string> = {
+  pending: '待安排',
+  scheduled: '已排定',
+  completed: '已完成',
+  cancelled: '已取消',
+};
+
 type Item =
   | { source: 'public'; createdAt: string; value: PublicApplication }
   | { source: 'parent'; createdAt: string; value: ParentRequest };
+
+/**
+ * 章＝這一筆要你做什麼（#1874，使用者 10-22 確認）：家長 App 的報名（核准）、家長 App 的試聽（排時間）、
+ * 公開表單（新家長，聯絡過再建檔；報名、試聽都在這章）。狀態已經是工具列的分頁，不再拿來分章
+ */
+type ChapterKey = 'enroll' | 'trial' | 'lead';
+const CHAPTERS: ReadonlyArray<{ key: ChapterKey; name: string; sub: string }> = [
+  { key: 'enroll', name: '報名', sub: '家長在 app 送的。核准會建報名並開首期帳單' },
+  { key: 'trial', name: '試聽', sub: '排好時間家長端會看到' },
+  { key: 'lead', name: '新家長', sub: '公開表單送進來的。聯絡過再建檔' },
+];
+const chapterOf = (item: Item): ChapterKey =>
+  item.source === 'public' ? 'lead' : item.value.kind === 'trial' ? 'trial' : 'enroll';
 
 const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } as const;
 
@@ -97,7 +122,8 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
  * **不自動改狀態、不自動建學生或報名**：rules/enrollment-rules.md 1.4 是首次收款才建主資料，
  * 學生建檔、報名、開帳本來就有各自的流程與檢查（計畫席裁：自動轉檔上線用過再說）。
  *
- * 卡片清單而不是表格：行政多半在手機上處理（page-actions 的 80% 裁定），一筆申請的欄位又多。
+ * 版面（#1874，A6 沒畫這頁，零件借自家長／報名進出頁）：色面句 → 灰帶工具列（搜尋、狀態、類型）→
+ * 依要做的事分章 → 一筆一列，主動作在列上、其餘收進「⋯」。規格：kb/wiki/specs/admin/enrollment/enrollment-requests.md「版面」
  */
 @Component({
   selector: 'app-applications',
@@ -106,9 +132,11 @@ const RELATION_LABELS = { father: '父親', mother: '母親', other: '其他' } 
     FormsModule,
     RouterLink,
     ButtonModule,
-    SelectModule,
     TextareaModule,
     PageOpenComponent,
+    ChapterHeadComponent,
+    PopupMenuComponent,
+    SelectFieldComponent,
     ApproveRequestDialogComponent,
   ],
   providers: [DialogService],
@@ -120,6 +148,7 @@ export class ApplicationsPage {
   private readonly messages = inject(MessageService);
   private readonly dialog = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
   private readonly approveDialog = viewChild<ElementRef<HTMLDialogElement>>('approveDialog');
 
   /** 核准會開帳單：收件頁的 manage_students 之外還要 manage_finance（spec Q6） */
@@ -128,15 +157,19 @@ export class ApplicationsPage {
 
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly filters = FILTERS;
-  protected readonly kindOptions = [
-    { label: '全部', value: null },
-    { label: '報名', value: 'enrollment' as const },
-    { label: '試聽', value: 'trial' as const },
+  protected readonly kindOptions: SelectFieldOption<'enrollment' | 'trial' | null>[] = [
+    { label: '全部類型', value: null },
+    { label: '報名', value: 'enrollment' },
+    { label: '試聽', value: 'trial' },
   ];
   protected readonly gradeLabels = GRADE_LEVEL_LABELS;
   protected readonly relationLabels = RELATION_LABELS;
   protected readonly parentStatusLabels = PARENT_STATUS_LABELS;
   protected readonly trialStatusOptions = TRIAL_STATUS_OPTIONS;
+  protected readonly trialStatusLabels = TRIAL_STATUS_LABELS;
+  protected readonly publicStatusLabels = Object.fromEntries(
+    STATUS_OPTIONS.map((o) => [o.value, o.label]),
+  ) as Record<PublicApplicationStatus, string>;
 
   protected readonly filter = signal(FILTERS[0]!);
   /**
@@ -165,6 +198,88 @@ export class ApplicationsPage {
       })),
     ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   );
+  /** 工具列搜尋：只在已載入的清單裡找（學生、家長姓名或電話），不另外打 API */
+  protected readonly query = signal('');
+  private readonly shown = computed(() => {
+    const q = this.query().trim().toLowerCase();
+    if (!q) return this.items();
+    const digits = q.replace(/\D/g, '');
+    return this.items().filter(({ value: v }) => {
+      const names = [v.student.name, v.parent.name ?? ''].join(' ').toLowerCase();
+      return names.includes(q) || (!!digits && (v.parent.phone ?? '').includes(digits));
+    });
+  });
+  /** 依「要做的事」分章；沒有筆數的章不畫。章內維持時間序（新的在前） */
+  protected readonly chapters = computed(() =>
+    CHAPTERS.map((c) => ({
+      ...c,
+      items: this.shown().filter((i) => chapterOf(i) === c.key),
+    })).filter((c) => c.items.length > 0),
+  );
+  /** 色面句要的兩個數：這個分頁有幾筆、家長 App 的試聽還有幾堂沒排 */
+  protected readonly total = computed(() => this.items().length);
+  protected readonly unscheduledTrials = computed(
+    () => this.requests().filter((r) => r.kind === 'trial' && r.status === 'pending').length,
+  );
+
+  /** 待處理分頁的色面句：第一句、（有沒排的試聽才有的）第二句 */
+  protected readonly headline = computed<[string, string | null]>(() => {
+    const n = this.total();
+    const m = this.unscheduledTrials();
+    if (n === 0) return ['沒有待處理的申請。', null];
+    return m > 0
+      ? [`${n} 筆申請等你處理，`, `${m} 堂試聽還沒排時間。`]
+      : [`${n} 筆申請等你處理。`, null];
+  });
+
+  /** 列動作選單：全頁一份，打開時依那一列重算（同家長頁） */
+  private readonly rowMenu = viewChild.required<PopupMenuComponent>('rowMenu');
+  private readonly menuFor = signal<Item | null>(null);
+  protected readonly rowMenuItems = computed<MenuItem[]>(() => {
+    const item = this.menuFor();
+    if (!item) return [];
+    if (item.source === 'public') {
+      const a = item.value;
+      return [
+        ...STATUS_OPTIONS.filter((o) => o.value !== a.status).map((o) => ({
+          label: `改成「${o.label}」`,
+          command: () => this.setStatus(a, o.value),
+        })),
+        { separator: true },
+        { label: '櫃檯備註', icon: 'pi pi-pencil', command: () => this.notingId.set(a.id) },
+      ];
+    }
+    const r = item.value;
+    const profile: MenuItem = {
+      label: '查看學生檔案',
+      icon: 'pi pi-user',
+      command: () => void this.router.navigate(['/admin/students', r.student.id]),
+    };
+    if (r.kind === 'trial') {
+      return [
+        // 已排定只走「排時間／改時間」（要填日期，#1747）
+        ...TRIAL_STATUS_OPTIONS.filter((o) => o.value !== r.status && o.value !== 'scheduled').map(
+          (o) => ({ label: `改成「${o.label}」`, command: () => this.setTrialStatus(r, o.value) }),
+        ),
+        { separator: true },
+        profile,
+      ];
+    }
+    return [
+      ...(this.canReject(r)
+        ? [{ label: '拒絕…', icon: 'pi pi-times', command: () => this.startReject(r) }]
+        : []),
+      profile,
+    ];
+  });
+  protected openRowMenu(event: Event, item: Item): void {
+    this.menuFor.set(item);
+    this.rowMenu().toggle(event);
+  }
+
+  /** 正在編輯櫃檯備註的那一筆（從「⋯」打開，#1874；原本一直攤在卡片上） */
+  protected readonly notingId = signal<string | null>(null);
+
   /** 正在核准的那一筆（對話框開著） */
   protected readonly approving = signal<ParentRequest | null>(null);
   /** 正在填拒絕原因的那一筆 */
@@ -210,6 +325,19 @@ export class ApplicationsPage {
   protected setKind(kind: 'enrollment' | 'trial' | null): void {
     this.kind.set(kind);
     this.load();
+  }
+
+  /**
+   * 「⋯ → 櫃檯備註」按儲存：**存成功才收起**。失敗時編輯列留著、打的字還在，跳錯誤讓人重按
+   * （二讀：原本送出就收起，失敗時字直接不見）。沒改就直接收起，不送
+   */
+  protected submitNote(app: PublicApplication, value: string): void {
+    const note = value.trim() || null;
+    if (note === (app.staffNote ?? null)) {
+      this.notingId.set(null);
+      return;
+    }
+    this.patch(app, { staffNote: note }, () => this.notingId.set(null));
   }
 
   protected setStatus(app: PublicApplication, status: PublicApplicationStatus): void {
@@ -351,10 +479,13 @@ export class ApplicationsPage {
   private patch(
     app: PublicApplication,
     patch: { status?: PublicApplicationStatus; staffNote?: string | null },
+    onSaved?: () => void,
   ): void {
     this.service.update(app.id, patch).subscribe({
-      next: (res) =>
-        this.applications.update((list) => list.map((a) => (a.id === app.id ? res.data : a))),
+      next: (res) => {
+        this.applications.update((list) => list.map((a) => (a.id === app.id ? res.data : a)));
+        onSaved?.();
+      },
       error: () =>
         this.messages.add({ severity: 'error', summary: '儲存失敗', detail: '請稍後再試' }),
     });
