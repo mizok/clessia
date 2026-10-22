@@ -38,12 +38,17 @@ function stub(options: {
                   error: { message: 'boom' },
                 } // 出錯但照樣回出「是自己的課」—— 守出錯就不信資料
               : {
+                  // 別堂（event-2）一定是我的課；依 event_id 篩 —— 守 sessions 查詢一定要帶 event_id
                   data: [
                     {
+                      event_id: 'event-1',
                       teacher_id: options.teacherId ?? 'me',
                       schedules: { teacher_id: options.teacherId ?? 'me' },
                     },
-                  ],
+                    { event_id: 'event-2', teacher_id: 'me', schedules: { teacher_id: 'me' } },
+                  ].filter(
+                    (row) => !('event_id' in filters) || row.event_id === filters['event_id'],
+                  ),
                   error: null,
                 },
           ).then(onfulfilled ?? undefined),
@@ -82,5 +87,9 @@ describe('teacherCanReadEvent', () => {
   // 同一個人在另一個機構也有 staff 列、而且正是那堂課的老師：staff 查詢不帶 org_id 就會被當成自己的課
   it('別的機構的 staff 列不算自己（staff 查詢一定要以 org_id 過濾）', async () => {
     await expect(teacherCanReadEvent(stub({ staffOrg: 'org-2' }), params)).resolves.toBe(false);
+  });
+
+  it('別堂是我的、這堂不是 → 拒絕（sessions 查詢一定要以 event_id 過濾）', async () => {
+    await expect(teacherCanReadEvent(stub({ teacherId: 'other' }), params)).resolves.toBe(false);
   });
 });
