@@ -6,6 +6,7 @@ import { createLatencyProbe } from '../lib/supabase-latency-probe';
 import { getCachedIdentity, setCachedIdentity } from '../lib/identity-cache';
 import { loadIdentityViaSql, type IdentityRows } from '../lib/identity-sql';
 import { isAccountUsable } from './account-status';
+import { usableRoleRows } from './usable-roles';
 import { hasPermission } from '../lib/permissions';
 import { isCampusAllowed, resolveCampusScope } from '../lib/campus-scope';
 import { resolveStudentScope } from '../lib/child-scope';
@@ -76,11 +77,18 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 
   c.set('userId', session.user.id);
   c.set('orgId', orgId);
-  const roles = roleRows.map((row) => row.role as string);
+  // 角色跟著身分資料的狀態走（#1846）：staff 停用就沒有老師／管理員身分，parents 停用就沒有家長身分。
+  // 每個請求從快取裡的原始列（含 status）重算，停用最遲在下一次快取刷新（30 秒）生效
+  const activeRoleRows = usableRoleRows(
+    roleRows as Array<{ role: string; permissions?: unknown }>,
+    staffRows as Array<{ status: string }>,
+    parentRows as Array<{ status: string }>,
+  );
+  const roles = activeRoleRows.map((row) => row.role as string);
   c.set('roles', roles);
   // 細部權限跟角色一樣**每個請求查表**（經 30 秒快取），不從 session 讀。
   // 一個人可以有多個角色，權限是它們的聯集。
-  const permissions = roleRows.flatMap((row) =>
+  const permissions = activeRoleRows.flatMap((row) =>
     Array.isArray((row as { permissions?: unknown }).permissions)
       ? ((row as { permissions: unknown[] }).permissions as string[])
       : [],

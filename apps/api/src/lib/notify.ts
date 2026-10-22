@@ -22,6 +22,8 @@ export type StaffNotificationKind =
   | 'leave_for_my_class'
   | 'leave_received'
   | 'grade_promotion_reminder'
+  | 'application_overdue'
+  | 'trial_followup'
   | 'leave_streak';
 
 export interface StaffNotification {

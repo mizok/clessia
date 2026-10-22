@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import { deriveInvoiceStatus, isOpenInvoice, type PaymentRow } from './invoice-status';
 import { withTx } from './pg-tx';
 import { isAllowedPushEndpoint } from './push-endpoint';
+import { enqueueApplicationReminders } from './application-reminders';
 import { enqueueGradePromotionReminders, enqueueStaffDigests } from './staff-digests';
 import { buildPushRequest, vapidAuthorization, type VapidKeys } from './web-push';
 
@@ -355,12 +356,13 @@ async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
  * 不能拖垮同一個交易裡家長的繳費提醒。
  */
 async function staffDigests(db: PoolClient, today: string, orgs: Orgs): Promise<number> {
-  // 學年升級前提醒（#1820）各自一個 SAVEPOINT：它壞了不能拖掉財務摘要，反之亦然
+  // 學年升級前提醒（#1820）、申請提醒（#1821）各自一個 SAVEPOINT：一支壞了不能拖掉別支，反之亦然
   return (
     (await guarded(db, 'staff_digests', () => enqueueStaffDigests(db, today, orgs))) +
     (await guarded(db, 'grade_promotion_reminders', () =>
       enqueueGradePromotionReminders(db, today, orgs),
-    ))
+    )) +
+    (await guarded(db, 'application_reminders', () => enqueueApplicationReminders(db, today, orgs)))
   );
 }
 

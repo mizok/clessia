@@ -107,10 +107,8 @@ describe('loadIdentityViaSql', () => {
 describe('loadMeExtrasViaSql', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('有 profiles 列 → profile 有值；沒有 → null（同 REST 的 maybeSingle）', async () => {
+  it('帳號名、聯絡資料、暱稱（#1839 起不讀 profiles）', async () => {
     const row = {
-      profile_display_name: '舊名',
-      profile_rows: 1,
       staff_nickname: '王老師',
       name: 'n',
       email: 'e',
@@ -118,37 +116,24 @@ describe('loadMeExtrasViaSql', () => {
     };
     const db = { query: vi.fn().mockResolvedValue({ rows: [row] }) };
     expect(await loadMeExtrasViaSql(db, 'u', 'o')).toEqual({
-      profile: { display_name: '舊名' },
       baUser: { name: 'n', email: 'e', phone: null },
       nickname: '王老師',
     });
-
-    db.query.mockResolvedValue({ rows: [{ ...row, profile_display_name: null, profile_rows: 0 }] });
-    expect((await loadMeExtrasViaSql(db, 'u', 'o'))?.profile).toBeNull();
   });
 
   it.each([
     ['沒有 ba_user 列', []],
-    [
-      'email 不是字串',
-      [{ profile_display_name: null, profile_rows: 0, name: 'n', email: 1, phone: null }],
-    ],
+    ['email 不是字串', [{ name: 'n', email: 1, phone: null }]],
     [
       'staff_nickname 不是字串也不是 null（#1665）',
       [
         {
-          profile_display_name: null,
-          profile_rows: 0,
           staff_nickname: 1,
           name: 'n',
           email: 'e',
           phone: null,
         },
       ],
-    ],
-    [
-      'profile_rows 是 2',
-      [{ profile_display_name: null, profile_rows: 2, name: 'n', email: 'e', phone: null }],
     ],
   ])('形狀不對 → null：%s', async (_label, rows) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

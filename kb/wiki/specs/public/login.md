@@ -3,7 +3,7 @@ title: 登入頁
 summary: 品牌卡片加一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
 category: spec
 status: active
-updated: 2026-08-29
+updated: 2026-10-22
 tags: [specs, public, login, oauth, line]
 ---
 
@@ -107,7 +107,7 @@ OAuth 的失敗**不是函式回傳值** —— 使用者被導去 LINE、再被
 登入本身**不碰任何業務表** —— Better Auth 自己處理 `ba_user` / `ba_account` /
 `ba_session` / `ba_verification`。
 
-登入成功後前端呼叫 `GET /api/me`，那支讀 `profiles`、`user_roles`、`staff`、`ba_user`。
+登入成功後前端呼叫 `GET /api/me`，那支讀 `user_roles`、`staff`、`ba_user`（#1839 起不讀 `profiles`）。
 `authMiddleware` 另外讀 `staff` / `parents` 的 `status` 判斷帳號有沒有被停用。
 
 ## 相關頁面

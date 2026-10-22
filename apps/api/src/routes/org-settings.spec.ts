@@ -109,6 +109,9 @@ describe('toOrgSettingsResponse', () => {
       // #1820：欄位不在 → 預設升級日 9/1、提前 7 天提醒
       gradePromotionMonthDay: '09-01',
       gradePromotionReminderDays: 7,
+      // #1821：欄位不在（migration 還沒套）→ 設計稿預設 3／1
+      applicationReviewDays: 3,
+      trialFollowupDays: 1,
       // 欄位不在的舊 org 用 14 —— 對齊 billing_rules 規則 7 的「發袋後兩三週」節奏
       invoiceDueDays: 14,
       billingReminderDays: 14,
@@ -601,4 +604,54 @@ describe('gradePromotionMonthDay／gradePromotionReminderDays（#1820）', () =>
     expect((await sendBody({ gradePromotionReminderDays: days })).status).toBe(status);
     expect(updates).toEqual(status === 200 ? [{ grade_promotion_reminder_days: days }] : []);
   });
+});
+
+/**
+ * #1821 報名審核時效與試聽跟進天數。不是財務設定：`manage_org_settings` 就能改。
+ * DB 存非預設值 —— 回應寫死預設、select 漏欄位都會落到 3／1。
+ */
+describe('applicationReviewDays／trialFollowupDays（#1821）', () => {
+  const STORED = { application_review_days: 5, trial_followup_days: 4 };
+  const SETTINGS = ['manage_org_settings'];
+
+  it('GET 與 PATCH 回的是 DB 裡的值（SELECT_FIELDS 要有這兩欄）', async () => {
+    const { get, sendBody } = appWith(SETTINGS, STORED);
+    const expected = { applicationReviewDays: 5, trialFollowupDays: 4 };
+    expect(await (await get()).json()).toMatchObject(expected);
+    expect(await (await sendBody({ attendanceRetroactiveDays: 1 })).json()).toMatchObject(expected);
+  });
+
+  it('欄位缺席退回 3／1', () => {
+    expect(toOrgSettingsResponse({ id: 'o' }, false)).toMatchObject({
+      applicationReviewDays: 3,
+      trialFollowupDays: 1,
+    });
+  });
+
+  it('PATCH 真的寫進兩欄（只有 manage_org_settings 也可以，不是財務設定）', async () => {
+    const { sendBody, updates } = appWith(SETTINGS, STORED);
+    const res = await sendBody({ applicationReviewDays: 0, trialFollowupDays: 30 });
+    expect(res.status).toBe(200);
+    expect(updates).toEqual([{ application_review_days: 0, trial_followup_days: 30 }]);
+    expect(await res.json()).toMatchObject({ applicationReviewDays: 0, trialFollowupDays: 30 });
+  });
+
+  it.each([
+    ['applicationReviewDays', 'application_review_days'],
+    ['trialFollowupDays', 'trial_followup_days'],
+  ])(
+    '%s 邊界：-1、31 → 400 不寫（DB 的 CHECK 也擋，但那樣會變 500）；0、30 可以',
+    async (key, column) => {
+      for (const [days, status] of [
+        [-1, 400],
+        [0, 200],
+        [30, 200],
+        [31, 400],
+      ] as const) {
+        const { sendBody, updates } = appWith(SETTINGS, STORED);
+        expect((await sendBody({ [key]: days })).status).toBe(status);
+        expect(updates).toEqual(status === 200 ? [{ [column]: days }] : []);
+      }
+    },
+  );
 });
