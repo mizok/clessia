@@ -287,16 +287,25 @@ app.openapi(
       .maybeSingle();
 
     if (!existingParent) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
+      // 名字：員工姓名（同 org，middleware 已查好）→ 帳號名。原本只讀 profiles、讀不到就寫死
+      // 「家長」—— 沒有任何路徑會新增 profiles 列（lib/display-name.ts），於是管理員啟用家長身份後，
+      // 家長列表多出一位叫「家長」的人，本人以為自己不在列表裡（10-22 正式環境）。
+      // profiles 已經沒有人新增，這裡不再讀它。
+      const { data: baUser } = await supabase
+        .from('ba_user')
+        .select('name')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+      const name =
+        resolveDisplayName({
+          staff: c.get('selfRows').staff,
+          baUser: baUser as { name?: string | null } | null,
+        }) || '家長'; // ponytail: 兩處都空才會走到（ba_user.name NOT NULL，只可能是空字串），留著是因為 parents.name NOT NULL
 
       const { error: parentError } = await supabase.from('parents').insert({
         user_id: userId,
         org_id: orgId,
-        name: (profile as Record<string, unknown> | null)?.['display_name'] ?? '家長',
+        name,
         status: 'active',
       });
 
