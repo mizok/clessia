@@ -16,6 +16,15 @@ import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { studentWriteScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { inOrg } from '../lib/org-scope';
+import { withTx } from '../lib/pg-tx';
+import {
+  bindSessions,
+  findConflictingLeaveViaSql,
+  insertLeave,
+  lockStudentLeaves,
+  unbindSessions,
+  updateLeave,
+} from '../lib/leave-write';
 import {
   LEAVE_SESSIONS_EMBED,
   LEAVE_WINDOW_COLUMNS,
@@ -260,34 +269,14 @@ async function resolveBoundSessions(
   return { ok: true, sessions };
 }
 
-/** 跟這個學生既有的假有沒有重疊（`leavesConflict`）；`excludeId` 給編輯排除自己 */
-async function findConflictingLeave(
-  supabase: SupabaseClient,
-  orgId: string,
-  studentId: string,
-  next: LeaveWindow,
-  excludeId?: string,
-): Promise<{ start_date: string; end_date: string } | null | 'read-failed'> {
-  let query = supabase
-    .from('leave_requests')
-    .select(`id, ${LEAVE_WINDOW_COLUMNS}`)
-    .eq('org_id', orgId)
-    .eq('student_id', studentId);
-  if (excludeId) query = query.neq('id', excludeId);
-  // 區間有交集是「可能重疊」的必要條件（綁定型的區間＝綁定堂的最早／最晚），再用判準細分
-  const { data, error } = await query
-    .lte('start_date', next.endDate)
-    .gte('end_date', next.startDate);
-  // 讀不到 ≠ 沒有重疊（#1957）：當成空的就會照寫，重複請假就是這樣進來的
-  if (error) {
-    console.error('[leaves] 重疊檢查讀取失敗:', error.message);
-    return 'read-failed';
-  }
-  const hit = ((data ?? []) as Array<Record<string, unknown>>).find((row) =>
-    leavesConflict(toLeaveWindow(row), next),
-  );
-  return (hit as { start_date: string; end_date: string } | undefined) ?? null;
-}
+const POOL_UNAVAILABLE = {
+  error: '請假暫時無法寫入，請稍後再試',
+  code: 'POOL_UNAVAILABLE',
+} as const;
+const OVERLAP = (hit: { start_date: string; end_date: string }) => ({
+  error: '請假時間重疊',
+  message: `該學生在 ${hit.start_date} ~ ${hit.end_date} 已有請假紀錄`,
+});
 
 /**
  * 把 `[from, to]` 內、該學生實際有報名的課堂寫成 `on_leave`，回傳真的寫了幾筆。
@@ -593,62 +582,54 @@ async function updateBoundSessions(
   }
   const nextWindow = boundWindow(resolved.sessions);
 
-  const overlap = await findConflictingLeave(supabase, orgId, studentId, nextWindow, id);
-  if (overlap === 'read-failed') {
-    return c.json({ error: '請假資料讀取失敗，請稍後再試', code: 'READ_FAILED' }, 500);
-  }
-  if (overlap) {
-    return c.json(
-      {
-        error: '請假時間重疊',
-        message: `該學生在 ${overlap.start_date} ~ ${overlap.end_date} 已有請假紀錄`,
-      },
-      409,
-    );
-  }
-
-  const { data: updated, error: updateError } = await inOrg(
-    supabase
-      .from('leave_requests')
-      .update({
-        start_date: nextWindow.startDate,
-        end_date: nextWindow.endDate,
-        start_time: null,
-        end_time: null,
-        ...(input.reason !== undefined ? { reason: input.reason } : {}),
-      })
-      .eq('id', id),
-    orgId,
-  )
-    .select('*, students(name), ba_user!submitted_by(name)')
-    .single();
-  if (updateError || !updated) {
-    return c.json({ error: '更新請假失敗', message: updateError?.message }, 500);
-  }
-
   const prevBound = prevWindow.boundSessions.length > 0;
   const prevIds = new Set(prevWindow.boundSessions.map((b) => b.sessionId));
   const nextIds = new Set(nextWindow.boundSessions.map((b) => b.sessionId));
   const removed = prevWindow.boundSessions.filter((b) => !nextIds.has(b.sessionId));
   const added = nextWindow.boundSessions.filter((b) => !prevIds.has(b.sessionId));
 
-  if (removed.length > 0) {
-    await inOrg(
-      supabase
-        .from('leave_request_sessions')
-        .delete()
-        .eq('leave_request_id', id)
-        .in(
-          'session_id',
-          removed.map((b) => b.sessionId),
-        ),
-      orgId,
-    );
+  // 取鎖 → 查重疊 → 改區間與綁定，同一筆交易（#1957）
+  const pool = c.get('auth')?.pool;
+  if (!pool) {
+    console.error('[leaves] 沒有 pg pool，不改綁定');
+    return c.json(POOL_UNAVAILABLE, 500);
   }
-  if (added.length > 0) {
-    await supabase
-      .from('leave_request_sessions')
-      .insert(added.map((b) => ({ leave_request_id: id, session_id: b.sessionId, org_id: orgId })));
+  let updated: Record<string, unknown> | null;
+  try {
+    const out = await withTx(pool, async (tx) => {
+      await lockStudentLeaves(tx, orgId, studentId);
+      const overlap = await findConflictingLeaveViaSql(tx, orgId, studentId, nextWindow, id);
+      if (overlap) return { overlap, row: null };
+      const row = await updateLeave(tx, orgId, id, {
+        start_date: nextWindow.startDate,
+        end_date: nextWindow.endDate,
+        start_time: null,
+        end_time: null,
+        ...(input.reason !== undefined ? { reason: input.reason } : {}),
+      });
+      if (!row) return { overlap: null, row: null };
+      await unbindSessions(
+        tx,
+        orgId,
+        id,
+        removed.map((b) => b.sessionId),
+      );
+      await bindSessions(
+        tx,
+        orgId,
+        id,
+        added.map((b) => b.sessionId),
+      );
+      return { overlap: null, row };
+    });
+    if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
+    updated = out.row;
+  } catch (err) {
+    console.error('[leaves] 改綁定失敗（已回滾）:', err instanceof Error ? err.message : err);
+    return c.json({ error: '更新請假失敗', code: 'WRITE_FAILED' }, 500);
+  }
+  if (!updated) {
+    return c.json({ error: '更新請假失敗', message: '找不到請假紀錄' }, 500);
   }
 
   const revertWindow = prevBound ? boundWindow(removed) : prevWindow;
@@ -958,62 +939,36 @@ app.openapi(
       window = boundWindow(resolved.sessions);
     }
 
-    // 1. 衝突檢查：同學生是否有重疊的請假紀錄（判準 `leavesConflict`）
-    const overlap = await findConflictingLeave(supabase, orgId, body.studentId, window);
-    if (overlap === 'read-failed') {
-      return c.json({ error: '請假資料讀取失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+    // 1～2. 取鎖 → 查重疊（判準 `leavesConflict`）→ 建立請假與綁定堂次，同一筆交易（#1957）。
+    // 兩支 REST 各自一個交易的話，同時進來的兩個請求都查到「沒有重疊」而兩張都寫進去
+    const pool = c.get('auth')?.pool;
+    if (!pool) {
+      console.error('[leaves] 沒有 pg pool，不建請假');
+      return c.json(POOL_UNAVAILABLE, 500);
     }
-
-    if (overlap) {
-      return c.json(
-        {
-          error: '請假時間重疊',
-          message: `該學生在 ${overlap.start_date} ~ ${overlap.end_date} 已有請假紀錄`,
-        },
-        409,
-      );
-    }
-
-    // 2. 建立請假紀錄
-    const { data: leave, error: leaveError } = await supabase
-      .from('leave_requests')
-      .insert({
-        org_id: orgId,
-        student_id: body.studentId,
-        start_date: window.startDate,
-        end_date: window.endDate,
-        start_time: body.startTime ?? null,
-        end_time: body.endTime ?? null,
-        reason: body.reason ?? null,
-        submitted_by: userId,
-        submitted_by_role: 'admin',
-      })
-      .select('*, students(name), ba_user!submitted_by(name)')
-      .single();
-
-    if (leaveError || !leave) {
-      return c.json({ error: '新增請假失敗', message: leaveError?.message }, 500);
-    }
-
-    if (window.boundSessions.length > 0) {
-      const { error: bindError } = await supabase.from('leave_request_sessions').insert(
-        window.boundSessions.map((b) => ({
-          leave_request_id: leave.id,
-          session_id: b.sessionId,
-          org_id: orgId,
-        })),
-      );
-      if (bindError) {
-        // 綁不上就不能留一張「整天」語意的假（沒有綁定列＝整天）—— 撤掉重來
-        await inOrg(
-          supabase
-            .from('leave_requests')
-            .delete()
-            .eq('id', leave.id as string),
-          orgId,
-        );
-        return c.json({ error: '新增請假失敗', message: bindError.message }, 500);
-      }
+    let leave: { id: string } & Record<string, unknown>;
+    try {
+      const out = await withTx(pool, async (tx) => {
+        await lockStudentLeaves(tx, orgId, body.studentId);
+        const overlap = await findConflictingLeaveViaSql(tx, orgId, body.studentId, window);
+        if (overlap) return { overlap, leave: null };
+        return {
+          overlap: null,
+          leave: (await insertLeave(tx, {
+            orgId,
+            studentId: body.studentId,
+            window,
+            reason: body.reason ?? null,
+            userId,
+          })) as { id: string } & Record<string, unknown>,
+        };
+      });
+      if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
+      leave = out.leave!;
+    } catch (err) {
+      // 綁定寫不上也在這裡：整筆回滾，不會留一張沒有綁定列（＝整天語意）的假
+      console.error('[leaves] 新增請假失敗（已回滾）:', err instanceof Error ? err.message : err);
+      return c.json({ error: '新增請假失敗', code: 'WRITE_FAILED' }, 500);
     }
 
     // 3. 自動更新這張假蓋得到、且該學生實際有報名的 attendance_records → on_leave
@@ -1225,34 +1180,46 @@ app.openapi(
       boundSessions: [],
     };
 
+    let updated: Record<string, unknown> | null;
     if (rangeChanged) {
-      // 排除自己 —— 少了 excludeId，每一次編輯都會跟自己撞成 409
-      const overlap = await findConflictingLeave(supabase, orgId, studentId, nextWindow, id);
-      if (overlap === 'read-failed') {
-        return c.json({ error: '請假資料讀取失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+      // 區間變了才可能撞到別張：取鎖 → 查重疊（排除自己 —— 少了 excludeId 每次編輯都跟自己撞成 409）
+      // → 改，同一筆交易（#1957）
+      const pool = c.get('auth')?.pool;
+      if (!pool) {
+        console.error('[leaves] 沒有 pg pool，不改請假區間');
+        return c.json(POOL_UNAVAILABLE, 500);
       }
-
-      if (overlap) {
-        return c.json(
-          {
-            error: '請假時間重疊',
-            message: `該學生在 ${overlap.start_date} ~ ${overlap.end_date} 已有請假紀錄`,
-          },
-          409,
+      try {
+        const out = await withTx(pool, async (tx) => {
+          await lockStudentLeaves(tx, orgId, studentId);
+          const overlap = await findConflictingLeaveViaSql(tx, orgId, studentId, nextWindow, id);
+          if (overlap) return { overlap, row: null };
+          return { overlap: null, row: await updateLeave(tx, orgId, id, updates) };
+        });
+        if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
+        updated = out.row;
+      } catch (err) {
+        console.error(
+          '[leaves] 改請假區間失敗（已回滾）:',
+          err instanceof Error ? err.message : err,
         );
+        return c.json({ error: '更新請假失敗', code: 'WRITE_FAILED' }, 500);
       }
+    } else {
+      // 只改事由／時間：不會造出新的重疊，不必排隊
+      const { data, error: updateError } = await supabase
+        .from('leave_requests')
+        .update(updates)
+        .eq('id', id)
+        .eq('org_id', orgId)
+        .select(`*, ${LEAVE_SESSIONS_EMBED}, students(name), ba_user!submitted_by(name)`)
+        .single();
+      if (updateError) console.error('[leaves] 更新請假失敗:', updateError.message);
+      updated = data as Record<string, unknown> | null;
     }
 
-    const { data: updated, error: updateError } = await supabase
-      .from('leave_requests')
-      .update(updates)
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .select(`*, ${LEAVE_SESSIONS_EMBED}, students(name), ba_user!submitted_by(name)`)
-      .single();
-
-    if (updateError || !updated) {
-      return c.json({ error: '更新請假失敗', message: updateError?.message }, 500);
+    if (!updated) {
+      return c.json({ error: '更新請假失敗' }, 500);
     }
 
     const studentName = (existing as any).students?.name ?? '';

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { describe, it, expect, vi } from 'vitest';
 
+import { restBackedLeavePool } from '../test-utils/rest-backed-leave-pool';
 import leavesApp from './leaves';
 import {
   buildLeaveAttendanceAuditDetails,
@@ -317,6 +318,7 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedLeavePool(supabase) });
       context.set('orgId', 'org-1');
       // 寫入端 #966 起會讀分校範圍；這組測試的主題不是它 —— 宣告成不受限（正式站由 authMiddleware 設）
       context.set('campusScope', null);
@@ -507,7 +509,7 @@ describe('POST /api/leaves —— 重疊檢查', () => {
           upsert: () => Promise.resolve({ error: null }),
           then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
             if (failRead && table === 'leave_requests') {
-              return Promise.resolve({ data: null, error: { message: 'boom' } }).then(
+              return Promise.resolve({ data: null, error: { message: 'boom' } } as never).then(
                 onfulfilled ?? undefined,
               );
             }
@@ -526,6 +528,7 @@ describe('POST /api/leaves —— 重疊檢查', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedLeavePool(supabase) });
       context.set('orgId', 'org-1');
       // 寫入端 #966 起會讀分校範圍；這組測試的主題不是它 —— 宣告成不受限（正式站由 authMiddleware 設）
       context.set('campusScope', null);
@@ -863,6 +866,7 @@ describe('PATCH /api/leaves/:id', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedLeavePool(supabase) });
       context.set('orgId', 'org-1');
       // 寫入端 #966 起會讀分校範圍；這組測試的主題不是它 —— 宣告成不受限（正式站由 authMiddleware 設）
       context.set('campusScope', null);
@@ -1026,6 +1030,7 @@ describe('GET /api/leaves —— endFrom／order（#1314 LV1）', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedLeavePool(supabase) });
       context.set('orgId', 'org-1');
       context.set('campusScope', null);
       context.set('userId', 'user-1');
