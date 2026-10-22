@@ -84,6 +84,8 @@ run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', (
   let firstSubject = '';
   let otherOrg = '';
   const otherIds: string[] = [];
+  /** org A 裡為了驗日界線加的班，測完刪掉 */
+  const boundaryClasses: string[] = [];
 
   const q = async <T>(text: string, values: unknown[] = []) =>
     (await pool!.query(text, values)).rows as T[];
@@ -144,10 +146,31 @@ run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', (
     );
     otherIds.push(campusB!.id, subjectB!.id, courseB!.id, classB!.id);
 
+    // 「已結束」的日界線（end_date < 台北今天）：今天結束的班還算進行中，昨天結束的算已結束。
+    // seed 沒有剛好落在今天的班，不加的話 `<` 寫成 `<=` 兩條路一樣綠
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+    const [{ yesterday }] = await q<{ yesterday: string }>(
+      "select to_char($1::date - 1, 'YYYY-MM-DD') as yesterday",
+      [today],
+    );
+    for (const [name, end] of [
+      ['#1595 契約：今天結束', today],
+      ['#1595 契約：昨天結束', yesterday],
+    ]) {
+      const [row] = await q<{ id: string }>(
+        `insert into classes (org_id, campus_id, course_id, name, end_date)
+         select org_id, campus_id, id, $2, $3::date from courses where id = $1 returning id`,
+        [courses[0]!.id, name, end],
+      );
+      boundaryClasses.push(row!.id);
+    }
+
     app = (await import('../index')).default as never;
   });
 
   afterAll(async () => {
+    if (boundaryClasses.length)
+      await q('delete from classes where id = any($1::uuid[])', [boundaryClasses]);
     if (!otherOrg) return;
     await q('delete from classes where org_id = $1', [otherOrg]);
     await q('delete from courses where org_id = $1', [otherOrg]);
