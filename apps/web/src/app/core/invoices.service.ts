@@ -206,6 +206,20 @@ export interface CreateInvoiceInput {
   items?: CreateInvoiceItemInput[];
 }
 
+/** 收款時一併轉正式的報名／繳清而完成的申請（#1778）；退費兩個都是空陣列 */
+export interface PaymentSideEffectRow {
+  id: string;
+  studentId: string;
+  studentName: string;
+  className: string;
+}
+
+export interface RecordPaymentResult {
+  data: Invoice;
+  activatedEnrollments?: PaymentSideEffectRow[];
+  completedRequests?: PaymentSideEffectRow[];
+}
+
 export interface RecordPaymentInput {
   kind?: PaymentKind;
   /** 正整數 —— 退費也填正數，由 `kind` 決定方向 */
@@ -292,9 +306,12 @@ export class InvoicesService {
     return this.http.delete<{ data: Invoice }>(`${this.endpoint}/${id}/items/${itemId}`);
   }
 
-  /** 收款與退費都走這支，差別只有 `kind`。回的是**整張帳單**（狀態已重新推導） */
-  recordPayment(id: string, input: RecordPaymentInput): Observable<{ data: Invoice }> {
-    return this.http.post<{ data: Invoice }>(`${this.endpoint}/${id}/payments`, input);
+  /**
+   * 收款與退費都走這支，差別只有 `kind`。回的是**整張帳單**（狀態已重新推導），
+   * 收款時另帶這次轉正式的報名、完成的申請（#1778）
+   */
+  recordPayment(id: string, input: RecordPaymentInput): Observable<RecordPaymentResult> {
+    return this.http.post<RecordPaymentResult>(`${this.endpoint}/${id}/payments`, input);
   }
 }
 

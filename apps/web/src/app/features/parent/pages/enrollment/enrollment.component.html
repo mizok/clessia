@@ -298,7 +298,8 @@
           <h3 class="m-0 mb-2 text-[13px] font-bold text-zinc-800">繳費單</h3>
           @if (r.invoice; as inv) {
             @if (inv.status === 'paid') {
-              <p class="m-0">已繳清 {{ money(inv.total) }} 元，等補習班確認後完成報名。</p>
+              <!-- #1778 起繳清的同一個交易就完成申請，這一支只剩上線前就繳清的舊資料：不再說「等確認」 -->
+              <p class="m-0">已繳清 {{ money(inv.total) }} 元。</p>
             } @else {
               <p class="m-0">
                 金額 <b class="tabular-nums">{{ money(inv.total) }} 元</b>
