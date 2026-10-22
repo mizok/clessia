@@ -84,6 +84,12 @@ const EXEMPT = new Map([
   ['/api/me/attendance|page', '同上'],
   ['/api/me/attendance|pageSize', '同上'],
   [
+    '/api/me/attendance/checkins|childId',
+    '前綴碰撞（同 /api/me/attendance）：真正的消費端 core/parent-attendance.service.ts 的 checkins() 有送（#1075）',
+  ],
+  ['/api/me/attendance/checkins|dateFrom', '同上'],
+  ['/api/me/attendance/checkins|dateTo', '同上'],
+  [
     '/api/me/grades|childId',
     '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-grades.service.ts 有送 —— 見上方註解',
   ],

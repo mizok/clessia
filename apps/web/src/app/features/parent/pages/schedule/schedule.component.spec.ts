@@ -32,6 +32,7 @@ function session(over: Partial<ParentSession>): ParentSession {
     classId: 'c1',
     className: '國三數學 B 班',
     courseName: '國中數學',
+    campusId: null,
     campusName: '文山旗艦校',
     classroomName: null,
     teacherName: '游佩珊',

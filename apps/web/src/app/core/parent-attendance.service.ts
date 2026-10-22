@@ -13,6 +13,8 @@ export interface ParentAttendanceRecord {
   eventDate: string;
   startTime: string | null;
   endTime: string | null;
+  /** 課堂的分校（#1075）：對 `dailyCheckinCampusIds` 決定那天畫不畫到班行 */
+  campusId: string | null;
   campusName: string | null;
   className: string | null;
   /**
@@ -54,6 +56,14 @@ export interface ParentAttendanceListResponse {
   };
 }
 
+/** `GET /api/me/attendance/checkins`（#1075）：每日到班時間＋哪些分校是日到班 */
+export interface ParentCheckinsResponse {
+  /** 每一次到班：日期與台北時間 `HH:mm` */
+  data: Array<{ date: string; time: string }>;
+  /** 孩子報過名的分校裡，生效模式是日到班的那些 */
+  dailyCheckinCampusIds: string[];
+}
+
 export interface ParentAttendanceListParams {
   childId: string;
   dateFrom?: string;
@@ -75,6 +85,13 @@ export class ParentAttendanceService {
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
 
     return this.http.get<ParentAttendanceListResponse>(this.base, { params: query });
+  }
+
+  /** 區間最多 366 天，後端擋 */
+  checkins(childId: string, dateFrom: string, dateTo: string): Observable<ParentCheckinsResponse> {
+    return this.http.get<ParentCheckinsResponse>(`${this.base}/checkins`, {
+      params: { childId, dateFrom, dateTo },
+    });
   }
 
   /**

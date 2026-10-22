@@ -102,6 +102,7 @@ const ROW = {
     event_date: '2026-09-01',
     start_time: '09:00',
     end_time: '10:00',
+    campus_id: 'campus-1',
     campuses: { name: '本校' },
     sessions: [{ classes: { name: '數學 A' } }],
   },
@@ -149,6 +150,8 @@ describe('GET /api/me/attendance', () => {
       status: 'absent',
       className: '數學 A',
       note: '請假原因',
+      // #1075：前端拿它對 dailyCheckinCampusIds，決定那天畫不畫到班行
+      campusId: 'campus-1',
     });
     // 月度統計走獨立查詢，不是從當頁筆數算出來的；缺席與請假分開回
     // （不合計），兩個數字刻意不同，證明真的是兩支查詢而不是同一個數字複製兩份

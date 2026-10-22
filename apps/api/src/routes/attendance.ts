@@ -7,6 +7,9 @@ import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { teacherCanReadEvent } from '../lib/attendance-read-scope';
 import { sessionSummarySelect, summariseSessions } from '../lib/session-summary';
+import { annotateArrivals, checkinCoversSession } from '../lib/session-arrivals';
+import { resolveAttendanceMode } from '../lib/attendance-mode';
+import { writeDailyCheckin } from '../lib/daily-checkin-write';
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
@@ -134,6 +137,16 @@ const EventSessionSummarySchema = z
     onLeaveCount: z.number(),
     absentCount: z.number(),
     takenAt: z.string().nullable(),
+    /**
+     * 這堂課所在分校實際生效的出勤模式（#1314 TS3，判準 `lib/attendance-mode.ts`）。
+     * 老師端用它分「到班名單」與「點名」—— 老師打不到 `/api/campuses`，前端自己推也等於多一份判準。
+     */
+    attendanceMode: z.enum(['daily_checkin', 'per_session']),
+    /**
+     * 日到班的課：在籍學生裡當天有到班打卡的人數。隨堂的課是 null。
+     * **不等於 `presentCount`**：掃碼只寫得到打卡當下已存在的 event（見 `lib/session-arrivals.ts`）。
+     */
+    checkedInCount: z.number().int().nonnegative().nullable(),
   })
   .openapi('EventSessionSummary');
 
@@ -215,6 +228,12 @@ const RosterStudentSchema = z
      * 這一欄是既有 roster 回應多一個欄位，**零往返**。
      */
     cancelDropsLeaveUntil: z.string().nullable(),
+    /**
+     * 當天到班打卡的時間（`daily_checkins.checked_in_at`）；沒打卡是 null。
+     * 只算得到「這堂課」的卡：打卡指名了別的分校就不算（`checkinCoversSession`）。
+     * 日到班的到班名單用它（#1314 TS3）；隨堂的課也照回，到班時間本來就是事實。
+     */
+    checkedInAt: z.string().nullable(),
   })
   .openapi('RosterStudent');
 
@@ -222,6 +241,8 @@ const AttendanceRosterSchema = z
   .object({
     eventId: DbUuidSchema,
     takenAt: z.string().nullable(),
+    /** 這堂課所在分校的出勤模式，同 `EventSessionSummary.attendanceMode` */
+    attendanceMode: z.enum(['daily_checkin', 'per_session']),
     students: z.array(RosterStudentSchema),
   })
   .openapi('AttendanceRoster');
@@ -1112,7 +1133,14 @@ app.openapi(
     if (sessionsError)
       return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
 
-    const results = await summariseSessions(supabase, orgId, sessions);
+    const annotated = await annotateArrivals(
+      supabase,
+      orgId,
+      await summariseSessions(supabase, orgId, sessions),
+    );
+    if (annotated.error)
+      return c.json({ error: '讀取出勤模式失敗', message: annotated.error.message }, 500);
+    const results = annotated.data;
 
     if (endedOnly) {
       const ended = results.filter((session) =>
@@ -1339,12 +1367,21 @@ app.openapi(
 
     const { data: ev, error: evError } = await supabase
       .from('events')
-      .select('id, event_date, start_time, end_time, attendance_taken_at, sessions(id, class_id)')
+      .select(
+        'id, event_date, start_time, end_time, attendance_taken_at, campus_id, sessions(id, class_id)',
+      )
       .eq('id', eventId)
       .eq('org_id', orgId)
       .single();
 
     if (evError || !ev) return c.json({ error: '找不到課堂' }, 404);
+
+    // 分校範圍（#1314 TS3，#1800 同族）：原本只守 org 與老師歸屬，受限分校的管理員拿得到
+    // 範圍外課堂的名單。讀取回 404、body 跟不存在一字不差 —— 不洩漏「別校有這堂課」
+    const eventCampusId = (ev as { campus_id?: string | null }).campus_id ?? null;
+    if (!resourceCampusAllowed(getCampusScope(c), eventCampusId)) {
+      return c.json({ error: '找不到課堂' }, 404);
+    }
 
     // #1081：老師只能讀自己（任課或代課）課堂的名單。別 org 的 id 在上面已是 404，不洩漏存在與否
     if (
@@ -1379,11 +1416,44 @@ app.openapi(
       ),
     );
 
-    const { data: records } = await supabase
-      .from('attendance_records')
-      .select('id, student_id, status')
-      .eq('event_id', eventId)
-      .eq('org_id', orgId);
+    const rosterIds = enrollments.map((e: any) => e.student_id as string);
+    const [
+      { data: records, error: recordsError },
+      { data: checkinRows, error: checkinError },
+      modeResult,
+    ] = await Promise.all([
+      supabase
+        .from('attendance_records')
+        .select('id, student_id, status')
+        .eq('event_id', eventId)
+        .eq('org_id', orgId),
+      rosterIds.length === 0
+        ? Promise.resolve({ data: [] as Array<Record<string, unknown>>, error: null })
+        : supabase
+            .from('daily_checkins')
+            .select('student_id, checked_in_at, campus_id')
+            .eq('org_id', orgId)
+            .eq('checkin_date', eventDate)
+            .in('student_id', rosterIds),
+      resolveAttendanceMode(supabase, orgId, eventCampusId),
+    ]);
+    if (modeResult.error) {
+      return c.json({ error: '讀取出勤模式失敗', message: modeResult.error.message }, 500);
+    }
+    // 讀失敗不能退回空清單：名單會變成「全部還沒到／還沒點」—— 看起來正常、其實是錯的
+    if (recordsError || checkinError) {
+      return c.json(
+        { error: '讀取名單失敗', message: (recordsError ?? checkinError)?.message },
+        500,
+      );
+    }
+    const checkedInAtByStudent = new Map(
+      ((checkinRows ?? []) as Array<Record<string, unknown>>)
+        .filter((row) =>
+          checkinCoversSession((row['campus_id'] as string | null) ?? null, eventCampusId),
+        )
+        .map((row) => [row['student_id'] as string, row['checked_in_at'] as string]),
+    );
 
     const recordMap = new Map(
       (records ?? []).map((r: any) => [r.student_id, { id: r.id, status: r.status }]),
@@ -1391,15 +1461,14 @@ app.openapi(
 
     // 這一天蓋到這堂課的請假單。**推導不查紀錄** —— 理由見 RosterStudentSchema
     // 的 `hasLeaveRequest`：請假連動寫不到「請假之後才生成」的 event。
-    const rosterStudentIds = (enrollments ?? []).map((e: any) => e.student_id as string);
     const { data: leaves } =
-      rosterStudentIds.length === 0
+      rosterIds.length === 0
         ? { data: [] as Array<Record<string, unknown>> }
         : await supabase
             .from('leave_requests')
             .select(`student_id, ${LEAVE_WINDOW_COLUMNS}`)
             .eq('org_id', orgId)
-            .in('student_id', rosterStudentIds)
+            .in('student_id', rosterIds)
             .lte('start_date', eventDate)
             .gte('end_date', eventDate);
 
@@ -1456,6 +1525,7 @@ app.openapi(
         leaveStartDate: leaveStartByStudent.get(e.student_id) ?? null,
         leaveEndDate: leaveEndByStudent.get(e.student_id) ?? null,
         cancelDropsLeaveUntil: cancelDropsByStudent.get(e.student_id) ?? null,
+        checkedInAt: checkedInAtByStudent.get(e.student_id) ?? null,
       };
     });
 
@@ -1463,6 +1533,7 @@ app.openapi(
       {
         eventId,
         takenAt: (ev as any).attendance_taken_at ?? null,
+        attendanceMode: modeResult.mode,
         students,
       },
       200,
@@ -1676,6 +1747,178 @@ app.openapi(
     );
 
     return c.json({ leavesDeleted, leavesTruncated, attendanceRecordsRemoved, droppedAfter }, 200);
+  },
+);
+
+// POST /api/attendance/roster/:eventId/check-in —— 日到班的「他到了」（#1314 TS3）
+//
+// 日到班的課沒有逐堂點名：學生到了卻沒掃碼（忘了帶卡），老師在到班名單上替他記一筆到班。
+// **寫的是到班打卡，不是點名** —— 跟機台同一支 `writeDailyCheckin`，所以當天他有報名的課
+// 一樣被推算成出席，跟掃了卡沒有兩樣。`/api/daily-checkins` 不開給老師：那支能替任何學生、
+// 任何日期打卡，這裡的範圍由課堂收斂。
+//
+// 擋的順序：歸屬與點名責任（跟點名同一支）→ 課堂存在／分校範圍 → 當天 → 日到班 → 在籍。
+const ArrivalCheckinResponseSchema = z
+  .object({
+    checkedInAt: z.string(),
+    /** 他今天已經打過卡了（例如老師開名單之後才掃到）—— 不是錯誤，`checkedInAt` 是第一次那筆 */
+    alreadyCheckedIn: z.boolean(),
+  })
+  .openapi('ArrivalCheckinResponse');
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/roster/{eventId}/check-in',
+    tags: ['Attendance'],
+    summary: '到班名單「他到了」（日到班，老師限自己的課、限當天）',
+    request: {
+      params: z.object({ eventId: DbUuidSchema }),
+      body: { content: { 'application/json': { schema: z.object({ studentId: DbUuidSchema }) } } },
+    },
+    responses: {
+      201: {
+        description: '已記到班',
+        content: { 'application/json': { schema: ArrivalCheckinResponseSchema } },
+      },
+      403: { description: '不是你的課、行政負責點名、或不是當天' },
+      404: { description: '找不到課堂，或這個學生不在這堂課的名單上' },
+      409: { description: '這堂課的分校是隨堂點名' },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const roles = c.get('roles') ?? [];
+    const { eventId } = c.req.valid('param');
+    const { studentId } = c.req.valid('json');
+
+    // 歸屬（任課或代課）＋點名責任：行政負責時老師只能看名單（計畫席 10-22 裁定 1）
+    const writeAccess = await teacherAttendanceWriteAccess(supabase, {
+      orgId,
+      userId,
+      roles,
+      eventId,
+    });
+    if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
+
+    const { data: ev } = await supabase
+      .from('events')
+      .select('id, event_date, campus_id, sessions(class_id)')
+      .eq('id', eventId)
+      .eq('org_id', orgId)
+      .single();
+    if (!ev) return c.json({ error: '找不到課堂' }, 404);
+
+    const eventCampusId = (ev as { campus_id?: string | null }).campus_id ?? null;
+    if (!resourceCampusAllowed(getCampusScope(c), eventCampusId)) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
+
+    // 依據是「他人就在我面前」，那只有當天成立（同銷假）。管理員不限：事後更正
+    const eventDate = (ev as { event_date: string }).event_date;
+    if (!roles.includes('admin') && eventDate !== getCurrentTaipeiDateString()) {
+      return c.json({ error: '只能記當天的到班', code: 'NOT_TODAY' }, 403);
+    }
+
+    const modeResult = await resolveAttendanceMode(supabase, orgId, eventCampusId);
+    if (modeResult.error) {
+      return c.json({ error: '讀取出勤模式失敗', message: modeResult.error.message }, 500);
+    }
+    // 隨堂的課記到班也不會變成出席 —— 老師會以為記了出席。那裡該用點名
+    if (modeResult.mode !== 'daily_checkin') {
+      return c.json({ error: '這堂課的分校是隨堂點名，請用點名', code: 'NOT_DAILY_CHECKIN' }, 409);
+    }
+
+    // 在籍：跟名單同一條（`isEnrolledOn`）—— 名單上沒有的人，這裡也記不了
+    const classId = toSessionRows<{ class_id?: string }>((ev as any).sessions)[0]?.class_id;
+    const { data: enrollmentRows, error: enrollmentError } = classId
+      ? await supabase
+          .from('enrollments')
+          .select('effective_from, effective_to')
+          .eq('org_id', orgId)
+          .eq('class_id', classId)
+          .eq('student_id', studentId)
+          .eq('status', 'active')
+      : { data: [], error: null };
+    // 讀失敗不是「不在籍」—— 回 404 會讓老師以為這個學生不在這班
+    if (enrollmentError) {
+      return c.json({ error: '讀取報名失敗', message: enrollmentError.message }, 500);
+    }
+    const enrolled = ((enrollmentRows ?? []) as Array<Record<string, any>>).some((row) =>
+      isEnrolledOn(
+        { effectiveFrom: row['effective_from'], effectiveTo: row['effective_to'] ?? null },
+        eventDate,
+      ),
+    );
+    if (!enrolled) {
+      return c.json({ error: '這個學生不在這堂課的名單上', code: 'NOT_ENROLLED' }, 404);
+    }
+
+    // 他今天已經在別校掃過卡（計畫席 10-22 裁）：`daily_checkins` 一人一天一筆，這裡寫不出這一校的卡，
+    // 而名單與卡片只認卡上的分校（`checkinCoversSession`）—— 硬寫出勤會變成「回成功、名單還是沒到、
+    // 出勤卻是出席」。擋在任何寫入之前。同一天跨兩校上課的人第二校記不了到班，是 UNIQUE 的既有限制。
+    const { data: existingCheckin, error: existingError } = await supabase
+      .from('daily_checkins')
+      .select('campus_id, campuses(name)')
+      .eq('org_id', orgId)
+      .eq('student_id', studentId)
+      .eq('checkin_date', eventDate)
+      .maybeSingle();
+    if (existingError) {
+      return c.json({ error: '讀取到班紀錄失敗', message: existingError.message }, 500);
+    }
+    const existing = existingCheckin as {
+      campus_id?: string | null;
+      campuses?: { name?: string } | { name?: string }[] | null;
+    } | null;
+    if (existing && !checkinCoversSession(existing.campus_id ?? null, eventCampusId)) {
+      const campusName = toSessionRows<{ name?: string }>(existing.campuses)[0]?.name ?? '別的分校';
+      return c.json({ error: `他今天已在${campusName}掃過卡`, code: 'CHECKED_IN_ELSEWHERE' }, 409);
+    }
+
+    const written = await writeDailyCheckin(supabase, {
+      orgId,
+      userId,
+      studentId,
+      campusId: eventCampusId ?? undefined,
+      checkinDate: eventDate,
+      campusScope: getCampusScope(c),
+      mode: modeResult.mode,
+    });
+    if (written.error) {
+      return c.json({ error: '記錄到班失敗', message: written.error.message }, 500);
+    }
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'attendance',
+        resourceId: written.checkin['id'] as string,
+        resourceName: null,
+        action: 'checkin',
+        details: {
+          studentId,
+          checkinDate: eventDate,
+          eventId,
+          via: 'roster',
+          alreadyCheckedIn: written.alreadyCheckedIn,
+          attendanceRecordsCreated: written.eventIds.length,
+        },
+      },
+      waitUntilFrom(c),
+    );
+
+    return c.json(
+      {
+        checkedInAt: written.checkin['checked_in_at'] as string,
+        alreadyCheckedIn: written.alreadyCheckedIn,
+      },
+      201,
+    );
   },
 );
 

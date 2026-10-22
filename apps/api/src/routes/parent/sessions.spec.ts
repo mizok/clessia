@@ -62,6 +62,7 @@ function session(seed: SessionSeed) {
       : null,
     classes: {
       name: `班 ${seed.class_id.slice(-3)}`,
+      campus_id: 'campus-xy',
       campuses: { name: '信義校' },
       courses: { name: '國中數學' },
     },
@@ -224,6 +225,7 @@ describe('GET /api/me/sessions', () => {
         classId: CLASS_A,
         className: '班 101',
         courseName: '國中數學',
+        campusId: 'campus-xy',
         campusName: '信義校',
         classroomName: null,
         teacherName: '王老師',

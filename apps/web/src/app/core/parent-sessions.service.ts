@@ -27,6 +27,8 @@ export interface ParentSession {
   classId: string;
   className: string | null;
   courseName: string | null;
+  /** 班的分校（#1075，家長到班頁判斷今天要不要刷卡） */
+  campusId: string | null;
   campusName: string | null;
   /** 排課時段指定的教室（#1796）；手動加的堂、補課、沒指定 → null */
   classroomName: string | null;

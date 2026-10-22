@@ -21,7 +21,9 @@ import {
   getCampusScope,
   type CampusScope,
 } from '../lib/campus-scope';
-import { logAudit } from '../utils/audit';
+import { logAudit, logAuditMany } from '../utils/audit';
+import { activatePendingEnrollment, type ChangedRow } from '../lib/record-payment';
+import { notifyEnrollmentCompleted } from '../lib/notify-events';
 import { waitUntilFrom } from '../lib/wait-until';
 import { auditFieldDiff } from '../lib/audit-diff';
 import {
@@ -660,10 +662,7 @@ app.openapi(
 
     const { data, error } = await supabase
       .from('enrollments')
-      .select(
-        // 跟列表 `buildSelect` 同形狀（字面寫才拿得到列型別）；schedules 給 classSchedule（#1314 SD1）
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
-      )
+      .select(ENROLLMENT_ROW)
       .eq('id', created.id)
       .eq('org_id', orgId)
       .single();
@@ -700,6 +699,13 @@ app.openapi(
     return c.json({ data: toEnrollmentResponse(data) }, 201);
   },
 );
+
+/**
+ * 單筆報名回應的列：跟列表 `buildSelect` 同形狀（`as const` 字面才拿得到列型別）；
+ * schedules 給 classSchedule（#1314 SD1）
+ */
+const ENROLLMENT_ROW =
+  'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)' as const;
 
 // PATCH /api/enrollments/:id
 app.openapi(
@@ -754,10 +760,7 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select(
-        // 跟列表 `buildSelect` 同形狀（字面寫才拿得到列型別）；schedules 給 classSchedule（#1314 SD1）
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
-      )
+      .select(ENROLLMENT_ROW)
       .single();
 
     if (error) return c.json({ error: 'NOT_FOUND' }, 404);
@@ -857,35 +860,84 @@ app.openapi(
       updates['effective_to'] = today;
     }
 
-    const { data, error } = await supabase
-      .from('enrollments')
-      .update(updates)
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .select(
-        // 跟列表 `buildSelect` 同形狀（字面寫才拿得到列型別）；schedules 給 classSchedule（#1314 SD1）
-        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
-      )
-      .single();
+    // #1778 拆單 2（Q4）：待付款轉正式走交易，連到它的待付款申請同一個交易轉完成；
+    // 交易之後只讀回應的列，不再寫 —— 被收款先轉走（activated false）時也不蓋掉收款寫的日期與原因
+    const viaTx = existing.status === 'pending_payment' && status === 'active';
+    let completed: readonly ChangedRow[] = [];
+    let wrote = true;
+    if (viaTx) {
+      const pool = getAuth(c).pool;
+      if (!pool) return c.json({ error: 'DB_POOL_UNAVAILABLE' }, 500);
+      const r = await activatePendingEnrollment(pool, {
+        orgId,
+        enrollmentId: id,
+        today,
+        reason: updates['status_reason'] as string | null,
+      });
+      ({ completed } = r);
+      wrote = r.activated;
+    }
+
+    const { data, error } = await (
+      viaTx
+        ? supabase.from('enrollments').select(ENROLLMENT_ROW).eq('id', id).eq('org_id', orgId)
+        : supabase
+            .from('enrollments')
+            .update(updates)
+            .eq('id', id)
+            .eq('org_id', orgId)
+            .select(ENROLLMENT_ROW)
+    ).single();
 
     if (error) return c.json({ error: error.message }, 500);
 
     // #846：在籍狀態變更（含退班）要留痕 —— 「誰在什麼時候把這個學生退掉」
     // 是行政上最常被追問的事，而在這之前只能靠計數推。
     // `existing.status` 是上面已經讀過的舊值，不必多查一次。
-    logAudit(
+    // 交易沒轉（被收款先轉走）＝這次請求沒寫任何東西，不留一筆假的手動變更
+    if (wrote) {
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'enrollment',
+          resourceId: id,
+          resourceName: buildEnrollmentAuditResourceName(data),
+          action: 'update',
+          details: auditFieldDiff({ status: existing.status }, updates),
+        },
+        waitUntilFrom(c),
+      );
+    }
+    logAuditMany(
       supabase,
       {
         orgId,
         userId,
-        resourceType: 'enrollment',
-        resourceId: id,
-        resourceName: buildEnrollmentAuditResourceName(data),
-        action: 'update',
-        details: auditFieldDiff({ status: existing.status }, updates),
+        resourceType: 'enrollment_request',
+        action: 'complete',
+        details: { via: 'manual', enrollment_id: id },
       },
+      completed.map((q) => ({
+        resourceId: q.id,
+        resourceName: `${q.studentName}（${q.className}）`,
+      })),
       waitUntilFrom(c),
     );
+    // 交易外發（pg-pool-writes rule 7）；失敗只記 log，狀態不回滾
+    for (const q of completed) {
+      const job = notifyEnrollmentCompleted(supabase, {
+        orgId,
+        requestId: q.id,
+        studentId: q.studentId,
+        studentName: q.studentName,
+        className: q.className,
+      });
+      const wu = waitUntilFrom(c);
+      if (wu) wu(job);
+      else await job;
+    }
 
     if (data.status === 'active') {
       await syncLeaveAttendanceForEnrollment({

@@ -12,6 +12,7 @@ import {
   type ParentAttendanceListResponse,
   type ParentAttendanceRecord,
 } from '@core/parent-attendance.service';
+import { ParentSessionsService, type ParentSession } from '@core/parent-sessions.service';
 import { AttendancePage } from './attendance.page';
 
 const PAGE = {
@@ -33,7 +34,7 @@ function emptyResponse(): ParentAttendanceListResponse {
 /**
  * fixture 的日期一律相對今天算（#670）。
  *
- * 寫死的日期會在某一天掉出頁面預設的「近 10 天」——`fillMissingDays` 是**用日期窗口
+ * 寫死的日期會在某一天掉出頁面預設的「近 10 天」——`buildDays` 是**用日期窗口
  * 重建整份列表**，窗外的紀錄不是排在後面，是整筆消失。於是測試在一個跟程式碼無關的
  * 時刻自己變紅，而下一個碰它的人看到的是「我的 PR 弄壞了測試」。
  *
@@ -53,6 +54,7 @@ function record(overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendan
     eventDate: daysAgoIso(0),
     startTime: '09:00',
     endTime: '10:00',
+    campusId: 'daily',
     campusName: '台北校',
     className: '數學班',
     sessionStatus: 'scheduled',
@@ -71,6 +73,8 @@ describe('AttendancePage', () => {
   let childScopeLoad: ReturnType<typeof vi.fn>;
   let activeChild: ReturnType<typeof signal<{ id: string; name: string } | null>>;
   let createLeaveMock: ReturnType<typeof vi.fn>;
+  let checkinsMock: ReturnType<typeof vi.fn>;
+  let todayMock: ReturnType<typeof vi.fn>;
   let toastMock: ReturnType<typeof vi.fn>;
 
   // jsdom 沒有 <dialog> 的 modal 行為：只補開關狀態與 close 事件（照 notifications.component.spec）
@@ -94,6 +98,8 @@ describe('AttendancePage', () => {
     activeChildId = signal<string | null>(null);
     activeChild = signal<{ id: string; name: string } | null>(null);
     createLeaveMock = vi.fn(() => of({ data: { id: 'leave-1' } }));
+    checkinsMock = vi.fn(() => of({ data: [], dailyCheckinCampusIds: ['daily'] }));
+    todayMock = vi.fn(() => of({ data: [] as ParentSession[] }));
     toastMock = vi.fn();
     childScopeLoad = vi.fn();
     listMock = vi.fn(() =>
@@ -120,8 +126,9 @@ describe('AttendancePage', () => {
         },
         {
           provide: ParentAttendanceService,
-          useValue: { list: listMock, createLeave: createLeaveMock },
+          useValue: { list: listMock, createLeave: createLeaveMock, checkins: checkinsMock },
         },
+        { provide: ParentSessionsService, useValue: { list: todayMock } },
         { provide: MessageService, useValue: { add: toastMock } },
         // 共用請假表單注入的管理端 service（嵌入時不會打）要有 HttpClient 才建得起來
         provideHttpClient(),
@@ -133,7 +140,7 @@ describe('AttendancePage', () => {
     fixture.componentRef.setInput('page', PAGE);
     fixture.detectChanges();
     return fixture.componentInstance as unknown as {
-      onRangeChange: (mode: 'recent10' | 'recent30' | 'month' | null) => void;
+      onRangeChange: (mode: 'recent10' | 'recent30' | 'month') => void;
     };
   }
 
@@ -147,16 +154,35 @@ describe('AttendancePage', () => {
     expect(listMock).not.toHaveBeenCalled();
   });
 
-  it('activeChildId 出現後打 API，帶預設近 10 天的 dateFrom', () => {
+  it('activeChildId 出現後打 API：近 10 天＝含今天往前 10 天；到班時間同一段、今天的堂只查今天', () => {
     createComponent();
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(listMock).toHaveBeenCalledWith(
-      expect.objectContaining({ childId: 'child-1', page: 1, pageSize: 50 }),
+    expect(listMock).toHaveBeenCalledWith({
+      childId: 'child-1',
+      dateFrom: daysAgoIso(9),
+      dateTo: daysAgoIso(0),
+      page: 1,
+      pageSize: 100,
+    });
+    expect(checkinsMock).toHaveBeenCalledWith('child-1', daysAgoIso(9), daysAgoIso(0));
+    expect(todayMock).toHaveBeenCalledWith('child-1', daysAgoIso(0), daysAgoIso(0));
+  });
+
+  it('紀錄一頁拿不完就接著拿，整段期間都畫得出來', () => {
+    createComponent();
+    listMock.mockImplementation(({ page }: { page: number }) =>
+      of({
+        data: [record({ id: `r${page}`, eventDate: daysAgoIso(page) })],
+        meta: { total: 101, page, pageSize: 100, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      }),
     );
-    expect(listMock.mock.calls[0][0].dateFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(listMock.mock.calls[0][0].dateTo).toBeUndefined();
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    expect(listMock.mock.calls.map((c) => c[0].page)).toEqual([1, 2]);
+    expect(fixture.nativeElement.querySelectorAll('.attendance__record').length).toBe(2);
   });
 
   it('換孩子會重新查', () => {
@@ -171,12 +197,11 @@ describe('AttendancePage', () => {
     expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ childId: 'child-2' }));
   });
 
-  it('依日期分組顯示，日期新到舊（近30天，不觸發補空避免干擾排序斷言）', () => {
+  it('一天一章，日期新到舊', () => {
     const newer = daysAgoIso(3);
-    const older = daysAgoIso(20);
+    const older = daysAgoIso(12); // 近 30 天先畫 14 天，要落在裡面
     const comp = createComponent({
-      // 刻意**舊的餵在前面** —— 照順序餵的話 `groupByDate` 的 Map 插入順序就已經是
-      // 期望值，那條 `.sort()` 拿掉也還是綠的
+      // 刻意**舊的餵在前面** —— 照順序餵的話插入順序就已經是期望值
       data: [
         record({ id: 'r2', eventDate: older, status: 'absent', className: '英文班' }),
         record({ id: 'r1', eventDate: newer }),
@@ -187,13 +212,14 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    const dates = fixture.nativeElement.querySelectorAll('.attendance__day-date');
-    expect(Array.from(dates).map((el: unknown) => (el as HTMLElement).textContent?.trim())).toEqual(
-      [newer, older],
-    );
+    const dates = fixture.nativeElement.querySelectorAll('.attendance__day[data-date]');
+    expect(Array.from(dates).map((el: unknown) => (el as HTMLElement).dataset['date'])).toEqual([
+      newer,
+      older,
+    ]);
   });
 
-  it('近10天（預設模式）補回沒有紀錄的日期，顯示「今日無課」——避免跟載入失敗混淆', () => {
+  it('期間內每一天都有一章：沒紀錄的日子一行「今日無課」——避免跟載入失敗混淆', () => {
     createComponent({
       data: [record({ id: 'r1', eventDate: daysAgoIso(0) })],
       meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
@@ -201,9 +227,98 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    // 近10天有11天（含今天），只有1天有紀錄，其餘10天都該顯示「今日無課」
-    const noClass = fixture.nativeElement.querySelectorAll('.attendance__no-class');
-    expect(noClass.length).toBe(10);
+    // 近 10 天含今天，只有 1 天有紀錄，其餘 9 天都是「今日無課」
+    const noClass = fixture.nativeElement.querySelectorAll('.attendance__day--empty');
+    expect(noClass.length).toBe(9);
+    expect(fixture.nativeElement.querySelector('.attendance__count').textContent).toContain(
+      '共 10 天',
+    );
+  });
+
+  describe('每日到班（#1075）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const arrival = () => el().querySelector('.attendance__arrival')?.textContent?.trim();
+
+    it('日到班分校的課：有刷卡寫「HH:mm 到班」', () => {
+      createComponent({
+        data: [record({ eventDate: daysAgoIso(1) })],
+        meta: { total: 1, page: 1, pageSize: 100, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      });
+      checkinsMock.mockReturnValue(
+        of({ data: [{ date: daysAgoIso(1), time: '16:42' }], dailyCheckinCampusIds: ['daily'] }),
+      );
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      expect(arrival()).toBe('16:42 到班');
+    });
+
+    it('隨堂點名分校的課沒有到班行；到班時間讀失敗也照樣列出紀錄', () => {
+      createComponent({
+        data: [record({ eventDate: daysAgoIso(1), campusId: 'per-session' })],
+        meta: { total: 1, page: 1, pageSize: 100, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+      expect(arrival()).toBeUndefined();
+
+      checkinsMock.mockReturnValue(throwError(() => new Error('boom')));
+      (el().querySelector('[aria-pressed="false"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(el().textContent).not.toContain('載入失敗');
+      expect(el().querySelectorAll('.attendance__record').length).toBe(1);
+    });
+
+    it('色面：孩子今天到了沒；副行只在有日到班分校時出現', () => {
+      createComponent();
+      activeChild.set({ id: 'child-1', name: '林子晴' });
+      checkinsMock.mockReturnValue(
+        of({ data: [{ date: daysAgoIso(0), time: '16:41' }], dailyCheckinCampusIds: ['daily'] }),
+      );
+      todayMock.mockReturnValue(
+        of({
+          data: [{ campusId: 'daily', startTime: '17:00', status: 'scheduled', attendance: null }],
+        }),
+      );
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      const open = el().querySelector('app-page-open')!.textContent!;
+      expect(open).toContain('林子晴');
+      expect(open).toContain('今天 16:41 到班。');
+      expect(open).toContain('日到班：刷卡一次，當天所有的課都算到了。');
+    });
+
+    it('今天的課都在隨堂點名分校：標題退回頁名、沒有副行', () => {
+      createComponent();
+      activeChild.set({ id: 'child-1', name: '林子晴' });
+      checkinsMock.mockReturnValue(of({ data: [], dailyCheckinCampusIds: [] }));
+      todayMock.mockReturnValue(
+        of({
+          data: [{ campusId: 'x', startTime: '17:00', status: 'scheduled', attendance: null }],
+        }),
+      );
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      const open = el().querySelector('app-page-open')!.textContent!;
+      expect(open).toContain('出缺席');
+      expect(open).not.toContain('日到班');
+    });
+
+    it('近 30 天一次畫 14 天，「載入更多（還有 N 天）」再多 14 天', () => {
+      const comp = createComponent();
+      comp.onRangeChange('recent30');
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      expect(el().querySelectorAll('.attendance__day').length).toBe(14);
+      const more = el().querySelector('.attendance__load-more') as HTMLButtonElement;
+      expect(more.textContent).toContain('還有 16 天');
+      more.click();
+      fixture.detectChanges();
+      expect(el().querySelectorAll('.attendance__day').length).toBe(28);
+    });
   });
 
   it('點課堂列內展開，再點一次收合', () => {
@@ -251,7 +366,6 @@ describe('AttendancePage', () => {
     fixture.detectChanges();
     const detail = fixture.nativeElement.querySelector('.attendance__record-detail') as HTMLElement;
     expect(detail.textContent!.replace(/\s+/g, '')).toContain(text);
-    expect(detail.textContent).not.toContain('沒有更多資訊');
   });
 
   it('載入失敗顯示失敗狀態', () => {
@@ -271,11 +385,13 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    // 取 `.band-anchor__value` 而不是整顆的 textContent —— 只比對那個數字本身，
+    // 取數字那一格（dd）而不是整塊的 textContent —— 只比對那個數字本身，
     // 合計（7）會讓這條直接不等，不用靠「不包含 7」這種鈍的斷言
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '2',
-    );
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="absent-stat"] dd')
+        ?.textContent?.replace(/\s+/g, ''),
+    ).toBe('2次');
   });
 
   it('錨點文案標明「本月」——列表區間可以不是本月，數字卻永遠是本月', () => {
@@ -287,7 +403,9 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('app-band-anchor').textContent).toContain('本月');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="absent-stat"]').textContent,
+    ).toContain('本月');
   });
 
   it('缺席 0 次照樣顯示錨點——0 是好消息，不是沒有資料', () => {
@@ -298,9 +416,11 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '0',
-    );
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="absent-stat"] dd')
+        ?.textContent?.replace(/\s+/g, ''),
+    ).toBe('0次');
   });
 
   it('載入成功後再失敗，錨點要收回去——留著舊數字等於用失敗換來一則好消息', () => {
@@ -312,20 +432,22 @@ describe('AttendancePage', () => {
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '4',
-    );
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="absent-stat"] dd')
+        ?.textContent?.replace(/\s+/g, ''),
+    ).toBe('4次');
 
     listMock.mockImplementation(() => throwError(() => new Error('boom')));
     comp.onRangeChange('recent30');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="absent-stat"]')).toBeNull();
   });
 
   it('還沒載到資料時不顯示錨點', () => {
     createComponent();
-    expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="absent-stat"]')).toBeNull();
   });
   describe('停課的課堂要標出來（#502）', () => {
     it('停課仍然掛著請假時，兩件事都說得出來', () => {
@@ -336,10 +458,15 @@ describe('AttendancePage', () => {
       activeChildId.set('child-1');
       fixture.detectChanges();
 
-      const text = fixture.nativeElement.textContent;
-      // 出缺席狀態沒有被課堂狀態蓋掉 —— 那一筆確實是一次請假，只是課後來停了
-      expect(text).toContain('請假');
-      expect(text).toContain('停課');
+      // 列上照 A6 寫「停課」；展開裡仍說得出那一筆是一次請假（課後來停了）
+      expect(fixture.nativeElement.querySelector('.attendance__status').textContent).toContain(
+        '停課',
+      );
+      (fixture.nativeElement.querySelector('.attendance__record') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('.attendance__record-detail').textContent,
+      ).toContain('請假');
     });
 
     it('正常的課堂不長出 chip', () => {
@@ -387,7 +514,7 @@ describe('AttendancePage', () => {
   /**
    * **#797：預設模式下 skeleton 分支結構性不可達。**
    *
-   * 守衛是 `loading() && groups().length === 0`，而 `groups` 在 `recent10`（預設）
+   * 當時守衛是 `loading() && groups().length === 0`，而 `groups` 在 `recent10`（預設）
    * 會走 `fillMissingDays` —— **`records()` 還是空陣列時它就已經填出 11 天**，
    * 於是 `groups().length === 0` 永遠不成立。使用者在慢速網路上看到的是
    * **十一行「今日無課」**，而那是一句正面斷言：「這十一天都沒課」。
@@ -395,7 +522,7 @@ describe('AttendancePage', () => {
    * 對照組 `parent/payments` 的守衛判的是**原始清單**（`invoices()`），所以它的
    * skeleton 出得來 —— 兩頁模板讀起來一模一樣，差別只在守衛裡那個 signal。
    *
-   * 斷言照工單的狀態表：延遲中 `records().length === 0` / `groups().length === 11`。
+   * 斷言照工單的狀態表：延遲中 `records().length === 0`（現在的 `days()` 同樣在空清單時就排滿整段期間，守衛照樣判 `records()`）。
    */
   it('載入中（原始清單還是空的）要渲染 skeleton，不能謊稱「今日無課」', () => {
     const pending = new Subject<ParentAttendanceListResponse>();
@@ -418,7 +545,14 @@ describe('AttendancePage', () => {
             load: childScopeLoad,
           },
         },
-        { provide: ParentAttendanceService, useValue: { list: listMock } },
+        {
+          provide: ParentAttendanceService,
+          useValue: {
+            list: listMock,
+            checkins: () => of({ data: [], dailyCheckinCampusIds: [] }),
+          },
+        },
+        { provide: ParentSessionsService, useValue: { list: () => of({ data: [] }) } },
         { provide: MessageService, useValue: { add: vi.fn() } },
       ],
     });
