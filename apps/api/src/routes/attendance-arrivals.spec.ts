@@ -25,16 +25,38 @@ const TODAY = '2026-04-06';
 
 type Rows = Record<string, Array<Record<string, unknown>>>;
 
-/** `failing` 裡的表：清單讀取回 error（單筆讀取不受影響） */
-function fakeDb(rows: Rows, failing: readonly string[] = []) {
+interface Failures {
+  /** 清單讀取回 error（單筆讀取不受影響） */
+  readonly failing?: readonly string[];
+  /** `maybeSingle` 讀取回 error（出勤模式讀 organizations 走這條） */
+  readonly failingSingle?: readonly string[];
+  /** upsert 回 error */
+  readonly failingWrites?: readonly string[];
+}
+
+function fakeDb(rows: Rows, failures: Failures | readonly string[] = {}) {
+  const f: Failures = Array.isArray(failures) ? { failing: failures } : (failures as Failures);
+  const failing = f.failing ?? [];
   const writes: Array<{ table: string; payload: unknown }> = [];
   const make = (table: string) => {
     const data = rows[table] ?? [];
     const terminal = {
-      maybeSingle: () => Promise.resolve({ data: data[0] ?? null, error: null }),
+      maybeSingle: () =>
+        Promise.resolve(
+          f.failingSingle?.includes(table)
+            ? { data: null, error: { message: `${table} 讀取失敗` } }
+            : { data: data[0] ?? null, error: null },
+        ),
       single: () => Promise.resolve({ data: data[0] ?? null, error: null }),
+      insert: (payload: unknown) => {
+        writes.push({ table, payload });
+        return Promise.resolve({ error: null });
+      },
       upsert: (payload: unknown) => {
         writes.push({ table, payload });
+        if (f.failingWrites?.includes(table)) {
+          return { select: () => Promise.resolve({ data: null, error: { message: '寫入失敗' } }) };
+        }
         // 打卡 upsert 接 `.select()`：回剛寫入的那一列
         const row = { id: 'checkin-1', ...(payload as Record<string, unknown>) };
         return { select: () => Promise.resolve({ data: [row], error: null }) };
@@ -65,9 +87,12 @@ async function call(
     roles?: string[];
     scope?: string[] | null;
     failing?: string[];
+    failingSingle?: string[];
+    failingWrites?: string[];
   },
 ) {
-  const db = fakeDb(rows, opts.failing);
+  const db = fakeDb(rows, opts);
+  const background: Promise<unknown>[] = [];
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -88,8 +113,13 @@ async function call(
       body: opts.method === 'POST' ? JSON.stringify({ studentId: STUDENT }) : undefined,
     },
     undefined,
-    { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    {
+      waitUntil: (p: Promise<unknown>) => background.push(p),
+      passThroughOnException: () => undefined,
+    } as never,
   );
+  // 稽核走 waitUntil —— 等它寫完再斷言
+  await Promise.all(background);
   return {
     status: res.status,
     json: (await res.json().catch(() => null)) as {
@@ -358,5 +388,177 @@ describe('checkinCoversSession', () => {
     expect(checkinCoversSession(null, A)).toBe(true);
     expect(checkinCoversSession(A, A)).toBe(true);
     expect(checkinCoversSession(B, A)).toBe(false);
+  });
+});
+
+/**
+ * 審核席二讀（#1811 留言 6331085937）列出的存活突變，一條一條釘住。
+ */
+describe('讀寫失敗不能看起來正常', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${TODAY}T04:00:00Z`));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('roster 讀出勤模式失敗 → 500，不退回隨堂＋空名單', async () => {
+    const r = await call(happy(), {
+      method: 'GET',
+      path: `/roster/${EVENT}`,
+      roles: ['admin'],
+      failingSingle: ['organizations'],
+    });
+    expect(r.status).toBe(500);
+  });
+
+  it('GET /sessions 讀出勤模式失敗 → 500', async () => {
+    const r = await call(
+      happy({
+        sessions: [
+          {
+            id: 'sess-1',
+            class_id: CLASS,
+            event_id: EVENT,
+            session_date: TODAY,
+            status: 'scheduled',
+            classes: { name: '班', campus_id: A },
+            events: { id: EVENT, event_date: TODAY, campus_id: A },
+          },
+        ],
+      }),
+      {
+        method: 'GET',
+        path: `/sessions?dateFrom=${TODAY}&dateTo=${TODAY}`,
+        roles: ['admin'],
+        failingSingle: ['organizations'],
+      },
+    );
+    expect(r.status).toBe(500);
+  });
+
+  it('check-in 寫入失敗 → 500，不回 201', async () => {
+    const r = await call(happy(), {
+      method: 'POST',
+      path: `/roster/${EVENT}/check-in`,
+      failingWrites: ['daily_checkins'],
+    });
+    expect(r.status).toBe(500);
+  });
+
+  it('check-in 的稽核標明是名單上記的（via: roster），分得出跟掃碼', async () => {
+    const r = await call(happy(), { method: 'POST', path: `/roster/${EVENT}/check-in` });
+    expect(r.status).toBe(201);
+    const audit = r.writes.find((w) => w.table === 'audit_logs');
+    expect(audit?.payload).toMatchObject({
+      action: 'checkin',
+      details: { via: 'roster', eventId: EVENT, studentId: STUDENT },
+    });
+  });
+});
+
+/** 會照 eq／in／gte／lte 過濾的替身 —— 到班數的計算靠查詢條件，固定回列的替身驗不出來 */
+function filteringDb(rows: Rows, failing: readonly string[] = []) {
+  const make = (table: string) => {
+    const preds: Array<(r: Record<string, unknown>) => boolean> = [];
+    const result = () =>
+      failing.includes(table)
+        ? { data: null, error: { message: `${table} 讀取失敗` } }
+        : { data: (rows[table] ?? []).filter((r) => preds.every((p) => p(r))), error: null };
+    const q: Record<string, unknown> = {
+      select: () => q,
+      eq: (c: string, v: unknown) => (preds.push((r) => r[c] === v), q),
+      in: (c: string, v: unknown[]) => (preds.push((r) => v.includes(r[c])), q),
+      gte: (c: string, v: string) => (preds.push((r) => String(r[c]) >= v), q),
+      lte: (c: string, v: string) => (preds.push((r) => String(r[c]) <= v), q),
+      maybeSingle: () => {
+        const r = result();
+        return Promise.resolve({ data: r.data?.[0] ?? null, error: r.error });
+      },
+      then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve),
+    };
+    return q;
+  };
+  return { from: make };
+}
+
+describe('annotateArrivals —— 查詢條件與計數', () => {
+  const C2 = '00000000-0000-0000-0000-0000000000e9';
+  const base: Rows = {
+    organizations: [{ id: ORG, attendance_mode: 'daily_checkin' }],
+    campuses: [],
+  };
+  const enr = (student: string, klass = CLASS, over: Record<string, unknown> = {}) => ({
+    org_id: ORG,
+    student_id: student,
+    class_id: klass,
+    status: 'active',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    ...over,
+  });
+  const chk = (student: string, date = TODAY) => ({
+    org_id: ORG,
+    student_id: student,
+    checkin_date: date,
+    campus_id: A,
+  });
+  const sess = (over: Record<string, unknown> = {}) => ({
+    classId: CLASS,
+    campusId: A as string | null,
+    eventDate: TODAY,
+    ...over,
+  });
+
+  it('同一班兩筆在籍報名的學生只算一次', async () => {
+    const db = filteringDb({
+      ...base,
+      enrollments: [enr('s1'), enr('s1', CLASS, { effective_from: '2026-02-01' })],
+      daily_checkins: [chk('s1')],
+    });
+    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    expect(r.data?.[0]?.checkedInCount).toBe(1);
+  });
+
+  it('只算這一班的人：同頁另一班的到班不灌進來', async () => {
+    const db = filteringDb({
+      ...base,
+      enrollments: [enr('s1'), enr('s2', C2)],
+      daily_checkins: [chk('s1'), chk('s2')],
+    });
+    const r = await annotateArrivals(db as never, ORG, [sess(), sess({ classId: C2 })]);
+    expect(r.data?.map((s) => s.checkedInCount)).toEqual([1, 1]);
+  });
+
+  it('跨日的頁面：最後一天的到班也算得到（日期上界是最晚那天）', async () => {
+    const LATER = '2026-04-08';
+    const db = filteringDb({
+      ...base,
+      enrollments: [enr('s1')],
+      daily_checkins: [chk('s1', TODAY), chk('s1', LATER)],
+    });
+    const r = await annotateArrivals(db as never, ORG, [sess(), sess({ eventDate: LATER })]);
+    expect(r.data?.map((s) => s.checkedInCount)).toEqual([1, 1]);
+  });
+
+  it('非 active 的報名（退班、暫停）不算進到班數', async () => {
+    const db = filteringDb({
+      ...base,
+      enrollments: [enr('s1'), enr('s2', CLASS, { status: 'withdrawn' })],
+      daily_checkins: [chk('s1'), chk('s2')],
+    });
+    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    expect(r.data?.[0]?.checkedInCount).toBe(1);
+  });
+
+  it('讀報名失敗 → 回錯誤，不退回 null 照常回', async () => {
+    const db = filteringDb({ ...base, enrollments: [enr('s1')] }, ['enrollments']);
+    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    expect(r.error).not.toBeNull();
+  });
+
+  it('讀到班打卡失敗 → 回錯誤，不退回 null 照常回', async () => {
+    const db = filteringDb({ ...base, enrollments: [enr('s1')] }, ['daily_checkins']);
+    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    expect(r.error).not.toBeNull();
   });
 });
