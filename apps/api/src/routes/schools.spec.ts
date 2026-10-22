@@ -170,11 +170,16 @@ describe('schools 的學制（level）', () => {
 
   function fakeDb(listRows: Array<Record<string, unknown>> = []) {
     const writes: Array<{ table: string; op: string; payload: unknown }> = [];
+    /** 送出去的 select 字串 —— 替身不解析它，所以「select 有沒有帶 level」要另外斷言 */
+    const selects: Array<{ table: string; columns: string }> = [];
     const make = (table: string) => {
       const builder: Record<string, unknown> = {};
       const chain = () => builder as never;
       Object.assign(builder, {
-        select: () => chain(),
+        select: (columns: string) => {
+          selects.push({ table, columns });
+          return chain();
+        },
         eq: () => chain(),
         or: () => chain(),
         order: () => chain(),
@@ -193,7 +198,7 @@ describe('schools 的學制（level）', () => {
       });
       return builder;
     };
-    return { writes, from: (table: string) => make(table) };
+    return { writes, selects, from: (table: string) => make(table) };
   }
 
   async function request(
@@ -222,7 +227,9 @@ describe('schools 的學制（level）', () => {
         : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
     });
     const json = (await res.json().catch(() => null)) as Record<string, any> | null;
-    return { status: res.status, json, writes: db.writes };
+    // 稽核在背景寫（waitUntil 沒接上時就是浮著的 promise）—— 讓它跑完再斷言
+    await new Promise((r) => setTimeout(r, 0));
+    return { status: res.status, json, writes: db.writes, selects: db.selects };
   }
 
   it('列表帶 level；沒填的回 null（未分類），不是 undefined', async () => {
@@ -239,6 +246,28 @@ describe('schools 的學制（level）', () => {
     expect(a.writes.find((w) => w.table === 'schools')?.payload).toMatchObject({ level: 'junior' });
     const b = await request('/', 'POST', { name: '明湖國中' });
     expect(b.writes.find((w) => w.table === 'schools')?.payload).toMatchObject({ level: null });
+  });
+
+  // 審核席 #1815 二讀 K1／K10：替身不解析 select，所以直接斷言送出的欄位清單
+  it('列表與新增的 select 都有 level（少了它正式環境永遠回 null）', async () => {
+    const list = await request('/', 'GET', undefined, []);
+    expect(list.selects.find((x) => x.table === 'schools')?.columns).toMatch(/\blevel\b/);
+    const created = await request('/', 'POST', { name: '明湖國中', level: 'junior' });
+    expect(created.selects.find((x) => x.table === 'schools')?.columns).toMatch(/\blevel\b/);
+  });
+
+  // K4：回應的 level 是從資料庫讀回的那一列，不是寫死
+  it('新增的回應帶回寫入後的 level', async () => {
+    const r = await request('/', 'POST', { name: '明湖國中', level: 'junior' });
+    expect(r.json?.['data']?.['level']).toBe('junior');
+  });
+
+  // K7：建立的稽核要看得到學制
+  it('新增的稽核 diff 帶 level', async () => {
+    const r = await request('/', 'POST', { name: '明湖國中', level: 'junior' });
+    const audit = r.writes.find((w) => w.table === 'audit_logs')?.payload as
+      { details?: { to?: Record<string, unknown> } } | undefined;
+    expect(audit?.details?.to).toMatchObject({ level: 'junior' });
   });
 
   it('PATCH 可以改學制，也可以清回未分類（null）', async () => {
