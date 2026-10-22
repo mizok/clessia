@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
 import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 
 /**
  * A6 的開場色面（#991 殼切片 S1）：每頁一塊全寬橘面，放「這一頁的那句話」，流場在裡面。
@@ -22,7 +23,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
  */
 @Component({
   selector: 'app-page-open',
-  imports: [FlowFieldComponent, HeightFollowDirective],
+  imports: [FlowFieldComponent, HeightFollowDirective, TextSwapDirective],
   templateUrl: './page-open.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
