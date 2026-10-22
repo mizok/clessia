@@ -61,6 +61,11 @@ describe('GET /api/leaves —— 課程／開課班篩選（#1100 #31）', () =>
       ]),
     );
     expect(of(calls, 'leave_requests')).toContainEqual(['in', 'student_id', ['stu-1', 'stu-2']]);
+    // !inner 寫死：沒有它，classes.* 的條件只濾掉嵌入那層、不濾報名列 → 靜默變成全部學生
+    expect(of(calls, 'enrollments')).toContainEqual([
+      'select',
+      'student_id, classes!inner(campus_id, course_id)',
+    ]);
   });
 
   it('課程：報名查詢帶 classes.course_id', async () => {

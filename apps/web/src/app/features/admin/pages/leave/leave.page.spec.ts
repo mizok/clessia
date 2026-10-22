@@ -139,6 +139,33 @@ describe('LeavePage', () => {
     expect(component).toBeTruthy();
   });
 
+  // #1100 #31 二讀
+  it('初次載入就抓課程與開課班的選項', () => {
+    expect(coursesServiceMock.list).toHaveBeenCalledWith(
+      expect.objectContaining({ isActive: true }),
+    );
+    expect(classesServiceMock.list).toHaveBeenCalledWith(
+      expect.objectContaining({ isActive: true }),
+    );
+  });
+
+  it('頂欄換分校：已選的班清掉、班清單帶新分校重抓', () => {
+    component['tab'].set('all');
+    component['onClassChange']('class-1');
+    classesServiceMock.list.mockClear();
+    leaveServiceMock.list.mockClear();
+
+    TestBed.inject(CampusContextService).select('campus-1');
+    fixture.detectChanges();
+
+    expect(component['classId']()).toBeNull();
+    expect(classesServiceMock.list).toHaveBeenCalledWith(
+      expect.objectContaining({ campusId: 'campus-1' }),
+    );
+    const calls = leaveServiceMock.list.mock.calls as unknown as [Record<string, unknown>][];
+    expect(calls.at(-1)![0]['classId']).toBeUndefined();
+  });
+
   /**
    * 基準日固定成 `2026-04-10`（來自上面的 `SystemClockService` 替身）——
    * **在這之前 `leaveState` 讀的是牆上時鐘，所以它只在某些日子是綠的**，
@@ -517,10 +544,23 @@ describe('LeavePage', () => {
       expect(calls()[0][0]['classId']).toBeUndefined();
       expect(component['hasFilter']()).toBe(true);
 
+      component['onClassChange']('class-1');
       leaveServiceMock.list.mockClear();
+      classesServiceMock.list.mockClear();
       component['clearFilters']();
       expect(calls()[0][0]['courseId']).toBeUndefined();
+      expect(calls()[0][0]['classId']).toBeUndefined();
+      // 清掉課程後班清單要回到全部課程的班
+      expect(classesServiceMock.list).toHaveBeenCalledWith(
+        expect.not.objectContaining({ courseId: 'course-1' }),
+      );
       expect(component['hasFilter']()).toBe(false);
+    });
+
+    it('只選了班也算有篩選（「清除篩選」要出現）', () => {
+      component['tab'].set('all');
+      component['onClassChange']('class-1');
+      expect(component['hasFilter']()).toBe(true);
     });
 
     it('待處理分頁不帶課程／開課班', () => {
