@@ -49,6 +49,44 @@ function toArray<T>(value: T | T[] | null | undefined): T[] {
 }
 
 /**
+ * 一堂課的歸屬：這個使用者自己的 `staff.id`，加上這堂課實際上課（含代課）與固定任課的老師。
+ * 讀（`attendance-read-scope.ts`）寫兩側共用這一份查詢（#1134）。
+ *
+ * **sessions 查詢失敗回 null**，呼叫端一律當成不通過。staff 查詢失敗則當成沒有 staff 列
+ * （`ownStaffId: null`，即使同時有回資料）—— `canTeacherWriteAttendance` 對沒有 staff 列一律拒絕，
+ * 結果一樣是不通過；寫入那側要先看完點名責任歸屬才回 not-yours，所以不能在這裡就把 staff 的錯誤短路掉。
+ *
+ * staff 查詢**一定要帶 org_id**：同一個人可能在別的機構也有 staff 列。
+ */
+export async function loadEventTeacherScope(
+  supabase: SupabaseClient,
+  params: { orgId: string; userId: string; eventId: string },
+): Promise<Omit<TeacherWriteScopeInput, 'roles'> | null> {
+  const [{ data: ownStaff, error: staffError }, { data: sessionRows, error }] = await Promise.all([
+    supabase
+      .from('staff')
+      .select('id')
+      .eq('user_id', params.userId)
+      .eq('org_id', params.orgId)
+      .maybeSingle(),
+    supabase
+      .from('sessions')
+      .select('teacher_id, schedules!schedule_id(teacher_id)')
+      .eq('event_id', params.eventId),
+  ]);
+  if (error) return null;
+
+  const rows = (sessionRows ?? []) as EventOwnershipRow[];
+  return {
+    ownStaffId: staffError ? null : ((ownStaff?.['id'] as string | undefined) ?? null),
+    sessionTeacherIds: rows.map((row) => row.teacher_id ?? null),
+    scheduledTeacherIds: rows.flatMap((row) =>
+      toArray(row.schedules).map((schedule) => schedule?.teacher_id ?? null),
+    ),
+  };
+}
+
+/**
  * 老師寫出勤的三種結果。**原本是 boolean（`assertTeacherCanWriteAttendance`）**，#920 加了第三種
  * 「機構由行政負責點名」時一併改名 —— 回字串的函式若還叫 assert…／can…，漏改的
  * `if (!(await …))` 會**永遠是 false（非空字串是 truthy）而靜靜全放行**，typecheck 不會報。
@@ -70,40 +108,19 @@ export async function teacherAttendanceWriteAccess(
   if (params.roles.includes('admin')) return 'ok';
   if (!params.roles.includes('teacher')) return 'not-yours';
 
-  const [{ data: org, error: orgError }, { data: ownStaff }, { data: sessionRows, error }] =
-    await Promise.all([
-      supabase
-        .from('organizations')
-        .select('attendance_responsible')
-        .eq('id', params.orgId)
-        .maybeSingle(),
-      supabase
-        .from('staff')
-        .select('id')
-        .eq('user_id', params.userId)
-        .eq('org_id', params.orgId)
-        .maybeSingle(),
-      supabase
-        .from('sessions')
-        .select('teacher_id, schedules!schedule_id(teacher_id)')
-        .eq('event_id', params.eventId),
-    ]);
+  const [{ data: org, error: orgError }, scope] = await Promise.all([
+    supabase
+      .from('organizations')
+      .select('attendance_responsible')
+      .eq('id', params.orgId)
+      .maybeSingle(),
+    loadEventTeacherScope(supabase, params),
+  ]);
 
-  if (orgError || error) return 'not-yours';
+  if (orgError || !scope) return 'not-yours';
   const responsible =
     (org as { attendance_responsible?: string } | null)?.attendance_responsible ?? 'admin';
   if (responsible !== 'teacher') return 'not-responsible';
 
-  const rows = (sessionRows ?? []) as EventOwnershipRow[];
-
-  return canTeacherWriteAttendance({
-    roles: params.roles,
-    ownStaffId: (ownStaff?.['id'] as string | undefined) ?? null,
-    sessionTeacherIds: rows.map((row) => row.teacher_id ?? null),
-    scheduledTeacherIds: rows.flatMap((row) =>
-      toArray(row.schedules).map((schedule) => schedule?.teacher_id ?? null),
-    ),
-  })
-    ? 'ok'
-    : 'not-yours';
+  return canTeacherWriteAttendance({ roles: params.roles, ...scope }) ? 'ok' : 'not-yours';
 }

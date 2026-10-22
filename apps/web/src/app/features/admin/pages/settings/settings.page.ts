@@ -183,6 +183,16 @@ export class SettingsPage implements OnInit {
     { label: '日到班', value: 'daily_checkin' },
   ];
 
+  /** 兩段出勤設定收起時的摘要（#1882）：寫**存著的**值，不是還沒按儲存的選擇 */
+  protected readonly attendanceModeSummary = computed(() => {
+    const v = this.settings()?.attendanceMode;
+    return this.attendanceModeOptions.find((o) => o.value === v)?.label ?? '';
+  });
+  protected readonly attendanceResponsibleSummary = computed(() => {
+    const v = this.settings()?.attendanceResponsible;
+    return this.attendanceResponsibleOptions.find((o) => o.value === v)?.label ?? '';
+  });
+
   ngOnInit(): void {
     this.loadSettings();
   }
@@ -231,6 +241,9 @@ export class SettingsPage implements OnInit {
         });
       },
       error: () => {
+        // 分段鈕退回存著的值：不然畫面選著沒存成功的那個，摘要卻寫另一個（#1882）
+        const saved = this.settings()?.attendanceMode;
+        if (saved) this.attendanceModeValue = saved;
         this.saving.set(false);
         this.messageService.add({
           severity: 'error',
@@ -257,6 +270,8 @@ export class SettingsPage implements OnInit {
           });
         },
         error: () => {
+          const saved = this.settings()?.attendanceResponsible;
+          if (saved) this.attendanceResponsibleValue = saved;
           this.savingResponsible.set(false);
           this.messageService.add({
             severity: 'error',

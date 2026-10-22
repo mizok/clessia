@@ -75,12 +75,20 @@ function supabaseStub(options: {
   /** `organizations.attendance_responsible`；預設 'teacher'（老師負責點名，範圍檢查才有意義） */
   responsible?: string | null;
   orgError?: boolean;
+  /** 這位使用者的 staff 列所屬機構；預設 org-1（守 staff 查詢一定要帶 org_id） */
+  staffOrg?: string;
+  /** staff 查詢出錯（照樣回資料，守「出錯就不信資料」） */
+  staffError?: boolean;
 }): SupabaseClient {
   return {
     from(table: string) {
+      const filters: Record<string, unknown> = {};
       const query: Record<string, unknown> = {
         select: () => query,
-        eq: () => query,
+        eq: (column: string, value: unknown) => {
+          filters[column] = value;
+          return query;
+        },
         maybeSingle: () =>
           Promise.resolve(
             table === 'organizations'
@@ -92,21 +100,34 @@ function supabaseStub(options: {
                   error: options.orgError ? { message: 'boom' } : null,
                 }
               : {
-                  data: options.ownStaffId === null ? null : { id: options.ownStaffId ?? 'me' },
-                  error: null,
+                  data:
+                    options.ownStaffId === null ||
+                    filters['user_id'] !== 'user-1' ||
+                    ('org_id' in filters && filters['org_id'] !== (options.staffOrg ?? 'org-1'))
+                      ? null
+                      : { id: options.ownStaffId ?? 'me' },
+                  error: options.staffError ? { message: 'boom' } : null,
                 },
           ),
         then: (onfulfilled?: ((value: unknown) => unknown) | null) =>
           Promise.resolve(
             table === 'sessions' && options.sessionsError
-              ? { data: null, error: { message: 'boom' } }
+              ? {
+                  data: [{ teacher_id: 'me', schedules: { teacher_id: 'me' } }],
+                  error: { message: 'boom' },
+                } // 出錯但照樣回出「是自己的課」—— 守出錯就不信資料
               : {
+                  // 別堂（event-2）一定是我的課；依 event_id 篩 —— 守 sessions 查詢一定要帶 event_id
                   data: [
                     {
+                      event_id: 'event-1',
                       teacher_id: options.teacherId ?? 'me',
                       schedules: { teacher_id: options.teacherId ?? 'me' },
                     },
-                  ],
+                    { event_id: 'event-2', teacher_id: 'me', schedules: { teacher_id: 'me' } },
+                  ].filter(
+                    (row) => !('event_id' in filters) || row.event_id === filters['event_id'],
+                  ),
                   error: null,
                 },
           ).then(onfulfilled ?? undefined),
@@ -173,5 +194,34 @@ describe('teacherAttendanceWriteAccess', () => {
         },
       ),
     ).resolves.toBe('ok');
+  });
+
+  // 同一個人在另一個機構也有 staff 列、而且正是那堂課的老師：staff 查詢不帶 org_id 就會被當成自己的課
+  it('別的機構的 staff 列不算自己（staff 查詢一定要以 org_id 過濾）', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(supabaseStub({ staffOrg: 'org-2' }), params),
+    ).resolves.toBe('not-yours');
+  });
+
+  it('查 staff 失敗 → 不通過，即使同時回了資料（#1134 讀寫共用查詢後跟讀取側一致）', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(supabaseStub({ staffError: true }), params),
+    ).resolves.toBe('not-yours');
+  });
+
+  // 查詢出錯先於責任歸屬：出錯一律 not-yours（跟收成共用查詢之前同一個順序）
+  it('sessions 查詢失敗、機構又是行政負責 → not-yours（出錯先判）', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(
+        supabaseStub({ sessionsError: true, responsible: 'admin' }),
+        params,
+      ),
+    ).resolves.toBe('not-yours');
+  });
+
+  it('別堂是我的、這堂不是 → not-yours（sessions 查詢一定要以 event_id 過濾）', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(supabaseStub({ teacherId: 'someone-else' }), params),
+    ).resolves.toBe('not-yours');
   });
 });
