@@ -49,6 +49,8 @@ const KINDS: Record<string, { label: string; icon: string; go: string }> = {
   leave_received: { label: '家長請假', icon: 'pi-user-minus', go: '看請假' },
   // #1732：連到學生檔案的帳單章（#billing）
   leave_streak: { label: '連續請假', icon: 'pi-calendar-minus', go: '看明細' },
+  // #1820：升級日前提醒，連到設定「一般」分頁的學年升級段
+  grade_promotion_reminder: { label: '學年升級', icon: 'pi-arrow-up', go: '到設定預覽' },
   // #1821：連到申請頁對應的分頁（?kind=）
   application_overdue: { label: '申請待處理', icon: 'pi-clock', go: '看申請' },
   trial_followup: { label: '試聽跟進', icon: 'pi-phone', go: '看試聽' },
