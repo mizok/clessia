@@ -25,7 +25,6 @@ import { DataChipComponent } from '@shared/components/status/data-chip/data-chip
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import type { CreateLeaveInput } from '@core/leave.service';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { todayLocal } from '@shared/utils/session-time.util';
@@ -59,7 +58,6 @@ const DAYS_STEP = 14;
   standalone: true,
   imports: [
     PageOpenComponent,
-    BandAnchorComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
     DataChipComponent,

@@ -34,7 +34,7 @@ function emptyResponse(): ParentAttendanceListResponse {
 /**
  * fixture 的日期一律相對今天算（#670）。
  *
- * 寫死的日期會在某一天掉出頁面預設的「近 10 天」——`fillMissingDays` 是**用日期窗口
+ * 寫死的日期會在某一天掉出頁面預設的「近 10 天」——`buildDays` 是**用日期窗口
  * 重建整份列表**，窗外的紀錄不是排在後面，是整筆消失。於是測試在一個跟程式碼無關的
  * 時刻自己變紅，而下一個碰它的人看到的是「我的 PR 弄壞了測試」。
  *
@@ -385,11 +385,13 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    // 取 `.band-anchor__value` 而不是整顆的 textContent —— 只比對那個數字本身，
+    // 取數字那一格（dd）而不是整塊的 textContent —— 只比對那個數字本身，
     // 合計（7）會讓這條直接不等，不用靠「不包含 7」這種鈍的斷言
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '2',
-    );
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="absent-stat"] dd')
+        ?.textContent?.replace(/\s+/g, ''),
+    ).toBe('2次');
   });
 
   it('錨點文案標明「本月」——列表區間可以不是本月，數字卻永遠是本月', () => {
@@ -401,7 +403,9 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('app-band-anchor').textContent).toContain('本月');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="absent-stat"]').textContent,
+    ).toContain('本月');
   });
 
   it('缺席 0 次照樣顯示錨點——0 是好消息，不是沒有資料', () => {
@@ -412,9 +416,11 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '0',
-    );
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="absent-stat"] dd')
+        ?.textContent?.replace(/\s+/g, ''),
+    ).toBe('0次');
   });
 
   it('載入成功後再失敗，錨點要收回去——留著舊數字等於用失敗換來一則好消息', () => {
@@ -426,20 +432,22 @@ describe('AttendancePage', () => {
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '4',
-    );
+    expect(
+      fixture.nativeElement
+        .querySelector('[data-testid="absent-stat"] dd')
+        ?.textContent?.replace(/\s+/g, ''),
+    ).toBe('4次');
 
     listMock.mockImplementation(() => throwError(() => new Error('boom')));
     comp.onRangeChange('recent30');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="absent-stat"]')).toBeNull();
   });
 
   it('還沒載到資料時不顯示錨點', () => {
     createComponent();
-    expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="absent-stat"]')).toBeNull();
   });
   describe('停課的課堂要標出來（#502）', () => {
     it('停課仍然掛著請假時，兩件事都說得出來', () => {
@@ -506,7 +514,7 @@ describe('AttendancePage', () => {
   /**
    * **#797：預設模式下 skeleton 分支結構性不可達。**
    *
-   * 守衛是 `loading() && groups().length === 0`，而 `groups` 在 `recent10`（預設）
+   * 當時守衛是 `loading() && groups().length === 0`，而 `groups` 在 `recent10`（預設）
    * 會走 `fillMissingDays` —— **`records()` 還是空陣列時它就已經填出 11 天**，
    * 於是 `groups().length === 0` 永遠不成立。使用者在慢速網路上看到的是
    * **十一行「今日無課」**，而那是一句正面斷言：「這十一天都沒課」。
@@ -514,7 +522,7 @@ describe('AttendancePage', () => {
    * 對照組 `parent/payments` 的守衛判的是**原始清單**（`invoices()`），所以它的
    * skeleton 出得來 —— 兩頁模板讀起來一模一樣，差別只在守衛裡那個 signal。
    *
-   * 斷言照工單的狀態表：延遲中 `records().length === 0` / `groups().length === 11`。
+   * 斷言照工單的狀態表：延遲中 `records().length === 0`（現在的 `days()` 同樣在空清單時就排滿整段期間，守衛照樣判 `records()`）。
    */
   it('載入中（原始清單還是空的）要渲染 skeleton，不能謊稱「今日無課」', () => {
     const pending = new Subject<ParentAttendanceListResponse>();

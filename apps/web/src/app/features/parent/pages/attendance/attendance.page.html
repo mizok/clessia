@@ -16,11 +16,21 @@
   }}</ng-container>
   <!-- 錨點：還沒載到不顯示（不是 0）；本月、只算缺席（規格「頁面錨點」） -->
   @if (monthlyAbsent() !== null) {
-    <div
-      class="attendance__stats mt-6 flex border-t border-band-rule pt-5 [&_.band-anchor__figure]:justify-start [&_.band-anchor__value]:text-[32px] [&_.band-anchor__value]:tracking-[-0.03em] wide:[&_.band-anchor__value]:text-[40px] [&_.band-anchor__unit]:pb-0 [&_.band-anchor__unit]:text-base"
+    <dl
+      class="mt-5 mb-0 flex max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-0 border-t border-solid border-band-rule pt-4 text-band-ink wide:mt-8 wide:gap-x-12 wide:gap-y-5 wide:pt-5"
     >
-      <app-band-anchor [value]="monthlyAbsent()!" unit="次">本月缺席</app-band-anchor>
-    </div>
+      <div class="m-0 flex flex-col" data-testid="absent-stat">
+        <dd
+          class="m-0 order-first text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+        >
+          {{ monthlyAbsent()
+          }}<small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">次</small>
+        </dd>
+        <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
+          本月缺席
+        </dt>
+      </div>
+    </dl>
   }
 </app-page-open>
 <!--
@@ -39,7 +49,7 @@
         @for (opt of rangeOptions; track opt.value) {
           <button
             type="button"
-            class="h-11 flex-1 cursor-pointer border-0 bg-white px-4 text-md text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:h-[38px] wide:flex-none"
+            class="h-11 flex-1 cursor-pointer border-0 bg-white px-4 text-md leading-normal text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:h-[38px] wide:flex-none"
             [attr.aria-pressed]="rangeMode() === opt.value"
             (click)="onRangeChange(opt.value)"
           >
