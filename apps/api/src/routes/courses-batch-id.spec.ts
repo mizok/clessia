@@ -39,7 +39,10 @@ function createApp() {
     if (q.table === 'courses') return { data: { id: COURSE, is_active: true } };
     if (q.table === 'classes') return { data: [{ id: CLASS }] };
     if (q.table === 'sessions' && !has('update')) return { data: [{ id: S1 }, { id: S2 }] };
-    if (q.table === 'profiles') return { data: { display_name: '行政 A' } };
+    if (q.table === 'ba_user')
+      return {
+        data: { name: '帳號名', staff: [{ display_name: '行政 A', org_id: 'org-1' }], parents: [] },
+      };
     return { data: [] };
   };
   const supabase = {
@@ -100,12 +103,15 @@ describe('PUT /api/courses/{id} 停用並取消未來課堂 —— 流水標成�
       operation_source: string;
       batch_id: string;
       reason: string;
+      created_by_name: string | null;
     }>;
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => r.operation_source === 'batch')).toBe(true);
     expect(rows[0]!.batch_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(new Set(rows.map((r) => r.batch_id)).size).toBe(1);
     expect(rows[0]!.reason).toBe('課程停用');
+    // #1839：操作者名字取員工姓名（loadDisplayName）
+    expect(rows.every((r) => r.created_by_name === '行政 A')).toBe(true);
     expect(queued).toHaveBeenCalledWith(
       expect.anything(),
       rows.map((r) =>

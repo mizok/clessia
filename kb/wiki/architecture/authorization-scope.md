@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-10-16
+updated: 2026-10-22
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -431,6 +431,19 @@ fail-closed 的授權一旦打開，**沒有資料的人看到的是空白不是
 - **唯一例外：改自己的 `/api/me` 寫入**（`POST /api/me/activate-parent`、`PATCH /api/me`，#1631）成功後清掉**這個使用者在當下 isolate** 的快取（`invalidateIdentity`）。原因是寫入那個請求經過 middleware 時剛存進**舊**身分，前端立刻讀回就一定撞到（啟用家長身份後按鈕沒反應）。只清得到當下 isolate，所以前端另外直接採用寫入回傳的角色（`AuthService.adoptRoles`），不靠重抓。寫入失敗不清。守在 `routes/me-identity-cache.spec.ts`。
 - 只快取**成功**的查詢結果；失敗每次重查，不會變成 30 秒的 500。
 - 為什麼要快取：Worker → Supabase REST 每次 ~100–150ms，其中 PostgREST＋DB 只占 1–15ms（#1595 P0），慢在往返；每支受保護 API 原本固定 3 支身分查詢。
+
+## 角色跟著身分資料的狀態走（#1846，2026-10-22）
+
+登入判定（`middleware/account-status.ts`）是「任一身分 active 就放行」，但登入後的角色原本**直接取自 `user_roles`、
+不看對應身分的狀態** —— 10-22 本機重現：老師兼家長的 staff 停用、parents 仍 active，`/api/me` 回
+`roles=["teacher","parent"]`，老師端 API 200。
+
+現在 `middleware/usable-roles.ts` 在每個請求過濾：`admin`／`teacher`／`kiosk` 跟著 staff 列，`parent` 跟著 parents 列；
+**列存在而且沒有一列是 active** 才拿掉那一類角色，**沒有列不算停用**（bootstrap 的第一個管理員兩張表都沒有列）。
+權限跟著角色列走，拿掉 admin 也就拿掉它的權限；`X-Active-Role` 指名被拿掉的角色時不採信。
+輸入是身分快取裡的原始列（REST 與 SQL 兩條路都帶 `status`），所以停用最遲在下一次快取刷新（30 秒）生效，跟撤銷角色同一個上限。
+前端：記住的 activeRole 不在新清單裡時不採用（只剩一個角色就直接用、多個就回 `/select-role`）；已經開著的頁面要等下次讀 `/api/me`，
+在那之前老師端 API 回 403 —— 跟管理員撤銷角色時一樣。
 
 ## 不做什麼
 

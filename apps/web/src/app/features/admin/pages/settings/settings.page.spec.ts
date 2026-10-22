@@ -3,6 +3,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { OrgSettingsService, type OrgSettings } from '@core/org-settings.service';
+import { BillingPeriodsService } from '@core/billing-periods.service';
+import { provideRouter } from '@angular/router';
+import { AuthService } from '@core/auth.service';
+import { GradePromotionsService } from '@core/grade-promotions.service';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { SettingsPage } from './settings.page';
 
@@ -12,6 +17,8 @@ const DAILY_CHECKIN: OrgSettings = {
   attendanceMode: 'daily_checkin',
   attendanceResponsible: 'admin',
   attendanceRetroactiveDays: 0,
+  gradePromotionMonthDay: '09-01',
+  gradePromotionReminderDays: 7,
 };
 
 describe('SettingsPage', () => {
@@ -22,6 +29,13 @@ describe('SettingsPage', () => {
     getSettings: vi.fn(),
     updateSettings: vi.fn(),
   };
+  const billingPeriodsMock = { list: vi.fn() };
+  let permissions: string[] = [];
+  // 同 AuthService.hasPermission：`*` 什麼都有
+  const authMock = {
+    hasPermission: (p: string) => permissions.includes(p) || permissions.includes('*'),
+  };
+  const gradePromotionsMock = { history: vi.fn(), revert: vi.fn() };
 
   /** ngOnInit 在第一次 `detectChanges()` 跑，所以取數的結果要在建立元件之前就決定 */
   async function setup() {
@@ -29,7 +43,11 @@ describe('SettingsPage', () => {
       imports: [SettingsPage],
       providers: [
         MessageService,
+        provideRouter([]),
         { provide: OrgSettingsService, useValue: orgSettingsServiceMock },
+        { provide: BillingPeriodsService, useValue: billingPeriodsMock },
+        { provide: AuthService, useValue: authMock },
+        { provide: GradePromotionsService, useValue: gradePromotionsMock },
       ],
     }).compileComponents();
 
@@ -54,6 +72,152 @@ describe('SettingsPage', () => {
     vi.clearAllMocks();
     orgSettingsServiceMock.getSettings.mockReturnValue(of(DAILY_CHECKIN));
     orgSettingsServiceMock.updateSettings.mockReturnValue(of(DAILY_CHECKIN));
+    billingPeriodsMock.list.mockReturnValue(of({ data: [] }));
+    permissions = [];
+    gradePromotionsMock.history.mockReturnValue(of({ data: [] }));
+  });
+
+  describe('學年升級段（#1820）', () => {
+    const buttonLabels = () =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].map(
+        (b) => b.textContent?.trim() ?? '',
+      );
+    const LAST = {
+      id: 'gp-1',
+      academicYear: 115,
+      // 台北 9/1 凌晨 1 點 —— UTC 還是 8/31，日期要照台北寫
+      executedAt: '2026-08-31T17:00:00Z',
+      revertedAt: null,
+      revertible: true,
+      studentCount: 42,
+    };
+
+    it('摘要寫生效值：升級日與提醒天數', async () => {
+      await setup();
+
+      expect(bodyText()).toContain('每年 9/1 · 前 7 天提醒');
+    });
+
+    it('提醒 0 天時摘要寫「不提醒」', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(
+        of({ ...DAILY_CHECKIN, gradePromotionMonthDay: '08-15', gradePromotionReminderDays: 0 }),
+      );
+      await setup();
+
+      expect(bodyText()).toContain('每年 8/15 · 不提醒');
+    });
+
+    /** 裁定 E：只管部分分校的管理員不能代表全機構按，也不該讀紀錄（API 會 403） */
+    it('沒有 all_campuses 時不畫「預覽並執行」、也不讀紀錄', async () => {
+      permissions = ['manage_students'];
+      await setup();
+
+      expect(buttonLabels()).not.toContain('預覽並執行');
+      expect(gradePromotionsMock.history).not.toHaveBeenCalled();
+    });
+
+    it('manage_students＋all_campuses：畫「預覽並執行」與上次執行、可復原時有復原鈕', async () => {
+      permissions = ['manage_students', 'all_campuses'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [LAST] }));
+      await setup();
+
+      expect(buttonLabels()).toContain('預覽並執行');
+      expect(bodyText()).toContain('上次執行：115 學年，2026/09/01');
+      expect(buttonLabels()).toContain('復原上次升級');
+    });
+
+    it('超過 30 天的不給復原鈕，並寫出原因', async () => {
+      permissions = ['*'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [{ ...LAST, revertible: false }] }));
+      await setup();
+
+      expect(buttonLabels()).not.toContain('復原上次升級');
+      expect(bodyText()).toContain('超過 30 天，不能復原');
+    });
+
+    it('升級日「9/1」存成 09-01，連同提醒天數一起送', async () => {
+      await setup();
+      component['gradePromotionDayValue'] = '9/1';
+      component['gradePromotionReminderDaysValue'] = 10;
+
+      component['saveGradePromotion']();
+
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        gradePromotionMonthDay: '09-01',
+        gradePromotionReminderDays: 10,
+      });
+    });
+
+    it.each(['2/30', '13/1', '0/5', '九月一日', ''])('升級日「%s」不是日期：不送出', async (v) => {
+      await setup();
+      component['gradePromotionDayValue'] = v;
+
+      component['saveGradePromotion']();
+
+      expect(component['pendingGradePromotionDay']()).toBeNull();
+      expect(orgSettingsServiceMock.updateSettings).not.toHaveBeenCalled();
+    });
+
+    it('2/29 算合法（閏年才有那天）', async () => {
+      await setup();
+      component['gradePromotionDayValue'] = '2/29';
+
+      expect(component['pendingGradePromotionDay']()).toBe('02-29');
+    });
+
+    /** 二讀：確認框回 false（取消）不能 revert；回 true 才 revert */
+    it.each([
+      [false, 0],
+      [true, 1],
+    ])('復原確認框回 %s → revert 呼叫 %i 次', async (answer, times) => {
+      permissions = ['manage_students', 'all_campuses'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [LAST] }));
+      gradePromotionsMock.revert.mockReturnValue(of({ revertedCount: 1, skipped: [] }));
+      await setup();
+      const dialog = (component as unknown as { dialogService: DialogService }).dialogService;
+      vi.spyOn(dialog, 'open').mockReturnValue({
+        onClose: of(answer),
+      } as unknown as DynamicDialogRef);
+
+      component['confirmRevert'](LAST);
+
+      expect(gradePromotionsMock.revert).toHaveBeenCalledTimes(times);
+    });
+
+    /** 二讀：對話框回 true（有執行）才重讀紀錄，回 false 不讀 */
+    it.each([
+      [true, 2],
+      [false, 1],
+    ])('升級對話框關閉回 %s → 紀錄讀 %i 次', async (executed, times) => {
+      permissions = ['manage_students', 'all_campuses'];
+      await setup();
+      const dialog = (component as unknown as { dialogService: DialogService }).dialogService;
+      vi.spyOn(dialog, 'open').mockReturnValue({
+        onClose: of(executed),
+      } as unknown as DynamicDialogRef);
+
+      component['openGradePromotion']();
+
+      expect(gradePromotionsMock.history).toHaveBeenCalledTimes(times);
+    });
+
+    /** 設計稿 §3：跳過的名單是行政接下來的工作，要留在段內，不跟著 toast 消失 */
+    it('復原完列出被跳過的學生，並重讀紀錄', async () => {
+      permissions = ['manage_students', 'all_campuses'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [LAST] }));
+      gradePromotionsMock.revert.mockReturnValue(
+        of({ revertedCount: 40, skipped: [{ studentId: 's-1', name: '王小明' }] }),
+      );
+      await setup();
+
+      component['revert']('gp-1');
+      fixture.detectChanges();
+
+      expect(gradePromotionsMock.revert).toHaveBeenCalledWith('gp-1');
+      expect(bodyText()).toContain('已復原 40 位學生');
+      expect(bodyText()).toContain('王小明');
+      expect(gradePromotionsMock.history).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('should create', async () => {
@@ -174,7 +338,7 @@ describe('SettingsPage', () => {
   });
 
   /** #1305：待開單提醒天數 —— 財務設定，同帳戶資訊：沒有這個 key 就整段不畫 */
-  it('有 billingReminderDays 這個 key → 顯示，儲存送 billingReminderDays', async () => {
+  it('有 billingReminderDays 這個 key → 顯示，儲存只送 billingReminderDays（沒讀到的欄不寫回）', async () => {
     orgSettingsServiceMock.getSettings.mockReturnValue(
       of({ ...DAILY_CHECKIN, billingReminderDays: 14 }),
     );
@@ -182,7 +346,7 @@ describe('SettingsPage', () => {
 
     expect(bodyText()).toContain('待開單提醒');
     component['billingReminderDaysValue'] = 7;
-    component['saveBillingReminderDays']();
+    component['saveFinanceBasics']();
 
     expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ billingReminderDays: 7 });
   });
@@ -202,7 +366,7 @@ describe('SettingsPage', () => {
 
     expect(bodyText()).toContain('連續請假可不收費');
     component['leaveWaiverDaysValue'] = 5;
-    component['saveLeaveWaiverDays']();
+    component['saveFinanceBasics']();
 
     expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ leaveWaiverDays: 5 });
   });
@@ -214,8 +378,8 @@ describe('SettingsPage', () => {
     orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
     await setup();
     const add = vi.spyOn(TestBed.inject(MessageService), 'add');
-    component['saveLeaveWaiverDays']();
-    expect(component['savingLeaveWaiver']()).toBe(false);
+    component['saveFinanceBasics']();
+    expect(component['savingFinanceBasics']()).toBe(false);
     expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
   });
 
@@ -248,7 +412,10 @@ describe('SettingsPage', () => {
       page().addReminderOffset();
       expect(page().reminderOffsets()).toEqual([-10, -3, 0, 1, 7]);
       fixture.detectChanges();
-      const text = bodyText();
+      // 只看提醒清單本身 —— 收合段的摘要（#1314 SE2a）寫的是已存的值，排在清單前面
+      const text = (fixture.nativeElement as HTMLElement).querySelector(
+        'ul[aria-labelledby="settings-invoice-reminder-title"]',
+      )!.textContent!;
       expect(text.indexOf('到期前 10 天')).toBeGreaterThan(-1);
       expect(text.indexOf('到期前 10 天')).toBeLessThan(text.indexOf('到期前 3 天'));
     });
@@ -314,6 +481,142 @@ describe('SettingsPage', () => {
       expect(page().reminderOffsets()).toHaveLength(6);
       page().newReminderDays = 40;
       expect(page().pendingReminderOffset()).toBeNull();
+    });
+  });
+
+  // #1314 SE2a：財務設定收成「繳費」段、加「學期與繳費週期」段（A6 general 的 .colls）
+  describe('一般分頁的可收合段（#1314 SE2a）', () => {
+    const FINANCE: OrgSettings = {
+      ...DAILY_CHECKIN,
+      invoiceDueDays: 7,
+      invoiceReminderOffsets: [-3, 0],
+      billingReminderDays: 14,
+      leaveWaiverDays: 3,
+      paymentInfo: null,
+    };
+    const period = (id: string, name: string, start: string, end: string) => ({
+      id,
+      orgId: 'org-1',
+      name,
+      startDate: start,
+      endDate: end,
+      createdAt: '',
+      updatedAt: '',
+      overlappingEnrollmentCount: 0,
+    });
+    /** 逐個子元素取字再以空白接起來 —— textContent 直接串會把相鄰兩個 span 黏在一起 */
+    const byChild = (el: Element) =>
+      Array.from(el.children)
+        .map((c) => c.textContent?.replace(/\s+/g, ' ').trim())
+        .join(' ');
+    const summaries = () =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('summary')).map(byChild);
+
+    it('沒有財務權限（回應沒有財務 key）→ 財務兩段都不畫，也不讀週期；學年升級不是財務，照畫', async () => {
+      await setup();
+      expect(summaries()).toEqual(['學年升級 每年 9/1 · 前 7 天提醒']);
+      expect(billingPeriodsMock.list).not.toHaveBeenCalled();
+    });
+
+    it('有財務權限 → 「繳費」摘要寫生效值、「週期」摘要寫幾個', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValue(
+        of({ data: [period('p1', '114 上', '2025-09-01', '2026-01-31')] }),
+      );
+      await setup();
+      expect(summaries()).toEqual([
+        '繳費 期限 7 天 · 到期前 3 天、到期當天提醒',
+        '學期與繳費週期 1 個週期',
+        '學年升級 每年 9/1 · 前 7 天提醒',
+      ]);
+    });
+
+    it('週期列表新到舊，連到費用方案頁管理', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValue(
+        of({
+          data: [
+            period('p1', '114 上', '2025-09-01', '2026-01-31'),
+            period('p2', '114 下', '2026-02-01', '2026-06-30'),
+          ],
+        }),
+      );
+      await setup();
+      const items = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('ul[aria-label="繳費週期"] li'),
+      ).map(byChild);
+      expect(items).toEqual(['114 下 2026/02/01 – 2026/06/30', '114 上 2025/09/01 – 2026/01/31']);
+      const link = (fixture.nativeElement as HTMLElement).querySelector(
+        'a[href="/admin/fee-templates"]',
+      );
+      expect(link?.textContent).toContain('到費用方案頁');
+    });
+
+    it('週期讀失敗 → 講讀不到，不畫「還沒有週期」', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValue(throwError(() => new Error('boom')));
+      await setup();
+      expect(bodyText()).toContain('沒有讀到繳費週期');
+      expect(bodyText()).not.toContain('還沒有週期');
+    });
+
+    it('預設繳費期限：顯示讀到的值，儲存送 invoiceDueDays', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      orgSettingsServiceMock.updateSettings.mockReturnValue(of({ ...FINANCE, invoiceDueDays: 10 }));
+      await setup();
+      expect(bodyText()).toContain('預設繳費期限');
+      const page = component as unknown as {
+        invoiceDueDaysValue: number;
+        saveFinanceBasics: () => void;
+      };
+      expect(page.invoiceDueDaysValue).toBe(7);
+      page.invoiceDueDaysValue = 10;
+      page.saveFinanceBasics();
+      // kv 一顆儲存：三欄一起送（都有讀到才送 —— 只有一欄的情況見上面兩支）
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        invoiceDueDays: 10,
+        billingReminderDays: 14,
+        leaveWaiverDays: 3,
+      });
+    });
+
+    // 二讀突變 F5：後端可能夾值或改寫，畫面要跟著存回來的值，不是留著使用者打的數
+    it('儲存成功後欄位改成回應裡的值', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      orgSettingsServiceMock.updateSettings.mockReturnValue(of({ ...FINANCE, invoiceDueDays: 21 }));
+      await setup();
+      const page = component as unknown as {
+        invoiceDueDaysValue: number;
+        saveFinanceBasics: () => void;
+      };
+      page.invoiceDueDaysValue = 10;
+      page.saveFinanceBasics();
+      expect(page.invoiceDueDaysValue).toBe(21);
+    });
+
+    // 二讀突變 F10：收起來時摘要不能只剩期限 —— 沒設提醒要明講
+    it('沒有任何提醒時間點 → 摘要寫「不推播提醒」', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(
+        of({ ...FINANCE, invoiceReminderOffsets: [] }),
+      );
+      await setup();
+      expect(summaries()[0]).toBe('繳費 期限 7 天 · 不推播提醒');
+    });
+
+    // 二讀突變 F14：重試成功之後失敗訊息不能還掛著
+    it('週期讀失敗後重試成功 → 失敗訊息消失、列出週期', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+      await setup();
+      expect(bodyText()).toContain('沒有讀到繳費週期');
+
+      billingPeriodsMock.list.mockReturnValue(
+        of({ data: [period('p1', '114 上', '2025-09-01', '2026-01-31')] }),
+      );
+      (component as unknown as { loadPeriods: () => void }).loadPeriods();
+      fixture.detectChanges();
+      expect(bodyText()).not.toContain('沒有讀到繳費週期');
+      expect(bodyText()).toContain('114 上');
     });
   });
 });

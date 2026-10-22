@@ -1,0 +1,135 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__title">{{
+        result() ? '學年升級完成' : '學年升級預覽'
+      }}</span>
+    </div>
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="close()"
+      aria-label="關閉"
+    >
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  @if (loadFailed()) {
+    <app-load-failed description="沒有讀到升級預覽，可能是連線問題" (retry)="load()" />
+  } @else if (preview(); as p) {
+    <div class="flex flex-col gap-5 text-md text-zinc-700">
+      @if (result(); as r) {
+        <p class="m-0" role="status">
+          {{ r.academicYear }} 學年：{{ doneText(r.promotedCount, r.graduatedCount) }}。30
+          天內可以在設定頁復原。
+        </p>
+      } @else if (p.alreadyPromoted) {
+        <p class="m-0" role="status">
+          {{ p.academicYear }} 學年已經升級過了。要重新升級，先復原上一次。
+        </p>
+      } @else if (p.promotedCount + p.graduatedCount === 0) {
+        <p class="m-0">沒有在讀的學生，不需要升級。</p>
+      } @else {
+        <section aria-labelledby="gp-transitions">
+          <h3 id="gp-transitions" class="m-0 mb-2 text-sm font-semibold text-zinc-900">
+            {{ p.academicYear }} 學年的變動
+          </h3>
+          <ul class="m-0 list-none p-0">
+            @for (t of p.transitions; track t.from) {
+              <li
+                class="flex justify-between gap-4 border-0 border-b border-solid border-zinc-100 py-2 tabular-nums last:border-b-0"
+              >
+                <span>{{ gradeLabel(t.from) }} → {{ gradeLabel(t.to) }}</span>
+                <b class="font-semibold text-zinc-900">{{ t.count }} 位</b>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      @if (!p.alreadyPromoted || result()) {
+        @if (p.schoolMismatch.length > 0) {
+          <section aria-labelledby="gp-school">
+            <h3 id="gp-school" class="m-0 mb-1 text-sm font-semibold text-zinc-900">
+              學校要更新（{{ p.schoolMismatch.length }} 位）
+            </h3>
+            <p class="m-0 mb-2 text-sm text-zinc-600">
+              升級後的年級跟學校的學制不合，升級不會改學校。點名字到學生資料改；之後也可以在學生名冊用「學制跟年級不合」找到他們。
+            </p>
+            <ul class="m-0 flex list-none flex-col gap-1 p-0">
+              @for (s of p.schoolMismatch; track s.studentId) {
+                <li class="flex flex-wrap items-center gap-x-2">
+                  <a
+                    class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-[3px]"
+                    [routerLink]="studentPath(s.studentId)"
+                    (click)="close()"
+                    >{{ s.name }}</a
+                  >
+                  <span class="text-zinc-600"
+                    >{{ s.schoolName }} · 升{{ gradeLabel(s.newGrade) }}</span
+                  >
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        @if (p.graduatesWithEnrollments.length > 0) {
+          <section aria-labelledby="gp-graduates">
+            <h3 id="gp-graduates" class="m-0 mb-1 text-sm font-semibold text-zinc-900">
+              高三還有在籍報名（{{ p.graduatesWithEnrollments.length }} 位）
+            </h3>
+            <p class="m-0 mb-2 text-sm text-zinc-600">
+              畢業改停用不會退班，月結照報名開單。下學期不來的，請到學生資料辦退班。
+            </p>
+            <ul class="m-0 flex list-none flex-col gap-1 p-0">
+              @for (s of p.graduatesWithEnrollments; track s.studentId) {
+                <li class="flex flex-wrap items-center gap-x-2">
+                  <a
+                    class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-[3px]"
+                    [routerLink]="studentPath(s.studentId)"
+                    (click)="close()"
+                    >{{ s.name }}</a
+                  >
+                  <span class="text-zinc-600">{{ s.classNames.join('、') }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      }
+
+      @if (executeError(); as message) {
+        <p class="m-0 text-sm font-semibold text-red-700" role="alert">{{ message }}</p>
+      }
+    </div>
+
+    <div class="form-dialog__footer">
+      @if (result() || p.alreadyPromoted || p.promotedCount + p.graduatedCount === 0) {
+        <button pButton class="min-h-11" label="關閉" size="small" (click)="close()"></button>
+      } @else {
+        <button
+          pButton
+          class="min-h-11"
+          class="shrink-0 whitespace-nowrap"
+          label="取消"
+          severity="secondary"
+          size="small"
+          text
+          (click)="close()"
+        ></button>
+        <button
+          pButton
+          class="min-h-11"
+          size="small"
+          [label]="consequence(p.promotedCount, p.graduatedCount)"
+          [loading]="executing()"
+          (click)="execute()"
+        ></button>
+      }
+    </div>
+  } @else {
+    <p class="m-0 py-6 text-md text-zinc-600" role="status">讀取升級預覽…</p>
+  }
+</div>

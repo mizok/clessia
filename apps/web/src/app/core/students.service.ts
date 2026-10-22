@@ -100,6 +100,8 @@ export interface StudentQueryParams {
   today?: StudentTodayFilter;
   /** `false` = 不算今日到班（只要總數的呼叫用）。後端預設第一頁才算 */
   withToday?: boolean;
+  /** 學制跟年級不合（#1820）：學校學制跟年級不同；未分類學校不算 */
+  schoolMismatch?: boolean;
 }
 
 export interface UpdateStudentInput {
@@ -210,6 +212,7 @@ export class StudentsService {
     if (params.taughtByMe !== undefined) q['taughtByMe'] = params.taughtByMe;
     if (params.today !== undefined) q['today'] = params.today;
     if (params.withToday !== undefined) q['withToday'] = params.withToday;
+    if (params.schoolMismatch) q['schoolMismatch'] = 'true';
     return q;
   }
 }

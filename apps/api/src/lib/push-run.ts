@@ -3,7 +3,8 @@ import type { Pool, PoolClient } from 'pg';
 import { deriveInvoiceStatus, isOpenInvoice, type PaymentRow } from './invoice-status';
 import { withTx } from './pg-tx';
 import { isAllowedPushEndpoint } from './push-endpoint';
-import { enqueueStaffDigests } from './staff-digests';
+import { enqueueApplicationReminders } from './application-reminders';
+import { enqueueGradePromotionReminders, enqueueStaffDigests } from './staff-digests';
 import { buildPushRequest, vapidAuthorization, type VapidKeys } from './web-push';
 
 /**
@@ -355,15 +356,26 @@ async function writeBack(db: PoolClient, outcomes: readonly Outcome[]) {
  * 不能拖垮同一個交易裡家長的繳費提醒。
  */
 async function staffDigests(db: PoolClient, today: string, orgs: Orgs): Promise<number> {
-  await db.query('SAVEPOINT staff_digests');
+  // 學年升級前提醒（#1820）、申請提醒（#1821）各自一個 SAVEPOINT：一支壞了不能拖掉別支，反之亦然
+  return (
+    (await guarded(db, 'staff_digests', () => enqueueStaffDigests(db, today, orgs))) +
+    (await guarded(db, 'grade_promotion_reminders', () =>
+      enqueueGradePromotionReminders(db, today, orgs),
+    )) +
+    (await guarded(db, 'application_reminders', () => enqueueApplicationReminders(db, today, orgs)))
+  );
+}
+
+async function guarded(db: PoolClient, name: string, fn: () => Promise<number>): Promise<number> {
+  await db.query(`SAVEPOINT ${name}`);
   try {
-    const n = await enqueueStaffDigests(db, today, orgs);
-    await db.query('RELEASE SAVEPOINT staff_digests');
+    const n = await fn();
+    await db.query(`RELEASE SAVEPOINT ${name}`);
     return n;
   } catch (err) {
-    await db.query('ROLLBACK TO SAVEPOINT staff_digests');
+    await db.query(`ROLLBACK TO SAVEPOINT ${name}`);
     console.error(
-      '[notify] 管理員每日摘要失敗（繳費提醒照常）:',
+      `[notify] 管理員通知（${name}）失敗（繳費提醒照常）:`,
       err instanceof Error ? err.message : err,
     );
     return 0;

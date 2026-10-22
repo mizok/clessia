@@ -814,3 +814,87 @@ describe('authMiddleware 的身分 SQL 路徑與 REST 退路（Hyperdrive A）',
     expect((await a.request('/admin-only')).status).toBe(403);
   });
 });
+
+/**
+ * #1846：角色跟著身分資料的狀態走。重現（10-22 本機）：teacher0005 的 staff 停用、parents 仍 active，
+ * `/api/me` 回 roles=["teacher","parent"]，老師端 API 200。
+ * 過濾在每個請求從快取裡的原始列（含 status）重算 —— 停用最遲在下一次快取刷新生效。
+ */
+describe('authMiddleware：角色跟著身分資料的狀態走（#1846）', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    getSession.mockReset();
+    fromMock.mockReset();
+  });
+
+  function appWith(results: Record<string, { data: unknown; error: unknown }>) {
+    getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+    fromMock.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: () => eqChain(Promise.resolve(results[table] ?? { data: [], error: null })),
+      }),
+    }));
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.get('/teacher', requireRoles('teacher'), (c) => c.json({ ok: true }));
+    app.get('/parent', requireRoles('parent'), (c) => c.json({ ok: true }));
+    app.get('/admin', requireRoles('admin'), (c) => c.json({ ok: true }));
+    app.get('/whoami', (c) =>
+      c.json({
+        roles: c.get('roles'),
+        permissions: c.get('permissions'),
+        activeRole: c.get('activeRole'),
+      }),
+    );
+    return app;
+  }
+
+  const teacherAndParent = (staffStatus: string, parentStatus: string) => ({
+    user_roles: {
+      data: [
+        { role: 'teacher', permissions: [] },
+        { role: 'admin', permissions: ['manage_finance'] },
+        { role: 'parent', permissions: [] },
+      ],
+      error: null,
+    },
+    staff: { data: [{ status: staffStatus, staff_campuses: [] }], error: null },
+    parents: { data: [{ status: parentStatus, parent_student_relations: [] }], error: null },
+  });
+
+  it('staff 停用、parents 啟用 → 只剩 parent：老師端、管理員端都 403、權限清空，家長端照常', async () => {
+    const app = appWith(teacherAndParent('inactive', 'active'));
+    expect(await (await app.request('/whoami')).json()).toMatchObject({
+      roles: ['parent'],
+      permissions: [],
+    });
+    expect((await app.request('/teacher')).status).toBe(403);
+    expect((await app.request('/admin')).status).toBe(403);
+    expect((await app.request('/parent')).status).toBe(200);
+  });
+
+  it('前端還帶著舊的 X-Active-Role: teacher → 不採信（activeRole 是 null），不會被當成老師', async () => {
+    const app = appWith(teacherAndParent('inactive', 'active'));
+    const res = await app.request('/whoami', { headers: { 'X-Active-Role': 'teacher' } });
+    expect(await res.json()).toMatchObject({ roles: ['parent'], activeRole: null });
+  });
+
+  it('兩邊都停用 → 不能登入（403 ACCOUNT_DISABLED）', async () => {
+    const res = await appWith(teacherAndParent('inactive', 'archived')).request('/parent');
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'ACCOUNT_DISABLED' });
+  });
+
+  it('停用 staff：下一次快取刷新（≤30 秒）後老師端就擋，家長端照常', async () => {
+    vi.useFakeTimers();
+    const results = teacherAndParent('active', 'active');
+    const app = appWith(results);
+    expect((await app.request('/teacher')).status).toBe(200);
+
+    results.staff = { data: [{ status: 'inactive', staff_campuses: [] }], error: null };
+    vi.advanceTimersByTime(30_000 + 1);
+
+    expect((await app.request('/teacher')).status).toBe(403);
+    expect((await app.request('/parent')).status).toBe(200);
+  });
+});
