@@ -14,7 +14,7 @@
 
 <div class="bg-zinc-100">
   <section
-    class="page-wrap flex flex-col gap-3 py-4 wide:flex-row wide:items-end wide:gap-4"
+    class="page-wrap flex flex-col gap-3 py-4 wide:flex-row wide:items-end wide:gap-4 [&_.p-select]:tbar-control"
     role="search"
     aria-label="篩選課務異動"
   >
@@ -66,7 +66,7 @@
     </div>
 
     <a
-      class="inline-flex h-11 items-center justify-center gap-1.5 self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto"
+      class="tbar-control inline-flex items-center justify-center gap-1.5 self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto"
       [routerLink]="scheduleLink"
     >
       到課表 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>

@@ -218,12 +218,12 @@ describe('FeeTemplatesComponent', () => {
           toggleShowInactive: () => void;
         };
 
-      it('操作紀錄是純按鈕：白底＋zinc-300 框、手機 44／桌機 36、點了開操作紀錄', () => {
+      it('操作紀錄是純按鈕：白底＋zinc-300 框、方鈕 tbar-control-square（#1903 手機 44／桌機 40）、點了開操作紀錄', () => {
         load(mixed());
         const b = btn('audit-log-btn');
         expect(b.tagName).toBe('BUTTON');
         expect([...b.classList]).toEqual(
-          expect.arrayContaining(['border-zinc-300', 'bg-white', 'size-11', 'wide:size-9']),
+          expect.arrayContaining(['border-zinc-300', 'bg-white', 'tbar-control-square']),
         );
         expect(b.getAttribute('aria-label')).toBe('操作紀錄');
         expect(b.querySelector('i')!.className).toContain('pi-history');

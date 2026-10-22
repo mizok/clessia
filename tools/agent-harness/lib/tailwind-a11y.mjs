@@ -47,8 +47,15 @@ const isInteractive = (el) =>
   el.attributes.some((a) => ['routerLink', 'href'].includes(a.name)) ||
   el.inputs.some((i) => ['routerLink', 'href'].includes(i.name));
 
-/** `h-11`、`min-h-12`、`size-11`、`h-[48px]` → px；其他回 null */
+/**
+ * 工具列控制項的自訂 utility（tailwind.css，#1903）：高度是 `--tbar-control`，手機與觸控 44、桌機（寬螢幕＋滑鼠）40。
+ * 觸控看手機基底，所以算 44。**改了 tailwind.css 的手機值，這裡要跟著改。**
+ */
+const NAMED_HEIGHT_PX = { 'tbar-control': 44, 'tbar-control-square': 44 };
+
+/** `h-11`、`min-h-12`、`size-11`、`h-[48px]`、`tbar-control` → px；其他回 null */
 export function minHeightPx(cls) {
+  if (cls in NAMED_HEIGHT_PX) return NAMED_HEIGHT_PX[cls];
   const m = cls.match(/^(?:min-h|h|size)-(?:(\d+(?:\.\d+)?)|\[(\d+(?:\.\d+)?)px\])$/);
   if (!m) return null;
   return m[1] !== undefined ? Number(m[1]) * SPACING_PX : Number(m[2]);
