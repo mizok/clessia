@@ -72,8 +72,21 @@ describe('HeightFollowDirective', () => {
         {} as ResizeObserver,
       );
     };
-    return { animate, resize };
+    return { animate, resize, host };
   }
+
+  it('連續變化（前一段還沒滑完）：從畫面上目前的高度接著滑，並取消前一段（第二審核席 #1864）', async () => {
+    const { animate, resize, host } = await setup();
+    const first = { finished: new Promise(() => undefined), cancel: vi.fn() };
+    animate.mockReturnValueOnce(first as never);
+    resize(100, 100); // 第一次量到，不動
+    resize(200, 200); // 100 → 200，滑到一半
+    host.getBoundingClientRect = () => ({ height: 150 }) as DOMRect;
+    resize(120, 120); // 又變成 120
+    expect(first.cancel).toHaveBeenCalled();
+    const [frames] = animate.mock.calls.at(-1) as unknown as [Keyframe[]];
+    expect(frames.map((f) => f['height'])).toEqual(['150px', '120px']);
+  });
 
   it('第一段滑完之後再變一次：第二段從第一段的終點（B）滑到 C，不是從起點 A（第二審核席 #1864）', async () => {
     const { animate, resize } = await setup();
