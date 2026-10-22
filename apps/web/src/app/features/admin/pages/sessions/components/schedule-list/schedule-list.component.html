@@ -1,9 +1,10 @@
 @for (g of groups(); track g.start) {
   <!-- 分組是 div（A6 `.lg`）：不是 landmark，同一頁會有幾十個「17:00 開始」區塊，讀屏的區塊清單會被灌爆 -->
   <div class="mt-4 first:mt-0">
-    <h3 class="m-0 border-b border-zinc-900 pb-1 text-sm font-normal text-zinc-600 tabular-nums">
+    <!-- 分組標頭是 div（A6 `.lg__h`）：時間不是章節標題，讀屏照順序念「17:00 開始 · 4 堂」就夠 -->
+    <div class="border-b border-zinc-900 pb-1 text-sm font-normal text-zinc-600 tabular-nums">
       <b class="text-base text-zinc-900">{{ g.start }}</b> 開始 · {{ g.sessions.length }} 堂
-    </h3>
+    </div>
     @for (s of g.sessions; track s.id) {
       <!--
         勾選框只在「快速選取」模式或這堂已勾時出現（A6 schedule.css:50–51，#1923）；手機一律沒有（A6）。
@@ -12,6 +13,7 @@
       @let pickable = picking() || selectedIds().has(s.id);
       <div
         class="relative grid grid-cols-[minmax(0,1fr)_auto] items-start border-b border-surface-border"
+        [class.py-2]="compact()"
         [class]="pickable ? 'wide:grid-cols-[auto_minmax(0,1fr)_auto]' : ''"
         [class.bg-zinc-100]="selectedIds().has(s.id)"
       >
@@ -34,8 +36,9 @@
         </label>
         <button
           type="button"
-          class="flex min-h-11 min-w-0 cursor-pointer flex-col items-start gap-px border-0 bg-transparent px-0 py-2 text-left text-zinc-900"
-          [class.pr-7]="compact()"
+          class="flex min-w-0 cursor-pointer flex-col items-start gap-px border-0 bg-transparent px-0 text-left text-zinc-900"
+          [class.min-h-11]="!compact()"
+          [class.py-2]="!compact()"
           [attr.aria-label]="s.className + ' ' + s.startTime + '–' + s.endTime + '：看看能做什麼'"
           [attr.data-session-menu]="compact() ? s.id : null"
           (click)="onMain($event, s)"
@@ -46,18 +49,19 @@
           (contextmenu)="onContextMenu($event)"
         >
           <span
-            class="text-md leading-snug font-semibold"
+            class="text-md leading-[1.35] font-semibold"
+            [class]="compact() ? 'pr-[26px]' : ''"
             [class.line-through]="s.status === 'cancelled'"
             [class.text-zinc-600]="s.status === 'cancelled'"
             >{{ s.className }}</span
           >
           @if (compact()) {
-            <span class="text-sm leading-snug text-zinc-600 tabular-nums"
+            <span class="text-sm leading-[1.35] text-zinc-600 tabular-nums"
               >到 {{ s.endTime }} ·
               <span class="whitespace-nowrap">{{ s.teacherName ?? '未指派' }}</span></span
             >
           } @else {
-            <span class="text-sm leading-snug text-zinc-600 tabular-nums"
+            <span class="text-sm leading-[1.35] text-zinc-600 tabular-nums"
               >{{ s.startTime }}–{{ s.endTime }} ·
               <span class="whitespace-nowrap">{{ s.teacherName ?? '未指派' }}</span>
               @if (s.attendanceEnrolledCount !== undefined) {
@@ -78,7 +82,7 @@
         @if (compact()) {
           <button
             type="button"
-            class="absolute top-1 -right-1 inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
+            class="absolute top-1 -right-1 grid size-7 cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
             [attr.aria-label]="s.className + ' 的操作'"
             [attr.data-session-menu]="s.id"
             (click)="menu.emit({ event: $event, session: s })"
