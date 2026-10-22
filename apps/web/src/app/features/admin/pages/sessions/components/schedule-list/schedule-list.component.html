@@ -1,18 +1,25 @@
 @for (g of groups(); track g.start) {
-  <section class="mt-4 first:mt-0" [attr.aria-label]="g.start + ' 開始'">
+  <!-- 分組是 div（A6 `.lg`）：不是 landmark，同一頁會有幾十個「17:00 開始」區塊，讀屏的區塊清單會被灌爆 -->
+  <div class="mt-4 first:mt-0">
     <h3 class="m-0 border-b border-zinc-900 pb-1 text-sm font-normal text-zinc-600 tabular-nums">
       <b class="text-base text-zinc-900">{{ g.start }}</b> 開始 · {{ g.sessions.length }} 堂
     </h3>
     @for (s of g.sessions; track s.id) {
-      <!-- 週視圖的窄欄（compact）：勾選欄收窄、不放 ⋯（點課本身就開同一個選單），班名才有地方放 -->
+      <!--
+        勾選框只在「快速選取」模式或這堂已勾時出現（A6 schedule.css:50–51，#1923）；手機一律沒有（A6）。
+        週視圖的窄欄（compact）：⋯ 疊在右上角（A6 `.wc .li__more`），班名讓出 ⋯ 的寬度
+      -->
+      @let pickable = picking() || selectedIds().has(s.id);
       <div
-        class="grid grid-cols-[minmax(0,1fr)_auto] items-start border-b border-surface-border wide:grid-cols-[auto_minmax(0,1fr)_auto]"
+        class="relative grid grid-cols-[minmax(0,1fr)_auto] items-start border-b border-surface-border"
+        [class]="pickable ? 'wide:grid-cols-[auto_minmax(0,1fr)_auto]' : ''"
         [class.bg-zinc-100]="selectedIds().has(s.id)"
       >
         <!-- 手機沒有原地勾選框（A6）：勾課走「快速選取」面板，或長按一堂 -->
         <label
           (click)="onPickClick($event, s.id)"
-          class="hidden h-11 cursor-pointer place-items-center wide:grid"
+          class="hidden h-11 cursor-pointer place-items-center"
+          [class]="pickable ? 'wide:grid' : ''"
           [class.w-11]="!compact()"
           [class.w-7]="compact()"
         >
@@ -28,6 +35,7 @@
         <button
           type="button"
           class="flex min-h-11 min-w-0 cursor-pointer flex-col items-start gap-px border-0 bg-transparent px-0 py-2 text-left text-zinc-900"
+          [class.pr-7]="compact()"
           [attr.aria-label]="s.className + ' ' + s.startTime + '–' + s.endTime + '：看看能做什麼'"
           [attr.data-session-menu]="compact() ? s.id : null"
           (click)="onMain($event, s)"
@@ -67,7 +75,17 @@
             [clash]="clashIds().has(s.id)"
           />
         </button>
-        @if (!compact()) {
+        @if (compact()) {
+          <button
+            type="button"
+            class="absolute top-1 -right-1 inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
+            [attr.aria-label]="s.className + ' 的操作'"
+            [attr.data-session-menu]="s.id"
+            (click)="menu.emit({ event: $event, session: s })"
+          >
+            <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i>
+          </button>
+        } @else {
           <button
             type="button"
             class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
@@ -80,5 +98,5 @@
         }
       </div>
     }
-  </section>
+  </div>
 }
