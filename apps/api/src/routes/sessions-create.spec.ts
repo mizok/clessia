@@ -133,7 +133,10 @@ function resolver(o: Overrides = {}): Resolver {
     if (q.table === 'schedule_changes' && has(q, 'insert')) {
       return o.logError ? { error: o.logError } : {};
     }
-    if (q.table === 'profiles') return { data: { display_name: '行政 A' } };
+    if (q.table === 'ba_user')
+      return {
+        data: { name: '帳號名', staff: [{ display_name: '行政 A', org_id: 'org-1' }], parents: [] },
+      };
     return { data: [] };
   };
 }

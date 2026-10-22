@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { loadDisplayName } from '../lib/display-name';
 
 type ResourceType =
   | 'class'
@@ -107,16 +108,12 @@ export function logAudit(
 ): void {
   const promise = (async () => {
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', params.userId)
-        .maybeSingle();
+      const userName = await loadDisplayName(supabase, params.orgId, params.userId);
 
       await supabase.from('audit_logs').insert({
         org_id: params.orgId,
         user_id: params.userId,
-        user_name: profile?.display_name ?? null,
+        user_name: userName,
         resource_type: params.resourceType,
         resource_id: params.resourceId ?? null,
         resource_name: params.resourceName ?? null,
@@ -132,7 +129,7 @@ export function logAudit(
 }
 
 /**
- * 同一個人一次寫多筆稽核（批次端點，#1314 P5）：**每個資源仍是一筆**，但只查一次 profile、
+ * 同一個人一次寫多筆稽核（批次端點，#1314 P5）：**每個資源仍是一筆**，但只查一次名字、
  * 一次 insert —— 逐筆呼叫 `logAudit` 的話 200 張是 400 個 subrequest，會撞 Workers 的上限。
  */
 export function logAuditMany(
@@ -144,17 +141,13 @@ export function logAuditMany(
   if (resources.length === 0) return;
   const promise = (async () => {
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', base.userId)
-        .maybeSingle();
+      const userName = await loadDisplayName(supabase, base.orgId, base.userId);
 
       await supabase.from('audit_logs').insert(
         resources.map((r) => ({
           org_id: base.orgId,
           user_id: base.userId,
-          user_name: profile?.display_name ?? null,
+          user_name: userName,
           resource_type: base.resourceType,
           resource_id: r.resourceId,
           resource_name: r.resourceName ?? null,

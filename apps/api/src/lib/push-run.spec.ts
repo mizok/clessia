@@ -352,6 +352,45 @@ describe('runPush —— 學年升級前提醒（#1820，二讀 P1）', () => {
   });
 });
 
+describe('runPush —— 申請提醒（#1821，二讀 P1）', () => {
+  it('每輪都跑，第一句帶今天、org 範圍、回看 30 天，包在自己的 SAVEPOINT', async () => {
+    const db = fakePool([]);
+    await runPush(db.pool, {
+      today: '2026-10-16',
+      orgIds: ['o1'],
+      batchSize: 10,
+      vapid: await vapid(),
+      subject: 'mailto:ops@example.com',
+      send: async () => ({ status: 201 }),
+    });
+    const order = db.sent.map((q) => q.sql);
+    const candidates = db.find(/FROM public_applications pa/);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]!.params).toEqual(['2026-10-16', ['o1'], 30]);
+    const sp = order.indexOf('SAVEPOINT application_reminders');
+    expect(sp).toBeGreaterThan(-1);
+    expect(order.indexOf(candidates[0]!.sql)).toBeGreaterThan(sp);
+    expect(order).toContain('RELEASE SAVEPOINT application_reminders');
+  });
+
+  it('它出錯只退自己的 SAVEPOINT：財務摘要的 SAVEPOINT 照常釋放、繳費提醒照送', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { result, sent } = await run(
+      [sub('d1', 's1')],
+      () => 201,
+      10,
+      /FROM public_applications pa/,
+    );
+    const order = sent.map((q) => q.sql);
+    expect(order).toContain('ROLLBACK TO SAVEPOINT application_reminders');
+    expect(order).toContain('RELEASE SAVEPOINT staff_digests');
+    expect(order).not.toContain('ROLLBACK');
+    expect(result).toMatchObject({ attempted: 1, delivered: 1 });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('application_reminders'), 'boom');
+    log.mockRestore();
+  });
+});
+
 describe('runPush —— 管理員每日摘要（#1693）', () => {
   it('摘要出錯只退它自己的 SAVEPOINT、記 [notify]；同一個交易裡的繳費提醒照常送', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);

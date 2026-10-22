@@ -81,18 +81,16 @@ app.openapi(
     // 先走 SQL（Hyperdrive，一次往返），失敗或形狀不對就走原本的兩支 REST（見 lib/identity-sql.ts）
     const auth = getAuth(c);
     const viaRest = async (): Promise<MeExtras> => {
-      const [p, u, nickname] = await Promise.all([
-        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+      const [u, nickname] = await Promise.all([
         supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
         staff ? loadNickname(supabase, userId, orgId) : null,
       ]);
       return {
-        profile: p.data as MeExtras['profile'],
         baUser: u.data as MeExtras['baUser'],
         nickname,
       };
     };
-    const { profile, baUser, nickname }: MeExtras =
+    const { baUser, nickname }: MeExtras =
       (auth.pool ? await loadMeExtrasViaSql(auth.pool, userId, orgId) : null) ?? (await viaRest());
 
     return c.json(
@@ -101,7 +99,6 @@ app.openapi(
         orgId,
         // profiles 不是可靠的來源 —— 見 lib/display-name.ts
         displayName: resolveDisplayName({
-          profile,
           staff,
           parent,
           baUser,
@@ -212,15 +209,12 @@ app.openapi(
       );
     }
 
-    const [profileResult, rolesResult, staffResult, parentResult, baUserResult] = await Promise.all(
-      [
-        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
-        supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
-        supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
-        supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
-      ],
-    );
+    const [rolesResult, staffResult, parentResult, baUserResult] = await Promise.all([
+      supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
+      supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
+      supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
+      supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
+    ]);
 
     // 寫入成功才清（#1631）：前端接著重抓 /api/me，不清的話同一個 isolate 會回快取裡的舊名字／生日
     invalidateIdentity(userId);
@@ -230,7 +224,6 @@ app.openapi(
         userId,
         orgId: c.get('orgId'),
         displayName: resolveDisplayName({
-          profile: profileResult.data,
           staff: staffResult.data,
           parent: parentResult.data,
           baUser: baUserResult.data,

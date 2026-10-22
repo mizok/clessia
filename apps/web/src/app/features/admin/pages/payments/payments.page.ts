@@ -1,4 +1,5 @@
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
@@ -102,9 +103,11 @@ interface ChapterState {
   page: number;
 }
 
+// 還沒抓過就是「載入中」：給 false 的話 reload-veil 會當成已經載入過，第一次展開就走「重抓」——
+// 載入中膠囊疊在空列表上、被下一章切掉（#1853）。第一次要顯示骨架
 const emptyChapter = (): ChapterState => ({
   open: false,
-  loading: false,
+  loading: true,
   failed: false,
   rows: [],
   total: 0,
@@ -129,6 +132,7 @@ const emptyChapter = (): ChapterState => ({
   standalone: true,
   imports: [
     ReloadVeilComponent,
+    HeightFollowDirective,
     InvoiceActionsComponent,
     NgTemplateOutlet,
     PopupMenuComponent,
@@ -745,16 +749,17 @@ export class PaymentsPage implements OnInit {
           takeUntilDestroyed(this.destroyRef),
         )
         .subscribe(([main, over]) => {
+          const apply = () =>
+            this.patchChapter(key, {
+              rows: [...(over?.data ?? []), ...main.data],
+              total: main.meta.total,
+              loading: false,
+            });
+          const reloadRows = this.chapterReloadRows.delete(key);
+          // 沒有舊內容（第一次、或上次失敗）：骨架換列表，高度由 appHeightFollow 滑開，不需要 VT 換場（#1853）
+          if (this.chapters()[key].rows.length === 0) apply();
           // 舊內容（變淡中）平滑換成新資料（#1641 5b）
-          this.viewTransition(
-            () =>
-              this.patchChapter(key, {
-                rows: [...(over?.data ?? []), ...main.data],
-                total: main.meta.total,
-                loading: false,
-              }),
-            { rows: this.chapterReloadRows.delete(key) },
-          );
+          else this.viewTransition(apply, { rows: reloadRows });
         });
     }
 

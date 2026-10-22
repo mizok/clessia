@@ -28,6 +28,7 @@ import {
   type ParentRequest,
   type ParentRequestGroup,
   type TrialRequestStatus,
+  type TrialSchedule,
 } from '@core/parent-requests.service';
 import { AuthService } from '@core/auth.service';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
@@ -160,6 +161,8 @@ export class ApplicationsPage {
   protected readonly approving = signal<ParentRequest | null>(null);
   /** 正在填拒絕原因的那一筆 */
   protected readonly rejectingId = signal<string | null>(null);
+  /** 正在填試聽日期的那一筆（#1747：轉已排定、改時間都走這裡） */
+  protected readonly schedulingId = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
@@ -288,14 +291,49 @@ export class ApplicationsPage {
 
   protected setTrialStatus(r: ParentRequest, status: TrialRequestStatus): void {
     if (status === r.status) return;
-    this.parentRequests.setTrialStatus(r.id, status).subscribe({
-      next: (res) => this.replaceRequest(res.data),
-      error: () => {
+    if (status === 'scheduled') {
+      // 已排定要先填日期（#1747）：下拉先彈回原狀態，填完按確定才送
+      this.replaceRequest({ ...r });
+      this.schedulingId.set(r.id);
+      return;
+    }
+    this.sendTrialStatus(r, status);
+  }
+
+  /** 日期必填（後端也擋）；時間選填，空字串不送 */
+  protected submitSchedule(r: ParentRequest, date: string, start: string, end: string): void {
+    if (!date) return;
+    this.sendTrialStatus(r, 'scheduled', {
+      scheduledDate: date,
+      ...(start ? { scheduledStartTime: start } : {}),
+      ...(end ? { scheduledEndTime: end } : {}),
+    });
+  }
+
+  private sendTrialStatus(
+    r: ParentRequest,
+    status: TrialRequestStatus,
+    schedule?: TrialSchedule,
+  ): void {
+    this.parentRequests.setTrialStatus(r.id, status, schedule).subscribe({
+      next: (res) => {
+        this.replaceRequest(res.data);
+        this.schedulingId.set(null);
+      },
+      error: (err: { status?: number; error?: { error?: string } }) => {
         // 下拉已經在畫面上選了新值；換一個新物件讓它重畫回原本的狀態
         this.replaceRequest({ ...r });
-        this.messages.add({ severity: 'error', summary: '儲存失敗', detail: '請稍後再試' });
+        // 400＝日期或時間不合法（例：結束早於開始），把後端的原因說出來；表單留著讓人改
+        const detail = err.status === 400 ? (err.error?.error ?? '日期或時間不合法') : '請稍後再試';
+        this.messages.add({ severity: 'error', summary: '儲存失敗', detail });
       },
     });
+  }
+
+  /** `2026-11-04` → `11/4（三）`；本地時區解析，不會因 UTC 跨日 */
+  protected mdw(iso: string): string {
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${m}/${d}（${'日一二三四五六'[new Date(y!, m! - 1, d).getDay()]}）`;
   }
 
   private replaceRequest(next: ParentRequest): void {

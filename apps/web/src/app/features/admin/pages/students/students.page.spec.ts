@@ -615,6 +615,20 @@ describe('StudentsPage', () => {
       expect(lastCall()['search']).toBe('王');
     });
 
+    it('學制跟年級不合（#1820）：送 schoolMismatch、寫進篩選摘要，清除篩選一併清', () => {
+      respond([row('a', '王一', 'J3')]);
+
+      (component as any).onSchoolMismatchChange(true);
+      expect(lastCall()['schoolMismatch']).toBe(true);
+      expect((component as any).filterSummary()).toContain('學制跟年級不合');
+      expect((component as any).hasFilter()).toBe(true);
+      respond([row('a', '王一', 'J3')]);
+
+      (component as any).clearFilters();
+      vi.advanceTimersByTime(500);
+      expect(lastCall()['schoolMismatch']).toBeUndefined();
+    });
+
     it('沒有符合：寫出搜尋字並給清除篩選', () => {
       type('周');
       vi.advanceTimersByTime(300);

@@ -7,7 +7,7 @@ import meRoute from './me';
 /**
  * #1595 P2a：GET /api/me 原本自己查 5 支（其中 user_roles 跟 auth middleware 完全重複，
  * staff／parents 也是 middleware 剛查過的那幾列）。現在角色、權限、staff／parents
- * 都從 middleware 放進 context 的值拿，只剩 profiles、ba_user 兩支。
+ * 都從 middleware 放進 context 的值拿，只剩 ba_user 一支（#1839 起不查 profiles）。
  */
 describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
   /** `staffNickname`：'missing' 模擬欄位還沒套上（PostgREST 回 42703） */
@@ -58,7 +58,7 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
   }
 
   // REST 退路：有 staff 身分時多查自己的暱稱（#1665；正式站走 ME_EXTRAS_SQL，仍是一次往返）
-  it('只查 profiles、ba_user（＋人員的 staff.nickname）；角色、權限、名稱、生日來自 middleware', async () => {
+  it('只查 ba_user（＋人員的 staff.nickname）；角色、權限、名稱、生日來自 middleware；不查 profiles（#1839）', async () => {
     const queried: string[] = [];
     const res = await appWith(queried, {
       staff: { display_name: '王主任', birthday: '1990-01-02' },
@@ -67,7 +67,7 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
     }).request('/api/me');
 
     expect(res.status).toBe(200);
-    expect(queried.sort()).toEqual(['ba_user', 'profiles', 'staff']);
+    expect(queried.sort()).toEqual(['ba_user', 'staff']);
     expect(await res.json()).toMatchObject({
       displayName: '王主任',
       birthday: '1990-01-02',
@@ -100,7 +100,7 @@ describe('GET /api/me —— 查詢次數（#1595 P2a）', () => {
       parent: null,
       assignedCampusIds: ['c2', 'c1'],
     }).request('/api/me');
-    expect(queried.sort()).toEqual(['ba_user', 'profiles', 'staff']);
+    expect(queried.sort()).toEqual(['ba_user', 'staff']);
     expect(await res.json()).toMatchObject({ assignedCampusIds: ['c2', 'c1'] });
   });
 
