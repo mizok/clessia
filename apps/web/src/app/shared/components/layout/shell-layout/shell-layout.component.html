@@ -90,9 +90,11 @@
             }
           </a>
         }
+        <!-- 帳戶跟鈴鐺之間手機多留 4px（#1850）：兩個都是 44px 的深色方塊（鈴鐺在通知頁常駐、hover 時都有），
+             8px 的 gap 看起來貼在一起；桌機 gap 16px 不用補 -->
         @if (auth.activeRole(); as role) {
           <button
-            class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white max-wide:pr-1 max-wide:pl-1.5 wide:-mr-1.5"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white max-wide:ml-1 max-wide:pr-1 max-wide:pl-1.5 wide:-mr-1.5"
             type="button"
             popovertarget="shell-account"
             [attr.aria-expanded]="accountOpen()"
