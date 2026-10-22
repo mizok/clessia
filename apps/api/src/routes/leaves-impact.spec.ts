@@ -192,3 +192,140 @@ describe('GET /api/leaves/:id/impact', () => {
     expect(calls.some((c) => c.table === 'events')).toBe(false);
   });
 });
+
+/**
+ * #1910 二讀：會刪出勤資料的邊界。今天＝2026-10-23（台北）。
+ * 替身是通用 Proxy：記下每支查詢的操作，依表名回 fixture。
+ */
+describe('取消請假的邊界（#1910 二讀）', () => {
+  it('今天結束的假算進行中：truncate 從今天到今天，不是整張', () => {
+    expect(
+      cancelPlan('truncate', win({ startDate: '2026-10-20', endDate: TODAY }), TODAY),
+    ).toMatchObject({ kind: 'truncate', from: TODAY, to: TODAY });
+  });
+
+  it('今天才開始的假：沒有過去可留 → full（start == today 時 <= 與 < 結果相同，見 PR）', () => {
+    expect(
+      cancelPlan('truncate', win({ startDate: TODAY, endDate: '2026-10-26' }), TODAY),
+    ).toMatchObject({ kind: 'full', from: TODAY, to: '2026-10-26' });
+  });
+
+  it('mode = full：綁定型、今天以前有堂，也是整張（不能留下過去的堂）', () => {
+    const plan = cancelPlan(
+      'full',
+      win({
+        boundSessions: [
+          { sessionId: 's-past', date: '2026-10-21' },
+          { sessionId: 's-today', date: TODAY },
+        ],
+      }),
+      TODAY,
+    );
+    expect(plan.kind).toBe('full');
+  });
+
+  const LEAVE = '11111111-1111-4111-8111-111111111111';
+  function routeApp(leave: Record<string, unknown>, events: Array<Record<string, unknown>>) {
+    const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
+    const result = (table: string, ops: Array<{ op: string; args: unknown[] }>) => {
+      if (table === 'events') return events;
+      if (table === 'attendance_records') {
+        const ids = (ops.find((o) => o.op === 'in')?.args[1] ?? []) as string[];
+        return ids.map((event_id) => ({ event_id, id: `rec-${event_id}` }));
+      }
+      return [];
+    };
+    const supabase = {
+      from(table: string) {
+        const ops: Array<{ op: string; args: unknown[] }> = [];
+        const proxy: Record<string, unknown> = new Proxy(
+          {},
+          {
+            get(_t, prop: string) {
+              if (prop === 'then')
+                return (ok?: (v: unknown) => unknown) =>
+                  Promise.resolve({ data: result(table, ops), error: null }).then(ok);
+              if (prop === 'single' || prop === 'maybeSingle')
+                return () =>
+                  Promise.resolve({
+                    data:
+                      table === 'leave_requests'
+                        ? leave
+                        : table === 'students'
+                          ? { id: 'stu-1' }
+                          : null,
+                    error: null,
+                  });
+              return (...args: unknown[]) => {
+                ops.push({ op: prop, args });
+                calls.push({ table, op: prop, args });
+                return proxy;
+              };
+            },
+          },
+        );
+        return proxy;
+      },
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', supabase);
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', leavesApp);
+    const env = { waitUntil: () => undefined, passThroughOnException: () => undefined } as never;
+    return { app, calls, env };
+  }
+  const leaveRow = (over: Record<string, unknown> = {}) => ({
+    id: LEAVE,
+    student_id: 'stu-1',
+    students: { name: '王小明' },
+    start_date: '2026-10-20',
+    end_date: '2026-10-25',
+    start_time: null,
+    end_time: null,
+    leave_request_sessions: [],
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-23T04:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('DELETE truncate（進行中、沒綁定）：撤銷的 events 查詢是 today ～ 迄日', async () => {
+    const { app, calls, env } = routeApp(leaveRow(), []);
+    const res = await app.request(`/${LEAVE}?mode=truncate`, { method: 'DELETE' }, undefined, env);
+    expect(res.status).toBe(204);
+    const ev = calls.filter((c) => c.table === 'events');
+    expect(ev).toContainEqual({ table: 'events', op: 'gte', args: ['event_date', TODAY] });
+    expect(ev).toContainEqual({ table: 'events', op: 'lte', args: ['event_date', '2026-10-25'] });
+  });
+
+  it('預覽：綁定型只算綁定的那堂 —— 同一天別堂（別張假寫的）on_leave 不算', async () => {
+    const { app } = routeApp(
+      leaveRow({
+        start_date: TODAY,
+        end_date: TODAY,
+        leave_request_sessions: [{ session_id: 's-mine', sessions: { session_date: TODAY } }],
+      }),
+      [
+        { id: 'e-mine', event_date: TODAY, attendance_taken_at: null, sessions: { id: 's-mine' } },
+        {
+          id: 'e-other',
+          event_date: TODAY,
+          attendance_taken_at: null,
+          sessions: { id: 's-other' },
+        },
+      ],
+    );
+    const res = await app.request(`/${LEAVE}/impact?mode=full`);
+    expect(await res.json()).toEqual({ data: { revertCount: 1, keptCount: 0 } });
+  });
+});
