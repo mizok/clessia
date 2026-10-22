@@ -40,7 +40,7 @@
       @for (subject of subjects(); track subject.id) {
         <div
           [style.view-transition-name]="'subject-' + subject.id"
-          class="subject-manager__row vt-row flex min-h-[68px] cursor-default items-center gap-2 border-b border-solid border-zinc-200 py-3"
+          class="subject-manager__row vt-row flex min-h-[68px] cursor-default items-center gap-2 border-0 border-b border-solid border-zinc-200 py-3"
         >
           @if (editingId() === subject.id) {
             <!-- Inline edit mode -->
