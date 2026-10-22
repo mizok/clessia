@@ -10,27 +10,26 @@ import { AuthService, type UserRole } from '@core/auth.service';
 import { AccountSettingsDialogComponent } from './account-settings-dialog.component';
 
 /**
- * #1631：啟用家長身份成功後，畫面要**立刻**反映 —— 用 API 回傳的角色，不重抓 /api/me
- * （重抓可能讀到 API 身分快取裡的舊角色，整區不變，使用者以為沒有作用）。
+ * #1844（使用者 10-22 選 A）：不能自助啟用家長身份 —— 綁孩子只有行政能做，改由行政在家長頁一次設定。
+ * 這裡只剩一行說明，不再有按鈕，也不再打已經移除的 `POST /api/me/activate-parent`。
  */
-describe('AccountSettingsDialogComponent —— 啟用家長身份（#1631）', () => {
-  function setup() {
-    const roles = signal<UserRole[]>(['admin']);
-    const auth = {
-      roles,
-      adoptRoles: vi.fn((r: UserRole[]) => roles.set(r)),
-      refreshRoles: vi.fn(),
-      profile: () => null,
-      user: () => null,
-    };
-    const add = vi.fn();
+describe('AccountSettingsDialogComponent —— 家長身份改由行政設定（#1844）', () => {
+  function setup(roles: UserRole[]) {
     TestBed.configureTestingModule({
       imports: [AccountSettingsDialogComponent],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: auth },
-        { provide: MessageService, useValue: { add } },
+        {
+          provide: AuthService,
+          useValue: {
+            roles: signal(roles),
+            refreshRoles: vi.fn(),
+            profile: () => null,
+            user: () => null,
+          },
+        },
+        { provide: MessageService, useValue: { add: vi.fn() } },
         { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
       ],
     });
@@ -38,63 +37,20 @@ describe('AccountSettingsDialogComponent —— 啟用家長身份（#1631）', 
     const http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
     http.expectOne((r) => r.method === 'GET' && r.url.endsWith('/api/me')).flush({});
-    const activate = () =>
-      (fixture.componentInstance as unknown as { activateParent: () => void }).activateParent();
-    return { fixture, http, auth, add, activate };
+    fixture.detectChanges();
+    return { el: fixture.nativeElement as HTMLElement, http };
   }
 
-  it('成功：採用回傳的角色、跳 toast、整區消失（不能再按一次），不重抓 /api/me', () => {
-    const { fixture, http, auth, add, activate } = setup();
-    const el = fixture.nativeElement as HTMLElement;
-    expect(el.textContent).toContain('啟用家長身份');
-
-    activate();
-    http
-      .expectOne((r) => r.url.endsWith('/api/me/activate-parent'))
-      .flush({
-        roles: ['admin', 'parent'],
-      });
-    fixture.detectChanges();
-
-    expect(auth.adoptRoles).toHaveBeenCalledWith(['admin', 'parent']);
-    expect(auth.refreshRoles).not.toHaveBeenCalled();
-    expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }));
+  it('還沒有家長身分：只有一行「請洽補習班行政」，沒有啟用按鈕、不打任何啟用的 API', () => {
+    const { el, http } = setup(['teacher']);
+    expect(el.textContent).toContain('請洽補習班行政把你設為家長');
     expect(el.textContent).not.toContain('啟用家長身份');
     http.verify();
   });
 
-  it.each([
-    ['不含 parent', ['admin']],
-    ['空陣列', []],
-  ])('回 200 但角色%s：不套用、不跳成功、顯示錯誤、按鈕還在', (_label, roles) => {
-    const { fixture, http, auth, add, activate } = setup();
-    const el = fixture.nativeElement as HTMLElement;
-
-    activate();
-    http.expectOne((r) => r.url.endsWith('/api/me/activate-parent')).flush({ roles });
-    fixture.detectChanges();
-
-    expect(auth.adoptRoles).not.toHaveBeenCalled();
-    expect(auth.roles()).toEqual(['admin']);
-    expect(add).not.toHaveBeenCalled();
-    expect(el.textContent).toContain('啟用失敗');
-    expect(el.textContent).toContain('啟用家長身份');
-  });
-
-  it('失敗：角色不變、顯示錯誤、按鈕還在', () => {
-    const { fixture, http, auth, add, activate } = setup();
-    const el = fixture.nativeElement as HTMLElement;
-
-    activate();
-    http
-      .expectOne((r) => r.url.endsWith('/api/me/activate-parent'))
-      .flush({ error: 'x' }, { status: 500, statusText: 'err' });
-    fixture.detectChanges();
-
-    expect(auth.adoptRoles).not.toHaveBeenCalled();
-    expect(add).not.toHaveBeenCalled();
-    expect(el.textContent).toContain('啟用失敗');
-    expect(el.textContent).toContain('啟用家長身份');
+  it('已經有家長身分：這一區不顯示', () => {
+    const { el } = setup(['teacher', 'parent']);
+    expect(el.textContent).not.toContain('請洽補習班行政');
   });
 });
 

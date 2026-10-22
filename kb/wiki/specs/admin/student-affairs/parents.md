@@ -59,12 +59,13 @@ tags: [specs, admin, student-affairs, parents]
 4. 若有關聯學生，建立 `parent_student_relations` 記錄
 5. 回傳一次性登入連結，畫面顯示 QR 讓家長當場用自己的手機掃
 
-### 新增家長：Email／手機已是本機構教職員的帳號（設計稿 · #1844，計畫席 10-22 已裁）
+### 新增家長：Email／手機已是本機構教職員的帳號（#1844）
 
-> **狀態：設計稿。** Q1–Q5 已由計畫席 10-22 裁定（見文末「裁定」），等 docs PR 批准後實作。
+> **狀態：已實作**（#1844，設計稿 #1848 經計畫席 10-22 批准）。判斷在 `lib/staff-as-parent.ts`
+> （`decideExistingAccount`／`findExistingAccounts`／`linkStaffAsParent`），路由在 `routes/parents.ts` 的 `POST /`。
 > 使用者 10-22 選 A：老師或行政兼家長時，**由行政在這一頁一次完成**，取代帳號設定的「啟用家長身份」
 > （那條路建出沒有孩子的家長列，行政也不知道有人啟用了，見 [[specs/admin/roles-and-auth]]）。
-> 實作疊在 #1843 上：孩子的驗證直接用它的 `checkChildren`（`lib/parent-children.ts`），不另寫一份。
+> 孩子的驗證直接用 #1843 的 `checkChildren`（`lib/parent-children.ts`），不另寫一份。
 
 **現況**：建立家長時 `createUser` 遇到既有 email／手機就回 409 `DUPLICATE_EMAIL`／`DUPLICATE_PHONE`
 （`routes/parents.ts:495-498`），行政沒辦法把一位老師設成家長。
@@ -90,6 +91,8 @@ tags: [specs, admin, student-affairs, parents]
 3. **確認框**：「這是 ○○（教職員）的帳號，要把他設為家長嗎？家長資料會用「○○」這個名字。」
    按「設為家長」後，前端帶 `linkExistingUserId: <userId>` **原表單再送一次**。後端**重新做一次上面的判斷**，
    不信前端帶來的 id，只在仍然是「本機構啟用中教職員、還沒有家長資料」而且 id 一致時才往下做。
+   不一致、或已經對不到任何帳號（兩次送出之間 Email／手機被改了），回 409 `LINK_TARGET_CHANGED`「帳號資料已經變了，請重新送出」，
+   **不會**改去建一個新帳號。
 4. **一次完成、同一個交易**（`withTx`，見 [[architecture/pg-pool-writes]]）：
    - 建 `parents` 列：`org_id`＝本機構，`status = active`，名字用**教職員姓名**（`staff.display_name`），
      不用表單填的姓名（Q2）

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // **靜態 import，不要在 test body 裡動態 import。**
 // 原本兩個測試各寫 `await import('./parents')`，於是**模組轉譯的時間被算進
@@ -30,6 +30,20 @@ const pgAnswer = (sql: string, params: unknown[] = []) => {
     return pgState.current.map((student_id) => ({ student_id }));
   if (/FROM students WHERE/.test(sql))
     return ids.filter((i) => !pgState.inOrg || pgState.inOrg.includes(i)).map((id) => ({ id }));
+  // #1844：設為家長的交易建出來的那一列
+  if (/^\s*INSERT INTO parents/.test(sql))
+    return [
+      {
+        id: 'new-parent',
+        user_id: params[0],
+        org_id: params[1],
+        name: params[2],
+        notes: params[3],
+        status: 'active',
+        created_at: '2026-10-22T00:00:00Z',
+        updated_at: '2026-10-22T00:00:00Z',
+      },
+    ];
   if (/FROM enrollments e/.test(sql))
     return ids
       .filter((i) => !pgState.inScope || pgState.inScope.includes(i))
@@ -989,5 +1003,200 @@ describe('改孩子的授權與交易（#1843）', () => {
     expect(res.status).toBe(403);
     expect(createdUsers.length).toBe(before);
     expect(writes).toEqual([]);
+  });
+});
+
+/**
+ * #1844：家長頁新增家長時，Email／手機已經是本機構教職員的帳號 —— 確認後一次設為家長。
+ * 判斷順序的每一格在 `lib/staff-as-parent.spec.ts`；交易的回滾與唯一鍵在
+ * `contract/staff-as-parent.contract.ts` 對真 Postgres 驗。這裡守路由層：碼、確認的往返、
+ * 不建新帳號、不發登入連結，以及交易真的被叫到。
+ */
+describe('POST /api/parents —— 把本機構教職員設為家長（#1844）', () => {
+  const KID = '22222222-2222-4222-8222-222222222222';
+  const TEACHER = 'u-teacher';
+
+  const accounts = {
+    ba_user: [] as Array<Record<string, unknown>>,
+    user_roles: [] as Array<Record<string, unknown>>,
+    staff: [] as Array<Record<string, unknown>>,
+    parents: [] as Array<Record<string, unknown>>,
+  };
+  const teacher = (over: { staffStatus?: string; orgId?: string; userId?: string } = {}) => {
+    const userId = over.userId ?? TEACHER;
+    accounts.ba_user = [
+      {
+        id: userId,
+        orgId: over.orgId ?? 'org-1',
+        name: '帳號名',
+        email: 'wang@example.com',
+        phone: null,
+        username: null,
+      },
+    ];
+    accounts.user_roles = [{ user_id: userId, role: 'teacher' }];
+    accounts.staff = [
+      { user_id: userId, display_name: '王老師', status: over.staffStatus ?? 'active' },
+    ];
+    accounts.parents = [];
+  };
+
+  // createdUsers 是整支檔共用的（前面建帳號的測試會留紀錄）
+  beforeEach(() => {
+    createdUsers.length = 0;
+  });
+  afterEach(() => {
+    Object.assign(accounts, { ba_user: [], user_roles: [], staff: [], parents: [] });
+    Object.assign(pgState, {
+      parentFound: true,
+      current: [],
+      inOrg: null,
+      inScope: null,
+      sent: [],
+    });
+    createdUsers.length = 0;
+  });
+
+  /** 查既有帳號的四張表回 `accounts`；其餘照最小可用回應 */
+  function fakeSupabase(writes: string[]) {
+    const from = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      const rows = () => (accounts as Record<string, unknown[]>)[table] ?? [];
+      Object.assign(builder, {
+        select: () => chain(),
+        eq: () => chain(),
+        in: () => chain(),
+        or: () => chain(),
+        update: () => (writes.push(`update ${table}`), chain()),
+        insert: () => (writes.push(`insert ${table}`), chain()),
+        delete: () => (writes.push(`delete ${table}`), chain()),
+        single: () => Promise.resolve({ data: null, error: null }),
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
+          resolve({ data: rows(), error: null }),
+      });
+      return builder;
+    };
+    return { from };
+  }
+
+  async function post(
+    body: Record<string, unknown>,
+    opts: { userId?: string; permissions?: string[]; scope?: readonly string[] | null } = {},
+  ) {
+    const writes: string[] = [];
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', fakeSupabase(writes));
+      set('orgId', 'org-1');
+      set('userId', opts.userId ?? 'admin-1');
+      set('roles', ['admin']);
+      set('permissions', opts.permissions ?? ['manage_students']);
+      set('campusScope', opts.scope ?? null);
+      await next();
+    });
+    app.route('/', parentsRoute as unknown as Hono);
+    const res = await app.request(
+      '/',
+      {
+        method: 'POST',
+        body: JSON.stringify({ name: '表單上的名字', email: 'wang@example.com', ...body }),
+        headers: { 'content-type': 'application/json' },
+      },
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid', WEB_URL: 'http://localhost:4200' },
+    );
+    return { res, json: (await res.json()) as Record<string, any>, writes };
+  }
+
+  it('沒帶確認 → 409 STAFF_ACCOUNT_EXISTS（userId、教職員姓名），沒建帳號、沒寫任何東西', async () => {
+    teacher();
+    const { res, json, writes } = await post({ studentIds: [KID] });
+    expect(res.status).toBe(409);
+    expect(json).toMatchObject({
+      code: 'STAFF_ACCOUNT_EXISTS',
+      details: { userId: TEACHER, staffName: '王老師' },
+    });
+    expect(createdUsers).toEqual([]);
+    expect(writes).toEqual([]);
+    expect(pgState.sent).toEqual([]);
+  });
+
+  it('帶確認 → 201：一個交易（家長列用教職員姓名、parent 角色、孩子），不建帳號、loginUrl 是 null', async () => {
+    teacher();
+    const { res, json, writes } = await post({ studentIds: [KID], linkExistingUserId: TEACHER });
+    expect(res.status).toBe(201);
+    expect(json['loginUrl']).toBeNull();
+    expect(json['data']).toMatchObject({ userId: TEACHER, name: '王老師', studentCount: 1 });
+    expect(createdUsers).toEqual([]);
+    expect(writes.filter((w) => w !== 'insert audit_logs')).toEqual([]);
+    expect(pgState.sent[0]).toBe('BEGIN');
+    expect(pgState.sent).toContain('INSERT INTO parents');
+    expect(pgState.sent).toContain('INSERT INTO user_roles');
+    expect(pgState.sent).toContain('INSERT INTO parent_student_relations');
+    expect(pgState.sent.at(-1)).toBe('COMMIT');
+  });
+
+  it('確認的 id 跟現在對到的人不一樣 → 409 LINK_TARGET_CHANGED，沒寫', async () => {
+    teacher();
+    const { res, json } = await post({ linkExistingUserId: 'someone-else' });
+    expect(res.status).toBe(409);
+    expect(json['code']).toBe('LINK_TARGET_CHANGED');
+    expect(pgState.sent).toEqual([]);
+  });
+
+  it('帶確認、但現在已經對不到既有帳號 → 409 LINK_TARGET_CHANGED，不會改去建一個新帳號', async () => {
+    const { res, json } = await post({ linkExistingUserId: TEACHER });
+    expect(res.status).toBe(409);
+    expect(json['code']).toBe('LINK_TARGET_CHANGED');
+    expect(createdUsers).toEqual([]);
+  });
+
+  it('受限管理員勾了範圍外的孩子 → 403 STUDENT_OUT_OF_SCOPE，交易裡什麼都沒寫', async () => {
+    teacher();
+    pgState.inScope = [];
+    const { res, json } = await post(
+      { studentIds: [KID], linkExistingUserId: TEACHER },
+      { scope: ['campus-1'] },
+    );
+    expect(res.status).toBe(403);
+    expect(json['code']).toBe('STUDENT_OUT_OF_SCOPE');
+    // 驗不過就在寫任何東西之前返回（同 #1843）：交易裡沒有任何 INSERT
+    expect(pgState.sent.filter((q) => q.startsWith('INSERT'))).toEqual([]);
+  });
+
+  it('對到自己、沒有 * → 403 SELF_LINK_FORBIDDEN，不給確認框；持有 * → 照常走到確認', async () => {
+    teacher({ userId: 'admin-1' });
+    const denied = await post({}, { userId: 'admin-1' });
+    expect(denied.res.status).toBe(403);
+    expect(denied.json['code']).toBe('SELF_LINK_FORBIDDEN');
+
+    const allowed = await post({}, { userId: 'admin-1', permissions: ['*'] });
+    expect(allowed.json['code']).toBe('STAFF_ACCOUNT_EXISTS');
+  });
+
+  it('已經有家長資料 → 409 PARENT_ALREADY_EXISTS，帶 parentId 讓畫面指去編輯；別機構 → DUPLICATE_EMAIL', async () => {
+    teacher();
+    accounts.parents = [{ id: 'p-1', user_id: TEACHER, name: '王老師', status: 'archived' }];
+    const existing = await post({});
+    expect(existing.res.status).toBe(409);
+    expect(existing.json).toMatchObject({
+      code: 'PARENT_ALREADY_EXISTS',
+      details: { parentId: 'p-1', status: 'archived' },
+    });
+
+    teacher({ orgId: 'org-2' });
+    const other = await post({});
+    expect(other.json['code']).toBe('DUPLICATE_EMAIL');
+    expect(other.json).not.toHaveProperty('details');
+  });
+
+  it('教職員已停用 → 409 STAFF_NOT_ACTIVE', async () => {
+    teacher({ staffStatus: 'inactive' });
+    const { res, json } = await post({ linkExistingUserId: TEACHER });
+    expect(res.status).toBe(409);
+    expect(json['code']).toBe('STAFF_NOT_ACTIVE');
+    expect(pgState.sent).toEqual([]);
   });
 });
