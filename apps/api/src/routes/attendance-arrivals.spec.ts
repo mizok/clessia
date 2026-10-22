@@ -57,6 +57,10 @@ function fakeDb(rows: Rows, failures: Failures | readonly string[] = {}) {
         if (f.failingWrites?.includes(table)) {
           return { select: () => Promise.resolve({ data: null, error: { message: '寫入失敗' } }) };
         }
+        // 已經有卡（UNIQUE student_id＋checkin_date 衝突）：ignoreDuplicates 回空陣列，lib 會回頭讀那一筆
+        if (table === 'daily_checkins' && data.length > 0) {
+          return { select: () => Promise.resolve({ data: [], error: null }) };
+        }
         // 打卡 upsert 接 `.select()`：回剛寫入的那一列
         const row = { id: 'checkin-1', ...(payload as Record<string, unknown>) };
         return { select: () => Promise.resolve({ data: [row], error: null }) };
@@ -126,6 +130,8 @@ async function call(
       error?: string;
       code?: string;
       attendanceMode?: string;
+      alreadyCheckedIn?: boolean;
+      checkedInAt?: string;
       students?: Array<{ checkedInAt: string | null }>;
     } | null,
     writes: db.writes,
@@ -253,13 +259,20 @@ describe('POST /roster/{eventId}/check-in —— 他到了', () => {
     expect(r.status).toBe(409);
     expect(r.json?.code).toBe('CHECKED_IN_ELSEWHERE');
     expect(r.json?.error).toContain('景美分校');
-    expect(r.writes.filter((w) => w.table !== 'audit_logs')).toHaveLength(0);
+    // 擋在任何寫入之前：沒有打卡 upsert，也沒有 attendance_records
+    expect(r.writes).toHaveLength(0);
   });
 
-  it('卡在同一校（或卡沒帶分校）→ 照常記，不擋', async () => {
+  it('卡在同一校（或卡沒帶分校）→ 照常回 alreadyCheckedIn，時間是第一次那筆', async () => {
     for (const campus_id of [A, null]) {
-      const r = await checkIn(happy({ daily_checkins: [{ campus_id }] }));
+      const r = await checkIn(
+        happy({ daily_checkins: [{ campus_id, checked_in_at: '2026-04-06T01:00:00Z' }] }),
+      );
       expect(r.status).toBe(201);
+      expect(r.json).toMatchObject({
+        alreadyCheckedIn: true,
+        checkedInAt: '2026-04-06T01:00:00Z',
+      });
     }
   });
 
