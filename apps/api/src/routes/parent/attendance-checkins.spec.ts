@@ -1,0 +1,101 @@
+import { Hono } from 'hono';
+import { describe, expect, it } from 'vitest';
+
+import { createChildDb } from '../../lib/child-db';
+import { createMultiOrgDb } from '../../test-utils/multi-org-db';
+
+import attendanceRoute from './attendance';
+
+/**
+ * #1075：`GET /api/me/attendance/checkins` —— 家長看孩子哪幾天幾點到班。
+ * 用真的 `createChildDb` 包 `createMultiOrgDb`：scope、org、兄弟姊妹的過濾都是它的事，這裡驗有沒有接上。
+ */
+
+const ORG = 'org-1';
+const MINE = '00000000-0000-0000-0000-000000000001';
+const SIBLING = '00000000-0000-0000-0000-000000000002';
+
+function seed() {
+  return createMultiOrgDb({
+    organizations: [{ id: ORG, attendance_mode: 'per_session' }],
+    campuses: [
+      { id: 'c-daily', org_id: ORG, attendance_mode: 'daily_checkin' },
+      { id: 'c-session', org_id: ORG, attendance_mode: null },
+    ],
+    classes: [
+      { id: 'cls-daily', org_id: ORG, campus_id: 'c-daily' },
+      { id: 'cls-session', org_id: ORG, campus_id: 'c-session' },
+      { id: 'cls-sibling', org_id: ORG, campus_id: 'c-sibling' },
+    ],
+    enrollments: [
+      { id: 'e1', org_id: ORG, student_id: MINE, class_id: 'cls-daily', status: 'withdrawal' },
+      { id: 'e2', org_id: ORG, student_id: MINE, class_id: 'cls-session', status: 'active' },
+      { id: 'e3', org_id: ORG, student_id: SIBLING, class_id: 'cls-sibling', status: 'active' },
+    ],
+    daily_checkins: [
+      {
+        id: 'k1',
+        org_id: ORG,
+        campus_id: 'c-daily',
+        student_id: MINE,
+        checkin_date: '2026-10-21',
+        checked_in_at: '2026-10-21T08:42:10+00:00',
+        checked_in_by: 'kiosk-user',
+        created_at: '2026-10-21T08:42:10+00:00',
+      },
+      {
+        id: 'k0',
+        org_id: ORG,
+        campus_id: 'c-daily',
+        student_id: MINE,
+        checkin_date: '2026-10-01',
+        checked_in_at: '2026-10-01T08:00:00+00:00',
+      },
+      {
+        id: 'k2',
+        org_id: ORG,
+        campus_id: 'c-daily',
+        student_id: SIBLING,
+        checkin_date: '2026-10-21',
+        checked_in_at: '2026-10-21T07:00:00+00:00',
+      },
+    ],
+  });
+}
+
+async function get(query: string, roles = ['parent'], scope: readonly string[] = [MINE, SIBLING]) {
+  const db = seed();
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+    set('roles', roles);
+    set('studentScope', scope);
+    set('childDb', createChildDb(db.client as never, scope, ORG));
+    await next();
+  });
+  app.route('/', attendanceRoute as unknown as Hono);
+  const res = await app.request(`/checkins?${query}`);
+  return { status: res.status, body: (await res.json()) as any };
+}
+
+describe('GET /api/me/attendance/checkins（#1075）', () => {
+  it('只回這個孩子、期間內的日期與台北時間 HH:mm；不帶刷卡人等欄位', async () => {
+    const { status, body } = await get(`childId=${MINE}&dateFrom=2026-10-10&dateTo=2026-10-22`);
+
+    expect(status).toBe(200);
+    // 08:42Z = 台北 16:42；兄弟姊妹的、期間外的都不在（org 由孩子範圍隱含，同列表那支）
+    expect(body.data).toEqual([{ date: '2026-10-21', time: '16:42' }]);
+  });
+
+  it('dailyCheckinCampusIds：孩子報過名（含已退班）的分校裡，生效模式是日到班的', async () => {
+    const { body } = await get(`childId=${MINE}&dateFrom=2026-10-10&dateTo=2026-10-22`);
+
+    expect(body.dailyCheckinCampusIds).toEqual(['c-daily']);
+  });
+
+  it('不是家長 → 403；孩子不在範圍 → 403', async () => {
+    const q = `childId=${MINE}&dateFrom=2026-10-10&dateTo=2026-10-22`;
+    expect((await get(q, ['admin'])).status).toBe(403);
+    expect((await get(q, ['parent'], [SIBLING])).body.code).toBe('CHILD_OUT_OF_SCOPE');
+  });
+});

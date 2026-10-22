@@ -27,6 +27,8 @@ const ParentAttendanceRecordSchema = z
     eventDate: z.string(),
     startTime: z.string().nullable(),
     endTime: z.string().nullable(),
+    /** 課堂的分校（#1075）：前端拿它對 `/checkins` 的 `dailyCheckinCampusIds` */
+    campusId: z.string().nullable(),
     campusName: z.string().nullable(),
     className: z.string().nullable(),
     /**
@@ -89,6 +91,7 @@ function toParentAttendanceRecord(row: Row, leave: Row | null) {
     eventDate: full.eventDate,
     startTime: full.startTime,
     endTime: full.endTime,
+    campusId: (row['campus_id'] as string | null) ?? null,
     campusName: full.campusName,
     className: full.className,
     sessionStatus: full.sessionStatus,
@@ -223,6 +226,105 @@ app.openapi(
           monthlyAbsentCount: absentResult.count ?? 0,
           monthlyOnLeaveCount: onLeaveResult.count ?? 0,
         },
+      },
+      200,
+    );
+  },
+);
+
+const CheckinsResponseSchema = z
+  .object({
+    /** 這段期間每一次到班：日期與台北時間。刷卡人、分校、列 id 都不回 —— 家長要的只有幾點到 */
+    data: z.array(z.object({ date: z.string(), time: z.string() })),
+    /**
+     * 孩子報過名（任何狀態，過去的日子也要判）的班所在分校裡，生效模式是日到班的那些。
+     * 前端拿它對出勤紀錄的 `campusId`：那天有任何一堂在這些分校才畫到班行（設計稿 §1）
+     */
+    dailyCheckinCampusIds: z.array(z.string()),
+  })
+  .openapi('ParentCheckinsResponse');
+
+/** `checked_in_at`（timestamptz）→ 台北 `HH:mm`。台灣沒有日光節約，固定 +8 */
+function taipeiTime(ts: string): string {
+  return new Date(Date.parse(ts) + 8 * 3600_000).toISOString().slice(11, 16);
+}
+
+// GET /api/me/attendance/checkins（#1075）
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/checkins',
+    tags: ['Me'],
+    summary: '這個孩子的每日到班時間',
+    request: {
+      query: z.object({
+        childId: DbUuidSchema,
+        dateFrom: z.string().date(),
+        dateTo: z.string().date(),
+      }),
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: { 'application/json': { schema: CheckinsResponseSchema } },
+      },
+      403: {
+        description: '不是家長身分或這個孩子不在範圍內',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    if (!(c.get('roles') ?? []).includes('parent')) {
+      return c.json({ error: '不是家長身分', code: 'NOT_PARENT' }, 403);
+    }
+    const { childId, dateFrom, dateTo } = c.req.valid('query');
+    if (!isChildAllowed(c.get('studentScope'), childId)) {
+      return c.json({ error: '沒有這個孩子的權限', code: 'CHILD_OUT_OF_SCOPE' }, 403);
+    }
+
+    const childDb = c.get('childDb');
+    const fail = () => c.json({ error: '讀取到班紀錄失敗', code: 'FETCH_CHECKINS_FAILED' }, 500);
+
+    // 疊 `.eq('student_id', childId)`：childDb 的範圍是這個家長的全部孩子（同列表那支）
+    const [checkins, enrollments] = await Promise.all([
+      childDb
+        .from('daily_checkins', 'student_id')
+        .select('checkin_date, checked_in_at')
+        .eq('student_id', childId)
+        .gte('checkin_date', dateFrom)
+        .lte('checkin_date', dateTo)
+        .order('checkin_date', { ascending: false }),
+      childDb.from('enrollments', 'student_id').pluck('class_id', 'class_id', childId),
+    ]);
+    if (checkins.error || enrollments.error) return fail();
+
+    const classes =
+      enrollments.ids.length === 0
+        ? { data: [], error: null }
+        : await childDb
+            .orgRef('classes')
+            .select('id, campus_id')
+            .in('id', [...enrollments.ids]);
+    if (classes.error) return fail();
+    const campusIds = [
+      ...new Set(
+        ((classes.data ?? []) as unknown as Array<{ campus_id: string | null }>)
+          .map((r) => r.campus_id)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const modes = await childDb.dailyCheckinCampusIds(campusIds);
+    if (modes.error) return fail();
+
+    return c.json(
+      {
+        data: ((checkins.data ?? []) as unknown as Row[]).map((r) => ({
+          date: r['checkin_date'] as string,
+          time: taipeiTime(r['checked_in_at'] as string),
+        })),
+        dailyCheckinCampusIds: modes.ids,
       },
       200,
     );

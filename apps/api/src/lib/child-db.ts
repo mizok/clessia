@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveAttendanceMode } from './attendance-mode';
 import type { StudentScope } from './child-scope';
 import { notifyLeaveStreaks } from './leave-streak';
 import { notifyNewApplication } from './notify-events';
@@ -337,6 +338,22 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
         paymentInfo: (data as { payment_info?: string | null } | null)?.payment_info ?? null,
         error,
       };
+    },
+
+    /**
+     * 這些分校裡，生效出勤模式是日到班的那些（#1075，家長到班頁決定要不要畫到班行）。
+     * 判斷走 `resolveAttendanceMode`（分校設定優先、null 沿用機構預設）—— 家長端 route 碰不到原始
+     * `supabase`，所以在這裡呼叫。**只回 id**，不把分校或機構的其他設定開給家長。
+     */
+    async dailyCheckinCampusIds(
+      campusIds: readonly string[],
+    ): Promise<{ ids: string[]; error: { message: string } | null }> {
+      const modes = await Promise.all(
+        campusIds.map((id) => resolveAttendanceMode(supabase, orgId, id)),
+      );
+      const failed = modes.find((m) => m.error);
+      if (failed) return { ids: [], error: failed.error };
+      return { ids: campusIds.filter((_, i) => modes[i]!.mode === 'daily_checkin'), error: null };
     },
 
     /**
