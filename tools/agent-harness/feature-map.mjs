@@ -246,7 +246,7 @@ const AREAS = [
     name: '系統設定',
     pages: ['admin/settings'],
     routes: ['org-settings'],
-    specs: ['admin/system/settings.md'],
+    specs: ['admin/system/settings.md', 'admin/system/grade-promotion.md'],
   },
   {
     // 個人聯絡簿（學生 × 日期，國小模式）。P1 做了 schema + API，管理端頁是 P2、
