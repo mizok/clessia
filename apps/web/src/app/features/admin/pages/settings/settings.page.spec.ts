@@ -665,5 +665,15 @@ describe('SettingsPage', () => {
       });
       expect([page.applicationReviewDaysValue, page.trialFollowupDaysValue]).toEqual([7, 0]);
     });
+
+    // 二讀：失敗不復原的話，按鈕會一直轉、按不了第二次
+    it('儲存失敗：跳錯誤、按鈕不再 loading', async () => {
+      orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
+      await setup();
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      component['saveApplicationFlow']();
+      expect(component['savingApplicationFlow']()).toBe(false);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+    });
   });
 });
