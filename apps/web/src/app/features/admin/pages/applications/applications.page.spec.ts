@@ -591,15 +591,17 @@ describe('ApplicationsPage：版面（#1874）', () => {
   });
 
   it('色面句：待處理寫「N 筆申請等你處理」，有沒排的試聽再加一句；別的分頁寫「分頁名 N 筆」', async () => {
-    const { fixture, el } = await setup([req(), trial()]);
-    expect(title(el)).toBe('3筆申請等你處理，1堂試聽還沒排時間。');
+    // 二讀：已排定的試聽不算「還沒排」—— 只數 status === 'pending'
+    const scheduled = trial({ id: 't2', status: 'scheduled', scheduledDate: '2026-10-25' });
+    const { fixture, el } = await setup([req(), trial(), scheduled]);
+    expect(title(el)).toBe('4筆申請等你處理，1堂試聽還沒排時間。');
     // 模板換行不能變成標點前的空白（實機截圖抓到「處理 ，」）
     expect(el.querySelector('app-page-open h1')!.textContent).not.toMatch(/\s[，。]/);
 
     const p = page(fixture);
     p.setFilter(p.filters.find((f: { label: string }) => f.label === '已轉入'));
     fixture.detectChanges();
-    expect(title(el)).toBe('已轉入3筆。');
+    expect(title(el)).toBe('已轉入4筆。');
   });
 
   it('沒有沒排的試聽：色面只有第一句', async () => {
