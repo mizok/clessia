@@ -102,6 +102,7 @@ describe('PATCH /api/enrollments/:id/status：待付款轉正式完成申請（#
     const audit = db.rows('audit_logs').find((r) => r['resource_type'] === 'enrollment_request');
     expect(audit).toMatchObject({
       resource_id: 'req-1',
+      resource_name: '小明（數學A）',
       action: 'complete',
       details: { via: 'manual', enrollment_id: ENR },
     });
@@ -113,6 +114,17 @@ describe('PATCH /api/enrollments/:id/status：待付款轉正式完成申請（#
       studentName: '小明',
       className: '數學A',
     });
+  });
+
+  it('帶原因轉正式：trim 過的原因交給交易（寫進 status_reason）', async () => {
+    h.activate.mockResolvedValue({ activated: true, completed: [] });
+
+    await patch('pending_payment', { status: 'active', notes: '  家長已繳定金  ' });
+
+    expect(h.activate).toHaveBeenCalledWith(
+      h.pool,
+      expect.objectContaining({ reason: '家長已繳定金' }),
+    );
   });
 
   it('交易沒轉（被收款先轉走）：不寫、不蓋收款的日期與原因、不留報名稽核、不通知', async () => {
