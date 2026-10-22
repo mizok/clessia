@@ -56,6 +56,49 @@ export function rule(id, note = '') {
 }
 
 export const DEVIATIONS = [
+  // R5 2026-10-22（#1866）：帳戶鈕只留頭像，手機桌機一致 —— 稿桌機畫「{名} · 身分」＋箭頭。
+  // 名字與身分在帳戶選單頂端、頭像鈕的 aria-label 也有。鈕本身因此變窄，位置／尺寸／樣式連帶不同
+  ...['缺', '樣式'].map((status) => ({
+    status,
+    a6: '>control:button\\[帳戶：[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+    reason: '帳戶鈕只留頭像：名字與身分移到帳戶選單頂端',
+    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
+  })),
+  ...['位置', '尺寸', '樣式'].map((status) => ({
+    status,
+    a6: '^>landmark:banner\\[\\]>control:button\\[帳戶：[^\\]]*\\]$',
+    reason: '帳戶鈕只留頭像：鈕變窄，位置與樣式連帶不同',
+    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
+  })),
+  // 同一條：Logo 22 → 20px（頂欄一列放得下），寬度跟著窄
+  {
+    status: '尺寸',
+    a6: '^>landmark:banner\\[\\]>control:link\\[Clessia\\]$',
+    detail: '^寬 \\d+→\\d+$',
+    reason: 'Logo 22 → 20px：頂欄一列放得下',
+    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
+  },
+  {
+    status: '樣式',
+    a6: '^>landmark:banner\\[\\]>control:link\\[Clessia\\]$',
+    detail: '^fontSize 22px → 20px；lineHeight 22px → 20px(；display block → flex)?$',
+    reason: 'Logo 22 → 20px：頂欄一列放得下',
+    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
+  },
+  {
+    // R5 2026-10-16（#1683）：通知中心從「更多」移到頂欄鈴鐺，三個角色都有（A6 沒有）
+    status: '多',
+    app: '^>landmark:banner\\[\\]>control:link\\[通知[^\\]]*\\]$',
+    reason: '頂欄通知鈴鐺：通知中心的入口（A6 沒有）',
+    source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
+  },
+  {
+    // 同一條：老師頂欄導覽的「通知」一起拿掉（同一個功能不留兩個入口）
+    status: '缺',
+    a6: '>landmark:navigation\\[主要導覽\\]>control:link\\[通知\\]$',
+    reason: '頂欄通知鈴鐺取代導覽的「通知」：同一個功能不留兩個入口',
+    source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
+  },
   {
     // R5 2026-10-16（#1701）：手機「更多」改兩欄流排（分組各自往下長），不是稿的一列兩組對齊 ——
     // 管理員項目比稿多，360×640 會被切掉。分組在欄裡的位置跟稿不同是刻意的
