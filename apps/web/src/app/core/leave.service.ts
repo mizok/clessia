@@ -89,6 +89,20 @@ export class LeaveService {
     return this.http.patch<LeaveRequest>(`${this.baseUrl}/${id}`, input);
   }
 
+  /**
+   * 取消前的影響（#1100 #33）：這個模式會讓幾堂回到「還沒點名」、幾堂已點名不動。
+   * 範圍與 DELETE 共用同一個判斷（後端 `cancelPlan`）
+   */
+  impact(
+    id: string,
+    mode: 'truncate' | 'full',
+  ): Observable<{ data: { revertCount: number; keptCount: number } }> {
+    return this.http.get<{ data: { revertCount: number; keptCount: number } }>(
+      `${this.baseUrl}/${id}/impact`,
+      { params: new HttpParams().set('mode', mode) },
+    );
+  }
+
   delete(id: string, mode: 'truncate' | 'full' = 'truncate'): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`, {
       params: new HttpParams().set('mode', mode),

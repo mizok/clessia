@@ -36,6 +36,7 @@ import {
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type Tab = 'inbox' | 'publish';
 
@@ -61,6 +62,7 @@ const OTHER_KIND = { label: '系統通知', icon: 'pi-bell', go: '前往' };
 @Component({
   selector: 'app-notifications',
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     DatePipe,
     FormsModule,

@@ -410,6 +410,79 @@ async function revertLeaveAttendance(input: LeaveAttendanceRangeInput): Promise<
   return ((removed ?? []) as unknown[]).length;
 }
 
+/**
+ * 取消（DELETE）會動到哪一段 —— **預覽（`/impact`）與真的刪除共用這一支**，
+ * 不然兩邊對「截斷從哪天起」各自推論，總有一天預覽說 3 堂、刪掉的是 5 堂（#815 的形狀）。
+ *
+ * - `truncate-bound`：進行中、綁定型、今天以前還有堂 → 拆掉今天起的綁定堂
+ * - `truncate`：進行中、沒綁定、起日在今天以前 → 保留到昨天，今天起撤銷
+ * - `full`：其他（full 模式、未開始、已結束、今天才開始）→ 整張撤銷
+ */
+export function cancelPlan(
+  mode: 'truncate' | 'full',
+  window: LeaveWindow,
+  today: string,
+):
+  | { kind: 'truncate-bound'; kept: LeaveWindow['boundSessions']; revert: LeaveWindow }
+  | { kind: 'truncate' | 'full'; from: string; to: string; revert: LeaveWindow } {
+  const { startDate, endDate, boundSessions } = window;
+  const isActive = startDate <= today && endDate >= today;
+  const kept = boundSessions.filter((b) => b.date < today);
+  if (mode === 'truncate' && isActive && kept.length > 0) {
+    return {
+      kind: 'truncate-bound',
+      kept,
+      revert: boundWindow(boundSessions.filter((b) => b.date >= today)),
+    };
+  }
+  // **起始日＝今天時沒有過去可保留**（#1207）：改成昨天會留下 start > end 的倒置列 → full
+  if (mode === 'truncate' && isActive && startDate < today && boundSessions.length === 0) {
+    return { kind: 'truncate', from: today, to: endDate, revert: window };
+  }
+  return { kind: 'full', from: startDate, to: endDate, revert: window };
+}
+
+/**
+ * 取消前的影響（#1100 #33，`GET /leaves/:id/impact`）：這張假蓋到的堂裡，這個學生的 `on_leave`
+ * —— 還沒點名的那些會被刪掉（回到「還沒點名」），已點名的維持不動。判準同 `revertLeaveAttendance`。
+ * 只算**已經存在**的出勤事件：事件是懶生成的，還沒生成的那幾堂本來就沒有紀錄可動。
+ */
+async function leaveAttendanceImpact(
+  input: LeaveAttendanceRangeInput,
+): Promise<{ revertCount: number; keptCount: number }> {
+  const { supabase, orgId, studentId, from, to } = input;
+  // 讀失敗要丟出去（路由回 500）：吞掉就會回 0／0，前端說「不影響任何出缺席」—— 那是錯的答案
+  const { data: rawEvents, error: eventsError } = await supabase
+    .from('events')
+    .select('id, event_date, start_time, end_time, attendance_taken_at, sessions(id)')
+    .eq('org_id', orgId)
+    .gte('event_date', from)
+    .lte('event_date', to);
+  if (eventsError) throw new Error(`讀出勤事件失敗：${eventsError.message}`);
+  const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
+    coversEvent(input.window, ev),
+  );
+  if (events.length === 0) return { revertCount: 0, keptCount: 0 };
+
+  const { data: records, error: recordsError } = await supabase
+    .from('attendance_records')
+    .select('event_id')
+    .eq('org_id', orgId)
+    .eq('student_id', studentId)
+    .eq('status', 'on_leave')
+    .in(
+      'event_id',
+      events.map((e) => e['id'] as string),
+    );
+  if (recordsError) throw new Error(`讀出勤紀錄失敗：${recordsError.message}`);
+  const taken = new Set(
+    events.filter((e) => e['attendance_taken_at'] != null).map((e) => e['id'] as string),
+  );
+  const rows = (records ?? []) as Array<{ event_id: string }>;
+  const keptCount = rows.filter((r) => taken.has(r.event_id)).length;
+  return { revertCount: rows.length - keptCount, keptCount };
+}
+
 export function toLeaveResponse(row: Record<string, unknown>) {
   return {
     id: row['id'] as string,
@@ -1278,6 +1351,82 @@ app.openapi(
 );
 
 // DELETE /api/leaves/:id
+// GET /api/leaves/:id/impact —— 取消前的影響預覽（#1100 #33）
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/{id}/impact',
+    tags: ['Leaves'],
+    summary: '取消請假會動到幾堂出缺席（還沒點名的回到無紀錄、已點名的不動）',
+    request: {
+      params: z.object({ id: DbUuidSchema }),
+      query: z.object({
+        mode: z.enum(['truncate', 'full']).default('truncate').optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: '影響筆數',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.object({ revertCount: z.number(), keptCount: z.number() }),
+            }),
+          },
+        },
+      },
+      403: { description: '沒有這個分校的權限' },
+      404: { description: '找不到請假紀錄' },
+      500: { description: '讀取影響筆數失敗' },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { id } = c.req.valid('param');
+    const { mode = 'truncate' } = c.req.valid('query');
+
+    const { data: leave } = await supabase
+      .from('leave_requests')
+      .select(`id, student_id, ${LEAVE_WINDOW_COLUMNS}`)
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .maybeSingle();
+    if (!leave) return c.json({ error: '找不到請假紀錄' }, 404);
+
+    // 權限同 DELETE：預覽的是「我能不能、會動到什麼」
+    const studentId = (leave as { student_id: string }).student_id;
+    const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), studentId);
+    if (scoped === 'not-found') return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    if (scoped === 'out-of-scope')
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+
+    const plan = cancelPlan(
+      mode,
+      toLeaveWindow(leave as Record<string, unknown>),
+      getCurrentTaipeiDateString(),
+    );
+    const range =
+      plan.kind === 'truncate-bound'
+        ? { from: plan.revert.startDate, to: plan.revert.endDate }
+        : { from: plan.from, to: plan.to };
+    try {
+      const impact = await leaveAttendanceImpact({
+        supabase,
+        orgId,
+        studentId,
+        ...range,
+        window: plan.revert,
+      });
+      return c.json({ data: impact }, 200);
+    } catch (err) {
+      // 前端讀不到預覽就照原文案開窗（不擋取消），所以這裡明確回錯，不回一個猜的 0
+      console.error('[leaves] impact', err);
+      return c.json({ error: '讀取影響筆數失敗' }, 500);
+    }
+  },
+);
+
 app.openapi(
   createRoute({
     method: 'delete',
@@ -1341,12 +1490,12 @@ app.openapi(
         window: w,
       });
 
-    const isActive = startDate <= today && endDate >= today;
-    const keptBound = window.boundSessions.filter((b) => b.date < today);
+    const plan = cancelPlan(mode, window, today);
 
     // 綁定型的截斷（#1114）：拆掉今天起的綁定列、區間收到剩下的最後一堂；一堂都不剩就走整張刪除
-    if (mode === 'truncate' && isActive && keptBound.length > 0) {
-      const dropped = window.boundSessions.filter((b) => b.date >= today);
+    if (plan.kind === 'truncate-bound') {
+      const dropped = plan.revert.boundSessions;
+      const keptBound = plan.kept;
       await inOrg(
         supabase
           .from('leave_request_sessions')
@@ -1365,15 +1514,14 @@ app.openapi(
           .eq('id', id),
         orgId,
       );
-      const droppedWindow = boundWindow(dropped);
-      await revertAttendance(droppedWindow.startDate, droppedWindow.endDate, droppedWindow);
+      await revertAttendance(plan.revert.startDate, plan.revert.endDate, plan.revert);
       return new Response(null, { status: 204 });
     }
 
     // truncate 模式且為進行中：保留過去，截斷今日起（沒綁定的假）。
     // **起始日＝今天時沒有過去可保留**（#1207）：改成昨天會留下 start > end 的倒置列，
     // 所以落到下面的整張刪除（同綁定型「一堂都不剩」那條）。
-    if (mode === 'truncate' && isActive && startDate < today && window.boundSessions.length === 0) {
+    if (plan.kind === 'truncate') {
       // 同一支 today 算出來的昨天，不是另一個 UTC 算法 —— 兩個必須一致，
       // 否則會出現「今天用台北算、昨天用 UTC 算」的組合，比全錯更難 debug。
       const yesterday = addDaysToDateString(today, -1);
@@ -1382,7 +1530,7 @@ app.openapi(
         .update({ end_date: yesterday })
         .eq('id', id)
         .eq('org_id', orgId);
-      const revertedCount = await revertAttendance(today, endDate);
+      const revertedCount = await revertAttendance(plan.from, plan.to);
 
       logAudit(
         supabase,
@@ -1427,7 +1575,7 @@ app.openapi(
 
     // 其他情況（full 模式、未開始、已結束）：完整刪除
     await supabase.from('leave_requests').delete().eq('id', id).eq('org_id', orgId);
-    const revertedCount = await revertAttendance(startDate, endDate);
+    const revertedCount = await revertAttendance(plan.from, plan.to);
 
     logAudit(
       supabase,

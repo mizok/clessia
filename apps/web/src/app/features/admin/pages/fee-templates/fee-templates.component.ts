@@ -55,6 +55,8 @@ import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/b
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
 import { inUseLabel, periodUsageLabel, overlappingNames, amountUnit } from './fee-templates.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 
 /**
  * 費用方案管理 —— 見 kb/wiki/specs/admin/finance/fee-templates.md。
@@ -69,6 +71,8 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
+    SkeletonComponent,
+    HeightFollowDirective,
     ReloadVeilComponent,
     ChapterHeadComponent,
     DecimalPipe,

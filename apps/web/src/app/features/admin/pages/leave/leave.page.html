@@ -169,11 +169,7 @@
 
   <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list" aria-label="請假紀錄載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="請假紀錄載入中" chapter [lines]="1" [count]="3" />
     @if (records().length === 0) {
       <div data-testid="empty">
         <p class="m-0 py-4 text-base text-zinc-700">

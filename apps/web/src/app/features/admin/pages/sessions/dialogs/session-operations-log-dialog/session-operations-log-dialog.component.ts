@@ -12,6 +12,7 @@ import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-c
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 interface ActionConfig {
   label: string;
@@ -45,6 +46,7 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   selector: 'app-session-operations-log-dialog',
   standalone: true,
   imports: [
+    SkeletonComponent,
     DataChipComponent,
     CommonModule,
     TabsModule,
