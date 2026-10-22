@@ -167,6 +167,48 @@ describe('SubjectManagerComponent', () => {
     );
   });
 
+  // 審核席 #1813 二讀：讀屏與淡色是這張的設計點，用屬性斷言釘住
+  describe('列上的圖示鈕', () => {
+    const used: Subject = {
+      id: 'subject-2',
+      name: '英文',
+      sortOrder: 1,
+      courseCount: 3,
+      academyExamCount: 0,
+    };
+
+    function renderBoth(): HTMLButtonElement[] {
+      subjectsServiceMock.list.mockReturnValue(of({ data: [subjects[0]!, used] }));
+      (component as unknown as { loadSubjects: () => void }).loadSubjects();
+      fixture.detectChanges();
+      return [...fixture.nativeElement.querySelectorAll('.subject-manager__row button')];
+    }
+    const byLabel = (buttons: HTMLButtonElement[], label: string) =>
+      buttons.find((b) => b.getAttribute('aria-label') === label);
+
+    it('改名鈕的 aria-label 帶科目名 —— 一頁好幾顆「改名」，讀屏要分得出是哪一列', () => {
+      const buttons = renderBoth();
+      expect(byLabel(buttons, '改名 數學')).toBeTruthy();
+      expect(byLabel(buttons, '改名 英文')).toBeTruthy();
+    });
+
+    it('使用中的刪除鈕 aria-label 說明「不能刪，按了看原因」；沒被用到的只說刪除', () => {
+      const buttons = renderBoth();
+      expect(byLabel(buttons, '刪除 英文（使用中，不能刪，按了看原因）')).toBeTruthy();
+      expect(byLabel(buttons, '刪除 數學')).toBeTruthy();
+    });
+
+    it('使用中的刪除圖示降成淡色（text-zinc-400），沒被用到的不降', () => {
+      const buttons = renderBoth();
+      const usedBtn = byLabel(buttons, '刪除 英文（使用中，不能刪，按了看原因）')!;
+      const freeBtn = byLabel(buttons, '刪除 數學')!;
+      expect(usedBtn.classList).toContain('text-zinc-400');
+      expect(freeBtn.classList).not.toContain('text-zinc-400');
+      // 不灰掉：仍然可以按（按了跳說明）
+      expect(usedBtn.disabled).toBe(false);
+    });
+  });
+
   it('沒被用到的科目列常駐「還沒被用到」', () => {
     expect(fixture.nativeElement.textContent).toContain('還沒被用到');
   });
