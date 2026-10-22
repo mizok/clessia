@@ -3,7 +3,7 @@ title: 公開試聽申請、我要報名表單照 A6（設計稿）
 summary: 設計稿（#1637；Q1–Q6、Q5′、Q6′ 已於 10-16 裁定完畢）。後端（public_applications、/api/public/*、honeypot＋Postgres 速率限制）與行政收件頁（/admin/applications）早已上線，缺的是 /trial、/enrollment 兩個前端頁。依裁定加：試聽表單補「與學生關係」（A6 偏離）、機器人驗證預設自架的 ALTCHA、部署可切換成 Turnstile、班級「開放公開報名」旗標、老師暱稱（對外只露暱稱，沒設就不露）、申請保存 6 個月由 pg_cron 刪除；三個 schema 變更合成一支 migration。拆成四支實作單。
 category: spec
 status: draft
-updated: 2026-10-16
+updated: 2026-10-22
 tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 ---
 
@@ -18,15 +18,15 @@ tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 
 工單原本假設要從頭設計匿名送出與行政收件，**但這兩件事已經上線**：
 
-| 部分                   | 現況（2026-10-16 查）                                                                                                                           |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 資料表                 | `public_applications`＋`public_application_targets`（migration `20261003172458`、`20261004054133`、`20261004055339`）                           |
-| 匿名 API               | `GET /api/public/catalog`、`POST /api/public/trial-applications`、`POST /api/public/enrollment-applications`（`apps/api/src/index.ts:290-293`） |
-| 防濫用                 | honeypot → Postgres 速率限制 → 可選 Turnstile（`routes/public/application-common.ts`，測試 `abuse-guard.spec.ts`）                              |
-| 這個部署屬於哪個 org   | 環境變數 `PUBLIC_ORG_SLUG`（`lib/public-org.ts`），沒設就回 404 `PUBLIC_DISABLED`                                                               |
-| 行政收件               | `/admin/applications`（#1245）：新申請／已聯絡／已轉入／不受理／垃圾送件，可寫內部備註                                                          |
-| **前端 `/trial`**      | **佔位**：「試聽頁面開發中」                                                                                                                    |
-| **前端 `/enrollment`** | **佔位**：「報名頁面開發中」                                                                                                                    |
+| 部分                   | 現況（2026-10-16 查）                                                                                                                                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 資料表                 | `public_applications`＋`public_application_targets`（migration `20261003172458`、`20261004054133`、`20261004055339`）                                                                                          |
+| 匿名 API               | `GET /api/public/org`（外框的補習班名稱，只回 `name`，#1858）、`GET /api/public/catalog`、`POST /api/public/trial-applications`、`POST /api/public/enrollment-applications`（`apps/api/src/index.ts:290-293`） |
+| 防濫用                 | honeypot → Postgres 速率限制 → 可選 Turnstile（`routes/public/application-common.ts`，測試 `abuse-guard.spec.ts`）                                                                                             |
+| 這個部署屬於哪個 org   | 環境變數 `PUBLIC_ORG_SLUG`（`lib/public-org.ts`），沒設就回 404 `PUBLIC_DISABLED`                                                                                                                              |
+| 行政收件               | `/admin/applications`（#1245）：新申請／已聯絡／已轉入／不受理／垃圾送件，可寫內部備註                                                                                                                         |
+| **前端 `/trial`**      | **佔位**：「試聽頁面開發中」                                                                                                                                                                                   |
+| **前端 `/enrollment`** | **佔位**：「報名頁面開發中」                                                                                                                                                                                   |
 
 依裁定，除了把兩個前端頁照 A6 做出來，還要做：
 
