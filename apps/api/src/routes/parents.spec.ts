@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const createdUsers: string[] = [];
 const removedUsers: string[] = [];
 /** #1845：設了就讓 createUser 丟這個訊息（模擬帳號已存在，走 retry 那條路） */
-const authState = { createUserError: null as string | null };
+const authState = { createUserError: null as string | null, noPool: false };
 /**
  * #1843：改孩子走 `auth.pool` 的交易。替身依 SQL 回答 —— 預設「學生都在本 org、都在範圍」，
  * 個別測試改 `pgState`。真正的 SQL 語意在 `contract/parent-children.contract.ts` 對真 Postgres 驗。
@@ -69,7 +69,10 @@ const fakePgPool = {
 };
 vi.mock('../lib/get-auth', () => ({
   getAuth: () => ({
-    pool: fakePgPool,
+    // #1845：noPool＝連線池不在（pg-pool-writes 規則 6）
+    get pool() {
+      return authState.noPool ? undefined : fakePgPool;
+    },
     api: {
       createUser: async ({ body }: { body: { email: string } }) => {
         if (authState.createUserError) throw new Error(authState.createUserError);
@@ -1294,14 +1297,21 @@ describe('POST /api/parents —— 把本機構教職員設為家長（#1844）'
 describe('POST /batch-import —— retry 路徑驗範圍、學生＋關聯一個交易（#1845）', () => {
   const EXISTING = '66666666-6666-4666-8666-666666666666';
   let baCalls = 0;
+  /** 送出的 eq 條件（`表.欄=值`）—— 替身不照條件過濾，所以斷言送出去的條件 */
+  let eqs: string[] = [];
+  /** 這位家長底下已經有孩子（走查重複學生那支） */
+  let existingKid = false;
 
   beforeEach(() => {
     baCalls = 0;
+    eqs = [];
+    existingKid = false;
     authState.createUserError = 'User already registered';
     Object.assign(pgState, { throwOn: null, sent: [] });
   });
   afterEach(() => {
     authState.createUserError = null;
+    authState.noPool = false;
     Object.assign(pgState, { throwOn: null, sent: [] });
   });
 
@@ -1313,7 +1323,7 @@ describe('POST /batch-import —— retry 路徑驗範圍、學生＋關聯一�
         const chain = () => builder as never;
         Object.assign(builder, {
           select: () => chain(),
-          eq: () => chain(),
+          eq: (col: string, val: unknown) => (eqs.push(`${table}.${col}=${val}`), chain()),
           in: () => chain(),
           or: () => chain(),
           order: () => chain(),
@@ -1329,7 +1339,14 @@ describe('POST /batch-import —— retry 路徑驗範圍、學生＋關聯一�
             }),
           then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
             resolve({
-              data: table === 'ba_user' && baCalls++ > 0 ? [{ id: 'ba-existing' }] : [],
+              data:
+                table === 'ba_user'
+                  ? baCalls++ > 0
+                    ? [{ id: 'ba-existing' }]
+                    : []
+                  : table === 'parent_student_relations' && existingKid
+                    ? [{ student_id: 's-old' }]
+                    : [],
               error: null,
             }),
         });
@@ -1402,6 +1419,23 @@ describe('POST /batch-import —— retry 路徑驗範圍、學生＋關聯一�
       'INSERT INTO parent_student_relations',
       'COMMIT',
     ]);
+    expect(writes.filter((w) => /students|parent_student_relations/.test(w))).toEqual([]);
+  });
+
+  it('查重複學生只查本 org 的學生（#1845 順手修）', async () => {
+    existingKid = true;
+    await importOne(null);
+    expect(eqs).toContain('students.org_id=org-1');
+  });
+
+  it('連線池不在 → 該筆 failed（建立學生失敗），什麼都沒寫', async () => {
+    authState.noPool = true;
+    const { body, writes } = await importOne(null);
+    expect(body.results).toEqual([
+      expect.objectContaining({ status: 'failed', error: '建立學生失敗，請稍後再試' }),
+    ]);
+    expect(body.studentsCreated).toBe(0);
+    expect(pgState.sent).toEqual([]);
     expect(writes.filter((w) => /students|parent_student_relations/.test(w))).toEqual([]);
   });
 

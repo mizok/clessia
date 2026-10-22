@@ -6,20 +6,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * 沒驗家長屬於本 org、沒驗受限管理員的範圍，插入失敗還被吞掉照回 201。
  * 現在：別 org／不存在 404、範圍外 403，都在寫入之前；學生＋關聯一個交易。
  */
-const pg = { sent: [] as string[], throwOn: null as RegExp | null };
+const pg = {
+  sent: [] as string[],
+  sql: [] as string[],
+  throwOn: null as RegExp | null,
+  noPool: false,
+};
 const answer = (sql: string) => {
   pg.sent.push(sql.trim().split(/\s+/).slice(0, 3).join(' '));
+  pg.sql.push(sql.replace(/\s+/g, ' ').trim());
   if (pg.throwOn?.test(sql)) throw new Error('pg boom');
   return /^\s*INSERT INTO students/.test(sql) ? [{ id: 'new-student' }] : [];
 };
 vi.mock('../lib/get-auth', () => ({
   getAuth: () => ({
-    pool: {
-      connect: async () => ({
-        query: async (sql: string) => ({ rows: answer(sql) }),
-        release: () => undefined,
-      }),
-    },
+    pool: pg.noPool
+      ? undefined
+      : {
+          connect: async () => ({
+            query: async (sql: string) => ({ rows: answer(sql) }),
+            release: () => undefined,
+          }),
+        },
   }),
 }));
 
@@ -39,13 +47,15 @@ const ROW = {
 
 function setup(opts: { parentInOrg?: boolean; scopedParents?: string[] } = {}) {
   const writes: string[] = [];
+  /** 送出的 eq 條件（`表.欄=值`）—— 替身不照條件過濾，所以斷言送出去的條件 */
+  const eqs: string[] = [];
   const supabase = {
     from(table: string) {
       const builder: Record<string, unknown> = {};
       const chain = () => builder as never;
       Object.assign(builder, {
         select: () => chain(),
-        eq: () => chain(),
+        eq: (col: string, val: unknown) => (eqs.push(`${table}.${col}=${val}`), chain()),
         in: () => chain(),
         order: () => chain(),
         range: () => chain(),
@@ -83,11 +93,11 @@ function setup(opts: { parentInOrg?: boolean; scopedParents?: string[] } = {}) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: '林小華', grade: 'J1', ...(parentId ? { parentId } : {}) }),
     });
-  return { create, writes };
+  return { create, writes, eqs };
 }
 
 describe('POST /api/students 帶 parentId —— 驗家長、一個交易（#1845）', () => {
-  beforeEach(() => Object.assign(pg, { sent: [], throwOn: null }));
+  beforeEach(() => Object.assign(pg, { sent: [], sql: [], throwOn: null, noPool: false }));
 
   it('別 org／不存在的家長 → 404，什麼都沒寫', async () => {
     const { create, writes } = setup({ parentInOrg: false });
@@ -135,5 +145,36 @@ describe('POST /api/students 帶 parentId —— 驗家長、一個交易（#184
     expect(res.status).toBe(201);
     expect(writes).toEqual(['insert students']);
     expect(pg.sent).toEqual([]);
+  });
+
+  it('查家長帶本 org 條件（不然別 org 的家長 id 就過了 404 那關）；寫完重讀學生也帶', async () => {
+    const { create, eqs } = setup();
+    await create(PARENT);
+    expect(eqs).toEqual(
+      expect.arrayContaining([
+        `parents.id=${PARENT}`,
+        'parents.org_id=org-1',
+        'students.org_id=org-1',
+      ]),
+    );
+  });
+
+  it('關聯是主要家長（is_primary = true，同原本行為）', async () => {
+    const { create } = setup();
+    await create(PARENT);
+    expect(pg.sql).toContainEqual(
+      expect.stringMatching(
+        /^INSERT INTO parent_student_relations \(parent_id, student_id, is_primary, relation\) VALUES \(\$1, \$2, true, NULL\)$/,
+      ),
+    );
+  });
+
+  it('連線池不在 → 500 DB_POOL_UNAVAILABLE，什麼都沒寫', async () => {
+    pg.noPool = true;
+    const { create, writes } = setup();
+    const res = await create(PARENT);
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { message: string }).message).toBe('DB_POOL_UNAVAILABLE');
+    expect(writes).toEqual([]);
   });
 });
