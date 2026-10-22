@@ -39,6 +39,8 @@ function session(
     onLeaveCount: 0,
     absentCount: 0,
     takenAt,
+    attendanceMode: 'per_session',
+    checkedInCount: null,
   } satisfies EventSessionSummary;
 }
 

@@ -1,0 +1,69 @@
+<div class="flex flex-col gap-4">
+  <header class="flex flex-col gap-1">
+    <h2 class="m-0 text-[1.125rem] font-semibold">到班名單</h2>
+    <p class="m-0 text-[0.875rem] text-muted">
+      {{ input.eventDate | date: 'M/d' }} {{ input.startTime ?? '' }} {{ input.className
+      }}{{ input.campusName ? ' · ' + input.campusName : '' }} · 日到班：掃碼就算今天的課都到了
+    </p>
+  </header>
+
+  @if (loading()) {
+    <div class="skeleton-list" aria-label="到班名單載入中">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (loadError()) {
+    <p class="m-0 text-error-600">讀取失敗，請關閉重開。</p>
+  } @else {
+    <p class="m-0 text-md font-semibold tabular-nums">
+      到 {{ summary().arrived }}／{{ summary().total }}
+      @if (summary().onLeave > 0) {
+        · 請假 {{ summary().onLeave }}
+      }
+    </p>
+    @if (markError(); as err) {
+      <p class="m-0 text-error-600" role="alert">{{ err }}</p>
+    }
+    <ul
+      class="m-0 flex max-h-[calc(var(--window-height,640px)*0.5)] list-none flex-col overflow-y-auto p-0"
+    >
+      @for (s of students(); track s.studentId) {
+        <li
+          class="flex min-h-11 items-center justify-between gap-3 border-b border-b-solid border-b-surface-border p-2"
+        >
+          <p class="m-0 flex flex-col">
+            <span class="text-md">{{ s.studentName }}</span>
+            <small class="text-sm text-muted tabular-nums">
+              @if (s.checkedInAt) {
+                {{ s.checkedInAt | date: 'HH:mm' : '+0800' }}
+                {{ markedByMe().has(s.studentId) ? '到班（老師標記）' : '掃碼到' }}
+              } @else if (onLeave(s)) {
+                請假
+              } @else if (input.isToday) {
+                還沒到
+              } @else {
+                沒有到班紀錄
+              }
+            </small>
+          </p>
+          @if (canMark(s)) {
+            <p-button
+              label="他到了"
+              size="small"
+              [outlined]="true"
+              [loading]="marking() === s.studentId"
+              (onClick)="markArrived(s)"
+            />
+          }
+        </li>
+      } @empty {
+        <li class="p-2 text-muted">這堂課當天沒有在籍的學生。</li>
+      }
+    </ul>
+  }
+
+  <footer class="flex justify-end">
+    <p-button label="關閉" [text]="true" size="small" (onClick)="close()" />
+  </footer>
+</div>

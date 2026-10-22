@@ -52,6 +52,8 @@ function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSumm
     onLeaveCount: 0,
     absentCount: 0,
     takenAt: null,
+    attendanceMode: 'per_session',
+    checkedInCount: null,
     ...overrides,
   };
 }

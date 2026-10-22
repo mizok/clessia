@@ -20,16 +20,49 @@ export function attendanceTone(session: EventSessionSummary, now: Date): StatusT
   // 不然一堂已過去的停課會被算成「上完了卻沒點」，那是誣賴老師漏了一堂根本沒發生的課。
   if (session.status === 'cancelled') return 'inactive';
 
-  // 全班缺席的課 presentCount 也是 0，所以判定看 takenAt 不看人數
-  if (session.takenAt) return 'done';
-
   const ended = hasSessionEnded(
     { date: session.eventDate, startTime: session.startTime, endTime: session.endTime },
     now,
   );
 
+  // 日到班（#1314 TS3）：出席是掃碼推算的，沒有「該點沒點」這回事 —— 上完了就是完成，
+  // 不能進「漏點名」（橘帶的待點名與週條的點都靠這一格，算進去等於問責一件沒有入口的事）
+  if (isDailyCheckin(session)) return ended ? 'done' : 'pending';
+
+  // 全班缺席的課 presentCount 也是 0，所以判定看 takenAt 不看人數
+  if (session.takenAt) return 'done';
+
   // 還沒上完 → 還在等（中空）；上完了卻沒點 → 積欠（實心 + warning）
   return ended ? 'overdue' : 'pending';
+}
+
+/** 這堂課的分校是日到班 —— 入口是到班名單，不是點名（#1314 TS3） */
+export function isDailyCheckin(session: Pick<EventSessionSummary, 'attendanceMode'>): boolean {
+  return session.attendanceMode === 'daily_checkin';
+}
+
+/**
+ * 日到班的課卡狀態句（A6 `t-schedule.html` 的 `.card__att`）。
+ *
+ * - 未來的課：只說模式 —— 還沒有任何人該到
+ * - 今天：「日到班 · 掃碼 到 a／n · 還沒到 x · 請假 y」
+ * - 過去：「日到班 · 掃碼 到 a／n」（過去的「還沒到」就是沒來，那不是這一行要講的）
+ *
+ * 到的人數讀 `checkedInCount`（打卡紀錄），不讀 `presentCount`，理由見它的型別註解。
+ */
+export function arrivalLine(
+  session: Pick<
+    EventSessionSummary,
+    'eventDate' | 'enrolledCount' | 'onLeaveCount' | 'checkedInCount'
+  >,
+  todayStr: string,
+): string {
+  if (session.eventDate > todayStr) return '日到班 · 掃碼就算到';
+  const arrived = session.checkedInCount ?? 0;
+  const base = `日到班 · 掃碼 到 ${arrived}／${session.enrolledCount}`;
+  if (session.eventDate < todayStr) return base;
+  const notYet = Math.max(0, session.enrolledCount - arrived - session.onLeaveCount);
+  return `${base} · 還沒到 ${notYet}${session.onLeaveCount > 0 ? ` · 請假 ${session.onLeaveCount}` : ''}`;
 }
 
 /**

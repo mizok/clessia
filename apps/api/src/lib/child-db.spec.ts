@@ -390,6 +390,59 @@ describe('createChildDb —— orgPaymentInfo（#1073）', () => {
   });
 });
 
+describe('createChildDb —— dailyCheckinCampusIds（#1075）', () => {
+  const db = () =>
+    createMultiOrgDb({
+      organizations: [
+        { id: 'org-1', attendance_mode: 'per_session' },
+        { id: 'org-2', attendance_mode: 'daily_checkin' },
+      ],
+      campuses: [
+        { id: 'c-daily', org_id: 'org-1', attendance_mode: 'daily_checkin' },
+        { id: 'c-session', org_id: 'org-1', attendance_mode: 'per_session' },
+        { id: 'c-inherit', org_id: 'org-1', attendance_mode: null },
+        { id: 'c-other-org', org_id: 'org-2', attendance_mode: 'daily_checkin' },
+      ],
+    });
+
+  it('分校自己的設定優先，null 沿用機構預設；只回生效模式是日到班的', async () => {
+    const childDb = createChildDb(db().client as never, ['s1'], 'org-1');
+
+    expect(await childDb.dailyCheckinCampusIds(['c-daily', 'c-session', 'c-inherit'])).toEqual({
+      ids: ['c-daily'],
+      error: null,
+    });
+  });
+
+  it('別 org 的分校 id 讀不到列，退回本 org 的預設（不是那個分校的設定）', async () => {
+    const childDb = createChildDb(db().client as never, ['s1'], 'org-1');
+
+    expect((await childDb.dailyCheckinCampusIds(['c-other-org'])).ids).toEqual([]);
+  });
+
+  it('讀機構失敗 → 回 error，不猜', async () => {
+    const childDb = createChildDb(
+      {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+              maybeSingle: async () => ({ data: null, error: { message: 'boom' } }),
+            }),
+          }),
+        }),
+      } as never,
+      ['s1'],
+      'org-1',
+    );
+
+    expect(await childDb.dailyCheckinCampusIds(['c-daily'])).toEqual({
+      ids: [],
+      error: { message: 'boom' },
+    });
+  });
+});
+
 /** #1695：家長請假寫 `on_leave` —— 範圍檢查照 insertMany */
 describe('createChildDb —— upsert', () => {
   it('全部在 scope 內：整批寫入，org_id 蓋成 session 的', async () => {

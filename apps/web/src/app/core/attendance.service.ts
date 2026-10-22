@@ -130,6 +130,16 @@ export interface EventSessionSummary {
   onLeaveCount: number;
   absentCount: number;
   takenAt: string | null;
+  /**
+   * 這堂課所在分校實際生效的出勤模式（#1314 TS3）。後端算好的 —— 老師打不到
+   * `/api/campuses`，前端自己推也等於多一份判準。日到班的課沒有逐堂點名，入口是到班名單。
+   */
+  attendanceMode: 'daily_checkin' | 'per_session';
+  /**
+   * 日到班的課：在籍學生裡當天有到班打卡的人數；隨堂是 null。
+   * **不要拿 `presentCount` 代**：掃碼只寫得到打卡當下已存在的 event，兩個數字會分岔。
+   */
+  checkedInCount: number | null;
 }
 
 export interface RosterStudent {
@@ -162,11 +172,14 @@ export interface RosterStudent {
    * 那兩個欄位 API 仍然回，但**前端沒有任何地方讀它們了**，所以不列在這個介面裡。
    */
   cancelDropsLeaveUntil: string | null;
+  /** 當天到班打卡的時間；沒打卡是 null（日到班的到班名單用，#1314 TS3） */
+  checkedInAt: string | null;
 }
 
 export interface AttendanceRoster {
   eventId: string;
   takenAt: string | null;
+  attendanceMode: 'daily_checkin' | 'per_session';
   students: RosterStudent[];
 }
 
@@ -283,6 +296,20 @@ export class AttendanceService {
     return this.http.post<CancelLeaveResult>(`${this.baseUrl}/roster/${eventId}/cancel-leave`, {
       studentId,
     });
+  }
+
+  /**
+   * 日到班的「他到了」：替沒掃碼的學生記一筆到班（效果同掃碼）。
+   * 後端限老師自己的課、當天、在籍、日到班分校，行政負責點名時 403。
+   */
+  checkIn(
+    eventId: string,
+    studentId: string,
+  ): Observable<{ checkedInAt: string; alreadyCheckedIn: boolean }> {
+    return this.http.post<{ checkedInAt: string; alreadyCheckedIn: boolean }>(
+      `${this.baseUrl}/roster/${eventId}/check-in`,
+      { studentId },
+    );
   }
 
   batchUpdate(input: BatchAttendanceUpdate): Observable<{ updated: number; takenAt: string }> {
