@@ -31,6 +31,8 @@ export type OrgTable =
   | 'enrollments'
   | 'events'
   | 'fee_templates'
+  | 'grade_promotion_items'
+  | 'grade_promotions'
   | 'invoices'
   | 'invoice_no_counters'
   | 'leave_requests'

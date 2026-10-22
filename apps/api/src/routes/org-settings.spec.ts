@@ -106,6 +106,9 @@ describe('toOrgSettingsResponse', () => {
       attendanceMode: 'per_session',
       attendanceResponsible: 'admin',
       attendanceRetroactiveDays: 0,
+      // #1820：欄位不在 → 預設升級日 9/1、提前 7 天提醒
+      gradePromotionMonthDay: '09-01',
+      gradePromotionReminderDays: 7,
       // #1821：欄位不在（migration 還沒套）→ 設計稿預設 3／1
       applicationReviewDays: 3,
       trialFollowupDays: 1,
@@ -544,6 +547,62 @@ describe('invoiceReminderOffsets（#1660）', () => {
 
   it('touchesFinanceSettings 認得它', () => {
     expect(touchesFinanceSettings({ invoiceReminderOffsets: [] })).toBe(true);
+  });
+});
+
+/**
+ * #1820 學年升級日與提醒天數（二讀突變 O1–O6）。不是財務設定：`manage_org_settings` 就能改。
+ * DB 存非預設值 —— 回應寫死預設、select 漏欄位都會落到 `09-01`／7。
+ */
+describe('gradePromotionMonthDay／gradePromotionReminderDays（#1820）', () => {
+  const STORED = { grade_promotion_month_day: '03-15', grade_promotion_reminder_days: 14 };
+  const SETTINGS = ['manage_org_settings'];
+
+  it('GET 與 PATCH 回的是 DB 裡的值（SELECT_FIELDS 要有這兩欄）', async () => {
+    const { get, sendBody } = appWith(SETTINGS, STORED);
+    const expected = { gradePromotionMonthDay: '03-15', gradePromotionReminderDays: 14 };
+    expect(await (await get()).json()).toMatchObject(expected);
+    expect(await (await sendBody({ attendanceRetroactiveDays: 1 })).json()).toMatchObject(expected);
+  });
+
+  it('欄位缺席退回 09-01／7', () => {
+    expect(toOrgSettingsResponse({ id: 'o' }, false)).toMatchObject({
+      gradePromotionMonthDay: '09-01',
+      gradePromotionReminderDays: 7,
+    });
+  });
+
+  it('PATCH 真的寫進兩欄（只有 manage_org_settings 也可以，不是財務設定）', async () => {
+    const { sendBody, updates } = appWith(SETTINGS, STORED);
+    const res = await sendBody({ gradePromotionMonthDay: '08-20', gradePromotionReminderDays: 0 });
+    expect(res.status).toBe(200);
+    expect(updates).toEqual([
+      { grade_promotion_month_day: '08-20', grade_promotion_reminder_days: 0 },
+    ]);
+    expect(await res.json()).toMatchObject({
+      gradePromotionMonthDay: '08-20',
+      gradePromotionReminderDays: 0,
+    });
+  });
+
+  it.each(['9-1', '13-01', '00-10', '02-32', '09/01'])(
+    '升級日 %s 不是 MM-DD → 400，什麼都沒寫（DB 的 CHECK 也擋，但那樣會變 500）',
+    async (monthDay) => {
+      const { sendBody, updates } = appWith(SETTINGS, STORED);
+      expect((await sendBody({ gradePromotionMonthDay: monthDay })).status).toBe(400);
+      expect(updates).toEqual([]);
+    },
+  );
+
+  it.each([
+    [-1, 400],
+    [0, 200],
+    [60, 200],
+    [61, 400],
+  ])('提醒天數邊界：%i → %i', async (days, status) => {
+    const { sendBody, updates } = appWith(SETTINGS, STORED);
+    expect((await sendBody({ gradePromotionReminderDays: days })).status).toBe(status);
+    expect(updates).toEqual(status === 200 ? [{ grade_promotion_reminder_days: days }] : []);
   });
 });
 

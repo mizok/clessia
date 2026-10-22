@@ -69,169 +69,241 @@
     </div>
 
     <!--
-      #1073：財務設定 —— 沒有 manage_finance 時 API 回應裡沒有這個 key，整段不畫
-      （畫一個讀不到值的空欄位，按儲存就會把機構的帳戶清掉）。
+      #1314 SE2a（A6 general 的 .colls）：財務設定收成可收合的「繳費」段，收起來時摘要寫生效值。
+      沒有 manage_finance 時 API 回應沒有財務 key —— 整段不畫（同下面各卡的規則）。
+      稿的「報名流程」「續課」「學年升級」三段不畫：系統沒有那些行為（#1314 SE2 對照，#1820／#1821 另案、自動續課不做）。
     -->
-    <!-- #1305：財務設定，同帳戶資訊 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
-    @if (settings()?.billingReminderDays !== undefined) {
-      <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
-        <h3
-          id="settings-billing-reminder-title"
-          class="m-0 mb-2 text-base font-semibold text-zinc-800"
+    @if (hasFinance()) {
+      <details
+        class="settings-page__coll group max-w-[760px] border-0 border-b border-solid border-zinc-200"
+      >
+        <summary
+          class="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
         >
-          待開單提醒
-        </h3>
-        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-          期的開始日前這麼多天，儀表板的「待開單」就會列出還沒開單的期（1–90 天）。
-        </p>
-        <p-inputnumber
-          [(ngModel)]="billingReminderDaysValue"
-          [min]="1"
-          [max]="90"
-          suffix=" 天"
-          ariaLabelledBy="settings-billing-reminder-title"
-        />
-        <div class="mt-3 flex justify-end">
-          <p-button
-            label="儲存"
-            icon="pi pi-check"
-            [loading]="savingBillingReminder()"
-            (onClick)="saveBillingReminderDays()"
-          />
-        </div>
-      </div>
-    }
-
-    <!-- #1732：財務設定，同上 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
-    @if (settings()?.leaveWaiverDays !== undefined) {
-      <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
-        <h3 id="settings-leave-waiver-title" class="m-0 mb-2 text-base font-semibold text-zinc-800">
-          連續請假可不收費
-        </h3>
-        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-          學生連續請假滿這麼多個上課日（週末與沒課的日子不算中斷），提醒有財務管理權限的人；系統不會自動改帳單（2–30
-          天）。
-        </p>
-        <p-inputnumber
-          [(ngModel)]="leaveWaiverDaysValue"
-          [min]="2"
-          [max]="30"
-          suffix=" 個上課日"
-          ariaLabelledBy="settings-leave-waiver-title"
-        />
-        <div class="mt-3 flex justify-end">
-          <p-button
-            label="儲存"
-            icon="pi pi-check"
-            [loading]="savingLeaveWaiver()"
-            (onClick)="saveLeaveWaiverDays()"
-          />
-        </div>
-      </div>
-    }
-
-    <!-- #1660：家長繳費提醒時間點。財務設定，同上 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
-    @if (settings()?.invoiceReminderOffsets !== undefined) {
-      <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
-        <h3
-          id="settings-invoice-reminder-title"
-          class="m-0 mb-2 text-base font-semibold text-zinc-800"
-        >
-          家長繳費提醒
-        </h3>
-        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-          在這些時間點推播提醒家長繳費（台北時間早上 9–11 點送出），最多
-          {{ reminderMaxCount }}
-          個。同一張帳單、同一個時間點只會提醒一次；改了設定，已經提醒過的不會再送。
-          有開啟通知的家長會收到推播；沒開的家長，也會在通知中心看到這則提醒。
-        </p>
-        @if (reminderOffsets().length === 0) {
-          <p class="m-0 mb-4 text-sm text-zinc-500">目前沒有設定，不會推播任何繳費提醒。</p>
-        } @else {
-          <ul
-            class="m-0 mb-4 flex list-none flex-wrap gap-2 p-0"
-            aria-labelledby="settings-invoice-reminder-title"
-          >
-            @for (offset of reminderOffsets(); track offset) {
-              <li
-                class="flex items-center gap-1 rounded-full border border-zinc-200 py-1 pl-3 pr-1 text-sm text-zinc-700"
-              >
-                {{ reminderLabel(offset) }}
-                <p-button
-                  icon="pi pi-times"
-                  [text]="true"
-                  [rounded]="true"
-                  size="small"
-                  severity="secondary"
-                  [ariaLabel]="'移除「' + reminderLabel(offset) + '」'"
-                  (onClick)="removeReminderOffset(offset)"
-                />
-              </li>
+          <span class="text-lg font-bold text-zinc-900">繳費</span>
+          <span class="flex items-center gap-2 text-md text-zinc-600 tabular-nums"
+            >{{ financeSummary() }}
+            <i
+              class="pi pi-chevron-down text-xs transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            ></i
+          ></span>
+        </summary>
+        <div class="pb-6">
+          <!--
+            A6 settings general 的 .kv：一欄一列（label 包欄位＋小字說明），整組一顆「儲存」。
+            每一欄只在回應帶了那個 key（有財務權限）時畫；儲存也只送畫出來的那幾欄。
+          -->
+          <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            @if (settings()?.invoiceDueDays !== undefined) {
+              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+                預設繳費期限（天）
+                <p-inputnumber [(ngModel)]="invoiceDueDaysValue" [min]="0" styleClass="w-full" />
+                <small class="font-normal text-zinc-600"
+                  >建立帳單時的預設天數；已開的帳單不受影響</small
+                >
+              </label>
             }
-          </ul>
-        }
-        <div class="flex flex-col items-stretch gap-3 md:flex-row md:items-center">
-          <p-selectbutton
-            [options]="reminderDirectionOptions"
-            [(ngModel)]="newReminderDirection"
-            optionLabel="label"
-            optionValue="value"
-            [allowEmpty]="false"
-            ariaLabelledBy="settings-invoice-reminder-title"
-          />
-          <p-inputnumber
-            [(ngModel)]="newReminderDays"
-            [min]="newReminderDirection === 'before' ? 0 : 1"
-            [max]="newReminderDirection === 'before' ? 30 : 60"
-            suffix=" 天"
-            ariaLabel="天數"
-          />
-          <p-button
-            label="加入"
-            icon="pi pi-plus"
-            severity="secondary"
-            [disabled]="pendingReminderOffset() === null"
-            (onClick)="addReminderOffset()"
-          />
-        </div>
-        <p class="m-0 mt-2 text-xs text-zinc-500">到期前 0–30 天（0 = 到期當天）、逾期 1–60 天。</p>
-        <div class="mt-3 flex justify-end">
-          <p-button
-            label="儲存"
-            icon="pi pi-check"
-            [loading]="savingReminderOffsets()"
-            (onClick)="saveReminderOffsets()"
-          />
-        </div>
-      </div>
-    }
+            @if (settings()?.billingReminderDays !== undefined) {
+              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+                待開單提醒（天）
+                <p-inputnumber
+                  [(ngModel)]="billingReminderDaysValue"
+                  [min]="1"
+                  [max]="90"
+                  styleClass="w-full"
+                />
+                <small class="font-normal text-zinc-600"
+                  >期的開始日前這麼多天，儀表板列出還沒開單的期（1–90）</small
+                >
+              </label>
+            }
+            @if (settings()?.leaveWaiverDays !== undefined) {
+              <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+                連續請假可不收費（上課日）
+                <p-inputnumber
+                  [(ngModel)]="leaveWaiverDaysValue"
+                  [min]="2"
+                  [max]="30"
+                  styleClass="w-full"
+                />
+                <small class="font-normal text-zinc-600"
+                  >連續請假滿這麼多個上課日，提醒有財務權限的人；不改帳單（2–30）</small
+                >
+              </label>
+            }
+          </div>
+          <div class="mt-4 flex">
+            <p-button
+              label="儲存"
+              [loading]="savingFinanceBasics()"
+              (onClick)="saveFinanceBasics()"
+            />
+          </div>
 
-    @if (settings()?.paymentInfo !== undefined) {
-      <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
-        <h3 id="settings-payment-info-title" class="m-0 mb-2 text-base font-semibold text-zinc-800">
-          家長付款帳戶資訊
-        </h3>
-        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-          家長在「繳費」頁看到待付款帳單時會看到這段文字（例如銀行代碼、帳號、戶名、匯款後怎麼通知）。
-          分校可以在分校設定另外填寫，沒填的分校沿用這裡。留白＝家長看到「請洽補習班行政人員」。
-        </p>
-        <textarea
-          pTextarea
-          class="settings-page__textarea w-full resize-y"
-          rows="5"
-          maxlength="1000"
-          aria-labelledby="settings-payment-info-title"
-          [(ngModel)]="paymentInfoValue"
-        ></textarea>
-        <div class="mt-3 flex justify-end">
-          <p-button
-            label="儲存"
-            icon="pi pi-check"
-            [loading]="savingPaymentInfo()"
-            (onClick)="savePaymentInfo()"
-          />
+          <!-- #1660：家長繳費提醒時間點。財務設定，同上 —— 沒有 manage_finance 時回應裡沒有這個 key，整段不畫 -->
+          @if (settings()?.invoiceReminderOffsets !== undefined) {
+            <div class="mt-6 max-w-[640px]">
+              <h3
+                id="settings-invoice-reminder-title"
+                class="m-0 mb-1 text-sm font-semibold text-zinc-700"
+              >
+                家長繳費提醒
+              </h3>
+              <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
+                在這些時間點推播提醒家長繳費（台北時間早上 9–11 點送出），最多
+                {{ reminderMaxCount }}
+                個。同一張帳單、同一個時間點只會提醒一次；改了設定，已經提醒過的不會再送。
+                有開啟通知的家長會收到推播；沒開的家長，也會在通知中心看到這則提醒。
+              </p>
+              @if (reminderOffsets().length === 0) {
+                <p class="m-0 mb-4 text-sm text-zinc-500">目前沒有設定，不會推播任何繳費提醒。</p>
+              } @else {
+                <ul
+                  class="m-0 mb-4 flex list-none flex-wrap gap-2 p-0"
+                  aria-labelledby="settings-invoice-reminder-title"
+                >
+                  @for (offset of reminderOffsets(); track offset) {
+                    <li
+                      class="flex items-center gap-1 rounded-full border border-zinc-200 py-1 pl-3 pr-1 text-sm text-zinc-700"
+                    >
+                      {{ reminderLabel(offset) }}
+                      <p-button
+                        icon="pi pi-times"
+                        [text]="true"
+                        [rounded]="true"
+                        size="small"
+                        severity="secondary"
+                        [ariaLabel]="'移除「' + reminderLabel(offset) + '」'"
+                        (onClick)="removeReminderOffset(offset)"
+                      />
+                    </li>
+                  }
+                </ul>
+              }
+              <div class="flex flex-col items-stretch gap-3 md:flex-row md:items-center">
+                <p-selectbutton
+                  [options]="reminderDirectionOptions"
+                  [(ngModel)]="newReminderDirection"
+                  optionLabel="label"
+                  optionValue="value"
+                  [allowEmpty]="false"
+                  ariaLabelledBy="settings-invoice-reminder-title"
+                />
+                <p-inputnumber
+                  [(ngModel)]="newReminderDays"
+                  [min]="newReminderDirection === 'before' ? 0 : 1"
+                  [max]="newReminderDirection === 'before' ? 30 : 60"
+                  suffix=" 天"
+                  ariaLabel="天數"
+                />
+                <p-button
+                  label="加入"
+                  icon="pi pi-plus"
+                  severity="secondary"
+                  [disabled]="pendingReminderOffset() === null"
+                  (onClick)="addReminderOffset()"
+                />
+              </div>
+              <p class="m-0 mt-2 text-xs text-zinc-500">
+                到期前 0–30 天（0 = 到期當天）、逾期 1–60 天。
+              </p>
+              <div class="mt-3 flex">
+                <p-button
+                  label="儲存"
+                  icon="pi pi-check"
+                  [loading]="savingReminderOffsets()"
+                  (onClick)="saveReminderOffsets()"
+                />
+              </div>
+            </div>
+          }
+
+          @if (settings()?.paymentInfo !== undefined) {
+            <div class="mt-6 max-w-[640px]">
+              <h3
+                id="settings-payment-info-title"
+                class="m-0 mb-1 text-sm font-semibold text-zinc-700"
+              >
+                家長付款帳戶資訊
+              </h3>
+              <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
+                家長在「繳費」頁看到待付款帳單時會看到這段文字（例如銀行代碼、帳號、戶名、匯款後怎麼通知）。
+                分校可以在分校設定另外填寫，沒填的分校沿用這裡。留白＝家長看到「請洽補習班行政人員」。
+              </p>
+              <textarea
+                pTextarea
+                class="settings-page__textarea w-full resize-y"
+                rows="5"
+                maxlength="1000"
+                aria-labelledby="settings-payment-info-title"
+                [(ngModel)]="paymentInfoValue"
+              ></textarea>
+              <div class="mt-3 flex">
+                <p-button
+                  label="儲存"
+                  icon="pi pi-check"
+                  [loading]="savingPaymentInfo()"
+                  (onClick)="savePaymentInfo()"
+                />
+              </div>
+            </div>
+          }
         </div>
-      </div>
+      </details>
+
+      <details
+        class="settings-page__coll group max-w-[760px] border-0 border-b border-solid border-zinc-200"
+      >
+        <summary
+          class="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
+        >
+          <span class="text-lg font-bold text-zinc-900">學期與繳費週期</span>
+          <span class="flex items-center gap-2 text-md text-zinc-600 tabular-nums">
+            @if (periods(); as list) {
+              {{ list.length }} 個週期
+            } @else if (periodsFailed()) {
+              讀不到
+            }
+            <i
+              class="pi pi-chevron-down text-xs transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            ></i
+          ></span>
+        </summary>
+        <div class="flex flex-col gap-3 pb-6">
+          @if (periodsFailed()) {
+            <app-load-failed
+              description="沒有讀到繳費週期，可能是連線問題"
+              (retry)="loadPeriods()"
+            />
+          } @else if (periods(); as list) {
+            @if (list.length === 0) {
+              <p class="m-0 text-md text-zinc-600">還沒有週期。期繳的學生要先有週期才能開單。</p>
+            } @else {
+              <ul class="m-0 list-none p-0" aria-label="繳費週期">
+                @for (period of list; track period.id) {
+                  <li
+                    class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 border-0 border-b border-solid border-zinc-100 py-2 text-md tabular-nums last:border-b-0"
+                  >
+                    <b class="font-semibold text-zinc-900">{{ period.name }}</b>
+                    <span class="text-zinc-700"
+                      >{{ period.startDate.replaceAll('-', '/') }} –
+                      {{ period.endDate.replaceAll('-', '/') }}</span
+                    >
+                  </li>
+                }
+              </ul>
+            }
+            <!-- 增刪改在費用方案頁（已有表單與刪除規則），這裡不做第二份 -->
+            <a
+              class="inline-flex min-h-11 items-center self-start text-md font-semibold text-zinc-900 underline underline-offset-[3px]"
+              [routerLink]="feeTemplatesPath"
+              >到費用方案頁新增或修改週期</a
+            >
+          }
+        </div>
+      </details>
     }
   }
 </div>

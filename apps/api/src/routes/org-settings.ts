@@ -40,6 +40,10 @@ const OrgSettingsSchema = z
     attendanceMode: AttendanceModeSchema,
     attendanceResponsible: AttendanceResponsibleSchema,
     attendanceRetroactiveDays: z.number().int().min(0),
+    /** 學年升級日（`MM-DD`，#1820）。只用來提醒管理員，不自動執行 */
+    gradePromotionMonthDay: z.string(),
+    /** 升級日前幾天提醒（0＝不提醒） */
+    gradePromotionReminderDays: z.number().int().min(0).max(60),
     /** 申請送出幾天還沒處理就提醒（#1821，0＝關） */
     applicationReviewDays: z.number().int().min(0).max(30),
     /** 試聽日之後幾天還沒報名就提醒跟進（#1821，0＝關） */
@@ -72,6 +76,11 @@ const UpdateOrgSettingsSchema = z
     attendanceMode: AttendanceModeSchema.optional(),
     attendanceResponsible: AttendanceResponsibleSchema.optional(),
     attendanceRetroactiveDays: z.coerce.number().int().min(0).optional(),
+    gradePromotionMonthDay: z
+      .string()
+      .regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/, '格式要是 MM-DD')
+      .optional(),
+    gradePromotionReminderDays: z.coerce.number().int().min(0).max(60).optional(),
     applicationReviewDays: z.coerce.number().int().min(0).max(30).optional(),
     trialFollowupDays: z.coerce.number().int().min(0).max(30).optional(),
     invoiceDueDays: z.coerce.number().int().min(0).optional(),
@@ -114,6 +123,8 @@ export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinan
     attendanceMode: row['attendance_mode'] as 'per_session' | 'daily_checkin',
     attendanceResponsible: (row['attendance_responsible'] as 'admin' | 'teacher') ?? 'admin',
     attendanceRetroactiveDays: (row['attendance_retroactive_days'] as number) ?? 0,
+    gradePromotionMonthDay: (row['grade_promotion_month_day'] as string | undefined) ?? '09-01',
+    gradePromotionReminderDays: (row['grade_promotion_reminder_days'] as number | undefined) ?? 7,
     applicationReviewDays: (row['application_review_days'] as number | undefined) ?? 3,
     trialFollowupDays: (row['trial_followup_days'] as number | undefined) ?? 1,
   };
@@ -146,7 +157,7 @@ const app = new OpenAPIHono<AppEnv>();
 app.use('/settings', writeRequiresAdmin('manage_org_settings'));
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, leave_waiver_days, meal_default_price, proration_basis, payment_info, invoice_reminder_offsets, application_review_days, trial_followup_days';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, billing_reminder_days, leave_waiver_days, meal_default_price, proration_basis, payment_info, invoice_reminder_offsets, grade_promotion_month_day, grade_promotion_reminder_days, application_review_days, trial_followup_days';
 
 // GET /api/org/settings
 app.openapi(
@@ -224,6 +235,10 @@ app.openapi(
       updates['attendance_responsible'] = body.attendanceResponsible;
     if (body.attendanceRetroactiveDays !== undefined)
       updates['attendance_retroactive_days'] = body.attendanceRetroactiveDays;
+    if (body.gradePromotionMonthDay !== undefined)
+      updates['grade_promotion_month_day'] = body.gradePromotionMonthDay;
+    if (body.gradePromotionReminderDays !== undefined)
+      updates['grade_promotion_reminder_days'] = body.gradePromotionReminderDays;
     if (body.applicationReviewDays !== undefined)
       updates['application_review_days'] = body.applicationReviewDays;
     if (body.trialFollowupDays !== undefined)
