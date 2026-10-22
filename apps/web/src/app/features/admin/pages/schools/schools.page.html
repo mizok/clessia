@@ -22,7 +22,7 @@
 
 @if (!loading() && !loadFailed() && schools().length > 0) {
   <p class="mt-4 mb-0 text-md text-zinc-600 tabular-nums" data-count>
-    <span
+    <span class="block"
       >學生資料填寫時從這裡選。<b class="text-zinc-900">{{ schools().length }}</b> 所 ·
       <b class="text-zinc-900">{{ inactiveCount() }}</b> 所停用</span
     >
