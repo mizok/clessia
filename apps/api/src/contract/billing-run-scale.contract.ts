@@ -29,7 +29,11 @@ const run = URL && KEY && DB ? describe : describe.skip;
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
 
-const ctx = { orgId: '', userId: '' };
+const ctx: { orgId: string; userId: string; campusScope: string[] | null } = {
+  orgId: '',
+  userId: '',
+  campusScope: null,
+};
 
 vi.mock('../middleware/auth', async (importOriginal) => {
   const original = await importOriginal<typeof import('../middleware/auth')>();
@@ -50,7 +54,7 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('activeRole', 'admin');
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
-      set('campusScope', null);
+      set('campusScope', ctx.campusScope);
       set('auth', { pool: { query: pool!.query.bind(pool), end: async () => undefined } });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
@@ -73,6 +77,8 @@ interface RunBody {
 }
 
 run('帳務作業在大校規模下（#1934）', () => {
+  /** 受限者那段用：主分校、第二分校、只在第二分校報名的學生、主分校的對照學生 */
+  const scoped = { campus: '', otherCampus: '', outsider: '', insider: '' };
   let app: { request: (path: string, init?: RequestInit, env?: unknown) => Promise<Response> };
   const env = { ENVIRONMENT: 'contract', WEB_URL: 'http://localhost:4200', ALLOWED_ORIGINS: '' };
   const q = async <T>(text: string, values: unknown[] = []) =>
@@ -121,16 +127,46 @@ run('帳務作業在大校規模下（#1934）', () => {
          cross join generate_series(0, $3::int - 1) d`,
       [ctx.orgId, MEAL_STUDENTS, MEAL_DAYS],
     );
+    // 受限者那段（4 月）：第二間分校的班＋一個只在那裡報名、也訂了餐的學生（期繳，月 run 不開他的學費）
+    scoped.campus = campus!.id;
+    const [otherCampus] = await q<{ id: string }>(
+      "insert into campuses (org_id, name) values ($1, '第二分校') returning id",
+      [ctx.orgId],
+    );
+    scoped.otherCampus = otherCampus!.id;
+    const [otherClass] = await q<{ id: string }>(
+      "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '第二分校的班') returning id",
+      [ctx.orgId, otherCampus!.id, course!.id],
+    );
+    const [outsider] = await q<{ id: string }>(
+      "insert into students (org_id, name, grade) values ($1, '只在第二分校', 'J1') returning id",
+      [ctx.orgId],
+    );
+    scoped.outsider = outsider!.id;
+    await q(
+      `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+       values ($1, $2, $3, 'active', 'period', 1000, '2026-01-01')`,
+      [ctx.orgId, otherClass!.id, outsider!.id],
+    );
+    const [insider] = await q<{ id: string }>(
+      'select id from students where org_id = $1 and id <> $2 order by id limit 1',
+      [ctx.orgId, outsider!.id],
+    );
+    scoped.insider = insider!.id;
+    await q(
+      `insert into meal_records (org_id, student_id, meal_date, ordered, chargeable, unit_price)
+       select $1, s, date '2026-04-01' + d, true, true, 65
+         from unnest(array[$2::uuid, $3::uuid]) s cross join generate_series(0, 4) d`,
+      [ctx.orgId, outsider!.id, insider!.id],
+    );
+
     app = (await import('../index')).default as never;
   }, 120_000);
 
   afterAll(async () => {
     if (!ctx.orgId) return;
     await q('delete from meal_records where org_id = $1', [ctx.orgId]);
-    await q(
-      'delete from invoice_items where invoice_id in (select id from invoices where org_id = $1)',
-      [ctx.orgId],
-    );
+    // 明細跟著帳單級聯刪：作廢單的明細不能直接 DELETE（invoice_items_guard_voided），級聯時放行
     await q('delete from invoices where org_id = $1', [ctx.orgId]);
     await q('delete from enrollments where org_id = $1', [ctx.orgId]);
     await q('delete from students where org_id = $1', [ctx.orgId]);
@@ -138,13 +174,13 @@ run('帳務作業在大校規模下（#1934）', () => {
     await q('delete from organizations where id = $1', [ctx.orgId]);
   }, 120_000);
 
-  const runMonth = async () => {
+  const runMonth = async (periodMonth = '2026-03') => {
     const res = await app.request(
       '/api/billing-runs',
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ periodMonth: '2026-03' }),
+        body: JSON.stringify({ periodMonth }),
       },
       env,
     );
@@ -190,4 +226,48 @@ run('帳務作業在大校規模下（#1934）', () => {
     );
     expect(amounts.map((a) => Number(a.amount))).toEqual([MEAL_DAYS * 65]);
   });
+
+  // #898 裁決 B：作廢單上的學費不算開過 —— pg 路徑靠 alreadyBilledViaSql 的 `i.voided_at is null`。
+  // 拿掉的話，作廢過的月份永遠開不出來，而替身走 REST、量不到（二讀 @9f9afd17）
+  it('作廢其中一張（只有學費的）再跑同一個月 → 剛好重開那一張', async () => {
+    const [target] = await q<{ id: string }>(
+      `select i.id from invoices i
+        where i.org_id = $1 and i.voided_at is null
+          and not exists (select 1 from invoice_items ii where ii.invoice_id = i.id and ii.type = 'meal')
+        order by i.id limit 1`,
+      [ctx.orgId],
+    );
+    await q(
+      "update invoices set voided_at = now(), void_reason = '#1934 契約：作廢後重開' where id = $1",
+      [target!.id],
+    );
+
+    const again = await runMonth();
+    expect(again.status).toBe(200);
+    expect(again.body.invoicesCreated).toBe(1);
+    expect(again.body.tuitionItems).toBe(1);
+  }, 300_000);
+
+  // 受限者只開範圍內學生的餐費 —— pg 路徑靠 mealStudentsInScopeViaSql（金額路徑上的授權面）
+  it('受限者（只有主分校）跑 4 月：只在第二分校報名的學生不被開餐費，主分校的對照學生照開', async () => {
+    ctx.campusScope = [scoped.campus];
+    try {
+      const april = await runMonth('2026-04');
+      expect(april.status).toBe(200);
+      expect(april.body.mealItems).toBe(1);
+      expect(april.body.mealRecordsSettled).toBe(5);
+    } finally {
+      ctx.campusScope = null;
+    }
+    const unstamped = await q<{ student_id: string; n: string }>(
+      `select student_id, count(*) filter (where invoice_item_id is null) as n
+         from meal_records where org_id = $1 and meal_date >= '2026-04-01'
+        group by student_id order by student_id`,
+      [ctx.orgId],
+    );
+    expect(Object.fromEntries(unstamped.map((r) => [r.student_id, Number(r.n)]))).toEqual({
+      [scoped.outsider]: 5,
+      [scoped.insider]: 0,
+    });
+  }, 300_000);
 });
