@@ -653,3 +653,55 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 
 - 席位退場後 herdr 找不到它（`agent_not_found`）；跨 session 的來訊用 `SendMessage` 回 `from=` 的 uds 位址。
 - 計畫席 `agent_blocked`（等人工輸入）時訊息送不到，**之後要記得重送**，不然它會在沒看到你的待裁事項下做決定（#1728 那次）。
+
+## 10-20～10-23 代合（約 110 支，含 6 支 schema migration、1 支 backfill）學到的，一頁版
+
+> 這幾天開始有第二審核席（review2 → review3）分擔二讀，本席只負責合併、凍結、migrate、部署，以及 migration 那一條的二讀。
+
+### 一、突變的基準一定要先綠（兩次差點報錯）
+
+- **基準紅，每個突變都會被算成「紅」**：#1827 的測試集含 `mount-authz.spec`，它在暫存 worktree 缺 `altcha-lib` 匯入就失敗，33 個突變全「紅」，我在 PR 上報了全紅，事後更正（實際存活 10 個）。#1814 是路徑 `src/routes/parent` 誤含 `parent-requests.mount.spec`（改成 `src/routes/parent/`）。
+- **runner 內建基準檢查**：scratchpad 的 `runm.sh` 先跑一次同一組測試，非 0 就中止。web 的 runner 也照做。
+- **暫存 worktree 的 `node_modules` symlink 到本席 worktree 那份**（根與 `apps/api` 兩層）。主 checkout 那份舊，缺 `altcha-lib`、`@tailwindcss/postcss`。
+- **型別收窄**：`if (false)`、拿掉 `if (!x) return` 常編不過。存活的突變要再 `tsc` 一次確認能編譯（過濾掉環境造成的 altcha 錯誤）。
+
+### 二、合併動作
+
+- **一串合併只用一支 `mv.sh`**。不要寫背景等待去 grep 前一串的輸出檔接力：輸出會互相 cat，舊的「verify → completed」讓條件提早成立，#1864 因此在 #1834 的 main verify 出來前就合了（事後都綠，沒傷害）。要插隊，就 `TaskStop` 正在等 verify 的那串（確認它不在合併呼叫中），再用一支 `mv.sh` 重排。
+- **各自綠 ≠ 合起來綠**：#1884 跟已合的 #1834 各加一次 `hideLabel`，merge-tree 無衝突、PR 的 CI 綠，合起來 TS2300。共用元件／型別有動，合前在「最新 main＋head」跑一次 `tsc`。
+- **CI 紅先看是不是基礎設施**：`Failed to resolve latest Supabase CLI release: rate limit exceeded`、GitHub API 504、`error connecting to api.github.com` 都出現過，`gh run rerun --failed`／重跑 `mv.sh` 即可。在 main 綠之前不合任何東西。
+- **疊 PR 被 squash 後**：上層的 base 不會自動改回 main，請作者 `gh pr edit --base main` 再 merge main。
+
+### 三、migration（本期 6 支 schema＋1 支 backfill）
+
+- **一次一支**：合了就凍結，migrate waiting → 計畫席轉使用者 Approve → apply success → deploy success 才解凍。凍結期間只合「只動 kb/ 或 herdr-team/、deploy 會 skip api／web」的純文件（計畫席 10-22 允許）。
+- **兩支 migration 改同兩個檔**（#1830、#1832 都動 `push-run.ts`、`org-settings.ts`）：後合的那張 merge main 後要逐段確認兩邊都留（`guarded` 三支、兩組設定欄位、notify union）。
+- **after-deploy backfill**：push 觸發的 migrate 只 plan、apply skipped；使用者 dispatch 時 `deployed_sha` 要填**含 backfill 檔的那顆**（workflow 會 checkout TARGET_SHA 再套），不是最後一次 deploy-api 的那顆。
+- **乾跑**：本機 DB 只在 `BEGIN; …; ROLLBACK;` 裡跑，順便驗 CHECK、部分唯一索引、enum 值；`ALTER TYPE … ADD VALUE` 在交易裡可以加、可以回滾。
+
+### 四、反覆抓到的缺口（新 PR 先從這裡下手）
+
+- **「功能沒接上」也全綠**：每日排程不呼叫新的 enqueue（#1830、#1832 的 P1）。新 lib 一律對呼叫端打一個突變。
+- **讀取失敗的分支**（fail-open）：家長端讀取、名單讀取、預覽讀取，幾乎每張第一輪都缺。
+- **兄弟姊妹／別 org／別堂**：替身不照 `eq`／`in`／`event_id` 過濾，拿掉條件照樣綠（#1818 R7–R10、#1880 A1、#1896 S9：老師教過任何一堂就能讀寫每一堂）。請作者讓替身照條件過濾或攔查詢字串。
+- **推播狀態與 ON CONFLICT**：只進通知中心的提醒，`push_status` 改成 pending、拿掉 `ON CONFLICT` 都照綠。
+- **純視覺**（px、字級）有截圖量測就不要求 spec；**讓版面成立的 class**（`min-w-0`、`truncate`、`shrink-0`）與 **aria** 要求斷言。
+
+### 五、分工與溝通
+
+- 第二審核席只二讀不合；它報「#N @完整 SHA 可合」，本席核對 head 一致後照 SHA 合。開讀前互相確認沒審同一張；作者改了替身就整組重跑，提醒它照做。
+- 作者退場（`agent_not_found`）就請計畫席轉派；roles-2c 只能用 `SendMessage` 回 uds。
+- 使用者親合只限：既有金額路徑、migration Approve、修憲、backfill。家長讀取面、授權修正、`/api/me` 名字退路都不是（計畫席多次更正作者寫的「等使用者」）。
+- iOS 實機要使用者驗的：#1854（已驗）、#1869、#1893。
+
+### 六、手上的單（2026-10-23 交接時）
+
+- **背景合併（一支在跑）**：#1933 @7d925b55 → 接著另一支等 #1933 合了、main verify 綠才合 #1930 @79247770 → #1929 @07340e40 → #1916 @ab429532 → #1935 @d9636e95（**migration，合了就凍結**），最後印出 migrate waiting 的連結。計畫席代按 Approve（使用者授權到 10-23 10:00）。醒來先看這五張與 migrate。
+- **文件類待合（凍結中也能合）**：#1939 @319827f3（charter）、#1941（review3 charter 補件）。
+- **review3 手上**：#1922（保留類，斷言被別名子字串騙過，等作者改）。
+- **合後提醒**：#1920 要在 Windows／Android 看後備字型；將來加 CSP 要處理字型的 onload。
+- **待使用者 iPhone 驗**：#1869、#1893、#1908。
+
+### 七、限流的坑
+
+- **限流前排的背景等待，醒來後還活著。** 這次有兩支舊的接力腳本在重置後醒來，跟新排的串同時合同一張（#1927、#1933）。SHA 都釘死所以沒合錯，但不該發生。**醒來第一件事：`pgrep -fl mv.sh` 與 TaskList，把舊的接力全部停掉，再排新的一支。**
