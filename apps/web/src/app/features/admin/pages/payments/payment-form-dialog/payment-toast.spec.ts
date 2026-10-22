@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { paymentToastDetail } from './payment-form-dialog.component';
+import { TestBed } from '@angular/core/testing';
+import { MessageService } from 'primeng/api';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { of } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
+
+import { InvoicesService } from '@core/invoices.service';
+import { PaymentFormDialogComponent, paymentToastDetail } from './payment-form-dialog.component';
 
 /** #1778 拆單 3：記收款 toast 帶出伺服器同一個交易做的轉正式、完成申請（有才寫） */
 const row = (studentName: string, className: string) => ({
@@ -45,5 +51,45 @@ describe('paymentToastDetail（#1778）', () => {
         completedRequests: [row('林小華', '國二數學 B')],
       }),
     ).toBe('收款 2,600 元 · 報名申請已完成');
+  });
+});
+
+describe('PaymentFormDialogComponent：記收款 toast 接伺服器回應（#1778）', () => {
+  it('回應帶一筆轉正式、一筆完成申請：toast 寫出學生、班名與申請完成', async () => {
+    const res = {
+      data: { id: 'inv-1' },
+      activatedEnrollments: [row('林小華', '國二數學 B')],
+      completedRequests: [row('林小華', '國二數學 B')],
+    };
+    const recordPayment = vi.fn().mockReturnValue(of(res));
+    const add = vi.fn();
+    const close = vi.fn();
+    await TestBed.configureTestingModule({
+      imports: [PaymentFormDialogComponent],
+      providers: [
+        { provide: InvoicesService, useValue: { recordPayment } },
+        { provide: MessageService, useValue: { add } },
+        { provide: DynamicDialogRef, useValue: { close } },
+        {
+          provide: DynamicDialogConfig,
+          useValue: {
+            data: { invoice: { id: 'inv-1', status: 'unpaid', total: 3600, netPaid: 0 } },
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(PaymentFormDialogComponent);
+    fixture.detectChanges();
+
+    (fixture.componentInstance as unknown as { save(): void }).save();
+
+    expect(recordPayment).toHaveBeenCalledOnce();
+    expect(add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'success',
+        detail: '收款 3,600 元 · 林小華（國二數學 B）轉為正式 · 報名申請已完成',
+      }),
+    );
+    expect(close).toHaveBeenCalledWith(res.data);
   });
 });
