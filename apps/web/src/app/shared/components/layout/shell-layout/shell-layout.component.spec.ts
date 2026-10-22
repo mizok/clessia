@@ -401,10 +401,13 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       );
     });
 
-    it('帳戶浮層：手機抽屜 zinc-200、桌機白；「切換身分」群組手機白、標題 13px 粗 zinc-800', async () => {
+    // #1856：切換身分改黑細框透明底（使用者 10-22）；兩種寬度一樣，不再分手機白／桌機灰
+    it('帳戶浮層：手機抽屜 zinc-200、桌機白；「切換身分」群組 zinc-900 細框透明底、標題 13px 粗 zinc-800', async () => {
       const { el } = await setup(['admin', 'teacher'], 'admin');
       has(el.querySelector('#shell-account'), 'bg-white', 'max-wide:bg-zinc-200');
-      has(el.querySelector('#shell-account [role="group"]'), 'bg-zinc-100', 'max-wide:bg-white');
+      const group = el.querySelector('#shell-account [role="group"]')!;
+      has(group, 'border', 'border-solid', 'border-zinc-900', 'bg-transparent');
+      expect(group.className).not.toMatch(/bg-(white|zinc-\d+)/);
       has(
         el.querySelector('#shell-account-switch'),
         'text-md',

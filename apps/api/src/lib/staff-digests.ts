@@ -4,6 +4,7 @@ import { resolveCampusScope, type CampusScope } from './campus-scope';
 import { invoiceInScope } from './invoice-campus-scope';
 import { isOverdueOn } from './invoice-overdue';
 import { deriveInvoiceStatus, isOpenInvoice, type PaymentRow } from './invoice-status';
+import { promotionReminderDue } from './grade-promotion';
 import { hasPermission } from './permissions';
 
 /**
@@ -24,7 +25,7 @@ type Orgs = string[] | null;
 /** 讀不到設定時的天數，同 `billing-periods.ts` */
 const DEFAULT_REMINDER_DAYS = 14;
 
-interface Recipient {
+export interface Recipient {
   org_id: string;
   user_id: string;
   roles: string[];
@@ -63,7 +64,7 @@ FROM organizations o
 WHERE ($2::uuid[] IS NULL OR o.id = ANY($2))`;
 
 /** 本 org、active、有 admin 角色的教職員；角色與權限是 user_roles 各列的聯集（同 middleware/auth.ts） */
-const RECIPIENTS_SQL = `
+export const RECIPIENTS_SQL = `
 SELECT st.org_id, st.user_id,
        array_agg(DISTINCT ur.role::text) AS roles,
        COALESCE((SELECT array_agg(p) FROM user_roles u2
@@ -297,6 +298,96 @@ export async function enqueueStaffDigests(
       digests.map((d) => d.kind),
       digests.map((d) => JSON.stringify(d.payload)),
       today,
+    ],
+  );
+  return rowCount ?? 0;
+}
+
+/** 開了升級前提醒的 org（天數 0＝關） */
+const PROMOTION_ORGS_SQL = `
+SELECT o.id AS org_id, o.grade_promotion_month_day AS month_day, o.grade_promotion_reminder_days AS days
+FROM organizations o
+WHERE o.grade_promotion_reminder_days > 0 AND ($1::uuid[] IS NULL OR o.id = ANY($1))`;
+
+/** 進了提醒窗的 org 裡，這個升級日還沒排過、那一學年也還沒升（未復原）的 */
+const PROMOTION_OPEN_SQL = `
+SELECT x.org_id
+FROM unnest($1::uuid[], $2::text[], $3::int[]) AS x(org_id, date, year)
+WHERE NOT EXISTS (SELECT 1 FROM notifications n WHERE n.org_id = x.org_id
+                    AND n.dedupe_key = 'grade_promotion_reminder:' || x.org_id || ':' || x.date)
+  AND NOT EXISTS (SELECT 1 FROM grade_promotions g WHERE g.org_id = x.org_id
+                    AND g.academic_year = x.year AND g.reverted_at IS NULL)`;
+
+/**
+ * 學年升級前提醒（#1820 設計稿 §2）：升級日前 `grade_promotion_reminder_days` 天內，提醒能執行升級的管理員
+ * （`manage_students`＋`all_campuses`，同 `/api/grade-promotions` 的門檻，裁定 E）到設定預覽並執行。
+ * **每個升級日一次**（鍵帶升級日，不帶今天）；那一學年已經升過就不提醒。跟摘要同一個管道：不推播、只進通知中心。
+ *
+ * 平常日子（沒有 org 在提醒窗裡）只多一句 `PROMOTION_ORGS_SQL`。
+ */
+export async function enqueueGradePromotionReminders(
+  db: PoolClient,
+  today: string,
+  orgs: Orgs,
+): Promise<number> {
+  const { rows } = await db.query<{ org_id: string; month_day: string; days: number }>(
+    PROMOTION_ORGS_SQL,
+    [orgs],
+  );
+  const due = rows.flatMap((r) => {
+    const hit = promotionReminderDue(r.month_day, r.days, today);
+    return hit ? [{ org_id: r.org_id, ...hit }] : [];
+  });
+  if (due.length === 0) return 0;
+
+  const { rows: open } = await db.query<{ org_id: string }>(PROMOTION_OPEN_SQL, [
+    due.map((d) => d.org_id),
+    due.map((d) => d.date),
+    due.map((d) => d.academicYear),
+  ]);
+  const openIds = new Set(open.map((o) => o.org_id));
+  const targets = due.filter((d) => openIds.has(d.org_id));
+  if (targets.length === 0) return 0;
+
+  const { rows: staff } = await db.query<Recipient>(RECIPIENTS_SQL, [targets.map((t) => t.org_id)]);
+  const rowsToInsert = staff.flatMap((s) => {
+    const scope = resolveCampusScope({
+      roles: s.roles,
+      permissions: s.permissions,
+      assignedCampusIds: s.campus_ids,
+    });
+    if (!hasPermission(s.permissions, 'manage_students') || scope !== null) return [];
+    const t = targets.find((x) => x.org_id === s.org_id)!;
+    const day = `${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8, 10))}`;
+    return [
+      {
+        org_id: s.org_id,
+        user_id: s.user_id,
+        dedupe_key: `grade_promotion_reminder:${s.org_id}:${t.date}`,
+        payload: {
+          title: '學年升級',
+          body:
+            t.daysUntil === 0
+              ? `今天是學年升級日（${day}），到設定預覽並執行`
+              : `學年升級日（${day}）還有 ${t.daysUntil} 天，到設定預覽並執行`,
+          url: '/admin/settings/general',
+        },
+      },
+    ];
+  });
+  if (rowsToInsert.length === 0) return 0;
+
+  const { rowCount } = await db.query(
+    `INSERT INTO notifications (org_id, user_id, role, kind, dedupe_key, payload, push_status, push_error)
+     SELECT x.org_id, x.user_id, 'admin', 'grade_promotion_reminder', x.dedupe_key, x.payload,
+            'skipped', 'ROLE_PUSH_DISABLED'
+     FROM unnest($1::uuid[], $2::text[], $3::text[], $4::jsonb[]) AS x(org_id, user_id, dedupe_key, payload)
+     ON CONFLICT (user_id, dedupe_key) DO NOTHING`,
+    [
+      rowsToInsert.map((r) => r.org_id),
+      rowsToInsert.map((r) => r.user_id),
+      rowsToInsert.map((r) => r.dedupe_key),
+      rowsToInsert.map((r) => JSON.stringify(r.payload)),
     ],
   );
   return rowCount ?? 0;

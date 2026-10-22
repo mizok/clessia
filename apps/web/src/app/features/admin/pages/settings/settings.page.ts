@@ -1,19 +1,37 @@
-import { Component, OnInit, inject, signal, input } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal, input } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TextareaModule } from 'primeng/textarea';
 import { InputNumberModule } from 'primeng/inputnumber';
+import { InputTextModule } from 'primeng/inputtext';
+import { DialogService } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
-import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
+import { BillingPeriodsService, type BillingPeriodListItem } from '@core/billing-periods.service';
 import {
   OrgSettingsService,
   type AttendanceMode,
   type AttendanceResponsible,
   type OrgSettings,
+  type UpdateOrgSettingsInput,
 } from '@core/org-settings.service';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { AuthService } from '@core/auth.service';
+import {
+  GradePromotionsService,
+  type GradePromotionRecord,
+  type GradePromotionRevertResult,
+} from '@core/grade-promotions.service';
+import { GradePromotionDialogComponent } from './grade-promotion-dialog/grade-promotion-dialog.component';
 
 @Component({
   selector: 'app-settings',
@@ -25,15 +43,53 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
     SkeletonModule,
     TextareaModule,
     InputNumberModule,
+    InputTextModule,
     LoadFailedComponent,
+    RouterLink,
+    DatePipe,
   ],
   templateUrl: './settings.page.html',
+  providers: [DialogService],
 })
 export class SettingsPage implements OnInit {
   readonly page = input.required<RouteObj>();
 
   private readonly orgSettingsService = inject(OrgSettingsService);
   private readonly messageService = inject(MessageService);
+  private readonly billingPeriodsService = inject(BillingPeriodsService);
+  private readonly gradePromotions = inject(GradePromotionsService);
+  private readonly dialogService = inject(DialogService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * 學年升級（#1820）。升級日與提醒天數是機構設定（寫入門檻 `manage_org_settings`，同出勤模式）；
+   * 預覽／執行／復原要 `manage_students`＋`all_campuses`（設計稿 §5 裁定 E）—— 沒有時只看得到設定欄位
+   */
+  protected readonly canPromote = computed(
+    () => this.auth.hasPermission('manage_students') && this.auth.hasPermission('all_campuses'),
+  );
+  /** 輸入框顯示 `9/1`；存的是 `09-01` */
+  protected gradePromotionDayValue = '9/1';
+  protected gradePromotionReminderDaysValue = 7;
+  protected readonly savingGradePromotion = signal(false);
+  /** 最近一次執行（沒有復原的優先看）。`undefined`＝還沒讀到 */
+  protected readonly lastPromotion = signal<GradePromotionRecord | null | undefined>(undefined);
+  protected readonly promotionHistoryFailed = signal(false);
+  protected readonly reverting = signal(false);
+  /** 復原完的結果留在段內 —— 跳過的名單是行政接下來要處理的，不能跟著 toast 消失 */
+  protected readonly revertResult = signal<GradePromotionRevertResult | null>(null);
+  protected readonly studentPath = (id: string) =>
+    RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath.replace(':id', id);
+
+  /** 「學年升級」段收起來時的摘要（A6：每年 9/1 · 前 7 天提醒） */
+  protected readonly gradePromotionSummary = computed(() => {
+    const s = this.settings();
+    if (!s) return '';
+    const day = this.toDisplayDay(s.gradePromotionMonthDay);
+    const days = s.gradePromotionReminderDays;
+    return `每年 ${day} · ${days > 0 ? `前 ${days} 天提醒` : '不提醒'}`;
+  });
 
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
@@ -55,11 +111,53 @@ export class SettingsPage implements OnInit {
 
   /** #1305：待開單提醒天數。同帳戶資訊：只在回應帶了這個 key（有財務權限）時畫 */
   protected billingReminderDaysValue = 14;
-  protected readonly savingBillingReminder = signal(false);
+
+  /**
+   * 預設繳費期限（開帳時 due_date 的預設天數，`invoice_due_days`）。#1314 SE2a 之前**沒有畫面能改**，
+   * A6「繳費」段的第一欄。財務設定，同帳戶資訊
+   */
+  protected invoiceDueDaysValue = 14;
+
+  /**
+   * 學期與繳費週期（#1314 SE2a，A6「學期與繳費週期」段）。這裡**只列**，增刪改在費用方案頁 ——
+   * 那裡已經有表單與刪除規則（被帳單明細引用的不能刪），不在兩個地方各做一份。
+   * `null`＝還沒讀到；讀失敗另外記，不能讓「沒有週期」的空態冒出來
+   */
+  protected readonly periods = signal<BillingPeriodListItem[] | null>(null);
+  protected readonly periodsFailed = signal(false);
+  protected readonly feeTemplatesPath = RoutesCatalog.ADMIN_FEE_TEMPLATES.absolutePath;
+
+  /**
+   * 有財務權限 —— API 只把財務欄位回給有 `manage_finance` 的人（沒有時是 key 不存在，不是 0）。
+   * 「繳費」與「週期」兩段都跟著它
+   */
+  protected readonly hasFinance = computed(() => {
+    const s = this.settings();
+    return (
+      !!s &&
+      [
+        s.invoiceDueDays,
+        s.billingReminderDays,
+        s.leaveWaiverDays,
+        s.invoiceReminderOffsets,
+        s.paymentInfo,
+      ].some((v) => v !== undefined)
+    );
+  });
+
+  /** 「繳費」段收起來時的摘要（A6 `.coll__m`）：期限＋家長提醒時間點 */
+  protected readonly financeSummary = computed(() => {
+    const due = this.settings()?.invoiceDueDays;
+    const offsets = this.settings()?.invoiceReminderOffsets ?? [];
+    // A6 的語序是「到期前 3 天提醒」；這裡時間點可以有好幾個，用頓號接
+    const remind = offsets.length
+      ? `${offsets.map((o) => this.reminderLabel(o)).join('、')}提醒`
+      : '不推播提醒';
+    return due === undefined ? remind : `期限 ${due} 天 · ${remind}`;
+  });
 
   /** #1732：連續請假可不收費的門檻。財務設定，同上 */
   protected leaveWaiverDaysValue = 3;
-  protected readonly savingLeaveWaiver = signal(false);
 
   /**
    * #1660：家長繳費提醒時間點（負＝到期前、0＝當天、正＝逾期第 N 天）。同帳戶資訊：只在回應帶了這個 key
@@ -101,7 +199,13 @@ export class SettingsPage implements OnInit {
         this.billingReminderDaysValue = s.billingReminderDays ?? 14;
         this.leaveWaiverDaysValue = s.leaveWaiverDays ?? 3;
         this.reminderOffsets.set(s.invoiceReminderOffsets ?? []);
+        this.invoiceDueDaysValue = s.invoiceDueDays ?? 14;
+        this.gradePromotionDayValue = this.toDisplayDay(s.gradePromotionMonthDay);
+        this.gradePromotionReminderDaysValue = s.gradePromotionReminderDays;
         this.loading.set(false);
+        if (this.canPromote()) this.loadPromotionHistory();
+        // 週期是財務資料（API 要 manage_finance）：回應帶了財務欄位才讀，否則整段不畫
+        if (this.hasFinance()) this.loadPeriods();
       },
       // **不發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast + 留著的錯誤畫面
       // 是兩個互相矛盾的訊號（#788 的裁定，照 /admin/parents 的形狀）。
@@ -161,54 +265,55 @@ export class SettingsPage implements OnInit {
       });
   }
 
-  /** #1732：連續請假滿這麼多個上課日，提醒有財務權限的人（2–30）。系統不改帳單 */
-  protected saveLeaveWaiverDays(): void {
-    this.savingLeaveWaiver.set(true);
-    this.orgSettingsService
-      .updateSettings({ leaveWaiverDays: this.leaveWaiverDaysValue })
-      .subscribe({
-        next: (s) => {
-          this.settings.set(s);
-          this.leaveWaiverDaysValue = s.leaveWaiverDays ?? 3;
-          this.savingLeaveWaiver.set(false);
-          this.messageService.add({ severity: 'success', summary: '已儲存', detail: '天數已更新' });
-        },
-        error: () => {
-          this.savingLeaveWaiver.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '錯誤',
-            detail: '儲存失敗，請稍後再試',
-          });
-        },
-      });
+  /** 「繳費」段的數字欄位（A6 kv）共用一顆儲存 */
+  protected readonly savingFinanceBasics = signal(false);
+
+  /**
+   * 「繳費」段 kv 的三欄一起存（A6 一段一顆儲存）。**只送回應裡有的 key** —— 畫面沒畫的欄位
+   * 不能拿預設值寫回去（同 #805 的理由）
+   */
+  protected saveFinanceBasics(): void {
+    const s = this.settings();
+    const input: UpdateOrgSettingsInput = {};
+    if (s?.invoiceDueDays !== undefined) input.invoiceDueDays = this.invoiceDueDaysValue;
+    if (s?.billingReminderDays !== undefined)
+      input.billingReminderDays = this.billingReminderDaysValue;
+    if (s?.leaveWaiverDays !== undefined) input.leaveWaiverDays = this.leaveWaiverDaysValue;
+    this.savingFinanceBasics.set(true);
+    this.orgSettingsService.updateSettings(input).subscribe({
+      next: (saved) => {
+        this.settings.set(saved);
+        this.invoiceDueDaysValue = saved.invoiceDueDays ?? 14;
+        this.billingReminderDaysValue = saved.billingReminderDays ?? 14;
+        this.leaveWaiverDaysValue = saved.leaveWaiverDays ?? 3;
+        this.savingFinanceBasics.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: '已儲存',
+          detail: '繳費設定已更新',
+        });
+      },
+      error: () => {
+        this.savingFinanceBasics.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: '錯誤',
+          detail: '儲存失敗，請稍後再試',
+        });
+      },
+    });
   }
 
-  /** #1305：期的開始日前這麼多天，儀表板「待開單」就會出現（1–90） */
-  protected saveBillingReminderDays(): void {
-    this.savingBillingReminder.set(true);
-    this.orgSettingsService
-      .updateSettings({ billingReminderDays: this.billingReminderDaysValue })
-      .subscribe({
-        next: (s) => {
-          this.settings.set(s);
-          this.billingReminderDaysValue = s.billingReminderDays ?? 14;
-          this.savingBillingReminder.set(false);
-          this.messageService.add({
-            severity: 'success',
-            summary: '已儲存',
-            detail: '提醒天數已更新',
-          });
-        },
-        error: () => {
-          this.savingBillingReminder.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '錯誤',
-            detail: '儲存失敗，請稍後再試',
-          });
-        },
-      });
+  protected loadPeriods(): void {
+    this.periodsFailed.set(false);
+    this.billingPeriodsService.list().subscribe({
+      next: (res) =>
+        this.periods.set([...res.data].sort((a, b) => b.startDate.localeCompare(a.startDate))),
+      error: () => {
+        this.periods.set(null);
+        this.periodsFailed.set(true);
+      },
+    });
   }
 
   protected reminderLabel(offset: number): string {
@@ -284,6 +389,121 @@ export class SettingsPage implements OnInit {
           severity: 'error',
           summary: '錯誤',
           detail: '儲存失敗，請稍後再試',
+        });
+      },
+    });
+  }
+
+  /** `09-01` → `9/1` */
+  private toDisplayDay(monthDay: string): string {
+    const [m, d] = monthDay.split('-').map(Number);
+    return `${m}/${d}`;
+  }
+
+  /** `9/1`、`09/01`、`9-1` → `09-01`；不是真的日期（含 2/30）回 null。2/29 算合法（閏年才有，提醒只在那年發） */
+  protected pendingGradePromotionDay(): string | null {
+    const match = /^\s*(\d{1,2})\s*[/-]\s*(\d{1,2})\s*$/.exec(this.gradePromotionDayValue ?? '');
+    if (!match) return null;
+    const [m, d] = [Number(match[1]), Number(match[2])];
+    // 用閏年驗：2/29 合法、2/30 不合法
+    const date = new Date(2024, m - 1, d);
+    if (m < 1 || m > 12 || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+    return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  protected saveGradePromotion(): void {
+    const monthDay = this.pendingGradePromotionDay();
+    if (monthDay === null) return;
+    this.savingGradePromotion.set(true);
+    this.orgSettingsService
+      .updateSettings({
+        gradePromotionMonthDay: monthDay,
+        gradePromotionReminderDays: this.gradePromotionReminderDaysValue,
+      })
+      .subscribe({
+        next: (s) => {
+          this.settings.set(s);
+          this.gradePromotionDayValue = this.toDisplayDay(s.gradePromotionMonthDay);
+          this.gradePromotionReminderDaysValue = s.gradePromotionReminderDays;
+          this.savingGradePromotion.set(false);
+          this.messageService.add({
+            severity: 'success',
+            summary: '已儲存',
+            detail: '學年升級設定已更新',
+          });
+        },
+        error: () => {
+          this.savingGradePromotion.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '錯誤',
+            detail: '儲存失敗，請稍後再試',
+          });
+        },
+      });
+  }
+
+  protected loadPromotionHistory(): void {
+    this.promotionHistoryFailed.set(false);
+    this.gradePromotions.history().subscribe({
+      // 最新一筆就是要看的：同學年只能有一筆沒復原的，而新的一定排最前
+      next: (res) => this.lastPromotion.set(res.data[0] ?? null),
+      error: () => {
+        this.lastPromotion.set(undefined);
+        this.promotionHistoryFailed.set(true);
+      },
+    });
+  }
+
+  protected openGradePromotion(): void {
+    this.revertResult.set(null);
+    const ref = this.dialogService.open(GradePromotionDialogComponent, {
+      width: '560px',
+      breakpoints: { '640px': '96%' },
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+    });
+    if (!ref) return;
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((executed?: boolean) => {
+      if (executed) this.loadPromotionHistory();
+    });
+  }
+
+  protected confirmRevert(record: GradePromotionRecord): void {
+    const data: ConfirmDialogData = {
+      message: `把 ${record.academicYear} 學年的升級復原：${record.studentCount} 位學生回到升級前的年級，畢業停用的恢復在讀。升級後年級被改過的學生不會動，復原完會列出來。`,
+      acceptLabel: '復原',
+      acceptSeverity: 'danger',
+    };
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header: '復原學年升級',
+      width: '420px',
+      breakpoints: { '640px': '96%' },
+      modal: true,
+      appendTo: 'body',
+      data,
+    });
+    if (!ref) return;
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ok) => {
+      if (ok) this.revert(record.id);
+    });
+  }
+
+  private revert(id: string): void {
+    this.reverting.set(true);
+    this.gradePromotions.revert(id).subscribe({
+      next: (r) => {
+        this.reverting.set(false);
+        this.revertResult.set(r);
+        this.loadPromotionHistory();
+      },
+      error: (e: { error?: { error?: string } }) => {
+        this.reverting.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: '復原失敗',
+          detail: e.error?.error ?? '沒有任何學生被改動，請稍後再試',
         });
       },
     });
