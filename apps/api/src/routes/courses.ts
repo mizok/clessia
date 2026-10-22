@@ -4,7 +4,13 @@ import { waitUntilFrom } from '../lib/wait-until';
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
-import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import {
+  applyCampusFilter,
+  campusFilterIds,
+  getCampusScope,
+  isCampusAllowed,
+} from '../lib/campus-scope';
+import { loadCourseListViaSql, type CourseListResult } from '../lib/course-list-sql';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { findInOrg, inOrg } from '../lib/org-scope';
 import { DbUuidSchema } from '../lib/validation';
@@ -182,8 +188,55 @@ app.openapi(listRoute, async (c) => {
   const unpaginated = rawPageSize === 0;
   const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
   const offset = (page - 1) * pageSize;
+  const today = getCurrentTaipeiDateString();
 
-  // Build query
+  // 兩條路共用的回應組裝：SQL 與 builder 交出同一個形狀，回應只在這裡組一次
+  const respond = (r: CourseListResult) => {
+    const courses = r.rows.map((row) => {
+      const course = mapCourse(row);
+      return {
+        ...course,
+        activeClassCount: r.classCounts[course.id]?.active ?? 0,
+        endedClassCount: r.classCounts[course.id]?.ended ?? 0,
+      };
+    });
+    // 必須明寫 200：不帶狀態碼時型別無法選中 200 分支，會去跟 400 的 error schema 比對而報錯。
+    return c.json(
+      {
+        data: courses,
+        summary: { bySubject: r.bySubject },
+        meta: {
+          total: r.total,
+          page: unpaginated ? 1 : page,
+          pageSize: unpaginated ? r.total : pageSize,
+          totalPages: unpaginated ? 1 : Math.ceil(r.total / pageSize),
+        },
+      },
+      200,
+    );
+  };
+
+  // 先走 SQL（Hyperdrive，一次往返，#1595 P2）；失敗或形狀不對就走下面原本的 builder。
+  // 分校條件在這裡用 campusFilterIds 算好再傳進去 —— 判準只有 lib/campus-scope.ts 一份。
+  // 班數只吃範圍、不吃指定分校（跟 builder 的 applyCampusFilter(…, scope, undefined) 同一個行為）
+  // auth middleware 已經用 getAuth 把它放進 context；這裡只讀、不建（沒有就走 builder，例：單元測試的精簡 app）
+  const pool = c.get('auth')?.pool;
+  const viaSql = pool
+    ? await loadCourseListViaSql(pool, {
+        orgId: c.get('orgId'),
+        courseCampusIds: campusFilterIds(getCampusScope(c), query.campusId),
+        classCampusIds: campusFilterIds(getCampusScope(c), undefined),
+        search: query.search || null,
+        isActive: query.isActive !== undefined ? query.isActive === 'true' : null,
+        subjectId: query.subjectId ?? null,
+        limit: unpaginated ? null : pageSize,
+        offset: unpaginated ? 0 : offset,
+        today,
+      })
+    : null;
+  if (viaSql) return respond(viaSql);
+
+  // ── 退路：原本的 query builder（條件跟 lib/course-list-sql.ts 各一份，由 contract/course-list.contract.ts 逐欄比對）──
   let dbQuery = supabase
     .from('courses')
     // `sort_order` 必須在 embed 的 select 裡：PostgREST 對 `order=subjects(sort_order)` 只認選了的欄，
@@ -219,14 +272,12 @@ app.openapi(listRoute, async (c) => {
   }
 
   const pageCourses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
+  const classCounts: CourseListResult['classCounts'] = {};
 
   // 進行中的班數（#1314 (c)）：本頁課程一次撈、記憶體數。「進行中」同班級列表預設排除歷史班那條
   // （end_date 空或 ≥ 今天）再加 is_active；受限者只數範圍內的班
   // ponytail: 一次撈本頁課程的進行中班（上限 1000 列）；不分頁列全部課程且班數破千時才會截斷 —— 那時改 head count
-  const classCountByCourse = new Map<string, number>();
-  const endedCountByCourse = new Map<string, number>();
   if (pageCourses.length > 0) {
-    const today = getCurrentTaipeiDateString();
     // ponytail: 全撈本頁課程的班（含已結束的）再在記憶體分類 —— 受 PostgREST 單次回傳上限（max_rows 1000 列）
     // 限制；本頁課程的班數加起來破千（不分頁列全部課程、班數很多）才會被靜默截斷、兩個計數偏少。
     // 升級路徑：改兩支 head count（進行中一支、已結束一支，各自 count:'exact'），
@@ -253,20 +304,12 @@ app.openapi(listRoute, async (c) => {
     if (classError) return c.json({ error: classError.message, code: 'DB_ERROR' }, 500);
     for (const row of classRows ?? []) {
       const ended = row.end_date !== null && row.end_date < today;
+      const n = (classCounts[row.course_id] ??= { active: 0, ended: 0 });
       // 已結束：判準同班級列表的「歷史班」（end_date 早於台北今天），不看 is_active
-      if (ended) {
-        endedCountByCourse.set(row.course_id, (endedCountByCourse.get(row.course_id) ?? 0) + 1);
-      } else if (row.is_active) {
-        classCountByCourse.set(row.course_id, (classCountByCourse.get(row.course_id) ?? 0) + 1);
-      }
+      if (ended) n.ended += 1;
+      else if (row.is_active) n.active += 1;
     }
   }
-  const courses = pageCourses.map((course) => ({
-    ...course,
-    activeClassCount: classCountByCourse.get(course.id) ?? 0,
-    endedClassCount: endedCountByCourse.get(course.id) ?? 0,
-  }));
-  const total = count || 0;
 
   // 依科目分章的章節計數（#1314 C1）。每科一支 head count 讓 DB 數 —— 撈列回來數會被
   // max_rows（1000）靜默截斷。跟列表吃同一組 search／isActive／分校（`withChapterFilters`），
@@ -303,20 +346,12 @@ app.openapi(listRoute, async (c) => {
     count: subjectCounts[i]?.count ?? 0,
   }));
 
-  // 必須明寫 200：不帶狀態碼時型別無法選中 200 分支，會去跟 400 的 error schema 比對而報錯。
-  return c.json(
-    {
-      data: courses,
-      summary: { bySubject },
-      meta: {
-        total,
-        page: unpaginated ? 1 : page,
-        pageSize: unpaginated ? total : pageSize,
-        totalPages: unpaginated ? 1 : Math.ceil(total / pageSize),
-      },
-    },
-    200,
-  );
+  return respond({
+    rows: (data || []) as Record<string, unknown>[],
+    total: count || 0,
+    classCounts,
+    bySubject,
+  });
 });
 
 // GET /api/courses/:id - 取得單一課程
