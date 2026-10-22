@@ -316,6 +316,19 @@ describe('FeeTemplatesComponent', () => {
       expect(menu(template({ inUseCount: 0 })).map((i) => i.label)).toContain('刪除');
     });
 
+    it('刪除類項目上危險色（#1360）：價目表、收費期間的「刪除」有 danger', () => {
+      const page = component as unknown as {
+        selectedTemplate: { set: (v: unknown) => void };
+        actionMenuItems: () => { label?: string; danger?: boolean }[];
+        selectedPeriod: { set: (v: unknown) => void };
+        periodMenuItems: () => { label?: string; danger?: boolean }[];
+      };
+      page.selectedTemplate.set(template({ inUseCount: 0 }));
+      expect(page.actionMenuItems().find((i) => i.label === '刪除')?.danger).toBe(true);
+      page.selectedPeriod.set(period());
+      expect(page.periodMenuItems().find((i) => i.label === '刪除')?.danger).toBe(true);
+    });
+
     it('F5 重疊期間：列上寫「跟「X」重疊」，不重疊的沒有', () => {
       load(
         [],
