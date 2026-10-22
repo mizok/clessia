@@ -52,7 +52,7 @@ function hookSelectors(file) {
 /** 開一個 context＋頁面並載入；app 端轉送 API、被導離目標路由就報錯。 */
 export async function openPage(
   browser,
-  { source, url, width, height = 900, storageState, prep = [] },
+  { source, url, width, height = 900, storageState, prep = [], clock },
 ) {
   const ctx = await browser.newContext({
     viewport: { width, height },
@@ -65,6 +65,17 @@ export async function openPage(
         response: await route.fetch({ url: route.request().url().replace(BUILT_API, API_URL) }),
       }),
     );
+  // app 的「今天」對齊稿的（config 的 `clock`）：稿把日期寫死（例：課表 stress.js 的 2026-10-01 17:40），
+  // app 照真實日期，週檢視就差成「今天」換了一欄、底色互換 —— 那是日期不是設計。
+  // app 有兩個時鐘，兩個都要對齊：SystemClockService 認 /api/system-time（後註冊的 route 先比對），
+  // 課表頁這類直接 `new Date()` 的認瀏覽器時鐘（setFixedTime 只固定 Date，timer 照跑）
+  if (source === 'app' && clock) {
+    const epochMs = Date.parse(clock);
+    await ctx.clock.setFixedTime(epochMs);
+    await ctx.route('**/api/system-time', (route) =>
+      route.fulfill({ json: { epochMs, iso: new Date(epochMs).toISOString() } }),
+    );
+  }
   // 稿的審稿膠囊不是頁面：一插進來就拿掉（proto.js 插的時間不定，等固定秒數不可靠），
   // 連帶 a6.css 的 `body:has(.proto-pill)` 稿專用樣式也失效（公開頁品牌面多 72px padding-bottom，#1639）
   if (source === 'a6')
@@ -175,9 +186,16 @@ export async function closePop(page, id, opens = {}) {
 
 export async function capture(
   browser,
-  { source, file, url, width, storageState, opens = {}, rowParents = [], prep },
+  { source, file, url, width, storageState, opens = {}, rowParents = [], prep, clock },
 ) {
-  const { ctx, page, errors } = await openPage(browser, { source, url, width, storageState, prep });
+  const { ctx, page, errors } = await openPage(browser, {
+    source,
+    url,
+    width,
+    storageState,
+    prep,
+    clock,
+  });
   const height = await growViewport(page, width);
   const names = await harvestNames(page, source, ctx);
 
