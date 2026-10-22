@@ -188,7 +188,9 @@ const AREAS = [
   {
     name: '餐費',
     pages: ['admin/meals', 'parent/meals'],
-    routes: [],
+    // 跟「計費」共用 `meals`（同「繳費」那段的先例）：admin/meals 打的就是它。
+    // 家長端的 /api/me/meals 掛在 `me` 底下（routes/me.ts），由儀表板認領，不重複算
+    routes: ['meals'],
     specs: ['admin/finance/meals.md', 'parent/meals.md'],
   },
   {

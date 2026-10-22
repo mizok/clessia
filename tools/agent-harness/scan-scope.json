@@ -102,6 +102,7 @@
       "apps/web/src/app/features/parent/pages/dashboard",
       "apps/web/src/app/features/parent/pages/enrollment",
       "apps/web/src/app/features/parent/pages/grades",
+      "apps/web/src/app/features/parent/pages/meals",
       "apps/web/src/app/features/parent/pages/payments",
       "apps/web/src/app/features/parent/pages/schedule",
       "apps/web/src/app/features/parent/pages/trial",
