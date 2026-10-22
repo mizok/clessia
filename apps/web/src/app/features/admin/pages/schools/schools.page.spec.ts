@@ -31,6 +31,7 @@ describe('SchoolsPage', () => {
       return subject.asObservable();
     }),
     delete: vi.fn(),
+    update: vi.fn(),
   };
 
   viBeforeEach(() => {
@@ -47,6 +48,7 @@ describe('SchoolsPage', () => {
     pending.length = 0;
     schoolsServiceMock.list.mockClear();
     schoolsServiceMock.delete.mockReset();
+    schoolsServiceMock.update.mockReset();
 
     await TestBed.configureTestingModule({
       imports: [SchoolsPage],
@@ -235,16 +237,44 @@ describe('SchoolsPage', () => {
       expect(arg.icon).toBe('pi pi-exclamation-triangle');
     });
 
-    it('學生數 > 0 時仍然只出 toast，不開確認框', () => {
+    // #1314 SE4（A6）：有學生時跳說明＋「改成停用」，不是只出 toast；永遠不打刪除 API
+    it('學生數 > 0 → 說明框給「改成停用」，按下去 PUT isActive=false，不刪', () => {
       const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-      const confirmSpy = vi.spyOn(confirmationService, 'confirm');
+      const confirmSpy = vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
+        c.accept?.();
+        return confirmationService;
+      });
+      schoolsServiceMock.update.mockReturnValueOnce(of({ success: true }));
 
       (component as unknown as { onDelete: (s: unknown) => void }).onDelete({
         ...zeroStudentSchool,
+        shortName: '示範國中',
         studentCount: 2,
       });
 
-      expect(confirmSpy).not.toHaveBeenCalled();
+      const arg = confirmSpy.mock.calls[0]![0]!;
+      expect(arg.header).toBe('「示範國中」不能刪除');
+      expect(arg.message).toContain('還有 2 位學生');
+      expect(arg.acceptLabel).toBe('改成停用');
+      expect(schoolsServiceMock.update).toHaveBeenCalledWith('school-0', { isActive: false });
+      expect(schoolsServiceMock.delete).not.toHaveBeenCalled();
+    });
+
+    it('已停用又有學生 → 說明框不再給停用動作', () => {
+      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
+      const confirmSpy = vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
+        c.accept?.();
+        return confirmationService;
+      });
+
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete({
+        ...zeroStudentSchool,
+        isActive: false,
+        studentCount: 2,
+      });
+
+      expect(confirmSpy.mock.calls[0]![0]!.acceptLabel).toBe('它已經停用了');
+      expect(schoolsServiceMock.update).not.toHaveBeenCalled();
     });
   });
 

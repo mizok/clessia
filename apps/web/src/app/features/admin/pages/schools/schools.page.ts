@@ -160,11 +160,7 @@ export class SchoolsPage implements OnInit {
 
   protected onDelete(school: School): void {
     if (school.studentCount > 0) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '無法刪除',
-        detail: `此學校仍有 ${school.studentCount} 位學生`,
-      });
+      this.explainBlocked(school);
       return;
     }
 
@@ -198,6 +194,41 @@ export class SchoolsPage implements OnInit {
               this.messageService.add({
                 severity: 'error',
                 summary: '刪除失敗',
+                detail: error?.error?.error ?? '',
+              });
+            },
+          });
+      },
+    });
+  }
+
+  /**
+   * 有學生的學校按刪除：**跳說明＋給停用的出口**（A6 settings#schools），不是只出一則 toast。
+   * 行政按刪除真正要的通常是「以後別再出現在選單裡」—— 停用就做得到，已寫著它的學生不受影響。
+   */
+  private explainBlocked(school: School): void {
+    const label = school.shortName || school.name;
+    this.confirmationService.confirm({
+      header: `「${label}」不能刪除`,
+      message: `還有 ${school.studentCount} 位學生的資料寫著這所學校。可以改成停用：新填的學生資料選不到它，已經寫著它的不受影響。`,
+      icon: 'pi pi-info-circle',
+      acceptLabel: school.isActive ? '改成停用' : '它已經停用了',
+      rejectLabel: '取消',
+      rejectVisible: school.isActive,
+      accept: () => {
+        if (!school.isActive) return;
+        this.schoolsService
+          .update(school.id, { isActive: false })
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.messageService.add({ severity: 'success', summary: `已停用「${label}」` });
+              this.load({ rows: true });
+            },
+            error: (error) => {
+              this.messageService.add({
+                severity: 'error',
+                summary: '停用失敗',
                 detail: error?.error?.error ?? '',
               });
             },
