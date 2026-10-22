@@ -28,7 +28,7 @@
             @for (student of done.failedStudents; track student.studentId) {
               <li class="text-xs text-zinc-700">
                 {{ student.studentName ?? '（讀不到姓名）' }}
-                <span class="text-zinc-500">· 寫入失敗</span>
+                <span class="text-zinc-700">· 寫入失敗</span>
               </li>
             }
           </ul>
