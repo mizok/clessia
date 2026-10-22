@@ -12,6 +12,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { inOrg } from '../lib/org-scope';
 import { checkChildren, replaceParentChildren } from '../lib/parent-children';
 import { invalidateIdentity } from '../lib/identity-cache';
+import { withTx } from '../lib/pg-tx';
 import {
   decideExistingAccount,
   findExistingAccounts,
@@ -1845,7 +1846,14 @@ app.openapi(
                         `此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`,
                       );
                     }
-                    parentId = (retryParent as { id: string }).id;
+                    // #1845：同 2b —— 撞到的既有家長在範圍外，這一筆失敗（原本這條路沒驗）
+                    const retryParentId = (retryParent as { id: string }).id;
+                    if (scopedParentIds && !scopedParentIds.includes(retryParentId)) {
+                      throw new Error(
+                        `此電話／Email 已屬於一位不在你分校範圍內的家長「${existingName}」，無法匯入`,
+                      );
+                    }
+                    parentId = retryParentId;
                     groupKeyToParentId.set(groupKey, parentId);
                     continue;
                   }
@@ -1993,6 +2001,7 @@ app.openapi(
           const { data: existingStudentData } = await supabase
             .from('students')
             .select('id, name')
+            .eq('org_id', orgId)
             .in('id', existingStudentIds);
 
           const duplicate = (existingStudentData ?? []).find(
@@ -2012,48 +2021,35 @@ app.openapi(
           }
         }
 
-        // INSERT students
+        // INSERT students ＋ parent_student_relations：一個交易（#1845）。原本兩個 PostgREST 請求，
+        // 關聯失敗時靠 best-effort 刪學生回滾 —— 刪失敗就留下一個沒有家長的學生
         const studentSchoolId = schoolIdByName.get(row.studentSchool.trim()) ?? null;
-        const { data: newStudentRow, error: insertStudentError } = await supabase
-          .from('students')
-          .insert({
-            org_id: orgId,
-            name: row.studentName,
-            grade: row.studentGrade,
-            school_id: studentSchoolId,
-            birthday: row.studentBirthday ?? null,
-            gender: row.studentGender ?? null,
-            is_active: true,
-          })
-          .select('id')
-          .single();
-
-        if (insertStudentError || !newStudentRow) {
-          console.error(`[batch-import] Step3 row=${i} INSERT students error:`, insertStudentError);
-          throw new Error('建立學生失敗，請稍後再試');
-        }
-
-        const studentId = (newStudentRow as { id: string }).id;
-        studentsCreated++;
-
-        // INSERT parent_student_relations
-        const { error: relError } = await supabase.from('parent_student_relations').insert({
-          parent_id: parentId,
-          student_id: studentId,
-          is_primary: true,
-          relation: null,
-        });
-
-        if (relError) {
-          console.error(
-            `[batch-import] Step3 row=${i} INSERT parent_student_relations error:`,
-            relError,
+        const pool = getAuth(c).pool;
+        if (!pool) throw new Error('建立學生失敗，請稍後再試');
+        const studentId = await withTx(pool, async (db) => {
+          const { rows: created } = await db.query<{ id: string }>(
+            `INSERT INTO students (org_id, name, grade, school_id, birthday, gender, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+            [
+              orgId,
+              row.studentName,
+              row.studentGrade,
+              studentSchoolId,
+              row.studentBirthday ?? null,
+              row.studentGender ?? null,
+            ],
           );
-          // 嘗試刪除剛建立的學生（best effort）
-          await inOrg(supabase.from('students').delete().eq('id', studentId), orgId);
-          studentsCreated--;
-          throw new Error('建立家長學生關聯失敗，請稍後再試');
-        }
+          await db.query(
+            `INSERT INTO parent_student_relations (parent_id, student_id, is_primary, relation)
+             VALUES ($1, $2, true, NULL)`,
+            [parentId, created[0]!.id],
+          );
+          return created[0]!.id;
+        }).catch((err: unknown) => {
+          console.error(`[batch-import] Step3 row=${i} INSERT student/relation error:`, err);
+          throw new Error('建立學生失敗，請稍後再試');
+        });
+        studentsCreated++;
 
         results.push({ rowIndex: i, status: 'success', parentId, studentId });
       } catch (err) {
