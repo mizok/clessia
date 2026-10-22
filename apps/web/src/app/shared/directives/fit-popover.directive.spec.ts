@@ -66,6 +66,21 @@ describe('placePopover（#1873）', () => {
     expect(p.contentMax).toBe(0);
   });
 
+  it('offsetTop 下翻上去：上方空間也要扣掉 offsetTop（不然會頂到看不到的地方）', () => {
+    // 看得到 300–700；按鈕 600–644。下方 = 300 + 400 − 644 − 18 = 38；上方 = 600 − 300 − 18 = 282
+    const p = placePopover({
+      ...base,
+      viewportTop: 300,
+      viewportHeight: 400,
+      anchorTop: 600,
+      anchorBottom: 644,
+      naturalHeight: 200,
+    });
+    expect(p.up).toBe(true);
+    expect(p.top).toBe(600 - 200);
+    expect(p.contentMax).toBe(282 - 30);
+  });
+
   it('看得到的那塊不從 0 開始（visualViewport.offsetTop，鍵盤彈出／放大）：上下空間都以它為準', () => {
     const p = placePopover({
       ...base,
@@ -102,7 +117,10 @@ class HostComponent {}
 describe('FitPopoverDirective（#1873）', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  function setup(anchor: { top: number; bottom: number }) {
+  function setup(
+    anchor: { top: number; bottom: number },
+    vv: { height: number; offsetTop: number } = { height: 700, offsetTop: 0 },
+  ) {
     let notify: () => void = () => undefined;
     const observe = vi.fn();
     const disconnect = vi.fn();
@@ -116,7 +134,7 @@ describe('FitPopoverDirective（#1873）', () => {
         disconnect = disconnect;
       },
     );
-    vi.stubGlobal('visualViewport', { height: 700, offsetTop: 0 });
+    vi.stubGlobal('visualViewport', vv);
     vi.stubGlobal('scrollY', 100);
 
     const fixture = TestBed.createComponent(HostComponent);
@@ -130,8 +148,13 @@ describe('FitPopoverDirective（#1873）', () => {
     content.append(inner);
     box.append(content);
     let natural = 300;
-    Object.defineProperty(box, 'offsetHeight', { get: () => natural });
-    Object.defineProperty(content, 'offsetHeight', { get: () => natural - 30 });
+    // 跟真的一樣：內容區被 maxHeight 限住時，量到的是限住的高度
+    const contentH = () => {
+      const max = parseFloat(content.style.maxHeight);
+      return Number.isNaN(max) ? natural - 30 : Math.min(natural - 30, max);
+    };
+    Object.defineProperty(box, 'offsetHeight', { get: () => contentH() + 30 });
+    Object.defineProperty(content, 'offsetHeight', { get: contentH });
     const target = document.createElement('button');
     let rect = anchor;
     target.getBoundingClientRect = () => ({ top: rect.top, bottom: rect.bottom }) as DOMRect;
@@ -180,6 +203,24 @@ describe('FitPopoverDirective（#1873）', () => {
     expect(content.style.maxHeight).toBe(`${BELOW - 30}px`);
     expect(box.classList).not.toContain('p-popover-flipped');
     expect(box.hasAttribute('data-p-popover-flipped')).toBe(false);
+  });
+
+  it('visualViewport.offsetTop 不是 0（鍵盤彈出）：照看得到的那塊放', () => {
+    // 看得到 300–700；按鈕 600–644 → 翻上去，上方 282
+    const { pop, box, content } = setup({ top: 600, bottom: 644 }, { height: 400, offsetTop: 300 });
+    pop.onShow.emit(null);
+    expect(box.classList).toContain('p-popover-flipped');
+    expect(content.style.maxHeight).toBe(`${282 - 30}px`);
+    expect(box.style.top).toBe(`${600 - 282 + 100}px`);
+  });
+
+  it('先被限住、內容再變長：重算時量的是沒限制的高度（量之前要先拿掉上次的 maxHeight）', () => {
+    const { pop, box, resize } = setup({ top: 200, bottom: 244 });
+    pop.onShow.emit(null); // 300 高放得下
+    resize(600); // 下方只有 438 → 內容區被限在 408
+    resize(900, { top: 560, bottom: 604 }); // 按鈕移到下半部：翻上去，用自然高度 900 → 頂到上方空間 542
+    expect(box.classList).toContain('p-popover-flipped');
+    expect(box.style.top).toBe(`${560 - 542 + 100}px`);
   });
 
   it('關閉：停止觀察', () => {
