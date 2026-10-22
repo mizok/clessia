@@ -683,6 +683,38 @@ describe('ApplicationsPage：版面（#1874）', () => {
     expect(el.querySelector('textarea[aria-label^="櫃檯備註"]')).toBeNull();
   });
 
+  // 二讀：存檔失敗時編輯列不能收起，打的字要留著，並跳錯誤
+  it('櫃檯備註存檔失敗：編輯列留著、打的字還在、跳錯誤；重按成功才收起', async () => {
+    const { fixture, el, service } = await setup([]);
+    const p = page(fixture);
+    const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+    p.notingId.set('a1');
+    fixture.detectChanges();
+    const ta = () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label^="櫃檯備註"]');
+    ta()!.value = '週六來試聽';
+
+    service.update.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    p.submitNote(app(), ta()!.value);
+    fixture.detectChanges();
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ severity: 'error' }));
+    expect(p.notingId()).toBe('a1');
+    expect(ta()!.value).toBe('週六來試聽');
+
+    p.submitNote(app(), ta()!.value);
+    fixture.detectChanges();
+    expect(service.update).toHaveBeenLastCalledWith('a1', { staffNote: '週六來試聽' });
+    expect(ta()).toBeNull();
+  });
+
+  it('櫃檯備註沒改就按儲存：直接收起、不送', async () => {
+    const { fixture, service } = await setup([]);
+    const p = page(fixture);
+    p.notingId.set('a1');
+    p.submitNote(app(), '  ');
+    expect(service.update).not.toHaveBeenCalled();
+    expect(p.notingId()).toBeNull();
+  });
+
   it('試聽列：待安排是「排時間」、已排定是「改時間」，按了展開日期表單', async () => {
     const { fixture, el } = await setup([trial()]);
     const btn = () =>

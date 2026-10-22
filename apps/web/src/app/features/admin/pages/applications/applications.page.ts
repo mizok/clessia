@@ -327,9 +327,17 @@ export class ApplicationsPage {
     this.load();
   }
 
+  /**
+   * 「⋯ → 櫃檯備註」按儲存：**存成功才收起**。失敗時編輯列留著、打的字還在，跳錯誤讓人重按
+   * （二讀：原本送出就收起，失敗時字直接不見）。沒改就直接收起，不送
+   */
   protected submitNote(app: PublicApplication, value: string): void {
-    this.saveNote(app, value);
-    this.notingId.set(null);
+    const note = value.trim() || null;
+    if (note === (app.staffNote ?? null)) {
+      this.notingId.set(null);
+      return;
+    }
+    this.patch(app, { staffNote: note }, () => this.notingId.set(null));
   }
 
   protected setStatus(app: PublicApplication, status: PublicApplicationStatus): void {
@@ -471,10 +479,13 @@ export class ApplicationsPage {
   private patch(
     app: PublicApplication,
     patch: { status?: PublicApplicationStatus; staffNote?: string | null },
+    onSaved?: () => void,
   ): void {
     this.service.update(app.id, patch).subscribe({
-      next: (res) =>
-        this.applications.update((list) => list.map((a) => (a.id === app.id ? res.data : a))),
+      next: (res) => {
+        this.applications.update((list) => list.map((a) => (a.id === app.id ? res.data : a)));
+        onSaved?.();
+      },
       error: () =>
         this.messages.add({ severity: 'error', summary: '儲存失敗', detail: '請稍後再試' }),
     });
