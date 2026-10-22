@@ -87,6 +87,9 @@ const TAILWIND_CONTRAST_EXEMPT = {
     'LINE 官方按鈕規範：白字＋#06C755（2.26:1）；按鈕文字粗體並有圖示。**既有的對比債**，1:1 搬家不改外觀（#991 E1 搬自原 SCSS 的 --line-brand，原版 gate 看不到 var 間接）',
   'apps/web/src/app/features/public/pages/login/login.component.html|text-[#06c755]|bg-white':
     '使用者指定的白底綠框 LINE 登入鈕（login 原 SCSS 註解：「使用者要的是白底綠框的輪廓感」）：文字與邊框同為 LINE 品牌綠 #06C755，疊白底只有 2.26:1。這是**既有的對比債**，1:1 搬家不改外觀；要修需要使用者改設計（#991 E1，原 SCSS 版 gate 看不到 var 間接）',
+  // ─ 純裝飾圖示：WCAG 1.4.11 ─
+  'apps/web/src/app/shared/components/empty-state/empty-state.component.html|[&_i]:text-zinc-400|bg-zinc-100':
+    '共用空狀態元件的圖示（i 28px，圓底 zinc-100），標題與說明文字承載資訊 —— 1.4.11 純裝飾豁免。SCSS 時代的同一筆豁免，#1358 搬成 `[&_i]:` 後 A28 看不到而被刪；#1359 讓 A28 讀巢狀變體後補回',
   // ─ gate 把「祖先的底色」當成文字的底色，而實際位置不在祖先上 ─
   'apps/web/src/app/shared/components/day-timeline/day-timeline.component.html|text-band-ink|bg-band-ink':
     '「現在」標籤是 2px 寬 `now` 標記線（bg-band-ink）的子元素，但定位在線**上方** `-top-[15px]`、水平置中，實際疊在橘帶本身（`--band-ink` 疊 band 底色已由 band-contrast gate 守地板 0.78）。gate 只看 DOM 祖先所以誤報 1:1；原 SCSS 版同一結構（#991 Z2）',

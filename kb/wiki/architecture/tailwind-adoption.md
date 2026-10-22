@@ -352,6 +352,11 @@ layer 順序由第一次出現決定，所以：
 **判準**：第一頁 Tailwind 上線之前，至少 `touch-target` 與 `scss-contrast` 要有 class 版本。
 否則「gate 全綠」在那一頁上的意思會變成「沒有東西在看」，而輸出看不出來。
 
+> **class 版對比（A28）也有過同一種失明**（#1359）：它原本只讀不帶 `:` 的 class，父元素用巢狀任意變體
+> `[&_i]:text-zinc-400` 替子元素上色時整組看不到。empty-state 的圖示搬成 Tailwind 後，原本的豁免被報「過期」，
+> 但對比根本沒變，只是沒人在量。現在 A28 讀 `[&_x]:`／`[&>x]:`；同元素 modifier 變體 `[&.x]:` 仍然不量，
+> 範圍寫在 `tools/agent-harness/lib/tailwind-a11y.mjs` 檔頭。
+
 ### 4.4 SCSS 退場的終點
 
 當 `apps/web/src/**/*.scss` 只剩 `styles.css` 時：
