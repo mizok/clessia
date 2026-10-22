@@ -41,6 +41,26 @@ export function levelOfGrade(grade: Grade): SchoolLevel {
   return grade.startsWith('P') ? 'elementary' : grade.startsWith('J') ? 'junior' : 'senior';
 }
 
+/**
+ * 名冊「學制跟年級不合」篩選（設計稿 §4）：給 `students` 的 PostgREST `or` 子句。
+ * 學生的學制由年級推，學校的學制存在 `schools.level`；兩者在不同表，`or` 跨不了嵌入表，
+ * 所以先把機構的學校依學制分好，轉成 `grade × school_id` 的組合。學制 null（未分類）的學校不算不合。
+ * 回 `null`＝沒有任何組合可能不合（整份名單都不合不了）—— 呼叫端要給空結果，不是不篩。
+ */
+export function schoolMismatchClause(
+  schools: readonly { id: string; level: SchoolLevel | null }[],
+): string | null {
+  const levels: readonly SchoolLevel[] = ['elementary', 'junior', 'senior'];
+  const branches = levels.flatMap((level) => {
+    const grades = ORDER.filter((g) => levelOfGrade(g) === level);
+    const ids = schools.filter((s) => s.level !== null && s.level !== level).map((s) => s.id);
+    return ids.length === 0
+      ? []
+      : [`and(grade.in.(${grades.join(',')}),school_id.in.(${ids.join(',')}))`];
+  });
+  return branches.length === 0 ? null : branches.join(',');
+}
+
 /** 台北日期 `YYYY-MM-DD` 屬於哪個民國學年（8/1 起算新學年） */
 export function academicYearOf(taipeiDate: string): number {
   const year = Number(taipeiDate.slice(0, 4));
