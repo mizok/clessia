@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { EnrollmentsService } from '@core/enrollments.service';
-import { LeaveService, type BatchLeaveResult } from '@core/leave.service';
+import { LeaveService } from '@core/leave.service';
 import { SessionsService } from '@core/sessions.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { LeaveBatchDialogComponent } from './leave-batch-dialog.component';
@@ -51,19 +51,22 @@ describe('LeaveBatchDialogComponent', () => {
       }),
     ),
   };
-  const result = (failed: string[], ids: string[]): BatchLeaveResult => ({
-    created: ids.length - failed.length,
-    failed: failed.length,
-    results: ids.map((studentId) =>
-      failed.includes(studentId)
-        ? { studentId, status: 'failed', error: '該學生在 10/24 已有請假紀錄' }
-        : { studentId, status: 'success', leaveId: `lv-${studentId}` },
+  /** 單筆 POST 的替身：在 `failing` 裡的學生回 409（後端的訊息照轉） */
+  let failing: string[] = [];
+  const leave = {
+    create: vi.fn((input: { studentId: string }) =>
+      failing.includes(input.studentId)
+        ? throwError(() => ({
+            status: 409,
+            error: { error: '請假時間重疊', message: '該學生在 10/24 已有請假紀錄' },
+          }))
+        : of({ id: `lv-${input.studentId}` }),
     ),
-  });
-  const leave = { batch: vi.fn() };
+  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    failing = [];
     await TestBed.configureTestingModule({
       imports: [LeaveBatchDialogComponent],
       providers: [
@@ -100,22 +103,25 @@ describe('LeaveBatchDialogComponent', () => {
     expect([...c.selected()]).toEqual(['s1', 's2']);
   });
 
-  it('全部成功：送出這一堂與勾的學生、原因去空白；關窗回傳建了幾張', () => {
-    leave.batch.mockReturnValue(of(result([], ['s1', 's2'])));
+  it('全部成功：每位一筆單筆 POST（綁這一堂、日期取堂次、原因去空白）；關窗回傳建了幾張', () => {
     c.onSessionChange('ses-1');
     c.toggleAll();
     c.reason.set('  校外教學 ');
     c.submit();
-    expect(leave.batch).toHaveBeenCalledWith({
-      sessionId: 'ses-1',
-      studentIds: ['s1', 's2'],
-      reason: '校外教學',
-    });
+    expect(leave.create).toHaveBeenCalledTimes(2);
+    for (const studentId of ['s1', 's2'])
+      expect(leave.create).toHaveBeenCalledWith({
+        studentId,
+        startDate: '2026-10-24',
+        endDate: '2026-10-24',
+        sessionIds: ['ses-1'],
+        reason: '校外教學',
+      });
     expect(ref.close).toHaveBeenCalledWith({ created: 2 });
   });
 
-  it('有人失敗：不關窗、列出沒成功的與原因（成功的不列）；勾選只留他，重送只送他；最後回傳總共幾張', () => {
-    leave.batch.mockReturnValueOnce(of(result(['s2'], ['s1', 's2'])));
+  it('有人失敗：不關窗、列出沒成功的與後端原因（成功的不列）；勾選只留他，重送只送他；最後回傳總共幾張', () => {
+    failing = ['s2'];
     c.onSessionChange('ses-1');
     c.toggleAll();
     c.submit();
@@ -130,14 +136,16 @@ describe('LeaveBatchDialogComponent', () => {
     expect(box.textContent).not.toContain('王小明');
     expect([...c.selected()]).toEqual(['s2']);
 
-    leave.batch.mockReturnValueOnce(of(result([], ['s2'])));
+    failing = [];
+    leave.create.mockClear();
     c.submit();
-    expect(leave.batch).toHaveBeenLastCalledWith(expect.objectContaining({ studentIds: ['s2'] }));
+    expect(leave.create).toHaveBeenCalledTimes(1);
+    expect(leave.create).toHaveBeenCalledWith(expect.objectContaining({ studentId: 's2' }));
     expect(ref.close).toHaveBeenCalledWith({ created: 2 });
   });
 
   it('有人失敗後直接關窗：仍回傳建了幾張（列表要重抓）', () => {
-    leave.batch.mockReturnValueOnce(of(result(['s2'], ['s1', 's2'])));
+    failing = ['s2'];
     c.onSessionChange('ses-1');
     c.toggleAll();
     c.submit();
@@ -145,9 +153,28 @@ describe('LeaveBatchDialogComponent', () => {
     expect(ref.close).toHaveBeenCalledWith({ created: 1 });
   });
 
+  it('並行最多 3 個請求', () => {
+    // 10 位、每個請求都掛著不回 → 同時在飛的只能有 3 個
+    const pending: Array<() => void> = [];
+    leave.create.mockImplementation(
+      (input: { studentId: string }) =>
+        new Observable<{ id: string }>((sub) => {
+          pending.push(() => (sub.next({ id: `lv-${input.studentId}` }), sub.complete()));
+        }),
+    );
+    c.students.set(Array.from({ length: 10 }, (_, i) => ({ id: `x${i}`, name: `x${i}` })));
+    c.sessionId.set('ses-1');
+    c.selected.set(new Set(c.students().map((s: { id: string }) => s.id)));
+    c.submit();
+    expect(leave.create).toHaveBeenCalledTimes(3);
+    pending.shift()!();
+    expect(leave.create).toHaveBeenCalledTimes(4);
+    expect(c.progress()).toEqual({ done: 1, total: 10 });
+  });
+
   it('沒選課或沒勾人：不送，旁邊寫還差什麼', () => {
     c.submit();
-    expect(leave.batch).not.toHaveBeenCalled();
+    expect(leave.create).not.toHaveBeenCalled();
     expect(c.missingHint()).toBe('還沒選課堂');
     c.onSessionChange('ses-1');
     expect(c.missingHint()).toBe('至少勾一位學生');

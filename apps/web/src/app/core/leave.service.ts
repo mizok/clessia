@@ -51,18 +51,6 @@ export interface UpdateLeaveInput {
   reason?: string | null;
 }
 
-export interface BatchLeaveResult {
-  created: number;
-  failed: number;
-  results: Array<{
-    studentId: string;
-    status: 'success' | 'failed';
-    leaveId?: string;
-    code?: string;
-    error?: string;
-  }>;
-}
-
 export interface CreateLeaveInput {
   studentId: string;
   startDate: string;
@@ -70,6 +58,8 @@ export interface CreateLeaveInput {
   startTime?: string | null;
   endTime?: string | null;
   reason?: string | null;
+  /** 只請這幾堂（#1114）；給了就由後端從堂次算日期 */
+  sessionIds?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -113,18 +103,6 @@ export class LeaveService {
       `${this.baseUrl}/${id}/impact`,
       { params: new HttpParams().set('mode', mode) },
     );
-  }
-
-  /**
-   * 批次請假（#1100 #32）：同一堂課、多位學生。逐筆處理 —— 一位失敗不擋其他人，
-   * 回每位的 success／failed＋原因（後端跟單筆共用 createLeave）
-   */
-  batch(input: {
-    sessionId: string;
-    studentIds: string[];
-    reason?: string | null;
-  }): Observable<BatchLeaveResult> {
-    return this.http.post<BatchLeaveResult>(`${this.baseUrl}/batch`, input);
   }
 
   delete(id: string, mode: 'truncate' | 'full' = 'truncate'): Observable<void> {

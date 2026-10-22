@@ -1,5 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, from, map, mergeMap, of, tap, toArray } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { InputTextModule } from 'primeng/inputtext';
@@ -18,7 +19,10 @@ interface Pick {
 /**
  * 批次請假（#1100 #32，A6 leave.html 的 batchLeave）：選一堂課 → 勾多位學生 → 送出。
  *
- * 後端逐筆處理（一位失敗不擋其他人）。有人沒成功就**不關窗**：列出沒成功的那幾位與原因，
+ * **前端逐位呼叫單筆 `POST /leaves`**（計畫席 10-23 裁 c）：單筆已經用掉約 23 個 subrequest，
+ * Workers 每請求上限 50，一個請求放不下兩位 —— 所以每位一個請求、各自的額度，並行 3 個
+ * （不要更多，免得同時對 DB 打太多）。授權、重疊、出勤連動、通知都跟單筆完全一樣（10 位就 10 則通知）。
+ * 一位失敗不擋其他人。有人沒成功就**不關窗**：列出沒成功的那幾位與原因，
  * 勾選只留他們，可以只對他們重送（計畫席 10-23）；成功的不再列。
  * 關窗時回傳這一窗總共建了幾張（重送的也算），讓列表決定要不要重抓。
  */
@@ -132,7 +136,7 @@ interface Pick {
         >
           {{
             saving()
-              ? '送出中…'
+              ? '送出中 ' + progress().done + '／' + progress().total
               : failures().length > 0
                 ? '只重送這 ' + selected().size + ' 位'
                 : '送出請假'
@@ -158,6 +162,8 @@ export class LeaveBatchDialogComponent implements OnInit {
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly reason = signal('');
   protected readonly saving = signal(false);
+  /** 送出中 x／n */
+  protected readonly progress = signal({ done: 0, total: 0 });
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly failures = signal<Array<{ studentId: string; error: string }>>([]);
   protected readonly lastCreated = signal(0);
@@ -248,36 +254,56 @@ export class LeaveBatchDialogComponent implements OnInit {
 
   protected submit(): void {
     const sessionId = this.sessionId();
-    if (this.saving() || !sessionId || this.selected().size === 0) return;
+    const session = this.sessions().find((x) => x.id === sessionId);
+    if (this.saving() || !session || this.selected().size === 0) return;
+    const ids = [...this.selected()];
+    const reason = this.reason().trim() || null;
     this.saving.set(true);
     this.errorMessage.set(null);
-    this.leaveService
-      .batch({
-        sessionId,
-        studentIds: [...this.selected()],
-        reason: this.reason().trim() || null,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.saving.set(false);
-          this.created += res.created;
-          this.lastCreated.set(res.created);
-          const failed = res.results
-            .filter((r) => r.status === 'failed')
-            .map((r) => ({ studentId: r.studentId, error: r.error ?? '新增請假失敗' }));
-          if (failed.length === 0) {
-            this.ref.close({ created: this.created });
-            return;
-          }
-          // 成功的不再列；勾選只留沒成功的，按一下就只對他們重送
-          this.failures.set(failed);
-          this.selected.set(new Set(failed.map((f) => f.studentId)));
-        },
-        error: () => {
-          this.saving.set(false);
-          this.errorMessage.set('送出失敗，請稍後再試');
-        },
+    this.progress.set({ done: 0, total: ids.length });
+    from(ids)
+      .pipe(
+        mergeMap(
+          (studentId) =>
+            this.leaveService
+              .create({
+                studentId,
+                startDate: session.sessionDate,
+                endDate: session.sessionDate,
+                sessionIds: [session.id],
+                reason,
+              })
+              .pipe(
+                map(() => ({ studentId, error: null as string | null })),
+                // 後端的錯誤訊息（「該學生在 … 已有請假紀錄」「沒有這個分校的權限」）照轉
+                catchError((err: { error?: { message?: string; error?: string } }) =>
+                  of({
+                    studentId,
+                    error: err.error?.message ?? err.error?.error ?? '新增請假失敗',
+                  }),
+                ),
+                tap(() => this.progress.update((p) => ({ ...p, done: p.done + 1 }))),
+              ),
+          3,
+        ),
+        toArray(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => {
+        this.saving.set(false);
+        const failed = results.filter(
+          (r): r is { studentId: string; error: string } => r.error !== null,
+        );
+        const created = results.length - failed.length;
+        this.created += created;
+        this.lastCreated.set(created);
+        if (failed.length === 0) {
+          this.ref.close({ created: this.created });
+          return;
+        }
+        // 成功的不再列；勾選只留沒成功的，按一下就只對他們重送
+        this.failures.set(failed);
+        this.selected.set(new Set(failed.map((f) => f.studentId)));
       });
   }
 

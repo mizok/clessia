@@ -881,216 +881,6 @@ app.openapi(
   },
 );
 
-/**
- * 建一張假（單筆 POST 與批次 #1100 #32 共用 —— 兩條路徑的驗證、授權、出勤連動、通知一模一樣）。
- * 錯誤以值回傳（不是 Response），批次才能把它收成「這位學生失敗＋原因」，不擋其他人。
- */
-type CreateLeaveResult =
-  | { ok: true; row: Record<string, unknown> }
-  | { ok: false; status: 400 | 403 | 404 | 409 | 500; body: Record<string, unknown> };
-
-async function createLeave(
-  c: Context<AppEnv>,
-  body: z.infer<typeof CreateLeaveSchema>,
-): Promise<CreateLeaveResult> {
-  const supabase = c.get('supabase');
-  const orgId = c.get('orgId');
-  const userId = c.get('userId');
-
-  if (body.sessionIds && (body.startTime || body.endTime)) {
-    return {
-      ok: false,
-      status: 400,
-      body: { error: '請假資料無效', message: '勾選堂次的假不能再帶時間窗' },
-    } as const;
-  }
-
-  const validationError = body.sessionIds ? null : getLeaveValidationError(body);
-  if (validationError) {
-    return {
-      ok: false,
-      status: 400,
-      body: { error: '請假資料無效', message: validationError },
-    } as const;
-  }
-
-  // 分校範圍（#966）：body 只帶 studentId，全域守衛看不到分校。請假會連動出勤（扣堂上游）
-  const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), body.studentId);
-  if (scoped === 'not-found') {
-    return { ok: false, status: 404, body: { error: '學生不存在', code: 'NOT_FOUND' } } as const;
-  }
-  if (scoped === 'out-of-scope') {
-    return {
-      ok: false,
-      status: 403,
-      body: { error: '沒有這個分校的權限', code: 'FORBIDDEN' },
-    } as const;
-  }
-
-  // 0. 勾選堂次（#1114）：驗 org／停課／在籍，區間由堂次算出、不吃 body
-  let window: LeaveWindow = {
-    startDate: body.startDate,
-    endDate: body.endDate,
-    startTime: body.startTime ?? null,
-    endTime: body.endTime ?? null,
-    boundSessions: [],
-  };
-  if (body.sessionIds) {
-    const resolved = await resolveBoundSessions(supabase, orgId, body.studentId, body.sessionIds);
-    if (!resolved.ok) {
-      return {
-        ok: false,
-        status: 400,
-        body: {
-          error: '請假資料無效',
-          code: 'INVALID_SESSION',
-          message: resolved.message,
-          sessionId: resolved.sessionId,
-        },
-      } as const;
-    }
-    window = boundWindow(resolved.sessions);
-  }
-
-  // 1. 衝突檢查：同學生是否有重疊的請假紀錄（判準 `leavesConflict`）
-  const overlap = await findConflictingLeave(supabase, orgId, body.studentId, window);
-
-  if (overlap) {
-    return {
-      ok: false,
-      status: 409,
-      body: {
-        error: '請假時間重疊',
-        message: `該學生在 ${overlap.start_date} ~ ${overlap.end_date} 已有請假紀錄`,
-      },
-    } as const;
-  }
-
-  // 2. 建立請假紀錄
-  const { data: leave, error: leaveError } = await supabase
-    .from('leave_requests')
-    .insert({
-      org_id: orgId,
-      student_id: body.studentId,
-      start_date: window.startDate,
-      end_date: window.endDate,
-      start_time: body.startTime ?? null,
-      end_time: body.endTime ?? null,
-      reason: body.reason ?? null,
-      submitted_by: userId,
-      submitted_by_role: 'admin',
-    })
-    .select('*, students(name), ba_user!submitted_by(name)')
-    .single();
-
-  if (leaveError || !leave) {
-    return {
-      ok: false,
-      status: 500,
-      body: { error: '新增請假失敗', message: leaveError?.message },
-    } as const;
-  }
-
-  if (window.boundSessions.length > 0) {
-    const { error: bindError } = await supabase.from('leave_request_sessions').insert(
-      window.boundSessions.map((b) => ({
-        leave_request_id: leave.id,
-        session_id: b.sessionId,
-        org_id: orgId,
-      })),
-    );
-    if (bindError) {
-      // 綁不上就不能留一張「整天」語意的假（沒有綁定列＝整天）—— 撤掉重來
-      await inOrg(
-        supabase
-          .from('leave_requests')
-          .delete()
-          .eq('id', leave.id as string),
-        orgId,
-      );
-      return {
-        ok: false,
-        status: 500,
-        body: { error: '新增請假失敗', message: bindError.message },
-      } as const;
-    }
-  }
-
-  // 3. 自動更新這張假蓋得到、且該學生實際有報名的 attendance_records → on_leave
-  const { synced: syncedCount, sessionIds: coveredSessionIds } = await applyLeaveAttendance({
-    supabase,
-    orgId,
-    studentId: body.studentId,
-    recordedBy: userId,
-    from: window.startDate,
-    to: window.endDate,
-    window,
-  });
-
-  if (syncedCount > 0) {
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId,
-        resourceType: 'attendance',
-        resourceId: leave.id as string,
-        resourceName: buildLeaveAuditResourceName({
-          studentName: (leave as any).students?.name ?? '',
-          startDate: window.startDate,
-          endDate: window.endDate,
-        }),
-        action: 'sync_leave_to_attendance',
-        details: buildLeaveAttendanceAuditDetails(syncedCount),
-      },
-      waitUntilFrom(c),
-    );
-  }
-
-  await queueLeaveNotice(
-    c,
-    leave.id as string,
-    (leave as any).students?.name ?? '',
-    coveredSessionIds,
-  );
-  await queueLeaveStreakCheck(c, body.studentId, window);
-
-  const row = {
-    ...leave,
-    student_name: (leave as any).students?.name ?? '',
-    submitted_by_name: (leave as any).ba_user?.name ?? null,
-    leave_request_sessions: window.boundSessions.map((b) => ({
-      session_id: b.sessionId,
-      sessions: { session_date: b.date },
-    })),
-  };
-
-  logAudit(
-    supabase,
-    {
-      orgId,
-      userId,
-      resourceType: 'leave',
-      resourceId: leave.id as string,
-      resourceName: buildLeaveAuditResourceName({
-        studentName: row.student_name,
-        startDate: window.startDate,
-        endDate: window.endDate,
-      }),
-      action: 'create',
-      details: {
-        startTime: body.startTime ?? null,
-        endTime: body.endTime ?? null,
-        reason: body.reason ?? null,
-        sessionIds: window.boundSessions.map((b) => b.sessionId),
-      },
-    },
-    waitUntilFrom(c),
-  );
-
-  return { ok: true, row };
-}
-
 // POST /api/leaves
 app.openapi(
   createRoute({
@@ -1107,107 +897,185 @@ app.openapi(
         content: { 'application/json': { schema: LeaveRequestSchema } },
       },
       400: { description: '參數錯誤' },
-      403: { description: '沒有這個分校的權限' },
-      404: { description: '學生不存在' },
-      409: { description: '請假時間重疊' },
       500: { description: '伺服器錯誤' },
-    },
-  }),
-  async (c) => {
-    const result = await createLeave(c, c.req.valid('json'));
-    return result.ok
-      ? c.json(toLeaveResponse(result.row), 201)
-      : c.json(result.body, result.status);
-  },
-);
-
-// POST /api/leaves/batch —— 批次請假（#1100 #32，計畫席 10-23 裁 A：逐筆）
-//
-// 「選一堂 → 勾多個學生」。每位學生走跟單筆 POST **同一個** `createLeave`（驗證、分校範圍、
-// 重疊、出勤連動、通知都一樣），一位失敗不擋其他人；回應形狀照家長批次匯入：每位 success／failed＋原因。
-// 不是一個交易：一位撞到重疊不能讓全班都建不了（計畫席裁）。
-// 通知照單筆的現狀：10 位就是 10 則 leave_for_my_class（要不要合併另議）。
-const BatchLeaveSchema = z
-  .object({
-    sessionId: DbUuidSchema,
-    studentIds: z.array(DbUuidSchema).min(1).max(100),
-    reason: z.string().nullable().optional(),
-  })
-  .openapi('BatchLeave');
-
-const BatchLeaveResultSchema = z.object({
-  studentId: z.string(),
-  status: z.enum(['success', 'failed']),
-  leaveId: z.string().optional(),
-  code: z.string().optional(),
-  error: z.string().optional(),
-});
-
-app.openapi(
-  createRoute({
-    method: 'post',
-    path: '/batch',
-    tags: ['Leaves'],
-    summary: '批次請假：同一堂課、多位學生（逐筆，部分失敗仍回 200）',
-    request: {
-      body: { content: { 'application/json': { schema: BatchLeaveSchema } } },
-    },
-    responses: {
-      200: {
-        description: '每位學生的結果',
-        content: {
-          'application/json': {
-            schema: z.object({
-              created: z.number(),
-              failed: z.number(),
-              results: z.array(BatchLeaveResultSchema),
-            }),
-          },
-        },
-      },
-      404: { description: '找不到這堂課' },
     },
   }),
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const body = c.req.valid('json');
 
-    // 堂次先驗一次（別 org／不存在 → 整批 404）；日期取自堂次，每位學生的 createLeave 再各自驗在籍
-    const { data: session } = await supabase
-      .from('sessions')
-      .select('id, session_date')
-      .eq('id', body.sessionId)
-      .eq('org_id', orgId)
-      .maybeSingle();
-    if (!session) return c.json({ error: '找不到這堂課', code: 'SESSION_NOT_FOUND' }, 404);
-    const date = (session as { session_date: string }).session_date;
+    if (body.sessionIds && (body.startTime || body.endTime)) {
+      return c.json({ error: '請假資料無效', message: '勾選堂次的假不能再帶時間窗' }, 400);
+    }
 
-    const results: Array<z.infer<typeof BatchLeaveResultSchema>> = [];
-    // 逐位、依序：出勤連動與通知都是寫入，並行會讓同一堂的 event 被同時補建
-    for (const studentId of [...new Set(body.studentIds)]) {
-      const result = await createLeave(c, {
-        studentId,
-        startDate: date,
-        endDate: date,
+    const validationError = body.sessionIds ? null : getLeaveValidationError(body);
+    if (validationError) {
+      return c.json({ error: '請假資料無效', message: validationError }, 400);
+    }
+
+    // 分校範圍（#966）：body 只帶 studentId，全域守衛看不到分校。請假會連動出勤（扣堂上游）
+    const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), body.studentId);
+    if (scoped === 'not-found') {
+      return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
+
+    // 0. 勾選堂次（#1114）：驗 org／停課／在籍，區間由堂次算出、不吃 body
+    let window: LeaveWindow = {
+      startDate: body.startDate,
+      endDate: body.endDate,
+      startTime: body.startTime ?? null,
+      endTime: body.endTime ?? null,
+      boundSessions: [],
+    };
+    if (body.sessionIds) {
+      const resolved = await resolveBoundSessions(supabase, orgId, body.studentId, body.sessionIds);
+      if (!resolved.ok) {
+        return c.json(
+          {
+            error: '請假資料無效',
+            code: 'INVALID_SESSION',
+            message: resolved.message,
+            sessionId: resolved.sessionId,
+          },
+          400,
+        );
+      }
+      window = boundWindow(resolved.sessions);
+    }
+
+    // 1. 衝突檢查：同學生是否有重疊的請假紀錄（判準 `leavesConflict`）
+    const overlap = await findConflictingLeave(supabase, orgId, body.studentId, window);
+
+    if (overlap) {
+      return c.json(
+        {
+          error: '請假時間重疊',
+          message: `該學生在 ${overlap.start_date} ~ ${overlap.end_date} 已有請假紀錄`,
+        },
+        409,
+      );
+    }
+
+    // 2. 建立請假紀錄
+    const { data: leave, error: leaveError } = await supabase
+      .from('leave_requests')
+      .insert({
+        org_id: orgId,
+        student_id: body.studentId,
+        start_date: window.startDate,
+        end_date: window.endDate,
+        start_time: body.startTime ?? null,
+        end_time: body.endTime ?? null,
         reason: body.reason ?? null,
-        sessionIds: [body.sessionId],
-      });
-      if (result.ok) {
-        results.push({ studentId, status: 'success', leaveId: result.row['id'] as string });
-      } else {
-        const err = result.body as { error?: string; message?: string; code?: string };
-        results.push({
-          studentId,
-          status: 'failed',
-          ...(err.code ? { code: err.code } : {}),
-          error: err.message ?? err.error ?? '新增請假失敗',
-        });
+        submitted_by: userId,
+        submitted_by_role: 'admin',
+      })
+      .select('*, students(name), ba_user!submitted_by(name)')
+      .single();
+
+    if (leaveError || !leave) {
+      return c.json({ error: '新增請假失敗', message: leaveError?.message }, 500);
+    }
+
+    if (window.boundSessions.length > 0) {
+      const { error: bindError } = await supabase.from('leave_request_sessions').insert(
+        window.boundSessions.map((b) => ({
+          leave_request_id: leave.id,
+          session_id: b.sessionId,
+          org_id: orgId,
+        })),
+      );
+      if (bindError) {
+        // 綁不上就不能留一張「整天」語意的假（沒有綁定列＝整天）—— 撤掉重來
+        await inOrg(
+          supabase
+            .from('leave_requests')
+            .delete()
+            .eq('id', leave.id as string),
+          orgId,
+        );
+        return c.json({ error: '新增請假失敗', message: bindError.message }, 500);
       }
     }
 
-    const created = results.filter((r) => r.status === 'success').length;
-    return c.json({ created, failed: results.length - created, results }, 200);
+    // 3. 自動更新這張假蓋得到、且該學生實際有報名的 attendance_records → on_leave
+    const { synced: syncedCount, sessionIds: coveredSessionIds } = await applyLeaveAttendance({
+      supabase,
+      orgId,
+      studentId: body.studentId,
+      recordedBy: userId,
+      from: window.startDate,
+      to: window.endDate,
+      window,
+    });
+
+    if (syncedCount > 0) {
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'attendance',
+          resourceId: leave.id as string,
+          resourceName: buildLeaveAuditResourceName({
+            studentName: (leave as any).students?.name ?? '',
+            startDate: window.startDate,
+            endDate: window.endDate,
+          }),
+          action: 'sync_leave_to_attendance',
+          details: buildLeaveAttendanceAuditDetails(syncedCount),
+        },
+        waitUntilFrom(c),
+      );
+    }
+
+    await queueLeaveNotice(
+      c,
+      leave.id as string,
+      (leave as any).students?.name ?? '',
+      coveredSessionIds,
+    );
+    await queueLeaveStreakCheck(c, body.studentId, window);
+
+    const row = {
+      ...leave,
+      student_name: (leave as any).students?.name ?? '',
+      submitted_by_name: (leave as any).ba_user?.name ?? null,
+      leave_request_sessions: window.boundSessions.map((b) => ({
+        session_id: b.sessionId,
+        sessions: { session_date: b.date },
+      })),
+    };
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'leave',
+        resourceId: leave.id as string,
+        resourceName: buildLeaveAuditResourceName({
+          studentName: row.student_name,
+          startDate: window.startDate,
+          endDate: window.endDate,
+        }),
+        action: 'create',
+        details: {
+          startTime: body.startTime ?? null,
+          endTime: body.endTime ?? null,
+          reason: body.reason ?? null,
+          sessionIds: window.boundSessions.map((b) => b.sessionId),
+        },
+      },
+      waitUntilFrom(c),
+    );
+
+    return c.json(toLeaveResponse(row), 201);
   },
 );
 
