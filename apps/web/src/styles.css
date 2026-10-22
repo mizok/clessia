@@ -873,12 +873,7 @@
       background-image: none !important;
     }
   }
-  .skeleton-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-5);
-    padding: var(--space-4) var(--space-6);
-  }
+  /* 清單的骨架是共用元件 `app-skeleton`（#1879：形狀與寬度跟內容一樣）；`.skeleton-list` 只剩它的 block 名 */
   .skeleton-bar {
     display: block;
     height: 1rem;

@@ -178,7 +178,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     await create();
 
     expect(fixture.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(fixture.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(fixture.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
   it('兩邊都沒有時：色面句寫「還沒有收到通知。」，本體不重複、不畫保留期限', async () => {

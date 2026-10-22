@@ -86,11 +86,7 @@
       就已經排出整段期間，判它的話 skeleton 結構性不可達，慢速網路上看到的是一整排「今日無課」。
     -->
     @if (loading() && records().length === 0) {
-      <div class="skeleton-list mt-6">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton class="mt-6" label="到班紀錄載入中" [count]="3" />
     } @else if (failed()) {
       <app-empty-state
         icon="pi pi-exclamation-circle"

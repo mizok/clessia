@@ -112,6 +112,7 @@
 @source './app/shared/components/flow-field';
 @source './app/shared/components/jdenticon-avatar';
 @source './app/shared/components/status';
+@source './app/shared/components/skeleton';
 @source './app/features/admin/pages/staff';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */

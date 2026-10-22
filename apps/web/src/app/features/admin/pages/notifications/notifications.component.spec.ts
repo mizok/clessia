@@ -165,7 +165,7 @@ describe('NotificationsComponent（管理端發布）', () => {
     f.detectChanges();
 
     expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(f.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
   /**

@@ -64,6 +64,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type StudentStatusFilter = 'active' | 'inactive' | 'all';
 
@@ -85,6 +86,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
   selector: 'app-students',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     PopoverModule,
     FitPopoverDirective,

@@ -145,11 +145,7 @@
       description="選擇分校後即可瀏覽該校的課程與班級"
     />
   } @else if (loadingGroups()) {
-    <div class="skeleton-list" aria-label="課程列表載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="課程列表載入中" [count]="3" />
   } @else if (loadFailed()) {
     <app-load-failed
       description="沒有讀到這個分校的課程與班級，可能是連線問題"

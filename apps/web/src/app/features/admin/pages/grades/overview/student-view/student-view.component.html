@@ -97,11 +97,7 @@
 
 <div class="page-wrap pt-2 pb-28 wide:pb-32">
   @if (loadingList()) {
-    <div class="skeleton-list mt-6" aria-label="學生名單載入中">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton class="mt-6" label="學生名單載入中" [count]="5" />
   } @else if (loadFailed()) {
     <div class="mt-6">
       <app-load-failed description="沒有讀到學生名單，可能是連線問題" (retry)="loadStudents()" />

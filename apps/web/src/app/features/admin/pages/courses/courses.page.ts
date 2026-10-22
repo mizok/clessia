@@ -73,6 +73,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 interface CourseGroup {
   course: Course;
@@ -92,6 +93,7 @@ interface CourseChapter {
   selector: 'app-courses',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     ChapterHeadComponent,
     PageActionsComponent,
