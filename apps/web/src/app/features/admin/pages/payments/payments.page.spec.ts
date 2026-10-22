@@ -1032,7 +1032,8 @@ describe('PaymentsPage', () => {
       );
     });
 
-    it('工具列：開立帳單＝橘底 13px 粗、桌機 36px、手機基底 44px；匯出／更多動作＝白底框 zinc-300、桌機 36×40', () => {
+    // #1903：工具列控制項全部同高（tbar-control：手機 44／桌機 40），不再各自寫 h-9／size-11
+    it('工具列：開立帳單＝橘底 13px 粗、高度 tbar-control；匯出／更多動作＝白底框 zinc-300、方鈕 tbar-control-square', () => {
       const create = Array.from(el().querySelectorAll('button')).find((b) =>
         b.textContent?.includes('開立帳單'),
       )!;
@@ -1042,15 +1043,14 @@ describe('PaymentsPage', () => {
         'border-accent-vivid',
         'text-md',
         'font-semibold',
-        'min-h-11',
-        'wide:min-h-0',
-        'wide:h-9',
+        'tbar-control',
         'wide:inline-flex',
         'hidden',
       );
       for (const label of ['匯出', '更多動作']) {
         const b = el().querySelector(`button[aria-label="${label}"]`)!;
-        has(b, 'border-zinc-300', 'bg-white', 'size-11', 'wide:h-9', 'wide:w-10', 'gap-1.5');
+        has(b, 'border-zinc-300', 'bg-white', 'tbar-control-square', 'gap-1.5');
+        expect(b.className).not.toMatch(/\b(wide:)?(h|size)-\d/);
       }
     });
 

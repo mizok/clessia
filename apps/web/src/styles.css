@@ -273,17 +273,9 @@
   .clessia-filter-bar .p-multiselect,
   .clessia-filter-bar .p-datepicker .p-inputtext,
   .clessia-filter-bar .p-button {
-    min-height: 38px;
+    /* 工具列控制項同高（#1903）：高度只住在 --tbar-control（tailwind.css），手機 44／桌機 40 */
+    height: var(--tbar-control);
     font-size: var(--text-md);
-  }
-  /* 這條 38px 的硬底會蓋過上面的 token 覆寫，所以觸控下要一起抬 */
-  @media (pointer: coarse) {
-    .clessia-filter-bar .p-select,
-    .clessia-filter-bar .p-multiselect,
-    .clessia-filter-bar .p-datepicker .p-inputtext,
-    .clessia-filter-bar .p-button {
-      min-height: 44px;
-    }
   }
   .clessia-filter-bar .p-select-label,
   .clessia-filter-bar .p-multiselect-label,
@@ -351,7 +343,10 @@
   .clessia-filter-search {
     display: flex;
     align-items: center;
-    min-height: 40px;
+    height: var(--tbar-control);
+    /* 上面那段的 flex: 1（basis 0%）在直向 flex 的工具列裡（手機的老師學生頁）會蓋掉 height、縮回內容高 38；
+       min-height 直向也會遵守（#1903） */
+    min-height: var(--tbar-control);
     border: 1px solid var(--zinc-300);
     border-radius: var(--radius-md);
     background: #fff;
@@ -365,7 +360,7 @@
   .clessia-filter-search .p-inputtext,
   .clessia-filter-search-input {
     width: 100%;
-    min-height: 38px;
+    height: 100%;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -373,9 +368,6 @@
     font-size: var(--text-base);
   }
   @media (max-width: 860px) {
-    .clessia-filter-search {
-      min-height: 48px;
-    }
     .clessia-filter-search .p-inputtext,
     .clessia-filter-search-input {
       font-size: var(--text-lg);

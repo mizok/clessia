@@ -35,5 +35,8 @@ export class FilterToggleComponent {
    * （parents 只有狀態）桌機也收進這顆鈕，照 A6 的「篩選：全部」。
    */
   readonly always = input(false);
-  protected readonly hostClass = computed(() => (this.always() ? '' : 'wide:hidden'));
+  // host 是 inline-flex：預設的 inline 會讓裡面的鈕落在文字基線上，跟同列的控制項差 2px 中線（#1903）
+  protected readonly hostClass = computed(() =>
+    this.always() ? 'inline-flex' : 'inline-flex wide:hidden',
+  );
 }

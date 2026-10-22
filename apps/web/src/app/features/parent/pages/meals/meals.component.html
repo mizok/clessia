@@ -27,7 +27,9 @@
     <div
       class="page-wrap flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 py-3 wide:min-h-16 wide:gap-x-4"
     >
-      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+      <div
+        class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 [&_.p-select]:tbar-control"
+      >
         <app-select-field
           class="meals__period min-w-[9em] max-wide:flex-1"
           label="期間"
@@ -40,7 +42,7 @@
           <span class="flex flex-wrap items-center gap-2 text-md text-zinc-700">
             <input
               type="month"
-              class="h-11 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:h-10"
+              class="tbar-control rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900"
               aria-label="從"
               [max]="maxMonth"
               [value]="customFrom()"
@@ -49,7 +51,7 @@
             到
             <input
               type="month"
-              class="h-11 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:h-10"
+              class="tbar-control rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900"
               aria-label="到"
               [max]="maxMonth"
               [value]="customTo()"
@@ -62,7 +64,7 @@
         <button
           #exportTrigger
           type="button"
-          class="meals__export inline-flex size-12 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
+          class="meals__export tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50"
           popovertarget="meals-export"
           aria-label="匯出"
           title="匯出"

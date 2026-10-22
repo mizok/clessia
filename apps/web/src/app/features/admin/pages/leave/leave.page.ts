@@ -3,6 +3,7 @@ import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { FormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
+import { SelectModule } from 'primeng/select';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageService, ConfirmationService, ConfirmEventType } from 'primeng/api';
@@ -21,6 +22,8 @@ import {
   taipeiDateString,
 } from '@core/system-clock.service';
 import { StudentsService, type Student } from '@core/students.service';
+import { CoursesService, type Course } from '@core/courses.service';
+import { ClassesService, type Class } from '@core/classes.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import {
@@ -53,6 +56,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     RouterLink,
     FormsModule,
     DatePickerModule,
+    SelectModule,
     TooltipModule,
     ConfirmDialogModule,
     DynamicDialogModule,
@@ -78,6 +82,8 @@ export class LeavePage implements OnInit {
   // 長表單才會在彈窗裡捲、動作列才黏得住（掛 body 時整個彈窗超出視窗，#1768 量到）
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly studentsService = inject(StudentsService);
+  private readonly coursesService = inject(CoursesService);
+  private readonly classesService = inject(ClassesService);
   private readonly destroyRef = inject(DestroyRef);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
@@ -100,6 +106,19 @@ export class LeavePage implements OnInit {
   protected readonly studentValue = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
   private readonly studentId = signal<string | null>(null);
+  /** 課程／開課班（#1100 #31，A6 `.ff` 的另外兩欄）：選了課程，開課班只列那門課的班 */
+  protected readonly courseId = signal<string | null>(null);
+  protected readonly classId = signal<string | null>(null);
+  private readonly courses = signal<Course[]>([]);
+  private readonly classes = signal<Class[]>([]);
+  protected readonly courseOptions = computed(() => [
+    { label: '全部課程', value: null },
+    ...this.courses().map((c) => ({ label: c.name, value: c.id })),
+  ]);
+  protected readonly classOptions = computed(() => [
+    { label: '全部開課班', value: null },
+    ...this.classes().map((c) => ({ label: c.name, value: c.id })),
+  ]);
   protected readonly hasFilter = signal(false);
 
   protected readonly studentRoute = RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath;
@@ -208,10 +227,16 @@ export class LeavePage implements OnInit {
     // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
     toObservable(this.campusCtx.id)
       .pipe(skip(1), takeUntilDestroyed())
-      .subscribe(() => this.onFilterChange());
+      .subscribe(() => {
+        // 換分校：開課班清單跟著換，已選的班可能不在新分校 —— 清掉
+        this.classId.set(null);
+        this.loadClasses();
+        this.onFilterChange();
+      });
   }
 
   ngOnInit(): void {
+    this.loadFilterOptions();
     this.loadRecords();
     this.loadCounts();
   }
@@ -236,6 +261,8 @@ export class LeavePage implements OnInit {
           : {
               order: 'start_desc' as const,
               studentId: this.studentId() ?? undefined,
+              courseId: this.courseId() ?? undefined,
+              classId: this.classId() ?? undefined,
               dateFrom: this.filterDateRange?.[0]
                 ? format(this.filterDateRange[0], 'yyyy-MM-dd')
                 : undefined,
@@ -315,9 +342,51 @@ export class LeavePage implements OnInit {
     this.onFilterChange();
   }
 
+  /** 篩選用的選項；失敗就只是少一個下拉，不擋列表（同營收報表） */
+  private loadFilterOptions(): void {
+    this.coursesService.list({ isActive: true, pageSize: 200 }).subscribe({
+      next: (res) => this.courses.set(res.data),
+      error: () => this.courses.set([]),
+    });
+    this.loadClasses();
+  }
+
+  private loadClasses(): void {
+    this.classesService
+      .list({
+        isActive: true,
+        pageSize: 0,
+        campusId: this.campusCtx.id() ?? undefined,
+        courseId: this.courseId() ?? undefined,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.classes.set(res.data),
+        error: () => this.classes.set([]),
+      });
+  }
+
+  protected onCourseChange(value: string | null): void {
+    this.courseId.set(value);
+    // 換課程：開課班只列這門課的，已選的班不一定屬於它 —— 清掉
+    this.classId.set(null);
+    this.loadClasses();
+    this.onFilterChange();
+  }
+
+  protected onClassChange(value: string | null): void {
+    this.classId.set(value);
+    this.onFilterChange();
+  }
+
   protected clearFilters(): void {
     this.studentValue.set(null);
     this.studentId.set(null);
+    if (this.courseId() !== null) {
+      this.courseId.set(null);
+      this.loadClasses();
+    }
+    this.classId.set(null);
     this.filterDateRange = null;
     this.onFilterChange();
   }
@@ -328,7 +397,12 @@ export class LeavePage implements OnInit {
   }
 
   protected onFilterChange(): void {
-    this.hasFilter.set(this.studentId() !== null || (this.filterDateRange?.[0] ?? null) !== null);
+    this.hasFilter.set(
+      this.studentId() !== null ||
+        this.courseId() !== null ||
+        this.classId() !== null ||
+        (this.filterDateRange?.[0] ?? null) !== null,
+    );
     this.currentPage.set(1);
     this.loadRecords();
   }
