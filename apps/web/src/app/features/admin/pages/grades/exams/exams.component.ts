@@ -25,6 +25,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { PaginatorModule } from 'primeng/paginator';
 import { PopoverModule } from 'primeng/popover';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import type { Popover } from 'primeng/popover';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -177,6 +178,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     SelectModule,
     PaginatorModule,
     PopoverModule,
+    FitPopoverDirective,
     NgTemplateOutlet,
     ChapterHeadComponent,
     PageOpenComponent,

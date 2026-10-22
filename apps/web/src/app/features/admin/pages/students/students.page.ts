@@ -19,6 +19,7 @@ import { Router, RouterLink } from '@angular/router';
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
 import { PopoverModule } from 'primeng/popover';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import { MessageService } from 'primeng/api';
 import { AuthService } from '@core/auth.service';
 import { CampusContextService } from '@core/campus-context.service';
@@ -86,6 +87,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
   imports: [
     ReloadVeilComponent,
     PopoverModule,
+    FitPopoverDirective,
     PageActionsComponent,
     PageOpenComponent,
     ChapterHeadComponent,
