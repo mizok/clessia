@@ -239,28 +239,8 @@ function minutesUntil(date: string, hhmm: string, now: Date): number {
   return Math.ceil((t.getTime() - now.getTime()) / 60000);
 }
 
-/**
- * 台北此刻的「牆上時鐘」，做成**本地欄位＝台北欄位**的 `Date`。
- *
- * 這一頁（連同 `hasSessionEnded` 等共用判斷）全是用本地欄位比日期與時分，所以把「現在」
- * 換成台北的牆上時間，整串判斷就不依賴瀏覽器時區、也不依賴使用者機器時鐘
- * （`SystemClockService.nowEpochMs` 已跟伺服器對過）。**這個 Date 不是真正的瞬間**，
- * 只能餵給本地欄位比較（`getHours`、`new Date('yyyy-MM-ddTHH:mm:00')`），不要拿去 `toISOString`。
- */
-export function taipeiWallClock(epochMs: number): Date {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Taipei',
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(new Date(epochMs));
-  const n = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return new Date(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second'));
-}
+/** 搬到 core（家長出缺席也要用，feature 之間不得互相 import —— c5）；這裡轉出，既有呼叫端不用改 */
+export { taipeiWallClock } from '@core/system-clock.service';
 
 /**
  * 課堂列上的狀態字（A6 `.card__state`）：「上課中 · 還有 50 分下課」「還有 80 分開始」「已上完」。

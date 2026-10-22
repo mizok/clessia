@@ -1,9 +1,10 @@
 import type { StatusTone } from '@shared/components/status/status-dot/status-dot.component';
 import type { ParentSession } from '@core/parent-sessions.service';
 import type {
-  ParentAttendanceRecord,
+  ParentAttendanceDayRow,
   ParentAttendanceStatus,
 } from '@core/parent-attendance.service';
+import { hasSessionEnded, hasSessionStarted } from '@shared/utils/session-time.util';
 
 /**
  * 三態的嚴重度排序跟 `schedule.util.ts` 的 `DAY_TONE_PRIORITY` 同一個判準：
@@ -46,6 +47,32 @@ export function sessionChipLabel(
   return SESSION_STATUS_CHIP[sessionStatus];
 }
 
+/** 一堂在列上的狀態字與樣式（#1810 設計稿 §4）。`tone` 對應模板裡的字色 */
+export interface RowStatus {
+  readonly label: string;
+  /** A6 `.rec__s`：`alert`＝紅字粗（缺席）、`strong`＝深字粗（出席、停課）、`muted`＝淡色半粗 */
+  readonly tone: 'alert' | 'strong' | 'muted';
+}
+
+/**
+ * 一堂顯示什麼：停課 ＞ 有紀錄 ＞ 推導（假單／日到班刷卡）＞ 還沒上／上課中 ＞ 沒有紀錄。
+ *
+ * **沒有紀錄永遠不寫成缺席**（rules/attendance-rules §6）—— 那是訊號，不是待填的空格。
+ * `now` 是台北牆上時鐘（`taipeiWallClock`），不是瀏覽器的 `new Date()`。
+ */
+export function rowStatus(row: ParentAttendanceDayRow, now: Date): RowStatus {
+  if (row.sessionStatus === 'cancelled') return { label: '停課', tone: 'strong' };
+  if (row.status === 'absent') return { label: ATTENDANCE_STATUS_LABELS.absent, tone: 'alert' };
+  if (row.status === 'present') return { label: ATTENDANCE_STATUS_LABELS.present, tone: 'strong' };
+  if (row.status === 'on_leave') return { label: ATTENDANCE_STATUS_LABELS.on_leave, tone: 'muted' };
+  if (row.derived === 'leave') return { label: '請假', tone: 'muted' };
+  if (row.derived === 'checkin') return { label: '出席', tone: 'strong' };
+  const window = { date: row.eventDate, startTime: row.startTime, endTime: row.endTime };
+  if (!hasSessionStarted(window, now)) return { label: '還沒上', tone: 'muted' };
+  if (!hasSessionEnded(window, now)) return { label: '上課中', tone: 'muted' };
+  return { label: '沒有紀錄', tone: 'muted' };
+}
+
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 /** `YYYY-MM-DD` 位移 N 天——用 `T00:00:00` 不用裸日期字串，避免 `toISOString` 那類 UTC 陷阱 */
@@ -74,14 +101,16 @@ export interface ArrivalLine {
  * 有任何一堂在日到班分校就畫 —— 刷卡一次當天所有的課都算到。
  */
 export function arrivalLine(
-  records: readonly ParentAttendanceRecord[],
+  records: readonly ParentAttendanceDayRow[],
   time: string | undefined,
   dailyCampusIds: ReadonlySet<string>,
   isToday: boolean,
 ): ArrivalLine | null {
   if (!records.some((r) => r.campusId !== null && dailyCampusIds.has(r.campusId))) return null;
   if (time) return { text: `${time} 到班`, missing: false };
-  const allOff = records.every((r) => r.status === 'on_leave' || r.sessionStatus === 'cancelled');
+  const allOff = records.every(
+    (r) => r.status === 'on_leave' || r.derived === 'leave' || r.sessionStatus === 'cancelled',
+  );
   if (allOff) return { text: '這天不用到', missing: true };
   return { text: isToday ? '還沒到班' : '沒有到班紀錄', missing: true };
 }
@@ -92,21 +121,26 @@ export interface AttendanceDay {
   readonly md: string;
   readonly weekday: string;
   readonly isToday: boolean;
-  /** 當天的紀錄，照上課時間排 */
-  readonly records: ParentAttendanceRecord[];
+  /** 當天的堂（#1810 起含沒點名的），照上課時間排 */
+  readonly records: ParentAttendanceDayRow[];
   readonly arrival: ArrivalLine | null;
 }
 
-/** `from`～`to` 每一天，新到舊（A6 `render()`） */
+/**
+ * `from`～`to` 每一天，新到舊（A6 `render()`）。
+ *
+ * ⚠️ **用日期窗重建列表**（AGENTS.md test:timetravel 段的陷阱）：窗外的列不會排到後面，是整筆消失。
+ * 呼叫端要用**同一個窗**查資料與畫天數（`dateRange()` 只算一次），spec 釘「列數＝各天加總」。
+ */
 export function buildDays(
-  records: readonly ParentAttendanceRecord[],
+  records: readonly ParentAttendanceDayRow[],
   checkins: ReadonlyMap<string, string>,
   dailyCampusIds: ReadonlySet<string>,
   from: string,
   to: string,
   today: string,
 ): AttendanceDay[] {
-  const byDate = new Map<string, ParentAttendanceRecord[]>();
+  const byDate = new Map<string, ParentAttendanceDayRow[]>();
   for (const r of records) byDate.set(r.eventDate, [...(byDate.get(r.eventDate) ?? []), r]);
   const days: AttendanceDay[] = [];
   for (let d = to; d >= from; d = addDays(d, -1)) {

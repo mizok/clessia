@@ -3,15 +3,14 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
-import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
@@ -19,19 +18,28 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SchoolsService } from '@core/schools.service';
-import type { School } from '@core/schools.service';
+import type { School, SchoolLevel } from '@core/schools.service';
 import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
+
+/** 分章順序：國小 → 國中 → 高中 → 未分類（計畫席 10-22 裁 C：未分類放最後） */
+const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
+  { level: 'elementary', label: '國小' },
+  { level: 'junior', label: '國中' },
+  { level: 'senior', label: '高中' },
+  { level: null, label: '未分類' },
+];
 
 @Component({
   selector: 'app-schools-page',
   standalone: true,
   imports: [
-    StatusDotComponent,
+    PageActionsComponent,
     FormsModule,
     ReloadVeilComponent,
-    ButtonModule,
-    InputTextModule,
     ConfirmDialogModule,
     EmptyStateComponent,
     LoadFailedComponent,
@@ -69,6 +77,19 @@ export class SchoolsPage implements OnInit {
   /** 取數失敗。**不能沿用 `schools().length === 0`** —— 「尚無學校」在失敗時是謊話（#812） */
   protected readonly loadFailed = signal(false);
   protected readonly search = signal('');
+  /** 輸入框顯示的字（即時）；`search` 是節流後真的拿去查的那個 */
+  protected readonly searchText = signal('');
+  /** A6 依學制分章；空章不畫 */
+  protected readonly chapters = computed(() =>
+    CHAPTERS.map((c) => ({
+      ...c,
+      schools: this.schools().filter((s) => (s.level ?? null) === c.level),
+    })).filter((c) => c.schools.length > 0),
+  );
+  protected readonly inactiveCount = computed(
+    () => this.schools().filter((s) => !s.isActive).length,
+  );
+  protected readonly primaryAction: PageAction = { label: '新增學校', icon: 'pi pi-plus' };
 
   ngOnInit(): void {
     this.setupLoadPipeline();
@@ -136,7 +157,14 @@ export class SchoolsPage implements OnInit {
   }
 
   protected onSearch(value: string): void {
+    this.searchText.set(value);
     this.searchInput.next(value);
+  }
+
+  protected clearSearch(): void {
+    this.searchText.set('');
+    this.search.set('');
+    this.load();
   }
 
   protected openCreate(): void {
@@ -160,11 +188,7 @@ export class SchoolsPage implements OnInit {
 
   protected onDelete(school: School): void {
     if (school.studentCount > 0) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '無法刪除',
-        detail: `此學校仍有 ${school.studentCount} 位學生`,
-      });
+      this.explainBlocked(school);
       return;
     }
 
@@ -198,6 +222,41 @@ export class SchoolsPage implements OnInit {
               this.messageService.add({
                 severity: 'error',
                 summary: '刪除失敗',
+                detail: error?.error?.error ?? '',
+              });
+            },
+          });
+      },
+    });
+  }
+
+  /**
+   * 有學生的學校按刪除：**跳說明＋給停用的出口**（A6 settings#schools），不是只出一則 toast。
+   * 行政按刪除真正要的通常是「以後別再出現在選單裡」—— 停用就做得到，已寫著它的學生不受影響。
+   */
+  private explainBlocked(school: School): void {
+    const label = school.shortName || school.name;
+    this.confirmationService.confirm({
+      header: `「${label}」不能刪除`,
+      message: `還有 ${school.studentCount} 位學生的資料寫著這所學校。可以改成停用：新填的學生資料選不到它，已經寫著它的不受影響。`,
+      icon: 'pi pi-info-circle',
+      acceptLabel: school.isActive ? '改成停用' : '它已經停用了',
+      rejectLabel: '取消',
+      rejectVisible: school.isActive,
+      accept: () => {
+        if (!school.isActive) return;
+        this.schoolsService
+          .update(school.id, { isActive: false })
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.messageService.add({ severity: 'success', summary: `已停用「${label}」` });
+              this.load({ rows: true });
+            },
+            error: (error) => {
+              this.messageService.add({
+                severity: 'error',
+                summary: '停用失敗',
                 detail: error?.error?.error ?? '',
               });
             },
