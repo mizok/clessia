@@ -3,7 +3,7 @@
     <div class="dialog-header-inline__title-container">
       <h2 class="dialog-header-inline__title">科目管理</h2>
     </div>
-    <button class="dialog-header-inline__close size-11" (click)="cancel()">
+    <button class="dialog-header-inline__close size-11" aria-label="關閉" (click)="cancel()">
       <i class="pi pi-times"></i>
     </button>
   </div>
@@ -40,7 +40,7 @@
       @for (subject of subjects(); track subject.id) {
         <div
           [style.view-transition-name]="'subject-' + subject.id"
-          class="subject-manager__row vt-row flex cursor-default items-center gap-2 rounded-md p-2 [transition:background_0.15s] hover:bg-zinc-50"
+          class="subject-manager__row vt-row flex min-h-[68px] cursor-default items-center gap-2 border-0 border-b border-solid border-zinc-200 py-3"
         >
           @if (editingId() === subject.id) {
             <!-- Inline edit mode -->
@@ -62,6 +62,7 @@
               [loading]="saving()"
               (onClick)="confirmRename()"
               pTooltip="確認"
+              ariaLabel="確認改名"
               tooltipPosition="top"
             />
             <p-button
@@ -73,38 +74,49 @@
               [disabled]="saving()"
               (onClick)="cancelEdit()"
               pTooltip="取消"
+              ariaLabel="取消改名"
               tooltipPosition="top"
             />
           } @else {
             <!-- Display mode -->
-            <span class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
-              <span class="subject-manager__name text-md text-zinc-800">{{ subject.name }}</span>
-              @if (deleteBlockReason(subject); as reason) {
-                <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到 -->
-                <span class="subject-manager__usage-hint text-xs text-zinc-500">{{ reason }}</span>
-              }
-            </span>
-            <p-button
-              icon="pi pi-pencil"
-              [rounded]="true"
-              [text]="true"
-              severity="secondary"
-              size="small"
-              (onClick)="startEdit(subject)"
-              pTooltip="改名"
-              tooltipPosition="top"
-            />
-            <p-button
-              icon="pi pi-trash"
-              [rounded]="true"
-              [text]="true"
-              severity="danger"
-              size="small"
-              [disabled]="!!deleteBlockReason(subject)"
-              [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
-              tooltipPosition="top"
-              (onClick)="confirmDelete(subject)"
-            />
+            <div class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
+              <div class="subject-manager__name text-lg leading-normal font-bold text-zinc-900">
+                {{ subject.name }}
+              </div>
+              <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到。沒被用到也講（A6） -->
+              <span class="subject-manager__usage-hint text-sm leading-normal text-zinc-600">{{
+                deleteBlockReason(subject) ?? '還沒被用到'
+              }}</span>
+            </div>
+            <!-- A6 `.icobtn` 是 40px；觸控下限 44px（A27，harness 守）優先 -->
+            <div class="flex gap-1">
+              <button
+                type="button"
+                class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
+                pTooltip="改名"
+                tooltipPosition="top"
+                [attr.aria-label]="'改名 ' + subject.name"
+                (click)="startEdit(subject)"
+              >
+                <i class="pi pi-pencil" aria-hidden="true"></i>
+              </button>
+              <!-- 被用到的不灰掉：按了跳說明（A6「不是只灰掉」），只把圖示降成淡色 -->
+              <button
+                type="button"
+                class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent hover:bg-zinc-100"
+                [class]="deleteBlockReason(subject) ? 'text-zinc-400' : 'text-zinc-800'"
+                [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
+                tooltipPosition="top"
+                [attr.aria-label]="
+                  deleteBlockReason(subject)
+                    ? '刪除 ' + subject.name + '（使用中，不能刪，按了看原因）'
+                    : '刪除 ' + subject.name
+                "
+                (click)="confirmDelete(subject)"
+              >
+                <i class="pi pi-trash" aria-hidden="true"></i>
+              </button>
+            </div>
           }
         </div>
       }
@@ -115,11 +127,8 @@
         </p>
       }
 
-      <!-- Divider -->
-      <div class="subject-manager__divider mx-0 my-3 h-px bg-zinc-200"></div>
-
       <!-- Add new -->
-      <div class="subject-manager__add flex items-center gap-2">
+      <div class="subject-manager__add mt-5 flex max-w-[520px] items-center gap-2">
         <input
           pInputText
           class="subject-manager__input flex-1 text-[0.9375rem]"
