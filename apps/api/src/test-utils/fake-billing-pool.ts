@@ -120,7 +120,7 @@ export function fakeBillingPool(opts: {
       const [orgId, studentId, issuedAt, dueDate, note, userId] = params;
       const id = `fake-invoice-${++seq}`;
       await run(
-        opts.client.from('invoices').insert!({
+        opts.client.from('invoices')['insert']!({
           id,
           org_id: orgId,
           student_id: studentId,
@@ -142,7 +142,7 @@ export function fakeBillingPool(opts: {
         Array<string | null>,
       ];
       await run(
-        opts.client.from('invoice_items').insert!(
+        opts.client.from('invoice_items')['insert']!(
           enrollmentIds.map((enrollmentId, i) => ({
             id: `fake-tuition-${++seq}`,
             invoice_id: invoiceId,
@@ -161,7 +161,7 @@ export function fakeBillingPool(opts: {
       const [invoiceId, periodMonth, note] = params;
       const id = `fake-meal-${++seq}`;
       await run(
-        opts.client.from('invoice_items').insert!({
+        opts.client.from('invoice_items')['insert']!({
           id,
           invoice_id: invoiceId,
           type: 'meal',
@@ -174,7 +174,7 @@ export function fakeBillingPool(opts: {
     }
     if (sql.includes('with stamped as')) {
       const [itemId, orgId, studentId, start, end] = params as string[];
-      const q = opts.client.from('meal_records').update!({ invoice_item_id: itemId }) as Record<
+      const q = opts.client.from('meal_records')['update']!({ invoice_item_id: itemId }) as Record<
         string,
         (...a: unknown[]) => unknown
       >;
@@ -194,7 +194,7 @@ export function fakeBillingPool(opts: {
       const total = stamped.reduce((s, r) => s + Number(r['unit_price']), 0);
       await run(
         (
-          opts.client.from('invoice_items').update!({ amount: total }) as Record<
+          opts.client.from('invoice_items')['update']!({ amount: total }) as Record<
             string,
             (...a: unknown[]) => unknown
           >
@@ -205,7 +205,7 @@ export function fakeBillingPool(opts: {
     if (sql.includes('delete from public.invoice_items')) {
       await run(
         (
-          opts.client.from('invoice_items').delete!() as Record<
+          opts.client.from('invoice_items')['delete']!() as Record<
             string,
             (...a: unknown[]) => unknown
           >

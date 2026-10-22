@@ -54,7 +54,7 @@ async function supabaseCallsFor(n: number) {
   const counted = {
     from: (table: string) => {
       calls += 1;
-      return db.client.from(table);
+      return (db.client as { from: (t: string) => unknown }).from(table);
     },
   };
   const app = new Hono();
