@@ -108,9 +108,14 @@ export class ArrivalRosterSheetComponent {
             ),
           );
         },
-        error: () => {
+        error: (err: { error?: { code?: string; error?: string } }) => {
           this.marking.set(null);
-          this.markError.set(`沒記到 ${s.studentName} 的到班，請再按一次。`);
+          // 已在別校掃過卡（409）：再按一次也一樣，照實說；其他失敗才請他重按
+          this.markError.set(
+            err?.error?.code === 'CHECKED_IN_ELSEWHERE'
+              ? `${s.studentName}：${err.error.error ?? '今天已在別校掃過卡'}，這裡記不了到班。`
+              : `沒記到 ${s.studentName} 的到班，請再按一次。`,
+          );
         },
       });
   }

@@ -119,6 +119,19 @@ describe('ArrivalRosterSheetComponent（#1314 TS3 到班名單）', () => {
     expect(markButtons()).toHaveLength(1);
   });
 
+  it('今天已在別校掃過卡（409）→ 照實說，不叫他再按一次', async () => {
+    await render();
+    checkInMock.mockReturnValue(
+      throwError(() => ({
+        error: { code: 'CHECKED_IN_ELSEWHERE', error: '他今天已在景美分校掃過卡' },
+      })),
+    );
+    markButtons()[0]!.click();
+    fixture.detectChanges();
+    expect(text()).toContain('李小華：他今天已在景美分校掃過卡，這裡記不了到班。');
+    expect(text()).not.toContain('請再按一次');
+  });
+
   it('名單讀取失敗 → 錯誤句，不畫空名單', async () => {
     rosterMock.mockReset();
     await TestBed.configureTestingModule({
