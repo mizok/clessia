@@ -776,6 +776,8 @@ export const PAGES = {
   'schedule-week': {
     a6: 'schedule.html',
     app: '/admin/sessions',
+    // 稿的今天（973-layout/shared/stress.js：2026-10-01 17:40，週四）；不對齊的話週四／週五兩欄成對地差
+    clock: '2026-10-01T17:40:00+08:00',
     prep: {
       a6: [{ click: '[data-view="week"]', settle: 800 }],
       app: [{ click: { role: 'button', name: '^週$' }, settle: 1500 }],
