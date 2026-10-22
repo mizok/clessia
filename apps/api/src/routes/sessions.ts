@@ -867,6 +867,10 @@ const listSessionsRoute = createRoute({
         },
       },
     },
+    500: {
+      description: '出勤或在籍讀取失敗（#1928）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -1073,7 +1077,7 @@ app.openapi(listSessionsRoute, async (c) => {
           .select('event_id, status')
           .in('event_id', eventIds)
           .eq('org_id', orgId)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     // 在籍**依課堂日期**（使用者 2026-10-01 裁定，#950）—— 撈生效區間、每堂用
     // `countEnrolledOn` 算，跟 `/api/attendance/sessions` 與點名名單同一份規則
     uniqueClassIds.length > 0
@@ -1083,11 +1087,18 @@ app.openapi(listSessionsRoute, async (c) => {
           .in('class_id', uniqueClassIds)
           .eq('status', 'active')
           .eq('org_id', orgId)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (changesResult.error) {
     return c.json({ error: changesResult.error.message, code: 'DB_ERROR' }, 400);
+  }
+  // 出勤數、在籍數讀不到就不回（#1928）：原本只拿 data，`.in()` 帶 500 個 id 回 414 時
+  // 兩個數字靜默變 0、照樣 200 —— 畫面上「0 人到」跟「讀不到」分不出來
+  const readError = attendanceResult.error ?? enrollmentResult.error;
+  if (readError) {
+    console.error('[sessions] 課堂列表的出勤／在籍讀取失敗：', readError.message);
+    return c.json({ error: '讀取出勤或在籍資料失敗，請稍後再試', code: 'READ_FAILED' }, 500);
   }
   // 新到舊排好了，每堂第一筆就是最新的
   const latestChanges = new Map<string, z.infer<typeof SessionListItemSchema>['latestChange']>();
