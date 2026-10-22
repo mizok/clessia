@@ -235,9 +235,11 @@
     </div>
   </div>
 
+  <!-- 切換身分：黑細框、透明底（使用者 10-22，#1856；A6 是灰底卡片，R5 偏離）。
+       透明底之後底色就是浮層本身（桌機白、手機抽屜 zinc-200），選項 hover 跟著各深一階 -->
   @if (otherRoles().length > 0) {
     <div
-      class="mt-1 rounded-md bg-zinc-100 px-1.5 py-2 max-wide:bg-white"
+      class="mt-1 rounded-md border border-solid border-zinc-900 bg-transparent px-1.5 py-2"
       role="group"
       aria-labelledby="shell-account-switch"
     >
@@ -249,7 +251,7 @@
       </p>
       @for (r of otherRoles(); track r) {
         <button
-          class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-sm border-0 bg-transparent px-1.5 text-left text-base leading-[1.5] font-medium text-zinc-900 hover:bg-zinc-200 max-wide:min-h-12 max-wide:text-[16px] wide:min-h-10"
+          class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-sm border-0 bg-transparent px-1.5 text-left text-base leading-[1.5] font-medium text-zinc-900 hover:bg-zinc-100 max-wide:min-h-12 max-wide:text-[16px] max-wide:hover:bg-zinc-300 wide:min-h-10"
           type="button"
           (click)="switchRole(r)"
         >
