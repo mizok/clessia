@@ -776,6 +776,15 @@ function createMockSupabase(data: MockSupabaseData) {
         return createExamClassesQuery(data);
       }
 
+      // 出勤模式與到班打卡（#1314 TS3）：這組測試的主題不是它們 —— 機構設成隨堂，
+      // 列表就不多查打卡；分校與打卡都是空的
+      if (table === 'organizations') {
+        return plainRows([{ attendance_mode: 'per_session' }]);
+      }
+      if (table === 'campuses' || table === 'daily_checkins') {
+        return plainRows([]);
+      }
+
       throw new Error(`Unsupported table: ${table}`);
     },
   };
@@ -1621,6 +1630,8 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
           lte: () => query,
           gte: () => query,
           or: () => query,
+          // 出勤模式（organizations／campuses）：讀不到就是 DB 預設，這組不在意
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
           single: () =>
             Promise.resolve({
               data: {
@@ -2297,3 +2308,20 @@ describe('GET /api/attendance/sessions —— 分校範圍要下到查詢上', (
     expect(supabase.inCalls.some((call) => call.column === 'classes.campus_id')).toBe(false);
   });
 });
+
+/** 不看條件、回固定列的查詢替身 */
+function plainRows(rows: Array<Record<string, unknown>>) {
+  const terminal = {
+    maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
+    single: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
+    then: (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({ data: rows, error: null }).then(resolve),
+  };
+  const builder: Record<string, unknown> = new Proxy(terminal, {
+    get(target, prop: string) {
+      if (prop in target) return (target as Record<string, unknown>)[prop];
+      return () => builder;
+    },
+  });
+  return builder;
+}

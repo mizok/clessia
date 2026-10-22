@@ -3,7 +3,7 @@ title: 課表（我的課表）
 summary: 查看自己任課的課堂，進入課堂詳情。
 category: spec
 status: active
-updated: 2026-10-14
+updated: 2026-10-22
 tags: [specs, teacher, schedule]
 ---
 
@@ -94,6 +94,51 @@ vs `classId+logDate` 兩欄），刻意不做成一支元件的 if/else。
 
 設計見 [[rules/contact-book-rules]]。
 
+### 依分校出勤模式分流（#1314 TS3，計畫席 2026-10-22 批准）
+
+A6 `t-schedule.html`：**每一堂依它所在分校的出勤模式**決定卡片長相與入口。
+模式判準一律走 `apps/api/src/lib/attendance-mode.ts`（分校 `campuses.attendance_mode`，
+null 沿用機構預設）；**前端不自己推** —— 老師打不到 `GET /api/campuses`（ADMIN_ONLY），
+而且自己推等於多一份判準。
+
+**現況的錯**：入口只看「誰負責點名」（`isTeacherLed()`），日到班的分校老師也看得到「開始點名」，
+而日到班的出席是掃碼推算的（rules/attendance-rules 1.1），老師逐堂點名會跟掃碼互相蓋。
+
+| 模式   | 卡片狀態句                                                   | 動作鈕                                                   | 開出來的         |
+| ------ | ------------------------------------------------------------ | -------------------------------------------------------- | ---------------- |
+| 日到班 | 「日到班 · 掃碼 到 a／n」；今天的課加「· 還沒到 x · 請假 y」 | 「到班名單」（上課中＝亮橘主鈕，其餘白框；未來的課不給） | 到班名單 sheet   |
+| 隨堂   | 維持現況（已點名＋到／假／缺、點名已截止、漏點名還來得及補） | 維持現況（開始點名／修改點名／補點名／看名單）           | 現有共用點名面板 |
+
+**橘帶統計**「N 堂待點名」→ 改「N 堂待點名（隨堂）」：日到班的課不計入（`weekAnchor`、`daySummary`
+的「漏點名」tone 同理排除，日到班的課沒有「該點沒點」這回事）。
+
+**到班名單 sheet**（新元件，住 `features/teacher/pages/schedule/arrival-roster-sheet/`，跟
+class-log-sheet 同形狀的 bottom sheet；**不塞進共用點名面板做 if/else** —— 兩型是兩條資料：掃碼紀錄 vs 逐堂紀錄）：
+
+- 標題「到班名單」，副行「10/1 17:40 班名 · 分校 · 日到班：掃碼就算今天的課都到了」
+- 摘要「到 a／n · 請假 y」；每列＝學生名＋小字「16:12 掃碼到」／「還沒到」（今天）／「沒有到班紀錄」（過去）／「請假」
+- 今天的課，「還沒到」的列有「他到了」（見後端 ③）；按下去列變「17:40 到班（老師標記）」
+
+**後端（保留類：授權＋寫出勤，開 PR 前報計畫席讀 diff）**
+
+1. `GET /api/attendance/sessions` 每列加 `attendanceMode`，以及日到班列的 `checkedInCount`（在籍學生中當天有
+   `daily_checkins` 的人數）。模式用 `attendance-mode.ts` 新增的批次版（同一支 `pickAttendanceMode`，一次撈本頁
+   出現的分校）。**到班數不用 `presentCount` 代**：掃碼只替「當下已存在的 event」寫紀錄，event 是列表時才補建，
+   兩者會分岔；卡片與名單要讀同一個來源（`daily_checkins`）。
+2. `GET /api/attendance/roster/{eventId}` 加 `attendanceMode` 與每位學生的 `checkedInAt`（nullable）。
+   授權沿用 `teacherCanReadEvent`（老師只看自己任課／代課的課堂）；**順手補分校範圍**（現在只有 org＋老師檢查，
+   受限分校的管理員可讀範圍外課堂的名單 —— 同 #1800 那一族）。
+3. 「他到了」：`POST /api/attendance/roster/{eventId}/check-in` `{ studentId }`。限制：老師須任課／代課該堂、
+   **限當天**（台北日期）、學生須在該堂在籍、該堂分校是日到班；寫入**共用 `POST /api/daily-checkins` 的同一段邏輯**
+   （抽成 lib，不寫第二份），`checked_in_by` = 老師。`/api/daily-checkins` 的掛載角色不動（老師不開放打整支）。
+
+**裁定（計畫席 10-22，三題都採預設）**
+
+1. 「他到了」要不要跟「誰負責點名」走：預設**要** —— 行政負責時老師只看名單、不給「他到了」
+   （日到班的掃碼會寫 `attendance_records`，等同出勤寫入，rules 第 3 節）。
+2. 分校範圍補在 roster GET：預設**一起做**（同支 PR，範圍外回 404）。
+3. 日到班的課沒有「修改點名」：例外修正（掃了卡卻其實沒上某堂）留給管理端，老師端不給。
+
 ### 點名面板（手機是 bottom sheet）
 
 點課堂卡上的「開始點名」開啟。**手機從下方升起、桌機置中** ——
@@ -112,8 +157,8 @@ vs `classId+logDate` 兩欄），刻意不做成一支元件的 if/else。
 
 ## 資料依賴
 
-| 操作 | 資料表                                                                                                                                                          |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 操作 | 資料表                                                                                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 讀取 | `sessions`, `classes`, `class_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `schedule_changes`, `attendance_records`, `students` |
 | 寫入 | `attendance_records`（僅當天）, `class_logs`, `academy_exams`, `school_exams`                                                                                 |
 

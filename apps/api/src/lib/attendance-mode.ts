@@ -49,3 +49,40 @@ export async function resolveAttendanceMode(
     error: null,
   };
 }
+
+/**
+ * `resolveAttendanceMode` 的批次版：一頁課堂跨好幾個分校時，兩支查詢讀完，不逐堂各讀一次。
+ * 判準同一支 `pickAttendanceMode`；`campusId` 是 null 的課堂（或查不到的分校）沿用機構預設。
+ */
+export async function resolveAttendanceModes(
+  supabase: SupabaseClient,
+  orgId: string,
+  campusIds: readonly string[],
+): Promise<
+  | { modeOf: (campusId: string | null) => AttendanceMode; error: null }
+  | { modeOf: null; error: { message: string } }
+> {
+  const [org, campuses] = await Promise.all([
+    supabase.from('organizations').select('attendance_mode').eq('id', orgId).maybeSingle(),
+    campusIds.length > 0
+      ? supabase
+          .from('campuses')
+          .select('id, attendance_mode')
+          .eq('org_id', orgId)
+          .in('id', [...campusIds])
+      : Promise.resolve({ data: [] }),
+  ]);
+  if (org.error) return { modeOf: null, error: { message: org.error.message } };
+
+  const orgMode = (org.data as { attendance_mode?: string } | null)?.attendance_mode;
+  const byCampus = new Map(
+    ((campuses.data ?? []) as Array<{ id: string; attendance_mode?: string | null }>).map((row) => [
+      row.id,
+      row.attendance_mode,
+    ]),
+  );
+  return {
+    modeOf: (campusId) => pickAttendanceMode(campusId ? byCampus.get(campusId) : null, orgMode),
+    error: null,
+  };
+}
