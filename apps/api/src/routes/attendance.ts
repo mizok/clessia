@@ -1417,14 +1417,18 @@ app.openapi(
     );
 
     const rosterIds = enrollments.map((e: any) => e.student_id as string);
-    const [{ data: records }, { data: checkinRows }, modeResult] = await Promise.all([
+    const [
+      { data: records, error: recordsError },
+      { data: checkinRows, error: checkinError },
+      modeResult,
+    ] = await Promise.all([
       supabase
         .from('attendance_records')
         .select('id, student_id, status')
         .eq('event_id', eventId)
         .eq('org_id', orgId),
       rosterIds.length === 0
-        ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
+        ? Promise.resolve({ data: [] as Array<Record<string, unknown>>, error: null })
         : supabase
             .from('daily_checkins')
             .select('student_id, checked_in_at, campus_id')
@@ -1435,6 +1439,13 @@ app.openapi(
     ]);
     if (modeResult.error) {
       return c.json({ error: '讀取出勤模式失敗', message: modeResult.error.message }, 500);
+    }
+    // 讀失敗不能退回空清單：名單會變成「全部還沒到／還沒點」—— 看起來正常、其實是錯的
+    if (recordsError || checkinError) {
+      return c.json(
+        { error: '讀取名單失敗', message: (recordsError ?? checkinError)?.message },
+        500,
+      );
     }
     const checkedInAtByStudent = new Map(
       ((checkinRows ?? []) as Array<Record<string, unknown>>)
@@ -1822,7 +1833,7 @@ app.openapi(
 
     // 在籍：跟名單同一條（`isEnrolledOn`）—— 名單上沒有的人，這裡也記不了
     const classId = toSessionRows<{ class_id?: string }>((ev as any).sessions)[0]?.class_id;
-    const { data: enrollmentRows } = classId
+    const { data: enrollmentRows, error: enrollmentError } = classId
       ? await supabase
           .from('enrollments')
           .select('effective_from, effective_to')
@@ -1830,7 +1841,11 @@ app.openapi(
           .eq('class_id', classId)
           .eq('student_id', studentId)
           .eq('status', 'active')
-      : { data: [] };
+      : { data: [], error: null };
+    // 讀失敗不是「不在籍」—— 回 404 會讓老師以為這個學生不在這班
+    if (enrollmentError) {
+      return c.json({ error: '讀取報名失敗', message: enrollmentError.message }, 500);
+    }
     const enrolled = ((enrollmentRows ?? []) as Array<Record<string, any>>).some((row) =>
       isEnrolledOn(
         { effectiveFrom: row['effective_from'], effectiveTo: row['effective_to'] ?? null },

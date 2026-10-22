@@ -25,7 +25,8 @@ const TODAY = '2026-04-06';
 
 type Rows = Record<string, Array<Record<string, unknown>>>;
 
-function fakeDb(rows: Rows) {
+/** `failing` 裡的表：清單讀取回 error（單筆讀取不受影響） */
+function fakeDb(rows: Rows, failing: readonly string[] = []) {
   const writes: Array<{ table: string; payload: unknown }> = [];
   const make = (table: string) => {
     const data = rows[table] ?? [];
@@ -39,7 +40,11 @@ function fakeDb(rows: Rows) {
         return { select: () => Promise.resolve({ data: [row], error: null }) };
       },
       then: (resolve: (v: unknown) => unknown) =>
-        Promise.resolve({ data, error: null }).then(resolve),
+        Promise.resolve(
+          failing.includes(table)
+            ? { data: null, error: { message: `${table} 讀取失敗` } }
+            : { data, error: null },
+        ).then(resolve),
     };
     const builder: Record<string, unknown> = new Proxy(terminal, {
       get(target, prop: string) {
@@ -54,9 +59,15 @@ function fakeDb(rows: Rows) {
 
 async function call(
   rows: Rows,
-  opts: { method: string; path: string; roles?: string[]; scope?: string[] | null },
+  opts: {
+    method: string;
+    path: string;
+    roles?: string[];
+    scope?: string[] | null;
+    failing?: string[];
+  },
 ) {
-  const db = fakeDb(rows);
+  const db = fakeDb(rows, opts.failing);
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -182,6 +193,16 @@ describe('POST /roster/{eventId}/check-in —— 他到了', () => {
     }
   });
 
+  it('報名讀取失敗 → 500，不當成「不在籍」', async () => {
+    const r = await call(happy(), {
+      method: 'POST',
+      path: `/roster/${EVENT}/check-in`,
+      failing: ['enrollments'],
+    });
+    expect(r.status).toBe(500);
+    expect(r.writes).toHaveLength(0);
+  });
+
   it('分校是隨堂點名 → 409 NOT_DAILY_CHECKIN（記到班不會變成出席，老師會以為記了）', async () => {
     const r = await checkIn(happy({ campuses: [{ id: A, attendance_mode: 'per_session' }] }));
     expect(r.status).toBe(409);
@@ -254,6 +275,18 @@ describe('GET /roster/{eventId} —— 分校範圍與到班時間', () => {
     expect(r.status).toBe(200);
     expect(r.json?.attendanceMode).toBe('daily_checkin');
     expect(r.json?.students?.[0]?.checkedInAt).toBe('2026-04-06T08:12:00Z');
+  });
+
+  it('到班打卡或出勤紀錄讀取失敗 → 500，不退回「全部還沒到」', async () => {
+    for (const table of ['daily_checkins', 'attendance_records']) {
+      const r = await call(
+        happy({
+          enrollments: [{ student_id: STUDENT, effective_from: '2026-01-01', effective_to: null }],
+        }),
+        { method: 'GET', path: `/roster/${EVENT}`, roles: ['admin'], failing: [table] },
+      );
+      expect(r.status).toBe(500);
+    }
   });
 
   it('打卡指名了別的分校 → 不算到這堂（checkedInAt 是 null）', async () => {
