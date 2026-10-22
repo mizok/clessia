@@ -10,6 +10,8 @@ import { LeaveService } from '@core/leave.service';
 import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { StudentsService } from '@core/students.service';
+import { CoursesService } from '@core/courses.service';
+import { ClassesService } from '@core/classes.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { LeavePage } from './leave.page';
 import {
@@ -29,6 +31,15 @@ describe('LeavePage', () => {
     delete: vi.fn(() => of(void 0)),
   };
   const studentsServiceMock = { list: vi.fn() };
+  // #1100 #31：課程／開課班篩選的選項
+  const coursesServiceMock = {
+    list: vi.fn(() => of({ data: [{ id: 'course-1', name: '國中數學' }], meta: {} })),
+  };
+  const classesServiceMock = {
+    list: vi.fn((_params?: unknown) =>
+      of({ data: [{ id: 'class-1', name: '數學 A 班' }], meta: {} }),
+    ),
+  };
   const referenceDataServiceMock = {
     campuses: signal<Campus[]>([]),
     loadCampuses: vi.fn(),
@@ -74,6 +85,8 @@ describe('LeavePage', () => {
       providers: [
         provideRouter([]),
         { provide: StudentsService, useValue: studentsServiceMock },
+        { provide: CoursesService, useValue: coursesServiceMock },
+        { provide: ClassesService, useValue: classesServiceMock },
         { provide: LeaveService, useValue: leaveServiceMock },
         { provide: ReferenceDataService, useValue: referenceDataServiceMock },
         // **這個替身不是為了控制日期，是為了不要把真的 setInterval 拉進來。**
@@ -482,6 +495,41 @@ describe('LeavePage', () => {
       component['clearFilters']();
       expect(calls()[0][0]['studentId']).toBeUndefined();
       expect(component['hasFilter']()).toBe(false);
+    });
+
+    // #1100 #31：課程／開課班篩選
+    it('面板有課程、開課班兩欄；選課程帶 courseId、開課班只列那門課的班、已選的班清掉', () => {
+      component['tab'].set('all');
+      fixture.detectChanges();
+      expect(q('course-filter')!.textContent).toContain('課程');
+      expect(q('class-filter')!.textContent).toContain('開課班');
+
+      component['onClassChange']('class-1');
+      expect(calls().at(-1)![0]).toEqual(expect.objectContaining({ classId: 'class-1' }));
+
+      leaveServiceMock.list.mockClear();
+      classesServiceMock.list.mockClear();
+      component['onCourseChange']('course-1');
+      expect(classesServiceMock.list).toHaveBeenCalledWith(
+        expect.objectContaining({ courseId: 'course-1', isActive: true }),
+      );
+      expect(calls()[0][0]).toEqual(expect.objectContaining({ courseId: 'course-1', page: 1 }));
+      expect(calls()[0][0]['classId']).toBeUndefined();
+      expect(component['hasFilter']()).toBe(true);
+
+      leaveServiceMock.list.mockClear();
+      component['clearFilters']();
+      expect(calls()[0][0]['courseId']).toBeUndefined();
+      expect(component['hasFilter']()).toBe(false);
+    });
+
+    it('待處理分頁不帶課程／開課班', () => {
+      component['tab'].set('all');
+      component['onClassChange']('class-1');
+      leaveServiceMock.list.mockClear();
+      component['setTab']('pending');
+      vi.runAllTimers();
+      expect(calls().at(-1)![0]['classId']).toBeUndefined();
     });
 
     describe('取消請假的確認文案寫清出缺席影響（rules §6–7）', () => {
