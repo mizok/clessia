@@ -693,3 +693,10 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 - 作者退場（`agent_not_found`）就請計畫席轉派；roles-2c 只能用 `SendMessage` 回 uds。
 - 使用者親合只限：既有金額路徑、migration Approve、修憲、backfill。家長讀取面、授權修正、`/api/me` 名字退路都不是（計畫席多次更正作者寫的「等使用者」）。
 - iOS 實機要使用者驗的：#1854（已驗）、#1869、#1893。
+
+### 六、手上的單（2026-10-23 限流前）
+
+- **背景合併**：一支 `mv.sh` 依序合 #1913 @c2fc7ddc → #1920 @e27d6184（等 #1906 b1d875da 的 main verify 綠才開始）。醒來先看 main 上這兩張有沒有合、verify 是不是綠。
+- **review3 在二讀**（它也可能被限流）：#1917＋#1918（兩張都動 harness A28，要併跑）、#1927（不穩定測試，5 支守衛要用違規檔驗）、#1930（新版提示）、#1933（保留類，/api/courses 改 SQL，計畫席已讀 diff）。review3 的 charter 草稿在它 worktree 的 `herdr-team/labor-20261023-0032-review3.md`，還沒 commit。
+- **合後提醒**：#1920 要找機會看 Windows／Android 的後備字型；將來加 CSP 時，字型的 onload 載入要一併處理。
+- **待使用者 iPhone 驗**：#1869、#1893、#1908（#1854 已驗）。
