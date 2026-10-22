@@ -42,8 +42,8 @@ tags: [specs, admin, student-affairs, grades]
   帶了範圍外的學生撈不到（不報錯）。`studentIds` 上限 3000；超過 20000 列回 413（不截斷）。
   開課班／課程＝那場校內考掛的班裡、學生有報名的那班；段考跟班無關，兩欄留空。缺考／補考不寫分數。
   字串開頭是 = + - @ 的會補單引號（CSV 公式注入，`lib/csv`，營收 CSV 共用）。
-  學生 id 以 100 個一批查（PostgREST 走 GET，id 進 URL；成績的 select 長，200 個就 414），合併後重排。
-  任一段查詢失敗就整份 500，不回少了一半的檔案。
+  成績走 pg pool 的一條 SQL（學生 id 用 `= ANY($2::uuid[])` 當參數）：走 PostgREST 的話 id 進 GET URL 會 414、
+  切批又撞 Workers 每請求 50 個 subrequest。pool 不在、或任一段查詢失敗就整份 500，不回少了一半的檔案。
 
 ## API 語意（#1115，2026-10-04）
 

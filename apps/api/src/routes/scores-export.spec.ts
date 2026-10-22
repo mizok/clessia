@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // 老師的任課學生：只給 S1（taughtStudentIds 本身由 teacher-scope 的 spec 守）
 vi.mock('../lib/teacher-scope', async (importOriginal) => ({
@@ -7,110 +7,88 @@ vi.mock('../lib/teacher-scope', async (importOriginal) => ({
   taughtStudentIds: vi.fn(async () => [S1]),
 }));
 
+/**
+ * 成績走 pg pool 的 SQL。替身照 `$2`（學生 id 清單，NULL＝不限）過濾、照 `$3` 截 —— 真的 SQL 語意
+ * （欄位、班級、org 條件、3000 個 id）由 `list-endpoints.contract` 對真 DB 驗
+ */
+const pg = {
+  rows: [] as Array<Record<string, unknown> & { student_id: string }>,
+  calls: [] as Array<{ sql: string; params: unknown[] }>,
+  throws: false,
+  noPool: false,
+};
+vi.mock('../lib/get-auth', () => ({
+  getAuth: () => ({
+    pool: pg.noPool
+      ? undefined
+      : {
+          query: async (sql: string, params: unknown[]) => {
+            pg.calls.push({ sql, params });
+            if (pg.throws) throw new Error('pg boom');
+            const ids = params[1] as string[] | null;
+            const rows = pg.rows.filter((r) => ids === null || ids.includes(r.student_id));
+            return { rows: rows.slice(0, params[2] as number) };
+          },
+        },
+  }),
+}));
+
 import scoresApp from './scores';
 
 /**
  * #1100 #40：成績匯出 CSV（保留類 —— 匯出是把資料帶出系統，範圍錯了就是外洩）。
- * 替身依表名回 fixture，**成績查詢照 `in('student_id', …)` 過濾、照 `range` 分頁**，
- * 這樣範圍有沒有套上看得出來（不只是斷言送了什麼）。
+ * 範圍：resolveScoreScope（老師 ∩ 分校）∩ 頂欄分校 ∩ studentIds。
  */
 const S1 = '11111111-1111-4111-8111-111111111111';
 const S2 = '22222222-2222-4222-8222-222222222222';
 const CAMPUS_A = '33333333-3333-4333-8333-333333333333';
 const CAMPUS_B = '44444444-4444-4444-8444-444444444444';
+const HEADER = '學生姓名,開課班,考試名稱,課程,日期,分數,狀態';
 
-interface Op {
-  readonly name: string;
-  readonly args: readonly unknown[];
-}
-interface Q {
-  readonly table: string;
-  readonly ops: Op[];
-}
-
-const academyRow = (
-  id: string,
-  studentId: string,
-  name: string,
-  score: number | null,
-  status = 'scored',
-) => ({
-  id,
-  exam_id: 'ex-1',
+const row = (studentId: string, name: string, over: Record<string, unknown> = {}) => ({
   student_id: studentId,
-  score,
-  status,
-  created_at: '2026-10-01T00:00:00Z',
-  academy_exams: {
-    name: '第一次段考',
-    exam_date: '2026-10-01',
-    total_score: 100,
-    pass_score: 60,
-    scope_note: null,
-    org_id: 'org-1',
-    subjects: { name: '數學' },
-  },
-  students: { name },
+  student_name: name,
+  class_name: '數學 A 班',
+  exam_name: '第一次段考',
+  course_name: '國三數學',
+  exam_date: '2026-10-01',
+  score: 88,
+  status: 'scored',
+  ...over,
 });
 
-function setup(opts: {
-  roles?: string[];
-  campusScope?: string[] | null;
-  academy?: ReturnType<typeof academyRow>[];
-  staffRow?: boolean;
-  /** 這張表的查詢回 error */
-  failTable?: string;
-}) {
-  const queries: Q[] = [];
-  const academy = opts.academy ?? [
-    academyRow('a1', S1, '=HYPERLINK("evil")', 88),
-    // 缺考那筆就算存了分數也不寫（舊資料可能留著）
-    academyRow('a2', S2, '王小明', 5, 'absent'),
+beforeEach(() => {
+  pg.rows = [
+    row(S1, '=HYPERLINK("evil")'),
+    // 缺考那筆就算存了分數也不寫；段考沒有班
+    row(S2, '王小明', { class_name: null, course_name: null, score: 5, status: 'absent' }),
   ];
-  const inArg = (q: Q, col: string) =>
-    q.ops.find((o) => o.name === 'in' && o.args[0] === col)?.args[1] as string[] | undefined;
-  const page = <T>(q: Q, rows: T[]) => {
-    const r = q.ops.find((o) => o.name === 'range')?.args as [number, number] | undefined;
-    return r ? rows.slice(r[0], r[1] + 1) : rows;
-  };
-  const resolve = (q: Q): unknown => {
-    if (q.table === 'staff') return opts.staffRow === false ? null : { id: 'staff-1' };
-    if (q.table === 'enrollments' && inArg(q, 'classes.campus_id')) {
-      // 分校 A 只有 S1
-      return inArg(q, 'classes.campus_id')!.includes(CAMPUS_A) ? [{ student_id: S1 }] : [];
-    }
-    if (q.table === 'enrollments' && inArg(q, 'class_id'))
-      return [{ student_id: S1, class_id: 'cl-1' }];
-    if (q.table === 'academy_scores') {
-      const ids = inArg(q, 'student_id');
-      return page(q, ids ? academy.filter((r) => ids.includes(r.student_id)) : academy);
-    }
-    if (q.table === 'academy_exam_classes')
-      return [
-        {
-          exam_id: 'ex-1',
-          class_id: 'cl-1',
-          classes: { name: '數學 A 班', courses: { name: '國三數學' } },
-        },
-      ];
-    return [];
-  };
+  pg.calls = [];
+  pg.throws = false;
+  pg.noPool = false;
+});
+
+function setup(opts: { roles?: string[]; campusScope?: string[] | null; staffRow?: boolean }) {
+  const inArg = (ops: Array<{ name: string; args: unknown[] }>, col: string) =>
+    ops.find((o) => o.name === 'in' && o.args[0] === col)?.args[1] as string[] | undefined;
   const supabase = {
     from(table: string) {
-      const q: Q = { table, ops: [] };
-      queries.push(q);
+      const ops: Array<{ name: string; args: unknown[] }> = [];
+      const resolve = () => {
+        if (table === 'staff') return opts.staffRow === false ? null : { id: 'staff-1' };
+        // 分校 A 只有 S1
+        if (table === 'enrollments' && inArg(ops, 'classes.campus_id'))
+          return inArg(ops, 'classes.campus_id')!.includes(CAMPUS_A) ? [{ student_id: S1 }] : [];
+        return [];
+      };
       const proxy: Record<string, unknown> = new Proxy(
         {},
         {
           get(_t, prop: string) {
             if (prop === 'then')
               return (ok?: (v: unknown) => unknown) =>
-                Promise.resolve(
-                  q.table === opts.failTable
-                    ? { data: null, error: { message: 'boom' } }
-                    : { data: resolve(q), error: null },
-                ).then(ok);
-            return (...args: unknown[]) => (q.ops.push({ name: prop, args }), proxy);
+                Promise.resolve({ data: resolve(), error: null }).then(ok);
+            return (...args: unknown[]) => (ops.push({ name: prop, args }), proxy);
           },
         },
       );
@@ -128,128 +106,110 @@ function setup(opts: {
     await next();
   });
   app.route('/api/scores', scoresApp);
-  const post = (body: unknown) =>
+  return (body: unknown) =>
     app.request('/api/scores/export', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
-  return { post, queries };
 }
 
 const lines = async (res: Response) => (await res.text()).replace(/^﻿/, '').split('\r\n');
+const sentIds = () => pg.calls.at(-1)?.params[1];
 
 describe('POST /api/scores/export（#1100 #40）', () => {
-  it('欄位照規格；開課班／課程取學生有報名的那班；姓名的公式注入被跳脫', async () => {
-    const { post } = setup({});
-    const res = await post({});
+  it('欄位照規格；公式注入被跳脫；缺考不寫分數；SQL 帶 org、上限＋1', async () => {
+    const res = await setup({})({});
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/csv');
     expect(await lines(res)).toEqual([
-      '學生姓名,開課班,考試名稱,課程,日期,分數,狀態',
+      HEADER,
       `"'=HYPERLINK(""evil"")",數學 A 班,第一次段考,國三數學,2026-10-01,88,正常`,
-      // S2 在那個班沒有報名 → 開課班／課程留空；缺考不寫分數
       '王小明,,第一次段考,,2026-10-01,,缺考',
     ]);
+    // 不受限的管理員按「全部學生」→ $2 是 NULL（不限），不是把全 org 的 id 塞進來
+    expect(pg.calls[0]!.params).toEqual(['org-1', null, 20001]);
   });
 
-  it('「照目前的篩選」：只匯出帶來的學生', async () => {
-    const { post } = setup({});
-    const out = await lines(await post({ studentIds: [S2] }));
-    expect(out).toHaveLength(2);
-    expect(out[1]).toContain('王小明');
+  // 替身不跑 SQL：org 條件只能斷言字串（真的語意由契約測試對真 DB 驗）
+  it('SQL 每一張表都帶 org 條件（成績靠考試的 org、班與報名各自的 org）', async () => {
+    await setup({})({});
+    const sql = pg.calls[0]!.sql.replace(/\s+/g, ' ');
+    for (const cond of [
+      'e.org_id = $1',
+      'se.org_id = $1',
+      'c.org_id = $1',
+      'en.org_id = $1',
+      's.student_id = ANY($2::uuid[])',
+      'ss.student_id = ANY($2::uuid[])',
+    ])
+      expect(sql).toContain(cond);
+  });
+
+  it('「照目前的篩選」：只送帶來的學生', async () => {
+    await setup({})({ studentIds: [S2] });
+    expect(sentIds()).toEqual([S2]);
   });
 
   it('老師：只匯出自己的學生 —— 帶了別人的學生 id 也撈不到', async () => {
-    const { post } = setup({ roles: ['teacher'] });
-    const out = await lines(await post({ studentIds: [S1, S2] }));
-    expect(out).toHaveLength(2);
-    expect(out[1]).toContain('HYPERLINK');
+    const out = await lines(await setup({ roles: ['teacher'] })({ studentIds: [S1, S2] }));
+    expect(sentIds()).toEqual([S1]);
     expect(out.join()).not.toContain('王小明');
   });
 
-  it('不是老師也不是管理員（查不到教職員列）→ 403', async () => {
-    const { post } = setup({ roles: ['teacher'], staffRow: false });
-    expect((await post({})).status).toBe(403);
+  it('老師按「全部學生」：也只有自己的學生，不是 NULL（不限）', async () => {
+    await setup({ roles: ['teacher'] })({});
+    expect(sentIds()).toEqual([S1]);
   });
 
-  it('受限管理員：分校範圍套上 —— 只有範圍內的學生', async () => {
-    const { post } = setup({ campusScope: [CAMPUS_A] });
-    const out = await lines(await post({}));
-    expect(out).toHaveLength(2);
-    expect(out.join()).not.toContain('王小明');
+  it('不是老師也不是管理員（查不到教職員列）→ 403，不查成績', async () => {
+    expect((await setup({ roles: ['teacher'], staffRow: false })({})).status).toBe(403);
+    expect(pg.calls).toEqual([]);
   });
 
-  it('受限管理員＋照目前的篩選：帶範圍外的學生 → 撈不到（取交集，不是用帶來的名單）', async () => {
-    const { post } = setup({ campusScope: [CAMPUS_A] });
-    const out = await lines(await post({ studentIds: [S2] }));
-    expect(out).toEqual(['學生姓名,開課班,考試名稱,課程,日期,分數,狀態']);
+  it('受限管理員：分校範圍套上 —— 只送範圍內的學生', async () => {
+    await setup({ campusScope: [CAMPUS_A] })({});
+    expect(sentIds()).toEqual([S1]);
   });
 
   it('受限管理員帶別分校的 campusId → 只有標頭，連成績都不查', async () => {
-    const { post, queries } = setup({ campusScope: [CAMPUS_A] });
-    const out = await lines(await post({ campusId: CAMPUS_B }));
-    expect(out).toEqual(['學生姓名,開課班,考試名稱,課程,日期,分數,狀態']);
-    expect(queries.some((q) => q.table === 'academy_scores')).toBe(false);
+    const out = await lines(await setup({ campusScope: [CAMPUS_A] })({ campusId: CAMPUS_B }));
+    expect(out).toEqual([HEADER]);
+    expect(pg.calls).toEqual([]);
+  });
+
+  it('受限管理員＋照目前的篩選：帶範圍外的學生 → 只有標頭（取交集，不是用帶來的名單）', async () => {
+    const out = await lines(await setup({ campusScope: [CAMPUS_A] })({ studentIds: [S2] }));
+    expect(out).toEqual([HEADER]);
+    expect(pg.calls).toEqual([]);
   });
 
   it('超過 20000 列 → 413，不截斷', async () => {
-    const many = Array.from({ length: 20001 }, (_, i) => academyRow(`r${i}`, S1, '王', 1));
-    const { post } = setup({ academy: many });
-    const res = await post({});
+    pg.rows = Array.from({ length: 20001 }, () => row(S1, '王'));
+    const res = await setup({})({});
     expect(res.status).toBe(413);
     expect(((await res.json()) as { code: string }).code).toBe('TOO_MANY_ROWS');
   });
 
-  // 計畫席讀 diff：任一段失敗就整份失敗 —— 校內考那半失敗的話檔案只剩段考，看起來卻是完整的
-  it.each(['academy_scores', 'school_scores', 'academy_exam_classes'])(
-    '%s 讀失敗 → 500，不回 CSV',
-    async (table) => {
-      const { post } = setup({ failTable: table });
-      const res = await post({});
-      expect(res.status).toBe(500);
-      expect(res.headers.get('content-type')).not.toContain('text/csv');
-    },
-  );
-
-  it('學生清單切批查（每批 ≤ 100 個 id）：250 位 → 3 批，結果合併', async () => {
-    const ids = Array.from(
-      { length: 250 },
-      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
-    );
-    const { post, queries } = setup({ academy: [academyRow('a1', ids[249]!, '最後一批的人', 70)] });
-    const out = await lines(await post({ studentIds: ids }));
-    const batches = queries
-      .filter((q) => q.table === 'academy_scores')
-      .map(
-        (q) =>
-          q.ops.find((o) => o.name === 'in' && o.args[0] === 'student_id')!.args[1] as string[],
-      );
-    expect(batches.map((b) => b.length)).toEqual([100, 100, 50]);
-    expect(new Set(batches.flat()).size).toBe(250);
-    expect(out[1]).toContain('最後一批的人');
+  it('連線池不在 → 500 DB_POOL_UNAVAILABLE（不退回 REST）', async () => {
+    pg.noPool = true;
+    const res = await setup({})({});
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('DB_POOL_UNAVAILABLE');
   });
 
-  it('切批之後整份重新依考試日新到舊排（不是一批一批接）', async () => {
-    const ids = Array.from(
-      { length: 150 },
-      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
-    );
-    const older = academyRow('old', ids[0]!, '第一批', 60);
-    const newer = academyRow('new', ids[149]!, '第二批', 70);
-    newer.academy_exams = { ...newer.academy_exams, exam_date: '2026-10-20' };
-    older.academy_exams = { ...older.academy_exams, exam_date: '2026-09-01' };
-    const { post } = setup({ academy: [older, newer] });
-    const out = await lines(await post({ studentIds: ids }));
-    expect(out.slice(1).map((l) => l.split(',')[0])).toEqual(['第二批', '第一批']);
+  it('SQL 失敗 → 500，不回 CSV', async () => {
+    pg.throws = true;
+    const res = await setup({})({});
+    expect(res.status).toBe(500);
+    expect(res.headers.get('content-type')).not.toContain('text/csv');
   });
 
   it('studentIds 超過 3000 → 400', async () => {
-    const { post } = setup({});
     const ids = Array.from(
       { length: 3001 },
       (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
     );
-    expect((await post({ studentIds: ids })).status).toBe(400);
+    expect((await setup({})({ studentIds: ids })).status).toBe(400);
   });
 });
