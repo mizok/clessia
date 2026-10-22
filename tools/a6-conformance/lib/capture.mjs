@@ -87,7 +87,10 @@ export async function openPage(
   return { ctx, page, errors };
 }
 
-/** 要樣板化的專有名詞：人名（稿＝window.CLESSIA 的假人名；app＝登入者）→ {名}，分校名 → {分校}。 */
+/**
+ * 要樣板化的專有名詞：人名（稿＝window.CLESSIA 的假人名；app＝登入者，家長再加上孩子，#1932）→ {名}，
+ * 分校名 → {分校}。
+ */
 export async function harvestNames(page, source, ctx) {
   if (source === 'app') {
     const get = (u) =>
@@ -95,10 +98,16 @@ export async function harvestNames(page, source, ctx) {
         .get(API_URL + u)
         .then((r) => r.json())
         .catch(() => null);
-    const [me, campuses] = await Promise.all([get('/api/me'), get('/api/campuses')]);
+    // 孩子：家長頁色面的「目前看的是 X」、標題句都是孩子名字；不是家長時這支回錯 → null
+    const [me, campuses, children] = await Promise.all([
+      get('/api/me'),
+      get('/api/campuses'),
+      get('/api/me/children'),
+    ]);
     // 「全部分校」是「沒選單一分校」的使用者狀態，跟稿選了「文山旗艦校」一樣算資料
     return [
       me?.displayName,
+      ...(children?.data ?? []).map((c) => c.name),
       ...['全部分校', ...(campuses?.data ?? []).map((c) => c.name)].map((n) => [n, '{分校}']),
     ].filter(Boolean);
   }
