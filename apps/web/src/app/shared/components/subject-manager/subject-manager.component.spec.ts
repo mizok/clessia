@@ -120,7 +120,7 @@ describe('SubjectManagerComponent', () => {
     it('只有課程在用時，只提課程', () => {
       expect(
         reason({ id: 's', name: '國文', sortOrder: 0, courseCount: 2, academyExamCount: 0 }),
-      ).toBe('已被2 個課程使用中，無法刪除');
+      ).toBe('已被 2 個課程使用中，無法刪除');
     });
 
     // 這正是 M8 那個洞本身——舊版 API 只查 courses，courseCount 為 0 但
@@ -128,14 +128,58 @@ describe('SubjectManagerComponent', () => {
     it('只有校內考在用時，也要擋（不能只看課程數）', () => {
       expect(
         reason({ id: 's', name: '國文', sortOrder: 0, courseCount: 0, academyExamCount: 1 }),
-      ).toBe('已被1 場校內考使用中，無法刪除');
+      ).toBe('已被 1 場校內考使用中，無法刪除');
     });
 
     it('兩者都在用時，兩個數字都要列出來', () => {
       expect(
         reason({ id: 's', name: '國文', sortOrder: 0, courseCount: 2, academyExamCount: 1 }),
-      ).toBe('已被2 個課程、1 場校內考使用中，無法刪除');
+      ).toBe('已被 2 個課程、1 場校內考使用中，無法刪除');
     });
+  });
+
+  // A6：被用到的科目按刪除跳說明（不是只灰掉），說明裡給改名的出口；永遠不打刪除 API
+  it('被用到的科目按刪除 → 跳說明，選「改名」就進行內編輯，不呼叫刪除', () => {
+    const openSpy = stubConfirmDialog(true);
+    const used: Subject = {
+      id: 'subject-2',
+      name: '英文',
+      sortOrder: 1,
+      courseCount: 11,
+      academyExamCount: 14,
+    };
+
+    (component as unknown as { confirmDelete: (subject: Subject) => void }).confirmDelete(used);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      ConfirmDialogComponent,
+      expect.objectContaining({
+        header: '「英文」不能刪除',
+        data: expect.objectContaining({
+          message: expect.stringContaining('已被 11 個課程、14 場校內考使用中'),
+          acceptLabel: '改名',
+        }),
+      }),
+    );
+    expect(subjectsServiceMock.delete).not.toHaveBeenCalled();
+    expect((component as unknown as { editingId: () => string | null }).editingId()).toBe(
+      'subject-2',
+    );
+  });
+
+  it('沒被用到的科目列常駐「還沒被用到」', () => {
+    expect(fixture.nativeElement.textContent).toContain('還沒被用到');
+  });
+
+  it('新增同名科目 → 前端先擋並提示，不打 API', () => {
+    (component as unknown as { newSubjectName: { set: (v: string) => void } }).newSubjectName.set(
+      '數學',
+    );
+    (component as unknown as { addSubject: () => void }).addSubject();
+    fixture.detectChanges();
+
+    expect(subjectsServiceMock.create).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('已經有「數學」了');
   });
 
   it('確認後才呼叫刪除 API', () => {

@@ -40,7 +40,7 @@
       @for (subject of subjects(); track subject.id) {
         <div
           [style.view-transition-name]="'subject-' + subject.id"
-          class="subject-manager__row vt-row flex cursor-default items-center gap-2 rounded-md p-2 [transition:background_0.15s] hover:bg-zinc-50"
+          class="subject-manager__row vt-row flex min-h-[68px] cursor-default items-center gap-2 border-b border-solid border-zinc-200 py-3"
         >
           @if (editingId() === subject.id) {
             <!-- Inline edit mode -->
@@ -78,11 +78,13 @@
           } @else {
             <!-- Display mode -->
             <span class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
-              <span class="subject-manager__name text-md text-zinc-800">{{ subject.name }}</span>
-              @if (deleteBlockReason(subject); as reason) {
-                <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到 -->
-                <span class="subject-manager__usage-hint text-xs text-zinc-500">{{ reason }}</span>
-              }
+              <span class="subject-manager__name text-lg font-bold text-zinc-900">{{
+                subject.name
+              }}</span>
+              <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到。沒被用到也講（A6） -->
+              <span class="subject-manager__usage-hint text-sm text-zinc-600">{{
+                deleteBlockReason(subject) ?? '還沒被用到'
+              }}</span>
             </span>
             <p-button
               icon="pi pi-pencil"
@@ -93,16 +95,22 @@
               (onClick)="startEdit(subject)"
               pTooltip="改名"
               tooltipPosition="top"
+              [ariaLabel]="'改名 ' + subject.name"
             />
+            <!-- 被用到的不灰掉：按了跳說明（A6「不是只灰掉」），外觀降成淡色提示不能刪 -->
             <p-button
               icon="pi pi-trash"
               [rounded]="true"
               [text]="true"
-              severity="danger"
+              [severity]="deleteBlockReason(subject) ? 'secondary' : 'danger'"
               size="small"
-              [disabled]="!!deleteBlockReason(subject)"
               [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
               tooltipPosition="top"
+              [ariaLabel]="
+                deleteBlockReason(subject)
+                  ? '刪除 ' + subject.name + '（使用中，不能刪，按了看原因）'
+                  : '刪除 ' + subject.name
+              "
               (onClick)="confirmDelete(subject)"
             />
           }
@@ -115,11 +123,8 @@
         </p>
       }
 
-      <!-- Divider -->
-      <div class="subject-manager__divider mx-0 my-3 h-px bg-zinc-200"></div>
-
       <!-- Add new -->
-      <div class="subject-manager__add flex items-center gap-2">
+      <div class="subject-manager__add mt-5 flex max-w-[520px] items-center gap-2">
         <input
           pInputText
           class="subject-manager__input flex-1 text-[0.9375rem]"
