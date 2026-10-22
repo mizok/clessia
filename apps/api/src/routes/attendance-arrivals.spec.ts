@@ -245,6 +245,34 @@ describe('POST /roster/{eventId}/check-in —— 他到了', () => {
     expect(r.status).toBe(409);
   });
 
+  // 計畫席 10-22 裁：卡已在別校，名單只認卡上的分校 —— 回 409、不寫出勤，免得三方不一致
+  it('他今天已在別校掃過卡 → 409 CHECKED_IN_ELSEWHERE，打卡與出勤都沒有寫入', async () => {
+    const r = await checkIn(
+      happy({ daily_checkins: [{ campus_id: B, campuses: { name: '景美分校' } }] }),
+    );
+    expect(r.status).toBe(409);
+    expect(r.json?.code).toBe('CHECKED_IN_ELSEWHERE');
+    expect(r.json?.error).toContain('景美分校');
+    expect(r.writes.filter((w) => w.table !== 'audit_logs')).toHaveLength(0);
+  });
+
+  it('卡在同一校（或卡沒帶分校）→ 照常記，不擋', async () => {
+    for (const campus_id of [A, null]) {
+      const r = await checkIn(happy({ daily_checkins: [{ campus_id }] }));
+      expect(r.status).toBe(201);
+    }
+  });
+
+  it('讀既有到班紀錄失敗 → 500，不寫', async () => {
+    const r = await call(happy(), {
+      method: 'POST',
+      path: `/roster/${EVENT}/check-in`,
+      failingSingle: ['daily_checkins'],
+    });
+    expect(r.status).toBe(500);
+    expect(r.writes).toHaveLength(0);
+  });
+
   it('受限分校的管理員記範圍外的課 → 403，不寫', async () => {
     const r = await checkIn(happy(), ['admin'], [B]);
     expect(r.status).toBe(403);
