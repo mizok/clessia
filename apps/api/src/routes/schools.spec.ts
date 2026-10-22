@@ -153,3 +153,110 @@ describe('schools 的稽核 details（#837）', () => {
     expect(row?.['details']).not.toHaveProperty('created_at');
   });
 });
+
+/** #1314 SE4：學制欄位（null＝未分類） */
+describe('schools 的學制（level）', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const SCHOOL = '00000000-0000-0000-0000-0000000000d1';
+  const ROW = {
+    id: SCHOOL,
+    name: '明湖國中',
+    short_name: '明湖',
+    level: 'junior',
+    is_active: true,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  };
+
+  function fakeDb(listRows: Array<Record<string, unknown>> = []) {
+    const writes: Array<{ table: string; op: string; payload: unknown }> = [];
+    const make = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      Object.assign(builder, {
+        select: () => chain(),
+        eq: () => chain(),
+        or: () => chain(),
+        order: () => chain(),
+        insert: (payload: Record<string, unknown>) => {
+          writes.push({ table, op: 'insert', payload });
+          return table === 'audit_logs' ? Promise.resolve({ error: null }) : chain();
+        },
+        update: (payload: Record<string, unknown>) => {
+          writes.push({ table, op: 'update', payload });
+          return chain();
+        },
+        single: () => Promise.resolve({ data: ROW, error: null }),
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) =>
+          resolve({ data: listRows, count: listRows.length, error: null }),
+      });
+      return builder;
+    };
+    return { writes, from: (table: string) => make(table) };
+  }
+
+  async function request(
+    path: string,
+    method: string,
+    body?: unknown,
+    listRows?: Array<Record<string, unknown>>,
+  ) {
+    const db = fakeDb(listRows);
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', schoolsRoute.default as unknown as Hono);
+    const res = await app.request(path, {
+      method,
+      ...(body === undefined
+        ? {}
+        : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
+    });
+    const json = (await res.json().catch(() => null)) as Record<string, any> | null;
+    return { status: res.status, json, writes: db.writes };
+  }
+
+  it('列表帶 level；沒填的回 null（未分類），不是 undefined', async () => {
+    const { json } = await request('/', 'GET', undefined, [
+      { ...ROW, students: [{ count: 3 }] },
+      { ...ROW, id: 'x', level: null, students: [] },
+    ]);
+    expect(json?.['data'].map((s: { level: unknown }) => s.level)).toEqual(['junior', null]);
+  });
+
+  it('新增帶 level 會寫進去；沒帶就是 null', async () => {
+    const a = await request('/', 'POST', { name: '明湖國中', level: 'junior' });
+    expect(a.status).toBe(201);
+    expect(a.writes.find((w) => w.table === 'schools')?.payload).toMatchObject({ level: 'junior' });
+    const b = await request('/', 'POST', { name: '明湖國中' });
+    expect(b.writes.find((w) => w.table === 'schools')?.payload).toMatchObject({ level: null });
+  });
+
+  it('PATCH 可以改學制，也可以清回未分類（null）', async () => {
+    const a = await request(`/${SCHOOL}`, 'PATCH', { level: 'senior' });
+    expect(a.status).toBe(200);
+    expect(a.writes.find((w) => w.op === 'update')?.payload).toEqual({ level: 'senior' });
+    const b = await request(`/${SCHOOL}`, 'PATCH', { level: null });
+    expect(b.writes.find((w) => w.op === 'update')?.payload).toEqual({ level: null });
+  });
+
+  it('PATCH 沒帶 level 就不動它', async () => {
+    const r = await request(`/${SCHOOL}`, 'PATCH', { name: '明湖高中' });
+    expect(r.writes.find((w) => w.op === 'update')?.payload).not.toHaveProperty('level');
+  });
+
+  it('不在 enum 裡的學制 → 400，不寫', async () => {
+    const r = await request(`/${SCHOOL}`, 'PATCH', { level: 'university' });
+    expect(r.status).toBe(400);
+    expect(r.writes.filter((w) => w.op === 'update')).toHaveLength(0);
+  });
+});
