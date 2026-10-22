@@ -85,3 +85,11 @@ describe('PageOpenComponent 標題字級', () => {
     });
   });
 });
+
+describe('PageOpenComponent 色面高度用滑的（#1859）', () => {
+  it('色面掛 appHeightFollow（#1861 的共用 directive，不另起一支）', () => {
+    const f = TestBed.createComponent(Host);
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('section[appheightfollow]')).not.toBeNull();
+  });
+});
