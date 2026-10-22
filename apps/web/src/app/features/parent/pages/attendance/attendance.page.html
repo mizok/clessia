@@ -137,7 +137,7 @@
                 <div class="attendance__rec rounded-md not-first:mt-1">
                   <button
                     type="button"
-                    class="attendance__record grid min-h-11 w-full cursor-pointer [font:inherit] grid-cols-[44px_minmax(0,1fr)_16px] items-center gap-x-3 gap-y-0.5 rounded-md border-0 bg-transparent p-2 text-left text-inherit hover:bg-zinc-50 aria-expanded:rounded-b-none aria-expanded:bg-zinc-100 wide:grid-cols-[56px_minmax(0,1fr)_auto_16px] wide:px-3"
+                    class="attendance__record grid min-h-11 w-full cursor-pointer [font:inherit] grid-cols-[44px_minmax(0,1fr)_16px] items-center gap-x-3 gap-y-0.5 rounded-md wide:gap-y-3 border-0 bg-transparent p-2 text-left text-inherit hover:bg-zinc-50 aria-expanded:rounded-b-none aria-expanded:bg-zinc-100 wide:grid-cols-[56px_minmax(0,1fr)_auto_16px] wide:px-3"
                     [attr.aria-expanded]="expandedId() === record.id"
                     [attr.aria-controls]="'rec-' + record.id"
                     (click)="toggleExpanded(record)"
@@ -147,9 +147,9 @@
                     <span
                       class="attendance__status"
                       [class]="
-                        st.tone === 'absent'
+                        st.tone === 'alert'
                           ? 'font-bold text-error-700'
-                          : st.tone === 'present'
+                          : st.tone === 'strong'
                             ? 'font-bold'
                             : 'font-semibold text-zinc-600'
                       "

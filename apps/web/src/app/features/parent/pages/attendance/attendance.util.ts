@@ -50,7 +50,8 @@ export function sessionChipLabel(
 /** 一堂在列上的狀態字與樣式（#1810 設計稿 §4）。`tone` 對應模板裡的字色 */
 export interface RowStatus {
   readonly label: string;
-  readonly tone: 'absent' | 'present' | 'muted';
+  /** A6 `.rec__s`：`alert`＝紅字粗（缺席）、`strong`＝深字粗（出席、停課）、`muted`＝淡色半粗 */
+  readonly tone: 'alert' | 'strong' | 'muted';
 }
 
 /**
@@ -60,12 +61,12 @@ export interface RowStatus {
  * `now` 是台北牆上時鐘（`taipeiWallClock`），不是瀏覽器的 `new Date()`。
  */
 export function rowStatus(row: ParentAttendanceDayRow, now: Date): RowStatus {
-  if (row.sessionStatus === 'cancelled') return { label: '停課', tone: 'muted' };
-  if (row.status === 'absent') return { label: ATTENDANCE_STATUS_LABELS.absent, tone: 'absent' };
-  if (row.status === 'present') return { label: ATTENDANCE_STATUS_LABELS.present, tone: 'present' };
+  if (row.sessionStatus === 'cancelled') return { label: '停課', tone: 'strong' };
+  if (row.status === 'absent') return { label: ATTENDANCE_STATUS_LABELS.absent, tone: 'alert' };
+  if (row.status === 'present') return { label: ATTENDANCE_STATUS_LABELS.present, tone: 'strong' };
   if (row.status === 'on_leave') return { label: ATTENDANCE_STATUS_LABELS.on_leave, tone: 'muted' };
   if (row.derived === 'leave') return { label: '請假', tone: 'muted' };
-  if (row.derived === 'checkin') return { label: '出席', tone: 'present' };
+  if (row.derived === 'checkin') return { label: '出席', tone: 'strong' };
   const window = { date: row.eventDate, startTime: row.startTime, endTime: row.endTime };
   if (!hasSessionStarted(window, now)) return { label: '還沒上', tone: 'muted' };
   if (!hasSessionEnded(window, now)) return { label: '上課中', tone: 'muted' };

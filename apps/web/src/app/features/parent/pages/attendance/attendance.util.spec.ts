@@ -153,8 +153,13 @@ describe('sessionChipLabel', () => {
     const label = (over: Parameters<typeof record>[0], now = at(12)) =>
       rowStatus(record(over), now).label;
 
-    it('停課優先 —— 即使上面有一筆請假（停課前請的）', () => {
-      expect(label({ sessionStatus: 'cancelled', status: 'on_leave' })).toBe('停課');
+    it('停課優先 —— 即使上面有一筆請假（停課前請的）；A6 停課是深字粗', () => {
+      expect(rowStatus(record({ sessionStatus: 'cancelled', status: 'on_leave' }), at(12))).toEqual(
+        {
+          label: '停課',
+          tone: 'strong',
+        },
+      );
     });
 
     it('有紀錄照紀錄：出席／請假／缺席，缺席是紅字', () => {
@@ -162,7 +167,7 @@ describe('sessionChipLabel', () => {
       expect(label({ status: 'on_leave' })).toBe('請假');
       expect(rowStatus(record({ status: 'absent' }), at(12))).toEqual({
         label: '缺席',
-        tone: 'absent',
+        tone: 'alert',
       });
     });
 
@@ -175,7 +180,7 @@ describe('sessionChipLabel', () => {
       expect(label({ status: null }, at(8, 30))).toBe('還沒上');
       expect(label({ status: null }, at(9, 30))).toBe('上課中');
       expect(label({ status: null }, at(12))).toBe('沒有紀錄');
-      expect(rowStatus(record({ status: null }), at(12)).tone).not.toBe('absent');
+      expect(rowStatus(record({ status: null }), at(12)).tone).toBe('muted');
     });
   });
 
