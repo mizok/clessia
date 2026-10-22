@@ -7,6 +7,7 @@ import {
   nextGrade,
   promoteGrades,
   promotionPlan,
+  promotionReminderDue,
   revertPromotion,
   schoolMismatchClause,
   type PlanStudent,
@@ -36,6 +37,47 @@ describe('nextGrade／levelOfGrade／academicYearOf', () => {
     expect(academicYearOf('2026-07-31')).toBe(114);
     expect(academicYearOf('2026-08-01')).toBe(115);
     expect(academicYearOf('2027-01-15')).toBe(115);
+  });
+});
+
+describe('promotionReminderDue（升級前提醒）', () => {
+  it('升級日前 N 天內（含當天）該提醒，帶距離與學年', () => {
+    expect(promotionReminderDue('09-01', 7, '2026-08-25')).toEqual({
+      date: '2026-09-01',
+      daysUntil: 7,
+      academicYear: 115,
+    });
+    expect(promotionReminderDue('09-01', 7, '2026-09-01')?.daysUntil).toBe(0);
+  });
+
+  it('還沒進窗、或今年的升級日已過且明年的還遠 → null', () => {
+    expect(promotionReminderDue('09-01', 7, '2026-08-24')).toBeNull();
+    expect(promotionReminderDue('09-01', 7, '2026-09-02')).toBeNull();
+  });
+
+  it('學年照升級日算：今天 7/30（114 學年）、升級日 8/2 → 115', () => {
+    expect(promotionReminderDue('08-02', 7, '2026-07-30')).toEqual({
+      date: '2026-08-02',
+      daysUntil: 3,
+      academicYear: 115,
+    });
+  });
+
+  it('天數 0＝不提醒', () => {
+    expect(promotionReminderDue('09-01', 0, '2026-09-01')).toBeNull();
+  });
+
+  it('跨年：升級日 1/5、今天 12/30 → 明年那天', () => {
+    expect(promotionReminderDue('01-05', 7, '2026-12-30')).toEqual({
+      date: '2027-01-05',
+      daysUntil: 6,
+      academicYear: 115,
+    });
+  });
+
+  it('2/29 在平年落到 2/28', () => {
+    expect(promotionReminderDue('02-29', 3, '2027-02-26')?.date).toBe('2027-02-28');
+    expect(promotionReminderDue('02-29', 3, '2028-02-26')?.date).toBe('2028-02-29');
   });
 });
 
