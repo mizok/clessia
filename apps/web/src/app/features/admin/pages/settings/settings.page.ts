@@ -1,4 +1,5 @@
-import { Component, OnInit, inject, signal, input } from '@angular/core';
+import { Component, OnInit, computed, inject, signal, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ButtonModule } from 'primeng/button';
@@ -6,7 +7,8 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TextareaModule } from 'primeng/textarea';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { MessageService } from 'primeng/api';
-import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
+import { BillingPeriodsService, type BillingPeriodListItem } from '@core/billing-periods.service';
 import {
   OrgSettingsService,
   type AttendanceMode,
@@ -26,6 +28,7 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
     TextareaModule,
     InputNumberModule,
     LoadFailedComponent,
+    RouterLink,
   ],
   templateUrl: './settings.page.html',
 })
@@ -34,6 +37,7 @@ export class SettingsPage implements OnInit {
 
   private readonly orgSettingsService = inject(OrgSettingsService);
   private readonly messageService = inject(MessageService);
+  private readonly billingPeriodsService = inject(BillingPeriodsService);
 
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
@@ -56,6 +60,50 @@ export class SettingsPage implements OnInit {
   /** #1305：待開單提醒天數。同帳戶資訊：只在回應帶了這個 key（有財務權限）時畫 */
   protected billingReminderDaysValue = 14;
   protected readonly savingBillingReminder = signal(false);
+
+  /**
+   * 預設繳費期限（開帳時 due_date 的預設天數，`invoice_due_days`）。#1314 SE2a 之前**沒有畫面能改**，
+   * A6「繳費」段的第一欄。財務設定，同帳戶資訊
+   */
+  protected invoiceDueDaysValue = 14;
+  protected readonly savingInvoiceDue = signal(false);
+
+  /**
+   * 學期與繳費週期（#1314 SE2a，A6「學期與繳費週期」段）。這裡**只列**，增刪改在費用方案頁 ——
+   * 那裡已經有表單與刪除規則（被帳單明細引用的不能刪），不在兩個地方各做一份。
+   * `null`＝還沒讀到；讀失敗另外記，不能讓「沒有週期」的空態冒出來
+   */
+  protected readonly periods = signal<BillingPeriodListItem[] | null>(null);
+  protected readonly periodsFailed = signal(false);
+  protected readonly feeTemplatesPath = RoutesCatalog.ADMIN_FEE_TEMPLATES.absolutePath;
+
+  /**
+   * 有財務權限 —— API 只把財務欄位回給有 `manage_finance` 的人（沒有時是 key 不存在，不是 0）。
+   * 「繳費」與「週期」兩段都跟著它
+   */
+  protected readonly hasFinance = computed(() => {
+    const s = this.settings();
+    return (
+      !!s &&
+      [
+        s.invoiceDueDays,
+        s.billingReminderDays,
+        s.leaveWaiverDays,
+        s.invoiceReminderOffsets,
+        s.paymentInfo,
+      ].some((v) => v !== undefined)
+    );
+  });
+
+  /** 「繳費」段收起來時的摘要（A6 `.coll__m`）：期限＋家長提醒時間點 */
+  protected readonly financeSummary = computed(() => {
+    const due = this.settings()?.invoiceDueDays;
+    const offsets = this.settings()?.invoiceReminderOffsets ?? [];
+    const remind = offsets.length
+      ? `提醒 ${offsets.map((o) => this.reminderLabel(o)).join('、')}`
+      : '不推播提醒';
+    return due === undefined ? remind : `期限 ${due} 天 · ${remind}`;
+  });
 
   /** #1732：連續請假可不收費的門檻。財務設定，同上 */
   protected leaveWaiverDaysValue = 3;
@@ -101,7 +149,10 @@ export class SettingsPage implements OnInit {
         this.billingReminderDaysValue = s.billingReminderDays ?? 14;
         this.leaveWaiverDaysValue = s.leaveWaiverDays ?? 3;
         this.reminderOffsets.set(s.invoiceReminderOffsets ?? []);
+        this.invoiceDueDaysValue = s.invoiceDueDays ?? 14;
         this.loading.set(false);
+        // 週期是財務資料（API 要 manage_finance）：回應帶了財務欄位才讀，否則整段不畫
+        if (this.hasFinance()) this.loadPeriods();
       },
       // **不發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast + 留著的錯誤畫面
       // 是兩個互相矛盾的訊號（#788 的裁定，照 /admin/parents 的形狀）。
@@ -159,6 +210,43 @@ export class SettingsPage implements OnInit {
           });
         },
       });
+  }
+
+  protected loadPeriods(): void {
+    this.periodsFailed.set(false);
+    this.billingPeriodsService.list().subscribe({
+      next: (res) =>
+        this.periods.set([...res.data].sort((a, b) => b.startDate.localeCompare(a.startDate))),
+      error: () => {
+        this.periods.set(null);
+        this.periodsFailed.set(true);
+      },
+    });
+  }
+
+  /** 開帳時 due_date 的預設天數（0 以上）。已開的帳單不受影響 */
+  protected saveInvoiceDueDays(): void {
+    this.savingInvoiceDue.set(true);
+    this.orgSettingsService.updateSettings({ invoiceDueDays: this.invoiceDueDaysValue }).subscribe({
+      next: (s) => {
+        this.settings.set(s);
+        this.invoiceDueDaysValue = s.invoiceDueDays ?? 14;
+        this.savingInvoiceDue.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: '已儲存',
+          detail: '繳費期限已更新',
+        });
+      },
+      error: () => {
+        this.savingInvoiceDue.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: '錯誤',
+          detail: '儲存失敗，請稍後再試',
+        });
+      },
+    });
   }
 
   /** #1732：連續請假滿這麼多個上課日，提醒有財務權限的人（2–30）。系統不改帳單 */

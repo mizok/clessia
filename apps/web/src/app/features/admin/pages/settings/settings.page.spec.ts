@@ -248,7 +248,10 @@ describe('SettingsPage', () => {
       page().addReminderOffset();
       expect(page().reminderOffsets()).toEqual([-10, -3, 0, 1, 7]);
       fixture.detectChanges();
-      const text = bodyText();
+      // 只看提醒清單本身 —— 收合段的摘要（#1314 SE2a）寫的是已存的值，排在清單前面
+      const text = (fixture.nativeElement as HTMLElement).querySelector(
+        'ul[aria-labelledby="settings-invoice-reminder-title"]',
+      )!.textContent!;
       expect(text.indexOf('到期前 10 天')).toBeGreaterThan(-1);
       expect(text.indexOf('到期前 10 天')).toBeLessThan(text.indexOf('到期前 3 天'));
     });
