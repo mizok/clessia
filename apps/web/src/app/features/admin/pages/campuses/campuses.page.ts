@@ -147,7 +147,7 @@ export class CampusesPage implements OnInit {
       {
         label: '刪除分校',
         icon: 'pi pi-trash',
-        itemClass: 'text-red-500',
+        danger: true,
         command: () => this.confirmDelete(campus),
       },
     );

@@ -571,6 +571,28 @@ describe('CoursesPage', () => {
       expect(used[1].disabled).toBe(true);
       expect(toggle).toHaveBeenCalledTimes(2);
     });
+
+    it('刪除類項目上危險色（#1360）：刪除課程、刪除班級有 danger；啟用／停用班級沒有', () => {
+      const menu = { toggle: vi.fn() } as never;
+      const page = component as unknown as {
+        openCourseMenu: (e: Event, c: unknown, h: boolean, m: unknown) => void;
+        courseActionMenuItems: () => { label?: string; danger?: boolean }[];
+        openActionMenu: (e: Event, c: unknown, m: unknown) => void;
+        classActionMenuItems: () => { label?: string; danger?: boolean }[];
+      };
+      page.openCourseMenu(new Event('click'), { id: 'c1', isActive: true }, false, menu);
+      expect(page.courseActionMenuItems().find((i) => i.label === '刪除課程')?.danger).toBe(true);
+
+      for (const isActive of [true, false]) {
+        const cls = { id: 'k1', courseId: 'c1', isActive, hasPastSessions: false };
+        page.openActionMenu(new Event('click'), cls, menu);
+        const items = page.classActionMenuItems();
+        expect(items.find((i) => i.label === '刪除班級')?.danger).toBe(true);
+        const toggle = items.find((i) => i.label === (isActive ? '停用班級' : '啟用班級'));
+        expect(toggle).toBeDefined();
+        expect(toggle?.danger).toBeUndefined();
+      }
+    });
   });
 
   describe('#1314 視覺對齊：標題兩行、搜尋無標籤、篩選鈕寫狀態、需介入以班為單位', () => {
