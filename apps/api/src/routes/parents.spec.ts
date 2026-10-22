@@ -11,8 +11,41 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // 所以這個 mock 不會改變它們的行為。
 const createdUsers: string[] = [];
 const removedUsers: string[] = [];
+/**
+ * #1843：改孩子走 `auth.pool` 的交易。替身依 SQL 回答 —— 預設「學生都在本 org、都在範圍」，
+ * 個別測試改 `pgState`。真正的 SQL 語意在 `contract/parent-children.contract.ts` 對真 Postgres 驗。
+ */
+const pgState = {
+  parentFound: true,
+  current: [] as string[],
+  inOrg: null as string[] | null, // null＝傳進來的都算
+  inScope: null as string[] | null,
+  sent: [] as string[],
+};
+const pgAnswer = (sql: string, params: unknown[] = []) => {
+  pgState.sent.push(sql.trim().split(/\s+/).slice(0, 3).join(' '));
+  const ids = (params[0] ?? []) as string[];
+  if (/FROM parents WHERE id/.test(sql)) return pgState.parentFound ? [{ id: params[0] }] : [];
+  if (/FROM parent_student_relations r/.test(sql))
+    return pgState.current.map((student_id) => ({ student_id }));
+  if (/FROM students WHERE/.test(sql))
+    return ids.filter((i) => !pgState.inOrg || pgState.inOrg.includes(i)).map((id) => ({ id }));
+  if (/FROM enrollments e/.test(sql))
+    return ids
+      .filter((i) => !pgState.inScope || pgState.inScope.includes(i))
+      .map((student_id) => ({ student_id }));
+  return [];
+};
+const fakePgPool = {
+  query: async (sql: string, params?: unknown[]) => ({ rows: pgAnswer(sql, params) }),
+  connect: async () => ({
+    query: async (sql: string, params?: unknown[]) => ({ rows: pgAnswer(sql, params) }),
+    release: () => undefined,
+  }),
+};
 vi.mock('../lib/get-auth', () => ({
   getAuth: () => ({
+    pool: fakePgPool,
     api: {
       createUser: async ({ body }: { body: { email: string } }) => {
         const id = `ba-new-${createdUsers.length + 1}`;
@@ -806,5 +839,145 @@ describe('建立家長要一併給 parent 角色（#877）', () => {
     expect(roleRowsIn(inserts)).toEqual([
       { user_id: expect.stringMatching(/^ba-new-/), role: 'parent', permissions: [] },
     ]);
+  });
+});
+
+/**
+ * #1843：改孩子原本「先刪全部再插入」、沒有交易，插入失敗時親子關聯全部消失；
+ * 也沒驗學生屬於本 org、在不在受限管理員的範圍。交易本身的回滾在 contract 驗，這裡守路由層：
+ * 驗不過時回對的碼、**名字也沒改**（孩子先處理），而且不再經 PostgREST 刪關聯。
+ */
+describe('改孩子的授權與交易（#1843）', () => {
+  const PARENT = '11111111-1111-4111-8111-111111111111';
+  const KID = '22222222-2222-4222-8222-222222222222';
+  const OTHER_ORG_KID = '33333333-3333-4333-8333-333333333333';
+
+  afterEach(() => {
+    Object.assign(pgState, {
+      parentFound: true,
+      current: [],
+      inOrg: null,
+      inScope: null,
+      sent: [],
+    });
+  });
+
+  /** 記下所有 PostgREST 的寫入；`parent_student_relations` 讀回空，家長在範圍內 */
+  function fakeSupabase(writes: string[]) {
+    const from = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      Object.assign(builder, {
+        select: () => chain(),
+        eq: () => chain(),
+        in: () => chain(),
+        order: () => chain(),
+        range: () => chain(),
+        update: () => (writes.push(`update ${table}`), chain()),
+        insert: () => (writes.push(`insert ${table}`), chain()),
+        delete: () => (writes.push(`delete ${table}`), chain()),
+        single: () =>
+          Promise.resolve({
+            data: { id: PARENT, user_id: 'user-x', name: '林媽媽', status: 'active' },
+            error: null,
+          }),
+        maybeSingle: () => Promise.resolve({ data: { id: PARENT }, error: null }),
+        then: (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
+          resolve({
+            data: table === 'parent_student_relations' ? [{ parent_id: PARENT }] : [],
+            error: null,
+          }),
+      });
+      return builder;
+    };
+    return { from };
+  }
+
+  async function call(method: 'PUT' | 'POST', body: unknown, scope: readonly string[] | null) {
+    const writes: string[] = [];
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', fakeSupabase(writes));
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('campusScope', scope);
+      await next();
+    });
+    app.route('/', parentsRoute as unknown as Hono);
+    const res = await app.request(
+      method === 'PUT' ? `/${PARENT}` : '/',
+      { method, body: JSON.stringify(body), headers: { 'content-type': 'application/json' } },
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid', WEB_URL: 'http://localhost:4200' },
+    );
+    return { res, writes };
+  }
+
+  it('PUT：別 org 的學生 → 404 STUDENT_NOT_FOUND，名字沒改、沒有任何寫入', async () => {
+    pgState.inOrg = [KID];
+    const { res, writes } = await call(
+      'PUT',
+      { name: '改名', studentIds: [KID, OTHER_ORG_KID] },
+      null,
+    );
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { code: string }).code).toBe('STUDENT_NOT_FOUND');
+    expect(writes).toEqual([]);
+    expect(pgState.sent.some((s) => /^(DELETE|INSERT)/.test(s))).toBe(false);
+  });
+
+  it('PUT：受限管理員加範圍外的學生 → 403 STUDENT_OUT_OF_SCOPE，名字沒改', async () => {
+    pgState.inScope = [];
+    const { res, writes } = await call('PUT', { name: '改名', studentIds: [KID] }, ['campus-1']);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe('STUDENT_OUT_OF_SCOPE');
+    expect(writes).toEqual([]);
+  });
+
+  it('PUT：已經掛著的範圍外孩子原樣存回 → 不擋（沒有新加的就不驗範圍）', async () => {
+    pgState.current = [KID];
+    pgState.inScope = [];
+    const { res } = await call('PUT', { studentIds: [KID] }, ['campus-1']);
+    expect(res.status).toBe(200);
+  });
+
+  it('PUT：成功走交易（BEGIN … COMMIT），不再經 PostgREST 刪／插關聯', async () => {
+    pgState.current = [OTHER_ORG_KID];
+    const { res, writes } = await call('PUT', { studentIds: [KID] }, null);
+    expect(res.status).toBe(200);
+    expect(pgState.sent[0]).toBe('BEGIN');
+    expect(pgState.sent.at(-1)).toBe('COMMIT');
+    expect(pgState.sent.filter((s) => /^(DELETE|INSERT)/.test(s))).toEqual([
+      'DELETE FROM parent_student_relations',
+      'INSERT INTO parent_student_relations',
+    ]);
+    expect(writes.filter((w) => w.endsWith('parent_student_relations'))).toEqual([]);
+  });
+
+  it('POST：別 org 的學生 → 404，在建帳號之前就擋（沒建任何東西）', async () => {
+    pgState.inOrg = [];
+    const before = createdUsers.length;
+    const { res, writes } = await call(
+      'POST',
+      { name: '新家長', phone: '0912000999', studentIds: [OTHER_ORG_KID] },
+      null,
+    );
+    expect(res.status).toBe(404);
+    expect(createdUsers.length).toBe(before);
+    expect(writes).toEqual([]);
+  });
+
+  it('POST：受限管理員掛範圍外的學生 → 403，沒建任何東西', async () => {
+    pgState.inScope = [];
+    const before = createdUsers.length;
+    const { res, writes } = await call(
+      'POST',
+      { name: '新家長', phone: '0912000998', studentIds: [KID] },
+      ['campus-1'],
+    );
+    expect(res.status).toBe(403);
+    expect(createdUsers.length).toBe(before);
+    expect(writes).toEqual([]);
   });
 });
