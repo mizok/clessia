@@ -4,7 +4,7 @@ summary: 舊 index 要不到新 chunk 時，導覽失敗自動重載一次、預
 category: architecture
 tags: [architecture, resilience]
 status: active
-updated: 2026-10-16
+updated: 2026-10-23
 ---
 
 # 部署後舊分頁的 chunk 載入失敗復原
@@ -128,6 +128,23 @@ router.events
 那顆「重新載入」。改它會影響既有的 11 處用法。root component 的提示條用純標記寫，
 **零新依賴** —— `app.component.ts` 有一條明文約束：不要再往 root 加 UI 依賴
 （曾經因為 DynamicDialog 讓初始 bundle 多 140 kB）。
+
+## 提早知道有新版（#1723）
+
+上面的復原都要等舊分頁**真的去要一個不在的 chunk** 才觸發。在那之前，舊前端照樣打新的 API。
+`AppVersionService.checkForNewVersion()` 在**開站一次、回到前景（節流 60 秒）**時，用
+`cache: 'no-store'`＋`?v=時間戳` 抓線上的 `index.html`，比它引用的入口檔名
+（`main-<內容雜湊>.js`）跟自己載入的那支；不一樣就 `markStale()` 亮同一條提示條。
+
+- **比入口檔名，不比 commit sha**：sha 每次部署都變，只改 API、只改文件的部署也會讓所有分頁
+  亮「有新版本」—— 狼來了。入口檔名是內容雜湊，前端產物沒變它就不變。
+- **lazy chunk 改了，入口檔名會跟著變**（2026-10-23 實測：只改班級視角一個模板，那支 chunk 改名、
+  `main-CKOO7OEG.js` → `main-DUELNGWS.js`；只改註解空白、產物不變時兩者都不變）。入口檔引用 lazy
+  chunk 的檔名，雜湊會往上傳。萬一哪天換 builder 不再往上傳，下一次導覽時上面的 chunk 404 重載仍會接住。
+- **不另放 `/version.json`**：要改 build、要加 `_headers` 不快取，而且不存在的檔被 SPA fallback 回成
+  HTML 的坑（#1599）會讓它讀到 index.html。直接讀 `index.html` 沒有這些事，自架也自動成立（c12）。
+- 讀不到、非 2xx、回來的頁面裡找不到入口檔名（錯誤頁、維護頁）→ 當作沒比到，**不**亮。
+- dev server 的入口是 `main.js`（沒有雜湊）→ 拿不到自己的入口檔名，整個不比。
 
 ## 防迴圈
 
