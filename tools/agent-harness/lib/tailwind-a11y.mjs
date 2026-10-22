@@ -48,7 +48,7 @@ const isInteractive = (el) =>
   el.inputs.some((i) => ['routerLink', 'href'].includes(i.name));
 
 /**
- * 工具列控制項的自訂 utility（tailwind.css，#1903）：高度是 `--tbar-control`，手機基底 44、桌機 40。
+ * 工具列控制項的自訂 utility（tailwind.css，#1903）：高度是 `--tbar-control`，手機與觸控 44、桌機（寬螢幕＋滑鼠）40。
  * 觸控看手機基底，所以算 44。**改了 tailwind.css 的手機值，這裡要跟著改。**
  */
 const NAMED_HEIGHT_PX = { 'tbar-control': 44, 'tbar-control-square': 44 };
