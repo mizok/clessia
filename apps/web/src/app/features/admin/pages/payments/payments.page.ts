@@ -89,6 +89,7 @@ import {
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
 import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 
@@ -132,6 +133,7 @@ const emptyChapter = (): ChapterState => ({
   selector: 'app-payments',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     HeightFollowDirective,
     InvoiceActionsComponent,

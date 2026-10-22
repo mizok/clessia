@@ -17,9 +17,28 @@ import {
   type Invoice,
   type PaymentKind,
   type PaymentMethod,
+  type RecordPaymentResult,
 } from '@core/invoices.service';
 
 import { outstanding } from '../payments.util';
+
+/**
+ * 記收款後的 toast 內文（#1778）：金額，加上這次收款的連帶結果（有才寫）——
+ * 第一筆收款就把待付款的報名轉正式、繳清時完成家長的報名申請（伺服器同一個交易做的）
+ */
+export function paymentToastDetail(
+  amount: number,
+  refund: boolean,
+  res: Pick<RecordPaymentResult, 'activatedEnrollments' | 'completedRequests'>,
+): string {
+  const parts = [`${refund ? '退費' : '收款'} ${amount.toLocaleString('zh-TW')} 元`];
+  const activated = res.activatedEnrollments ?? [];
+  if (activated.length > 0) {
+    parts.push(`${activated.map((e) => `${e.studentName}（${e.className}）`).join('、')}轉為正式`);
+  }
+  if ((res.completedRequests ?? []).length > 0) parts.push('報名申請已完成');
+  return parts.join(' · ');
+}
 
 /**
  * 記一筆收款或退費。
@@ -116,7 +135,7 @@ export class PaymentFormDialogComponent {
           this.messageService.add({
             severity: 'success',
             summary: this.isRefund() ? '已記錄退費' : '已記錄收款',
-            detail: `${this.isRefund() ? '退費' : '收款'} ${amount.toLocaleString('zh-TW')} 元`,
+            detail: paymentToastDetail(amount, this.isRefund(), res),
           });
           // 回傳整張帳單 —— 狀態已由後端重新推導，呼叫端直接換掉手上那份
           this.ref.close(res.data);

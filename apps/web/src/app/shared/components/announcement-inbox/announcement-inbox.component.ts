@@ -11,11 +11,16 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { MessageService } from 'primeng/api';
 import { map as rxMap, type Observable } from 'rxjs';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
 import { InboxBadgeService } from '@core/inbox-badge.service';
 import { NotificationsService, type AppNotification } from '@core/notifications.service';
+import { addDaysToDateString, taipeiDateString } from '@core/system-clock.service';
+import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type Source = 'announcement' | 'notification';
 
@@ -105,18 +110,25 @@ function fromNotification(n: AppNotification): InboxItem {
  */
 @Component({
   selector: 'app-announcement-inbox',
-  imports: [DatePipe, ValueArriveDirective],
+  imports: [
+    SkeletonComponent,
+    DatePipe,
+    ValueArriveDirective,
+    PageOpenComponent,
+    ChapterHeadComponent,
+  ],
   templateUrl: './announcement-inbox.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AnnouncementInboxComponent {
-  /** 頁面標題 —— 由呼叫端給，因為老師與家長的選單標籤不一樣 */
+  /** 頁面標題 —— 由呼叫端給，因為老師與家長的選單標籤不一樣；色面句還沒算出來時顯示它 */
   readonly heading = input.required<string>();
 
   private readonly announcementsService = inject(AnnouncementsService);
   private readonly notificationsService = inject(NotificationsService);
   private readonly badge = inject(InboxBadgeService);
   private readonly router = inject(Router);
+  private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly api: Record<
@@ -124,7 +136,7 @@ export class AnnouncementInboxComponent {
     {
       inbox(): Observable<{ data: InboxItem[]; meta: { unread: number } }>;
       markRead(id: string): Observable<unknown>;
-      markAllRead(): Observable<unknown>;
+      markAllRead(): Observable<{ marked: number }>;
     }
   > = {
     announcement: {
@@ -167,6 +179,44 @@ export class AnnouncementInboxComponent {
     const u = this.unreadBy();
     return (u.announcement ?? 0) + (u.notification ?? 0);
   });
+  /**
+   * 依「今天／昨天／這週／更早」分章（A6，同管理端通知中心），日期用台北時區切。
+   * 「這週」＝今天往前 6 天內（A6 `d > addDays(T, -7)`），不是日曆週。
+   */
+  protected readonly chapters = computed(() => {
+    const today = taipeiDateString(Date.now());
+    const yesterday = addDaysToDateString(today, -1);
+    const weekStart = addDaysToDateString(today, -6);
+    const names = ['今天', '昨天', '這週', '更早'] as const;
+    const groups = new Map<string, InboxItem[]>(names.map((n) => [n, []]));
+    for (const item of this.items()) {
+      const day = taipeiDateString(Date.parse(item.at));
+      const name =
+        day >= today ? '今天' : day === yesterday ? '昨天' : day >= weekStart ? '這週' : '更早';
+      groups.get(name)!.push(item);
+    }
+    return names
+      .map((name) => {
+        const items = groups.get(name)!;
+        return { name, items, unread: items.filter((i) => !i.isRead).length };
+      })
+      .filter((c) => c.items.length > 0);
+  });
+
+  /**
+   * 色面句：「N 則未讀，／今天 M 則新通知。」，全部讀過「通知都看過了。」（A6 p-notifications）。
+   * 老師稿寫「新公告／公告都看過了」，但 #1683 起老師收件匣也有通知，兩邊一律寫「通知」（計畫席 10-22）。
+   * 還沒載到、或整頁失敗回 `null`，模板退回頁名。
+   */
+  protected readonly headline = computed<{ first: string; second: string | null } | null>(() => {
+    if (this.loading() || this.loadError()) return null;
+    if (this.items().length === 0) return { first: '還沒有收到通知。', second: null };
+    const u = this.unread();
+    if (u === 0) return { first: '通知都看過了。', second: null };
+    const today = this.chapters().find((c) => c.name === '今天')?.items.length ?? 0;
+    return { first: `${u} 則未讀，`, second: `今天 ${today} 則新通知。` };
+  });
+
   /** 展開中的那一列（`source:id`）；公告展開即視為已讀 */
   protected readonly openKey = signal<string | null>(null);
 
@@ -213,19 +263,35 @@ export class AnnouncementInboxComponent {
    */
   protected markAllRead(): void {
     this.markAllPartial.set(false);
-    for (const source of ['announcement', 'notification'] as const) {
-      const count = this.unreadBy()[source] ?? 0;
-      const ids = this.lists()
-        [source].filter((i) => !i.isRead)
-        .map((i) => i.id);
-      if (count === 0 && ids.length === 0) continue;
-
+    // 兩支都回來之後 toast 一行「已把 N 則標為已讀」，N 是伺服器實際標的數（A6；稿上的「復原」不做，沒有標回未讀的 API）
+    const jobs = (['announcement', 'notification'] as const)
+      .map((source) => ({
+        source,
+        count: this.unreadBy()[source] ?? 0,
+        ids: this.lists()
+          [source].filter((i) => !i.isRead)
+          .map((i) => i.id),
+      }))
+      .filter((j) => j.count > 0 || j.ids.length > 0);
+    // 先數好要送幾支再送：回應可能同步回來（cache、測試替身），邊送邊數會在第一支就 toast
+    let pending = jobs.length;
+    let marked = 0;
+    const settle = () => {
+      if (--pending === 0 && marked > 0)
+        this.messageService.add({ severity: 'success', summary: `已把 ${marked} 則標為已讀` });
+    };
+    for (const { source, count, ids } of jobs) {
       this.setRead(source, ids, true, count);
       // 同 markRead：按完馬上離開頁面也要送得到
       this.api[source].markAllRead().subscribe({
+        next: (res) => {
+          marked += res.marked;
+          settle();
+        },
         error: () => {
           this.setRead(source, ids, false, count);
           this.markAllPartial.set(true);
+          settle();
         },
       });
     }

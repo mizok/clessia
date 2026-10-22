@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, teacher]
 created: 2026-09-12
-updated: 2026-10-03
+updated: 2026-10-22
 ---
 
 # 通知中心（老師端）
@@ -30,7 +30,7 @@ template: `<app-announcement-inbox [heading]="page().label" />`;
 ```
 
 整頁的內容、互動元素與狀態全部在 → [[specs/sitemap/_shared/announcement-inbox]]。
-**這一層只提供標題文字**（`通知中心`）。
+**這一層只提供標題文字**（`通知中心`）—— 2026-10-22 起（#1888，照 A6）它只在資料還沒到時頂著，之後色面句換成未讀數。
 
 > 元件註解：#291 之前這裡是自己的一份實作（212 行 spec），抽成共用件時 14 條測試
 > 逐條搬過去，html / scss / spec 一起刪 —— 留著只會兩份各自長。

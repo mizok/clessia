@@ -41,11 +41,7 @@
   <app-child-scope-gate>
     <div class="dashboard__content page-wrap pb-12">
       @if (data() === null) {
-        <div class="skeleton-list mt-8">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
+        <app-skeleton class="mt-8" label="首頁載入中" [count]="3" />
       } @else {
         <!-- 待繳（A6 .pd-pay）：灰面一條，紅只給逾期的字 -->
         @if (pay(); as p) {

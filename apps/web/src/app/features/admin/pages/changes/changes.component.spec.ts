@@ -92,7 +92,7 @@ describe('ChangesComponent', () => {
     f.detectChanges();
 
     expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(f.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
   it('預設查當月', async () => {

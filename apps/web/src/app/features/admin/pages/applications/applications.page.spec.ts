@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { MessageService } from 'primeng/api';
+import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -188,16 +188,20 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
       ),
     ].map((c) => c.getAttribute('data-testid'));
 
-  it('待處理：兩支都打，依時間合在一份（新的在前）；卡片標「家長 App」', async () => {
+  // #1874：依要做的事分章 —— 家長 App 的報名在「報名」章、公開表單在「新家長」章；列上標狀態（不再標來源）
+  it('待處理：兩支都打；家長 App 報名在「報名」章、公開表單在「新家長」章，列上標狀態', async () => {
     const { parents, service, el } = await setup();
 
     expect(service.list).toHaveBeenCalledWith({ statuses: ['new', 'contacted'], kind: null });
     expect(parents.list).toHaveBeenCalledWith({ group: 'pending', kind: null });
     expect(cards(el)).toEqual(['parent-request-card', 'application-card']);
+    expect(
+      [...el.querySelectorAll('section[data-chapter]')].map((c) => c.getAttribute('data-chapter')),
+    ).toEqual(['enroll', 'lead']);
 
     const card = el.querySelector('[data-testid="parent-request-card"]')!;
-    expect(card.textContent).toContain('家長 App');
-    expect(card.textContent).toContain('報名');
+    expect(card.closest('section')!.getAttribute('data-chapter')).toBe('enroll');
+    expect(card.textContent).toContain('待審核');
     expect(card.textContent).toContain('林媽媽');
     expect(card.querySelector('a[href="tel:0912000111"]')).not.toBeNull();
     expect(card.querySelector('a[href="/admin/students/stu-1"]')?.textContent).toContain('林小華');
@@ -271,12 +275,18 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     expect(card.textContent).toContain('這班已經額滿');
   });
 
-  it('待審核、候補的報名：有拒絕鈕（跟 API 可拒絕的狀態同一條）', async () => {
+  // #1874：拒絕收進列的「⋯」（全頁一份選單，打開時依那一列重算）
+  const menuLabels = (p: any, item: unknown) => {
+    p.menuFor.set(item);
+    return (p.rowMenuItems() as Array<{ label?: string }>).map((i) => i.label);
+  };
+
+  it('待審核、候補的報名：「⋯」裡有拒絕（跟 API 可拒絕的狀態同一條）', async () => {
     for (const status of ['pending', 'waitlist']) {
       TestBed.resetTestingModule();
-      const { el } = await setup([req({ status })]);
-      const buttons = [...el.querySelectorAll('[data-testid="parent-request-card"] button')];
-      expect(buttons.some((b) => b.textContent?.includes('拒絕'))).toBe(true);
+      const { fixture } = await setup([req({ status })]);
+      const p = page(fixture);
+      expect(menuLabels(p, p.items()[0])).toContain('拒絕…');
     }
   });
 
@@ -316,12 +326,19 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
     expect(after.status).toBe('pending');
   });
 
-  it('已拒絕、待繳費的報名：沒有拒絕鈕', async () => {
+  it('已拒絕、待繳費的報名：「⋯」裡沒有拒絕、列上也沒有核准', async () => {
     for (const status of ['rejected', 'awaiting_payment']) {
       TestBed.resetTestingModule();
-      const { el } = await setup([req({ status })]);
+      const { fixture, el } = await setup([req({ status })]);
+      const p = page(fixture);
+      expect(
+        menuLabels(
+          p,
+          p.items().find((i: any) => i.source === 'parent'),
+        ),
+      ).not.toContain('拒絕…');
       const buttons = [...el.querySelectorAll('[data-testid="parent-request-card"] button')];
-      expect(buttons.some((b) => b.textContent?.includes('拒絕'))).toBe(false);
+      expect(buttons.some((b) => b.textContent?.trim() === '核准')).toBe(false);
     }
   });
 
@@ -541,5 +558,192 @@ describe('ApplicationsPage：家長 App 的申請（#1707）', () => {
       );
       expect(parents.list).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+/** #1874：A6 語言重排（版面稿使用者 10-22 確認）—— 只改畫面，寫入路徑不變 */
+describe('ApplicationsPage：版面（#1874）', () => {
+  const page = (f: { componentInstance: unknown }) => f.componentInstance as any;
+  const title = (el: HTMLElement) =>
+    el.querySelector('app-page-open h1')!.textContent!.replace(/\s+/g, '');
+  const labels = (p: any, item: unknown) => {
+    p.menuFor.set(item);
+    return (p.rowMenuItems() as Array<{ label?: string }>).map((i) => i.label);
+  };
+  const trial = (extra: Partial<ParentRequest> = {}) =>
+    req({
+      id: 't1',
+      kind: 'trial',
+      status: 'pending',
+      createdAt: '2026-10-06T01:00:00Z',
+      ...extra,
+    });
+
+  it('三章依序：報名、試聽、新家長；家長 App 的試聽在「試聽」章', async () => {
+    const { el } = await setup([req(), trial()]);
+    const chapters = [...el.querySelectorAll('section[data-chapter]')];
+    expect(chapters.map((c) => c.getAttribute('data-chapter'))).toEqual([
+      'enroll',
+      'trial',
+      'lead',
+    ]);
+    expect(chapters[1]!.querySelectorAll('[data-testid="parent-request-card"]')).toHaveLength(1);
+  });
+
+  it('色面句：待處理寫「N 筆申請等你處理」，有沒排的試聽再加一句；別的分頁寫「分頁名 N 筆」', async () => {
+    // 二讀：已排定的試聽不算「還沒排」—— 只數 status === 'pending'
+    const scheduled = trial({ id: 't2', status: 'scheduled', scheduledDate: '2026-10-25' });
+    const { fixture, el } = await setup([req(), trial(), scheduled]);
+    expect(title(el)).toBe('4筆申請等你處理，1堂試聽還沒排時間。');
+    // 模板換行不能變成標點前的空白（實機截圖抓到「處理 ，」）
+    expect(el.querySelector('app-page-open h1')!.textContent).not.toMatch(/\s[，。]/);
+
+    const p = page(fixture);
+    p.setFilter(p.filters.find((f: { label: string }) => f.label === '已轉入'));
+    fixture.detectChanges();
+    expect(title(el)).toBe('已轉入4筆。');
+  });
+
+  it('沒有沒排的試聽：色面只有第一句', async () => {
+    const { el } = await setup([req()]);
+    expect(title(el)).toBe('2筆申請等你處理。');
+  });
+
+  it('待處理沒有申請：色面寫「沒有待處理的申請。」', async () => {
+    const { fixture, el, service } = await setup([]);
+    service.list.mockReturnValue(of({ data: [] }));
+    page(fixture).load();
+    fixture.detectChanges();
+    expect(title(el)).toBe('沒有待處理的申請。');
+  });
+
+  it('「查看學生檔案」導到那個學生的檔案頁（帶學生 id）', async () => {
+    const { fixture } = await setup([trial()]);
+    const p = page(fixture);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    p.menuFor.set(p.items().find((i: any) => i.source === 'parent'));
+    const profile = (p.rowMenuItems() as MenuItem[]).find((i) => i.label === '查看學生檔案')!;
+    profile.command!({});
+    expect(navigate).toHaveBeenCalledWith(['/admin/students', 'stu-1']);
+  });
+
+  it('搜尋：學生、家長姓名或電話數字（不打 API）；沒有符合的寫一句提示', async () => {
+    const { fixture, el, service, parents } = await setup([req()]);
+    const p = page(fixture);
+    service.list.mockClear();
+    parents.list.mockClear();
+    const shown = () =>
+      el.querySelectorAll('[data-testid="parent-request-card"], [data-testid="application-card"]')
+        .length;
+
+    p.query.set('林小');
+    fixture.detectChanges();
+    expect(shown()).toBe(1);
+    p.query.set('王媽');
+    fixture.detectChanges();
+    expect(shown()).toBe(1);
+    p.query.set('0912-345');
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="application-card"]')).not.toBeNull();
+    expect(shown()).toBe(1);
+    p.query.set('沒這個人');
+    fixture.detectChanges();
+    expect(shown()).toBe(0);
+    expect(el.textContent).toContain('找不到符合「沒這個人」的申請');
+    expect(service.list).not.toHaveBeenCalled();
+    expect(parents.list).not.toHaveBeenCalled();
+  });
+
+  it('核准是深色主鈕（這頁最重的一步）', async () => {
+    const { el } = await setup([req()]);
+    const approve = [...el.querySelectorAll('[data-testid="parent-request-card"] button')].find(
+      (b) => b.textContent?.trim() === '核准',
+    )!;
+    expect(approve.classList).toContain('bg-zinc-900');
+    expect(approve.classList).toContain('text-white');
+  });
+
+  it('試聽的「⋯」：改成其他狀態（不含已排定：要填日期，走「排時間」），加查看學生檔案', async () => {
+    const { fixture } = await setup([trial()]);
+    const p = page(fixture);
+    const item = p.items().find((i: any) => i.source === 'parent');
+    expect(labels(p, item)).toEqual([
+      '改成「已完成」',
+      '改成「已取消」',
+      undefined,
+      '查看學生檔案',
+    ]);
+  });
+
+  it('公開表單的「⋯」：改聯絡狀態（不含目前的）送 PATCH；櫃檯備註展開、儲存才送並收起', async () => {
+    const { fixture, el, service } = await setup([]);
+    const p = page(fixture);
+    const item = p.items()[0];
+    const ls = labels(p, item);
+    expect(ls).not.toContain('改成「新申請」');
+    expect(ls).toContain('改成「垃圾送件」');
+    expect(ls).toContain('櫃檯備註');
+
+    (p.rowMenuItems() as Array<{ label?: string; command?: () => void }>).find(
+      (i) => i.label === '改成「已聯絡」',
+    )!.command!();
+    expect(service.update).toHaveBeenCalledWith('a1', { status: 'contacted' });
+
+    service.update.mockClear();
+    (p.rowMenuItems() as Array<{ label?: string; command?: () => void }>).find(
+      (i) => i.label === '櫃檯備註',
+    )!.command!();
+    fixture.detectChanges();
+    const ta = el.querySelector<HTMLTextAreaElement>('textarea[aria-label^="櫃檯備註"]')!;
+    expect(ta).not.toBeNull();
+    expect(service.update).not.toHaveBeenCalled();
+    p.submitNote(app(), '週六來試聽');
+    fixture.detectChanges();
+    expect(service.update).toHaveBeenCalledWith('a1', { staffNote: '週六來試聽' });
+    expect(el.querySelector('textarea[aria-label^="櫃檯備註"]')).toBeNull();
+  });
+
+  // 二讀：存檔失敗時編輯列不能收起，打的字要留著，並跳錯誤
+  it('櫃檯備註存檔失敗：編輯列留著、打的字還在、跳錯誤；重按成功才收起', async () => {
+    const { fixture, el, service } = await setup([]);
+    const p = page(fixture);
+    const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+    p.notingId.set('a1');
+    fixture.detectChanges();
+    const ta = () => el.querySelector<HTMLTextAreaElement>('textarea[aria-label^="櫃檯備註"]');
+    ta()!.value = '週六來試聽';
+
+    service.update.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+    p.submitNote(app(), ta()!.value);
+    fixture.detectChanges();
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ severity: 'error' }));
+    expect(p.notingId()).toBe('a1');
+    expect(ta()!.value).toBe('週六來試聽');
+
+    p.submitNote(app(), ta()!.value);
+    fixture.detectChanges();
+    expect(service.update).toHaveBeenLastCalledWith('a1', { staffNote: '週六來試聽' });
+    expect(ta()).toBeNull();
+  });
+
+  it('櫃檯備註沒改就按儲存：直接收起、不送', async () => {
+    const { fixture, service } = await setup([]);
+    const p = page(fixture);
+    p.notingId.set('a1');
+    p.submitNote(app(), '  ');
+    expect(service.update).not.toHaveBeenCalled();
+    expect(p.notingId()).toBeNull();
+  });
+
+  it('試聽列：待安排是「排時間」、已排定是「改時間」，按了展開日期表單', async () => {
+    const { fixture, el } = await setup([trial()]);
+    const btn = () =>
+      [...el.querySelectorAll('[data-testid="parent-request-card"] button')].find((b) =>
+        /排時間|改時間/.test(b.textContent ?? ''),
+      ) as HTMLButtonElement;
+    expect(btn().textContent?.trim()).toBe('排時間');
+    btn().click();
+    fixture.detectChanges();
+    expect(el.querySelector('input[aria-label^="試聽日期"]')).not.toBeNull();
   });
 });

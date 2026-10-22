@@ -138,6 +138,11 @@ describe('GlobalSearchComponent', () => {
     expect(
       cls(panel).some((c) => c.startsWith('max-wide:max-h-') && c.includes('--keyboard-inset')),
     ).toBe(true);
+    // #1905（iOS 面板高度歸 0）：高度上限不能靠 --window-height —— 它在 iOS 上某些時刻是 0，calc 變負數，
+    // max-height 0 再加 overflow-hidden 整塊不見。改用 100%（popover 的包含區塊就是視窗），並有 max() 下限
+    const maxH = cls(panel).find((c) => c.startsWith('max-wide:max-h-'))!;
+    expect(maxH).not.toContain('--window-height');
+    expect(maxH).toMatch(/^max-wide:max-h-\[max\(\d+px,/);
     expect(cls(panel)).toContain('max-wide:overflow-hidden');
     // display 只在打開時給 —— 寫死 flex 會蓋掉 UA 的 [popover]:not(:popover-open){display:none}
     expect(cls(panel)).toContain('max-wide:open:flex');
@@ -154,10 +159,12 @@ describe('GlobalSearchComponent', () => {
     const list = el.querySelector('#global-search-list')!;
     for (const c of [
       'max-wide:min-h-0',
-      'max-wide:flex-1',
+      // flex-auto 不是 flex-1：WebKit 在高度不定的直向 flex 裡可能把 flex-basis 0% 當 0，列表塌掉（#1905）
+      'max-wide:flex-auto',
       'max-wide:overflow-y-auto',
       'overscroll-contain',
     ])
       expect(cls(list)).toContain(c);
+    expect(cls(list)).not.toContain('max-wide:flex-1');
   });
 });

@@ -62,9 +62,12 @@ export class WindowSizeDirective implements OnInit {
 
     // `documentElement` 而不是 host —— 見類別註解。這一行是三支 body-append 抽屜
     // 從「鎖死 533px」變成「跟著螢幕高」的全部原因。
+    // **量到 0 或非有限值就不寫，保留上一個值**（#1905）。寫進 0 的話，所有 `calc(var(--window-height) - …)`
+    // 都變負數 → max-height 0 → 底部面板、對話框整塊不見；var() 的 fallback 只在「沒定義」時生效，擋不住 0。
     const root = this.document.documentElement;
-    root.style.setProperty(this.widthVar(), `${width}px`);
-    root.style.setProperty(this.heightVar(), `${height}px`);
+    if (Number.isFinite(width) && width > 0) root.style.setProperty(this.widthVar(), `${width}px`);
+    if (Number.isFinite(height) && height > 0)
+      root.style.setProperty(this.heightVar(), `${height}px`);
     this.updateKeyboardInset();
   }
 

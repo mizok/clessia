@@ -436,12 +436,15 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(dialog.textContent).toContain('已收 1,000 元，還差 2,100 元');
     });
 
-    it('待付款已繳清：寫等補習班確認，不再列帳戶', async () => {
+    // #1778：繳清的同一個交易就完成申請，這種狀態只剩上線前的舊資料 —— 不再寫「等補習班確認」
+    it('待付款已繳清（舊資料）：寫已繳清、不寫等確認，不再列帳戶', async () => {
       const dialog = await openPay({
         invoice: { ...INV, netPaid: 3100, status: 'paid' },
         paymentInfo: '某帳戶',
       });
-      expect(dialog.textContent).toContain('已繳清 3,100 元，等補習班確認');
+      expect(dialog.textContent).toContain('已繳清 3,100 元。');
+      expect(dialog.textContent).not.toContain('等補習班確認');
+      expect(dialog.textContent).not.toContain('還差');
       expect(dialog.textContent).not.toContain('某帳戶');
     });
 

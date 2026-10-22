@@ -188,3 +188,167 @@ describe('notifyScheduleChange（#1693：課務異動 → 任課老師，一批�
     expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'db down');
   });
 });
+
+/**
+ * #1023（使用者 10-23 裁定）：課務異動也發給管理員，依分校範圍。計畫席裁：要 `basic_operations`
+ * （同請假通知 leave_received）、種類跟老師同一組全部發。判準就是 `adminsForCampuses`。
+ */
+describe('notifyScheduleChange → 管理員（#1023：依班的分校範圍）', () => {
+  const seedAdmins = () =>
+    createMultiOrgDb({
+      sessions: [
+        {
+          id: 'ses-c1',
+          org_id: A,
+          class_id: 'k1',
+          session_date: '2026-10-27',
+          teacher_id: 'st-dual',
+          classes: { name: '數學 A 班', campus_id: 'c1' },
+        },
+        {
+          id: 'ses-c2',
+          org_id: A,
+          class_id: 'k2',
+          session_date: '2026-10-21',
+          teacher_id: 'st-k2',
+          classes: { name: '英文 B 班', campus_id: 'c2' },
+        },
+      ],
+      schedules: [
+        { class_id: 'k1', teacher_id: 'st-dual', classes: { org_id: A } },
+        { class_id: 'k2', teacher_id: 'st-k2', classes: { org_id: A } },
+      ],
+      staff: [
+        { id: 'st-k2', user_id: 'u-k2', org_id: A, status: 'active' },
+        { id: 'st-dual', user_id: 'u-dual', org_id: A, status: 'active' },
+        { id: 'st-c1', user_id: 'u-c1', org_id: A, status: 'active' },
+        { id: 'st-c2', user_id: 'u-c2', org_id: A, status: 'active' },
+        { id: 'st-all', user_id: 'u-all', org_id: A, status: 'active' },
+        { id: 'st-fin', user_id: 'u-fin', org_id: A, status: 'active' },
+        { id: 'st-act', user_id: 'u-act', org_id: A, status: 'active' },
+      ],
+      user_roles: [
+        { user_id: 'u-k2', role: 'teacher' },
+        // 同時是 k1 的任課老師與 c1 的管理員
+        { user_id: 'u-dual', role: 'teacher' },
+        { user_id: 'u-dual', role: 'admin', permissions: ['basic_operations'] },
+        { user_id: 'u-c1', role: 'admin', permissions: ['basic_operations'] },
+        { user_id: 'u-c2', role: 'admin', permissions: ['basic_operations'] },
+        // 全部分校：不需要 staff_campuses
+        { user_id: 'u-all', role: 'admin', permissions: ['basic_operations', 'all_campuses'] },
+        // 只管財務：範圍內但沒有 basic_operations
+        { user_id: 'u-fin', role: 'admin', permissions: ['manage_finance'] },
+        { user_id: 'u-act', role: 'admin', permissions: ['basic_operations'] },
+      ],
+      staff_campuses: [
+        { staff_id: 'st-dual', campus_id: 'c1' },
+        { staff_id: 'st-c1', campus_id: 'c1' },
+        { staff_id: 'st-c2', campus_id: 'c2' },
+        { staff_id: 'st-fin', campus_id: 'c1' },
+        { staff_id: 'st-act', campus_id: 'c1' },
+      ],
+      notifications: [],
+    });
+
+  const adminRows = (db: ReturnType<typeof seedAdmins>) =>
+    db.rows('notifications').filter((n) => n['role'] === 'admin');
+  const adminSent = (db: ReturnType<typeof seedAdmins>) =>
+    adminRows(db)
+      .map((n) => `${n['user_id']}|${(n['payload'] as { body: string }).body}`)
+      .sort();
+
+  const run = (db: ReturnType<typeof seedAdmins>, sessionId: string, actor = 'u-act') =>
+    notifyScheduleChange(db.client as SupabaseClient, {
+      orgId: A,
+      actorUserId: actor,
+      rows: [{ session_id: sessionId, change_type: 'cancellation', batch_id: 'b1' }],
+    });
+
+  it('c1 的班：c1 的管理員與全部分校的管理員收到；別分校、沒有 basic_operations、做異動的人都收不到', async () => {
+    const db = seedAdmins();
+    await run(db, 'ses-c1');
+    expect(adminSent(db)).toEqual([
+      'u-all|數學 A 班 10/27 停課',
+      'u-c1|數學 A 班 10/27 停課',
+      'u-dual|數學 A 班 10/27 停課',
+    ]);
+  });
+
+  it('c2 的班：只有 c2 的管理員與全部分校的管理員', async () => {
+    const db = seedAdmins();
+    await run(db, 'ses-c2');
+    expect(adminSent(db)).toEqual(['u-all|英文 B 班 10/21 停課', 'u-c2|英文 B 班 10/21 停課']);
+  });
+
+  it('同一批跨兩間分校：每間的管理員只收自己分校那個班；全部分校的兩則都收', async () => {
+    const db = seedAdmins();
+    await notifyScheduleChange(db.client as SupabaseClient, {
+      orgId: A,
+      actorUserId: 'u-act',
+      rows: [
+        { session_id: 'ses-c1', change_type: 'cancellation', batch_id: 'b1' },
+        { session_id: 'ses-c2', change_type: 'cancellation', batch_id: 'b1' },
+      ],
+    });
+    expect(adminSent(db)).toEqual([
+      'u-all|數學 A 班 10/27 停課',
+      'u-all|英文 B 班 10/21 停課',
+      'u-c1|數學 A 班 10/27 停課',
+      'u-c2|英文 B 班 10/21 停課',
+      'u-dual|數學 A 班 10/27 停課',
+    ]);
+  });
+
+  it('管理員那則：role admin、去重鍵加 admin: 前綴、連到課務異動頁、不推播', async () => {
+    const db = seedAdmins();
+    await run(db, 'ses-c1');
+    expect(adminRows(db).find((n) => n['user_id'] === 'u-c1')).toMatchObject({
+      org_id: A,
+      role: 'admin',
+      kind: 'schedule_change',
+      dedupe_key: 'schedule_change:admin:b1:k1',
+      payload: { title: '課務異動：停課', url: '/admin/changes' },
+      push_status: 'skipped',
+      push_error: 'ROLE_PUSH_DISABLED',
+    });
+  });
+
+  it('同時是老師和管理員：兩個收件匣各一則（去重鍵不同，UNIQUE(user_id, dedupe_key) 不會吃掉一則）', async () => {
+    const db = seedAdmins();
+    await run(db, 'ses-c1');
+    const mine = db
+      .rows('notifications')
+      .filter((n) => n['user_id'] === 'u-dual')
+      .map((n) => `${n['role']}|${n['dedupe_key']}`)
+      .sort();
+    expect(mine).toEqual(['admin|schedule_change:admin:b1:k1', 'teacher|schedule_change:b1:k1']);
+  });
+
+  it('做異動的人就算在範圍內也不收（換一個人做，他就收得到）', async () => {
+    const db = seedAdmins();
+    await run(db, 'ses-c1', 'u-c1');
+    expect(adminSent(db).map((s) => s.split('|')[0])).not.toContain('u-c1');
+    expect(adminSent(db).map((s) => s.split('|')[0])).toContain('u-act');
+  });
+
+  it('管理員那批查詢失敗：老師那批照寫，不丟例外', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const db = seedAdmins();
+    const client = db.client as SupabaseClient;
+    const flaky = {
+      from: (t: string) => {
+        if (t === 'staff_campuses') throw new Error('campuses down');
+        return client.from(t);
+      },
+    } as unknown as SupabaseClient;
+    await notifyScheduleChange(flaky, {
+      orgId: A,
+      actorUserId: 'u-act',
+      rows: [{ session_id: 'ses-c2', change_type: 'cancellation', batch_id: 'b1' }],
+    });
+    expect(db.rows('notifications').map((n) => `${n['role']}|${n['user_id']}`)).toEqual([
+      'teacher|u-k2',
+    ]);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'campuses down');
+  });
+});
