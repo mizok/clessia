@@ -76,6 +76,16 @@ Playwright（獨立瀏覽器 context，不碰共用的 Chrome session），admin
 - **減少動態**：一律關掉位移與過程，資訊直接出現。Chrome 官方提醒「減少動態」不等於完全不要動，建議改用更輕微的動畫（[Chrome：Same-document view transitions](https://developer.chrome.com/docs/web-platform/view-transitions/same-document)），**但 A6 的做法是全部關掉**（`a6.css:195` 把 transition 壓到 0.01ms）。A6 全採（[[architecture/a6-adoption-rules]] R1），所以照 A6。
 - **不支援 VT 的瀏覽器直接瞬間切換**，不做替代動畫。
 
+### 縮放：viewport `maximum-scale=1`（#1867）
+
+iOS Safari 聚焦字級小於 16px 的輸入框會自動放大整頁（#1817 之後基底是 14px，全站輸入框都會中）。使用者 10-22 裁定**禁止放大**：
+`index.html` 的 viewport 加 `maximum-scale=1`，**不加** `user-scalable=no`。推翻了原本「觸控裝置輸入框至少 16px、不關縮放」的做法。
+
+- iOS 10 以後的 Safari 忽略 scale 限制，使用者自己兩指放大仍然可以；Android Chrome 會遵守，兩指放大被擋 —— 使用者接受的取捨。
+- 輸入框字級照設計稿，不強制 16px。
+- `app/ios-input-zoom.spec.ts` 守 meta（有 `maximum-scale=1`、沒有 `user-scalable`）。
+- Playwright WebKit 的 iPhone 模擬**重現不了**聚焦放大（main 上 14px 的輸入框聚焦後 `visualViewport.scale` 也是 1），所以模擬器的 scale=1 不能當作這個問題修好的證據，要實機確認。
+
 ### 換頁：依網址深度決定方向
 
 | 從 → 到                            | 例                                     | 動態                                          |

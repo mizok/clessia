@@ -10,7 +10,8 @@ import meRoute from './me';
  * #1631：改自己身分的寫入之後**立刻**讀 /api/me，要拿到新值。
  *
  * 寫入那個請求本身經過 authMiddleware 時，會把**寫入前**的身分存進 30 秒快取（#1595 P1b）；
- * 不清的話，前端接著打的 /api/me 在同一個 isolate 拿到舊角色 —— 啟用家長身份後畫面毫無變化。
+ * 不清的話，前端接著打的 /api/me 在同一個 isolate 拿到舊值 —— 改名後標題列還是舊名。
+ * （原本也守「啟用家長身份」，那支端點 #1844 移除了，改由行政在家長頁設定。）
  * 這裡用真的 middleware ＋ 真的 me 路由，替身只換掉 DB。
  */
 
@@ -102,78 +103,6 @@ describe('/api/me 自己的寫入之後立刻讀回新值（#1631）', () => {
   afterEach(() => {
     db = fakeDb();
     getSession.mockReset();
-  });
-
-  it('啟用家長身份 → 立刻 GET /api/me 就有 parent', async () => {
-    const a = app();
-    expect((await me(a)).roles).toEqual(['admin']); // 快取住舊身分
-
-    const res = await a.request('/api/me/activate-parent', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { roles: string[] }).roles).toEqual(['admin', 'parent']);
-
-    expect((await me(a)).roles).toEqual(['admin', 'parent']);
-  });
-
-  it('啟用失敗 → 不清快取，也不會因此多出 parent', async () => {
-    const a = app();
-    await me(a);
-    db.failWrites.add('user_roles');
-
-    const res = await a.request('/api/me/activate-parent', { method: 'POST' });
-    expect(res.status).toBe(500);
-
-    expect(getCachedIdentity('u1')).toBeDefined(); // 失敗不清
-    expect((await me(a)).roles).toEqual(['admin']);
-  });
-
-  it('寫入成功但讀回角色失敗 → 500，不是 200 {roles: []}；快取已清（寫入已生效，舊的那份不能留）', async () => {
-    const a = app();
-    await me(a); // 先把舊身分存進快取，activate 這個請求的 middleware 才不必讀 user_roles
-    db.failReads.add('user_roles');
-
-    const res = await a.request('/api/me/activate-parent', { method: 'POST' });
-    expect(res.status).toBe(500);
-    expect(await res.json()).toMatchObject({ code: 'READ_ROLES_FAILED' });
-    expect(getCachedIdentity('u1')).toBeUndefined();
-
-    db.failReads.clear();
-    expect((await me(a)).roles).toEqual(['admin', 'parent']);
-  });
-
-  /**
-   * 家長列的名字不能寫死成「家長」：正式環境的管理員啟用家長身份後，家長列表上多了一位「家長」，
-   * 使用者以為自己不在列表裡。profiles 多半沒有列（見 lib/display-name.ts），
-   * 要跟 /api/me 走同一條 resolveDisplayName（staff → ba_user）。
-   */
-  it('啟用家長身份建的家長列，名字沿用員工姓名（profiles 沒有列時）', async () => {
-    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(db.tables['parents']).toMatchObject([{ user_id: 'u1', org_id: 'o1', name: '舊名' }]);
-  });
-
-  // profiles 已經沒有人新增列；殘留的舊列不能蓋過員工姓名
-  it('有殘留的 profiles 列也不讀它', async () => {
-    db.tables['profiles'] = [{ id: 'u1', display_name: '過時的名字' }];
-    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(db.tables['parents']).toMatchObject([{ name: '舊名' }]);
-  });
-
-  it('不是員工就用 ba_user.name', async () => {
-    db.tables['staff'] = [];
-    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(db.tables['parents']).toMatchObject([{ name: 'n' }]);
-  });
-
-  // parents.name 是 NOT NULL，但空字串會過 —— 退路要真的寫出一個名字
-  it('不是員工、帳號名也是空的 → 「家長」', async () => {
-    db.tables['staff'] = [];
-    db.tables['ba_user'] = [{ id: 'u1', name: '', email: 'a@example.com', phone: null }];
-    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(db.tables['parents']).toMatchObject([{ name: '家長' }]);
   });
 
   it('改名字 → 立刻 GET /api/me 就是新名字', async () => {

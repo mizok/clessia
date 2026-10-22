@@ -6,6 +6,7 @@ import {
   CampusScopeMissingError,
   filtersCampus,
   getCampusScope,
+  grantsWiderThanScope,
   isCampusAllowed,
   resolveCampusScope,
   type CampusScope,
@@ -256,5 +257,13 @@ describe('isCampusAllowed —— 缺席時拒絕', () => {
 
   it('`null`（不受限）仍然放行 —— 缺席與不受限不能混為一談', () => {
     expect(isCampusAllowed(null, 'campus-1')).toBe(true);
+  });
+});
+
+// #1831：`*` 涵蓋 all_campuses —— 受限的人送 `*` 跟送 all_campuses 一樣要擋
+describe('grantsWiderThanScope 把 `*` 當成 all_campuses（#1831）', () => {
+  it('受限範圍送 `*` → true；不受限 → false', () => {
+    expect(grantsWiderThanScope(['campus-1'], ['*'])).toBe(true);
+    expect(grantsWiderThanScope(null, ['*'])).toBe(false);
   });
 });

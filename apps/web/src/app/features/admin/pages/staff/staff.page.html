@@ -239,7 +239,11 @@
                         [attr.data-testid]="'permission-count-' + staff.id"
                         (click)="openPermissionList(staff)"
                       >
-                        權限 {{ staff.permissions.length }} 項
+                        @if (staff.permissions.includes('*')) {
+                          全部權限
+                        } @else {
+                          權限 {{ staff.permissions.length }} 項
+                        }
                       </button>
                     }
                   </div>

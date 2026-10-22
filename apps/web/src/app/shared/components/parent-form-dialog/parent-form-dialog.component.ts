@@ -37,6 +37,11 @@ export class ParentFormDialogComponent {
 
   protected readonly loading = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  /**
+   * #1844：Email／手機是本機構教職員的帳號（409 `STAFF_ACCOUNT_EXISTS`）。確認後帶 `userId` 再送一次，
+   * 後端會重新判斷。改了 Email／手機就作廢 —— 那是另一個人了。
+   */
+  protected readonly linkCandidate = signal<{ userId: string; staffName: string } | null>(null);
 
   protected readonly parent = signal<ParentDetail | null>(this.config.data?.parent ?? null);
   protected readonly isEditMode = computed(() => this.parent() !== null);
@@ -73,9 +78,16 @@ export class ParentFormDialogComponent {
     value: ReturnType<typeof this.formData>[K],
   ): void {
     this.formData.update((f) => ({ ...f, [field]: value }));
+    if (field === 'email' || field === 'phone') this.linkCandidate.set(null);
   }
 
-  protected save(): void {
+  /** 確認框的「設為家長」：同一份表單再送一次，帶上要設的那個帳號 */
+  protected confirmLink(): void {
+    const candidate = this.linkCandidate();
+    if (candidate) this.save(candidate.userId);
+  }
+
+  protected save(linkExistingUserId?: string): void {
     const f = this.formData();
 
     // 按鈕刻意不 disable——disable 會把「為什麼不行」藏起來，而使用者按下去
@@ -113,10 +125,18 @@ export class ParentFormDialogComponent {
         studentIds: this.selectedStudents.length
           ? this.selectedStudents.map((s) => s.id)
           : undefined,
+        ...(linkExistingUserId ? { linkExistingUserId } : {}),
       };
 
       this.parentsService.create(input).subscribe({
-        next: (res) => this.ref.close({ type: 'created', data: res.data, loginUrl: res.loginUrl }),
+        next: (res) =>
+          this.ref.close({
+            type: 'created',
+            data: res.data,
+            loginUrl: res.loginUrl,
+            // 設為家長：對方已經有帳號，不發登入連結（loginUrl 是 null）
+            linkedStaff: !!linkExistingUserId,
+          }),
         error: (err) => this.handleError(err),
       });
     }
@@ -126,15 +146,29 @@ export class ParentFormDialogComponent {
     this.ref.close();
   }
 
-  private handleError(err: { error?: { error?: string } }): void {
-    const code = err.error?.error;
+  private handleError(err: {
+    error?: { error?: string; code?: string; details?: Record<string, unknown> };
+  }): void {
+    const { code, details } = err.error ?? {};
+    this.loading.set(false);
+
+    if (code === 'STAFF_ACCOUNT_EXISTS' && typeof details?.['userId'] === 'string') {
+      this.errorMessage.set(null);
+      this.linkCandidate.set({
+        userId: details['userId'],
+        staffName: String(details['staffName'] ?? ''),
+      });
+      return;
+    }
+    this.linkCandidate.set(null);
+
     let message = '請稍後再試';
     if (code === 'DUPLICATE_EMAIL') message = '此 Email 已被使用';
     else if (code === 'DUPLICATE_PHONE') message = '此手機號碼已被使用';
     else if (code === 'CREATE_PARENT_FAILED') message = '建立帳號失敗，請稍後再試';
+    // 其餘（PARENT_ALREADY_EXISTS、STAFF_NOT_ACTIVE、SELF_LINK_FORBIDDEN…）後端的訊息就是給人看的
     else if (err.error?.error) message = err.error.error;
 
     this.errorMessage.set(message);
-    this.loading.set(false);
   }
 }

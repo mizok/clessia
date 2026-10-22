@@ -19,6 +19,8 @@ const DAILY_CHECKIN: OrgSettings = {
   attendanceRetroactiveDays: 0,
   gradePromotionMonthDay: '09-01',
   gradePromotionReminderDays: 7,
+  applicationReviewDays: 3,
+  trialFollowupDays: 1,
 };
 
 describe('SettingsPage', () => {
@@ -514,7 +516,11 @@ describe('SettingsPage', () => {
 
     it('沒有財務權限（回應沒有財務 key）→ 財務兩段都不畫，也不讀週期；學年升級不是財務，照畫', async () => {
       await setup();
-      expect(summaries()).toEqual(['學年升級 每年 9/1 · 前 7 天提醒']);
+      // 報名流程（#1821）、學年升級（#1820）不是財務設定，照畫
+      expect(summaries()).toEqual([
+        '報名流程 審核 3 天 · 試聽跟進 1 天',
+        '學年升級 每年 9/1 · 前 7 天提醒',
+      ]);
       expect(billingPeriodsMock.list).not.toHaveBeenCalled();
     });
 
@@ -525,6 +531,7 @@ describe('SettingsPage', () => {
       );
       await setup();
       expect(summaries()).toEqual([
+        '報名流程 審核 3 天 · 試聽跟進 1 天',
         '繳費 期限 7 天 · 到期前 3 天、到期當天提醒',
         '學期與繳費週期 1 個週期',
         '學年升級 每年 9/1 · 前 7 天提醒',
@@ -600,7 +607,7 @@ describe('SettingsPage', () => {
         of({ ...FINANCE, invoiceReminderOffsets: [] }),
       );
       await setup();
-      expect(summaries()[0]).toBe('繳費 期限 7 天 · 不推播提醒');
+      expect(summaries()[1]).toBe('繳費 期限 7 天 · 不推播提醒');
     });
 
     // 二讀突變 F14：重試成功之後失敗訊息不能還掛著
@@ -617,6 +624,56 @@ describe('SettingsPage', () => {
       fixture.detectChanges();
       expect(bodyText()).not.toContain('沒有讀到繳費週期');
       expect(bodyText()).toContain('114 上');
+    });
+  });
+
+  describe('報名流程段（#1821）', () => {
+    const summary = () =>
+      (fixture.nativeElement as HTMLElement)
+        .querySelector('summary')!
+        .textContent!.replace(/\s+/g, ' ')
+        .trim();
+
+    it('天數 0 的寫「不提醒」', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(
+        of({ ...DAILY_CHECKIN, applicationReviewDays: 0, trialFollowupDays: 5 }),
+      );
+      await setup();
+      expect(summary()).toContain('審核不提醒 · 試聽跟進 5 天');
+    });
+
+    it('讀入設定值，儲存一起送兩欄，欄位跟著回應', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(
+        of({ ...DAILY_CHECKIN, applicationReviewDays: 4, trialFollowupDays: 2 }),
+      );
+      orgSettingsServiceMock.updateSettings.mockReturnValue(
+        of({ ...DAILY_CHECKIN, applicationReviewDays: 7, trialFollowupDays: 0 }),
+      );
+      await setup();
+      const page = component as unknown as {
+        applicationReviewDaysValue: number;
+        trialFollowupDaysValue: number;
+        saveApplicationFlow: () => void;
+      };
+      expect([page.applicationReviewDaysValue, page.trialFollowupDaysValue]).toEqual([4, 2]);
+      page.applicationReviewDaysValue = 6;
+      page.trialFollowupDaysValue = 0;
+      page.saveApplicationFlow();
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        applicationReviewDays: 6,
+        trialFollowupDays: 0,
+      });
+      expect([page.applicationReviewDaysValue, page.trialFollowupDaysValue]).toEqual([7, 0]);
+    });
+
+    // 二讀：失敗不復原的話，按鈕會一直轉、按不了第二次
+    it('儲存失敗：跳錯誤、按鈕不再 loading', async () => {
+      orgSettingsServiceMock.updateSettings.mockReturnValue(throwError(() => new Error('boom')));
+      await setup();
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      component['saveApplicationFlow']();
+      expect(component['savingApplicationFlow']()).toBe(false);
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
     });
   });
 });

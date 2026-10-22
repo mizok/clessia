@@ -218,17 +218,6 @@ export class AuthService {
     return this.permissions().includes(permission) || this.permissions().includes('*');
   }
 
-  /**
-   * 直接採用寫入 API 回傳的角色（#1631），不再重抓 `/api/me`。
-   *
-   * 重抓不可靠：API 的身分快取是 per-isolate 30 秒（#1595 P1b），寫入時只清得到當下那個
-   * isolate，重抓若落在別的 isolate 仍可能拿到舊角色 —— 啟用家長身份後畫面毫無變化。
-   * 寫入路由回的角色是寫完重新查表的，不經快取。
-   */
-  adoptRoles(roles: UserRole[]): void {
-    this._roles.set(roles);
-  }
-
   /** 回傳有沒有讀到 —— 呼叫端要區分「讀不到」和「沒有角色」時會用到 */
   async refreshRoles(): Promise<boolean> {
     return this.loadProfile();

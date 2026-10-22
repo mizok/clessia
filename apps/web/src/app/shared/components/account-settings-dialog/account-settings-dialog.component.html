@@ -216,18 +216,9 @@
       >
         家長身份
       </p>
-      @if (activateError()) {
-        <p class="account-settings__error m-0 text-xs text-error-600">{{ activateError() }}</p>
-      }
-      <p-button
-        label="啟用家長身份"
-        icon="pi pi-user-plus"
-        [outlined]="true"
-        [loading]="activating()"
-        (onClick)="confirmActivateParent()"
-      />
+      <!-- #1844：不能自助啟用 —— 綁孩子只有行政能做，所以改由行政在家長頁一次設定 -->
       <p class="account-settings__desc m-0 text-sm text-zinc-500">
-        啟用後可使用家長 portal 查看子女的出缺席與課表。
+        要以家長身分查看孩子的出缺席與課表，請洽補習班行政把你設為家長。
       </p>
     </div>
   }

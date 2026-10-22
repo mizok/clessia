@@ -173,6 +173,11 @@
   @if (isAdminRole()) {
     <div class="form-dialog__field">
       <label class="form-dialog__label">管理權限</label>
+      @if (hasAllPermissions()) {
+        <p class="m-0 mb-2 text-xs text-zinc-600" data-testid="all-permissions-note">
+          這個帳號擁有全部權限（含日後新增的）。取消任一項會改成逐項指定。
+        </p>
+      }
       <div class="grid grid-cols-1 gap-3 rounded-md bg-zinc-50 p-3 min-[641px]:grid-cols-2">
         @for (opt of permissionOptions; track opt.value) {
           <div
@@ -181,7 +186,7 @@
             <p-checkbox
               [binary]="true"
               [inputId]="'perm_' + opt.value"
-              [ngModel]="formData().permissions.includes(opt.value)"
+              [ngModel]="hasPermission(opt.value)"
               (onChange)="togglePermission(opt.value, $event.checked)"
               [disabled]="loading()"
             />
