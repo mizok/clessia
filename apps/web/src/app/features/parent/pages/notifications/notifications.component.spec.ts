@@ -139,6 +139,17 @@ describe('ParentNotificationsComponent', () => {
       expect(el().querySelector('app-push-settings')).toBeNull();
     });
 
+    it('點彈窗裡的內容不會關，點背景（dialog 本身）才關', async () => {
+      settingsBtn().click();
+      fixture.detectChanges();
+      const dialog = el().querySelector<HTMLDialogElement>('[data-testid="push-settings-dialog"]')!;
+      dialog.querySelector<HTMLElement>('app-push-settings')!.click();
+      expect(dialog.open).toBe(true);
+
+      dialog.click();
+      expect(dialog.open).toBe(false);
+    });
+
     it('還沒開過（default）：色面句下面有提示＋開啟鈕，按了直接開啟', async () => {
       await render('default');
       expect(hint()).not.toBeNull();
@@ -153,6 +164,26 @@ describe('ParentNotificationsComponent', () => {
         expect(hint()).toBeNull();
       },
     );
+
+    it('開啟鈕按下時停用，結束後（成功或失敗）都解開，不會一直卡著', async () => {
+      let done!: () => void;
+      pushMock.enable.mockReturnValueOnce(new Promise<void>((r) => (done = r)));
+      await render('default');
+      (hint() as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect((hint() as HTMLButtonElement).disabled).toBe(true);
+
+      done();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect((hint() as HTMLButtonElement).disabled).toBe(false);
+
+      pushMock.enable.mockReturnValueOnce(Promise.reject(new Error('boom')));
+      (hint() as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect((hint() as HTMLButtonElement).disabled).toBe(false);
+    });
 
     it('開啟失敗：提示列寫一行「沒有設定成功」', async () => {
       pushMock.enable.mockReturnValueOnce(Promise.reject(new Error('boom')));

@@ -474,6 +474,30 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       ]);
     });
 
+    // 「這週」＝今天往前 6 天內（A6 `d > addDays(T, -7)`）：第 6 天還在這週、第 7 天就是更早
+    it('「這週」邊界：往前第 6 天算這週、第 7 天算更早', async () => {
+      await setup([
+        announcement({ id: 'd6', publishedAt: '2026-08-14T02:00:00Z' }), // 台北 8/14
+        announcement({ id: 'd7', publishedAt: '2026-08-13T02:00:00Z' }), // 台北 8/13
+      ]);
+      const chapters = component['chapters']() as { name: string; items: InboxItem[] }[];
+      expect(chapters.map((c) => [c.name, c.items.map((i) => i.id)])).toEqual([
+        ['這週', ['d6']],
+        ['更早', ['d7']],
+      ]);
+    });
+
+    it('沒有東西的章不畫（只有今天與更早，就沒有昨天、這週）', async () => {
+      await setup([
+        announcement({ id: 'today', publishedAt: '2026-08-20T01:00:00Z' }),
+        announcement({ id: 'old', publishedAt: '2026-08-01T01:00:00Z' }),
+      ]);
+      const names = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.announcement-inbox__chapter'),
+      ).map((x) => x.getAttribute('aria-label'));
+      expect(names).toEqual(['今天', '更早']);
+    });
+
     it('色面句：「N 則未讀，／今天 M 則新通知。」', async () => {
       await setup([
         announcement({ id: 'a', publishedAt: '2026-08-20T01:00:00Z' }),
