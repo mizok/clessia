@@ -1,11 +1,11 @@
 ---
 title: 公開頁外框（PublicShell，login / trial / enrollment / qr-checkin / link-line / select-role 共用）
-summary: 六個公開頁共用的外框：橘色品牌面（字標、標語、流場動畫、四條輕量連結、版權）+ 白色主面。
+summary: 六個公開頁共用的外框：橘色品牌面（字標、補習班名稱、標語、流場動畫、四條輕量連結、版權）+ 白色主面。
 category: spec
 status: developing
 tags: [sitemap, _shared, public, rwd]
 created: 2026-09-12
-updated: 2026-10-07
+updated: 2026-10-22
 ---
 
 # 公開頁外框（PublicShell）
@@ -16,7 +16,7 @@ updated: 2026-10-07
 
 > **2026-10-03 更新（#1127）**：「QR 到班打卡」連結與 `/qr-checkin` 頁已移除（網址轉 `/login`）。
 > 下面的量測是移除前做的，連結那一列與 Tab 序列的第 5 個已不存在；其餘照舊。
-**全部走這一個外框**（`app.routes.ts` 最上層那個 `path: ''` 的 children）。
+> **全部走這一個外框**（`app.routes.ts` 最上層那個 `path: ''` 的 children）。
 
 > **這一頁跟 [[specs/sitemap/_shared/shell-layout]] 是兩個不同的外框。**
 > ShellLayout 是登入後的 admin / teacher / parent 用的（左側選單 + 頂列角色徽章），
@@ -29,11 +29,16 @@ updated: 2026-10-07
 橘色底，上面疊一層 `app-flow-field` 的流場動畫（`density=0.8`、`speed=1`，純裝飾）。
 由上而下：
 
-- **字標** `Clessia` —— 是一條連結，指向 `/login`
-- 標語 `學程管家`
+- **字標** `Clessia · 學程管家` —— 頂端一行 20px 小字，是一條連結，指向 `/login`
+- **主標＝補習班名稱**（`GET /api/public/org` 的 `name`，桌機 36px、手機 0.1 屏寬）。
+  請求回來時高度滑開；沒設 `PUBLIC_ORG_SLUG`（404）或讀不到就不渲染，入口照常（#1858）
 - 副標 `讓學習旅程更輕鬆`
 - （貼底）**四條輕量連結**
-- 版權 `© 2025 Clessia Academy`
+- 版權 `© 2025 Clessia Academy` —— 桌機與手機都有，手機的品牌面底部含 safe-area（#1858）
+
+> **2026-10-22（#1858）**：原本是 40px 大字 `Clessia` ＋ 下一行 `學程管家`、手機不顯示版權。
+> 使用者要求縮小並顯示補習班名稱，版型選 A（補習班名稱當主標）；R5 偏離見 [[architecture/a6-adoption-rules]]。
+> 下面「尺寸」一節的字標量測是改版前的。
 
 ### 2. 主面（`<main>`，白底）
 
@@ -188,10 +193,10 @@ updated: 2026-10-07
 
 ## 載入中 / 錯誤
 
-**不適用 —— 這個外框自己不取任何資料。**
+外框只取一支：`GET /api/public/org`（補習班名稱，#1858）。**沒有載入中畫面也沒有錯誤畫面** ——
+名稱還沒回來時那一格高度是 0，回來才滑開；失敗（含 404 `PUBLIC_DISABLED`）就一直不顯示，其他東西都不受影響。
 
-結構事實：`features/public/public-shell.component.ts` **一個 `inject()` 都沒有**
-（`grep -n "inject(" …` 回空），模板只有品牌面與四個 `routerLink`。
+> 2026-10-22 前這一節寫「這個外框自己不取任何資料、一個 `inject()` 都沒有」—— #1858 之後不再成立。
 
 六個公開頁各自的狀態在各自的地圖裡，而**六頁裡五頁的請求數是 0**、
 `/login` 只有一支 `GET /api/me`（見 [[specs/sitemap/public/login]]）。

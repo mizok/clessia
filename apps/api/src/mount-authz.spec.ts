@@ -80,6 +80,7 @@ const EXPECTED: Record<string, Expected> = {
  */
 const UNMOUNTED = [
   '/api/public/catalog',
+  '/api/public/org',
   '/api/public/captcha',
   '/api/public/enrollment-applications',
   '/api/public/trial-applications',
