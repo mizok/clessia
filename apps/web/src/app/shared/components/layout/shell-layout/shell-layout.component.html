@@ -38,8 +38,13 @@
         }
       </nav>
 
-      <!-- A6 `.top__tools`：搜尋、分校、帳戶是一組（margin-left:auto），手機放不下就整組換到第二列 -->
-      <div class="ml-auto flex items-center gap-x-2 wide:gap-x-4">
+      <!-- A6 `.top__tools`：搜尋、分校、帳戶是一組（margin-left:auto），手機放不下就整組換到第二列。
+           **會出現分校切換的頁，手機從第一幀就換列**（#1859）：分校鈕要等分校清單回來才出現，原本那一刻
+           工具組才放不下、整個頂欄長高 22px，下面的主選單跟著往下跳 —— 剛進頁正要點選單的時候點擊目標在動 -->
+      <div
+        class="ml-auto flex items-center gap-x-2 max-wide:data-[own-row]:basis-full max-wide:data-[own-row]:justify-end wide:gap-x-4"
+        [attr.data-own-row]="(auth.activeRole() === 'admin' && campus.inUse()) || null"
+      >
         @if (auth.activeRole() === 'admin') {
           <app-global-search class="flex items-center" />
         }

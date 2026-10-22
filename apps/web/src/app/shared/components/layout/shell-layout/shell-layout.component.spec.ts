@@ -217,6 +217,20 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(c.select).toHaveBeenCalledWith('c1');
     });
 
+    // #1859：分校鈕晚到時手機頂欄才換列、整個頂欄長高 22px。會出現分校切換的頁，從第一幀就換列 ——
+    // 分校清單還沒回來（campuses 空的）時也要換
+    it('會出現分校切換的頁：工具組從第一幀就佔自己那一列（分校清單還沒回來也一樣）', async () => {
+      const { el } = await withCtx(ctx(true, 0));
+      const tools = el.querySelector('[data-own-row]') as HTMLElement;
+      expect(tools).not.toBeNull();
+      expect(tools.classList).toContain('max-wide:data-[own-row]:basis-full');
+    });
+
+    it('沒接上分校的頁：工具組照舊，放得下就不換列', async () => {
+      const { el } = await withCtx(ctx(false, 3));
+      expect(el.querySelector('[data-own-row]')).toBeNull();
+    });
+
     it('只管一間：只寫名字、不給點', async () => {
       const { el } = await withCtx(ctx(true, 1));
       expect(el.querySelector('[popovertarget="shell-campus"]')).toBeNull();
