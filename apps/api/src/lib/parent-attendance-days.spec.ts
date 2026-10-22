@@ -223,6 +223,75 @@ describe('buildAttendanceDays —— 課堂為來源、左接出勤', () => {
   });
 });
 
+/** 審核席 #1818 二讀存活的突變（L6、L9、L16、L20 與 event 一對多），一條一條釘住 */
+describe('審核席補強', () => {
+  const coveringLeave = (role = 'parent') => ({
+    window: {
+      startDate: '2026-10-20',
+      endDate: '2026-10-20',
+      startTime: null,
+      endTime: null,
+      boundSessions: [],
+    },
+    submittedByRole: role,
+    reason: '看醫生',
+  });
+
+  it('L6：在籍要比對班級 —— A 班已退班、B 班在籍，A 班退班後的堂不列', () => {
+    const rows = buildAttendanceDays({
+      ...base,
+      enrollments: [
+        enrollment({ classId: 'class-a', status: 'withdrawal', effectiveTo: '2026-10-15' }),
+        enrollment({ classId: 'class-b' }),
+      ],
+      sessions: [
+        session('a-after', '2026-10-20', { classId: 'class-a' }),
+        session('b', '2026-10-20', { classId: 'class-b' }),
+      ],
+    });
+    expect(rows.map((r) => r.id)).toEqual(['b']);
+  });
+
+  it('L9：有紀錄但不是請假（出席）→ 不帶假單來源與原因', () => {
+    const rows = buildAttendanceDays({
+      ...base,
+      sessions: [session('s1', '2026-10-20')],
+      records: [record('r1', 'ev-s1', '2026-10-20', { status: 'present' })],
+      leaves: [coveringLeave()],
+    });
+    expect(rows[0]).toMatchObject({ status: 'present', leaveSubmittedBy: null, leaveReason: null });
+  });
+
+  it('L16：併回的列有 sessionId 時用它當 id（跟課堂列同一種鍵）', () => {
+    const rows = buildAttendanceDays({
+      ...base,
+      records: [record('r1', 'ev-x', '2026-10-20', { sessionId: 'sess-x' })],
+    });
+    expect(rows[0]!.id).toBe('sess-x');
+  });
+
+  it('L20：併回的請假紀錄也找假單，帶出請假來源與原因', () => {
+    const rows = buildAttendanceDays({
+      ...base,
+      records: [record('r1', 'ev-x', '2026-10-20', { status: 'on_leave', sessionId: null })],
+      leaves: [coveringLeave()],
+    });
+    expect(rows[0]).toMatchObject({ leaveSubmittedBy: 'parent', leaveReason: '看醫生' });
+  });
+
+  it('兩堂掛同一個 event（event_id 沒有唯一約束）→ 那筆紀錄只出現一次', () => {
+    const rows = buildAttendanceDays({
+      ...base,
+      sessions: [
+        session('s1', '2026-10-20', { eventId: 'ev-shared' }),
+        session('s2', '2026-10-20', { eventId: 'ev-shared', startTime: '19:00' }),
+      ],
+      records: [record('r1', 'ev-shared', '2026-10-20', { status: 'absent' })],
+    });
+    expect(rows.filter((r) => r.status === 'absent')).toHaveLength(1);
+  });
+});
+
 /** 設計稿 §6 的兩條不變式 —— 用日期窗重建列表的陷阱就是「窗外的資料整筆消失」 */
 describe('不變式', () => {
   const sessions = [

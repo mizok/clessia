@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
@@ -40,8 +40,10 @@ function session(id: string, classId: string, date: string, over: Record<string,
   };
 }
 
-function seed() {
-  return createMultiOrgDb({
+type Rows = Record<string, Array<Record<string, unknown>>>;
+
+function seed(extra: Rows = {}) {
+  const base: Rows = {
     organizations: [{ id: ORG, attendance_mode: 'per_session' }],
     campuses: [
       { id: 'c-daily', org_id: ORG, attendance_mode: 'daily_checkin' },
@@ -177,7 +179,10 @@ function seed() {
     daily_checkins: [
       { id: 'k1', org_id: ORG, student_id: MINE, checkin_date: '2026-10-20', campus_id: 'c-daily' },
     ],
-  });
+  };
+  for (const [table, rows] of Object.entries(extra))
+    base[table] = [...(base[table] ?? []), ...rows];
+  return createMultiOrgDb(base as never);
 }
 
 function failing(): unknown {
@@ -191,14 +196,45 @@ function failing(): unknown {
 
 async function get(
   query: string,
-  opts: { roles?: string[]; scope?: readonly string[]; failTable?: string } = {},
+  opts: {
+    roles?: string[];
+    scope?: readonly string[];
+    failTable?: string;
+    extra?: Rows;
+    /** 記下每一支查詢的「表.方法(參數)」—— 被 lib 再過濾一次的條件，回應看不出來有沒有下 */
+    log?: string[];
+  } = {},
 ) {
-  const db = seed();
+  const db = seed(opts.extra);
   const scope = opts.scope ?? [MINE, SIBLING];
   if (opts.failTable) {
     const client = db.client as unknown as { from: (t: string) => unknown };
     const from = client.from.bind(client);
     client.from = (t: string) => (t === opts.failTable ? failing() : from(t));
+  }
+  if (opts.log) {
+    const log = opts.log;
+    const client = db.client as unknown as { from: (t: string) => unknown };
+    const from = client.from.bind(client);
+    const wrap = (target: object, table: string): unknown =>
+      new Proxy(target, {
+        get(t, prop) {
+          const v = (t as Record<string | symbol, unknown>)[prop];
+          if (typeof v !== 'function') return v;
+          // then 要綁回原物件（真 Promise 有內部槽，Proxy 當 this 會炸）
+          if (prop === 'then') return (v as (...a: unknown[]) => unknown).bind(t);
+          return (...args: unknown[]) => {
+            log.push(
+              `${table}.${String(prop)}(${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(',')})`,
+            );
+            const r = (v as (...a: unknown[]) => unknown).apply(t, args);
+            return r && typeof r === 'object' && !(r instanceof Promise)
+              ? wrap(r as object, table)
+              : r;
+          };
+        },
+      });
+    client.from = (t: string) => wrap(from(t) as object, t);
   }
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -288,5 +324,122 @@ describe('GET /api/me/attendance/days（#1810）', () => {
     const { status, body } = await get(WINDOW, { failTable: table });
     expect(status).toBe(500);
     expect(body.code).toBe('FETCH_ATTENDANCE_FAILED');
+  });
+});
+
+/** 審核席 #1818 二讀存活的突變（R5、R7–R10、R13、R14、R16、R17） */
+describe('GET /api/me/attendance/days —— 審核席補強', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-22T04:00:00Z')); // 台北 10-22 中午：本月＝10 月
+  });
+  afterEach(() => vi.useRealTimers());
+
+  // 兄弟姊妹的資料：任何一支查詢少了 .eq('student_id', childId)，就會混進 MINE 的回應
+  const siblingData: Rows = {
+    // 蓋到 MINE 10-22 那堂（s3）的整天假
+    leave_requests: [
+      {
+        id: 'lv-sib',
+        org_id: ORG,
+        student_id: SIBLING,
+        start_date: '2026-10-22',
+        end_date: '2026-10-22',
+        start_time: null,
+        end_time: null,
+        reason: '哥哥的假',
+        submitted_by_role: 'parent',
+        leave_request_sessions: [],
+      },
+    ],
+    // MINE 10-18 有一堂日到班的課、自己沒刷卡；兄弟姊妹那天刷了
+    sessions: [session('s4', 'cls-daily', '2026-10-18')],
+    daily_checkins: [
+      {
+        id: 'k-sib',
+        org_id: ORG,
+        student_id: SIBLING,
+        checkin_date: '2026-10-18',
+        campus_id: 'c-daily',
+      },
+    ],
+    attendance_records: [
+      {
+        id: 'r-sib-leave',
+        org_id: ORG,
+        student_id: SIBLING,
+        event_id: 'ev-sib-2',
+        status: 'on_leave',
+        note: null,
+        recorded_by: null,
+        recorded_by_role: 'system',
+        created_at: '2026-10-20T10:00:00Z',
+        updated_at: '2026-10-20T10:00:00Z',
+        students: { name: '小華' },
+        events: {
+          event_date: '2026-10-20',
+          start_time: '17:00:00',
+          end_time: '18:30:00',
+          campus_id: 'c-session',
+          campuses: { name: '景美' },
+          sessions: [],
+        },
+      },
+    ],
+  };
+
+  it('R7／R8：兄弟姊妹的假單與刷卡不會推導到這個孩子的堂', async () => {
+    const { body } = await get(WINDOW, { extra: siblingData });
+    const byId = Object.fromEntries(body.data.map((r: { id: string }) => [r.id, r]));
+    expect(byId['s3']).toMatchObject({ status: null, derived: null, leaveSubmittedBy: null });
+    expect(byId['s4']).toMatchObject({ status: null, derived: null });
+  });
+
+  it('R9／R10：本月缺席與請假只算這個孩子的', async () => {
+    const { body } = await get(WINDOW, { extra: siblingData });
+    // MINE 本月：缺席 1（r2）、請假 0；兄弟姊妹的缺席 r-sib、請假 r-sib-leave 都不能算進來
+    expect(body.meta).toEqual({ monthlyAbsentCount: 1, monthlyOnLeaveCount: 0 });
+  });
+
+  it('R5／R14／R16／R17：每一支查詢都下了窗的上下界（lib 會再過濾，回應看不出來）', async () => {
+    const log: string[] = [];
+    await get(WINDOW, { log });
+    for (const expected of [
+      'sessions.gte(session_date,2026-10-13)',
+      'sessions.lte(session_date,2026-10-22)',
+      'attendance_records.gte(events.event_date,2026-10-13)',
+      'attendance_records.lte(events.event_date,2026-10-22)',
+      'leave_requests.lte(start_date,2026-10-22)',
+      'leave_requests.gte(end_date,2026-10-13)',
+      'daily_checkins.gte(checkin_date,2026-10-13)',
+      'daily_checkins.lte(checkin_date,2026-10-22)',
+    ]) {
+      expect(log, expected).toContain(expected);
+    }
+  });
+
+  it('R13：暫停的報名 —— 暫停那天之前的堂照列，之後的不列（status_changed_at 有接上）', async () => {
+    const extra: Rows = {
+      enrollments: [
+        {
+          id: 'e-susp',
+          org_id: ORG,
+          student_id: MINE,
+          class_id: 'cls-susp',
+          status: 'suspended',
+          effective_from: '2026-01-01',
+          effective_to: null,
+          status_changed_at: '2026-10-18',
+        },
+      ],
+      sessions: [
+        session('susp-before', 'cls-susp', '2026-10-16'),
+        session('susp-after', 'cls-susp', '2026-10-20'),
+      ],
+    };
+    const { body } = await get(WINDOW, { extra });
+    const ids = body.data.map((r: { id: string }) => r.id);
+    expect(ids).toContain('susp-before');
+    expect(ids).not.toContain('susp-after');
   });
 });

@@ -136,7 +136,9 @@ export function buildAttendanceDays(input: {
 
   for (const s of input.sessions) {
     if (!inWindow(s.date)) continue;
-    const record = s.eventId ? recordByEvent.get(s.eventId) : undefined;
+    // 一筆紀錄只給第一堂：`sessions.event_id` 沒有唯一約束，萬一兩堂掛同一個 event，不讓同一筆紀錄出現兩次
+    const hit = s.eventId ? recordByEvent.get(s.eventId) : undefined;
+    const record = hit && !used.has(hit.id) ? hit : undefined;
     const enrolled = input.enrollments.some(
       (e) => e.classId === s.classId && onRosterOn(e, s.date),
     );
