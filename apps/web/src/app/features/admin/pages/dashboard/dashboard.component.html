@@ -84,7 +84,7 @@
   }
 
   @if (todoCards().length > 0) {
-    <section aria-labelledby="dashboard-todo-title">
+    <section appSlideHeight aria-labelledby="dashboard-todo-title">
       <h2 id="dashboard-todo-title" class="sr-only">待處理</h2>
       <ul class="m-0 list-none border-t border-zinc-900 p-0">
         @for (card of todoCards(); track card.label) {
@@ -138,7 +138,7 @@
       只列第一堂已經開始的人；還沒到上課時間的在下面的到班名冊裡。
       設計見 kb/wiki/architecture/today-workbench.md。
     -->
-    <section aria-labelledby="dashboard-main-title">
+    <section appSlideHeight aria-labelledby="dashboard-main-title">
       <div class="border-b border-surface-border pb-3">
         <h2
           id="dashboard-main-title"
@@ -257,7 +257,7 @@
       }
     </section>
   } @else {
-    <section aria-labelledby="dashboard-main-title">
+    <section appSlideHeight aria-labelledby="dashboard-main-title">
       <div
         class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3"
       >

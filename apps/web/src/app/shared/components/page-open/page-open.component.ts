@@ -1,16 +1,7 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  type ElementRef,
-  afterNextRender,
-  computed,
-  inject,
-  input,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
+import { SlideHeightDirective } from '@shared/directives/slide-height.directive';
 
 /**
  * A6 的開場色面（#991 殼切片 S1）：每頁一塊全寬橘面，放「這一頁的那句話」，流場在裡面。
@@ -26,29 +17,17 @@ import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.com
  * ponytail: A6 的統計列（`stats`）等第一個需要的頁再加。
  *
  * **高度變化用滑的**（#1859，使用者 10-22「跳改成滑沒有問題」）：標題常是資料回來才換成兩行、
- * 副行與孩子切換器也是晚到，原本整頁一次被往下推 20–55px。內容高度變了，就用 WAAPI 把色面的高度
- * 從舊值滑到新值（色面本來就 overflow-hidden，內容是被「露出來」）。視窗寬度變了（換行重排）不滑，
- * 減少動態時不滑。只滑高度、不碰內容的 DOM，頁面照常更新。
+ * 副行與孩子切換器也是晚到，原本整頁一次被往下推 20–55px。色面掛 `appSlideHeight`
+ * （shared/directives/slide-height.directive.ts），內容高度變了就從舊高度滑到新高度。
  */
 @Component({
   selector: 'app-page-open',
-  imports: [FlowFieldComponent],
+  imports: [FlowFieldComponent, SlideHeightDirective],
   templateUrl: './page-open.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
 })
 export class PageOpenComponent {
-  private readonly band = viewChild.required<ElementRef<HTMLElement>>('band');
-  private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');
-
-  constructor() {
-    const destroyRef = inject(DestroyRef);
-    afterNextRender(() => {
-      const ro = slideHeightOnResize(this.band().nativeElement, this.content().nativeElement);
-      destroyRef.onDestroy(() => ro?.disconnect());
-    });
-  }
-
   /**
    * 人名當標題（A6 `.open__title--name`，只有學生檔案用）：桌機 72／手機 44，行高 1。
    * 預設 false＝一般標題 48／28，不影響別頁。整串寫在 TS：任意值 class 用 `[class.text-[..]]`
@@ -88,32 +67,4 @@ export class PageOpenComponent {
         ? 'm-0 max-w-[18em] text-[26px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[40px] wide:leading-[1.14] wide:tracking-[-0.035em]'
         : 'm-0 max-w-[18em] text-[28px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[48px] wide:leading-[1.14] wide:tracking-[-0.035em]',
   );
-}
-
-/** 進場的時長（同 #1634 的彈出物）；曲線讀 styles.css 的 `--arrive` */
-const SLIDE_MS = 200;
-
-/**
- * `content` 的高度變了就把 `band` 的高度從舊值滑到新值。寬度也變了（視窗縮放、換行重排）不滑。
- * 連續變化時從「目前畫面上的高度」接著滑，不跳回上一個終點。
- */
-export function slideHeightOnResize(band: HTMLElement, content: HTMLElement) {
-  if (typeof ResizeObserver === 'undefined') return null;
-  let last = content.getBoundingClientRect();
-  const ro = new ResizeObserver(() => {
-    const next = content.getBoundingClientRect();
-    const prev = last;
-    last = next;
-    if (next.height === prev.height || next.width !== prev.width) return;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const running = band.getAnimations();
-    const from = running.length ? band.getBoundingClientRect().height : prev.height;
-    running.forEach((a) => a.cancel());
-    band.animate([{ height: `${from}px` }, { height: `${next.height}px` }], {
-      duration: SLIDE_MS,
-      easing: getComputedStyle(document.documentElement).getPropertyValue('--arrive') || 'ease-out',
-    });
-  });
-  ro.observe(content);
-  return ro;
 }

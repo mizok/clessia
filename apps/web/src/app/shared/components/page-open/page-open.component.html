@@ -1,5 +1,5 @@
 <section
-  #band
+  appSlideHeight
   class="relative isolate overflow-hidden bg-accent-vivid bg-linear-150 from-accent-vivid to-accent-vivid-2 text-band-ink"
   aria-label="這一頁的摘要"
 >
@@ -9,7 +9,7 @@
     class="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(255_106_61/86%)_0%,rgb(255_106_61/66%)_64%,rgb(255_133_87/40%)_100%)] wide:bg-[linear-gradient(100deg,rgb(255_106_61/94%)_0%,rgb(255_106_61/84%)_34%,rgb(255_106_61/18%)_62%,rgb(255_106_61/0%)_80%)]"
     aria-hidden="true"
   ></div>
-  <div #content [class]="wrapClass()">
+  <div [class]="wrapClass()">
     <!-- 返回連結（A6 `back`）：詳情頁用，放在標題上面 -->
     <ng-content select="[openBack]" />
     <h1 [class]="titleClass()">

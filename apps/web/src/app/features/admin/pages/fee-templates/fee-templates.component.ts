@@ -65,10 +65,13 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
  * 兩支 API 都**沒有分頁**（十幾筆的量級），所以這裡沒有 pagination 狀態，
  * 搜尋與篩選直接打後端。兩個區塊**各自取數、各自失敗** —— 收費期間掛了不該讓價目表空白。
  */
+import { SlideHeightDirective } from '@shared/directives/slide-height.directive';
+
 @Component({
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
+    SlideHeightDirective,
     ReloadVeilComponent,
     ChapterHeadComponent,
     DecimalPipe,
