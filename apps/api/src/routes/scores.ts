@@ -13,6 +13,7 @@ import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-d
 import { isEnrolledOn } from '../lib/session-roster';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
+import { toCsv } from '../lib/csv';
 import { isFailingScore } from '../lib/score-threshold';
 import { scorePercent } from '../lib/score-percent';
 import {
@@ -439,6 +440,275 @@ async function resolveScoreScope(
   return { studentIds, academyExamIds };
 }
 
+/**
+ * 撈齊符合條件的成績（校內考＋段考合併、日期篩選、依考試日新到舊）。
+ * `GET /scores`（再分頁）與匯出（#1100 #40，整份）共用 —— 兩邊對「哪些成績算數」不會分岔。
+ * `readable`／`academyExamIds` 是 `resolveScoreScope` 的結果（`null`＝不限）。
+ */
+async function collectScoreRecords(
+  supabase: SupabaseClient,
+  orgId: string,
+  filters: {
+    readable: string[] | null;
+    academyExamIds: string[] | null;
+    studentId?: string;
+    type?: 'academy' | 'school';
+    subjectId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    searchKeyword: string | null;
+  },
+): Promise<ScoreRecord[]> {
+  const { readable, academyExamIds, studentId, type, subjectId, dateFrom, dateTo, searchKeyword } =
+    filters;
+  const results: ScoreRecord[] = [];
+
+  // Fetch academy scores (unless type is explicitly 'school')
+  // 篩了班但那些班沒掛任何校內考 → 校內考這半是空的（段考照學生篩，照常查）
+  if ((!type || type === 'academy') && (academyExamIds === null || academyExamIds.length > 0)) {
+    const buildAcademyQuery = () =>
+      supabase
+        .from('academy_scores')
+        .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`)
+        .eq('academy_exams.org_id', orgId);
+
+    const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
+      let next = query;
+      if (readable !== null) {
+        next = next.in('student_id', readable);
+      }
+      if (academyExamIds !== null) {
+        next = next.in('exam_id', academyExamIds);
+      }
+      if (studentId) {
+        next = next.eq('student_id', studentId);
+      }
+      if (subjectId) {
+        next = next.eq('academy_exams.subject_id', subjectId);
+      }
+      if (dateFrom) {
+        next = next.gte('academy_exams.exam_date', dateFrom);
+      }
+      if (dateTo) {
+        next = next.lte('academy_exams.exam_date', dateTo);
+      }
+      return next;
+    };
+
+    const academyRowMap = new Map<string, any>();
+    let academyError: { message: string } | null = null;
+
+    if (searchKeyword) {
+      const [studentResult, examResult] = await Promise.all([
+        supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
+        (() => {
+          let query = supabase
+            .from('academy_exams')
+            .select('id')
+            .eq('org_id', orgId)
+            .ilike('name', searchKeyword);
+          if (subjectId) query = query.eq('subject_id', subjectId);
+          if (dateFrom) query = query.gte('exam_date', dateFrom);
+          if (dateTo) query = query.lte('exam_date', dateTo);
+          return query;
+        })(),
+      ]);
+
+      if (studentResult.error || examResult.error) {
+        academyError = {
+          message: studentResult.error?.message ?? examResult.error?.message ?? 'DB_ERROR',
+        };
+      } else {
+        const matchedStudentIds = (studentResult.data ?? []).map((row) => row.id);
+        const matchedExamIds = (examResult.data ?? []).map((row) => row.id);
+
+        const candidateQueries: any[] = [];
+        if (matchedStudentIds.length > 0) {
+          candidateQueries.push(() =>
+            applyAcademyFilters(buildAcademyQuery())
+              .in('student_id', matchedStudentIds)
+              .order('exam_date', {
+                referencedTable: 'academy_exams',
+                ascending: false,
+              }),
+          );
+        }
+        if (matchedExamIds.length > 0) {
+          candidateQueries.push(() =>
+            applyAcademyFilters(buildAcademyQuery())
+              .in('exam_id', matchedExamIds)
+              .order('exam_date', {
+                referencedTable: 'academy_exams',
+                ascending: false,
+              }),
+          );
+        }
+
+        if (candidateQueries.length > 0) {
+          const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
+          for (const result of queryResults) {
+            if (result.error) {
+              academyError = { message: result.error.message };
+              break;
+            }
+            for (const row of result.data ?? []) {
+              academyRowMap.set(row.id, row);
+            }
+          }
+        }
+      }
+    } else {
+      const { data, error } = await fetchAllOrError(() =>
+        applyAcademyFilters(buildAcademyQuery()).order('exam_date', {
+          referencedTable: 'academy_exams',
+          ascending: false,
+        }),
+      );
+      if (error) {
+        academyError = { message: error.message };
+      } else {
+        for (const row of data ?? []) {
+          academyRowMap.set(row.id, row);
+        }
+      }
+    }
+
+    const academyRows = Array.from(academyRowMap.values());
+
+    if (academyError) {
+      console.error('Academy scores query error:', academyError);
+    } else {
+      for (const row of academyRows ?? []) {
+        const student = row.students as any;
+        results.push({
+          ...mapAcademyScoreRow(row),
+          studentId: row.student_id,
+          studentName: student.name,
+        });
+      }
+    }
+  }
+
+  // Fetch school scores (unless type is explicitly 'academy')
+  if (!type || type === 'school') {
+    const buildSchoolQuery = () =>
+      supabase
+        .from('school_scores')
+        .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`)
+        .eq('school_exams.org_id', orgId);
+
+    const applySchoolFilters = (query: ReturnType<typeof buildSchoolQuery>) => {
+      let next = query;
+      if (readable !== null) {
+        next = next.in('student_id', readable);
+      }
+      if (studentId) {
+        next = next.eq('student_id', studentId);
+      }
+      if (subjectId) {
+        next = next.eq('subject_id', subjectId);
+      }
+      return next;
+    };
+
+    const schoolRowMap = new Map<string, any>();
+    let schoolError: { message: string } | null = null;
+
+    if (searchKeyword) {
+      const [studentResult, examResult] = await Promise.all([
+        supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
+        supabase
+          .from('school_exams')
+          .select('id')
+          .eq('org_id', orgId)
+          .ilike('label', searchKeyword),
+      ]);
+
+      if (studentResult.error || examResult.error) {
+        schoolError = {
+          message: studentResult.error?.message ?? examResult.error?.message ?? 'DB_ERROR',
+        };
+      } else {
+        const matchedStudentIds = (studentResult.data ?? []).map((row) => row.id);
+        const matchedExamIds = (examResult.data ?? []).map((row) => row.id);
+        const candidateQueries: any[] = [];
+
+        if (matchedStudentIds.length > 0) {
+          candidateQueries.push(() =>
+            applySchoolFilters(buildSchoolQuery())
+              .in('student_id', matchedStudentIds)
+              .order('created_at', {
+                referencedTable: 'school_exams',
+                ascending: false,
+              }),
+          );
+        }
+        if (matchedExamIds.length > 0) {
+          candidateQueries.push(() =>
+            applySchoolFilters(buildSchoolQuery())
+              .in('school_exam_id', matchedExamIds)
+              .order('created_at', {
+                referencedTable: 'school_exams',
+                ascending: false,
+              }),
+          );
+        }
+
+        if (candidateQueries.length > 0) {
+          const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
+          for (const result of queryResults) {
+            if (result.error) {
+              schoolError = { message: result.error.message };
+              break;
+            }
+            for (const row of result.data ?? []) {
+              schoolRowMap.set(row.id, row);
+            }
+          }
+        }
+      }
+    } else {
+      const { data, error } = await fetchAllOrError(() =>
+        applySchoolFilters(buildSchoolQuery()).order('created_at', {
+          referencedTable: 'school_exams',
+          ascending: false,
+        }),
+      );
+      if (error) {
+        schoolError = { message: error.message };
+      } else {
+        for (const row of data ?? []) {
+          schoolRowMap.set(row.id, row);
+        }
+      }
+    }
+
+    const schoolRows = Array.from(schoolRowMap.values());
+
+    if (schoolError) {
+      console.error('School scores query error:', schoolError);
+    } else {
+      for (const row of schoolRows ?? []) {
+        const student = row.students as any;
+        results.push({
+          ...mapSchoolScoreRow(row),
+          studentId: row.student_id,
+          studentName: student.name,
+        });
+      }
+    }
+  }
+
+  // Sort combined results by examDate descending
+  // 日期篩選照回應的 examDate 再做一次（#1253）：段考的查詢沒有日期條件，而段考沒填考試日期時
+  // examDate 退回建立日，DB 層篩 school_exams.exam_date 會漏掉那些（同 #1167 家長端）
+  const inRange = results.filter(
+    (r) => (!dateFrom || r.examDate >= dateFrom) && (!dateTo || r.examDate <= dateTo),
+  );
+  inRange.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
+  return inRange;
+}
+
 app.openapi(listRoute, async (c) => {
   const orgId = c.get('orgId');
   const supabase = c.get('supabase');
@@ -479,251 +749,16 @@ app.openapi(listRoute, async (c) => {
   }
 
   try {
-    const results: ScoreRecord[] = [];
-
-    // Fetch academy scores (unless type is explicitly 'school')
-    // 篩了班但那些班沒掛任何校內考 → 校內考這半是空的（段考照學生篩，照常查）
-    if ((!type || type === 'academy') && (academyExamIds === null || academyExamIds.length > 0)) {
-      const buildAcademyQuery = () =>
-        supabase
-          .from('academy_scores')
-          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`)
-          .eq('academy_exams.org_id', orgId);
-
-      const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
-        let next = query;
-        if (readable !== null) {
-          next = next.in('student_id', readable);
-        }
-        if (academyExamIds !== null) {
-          next = next.in('exam_id', academyExamIds);
-        }
-        if (studentId) {
-          next = next.eq('student_id', studentId);
-        }
-        if (subjectId) {
-          next = next.eq('academy_exams.subject_id', subjectId);
-        }
-        if (dateFrom) {
-          next = next.gte('academy_exams.exam_date', dateFrom);
-        }
-        if (dateTo) {
-          next = next.lte('academy_exams.exam_date', dateTo);
-        }
-        return next;
-      };
-
-      const academyRowMap = new Map<string, any>();
-      let academyError: { message: string } | null = null;
-
-      if (searchKeyword) {
-        const [studentResult, examResult] = await Promise.all([
-          supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
-          (() => {
-            let query = supabase
-              .from('academy_exams')
-              .select('id')
-              .eq('org_id', orgId)
-              .ilike('name', searchKeyword);
-            if (subjectId) query = query.eq('subject_id', subjectId);
-            if (dateFrom) query = query.gte('exam_date', dateFrom);
-            if (dateTo) query = query.lte('exam_date', dateTo);
-            return query;
-          })(),
-        ]);
-
-        if (studentResult.error || examResult.error) {
-          academyError = {
-            message: studentResult.error?.message ?? examResult.error?.message ?? 'DB_ERROR',
-          };
-        } else {
-          const matchedStudentIds = (studentResult.data ?? []).map((row) => row.id);
-          const matchedExamIds = (examResult.data ?? []).map((row) => row.id);
-
-          const candidateQueries: any[] = [];
-          if (matchedStudentIds.length > 0) {
-            candidateQueries.push(() =>
-              applyAcademyFilters(buildAcademyQuery())
-                .in('student_id', matchedStudentIds)
-                .order('exam_date', {
-                  referencedTable: 'academy_exams',
-                  ascending: false,
-                }),
-            );
-          }
-          if (matchedExamIds.length > 0) {
-            candidateQueries.push(() =>
-              applyAcademyFilters(buildAcademyQuery())
-                .in('exam_id', matchedExamIds)
-                .order('exam_date', {
-                  referencedTable: 'academy_exams',
-                  ascending: false,
-                }),
-            );
-          }
-
-          if (candidateQueries.length > 0) {
-            const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
-            for (const result of queryResults) {
-              if (result.error) {
-                academyError = { message: result.error.message };
-                break;
-              }
-              for (const row of result.data ?? []) {
-                academyRowMap.set(row.id, row);
-              }
-            }
-          }
-        }
-      } else {
-        const { data, error } = await fetchAllOrError(() =>
-          applyAcademyFilters(buildAcademyQuery()).order('exam_date', {
-            referencedTable: 'academy_exams',
-            ascending: false,
-          }),
-        );
-        if (error) {
-          academyError = { message: error.message };
-        } else {
-          for (const row of data ?? []) {
-            academyRowMap.set(row.id, row);
-          }
-        }
-      }
-
-      const academyRows = Array.from(academyRowMap.values());
-
-      if (academyError) {
-        console.error('Academy scores query error:', academyError);
-      } else {
-        for (const row of academyRows ?? []) {
-          const student = row.students as any;
-          results.push({
-            ...mapAcademyScoreRow(row),
-            studentId: row.student_id,
-            studentName: student.name,
-          });
-        }
-      }
-    }
-
-    // Fetch school scores (unless type is explicitly 'academy')
-    if (!type || type === 'school') {
-      const buildSchoolQuery = () =>
-        supabase
-          .from('school_scores')
-          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`)
-          .eq('school_exams.org_id', orgId);
-
-      const applySchoolFilters = (query: ReturnType<typeof buildSchoolQuery>) => {
-        let next = query;
-        if (readable !== null) {
-          next = next.in('student_id', readable);
-        }
-        if (studentId) {
-          next = next.eq('student_id', studentId);
-        }
-        if (subjectId) {
-          next = next.eq('subject_id', subjectId);
-        }
-        return next;
-      };
-
-      const schoolRowMap = new Map<string, any>();
-      let schoolError: { message: string } | null = null;
-
-      if (searchKeyword) {
-        const [studentResult, examResult] = await Promise.all([
-          supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
-          supabase
-            .from('school_exams')
-            .select('id')
-            .eq('org_id', orgId)
-            .ilike('label', searchKeyword),
-        ]);
-
-        if (studentResult.error || examResult.error) {
-          schoolError = {
-            message: studentResult.error?.message ?? examResult.error?.message ?? 'DB_ERROR',
-          };
-        } else {
-          const matchedStudentIds = (studentResult.data ?? []).map((row) => row.id);
-          const matchedExamIds = (examResult.data ?? []).map((row) => row.id);
-          const candidateQueries: any[] = [];
-
-          if (matchedStudentIds.length > 0) {
-            candidateQueries.push(() =>
-              applySchoolFilters(buildSchoolQuery())
-                .in('student_id', matchedStudentIds)
-                .order('created_at', {
-                  referencedTable: 'school_exams',
-                  ascending: false,
-                }),
-            );
-          }
-          if (matchedExamIds.length > 0) {
-            candidateQueries.push(() =>
-              applySchoolFilters(buildSchoolQuery())
-                .in('school_exam_id', matchedExamIds)
-                .order('created_at', {
-                  referencedTable: 'school_exams',
-                  ascending: false,
-                }),
-            );
-          }
-
-          if (candidateQueries.length > 0) {
-            const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
-            for (const result of queryResults) {
-              if (result.error) {
-                schoolError = { message: result.error.message };
-                break;
-              }
-              for (const row of result.data ?? []) {
-                schoolRowMap.set(row.id, row);
-              }
-            }
-          }
-        }
-      } else {
-        const { data, error } = await fetchAllOrError(() =>
-          applySchoolFilters(buildSchoolQuery()).order('created_at', {
-            referencedTable: 'school_exams',
-            ascending: false,
-          }),
-        );
-        if (error) {
-          schoolError = { message: error.message };
-        } else {
-          for (const row of data ?? []) {
-            schoolRowMap.set(row.id, row);
-          }
-        }
-      }
-
-      const schoolRows = Array.from(schoolRowMap.values());
-
-      if (schoolError) {
-        console.error('School scores query error:', schoolError);
-      } else {
-        for (const row of schoolRows ?? []) {
-          const student = row.students as any;
-          results.push({
-            ...mapSchoolScoreRow(row),
-            studentId: row.student_id,
-            studentName: student.name,
-          });
-        }
-      }
-    }
-
-    // Sort combined results by examDate descending
-    // 日期篩選照回應的 examDate 再做一次（#1253）：段考的查詢沒有日期條件，而段考沒填考試日期時
-    // examDate 退回建立日，DB 層篩 school_exams.exam_date 會漏掉那些（同 #1167 家長端）
-    const inRange = results.filter(
-      (r) => (!dateFrom || r.examDate >= dateFrom) && (!dateTo || r.examDate <= dateTo),
-    );
-    inRange.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
+    const inRange = await collectScoreRecords(supabase, orgId, {
+      readable,
+      academyExamIds,
+      studentId,
+      type,
+      subjectId,
+      dateFrom,
+      dateTo,
+      searchKeyword,
+    });
 
     // 兩個來源合併後在記憶體分頁 —— 所以上面每支查詢都分頁撈齊（#1253：max_rows 1000 會靜默截斷）
     // ponytail: 全撈；全機構上萬筆時改成 DB 端合併分頁（view＋range）
@@ -756,6 +791,172 @@ app.openapi(listRoute, async (c) => {
     const message = error instanceof Error ? error.message : '查詢失敗';
     console.error('Scores query error:', error);
     return c.json({ error: message, code: 'DB_ERROR' }, 400);
+  }
+});
+
+// ============================================================
+// POST /api/scores/export —— 成績匯出 CSV（#1100 #40，A6 grades-student 的匯出面板）
+// ============================================================
+//
+// **匯出就是把資料帶出系統，範圍錯了等於外洩**（保留類）。範圍＝`resolveScoreScope`
+// （老師範圍 ∩ 分校範圍）∩ 頂欄分校（`campusFilterIds`，撐不大範圍）∩ `studentIds`（面板的「照目前的篩選」）。
+// 範圍外的學生 id 撈不到，不報錯 —— 跟列表同一個判準。
+// 用 POST：「照目前的篩選」可能是上千位學生，uuid 塞進 GET 的 URL 會超長。
+// 超過上限明確回 413 請人縮小範圍，不截斷（同營收 CSV：截斷的檔案看起來完全正常）。
+
+/** 一次匯出的列數上限 */
+const SCORE_EXPORT_ROW_LIMIT = 20000;
+
+const STATUS_LABELS: Record<ScoreRecord['status'], string> = {
+  scored: '正常',
+  absent: '缺考',
+  makeup: '補考',
+};
+
+/**
+ * 校內考那一列的「開課班／課程」：那場考試掛的班裡，這個學生有報名的那班（報名不分狀態，同篩選）。
+ * 跨班考試學生同時在兩班的話取名字排前面的那班。段考跟班無關 → 沒有。
+ */
+async function examClassOfStudent(
+  supabase: SupabaseClient,
+  orgId: string,
+  records: readonly ScoreRecord[],
+): Promise<Map<string, { className: string; courseName: string | null }>> {
+  const out = new Map<string, { className: string; courseName: string | null }>();
+  const academy = records.filter((r) => r.type === 'academy');
+  if (academy.length === 0) return out;
+
+  const examIds = [...new Set(academy.map((r) => r.examId))];
+  const links = await fetchAllRows<{
+    exam_id: string;
+    class_id: string;
+    classes: { name: string; courses: { name: string } | null } | null;
+  }>(
+    (from, to) =>
+      supabase
+        .from('academy_exam_classes')
+        .select('exam_id, class_id, classes!inner(name, org_id, courses(name))')
+        .in('exam_id', examIds)
+        .eq('classes.org_id', orgId)
+        .order('exam_id')
+        .order('class_id')
+        .range(from, to) as never,
+  );
+  const classIds = [...new Set(links.map((l) => l.class_id))];
+  if (classIds.length === 0) return out;
+  const studentIds = [...new Set(academy.map((r) => r.studentId))];
+  const enrolled = await fetchAllRows<{ student_id: string; class_id: string }>((from, to) =>
+    supabase
+      .from('enrollments')
+      .select('student_id, class_id')
+      .eq('org_id', orgId)
+      .in('class_id', classIds)
+      .in('student_id', studentIds)
+      .order('id')
+      .range(from, to),
+  );
+  const enrolledSet = new Set(enrolled.map((e) => `${e.student_id}:${e.class_id}`));
+  const sortedLinks = [...links].sort((a, b) =>
+    (a.classes?.name ?? '').localeCompare(b.classes?.name ?? '', 'zh-Hant'),
+  );
+  for (const r of academy) {
+    const hit = sortedLinks.find(
+      (l) => l.exam_id === r.examId && enrolledSet.has(`${r.studentId}:${l.class_id}`),
+    );
+    if (hit?.classes)
+      out.set(r.id, { className: hit.classes.name, courseName: hit.classes.courses?.name ?? null });
+  }
+  return out;
+}
+
+const exportRoute = createRoute({
+  method: 'post',
+  path: '/export',
+  tags: ['Scores'],
+  summary: '成績匯出 CSV',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            /** 面板「照目前的篩選」的學生；不帶＝全部學生（仍受範圍限制） */
+            studentIds: z.array(DbUuidSchema).max(3000).optional(),
+            /** 頂欄分校；只能縮小範圍 */
+            campusId: DbUuidSchema.optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: { description: 'CSV', content: { 'text/csv': { schema: z.string() } } },
+    400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+    413: { description: '筆數超過上限', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(exportRoute, async (c) => {
+  const orgId = c.get('orgId');
+  const supabase = c.get('supabase');
+  const body = c.req.valid('json');
+
+  const scope = await resolveScoreScope(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+    campusScope: campusFilterIds(getCampusScope(c), body.campusId),
+  });
+  if (scope === 'forbidden') return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+
+  let readable = scope.studentIds;
+  if (body.studentIds) {
+    const asked = new Set(body.studentIds);
+    readable = readable === null ? [...asked] : readable.filter((id) => asked.has(id));
+  }
+
+  const headers = ['學生姓名', '開課班', '考試名稱', '課程', '日期', '分數', '狀態'];
+  const csvResponse = (rows: ReadonlyArray<ReadonlyArray<string | number | null>>) =>
+    c.body(toCsv(headers, rows), 200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="scores-${getCurrentTaipeiDateString()}.csv"`,
+    });
+  // 範圍內沒有任何學生 → 只有標頭的檔案（「沒有」不是通行證，不能退成不限）
+  if (readable !== null && readable.length === 0) return csvResponse([]);
+
+  try {
+    const records = await collectScoreRecords(supabase, orgId, {
+      readable,
+      academyExamIds: null,
+      searchKeyword: null,
+    });
+    if (records.length > SCORE_EXPORT_ROW_LIMIT) {
+      return c.json(
+        {
+          error: `筆數超過 ${SCORE_EXPORT_ROW_LIMIT} 筆，請先篩選再匯出`,
+          code: 'TOO_MANY_ROWS',
+        },
+        413,
+      );
+    }
+    const classOf = await examClassOfStudent(supabase, orgId, records);
+    return csvResponse(
+      records.map((r) => [
+        r.studentName,
+        classOf.get(r.id)?.className ?? null,
+        r.examName,
+        classOf.get(r.id)?.courseName ?? null,
+        r.examDate,
+        r.status === 'scored' ? r.score : null,
+        STATUS_LABELS[r.status],
+      ]),
+    );
+  } catch (error) {
+    console.error('Scores export error:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : '匯出失敗', code: 'DB_ERROR' },
+      400,
+    );
   }
 });
 
