@@ -126,10 +126,14 @@ describe('POST /check-conflicts（#1928）', () => {
     expect(res.status).toBe(500);
   });
 
-  it('班級讀取失敗 → 500，不是 200「沒有衝突」', async () => {
-    const res = await check(failReads(seed(), 'classes'), {
-      schedules: [{ ...SLOT, teacherId: TEACHER }],
-    });
-    expect(res.status).toBe(500);
+  it('不先撈整個 org 的班級 id（那份清單塞回 .in 會 414）：org 範圍在時段查詢的 join 裡套', async () => {
+    const db = seed();
+    const client = db.client as unknown as { from: (t: string) => unknown };
+    const from = client.from.bind(client);
+    const tables: string[] = [];
+    client.from = (t: string) => (tables.push(t), from(t));
+    const res = await check(db, { schedules: [{ ...SLOT, teacherId: TEACHER }] });
+    expect(res.status).toBe(200);
+    expect(tables).toEqual(['schedules']);
   });
 });

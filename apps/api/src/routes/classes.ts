@@ -867,34 +867,17 @@ app.openapi(
 
     const teacherIds = [...new Set(schedulesToCheck.map((s) => s.teacherId as string))];
 
-    // Step 1: 取得此 org 的所有班級 id（確保跨組織隔離）
-    const { data: orgClasses, error: classesError } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('org_id', orgId);
-    // 讀取失敗不能當成「這個 org 沒有班」→「沒有衝突」（#1928）。前端在這支失敗時照常儲存，不會被擋
-    if (classesError) {
-      console.error('check-conflicts classes read error:', classesError);
-      return c.json({ error: '讀取班級失敗', code: 'DB_ERROR' }, 500);
-    }
-    let orgClassIds = (orgClasses || []).map((c) => c.id as string);
-
-    if (excludeClassId) {
-      orgClassIds = orgClassIds.filter((id) => id !== excludeClassId);
-    }
-
-    if (orgClassIds.length === 0) {
-      return c.json({ conflicts: [] }, 200);
-    }
-
-    // Step 2: 查詢這些班級中屬於這些老師的所有時段
-    const { data: existingSchedules, error } = await supabase
+    // 這些老師在本 org 的所有時段。**org 範圍在 join 裡套**（`classes!inner` ＋ `classes.org_id`，#1928）——
+    // 原本先撈整個 org 歷年所有班級 id 再塞回 `.in('class_id', …)`：班一多網址太長 → 414，
+    // 而且那份清單本身也被 max_rows（1000）截斷。老師 id 只有表單上那幾位，`.in` 很短。
+    let query = supabase
       .from('schedules')
-      .select('*, staff(display_name), classes(name, courses(name))')
-      .in('teacher_id', teacherIds)
-      .in('class_id', orgClassIds);
+      .select('*, staff(display_name), classes!inner(org_id, name, courses(name))')
+      .eq('classes.org_id', orgId)
+      .in('teacher_id', teacherIds);
+    if (excludeClassId) query = query.neq('class_id', excludeClassId);
+    const { data: existingSchedules, error } = await query;
 
-    // 原本 soft-fail 回 200「沒有衝突」—— 班一多 `.in()` 就 414，使用者看到的是「沒撞課」（#1928）
     if (error) {
       console.error('check-conflicts DB error:', error);
       return c.json({ error: '讀取時段失敗', code: 'DB_ERROR' }, 500);
