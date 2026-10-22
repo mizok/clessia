@@ -171,6 +171,14 @@ describe('sessionChipLabel', () => {
       });
     });
 
+    // 審核席 #1819 二讀 Z9：出席（含日到班推導的）是深字粗，不是淡色（A6 `.rec__s`）
+    it('出席是 strong；請假、沒紀錄是 muted', () => {
+      expect(rowStatus(record({ status: 'present' }), at(12)).tone).toBe('strong');
+      expect(rowStatus(record({ status: null, derived: 'checkin' }), at(12)).tone).toBe('strong');
+      expect(rowStatus(record({ status: 'on_leave' }), at(12)).tone).toBe('muted');
+      expect(rowStatus(record({ status: null, derived: 'leave' }), at(12)).tone).toBe('muted');
+    });
+
     it('沒紀錄的推導：假單蓋到 → 請假；日到班刷卡 → 出席', () => {
       expect(label({ status: null, derived: 'leave' })).toBe('請假');
       expect(label({ status: null, derived: 'checkin' })).toBe('出席');

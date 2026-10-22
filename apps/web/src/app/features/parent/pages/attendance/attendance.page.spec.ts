@@ -714,4 +714,26 @@ describe('AttendancePage', () => {
       ).toBe('李老師');
     });
   });
+
+  // 審核席 #1819 二讀 Y3：選過去的月份，查詢的窗要跟畫的窗一致 —— 到那個月的月底，不是今天
+  it('選過去的月份 → days() 收到那個月的 1 號到月底', () => {
+    const comp = createComponent() as unknown as {
+      onRangeChange: (mode: 'month') => void;
+      onMonthChange: (month: string) => void;
+    };
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    const d = new Date(`${FAKE_TODAY.slice(0, 7)}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - 1);
+    const prev = d.toISOString().slice(0, 7);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
+      .toISOString()
+      .slice(0, 10);
+
+    comp.onRangeChange('month');
+    comp.onMonthChange(prev);
+    fixture.detectChanges();
+
+    expect(listMock).toHaveBeenLastCalledWith('child-1', `${prev}-01`, last);
+  });
 });
