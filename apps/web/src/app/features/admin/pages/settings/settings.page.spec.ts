@@ -5,6 +5,8 @@ import { vi } from 'vitest';
 import { OrgSettingsService, type OrgSettings } from '@core/org-settings.service';
 import { BillingPeriodsService } from '@core/billing-periods.service';
 import { provideRouter } from '@angular/router';
+import { AuthService } from '@core/auth.service';
+import { GradePromotionsService } from '@core/grade-promotions.service';
 
 import { SettingsPage } from './settings.page';
 
@@ -14,6 +16,8 @@ const DAILY_CHECKIN: OrgSettings = {
   attendanceMode: 'daily_checkin',
   attendanceResponsible: 'admin',
   attendanceRetroactiveDays: 0,
+  gradePromotionMonthDay: '09-01',
+  gradePromotionReminderDays: 7,
 };
 
 describe('SettingsPage', () => {
@@ -25,6 +29,12 @@ describe('SettingsPage', () => {
     updateSettings: vi.fn(),
   };
   const billingPeriodsMock = { list: vi.fn() };
+  let permissions: string[] = [];
+  // 同 AuthService.hasPermission：`*` 什麼都有
+  const authMock = {
+    hasPermission: (p: string) => permissions.includes(p) || permissions.includes('*'),
+  };
+  const gradePromotionsMock = { history: vi.fn(), revert: vi.fn() };
 
   /** ngOnInit 在第一次 `detectChanges()` 跑，所以取數的結果要在建立元件之前就決定 */
   async function setup() {
@@ -35,6 +45,8 @@ describe('SettingsPage', () => {
         provideRouter([]),
         { provide: OrgSettingsService, useValue: orgSettingsServiceMock },
         { provide: BillingPeriodsService, useValue: billingPeriodsMock },
+        { provide: AuthService, useValue: authMock },
+        { provide: GradePromotionsService, useValue: gradePromotionsMock },
       ],
     }).compileComponents();
 
@@ -60,6 +72,114 @@ describe('SettingsPage', () => {
     orgSettingsServiceMock.getSettings.mockReturnValue(of(DAILY_CHECKIN));
     orgSettingsServiceMock.updateSettings.mockReturnValue(of(DAILY_CHECKIN));
     billingPeriodsMock.list.mockReturnValue(of({ data: [] }));
+    permissions = [];
+    gradePromotionsMock.history.mockReturnValue(of({ data: [] }));
+  });
+
+  describe('學年升級段（#1820）', () => {
+    const buttonLabels = () =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].map(
+        (b) => b.textContent?.trim() ?? '',
+      );
+    const LAST = {
+      id: 'gp-1',
+      academicYear: 115,
+      executedAt: '2026-09-01T02:00:00Z',
+      revertedAt: null,
+      revertible: true,
+      studentCount: 42,
+    };
+
+    it('摘要寫生效值：升級日與提醒天數', async () => {
+      await setup();
+
+      expect(bodyText()).toContain('每年 9/1 · 前 7 天提醒');
+    });
+
+    it('提醒 0 天時摘要寫「不提醒」', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(
+        of({ ...DAILY_CHECKIN, gradePromotionMonthDay: '08-15', gradePromotionReminderDays: 0 }),
+      );
+      await setup();
+
+      expect(bodyText()).toContain('每年 8/15 · 不提醒');
+    });
+
+    /** 裁定 E：只管部分分校的管理員不能代表全機構按，也不該讀紀錄（API 會 403） */
+    it('沒有 all_campuses 時不畫「預覽並執行」、也不讀紀錄', async () => {
+      permissions = ['manage_students'];
+      await setup();
+
+      expect(buttonLabels()).not.toContain('預覽並執行');
+      expect(gradePromotionsMock.history).not.toHaveBeenCalled();
+    });
+
+    it('manage_students＋all_campuses：畫「預覽並執行」與上次執行、可復原時有復原鈕', async () => {
+      permissions = ['manage_students', 'all_campuses'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [LAST] }));
+      await setup();
+
+      expect(buttonLabels()).toContain('預覽並執行');
+      expect(bodyText()).toContain('上次執行：115 學年，2026/09/01');
+      expect(buttonLabels()).toContain('復原上次升級');
+    });
+
+    it('超過 30 天的不給復原鈕，並寫出原因', async () => {
+      permissions = ['*'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [{ ...LAST, revertible: false }] }));
+      await setup();
+
+      expect(buttonLabels()).not.toContain('復原上次升級');
+      expect(bodyText()).toContain('超過 30 天，不能復原');
+    });
+
+    it('升級日「9/1」存成 09-01，連同提醒天數一起送', async () => {
+      await setup();
+      component['gradePromotionDayValue'] = '9/1';
+      component['gradePromotionReminderDaysValue'] = 10;
+
+      component['saveGradePromotion']();
+
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        gradePromotionMonthDay: '09-01',
+        gradePromotionReminderDays: 10,
+      });
+    });
+
+    it.each(['2/30', '13/1', '0/5', '九月一日', ''])('升級日「%s」不是日期：不送出', async (v) => {
+      await setup();
+      component['gradePromotionDayValue'] = v;
+
+      component['saveGradePromotion']();
+
+      expect(component['pendingGradePromotionDay']()).toBeNull();
+      expect(orgSettingsServiceMock.updateSettings).not.toHaveBeenCalled();
+    });
+
+    it('2/29 算合法（閏年才有那天）', async () => {
+      await setup();
+      component['gradePromotionDayValue'] = '2/29';
+
+      expect(component['pendingGradePromotionDay']()).toBe('02-29');
+    });
+
+    /** 設計稿 §3：跳過的名單是行政接下來的工作，要留在段內，不跟著 toast 消失 */
+    it('復原完列出被跳過的學生，並重讀紀錄', async () => {
+      permissions = ['manage_students', 'all_campuses'];
+      gradePromotionsMock.history.mockReturnValue(of({ data: [LAST] }));
+      gradePromotionsMock.revert.mockReturnValue(
+        of({ revertedCount: 40, skipped: [{ studentId: 's-1', name: '王小明' }] }),
+      );
+      await setup();
+
+      component['revert']('gp-1');
+      fixture.detectChanges();
+
+      expect(gradePromotionsMock.revert).toHaveBeenCalledWith('gp-1');
+      expect(bodyText()).toContain('已復原 40 位學生');
+      expect(bodyText()).toContain('王小明');
+      expect(gradePromotionsMock.history).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('should create', async () => {
@@ -354,9 +474,9 @@ describe('SettingsPage', () => {
     const summaries = () =>
       Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('summary')).map(byChild);
 
-    it('沒有財務權限（回應沒有財務 key）→ 兩段都不畫，也不讀週期', async () => {
+    it('沒有財務權限（回應沒有財務 key）→ 財務兩段都不畫，也不讀週期；學年升級不是財務，照畫', async () => {
       await setup();
-      expect(summaries()).toEqual([]);
+      expect(summaries()).toEqual(['學年升級 每年 9/1 · 前 7 天提醒']);
       expect(billingPeriodsMock.list).not.toHaveBeenCalled();
     });
 
@@ -369,6 +489,7 @@ describe('SettingsPage', () => {
       expect(summaries()).toEqual([
         '繳費 期限 7 天 · 到期前 3 天、到期當天提醒',
         '學期與繳費週期 1 個週期',
+        '學年升級 每年 9/1 · 前 7 天提醒',
       ]);
     });
 
