@@ -58,12 +58,15 @@ tags: [specs, admin, enrollment, trial, notifications]
 - **去重**：每張申請、每個階段只提醒一次；**去重鍵帶階段＋來源表＋申請 id**（家長端與公開表單的 id 空間不同，同 `notify-events.ts` 既有的 `parent_request`／`application` 分法）：
   `overdue:parent_request:enrollment:{id}`、`overdue:parent_request:trial:{id}`、`overdue:application:{id}`、`trial_followup:parent_request:{id}`。唯一鍵 `(user_id, dedupe_key)` 已在 `notifications`；不每天重複（裁定 D）。
 - **跟「新申請」通知（`application_received`，#1744）是同一批收件人，文案要一眼分得出來**：
-  | 種類                                                                                                                                    | 標題                                                     | 內文                                            |
-  | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
-  | `application_received`（既有）                                                                                                          | 新的報名申請／新的試聽申請                               | {學生} 送出報名申請                             |
-  | `application_overdue`（新）                                                                                                             | **報名申請已經 {N} 天沒處理**／試聽申請已經 {N} 天沒處理 | {學生}・{送出日} 送出，還在待處理               |
-  | `trial_followup`（新）                                                                                                                  | **試聽後還沒報名**                                       | {學生} {試聽日} 試聽 {課程}，還沒報名，記得跟進 |
-  | 連結：前兩種到 `/admin/applications`（對應分頁），試聽跟進到試聽分頁。標題開頭不重用「新的」—— 收件人一看標題就知道是新的還是放太久的。 |
+
+  | 種類                           | 標題                                                     | 內文                                            |
+  | ------------------------------ | -------------------------------------------------------- | ----------------------------------------------- |
+  | `application_received`（既有） | 新的報名申請／新的試聽申請                               | {學生} 送出報名申請                             |
+  | `application_overdue`（新）    | **報名申請已經 {N} 天沒處理**／試聽申請已經 {N} 天沒處理 | {學生}・{送出日} 送出，還在待處理               |
+  | `trial_followup`（新）         | **試聽後還沒報名**                                       | {學生} {試聽日} 試聽 {課程}，還沒報名，記得跟進 |
+
+  連結：前兩種到 `/admin/applications`（對應分頁），試聽跟進到試聽分頁。標題開頭不重用「新的」—— 收件人一看標題就知道是新的還是放太久的。
+
 - 觸發：`runPush` 每個 run 呼叫 `applicationReminders(db, today, orgs)`，**一天只算一次**（同 `staffDigests`：今天已算過的 org 第一句就跳過）；走 pg 批次撈候選，判準寫成純函式（`lib/application-reminders.ts`）並有 spec，對真 DB 加一支契約測試（同 `contract/staff-digests.contract.ts`）。
 
 ## 5. 裁定（計畫席 2026-10-22）
