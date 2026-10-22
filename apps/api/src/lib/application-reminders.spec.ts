@@ -149,6 +149,9 @@ describe('enqueueApplicationReminders', () => {
     ]);
     expect(await enqueueApplicationReminders(f.db, TODAY, null)).toBe(1);
     const insert = f.calls.find((c) => c.sql.includes('INSERT'))!;
+    // 二讀 A14／A15：不推播（同 notify() 的教職員通知）、同一人同一鍵只一則（並行兩輪也不重複）
+    expect(insert.sql).toMatch(/'skipped', 'ROLE_PUSH_DISABLED'/);
+    expect(insert.sql).toMatch(/ON CONFLICT \(user_id, dedupe_key\) DO NOTHING/);
     expect(insert.params.slice(0, 4)).toEqual([
       ['org-a'],
       ['u1'],

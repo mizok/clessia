@@ -183,6 +183,15 @@ run('申請提醒對真 DB（#1821）', () => {
     );
   });
 
+  it('寫成管理員、不推播（push_status skipped）', async () => {
+    expect(
+      await q(
+        `SELECT DISTINCT role::text, push_status::text, push_error FROM notifications WHERE org_id = $1`,
+        [orgId],
+      ),
+    ).toEqual([{ role: 'admin', push_status: 'skipped', push_error: 'ROLE_PUSH_DISABLED' }]);
+  });
+
   it('發過的不再發', async () => {
     expect(await enqueue()).toBe(0);
   });
