@@ -145,42 +145,35 @@ export async function notifyScheduleChange(
       ),
     );
 
-    // 管理員那批自己一個 try：查不到管理員不能讓老師那批白寫（老師那批已經寫完了，這裡失敗只記 log）
-    try {
-      // 一間分校查一次（整門課停課會跨很多班，每班查一次是 N 倍的查詢）
-      const adminsByCampus = new Map<string, string[]>();
-      for (const campusId of new Set([...byClass.values()].flatMap((g) => g.campusId ?? []))) {
-        adminsByCampus.set(
-          campusId,
-          await adminsForCampuses(supabase, input.orgId, [campusId], {
-            permission: 'basic_operations',
-            excludeUserId: input.actorUserId,
-          }),
-        );
-      }
-      const rowsForAdmins: StaffNotification[] = [];
-      for (const [classId, g] of byClass) {
-        for (const userId of g.campusId ? (adminsByCampus.get(g.campusId) ?? []) : []) {
-          rowsForAdmins.push({
-            orgId: input.orgId,
-            userId,
-            role: 'admin' as const,
-            kind: 'schedule_change' as const,
-            // ⚠️ 要跟老師那則不同：UNIQUE(user_id, dedupe_key)，同時是老師和管理員的人會被吃掉一則
-            dedupeKey: `schedule_change:admin:${eventKey}:${classId}`,
-            title: `課務異動：${label}`,
-            body: bodyOf(g),
-            url: '/admin/changes',
-          });
-        }
-      }
-      await notify(supabase, rowsForAdmins);
-    } catch (err) {
-      console.error(
-        '[notify] 課務異動通知管理員失敗（異動與老師通知已寫入）:',
-        err instanceof Error ? err.message : err,
+    // 管理員那批排在老師之後：這裡失敗由外層 catch 記 log，老師那批已經寫進去了
+    // 一間分校查一次（整門課停課會跨很多班，每班查一次是 N 倍的查詢）
+    const adminsByCampus = new Map<string, string[]>();
+    for (const campusId of new Set([...byClass.values()].flatMap((g) => g.campusId ?? []))) {
+      adminsByCampus.set(
+        campusId,
+        await adminsForCampuses(supabase, input.orgId, [campusId], {
+          permission: 'basic_operations',
+          excludeUserId: input.actorUserId,
+        }),
       );
     }
+    const rowsForAdmins: StaffNotification[] = [];
+    for (const [classId, g] of byClass) {
+      for (const userId of g.campusId ? (adminsByCampus.get(g.campusId) ?? []) : []) {
+        rowsForAdmins.push({
+          orgId: input.orgId,
+          userId,
+          role: 'admin' as const,
+          kind: 'schedule_change' as const,
+          // ⚠️ 要跟老師那則不同：UNIQUE(user_id, dedupe_key)，同時是老師和管理員的人會被吃掉一則
+          dedupeKey: `schedule_change:admin:${eventKey}:${classId}`,
+          title: `課務異動：${label}`,
+          body: bodyOf(g),
+          url: '/admin/changes',
+        });
+      }
+    }
+    await notify(supabase, rowsForAdmins);
   } catch (err) {
     console.error(
       '[notify] 課務異動通知失敗（異動已寫入）:',
