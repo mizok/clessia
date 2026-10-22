@@ -276,6 +276,28 @@ describe('ParentsPage', () => {
       expect(parentsServiceMock.list.mock.calls.length).toBe(listCalls + 1);
     });
 
+    // #1844 二讀：設為家長的人已經有帳號，loginUrl 是 null —— 不能照新家長的路去開登入連結對話框
+    it('新增時把教職員設為家長（linkedStaff）→ 成功 toast、重抓列表，不開登入連結對話框', () => {
+      const open = vi.spyOn(injected(DialogService), 'open').mockReturnValue({
+        onClose: of({
+          type: 'created',
+          data: { id: 'p9', name: '王老師' },
+          loginUrl: null,
+          linkedStaff: true,
+        }),
+      } as never);
+      const add = vi.spyOn(injected(MessageService), 'add');
+      const listCalls = parentsServiceMock.list.mock.calls.length;
+
+      (component as unknown as { openCreateDialog: () => void }).openCreateDialog();
+
+      expect(open).toHaveBeenCalledTimes(1); // 只有表單本身，沒有第二個（登入連結）對話框
+      expect(add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'success', summary: '已把 王老師 設為家長' }),
+      );
+      expect(parentsServiceMock.list.mock.calls.length).toBe(listCalls + 1);
+    });
+
     it('#1006 產生登入連結失敗 → toast 依錯誤碼說明成因，不是一律「請稍後再試」', () => {
       parentsServiceMock.createLoginLink.mockReturnValueOnce(
         throwError(

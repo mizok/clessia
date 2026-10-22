@@ -70,6 +70,8 @@ export interface CreateParentInput {
   phone?: string;
   notes?: string;
   studentIds?: string[];
+  /** #1844：確認「把這位教職員設為家長」後帶回 409 `STAFF_ACCOUNT_EXISTS` 給的 userId */
+  linkExistingUserId?: string;
 }
 
 export interface UpdateParentInput {

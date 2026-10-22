@@ -5,9 +5,9 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmationService } from 'primeng/api';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
-import { AuthService, type UserRole } from '@core/auth.service';
+import { AuthService } from '@core/auth.service';
 import { environment } from '@env/environment';
 import { firstValueFrom } from 'rxjs';
 
@@ -25,13 +25,10 @@ export class AccountSettingsDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
   private readonly auth = inject(AuthService);
   private readonly confirmationService = inject(ConfirmationService);
-  private readonly messages = inject(MessageService);
 
   protected readonly savingField = signal<FieldKey | null>(null);
   protected readonly savedField = signal<FieldKey | null>(null);
   protected readonly fieldError = signal<{ field: FieldKey; msg: string } | null>(null);
-  protected readonly activating = signal(false);
-  protected readonly activateError = signal<string | null>(null);
 
   protected readonly saving = computed(() => this.savingField() !== null);
 
@@ -134,49 +131,6 @@ export class AccountSettingsDialogComponent {
         }, 4000);
       },
     });
-  }
-
-  protected confirmActivateParent() {
-    this.confirmationService.confirm({
-      key: 'account-settings-confirm',
-      message: '啟用後即可使用家長 portal 查看子女的出缺席與課表，之後可在家長頁面中新增子女。',
-      header: '確認啟用家長身份',
-      acceptLabel: '確認啟用',
-      rejectLabel: '取消',
-      accept: () => this.activateParent(),
-    });
-  }
-
-  private activateParent() {
-    this.activating.set(true);
-    this.activateError.set(null);
-    this.http
-      .post<{
-        roles: UserRole[];
-      }>(`${environment.apiUrl}/api/me/activate-parent`, {}, { withCredentials: true })
-      .subscribe({
-        // 用回傳的角色，不重抓 /api/me（#1631）：重抓可能讀到 API 快取裡的舊角色，
-        // 那時這一區不會消失、帳戶選單也沒有「切換身分」，使用者以為沒有作用。
-        // 有了 parent 角色，`hasParentRole()` 讓整區消失，不能再按第二次
-        next: ({ roles }) => {
-          this.activating.set(false);
-          // 回傳沒有 parent ＝ 回應不可信，不套用（套了會把畫面上的角色換成錯的那份）
-          if (!roles.includes('parent')) {
-            this.activateError.set('啟用失敗，請稍後再試');
-            return;
-          }
-          this.auth.adoptRoles(roles);
-          this.messages.add({
-            severity: 'success',
-            summary: '已啟用家長身份',
-            detail: '可從帳戶選單切換到家長身份',
-          });
-        },
-        error: () => {
-          this.activateError.set('啟用失敗，請稍後再試');
-          this.activating.set(false);
-        },
-      });
   }
 
   protected close() {
