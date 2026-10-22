@@ -39,6 +39,7 @@ import {
   revenueHeadline,
 } from './reports.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /**
  * 營收報表 —— 見 kb/wiki/specs/admin/finance/reports.md。
@@ -63,6 +64,7 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
   selector: 'app-reports',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     DecimalPipe,
     FormsModule,

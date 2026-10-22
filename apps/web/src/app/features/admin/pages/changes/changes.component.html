@@ -14,7 +14,7 @@
 
 <div class="bg-zinc-100">
   <section
-    class="page-wrap flex flex-col gap-3 py-4 wide:flex-row wide:items-end wide:gap-4"
+    class="page-wrap flex flex-col gap-3 py-4 wide:flex-row wide:items-end wide:gap-4 [&_.p-select]:tbar-control"
     role="search"
     aria-label="篩選課務異動"
   >
@@ -66,7 +66,7 @@
     </div>
 
     <a
-      class="inline-flex h-11 items-center justify-center gap-1.5 self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto"
+      class="tbar-control inline-flex items-center justify-center gap-1.5 self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto"
       [routerLink]="scheduleLink"
     >
       到課表 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
@@ -76,11 +76,7 @@
 
 <div class="page-wrap flex flex-col gap-5 pt-5 pb-28 wide:gap-6 wide:pt-8 wide:pb-32">
   @if (loading()) {
-    <div class="skeleton-list" aria-label="課務異動載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="課務異動載入中" [count]="3" />
   } @else if (loadError()) {
     <p class="m-0 text-base text-error-700" role="alert">查詢失敗，請稍後再試。</p>
   } @else if (entries().length === 0) {

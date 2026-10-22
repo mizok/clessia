@@ -20,6 +20,7 @@ import { NotificationsService, type AppNotification } from '@core/notifications.
 import { addDaysToDateString, taipeiDateString } from '@core/system-clock.service';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type Source = 'announcement' | 'notification';
 
@@ -109,7 +110,13 @@ function fromNotification(n: AppNotification): InboxItem {
  */
 @Component({
   selector: 'app-announcement-inbox',
-  imports: [DatePipe, ValueArriveDirective, PageOpenComponent, ChapterHeadComponent],
+  imports: [
+    SkeletonComponent,
+    DatePipe,
+    ValueArriveDirective,
+    PageOpenComponent,
+    ChapterHeadComponent,
+  ],
   templateUrl: './announcement-inbox.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

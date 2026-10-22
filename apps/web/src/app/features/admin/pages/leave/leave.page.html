@@ -62,7 +62,7 @@
       <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          class="tbar-control inline-flex cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           data-testid="audit-log"
           (click)="openAuditLog()"
         >
@@ -133,11 +133,7 @@
 
   <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list" aria-label="請假紀錄載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="請假紀錄載入中" chapter [lines]="1" [count]="3" />
     @if (records().length === 0) {
       <div data-testid="empty">
         <p class="m-0 py-4 text-base text-zinc-700">

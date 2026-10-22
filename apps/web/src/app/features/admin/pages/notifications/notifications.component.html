@@ -68,7 +68,7 @@
         <!-- 沒有未讀時 aria-disabled（A6）：留在原位、念得出來，按了不做事 -->
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 wide:h-9"
+          class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
           data-testid="mark-all"
           [attr.aria-disabled]="unread() === 0"
           (click)="markAllRead()"
@@ -87,11 +87,7 @@
   <div class="page-wrap flex flex-col pb-12">
     <div>
       @if (inboxLoading()) {
-        <div class="skeleton-list pt-6 wide:pt-8" aria-label="通知載入中">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
+        <app-skeleton label="通知載入中" chapter [count]="3" />
       } @else if (inboxError()) {
         <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
       } @else {
@@ -182,11 +178,7 @@
   <div class="page-wrap flex flex-col pb-12">
     <section aria-label="已發布">
       <app-reload-veil [loading]="loading()">
-        <div reloadSkeleton class="skeleton-list pt-6 wide:pt-8" aria-label="已發布公告載入中">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
+        <app-skeleton reloadSkeleton label="已發布公告載入中" chapter [count]="3" />
         @if (loadError()) {
           <p class="m-0 pt-6 text-error-600 wide:pt-8">查詢失敗，請稍後再試。</p>
         } @else if (announcements().length === 0) {

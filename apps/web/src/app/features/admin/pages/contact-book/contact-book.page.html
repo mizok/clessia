@@ -28,12 +28,14 @@
 <div class="page-wrap flex flex-col gap-10 pt-6 pb-12 wide:pt-8">
   <!-- ── 還沒寫的：一班一列，名字即補寫 ─────────────────────────────── -->
   <section class="flex flex-col gap-3" aria-labelledby="cb-missing-h">
-    <!-- 標題＋右側日期同一列、垂直置中；下拉不畫上方標籤（A6 contact-book `.sec__head`，#1877） -->
+    <!-- 標題＋右側日期同一列、垂直置中；下拉不畫上方標籤（A6 contact-book `.sec__head`，#1877）；控制項高度走 tbar-control（#1903） -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 id="cb-missing-h" class="m-0 text-xl font-bold tracking-[-0.01em] text-zinc-900">
         還沒寫的
       </h2>
-      <div class="flex flex-wrap items-center gap-3">
+      <div
+        class="flex flex-wrap items-center gap-3 [&_.p-select]:tbar-control [&_.p-datepicker-input]:tbar-control [&_.p-datepicker-dropdown]:tbar-control"
+      >
         @if (missingPick() === otherDay) {
           <p-datepicker
             dateFormat="yy-mm-dd"
@@ -56,11 +58,7 @@
     </div>
 
     @if (missingLoading()) {
-      <div class="skeleton-list" aria-label="缺漏名單載入中">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton label="缺漏名單載入中" [count]="3" />
     } @else if (missingFailed()) {
       <p class="m-0 text-sm text-zinc-600">
         缺漏名單讀不到。
@@ -116,13 +114,13 @@
       這段期間的聯絡簿
     </h2>
 
-    <!-- 三個控制項同高 44px、同一條中線、都不畫上方標籤（A6 `.cbtool`，#1877） -->
+    <!-- 三個控制項同高、同一條中線、都不畫上方標籤（A6 `.cbtool`，#1877）；高度走 tbar-control：手機 44／桌機 40（#1903） -->
     <div
-      class="flex flex-wrap items-center gap-3 rounded-lg bg-zinc-100 p-3 wide:gap-4"
+      class="flex flex-wrap items-center gap-3 rounded-lg bg-zinc-100 p-3 wide:gap-4 [&_.p-select]:tbar-control [&_.p-datepicker-input]:tbar-control [&_.p-datepicker-dropdown]:tbar-control"
       role="search"
       aria-label="篩選聯絡簿"
     >
-      <div class="clessia-filter-search min-h-11 w-full wide:w-auto wide:flex-[1_1_240px]">
+      <div class="clessia-filter-search w-full wide:w-auto wide:flex-[1_1_240px]">
         <app-student-autocomplete
           [value]="student()"
           (valueChange)="onStudentChange($event)"
@@ -155,7 +153,7 @@
       }
       <button
         type="button"
-        class="inline-flex h-11 items-center justify-center rounded-md border border-solid bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50"
+        class="tbar-control inline-flex items-center justify-center rounded-md border border-solid bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50"
         [class.border-zinc-900]="unsignedOnly()"
         [class.shadow-[inset_0_0_0_1px_var(--zinc-900)]]="unsignedOnly()"
         [class.border-zinc-300]="!unsignedOnly()"
@@ -188,11 +186,7 @@
     }
 
     <app-reload-veil [loading]="loading()">
-      <div reloadSkeleton class="skeleton-list">
-        @for (i of [1, 2, 3, 4, 5]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton reloadSkeleton label="聯絡簿載入中" [count]="5" />
       @if (failed()) {
         <app-empty-state
           icon="pi pi-exclamation-circle"

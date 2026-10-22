@@ -47,6 +47,7 @@ import {
   type StudentViewFilterSnapshot,
 } from './student-view-filter-dialog/student-view-filter-dialog.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((grade) => ({
   label: GRADE_LEVEL_LABELS[grade],
@@ -65,6 +66,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   selector: 'app-student-view',
   standalone: true,
   imports: [
+    SkeletonComponent,
     FormsModule,
     RouterLink,
     PageOpenComponent,

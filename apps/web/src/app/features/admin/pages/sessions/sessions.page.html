@@ -121,7 +121,7 @@
         @if (!isThisWeek()) {
           <button
             type="button"
-            class="inline-flex h-11 shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 max-wide:order-5 max-wide:mt-2 wide:order-first wide:mr-1"
+            class="tbar-control inline-flex shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 max-wide:order-5 max-wide:mt-2 wide:order-first wide:mr-1"
             (click)="goThisWeek()"
           >
             本週
@@ -135,7 +135,7 @@
       <!-- 快速選取（#1174 G3）：桌機開關工具列下的「一次勾：」那一列；手機打開底部面板 -->
       <button
         type="button"
-        class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 wide:inline-flex wide:px-3 wide:text-md aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
+        class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-transparent leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 wide:inline-flex wide:px-3 wide:text-md aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white"
         [attr.aria-pressed]="picking()"
         (click)="picking.set(!picking())"
       >
@@ -159,7 +159,7 @@
       </button>
       <button
         type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-900 bg-white px-4 text-base leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
+        class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-900 bg-white px-4 text-base leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
         aria-haspopup="dialog"
         (click)="sheetOpen.set(true)"
       >
@@ -168,7 +168,7 @@
       <app-popup-menu #moreMenu [model]="moreMenuItems()" />
       <button
         type="button"
-        class="more-menu-trigger relative inline-flex size-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        class="tbar-control-square more-menu-trigger relative inline-flex cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
         aria-haspopup="menu"
         [attr.aria-label]="moreMenuBadge() ? '更多，' + moreMenuBadge() + ' 堂待處理' : '更多'"
         (click)="moreMenu.toggle($event)"
@@ -248,11 +248,7 @@
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
     } @else if (loading() && !loadedOnce()) {
-      <div class="skeleton-list" aria-label="課表載入中">
-        @for (i of [1, 2, 3, 4, 5]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton label="課表載入中" [count]="5" />
     } @else if (mode() === 'results') {
       <div
         class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-zinc-100 py-1 pr-1 pl-4"

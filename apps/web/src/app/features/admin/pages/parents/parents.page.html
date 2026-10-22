@@ -43,7 +43,7 @@
       <!-- 手機：強制換行，「篩選」＋匯入落到搜尋列下一行靠右（A6） -->
       <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-filter-toggle
-        class="order-2 ml-auto min-h-11 wide:order-none"
+        class="tbar-control order-2 ml-auto wide:order-none"
         [summary]="filterSummary()"
         [active]="selectedStatus() !== null"
         [open]="filtersOpen()"
@@ -96,11 +96,7 @@
 
 <div class="page-wrap flex flex-col gap-4 pt-2 pb-12">
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="家長載入中" chapter [count]="4" />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到家長資料，可能是連線問題" (retry)="loadParents()" />
     } @else if (parents().length === 0) {

@@ -34,6 +34,7 @@ import { catchError, filter, map, of } from 'rxjs';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 
 import { ClassScoresDialogComponent } from './class-scores-dialog/class-scores-dialog.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 interface ClassItem {
   readonly classInfo: Class;
@@ -60,6 +61,7 @@ interface CourseGroup {
   selector: 'app-class-view',
   standalone: true,
   imports: [
+    SkeletonComponent,
     FormsModule,
     MultiSelectModule,
     SelectModule,

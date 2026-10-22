@@ -77,7 +77,7 @@
       <!-- 手機：強制換行，讓「篩選」落到搜尋列下一行（不然搜尋框被擠成一個放大鏡） -->
       <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-filter-toggle
-        class="order-2 min-h-11 wide:order-none"
+        class="tbar-control order-2 wide:order-none"
         [summary]="panelFilterSummary()"
         [active]="panelFilterSummary() !== '全部'"
         [always]="true"
@@ -91,17 +91,17 @@
         [primaryOnDesktop]="false"
         (primaryClick)="openCreateDialog()"
       >
-        <!-- A6 `.btn--cta` 13px/600、padding 0 16、高 36；手機基底 44（A27）。只在桌機（手機由底部托盤承擔） -->
+        <!-- A6 `.btn--cta` 13px/600、padding 0 16；高度走 tbar-control（#1903）。只在桌機（手機由底部托盤承擔） -->
         <button
           type="button"
-          class="hidden min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-accent-vivid-2 wide:inline-flex wide:min-h-0 wide:h-9"
+          class="tbar-control hidden cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-accent-vivid-2 wide:inline-flex"
           (click)="openCreateDialog()"
         >
           <i class="pi pi-plus" aria-hidden="true"></i>開立帳單
         </button>
         <button
           type="button"
-          class="inline-flex size-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:size-auto wide:h-9 wide:w-10"
+          class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           aria-label="匯出"
           title="匯出"
           (click)="exportPanel.toggle($event)"
@@ -111,7 +111,7 @@
         <app-popup-menu #pageMenu [model]="pageMenuItems" />
         <button
           type="button"
-          class="inline-flex size-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:size-auto wide:h-9 wide:w-10"
+          class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           aria-label="更多動作"
           title="更多動作"
           (click)="pageMenu.toggle($event)"
@@ -204,16 +204,15 @@
 
 <div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   <!-- 提示直接連到修法（kb/wiki/architecture/admin-todo-alerts.md 的共用元件）—— 不是一個死路的數字 -->
-  <app-todo-banner [count]="uninvoicedCount()" (action)="openUninvoiced()">
-    有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
-  </app-todo-banner>
+  <!-- 提示是資料回來才出現的：滑出來，不是一下把整個清單往下推（#1859） -->
+  <div appHeightFollow appHeightFollowGrow>
+    <app-todo-banner class="block" [count]="uninvoicedCount()" (action)="openUninvoiced()">
+      有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
+    </app-todo-banner>
+  </div>
 
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="帳單載入中" chapter [lines]="1" [count]="6" />
     @if (failed()) {
       <app-empty-state
         icon="pi pi-exclamation-circle"
@@ -367,16 +366,7 @@
               </summary>
               <div class="coll__body" appHeightFollow>
                 <app-reload-veil class="block" [loading]="chapter.state.loading">
-                  <div
-                    reloadSkeleton
-                    class="flex flex-col gap-5 py-4"
-                    role="status"
-                    aria-label="載入中…"
-                  >
-                    @for (i of [1, 2, 3]; track i) {
-                      <span class="skeleton-bar"></span>
-                    }
-                  </div>
+                  <app-skeleton reloadSkeleton label="載入中…" [lines]="1" [count]="3" />
                   @if (chapter.state.failed) {
                     <p class="m-0 py-3 text-sm text-zinc-600">
                       沒有讀到這一章的帳單

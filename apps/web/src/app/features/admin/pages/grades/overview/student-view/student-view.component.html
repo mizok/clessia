@@ -32,7 +32,7 @@
       <input
         pInputText
         type="search"
-        class="h-11 w-full"
+        class="tbar-control w-full"
         [ngModel]="searchText()"
         (ngModelChange)="onSearchChange($event)"
         placeholder="學生姓名"
@@ -44,6 +44,7 @@
       <div class="flex min-w-40 flex-col gap-1">
         <span class="text-sm font-semibold text-zinc-700" id="sv-f-grade">年級</span>
         <p-select
+          class="tbar-control"
           [options]="gradeOptions"
           [ngModel]="gradeFilter()"
           (ngModelChange)="onGradeChange($event)"
@@ -58,6 +59,7 @@
       <div class="flex min-w-40 flex-col gap-1">
         <span class="text-sm font-semibold text-zinc-700" id="sv-f-school">學校</span>
         <p-select
+          class="tbar-control"
           [options]="schoolOptions()"
           [ngModel]="schoolIdFilter()"
           (ngModelChange)="onSchoolChange($event)"
@@ -72,6 +74,7 @@
       <div class="flex min-w-32 flex-col gap-1">
         <span class="text-sm font-semibold text-zinc-700" id="sv-f-status">狀態</span>
         <p-select
+          class="tbar-control"
           [options]="statusOptions"
           [ngModel]="activeStatusFilter()"
           (ngModelChange)="onActiveStatusChange($event)"
@@ -86,7 +89,7 @@
     <!-- 手機：其餘條件收進篩選對話框 -->
     <button
       type="button"
-      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 self-start rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
+      class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 self-start rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
       (click)="openMobileFilterDialog()"
     >
       <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
@@ -146,11 +149,7 @@
 
 <div class="page-wrap pt-2 pb-28 wide:pb-32">
   @if (loadingList()) {
-    <div class="skeleton-list mt-6" aria-label="學生名單載入中">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton class="mt-6" label="學生名單載入中" [count]="5" />
   } @else if (loadFailed()) {
     <div class="mt-6">
       <app-load-failed description="沒有讀到學生名單，可能是連線問題" (retry)="loadStudents()" />

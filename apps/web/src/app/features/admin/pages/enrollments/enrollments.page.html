@@ -27,7 +27,7 @@
   <div class="page-wrap flex min-h-16 items-center gap-2 py-3">
     <span class="shrink-0 text-md font-semibold text-zinc-900">期間</span>
     <p-select
-      class="min-w-0 flex-1 wide:w-44 wide:flex-none"
+      class="tbar-control min-w-0 flex-1 wide:w-44 wide:flex-none"
       styleClass="w-full"
       [options]="monthOptions()"
       [ngModel]="month()"
@@ -130,11 +130,7 @@
   </div>
 
   @if (loading()) {
-    <div class="skeleton-list" aria-label="報名紀錄載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="報名紀錄載入中" [count]="3" />
   } @else if (loadError()) {
     <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
   } @else if (rows().length === 0) {

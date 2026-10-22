@@ -66,7 +66,7 @@
         <!-- 桌機：A6 工具列只有「篩選：全部」鈕，條件收進浮層（手機另有搜尋＋篩選對話框） -->
         <button
           type="button"
-          class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
+          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
           [attr.aria-label]="
             desktopFilterCount() > 0 ? '篩選（' + desktopFilterCount() + ' 個條件）' : '篩選'
           "
@@ -100,7 +100,7 @@
         <input
           type="search"
           pInputText
-          class="h-11 w-full"
+          class="tbar-control w-full"
           placeholder="搜尋考試名稱"
           [ngModel]="searchText()"
           (ngModelChange)="onSearchChange($event)"
@@ -108,7 +108,7 @@
       </label>
       <button
         type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
         (click)="openFilterDialog()"
       >
         <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
@@ -188,11 +188,7 @@
 
   <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list" aria-label="考試載入中">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="考試載入中" chapter [count]="4" />
     @if (loadFailed()) {
       <app-load-failed
         description="沒有讀到考試資料，可能是連線問題"

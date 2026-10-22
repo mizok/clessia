@@ -126,11 +126,7 @@
 
   <app-reload-veil [loading]="loading()">
     <!-- Skeleton Loading -->
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="人員載入中" chapter [lines]="1" [count]="4" />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到人員資料，可能是連線問題" (retry)="loadStaff()" />
     } @else if (visibleRows().length === 0) {

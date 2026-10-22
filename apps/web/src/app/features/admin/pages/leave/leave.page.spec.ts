@@ -11,7 +11,7 @@ import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { StudentsService } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
-import { LeavePage } from './leave.page';
+import { LeavePage, impactLine } from './leave.page';
 import {
   LEAVE_DIALOG_CONTENT_STYLE,
   LeaveFormDialogComponent,
@@ -27,6 +27,8 @@ describe('LeavePage', () => {
       }),
     ),
     delete: vi.fn(() => of(void 0)),
+    // #1100 #33：取消前的影響預覽
+    impact: vi.fn((_id?: string, _mode?: string) => of({ data: { revertCount: 2, keptCount: 1 } })),
   };
   const studentsServiceMock = { list: vi.fn() };
   const referenceDataServiceMock = {
@@ -507,6 +509,56 @@ describe('LeavePage', () => {
         expect(message()).toContain('完全刪除');
         expect(message()).toContain('已經點過名的日子不會動');
       });
+
+      // #1100 #33：開窗前先問後端會動到幾堂
+      it('已結束：問 full 的影響，數字接在文案後面', () => {
+        leaveServiceMock.impact.mockClear();
+        component['confirmDelete'](
+          rec({ id: 'lv-past', startDate: '2026-04-01', endDate: '2026-04-02' }),
+        );
+        expect(leaveServiceMock.impact).toHaveBeenCalledWith('lv-past', 'full');
+        expect(message()).toContain('實際會動到：2 堂會回到「還沒點名」、1 堂已點名，維持請假。');
+      });
+
+      it('進行中：第一窗問 truncate；選完全刪除後第二窗問 full', () => {
+        leaveServiceMock.impact.mockClear();
+        leaveServiceMock.impact
+          .mockReturnValueOnce(of({ data: { revertCount: 1, keptCount: 0 } }))
+          .mockReturnValueOnce(of({ data: { revertCount: 3, keptCount: 2 } }));
+        component['confirmDelete'](
+          rec({ id: 'lv-now', startDate: '2026-04-08', endDate: '2026-04-12' }),
+        );
+        expect(leaveServiceMock.impact).toHaveBeenNthCalledWith(1, 'lv-now', 'truncate');
+        expect(message()).toContain('取消剩餘假期：1 堂會回到「還沒點名」。');
+
+        const first = vi.mocked(confirmationService.confirm).mock.calls[0]![0] as {
+          reject: (t: ConfirmEventType) => void;
+        };
+        first.reject(ConfirmEventType.REJECT);
+        vi.runAllTimers();
+        expect(leaveServiceMock.impact).toHaveBeenNthCalledWith(2, 'lv-now', 'full');
+        const second = (
+          vi.mocked(confirmationService.confirm).mock.calls[1]![0] as { message: string }
+        ).message;
+        expect(second).toContain('實際會動到：3 堂會回到「還沒點名」、2 堂已點名，維持請假。');
+      });
+
+      it('預覽讀不到：照原本的文案開窗，不擋取消', () => {
+        leaveServiceMock.impact.mockReturnValueOnce(throwError(() => new Error('x')) as never);
+        component['confirmDelete'](rec({ startDate: '2026-04-01', endDate: '2026-04-02' }));
+        expect(message()).toContain('已經點過名的日子不會動');
+        expect(message()).not.toContain('實際會動到');
+      });
+    });
+
+    it('impactLine：兩個都 0 也要說「沒有任何紀錄會動」；只有一種就只寫那一種', () => {
+      expect(impactLine({ revertCount: 0, keptCount: 0 })).toBe('目前沒有任何出缺席紀錄會被改動。');
+      expect(impactLine({ revertCount: 0, keptCount: 4 })).toBe(
+        '實際會動到：4 堂已點名，維持請假。',
+      );
+      expect(impactLine({ revertCount: 2, keptCount: 0 })).toBe(
+        '實際會動到：2 堂會回到「還沒點名」。',
+      );
     });
 
     it('分頁：第 x／y 頁，下一頁帶 page+1', () => {

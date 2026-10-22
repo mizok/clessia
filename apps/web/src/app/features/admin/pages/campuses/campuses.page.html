@@ -63,11 +63,7 @@
 <div class="mt-2">
   <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="分校載入中" [count]="5" />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到分校清單，可能是連線問題" (retry)="loadCampuses()" />
     } @else if (campuses().length === 0) {

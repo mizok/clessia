@@ -47,6 +47,7 @@ import {
 } from '@shared/components/status/status-dot/status-dot.component';
 import { SystemClockService } from '@core/system-clock.service';
 import { extractErrorMessage } from '@shared/utils/api-error.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 區間模式的每頁筆數。後端 pageSize 上限 100 */
 const RANGE_PAGE_SIZE = 50;
@@ -74,6 +75,7 @@ const RANGE_PAGE_SIZE = 50;
   selector: 'app-admin-meals',
   standalone: true,
   imports: [
+    SkeletonComponent,
     StatusDotComponent,
     PageOpenComponent,
     DecimalPipe,

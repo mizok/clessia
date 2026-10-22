@@ -35,7 +35,7 @@
           <input
             type="search"
             pInputText
-            class="h-11 w-full pl-9"
+            class="tbar-control w-full pl-9"
             placeholder="找課程或班級名稱"
             aria-label="搜尋課程或班級"
             [ngModel]="searchQuery()"
@@ -52,7 +52,7 @@
         <!-- A6 右群組：篩選｜（清除篩選）｜操作紀錄（時鐘）｜⋯（批次選取，桌機；手機放在課程列的「⋯」）｜新增課程 -->
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           [attr.aria-label]="
             activeFilterCount() > 0 ? '篩選（' + activeFilterCount() + ' 個條件）' : '篩選'
           "
@@ -75,7 +75,7 @@
         <button
           type="button"
           title="操作紀錄"
-          class="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          class="tbar-control-square inline-flex cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           (click)="openAuditLog()"
         >
           <i class="pi pi-clock text-sm" aria-hidden="true"></i>
@@ -87,7 +87,7 @@
           <button
             type="button"
             title="更多動作"
-            class="hidden h-11 w-11 cursor-pointer items-center justify-center wide:inline-flex rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+            class="tbar-control-square hidden cursor-pointer items-center justify-center wide:inline-flex rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
             aria-label="更多動作"
             (click)="pageMenu.toggle($event)"
           >
@@ -126,11 +126,7 @@
   }
 
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list" aria-label="課程載入中">
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="課程載入中" chapter [count]="4" />
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到課程資料，可能是連線問題" (retry)="loadCourses()" />
     } @else if (courseGroups().length === 0) {

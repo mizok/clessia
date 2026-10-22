@@ -40,7 +40,7 @@
         <input
           #fromInput
           type="date"
-          class="h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:h-10 wide:flex-none"
+          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:flex-none"
           aria-label="區間起日"
           data-testid="meals-from"
           [value]="dateFrom()"
@@ -52,7 +52,7 @@
         <input
           #toInput
           type="date"
-          class="h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:h-10 wide:flex-none"
+          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:flex-none"
           aria-label="區間迄日"
           data-testid="meals-to"
           [value]="dateTo()"
@@ -74,7 +74,7 @@
         <input
           #dateInput
           type="date"
-          class="h-11 min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:h-10 wide:flex-none"
+          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:flex-none"
           aria-label="名單日期"
           data-testid="meals-date"
           [value]="dateStr()"
@@ -173,11 +173,7 @@
   }
   <div class="flex flex-col gap-4">
     @if (loading()) {
-      <div class="skeleton-list">
-        @for (i of [1, 2, 3, 4, 5]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton label="餐費載入中" [count]="5" />
     } @else if (failed()) {
       <app-empty-state
         icon="pi pi-exclamation-circle"

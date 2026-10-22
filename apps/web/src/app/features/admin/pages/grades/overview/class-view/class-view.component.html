@@ -48,7 +48,7 @@
       @if (loadingTodoMap() || todoClassCount() > 0) {
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border px-4 leading-normal text-md font-semibold whitespace-nowrap aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white not-aria-pressed:border-zinc-300 not-aria-pressed:bg-white not-aria-pressed:text-zinc-900"
+          class="tbar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-4 leading-normal text-md font-semibold whitespace-nowrap aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:text-white not-aria-pressed:border-zinc-300 not-aria-pressed:bg-white not-aria-pressed:text-zinc-900"
           data-part="todo-chip"
           [attr.aria-pressed]="todoOnly()"
           (click)="toggleTodoOnly()"
@@ -63,7 +63,7 @@
       }
       <button
         type="button"
-        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
         data-part="filter-btn"
         aria-haspopup="dialog"
         [attr.aria-expanded]="filtersOpen()"
@@ -145,11 +145,7 @@
       description="選擇分校後即可瀏覽該校的課程與班級"
     />
   } @else if (loadingGroups()) {
-    <div class="skeleton-list" aria-label="課程列表載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="課程列表載入中" [count]="3" />
   } @else if (loadFailed()) {
     <app-load-failed
       description="沒有讀到這個分校的課程與班級，可能是連線問題"

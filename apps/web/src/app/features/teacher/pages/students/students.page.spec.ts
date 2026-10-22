@@ -62,7 +62,7 @@ describe('StudentsPage（老師端）', () => {
     f.detectChanges();
 
     expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(f.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
   it('查詢時表明只要自己任課的學生', async () => {

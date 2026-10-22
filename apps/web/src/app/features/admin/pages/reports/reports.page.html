@@ -87,11 +87,7 @@
 <div class="page-wrap flex flex-col gap-4 pt-6 pb-12 wide:pt-8">
   <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="skeleton-list">
-      @for (i of [1, 2, 3, 4]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton reloadSkeleton label="報表載入中" [count]="4" />
     @if (failed()) {
       <app-empty-state
         icon="pi pi-exclamation-circle"
