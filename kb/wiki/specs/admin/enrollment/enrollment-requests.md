@@ -3,7 +3,7 @@ title: 報名審核
 summary: 審核家長提交的報名申請。
 category: spec
 status: active
-updated: 2026-10-16
+updated: 2026-10-22
 tags: [specs, admin, enrollment, enrollment-requests]
 ---
 
@@ -14,6 +14,11 @@ tags: [specs, admin, enrollment, enrollment-requests]
 > API 是 `/api/parent-requests`（`manage_students`＋分校範圍）。目前管理端只能**拒絕報名（附原因）**、
 > 改試聽狀態；**核准**（開繳費單、建 enrollment）另開 #1726。下面是 2026-03 的原始規格，資料表沒有「來源」欄，
 > 來源篩選那段不成立。
+>
+> **試聽排定日期（#1747，計畫席 10-22 裁定）**：試聽轉「已排定」時，卡片內展開日期、開始、結束欄位，
+> 按確定才送（下拉不再直接送出）。**日期必填、時間選填**，後端也擋（缺日期或結束不晚於開始 → 400
+> `INVALID_SCHEDULE`）。已排定可以再送一次改期，整組換掉。轉回「待處理」清空三欄，轉「已完成」或
+> 「已取消」保留（家長端的已完成用它標日期）。家長端試聽頁直接顯示這份日期，地點用課程所在的分校。
 
 **路徑**: `/admin/enrollment-requests`
 **角色**: Admin

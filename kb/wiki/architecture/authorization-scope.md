@@ -432,6 +432,19 @@ fail-closed 的授權一旦打開，**沒有資料的人看到的是空白不是
 - 只快取**成功**的查詢結果；失敗每次重查，不會變成 30 秒的 500。
 - 為什麼要快取：Worker → Supabase REST 每次 ~100–150ms，其中 PostgREST＋DB 只占 1–15ms（#1595 P0），慢在往返；每支受保護 API 原本固定 3 支身分查詢。
 
+## 角色跟著身分資料的狀態走（#1846，2026-10-22）
+
+登入判定（`middleware/account-status.ts`）是「任一身分 active 就放行」，但登入後的角色原本**直接取自 `user_roles`、
+不看對應身分的狀態** —— 10-22 本機重現：老師兼家長的 staff 停用、parents 仍 active，`/api/me` 回
+`roles=["teacher","parent"]`，老師端 API 200。
+
+現在 `middleware/usable-roles.ts` 在每個請求過濾：`admin`／`teacher`／`kiosk` 跟著 staff 列，`parent` 跟著 parents 列；
+**列存在而且沒有一列是 active** 才拿掉那一類角色，**沒有列不算停用**（bootstrap 的第一個管理員兩張表都沒有列）。
+權限跟著角色列走，拿掉 admin 也就拿掉它的權限；`X-Active-Role` 指名被拿掉的角色時不採信。
+輸入是身分快取裡的原始列（REST 與 SQL 兩條路都帶 `status`），所以停用最遲在下一次快取刷新（30 秒）生效，跟撤銷角色同一個上限。
+前端：記住的 activeRole 不在新清單裡時不採用（只剩一個角色就直接用、多個就回 `/select-role`）；已經開著的頁面要等下次讀 `/api/me`，
+在那之前老師端 API 回 403 —— 跟管理員撤銷角色時一樣。
+
 ## 不做什麼
 
 - **不動 RLS。** 業務表刻意 fail-closed 沒有 policy、API 走 service role（c1）。

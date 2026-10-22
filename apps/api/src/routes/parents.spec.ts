@@ -20,11 +20,14 @@ const pgState = {
   current: [] as string[],
   inOrg: null as string[] | null, // null＝傳進來的都算
   inScope: null as string[] | null,
+  /** 命中的 SQL 丟例外（模擬交易中途失敗） */
+  throwOn: null as RegExp | null,
   sent: [] as string[],
   parentInsert23505: false,
 };
 const pgAnswer = (sql: string, params: unknown[] = []) => {
   pgState.sent.push(sql.trim().split(/\s+/).slice(0, 3).join(' '));
+  if (pgState.throwOn?.test(sql)) throw new Error('pg boom');
   const ids = (params[0] ?? []) as string[];
   if (/FROM parents WHERE id/.test(sql)) return pgState.parentFound ? [{ id: params[0] }] : [];
   if (/FROM parent_student_relations r/.test(sql))
@@ -875,6 +878,7 @@ describe('改孩子的授權與交易（#1843）', () => {
       current: [],
       inOrg: null,
       inScope: null,
+      throwOn: null,
       sent: [],
     });
   });
@@ -982,6 +986,37 @@ describe('改孩子的授權與交易（#1843）', () => {
     expect(writes.filter((w) => w.endsWith('parent_student_relations'))).toEqual([]);
   });
 
+  it('PUT：交易中途丟例外 → 500，ROLLBACK，名字沒改（不當成成功）', async () => {
+    pgState.current = [OTHER_ORG_KID];
+    pgState.throwOn = /^\s*INSERT INTO parent_student_relations/;
+    const { res, writes } = await call('PUT', { name: '改名', studentIds: [KID] }, null);
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('UPDATE_RELATIONS_FAILED');
+    expect(pgState.sent.at(-1)).toBe('ROLLBACK');
+    expect(writes).toEqual([]);
+  });
+
+  it('PUT：受限管理員但範圍是空的（沒有任何分校）加孩子 → 403', async () => {
+    const { res, writes } = await call('PUT', { name: '改名', studentIds: [KID] }, []);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe('STUDENT_OUT_OF_SCOPE');
+    expect(writes).toEqual([]);
+  });
+
+  it('POST：驗孩子時丟例外 → 500，沒建帳號（不當成驗過）', async () => {
+    pgState.throwOn = /FROM students WHERE/;
+    const before = createdUsers.length;
+    const { res, writes } = await call(
+      'POST',
+      { name: '新家長', phone: '0912000997', studentIds: [KID] },
+      null,
+    );
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('CHECK_STUDENTS_FAILED');
+    expect(createdUsers.length).toBe(before);
+    expect(writes).toEqual([]);
+  });
+
   it('POST：別 org 的學生 → 404，在建帳號之前就擋（沒建任何東西）', async () => {
     pgState.inOrg = [];
     const before = createdUsers.length;
@@ -1059,6 +1094,7 @@ describe('POST /api/parents —— 把本機構教職員設為家長（#1844）'
       inScope: null,
       sent: [],
       parentInsert23505: false,
+      throwOn: null,
     });
     failingTable = null;
     createdUsers.length = 0;
