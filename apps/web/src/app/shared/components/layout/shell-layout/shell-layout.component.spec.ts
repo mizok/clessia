@@ -240,6 +240,40 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(tools.classList).toContain('max-wide:min-w-0');
     });
 
+    it('Logo 與搜尋鈕不被擠壓（shrink-0）：分校名再長，搜尋鈕也維持 44px（A27）', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      expect(el.querySelector('header .page-wrap > a')!.classList).toContain('shrink-0');
+      expect(el.querySelector('app-global-search')!.classList).toContain('shrink-0');
+    });
+
+    // 放不下的寬度由分校名吸收：外層 min-w-0 讓 flex 子項縮得下去，內層 truncate 畫省略號
+    const campusCtx = (n: number) => ({
+      inUse: signal(true),
+      allowAll: signal(true),
+      campuses: signal(Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `分校${i}` }))),
+      id: signal<string | null>(null),
+      name: signal<string | null>(null),
+      select: vi.fn(),
+      use: vi.fn(),
+    });
+
+    it('只有一間分校：名字外層 min-w-0、內層 truncate，長名截斷而不撐破頂欄', async () => {
+      TestBed.overrideProvider(CampusContextService, { useValue: campusCtx(1) });
+      const { el } = await setup(['admin'], 'admin');
+      const tools = el.querySelector('header .page-wrap > div.ml-auto')!;
+      const outer = Array.from(tools.children).find((c) => c.textContent?.trim() === '分校0')!;
+      expect(outer.classList).toContain('min-w-0');
+      expect(outer.querySelector(':scope > span')!.classList).toContain('truncate');
+    });
+
+    it('多間分校：分校鈕 min-w-0、名字 truncate', async () => {
+      TestBed.overrideProvider(CampusContextService, { useValue: campusCtx(2) });
+      const { el } = await setup(['admin'], 'admin');
+      const btn = el.querySelector('[popovertarget="shell-campus"]')!;
+      expect(btn.classList).toContain('min-w-0');
+      expect(btn.querySelector(':scope > span')!.classList).toContain('truncate');
+    });
+
     it('未讀徽章從鈴鐺中線偏右往右長，不貼右邊往左長（「99+」不蓋住鈴鐺）', async () => {
       // 角標要有未讀才畫出來；錨點是模板寫死的 class，直接讀模板原文（同 route-lateral-fade.spec 讀 styles.css）
       const tpl = readFileSync(
