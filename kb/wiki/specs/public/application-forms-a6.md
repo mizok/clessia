@@ -3,7 +3,7 @@ title: 公開試聽申請、我要報名表單照 A6（設計稿）
 summary: 設計稿（#1637；Q1–Q6、Q5′、Q6′ 已於 10-16 裁定完畢）。後端（public_applications、/api/public/*、honeypot＋Postgres 速率限制）與行政收件頁（/admin/applications）早已上線，缺的是 /trial、/enrollment 兩個前端頁。依裁定加：試聽表單補「與學生關係」（A6 偏離）、機器人驗證預設自架的 ALTCHA、部署可切換成 Turnstile、班級「開放公開報名」旗標、老師暱稱（對外只露暱稱，沒設就不露）、申請保存 6 個月由 pg_cron 刪除；三個 schema 變更合成一支 migration。拆成四支實作單。
 category: spec
 status: draft
-updated: 2026-10-22
+updated: 2026-10-23
 tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 ---
 
@@ -184,7 +184,7 @@ A6 的個資聲明（`D/pub-trial.html:174-177`）寫「保存 6 個月，可以
 - **widget payload 格式**：altcha 3.2.4 `dist/main/altcha.js` 的 `verify()` 交出 `btoa(JSON.stringify({ challenge: { parameters, signature }, solution }))`；只有題目帶 `_version: 1` 時才改出 v1 格式。test 模式交 `{ challenge: null, … }`，API 拒收。
 - **widget 3.x 解的是不是 lib v2 題目**：是。widget 內建的就是 lib v2 的 `createChallenge`／`solveChallengeWorkers`（`dist/lib/index.js`），counterMode `uint32`。
 
-**刻意不做重放防護表**：同一份解答在 10 分鐘有效期內可以重送。不另建「用過的題目」表，因為速率限制已經把同一來源壓在每小時 5 筆、同一聯絡方式每天 3 筆，重送拿不到更多額度。程式碼用 `ponytail:` 註解寫明這個上限與升級路徑：出現濫用時，加一張 Postgres 表記錄用過的 signature，過期就刪。（README 有 `/docs/store.md`，可以參考它的介面，但儲存一律放 Postgres，不用 KV，c12。）
+**刻意不做重放防護表**：同一份解答在 10 分鐘有效期內可以重送。不另建「用過的題目」表，因為速率限制已經把同一來源壓在每小時 5 筆、同一聯絡方式每天 3 筆，重送拿不到更多額度。（Email 不分大小寫：寫入時轉小寫、比對用跳脫過萬用字元的 `ilike`，舊資料不 backfill 也算得到，#1335。）程式碼用 `ponytail:` 註解寫明這個上限與升級路徑：出現濫用時，加一張 Postgres 表記錄用過的 signature，過期就刪。（README 有 `/docs/store.md`，可以參考它的介面，但儲存一律放 Postgres，不用 KV，c12。）
 
 **載入**：widget（ALTCHA 或 Turnstile 擇一）只在 `/trial`、`/enrollment` lazy 載入，不進主 bundle。
 
