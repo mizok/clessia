@@ -3,10 +3,14 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { environment } from '@env/environment';
 
+/** 學制（#1314 SE4）。null＝未分類 —— 畫面放最後一章 */
+export type SchoolLevel = 'elementary' | 'junior' | 'senior';
+
 export interface School {
   readonly id: string;
   readonly name: string;
   readonly shortName: string | null;
+  readonly level: SchoolLevel | null;
   readonly isActive: boolean;
   readonly studentCount: number;
   readonly createdAt: string;
@@ -21,12 +25,14 @@ export interface SchoolListResponse {
 export interface CreateSchoolInput {
   readonly name: string;
   readonly shortName?: string | null;
+  readonly level?: SchoolLevel | null;
   readonly isActive?: boolean;
 }
 
 export interface UpdateSchoolInput {
   readonly name?: string;
   readonly shortName?: string | null;
+  readonly level?: SchoolLevel | null;
   readonly isActive?: boolean;
 }
 

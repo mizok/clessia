@@ -9,12 +9,13 @@ import {
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
-import { CheckboxModule } from 'primeng/checkbox';
+import { RadioButtonModule } from 'primeng/radiobutton';
+import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SchoolsService } from '@core/schools.service';
-import type { School } from '@core/schools.service';
+import type { School, SchoolLevel } from '@core/schools.service';
 
 export interface SchoolFormResult {
   mode: 'create' | 'update';
@@ -28,7 +29,7 @@ export interface SchoolFormDialogData {
 @Component({
   selector: 'app-school-form-dialog',
   standalone: true,
-  imports: [FormsModule, InputTextModule, ButtonModule, CheckboxModule],
+  imports: [FormsModule, InputTextModule, ButtonModule, RadioButtonModule, SelectModule],
   templateUrl: './school-form-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -42,6 +43,14 @@ export class SchoolFormDialogComponent {
   protected readonly name = signal('');
   protected readonly shortName = signal('');
   protected readonly isActive = signal(true);
+  /** 新增預設國中（A6）；既有學校 null＝未分類，選單照實顯示，不替它猜 */
+  protected readonly level = signal<SchoolLevel | null>('junior');
+  protected readonly levelOptions: Array<{ label: string; value: SchoolLevel | null }> = [
+    { label: '國小', value: 'elementary' },
+    { label: '國中', value: 'junior' },
+    { label: '高中', value: 'senior' },
+    { label: '未分類', value: null },
+  ];
   protected readonly submitting = signal(false);
 
   protected readonly editing = computed(() => this.config.data?.editing ?? null);
@@ -56,6 +65,7 @@ export class SchoolFormDialogComponent {
       this.name.set(school.name);
       this.shortName.set(school.shortName ?? '');
       this.isActive.set(school.isActive);
+      this.level.set(school.level);
     }
   }
 
@@ -66,6 +76,7 @@ export class SchoolFormDialogComponent {
     const payload = {
       name: this.name().trim(),
       shortName: this.shortName().trim() || null,
+      level: this.level(),
       isActive: this.isActive(),
     };
     const existing = this.editing();

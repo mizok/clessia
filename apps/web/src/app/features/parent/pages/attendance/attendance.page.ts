@@ -11,15 +11,16 @@ import {
   type ElementRef,
 } from '@angular/core';
 import { MessageService } from 'primeng/api';
-import { EMPTY, catchError, expand, forkJoin, map, of, reduce } from 'rxjs';
+import { catchError, forkJoin, map, of } from 'rxjs';
 import { format, parseISO } from 'date-fns';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
 import {
   ParentAttendanceService,
-  type ParentAttendanceRecord,
+  type ParentAttendanceDayRow,
 } from '@core/parent-attendance.service';
+import { SystemClockService, taipeiDateString, taipeiWallClock } from '@core/system-clock.service';
 import { ParentSessionsService, type ParentSession } from '@core/parent-sessions.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -27,7 +28,6 @@ import { LeaveFormDialogComponent } from '@shared/components/leave-form-dialog/l
 import type { CreateLeaveInput } from '@core/leave.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
-import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {
@@ -36,6 +36,7 @@ import {
   buildDays,
   heroLine,
   monthDay,
+  rowStatus,
   sessionChipLabel,
 } from './attendance.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
@@ -48,8 +49,6 @@ const RANGE_OPTIONS: Array<{ label: string; value: RangeMode }> = [
   { label: '選月份', value: 'month' },
 ];
 
-/** 一個月最多三十來天的紀錄，100 筆一頁通常一次拿完；拿不完就接著拿（期間要畫成完整的「天」） */
-const PAGE_SIZE = 100;
 /** 近 30 天／選月份一次多畫幾天（A6 `st.shown += 14`）；近 10 天全畫 */
 const DAYS_STEP = 14;
 
@@ -75,14 +74,23 @@ export class AttendancePage implements OnInit {
   private readonly messageService = inject(MessageService);
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
+  /**
+   * 「今天」與「現在」只在建構時取一次，來自跟伺服器對過的時鐘、換成台北牆上時間（#1810）——
+   * 原本是瀏覽器的 `new Date()`／`todayLocal()`，跨日或時區不同的機器會跟後端說不同的「今天」。
+   * 頁面開著跨過上課時間，「還沒上」不會自己翻成「上課中」：同老師課表的知情取捨，換區間會重抓。
+   */
+  private readonly clock = inject(SystemClockService);
+  private readonly now = taipeiWallClock(this.clock.nowEpochMs());
+  private readonly today = taipeiDateString(this.clock.nowEpochMs());
 
   protected readonly rangeOptions = RANGE_OPTIONS;
   protected readonly rangeMode = signal<RangeMode>('recent10');
   /** `YYYY-MM`（A6 `<input type="month">`） */
-  protected readonly selectedMonth = signal(todayLocal().slice(0, 7));
-  protected readonly maxMonth = todayLocal().slice(0, 7);
+  protected readonly selectedMonth = signal(this.today.slice(0, 7));
+  protected readonly maxMonth = this.today.slice(0, 7);
 
-  protected readonly records = signal<ParentAttendanceRecord[]>([]);
+  /** 窗內每一堂（#1810 起是課堂，不是出勤紀錄 —— 沒點名的堂也在） */
+  protected readonly records = signal<ParentAttendanceDayRow[]>([]);
   /** 日期 → 台北 `HH:mm`（#1075 每日到班） */
   protected readonly checkins = signal<ReadonlyMap<string, string>>(new Map());
   protected readonly dailyCampusIds = signal<ReadonlySet<string>>(new Set());
@@ -124,9 +132,9 @@ export class AttendancePage implements OnInit {
     if (!this.childName() || sessions === null) return null;
     return heroLine(
       sessions,
-      this.checkins().get(todayLocal()),
+      this.checkins().get(this.today),
       this.dailyCampusIds(),
-      format(new Date(), 'HH:mm'),
+      format(this.now, 'HH:mm'),
     );
   });
 
@@ -139,7 +147,7 @@ export class AttendancePage implements OnInit {
       this.dailyCampusIds(),
       dateFrom,
       dateTo,
-      todayLocal(),
+      this.today,
     );
   });
   protected readonly visibleDays = computed(() =>
@@ -151,10 +159,18 @@ export class AttendancePage implements OnInit {
   });
   protected readonly statusLabels = ATTENDANCE_STATUS_LABELS;
   protected readonly sessionChipLabel = sessionChipLabel;
+  /** 一堂的狀態字（設計稿 §4）：停課 ＞ 紀錄 ＞ 推導 ＞ 還沒上／上課中 ＞ 沒有紀錄 */
+  protected status(row: ParentAttendanceDayRow) {
+    return rowStatus(row, this.now);
+  }
+  /** A6 展開的「老師 · 教室」；缺哪個就不寫哪個 */
+  protected teacherLine(row: ParentAttendanceDayRow): string {
+    return [row.teacherName, row.classroomName].filter(Boolean).join(' · ');
+  }
 
   /** A6 `range()`：近 N 天含今天；選月份到月底或今天（取早的） */
   private readonly dateRange = computed<{ dateFrom: string; dateTo: string }>(() => {
-    const today = todayLocal();
+    const today = this.today;
     const mode = this.rangeMode();
     if (mode === 'recent10') return { dateFrom: addDays(today, -9), dateTo: today };
     if (mode === 'recent30') return { dateFrom: addDays(today, -29), dateTo: today };
@@ -218,7 +234,7 @@ export class AttendancePage implements OnInit {
     this.load(child.id);
   }
 
-  protected toggleExpanded(record: ParentAttendanceRecord): void {
+  protected toggleExpanded(record: ParentAttendanceDayRow): void {
     this.expandedId.set(this.expandedId() === record.id ? null : record.id);
   }
 
@@ -227,29 +243,18 @@ export class AttendancePage implements OnInit {
   }
 
   /**
-   * 三支一起：期間的出勤紀錄（拿到底）、期間的到班時間、今天的堂。
-   * 到班與今天的堂讀失敗不擋列表 —— 少的是到班行與色面句，紀錄照樣看得到
+   * 三支一起：期間的每一堂（#1810：一支查完整個窗，不分頁）、期間的到班時間、今天的堂。
+   * 到班與今天的堂讀失敗不擋列表 —— 少的是到班行與色面句，課照樣看得到。
+   * **查詢的窗就是畫天數的窗**（`dateRange()`）—— 兩邊各算一份，就是 fillMissingDays 那類陷阱。
    */
   private load(childId: string): void {
     this.loading.set(true);
     this.failed.set(false);
     const { dateFrom, dateTo } = this.dateRange();
-    const today = todayLocal();
-    const page = (n: number) =>
-      this.attendanceService.list({ childId, dateFrom, dateTo, page: n, pageSize: PAGE_SIZE });
-
-    const records$ = page(1).pipe(
-      expand((res) =>
-        res.meta.page * PAGE_SIZE < res.meta.total ? page(res.meta.page + 1) : EMPTY,
-      ),
-      reduce(
-        (acc, res) => ({
-          data: [...acc.data, ...res.data],
-          monthlyAbsent: res.meta.monthlyAbsentCount,
-        }),
-        { data: [] as ParentAttendanceRecord[], monthlyAbsent: 0 },
-      ),
-    );
+    const today = this.today;
+    const records$ = this.attendanceService
+      .days(childId, dateFrom, dateTo)
+      .pipe(map((res) => ({ data: res.data, monthlyAbsent: res.meta.monthlyAbsentCount })));
     // 色面句要今天的刷卡；期間不含今天（選了過去的月份）就多查今天一天，不把區間拉長（後端上限 366 天）
     const checkinsIn = (from: string, to: string) =>
       this.attendanceService.checkins(childId, from, to).pipe(catchError(() => of(null)));

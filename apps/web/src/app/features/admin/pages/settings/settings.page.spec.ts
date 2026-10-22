@@ -542,5 +542,44 @@ describe('SettingsPage', () => {
         leaveWaiverDays: 3,
       });
     });
+
+    // 二讀突變 F5：後端可能夾值或改寫，畫面要跟著存回來的值，不是留著使用者打的數
+    it('儲存成功後欄位改成回應裡的值', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      orgSettingsServiceMock.updateSettings.mockReturnValue(of({ ...FINANCE, invoiceDueDays: 21 }));
+      await setup();
+      const page = component as unknown as {
+        invoiceDueDaysValue: number;
+        saveFinanceBasics: () => void;
+      };
+      page.invoiceDueDaysValue = 10;
+      page.saveFinanceBasics();
+      expect(page.invoiceDueDaysValue).toBe(21);
+    });
+
+    // 二讀突變 F10：收起來時摘要不能只剩期限 —— 沒設提醒要明講
+    it('沒有任何提醒時間點 → 摘要寫「不推播提醒」', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(
+        of({ ...FINANCE, invoiceReminderOffsets: [] }),
+      );
+      await setup();
+      expect(summaries()[0]).toBe('繳費 期限 7 天 · 不推播提醒');
+    });
+
+    // 二讀突變 F14：重試成功之後失敗訊息不能還掛著
+    it('週期讀失敗後重試成功 → 失敗訊息消失、列出週期', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+      billingPeriodsMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+      await setup();
+      expect(bodyText()).toContain('沒有讀到繳費週期');
+
+      billingPeriodsMock.list.mockReturnValue(
+        of({ data: [period('p1', '114 上', '2025-09-01', '2026-01-31')] }),
+      );
+      (component as unknown as { loadPeriods: () => void }).loadPeriods();
+      fixture.detectChanges();
+      expect(bodyText()).not.toContain('沒有讀到繳費週期');
+      expect(bodyText()).toContain('114 上');
+    });
   });
 });
