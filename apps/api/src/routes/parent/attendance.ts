@@ -268,6 +268,10 @@ app.openapi(
         description: '成功',
         content: { 'application/json': { schema: CheckinsResponseSchema } },
       },
+      400: {
+        description: '區間顛倒或超過 366 天',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       403: {
         description: '不是家長身分或這個孩子不在範圍內',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -280,6 +284,10 @@ app.openapi(
       return c.json({ error: '不是家長身分', code: 'NOT_PARENT' }, 403);
     }
     const { childId, dateFrom, dateTo } = c.req.valid('query');
+    // 頁面最長查一個月；上限給一年，擋掉一次撈整段歷史（計畫席 10-22）
+    if (dateFrom > dateTo || Date.parse(dateTo) - Date.parse(dateFrom) > 365 * 86_400_000) {
+      return c.json({ error: '查詢區間最多 366 天', code: 'INVALID_RANGE' }, 400);
+    }
     if (!isChildAllowed(c.get('studentScope'), childId)) {
       return c.json({ error: '沒有這個孩子的權限', code: 'CHILD_OUT_OF_SCOPE' }, 403);
     }

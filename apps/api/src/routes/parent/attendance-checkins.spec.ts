@@ -93,6 +93,14 @@ describe('GET /api/me/attendance/checkins（#1075）', () => {
     expect(body.dailyCheckinCampusIds).toEqual(['c-daily']);
   });
 
+  it('區間：剛好 366 天放行；367 天、或 dateFrom 晚於 dateTo → 400', async () => {
+    expect((await get(`childId=${MINE}&dateFrom=2025-10-22&dateTo=2026-10-22`)).status).toBe(200);
+    const tooLong = await get(`childId=${MINE}&dateFrom=2025-10-21&dateTo=2026-10-22`);
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body.code).toBe('INVALID_RANGE');
+    expect((await get(`childId=${MINE}&dateFrom=2026-10-22&dateTo=2026-10-21`)).status).toBe(400);
+  });
+
   it('不是家長 → 403；孩子不在範圍 → 403', async () => {
     const q = `childId=${MINE}&dateFrom=2026-10-10&dateTo=2026-10-22`;
     expect((await get(q, ['admin'])).status).toBe(403);
