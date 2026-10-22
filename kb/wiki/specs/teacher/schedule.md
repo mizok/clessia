@@ -94,7 +94,7 @@ vs `classId+logDate` 兩欄），刻意不做成一支元件的 if/else。
 
 設計見 [[rules/contact-book-rules]]。
 
-### 依分校出勤模式分流（#1314 TS3，設計稿 2026-10-22，待計畫席批准）
+### 依分校出勤模式分流（#1314 TS3，計畫席 2026-10-22 批准）
 
 A6 `t-schedule.html`：**每一堂依它所在分校的出勤模式**決定卡片長相與入口。
 模式判準一律走 `apps/api/src/lib/attendance-mode.ts`（分校 `campuses.attendance_mode`，
@@ -132,7 +132,7 @@ class-log-sheet 同形狀的 bottom sheet；**不塞進共用點名面板做 if/
    **限當天**（台北日期）、學生須在該堂在籍、該堂分校是日到班；寫入**共用 `POST /api/daily-checkins` 的同一段邏輯**
    （抽成 lib，不寫第二份），`checked_in_by` = 老師。`/api/daily-checkins` 的掛載角色不動（老師不開放打整支）。
 
-**待裁（回「過」＝採預設）**
+**裁定（計畫席 10-22，三題都採預設）**
 
 1. 「他到了」要不要跟「誰負責點名」走：預設**要** —— 行政負責時老師只看名單、不給「他到了」
    （日到班的掃碼會寫 `attendance_records`，等同出勤寫入，rules 第 3 節）。
