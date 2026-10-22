@@ -55,7 +55,8 @@ describe('FilterToggleComponent', () => {
     expect(host.classList.contains('wide:hidden')).toBe(false);
   });
 
+  // #1903：高度走 tbar-control（手機基底 44，A27 認得它；桌機 40）
   it('鈕高 ≥44px（A27 的 class 版）', () => {
-    expect(button().classList.contains('h-11')).toBe(true);
+    expect(button().classList.contains('tbar-control')).toBe(true);
   });
 });

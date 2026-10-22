@@ -404,14 +404,14 @@ describe('ContactBookPage', () => {
       expect(contactBook.missing).toHaveBeenCalledWith('2027-03-06');
     });
 
-    // #1877：跟同列的搜尋框、期間下拉同高 44（原本桌機 36，比另外兩個矮一截）；按下照 A6 `.toggle` 多一圈內框線
-    it('「只看未簽收」是白框鈕：aria-pressed 跟狀態、邊框黑／灰、文字不變、兩種寬度都 44', async () => {
+    // #1877：跟同列的搜尋框、期間下拉同高；#1903 起高度走全站的 tbar-control（手機 44／桌機 40）。按下照 A6 `.toggle` 多一圈內框線
+    it('「只看未簽收」是白框鈕：aria-pressed 跟狀態、邊框黑／灰、文字不變、高度走 tbar-control', async () => {
       await boot({});
       const btn = q('unsigned-only');
       expect(btn.tagName).toBe('BUTTON');
       expect(btn.getAttribute('aria-pressed')).toBe('false');
       expect([...btn.classList]).toEqual(
-        expect.arrayContaining(['bg-white', 'border-zinc-300', 'h-11']),
+        expect.arrayContaining(['bg-white', 'border-zinc-300', 'tbar-control']),
       );
       expect(btn.className).not.toMatch(/wide:h-/);
       btn.click();
@@ -430,7 +430,8 @@ describe('ContactBookPage', () => {
       const el = fixture.nativeElement as HTMLElement;
       const bar = el.querySelector('[role="search"][aria-label="篩選聯絡簿"]')!;
       expect(bar.classList).toContain('items-center');
-      expect(bar.querySelector('.clessia-filter-search')!.classList).toContain('min-h-11');
+      // 高度：搜尋框由 .clessia-filter-search 讀 --tbar-control；下拉、日期由列上的 descendant 規則（#1903）
+      expect(bar.className).toContain('[&_.p-select]:tbar-control');
       const head = el.querySelector('#cb-missing-h')!.parentElement!;
       expect(head.classList).toContain('items-center');
       const labels = [...el.querySelectorAll('app-select-field')].map(

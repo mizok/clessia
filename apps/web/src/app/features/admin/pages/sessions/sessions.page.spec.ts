@@ -1979,12 +1979,13 @@ describe('SessionsPage', () => {
       }
     });
 
-    it('快速選取：純文字（A6 沒畫圖示）、桌機跟旁邊的 ⋯／本週等高 44（使用者 10-15 要求，偏離 A6 的 30）；開了之後變「完成」', () => {
+    // 高度：使用者 10-15 要求跟旁邊等高（偏離 A6 的 30）；10-23 再裁定全站工具列同高 → tbar-control（#1903）
+    it('快速選取：純文字（A6 沒畫圖示）、桌機跟旁邊的 ⋯／本週等高（tbar-control）；開了之後變「完成」', () => {
       const desktop = Array.from(el().querySelectorAll('button[aria-pressed]')).find((b) =>
         b.classList.contains('wide:inline-flex'),
       ) as HTMLElement;
       expect(desktop.textContent?.trim()).toBe('快速選取');
-      expect(desktop.classList.contains('h-11')).toBe(true);
+      expect(desktop.classList.contains('tbar-control')).toBe(true);
       expect(desktop.className).not.toContain('wide:h-[30px]');
       expect(desktop.querySelector('i')).toBeNull();
       expect(desktop.classList.contains('border-zinc-300')).toBe(true); // A6 桌機淺框
@@ -1999,14 +2000,14 @@ describe('SessionsPage', () => {
       expect(desktop.querySelector('svg')).not.toBeNull();
     });
 
-    it('手機快速選取：A6 量到的是自然寬度（不是全寬）、白底、44 高、圖示拿掉；所在列靠右', () => {
+    it('手機快速選取：A6 量到的是自然寬度（不是全寬）、白底、tbar-control 高、圖示拿掉；所在列靠右', () => {
       const mobile = Array.from(el().querySelectorAll('button')).find(
         (b) => b.classList.contains('wide:hidden') && b.textContent?.includes('快速選取'),
       ) as HTMLElement;
       expect(mobile.classList.contains('flex-1')).toBe(false);
       expect(mobile.classList.contains('bg-white')).toBe(true);
       expect(mobile.classList.contains('border-zinc-900')).toBe(true); // A6 手機是近黑框（桌機是淺框）
-      expect(mobile.classList.contains('h-11')).toBe(true);
+      expect(mobile.classList.contains('tbar-control')).toBe(true);
       expect(mobile.querySelector('i')).toBeNull();
       expect(mobile.parentElement!.classList.contains('max-wide:ml-auto')).toBe(true);
     });

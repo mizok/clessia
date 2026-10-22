@@ -1,9 +1,9 @@
 <!-- 標頭：**手機也保留**。次要行動（操作紀錄、匯入）投影在這裡，
      它們在手機上仍然要按得到 —— 主要行動搬走不代表其他行動跟著消失。 -->
-<!-- 標頭裡的 p-button（含頁面投影進來的）照 A6 `.btn`（#1591）：36 高、13px／600、`0 16px`、gap 6px；
+<!-- 標頭裡的 p-button（含頁面投影進來的）照 A6 `.btn`（#1591），高度改走 tbar-control（#1903 全部同高：手機 44／桌機 40）、13px／600、`0 16px`、gap 6px；
      次要（outlined secondary）白底、zinc-300 框、近黑字。PrimeNG 預設 42 高、16px／500，每頁都量到這組差 -->
 <div
-  class="page-actions__header flex items-center gap-2 [&_.p-button]:h-9 [&_.p-button]:gap-1.5 [&_.p-button]:px-4 [&_.p-button]:py-0 [&_.p-button]:text-md [&_.p-button]:leading-normal [&_.p-button-label]:font-semibold [&_.p-button-outlined.p-button-secondary]:border-zinc-300 [&_.p-button-outlined.p-button-secondary]:bg-white [&_.p-button-outlined.p-button-secondary]:text-zinc-900"
+  class="page-actions__header flex items-center gap-2 [&_.p-button]:tbar-control [&_.p-button]:gap-1.5 [&_.p-button]:px-4 [&_.p-button]:py-0 [&_.p-button]:text-md [&_.p-button]:leading-normal [&_.p-button-label]:font-semibold [&_.p-button-outlined.p-button-secondary]:border-zinc-300 [&_.p-button-outlined.p-button-secondary]:bg-white [&_.p-button-outlined.p-button-secondary]:text-zinc-900"
 >
   <ng-content />
   @if (primary(); as action) {

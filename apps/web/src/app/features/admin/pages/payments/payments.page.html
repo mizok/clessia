@@ -77,7 +77,7 @@
       <!-- 手機：強制換行，讓「篩選」落到搜尋列下一行（不然搜尋框被擠成一個放大鏡） -->
       <div class="order-1 h-0 w-full wide:hidden" aria-hidden="true"></div>
       <app-filter-toggle
-        class="order-2 min-h-11 wide:order-none"
+        class="tbar-control order-2 wide:order-none"
         [summary]="panelFilterSummary()"
         [active]="panelFilterSummary() !== '全部'"
         [always]="true"
@@ -91,17 +91,17 @@
         [primaryOnDesktop]="false"
         (primaryClick)="openCreateDialog()"
       >
-        <!-- A6 `.btn--cta` 13px/600、padding 0 16、高 36；手機基底 44（A27）。只在桌機（手機由底部托盤承擔） -->
+        <!-- A6 `.btn--cta` 13px/600、padding 0 16；高度走 tbar-control（#1903）。只在桌機（手機由底部托盤承擔） -->
         <button
           type="button"
-          class="hidden min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-accent-vivid-2 wide:inline-flex wide:min-h-0 wide:h-9"
+          class="tbar-control hidden cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-accent-vivid-2 wide:inline-flex"
           (click)="openCreateDialog()"
         >
           <i class="pi pi-plus" aria-hidden="true"></i>開立帳單
         </button>
         <button
           type="button"
-          class="inline-flex size-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:size-auto wide:h-9 wide:w-10"
+          class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           aria-label="匯出"
           title="匯出"
           (click)="exportPanel.toggle($event)"
@@ -111,7 +111,7 @@
         <app-popup-menu #pageMenu [model]="pageMenuItems" />
         <button
           type="button"
-          class="inline-flex size-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:size-auto wide:h-9 wide:w-10"
+          class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           aria-label="更多動作"
           title="更多動作"
           (click)="pageMenu.toggle($event)"

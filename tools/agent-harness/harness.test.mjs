@@ -2002,6 +2002,9 @@ test('A27 尺寸 class 換算：spacing 4px、任意值 px、其他不算', () =
   assert.equal(minHeightPx('min-h-12'), 48);
   assert.equal(minHeightPx('size-11'), 44);
   assert.equal(minHeightPx('h-[48px]'), 48);
+  // #1903 工具列控制項：手機基底 44（桌機 40 帶在 utility 裡，觸控只看基底）
+  assert.equal(minHeightPx('tbar-control'), 44);
+  assert.equal(minHeightPx('tbar-control-square'), 44);
   assert.equal(minHeightPx('h-full'), null);
   assert.equal(minHeightPx('w-11'), null);
 });

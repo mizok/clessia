@@ -300,12 +300,14 @@ describe('PageActionsComponent', () => {
 
   // ── A6 按鈕尺寸（#1591）：托盤 48 高、標頭 36 高 ─────────────────────────
   // 托盤兩顆鈕的 styleClass 是字串拼接，漏接 dockClass 不會有任何東西紅（#1813 W10 同類）
-  it('托盤主／次鈕都帶 dockClass（h-12）；標頭容器把投影進來的 p-button 壓成 h-9', async () => {
+  it('托盤主／次鈕都帶 dockClass（h-12）；標頭容器把投影進來的 p-button 壓成 tbar-control（#1903）', async () => {
     await setup({ label: '新增課程' }, { label: '匯入' });
 
     for (const sel of ['.page-actions__cta', '.page-actions__secondary']) {
       expect(host.querySelector(`.page-actions__dock ${sel}`)!.classList).toContain('h-12');
     }
-    expect(host.querySelector('.page-actions__header')!.classList).toContain('[&_.p-button]:h-9');
+    expect(host.querySelector('.page-actions__header')!.classList).toContain(
+      '[&_.p-button]:tbar-control',
+    );
   });
 });
