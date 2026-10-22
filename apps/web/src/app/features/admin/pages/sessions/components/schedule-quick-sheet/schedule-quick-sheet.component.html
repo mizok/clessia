@@ -18,7 +18,9 @@
     </button>
   </header>
 
-  <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+  <!-- `flex-auto` 不是 `flex-1`（#1851）：抽屜只有 max-height、沒有固定高度，`flex-1` 的基準 0% 在 iOS Safari
+       被算成 0，加上 min-h-0，中間這區塌成一條（使用者實機）。基準用內容高度，超過 88% 時靠 min-h-0 縮成可捲動 -->
+  <div class="min-h-0 flex-auto overflow-y-auto overscroll-contain px-4 pb-4">
     <p class="m-0 mb-2 text-md font-semibold text-zinc-700">一次勾：</p>
     <app-schedule-quick-picks
       [appendTo]="dialog"
