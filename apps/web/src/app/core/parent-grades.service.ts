@@ -21,6 +21,10 @@ export interface ParentScoreRecord {
   status: ParentScoreStatus;
   /** 考試描述：校內考的範圍說明，段考一律 null（#1076）。有值的那筆可以展開看 */
   description: string | null;
+  /** 任課老師（#1926）：孩子在籍那幾班、考試當天的老師，頓號接；段考、對不上 → null。只有名字 */
+  teacherName: string | null;
+  /** 登錄者（#1926）：對不到就 null（只寫日期，不猜） */
+  recordedByName: string | null;
 }
 
 /** 機構的期（`billing_periods`）＝成績頁的「學期」篩選（#1076） */

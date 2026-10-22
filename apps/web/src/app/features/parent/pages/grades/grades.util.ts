@@ -78,6 +78,8 @@ export const SCHOOL_GROUP = '學校段考';
 
 export interface ClassGroup {
   readonly name: string;
+  /** 章名下的「X 老師」（A6 `.grp__h small`）：這一章裡第一筆有老師的；都沒有 → null */
+  readonly teacher: string | null;
   readonly records: ParentScoreRecord[];
 }
 
@@ -92,7 +94,11 @@ export function groupByClass(records: readonly ParentScoreRecord[]): ClassGroup[
     else byName.set(classOf(record), [record]);
   }
   return [...byName]
-    .map(([name, rs]) => ({ name, records: rs }))
+    .map(([name, rs]) => ({
+      name,
+      teacher: rs.find((r) => r.teacherName)?.teacherName ?? null,
+      records: rs,
+    }))
     .sort((a, b) => Number(a.name === SCHOOL_GROUP) - Number(b.name === SCHOOL_GROUP));
 }
 

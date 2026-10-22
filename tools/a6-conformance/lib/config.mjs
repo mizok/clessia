@@ -924,6 +924,23 @@ export const PAGES = {
         reason: '工具限制：孩子名字沒被樣板化成 {名}（只換登入者的名字），句子其餘一樣',
         source: '#1926；tools/a6-conformance/lib/capture.mjs harvestNames',
       },
+      {
+        // app 有這兩種標籤（grades.component.html：NEW＝7 天內登錄、補考＝status makeup）；量的那位孩子這 7 天
+        // 沒有新成績（色面「0 筆」）、也沒有補考
+        status: '缺',
+        a6: '>text:span\\[(NEW|補考)\\]$',
+        detail: '列內條件式',
+        reason: '資料差：量的孩子沒有 7 天內登錄的成績、也沒有補考（app 兩種標籤都有）',
+        source: '#1926（本機 seed attendance-parent-02）',
+      },
+      {
+        // 稿配到的那一列是不及格（`.ex__v--fail` 是 inline-flex，裡面的 small 變成 flex item → block）
+        status: '樣式',
+        a6: '>text:span~3>text:small$',
+        detail: '^display block → inline$',
+        reason: '資料差：稿配到的是不及格列（分數是 inline-flex），app 配到的是及格列',
+        source: '#1926；.design-explorations p-grades.html:33',
+      },
     ],
   },
   'p-payments': {

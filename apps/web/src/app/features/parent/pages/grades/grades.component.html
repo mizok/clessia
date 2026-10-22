@@ -106,7 +106,8 @@
       }
     }
 
-    <div class="grades__content page-wrap flex flex-col pb-6">
+    <!-- 上方 24px：A6 清單前永遠有 `.count`（沒篩選時是空的，margin-top 照樣佔） -->
+    <div class="grades__content page-wrap flex flex-col pt-6 pb-6">
       @if (loading() && records().length === 0) {
         <app-skeleton class="pt-4" label="成績載入中" [count]="3" />
       } @else if (failed()) {
@@ -144,32 +145,39 @@
           </p>
         }
         @for (group of groups(); track group.name) {
+          <!-- A6 `.grp`：沒有名稱的 section（不是 landmark），章名本身就是 h2 —— 讀屏的標題清單裡找得到每一班 -->
           <section
-            class="grades__class grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
-            [attr.aria-label]="group.name"
+            class="grades__class grid grid-cols-1 gap-y-2 border-b border-surface-border py-5 wide:grid-cols-[200px_minmax(0,1fr)] wide:gap-x-6"
           >
-            <h2 class="m-0 pt-6 text-lg font-bold wide:pt-7">
+            <h2 class="m-0 text-lg font-bold">
               {{ group.name }}
-              <small class="block text-md font-medium text-zinc-600"
-                >{{ group.records.length }} 場</small
+              <!-- A6 `.grp__h small`：「X 老師 · N 場」；老師由 API 帶（#1926），沒有就只寫場數 -->
+              <small class="mt-0.5 block text-sm font-medium text-zinc-600"
+                >{{ group.teacher ? group.teacher + ' 老師 · ' : ''
+                }}{{ group.records.length }} 場</small
               >
             </h2>
-            <div class="wide:pt-3">
+            <div>
               @for (record of group.records; track record.id) {
                 <!--
                   列＝原生 <details>（鍵盤、讀屏的「已展開／已收合」不用自己做）。A6：每一列都能展開，
                   看考試說明（有才寫）、滿分、登錄日。
                 -->
-                <details class="grades__item group border-b border-zinc-200 last:border-b-0">
+                <!--
+                  A6 `.ex`（p-grades.html:21–33）：列之間不畫線、間隔 4px；列是圓角的格線按鈕
+                  （日期 56px｜名稱｜分數｜箭頭 16px），展開時上半變灰、下面接灰底的說明。
+                  手機：名稱上、日期下，分數與箭頭跨兩行（A6 ≤860）
+                -->
+                <details class="grades__item group not-first:mt-1">
                   <summary
-                    class="grades__record flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden"
+                    class="grades__record grid min-h-12 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-x-3 gap-y-0.5 rounded-md p-2 hover:bg-zinc-50 group-open:rounded-b-none group-open:bg-zinc-100 wide:grid-cols-[56px_minmax(0,1fr)_auto_16px] wide:gap-3 wide:px-3 [&::-webkit-details-marker]:hidden"
                   >
                     <span
-                      class="grades__record-date w-12 shrink-0 text-md text-zinc-600 tabular-nums"
+                      class="grades__record-date col-start-1 row-start-2 text-sm text-zinc-600 tabular-nums wide:row-start-1"
                       >{{ monthDay(record.examDate) }}</span
                     >
                     <span
-                      class="grades__record-name flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-zinc-900"
+                      class="grades__record-name col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-2 font-semibold text-zinc-900 wide:col-start-2"
                     >
                       {{ record.examName }}
                       @if (record.status === 'makeup') {
@@ -177,16 +185,19 @@
                       }
                       @if (isNew(record)) {
                         <span
-                          class="grades__new rounded-sm bg-zinc-900 px-1.5 py-0.5 text-xs font-bold tracking-[0.04em] text-white"
+                          class="grades__new inline-flex rounded-full bg-zinc-900 px-1.5 text-xs leading-[18px] font-bold tracking-[0.04em] text-white"
                           >NEW</span
                         >
                       }
                     </span>
                     @if (record.status === 'absent' || record.score === null) {
-                      <app-data-chip>{{ statusLabel(record) }}</app-data-chip>
+                      <app-data-chip
+                        class="col-start-2 row-span-2 row-start-1 wide:col-start-3 wide:row-span-1"
+                        >{{ statusLabel(record) }}</app-data-chip
+                      >
                     } @else {
                       <span
-                        class="grades__record-score text-xl font-bold whitespace-nowrap tabular-nums"
+                        class="grades__record-score col-start-2 row-span-2 row-start-1 text-right text-xl font-bold whitespace-nowrap tabular-nums wide:col-start-3 wide:row-span-1"
                         [class.grades__record-score--fail]="isFailing(record)"
                         [class.text-error-700]="isFailing(record)"
                       >
@@ -196,23 +207,34 @@
                             aria-label="不及格"
                           ></i>
                         }
-                        {{ formatScore(record) }}
+                        {{ record.score }}
+                        @if (record.totalScore) {
+                          <small class="text-sm font-medium text-zinc-600"
+                            >／{{ record.totalScore }}</small
+                          >
+                        }
                       </span>
                     }
                     <i
-                      class="pi pi-chevron-down grades__chevron text-xs text-zinc-500 transition-transform duration-[120ms] ease-[ease] group-open:rotate-180"
+                      class="pi pi-chevron-down grades__chevron col-start-3 row-span-2 row-start-1 text-xs text-zinc-600 transition-transform duration-[120ms] ease-[ease] group-open:rotate-180 wide:col-start-4 wide:row-span-1"
                       aria-hidden="true"
                     ></i>
                   </summary>
-                  <div class="grades__more flex flex-col gap-1 pb-4 text-md text-zinc-700">
+                  <div
+                    class="grades__more grid gap-1 rounded-b-md bg-zinc-100 px-3 pt-2 pb-3 text-md text-zinc-800 wide:pl-20"
+                  >
                     <!-- white-space: pre-line 會把 prettier 折出來的前後換行渲染出來，所以下一行不能折 -->
                     <!-- prettier-ignore -->
                     @if (record.description) {<p class="grades__desc m-0 whitespace-pre-line">{{ record.description }}</p>}
                     @if (record.totalScore) {
                       <p class="grades__total m-0">滿分 {{ record.totalScore }} 分</p>
                     }
+                    <!-- A6「M/D 登錄 · X 老師」：登錄者由 API 帶（成績表的 created_by），可能是行政而不是老師，
+                         所以只寫名字不加「老師」；對不到就只寫日期（#1926） -->
                     <p class="grades__recorded m-0 text-zinc-600">
-                      {{ monthDay(recordedOn(record)) }} 登錄
+                      {{ monthDay(recordedOn(record)) }} 登錄{{
+                        record.recordedByName ? ' · ' + record.recordedByName : ''
+                      }}
                     </p>
                   </div>
                 </details>

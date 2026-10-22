@@ -35,6 +35,8 @@ function record(overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord {
     totalScore: 100,
     status: 'scored',
     description: null,
+    teacherName: null,
+    recordedByName: null,
     ...overrides,
   };
 }
@@ -122,6 +124,29 @@ describe('GradesComponent', () => {
     const sent = listMock.mock.calls[0][0].pageSize;
     expect(sent).toBeLessThanOrEqual(API_MAX_PAGE_SIZE);
     expect(listMock).toHaveBeenCalledWith({ childId: 'child-1', pageSize: 100 });
+  });
+
+  it('章名下寫「X 老師 · N 場」，展開寫「M/D 登錄 · 登錄者」；沒有就只寫場數、只寫日期（#1926）', () => {
+    createComponent({
+      data: [
+        record({ id: 'r1', className: '英文班', teacherName: '林志明', recordedByName: '王美玲' }),
+        record({ id: 'r2', className: '數學班', teacherName: null, recordedByName: null }),
+      ],
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0, periods: [] },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const smalls = Array.from(el.querySelectorAll('section.grades__class h2 small')).map((x) =>
+      x.textContent?.trim(),
+    );
+    expect(smalls).toEqual(['林志明 老師 · 1 場', '1 場']);
+    const recorded = Array.from(el.querySelectorAll('.grades__recorded')).map((x) =>
+      x.textContent?.replace(/\s+/g, ' ').trim(),
+    );
+    expect(recorded[0]).toMatch(/登錄 · 王美玲$/);
+    expect(recorded[1]).toMatch(/登錄$/);
   });
 
   it('色面的「新成績」直接用 meta.recentCount；A6 是 dl，數字在 dd、標籤在 dt（#1926）', () => {

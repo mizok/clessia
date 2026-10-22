@@ -199,12 +199,6 @@ export class GradesComponent implements OnInit {
     return isFailingScore(record.score, { totalScore: record.totalScore });
   }
 
-  protected formatScore(record: ParentScoreRecord): string {
-    if (record.score === null) return '—';
-    if (record.totalScore) return `${record.score} / ${record.totalScore}`;
-    return String(record.score);
-  }
-
   private load(childId: string): void {
     this.loading.set(true);
     this.failed.set(false);
