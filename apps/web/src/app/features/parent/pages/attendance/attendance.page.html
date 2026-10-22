@@ -137,12 +137,16 @@
                 <div class="attendance__rec rounded-md not-first:mt-1">
                   <button
                     type="button"
-                    class="attendance__record grid min-h-11 w-full cursor-pointer [font:inherit] grid-cols-[44px_minmax(0,1fr)_16px] items-center gap-x-3 gap-y-0.5 rounded-md wide:gap-y-3 border-0 bg-transparent p-2 text-left text-inherit hover:bg-zinc-50 aria-expanded:rounded-b-none aria-expanded:bg-zinc-100 wide:grid-cols-[56px_minmax(0,1fr)_auto_16px] wide:px-3"
+                    class="attendance__record grid min-h-11 w-full cursor-pointer [font:inherit] grid-cols-[56px_minmax(0,1fr)_16px] items-center gap-x-3 gap-y-0.5 rounded-md wide:gap-y-3 border-0 bg-transparent p-2 text-left text-inherit hover:bg-zinc-50 aria-expanded:rounded-b-none aria-expanded:bg-zinc-100 wide:grid-cols-[56px_minmax(0,1fr)_auto_16px] wide:px-3"
                     [attr.aria-expanded]="expandedId() === record.id"
                     [attr.aria-controls]="'rec-' + record.id"
                     (click)="toggleExpanded(record)"
                   >
-                    <!-- #1810：沒點名的堂也在 —— 還沒上／上課中／沒有紀錄（永遠不寫成缺席） -->
+                    <!--
+                      #1810：沒點名的堂也在 —— 還沒上／上課中／沒有紀錄（永遠不寫成缺席）。
+                      狀態欄手機也是 56px（稿是 44px）：44px 放不下四個字的「沒有紀錄」，會斷成「沒有紀／錄」；
+                      稿的示範資料沒有這種列，所以稿上看不出來（偏離，記在 a6-adoption-rules）
+                    -->
                     @let st = status(record);
                     <span
                       class="attendance__status"
@@ -178,7 +182,7 @@
                   </button>
                   @if (expandedId() === record.id) {
                     <div
-                      class="attendance__record-detail grid gap-1 rounded-b-md bg-zinc-100 pt-2 pr-3 pb-3 pl-[calc(44px+var(--space-3)+var(--space-2))] text-md text-zinc-800 wide:pl-[calc(56px+var(--space-3)*2)]"
+                      class="attendance__record-detail grid gap-1 rounded-b-md bg-zinc-100 pt-2 pr-3 pb-3 pl-[calc(56px+var(--space-3)+var(--space-2))] text-md text-zinc-800 wide:pl-[calc(56px+var(--space-3)*2)]"
                       [id]="'rec-' + record.id"
                     >
                       <!-- A6「老師 · 教室」（#1809 併入 #1810）；後端只回顯示名 -->
