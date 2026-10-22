@@ -1,7 +1,9 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { describe, expect, it } from 'vitest';
 
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { PageOpenComponent } from './page-open.component';
 
 @Component({
@@ -91,5 +93,16 @@ describe('PageOpenComponent 色面高度用滑的（#1859）', () => {
     const f = TestBed.createComponent(Host);
     f.detectChanges();
     expect(f.nativeElement.querySelector('section[appheightfollow]')).not.toBeNull();
+  });
+});
+
+describe('PageOpenComponent 色面句換字（#1895）', () => {
+  it('標題 h1 與副行 p 都掛 appTextSwap（一處掛、全站色面句生效）', () => {
+    const f = TestBed.createComponent(Host);
+    f.detectChanges();
+    for (const sel of ['h1', 'p']) {
+      const el = f.debugElement.query(By.css(`app-page-open ${sel}`));
+      expect(el.injector.get(TextSwapDirective, null), sel).not.toBeNull();
+    }
   });
 });

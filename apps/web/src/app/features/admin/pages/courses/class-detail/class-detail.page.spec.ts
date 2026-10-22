@@ -244,6 +244,15 @@ describe('ClassDetailPage', () => {
   });
 
   // #1641 5b（使用者 10-16 裁定第 1 點）：移除是樂觀的 —— 按下就淡出；失敗要放回去並說明
+  it('名單的「移除」上危險色（#1360）', () => {
+    const page = component as unknown as {
+      selectedEnrollment: { set: (v: unknown) => void };
+      actionMenuItems: () => { label?: string; danger?: boolean }[];
+    };
+    page.selectedEnrollment.set({ id: 'e1', status: 'active', attendanceCount: 0 });
+    expect(page.actionMenuItems().find((i) => i.label === '移除')?.danger).toBe(true);
+  });
+
   describe('樂觀移除（#1641 5b）', () => {
     type Page = {
       enrollments: { set: (v: unknown[]) => void; (): { id: string }[] };

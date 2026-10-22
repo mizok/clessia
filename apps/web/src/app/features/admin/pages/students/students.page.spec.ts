@@ -381,6 +381,15 @@ describe('StudentsPage', () => {
       vi.restoreAllMocks();
     });
 
+    it('刪除學生上危險色（#1360）', () => {
+      (component as any).selectedStudent.set(student);
+      const items = (component as any).actionMenuItems() as Array<{
+        label?: string;
+        danger?: boolean;
+      }>;
+      expect(items.find((i) => i.label === '刪除學生')?.danger).toBe(true);
+    });
+
     it('有 manage_students：選單有「列印到班卡」', () => {
       expect(menuLabels(component)).toContain('列印到班卡');
     });

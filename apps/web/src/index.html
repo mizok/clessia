@@ -41,10 +41,26 @@
     <meta name="theme-color" content="#ff6a3d" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+    字型 CSS 非阻塞載入（#1595 P4-1）。之前 build 會把這份 CSS 整份內嵌進 index.html
+    （optimization.fonts.inline）：496KB／brotli 後約 36KB，全卡在首屏前，現在已在 project.json 關掉。
+    - media="print" → onload 換成 all：不擋首次繪製；字型到了照 display=swap 換上（本來就是 swap）
+    - 字重寫範圍（400..800）而不是逐一列：Google 給的本來就是可變字型，逐一列會把同一個檔
+      宣告 4 次（467 條 @font-face → 115 條，同一批檔案）
+    - 不能改成一般的 <link rel=stylesheet> 外連：那會擋首次繪製，實測手機 FCP 2.1 秒
+  -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=Noto+Sans+TC:wght@400..700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media = 'all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=Noto+Sans+TC:wght@400..700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <!--
     開站畫面。Angular bootstrap 之後會把 <app-root> 的內容整個換掉，所以這段只活到
     第一次 render 為止 —— 刻意是純 HTML/CSS 零依賴，它要在任何 JS 下載完成之前就看得見。

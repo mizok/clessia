@@ -27,6 +27,9 @@ export interface LeaveListResponse {
 export interface LeaveQueryParams {
   campusId?: string;
   studentId?: string;
+  /** 課程／開課班（#1100 #31）：學生在那個班（那門課的任一班）有報名的假 */
+  classId?: string;
+  courseId?: string;
   dateFrom?: string;
   dateTo?: string;
   coverDate?: string;
@@ -66,6 +69,8 @@ export class LeaveService {
     let httpParams = new HttpParams();
     if (params.campusId) httpParams = httpParams.set('campusId', params.campusId);
     if (params.studentId) httpParams = httpParams.set('studentId', params.studentId);
+    if (params.classId) httpParams = httpParams.set('classId', params.classId);
+    if (params.courseId) httpParams = httpParams.set('courseId', params.courseId);
     if (params.dateFrom) httpParams = httpParams.set('dateFrom', params.dateFrom);
     if (params.dateTo) httpParams = httpParams.set('dateTo', params.dateTo);
     if (params.coverDate) httpParams = httpParams.set('coverDate', params.coverDate);
