@@ -244,4 +244,49 @@ run('帳務作業每位學生一筆交易（#1943）', () => {
     expect([...a.body.failedStudents, ...b.body.failedStudents]).toEqual([]);
     expect(await ledger('2026-04-01')).toEqual({ dup: 0, tuition: STUDENTS, empty: 0 });
   }, 300_000);
+
+  // 上面那段兩個 run 誰先誰後看排程，拿掉 FOR UPDATE 不一定撞得到（突變 M2 在那段存活過）。
+  // 這段把競態釘死：別的交易已經替某筆報名寫了 5 月學費、還沒 COMMIT 時，run 必須等它、再重查
+  it('別的交易開到一半（鎖著報名、明細還沒 COMMIT）→ run 等它結束再重查，不重複開', async () => {
+    const [target] = await q<{ id: string; student_id: string }>(
+      'select id, student_id from enrollments where org_id = $1 order by id limit 1 offset 10',
+      [ctx.orgId],
+    );
+    const [held] = await q<{ id: string }>(
+      `insert into invoices (org_id, student_id, issued_at, due_date, created_by)
+       values ($1, $2, '2026-05-01', '2026-05-15', $3) returning id`,
+      [ctx.orgId, target!.student_id, ctx.userId],
+    );
+    const other = await pool!.connect();
+    try {
+      await other.query('BEGIN');
+      await other.query('select id from enrollments where id = $1 for update', [target!.id]);
+      await other.query(
+        `insert into invoice_items (invoice_id, type, enrollment_id, amount, period_month)
+         values ($1, 'tuition', $2, 1000, '2026-05-01')`,
+        [held!.id, target!.id],
+      );
+
+      let done = false;
+      const pending = runMonth('2026-05').finally(() => (done = true));
+      // 等到 run 卡在這把鎖上（或已經跑完 —— 那就是沒鎖，下面會看到重複）
+      for (let i = 0; i < 300 && !done; i += 1) {
+        const [w] = await q<{ n: string }>(
+          `select count(*) as n from pg_locks l join pg_stat_activity a on a.pid = l.pid
+            where not l.granted and a.query ilike '%from public.enrollments%for update%'`,
+        );
+        if (Number(w!.n) > 0) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await other.query('COMMIT');
+
+      const may = await pending;
+      expect(may.status).toBe(200);
+      expect(may.body.invoicesCreated).toBe(STUDENTS - 1);
+      expect(await ledger('2026-05-01')).toEqual({ dup: 0, tuition: STUDENTS, empty: 0 });
+    } finally {
+      await other.query('ROLLBACK').catch(() => undefined);
+      other.release();
+    }
+  }, 300_000);
 });
