@@ -254,17 +254,13 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(badge).not.toMatch(/\bright-/);
     });
 
-    it('帳戶鈕在手機只留頭像：沒有身分字樣，箭頭在手機藏起來', async () => {
+    it('帳戶鈕只留頭像（手機桌機一致，使用者 10-22）：沒有名字、身分字樣與箭頭，aria-label 寫出名字與身分', async () => {
       const { el } = await setup(['admin'], 'admin');
       const acc = el.querySelector('[popovertarget="shell-account"]')!;
-      const visibleOnMobile = [...acc.querySelectorAll(':scope > span')].filter(
-        (s) => ![...s.classList].some((c) => c === 'hidden' || c === 'max-wide:hidden'),
-      );
-      // 只剩頭像那一個
-      expect(visibleOnMobile).toHaveLength(1);
-      expect(visibleOnMobile[0]!.classList).toContain('rounded-full');
-      // 名字與身分仍在 aria-label
-      expect(acc.getAttribute('aria-label')).toContain('管理員');
+      expect(acc.children).toHaveLength(1);
+      expect(acc.children[0]!.classList).toContain('rounded-full');
+      expect(acc.querySelector('.pi-chevron-down')).toBeNull();
+      expect(acc.getAttribute('aria-label')).toMatch(/帳戶：.+，目前身分 管理員/);
     });
   });
 

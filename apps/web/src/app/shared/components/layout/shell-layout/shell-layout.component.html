@@ -111,14 +111,7 @@
               aria-hidden="true"
               >{{ avatarInitial() }}</span
             >
-            <span class="hidden leading-[1.5] whitespace-nowrap wide:inline"
-              >{{ displayName() }} · {{ roleLabels[role] }}</span
-            >
-            <!-- 手機只留頭像（#1866）：名字與身分在帳戶選單頂端，aria-label 也有 -->
-            <!-- `.pi` 的 display 不在 layer 裡、會蓋過 utilities 的 hidden，所以藏外面這層 -->
-            <span class="inline-flex max-wide:hidden" aria-hidden="true"
-              ><i class="pi pi-chevron-down text-xs"></i
-            ></span>
+            <!-- 只留頭像，手機桌機一致（#1866，使用者 10-22「點了可以看到」）：名字與身分在帳戶選單頂端，aria-label 也有 -->
           </button>
         }
       </div>
