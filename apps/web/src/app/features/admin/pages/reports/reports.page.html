@@ -70,6 +70,17 @@
       (ngModelChange)="onGroupByChange($event)"
       ariaLabel="分組方式"
     />
+    <!-- 明細 CSV（一列一筆收款）：照目前的期間、分校、課程 -->
+    <p-button
+      styleClass="w-full wide:w-auto"
+      class="col-span-2 wide:col-auto"
+      label="匯出 CSV"
+      icon="pi pi-download"
+      severity="secondary"
+      [outlined]="true"
+      [loading]="exporting()"
+      (onClick)="exportCsv()"
+    />
   </div>
 </div>
 

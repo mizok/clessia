@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { MessageService } from 'primeng/api';
 
 import {
   ReportsService,
@@ -37,7 +38,9 @@ describe('ReportsPage', () => {
 
   const reports = {
     revenue: vi.fn((_params?: RevenueQueryParams) => of(response())),
+    revenueCsv: vi.fn((_params?: RevenueQueryParams) => of(new Blob(['csv']))),
   };
+  const toast = { add: vi.fn() };
   const courses = {
     list: vi.fn(() => of({ data: [], meta: {} })),
   };
@@ -58,6 +61,7 @@ describe('ReportsPage', () => {
       providers: [
         provideRouter([]),
         { provide: ReportsService, useValue: reports },
+        { provide: MessageService, useValue: toast },
         { provide: CoursesService, useValue: courses },
         { provide: ReferenceDataService, useValue: refData },
       ],
@@ -96,6 +100,47 @@ describe('ReportsPage', () => {
 
     expect(params.campusId).toBeUndefined();
     expect(params.courseId).toBeUndefined();
+  });
+
+  // #1100 #41：spec「依篩選條件匯出 CSV」—— 打明細端點，帶跟畫面同一組篩選
+  describe('匯出 CSV', () => {
+    it('照目前的期間與課程打 revenue.csv，下載成檔案', () => {
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => undefined);
+      URL.createObjectURL = vi.fn(() => 'blob:x');
+      URL.revokeObjectURL = vi.fn();
+      component['onCourseChange']('course-1');
+      const { dateFrom, dateTo } = reports.revenue.mock.calls.at(-1)![0]!;
+
+      component['exportCsv']();
+
+      expect(reports.revenueCsv).toHaveBeenCalledWith({
+        dateFrom,
+        dateTo,
+        campusId: undefined,
+        courseId: 'course-1',
+      });
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(component['exporting']()).toBe(false);
+      click.mockRestore();
+    });
+
+    it('筆數超過上限（413）→ 顯示後端的「請縮小日期範圍」', async () => {
+      toast.add.mockClear();
+      // jsdom 的 Blob 沒有 text()（瀏覽器都有）—— 補上
+      const json = JSON.stringify({ error: '筆數超過 20000 筆，請縮小日期範圍' });
+      const body = Object.assign(new Blob([json]), { text: async () => json });
+      reports.revenueCsv.mockReturnValueOnce(throwError(() => ({ status: 413, error: body })));
+
+      component['exportCsv']();
+      await vi.waitFor(() => expect(toast.add).toHaveBeenCalled());
+
+      expect(toast.add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', detail: '筆數超過 20000 筆，請縮小日期範圍' }),
+      );
+      expect(component['exporting']()).toBe(false);
+    });
   });
 
   describe('篩選與分組', () => {
@@ -178,6 +223,7 @@ describe('ReportsPage', () => {
           imports: [ReportsPage],
           providers: [
             { provide: ReportsService, useValue: reports },
+            { provide: MessageService, useValue: toast },
             { provide: CoursesService, useValue: courses },
             { provide: ReferenceDataService, useValue: refData },
             provideRouter([]),
