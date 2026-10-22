@@ -594,6 +594,18 @@ describe('StudentsPage', () => {
       expect(title()).toBe((component as any).page().label);
     });
 
+    it('翻頁重抓失敗：標題退回頁名，不留著像是成功的舊數字（第二審核席 #1864）', () => {
+      const title = () => {
+        fixture.detectChanges();
+        return (fixture.nativeElement as HTMLElement).querySelector('h1')!.textContent!.trim();
+      };
+      respond([row('a', '王一', 'J3')]);
+      (component as any).onPage({ page: 1 });
+      pending.at(-1)!.subject.error(new Error('boom'));
+      expect((component as any).loadFailed()).toBe(true);
+      expect(title()).toBe((component as any).page().label);
+    });
+
     it('清除篩選：搜尋、年級、今天、狀態一起清，只重查一次，清完同一個字還送得出去', () => {
       respond([row('a', '王一', 'J3')]);
       type('王');
