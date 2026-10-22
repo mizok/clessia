@@ -85,6 +85,10 @@ describe('enqueueGradePromotionReminders（#1820）', () => {
     const n = await enqueueGradePromotionReminders(f.db, TODAY, null);
 
     expect(n).toBe(2);
+    // 二讀 D7／D8：不推播（同摘要），同一人同一鍵只一則
+    const insert = f.calls.find((c) => c.sql.includes('INSERT INTO notifications'))!;
+    expect(insert.sql).toMatch(/'skipped', 'ROLE_PUSH_DISABLED'/);
+    expect(insert.sql).toMatch(/ON CONFLICT \(user_id, dedupe_key\) DO NOTHING/);
     expect(f.inserted().map((r) => r.user_id)).toEqual(['full', 'star']);
     expect(f.inserted()[0]).toEqual({
       org_id: 'org-a',
@@ -122,7 +126,20 @@ describe('enqueueGradePromotionReminders（#1820）', () => {
 
     expect(await enqueueGradePromotionReminders(f.db, TODAY, null)).toBe(0);
     expect(f.calls[1]!.params).toEqual([['org-a'], ['2026-09-01'], [115]]);
+    // 二讀 D10：只有沒復原的升級才擋（復原過要能再提醒）
+    expect(f.calls[1]!.sql).toMatch(/g\.academic_year = x\.year AND g\.reverted_at IS NULL/);
     expect(f.calls.some((c) => c.sql.includes('INSERT'))).toBe(false);
+  });
+
+  // 二讀 N6：學年要照升級日算，不是今天 —— 7/30 提醒 8/2 的升級，那天按執行寫的是新學年
+  it('跨 8/1：今天 7/30、升級日 8/2 → 第二句帶升級日那一學年（115），不是今天的（114）', async () => {
+    const f = fakeDb(
+      [{ org_id: 'org-a', month_day: '08-02', days: 7 }],
+      [admin('full', ['*'])],
+      ['org-a'],
+    );
+    await enqueueGradePromotionReminders(f.db, '2026-07-30', null);
+    expect(f.calls[1]!.params).toEqual([['org-a'], ['2026-08-02'], [115]]);
   });
 
   it('org 範圍照傳進第一句（只跑指定的 org）', async () => {

@@ -54,6 +54,14 @@ describe('promotionReminderDue（升級前提醒）', () => {
     expect(promotionReminderDue('09-01', 7, '2026-09-02')).toBeNull();
   });
 
+  it('學年照升級日算：今天 7/30（114 學年）、升級日 8/2 → 115', () => {
+    expect(promotionReminderDue('08-02', 7, '2026-07-30')).toEqual({
+      date: '2026-08-02',
+      daysUntil: 3,
+      academicYear: 115,
+    });
+  });
+
   it('天數 0＝不提醒', () => {
     expect(promotionReminderDue('09-01', 0, '2026-09-01')).toBeNull();
   });
