@@ -3,7 +3,7 @@ title: 全站動態規則（設計稿：換頁方向、頁內切換、列表補�
 summary: 設計稿（#1635，未批准）。2026-10-16 在本機實跑盤點：頁內的狀態變化（換週、換日、日／週、篩選切換、tab）全部是瞬間替換；換頁只有內容區淡入淡出，而且沒有處理「減少動態」。提案：換頁依網址深度給方向（往深從右進、返回從左、同層只淡入淡出）；低頻的模式切換用同文件 view transition；連點型控制項（換週箭頭）不能用 VT —— 實測 VT 動畫期間的第二下點擊會被吞掉（規格：期間點擊一律打到 document element），改成內容層的 animate.enter；新增／刪除列照 A6 的 row-new，補位只在刪除時用 VT。曲線沿用 #1634 的 --arrive／--leave，不另訂。
 category: architecture
 status: draft
-updated: 2026-10-16
+updated: 2026-10-22
 tags: [architecture, motion, view-transition, a6, accessibility, performance]
 ---
 
@@ -113,6 +113,15 @@ Playwright（獨立瀏覽器 context，不碰共用的 Chrome session），admin
 - **補位**：只在刪除時用 VT，畫面上看得到的列各給一個唯一名字，共用的動畫樣式用 `view-transition-class` 寫一次（同上 Chrome 文件）。新增不需要補位動畫：新列從上方淡入，下面的列只是被往下推。
 - **前提是 `@for` 用真正的 id 當 `track`**。repo 裡有 11 處 `track $index`，大多是固定清單；套用到某個列表之前要先檢查那一處，否則被刪的會是錯的那一列。
 - 「重新整理整份列表」（篩選、換分校）不算新增或刪除，照「頁內模式切換」處理，**不讓每一列都跑一次進場**。
+
+### 資料回來撐開版面：高度滑過去（#1853）
+
+使用者 10-22：「跳改成滑沒有問題」。骨架換成真資料、內容變高變矮這種**不是使用者操作造成**的位移，不用 VT（VT 期間點擊被吞，§3），
+改成容器高度用 WAAPI 從舊高度滑到新高度：`shared/directives/height-follow.directive.ts`（`appHeightFollow`，200ms `--arrive`）。
+
+- 掛在容器上，量的是它的**第一個子元素**（要是 block）。第一次從 0 長出來（例如 `<details>` 剛打開）不動 —— 那段交給元件自己的展開過渡，不疊兩段。
+- 減少動態時不動；動畫中 `overflow: clip`，結束就拿掉。
+- 舊內容是空的時候（第一次載入、上次失敗）不要再包 VT 換場 —— 沒有東西可以交叉淡化，只剩高度要滑。
 
 ### 數字變化
 
