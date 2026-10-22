@@ -71,8 +71,62 @@
     <!--
       #1314 SE2a（A6 general 的 .colls）：財務設定收成可收合的「繳費」段，收起來時摘要寫生效值。
       沒有 manage_finance 時 API 回應沒有財務 key —— 整段不畫（同下面各卡的規則）。
-      稿的「報名流程」「續課」「學年升級」三段不畫：系統沒有那些行為（#1314 SE2 對照，#1820／#1821 另案、自動續課不做）。
+      稿的「續課」「學年升級」兩段不畫：系統沒有那些行為（#1314 SE2 對照，#1820 另案、自動續課不做）。
+      「報名流程」段（#1821）不是財務設定，畫在這個 @if 外面（上面）。
     -->
+    <!-- #1821 報名流程（A6 kvSec「報名流程」）：申請放太久、試聽後還沒報名的提醒天數，0＝關 -->
+    <details
+      class="settings-page__coll group max-w-[760px] border-0 border-b border-solid border-zinc-200"
+    >
+      <summary
+        class="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
+      >
+        <span class="text-lg font-bold text-zinc-900">報名流程</span>
+        <span class="flex items-center gap-2 text-md text-zinc-600 tabular-nums"
+          >{{ applicationFlowSummary() }}
+          <i
+            class="pi pi-chevron-down text-xs transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          ></i
+        ></span>
+      </summary>
+      <div class="pb-6">
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+          <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+            報名審核處理時效（天）
+            <p-inputnumber
+              [(ngModel)]="applicationReviewDaysValue"
+              [min]="0"
+              [max]="30"
+              styleClass="w-full"
+            />
+            <small class="font-normal text-zinc-600"
+              >申請送出這麼多天還沒處理，提醒管理員（0 = 不提醒）</small
+            >
+          </label>
+          <label class="flex flex-col gap-1 text-sm font-semibold text-zinc-700">
+            試聽跟進啟動天數
+            <p-inputnumber
+              [(ngModel)]="trialFollowupDaysValue"
+              [min]="0"
+              [max]="30"
+              styleClass="w-full"
+            />
+            <small class="font-normal text-zinc-600"
+              >試聽日之後這麼多天還沒報名，提醒跟進（0 = 不提醒）</small
+            >
+          </label>
+        </div>
+        <div class="mt-4 flex">
+          <p-button
+            label="儲存"
+            [loading]="savingApplicationFlow()"
+            (onClick)="saveApplicationFlow()"
+          />
+        </div>
+      </div>
+    </details>
+
     @if (hasFinance()) {
       <details
         class="settings-page__coll group max-w-[760px] border-0 border-b border-solid border-zinc-200"

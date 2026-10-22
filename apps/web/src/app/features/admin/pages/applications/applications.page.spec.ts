@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -58,7 +58,12 @@ const req = (extra: Partial<ParentRequest> = {}): ParentRequest => ({
   ...extra,
 });
 
-async function setup(parentData: ParentRequest[] = [req()], permissions = ['manage_finance']) {
+async function setup(
+  parentData: ParentRequest[] = [req()],
+  permissions = ['manage_finance'],
+  /** 進頁時網址上的 query（通知連過來帶 `?kind=`，#1821） */
+  query: Record<string, string> | null = null,
+) {
   const parents = {
     list: vi.fn().mockReturnValue(of({ data: parentData })),
     reject: vi.fn((id: string, reason: string) =>
@@ -87,6 +92,14 @@ async function setup(parentData: ParentRequest[] = [req()], permissions = ['mana
       { provide: FeeTemplatesService, useValue: { list: () => of({ data: [] }) } },
       { provide: BillingPeriodsService, useValue: { list: () => of({ data: [] }) } },
       { provide: EnrollmentsService, useValue: { prorationPreview: () => of(null) } },
+      ...(query
+        ? [
+            {
+              provide: ActivatedRoute,
+              useValue: { snapshot: { queryParamMap: convertToParamMap(query) } },
+            },
+          ]
+        : []),
     ],
   })
     .overrideComponent(ApplicationsPage, {
@@ -101,6 +114,18 @@ async function setup(parentData: ParentRequest[] = [req()], permissions = ['mana
 }
 
 describe('ApplicationsPage（#1245）', () => {
+  // #1821：申請提醒的連結帶 ?kind=，點進來要落在那個分頁
+  it.each([
+    ['trial', 'trial'],
+    ['enrollment', 'enrollment'],
+    ['bogus', null],
+  ] as const)('網址 ?kind=%s → 以 %s 讀取', async (kind, expected) => {
+    const { service, parents } = await setup([req()], ['manage_finance'], { kind });
+
+    expect(service.list).toHaveBeenCalledWith({ statuses: ['new', 'contacted'], kind: expected });
+    expect(parents.list).toHaveBeenCalledWith(expect.objectContaining({ kind: expected }));
+  });
+
   it('預設讀待處理；卡片有學生、家長、目標班（候補、已刪除）與家長備註', async () => {
     const { service, el } = await setup();
 

@@ -24,6 +24,10 @@ export interface OrgSettings {
   attendanceMode: AttendanceMode;
   attendanceResponsible: AttendanceResponsible;
   attendanceRetroactiveDays: number;
+  /** 申請送出幾天還沒處理就提醒（#1821，0＝關，0–30） */
+  applicationReviewDays: number;
+  /** 試聽日之後幾天還沒報名就提醒跟進（#1821，0＝關，0–30） */
+  trialFollowupDays: number;
   // 下面三個是**財務設定，只有帶 `manage_finance` 的請求拿得到** ——
   // 沒有那個權限時 API 回的物件裡根本沒有這幾個 key（不是 0，也不是 null）。
   // 所以型別上是 optional，不要在 UI 裡假設它們一定在。
@@ -53,6 +57,8 @@ export interface UpdateOrgSettingsInput {
   attendanceMode?: AttendanceMode;
   attendanceResponsible?: AttendanceResponsible;
   attendanceRetroactiveDays?: number;
+  applicationReviewDays?: number;
+  trialFollowupDays?: number;
   invoiceDueDays?: number;
   /** 待開單提醒的提前天數（#1305，1–90）。財務設定：沒有 `manage_finance` 時這個 key 不存在 */
   billingReminderDays?: number;

@@ -838,6 +838,17 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(row.querySelector('[data-testid=go]')!.textContent).toContain('看請假');
     });
 
+    it.each([
+      ['application_overdue', '申請待處理', '看申請'],
+      ['trial_followup', '試聽跟進', '看試聽'],
+    ])('申請提醒（%s，#1821）：標籤「%s」、連結字「%s」', async (kind, label, go) => {
+      received = [notification({ kind, link: '/admin/applications?kind=trial' })];
+      await setup();
+      const row = qa('notification')[0];
+      expect(row.querySelector('[data-testid=kind]')!.textContent).toContain(label);
+      expect(row.querySelector('[data-testid=go]')!.textContent).toContain(go);
+    });
+
     it('連結按著 Cmd／Ctrl／Shift 或中鍵點：交給瀏覽器開新分頁，不攔', async () => {
       received = [notification({ link: '/admin/applications' })];
       await setup();

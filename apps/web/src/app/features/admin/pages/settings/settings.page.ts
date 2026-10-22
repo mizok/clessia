@@ -149,6 +149,8 @@ export class SettingsPage implements OnInit {
         this.leaveWaiverDaysValue = s.leaveWaiverDays ?? 3;
         this.reminderOffsets.set(s.invoiceReminderOffsets ?? []);
         this.invoiceDueDaysValue = s.invoiceDueDays ?? 14;
+        this.applicationReviewDaysValue = s.applicationReviewDays;
+        this.trialFollowupDaysValue = s.trialFollowupDays;
         this.loading.set(false);
         // 週期是財務資料（API 要 manage_finance）：回應帶了財務欄位才讀，否則整段不畫
         if (this.hasFinance()) this.loadPeriods();
@@ -202,6 +204,50 @@ export class SettingsPage implements OnInit {
         },
         error: () => {
           this.savingResponsible.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '錯誤',
+            detail: '儲存失敗，請稍後再試',
+          });
+        },
+      });
+  }
+
+  /**
+   * 報名流程（#1821，A6 kvSec「報名流程」）：申請放太久、試聽後還沒報名的提醒天數。不是財務設定，
+   * 寫入門檻同出勤模式（`manage_org_settings`）。0＝關
+   */
+  protected applicationReviewDaysValue = 3;
+  protected trialFollowupDaysValue = 1;
+  protected readonly savingApplicationFlow = signal(false);
+  protected readonly applicationFlowSummary = computed(() => {
+    const s = this.settings();
+    if (!s) return '';
+    const days = (n: number, label: string) => (n > 0 ? `${label} ${n} 天` : `${label}不提醒`);
+    return `${days(s.applicationReviewDays, '審核')} · ${days(s.trialFollowupDays, '試聽跟進')}`;
+  });
+
+  protected saveApplicationFlow(): void {
+    this.savingApplicationFlow.set(true);
+    this.orgSettingsService
+      .updateSettings({
+        applicationReviewDays: this.applicationReviewDaysValue,
+        trialFollowupDays: this.trialFollowupDaysValue,
+      })
+      .subscribe({
+        next: (s) => {
+          this.settings.set(s);
+          this.applicationReviewDaysValue = s.applicationReviewDays;
+          this.trialFollowupDaysValue = s.trialFollowupDays;
+          this.savingApplicationFlow.set(false);
+          this.messageService.add({
+            severity: 'success',
+            summary: '已儲存',
+            detail: '報名流程設定已更新',
+          });
+        },
+        error: () => {
+          this.savingApplicationFlow.set(false);
           this.messageService.add({
             severity: 'error',
             summary: '錯誤',
