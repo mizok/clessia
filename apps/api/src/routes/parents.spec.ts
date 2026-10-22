@@ -942,6 +942,16 @@ describe('改孩子的授權與交易（#1843）', () => {
     expect(res.status).toBe(200);
   });
 
+  it('PUT：受限管理員拿掉範圍外的孩子 → 403，沒有刪除', async () => {
+    pgState.current = [KID, OTHER_ORG_KID];
+    pgState.inScope = [KID];
+    const { res, writes } = await call('PUT', { studentIds: [KID] }, ['campus-1']);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe('STUDENT_OUT_OF_SCOPE');
+    expect(pgState.sent.some((s) => /^DELETE/.test(s))).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
   it('PUT：成功走交易（BEGIN … COMMIT），不再經 PostgREST 刪／插關聯', async () => {
     pgState.current = [OTHER_ORG_KID];
     const { res, writes } = await call('PUT', { studentIds: [KID] }, null);

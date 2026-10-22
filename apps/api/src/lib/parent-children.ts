@@ -11,8 +11,10 @@ import { withTx } from './pg-tx';
  * 而且**只動差集**：留著的關聯不刪不插，`is_primary`／`relation` 不會被洗掉。
  *
  * 新加的孩子要屬於本 org；受限管理員還要在自己的分校範圍（判準同 `studentWriteScope`：
- * 任一筆報名的班級在範圍內就算）。**已經是這位家長的孩子不重驗範圍** —— 跨分校的孩子
- * 在詳情頁看得到，存檔時不能因為它擋住整份表單。
+ * 任一筆報名的班級在範圍內就算）。**留著的孩子不重驗範圍** —— 跨分校的孩子
+ * 在詳情頁看得到，原樣存檔時不能因為它擋住整份表單。
+ * **拿掉的孩子要驗範圍**（計畫席 10-22）：刪掉範圍外的關聯等於改到別校的資料。
+ * 拿掉的只驗範圍、不驗 org —— 已經掛著的關聯，不受限的管理員要能拿掉，就算它指到別 org（舊的 POST 沒驗過）。
  */
 
 export type ChildrenCheck = 'ok' | 'student-not-found' | 'out-of-scope';
@@ -32,8 +34,18 @@ export async function checkChildren(
     [ids, orgId],
   );
   if (found.length !== ids.length) return 'student-not-found';
-  if (scope === null) return 'ok';
-  if (scope.length === 0) return 'out-of-scope';
+  return (await allInScope(db, orgId, scope, ids)) ? 'ok' : 'out-of-scope';
+}
+
+/** 這批學生是不是**全部**在受限管理員的範圍內（不受限一律 true）。`ids` 已去重 */
+async function allInScope(
+  db: Queryable,
+  orgId: string,
+  scope: CampusScope,
+  ids: readonly string[],
+): Promise<boolean> {
+  if (scope === null || ids.length === 0) return true;
+  if (scope.length === 0) return false;
 
   const { rows: inScope } = await db.query<{ student_id: string }>(
     `SELECT DISTINCT e.student_id FROM enrollments e
@@ -41,7 +53,7 @@ export async function checkChildren(
       WHERE e.student_id = ANY($1::uuid[]) AND e.org_id = $2 AND c.campus_id = ANY($3::uuid[])`,
     [ids, orgId, [...scope]],
   );
-  return inScope.length === ids.length ? 'ok' : 'out-of-scope';
+  return inScope.length === ids.length;
 }
 
 export type ReplaceChildrenOutcome =
@@ -83,6 +95,7 @@ export async function replaceParentChildren(
 
     const check = await checkChildren(db, orgId, scope, added);
     if (check !== 'ok') return { status: check } as const;
+    if (!(await allInScope(db, orgId, scope, removed))) return { status: 'out-of-scope' } as const;
 
     if (removed.length > 0) {
       await db.query(

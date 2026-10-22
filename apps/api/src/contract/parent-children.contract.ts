@@ -221,4 +221,22 @@ run('家長改孩子的交易對真 Postgres（#1843）', () => {
       }),
     ).toEqual({ status: 'done', added: [], removed: [] });
   });
+
+  it('受限管理員拿掉範圍外的孩子：out-of-scope，關聯還在；拿掉範圍內的照常', async () => {
+    const a = await org();
+    const inside = await a.student(a.c1);
+    const outside = await a.student(a.c2);
+    const parentId = await a.parent([inside, outside]);
+    const scope = [a.c1.campusId];
+
+    expect(
+      await replaceParentChildren(pool, { orgId: a.orgId, parentId, studentIds: [inside], scope }),
+    ).toEqual({ status: 'out-of-scope' });
+    expect(await children(parentId)).toEqual([inside, outside].sort());
+
+    expect(
+      await replaceParentChildren(pool, { orgId: a.orgId, parentId, studentIds: [outside], scope }),
+    ).toEqual({ status: 'done', added: [], removed: [inside] });
+    expect(await children(parentId)).toEqual([outside]);
+  });
 });
