@@ -90,6 +90,12 @@ const EXEMPT = new Map([
   ['/api/me/attendance/checkins|dateFrom', '同上'],
   ['/api/me/attendance/checkins|dateTo', '同上'],
   [
+    '/api/me/attendance/days|childId',
+    '前綴碰撞（同 /api/me/attendance）：消費端是 core/parent-attendance.service.ts 的 days()（#1810，前端疊在後端 PR 上接）',
+  ],
+  ['/api/me/attendance/days|dateFrom', '同上'],
+  ['/api/me/attendance/days|dateTo', '同上'],
+  [
     '/api/me/grades|childId',
     '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-grades.service.ts 有送 —— 見上方註解',
   ],

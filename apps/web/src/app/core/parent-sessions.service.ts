@@ -36,6 +36,8 @@ export interface ParentSession {
   isSubstitute: boolean;
   originalTeacherName: string | null;
   examCount: number;
+  /** 那天這班的校內考名稱（只有名稱） */
+  examNames: string[];
   changes: ParentSessionChange[];
   attendance: {
     status: 'present' | 'absent' | 'on_leave';

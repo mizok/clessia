@@ -67,6 +67,8 @@ const ParentSessionSchema = z
     /** 只有代課時才有值：課表排定的原任課老師 */
     originalTeacherName: z.string().nullable(),
     examCount: z.number().int().min(0),
+    /** 那天這班的校內考名稱（A6 家長首頁「第四次小考 · N 天後考」）；只帶名稱，不帶範圍與分數 */
+    examNames: z.array(z.string()),
     changes: z.array(ChangeSchema),
     /** 這個孩子在那堂的出勤；還沒點名（含未來的堂）是 null */
     attendance: z
@@ -171,7 +173,7 @@ app.openapi(
         .lte('session_date', dateTo),
       childDb
         .fromScopedIds('academy_exam_classes', 'class_id', classIds)
-        .select('class_id, academy_exams!inner(exam_date)')
+        .select('class_id, academy_exams!inner(exam_date, name)')
         .gte('academy_exams.exam_date', dateFrom)
         .lte('academy_exams.exam_date', dateTo),
       childDb
@@ -214,12 +216,17 @@ app.openapi(
         r['checked_in_at'] as string,
       ]),
     );
-    const examCounts = countExamsBySession(
-      ((examResult.data ?? []) as unknown as Row[]).map((r) => ({
-        class_id: r['class_id'] as string,
-        exam_date: one(r['academy_exams'])?.['exam_date'] as string,
-      })),
-    );
+    const examRows = ((examResult.data ?? []) as unknown as Row[]).map((r) => ({
+      class_id: r['class_id'] as string,
+      exam_date: one(r['academy_exams'])?.['exam_date'] as string,
+      name: one(r['academy_exams'])?.['name'] as string,
+    }));
+    const examCounts = countExamsBySession(examRows);
+    const examNames = new Map<string, string[]>();
+    for (const row of examRows) {
+      const key = sessionExamKey(row.class_id, row.exam_date);
+      examNames.set(key, [...(examNames.get(key) ?? []), row.name]);
+    }
 
     const data = sessions.map((s) => {
       const classRow = one(s['classes']);
@@ -247,6 +254,7 @@ app.openapi(
         isSubstitute,
         originalTeacherName: isSubstitute ? nameOf(schedule?.['teacher']) : null,
         examCount: examCounts.get(sessionExamKey(s['class_id'] as string, date)) ?? 0,
+        examNames: examNames.get(sessionExamKey(s['class_id'] as string, date)) ?? [],
         changes: many(s['schedule_changes'])
           .sort((a, b) => String(a['created_at']).localeCompare(String(b['created_at'])))
           .map((ch) => ({

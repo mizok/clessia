@@ -41,7 +41,9 @@ type ResourceType =
   | 'public_application'
   // #1707：管理端處理家長登入後送的申請（migration 20261016144718 同時加進 CHECK）
   | 'enrollment_request'
-  | 'trial_request';
+  | 'trial_request'
+  // #1820：學年升級（migration 20261022061817 同時加進 CHECK）
+  | 'grade_promotion';
 
 export interface AuditLogParams {
   orgId: string;

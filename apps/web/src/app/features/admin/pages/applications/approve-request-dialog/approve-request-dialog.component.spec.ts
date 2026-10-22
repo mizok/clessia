@@ -30,6 +30,9 @@ const req = (extra: Partial<ParentRequest> = {}): ParentRequest => ({
   classId: 'cls-1',
   billingMode: 'monthly',
   defaultFeeTemplateId: null,
+  scheduledDate: null,
+  scheduledStartTime: null,
+  scheduledEndTime: null,
   ...extra,
 });
 

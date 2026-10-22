@@ -13,6 +13,7 @@ import {
 } from '../../lib/leave-covers-session';
 import { DbUuidSchema } from '../../lib/validation';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
+import { buildAttendanceDays } from '../../lib/parent-attendance-days';
 
 /**
  * 家長端的出缺席列表。複用 `routes/attendance.ts`（admin）的 select 與 mapper
@@ -333,6 +334,251 @@ app.openapi(
           time: taipeiTime(r['checked_in_at'] as string),
         })),
         dailyCheckinCampusIds: modes.ids,
+      },
+      200,
+    );
+  },
+);
+
+/** #1810：一列一堂，窗最多 42 天（同 `/api/me/sessions`；近 30 天、選月份 ≤ 31 天都在內） */
+const DAYS_MAX_SPAN = 42;
+
+const AttendanceDayRowSchema = z
+  .object({
+    /** 列的穩定鍵：有課堂用課堂 id，非課堂事件用出勤紀錄 id */
+    id: z.string(),
+    sessionId: z.string().nullable(),
+    /** 停課的堂可能沒有出勤事件 */
+    eventId: z.string().nullable(),
+    eventDate: z.string(),
+    startTime: z.string().nullable(),
+    endTime: z.string().nullable(),
+    campusId: z.string().nullable(),
+    campusName: z.string().nullable(),
+    className: z.string().nullable(),
+    sessionStatus: z.enum(['scheduled', 'completed', 'cancelled']).nullable(),
+    /** 出勤紀錄上寫的；`null`＝沒有紀錄 —— **不等於缺席**（rules/attendance-rules §6） */
+    status: z.enum(['present', 'absent', 'on_leave']).nullable(),
+    /** 沒紀錄時的推導：`leave` 有假單蓋到、`checkin` 日到班當天刷了卡（計畫席 10-22 裁定 2、3） */
+    derived: z.enum(['leave', 'checkin']).nullable(),
+    note: z.string().nullable(),
+    leaveSubmittedBy: z.enum(['parent', 'school']).nullable(),
+    leaveReason: z.string().nullable(),
+    /** 實際上課的老師顯示名。不回 id、不回聯絡方式；老師不屬於這個機構時回 null */
+    teacherName: z.string().nullable(),
+    /** 時段指定的教室（手動加的堂、補課沒有時段 → null） */
+    classroomName: z.string().nullable(),
+  })
+  .openapi('ParentAttendanceDayRow');
+
+const DaysResponseSchema = z
+  .object({
+    data: z.array(AttendanceDayRowSchema),
+    meta: z.object({
+      monthlyAbsentCount: z.number().int().min(0),
+      monthlyOnLeaveCount: z.number().int().min(0),
+    }),
+  })
+  .openapi('ParentAttendanceDaysResponse');
+
+const DAYS_SESSION_SELECT = `
+  id, org_id, event_id, session_date, start_time, end_time, status, class_id,
+  teacher:staff!teacher_id(display_name, org_id),
+  schedules!schedule_id(classrooms(name)),
+  classes!inner(name, campus_id, campuses(name))
+`;
+
+const hhmm = (v: unknown) => (typeof v === 'string' ? v.slice(0, 5) : null);
+const one = (v: unknown): Row | null => (Array.isArray(v) ? (v[0] ?? null) : (v as Row | null));
+
+// GET /api/me/attendance/days（#1810）—— 課堂為來源、左接出勤，再把漏網的紀錄併回
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/days',
+    tags: ['Me'],
+    summary: '這個孩子在日期窗內的每一堂與出缺席（含還沒點名的堂）',
+    request: {
+      query: z.object({
+        childId: DbUuidSchema,
+        dateFrom: z.string().date(),
+        dateTo: z.string().date(),
+      }),
+    },
+    responses: {
+      200: { description: '成功', content: { 'application/json': { schema: DaysResponseSchema } } },
+      400: {
+        description: `區間顛倒或超過 ${DAYS_MAX_SPAN} 天`,
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      403: {
+        description: '不是家長身分或這個孩子不在範圍內',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    if (!(c.get('roles') ?? []).includes('parent')) {
+      return c.json({ error: '不是家長身分', code: 'NOT_PARENT' }, 403);
+    }
+    const { childId, dateFrom, dateTo } = c.req.valid('query');
+    if (
+      dateFrom > dateTo ||
+      Date.parse(dateTo) - Date.parse(dateFrom) > DAYS_MAX_SPAN * 86_400_000
+    ) {
+      return c.json({ error: `查詢區間最多 ${DAYS_MAX_SPAN} 天`, code: 'INVALID_RANGE' }, 400);
+    }
+    if (!isChildAllowed(c.get('studentScope'), childId)) {
+      return c.json({ error: '沒有這個孩子的權限', code: 'CHILD_OUT_OF_SCOPE' }, 403);
+    }
+
+    const childDb = c.get('childDb');
+    const fail = () => c.json({ error: '讀取出缺席失敗', code: 'FETCH_ATTENDANCE_FAILED' }, 500);
+
+    // 報名：所有狀態都撈（在籍判準在 lib 裡看狀態），班級 id 清單拿去查堂
+    const enrollments = await childDb
+      .from('enrollments', 'student_id')
+      .pluck(
+        'class_id, status, effective_from, effective_to, status_changed_at',
+        'class_id',
+        childId,
+      );
+    if (enrollments.error) return fail();
+
+    // 以下都疊 `.eq('student_id', childId)`：childDb 的範圍是這個家長的全部孩子（兄弟姊妹不混）
+    const [sessions, records, leaves, checkins, absent, onLeave] = await Promise.all([
+      enrollments.ids.length === 0
+        ? Promise.resolve({ data: [] as Row[], error: null })
+        : childDb
+            .fromScopedIds('sessions', 'class_id', enrollments.ids)
+            .select(DAYS_SESSION_SELECT)
+            .gte('session_date', dateFrom)
+            .lte('session_date', dateTo),
+      // 依課堂日期篩（不是 created_at）—— 回來的每一筆都落在窗內
+      childDb
+        .from('attendance_records', 'student_id')
+        .select(ATTENDANCE_SELECT)
+        .eq('student_id', childId)
+        .gte('events.event_date', dateFrom)
+        .lte('events.event_date', dateTo),
+      childDb
+        .from('leave_requests', 'student_id')
+        .select(`reason, submitted_by_role, ${LEAVE_WINDOW_COLUMNS}`)
+        .eq('student_id', childId)
+        .lte('start_date', dateTo)
+        .gte('end_date', dateFrom),
+      childDb
+        .from('daily_checkins', 'student_id')
+        .select('checkin_date, campus_id')
+        .eq('student_id', childId)
+        .gte('checkin_date', dateFrom)
+        .lte('checkin_date', dateTo),
+      childDb
+        .from('attendance_records', 'student_id')
+        .select('id, events!inner(event_date)', { count: 'exact', head: true })
+        .eq('student_id', childId)
+        .eq('status', 'absent')
+        .gte('events.event_date', monthStart()),
+      childDb
+        .from('attendance_records', 'student_id')
+        .select('id, events!inner(event_date)', { count: 'exact', head: true })
+        .eq('student_id', childId)
+        .eq('status', 'on_leave')
+        .gte('events.event_date', monthStart()),
+    ]);
+    if (
+      sessions.error ||
+      records.error ||
+      leaves.error ||
+      checkins.error ||
+      absent.error ||
+      onLeave.error
+    ) {
+      return fail();
+    }
+
+    const sessionRows = (sessions.data ?? []) as unknown as Row[];
+    const campusIds = [
+      ...new Set(
+        sessionRows
+          .map((s) => one(s['classes'])?.['campus_id'] as string | null | undefined)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const modes = await childDb.dailyCheckinCampusIds(campusIds);
+    if (modes.error) return fail();
+
+    const rows = buildAttendanceDays({
+      dateFrom,
+      dateTo,
+      enrollments: enrollments.rows.map((e) => ({
+        classId: e['class_id'] as string,
+        status: e['status'] as string,
+        effectiveFrom: e['effective_from'] as string,
+        effectiveTo: (e['effective_to'] as string | null) ?? null,
+        statusChangedAt: ((e['status_changed_at'] as string | null) ?? null)?.slice(0, 10) ?? null,
+      })),
+      sessions: sessionRows.map((s) => {
+        const klass = one(s['classes']);
+        const teacher = one(s['teacher']);
+        return {
+          sessionId: s['id'] as string,
+          eventId: (s['event_id'] as string | null) ?? null,
+          classId: s['class_id'] as string,
+          date: s['session_date'] as string,
+          startTime: hhmm(s['start_time']),
+          endTime: hhmm(s['end_time']),
+          status: s['status'] as 'scheduled' | 'completed' | 'cancelled',
+          className: (klass?.['name'] as string | undefined) ?? null,
+          campusId: (klass?.['campus_id'] as string | null | undefined) ?? null,
+          campusName: (one(klass?.['campuses'])?.['name'] as string | undefined) ?? null,
+          // 老師要屬於這堂課的機構才回名字（#1809 的守則，併進 #1810）
+          teacherName:
+            teacher && teacher['org_id'] === s['org_id']
+              ? ((teacher['display_name'] as string | undefined) ?? null)
+              : null,
+          classroomName:
+            (one(one(s['schedules'])?.['classrooms'])?.['name'] as string | undefined) ?? null,
+        };
+      }),
+      records: ((records.data ?? []) as unknown as Row[]).map((raw) => {
+        const r = flattenAttendanceRow(raw);
+        const session = (((raw['events'] as Row | null)?.['sessions'] ?? []) as Row[])[0];
+        return {
+          id: r.id,
+          eventId: r.event_id,
+          status: r.status,
+          note: r.note,
+          date: r.event_date,
+          startTime: hhmm(r.start_time),
+          endTime: hhmm(r.end_time),
+          sessionId: (session?.['id'] as string | undefined) ?? null,
+          sessionStatus: r.session_status as 'scheduled' | 'completed' | 'cancelled' | null,
+          className: r.class_name,
+          campusId: r.campus_id,
+          campusName: r.campus_name,
+        };
+      }),
+      leaves: ((leaves.data ?? []) as unknown as Row[]).map((l) => ({
+        window: toLeaveWindow(l),
+        submittedByRole: (l['submitted_by_role'] as string | null) ?? null,
+        reason: (l['reason'] as string | null) ?? null,
+      })),
+      checkins: ((checkins.data ?? []) as unknown as Row[]).map((k) => ({
+        date: k['checkin_date'] as string,
+        campusId: (k['campus_id'] as string | null) ?? null,
+      })),
+      dailyCampusIds: new Set(modes.ids),
+    });
+
+    return c.json(
+      {
+        data: rows,
+        meta: {
+          monthlyAbsentCount: absent.count ?? 0,
+          monthlyOnLeaveCount: onLeave.count ?? 0,
+        },
       },
       200,
     );
