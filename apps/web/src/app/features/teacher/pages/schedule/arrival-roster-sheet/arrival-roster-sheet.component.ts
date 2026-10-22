@@ -85,6 +85,18 @@ export class ArrivalRosterSheetComponent {
     return s.status === 'on_leave' || s.hasLeaveRequest;
   }
 
+  /**
+   * 到班時間後面的小字（#1100 #52，specs/teacher/schedule.md）：來源由伺服器記下 ——
+   * 掃碼＝「掃碼到」、人工標記＝「到班（人工標記）」（行政在儀表板標的也是這種）；
+   * 這次是我在名單上按的＝「到班（老師標記）」；來源不明（欄位出現之前的舊紀錄）＝只寫時間，不猜
+   */
+  protected arrivalLabel(s: RosterStudent): string {
+    if (this.markedByMe().has(s.studentId)) return ' 到班（老師標記）';
+    if (s.checkInSource === 'scan') return ' 掃碼到';
+    if (s.checkInSource === 'manual') return ' 到班（人工標記）';
+    return '';
+  }
+
   protected canMark(s: RosterStudent): boolean {
     return this.input.isToday && !this.input.readOnly && !s.checkedInAt && !this.onLeave(s);
   }
@@ -105,7 +117,9 @@ export class ArrivalRosterSheetComponent {
           }
           this.students.update((list) =>
             list.map((row) =>
-              row.studentId === s.studentId ? { ...row, checkedInAt: res.checkedInAt } : row,
+              row.studentId === s.studentId
+                ? { ...row, checkedInAt: res.checkedInAt, checkInSource: res.checkInSource ?? null }
+                : row,
             ),
           );
         },
