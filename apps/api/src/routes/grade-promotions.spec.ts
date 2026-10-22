@@ -24,36 +24,46 @@ const PROMO = '00000000-0000-0000-0000-0000000000p1'.replace('p1', 'b1');
 
 type Rows = Record<string, Array<Record<string, unknown>>>;
 
-/** 固定回列的 supabase 替身（每張表一份資料），insert 記下來（稽核） */
-function fakeDb(rows: Rows) {
+/**
+ * 固定回列的 supabase 替身（每張表一份資料），insert 記下來（稽核）。
+ * 每次鏈上的呼叫也記下來（`calls`）—— 固定回列驗不出查詢條件，條件要另外斷言（二讀突變 H7–H9）。
+ * `errors` 指定的表回 error（讀取失敗）。
+ */
+function fakeDb(rows: Rows, errors: Record<string, string> = {}) {
   const inserts: Array<{ table: string; payload: unknown }> = [];
+  const calls: Array<{ table: string; method: string; args: unknown[] }> = [];
   const make = (table: string) => {
     const data = rows[table] ?? [];
+    const error = errors[table] ? { message: errors[table] } : null;
     const terminal: Record<string, unknown> = {
       insert: (payload: unknown) => {
         inserts.push({ table, payload });
         return Promise.resolve({ error: null });
       },
       maybeSingle: () => Promise.resolve({ data: null, error: null }),
-      then: (ok: (v: unknown) => unknown) => Promise.resolve({ data, error: null }).then(ok),
+      then: (ok: (v: unknown) => unknown) =>
+        Promise.resolve({ data: error ? null : data, error }).then(ok),
     };
     const builder: Record<string, unknown> = new Proxy(terminal, {
       get(t, prop: string) {
         if (prop in t) return t[prop];
-        return () => builder;
+        return (...args: unknown[]) => {
+          calls.push({ table, method: prop, args });
+          return builder;
+        };
       },
     });
     return builder;
   };
-  return { from: (t: string) => make(t), inserts };
+  return { from: (t: string) => make(t), inserts, calls };
 }
 
 async function call(
   method: string,
   path: string,
-  opts: { scope?: string[] | null; rows?: Rows } = {},
+  opts: { scope?: string[] | null; rows?: Rows; errors?: Record<string, string> } = {},
 ) {
-  const db = fakeDb(opts.rows ?? {});
+  const db = fakeDb(opts.rows ?? {}, opts.errors);
   const background: Promise<unknown>[] = [];
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -72,7 +82,12 @@ async function call(
     passThroughOnException: () => undefined,
   } as never);
   await Promise.all(background);
-  return { status: res.status, body: (await res.json()) as any, inserts: db.inserts };
+  return {
+    status: res.status,
+    body: (await res.json()) as any,
+    inserts: db.inserts,
+    calls: db.calls,
+  };
 }
 
 beforeEach(() => {
@@ -189,5 +204,51 @@ describe('GET /preview', () => {
       schoolMismatch: [{ studentId: 's1', name: '甲', schoolName: '明湖國中', newGrade: 'S1' }],
       graduatesWithEnrollments: [{ studentId: 's2', name: '乙', classNames: ['高三數學'] }],
     });
+  });
+});
+
+describe('GET /preview —— 查詢條件與讀取失敗（二讀突變 H7–H11）', () => {
+  const ROWS: Rows = {
+    students: [{ id: 's2', name: '乙', grade: 'S3', schools: null }],
+    enrollments: [{ student_id: 's2', classes: { name: '高三數學' } }],
+    grade_promotions: [],
+  };
+  const has = (
+    calls: Array<{ table: string; method: string; args: unknown[] }>,
+    table: string,
+    method: string,
+    args: unknown[],
+  ) =>
+    calls.some(
+      (c) =>
+        c.table === table && c.method === method && JSON.stringify(c.args) === JSON.stringify(args),
+    );
+
+  it('只算在讀學生（停用的會讓預覽人數跟執行對不上）', async () => {
+    const r = await call('GET', '/preview', { rows: ROWS });
+    expect(has(r.calls, 'students', 'eq', ['is_active', true])).toBe(true);
+    expect(has(r.calls, 'students', 'eq', ['org_id', ORG])).toBe(true);
+  });
+
+  it('「已升過」只看沒復原的（復原後要能再升）', async () => {
+    const r = await call('GET', '/preview', { rows: ROWS });
+    expect(has(r.calls, 'grade_promotions', 'is', ['reverted_at', null])).toBe(true);
+    expect(has(r.calls, 'grade_promotions', 'eq', ['org_id', ORG])).toBe(true);
+  });
+
+  it('高三的在籍報名只看 active（退班的不算）', async () => {
+    const r = await call('GET', '/preview', { rows: ROWS });
+    expect(has(r.calls, 'enrollments', 'eq', ['status', 'active'])).toBe(true);
+    expect(has(r.calls, 'enrollments', 'eq', ['org_id', ORG])).toBe(true);
+  });
+
+  it.each([
+    ['enrollments', '讀報名失敗不能當成「沒有在籍報名」'],
+    ['grade_promotions', '讀「已升過」失敗不能當成「還沒升過」（按鈕會亮）'],
+    ['students', '讀學生失敗'],
+  ])('%s 讀取失敗 → 500 FETCH_FAILED（%s）', async (table) => {
+    const r = await call('GET', '/preview', { rows: ROWS, errors: { [table]: 'boom' } });
+    expect(r.status).toBe(500);
+    expect(r.body.code).toBe('FETCH_FAILED');
   });
 });
