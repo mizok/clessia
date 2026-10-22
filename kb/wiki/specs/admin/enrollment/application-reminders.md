@@ -42,6 +42,8 @@ tags: [specs, admin, enrollment, trial, notifications]
 | `public_applications` | `status = 'new'`（還沒聯絡）           | `created_at`             |
 
 - 今天 − 送出日 ≥ `application_review_days` → 提醒一次。
+- **只看最近 30 天送出的**（計畫席 10-22 裁 E）：上線那一刻，放了幾個月的舊申請不能一次塞滿每位管理員的通知中心，
+  真正新的提醒會被淹掉；放更久的在收件頁本來就看得到。31 天前送出的不發。30 天先寫成常數，要讓機構自己調再改成設定。
 - **`waitlist`（候補）不算**（裁定 A）：行政已經看過、決定讓他候補，那是處理過了；再提醒是噪音。
 
 ## 3. 什麼算「試聽後要跟進」
@@ -49,6 +51,7 @@ tags: [specs, admin, enrollment, trial, notifications]
 - `trial_requests` 的 `status in ('scheduled','completed')`，而且 `scheduled_date + trial_followup_days ≤ 今天`；
 - **而且**這個學生在這門課沒有後續報名：該課程底下的班沒有 `status in ('active','pending_payment')` 的報名、也沒有 `pending`／`waitlist`／`awaiting_payment` 的報名申請。
   （已經報了就不用跟進 —— 判準查得到，不讓行政收到一則「其實已經處理了」的提醒。）
+- 同樣只看最近 30 天：試聽日在 30 天內的才跟進（裁定 E；試聽跟進的起算點是試聽日）。
 - 公開表單的試聽（`public_applications.kind = 'trial'`）**沒有試聽日欄位**，不做試聽跟進；它只走 §2 的「沒處理」（裁定 B）。
 
 ## 4. 提醒怎麼送
@@ -67,7 +70,9 @@ tags: [specs, admin, enrollment, trial, notifications]
 
   連結：前兩種到 `/admin/applications`（對應分頁），試聽跟進到試聽分頁。標題開頭不重用「新的」—— 收件人一看標題就知道是新的還是放太久的。
 
-- 觸發：`runPush` 每個 run 呼叫 `applicationReminders(db, today, orgs)`，**一天只算一次**（同 `staffDigests`：今天已算過的 org 第一句就跳過）；走 pg 批次撈候選，判準寫成純函式（`lib/application-reminders.ts`）並有 spec，對真 DB 加一支契約測試（同 `contract/staff-digests.contract.ts`）。
+- 觸發：`runPush` 每個 run 呼叫 `applicationReminders(db, today, orgs)`。去重鍵不帶日期，沒辦法像 `staffDigests` 用今天的鍵整個 org 跳過，
+  所以**日期門檻與「這張這階段已經發過」都在第一句 SQL 篩掉**（計畫席 10-22 裁 F）：平常每輪回 0 列、只多一句。
+  沒有收件人的申請不會留下鍵、每輪被重撈一次（吃一點 CPU，升級做法是 organizations 記「今天算過了」的日期欄）；走 pg 批次撈候選，判準寫成純函式（`lib/application-reminders.ts`）並有 spec，對真 DB 加一支契約測試（同 `contract/staff-digests.contract.ts`）。
 
 ## 5. 裁定（計畫席 2026-10-22）
 
@@ -76,6 +81,8 @@ tags: [specs, admin, enrollment, trial, notifications]
 - **C** 天數 0＝關掉這種提醒。
 - **D** 每張申請每個階段一次（量不大，點了直接到那張；不做每日摘要）。
 - 補：去重鍵帶來源表（§4）；跟「新申請」通知的文案分開（§4 的表）。
+- **E**（10-22，實作時補）只看最近 30 天送出的申請（試聽跟進看試聽日），31 天前的不發；常數，之後要可調再改設定。
+- **F**（10-22，實作時補）日期門檻＋「已經發過」都在第一句 SQL 篩；沒收件人的申請每輪重撈，接受。
 
 ## 6. 拆單（批准後）
 
