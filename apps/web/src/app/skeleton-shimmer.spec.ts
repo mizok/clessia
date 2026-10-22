@@ -1,6 +1,8 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+
+import { appSources } from '../testing/source-tree';
 
 /**
  * #1680：骨架全站一套掃光（使用者 10-16 裁定）。樣式在 styles.css，jsdom 不載全域樣式，
@@ -10,15 +12,10 @@ const SRC = resolve(process.cwd(), 'apps/web/src');
 const css = readFileSync(join(SRC, 'styles.css'), 'utf8');
 const SELECTOR = /\.skeleton,\s*\.p-skeleton,\s*\.skeleton-bar\s*\{([^}]*)\}/g;
 
-function templates(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return templates(path);
-    return /\.(html|component\.ts|page\.ts)$/.test(name) && !name.endsWith('.spec.ts')
-      ? [path]
-      : [];
-  });
-}
+// 模組層掃一次（收集階段，不算進任何一條的 5s 逾時；不穩定測試盤點 C）
+const TEMPLATES = appSources(
+  (p) => /\.(html|component\.ts|page\.ts)$/.test(p) && !p.endsWith('.spec.ts'),
+);
 
 describe('骨架掃光（#1680）', () => {
   it('三種骨架 class 共用同一條掃光規則', () => {
@@ -47,11 +44,10 @@ describe('骨架掃光（#1680）', () => {
 
   it('沒有另一套骨架動畫，也沒有自己畫的沒動畫灰塊', () => {
     expect(css).not.toMatch(/@keyframes skeleton-wave/);
-    const offenders = templates(join(SRC, 'app')).filter((path) => {
-      const text = readFileSync(path, 'utf8');
-      // 舊的橘帶佔位（bg-band-rule＋opacity-45）與 Tailwind 的 animate-pulse 都是另一套
-      return /bg-band-rule[^"]*opacity-45|animate-pulse/.test(text);
-    });
+    // 舊的橘帶佔位（bg-band-rule＋opacity-45）與 Tailwind 的 animate-pulse 都是另一套
+    const offenders = TEMPLATES.filter((f) =>
+      /bg-band-rule[^"]*opacity-45|animate-pulse/.test(f.text),
+    ).map((f) => f.path);
     expect(offenders).toEqual([]);
   });
 });

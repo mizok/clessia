@@ -1,23 +1,18 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { APP_DIR, appSources } from '../../../../testing/source-tree';
 import { SkeletonComponent } from './skeleton.component';
+
+// 模組層掃一次（收集階段，不算進任何一條的 5s 逾時；不穩定測試盤點 C）
+const TEMPLATES = appSources((p) => p.endsWith('.html'));
 
 function render(inputs: Record<string, unknown>): HTMLElement {
   const f = TestBed.createComponent(SkeletonComponent);
   for (const [k, v] of Object.entries(inputs)) f.componentRef.setInput(k, v);
   f.detectChanges();
   return f.nativeElement as HTMLElement;
-}
-
-function templates(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return templates(path);
-    return name.endsWith('.html') ? [path] : [];
-  });
 }
 
 describe('SkeletonComponent（#1879）', () => {
@@ -39,11 +34,10 @@ describe('SkeletonComponent（#1879）', () => {
   });
 
   it('沒有人再手刻舊的 skeleton-list 細條（左右縮進、三條等長的那一套）', () => {
-    const app = resolve(process.cwd(), 'apps/web/src/app');
-    const self = join(app, 'shared/components/skeleton/skeleton.component.html');
-    const offenders = templates(app).filter(
-      (p) => p !== self && /class="skeleton-list[\s"]/.test(readFileSync(p, 'utf8')),
-    );
+    const self = join(APP_DIR, 'shared/components/skeleton/skeleton.component.html');
+    const offenders = TEMPLATES.filter(
+      (f) => f.path !== self && /class="skeleton-list[\s"]/.test(f.text),
+    ).map((f) => f.path);
     expect(offenders).toEqual([]);
   });
 });
