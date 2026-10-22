@@ -1,7 +1,7 @@
 <!--
   A6 settings.html#schools：搜尋＋新增 → 統計一行（學生資料填寫時從這裡選。N 所 · M 所停用）→ 一列一所學校。
   列：簡稱（停用加小字）／全名 · N 位學生｜編輯、刪除。殼（settings-shell）擁有 h1 與分頁，這裡不再放標題。
-  ⏳ 依國小／國中／高中分章要等 schools 有學制欄位（#1314 SE4，migration 待計畫席裁）。
+  依學制分章（A6 .chap）：國小 → 國中 → 高中 → 未分類（level 是 null 的），空章不畫。
 -->
 <div class="flex flex-wrap items-center justify-between gap-3">
   <label
@@ -59,53 +59,74 @@
         />
       }
     } @else {
-      @for (school of schools(); track school.id) {
-        <div
-          class="vt-row flex min-h-[68px] items-center gap-3 border-0 border-b border-solid border-zinc-200 py-3"
-          [attr.data-school]="school.id"
-          [style.view-transition-name]="'school-' + school.id"
+      @for (chap of chapters(); track chap.label) {
+        <section
+          class="grid gap-3 border-0 border-b border-solid border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
+          [attr.aria-label]="chap.label"
+          data-part="school-chapter"
         >
-          <div class="min-w-0 flex-1">
-            <div class="text-lg font-bold" [class.text-zinc-600]="!school.isActive">
-              {{ school.shortName || school.name }}
-              @if (!school.isActive) {
-                <small class="ml-2 text-sm font-normal text-zinc-600">已停用</small>
-              }
+          <div
+            class="flex items-baseline gap-3 wide:sticky wide:top-sticky-chapter wide:block wide:self-start"
+          >
+            <div class="text-[32px] leading-none font-bold tracking-[-0.04em] wide:text-[44px]">
+              {{ chap.label }}
             </div>
-            <span class="mt-0.5 block text-sm text-zinc-600 tabular-nums"
-              >{{ school.name }} ·
-              {{ school.studentCount ? school.studentCount + ' 位學生' : '沒有學生' }}</span
-            >
+            <p class="m-0 text-base font-bold tabular-nums wide:mt-3 wide:text-xl">
+              {{ chap.schools.length
+              }}<span class="ml-1 text-md font-medium text-zinc-600">所</span>
+            </p>
           </div>
-          <div class="flex gap-1">
-            <button
-              type="button"
-              class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
-              [attr.aria-label]="'編輯 ' + (school.shortName || school.name)"
-              (click)="openEdit(school)"
-            >
-              <i class="pi pi-pencil" aria-hidden="true"></i>
-            </button>
-            <!-- 有學生的不灰掉：按了跳說明＋改成停用（A6），只把圖示降成淡色 -->
-            <button
-              type="button"
-              class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent hover:bg-zinc-100"
-              [class]="school.studentCount ? 'text-zinc-400' : 'text-zinc-800'"
-              [attr.aria-label]="
-                school.studentCount
-                  ? '刪除 ' +
-                    (school.shortName || school.name) +
-                    '（有 ' +
-                    school.studentCount +
-                    ' 位學生，不能刪，按了看原因）'
-                  : '刪除 ' + (school.shortName || school.name)
-              "
-              (click)="onDelete(school)"
-            >
-              <i class="pi pi-trash" aria-hidden="true"></i>
-            </button>
+          <div>
+            @for (school of chap.schools; track school.id) {
+              <div
+                class="vt-row flex min-h-[68px] items-center gap-3 border-0 border-b border-solid border-zinc-200 py-3"
+                [attr.data-school]="school.id"
+                [style.view-transition-name]="'school-' + school.id"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="text-lg font-bold" [class.text-zinc-600]="!school.isActive">
+                    {{ school.shortName || school.name }}
+                    @if (!school.isActive) {
+                      <small class="ml-2 text-sm font-normal text-zinc-600">已停用</small>
+                    }
+                  </div>
+                  <span class="mt-0.5 block text-sm text-zinc-600 tabular-nums"
+                    >{{ school.name }} ·
+                    {{ school.studentCount ? school.studentCount + ' 位學生' : '沒有學生' }}</span
+                  >
+                </div>
+                <div class="flex gap-1">
+                  <button
+                    type="button"
+                    class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
+                    [attr.aria-label]="'編輯 ' + (school.shortName || school.name)"
+                    (click)="openEdit(school)"
+                  >
+                    <i class="pi pi-pencil" aria-hidden="true"></i>
+                  </button>
+                  <!-- 有學生的不灰掉：按了跳說明＋改成停用（A6），只把圖示降成淡色 -->
+                  <button
+                    type="button"
+                    class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent hover:bg-zinc-100"
+                    [class]="school.studentCount ? 'text-zinc-400' : 'text-zinc-800'"
+                    [attr.aria-label]="
+                      school.studentCount
+                        ? '刪除 ' +
+                          (school.shortName || school.name) +
+                          '（有 ' +
+                          school.studentCount +
+                          ' 位學生，不能刪，按了看原因）'
+                        : '刪除 ' + (school.shortName || school.name)
+                    "
+                    (click)="onDelete(school)"
+                  >
+                    <i class="pi pi-trash" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+            }
           </div>
-        </div>
+        </section>
       }
     }
   </app-reload-veil>

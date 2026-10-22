@@ -324,4 +324,81 @@ describe('SchoolsPage', () => {
       expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
     });
   });
+
+  // #1314 SE4（A6）：依學制分章，國小 → 國中 → 高中 → 未分類（null），空章不畫
+  describe('依學制分章', () => {
+    const chapterLabels = () =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+          '[data-part="school-chapter"]',
+        ),
+      ).map((el) => el.getAttribute('aria-label'));
+
+    it('照學制順序分章、未分類放最後；空的學制不出章', () => {
+      pending[0]!.subject.next({
+        data: [
+          {
+            id: 'a',
+            name: '某某高中',
+            shortName: null,
+            level: 'senior',
+            isActive: true,
+            studentCount: 0,
+          },
+          {
+            id: 'b',
+            name: '沒填學制',
+            shortName: null,
+            level: null,
+            isActive: true,
+            studentCount: 0,
+          },
+          {
+            id: 'c',
+            name: '明湖國小',
+            shortName: null,
+            level: 'elementary',
+            isActive: true,
+            studentCount: 0,
+          },
+        ],
+        meta: { total: 3 },
+      } as unknown as SchoolListResponse);
+      fixture.detectChanges();
+      expect(chapterLabels()).toEqual(['國小', '高中', '未分類']);
+    });
+
+    it('章頭寫這一章幾所', () => {
+      pending[0]!.subject.next({
+        data: [
+          {
+            id: 'a',
+            name: '甲國中',
+            shortName: null,
+            level: 'junior',
+            isActive: true,
+            studentCount: 0,
+          },
+          {
+            id: 'b',
+            name: '乙國中',
+            shortName: null,
+            level: 'junior',
+            isActive: false,
+            studentCount: 2,
+          },
+        ],
+        meta: { total: 2 },
+      } as unknown as SchoolListResponse);
+      fixture.detectChanges();
+      const chap = (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-part="school-chapter"]',
+      )!;
+      expect(chap.textContent?.replace(/\s+/g, '')).toContain('國中2所');
+      // 統計句：N 所 · M 所停用
+      expect((fixture.nativeElement as HTMLElement).textContent?.replace(/\s+/g, '')).toContain(
+        '2所·1所停用',
+      );
+    });
+  });
 });

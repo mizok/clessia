@@ -18,7 +18,15 @@ import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SchoolsService } from '@core/schools.service';
-import type { School } from '@core/schools.service';
+import type { School, SchoolLevel } from '@core/schools.service';
+
+/** 分章順序：國小 → 國中 → 高中 → 未分類（計畫席 10-22 裁 C：未分類放最後） */
+const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
+  { level: 'elementary', label: '國小' },
+  { level: 'junior', label: '國中' },
+  { level: 'senior', label: '高中' },
+  { level: null, label: '未分類' },
+];
 import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
 import {
   PageActionsComponent,
@@ -71,6 +79,13 @@ export class SchoolsPage implements OnInit {
   protected readonly search = signal('');
   /** 輸入框顯示的字（即時）；`search` 是節流後真的拿去查的那個 */
   protected readonly searchText = signal('');
+  /** A6 依學制分章；空章不畫 */
+  protected readonly chapters = computed(() =>
+    CHAPTERS.map((c) => ({
+      ...c,
+      schools: this.schools().filter((s) => (s.level ?? null) === c.level),
+    })).filter((c) => c.schools.length > 0),
+  );
   protected readonly inactiveCount = computed(
     () => this.schools().filter((s) => !s.isActive).length,
   );
