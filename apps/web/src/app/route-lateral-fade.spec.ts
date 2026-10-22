@@ -36,7 +36,8 @@ describe('同層換頁的方向（#1849，使用者 10-22）', () => {
   });
 
   it('舊內容原地淡出：同層不指定位移的出場動畫（沿用預設的 vt-fade-out）', () => {
-    expect(rule('old')).not.toMatch(/animation-name/);
+    // `animation:` 簡寫也能帶入有位移的 keyframes，兩種寫法都不准（第二審核席 #1860）
+    expect(rule('old')).not.toMatch(/animation(-name)?\s*:/);
     expect(keyframes('vt-fade-out')).not.toMatch(/translate/);
   });
 

@@ -1106,7 +1106,7 @@
   /* 換頁只動內容區（#1641，設計稿 kb/wiki/architecture/motion.md）。
      曲線與時長沿用 #1634 的彈出物：進 200ms --arrive、出 140ms --leave，出場比進場短。
      方向由 core/route-transition.ts 寫在 <html data-route-dir>：往深一層從右 24px 進、
-     返回從左進、同層（選單切換、設定 tab）只淡入淡出。
+     返回從左進、同層（選單切換、設定 tab）新內容從右 12px 淡入、舊內容原地淡出（#1849）。
      減少動態不在這裡處理 —— route-transition.ts 直接 skipTransition()，畫面瞬間換。 */
   /* group 的預設是瀏覽器的 250ms ease，對齊進場的時長與曲線 */
   ::view-transition-group(route-content) {
@@ -1119,7 +1119,7 @@
   ::view-transition-new(route-content) {
     animation: 200ms var(--arrive) vt-fade-in both;
   }
-  /* 同層（選單切換、設定 tab）只有淡入淡出、沒有位移，200ms 太快 —— 兩頁上方都是橘帶，
+  /* 同層（選單切換、設定 tab）的時長：當初只有淡入淡出、沒有位移（#1849 後新內容加了 12px，見下一段），200ms 太快 —— 兩頁上方都是橘帶，
      使用者回報「儀表板→學生看不出有動畫」（#1681，使用者 10-16 裁定 0.3–0.35 秒、不加位移）。
      進 340ms、出 300ms：兩個都落在裁定範圍內，出場仍比進場短（A6 原則）。只動 lateral：
      預設值也被頁內切換（日／週、篩選）沿用，那些要維持快。往深一層／返回維持 200／140ms。 */
