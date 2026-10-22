@@ -1288,8 +1288,9 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
+  /* 灰框 12px（A6 是 4px，使用者 10-22 嫌太窄，a6-adoption-rules R5）。列的分隔線畫在白底裡，跟著內縮 */
   .coll__body {
-    margin: 0 var(--space-1) var(--space-1);
+    margin: 0 var(--space-3) var(--space-3);
     padding: var(--space-2) var(--space-5) var(--space-6);
     background: #fff;
     border-radius: var(--radius-md);
