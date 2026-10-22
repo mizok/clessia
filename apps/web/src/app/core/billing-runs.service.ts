@@ -22,12 +22,23 @@ export interface BillingRunAnomaly {
   expectedAmount: number;
 }
 
+/**
+ * 這次沒開成的學生（#1943）：每位學生一筆交易，失敗只回滾他自己、其他人照開。
+ * **非空就要明顯列出來** —— 再按一次會補開（run 冪等）。
+ */
+export interface BillingRunFailedStudent {
+  studentId: string;
+  studentName: string | null;
+  code: 'WRITE_FAILED';
+}
+
 export interface BillingRunResult {
   invoicesCreated: number;
   tuitionItems: number;
   mealItems: number;
   mealRecordsSettled: number;
   anomalies: BillingRunAnomaly[];
+  failedStudents: BillingRunFailedStudent[];
 }
 
 export interface BillingRunInput {
