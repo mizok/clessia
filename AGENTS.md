@@ -86,6 +86,7 @@
 > **web 與 api 的測試一律在 UTC 跑**（#1558，設在 `apps/api/vitest.config.mts`、`apps/web/vitest.config.mts`）。
 > 本機時區是台北時，拿掉 `'+0800'`／`'Asia/Taipei'` 的突變本機會全綠、只有 CI 紅。所以在本機看到測試裡的
 > `new Date()` 顯示 UTC 是正常的；斷言台北時間要靠程式碼自己帶時區，不能靠機器的時區。
+> 要用別的時區驗時照常帶 `TZ=…`（例：`TZ=America/Los_Angeles npx vitest run …`），只有沒設時才是 UTC。
 
 > `nx.json` 的 `defaultBase` 是 `main`（2026-09-03 前是不存在的 `dev`，害每個人都得手動帶
 > `--base=main`）。現在 `nx affected` 直接跑就對。
