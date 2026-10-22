@@ -3,7 +3,12 @@ import type { Context } from 'hono';
 
 import type { AppEnv } from '../index';
 import type { ChangeType } from '../routes/sessions/change-log';
-import { notify, teachersForSessionGroups } from './notify';
+import {
+  adminsForCampuses,
+  notify,
+  teachersForSessionGroups,
+  type StaffNotification,
+} from './notify';
 import { waitUntilFrom } from './wait-until';
 
 /**
@@ -12,6 +17,8 @@ import { waitUntilFrom } from './wait-until';
  * - 輸入就是寫進 `schedule_changes` 的那幾列（不寫流水的換老師、班級批次復課自己湊同樣的形狀，Q3）
  * - **一批一班一則**：同一批（`batch_id`，單堂沒有就每次請求一顆）依班分組，每班的老師只收自己班的那則
  * - 收件人：該班那幾堂的老師（任課班 ∪ 實際上課 ∪ 代課／換老師的原老師與新老師），**做異動的人自己不收**
+ * - **也發給管理員**（#1023，使用者 10-23）：範圍涵蓋該班分校、有 `basic_operations` 的管理員
+ *   （同請假通知 leave_received，計畫席裁），種類跟老師同一組。設計見 kb/wiki/architecture/admin-schedule-change-notice.md
  * - 不丟例外：業務寫入已經成功了，失敗只記 `[notify]` log
  */
 
@@ -43,6 +50,8 @@ export const shortDate = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.sli
 
 export interface ScheduleChangeClassGroup {
   readonly name: string;
+  /** 班的分校；管理員依它挑（#1023）。班沒有分校時 null */
+  readonly campusId: string | null;
   readonly dates: string[];
   readonly sessionIds: string[];
   readonly extraStaffIds: string[];
@@ -56,7 +65,7 @@ export async function groupByClass(
 ): Promise<Map<string, ScheduleChangeClassGroup>> {
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, class_id, session_date, classes(name)')
+    .select('id, class_id, session_date, classes(name, campus_id)')
     .eq('org_id', orgId)
     .in(
       'id',
@@ -70,11 +79,15 @@ export async function groupByClass(
     id: string;
     class_id: string;
     session_date: string;
-    classes: { name: string } | Array<{ name: string }> | null;
+    classes:
+      | { name: string; campus_id: string | null }
+      | Array<{ name: string; campus_id: string | null }>
+      | null;
   }>) {
     const cls = Array.isArray(s.classes) ? s.classes[0] : s.classes;
     const g = byClass.get(s.class_id) ?? {
       name: cls?.name ?? '',
+      campusId: cls?.campus_id ?? null,
       dates: [],
       sessionIds: [],
       extraStaffIds: [],
@@ -107,26 +120,60 @@ export async function notifyScheduleChange(
     const byClass = await groupByClass(supabase, input.orgId, rows);
     if (byClass.size === 0) return;
 
+    const bodyOf = (g: ScheduleChangeClassGroup) => {
+      const first = shortDate([...g.dates].sort()[0]!);
+      const count = g.dates.length > 1 ? ` 等 ${g.dates.length} 堂` : '';
+      return `${g.name} ${first}${count || ' '}${label}`;
+    };
+
     const recipients = await teachersForSessionGroups(supabase, input.orgId, byClass, {
       excludeUserId: input.actorUserId,
     });
     await notify(
       supabase,
-      [...byClass].flatMap(([classId, g]) => {
-        const first = shortDate([...g.dates].sort()[0]!);
-        const count = g.dates.length > 1 ? ` 等 ${g.dates.length} 堂` : '';
-        return (recipients.get(classId) ?? []).map((userId) => ({
+      [...byClass].flatMap(([classId, g]) =>
+        (recipients.get(classId) ?? []).map((userId) => ({
           orgId: input.orgId,
           userId,
           role: 'teacher' as const,
           kind: 'schedule_change' as const,
           dedupeKey: `schedule_change:${eventKey}:${classId}`,
           title: `課務異動：${label}`,
-          body: `${g.name} ${first}${count || ' '}${label}`,
+          body: bodyOf(g),
           url: '/teacher/schedule',
-        }));
-      }),
+        })),
+      ),
     );
+
+    // 管理員那批排在老師之後：這裡失敗由外層 catch 記 log，老師那批已經寫進去了
+    // 一間分校查一次（整門課停課會跨很多班，每班查一次是 N 倍的查詢）
+    const adminsByCampus = new Map<string, string[]>();
+    for (const campusId of new Set([...byClass.values()].flatMap((g) => g.campusId ?? []))) {
+      adminsByCampus.set(
+        campusId,
+        await adminsForCampuses(supabase, input.orgId, [campusId], {
+          permission: 'basic_operations',
+          excludeUserId: input.actorUserId,
+        }),
+      );
+    }
+    const rowsForAdmins: StaffNotification[] = [];
+    for (const [classId, g] of byClass) {
+      for (const userId of g.campusId ? (adminsByCampus.get(g.campusId) ?? []) : []) {
+        rowsForAdmins.push({
+          orgId: input.orgId,
+          userId,
+          role: 'admin' as const,
+          kind: 'schedule_change' as const,
+          // ⚠️ 要跟老師那則不同：UNIQUE(user_id, dedupe_key)，同時是老師和管理員的人會被吃掉一則
+          dedupeKey: `schedule_change:admin:${eventKey}:${classId}`,
+          title: `課務異動：${label}`,
+          body: bodyOf(g),
+          url: '/admin/changes',
+        });
+      }
+    }
+    await notify(supabase, rowsForAdmins);
   } catch (err) {
     console.error(
       '[notify] 課務異動通知失敗（異動已寫入）:',
