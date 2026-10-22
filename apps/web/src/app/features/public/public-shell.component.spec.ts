@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
@@ -45,7 +45,7 @@ async function setup(mobile: boolean) {
     [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].some((b) =>
       b.textContent?.includes('返回'),
     );
-  return { go, isRight, hasBackBar };
+  return { go, isRight, hasBackBar, fixture };
 }
 
 describe('PublicShellComponent', () => {
@@ -85,5 +85,45 @@ describe('PublicShellComponent', () => {
 
     expect(isRight()).toBe(false);
     expect(hasBackBar()).toBe(false);
+  });
+  // #1858：品牌面主標＝補習班名稱（GET /api/public/org）；讀不到就收著，不擋入口
+  describe('補習班名稱', () => {
+    const orgReq = () =>
+      TestBed.inject(HttpTestingController).expectOne((r) => r.url.endsWith('/api/public/org'));
+    const title = (el: HTMLElement) => el.querySelector('aside h2');
+
+    it('回來就顯示、外層滑開', async () => {
+      const { go, fixture } = await setup(false);
+      await go('/login');
+      orgReq().flush({ name: 'Demo 補習班' });
+      await Promise.resolve(); // org() 是 Promise：flush 之後下一個 microtask 才套上
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(title(el)?.textContent?.trim()).toBe('Demo 補習班');
+      expect(title(el)!.closest('.grid')!.classList).toContain('is-on');
+    });
+
+    it('404（沒開放公開頁）：不顯示名稱、入口照常', async () => {
+      const { go, fixture } = await setup(false);
+      await go('/login');
+      orgReq().flush({ code: 'PUBLIC_DISABLED' }, { status: 404, statusText: 'Not Found' });
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(title(el)).toBeNull();
+      expect(el.querySelector('aside .grid')!.classList).not.toContain('is-on');
+      expect(el.querySelectorAll('nav a').length).toBeGreaterThan(0);
+    });
+
+    it('手機也有 copyright', async () => {
+      const { go, fixture } = await setup(true);
+      await go('/login');
+      const c = [...(fixture.nativeElement as HTMLElement).querySelectorAll('aside p')].find((p) =>
+        p.textContent?.includes('©'),
+      )!;
+      expect(c.className).not.toContain('hidden');
+    });
   });
 });
