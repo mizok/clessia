@@ -481,7 +481,14 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
     const { data: campuses } = await supabase.from('campuses').select('id').eq('org_id', ctx.orgId);
     ctx.campusScope = (campuses ?? []).map((row) => row.id as string);
     try {
-      expect(await hitAll()).toEqual([]);
+      // 學年升級（#1820）看的是 `all_campuses` 權限、不是列了幾間分校（計畫席裁 E）：
+      // 升級是整個機構一次，只被指派分校的管理員就算每間都列了，也不能代表全機構按 → 預期 403。
+      // 只放過「403＋REQUIRES_ALL_CAMPUSES」這一種回應，別的狀態照樣算失敗
+      const expected403 =
+        /^\/api\/grade-promotions(\/preview)?(\?.*)? → 403 .*REQUIRES_ALL_CAMPUSES/;
+      const failures = await hitAll();
+      expect(failures.filter((f) => !expected403.test(f))).toEqual([]);
+      expect(failures.filter((f) => expected403.test(f))).toHaveLength(2);
     } finally {
       ctx.campusScope = null;
     }

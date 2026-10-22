@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -32,20 +32,22 @@ describe('MealsComponent（A6 p-meals）', () => {
   let list: ReturnType<typeof vi.fn>;
   let activeChildId: ReturnType<typeof signal<string | null>>;
 
-  function create(records: ParentMealRecord[] | 'error' = []) {
+  /** `reuseMocks`：沿用呼叫端先準備好的 `list`（本月與期間回不同資料時用） */
+  function create(records: ParentMealRecord[] | 'error' = [], opts: { reuseMocks?: boolean } = {}) {
     activeChildId = signal<string | null>(null);
-    list = vi.fn((params: { dateFrom: string }) =>
-      records === 'error'
-        ? throwError(() => new Error('boom'))
-        : of({
-            // 色面那一支只抓本月
-            data:
-              params.dateFrom === '2026-10-01'
-                ? records.filter((r) => r.date >= '2026-10-01')
-                : records,
-            meta: { months: [] },
-          }),
-    );
+    if (!opts.reuseMocks)
+      list = vi.fn((params: { dateFrom: string }) =>
+        records === 'error'
+          ? throwError(() => new Error('boom'))
+          : of({
+              // 色面那一支只抓本月
+              data:
+                params.dateFrom === '2026-10-01'
+                  ? records.filter((r) => r.date >= '2026-10-01')
+                  : records,
+              meta: { months: [] },
+            }),
+      );
 
     TestBed.configureTestingModule({
       imports: [MealsComponent],
@@ -155,5 +157,161 @@ describe('MealsComponent（A6 p-meals）', () => {
   it('讀取失敗顯示載入失敗', () => {
     create('error');
     expect(text()).toContain('載入失敗');
+  });
+
+  // #1834 二讀 K4：範圍反過來 —— 先說怎麼改，不要打 API 拿 400 變成「讀取失敗」
+  it('指定範圍的開始月份晚於結束月份 → 提示、不打 API', () => {
+    create();
+    list.mockClear();
+    const c = fixture.componentInstance as unknown as {
+      setPeriod: (p: string) => void;
+      customFrom: { set: (v: string) => void };
+      customTo: { set: (v: string) => void };
+    };
+    c.customFrom.set('2026-09');
+    c.customTo.set('2026-08');
+    c.setPeriod('custom');
+    fixture.detectChanges();
+
+    expect(text()).toContain('開始月份要早於結束月份');
+    expect(text()).not.toContain('載入失敗');
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  // K7：單價以本月為準（行政改價後用新的）；期間不含本月時，期間第一筆可能是舊價
+  it('單價先看本月：期間不含本月、而且單價不同 → 寫本月的單價', () => {
+    activeChildId = signal<string | null>(null);
+    list = vi.fn((params: { dateFrom: string }) =>
+      of({
+        data:
+          params.dateFrom === '2026-10-01'
+            ? [rec('2026-10-08', { unitPrice: 90, amount: 90 })]
+            : [rec('2026-03-10', { unitPrice: 70, amount: 70 })],
+        meta: { months: [] },
+      }),
+    );
+    create(undefined, { reuseMocks: true });
+    const c = fixture.componentInstance as unknown as {
+      setPeriod: (p: string) => void;
+      customFrom: { set: (v: string) => void };
+      customTo: { set: (v: string) => void };
+    };
+    c.customFrom.set('2026-01');
+    c.customTo.set('2026-03');
+    c.setPeriod('custom');
+    fixture.detectChanges();
+
+    expect(text()).toContain('一個便當 90 元');
+    expect(text()).not.toContain('一個便當 70 元');
+  });
+});
+
+/**
+ * #1834 二讀 K1／K8／色面序號：換期間或換孩子很快時，慢回來的舊回應不能蓋掉新的。
+ * 每一支請求回一個自己控制何時完成的 Subject。
+ */
+describe('MealsComponent —— 舊回應不能蓋掉新的（#1834）', () => {
+  let fixture: ComponentFixture<MealsComponent>;
+  const pending: Array<{
+    params: { childId: string; dateFrom: string };
+    subject: Subject<unknown>;
+  }> = [];
+  const activeChildId = signal<string | null>(null);
+  const names: Record<string, string> = { c1: '林子晴', c2: '王小明' };
+
+  beforeEach(() => {
+    pending.length = 0;
+    activeChildId.set(null);
+    TestBed.configureTestingModule({
+      imports: [MealsComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ChildScopeService,
+          useValue: {
+            activeChildId: activeChildId.asReadonly(),
+            children: () => [
+              { id: 'c1', name: names['c1'] },
+              { id: 'c2', name: names['c2'] },
+            ],
+            activeChild: () => {
+              const id = activeChildId();
+              return id ? { id, name: names[id] } : null;
+            },
+            status: () => 'ready' as const,
+            canSwitch: () => true,
+            setActiveChild: vi.fn(),
+            load: vi.fn(),
+          },
+        },
+        {
+          provide: ParentMealsService,
+          useValue: {
+            list: (params: { childId: string; dateFrom: string }) => {
+              const subject = new Subject<unknown>();
+              pending.push({ params, subject });
+              return subject.asObservable();
+            },
+          },
+        },
+        { provide: SystemClockService, useValue: { todayTaipei: () => '2026-10-22' } },
+      ],
+    });
+    fixture = TestBed.createComponent(MealsComponent);
+    fixture.componentRef.setInput('page', PAGE);
+    fixture.detectChanges();
+  });
+
+  const reply = (childId: string, thisMonth: boolean, data: ParentMealRecord[]) => {
+    const hit = pending.find(
+      (p) => p.params.childId === childId && (p.params.dateFrom === '2026-10-01') === thisMonth,
+    )!;
+    hit.subject.next({ data, meta: { months: [] } });
+    hit.subject.complete();
+    fixture.detectChanges();
+  };
+  const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+  it('K8＋色面序號：換孩子時色面先清掉；上一個孩子的本月回應晚到也不會蓋掉', () => {
+    activeChildId.set('c1');
+    fixture.detectChanges();
+    reply('c1', true, [rec('2026-10-08'), rec('2026-10-09')]);
+    expect(text()).toContain('2 餐，160 元');
+
+    activeChildId.set('c2');
+    fixture.detectChanges();
+    // 新孩子的本月還沒回來：不能還寫著上一個孩子的數字
+    expect(text()).not.toContain('2 餐，160 元');
+
+    reply('c2', true, [rec('2026-10-08')]);
+    expect(text()).toContain('王小明 這個月');
+    expect(text()).toContain('1 餐，80 元');
+  });
+
+  it('色面：上一個孩子的本月回應比新孩子晚到 → 不蓋掉', () => {
+    activeChildId.set('c1');
+    fixture.detectChanges();
+    activeChildId.set('c2');
+    fixture.detectChanges();
+
+    reply('c2', true, [rec('2026-10-08')]);
+    reply('c1', true, [rec('2026-10-08'), rec('2026-10-09')]); // 晚到
+    expect(text()).toContain('1 餐，80 元');
+    expect(text()).not.toContain('2 餐，160 元');
+  });
+
+  it('K1：期間的舊回應晚到 → 不蓋掉新孩子的紀錄', () => {
+    activeChildId.set('c1');
+    fixture.detectChanges();
+    activeChildId.set('c2');
+    fixture.detectChanges();
+
+    reply('c2', false, [rec('2026-09-03')]);
+    reply('c1', false, [rec('2026-08-05'), rec('2026-08-06')]); // 上一個孩子的，晚到
+
+    const months = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.coll__t'),
+    ).map((el) => el.textContent?.trim());
+    expect(months).toEqual(['9 月']);
   });
 });

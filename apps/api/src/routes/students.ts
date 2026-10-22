@@ -10,6 +10,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { schoolMismatchClause, type SchoolLevel } from '../lib/grade-promotion';
 import {
   TODAY_SESSION_SELECT,
   classifyToday,
@@ -313,6 +314,8 @@ app.openapi(
         today: z.enum(['any', 'arrived', 'not_yet', 'missing', 'on_leave']).optional(),
         /** `false` = 不算今日到班（儀表板只要總數的呼叫用）。預設第一頁才算 */
         withToday: z.enum(['true', 'false']).optional(),
+        /** 學制跟年級不合（#1820 設計稿 §4）：學校的學制跟學生年級的學制不同；未分類的學校不算 */
+        schoolMismatch: z.enum(['true']).optional(),
       }),
     },
     responses: {
@@ -337,6 +340,7 @@ app.openapi(
       taughtByMe = false,
       today: todayFilter,
       withToday,
+      schoolMismatch,
     } = c.req.valid('query');
 
     const roles = c.get('roles') ?? [];
@@ -585,6 +589,21 @@ app.openapi(
             .map(([id]) => id)
         : null;
 
+    // 學制跟年級不合（#1820）：`null` 子句＝這個機構沒有任何組合會不合 → 空結果，不是不篩
+    let mismatchClause: string | null = null;
+    if (schoolMismatch) {
+      const { data: schoolRows, error: schoolError } = await supabase
+        .from('schools')
+        .select('id, level')
+        .eq('org_id', orgId);
+      if (schoolError) {
+        return c.json({ error: '讀取學生列表失敗', message: schoolError.message }, 500);
+      }
+      mismatchClause = schoolMismatchClause(
+        (schoolRows ?? []) as Array<{ id: string; level: SchoolLevel | null }>,
+      );
+    }
+
     // 列表與年級章節計數共用（#1314 SL3）—— 兩邊各寫一份就會對同一份名單給出兩個數字。
     // grade 不在裡面：章節要列出其他年級。兩個 `in('id')` 在 PostgREST 是 AND（交集）
     const withChapterFilters = <Q>(q: Q): Q => {
@@ -594,6 +613,12 @@ app.openapi(
       if (scopedStudentIds) next = next.in('id', scopedStudentIds);
       if (isActive !== undefined) next = next.eq('is_active', isActive);
       if (todayIds) next = next.in('id', todayIds);
+      if (schoolMismatch) {
+        // 兩個 `or` 在 PostgREST 是 AND（同上面兩個 `in('id')`），不會吃掉搜尋子句
+        next = mismatchClause
+          ? next.or(mismatchClause)
+          : next.in('id', ['00000000-0000-0000-0000-000000000000']);
+      }
       return next as unknown as Q;
     };
     query = withChapterFilters(query);

@@ -838,6 +838,16 @@ describe('NotificationsComponent（管理端發布）', () => {
       expect(row.querySelector('[data-testid=go]')!.textContent).toContain('看請假');
     });
 
+    it('學年升級前提醒（grade_promotion_reminder）：標籤「學年升級」、連結字「到設定預覽」', async () => {
+      received = [
+        notification({ kind: 'grade_promotion_reminder', link: '/admin/settings/general' }),
+      ];
+      await setup();
+      const row = qa('notification')[0];
+      expect(row.querySelector('[data-testid=kind]')!.textContent).toContain('學年升級');
+      expect(row.querySelector('[data-testid=go]')!.textContent).toContain('到設定預覽');
+    });
+
     it('連結按著 Cmd／Ctrl／Shift 或中鍵點：交給瀏覽器開新分頁，不攔', async () => {
       received = [notification({ link: '/admin/applications' })];
       await setup();

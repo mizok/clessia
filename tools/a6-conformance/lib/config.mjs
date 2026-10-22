@@ -507,6 +507,27 @@ export const PAGES = {
     app: '/parent/add-course',
     state: path.join(cache, 'state-parent.json'),
   },
+  // 家長端續課資訊（計畫席 10-22）：只量「沒有即將到來的續課」那一態 —— 本機 seed 沒有未來的繳費期，
+  // app 只畫得出這一態；稿的有續課那一態要有下期資料才量得了（偏離見 R5 2026-10-22）
+  'p-renewal-none': {
+    a6: 'p-renewal.html#none',
+    app: '/parent/renewal',
+    state: path.join(cache, 'state-parent.json'),
+    deviations: [
+      {
+        status: '缺',
+        a6: 'text:p\\[下次預計開單日期#\\]$',
+        reason: '不寫下次預計開單日期：系統沒有自動開單，給不出日期',
+        source: `${rule('R5', ' 2026-10-22 家長續課頁的自動開單日與「申請異動」')}；計畫席 10-22`,
+      },
+      {
+        status: '文案',
+        a6: 'text:p\\[目前沒有即將到來的續課。下次預計在#開單',
+        reason: '空狀態不寫開單日；孩子有月繳的在讀班時改寫「月繳的課每月照常開單，不列在這裡。」',
+        source: `${rule('R5', ' 2026-10-22 家長續課頁的字')}；計畫席 10-22`,
+      },
+    ],
+  },
   // 家長端到班紀錄（#1695 第 3 張）：家長登入態；「幫孩子請假」兩邊都是 JS 打開的 <dialog>（稿 a6.js form()、app 原生 showModal）
   'p-attendance': {
     a6: 'p-attendance.html',
