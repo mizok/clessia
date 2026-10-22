@@ -26,25 +26,55 @@
       />
     </div>
 
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">簡稱（選填）</label>
-      <input
-        pInputText
-        [ngModel]="shortName()"
-        (ngModelChange)="shortName.set($event)"
-        placeholder="例：明湖國中"
-      />
+    <!-- A6：簡稱與學制同一列（各半寬），手機疊成兩列 -->
+    <div class="grid gap-4 wide:grid-cols-2">
+      <div class="form-dialog__field">
+        <label class="form-dialog__label" for="school-short">簡稱（選填）</label>
+        <input
+          pInputText
+          id="school-short"
+          [ngModel]="shortName()"
+          (ngModelChange)="shortName.set($event)"
+          placeholder="例：明湖國中"
+        />
+      </div>
+      <div class="form-dialog__field">
+        <label class="form-dialog__label" for="school-level">學制</label>
+        <p-select
+          inputId="school-level"
+          [options]="levelOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="level()"
+          (ngModelChange)="level.set($event)"
+          appendTo="body"
+        />
+      </div>
     </div>
 
-    <label class="flex flex-row items-center gap-2">
-      <p-checkbox
-        [ngModel]="isActive()"
-        (ngModelChange)="isActive.set($event)"
-        [binary]="true"
-        inputId="school-active"
-      />
-      <span>啟用</span>
-    </label>
+    <fieldset class="form-dialog__field m-0 border-0 p-0">
+      <legend class="form-dialog__label">狀態</legend>
+      <div class="flex gap-6">
+        <label class="flex min-h-11 items-center gap-2">
+          <p-radiobutton
+            name="school-status"
+            [value]="true"
+            [ngModel]="isActive()"
+            (ngModelChange)="isActive.set($event)"
+          />
+          啟用
+        </label>
+        <label class="flex min-h-11 items-center gap-2">
+          <p-radiobutton
+            name="school-status"
+            [value]="false"
+            [ngModel]="isActive()"
+            (ngModelChange)="isActive.set($event)"
+          />
+          停用
+        </label>
+      </div>
+    </fieldset>
 
     <div class="form-dialog__footer">
       <button

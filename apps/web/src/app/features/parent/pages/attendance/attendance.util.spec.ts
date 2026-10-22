@@ -1,15 +1,17 @@
-import type { ParentAttendanceRecord } from '@core/parent-attendance.service';
+import type { ParentAttendanceDayRow } from '@core/parent-attendance.service';
 import type { ParentSession } from '@core/parent-sessions.service';
 import {
   ATTENDANCE_STATUS_TONE,
   arrivalLine,
   buildDays,
   heroLine,
+  rowStatus,
   sessionChipLabel,
 } from './attendance.util';
 
-const record = (overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendanceRecord => ({
+const record = (overrides: Partial<ParentAttendanceDayRow> = {}): ParentAttendanceDayRow => ({
   id: 'r1',
+  sessionId: 'r1',
   eventId: 'e1',
   eventDate: '2026-09-01',
   startTime: '09:00',
@@ -22,6 +24,9 @@ const record = (overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendan
   note: null,
   leaveSubmittedBy: null,
   leaveReason: null,
+  derived: null,
+  teacherName: null,
+  classroomName: null,
   ...overrides,
 });
 
@@ -139,5 +144,64 @@ describe('sessionChipLabel', () => {
     // 落進 scheduled 的話，「這不是課堂」跟「這是一堂正常的課」會長得一樣
     expect(sessionChipLabel(null)).toBe('非課堂');
     expect(sessionChipLabel(null)).not.toBe(sessionChipLabel('scheduled'));
+  });
+
+  /** #1810 設計稿 §4：停課 ＞ 紀錄 ＞ 推導 ＞ 還沒上／上課中 ＞ 沒有紀錄 */
+  describe('rowStatus', () => {
+    // 2026-09-01 的 09:00–10:00；now 是台北牆上時鐘（本地欄位）
+    const at = (hh: number, mm = 0) => new Date(2026, 8, 1, hh, mm);
+    const label = (over: Parameters<typeof record>[0], now = at(12)) =>
+      rowStatus(record(over), now).label;
+
+    it('停課優先 —— 即使上面有一筆請假（停課前請的）；A6 停課是深字粗', () => {
+      expect(rowStatus(record({ sessionStatus: 'cancelled', status: 'on_leave' }), at(12))).toEqual(
+        {
+          label: '停課',
+          tone: 'strong',
+        },
+      );
+    });
+
+    it('有紀錄照紀錄：出席／請假／缺席，缺席是紅字', () => {
+      expect(label({ status: 'present' })).toBe('出席');
+      expect(label({ status: 'on_leave' })).toBe('請假');
+      expect(rowStatus(record({ status: 'absent' }), at(12))).toEqual({
+        label: '缺席',
+        tone: 'alert',
+      });
+    });
+
+    // 審核席 #1819 二讀 Z9：出席（含日到班推導的）是深字粗，不是淡色（A6 `.rec__s`）
+    it('出席是 strong；請假、沒紀錄是 muted', () => {
+      expect(rowStatus(record({ status: 'present' }), at(12)).tone).toBe('strong');
+      expect(rowStatus(record({ status: null, derived: 'checkin' }), at(12)).tone).toBe('strong');
+      expect(rowStatus(record({ status: 'on_leave' }), at(12)).tone).toBe('muted');
+      expect(rowStatus(record({ status: null, derived: 'leave' }), at(12)).tone).toBe('muted');
+    });
+
+    it('沒紀錄的推導：假單蓋到 → 請假；日到班刷卡 → 出席', () => {
+      expect(label({ status: null, derived: 'leave' })).toBe('請假');
+      expect(label({ status: null, derived: 'checkin' })).toBe('出席');
+    });
+
+    it('沒紀錄、沒推導：還沒上 → 上課中 → 沒有紀錄（永遠不寫缺席）', () => {
+      expect(label({ status: null }, at(8, 30))).toBe('還沒上');
+      expect(label({ status: null }, at(9, 30))).toBe('上課中');
+      expect(label({ status: null }, at(12))).toBe('沒有紀錄');
+      expect(rowStatus(record({ status: null }), at(12)).tone).toBe('muted');
+    });
+  });
+
+  describe('arrivalLine —— 推導的請假也算「這天不用到」', () => {
+    it('沒刷卡、當天的堂全是（推導的）請假 → 這天不用到', () => {
+      expect(
+        arrivalLine(
+          [record({ status: null, derived: 'leave' })],
+          undefined,
+          new Set(['daily']),
+          false,
+        ),
+      ).toEqual({ text: '這天不用到', missing: true });
+    });
   });
 });
