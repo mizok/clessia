@@ -33,7 +33,10 @@ function stub(options: {
         then: (onfulfilled?: ((value: unknown) => unknown) | null) =>
           Promise.resolve(
             table === 'sessions' && options.sessionsError
-              ? { data: null, error: { message: 'boom' } }
+              ? {
+                  data: [{ teacher_id: 'me', schedules: { teacher_id: 'me' } }],
+                  error: { message: 'boom' },
+                } // 出錯但照樣回出「是自己的課」—— 守出錯就不信資料
               : {
                   data: [
                     {

@@ -112,7 +112,10 @@ function supabaseStub(options: {
         then: (onfulfilled?: ((value: unknown) => unknown) | null) =>
           Promise.resolve(
             table === 'sessions' && options.sessionsError
-              ? { data: null, error: { message: 'boom' } }
+              ? {
+                  data: [{ teacher_id: 'me', schedules: { teacher_id: 'me' } }],
+                  error: { message: 'boom' },
+                } // 出錯但照樣回出「是自己的課」—— 守出錯就不信資料
               : {
                   data: [
                     {
@@ -198,6 +201,16 @@ describe('teacherAttendanceWriteAccess', () => {
   it('查 staff 失敗 → 不通過，即使同時回了資料（#1134 讀寫共用查詢後跟讀取側一致）', async () => {
     await expect(
       teacherAttendanceWriteAccess(supabaseStub({ staffError: true }), params),
+    ).resolves.toBe('not-yours');
+  });
+
+  // 查詢出錯先於責任歸屬：出錯一律 not-yours（跟收成共用查詢之前同一個順序）
+  it('sessions 查詢失敗、機構又是行政負責 → not-yours（出錯先判）', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(
+        supabaseStub({ sessionsError: true, responsible: 'admin' }),
+        params,
+      ),
     ).resolves.toBe('not-yours');
   });
 });
