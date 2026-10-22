@@ -28,7 +28,11 @@ function fakeDb() {
     ],
     parents: [],
     profiles: [],
-    ba_user: [{ id: 'u1', name: 'n', email: 'a@example.com', phone: null }],
+    // 別人排在前面（#1840 二讀）：查詢少了 `.eq('id', userId)` 就會拿到這一位
+    ba_user: [
+      { id: 'u2', name: '別人', email: 'b@example.com', phone: null },
+      { id: 'u1', name: 'n', email: 'a@example.com', phone: null },
+    ],
   };
   const failWrites = new Set<string>();
   const failReads = new Set<string>();
@@ -161,6 +165,15 @@ describe('/api/me 自己的寫入之後立刻讀回新值（#1631）', () => {
     const res = await app().request('/api/me/activate-parent', { method: 'POST' });
     expect(res.status).toBe(200);
     expect(db.tables['parents']).toMatchObject([{ name: 'n' }]);
+  });
+
+  // parents.name 是 NOT NULL，但空字串會過 —— 退路要真的寫出一個名字
+  it('不是員工、帳號名也是空的 → 「家長」', async () => {
+    db.tables['staff'] = [];
+    db.tables['ba_user'] = [{ id: 'u1', name: '', email: 'a@example.com', phone: null }];
+    const res = await app().request('/api/me/activate-parent', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(db.tables['parents']).toMatchObject([{ name: '家長' }]);
   });
 
   it('改名字 → 立刻 GET /api/me 就是新名字', async () => {
