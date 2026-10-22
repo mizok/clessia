@@ -19,6 +19,11 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SchoolsService } from '@core/schools.service';
 import type { School, SchoolLevel } from '@core/schools.service';
+import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 /** 分章順序：國小 → 國中 → 高中 → 未分類（計畫席 10-22 裁 C：未分類放最後） */
 const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
@@ -27,11 +32,6 @@ const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
   { level: 'senior', label: '高中' },
   { level: null, label: '未分類' },
 ];
-import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
-import {
-  PageActionsComponent,
-  type PageAction,
-} from '@shared/components/page-actions/page-actions.component';
 
 @Component({
   selector: 'app-schools-page',

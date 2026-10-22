@@ -401,4 +401,88 @@ describe('SchoolsPage', () => {
       );
     });
   });
+
+  // 審核席 #1816 二讀存活的突變（H1、H9、H10、H12、H14）
+  describe('審核席補強', () => {
+    const school = (over: Record<string, unknown>) => ({
+      id: 'school-0',
+      name: '示範國中',
+      shortName: null,
+      level: 'junior',
+      isActive: true,
+      studentCount: 2,
+      ...over,
+    });
+
+    it('H1：分章完整順序 國小 → 國中 → 高中 → 未分類', () => {
+      pending[0]!.subject.next({
+        data: [
+          school({ id: 'u', level: null }),
+          school({ id: 's', level: 'senior' }),
+          school({ id: 'j', level: 'junior' }),
+          school({ id: 'e', level: 'elementary' }),
+        ],
+        meta: { total: 4 },
+      } as unknown as SchoolListResponse);
+      fixture.detectChanges();
+      const labels = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('[data-part="school-chapter"]'),
+      ).map((el) => el.getAttribute('aria-label'));
+      expect(labels).toEqual(['國小', '國中', '高中', '未分類']);
+    });
+
+    const confirmAccept = () => {
+      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
+      return vi.spyOn(confirmationService, 'confirm').mockImplementation((c) => {
+        c.accept?.();
+        return confirmationService;
+      });
+    };
+
+    it('H9：停用成功 → 重抓列表（列上的「已停用」才會出現）', () => {
+      confirmAccept();
+      schoolsServiceMock.update.mockReturnValueOnce(of({ success: true }));
+      const before = schoolsServiceMock.list.mock.calls.length;
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete(school({}));
+      expect(schoolsServiceMock.list.mock.calls.length).toBe(before + 1);
+    });
+
+    it('H10：停用失敗 → 錯誤 toast「停用失敗」，不重抓', () => {
+      confirmAccept();
+      const add = vi.spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+      schoolsServiceMock.update.mockReturnValueOnce(
+        throwError(() => ({ error: { error: '伺服器錯誤' } })),
+      );
+      const before = schoolsServiceMock.list.mock.calls.length;
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete(school({}));
+      expect(add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', summary: '停用失敗' }),
+      );
+      expect(schoolsServiceMock.list.mock.calls.length).toBe(before);
+    });
+
+    it('H14：已停用又有學生 → 說明框只有一顆鈕（不顯示「取消」）', () => {
+      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
+      const spy = vi.spyOn(confirmationService, 'confirm').mockReturnValue(confirmationService);
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete(
+        school({ isActive: false }),
+      );
+      expect(spy.mock.calls[0]![0]!.rejectVisible).toBe(false);
+      spy.mockClear();
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete(school({}));
+      expect(spy.mock.calls[0]![0]!.rejectVisible).toBe(true);
+    });
+
+    it('H12：清除搜尋 → 重抓時不帶關鍵字（框是空的、結果也不能是篩過的）', () => {
+      const page = component as unknown as {
+        onSearch: (v: string) => void;
+        clearSearch: () => void;
+      };
+      page.onSearch('建國');
+      vi.advanceTimersByTime(300);
+      expect(pending[pending.length - 1]!.search).toBe('建國');
+      page.clearSearch();
+      expect(pending[pending.length - 1]!.search).toBeUndefined();
+    });
+  });
 });
