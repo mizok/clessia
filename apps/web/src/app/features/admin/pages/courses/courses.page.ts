@@ -30,6 +30,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { PopoverModule } from 'primeng/popover';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import type { Popover } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
@@ -107,6 +108,7 @@ interface CourseChapter {
     DatePickerModule,
     ToggleSwitchModule,
     PopoverModule,
+    FitPopoverDirective,
     PaginatorModule,
     TooltipModule,
     RouterModule,
