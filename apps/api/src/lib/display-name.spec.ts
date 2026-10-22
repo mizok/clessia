@@ -146,6 +146,16 @@ describe('loadDisplayName', () => {
     expect(await loadDisplayName(client(data) as never, 'org-3', 'u1')).toBe('帳號名');
   });
 
+  // 同一個帳號在別 org 的家長列：名字不能露到這個 org 來
+  it('別 org 的家長姓名也不算', async () => {
+    const data = {
+      name: '帳號名',
+      staff: [],
+      parents: [{ name: '別校的家長名', org_id: 'org-2' }],
+    };
+    expect(await loadDisplayName(client(data) as never, 'org-1', 'u1')).toBe('帳號名');
+  });
+
   it('不是員工就用家長姓名，再退到帳號名', async () => {
     const data = { name: '帳號名', staff: [], parents: [{ name: '陳媽媽', org_id: 'org-1' }] };
     expect(await loadDisplayName(client(data) as never, 'org-1', 'u1')).toBe('陳媽媽');
