@@ -165,14 +165,15 @@ export async function loadDailyAttendance(
     checkinId: row['id'] as string,
   }));
 
-  const studentIds = expected.map((student) => student.studentId);
   let onLeave: DailyLeave[] = [];
-  if (studentIds.length > 0) {
+  if (expected.length > 0) {
+    // **不把今天應到的學生 id 塞進 `.in`**（#1928）：大機構一天幾百到上千人，網址太長 → 414。
+    // 改撈這個 org 當天有效的假（一天通常幾十張），下面只留應到名單裡的人 —— 名單已套過分校範圍，
+    // 名單外的假不會出現在結果裡
     const { data: leaveRows, error: leaveError } = await supabase
       .from('leave_requests')
       .select(`student_id, submitted_by_role, reason, ${LEAVE_WINDOW_COLUMNS}`)
       .eq('org_id', orgId)
-      .in('student_id', studentIds)
       .lte('start_date', date)
       .gte('end_date', date);
     // 請假讀失敗 → 請假的學生會顯示成「該到沒到」（#1928）
@@ -181,6 +182,7 @@ export async function loadDailyAttendance(
     const nameById = new Map(expected.map((student) => [student.studentId, student.studentName]));
 
     onLeave = ((leaveRows ?? []) as Row[])
+      .filter((row) => nameById.has(row['student_id'] as string))
       .filter((row) =>
         // 半天假只蓋到部分時段 —— 用跟 roster 同一支判斷（#153），
         // 日到班沒有單堂時段，所以拿整天去比

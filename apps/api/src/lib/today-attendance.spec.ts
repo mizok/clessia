@@ -27,11 +27,12 @@ type Result = { data: unknown; error: unknown };
 const ok = (data: unknown): Result => ({ data, error: null });
 const boom: Result = { data: null, error: { message: 'boom' } };
 
-function fake(results: Partial<Record<string, Result>>) {
+function fake(results: Partial<Record<string, Result>>, calls: string[] = []) {
   return {
     from(table: string) {
       const q: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'in', 'lte', 'gte', 'or']) q[m] = () => q;
+      for (const m of ['select', 'eq', 'in', 'lte', 'gte', 'or'])
+        q[m] = (col: unknown) => (calls.push(`${table}.${m}(${String(col)})`), q);
       q['then'] = (resolve: (v: unknown) => unknown) => resolve(results[table] ?? ok([]));
       return q;
     },
@@ -78,5 +79,29 @@ describe('loadDailyAttendance（#1928）', () => {
     ['請假（leave_requests）', { enrollments: ENROLLED, leave_requests: boom }],
   ])('%s讀取失敗 → 丟例外，不是當成空的', async (_name, results) => {
     await expect(loadDailyAttendance(fake(results), 'org-1', DATE, SESSIONS)).rejects.toThrow();
+  });
+
+  it('請假不把應到學生 id 塞進 .in（會 414）；名單外的人的假不列', async () => {
+    const calls: string[] = [];
+    const leave = (studentId: string) => ({
+      student_id: studentId,
+      submitted_by_role: 'parent',
+      reason: null,
+      start_date: DATE,
+      end_date: DATE,
+      start_time: null,
+      end_time: null,
+    });
+    const res = await loadDailyAttendance(
+      fake(
+        { enrollments: ENROLLED, leave_requests: ok([leave('stu-2'), leave('stu-other')]) },
+        calls,
+      ),
+      'org-1',
+      DATE,
+      SESSIONS,
+    );
+    expect(calls).not.toContain('leave_requests.in(student_id)');
+    expect(res.onLeave.map((l) => l.studentId)).toEqual(['stu-2']);
   });
 });
