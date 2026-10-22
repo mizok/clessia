@@ -25,7 +25,7 @@ function tableFake(resolve: Resolve) {
     from(table: string) {
       const ops: string[] = [];
       const query: Record<string, unknown> = {};
-      for (const method of ['select', 'eq', 'is', 'in', 'gte', 'lte', 'order']) {
+      for (const method of ['select', 'eq', 'is', 'in', 'gte', 'lte', 'order', 'range']) {
         query[method] = () => {
           ops.push(method);
           return query;

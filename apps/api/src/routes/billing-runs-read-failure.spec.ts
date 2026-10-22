@@ -76,7 +76,7 @@ function tableFake(fail: (table: string, ops: string[]) => boolean) {
     from(table: string) {
       const ops: string[] = [];
       const query: Record<string, unknown> = {};
-      for (const method of ['select', 'eq', 'is', 'in', 'gte', 'lte', 'order']) {
+      for (const method of ['select', 'eq', 'is', 'in', 'gte', 'lte', 'order', 'range']) {
         query[method] = () => {
           ops.push(method);
           return query;
@@ -223,5 +223,82 @@ describe('GET /anomalies、POST /repair：掃描讀取失敗 → 5xx，repair �
     }
     expect(repair.status).toBe(500);
     expect(fake.writes).toEqual([]);
+  });
+});
+
+describe('repair 的比例防呆（#1934）：對不上的太多就不修', () => {
+  it('門檻：多於 3 筆而且超過掃描總數的 20%', async () => {
+    const { repairLooksWrong } = await import('./billing-runs');
+    expect(repairLooksWrong(3, 3)).toBe(false); // 3 筆以內一律照修
+    expect(repairLooksWrong(4, 20)).toBe(false); // 4／20 = 20%，沒超過
+    expect(repairLooksWrong(5, 20)).toBe(true); // 5／20 = 25%
+    expect(repairLooksWrong(4, 10)).toBe(true);
+    expect(repairLooksWrong(40, 1000)).toBe(false); // 4%
+  });
+
+  /** n 筆餐費 item、其中 bad 筆金額對不上蓋章總額 */
+  function mealItems(n: number, bad: number) {
+    const writes: Array<{ table: string; op: string }> = [];
+    const client = {
+      from(table: string) {
+        const ops: string[] = [];
+        const query: Record<string, unknown> = {};
+        for (const method of ['select', 'eq', 'is', 'in', 'gte', 'lte', 'order', 'range']) {
+          query[method] = () => {
+            ops.push(method);
+            return query;
+          };
+        }
+        for (const method of ['insert', 'update']) {
+          query[method] = () => {
+            ops.push(method);
+            writes.push({ table, op: method });
+            return query;
+          };
+        }
+        const settle = () => {
+          if (table === 'invoice_items' && !ops.includes('update')) {
+            return Promise.resolve({
+              data: Array.from({ length: n }, (_, i) => ({
+                id: `item-${i}`,
+                amount: 100,
+                invoices: { org_id: 'org', voided_at: null },
+              })),
+              error: null,
+            });
+          }
+          if (table === 'meal_records') {
+            return Promise.resolve({
+              data: Array.from({ length: n }, (_, i) => ({
+                invoice_item_id: `item-${i}`,
+                unit_price: i < bad ? 80 : 100,
+              })),
+              error: null,
+            });
+          }
+          return Promise.resolve({ data: null, error: null });
+        };
+        query['then'] = (ok: (v: unknown) => unknown, ng: (e: unknown) => unknown) =>
+          settle().then(ok, ng);
+        return query;
+      },
+    };
+    return { client, writes };
+  }
+
+  it('20 筆裡 10 筆對不上 → 409、一筆都不改', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const fake = mealItems(20, 10);
+    const res = await post(appWith(fake.client), '/repair');
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('REPAIR_RATIO_TOO_HIGH');
+    expect(fake.writes).toEqual([]);
+  });
+
+  it('20 筆裡 2 筆對不上 → 照修那 2 筆', async () => {
+    const fake = mealItems(20, 2);
+    const res = await post(appWith(fake.client), '/repair');
+    expect(res.status).toBe(200);
+    expect(fake.writes.filter((w) => w.table === 'invoice_items')).toHaveLength(2);
   });
 });
