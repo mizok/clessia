@@ -1340,7 +1340,7 @@ app.openapi(
 app.openapi(
   createRoute({
     method: 'get',
-    path: '/:id/impact',
+    path: '/{id}/impact',
     tags: ['Leaves'],
     summary: '取消請假會動到幾堂出缺席（還沒點名的回到無紀錄、已點名的不動）',
     request: {
