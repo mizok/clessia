@@ -791,9 +791,19 @@ app.openapi(
       pageSize = 20,
     } = c.req.valid('query');
 
+    // 分校、開課班、課程都走報名找學生（不濾報名狀態，同 enrollment-rules 第 8 節）。
+    // **範圍在同一支查詢的 join 裡套**（#1928）：原本先撈整個分校歷年報名過的學生 id、塞回
+    // `.in('student_id', …)` —— 大分校網址太長 → 414，報名那支也被 max_rows（1000）截斷而漏人。
+    // 三層都 `!inner`：任一層沒有就濾掉上一層，最後「這個學生有一筆報名同時符合所有條件」才留下這張假單
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
+    const scoped = !!(campusIds || classId || courseId);
+    const studentEmbed = scoped
+      ? 'students!inner(name, enrollments!inner(class_id, classes!inner(campus_id, course_id)))'
+      : 'students!inner(name)';
+
     let query = supabase
       .from('leave_requests')
-      .select(`*, ${LEAVE_SESSIONS_EMBED}, students!inner(name), ba_user!submitted_by(name)`, {
+      .select(`*, ${LEAVE_SESSIONS_EMBED}, ${studentEmbed}, ba_user!submitted_by(name)`, {
         count: 'exact',
       })
       .eq('org_id', orgId);
@@ -807,35 +817,10 @@ app.openapi(
       query = query.lte('start_date', coverDate).gte('end_date', coverDate);
     }
 
-    // **這支端點本來就收 `campusId`，但從來沒有拿它過濾** —— 前端傳了也沒有效果，
-    // 而且沒有任何錯誤，是靜默無效的參數。接分校範圍時一併修掉。
-    const campusIds = campusFilterIds(getCampusScope(c), campusId);
-    if (campusIds || classId || courseId) {
-      // 分校、開課班、課程都走報名找學生（不濾報名狀態，同 enrollment-rules 第 8 節）
-      let enrollments = supabase
-        .from('enrollments')
-        .select('student_id, classes!inner(campus_id, course_id)')
-        .eq('org_id', orgId);
-      if (campusIds) enrollments = enrollments.in('classes.campus_id', [...campusIds]);
-      if (classId) enrollments = enrollments.eq('class_id', classId);
-      if (courseId) enrollments = enrollments.eq('classes.course_id', courseId);
-      const { data: matched } = await enrollments;
-
-      const matchedStudentIds = Array.from(
-        new Set(
-          ((matched ?? []) as Array<{ student_id: string | null }>)
-            .map((row) => row.student_id)
-            .filter((id): id is string => !!id),
-        ),
-      );
-
-      // 一個學生都沒有 → 回空，不是不加條件（不加就變成看到全部）
-      if (matchedStudentIds.length === 0) {
-        return c.json({ data: [], meta: { total: 0, page, pageSize, totalPages: 0 } }, 200);
-      }
-
-      query = query.in('student_id', matchedStudentIds);
-    }
+    // `campusId` 這個參數原本從來沒被拿來過濾（靜默無效），接分校範圍時一併修掉（同上）
+    if (campusIds) query = query.in('students.enrollments.classes.campus_id', [...campusIds]);
+    if (classId) query = query.eq('students.enrollments.class_id', classId);
+    if (courseId) query = query.eq('students.enrollments.classes.course_id', courseId);
 
     const from = (page - 1) * pageSize;
     // 依開始日排序時再以建立時間、id 收斂：同一天開始的假要有固定次序，不然翻頁會重複或漏掉
