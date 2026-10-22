@@ -17,7 +17,7 @@
       {{ info.name }}
       <!-- A6 `.tag--live`（進行中：近黑底白字）／`.tag--quiet`（已完成） -->
       <span
-        class="ml-2.5 inline-flex items-center rounded-full px-2 py-0.5 align-middle text-sm leading-[1.4] font-semibold tracking-normal"
+        class="ml-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-base leading-[1.4] font-semibold tracking-[normal]"
         [class.bg-zinc-900]="info.status === 'active'"
         [class.text-white]="info.status === 'active'"
         [class.bg-zinc-100]="info.status !== 'active'"
@@ -68,20 +68,25 @@
         ];
         track s.label
       ) {
-        <div [class]="s.desktop ? 'm-0 hidden flex-col wide:flex' : 'm-0 flex flex-col'">
-          <dd
-            class="m-0 order-first text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
-          >
-            {{ s.value }}
-            @if (s.unit) {
-              <small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">{{
-                s.unit
-              }}</small>
-            }
-          </dd>
+        <!-- 只在桌機的兩格用 data 屬性藏，四格 class 一樣（同一種列） -->
+        <div
+          class="m-0 flex flex-col max-wide:data-desktop:hidden"
+          [attr.data-desktop]="s.desktop || null"
+        >
+          <!-- A6 `.open__stat`：dt 在前、dd 用 order 排到上面 -->
           <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
             {{ s.label }}
           </dt>
+          <dd
+            class="m-0 order-first text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+          >
+            {{ s.value
+            }}<small
+              class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg"
+              [hidden]="!s.unit"
+              >{{ s.unit }}</small
+            >
+          </dd>
         </div>
       }
     </dl>
@@ -123,7 +128,7 @@
 @if (type() === 'academy' && academyEditor(); as editor) {
   <div class="bg-zinc-100">
     <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16">
-      <p class="m-0 text-base text-zinc-700 tabular-nums" data-part="tally">
+      <p class="m-0 text-md text-zinc-700 tabular-nums wide:text-base" data-part="tally">
         <strong class="font-semibold text-zinc-900"
           >{{ editor.tally().logged }}／{{ editor.tally().total }}</strong
         >
@@ -145,7 +150,7 @@
         >
           <button
             type="button"
-            class="hidden min-[640.02px]:inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+            class="tbar-control hidden min-[640.02px]:inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
             data-part="mark-absent"
             (click)="editor.markRestAbsent()"
           >
@@ -153,7 +158,7 @@
           </button>
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+            class="tbar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
             data-part="add-student"
             [attr.aria-expanded]="editor.addingStudent()"
             (click)="editor.addingStudent.set(true)"
@@ -162,7 +167,7 @@
           </button>
           <button
             type="button"
-            class="hidden min-[640.02px]:inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60 wide:h-9"
+            class="tbar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60"
             data-part="complete"
             [disabled]="completing() || saving()"
             (click)="openComplete()"
@@ -230,7 +235,7 @@
         @if (academyEditor(); as editor) {
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center rounded-md border border-white/40 bg-transparent px-4 text-md font-semibold text-white hover:bg-white/10 disabled:cursor-default disabled:opacity-60 wide:h-9"
+            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-[rgb(255_255_255/35%)] bg-transparent px-4 text-md leading-[1.5] font-semibold text-white hover:bg-white/10 disabled:cursor-default disabled:opacity-60 wide:h-9"
             data-part="revert"
             [disabled]="saving()"
             (click)="editor.revert()"
@@ -240,7 +245,7 @@
         }
         <button
           type="button"
-          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60 wide:h-9"
+          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60 wide:h-9"
           [disabled]="saving()"
           (click)="saveScores()"
         >

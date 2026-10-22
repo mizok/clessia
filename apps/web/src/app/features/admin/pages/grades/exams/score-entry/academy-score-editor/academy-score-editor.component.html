@@ -75,7 +75,7 @@
             分數（滿分 {{ exam().totalScore }}）
           </th>
           <th
-            class="w-36 border-b border-zinc-900 pr-3 pb-2 text-left text-sm font-semibold text-zinc-600"
+            class="border-b border-zinc-900 pr-3 pb-2 text-left text-sm font-semibold text-zinc-600"
           >
             狀態
           </th>
@@ -95,7 +95,7 @@
               [attr.data-dirty]="isRowDirty(row) || null"
             >
               <a
-                class="inline-flex min-h-11 items-center font-bold no-underline hover:underline hover:underline-offset-[3px]"
+                class="inline-flex min-h-11 items-center font-bold no-underline hover:underline hover:underline-offset-[3px] wide:inline wide:min-h-0"
                 [class.text-zinc-900]="!isUnrecorded(row)"
                 [class.text-zinc-600]="isUnrecorded(row)"
                 [routerLink]="['/admin/students', row.studentId]"
@@ -126,7 +126,7 @@
                 [disabled]="disabled() || isAbsent(row)"
                 [placeholder]="isAbsent(row) ? '—' : ''"
                 [ariaLabel]="row.studentName + ' 的分數'"
-                inputStyleClass="h-10 w-22 text-right text-lg font-semibold tabular-nums"
+                inputStyleClass="h-10 w-22 border-zinc-300 px-3 py-0 text-lg font-semibold tabular-nums"
               />
               <span class="ml-1 text-sm text-zinc-600">／{{ exam().totalScore }}</span>
               @if (isFailing(row.score)) {
@@ -141,22 +141,25 @@
               <!-- A6 `.dd`：白底框的按鈕顯示目前狀態，點了開選項（#1925） -->
               <button
                 type="button"
-                class="inline-flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md text-zinc-900 hover:border-zinc-500 disabled:cursor-default disabled:opacity-60"
+                class="relative inline-flex h-10 w-[116px] cursor-pointer items-center rounded-md border border-solid border-zinc-300 bg-white pr-10 pl-3 text-base text-zinc-900 hover:border-zinc-500 disabled:cursor-default disabled:bg-zinc-100 disabled:text-zinc-700"
                 data-part="status-button"
                 aria-haspopup="menu"
                 [attr.aria-label]="row.studentName + ' 的狀態：' + statusLabel(row)"
                 [disabled]="disabled()"
                 (click)="openStatusMenu($event, row, statusMenu)"
               >
-                <span>{{ statusLabel(row) }}</span>
-                <i class="pi pi-chevron-down text-xs text-zinc-700" aria-hidden="true"></i>
+                <span class="leading-[1.5]">{{ statusLabel(row) }}</span>
+                <i
+                  class="pi pi-chevron-down absolute right-3 text-xs text-zinc-900"
+                  aria-hidden="true"
+                ></i>
               </button>
             </td>
             <td class="border-b border-surface-border py-2 pr-3 align-middle">
               <input
                 type="text"
                 pInputText
-                class="h-10 w-full min-w-30 text-md"
+                class="h-10 w-full min-w-30 border-zinc-300 px-3 py-0 text-md"
                 [ngModel]="row.notes"
                 (ngModelChange)="onNotesChange(row, $event)"
                 [disabled]="disabled()"
