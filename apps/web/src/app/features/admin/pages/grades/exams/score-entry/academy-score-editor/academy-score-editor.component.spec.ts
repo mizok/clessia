@@ -408,13 +408,7 @@ describe('AcademyScoreEditorComponent', () => {
       expect(component['isDirty']()).toBe(false);
     });
 
-    it('已結束的考試不出現「其餘標記缺考」鈕', () => {
-      const host = fixture.nativeElement as HTMLElement;
-      expect(host.querySelector('[data-part="mark-absent"]')).not.toBeNull();
-      fixture.componentRef.setInput('disabled', true);
-      fixture.detectChanges();
-      expect(host.querySelector('[data-part="mark-absent"]')).toBeNull();
-    });
+    // 觸發鈕搬到外殼的灰帶工具列（#1925）；已完成的考試不出鈕由 score-entry.component.spec 守
   });
 
   // #1314 G4
@@ -471,14 +465,45 @@ describe('AcademyScoreEditorComponent', () => {
       expect(component['studentSuggestions']().map((x) => x.name)).toEqual(['陳插班']);
     });
 
-    it('按鈕開關面板；已結束的考試不出鈕', () => {
+    // 觸發鈕在外殼的灰帶工具列（#1925），這裡只驗 addingStudent 開面板
+    it('addingStudent 打開就出現面板', () => {
       const host = fixture.nativeElement as HTMLElement;
-      host.querySelector<HTMLButtonElement>('[data-part="add-student"]')!.click();
+      component.addingStudent.set(true);
       fixture.detectChanges();
       expect(host.querySelector('[data-part="add-student-panel"]')).not.toBeNull();
+    });
+  });
+
+  // #1925：狀態欄照 A6 `.dd` —— 按鈕寫目前狀態，點了開選項；選缺考時分數清空
+  describe('狀態按鈕', () => {
+    it('按鈕寫目前狀態；選「缺考」改狀態、分數清空、算未存', () => {
+      const host = fixture.nativeElement as HTMLElement;
+      const btn = host.querySelector<HTMLButtonElement>('table [data-part="status-button"]')!;
+      expect(btn.textContent!.trim()).toBe('正常');
+      expect(btn.getAttribute('aria-haspopup')).toBe('menu');
+      btn.click();
+      const absent = component['statusMenuItems']().find((i) => i.label === '缺考')!;
+      absent.command!({} as never);
+      fixture.detectChanges();
+      const row = component['rows']()[0];
+      expect(row.status).toBe('absent');
+      expect(row.score).toBeNull();
+      expect(component.dirtyCount()).toBe(1);
+      expect(
+        host
+          .querySelector<HTMLButtonElement>('table [data-part="status-button"]')!
+          .textContent!.trim(),
+      ).toBe('缺考');
+    });
+
+    it('已完成的考試：狀態按鈕停用', () => {
       fixture.componentRef.setInput('disabled', true);
       fixture.detectChanges();
-      expect(host.querySelector('[data-part="add-student"]')).toBeNull();
+      const btns = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        'table [data-part="status-button"]',
+      );
+      expect(btns.length).toBeGreaterThan(0);
+      btns.forEach((b) => expect(b.disabled).toBe(true));
     });
   });
 });
