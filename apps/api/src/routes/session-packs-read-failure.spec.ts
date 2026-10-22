@@ -18,7 +18,7 @@ const BOOM = { message: 'URI too long', code: '414' };
 
 afterEach(() => vi.restoreAllMocks());
 
-function appWith(failTable: string | null) {
+function appWith(failTable: string | null, pool?: { query: (...a: unknown[]) => unknown }) {
   const supabase = {
     from(table: string) {
       const query: Record<string, unknown> = {};
@@ -61,6 +61,7 @@ function appWith(failTable: string | null) {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
     set('supabase', supabase);
     set('orgId', 'org-1');
+    if (pool) set('auth', { pool });
     await next();
   });
   app.route('/', sessionPacksApp);
@@ -83,4 +84,38 @@ describe('GET /api/session-packs：讀取失敗回 500，不回算錯的剩餘�
       expect(((await res.json()) as { code: string }).code).toBe('READ_FAILED');
     },
   );
+});
+
+/**
+ * 正式環境走的是 pg 那條（有 pool）。二讀 @a8bb44e5 的突變 Q5：把 pg 的 catch 改成 `statuses = []`
+ * 單元與契約都綠 —— 那正是這張要修的症狀（讀不到就當沒上過課、剩餘＝已購）。這裡守住它。
+ */
+describe('GET /api/session-packs：pg 那條讀取失敗也回 500（#1928 二讀）', () => {
+  it('對照組：pg 回出勤 → 照算（買 10、到 3、請假不扣 1 → 剩 7）', async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          { status: 'present', n: 3 },
+          { status: 'on_leave', n: 1 },
+        ],
+      }),
+    };
+    const res = await appWith(null, pool).request(`/?enrollmentId=${ENROLLMENT_ID}`);
+    expect(res.status).toBe(200);
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(((await res.json()) as { summary: { remaining: number } }).summary.remaining).toBe(7);
+  });
+
+  it('pool.query 丟錯 → 500 READ_FAILED，回應裡沒有 remaining', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const pool = {
+      query: vi.fn().mockRejectedValue(Object.assign(new Error('x'), { code: '53300' })),
+    };
+    const res = await appWith(null, pool).request(`/?enrollmentId=${ENROLLMENT_ID}`);
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body['code']).toBe('READ_FAILED');
+    expect(body).not.toHaveProperty('summary');
+    expect(JSON.stringify(body)).not.toContain('remaining');
+  });
 });
