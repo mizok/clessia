@@ -14,9 +14,10 @@ CREATE TABLE public.grade_promotions (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   academic_year smallint NOT NULL,          -- 民國學年（8/1 起算），例：115
-  executed_by   uuid NULL,                  -- ba_user.id（只記錄，不設 FK：c2 不碰 ba_* 的結構）
+  -- ba_user.id 是 text（Better Auth 的 id 不是 uuid）；參照照既有慣例 ON DELETE SET NULL（參照不是寫 ba_*，c2 允許）
+  executed_by   text NULL REFERENCES public.ba_user(id) ON DELETE SET NULL,
   executed_at   timestamptz NOT NULL DEFAULT now(),
-  reverted_by   uuid NULL,
+  reverted_by   text NULL REFERENCES public.ba_user(id) ON DELETE SET NULL,
   reverted_at   timestamptz NULL,
   created_at    timestamptz NOT NULL DEFAULT now()
 );

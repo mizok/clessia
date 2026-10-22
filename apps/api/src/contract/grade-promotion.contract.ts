@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { promoteGrades, revertPromotion } from '../lib/grade-promotion';
 
@@ -20,6 +20,8 @@ const run = DB ? describe : describe.skip;
 run('學年升級交易對真 Postgres（#1820）', () => {
   const pool = new Pool({ connectionString: DB });
   const orgs: string[] = [];
+  /** 真的 ba_user id（text，不是 uuid）—— executed_by／reverted_by 的型別要對得上（計畫席讀 diff 抓到的） */
+  let userId = '';
 
   const q = async <T extends Record<string, unknown>>(sql: string, params: unknown[] = []) =>
     (await pool.query<T>(sql, params)).rows;
@@ -47,6 +49,10 @@ run('學年升級交易對真 Postgres（#1820）', () => {
       )
     )[0]!;
 
+  beforeAll(async () => {
+    userId = (await q<{ id: string }>('SELECT id FROM ba_user LIMIT 1'))[0]!.id;
+  });
+
   afterAll(async () => {
     if (orgs.length) {
       await pool.query('DELETE FROM grade_promotions WHERE org_id = ANY($1)', [orgs]);
@@ -64,7 +70,7 @@ run('學年升級交易對真 Postgres（#1820）', () => {
     const gone = await student(orgId, 'P1', false);
     const elsewhere = await student(other, 'J1');
 
-    const r = await promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 });
+    const r = await promoteGrades(pool, { orgId, userId, academicYear: 115 });
     expect(r).toMatchObject({ status: 'done', promotedCount: 1, graduatedCount: 1 });
     expect(await state(j3)).toEqual({ grade: 'S1', is_active: true });
     expect(await state(s3)).toEqual({ grade: 'S3', is_active: false });
@@ -80,8 +86,8 @@ run('學年升級交易對真 Postgres（#1820）', () => {
   it('同學年再按一次 → already-promoted，學生不會被升兩次', async () => {
     const orgId = await org();
     const j1 = await student(orgId, 'J1');
-    await promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 });
-    expect(await promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 })).toEqual({
+    await promoteGrades(pool, { orgId, userId, academicYear: 115 });
+    expect(await promoteGrades(pool, { orgId, userId, academicYear: 115 })).toEqual({
       status: 'already-promoted',
     });
     expect((await state(j1)).grade).toBe('J2');
@@ -91,8 +97,8 @@ run('學年升級交易對真 Postgres（#1820）', () => {
     const orgId = await org();
     const p1 = await student(orgId, 'P1');
     const results = await Promise.all([
-      promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 }),
-      promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 }),
+      promoteGrades(pool, { orgId, userId, academicYear: 115 }),
+      promoteGrades(pool, { orgId, userId, academicYear: 115 }),
     ]);
     expect(results.map((x) => x.status).sort()).toEqual(['already-promoted', 'done']);
     expect((await state(p1)).grade).toBe('P2');
@@ -103,14 +109,14 @@ run('學年升級交易對真 Postgres（#1820）', () => {
     const j3 = await student(orgId, 'J3');
     const s3 = await student(orgId, 'S3');
     const edited = await student(orgId, 'J2');
-    const r = await promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 });
+    const r = await promoteGrades(pool, { orgId, userId, academicYear: 115 });
     if (r.status !== 'done') throw new Error('promote failed');
     // 升級後行政手改了一位（J3 → S2）
     await q(`UPDATE students SET grade = 'S2' WHERE id = $1`, [edited]);
 
     const back = await revertPromotion(pool, {
       orgId,
-      userId: randomUUID(),
+      userId,
       promotionId: r.promotionId,
       now: new Date(),
     });
@@ -124,26 +130,24 @@ run('學年升級交易對真 Postgres（#1820）', () => {
     expect(
       await revertPromotion(pool, {
         orgId,
-        userId: randomUUID(),
+        userId,
         promotionId: r.promotionId,
         now: new Date(),
       }),
     ).toEqual({ status: 'already-reverted' });
-    expect(
-      (await promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 })).status,
-    ).toBe('done');
+    expect((await promoteGrades(pool, { orgId, userId, academicYear: 115 })).status).toBe('done');
   });
 
   it('別 org 的升級 id 復原不到（not-found）', async () => {
     const orgId = await org();
     const other = await org();
     await student(orgId, 'P2');
-    const r = await promoteGrades(pool, { orgId, userId: randomUUID(), academicYear: 115 });
+    const r = await promoteGrades(pool, { orgId, userId, academicYear: 115 });
     if (r.status !== 'done') throw new Error('promote failed');
     expect(
       await revertPromotion(pool, {
         orgId: other,
-        userId: randomUUID(),
+        userId,
         promotionId: r.promotionId,
         now: new Date(),
       }),
