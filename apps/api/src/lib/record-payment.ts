@@ -161,3 +161,40 @@ export async function recordPayment(
     };
   });
 }
+
+/**
+ * 行政手動把報名從 `pending_payment` 轉 `active`（`PATCH /api/enrollments/:id/status`，#1778 拆單 2，
+ * 設計稿 §2.2、Q4）：同一個交易把連到這筆報名的 `awaiting_payment` 申請轉 `completed`。
+ *
+ * 只在報名**此刻**仍是 `pending_payment` 時轉（鎖列重讀），回 `activated: false` 代表
+ * 它在路由讀過之後已經被別的路徑轉走（例如收款）—— 呼叫端照原本的逐句寫走。
+ */
+export async function activatePendingEnrollment(
+  pool: Pool,
+  input: {
+    readonly orgId: string;
+    readonly enrollmentId: string;
+    readonly today: string;
+    readonly reason: string | null;
+  },
+): Promise<{ readonly activated: boolean; readonly completed: readonly ChangedRow[] }> {
+  return withTx(pool, async (db) => {
+    const done = await db.query(
+      `UPDATE enrollments SET status = 'active', status_changed_at = $3, status_reason = $4
+        WHERE id = $1 AND org_id = $2 AND status = 'pending_payment'`,
+      [input.enrollmentId, input.orgId, input.today, input.reason],
+    );
+    if (done.rowCount === 0) return { activated: false, completed: [] };
+
+    const completed = await db.query(
+      `WITH done AS (
+         UPDATE enrollment_requests SET status = 'completed'
+          WHERE org_id = $2 AND status = 'awaiting_payment' AND enrollment_id = $1
+          RETURNING id, student_id, class_id)
+       SELECT d.id, d.student_id, s.name AS student_name, c.name AS class_name
+         FROM done d JOIN students s ON s.id = d.student_id LEFT JOIN classes c ON c.id = d.class_id`,
+      [input.enrollmentId, input.orgId],
+    );
+    return { activated: true, completed: completed.rows.map(toChanged) };
+  });
+}

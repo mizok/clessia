@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { recordPayment, type RecordPaymentInput } from '../lib/record-payment';
+import {
+  activatePendingEnrollment,
+  recordPayment,
+  type RecordPaymentInput,
+} from '../lib/record-payment';
 
 /**
  * #1778：記收款的交易對**真的** Postgres 跑 —— 鎖帳單後重數淨額、收據號 trigger、
@@ -352,5 +356,57 @@ run('記收款的交易對真 Postgres（#1778）', () => {
     expect(r.status === 'done' && r.completed.map((x) => x.id)).toEqual([mine.requestId]);
     expect(await status('enrollments', theirs.enrollmentId)).toBe('pending_payment');
     expect(await status('enrollment_requests', theirs.requestId)).toBe('awaiting_payment');
+  });
+
+  describe('行政手動轉正式（#1778 拆單 2，Q4）', () => {
+    const activate = (orgId: string, enrollmentId: string) =>
+      activatePendingEnrollment(pool, { orgId, enrollmentId, today: '2026-10-21', reason: null });
+
+    it('pending_payment → active，連到它的 awaiting_payment 申請同一個交易轉 completed', async () => {
+      const { orgId, classId } = await newOrg();
+      const s = await enrollee(orgId, classId);
+
+      const r = await activate(orgId, s.enrollmentId);
+
+      expect(r).toEqual({
+        activated: true,
+        completed: [
+          { id: s.requestId, studentId: s.studentId, studentName: '小明', className: '數學A' },
+        ],
+      });
+      expect(await status('enrollments', s.enrollmentId)).toBe('active');
+      expect(await status('enrollment_requests', s.requestId)).toBe('completed');
+    });
+
+    it('只完成 awaiting_payment 的申請：已取消的不動', async () => {
+      const { orgId, classId } = await newOrg();
+      const s = await enrollee(orgId, classId, 'pending_payment', 'cancelled');
+
+      const r = await activate(orgId, s.enrollmentId);
+
+      expect(r).toEqual({ activated: true, completed: [] });
+      expect(await status('enrollment_requests', s.requestId)).toBe('cancelled');
+    });
+
+    it('報名已經不是 pending_payment（例如收款先轉了）→ activated false，申請不動', async () => {
+      const { orgId, classId } = await newOrg();
+      const s = await enrollee(orgId, classId, 'active');
+
+      expect(await activate(orgId, s.enrollmentId)).toEqual({ activated: false, completed: [] });
+      expect(await status('enrollment_requests', s.requestId)).toBe('awaiting_payment');
+    });
+
+    it('別 org 的報名 → activated false，報名、申請都不動', async () => {
+      const { orgId } = await newOrg();
+      const other = await newOrg();
+      const theirs = await enrollee(other.orgId, other.classId);
+
+      expect(await activate(orgId, theirs.enrollmentId)).toEqual({
+        activated: false,
+        completed: [],
+      });
+      expect(await status('enrollments', theirs.enrollmentId)).toBe('pending_payment');
+      expect(await status('enrollment_requests', theirs.requestId)).toBe('awaiting_payment');
+    });
   });
 });
