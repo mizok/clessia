@@ -3,15 +3,14 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
-import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
@@ -21,17 +20,18 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
 import { SchoolsService } from '@core/schools.service';
 import type { School } from '@core/schools.service';
 import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 @Component({
   selector: 'app-schools-page',
   standalone: true,
   imports: [
-    StatusDotComponent,
+    PageActionsComponent,
     FormsModule,
     ReloadVeilComponent,
-    ButtonModule,
-    InputTextModule,
     ConfirmDialogModule,
     EmptyStateComponent,
     LoadFailedComponent,
@@ -69,6 +69,12 @@ export class SchoolsPage implements OnInit {
   /** 取數失敗。**不能沿用 `schools().length === 0`** —— 「尚無學校」在失敗時是謊話（#812） */
   protected readonly loadFailed = signal(false);
   protected readonly search = signal('');
+  /** 輸入框顯示的字（即時）；`search` 是節流後真的拿去查的那個 */
+  protected readonly searchText = signal('');
+  protected readonly inactiveCount = computed(
+    () => this.schools().filter((s) => !s.isActive).length,
+  );
+  protected readonly primaryAction: PageAction = { label: '新增學校', icon: 'pi pi-plus' };
 
   ngOnInit(): void {
     this.setupLoadPipeline();
@@ -136,7 +142,14 @@ export class SchoolsPage implements OnInit {
   }
 
   protected onSearch(value: string): void {
+    this.searchText.set(value);
     this.searchInput.next(value);
+  }
+
+  protected clearSearch(): void {
+    this.searchText.set('');
+    this.search.set('');
+    this.load();
   }
 
   protected openCreate(): void {

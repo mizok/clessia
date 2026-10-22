@@ -1,108 +1,112 @@
-<div class="flex flex-col gap-4">
-  <!--
-    **不用麵包屑**（#728）：這一頁是 `/admin/settings` tab 殼底下的一個 tab，
-    而殼自己已經畫了 `<h1>系統設定</h1>` + tab 列 —— 再放一條
-    `系統設定 › 學校管理` 會讓「系統設定」在同一個畫面上出現兩次，
-    而且切到別的 tab 時那條又不見了。
-
-    標題用 `<h2>` 不是 `<h1>`：**殼擁有這個頁面的 h1**。
-    樣式與另外三個 tab 相同（`--text-2xl` / bold），所以畫面不會不一樣。
-  -->
-  <header
-    class="flex flex-col items-stretch gap-4 wide:flex-row wide:items-start wide:justify-between"
+<!--
+  A6 settings.html#schools：搜尋＋新增 → 統計一行（學生資料填寫時從這裡選。N 所 · M 所停用）→ 一列一所學校。
+  列：簡稱（停用加小字）／全名 · N 位學生｜編輯、刪除。殼（settings-shell）擁有 h1 與分頁，這裡不再放標題。
+  ⏳ 依國小／國中／高中分章要等 schools 有學制欄位（#1314 SE4，migration 待計畫席裁）。
+-->
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <label
+    class="flex h-10 min-w-0 flex-[1_1_280px] items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-zinc-600 focus-within:border-zinc-900 max-wide:h-11 wide:max-w-[420px]"
   >
-    <div class="flex flex-col gap-1">
-      <h2 class="schools-page__title m-0 text-lg font-semibold text-zinc-900">學校管理</h2>
-      <p class="m-0 text-sm text-zinc-500">管理學生就讀的學校清單，供學生資料填寫時選用</p>
-    </div>
-  </header>
-
-  <div class="flex flex-wrap items-center gap-3">
+    <i class="pi pi-search" aria-hidden="true"></i>
     <input
-      pInputText
-      placeholder="搜尋學校名稱..."
-      [ngModel]="search()"
+      type="search"
+      class="min-w-0 flex-1 border-0 bg-transparent px-0.5 py-px text-base text-zinc-900 outline-none [font:inherit]"
+      placeholder="找學校名稱或簡稱"
+      aria-label="找學校"
+      [ngModel]="searchText()"
       (ngModelChange)="onSearch($event)"
     />
-    <button
-      pButton
-      class="min-h-11"
-      icon="pi pi-plus"
-      label="新增學校"
-      size="small"
-      (click)="openCreate()"
-    ></button>
-  </div>
+  </label>
+  <app-page-actions [primary]="primaryAction" (primaryClick)="openCreate()" />
+</div>
 
-  <!-- 第一次才是轉圈；之後重抓保留舊內容並變淡（#1641 5b） -->
+@if (!loading() && !loadFailed() && schools().length > 0) {
+  <p class="mt-4 mb-0 text-md text-zinc-600 tabular-nums" data-count>
+    學生資料填寫時從這裡選。<b class="text-zinc-900">{{ schools().length }}</b> 所 ·
+    <b class="text-zinc-900">{{ inactiveCount() }}</b> 所停用
+  </p>
+}
+
+<div class="mt-2">
+  <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
   <app-reload-veil [loading]="loading()">
-    <div reloadSkeleton class="flex items-center gap-2 p-8 text-zinc-500">
-      <i class="pi pi-spinner pi-spin"></i> 載入中…
+    <div reloadSkeleton class="skeleton-list">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
     </div>
     @if (loadFailed()) {
       <app-load-failed description="沒有讀到學校清單，可能是連線問題" (retry)="load()" />
     } @else if (schools().length === 0) {
-      <app-empty-state
-        icon="pi pi-building-columns"
-        title="尚無學校"
-        description="點右上角「新增學校」建立第一筆"
-      />
+      @if (search()) {
+        <p class="m-0 flex flex-wrap items-center gap-3 py-8 text-base text-zinc-700">
+          找不到「{{ search() }}」。試試只打地名，例如「明湖」。
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-3 text-md font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-8"
+            (click)="clearSearch()"
+          >
+            清除搜尋
+          </button>
+        </p>
+      } @else {
+        <app-empty-state
+          icon="pi pi-building-columns"
+          title="尚無學校"
+          description="點右上角「新增學校」建立第一筆"
+        />
+      }
     } @else {
-      <!-- 原生表格＋@for（#1641 5b）：p-table 的列沒有穩定身分，列不能各自淡入淡出與補位 -->
-      <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-        <table class="w-full border-collapse text-left text-sm text-zinc-900">
-          <thead>
-            <tr class="border-b border-zinc-200 bg-zinc-50 text-zinc-600">
-              <th class="px-4 py-3 font-semibold">名稱</th>
-              <th class="px-4 py-3 font-semibold">簡稱</th>
-              <th class="px-4 py-3 font-semibold">學生數</th>
-              <th class="px-4 py-3 font-semibold">狀態</th>
-              <th class="w-[140px] px-4 py-3 font-semibold">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (school of schools(); track school.id) {
-              <tr
-                class="vt-row border-b border-zinc-200 last:border-b-0"
-                [style.view-transition-name]="'school-' + school.id"
-              >
-                <td class="px-4 py-2">{{ school.name }}</td>
-                <td class="px-4 py-2">{{ school.shortName ?? '—' }}</td>
-                <td class="px-4 py-2 tabular-nums">{{ school.studentCount }}</td>
-                <td class="px-4 py-2">
-                  <app-status-dot [tone]="school.isActive ? 'done' : 'inactive'">{{
-                    school.isActive ? '啟用' : '停用'
-                  }}</app-status-dot>
-                </td>
-                <td class="px-4 py-1">
-                  <button
-                    pButton
-                    icon="pi pi-pencil"
-                    severity="secondary"
-                    size="small"
-                    text
-                    class="size-11"
-                    aria-label="編輯學校"
-                    (click)="openEdit(school)"
-                  ></button>
-                  <button
-                    pButton
-                    icon="pi pi-trash"
-                    severity="danger"
-                    size="small"
-                    text
-                    class="size-11"
-                    aria-label="刪除學校"
-                    (click)="onDelete(school)"
-                  ></button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+      @for (school of schools(); track school.id) {
+        <div
+          class="vt-row flex min-h-[68px] items-center gap-3 border-0 border-b border-solid border-zinc-200 py-3"
+          [attr.data-school]="school.id"
+          [style.view-transition-name]="'school-' + school.id"
+        >
+          <div class="min-w-0 flex-1">
+            <div class="text-lg font-bold" [class.text-zinc-600]="!school.isActive">
+              {{ school.shortName || school.name }}
+              @if (!school.isActive) {
+                <small class="ml-2 text-sm font-normal text-zinc-600">已停用</small>
+              }
+            </div>
+            <span class="mt-0.5 block text-sm text-zinc-600 tabular-nums"
+              >{{ school.name }} ·
+              {{ school.studentCount ? school.studentCount + ' 位學生' : '沒有學生' }}</span
+            >
+          </div>
+          <div class="flex gap-1">
+            <button
+              type="button"
+              class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100"
+              [attr.aria-label]="'編輯 ' + (school.shortName || school.name)"
+              (click)="openEdit(school)"
+            >
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+            </button>
+            <!-- 有學生的不灰掉：按了跳說明＋改成停用（A6），只把圖示降成淡色 -->
+            <button
+              type="button"
+              class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent hover:bg-zinc-100"
+              [class]="school.studentCount ? 'text-zinc-400' : 'text-zinc-800'"
+              [attr.aria-label]="
+                school.studentCount
+                  ? '刪除 ' +
+                    (school.shortName || school.name) +
+                    '（有 ' +
+                    school.studentCount +
+                    ' 位學生，不能刪，按了看原因）'
+                  : '刪除 ' + (school.shortName || school.name)
+              "
+              (click)="onDelete(school)"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      }
     }
   </app-reload-veil>
-
-  <p-confirmDialog />
 </div>
+
+<p-confirmDialog />

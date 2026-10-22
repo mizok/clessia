@@ -175,10 +175,9 @@ describe('SchoolsPage', () => {
       expect(fixture.nativeElement.textContent).not.toContain('系統設定');
     });
 
-    it('有一個「學校管理」標題，跟另外三個 tab 一致', () => {
-      const title = fixture.nativeElement.querySelector('.schools-page__title');
-
-      expect(title?.textContent?.trim()).toBe('學校管理');
+    // #1314 SE4（A6）：殼擁有標題與分頁，分頁內容不再放自己的標題（同分校分頁 #1755 之後的做法）
+    it('分頁內不再有自己的標題 —— 標題交給殼', () => {
+      expect(fixture.nativeElement.querySelector('h1, h2')).toBeNull();
     });
 
     /**
@@ -282,7 +281,7 @@ describe('SchoolsPage', () => {
   describe('列表與悲觀刪除（#1641 5b）', () => {
     const rowIds = () =>
       Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('tbody tr.vt-row'),
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.vt-row'),
       ).map((tr) => tr.style.getPropertyValue('view-transition-name'));
     const loaded = () => {
       pending[0]!.subject.next(res(['甲國中', '乙國中']));

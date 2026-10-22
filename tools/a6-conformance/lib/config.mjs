@@ -517,6 +517,8 @@ export const PAGES = {
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
   settings: { a6: 'settings.html', app: '/admin/settings/general' },
+  // 系統設定的學校分頁（#1314 SE4）
+  schools: { a6: 'settings.html#schools', app: '/admin/settings/schools' },
   // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由
   campuses: {
     a6: 'settings.html#campuses',
