@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { MessageService } from 'primeng/api';
+import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -607,6 +607,24 @@ describe('ApplicationsPage：版面（#1874）', () => {
   it('沒有沒排的試聽：色面只有第一句', async () => {
     const { el } = await setup([req()]);
     expect(title(el)).toBe('2筆申請等你處理。');
+  });
+
+  it('待處理沒有申請：色面寫「沒有待處理的申請。」', async () => {
+    const { fixture, el, service } = await setup([]);
+    service.list.mockReturnValue(of({ data: [] }));
+    page(fixture).load();
+    fixture.detectChanges();
+    expect(title(el)).toBe('沒有待處理的申請。');
+  });
+
+  it('「查看學生檔案」導到那個學生的檔案頁（帶學生 id）', async () => {
+    const { fixture } = await setup([trial()]);
+    const p = page(fixture);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    p.menuFor.set(p.items().find((i: any) => i.source === 'parent'));
+    const profile = (p.rowMenuItems() as MenuItem[]).find((i) => i.label === '查看學生檔案')!;
+    profile.command!({});
+    expect(navigate).toHaveBeenCalledWith(['/admin/students', 'stu-1']);
   });
 
   it('搜尋：學生、家長姓名或電話數字（不打 API）；沒有符合的寫一句提示', async () => {
