@@ -47,6 +47,9 @@ const trial = (n: number, extra: Record<string, unknown> = {}) => ({
   status: 'pending',
   preferred_times: '平日晚上',
   note: null,
+  scheduled_date: null,
+  scheduled_start_time: null,
+  scheduled_end_time: null,
   requested_by: 'user-parent-1',
   created_at: `2026-10-0${n % 9}T00:00:00Z`,
   students: { name: '林小華' },
@@ -64,7 +67,16 @@ function seed(extraEnrollments: Record<string, unknown>[] = []) {
       enrollment(5, { org_id: ORG_B }),
       ...extraEnrollments,
     ],
-    trial_requests: [trial(6), trial(7, { status: 'scheduled' })],
+    trial_requests: [
+      trial(6),
+      trial(7, {
+        status: 'scheduled',
+        // DB 的 time 是 HH:MM:SS（#1747：回應要切成 HH:MM）
+        scheduled_date: '2026-11-04',
+        scheduled_start_time: '19:00:00',
+        scheduled_end_time: null,
+      }),
+    ],
     parents: [
       { id: 'p1', org_id: ORG, user_id: 'user-parent-1', name: '林媽媽' },
       // 同一個帳號在別的 org 也是家長 —— 名字要拿本 org 的
@@ -125,6 +137,9 @@ describe('GET /api/parent-requests', () => {
       classId: 'cls-1',
       billingMode: 'monthly',
       defaultFeeTemplateId: 'tpl-1',
+      scheduledDate: null,
+      scheduledStartTime: null,
+      scheduledEndTime: null,
     });
     expect(body.data.find((a: { id: string }) => a.id === id(6))).toMatchObject({
       kind: 'trial',
@@ -140,6 +155,21 @@ describe('GET /api/parent-requests', () => {
     ['done', []],
   ])('?group=%s', async (group, expected) => {
     expect(await ids(await call(seed(), `/?group=${group}`))).toEqual(expected);
+  });
+
+  it('試聽帶排定日期與時間（HH:MM）；報名三欄都是 null（#1747）', async () => {
+    const db = seed();
+    const res = await call(db, '/?group=active');
+    const body = (await res.json()) as any;
+    expect(body.data.find((a: { id: string }) => a.id === id(7))).toMatchObject({
+      scheduledDate: '2026-11-04',
+      scheduledStartTime: '19:00',
+      scheduledEndTime: null,
+    });
+    expect(body.data.find((a: { id: string }) => a.id === id(3))).toMatchObject({
+      scheduledDate: null,
+      scheduledStartTime: null,
+    });
   });
 
   it('?kind=trial 只列試聽', async () => {
@@ -265,7 +295,8 @@ describe('PATCH /api/parent-requests/:kind/:id', () => {
   it('試聽：排定、完成、取消都可以，誤標也改得回來；記稽核', async () => {
     const db = seed();
     for (const status of ['scheduled', 'completed', 'pending', 'cancelled']) {
-      expect((await patch(db, `/trial/${id(6)}`, { status })).status).toBe(200);
+      const body = status === 'scheduled' ? { status, scheduledDate: '2026-11-04' } : { status };
+      expect((await patch(db, `/trial/${id(6)}`, body)).status).toBe(200);
       expect(row(db, 'trial_requests', 6)['status']).toBe(status);
     }
     expect(db.rows('audit_logs').every((a) => a['resource_type'] === 'trial_request')).toBe(true);
@@ -282,17 +313,132 @@ describe('PATCH /api/parent-requests/:kind/:id', () => {
     const cases: [string, readonly string[] | null][] = [
       [`/enrollment/${id(1)}`, [CAMPUS_B]],
       [`/trial/${id(6)}`, [CAMPUS_A]],
+      // 排定也走同一個範圍檢查（#1747）：範圍外寫不進日期
+      [`/trial/${id(6)}#schedule`, [CAMPUS_A]],
       [`/enrollment/${id(5)}`, null],
       [`/enrollment/${id(99)}`, null],
     ];
     for (const [path, scope] of cases) {
-      const body = path.startsWith('/trial')
-        ? { status: 'cancelled' }
-        : { status: 'rejected', rejectReason: 'x' };
-      const res = await patch(db, path, body, scope);
+      const body = path.endsWith('#schedule')
+        ? { status: 'scheduled', scheduledDate: '2026-11-04', scheduledStartTime: '19:00' }
+        : path.startsWith('/trial')
+          ? { status: 'cancelled' }
+          : { status: 'rejected', rejectReason: 'x' };
+      const res = await patch(db, path.replace('#schedule', ''), body, scope);
       expect(res.status).toBe(404);
       expect(((await res.json()) as any).code).toBe('NOT_FOUND');
     }
     expect(db.rows('audit_logs')).toHaveLength(0);
+    expect(row(db, 'trial_requests', 6)).toMatchObject({ status: 'pending' });
+    expect(row(db, 'trial_requests', 6)['scheduled_date'] ?? null).toBeNull();
+  });
+
+  // ── #1747 試聽排定日期與時間 ──────────────────────────────────────────────
+  // 計畫席 10-22 裁定：轉已排定日期必填、時間選填；轉回待處理清空；完成／取消保留
+  describe('試聽排定日期（#1747）', () => {
+    const schedule = {
+      scheduledDate: '2026-11-04',
+      scheduledStartTime: '19:00',
+      scheduledEndTime: '20:30',
+    };
+
+    it('排定寫入日期與時間，回應帶 HH:MM，稽核帶前後值', async () => {
+      const db = seed();
+      const res = await patch(db, `/trial/${id(6)}`, { status: 'scheduled', ...schedule });
+      expect(res.status).toBe(200);
+      expect(row(db, 'trial_requests', 6)).toMatchObject({
+        status: 'scheduled',
+        scheduled_date: '2026-11-04',
+        scheduled_start_time: '19:00',
+        scheduled_end_time: '20:30',
+      });
+      expect(((await res.json()) as any).data).toMatchObject({ status: 'scheduled', ...schedule });
+      const details = JSON.stringify(db.rows('audit_logs')[0]!['details']);
+      expect(details).toContain('2026-11-04');
+      expect(details).toContain('20:30');
+    });
+
+    it('轉已排定沒給日期：400，沒改（不能只靠前端擋）', async () => {
+      const db = seed();
+      for (const body of [
+        { status: 'scheduled' },
+        { status: 'scheduled', scheduledStartTime: '19:00' },
+      ]) {
+        const res = await patch(db, `/trial/${id(6)}`, body);
+        expect(res.status).toBe(400);
+        expect(((await res.json()) as any).code).toBe('INVALID_SCHEDULE');
+      }
+      expect(row(db, 'trial_requests', 6)['status']).toBe('pending');
+      expect(db.rows('audit_logs')).toHaveLength(0);
+    });
+
+    it('時間不合法：有結束沒開始、結束不晚於開始、格式錯 → 400，沒改', async () => {
+      const db = seed();
+      const bad = [
+        { scheduledDate: '2026-11-04', scheduledEndTime: '20:30' },
+        { scheduledDate: '2026-11-04', scheduledStartTime: '19:00', scheduledEndTime: '19:00' },
+        { scheduledDate: '2026-11-04', scheduledStartTime: '19:00', scheduledEndTime: '18:00' },
+        { scheduledDate: '2026-11-04', scheduledStartTime: '25:00' },
+        { scheduledDate: '11/04' },
+      ];
+      for (const body of bad) {
+        expect((await patch(db, `/trial/${id(6)}`, { status: 'scheduled', ...body })).status).toBe(
+          400,
+        );
+      }
+      expect(row(db, 'trial_requests', 6)['status']).toBe('pending');
+    });
+
+    it('非排定狀態帶日期：400（日期只在排定時填）', async () => {
+      const db = seed();
+      const res = await patch(db, `/trial/${id(6)}`, { status: 'completed', ...schedule });
+      expect(res.status).toBe(400);
+      expect(row(db, 'trial_requests', 6)['status']).toBe('pending');
+    });
+
+    it('改期：已排定再送一次，整組換掉（沒給的時間清掉）', async () => {
+      const db = seed();
+      await patch(db, `/trial/${id(6)}`, { status: 'scheduled', ...schedule });
+      const res = await patch(db, `/trial/${id(6)}`, {
+        status: 'scheduled',
+        scheduledDate: '2026-11-11',
+      });
+      expect(res.status).toBe(200);
+      expect(row(db, 'trial_requests', 6)).toMatchObject({
+        scheduled_date: '2026-11-11',
+        scheduled_start_time: null,
+        scheduled_end_time: null,
+      });
+    });
+
+    it.each(['completed', 'cancelled'])('轉 %s 保留日期與時間', async (status) => {
+      const db = seed();
+      await patch(db, `/trial/${id(6)}`, { status: 'scheduled', ...schedule });
+      expect((await patch(db, `/trial/${id(6)}`, { status })).status).toBe(200);
+      expect(row(db, 'trial_requests', 6)).toMatchObject({
+        status,
+        scheduled_date: '2026-11-04',
+        scheduled_start_time: '19:00',
+        scheduled_end_time: '20:30',
+      });
+    });
+
+    it('轉回待處理：三欄清空', async () => {
+      const db = seed();
+      await patch(db, `/trial/${id(6)}`, { status: 'scheduled', ...schedule });
+      const res = await patch(db, `/trial/${id(6)}`, { status: 'pending' });
+      expect(res.status).toBe(200);
+      expect(row(db, 'trial_requests', 6)).toMatchObject({
+        status: 'pending',
+        scheduled_date: null,
+        scheduled_start_time: null,
+        scheduled_end_time: null,
+      });
+      expect(((await res.json()) as any).data).toMatchObject({
+        scheduledDate: null,
+        scheduledStartTime: null,
+        scheduledEndTime: null,
+      });
+    });
   });
 });
