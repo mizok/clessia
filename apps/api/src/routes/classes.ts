@@ -536,19 +536,25 @@ const app = new OpenAPIHono<AppEnv>();
  * - 不受限（scope null）直接放行，不多查一次
  * - 範圍外 → 403（同 #1783 `campusForClassrooms`）；別 org 或不存在 → 交給路由自己回 404
  * - 路徑段不是 UUID（`/batch`、`/check-conflicts`）不是班級 id，放行 —— 那幾支在路由裡自己比
+ *
+ * **讀取面（#1800）**：`GET /{id}`、`GET /{id}/sessions/preview` 原本只守 org。同一支中介層也擋
+ * GET，但範圍外回 **404**、body 跟路由的「班級不存在」一字不差 —— 讀取不洩漏「別校有這個班」；
+ * 寫入回 403 是因為行政已經拿著 id 要動它，告訴他「沒權限」比「不存在」好排查。
  */
 const CLASS_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const classWriteGuard = createMiddleware<AppEnv>(async (c, next) => {
+const classScopeGuard = createMiddleware<AppEnv>(async (c, next) => {
   const scope = getCampusScope(c);
   const id = c.req.param('id');
-  if (c.req.method === 'GET' || scope === null || !id || !CLASS_ID.test(id)) return next();
+  if (scope === null || !id || !CLASS_ID.test(id)) return next();
   if ((await classWriteScope(c.get('supabase'), c.get('orgId'), scope, id)) === 'out-of-scope') {
-    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    return c.req.method === 'GET'
+      ? c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404)
+      : c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
   return next();
 });
 // `/:id/*` 也吃得到 `/:id` 本身（改班、刪班）—— 兩條都掛是多餘的，campus-scope-classes.spec 守著
-app.use('/:id/*', classWriteGuard);
+app.use('/:id/*', classScopeGuard);
 
 // GET /api/classes
 app.openapi(

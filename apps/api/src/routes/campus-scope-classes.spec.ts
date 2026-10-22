@@ -219,6 +219,55 @@ describe.each(PATH_WRITES)('%s', (_name, method, path, body) => {
   });
 });
 
+/**
+ * **讀取面（#1800）**：範圍外回 404，body 跟路由自己的「班級不存在」一樣 —— 不洩漏別校有這個班。
+ * （寫入回 403，見上）
+ */
+const PATH_READS = [
+  ['GET /:id', (c: string) => `/${c}`],
+  [
+    'GET /:id/sessions/preview',
+    (c: string) => `/${c}/sessions/preview?from=${RANGE.from}&to=${RANGE.to}`,
+  ],
+] as const;
+
+describe.each(PATH_READS)('%s', (_name, path) => {
+  async function get(cls: string, scope: readonly string[] | null = [CAMPUS_1]) {
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', seed().client);
+      set('orgId', ORG);
+      set('userId', 'admin-1');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', scope);
+      await next();
+    });
+    app.route('/', classesRoute as unknown as Hono);
+    const res = await app.request(path(cls));
+    return { status: res.status, body: res.status === 404 ? await res.json() : null };
+  }
+
+  it('只管分校 1 的管理員讀分校 2 的班 → 404，body 跟「不存在」一樣', async () => {
+    const theirs = await get(THEIRS);
+    const missing = await get(id(999), null);
+
+    expect(theirs.status).toBe(404);
+    expect(theirs.body).toEqual({ error: '班級不存在', code: 'NOT_FOUND' });
+    expect(missing).toEqual(theirs);
+  });
+
+  // 替身跑不完 preview 的產生邏輯（會 500）—— 這裡只關心中介層有沒有攔，所以斷言「不是 404」
+  it('自己分校的班：不是 404（防過度擋）', async () => {
+    expect((await get(MINE)).status).not.toBe(404);
+  });
+
+  it('不受限的管理員讀分校 2 的班：不是 404', async () => {
+    expect((await get(THEIRS, null)).status).not.toBe(404);
+  });
+});
+
 describe('路徑段不是班級 id 的寫入（/batch-set-active、/check-conflicts）', () => {
   // `/:id/*` 也吃得到這幾支；中介層要認得出它們不是班級 id，不然受限的管理員打過來，
   // 拿 'batch-set-active' 去查 uuid 欄位 → 真 DB 22P02 → 500
