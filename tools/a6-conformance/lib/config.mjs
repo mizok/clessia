@@ -759,6 +759,30 @@ export const PAGES = {
     a6: 'p-dashboard.html',
     app: '/parent/dashboard',
     state: path.join(cache, 'state-parent.json'),
+    deviations: [
+      // 稿每一節標題後的「新」是設計說明（產品原本沒有這一節），不是畫面內容
+      {
+        status: '缺',
+        a6: 'heading:h2\\[[^\\]]*新\\]>text:span\\[新\\]$',
+        reason: '稿的「新」標記是設計說明，不是畫面內容',
+        source: '.design-explorations p-dashboard.html notes「整頁」列',
+      },
+      {
+        status: '文案',
+        a6: '(heading:h2|landmark:region)\\[[^\\]]*新\\]$',
+        detail: '^「[^」]*新」→',
+        reason: '稿的「新」標記是設計說明，不是畫面內容',
+        source: '.design-explorations p-dashboard.html notes「整頁」列',
+      },
+      // 續課預告條（.pd-renew）：沒有自動開單日，算不出 T-5～T-0 的出現窗口
+      ...['缺', '文案', '位置', '樣式', '尺寸'].map((status) => ({
+        status,
+        a6: 'control:link\\[申請異動\\]$|text:span\\[[^\\]]*續課預告',
+        reason:
+          '續課預告條這次不做：沒有自動開單日，算不出出現窗口（計畫席 10-22 裁定，使用者已裁定自動續課先不做）',
+        source: 'kb/wiki/flows/renewal.md:21-31（T 的定義）',
+      })),
+    ],
   },
   'p-notifications': {
     a6: 'p-notifications.html',

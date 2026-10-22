@@ -56,6 +56,11 @@ const StaffSchema = z
     nickname: z.string().nullable(),
     phone: z.string().nullable(),
     email: z.email(),
+    /**
+     * 登入過沒有（列表的「還沒登入過」小標，#1100 #38）。來源 `ba_user."emailVerified"`，
+     * 在這個系統的意思是「成功登入過」—— 語意與取捨同家長列表的 `hasLoggedIn`（`parents.ts`）。只讀 `ba_*`（c2）
+     */
+    hasLoggedIn: z.boolean(),
     birthday: z.string().nullable(),
     notes: z.string().nullable(),
     subjectIds: z.array(DbUuidSchema),
@@ -293,17 +298,25 @@ function toSubjectMap(rows: StaffSubjectRow[]): Map<string, SubjectInfo> {
   return subjectMap;
 }
 
+/** `ba_user` 帶進人員回應的欄位。`hasLoggedIn` 的來源與語意同家長列表（`parents.ts` ParentListItemSchema） */
+interface BaUserInfo {
+  email: string | null;
+  phone: string | null;
+  hasLoggedIn: boolean;
+}
+
 function mapStaff(
   row: Record<string, unknown>,
   campusMap: Map<string, string[]>,
   subjectMap: Map<string, SubjectInfo>,
   roleInfoMap: Map<string, RoleInfo>,
-  baUserMap: Map<string, { email: string | null; phone: string | null }>,
+  baUserMap: Map<string, BaUserInfo>,
 ) {
   const userId = row['user_id'] as string;
   const staffId = row['id'] as string;
   const roleInfo = roleInfoMap.get(userId) ?? { roles: [] as StaffRole[], permissions: [] };
-  const baUser = baUserMap.get(userId) ?? { email: null, phone: null };
+  // 查不到 ba_user 一律當登入過＝不顯示小標，寧可漏報不誤報（同家長列表）
+  const baUser = baUserMap.get(userId) ?? { email: null, phone: null, hasLoggedIn: true };
 
   return {
     id: staffId,
@@ -313,6 +326,7 @@ function mapStaff(
     nickname: (row['nickname'] as string | null | undefined) ?? null,
     phone: baUser.phone,
     email: baUser.email ?? '',
+    hasLoggedIn: baUser.hasLoggedIn,
     birthday: row['birthday'] as string | null,
     notes: row['notes'] as string | null,
     subjectIds: subjectMap.get(staffId)?.ids ?? [],
@@ -528,7 +542,7 @@ async function loadStaffRelations(
   campusMap: Map<string, string[]>;
   subjectMap: Map<string, SubjectInfo>;
   roleInfoMap: Map<string, RoleInfo>;
-  baUserMap: Map<string, { email: string | null; phone: string | null }>;
+  baUserMap: Map<string, BaUserInfo>;
 }> {
   const staffIds = staffRows.map((row) => row['id'] as string);
   const userIds = staffRows.map((row) => row['user_id'] as string);
@@ -538,7 +552,7 @@ async function loadStaffRelations(
       campusMap: new Map<string, string[]>(),
       subjectMap: new Map<string, SubjectInfo>(),
       roleInfoMap: new Map<string, RoleInfo>(),
-      baUserMap: new Map<string, { email: string | null; phone: string | null }>(),
+      baUserMap: new Map<string, BaUserInfo>(),
     };
   }
 
@@ -553,18 +567,19 @@ async function loadStaffRelations(
         .select('staff_id, subject_id, subjects(name)')
         .in('staff_id', staffIds),
       supabase.from('user_roles').select('user_id, role, permissions').in('user_id', userIds),
-      supabase.from('ba_user').select('id, email, phone').in('id', userIds),
+      supabase.from('ba_user').select('id, email, phone, emailVerified').in('id', userIds),
     ]);
 
   const filteredRoleRows = (roleRows || []).filter(
     (row) => row.role === 'admin' || row.role === 'teacher' || row.role === 'kiosk',
   ) as UserRoleRow[];
 
-  const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
+  const baUserMap = new Map<string, BaUserInfo>();
   for (const baUserRow of baUserRows ?? []) {
     baUserMap.set(baUserRow.id as string, {
       email: (baUserRow.email as string | null) ?? null,
       phone: (baUserRow.phone as string | null) ?? null,
+      hasLoggedIn: baUserRow.emailVerified === true,
     });
   }
 

@@ -19,6 +19,7 @@ import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchM
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
 import { PopoverModule } from 'primeng/popover';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -67,6 +68,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     SkeletonComponent,
     ReloadVeilComponent,
     PopoverModule,
+    FitPopoverDirective,
     ChapterHeadComponent,
     PaginatorModule,
     FilterToggleComponent,

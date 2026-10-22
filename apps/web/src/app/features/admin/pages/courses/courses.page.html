@@ -82,15 +82,18 @@
           <span class="sr-only">操作紀錄</span>
         </button>
         <app-popup-menu #pageMenu [model]="pageMenuItems()" />
-        <button
-          type="button"
-          title="更多動作"
-          class="hidden h-11 w-11 cursor-pointer items-center justify-center wide:inline-flex rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-          aria-label="更多動作"
-          (click)="pageMenu.toggle($event)"
-        >
-          <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i>
-        </button>
+        <!-- 選單只裝批次選取；沒有班可勾時整顆不出現（#1872） -->
+        @if (pageMenuItems().length > 0) {
+          <button
+            type="button"
+            title="更多動作"
+            class="hidden h-11 w-11 cursor-pointer items-center justify-center wide:inline-flex rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+            aria-label="更多動作"
+            (click)="pageMenu.toggle($event)"
+          >
+            <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i>
+          </button>
+        }
       </app-page-actions>
     </div>
   </div>
@@ -175,6 +178,7 @@
           >
             結束批次選取
           </button>
+          <p class="m-0 basis-full text-sm text-zinc-500">勾選開課班，可以一次啟用、停用或刪除。</p>
         </div>
       }
 
@@ -421,6 +425,7 @@
 <!-- 篩選面板：桌機手機都是貼在「篩選」鈕下的 Popover（A6） -->
 <p-popover
   #filterPopover
+  appFitPopover
   styleClass="filter-popover"
   (onShow)="filtersOpen.set(true)"
   (onHide)="filtersOpen.set(false)"

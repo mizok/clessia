@@ -33,6 +33,21 @@ describe('SelectFieldComponent', () => {
     expect(label?.textContent.trim()).toBe('月份');
   });
 
+  // #1877：篩選列／區塊標題列的下拉不畫上方標籤，但讀屏名稱還在、框維持一般尺寸（不是 compact 的 30px）
+  it('hideLabel：標籤只給讀屏（sr-only），讀屏名稱不變、框仍是 h-11', async () => {
+    const { fixture, select } = await setup(opts(3));
+    const label = () =>
+      fixture.nativeElement.querySelector(`#${select.ariaLabelledBy}`) as HTMLElement;
+    expect(label().classList).not.toContain('sr-only');
+    fixture.componentRef.setInput('hideLabel', true);
+    fixture.detectChanges();
+    expect(label().classList).toContain('sr-only');
+    expect(label().textContent?.trim()).toBe('月份');
+    const pt = JSON.stringify((fixture.componentInstance as unknown as { pt: () => unknown }).pt());
+    expect(pt).toContain('h-11');
+    expect(pt).not.toContain('wide:h-[30px]');
+  });
+
   it('選了之後 value 回寫，外面拿得到', async () => {
     const { fixture, select } = await setup(opts(3), 'v0');
     const changes: (string | null)[] = [];

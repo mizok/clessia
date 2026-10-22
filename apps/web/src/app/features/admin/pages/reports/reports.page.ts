@@ -9,6 +9,7 @@ import { skip } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
+import { MessageService } from 'primeng/api';
 
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import {
@@ -86,6 +87,8 @@ export class ReportsPage implements OnInit {
   protected readonly groups = signal<RevenueGroup[]>([]);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly exporting = signal(false);
+  private readonly messageService = inject(MessageService);
 
   protected readonly groupBy = signal<RevenueGroupBy>('campus');
   /** 分校跟頂欄走（#1138）：頁內分校下拉拿掉 */
@@ -221,6 +224,43 @@ export class ReportsPage implements OnInit {
   protected clearFilters(): void {
     this.courseId.set(null);
     this.load();
+  }
+
+  /** 匯出明細 CSV（spec「依篩選條件匯出」）：期間、頂欄分校、課程照目前的篩選 */
+  protected exportCsv(): void {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    const { from, to } = this.periodOptions.find((o) => o.value === this.period())!;
+    this.service
+      .revenueCsv({
+        dateFrom: from,
+        dateTo: to,
+        campusId: this.campusId() ?? undefined,
+        courseId: this.courseId() ?? undefined,
+      })
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `營收明細_${from}_${to}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+          this.exporting.set(false);
+        },
+        error: async (err: { error?: unknown }) => {
+          // 413（筆數超過上限）的本體是 JSON blob，帶「請縮小日期範圍」
+          let detail = '請稍後再試';
+          try {
+            if (err.error instanceof Blob)
+              detail = (JSON.parse(await err.error.text()) as { error?: string }).error ?? detail;
+          } catch {
+            // 不是 JSON：用預設訊息
+          }
+          this.messageService.add({ severity: 'error', summary: '匯出失敗', detail });
+          this.exporting.set(false);
+        },
+      });
   }
 
   protected labelOf(group: RevenueGroup): string {

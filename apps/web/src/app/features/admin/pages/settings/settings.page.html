@@ -18,55 +18,87 @@
     -->
     <app-load-failed description="沒有讀到系統設定，可能是連線問題" (retry)="loadSettings()" />
   } @else {
-    <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
-      <h3 class="m-0 mb-2 text-base font-semibold text-zinc-800">出勤紀錄模式</h3>
-      <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-        <strong>隨堂點名</strong>：老師在每堂課結束後逐一標記學生出席狀態。<br />
-        <strong>日到班</strong>：學生抵達分校打卡後，系統自動勾選當天所有課堂為出席。
-      </p>
-      <div class="flex flex-col items-stretch gap-4 md:flex-row md:items-center">
-        <p-selectbutton
-          [options]="attendanceModeOptions"
-          [(ngModel)]="attendanceModeValue"
-          optionLabel="label"
-          optionValue="value"
-        />
-        <span class="h-px w-full bg-zinc-200 md:h-6 md:w-px" aria-hidden="true"></span>
-        <p-button
-          label="儲存"
-          icon="pi pi-check"
-          [loading]="saving()"
-          (onClick)="saveAttendanceMode()"
-        />
+    <!-- #1882：出勤兩段也收成可收合的列（同下面各段），收起時摘要寫目前存著的值 -->
+    <details
+      class="settings-page__coll group max-w-[760px] border-0 border-b border-solid border-zinc-200"
+    >
+      <summary
+        class="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
+      >
+        <span id="settings-mode-title" class="text-lg font-bold text-zinc-900">出勤紀錄模式</span>
+        <span class="flex items-center gap-2 text-md text-zinc-600"
+          >{{ attendanceModeSummary() }}
+          <i
+            class="pi pi-chevron-down text-xs transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          ></i
+        ></span>
+      </summary>
+      <div class="pb-6">
+        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
+          <strong>隨堂點名</strong>：老師在每堂課結束後逐一標記學生出席狀態。<br />
+          <strong>日到班</strong>：學生抵達分校打卡後，系統自動勾選當天所有課堂為出席。
+        </p>
+        <div class="flex flex-col items-stretch gap-4 md:flex-row md:items-center">
+          <p-selectbutton
+            [options]="attendanceModeOptions"
+            [(ngModel)]="attendanceModeValue"
+            optionLabel="label"
+            optionValue="value"
+            ariaLabelledBy="settings-mode-title"
+          />
+          <span class="h-px w-full bg-zinc-200 md:h-6 md:w-px" aria-hidden="true"></span>
+          <p-button
+            label="儲存"
+            icon="pi pi-check"
+            [loading]="saving()"
+            (onClick)="saveAttendanceMode()"
+          />
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div class="max-w-[640px] rounded-md border border-surface-border bg-surface-card p-4 md:p-6">
-      <h3 id="settings-responsible-title" class="m-0 mb-2 text-base font-semibold text-zinc-800">
-        誰負責點名
-      </h3>
-      <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
-        <strong>行政負責</strong
-        >：由行政人員點名。老師端只看得到自己課堂的名單與到／假／缺，不能點名或修改。<br />
-        <strong>老師負責</strong>：老師端出現點名、教務日誌、聯絡簿，可在補登期限內修改。
-      </p>
-      <div class="flex flex-col items-stretch gap-4 md:flex-row md:items-center">
-        <p-selectbutton
-          [options]="attendanceResponsibleOptions"
-          [(ngModel)]="attendanceResponsibleValue"
-          optionLabel="label"
-          optionValue="value"
-          ariaLabelledBy="settings-responsible-title"
-        />
-        <span class="h-px w-full bg-zinc-200 md:h-6 md:w-px" aria-hidden="true"></span>
-        <p-button
-          label="儲存"
-          icon="pi pi-check"
-          [loading]="savingResponsible()"
-          (onClick)="saveAttendanceResponsible()"
-        />
+    <details
+      class="settings-page__coll group max-w-[760px] border-0 border-b border-solid border-zinc-200"
+    >
+      <summary
+        class="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4 [&::-webkit-details-marker]:hidden"
+      >
+        <span id="settings-responsible-title" class="text-lg font-bold text-zinc-900"
+          >誰負責點名</span
+        >
+        <span class="flex items-center gap-2 text-md text-zinc-600"
+          >{{ attendanceResponsibleSummary() }}
+          <i
+            class="pi pi-chevron-down text-xs transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          ></i
+        ></span>
+      </summary>
+      <div class="pb-6">
+        <p class="m-0 mb-4 text-sm leading-relaxed text-zinc-500">
+          <strong>行政負責</strong
+          >：由行政人員點名。老師端只看得到自己課堂的名單與到／假／缺，不能點名或修改。<br />
+          <strong>老師負責</strong>：老師端出現點名、教務日誌、聯絡簿，可在補登期限內修改。
+        </p>
+        <div class="flex flex-col items-stretch gap-4 md:flex-row md:items-center">
+          <p-selectbutton
+            [options]="attendanceResponsibleOptions"
+            [(ngModel)]="attendanceResponsibleValue"
+            optionLabel="label"
+            optionValue="value"
+            ariaLabelledBy="settings-responsible-title"
+          />
+          <span class="h-px w-full bg-zinc-200 md:h-6 md:w-px" aria-hidden="true"></span>
+          <p-button
+            label="儲存"
+            icon="pi pi-check"
+            [loading]="savingResponsible()"
+            (onClick)="saveAttendanceResponsible()"
+          />
+        </div>
       </div>
-    </div>
+    </details>
 
     <!--
       #1314 SE2a（A6 general 的 .colls）：財務設定收成可收合的「繳費」段，收起來時摘要寫生效值。

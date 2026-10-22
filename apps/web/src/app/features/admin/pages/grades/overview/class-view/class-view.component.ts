@@ -19,6 +19,7 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { DialogService } from 'primeng/dynamicdialog';
 import { PopoverModule } from 'primeng/popover';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
@@ -68,6 +69,7 @@ interface CourseGroup {
     IconFieldModule,
     InputIconModule,
     PopoverModule,
+    FitPopoverDirective,
     EmptyStateComponent,
     PageOpenComponent,
     RouterLink,

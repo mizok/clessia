@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
@@ -229,6 +231,73 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
    * **產生那個尺寸的 class**。基底（手機）≥44px（A27，`constitution-enforcement.md:101`），
    * 桌機照稿縮（`wide:` 覆寫）——兩個 class 都要在，拿掉任一個都紅。
    */
+  // #1866（使用者 10-22）：手機頂欄不換行。jsdom 沒有版面，釘的是產生「一列放得下」的 class
+  describe('手機頂欄一列（#1866）', () => {
+    it('工具組在手機的假想寬度是 0（flex: 1 1 0＋min-w-0），所以永遠跟 Logo 排在同一列', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const tools = el.querySelector('header .page-wrap > div.ml-auto')!;
+      expect(tools.classList).toContain('max-wide:flex-[1_1_0]');
+      expect(tools.classList).toContain('max-wide:min-w-0');
+    });
+
+    it('Logo 與搜尋鈕不被擠壓（shrink-0）：分校名再長，搜尋鈕也維持 44px（A27）', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      expect(el.querySelector('header .page-wrap > a')!.classList).toContain('shrink-0');
+      expect(el.querySelector('app-global-search')!.classList).toContain('shrink-0');
+    });
+
+    // 放不下的寬度由分校名吸收：外層 min-w-0 讓 flex 子項縮得下去，內層 truncate 畫省略號
+    const campusCtx = (n: number) => ({
+      inUse: signal(true),
+      allowAll: signal(true),
+      campuses: signal(Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `分校${i}` }))),
+      id: signal<string | null>(null),
+      name: signal<string | null>(null),
+      select: vi.fn(),
+      use: vi.fn(),
+    });
+
+    it('只有一間分校：名字外層 min-w-0、內層 truncate，長名截斷而不撐破頂欄', async () => {
+      TestBed.overrideProvider(CampusContextService, { useValue: campusCtx(1) });
+      const { el } = await setup(['admin'], 'admin');
+      const tools = el.querySelector('header .page-wrap > div.ml-auto')!;
+      const outer = Array.from(tools.children).find((c) => c.textContent?.trim() === '分校0')!;
+      expect(outer.classList).toContain('min-w-0');
+      expect(outer.querySelector(':scope > span')!.classList).toContain('truncate');
+    });
+
+    it('多間分校：分校鈕 min-w-0、名字 truncate', async () => {
+      TestBed.overrideProvider(CampusContextService, { useValue: campusCtx(2) });
+      const { el } = await setup(['admin'], 'admin');
+      const btn = el.querySelector('[popovertarget="shell-campus"]')!;
+      expect(btn.classList).toContain('min-w-0');
+      expect(btn.querySelector(':scope > span')!.classList).toContain('truncate');
+    });
+
+    it('未讀徽章從鈴鐺中線偏右往右長，不貼右邊往左長（「99+」不蓋住鈴鐺）', async () => {
+      // 角標要有未讀才畫出來；錨點是模板寫死的 class，直接讀模板原文（同 route-lateral-fade.spec 讀 styles.css）
+      const tpl = readFileSync(
+        resolve(
+          process.cwd(),
+          'apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.html',
+        ),
+        'utf8',
+      );
+      const badge = /data-part="bell-badge"[\s\S]*?class="([^"]+)"/.exec(tpl)![1]!;
+      expect(badge).toContain('left-[calc(50%+3px)]');
+      expect(badge).not.toMatch(/\bright-/);
+    });
+
+    it('帳戶鈕只留頭像（手機桌機一致，使用者 10-22）：沒有名字、身分字樣與箭頭，aria-label 寫出名字與身分', async () => {
+      const { el } = await setup(['admin'], 'admin');
+      const acc = el.querySelector('[popovertarget="shell-account"]')!;
+      expect(acc.children).toHaveLength(1);
+      expect(acc.children[0]!.classList).toContain('rounded-full');
+      expect(acc.querySelector('.pi-chevron-down')).toBeNull();
+      expect(acc.getAttribute('aria-label')).toMatch(/帳戶：.+，目前身分 管理員/);
+    });
+  });
+
   describe('A6 幾何（#1314 殼層）', () => {
     const cls = (e: Element | null) => (e as HTMLElement).className.split(/\s+/);
     const has = (e: Element | null, ...names: string[]) => {

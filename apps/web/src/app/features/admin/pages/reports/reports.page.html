@@ -70,6 +70,17 @@
       (ngModelChange)="onGroupByChange($event)"
       ariaLabel="分組方式"
     />
+    <!-- 明細 CSV（一列一筆收款）：照目前的期間、分校、課程 -->
+    <p-button
+      styleClass="w-full wide:w-auto"
+      class="col-span-2 wide:col-auto"
+      label="匯出 CSV"
+      icon="pi pi-download"
+      severity="secondary"
+      [outlined]="true"
+      [loading]="exporting()"
+      (onClick)="exportCsv()"
+    />
   </div>
 </div>
 
@@ -194,8 +205,10 @@
       實收與退款是**現金的進出**，看的是收款日 —— 跟上面開帳的區間是不同的集合，
       所以不進那條流向。退款單獨列、不從實收扣除。**兩個數字不能相除當收款率**（母體不同）。
     -->
+      <!-- 區塊間距寫在區塊自己身上：外層的 gap-4 隔著 app-reload-veil 傳不進來（veil 內層是一個 block），
+           三塊原本彼此貼住（#1881）。數值照 A6 reports：說明框 margin-top space-6、分組統計 space-12 -->
       <p
-        class="m-0 flex items-start gap-3 rounded-lg bg-zinc-100 p-4 text-md leading-relaxed text-zinc-700"
+        class="m-0 mt-6 flex items-start gap-3 rounded-lg bg-zinc-100 p-4 text-md leading-relaxed text-zinc-700"
         data-testid="cash-note"
       >
         <i class="pi pi-info-circle mt-1 shrink-0 text-zinc-600" aria-hidden="true"></i>
@@ -209,7 +222,7 @@
           >（退款單獨列，沒有從實收扣掉）。實收看收款日，跟上面看開帳日的是不同的一群帳單，兩個數字不能相除當收款率。
         </span>
       </p>
-      <section class="flex flex-col gap-4">
+      <section class="mt-12 flex flex-col gap-4" data-testid="group-stats">
         <h2
           class="m-0 border-0 border-b border-solid border-zinc-900 pb-3 text-2xl font-bold tracking-[-0.02em] text-zinc-900"
         >

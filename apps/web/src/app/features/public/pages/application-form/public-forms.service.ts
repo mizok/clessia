@@ -20,6 +20,11 @@ export class PublicFormsService {
     return firstValueFrom(this.http.get<PublicCatalog>(`${this.base}/catalog`));
   }
 
+  /** 部署那間補習班的名稱（#1858）。沒設 PUBLIC_ORG_SLUG 是 404 —— 呼叫端當作「沒有名稱」 */
+  org(): Promise<{ name: string }> {
+    return firstValueFrom(this.http.get<{ name: string }>(`${this.base}/org`));
+  }
+
   captcha(): Promise<CaptchaConfig> {
     return firstValueFrom(this.http.get<CaptchaConfig>(`${this.base}/captcha`));
   }

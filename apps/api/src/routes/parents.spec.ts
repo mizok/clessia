@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // 所以這個 mock 不會改變它們的行為。
 const createdUsers: string[] = [];
 const removedUsers: string[] = [];
+/** #1845：設了就讓 createUser 丟這個訊息（模擬帳號已存在，走 retry 那條路） */
+const authState = { createUserError: null as string | null, noPool: false };
 /**
  * #1843：改孩子走 `auth.pool` 的交易。替身依 SQL 回答 —— 預設「學生都在本 org、都在範圍」，
  * 個別測試改 `pgState`。真正的 SQL 語意在 `contract/parent-children.contract.ts` 對真 Postgres 驗。
@@ -50,6 +52,8 @@ const pgAnswer = (sql: string, params: unknown[] = []) => {
         updated_at: '2026-10-22T00:00:00Z',
       },
     ];
+  // #1845：批次匯入的學生走交易建
+  if (/^\s*INSERT INTO students/.test(sql)) return [{ id: 'new-student' }];
   if (/FROM enrollments e/.test(sql))
     return ids
       .filter((i) => !pgState.inScope || pgState.inScope.includes(i))
@@ -65,9 +69,13 @@ const fakePgPool = {
 };
 vi.mock('../lib/get-auth', () => ({
   getAuth: () => ({
-    pool: fakePgPool,
+    // #1845：noPool＝連線池不在（pg-pool-writes 規則 6）
+    get pool() {
+      return authState.noPool ? undefined : fakePgPool;
+    },
     api: {
       createUser: async ({ body }: { body: { email: string } }) => {
+        if (authState.createUserError) throw new Error(authState.createUserError);
         const id = `ba-new-${createdUsers.length + 1}`;
         createdUsers.push(body.email);
         return { user: { id } };
@@ -872,7 +880,7 @@ describe('改孩子的授權與交易（#1843）', () => {
   const KID = '22222222-2222-4222-8222-222222222222';
   const OTHER_ORG_KID = '33333333-3333-4333-8333-333333333333';
 
-  afterEach(() => {
+  const resetPg = () =>
     Object.assign(pgState, {
       parentFound: true,
       current: [],
@@ -881,7 +889,9 @@ describe('改孩子的授權與交易（#1843）', () => {
       throwOn: null,
       sent: [],
     });
-  });
+  // 前面的 describe（#1845 起批次匯入也走 pg）會在 sent 留下 INSERT —— 進來先清
+  beforeEach(resetPg);
+  afterEach(resetPg);
 
   /** 記下所有 PostgREST 的寫入；`parent_student_relations` 讀回空，家長在範圍內 */
   function fakeSupabase(writes: string[]) {
@@ -1275,5 +1285,170 @@ describe('POST /api/parents —— 把本機構教職員設為家長（#1844）'
     const { res, json } = await post({ linkExistingUserId: TEACHER });
     expect(res.status).toBe(409);
     expect(json['code']).toBe('PARENT_ALREADY_EXISTS');
+  });
+});
+
+/**
+ * #1845：批次匯入的兩個洞。
+ * 1. 建帳號撞到既有帳號後的 retry 路徑會 match 到既有家長，原本只驗 org、沒驗分校範圍 ——
+ *    受限管理員靠它能把孩子掛到範圍外的家長名下（2b 那條有驗）。
+ * 2. 學生與關聯原本兩個 PostgREST 請求、靠 best-effort 刪除回滾；現在一個交易。
+ */
+describe('POST /batch-import —— retry 路徑驗範圍、學生＋關聯一個交易（#1845）', () => {
+  const EXISTING = '66666666-6666-4666-8666-666666666666';
+  let baCalls = 0;
+  /** 送出的 eq 條件（`表.欄=值`）—— 替身不照條件過濾，所以斷言送出去的條件 */
+  let eqs: string[] = [];
+  /** 這位家長底下已經有孩子（走查重複學生那支） */
+  let existingKid = false;
+
+  beforeEach(() => {
+    baCalls = 0;
+    eqs = [];
+    existingKid = false;
+    authState.createUserError = 'User already registered';
+    Object.assign(pgState, { throwOn: null, sent: [] });
+  });
+  afterEach(() => {
+    authState.createUserError = null;
+    authState.noPool = false;
+    Object.assign(pgState, { throwOn: null, sent: [] });
+  });
+
+  /** 第一次查 ba_user 對不到（走 2c 建帳號）→ createUser 撞重複 → 第二次查到既有帳號 */
+  function fakeSupabase(writes: string[]) {
+    return {
+      from(table: string) {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder as never;
+        Object.assign(builder, {
+          select: () => chain(),
+          eq: (col: string, val: unknown) => (eqs.push(`${table}.${col}=${val}`), chain()),
+          in: () => chain(),
+          or: () => chain(),
+          order: () => chain(),
+          range: () => chain(),
+          limit: () => chain(),
+          insert: () => (writes.push(`insert ${table}`), chain()),
+          upsert: () => chain(),
+          delete: () => (writes.push(`delete ${table}`), chain()),
+          maybeSingle: () =>
+            Promise.resolve({
+              data: table === 'parents' ? { id: EXISTING, name: '林小美' } : null,
+              error: null,
+            }),
+          then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+            resolve({
+              data:
+                table === 'ba_user'
+                  ? baCalls++ > 0
+                    ? [{ id: 'ba-existing' }]
+                    : []
+                  : table === 'parent_student_relations' && existingKid
+                    ? [{ student_id: 's-old' }]
+                    : [],
+              error: null,
+            }),
+        });
+        return builder;
+      },
+    };
+  }
+
+  async function importOne(campusScope: readonly string[] | null) {
+    const writes: string[] = [];
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', fakeSupabase(writes));
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('campusScope', campusScope);
+      await next();
+    });
+    app.route('/', parentsRoute as unknown as Hono);
+    const res = await app.request(
+      '/batch-import',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rows: [
+            {
+              parentName: '林小美',
+              parentPhone: '0912345678',
+              studentName: '林小華',
+              studentGrade: 'J1',
+              studentSchool: '大安國中',
+            },
+          ],
+        }),
+      },
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
+    );
+    const body = (await res.json()) as {
+      studentsCreated: number;
+      results: Array<{ status: string; error?: string; parentId?: string }>;
+    };
+    return { body, writes };
+  }
+
+  it('受限管理員：retry 對到範圍外的既有家長 → 該筆 failed，什麼都沒寫', async () => {
+    const { body, writes } = await importOne(['campus-1']);
+    expect(body.results).toEqual([
+      expect.objectContaining({
+        status: 'failed',
+        error: expect.stringContaining('不在你分校範圍內'),
+      }),
+    ]);
+    expect(body.studentsCreated).toBe(0);
+    expect(writes).toEqual([]);
+    expect(pgState.sent.some((s) => /^INSERT/.test(s))).toBe(false);
+  });
+
+  it('不受限：retry 對到既有家長 → 學生與關聯在同一個交易裡建，不經 PostgREST', async () => {
+    const { body, writes } = await importOne(null);
+    expect(body.results).toEqual([
+      expect.objectContaining({ status: 'success', parentId: EXISTING }),
+    ]);
+    expect(body.studentsCreated).toBe(1);
+    expect(pgState.sent).toEqual([
+      'BEGIN',
+      'INSERT INTO students',
+      'INSERT INTO parent_student_relations',
+      'COMMIT',
+    ]);
+    expect(writes.filter((w) => /students|parent_student_relations/.test(w))).toEqual([]);
+  });
+
+  it('查重複學生只查本 org 的學生（#1845 順手修）', async () => {
+    existingKid = true;
+    await importOne(null);
+    expect(eqs).toContain('students.org_id=org-1');
+  });
+
+  it('連線池不在 → 該筆 failed（建立學生失敗），什麼都沒寫', async () => {
+    authState.noPool = true;
+    const { body, writes } = await importOne(null);
+    expect(body.results).toEqual([
+      expect.objectContaining({ status: 'failed', error: '建立學生失敗，請稍後再試' }),
+    ]);
+    expect(body.studentsCreated).toBe(0);
+    expect(pgState.sent).toEqual([]);
+    expect(writes.filter((w) => /students|parent_student_relations/.test(w))).toEqual([]);
+  });
+
+  it('關聯插入失敗 → 整個交易回滾、該筆 failed、不算建了學生', async () => {
+    pgState.throwOn = /INSERT INTO parent_student_relations/;
+    const { body, writes } = await importOne(null);
+    expect(body.results).toEqual([
+      expect.objectContaining({ status: 'failed', error: '建立學生失敗，請稍後再試' }),
+    ]);
+    expect(body.studentsCreated).toBe(0);
+    expect(pgState.sent).toContain('ROLLBACK');
+    expect(pgState.sent).not.toContain('COMMIT');
+    // 不再靠 best-effort 刪學生
+    expect(writes).not.toContain('delete students');
   });
 });

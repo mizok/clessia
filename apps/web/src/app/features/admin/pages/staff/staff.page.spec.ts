@@ -208,6 +208,28 @@ describe('StaffPage', () => {
 
     afterEach(() => staffServiceMock.list.mockReturnValue(of(buildStaffResponse())));
 
+    // #1100 #38：同家長列表 —— 只標啟用中、還沒登入過的人；機台不標
+    it('「還沒登入過」只標啟用中的人，停用的、機台、登入過的不標', () => {
+      (
+        component as unknown as { staffStatusFilter: { set: (v: string) => void } }
+      ).staffStatusFilter.set('all');
+      show(
+        [
+          person('新老師', { hasLoggedIn: false }),
+          person('老鳥', { hasLoggedIn: true }),
+          person('停用的', { hasLoggedIn: false, status: 'inactive' }),
+          person('門口平板', { hasLoggedIn: false, roles: ['kiosk'] }),
+        ],
+        { teacher: 2, kiosk: 1, inactiveOrArchived: 1 },
+      );
+      const tagged = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('[data-staff]'),
+      )
+        .filter((row) => row.textContent?.includes('還沒登入過'))
+        .map((row) => row.getAttribute('data-staff'));
+      expect(tagged).toEqual(['新老師']);
+    });
+
     it('四桶互斥：兼任歸管理員章、停用與封存同一章；章名張數讀 byRole', () => {
       // 預設狀態（啟用中＋已停用）不含封存；要看封存要選「全部」
       (

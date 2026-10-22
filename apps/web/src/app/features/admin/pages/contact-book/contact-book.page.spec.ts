@@ -404,21 +404,40 @@ describe('ContactBookPage', () => {
       expect(contactBook.missing).toHaveBeenCalledWith('2027-03-06');
     });
 
-    it('「只看未簽收」是白框鈕：aria-pressed 跟狀態、邊框黑／灰、文字不變、手機 44／桌機 36', async () => {
+    // #1877：跟同列的搜尋框、期間下拉同高 44（原本桌機 36，比另外兩個矮一截）；按下照 A6 `.toggle` 多一圈內框線
+    it('「只看未簽收」是白框鈕：aria-pressed 跟狀態、邊框黑／灰、文字不變、兩種寬度都 44', async () => {
       await boot({});
       const btn = q('unsigned-only');
       expect(btn.tagName).toBe('BUTTON');
       expect(btn.getAttribute('aria-pressed')).toBe('false');
       expect([...btn.classList]).toEqual(
-        expect.arrayContaining(['bg-white', 'border-zinc-300', 'h-11', 'wide:h-9']),
+        expect.arrayContaining(['bg-white', 'border-zinc-300', 'h-11']),
       );
+      expect(btn.className).not.toMatch(/wide:h-/);
       btn.click();
       fixture.detectChanges();
       expect(btn.getAttribute('aria-pressed')).toBe('true');
       expect(btn.classList).toContain('border-zinc-900');
+      expect(btn.classList).toContain('shadow-[inset_0_0_0_1px_var(--zinc-900)]');
       expect(btn.classList).not.toContain('border-zinc-300');
       expect(btn.textContent!.trim()).toBe('只看未簽收');
       expect(fixture.nativeElement.querySelector('app-filter-chip')).toBeNull();
+    });
+
+    // #1877：兩個區塊用同一套規則 —— 控制項同一條中線、下拉不畫上方標籤（讀屏名稱還在）
+    it('篩選列與「還沒寫的」標題列：items-center、兩個下拉 hideLabel', async () => {
+      await boot({});
+      const el = fixture.nativeElement as HTMLElement;
+      const bar = el.querySelector('[role="search"][aria-label="篩選聯絡簿"]')!;
+      expect(bar.classList).toContain('items-center');
+      expect(bar.querySelector('.clessia-filter-search')!.classList).toContain('min-h-11');
+      const head = el.querySelector('#cb-missing-h')!.parentElement!;
+      expect(head.classList).toContain('items-center');
+      const labels = [...el.querySelectorAll('app-select-field')].map(
+        (f) => f.querySelector('span[id^="select-field-"]') as HTMLElement,
+      );
+      expect(labels.map((l) => l.textContent!.trim())).toEqual(['缺漏名單的日期', '期間']);
+      for (const l of labels) expect(l.classList).toContain('sr-only');
     });
   });
 

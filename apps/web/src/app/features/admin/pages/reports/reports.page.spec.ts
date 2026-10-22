@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { MessageService } from 'primeng/api';
 
 import {
   ReportsService,
@@ -37,7 +38,9 @@ describe('ReportsPage', () => {
 
   const reports = {
     revenue: vi.fn((_params?: RevenueQueryParams) => of(response())),
+    revenueCsv: vi.fn((_params?: RevenueQueryParams) => of(new Blob(['csv']))),
   };
+  const toast = { add: vi.fn() };
   const courses = {
     list: vi.fn(() => of({ data: [], meta: {} })),
   };
@@ -58,6 +61,7 @@ describe('ReportsPage', () => {
       providers: [
         provideRouter([]),
         { provide: ReportsService, useValue: reports },
+        { provide: MessageService, useValue: toast },
         { provide: CoursesService, useValue: courses },
         { provide: ReferenceDataService, useValue: refData },
       ],
@@ -96,6 +100,49 @@ describe('ReportsPage', () => {
 
     expect(params.campusId).toBeUndefined();
     expect(params.courseId).toBeUndefined();
+  });
+
+  // #1100 #41：spec「依篩選條件匯出 CSV」—— 打明細端點，帶跟畫面同一組篩選
+  describe('匯出 CSV', () => {
+    it('照目前的期間、頂欄分校、課程打 revenue.csv，下載成檔案', () => {
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => undefined);
+      URL.createObjectURL = vi.fn(() => 'blob:x');
+      URL.revokeObjectURL = vi.fn();
+      TestBed.inject(CampusContextService).select('campus-1');
+      fixture.detectChanges();
+      component['onCourseChange']('course-1');
+      const { dateFrom, dateTo } = reports.revenue.mock.calls.at(-1)![0]!;
+
+      component['exportCsv']();
+
+      expect(reports.revenueCsv).toHaveBeenCalledWith({
+        dateFrom,
+        dateTo,
+        campusId: 'campus-1',
+        courseId: 'course-1',
+      });
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(component['exporting']()).toBe(false);
+      click.mockRestore();
+    });
+
+    it('筆數超過上限（413）→ 顯示後端的「請縮小日期範圍」', async () => {
+      toast.add.mockClear();
+      // jsdom 的 Blob 沒有 text()（瀏覽器都有）—— 補上
+      const json = JSON.stringify({ error: '筆數超過 20000 筆，請縮小日期範圍' });
+      const body = Object.assign(new Blob([json]), { text: async () => json });
+      reports.revenueCsv.mockReturnValueOnce(throwError(() => ({ status: 413, error: body })));
+
+      component['exportCsv']();
+      await vi.waitFor(() => expect(toast.add).toHaveBeenCalled());
+
+      expect(toast.add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', detail: '筆數超過 20000 筆，請縮小日期範圍' }),
+      );
+      expect(component['exporting']()).toBe(false);
+    });
   });
 
   describe('篩選與分組', () => {
@@ -178,6 +225,7 @@ describe('ReportsPage', () => {
           imports: [ReportsPage],
           providers: [
             { provide: ReportsService, useValue: reports },
+            { provide: MessageService, useValue: toast },
             { provide: CoursesService, useValue: courses },
             { provide: ReferenceDataService, useValue: refData },
             provideRouter([]),
@@ -365,6 +413,13 @@ describe('ReportsPage', () => {
       expect(note.textContent).toContain('NT$ 578,800');
       expect(note.textContent).toContain('NT$ 6,000');
       expect(note.textContent).toContain('兩個數字不能相除當收款率');
+    });
+
+    // #1881：三塊在 app-reload-veil 裡，外層的 gap 傳不進來 —— 間距要寫在區塊自己身上（A6 reports：space-6／space-12）
+    it('區塊間距：說明框 mt-6、分組統計 mt-12', async () => {
+      await load({ billed: 1000, outstanding: 500 });
+      expect(q('cash-note').classList).toContain('mt-6');
+      expect(q('group-stats').classList).toContain('mt-12');
     });
 
     it('工具列：期間、課程帶標籤；分組方式在工具列（不在分組統計標題旁）', async () => {

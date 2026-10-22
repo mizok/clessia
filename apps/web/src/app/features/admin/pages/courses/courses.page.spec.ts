@@ -897,6 +897,76 @@ describe('CoursesPage', () => {
       expect(items().map((i) => i.label)).toEqual(['結束批次選取']);
     });
 
+    describe('沒有開課班時（#1872）', () => {
+      const setClasses = (v: unknown[]) =>
+        (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set(v);
+      const items = () =>
+        (component as unknown as { pageMenuItems: () => { label: string }[] }).pageMenuItems();
+
+      it('畫面上沒有任何班：「⋯」與手機的「批次選取班級」都不出現', () => {
+        setup();
+        setClasses([]);
+        fixture.detectChanges();
+        expect(items()).toEqual([]);
+        expect(el().querySelector('button[title="更多動作"]')).toBeNull();
+
+        vi.spyOn(component as unknown as { isMobile: () => boolean }, 'isMobile').mockReturnValue(
+          true,
+        );
+        (
+          component as unknown as {
+            openCourseMenu: (e: Event, c: unknown, h: boolean, m: unknown) => void;
+          }
+        ).openCourseMenu(new Event('click'), course('c1', '國一國文'), false, {
+          toggle: vi.fn(),
+        });
+        const labels = (
+          component as unknown as { courseActionMenuItems: () => { label?: string }[] }
+        )
+          .courseActionMenuItems()
+          .map((i) => i.label);
+        expect(labels).not.toContain('批次選取班級');
+      });
+
+      it('批次模式的說明寫出勾的是班、可以做什麼', () => {
+        setup();
+        component['selectionMode'].set(true);
+        fixture.detectChanges();
+        expect(norm(el())).toContain('勾選開課班，可以一次啟用、停用或刪除');
+      });
+
+      it('載入中（換條件的空窗）畫面暫時沒班：不退出、勾選還在；資料回來有班照舊', () => {
+        setup();
+        component['selectionMode'].set(true);
+        component['selectedClassIds'].set(new Set(['a']));
+        fixture.detectChanges();
+
+        component['loading'].set(true);
+        setClasses([]);
+        fixture.detectChanges();
+        expect(component['selectionMode']()).toBe(true);
+        expect(component['selectedClassIds']().has('a')).toBe(true);
+
+        setClasses([klass('a', 'c1')]);
+        component['loading'].set(false);
+        fixture.detectChanges();
+        expect(component['selectionMode']()).toBe(true);
+        expect(component['selectedClassIds']().has('a')).toBe(true);
+      });
+
+      it('批次模式中篩到沒有班：自動退出並清掉勾選', () => {
+        setup();
+        component['selectionMode'].set(true);
+        component['selectedClassIds'].set(new Set(['a']));
+        fixture.detectChanges();
+
+        setClasses([]);
+        fixture.detectChanges();
+        expect(component['selectionMode']()).toBe(false);
+        expect(component['selectedClassIds']().size).toBe(0);
+      });
+    });
+
     it('手機的課程「⋯」選單才有「批次選取班級」；桌機沒有', () => {
       setup();
       const menu = { toggle: vi.fn() } as never;
