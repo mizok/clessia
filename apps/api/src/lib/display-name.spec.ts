@@ -1,34 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveDisplayName, updateDisplayName } from './display-name';
+import { loadDisplayName, resolveDisplayName, updateDisplayName } from './display-name';
 
 describe('resolveDisplayName', () => {
-  it('有 profiles 就用它 —— seed 建的舊使用者走這條', () => {
+  // #1839：profiles 已經沒有人寫（正式 100 列，最後寫入 08-31），不再是來源
+  it('員工姓名優先於帳號名', () => {
     expect(
-      resolveDisplayName({
-        profile: { display_name: '王主任' },
-        staff: { display_name: '不該用到' },
-        baUser: { name: '也不該用到' },
-      }),
+      resolveDisplayName({ staff: { display_name: '王主任' }, baUser: { name: '不該用到' } }),
     ).toBe('王主任');
   });
 
   // 這是本次事故的常態，不是例外：`handle_new_user()` 在 Better Auth 遷移時被 DROP，
   // 之後**任何透過 app 建立的使用者都沒有 profiles 列** —— 包含 bootstrap 建的第一個管理員。
   it('沒有 profiles 列時退到 staff', () => {
-    expect(resolveDisplayName({ profile: null, staff: { display_name: '王主任' } })).toBe('王主任');
+    expect(resolveDisplayName({ staff: { display_name: '王主任' } })).toBe('王主任');
   });
 
   it('家長沒有 staff 列，退到 parents.name', () => {
-    expect(resolveDisplayName({ profile: null, staff: null, parent: { name: '陳媽媽' } })).toBe(
-      '陳媽媽',
-    );
+    expect(resolveDisplayName({ staff: null, parent: { name: '陳媽媽' } })).toBe('陳媽媽');
   });
 
   it('三個都沒有時退到 ba_user.name —— 那是 NOT NULL，一定有東西', () => {
-    expect(
-      resolveDisplayName({ profile: null, staff: null, parent: null, baUser: { name: '王主任' } }),
-    ).toBe('王主任');
+    expect(resolveDisplayName({ staff: null, parent: null, baUser: { name: '王主任' } })).toBe(
+      '王主任',
+    );
   });
 
   // 空字串正是這次的症狀：profiles 列不存在時 `?? ''` 讓 header 只剩 email。
@@ -36,7 +31,6 @@ describe('resolveDisplayName', () => {
   it('空字串與只有空白都當成沒有，繼續往下找', () => {
     expect(
       resolveDisplayName({
-        profile: { display_name: '' },
         staff: { display_name: '   ' },
         parent: { name: null },
         baUser: { name: '王主任' },
@@ -83,13 +77,12 @@ describe('updateDisplayName', () => {
   // 讀是 fallback 鏈，寫就得是「每一個可能被讀到的地方都寫」——
   // 只寫 profiles 的話（原本的作法）對沒有 profiles 列的人是**靜靜地 no-op**，
   // 改完名字存了等於沒存，而且回讀走 fallback 拿到舊值，看起來像讀的 bug。
-  it('三個來源都寫，不做任何分支判斷 —— 沒有對應列的就是 no-op', async () => {
+  it('staff 與 parents 都寫（不寫 profiles，#1839），不做任何分支判斷 —— 沒有對應列的就是 no-op', async () => {
     const { writes, client } = recordingSupabase();
 
     await updateDisplayName(client as never, 'org-1', 'u1', '王主任');
 
     expect(writes).toEqual([
-      { table: 'profiles', values: { display_name: '王主任' }, column: 'id', org: 'org_id=org-1' },
       {
         table: 'staff',
         values: { display_name: '王主任' },
@@ -118,5 +111,53 @@ describe('updateDisplayName', () => {
     await updateDisplayName(client as never, 'org-1', 'u1', '王主任');
 
     expect(writes.map((w) => w.table)).not.toContain('ba_user');
+  });
+});
+
+/** #1839：「誰操作的」一律從這裡取 —— 一次查詢，ba_user 嵌 staff／parents */
+describe('loadDisplayName', () => {
+  const client = (data: unknown, opts: { throws?: boolean } = {}) => ({
+    from: (table: string) => ({
+      select: (cols: string) => ({
+        eq: () => ({
+          maybeSingle: () => {
+            if (opts.throws) throw new Error('boom');
+            expect([table, cols]).toEqual([
+              'ba_user',
+              'name, staff(display_name, org_id), parents(name, org_id)',
+            ]);
+            return Promise.resolve({ data, error: null });
+          },
+        }),
+      }),
+    }),
+  });
+
+  it('只取這個 org 的員工姓名；別 org 的不算', async () => {
+    const data = {
+      name: '帳號名',
+      staff: [
+        { display_name: '別校的名字', org_id: 'org-2' },
+        { display_name: '王主任', org_id: 'org-1' },
+      ],
+      parents: [],
+    };
+    expect(await loadDisplayName(client(data) as never, 'org-1', 'u1')).toBe('王主任');
+    expect(await loadDisplayName(client(data) as never, 'org-3', 'u1')).toBe('帳號名');
+  });
+
+  it('不是員工就用家長姓名，再退到帳號名', async () => {
+    const data = { name: '帳號名', staff: [], parents: [{ name: '陳媽媽', org_id: 'org-1' }] };
+    expect(await loadDisplayName(client(data) as never, 'org-1', 'u1')).toBe('陳媽媽');
+  });
+
+  it('找不到人、全是空的、或查詢拋錯 → null（稽核那一筆照寫，名字留空）', async () => {
+    expect(await loadDisplayName(client(null) as never, 'org-1', 'u1')).toBeNull();
+    expect(
+      await loadDisplayName(client({ name: ' ', staff: [], parents: [] }) as never, 'org-1', 'u1'),
+    ).toBeNull();
+    expect(
+      await loadDisplayName(client(null, { throws: true }) as never, 'org-1', 'u1'),
+    ).toBeNull();
   });
 });

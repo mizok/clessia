@@ -150,7 +150,7 @@ export async function loadIdentityViaSql(
 }
 
 /**
- * `/api/me` 另外要的：`profiles` 的顯示名稱（舊來源，見 lib/display-name.ts）、`ba_user` 的聯絡資料、
+ * `/api/me` 另外要的：`ba_user` 的帳號名與聯絡資料、
  * 自己 staff 列的對外暱稱（#1665 Q6′）。
  *
  * **暱稱刻意不放進 auth middleware 的身分查詢**（計畫席 10-16 裁）：那是每個請求的必經路徑，
@@ -158,21 +158,17 @@ export async function loadIdentityViaSql(
  * 而且 REST 那條會把它當成 null 繼續跑（`routes/me.ts` 的 loadNickname）。
  */
 export interface MeExtras {
-  profile: { display_name: string | null } | null;
   baUser: { name: string | null; email: string | null; phone: string | null } | null;
   nickname: string | null;
 }
 
 /**
  * `ba_user` 只讀不寫（c2）。`$1` user id、`$2` org id。
- * `profiles` **只用 id 查、不過濾 org_id**：它的 org_id 是 Supabase Auth 時代的舊欄位，只有 seed 會寫、
- * 刻意不被信任（`org-source.spec.ts` 守）；`profiles.id` 就是 `ba_user.id`，一個 user 只屬於一個 org。
+ * 不讀 `profiles`（#1839：那張表已經沒有人寫，顯示名稱見 lib/display-name.ts）。
  * `staff` 的唯一鍵是 (user_id, org_id)（#1603），所以暱稱那個子查詢最多一列。
  */
 export const ME_EXTRAS_SQL = `
 select
-  (select pr.display_name from public.profiles pr where pr.id = $1) as profile_display_name,
-  (select count(*) from public.profiles pr where pr.id = $1)::int as profile_rows,
   (select s.nickname from public.staff s where s.user_id = $1 and s.org_id = $2::uuid) as staff_nickname,
   u.name, u.email, u.phone
 from public.ba_user u
@@ -210,19 +206,14 @@ export async function loadMeExtrasViaSql(
     const ok =
       rows.length === 1 &&
       row !== undefined &&
-      ['profile_display_name', 'staff_nickname', 'name', 'email', 'phone'].every(
+      ['staff_nickname', 'name', 'email', 'phone'].every(
         (k) => row[k] === null || typeof row[k] === 'string',
-      ) &&
-      (row['profile_rows'] === 0 || row['profile_rows'] === 1);
+      );
     if (!ok) {
       console.error('[identity-sql] /api/me 結果形狀不對，改走 REST');
       return null;
     }
     return {
-      profile:
-        row['profile_rows'] === 1
-          ? { display_name: row['profile_display_name'] as string | null }
-          : null,
       baUser: {
         name: row['name'] as string | null,
         email: row['email'] as string | null,
