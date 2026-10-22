@@ -103,12 +103,15 @@ describe('PUT /api/courses/{id} 停用並取消未來課堂 —— 流水標成�
       operation_source: string;
       batch_id: string;
       reason: string;
+      created_by_name: string | null;
     }>;
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => r.operation_source === 'batch')).toBe(true);
     expect(rows[0]!.batch_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(new Set(rows.map((r) => r.batch_id)).size).toBe(1);
     expect(rows[0]!.reason).toBe('課程停用');
+    // #1839：操作者名字取員工姓名（loadDisplayName）
+    expect(rows.every((r) => r.created_by_name === '行政 A')).toBe(true);
     expect(queued).toHaveBeenCalledWith(
       expect.anything(),
       rows.map((r) =>
