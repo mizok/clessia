@@ -935,6 +935,25 @@ describe('CoursesPage', () => {
         expect(norm(el())).toContain('勾選開課班，可以一次啟用、停用或刪除');
       });
 
+      it('載入中（換條件的空窗）畫面暫時沒班：不退出、勾選還在；資料回來有班照舊', () => {
+        setup();
+        component['selectionMode'].set(true);
+        component['selectedClassIds'].set(new Set(['a']));
+        fixture.detectChanges();
+
+        component['loading'].set(true);
+        setClasses([]);
+        fixture.detectChanges();
+        expect(component['selectionMode']()).toBe(true);
+        expect(component['selectedClassIds']().has('a')).toBe(true);
+
+        setClasses([klass('a', 'c1')]);
+        component['loading'].set(false);
+        fixture.detectChanges();
+        expect(component['selectionMode']()).toBe(true);
+        expect(component['selectedClassIds']().has('a')).toBe(true);
+      });
+
       it('批次模式中篩到沒有班：自動退出並清掉勾選', () => {
         setup();
         component['selectionMode'].set(true);
