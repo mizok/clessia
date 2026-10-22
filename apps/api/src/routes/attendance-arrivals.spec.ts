@@ -57,6 +57,10 @@ function fakeDb(rows: Rows, failures: Failures | readonly string[] = {}) {
         if (f.failingWrites?.includes(table)) {
           return { select: () => Promise.resolve({ data: null, error: { message: '寫入失敗' } }) };
         }
+        // 已經有卡（UNIQUE student_id＋checkin_date 衝突）：ignoreDuplicates 回空陣列，lib 會回頭讀那一筆
+        if (table === 'daily_checkins' && data.length > 0) {
+          return { select: () => Promise.resolve({ data: [], error: null }) };
+        }
         // 打卡 upsert 接 `.select()`：回剛寫入的那一列
         const row = { id: 'checkin-1', ...(payload as Record<string, unknown>) };
         return { select: () => Promise.resolve({ data: [row], error: null }) };
@@ -126,6 +130,8 @@ async function call(
       error?: string;
       code?: string;
       attendanceMode?: string;
+      alreadyCheckedIn?: boolean;
+      checkedInAt?: string;
       students?: Array<{ checkedInAt: string | null }>;
     } | null,
     writes: db.writes,
@@ -243,6 +249,41 @@ describe('POST /roster/{eventId}/check-in —— 他到了', () => {
   it('分校沒設定 → 沿用機構預設（機構是隨堂就 409）', async () => {
     const r = await checkIn(happy({ campuses: [{ id: A, attendance_mode: null }] }));
     expect(r.status).toBe(409);
+  });
+
+  // 計畫席 10-22 裁：卡已在別校，名單只認卡上的分校 —— 回 409、不寫出勤，免得三方不一致
+  it('他今天已在別校掃過卡 → 409 CHECKED_IN_ELSEWHERE，打卡與出勤都沒有寫入', async () => {
+    const r = await checkIn(
+      happy({ daily_checkins: [{ campus_id: B, campuses: { name: '景美分校' } }] }),
+    );
+    expect(r.status).toBe(409);
+    expect(r.json?.code).toBe('CHECKED_IN_ELSEWHERE');
+    expect(r.json?.error).toContain('景美分校');
+    // 擋在任何寫入之前：沒有打卡 upsert，也沒有 attendance_records
+    expect(r.writes).toHaveLength(0);
+  });
+
+  it('卡在同一校（或卡沒帶分校）→ 照常回 alreadyCheckedIn，時間是第一次那筆', async () => {
+    for (const campus_id of [A, null]) {
+      const r = await checkIn(
+        happy({ daily_checkins: [{ campus_id, checked_in_at: '2026-04-06T01:00:00Z' }] }),
+      );
+      expect(r.status).toBe(201);
+      expect(r.json).toMatchObject({
+        alreadyCheckedIn: true,
+        checkedInAt: '2026-04-06T01:00:00Z',
+      });
+    }
+  });
+
+  it('讀既有到班紀錄失敗 → 500，不寫', async () => {
+    const r = await call(happy(), {
+      method: 'POST',
+      path: `/roster/${EVENT}/check-in`,
+      failingSingle: ['daily_checkins'],
+    });
+    expect(r.status).toBe(500);
+    expect(r.writes).toHaveLength(0);
   });
 
   it('受限分校的管理員記範圍外的課 → 403，不寫', async () => {

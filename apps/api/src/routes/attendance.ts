@@ -1856,6 +1856,28 @@ app.openapi(
       return c.json({ error: '這個學生不在這堂課的名單上', code: 'NOT_ENROLLED' }, 404);
     }
 
+    // 他今天已經在別校掃過卡（計畫席 10-22 裁）：`daily_checkins` 一人一天一筆，這裡寫不出這一校的卡，
+    // 而名單與卡片只認卡上的分校（`checkinCoversSession`）—— 硬寫出勤會變成「回成功、名單還是沒到、
+    // 出勤卻是出席」。擋在任何寫入之前。同一天跨兩校上課的人第二校記不了到班，是 UNIQUE 的既有限制。
+    const { data: existingCheckin, error: existingError } = await supabase
+      .from('daily_checkins')
+      .select('campus_id, campuses(name)')
+      .eq('org_id', orgId)
+      .eq('student_id', studentId)
+      .eq('checkin_date', eventDate)
+      .maybeSingle();
+    if (existingError) {
+      return c.json({ error: '讀取到班紀錄失敗', message: existingError.message }, 500);
+    }
+    const existing = existingCheckin as {
+      campus_id?: string | null;
+      campuses?: { name?: string } | { name?: string }[] | null;
+    } | null;
+    if (existing && !checkinCoversSession(existing.campus_id ?? null, eventCampusId)) {
+      const campusName = toSessionRows<{ name?: string }>(existing.campuses)[0]?.name ?? '別的分校';
+      return c.json({ error: `他今天已在${campusName}掃過卡`, code: 'CHECKED_IN_ELSEWHERE' }, 409);
+    }
+
     const written = await writeDailyCheckin(supabase, {
       orgId,
       userId,
