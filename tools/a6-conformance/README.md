@@ -231,3 +231,34 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 - `canvas`、`svg` 不量（色面的流場、圖示）。色面的底色若畫在 canvas 上，會顯示成透明。
 - 收合的 `<details>`、沒打開的彈出物沒有盒子，不列；展開態屬於第三層。
 - 包一層文字的 span 已處理：它的框線、底色、字會併回外層的控制項再比（app 導覽「目前頁」底線畫在 span 上）。
+
+## 逐幀跳動（`jump.mjs`，#1859）
+
+量「版面有沒有跳」用**實際畫出來的畫面**，不用 layout-shift。
+
+```sh
+A6_APP_URL=http://localhost:4212 A6_API_URL=http://localhost:8794 \
+  node tools/a6-conformance/jump.mjs students dashboard --widths 1440,390 --out /tmp/jump.json
+# 追區塊內部的東西：--sel 用分號隔開，每個選擇器一個標記色（最多 8 個）
+node tools/a6-conformance/jump.mjs dashboard --sel 'app-dashboard .colls;app-dashboard nav.flex-col'
+```
+
+**做法**
+
+1. 注入一段 CSS，替要追的區塊各加一條向內的純色 outline（`outline-offset: -2px`，不佔版面）。預設是頁面的頂層區塊（`main.shell-content > * > :nth-child(k)`）。
+2. CDP `Page.startScreencast` 從導覽開始錄到 networkidle＋1.5 秒，每一幀 PNG。
+3. 每一幀找各標記色的最上緣（水平每 8px 取樣），就是那一塊**畫在畫面上**的頂端。
+4. 相鄰兩幀頂端的差＝那一幀跳了多少；輸出每頁的**單幀最大跳動 px**、是第幾塊、在第幾 ms，以及有變化的幀的時間軸（`--out`）。
+
+**為什麼不用 layout-shift（`PerformanceObserver('layout-shift')`）**
+
+- 它把 ResizeObserver 回呼**之前**那次排版也記成一次位移。
+- 「用 WAAPI 把高度滑過去」這種修法，動畫是在 RO 回呼裡起的，所以會量到一對 +X／-X（間隔約 1ms），而那一幀畫面上根本沒畫出來。
+- 結果是：跳改成滑之後，「單幀最大位移」看起來沒變，CLS 總分反而變高（每一幀的小位移都累加）。
+- 逐幀畫面量的是使用者真正看到的東西：一次跳 300px 是 300，滑過去是每幀幾 px。
+
+**限制**
+
+- 只看得到可視範圍內的東西，所以視窗高度設成 2400。
+- screencast 在負載下會掉幀，相鄰兩幀可能隔了不只 16ms。掉幀會讓滑的那一步看起來大一點，不會把跳變小。
+- 標記色是純綠、洋紅、青、黃、藍、紅等，頁面上剛好有完全一樣顏色的東西時會誤判（容差 8）。
