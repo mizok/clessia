@@ -11,7 +11,10 @@ import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { SystemClockService } from '@core/system-clock.service';
 
+import { DialogService } from 'primeng/dynamicdialog';
+
 import { SchedulePage } from './schedule.page';
+import { ArrivalRosterSheetComponent } from './arrival-roster-sheet/arrival-roster-sheet.component';
 
 /**
  * 假「現在」：2027-03-05（週五）台北 12:00。**刻意跟真實今天不同** —— 元件改回 `new Date()`
@@ -280,6 +283,79 @@ describe('SchedulePage', () => {
       const text = fixture.nativeElement.textContent as string;
       expect(text).toContain('開始點名');
       expect(text).not.toContain('看名單');
+    });
+
+    // #1314 TS3：依課堂所在分校的模式分流。日到班的課是到班名單，沒有點名／看名單
+    describe('日到班的分校', () => {
+      const DAILY_LIVE = [
+        {
+          ...PAST_UNTAKEN[0],
+          className: '日到班',
+          campusName: '文山',
+          eventDate: FAKE_TODAY,
+          startTime: '11:00',
+          endTime: '13:00',
+          enrolledCount: 26,
+          onLeaveCount: 1,
+          attendanceMode: 'daily_checkin',
+          checkedInCount: 21,
+        },
+        {
+          ...PAST_UNTAKEN[0],
+          sessionId: 's2',
+          eventId: 'e2',
+          className: '隨堂班',
+          campusName: '景美',
+          eventDate: FAKE_TODAY,
+          startTime: '11:00',
+          endTime: '13:00',
+          attendanceMode: 'per_session',
+          checkedInCount: null,
+        },
+      ];
+      const labelsOf = (name: string) =>
+        [
+          ...(
+            [...fixture.nativeElement.querySelectorAll('article')].find((a: HTMLElement) =>
+              a.textContent?.includes(name),
+            ) as HTMLElement
+          ).querySelectorAll('.schedule-page__actions button'),
+        ].map((b) => (b as HTMLElement).textContent?.trim());
+
+      it('同一天兩種模式：日到班＝到班名單＋掃碼句、隨堂＝開始點名', async () => {
+        await setup({ attendanceResponsible: 'teacher', sessions: DAILY_LIVE });
+        expect(labelsOf('日到班')).toEqual(['到班名單', '寫日誌']);
+        expect(labelsOf('隨堂班')).toEqual(['開始點名', '寫日誌']);
+        const text = fixture.nativeElement.textContent as string;
+        expect(text).toContain('日到班 · 掃碼 到 21／26 · 還沒到 4 · 請假 1');
+        expect(text).toContain('堂待點名（隨堂）');
+      });
+
+      it('上課中的到班名單是主要動作（亮橘）', async () => {
+        await setup({ attendanceResponsible: 'teacher', sessions: DAILY_LIVE });
+        const article = [...fixture.nativeElement.querySelectorAll('article')].find(
+          (a: HTMLElement) => a.textContent?.includes('日到班'),
+        ) as HTMLElement;
+        const btn = article.querySelector('.schedule-page__actions button') as HTMLElement;
+        expect(btn.className).toContain('bg-accent-vivid');
+      });
+
+      it('行政負責點名：日到班仍是到班名單（唯讀開），不出現「看名單」', async () => {
+        await setup({ attendanceResponsible: 'admin', sessions: DAILY_LIVE.slice(0, 1) });
+        expect(labelsOf('日到班')).toEqual(['到班名單']);
+        const dialog = fixture.debugElement.injector.get(DialogService);
+        const open = vi.spyOn(dialog, 'open').mockReturnValue(null as never);
+        const btn = fixture.nativeElement.querySelector(
+          '.schedule-page__actions button',
+        ) as HTMLButtonElement;
+        btn.click();
+        expect(open).toHaveBeenCalledWith(
+          ArrivalRosterSheetComponent,
+          expect.objectContaining({
+            data: expect.objectContaining({ eventId: 'e1', isToday: true, readOnly: true }),
+          }),
+        );
+      });
     });
   });
 

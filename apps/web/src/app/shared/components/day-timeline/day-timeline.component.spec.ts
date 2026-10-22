@@ -24,6 +24,8 @@ function session(over: Partial<EventSessionSummary> = {}): EventSessionSummary {
     onLeaveCount: 0,
     absentCount: 0,
     takenAt: null,
+    attendanceMode: 'per_session',
+    checkedInCount: null,
     ...over,
   };
 }

@@ -37,7 +37,7 @@ import {
 } from '@shared/directives/step-motion.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { SystemClockService } from '@core/system-clock.service';
-import { hasSessionStarted } from '@shared/utils/session-time.util';
+import { hasSessionEnded, hasSessionStarted } from '@shared/utils/session-time.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
@@ -48,14 +48,20 @@ import {
 } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 
 import { ClassLogSheetComponent } from './class-log-sheet/class-log-sheet.component';
+import {
+  ArrivalRosterSheetComponent,
+  type ArrivalRosterInput,
+} from './arrival-roster-sheet/arrival-roster-sheet.component';
 import { ContactBookRosterComponent } from './contact-book-roster/contact-book-roster.component';
 import {
+  arrivalLine,
   attendanceDisplay,
   canTakeAttendance,
   canWriteClassLog,
   canWriteContactBook,
   changeItems,
   daySummary,
+  isDailyCheckin,
   nextSession,
   openerLine,
   sessionStateText,
@@ -444,6 +450,53 @@ export class SchedulePage implements OnInit {
 
   protected canTakeAttendance(session: EventSessionSummary): boolean {
     return canTakeAttendance(session);
+  }
+
+  /** 日到班的課（#1314 TS3）：入口是到班名單，沒有點名／修改點名 */
+  protected readonly isDaily = isDailyCheckin;
+
+  /** 日到班的課卡狀態句，見 `arrivalLine` */
+  protected arrivalLine(session: EventSessionSummary): string {
+    return arrivalLine(session, this.todayStr);
+  }
+
+  /** 上課中 —— 日到班的「到班名單」這時是主要動作（A6：live 才亮橘） */
+  protected isLive(session: EventSessionSummary): boolean {
+    const w = { date: session.eventDate, startTime: session.startTime, endTime: session.endTime };
+    return hasSessionStarted(w, this.now) && !hasSessionEnded(w, this.now);
+  }
+
+  /** 這週有日到班的課 —— 橘帶的「待點名」要說清楚只算隨堂 */
+  protected readonly hasDaily = computed(() => this.sessions().some(isDailyCheckin));
+
+  protected openArrivals(session: EventSessionSummary): void {
+    if (session.eventId === null || !canTakeAttendance(session)) return;
+
+    const data: ArrivalRosterInput = {
+      eventId: session.eventId,
+      className: session.className,
+      campusName: session.campusName,
+      eventDate: session.eventDate,
+      startTime: session.startTime,
+      isToday: session.eventDate === this.todayStr,
+      readOnly: !this.isTeacherLed(),
+    };
+
+    const ref = this.dialogService.open(ArrivalRosterSheetComponent, {
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      closable: false,
+      // 跟點名面板同一個形狀：手機從下方升起，老師站著單手用
+      styleClass: 'roster-sheet',
+      appendTo: this.overlayContainer ?? 'body',
+      data,
+    });
+
+    // 記了到班 → 重抓這週，卡片上的「到 a／n」才會跟名單一致
+    ref?.onClose.subscribe((marked?: boolean) => {
+      if (marked) this.loadSessions();
+    });
   }
 
   /** 這一天有幾個學生的聯絡簿還沒寫；0 或未知都不顯示徽章 */
