@@ -1,10 +1,9 @@
 import { Component, EventEmitter, forwardRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Popover } from 'primeng/popover';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FitPopoverDirective, placePopover } from './fit-popover.directive';
+import { APP_DIR, appSources } from '../../../testing/source-tree';
 
 /** #1873：篩選浮層依可用空間放。視窗 700 高，按鈕在 y=200–244；GAP 10＋MARGIN 8＝18 */
 const base = { anchorTop: 200, anchorBottom: 244, viewportHeight: 700, chrome: 30 };
@@ -233,19 +232,15 @@ describe('FitPopoverDirective（#1873）', () => {
 
 /** 掛載點：篩選浮層一律要掛 appFitPopover —— 第七頁忘了掛就會回到原本的 bug */
 describe('filter-popover 掛載點（#1873）', () => {
-  const APP = resolve(process.cwd(), 'apps/web/src/app');
-  const htmls = (dir: string): string[] =>
-    readdirSync(dir).flatMap((n) => {
-      const p = join(dir, n);
-      return statSync(p).isDirectory() ? htmls(p) : n.endsWith('.html') ? [p] : [];
-    });
+  // 模組層掃一次（收集階段，不算進任何一條的 5s 逾時；不穩定測試盤點 C）
+  const HTMLS = appSources((p) => p.endsWith('.html'));
 
   it('每個 styleClass="filter-popover" 的 <p-popover> 都帶 appFitPopover', () => {
-    const tags = htmls(APP).flatMap((f) =>
-      [...readFileSync(f, 'utf8').matchAll(/<p-popover\b[^>]*>/g)]
+    const tags = HTMLS.flatMap((f) =>
+      [...f.text.matchAll(/<p-popover\b[^>]*>/g)]
         .map((m) => m[0])
         .filter((t) => t.includes('styleClass="filter-popover"'))
-        .map((t) => ({ f: f.slice(APP.length + 1), t })),
+        .map((t) => ({ f: f.path.slice(APP_DIR.length + 1), t })),
     );
     expect(tags.length).toBeGreaterThanOrEqual(6);
     expect(tags.filter(({ t }) => !/\bappFitPopover\b/.test(t)).map(({ f }) => f)).toEqual([]);
