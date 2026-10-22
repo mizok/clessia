@@ -104,12 +104,14 @@ describe('ReportsPage', () => {
 
   // #1100 #41：spec「依篩選條件匯出 CSV」—— 打明細端點，帶跟畫面同一組篩選
   describe('匯出 CSV', () => {
-    it('照目前的期間與課程打 revenue.csv，下載成檔案', () => {
+    it('照目前的期間、頂欄分校、課程打 revenue.csv，下載成檔案', () => {
       const click = vi
         .spyOn(HTMLAnchorElement.prototype, 'click')
         .mockImplementation(() => undefined);
       URL.createObjectURL = vi.fn(() => 'blob:x');
       URL.revokeObjectURL = vi.fn();
+      TestBed.inject(CampusContextService).select('campus-1');
+      fixture.detectChanges();
       component['onCourseChange']('course-1');
       const { dateFrom, dateTo } = reports.revenue.mock.calls.at(-1)![0]!;
 
@@ -118,7 +120,7 @@ describe('ReportsPage', () => {
       expect(reports.revenueCsv).toHaveBeenCalledWith({
         dateFrom,
         dateTo,
-        campusId: undefined,
+        campusId: 'campus-1',
         courseId: 'course-1',
       });
       expect(click).toHaveBeenCalledTimes(1);
