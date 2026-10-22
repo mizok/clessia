@@ -47,17 +47,22 @@ describe('同層換頁的方向（#1849，使用者 10-22）', () => {
   });
 });
 
-describe('同層換頁時長（#1681）', () => {
-  it('進場、出場都在 300–350ms，出場比進場短', () => {
-    const enter = ms('new');
-    const leave = ms('old');
-    expect(enter).toBeGreaterThanOrEqual(300);
-    expect(enter).toBeLessThanOrEqual(350);
-    expect(leave).toBeGreaterThanOrEqual(300);
-    expect(leave).toBeLessThan(enter);
+describe('換頁時長（#1681 → #1891 放慢約 1.4 倍，使用者 10-22）', () => {
+  it('同層：進 460ms、出 400ms，出場比進場短', () => {
+    expect(ms('new')).toBe(460);
+    expect(ms('old')).toBe(400);
+    expect(ms('group')).toBe(460);
   });
 
-  it('預設（往深一層／返回／頁內切換沿用）維持 200／140ms', () => {
+  it('往深一層／返回：進 280ms、出 200ms', () => {
+    for (const dir of ['forward', 'back']) {
+      const root = `:root[data-route-dir='${dir}']`;
+      expect(ms('new', root)).toBe(280);
+      expect(ms('old', root)).toBe(200);
+    }
+  });
+
+  it('預設（只剩頁內切換沿用）維持 200／140ms', () => {
     expect(ms('new', '')).toBe(200);
     expect(ms('old', '')).toBe(140);
   });
