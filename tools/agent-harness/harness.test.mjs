@@ -2064,6 +2064,36 @@ test('A28 綠：對比夠、找不到底色不判、font-size 的 text-* 不是�
   assert.deepEqual(v, []);
 });
 
+// #1359：巢狀任意變體（`[&_x]:`、`[&>x]:`）也算 —— 套到符合 x 的子孫／子元素上。
+// empty-state 的圖示寫成 `[&_i]:text-zinc-400`，原本 A28 只讀不帶 `:` 的 class，整組看不到
+test('A28 紅：[&_i]／[&>i]／[&_.pi] 的前景套到符合的子孫或子元素，回報寫原本的 class', () => {
+  const v = contrastClassViolations(
+    `<div class="bg-zinc-100 [&_i]:text-[28px] [&_i]:text-zinc-400"><span><i [class]="icon"></i></span></div>
+     <div class="bg-zinc-100 [&>i]:text-zinc-400"><i></i></div>
+     <div class="bg-zinc-100 [&_.pi]:text-zinc-400"><span class="pi pi-check"></span></div>`,
+    COLORS,
+  );
+  assert.deepEqual(
+    v.map((x) => [x.line, x.fg, x.bg, x.threshold]),
+    [
+      [1, '[&_i]:text-zinc-400', 'bg-zinc-100', 3],
+      [2, '[&>i]:text-zinc-400', 'bg-zinc-100', 3],
+      [3, '[&_.pi]:text-zinc-400', 'bg-zinc-100', 3],
+    ],
+  );
+});
+
+test('A28 綠：巢狀變體只套到符合的元素 —— [&>i] 不套孫子、[&_svg] 不套 i、疊了別的 variant 不算', () => {
+  const v = contrastClassViolations(
+    `<div class="bg-zinc-100 [&>i]:text-zinc-400"><span><i></i></span></div>
+     <div class="bg-zinc-100 [&_svg]:text-zinc-400"><i></i></div>
+     <div class="bg-zinc-100 [&_i]:hover:text-zinc-400"><i></i></div>
+     <div class="bg-zinc-100 [&_i]:text-zinc-900"><i></i></div>`,
+    COLORS,
+  );
+  assert.deepEqual(v, []);
+});
+
 // ── c6 的 Tailwind class 載體（#991 T1）────────────────────────────────────────────────
 // 舊的 regex 要求「數字緊接單位」，所以 `h-screen`、`min-h-dvh` 這種名稱裡沒有數字的 class 全部看不到。
 

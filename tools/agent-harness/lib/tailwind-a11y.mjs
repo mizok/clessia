@@ -12,6 +12,11 @@
  *
  * - **帶 variant 的 class 不算**（`lg:h-11`、`hover:bg-…`）。觸控看的是手機（mobile-first 的基底），
  *   對比只看靜態狀態。`max-[860px]:` 這類手機專屬寫法也不算 —— 要合規就寫在基底。
+ *   **例外：對比看得懂巢狀任意變體 `[&_x]:`（子孫）與 `[&>x]:`（子）**（#1359）：它們是
+ *   「父元素替子元素上色」的靜態寫法（empty-state 的 `[&_i]:text-zinc-400`），當成子元素自己的 class。
+ *   `x` 只認單純選擇器（`i`、`.pi`、`i.pi`）；疊了別的 variant（`[&_i]:hover:`）照樣不算。
+ * - **同元素 modifier 變體 `[&.x]:` 不算**（`[&.status-dot--done]:text-…`）：那是「某個狀態下」的配色，
+ *   要逐個 modifier 組合才量得準，還沒做（#1359 範圍外）。
  * - **`[class]`／`[ngClass]` 整串綁定**、`pt` 物件裡的 class（PrimeNG 元件，同 A17 的豁免理由）。
  * - **底色在 template 外**（殼、父元件）的文字：找不到 `bg-*` 祖先就不判，跟 scss-contrast 同一個限制。
  */
@@ -39,6 +44,42 @@ export function baseClasses(el) {
   const statics = (el.attributes.find((a) => a.name === 'class')?.value ?? '').split(/\s+/);
   const bound = el.inputs.filter((i) => i.type === 2).map((i) => i.name);
   return [...statics, ...bound].filter((c) => c && !c.includes(':'));
+}
+
+/** `[&_x]:cls`／`[&>x]:cls` → { child, sel, cls }；不是這種寫法（或後面還疊 variant）回 null */
+function nestedVariant(c) {
+  const m = c.match(/^\[&([_>])([^\]]+)\]:([^:]+)$/);
+  return m ? { child: m[1] === '>', sel: m[2], cls: m[3] } : null;
+}
+
+/** 單純選擇器 `i`／`.pi`／`i.pi` 對不對得上這個元素；看不懂的選擇器一律對不上（不猜） */
+function matchesSimple(el, sel) {
+  const m = sel.match(/^([a-z][a-z0-9-]*)?((?:\.[\w-]+)*)$/i);
+  if (!m || (!m[1] && !m[2])) return false;
+  if (m[1] && m[1] !== el.name) return false;
+  const own = new Set(baseClasses(el));
+  return m[2]
+    .split('.')
+    .filter(Boolean)
+    .every((c) => own.has(c));
+}
+
+/**
+ * 這個元素實際套上的 class：自己的基底 class ＋ 祖先用 `[&_x]:`／`[&>x]:` 替它上的。
+ * `label` 是 template 裡寫的原字（回報、豁免鍵用），`cls` 是拿掉變體後的 class（查色用）。
+ */
+function appliedClasses(el, ancestors) {
+  const out = baseClasses(el).map((c) => ({ label: c, cls: c }));
+  ancestors.forEach((a, i) => {
+    const isParent = i === ancestors.length - 1;
+    const statics = (a.attributes.find((x) => x.name === 'class')?.value ?? '').split(/\s+/);
+    for (const c of statics) {
+      const v = c && nestedVariant(c);
+      if (v && (!v.child || isParent) && matchesSimple(el, v.sel))
+        out.push({ label: c, cls: v.cls });
+    }
+  });
+  return out;
 }
 
 const isInteractive = (el) =>
@@ -98,8 +139,10 @@ export function contrastClassViolations(
 ) {
   const out = [];
   const pick = (chain, prop) => {
-    for (const el of [...chain].reverse()) {
-      const hits = baseClasses(el).filter((c) => c.startsWith(`${prop}-`) && colorOf(c));
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const hits = appliedClasses(chain[i], chain.slice(0, i)).filter(
+        (c) => c.cls.startsWith(`${prop}-`) && colorOf(c.cls),
+      );
       if (hits.length) return hits;
     }
     return [];
@@ -111,16 +154,16 @@ export function contrastClassViolations(
     const threshold = icon ? 3 : 4.5;
     for (const fg of pick(chain, 'text')) {
       for (const bg of pick(chain, 'bg')) {
-        const a = resolve(colorOf(fg));
-        const b = resolve(colorOf(bg));
+        const a = resolve(colorOf(fg.cls));
+        const b = resolve(colorOf(bg.cls));
         if (!a || !b) continue;
         const ratio = contrast(a, b);
         if (ratio < threshold) {
           out.push({
             line: el.sourceSpan.start.line + 1,
             ratio: Math.round(ratio * 100) / 100,
-            fg,
-            bg,
+            fg: fg.label,
+            bg: bg.label,
             threshold,
           });
         }
