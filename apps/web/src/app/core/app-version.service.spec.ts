@@ -123,6 +123,35 @@ describe('AppVersionService.checkForNewVersion（#1723）', () => {
     expect(version.isStale()).toBe(true);
   });
 
+  it('已經亮了：之後回到前景（滿 60 秒）不再抓', async () => {
+    const { version, fetchMock } = setup(async () => page('main-NEW222.js'));
+    await settle();
+    expect(version.isStale()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + VERSION_CHECK_INTERVAL_MS);
+    foreground();
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('切到背景（hidden）不抓，即使滿 60 秒；回到 visible 才抓', async () => {
+    const { fetchMock } = setup(async () => page('main-OLD111.js'));
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + VERSION_CHECK_INTERVAL_MS);
+    const state = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    state.mockReturnValue('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('自己的入口檔名拿不到（dev server 的 main.js）：完全不抓', async () => {
     script.setAttribute('src', 'main.js');
     const { version, fetchMock } = setup(async () => page('main-NEW222.js'));
