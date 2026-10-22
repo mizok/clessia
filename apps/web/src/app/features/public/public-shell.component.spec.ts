@@ -108,13 +108,28 @@ describe('PublicShellComponent', () => {
       const { go, fixture } = await setup(false);
       await go('/login');
       orgReq().flush({ code: 'PUBLIC_DISABLED' }, { status: 404, statusText: 'Not Found' });
+      // org() reject 也是下一個 microtask 才跑：不等就檢查，看到的是 reject 之前的畫面（二讀：塞預設名稱的突變照樣綠）
+      await Promise.resolve();
+      await Promise.resolve();
       fixture.detectChanges();
-      await fixture.whenStable();
 
       const el = fixture.nativeElement as HTMLElement;
       expect(title(el)).toBeNull();
       expect(el.querySelector('aside .grid')!.classList).not.toContain('is-on');
       expect(el.querySelectorAll('nav a').length).toBeGreaterThan(0);
+    });
+
+    it('斷線（org() reject）：一樣不渲染標題、外層不滑開', async () => {
+      const { go, fixture } = await setup(false);
+      await go('/login');
+      orgReq().error(new ProgressEvent('error'));
+      await Promise.resolve();
+      await Promise.resolve();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(title(el)).toBeNull();
+      expect(el.querySelector('aside .grid')!.classList).not.toContain('is-on');
     });
 
     it('手機也有 copyright', async () => {
