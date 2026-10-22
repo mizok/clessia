@@ -169,6 +169,8 @@ describe('promoteGrades —— 交易形狀', () => {
     const update = db.find(/^\s*UPDATE students/)!;
     expect(update.params).toEqual(['org-1', ['s1', 's2'], ['S1', 'S3'], [false, true]]);
     expect(update.sql).toMatch(/is_active = NOT v\.graduated/);
+    // ids 來自帶 org 的查詢，這一句的 org 是縱深防禦 —— 說明寫了「每句帶 org_id」就要有人守（二讀 G13）
+    expect(update.sql).toMatch(/WHERE s\.id = v\.id AND s\.org_id = \$1/);
     const items = db.find(/INSERT INTO grade_promotion_items/)!;
     expect(items.params).toEqual([
       'p1',
@@ -240,6 +242,21 @@ describe('revertPromotion —— 交易形狀', () => {
     }
   });
 
+  it('復原期限：剛好 30 天可以，再多 1 毫秒就 expired（二讀 G14）', async () => {
+    const at = (ms: number) => new Date(NOW.getTime() - ms);
+    const dayMs = 30 * 86_400_000;
+    for (const [executedAt, expired] of [
+      [at(dayMs), false],
+      [at(dayMs + 1), true],
+    ] as const) {
+      const db = fakePool((sql) =>
+        /FROM grade_promotions/.test(sql) ? promo({ executed_at: executedAt }) : [],
+      );
+      const r = await revertPromotion(db.pool, input);
+      expect(r.status === 'expired', String(executedAt)).toBe(expired);
+    }
+  });
+
   it('只還原「現在仍是升級後狀態」的學生；手改過的跳過並列出；畢業的恢復在讀', async () => {
     const db = fakePool((sql) => {
       if (/FROM grade_promotions/.test(sql)) return promo();
@@ -299,6 +316,7 @@ describe('revertPromotion —— 交易形狀', () => {
     const update = db.find(/^\s*UPDATE students/)!;
     expect(update.params).toEqual(['org-1', ['s1', 's2'], ['J3', 'S3']]);
     expect(update.sql).toMatch(/is_active = true/);
+    expect(update.sql).toMatch(/WHERE s\.id = v\.id AND s\.org_id = \$1/); // 二讀 G19
     expect(db.find(/UPDATE grade_promotions SET reverted_at/)!.params).toEqual([
       'p1',
       'org-1',
