@@ -338,6 +338,22 @@ describe('SettingsPage', () => {
       expect(summaryText('誰負責點名')).toBe('誰負責點名 行政負責');
     });
 
+    // 收起來之後分段鈕旁邊沒有可見標題，讀屏靠 aria-labelledby 指回列標題
+    it('兩組分段鈕的 aria-labelledby 指到各自的列標題', async () => {
+      await setup();
+      const root = fixture.nativeElement as HTMLElement;
+      const labelOf = (title: string) => {
+        const row = colls().find((d) => d.querySelector('summary')?.textContent?.includes(title))!;
+        const ids = row
+          .querySelector('[aria-labelledby]')!
+          .getAttribute('aria-labelledby')!
+          .split(/\s+/);
+        return ids.map((id) => root.querySelector(`#${id}`)?.textContent?.trim());
+      };
+      expect(labelOf('出勤紀錄模式')).toContain('出勤紀錄模式');
+      expect(labelOf('誰負責點名')).toContain('誰負責點名');
+    });
+
     it('還沒按儲存的選擇不改摘要；儲存成功後摘要跟著改', async () => {
       await setup();
       orgSettingsServiceMock.updateSettings.mockReturnValue(
