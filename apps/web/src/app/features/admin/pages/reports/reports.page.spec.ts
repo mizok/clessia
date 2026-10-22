@@ -367,6 +367,13 @@ describe('ReportsPage', () => {
       expect(note.textContent).toContain('兩個數字不能相除當收款率');
     });
 
+    // #1881：三塊在 app-reload-veil 裡，外層的 gap 傳不進來 —— 間距要寫在區塊自己身上（A6 reports：space-6／space-12）
+    it('區塊間距：說明框 mt-6、分組統計 mt-12', async () => {
+      await load({ billed: 1000, outstanding: 500 });
+      expect(q('cash-note').classList).toContain('mt-6');
+      expect(q('group-stats').classList).toContain('mt-12');
+    });
+
     it('工具列：期間、課程帶標籤；分組方式在工具列（不在分組統計標題旁）', async () => {
       await load({ billed: 1000, outstanding: 500 });
       const bar = fixture.nativeElement.querySelector('[role="search"]') as HTMLElement;
