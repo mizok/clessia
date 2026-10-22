@@ -55,7 +55,14 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.campusScope);
-      set('auth', { pool: { query: pool!.query.bind(pool), end: async () => undefined } });
+      // 開帳寫入走 withTx（#1943），要 connect
+      set('auth', {
+        pool: {
+          query: pool!.query.bind(pool),
+          connect: pool!.connect.bind(pool),
+          end: async () => undefined,
+        },
+      });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),

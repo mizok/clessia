@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
+import { fakeBillingPool } from '../test-utils/fake-billing-pool';
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import billingRunsRoute from './billing-runs';
 
@@ -91,6 +92,10 @@ function appWith(db: ReturnType<typeof seed>, campusScope: string[] | null) {
     set('orgId', ORG);
     set('userId', 'u1');
     set('campusScope', campusScope);
+    // 開帳的寫入走 pool（#1943）：替身從同一份列讀、寫回同一份替身，下面的斷言照樣看得到
+    set('auth', {
+      pool: fakeBillingPool({ rows: (t) => db.rows(t), client: db.client as never }),
+    });
     await next();
   });
   app.route('/', billingRunsRoute as unknown as Hono);
