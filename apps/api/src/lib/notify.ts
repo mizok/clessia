@@ -21,6 +21,7 @@ export type StaffNotificationKind =
   | 'schedule_change'
   | 'leave_for_my_class'
   | 'leave_received'
+  | 'grade_promotion_reminder'
   | 'leave_streak';
 
 export interface StaffNotification {
