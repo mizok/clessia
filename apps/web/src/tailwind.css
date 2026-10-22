@@ -274,7 +274,7 @@
 
 /*
  * 灰帶工具列裡有框的控制項（搜尋框、篩選鈕、主鈕、圖示鈕、下拉、日期）全部同高、同一條中線（#1903）：
- * 手機 44、桌機 40。**A6 偏離（R5，使用者 10-23 裁定「全部同高」）**：稿上是搜尋 40／48、按鈕 36／44，
+ * 手機與觸控 44、桌機（寬螢幕＋滑鼠）40。**A6 偏離（R5，使用者 10-23 裁定「全部同高」）**：稿上是搜尋 40／48、按鈕 36／44，
  * 擺在一起看得出高低差。高度只在 --tbar-control 定一次：元件與頁面用下面兩個 utility，
  * styles.css 的 legacy 規則（.clessia-filter-search、.clessia-filter-bar 裡的 PrimeNG 控制項）直接讀變數。
  * 不要再在工具列寫 h-9／h-11／min-h-[38px]。
@@ -282,7 +282,8 @@
 :root {
   --tbar-control: 44px;
 }
-@media (width >= 861px) {
+/* 40 只給「寬螢幕＋滑鼠」：平板橫放也 ≥861 寬，但用手指點，照 styles.css「觸控目標」那段的原則看 pointer 不看寬度 */
+@media (width >= 861px) and (pointer: fine) {
   :root {
     --tbar-control: 40px;
   }
