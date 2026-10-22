@@ -142,6 +142,15 @@ describe('GlobalSearchComponent', () => {
     // display 只在打開時給 —— 寫死 flex 會蓋掉 UA 的 [popover]:not(:popover-open){display:none}
     expect(cls(panel)).toContain('max-wide:open:flex');
     expect(cls(panel)).not.toContain('max-wide:flex');
+    // flex 預設橫向：沒有 flex-col 的話把手、輸入框、列表會排成一列（第二審核席 #1893）
+    expect(cls(panel)).toContain('max-wide:flex-col');
+    // 把手與輸入框：不被列表擠扁、拖它們不會帶動版面視窗
+    const handle = panel.querySelector('[aria-hidden="true"].rounded-full')!;
+    const inputBox = panel.querySelector('input')!.closest('label')!;
+    for (const e of [handle, inputBox]) {
+      expect(cls(e)).toContain('shrink-0');
+      expect(cls(e)).toContain('touch-none');
+    }
     const list = el.querySelector('#global-search-list')!;
     for (const c of [
       'max-wide:min-h-0',
