@@ -1,157 +1,221 @@
+<!--
+  A6 版（#1075，p-attendance.html）：色面（孩子今天到了沒＋本月缺席）→ 灰工具列（期間、幫孩子請假）
+  → 計數行 → 一天一章（左：日期＋到班行；右：每堂一行，點了列內展開）。規格 specs/parent/attendance.md
+-->
 <app-page-open>
   <app-child-switcher openBack class="mb-3 block" />
-  <ng-container openTitle>{{ page().label }}</ng-container>
-  <!-- 錨點數字（原本在橘帶右側）：滿版橘面下放在標題下方、靠左 -->
-  <div class="mt-4 [&_.band-anchor__figure]:min-[768.02px]:justify-start">
-    @if (monthlyAbsent() !== null) {
-      <app-band-anchor [value]="monthlyAbsent()!" unit="次缺席"> 本月 </app-band-anchor>
+  <ng-container openTitle>
+    @if (childName() && heroTail(); as tail) {
+      {{ childName() }}<br />{{ tail }}
+    } @else {
+      {{ page().label }}
     }
-  </div>
+  </ng-container>
+  <ng-container openSub>{{
+    childName() && dailyCampusIds().size > 0 ? '日到班：刷卡一次，當天所有的課都算到了。' : ''
+  }}</ng-container>
+  <!-- 錨點：還沒載到不顯示（不是 0）；本月、只算缺席（規格「頁面錨點」） -->
+  @if (monthlyAbsent() !== null) {
+    <div
+      class="attendance__stats mt-6 flex border-t border-band-rule pt-5 [&_.band-anchor__figure]:justify-start [&_.band-anchor__value]:text-[32px] [&_.band-anchor__value]:tracking-[-0.03em] wide:[&_.band-anchor__value]:text-[40px] [&_.band-anchor__unit]:pb-0 [&_.band-anchor__unit]:text-base"
+    >
+      <app-band-anchor [value]="monthlyAbsent()!" unit="次">本月缺席</app-band-anchor>
+    </div>
+  }
 </app-page-open>
-<div class="attendance mx-auto flex min-h-full max-w-[800px] flex-col gap-0">
-  <!--
-    **依賴孩子的頁面都包這一層**（#749）：0 個孩子時底下那些空狀態講的是
-    不成立的事（「今日無課」「目前沒有帳單紀錄」）—— 那是正面斷言，不是空白。
-    規則與措辭集中在 `app-child-scope-gate`，四頁不各自長出一種說法。
-  -->
-  <app-child-scope-gate>
-    <div class="attendance__filters flex flex-wrap items-center gap-3 p-4">
-      <p-selectbutton
-        [options]="rangeOptions"
-        optionLabel="label"
-        optionValue="value"
-        [allowEmpty]="false"
-        [ngModel]="rangeMode()"
-        (ngModelChange)="onRangeChange($event)"
-      />
+<!--
+  **依賴孩子的頁面都包這一層**（#749）：0 個孩子時底下那些空狀態講的是不成立的事。
+-->
+<app-child-scope-gate>
+  <div class="bg-zinc-100">
+    <div
+      class="page-wrap flex min-h-16 flex-wrap items-center gap-2 py-3 wide:gap-x-4 wide:gap-y-3"
+    >
+      <div
+        class="flex flex-[1_1_100%] overflow-hidden rounded-md border border-zinc-300 bg-white wide:flex-none"
+        role="group"
+        aria-label="期間"
+      >
+        @for (opt of rangeOptions; track opt.value) {
+          <button
+            type="button"
+            class="h-11 flex-1 cursor-pointer border-0 bg-white px-4 text-md text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:h-[38px] wide:flex-none"
+            [attr.aria-pressed]="rangeMode() === opt.value"
+            (click)="onRangeChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </div>
       @if (rangeMode() === 'month') {
-        <p-datepicker
-          view="month"
-          dateFormat="yy-mm"
-          [ngModel]="selectedMonth()"
-          (ngModelChange)="onMonthChange($event)"
+        <input
+          type="month"
+          class="h-11 flex-auto rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:h-10 wide:flex-none"
+          aria-label="月份"
+          [max]="maxMonth"
+          [value]="selectedMonth()"
+          (change)="onMonthChange($any($event.target).value)"
         />
       }
-      <!-- A6 p-attendance 工具列右邊（.tbar__act）：只在有選中的孩子時出現；手機也放這裡，不進底部托盤 -->
+      <!-- A6 .tbar__act：只在有選中的孩子時出現（#1740） -->
       @if (activeChild()) {
         <button
           type="button"
-          class="attendance__leave ml-auto inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
+          class="attendance__leave inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto wide:h-9"
           (click)="openLeave()"
         >
           <i class="pi pi-calendar-minus" aria-hidden="true"></i>幫孩子請假
         </button>
       }
     </div>
+  </div>
 
-    <div class="attendance__content flex flex-col gap-4 px-4 pt-0 pb-6">
-      <!--
-        **守衛判的是原始清單 `records()`，不是衍生的 `groups()`**（#797）。
-
-        `groups` 在 `recent10`（預設模式）會走 `fillMissingDays` ——
-        **`records()` 還是空陣列時它就已經填出十一天**，於是
-        `groups().length === 0` 永遠不成立，skeleton 分支**結構性不可達**，
-        而使用者在慢速網路上看到的是十一行「今日無課」：一句正面斷言。
-
-        對照組 `parent/payments` 判的是 `invoices()`（原始），所以它的 skeleton 出得來。
-        **兩頁模板讀起來一模一樣，差別只在守衛裡那個 signal 是原始的還是填充過的。**
-      -->
-      @if (loading() && records().length === 0) {
-        <div class="skeleton-list">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-      } @else if (failed()) {
-        <app-empty-state
-          icon="pi pi-exclamation-circle"
-          title="載入失敗"
-          description="沒有讀到出缺席紀錄，可能是連線問題"
-        />
-      } @else if (groups().length === 0) {
-        <app-empty-state icon="pi pi-check-square" title="這段期間沒有出缺席紀錄" description="" />
-      } @else {
-        @for (group of groups(); track group.date) {
-          <div class="attendance__day flex flex-col gap-2">
-            <p class="attendance__day-date m-0 text-sm font-semibold text-zinc-600">
-              {{ group.date }}
-            </p>
-            @if (group.records.length === 0) {
-              <p class="attendance__no-class m-0 px-3 py-2 text-sm text-zinc-400">今日無課</p>
-            }
-            @for (record of group.records; track record.id) {
-              <button
-                type="button"
-                class="attendance__record flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-zinc-50 p-3 text-left hover:bg-zinc-100"
-                [attr.aria-expanded]="expandedId() === record.id"
-                (click)="toggleExpanded(record)"
+  <div class="attendance__content page-wrap pb-6">
+    <!--
+      守衛判的是原始清單 `records()`，不是衍生的 `days()`（#797）：`days()` 在 records 還是空的時候
+      就已經排出整段期間，判它的話 skeleton 結構性不可達，慢速網路上看到的是一整排「今日無課」。
+    -->
+    @if (loading() && records().length === 0) {
+      <div class="skeleton-list mt-6">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到出缺席紀錄，可能是連線問題"
+      />
+    } @else {
+      <p class="attendance__count mt-6 mb-0 text-md text-zinc-600">{{ countLine() }}</p>
+      @for (day of visibleDays(); track day.date) {
+        @if (day.records.length === 0) {
+          <section
+            class="attendance__day attendance__day--empty flex items-baseline justify-between gap-3 border-b border-surface-border py-3 wide:grid wide:grid-cols-[160px_minmax(0,1fr)] wide:gap-x-6"
+          >
+            <span class="text-base font-semibold text-zinc-700 tabular-nums"
+              >{{ day.md
+              }}<small class="ml-2 text-md font-medium text-zinc-600"
+                >週{{ day.weekday }}{{ day.isToday ? '・今天' : '' }}</small
+              ></span
+            >
+            <span class="self-center text-md text-zinc-600">今日無課</span>
+          </section>
+        } @else {
+          <section
+            class="attendance__day grid grid-cols-1 gap-2 border-b border-surface-border py-4 wide:grid-cols-[160px_minmax(0,1fr)] wide:gap-x-6"
+            [attr.data-date]="day.date"
+          >
+            <div>
+              <span class="text-lg font-bold tabular-nums"
+                >{{ day.md
+                }}<small class="ml-2 text-md font-medium text-zinc-600"
+                  >週{{ day.weekday }}{{ day.isToday ? '・今天' : '' }}</small
+                ></span
               >
-                <app-status-dot [tone]="statusTone[record.status]">{{
-                  statusLabels[record.status]
-                }}</app-status-dot>
-                <span class="attendance__record-class font-medium text-zinc-900">{{
-                  record.className ?? '—'
-                }}</span>
-                <!--
-                停課仍然可能掛著一筆請假（#502）。老師端同一件事用的就是 data-chip
-                （`schedule.page.html`），這裡照那個形狀，不另創一個。
-              -->
-                @if (sessionChipLabel(record.sessionStatus); as chip) {
-                  <app-data-chip>{{ chip }}</app-data-chip>
-                }
-                @if (record.campusName) {
-                  <span class="attendance__record-campus text-sm text-zinc-500">{{
-                    record.campusName
-                  }}</span>
-                }
-              </button>
-              @if (expandedId() === record.id) {
-                <div class="attendance__record-detail -mt-2 rounded-b-lg bg-zinc-50 px-3 pt-2 pb-3">
-                  @if (record.startTime && record.endTime) {
-                    <p class="attendance__record-time m-0 text-sm text-zinc-600">
-                      {{ record.startTime }} － {{ record.endTime }}
-                    </p>
-                  }
-                  @if (record.note) {
-                    <p class="attendance__record-note m-0 text-sm text-zinc-600">
-                      {{ record.note }}
-                    </p>
-                  }
-                  <!-- 設計稿 §5：家長送的寫原因；補習班登記的不帶原因（可能是內部備註，計畫席 10-19 裁 (A)） -->
-                  @if (record.leaveSubmittedBy; as by) {
-                    <p class="attendance__record-leave m-0 text-sm text-zinc-600">
-                      請假{{ record.leaveReason ? '：' + record.leaveReason : '' }}（{{
-                        by === 'parent' ? '家長送出' : '補習班登記'
-                      }}）
-                    </p>
-                  }
-                  @if (!record.startTime && !record.note && !record.leaveSubmittedBy) {
-                    <p class="attendance__record-note m-0 text-sm text-zinc-600">沒有更多資訊</p>
+              @if (day.arrival; as arrival) {
+                <span
+                  class="attendance__arrival mt-0.5 block text-md tabular-nums"
+                  [class]="arrival.missing ? 'text-zinc-600' : 'text-zinc-700'"
+                  >{{ arrival.text }}</span
+                >
+              }
+            </div>
+            <div>
+              @for (record of day.records; track record.id) {
+                <div class="attendance__rec rounded-md not-first:mt-1">
+                  <button
+                    type="button"
+                    class="attendance__record grid min-h-11 w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)_16px] items-center gap-x-3 gap-y-0.5 rounded-md border-0 bg-transparent p-2 text-left text-inherit hover:bg-zinc-50 aria-expanded:rounded-b-none aria-expanded:bg-zinc-100 wide:grid-cols-[56px_minmax(0,1fr)_auto_16px] wide:px-3"
+                    [attr.aria-expanded]="expandedId() === record.id"
+                    [attr.aria-controls]="'rec-' + record.id"
+                    (click)="toggleExpanded(record)"
+                  >
+                    <span
+                      class="attendance__status"
+                      [class]="
+                        record.sessionStatus !== 'cancelled' && record.status === 'absent'
+                          ? 'font-bold text-error-700'
+                          : record.sessionStatus !== 'cancelled' && record.status === 'present'
+                            ? 'font-bold'
+                            : 'font-semibold text-zinc-600'
+                      "
+                      >{{
+                        record.sessionStatus === 'cancelled' ? '停課' : statusLabels[record.status]
+                      }}</span
+                    >
+                    <span class="attendance__record-class font-semibold text-zinc-900"
+                      >{{ record.className ?? '—' }}
+                      <!-- 沒有課堂的紀錄（活動）不能跟正常的課長得一樣（#514） -->
+                      @if (record.sessionStatus === null) {
+                        <app-data-chip>{{ sessionChipLabel(null) }}</app-data-chip>
+                      }
+                    </span>
+                    <span
+                      class="col-start-2 row-start-2 text-sm whitespace-nowrap text-zinc-600 tabular-nums wide:col-start-auto wide:row-start-auto"
+                      >{{
+                        record.startTime && record.endTime
+                          ? record.startTime + '–' + record.endTime
+                          : ''
+                      }}</span
+                    >
+                    <i
+                      class="pi pi-chevron-down col-start-3 row-span-2 row-start-1 text-xs text-zinc-600 transition-transform wide:col-start-auto wide:row-span-1 wide:row-start-auto"
+                      [class.rotate-180]="expandedId() === record.id"
+                      aria-hidden="true"
+                    ></i>
+                  </button>
+                  @if (expandedId() === record.id) {
+                    <div
+                      class="attendance__record-detail grid gap-1 rounded-b-md bg-zinc-100 pt-2 pr-3 pb-3 pl-[calc(44px+var(--space-3)+var(--space-2))] text-md text-zinc-800 wide:pl-[calc(56px+var(--space-3)*2)]"
+                      [id]="'rec-' + record.id"
+                    >
+                      <!-- 分校：A6 沒畫，跨分校的孩子要分得出是哪一校的課（R2，收進展開） -->
+                      @if (record.campusName) {
+                        <span class="attendance__record-campus">{{ record.campusName }}</span>
+                      }
+                      @if (record.sessionStatus === 'cancelled') {
+                        <span>補習班停課</span>
+                      }
+                      <!-- #1742：家長送的寫原因；補習班登記的不帶原因（可能是內部備註，計畫席 10-19 裁 (A)） -->
+                      @if (record.status === 'on_leave') {
+                        <span class="attendance__record-leave"
+                          >請假{{ record.leaveReason ? '：' + record.leaveReason : ''
+                          }}{{
+                            record.leaveSubmittedBy
+                              ? record.leaveSubmittedBy === 'parent'
+                                ? '（家長送出）'
+                                : '（補習班登記）'
+                              : ''
+                          }}</span
+                        >
+                      }
+                      @if (record.note) {
+                        <span class="attendance__record-note">{{ record.note }}</span>
+                      }
+                    </div>
                   }
                 </div>
               }
-            }
-          </div>
-        }
-
-        @if (hasMore()) {
-          <button
-            type="button"
-            class="attendance__load-more min-h-11 cursor-pointer rounded-lg border border-zinc-200 bg-transparent p-3 text-accent-600 disabled:cursor-default disabled:opacity-60"
-            [disabled]="loading()"
-            (click)="loadMore()"
-          >
-            @if (loading()) {
-              載入中...
-            } @else {
-              載入更多
-            }
-          </button>
+            </div>
+          </section>
         }
       }
-    </div>
-  </app-child-scope-gate>
-</div>
+      @if (visibleDays().length < days().length) {
+        <div class="flex justify-center py-6">
+          <button
+            type="button"
+            class="attendance__load-more h-11 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400 wide:h-10 wide:w-auto"
+            (click)="loadMore()"
+          >
+            載入更多（還有 {{ days().length - visibleDays().length }} 天）
+          </button>
+        </div>
+      }
+    }
+  </div>
+</app-child-scope-gate>
 
 <!--
   幫孩子請假（#1695）：A6 的 form() —— 桌機置中對話框、≤860 底部面板，進出場走 #1634 的 overlay-motion。
