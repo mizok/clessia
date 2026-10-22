@@ -41,6 +41,7 @@ import {
 } from './contact-book.util';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const DEFAULT_RANGE_DAYS = 7;
 
@@ -63,6 +64,7 @@ const DEFAULT_RANGE_DAYS = 7;
   selector: 'app-admin-contact-book',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     FormsModule,
     ButtonModule,

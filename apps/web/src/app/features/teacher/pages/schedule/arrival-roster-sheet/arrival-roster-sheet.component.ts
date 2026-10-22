@@ -12,6 +12,7 @@ import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { AttendanceService, type RosterStudent } from '@core/attendance.service';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 開到班名單需要的資料 —— 課堂卡上都有 */
 export interface ArrivalRosterInput {
@@ -34,7 +35,7 @@ export interface ArrivalRosterInput {
  */
 @Component({
   selector: 'app-arrival-roster-sheet',
-  imports: [ButtonModule, DatePipe],
+  imports: [SkeletonComponent, ButtonModule, DatePipe],
   templateUrl: './arrival-roster-sheet.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

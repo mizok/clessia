@@ -1167,7 +1167,7 @@ describe('PaymentsPage', () => {
       component['onChapterToggle']('dueSoon', true);
       await render();
       const body = el().querySelector('details.coll .coll__body')!;
-      expect(body.querySelector('[role="status"] .skeleton-bar')).not.toBeNull();
+      expect(body.querySelector('[role="status"] .skeleton')).not.toBeNull();
       expect(body.querySelector('.reload-veil__status')).toBeNull();
     });
 

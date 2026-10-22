@@ -41,6 +41,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', daily_checkin: '日到班' };
 
@@ -48,6 +49,7 @@ const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', dail
   selector: 'app-campuses',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     PageActionsComponent,
     FormsModule,

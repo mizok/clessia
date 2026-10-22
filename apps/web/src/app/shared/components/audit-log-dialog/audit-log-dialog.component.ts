@@ -12,6 +12,7 @@ import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-c
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 interface ActionConfig {
   label: string;
@@ -66,6 +67,7 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   selector: 'app-audit-log-dialog',
   standalone: true,
   imports: [
+    SkeletonComponent,
     DataChipComponent,
     CommonModule,
     ResponsiveTableComponent,

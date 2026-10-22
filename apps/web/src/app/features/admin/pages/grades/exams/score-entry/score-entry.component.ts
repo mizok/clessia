@@ -29,6 +29,7 @@ import { SchoolExamsService, type SchoolExamDetail } from '@core/school-exams.se
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type ScoreEntryType = 'academy' | 'school';
 
@@ -48,7 +49,13 @@ interface SummaryStats {
 @Component({
   selector: 'app-score-entry',
   standalone: true,
-  imports: [PageOpenComponent, RouterLink, AcademyScoreEditorComponent, SchoolScoreEditorComponent],
+  imports: [
+    SkeletonComponent,
+    PageOpenComponent,
+    RouterLink,
+    AcademyScoreEditorComponent,
+    SchoolScoreEditorComponent,
+  ],
   templateUrl: './score-entry.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

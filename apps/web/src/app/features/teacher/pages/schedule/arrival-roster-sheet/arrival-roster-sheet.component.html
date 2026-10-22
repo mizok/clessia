@@ -8,11 +8,7 @@
   </header>
 
   @if (loading()) {
-    <div class="skeleton-list" aria-label="到班名單載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="到班名單載入中" [count]="3" />
   } @else if (loadError()) {
     <p class="m-0 text-error-600">讀取失敗，請關閉重開。</p>
   } @else {

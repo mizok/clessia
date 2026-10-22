@@ -26,11 +26,7 @@
         <span class="text-muted">堂</span>
       </div>
     </section>
-    <div class="skeleton-list">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="教學紀錄載入中" [count]="3" />
   } @else if (loadError()) {
     <p class="m-0 text-error-600">課堂查詢失敗，請稍後再試。</p>
   } @else {

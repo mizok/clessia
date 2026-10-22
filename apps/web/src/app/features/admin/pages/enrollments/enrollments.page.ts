@@ -76,9 +76,11 @@ const monthDay = (date: string): string =>
   `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 @Component({
   selector: 'app-enrollments',
   imports: [
+    SkeletonComponent,
     CampusScopeNoteComponent,
     StudentAutocompleteComponent,
     PageOpenComponent,

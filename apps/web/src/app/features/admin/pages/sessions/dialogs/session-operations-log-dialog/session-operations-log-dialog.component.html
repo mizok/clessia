@@ -33,12 +33,7 @@
   <ng-template #logContent let-emptyTitle="emptyTitle">
     <div class="pt-4">
       @if (loading()) {
-        <div class="skeleton-list">
-          <span class="skeleton-bar skeleton-bar--label"></span>
-          @for (_ of [1, 2, 3, 4, 5]; track $index) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
+        <app-skeleton label="操作紀錄載入中" [count]="5" />
       } @else if (logs().length === 0) {
         <div class="flex flex-col items-center justify-center gap-3 p-8 text-center text-zinc-500">
           <i class="pi pi-history"></i>

@@ -77,6 +77,7 @@ import {
 } from '@shared/components/page-actions/page-actions.component';
 import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -168,6 +169,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   selector: 'app-exams',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     PageActionsComponent,
     FormsModule,

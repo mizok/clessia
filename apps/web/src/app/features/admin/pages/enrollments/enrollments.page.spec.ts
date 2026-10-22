@@ -164,7 +164,7 @@ describe('EnrollmentsPage', () => {
     f.detectChanges();
 
     expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(f.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
   it('預設查近 30 天（今天往前 29 天到今天），並用 updatedAt 排序', async () => {

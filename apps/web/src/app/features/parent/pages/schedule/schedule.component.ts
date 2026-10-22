@@ -50,6 +50,7 @@ import {
   type StepDir,
   type StepMotion,
 } from '@shared/directives/step-motion.directive';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancellation: '停課' } as const;
 
@@ -64,6 +65,7 @@ const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancella
   selector: 'app-schedule',
   standalone: true,
   imports: [
+    SkeletonComponent,
     RouterLink,
     PageOpenComponent,
     ChildSwitcherComponent,

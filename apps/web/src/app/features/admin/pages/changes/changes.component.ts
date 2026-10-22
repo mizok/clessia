@@ -24,6 +24,7 @@ import { CHANGE_TYPE_LABELS } from '@shared/components/change-log-list/change-lo
 import { SearchFieldComponent } from '@shared/components/search-field/search-field.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 const MONTHS_BACK = 12;
@@ -47,6 +48,7 @@ const UNFILTERABLE_CHANGE_TYPES = new Set(['creation', 'makeup']);
 @Component({
   selector: 'app-changes',
   imports: [
+    SkeletonComponent,
     CampusScopeNoteComponent,
     ChangeLogListComponent,
     RouterLink,

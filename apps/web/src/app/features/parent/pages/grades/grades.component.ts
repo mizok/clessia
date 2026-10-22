@@ -44,6 +44,7 @@ import {
   type PeriodFilter,
 } from './grades.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /**
  * **必須 ≤ API 的上限**（`apps/api/src/routes/parent/grades.ts` 的
@@ -62,6 +63,7 @@ const PAGE_SIZE = 100;
   selector: 'app-grades',
   standalone: true,
   imports: [
+    SkeletonComponent,
     FormsModule,
     NgTemplateOutlet,
     SelectModule,

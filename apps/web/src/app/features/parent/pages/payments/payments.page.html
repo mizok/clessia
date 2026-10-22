@@ -106,11 +106,7 @@
   <app-child-scope-gate>
     <div class="payments__content page-wrap flex flex-col pb-6">
       @if (loading() && invoices().length === 0) {
-        <div class="skeleton-list pt-4">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
+        <app-skeleton class="pt-4" label="繳費紀錄載入中" [count]="3" />
       } @else if (failed()) {
         <app-empty-state
           icon="pi pi-exclamation-circle"

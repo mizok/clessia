@@ -72,6 +72,7 @@ import {
 } from '@shared/components/status/status-dot/status-dot.component';
 import { personHue } from '@shared/utils/person-hue.util';
 import { EnrollmentBillingDialogComponent } from '../../courses/class-detail/enrollment-billing-dialog/enrollment-billing-dialog.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 interface InlineNoticeState {
   readonly severity: InlineNoticeSeverity;
@@ -88,6 +89,7 @@ interface ConflictPrompt {
   selector: 'app-student-detail',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     StatusDotComponent,
     DataChipComponent,

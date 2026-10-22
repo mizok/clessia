@@ -56,6 +56,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 interface RoleOption {
   value: StaffRole;
@@ -115,6 +116,7 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
   selector: 'app-staff',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     PageActionsComponent,
     PageOpenComponent,

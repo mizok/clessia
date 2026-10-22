@@ -58,11 +58,13 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 @Component({
   selector: 'app-parents',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     PopoverModule,
     ChapterHeadComponent,

@@ -24,6 +24,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 分章順序：國小 → 國中 → 高中 → 未分類（計畫席 10-22 裁 C：未分類放最後） */
 const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
@@ -37,6 +38,7 @@ const CHAPTERS: ReadonlyArray<{ level: SchoolLevel | null; label: string }> = [
   selector: 'app-schools-page',
   standalone: true,
   imports: [
+    SkeletonComponent,
     PageActionsComponent,
     FormsModule,
     ReloadVeilComponent,

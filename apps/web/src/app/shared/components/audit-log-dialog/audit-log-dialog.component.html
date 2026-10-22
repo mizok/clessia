@@ -10,12 +10,7 @@
 <div class="audit-log-dialog max-w-[60rem]">
   <div class="audit-log-dialog__body flex h-[340px] flex-col overflow-hidden">
     @if (loading()) {
-      <div class="skeleton-list px-0 py-3">
-        <span class="skeleton-bar skeleton-bar--label"></span>
-        @for (_ of [1, 2, 3, 4, 5]; track $index) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton label="操作紀錄載入中" [count]="5" />
     } @else if (loadFailed()) {
       <app-load-failed description="沒有讀到操作紀錄，可能是連線問題" (retry)="loadPage()" />
     } @else if (logs().length === 0) {

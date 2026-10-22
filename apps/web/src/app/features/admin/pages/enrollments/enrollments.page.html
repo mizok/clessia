@@ -130,11 +130,7 @@
   </div>
 
   @if (loading()) {
-    <div class="skeleton-list" aria-label="報名紀錄載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="報名紀錄載入中" [count]="3" />
   } @else if (loadError()) {
     <p class="m-0 text-error-600">查詢失敗，請稍後再試。</p>
   } @else if (rows().length === 0) {

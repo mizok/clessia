@@ -13,6 +13,7 @@ import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dy
 
 import { ContactBookService, type MissingContactBookStudent } from '@core/contact-book.service';
 import { ContactBookEntryDialogComponent } from '@shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 開這份名單需要的最小資料 —— 課堂卡上都有 */
 export interface ContactBookRosterInput {
@@ -30,7 +31,7 @@ export interface ContactBookRosterInput {
  */
 @Component({
   selector: 'app-contact-book-roster',
-  imports: [ButtonModule],
+  imports: [SkeletonComponent, ButtonModule],
   templateUrl: './contact-book-roster.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   // **刻意不在這裡 provide DialogService** —— 這支自己是被 DialogService 開出來的，

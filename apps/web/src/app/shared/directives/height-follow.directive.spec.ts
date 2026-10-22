@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { type Mock, afterEach, describe, expect, it, vi } from 'vitest';
 import { HeightFollowDirective } from './height-follow.directive';
 
 @Component({
@@ -8,6 +8,12 @@ import { HeightFollowDirective } from './height-follow.directive';
   template: `<div appHeightFollow><div></div></div>`,
 })
 class HostComponent {}
+
+@Component({
+  imports: [HeightFollowDirective],
+  template: `<div appHeightFollow appHeightFollowGrow><div></div></div>`,
+})
+class GrowHostComponent {}
 
 @Component({
   imports: [HeightFollowDirective],
@@ -44,7 +50,7 @@ describe('HeightFollowDirective', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   /** jsdom 沒有 ResizeObserver／WAAPI：替身接住 callback，`resize(內容高, 宿主高)` 模擬一次版面變化 */
-  async function setup(reduce = false) {
+  async function setup(reduce = false, host: typeof HostComponent = HostComponent) {
     let notify: ResizeObserverCallback = () => undefined;
     vi.stubGlobal(
       'ResizeObserver',
@@ -57,12 +63,17 @@ describe('HeightFollowDirective', () => {
       },
     );
     vi.stubGlobal('matchMedia', (q: string) => ({ matches: reduce && q.includes('reduce') }));
-    const fixture = TestBed.createComponent(HostComponent);
-    const host = fixture.nativeElement.querySelector('[appHeightFollow]') as HTMLElement;
+    const fixture = TestBed.createComponent(host);
+    const el = fixture.nativeElement.querySelector('[appHeightFollow]') as HTMLElement;
     let hostHeight = 0;
-    Object.defineProperty(host, 'offsetHeight', { get: () => hostHeight });
-    const animate = vi.fn(() => ({ finished: Promise.resolve(), cancel: vi.fn() }));
-    host.animate = animate as unknown as HTMLElement['animate'];
+    Object.defineProperty(el, 'offsetHeight', { get: () => hostHeight });
+    const animate = vi.fn(() => ({
+      finished: Promise.resolve(),
+      cancel: vi.fn(),
+      pause: vi.fn(),
+      play: vi.fn(),
+    }));
+    el.animate = animate as unknown as HTMLElement['animate'];
     fixture.detectChanges();
     await fixture.whenStable();
     const resize = (content: number, hostNow: number) => {
@@ -72,12 +83,17 @@ describe('HeightFollowDirective', () => {
         {} as ResizeObserver,
       );
     };
-    return { animate, resize, host };
+    return { animate, resize, host: el };
   }
 
   it('連續變化（前一段還沒滑完）：從畫面上目前的高度接著滑，並取消前一段（第二審核席 #1864）', async () => {
     const { animate, resize, host } = await setup();
-    const first = { finished: new Promise(() => undefined), cancel: vi.fn() };
+    const first = {
+      finished: new Promise(() => undefined),
+      cancel: vi.fn(),
+      pause: vi.fn(),
+      play: vi.fn(),
+    };
     animate.mockReturnValueOnce(first as never);
     resize(100, 100); // 第一次量到，不動
     resize(200, 200); // 100 → 200，滑到一半
@@ -127,5 +143,45 @@ describe('HeightFollowDirective', () => {
     resize(120, 152);
     resize(220, 252);
     expect(animate).not.toHaveBeenCalled();
+  });
+
+  it('距離長的滑久一點：500px 以內 200ms，1300px 是 500ms 封頂（#1859 第 4 張：--arrive 第一幀不再跳掉 1/3）', async () => {
+    const { animate, resize } = await setup();
+    resize(100, 100);
+    resize(300, 300);
+    resize(1600, 1600);
+    const durations = animate.mock.calls.map(
+      (c) => (c as unknown as [Keyframe[], KeyframeAnimationOptions])[1].duration,
+    );
+    expect(durations).toEqual([200, 500]);
+  });
+
+  it('appHeightFollowGrow：頁面剛畫出來那次只記下；之後從 0 長出來、收回 0 都滑', async () => {
+    const { animate, resize } = await setup(false, GrowHostComponent);
+    resize(0, 0); // 剛畫出來：提示還沒有
+    expect(animate).not.toHaveBeenCalled();
+    resize(44, 44); // 資料回來，提示出現
+    await Promise.resolve(); // 第一段滑完
+    resize(0, 0); // 處理完，提示消失
+    const frames = animate.mock.calls.map((c) =>
+      (c as unknown as [Keyframe[]])[0].map((f) => f['height']),
+    );
+    expect(frames).toEqual([
+      ['0px', '44px'],
+      ['44px', '0px'],
+    ]);
+  });
+
+  it('建立的那一幀先停在舊高度，下一幀才開始滑（那一幀常常很重，直接 play 第一眼就是 1/3 的位置）', async () => {
+    const { animate, resize } = await setup();
+    const raf = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', raf);
+    resize(100, 100);
+    resize(800, 800);
+    const anim = animate.mock.results[0]!.value as { pause: Mock; play: Mock };
+    expect(anim.pause).toHaveBeenCalled();
+    expect(anim.play).not.toHaveBeenCalled();
+    (raf.mock.calls[0]![0] as FrameRequestCallback)(0);
+    expect(anim.play).toHaveBeenCalled();
   });
 });

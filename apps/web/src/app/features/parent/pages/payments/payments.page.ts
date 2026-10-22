@@ -38,6 +38,7 @@ import {
   latestPaymentDate,
   monthDay,
 } from './payments.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 const PAGE_SIZE = 20;
 
@@ -45,6 +46,7 @@ const PAGE_SIZE = 20;
   selector: 'app-payments',
   standalone: true,
   imports: [
+    SkeletonComponent,
     DecimalPipe,
     NgTemplateOutlet,
     RouterLink,

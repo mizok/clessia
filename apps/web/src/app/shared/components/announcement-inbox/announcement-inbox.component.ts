@@ -16,6 +16,7 @@ import { map as rxMap, type Observable } from 'rxjs';
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
 import { InboxBadgeService } from '@core/inbox-badge.service';
 import { NotificationsService, type AppNotification } from '@core/notifications.service';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type Source = 'announcement' | 'notification';
 
@@ -105,7 +106,7 @@ function fromNotification(n: AppNotification): InboxItem {
  */
 @Component({
   selector: 'app-announcement-inbox',
-  imports: [DatePipe, ValueArriveDirective],
+  imports: [SkeletonComponent, DatePipe, ValueArriveDirective],
   templateUrl: './announcement-inbox.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

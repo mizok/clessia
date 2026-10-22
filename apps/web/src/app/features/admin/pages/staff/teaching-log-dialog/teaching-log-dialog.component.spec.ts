@@ -94,7 +94,7 @@ describe('TeachingLogDialogComponent', () => {
 
     expect(f.nativeElement.querySelectorAll('.teaching-log__metric-skeleton').length).toBe(2);
     expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+    expect(f.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
   });
 
   it('以該老師與當月區間查詢課堂', async () => {

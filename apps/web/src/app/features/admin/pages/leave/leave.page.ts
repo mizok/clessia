@@ -37,11 +37,13 @@ import {
 } from '@shared/components/page-actions/page-actions.component';
 import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 @Component({
   selector: 'app-leave',
   standalone: true,
   imports: [
+    SkeletonComponent,
     ReloadVeilComponent,
     CampusScopeNoteComponent,
     PageOpenComponent,

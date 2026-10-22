@@ -40,6 +40,7 @@ import {
   sessionChipLabel,
 } from './attendance.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 type RangeMode = 'recent10' | 'recent30' | 'month';
 
@@ -56,6 +57,7 @@ const DAYS_STEP = 14;
   selector: 'app-attendance',
   standalone: true,
   imports: [
+    SkeletonComponent,
     PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,

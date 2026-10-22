@@ -173,11 +173,7 @@
   }
   <div class="flex flex-col gap-4">
     @if (loading()) {
-      <div class="skeleton-list">
-        @for (i of [1, 2, 3, 4, 5]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
+      <app-skeleton label="餐費載入中" [count]="5" />
     } @else if (failed()) {
       <app-empty-state
         icon="pi pi-exclamation-circle"

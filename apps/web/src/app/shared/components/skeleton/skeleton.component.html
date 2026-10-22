@@ -1,0 +1,88 @@
+<div class="skeleton-list" role="status" [attr.aria-label]="label()">
+  @if (chapter()) {
+    <!-- 同學生／帳單／價目表的章節 grid（13rem 左欄＋右側內容） -->
+    @for (c of chapterList(); track $index) {
+      <div
+        class="skeleton-list__chapter grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+      >
+        <div
+          class="skeleton-list__head flex items-baseline gap-x-3 pt-6 wide:flex-col wide:items-stretch wide:pt-8"
+          aria-hidden="true"
+        >
+          <span class="block text-[26px] leading-none wide:text-[44px]">
+            <span class="skeleton inline-block h-[1em] w-[2.2em] rounded-sm align-top"></span>
+          </span>
+          <span class="block text-lg wide:mt-3 wide:text-xl">
+            <span class="skeleton inline-block h-[0.8em] w-[2.5em] rounded-sm align-middle"></span>
+          </span>
+        </div>
+        <ng-container [ngTemplateOutlet]="body" />
+      </div>
+    }
+  } @else {
+    <ng-container [ngTemplateOutlet]="body" />
+  }
+</div>
+
+<ng-template #body>
+  @if (shape() === 'cards') {
+    <div
+      class="skeleton-list__cards grid grid-cols-1 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1"
+      [class]="chapter() ? 'wide:pt-6' : ''"
+      aria-hidden="true"
+    >
+      @for (item of items(); track $index) {
+        <div
+          class="skeleton-list__cell flex min-h-12 items-center border-b border-zinc-200 py-1 wide:min-h-11 wide:border-b-0 wide:py-2"
+        >
+          <span class="block text-lg">
+            <span
+              class="skeleton inline-block h-[0.9em] rounded-sm align-middle"
+              [style.width]="item.name"
+            ></span>
+          </span>
+        </div>
+      }
+    </div>
+  } @else {
+    @if (heading()) {
+      <!-- A6 段標：粗體段名＋下面一條黑線（成績總覽「還沒登錄完的 N 場」、儀表板「今日課表」） -->
+      <span class="skeleton-list__heading mb-2 block text-xl font-bold" aria-hidden="true">
+        <span class="skeleton inline-block h-[0.9em] w-[7em] rounded-sm align-middle"></span>
+      </span>
+    }
+    <div
+      class="skeleton-list__rows"
+      [class]="(chapter() ? 'wide:pt-2 ' : '') + (heading() ? 'border-t border-zinc-900' : '')"
+      aria-hidden="true"
+    >
+      @for (item of items(); track $index) {
+        <div
+          class="skeleton-list__row flex items-center justify-between gap-4 border-b border-surface-border"
+          [class]="lines() === 1 ? 'py-1.5' : 'py-3'"
+        >
+          <span class="min-w-0">
+            <!-- 清單列的名字多半是 min-h-11 的連結 -->
+            <span class="flex min-h-11 items-center text-lg font-semibold">
+              <span
+                class="skeleton inline-block h-[0.9em] rounded-sm align-middle"
+                [style.width]="item.name"
+              ></span>
+            </span>
+            @if (lines() === 2) {
+              <span class="block text-sm">
+                <span
+                  class="skeleton inline-block h-[0.8em] rounded-sm align-middle"
+                  [style.width]="item.sub"
+                ></span>
+              </span>
+            }
+          </span>
+          <span class="block text-base">
+            <span class="skeleton inline-block h-[0.9em] w-[4em] rounded-sm align-middle"></span>
+          </span>
+        </div>
+      }
+    </div>
+  }
+</ng-template>

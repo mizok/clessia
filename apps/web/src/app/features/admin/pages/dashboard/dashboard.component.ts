@@ -106,10 +106,14 @@ import {
   PhoneLeaveComponent,
   type PhoneLeaveRosterRequest,
 } from './phone-leave/phone-leave.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 
 @Component({
   selector: 'app-dashboard',
   imports: [
+    HeightFollowDirective,
+    SkeletonComponent,
     ValueArriveDirective,
     StatusDotComponent,
     RouterLink,

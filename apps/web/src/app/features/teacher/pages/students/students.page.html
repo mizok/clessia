@@ -50,12 +50,7 @@
 
 <div class="page-wrap pb-8">
   @if (loading()) {
-    <div class="skeleton-list mt-6" aria-label="學生名單載入中">
-      <span class="skeleton-bar skeleton-bar--label"></span>
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="學生名單載入中" chapter shape="cards" [count]="8" />
   } @else if (loadError()) {
     <p class="m-0 mt-6 text-error-600">查詢失敗，請稍後再試。</p>
   } @else if (total() === 0) {
@@ -86,7 +81,10 @@
           class="grid grid-cols-1 gap-3 border-0 border-b border-solid border-zinc-200 py-6 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
           [attr.aria-label]="group.className"
         >
-          <div class="wide:sticky wide:top-sticky-chapter wide:self-start" data-testid="chapter-head">
+          <div
+            class="wide:sticky wide:top-sticky-chapter wide:self-start"
+            data-testid="chapter-head"
+          >
             <h2 class="m-0 text-xl leading-snug font-bold text-zinc-900">{{ group.className }}</h2>
             <p class="m-0 mt-3 text-xl font-bold tracking-[-0.02em] tabular-nums">
               {{ group.students.length }}

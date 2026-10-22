@@ -174,11 +174,7 @@
   }
 
   @if (loading()) {
-    <div class="skeleton-list" aria-label="學生資料載入中">
-      @for (i of [1, 2, 3]; track i) {
-        <span class="skeleton-bar"></span>
-      }
-    </div>
+    <app-skeleton label="學生資料載入中" [count]="3" />
   } @else if (!student()) {
     <app-empty-state
       icon="pi pi-user"

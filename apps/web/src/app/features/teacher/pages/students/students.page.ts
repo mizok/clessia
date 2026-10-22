@@ -18,6 +18,7 @@ import { forkJoin, map, mergeMap, of, type Observable } from 'rxjs';
 import { GRADE_LEVEL_LABELS, StudentsService, type Student } from '@core/students.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 列表 API 單頁上限（`students.ts` 的 `max(100)`） */
 const PAGE_SIZE = 100;
@@ -33,6 +34,7 @@ interface ClassGroup {
 @Component({
   selector: 'app-students',
   imports: [
+    SkeletonComponent,
     FormsModule,
     IconFieldModule,
     InputIconModule,
