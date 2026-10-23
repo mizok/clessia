@@ -124,6 +124,8 @@ function createSummaryApp(fixture: SummaryFixture | 'no-db') {
     context.set('orgId', 'org-1');
     context.set('userId', 'user-1');
     context.set('roles', ['admin']);
+    // 正式由 authMiddleware 設；不受分校限制（#1994 起這三支 GET 會讀它）
+    context.set('campusScope', null);
     await next();
   });
   app.route('/api/contact-book', contactBookApp);

@@ -10,7 +10,7 @@ import {
   type SessionOnDate,
 } from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
-import { getCampusScope } from '../lib/campus-scope';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { studentWriteScope } from '../lib/campus-write-guard';
 import { waitUntilFrom } from '../lib/wait-until';
 
@@ -92,6 +92,16 @@ const SELECT =
   'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, ' +
   'students(name), editor:ba_user!last_edited_by(name), signer:ba_user!signed_by(name)';
 
+/**
+ * 分校範圍（#1994）：學生**任一報名**的班在範圍內就算（同學生列表、`studentWriteScope`）。
+ * 條件放在 join 裡、在 DB 端篩 —— 不先撈學生 id 清單再塞進 `.in()`（#1928：上千個 id 會 414）。
+ *
+ * ⚠️ 三層都 `!inner` 才會把條件傳回父列（parent-campus-scope.ts 的 #815 註解）。
+ * embed 與條件**只看同一個 `campusIds`**：不受限時兩個都不加 —— 單獨留著 `!inner` 會把沒有報名的學生也濾掉
+ */
+const SCOPE_EMBED = ', scope_student:students!inner(enrollments!inner(classes!inner(campus_id)))';
+const SCOPE_FILTER = 'scope_student.enrollments.classes.campus_id';
+
 // ── GET /api/contact-book —— 依學生或日期區間列出 ──────────────────────────
 app.openapi(
   createRoute({
@@ -132,11 +142,18 @@ app.openapi(
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    // 範圍是空的（一個分校都沒被指派）：什麼都看不到，fail-closed
+    if (campusIds !== null && campusIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0 } }, 200);
+    }
+
     let query = supabase
       .from('contact_book_entries')
-      .select(SELECT, { count: 'exact' })
+      .select(campusIds === null ? SELECT : SELECT + SCOPE_EMBED, { count: 'exact' })
       .eq('org_id', orgId)
       .order('entry_date', { ascending: false });
+    if (campusIds !== null) query = query.in(SCOPE_FILTER, [...campusIds]);
 
     if (studentId) query = query.eq('student_id', studentId);
     if (from) query = query.gte('entry_date', from);
@@ -324,12 +341,21 @@ app.openapi(
     }
 
     // `classes!inner` + 對嵌套欄位下條件 = 一趟就把「開了聯絡簿的班的在籍學生」撈齊
+    // 分校範圍（#1994）：缺漏名單與統計只算範圍內的學生
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    if (campusIds !== null && campusIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0 } }, 200);
+    }
     let candidateQuery = supabase
       .from('enrollments')
-      .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+      .select(
+        'student_id, class_id, students(name), classes!inner(name, uses_contact_book)' +
+          (campusIds === null ? '' : SCOPE_EMBED),
+      )
       .eq('org_id', orgId)
       .in('status', ['active', 'pending_payment'])
       .eq('classes.uses_contact_book', true);
+    if (campusIds !== null) candidateQuery = candidateQuery.in(SCOPE_FILTER, [...campusIds]);
 
     if (taught) candidateQuery = candidateQuery.in('class_id', taught);
 
@@ -468,12 +494,24 @@ app.openapi(
       }
     }
 
+    // 分校範圍（#1994）：缺漏名單與統計只算範圍內的學生
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    if (campusIds !== null && campusIds.length === 0) {
+      return c.json(
+        { data: dates.map((date) => ({ date, missingCount: 0 })), meta: { total: 0 } },
+        200,
+      );
+    }
     let candidateQuery = supabase
       .from('enrollments')
-      .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+      .select(
+        'student_id, class_id, students(name), classes!inner(name, uses_contact_book)' +
+          (campusIds === null ? '' : SCOPE_EMBED),
+      )
       .eq('org_id', orgId)
       .in('status', ['active', 'pending_payment'])
       .eq('classes.uses_contact_book', true);
+    if (campusIds !== null) candidateQuery = candidateQuery.in(SCOPE_FILTER, [...campusIds]);
 
     if (taught) candidateQuery = candidateQuery.in('class_id', taught);
 
