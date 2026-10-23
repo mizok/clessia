@@ -310,3 +310,27 @@ describe('GET /api/sessions —— latestChange（#1194）', () => {
     expect(has(changeQueries[0], 'order', 'created_at', { ascending: false })).toBe(true);
   });
 });
+
+/**
+ * #1928：月檢視一次 500 堂。出勤與在籍那兩支原本只拿 `data`，出錯（`.in()` 帶 500 個 id 會 414）
+ * 時出勤數靜默變 0、在籍數靜默變 0，照樣回 200。現在讀不到就回 500，不回一個假的數字。
+ */
+describe('GET /api/sessions —— 出勤、在籍讀取失敗回 500（#1928）', () => {
+  const BOOM = { message: 'URI too long', code: '414' };
+  const withMain = (fail: (q: RecordedQuery) => boolean) =>
+    createApp((q) => {
+      if (fail(q)) return { error: BOOM } as never;
+      if (isMainQuery(q)) return { data: [sessionRow('s-1', '2026-04-06', 'e-1')], count: 1 };
+      return { data: [] };
+    });
+
+  it.each([
+    ['出勤（attendance_records）', (q: RecordedQuery) => q.table === 'attendance_records'],
+    ['在籍區間（enrollments）', (q: RecordedQuery) => q.table === 'enrollments'],
+  ] as const)('%s 讀取失敗 → 500 READ_FAILED，不回 0', async (_label, fail) => {
+    const { app } = withMain(fail);
+    const res = await app.request('/api/sessions?from=2026-04-01&to=2026-04-30');
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('READ_FAILED');
+  });
+});
