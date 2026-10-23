@@ -575,6 +575,18 @@ describe('ExamsComponent', () => {
     const ids = () => (component['currentRows']() as Array<{ id: string }>).map((r) => r.id);
     const target = () => component['currentRows']()[1]!;
 
+    it('完成後仍可修改（#1931）：進行中的選單是「標記完成」；完成的沒有「重新開啟」', () => {
+      const labels = (row: object) => {
+        component['selectedRow'].set(row as never);
+        return (component['actionMenuItems']() as Array<{ label?: string }>).map((i) => i.label);
+      };
+      const row = target();
+      expect(labels({ ...row, status: 'active' })).toContain('標記完成');
+      const closed = labels({ ...row, status: 'closed' });
+      expect(closed).not.toContain('重新開啟');
+      expect(closed).not.toContain('標記完成');
+    });
+
     it('選單的「刪除」上危險色（#1360）', () => {
       component['selectedRow'].set(target());
       const items = component['actionMenuItems']() as Array<{ label?: string; danger?: boolean }>;

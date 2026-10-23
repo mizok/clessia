@@ -374,17 +374,12 @@ export class ExamsComponent implements OnInit {
         command: () => this.editExam(row),
       },
     ];
+    // 完成後仍可修改（#1931，照 A6）：不需要「重新開啟」—— 端點先留著，沒有呼叫端了（計畫席 Q4）
     if (row.status === 'active') {
       items.push({
-        label: '結束考試',
+        label: '標記完成',
         icon: 'pi pi-check-circle',
         command: () => this.confirmCloseExam(row),
-      });
-    } else {
-      items.push({
-        label: '重新開啟',
-        icon: 'pi pi-undo',
-        command: () => this.reopenExam(row),
       });
     }
     items.push({ separator: true });
@@ -857,10 +852,10 @@ export class ExamsComponent implements OnInit {
 
   protected confirmCloseExam(row: ExamRow): void {
     this.openConfirmDialog(
-      '結束考試',
+      '標記完成',
       {
-        message: `確定要結束「${row.name}」嗎？結束後將無法再登錄分數。`,
-        acceptLabel: '結束考試',
+        message: `把「${row.name}」標記完成？完成後仍可修改，改過的會記在操作紀錄。`,
+        acceptLabel: '標記完成',
         acceptSeverity: 'warn',
       },
       () => this.closeExam(row),
@@ -876,8 +871,7 @@ export class ExamsComponent implements OnInit {
       next: () => {
         this.messageService.add({
           severity: 'success',
-          summary: '已結束',
-          detail: `「${row.name}」已結束`,
+          summary: `「${row.name}」已標記完成`,
         });
         this.reloadListAndCounts({ rows: true });
       },
@@ -885,31 +879,7 @@ export class ExamsComponent implements OnInit {
         this.messageService.add({
           severity: 'error',
           summary: '操作失敗',
-          detail: '無法結束考試',
-        });
-      },
-    });
-  }
-
-  protected reopenExam(row: ExamRow): void {
-    const call$ =
-      row.kind === 'academy'
-        ? this.academyExamsService.reopen(row.id)
-        : this.schoolExamsService.reopen(row.id);
-    call$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '已重新開啟',
-          detail: `「${row.name}」已恢復為進行中`,
-        });
-        this.reloadListAndCounts({ rows: true });
-      },
-      error: () => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '操作失敗',
-          detail: '無法重新開啟考試',
+          detail: '無法標記完成，請稍後再試',
         });
       },
     });

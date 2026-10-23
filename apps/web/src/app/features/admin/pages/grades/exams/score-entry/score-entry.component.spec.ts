@@ -252,7 +252,7 @@ describe('ScoreEntryComponent', () => {
     expect(component['canSave']()).toBe(true);
   });
 
-  it('已結束：頁首寫明只能檢視，沒有儲存列', async () => {
+  it('已完成仍可修改（#1931，照 A6）：頂上寫明改過的記在操作紀錄；編輯器不鎖；有變更照樣出現儲存列；工具列的批次動作收起', async () => {
     await setup('academy', 'a1');
     flushAcademyRequests({ ...mockAcademyDetail, status: 'closed' as const });
 
@@ -260,8 +260,17 @@ describe('ScoreEntryComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).toContain('這場考試已結束');
-    expect(host.querySelector('[role=region][aria-label=儲存]')).toBeNull();
+    expect(host.querySelector('[data-part=closed-note]')?.textContent?.trim()).toBe(
+      '這場考試已完成。成績仍可修改，改過的會記在操作紀錄。',
+    );
+    expect(host.textContent).not.toContain('重新開啟');
+    expect(component['academyEditor']()!.disabled()).toBe(false);
+    expect(host.querySelector('[data-part=complete]')).toBeNull();
+
+    component['dirty'].set(true);
+    fixture.detectChanges();
+    expect(component['canSave']()).toBe(true);
+    expect(host.querySelector('[role=region][aria-label=儲存]')).not.toBeNull();
   });
 
   it('有沒存的變更時出現底部儲存列（取代 FAB）', async () => {
