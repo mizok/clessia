@@ -3,7 +3,7 @@ title: 家長端的資料範圍模型
 summary: 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。學生帳號是家長的退化情形（scope 只含自己），模型天然相容、v1 不做。2026-10-03 起家長端寫入走 childDb.insert／update、機構參考資料走 orgRef（#1119）。
 category: architecture
 status: draft
-updated: 2026-10-03
+updated: 2026-10-23
 tags: [architecture, parent, authorization, security]
 ---
 
@@ -109,6 +109,7 @@ gate 只是收尾：**禁止家長端的檔案出現 `c.get('supabase')`**。它
     學生欄位與 `org_id` 從 values 裡剔除（不能把一筆資料「過戶」給別的學生或別的 org）。
   - ⚠️ **寫入面的 `null` 跟讀取面刻意不同**：讀取面 `scope === null` 不加條件（防禦性保留），
     寫入面一律 fail-closed（等同空陣列）。
+- **要用 pg pool 的家長端寫入**（交易、`now()` 同交易時間等）也做成 `childDb` 的能力：`createChildDb` 收 pool（`createLeave`、`signContactBookEntry`），家長端 route 不碰 `getAuth(`／`.pool` —— A19 第二條（2026-10-23，#1986）一併擋。
 - **機構參考資料走 `childDb.orgRef(table)`**：班級目錄、課程不是孩子的資料，不套 scope、只帶 `org_id`。
   **白名單寫死在型別上**（`'classes' | 'courses' | 'billing_periods'`），只讀。
   `billing_periods`（#1076）：成績頁的學期篩選＝機構的期，期名與起訖日期不是敏感資料。

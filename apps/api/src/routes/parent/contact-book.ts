@@ -2,7 +2,6 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../index';
 import { isChildAllowed } from '../../lib/child-scope';
 import { editedAfterSign } from '../../lib/contact-book-sign';
-import { getAuth } from '../../lib/get-auth';
 import { DbUuidSchema } from '../../lib/validation';
 
 /**
@@ -131,7 +130,10 @@ app.openapi(
         description: '已簽收（含本來就簽過）',
         content: { 'application/json': { schema: ParentContactBookEntrySchema } },
       },
-      403: { description: '不是家長身分', content: { 'application/json': { schema: ErrorSchema } } },
+      403: {
+        description: '不是家長身分',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       404: {
         description: '沒有這則，或不是自己孩子的',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -144,15 +146,16 @@ app.openapi(
       return c.json({ error: '不是家長身分', code: 'NOT_PARENT' }, 403);
     }
     const { id } = c.req.valid('param');
-    const pool = getAuth(c).pool;
-    if (!pool) return c.json({ error: '簽收失敗，請稍後再試', code: 'DB_POOL_UNAVAILABLE' }, 500);
 
     const childDb = c.get('childDb');
     let result: Awaited<ReturnType<typeof childDb.signContactBookEntry>>;
     try {
-      result = await childDb.signContactBookEntry(pool, id, c.get('userId'));
+      result = await childDb.signContactBookEntry(id, c.get('userId'));
     } catch (e) {
       console.error('[parent/contact-book] 簽收失敗:', e);
+      return c.json({ error: '簽收失敗，請稍後再試', code: 'SIGN_FAILED' }, 500);
+    }
+    if (result === 'failed') {
       return c.json({ error: '簽收失敗，請稍後再試', code: 'SIGN_FAILED' }, 500);
     }
     if (result === 'not-found') {

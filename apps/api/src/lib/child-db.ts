@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Pool } from 'pg';
 import { resolveAttendanceMode } from './attendance-mode';
-import type { Queryable } from './identity-sql';
 import type { StudentScope } from './child-scope';
 import { findConflictingLeaveViaSql, insertLeave, lockStudentLeaves } from './leave-write';
 import type { LeaveWindow } from './leave-covers-session';
@@ -54,7 +53,7 @@ export function createChildDb(
   supabase: SupabaseClient,
   scope: StudentScope,
   orgId: string,
-  /** 只給 `createLeave` 用（#1970）；家長端 route 拿不到它，只拿得到綁好 scope 的能力 */
+  /** 只給 `createLeave`（#1970）、`signContactBookEntry`（#1100 #26）用；家長端 route 拿不到它，只拿得到綁好 scope 的能力 */
   pool?: Pool,
 ) {
   /** 寫入用：`null`（不是家長）在寫入面一律 fail-closed，跟讀取面的「不加條件」刻意不同 */
@@ -209,13 +208,17 @@ export function createChildDb(
      * - 範圍：同 org、`student_id` 在 scope；不是 → `not-found`（不分「不存在」與「別人的」）
      * - **已簽過不覆蓋**（第一位簽收者留著）：`signed_at IS NULL` 寫在 UPDATE 的條件裡，
      *   兩位家長同時按，第二位在列鎖之後重新判條件、改不到 → `already`
+     * - pool 是 `createChildDb` 收的（同 `createLeave`）：家長端 route 不碰原始連線（A19）。沒有 pool → `failed`
      */
     async signContactBookEntry(
-      pool: Queryable,
       entryId: string,
       userId: string,
-    ): Promise<'signed' | 'already' | 'not-found'> {
+    ): Promise<'signed' | 'already' | 'not-found' | 'failed'> {
       if (writableIds.length === 0) return 'not-found';
+      if (!pool) {
+        console.error('[child-db] 沒有 pg pool，不簽收聯絡簿');
+        return 'failed';
+      }
       const { rows } = await pool.query(
         `with target as (
            select id from public.contact_book_entries

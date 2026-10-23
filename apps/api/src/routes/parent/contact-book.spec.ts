@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createChildDb } from '../../lib/child-db';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
@@ -15,19 +15,14 @@ const pg = {
   noPool: false,
   throws: false,
 };
-vi.mock('../../lib/get-auth', () => ({
-  getAuth: () => ({
-    pool: pg.noPool
-      ? undefined
-      : {
-          query: async (_sql: string, params: unknown[]) => {
-            pg.calls.push(params);
-            if (pg.throws) throw new Error('pg boom');
-            return { rows: [pg.result] };
-          },
-        },
-  }),
-}));
+/** 交給 `createChildDb` 的 pool（A19：家長端 route 不碰原始連線，pool 只在 childDb 裡） */
+const fakePool = {
+  query: async (_sql: string, params: unknown[]) => {
+    pg.calls.push(params);
+    if (pg.throws) throw new Error('pg boom');
+    return { rows: [pg.result] };
+  },
+};
 
 import contactBookRoute from './contact-book';
 
@@ -59,7 +54,15 @@ function appWith(rows: Record<string, unknown>[], roles = ['parent']) {
     set('roles', roles);
     set('studentScope', scope);
     set('userId', 'parent-user');
-    set('childDb', createChildDb(db.client as never, scope, 'org-1'));
+    set(
+      'childDb',
+      createChildDb(
+        db.client as never,
+        scope,
+        'org-1',
+        pg.noPool ? undefined : (fakePool as never),
+      ),
+    );
     await next();
   });
   app.route('/', contactBookRoute as unknown as Hono);

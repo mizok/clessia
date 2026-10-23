@@ -43,7 +43,7 @@ import {
 } from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
-import { usesRawSupabase } from './lib/parent-route-scan.mjs';
+import { usesRawSupabase, usesRawPool } from './lib/parent-route-scan.mjs';
 import { themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
 import { loadTailwind } from './lib/tailwind-classes.mjs';
@@ -1302,6 +1302,12 @@ if (existsSync(FEATURES_DIR)) {
         fail(
           `${rel} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
             `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
+        );
+      }
+      if (usesRawPool(source, rel)) {
+        fail(
+          `${rel} 出現 getAuth( 或 .pool —— 家長端檔案不碰原始 pg 連線，要用 pool 的寫入做成 ` +
+            `childDb 的能力（createChildDb 收 pool），見 kb/wiki/architecture/parent-data-scope.md 第二節`,
         );
       }
     }

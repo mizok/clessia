@@ -74,7 +74,6 @@ function session(seed: SessionSeed) {
       name: `班 ${seed.class_id.slice(-3)}`,
       campus_id: 'campus-xy',
       uses_contact_book: seed.uses_contact_book ?? false,
-      campuses: { name: '信義校' },
       campuses: { name: '信義校', phone: CAMPUS_PHONE[seed.class_id] ?? null },
       courses: { name: '國中數學' },
     },

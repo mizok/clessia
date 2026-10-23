@@ -49,12 +49,12 @@ run('家長簽收聯絡簿的 SQL（#1100 #26）', () => {
       expect(users.length).toBe(2);
       const [first, second] = users;
 
-      const childDb = createChildDb(null as never, [mine.student_id], mine.org_id);
+      const childDb = createChildDb(null as never, [mine.student_id], mine.org_id, client as never);
       const before = await client.query('select * from public.contact_book_entries where id = $1', [
         other.id,
       ]);
 
-      expect(await childDb.signContactBookEntry(client, other.id, first.id)).toBe('not-found');
+      expect(await childDb.signContactBookEntry(other.id, first.id)).toBe('not-found');
       const after = await client.query('select * from public.contact_book_entries where id = $1', [
         other.id,
       ]);
@@ -65,10 +65,11 @@ run('家長簽收聯絡簿的 SQL（#1100 #26）', () => {
         null as never,
         [mine.student_id],
         '00000000-0000-0000-0000-000000000000',
+        client as never,
       );
-      expect(await wrongOrg.signContactBookEntry(client, mine.id, first.id)).toBe('not-found');
+      expect(await wrongOrg.signContactBookEntry(mine.id, first.id)).toBe('not-found');
 
-      expect(await childDb.signContactBookEntry(client, mine.id, first.id)).toBe('signed');
+      expect(await childDb.signContactBookEntry(mine.id, first.id)).toBe('signed');
       const { rows: signed } = await client.query<{
         signed_by: string;
         same: boolean;
@@ -78,7 +79,7 @@ run('家長簽收聯絡簿的 SQL（#1100 #26）', () => {
       );
       expect(signed[0]).toEqual({ signed_by: first.id, same: true });
 
-      expect(await childDb.signContactBookEntry(client, mine.id, second.id)).toBe('already');
+      expect(await childDb.signContactBookEntry(mine.id, second.id)).toBe('already');
       const { rows: still } = await client.query<{ signed_by: string }>(
         `select signed_by from public.contact_book_entries where id = $1`,
         [mine.id],
