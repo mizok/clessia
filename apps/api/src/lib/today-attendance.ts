@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { fetchAllPages } from './fetch-all-pages';
 import { LEAVE_WINDOW_COLUMNS, leaveCoversSession, toLeaveWindow } from './leave-covers-session';
+
+const errorMessage = (e: unknown) => (e as { message?: string } | null)?.message ?? String(e);
 
 /**
  * **日到班模式「今天該有誰、誰到了、誰請假」的判準只有一份，住在這裡**（#1314 SL1）。
@@ -97,27 +100,38 @@ export async function loadDailyAttendance(
   // 在籍條件**與點名名單同源**（`status = 'active'` + 生效區間涵蓋當天）——
   // #178 已經在 daily-checkins.ts 建立這個先例，照抄不另立一份。
   // 兩邊條件不一致會生出「有出勤紀錄但名單上沒這個人」的鬼影。
-  const [
-    { data: enrollmentRows, error: enrollmentError },
-    { data: checkinRows, error: checkinError },
-  ] = await Promise.all([
-    supabase
-      .from('enrollments')
-      .select('student_id, class_id, students(name, grade)')
-      .eq('org_id', orgId)
-      .eq('status', 'active')
-      .in('class_id', classIds)
-      .lte('effective_from', date)
-      .or(`effective_to.is.null,effective_to.gte.${date}`),
-    supabase
-      .from('daily_checkins')
-      .select('id, student_id, checked_in_at')
-      .eq('org_id', orgId)
-      .eq('checkin_date', date),
+  // **翻到底**（#1928）：今天應到的人、今天的打卡都可能超過 PostgREST 的 max_rows（1000）——
+  // 一次撈會被靜默截斷，被截掉的人不在應到名單、或顯示成「該到沒到」。翻頁每頁一個 subrequest，
+  // 應到 3000 人也只要 3 頁；`.in('class_id')` 是今天有課的班（一天頂多幾十個），不會太長。
+  const [enrollments, checkins] = await Promise.all([
+    fetchAllPages((from, to) =>
+      supabase
+        .from('enrollments')
+        .select('id, student_id, class_id, students(name, grade)')
+        .eq('org_id', orgId)
+        .eq('status', 'active')
+        .in('class_id', classIds)
+        .lte('effective_from', date)
+        .or(`effective_to.is.null,effective_to.gte.${date}`)
+        .order('id')
+        .range(from, to),
+    ),
+    fetchAllPages((from, to) =>
+      supabase
+        .from('daily_checkins')
+        .select('id, student_id, checked_in_at')
+        .eq('org_id', orgId)
+        .eq('checkin_date', date)
+        .order('id')
+        .range(from, to),
+    ),
   ]);
   // 讀取失敗不能當成空的（#1928）：在籍空＝今天沒人該來、打卡空＝全部「該到沒到」。呼叫端由全域 onError 回 500
-  if (enrollmentError) throw new Error(`讀取今天的在籍名單失敗：${enrollmentError.message}`);
-  if (checkinError) throw new Error(`讀取今天的打卡失敗：${checkinError.message}`);
+  if (enrollments.error)
+    throw new Error(`讀取今天的在籍名單失敗：${errorMessage(enrollments.error)}`);
+  if (checkins.error) throw new Error(`讀取今天的打卡失敗：${errorMessage(checkins.error)}`);
+  const enrollmentRows = enrollments.rows;
+  const checkinRows = checkins.rows;
 
   // 一個學生可能在今天的兩個班都有課 —— 只列一次，`firstSession` 取最早那堂
   const sessionByClass = new Map(held.map((session) => [session.classId, session]));

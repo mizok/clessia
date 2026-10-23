@@ -42,6 +42,8 @@ function createWorkbenchApp(fixture: {
         lt: () => query,
         or: () => query,
         order: () => query,
+        // 日到班的在籍、打卡翻頁讀（fetchAllPages，#1928）：fixture 都小於一頁
+        range: () => query,
         maybeSingle: () =>
           Promise.resolve({
             data:

@@ -31,9 +31,17 @@ function fake(results: Partial<Record<string, Result>>, calls: string[] = []) {
   return {
     from(table: string) {
       const q: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'in', 'lte', 'gte', 'or'])
+      let range: [number, number] | null = null;
+      for (const m of ['select', 'eq', 'in', 'lte', 'gte', 'or', 'order'])
         q[m] = (col: unknown) => (calls.push(`${table}.${m}(${String(col)})`), q);
-      q['then'] = (resolve: (v: unknown) => unknown) => resolve(results[table] ?? ok([]));
+      // 照 PostgREST 切頁（max_rows 1000）：沒下 range 也最多回 1000 列
+      q['range'] = (from: number, to: number) => ((range = [from, to]), q);
+      q['then'] = (resolve: (v: unknown) => unknown) => {
+        const r = results[table] ?? ok([]);
+        if (!Array.isArray(r.data)) return resolve(r);
+        const [from, to] = range ?? [0, 999];
+        return resolve({ ...r, data: r.data.slice(from, Math.min(to, from + 999) + 1) });
+      };
       return q;
     },
   } as unknown as SupabaseClient;
@@ -103,5 +111,31 @@ describe('loadDailyAttendance（#1928）', () => {
     );
     expect(calls).not.toContain('leave_requests.in(student_id)');
     expect(res.onLeave.map((l) => l.studentId)).toEqual(['stu-2']);
+  });
+
+  it('在籍、打卡超過 max_rows（1000）也翻到底，不會靜默截斷', async () => {
+    const many = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        student_id: `stu-${i}`,
+        class_id: 'class-1',
+        students: { name: `生${i}`, grade: 'J1' },
+      }));
+    const res = await loadDailyAttendance(
+      fake({
+        enrollments: ok(many(2500)),
+        daily_checkins: ok(
+          Array.from({ length: 1200 }, (_, i) => ({
+            id: `ck-${i}`,
+            student_id: `stu-${i}`,
+            checked_in_at: '2026-06-01T08:00:00Z',
+          })),
+        ),
+      }),
+      'org-1',
+      DATE,
+      SESSIONS,
+    );
+    expect(res.expected).toHaveLength(2500);
+    expect(res.arrived).toHaveLength(1200);
   });
 });
