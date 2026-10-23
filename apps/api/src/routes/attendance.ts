@@ -234,6 +234,11 @@ const RosterStudentSchema = z
      * 日到班的到班名單用它（#1314 TS3）；隨堂的課也照回，到班時間本來就是事實。
      */
     checkedInAt: z.string().nullable(),
+    /**
+     * 那筆到班的來源（#1100 #52）：`scan` 掃碼、`manual` 人工標記；這欄出現之前的紀錄是 null
+     * （不 backfill，名單上只寫時間，不猜）
+     */
+    checkInSource: z.enum(['scan', 'manual']).nullable(),
   })
   .openapi('RosterStudent');
 
@@ -1431,7 +1436,7 @@ app.openapi(
         ? Promise.resolve({ data: [] as Array<Record<string, unknown>>, error: null })
         : supabase
             .from('daily_checkins')
-            .select('student_id, checked_in_at, campus_id')
+            .select('student_id, checked_in_at, campus_id, source')
             .eq('org_id', orgId)
             .eq('checkin_date', eventDate)
             .in('student_id', rosterIds),
@@ -1452,7 +1457,13 @@ app.openapi(
         .filter((row) =>
           checkinCoversSession((row['campus_id'] as string | null) ?? null, eventCampusId),
         )
-        .map((row) => [row['student_id'] as string, row['checked_in_at'] as string]),
+        .map((row) => [
+          row['student_id'] as string,
+          {
+            at: row['checked_in_at'] as string,
+            source: (row['source'] as 'scan' | 'manual' | null | undefined) ?? null,
+          },
+        ]),
     );
 
     const recordMap = new Map(
@@ -1525,7 +1536,8 @@ app.openapi(
         leaveStartDate: leaveStartByStudent.get(e.student_id) ?? null,
         leaveEndDate: leaveEndByStudent.get(e.student_id) ?? null,
         cancelDropsLeaveUntil: cancelDropsByStudent.get(e.student_id) ?? null,
-        checkedInAt: checkedInAtByStudent.get(e.student_id) ?? null,
+        checkedInAt: checkedInAtByStudent.get(e.student_id)?.at ?? null,
+        checkInSource: checkedInAtByStudent.get(e.student_id)?.source ?? null,
       };
     });
 
@@ -1763,6 +1775,8 @@ const ArrivalCheckinResponseSchema = z
     checkedInAt: z.string(),
     /** 他今天已經打過卡了（例如老師開名單之後才掃到）—— 不是錯誤，`checkedInAt` 是第一次那筆 */
     alreadyCheckedIn: z.boolean(),
+    /** 留下的那筆的來源（#1100 #52）：自己剛標的是 manual；已經有人掃過就是那一筆的（可能是 scan、或舊資料 null） */
+    checkInSource: z.enum(['scan', 'manual']).nullable(),
   })
   .openapi('ArrivalCheckinResponse');
 
@@ -1886,6 +1900,8 @@ app.openapi(
       checkinDate: eventDate,
       campusScope: getCampusScope(c),
       mode: modeResult.mode,
+      // 老師在名單上按「他到了」：一律人工標記（#1100 #52），不收前端參數
+      source: 'manual',
     });
     if (written.error) {
       return c.json({ error: '記錄到班失敗', message: written.error.message }, 500);
@@ -1916,6 +1932,7 @@ app.openapi(
       {
         checkedInAt: written.checkin['checked_in_at'] as string,
         alreadyCheckedIn: written.alreadyCheckedIn,
+        checkInSource: (written.checkin['source'] as 'scan' | 'manual' | null | undefined) ?? null,
       },
       201,
     );

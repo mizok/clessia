@@ -32,8 +32,7 @@
             <span class="text-md">{{ s.studentName }}</span>
             <small class="text-sm text-muted tabular-nums">
               @if (s.checkedInAt) {
-                {{ s.checkedInAt | date: 'HH:mm' : '+0800' }}
-                {{ markedByMe().has(s.studentId) ? '到班（老師標記）' : '掃碼到' }}
+                {{ s.checkedInAt | date: 'HH:mm' : '+0800' }}{{ arrivalLabel(s) }}
               } @else if (onLeave(s)) {
                 請假
               } @else if (input.isToday) {
