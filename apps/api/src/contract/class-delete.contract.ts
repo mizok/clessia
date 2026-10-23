@@ -218,6 +218,30 @@ run('刪班級交易對真 Postgres（#1652）', () => {
     expect(await snapshot(clean.classId)).toEqual([0, 0, 0, 0]);
   });
 
+  /**
+   * 丟掉模擬用的 FK 表，**鎖的順序固定成「先 enrollments、後模擬表」**（#2001）。
+   *
+   * 直接 `DROP TABLE` 時 Postgres 先拿模擬表的 AccessExclusive、再去拿 enrollments 的（要拆它身上的 RI trigger）。
+   * 同時在跑的別支契約若正在刪報名，是反過來：先鎖 enrollments、FK 檢查再去模擬表拿 RowShare ——
+   * 兩邊互等就是 CI 那次的 40P01（`Process A waits for AccessExclusiveLock on enrollments; blocked by B.
+   * Process B waits for RowShareLock on <模擬表>; blocked by A`）。先在同一筆交易裡鎖 enrollments，就跟大家同一個順序。
+   * 不用重試掩蓋。
+   */
+  const dropBlockingTable = async (name: string) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('LOCK TABLE enrollments IN ACCESS EXCLUSIVE MODE');
+      await client.query(`DROP TABLE ${name}`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  };
+
   it('FK 擋下（模擬一條指向報名的 RESTRICT）→ in-use，整筆回滾，報名一筆都沒少', async () => {
     const a = await org();
     const { classId, enrollmentId } = await a.klass();
@@ -238,7 +262,7 @@ run('刪班級交易對真 Postgres（#1652）', () => {
       expect(r).toEqual({ status: 'in-use' });
       expect(await snapshot(classId)).toEqual([1, 1, 1, 1]);
     } finally {
-      await q(`DROP TABLE ${block}`);
+      await dropBlockingTable(block);
     }
   });
 });
