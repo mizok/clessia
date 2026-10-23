@@ -85,7 +85,11 @@ const SELECT_RELATIONS =
  * ——條件由 campusScope 下去了、join 卻還是 left —— 他看得到全機構的報名（#815）。
  * 呼叫端一律用 `filtersCampus(scope, campusId)` 算它，**跟 `applyCampusFilter` 同一個判準**。
  */
-export function buildSelect(filtersCampus?: boolean, hasInvoice?: boolean): string {
+export function buildSelect(
+  filtersCampus?: boolean,
+  hasInvoice?: boolean,
+  filtersStudentName?: boolean,
+): string {
   const invoiceJoin =
     hasInvoice === undefined
       ? ''
@@ -100,7 +104,19 @@ export function buildSelect(filtersCampus?: boolean, hasInvoice?: boolean): stri
         ? ', invoice_items!inner(id, invoices!inner(voided_at))'
         : ', invoice_items(id, invoices!inner(voided_at))';
 
-  return `${SELECT_COLUMNS}, ${filtersCampus ? 'classes!inner' : 'classes'}${SELECT_RELATIONS}${invoiceJoin}`;
+  // 部分姓名篩選（#1100 #30）同 classes 的道理：巢狀條件要 inner join 才會排除不符的列
+  const relations = filtersStudentName
+    ? SELECT_RELATIONS.replace('students(', 'students!inner(')
+    : SELECT_RELATIONS;
+  return `${SELECT_COLUMNS}, ${filtersCampus ? 'classes!inner' : 'classes'}${relations}${invoiceJoin}`;
+}
+
+/**
+ * 部分姓名 → ilike 樣式（#1100 #30）。`%`、`_`、`\` 是 LIKE 的萬用字元與跳脫字元，
+ * 使用者打的要照字面比 —— 輸入「_」不能變成「任一個字」。
+ */
+export function studentNamePattern(name: string): string {
+  return `%${name.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
 export type EnrollmentSort = 'createdAt' | 'updatedAt';

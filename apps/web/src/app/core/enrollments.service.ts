@@ -107,6 +107,8 @@ export type EnrollmentEventKind = 'joined' | 'left' | 'paused' | 'voided';
 export interface EnrollmentFilterParams {
   classId?: string;
   studentId?: string;
+  /** 部分姓名，一次篩出多位學生（#1100 #30） */
+  studentName?: string;
   campusId?: string;
   status?: EnrollmentStatus;
   /** 期間內「發生過事情」：新報名、退班（含到期結束）、暫停、作廢 */
@@ -263,6 +265,7 @@ export class EnrollmentsService {
     const query = new URLSearchParams();
     if (params.classId) query.set('classId', params.classId);
     if (params.studentId) query.set('studentId', params.studentId);
+    if (params.studentName) query.set('studentName', params.studentName);
     if (params.campusId) query.set('campusId', params.campusId);
     if (params.status) query.set('status', params.status);
     if (params.from) query.set('from', params.from);

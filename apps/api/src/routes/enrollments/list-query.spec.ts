@@ -6,6 +6,7 @@ import {
   buildSelect,
   eventFilter,
   sortColumn,
+  studentNamePattern,
 } from './list-query';
 
 const TODAY = '2026-10-10';
@@ -151,5 +152,18 @@ describe('buildSelect 的 hasInvoice', () => {
     const select = buildSelect(true, true);
     expect(select).toContain('classes!inner');
     expect(select).toContain('invoice_items!inner');
+  });
+});
+
+describe('部分姓名篩選（#1100 #30）', () => {
+  it('有篩姓名時 students 要 inner join，沒篩時維持 left（不然沒篩也會濾掉缺學生的列）', () => {
+    expect(buildSelect(false, undefined, true)).toContain('students!inner(name');
+    expect(buildSelect(false, undefined, false)).not.toContain('students!inner');
+    expect(buildSelect(false, undefined, false)).toContain('students(name');
+  });
+
+  it('% _ \\ 跳脫成字面', () => {
+    expect(studentNamePattern('王')).toBe('%王%');
+    expect(studentNamePattern('50%_a\\b')).toBe('%50\\%\\_a\\\\b%');
   });
 });
