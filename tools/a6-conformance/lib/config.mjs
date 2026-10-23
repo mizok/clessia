@@ -1082,6 +1082,80 @@ export const PAGES = {
     state: PARENT_STATE,
     prep: PARENT_PREP,
   },
+  'p-grades': {
+    a6: 'p-grades.html',
+    app: '/parent/grades',
+    // 家長頁一律用 parent03（#1968）；量之前切到張宇軒（105 筆補習班成績，預設的第一個孩子沒有成績）
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
+    deviations: [
+      {
+        // 資料：最近一次考試的科目（稿英文、量測的張宇軒數學），兩邊同一套句子
+        status: '文案',
+        detail: '^「\\{名\\}最近一次[^#」]+#分。」→「\\{名\\}最近一次[^#」]+#分。」$',
+        reason: '資料：最近一次考試的科目',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968、#1959`,
+      },
+      {
+        // 資料：張宇軒成績超過一頁才有這句（稿的示範孩子筆數少）
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[只顯示最近#筆，共#筆。\\]$',
+        reason: '資料：成績筆數超過顯示上限才出現',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968、#1959`,
+      },
+      {
+        status: '缺',
+        a6: 'control:button\\[(課程|學期)：[^\\]]*\\](>text:span\\[[^\\]]*\\])?$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      {
+        status: '多',
+        app: 'control:combobox\\[(課程|學期)\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      {
+        status: '多',
+        app: 'control:button\\[dropdown trigger\\](~\\d+)?$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      // 孩子切換鈕的形狀（大字名＋年級、可及名稱「目前看的是 X，切換孩子」）是全家長頁的殼層差異，另開 #1932；
+      // 這頁不先修，免得跟殼層單各改一半
+      ...['缺', '文案', '樣式'].map((status) => ({
+        status,
+        a6: '>landmark:region\\[這一頁的摘要\\]>control:button\\[目前看的是\\{名\\}，切換孩子\\](>text:span\\[[^\\]]*\\])?$',
+        reason: '孩子切換鈕的形狀：家長頁共用的殼層差異，在 #1932 一次修',
+        source: '#1932（#1314 盤點，計畫席 10-23 派）',
+      })),
+      {
+        // 工具只把登入者（家長）的名字換成 {名}；孩子名（seed 的「出勤測試學生 N」帶數字）沒被換，句子其餘相同
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>heading:h1\\[\\{名\\}',
+        detail: '^「\\{名\\}([^」]*)」→「[^」]+\\1」$',
+        reason: '工具限制：孩子名字沒被樣板化成 {名}（只換登入者的名字），句子其餘一樣',
+        source: '#1926；tools/a6-conformance/lib/capture.mjs harvestNames',
+      },
+      {
+        // app 有這兩種標籤（grades.component.html：NEW＝7 天內登錄、補考＝status makeup）；量的那位孩子這 7 天
+        // 沒有新成績（色面「0 筆」）、也沒有補考
+        status: '缺',
+        a6: '>text:span\\[(NEW|補考)\\]$',
+        detail: '列內條件式',
+        reason: '資料差：量的孩子沒有 7 天內登錄的成績、也沒有補考（app 兩種標籤都有）',
+        source: '#1926（本機 seed attendance-parent-02）',
+      },
+      {
+        // 稿配到的那一列是不及格（`.ex__v--fail` 是 inline-flex，裡面的 small 變成 flex item → block）
+        status: '樣式',
+        a6: '>text:span~3>text:small$',
+        detail: '^display block → inline$',
+        reason: '資料差：稿配到的是不及格列（分數是 inline-flex），app 配到的是及格列',
+        source: '#1926；.design-explorations p-grades.html:33',
+      },
+    ],
+  },
   'p-payments': {
     a6: 'p-payments.html',
     app: '/parent/payments',

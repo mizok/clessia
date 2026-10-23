@@ -20,6 +20,8 @@ const record = (overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord =
   totalScore: 100,
   status: 'scored',
   description: null,
+  teacherName: null,
+  recordedByName: null,
   ...overrides,
 });
 
@@ -33,6 +35,15 @@ describe('grades.util', () => {
       ]);
       expect(groups.map((g) => g.name)).toEqual(['英文班', '學校段考']);
       expect(groups[0].records.map((r) => r.id)).toEqual(['r2', 'r3']);
+    });
+
+    it('章的老師＝章裡第一筆有老師的；都沒有 → null（#1926，A6「X 老師 · N 場」）', () => {
+      const groups = groupByClass([
+        record({ id: 'r1', className: '英文班', teacherName: null }),
+        record({ id: 'r2', className: '英文班', teacherName: '林老師、陳老師' }),
+        record({ id: 'r3', className: null, type: 'school' }),
+      ]);
+      expect(groups.map((g) => g.teacher)).toEqual(['林老師、陳老師', null]);
     });
   });
 

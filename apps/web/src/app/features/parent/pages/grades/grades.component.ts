@@ -9,9 +9,6 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-
-import { SelectModule } from 'primeng/select';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
@@ -22,7 +19,6 @@ import {
 } from '@core/parent-grades.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
@@ -44,6 +40,7 @@ import {
   type PeriodFilter,
 } from './grades.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /**
@@ -64,13 +61,11 @@ const PAGE_SIZE = 100;
   standalone: true,
   imports: [
     SkeletonComponent,
-    FormsModule,
+    SelectFieldComponent,
     NgTemplateOutlet,
-    SelectModule,
     PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
-    BandAnchorComponent,
     DataChipComponent,
     EmptyStateComponent,
   ],
@@ -116,9 +111,11 @@ export class GradesComponent implements OnInit {
   private readonly defaultPeriod = signal<PeriodFilter>('all');
 
   /** 課程下拉只列這個孩子有成績的課（含「學校段考」） */
-  protected readonly classOptions = computed(() =>
-    [...new Set(this.records().map(classOf))].map((name) => ({ label: name, value: name })),
-  );
+  protected readonly classOptions = computed(() => [
+    // 「全部課程」是一個選項（A6 下拉的第一項），不是清除鈕
+    { label: '全部課程', value: null as string | null },
+    ...[...new Set(this.records().map(classOf))].map((name) => ({ label: name, value: name })),
+  ]);
 
   private readonly filteredRecords = computed(() => {
     const byClass = this.classFilter()
@@ -200,12 +197,6 @@ export class GradesComponent implements OnInit {
    */
   protected isFailing(record: ParentScoreRecord): boolean {
     return isFailingScore(record.score, { totalScore: record.totalScore });
-  }
-
-  protected formatScore(record: ParentScoreRecord): string {
-    if (record.score === null) return '—';
-    if (record.totalScore) return `${record.score} / ${record.totalScore}`;
-    return String(record.score);
   }
 
   private load(childId: string): void {

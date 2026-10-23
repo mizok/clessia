@@ -35,6 +35,8 @@ function record(overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord {
     totalScore: 100,
     status: 'scored',
     description: null,
+    teacherName: null,
+    recordedByName: null,
     ...overrides,
   };
 }
@@ -124,7 +126,30 @@ describe('GradesComponent', () => {
     expect(listMock).toHaveBeenCalledWith({ childId: 'child-1', pageSize: 100 });
   });
 
-  it('band anchor 直接用 meta.recentCount', () => {
+  it('章名下寫「X 老師 · N 場」，展開寫「M/D 登錄 · 登錄者」；沒有就只寫場數、只寫日期（#1926）', () => {
+    createComponent({
+      data: [
+        record({ id: 'r1', className: '英文班', teacherName: '林志明', recordedByName: '王美玲' }),
+        record({ id: 'r2', className: '數學班', teacherName: null, recordedByName: null }),
+      ],
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0, periods: [] },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const smalls = Array.from(el.querySelectorAll('section.grades__class h2 small')).map((x) =>
+      x.textContent?.trim(),
+    );
+    expect(smalls).toEqual(['林志明 老師 · 1 場', '1 場']);
+    const recorded = Array.from(el.querySelectorAll('.grades__recorded')).map((x) =>
+      x.textContent?.replace(/\s+/g, ' ').trim(),
+    );
+    expect(recorded[0]).toMatch(/登錄 · 王美玲$/);
+    expect(recorded[1]).toMatch(/登錄$/);
+  });
+
+  it('色面的「新成績」直接用 meta.recentCount；A6 是 dl，數字在 dd、標籤在 dt（#1926）', () => {
     createComponent({
       data: [record()],
       meta: { total: 1, page: 1, pageSize: 100, recentCount: 3, periods: [] },
@@ -132,9 +157,9 @@ describe('GradesComponent', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
-      '3',
-    );
+    const stats = fixture.nativeElement.querySelector('dl.grades__stats') as HTMLElement;
+    expect(stats.querySelector('dd')?.textContent?.replace(/\s/g, '')).toBe('3筆');
+    expect(stats.querySelector('dt')?.textContent?.trim()).toBe('新成績 · 過去 7 天登錄');
   });
 
   it('依課程分組顯示；段考（沒有班）歸「學校段考」放最後', () => {
