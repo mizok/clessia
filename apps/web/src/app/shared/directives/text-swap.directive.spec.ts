@@ -24,6 +24,16 @@ class HostComponent {
   readonly bold = signal(false);
 }
 
+@Component({
+  imports: [TextSwapDirective],
+  template: `<div>
+    <p [appTextSwap]="false">{{ text() }}</p>
+  </div>`,
+})
+class OffHostComponent {
+  readonly text = signal('學生管理');
+}
+
 /** jsdom 沒有 WAAPI：替身記下誰被 animate、播什麼 */
 interface Call {
   el: HTMLElement;
@@ -195,5 +205,25 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     } finally {
       for (const k of ['exit', 'enter', 'blur', 'edge']) r.removeProperty(`--text-swap-${k}`);
     }
+  });
+
+  it('[appTextSwap]="false"：字照換、不播、不留複本', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    const calls: unknown[] = [];
+    (HTMLElement.prototype as unknown as { animate: unknown }).animate = () => {
+      calls.push(1);
+      return { cancel: vi.fn(), finished: new Promise(() => undefined) };
+    };
+    const f = TestBed.createComponent(OffHostComponent);
+    f.detectChanges();
+    await f.whenStable();
+    f.componentInstance.text.set('41 位學生');
+    f.detectChanges();
+    await Promise.resolve();
+    await Promise.resolve();
+    const p = (f.nativeElement as HTMLElement).querySelector('p')!;
+    expect(p.textContent).toBe('41 位學生');
+    expect(calls).toHaveLength(0);
+    expect(p.parentElement!.children).toHaveLength(1);
   });
 });

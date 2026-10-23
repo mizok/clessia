@@ -2,7 +2,8 @@
   A6 版（#991、#1314 D）：色面（機構名＋一句話）→ 灰工具列 → 待處理 → 主段 → 灰摺疊列 → 臨時狀況。
   主段：日到班＝「該到沒到，先打給家長」；逐堂點名＝今日課表（A6 只畫了日到班的形狀）。
 -->
-<app-page-open [subLarge]="!!campusName()">
+<!-- 標題是補習班名稱：使用者 10-23 說這一行不要文字替換動畫；副行（今日摘要）照舊播 -->
+<app-page-open [subLarge]="!!campusName()" [titleSwap]="false">
   <ng-container openTitle>
     @if (orgName(); as name) {
       {{ name }}

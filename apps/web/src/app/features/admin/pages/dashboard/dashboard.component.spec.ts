@@ -447,6 +447,11 @@ describe('DashboardComponent（管理端）', () => {
       expect(band.textContent).toContain('文山旗艦校');
       // 有分校小字：副行放大（A6 a6.css:633）
       expect(band.querySelector('p')!.classList.contains('wide:text-2xl')).toBe(true);
+      // 使用者 10-23：標題（補習班名稱）不要文字替換動畫，副行照舊
+      const open = fixture.debugElement.query(By.css('app-page-open')).componentInstance as {
+        titleSwap: () => boolean;
+      };
+      expect(open.titleSwap()).toBe(false);
     });
 
     it('跨分校時不挑一個分校寫', async () => {

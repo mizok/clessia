@@ -1,4 +1,4 @@
-import { DestroyRef, Directive, ElementRef, afterNextRender, inject } from '@angular/core';
+import { DestroyRef, Directive, ElementRef, afterNextRender, inject, input } from '@angular/core';
 
 /**
  * 四個可調的值住在 styles.css 的 `--text-swap-*`（#2023：使用者覺得「淡入淡出很不明顯」，之後要再調只改那裡）。
@@ -66,6 +66,14 @@ function maskFrame(image: string, position: string): Keyframe {
  */
 @Directive({ selector: '[appTextSwap]' })
 export class TextSwapDirective {
+  /**
+   * 停用：`[appTextSwap]="false"`（只寫 `appTextSwap` 照舊是開）。停用時照樣記下內容、不播，
+   * 中途打開也接得上（使用者 10-23：儀表板頁首的補習班名稱不要動畫，見 page-open 的 `titleSwap`）。
+   */
+  readonly enabled = input(true, {
+    alias: 'appTextSwap',
+    transform: (v: boolean | '') => v !== false,
+  });
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   /** 上一次定下來的內容（宿主本身的深複本） */
   private settled: HTMLElement | null = null;
@@ -119,6 +127,7 @@ export class TextSwapDirective {
     const interrupted = this.running.length > 0;
     this.stop();
     this.settled = next;
+    if (!this.enabled()) return;
     if (typeof this.host.animate !== 'function') return;
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 

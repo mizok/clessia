@@ -49,6 +49,12 @@ export class PageOpenComponent {
    */
   readonly compact = input(false);
 
+  /**
+   * 標題（`openTitle`）換字時播不播文字替換（#1895）。預設 true。
+   * 儀表板傳 false：標題是補習班名稱，使用者 10-23 說那一行不要動畫；副行（今日摘要）照舊播。
+   */
+  readonly titleSwap = input(true);
+
   protected readonly wrapClass = computed(
     () =>
       'page-wrap relative ' +
