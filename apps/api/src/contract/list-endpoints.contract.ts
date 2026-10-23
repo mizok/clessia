@@ -206,8 +206,14 @@ const BRANCHES: Record<string, string[]> = {
     'from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY,
     'event=left&from=' + TODAY.slice(0, 7) + '-01&to=2099-12-31',
     'event=paused',
+    // #1100 #30：部分姓名 → students!inner＋巢狀 ilike（含要跳脫的 %）
+    'studentName=' + encodeURIComponent('王'),
+    'studentName=' + encodeURIComponent('50%_'),
   ],
-  '/api/enrollments/event-counts': ['from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY],
+  '/api/enrollments/event-counts': [
+    'from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY,
+    'studentName=' + encodeURIComponent('王'),
+  ],
 };
 
 /**

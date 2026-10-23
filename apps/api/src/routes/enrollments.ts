@@ -13,6 +13,7 @@ import {
   buildSelect,
   eventFilter,
   sortColumn,
+  studentNamePattern,
 } from './enrollments/list-query';
 import { monthRange, prorateByDays } from '../lib/proration';
 import {
@@ -355,6 +356,8 @@ const EnrollmentEventKindSchema = z.enum(ENROLLMENT_EVENT_KINDS).openapi('Enroll
 const ListFilterQuerySchema = z.object({
   classId: DbUuidSchema.optional(),
   studentId: DbUuidSchema.optional(),
+  /** 部分姓名，一次篩出多位學生（#1100 #30）；跟 `studentId` 同時給就兩個都要成立 */
+  studentName: z.string().trim().min(1).max(50).optional(),
   campusId: DbUuidSchema.optional(),
   status: EnrollmentStatusSchema.optional(),
   // 期間內「發生過事情」：新報名、退班（含到期結束）、暫停、作廢，判準見 list-query.ts
@@ -368,15 +371,22 @@ interface ListFilters {
   readonly campusId?: string;
   readonly classId?: string;
   readonly studentId?: string;
+  readonly studentName?: string;
   readonly status?: string;
 }
 
 function applyListFilters<
-  T extends { eq(column: string, value: string): T; in(column: string, values: string[]): T },
+  T extends {
+    eq(column: string, value: string): T;
+    in(column: string, values: string[]): T;
+    ilike(column: string, pattern: string): T;
+  },
 >(query: T, filters: ListFilters): T {
   let q = query.eq('org_id', filters.orgId);
   if (filters.classId) q = q.eq('class_id', filters.classId);
   if (filters.studentId) q = q.eq('student_id', filters.studentId);
+  // select 那邊要配 `students!inner`（buildSelect 第三個參數），不然只是把 students 變成 null
+  if (filters.studentName) q = q.ilike('students.name', studentNamePattern(filters.studentName));
   q = applyCampusFilter(q, 'classes.campus_id', filters.campusScope, filters.campusId);
   if (filters.status) q = q.eq('status', filters.status);
   return q;
@@ -423,6 +433,7 @@ app.openapi(
     const {
       classId,
       studentId,
+      studentName,
       campusId,
       status,
       from,
@@ -441,10 +452,20 @@ app.openapi(
 
     let query = supabase
       .from('enrollments')
-      .select(buildSelect(filtersCampus(campusScope, campusId), hasInvoice), { count: 'exact' })
+      .select(buildSelect(filtersCampus(campusScope, campusId), hasInvoice, !!studentName), {
+        count: 'exact',
+      })
       .order(sortColumn(sort), { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
-    query = applyListFilters(query, { orgId, campusScope, campusId, classId, studentId, status });
+    query = applyListFilters(query, {
+      orgId,
+      campusScope,
+      campusId,
+      classId,
+      studentId,
+      studentName,
+      status,
+    });
 
     // `true` 的過濾由 select 裡的 `!inner` 完成；`false` 要再下這一條
     // 兩個方向都先把作廢單的明細篩掉（#898）—— 作廢 = 收費項回到未開帳
@@ -510,9 +531,9 @@ app.openapi(
     const today = getCurrentTaipeiDateString();
     // 分校條件走 classes 的 inner join，判準同列表（#815）
     // 型別標成 string：字面值會讓 supabase-js 去解析 select，配上泛型 filter 會遞迴過深
-    const select: string = filtersCampus(campusScope, rest.campusId)
-      ? 'id, classes!inner(id)'
-      : 'id';
+    const select: string =
+      (filtersCampus(campusScope, rest.campusId) ? 'id, classes!inner(id)' : 'id') +
+      (rest.studentName ? ', students!inner(name)' : '');
 
     const results = await Promise.all(
       ENROLLMENT_EVENT_KINDS.map(async (kind) => {
