@@ -30,7 +30,8 @@ import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 })
 export class PageOpenComponent {
   /**
-   * 人名當標題（A6 `.open__title--name`，只有學生檔案用）：桌機 72／手機 44，行高 1。
+   * 人名當標題（A6 `.open__title--name`；學生檔案、成績登錄的考試名）：桌機 72／行高 1，手機 44／行高 1.2
+   *（稿的手機 `.open__title` 行高 1.2 蓋過 `--name` 的 1，#1925 量到）。
    * 預設 false＝一般標題 48／28，不影響別頁。整串寫在 TS：任意值 class 用 `[class.text-[..]]`
    * 綁會靜默失效（labor-1019 charter §二）。
    */
@@ -63,7 +64,7 @@ export class PageOpenComponent {
 
   protected readonly titleClass = computed(() =>
     this.nameSize()
-      ? 'm-0 max-w-[18em] text-[44px] leading-none font-bold tracking-[-0.04em] text-balance wide:text-[72px]'
+      ? 'm-0 max-w-[18em] text-[44px] leading-[1.2] font-bold tracking-[-0.04em] text-balance wide:text-[72px] wide:leading-none'
       : this.compact()
         ? 'm-0 max-w-[18em] text-[26px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[40px] wide:leading-[1.14] wide:tracking-[-0.035em]'
         : 'm-0 max-w-[18em] text-[28px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[48px] wide:leading-[1.14] wide:tracking-[-0.035em]',
