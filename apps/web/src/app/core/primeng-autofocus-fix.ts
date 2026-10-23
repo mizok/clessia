@@ -11,7 +11,7 @@ import { AutoFocus } from 'primeng/autofocus';
  *   https://github.com/primefaces/primeng/issues/18795（第一次載入時按鈕自動聚焦），10-23 都還 open。
  *   同一個根源也影響 datepicker（https://github.com/primefaces/primeng/issues/19010），這個補丁一併蓋到。
  * - **移除條件**：升級 PrimeNG 後，`primeng-autofocus-upstream.spec.ts`（不套補丁、斷言 bug 還在）變紅，
- *   代表上游修好了 → 刪掉這個檔、`main.ts` 的呼叫和那支哨兵 spec。
+ *   代表上游修好了 → 刪掉這個檔、`app.config.ts` 的呼叫（與 app.config.spec 那支）和那支哨兵 spec。
  *
  * 修在這一個入口：沒指定（不是 `true`）一律當成 `false`。明確寫了 `autofocus` 的照舊。
  * ponytail: 補丁 PrimeNG 的原型；移除條件見上。
@@ -21,9 +21,12 @@ export function fixPrimeAutoFocus(): void {
     autofocus: unknown;
     onAfterContentChecked: () => void;
     __clessiaFixed?: boolean;
+    __clessiaOriginal?: () => void;
   };
   if (proto.__clessiaFixed) return;
   const original = proto.onAfterContentChecked;
+  // 留著原本的方法：哨兵 spec 要暫時換回去量上游行為（測試打包在一起跑、檔案之間沒有隔離）
+  proto.__clessiaOriginal = original;
   proto.onAfterContentChecked = function (this: typeof proto) {
     if (this.autofocus !== true) this.autofocus = false;
     original.call(this);
