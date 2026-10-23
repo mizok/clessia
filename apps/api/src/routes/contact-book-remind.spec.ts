@@ -79,6 +79,22 @@ function seed(over: Record<string, Record<string, unknown>[]> = {}) {
         status: 'cancelled',
         teacher_id: 'staff-chen',
       },
+      // 同一天**別班**的老師不收（review3：拿掉 sessions 的 class_id 篩選要紅）
+      {
+        org_id: ORG,
+        class_id: CLASS_OTHER_CAMPUS,
+        session_date: DATE,
+        status: 'scheduled',
+        teacher_id: 'staff-huang',
+      },
+      // 髒資料：這堂的 teacher_id 指到別 org 的 staff —— staff 查詢的 org_id 是第二道防線
+      {
+        org_id: ORG,
+        class_id: CLASS,
+        session_date: DATE,
+        status: 'scheduled',
+        teacher_id: 'staff-other-org',
+      },
       // 別天的不收
       {
         org_id: ORG,
@@ -98,11 +114,27 @@ function seed(over: Record<string, Record<string, unknown>[]> = {}) {
         status: 'active',
       },
       { id: 'staff-wu', org_id: ORG, user_id: 'u-wu', display_name: '吳老師', status: 'active' },
+      {
+        id: 'staff-huang',
+        org_id: ORG,
+        user_id: 'u-huang',
+        display_name: '黃老師',
+        status: 'active',
+      },
+      {
+        id: 'staff-other-org',
+        org_id: 'org-b',
+        user_id: 'u-other-org',
+        display_name: '別 org 老師',
+        status: 'active',
+      },
     ],
     user_roles: [
       { user_id: 'u-lin', role: 'teacher' },
       { user_id: 'u-chen', role: 'teacher' },
       { user_id: 'u-wu', role: 'teacher' },
+      { user_id: 'u-huang', role: 'teacher' },
+      { user_id: 'u-other-org', role: 'teacher' },
     ],
     notifications: [],
     ...over,
@@ -137,6 +169,7 @@ function call(
 
 describe('POST /api/contact-book/remind', () => {
   // 名單照 zh-Hant 排序（同 /missing），乙（1 畫）在甲（5 畫）前
+  // fixture 裡同一天別班的黃老師、teacher_id 指到別 org 的老師都不能收到（review3 二讀）
   it('只通知那天實際上課的老師；內文寫班名、日期、還沒寫的人', async () => {
     const db = seed();
     const res = await call(db, { classId: CLASS, date: DATE });
@@ -159,8 +192,29 @@ describe('POST /api/contact-book/remind', () => {
           body: '小五英文 10/20 還有 2 位沒寫：乙、甲',
           url: '/teacher/schedule',
         },
+        // 只進通知中心、不推播（老師第一版不推播，同 notify()）
+        push_status: 'skipped',
+        push_error: 'ROLE_PUSH_DISABLED',
       }),
     ]);
+  });
+
+  it('通知寫失敗 → 500，不能說成「今天已提醒過」', async () => {
+    const db = seed();
+    const client = db.client as unknown as { from: (t: string) => Record<string, unknown> };
+    const from = client.from.bind(client);
+    client.from = (t: string) => {
+      const q = from(t);
+      if (t !== 'notifications') return q;
+      return {
+        upsert: () => ({
+          select: () => Promise.resolve({ data: null, error: { code: '23505', message: 'boom' } }),
+        }),
+      };
+    };
+    const res = await call(db, { classId: CLASS, date: DATE });
+    expect(res.status).toBe(500);
+    expect(await res.json()).not.toHaveProperty('alreadyReminded');
   });
 
   it('同班同天再按一次：不再發，回 alreadyReminded', async () => {
