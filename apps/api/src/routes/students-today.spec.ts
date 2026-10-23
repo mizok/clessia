@@ -133,6 +133,8 @@ function seed(mode: 'daily_checkin' | 'per_session' = 'daily_checkin') {
       enrollment('s-leave', 'c-am'),
       enrollment('s-notyet', 'c-pm'),
       enrollment('s-none', 'c-off'),
+      // s-notyet 也上老師的 c-tue（今天沒課）—— 老師的學生，但今天只有別班 c-pm 的課（#1100 #51）
+      enrollment('s-notyet', 'c-tue'),
     ],
     daily_checkins: [
       {
@@ -157,9 +159,12 @@ function seed(mode: 'daily_checkin' | 'per_session' = 'daily_checkin') {
       },
     ],
     parent_student_relations: [],
-    // 老師 staff-t 只固定任課 c-am（s-arrived／s-missing／s-leave）
+    // 老師 staff-t 固定任課 c-am（s-arrived／s-missing／s-leave）與 c-tue（s-notyet，今天沒課）
     staff: [{ id: 'staff-t', user_id: 'u-teacher', org_id: ORG }],
-    schedules: [{ class_id: 'c-am', teacher_id: 'staff-t', classes: { org_id: ORG } }],
+    schedules: [
+      { class_id: 'c-am', teacher_id: 'staff-t', classes: { org_id: ORG } },
+      { class_id: 'c-tue', teacher_id: 'staff-t', classes: { org_id: ORG } },
+    ],
   });
 }
 
@@ -290,6 +295,16 @@ describe('GET /students —— 今日到班（#1314 SL1）', () => {
   it('老師：summary.today 只算任課班的學生（別班今天有課的不算）', async () => {
     const { body } = await list('', { teacher: true });
     expect(body.summary.today).toEqual({ any: 3, arrived: 1, not_yet: 0, missing: 1, on_leave: 1 });
+  });
+
+  // #1100 #51（使用者 10-23 裁定）：老師只看自己教的班的到班。s-notyet 是他的學生（c-tue），
+  // 但今天只有別班 c-pm 的課 —— 老師看到的是「今天沒他的課」，不是別班那堂到了沒
+  it('老師：他的學生今天只有別班的課 → todayStatus 是 null，也不進 summary', async () => {
+    const { body } = await list('', { teacher: true });
+    const row = body.data.find((s) => s.id === 's-notyet');
+    expect(row).toBeDefined();
+    expect(row!.todayStatus ?? null).toBeNull();
+    expect(body.summary.today?.['not_yet']).toBe(0);
   });
 
   // #1595 P3b-A：開頁預設（沒帶 today）時今日到班跟列表同時跑。串行的話，列表那一輪

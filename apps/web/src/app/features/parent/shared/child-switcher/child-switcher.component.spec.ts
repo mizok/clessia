@@ -8,12 +8,12 @@ import { ChildScopeService } from '@core/child-scope.service';
 import { ChildSwitcherComponent } from './child-switcher.component';
 
 const CHILDREN = [
-  { id: 'c1', name: '王小明', grade: 'g4', school: '中山國小' },
-  { id: 'c2', name: '王小美', grade: 'g6', school: '中山國小' },
+  { id: 'c1', name: '王小明', grade: 'P4', school: '中山國小' },
+  { id: 'c2', name: '王小美', grade: 'P6', school: '中山國小' },
 ];
 
 function badge(fixture: { nativeElement: HTMLElement }): HTMLElement | null {
-  return fixture.nativeElement.querySelector('.child-switcher__badge');
+  return fixture.nativeElement.querySelector('.child-switcher');
 }
 
 function listItems(): HTMLButtonElement[] {
@@ -76,16 +76,26 @@ describe('ChildSwitcherComponent', () => {
    *
    * 所以下面這支不是在測一個無關緊要的分支 —— 它守的是單孩子家長唯一的身分指示。
    */
-  it('只有一個孩子時顯示姓名但不給互動——是 span 不是按鈕', async () => {
+  it('只有一個孩子時顯示姓名＋年級但不給互動——是靜態文字不是按鈕（A6 .kid）', async () => {
     await createComponent([CHILDREN[0]], 'c1');
-    expect(badge(fixture)?.tagName).toBe('SPAN');
-    expect(fixture.nativeElement.textContent).toContain('王小明');
+    expect(badge(fixture)?.tagName).toBe('P');
+    expect(fixture.nativeElement.querySelector('button')).toBeNull();
+    expect(badge(fixture)?.querySelector('.child-switcher__name')?.textContent).toBe('王小明');
+    expect(badge(fixture)?.querySelector('.child-switcher__grade')?.textContent).toBe('小四');
   });
 
-  it('多個孩子時徽章是按鈕，顯示目前孩子姓名', async () => {
+  it('多個孩子時徽章是按鈕：名字＋年級，可及名稱「目前看的是 X，切換孩子」（A6 .kid--btn）', async () => {
     await createComponent(CHILDREN, 'c1');
     expect(badge(fixture)?.tagName).toBe('BUTTON');
-    expect(badge(fixture)?.textContent).toContain('王小明');
+    expect(badge(fixture)?.getAttribute('aria-label')).toBe('目前看的是 王小明，切換孩子');
+    expect(badge(fixture)?.querySelector('.child-switcher__name')?.textContent).toBe('王小明');
+    expect(badge(fixture)?.querySelector('.child-switcher__grade')?.textContent).toBe('小四');
+  });
+
+  it('不認得的年級值不畫（不把 enum 原文秀給家長）', async () => {
+    await createComponent([{ ...CHILDREN[0], grade: 'X9' }], 'c1');
+    expect(badge(fixture)?.querySelector('.child-switcher__grade')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('X9');
   });
 
   it('點徽章開 popover，清單只列「其他」孩子（不含目前這個）', async () => {
@@ -95,7 +105,7 @@ describe('ChildSwitcherComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(listItems().map((b) => b.textContent?.trim())).toEqual(['王小美']);
+    expect(listItems().map((b) => b.textContent?.replace(/\s+/g, ''))).toEqual(['王小美小六']);
   });
 
   it('點清單裡的孩子會呼叫 setActiveChild', async () => {

@@ -6,7 +6,7 @@ import { Popover } from 'primeng/popover';
 import { format } from 'date-fns';
 import { provideRouter } from '@angular/router';
 import { NEVER, Subject, of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { beforeAll, vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { InvoicesService, type Invoice, type InvoiceSummary } from '@core/invoices.service';
@@ -85,7 +85,8 @@ describe('PaymentsPage', () => {
 
   const leaveStreaks = { flags: vi.fn((_ids: readonly string[]) => of({ data: [] as unknown[] })) };
 
-  beforeEach(async () => {
+  /** 重設替身、建 TestBed 與元件、等第一次渲染完 —— beforeEach 與暖機共用 */
+  async function mount() {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
     localStorage.removeItem('clessia.campusContext.single');
@@ -109,7 +110,18 @@ describe('PaymentsPage', () => {
     fixture.componentRef.setInput('page', { label: '繳費紀錄' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  }
+
+  // 第一次渲染的固定成本（模板程式碼第一次執行、PrimeNG 第一次注入元件樣式）是之後的數倍，
+  // 全算在第一條測試頭上，高負載時逼近 5s 逾時（不穩定測試盤點 B）。先在 beforeAll 渲染一次暖機：
+  // hookTimeout 10s，不算進任何一條的 5s；渲染完就拆掉，不留狀態給測試（替身在 mount 開頭就重設）
+  beforeAll(async () => {
+    await mount();
+    fixture.destroy();
+    TestBed.resetTestingModule();
   });
+
+  beforeEach(mount);
 
   it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
     const ctx = TestBed.inject(CampusContextService);

@@ -25,7 +25,8 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 export const ApplicantFields = {
   parent: z.object({
     name: text(50),
-    email: z.string().trim().email().max(254).optional(),
+    // 轉小寫（#1335，使用者 10-23 裁）：寫入與限流比對同源。舊資料不 backfill，比對端用 ilike 接住
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
     phone: MobileSchema.optional(),
     relation: z.enum(['father', 'mother', 'other']),
   }),
@@ -262,12 +263,20 @@ export async function guardSubmission(
   });
 
   const count = async (column: string, value: string, sinceMs: number, sameKind: boolean) => {
-    let query = supabase
+    // Email 不分大小寫（#1335）：新資料寫入時已轉小寫，舊資料可能有大寫 —— ilike 兩邊都接得住。
+    // 值要跳脫 ilike 的萬用字元（\ % _），不然 a_b@x.test 會連 axb@x.test 一起算
+    const base = supabase
       .from('public_applications')
       .select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId)
-      .eq(column, value)
-      .gte('created_at', new Date(now - sinceMs).toISOString());
+      .eq('org_id', orgId);
+    let query =
+      column === 'parent_email'
+        ? base.ilike(
+            column,
+            value.replace(/[\\%_]/g, (ch) => `\\${ch}`),
+          )
+        : base.eq(column, value);
+    query = query.gte('created_at', new Date(now - sinceMs).toISOString());
     if (sameKind) query = query.eq('kind', kind);
     const { count: n, error } = await query;
     // 數不出來就不知道有沒有超過 —— 回 null 讓呼叫端 fail-closed，不吞成 0 放行

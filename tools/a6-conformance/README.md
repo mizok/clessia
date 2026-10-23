@@ -22,6 +22,10 @@ npx --prefix tools/a6-conformance playwright install chromium   # 機器上沒�
 node tools/a6-conformance/login.mjs '<印出的連結>'
 # 多身分帳號（teacher0001 也是家長）會被導到 /select-role：state 檔的 origins 補
 #   localStorage clessia:active-role=teacher（state-teacher.json，t-students 用）
+# 家長頁（p-*）用多孩子的家長 parent03（3 個孩子）：單孩子帳號量不到切換孩子這類東西（#1932）
+( set -a; . apps/api/.dev.vars; set +a; WEB_URL=http://localhost:4200 \
+  LOGIN_EMAIL=parent03@demo.clessia.app npx tsx apps/api/src/scripts/login-link.ts )
+node tools/a6-conformance/login.mjs '<印出的連結>' ~/.cache/clessia-a6-conformance/state-parent03.json
 
 node tools/a6-conformance/run.mjs inventory              # 全部頁；或指定 students schedule …
 node tools/a6-conformance/run.mjs diff students

@@ -159,6 +159,16 @@
                         }
                       </p>
                     }
+                    <!-- 報名完成有兩條路：收款繳清、行政手動轉正式（後者不一定收過錢）→ 只寫兩條路都成立的
+                         「已轉正式」，不寫「已繳清」（計畫席 10-23 裁，#1778） -->
+                    @if (r.kind === 'enrollment' && r.status === 'completed') {
+                      <p
+                        class="m-0 mt-0.5 font-semibold text-zinc-900"
+                        data-testid="request-completed"
+                      >
+                        已轉正式
+                      </p>
+                    }
                     @if (r.preferredStartDate || r.preferredTimes) {
                       <p class="m-0 mt-0.5 text-sm text-zinc-600">
                         希望：{{ r.preferredStartDate ?? r.preferredTimes }}

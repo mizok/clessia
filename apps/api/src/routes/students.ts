@@ -367,11 +367,14 @@ app.openapi(
 
     // 老師只看得到自己固定任課的班（schedules，不是 sessions —— 代課不算「我的學生」）
     let taughtStudentIds: string[] | null = null;
+    /** 老師固定任課的班；管理員是 null。今日到班只算這些班的課（#1100 #51） */
+    let myClassIds: string[] | null = null;
     if (scope.teacherStaffId) {
       // 這裡原本自己組同一支查詢，而且同樣對 `schedules` 下了 `org_id` ——
       // **那張表沒有這個欄位**（42703）。改成共用 `lib/teacher-scope` 的那一份，
       // 兩處各修一次的話，下一次只會修好一處。
       const classIds = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
+      myClassIds = classIds;
 
       if (classIds.length === 0) {
         taughtStudentIds = [];
@@ -540,6 +543,14 @@ app.openapi(
           .eq('org_id', orgId)
           .eq('session_date', date);
         if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', [...campusIds]);
+        // #1100 #51（使用者 10-23 裁定）：老師只看自己教的班的到班 —— 他的學生今天若只有別班的課，
+        // 狀態是「今天沒他的課」（null），不是別班那堂到了沒（看不到的就是看不到）
+        if (myClassIds !== null) {
+          sessionsQuery = sessionsQuery.in(
+            'class_id',
+            myClassIds.length > 0 ? myClassIds : ['00000000-0000-0000-0000-000000000000'],
+          );
+        }
         const { data: sessionRows, error: sessionsError } = await sessionsQuery;
         if (sessionsError) {
           return {

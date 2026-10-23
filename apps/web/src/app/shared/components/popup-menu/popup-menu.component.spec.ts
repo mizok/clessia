@@ -106,6 +106,24 @@ describe('PopupMenuComponent', () => {
     expect(command).not.toHaveBeenCalled();
   });
 
+  it('danger 項目掛危險色 modifier；不能按的不掛（那一列是說明文字）', () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.componentInstance.items = [
+      { label: '編輯' },
+      { label: '刪除', danger: true },
+      { label: '還有班級，無法刪除', danger: true, disabled: true },
+    ];
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const danger = [...querySelectorAllItems()].map((el) =>
+      el.classList.contains('popup-menu__item--danger'),
+    );
+    expect(danger).toEqual([false, true, false]);
+  });
+
   it('separator 會渲染為 role="separator" 而非 button', () => {
     const fixture = TestBed.createComponent(HostComponent);
     fixture.componentInstance.items = [{ label: 'A' }, { separator: true }, { label: 'B' }];

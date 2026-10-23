@@ -47,6 +47,8 @@ export class DailyCheckinsService {
     studentId: string;
     checkinDate: string;
     campusId?: string;
+    /** 到班來源（#1100 #52）：掃碼站帶 `scan`；沒帶後端當 manual（機台帳號後端一律 scan） */
+    source?: 'scan' | 'manual';
   }): Observable<DailyCheckinConfirmation> {
     return this.http.post<DailyCheckinConfirmation>(this.base, input);
   }

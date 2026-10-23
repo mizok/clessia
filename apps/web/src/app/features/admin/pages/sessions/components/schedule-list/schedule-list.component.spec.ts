@@ -15,11 +15,14 @@ describe('ScheduleListComponent —— 手機長按（#1174 G3）', () => {
     campusName: '總校',
   } as Session;
 
-  function setup() {
+  function setup(opts: { picking?: boolean; selected?: boolean; compact?: boolean } = {}) {
     vi.useFakeTimers();
     const fixture = TestBed.createComponent(ScheduleListComponent);
     fixture.componentRef.setInput('groups', [{ start: '17:00', sessions: [s] }]);
     fixture.componentRef.setInput('now', new Date(2026, 9, 7, 9));
+    fixture.componentRef.setInput('picking', !!opts.picking);
+    fixture.componentRef.setInput('compact', !!opts.compact);
+    if (opts.selected) fixture.componentRef.setInput('selectedIds', new Set([s.id]));
     fixture.detectChanges();
     const long = vi.fn();
     const menu = vi.fn();
@@ -30,7 +33,8 @@ describe('ScheduleListComponent —— 手機長按（#1174 G3）', () => {
     )!;
     const press = (pointerType: string) =>
       main.dispatchEvent(Object.assign(new Event('pointerdown'), { pointerType }));
-    return { main, press, long, menu };
+    const el = fixture.nativeElement as HTMLElement;
+    return { main, press, long, menu, el };
   }
 
   afterEach(() => vi.useRealTimers());
@@ -60,10 +64,42 @@ describe('ScheduleListComponent —— 手機長按（#1174 G3）', () => {
   // #1620：手機的勾選欄是 hidden，display:none 不佔 grid 格子 —— 三欄的話 ⋯ 會落進中間那欄、
   // 貼在班名旁邊。手機要兩欄（內容撐滿、⋯ 貼右緣，A6 x≈322），桌機才三欄
   it('手機兩欄、桌機三欄：⋯ 貼卡片右緣', () => {
-    const { main } = setup();
+    const { main } = setup({ picking: true });
     const row = main.parentElement!;
     expect(row.classList.contains('grid-cols-[minmax(0,1fr)_auto]')).toBe(true);
     expect(row.classList.contains('wide:grid-cols-[auto_minmax(0,1fr)_auto]')).toBe(true);
+  });
+
+  // #1923：A6 schedule.css:50–51 —— 不在快速選取模式時沒有勾選框（已勾的那堂例外，看得到自己的勾）
+  describe('勾選框只在快速選取或已勾時出現（#1923）', () => {
+    const pickCell = (el: HTMLElement) =>
+      el.querySelector('input[type="checkbox"]')!.closest('label')!;
+    it('平常：桌機也兩欄、勾選框不出現', () => {
+      const { main, el } = setup();
+      expect(
+        main.parentElement!.classList.contains('wide:grid-cols-[auto_minmax(0,1fr)_auto]'),
+      ).toBe(false);
+      expect(pickCell(el).classList.contains('wide:grid')).toBe(false);
+    });
+    it('快速選取模式：勾選框出現', () => {
+      expect(pickCell(setup({ picking: true }).el).classList.contains('wide:grid')).toBe(true);
+    });
+    it('不在快速選取、但這堂已勾：勾選框照樣出現', () => {
+      expect(pickCell(setup({ selected: true }).el).classList.contains('wide:grid')).toBe(true);
+    });
+  });
+
+  it('週視圖窄欄（compact）也有 ⋯（A6 `.wc .li__more`），按了發 menu', () => {
+    const { el, menu } = setup({ compact: true });
+    const more = el.querySelector<HTMLButtonElement>('button[aria-label="數學A 的操作"]')!;
+    expect(more).not.toBeNull();
+    more.click();
+    expect(menu).toHaveBeenCalledTimes(1);
+  });
+
+  it('開始時間分組不是 landmark（A6 `.lg` 是 div）', () => {
+    const { el } = setup();
+    expect(el.querySelector('section')).toBeNull();
   });
 
   // #1786：舊寫法 `pressed && $event.preventDefault()` 在沒長按時值是 false，Angular 照樣擋掉

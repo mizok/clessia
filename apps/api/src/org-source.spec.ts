@@ -25,12 +25,14 @@ function collectTsFiles(dir: string): string[] {
   });
 }
 
+// 模組層掃一次、內容一起讀進來（收集階段，不算進測試的 5s 逾時；不穩定測試盤點 C）
+const SOURCES = collectTsFiles(SRC).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+
 describe('org 來源', () => {
   it('沒有任何程式碼從 profiles 讀取 org_id', () => {
     const offenders: string[] = [];
 
-    for (const file of collectTsFiles(SRC)) {
-      const source = readFileSync(file, 'utf8');
+    for (const { file, source } of SOURCES) {
       // 只看 profiles 查詢後面緊接著取 org_id 的形狀，避免誤判 display_name 之類的合法用法
       if (/from\(\s*'profiles'\s*\)[\s\S]{0,120}?org_id/.test(source)) {
         offenders.push(file.replace(`${SRC}/`, ''));

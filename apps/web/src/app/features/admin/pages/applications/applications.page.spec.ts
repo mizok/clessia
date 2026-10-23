@@ -604,6 +604,21 @@ describe('ApplicationsPage：版面（#1874）', () => {
     expect(title(el)).toBe('已轉入4筆。');
   });
 
+  it('完成的報名寫「已轉正式」（不寫已繳清：手動轉正式也會完成）；待繳費、完成的試聽不寫', async () => {
+    const { el } = await setup([
+      req({ id: 'r1', status: 'completed' }),
+      req({ id: 'r2', status: 'awaiting_payment' }),
+      trial({ status: 'completed' }),
+    ]);
+    const marks = el.querySelectorAll('[data-testid="request-completed"]');
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.textContent!.trim()).toBe('已轉正式');
+    expect(marks[0]!.closest('[data-testid="parent-request-card"]')!.textContent).toContain(
+      '已完成',
+    );
+    expect(el.textContent).not.toContain('已繳清');
+  });
+
   it('沒有沒排的試聽：色面只有第一句', async () => {
     const { el } = await setup([req()]);
     expect(title(el)).toBe('2筆申請等你處理。');

@@ -21,9 +21,7 @@ import {
   type ParentInvoiceListResponse,
 } from '@core/parent-billing.service';
 import { SystemClockService } from '@core/system-clock.service';
-import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
@@ -39,6 +37,7 @@ import {
   monthDay,
 } from './payments.util';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import type { Subscription } from 'rxjs';
 
 const PAGE_SIZE = 20;
 
@@ -50,13 +49,11 @@ const PAGE_SIZE = 20;
     DecimalPipe,
     NgTemplateOutlet,
     RouterLink,
-    ChapterHeadComponent,
     StatusDotComponent,
     DrawerModule,
     PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
-    BandAnchorComponent,
     EmptyStateComponent,
   ],
   templateUrl: './payments.page.html',
@@ -157,11 +154,15 @@ export class PaymentsPage implements OnInit {
     this.load(childId, this.currentPage() + 1, true);
   }
 
+  /** 換孩子很快（A→B→A）時，上一個請求晚到不能蓋掉現在這個孩子的 —— 新的一發出就取消舊的（#1978） */
+  private loadSub?: Subscription;
+
   private load(childId: string, page: number, append = false): void {
     this.loading.set(true);
     this.failed.set(false);
 
-    this.billingService.list({ childId, page, pageSize: PAGE_SIZE }).subscribe({
+    this.loadSub?.unsubscribe();
+    this.loadSub = this.billingService.list({ childId, page, pageSize: PAGE_SIZE }).subscribe({
       next: (res) => {
         this.invoices.set(append ? [...this.invoices(), ...res.data] : res.data);
         this.total.set(res.meta.total);

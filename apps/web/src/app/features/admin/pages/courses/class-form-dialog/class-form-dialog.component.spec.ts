@@ -254,12 +254,16 @@ describe('ClassFormDialogComponent', () => {
       );
     });
 
-    it('編輯：只換教室也算改了，送 updateSchedule；沒改不送', async () => {
+    // 原本是一條（沒改不送＋只換教室要送），一條裡渲染元件 3 次，高負載時逾時 5s（不穩定測試盤點）。
+    // 拆成兩條、斷言不變，每條只多渲染一次
+    it('編輯：沒改不送 updateSchedule', async () => {
       recreate(existing('room-a', 'A 教室'));
       (component as any).save();
       await fixture.whenStable();
       expect(classesServiceMock.updateSchedule).not.toHaveBeenCalled();
+    });
 
+    it('編輯：只換教室也算改了，送 updateSchedule', async () => {
       recreate(existing('room-a', 'A 教室'));
       (component as any).updateScheduleEntry(0, 'classroomId', null);
       (component as any).save();

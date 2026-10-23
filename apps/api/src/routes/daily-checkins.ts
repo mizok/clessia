@@ -50,6 +50,11 @@ const CreateDailyCheckinSchema = z
     studentId: DbUuidSchema,
     campusId: DbUuidSchema.optional(),
     checkinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    /**
+     * 到班來源（#1100 #52）：行政的掃碼站帶 `scan`。**沒帶當 manual**（沒有證據說是掃碼，就不寫掃碼）。
+     * 機台帳號不看這個參數，一律 scan
+     */
+    source: z.enum(['scan', 'manual']).optional(),
   })
   .openapi('CreateDailyCheckin');
 
@@ -150,6 +155,7 @@ app.openapi(
       checkinDate: body.checkinDate,
       campusScope: getCampusScope(c),
       mode: attendanceMode,
+      source: isKioskOnly(c.get('roles')) ? 'scan' : (body.source ?? 'manual'),
     });
     if (written.error) {
       return c.json({ error: '打卡失敗', message: written.error.message }, 500);

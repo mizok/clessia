@@ -574,6 +574,12 @@ describe('ExamsComponent', () => {
   describe('樂觀刪除（#1641 5b）', () => {
     const ids = () => (component['currentRows']() as Array<{ id: string }>).map((r) => r.id);
     const target = () => component['currentRows']()[1]!;
+
+    it('選單的「刪除」上危險色（#1360）', () => {
+      component['selectedRow'].set(target());
+      const items = component['actionMenuItems']() as Array<{ label?: string; danger?: boolean }>;
+      expect(items.find((i) => i.label === '刪除')?.danger).toBe(true);
+    });
     const deleteReq = () =>
       http.expectOne(
         (req) =>
