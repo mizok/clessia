@@ -72,15 +72,7 @@
             清除篩選
           </button>
         }
-        <button
-          type="button"
-          title="操作紀錄"
-          class="tbar-control-square inline-flex cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-          (click)="openAuditLog()"
-        >
-          <i class="pi pi-clock text-sm" aria-hidden="true"></i>
-          <span class="sr-only">操作紀錄</span>
-        </button>
+        <app-audit-log-button (click)="openAuditLog()" />
         <app-popup-menu #pageMenu [model]="pageMenuItems()" />
         <!-- 選單只裝批次選取；沒有班可勾時整顆不出現（#1872） -->
         @if (pageMenuItems().length > 0) {

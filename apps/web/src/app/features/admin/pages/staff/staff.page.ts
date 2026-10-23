@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
@@ -116,6 +117,7 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
   selector: 'app-staff',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     SkeletonComponent,
     ReloadVeilComponent,
     PageActionsComponent,
@@ -174,7 +176,6 @@ export class StaffPage implements OnInit {
 
   // Constants exposed to template
   protected readonly roleOptions = ROLE_OPTIONS;
-  protected readonly secondaryAction: PageAction = { label: '操作紀錄' };
 
   // State
   readonly staffList = signal<Staff[]>([]);

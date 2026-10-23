@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import {
   Component,
   DestroyRef,
@@ -71,6 +72,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     SkeletonComponent,
     HeightFollowDirective,
     ReloadVeilComponent,

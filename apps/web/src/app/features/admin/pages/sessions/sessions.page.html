@@ -165,6 +165,8 @@
       >
         快速選取{{ selectedCount() ? ' · 已勾 ' + selectedCount() : '' }}
       </button>
+      <!-- 操作紀錄：全站同一顆時鐘圖示鈕（#2006；原本收在「⋯」選單最後一項） -->
+      <app-audit-log-button (click)="openOperationsLog()" />
       <app-popup-menu #moreMenu [model]="moreMenuItems()" />
       <button
         type="button"

@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import {
   Component,
   ElementRef,
@@ -135,6 +136,7 @@ const FETCH_LIMIT = 500;
   selector: 'app-sessions',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     SkeletonComponent,
     StepMotionDirective,
     SelectedIndicatorDirective,
@@ -501,11 +503,6 @@ export class SessionsPage implements OnInit {
         command: () => this.hideCancelled(),
       });
     }
-    items.push({
-      label: '操作紀錄',
-      icon: 'pi pi-history',
-      command: () => this.openOperationsLog(),
-    });
     return items;
   });
 

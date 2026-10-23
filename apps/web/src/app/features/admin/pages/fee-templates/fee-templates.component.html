@@ -48,15 +48,7 @@
         (primaryClick)="openTemplateDialog()"
         (secondaryClick)="openPeriodDialog()"
       >
-        <button
-          type="button"
-          class="tbar-control-square inline-flex items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50"
-          aria-label="操作紀錄"
-          data-testid="audit-log-btn"
-          (click)="openAuditLog()"
-        >
-          <i class="pi pi-history text-sm" aria-hidden="true"></i>
-        </button>
+        <app-audit-log-button (click)="openAuditLog()" />
       </app-page-actions>
     </div>
   </div>

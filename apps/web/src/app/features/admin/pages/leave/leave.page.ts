@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
@@ -47,6 +48,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
   selector: 'app-leave',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     SkeletonComponent,
     ReloadVeilComponent,
     CampusScopeNoteComponent,

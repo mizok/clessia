@@ -108,16 +108,8 @@
         >
           <i class="pi pi-download" aria-hidden="true"></i>
         </button>
-        <app-popup-menu #pageMenu [model]="pageMenuItems" />
-        <button
-          type="button"
-          class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-          aria-label="更多動作"
-          title="更多動作"
-          (click)="pageMenu.toggle($event)"
-        >
-          <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
-        </button>
+        <!-- 操作紀錄：全站同一顆時鐘圖示鈕（#2006；原本收在「⋯」選單，選單裡只有它） -->
+        <app-audit-log-button (click)="openAuditLog()" />
       </app-page-actions>
       <p-popover #exportPanel appendTo="body">
         <form

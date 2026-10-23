@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
@@ -93,6 +94,7 @@ interface CourseChapter {
   selector: 'app-courses',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     SkeletonComponent,
     ReloadVeilComponent,
     ChapterHeadComponent,
