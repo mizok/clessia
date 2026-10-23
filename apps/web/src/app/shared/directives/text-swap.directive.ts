@@ -50,6 +50,12 @@ export class TextSwapDirective {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   /** 上一次定下來的內容（宿主本身的深複本） */
   private settled: HTMLElement | null = null;
+  /**
+   * 那份內容當時的寬（取小數）。複本要用**舊字自己的寬**：用宿主現在（新字）的寬的話，
+   * 舊字比較寬時最後幾個字會折到下一行（「找到 0 位」→「找到 1 位」，數字不是等寬字，#1983 實測）；
+   * `offsetWidth` 也不行，它取整（實寬 114.47 給 114）。
+   */
+  private settledWidth = 0;
   private clone: HTMLElement | null = null;
   private running: Animation[] = [];
 
@@ -78,11 +84,13 @@ export class TextSwapDirective {
   }
 
   private snapshot(): HTMLElement {
+    this.settledWidth = this.host.getBoundingClientRect().width;
     return this.host.cloneNode(true) as HTMLElement;
   }
 
   private swap(): void {
     const old = this.settled;
+    const oldWidth = this.settledWidth;
     const next = this.snapshot();
     if ((old?.textContent ?? '').trim() === (next.textContent ?? '').trim()) {
       this.settled = next;
@@ -112,8 +120,7 @@ export class TextSwapDirective {
         position: 'absolute',
         top: `${this.host.offsetTop}px`,
         left: `${this.host.offsetLeft}px`,
-        // 寬度取小數：offsetWidth 取整，實寬 114.47 給 114 會讓複本最後幾個字折到下一行（#1983 實測）
-        width: `${this.host.getBoundingClientRect().width}px`,
+        width: `${oldWidth}px`,
         margin: '0',
         pointerEvents: 'none',
       });
