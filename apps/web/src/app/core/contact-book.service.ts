@@ -29,6 +29,8 @@ export interface ContactBookEntry {
   signedAt: string | null;
   /** 後端算好的 —— 前端不要再從 signedAt 推一次 */
   isSigned: boolean;
+  /** 簽收之後內容又改過（#1100 #26）：簽收保留，畫面標「簽收後有修改」 */
+  editedAfterSign: boolean;
 }
 
 export interface ContactBookQueryParams {

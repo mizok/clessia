@@ -53,7 +53,7 @@ export function createChildDb(
   supabase: SupabaseClient,
   scope: StudentScope,
   orgId: string,
-  /** 只給 `createLeave` 用（#1970）；家長端 route 拿不到它，只拿得到綁好 scope 的能力 */
+  /** 只給 `createLeave`（#1970）、`signContactBookEntry`（#1100 #26）用；家長端 route 拿不到它，只拿得到綁好 scope 的能力 */
   pool?: Pool,
 ) {
   /** 寫入用：`null`（不是家長）在寫入面一律 fail-closed，跟讀取面的「不加條件」刻意不同 */
@@ -197,6 +197,46 @@ export function createChildDb(
             .in(studentIdColumn, writableIds);
         },
       };
+    },
+
+    /**
+     * 家長簽收聯絡簿（#1100 #26）。**走 pg 一句 SQL，不走 `from().update()`**：`signed_at = now()`
+     * 跟 `updated_at` trigger 的 `now()` 是同一個交易時間，兩欄相等 —— 之後老師一改內容，
+     * `updated_at` 才會大於 `signed_at`，「簽收後有修改」就靠這個判。用 JS 的時間的話，
+     * trigger 的時間一定略晚（或因時鐘差略早），每一筆都會誤判。
+     *
+     * - 範圍：同 org、`student_id` 在 scope；不是 → `not-found`（不分「不存在」與「別人的」）
+     * - **已簽過不覆蓋**（第一位簽收者留著）：`signed_at IS NULL` 寫在 UPDATE 的條件裡，
+     *   兩位家長同時按，第二位在列鎖之後重新判條件、改不到 → `already`
+     * - pool 是 `createChildDb` 收的（同 `createLeave`）：家長端 route 不碰原始連線（A19）。沒有 pool → `failed`
+     */
+    async signContactBookEntry(
+      entryId: string,
+      userId: string,
+    ): Promise<'signed' | 'already' | 'not-found' | 'failed'> {
+      if (writableIds.length === 0) return 'not-found';
+      if (!pool) {
+        console.error('[child-db] 沒有 pg pool，不簽收聯絡簿');
+        return 'failed';
+      }
+      const { rows } = await pool.query(
+        `with target as (
+           select id from public.contact_book_entries
+           where id = $1 and org_id = $2 and student_id = any($3::uuid[])
+         ), signed as (
+           update public.contact_book_entries e
+           set signed_by = $4, signed_at = now()
+           from target
+           where e.id = target.id and e.signed_at is null
+           returning e.id
+         )
+         select (select count(*) from target)::int as found,
+                (select count(*) from signed)::int as signed`,
+        [entryId, orgId, writableIds, userId],
+      );
+      const row = rows[0] as { found: number; signed: number } | undefined;
+      if (!row || row.found === 0) return 'not-found';
+      return row.signed > 0 ? 'signed' : 'already';
     },
 
     /**

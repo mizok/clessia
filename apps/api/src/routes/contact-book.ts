@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
+import { editedAfterSign } from '../lib/contact-book-sign';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import {
   datesInRange,
@@ -20,8 +21,8 @@ import { waitUntilFrom } from '../lib/wait-until';
  * 跟教務日誌（班級 × 日期）是**兩個不同的東西**，只是補習班口語裡都叫「聯絡簿」。
  * 設計真相：kb/wiki/rules/contact-book-rules.md
  *
- * 家長簽收端點不在這裡 —— 那是 P4 的家長端工作。欄位（signed_by / signed_at）
- * 已經在 schema 裡，這支只負責把簽收狀態讀出來給老師端看。
+ * 家長簽收在 `routes/parent/contact-book.ts`（#1100 #26）；這支把簽收狀態讀出來給老師端看，
+ * 並標「簽收後有修改」（kb/wiki/architecture/parent-contact-book-sign.md）。
  */
 const app = new OpenAPIHono<AppEnv>();
 
@@ -37,6 +38,8 @@ const ContactBookEntrySchema = z
     signedByName: z.string().nullable(),
     signedAt: z.string().nullable(),
     isSigned: z.boolean(),
+    /** 簽收之後內容又改過（#1100 #26）—— 簽收保留，畫面標「簽收後有修改」 */
+    editedAfterSign: z.boolean(),
   })
   .openapi('ContactBookEntry');
 
@@ -67,6 +70,7 @@ interface ContactBookRow {
   last_edited_by: string | null;
   signed_by: string | null;
   signed_at: string | null;
+  updated_at: string;
   students?: { name: string } | null;
   editor?: { name: string } | null;
   signer?: { name: string } | null;
@@ -85,11 +89,12 @@ export function toContactBookEntryResponse(row: Record<string, unknown>) {
     signedByName: typed.signer?.name ?? null,
     signedAt: typed.signed_at,
     isSigned: Boolean(typed.signed_at),
+    editedAfterSign: editedAfterSign(typed.updated_at, typed.signed_at),
   };
 }
 
 const SELECT =
-  'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, ' +
+  'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, updated_at, ' +
   'students(name), editor:ba_user!last_edited_by(name), signer:ba_user!signed_by(name)';
 
 // ── GET /api/contact-book —— 依學生或日期區間列出 ──────────────────────────
@@ -214,6 +219,23 @@ app.openapi(
     }
     if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
+
+    // **內容沒變就不寫**（#1100 #26，計畫席 10-23）：upsert 會讓 trigger 跳 `updated_at`，
+    // 老師原文照存一次就讓已簽收的那則變成「簽收後有修改」，標記就沒有意義了。
+    // 家長看得到的只有內容與最後編輯者 —— 原文照存連編輯者也不換（沒有人真的改了什麼）。
+    const { data: existing, error: existingError } = await supabase
+      .from('contact_book_entries')
+      .select(SELECT)
+      .eq('org_id', orgId)
+      .eq('student_id', studentId)
+      .eq('entry_date', entryDate)
+      .maybeSingle();
+    if (existingError) {
+      return c.json({ error: '寫入聯絡簿失敗', code: existingError.code }, 500);
+    }
+    if (existing && (existing as unknown as ContactBookRow).content === content) {
+      return c.json(toContactBookEntryResponse(existing as unknown as Record<string, unknown>), 200);
     }
 
     // 每生每日一則（rules 1）。共編＝覆寫同一列並換掉 last_edited_by，

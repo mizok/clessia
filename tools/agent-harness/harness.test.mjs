@@ -57,7 +57,7 @@ import {
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
-import { usesRawSupabase } from './lib/parent-route-scan.mjs';
+import { usesRawSupabase, usesRawPool } from './lib/parent-route-scan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -1549,6 +1549,13 @@ test('c5 的別名清單與 tsconfig 對得上', () => {
 test('A19 抓到真的 c.get(supabase) 呼叫', () => {
   assert.equal(usesRawSupabase("const s = c.get('supabase');", 'x.ts'), true);
   assert.equal(usesRawSupabase('const s = c.get("supabase");', 'x.ts'), true);
+});
+
+test('A19 第二條：抓到 getAuth( 與 .pool，不誤判註解與相近的字', () => {
+  assert.equal(usesRawPool('const pool = getAuth(c).pool;', 'x.ts'), true);
+  assert.equal(usesRawPool('await x.pool.query(sql);', 'x.ts'), true);
+  assert.equal(usesRawPool('// 不用 getAuth(c).pool，走 childDb', 'x.ts'), false);
+  assert.equal(usesRawPool('const poolSize = 3; const spool = 1;', 'x.ts'), false);
 });
 
 test('A19 不誤判註解裡提到 c.get(supabase) 的說明文字', () => {

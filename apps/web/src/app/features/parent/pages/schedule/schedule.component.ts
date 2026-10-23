@@ -16,11 +16,13 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, catchError, forkJoin, map, of, switchMap, tap, type Observable } from 'rxjs';
 import { RouterLink } from '@angular/router';
+import { MessageService } from 'primeng/api';
 
 import { ChildScopeService } from '@core/child-scope.service';
 import {
   ParentSessionsService,
   type ParentClassLog,
+  type ParentContactBookEntry,
   type ParentSession,
 } from '@core/parent-sessions.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -40,6 +42,7 @@ import {
   sessionPhase,
   sortSessions,
   taipeiMinutes,
+  taipeiStamp,
   taipeiTimeOfDay,
   weekDates,
   weekdayIndex,
@@ -59,7 +62,7 @@ const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancella
  * 家長端課表（A6 p-schedule.html，#1314）。資料全來自既有 `GET /api/me/sessions`（範圍、轉班防線、
  * 停課照回都在 API 端）與 `GET /api/me/class-logs`（這堂的作業）。
  *
- * A6 有、這裡沒有（缺家長端 API，列 #1314 後續項）：聯絡簿與「已閱簽收」、小考名稱、
+ * A6 有、這裡沒有（缺家長端 API，列 #1314 後續項）：小考名稱、
  * 「這週還沒報名／還沒排出來」兩句（`Child` 沒有報名生效日，空週一律寫「這週沒有課」）。
  */
 @Component({
@@ -85,12 +88,14 @@ export class ScheduleComponent implements OnInit {
   private readonly sessionsService = inject(ParentSessionsService);
   private readonly clock = inject(SystemClockService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly messageService = inject(MessageService);
 
   protected readonly weekdayLabels = WEEKDAY_LABELS;
   protected readonly changeLabels = changeLabels;
   protected readonly changeText = changeText;
   protected readonly formatMd = formatMd;
   protected readonly hhmm = hhmm;
+  protected readonly taipeiStamp = taipeiStamp;
   protected readonly changeKindLabel = CHANGE_KIND_LABEL;
   protected weekdayOf(date: string): string {
     return WEEKDAY_LABELS[weekdayIndex(date)];
@@ -198,7 +203,12 @@ export class ScheduleComponent implements OnInit {
   private readonly dialog = viewChild<ElementRef<HTMLDialogElement>>('detailDialog');
   protected readonly selected = signal<ParentSession | null>(null);
   protected readonly homeworkLoading = signal(false);
+  /** 作業／聯絡簿讀失敗：不能寫成「老師還沒有寫」，那是一句會騙人的話 */
+  protected readonly homeworkFailed = signal(false);
   private readonly classLogs = signal<ParentClassLog[]>([]);
+  /** 開聯絡簿的班（`usesContactBook`）看這個，不看 `classLogs`（#1100 #26） */
+  private readonly contactBook = signal<ParentContactBookEntry[]>([]);
+  protected readonly signing = signal(false);
 
   protected readonly selectedPhase = computed<SessionPhase | null>(() => {
     const s = this.selected();
@@ -219,6 +229,22 @@ export class ScheduleComponent implements OnInit {
       .filter((l) => l.classId === s.classId && l.logDate < s.date)
       .sort((a, b) => (a.logDate < b.logDate ? 1 : -1))
       .slice(0, 10);
+  });
+
+  /** 這堂那天的聯絡簿。一則屬於學生不屬於班 —— 同一天上兩個班看到的是同一則 */
+  protected readonly selectedEntry = computed(() => {
+    const s = this.selected();
+    if (!s) return null;
+    return this.contactBook().find((e) => e.entryDate === s.date) ?? null;
+  });
+
+  /** 之前的聯絡簿：比這堂早的最近 10 則 */
+  protected readonly entryHistory = computed(() => {
+    const s = this.selected();
+    if (!s) return [];
+    return this.contactBook()
+      .filter((e) => e.entryDate < s.date)
+      .slice(0, 10); // API 已經新到舊
   });
 
   protected readonly attendanceText = computed(() => {
@@ -246,8 +272,12 @@ export class ScheduleComponent implements OnInit {
     thisMonday: string;
     needHero: boolean;
   }>();
-  /** 看詳情時查作業；連點不同堂時同樣只認最後一次 */
-  private readonly homework$ = new Subject<{ childId: string; date: string }>();
+  /** 看詳情時查作業（或聯絡簿）；連點不同堂時同樣只認最後一次 */
+  private readonly homework$ = new Subject<{
+    childId: string;
+    date: string;
+    usesContactBook: boolean;
+  }>();
 
   constructor() {
     this.request$
@@ -263,16 +293,24 @@ export class ScheduleComponent implements OnInit {
 
     this.homework$
       .pipe(
-        switchMap(({ childId, date }) =>
-          this.sessionsService.homework(childId, addDaysToDateString(date, -120), date).pipe(
-            map((res) => res.data),
-            catchError(() => of([] as ParentClassLog[])),
-          ),
-        ),
+        switchMap(({ childId, date, usesContactBook }) => {
+          const from = addDaysToDateString(date, -120);
+          const read$: Observable<{ logs?: ParentClassLog[]; book?: ParentContactBookEntry[] }> =
+            usesContactBook
+              ? this.sessionsService
+                  .contactBook(childId, from, date)
+                  .pipe(map((res) => ({ book: res.data })))
+              : this.sessionsService
+                  .homework(childId, from, date)
+                  .pipe(map((res) => ({ logs: res.data })));
+          return read$.pipe(catchError(() => of(null)));
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((data) => {
-        this.classLogs.set(data);
+      .subscribe((r) => {
+        this.classLogs.set(r?.logs ?? []);
+        this.contactBook.set(r?.book ?? []);
+        this.homeworkFailed.set(r === null);
         this.homeworkLoading.set(false);
       });
 
@@ -361,11 +399,36 @@ export class ScheduleComponent implements OnInit {
   protected open(s: ParentSession): void {
     this.selected.set(s);
     this.classLogs.set([]);
+    this.contactBook.set([]);
+    this.homeworkFailed.set(false);
     this.dialog()?.nativeElement.showModal();
     const childId = this.childScope.activeChildId();
     if (!childId || this.phase(s) === 'future' || this.phase(s) === 'off') return;
     this.homeworkLoading.set(true);
-    this.homework$.next({ childId, date: s.date });
+    this.homework$.next({ childId, date: s.date, usesContactBook: s.usesContactBook });
+  }
+
+  /** 已閱簽收（#1100 #26）。成功就地換成回來的那則（可能是另一位家長先簽了 —— 回的是現狀） */
+  protected sign(entry: ParentContactBookEntry): void {
+    if (this.signing()) return;
+    this.signing.set(true);
+    this.sessionsService
+      .signContactBook(entry.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (signed) => {
+          this.contactBook.update((list) => list.map((e) => (e.id === signed.id ? signed : e)));
+          this.signing.set(false);
+          this.messageService.add({
+            severity: 'success',
+            summary: `已簽收 ${formatMd(signed.entryDate)} 的聯絡簿`,
+          });
+        },
+        error: () => {
+          this.signing.set(false);
+          this.messageService.add({ severity: 'error', summary: '簽收失敗，請稍後再試' });
+        },
+      });
   }
 
   protected closeDetail(): void {
