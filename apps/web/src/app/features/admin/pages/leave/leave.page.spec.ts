@@ -14,6 +14,7 @@ import { CoursesService } from '@core/courses.service';
 import { ClassesService } from '@core/classes.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { LeavePage, impactLine } from './leave.page';
+import { LeaveBatchDialogComponent } from './leave-batch-dialog/leave-batch-dialog.component';
 import {
   LEAVE_DIALOG_CONTENT_STYLE,
   LeaveFormDialogComponent,
@@ -139,6 +140,25 @@ describe('LeavePage', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  // #1100 #32：工具列的「批次請假」
+  it('批次請假：開對話框帶頂欄分校；建了幾張就重抓並提示，沒建就不動', () => {
+    const add = vi.spyOn(messageService, 'add');
+    dialogServiceMock.open.mockReturnValueOnce({ onClose: of({ created: 3 }) });
+    leaveServiceMock.list.mockClear();
+    component['openBatchDialog']();
+    expect(dialogServiceMock.open).toHaveBeenCalledWith(
+      LeaveBatchDialogComponent,
+      expect.objectContaining({ data: { campusId: null } }),
+    );
+    expect(leaveServiceMock.list).toHaveBeenCalled();
+    expect(add).toHaveBeenCalledWith(expect.objectContaining({ detail: '已幫 3 位學生請假' }));
+
+    dialogServiceMock.open.mockReturnValueOnce({ onClose: of(null) });
+    leaveServiceMock.list.mockClear();
+    component['openBatchDialog']();
+    expect(leaveServiceMock.list).not.toHaveBeenCalled();
   });
 
   // #1100 #31 二讀

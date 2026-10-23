@@ -1,8 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Pool } from 'pg';
 import { resolveAttendanceMode } from './attendance-mode';
 import type { Queryable } from './identity-sql';
 import type { StudentScope } from './child-scope';
+import { findConflictingLeaveViaSql, insertLeave, lockStudentLeaves } from './leave-write';
+import type { LeaveWindow } from './leave-covers-session';
 import { notifyLeaveStreaks } from './leave-streak';
+import { withTx } from './pg-tx';
 import { notifyNewApplication } from './notify-events';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from './notify-leave';
 import { logAudit } from '../utils/audit';
@@ -46,7 +50,13 @@ export type ScopedIds = readonly string[] & { readonly [scopedIdsBrand]: true };
  * 意思是「家長端 route 檔案沒有繞過 childDb」，不是「這個 codebase 沒有任何
  * 地方碰得到原始 supabase」。
  */
-export function createChildDb(supabase: SupabaseClient, scope: StudentScope, orgId: string) {
+export function createChildDb(
+  supabase: SupabaseClient,
+  scope: StudentScope,
+  orgId: string,
+  /** 只給 `createLeave` 用（#1970）；家長端 route 拿不到它，只拿得到綁好 scope 的能力 */
+  pool?: Pool,
+) {
   /** 寫入用：`null`（不是家長）在寫入面一律 fail-closed，跟讀取面的「不加條件」刻意不同 */
   const writableIds = scope === null ? [] : [...scope];
 
@@ -309,6 +319,47 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
         requestCount: rows.length,
       });
       return true;
+    },
+
+    /**
+     * 家長請假的寫入（#1970）：**跟管理端同一把鎖**（`lockStudentLeaves`，鍵＝org＋學生）、同一支重疊判準，
+     * 一筆交易裡「取鎖 → 查重疊 → 寫假單」—— 家長連點、或家長和行政同時請同一段，只會有一張。
+     *
+     * 為什麼是 childDb 的能力、不是 route 自己拿 pool：pool 是沒綁 scope 的原始連線，
+     * 給了家長端 route 就繞過了「拿不到錯的工具」（parent-data-scope.md 第二節）。這裡先驗孩子在 scope 內才動手。
+     */
+    async createLeave(input: {
+      studentId: string;
+      window: LeaveWindow;
+      reason: string | null;
+      userId: string;
+    }): Promise<
+      | { kind: 'created'; leave: Record<string, unknown> }
+      | { kind: 'overlap' }
+      | { kind: 'out-of-scope' }
+      | { kind: 'failed' }
+    > {
+      if (!writableIds.includes(input.studentId)) return { kind: 'out-of-scope' };
+      if (!pool) {
+        console.error('[child-db] 沒有 pg pool，不建家長請假');
+        return { kind: 'failed' };
+      }
+      try {
+        return await withTx(pool, async (tx) => {
+          await lockStudentLeaves(tx, orgId, input.studentId);
+          if (await findConflictingLeaveViaSql(tx, orgId, input.studentId, input.window)) {
+            return { kind: 'overlap' as const };
+          }
+          const leave = await insertLeave(tx, { orgId, ...input, role: 'parent' });
+          return { kind: 'created' as const, leave };
+        });
+      } catch (err) {
+        console.error(
+          '[child-db] 家長請假寫入失敗（已回滾）:',
+          err instanceof Error ? err.message : err,
+        );
+        return { kind: 'failed' };
+      }
     },
 
     async recordLeave(

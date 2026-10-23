@@ -22,11 +22,12 @@ const SESSION_SELECT = `
   id, event_id, session_date, start_time, end_time, status, class_id, teacher_id,
   teacher:staff!teacher_id(display_name),
   schedules!schedule_id(teacher_id, teacher:staff!teacher_id(display_name), classrooms(name)),
-  classes!inner(name, campus_id, uses_contact_book, campuses(name), courses(name)),
+  classes!inner(name, campus_id, uses_contact_book, campuses(name, phone), courses(name)),
   schedule_changes(
     change_type,
     original_session_date, original_start_time, original_end_time,
     new_session_date, new_start_time, new_end_time,
+    reason,
     created_at
   )
 `;
@@ -39,7 +40,11 @@ const ChangeSchema = z.object({
   newDate: z.string().nullable(),
   newStartTime: z.string().nullable(),
   newEndTime: z.string().nullable(),
-  // reason / created_by_name 不回：家長端只顯示「代課／改期／停課」標記，不顯示原因與經手人
+  /**
+   * **只有停課回原因**（#1100 #46，使用者 10-23 裁定）：多半是颱風、老師請假這類，家長本來就想知道。
+   * 改期、代課的原因照舊不回（null）；經手人（created_by_name）一律不回
+   */
+  reason: z.string().nullable(),
 });
 
 const ParentSessionSchema = z
@@ -58,6 +63,11 @@ const ParentSessionSchema = z
     campusName: z.string().nullable(),
     /** 班有沒有開個人聯絡簿（國小模式）：開了，課堂詳情顯示當天的聯絡簿＋簽收，不顯示教務日誌的作業（#1100 #26） */
     usesContactBook: z.boolean(),
+    /**
+     * 這堂課分校的電話（#1100 #44，使用者 10-23 裁定）。這支只回孩子**有報名**的班的課，
+     * 所以出現在這裡的電話一定是孩子上課的分校 —— 沒報名的分校電話不會經由這裡出現
+     */
+    campusPhone: z.string().nullable(),
     /**
      * 時段指定的教室（#1796；A6 p-schedule「分校 · 教室」）。從排課時段來 ——
      * 手動加的堂、補課沒有時段，就是 null
@@ -252,6 +262,7 @@ app.openapi(
         campusId: (classRow?.['campus_id'] as string | undefined) ?? null,
         campusName: (one(classRow?.['campuses'])?.['name'] as string | undefined) ?? null,
         usesContactBook: classRow?.['uses_contact_book'] === true,
+        campusPhone: (one(classRow?.['campuses'])?.['phone'] as string | null | undefined) ?? null,
         classroomName: (one(schedule?.['classrooms'])?.['name'] as string | undefined) ?? null,
         teacherName: nameOf(s['teacher']),
         isSubstitute,
@@ -268,6 +279,10 @@ app.openapi(
             newDate: (ch['new_session_date'] as string | null) ?? null,
             newStartTime: hhmm(ch['new_start_time']),
             newEndTime: hhmm(ch['new_end_time']),
+            reason:
+              ch['change_type'] === 'cancellation'
+                ? ((ch['reason'] as string | null) ?? null)
+                : null,
           })),
         attendance: attendanceStatus
           ? {

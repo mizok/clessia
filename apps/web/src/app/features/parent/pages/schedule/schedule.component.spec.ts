@@ -40,6 +40,7 @@ function session(over: Partial<ParentSession>): ParentSession {
     campusId: null,
     campusName: '文山旗艦校',
     usesContactBook: false,
+    campusPhone: '02-2930-1234',
     classroomName: null,
     teacherName: '游佩珊',
     isSubstitute: false,
@@ -82,6 +83,7 @@ const SESSIONS: ParentSession[] = [
         newDate: null,
         newStartTime: null,
         newEndTime: null,
+        reason: null,
       },
     ],
   }),
@@ -90,6 +92,18 @@ const SESSIONS: ParentSession[] = [
     date: '2026-10-10',
     status: 'cancelled',
     className: '國三國文 A 班',
+    changes: [
+      {
+        changeType: 'cancellation',
+        originalDate: null,
+        originalStartTime: null,
+        originalEndTime: null,
+        newDate: null,
+        newStartTime: null,
+        newEndTime: null,
+        reason: '颱風停課',
+      },
+    ],
   }),
 ];
 
@@ -148,7 +162,13 @@ describe('家長端課表 ScheduleComponent', () => {
     }),
   );
   const signContactBook = vi.fn((..._a: unknown[]) =>
-    of(entry({ signedAt: '2026-10-08T12:15:00Z', signedByName: '王媽媽', updatedAt: '2026-10-08T12:15:00Z' })),
+    of(
+      entry({
+        signedAt: '2026-10-08T12:15:00Z',
+        signedByName: '王媽媽',
+        updatedAt: '2026-10-08T12:15:00Z',
+      }),
+    ),
   );
   const toast = vi.fn();
 
@@ -323,9 +343,9 @@ describe('家長端課表 ScheduleComponent', () => {
 
     it('之前的聯絡簿：簽收後又改過的寫「有更新」', () => {
       openElemLive();
-      expect(
-        host().querySelector('[data-part="contact-book-history"]')!.textContent,
-      ).toContain('已簽收 · 有更新');
+      expect(host().querySelector('[data-part="contact-book-history"]')!.textContent).toContain(
+        '已簽收 · 有更新',
+      );
     });
 
     it('簽收失敗：按鈕還在、error toast；讀取失敗不寫「老師還沒有寫」', () => {
@@ -356,8 +376,17 @@ describe('家長端課表 ScheduleComponent', () => {
     expect(host().querySelector('[data-part="changes"]')!.textContent).toContain(
       '本堂由 蕭立恆 老師代課',
     );
+    // #1100 #44：課堂詳情帶分校電話（可撥打）
+    expect(
+      host().querySelector<HTMLAnchorElement>('[data-part="campus-phone"] a')?.getAttribute('href'),
+    ).toBe('tel:02-2930-1234');
+    // 代課沒有原因可顯示（API 只回停課原因，#1100 #46）
+    expect(host().querySelector('[data-part="change-reason"]')).toBeNull();
     card('off').click();
     fixture.detectChanges();
+    expect(host().querySelector('[data-part="change-reason"]')!.textContent).toContain(
+      '原因：颱風停課',
+    );
     expect(host().querySelector('[data-part="attendance"]')!.textContent).toContain(
       '停課，不用到班',
     );

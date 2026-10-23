@@ -3,7 +3,7 @@ title: 課表查看
 summary: 查看孩子的課表和課堂詳情。
 category: spec
 status: active
-updated: 2026-08-30
+updated: 2026-10-23
 tags: [specs, parent, schedule]
 ---
 
@@ -38,6 +38,7 @@ tags: [specs, parent, schedule]
 ### 課堂詳情 Popup
 
 - 基本資訊（課程/班名、日期時間、分校、老師）
+- **分校電話**（#1100 #44，使用者 2026-10-23 裁定）：這堂課分校的電話，可點撥打。只來自孩子**有報名**的班的課（`GET /api/me/sessions` 的 `campusPhone`），沒報名的分校電話不會出現；分校沒填電話就整列不顯示
 - 出勤狀態、到班時間
 - 聯絡簿內容（課程範圍、作業、備註、附件）
 - 歷史聯絡簿（最近 10 堂）

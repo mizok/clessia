@@ -3,7 +3,7 @@ title: 幫孩子請假（家長端，設計稿）
 summary: 家長在到班紀錄頁替自己的孩子請假，照 A6 p-attendance 的「幫孩子請假」：共用請假表單（日期＋時間區間、原因選填），送出即生效、範圍內的課就地變「請假」。後端新增 /api/me/leaves，用 childScope 與在籍判斷授權，跟管理端共用建立請假的核心（並掛上 #1732 的連續請假偵測）；送出成功後通知分校的管理員（新 enum leave_received）與任課老師。Q1–Q6 已於 10-17 全部照建議裁定，設計稿已批准。
 category: spec
 status: accepted
-updated: 2026-10-19
+updated: 2026-10-23
 tags: [specs, parent, attendance, leave, design]
 sources: [https://github.com/mizok/clessia/issues/1695]
 ---
@@ -136,9 +136,10 @@ Body：`{ studentId, startDate, endDate, startTime, endTime, reason? }`。家長
   - 網路失敗
 - 展開一堂請假的課：家長自己送的寫「請假：{原因}（家長送出）」，管理員建的寫「請假（補習班登記）」，**不帶原因**。
   - **(A) 暫行，(B)/(C) 待使用者裁定**（計畫席 2026-10-19）：管理端的原因欄沒有告訴行政「家長看得到」，
-    寫的可能是內部備註（seed-demo 就有「展示用：…」這種內部口吻；家長端課表也刻意不回停課原因，
-    `routes/parent/sessions.ts`）。所以補習班登記的假，`/api/me/attendance` 的 `leaveReason` 直接回 `null`，
+    寫的可能是內部備註（seed-demo 就有「展示用：…」這種內部口吻）。所以補習班登記的假，`/api/me/attendance` 的 `leaveReason` 直接回 `null`，
     不是只在前端藏。(B)＝管理端原因欄加「家長看得到」的提示，只對之後新建的假單顯示；(C)＝照原稿全部顯示。
+  - **使用者 2026-10-23 裁定（#1100 #46）**：補習班登記的請假原因**維持不給**（＝(A) 定案）；同時**停課原因改成給家長看**
+    （見 [[architecture/parent-sessions-read]] 裁定 2 的修訂）。
 
 ## 6. 待裁題（10-17 12:43 全部照建議裁定，#1700 留言）
 

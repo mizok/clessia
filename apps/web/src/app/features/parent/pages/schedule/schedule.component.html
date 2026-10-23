@@ -206,6 +206,16 @@
             · {{ s.classroomName }}
           }
         </dd>
+        @if (s.campusPhone; as phone) {
+          <dt class="text-zinc-600">分校電話</dt>
+          <dd class="m-0" data-part="campus-phone">
+            <a
+              class="inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+              [href]="'tel:' + phone"
+              >{{ phone }}</a
+            >
+          </dd>
+        }
         <dt class="text-zinc-600">出勤</dt>
         <dd class="m-0" data-part="attendance">
           {{ attendanceText() }}
@@ -245,6 +255,9 @@
                 <b>{{ changeKindLabel[c.changeType] }}</b>
                 · {{ changeText(c, s) }}
               </p>
+              @if (c.reason) {
+                <p class="m-0 text-zinc-700" data-part="change-reason">原因：{{ c.reason }}</p>
+              }
             }
           </div>
         </div>
@@ -338,7 +351,7 @@
               class="flex min-h-11 cursor-pointer items-center justify-between font-semibold"
             >
               之前的作業
-              <span class="text-sm font-normal text-zinc-600"
+              <span appTextSwap class="text-sm font-normal text-zinc-600"
                 >最近 {{ homeworkHistory().length }} 堂</span
               >
             </summary>

@@ -20,6 +20,7 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  * 2. 別的交易握著這位學生的鎖、寫了一張重疊的假還沒 COMMIT → POST／PATCH 要等它、再查，回 409（確定性競態）
  * 3. 同一個學生同時送兩張重疊的 POST → 一張 201、一張 409；同一天不同堂的兩張綁定假同時送 → 兩張都 201
  * 4. 鎖只鎖同一個學生：別的學生照常寫
+ * 5. 家長端（#1970）走同一把鎖：家長連點、家長與行政同時送，都只會有一張
  * 測完整個 org 刪掉。
  */
 
@@ -52,20 +53,22 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('supabase', supabase);
       set('orgId', ctx.orgId);
       set('userId', ctx.userId);
-      set('roles', ['admin']);
-      set('permissions', [...PERMISSIONS]);
-      set('activeRole', 'admin');
-      set('studentScope', null);
-      set('childDb', createChildDb(supabase as never, null, ctx.orgId));
-      set('campusScope', null);
       // 請假寫入走 withTx（#1957），要 connect
-      set('auth', {
-        pool: {
-          query: pool!.query.bind(pool),
-          connect: pool!.connect.bind(pool),
-          end: async () => undefined,
-        },
-      });
+      const authPool = {
+        query: pool!.query.bind(pool),
+        connect: pool!.connect.bind(pool),
+        end: async () => undefined,
+      };
+      // `x-contract-parent-of: <studentId>` → 這次是那位學生的家長（#1970：家長與行政同時送）
+      const childOf = c.req.header('x-contract-parent-of');
+      const scope = childOf ? [childOf] : null;
+      set('roles', childOf ? ['parent'] : ['admin']);
+      set('permissions', childOf ? [] : [...PERMISSIONS]);
+      set('activeRole', childOf ? 'parent' : 'admin');
+      set('studentScope', scope);
+      set('childDb', createChildDb(supabase as never, scope, ctx.orgId, authPool as never));
+      set('campusScope', null);
+      set('auth', { pool: authPool });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
@@ -200,12 +203,15 @@ run('請假不重複（#1957）', () => {
     }
   }, 120_000);
 
-  const send = (method: string, path: string, body: unknown) =>
+  const send = (method: string, path: string, body: unknown, parentOf?: string) =>
     app.request(
       path,
       {
         method,
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          ...(parentOf ? { 'x-contract-parent-of': parentOf } : {}),
+        },
         body: JSON.stringify(body),
       },
       env,
@@ -458,5 +464,59 @@ run('請假不重複（#1957）', () => {
     ).map((r) => r.status);
     expect(statuses).toEqual([201, 201]);
     expect(await leavesOf(sid)).toBe(2);
+  }, 60_000);
+
+  // ── 4. 家長端（#1970）：跟管理端同一把鎖 ─────────────────────────
+  const parentPost = (sid: string) =>
+    send('POST', '/api/me/leaves', { studentId: sid, startDate: D, endDate: D }, sid);
+
+  it('家長端：別的交易握著鎖、同一天的假還沒 COMMIT → 等它、再查，409', async () => {
+    const sid = await newStudent('競態-家長');
+    const held = await holdLock(sid, D, D);
+    try {
+      let done = false;
+      const pending = parentPost(sid).finally(() => (done = true));
+      expect(await waitForLockWaiter(() => done)).toBe(true);
+      await held.commit();
+      expect((await pending).status).toBe(409);
+    } finally {
+      await held.abort();
+    }
+    expect(await leavesOf(sid)).toBe(1);
+  }, 60_000);
+
+  it('家長與行政同時請同一天（10 輪）→ 每輪一張 201、一張 409', async () => {
+    for (let round = 0; round < 10; round += 1) {
+      const sid = await newStudent(`家長行政-${round}`);
+      const statuses = (
+        await Promise.all([
+          parentPost(sid),
+          send('POST', '/api/leaves', { studentId: sid, startDate: D, endDate: D }),
+        ])
+      )
+        .map((r) => r.status)
+        .sort();
+      expect(statuses).toEqual([201, 409]);
+      expect(await leavesOf(sid)).toBe(1);
+    }
+  }, 120_000);
+
+  it('家長端單筆：送單者記成 parent（不是寫死 admin）', async () => {
+    const sid = await newStudent('家長單筆');
+    expect((await parentPost(sid)).status).toBe(201);
+    const [row] = await q<{ submitted_by_role: string }>(
+      'select submitted_by_role from leave_requests where student_id = $1',
+      [sid],
+    );
+    expect(row!.submitted_by_role).toBe('parent');
+  }, 60_000);
+
+  it('家長連點：同時兩張 → 一張 201、一張 409', async () => {
+    const sid = await newStudent('家長連點');
+    const statuses = (await Promise.all([parentPost(sid), parentPost(sid)]))
+      .map((r) => r.status)
+      .sort();
+    expect(statuses).toEqual([201, 409]);
+    expect(await leavesOf(sid)).toBe(1);
   }, 60_000);
 });

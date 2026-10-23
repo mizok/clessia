@@ -36,7 +36,7 @@ function student(id: string, name: string, over: Partial<RosterStudent> = {}): R
 }
 
 const STUDENTS = [
-  student('s1', '王小明', { checkedInAt: '2027-03-05T08:12:00Z' }),
+  student('s1', '王小明', { checkedInAt: '2027-03-05T08:12:00Z', checkInSource: 'scan' }),
   student('s2', '李小華'),
   student('s3', '陳小美', { hasLeaveRequest: true }),
 ];
@@ -114,11 +114,54 @@ describe('ArrivalRosterSheetComponent（#1314 TS3 到班名單）', () => {
   it('B4：後端回 alreadyCheckedIn → 列寫「掃碼到」，不寫「老師標記」', async () => {
     await render();
     checkInMock.mockReturnValue(
-      of({ checkedInAt: '2027-03-05T09:30:00Z', alreadyCheckedIn: true }),
+      of({ checkedInAt: '2027-03-05T09:30:00Z', alreadyCheckedIn: true, checkInSource: 'scan' }),
     );
     markButtons()[0]!.click();
     fixture.detectChanges();
     expect(text()).toContain('17:30 掃碼到');
+    expect(text()).not.toContain('老師標記');
+  });
+
+  // #1100 #52：來源由伺服器記下，名單照實寫；欄位出現之前的舊紀錄（null）只寫時間，不猜
+  it('來源：掃碼＝掃碼到、人工標記（含行政在儀表板標的）＝到班（人工標記）、舊紀錄只寫時間', async () => {
+    rosterMock.mockReset();
+    TestBed.resetTestingModule();
+    const list = [
+      student('a', '甲', { checkedInAt: '2027-03-05T08:12:00Z', checkInSource: 'scan' }),
+      student('b', '乙', { checkedInAt: '2027-03-05T08:20:00Z', checkInSource: 'manual' }),
+      student('c', '丙', { checkedInAt: '2027-03-05T08:30:00Z', checkInSource: null }),
+    ];
+    await TestBed.configureTestingModule({
+      imports: [ArrivalRosterSheetComponent],
+      providers: [
+        { provide: DynamicDialogConfig, useValue: { data: INPUT } },
+        { provide: DynamicDialogRef, useValue: { close: closeMock } },
+        {
+          provide: AttendanceService,
+          useValue: {
+            roster: () =>
+              of({ eventId: 'e1', takenAt: null, attendanceMode: 'daily_checkin', students: list }),
+            checkIn: checkInMock,
+          },
+        },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(ArrivalRosterSheetComponent);
+    fixture.detectChanges();
+    const rows = [...(fixture.nativeElement as HTMLElement).querySelectorAll('li small')].map(
+      (el) => el.textContent!.replace(/\s+/g, ' ').trim(),
+    );
+    expect(rows).toEqual(['16:12 掃碼到', '16:20 到班（人工標記）', '16:30']);
+  });
+
+  it('按「他到了」但已經有人人工標過 → 照後端回的來源寫，不說成我標的', async () => {
+    await render();
+    checkInMock.mockReturnValue(
+      of({ checkedInAt: '2027-03-05T09:30:00Z', alreadyCheckedIn: true, checkInSource: 'manual' }),
+    );
+    markButtons()[0]!.click();
+    fixture.detectChanges();
+    expect(text()).toContain('17:30 到班（人工標記）');
     expect(text()).not.toContain('老師標記');
   });
 

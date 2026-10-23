@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError, type Observable } from 'rxjs';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
 import { ParentApplicationsService } from '@core/parent-applications.service';
@@ -29,6 +29,7 @@ const ses = (date: string, over: Partial<ParentSession> = {}): ParentSession => 
   campusId: 'campus-1',
   campusName: '中正校',
   usesContactBook: false,
+  campusPhone: null,
   classroomName: null,
   teacherName: '王',
   isSubstitute: false,
@@ -236,6 +237,35 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     expect(el().textContent).not.toContain('上一個孩子的課');
   });
 
+  /**
+   * #1978 後續（計畫席 10-23）：A→B→A，先回第二次 A、B 晚到。防護在 `load()` 回應裡比對
+   * `activeChildId() !== childId`（dashboard.component.ts），不是取消請求。
+   */
+  it('#1978 A→B→A：B 晚到的回應不蓋掉現在的 A', () => {
+    const calls: Array<{ childId: string; subject: Subject<{ data: ParentSession[] }> }> = [];
+    create({
+      sessions: (childId) => {
+        const subject = new Subject<{ data: ParentSession[] }>();
+        calls.push({ childId, subject });
+        return subject;
+      },
+    });
+    activeChildId.set('child-2');
+    fixture.detectChanges();
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    expect(calls.map((c) => c.childId)).toEqual(['child-1', 'child-2', 'child-1']);
+
+    calls[2].subject.next({ data: [ses(TODAY, { className: 'A 的課' })] });
+    calls[2].subject.complete();
+    calls[1].subject.next({ data: [ses(TODAY, { className: 'B 的課' })] }); // B 晚到
+    calls[1].subject.complete();
+    fixture.detectChanges();
+
+    expect(el().querySelector('.dashboard__lesson')?.textContent).toContain('A 的課');
+    expect(el().textContent).not.toContain('B 的課');
+  });
+
   it('沒有待繳金額（totalDue 0）→ 不出待繳條', () => {
     create({ totalDue: 0 });
     expect(el().querySelector('.dashboard__pay')).toBeNull();
@@ -263,6 +293,24 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     expect(rows[1].textContent).not.toContain('上課中');
   });
 
+  // #1100 #44（使用者 10-23 裁定）：課堂詳情帶孩子上課分校的電話；沒有電話就整列不出現
+  it('課堂詳情：有分校電話 → 顯示並可撥打；沒有 → 不出現那一列', () => {
+    create();
+    // jsdom 沒有 <dialog>.showModal
+    const dialog = el().querySelector('dialog')! as HTMLDialogElement;
+    dialog.showModal = vi.fn();
+    const c = fixture.componentInstance as unknown as { open: (d: unknown) => void };
+    c.open({ kind: 'session', session: ses(TODAY, { campusPhone: '02-2930-1234' }) });
+    fixture.detectChanges();
+    const link = el().querySelector<HTMLAnchorElement>('[data-part="campus-phone"] a');
+    expect(link?.textContent?.trim()).toBe('02-2930-1234');
+    expect(link?.getAttribute('href')).toBe('tel:02-2930-1234');
+
+    c.open({ kind: 'session', session: ses(TODAY, { campusPhone: null }) });
+    fixture.detectChanges();
+    expect(el().querySelector('[data-part="campus-phone"]')).toBeNull();
+  });
+
   it('詳情對話框：點背景才關，點裡面的內容不關', () => {
     create();
     const c = fixture.componentInstance as unknown as {
@@ -278,5 +326,57 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     expect(close).not.toHaveBeenCalled();
     dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  // #1983：骨架只蓋清單，標題列不跟著換孩子重建 —— appTextSwap 才播得出來
+  describe('換孩子時標題列換字（#1983）', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      delete (HTMLElement.prototype as unknown as { animate?: unknown }).animate;
+    });
+
+    it('h2 與「N 堂」不重建；載入中是不含 A 資料的中性標題，B 的資料回來才換字', async () => {
+      vi.stubGlobal('matchMedia', () => ({ matches: false }));
+      const animated: HTMLElement[] = [];
+      (HTMLElement.prototype as unknown as { animate: unknown }).animate = function (
+        this: HTMLElement,
+      ) {
+        animated.push(this);
+        return { cancel: vi.fn(), finished: new Promise(() => undefined) };
+      };
+      const second = new Subject<{ data: ParentSession[] }>();
+      create({
+        sessions: (childId) => (childId === 'child-1' ? of({ data: [ses(TODAY)] }) : second),
+      });
+      await fixture.whenStable();
+      const flush = async () => {
+        fixture.detectChanges();
+        await Promise.resolve(); // MutationObserver 回呼
+        await Promise.resolve(); // 合成一次換字的 microtask
+      };
+      await flush(); // 第一次載入那一下換字的觀察者回呼
+      const h2 = el().querySelector('#dash-today') as HTMLElement;
+      const count = h2.parentElement!.querySelector('span[apptextswap]') as HTMLElement;
+      expect(h2.textContent?.trim()).toBe('今天的課');
+      expect(count.textContent?.trim()).toBe('1 堂');
+
+      activeChildId.set('child-2');
+      await flush();
+      // 載入中：清單換成骨架；標題列是同一個元素，但不能還寫著 A 的「今天的課」／「1 堂」（#1978 資料標錯孩子）
+      expect(el().querySelector('app-skeleton')).not.toBeNull();
+      expect(el().querySelector('#dash-today')).toBe(h2);
+      expect(h2.textContent?.trim()).toBe('接下來的課');
+      expect(count.textContent?.trim()).toBe('');
+      animated.length = 0;
+
+      second.next({ data: [ses(TODAY), ses(TODAY, { sessionId: 's-2', startTime: '19:30:00' })] });
+      second.complete();
+      await flush();
+      expect(el().querySelector('#dash-today')).toBe(h2);
+      expect(h2.textContent?.trim()).toBe('今天的課');
+      expect(animated).toContain(h2);
+      expect(count.textContent?.trim()).toBe('2 堂');
+      expect(animated).toContain(count);
+    });
   });
 });

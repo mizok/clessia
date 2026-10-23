@@ -4,8 +4,7 @@
 <!--
   A6 版（#1314 LV1／LV3）：色面（今天幾位、之後幾筆）→ 灰工具列（待處理／全部、操作紀錄、登記請假）→
   依「今天／明天／之後」分章的可展開列。展開後才有「編輯」「取消請假」（取代列尾兩顆圖示鈕）。
-  現況有、A6 沒畫、保留：操作紀錄。A6 有、這裡沒做（缺 API，LV2 後續）：批次請假、課程／開課班篩選、
-  列內課堂清單、年級。
+  現況有、A6 沒畫、保留：操作紀錄。A6 有、這裡沒做（缺 API，LV2 後續）：列內課堂清單、年級。
 -->
 <app-page-open>
   <ng-container openTitle>
@@ -67,6 +66,15 @@
           (click)="openAuditLog()"
         >
           操作紀錄
+        </button>
+        <!-- #1100 #32：A6 工具列的「批次請假」（標「新」照稿，產品裡不標） -->
+        <button
+          type="button"
+          class="tbar-control inline-flex cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          data-testid="batch-leave"
+          (click)="openBatchDialog()"
+        >
+          批次請假
         </button>
       </app-page-actions>
     </div>
@@ -183,7 +191,7 @@
       </div>
     } @else {
       @if (tab() === 'all') {
-        <p class="m-0 text-md text-zinc-600 tabular-nums" data-testid="total">
+        <p appTextSwap class="m-0 text-md text-zinc-600 tabular-nums" data-testid="total">
           共 <strong class="text-zinc-900">{{ totalRecords() }}</strong> 筆
         </p>
       }

@@ -202,6 +202,44 @@ describe('daily-checkins —— 掃碼機台（kiosk，#1127）', () => {
   });
 });
 
+/**
+ * #1100 #52：到班來源由伺服器決定（計畫席 10-23）——能由伺服器判斷的就不信前端。
+ * 機台一律 scan（帶 manual 也一樣）；行政照參數，沒帶當 manual（沒有證據說是掃碼，就不寫掃碼）。
+ */
+describe('POST /api/daily-checkins —— 到班來源（#1100 #52）', () => {
+  const STUDENT = '00000000-0000-4000-8000-0000000000b1';
+  const CAMPUS = '00000000-0000-4000-8000-0000000000c1';
+  async function sourceWritten(fixture: Parameters<typeof createCheckinApp>[0], body: object) {
+    const { app, upsertCalls } = createCheckinApp(fixture);
+    const res = await app.request('/api/daily-checkins', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        studentId: STUDENT,
+        checkinDate: getCurrentTaipeiDateString(),
+        ...body,
+      }),
+    });
+    expect(res.status).toBe(201);
+    return (upsertCalls.find((c) => c.table === 'daily_checkins')?.rows as { source: string })
+      .source;
+  }
+
+  it('機台：一律 scan —— 帶 manual 也照樣寫 scan（不信前端）', async () => {
+    const kiosk = { roles: ['kiosk'], campusScope: [CAMPUS] };
+    expect(await sourceWritten(kiosk, {})).toBe('scan');
+    expect(await sourceWritten(kiosk, { source: 'manual' })).toBe('scan');
+  });
+
+  it('行政的掃碼站帶 scan → scan', async () => {
+    expect(await sourceWritten({}, { source: 'scan' })).toBe('scan');
+  });
+
+  it('行政沒帶 → manual（儀表板手動標記走這條）', async () => {
+    expect(await sourceWritten({}, {})).toBe('manual');
+  });
+});
+
 describe('POST /api/daily-checkins', () => {
   /**
    * #1127：一天最多打卡一次（specs/public/qr-checkin.md）。原本的 upsert 沒有

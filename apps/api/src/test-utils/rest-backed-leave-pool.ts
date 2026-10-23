@@ -55,7 +55,7 @@ export function restBackedLeavePool(client: SupabaseLike): RestBackedLeavePool {
       return { rows: (data ?? []) as unknown[] };
     }
     if (sql.includes('insert into public.leave_requests')) {
-      const [orgId, studentId, startDate, endDate, startTime, endTime, reason, userId] = params;
+      const [orgId, studentId, startDate, endDate, startTime, endTime, reason, userId, role] = params;
       const row = await settle(
         from('leave_requests')['insert']!({
           org_id: orgId,
@@ -66,7 +66,7 @@ export function restBackedLeavePool(client: SupabaseLike): RestBackedLeavePool {
           end_time: endTime,
           reason,
           submitted_by: userId,
-          submitted_by_role: 'admin',
+          submitted_by_role: role,
         })['select']!(ROW_SELECT)['single']!() as never,
       );
       return { rows: [{ row }] };

@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -68,6 +69,7 @@ const CHANGE_KIND_LABEL = { reschedule: '調課', substitute: '代課', cancella
   selector: 'app-schedule',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     RouterLink,
     PageOpenComponent,

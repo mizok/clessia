@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
@@ -49,6 +50,7 @@ const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', dail
   selector: 'app-campuses',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     PageActionsComponent,

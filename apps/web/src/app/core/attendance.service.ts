@@ -174,6 +174,8 @@ export interface RosterStudent {
   cancelDropsLeaveUntil: string | null;
   /** 當天到班打卡的時間；沒打卡是 null（日到班的到班名單用，#1314 TS3） */
   checkedInAt: string | null;
+  /** 那筆到班的來源（#1100 #52）；這欄出現之前的紀錄是 null —— 名單上只寫時間 */
+  checkInSource?: 'scan' | 'manual' | null;
 }
 
 export interface AttendanceRoster {
@@ -305,11 +307,16 @@ export class AttendanceService {
   checkIn(
     eventId: string,
     studentId: string,
-  ): Observable<{ checkedInAt: string; alreadyCheckedIn: boolean }> {
-    return this.http.post<{ checkedInAt: string; alreadyCheckedIn: boolean }>(
-      `${this.baseUrl}/roster/${eventId}/check-in`,
-      { studentId },
-    );
+  ): Observable<{
+    checkedInAt: string;
+    alreadyCheckedIn: boolean;
+    checkInSource?: 'scan' | 'manual' | null;
+  }> {
+    return this.http.post<{
+      checkedInAt: string;
+      alreadyCheckedIn: boolean;
+      checkInSource?: 'scan' | 'manual' | null;
+    }>(`${this.baseUrl}/roster/${eventId}/check-in`, { studentId });
   }
 
   batchUpdate(input: BatchAttendanceUpdate): Observable<{ updated: number; takenAt: string }> {

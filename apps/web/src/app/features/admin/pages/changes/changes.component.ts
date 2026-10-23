@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -48,6 +49,7 @@ const UNFILTERABLE_CHANGE_TYPES = new Set(['creation', 'makeup']);
 @Component({
   selector: 'app-changes',
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     CampusScopeNoteComponent,
     ChangeLogListComponent,

@@ -7,6 +7,9 @@ import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { splitScoreMutations } from '../lib/score-mutations';
+import { writeExamScores } from '../lib/exam-scores-write';
+import { getAuth } from '../lib/get-auth';
+import { loadDisplayName } from '../lib/display-name';
 const SchoolExamTypeSchema = z.enum(['term_exam', 'mock_exam', 'other']).openapi('SchoolExamType');
 const SchoolExamStatusSchema = z.enum(['active', 'closed']).openapi('SchoolExamStatus');
 
@@ -1376,6 +1379,10 @@ const upsertScoresRoute = createRoute({
         },
       },
     },
+    500: {
+      description: '成績與操作紀錄同一個交易，任何一步失敗就整筆回滾（#1931）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -1391,9 +1398,7 @@ app.openapi(upsertScoresRoute, async (c) => {
     return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
-  if (schoolExam.status === 'closed') {
-    return c.json({ error: '學校考試已結束，無法登錄成績', code: 'EXAM_CLOSED' }, 400);
-  }
+  // 完成後仍可修改（#1931，照 A6 scores）：每一筆修改的舊值→新值跟成績同一個交易進操作紀錄
 
   // **段考的目錄是管理員的，成績還是老師的。** 老師只能登錄自己固定任課班的學生 ——
   // 「看得到這份段考」不等於「可以登錄全校的成績」
@@ -1464,85 +1469,40 @@ app.openapi(upsertScoresRoute, async (c) => {
   // 而那個不一致沒有辦法對使用者解釋。
   const { toUpsert, toDelete } = splitScoreMutations(body.scores);
 
-  const payload = toUpsert.map((item) => ({
-    school_exam_id: id,
-    student_id: item.studentId,
-    subject_id: item.subjectId,
-    score: item.score,
-    status: item.status,
-    notes: item.notes ?? null,
-    created_by: userId,
-  }));
+  // 成績與操作紀錄要全有或全無，不退回 supabase-js 逐句寫（pg-pool-writes rule 6）
+  const pool = getAuth(c).pool;
+  if (!pool) return c.json({ error: '儲存失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+  const userName = await loadDisplayName(supabase, orgId, userId);
 
-  if (payload.length > 0) {
-    const { error } = await supabase
-      .from('school_scores')
-      .upsert(payload, { onConflict: 'school_exam_id,student_id,subject_id' });
-
-    if (error) {
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-    }
+  let result;
+  try {
+    // ⚠️ 學校考試的唯一鍵是三段（多一個 `subject_id`）：刪除一定要帶科目，
+    // 只用學生刪會把他沒有被清空的其他科一起刪掉（lib 裡照三段鍵刪）
+    result = await writeExamScores(pool, {
+      kind: 'school',
+      orgId,
+      userId,
+      userName,
+      examId: id,
+      examName: schoolExam.label,
+      toUpsert: toUpsert.map((item) => ({
+        studentId: item.studentId,
+        subjectId: item.subjectId,
+        score: item.score,
+        status: item.status,
+        notes: item.notes ?? null,
+      })),
+      toDelete: toDelete.map((item) => ({ studentId: item.studentId, subjectId: item.subjectId })),
+    });
+  } catch (err) {
+    console.error('[school-exams] 寫入成績失敗，已整筆回滾', err);
+    return c.json({ error: '儲存失敗，成績沒有變動', code: 'DB_ERROR' }, 500);
+  }
+  if (result.status === 'not-found') {
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
-  // ⚠️ 學校考試的唯一鍵是三段（多一個 `subject_id`），**所以不能像補習班那樣
-  // 只用 studentId 一次刪完** —— 同一個學生在同一場校內考有多科，
-  // 只用 `in('student_id', …)` 會把他沒有被清空的其他科一起刪掉。
-  const removedKeys = toDelete.map((item) => ({
-    studentId: item.studentId,
-    subjectId: item.subjectId,
-  }));
-
-  for (const key of removedKeys) {
-    const { error: deleteError } = await supabase
-      .from('school_scores')
-      .delete()
-      .eq('school_exam_id', id)
-      .eq('student_id', key.studentId)
-      .eq('subject_id', key.subjectId);
-
-    if (deleteError) {
-      return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 400);
-    }
-  }
-
-  if (payload.length > 0) {
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId,
-        resourceType: 'school_exam',
-        resourceId: id,
-        resourceName: schoolExam.label,
-        action: 'school_exam.scores.upsert',
-        details: {
-          affected: payload.length,
-        },
-      },
-      waitUntilFrom(c),
-    );
-  }
-
-  if (removedKeys.length > 0) {
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId,
-        resourceType: 'school_exam',
-        resourceId: id,
-        resourceName: schoolExam.label,
-        action: 'school_exam.scores.delete',
-        details: {
-          // 校內考一筆成績要「學生 + 科目」才指得出來，只記 studentId 不夠
-          removed: removedKeys,
-        },
-      },
-      waitUntilFrom(c),
-    );
-  }
-
-  return c.json({ success: true, affected: payload.length, removed: removedKeys.length }, 200);
+  return c.json({ success: true, affected: toUpsert.length, removed: toDelete.length }, 200);
 });
 
 const closeRoute = createRoute({

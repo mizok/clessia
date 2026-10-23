@@ -38,6 +38,12 @@ export async function writeDailyCheckin(
     /** 沒指名分校時，受限的呼叫者只寫得到自己分校的課堂（#966） */
     campusScope: CampusScope;
     mode: AttendanceMode;
+    /**
+     * 到班來源（#1100 #52）：`scan`＝掃碼、`manual`＝人工標記。**由呼叫端（伺服器）決定**，不信前端：
+     * 機台一律 scan、老師名單「他到了」一律 manual、行政打卡端點照參數（沒帶當 manual）。
+     * 重掃不覆寫（ignoreDuplicates），所以留下的是第一次那筆的來源
+     */
+    source: 'scan' | 'manual';
   },
 ): Promise<
   | {
@@ -65,6 +71,7 @@ export async function writeDailyCheckin(
         campus_id: campusId ?? null,
         checked_in_at: new Date().toISOString(),
         checked_in_by: userId,
+        source: input.source,
       },
       { onConflict: 'student_id,checkin_date', ignoreDuplicates: true },
     )
