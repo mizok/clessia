@@ -111,7 +111,15 @@ function appFor(
     set('orgId', ORG);
     set('userId', 'parent-user');
     set('studentScope', scope);
-    set('childDb', createChildDb(db.client as never, scope, ORG, restBackedLeavePool(db.client) as never));
+    set(
+      'childDb',
+      createChildDb(
+        db.client as never,
+        scope,
+        ORG,
+        restBackedLeavePool(db.client as never) as never,
+      ),
+    );
     await next();
   });
   app.route('/', leavesRoute as unknown as Hono);
