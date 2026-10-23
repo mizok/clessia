@@ -108,11 +108,13 @@
       "apps/web/src/app/features/parent/pages/renewal",
       "apps/web/src/app/features/parent/pages/schedule",
       "apps/web/src/app/features/parent/pages/trial",
+      "apps/web/src/app/features/parent/shared/child-scope-gate",
       "apps/web/src/app/features/parent/shared/child-switcher",
       "apps/web/src/app/features/parent/shared/push-settings",
       "apps/web/src/app/features/parent/shared/request-row",
       "apps/web/src/app/features/public",
       "apps/web/src/app/features/select-role",
+      "apps/web/src/app/features/teacher/pages/notifications",
       "apps/web/src/app/features/teacher/pages/schedule",
       "apps/web/src/app/features/teacher/pages/students",
       "apps/web/src/app/shared/components/account-settings-dialog",
@@ -138,6 +140,7 @@
       "apps/web/src/app/shared/components/layout/global-search",
       "apps/web/src/app/shared/components/layout/shell-layout",
       "apps/web/src/app/shared/components/leave-form-dialog",
+      "apps/web/src/app/shared/components/load-failed",
       "apps/web/src/app/shared/components/login-link-dialog",
       "apps/web/src/app/shared/components/page-actions",
       "apps/web/src/app/shared/components/page-band",
@@ -145,6 +148,7 @@
       "apps/web/src/app/shared/components/parent-form-dialog",
       "apps/web/src/app/shared/components/popup-menu",
       "apps/web/src/app/shared/components/reload-veil",
+      "apps/web/src/app/shared/components/responsive-table",
       "apps/web/src/app/shared/components/search-field",
       "apps/web/src/app/shared/components/select-field",
       "apps/web/src/app/shared/components/session-advanced-filters-dialog",
@@ -155,6 +159,10 @@
       "apps/web/src/app/shared/components/toast",
       "apps/web/src/app/shared/components/todo-banner"
     ],
+    "exts": [".html", ".ts"]
+  },
+  "tailwind-source-coverage": {
+    "roots": ["apps/web/src/app"],
     "exts": [".html", ".ts"]
   },
   "tailwind-theme": {

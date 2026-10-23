@@ -11,7 +11,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
@@ -47,6 +47,7 @@ import { usesRawSupabase } from './lib/parent-route-scan.mjs';
 import { themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
 import { loadTailwind } from './lib/tailwind-classes.mjs';
+import { uncoveredTemplateDirs } from './lib/tailwind-source-coverage.mjs';
 import { touchTargetClassViolations, contrastClassViolations } from './lib/tailwind-a11y.mjs';
 import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
@@ -2318,6 +2319,25 @@ function checkTailwindTheme() {
 }
 
 checkTailwindTheme();
+
+// ── A29. 每個有模板的目錄都被 tailwind.css 的 @source 涵蓋（計畫席 10-23）──────────────────
+// source(none)：沒列進 @source 的目錄，class 不會被產生；別頁剛好用過同一個 class 時畫面照樣正常，
+// 本機看不出來。判準在 lib/tailwind-source-coverage.mjs。
+function checkTailwindSourceCoverage() {
+  const app = join(ROOT, 'apps/web/src/app');
+  if (!tailwind || !existsSync(app)) return;
+  recordScope('tailwind-source-coverage', { roots: ['apps/web/src/app'], exts: ['.html', '.ts'] });
+  const files = [...walk(app, '.html'), ...walk(app, '.ts')].map((f) => relative(ROOT, f));
+  const read = (f) => readFileSync(join(ROOT, f), 'utf8');
+  for (const dir of uncoveredTemplateDirs(files, read, tailwind.covers)) {
+    fail(
+      `${dir} 有模板，但沒被 apps/web/src/tailwind.css 的任何一條 @source 涵蓋 —— ` +
+        `它的 class 不會被產生（source(none)）。加一行 @source './${dir.replace('apps/web/src/', '')}';`,
+    );
+  }
+}
+
+checkTailwindSourceCoverage();
 
 // ── A26. cascade layer 順序三處一致（#991 T4）──────────────────────────────────────────
 // tailwind.css、styles.css 的 `@layer …;` 與 PrimeNG 的 cssLayer.order（必須是前綴）。
