@@ -124,7 +124,7 @@ export class ScoreEntryComponent implements OnInit {
 
   /**
    * 標記完成（A6 data-complete，#1925）：有沒存的變更先一起存，存成功才呼叫既有的 close。
-   * **完成後維持唯讀**（#991 grades Q1）—— A6 的「完成後仍可修改」要動 API，另排 #1931（R5 暫時偏離）
+   * 完成後仍可修改（#1931，照 A6）：完成只是從待辦拿掉，改過的由 API 記進操作紀錄
    */
   private readonly completeDialog = viewChild<ElementRef<HTMLDialogElement>>('completeDialog');
   /** 選了「標記完成」而且要先存檔：存成功（onSaved）才 close；存失敗就作罷 */
@@ -266,7 +266,7 @@ export class ScoreEntryComponent implements OnInit {
   });
 
   protected readonly canSave = computed(() => {
-    return this.dirty() && !this.saving() && !this.isClosed();
+    return this.dirty() && !this.saving();
   });
 
   ngOnInit(): void {
@@ -449,7 +449,7 @@ export class ScoreEntryComponent implements OnInit {
         next: () => {
           this.completing.set(false);
           this.messageService.add({ severity: 'success', summary: `「${name}」已標記完成` });
-          // 狀態變 closed → 編輯器唯讀、工具列與儲存列收起（不用 loadExam：那會把整頁換成骨架）
+          // 狀態變 closed → 收起工具列的批次動作、頂上出現「仍可修改」那行（不用 loadExam：那會把整頁換成骨架）
           this.refreshAcademySummary();
         },
         error: () => {
