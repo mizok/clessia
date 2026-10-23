@@ -27,6 +27,20 @@ updated: 2026-10-23
   確認是自己孩子在籍的班，payload 不當授權依據）。
 - 原因只給停課（#46）。
 
+## 展開「原本／改為」（第二張）
+
+- `GET /api/notifications/{id}/schedule-change`：只讀自己的、家長身分、kind schedule_change 的那則（不是自己的、
+  不是家長身分 → 404）。哪幾堂從 `payload.sessionIds` 來，但 payload 不當授權依據：
+  **先限範圍再撈**（計畫席讀 diff，A19 的精神）—— 逐個孩子用 `childDb.pluck` 取出報名的 class_id
+  （`ScopedIds`），課堂用 `childDb.fromScopedIds('sessions', 'class_id', …)` 撈，再 `.in('id', sessionIds)`；
+  不是自己孩子的班在查詢層就撈不到。異動只查撈到的那幾堂。在籍日期（原本那天或現在那天其一、作廢不算）留在 TS 判。
+- 即時算：「改為」＝那堂**現在**的日期、時間、上課老師（停課＝null）；「原本」＝最新一筆異動記下的原值
+  （沒記就退回現在的值）。原因只給停課。
+- 端點放在 `routes/notifications.ts` 而不是 `routes/parent/**`：讀的是通知表（不是學生範圍的表），
+  家長端路由拿不到原始 client（A19）。範圍那一段照樣走 `childDb`。
+- 收件匣：inbox 回 `hasChangeDetail`（payload 有 sessionIds）；有的那則點了**展開**（不直接導頁），
+  畫 A6 `.nt__chg` 的「原本／改為」＋「看課表」；讀過就不重讀，讀失敗再展開會重試。
+
 ## 為什麼用班級 id 查、不走 pg pool
 
 在籍學生可能上百位（整門課停課），學生 id 進 `.in()` 會 414。pg pool 的 `= ANY($1)` 是平常的解法，
