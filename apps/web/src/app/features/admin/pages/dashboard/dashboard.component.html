@@ -158,6 +158,7 @@
         <section aria-labelledby="dashboard-main-title">
           <div class="border-b border-surface-border pb-3">
             <h2
+              appTextSwap
               id="dashboard-main-title"
               class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
             >
@@ -372,7 +373,7 @@
       <details class="coll" name="dashboard-colls" data-testid="coll-roster">
         <summary class="coll__sum min-h-14 wide:min-h-16">
           <span class="coll__t shrink-0">今天的到班名冊</span>
-          <span class="coll__m">{{ rosterSummary() }}</span>
+          <span appTextSwap class="coll__m">{{ rosterSummary() }}</span>
         </summary>
         <div class="coll__body">
           <!-- 各節包一層：後面還接「今天的課表」連結，不包的話最後一節不是 last-child、底線會畫出來（#1705） -->
@@ -467,7 +468,7 @@
     <details class="coll" name="dashboard-colls" data-testid="coll-leaves">
       <summary class="coll__sum min-h-14 wide:min-h-16">
         <span class="coll__t shrink-0">今天的請假</span>
-        <span class="coll__m">
+        <span appTextSwap class="coll__m">
           @if (leavesFailed()) {
             讀取失敗
           } @else if (todayLeaveList(); as leaves) {
@@ -521,7 +522,7 @@
       <details class="coll" name="dashboard-colls" data-testid="coll-overdue">
         <summary class="coll__sum min-h-14 wide:min-h-16">
           <span class="coll__t shrink-0">逾期帳單</span>
-          <span class="coll__m">
+          <span appTextSwap class="coll__m">
             @if (overdueSummary(); as summary) {
               @if (summary === 'error') {
                 讀取失敗
