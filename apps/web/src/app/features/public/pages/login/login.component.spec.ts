@@ -261,6 +261,24 @@ describe('LoginComponent 底部面板', () => {
     expect(signInWithLine).toHaveBeenCalledOnce();
   });
 
+  // #2031（使用者 10-23，a6-adoption-rules R5）：手機登入是置中彈窗，不是 A6 的底部面板
+  it('面板是置中彈窗：不貼底、置中（m-auto）、四角圓、寬度用 % 不用 viewport 單位', async () => {
+    await setupInsideInertMain();
+    const sheet = document.getElementById('login-sheet')!;
+    for (const c of [
+      'bottom-0',
+      'top-auto',
+      'inset-x-0',
+      'rounded-t-xl',
+      'overlay-motion--from-bottom',
+    ]) {
+      expect(sheet.classList.contains(c), c).toBe(false);
+    }
+    for (const c of ['m-auto', 'rounded-xl', 'w-[calc(100%-32px)]', 'max-w-[400px]']) {
+      expect(sheet.classList.contains(c), c).toBe(true);
+    }
+  });
+
   it('離開登入頁時面板跟著移除（它被搬出 host，Angular 不會替它收）', async () => {
     const { fixture } = await setupInsideInertMain();
 
