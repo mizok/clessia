@@ -47,6 +47,7 @@
 - [[architecture/parent-attendance-grades-billing-pages]] — 家長端 03 片。三頁共用 #344 的 child-switcher，資料走 #351 三支 childId 必填端點。逐項核對 kb specs 與 design-web 構圖跟 #351 實際契約的落差（4 態出勤/日到班時間/每筆 NEW 標籤/課程篩選/已取消分組都對不上），提出降級方案待批准。
 - [[architecture/parent-catalog-read]] — GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：分校 A 全機構、年級只標記；推薦改人工標記 `classes.is_recommended`、排最前（#1118）；費用後來改 B（#1175）：班級掛預設範本，回 `fee`（參考價，停用範本回 null）。
 - [[architecture/parent-class-logs-read]] — 家長端第二實例，照 parent-read-endpoints.md 的樣板抄：childDb 兩層防線、複用 admin 的 select/mapper、allowlist 欄位過濾。這支的特殊之處是 class_logs 是班級層級不是學生層級，childDb 現有 API 假設表上有 student_id 欄位，需要擴充一個新方法。等 STOP 批准，teacher-pages 的 v1b 讀取頁與發布按鈕卡在這支上。
+- [[architecture/pwa-oauth-handoff]] — iOS 主畫面 PWA 與 Safari 不共用 cookie，LINE／Google 授權完落在 Safari；裁定交接碼（PWA 持 secret、Safari 完成後標記並登出、PWA 換一次性連結）。未實作。
 - [[architecture/parent-contact-book-sign]] — GET /api/me/contact-book 與 POST /api/me/contact-book/{id}/sign 的範圍與「簽收後有修改」判準為什麼要走 pg 一句 SQL、為什麼管理端 PUT 原文照存不寫。
 - [[architecture/parent-schedule-change-notice]] — 課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
 - [[architecture/parent-data-scope]] — 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。

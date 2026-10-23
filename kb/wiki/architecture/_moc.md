@@ -202,6 +202,14 @@ Tags: `architecture`, `parent`, `attendance`, `grades`, `billing`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-data-scope]]
 
+## [[architecture/pwa-oauth-handoff|iOS 主畫面 PWA 的外部登入交接（交接碼）]]
+
+iOS 主畫面 PWA 與 Safari 不共用 cookie，LINE／Google 授權完落在 Safari；裁定交接碼（PWA 持 secret、Safari 完成後標記並登出、PWA 換一次性連結）。未實作。
+
+Tags: `architecture`, `auth`, `pwa`, `line`, `oauth`
+
+Links to: [[architecture/line-oauth-login]]
+
 ## [[architecture/parent-class-logs-read|家長端讀取已發布教務日誌（v1b）]]
 
 家長端第二實例，照 parent-read-endpoints.md 的樣板抄：childDb 兩層防線、複用 admin 的 select/mapper、allowlist 欄位過濾。這支的特殊之處是 class_logs 是班級層級不是學生層級，childDb 現有 API 假設表上有 student_id 欄位，需要擴充一個新方法。等 STOP 批准，teacher-pages 的 v1b 讀取頁與發布按鈕卡在這支上。
