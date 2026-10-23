@@ -14,6 +14,23 @@ export const API_URL = process.env.A6_API_URL ?? 'http://localhost:8787';
 export const STATE = process.env.A6_STATE ?? path.join(cache, 'state-admin.json');
 export const OUT = process.env.A6_OUT ?? path.join(cache, 'out');
 
+/**
+ * 家長頁的登入態：**多孩子的家長**（seed 的 parent03，3 個孩子）。單孩子帳號量不到「孩子 >1 才出現」的
+ * 東西 —— 切換孩子鈕、切換清單，#1932 就是這樣藏了一陣子（計畫席 10-23）。檔名刻意不是 state-parent.json：
+ * 沒產生過這份的人跑工具會直接報錯，不會拿舊的單孩子登入態量出一份看似正常的結果。產生方式見 README。
+ */
+const PARENT_STATE = path.join(cache, 'state-parent03.json');
+/**
+ * parent03 預設選中的是第一個孩子（張品妍），她沒有帳單、沒有餐費 → 繳費、餐費頁只剩空狀態，量不到列。
+ * 量之前切到張宇軒（26 張帳單、6 筆餐費）。切換鈕兩種寫法都認（#1932 前是 `__badge--interactive`）。
+ */
+const PARENT_PREP = {
+  app: [
+    { click: '.child-switcher__badge--interactive, button.child-switcher', settle: 500 },
+    { click: '.child-switcher__list-item:has-text("張宇軒")', settle: 2000 },
+  ],
+};
+
 export const WIDTHS = [
   // height：黏住的行為檢查用的視窗高（其餘量測把視窗撐到內容全高，不捲）
   { tag: 'd', width: 1440, height: 900 },
@@ -56,6 +73,15 @@ export function rule(id, note = '') {
 }
 
 export const DEVIATIONS = [
+  {
+    // 家長頁量的是 parent03 → 張宇軒（國二）；稿的示範孩子是國三。年級不在人名樣板裡
+    status: '文案',
+    a6: 'control:button\\[目前看的是\\{名\\}，切換孩子\\]>text:span\\[[^\\]]*\\]$',
+    detail:
+      '^「(小[一二三四五六]|國[一二三]|高[一二三])」→「(小[一二三四五六]|國[一二三]|高[一二三])」$',
+    reason: '資料：孩子的年級（稿國三、量測的張宇軒國二）',
+    source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+  },
   // R5 2026-10-22（#1866）：帳戶鈕只留頭像，手機桌機一致 —— 稿桌機畫「{名} · 身分」＋箭頭。
   // 名字與身分在帳戶選單頂端、頭像鈕的 aria-label 也有。鈕本身因此變窄，位置／尺寸／樣式連帶不同
   ...['缺', '樣式'].map((status) => ({
@@ -548,37 +574,79 @@ export const PAGES = {
   'p-enrollment': {
     a6: 'p-enrollment.html',
     app: '/parent/enrollment',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
   },
   // 「申請紀錄」分頁：稿與 app 都認網址 #records
   'p-enrollment-records': {
     a6: 'p-enrollment.html#records',
     app: '/parent/enrollment#records',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    deviations: [
+      {
+        // parent03 沒送過申請 → 紀錄分頁是空狀態句
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[還沒有送過報名申請。\\]$',
+        reason: '資料：量測的家長沒送過申請',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
+    ],
   },
   // 家長端試聽申請（#1727 ④）：一門課一列（稿一列一班，R5 2026-10-19）
   'p-trial': {
     a6: 'p-trial.html',
     app: '/parent/trial',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    deviations: [
+      {
+        // 色面第二句「另外還有 N 筆試聽…」只在有試聽紀錄時出現
+        status: '缺',
+        a6: '>landmark:region\\[這一頁的摘要\\]>text:p\\[另外還有#筆試聽已排好、#筆在等安排。\\]$',
+        reason: '資料：量測的家長沒有試聽紀錄',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
+      {
+        // 試聽一門課一列（不是一班一列），所以說明寫「課」
+        status: '文案',
+        detail: '^「孩子已經在上的班不會出現在這裡。」→「孩子已經在上的課不會出現在這裡。」$',
+        reason: '試聽是一門課一列，說明跟著寫「課」',
+        source: `${rule('R5')}「家長試聽申請的選課列」2026-10-19；#1727`,
+      },
+    ],
   },
   'p-trial-records': {
     a6: 'p-trial.html#records',
     app: '/parent/trial#records',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    deviations: [
+      {
+        // parent03 沒送過申請 → 紀錄分頁是空狀態句
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[還沒有送過試聽申請。\\]$',
+        reason: '資料：量測的家長沒送過申請',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
+      {
+        // 色面第二句「另外還有 N 筆試聽…」只在有試聽紀錄時出現
+        status: '缺',
+        a6: '>landmark:region\\[這一頁的摘要\\]>text:p\\[另外還有#筆試聽已排好、#筆在等安排。\\]$',
+        reason: '資料：量測的家長沒有試聽紀錄',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
+    ],
   },
   // 家長端加選課程（#1727 ⑤）：卡片點開是 JS 打開的 <dialog>（稿 sheet()、app 原生 showModal）
   'p-add-course': {
     a6: 'p-add-course.html',
     app: '/parent/add-course',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
   },
   // 家長端續課資訊（計畫席 10-22）：只量「沒有即將到來的續課」那一態 —— 本機 seed 沒有未來的繳費期，
   // app 只畫得出這一態；稿的有續課那一態要有下期資料才量得了（偏離見 R5 2026-10-22）
   'p-renewal-none': {
     a6: 'p-renewal.html#none',
     app: '/parent/renewal',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
     deviations: [
       {
         status: '缺',
@@ -598,7 +666,8 @@ export const PAGES = {
   'p-attendance': {
     a6: 'p-attendance.html',
     app: '/parent/attendance',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
   },
@@ -1010,7 +1079,8 @@ export const PAGES = {
   'p-schedule': {
     a6: 'p-schedule.html',
     app: '/parent/schedule',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
   },
   'p-grades': {
     a6: 'p-grades.html',
@@ -1074,65 +1144,47 @@ export const PAGES = {
   'p-payments': {
     a6: 'p-payments.html',
     app: '/parent/payments',
-    state: path.join(cache, 'state-parent.json'),
-    // #1924 收尾（10-23）：剩下的都是資料（稿的示範家長 3 個孩子、帳單有已繳清；seed 的家長 1 個孩子、沒有已繳清）
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
+    // #1924 收尾、#1949 換多孩子帳號重看（10-23）：量的是 parent03 → 張宇軒（26 張待繳，第一頁 20 張、沒有已繳清）。
+    // 單孩子帳號時登的「靜態徽章、孩子數、標題句的孩子名字」在多孩子帳號下都不再出現，已刪
     deviations: [
-      {
-        // 孩子徽章：≥2 個孩子才是「切換孩子」按鈕，1 個是靜態徽章（A6 a6.js kidBadge 同一條判斷）
-        status: '缺',
-        a6: 'control:button\\[目前看的是\\{名\\}，切換孩子\\]$',
-        reason: '資料：孩子數。稿的示範家長 3 個孩子（切換鈕），seed 的家長 1 個（靜態徽章）',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924`,
-      },
-      {
-        status: '多',
-        app: 'landmark:region\\[這一頁的摘要\\]>text:span\\[[^\\]]*\\]$',
-        reason: '資料：孩子數（1 個孩子的靜態徽章）',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924`,
-      },
-      {
-        // 工具只把登入者的 displayName 樣板化成 {名}，孩子的名字不在裡面
-        status: '文案',
-        detail:
-          '^「\\{名\\}(還要繳#元。|的帳單都繳清了。)」→「[^」]+(還要繳#元。|的帳單都繳清了。)」$',
-        reason: '資料：標題句的孩子名字（工具不認得 seed 孩子的名字）',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924`,
-      },
       {
         // 稿的待繳還沒到期；seed 那張已逾期 → 副句多「，已經過了」（兩邊同一套句子）
         status: '文案',
         detail: '^「最近的期限是#」→「最近的期限是#，已經過了」$',
         reason: '資料：最近那張帳單有沒有逾期',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924`,
+        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       },
       {
-        // seed 的孩子沒有已繳清的帳單 → 那一章是空狀態句
+        // 第一頁 20 張全是待繳 → 已繳清那一章是空狀態句
         status: '多',
         app: 'landmark:main\\[\\]>text:p\\[還沒有繳清的帳單。\\]$',
-        reason: '資料：seed 的孩子沒有已繳清的帳單',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924`,
+        reason: '資料：載入的那一頁沒有已繳清的帳單',
+        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       },
-      // 數字的位數、狀態標籤的長度、上面有幾列帳單隨資料 →「元」、dt 寬、副行、餐費連結跟著移
+      {
+        // 還有下一頁時章頭不寫張數：只數到已載入的會是錯的數字（#1496「不編數字」，計畫席 10-10 讀過 diff）
+        status: '缺',
+        a6: '>landmark:main\\[\\]>text:span\\[#張\\](~\\d)?$',
+        reason: '帳單超過一頁時章頭不寫張數：只數已載入的會寫錯',
+        source:
+          'apps/web/src/app/features/parent/pages/payments/payments.page.html（hasMore）；#1496',
+      },
+      // 數字的位數、狀態標籤的長度、帳單列數隨資料 →「元」、dt 寬、副行、已繳清章頭、餐費連結跟著移
       ...['位置', '尺寸'].map((status) => ({
         status,
-        a6: '(text:dd\\[#\\]~2>text:small\\[元\\]|text:dt\\[本學期已繳\\]|text:span\\[繳費期限#\\]|control:link\\[看餐費紀錄\\])$',
+        a6: '(text:dd\\[#\\](~2)?>text:small\\[元\\]|text:dt\\[本學期已繳\\]|text:span\\[繳費期限#\\]|heading:h2\\[已繳清\\]|control:link\\[看餐費紀錄\\])$',
         reason: '資料：金額位數、狀態標籤長度、帳單列數',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924`,
+        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       })),
-      {
-        // 上一條「切換鈕 vs 靜態徽章」的連帶：徽章矮一截，色面裡的字整排上移
-        status: '位置',
-        a6: 'landmark:region\\[這一頁的摘要\\]>text:dt\\[',
-        detail: 'Δx 0、Δy -\\d+（',
-        reason: '資料：孩子徽章是靜態（矮），色面的數字整排上移',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924`,
-      },
     ],
   },
   'p-meals': {
     a6: 'p-meals.html',
     app: '/parent/meals',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
     popovers: { mexp: 'meals-export' },
     deviations: [
       {
@@ -1167,8 +1219,17 @@ export const PAGES = {
   'p-dashboard': {
     a6: 'p-dashboard.html',
     app: '/parent/dashboard',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
     deviations: [
+      {
+        // 稿的「今天」有課；量測當天張宇軒沒課 → 寫下一堂（兩邊同一套句子）
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>text:p\\[今天#堂：',
+        detail: '→「下一堂',
+        reason: '資料：量測當天有沒有課',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
       // 稿每一節標題後的「新」是設計說明（產品原本沒有這一節），不是畫面內容
       {
         status: '缺',
@@ -1196,7 +1257,7 @@ export const PAGES = {
   'p-notifications': {
     a6: 'p-notifications.html',
     app: '/parent/notifications',
-    state: path.join(cache, 'state-parent.json'),
+    state: PARENT_STATE,
   },
   't-students': {
     a6: 't-students.html',
