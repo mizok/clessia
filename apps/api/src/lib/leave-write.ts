@@ -88,6 +88,8 @@ export interface NewLeave {
   readonly window: LeaveWindow;
   readonly reason: string | null;
   readonly userId: string;
+  /** 誰送的：管理端 `admin`、家長端 `parent`（#1970） */
+  readonly role: 'admin' | 'parent';
 }
 
 /** 新增一張假（含綁定堂次）。回傳 REST 形狀的列 */
@@ -96,7 +98,7 @@ export async function insertLeave(db: Queryable, p: NewLeave): Promise<Record<st
     `with l as (
        insert into public.leave_requests
          (org_id, student_id, start_date, end_date, start_time, end_time, reason, submitted_by, submitted_by_role)
-       values ($1::uuid, $2::uuid, $3::date, $4::date, $5::time, $6::time, $7, $8, 'admin')
+       values ($1::uuid, $2::uuid, $3::date, $4::date, $5::time, $6::time, $7, $8, $9)
        returning *)
      select ${LEAVE_ROW_JSON} as row from l`,
     [
@@ -108,6 +110,7 @@ export async function insertLeave(db: Queryable, p: NewLeave): Promise<Record<st
       p.window.endTime,
       p.reason,
       p.userId,
+      p.role,
     ],
   );
   const row = (rows[0] as { row: Record<string, unknown> }).row;

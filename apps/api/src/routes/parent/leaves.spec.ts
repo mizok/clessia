@@ -5,6 +5,7 @@ import { createChildDb } from '../../lib/child-db';
 import { notifyLeaveStreaks } from '../../lib/leave-streak';
 import { notifyLeaveForAdmins, notifyLeaveForTeachers } from '../../lib/notify-leave';
 import { createMultiOrgDb } from '../../test-utils/multi-org-db';
+import { restBackedLeavePool } from '../../test-utils/rest-backed-leave-pool';
 import leavesRoute from './leaves';
 
 // 收件人推導是 notify-leave 自己的事；這裡只驗「發了、發給哪幾堂」
@@ -110,7 +111,15 @@ function appFor(
     set('orgId', ORG);
     set('userId', 'parent-user');
     set('studentScope', scope);
-    set('childDb', createChildDb(db.client as never, scope, ORG));
+    set(
+      'childDb',
+      createChildDb(
+        db.client as never,
+        scope,
+        ORG,
+        restBackedLeavePool(db.client as never) as never,
+      ),
+    );
     await next();
   });
   app.route('/', leavesRoute as unknown as Hono);
