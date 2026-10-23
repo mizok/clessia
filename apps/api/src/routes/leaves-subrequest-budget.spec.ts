@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import { restBackedLeavePool } from '../test-utils/rest-backed-leave-pool';
 import leavesApp from './leaves';
 
 /**
@@ -11,6 +12,10 @@ import leavesApp from './leaves';
  * 批次請假（#1100 #32）因此改成前端逐位呼叫單筆 POST（每位一個請求、各自的額度）。
  * 這支守住單筆 POST 本身：通知、連續請假偵測都用**真的**模組（waitUntil 的工作也算在同一個請求裡）。
  * 2026-10-23 量測是 23 次 —— 已經快一半。單筆路徑再加查詢前先看這裡；過 45 就該改走 pg pool。
+ *
+ * #1969 起「取鎖 → 查重疊 → 寫入」走 pg pool 的交易（沒有 pool 回 500）。pool 的 SQL 不是 supabase-js 的
+ * subrequest，但**保守起見每開一條連線算 1**（Hyperdrive 連線）；pool 替身翻成 REST 的那些呼叫走另一個
+ * 不計數的 client，不重複算。
  */
 const ORG = '00000000-0000-0000-0000-00000000000a';
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
@@ -74,6 +79,15 @@ describe('POST /api/leaves 的 subrequest 預算（Workers 上限 50）', () => 
         return value;
       },
     });
+    const base = restBackedLeavePool(db.client as Parameters<typeof restBackedLeavePool>[0]);
+    let connections = 0;
+    const pool = {
+      ...base,
+      connect: async () => {
+        connections++;
+        return base.connect();
+      },
+    };
     const waits: Promise<unknown>[] = [];
     const app = new Hono();
     app.use('/api/*', async (c, next) => {
@@ -83,6 +97,7 @@ describe('POST /api/leaves 的 subrequest 預算（Workers 上限 50）', () => 
       set('campusScope', null);
       set('userId', 'user-1');
       set('roles', ['admin']);
+      set('auth', { pool });
       await next();
     });
     app.route('/api/leaves', leavesApp);
@@ -103,8 +118,11 @@ describe('POST /api/leaves 的 subrequest 預算（Workers 上限 50）', () => 
     await Promise.allSettled(waits);
 
     expect(res.status).toBe(201);
+    // 真的走了 pool 的寫入交易（不是退回別條路）
+    expect(base.statements).toContain('BEGIN');
+    expect(base.statements).toContain('COMMIT');
     // 真的有走完（不是一開始就失敗的低數字）
     expect(queries).toBeGreaterThan(10);
-    expect(queries).toBeLessThanOrEqual(45);
+    expect(queries + connections).toBeLessThanOrEqual(45);
   });
 });
