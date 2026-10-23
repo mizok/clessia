@@ -115,6 +115,23 @@ export function fakeBillingPool(opts: {
         rows: [...totals].map(([id, total]) => ({ invoice_item_id: id, total: String(total) })),
       };
     }
+    if (sql.includes('from public.payment_records pr')) {
+      // repair 跳過已收款的帳單（#1936）：淨收款 ≠ 0 的帳單底下、在這批 id 裡的明細
+      const [, itemIds] = params as [string, string[]];
+      const net = new Map<unknown, number>();
+      for (const p of opts.rows('payment_records')) {
+        const sign = p['kind'] === 'refund' ? -1 : 1;
+        net.set(p['invoice_id'], (net.get(p['invoice_id']) ?? 0) + sign * Number(p['amount']));
+      }
+      return {
+        rows: opts
+          .rows('invoice_items')
+          .filter(
+            (ii) => itemIds.includes(ii['id'] as string) && (net.get(ii['invoice_id']) ?? 0) !== 0,
+          )
+          .map((ii) => ({ id: ii['id'] })),
+      };
+    }
     if (sql.includes('for update')) return { rows: [] };
     if (sql.includes('insert into public.invoices')) {
       const [orgId, studentId, issuedAt, dueDate, note, userId] = params;
