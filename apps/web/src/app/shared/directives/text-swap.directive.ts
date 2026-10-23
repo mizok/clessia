@@ -1,18 +1,37 @@
 import { DestroyRef, Directive, ElementRef, afterNextRender, inject } from '@angular/core';
 
-const EXIT_MS = 120;
-const ENTER_MS = 200;
-const BLUR = 'blur(4px)';
+/**
+ * 四個可調的值住在 styles.css 的 `--text-swap-*`（#2023：使用者覺得「淡入淡出很不明顯」，之後要再調只改那裡）。
+ * 這裡的數字是變數沒定義時的退路，跟 styles.css 同值。
+ */
+const EXIT_FALLBACK_MS = 350;
+const ENTER_FALLBACK_MS = 650;
+const BLUR_FALLBACK = '8px';
+/** 遮罩邊緣柔的寬度（漸層裡透明→不透明那一段佔多少）；越寬「由左到右」越看得出方向 */
+const EDGE_FALLBACK = 40;
 /** `--arrive`／`--leave` 沒定義時的退路（同 styles.css #1634 的值） */
 const ARRIVE_FALLBACK = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const LEAVE_FALLBACK = 'cubic-bezier(0.4, 0, 1, 1)';
 /**
- * 由左到右的遮罩：漸層寬 3 倍、邊緣柔 20%，`mask-position` 100% → 0% 時圖往右移，
+ * 由左到右的遮罩：漸層寬 3 倍、邊緣柔 `--text-swap-edge`，`mask-position` 100% → 0% 時圖往右移，
  * 左邊那一段先掃進字裡。出場是「左邊先透明」、進場是「左邊先出現」。
  */
 const MASK_SIZE = '300% 100%';
-const EXIT_MASK = 'linear-gradient(90deg, transparent 40%, #000 60%)';
-const ENTER_MASK = 'linear-gradient(90deg, #000 40%, transparent 60%)';
+const masks = (edge: number) => {
+  const a = 50 - edge / 2;
+  const b = 50 + edge / 2;
+  return {
+    exit: `linear-gradient(90deg, transparent ${a}%, #000 ${b}%)`,
+    enter: `linear-gradient(90deg, #000 ${a}%, transparent ${b}%)`,
+  };
+};
+
+/** `350ms`／`0.35s`／空字串 → 毫秒 */
+function ms(value: string, fallback: number): number {
+  const n = parseFloat(value);
+  if (Number.isNaN(n)) return fallback;
+  return value.trim().endsWith('ms') ? n : value.trim().endsWith('s') ? n * 1000 : n;
+}
 
 function maskFrame(image: string, position: string): Keyframe {
   return {
@@ -106,6 +125,11 @@ export class TextSwapDirective {
     const root = getComputedStyle(document.documentElement);
     const arrive = root.getPropertyValue('--arrive').trim() || ARRIVE_FALLBACK;
     const leave = root.getPropertyValue('--leave').trim() || LEAVE_FALLBACK;
+    const exitMs = ms(root.getPropertyValue('--text-swap-exit'), EXIT_FALLBACK_MS);
+    const enterMs = ms(root.getPropertyValue('--text-swap-enter'), ENTER_FALLBACK_MS);
+    const blur = `blur(${root.getPropertyValue('--text-swap-blur').trim() || BLUR_FALLBACK})`;
+    const edge = parseFloat(root.getPropertyValue('--text-swap-edge'));
+    const { exit: exitMask, enter: enterMask } = masks(Number.isNaN(edge) ? EDGE_FALLBACK : edge);
     const hasOld = !interrupted && !!old && (old.textContent ?? '').trim() !== '';
 
     if (hasOld) {
@@ -128,10 +152,10 @@ export class TextSwapDirective {
       this.clone = clone;
       const exit = clone.animate(
         [
-          { opacity: 1, filter: 'blur(0)', ...maskFrame(EXIT_MASK, '100% 0') },
-          { opacity: 0, filter: BLUR, ...maskFrame(EXIT_MASK, '0% 0') },
+          { opacity: 1, filter: 'blur(0)', ...maskFrame(exitMask, '100% 0') },
+          { opacity: 0, filter: blur, ...maskFrame(exitMask, '0% 0') },
         ],
-        { duration: EXIT_MS, easing: leave, fill: 'forwards' },
+        { duration: exitMs, easing: leave, fill: 'forwards' },
       );
       exit.finished
         .then(() => {
@@ -147,12 +171,12 @@ export class TextSwapDirective {
 
     const enter = this.host.animate(
       [
-        { opacity: 0, filter: BLUR, ...maskFrame(ENTER_MASK, '100% 0') },
-        { opacity: 1, filter: 'blur(0)', ...maskFrame(ENTER_MASK, '0% 0') },
+        { opacity: 0, filter: blur, ...maskFrame(enterMask, '100% 0') },
+        { opacity: 1, filter: 'blur(0)', ...maskFrame(enterMask, '0% 0') },
       ],
       hasOld
-        ? { duration: ENTER_MS, easing: arrive, delay: EXIT_MS, fill: 'backwards' }
-        : { duration: ENTER_MS, easing: arrive },
+        ? { duration: enterMs, easing: arrive, delay: exitMs, fill: 'backwards' }
+        : { duration: enterMs, easing: arrive },
     );
     this.running.push(enter);
     enter.finished

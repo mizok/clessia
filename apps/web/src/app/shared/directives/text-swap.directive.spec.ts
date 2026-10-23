@@ -93,9 +93,9 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
 
     const exit = calls.find((c) => c.el === clone)!;
     const enter = calls.find((c) => c.el === host)!;
-    expect(exit.opts.duration).toBe(120);
-    expect(enter.opts.duration).toBe(200);
-    expect(enter.opts.delay).toBe(120);
+    expect(exit.opts.duration).toBe(350);
+    expect(enter.opts.duration).toBe(650);
+    expect(enter.opts.delay).toBe(350);
     expect(enter.opts.fill).toBe('backwards');
     expect(exit.frames.at(-1)?.['opacity']).toBe(0);
     expect(enter.frames[0]?.['opacity']).toBe(0);
@@ -174,5 +174,26 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     expect(calls).toHaveLength(0);
     expect(clones()).toHaveLength(0);
     expect(host.textContent?.trim()).toBe('新的一句');
+  });
+
+  it('時長、模糊、遮罩邊緣讀 styles.css 的 --text-swap-*（#2023：之後要調只改一處）', async () => {
+    const r = document.documentElement.style;
+    r.setProperty('--text-swap-exit', '100ms');
+    r.setProperty('--text-swap-enter', '0.3s');
+    r.setProperty('--text-swap-blur', '2px');
+    r.setProperty('--text-swap-edge', '20%');
+    try {
+      const { set, calls, host, clones } = await setup();
+      await set('學生管理（新）');
+      const exit = calls.find((c) => c.el === clones()[0])!;
+      const enter = calls.find((c) => c.el === host)!;
+      expect(exit.opts.duration).toBe(100);
+      expect(enter.opts.duration).toBe(300);
+      expect(enter.opts.delay).toBe(100);
+      expect(exit.frames.at(-1)?.['filter']).toBe('blur(2px)');
+      expect(String(exit.frames[0]?.['maskImage'])).toContain('transparent 40%, #000 60%');
+    } finally {
+      for (const k of ['exit', 'enter', 'blur', 'edge']) r.removeProperty(`--text-swap-${k}`);
+    }
   });
 });
