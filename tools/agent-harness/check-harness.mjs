@@ -997,6 +997,17 @@ scanExisting({
 // 本專案不在 main 上工作（AGENTS.md），而寫入當下那一層由 pre-guard 的 c3（whenTracked）擋，
 // 所以缺口是可接受的。拿不到 origin/main 時（淺 clone、離線）只警告不紅燈 ——
 // 環境問題不該偽裝成違憲。
+// **c3 的破例**：只放行使用者明確授權、**內容一字不改**的改名（git 判成 R100），新舊檔名要完全對上。
+// 每一筆都要寫出處。修改、刪除、內容有變的改名照樣紅燈 —— 這張表不是後門。
+const C3_RENAME_EXCEPTIONS = [
+  {
+    from: 'supabase/migrations/20261023033540_schedule_effective_from.sql',
+    to: 'supabase/migrations/20261023034100_schedule_effective_from.sql',
+    // 時間戳比已套到正式 DB 的 034048 早，migrate plan 擋下、main 部署全停；這支從未套到任何共用 DB
+    source: '#2025 使用者 10-23 授權（c3 破例）',
+  },
+];
+
 const migrationsChanged = spawnSync(
   'git',
   [
@@ -1017,6 +1028,12 @@ if (migrationsChanged.status !== 0) {
 } else {
   for (const line of migrationsChanged.stdout.split('\n').filter(Boolean)) {
     const [status, ...paths] = line.split('\t');
+    if (
+      status === 'R100' &&
+      C3_RENAME_EXCEPTIONS.some((e) => e.from === paths[0] && e.to === paths[1])
+    ) {
+      continue;
+    }
     fail(
       `${paths.at(-1)} 是已提交的 migration，本分支卻${status.startsWith('D') ? '刪除' : status.startsWith('R') ? '改名' : '修改'}了它（c3）。` +
         `schema 變更請新增一支 ALTER TABLE migration：npx supabase migration new <description>`,
