@@ -77,13 +77,16 @@
             class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3"
           >
             <h2
+              appTextSwap
               id="dash-today"
               class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] wide:text-3xl"
             >
               {{ lessons()?.today ? '今天的課' : '接下來的課' }}
             </h2>
             @if (lessons(); as l) {
-              <span class="text-md text-zinc-600 tabular-nums">{{ l.rows.length }} 堂</span>
+              <span appTextSwap class="text-md text-zinc-600 tabular-nums"
+                >{{ l.rows.length }} 堂</span
+              >
             }
             <a
               routerLink="/parent/schedule"
