@@ -118,6 +118,13 @@ describe('MealsComponent（A6 p-meals）', () => {
     expect(colls[0].textContent).toContain('還沒結算 · 月底併入帳單');
     expect(colls[1].querySelector('.coll__m')?.textContent).toContain('80 元 · 1 餐');
     expect(colls[1].textContent).toContain('已併入帳單');
+    // A6 展開後寫「併入 <連結>10 月的帳單</連結>」（#1965），不是「已併入帳單 · 看繳費紀錄」
+    const billed = colls[1].querySelector('.coll__body a');
+    expect(billed?.textContent?.trim()).toBe('10 月的帳單');
+    expect(billed?.getAttribute('href')).toBe('/parent/payments');
+    expect(colls[1].querySelector('.coll__body')?.textContent).not.toContain('看繳費紀錄');
+    // 還沒結算的月份沒有那一行
+    expect(colls[0].querySelector('.coll__body a')).toBeNull();
     expect(colls[1].textContent).toContain('9/10（四）');
     expect(colls[1].textContent).toContain('不收費');
   });
