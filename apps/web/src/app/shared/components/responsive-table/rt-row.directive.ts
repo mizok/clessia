@@ -11,6 +11,10 @@ import {
 import type { ResponsiveTableRowId } from './responsive-table.models';
 import { RESPONSIVE_TABLE } from './responsive-table.token';
 
+/** 點在這些元素上不展開列：它們各有自己的動作 */
+const INTERACTIVE =
+  'button, a, input, select, textarea, label, summary, [role="button"], [contenteditable]';
+
 @Directive({
   selector: 'tr[appRtRow]',
 })
@@ -29,6 +33,7 @@ export class RtRowDirective {
   private detailRow: HTMLTableRowElement | null = null;
   private detailCell: HTMLTableCellElement | null = null;
   private removeClickListener: (() => void) | null = null;
+  private removeRowClickListener: (() => void) | null = null;
   private readonly movedNodesByColumn = new Map<string, readonly Node[]>();
 
   @HostBinding('class.responsive-table__row')
@@ -45,8 +50,10 @@ export class RtRowDirective {
         this.ensureExpandControlCell();
         this.placeExpandControlCell(position);
         this.syncExpandIcon(rowId, isExpanded);
+        this.ensureRowClick();
       } else {
         this.removeExpandControlCell();
+        this.removeRowClick();
       }
 
       if (hasCollapsedColumns && isExpanded) {
@@ -59,8 +66,31 @@ export class RtRowDirective {
 
     this.destroyRef.onDestroy(() => {
       this.removeExpandControlCell();
+      this.removeRowClick();
       this.removeDetailRow();
     });
+  }
+
+  /**
+   * 整列可點（#2007，照 A6 `.coll__sum`）：箭頭縮小之後，觸控命中區靠整列，不靠那顆鈕。
+   * 點在列裡的按鈕、連結、輸入框上不算 —— 那些各有自己的動作。鍵盤與螢幕閱讀器照舊用展開鈕（有 aria-expanded）
+   */
+  private ensureRowClick(): void {
+    if (this.removeRowClickListener) return;
+    const row = this.rowRef.nativeElement;
+    this.renderer.addClass(row, 'responsive-table__row--expandable');
+    this.removeRowClickListener = this.renderer.listen(row, 'click', (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest(INTERACTIVE)) return;
+      this.table.toggleRow(this.rowId());
+    });
+  }
+
+  private removeRowClick(): void {
+    if (!this.removeRowClickListener) return;
+    this.removeRowClickListener();
+    this.removeRowClickListener = null;
+    this.renderer.removeClass(this.rowRef.nativeElement, 'responsive-table__row--expandable');
   }
 
   private ensureExpandControlCell(): void {

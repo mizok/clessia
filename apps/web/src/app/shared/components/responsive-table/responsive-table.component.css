@@ -111,17 +111,20 @@
   .responsive-table__row:hover .responsive-table__expand-cell {
     background: color-mix(in srgb, var(--accent-50) 48%, var(--color-white));
   }
+  .responsive-table__row--expandable {
+    cursor: pointer;
+  }
   .responsive-table__expand-cell {
-    width: 48px;
-    min-width: 48px;
-    padding: var(--space-2);
+    width: 32px;
+    min-width: 32px;
+    padding: var(--space-1);
     text-align: center;
     vertical-align: middle;
     border-bottom: 1px solid var(--zinc-200);
   }
   .responsive-table__expand-header {
-    width: 40px;
-    min-width: 40px;
+    width: 32px;
+    min-width: 32px;
     padding: var(--space-1);
     border-bottom: 1px solid var(--zinc-200);
     background: color-mix(in srgb, var(--color-white) 90%, var(--accent-50));
@@ -266,10 +269,12 @@
     }
   }
   @media (pointer: coarse) {
+    /* #2007：整列可點之後，觸控目標是整列（不是這顆鈕），箭頭欄不必再撐到 44 寬 ——
+       原本 44px 寬＋ 1.5rem 箭頭放在最左邊，手機上佔掉將近 1/5 寬、把第一欄擠到右邊（使用者 10-23 截圖） */
     .responsive-table__expand-cell,
     .responsive-table__expand-header {
-      width: 44px;
-      min-width: 44px;
+      width: 32px;
+      min-width: 32px;
       padding: 0;
     }
     .responsive-table {
@@ -283,7 +288,7 @@
        AAA 2.5.5 要的是目標尺寸，它從來沒有要求那個目標要畫出來。 */
     }
     .responsive-table__expand-button {
-      width: 44px;
+      width: 32px;
       height: 44px;
       border: 0;
       border-radius: 0;
@@ -304,8 +309,10 @@
       background: none;
       transform: none;
     }
+    /* 小箭頭、zinc 色（照 A6 `.coll__sum::after` 的份量）；展開狀態仍靠 icon 換方向 */
     .responsive-table__expand-icon {
-      font-size: 1.5rem;
+      font-size: 0.875rem;
+      color: var(--zinc-500);
     }
     .responsive-table__cell {
       padding-block: var(--space-3);

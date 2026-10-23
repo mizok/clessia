@@ -57,7 +57,11 @@ export class ResponsiveTableComponent {
   readonly accordionBehavior = input<ResponsiveTableAccordionBehavior>('multi');
   readonly expandIcon = input('pi-chevron-right');
   readonly collapseIcon = input('pi-chevron-down');
-  readonly expandControlPosition = input<'start' | 'end'>('start');
+  /**
+   * 展開箭頭放哪一邊。**預設右邊**（#2007，照 A6 `.coll`：標題左、摘要右、小箭頭在最右）——
+   * 放左邊時手機上那一欄會把第一個欄位擠到右邊，使用者 10-23 截圖說「太大太醜」
+   */
+  readonly expandControlPosition = input<'start' | 'end'>('end');
   readonly expandControlWidth = input(48);
   readonly page = output<ResponsiveTablePageEvent>();
 
