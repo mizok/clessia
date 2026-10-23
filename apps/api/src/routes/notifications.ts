@@ -285,41 +285,60 @@ app.openapi(
     );
     if (!note || sessionIds.length === 0) return notFound();
 
-    const [enrollments, sessions, changes] = await Promise.all([
-      c
-        .get('childDb')
-        .from('enrollments', 'student_id')
-        .select('class_id, effective_from, effective_to')
-        .neq('status', 'void'),
-      supabase
-        .from('sessions')
-        .select(
-          'id, class_id, session_date, start_time, end_time, status, classes(name), teacher:staff!teacher_id(display_name)',
-        )
-        .eq('org_id', orgId)
-        .in('id', sessionIds),
-      supabase
-        .from('schedule_changes')
-        .select(
-          'session_id, change_type, reason, original_session_date, original_start_time, original_end_time, original_teacher_name, created_at',
-        )
-        .eq('org_id', orgId)
-        .in('session_id', sessionIds)
-        .order('created_at', { ascending: false }),
-    ]);
-    if (enrollments.error || sessions.error || changes.error) return failed();
-
-    const ranges = (enrollments.data ?? []) as unknown as Array<{
+    // **先限範圍再撈**（計畫席讀 diff，A19 的精神）：逐個孩子從 childDb 的報名取出 class_id（ScopedIds），
+    // 課堂只在這些班裡撈；不是自己孩子的班在查詢層就撈不到，不靠後面的 filter。
+    // 孩子通常 1–3 位，一位一組查詢；在籍日期的判斷留在下面的 TS。
+    const childDb = c.get('childDb');
+    const children = c.get('studentScope') ?? [];
+    const perChild = await Promise.all(
+      children.map(async (childId) => {
+        const plucked = await childDb
+          .from('enrollments', 'student_id')
+          .pluck('class_id, effective_from, effective_to, status', 'class_id', childId);
+        if (plucked.error) return { error: plucked.error, ranges: [], sessions: [] };
+        const ranges = plucked.rows.filter((r) => r['status'] !== 'void');
+        if (plucked.ids.length === 0) return { error: null, ranges, sessions: [] };
+        const { data, error } = await childDb
+          .fromScopedIds('sessions', 'class_id', plucked.ids)
+          .select(
+            'id, class_id, session_date, start_time, end_time, status, classes(name), teacher:staff!teacher_id(display_name)',
+          )
+          .eq('org_id', orgId)
+          .in('id', sessionIds);
+        return { error, ranges, sessions: (data ?? []) as unknown as Rec[] };
+      }),
+    );
+    if (perChild.some((r) => r.error)) return failed();
+    const ranges = perChild.flatMap((r) => r.ranges) as unknown as Array<{
       class_id: string;
       effective_from: string;
       effective_to: string | null;
     }>;
+    const scopedSessions = [
+      ...new Map(perChild.flatMap((r) => r.sessions).map((x) => [x['id'] as string, x])).values(),
+    ];
+    if (scopedSessions.length === 0) return c.json({ data: [] }, 200);
+
+    // 異動只查上面在範圍內撈到的那幾堂
+    const changes = await supabase
+      .from('schedule_changes')
+      .select(
+        'session_id, change_type, reason, original_session_date, original_start_time, original_end_time, original_teacher_name, created_at',
+      )
+      .eq('org_id', orgId)
+      .in(
+        'session_id',
+        scopedSessions.map((x) => x['id'] as string),
+      )
+      .order('created_at', { ascending: false });
+    if (changes.error) return failed();
+
     const latest = new Map<string, Rec>();
     for (const ch of (changes.data ?? []) as unknown as Rec[]) {
       if (!latest.has(ch['session_id'] as string)) latest.set(ch['session_id'] as string, ch);
     }
 
-    const data = ((sessions.data ?? []) as unknown as Rec[])
+    const data = scopedSessions
       .filter((s) => {
         const ch = latest.get(s['id'] as string);
         // 原本那天或現在那天在籍其一就算（調課可能把課調出他的在籍區間）

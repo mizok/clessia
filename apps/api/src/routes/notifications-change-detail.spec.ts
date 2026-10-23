@@ -16,6 +16,8 @@ const [S_RESCHED, S_SUB, S_CANCEL, S_OTHER_KID, S_OTHER_ORG, S_LEFT] = [11, 12, 
   id,
 );
 const S_VOID = id(17);
+/** 孩子班上的另一堂，但不在這則通知的 sessionIds 裡 */
+const S_UNRELATED = id(18);
 const NOTE = id(99);
 
 const sess = (sid: string, over: Record<string, unknown> = {}) => ({
@@ -106,6 +108,7 @@ function seed(over: Record<string, Record<string, unknown>[]> = {}) {
       sess(S_OTHER_ORG, { org_id: 'org-2' }),
       sess(S_LEFT, { class_id: 'k3' }),
       sess(S_VOID, { class_id: 'k4' }),
+      sess(S_UNRELATED, { session_date: '2026-10-12' }),
     ],
     schedule_changes: [
       // 調課：舊的一筆、新的一筆 —— 取最新那筆的原值
@@ -158,6 +161,7 @@ function call(db: ReturnType<typeof seed>, noteId = NOTE, roles = ['parent']) {
     set('userId', 'me');
     set('roles', roles);
     set('activeRole', roles[0]);
+    set('studentScope', [CHILD]);
     set('childDb', createChildDb(db.client as never, [CHILD], ORG));
     await next();
   });

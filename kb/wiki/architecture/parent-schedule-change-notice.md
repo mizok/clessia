@@ -30,8 +30,10 @@ updated: 2026-10-23
 ## 展開「原本／改為」（第二張）
 
 - `GET /api/notifications/{id}/schedule-change`：只讀自己的、家長身分、kind schedule_change 的那則（不是自己的、
-  不是家長身分 → 404）。哪幾堂從 `payload.sessionIds` 來，**但再用 `childDb` 確認每一堂是自己孩子那天
-  （原本那天或現在那天）在籍的班**，作廢報名不算 —— payload 不當授權依據。
+  不是家長身分 → 404）。哪幾堂從 `payload.sessionIds` 來，但 payload 不當授權依據：
+  **先限範圍再撈**（計畫席讀 diff，A19 的精神）—— 逐個孩子用 `childDb.pluck` 取出報名的 class_id
+  （`ScopedIds`），課堂用 `childDb.fromScopedIds('sessions', 'class_id', …)` 撈，再 `.in('id', sessionIds)`；
+  不是自己孩子的班在查詢層就撈不到。異動只查撈到的那幾堂。在籍日期（原本那天或現在那天其一、作廢不算）留在 TS 判。
 - 即時算：「改為」＝那堂**現在**的日期、時間、上課老師（停課＝null）；「原本」＝最新一筆異動記下的原值
   （沒記就退回現在的值）。原因只給停課。
 - 端點放在 `routes/notifications.ts` 而不是 `routes/parent/**`：讀的是通知表（不是學生範圍的表），
