@@ -1,50 +1,59 @@
+<!--
+  A6 `.kid`（a6.js kidBadge）：大字名字＋年級。三種形 ——
+  讀不到（近黑字＋警示圖示，不用紅：紅不貼橘）／一個孩子（靜態字，無框）／
+  兩個以上（膠囊鈕，可及名稱「目前看的是 X，切換孩子」，點了開清單、只列其他孩子）。
+-->
 @if (childScope.status() === 'failed') {
   <!--
     **不講的話這裡什麼都不會出現** —— 而三頁的 effect 也因為 activeChildId 是 null
     而不打 API，結果是一個完全空白的家長端，跟「這個帳號還沒綁孩子」一模一樣。
   -->
-  <div class="child-switcher inline-flex items-center">
-    <span
-      class="child-switcher__badge child-switcher__badge--error inline-flex items-center gap-2 rounded-full border border-band-ink-muted px-3 py-1 text-xs font-semibold tracking-[0.02em] text-error-600"
-      >讀不到孩子資料</span
+  <p
+    class="child-switcher child-switcher--failed m-0 inline-flex min-h-11 items-center gap-2 text-base font-bold text-band-ink wide:min-h-10"
+  >
+    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>讀不到孩子資料
+  </p>
+} @else if (childScope.activeChild(); as active) {
+  @if (childScope.canSwitch()) {
+    <button
+      #switcherTrigger
+      type="button"
+      class="child-switcher child-switcher--btn inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full leading-[1.5] border-[1.5px] border-solid border-band-ink bg-[rgb(255_255_255/22%)] py-0 pr-3 pl-4 text-lg font-bold text-band-ink hover:bg-[rgb(255_255_255/40%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-band-ink wide:min-h-10"
+      [attr.aria-label]="'目前看的是 ' + active.name + '，切換孩子'"
+      (click)="pop.toggle($event, switcherTrigger)"
     >
-  </div>
-} @else if (childScope.children().length > 0) {
-  <div class="child-switcher inline-flex items-center">
-    @if (childScope.canSwitch()) {
-      <button
-        #switcherTrigger
-        type="button"
-        class="child-switcher__badge child-switcher__badge--interactive inline-flex min-h-11 -my-0.5 pointer-coarse:my-0 cursor-pointer items-center gap-2 rounded-full border border-band-ink-muted bg-transparent py-1 pr-2 pl-3 text-xs font-semibold tracking-[0.02em] text-band-ink hover:bg-[rgb(0_0_0/6%)]"
-        (click)="pop.toggle($event, switcherTrigger)"
-      >
-        {{ childScope.activeChild()?.name }}
-        <i class="child-switcher__badge-icon pi pi-chevron-down text-[10px]"></i>
-      </button>
+      <span class="child-switcher__name">{{ active.name }}</span>
+      @if (gradeLabel(active.grade); as g) {
+        <span class="child-switcher__grade text-md font-medium text-band-ink-muted">{{ g }}</span>
+      }
+      <i class="pi pi-chevron-down text-sm" aria-hidden="true"></i>
+    </button>
 
-      <p-popover #pop styleClass="child-switcher-overlay">
-        <div class="child-switcher__list flex min-w-[160px] flex-col p-2">
-          <p
-            class="child-switcher__list-title mx-0 mt-0 mb-1 px-2 text-xs font-semibold text-zinc-500"
+    <p-popover #pop styleClass="child-switcher-overlay">
+      <div class="child-switcher__list flex w-[260px] max-w-full flex-col">
+        <p class="m-0 px-3 py-2 text-[13px] font-bold text-zinc-800">切換孩子</p>
+        @for (child of otherChildren(); track child.id) {
+          <button
+            class="child-switcher__list-item flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 text-left text-base font-semibold text-zinc-900 hover:bg-zinc-100"
+            type="button"
+            (click)="pop.hide(); select(child.id)"
           >
-            切換孩子
-          </p>
-          @for (child of otherChildren(); track child.id) {
-            <button
-              class="child-switcher__list-item block min-h-11 -my-0.5 pointer-coarse:my-0 w-full cursor-pointer rounded-md border-0 bg-transparent p-2 text-left text-sm text-zinc-900 hover:bg-zinc-100"
-              type="button"
-              (click)="pop.hide(); select(child.id)"
-            >
-              {{ child.name }}
-            </button>
-          }
-        </div>
-      </p-popover>
-    } @else {
-      <span
-        class="child-switcher__badge inline-flex items-center gap-2 rounded-full border border-band-ink-muted px-3 py-1 text-xs font-semibold tracking-[0.02em] text-band-ink"
-        >{{ childScope.activeChild()?.name }}</span
-      >
-    }
-  </div>
+            <span>{{ child.name }}</span>
+            @if (gradeLabel(child.grade); as g) {
+              <span class="font-medium text-zinc-600">{{ g }}</span>
+            }
+          </button>
+        }
+      </div>
+    </p-popover>
+  } @else {
+    <p
+      class="child-switcher m-0 inline-flex min-h-11 items-center gap-2 leading-[1.5] text-lg font-bold text-band-ink wide:min-h-10"
+    >
+      <span class="child-switcher__name">{{ active.name }}</span>
+      @if (gradeLabel(active.grade); as g) {
+        <span class="child-switcher__grade text-md font-medium text-band-ink-muted">{{ g }}</span>
+      }
+    </p>
+  }
 }

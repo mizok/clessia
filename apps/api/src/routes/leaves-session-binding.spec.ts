@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { notifyLeaveStreaks } from '../lib/leave-streak';
 import { notifyLeaveForTeachers } from '../lib/notify-leave';
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import { restBackedLeavePool } from '../test-utils/rest-backed-leave-pool';
 import leavesApp from './leaves';
 
 // #1693：老師的請假通知 —— 通知的堂要跟寫成 on_leave 的堂同一份（收件人由 notify-leave.spec 守）
@@ -177,11 +178,16 @@ function withLeaveEmbed(db: ReturnType<typeof createMultiOrgDb>) {
   };
 }
 
-function appWith(db: ReturnType<typeof createMultiOrgDb>) {
+function appWith(
+  db: ReturnType<typeof createMultiOrgDb>,
+  opts: { pool?: unknown; supabase?: unknown } = {},
+) {
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', withLeaveEmbed(db));
+    const client = withLeaveEmbed(db);
+    set('supabase', opts.supabase ?? client);
+    if (opts.pool !== null) set('auth', { pool: opts.pool ?? restBackedLeavePool(client) });
     set('orgId', ORG);
     set('campusScope', null);
     set('userId', 'user-1');
@@ -526,5 +532,88 @@ describe('DELETE /api/leaves/:id?mode=truncate —— 進行中的綁定型', ()
     expect(db.rows('leave_request_sessions').map((r) => r['session_id'])).toEqual([S_AM]);
     expect(db.rows('leave_requests')[0]).toMatchObject({ start_date: D, end_date: D });
     expect(onLeaveEvents(db)).toEqual([EV_AM]);
+  });
+});
+
+describe('POST /api/leaves —— 取鎖、查重疊、寫入同一筆交易（#1957）', () => {
+  it('沒有 pg pool → 500，不退回沒有交易的寫法、什麼都沒寫', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const db = seed();
+    const res = await post(appWith(db, { pool: null }), { sessionIds: [S_AM] });
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('POOL_UNAVAILABLE');
+    expect(db.rows('leave_requests')).toEqual([]);
+  });
+
+  it('先取這位學生的鎖，再查重疊、再寫 —— 順序都在 BEGIN 與 COMMIT 之間', async () => {
+    const db = seed();
+    const pool = restBackedLeavePool(withLeaveEmbed(db));
+    const res = await post(appWith(db, { pool }), { sessionIds: [S_AM] });
+    expect(res.status).toBe(201);
+    const order = pool.statements.map((s) =>
+      s.includes('BEGIN')
+        ? 'BEGIN'
+        : s.includes('COMMIT')
+          ? 'COMMIT'
+          : s.includes('pg_advisory_xact_lock')
+            ? 'lock'
+            : s.includes('select l.id')
+              ? 'overlap'
+              : s.includes('with l as')
+                ? 'insert'
+                : s.includes('insert into public.leave_request_sessions')
+                  ? 'bind'
+                  : s,
+    );
+    expect(order).toEqual(['BEGIN', 'lock', 'overlap', 'insert', 'bind', 'COMMIT']);
+  });
+
+  it('綁定寫不上 → 整筆 ROLLBACK、500（不會留一張整天語意的假）', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const db = seed();
+    const base = restBackedLeavePool(withLeaveEmbed(db));
+    const pool = {
+      ...base,
+      query: async (sql: string, params?: unknown[]) => {
+        if (sql.includes('insert into public.leave_request_sessions')) throw new Error('boom');
+        return base.query(sql, params);
+      },
+    };
+    pool.connect = async () => ({ query: pool.query, release: () => undefined });
+    const res = await post(appWith(db, { pool }), { sessionIds: [S_AM] });
+    expect(res.status).toBe(500);
+    expect(base.statements).toContain('ROLLBACK');
+    expect(base.statements).not.toContain('COMMIT');
+  });
+
+  it('subrequest 預算：綁一堂的單筆 POST，supabase-js 呼叫數比改寫前少（Workers 上限 50，#1954 守 ≤45）', async () => {
+    const db = seed();
+    const client = withLeaveEmbed(db);
+    let calls = 0;
+    const counted = {
+      from: (t: string) => {
+        calls += 1;
+        return client.from(t);
+      },
+    };
+    const waits: Promise<unknown>[] = [];
+    const res = await appWith(db, { supabase: counted, pool: restBackedLeavePool(client) }).request(
+      '/api/leaves',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studentId: STU, startDate: D, endDate: D, sessionIds: [S_AM] }),
+      },
+      {},
+      {
+        waitUntil: (p: Promise<unknown>) => waits.push(p),
+        passThroughOnException: () => undefined,
+      } as never,
+    );
+    await Promise.allSettled(waits);
+    expect(res.status).toBe(201);
+    expect(calls).toBeGreaterThan(5);
+    // 10-23 量測：改寫前（main @f2d59777）這個情境 13 次，查重疊、寫假單、寫綁定改走 pool 後 10 次
+    expect(calls).toBeLessThanOrEqual(10);
   });
 });

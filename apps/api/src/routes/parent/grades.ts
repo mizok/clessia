@@ -44,6 +44,14 @@ const ParentScoreRecordSchema = z
     passScore: z.number().nullable(),
     /** 考試描述：校內考的範圍說明（`scope_note`），段考一律 `null`（#1076） */
     description: z.string().nullable(),
+    /**
+     * 任課老師（#1926，A6「X 老師 · N 場」）：這場考試的班裡**這個孩子在籍的**那幾班、考試當天還有效的時段
+     * 的老師（`schedules.teacher_id → staff`，同家長選課與續課的取法），去重、頓號接。段考、對不上 → `null`。
+     * **只有名字** —— 不回 staff id、聯絡方式。
+     */
+    teacherName: z.string().nullable(),
+    /** 登錄者（#1926，A6「M/D 登錄 · X 老師」）：成績表的 `created_by` 對到同機構的人員名字；對不到就 `null`，不猜 */
+    recordedByName: z.string().nullable(),
   })
   .openapi('ParentScoreRecord');
 
@@ -77,6 +85,47 @@ function academyClassName(row: any, myClassIds: ReadonlySet<string>): string | n
   const names: string[] = (row.academy_exams?.academy_exam_classes ?? [])
     .filter((x: any) => myClassIds.has(x.class_id) && x.classes?.name)
     .map((x: any) => x.classes.name);
+  return names.length > 0 ? [...new Set(names)].join('、') : null;
+}
+
+/**
+ * 登錄者：`created_by → ba_user → staff`（同一個帳號可能是多個機構的人員，只認這個機構的）。
+ * 嵌在成績查詢裡，所以跟成績走同一條 childDb 範圍 —— 不需要給 childDb 讀 staff 的能力。
+ */
+const RECORDER = ', creator:ba_user!created_by ( staff ( display_name, org_id ) )';
+
+function recorderName(row: any, orgId: string): string | null {
+  const staff = [row.creator?.staff ?? []].flat() as Array<{
+    display_name?: string;
+    org_id?: string;
+  }>;
+  return staff.find((s) => s.org_id === orgId && s.display_name)?.display_name ?? null;
+}
+
+type ScheduleRow = {
+  class_id: string;
+  effective_to: string | null;
+  teacher: { display_name?: string; org_id?: string } | null;
+};
+
+/** 這場考試的班 ∩ 孩子在籍的班 → 考試當天還有效的時段的老師（同機構），去重、頓號接；沒有 → null */
+function academyTeacherName(
+  row: any,
+  myClassIds: ReadonlySet<string>,
+  schedules: readonly ScheduleRow[],
+  orgId: string,
+): string | null {
+  const examDate: string = row.academy_exams?.exam_date ?? '';
+  const classIds = new Set(
+    (row.academy_exams?.academy_exam_classes ?? [])
+      .map((x: any) => x.class_id as string)
+      .filter((id: string) => myClassIds.has(id)),
+  );
+  const names = schedules
+    .filter((s) => classIds.has(s.class_id) && (!s.effective_to || s.effective_to >= examDate))
+    .map((s) => [s.teacher].flat()[0])
+    .filter((t) => t?.org_id === orgId && !!t.display_name)
+    .map((t) => t!.display_name as string);
   return names.length > 0 ? [...new Set(names)].join('、') : null;
 }
 
@@ -124,12 +173,12 @@ app.openapi(
 
     const academyQuery = childDb
       .from('academy_scores', 'student_id')
-      .select(ACADEMY_SCORE_SELECT)
+      .select(ACADEMY_SCORE_SELECT + RECORDER)
       .eq('student_id', childId);
 
     const schoolQuery = childDb
       .from('school_scores', 'student_id')
-      .select(SCHOOL_SCORE_SELECT)
+      .select(SCHOOL_SCORE_SELECT + RECORDER)
       .eq('student_id', childId);
 
     const recentSince = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
@@ -167,6 +216,19 @@ app.openapi(
       return c.json({ error: '讀取成績失敗', code: 'FETCH_GRADES_FAILED' }, 500);
     }
 
+    // 任課老師：只拿 pluck 出來的班（這個孩子在籍的）去查時段 —— 型別上就只收得下那份清單（ScopedIds）
+    const orgId = c.get('orgId');
+    const schedulesResult =
+      myClasses.ids.length > 0
+        ? await childDb
+            .fromScopedIds('schedules', 'class_id', myClasses.ids)
+            .select('class_id, effective_to, teacher:staff!teacher_id ( display_name, org_id )')
+        : { data: [], error: null };
+    if (schedulesResult.error) {
+      return c.json({ error: '讀取成績失敗', code: 'FETCH_GRADES_FAILED' }, 500);
+    }
+    const schedules = (schedulesResult.data ?? []) as unknown as ScheduleRow[];
+
     const academyRows = (academyResult.data ?? []) as unknown[];
     const schoolRows = (schoolResult.data ?? []) as unknown[];
 
@@ -177,8 +239,15 @@ app.openapi(
       ...academyRows.map((row) => ({
         ...mapAcademyScoreRow(row),
         className: academyClassName(row, new Set(myClasses.ids)),
+        teacherName: academyTeacherName(row, new Set(myClasses.ids), schedules, orgId),
+        recordedByName: recorderName(row, orgId),
       })),
-      ...schoolRows.map((row) => ({ ...mapSchoolScoreRow(row), className: null })),
+      ...schoolRows.map((row) => ({
+        ...mapSchoolScoreRow(row),
+        className: null,
+        teacherName: null,
+        recordedByName: recorderName(row, orgId),
+      })),
     ].filter((r) => (!dateFrom || r.examDate >= dateFrom) && (!dateTo || r.examDate <= dateTo));
     results.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
 

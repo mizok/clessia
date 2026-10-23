@@ -261,6 +261,57 @@ describe('rate limit', () => {
     expect(written(db)).toHaveLength(0);
   });
 
+  // #1335（使用者 10-23 裁）：寫入轉小寫、比對不分大小寫；舊資料不 backfill，比對端接住
+  const trialBody = (email: string) => ({
+    parent: { name: '林爸爸', email, relation: 'father' },
+    student: { name: '林小美', grade: 'P5', school: '信義國小' },
+    courseIds: [COURSE],
+    consent: true,
+  });
+  const existingTrials = (email: string) =>
+    Array.from({ length: 3 }, () => ({ kind: 'trial', parent_email: email }));
+
+  it('同 Email 換大小寫也算同一個聯絡方式：舊資料是大寫、這次小寫 → 第 4 筆 429', async () => {
+    const { res } = await post(
+      seed(existingTrials('A@Example.Test')),
+      trialBody('a@example.test'),
+      {
+        route: 'trial',
+        ip: null,
+      },
+    );
+    expect(res.status).toBe(429);
+  });
+
+  it('這次送大寫 → 一樣 429；寫進去的 Email 是小寫', async () => {
+    const blocked = await post(
+      seed(existingTrials('a@example.test')),
+      trialBody('A@EXAMPLE.TEST'),
+      {
+        route: 'trial',
+        ip: null,
+      },
+    );
+    expect(blocked.res.status).toBe(429);
+
+    const db = seed();
+    const ok = await post(db, trialBody('  New@Example.TEST '), { route: 'trial', ip: null });
+    expect(ok.res.status).toBe(201);
+    expect(written(db).map((r) => r['parent_email'])).toEqual(['new@example.test']);
+  });
+
+  it('Email 裡的 _ 與 % 不是萬用字元：a_b@ 不會把 axb@ 算進來', async () => {
+    const { res } = await post(
+      seed(existingTrials('axb@example.test')),
+      trialBody('a_b@example.test'),
+      {
+        route: 'trial',
+        ip: null,
+      },
+    );
+    expect(res.status).toBe(201);
+  });
+
   it('試聽端點走同一套（同 Email 第 4 筆 429）', async () => {
     const sameEmail = Array.from({ length: 3 }, () => ({
       kind: 'trial',

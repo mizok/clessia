@@ -1,6 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { Popover } from 'primeng/popover';
 import { ChildScopeService } from '@core/child-scope.service';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 
 /**
  * 「目前在看哪個孩子」的切換器 —— 照抄 `shell-layout` 角色徽章＋popover 的互動形狀
@@ -21,6 +22,11 @@ export class ChildSwitcherComponent {
   protected readonly otherChildren = computed(() =>
     this.childScope.children().filter((c) => c.id !== this.childScope.activeChildId()),
   );
+
+  /** A6 `.kid__g`：年級標籤；不認得的值（舊資料）不畫，不把 enum 原文秀給家長 */
+  protected gradeLabel(grade: string): string | null {
+    return GRADE_LEVEL_LABELS[grade as GradeLevel] ?? null;
+  }
 
   protected select(id: string): void {
     this.childScope.setActiveChild(id);
