@@ -34,6 +34,7 @@ function session(over: Partial<ParentSession>): ParentSession {
     courseName: '國中數學',
     campusId: null,
     campusName: '文山旗艦校',
+    campusPhone: '02-2930-1234',
     classroomName: null,
     teacherName: '游佩珊',
     isSubstitute: false,
@@ -269,6 +270,10 @@ describe('家長端課表 ScheduleComponent', () => {
     expect(host().querySelector('[data-part="changes"]')!.textContent).toContain(
       '本堂由 蕭立恆 老師代課',
     );
+    // #1100 #44：課堂詳情帶分校電話（可撥打）
+    expect(
+      host().querySelector<HTMLAnchorElement>('[data-part="campus-phone"] a')?.getAttribute('href'),
+    ).toBe('tel:02-2930-1234');
     // 代課沒有原因可顯示（API 只回停課原因，#1100 #46）
     expect(host().querySelector('[data-part="change-reason"]')).toBeNull();
     card('off').click();
