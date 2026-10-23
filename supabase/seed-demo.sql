@@ -1229,6 +1229,39 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- 家長頁 A6 對齊需要的展示資料（#1965、#1966，計畫席 10-23）
+--
+-- conformance 量家長頁用多孩子的 parent03、切到張宇軒。A6 稿上有、seed 原本沒有的兩樣：
+-- (a) 張宇軒**當月還沒結算**的餐記錄 —— 稿的餐費頁第一個月份是「還沒結算 · 月底併入帳單」；
+--     原本他只有 §11 那 6 筆已結算的，當月一筆都沒有，那一列量不到（月結在月底，當月沒結算才是常態）
+-- (b) demo 班的**預設價目**（`classes.default_fee_template_id`）—— 稿的「可以加選的課」卡片有「4,500 元 / 月」；
+--     原本 demo 班一個都沒掛，卡片上沒價格可顯示
+-- 只補缺的（NULL 才填、ON CONFLICT DO NOTHING），重跑無害。依賴前面造的班與學生，所以放在 seed-demo（#838）。
+-- 放在打卡段之前：打卡段必須是最後一段（見下一段的說明）。
+-- ============================================================================
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_student UUID;
+BEGIN
+  -- (b) 還在開課的班掛「國中主科月繳」當目錄參考價（議價照舊在報名上）
+  UPDATE public.classes c
+     SET default_fee_template_id = (SELECT id FROM public.fee_templates
+                                     WHERE org_id = demo_org_id AND name = '國中主科月繳' AND is_active)
+   WHERE c.org_id = demo_org_id AND c.is_active AND c.default_fee_template_id IS NULL;
+
+  -- (a) 張宇軒這個月到今天為止的平日，每天一份 65 元、未結算（invoice_item_id 留空）
+  SELECT id INTO v_student FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒' LIMIT 1;
+  IF v_student IS NOT NULL THEN
+    INSERT INTO public.meal_records (org_id, student_id, meal_date, ordered, chargeable, unit_price, note)
+    SELECT demo_org_id, v_student, d::date, TRUE, TRUE, 65, '展示用：當月未結算'
+      FROM generate_series(date_trunc('month', current_date)::date, current_date, interval '1 day') AS d
+     WHERE extract(isodow FROM d) < 6
+    ON CONFLICT (student_id, meal_date) DO NOTHING;
+  END IF;
+END $$;
+
+-- ============================================================================
 -- 日到班的展示資料：今天的到班打卡（#976）
 --
 -- #976 起組織預設是日到班，儀表板改看「今日到班」—— 而這支原本一筆 `daily_checkins`
