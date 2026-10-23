@@ -392,7 +392,7 @@ export class ExamsComponent implements OnInit {
       label: '刪除',
       icon: 'pi pi-trash',
       danger: true,
-      disabled: row.scoreCount > 0,
+      // 有成績也能按：按了說明要先清空、帶去成績登錄（#1100 #34，A6 exams「刪除」列）
       command: () => this.confirmDeleteExam(row),
     });
     return items;
@@ -915,11 +915,27 @@ export class ExamsComponent implements OnInit {
     });
   }
 
+  /**
+   * 有成績的考試 API 刻意擋（`HAS_SCORES`，使用者 10-23 裁定維持）—— 不是停用選單讓人猜為什麼，
+   * 而是說清楚要先清空成績、直接帶去成績登錄（#1100 #34，A6 exams）。
+   */
   protected confirmDeleteExam(row: ExamRow): void {
+    if (row.scoreCount > 0) {
+      this.openConfirmDialog(
+        `還不能刪除「${row.name}」`,
+        {
+          message: `這場考試已有 ${row.scoreCount} 筆成績。要先到成績登錄把成績清空，才能刪除考試。`,
+          acceptLabel: '去成績登錄',
+          acceptSeverity: 'secondary',
+        },
+        () => this.enterScoreEntry(row),
+      );
+      return;
+    }
     this.openConfirmDialog(
-      '刪除考試',
+      `刪除「${row.name}」`,
       {
-        message: `確定要刪除「${row.name}」嗎？此動作無法復原。`,
+        message: '這場考試還沒有成績。刪除後無法復原。',
         acceptLabel: '刪除',
         acceptSeverity: 'danger',
       },
@@ -929,7 +945,7 @@ export class ExamsComponent implements OnInit {
 
   /**
    * 樂觀刪除（#1641 5b 第 1 點）：按下就淡出，失敗放回並說明。
-   * 有成績的考試選單本來就停用（`scoreCount > 0`），所以「被佔用而刪不掉」很少見。
+   * 有成績的考試不會走到這裡（`confirmDeleteExam` 改帶去成績登錄），所以「被佔用而刪不掉」很少見。
    */
   private deleteExam(row: ExamRow): void {
     const call$ =
