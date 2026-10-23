@@ -10,6 +10,9 @@ import {
 import { isEnrolledOn } from '../lib/session-roster';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { splitScoreMutations } from '../lib/score-mutations';
+import { writeExamScores } from '../lib/exam-scores-write';
+import { getAuth } from '../lib/get-auth';
+import { loadDisplayName } from '../lib/display-name';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
@@ -1710,6 +1713,10 @@ const upsertScoresRoute = createRoute({
         },
       },
     },
+    500: {
+      description: '成績與操作紀錄同一個交易，任何一步失敗就整筆回滾（#1931）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -1737,9 +1744,7 @@ app.openapi(upsertScoresRoute, async (c) => {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
 
-  if (exam.status === 'closed') {
-    return c.json({ error: '考試已結束，無法登錄成績', code: 'EXAM_CLOSED' }, 400);
-  }
+  // 完成後仍可修改（#1931，照 A6 scores）：每一筆修改的舊值→新值跟成績同一個交易進操作紀錄
 
   const studentIds = Array.from(new Set(body.scores.map((item) => item.studentId)));
 
@@ -1781,83 +1786,37 @@ app.openapi(upsertScoresRoute, async (c) => {
   // 判準的陷阱（缺考／補考的 null 不是清空）住在 `splitScoreMutations` 裡。
   const { toUpsert, toDelete } = splitScoreMutations(body.scores);
 
-  const payload = toUpsert.map((item) => ({
-    exam_id: id,
-    student_id: item.studentId,
-    score: item.score,
-    status: item.status,
-    notes: item.notes ?? null,
-    created_by: userId,
-  }));
+  // 成績與操作紀錄要全有或全無，不退回 supabase-js 逐句寫（pg-pool-writes rule 6）
+  const pool = getAuth(c).pool;
+  if (!pool) return c.json({ error: '儲存失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+  const userName = await loadDisplayName(supabase, orgId, userId);
 
-  if (payload.length > 0) {
-    const { error: upsertError } = await supabase
-      .from('academy_scores')
-      .upsert(payload, { onConflict: 'exam_id,student_id' });
-
-    if (upsertError) {
-      return c.json({ error: upsertError.message, code: 'DB_ERROR' }, 400);
-    }
+  let result;
+  try {
+    result = await writeExamScores(pool, {
+      kind: 'academy',
+      orgId,
+      userId,
+      userName,
+      examId: id,
+      examName: exam.name,
+      toUpsert: toUpsert.map((item) => ({
+        studentId: item.studentId,
+        score: item.score,
+        status: item.status,
+        notes: item.notes ?? null,
+      })),
+      toDelete: toDelete.map((item) => ({ studentId: item.studentId })),
+    });
+  } catch (err) {
+    console.error('[academy-exams] 寫入成績失敗，已整筆回滾', err);
+    return c.json({ error: '儲存失敗，成績沒有變動', code: 'DB_ERROR' }, 500);
+  }
+  if (result.status === 'not-found') {
+    return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
 
-  const removedStudentIds = toDelete.map((item) => item.studentId);
-
-  if (removedStudentIds.length > 0) {
-    // where 用的是 upsert 的同一組唯一鍵（`exam_id, student_id`），兩邊不會不一致
-    const { error: deleteError } = await supabase
-      .from('academy_scores')
-      .delete()
-      .eq('exam_id', id)
-      .in('student_id', removedStudentIds);
-
-    if (deleteError) {
-      return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 400);
-    }
-  }
-
-  if (payload.length > 0) {
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId,
-        resourceType: 'academy_exam',
-        resourceId: id,
-        resourceName: exam.name,
-        action: 'academy_exam.scores.upsert',
-        details: {
-          affected: payload.length,
-        },
-      },
-      waitUntilFrom(c),
-    );
-  }
-
-  if (removedStudentIds.length > 0) {
-    // **兩筆分開記，不合成一筆** —— 合起來就分不出哪幾個 studentId 是被刪的。
-    // `details` 記的是名單而不是數字：刪除要答得出「哪一筆不見了」，
-    // 只有 `affected` 的話事後查不回來。
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId,
-        resourceType: 'academy_exam',
-        resourceId: id,
-        resourceName: exam.name,
-        action: 'academy_exam.scores.delete',
-        details: {
-          removed: removedStudentIds,
-        },
-      },
-      waitUntilFrom(c),
-    );
-  }
-
-  return c.json(
-    { success: true, affected: payload.length, removed: removedStudentIds.length },
-    200,
-  );
+  return c.json({ success: true, affected: toUpsert.length, removed: toDelete.length }, 200);
 });
 
 const closeRoute = createRoute({

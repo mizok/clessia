@@ -16,6 +16,25 @@ export interface AppNotification {
   readonly isRead: boolean;
   /** 點了要去的頁（例：`/parent/payments`）；沒有就 null */
   readonly link: string | null;
+  /** 課務異動有「原本／改為」可以展開（#1100 #49） */
+  readonly hasChangeDetail: boolean;
+}
+
+export interface ChangeSlot {
+  readonly date: string;
+  readonly startTime: string | null;
+  readonly endTime: string | null;
+  readonly teacherName: string | null;
+}
+
+/** `GET /api/notifications/{id}/schedule-change` 的一堂：原本／改為（停課的 now 是 null；原因只有停課有） */
+export interface ChangeDetailRow {
+  readonly sessionId: string;
+  readonly className: string | null;
+  readonly changeType: string;
+  readonly was: ChangeSlot;
+  readonly now: ChangeSlot | null;
+  readonly reason: string | null;
 }
 
 export interface NotificationInboxResponse {
@@ -32,6 +51,11 @@ export class NotificationsService {
 
   inbox(): Observable<NotificationInboxResponse> {
     return this.http.get<NotificationInboxResponse>(`${this.base}/inbox`);
+  }
+
+  /** 家長展開課務異動通知（#1100 #49）：即時算的原本／改為，只回自己孩子在籍的堂 */
+  changeDetail(id: string): Observable<{ data: ChangeDetailRow[] }> {
+    return this.http.get<{ data: ChangeDetailRow[] }>(`${this.base}/${id}/schedule-change`);
   }
 
   markRead(id: string): Observable<void> {

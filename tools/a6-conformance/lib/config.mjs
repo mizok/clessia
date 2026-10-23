@@ -1012,7 +1012,8 @@ export const PAGES = {
       {
         status: '文案',
         // 副行：考試類型、科目、星期隨資料（稿：小考·數學·週二）
-        detail: '^「(第五次小考進行中|第五次小考|國三數學A班|\\{分校\\} › ·小考·數學· #（二）)」→「',
+        detail:
+          '^「(第五次小考進行中|第五次小考|國三數學A班|\\{分校\\} › ·小考·數學· #（二）)」→「',
         reason: '資料：考試名、班名隨資料',
         source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
       },
@@ -1207,6 +1208,14 @@ export const PAGES = {
         a6: 'landmark:popover\\[匯出餐費\\]>text:span\\[新\\]$',
         reason: '稿的「新」標記是設計說明（產品原本沒有匯出），不是畫面內容',
         source: '.design-explorations p-meals.html notes「匯出」列',
+      },
+      {
+        // 360 量到：稿的關閉鈕 36，app 照全站手機控制項 44（計畫席 10-23 轉，#2017）
+        status: '尺寸',
+        a6: 'landmark:popover\\[匯出餐費\\]>control:button\\[關閉\\]$',
+        detail: '^寬 36→44$',
+        reason: '手機控制項一律 44（觸控）',
+        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
       },
       {
         status: '多',

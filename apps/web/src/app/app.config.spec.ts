@@ -47,3 +47,12 @@ describe('appConfig 的 toast 通道', () => {
     expect(appConfig.providers).toContain(MessageService);
   });
 });
+
+describe('appConfig 載入時套上 PrimeNG autofocus 補丁（#2004）', () => {
+  it('匯入 app.config 之後 AutoFocus 原型已經補上', async () => {
+    const { AutoFocus } = await import('primeng/autofocus');
+    expect((AutoFocus.prototype as unknown as { __clessiaFixed?: boolean }).__clessiaFixed).toBe(
+      true,
+    );
+  });
+});

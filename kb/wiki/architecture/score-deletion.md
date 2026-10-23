@@ -3,7 +3,7 @@ title: 成績的刪除路徑 —— 清空分數後儲存就是刪除那一列
 summary: 登錄過成績的考試刪不掉、成績沒有任何刪除路徑，是三道關卡疊出來的功能缺口。修法是讓「清空分數後儲存」在後端走 delete 而不是把欄位設成 null，三道關卡一次解開；status 為 absent/makeup 的 null 是有意義的狀態，不在此列。
 category: architecture
 status: active
-updated: 2026-09-30
+updated: 2026-10-23
 tags: [architecture, grades, scores, deletion, audit]
 ---
 
@@ -153,6 +153,10 @@ details: { removed: [studentId, …] }, // 誰的成績被拿掉
 | `apps/api/src/routes/school-exams.ts`            | 同上（唯一鍵多 `subject_id`）             |
 | `apps/web/.../academy-score-editor.component.ts` | `save()` 不再濾掉清空的列；空改動時給訊息 |
 | `apps/web/.../score-edit-dialog.component.ts`    | `buildSavePayload()` 同上                 |
+
+> **2026-10-23 更新（#1100 #34，使用者裁定「維持擋下＋提供先清空成績再刪」）**：`HAS_SCORES` 守衛照舊；
+> 列選單的 `刪除` **不再 `disabled`** —— 有成績時按下去跳「還不能刪除「X」／這場考試已有 N 筆成績。
+> 要先到成績登錄把成績清空，才能刪除考試。」，按鈕「去成績登錄」（A6 exams）。清空就是本頁的「清空分數後儲存」。
 
 **不動**：`exams.component.ts` 的 `disabled`、兩支路由的 `HAS_SCORES` 守衛、
 `scoreCount` 的算法、任何 migration、任何 `resource_type`。

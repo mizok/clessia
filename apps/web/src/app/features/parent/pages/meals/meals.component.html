@@ -174,12 +174,13 @@
             </summary>
             <div class="coll__body">
               @if (month.settled) {
+                <!-- A6：「併入 <連結>10 月的帳單</連結>」（#1965）—— 月結在月底，所以是下個月那張 -->
                 <p class="m-0 my-2 text-md font-medium text-zinc-700">
-                  已併入帳單 ·
+                  併入
                   <a
                     routerLink="/parent/payments"
                     class="inline-flex min-h-11 items-center text-zinc-900 underline-offset-[3px]"
-                    >看繳費紀錄</a
+                    >{{ nextMonthLabel(month.month) }}的帳單</a
                   >
                 </p>
               }

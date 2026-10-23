@@ -58,6 +58,8 @@ export interface CreateLeaveInput {
   startTime?: string | null;
   endTime?: string | null;
   reason?: string | null;
+  /** 只請這幾堂（#1114）；給了就由後端從堂次算日期 */
+  sessionIds?: string[];
 }
 
 @Injectable({ providedIn: 'root' })

@@ -70,7 +70,7 @@
         這天該寫的都寫了。
       </p>
     } @else {
-      <p class="m-0 text-sm text-zinc-600">
+      <p appTextSwap class="m-0 text-sm text-zinc-600">
         <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。只有「有課的班」才算 ——
         當天沒課或停課的班不列入。
       </p>
@@ -192,7 +192,7 @@
     </div>
 
     @if (!loading() && !failed() && summary().total > 0) {
-      <p class="m-0 text-md text-zinc-700 tabular-nums" data-testid="summary">
+      <p appTextSwap class="m-0 text-md text-zinc-700 tabular-nums" data-testid="summary">
         這段期間共 <strong>{{ summary().total }}</strong> 則，
         <strong class="text-warning-600">{{ summary().unsigned }}</strong>
         則家長還沒簽收。
@@ -279,6 +279,11 @@
                         ><i class="pi pi-check mr-1 text-xs" aria-hidden="true"></i
                         >{{ signedText(entry) }}</span
                       >
+                      @if (entry.editedAfterSign) {
+                        <span class="text-sm font-semibold text-zinc-700" data-testid="edited"
+                          >簽收後有修改</span
+                        >
+                      }
                     } @else {
                       <span class="text-sm font-semibold text-zinc-700" data-testid="unsigned"
                         >未簽收</span

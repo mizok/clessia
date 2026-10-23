@@ -29,6 +29,7 @@ const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   signedByName: null,
   signedAt: null,
   isSigned: false,
+  editedAfterSign: false,
   ...overrides,
 });
 
@@ -580,6 +581,18 @@ describe('ContactBookPage', () => {
 
       expect(el().querySelector('[data-testid="signed"]')?.textContent).toContain('20:15');
       expect(el().querySelectorAll('[data-testid="unsigned"]').length).toBe(1);
+    });
+
+    it('#1100 #26 簽收後又改過：簽收照留，旁邊標「簽收後有修改」', async () => {
+      await load([
+        entry({ id: 'a', isSigned: true, signedAt: '2026-08-29T12:15:00Z', editedAfterSign: true }),
+        entry({ id: 'b', isSigned: true, signedAt: '2026-08-29T12:15:00Z' }),
+      ]);
+
+      expect(el().querySelectorAll('[data-testid="signed"]').length).toBe(2);
+      const edited = el().querySelectorAll('[data-testid="edited"]');
+      expect(edited.length).toBe(1);
+      expect(edited[0].textContent).toContain('簽收後有修改');
     });
 
     it('缺漏日期下拉選日期就查那天；選其他日期只出現 datepicker 不查', () => {

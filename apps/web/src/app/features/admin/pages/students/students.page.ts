@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
@@ -86,6 +87,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
   selector: 'app-students',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     PopoverModule,

@@ -72,15 +72,7 @@
             清除篩選
           </button>
         }
-        <button
-          type="button"
-          title="操作紀錄"
-          class="tbar-control-square inline-flex cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white px-0 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-          (click)="openAuditLog()"
-        >
-          <i class="pi pi-clock text-sm" aria-hidden="true"></i>
-          <span class="sr-only">操作紀錄</span>
-        </button>
+        <app-audit-log-button (opened)="openAuditLog()" />
         <app-popup-menu #pageMenu [model]="pageMenuItems()" />
         <!-- 選單只裝批次選取；沒有班可勾時整顆不出現（#1872） -->
         @if (pageMenuItems().length > 0) {
@@ -103,9 +95,10 @@
   <!-- 需介入：灰色收起來的提醒列（A6 .attn） -->
   @if (interventionCount() > 0 || statusFilter() === 'intervention') {
     <div
+      data-testid="intervention"
       class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
     >
-      <p class="m-0">
+      <p appTextSwap class="m-0">
         <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
         @if (statusFilter() === 'intervention') {
           只看需介入的 <b>{{ interventionCount() }}</b> 個班

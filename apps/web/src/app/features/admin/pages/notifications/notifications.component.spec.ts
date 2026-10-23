@@ -38,6 +38,7 @@ function notification(overrides: Partial<AppNotification> = {}): AppNotification
     createdAt: '2026-10-16T01:00:00Z',
     isRead: false,
     link: '/admin/applications',
+    hasChangeDetail: false,
     ...overrides,
   };
 }

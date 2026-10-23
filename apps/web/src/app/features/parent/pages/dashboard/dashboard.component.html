@@ -40,11 +40,12 @@
   <!-- **依賴孩子的頁面都包這一層**（#749）：0 個孩子時底下的空狀態講的是不成立的事 -->
   <app-child-scope-gate>
     <div class="dashboard__content page-wrap pb-12">
-      @if (data() === null) {
-        <app-skeleton class="mt-8" label="首頁載入中" [count]="3" />
-      } @else {
-        <!-- 待繳（A6 .pd-pay）：灰面一條，紅只給逾期的字 -->
-        @if (pay(); as p) {
+      <!--
+        骨架只蓋「今天的課」的清單，標題列（h2＋N 堂）留在 @if 外面（#1983）：換孩子時 data 先回 null，
+        整塊換成骨架的話標題會跟著重建，appTextSwap 只記不播。待繳條是資料回來才出現的，用 appHeightFollow 滑出來。
+      -->
+      <div appHeightFollow appHeightFollowGrow>
+        @if (data() !== null && pay(); as p) {
           <div
             class="dashboard__pay mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 px-5 py-4"
           >
@@ -70,70 +71,77 @@
             ></a>
           </div>
         }
+      </div>
 
-        <!-- 今天／接下來的課 -->
-        <section class="mt-12" aria-labelledby="dash-today">
-          <div
-            class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3"
+      <!-- 今天／接下來的課 -->
+      <section class="mt-12" aria-labelledby="dash-today">
+        <div
+          class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3"
+        >
+          <h2
+            appTextSwap
+            id="dash-today"
+            class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] wide:text-3xl"
           >
-            <h2
-              id="dash-today"
-              class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] wide:text-3xl"
-            >
-              {{ lessons()?.today ? '今天的課' : '接下來的課' }}
-            </h2>
+            {{ lessonsTitle() }}
+          </h2>
+          <span appTextSwap class="text-md text-zinc-600 tabular-nums">
             @if (lessons(); as l) {
-              <span class="text-md text-zinc-600 tabular-nums">{{ l.rows.length }} 堂</span>
+              {{ l.rows.length }} 堂
             }
-            <a
-              routerLink="/parent/schedule"
-              class="ml-auto inline-flex items-center gap-1 text-md font-medium text-zinc-900 no-underline -my-3 min-h-11 hover:underline hover:underline-offset-[3px]"
-              >看課表<i class="pi pi-arrow-right text-[14px]" aria-hidden="true"></i
-            ></a>
-          </div>
-          @if (lessons(); as l) {
-            <ul class="m-0 list-none p-0">
-              @for (s of l.rows; track s.sessionId) {
-                <li>
-                  <button
-                    type="button"
-                    class="dashboard__lesson group grid leading-[1.5] min-h-14 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5 border-0 border-b border-surface-border bg-transparent py-3 text-left text-inherit focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
-                    (click)="open({ kind: 'session', session: s })"
+          </span>
+          <a
+            routerLink="/parent/schedule"
+            class="ml-auto inline-flex items-center gap-1 text-md font-medium text-zinc-900 no-underline -my-3 min-h-11 wide:my-0 wide:min-h-0 hover:underline hover:underline-offset-[3px]"
+            >看課表<i class="pi pi-arrow-right text-[14px]" aria-hidden="true"></i
+          ></a>
+        </div>
+        @if (data() === null) {
+          <app-skeleton class="mt-4" label="首頁載入中" [count]="3" />
+        } @else if (lessons(); as l) {
+          <ul class="m-0 list-none p-0">
+            @for (s of l.rows; track s.sessionId) {
+              <li>
+                <button
+                  type="button"
+                  class="dashboard__lesson group grid leading-[1.5] min-h-14 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-0.5 border-0 border-b border-surface-border bg-transparent py-3 text-left text-inherit focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
+                  (click)="open({ kind: 'session', session: s })"
+                >
+                  <span class="col-span-full text-base font-semibold tabular-nums"
+                    >{{ s.date === today ? hhmm(s.startTime) : dayLabel(s.date)
+                    }}<small class="ml-1.5 text-sm font-medium text-zinc-600">{{
+                      s.date === today ? '到 ' + hhmm(s.endTime) : hhmm(s.startTime)
+                    }}</small></span
                   >
-                    <span class="col-span-full text-base font-semibold tabular-nums"
-                      >{{ s.date === today ? hhmm(s.startTime) : dayLabel(s.date)
-                      }}<small class="ml-1.5 text-sm font-medium text-zinc-600">{{
-                        s.date === today ? '到 ' + hhmm(s.endTime) : hhmm(s.startTime)
-                      }}</small></span
+                  <span class="min-w-0">
+                    <span
+                      class="text-lg font-bold group-hover:underline group-hover:underline-offset-[3px]"
+                      [class.text-zinc-600]="phase(s) === 'off'"
+                      [class.line-through]="phase(s) === 'off'"
+                      >{{ s.className }}</span
                     >
-                    <span class="min-w-0">
-                      <span
-                        class="text-lg font-bold group-hover:underline group-hover:underline-offset-[3px]"
-                        [class.text-zinc-600]="phase(s) === 'off'"
-                        [class.line-through]="phase(s) === 'off'"
-                        >{{ s.className }}</span
-                      >
-                      <span class="mt-0.5 block text-md text-zinc-700">{{ sessionMeta(s) }}</span>
-                    </span>
-                    <span class="flex flex-wrap justify-end gap-2">
-                      @for (tag of sessionTags(s); track tag.label) {
-                        <ng-container
-                          [ngTemplateOutlet]="tagTpl"
-                          [ngTemplateOutletContext]="{ $implicit: tag }"
-                        />
-                      }
-                    </span>
-                  </button>
-                </li>
-              } @empty {
-                <li class="py-6 text-zinc-700">接下來兩週沒有課。</li>
-              }
-            </ul>
-          } @else {
-            <p class="m-0 py-6 text-zinc-700">沒有讀到課表，可能是連線問題。</p>
-          }
-        </section>
+                    <span class="mt-0.5 block text-md text-zinc-700">{{ sessionMeta(s) }}</span>
+                  </span>
+                  <span class="flex flex-wrap justify-end gap-2">
+                    @for (tag of sessionTags(s); track tag.label) {
+                      <ng-container
+                        [ngTemplateOutlet]="tagTpl"
+                        [ngTemplateOutletContext]="{ $implicit: tag }"
+                      />
+                    }
+                  </span>
+                </button>
+              </li>
+            } @empty {
+              <li class="py-6 text-zinc-700">接下來兩週沒有課。</li>
+            }
+          </ul>
+        } @else {
+          <p class="m-0 py-6 text-zinc-700">沒有讀到課表，可能是連線問題。</p>
+        }
+      </section>
 
+      @if (data() !== null) {
         <!-- 考試與成績：前後 7 天 -->
         <section class="mt-12" aria-labelledby="dash-exam">
           <div
@@ -152,7 +160,7 @@
             }
             <a
               routerLink="/parent/grades"
-              class="ml-auto inline-flex items-center gap-1 text-md font-medium text-zinc-900 no-underline -my-3 min-h-11 hover:underline hover:underline-offset-[3px]"
+              class="ml-auto inline-flex items-center gap-1 text-md font-medium text-zinc-900 no-underline -my-3 min-h-11 wide:my-0 wide:min-h-0 hover:underline hover:underline-offset-[3px]"
               >看全部成績<i class="pi pi-arrow-right text-[14px]" aria-hidden="true"></i
             ></a>
           </div>
@@ -374,6 +382,16 @@
               · {{ d.session.classroomName }}
             }
           </dd>
+          @if (d.session.campusPhone; as phone) {
+            <dt class="text-zinc-600">分校電話</dt>
+            <dd class="m-0 font-medium" data-part="campus-phone">
+              <a
+                class="inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+                [href]="'tel:' + phone"
+                >{{ phone }}</a
+              >
+            </dd>
+          }
           @if (sessionTags(d.session).length > 0) {
             <dt class="text-zinc-600">狀態</dt>
             <dd class="m-0 font-medium">

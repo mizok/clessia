@@ -21,6 +21,7 @@ import {
   groupByMonth,
   mealsCsv,
   monthLabel,
+  nextMonthLabel,
   monthSpan,
   monthsBack,
   monthsToDates,
@@ -102,6 +103,7 @@ export class MealsComponent implements OnInit {
 
   protected readonly monthLabel = (month: string) => monthLabel(month, this.today);
   protected readonly dayLabel = dayLabel;
+  protected readonly nextMonthLabel = nextMonthLabel;
 
   constructor() {
     effect(() => {

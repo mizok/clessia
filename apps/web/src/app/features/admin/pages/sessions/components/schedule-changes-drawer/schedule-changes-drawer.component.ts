@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -42,6 +43,7 @@ const UNFILTERABLE = new Set(['creation', 'makeup']);
 @Component({
   selector: 'app-schedule-changes-drawer',
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     ChangeLogListComponent,
     RouterLink,
