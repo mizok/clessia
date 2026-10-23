@@ -11,7 +11,7 @@ import {
   type ElementRef,
 } from '@angular/core';
 import { MessageService } from 'primeng/api';
-import { catchError, forkJoin, map, of } from 'rxjs';
+import { type Subscription, catchError, forkJoin, map, of } from 'rxjs';
 import { format, parseISO } from 'date-fns';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -249,6 +249,9 @@ export class AttendancePage implements OnInit {
    * 到班與今天的堂讀失敗不擋列表 —— 少的是到班行與色面句，課照樣看得到。
    * **查詢的窗就是畫天數的窗**（`dateRange()`）—— 兩邊各算一份，就是 fillMissingDays 那類陷阱。
    */
+  /** 換孩子或換期間很快（A→B→A）時，上一個請求晚到不能蓋掉現在這個孩子的 —— 新的一發出就取消舊的（#1978） */
+  private loadSub?: Subscription;
+
   private load(childId: string): void {
     this.loading.set(true);
     this.failed.set(false);
@@ -277,7 +280,8 @@ export class AttendancePage implements OnInit {
       .list(childId, today, today)
       .pipe(catchError(() => of(null)));
 
-    forkJoin([records$, checkins$, today$]).subscribe({
+    this.loadSub?.unsubscribe();
+    this.loadSub = forkJoin([records$, checkins$, today$]).subscribe({
       next: ([records, checkins, todays]) => {
         this.records.set(records.data);
         this.monthlyAbsent.set(records.monthlyAbsent);
