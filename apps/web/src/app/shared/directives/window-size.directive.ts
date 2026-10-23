@@ -35,16 +35,37 @@ export class WindowSizeDirective implements OnInit {
 
   ngOnInit() {
     this.updateSize();
-    // 手機鍵盤（#1776）：版面視窗不跟著鍵盤縮，visual viewport 會（iOS 捲動時還會往下移）。
-    // 底部抽屜用 --keyboard-inset 讓出被鍵盤蓋住的那一截
-    const vv = this.document.defaultView?.visualViewport;
-    if (!vv) return;
-    const update = () => this.updateKeyboardInset();
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
+    const window = this.document.defaultView;
+    if (!window) return;
+
+    // 回到前景重量（#2033，使用者 iPhone 實機）：主畫面 PWA 跳到 Safari（LINE 登入）再回來，
+    // iOS 在背景期間改了視窗高，回到前景**不一定發 resize** → --window-height 停在舊值，底部空一塊白。
+    // 等下一幀再量：iOS 剛回前景那一刻版面還沒穩。背景（hidden）時量到的高度不可信，不量。
+    const remeasure = () => window.requestAnimationFrame(() => this.updateSize());
+    const onVisibility = () => {
+      if (this.document.visibilityState === 'visible') remeasure();
+    };
+    this.document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', remeasure);
+    window.addEventListener('focus', remeasure);
     this.destroyRef.onDestroy(() => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
+      this.document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', remeasure);
+      window.removeEventListener('focus', remeasure);
+    });
+
+    // 手機鍵盤（#1776）：版面視窗不跟著鍵盤縮，visual viewport 會（iOS 捲動時還會往下移）。
+    // 底部抽屜用 --keyboard-inset 讓出被鍵盤蓋住的那一截。visual viewport 的 resize 也重量視窗高（#2033）：
+    // iOS 有時只發這一個
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onVvResize = () => this.updateSize();
+    const onVvScroll = () => this.updateKeyboardInset();
+    vv.addEventListener('resize', onVvResize);
+    vv.addEventListener('scroll', onVvScroll);
+    this.destroyRef.onDestroy(() => {
+      vv.removeEventListener('resize', onVvResize);
+      vv.removeEventListener('scroll', onVvScroll);
     });
   }
 

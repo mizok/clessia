@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
@@ -117,5 +117,74 @@ describe('WindowSizeDirective', () => {
     window.dispatchEvent(new Event('resize'));
     expect(height()).toBe('700px');
     h.mockRestore();
+  });
+
+  /**
+   * #2033（使用者 iPhone 實機）：主畫面 PWA 按 LINE 登入跳到 Safari，再回來，底部多一塊白。
+   * iOS 在 PWA 背景期間改了視窗高，回到前景**不一定發 resize** → --window-height 停在舊值。
+   * 回到前景（visibilitychange→visible、pageshow、focus）都要在下一幀重量一次。
+   */
+  describe('回到前景重量高度（#2033）', () => {
+    const height = () => document.documentElement.style.getPropertyValue('--window-height');
+    let raf: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      // rAF 立刻執行：等 iOS 版面穩定那一幀在這裡不用真的等
+      raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        cb(0);
+        return 0;
+      });
+    });
+    afterEach(() => raf.mockRestore());
+
+    for (const [name, fire] of [
+      [
+        'visibilitychange（回到 visible）',
+        () => document.dispatchEvent(new Event('visibilitychange')),
+      ],
+      ['pageshow', () => window.dispatchEvent(new Event('pageshow'))],
+      ['focus', () => window.dispatchEvent(new Event('focus'))],
+    ] as const) {
+      it(`${name}：高度變了、沒有 resize，也會更新`, () => {
+        render();
+        const h = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(812);
+        try {
+          fire();
+          expect(height()).toBe('812px');
+        } finally {
+          h.mockRestore();
+        }
+      });
+    }
+
+    it('visibilitychange 變成 hidden 時不量（背景裡的高度不可信）', () => {
+      render();
+      const before = height();
+      const vis = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+      const h = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(300);
+      try {
+        document.dispatchEvent(new Event('visibilitychange'));
+        expect(height()).toBe(before);
+      } finally {
+        h.mockRestore();
+        vis.mockRestore();
+      }
+    });
+
+    it('visualViewport 的 resize 也重量視窗高', () => {
+      const vv = Object.assign(new EventTarget(), { height: 700, offsetTop: 0 });
+      Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true });
+      try {
+        render();
+        const h = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(790);
+        try {
+          vv.dispatchEvent(new Event('resize'));
+          expect(height()).toBe('790px');
+        } finally {
+          h.mockRestore();
+        }
+      } finally {
+        Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true });
+      }
+    });
   });
 });
