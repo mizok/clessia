@@ -58,6 +58,8 @@ const KIND_LABELS: Record<string, string> = {
   leave_streak: '連續請假',
   enrollment_approved: '報名',
   enrollment_completed: '報名',
+  // #1100 #27：行政提醒那堂老師補寫聯絡簿（只發給老師）
+  contact_book_reminder: '聯絡簿',
 };
 
 const SOURCE_NAMES: Record<Source, string> = { announcement: '公告', notification: '通知' };

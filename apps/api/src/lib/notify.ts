@@ -24,7 +24,8 @@ export type StaffNotificationKind =
   | 'grade_promotion_reminder'
   | 'application_overdue'
   | 'trial_followup'
-  | 'leave_streak';
+  | 'leave_streak'
+  | 'contact_book_reminder';
 
 export interface StaffNotification {
   readonly orgId: string;

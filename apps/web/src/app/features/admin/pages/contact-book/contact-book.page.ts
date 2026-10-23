@@ -229,6 +229,44 @@ export class ContactBookPage implements OnInit {
     this.listRequest$.next({ studentId: this.selectedStudent()?.id, from, to });
   }
 
+  /** 提醒過的「班:日期」—— 按過就顯示「今天已提醒」（#1100 #27） */
+  protected readonly reminded = signal<ReadonlySet<string>>(new Set());
+  protected readonly reminding = signal<string | null>(null);
+
+  protected remindKey(classId: string): string {
+    return `${classId}:${format(this.missingDate, 'yyyy-MM-dd')}`;
+  }
+
+  /** 提醒那天這班實際上課的老師補寫。名單與收件人都由伺服器算，不送前端看到的名字 */
+  protected remindTeacher(classId: string): void {
+    const key = this.remindKey(classId);
+    if (this.reminding() || this.reminded().has(key)) return;
+    const date = format(this.missingDate, 'yyyy-MM-dd');
+    this.reminding.set(key);
+    this.service.remind(classId, date).subscribe({
+      next: (res) => {
+        this.reminding.set(null);
+        this.reminded.update((set) => new Set(set).add(key));
+        const [, m, d] = date.split('-').map(Number);
+        this.messageService.add(
+          res.alreadyReminded
+            ? { severity: 'info', summary: '今天已經提醒過了' }
+            : {
+                severity: 'success',
+                summary: `已提醒${res.teacherNames.join('、')}補寫 ${res.missingCount} 則（${m}/${d}）`,
+              },
+        );
+      },
+      error: (err) => {
+        this.reminding.set(null);
+        this.messageService.add({
+          severity: 'error',
+          summary: err?.error?.error ?? '提醒失敗，請稍後再試',
+        });
+      },
+    });
+  }
+
   /** 缺漏名單自己失敗就好 —— 它掛掉不該讓下面的歷史列表也看不了 */
   protected loadMissing(): void {
     this.missingLoading.set(true);

@@ -669,6 +669,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     ['leave_for_my_class', '請假'],
     ['leave_received', '請假'],
     ['leave_streak', '連續請假'],
+    ['contact_book_reminder', '聯絡簿'],
     ['invoice_overdue', '繳費提醒'],
     ['something_new', '通知'],
   ])('通知 kind %s 的標籤是「%s」', async (kind, label) => {

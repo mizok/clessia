@@ -88,6 +88,23 @@
                 >還差 {{ group.students.length }} 則</span
               >
             </p>
+            <!-- A6 .gap__act：每班一顆；A6 寫「已用 LINE 提醒」—— 不接 LINE，只進老師的通知中心（#1100 #27） -->
+            <button
+              type="button"
+              class="mt-2 inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-medium text-zinc-900 hover:border-zinc-500 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500 aria-disabled:cursor-default aria-disabled:opacity-55"
+              data-testid="missing-remind"
+              [attr.aria-disabled]="reminding() !== null || reminded().has(remindKey(group.classId)) || null"
+              (click)="remindTeacher(group.classId)"
+            >
+              <i class="pi pi-bell text-xs" aria-hidden="true"></i>
+              @if (reminded().has(remindKey(group.classId))) {
+                今天已提醒
+              } @else if (reminding() === remindKey(group.classId)) {
+                送出中…
+              } @else {
+                提醒老師補寫
+              }
+            </button>
           </div>
           <div class="flex flex-wrap gap-2" aria-label="還沒寫的學生（按名字補寫）">
             @for (target of group.students; track target.studentId) {
