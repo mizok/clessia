@@ -110,3 +110,30 @@ export async function stampedTotalsViaSql(
     ]),
   );
 }
+
+/**
+ * 這些餐費明細裡，**所屬帳單已經有收款**的（淨收款 ≠ 0，收款 − 退費，同 `invoiceTotals`）。
+ *
+ * repair 跳過它們、只列出不改金額（使用者 10-23 裁定，#1936）：家長已經照舊金額繳了，
+ * 系統自己改應收會讓「已繳清」默默變成「部分繳」或「溢繳」，得由人決定怎麼處理。
+ * 「有淨收款」跟作廢的 trigger（`invoice_void.sql`：淨收款 ≠ 0 不能作廢）是同一條線 —— 部分繳也算。
+ */
+export async function paidMealItemsViaSql(
+  db: Queryable,
+  orgId: string,
+  itemIds: readonly string[],
+): Promise<Set<string>> {
+  if (itemIds.length === 0) return new Set();
+  const { rows } = await db.query(
+    `select ii.id
+       from public.invoice_items ii
+       join public.invoices i on i.id = ii.invoice_id
+      where i.org_id = $1::uuid
+        and ii.id = any($2::uuid[])
+        and coalesce((select sum(case when pr.kind = 'refund' then -pr.amount else pr.amount end)
+                        from public.payment_records pr
+                       where pr.org_id = $1::uuid and pr.invoice_id = i.id), 0) <> 0`,
+    [orgId, itemIds],
+  );
+  return new Set((rows as Array<{ id: string }>).map((r) => r.id));
+}

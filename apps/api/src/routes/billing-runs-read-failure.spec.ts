@@ -237,7 +237,7 @@ describe('repair 的比例防呆（#1934）：對不上的太多就不修', () =
   });
 
   /** n 筆餐費 item、其中 bad 筆金額對不上蓋章總額 */
-  function mealItems(n: number, bad: number) {
+  function mealItems(n: number, bad: number, paid = 0) {
     const writes: Array<{ table: string; op: string }> = [];
     const client = {
       from(table: string) {
@@ -262,7 +262,12 @@ describe('repair 的比例防呆（#1934）：對不上的太多就不修', () =
               data: Array.from({ length: n }, (_, i) => ({
                 id: `item-${i}`,
                 amount: 100,
-                invoices: { org_id: 'org', voided_at: null },
+                invoices: {
+                  org_id: 'org',
+                  voided_at: null,
+                  // 前 paid 筆的帳單已經收過款（使用者 10-23 裁定：repair 不改）
+                  payment_records: i < paid ? [{ amount: 100, kind: 'payment' }] : [],
+                },
               })),
               error: null,
             });
@@ -300,5 +305,14 @@ describe('repair 的比例防呆（#1934）：對不上的太多就不修', () =
     const res = await post(appWith(fake.client), '/repair');
     expect(res.status).toBe(200);
     expect(fake.writes.filter((w) => w.table === 'invoice_items')).toHaveLength(2);
+  });
+
+  it('帳單已收款的對不上 → 不改、計在 skippedPaid（使用者 10-23 裁定，REST 路徑）', async () => {
+    const fake = mealItems(20, 2, 1);
+    const res = await post(appWith(fake.client), '/repair');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { repaired: number; skippedPaid: number };
+    expect(body).toMatchObject({ repaired: 1, skippedPaid: 1 });
+    expect(fake.writes.filter((w) => w.table === 'invoice_items')).toHaveLength(1);
   });
 });
