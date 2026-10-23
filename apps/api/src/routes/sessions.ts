@@ -26,11 +26,16 @@ import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
 import {
   countEnrolledOn,
-  tallyAttendance,
+  tallyAttendanceCounts,
   type AttendanceTally,
   type EnrollmentRange,
 } from '../lib/session-roster';
 import { getCampusScope, isCampusAllowed, type CampusScope } from '../lib/campus-scope';
+import {
+  attendanceCountsViaSql,
+  enrollmentRangesViaSql,
+  latestChangesViaSql,
+} from '../lib/session-list-sql';
 import { classWriteScope, resourceCampusAllowed } from '../lib/campus-write-guard';
 import { findInOrg } from '../lib/org-scope';
 import {
@@ -867,6 +872,10 @@ const listSessionsRoute = createRoute({
         },
       },
     },
+    500: {
+      description: '出勤或在籍讀取失敗（#1928）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -1056,42 +1065,79 @@ app.openapi(listSessionsRoute, async (c) => {
     .filter((id): id is string => Boolean(id));
   const uniqueClassIds = [...new Set(rows.map((row) => row['class_id'] as string))];
 
-  // 第二輪：三支都只依賴主查詢的結果，彼此不相依
-  const [changesResult, attendanceResult, enrollmentResult] = await Promise.all([
-    sessionIds.length > 0
-      ? supabase
-          .from('schedule_changes')
-          .select(
-            'session_id, change_type, reason, original_teacher_name, original_session_date, original_start_time, original_end_time, created_at',
-          )
-          .in('session_id', sessionIds)
-          .order('created_at', { ascending: false })
-      : Promise.resolve({ data: [], error: null }),
-    eventIds.length > 0
-      ? supabase
-          .from('attendance_records')
-          .select('event_id, status')
-          .in('event_id', eventIds)
-          .eq('org_id', orgId)
-      : Promise.resolve({ data: [] }),
-    // 在籍**依課堂日期**（使用者 2026-10-01 裁定，#950）—— 撈生效區間、每堂用
-    // `countEnrolledOn` 算，跟 `/api/attendance/sessions` 與點名名單同一份規則
-    uniqueClassIds.length > 0
-      ? supabase
-          .from('enrollments')
-          .select('class_id, effective_from, effective_to')
-          .in('class_id', uniqueClassIds)
-          .eq('status', 'active')
-          .eq('org_id', orgId)
-      : Promise.resolve({ data: [] }),
-  ]);
+  // 第二輪：三支都只依賴主查詢的結果，彼此不相依。
+  // 月檢視一次 500 堂（#1928）：有 pool（正式環境）走 pg —— id 走 bind 參數（不會 414），
+  // 出勤在 SQL 裡 count／group by 好（不受 max_rows 1000 截斷）。沒有 pool（單元測試的精簡 app）才走 REST。
+  // 範圍條件不在這三支裡：只吃主查詢已經套過分校範圍的 id，外加 org_id
+  const db = c.get('auth')?.pool;
+  let changeRows: Array<Record<string, unknown>>;
+  let attendanceCounts: Array<{ eventId: string; status: string; count: number }>;
+  let enrollmentRows: Array<Record<string, unknown>>;
+  if (db) {
+    try {
+      [changeRows, attendanceCounts, enrollmentRows] = await Promise.all([
+        latestChangesViaSql(db, orgId, sessionIds),
+        attendanceCountsViaSql(db, orgId, eventIds),
+        // 在籍**依課堂日期**（使用者 2026-10-01 裁定，#950）—— 撈生效區間、每堂用
+        // `countEnrolledOn` 算，跟 `/api/attendance/sessions` 與點名名單同一份規則
+        enrollmentRangesViaSql(db, orgId, uniqueClassIds),
+      ]);
+    } catch (err) {
+      console.error(
+        '[sessions] 課堂列表的異動／出勤／在籍讀取失敗：',
+        err instanceof Error ? err.message : err,
+      );
+      return c.json({ error: '讀取出勤或在籍資料失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+    }
+  } else {
+    const [changesResult, attendanceResult, enrollmentResult] = await Promise.all([
+      sessionIds.length > 0
+        ? supabase
+            .from('schedule_changes')
+            .select(
+              'session_id, change_type, reason, original_teacher_name, original_session_date, original_start_time, original_end_time, created_at',
+            )
+            .in('session_id', sessionIds)
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+      eventIds.length > 0
+        ? supabase
+            .from('attendance_records')
+            .select('event_id, status')
+            .in('event_id', eventIds)
+            .eq('org_id', orgId)
+        : Promise.resolve({ data: [], error: null }),
+      // 在籍**依課堂日期**（使用者 2026-10-01 裁定，#950）—— 撈生效區間、每堂用
+      // `countEnrolledOn` 算，跟 `/api/attendance/sessions` 與點名名單同一份規則
+      uniqueClassIds.length > 0
+        ? supabase
+            .from('enrollments')
+            .select('class_id, effective_from, effective_to')
+            .in('class_id', uniqueClassIds)
+            .eq('status', 'active')
+            .eq('org_id', orgId)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
-  if (changesResult.error) {
-    return c.json({ error: changesResult.error.message, code: 'DB_ERROR' }, 400);
+    if (changesResult.error) {
+      return c.json({ error: changesResult.error.message, code: 'DB_ERROR' }, 400);
+    }
+    // 出勤數、在籍數讀不到就不回（#1928）：原本只拿 data，`.in()` 帶 500 個 id 回 414 時
+    // 兩個數字靜默變 0、照樣 200 —— 畫面上「0 人到」跟「讀不到」分不出來
+    const readError = attendanceResult.error ?? enrollmentResult.error;
+    if (readError) {
+      console.error('[sessions] 課堂列表的出勤／在籍讀取失敗：', readError.message);
+      return c.json({ error: '讀取出勤或在籍資料失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+    }
+    changeRows = (changesResult.data ?? []) as Array<Record<string, unknown>>;
+    attendanceCounts = ((attendanceResult.data ?? []) as Array<Record<string, unknown>>).map(
+      (row) => ({ eventId: row['event_id'] as string, status: row['status'] as string, count: 1 }),
+    );
+    enrollmentRows = (enrollmentResult.data ?? []) as Array<Record<string, unknown>>;
   }
   // 新到舊排好了，每堂第一筆就是最新的
   const latestChanges = new Map<string, z.infer<typeof SessionListItemSchema>['latestChange']>();
-  for (const row of (changesResult.data ?? []) as Array<Record<string, unknown>>) {
+  for (const row of changeRows) {
     const sessionId = row['session_id'] as string;
     if (latestChanges.has(sessionId)) continue;
     latestChanges.set(sessionId, {
@@ -1104,15 +1150,8 @@ app.openapi(listSessionsRoute, async (c) => {
       createdAt: row['created_at'] as string,
     });
   }
-  const attendanceTally = tallyAttendance(
-    ((attendanceResult.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-      eventId: row['event_id'] as string,
-      status: row['status'] as string,
-    })),
-  );
-  const enrollmentRanges: EnrollmentRange[] = (
-    (enrollmentResult.data ?? []) as Array<Record<string, unknown>>
-  ).map((row) => ({
+  const attendanceTally = tallyAttendanceCounts(attendanceCounts);
+  const enrollmentRanges: EnrollmentRange[] = enrollmentRows.map((row) => ({
     classId: row['class_id'] as string,
     effectiveFrom: row['effective_from'] as string,
     effectiveTo: (row['effective_to'] as string | null) ?? null,

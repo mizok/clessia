@@ -25,6 +25,8 @@ export class ScheduleListComponent {
   readonly now = input.required<Date>();
   /** 週視圖的窄欄：只寫結束時間與老師（A6 `list(ss, true)`） */
   readonly compact = input(false);
+  /** 快速選取模式：勾選框只在這時（或那堂已勾）出現（A6 schedule.css:50–51） */
+  readonly picking = input(false);
 
   /** 頂欄只看某一分校時，每列寫分校名是重複的（A6 沒畫）；看全部分校才需要區分 */
   private readonly campusCtx = inject(CampusContextService);

@@ -24,6 +24,8 @@ import { MessageService } from 'primeng/api';
 import { focusScoreRow, scoreKeyStep } from '../score-keyboard.util';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
+import type { MenuItem } from 'primeng/api';
 
 import {
   AcademyExamsService,
@@ -71,6 +73,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
     DrawerModule,
     DialogModule,
     StudentAutocompleteComponent,
+    PopupMenuComponent,
   ],
   templateUrl: './academy-score-editor.component.html',
   host: { class: 'block' },
@@ -110,7 +113,8 @@ export class AcademyScoreEditorComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly rows = signal<ScoreRow[]>([]);
   protected readonly classFilter = signal<string | null>(null);
-  protected readonly addingStudent = signal(false);
+  /** 「加入其他學生」對話框開關 —— 觸發鈕在外殼的灰帶工具列（A6 .tbar__act，#1925） */
+  readonly addingStudent = signal(false);
   protected readonly studentSuggestions = signal<Student[]>([]);
 
   // Bottom sheet state
@@ -146,7 +150,8 @@ export class AcademyScoreEditorComponent implements OnInit {
    * 缺考算「已登錄」—— 它是被登錄過的事實（同 #886 對缺考 null 的定義）；
    * 不及格沿用 `isFailing` 的退路（沒設及格線就用總分 60%），缺考不算不及格。
    */
-  protected readonly tally = computed(() => {
+  /** 合計（A6 #tally 與色面的「已登錄（含缺考）」）—— 外殼的灰帶工具列與色面讀它（#1925） */
+  readonly tally = computed(() => {
     const rows = this.filteredRows();
     const absent = rows.filter((r) => this.isAbsent(r)).length;
     return {
@@ -156,6 +161,45 @@ export class AcademyScoreEditorComponent implements OnInit {
       fail: rows.filter((r) => !this.isAbsent(r) && this.isFailing(r.score)).length,
     };
   });
+
+  /**
+   * 色面的平均／最高／最低跟著畫面上的分數走（A6 是即時算，不等存檔）；只算有分數、不是缺考的列。
+   * 沒有任何分數時是 null（色面寫「—」）
+   */
+  readonly liveStats = computed(() => {
+    const scores = this.filteredRows()
+      .filter((r) => !this.isAbsent(r) && r.score !== null)
+      .map((r) => r.score as number);
+    if (scores.length === 0) return { average: null, highest: null, lowest: null };
+    return {
+      average: scores.reduce((a, b) => a + b, 0) / scores.length,
+      highest: Math.max(...scores),
+      lowest: Math.min(...scores),
+    };
+  });
+
+  /**
+   * 狀態欄（A6 `.dd`：按鈕顯示目前值，點了開選項）。整張表共用一個選單，點哪一列就先記下那一列（#1925）
+   */
+  protected readonly statusMenuRow = signal<ScoreRow | null>(null);
+  protected readonly statusMenuItems = computed<MenuItem[]>(() =>
+    STATUS_OPTIONS.map((o) => ({
+      label: o.label,
+      command: () => {
+        const row = this.statusMenuRow();
+        if (row) this.onStatusChange(row, o.value);
+      },
+    })),
+  );
+
+  protected openStatusMenu(event: Event, row: ScoreRow, menu: PopupMenuComponent): void {
+    this.statusMenuRow.set(row);
+    menu.toggle(event);
+  }
+
+  protected statusLabel(row: ScoreRow): string {
+    return STATUS_OPTIONS.find((o) => o.value === row.status)?.label ?? '正常';
+  }
 
   ngOnInit(): void {
     this.studentQuery$

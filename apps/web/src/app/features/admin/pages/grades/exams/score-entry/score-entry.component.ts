@@ -28,6 +28,11 @@ import {
 import { SchoolExamsService, type SchoolExamDetail } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
+import { ClassesService } from '@core/classes.service';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
@@ -37,6 +42,23 @@ interface ExamInfo {
   readonly name: string;
   readonly metaLine: string;
   readonly status: 'active' | 'closed';
+}
+
+/** 補習班考試的副行（A6 scores：`分校 › <a>班</a> · 小考 · 數學 · 10/21（二）`，#1925） */
+interface AcademySubLine {
+  readonly campus: string | null;
+  readonly className: string | null;
+  /** 只有一個班時才有：班級詳情的路由（要 courseId，從 ClassesService 查） */
+  readonly classLink: readonly string[] | null;
+  readonly rest: string;
+}
+
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
+/** `2026-10-21` → `10/21（二）`；不是日期就照原樣 */
+function monthDayWeekday(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return `${m}/${d}（${WEEKDAY[new Date(y, m - 1, d).getDay()]}）`;
 }
 
 interface SummaryStats {
@@ -55,6 +77,7 @@ interface SummaryStats {
     RouterLink,
     AcademyScoreEditorComponent,
     SchoolScoreEditorComponent,
+    PageActionsComponent,
   ],
   templateUrl: './score-entry.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -68,6 +91,7 @@ export class ScoreEntryComponent implements OnInit {
   private readonly schoolExamsService = inject(SchoolExamsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
+  private readonly classesService = inject(ClassesService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly type = signal<ScoreEntryType>('academy');
@@ -97,6 +121,18 @@ export class ScoreEntryComponent implements OnInit {
   /** 站內導頁被攔下時，等使用者在對話框裡選（Q3）；`saveThenLeave` = 選了「儲存後離開」、正在等存檔結果 */
   private leaveDecision: ((leave: boolean) => void) | null = null;
   private saveThenLeave = false;
+
+  /**
+   * 標記完成（A6 data-complete，#1925）：有沒存的變更先一起存，存成功才呼叫既有的 close。
+   * **完成後維持唯讀**（#991 grades Q1）—— A6 的「完成後仍可修改」要動 API，另排 #1931（R5 暫時偏離）
+   */
+  private readonly completeDialog = viewChild<ElementRef<HTMLDialogElement>>('completeDialog');
+  /** 選了「標記完成」而且要先存檔：存成功（onSaved）才 close；存失敗就作罷 */
+  private completeAfterSave = false;
+  protected readonly completing = signal(false);
+  /** 手機底部托盤（A6 dock：其餘標記缺考＋標記完成）；桌機的鈕在灰帶工具列裡自己畫 */
+  protected readonly completeAction: PageAction = { label: '標記完成' };
+  protected readonly absentAction: PageAction = { label: '其餘標記缺考' };
 
   protected readonly examInfo = computed<ExamInfo | null>(() => {
     if (this.type() === 'academy') {
@@ -171,6 +207,59 @@ export class ScoreEntryComponent implements OnInit {
     };
   });
 
+  /** 班級詳情路由要 courseId，考試詳情只帶 classId → 單一班時另外查一次（不改 API） */
+  private readonly classCourseId = signal<string | null>(null);
+
+  protected readonly academySub = computed<AcademySubLine | null>(() => {
+    if (this.type() !== 'academy') return null;
+    const exam = this.academyExam();
+    if (!exam) return null;
+    const only = exam.classes.length === 1 ? exam.classes[0] : null;
+    const courseId = this.classCourseId();
+    const campus =
+      exam.campusName ??
+      (Array.from(new Set(exam.classes.map((c) => c.campusName).filter(Boolean))).join('、') ||
+        null);
+    return {
+      campus,
+      className:
+        exam.classes
+          .map((c) => c.className)
+          .filter(Boolean)
+          .join('、') || null,
+      classLink: only && courseId ? ['/admin/courses', courseId, 'classes', only.classId] : null,
+      rest: [
+        this.getAcademyTypeLabel(exam.examType),
+        exam.subjectName,
+        exam.examDate ? monthDayWeekday(exam.examDate) : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    };
+  });
+
+  /**
+   * 色面的四個數字（A6：已登錄（含缺考）、平均、最高、最低）。編輯器載好之後跟著畫面上的分數走
+   * （A6 是即時算的）；編輯器還沒好時先用伺服器的摘要
+   */
+  protected readonly academyStats = computed(() => {
+    const exam = this.academyExam();
+    if (!exam) return null;
+    const editor = this.academyEditor();
+    if (editor) {
+      const t = editor.tally();
+      return { logged: t.logged, total: t.total, ...editor.liveStats() };
+    }
+    const s = exam.summary;
+    return {
+      logged: s.recordedCount,
+      total: null as number | null,
+      average: s.averageScore,
+      highest: s.highestScore,
+      lowest: s.lowestScore,
+    };
+  });
+
   protected readonly isClosed = computed(() => {
     const info = this.examInfo();
     return info?.status === 'closed';
@@ -208,6 +297,7 @@ export class ScoreEntryComponent implements OnInit {
           next: ({ data }) => {
             this.academyExam.set(data);
             this.loading.set(false);
+            this.loadClassCourse(data);
           },
           error: () => {
             this.messageService.add({
@@ -245,6 +335,15 @@ export class ScoreEntryComponent implements OnInit {
     }
   }
 
+  private loadClassCourse(exam: AcademyExamDetail): void {
+    if (exam.classes.length !== 1) return;
+    this.classesService
+      .get(exam.classes[0].classId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      // 查不到就不給連結，班名照樣顯示
+      .subscribe({ next: ({ data }) => this.classCourseId.set(data.courseId), error: () => {} });
+  }
+
   private refreshSchoolSummary(): void {
     if (this.type() !== 'school') return;
     const filter = this.schoolFilter();
@@ -274,6 +373,10 @@ export class ScoreEntryComponent implements OnInit {
 
   protected onSavingChange(isSaving: boolean): void {
     this.saving.set(isSaving);
+    // 存檔成功時編輯器先發 savingChange(false) 再發 saved；等一拍，saved 沒來＝存失敗，不標完成
+    if (!isSaving && this.completeAfterSave) {
+      setTimeout(() => (this.completeAfterSave = false));
+    }
     // 「儲存後離開」：存完才放行。成功時 onSaved 會先把 dirty 清掉；失敗則 dirty 還在 → 留下來
     if (!isSaving && this.saveThenLeave) {
       setTimeout(() => this.settleLeave(!this.dirty()));
@@ -282,6 +385,11 @@ export class ScoreEntryComponent implements OnInit {
 
   protected onSaved(): void {
     this.dirty.set(false);
+    if (this.completeAfterSave) {
+      this.completeAfterSave = false;
+      this.closeExam();
+      return;
+    }
     // 兩種考試都要重抓統計。原本只叫了 `refreshSchoolSummary()`，
     // **academy 那條路從來沒接上** —— 函式名就寫著 School，但 onSaved 是兩種共用的。
     // 症狀是存檔成功、列表頁的「已登錄」也對了，只有這一頁的統計列停在 0 / — / — / —。
@@ -311,6 +419,45 @@ export class ScoreEntryComponent implements OnInit {
             severity: 'error',
             summary: '載入失敗',
             detail: '無法更新考試統計',
+          });
+        },
+      });
+  }
+
+  protected openComplete(): void {
+    this.completeDialog()?.nativeElement.showModal();
+  }
+
+  protected resolveComplete(confirmed: boolean): void {
+    this.completeDialog()?.nativeElement.close();
+    if (!confirmed) return;
+    if (this.dirty()) {
+      this.completeAfterSave = true;
+      this.saveScores();
+      return;
+    }
+    this.closeExam();
+  }
+
+  private closeExam(): void {
+    const name = this.academyExam()?.name ?? '這場考試';
+    this.completing.set(true);
+    this.academyExamsService
+      .close(this.examId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.completing.set(false);
+          this.messageService.add({ severity: 'success', summary: `「${name}」已標記完成` });
+          // 狀態變 closed → 編輯器唯讀、工具列與儲存列收起（不用 loadExam：那會把整頁換成骨架）
+          this.refreshAcademySummary();
+        },
+        error: () => {
+          this.completing.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '標記完成失敗',
+            detail: '請稍後再試',
           });
         },
       });
@@ -347,7 +494,8 @@ export class ScoreEntryComponent implements OnInit {
   }
 
   protected getStatusLabel(status: 'active' | 'closed'): string {
-    return status === 'active' ? '進行中' : '已結束';
+    // A6：進行中／已完成（#1925 起動作叫「標記完成」）
+    return status === 'active' ? '進行中' : '已完成';
   }
 
   private getAcademyTypeLabel(type: string): string {

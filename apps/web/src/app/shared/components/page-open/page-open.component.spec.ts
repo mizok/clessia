@@ -29,13 +29,15 @@ describe('PageOpenComponent 標題字級', () => {
     expect(h1(f).classList.contains('wide:text-[72px]')).toBe(false);
   });
 
-  it('nameSize：人名標題桌機 72／手機 44，行高 1', () => {
+  // 稿的手機 `.open__title` 行高 1.2 蓋過 `--name` 的 1（#1925 conformance 量到）
+  it('nameSize：人名標題桌機 72／行高 1，手機 44／行高 1.2', () => {
     const f = TestBed.createComponent(Host);
     f.componentInstance.big.set(true);
     f.detectChanges();
     expect(h1(f).classList.contains('wide:text-[72px]')).toBe(true);
     expect(h1(f).classList.contains('text-[44px]')).toBe(true);
-    expect(h1(f).classList.contains('leading-none')).toBe(true);
+    expect(h1(f).classList.contains('leading-[1.2]')).toBe(true);
+    expect(h1(f).classList.contains('wide:leading-none')).toBe(true);
     expect(h1(f).classList.contains('wide:text-[48px]')).toBe(false);
   });
 

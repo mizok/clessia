@@ -2023,6 +2023,72 @@ describe('SessionsPage', () => {
     });
   });
 
+  /** #1923：週欄跟週列同一條規則（週日沒課就六欄），另外週日有課一定留（審核席 #1945 的四項） */
+  describe('週檢視的欄（#1923）', () => {
+    type C = {
+      setView: (v: 'day' | 'week') => void;
+      weekLabel: () => string;
+      headline: () => string;
+      picking: { set: (v: boolean) => void };
+      mode: { set: (v: string) => void };
+    };
+    const c = () => component as unknown as C;
+    const el = () => fixture.nativeElement as HTMLElement;
+    const cols = () => Array.from(el().querySelectorAll('section[aria-label^="週"]'));
+    const grid = () => cols()[0]!.parentElement!;
+    const mon = makeSession({ id: 'mon', sessionDate: '2026-04-13', startTime: '17:00' });
+    const sun = makeSession({ id: 'sun', sessionDate: '2026-04-19', startTime: '10:00' });
+
+    async function openWeek(sessions: Session[], sundayHas: boolean) {
+      sessionsServiceMock.list.mockReturnValue(of(makeListResponse(sessions)));
+      sessionsServiceMock.hasSessionsOn.mockReturnValue(of(sundayHas));
+      c().setView('week');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('週日沒課：六欄、週區間字到週六', async () => {
+      await openWeek([mon], false);
+      expect(cols()).toHaveLength(6);
+      expect(grid().classList.contains('grid-cols-6')).toBe(true);
+      expect(grid().classList.contains('grid-cols-7')).toBe(false);
+      expect(c().weekLabel()).toBe('4/13 – 4/18');
+    });
+
+    it('週日有課（週日查詢回 true）：七欄、週區間字到週日', async () => {
+      await openWeek([mon, sun], true);
+      expect(cols()).toHaveLength(7);
+      expect(grid().classList.contains('grid-cols-7')).toBe(true);
+      expect(c().weekLabel()).toBe('4/13 – 4/19');
+    });
+
+    it('週日查詢還是 false（沒回或失敗），但已經拿到週日的課：仍是七欄，色面堂數算進週日那堂', async () => {
+      await openWeek([mon, sun], false);
+      expect(cols()).toHaveLength(7);
+      expect(grid().classList.contains('grid-cols-7')).toBe(true);
+      expect(c().weekLabel()).toBe('4/13 – 4/19');
+      expect(c().headline()).toContain('2 堂課');
+    });
+
+    it('快速選取開著：週檢視與篩選結果（依日期分章）的列都有勾選框', async () => {
+      await openWeek([mon], false);
+      c().picking.set(true);
+      fixture.detectChanges();
+      const pickCells = () =>
+        Array.from(el().querySelectorAll('app-schedule-list input[type="checkbox"]')).map((i) =>
+          i.closest('label')!,
+        );
+      expect(pickCells().length).toBeGreaterThan(0);
+      expect(pickCells().every((l) => l.classList.contains('wide:grid'))).toBe(true);
+
+      c().mode.set('results');
+      fixture.detectChanges();
+      expect(pickCells().length).toBeGreaterThan(0);
+      expect(pickCells().every((l) => l.classList.contains('wide:grid'))).toBe(true);
+    });
+  });
+
   /** #1620 使用者裁定 1：週列照 A6 `.dtabs`（週一～週六、和日／週同一列），保留 ‹ › 換週 */
   describe('週列（#1620）', () => {
     const el = () => fixture.nativeElement as HTMLElement;
