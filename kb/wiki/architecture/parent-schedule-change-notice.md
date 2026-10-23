@@ -32,7 +32,7 @@ updated: 2026-10-23
 在籍學生可能上百位（整門課停課），學生 id 進 `.in()` 會 414。pg pool 的 `= ANY($1)` 是平常的解法，
 **但這裡在 `waitUntil` 背景跑**：`authPoolCleanup` 在 `await next()` 回來就 `pool.end()`，背景工作拿到的
 是已經關掉的池。所以改成用**班級 id**（一批只有幾個班）一句撈在籍＋學生＋家長（巢狀 embed），在 JS 逐堂判。
-上限是 PostgREST 的 max_rows 1000（一批超過 1000 筆在籍才會截），程式裡有 `ponytail:` 註記。
+超過 PostgREST 的 max_rows 1000 筆在籍時用 `fetchAllPages` 翻到底（計畫席 10-23 二讀要求），不靜默截掉後面的家長。
 
 ## 測試
 

@@ -9,6 +9,7 @@ import {
   teachersForSessionGroups,
   type StaffNotification,
 } from './notify';
+import { fetchAllPages } from './fetch-all-pages';
 import { isEnrolledOn } from './session-roster';
 import { waitUntilFrom } from './wait-until';
 
@@ -195,7 +196,7 @@ export async function notifyScheduleChange(
  * - **v1 不推播**（計畫席 10-23）：寫成 `skipped`，排程不會撿；通知中心照樣看得到
  * - `payload.sessionIds`：展開「原本／改為」時用（即時從 `schedule_changes` 算，那支另做）
  * - 用**班級 id** 查在籍（URL 只有幾個班），不帶學生 id —— 整門課停課的學生可能上百位（`.in()` 414 坑）。
- *   這裡在 `waitUntil` 背景跑，請求的 pg pool 已經關了，不能改走 pool
+ *   這裡在 `waitUntil` 背景跑，請求的 pg pool 已經關了，不能改走 pool；用 `fetchAllPages` 翻到底
  */
 async function notifyParents(
   supabase: SupabaseClient,
@@ -207,18 +208,22 @@ async function notifyParents(
 ): Promise<void> {
   const dates = [...byClass.values()].flatMap((g) => g.dates).sort();
   if (dates.length === 0) return;
-  // ponytail: 一次撈這幾班窗內的報名；PostgREST max_rows 1000 —— 一批超過 1000 筆在籍才會截，那時改分頁
-  const { data, error } = await supabase
-    .from('enrollments')
-    .select(
-      'class_id, effective_from, effective_to, students(name, parent_student_relations(parents(user_id, org_id, status)))',
-    )
-    .eq('org_id', orgId)
-    .in('class_id', [...byClass.keys()])
-    .neq('status', 'void')
-    .lte('effective_from', dates.at(-1)!)
-    .or(`effective_to.is.null,effective_to.gte.${dates[0]}`);
-  if (error) throw new Error(error.message);
+  // 翻到底：一批（整門課停課）超過 PostgREST max_rows 1000 筆在籍時，一次撈會靜默截掉後面的家長（計畫席 10-23）
+  const { rows: data, error } = await fetchAllPages((from, to) =>
+    supabase
+      .from('enrollments')
+      .select(
+        'id, class_id, effective_from, effective_to, students(name, parent_student_relations(parents(user_id, org_id, status)))',
+      )
+      .eq('org_id', orgId)
+      .in('class_id', [...byClass.keys()])
+      .neq('status', 'void')
+      .lte('effective_from', dates.at(-1)!)
+      .or(`effective_to.is.null,effective_to.gte.${dates[0]}`)
+      .order('id')
+      .range(from, to),
+  );
+  if (error) throw new Error((error as { message?: string }).message ?? String(error));
 
   type Parent = { user_id: string | null; org_id: string; status: string };
   type Row = {
@@ -231,7 +236,7 @@ async function notifyParents(
   for (const [classId, g] of byClass) {
     // 家長 user_id → 這一班裡他的孩子（同一位孩子多筆報名只算一次）
     const children = new Map<string, Set<string>>();
-    for (const e of (data ?? []) as unknown as Row[]) {
+    for (const e of data as unknown as Row[]) {
       if (e.class_id !== classId || !e.students) continue;
       const range = { effectiveFrom: e.effective_from, effectiveTo: e.effective_to };
       if (!g.dates.some((d) => isEnrolledOn(range, d))) continue;

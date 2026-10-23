@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import { createMultiOrgDb, withMaxRows } from '../test-utils/multi-org-db';
 import { notifyScheduleChange } from './notify-schedule';
 
 /**
@@ -464,6 +464,31 @@ describe('notifyScheduleChange → 家長（#1100 #49）', () => {
     await run(db);
     await run(db);
     expect(parentSent(db)).toHaveLength(3);
+  });
+
+  it('在籍超過 1000 筆（PostgREST max_rows）：翻到底，最後一位家長也收得到', async () => {
+    const base = seed();
+    const many = Array.from({ length: 1001 }, (_, i) => ({
+      ...enr('k1', `生${i}`, [par(`u-p${i}`)]),
+      id: `e-${String(i).padStart(4, '0')}`,
+    }));
+    const db = createMultiOrgDb({
+      ...Object.fromEntries(
+        ['sessions', 'schedules', 'staff', 'user_roles', 'notifications'].map((t) => [
+          t,
+          [...base.rows(t)],
+        ]),
+      ),
+      enrollments: many,
+    });
+    await notifyScheduleChange(withMaxRows(db.client, 1000) as SupabaseClient, {
+      orgId: A,
+      actorUserId: 'u-admin',
+      rows: [{ session_id: 'ses-1', change_type: 'cancellation', batch_id: 'b-big' }],
+    });
+    const parents = db.rows('notifications').filter((n) => n['role'] === 'parent');
+    expect(parents).toHaveLength(1001);
+    expect(parents.some((n) => n['user_id'] === 'u-p1000')).toBe(true);
   });
 
   it('家長那批查詢失敗：老師那批照寫，不丟例外', async () => {
