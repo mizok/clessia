@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError, type Observable } from 'rxjs';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
 import { ParentApplicationsService } from '@core/parent-applications.service';
@@ -306,5 +306,57 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     expect(close).not.toHaveBeenCalled();
     dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  // #1983：骨架只蓋清單，標題列不跟著換孩子重建 —— appTextSwap 才播得出來
+  describe('換孩子時標題列換字（#1983）', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      delete (HTMLElement.prototype as unknown as { animate?: unknown }).animate;
+    });
+
+    it('h2 與「N 堂」不重建；載入中是不含 A 資料的中性標題，B 的資料回來才換字', async () => {
+      vi.stubGlobal('matchMedia', () => ({ matches: false }));
+      const animated: HTMLElement[] = [];
+      (HTMLElement.prototype as unknown as { animate: unknown }).animate = function (
+        this: HTMLElement,
+      ) {
+        animated.push(this);
+        return { cancel: vi.fn(), finished: new Promise(() => undefined) };
+      };
+      const second = new Subject<{ data: ParentSession[] }>();
+      create({
+        sessions: (childId) => (childId === 'child-1' ? of({ data: [ses(TODAY)] }) : second),
+      });
+      await fixture.whenStable();
+      const flush = async () => {
+        fixture.detectChanges();
+        await Promise.resolve(); // MutationObserver 回呼
+        await Promise.resolve(); // 合成一次換字的 microtask
+      };
+      await flush(); // 第一次載入那一下換字的觀察者回呼
+      const h2 = el().querySelector('#dash-today') as HTMLElement;
+      const count = h2.parentElement!.querySelector('span[apptextswap]') as HTMLElement;
+      expect(h2.textContent?.trim()).toBe('今天的課');
+      expect(count.textContent?.trim()).toBe('1 堂');
+
+      activeChildId.set('child-2');
+      await flush();
+      // 載入中：清單換成骨架；標題列是同一個元素，但不能還寫著 A 的「今天的課」／「1 堂」（#1978 資料標錯孩子）
+      expect(el().querySelector('app-skeleton')).not.toBeNull();
+      expect(el().querySelector('#dash-today')).toBe(h2);
+      expect(h2.textContent?.trim()).toBe('接下來的課');
+      expect(count.textContent?.trim()).toBe('');
+      animated.length = 0;
+
+      second.next({ data: [ses(TODAY), ses(TODAY, { sessionId: 's-2', startTime: '19:30:00' })] });
+      second.complete();
+      await flush();
+      expect(el().querySelector('#dash-today')).toBe(h2);
+      expect(h2.textContent?.trim()).toBe('今天的課');
+      expect(animated).toContain(h2);
+      expect(count.textContent?.trim()).toBe('2 堂');
+      expect(animated).toContain(count);
+    });
   });
 });
