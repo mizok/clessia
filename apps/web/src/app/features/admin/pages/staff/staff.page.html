@@ -39,7 +39,7 @@
       (primaryClick)="openCreateDialog()"
     >
       <!-- 操作紀錄：全站同一顆時鐘圖示鈕（#2006；原本是 page-actions 的 secondary，手機佔掉底部托盤的左鈕） -->
-      <app-audit-log-button (click)="openAuditLog()" />
+      <app-audit-log-button (opened)="openAuditLog()" />
       <app-popup-menu #pageMenu [model]="pageMenuItems" />
       <p-button
         icon="pi pi-ellipsis-h"

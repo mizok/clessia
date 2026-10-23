@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, output } from '@angular/core';
 
 /**
  * 全站「操作紀錄」的入口（#2006，使用者 10-23「開啟它們的按鈕也統一」）：工具列的時鐘圖示鈕，
@@ -6,10 +6,11 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
  * 手機也在（不收進「⋯」、不佔底部托盤）。彈窗一律 `audit-log-dialog`，各頁自己開：
  *
  * ```html
- * <app-audit-log-button (click)="openAuditLog()" />
+ * <app-audit-log-button (opened)="openAuditLog()" />
  * ```
  *
- * 只管外觀，沒有 output：內層按鈕的 click（含鍵盤 Enter／Space）會冒泡到宿主。
+ * 只管外觀。用 `opened` 而不是在宿主上綁 `(click)`：宿主不是按鈕，綁在它上面會被觸控尺寸 gate 當成
+ * 沒有高度下限的可點元素（它本來也不該是點擊目標，真正的目標是裡面那顆 44／40 的鈕）。
  */
 @Component({
   selector: 'app-audit-log-button',
@@ -17,4 +18,6 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
 })
-export class AuditLogButtonComponent {}
+export class AuditLogButtonComponent {
+  readonly opened = output<void>();
+}

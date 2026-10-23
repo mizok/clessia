@@ -59,7 +59,7 @@
 
     <div class="wide:ml-auto">
       <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-        <app-audit-log-button (click)="openAuditLog()" />
+        <app-audit-log-button (opened)="openAuditLog()" />
         <!-- #1100 #32：A6 工具列的「批次請假」（標「新」照稿，產品裡不標） -->
         <button
           type="button"

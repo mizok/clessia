@@ -18,7 +18,7 @@
   </label>
   <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
     <!-- 操作紀錄：全站同一顆時鐘圖示鈕，手機也在（#2006；原本桌機文字鈕、手機收進「⋯」） -->
-    <app-audit-log-button (click)="openAuditLog()" />
+    <app-audit-log-button (opened)="openAuditLog()" />
   </app-page-actions>
 </div>
 

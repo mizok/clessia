@@ -72,7 +72,7 @@
             清除篩選
           </button>
         }
-        <app-audit-log-button (click)="openAuditLog()" />
+        <app-audit-log-button (opened)="openAuditLog()" />
         <app-popup-menu #pageMenu [model]="pageMenuItems()" />
         <!-- 選單只裝批次選取；沒有班可勾時整顆不出現（#1872） -->
         @if (pageMenuItems().length > 0) {
