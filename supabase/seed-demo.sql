@@ -192,9 +192,9 @@ BEGIN
     v_class_ids := array_append(v_class_ids, v_class);
 
     v_day := i;  -- 週一~週六各一班
-    INSERT INTO public.schedules (class_id, weekday, start_time, end_time, teacher_id)
+    INSERT INTO public.schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from)
     VALUES (v_class, v_day, v_starts[i], v_ends[i],
-            v_teacher_ids[1 + (i % array_length(v_teacher_ids, 1))])
+            v_teacher_ids[1 + (i % array_length(v_teacher_ids, 1))], v_term_start)
     RETURNING id INTO v_schedule;
 
     d := v_term_start;

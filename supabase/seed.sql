@@ -860,26 +860,29 @@ BEGIN
   WHERE s.meal_default
   ON CONFLICT (student_id, meal_date) DO NOTHING;
 
+  -- 時段從班級開課日起生效（#1100 #22）。唯一鍵換成排除約束後 ON CONFLICT 不能指定欄位做 DO UPDATE，
+  -- 改成 DO NOTHING（seed 只在 db:reset 的空庫上跑，本來就不會撞）
   INSERT INTO public.schedules (
     class_id,
     weekday,
     start_time,
     end_time,
     teacher_id,
+    effective_from,
     effective_to
   )
-  VALUES
-    (math_class_id, 1, '10:00'::time, '12:00'::time, math_teacher_id, NULL),
-    (math_class_id, 3, '10:00'::time, '12:00'::time, math_teacher_id, NULL),
-    (math_class_id, 5, '10:00'::time, '12:00'::time, math_teacher_id, NULL),
-    (english_class_id, 2, '14:00'::time, '16:00'::time, english_teacher_id, NULL),
-    (english_class_id, 4, '14:00'::time, '16:00'::time, english_teacher_id, NULL),
-    (science_class_id, 6, '09:00'::time, '11:00'::time, science_teacher_id, NULL)
-  ON CONFLICT (class_id, weekday, start_time) DO UPDATE SET
-    end_time = EXCLUDED.end_time,
-    teacher_id = EXCLUDED.teacher_id,
-    effective_to = EXCLUDED.effective_to,
-    updated_at = NOW();
+  SELECT v.class_id, v.weekday, v.start_time, v.end_time, v.teacher_id, c.start_date, NULL
+  FROM (
+    VALUES
+      (math_class_id, 1, '10:00'::time, '12:00'::time, math_teacher_id),
+      (math_class_id, 3, '10:00'::time, '12:00'::time, math_teacher_id),
+      (math_class_id, 5, '10:00'::time, '12:00'::time, math_teacher_id),
+      (english_class_id, 2, '14:00'::time, '16:00'::time, english_teacher_id),
+      (english_class_id, 4, '14:00'::time, '16:00'::time, english_teacher_id),
+      (science_class_id, 6, '09:00'::time, '11:00'::time, science_teacher_id)
+  ) AS v(class_id, weekday, start_time, end_time, teacher_id)
+  JOIN public.classes c ON c.id = v.class_id
+  ON CONFLICT DO NOTHING;
 
   INSERT INTO public.events (
     id,
