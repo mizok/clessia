@@ -352,3 +352,132 @@ describe('notifyScheduleChange → 管理員（#1023：依班的分校範圍）'
     expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'campuses down');
   });
 });
+
+/**
+ * #1100 #49：課務異動 → 該班家長（v1 不推播；同一位家長兩個孩子同班只收一則、兩個名字都列）。
+ * 髒資料每一筆只讓一個條件擋住：拿掉哪個條件就會多一位家長收到。
+ */
+describe('notifyScheduleChange → 家長（#1100 #49）', () => {
+  const par = (user_id: string | null, over: Record<string, unknown> = {}) => ({
+    parents: { user_id, org_id: A, status: 'active', ...over },
+  });
+  const enr = (
+    class_id: string,
+    name: string,
+    parents: ReturnType<typeof par>[],
+    over: Record<string, unknown> = {},
+  ) => ({
+    org_id: A,
+    class_id,
+    status: 'active',
+    effective_from: '2026-09-01',
+    effective_to: null,
+    students: { name, parent_student_relations: parents },
+    ...over,
+  });
+
+  const seedWithParents = () => {
+    const db = seed();
+    return createMultiOrgDb({
+      ...Object.fromEntries(
+        ['sessions', 'schedules', 'staff', 'user_roles', 'notifications'].map((t) => [
+          t,
+          [...db.rows(t)],
+        ]),
+      ),
+      enrollments: [
+        // 王家兩個孩子都在 k1 → 一則、兩個名字
+        enr('k1', '王小明', [par('u-wang')]),
+        enr('k1', '王小美', [par('u-wang')]),
+        // 林家：k1 一位、k2 一位 → 兩則（各班各一）
+        enr('k1', '林大同', [par('u-lin')]),
+        enr('k2', '林小同', [par('u-lin')]),
+        // 只讓一個條件擋住的髒資料
+        enr('k1', '已退班', [par('u-left')], { effective_to: '2026-10-01' }), // 異動日前就離開
+        enr('k1', '還沒來', [par('u-later')], { effective_from: '2026-11-01' }), // 異動日後才加入
+        enr('k1', '作廢的', [par('u-void')], { status: 'void' }),
+        enr('k1', '別 org 家長', [par('u-other-org', { org_id: B })]),
+        enr('k1', '停用家長', [par('u-inactive', { status: 'inactive' })]),
+        enr('k1', '沒帳號', [par(null)]),
+        enr('k1', '做異動的人', [par('u-admin')]),
+        enr('k9', '別 org 的班', [par('u-b')], { org_id: B }),
+        // 在整批的日期窗（10/20–10/27）裡，但 k1 那兩堂（10/20、10/27）都不在籍 —— 只有逐堂判在籍擋得住
+        enr('k1', '中間短暫', [par('u-between')], {
+          effective_from: '2026-10-22',
+          effective_to: '2026-10-25',
+        }),
+        // 報名列的 org 是別人的（髒資料），家長是本 org 的 —— 只有 enrollments 的 org 條件擋得住
+        enr('k1', '別 org 的報名', [par('u-wrong-org-enr')], { org_id: B }),
+      ],
+    });
+  };
+
+  const parentSent = (db: ReturnType<typeof createMultiOrgDb>) =>
+    db
+      .rows('notifications')
+      .filter((n) => n['role'] === 'parent')
+      .map((n) => `${n['user_id']}|${(n['payload'] as { body: string }).body}`)
+      .sort();
+
+  const run = (db: ReturnType<typeof createMultiOrgDb>) =>
+    notifyScheduleChange(db.client as SupabaseClient, {
+      orgId: A,
+      actorUserId: 'u-admin',
+      rows: [
+        { session_id: 'ses-1', change_type: 'reschedule', batch_id: 'b1' },
+        { session_id: 'ses-2', change_type: 'reschedule', batch_id: 'b1' },
+        { session_id: 'ses-3', change_type: 'reschedule', batch_id: 'b1' },
+      ],
+    });
+
+  it('那幾堂當天在籍的學生的家長：一班一則，同一位家長兩個孩子同班只一則、兩個名字都列', async () => {
+    const db = seedWithParents();
+    await run(db);
+    expect(parentSent(db)).toEqual([
+      'u-lin|林大同 數學 A 班 10/20 等 2 堂 調課',
+      'u-lin|林小同 英文 B 班 10/21 調課',
+      'u-wang|王小明、王小美 數學 A 班 10/20 等 2 堂 調課',
+    ]);
+  });
+
+  it('role parent、kind schedule_change、去重鍵加 parent: 前綴、連家長課表、帶 sessionIds、不推播', async () => {
+    const db = seedWithParents();
+    await run(db);
+    expect(
+      db.rows('notifications').find((n) => n['user_id'] === 'u-wang' && n['role'] === 'parent'),
+    ).toMatchObject({
+      org_id: A,
+      kind: 'schedule_change',
+      dedupe_key: 'schedule_change:parent:b1:k1',
+      payload: {
+        title: '課務異動：調課',
+        url: '/parent/schedule',
+        sessionIds: ['ses-1', 'ses-2'],
+      },
+      push_status: 'skipped',
+      push_error: 'KIND_PUSH_DISABLED',
+    });
+  });
+
+  it('同一批重送：不重複', async () => {
+    const db = seedWithParents();
+    await run(db);
+    await run(db);
+    expect(parentSent(db)).toHaveLength(3);
+  });
+
+  it('家長那批查詢失敗：老師那批照寫，不丟例外', async () => {
+    const db = seedWithParents();
+    const client = db.client as unknown as { from: (t: string) => Record<string, unknown> };
+    const from = client.from.bind(client);
+    client.from = (t: string) => {
+      if (t === 'enrollments') throw new Error('boom');
+      return from(t);
+    };
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await run(db);
+    expect(db.rows('notifications').some((n) => n['role'] === 'teacher')).toBe(true);
+    expect(parentSent(db)).toEqual([]);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('[notify]'), 'boom');
+  });
+});
