@@ -7,11 +7,14 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
   signal,
   untracked,
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { catchError, forkJoin, of, type Observable } from 'rxjs';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -88,6 +91,8 @@ interface Loaded {
     PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
+    HeightFollowDirective,
+    TextSwapDirective,
   ],
   templateUrl: './dashboard.component.html',
 })
@@ -143,6 +148,15 @@ export class DashboardComponent implements OnInit {
   protected readonly lessons = computed(() => {
     const sessions = this.data()?.sessions;
     return sessions ? shownSessions(sessions, this.today) : null;
+  });
+  /**
+   * 「今天的課／接下來的課」：換孩子載入中（data 回 null）沿用上一個孩子的標題，資料回來才換（#1983）——
+   * 不先跳成「接下來的課」再跳回來，那樣每次換孩子都會多播一次換字。第一次載入時是「接下來的課」。
+   */
+  protected readonly lessonsTitle = linkedSignal<{ loading: boolean; today: boolean }, string>({
+    source: () => ({ loading: this.data() === null, today: !!this.lessons()?.today }),
+    computation: (s, prev) =>
+      s.loading && prev ? prev.value : s.today ? '今天的課' : '接下來的課',
   });
   protected readonly exams = computed(() => {
     const d = this.data();
