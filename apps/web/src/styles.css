@@ -900,6 +900,12 @@
   :root {
     --arrive: cubic-bezier(0.23, 1, 0.32, 1);
     --leave: cubic-bezier(0.4, 0, 1, 1);
+    /* 文字替換（appTextSwap，#1895／#2023）：使用者 10-23 嫌「淡入淡出很不明顯」，調慢、加重。出場仍比進場短 */
+    --text-swap-exit: 350ms;
+    --text-swap-enter: 650ms;
+    --text-swap-blur: 8px;
+    /* 遮罩邊緣柔的寬度：越寬「由左到右」越看得出方向 */
+    --text-swap-edge: 40%;
   }
 
   :where([popover], dialog) {
