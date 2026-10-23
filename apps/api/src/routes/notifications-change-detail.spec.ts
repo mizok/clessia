@@ -202,6 +202,34 @@ describe('GET /api/notifications/{id}/schedule-change（#1100 #49）', () => {
     ]);
   });
 
+  /**
+   * 讀取失敗不能吞成空清單（家長會看到「沒有原本／改為」而不是「讀取失敗」）—— 審核席二讀。
+   * 讓某一張表的查詢回 error（不是丟例外：丟例外照樣 500，守不住「忘了檢查 error」）。
+   */
+  it.each(['notifications', 'enrollments', 'sessions', 'schedule_changes'])(
+    '%s 讀取失敗 → 500 DB_ERROR，不回空清單',
+    async (table) => {
+      const db = seed();
+      const client = db.client as unknown as { from: (t: string) => unknown };
+      const from = client.from.bind(client);
+      const failing = (): unknown =>
+        new Proxy(
+          {},
+          {
+            get: (_t, key) =>
+              key === 'then'
+                ? (ok: (v: unknown) => unknown) =>
+                    ok({ data: null, error: { code: 'XX000', message: 'boom' } })
+                : () => failing(),
+          },
+        );
+      client.from = (t: string) => (t === table ? failing() : from(t));
+      const res = await call(db);
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ code: 'DB_ERROR' });
+    },
+  );
+
   it('別人的那則、不存在、不是家長身分 → 404', async () => {
     expect((await call(seed(), id(98))).status).toBe(404);
     expect((await call(seed(), id(97))).status).toBe(404);
