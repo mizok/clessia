@@ -232,6 +232,16 @@ describe('GET /api/me/sessions', () => {
       expect(raw).not.toContain(CAMPUS_PHONE[CLASS_SIBLING]!);
       expect(raw).not.toContain(CAMPUS_PHONE[CLASS_STRANGER]!);
     });
+
+    // 替身不解析 select：嵌入裡漏了 phone 照樣綠（第二審核席 @b917e80b）。直接守 select 字串
+    it('sessions 的 select 有嵌入 campuses(name, phone)', async () => {
+      const selects: Array<[string, string]> = [];
+      await get(appWith(baseSeed(), { selects }));
+      const sessionSelects = selects.filter(([t]) => t === 'sessions').map(([, cols]) => cols);
+      expect(sessionSelects.some((cols) => /campuses\(\s*name,\s*phone\s*\)/.test(cols))).toBe(
+        true,
+      );
+    });
   });
 
   describe('內容', () => {
