@@ -374,6 +374,16 @@
               · {{ d.session.classroomName }}
             }
           </dd>
+          @if (d.session.campusPhone; as phone) {
+            <dt class="text-zinc-600">分校電話</dt>
+            <dd class="m-0 font-medium" data-part="campus-phone">
+              <a
+                class="inline-flex min-h-11 items-center text-zinc-900 underline underline-offset-[3px]"
+                [href]="'tel:' + phone"
+                >{{ phone }}</a
+              >
+            </dd>
+          }
           @if (sessionTags(d.session).length > 0) {
             <dt class="text-zinc-600">狀態</dt>
             <dd class="m-0 font-medium">

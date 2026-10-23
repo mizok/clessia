@@ -39,6 +39,14 @@ interface SessionSeed {
   schedule_changes?: Record<string, unknown>[];
 }
 
+/** 每個班的分校電話不同：電話跟著哪一堂課出現，就看得出它是不是孩子上課的分校（#1100 #44） */
+const CAMPUS_PHONE: Record<string, string> = {
+  [CLASS_A]: '02-2700-0101',
+  [CLASS_B]: '02-2700-0102',
+  [CLASS_SIBLING]: '02-2700-0103',
+  [CLASS_STRANGER]: '02-2700-0104',
+};
+
 function session(seed: SessionSeed) {
   const scheduleTeacherId =
     seed.schedule_teacher_id === undefined ? 't-wang' : seed.schedule_teacher_id;
@@ -63,7 +71,7 @@ function session(seed: SessionSeed) {
     classes: {
       name: `班 ${seed.class_id.slice(-3)}`,
       campus_id: 'campus-xy',
-      campuses: { name: '信義校' },
+      campuses: { name: '信義校', phone: CAMPUS_PHONE[seed.class_id] ?? null },
       courses: { name: '國中數學' },
     },
     schedule_changes: seed.schedule_changes ?? [],
@@ -213,6 +221,19 @@ describe('GET /api/me/sessions', () => {
     });
   });
 
+  // #1100 #44（使用者 10-23 裁定）：家長看得到孩子上課分校的電話，只限有報名的分校
+  describe('分校電話', () => {
+    it('孩子這堂課的分校電話跟著回；兄弟姊妹、別人的班的分校電話不出現', async () => {
+      const { body } = await get(appWith(baseSeed()));
+      expect(body.data.map((s: { campusPhone: string | null }) => s.campusPhone)).toEqual([
+        CAMPUS_PHONE[CLASS_A],
+      ]);
+      const raw = JSON.stringify(body);
+      expect(raw).not.toContain(CAMPUS_PHONE[CLASS_SIBLING]!);
+      expect(raw).not.toContain(CAMPUS_PHONE[CLASS_STRANGER]!);
+    });
+  });
+
   describe('內容', () => {
     it('帶課程名、班名、分校名、上課老師；不是代課時 isSubstitute = false、原任課老師 null', async () => {
       const { body } = await get(appWith(baseSeed()));
@@ -227,6 +248,7 @@ describe('GET /api/me/sessions', () => {
         courseName: '國中數學',
         campusId: 'campus-xy',
         campusName: '信義校',
+        campusPhone: CAMPUS_PHONE[CLASS_A],
         classroomName: null,
         teacherName: '王老師',
         isSubstitute: false,

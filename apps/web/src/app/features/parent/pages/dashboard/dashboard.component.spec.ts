@@ -28,6 +28,7 @@ const ses = (date: string, over: Partial<ParentSession> = {}): ParentSession => 
   courseName: null,
   campusId: 'campus-1',
   campusName: '中正校',
+  campusPhone: null,
   classroomName: null,
   teacherName: '王',
   isSubstitute: false,
@@ -260,6 +261,24 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     const rows = el().querySelectorAll('.dashboard__lesson');
     expect(rows[0].textContent).toContain('上課中');
     expect(rows[1].textContent).not.toContain('上課中');
+  });
+
+  // #1100 #44（使用者 10-23 裁定）：課堂詳情帶孩子上課分校的電話；沒有電話就整列不出現
+  it('課堂詳情：有分校電話 → 顯示並可撥打；沒有 → 不出現那一列', () => {
+    create();
+    // jsdom 沒有 <dialog>.showModal
+    const dialog = el().querySelector('dialog')! as HTMLDialogElement;
+    dialog.showModal = vi.fn();
+    const c = fixture.componentInstance as unknown as { open: (d: unknown) => void };
+    c.open({ kind: 'session', session: ses(TODAY, { campusPhone: '02-2930-1234' }) });
+    fixture.detectChanges();
+    const link = el().querySelector<HTMLAnchorElement>('[data-part="campus-phone"] a');
+    expect(link?.textContent?.trim()).toBe('02-2930-1234');
+    expect(link?.getAttribute('href')).toBe('tel:02-2930-1234');
+
+    c.open({ kind: 'session', session: ses(TODAY, { campusPhone: null }) });
+    fixture.detectChanges();
+    expect(el().querySelector('[data-part="campus-phone"]')).toBeNull();
   });
 
   it('詳情對話框：點背景才關，點裡面的內容不關', () => {
