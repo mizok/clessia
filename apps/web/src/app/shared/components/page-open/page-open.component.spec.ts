@@ -8,7 +8,11 @@ import { PageOpenComponent } from './page-open.component';
 
 @Component({
   imports: [PageOpenComponent],
-  template: `<app-page-open [nameSize]="big()" [subLarge]="large()" [compact]="small()"
+  template: `<app-page-open
+    [nameSize]="big()"
+    [subLarge]="large()"
+    [compact]="small()"
+    [titleSwap]="swapTitle()"
     ><ng-container openTitle>王柏翰</ng-container
     ><ng-container openSub>副行</ng-container></app-page-open
   >`,
@@ -17,6 +21,7 @@ class Host {
   readonly big = signal(false);
   readonly large = signal(false);
   readonly small = signal(false);
+  readonly swapTitle = signal(true);
 }
 
 describe('PageOpenComponent 標題字級', () => {
@@ -106,5 +111,25 @@ describe('PageOpenComponent 色面句換字（#1895）', () => {
       const el = f.debugElement.query(By.css(`app-page-open ${sel}`));
       expect(el.injector.get(TextSwapDirective, null), sel).not.toBeNull();
     }
+  });
+});
+
+describe('PageOpenComponent 標題可關掉換字（使用者 10-23：儀表板的補習班名稱不要動畫）', () => {
+  const swapOf = (f: ReturnType<typeof TestBed.createComponent<Host>>, sel: string) =>
+    f.debugElement.query(By.css(`app-page-open ${sel}`)).injector.get(TextSwapDirective);
+
+  it('預設標題與副行都開', () => {
+    const f = TestBed.createComponent(Host);
+    f.detectChanges();
+    expect(swapOf(f, 'h1').enabled()).toBe(true);
+    expect(swapOf(f, 'p').enabled()).toBe(true);
+  });
+
+  it('titleSwap=false：只關標題，副行照舊', () => {
+    const f = TestBed.createComponent(Host);
+    f.componentInstance.swapTitle.set(false);
+    f.detectChanges();
+    expect(swapOf(f, 'h1').enabled()).toBe(false);
+    expect(swapOf(f, 'p').enabled()).toBe(true);
   });
 });
