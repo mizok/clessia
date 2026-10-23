@@ -1085,9 +1085,24 @@ export const PAGES = {
   'p-grades': {
     a6: 'p-grades.html',
     app: '/parent/grades',
-    // 量的時候要換成「孩子都有成績」的家長（#1926：attendance-parent-02），這份預設的孩子沒有成績
-    state: path.join(cache, 'state-parent.json'),
+    // 家長頁一律用 parent03（#1968）；量之前切到張宇軒（105 筆補習班成績，預設的第一個孩子沒有成績）
+    state: PARENT_STATE,
+    prep: PARENT_PREP,
     deviations: [
+      {
+        // 資料：最近一次考試的科目（稿英文、量測的張宇軒數學），兩邊同一套句子
+        status: '文案',
+        detail: '^「\\{名\\}最近一次[^#」]+#分。」→「\\{名\\}最近一次[^#」]+#分。」$',
+        reason: '資料：最近一次考試的科目',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968、#1959`,
+      },
+      {
+        // 資料：張宇軒成績超過一頁才有這句（稿的示範孩子筆數少）
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[只顯示最近#筆，共#筆。\\]$',
+        reason: '資料：成績筆數超過顯示上限才出現',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968、#1959`,
+      },
       {
         status: '缺',
         a6: 'control:button\\[(課程|學期)：[^\\]]*\\](>text:span\\[[^\\]]*\\])?$',
