@@ -32,6 +32,8 @@ export interface ParentSession {
   /** 班的分校（#1075，家長到班頁判斷今天要不要刷卡） */
   campusId: string | null;
   campusName: string | null;
+  /** 這堂課分校的電話（#1100 #44）；只會是孩子有報名的分校 */
+  campusPhone: string | null;
   /** 排課時段指定的教室（#1796）；手動加的堂、補課、沒指定 → null */
   classroomName: string | null;
   teacherName: string | null;

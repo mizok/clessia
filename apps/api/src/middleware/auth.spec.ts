@@ -18,7 +18,8 @@ function eqChain<T extends object>(result: T): T & { eq: () => T } {
 }
 
 /** Hyperdrive A：身分查詢走 SQL 用的 pool。預設 undefined ＝ 沒有 pool，走 REST（既有測試都是這條） */
-let poolForTest: { query: ReturnType<typeof vi.fn> } | undefined;
+let poolForTest:
+  { query: ReturnType<typeof vi.fn>; connect?: ReturnType<typeof vi.fn> } | undefined;
 
 vi.mock('../lib/get-auth', () => ({
   getAuth: () => ({
@@ -324,6 +325,66 @@ describe('authMiddleware 的 studentScope', () => {
     });
 
     expect(await (await app.request('/')).json()).toEqual({ studentScope: ['s1', 's2'] });
+  });
+
+  // #1970 審核席 @c299a595：childDb 的寫入能力（createLeave）要拿得到 auth.pool。
+  // 單元與契約都自己組 childDb，不經過這裡 —— 這裡漏傳 pool 的話，正式環境的家長請假一律 500 而沒有測試會紅
+  it('家長身分＋auth.pool 有值 → childDb.createLeave 真的用到那個 pool', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const connect = vi.fn().mockRejectedValue(new Error('reached the pool'));
+    // 身分查詢的 SQL 失敗 → 照既有規則走 REST；這裡只在乎 childDb 有沒有接到 pool
+    poolForTest = { query: vi.fn().mockRejectedValue(new Error('no sql identity')), connect };
+    try {
+      clearIdentityCache();
+      getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+      fromMock.mockImplementation((table: string) => ({
+        select: () => ({
+          eq: () => {
+            const result =
+              table === 'user_roles'
+                ? { data: [{ role: 'parent', permissions: [] }], error: null }
+                : table === 'parents'
+                  ? {
+                      data: [
+                        { status: 'active', parent_student_relations: [{ student_id: 's1' }] },
+                      ],
+                      error: null,
+                    }
+                  : { data: [], error: null };
+            return eqChain(
+              Object.assign(Promise.resolve(result), {
+                maybeSingle: () => Promise.resolve({ data: null, error: null }),
+              }),
+            );
+          },
+        }),
+        insert: () => Promise.resolve({ error: null }),
+      }));
+      const app = new Hono<AppEnv>();
+      app.use('*', authMiddleware);
+      app.get('/', async (c) =>
+        c.json(
+          await c.get('childDb').createLeave({
+            studentId: 's1',
+            window: {
+              startDate: '2026-11-02',
+              endDate: '2026-11-02',
+              startTime: null,
+              endTime: null,
+              boundSessions: [],
+            },
+            reason: null,
+            userId: 'user-1',
+          }),
+        ),
+      );
+      const res = await app.request('/');
+      expect(res.status).toBe(200);
+      // 替身 pool 的 connect 丟錯 → createLeave 回 failed；重點是它**走到了** pool
+      expect(connect).toHaveBeenCalledTimes(1);
+    } finally {
+      poolForTest = undefined;
+    }
   });
 });
 

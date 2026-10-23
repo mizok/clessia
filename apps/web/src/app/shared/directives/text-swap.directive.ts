@@ -43,13 +43,19 @@ function maskFrame(image: string, position: string): Keyframe {
  *   放在裡面的話觀察者會看到自己插的節點、`textContent` 也會算進複本的字 → 誤判、自己觸發自己（計畫席 10-23）。
  * - 新字一開始就在版面裡（高度變化交給 appHeightFollow），宿主的進場延後到出場播完、`fill: backwards` 先壓透明。
  * - 字串沒變不動；連續換值打斷前一段、拿掉複本，最新的值直接進場；減少動態直接換。
- * - 複本 `aria-hidden`、`pointer-events: none`：讀屏只念宿主裡的新字一次，點擊不被擋。
+ * - 複本 `aria-hidden`、`inert`、`pointer-events: none`：讀屏只念宿主裡的新字一次，點擊不被擋。
  */
 @Directive({ selector: '[appTextSwap]' })
 export class TextSwapDirective {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   /** 上一次定下來的內容（宿主本身的深複本） */
   private settled: HTMLElement | null = null;
+  /**
+   * 那份內容當時的寬（取小數）。複本要用**舊字自己的寬**：用宿主現在（新字）的寬的話，
+   * 舊字比較寬時最後幾個字會折到下一行（「找到 0 位」→「找到 1 位」，數字不是等寬字，#1983 實測）；
+   * `offsetWidth` 也不行，它取整（實寬 114.47 給 114）。
+   */
+  private settledWidth = 0;
   private clone: HTMLElement | null = null;
   private running: Animation[] = [];
 
@@ -78,11 +84,13 @@ export class TextSwapDirective {
   }
 
   private snapshot(): HTMLElement {
+    this.settledWidth = this.host.getBoundingClientRect().width;
     return this.host.cloneNode(true) as HTMLElement;
   }
 
   private swap(): void {
     const old = this.settled;
+    const oldWidth = this.settledWidth;
     const next = this.snapshot();
     if ((old?.textContent ?? '').trim() === (next.textContent ?? '').trim()) {
       this.settled = next;
@@ -105,12 +113,14 @@ export class TextSwapDirective {
       clone.removeAttribute('id');
       clone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
       clone.setAttribute('aria-hidden', 'true');
+      // 第二階段的宿主有的包著按鈕（#1983）：複本裡的按鈕不能被 Tab 到
+      clone.inert = true;
       clone.removeAttribute('appTextSwap');
       Object.assign(clone.style, {
         position: 'absolute',
         top: `${this.host.offsetTop}px`,
         left: `${this.host.offsetLeft}px`,
-        width: `${this.host.offsetWidth}px`,
+        width: `${oldWidth}px`,
         margin: '0',
         pointerEvents: 'none',
       });

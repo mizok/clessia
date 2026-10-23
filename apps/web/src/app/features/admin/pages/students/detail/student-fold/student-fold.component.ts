@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /**
@@ -6,6 +7,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
  */
 @Component({
   selector: 'app-student-fold',
+  imports: [TextSwapDirective],
   templateUrl: './student-fold.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },

@@ -52,7 +52,7 @@
     } @else if (entries().length === 0) {
       <p class="m-0 py-8 text-base text-zinc-700">這個月沒有符合的異動。</p>
     } @else {
-      <p class="m-0 pt-4 text-md text-zinc-600">共 {{ total() }} 則</p>
+      <p appTextSwap class="m-0 pt-4 text-md text-zinc-600">共 {{ total() }} 則</p>
       <app-change-log-list
         [entries]="entries()"
         [today]="today"

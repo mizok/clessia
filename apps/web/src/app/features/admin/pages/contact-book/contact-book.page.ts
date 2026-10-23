@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -64,6 +65,7 @@ const DEFAULT_RANGE_DAYS = 7;
   selector: 'app-admin-contact-book',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     FormsModule,

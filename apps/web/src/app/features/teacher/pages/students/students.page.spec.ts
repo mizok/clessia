@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 import { StudentsService, type Student } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -327,6 +327,60 @@ describe('StudentsPage（老師端）', () => {
       expect(li.className).toContain('flex');
       expect(li.className).toContain('wide:block');
       expect(li.textContent).toContain('國二');
+    });
+  });
+
+  // #1983：「找到 N 位」是資料算出來、會隨篩選變的字，換字走 appTextSwap
+  describe('「找到 N 位」換字（#1983）', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      delete (HTMLElement.prototype as unknown as { animate?: unknown }).animate;
+    });
+
+    async function setupSwap(reduce = false) {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: reduce && q.includes('reduce') }));
+      const animated: HTMLElement[] = [];
+      (HTMLElement.prototype as unknown as { animate: unknown }).animate = function (
+        this: HTMLElement,
+      ) {
+        animated.push(this);
+        return { cancel: vi.fn(), finished: new Promise(() => undefined) };
+      };
+      await setup([
+        student({ id: 'a', name: '王小明' }),
+        student({ id: 'b', name: '王大明' }),
+        student({ id: 'c', name: '李大華' }),
+      ]);
+      const search = async (q: string) => {
+        component['search'].set(q);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        await Promise.resolve(); // MutationObserver 回呼
+        await Promise.resolve(); // 合成一次換字的 microtask
+      };
+      await search('王'); // 找到 2 位：宿主第一次出現，只記不播
+      const host = () => fixture.nativeElement.querySelector('span[apptextswap]') as HTMLElement;
+      return { animated, search, host };
+    }
+
+    it('值變了會播', async () => {
+      const { animated, search, host } = await setupSwap();
+      expect(animated).toHaveLength(0);
+      await search('王小');
+      expect(host().textContent).toContain('找到 1 位');
+      expect(animated).toContain(host());
+    });
+
+    it('值沒變不播', async () => {
+      const { animated, search } = await setupSwap();
+      await search('明'); // 還是 2 位
+      expect(animated).toHaveLength(0);
+    });
+
+    it('減少動態不播', async () => {
+      const { animated, search } = await setupSwap(true);
+      await search('王小');
+      expect(animated).toHaveLength(0);
     });
   });
 });

@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -61,6 +62,7 @@ interface CourseGroup {
   selector: 'app-class-view',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     FormsModule,
     MultiSelectModule,

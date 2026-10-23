@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   Component,
   ElementRef,
@@ -89,6 +90,7 @@ function defaultDay(weekStart: Date, todayStr: string): string {
   selector: 'app-schedule',
   standalone: true,
   imports: [
+    TextSwapDirective,
     DatePipe,
     RouterLink,
     DynamicDialogModule,
