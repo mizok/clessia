@@ -143,7 +143,8 @@ async function call(
       attendanceMode?: string;
       alreadyCheckedIn?: boolean;
       checkedInAt?: string;
-      students?: Array<{ checkedInAt: string | null }>;
+      checkInSource?: string | null;
+      students?: Array<{ checkedInAt: string | null; checkInSource?: string | null }>;
     } | null,
     writes: db.writes,
   };
@@ -184,7 +185,10 @@ describe('POST /roster/{eventId}/check-in —— 他到了', () => {
       checkin_date: TODAY,
       campus_id: A,
       checked_in_by: 'caller',
+      // #1100 #52：老師在名單上標的一律 manual，不收前端參數
+      source: 'manual',
     });
+    expect(r.json?.checkInSource).toBe('manual');
   });
 
   it('不是自己任課（也不是代課）的課 → 403 FORBIDDEN，不寫', async () => {
@@ -366,6 +370,29 @@ describe('GET /roster/{eventId} —— 分校範圍與到班時間', () => {
     expect(r.status).toBe(200);
     expect(r.json?.attendanceMode).toBe('daily_checkin');
     expect(r.json?.students?.[0]?.checkedInAt).toBe('2026-04-06T08:12:00Z');
+  });
+
+  // #1100 #52：名單帶來源；這欄出現之前的舊紀錄是 null（只寫時間，不猜）
+  it.each([
+    ['scan', 'scan'],
+    ['manual', 'manual'],
+    [undefined, null],
+  ])('打卡紀錄的 source=%s → checkInSource=%s', async (source, expected) => {
+    const r = await call(
+      happy({
+        enrollments: [{ student_id: STUDENT, effective_from: '2026-01-01', effective_to: null }],
+        daily_checkins: [
+          {
+            student_id: STUDENT,
+            checked_in_at: '2026-04-06T08:12:00Z',
+            campus_id: A,
+            ...(source ? { source } : {}),
+          },
+        ],
+      }),
+      { method: 'GET', path: `/roster/${EVENT}`, roles: ['admin'], scope: [A] },
+    );
+    expect(r.json?.students?.[0]?.checkInSource).toBe(expected);
   });
 
   it('到班打卡或出勤紀錄讀取失敗 → 500，不退回「全部還沒到」', async () => {
