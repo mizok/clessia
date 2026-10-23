@@ -80,7 +80,7 @@ export const DEVIATIONS = [
     detail:
       '^「(小[一二三四五六]|國[一二三]|高[一二三])」→「(小[一二三四五六]|國[一二三]|高[一二三])」$',
     reason: '資料：孩子的年級（稿國三、量測的張宇軒國二）',
-    source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1949`,
+    source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
   },
   // R5 2026-10-22（#1866）：帳戶鈕只留頭像，手機桌機一致 —— 稿桌機畫「{名} · 身分」＋箭頭。
   // 名字與身分在帳戶選單頂端、頭像鈕的 aria-label 也有。鈕本身因此變窄，位置／尺寸／樣式連帶不同
@@ -535,7 +535,22 @@ export const PAGES = {
     state: path.join(cache, 'state-guest.json'),
     deviations: PUBLIC_FORM_DEVIATIONS,
   },
-  student: { a6: 'student.html', app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee' },
+  student: {
+    a6: 'student.html',
+    app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee',
+    deviations: [
+      {
+        // 色面上方「學生名冊」返回連結手機 44 高（稿 20），下面的標題、副行、統計整組往下。
+        // 標題行高對齊稿（#1925：手機 1.2）之前，標題比稿矮 8.8px 剛好抵掉一部分，統計才沒被量出來
+        status: '位置',
+        widths: [360],
+        a6: 'landmark:region\\[這一頁的摘要\\]>text:(dt|dd)(\\[[^\\]]*\\])?(~\\d)?$',
+        detail: '^相對「這一頁的摘要」 Δx 0、Δy \\+\\d+（',
+        reason: '連帶：返回連結手機 44px（觸控下限），色面裡下面的內容整組往下',
+        source: `${rule('R3')}；#1925`,
+      },
+    ],
+  },
   parents: {
     a6: 'parents.html',
     app: '/admin/parents',
@@ -572,7 +587,7 @@ export const PAGES = {
         status: '多',
         app: '>landmark:main\\[\\]>text:p\\[還沒有送過報名申請。\\]$',
         reason: '資料：量測的家長沒送過申請',
-        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1949`,
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
       },
     ],
   },
@@ -587,7 +602,7 @@ export const PAGES = {
         status: '缺',
         a6: '>landmark:region\\[這一頁的摘要\\]>text:p\\[另外還有#筆試聽已排好、#筆在等安排。\\]$',
         reason: '資料：量測的家長沒有試聽紀錄',
-        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1949`,
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
       },
       {
         // 試聽一門課一列（不是一班一列），所以說明寫「課」
@@ -608,14 +623,14 @@ export const PAGES = {
         status: '多',
         app: '>landmark:main\\[\\]>text:p\\[還沒有送過試聽申請。\\]$',
         reason: '資料：量測的家長沒送過申請',
-        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1949`,
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
       },
       {
         // 色面第二句「另外還有 N 筆試聽…」只在有試聽紀錄時出現
         status: '缺',
         a6: '>landmark:region\\[這一頁的摘要\\]>text:p\\[另外還有#筆試聽已排好、#筆在等安排。\\]$',
         reason: '資料：量測的家長沒有試聽紀錄',
-        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1949`,
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
       },
     ],
   },
@@ -923,6 +938,119 @@ export const PAGES = {
   },
   'scores-dirty': {
     a6: 'scores.html',
+    // 稿的灰帶工具列在 main 外面、鈕名帶「新」標記；app 的灰帶在殼層 main 裡（全站 main 範圍，R5 10-22），
+    // 自動配對配不起來（#1925）
+    mapping: {
+      '>control:button[其餘標記缺考新]': '>landmark:main[]>control:button[其餘標記缺考]',
+      '>control:button[加入其他學生新]': '>landmark:main[]>control:button[加入其他學生]',
+      '>control:button[標記完成新]': '>landmark:main[]>control:button[標記完成]',
+      '>text:p[已登錄·缺考# ·不及格（< #）位]': '>landmark:main[]>text:p[已登錄·缺考# ·不及格位]',
+    },
+    deviations: [
+      // ── 設計說明，不是畫面 ──
+      {
+        status: '缺',
+        a6: 'control:button\\[[^\\]]*新\\]>text:span\\[新\\]$',
+        reason: '稿的「新」標記是設計說明（新功能的提示），不是畫面內容',
+        source: '.design-explorations scores.html notes「批次動作」「儲存」列',
+      },
+      {
+        status: '文案',
+        a6: '^>control:button\\[[^\\]]*新\\]$',
+        detail: '^「[^」]*新」→「[^」]*」$',
+        reason: '稿的「新」標記是設計說明，鈕名少了「新」',
+        source: '.design-explorations scores.html notes',
+      },
+      // ── 還沒做的 ──
+      {
+        status: '缺',
+        a6: '^>control:button\\[匯入成績新\\]$',
+        reason: '匯入成績還沒做（A6 新功能），另排',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      },
+      {
+        status: '位置',
+        a6: '^>control:button\\[其餘標記缺考新\\]$',
+        detail: '連帶自待修「control:button\\[匯入成績新\\] 缺」',
+        reason: '少了匯入成績那顆，同列的鈕跟著挪位',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      },
+      // ── 手機 ──
+      {
+        status: '多',
+        widths: [360],
+        app: '^>landmark:main\\[\\]>control:button\\[加入其他學生\\]$',
+        reason: '舊有新無：app 手機原本就有「加入其他學生」，稿的手機沒畫',
+        source: `${rule('R2')}；${rule('R5')}「成績登錄」2026-10-23`,
+      },
+      {
+        status: '缺',
+        widths: [360],
+        a6: '>landmark:main\\[\\]>list(>list)?$',
+        reason: '手機名單：app 點一列開底部面板改（稿是行內輸入），見本頁 prep 的註記',
+        source: '#991 grades G2a；scores-dirty prep',
+      },
+      {
+        status: '多',
+        widths: [360],
+        app: '^>landmark:main\\[\\]>control:button\\[[^\\]]*\\](>text:span\\[[^\\]]*\\])?$',
+        reason: '手機名單：app 一列是一顆按鈕（點了開底部面板），稿是行內輸入的列',
+        source: '#991 grades G2a；scores-dirty prep',
+      },
+      ...['缺', '位置', '樣式'].map((status) => ({
+        status,
+        widths: [360],
+        ...(status === '缺'
+          ? { a6: 'landmark:toolbar\\[主要動作\\]>control:button\\[[^\\]]*\\]$' }
+          : { app: '^>landmark:main\\[\\]>row(>control:button(>text:span)?)?$' }),
+        reason:
+          '工具限制：app 的手機托盤（page-actions，position: fixed）被認成「列」、拿掉了鈕名，' +
+          '配不上稿的托盤，反而跟稿的手機名單列錯配（截圖底部托盤兩顆鈕都在）',
+        source: 'tools/a6-conformance extract.mjs isRow；#1925',
+      })),
+      // ── 資料差（seed 的考試、班、學生跟稿的示範資料不同）──
+      {
+        status: '文案',
+        // 副行：考試類型、科目、星期隨資料（稿：小考·數學·週二）
+        detail: '^「(第五次小考進行中|第五次小考|國三數學A班|\\{分校\\} › ·小考·數學· #（二）)」→「',
+        reason: '資料：考試名、班名隨資料',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      },
+      {
+        status: '位置',
+        a6: 'heading:h1\\[[^\\]]*\\]>text:span\\[(進行中|已完成)\\]$',
+        reason: '資料：考試名長短不同，狀態小標落在標題第幾行跟著變',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      },
+      {
+        status: '文案',
+        a6: '^>text:p\\[已登錄·缺考# ·不及格（< #）位\\]$',
+        detail: '^「已登錄·缺考# ·不及格（< #）位」→「已登錄·缺考# ·不及格位」$',
+        reason: '資料：seed 這場考試沒設及格線，合計不寫「（< 及格線）」',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      },
+      {
+        status: '位置',
+        a6: 'text:p\\[已登錄·缺考# ·不及格（< #）位\\]>text:strong\\[#\\]$',
+        reason: '資料：沒設及格線、少一段字，後面的數字往前',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      },
+      {
+        status: '位置',
+        a6: 'row>text:dd>text:small$',
+        reason: '資料：前面的數字位數不同（稿 10、seed 7）',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      },
+      ...['位置', '尺寸', '樣式'].map((status) => ({
+        status,
+        widths: [1440],
+        a6: '>list>(list>)?row(>(text:small|text:span|control:textbox(~2)?|control:button(>text:span)?|control:link))?$',
+        ...(status === '樣式' ? { detail: '^color ' } : {}),
+        reason:
+          '資料：seed 的學生名比較長（出勤測試學生NN），表格欄寬跟著變；名字灰色只在還沒登分的列（稿的第一列沒分數）',
+        source: `${rule('R5')}「成績登錄」2026-10-23；#1925`,
+      })),
+    ],
     // scores 用的那份已結束（輸入框 disabled），儲存列出不來；這份是 seed 裡進行中的
     app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
     // app 手機是點列開 sheet 編輯（稿是行內輸入），只在桌機改分數
@@ -967,14 +1095,14 @@ export const PAGES = {
         status: '文案',
         detail: '^「最近的期限是#」→「最近的期限是#，已經過了」$',
         reason: '資料：最近那張帳單有沒有逾期',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1949`,
+        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       },
       {
         // 第一頁 20 張全是待繳 → 已繳清那一章是空狀態句
         status: '多',
         app: 'landmark:main\\[\\]>text:p\\[還沒有繳清的帳單。\\]$',
         reason: '資料：載入的那一頁沒有已繳清的帳單',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1949`,
+        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       },
       {
         // 還有下一頁時章頭不寫張數：只數到已載入的會是錯的數字（#1496「不編數字」，計畫席 10-10 讀過 diff）
@@ -989,7 +1117,7 @@ export const PAGES = {
         status,
         a6: '(text:dd\\[#\\](~2)?>text:small\\[元\\]|text:dt\\[本學期已繳\\]|text:span\\[繳費期限#\\]|heading:h2\\[已繳清\\]|control:link\\[看餐費紀錄\\])$',
         reason: '資料：金額位數、狀態標籤長度、帳單列數',
-        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1949`,
+        source: `${rule('R5')}「家長繳費頁的資料差」2026-10-23；#1924、#1968`,
       })),
     ],
   },
@@ -1041,7 +1169,7 @@ export const PAGES = {
         a6: '>landmark:region\\[這一頁的摘要\\]>text:p\\[今天#堂：',
         detail: '→「下一堂',
         reason: '資料：量測當天有沒有課',
-        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1949`,
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
       },
       // 稿每一節標題後的「新」是設計說明（產品原本沒有這一節），不是畫面內容
       {

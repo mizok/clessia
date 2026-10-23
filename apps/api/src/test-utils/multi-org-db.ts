@@ -245,16 +245,21 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         filters.push((row) => fieldValues(row, column).some((v) => v === value));
         return proxy;
       },
-      /** `%x%` 形狀的 ilike（不分大小寫的包含）；其他 pattern 一律丟 */
+      /**
+       * ilike 照 Postgres 的語意：不分大小寫、整串比對；`%`＝任意長度、`_`＝任一字元、`\` 跳脫下一個字元
+       * （#1335：Email 限流比對要分得出 `a\_b` 與 `axb`）
+       */
       ilike(column: string, pattern: string) {
-        const m = pattern.match(/^%([^%_]*)%$/);
-        if (!m) throw new Error(`multi-org-db：ilike 只支援 %x%，拿到 \`${pattern}\``);
-        const needle = (m[1] as string).toLowerCase();
-        filters.push((row) =>
-          String(field(row, column) ?? '')
-            .toLowerCase()
-            .includes(needle),
-        );
+        let source = '';
+        for (let i = 0; i < pattern.length; i++) {
+          const ch = pattern[i]!;
+          if (ch === '\\' && i + 1 < pattern.length) source += escapeRegExp(pattern[++i]!);
+          else if (ch === '%') source += '.*';
+          else if (ch === '_') source += '.';
+          else source += escapeRegExp(ch);
+        }
+        const re = new RegExp(`^${source}$`, 'is');
+        filters.push((row) => re.test(String(field(row, column) ?? '')));
         return proxy;
       },
       neq(column: string, value: unknown) {
@@ -397,4 +402,8 @@ export function withMaxRows(client: any, maxRows: number): any {
       return (table: string) => wrap(target.from(table));
     },
   });
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

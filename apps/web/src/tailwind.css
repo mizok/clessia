@@ -208,6 +208,12 @@
 @theme static {
   --spacing: 4px;
 
+  /*
+   * `tracking-normal`：大字（標題、大數字、章名）都帶負字距，裡面的小字（單位、狀態小標）用它重設回 normal。
+   * 這個 theme 沒有 Tailwind 的預設 tracking 刻度，原本 `tracking-normal` 不會產生 utility，8 處都是靜默沒作用。
+   */
+  --tracking-normal: normal;
+
   --breakpoint-sm: 640px;
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
