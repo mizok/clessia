@@ -43,7 +43,7 @@ function maskFrame(image: string, position: string): Keyframe {
  *   放在裡面的話觀察者會看到自己插的節點、`textContent` 也會算進複本的字 → 誤判、自己觸發自己（計畫席 10-23）。
  * - 新字一開始就在版面裡（高度變化交給 appHeightFollow），宿主的進場延後到出場播完、`fill: backwards` 先壓透明。
  * - 字串沒變不動；連續換值打斷前一段、拿掉複本，最新的值直接進場；減少動態直接換。
- * - 複本 `aria-hidden`、`pointer-events: none`：讀屏只念宿主裡的新字一次，點擊不被擋。
+ * - 複本 `aria-hidden`、`inert`、`pointer-events: none`：讀屏只念宿主裡的新字一次，點擊不被擋。
  */
 @Directive({ selector: '[appTextSwap]' })
 export class TextSwapDirective {
@@ -105,12 +105,15 @@ export class TextSwapDirective {
       clone.removeAttribute('id');
       clone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
       clone.setAttribute('aria-hidden', 'true');
+      // 第二階段的宿主有的包著按鈕（#1983）：複本裡的按鈕不能被 Tab 到
+      clone.inert = true;
       clone.removeAttribute('appTextSwap');
       Object.assign(clone.style, {
         position: 'absolute',
         top: `${this.host.offsetTop}px`,
         left: `${this.host.offsetLeft}px`,
-        width: `${this.host.offsetWidth}px`,
+        // 寬度取小數：offsetWidth 取整，實寬 114.47 給 114 會讓複本最後幾個字折到下一行（#1983 實測）
+        width: `${this.host.getBoundingClientRect().width}px`,
         margin: '0',
         pointerEvents: 'none',
       });

@@ -120,7 +120,7 @@
     </div>
 
     @if (!loadingScores() && scores().length > 0) {
-      <p class="m-0 text-md text-zinc-700 tabular-nums">
+      <p appTextSwap class="m-0 text-md text-zinc-700 tabular-nums">
         顯示 <b>{{ filteredScores().length }}</b
         >／{{ scores().length }} 場 · 不及格 {{ failCount() }} 場
         @if (absentCount()) {

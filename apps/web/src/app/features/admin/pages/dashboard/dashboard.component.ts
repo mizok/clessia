@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import {
   ChangeDetectionStrategy,
@@ -112,6 +113,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
 @Component({
   selector: 'app-dashboard',
   imports: [
+    TextSwapDirective,
     HeightFollowDirective,
     SkeletonComponent,
     ValueArriveDirective,

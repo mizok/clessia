@@ -83,6 +83,7 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     const [clone] = clones();
     expect(clone?.textContent?.trim()).toBe('學生管理');
     expect(clone?.getAttribute('aria-hidden')).toBe('true');
+    expect(clone?.inert).toBe(true);
     // 複本不能帶 id：同一頁出現兩個一樣的 id，label／aria 參照會指錯（根節點與子節點都要拿掉）
     expect(clone?.hasAttribute('id')).toBe(false);
     expect(clone?.querySelector('[id]')).toBeNull();
@@ -100,6 +101,13 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     expect(enter.frames[0]?.['opacity']).toBe(0);
     // 宿主的字已經是新字（讀屏只念這一次）
     expect(host.textContent?.trim()).toBe('41 位學生，今天有 8 位有課。');
+  });
+
+  it('複本寬度取宿主的小數寬，不取整（取整會讓最後幾個字折行，#1983）', async () => {
+    const { host, set, clones } = await setup();
+    host.getBoundingClientRect = () => ({ width: 114.47 }) as DOMRect;
+    await set('學生管理（新）');
+    expect(clones()[0]?.style.width).toBe('114.47px');
   });
 
   it('出場播完，複本拿掉', async () => {

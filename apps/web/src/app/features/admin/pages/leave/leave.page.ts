@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
@@ -46,6 +47,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
   selector: 'app-leave',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     CampusScopeNoteComponent,

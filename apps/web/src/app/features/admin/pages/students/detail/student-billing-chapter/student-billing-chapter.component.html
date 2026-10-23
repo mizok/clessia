@@ -2,7 +2,7 @@
 <details id="billing" class="coll scroll-mt-4" name="student-folds" [open]="openFromLink">
   <summary class="coll__sum min-h-14 wide:min-h-16">
     <h2 class="coll__t m-0">帳單</h2>
-    <span class="coll__m" data-testid="billing-summary">
+    <span appTextSwap class="coll__m" data-testid="billing-summary">
       @if (loading() || failed() || totalOutstanding() === null) {
         {{ failed() ? '載入失敗' : '' }}
       } @else if (totalOutstanding()! > 0) {

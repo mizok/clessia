@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -71,7 +72,7 @@ interface TickerItem {
  */
 @Component({
   selector: 'app-schedule-changes-ticker',
-  imports: [],
+  imports: [TextSwapDirective],
   templateUrl: './schedule-changes-ticker.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

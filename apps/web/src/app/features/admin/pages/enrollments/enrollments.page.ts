@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -80,6 +81,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
 @Component({
   selector: 'app-enrollments',
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     CampusScopeNoteComponent,
     StudentAutocompleteComponent,

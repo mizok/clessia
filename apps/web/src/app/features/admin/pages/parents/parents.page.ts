@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
@@ -65,6 +66,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
   selector: 'app-parents',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     PopoverModule,

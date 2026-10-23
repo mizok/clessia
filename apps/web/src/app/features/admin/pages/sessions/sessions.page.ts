@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   Component,
   ElementRef,
@@ -135,6 +136,7 @@ const FETCH_LIMIT = 500;
   selector: 'app-sessions',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     StepMotionDirective,
     SelectedIndicatorDirective,

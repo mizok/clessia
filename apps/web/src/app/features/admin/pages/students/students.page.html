@@ -198,7 +198,7 @@
 
       @if (narrowed()) {
         <p class="m-0 mt-4 flex flex-wrap items-baseline gap-x-3 text-md text-zinc-600 wide:mt-6">
-          <span
+          <span appTextSwap
             >顯示 <strong class="text-zinc-900 tabular-nums">{{ total() }}</strong> 位
             @if (statusFilter() === 'active') {
               （共 {{ activeStudentCount() }}）

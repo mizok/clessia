@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -60,6 +61,7 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
   selector: 'app-student-score-detail-dialog',
   standalone: true,
   imports: [
+    TextSwapDirective,
     FormsModule,
     RouterLink,
     EmptyStateComponent,
