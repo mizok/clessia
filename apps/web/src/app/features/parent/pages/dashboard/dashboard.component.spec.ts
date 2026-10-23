@@ -235,6 +235,35 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
     expect(el().textContent).not.toContain('上一個孩子的課');
   });
 
+  /**
+   * #1978 後續（計畫席 10-23）：A→B→A，先回第二次 A、B 晚到。防護在 `load()` 回應裡比對
+   * `activeChildId() !== childId`（dashboard.component.ts），不是取消請求。
+   */
+  it('#1978 A→B→A：B 晚到的回應不蓋掉現在的 A', () => {
+    const calls: Array<{ childId: string; subject: Subject<{ data: ParentSession[] }> }> = [];
+    create({
+      sessions: (childId) => {
+        const subject = new Subject<{ data: ParentSession[] }>();
+        calls.push({ childId, subject });
+        return subject;
+      },
+    });
+    activeChildId.set('child-2');
+    fixture.detectChanges();
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    expect(calls.map((c) => c.childId)).toEqual(['child-1', 'child-2', 'child-1']);
+
+    calls[2].subject.next({ data: [ses(TODAY, { className: 'A 的課' })] });
+    calls[2].subject.complete();
+    calls[1].subject.next({ data: [ses(TODAY, { className: 'B 的課' })] }); // B 晚到
+    calls[1].subject.complete();
+    fixture.detectChanges();
+
+    expect(el().querySelector('.dashboard__lesson')?.textContent).toContain('A 的課');
+    expect(el().textContent).not.toContain('B 的課');
+  });
+
   it('沒有待繳金額（totalDue 0）→ 不出待繳條', () => {
     create({ totalDue: 0 });
     expect(el().querySelector('.dashboard__pay')).toBeNull();
