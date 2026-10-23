@@ -1045,7 +1045,7 @@ describe('PaymentsPage', () => {
     });
 
     // #1903：工具列控制項全部同高（tbar-control：手機 44／桌機 40），不再各自寫 h-9／size-11
-    it('工具列：開立帳單＝橘底 13px 粗、高度 tbar-control；匯出／更多動作＝白底框 zinc-300、方鈕 tbar-control-square', () => {
+    it('工具列：開立帳單＝橘底 13px 粗、高度 tbar-control；匯出／操作紀錄＝白底框 zinc-300、方鈕 tbar-control-square', () => {
       const create = Array.from(el().querySelectorAll('button')).find((b) =>
         b.textContent?.includes('開立帳單'),
       )!;
@@ -1059,11 +1059,16 @@ describe('PaymentsPage', () => {
         'wide:inline-flex',
         'hidden',
       );
-      for (const label of ['匯出', '更多動作']) {
+      for (const label of ['匯出', '操作紀錄']) {
         const b = el().querySelector(`button[aria-label="${label}"]`)!;
-        has(b, 'border-zinc-300', 'bg-white', 'tbar-control-square', 'gap-1.5');
+        has(b, 'border-zinc-300', 'bg-white', 'tbar-control-square');
         expect(b.className).not.toMatch(/\b(wide:)?(h|size)-\d/);
       }
+      // #2006：操作紀錄改成共用的時鐘圖示鈕，原本只裝它的「⋯」拿掉
+      expect(
+        el().querySelector('app-audit-log-button button[aria-label="操作紀錄"]'),
+      ).not.toBeNull();
+      expect(el().querySelector('button[aria-label="更多動作"]')).toBeNull();
     });
 
     it('逾期章頭：紅色大字名（手機 32／桌機 44）→「N 張 · 待收」→「NT$ …」兩個 <p>（18px 粗）', async () => {

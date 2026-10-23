@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
@@ -50,6 +51,7 @@ const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', dail
   selector: 'app-campuses',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
@@ -155,11 +157,6 @@ export class CampusesPage implements OnInit {
     );
     return items;
   });
-
-  /** 手機頁首的「⋯」：操作紀錄收在這裡（R2） */
-  protected readonly pageMenuItems: MenuItem[] = [
-    { label: '操作紀錄', icon: 'pi pi-history', command: () => this.openAuditLog() },
-  ];
 
   protected openActionMenu(event: MouseEvent, campus: Campus): void {
     this.selectedCampus.set(campus);

@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
@@ -33,7 +34,7 @@ import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { MessageService, type MenuItem } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { AppVersionService } from '@core/app-version.service';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -66,7 +67,6 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 
-import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceActionsComponent } from './invoice-actions/invoice-actions.component';
@@ -135,6 +135,7 @@ const emptyChapter = (): ChapterState => ({
   selector: 'app-payments',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     ValueArriveDirective,
     TextSwapDirective,
     SkeletonComponent,
@@ -142,7 +143,6 @@ const emptyChapter = (): ChapterState => ({
     HeightFollowDirective,
     InvoiceActionsComponent,
     NgTemplateOutlet,
-    PopupMenuComponent,
     RouterLink,
     FilterToggleComponent,
     StatusDotComponent,
@@ -291,11 +291,6 @@ export class PaymentsPage implements OnInit {
   protected readonly exportScopeOptions = (Object.keys(EXPORT_SCOPE_LABELS) as ExportScope[]).map(
     (value) => ({ value, label: EXPORT_SCOPE_LABELS[value] }),
   );
-
-  /** 工具列「⋯」：現況有、A6 沒畫的次要動作收在這裡 */
-  protected readonly pageMenuItems: MenuItem[] = [
-    { label: '操作紀錄', icon: 'pi pi-history', command: () => this.openAuditLog() },
-  ];
 
   /**
    * 已經生效、但從來沒開過帳單的報名數。

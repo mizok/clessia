@@ -1833,7 +1833,17 @@ describe('SessionsPage', () => {
       fixture.detectChanges();
       expect(badge()).toBeNull();
       expect(trigger().getAttribute('aria-label')).toBe('更多');
-      expect(labels()).toEqual(['全部異動', '進階篩選', '隱藏停課', '操作紀錄']);
+      expect(labels()).toEqual(['全部異動', '進階篩選', '隱藏停課']);
+      // #2006：操作紀錄搬到工具列的時鐘圖示鈕（全站統一），不在「⋯」裡
+      const open = vi.spyOn(
+        c() as unknown as { openOperationsLog: () => void },
+        'openOperationsLog',
+      );
+      open.mockImplementation(() => undefined);
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('app-audit-log-button button')!
+        .click();
+      expect(open).toHaveBeenCalled();
     });
 
     it('門檻 1：未指派 1／未點名 0 與 未指派 0／未點名 1 各自出現；數字是兩者合計', () => {
