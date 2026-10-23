@@ -115,6 +115,7 @@ describe('GET /inbox（#1688）', () => {
       createdAt: '2026-10-11T01:00:00Z',
       isRead: false,
       link: '/parent/payments',
+      hasChangeDetail: false,
     });
   });
 
