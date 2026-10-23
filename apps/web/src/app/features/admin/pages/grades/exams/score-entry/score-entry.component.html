@@ -1,8 +1,8 @@
 <!--
   A6 版（#991 grades G2a；#1925 對齊 scores.html）：色面（返回考試管理、考試名＋狀態、副行含班級連結、統計）
   → 灰帶工具列（合計＋批次動作）→ 編輯器 → 底部儲存列。
-  計畫席裁 #991 grades：Q1 完成（結束）後唯讀 —— A6 的「完成後仍可修改」要動 API，暫時偏離、另排 #1931；
-  Q3 離開攔截改成頁內三選項對話框。匯入成績還沒做（A6 有，R5 登記）。
+  完成後仍可修改（#1931，使用者 10-23 裁，照 A6）：每一筆修改的舊值→新值由 API 記進操作紀錄；完成後只收起工具列的批次動作。
+  計畫席裁 #991 grades Q3 離開攔截改成頁內三選項對話框。匯入成績還沒做（A6 有，R5 登記）。
 -->
 <app-page-open [nameSize]="true">
   <a
@@ -190,11 +190,13 @@
     <app-skeleton label="考試資料載入中" [count]="5" />
   } @else if (examInfo()) {
     @if (isClosed()) {
+      <!-- A6 scores `.note`（#1931）：完成後照樣可改，改過的記在操作紀錄 -->
       <p
         class="m-0 mb-6 flex items-center gap-2 rounded-lg bg-zinc-100 px-4 py-3 text-base text-zinc-800"
+        data-part="closed-note"
       >
-        <i class="pi pi-lock text-sm" aria-hidden="true"></i>
-        這場考試已結束，成績只能檢視。要修改請先回考試管理「重新開啟」。
+        <i class="pi pi-info-circle text-sm" aria-hidden="true"></i>
+        這場考試已完成。成績仍可修改，改過的會記在操作紀錄。
       </p>
     }
 
@@ -203,7 +205,6 @@
         #academyEditor
         [exam]="exam"
         [examId]="examId()"
-        [disabled]="isClosed()"
         (dirtyChange)="onDirtyChange($event)"
         (savingChange)="onSavingChange($event)"
         (saved)="onSaved()"
@@ -213,7 +214,6 @@
         #schoolEditor
         [exam]="exam"
         [examId]="examId()"
-        [disabled]="isClosed()"
         (dirtyChange)="onDirtyChange($event)"
         (savingChange)="onSavingChange($event)"
         (saved)="onSaved()"
@@ -222,7 +222,7 @@
     }
 
     <!-- 底部儲存列（A6 .savebar）：只在有沒存的變更時出現，取代原本的 FAB -->
-    @if (!isClosed() && (dirty() || saving())) {
+    @if (dirty() || saving()) {
       <!-- A6 `.savebar`：region 本身就是那條深色列 -->
       <div
         data-toast-dock
@@ -307,7 +307,7 @@
   </div>
 </dialog>
 
-<!-- 標記完成（A6 data-complete 的確認）：沒存的變更會一起存；完成後唯讀（#991 Q1，A6 的可修改另排 #1931） -->
+<!-- 標記完成（A6 data-complete 的確認）：沒存的變更會一起存；完成後仍可修改（#1931） -->
 <dialog
   #completeDialog
   class="m-auto w-[min(26rem,calc(100%-2rem))] rounded-lg border-0 p-6 text-zinc-900 shadow-md backdrop:bg-zinc-900/40"
@@ -323,7 +323,7 @@
       }
       。
     }
-    完成後成績只能檢視，要修改請到考試管理重新開啟。
+    完成後仍可修改。
   </p>
   <div class="mt-6 flex flex-wrap justify-end gap-2">
     <button

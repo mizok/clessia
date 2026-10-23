@@ -498,14 +498,15 @@ describe('LeavePage', () => {
       ]);
     });
 
-    it('操作紀錄：白底框、沒有圖示（A6），點了開紀錄對話框', () => {
+    // #2006：全站入口統一成時鐘圖示鈕（A6 請假頁原本畫的是文字鈕，A6 課程／價目表是圖示鈕）
+    it('操作紀錄：全站共用的時鐘圖示鈕、白底框，點了開紀錄對話框', () => {
       fixture.detectChanges();
-      const btn = q('audit-log')!;
-      expect(btn.textContent!.trim()).toBe('操作紀錄');
+      const btn = q('audit-log-button')!;
+      expect(btn.getAttribute('aria-label')).toBe('操作紀錄');
       for (const c of ['bg-white', 'border-zinc-300', 'text-zinc-900']) {
         expect(btn.classList.contains(c)).toBe(true);
       }
-      expect(btn.querySelector('i, .pi')).toBeNull();
+      expect(btn.querySelector('.pi-clock')).not.toBeNull();
 
       dialogServiceMock.open.mockClear();
       btn.click();

@@ -21,6 +21,7 @@ function session(over: Partial<ParentSession> = {}): ParentSession {
     courseName: '國中數學',
     campusId: null,
     campusName: '文山旗艦校',
+    campusPhone: null,
     classroomName: null,
     teacherName: '游佩珊',
     isSubstitute: false,

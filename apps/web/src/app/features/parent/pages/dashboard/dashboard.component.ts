@@ -12,6 +12,8 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { catchError, forkJoin, of, type Observable } from 'rxjs';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -88,6 +90,8 @@ interface Loaded {
     PageOpenComponent,
     ChildSwitcherComponent,
     ChildScopeGateComponent,
+    HeightFollowDirective,
+    TextSwapDirective,
   ],
   templateUrl: './dashboard.component.html',
 })
@@ -144,6 +148,14 @@ export class DashboardComponent implements OnInit {
     const sessions = this.data()?.sessions;
     return sessions ? shownSessions(sessions, this.today) : null;
   });
+  /**
+   * 「今天的課／接下來的課」：載入中一律是中性的「接下來的課」，資料回來才換（#1983）。
+   * **不能沿用上一個孩子的標題**：「今天的課」是在說這個孩子今天有課，換到 B 時還寫著 A 的，
+   * 就是 #1978 修掉的「資料標錯孩子」（計畫席 10-23）。代價是兩個孩子都有今天的課時，換孩子會多播一次換字。
+   */
+  protected readonly lessonsTitle = computed(() =>
+    this.lessons()?.today ? '今天的課' : '接下來的課',
+  );
   protected readonly exams = computed(() => {
     const d = this.data();
     return d?.scores && d.sessions ? examRows(d.scores, d.sessions, this.today) : null;

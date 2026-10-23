@@ -116,12 +116,55 @@
                     </span>
                   </summary>
                   <div class="announcement-inbox__body pb-4 pl-6">
+                    @if (item.hasChangeDetail) {
+                      <!-- A6 p-notifications `.nt__chg`：課務異動多一塊「原本／改為」（#1100 #49） -->
+                      @switch (changeDetail()[item.id]) {
+                        @case ('loading') {
+                          <p class="m-0 mb-3 text-md text-zinc-600">讀取中…</p>
+                        }
+                        @case ('failed') {
+                          <p class="m-0 mb-3 text-md text-zinc-600">異動內容讀不到，請稍後再試。</p>
+                        }
+                        @default {
+                          @for (row of $any(changeDetail()[item.id]) ?? []; track row.sessionId) {
+                            <dl
+                              class="announcement-inbox__chg m-0 mb-3 grid max-w-[64ch] grid-cols-[3em_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-md bg-zinc-100 px-4 py-3 text-md"
+                              data-part="change-detail"
+                            >
+                              <dt class="text-zinc-600">原本</dt>
+                              <dd
+                                class="m-0 font-medium tabular-nums"
+                                [class.line-through]="row.now === null"
+                                [class.text-zinc-600]="row.now === null"
+                              >
+                                {{ slotText(row.was) }}
+                              </dd>
+                              <dt class="text-zinc-600">改為</dt>
+                              <dd class="m-0 font-medium tabular-nums">
+                                @if (row.now) {
+                                  {{ slotText(row.now) }}
+                                } @else {
+                                  停課{{ row.reason ? '（' + row.reason + '）' : '' }}
+                                }
+                              </dd>
+                            </dl>
+                          }
+                        }
+                      }
+                    }
                     <!-- prettier-ignore -->
                     <p class="announcement-inbox__text m-0 max-w-[64ch] text-md leading-relaxed whitespace-pre-wrap text-zinc-800">{{ item.body }}</p>
                     @if (item.author) {
                       <p class="announcement-inbox__author mx-0 mt-1 mb-0 text-sm text-zinc-600">
                         —— {{ item.author }}
                       </p>
+                    }
+                    @if (item.hasChangeDetail && item.link) {
+                      <a
+                        class="mt-3 inline-flex min-h-11 items-center gap-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-500"
+                        [routerLink]="item.link"
+                        >看課表<i class="pi pi-angle-right text-xs" aria-hidden="true"></i
+                      ></a>
                     }
                   </div>
                 </details>

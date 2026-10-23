@@ -22,7 +22,7 @@ const SESSION_SELECT = `
   id, event_id, session_date, start_time, end_time, status, class_id, teacher_id,
   teacher:staff!teacher_id(display_name),
   schedules!schedule_id(teacher_id, teacher:staff!teacher_id(display_name), classrooms(name)),
-  classes!inner(name, campus_id, campuses(name), courses(name)),
+  classes!inner(name, campus_id, campuses(name, phone), courses(name)),
   schedule_changes(
     change_type,
     original_session_date, original_start_time, original_end_time,
@@ -61,6 +61,11 @@ const ParentSessionSchema = z
     /** 班的分校（#1075）：家長到班頁拿它對 `dailyCheckinCampusIds`，判斷今天的課要不要刷卡 */
     campusId: z.string().nullable(),
     campusName: z.string().nullable(),
+    /**
+     * 這堂課分校的電話（#1100 #44，使用者 10-23 裁定）。這支只回孩子**有報名**的班的課，
+     * 所以出現在這裡的電話一定是孩子上課的分校 —— 沒報名的分校電話不會經由這裡出現
+     */
+    campusPhone: z.string().nullable(),
     /**
      * 時段指定的教室（#1796；A6 p-schedule「分校 · 教室」）。從排課時段來 ——
      * 手動加的堂、補課沒有時段，就是 null
@@ -254,6 +259,7 @@ app.openapi(
         courseName: (one(classRow?.['courses'])?.['name'] as string | undefined) ?? null,
         campusId: (classRow?.['campus_id'] as string | undefined) ?? null,
         campusName: (one(classRow?.['campuses'])?.['name'] as string | undefined) ?? null,
+        campusPhone: (one(classRow?.['campuses'])?.['phone'] as string | null | undefined) ?? null,
         classroomName: (one(schedule?.['classrooms'])?.['name'] as string | undefined) ?? null,
         teacherName: nameOf(s['teacher']),
         isSubstitute,

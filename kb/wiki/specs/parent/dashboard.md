@@ -3,7 +3,7 @@ title: 家長儀表板
 summary: 家長首頁，快速掌握孩子今日狀況。
 category: spec
 status: active
-updated: 2026-08-30
+updated: 2026-10-23
 tags: [specs, parent, dashboard]
 ---
 
@@ -36,6 +36,7 @@ tags: [specs, parent, dashboard]
 - 課務異動標記（調課/代課/停課）
 - 有小考標籤
 - 點擊卡片以 Popup 展開課堂詳情
+  - 詳情帶**分校電話**（可點撥打，#1100 #44 使用者 2026-10-23 裁定）：只限孩子有報名的分校，同 [[specs/parent/schedule]]。可報名課程目錄的詳情**不帶**（那些不一定是有報名的分校）
 
 ### 推薦加選課程
 

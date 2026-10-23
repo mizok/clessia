@@ -10,13 +10,18 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { map as rxMap, type Observable } from 'rxjs';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
 import { InboxBadgeService } from '@core/inbox-badge.service';
-import { NotificationsService, type AppNotification } from '@core/notifications.service';
+import {
+  NotificationsService,
+  type AppNotification,
+  type ChangeDetailRow,
+  type ChangeSlot,
+} from '@core/notifications.service';
 import { addDaysToDateString, taipeiDateString } from '@core/system-clock.service';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
@@ -39,6 +44,8 @@ export interface InboxItem {
   readonly author: string | null;
   /** 通知點了要去的頁 */
   readonly link: string | null;
+  /** 課務異動：點了展開「原本／改為」＋「看課表」，不直接導頁（#1100 #49，A6 p-notifications） */
+  readonly hasChangeDetail: boolean;
 }
 
 /** 通知 kind → 列上的標籤（#1683）；沒列到的寫「通知」 */
@@ -67,6 +74,7 @@ function fromAnnouncement(a: Announcement): InboxItem {
     campusName: a.campusName,
     author: a.createdByName,
     link: null,
+    hasChangeDetail: false,
   };
 }
 
@@ -82,6 +90,7 @@ function fromNotification(n: AppNotification): InboxItem {
     campusName: null,
     author: null,
     link: n.link,
+    hasChangeDetail: n.hasChangeDetail,
   };
 }
 
@@ -116,6 +125,7 @@ function fromNotification(n: AppNotification): InboxItem {
     ValueArriveDirective,
     PageOpenComponent,
     ChapterHeadComponent,
+    RouterLink,
   ],
   templateUrl: './announcement-inbox.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -228,8 +238,45 @@ export class AnnouncementInboxComponent {
     return `${item.source}:${item.id}`;
   }
 
+  /** 課務異動的原本／改為：通知 id → 讀到的列、讀取中、讀取失敗。展開才讀，讀過就留著 */
+  protected readonly changeDetail = signal<
+    Record<string, ChangeDetailRow[] | 'loading' | 'failed'>
+  >({});
+
+  /** `2026-10-08`＋`15:30`＋老師 → 「10/8（四）15:30 · 王老師」 */
+  protected slotText(slot: ChangeSlot): string {
+    const [y, m, d] = slot.date.split('-').map(Number);
+    const wd = '日一二三四五六'[new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay()];
+    return [
+      `${m}/${d}（${wd}）${slot.startTime ?? ''}`.trim(),
+      slot.teacherName && `${slot.teacherName}`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  private loadChangeDetail(id: string): void {
+    const state = this.changeDetail()[id];
+    if (state && state !== 'failed') return;
+    this.changeDetail.update((m) => ({ ...m, [id]: 'loading' }));
+    this.notificationsService
+      .changeDetail(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.changeDetail.update((m) => ({ ...m, [id]: res.data })),
+        error: () => this.changeDetail.update((m) => ({ ...m, [id]: 'failed' })),
+      });
+  }
+
   protected toggle(item: InboxItem): void {
     if (!item.isRead) this.markRead(item);
+    if (item.source === 'notification' && item.hasChangeDetail) {
+      const key = this.keyOf(item);
+      const opening = this.openKey() !== key;
+      this.openKey.set(opening ? key : null);
+      if (opening) this.loadChangeDetail(item.id);
+      return;
+    }
     if (item.source === 'notification' && item.link) {
       void this.router.navigateByUrl(item.link);
       return;

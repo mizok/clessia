@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   Component,
   DestroyRef,
@@ -44,7 +45,13 @@ import { daysOverdue, isOverdue, outstanding } from '../../../payments/payments.
 @Component({
   selector: 'app-student-billing-chapter',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, StatusDotComponent, StudentLeaveStreaksComponent],
+  imports: [
+    TextSwapDirective,
+    DecimalPipe,
+    RouterLink,
+    StatusDotComponent,
+    StudentLeaveStreaksComponent,
+  ],
   // 帳單詳情 dialog 的結果訊息走全站的 MessageService（#1615）
   providers: [DialogService],
   templateUrl: './student-billing-chapter.component.html',

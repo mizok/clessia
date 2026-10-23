@@ -674,10 +674,10 @@ describe('CoursesPage', () => {
       expect(el().querySelector('input[aria-label="搜尋課程或班級"]')).not.toBeNull();
     });
 
-    it('操作紀錄是圖示鈕（文字只給螢幕閱讀器）', () => {
+    it('操作紀錄是全站共用的時鐘圖示鈕（#2006），名稱給螢幕閱讀器', () => {
       setup();
-      const btn = el().querySelector('button[title="操作紀錄"]') as HTMLElement;
-      expect(btn.querySelector('.sr-only')?.textContent).toBe('操作紀錄');
+      const btn = el().querySelector('app-audit-log-button button') as HTMLElement;
+      expect(btn.getAttribute('aria-label')).toBe('操作紀錄');
     });
 
     it('點浮層外面關掉後，「篩選」鈕的 aria-expanded 回到 false（onHide 回寫）', () => {
@@ -709,11 +709,11 @@ describe('CoursesPage', () => {
       expect(
         (component as unknown as { interventionCount: () => number }).interventionCount(),
       ).toBe(2);
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('需介入 2 個班');
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain(
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain('需介入 2 個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain(
         '沒有未來的課堂，家長看不到下一堂。',
       );
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看這幾個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain('只看這幾個班');
     });
 
     it('「只看這幾個班」：課程仍顯示、底下只留需介入的班；再按還原', () => {
@@ -736,7 +736,9 @@ describe('CoursesPage', () => {
         component as unknown as { courseGroups: () => { classes: { id: string }[] }[] }
       ).courseGroups();
       expect(groups.map((g) => g.classes.map((c) => c.id))).toEqual([['a'], ['d']]);
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看需介入的 2 個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain(
+        '只看需介入的 2 個班',
+      );
 
       again();
       component['onStatusFilterChange'](null);
