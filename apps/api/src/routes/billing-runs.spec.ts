@@ -15,7 +15,10 @@ import billingRunsRoute from './billing-runs';
  * 替身按表回資料，**不模擬任何過濾**，所以作廢單要在應用層被篩掉才會綠。
  */
 
-type Resolve = (table: string, ops: string[]) => { data?: unknown; error?: unknown; count?: number };
+type Resolve = (
+  table: string,
+  ops: string[],
+) => { data?: unknown; error?: unknown; count?: number };
 
 function tableFake(resolve: Resolve) {
   const inserts: Array<{ table: string; rows: unknown }> = [];
@@ -67,66 +70,8 @@ function appWith(supabase: unknown) {
   return app;
 }
 
-const ENROLLMENT = '00000000-0000-0000-0000-0000000000e1';
-
-/** 一個月 run 的最小劇本：一筆 active 月繳報名、這個月已經有一列學費（在 `billed` 那張帳單上） */
-function monthRun(billed: { voided_at: string | null } | null) {
-  return tableFake((table, ops) => {
-    if (table === 'enrollments' && ops.includes('is')) return { data: [] }; // 沒計費模式的掃描
-    if (table === 'enrollments') {
-      return {
-        data: [
-          {
-            id: ENROLLMENT,
-            student_id: 's1',
-            effective_from: '2026-01-01',
-            effective_to: null,
-            agreed_amount: 3000,
-            fee_templates: null,
-          },
-        ],
-      };
-    }
-    if (table === 'invoice_items' && ops.includes('insert')) return { data: { id: 'new-item' } };
-    if (table === 'invoice_items') {
-      // 學費冪等查詢 與 餐費異常掃描 都打這張表；後者帶 eq('type','meal') 且沒有 in()
-      if (ops.includes('in')) {
-        return { data: billed ? [{ enrollment_id: ENROLLMENT, invoices: billed }] : [] };
-      }
-      return { data: [] };
-    }
-    if (table === 'invoices') return { data: { id: 'new-invoice' } };
-    if (table === 'organizations') return { data: { invoice_due_days: 14 } };
-    return { data: [] };
-  });
-}
-
-async function runMonth(fake: ReturnType<typeof tableFake>) {
-  const res = await appWith(fake.client).request('/', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ periodMonth: '2026-03' }),
-  });
-  await new Promise((r) => setTimeout(r, 0));
-  return (await res.json()) as { invoicesCreated: number; tuitionItems: number };
-}
-
-describe('POST /api/billing-runs —— 學費冪等認得作廢單（#898）', () => {
-  // 對照組：證明替身有鑑別力 —— 開過的就不再開
-  it('這個月已經開在一張有效帳單上 → 不重開', async () => {
-    const body = await runMonth(monthRun({ voided_at: null }));
-
-    expect(body.tuitionItems).toBe(0);
-    expect(body.invoicesCreated).toBe(0);
-  });
-
-  it('這個月那一列在一張作廢單上 → 當成沒開過，重開', async () => {
-    const body = await runMonth(monthRun({ voided_at: '2026-03-10T00:00:00Z' }));
-
-    expect(body.tuitionItems).toBe(1);
-    expect(body.invoicesCreated).toBe(1);
-  });
-});
+// #898 的學費那一半（作廢單上的學費不算開過）：#1943 起開帳只走 pg（學費冪等是 SQL），
+// 替身驗不到 SQL 語意，改由 contract/billing-run-scale.contract.ts 對真 Postgres 守（作廢後重開剛好那一張）。
 
 describe('餐費異常掃描跳過作廢單（#898）', () => {
   /** 兩個餐費 item 都「金額對不上蓋章」—— 一個在有效帳單上、一個在作廢單上（章已解） */
@@ -144,7 +89,8 @@ describe('餐費異常掃描跳過作廢單（#898）', () => {
           ],
         };
       }
-      if (table === 'meal_records') return { data: [{ invoice_item_id: 'live-meal', unit_price: 400 }] };
+      if (table === 'meal_records')
+        return { data: [{ invoice_item_id: 'live-meal', unit_price: 400 }] };
       return { data: [] };
     });
   }

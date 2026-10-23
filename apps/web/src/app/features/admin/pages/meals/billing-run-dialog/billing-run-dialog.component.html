@@ -12,6 +12,29 @@
 
   @if (result(); as done) {
     <div class="flex flex-col gap-4">
+      @if (done.failedStudents.length > 0) {
+        <div
+          class="flex flex-col gap-2 rounded-lg border border-error-200 bg-error-100 p-4"
+          role="alert"
+        >
+          <h3 class="m-0 text-sm font-semibold text-error-700">
+            {{ done.failedStudents.length }} 位學生這次沒開成帳單
+          </h3>
+          <p class="m-0 text-xs leading-relaxed text-zinc-700">
+            寫入時發生錯誤，這幾位的帳單與餐費結算都沒有寫進去（其他人已經開好）。
+            <strong>再按一次{{ modeLabel() }}會補開</strong> —— 已經開好的不會重複開。
+          </p>
+          <ul class="m-0 flex list-none flex-col gap-1 p-0">
+            @for (student of done.failedStudents; track student.studentId) {
+              <li class="text-xs text-zinc-700">
+                {{ student.studentName ?? '（讀不到姓名）' }}
+                <span class="text-zinc-700">· 寫入失敗</span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+
       <dl class="m-0 flex flex-wrap gap-5 rounded-lg bg-zinc-50 p-4">
         <div class="flex flex-col gap-1">
           <dt class="text-xs text-zinc-500">開立帳單</dt>
@@ -64,6 +87,14 @@
     </div>
 
     <footer class="flex justify-end gap-2">
+      @if (done.failedStudents.length > 0) {
+        <p-button
+          [label]="'再跑一次' + modeLabel()"
+          icon="pi pi-refresh"
+          [loading]="running()"
+          (onClick)="retry()"
+        />
+      }
       @if (done.invoicesCreated > 0) {
         <!-- 產生了東西就要能走到它 —— 不然使用者得自己從側邊選單找回繳費紀錄 -->
         <p-button
