@@ -1,18 +1,26 @@
 import { Component, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
+import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { TabsModule } from 'primeng/tabs';
 import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+
+/** 彈窗裡的分頁（課表：課堂異動／出勤紀錄）。不給就是單一清單，照 `resourceTypes` 查 */
+export interface AuditLogTab {
+  readonly label: string;
+  readonly resourceTypes: readonly string[];
+  /** 這個分頁沒有紀錄時的字，不給就是「尚無操作紀錄」 */
+  readonly emptyText?: string;
+}
+
+/** 開彈窗時的 `data`（#2006：全站操作紀錄只用這一支，課表那支併進來） */
+export interface AuditLogDialogData {
+  readonly resourceTypes?: readonly string[];
+  readonly tabs?: readonly AuditLogTab[];
+}
 
 interface ActionConfig {
   label: string;
@@ -69,11 +77,9 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   imports: [
     SkeletonComponent,
     DataChipComponent,
-    CommonModule,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
+    DatePipe,
+    PaginatorModule,
+    TabsModule,
     LoadFailedComponent,
   ],
   templateUrl: './audit-log-dialog.component.html',
@@ -83,23 +89,31 @@ export class AuditLogDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
 
-  protected readonly resourceTypes = signal<string[]>(this.config.data?.resourceTypes ?? []);
+  private readonly data = (this.config.data ?? {}) as AuditLogDialogData;
+  protected readonly tabs = signal<readonly AuditLogTab[]>(this.data.tabs ?? []);
+  protected readonly tabIndex = signal(0);
+  private readonly resourceTypes = computed(
+    () => this.tabs()[this.tabIndex()]?.resourceTypes ?? this.data.resourceTypes ?? [],
+  );
+  protected readonly emptyText = computed(
+    () => this.tabs()[this.tabIndex()]?.emptyText ?? '尚無操作紀錄',
+  );
 
   protected readonly logs = signal<AuditLog[]>([]);
   protected readonly loading = signal(false);
   /** 取數失敗。**不能沿用 `logs().length === 0`** —— 「尚無操作紀錄」在失敗時是謊話（#812） */
   protected readonly loadFailed = signal(false);
   protected readonly page = signal(1);
-  protected readonly pageSize = signal(10);
+  protected readonly pageSize = 10;
   protected readonly total = signal(0);
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
-    first: Math.max((this.page() - 1) * this.pageSize(), 0),
-    rows: this.pageSize(),
-    totalRecords: this.total(),
-    showCurrentPageReport: true,
-    currentPageReportTemplate: '顯示 {first} - {last}，共 {totalRecords} 筆',
-    alwaysShow: false,
-  }));
+
+  /**
+   * 操作者：`user_name` 是寫入當下查的，查不到就是空（#2006 使用者截圖的「—」）。
+   * 沒有 userId＝系統自己做的；有 userId 卻沒有名字＝不明。
+   */
+  protected actorName(log: AuditLog): string {
+    return log.userName ?? (log.userId ? '不明' : '系統');
+  }
 
   protected getActionConfig(action: string): ActionConfig {
     return ACTION_MAP[action] ?? { label: action };
@@ -144,13 +158,16 @@ export class AuditLogDialogComponent {
     this.loadPage();
   }
 
-  protected onPage(event: ResponsiveTablePageEvent): void {
-    const nextRows = Math.max(event.rows, 1);
-    const nextFirst = Math.max(event.first, 0);
-    const nextPage = Math.floor(nextFirst / nextRows) + 1;
+  protected onPage(event: PaginatorState): void {
+    this.page.set((event.page ?? 0) + 1);
+    this.loadPage();
+  }
 
-    this.pageSize.set(nextRows);
-    this.page.set(nextPage);
+  protected onTab(value: string | number | undefined): void {
+    const next = Number(value ?? 0);
+    if (next === this.tabIndex()) return;
+    this.tabIndex.set(next);
+    this.page.set(1);
     this.loadPage();
   }
 
@@ -160,9 +177,9 @@ export class AuditLogDialogComponent {
     this.loadFailed.set(false);
     this.auditLogsService
       .list({
-        resourceTypes: this.resourceTypes(),
+        resourceTypes: [...this.resourceTypes()],
         page: this.page(),
-        pageSize: this.pageSize(),
+        pageSize: this.pageSize,
       })
       .subscribe({
         next: (res) => {

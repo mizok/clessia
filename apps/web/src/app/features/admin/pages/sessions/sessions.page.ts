@@ -60,7 +60,10 @@ import {
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
-import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
+import {
+  AuditLogDialogComponent,
+  type AuditLogDialogData,
+} from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
@@ -684,11 +687,19 @@ export class SessionsPage implements OnInit {
   }
 
   protected openOperationsLog(): void {
-    this.dialogService.open(SessionOperationsLogDialogComponent, {
+    // 全站操作紀錄只用共用的這一支（#2006）；課表多兩個分頁
+    const data: AuditLogDialogData = {
+      tabs: [
+        { label: '課堂異動', resourceTypes: ['session'], emptyText: '尚無課堂異動紀錄' },
+        { label: '出勤紀錄', resourceTypes: ['attendance'], emptyText: '尚無出勤操作紀錄' },
+      ],
+    };
+    this.dialogService.open(AuditLogDialogComponent, {
       width: '800px',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
+      data,
     });
   }
 

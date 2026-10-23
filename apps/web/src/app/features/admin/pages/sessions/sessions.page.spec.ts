@@ -20,7 +20,7 @@ import { CampusContextService } from '@core/campus-context.service';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
-import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { SessionMakeupDialogComponent } from './dialogs/session-makeup-dialog/session-makeup-dialog.component';
 import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
@@ -1373,10 +1373,16 @@ describe('SessionsPage', () => {
     ).openOperationsLog();
 
     expect(dialogOpenSpy).toHaveBeenCalledWith(
-      SessionOperationsLogDialogComponent,
+      AuditLogDialogComponent,
       expect.objectContaining({
-        // `showHeader: false`，標題來自元件模板；這裡只驗開的是哪一支對話框
+        // `showHeader: false`，標題來自元件模板。全站共用那一支，課表帶兩個分頁（#2006）
         showHeader: false,
+        data: {
+          tabs: [
+            expect.objectContaining({ label: '課堂異動', resourceTypes: ['session'] }),
+            expect.objectContaining({ label: '出勤紀錄', resourceTypes: ['attendance'] }),
+          ],
+        },
       }),
     );
   });
