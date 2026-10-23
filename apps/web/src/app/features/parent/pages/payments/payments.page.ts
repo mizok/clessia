@@ -37,6 +37,7 @@ import {
   monthDay,
 } from './payments.util';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import type { Subscription } from 'rxjs';
 
 const PAGE_SIZE = 20;
 
@@ -153,11 +154,15 @@ export class PaymentsPage implements OnInit {
     this.load(childId, this.currentPage() + 1, true);
   }
 
+  /** 換孩子很快（A→B→A）時，上一個請求晚到不能蓋掉現在這個孩子的 —— 新的一發出就取消舊的（#1978） */
+  private loadSub?: Subscription;
+
   private load(childId: string, page: number, append = false): void {
     this.loading.set(true);
     this.failed.set(false);
 
-    this.billingService.list({ childId, page, pageSize: PAGE_SIZE }).subscribe({
+    this.loadSub?.unsubscribe();
+    this.loadSub = this.billingService.list({ childId, page, pageSize: PAGE_SIZE }).subscribe({
       next: (res) => {
         this.invoices.set(append ? [...this.invoices(), ...res.data] : res.data);
         this.total.set(res.meta.total);

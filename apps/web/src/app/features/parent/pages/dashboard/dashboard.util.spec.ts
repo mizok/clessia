@@ -50,6 +50,8 @@ const score = (over: Partial<ParentScoreRecord> = {}): ParentScoreRecord => ({
   totalScore: 100,
   status: 'scored',
   description: null,
+  teacherName: null,
+  recordedByName: null,
   ...over,
 });
 

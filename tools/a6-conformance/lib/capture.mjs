@@ -218,6 +218,7 @@ export async function capture(
       .filter(
         (b) =>
           b.getClientRects().length &&
+          !b.disabled && // 停用的開不了（例：沒有餐費紀錄時的「匯出」），點下去只會等到逾時
           !b.closest('.proto-pill, .proto-all, .proto-notes') && // 設計稿翻頁膠囊，不是頁面
           !seen.has(b.getAttribute('popovertarget')) &&
           seen.add(b.getAttribute('popovertarget')),

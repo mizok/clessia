@@ -35,64 +35,65 @@
 
 ## 席位表
 
-| Charter                                          | Domain                         | 典型工作                                                   | Herdr pane 名         |
-| ------------------------------------------------ | ------------------------------ | ---------------------------------------------------------- | --------------------- |
-| [billing-api.md](billing-api.md)                 | 金流/API/auth 核心             | schema、Hono 路由、Better Auth、Workers 執行環境           | `billing-api`         |
-| [design-web.md](design-web.md)                   | 視覺/設計系統/web 效能         | tokens、SCSS、bundle、mockup、登入與公開頁                 | `design-web`          |
-| [api-2.md](api-2.md)                             | 後端 API 第二席                | 領域邏輯收斂、外部依賴查證；與 billing-api 分工            | `api-2`               |
-| [admin-pages.md](admin-pages.md)                 | 管理端頁面                     | admin feature 頁、dialog、表格、儀表板                     | `admin-pages`         |
-| [labor-reviewer.md](labor-reviewer.md)           | 審核/合併/部署機械工(可 idle)  | CI 巡檢、v2 代合、部署、內容驗證                           | `labor-reviewer`      |
-| [labor-ops-warden.md](labor-ops-warden.md)       | 席位巡檢監工(可 idle)          | 存活檢查、通訊救援、帳面抽查                               | `labor-ops-warden`    |
-| [teacher-pages.md](teacher-pages.md)             | 老師端頁面（行動優先）         | teacher feature 頁、手機課表、點名、成績登錄               | `teacher-pages`       |
-| [infra.md](infra.md)                             | CI/harness/依賴/工具債         | verify 序列、gate、憲法 enforcement、升版                  | `infra`               |
-| [labor-1.md](labor-1.md)                         | 通用執行席（無固定領域）       | 計畫席當下最缺人的那一支；跨前後端                         | `labor-1`             |
-| [labor-2.md](labor-2.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-2`             |
-| [labor-3.md](labor-3.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-3`             |
-| [labor-4.md](labor-4.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-4`             |
-| [labor-5.md](labor-5.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-5`             |
-| [labor-6.md](labor-6.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-6`             |
-| [labor-7.md](labor-7.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-7`             |
-| [labor-8.md](labor-8.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-8`             |
-| [labor-9.md](labor-9.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-9`             |
-| [labor-20260913-1134.md](labor-20260913-1134.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20260913-1134` |
-| [labor-20261001-1037.md](labor-20261001-1037.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261001-1037` |
-| [labor-20260930-1515.md](labor-20260930-1515.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20260930-1515` |
-| [labor-20261002-1549.md](labor-20261002-1549.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261002-1549` |
-| [labor-20261002-2126.md](labor-20261002-2126.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261002-2126` |
-| [labor-20261002-2335.md](labor-20261002-2335.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261002-2335` |
-| [labor-20261003-1128.md](labor-20261003-1128.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1128` |
-| [labor-20261003-1119.md](labor-20261003-1119.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1119` |
-| [labor-20261003-1155.md](labor-20261003-1155.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1155` |
-| [labor-20261003-1456.md](labor-20261003-1456.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1456` |
-| [labor-20261003-1552.md](labor-20261003-1552.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1552` |
-| [labor-20261004-0110.md](labor-20261004-0110.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261004-0110` |
-| [labor-20261008-1507.md](labor-20261008-1507.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261008-1507` |
-| [labor-20261010-0854.md](labor-20261010-0854.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-0854` |
-| [labor-20261010-1056.md](labor-20261010-1056.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1056` |
-| [labor-20261003-1226.md](labor-20261003-1226.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1226` |
-| [labor-20261010-1008.md](labor-20261010-1008.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1008` |
-| [labor-20261010-1809.md](labor-20261010-1809.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1809` |
-| [labor-20261010-1746.md](labor-20261010-1746.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1746` |
-| [labor-20261010-1910.md](labor-20261010-1910.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1910` |
-| [labor-20261010-1838.md](labor-20261010-1838.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1838` |
-| [labor-20261010-1957.md](labor-20261010-1957.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1957` |
-| [labor-20261010-2156-api.md](labor-20261010-2156-api.md) | 通用執行席（無固定領域） | 同上 | `labor-20261010-2156-api` |
-| [labor-20261014-1019.md](labor-20261014-1019.md) | 通用執行席（無固定領域） | 同上 | `labor-20261014-1019` |
-| [labor-20261014-1404.md](labor-20261014-1404.md) | 通用執行席（無固定領域） | 同上 | `labor-20261014-1404` |
-| [labor-20261014-1723-api.md](labor-20261014-1723-api.md) | 通用執行席（無固定領域） | 同上 | `labor-20261014-1723-api` |
-| [labor-20261015-1152-perf.md](labor-20261015-1152-perf.md) | 通用執行席（無固定領域） | 同上 | `labor-20261015-1152-perf` |
-| [labor-20261015-1236-perf.md](labor-20261015-1236-perf.md) | 通用執行席（無固定領域） | 同上 | `labor-20261015-1236-perf` |
-| [labor-20261015-1450-campus.md](labor-20261015-1450-campus.md) | 通用執行席（無固定領域） | 同上 | `labor-20261015-1450-campus` |
-| [labor-20261016-1048-push.md](labor-20261016-1048-push.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-1048-push` |
-| [labor-20261016-1212-entry.md](labor-20261016-1212-entry.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-1212-entry` |
-| [labor-20261016-1708-notify.md](labor-20261016-1708-notify.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-1708-notify` |
-| [labor-20261016-2120-notifyapi.md](labor-20261016-2120-notifyapi.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-2120-notifyapi` |
-| [labor-20261016-1534-forms.md](labor-20261016-1534-forms.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-1534-forms` |
-| [labor-20261016-1420-motion.md](labor-20261016-1420-motion.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-1420-motion` |
-| [labor-20261016-2039-front.md](labor-20261016-2039-front.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-2039-front` |
-| [labor-20261016-2058-inbox.md](labor-20261016-2058-inbox.md) | 通用執行席（無固定領域） | 同上 | `labor-20261016-2058-inbox` |
-| [usability-admin.md](usability-admin.md)         | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin`     |
-| [labor-db-reset.md](labor-db-reset.md)           | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`      |
+| Charter                                                              | Domain                         | 典型工作                                                   | Herdr pane 名                   |
+| -------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------- | ------------------------------- |
+| [billing-api.md](billing-api.md)                                     | 金流/API/auth 核心             | schema、Hono 路由、Better Auth、Workers 執行環境           | `billing-api`                   |
+| [design-web.md](design-web.md)                                       | 視覺/設計系統/web 效能         | tokens、SCSS、bundle、mockup、登入與公開頁                 | `design-web`                    |
+| [api-2.md](api-2.md)                                                 | 後端 API 第二席                | 領域邏輯收斂、外部依賴查證；與 billing-api 分工            | `api-2`                         |
+| [admin-pages.md](admin-pages.md)                                     | 管理端頁面                     | admin feature 頁、dialog、表格、儀表板                     | `admin-pages`                   |
+| [labor-reviewer.md](labor-reviewer.md)                               | 審核/合併/部署機械工(可 idle)  | CI 巡檢、v2 代合、部署、內容驗證                           | `labor-reviewer`                |
+| [labor-ops-warden.md](labor-ops-warden.md)                           | 席位巡檢監工(可 idle)          | 存活檢查、通訊救援、帳面抽查                               | `labor-ops-warden`              |
+| [teacher-pages.md](teacher-pages.md)                                 | 老師端頁面（行動優先）         | teacher feature 頁、手機課表、點名、成績登錄               | `teacher-pages`                 |
+| [infra.md](infra.md)                                                 | CI/harness/依賴/工具債         | verify 序列、gate、憲法 enforcement、升版                  | `infra`                         |
+| [labor-1.md](labor-1.md)                                             | 通用執行席（無固定領域）       | 計畫席當下最缺人的那一支；跨前後端                         | `labor-1`                       |
+| [labor-2.md](labor-2.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-2`                       |
+| [labor-3.md](labor-3.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-3`                       |
+| [labor-4.md](labor-4.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-4`                       |
+| [labor-5.md](labor-5.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-5`                       |
+| [labor-6.md](labor-6.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-6`                       |
+| [labor-7.md](labor-7.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-7`                       |
+| [labor-8.md](labor-8.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-8`                       |
+| [labor-9.md](labor-9.md)                                             | 通用執行席（無固定領域）       | 同上                                                       | `labor-9`                       |
+| [labor-20260913-1134.md](labor-20260913-1134.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20260913-1134`           |
+| [labor-20261001-1037.md](labor-20261001-1037.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261001-1037`           |
+| [labor-20260930-1515.md](labor-20260930-1515.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20260930-1515`           |
+| [labor-20261002-1549.md](labor-20261002-1549.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261002-1549`           |
+| [labor-20261002-2126.md](labor-20261002-2126.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261002-2126`           |
+| [labor-20261002-2335.md](labor-20261002-2335.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261002-2335`           |
+| [labor-20261003-1128.md](labor-20261003-1128.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1128`           |
+| [labor-20261003-1119.md](labor-20261003-1119.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1119`           |
+| [labor-20261003-1155.md](labor-20261003-1155.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1155`           |
+| [labor-20261003-1456.md](labor-20261003-1456.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1456`           |
+| [labor-20261003-1552.md](labor-20261003-1552.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1552`           |
+| [labor-20261004-0110.md](labor-20261004-0110.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261004-0110`           |
+| [labor-20261008-1507.md](labor-20261008-1507.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261008-1507`           |
+| [labor-20261010-0854.md](labor-20261010-0854.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-0854`           |
+| [labor-20261010-1056.md](labor-20261010-1056.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1056`           |
+| [labor-20261003-1226.md](labor-20261003-1226.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261003-1226`           |
+| [labor-20261010-1008.md](labor-20261010-1008.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1008`           |
+| [labor-20261010-1809.md](labor-20261010-1809.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1809`           |
+| [labor-20261010-1746.md](labor-20261010-1746.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1746`           |
+| [labor-20261010-1910.md](labor-20261010-1910.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1910`           |
+| [labor-20261010-1838.md](labor-20261010-1838.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1838`           |
+| [labor-20261010-1957.md](labor-20261010-1957.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-1957`           |
+| [labor-20261010-2156-api.md](labor-20261010-2156-api.md)             | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261010-2156-api`       |
+| [labor-20261014-1019.md](labor-20261014-1019.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261014-1019`           |
+| [labor-20261014-1404.md](labor-20261014-1404.md)                     | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261014-1404`           |
+| [labor-20261014-1723-api.md](labor-20261014-1723-api.md)             | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261014-1723-api`       |
+| [labor-20261015-1152-perf.md](labor-20261015-1152-perf.md)           | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261015-1152-perf`      |
+| [labor-20261015-1236-perf.md](labor-20261015-1236-perf.md)           | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261015-1236-perf`      |
+| [labor-20261015-1450-campus.md](labor-20261015-1450-campus.md)       | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261015-1450-campus`    |
+| [labor-20261016-1048-push.md](labor-20261016-1048-push.md)           | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-1048-push`      |
+| [labor-20261016-1212-entry.md](labor-20261016-1212-entry.md)         | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-1212-entry`     |
+| [labor-20261016-1708-notify.md](labor-20261016-1708-notify.md)       | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-1708-notify`    |
+| [labor-20261016-2120-notifyapi.md](labor-20261016-2120-notifyapi.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-2120-notifyapi` |
+| [labor-20261016-1534-forms.md](labor-20261016-1534-forms.md)         | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-1534-forms`     |
+| [labor-20261016-1420-motion.md](labor-20261016-1420-motion.md)       | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-1420-motion`    |
+| [labor-20261016-2039-front.md](labor-20261016-2039-front.md)         | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-2039-front`     |
+| [labor-20261016-2058-inbox.md](labor-20261016-2058-inbox.md)         | 通用執行席（無固定領域）       | 同上                                                       | `labor-20261016-2058-inbox`     |
+| [labor-20261022-2041-polish2.md](labor-20261022-2041-polish2.md)     | 介面細修 → #1928 後端分擔      | 同上                                                       | `labor-20261022-2041-polish2`   |
+| [usability-admin.md](usability-admin.md)                             | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin`               |
+| [labor-db-reset.md](labor-db-reset.md)                               | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`                |
 
 > **`labor-*` 是通用執行席，刻意不綁領域。** 2026-09-13 起新開的生產席命名為 `labor-<開席時間戳>`（`labor-YYYYMMDD-HHMM`），`labor-1`～`labor-9` 是改制前的流水號；常設席（`labor-reviewer`、`labor-db-reset`、`labor-ops-warden`）也是 `labor-` 開頭，且**每次交接換新 session 就換時間戳**（`labor-ops-warden-20260913-1200`）；charter 檔名維持不帶時間戳的職務名。 上面八席是照領域長出來的（金流、管理端、
 > CI…），而那個切法在「今天最缺人的是哪一支」這個問題上答不出來 —— 2026-09-12 一天之內
