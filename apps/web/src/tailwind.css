@@ -34,6 +34,10 @@
  */
 
 @source './app/app.component.html';
+@source './app/features/parent/shared/child-scope-gate';
+@source './app/features/teacher/pages/notifications';
+@source './app/shared/components/load-failed';
+@source './app/shared/components/responsive-table';
 @source './app/shared/components/audit-log-button';
 @source './app/shared/components/search-field';
 @source './app/shared/components/select-field';
