@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -75,6 +76,7 @@ const RANGE_PAGE_SIZE = 50;
   selector: 'app-admin-meals',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     StatusDotComponent,
     PageOpenComponent,

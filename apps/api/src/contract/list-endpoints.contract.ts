@@ -123,6 +123,9 @@ const REQUIRED: Record<string, string> = {
   '/api/me/meals dateTo': '{today}',
   '/api/me/billing childId': '{child}',
   '/api/me/class-logs childId': '{child}',
+  '/api/me/contact-book childId': '{child}',
+  '/api/me/contact-book dateFrom': '{monthStart}',
+  '/api/me/contact-book dateTo': '{today}',
   '/api/me/sessions childId': '{child}',
   '/api/me/sessions dateFrom': '{monthStart}',
   '/api/me/sessions dateTo': '{today}',
@@ -163,6 +166,8 @@ const PARAMS: Record<string, string> = {
   '/api/scores/class/{classId}/exam/{examId} examId': '{academyExam}',
   '/api/invoices/{id} id': '{invoice}',
   '/api/leaves/{id}/impact id': '{leave}',
+  // #1100 #49：beforeAll 替 seed 的家長插一則課務異動通知（指到他孩子班上的一堂），afterAll 刪
+  '/api/notifications/{id}/schedule-change id': '{changeNote}',
 };
 
 /** 文件沒標 required、但路由邏輯要求至少一個的（不帶回 400）—— 每次都帶 */
@@ -177,6 +182,8 @@ const ALWAYS: Record<string, string> = {
 const ROLE: Record<string, string> = {
   '/api/announcements/inbox': 'teacher',
   '/api/teacher/session-changes': 'teacher',
+  // 家長身分才讀得到（用 seed 那位家長打，見 hitAll）
+  '/api/notifications/{id}/schedule-change': 'parent',
 };
 
 /** 會走到另一條查詢分支的參數（每支多打一次）。值裡的 `{campus}` 換成 seed 的分校 */
@@ -206,8 +213,14 @@ const BRANCHES: Record<string, string[]> = {
     'from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY,
     'event=left&from=' + TODAY.slice(0, 7) + '-01&to=2099-12-31',
     'event=paused',
+    // #1100 #30：部分姓名 → students!inner＋巢狀 ilike（含要跳脫的 %）
+    'studentName=' + encodeURIComponent('王'),
+    'studentName=' + encodeURIComponent('50%_'),
   ],
-  '/api/enrollments/event-counts': ['from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY],
+  '/api/enrollments/event-counts': [
+    'from=' + TODAY.slice(0, 7) + '-01&to=' + TODAY,
+    'studentName=' + encodeURIComponent('王'),
+  ],
 };
 
 /**
@@ -237,6 +250,8 @@ const PUBLIC_WRITES_SKIPPED: Record<string, string> = {
 
 const ids: Record<string, string> = {};
 let changeUser = '';
+/** beforeAll 插的家長課務異動通知（#1100 #49），afterAll 刪 */
+let changeNoteId = '';
 const parentUser: { userId: string; children: string[] } = { userId: '', children: [] };
 let publicSlug = '';
 const fill = (value: string) => value.replace(/\{\w+\}/g, (token) => ids[token] ?? token);
@@ -269,6 +284,16 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
     VAPID_PUBLIC_KEY:
       'BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8',
   };
+
+  afterAll(async () => {
+    if (changeNoteId) {
+      await createClient(URL!, KEY!)
+        .from('notifications')
+        .delete()
+        .eq('id', changeNoteId)
+        .eq('org_id', ctx.orgId);
+    }
+  });
 
   beforeAll(async () => {
     const supabase = createClient(URL!, KEY!);
@@ -343,6 +368,38 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       (r) => r.student_id,
     );
     ids['{child}'] = parentUser.children[0]!;
+    // 家長的課務異動通知（#1100 #49）：孩子在籍班上的一堂，一則 role=parent 的通知帶它的 sessionId
+    const { data: childEnrollments } = await supabase
+      .from('enrollments')
+      .select('class_id')
+      .in('student_id', parentUser.children)
+      .neq('status', 'void');
+    const { data: childSession } = await supabase
+      .from('sessions')
+      .select('id')
+      .in(
+        'class_id',
+        (childEnrollments ?? []).map((e) => e['class_id'] as string),
+      )
+      .limit(1)
+      .maybeSingle();
+    if (!childSession) throw new Error('seed 裡家長的孩子沒有課堂，課務異動通知的契約驗不到');
+    const { data: note, error: noteError } = await supabase
+      .from('notifications')
+      .insert({
+        org_id: ctx.orgId,
+        user_id: parentUser.userId,
+        role: 'parent',
+        kind: 'schedule_change',
+        dedupe_key: `contract:schedule-change:${crypto.randomUUID()}`,
+        payload: { title: '契約', body: '契約', sessionIds: [childSession['id']] },
+        push_status: 'skipped',
+      })
+      .select('id')
+      .single();
+    if (noteError || !note) throw new Error(`插課務異動通知失敗：${noteError?.message}`);
+    ids['{changeNote}'] = note['id'] as string;
+    changeNoteId = note['id'] as string;
     // 有課務異動的課堂與它的老師（沒有就退回 admin 的 userId、今天 —— 查詢形狀就驗不到）
     const { data: change } = await supabase
       .from('schedule_changes')
@@ -418,12 +475,19 @@ run('GET 列表與單筆端點對真 PostgREST 回 200（#1435）', () => {
       }
       ctx.role = which === 'me' ? 'parent' : (ROLE[path] ?? 'admin');
       if (path === '/api/teacher/session-changes' && changeUser) ctx.userId = changeUser;
+      const scopeBefore = ctx.studentScope;
+      if (path === '/api/notifications/{id}/schedule-change') {
+        ctx.userId = parentUser.userId;
+        ctx.studentScope = parentUser.children;
+      }
       for (const url of list) {
         const res = await app.request(url, {}, env);
         if (res.status !== 200) {
           failures.push(`${url} → ${res.status} ${(await res.text()).slice(0, 200)}`);
         }
       }
+      ctx.userId = userBefore;
+      ctx.studentScope = scopeBefore;
     }
     ctx.role = 'admin';
     ctx.userId = userBefore;

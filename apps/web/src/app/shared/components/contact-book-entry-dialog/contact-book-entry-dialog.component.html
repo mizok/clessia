@@ -30,7 +30,10 @@
         class="entry-dialog__signed-note m-0 rounded-md border border-solid border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600"
       >
         家長已於 {{ existing.signedAt | date: 'yyyy-MM-dd HH:mm' }} 簽收。改內容不會取消簽收 ——
-        家長看到的是最新版本。
+        家長看到的是最新版本，那一則會標「有更新」。
+        @if (existing.editedAfterSign) {
+          <b class="font-semibold text-zinc-800">這則在簽收後有修改。</b>
+        }
       </p>
     }
   } @else {

@@ -83,6 +83,7 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     const [clone] = clones();
     expect(clone?.textContent?.trim()).toBe('學生管理');
     expect(clone?.getAttribute('aria-hidden')).toBe('true');
+    expect(clone?.inert).toBe(true);
     // 複本不能帶 id：同一頁出現兩個一樣的 id，label／aria 參照會指錯（根節點與子節點都要拿掉）
     expect(clone?.hasAttribute('id')).toBe(false);
     expect(clone?.querySelector('[id]')).toBeNull();
@@ -92,14 +93,30 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
 
     const exit = calls.find((c) => c.el === clone)!;
     const enter = calls.find((c) => c.el === host)!;
-    expect(exit.opts.duration).toBe(120);
-    expect(enter.opts.duration).toBe(200);
-    expect(enter.opts.delay).toBe(120);
+    expect(exit.opts.duration).toBe(350);
+    expect(enter.opts.duration).toBe(650);
+    expect(enter.opts.delay).toBe(350);
     expect(enter.opts.fill).toBe('backwards');
     expect(exit.frames.at(-1)?.['opacity']).toBe(0);
     expect(enter.frames[0]?.['opacity']).toBe(0);
     // 宿主的字已經是新字（讀屏只念這一次）
     expect(host.textContent?.trim()).toBe('41 位學生，今天有 8 位有課。');
+  });
+
+  it('複本用舊字定下來時的小數寬：不是新字的寬、也不取整（兩種都會讓舊字折行，#1983）', async () => {
+    // 替身：宿主的寬跟著字走，舊字比新字寬
+    const proto = HTMLElement.prototype as unknown as { getBoundingClientRect: () => DOMRect };
+    const orig = proto.getBoundingClientRect;
+    proto.getBoundingClientRect = function (this: HTMLElement) {
+      return { width: this.textContent?.includes('學生管理') ? 114.47 : 60.5 } as DOMRect;
+    };
+    try {
+      const { set, clones } = await setup();
+      await set('學生');
+      expect(clones()[0]?.style.width).toBe('114.47px');
+    } finally {
+      proto.getBoundingClientRect = orig;
+    }
   });
 
   it('出場播完，複本拿掉', async () => {
@@ -157,5 +174,26 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     expect(calls).toHaveLength(0);
     expect(clones()).toHaveLength(0);
     expect(host.textContent?.trim()).toBe('新的一句');
+  });
+
+  it('時長、模糊、遮罩邊緣讀 styles.css 的 --text-swap-*（#2023：之後要調只改一處）', async () => {
+    const r = document.documentElement.style;
+    r.setProperty('--text-swap-exit', '100ms');
+    r.setProperty('--text-swap-enter', '0.3s');
+    r.setProperty('--text-swap-blur', '2px');
+    r.setProperty('--text-swap-edge', '20%');
+    try {
+      const { set, calls, host, clones } = await setup();
+      await set('學生管理（新）');
+      const exit = calls.find((c) => c.el === clones()[0])!;
+      const enter = calls.find((c) => c.el === host)!;
+      expect(exit.opts.duration).toBe(100);
+      expect(enter.opts.duration).toBe(300);
+      expect(enter.opts.delay).toBe(100);
+      expect(exit.frames.at(-1)?.['filter']).toBe('blur(2px)');
+      expect(String(exit.frames[0]?.['maskImage'])).toContain('transparent 40%, #000 60%');
+    } finally {
+      for (const k of ['exit', 'enter', 'blur', 'edge']) r.removeProperty(`--text-swap-${k}`);
+    }
   });
 });

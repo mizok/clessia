@@ -57,6 +57,11 @@ export function monthLabel(month: string, today: string): string {
   return `${year === today.slice(0, 4) ? '' : `${year} 年 `}${+month.slice(5, 7)} 月`;
 }
 
+/** A6 `nextM`：這個月的餐費併進下個月的帳單 —— 9 月的寫「10 月」，12 月的寫「1 月」 */
+export function nextMonthLabel(month: string): string {
+  return `${(+month.slice(5, 7) % 12) + 1} 月`;
+}
+
 /** A6 `md（wd）`：10/21（三） */
 export function dayLabel(date: string): string {
   const weekday = '日一二三四五六'[new Date(`${date}T00:00:00Z`).getUTCDay()];

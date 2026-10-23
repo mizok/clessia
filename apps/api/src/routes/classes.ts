@@ -1628,7 +1628,8 @@ app.openapi(
       .single();
 
     if (error) {
-      if (error.code === '23505') {
+      // 23505：舊的唯一鍵；23P01：#1100 #22 換成的排除約束（同時段生效區間重疊）
+      if (error.code === '23505' || error.code === '23P01') {
         return c.json({ error: '此時段已存在', code: 'DUPLICATE' }, 409);
       }
       return c.json({ error: error.message, code: 'DB_ERROR' }, 400);

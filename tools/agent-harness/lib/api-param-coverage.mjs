@@ -109,6 +109,12 @@ const EXEMPT = new Map([
   ],
   ['/api/me/billing|page', '同上'],
   ['/api/me/billing|pageSize', '同上'],
+  [
+    '/api/me/contact-book|childId',
+    '前綴碰撞：多支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-sessions.service.ts 有送（#1100 #26）—— 見上方註解',
+  ],
+  ['/api/me/contact-book|dateFrom', '同上'],
+  ['/api/me/contact-book|dateTo', '同上'],
   // 家長端教務日誌讀取端點，同一批排序 —— 前端消費端是 teacher-pages 的
   // v1b（家長讀取頁 + 發布啟用），還沒生出來。見 kb/wiki/architecture/
   // parent-class-logs-read.md。

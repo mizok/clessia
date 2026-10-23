@@ -9,6 +9,8 @@ import {
   teachersForSessionGroups,
   type StaffNotification,
 } from './notify';
+import { fetchAllPages } from './fetch-all-pages';
+import { isEnrolledOn } from './session-roster';
 import { waitUntilFrom } from './wait-until';
 
 /**
@@ -19,6 +21,7 @@ import { waitUntilFrom } from './wait-until';
  * - 收件人：該班那幾堂的老師（任課班 ∪ 實際上課 ∪ 代課／換老師的原老師與新老師），**做異動的人自己不收**
  * - **也發給管理員**（#1023，使用者 10-23）：範圍涵蓋該班分校、有 `basic_operations` 的管理員
  *   （同請假通知 leave_received，計畫席裁），種類跟老師同一組。設計見 kb/wiki/architecture/admin-schedule-change-notice.md
+ * - **也發給該班家長**（#1100 #49，使用者 10-23）：見 `notifyParents`
  * - 不丟例外：業務寫入已經成功了，失敗只記 `[notify]` log
  */
 
@@ -174,12 +177,100 @@ export async function notifyScheduleChange(
       }
     }
     await notify(supabase, rowsForAdmins);
+
+    await notifyParents(supabase, input.orgId, input.actorUserId, eventKey, label, byClass);
   } catch (err) {
     console.error(
       '[notify] 課務異動通知失敗（異動已寫入）:',
       err instanceof Error ? err.message : err,
     );
   }
+}
+
+/**
+ * 課務異動 → 該班家長（#1100 #49，使用者 10-23 選「存檔時自動發」，計畫席批准的設計見 #1100）。
+ *
+ * - 收件人＝那幾堂**當天在籍**的學生（`isEnrolledOn`，作廢的報名不算）的家長：本 org、`status = 'active'`
+ * - **一批一班一位家長一則**；同一位家長兩個孩子在同班 → 一則、兩個名字都列（計畫席 10-23）
+ * - 去重鍵跟老師、管理員分開（`schedule_change:parent:…`），同一人兼兩種身分不會被吃掉
+ * - **v1 不推播**（計畫席 10-23）：寫成 `skipped`，排程不會撿；通知中心照樣看得到
+ * - `payload.sessionIds`：展開「原本／改為」時用（即時從 `schedule_changes` 算，那支另做）
+ * - 用**班級 id** 查在籍（URL 只有幾個班），不帶學生 id —— 整門課停課的學生可能上百位（`.in()` 414 坑）。
+ *   這裡在 `waitUntil` 背景跑，請求的 pg pool 已經關了，不能改走 pool；用 `fetchAllPages` 翻到底
+ */
+async function notifyParents(
+  supabase: SupabaseClient,
+  orgId: string,
+  actorUserId: string,
+  eventKey: string,
+  label: string,
+  byClass: ReadonlyMap<string, ScheduleChangeClassGroup>,
+): Promise<void> {
+  const dates = [...byClass.values()].flatMap((g) => g.dates).sort();
+  if (dates.length === 0) return;
+  // 翻到底：一批（整門課停課）超過 PostgREST max_rows 1000 筆在籍時，一次撈會靜默截掉後面的家長（計畫席 10-23）
+  const { rows: data, error } = await fetchAllPages((from, to) =>
+    supabase
+      .from('enrollments')
+      .select(
+        'id, class_id, effective_from, effective_to, students(name, parent_student_relations(parents(user_id, org_id, status)))',
+      )
+      .eq('org_id', orgId)
+      .in('class_id', [...byClass.keys()])
+      .neq('status', 'void')
+      .lte('effective_from', dates.at(-1)!)
+      .or(`effective_to.is.null,effective_to.gte.${dates[0]}`)
+      .order('id')
+      .range(from, to),
+  );
+  if (error) throw new Error((error as { message?: string }).message ?? String(error));
+
+  type Parent = { user_id: string | null; org_id: string; status: string };
+  type Row = {
+    class_id: string;
+    effective_from: string;
+    effective_to: string | null;
+    students: { name: string; parent_student_relations: { parents: Parent | null }[] } | null;
+  };
+  const rows: Record<string, unknown>[] = [];
+  for (const [classId, g] of byClass) {
+    // 家長 user_id → 這一班裡他的孩子（同一位孩子多筆報名只算一次）
+    const children = new Map<string, Set<string>>();
+    for (const e of data as unknown as Row[]) {
+      if (e.class_id !== classId || !e.students) continue;
+      const range = { effectiveFrom: e.effective_from, effectiveTo: e.effective_to };
+      if (!g.dates.some((d) => isEnrolledOn(range, d))) continue;
+      for (const { parents: p } of e.students.parent_student_relations ?? []) {
+        if (!p?.user_id || p.org_id !== orgId || p.status !== 'active') continue;
+        if (p.user_id === actorUserId) continue;
+        children.set(p.user_id, (children.get(p.user_id) ?? new Set()).add(e.students.name));
+      }
+    }
+    const first = shortDate([...g.dates].sort()[0]!);
+    const count = g.dates.length > 1 ? ` 等 ${g.dates.length} 堂` : '';
+    for (const [userId, names] of children) {
+      rows.push({
+        org_id: orgId,
+        user_id: userId,
+        role: 'parent',
+        kind: 'schedule_change',
+        dedupe_key: `schedule_change:parent:${eventKey}:${classId}`,
+        payload: {
+          title: `課務異動：${label}`,
+          body: `${[...names].sort().join('、')} ${g.name} ${first}${count} ${label}`,
+          url: '/parent/schedule',
+          sessionIds: g.sessionIds,
+        },
+        push_status: 'skipped',
+        push_error: 'KIND_PUSH_DISABLED',
+      });
+    }
+  }
+  if (rows.length === 0) return;
+  const { error: writeError } = await supabase
+    .from('notifications')
+    .upsert(rows, { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true });
+  if (writeError) throw new Error(writeError.message);
 }
 
 /**

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 
-import contactBookApp from './contact-book';
-import { toContactBookEntryResponse } from './contact-book';
+import contactBookApp, { toContactBookEntryResponse } from './contact-book';
+import { createMultiOrgDb } from '../test-utils/multi-org-db';
 
 /**
  * 聯絡簿是「國小模式」：每生每日唯一一則自由文字（rules 1）。
@@ -16,6 +16,7 @@ const ROW = {
   last_edited_by: 'user-teacher',
   signed_by: null,
   signed_at: null,
+  updated_at: '2026-08-29T10:00:00Z',
   students: { name: '陳小明' },
   editor: { name: '林老師' },
   signer: null,
@@ -34,7 +35,17 @@ describe('toContactBookEntryResponse', () => {
       signedByName: null,
       signedAt: null,
       isSigned: false,
+      editedAfterSign: false,
     });
+  });
+
+  /** #1100 #26：簽收保留，但簽收之後又改過要標出來。簽收時兩欄相等（同一個交易時間） */
+  it('updated_at 晚於 signed_at → editedAfterSign；相等（剛簽收）→ false', () => {
+    const at = '2026-08-29T12:00:00.123456+00:00';
+    const signedNow = { ...ROW, signed_at: at, updated_at: at };
+    expect(toContactBookEntryResponse(signedNow).editedAfterSign).toBe(false);
+    const editedLater = { ...signedNow, updated_at: '2026-08-29T12:05:00+00:00' };
+    expect(toContactBookEntryResponse(editedLater).editedAfterSign).toBe(true);
   });
 
   /**
@@ -181,5 +192,84 @@ describe('GET /api/contact-book/missing/summary', () => {
     );
 
     expect(response.status).toBe(400);
+  });
+});
+
+/**
+ * #1100 #26（計畫席 10-23）：內容沒變就不寫。upsert 會讓 trigger 跳 `updated_at`，
+ * 老師原文照存一次，已簽收的那則就會變成「簽收後有修改」。
+ */
+describe('PUT /api/contact-book 內容沒變不寫', () => {
+  const ORG = 'org-1';
+  const STUDENT = '00000000-0000-0000-0000-000000000031';
+  const DATE = '2026-10-20';
+
+  function setup() {
+    const db = createMultiOrgDb({
+      students: [{ id: STUDENT, org_id: ORG, name: '甲' }],
+      contact_book_entries: [
+        {
+          id: 'e1',
+          org_id: ORG,
+          student_id: STUDENT,
+          entry_date: DATE,
+          content: '原文',
+          last_edited_by: 'teacher-a',
+          signed_at: '2026-10-20T12:00:00Z',
+          updated_at: '2026-10-20T12:00:00Z',
+        },
+      ],
+    });
+    const writes: string[] = [];
+    const client = db.client as { from: (t: string) => Record<string, unknown> };
+    const from = client.from.bind(client);
+    client.from = (t: string) => {
+      const q = from(t);
+      for (const op of ['upsert', 'update', 'insert']) {
+        const orig = (q[op] as (...a: unknown[]) => unknown).bind(q);
+        q[op] = (...a: unknown[]) => {
+          if (t === 'contact_book_entries') writes.push(op);
+          return orig(...a);
+        };
+      }
+      return q;
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', ORG);
+      set('userId', 'admin-b');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', contactBookApp as unknown as Hono);
+    const put = (content: string) =>
+      app.request('/', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studentId: STUDENT, entryDate: DATE, content }),
+      });
+    return { db, writes, put };
+  }
+
+  it('原文照存：不寫、編輯者不換，回現狀', async () => {
+    const { db, writes, put } = setup();
+    const res = await put('原文');
+    expect(res.status).toBe(200);
+    expect(writes).toEqual([]);
+    expect(db.rows('contact_book_entries')[0]).toMatchObject({ last_edited_by: 'teacher-a' });
+  });
+
+  it('內容改了：照寫（防過度擋）', async () => {
+    const { db, writes, put } = setup();
+    expect((await put('改過的內容')).status).toBe(200);
+    expect(writes).toEqual(['upsert']);
+    expect(db.rows('contact_book_entries')[0]).toMatchObject({
+      content: '改過的內容',
+      last_edited_by: 'admin-b',
+    });
   });
 });

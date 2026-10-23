@@ -1,3 +1,5 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { Component, DestroyRef, OnInit, inject, signal, computed, input } from '@angular/core';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
@@ -15,6 +17,7 @@ import { skip } from 'rxjs';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
 import { CampusContextService } from '@core/campus-context.service';
+import { LeaveBatchDialogComponent } from './leave-batch-dialog/leave-batch-dialog.component';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import {
   SystemClockService,
@@ -46,6 +49,8 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
   selector: 'app-leave',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     CampusScopeNoteComponent,
@@ -429,6 +434,28 @@ export class LeavePage implements OnInit {
         this.loadRecords({ rows: true });
         this.loadCounts();
       }
+    });
+  }
+
+  /** 批次請假（#1100 #32，A6）：建了幾張就重抓；沒成功的那幾位留在窗裡處理 */
+  protected openBatchDialog(): void {
+    const ref = this.dialogService.open(LeaveBatchDialogComponent, {
+      header: '批次請假',
+      width: '560px',
+      modal: true,
+      appendTo: this.overlayContainerService.getContainer() || 'body',
+      data: { campusId: this.campusCtx.id() },
+    });
+    ref?.onClose.subscribe((result: { created: number } | null) => {
+      if (!result?.created) return;
+      this.messageService.add({
+        severity: 'success',
+        summary: '已登記',
+        detail: `已幫 ${result.created} 位學生請假`,
+      });
+      this.currentPage.set(1);
+      this.loadRecords({ rows: true });
+      this.loadCounts();
     });
   }
 

@@ -60,7 +60,7 @@
     @if (filtered()) {
       <!-- A6 `.count`：篩選中才有，「找到 N 位」＋清除；N 數不重複的學生（跟色面同一個口徑） -->
       <p class="m-0 mt-6 flex flex-wrap items-baseline gap-3 text-md text-zinc-600">
-        <span
+        <span appTextSwap
           >找到 <strong class="text-zinc-900">{{ foundCount() }}</strong> 位</span
         >
         <button

@@ -869,9 +869,12 @@ describe('StaffPage', () => {
       });
     });
 
-    it('操作紀錄是無圖示的次要鈕（A6）；新增人員仍帶 + 圖示；「⋯」還在', () => {
+    it('操作紀錄是全站共用的時鐘圖示鈕、不佔底部托盤（#2006）；新增人員仍帶 + 圖示；「⋯」還在', () => {
       respond([person('t', {})]);
-      expect((component as any).secondaryAction).toEqual({ label: '操作紀錄' });
+      expect(
+        root().querySelector('app-audit-log-button button[aria-label="操作紀錄"]'),
+      ).not.toBeNull();
+      expect(root().querySelectorAll('.page-actions__dock button').length).toBe(1);
       expect((component as any).primaryAction.icon).toBe('pi pi-plus');
       expect(root().querySelector('[data-testid="staff-page-menu"]')).not.toBeNull();
       expect(root().querySelector('app-filter-toggle')).toBeNull();

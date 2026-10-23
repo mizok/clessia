@@ -17,7 +17,7 @@
   accordionBehavior="multi"
   expandIcon="pi-chevron-right"
   collapseIcon="pi-chevron-down"
-  expandControlPosition="start"
+  expandControlPosition="end"
   (page)="onPage($event)"
 />
 
@@ -48,7 +48,7 @@
 - `accordionBehavior`: `'multi' | 'accordion'`，預設 `multi`
 - `expandIcon`: icon class，預設 `pi-chevron-right`
 - `collapseIcon`: icon class，預設 `pi-chevron-down`
-- `expandControlPosition`: `'start' | 'end'`，預設 `start`
+- `expandControlPosition`: `'start' | 'end'`，預設 `end`（#2007：照 A6，小箭頭在最右；整列可點）
 
 ## Outputs
 

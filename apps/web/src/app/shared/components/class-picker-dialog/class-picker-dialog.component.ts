@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -16,6 +17,7 @@ import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/student
   selector: 'app-class-picker-dialog',
   standalone: true,
   imports: [
+    TextSwapDirective,
     FormsModule,
     ButtonModule,
     InputTextModule,

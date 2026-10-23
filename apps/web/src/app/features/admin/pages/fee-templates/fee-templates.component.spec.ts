@@ -218,15 +218,15 @@ describe('FeeTemplatesComponent', () => {
           toggleShowInactive: () => void;
         };
 
-      it('操作紀錄是純按鈕：白底＋zinc-300 框、方鈕 tbar-control-square（#1903 手機 44／桌機 40）、點了開操作紀錄', () => {
+      it('操作紀錄是全站共用的時鐘圖示鈕（#2006）：白底＋zinc-300 框、方鈕 tbar-control-square（#1903 手機 44／桌機 40）、點了開操作紀錄', () => {
         load(mixed());
-        const b = btn('audit-log-btn');
+        const b = btn('audit-log-button');
         expect(b.tagName).toBe('BUTTON');
         expect([...b.classList]).toEqual(
           expect.arrayContaining(['border-zinc-300', 'bg-white', 'tbar-control-square']),
         );
         expect(b.getAttribute('aria-label')).toBe('操作紀錄');
-        expect(b.querySelector('i')!.className).toContain('pi-history');
+        expect(b.querySelector('i')!.className).toContain('pi-clock');
         const spy = vi.spyOn(component_(), 'openAuditLog').mockImplementation(() => undefined);
         b.click();
         expect(spy).toHaveBeenCalledTimes(1);

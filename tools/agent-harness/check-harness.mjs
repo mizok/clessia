@@ -11,7 +11,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
@@ -43,10 +43,11 @@ import {
 } from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
-import { usesRawSupabase } from './lib/parent-route-scan.mjs';
+import { usesRawSupabase, usesRawPool } from './lib/parent-route-scan.mjs';
 import { themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
 import { loadTailwind } from './lib/tailwind-classes.mjs';
+import { uncoveredTemplateDirs } from './lib/tailwind-source-coverage.mjs';
 import { touchTargetClassViolations, contrastClassViolations } from './lib/tailwind-a11y.mjs';
 import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
@@ -997,6 +998,17 @@ scanExisting({
 // 本專案不在 main 上工作（AGENTS.md），而寫入當下那一層由 pre-guard 的 c3（whenTracked）擋，
 // 所以缺口是可接受的。拿不到 origin/main 時（淺 clone、離線）只警告不紅燈 ——
 // 環境問題不該偽裝成違憲。
+// **c3 的破例**：只放行使用者明確授權、**內容一字不改**的改名（git 判成 R100），新舊檔名要完全對上。
+// 每一筆都要寫出處。修改、刪除、內容有變的改名照樣紅燈 —— 這張表不是後門。
+const C3_RENAME_EXCEPTIONS = [
+  {
+    from: 'supabase/migrations/20261023033540_schedule_effective_from.sql',
+    to: 'supabase/migrations/20261023034100_schedule_effective_from.sql',
+    // 時間戳比已套到正式 DB 的 034048 早，migrate plan 擋下、main 部署全停；這支從未套到任何共用 DB
+    source: '#2025 使用者 10-23 授權（c3 破例）',
+  },
+];
+
 const migrationsChanged = spawnSync(
   'git',
   [
@@ -1017,6 +1029,12 @@ if (migrationsChanged.status !== 0) {
 } else {
   for (const line of migrationsChanged.stdout.split('\n').filter(Boolean)) {
     const [status, ...paths] = line.split('\t');
+    if (
+      status === 'R100' &&
+      C3_RENAME_EXCEPTIONS.some((e) => e.from === paths[0] && e.to === paths[1])
+    ) {
+      continue;
+    }
     fail(
       `${paths.at(-1)} 是已提交的 migration，本分支卻${status.startsWith('D') ? '刪除' : status.startsWith('R') ? '改名' : '修改'}了它（c3）。` +
         `schema 變更請新增一支 ALTER TABLE migration：npx supabase migration new <description>`,
@@ -1302,6 +1320,12 @@ if (existsSync(FEATURES_DIR)) {
         fail(
           `${rel} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
             `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
+        );
+      }
+      if (usesRawPool(source, rel)) {
+        fail(
+          `${rel} 出現 getAuth( 或 .pool —— 家長端檔案不碰原始 pg 連線，要用 pool 的寫入做成 ` +
+            `childDb 的能力（createChildDb 收 pool），見 kb/wiki/architecture/parent-data-scope.md 第二節`,
         );
       }
     }
@@ -2318,6 +2342,25 @@ function checkTailwindTheme() {
 }
 
 checkTailwindTheme();
+
+// ── A29. 每個有模板的目錄都被 tailwind.css 的 @source 涵蓋（計畫席 10-23）──────────────────
+// source(none)：沒列進 @source 的目錄，class 不會被產生；別頁剛好用過同一個 class 時畫面照樣正常，
+// 本機看不出來。判準在 lib/tailwind-source-coverage.mjs。
+function checkTailwindSourceCoverage() {
+  const app = join(ROOT, 'apps/web/src/app');
+  if (!tailwind || !existsSync(app)) return;
+  recordScope('tailwind-source-coverage', { roots: ['apps/web/src/app'], exts: ['.html', '.ts'] });
+  const files = [...walk(app, '.html'), ...walk(app, '.ts')].map((f) => relative(ROOT, f));
+  const read = (f) => readFileSync(join(ROOT, f), 'utf8');
+  for (const dir of uncoveredTemplateDirs(files, read, tailwind.covers)) {
+    fail(
+      `${dir} 有模板，但沒被 apps/web/src/tailwind.css 的任何一條 @source 涵蓋 —— ` +
+        `它的 class 不會被產生（source(none)）。加一行 @source './${dir.replace('apps/web/src/', '')}';`,
+    );
+  }
+}
+
+checkTailwindSourceCoverage();
 
 // ── A26. cascade layer 順序三處一致（#991 T4）──────────────────────────────────────────
 // tailwind.css、styles.css 的 `@layer …;` 與 PrimeNG 的 cssLayer.order（必須是前綴）。

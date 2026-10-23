@@ -179,20 +179,23 @@ export class CheckinStationComponent {
     this.submitting.set(true);
     this.failure.set(null);
     this.result.set(null);
-    this.checkins.checkIn({ studentId, checkinDate: this.clock.todayTaipei() }).subscribe({
-      next: (confirmation) => {
-        this.result.set(confirmation);
-        this.code.set('');
-        this.submitting.set(false);
-        this.startTimer();
-      },
-      error: (err: unknown) => {
-        this.failure.set(checkinFailure(err));
-        this.code.set('');
-        this.submitting.set(false);
-        this.startTimer();
-      },
-    });
+    // 掃碼站：明確帶 scan（#1100 #52）；機台帳號後端不看這個參數，一律 scan
+    this.checkins
+      .checkIn({ studentId, checkinDate: this.clock.todayTaipei(), source: 'scan' })
+      .subscribe({
+        next: (confirmation) => {
+          this.result.set(confirmation);
+          this.code.set('');
+          this.submitting.set(false);
+          this.startTimer();
+        },
+        error: (err: unknown) => {
+          this.failure.set(checkinFailure(err));
+          this.code.set('');
+          this.submitting.set(false);
+          this.startTimer();
+        },
+      });
   }
 
   protected retry(): void {
