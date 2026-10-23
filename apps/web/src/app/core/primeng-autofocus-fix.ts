@@ -21,9 +21,12 @@ export function fixPrimeAutoFocus(): void {
     autofocus: unknown;
     onAfterContentChecked: () => void;
     __clessiaFixed?: boolean;
+    __clessiaOriginal?: () => void;
   };
   if (proto.__clessiaFixed) return;
   const original = proto.onAfterContentChecked;
+  // 留著原本的方法：哨兵 spec 要暫時換回去量上游行為（測試打包在一起跑、檔案之間沒有隔離）
+  proto.__clessiaOriginal = original;
   proto.onAfterContentChecked = function (this: typeof proto) {
     if (this.autofocus !== true) this.autofocus = false;
     original.call(this);
