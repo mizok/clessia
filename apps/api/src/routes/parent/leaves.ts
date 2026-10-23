@@ -4,10 +4,7 @@ import { isCancelledSession } from '../../lib/cancelled-session';
 import { isChildAllowed } from '../../lib/child-scope';
 import { buildLeaveAttendanceUpserts, getLeaveValidationError } from '../../lib/leave-attendance';
 import {
-  LEAVE_WINDOW_COLUMNS,
   leaveCoversSession,
-  leavesConflict,
-  toLeaveWindow,
   type LeaveWindow,
 } from '../../lib/leave-covers-session';
 import { DbUuidSchema } from '../../lib/validation';
@@ -165,21 +162,8 @@ app.openapi(
       return c.json({ error: '這段時間沒有課', code: 'NO_SESSIONS' }, 400);
     }
 
-    // 2. 重疊（判準同管理端）
-    const existing = await childDb
-      .from('leave_requests', 'student_id')
-      .select(`id, ${LEAVE_WINDOW_COLUMNS}`)
-      .eq('student_id', studentId)
-      .lte('start_date', window.endDate)
-      .gte('end_date', window.startDate);
-    if (existing.error) return failed();
-    if (
-      ((existing.data ?? []) as unknown as Row[]).some((row) =>
-        leavesConflict(toLeaveWindow(row), window),
-      )
-    ) {
-      return c.json({ error: '這段時間已經請過假了', code: 'LEAVE_OVERLAP' }, 409);
-    }
+    // 2. 重疊：在寫入的那一筆交易裡、取鎖之後查（#1970，見步驟 4）—— 這裡先查的話，
+    //    兩個同時進來的請求都會查到「沒有」
 
     // 3. 家長端只改「沒有出勤紀錄」或「缺席」的堂（計畫席 10-19 裁 (a)）：已經點成出席等其他狀態的一律不動。
     //    補請的原意是把缺席翻成請假，不是讓家長覆寫老師的點名（會少扣堂、少算出席）。**管理端不套這條**（人工判斷，可以覆寫）
@@ -207,23 +191,21 @@ app.openapi(
       return c.json({ error: '這段時間的課都已經點成出席了', code: 'ALL_ATTENDED' }, 400);
     }
 
-    // 4. 寫入（scoped insert；org_id 由 childDb 蓋）
-    const inserted = await childDb.from('leave_requests', 'student_id').insert(
-      {
-        student_id: studentId,
-        start_date: window.startDate,
-        end_date: window.endDate,
-        start_time: window.startTime,
-        end_time: window.endTime,
-        reason: body.reason ?? null,
-        submitted_by: userId,
-        submitted_by_role: 'parent',
-      },
-      'id, student_id, start_date, end_date, start_time, end_time, reason',
-    );
-    if (inserted.outOfScope) return c.json({ error: '不是你的孩子', code: 'NOT_YOUR_CHILD' }, 403);
-    const leave = inserted.data as Row | null;
-    if (inserted.error || !leave) return failed();
+    // 4. 取鎖 → 查重疊（判準同管理端）→ 寫入，同一筆交易；跟管理端同一把鎖（#1970）
+    const created = await childDb.createLeave({
+      studentId,
+      window,
+      reason: body.reason ?? null,
+      userId,
+    });
+    if (created.kind === 'out-of-scope') {
+      return c.json({ error: '不是你的孩子', code: 'NOT_YOUR_CHILD' }, 403);
+    }
+    if (created.kind === 'overlap') {
+      return c.json({ error: '這段時間已經請過假了', code: 'LEAVE_OVERLAP' }, 409);
+    }
+    if (created.kind === 'failed') return failed();
+    const leave = created.leave;
 
     // 5. 可以改的、有 event 的堂寫成 on_leave（沒 event 的堂是懶生成，讀取時由 leaveCoversSession 推導，同管理端）
     const upserts = buildLeaveAttendanceUpserts({

@@ -945,6 +945,7 @@ app.openapi(
             window,
             reason: body.reason ?? null,
             userId,
+            role: 'admin',
           })) as { id: string } & Record<string, unknown>,
         };
       });
