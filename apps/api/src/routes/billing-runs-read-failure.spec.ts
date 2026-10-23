@@ -105,7 +105,7 @@ function tableFake(fail: (table: string, ops: string[]) => boolean) {
   return { client, writes };
 }
 
-function appWith(supabase: unknown, scope: string[] | null = null) {
+function appWith(supabase: unknown, scope: string[] | null = null, pool?: unknown) {
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -113,6 +113,7 @@ function appWith(supabase: unknown, scope: string[] | null = null) {
     set('orgId', '00000000-0000-0000-0000-0000000000aa');
     set('userId', 'u1');
     set('campusScope', scope);
+    if (pool) set('auth', { pool });
     await next();
   });
   app.route('/', billingRunsRoute as unknown as Hono);
@@ -237,7 +238,7 @@ describe('repair 的比例防呆（#1934）：對不上的太多就不修', () =
   });
 
   /** n 筆餐費 item、其中 bad 筆金額對不上蓋章總額 */
-  function mealItems(n: number, bad: number, paid = 0) {
+  function mealItems(n: number, bad: number, paid = 0, refunded = 0) {
     const writes: Array<{ table: string; op: string }> = [];
     const client = {
       from(table: string) {
@@ -266,7 +267,16 @@ describe('repair 的比例防呆（#1934）：對不上的太多就不修', () =
                   org_id: 'org',
                   voided_at: null,
                   // 前 paid 筆的帳單已經收過款（使用者 10-23 裁定：repair 不改）
-                  payment_records: i < paid ? [{ amount: 100, kind: 'payment' }] : [],
+                  payment_records:
+                    i < paid
+                      ? [{ amount: 100, kind: 'payment' }]
+                      : i < paid + refunded
+                        ? // 收了又全額退：淨收款 0，視同沒收過
+                          [
+                            { amount: 100, kind: 'payment' },
+                            { amount: 100, kind: 'refund' },
+                          ]
+                        : [],
                 },
               })),
               error: null,
@@ -313,6 +323,65 @@ describe('repair 的比例防呆（#1934）：對不上的太多就不修', () =
     expect(res.status).toBe(200);
     const body = (await res.json()) as { repaired: number; skippedPaid: number };
     expect(body).toMatchObject({ repaired: 1, skippedPaid: 1 });
+    expect(fake.writes.filter((w) => w.table === 'invoice_items')).toHaveLength(1);
+  });
+
+  it('收了又全額退（淨收款 0）→ 照修，不算 skippedPaid（REST 路徑）', async () => {
+    const fake = mealItems(20, 2, 0, 1);
+    const res = await post(appWith(fake.client), '/repair');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ repaired: 2, skippedPaid: 0 });
+    expect(fake.writes.filter((w) => w.table === 'invoice_items')).toHaveLength(2);
+  });
+});
+
+/**
+ * repair 前「哪些帳單已經收款」讀不到 → 500、一筆都不改（審核席 @86bc814b W4）。
+ * 讀成空集合的話，已繳的帳單會被系統改應收 —— 正是使用者 10-23 裁定要避免的。
+ */
+describe('POST /repair：已收款查詢讀取失敗 → 500、一筆都不改（#1936）', () => {
+  it('REST 路徑（沒有 pool）：invoice_items 帶 payment_records 那支讀取失敗', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // 掃描（不帶 .in）照常；已收款查詢是帶 `.in('id', …)` 的那支 invoice_items 讀取
+    const fake = tableFake((t, o) => t === 'invoice_items' && o.includes('in') && isRead(o));
+    const res = await post(appWith(fake.client), '/repair');
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('READ_FAILED');
+    expect(fake.writes).toEqual([]);
+  });
+
+  it('pg 路徑：payment_records 那句丟錯', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const fake = tableFake(() => false);
+    const pool = {
+      query: async (sql: string) => {
+        if (sql.includes('payment_records')) throw new Error('boom');
+        // 蓋章總額：那筆 100 元的 item 只蓋了 80 → 對不上，repair 會想改它
+        if (sql.includes('sum(m.unit_price)')) {
+          return { rows: [{ invoice_item_id: 'meal-item', total: '80' }] };
+        }
+        throw new Error(`認不得的語句：${sql.slice(0, 60)}`);
+      },
+    };
+    const res = await post(appWith(fake.client, null, pool), '/repair');
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('READ_FAILED');
+    expect(fake.writes).toEqual([]);
+  });
+
+  it('對照組：pg 路徑讀得到（沒有收款）→ 照修那一筆', async () => {
+    const fake = tableFake(() => false);
+    const pool = {
+      query: async (sql: string) => {
+        if (sql.includes('payment_records')) return { rows: [] };
+        if (sql.includes('sum(m.unit_price)')) {
+          return { rows: [{ invoice_item_id: 'meal-item', total: '80' }] };
+        }
+        throw new Error(`認不得的語句：${sql.slice(0, 60)}`);
+      },
+    };
+    const res = await post(appWith(fake.client, null, pool), '/repair');
+    expect(res.status).toBe(200);
     expect(fake.writes.filter((w) => w.table === 'invoice_items')).toHaveLength(1);
   });
 });
