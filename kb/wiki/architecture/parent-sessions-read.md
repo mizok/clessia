@@ -3,7 +3,7 @@ title: 家長端讀取孩子的課堂（課表三頁的共用 API）
 summary: GET /api/me/sessions —— 給 p-schedule／p-dashboard 今日課／p-attendance 用。範圍走 childDb：pluck 孩子的 enrollments 得班級 ScopedIds，fromScopedIds 查 sessions，再用 countEnrolledOn 把在籍區間外的堂濾掉（同 class-logs 的轉班防線）。回老師（代課露實際老師＋原任課老師）、分校、小考數、課務異動（不帶原因）、停課照回、這個孩子那堂的出勤。日期窗必填、上限 42 天。pluck 改成必填 studentId（scope 含兄弟姊妹）。admin 的 summariseSessions 吃原始 supabase，不能複用，只複用純函式。
 category: architecture
 status: developing
-updated: 2026-10-03
+updated: 2026-10-23
 tags: [architecture, parent, authorization, sessions, schedule]
 ---
 
@@ -77,6 +77,9 @@ tags: [architecture, parent, authorization, sessions, schedule]
 1. **停課的堂要回**，帶 `status: 'cancelled'`；在籍判定照課堂日期。
 2. **代課露實際上課的老師名**，另帶 `isSubstitute: true` 與 `originalTeacherName`；家長端只顯示「代課」標記，
    **不顯示原因** —— 所以 `changes[]` 一律不帶 `reason`（改期、停課的原因也一併不帶，同一條欄位不分類型遮）。
+   - **2026-10-23 使用者修訂（#1100 #46）**：**停課的原因給家長看**（多半是颱風、老師請假，家長本來就想知道）。
+     `changes[].reason` 只有 `changeType = 'cancellation'` 時有值；改期、代課照舊回 `null`，經手人一律不回。
+     遮罩在 API 依類型做，前端只是有值才顯示。補習班登記的**請假**原因維持不給（[[specs/parent/leave]]）。
 3. **學校段考不放**（學生層級、不掛課堂；家長成績頁已有）。
 
 ## 實作備註

@@ -9,6 +9,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import type { Subscription } from 'rxjs';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
@@ -199,11 +200,15 @@ export class GradesComponent implements OnInit {
     return isFailingScore(record.score, { totalScore: record.totalScore });
   }
 
+  /** 換孩子很快（A→B→A）時，上一個請求晚到不能蓋掉現在這個孩子的 —— 新的一發出就取消舊的（#1978） */
+  private loadSub?: Subscription;
+
   private load(childId: string): void {
     this.loading.set(true);
     this.failed.set(false);
 
-    this.gradesService.list({ childId, pageSize: PAGE_SIZE }).subscribe({
+    this.loadSub?.unsubscribe();
+    this.loadSub = this.gradesService.list({ childId, pageSize: PAGE_SIZE }).subscribe({
       next: (res) => {
         this.records.set(res.data);
         this.recentCount.set(res.meta.recentCount);

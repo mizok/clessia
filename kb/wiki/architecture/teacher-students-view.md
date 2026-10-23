@@ -3,7 +3,7 @@ title: 老師端學生名單的設計
 summary: 老師看自己任課班級的學生。同時處理 teacher/attendance 空殼——點名的家是課表，不是另一個選單項目。
 category: architecture
 status: active
-updated: 2026-08-18
+updated: 2026-10-23
 tags: [architecture, teacher-students-view]
 ---
 
@@ -43,6 +43,18 @@ Teacher attendance content coming soon...
 （`status in (active, pending_payment)`）→ 學生。
 
 退班的學生不出現。要看歷史得去管理端——老師端不是稽核工具。
+
+### 到班只看「我的班」（#1100 #51，使用者 2026-10-23 裁定）
+
+「我的學生」決定老師**讀不讀得到**這個學生；讀得到之後，**到班資料也只算我的班**——
+學生在別的班到了沒、缺了幾次，老師看不到。兩個地方照這條縮：
+
+- `GET /students/{id}/attendance-days`：母體（他的報名）先篩成老師固定任課的班，
+  格子、統計、下一堂都從縮過的母體算
+- `GET /students` 的今日到班（`todayStatus`）：今天的課只取老師任課的班。他的學生今天只有別班的課
+  → `null`（今天沒他的課），不是別班那堂的狀態
+
+**縮在母體，不是撈了再遮**：撈全部再從回應裡刪，下一個加欄位的人會忘記刪那一欄。
 
 ## API：開 `students` 給 teacher，同時鎖範圍
 

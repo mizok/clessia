@@ -27,6 +27,7 @@ const SESSION_SELECT = `
     change_type,
     original_session_date, original_start_time, original_end_time,
     new_session_date, new_start_time, new_end_time,
+    reason,
     created_at
   )
 `;
@@ -39,7 +40,11 @@ const ChangeSchema = z.object({
   newDate: z.string().nullable(),
   newStartTime: z.string().nullable(),
   newEndTime: z.string().nullable(),
-  // reason / created_by_name 不回：家長端只顯示「代課／改期／停課」標記，不顯示原因與經手人
+  /**
+   * **只有停課回原因**（#1100 #46，使用者 10-23 裁定）：多半是颱風、老師請假這類，家長本來就想知道。
+   * 改期、代課的原因照舊不回（null）；經手人（created_by_name）一律不回
+   */
+  reason: z.string().nullable(),
 });
 
 const ParentSessionSchema = z
@@ -271,6 +276,10 @@ app.openapi(
             newDate: (ch['new_session_date'] as string | null) ?? null,
             newStartTime: hhmm(ch['new_start_time']),
             newEndTime: hhmm(ch['new_end_time']),
+            reason:
+              ch['change_type'] === 'cancellation'
+                ? ((ch['reason'] as string | null) ?? null)
+                : null,
           })),
         attendance: attendanceStatus
           ? {

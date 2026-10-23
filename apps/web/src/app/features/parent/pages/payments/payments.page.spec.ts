@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -97,6 +97,41 @@ describe('PaymentsPage', () => {
     fixture.componentRef.setInput('page', PAGE);
     fixture.detectChanges();
   }
+
+  /**
+   * #1978：快速 A→B→A，B 的回應比第二次 A 晚回來 —— 畫面停在 A，不能顯示 B 的帳單。
+   * 每次呼叫各給一個 Subject，自己決定誰先回。
+   */
+  it('#1978 換孩子 A→B→A，B 晚到的回應不蓋掉現在的 A', () => {
+    createComponent();
+    const pending: Subject<ParentInvoiceListResponse>[] = [];
+    listMock.mockImplementation(() => {
+      const s = new Subject<ParentInvoiceListResponse>();
+      pending.push(s);
+      return s.asObservable();
+    });
+    for (const id of ['child-a', 'child-b', 'child-a']) {
+      activeChildId.set(id);
+      fixture.detectChanges();
+    }
+    expect(pending.length).toBe(3);
+
+    const forA = {
+      data: [invoice({ id: 'a' })],
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
+    };
+    pending[2].next(forA);
+    pending[2].complete();
+    pending[1].next({
+      data: [invoice({ id: 'b' })],
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
+    }); // B 晚到
+    pending[1].complete();
+    fixture.detectChanges();
+
+    const comp = fixture.componentInstance as unknown as { invoices: () => unknown };
+    expect(comp.invoices()).toBe(forA.data);
+  });
 
   it('進頁呼叫 childScope.load()', () => {
     createComponent();

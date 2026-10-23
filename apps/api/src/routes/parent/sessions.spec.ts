@@ -344,7 +344,7 @@ describe('GET /api/me/sessions', () => {
       expect(body.data[0].examNames).toEqual(['第四次小考', '單字測驗']);
     });
 
-    it('有課務異動：changes[] 帶改期的新舊時間，不帶原因與經手人', async () => {
+    it('有課務異動：changes[] 帶改期的新舊時間；改期的原因與經手人不回', async () => {
       const seed = baseSeed({
         sessions: [
           session({
@@ -378,8 +378,47 @@ describe('GET /api/me/sessions', () => {
           newDate: '2026-10-05',
           newStartTime: '18:00',
           newEndTime: '19:30',
+          reason: null,
         },
       ]);
+      expect(JSON.stringify(body)).not.toContain('老師家裡有事');
+      expect(JSON.stringify(body)).not.toContain('行政小美');
+    });
+
+    // #1100 #46（使用者 10-23 裁定）：只給停課原因。改期、代課的原因照舊看不到，經手人一律看不到
+    it('停課 → changes[] 帶停課原因；同一堂的代課原因與經手人照舊不回', async () => {
+      const seed = baseSeed({
+        sessions: [
+          session({
+            id: id(301),
+            class_id: CLASS_A,
+            session_date: '2026-10-05',
+            status: 'cancelled',
+            schedule_changes: [
+              {
+                change_type: 'substitute',
+                reason: '原任老師私事',
+                created_by_name: '行政小美',
+                created_at: '2026-09-30T00:00:00Z',
+              },
+              {
+                change_type: 'cancellation',
+                reason: '颱風停課',
+                created_by_name: '行政小美',
+                created_at: '2026-10-01T00:00:00Z',
+              },
+            ],
+          }),
+        ],
+      });
+      const { body } = await get(appWith(seed));
+      const changes = body.data[0].changes as Array<{ changeType: string; reason: string | null }>;
+      expect(changes.map((c) => [c.changeType, c.reason])).toEqual([
+        ['substitute', null],
+        ['cancellation', '颱風停課'],
+      ]);
+      expect(JSON.stringify(body)).not.toContain('原任老師私事');
+      expect(JSON.stringify(body)).not.toContain('行政小美');
     });
 
     it('停課的堂照樣回，status = cancelled', async () => {

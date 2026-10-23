@@ -158,6 +158,35 @@ describe('AttendancePage', () => {
     };
   }
 
+  /**
+   * #1978：快速 A→B→A，B 的回應比第二次 A 晚回來 —— 畫面停在 A，不能顯示 B 的到班紀錄。
+   * 每次呼叫各給一個 Subject，自己決定誰先回。
+   */
+  it('#1978 換孩子 A→B→A，B 晚到的回應不蓋掉現在的 A', () => {
+    createComponent();
+    const pending: Subject<ParentAttendanceDaysResponse>[] = [];
+    listMock.mockImplementation(() => {
+      const s = new Subject<ParentAttendanceDaysResponse>();
+      pending.push(s);
+      return s.asObservable();
+    });
+    for (const id of ['child-a', 'child-b', 'child-a']) {
+      activeChildId.set(id);
+      fixture.detectChanges();
+    }
+    expect(pending.length).toBe(3);
+
+    const forA = { ...emptyResponse(), data: [record()] };
+    pending[2].next(forA);
+    pending[2].complete();
+    pending[1].next({ ...emptyResponse(), data: [record(), record()] }); // B 晚到
+    pending[1].complete();
+    fixture.detectChanges();
+
+    const comp = fixture.componentInstance as unknown as { records: () => unknown };
+    expect(comp.records()).toBe(forA.data);
+  });
+
   it('進頁呼叫 childScope.load()', () => {
     createComponent();
     expect(childScopeLoad).toHaveBeenCalledTimes(1);
