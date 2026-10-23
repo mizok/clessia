@@ -41,7 +41,10 @@
 </div>
 
 <!--
-  手機登入的底部面板（A6，#1636）：品牌面的「登入」用 popovertarget 開它，LINE 鍵在面板裡。
+  手機登入的彈窗：品牌面的「登入」用 popovertarget 開它，LINE 鍵在裡面。
+  **置中彈窗，不是 A6 的底部面板**（#2031，使用者 10-23：「希望手機版登入可以跳 popup」；a6-adoption-rules R5）。
+  原生 popover 預設就置中（inset 0＋margin auto）；寬度用 % 不用 --window-width —— 它搬到 <body> 之後讀不到
+  根元素上的變數，fixed 的 % 相對可視區（c6：不是 viewport 單位）。進場同全站對話框的 scale(0.97)。
   按下去走同一個 signInWithLine（同一份送出中狀態），面板不收 —— 「前往 LINE...」與失敗訊息
   都要留在使用者眼前，收掉的話失敗會發生在看不見的表單面上。
   桌機沒有入口會開它。渲染後搬到 <body>（見 LoginComponent 建構子：模板位置在 inert 的 main 底下）。進出場曲線由全站彈出物動態負責（#1634 的 overlay-motion）。
@@ -51,7 +54,7 @@
   id="login-sheet"
   popover
   aria-labelledby="login-sheet-title"
-  class="overlay-motion--from-bottom inset-x-0 top-auto bottom-0 m-0 max-h-[calc(100%-48px)] w-full max-w-none overflow-y-auto rounded-t-xl border-0 bg-zinc-200 p-0 text-zinc-900 backdrop:bg-[rgb(26_22_20/40%)]"
+  class="m-auto max-h-[calc(100%-48px)] w-[calc(100%-32px)] max-w-[400px] overflow-y-auto rounded-xl border-0 bg-zinc-200 p-0 text-zinc-900 [--pop-from:scale(0.97)] backdrop:bg-[rgb(26_22_20/40%)]"
 >
   <div class="flex items-center gap-2 pt-4 pr-3 pb-2 pl-5">
     <h2 id="login-sheet-title" class="m-0 text-lg font-bold">登入</h2>
