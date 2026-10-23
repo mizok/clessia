@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -14,7 +15,7 @@ import { Router, RouterLink } from '@angular/router';
 import { endOfMonth, format, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
 import { SelectModule } from 'primeng/select';
 
-import { Subject, catchError, map, of, skip, switchMap } from 'rxjs';
+import { Subject, catchError, debounceTime, map, of, skip, switchMap } from 'rxjs';
 import { ClassesService, type Class } from '@core/classes.service';
 import { BILLING_MODE_LABELS } from '@core/fee-templates.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -80,6 +81,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
 @Component({
   selector: 'app-enrollments',
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     CampusScopeNoteComponent,
     StudentAutocompleteComponent,
@@ -133,10 +135,15 @@ export class EnrollmentsPage {
   private readonly today = inject(SystemClockService).todayTaipei;
   private readonly listReload$ = new Subject<void>();
   private readonly countsReload$ = new Subject<void>();
-  /** 學生篩選＝選一個人（帶 studentId），不是文字搜尋：API 只收 id（#1314 EN3） */
+  /**
+   * 學生篩選：選到一個人＝帶 studentId（#1314 EN3）；打字沒選人＝部分姓名，一次篩出多位
+   * （#1100 #30，A6 enrollments「輸入姓名」）。打字等 300ms 才查，免得每個注音都打一次 API
+   */
   protected readonly studentValue = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
   private readonly studentId = signal<string | null>(null);
+  private readonly studentName = signal<string | null>(null);
+  private readonly studentName$ = new Subject<string | null>();
   protected readonly classId = signal<string | null>(null);
   protected readonly classOptions = signal<{ label: string; value: string | null }[]>([
     { label: '全部班級', value: null },
@@ -242,6 +249,7 @@ export class EnrollmentsPage {
   protected readonly hasFilter = computed(
     () =>
       this.studentId() !== null ||
+      this.studentName() !== null ||
       this.classId() !== null ||
       this.event() !== null ||
       this.status() !== null,
@@ -273,6 +281,12 @@ export class EnrollmentsPage {
         // 班級清單掛了只是少一個篩選，不擋整頁
         error: () => undefined,
       });
+
+    this.studentName$.pipe(debounceTime(300), takeUntilDestroyed()).subscribe((name) => {
+      if (name === this.studentName()) return;
+      this.studentName.set(name);
+      this.resetToFirstPage();
+    });
 
     // 兩條都用 switchMap 收斂成最後一次的條件 —— 換得快時，先發的慢回應不能蓋掉後發的
     this.listReload$
@@ -332,12 +346,21 @@ export class EnrollmentsPage {
       });
   }
 
-  /** 選到人（物件）才帶 studentId；打字中或清空（字串／null）就退回不篩 */
+  /** 選到人（物件）帶 studentId；打字中（字串）用部分姓名篩；清空就不篩 */
   protected onStudentChange(value: Student | string | null): void {
     this.studentValue.set(value);
-    const id = value !== null && typeof value === 'object' ? value.id : null;
-    if (id === this.studentId()) return;
-    this.studentId.set(id);
+    if (value !== null && typeof value === 'object') {
+      // 選到人就不再用打到一半的字篩（等一下到的那次 debounce 會被 `=== studentName()` 擋掉）
+      this.studentName.set(null);
+      this.studentName$.next(null);
+      if (value.id === this.studentId()) return;
+      this.studentId.set(value.id);
+      this.resetToFirstPage();
+      return;
+    }
+    this.studentName$.next(value?.trim() || null);
+    if (this.studentId() === null) return;
+    this.studentId.set(null);
     this.resetToFirstPage();
   }
 
@@ -349,6 +372,8 @@ export class EnrollmentsPage {
   protected clearFilters(): void {
     this.studentValue.set(null);
     this.studentId.set(null);
+    this.studentName.set(null);
+    this.studentName$.next(null);
     this.classId.set(null);
     this.event.set(null);
     this.status.set(null);
@@ -400,6 +425,7 @@ export class EnrollmentsPage {
       ...this.periodParams(),
       status: this.status() ?? undefined,
       studentId: this.studentId() ?? undefined,
+      studentName: this.studentName() ?? undefined,
       classId: this.classId() ?? undefined,
       campusId: this.campusId() ?? undefined,
     };

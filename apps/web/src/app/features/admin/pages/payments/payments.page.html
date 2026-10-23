@@ -199,7 +199,9 @@
   <!-- 提示是資料回來才出現的：滑出來，不是一下把整個清單往下推（#1859） -->
   <div appHeightFollow appHeightFollowGrow>
     <app-todo-banner class="block" [count]="uninvoicedCount()" (action)="openUninvoiced()">
-      有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
+      有
+      <strong [appValueArrive]="uninvoicedCount()">{{ uninvoicedCount() }}</strong>
+      筆生效中的報名還沒開過帳單
     </app-todo-banner>
   </div>
 
@@ -347,7 +349,7 @@
             >
               <summary class="coll__sum min-h-14 wide:min-h-16">
                 <span class="coll__t">{{ chapter.title }}</span>
-                <span class="coll__m">
+                <span appTextSwap class="coll__m">
                   {{ chapter.count }} 張
                   @if (chapter.outstanding !== null) {
                     · 待收 NT$ {{ chapter.outstanding | number }}

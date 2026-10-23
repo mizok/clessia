@@ -4,6 +4,7 @@ import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { OrgSettingsService, type OrgSettings } from '@core/org-settings.service';
 import { BillingPeriodsService } from '@core/billing-periods.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { GradePromotionsService } from '@core/grade-promotions.service';
@@ -31,7 +32,7 @@ describe('SettingsPage', () => {
     getSettings: vi.fn(),
     updateSettings: vi.fn(),
   };
-  const billingPeriodsMock = { list: vi.fn() };
+  const billingPeriodsMock = { list: vi.fn(), create: vi.fn() };
   let permissions: string[] = [];
   // 同 AuthService.hasPermission：`*` 什麼都有
   const authMock = {
@@ -50,6 +51,7 @@ describe('SettingsPage', () => {
         { provide: BillingPeriodsService, useValue: billingPeriodsMock },
         { provide: AuthService, useValue: authMock },
         { provide: GradePromotionsService, useValue: gradePromotionsMock },
+        { provide: SystemClockService, useValue: { todayTaipei: () => '2026-10-23' } },
       ],
     }).compileComponents();
 
@@ -620,6 +622,82 @@ describe('SettingsPage', () => {
         '學期與繳費週期 1 個週期',
         '學年升級 每年 9/1 · 前 7 天提醒',
       ]);
+    });
+
+    describe('#1100 #35③ 用模板建立', () => {
+      const pick = (key: string) =>
+        (component as unknown as { createFromTemplate: (k: string) => void }).createFromTemplate(
+          key,
+        );
+
+      it('選了直接照下一個學年建（10/23 → 116 學年），同名的略過，建完重讀清單', async () => {
+        orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+        billingPeriodsMock.list.mockReturnValue(
+          of({ data: [period('p1', '116 上學期', '2027-09-01', '2028-01-31')] }),
+        );
+        billingPeriodsMock.create.mockImplementation((input) =>
+          of({ data: { id: 'n', ...input } }),
+        );
+        await setup();
+        const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+        billingPeriodsMock.list.mockClear();
+
+        pick('two-terms');
+
+        expect(billingPeriodsMock.create.mock.calls.map((c) => c[0])).toEqual([
+          { name: '116 下學期', startDate: '2028-02-01', endDate: '2028-06-30' },
+        ]);
+        expect(toast).toHaveBeenCalledWith({
+          severity: 'success',
+          summary: '已用「傳統二學期制」建立 1 個週期，日期可以再改',
+          detail: '略過 1 個同名的',
+        });
+        expect(billingPeriodsMock.list).toHaveBeenCalledTimes(1);
+      });
+
+      it('建到一半失敗：停在那裡、說可能建了一部分、照樣重讀清單', async () => {
+        orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+        billingPeriodsMock.create
+          .mockReturnValueOnce(of({ data: { id: 'a' } }))
+          .mockReturnValueOnce(throwError(() => new Error('boom')));
+        await setup();
+        const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+        billingPeriodsMock.list.mockClear();
+
+        pick('terms-and-breaks');
+
+        expect(billingPeriodsMock.create).toHaveBeenCalledTimes(2);
+        expect(toast).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }));
+        expect(billingPeriodsMock.list).toHaveBeenCalledTimes(1);
+      });
+
+      it('全部都已經有了：不建、info toast', async () => {
+        orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+        billingPeriodsMock.list.mockReturnValue(
+          of({
+            data: [
+              period('p1', '116 上學期＋暑假', '2027-07-01', '2028-01-31'),
+              period('p2', '116 下學期＋寒假', '2028-02-01', '2028-06-30'),
+            ],
+          }),
+        );
+        await setup();
+        const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+        pick('terms-with-breaks');
+        expect(billingPeriodsMock.create).not.toHaveBeenCalled();
+        expect(toast).toHaveBeenCalledWith({
+          severity: 'info',
+          summary: '「上學期＋暑假／下學期＋寒假」的週期都已經有了',
+        });
+      });
+
+      it('下拉在週期段裡（有財務權限才看得到）', async () => {
+        orgSettingsServiceMock.getSettings.mockReturnValue(of(FINANCE));
+        await setup();
+        expect(
+          (fixture.nativeElement as HTMLElement).querySelector('[data-testid="period-template"]'),
+        ).not.toBeNull();
+      });
     });
 
     it('週期列表新到舊，連到費用方案頁管理', async () => {

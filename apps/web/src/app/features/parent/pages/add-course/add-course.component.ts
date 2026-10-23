@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   Component,
   computed,
@@ -47,6 +48,7 @@ const SENT = ['pending', 'awaiting_payment'];
   selector: 'app-add-course',
   standalone: true,
   imports: [
+    TextSwapDirective,
     PageOpenComponent,
     ChildScopeGateComponent,
     ChildSwitcherComponent,

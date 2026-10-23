@@ -1,4 +1,5 @@
 import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   Component,
   ElementRef,
@@ -137,6 +138,7 @@ const FETCH_LIMIT = 500;
   standalone: true,
   imports: [
     AuditLogButtonComponent,
+    TextSwapDirective,
     SkeletonComponent,
     StepMotionDirective,
     SelectedIndicatorDirective,

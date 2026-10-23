@@ -1,4 +1,6 @@
 import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
+import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
@@ -134,6 +136,8 @@ const emptyChapter = (): ChapterState => ({
   standalone: true,
   imports: [
     AuditLogButtonComponent,
+    ValueArriveDirective,
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     HeightFollowDirective,

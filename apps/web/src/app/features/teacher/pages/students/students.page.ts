@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -34,6 +35,7 @@ interface ClassGroup {
 @Component({
   selector: 'app-students',
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     FormsModule,
     IconFieldModule,

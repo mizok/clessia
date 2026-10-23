@@ -126,7 +126,7 @@
       <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
       @if (narrowed()) {
-        <p class="m-0 text-sm text-zinc-600">
+        <p appTextSwap class="m-0 text-sm text-zinc-600">
           顯示 <strong class="text-zinc-900 tabular-nums">{{ shownTotal() }}</strong> 位
         </p>
       }
@@ -250,7 +250,7 @@
       }
 
       @if (selectedStatus() !== 'archived' && summary().archivedCount > 0) {
-        <p class="m-0 text-sm text-zinc-600">
+        <p appTextSwap class="m-0 text-sm text-zinc-600">
           另有 {{ summary().archivedCount }} 位已封存 ·
           <button
             type="button"

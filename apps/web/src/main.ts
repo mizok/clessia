@@ -1,6 +1,8 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { App } from './app/app.component';
+import { fixPrimeAutoFocus } from './app/core/primeng-autofocus-fix';
 
-bootstrapApplication(App, appConfig)
-  .catch((err) => console.error(err));
+fixPrimeAutoFocus();
+
+bootstrapApplication(App, appConfig).catch((err) => console.error(err));

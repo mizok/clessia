@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import {
   Component,
@@ -45,6 +46,7 @@ const PAGE_SIZE = 20;
   selector: 'app-payments',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     DecimalPipe,
     NgTemplateOutlet,

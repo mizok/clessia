@@ -210,6 +210,14 @@ Tags: `architecture`, `parent`, `authorization`, `teaching-log`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]]
 
+## [[architecture/parent-schedule-change-notice|課務異動通知發給該班家長]]
+
+課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
+
+Tags: `architecture`, `notifications`, `schedule-changes`, `parent`
+
+Links to: [[architecture/admin-schedule-change-notice]]
+
 ## [[architecture/parent-data-scope|家長端的資料範圍模型]]
 
 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。
