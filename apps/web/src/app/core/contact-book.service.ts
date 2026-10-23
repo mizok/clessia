@@ -31,6 +31,14 @@ export interface ContactBookEntry {
   isSigned: boolean;
 }
 
+export interface ContactBookRemindResult {
+  sent: number;
+  /** 這班這天今天已經提醒過（去重鍵擋下，沒有再發） */
+  alreadyReminded: boolean;
+  teacherNames: string[];
+  missingCount: number;
+}
+
 export interface ContactBookQueryParams {
   studentId?: string;
   from?: string;
@@ -88,6 +96,14 @@ export class ContactBookService {
       `${this.endpoint}/missing`,
       { params: { date } },
     );
+  }
+
+  /**
+   * 提醒那天這班實際上課的老師補寫（#1100 #27）。名單與收件人都由伺服器算；
+   * 同班同天只一則，重按回 `alreadyReminded: true`。
+   */
+  remind(classId: string, date: string): Observable<ContactBookRemindResult> {
+    return this.http.post<ContactBookRemindResult>(`${this.endpoint}/remind`, { classId, date });
   }
 
   /**

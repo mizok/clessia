@@ -11,7 +11,7 @@ import {
 } from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
 import { getCampusScope } from '../lib/campus-scope';
-import { studentWriteScope } from '../lib/campus-write-guard';
+import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { waitUntilFrom } from '../lib/wait-until';
 
 /**
@@ -531,6 +531,203 @@ app.openapi(
 
     return c.json(
       { data: days, meta: { total: days.reduce((sum, day) => sum + day.missingCount, 0) } },
+      200,
+    );
+  },
+);
+
+// ============================================================
+// POST /api/contact-book/remind —— 提醒那堂老師補寫（#1100 #27，計畫席 10-23）
+//
+// - 只給 admin；班級要在分校範圍內（別 org 404、範圍外 403）
+// - 還沒寫的學生由伺服器算（跟 `/missing` 同一支 `missingContactBookStudents`），不吃前端的名單
+// - 收件人＝那天這班**實際上課**的老師（`sessions.teacher_id`，代課就是代課老師；停課的堂不算）
+// - 同一位老師同班同天只一則（去重鍵）—— 重按回 `alreadyReminded`，不洗版
+// ============================================================
+
+const RemindSchema = z
+  .object({
+    classId: DbUuidSchema,
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必須是 YYYY-MM-DD'),
+  })
+  .openapi('ContactBookRemindRequest');
+
+const RemindResponseSchema = z
+  .object({
+    sent: z.number().int().min(0),
+    /** 這幾位老師今天已經為這班這天收過提醒（去重鍵擋下） */
+    alreadyReminded: z.boolean(),
+    teacherNames: z.array(z.string()),
+    missingCount: z.number().int().min(1),
+  })
+  .openapi('ContactBookRemindResponse');
+
+/** 通知內文最多點名幾位；再多寫「等 N 位」 */
+const REMIND_NAME_LIMIT = 5;
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/remind',
+    tags: ['ContactBook'],
+    summary: '提醒那天這班實際上課的老師補寫聯絡簿',
+    request: { body: { content: { 'application/json': { schema: RemindSchema } } } },
+    responses: {
+      200: {
+        description: 'OK（含今天已提醒過）',
+        content: { 'application/json': { schema: RemindResponseSchema } },
+      },
+      403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: '班級不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      409: {
+        description: '這班這天沒有缺的（NOTHING_MISSING）或沒有上課老師（NO_TEACHER）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    if (!(c.get('roles') ?? []).includes('admin')) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { classId, date } = c.req.valid('json');
+
+    const scoped = await classWriteScope(supabase, orgId, getCampusScope(c), classId);
+    if (scoped === 'not-found') return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    if (scoped === 'out-of-scope') {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
+
+    const [
+      { data: candidateRows, error: candidateError },
+      { data: writtenRows, error: writtenError },
+      { data: sessionRows, error: sessionError },
+    ] = await Promise.all([
+      supabase
+        .from('enrollments')
+        .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+        .eq('org_id', orgId)
+        .eq('class_id', classId)
+        .in('status', ['active', 'pending_payment'])
+        .eq('classes.uses_contact_book', true),
+      supabase
+        .from('contact_book_entries')
+        .select('student_id')
+        .eq('org_id', orgId)
+        .eq('entry_date', date),
+      supabase
+        .from('sessions')
+        .select('class_id, status, teacher_id')
+        .eq('org_id', orgId)
+        .eq('class_id', classId)
+        .eq('session_date', date),
+    ]);
+    if (candidateError || writtenError || sessionError) {
+      return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+    }
+
+    const candidates: ContactBookCandidate[] = (
+      (candidateRows ?? []) as unknown as Record<string, unknown>[]
+    ).map((row) => ({
+      studentId: row['student_id'] as string,
+      studentName: (row['students'] as { name?: string } | null)?.name ?? '',
+      classId: row['class_id'] as string,
+      className: (row['classes'] as { name?: string } | null)?.name ?? '',
+    }));
+    const written = new Set(
+      ((writtenRows ?? []) as unknown as Record<string, unknown>[]).map(
+        (row) => row['student_id'] as string,
+      ),
+    );
+    const sessions = ((sessionRows ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+      classId: row['class_id'] as string,
+      status: row['status'] as string,
+      teacherId: (row['teacher_id'] as string | null) ?? null,
+    }));
+    const missing = missingContactBookStudents(candidates, written, sessions);
+    if (missing.length === 0) {
+      return c.json({ error: '這班這天的聯絡簿都寫了', code: 'NOTHING_MISSING' }, 409);
+    }
+
+    const staffIds = [
+      ...new Set(
+        sessions
+          .filter((s) => s.status !== 'cancelled' && s.teacherId)
+          .map((s) => s.teacherId as string),
+      ),
+    ];
+    const { data: staffRows, error: staffError } = staffIds.length
+      ? await supabase
+          .from('staff')
+          .select('user_id, display_name')
+          .eq('org_id', orgId)
+          .eq('status', 'active')
+          .in('id', staffIds)
+      : { data: [], error: null };
+    if (staffError) return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+    const staff = (
+      (staffRows ?? []) as Array<{ user_id: string | null; display_name: string }>
+    ).filter((s): s is { user_id: string; display_name: string } => !!s.user_id);
+    const { data: roleRows, error: roleError } = staff.length
+      ? await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'teacher')
+          .in(
+            'user_id',
+            staff.map((s) => s.user_id),
+          )
+      : { data: [], error: null };
+    if (roleError) return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+    const isTeacher = new Set(
+      ((roleRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id),
+    );
+    const teachers = staff.filter((s) => isTeacher.has(s.user_id));
+    if (teachers.length === 0) {
+      return c.json({ error: '這堂沒有可以通知的上課老師', code: 'NO_TEACHER' }, 409);
+    }
+
+    const className = candidates[0]?.className ?? '';
+    const [, m, d] = date.split('-').map(Number);
+    const names = missing.map((s) => s.studentName);
+    const listed =
+      names.length > REMIND_NAME_LIMIT
+        ? `${names.slice(0, REMIND_NAME_LIMIT).join('、')} 等 ${names.length} 位`
+        : names.join('、');
+    // 不走 `notify()`：那支吞錯回 0（通知是附帶的那種），這裡通知**就是**這次請求要做的事 ——
+    // 寫失敗要回 500，不能說成「今天已提醒過」
+    const { data: inserted, error: insertError } = await supabase
+      .from('notifications')
+      .upsert(
+        teachers.map((t) => ({
+          org_id: orgId,
+          user_id: t.user_id,
+          role: 'teacher',
+          kind: 'contact_book_reminder',
+          dedupe_key: `contact_book_reminder:${classId}:${date}`,
+          payload: {
+            title: '請補寫聯絡簿',
+            body: `${className} ${m}/${d} 還有 ${missing.length} 位沒寫：${listed}`,
+            url: '/teacher/schedule',
+          },
+          push_status: 'skipped',
+          push_error: 'ROLE_PUSH_DISABLED',
+        })),
+        { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true },
+      )
+      .select('id');
+    if (insertError) return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+
+    const sent = (inserted ?? []).length;
+    return c.json(
+      {
+        sent,
+        alreadyReminded: sent === 0,
+        teacherNames: teachers.map((t) => t.display_name),
+        missingCount: missing.length,
+      },
       200,
     );
   },
