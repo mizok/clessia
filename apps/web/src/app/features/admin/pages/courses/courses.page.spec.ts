@@ -709,11 +709,11 @@ describe('CoursesPage', () => {
       expect(
         (component as unknown as { interventionCount: () => number }).interventionCount(),
       ).toBe(2);
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('需介入 2 個班');
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain(
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain('需介入 2 個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain(
         '沒有未來的課堂，家長看不到下一堂。',
       );
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看這幾個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain('只看這幾個班');
     });
 
     it('「只看這幾個班」：課程仍顯示、底下只留需介入的班；再按還原', () => {
@@ -736,7 +736,9 @@ describe('CoursesPage', () => {
         component as unknown as { courseGroups: () => { classes: { id: string }[] }[] }
       ).courseGroups();
       expect(groups.map((g) => g.classes.map((c) => c.id))).toEqual([['a'], ['d']]);
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看需介入的 2 個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain(
+        '只看需介入的 2 個班',
+      );
 
       again();
       component['onStatusFilterChange'](null);
