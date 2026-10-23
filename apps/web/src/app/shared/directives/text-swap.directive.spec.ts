@@ -103,11 +103,20 @@ describe('TextSwapDirective（#1895 文字替換）', () => {
     expect(host.textContent?.trim()).toBe('41 位學生，今天有 8 位有課。');
   });
 
-  it('複本寬度取宿主的小數寬，不取整（取整會讓最後幾個字折行，#1983）', async () => {
-    const { host, set, clones } = await setup();
-    host.getBoundingClientRect = () => ({ width: 114.47 }) as DOMRect;
-    await set('學生管理（新）');
-    expect(clones()[0]?.style.width).toBe('114.47px');
+  it('複本用舊字定下來時的小數寬：不是新字的寬、也不取整（兩種都會讓舊字折行，#1983）', async () => {
+    // 替身：宿主的寬跟著字走，舊字比新字寬
+    const proto = HTMLElement.prototype as unknown as { getBoundingClientRect: () => DOMRect };
+    const orig = proto.getBoundingClientRect;
+    proto.getBoundingClientRect = function (this: HTMLElement) {
+      return { width: this.textContent?.includes('學生管理') ? 114.47 : 60.5 } as DOMRect;
+    };
+    try {
+      const { set, clones } = await setup();
+      await set('學生');
+      expect(clones()[0]?.style.width).toBe('114.47px');
+    } finally {
+      proto.getBoundingClientRect = orig;
+    }
   });
 
   it('出場播完，複本拿掉', async () => {

@@ -178,8 +178,9 @@ A6 已經定好做法（`a6.css:702`，`.dd__v.is-new`）：新值從下方 4px 
   - 字串變了：把舊複本疊在宿主上（`position: absolute`、`aria-hidden`、`inert`、`pointer-events: none`）播出場；
     `inert` 是第二階段（#1983）補的：有的宿主包著按鈕（「另有 N 位已封存 · 顯示」），複本裡那顆不能被 Tab 到；
     新內容同時已經在版面裡，宿主用 WAAPI 壓在透明（進場動畫延後 120ms、`fill: backwards`），出場播完接著進場。
-  - **舊複本放在宿主外面**：插在宿主旁邊當 sibling，用宿主的 `offsetTop`／`offsetLeft` 與 `getBoundingClientRect().width` 對齊
-    （寬度要取小數：`offsetWidth` 會取整，實寬 114.47 給 114，複本最後幾個字就折到下一行，#1983 實測；
+  - **舊複本放在宿主外面**：插在宿主旁邊當 sibling，用宿主的 `offsetTop`／`offsetLeft` 對齊，寬度用**舊字定下來那時**量的 `getBoundingClientRect().width`
+    （兩個坑都會讓複本最後幾個字折到下一行，#1983 實測：用宿主現在的寬是**新字**的寬，舊字比較寬就放不下
+    ——「找到 0 位」→「找到 1 位」，數字不是等寬字；`offsetWidth` 會取整，實寬 114.47 給 114。
     絕對定位的定位基準就是宿主的 `offsetParent`）。計畫席 10-23 指出的坑：複本插在宿主裡面的話，
     `MutationObserver`（`childList`＋`subtree`）會看到自己插入的節點，宿主的 `textContent` 也會把複本的字算進去，
     結果誤判「字串變了」、自己觸發自己。放在外面就兩個都避開；而且新字的透明是加在宿主上，複本在裡面會被一起蓋掉。
