@@ -14,11 +14,8 @@
       {{ page().label }}
     }
   </ng-container>
-  <ng-container openSub>
-    @if (!summary()) {
-      開帳單、收款、看誰還沒繳。狀態由累計實收推導，逾期是額外的標記不是另一種狀態。
-    }
-  </ng-container>
+  <!-- 副標留空（使用者 10-23：原本 summary 回來前的說明句拿掉）。summary 晚到時色面長高由 appHeightFollow 滑過去 -->
+  <ng-container openSub></ng-container>
   @if (summary(); as s) {
     @if (s.month.billed > 0) {
       <div
