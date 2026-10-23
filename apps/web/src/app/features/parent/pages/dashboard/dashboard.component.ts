@@ -7,7 +7,6 @@ import {
   effect,
   inject,
   input,
-  linkedSignal,
   signal,
   untracked,
   viewChild,
@@ -150,14 +149,13 @@ export class DashboardComponent implements OnInit {
     return sessions ? shownSessions(sessions, this.today) : null;
   });
   /**
-   * 「今天的課／接下來的課」：換孩子載入中（data 回 null）沿用上一個孩子的標題，資料回來才換（#1983）——
-   * 不先跳成「接下來的課」再跳回來，那樣每次換孩子都會多播一次換字。第一次載入時是「接下來的課」。
+   * 「今天的課／接下來的課」：載入中一律是中性的「接下來的課」，資料回來才換（#1983）。
+   * **不能沿用上一個孩子的標題**：「今天的課」是在說這個孩子今天有課，換到 B 時還寫著 A 的，
+   * 就是 #1978 修掉的「資料標錯孩子」（計畫席 10-23）。代價是兩個孩子都有今天的課時，換孩子會多播一次換字。
    */
-  protected readonly lessonsTitle = linkedSignal<{ loading: boolean; today: boolean }, string>({
-    source: () => ({ loading: this.data() === null, today: !!this.lessons()?.today }),
-    computation: (s, prev) =>
-      s.loading && prev ? prev.value : s.today ? '今天的課' : '接下來的課',
-  });
+  protected readonly lessonsTitle = computed(() =>
+    this.lessons()?.today ? '今天的課' : '接下來的課',
+  );
   protected readonly exams = computed(() => {
     const d = this.data();
     return d?.scores && d.sessions ? examRows(d.scores, d.sessions, this.today) : null;

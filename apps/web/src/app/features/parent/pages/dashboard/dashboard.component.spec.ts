@@ -286,7 +286,7 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
       delete (HTMLElement.prototype as unknown as { animate?: unknown }).animate;
     });
 
-    it('h2 與「N 堂」不重建；載入中沿用上一個標題，資料回來才換字', async () => {
+    it('h2 與「N 堂」不重建；載入中是不含 A 資料的中性標題，B 的資料回來才換字', async () => {
       vi.stubGlobal('matchMedia', () => ({ matches: false }));
       const animated: HTMLElement[] = [];
       (HTMLElement.prototype as unknown as { animate: unknown }).animate = function (
@@ -307,26 +307,25 @@ describe('DashboardComponent（A6 p-dashboard）', () => {
       };
       await flush(); // 第一次載入那一下換字的觀察者回呼
       const h2 = el().querySelector('#dash-today') as HTMLElement;
+      const count = h2.parentElement!.querySelector('span[apptextswap]') as HTMLElement;
       expect(h2.textContent?.trim()).toBe('今天的課');
-      // 第一次載入：載入中是「接下來的課」，資料回來換成「今天的課」—— 這一下本來就會播
-      animated.length = 0;
+      expect(count.textContent?.trim()).toBe('1 堂');
 
       activeChildId.set('child-2');
       await flush();
-      // 載入中：清單換成骨架，標題沿用（不先跳成「接下來的課」，否則每次換孩子多播一次）、不播
+      // 載入中：清單換成骨架；標題列是同一個元素，但不能還寫著 A 的「今天的課」／「1 堂」（#1978 資料標錯孩子）
       expect(el().querySelector('app-skeleton')).not.toBeNull();
       expect(el().querySelector('#dash-today')).toBe(h2);
-      expect(h2.textContent?.trim()).toBe('今天的課');
-      expect(animated).not.toContain(h2);
+      expect(h2.textContent?.trim()).toBe('接下來的課');
+      expect(count.textContent?.trim()).toBe('');
+      animated.length = 0;
 
-      second.next({ data: [ses('2026-10-24'), ses('2026-10-25', { sessionId: 's-2' })] });
+      second.next({ data: [ses(TODAY), ses(TODAY, { sessionId: 's-2', startTime: '19:30:00' })] });
       second.complete();
       await flush();
       expect(el().querySelector('#dash-today')).toBe(h2);
-      expect(h2.textContent?.trim()).toBe('接下來的課');
+      expect(h2.textContent?.trim()).toBe('今天的課');
       expect(animated).toContain(h2);
-      // h2 的下一個兄弟是它的出場複本，直接找宿主
-      const count = h2.parentElement!.querySelector('span[apptextswap]') as HTMLElement;
       expect(count.textContent?.trim()).toBe('2 堂');
       expect(animated).toContain(count);
     });
