@@ -174,6 +174,7 @@ run('帳務作業在大校規模下（#1934）', () => {
     if (!ctx.orgId) return;
     await q('delete from meal_records where org_id = $1', [ctx.orgId]);
     // 明細跟著帳單級聯刪：作廢單的明細不能直接 DELETE（invoice_items_guard_voided），級聯時放行
+    await q('delete from payment_records where org_id = $1', [ctx.orgId]);
     await q('delete from invoices where org_id = $1', [ctx.orgId]);
     await q('delete from enrollments where org_id = $1', [ctx.orgId]);
     await q('delete from students where org_id = $1', [ctx.orgId]);
@@ -277,4 +278,57 @@ run('帳務作業在大校規模下（#1934）', () => {
       [scoped.insider]: 0,
     });
   }, 300_000);
+
+  // 使用者 10-23 裁定（#1936）：帳單已經有收款的，repair 只列出、不改金額。
+  // 「有收款」＝淨收款（收款 − 退費）≠ 0，部分繳也算；退到 0 的視同沒收過，照修
+  it('repair 跳過已有收款的帳單：繳清、部分繳都只列出不改；退款退到 0 的照修', async () => {
+    const items = await q<{ id: string; invoice_id: string; amount: string }>(
+      `select ii.id, ii.invoice_id, ii.amount::text as amount
+         from invoice_items ii join invoices i on i.id = ii.invoice_id
+        where i.org_id = $1 and ii.type = 'meal' and ii.period_month = '2026-03-01'
+        order by ii.id limit 4`,
+      [ctx.orgId],
+    );
+    const [unpaid, paid, partial, refunded] = items;
+    const pay = (invoiceId: string, kind: 'payment' | 'refund', amount: number) =>
+      q(
+        `insert into payment_records (org_id, invoice_id, kind, amount, method)
+         values ($1, $2, $3, $4, 'cash')`,
+        [ctx.orgId, invoiceId, kind, amount],
+      );
+    await pay(paid!.invoice_id, 'payment', 999_999);
+    await pay(partial!.invoice_id, 'payment', 100);
+    await pay(refunded!.invoice_id, 'payment', 100);
+    await pay(refunded!.invoice_id, 'refund', 100);
+    // 四筆都弄成對不上（多 10 元）
+    await q('update invoice_items set amount = amount + 10 where id = any($1::uuid[])', [
+      items.map((i) => i.id),
+    ]);
+
+    const res = await app.request('/api/billing-runs/repair', { method: 'POST' }, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      repaired: number;
+      skippedPaid: number;
+      remaining: Array<{ invoiceItemId: string }>;
+    };
+    expect(body.repaired).toBe(2);
+    expect(body.skippedPaid).toBe(2);
+    expect(body.remaining.map((r) => r.invoiceItemId).sort()).toEqual(
+      [paid!.id, partial!.id].sort(),
+    );
+
+    const after = new Map(
+      (
+        await q<{ id: string; amount: string }>(
+          'select id, amount::text as amount from invoice_items where id = any($1::uuid[])',
+          [items.map((i) => i.id)],
+        )
+      ).map((r) => [r.id, Number(r.amount)]),
+    );
+    expect(after.get(unpaid!.id)).toBe(Number(unpaid!.amount)); // 修回去
+    expect(after.get(refunded!.id)).toBe(Number(refunded!.amount)); // 淨 0 → 修回去
+    expect(after.get(paid!.id)).toBe(Number(paid!.amount) + 10); // 沒動
+    expect(after.get(partial!.id)).toBe(Number(partial!.amount) + 10); // 沒動
+  }, 120_000);
 });

@@ -24,6 +24,7 @@ import type { Queryable } from '../lib/identity-sql';
 import {
   alreadyBilledViaSql,
   mealStudentsInScopeViaSql,
+  paidMealItemsViaSql,
   stampedTotalsViaSql,
   unbilledMealStudentsViaSql,
 } from '../lib/billing-run-sql';
@@ -247,6 +248,37 @@ async function scanMealItems(
  */
 export const REPAIR_MAX_ABSOLUTE = 3;
 export const REPAIR_MAX_RATIO = 0.2;
+/** 已有收款的餐費明細：有 pool 走 SQL（id 走 bind 參數）；沒有 pool（單元測試的精簡 app）走 REST */
+async function paidMealItems(
+  supabase: SupabaseClient,
+  orgId: string,
+  itemIds: readonly string[],
+  db: Queryable | undefined,
+): Promise<Set<string>> {
+  if (itemIds.length === 0) return new Set();
+  if (db) return sqlRead('已收款的帳單', paidMealItemsViaSql(db, orgId, itemIds));
+  const rows = await mustReadAll('已收款的帳單', (from, to) =>
+    supabase
+      .from('invoice_items')
+      .select('id, invoices!inner(org_id, payment_records(amount, kind))')
+      .eq('invoices.org_id', orgId)
+      .in('id', [...itemIds])
+      .order('id')
+      .range(from, to),
+  );
+  const paid = new Set<string>();
+  for (const row of rows) {
+    const payments = ((row['invoices'] as { payment_records?: unknown } | null)?.payment_records ??
+      []) as Array<{ amount: number; kind: string }>;
+    const net = payments.reduce(
+      (sum, p) => sum + (p.kind === 'refund' ? -Number(p.amount) : Number(p.amount)),
+      0,
+    );
+    if (net !== 0) paid.add(row['id'] as string);
+  }
+  return paid;
+}
+
 export function repairLooksWrong(anomalies: number, scanned: number): boolean {
   return anomalies > REPAIR_MAX_ABSOLUTE && anomalies > scanned * REPAIR_MAX_RATIO;
 }
@@ -665,7 +697,12 @@ app.openapi(
         description: '成功',
         content: {
           'application/json': {
-            schema: z.object({ repaired: z.number(), remaining: z.array(AnomalySchema) }),
+            schema: z.object({
+              repaired: z.number(),
+              /** 帳單已有收款、這次沒改的筆數（仍列在 remaining 裡） */
+              skippedPaid: z.number(),
+              remaining: z.array(AnomalySchema),
+            }),
           },
         },
       },
@@ -709,7 +746,23 @@ app.openapi(
       );
     }
 
-    for (const anomaly of anomalies) {
+    // 帳單已經有收款的不改金額，只留在 remaining 裡列出（使用者 10-23 裁定）。讀不到就一筆都不改
+    let paid: Set<string>;
+    try {
+      paid = await paidMealItems(
+        supabase,
+        orgId,
+        anomalies.map((a) => a.invoiceItemId),
+        c.get('auth')?.pool,
+      );
+    } catch (err) {
+      if (!(err instanceof ReadFailed)) throw err;
+      console.error(`[billing-runs] repair 前的收款讀取失敗，沒有修改：${err.message}`);
+      return c.json(READ_FAILED_BODY, 500);
+    }
+    const toRepair = anomalies.filter((a) => !paid.has(a.invoiceItemId));
+
+    for (const anomaly of toRepair) {
       await supabase
         .from('invoice_items')
         .update({ amount: anomaly.expectedAmount })
@@ -724,7 +777,7 @@ app.openapi(
           userId,
           resourceType: 'billing_run',
           action: 'repair',
-          details: { repaired: anomalies.length },
+          details: { repaired: toRepair.length, skippedPaid: paid.size },
         },
         waitUntilFrom(c),
       );
@@ -738,13 +791,13 @@ app.openapi(
       console.error(`[billing-runs] repair 後的重掃失敗：${err.message}`);
       return c.json(
         {
-          error: `已修補 ${anomalies.length} 筆，但重新掃描失敗，請到帳務異常頁重掃`,
+          error: `已修補 ${toRepair.length} 筆，但重新掃描失敗，請到帳務異常頁重掃`,
           code: 'SCAN_FAILED_AFTER_REPAIR',
         },
         500,
       );
     }
-    return c.json({ repaired: anomalies.length, remaining }, 200);
+    return c.json({ repaired: toRepair.length, skippedPaid: paid.size, remaining }, 200);
   },
 );
 
