@@ -12,3 +12,13 @@ import { blankComments } from './comments.mjs';
 export function usesRawSupabase(source, rel) {
   return /c\.get\(\s*['"]supabase['"]\s*\)/.test(blankComments(source, rel));
 }
+
+/**
+ * A19 第二條（#1986 計畫席讀 diff，10-23）：家長端檔案也不得拿原始 pg 連線 —— `getAuth(` 或 `.pool`。
+ * pool 跟原始 supabase 一樣沒綁 scope；要用 pool 的家長端寫入一律做成 `childDb` 的能力
+ * （`createChildDb` 收 pool，見 `createLeave`、`signContactBookEntry`）。
+ * @returns {boolean} 抹白註解之後，是否還有 `getAuth(` 或 `.pool` 存取
+ */
+export function usesRawPool(source, rel) {
+  return /\bgetAuth\s*\(|\.pool\b/.test(blankComments(source, rel));
+}

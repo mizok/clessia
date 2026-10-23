@@ -263,12 +263,81 @@
         </div>
       }
 
-      @if (selectedPhase() === 'past' || selectedPhase() === 'live') {
+      @if ((selectedPhase() === 'past' || selectedPhase() === 'live') && s.usesContactBook) {
+        <!-- 開聯絡簿的班（國小模式）：當天的聯絡簿＋已閱簽收（A6 .sd elemBook；#1100 #26） -->
+        <div data-part="contact-book">
+          <p class="m-0 mb-2 text-sm font-bold text-zinc-800">{{ formatMd(s.date) }} 的聯絡簿</p>
+          <div class="grid gap-2 rounded-md bg-zinc-100 p-4 text-base">
+            @if (homeworkLoading()) {
+              <p class="m-0 text-zinc-600">載入中…</p>
+            } @else if (homeworkFailed()) {
+              <p class="m-0 text-zinc-600">聯絡簿讀取失敗，請稍後再試。</p>
+            } @else if (selectedEntry(); as entry) {
+              <p class="m-0 whitespace-pre-line">{{ entry.content }}</p>
+              <p class="m-0 text-sm text-zinc-600">
+                {{ entry.lastEditedByName ? entry.lastEditedByName + ' · ' : ''
+                }}{{ taipeiStamp(entry.updatedAt) }} 寫
+              </p>
+              <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2" data-part="sign">
+                @if (entry.signedAt) {
+                  <span class="text-sm text-zinc-800"
+                    >{{ entry.signedByName ?? '' }} 已簽收 · {{ taipeiStamp(entry.signedAt) }}</span
+                  >
+                  @if (entry.editedAfterSign) {
+                    <span
+                      class="inline-flex rounded-full bg-zinc-900 px-2 text-xs leading-[20px] font-bold text-white"
+                      >有更新</span
+                    >
+                  }
+                } @else {
+                  <button
+                    type="button"
+                    class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55"
+                    [attr.aria-disabled]="signing() || null"
+                    (click)="sign(entry)"
+                  >
+                    {{ signing() ? '簽收中…' : '已閱簽收' }}
+                  </button>
+                }
+              </div>
+            } @else {
+              <p class="m-0 text-zinc-600">老師還沒有寫這天的聯絡簿。</p>
+            }
+          </div>
+        </div>
+        @if (entryHistory().length > 0) {
+          <details class="rounded-md bg-zinc-100 px-4 py-3" data-part="contact-book-history">
+            <summary
+              class="flex min-h-11 cursor-pointer items-center justify-between font-semibold"
+            >
+              之前的聯絡簿
+              <span class="text-sm font-normal text-zinc-600"
+                >最近 {{ entryHistory().length }} 則</span
+              >
+            </summary>
+            <ul class="m-0 mt-2 grid list-none gap-2 p-0 text-base">
+              @for (e of entryHistory(); track e.id) {
+                <li class="grid grid-cols-[3.5em_minmax(0,1fr)] gap-x-3">
+                  <b class="tabular-nums">{{ formatMd(e.entryDate) }}</b>
+                  <span>
+                    <span class="whitespace-pre-line">{{ e.content }}</span>
+                    <small class="block text-sm text-zinc-600">{{
+                      e.signedAt ? (e.editedAfterSign ? '已簽收 · 有更新' : '已簽收') : '未簽收'
+                    }}</small>
+                  </span>
+                </li>
+              }
+            </ul>
+          </details>
+        }
+      } @else if (selectedPhase() === 'past' || selectedPhase() === 'live') {
         <div data-part="homework">
           <p class="m-0 mb-2 text-sm font-bold text-zinc-800">這堂的作業</p>
           <div class="rounded-md bg-zinc-100 p-4 text-base">
             @if (homeworkLoading()) {
               <p class="m-0 text-zinc-600">載入中…</p>
+            } @else if (homeworkFailed()) {
+              <p class="m-0 text-zinc-600">作業讀取失敗，請稍後再試。</p>
             } @else if (selectedHomework(); as log) {
               <p class="m-0 whitespace-pre-line">{{ log.homework }}</p>
             } @else {

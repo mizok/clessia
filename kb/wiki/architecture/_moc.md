@@ -210,6 +210,14 @@ Tags: `architecture`, `parent`, `authorization`, `teaching-log`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]]
 
+## [[architecture/parent-contact-book-sign|家長讀取與簽收個人聯絡簿]]
+
+GET /api/me/contact-book 與 POST /api/me/contact-book/{id}/sign 的範圍與「簽收後有修改」判準為什麼要走 pg 一句 SQL、為什麼管理端 PUT 原文照存不寫。
+
+Tags: `parent`, `contact-book`, `scope`
+
+Links to: [[rules/contact-book-rules]], [[architecture/parent-data-scope]]
+
 ## [[architecture/parent-schedule-change-notice|課務異動通知發給該班家長]]
 
 課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
@@ -307,7 +315,6 @@ Links to: [[architecture/day-timeline]], [[architecture/design-language]], [[arc
 Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
 Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
-
 
 ## [[architecture/web-push|PWA＋Web Push 推播（設計稿，第一個用途：家長繳費提醒）]]
 

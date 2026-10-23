@@ -119,18 +119,21 @@ describe('GET /api/enrollments 的事件篩選與期間（#1507）', () => {
 describe('GET /api/enrollments 的部分姓名篩選（#1100 #30）', () => {
   const ids = (body: Record<string, unknown>) =>
     (body['data'] as { id: string }[]).map((row) => row.id).sort();
-  const named = (id: string, name: string) =>
+  // 每列不同學生（uuid：studentId 參數要 uuid）
+  const stu = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
+  const named = (id: string, name: string, n: number) =>
     enrollment(id, {
+      student_id: stu(n),
       effective_from: '2026-10-02',
       students: { name, grade: 'J1', schools: null },
     });
   const NAMED = [
-    named('wang-1', '王小明'),
-    named('wang-2', '王大同'),
-    named('lin', '林小王'), // 名字中間有「王」也算部分符合
-    named('chen', '陳志明'),
-    named('literal', '50%_off'),
-    named('other-org-wang', '王外人'),
+    named('wang-1', '王小明', 1),
+    named('wang-2', '王大同', 2),
+    named('lin', '林小王', 3), // 名字中間有「王」也算部分符合
+    named('chen', '陳志明', 4),
+    named('literal', '50%_off', 5),
+    named('other-org-wang', '王外人', 6),
   ];
   NAMED[5]!['org_id'] = OTHER;
 
@@ -187,6 +190,14 @@ describe('GET /api/enrollments 的部分姓名篩選（#1100 #30）', () => {
     await app.request(`/?${PERIOD}&studentName=${encodeURIComponent('王')}`);
     expect(selects.length).toBeGreaterThan(1);
     for (const cols of selects) expect(cols).toContain('students!inner(name');
+  });
+
+  it('studentId 與 studentName 同時給：兩個都要成立（姓名篩出多位，id 再收成一位）', async () => {
+    const q = `studentId=${stu(2)}&studentName=${encodeURIComponent('王')}`;
+    const list = await getNamed(`/?${PERIOD}&${q}`);
+    expect(ids(list.body)).toEqual(['wang-2']);
+    const counts = await getNamed(`/event-counts?${PERIOD}&${q}`);
+    expect((counts.body['data'] as { joined: number }).joined).toBe(1);
   });
 
   it('% 與 _ 照字面比，不是萬用字元', async () => {

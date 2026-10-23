@@ -7,6 +7,7 @@ import {
   monthSpan,
   monthsBack,
   monthsToDates,
+  nextMonthLabel,
   periodMonths,
 } from './meals.util';
 
@@ -70,5 +71,12 @@ describe('meals.util', () => {
   it('mealsCsv：BOM、表頭、日期舊到新', () => {
     const csv = mealsCsv([rec('2026-10-08'), rec('2026-10-01', { chargeable: false, amount: 0 })]);
     expect(csv).toBe('﻿日期,金額,收費\r\n2026-10-01,0,不收費\r\n2026-10-08,80,收費');
+  });
+});
+
+describe('nextMonthLabel（#1965，A6 nextM）', () => {
+  it('下個月；12 月接 1 月', () => {
+    expect(nextMonthLabel('2026-09')).toBe('10 月');
+    expect(nextMonthLabel('2026-12')).toBe('1 月');
   });
 });

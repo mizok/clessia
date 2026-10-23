@@ -24,6 +24,7 @@ describe('ContactBookEntryDialogComponent', () => {
     signedByName: '林太太',
     signedAt: '2026-08-29T12:00:00Z',
     isSigned: true,
+    editedAfterSign: false,
   };
 
   const setup = async (entry: ContactBookEntry) => {
