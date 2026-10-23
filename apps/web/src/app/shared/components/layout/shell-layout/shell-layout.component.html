@@ -1,11 +1,13 @@
 <div class="flex h-window flex-col">
-  <!-- A6 頂欄（#991 殼切片 S3）：桌機一列；≤860 導覽掉到第二列、可橫捲。捲離頂端才有下陰影 -->
+  <!-- A6 頂欄（#991 殼切片 S3）：桌機一列；≤860 導覽掉到第二列、可橫捲。捲離頂端才有下陰影。
+       手機第一列上下各 6px 置中（#1850，使用者 10-23；A6 是上 12、下 0，控制項貼著深色帶下緣；a6-adoption-rules R5）：
+       上方 pt-1.5，下方是跟導覽列之間的列距 gap-y-1.5（落在深色底上），深色帶仍是 56px -->
   <header
     class="relative z-10 shrink-0 bg-zinc-900 text-white transition-shadow data-scrolled:shadow-[0_6px_16px_-6px_rgb(26_22_20/28%)]"
     [attr.data-scrolled]="scrolled() || null"
   >
     <div
-      class="page-wrap flex flex-wrap items-center gap-x-4 pt-3 wide:h-14 wide:flex-nowrap wide:gap-x-8 wide:pt-0"
+      class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1.5 wide:h-14 wide:flex-nowrap wide:gap-x-8 wide:pt-0"
     >
       <a
         class="inline-flex min-h-11 shrink-0 items-center text-[20px] leading-none font-bold tracking-[-0.04em] text-white no-underline max-wide:my-[-11px] wide:block wide:min-h-0 wide:text-[24px]"
@@ -78,7 +80,7 @@
         @if (nav.notificationsRoute(); as bellRoute) {
           <a
             data-part="bell"
-            class="relative inline-grid size-11 shrink-0 place-items-center rounded-md text-zinc-300 no-underline hover:bg-zinc-800 hover:text-white aria-[current=page]:bg-zinc-800 aria-[current=page]:text-white"
+            class="relative inline-grid size-11 shrink-0 place-items-center rounded-md wide:size-10 text-zinc-300 no-underline hover:bg-zinc-800 hover:text-white aria-[current=page]:bg-zinc-800 aria-[current=page]:text-white"
             [routerLink]="bellRoute"
             routerLinkActive
             ariaCurrentWhenActive="page"
@@ -96,11 +98,12 @@
             }
           </a>
         }
+        <!-- 帳戶鈕、鈴鐺：手機 44（R3 觸控下限）、桌機 40（A6 `.acct` height 40，深色帶上下各 8px，#1850） -->
         <!-- 帳戶跟鈴鐺之間手機多留 4px（#1850）：兩個都是 44px 的深色方塊（鈴鐺在通知頁常駐、hover 時都有），
              8px 的 gap 看起來貼在一起；桌機 gap 16px 不用補 -->
         @if (auth.activeRole(); as role) {
           <button
-            class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white shrink-0 max-wide:ml-1 wide:-mr-1.5"
+            class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 wide:min-h-10 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white -mr-1.5 shrink-0 max-wide:ml-1"
             type="button"
             popovertarget="shell-account"
             [attr.aria-expanded]="accountOpen()"
