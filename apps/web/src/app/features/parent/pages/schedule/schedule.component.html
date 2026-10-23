@@ -245,6 +245,9 @@
                 <b>{{ changeKindLabel[c.changeType] }}</b>
                 · {{ changeText(c, s) }}
               </p>
+              @if (c.reason) {
+                <p class="m-0 text-zinc-700" data-part="change-reason">原因：{{ c.reason }}</p>
+              }
             }
           </div>
         </div>

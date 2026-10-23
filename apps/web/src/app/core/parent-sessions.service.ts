@@ -15,6 +15,8 @@ export interface ParentSessionChange {
   newDate: string | null;
   newStartTime: string | null;
   newEndTime: string | null;
+  /** 只有停課有值（#1100 #46）；改期、代課一律 null */
+  reason: string | null;
 }
 
 /** `GET /api/me/sessions` 的一堂課（apps/api/src/routes/parent/sessions.ts `ParentSessionSchema`） */
