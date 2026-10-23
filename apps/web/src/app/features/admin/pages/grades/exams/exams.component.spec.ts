@@ -580,6 +580,50 @@ describe('ExamsComponent', () => {
       const items = component['actionMenuItems']() as Array<{ label?: string; danger?: boolean }>;
       expect(items.find((i) => i.label === '刪除')?.danger).toBe(true);
     });
+    const spyable = () =>
+      component as unknown as {
+        openConfirmDialog: (h: string, d: unknown, accept: () => void) => void;
+        enterScoreEntry: (r: unknown) => void;
+      };
+
+    it('#1100 #34 有成績：「刪除」照樣能按，說明要先清空、按鈕帶去成績登錄（不打 DELETE）', () => {
+      const row = { ...target(), scoreCount: 3 };
+      component['selectedRow'].set(row);
+      const items = component['actionMenuItems']() as Array<{ label?: string; disabled?: boolean }>;
+      expect(items.find((i) => i.label === '刪除')?.disabled).toBeFalsy();
+
+      const open = vi
+        .spyOn(spyable(), 'openConfirmDialog')
+        .mockImplementation((_h, _d, accept) => accept());
+      const enter = vi.spyOn(spyable(), 'enterScoreEntry').mockImplementation(() => undefined);
+      component['confirmDeleteExam'](row);
+
+      expect(open).toHaveBeenCalledWith(
+        `還不能刪除「${row.name}」`,
+        expect.objectContaining({
+          message: '這場考試已有 3 筆成績。要先到成績登錄把成績清空，才能刪除考試。',
+          acceptLabel: '去成績登錄',
+        }),
+        expect.any(Function),
+      );
+      expect(enter).toHaveBeenCalledWith(row);
+      http.expectNone((req) => req.method === 'DELETE');
+    });
+
+    it('#1100 #34 沒有成績：照 A6 文案確認後刪除', () => {
+      const row = { ...target(), scoreCount: 0 };
+      const open = vi.spyOn(spyable(), 'openConfirmDialog').mockImplementation(() => undefined);
+      component['confirmDeleteExam'](row);
+      expect(open).toHaveBeenCalledWith(
+        `刪除「${row.name}」`,
+        expect.objectContaining({
+          message: '這場考試還沒有成績。刪除後無法復原。',
+          acceptLabel: '刪除',
+        }),
+        expect.any(Function),
+      );
+    });
+
     const deleteReq = () =>
       http.expectOne(
         (req) =>
