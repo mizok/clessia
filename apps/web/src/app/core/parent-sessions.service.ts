@@ -30,6 +30,8 @@ export interface ParentSession {
   /** 班的分校（#1075，家長到班頁判斷今天要不要刷卡） */
   campusId: string | null;
   campusName: string | null;
+  /** 班開了個人聯絡簿（國小模式）：詳情顯示當天的聯絡簿＋簽收，不顯示教務日誌的作業（#1100 #26） */
+  usesContactBook: boolean;
   /** 排課時段指定的教室（#1796）；手動加的堂、補課、沒指定 → null */
   classroomName: string | null;
   teacherName: string | null;
@@ -54,6 +56,20 @@ export interface ParentClassLog {
   homework: string;
 }
 
+/** `GET /api/me/contact-book` 的一則個人聯絡簿（學生 × 日期；#1100 #26） */
+export interface ParentContactBookEntry {
+  id: string;
+  entryDate: string;
+  content: string;
+  lastEditedByName: string | null;
+  updatedAt: string;
+  signedAt: string | null;
+  /** 簽收的人（可能是另一位家長） */
+  signedByName: string | null;
+  /** 簽收之後內容又改過 → 顯示「有更新」 */
+  editedAfterSign: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ParentSessionsService {
   private readonly http = inject(HttpClient);
@@ -74,5 +90,24 @@ export class ParentSessionsService {
     return this.http.get<{ data: ParentClassLog[] }>(`${this.base}/class-logs`, {
       params: { childId, dateFrom, dateTo, pageSize: 100 },
     });
+  }
+
+  /** 日期窗必填、上限 120 天（API 端擋） */
+  contactBook(
+    childId: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Observable<{ data: ParentContactBookEntry[] }> {
+    return this.http.get<{ data: ParentContactBookEntry[] }>(`${this.base}/contact-book`, {
+      params: { childId, dateFrom, dateTo },
+    });
+  }
+
+  /** 已閱簽收；已經有人簽過就回現狀（不覆蓋） */
+  signContactBook(entryId: string): Observable<ParentContactBookEntry> {
+    return this.http.post<ParentContactBookEntry>(
+      `${this.base}/contact-book/${entryId}/sign`,
+      {},
+    );
   }
 }

@@ -37,6 +37,8 @@ interface SessionSeed {
   /** 排課時段指定的教室名（#1796） */
   classroom?: string | null;
   schedule_changes?: Record<string, unknown>[];
+  /** 班開了個人聯絡簿（#1100 #26） */
+  uses_contact_book?: boolean;
 }
 
 function session(seed: SessionSeed) {
@@ -63,6 +65,7 @@ function session(seed: SessionSeed) {
     classes: {
       name: `班 ${seed.class_id.slice(-3)}`,
       campus_id: 'campus-xy',
+      uses_contact_book: seed.uses_contact_book ?? false,
       campuses: { name: '信義校' },
       courses: { name: '國中數學' },
     },
@@ -227,6 +230,7 @@ describe('GET /api/me/sessions', () => {
         courseName: '國中數學',
         campusId: 'campus-xy',
         campusName: '信義校',
+        usesContactBook: false,
         classroomName: null,
         teacherName: '王老師',
         isSubstitute: false,
@@ -236,6 +240,24 @@ describe('GET /api/me/sessions', () => {
         changes: [],
         attendance: null,
       });
+    });
+
+    it('#1100 #26 班開了個人聯絡簿 → usesContactBook = true；select 真的有那一欄', async () => {
+      const selects: Array<[string, string]> = [];
+      const seed = baseSeed({
+        sessions: [
+          session({
+            id: id(301),
+            class_id: CLASS_A,
+            session_date: '2026-10-05',
+            uses_contact_book: true,
+          }),
+        ],
+      });
+      const { body } = await get(appWith(seed, { selects }));
+      expect(body.data[0].usesContactBook).toBe(true);
+      const sessionSelect = selects.find(([t]) => t === 'sessions')?.[1] ?? '';
+      expect(sessionSelect.replace(/\s+/g, '')).toContain('classes!inner(name,campus_id,uses_contact_book,');
     });
 
     it('課堂查詢真的嵌了時段的教室（classrooms(name)）—— 替身不解析 select，要直接看字串', async () => {

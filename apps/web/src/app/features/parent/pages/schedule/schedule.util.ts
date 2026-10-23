@@ -1,4 +1,4 @@
-import { addDaysToDateString } from '@core/system-clock.service';
+import { addDaysToDateString, taipeiDateString } from '@core/system-clock.service';
 import type { ParentSession, ParentSessionChange } from '@core/parent-sessions.service';
 
 export const WEEKDAY_LABELS = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'] as const;
@@ -51,6 +51,11 @@ export function taipeiMinutes(epochMs: number): number {
 export function taipeiTimeOfDay(iso: string): string {
   const mins = taipeiMinutes(Date.parse(iso));
   return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+}
+
+/** ISO 時間戳 → 台北 `M/D HH:mm`（聯絡簿「寫」與「簽收」的時間） */
+export function taipeiStamp(iso: string): string {
+  return `${formatMd(taipeiDateString(Date.parse(iso)))} ${taipeiTimeOfDay(iso)}`;
 }
 
 export type SessionPhase = 'off' | 'past' | 'live' | 'future';

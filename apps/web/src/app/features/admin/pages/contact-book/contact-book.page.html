@@ -262,6 +262,11 @@
                         ><i class="pi pi-check mr-1 text-xs" aria-hidden="true"></i
                         >{{ signedText(entry) }}</span
                       >
+                      @if (entry.editedAfterSign) {
+                        <span class="text-sm font-semibold text-zinc-700" data-testid="edited"
+                          >簽收後有修改</span
+                        >
+                      }
                     } @else {
                       <span class="text-sm font-semibold text-zinc-700" data-testid="unsigned"
                         >未簽收</span

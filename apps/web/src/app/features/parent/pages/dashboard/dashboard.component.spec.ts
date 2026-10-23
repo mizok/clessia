@@ -28,6 +28,7 @@ const ses = (date: string, over: Partial<ParentSession> = {}): ParentSession => 
   courseName: null,
   campusId: 'campus-1',
   campusName: '中正校',
+  usesContactBook: false,
   classroomName: null,
   teacherName: '王',
   isSubstitute: false,

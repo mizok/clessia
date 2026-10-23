@@ -210,6 +210,14 @@ Tags: `architecture`, `parent`, `authorization`, `teaching-log`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]]
 
+## [[architecture/parent-contact-book-sign|家長讀取與簽收個人聯絡簿]]
+
+GET /api/me/contact-book 與 POST /api/me/contact-book/{id}/sign 的範圍與「簽收後有修改」判準為什麼要走 pg 一句 SQL、為什麼管理端 PUT 原文照存不寫。
+
+Tags: `parent`, `contact-book`, `scope`
+
+Links to: [[rules/contact-book-rules]], [[architecture/parent-data-scope]]
+
 ## [[architecture/parent-data-scope|家長端的資料範圍模型]]
 
 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。
