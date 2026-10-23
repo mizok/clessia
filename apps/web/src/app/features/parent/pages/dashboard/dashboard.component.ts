@@ -1,4 +1,3 @@
-import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import {
   Component,
@@ -81,7 +80,6 @@ interface Loaded {
   selector: 'app-dashboard',
   standalone: true,
   imports: [
-    TextSwapDirective,
     SkeletonComponent,
     DecimalPipe,
     NgTemplateOutlet,

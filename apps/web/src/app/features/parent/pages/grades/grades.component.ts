@@ -1,4 +1,3 @@
-import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
@@ -62,7 +61,6 @@ const PAGE_SIZE = 100;
   selector: 'app-grades',
   standalone: true,
   imports: [
-    TextSwapDirective,
     SkeletonComponent,
     SelectFieldComponent,
     NgTemplateOutlet,
