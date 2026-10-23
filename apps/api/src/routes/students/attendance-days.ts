@@ -12,6 +12,7 @@ import {
 import { findInOrg } from '../../lib/org-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
+import { loadTeachingScope, taughtClassIds } from '../../lib/teacher-scope';
 import { outOfCampusScope, teacherCannotRead } from './read-scope';
 
 /**
@@ -141,11 +142,26 @@ app.openapi(
       .neq('status', 'void');
     if (enrollmentError) return fail(enrollmentError.message);
 
-    const enrollments = (enrollmentRows ?? []) as Array<{
-      class_id: string;
-      effective_from: string;
-      effective_to: string | null;
-    }>;
+    // #1100 #51（使用者 10-23 裁定）：老師只看「自己教的班」的到班。母體就從這裡縮 ——
+    // 別的班的課不進來，後面的格子、統計、下一堂都自然只剩他的班（看不到的就是看不到，不是撈了再遮）。
+    // 「自己教」＝固定任課（schedules），跟上面 teacherCannotRead 判「讀不讀得到這個學生」同一條
+    let mine: Set<string> | null = null;
+    const teaching = await loadTeachingScope(supabase, {
+      orgId,
+      userId: c.get('userId'),
+      roles: c.get('roles') ?? [],
+    });
+    if ('forbidden' in teaching) return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    if (teaching.teacherStaffId) {
+      mine = new Set(await taughtClassIds(supabase, orgId, teaching.teacherStaffId));
+    }
+    const enrollments = (
+      (enrollmentRows ?? []) as Array<{
+        class_id: string;
+        effective_from: string;
+        effective_to: string | null;
+      }>
+    ).filter((e) => mine === null || mine.has(e.class_id));
     const covered = (classId: string, date: string) =>
       enrollments.some(
         (e) =>
