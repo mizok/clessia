@@ -4,10 +4,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   inject,
   input,
   signal,
+  viewChild,
   type Signal,
   EnvironmentInjector,
   createEnvironmentInjector,
@@ -277,20 +279,32 @@ export class DashboardComponent {
     icon: 'pi pi-check',
   };
 
+  /** 登記請假的彈窗（#2037）：原生 <dialog>，從工具列或「該到沒到」的列打開 */
+  private readonly phoneLeaveDialog = viewChild<ElementRef<HTMLDialogElement>>('phoneLeaveDialog');
+
   protected openPhoneLeave(studentId: string | null = null): void {
     this.phoneLeaveStudentId.set(studentId);
     this.phoneLeaveOpen.set(true);
-    // 面板在頁面上方，從列內按時要把它帶進視野
-    queueMicrotask(() =>
-      document
-        .getElementById('dashboard-phone-leave')
-        ?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }),
-    );
+    const dialog = this.phoneLeaveDialog()?.nativeElement;
+    // jsdom 沒有 showModal
+    if (dialog && !dialog.open && typeof dialog.showModal === 'function') dialog.showModal();
   }
 
+  /** 收起鈕、Esc（dialog 的 close 事件）都走這裡 */
   protected closePhoneLeave(): void {
     this.phoneLeaveOpen.set(false);
     this.phoneLeaveStudentId.set(null);
+    const dialog = this.phoneLeaveDialog()?.nativeElement;
+    if (dialog?.open) dialog.close();
+  }
+
+  /**
+   * 結果卡的「點名名單」：先收起登記請假再開點名名單 —— 點名名單是 PrimeNG 的動態對話框（掛在 body），
+   * 原生 modal <dialog> 在 top layer，不收的話會被蓋在底下。
+   */
+  protected openRosterFromPhoneLeave(target: PhoneLeaveRosterRequest): void {
+    this.closePhoneLeave();
+    void this.openRosterDialog(target);
   }
 
   /** 櫃台代刷＝到班打卡站（掃 QR）。登記請假用同一顆托盤鈕，不經這裡 */
