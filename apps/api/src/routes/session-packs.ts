@@ -10,6 +10,8 @@ import {
 } from '../lib/session-pack';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import type { Queryable } from '../lib/identity-sql';
+import { attendanceStatusesViaSql } from '../lib/session-pack-sql';
 
 /**
  * 堂數包：買 N 堂慢慢上完。
@@ -70,29 +72,44 @@ interface EnrollmentSessionSummary {
   leaveDeductsSession: boolean;
 }
 
+/**
+ * 讀取失敗（#1928）：剩餘堂數會被拿去判斷要不要續購或收費，讀不到就不能回一個算出來的數字 ——
+ * 原本每支只拿 `data`，堂數包讀不到時剩餘變負數（像該追補買），出勤讀不到時已扣 0（剩餘＝已購）。
+ */
+type ReadFailure = { error: 'READ_FAILED'; step: string; message: string };
+const readFailed = (step: string, err: { message?: string }): ReadFailure => ({
+  error: 'READ_FAILED',
+  step,
+  message: err.message ?? 'unknown',
+});
+
 async function summariseEnrollment(
   supabase: SupabaseClient,
   enrollmentId: string,
   orgId: string,
-): Promise<{ error: 'NOT_FOUND' } | EnrollmentSessionSummary> {
-  const { data: enrollment } = await supabase
+  db: Queryable | undefined,
+): Promise<{ error: 'NOT_FOUND' } | ReadFailure | EnrollmentSessionSummary> {
+  const { data: enrollment, error: enrollmentError } = await supabase
     .from('enrollments')
     .select('id, class_id, student_id, classes(leave_deducts_session)')
     .eq('id', enrollmentId)
     .eq('org_id', orgId)
     .maybeSingle();
 
+  // 讀不到 ≠ 不存在
+  if (enrollmentError) return readFailed('報名', enrollmentError);
   if (!enrollment) return { error: 'NOT_FOUND' };
 
   const leaveDeductsSession = Boolean(
     (enrollment['classes'] as { leave_deducts_session?: boolean } | null)?.leave_deducts_session,
   );
 
-  const { data: packRows } = await supabase
+  const { data: packRows, error: packError } = await supabase
     .from('session_packs')
     .select('*')
     .eq('enrollment_id', enrollmentId)
     .order('purchased_at', { ascending: false });
+  if (packError) return readFailed('堂數包', packError);
 
   const packs: SessionPackResponse[] = (packRows ?? []).map((row) =>
     toSessionPack(row as Record<string, unknown>),
@@ -120,28 +137,44 @@ async function summariseEnrollment(
   // 只擋得住之後新寫的，**擋不住老師在停課之前就點好的名**，也擋不住請假連動寫下
   // 的 `on_leave`（`routes/leaves.ts` 走另一條路）。這一道是「不論那筆紀錄從哪裡
   // 來」的最後一關 —— 它守的是金額。
-  const { data: sessionRows } = await supabase
-    .from('sessions')
-    .select('event_id')
-    .eq('class_id', enrollment['class_id'])
-    .neq('status', 'cancelled')
-    .not('event_id', 'is', null);
-
-  const eventIds = (sessionRows ?? [])
-    .map((row) => (row as Record<string, unknown>)['event_id'] as string)
-    .filter(Boolean);
-
   let statuses: AttendanceStatus[] = [];
-  if (eventIds.length > 0) {
-    const { data: attendanceRows } = await supabase
-      .from('attendance_records')
-      .select('status')
-      .eq('student_id', enrollment['student_id'])
-      .in('event_id', eventIds);
+  if (db) {
+    // 正式環境：一條 SQL 數好（不把班級歷來所有 event 塞進網址、也不受 1000 列截斷，#1928）
+    try {
+      statuses = await attendanceStatusesViaSql(db, {
+        orgId,
+        classId: enrollment['class_id'] as string,
+        studentId: enrollment['student_id'] as string,
+      });
+    } catch (err) {
+      return readFailed('出勤', { message: err instanceof Error ? err.message : String(err) });
+    }
+  } else {
+    // 沒有 pool（單元測試的精簡 app）：原本的兩步 REST
+    const { data: sessionRows, error: sessionError } = await supabase
+      .from('sessions')
+      .select('event_id')
+      .eq('class_id', enrollment['class_id'])
+      .neq('status', 'cancelled')
+      .not('event_id', 'is', null);
+    if (sessionError) return readFailed('課堂', sessionError);
 
-    statuses = (attendanceRows ?? []).map(
-      (row) => (row as Record<string, unknown>)['status'] as AttendanceStatus,
-    );
+    const eventIds = (sessionRows ?? [])
+      .map((row) => (row as Record<string, unknown>)['event_id'] as string)
+      .filter(Boolean);
+
+    if (eventIds.length > 0) {
+      const { data: attendanceRows, error: attendanceError } = await supabase
+        .from('attendance_records')
+        .select('status')
+        .eq('student_id', enrollment['student_id'])
+        .in('event_id', eventIds);
+      if (attendanceError) return readFailed('出勤', attendanceError);
+
+      statuses = (attendanceRows ?? []).map(
+        (row) => (row as Record<string, unknown>)['status'] as AttendanceStatus,
+      );
+    }
   }
 
   return {
@@ -184,6 +217,10 @@ app.openapi(
         },
       },
       404: { description: '報名不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      500: {
+        description: '讀取失敗（#1928），不回算錯的剩餘堂數',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -191,9 +228,13 @@ app.openapi(
     const orgId = c.get('orgId');
     const { enrollmentId } = c.req.valid('query');
 
-    const result = await summariseEnrollment(supabase, enrollmentId, orgId);
+    const result = await summariseEnrollment(supabase, enrollmentId, orgId, c.get('auth')?.pool);
 
     if ('error' in result) {
+      if (result.error === 'READ_FAILED') {
+        console.error(`[session-packs] ${result.step}讀取失敗：${result.message}`);
+        return c.json({ error: '讀取堂數資料失敗，請稍後再試', code: 'READ_FAILED' }, 500);
+      }
       return c.json({ error: '報名不存在', code: 'NOT_FOUND' }, 404);
     }
 
