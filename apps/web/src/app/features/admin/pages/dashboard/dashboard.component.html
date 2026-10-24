@@ -74,8 +74,12 @@
 
 <div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
   @if (phoneLeaveOpen()) {
+    <!-- 開關的進出場同全站彈出物（#2035，motion.md：進 200ms --arrive、出 140ms --leave）；減少動態時不動 -->
     <app-phone-leave
       id="dashboard-phone-leave"
+      class="[--pop-from:translateY(-6px)]"
+      animate.enter="animate-[overlay-arrive_200ms_var(--arrive)] motion-reduce:animate-none"
+      animate.leave="animate-[overlay-leave_140ms_var(--leave)_forwards] motion-reduce:animate-none"
       [rosterAvailable]="!isDailyCheckin()"
       [presetStudentId]="phoneLeaveStudentId()"
       (completed)="loadToday()"
