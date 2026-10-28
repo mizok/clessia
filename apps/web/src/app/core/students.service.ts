@@ -34,6 +34,8 @@ export interface Student {
   /** 在籍班級名稱，老師端用來分組 */
   classNames: string[];
   hasEnrollments: boolean;
+  /** 列表才有（#2053）：有有效到班卡。false＝要發卡 */
+  hasActiveCard?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,6 +104,8 @@ export interface StudentQueryParams {
   withToday?: boolean;
   /** 學制跟年級不合（#1820）：學校學制跟年級不同；未分類學校不算 */
   schoolMismatch?: boolean;
+  /** 沒有有效到班卡（#2053）：舊卡、從沒發過、作廢沒補發 */
+  withoutCard?: boolean;
 }
 
 export interface UpdateStudentInput {
@@ -213,6 +217,7 @@ export class StudentsService {
     if (params.today !== undefined) q['today'] = params.today;
     if (params.withToday !== undefined) q['withToday'] = params.withToday;
     if (params.schoolMismatch) q['schoolMismatch'] = 'true';
+    if (params.withoutCard) q['withoutCard'] = 'true';
     return q;
   }
 }

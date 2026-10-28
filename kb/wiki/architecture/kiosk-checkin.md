@@ -147,6 +147,10 @@ tags: [architecture, attendance, authorization, kiosk, migration]
   卡面多印分組代碼。學生列表的印卡入口 `basic_operations` 或 `manage_students` 任一可見（新開由後端擋）；
   學生詳情頁「⋯」有補發（填理由 → 補發 → 直接印新卡；視窗被擋就不呼叫 API，卡不會換掉）與作廢。
   「基本資料」顯示現況（`basic_operations` 或 `manage_students`）：末四碼＋發卡日／已作廢尚未補發／尚未發新卡。
+- **批次發卡（#2053）**：學生列表篩選「卡片：還沒換新卡」（`withoutCard=true`，沒有有效卡＝舊卡、從沒發過、作廢沒補發），
+  拉大每頁筆數，按「⋯ → 本頁發卡並列印（N 位新卡）」。要新開時先確認（舊卡從此失效）；只有 `basic_operations`
+  的人略過沒卡的、只重印有卡的。篩選是 embed 反連接，條件全在 DB；PostgREST 聚合不吃 embed 過濾，所以這個篩選開著時
+  年級章節改成每級一支 HEAD count（+12 subrequest，最壞情況 26，`students-subrequest-budget.spec.ts` 守 ≤45）。
 
 ## 拒絕的替代方案
 
