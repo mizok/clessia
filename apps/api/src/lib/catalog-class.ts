@@ -33,7 +33,13 @@ export const CatalogClassSchema = z.object({
   campusName: z.string().nullable(),
   /** 今天有效與還沒生效的每週時段（1=週一 … 7=週日；已結束的舊段不列，#1100 #22） */
   slots: z.array(
-    z.object({ weekday: z.number().int(), startTime: z.string(), endTime: z.string() }),
+    z.object({
+      weekday: z.number().int(),
+      startTime: z.string(),
+      endTime: z.string(),
+      /** 還沒生效的未來時段＝哪天起（畫面標「X 起」）；今天已經有效＝null */
+      effectiveFrom: z.string().nullable(),
+    }),
   ),
   maxStudents: z.number().int(),
   remainingSeats: z.number().int().min(0),
@@ -88,6 +94,7 @@ export function toCatalogClass(row: Row, takenSeats: number, today: string) {
       weekday: s['weekday'] as number,
       startTime: (s['start_time'] as string).slice(0, 5),
       endTime: (s['end_time'] as string).slice(0, 5),
+      effectiveFrom: s['effective_from'] > today ? (s['effective_from'] as string) : null,
     })),
     maxStudents,
     remainingSeats: Math.max(0, maxStudents - takenSeats),
