@@ -41,6 +41,24 @@ Android（Chrome 的 PWA／WebAPK）與 Chrome 共用 cookie，預期沒事，�
 3. **每個來源的上限**：`start` 存發起 IP 的 HMAC（同招生表單的 `hashClientIp`，表裡沒有可還原的 IP），
    同一來源同時未過期最多 5 筆，防有人灌滿全域上限讓所有人 10 分鐘登不了。
 
+## OAuth 必須在 Safari 發起（#2063，10-28 實機修正）
+
+第一版是 **PWA 自己呼叫 `signIn.social`**、帶交接的 callbackURL。實機上永遠走不完：使用者落在登入頁
+「LINE 登入沒有完成」，沒有地方輸入號碼。
+
+- **原因**：Better Auth 1.5.5 的 state 存在 DB，但回呼時**還會比對發起時設下的簽章 `state` cookie**
+  （`state_security_mismatch`，防 login CSRF）。PWA 發起 → cookie 寫在 PWA 的 jar；LINE App 授權完回到
+  **Safari** → 沒有那顆 cookie → `/api/auth/error?error=state_mismatch` → 首頁。桌機會成功，是因為發起和回呼
+  在同一個瀏覽器。正式站用兩個 cookie jar 重現過（#2063 留言有每一步的網址）。
+- **修法（計畫席裁 A）**：PWA 按下只發起交接、顯示號碼，LINE 鍵換成一條連結，打開外部瀏覽器的
+  `/login/handoff/start?h=<id>`。**那一頁在 Safari 裡呼叫 `signIn.social`**，state cookie 跟回呼在同一個瀏覽器。
+  之後照原設計：`/login/handoff?h=` 輸入號碼 → PWA 回前景兌換。發起頁只收 id，不帶秘密。
+- **怎麼開到 Safari**：iOS（`navigator.standalone`）用 `x-safari-https://`（iOS 17 起）指名 Safari ——
+  一般的 `target=_blank` 可能開在 PWA 內嵌的瀏覽頁，那裡的 jar 跟 Safari 不同。其他平台用一般網址。
+  **要靠實機確認**（iPhone、Android 各一次）。
+- **不採用 `skipStateCookieCheck`**（計畫席裁）：會全站拿掉 login CSRF 保護，攻擊者能讓受害者登入成攻擊者的帳號。
+- 另加 `onAPIError.errorURL = <WEB_URL>/login`：讀到 errorCallbackURL 之前的 OAuth 失敗，不再丟到首頁。
+
 ## 拒絕的替代方案
 
 - PWA 內 `window.open` 彈窗＋`postMessage`：iOS standalone 的彈窗也是外部瀏覽器、沒有 `opener`、不共用 cookie。

@@ -138,6 +138,9 @@ export function createAuth(
         requestOrigin: request?.headers.get('origin'),
         allowed: allowedOrigins(env),
       }),
+    // OAuth 在讀到我們的 errorCallbackURL 之前就失敗時（state 對不上等，#2063），Better Auth 預設丟到
+    // `{baseURL}/error` —— 那會再轉到網站首頁，使用者不知道發生什麼事。改丟回登入頁，`?error=` 由登入頁翻成人話
+    onAPIError: allowedOrigins(env)[0] ? { errorURL: `${allowedOrigins(env)[0]}/login` } : undefined,
     // **關掉密碼登入**。scrypt 超過 Workers 的 10ms CPU 上限，登入間歇性 503，
     // 而且任何安全的密碼雜湊都會超過 —— 快到能塞進 10ms 的雜湊等於沒有保護。
     // 見 kb/wiki/architecture/line-oauth-login.md
