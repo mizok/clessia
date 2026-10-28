@@ -3,6 +3,7 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService } from '@core/auth.service';
+import { AuthHandoffService } from '@core/auth-handoff.service';
 import { AppVersionService } from '@core/app-version.service';
 
 import { LoginComponent } from './login.component';
@@ -285,5 +286,44 @@ describe('LoginComponent 底部面板', () => {
     fixture.destroy();
 
     expect(document.getElementById('login-sheet')).toBeNull();
+  });
+});
+
+/** #2027 iOS 主畫面 PWA：進頁、回前景都去換交接；還在等就提示回 Safari 完成；失效就請他重按 */
+describe('LoginComponent × 外部登入交接', () => {
+  async function render(results: Array<'none' | 'pending' | 'redirected' | 'invalid'>) {
+    const redeem = vi.fn(async () => results.shift() ?? 'none');
+    TestBed.configureTestingModule({
+      imports: [LoginComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: { signInWithLine: vi.fn() } },
+        { provide: AuthHandoffService, useValue: { redeem } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map() } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+    return { fixture, redeem, text };
+  }
+
+  it('進頁換一次；還在等 → 提示「在 Safari 完成…回到這個 App」', async () => {
+    const { redeem, text } = await render(['pending']);
+    expect(redeem).toHaveBeenCalledTimes(1);
+    expect(text()).toContain('在 Safari 完成 LINE 登入後，回到這個 App 就會自動登入');
+  });
+
+  it('回到前景再換一次；失效 → 提示重按、等待提示收掉', async () => {
+    const { fixture, redeem, text } = await render(['pending', 'invalid']);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(redeem).toHaveBeenCalledTimes(2);
+    expect(text()).not.toContain('回到這個 App 就會自動登入');
+    expect(text()).toContain('登入逾時，請再按一次「使用 LINE 登入」');
   });
 });

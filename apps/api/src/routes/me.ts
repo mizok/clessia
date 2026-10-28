@@ -9,6 +9,7 @@ import gradesRoute from './parent/grades';
 import billingRoute from './parent/billing';
 import classLogsRoute from './parent/class-logs';
 import contactBookRoute from './parent/contact-book';
+import { handoffCompleteRoute } from './auth-handoff';
 import enrollmentRequestsRoute from './parent/enrollment-requests';
 import trialRequestsRoute from './parent/trial-requests';
 import sessionsRoute from './parent/sessions';
@@ -254,6 +255,8 @@ app.route('/renewal-preview', renewalRoute);
 app.route('/meals', mealsRoute);
 app.route('/billing', billingRoute);
 app.route('/class-logs', classLogsRoute);
+// #2027：Safari 那邊登入完成後標記 PWA 的外部登入交接（任何角色）
+app.route('/auth-handoff', handoffCompleteRoute);
 app.route('/contact-book', contactBookRoute);
 app.route('/enrollment-requests', enrollmentRequestsRoute);
 app.route('/trial-requests', trialRequestsRoute);

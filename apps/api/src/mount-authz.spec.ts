@@ -85,6 +85,8 @@ const UNMOUNTED = [
   '/api/public/enrollment-applications',
   '/api/public/trial-applications',
   '/api/internal/push',
+  // #2027 iOS PWA 外部登入交接的 start／redeem：PWA 還沒登入時打的，門是 secret（只存雜湊、一次性、10 分鐘）
+  '/api/auth-handoff',
 ];
 
 /**

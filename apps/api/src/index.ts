@@ -23,6 +23,7 @@ import billingPeriodsRoute from './routes/billing-periods';
 import gradePromotionsRoute from './routes/grade-promotions';
 import feeTemplatesRoute from './routes/fee-templates';
 import publicCaptchaRoute from './routes/public/captcha';
+import { publicHandoffRoute } from './routes/auth-handoff';
 import publicCatalogRoute from './routes/public/catalog';
 import publicOrgRoute from './routes/public/org';
 import publicApplicationsRoute from './routes/public-applications';
@@ -326,6 +327,10 @@ app.route('/api/public/trial-applications', publicTrialApplicationsRoute);
 // ── 推播排程（#1661）：唯一的門是 CRON_SECRET，見 routes/internal-push.ts ──────────
 // **必須在 authMiddleware 之前** —— cron 沒有 session。
 app.route('/api/internal/push', internalPushRoute);
+
+// ── iOS PWA 外部登入交接（#2027）：start／redeem 是 PWA 還沒登入時打的，**必須在 authMiddleware 之前**；
+// complete 要登入，在 `/api/me/auth-handoff`（routes/me.ts）。見 routes/auth-handoff.ts
+app.route('/api/auth-handoff', publicHandoffRoute);
 
 app.use('/api/*', authMiddleware);
 

@@ -39,6 +39,15 @@ export const routes: Routes = [
         canActivate: guardsFor(RoutesCatalog.PUBLIC_LOGIN),
       },
       {
+        // 理由在 `RoutesCatalog.PUBLIC_LOGIN_HANDOFF` 的宣告旁邊（#2027）
+        path: RoutesCatalog.PUBLIC_LOGIN_HANDOFF.relativePath,
+        loadComponent: () =>
+          import('@features/public/pages/login-handoff/login-handoff.component').then(
+            (m) => m.LoginHandoffComponent,
+          ),
+        canActivate: guardsFor(RoutesCatalog.PUBLIC_LOGIN_HANDOFF),
+      },
+      {
         // 「誰進得來」的理由寫在 `RoutesCatalog.PUBLIC_LINK_LINE` 的宣告旁邊（#693）
         path: RoutesCatalog.PUBLIC_LINK_LINE.relativePath,
         loadComponent: () =>

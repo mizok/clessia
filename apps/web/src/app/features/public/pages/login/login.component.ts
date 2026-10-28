@@ -11,6 +11,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { AppVersionService } from '@core/app-version.service';
 import { AuthService } from '@core/auth.service';
+import { AuthHandoffService } from '@core/auth-handoff.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { oauthErrorFor } from './oauth-error';
 
@@ -28,6 +29,10 @@ export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly version = inject(AppVersionService);
   private readonly route = inject(ActivatedRoute);
+  private readonly handoff = inject(AuthHandoffService);
+
+  /** iOS 主畫面 PWA 已發起 LINE 登入、還在等 Safari 那邊完成（#2027） */
+  protected readonly handoffWaiting = signal(false);
 
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
@@ -56,10 +61,24 @@ export class LoginComponent {
       this.showRegisterHint.set(oauthError.showRegisterHint);
     }
 
+    // #2027：PWA 回到前景（從 Safari 切回來）就去換交接；進頁時也換一次（iOS 可能把 PWA 重新載入）
+    void this.tryHandoff();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void this.tryHandoff();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', onVisible));
+
     if (this.route.snapshot.queryParamMap.get('reason') === 'connection-error') {
       this.error.set('連線異常，請重試。若持續發生請聯繫補習班。');
       this.showRetry.set(true);
     }
+  }
+
+  private async tryHandoff(): Promise<void> {
+    const result = await this.handoff.redeem();
+    this.handoffWaiting.set(result === 'pending');
+    if (result === 'invalid') this.error.set('登入逾時，請再按一次「使用 LINE 登入」');
   }
 
   /** 重新整理讓 AuthService 重跑一次 /api/me —— 通常是後端偶發性的 5xx，重試就好 */
