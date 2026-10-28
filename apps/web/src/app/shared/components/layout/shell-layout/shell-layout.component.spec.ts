@@ -314,7 +314,9 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     it('頂欄兩列斷點：基底 flex-wrap＋桌機 flex-nowrap；導覽基底 order-3 w-full、桌機還原', async () => {
       const { el } = await setup(['admin'], 'admin');
       const row = el.querySelector('header > div')!;
-      has(row, 'flex', 'flex-wrap', 'items-center', 'gap-x-4', 'pt-3');
+      // 手機第一列上下各 6px 置中（#1850，R5）：上 pt-1.5、下是跟導覽列之間的列距 gap-y-1.5
+      has(row, 'flex', 'flex-wrap', 'items-center', 'gap-x-4', 'pt-1.5', 'gap-y-1.5');
+      expect(cls(row)).not.toContain('pt-3');
       has(row, 'wide:flex-nowrap', 'wide:h-14', 'wide:gap-x-8', 'wide:pt-0');
       // 基底不能是 nowrap（會讓手機一列擠爆）、桌機不能少了 nowrap（會換行）
       expect(cls(row)).not.toContain('flex-nowrap');
@@ -617,9 +619,18 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       expect(link.parentElement).toBe(account.parentElement);
     });
 
-    it('觸控目標 44px（size-11，R3）', async () => {
+    it('觸控目標 44px（size-11，R3）；桌機 40px（A6 頂欄控制項高 40，深色帶上下各 8px，#1850）', async () => {
       const { el } = await setup(['parent'], 'parent');
       expect(bell(el)!.classList).toContain('size-11');
+      expect(bell(el)!.classList).toContain('wide:size-10');
+    });
+
+    it('帳戶鈕：手機 44、桌機 40（A6 `.acct` height 40）；右邊距 -6px 手機桌機都有，頭像右緣跟 Logo 左緣一樣離邊 16px（#1850）', async () => {
+      const { el } = await setup(['parent'], 'parent');
+      const account = el.querySelector('[popovertarget="shell-account"]')!;
+      const c = account.className.split(/\s+/);
+      for (const n of ['min-h-11', 'wide:min-h-10', 'px-1.5', '-mr-1.5']) expect(c, n).toContain(n);
+      expect(c).not.toContain('wide:-mr-1.5');
     });
 
     it('管理員：沒有未讀時沒有角標，aria-label 跟老師家長同一套', async () => {

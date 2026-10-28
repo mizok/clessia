@@ -3,6 +3,7 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
+  computed,
   inject,
   signal,
   viewChild,
@@ -11,6 +12,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { AppVersionService } from '@core/app-version.service';
 import { AuthService } from '@core/auth.service';
+import { AuthHandoffService } from '@core/auth-handoff.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { oauthErrorFor } from './oauth-error';
 
@@ -28,6 +30,25 @@ export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly version = inject(AppVersionService);
   private readonly route = inject(ActivatedRoute);
+  private readonly handoff = inject(AuthHandoffService);
+
+  /** iOS 主畫面 PWA 已發起 LINE 登入、還在等 Safari 那邊完成（#2027） */
+  protected readonly handoffWaiting = signal(false);
+  /**
+   * 這次交接在外部瀏覽器的發起連結（#2063）。有值時 LINE 鍵換成這條連結：OAuth 要在 Safari 發起，
+   * PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA、回呼落在 Safari，永遠 state_mismatch
+   */
+  protected readonly handoffLink = signal<string | null>(null);
+  /**
+   * iOS 的退路（計畫席 10-28）：`x-safari-https://` 是 iOS 17 起才認的，舊版點了沒反應 ——
+   * 附一般網址讓使用者自己貼到 Safari。非 iOS（連結本來就是一般網址）不顯示
+   */
+  protected readonly handoffFallbackURL = computed(() => {
+    const link = this.handoffLink();
+    return link?.startsWith('x-safari-') ? link.slice('x-safari-'.length) : null;
+  });
+  /** 等待中要在 Safari 輸入的配對碼 */
+  protected readonly handoffCode = signal<string | null>(null);
 
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
@@ -43,7 +64,7 @@ export class LoginComponent {
   private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
 
   constructor() {
-    // 手機底部面板搬到 <body>：它在模板裡的位置是 <main [inert]> 底下（停在品牌面時表單面是 inert），
+    // 手機登入彈窗（#2031 起是置中彈窗，原本是底部面板）搬到 <body>：它在模板裡的位置是 <main [inert]> 底下（停在品牌面時表單面是 inert），
     // 進了 top layer 看得見，整棵子樹卻還是 inert —— LINE 鍵拿不到焦點、點擊穿到後面的 nav（#1639 二讀）。
     // 搬出去之後元件銷毀時 Angular 不會收它（它不在 host 底下了），要自己移除。
     afterNextRender(() => document.body.append(this.sheet().nativeElement));
@@ -56,10 +77,26 @@ export class LoginComponent {
       this.showRegisterHint.set(oauthError.showRegisterHint);
     }
 
+    // #2027：PWA 回到前景（從 Safari 切回來）就去換交接；進頁時也換一次（iOS 可能把 PWA 重新載入）
+    void this.tryHandoff();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void this.tryHandoff();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', onVisible));
+
     if (this.route.snapshot.queryParamMap.get('reason') === 'connection-error') {
       this.error.set('連線異常，請重試。若持續發生請聯繫補習班。');
       this.showRetry.set(true);
     }
+  }
+
+  private async tryHandoff(): Promise<void> {
+    const result = await this.handoff.redeem();
+    this.handoffWaiting.set(result === 'pending');
+    this.handoffCode.set(result === 'pending' ? this.handoff.pendingPairCode() : null);
+    this.handoffLink.set(result === 'pending' ? this.handoff.pendingStartLink() : null);
+    if (result === 'invalid') this.error.set('登入逾時，請再按一次「使用 LINE 登入」');
   }
 
   /** 重新整理讓 AuthService 重跑一次 /api/me —— 通常是後端偶發性的 5xx，重試就好 */
@@ -80,6 +117,14 @@ export class LoginComponent {
     this.submitting.set(true);
 
     try {
+      // #2027 iOS 主畫面 PWA：先發起交接、讓使用者看到配對碼（等一下要在 Safari 輸入）。
+      // 接著由使用者點連結到 Safari，**在那裡**發起 LINE 登入（#2063）—— PWA 自己不呼叫 sign-in
+      if (this.handoff.isStandalonePwa()) {
+        this.handoffLink.set(await this.handoff.start());
+        this.handoffCode.set(this.handoff.pendingPairCode());
+        this.handoffWaiting.set(true);
+        return;
+      }
       const errorMsg = await this.auth.signInWithLine();
       if (errorMsg) {
         this.error.set(errorMsg);

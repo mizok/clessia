@@ -1,12 +1,18 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { describe, expect, it } from 'vitest';
 
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { PageOpenComponent } from './page-open.component';
 
 @Component({
   imports: [PageOpenComponent],
-  template: `<app-page-open [nameSize]="big()" [subLarge]="large()" [compact]="small()"
+  template: `<app-page-open
+    [nameSize]="big()"
+    [subLarge]="large()"
+    [compact]="small()"
+    [titleSwap]="swapTitle()"
     ><ng-container openTitle>王柏翰</ng-container
     ><ng-container openSub>副行</ng-container></app-page-open
   >`,
@@ -15,6 +21,7 @@ class Host {
   readonly big = signal(false);
   readonly large = signal(false);
   readonly small = signal(false);
+  readonly swapTitle = signal(true);
 }
 
 describe('PageOpenComponent 標題字級', () => {
@@ -27,13 +34,15 @@ describe('PageOpenComponent 標題字級', () => {
     expect(h1(f).classList.contains('wide:text-[72px]')).toBe(false);
   });
 
-  it('nameSize：人名標題桌機 72／手機 44，行高 1', () => {
+  // 稿的手機 `.open__title` 行高 1.2 蓋過 `--name` 的 1（#1925 conformance 量到）
+  it('nameSize：人名標題桌機 72／行高 1，手機 44／行高 1.2', () => {
     const f = TestBed.createComponent(Host);
     f.componentInstance.big.set(true);
     f.detectChanges();
     expect(h1(f).classList.contains('wide:text-[72px]')).toBe(true);
     expect(h1(f).classList.contains('text-[44px]')).toBe(true);
-    expect(h1(f).classList.contains('leading-none')).toBe(true);
+    expect(h1(f).classList.contains('leading-[1.2]')).toBe(true);
+    expect(h1(f).classList.contains('wide:leading-none')).toBe(true);
     expect(h1(f).classList.contains('wide:text-[48px]')).toBe(false);
   });
 
@@ -91,5 +100,36 @@ describe('PageOpenComponent 色面高度用滑的（#1859）', () => {
     const f = TestBed.createComponent(Host);
     f.detectChanges();
     expect(f.nativeElement.querySelector('section[appheightfollow]')).not.toBeNull();
+  });
+});
+
+describe('PageOpenComponent 色面句換字（#1895）', () => {
+  it('標題 h1 與副行 p 都掛 appTextSwap（一處掛、全站色面句生效）', () => {
+    const f = TestBed.createComponent(Host);
+    f.detectChanges();
+    for (const sel of ['h1', 'p']) {
+      const el = f.debugElement.query(By.css(`app-page-open ${sel}`));
+      expect(el.injector.get(TextSwapDirective, null), sel).not.toBeNull();
+    }
+  });
+});
+
+describe('PageOpenComponent 標題可關掉換字（使用者 10-23：儀表板的補習班名稱不要動畫）', () => {
+  const swapOf = (f: ReturnType<typeof TestBed.createComponent<Host>>, sel: string) =>
+    f.debugElement.query(By.css(`app-page-open ${sel}`)).injector.get(TextSwapDirective);
+
+  it('預設標題與副行都開', () => {
+    const f = TestBed.createComponent(Host);
+    f.detectChanges();
+    expect(swapOf(f, 'h1').enabled()).toBe(true);
+    expect(swapOf(f, 'p').enabled()).toBe(true);
+  });
+
+  it('titleSwap=false：只關標題，副行照舊', () => {
+    const f = TestBed.createComponent(Host);
+    f.componentInstance.swapTitle.set(false);
+    f.detectChanges();
+    expect(swapOf(f, 'h1').enabled()).toBe(false);
+    expect(swapOf(f, 'p').enabled()).toBe(true);
   });
 });

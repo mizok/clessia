@@ -77,10 +77,28 @@ describe('CheckinStationComponent（#1127）', () => {
 
     await type('  stu-1 ');
 
-    expect(checkIn).toHaveBeenCalledWith({ studentId: 'stu-1', checkinDate: '2026-10-03' });
+    // 掃碼站一律帶 source: 'scan'（#1100 #52）
+    expect(checkIn).toHaveBeenCalledWith({
+      studentId: 'stu-1',
+      checkinDate: '2026-10-03',
+      source: 'scan',
+    });
     expect(q('checkin-headline')?.textContent?.trim()).toBe('王小明，17:40 到班');
     expect(q('checkin-session')?.textContent).toContain('已記出席');
     expect((q('checkin-code') as HTMLInputElement).value).toBe('');
+  });
+
+  it('新卡（CK1- 開頭，大小寫都算）送 cardCode，不送 studentId（#1100 #42）', async () => {
+    const checkIn = vi.fn(() => of(confirmation));
+    const { type } = await setup(checkIn);
+
+    await type(' ck1-0123-4567-89ab-cdef ');
+
+    expect(checkIn).toHaveBeenCalledWith({
+      cardCode: 'ck1-0123-4567-89ab-cdef',
+      checkinDate: '2026-10-03',
+      source: 'scan',
+    });
   });
 
   it(`${RESULT_SECONDS} 秒後自動回到掃描；「下一位」立刻回去`, async () => {
@@ -111,7 +129,11 @@ describe('CheckinStationComponent（#1127）', () => {
     expect(q('checkin-failure-title')?.textContent?.trim()).toBe('這次沒有記到');
 
     click('checkin-retry');
-    expect(checkIn).toHaveBeenLastCalledWith({ studentId: 'stu-1', checkinDate: '2026-10-03' });
+    expect(checkIn).toHaveBeenLastCalledWith({
+      studentId: 'stu-1',
+      checkinDate: '2026-10-03',
+      source: 'scan',
+    });
     expect(q('checkin-failure')).toBeNull();
     expect(q('checkin-result')).not.toBeNull();
   });
@@ -259,7 +281,12 @@ describe('CheckinStationComponent —— 相機', () => {
 
     decoderMock.mockResolvedValue('stu-1');
     await scan();
-    expect(checkIn).toHaveBeenCalledWith({ studentId: 'stu-1', checkinDate: '2026-10-03' });
+    // 掃碼站一律帶 source: 'scan'（#1100 #52）
+    expect(checkIn).toHaveBeenCalledWith({
+      studentId: 'stu-1',
+      checkinDate: '2026-10-03',
+      source: 'scan',
+    });
 
     decoderMock.mockClear();
     await scan();

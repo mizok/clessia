@@ -33,7 +33,7 @@ type CameraState = 'off' | 'starting' | 'scanning' | 'denied' | 'unavailable';
  * 分校**不送** —— 機台由後端取帳號綁的那一個；行政不指名分校時照既有規則寫。
  * 日期一律台北今天（機台不補登，後端也擋）。
  *
- * 輸入是**卡號＝學生 id**，三種來源走同一個 `submit`：掃碼槍（鍵盤輸入＋Enter）、手打、相機掃到的 QR。
+ * 輸入是**卡號**（新卡 `CK1-` 代碼，或過渡期的舊卡＝學生 id），三種來源走同一個 `submit`：掃碼槍（鍵盤輸入＋Enter）、手打、相機掃到的 QR。
  * 相機（#1127）：機台 `camera="auto"` 一進頁就開；管理端預設不開、給一顆按鈕（計畫席裁）。
  * 解碼器選型在 `qr-camera.ts`（原生 `BarcodeDetector` 優先、iPad 退 `jsqr`）。
  * 結果與失敗的文案在 `checkin-view.ts`（設計稿 b6 的 ok／again／noclass／leave／per-session／invalid／offline）。
@@ -171,28 +171,33 @@ export class CheckinStationComponent {
   }
 
   protected submit(code = this.code()): void {
-    const studentId = code.trim();
-    if (!studentId || this.submitting()) return;
+    const raw = code.trim();
+    if (!raw || this.submitting()) return;
+    // 新卡是 `CK1-` 代碼（#1100 #42），舊卡的 QR 是學生 id —— 過渡期兩種都收，後端判舊卡還能不能用
+    const card = /^ck1/i.test(raw) ? { cardCode: raw } : { studentId: raw };
 
-    this.lastCode = studentId;
+    this.lastCode = raw;
     this.stopTimer();
     this.submitting.set(true);
     this.failure.set(null);
     this.result.set(null);
-    this.checkins.checkIn({ studentId, checkinDate: this.clock.todayTaipei() }).subscribe({
-      next: (confirmation) => {
-        this.result.set(confirmation);
-        this.code.set('');
-        this.submitting.set(false);
-        this.startTimer();
-      },
-      error: (err: unknown) => {
-        this.failure.set(checkinFailure(err));
-        this.code.set('');
-        this.submitting.set(false);
-        this.startTimer();
-      },
-    });
+    // 掃碼站：明確帶 scan（#1100 #52）；機台帳號後端不看這個參數，一律 scan
+    this.checkins
+      .checkIn({ ...card, checkinDate: this.clock.todayTaipei(), source: 'scan' })
+      .subscribe({
+        next: (confirmation) => {
+          this.result.set(confirmation);
+          this.code.set('');
+          this.submitting.set(false);
+          this.startTimer();
+        },
+        error: (err: unknown) => {
+          this.failure.set(checkinFailure(err));
+          this.code.set('');
+          this.submitting.set(false);
+          this.startTimer();
+        },
+      });
   }
 
   protected retry(): void {

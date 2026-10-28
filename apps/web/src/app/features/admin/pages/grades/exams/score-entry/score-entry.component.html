@@ -1,9 +1,10 @@
 <!--
-  A6 版（#991 grades G2a）：色面（返回考試管理、考試名＋狀態、副標、統計）→ 編輯器 → 底部儲存列。
-  計畫席裁 #991 grades：Q1 結束考試照舊唯讀；Q2 A6 新增的批次動作（其餘標記缺考、匯入、加入其他學生、
-  復原變更、標記完成）列後續項；Q3 離開攔截改成頁內三選項對話框。
+  A6 版（#991 grades G2a；#1925 對齊 scores.html）：色面（返回考試管理、考試名＋狀態、副行含班級連結、統計）
+  → 灰帶工具列（合計＋批次動作）→ 編輯器 → 底部儲存列。
+  完成後仍可修改（#1931，使用者 10-23 裁，照 A6）：每一筆修改的舊值→新值由 API 記進操作紀錄；完成後只收起工具列的批次動作。
+  計畫席裁 #991 grades Q3 離開攔截改成頁內三選項對話框。匯入成績還沒做（A6 有，R5 登記）。
 -->
-<app-page-open>
+<app-page-open [nameSize]="true">
   <a
     openBack
     class="mb-4 inline-flex min-h-11 items-center gap-1 text-md font-medium text-band-ink-muted no-underline hover:text-band-ink hover:underline hover:underline-offset-[3px] wide:min-h-0"
@@ -14,10 +15,18 @@
   <ng-container openTitle>
     @if (examInfo(); as info) {
       {{ info.name }}
-      <span
-        class="ml-2.5 inline-block rounded-full border-[1.5px] border-band-ink px-2 align-middle text-sm leading-6 font-bold tracking-normal text-band-ink"
-        >{{ getStatusLabel(info.status) }}</span
-      >
+      <!-- A6 `.tag--live`（進行中：近黑底白字）／`.tag--quiet`（已完成） -->
+      @if (info.status === 'active') {
+        <span
+          class="ml-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-base leading-[1.4] font-semibold tracking-[normal] bg-zinc-900 text-white"
+          >{{ getStatusLabel(info.status) }}</span
+        >
+      } @else {
+        <span
+          class="ml-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-base leading-[1.4] font-semibold tracking-[normal] bg-zinc-100 text-zinc-700"
+          >{{ getStatusLabel(info.status) }}</span
+        >
+      }
     } @else if (loading()) {
       <span
         class="skeleton skeleton--on-band inline-block h-[1em] w-[6ch] rounded-sm align-middle"
@@ -25,27 +34,64 @@
       ></span>
     }
   </ng-container>
-  <ng-container openSub>{{ examInfo()?.metaLine }}</ng-container>
+  <ng-container openSub>
+    @if (academySub(); as sub) {
+      @if (sub.campus) {
+        {{ sub.campus }} ›
+      }
+      @if (sub.classLink; as link) {
+        <a
+          class="inline-flex min-h-11 items-center text-inherit underline-offset-[3px] hover:underline wide:inline wide:min-h-0"
+          [routerLink]="link"
+          >{{ sub.className }}</a
+        >
+      } @else {
+        {{ sub.className }}
+      }
+      · {{ sub.rest }}
+    } @else {
+      {{ examInfo()?.metaLine }}
+    }
+  </ng-container>
 
-  @if (type() === 'academy' && summaryStats(); as stats) {
+  <!-- A6 `.open__stats`：分隔線下四個數字，標籤在數字下（桌機 40／手機 28）；最高、最低只在桌機（A6 d:1） -->
+  @if (type() === 'academy' && academyStats(); as st) {
     <dl
-      class="m-0 mt-6 flex flex-wrap gap-x-12 gap-y-3 border-t border-band-rule pt-5 text-band-ink"
+      class="mt-5 mb-0 flex max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-0 border-t border-solid border-band-rule pt-4 text-band-ink wide:mt-8 wide:gap-x-12 wide:gap-y-5 wide:pt-5"
     >
       @for (
         s of [
-          { label: '已登錄', value: stats.recordedCount + '' },
-          { label: '平均', value: formatStat(stats.average) },
-          { label: '最高', value: formatStat(stats.highest) },
-          { label: '最低', value: formatStat(stats.lowest) },
+          {
+            label: '已登錄（含缺考）',
+            value: st.logged + '',
+            unit: st.total !== null ? '／' + st.total : '',
+            desktop: false,
+          },
+          { label: '平均', value: formatStat(st.average), unit: '', desktop: false },
+          { label: '最高', value: formatStat(st.highest), unit: '', desktop: true },
+          { label: '最低', value: formatStat(st.lowest), unit: '', desktop: true },
         ];
         track s.label
       ) {
-        <div>
-          <dt class="sr-only">{{ s.label }}</dt>
-          <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
-            {{ s.value }}
+        <!-- 只在桌機的兩格用 data 屬性藏，四格 class 一樣（同一種列） -->
+        <div
+          class="m-0 flex flex-col max-wide:data-desktop:hidden"
+          [attr.data-desktop]="s.desktop || null"
+        >
+          <!-- A6 `.open__stat`：dt 在前、dd 用 order 排到上面 -->
+          <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
+            {{ s.label }}
+          </dt>
+          <dd
+            class="m-0 order-first text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+          >
+            {{ s.value
+            }}<small
+              class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg"
+              [hidden]="!s.unit"
+              >{{ s.unit }}</small
+            >
           </dd>
-          <p class="m-0 mt-1 text-md" aria-hidden="true">{{ s.label }}</p>
         </div>
       }
     </dl>
@@ -57,7 +103,7 @@
     >
       <div>
         <dt class="sr-only">筆已登錄</dt>
-        <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
+        <dd class="m-0 text-3xl leading-none font-bold tracking-[-0.04em] tabular-nums">
           {{ exam.summary.totalRecordedCount }}
         </dd>
         <p class="m-0 mt-1 text-md" aria-hidden="true">筆已登錄</p>
@@ -80,16 +126,77 @@
   }
 </app-page-open>
 
+<!--
+  灰帶工具列（A6 .tbar）：合計一行＋批次動作。手機的「其餘標記缺考／標記完成」在底部托盤（A6 dock，
+  page-actions）；「加入其他學生」A6 手機沒有，但 app 原本手機就有（舊有新無，R2）→ 兩種寬度都留在工具列
+-->
+@if (type() === 'academy' && academyEditor(); as editor) {
+  <div class="bg-zinc-100">
+    <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16">
+      <p class="m-0 text-md text-zinc-700 tabular-nums wide:text-base" data-part="tally">
+        <strong class="font-semibold text-zinc-900"
+          >{{ editor.tally().logged }}／{{ editor.tally().total }}</strong
+        >
+        已登錄 · 缺考 {{ editor.tally().absent }} · 不及格
+        @if (academyExam()?.passScore != null) {
+          （&lt; {{ academyExam()?.passScore }}）
+        }
+        <strong class="font-semibold text-zinc-900">{{ editor.tally().fail }}</strong> 位
+      </p>
+      @if (!isClosed()) {
+        <app-page-actions
+          class="wide:ml-auto"
+          [primary]="completeAction"
+          [primaryOnDesktop]="false"
+          [secondary]="absentAction"
+          [secondaryOnDesktop]="false"
+          (primaryClick)="openComplete()"
+          (secondaryClick)="editor.markRestAbsent()"
+        >
+          <button
+            type="button"
+            class="tbar-control hidden min-[640.02px]:inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+            data-part="mark-absent"
+            (click)="editor.markRestAbsent()"
+          >
+            其餘標記缺考
+          </button>
+          <button
+            type="button"
+            class="tbar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+            data-part="add-student"
+            [attr.aria-expanded]="editor.addingStudent()"
+            (click)="editor.addingStudent.set(true)"
+          >
+            加入其他學生
+          </button>
+          <button
+            type="button"
+            class="tbar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60"
+            data-part="complete"
+            [disabled]="completing() || saving()"
+            (click)="openComplete()"
+          >
+            標記完成
+          </button>
+        </app-page-actions>
+      }
+    </div>
+  </div>
+}
+
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
   @if (loading()) {
     <app-skeleton label="考試資料載入中" [count]="5" />
   } @else if (examInfo()) {
     @if (isClosed()) {
+      <!-- A6 scores `.note`（#1931）：完成後照樣可改，改過的記在操作紀錄 -->
       <p
         class="m-0 mb-6 flex items-center gap-2 rounded-lg bg-zinc-100 px-4 py-3 text-base text-zinc-800"
+        data-part="closed-note"
       >
-        <i class="pi pi-lock text-sm" aria-hidden="true"></i>
-        這場考試已結束，成績只能檢視。要修改請先回考試管理「重新開啟」。
+        <i class="pi pi-info-circle text-sm" aria-hidden="true"></i>
+        這場考試已完成。成績仍可修改，改過的會記在操作紀錄。
       </p>
     }
 
@@ -98,7 +205,6 @@
         #academyEditor
         [exam]="exam"
         [examId]="examId()"
-        [disabled]="isClosed()"
         (dirtyChange)="onDirtyChange($event)"
         (savingChange)="onSavingChange($event)"
         (saved)="onSaved()"
@@ -108,7 +214,6 @@
         #schoolEditor
         [exam]="exam"
         [examId]="examId()"
-        [disabled]="isClosed()"
         (dirtyChange)="onDirtyChange($event)"
         (savingChange)="onSavingChange($event)"
         (saved)="onSaved()"
@@ -117,42 +222,44 @@
     }
 
     <!-- 底部儲存列（A6 .savebar）：只在有沒存的變更時出現，取代原本的 FAB -->
-    @if (!isClosed() && (dirty() || saving())) {
-      <div data-toast-dock class="sticky bottom-4 z-[5] mt-6" role="region" aria-label="儲存">
-        <div
-          class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-zinc-900 px-4 py-3 text-white shadow-md"
-        >
-          <p class="m-0 mr-auto font-semibold">
-            @if (academyEditor()?.dirtyCount(); as n) {
-              {{ n }} 位的成績還沒儲存
-            } @else {
-              有成績還沒儲存
-            }
-          </p>
-          @if (academyEditor(); as editor) {
-            <button
-              type="button"
-              class="inline-flex h-11 cursor-pointer items-center rounded-md border border-white/40 bg-transparent px-4 text-md font-semibold text-white hover:bg-white/10 disabled:cursor-default disabled:opacity-60"
-              data-part="revert"
-              [disabled]="saving()"
-              (click)="editor.revert()"
-            >
-              復原變更
-            </button>
+    @if (dirty() || saving()) {
+      <!-- A6 `.savebar`：region 本身就是那條深色列 -->
+      <div
+        data-toast-dock
+        class="sticky bottom-4 z-[5] mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-zinc-900 px-4 py-3 text-white shadow-md"
+        role="region"
+        aria-label="儲存"
+      >
+        <p class="m-0 mr-auto font-semibold">
+          @if (academyEditor()?.dirtyCount(); as n) {
+            {{ n }} 位的成績還沒儲存
+          } @else {
+            有成績還沒儲存
           }
+        </p>
+        @if (academyEditor(); as editor) {
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60"
+            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-[rgb(255_255_255/35%)] bg-transparent px-4 text-md leading-[1.5] font-semibold text-white hover:bg-white/10 disabled:cursor-default disabled:opacity-60 wide:h-9"
+            data-part="revert"
             [disabled]="saving()"
-            (click)="saveScores()"
+            (click)="editor.revert()"
           >
-            @if (saving()) {
-              <i class="pi pi-spinner pi-spin text-sm" aria-hidden="true"></i>儲存中…
-            } @else {
-              儲存成績
-            }
+            復原變更
           </button>
-        </div>
+        }
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60 wide:h-9"
+          [disabled]="saving()"
+          (click)="saveScores()"
+        >
+          @if (saving()) {
+            <i class="pi pi-spinner pi-spin text-sm" aria-hidden="true"></i>儲存中…
+          } @else {
+            儲存成績
+          }
+        </button>
       </div>
     }
   }
@@ -196,6 +303,43 @@
       (click)="resolveLeave('save')"
     >
       儲存後離開
+    </button>
+  </div>
+</dialog>
+
+<!-- 標記完成（A6 data-complete 的確認）：沒存的變更會一起存；完成後仍可修改（#1931） -->
+<dialog
+  #completeDialog
+  class="m-auto w-[min(26rem,calc(100%-2rem))] rounded-lg border-0 p-6 text-zinc-900 shadow-md backdrop:bg-zinc-900/40"
+  aria-labelledby="score-complete-title"
+  (cancel)="$event.preventDefault(); resolveComplete(false)"
+>
+  <h2 id="score-complete-title" class="m-0 text-xl font-bold">標記完成</h2>
+  <p class="m-0 mt-2 text-base text-zinc-700" data-part="complete-summary">
+    @if (academyEditor(); as editor) {
+      {{ editor.tally().logged }}／{{ editor.tally().total }} 已登錄
+      @if (editor.dirtyCount(); as n) {
+        · {{ n }} 位的變更會一起儲存
+      }
+      。
+    }
+    完成後仍可修改。
+  </p>
+  <div class="mt-6 flex flex-wrap justify-end gap-2">
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+      (click)="resolveComplete(false)"
+    >
+      取消
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2"
+      data-part="complete-confirm"
+      (click)="resolveComplete(true)"
+    >
+      標記完成
     </button>
   </div>
 </dialog>

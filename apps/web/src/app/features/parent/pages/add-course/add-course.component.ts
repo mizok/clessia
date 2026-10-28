@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   Component,
   computed,
@@ -24,6 +25,7 @@ import { PageOpenComponent } from '@shared/components/page-open/page-open.compon
 import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
+import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
 
 /**
  * 家長端加選課程（#1727 ⑤，A6 p-add-course，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -47,6 +49,7 @@ const SENT = ['pending', 'awaiting_payment'];
   selector: 'app-add-course',
   standalone: true,
   imports: [
+    TextSwapDirective,
     PageOpenComponent,
     ChildScopeGateComponent,
     ChildSwitcherComponent,
@@ -161,7 +164,12 @@ export class AddCourseComponent {
   }
 
   protected slotText(c: ParentCatalogClass): string {
-    return c.slots.map((s) => `每週${WEEKDAY[s.weekday]} ${s.startTime}–${s.endTime}`).join('、');
+    return c.slots
+      .map(
+        (s) =>
+          `每週${WEEKDAY[s.weekday]} ${s.startTime}–${s.endTime}${effectiveFromSuffix(s.effectiveFrom)}`,
+      )
+      .join('、');
   }
 
   protected metaText(c: ParentCatalogClass): string {

@@ -1,3 +1,5 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import {
   Component,
   ElementRef,
@@ -59,7 +61,10 @@ import {
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
-import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
+import {
+  AuditLogDialogComponent,
+  type AuditLogDialogData,
+} from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
@@ -135,6 +140,8 @@ const FETCH_LIMIT = 500;
   selector: 'app-sessions',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
+    TextSwapDirective,
     SkeletonComponent,
     StepMotionDirective,
     SelectedIndicatorDirective,
@@ -257,19 +264,25 @@ export class SessionsPage implements OnInit {
   protected readonly clashIds = computed(() => this.layout()?.clashIds ?? new Set<string>());
   protected readonly dayGroups = computed(() => groupByStart(this.displayedSessions()));
   protected readonly resultChapters = computed(() => groupByDate(this.displayedSessions()));
-  protected readonly week = computed(() =>
-    summarizeWeek(
+  /**
+   * 週視圖的欄（#1923：A6 只畫週一～週六）。週日欄跟週列同一條規則（`stripDays`），另外**那週週日有課就一定留**
+   * —— `sundayHasSessions` 是另外查的，還沒回來或查失敗時不能讓已經拿到的週日課從欄與色面的堂數裡消失。
+   */
+  protected readonly week = computed(() => {
+    const days = summarizeWeek(
       this.weekDays().map((d) => format(d, 'yyyy-MM-dd')),
       this.displayedSessions(),
-    ),
-  );
+    );
+    const showSunday = this.stripDays().length === 7 || days[6].sessions.length > 0;
+    return showSunday ? days : days.slice(0, 6);
+  });
   protected readonly isThisWeek = computed(() =>
     isSameDay(this.weekDays()[0], startOfWeek(this.now(), { weekStartsOn: 1 })),
   );
-  /** 工具列的週區間字（`9/28 – 10/4`） */
+  /** 工具列的週區間字（`9/28 – 10/3`；週日欄出現時到週日） */
   protected readonly weekLabel = computed(() => {
     const d = this.weekDays();
-    return `${format(d[0], 'M/d')} – ${format(d[6], 'M/d')}`;
+    return `${format(d[0], 'M/d')} – ${format(d[this.week().length - 1], 'M/d')}`;
   });
   /** 一次最多拿幾堂（甘特與篩選結果都不分頁） */
   protected readonly FETCH_LIMIT = FETCH_LIMIT;
@@ -495,11 +508,6 @@ export class SessionsPage implements OnInit {
         command: () => this.hideCancelled(),
       });
     }
-    items.push({
-      label: '操作紀錄',
-      icon: 'pi pi-history',
-      command: () => this.openOperationsLog(),
-    });
     return items;
   });
 
@@ -676,11 +684,19 @@ export class SessionsPage implements OnInit {
   }
 
   protected openOperationsLog(): void {
-    this.dialogService.open(SessionOperationsLogDialogComponent, {
+    // 全站操作紀錄只用共用的這一支（#2006）；課表多兩個分頁
+    const data: AuditLogDialogData = {
+      tabs: [
+        { label: '課堂異動', resourceTypes: ['session'], emptyText: '尚無課堂異動紀錄' },
+        { label: '出勤紀錄', resourceTypes: ['attendance'], emptyText: '尚無出勤操作紀錄' },
+      ],
+    };
+    this.dialogService.open(AuditLogDialogComponent, {
       width: '800px',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
+      data,
     });
   }
 

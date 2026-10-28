@@ -447,6 +447,11 @@ describe('DashboardComponent（管理端）', () => {
       expect(band.textContent).toContain('文山旗艦校');
       // 有分校小字：副行放大（A6 a6.css:633）
       expect(band.querySelector('p')!.classList.contains('wide:text-2xl')).toBe(true);
+      // 使用者 10-23：標題（補習班名稱）不要文字替換動畫，副行照舊
+      const open = fixture.debugElement.query(By.css('app-page-open')).componentInstance as {
+        titleSwap: () => boolean;
+      };
+      expect(open.titleSwap()).toBe(false);
     });
 
     it('跨分校時不挑一個分校寫', async () => {
@@ -1044,6 +1049,77 @@ describe('DashboardComponent（管理端）', () => {
       await setup({ permissions: ['view_reports', 'basic_operations'] });
       expect(entry()).toBeDefined();
       expect(el().querySelector('app-page-actions')!.textContent).toContain('櫃台代刷到班');
+    });
+
+    /** #2037（使用者 10-24）：不要 inline 展開，改彈窗；手機置中、桌機一般對話框 */
+    describe('彈窗（#2037）', () => {
+      const dialogEl = () =>
+        el().querySelector<HTMLDialogElement>('dialog[aria-labelledby="phone-leave-title"]')!;
+      const panel = () => dialogEl().querySelector('app-phone-leave');
+      let showModal: ReturnType<typeof vi.fn>;
+      let close: ReturnType<typeof vi.fn>;
+
+      beforeEach(async () => {
+        await setup({ permissions: ['view_reports', 'basic_operations'] });
+        // jsdom 沒有 showModal／close —— 換成只切 open 屬性的替身
+        const d = dialogEl();
+        showModal = vi.fn(() => d.setAttribute('open', ''));
+        close = vi.fn(() => d.removeAttribute('open'));
+        Object.assign(d, { showModal, close });
+      });
+
+      it('打開：內容放進原生 <dialog> 並 showModal（有遮罩、置中），不是頁內面板', () => {
+        expect(panel()).toBeNull();
+        component['openPhoneLeave']();
+        fixture.detectChanges();
+
+        expect(showModal).toHaveBeenCalledTimes(1);
+        expect(panel()).not.toBeNull();
+        expect(el().querySelectorAll('app-phone-leave').length).toBe(1);
+      });
+
+      it('收起鈕關彈窗；Esc（瀏覽器發 close 事件）也關', () => {
+        component['openPhoneLeave']();
+        fixture.detectChanges();
+        fixture.debugElement.query(By.css('app-phone-leave')).componentInstance.closed.emit();
+        fixture.detectChanges();
+        expect(close).toHaveBeenCalledTimes(1);
+        expect(panel()).toBeNull();
+
+        component['openPhoneLeave']();
+        fixture.detectChanges();
+        dialogEl().removeAttribute('open');
+        dialogEl().dispatchEvent(new Event('close'));
+        fixture.detectChanges();
+        expect(panel()).toBeNull();
+      });
+
+      it('結果卡「點名名單」：先收起彈窗再開點名名單（不然被 top layer 蓋住）', () => {
+        const roster = vi
+          .spyOn(
+            component as unknown as { openRosterDialog: () => Promise<void> },
+            'openRosterDialog',
+          )
+          .mockResolvedValue(undefined);
+        component['openPhoneLeave']();
+        fixture.detectChanges();
+        const target = {
+          eventId: 'e1',
+          className: '國三數學 A',
+          eventDate: TODAY,
+          startTime: '14:00',
+          endTime: '15:30',
+        };
+        fixture.debugElement
+          .query(By.css('app-phone-leave'))
+          .componentInstance.rosterRequested.emit(target);
+        fixture.detectChanges();
+
+        expect(close).toHaveBeenCalledTimes(1);
+        expect(roster).toHaveBeenCalledWith(target);
+        expect(close.mock.invocationCallOrder[0]).toBeLessThan(roster.mock.invocationCallOrder[0]);
+        expect(panel()).toBeNull();
+      });
     });
 
     it('送出成功後重抓「今日」—— 剛登記的假出現在底下的看板上', async () => {

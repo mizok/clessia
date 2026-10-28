@@ -27,6 +27,7 @@ import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
 import { rootVariables, themeMappingProblems } from './lib/tailwind-theme.mjs';
+import { uncoveredTemplateDirs } from './lib/tailwind-source-coverage.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
 import {
   contrastClassViolations,
@@ -57,7 +58,7 @@ import {
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
-import { usesRawSupabase } from './lib/parent-route-scan.mjs';
+import { usesRawSupabase, usesRawPool } from './lib/parent-route-scan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -1551,6 +1552,13 @@ test('A19 抓到真的 c.get(supabase) 呼叫', () => {
   assert.equal(usesRawSupabase('const s = c.get("supabase");', 'x.ts'), true);
 });
 
+test('A19 第二條：抓到 getAuth( 與 .pool，不誤判註解與相近的字', () => {
+  assert.equal(usesRawPool('const pool = getAuth(c).pool;', 'x.ts'), true);
+  assert.equal(usesRawPool('await x.pool.query(sql);', 'x.ts'), true);
+  assert.equal(usesRawPool('// 不用 getAuth(c).pool，走 childDb', 'x.ts'), false);
+  assert.equal(usesRawPool('const poolSize = 3; const spool = 1;', 'x.ts'), false);
+});
+
 test('A19 不誤判註解裡提到 c.get(supabase) 的說明文字', () => {
   const source = [
     "// 這裡不用 c.get('supabase')，一律用 c.get('childDb')",
@@ -2064,6 +2072,36 @@ test('A28 綠：對比夠、找不到底色不判、font-size 的 text-* 不是�
   assert.deepEqual(v, []);
 });
 
+// #1359：巢狀任意變體（`[&_x]:`、`[&>x]:`）也算 —— 套到符合 x 的子孫／子元素上。
+// empty-state 的圖示寫成 `[&_i]:text-zinc-400`，原本 A28 只讀不帶 `:` 的 class，整組看不到
+test('A28 紅：[&_i]／[&>i]／[&_.pi] 的前景套到符合的子孫或子元素，回報寫原本的 class', () => {
+  const v = contrastClassViolations(
+    `<div class="bg-zinc-100 [&_i]:text-[28px] [&_i]:text-zinc-400"><span><i [class]="icon"></i></span></div>
+     <div class="bg-zinc-100 [&>i]:text-zinc-400"><i></i></div>
+     <div class="bg-zinc-100 [&_.pi]:text-zinc-400"><span class="pi pi-check"></span></div>`,
+    COLORS,
+  );
+  assert.deepEqual(
+    v.map((x) => [x.line, x.fg, x.bg, x.threshold]),
+    [
+      [1, '[&_i]:text-zinc-400', 'bg-zinc-100', 3],
+      [2, '[&>i]:text-zinc-400', 'bg-zinc-100', 3],
+      [3, '[&_.pi]:text-zinc-400', 'bg-zinc-100', 3],
+    ],
+  );
+});
+
+test('A28 綠：巢狀變體只套到符合的元素 —— [&>i] 不套孫子、[&_svg] 不套 i、疊了別的 variant 不算', () => {
+  const v = contrastClassViolations(
+    `<div class="bg-zinc-100 [&>i]:text-zinc-400"><span><i></i></span></div>
+     <div class="bg-zinc-100 [&_svg]:text-zinc-400"><i></i></div>
+     <div class="bg-zinc-100 [&_i]:hover:text-zinc-400"><i></i></div>
+     <div class="bg-zinc-100 [&_i]:text-zinc-900"><i></i></div>`,
+    COLORS,
+  );
+  assert.deepEqual(v, []);
+});
+
 // ── c6 的 Tailwind class 載體（#991 T1）────────────────────────────────────────────────
 // 舊的 regex 要求「數字緊接單位」，所以 `h-screen`、`min-h-dvh` 這種名稱裡沒有數字的 class 全部看不到。
 
@@ -2317,5 +2355,44 @@ test('styles.css 被改壞時，每一道讀它的 gate 都要紅（不是空轉
   } finally {
     writeFileSync(file, original);
     rmSync(join(here, '../../apps/web/src/__s-c-trap__.scss'), { force: true });
+  }
+});
+
+// ── A29：每個有模板的目錄都被 tailwind.css 的 @source 涵蓋（計畫席 10-23）────────────────
+test('A29 純函式：沒被 @source 涵蓋的 .html／inline template 目錄列出來；spec 與沒模板的 .ts 不算', () => {
+  const src = {
+    'apps/web/src/app/a/a.component.html': '<p class="flex">a</p>',
+    'apps/web/src/app/b/b.component.ts': "@Component({ selector: 'b', template: `<p>b</p>` })",
+    'apps/web/src/app/c/c.service.ts': 'export class C {}',
+    'apps/web/src/app/d/d.component.spec.ts': 'const template: string = "";',
+    'apps/web/src/app/covered/x.component.html': '<p>x</p>',
+  };
+  const covers = (path) => path.startsWith('apps/web/src/app/covered/');
+  assert.deepEqual(
+    uncoveredTemplateDirs(Object.keys(src), (f) => src[f], covers),
+    ['apps/web/src/app/a', 'apps/web/src/app/b'],
+  );
+});
+
+/**
+ * 整支跑：新開一個**沒列進 @source** 的元件目錄，gate 要紅並指名那個目錄。
+ * 這正是 10-23 踩三次的形狀（新目錄忘了加 @source，class 剛好被別頁產生過，畫面正常）。
+ */
+test('A29 紅：新增一個沒被 @source 涵蓋的元件目錄', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const rel = 'apps/web/src/app/shared/components/__a29-trap__';
+  const dir = join(here, '../..', rel);
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'trap.component.html'), '<p class="flex">trap</p>\n');
+    const run = spawnSync(process.execPath, [join(here, 'check-harness.mjs')], {
+      encoding: 'utf8',
+    });
+    assert.ok(
+      run.stderr.split('\n').some((l) => l.includes(`${rel} 有模板，但沒被`)),
+      run.stderr,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

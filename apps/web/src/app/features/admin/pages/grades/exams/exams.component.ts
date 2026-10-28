@@ -374,25 +374,20 @@ export class ExamsComponent implements OnInit {
         command: () => this.editExam(row),
       },
     ];
+    // 完成後仍可修改（#1931，照 A6）：不需要「重新開啟」—— 端點先留著，沒有呼叫端了（計畫席 Q4）
     if (row.status === 'active') {
       items.push({
-        label: '結束考試',
+        label: '標記完成',
         icon: 'pi pi-check-circle',
         command: () => this.confirmCloseExam(row),
-      });
-    } else {
-      items.push({
-        label: '重新開啟',
-        icon: 'pi pi-undo',
-        command: () => this.reopenExam(row),
       });
     }
     items.push({ separator: true });
     items.push({
       label: '刪除',
       icon: 'pi pi-trash',
-      styleClass: 'p-menuitem--danger',
-      disabled: row.scoreCount > 0,
+      danger: true,
+      // 有成績也能按：按了說明要先清空、帶去成績登錄（#1100 #34，A6 exams「刪除」列）
       command: () => this.confirmDeleteExam(row),
     });
     return items;
@@ -857,10 +852,10 @@ export class ExamsComponent implements OnInit {
 
   protected confirmCloseExam(row: ExamRow): void {
     this.openConfirmDialog(
-      '結束考試',
+      '標記完成',
       {
-        message: `確定要結束「${row.name}」嗎？結束後將無法再登錄分數。`,
-        acceptLabel: '結束考試',
+        message: `把「${row.name}」標記完成？完成後仍可修改，改過的會記在操作紀錄。`,
+        acceptLabel: '標記完成',
         acceptSeverity: 'warn',
       },
       () => this.closeExam(row),
@@ -876,8 +871,7 @@ export class ExamsComponent implements OnInit {
       next: () => {
         this.messageService.add({
           severity: 'success',
-          summary: '已結束',
-          detail: `「${row.name}」已結束`,
+          summary: `「${row.name}」已標記完成`,
         });
         this.reloadListAndCounts({ rows: true });
       },
@@ -885,41 +879,33 @@ export class ExamsComponent implements OnInit {
         this.messageService.add({
           severity: 'error',
           summary: '操作失敗',
-          detail: '無法結束考試',
+          detail: '無法標記完成，請稍後再試',
         });
       },
     });
   }
 
-  protected reopenExam(row: ExamRow): void {
-    const call$ =
-      row.kind === 'academy'
-        ? this.academyExamsService.reopen(row.id)
-        : this.schoolExamsService.reopen(row.id);
-    call$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '已重新開啟',
-          detail: `「${row.name}」已恢復為進行中`,
-        });
-        this.reloadListAndCounts({ rows: true });
-      },
-      error: () => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '操作失敗',
-          detail: '無法重新開啟考試',
-        });
-      },
-    });
-  }
-
+  /**
+   * 有成績的考試 API 刻意擋（`HAS_SCORES`，使用者 10-23 裁定維持）—— 不是停用選單讓人猜為什麼，
+   * 而是說清楚要先清空成績、直接帶去成績登錄（#1100 #34，A6 exams）。
+   */
   protected confirmDeleteExam(row: ExamRow): void {
+    if (row.scoreCount > 0) {
+      this.openConfirmDialog(
+        `還不能刪除「${row.name}」`,
+        {
+          message: `這場考試已有 ${row.scoreCount} 筆成績。要先到成績登錄把成績清空，才能刪除考試。`,
+          acceptLabel: '去成績登錄',
+          acceptSeverity: 'secondary',
+        },
+        () => this.enterScoreEntry(row),
+      );
+      return;
+    }
     this.openConfirmDialog(
-      '刪除考試',
+      `刪除「${row.name}」`,
       {
-        message: `確定要刪除「${row.name}」嗎？此動作無法復原。`,
+        message: '這場考試還沒有成績。刪除後無法復原。',
         acceptLabel: '刪除',
         acceptSeverity: 'danger',
       },
@@ -929,7 +915,7 @@ export class ExamsComponent implements OnInit {
 
   /**
    * 樂觀刪除（#1641 5b 第 1 點）：按下就淡出，失敗放回並說明。
-   * 有成績的考試選單本來就停用（`scoreCount > 0`），所以「被佔用而刪不掉」很少見。
+   * 有成績的考試不會走到這裡（`confirmDeleteExam` 改帶去成績登錄），所以「被佔用而刪不掉」很少見。
    */
   private deleteExam(row: ExamRow): void {
     const call$ =

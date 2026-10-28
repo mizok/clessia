@@ -232,12 +232,13 @@
             selectedDay().isToday ? ' 今天' : ''
           }}</span
         >
-        <span class="text-[13px] font-normal text-zinc-500 tabular-nums"
+        <span appTextSwap class="text-[13px] font-normal text-zinc-500 tabular-nums"
           >{{ selectedDay().count }} 堂</span
         >
         @if (missingOn(selectedDay().dateStr); as missing) {
           <!-- 稿沒畫、現況有：右側的「● N」改成講得出口的一句話，不刪 -->
           <span
+            appTextSwap
             class="ml-auto inline-flex items-center gap-1.5 text-[13px] font-medium text-accent-600 tabular-nums"
           >
             <span class="size-[6px] rounded-full bg-accent-500" aria-hidden="true"></span>
@@ -411,7 +412,7 @@
           class="flex min-h-11 cursor-pointer list-none items-center gap-2 text-[0.95rem] font-semibold text-zinc-900 [&::-webkit-details-marker]:hidden"
         >
           這週你的課務異動
-          <span class="ml-auto text-[0.8rem] font-medium text-zinc-500 tabular-nums"
+          <span appTextSwap class="ml-auto text-[0.8rem] font-medium text-zinc-500 tabular-nums"
             >{{ changes().length }} 則</span
           >
           <i

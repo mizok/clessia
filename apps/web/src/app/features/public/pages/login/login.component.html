@@ -2,6 +2,20 @@
   <h1 class="m-0 text-2xl font-bold tracking-[-0.02em] text-zinc-900">登入</h1>
   <p class="mx-0 mb-0 mt-2 text-md leading-[1.75] text-zinc-600">用 LINE 登入，不需要記密碼。</p>
 
+  @if (handoffWaiting()) {
+    <!-- #2027 iOS 主畫面 PWA：LINE 登入在 Safari 完成，回到這裡就自動登入 -->
+    <app-inline-notice
+      severity="info"
+      detail="記下這組號碼，點下面的按鈕到瀏覽器（iPhone 會開 Safari）用 LINE 登入，再在那裡輸入號碼。完成後回到這個 App 就會自動登入。"
+    />
+    <p
+      class="mx-0 mb-0 mt-3 text-center text-3xl font-bold tracking-[0.3em] text-zinc-900 tabular-nums"
+      data-testid="handoff-code"
+      aria-label="配對號碼"
+    >
+      {{ handoffCode() }}
+    </p>
+  }
   @if (error()) {
     <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
     @if (showRetry()) {
@@ -41,7 +55,10 @@
 </div>
 
 <!--
-  手機登入的底部面板（A6，#1636）：品牌面的「登入」用 popovertarget 開它，LINE 鍵在面板裡。
+  手機登入的彈窗：品牌面的「登入」用 popovertarget 開它，LINE 鍵在裡面。
+  **置中彈窗，不是 A6 的底部面板**（#2031，使用者 10-23：「希望手機版登入可以跳 popup」；a6-adoption-rules R5）。
+  原生 popover 預設就置中（inset 0＋margin auto）；寬度用 % 不用 --window-width —— 它搬到 <body> 之後讀不到
+  根元素上的變數，fixed 的 % 相對可視區（c6：不是 viewport 單位）。進場同全站對話框的 scale(0.97)。
   按下去走同一個 signInWithLine（同一份送出中狀態），面板不收 —— 「前往 LINE...」與失敗訊息
   都要留在使用者眼前，收掉的話失敗會發生在看不見的表單面上。
   桌機沒有入口會開它。渲染後搬到 <body>（見 LoginComponent 建構子：模板位置在 inert 的 main 底下）。進出場曲線由全站彈出物動態負責（#1634 的 overlay-motion）。
@@ -51,7 +68,7 @@
   id="login-sheet"
   popover
   aria-labelledby="login-sheet-title"
-  class="overlay-motion--from-bottom inset-x-0 top-auto bottom-0 m-0 max-h-[calc(100%-48px)] w-full max-w-none overflow-y-auto rounded-t-xl border-0 bg-zinc-200 p-0 text-zinc-900 backdrop:bg-[rgb(26_22_20/40%)]"
+  class="m-auto max-h-[calc(100%-48px)] w-[calc(100%-32px)] max-w-[400px] overflow-y-auto rounded-xl border-0 bg-zinc-200 p-0 text-zinc-900 [--pop-from:scale(0.97)] backdrop:bg-[rgb(26_22_20/40%)]"
 >
   <div class="flex items-center gap-2 pt-4 pr-3 pb-2 pl-5">
     <h2 id="login-sheet-title" class="m-0 text-lg font-bold">登入</h2>
@@ -67,6 +84,20 @@
   </div>
   <div class="grid gap-4 px-5 pt-2 pb-8">
     <p class="m-0 text-base text-zinc-700">用 LINE 登入，不需要記密碼。</p>
+    @if (handoffWaiting()) {
+      <!-- #2027 iOS 主畫面 PWA：LINE 登入在 Safari 完成，回到這裡就自動登入 -->
+      <app-inline-notice
+        severity="info"
+        detail="記下這組號碼，點下面的按鈕到瀏覽器（iPhone 會開 Safari）用 LINE 登入，再在那裡輸入號碼。完成後回到這個 App 就會自動登入。"
+      />
+      <p
+        class="mx-0 mb-0 mt-3 text-center text-3xl font-bold tracking-[0.3em] text-zinc-900 tabular-nums"
+        data-testid="handoff-code"
+        aria-label="配對號碼"
+      >
+        {{ handoffCode() }}
+      </p>
+    }
     @if (error()) {
       <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
     }
@@ -75,25 +106,50 @@
 </div>
 
 <ng-template #lineButton>
-  <button
-    type="button"
-    class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#06c755] bg-white px-4 text-base leading-normal font-semibold text-[#06c755] transition-[color,background,border-color,translate] duration-[120ms] ease-[ease] motion-reduce:duration-[0.01ms] enabled:hover:-translate-y-px enabled:hover:border-[#05b34c] enabled:hover:bg-[rgb(6_199_85/8%)] enabled:hover:text-[#05b34c] enabled:active:translate-y-0 disabled:cursor-progress"
-    [disabled]="submitting()"
-    (click)="signInWithLine()"
-  >
-    @if (submitting()) {
-      <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
-      前往 LINE...
-    } @else {
-      <!-- 綠底 chip + 官方白色 icon，重現 LINE app 圖示的長相 —— 那才是家長認得的。
-           純裝飾：右邊的文字已經說了「LINE」，讓螢幕閱讀器再念一次反而吵。 -->
+  @if (handoffLink(); as link) {
+    <!-- #2063：直接的連結（點擊＝使用者手勢），到外部瀏覽器的發起頁；不帶任何秘密，只有交接 id -->
+    <a
+      class="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-[#06c755] bg-white px-4 text-base leading-normal font-semibold text-[#06c755] no-underline"
+      [href]="link"
+      target="_blank"
+      rel="noopener"
+      data-testid="handoff-start-link"
+    >
       <span
         class="flex size-[26px] shrink-0 items-center justify-center rounded-md bg-[#06c755]"
         aria-hidden="true"
       >
         <img class="block size-[18px]" src="assets/brand/line-logo.png" alt="" />
       </span>
-      使用 LINE 登入
+      記下號碼，到瀏覽器用 LINE 登入
+    </a>
+    @if (handoffFallbackURL(); as url) {
+      <p class="mx-0 mb-0 mt-2 text-xs leading-normal text-zinc-600" data-testid="handoff-fallback">
+        沒有打開 Safari？複製這個網址貼到 Safari：
+        <span class="select-all break-all font-mono text-zinc-800">{{ url }}</span>
+      </p>
     }
-  </button>
+  } @else {
+    <button
+      type="button"
+      class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#06c755] bg-white px-4 text-base leading-normal font-semibold text-[#06c755] transition-[color,background,border-color,translate] duration-[120ms] ease-[ease] motion-reduce:duration-[0.01ms] enabled:hover:-translate-y-px enabled:hover:border-[#05b34c] enabled:hover:bg-[rgb(6_199_85/8%)] enabled:hover:text-[#05b34c] enabled:active:translate-y-0 disabled:cursor-progress"
+      [disabled]="submitting()"
+      (click)="signInWithLine()"
+    >
+      @if (submitting()) {
+        <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+        前往 LINE...
+      } @else {
+        <!-- 綠底 chip + 官方白色 icon，重現 LINE app 圖示的長相 —— 那才是家長認得的。
+           純裝飾：右邊的文字已經說了「LINE」，讓螢幕閱讀器再念一次反而吵。 -->
+        <span
+          class="flex size-[26px] shrink-0 items-center justify-center rounded-md bg-[#06c755]"
+          aria-hidden="true"
+        >
+          <img class="block size-[18px]" src="assets/brand/line-logo.png" alt="" />
+        </span>
+        使用 LINE 登入
+      }
+    </button>
+  }
 </ng-template>

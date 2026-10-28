@@ -37,7 +37,17 @@ interface SessionSeed {
   /** 排課時段指定的教室名（#1796） */
   classroom?: string | null;
   schedule_changes?: Record<string, unknown>[];
+  /** 班開了個人聯絡簿（#1100 #26） */
+  uses_contact_book?: boolean;
 }
+
+/** 每個班的分校電話不同：電話跟著哪一堂課出現，就看得出它是不是孩子上課的分校（#1100 #44） */
+const CAMPUS_PHONE: Record<string, string> = {
+  [CLASS_A]: '02-2700-0101',
+  [CLASS_B]: '02-2700-0102',
+  [CLASS_SIBLING]: '02-2700-0103',
+  [CLASS_STRANGER]: '02-2700-0104',
+};
 
 function session(seed: SessionSeed) {
   const scheduleTeacherId =
@@ -63,7 +73,8 @@ function session(seed: SessionSeed) {
     classes: {
       name: `班 ${seed.class_id.slice(-3)}`,
       campus_id: 'campus-xy',
-      campuses: { name: '信義校' },
+      uses_contact_book: seed.uses_contact_book ?? false,
+      campuses: { name: '信義校', phone: CAMPUS_PHONE[seed.class_id] ?? null },
       courses: { name: '國中數學' },
     },
     schedule_changes: seed.schedule_changes ?? [],
@@ -213,6 +224,29 @@ describe('GET /api/me/sessions', () => {
     });
   });
 
+  // #1100 #44（使用者 10-23 裁定）：家長看得到孩子上課分校的電話，只限有報名的分校
+  describe('分校電話', () => {
+    it('孩子這堂課的分校電話跟著回；兄弟姊妹、別人的班的分校電話不出現', async () => {
+      const { body } = await get(appWith(baseSeed()));
+      expect(body.data.map((s: { campusPhone: string | null }) => s.campusPhone)).toEqual([
+        CAMPUS_PHONE[CLASS_A],
+      ]);
+      const raw = JSON.stringify(body);
+      expect(raw).not.toContain(CAMPUS_PHONE[CLASS_SIBLING]!);
+      expect(raw).not.toContain(CAMPUS_PHONE[CLASS_STRANGER]!);
+    });
+
+    // 替身不解析 select：嵌入裡漏了 phone 照樣綠（第二審核席 @b917e80b）。直接守 select 字串
+    it('sessions 的 select 有嵌入 campuses(name, phone)', async () => {
+      const selects: Array<[string, string]> = [];
+      await get(appWith(baseSeed(), { selects }));
+      const sessionSelects = selects.filter(([t]) => t === 'sessions').map(([, cols]) => cols);
+      expect(sessionSelects.some((cols) => /campuses\(\s*name,\s*phone\s*\)/.test(cols))).toBe(
+        true,
+      );
+    });
+  });
+
   describe('內容', () => {
     it('帶課程名、班名、分校名、上課老師；不是代課時 isSubstitute = false、原任課老師 null', async () => {
       const { body } = await get(appWith(baseSeed()));
@@ -227,6 +261,8 @@ describe('GET /api/me/sessions', () => {
         courseName: '國中數學',
         campusId: 'campus-xy',
         campusName: '信義校',
+        usesContactBook: false,
+        campusPhone: CAMPUS_PHONE[CLASS_A],
         classroomName: null,
         teacherName: '王老師',
         isSubstitute: false,
@@ -236,6 +272,26 @@ describe('GET /api/me/sessions', () => {
         changes: [],
         attendance: null,
       });
+    });
+
+    it('#1100 #26 班開了個人聯絡簿 → usesContactBook = true；select 真的有那一欄', async () => {
+      const selects: Array<[string, string]> = [];
+      const seed = baseSeed({
+        sessions: [
+          session({
+            id: id(301),
+            class_id: CLASS_A,
+            session_date: '2026-10-05',
+            uses_contact_book: true,
+          }),
+        ],
+      });
+      const { body } = await get(appWith(seed, { selects }));
+      expect(body.data[0].usesContactBook).toBe(true);
+      const sessionSelect = selects.find(([t]) => t === 'sessions')?.[1] ?? '';
+      expect(sessionSelect.replace(/\s+/g, '')).toContain(
+        'classes!inner(name,campus_id,uses_contact_book,',
+      );
     });
 
     it('課堂查詢真的嵌了時段的教室（classrooms(name)）—— 替身不解析 select，要直接看字串', async () => {
@@ -312,7 +368,7 @@ describe('GET /api/me/sessions', () => {
       expect(body.data[0].examNames).toEqual(['第四次小考', '單字測驗']);
     });
 
-    it('有課務異動：changes[] 帶改期的新舊時間，不帶原因與經手人', async () => {
+    it('有課務異動：changes[] 帶改期的新舊時間；改期的原因與經手人不回', async () => {
       const seed = baseSeed({
         sessions: [
           session({
@@ -346,8 +402,47 @@ describe('GET /api/me/sessions', () => {
           newDate: '2026-10-05',
           newStartTime: '18:00',
           newEndTime: '19:30',
+          reason: null,
         },
       ]);
+      expect(JSON.stringify(body)).not.toContain('老師家裡有事');
+      expect(JSON.stringify(body)).not.toContain('行政小美');
+    });
+
+    // #1100 #46（使用者 10-23 裁定）：只給停課原因。改期、代課的原因照舊看不到，經手人一律看不到
+    it('停課 → changes[] 帶停課原因；同一堂的代課原因與經手人照舊不回', async () => {
+      const seed = baseSeed({
+        sessions: [
+          session({
+            id: id(301),
+            class_id: CLASS_A,
+            session_date: '2026-10-05',
+            status: 'cancelled',
+            schedule_changes: [
+              {
+                change_type: 'substitute',
+                reason: '原任老師私事',
+                created_by_name: '行政小美',
+                created_at: '2026-09-30T00:00:00Z',
+              },
+              {
+                change_type: 'cancellation',
+                reason: '颱風停課',
+                created_by_name: '行政小美',
+                created_at: '2026-10-01T00:00:00Z',
+              },
+            ],
+          }),
+        ],
+      });
+      const { body } = await get(appWith(seed));
+      const changes = body.data[0].changes as Array<{ changeType: string; reason: string | null }>;
+      expect(changes.map((c) => [c.changeType, c.reason])).toEqual([
+        ['substitute', null],
+        ['cancellation', '颱風停課'],
+      ]);
+      expect(JSON.stringify(body)).not.toContain('原任老師私事');
+      expect(JSON.stringify(body)).not.toContain('行政小美');
     });
 
     it('停課的堂照樣回，status = cancelled', async () => {

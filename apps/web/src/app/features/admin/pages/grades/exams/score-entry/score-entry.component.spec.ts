@@ -252,7 +252,7 @@ describe('ScoreEntryComponent', () => {
     expect(component['canSave']()).toBe(true);
   });
 
-  it('已結束：頁首寫明只能檢視，沒有儲存列', async () => {
+  it('已完成仍可修改（#1931，照 A6）：頂上寫明改過的記在操作紀錄；編輯器不鎖；有變更照樣出現儲存列；工具列的批次動作收起', async () => {
     await setup('academy', 'a1');
     flushAcademyRequests({ ...mockAcademyDetail, status: 'closed' as const });
 
@@ -260,8 +260,17 @@ describe('ScoreEntryComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.textContent).toContain('這場考試已結束');
-    expect(host.querySelector('[role=region][aria-label=儲存]')).toBeNull();
+    expect(host.querySelector('[data-part=closed-note]')?.textContent?.trim()).toBe(
+      '這場考試已完成。成績仍可修改，改過的會記在操作紀錄。',
+    );
+    expect(host.textContent).not.toContain('重新開啟');
+    expect(component['academyEditor']()!.disabled()).toBe(false);
+    expect(host.querySelector('[data-part=complete]')).toBeNull();
+
+    component['dirty'].set(true);
+    fixture.detectChanges();
+    expect(component['canSave']()).toBe(true);
+    expect(host.querySelector('[role=region][aria-label=儲存]')).not.toBeNull();
   });
 
   it('有沒存的變更時出現底部儲存列（取代 FAB）', async () => {
@@ -335,6 +344,131 @@ describe('ScoreEntryComponent', () => {
       component['resolveLeave']('save');
       component['onSavingChange'](false); // 沒有 onSaved —— 存檔失敗，dirty 還在
       await expect(failed).resolves.toBe(false);
+    });
+  });
+
+  /**
+   * #1925 A6 對齊：合計與批次動作在灰帶工具列；「標記完成」＝先存未存的變更、存成功才 close，
+   * 完成後唯讀（#991 Q1；A6 的完成後可修改另排 #1931）。這組守的是寫入的順序與失敗時不誤標。
+   */
+  describe('灰帶工具列與標記完成（#1925）', () => {
+    const API = `${environment.apiUrl}/api/academy-exams/a1`;
+    const el = () => fixture.nativeElement as HTMLElement;
+    const q = (part: string) => el().querySelector<HTMLButtonElement>(`[data-part="${part}"]`);
+
+    async function ready(status: 'active' | 'closed' = 'active') {
+      await setup('academy', 'a1');
+      flushAcademyRequests({ ...mockAcademyDetail, status });
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+    const editor = () => component['academyEditor']()!;
+    function makeDirty() {
+      const row = editor()['rows']()[0];
+      editor()['onScoreChange'](row, 60);
+      fixture.detectChanges();
+    }
+    function confirmComplete() {
+      q('complete')!.click();
+      fixture.detectChanges();
+      q('complete-confirm')!.click();
+      fixture.detectChanges();
+    }
+
+    it('進行中：工具列有合計、其餘標記缺考、加入其他學生、標記完成；已完成：只剩合計', async () => {
+      await ready();
+      expect(q('tally')!.textContent).toContain('已登錄');
+      for (const part of ['mark-absent', 'add-student', 'complete']) expect(q(part)).not.toBeNull();
+
+      await ready('closed');
+      expect(q('tally')).not.toBeNull();
+      for (const part of ['mark-absent', 'add-student', 'complete']) expect(q(part)).toBeNull();
+    });
+
+    it('「加入其他學生」打開編輯器的面板', async () => {
+      await ready();
+      q('add-student')!.click();
+      fixture.detectChanges();
+      expect(editor().addingStudent()).toBe(true);
+    });
+
+    it('沒有未存變更：確認後直接 close，成功後重抓考試（狀態變已完成）', async () => {
+      await ready();
+      confirmComplete();
+      const close = http.expectOne(`${API}/close`);
+      expect(close.request.method).toBe('PATCH');
+      close.flush({ success: true });
+      http.expectOne(API).flush({ data: { ...mockAcademyDetail, status: 'closed' } });
+      fixture.detectChanges();
+      expect(component['isClosed']()).toBe(true);
+      expect(q('complete')).toBeNull();
+    });
+
+    it('有未存變更：先存成績、存成功才 close', async () => {
+      await ready();
+      makeDirty();
+      confirmComplete();
+      http.expectNone(`${API}/close`);
+      const save = http.expectOne(`${API}/scores`);
+      expect(save.request.method).toBe('POST');
+      expect(save.request.body.scores).toEqual([
+        expect.objectContaining({ studentId: 'stu-1', score: 60 }),
+      ]);
+      save.flush({ success: true, affected: 1 });
+      http.expectOne(`${API}/close`).flush({ success: true });
+      http.expectOne(API).flush({ data: { ...mockAcademyDetail, status: 'closed' } });
+    });
+
+    it('有未存變更但存檔失敗：不 close，之後再存成功也不會補 close', async () => {
+      await ready();
+      makeDirty();
+      confirmComplete();
+      http.expectOne(`${API}/scores`).flush('boom', { status: 500, statusText: 'err' });
+      await new Promise((r) => setTimeout(r));
+      http.expectNone(`${API}/close`);
+
+      component['saveScores']();
+      http.expectOne(`${API}/scores`).flush({ success: true, affected: 1 });
+      http.expectNone(`${API}/close`);
+      http.expectOne(API).flush({ data: mockAcademyDetail }); // 一般存檔後重抓統計
+    });
+
+    it('取消：什麼都不送', async () => {
+      await ready();
+      makeDirty();
+      q('complete')!.click();
+      fixture.detectChanges();
+      component['resolveComplete'](false);
+      http.expectNone(`${API}/scores`);
+      http.expectNone(`${API}/close`);
+    });
+
+    it('close 失敗：維持進行中，按鈕還在', async () => {
+      await ready();
+      confirmComplete();
+      http.expectOne(`${API}/close`).flush('boom', { status: 500, statusText: 'err' });
+      fixture.detectChanges();
+      expect(component['isClosed']()).toBe(false);
+      expect(component['completing']()).toBe(false);
+      expect(q('complete')).not.toBeNull();
+    });
+
+    it('只有一個班：副行的班名連到班級詳情（courseId 另外查）', async () => {
+      await setup('academy', 'a1');
+      flushAcademyRequests({
+        ...mockAcademyDetail,
+        campusName: '台北分校',
+        classes: [{ classId: 'cls-1', className: '數學A班' }],
+      } as typeof mockAcademyDetail);
+      http
+        .expectOne(`${environment.apiUrl}/api/classes/cls-1`)
+        .flush({ data: { id: 'cls-1', courseId: 'course-9' } });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const link = el().querySelector<HTMLAnchorElement>('app-page-open a[href*="/classes/"]')!;
+      expect(link.textContent!.trim()).toBe('數學A班');
+      expect(link.getAttribute('href')).toBe('/admin/courses/course-9/classes/cls-1');
+      expect(el().querySelector('app-page-open')!.textContent).toContain('4/1（三）');
     });
   });
 });

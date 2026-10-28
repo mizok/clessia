@@ -1,0 +1,123 @@
+<div class="flex flex-col gap-4 p-2">
+  <div class="flex flex-col gap-1">
+    <h2 class="m-0 text-lg font-semibold text-zinc-900">從某日起改時段</h2>
+    <p class="m-0 text-sm text-zinc-600">
+      原本的「{{ oldLabel }}」上到 {{ oldEndLabel() }}，之後改成下面的時間。
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-3">
+    <label class="flex flex-col gap-1 text-sm text-zinc-700">
+      從哪天起
+      <input
+        type="date"
+        class="h-9 w-44 rounded-md border border-zinc-300 bg-white px-2.5 text-sm text-zinc-800 focus:border-accent-500 focus:outline-none pointer-coarse:min-h-11"
+        [min]="minDate"
+        [max]="maxDate"
+        [ngModel]="form().fromDate"
+        (ngModelChange)="update('fromDate', $event)"
+        [disabled]="loading()"
+      />
+    </label>
+    <div class="flex flex-wrap items-center gap-2">
+      <p-select
+        [options]="weekdayOptions"
+        [ngModel]="form().weekday"
+        (ngModelChange)="update('weekday', $event)"
+        ariaLabel="星期"
+        [disabled]="loading()"
+        [appendTo]="'body'"
+        styleClass="min-w-[90px]"
+      />
+      <input
+        type="time"
+        aria-label="開始時間"
+        class="h-9 w-28 rounded-md border border-zinc-300 bg-white px-2.5 text-sm text-zinc-800 focus:border-accent-500 focus:outline-none pointer-coarse:min-h-11"
+        [ngModel]="form().startTime"
+        (ngModelChange)="update('startTime', $event)"
+        [disabled]="loading()"
+      />
+      <span class="text-sm text-zinc-500">—</span>
+      <input
+        type="time"
+        aria-label="結束時間"
+        class="h-9 w-28 rounded-md border border-zinc-300 bg-white px-2.5 text-sm text-zinc-800 focus:border-accent-500 focus:outline-none pointer-coarse:min-h-11"
+        [ngModel]="form().endTime"
+        (ngModelChange)="update('endTime', $event)"
+        [disabled]="loading()"
+      />
+      <p-select
+        [options]="data.classroomOptions"
+        [ngModel]="form().classroomId"
+        (ngModelChange)="update('classroomId', $event)"
+        ariaLabel="教室"
+        [disabled]="loading()"
+        [appendTo]="'body'"
+        styleClass="min-w-[110px]"
+      />
+    </div>
+  </div>
+
+  <label class="flex flex-col gap-1 text-sm text-zinc-700">
+    任課老師
+    <p-select
+      [options]="teacherSelectOptions"
+      [ngModel]="form().teacherId"
+      (ngModelChange)="update('teacherId', $event)"
+      ariaLabel="任課老師"
+      [disabled]="loading()"
+      [appendTo]="'body'"
+      styleClass="w-56"
+    />
+  </label>
+  @if (teacherChanged() && data.schedule.teacherId) {
+    <p class="m-0 text-sm text-zinc-700" data-teacher-change-note>
+      {{ oldTeacherName }}從這天起卸任：之後只看得到這天以前的點名、日誌和成績，而且只能看、不能改。
+    </p>
+  }
+
+  @if (invalid(); as message) {
+    <p class="m-0 text-sm text-error-700">{{ message }}</p>
+  }
+  @if (error(); as message) {
+    <app-inline-notice severity="error" [detail]="message" [dismissible]="false" />
+  }
+
+  <div aria-live="polite">
+    @if (preview(); as p) {
+      <div class="flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm">
+        <p class="m-0 text-zinc-800">
+          已排好的課：<strong class="tabular-nums">{{ p.removedCount }}</strong> 堂移除，
+          依新時間重新排 <strong class="tabular-nums">{{ p.createdCount }}</strong> 堂。
+        </p>
+        @if (p.kept.length > 0) {
+          <p class="m-0 text-warning-800">
+            這 {{ p.kept.length }} 堂已經有資料，不會自動改，存好後請用「批次改時間」處理：
+          </p>
+          <ul
+            class="m-0 flex max-h-[calc(var(--window-height,640px)*0.3)] list-none flex-col gap-1 overflow-y-auto p-0 text-zinc-700 tabular-nums"
+          >
+            @for (k of p.kept; track k.id) {
+              <li>{{ keptLine(k) }}</li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="flex justify-end gap-2">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    @if (preview()) {
+      <p-button label="確定改時段" [loading]="loading()" (onClick)="confirm()" />
+    } @else {
+      <p-button
+        label="先看會影響哪些課"
+        severity="secondary"
+        [loading]="loading()"
+        [disabled]="!!invalid()"
+        (onClick)="runPreview()"
+      />
+    }
+  </div>
+</div>

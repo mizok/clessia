@@ -52,7 +52,7 @@ function hookSelectors(file) {
 /** 開一個 context＋頁面並載入；app 端轉送 API、被導離目標路由就報錯。 */
 export async function openPage(
   browser,
-  { source, url, width, height = 900, storageState, prep = [] },
+  { source, url, width, height = 900, storageState, prep = [], clock },
 ) {
   const ctx = await browser.newContext({
     viewport: { width, height },
@@ -65,6 +65,17 @@ export async function openPage(
         response: await route.fetch({ url: route.request().url().replace(BUILT_API, API_URL) }),
       }),
     );
+  // app 的「今天」對齊稿的（config 的 `clock`）：稿把日期寫死（例：課表 stress.js 的 2026-10-01 17:40），
+  // app 照真實日期，週檢視就差成「今天」換了一欄、底色互換 —— 那是日期不是設計。
+  // app 有兩個時鐘，兩個都要對齊：SystemClockService 認 /api/system-time（後註冊的 route 先比對），
+  // 課表頁這類直接 `new Date()` 的認瀏覽器時鐘（setFixedTime 只固定 Date，timer 照跑）
+  if (source === 'app' && clock) {
+    const epochMs = Date.parse(clock);
+    await ctx.clock.setFixedTime(epochMs);
+    await ctx.route('**/api/system-time', (route) =>
+      route.fulfill({ json: { epochMs, iso: new Date(epochMs).toISOString() } }),
+    );
+  }
   // 稿的審稿膠囊不是頁面：一插進來就拿掉（proto.js 插的時間不定，等固定秒數不可靠），
   // 連帶 a6.css 的 `body:has(.proto-pill)` 稿專用樣式也失效（公開頁品牌面多 72px padding-bottom，#1639）
   if (source === 'a6')
@@ -87,7 +98,10 @@ export async function openPage(
   return { ctx, page, errors };
 }
 
-/** 要樣板化的專有名詞：人名（稿＝window.CLESSIA 的假人名；app＝登入者）→ {名}，分校名 → {分校}。 */
+/**
+ * 要樣板化的專有名詞：人名（稿＝window.CLESSIA 的假人名；app＝登入者，家長再加上孩子，#1932）→ {名}，
+ * 分校名 → {分校}。
+ */
 export async function harvestNames(page, source, ctx) {
   if (source === 'app') {
     const get = (u) =>
@@ -95,10 +109,16 @@ export async function harvestNames(page, source, ctx) {
         .get(API_URL + u)
         .then((r) => r.json())
         .catch(() => null);
-    const [me, campuses] = await Promise.all([get('/api/me'), get('/api/campuses')]);
+    // 孩子：家長頁色面的「目前看的是 X」、標題句都是孩子名字；不是家長時這支回錯 → null
+    const [me, campuses, children] = await Promise.all([
+      get('/api/me'),
+      get('/api/campuses'),
+      get('/api/me/children'),
+    ]);
     // 「全部分校」是「沒選單一分校」的使用者狀態，跟稿選了「文山旗艦校」一樣算資料
     return [
       me?.displayName,
+      ...(children?.data ?? []).map((c) => c.name),
       ...['全部分校', ...(campuses?.data ?? []).map((c) => c.name)].map((n) => [n, '{分校}']),
     ].filter(Boolean);
   }
@@ -175,9 +195,16 @@ export async function closePop(page, id, opens = {}) {
 
 export async function capture(
   browser,
-  { source, file, url, width, storageState, opens = {}, rowParents = [], prep },
+  { source, file, url, width, storageState, opens = {}, rowParents = [], prep, clock },
 ) {
-  const { ctx, page, errors } = await openPage(browser, { source, url, width, storageState, prep });
+  const { ctx, page, errors } = await openPage(browser, {
+    source,
+    url,
+    width,
+    storageState,
+    prep,
+    clock,
+  });
   const height = await growViewport(page, width);
   const names = await harvestNames(page, source, ctx);
 
@@ -191,6 +218,7 @@ export async function capture(
       .filter(
         (b) =>
           b.getClientRects().length &&
+          !b.disabled && // 停用的開不了（例：沒有餐費紀錄時的「匯出」），點下去只會等到逾時
           !b.closest('.proto-pill, .proto-all, .proto-notes') && // 設計稿翻頁膠囊，不是頁面
           !seen.has(b.getAttribute('popovertarget')) &&
           seen.add(b.getAttribute('popovertarget')),

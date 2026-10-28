@@ -10,12 +10,12 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { format } from 'date-fns';
+import { RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
-import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextModule } from 'primeng/inputtext';
 
 import {
@@ -26,8 +26,9 @@ import {
 } from '@core/attendance.service';
 import { LeaveService } from '@core/leave.service';
 import { StudentsService, type Student } from '@core/students.service';
-import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
+import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 
 /** 結果卡要求儀表板開點名名單時帶的資料 —— 跟 `openAttendance` 開對話框要的同一組 */
 export interface PhoneLeaveRosterRequest {
@@ -46,7 +47,8 @@ const REASON_CHIPS = ['病假', '事假'] as const;
  * **這是資訊架構的實驗，不是視覺的。** 刻意只用既有元件與 tokens —— 使用者要分辨「平庸」
  * 出在視覺還是流程，這裡若也更漂亮，實驗就混了變數。
  *
- * 一條由上而下的線：找人 → 哪一天 → 預覽他那天的課 → 原因 → 送出 → 結果。
+ * 一條由上而下的線：找人 → 預覽他今天的課 → 原因 → 送出 → 結果。
+ * **只處理今天**（#2035，使用者 10-24）：明天、其他日期、換人都拿掉 —— 其他日期到請假頁，選錯人收起重開。
  * - 寫入**只呼叫**既有 `POST /api/leaves`（請假連動是保留類，只呼叫不改）
  * - 結果卡顯示 `GET /api/attendance` 回來的**實際寫入**，不是自己預測的；預覽與實際有差就寫出來
  * - ⚠️ `POST /api/leaves` 目前沒有分校範圍檢查（#966）—— 這裡**不補、不繞**，照現狀呼叫。
@@ -55,11 +57,13 @@ const REASON_CHIPS = ['病假', '事假'] as const;
 @Component({
   selector: 'app-phone-leave',
   imports: [
+    NgTemplateOutlet,
     FormsModule,
     ButtonModule,
-    DatePickerModule,
     InputTextModule,
+    RouterLink,
     StudentAutocompleteComponent,
+    HeightFollowDirective,
   ],
   templateUrl: './phone-leave.component.html',
   host: { class: 'block' },
@@ -86,12 +90,20 @@ export class PhoneLeaveComponent {
     effect(() => {
       const id = this.presetStudentId();
       if (!id) return;
-      untracked(() =>
+      untracked(() => {
+        this.presetLoading.set(true);
         this.studentsService
           .get(id)
           .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe({ next: (res) => this.pick(res.data) }),
-      );
+          .subscribe({
+            next: (res) => {
+              this.presetLoading.set(false);
+              this.pick(res.data);
+            },
+            // 讀不到就退回搜尋框，不要卡在骨架
+            error: () => this.presetLoading.set(false),
+          });
+      });
     });
   }
 
@@ -100,14 +112,11 @@ export class PhoneLeaveComponent {
 
   /** 台北的今天，不是瀏覽器的 —— 見 SystemClockService */
   protected readonly today = this.systemClock.todayTaipei;
-  protected readonly tomorrow = computed(() => addDaysToDateString(this.today(), 1));
 
   protected readonly suggestions = signal<Student[]>([]);
   protected readonly student = signal<Student | null>(null);
-  protected readonly startDate = signal<string | null>(null);
-  protected readonly endDate = signal<string | null>(null);
-  /** 「其他日期」展開時才給選區間；主路徑是單日快選 */
-  protected readonly customDates = signal(false);
+  /** 預帶的學生還在載（#2037）：畫骨架，不畫搜尋框 */
+  protected readonly presetLoading = signal(false);
   protected readonly reason = signal('');
 
   protected readonly preview = signal<StudentDay | 'error' | null>(null);
@@ -117,10 +126,8 @@ export class PhoneLeaveComponent {
     null,
   );
 
-  protected readonly date = computed(() => this.startDate() ?? this.today());
-  protected readonly isRange = computed(
-    () => this.endDate() !== null && this.endDate() !== this.date(),
-  );
+  /** 只有今天（#2035） */
+  protected readonly date = this.today;
 
   protected readonly previewDay = computed(() => {
     const p = this.preview();
@@ -166,36 +173,6 @@ export class PhoneLeaveComponent {
     else this.preview.set(null);
   }
 
-  /** 快選單日（今天／明天／下一堂）。收起區間 */
-  protected chooseDate(date: string): void {
-    this.customDates.set(false);
-    this.startDate.set(date);
-    this.endDate.set(null);
-    this.loadPreview();
-  }
-
-  protected openCustomDates(): void {
-    this.customDates.set(true);
-    this.endDate.set(this.date());
-  }
-
-  protected onCustomStart(value: Date | null): void {
-    if (!value) return;
-    const start = format(value, 'yyyy-MM-dd');
-    this.startDate.set(start);
-    const end = this.endDate();
-    if (end === null || end < start) this.endDate.set(start);
-    this.loadPreview();
-  }
-
-  protected onCustomEnd(value: Date | null): void {
-    if (value) this.endDate.set(format(value, 'yyyy-MM-dd'));
-  }
-
-  protected asDate(value: string | null): Date | null {
-    return value ? new Date(`${value}T00:00:00`) : null;
-  }
-
   protected toggleReason(chip: string): void {
     this.reason.set(this.reason() === chip ? '' : chip);
   }
@@ -205,7 +182,7 @@ export class PhoneLeaveComponent {
     if (!student || !this.canSubmit()) return;
 
     const startDate = this.date();
-    const endDate = this.endDate() ?? startDate;
+    const endDate = startDate;
     const expected = this.expectedCount();
     this.submitting.set(true);
     this.error.set(null);
@@ -248,9 +225,6 @@ export class PhoneLeaveComponent {
   protected reset(): void {
     this.student.set(null);
     this.suggestions.set([]);
-    this.startDate.set(null);
-    this.endDate.set(null);
-    this.customDates.set(false);
     this.reason.set('');
     this.preview.set(null);
     this.result.set(null);

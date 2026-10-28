@@ -103,6 +103,18 @@ describe('checkinFailure', () => {
     expect(checkinFailure(err(status))).toMatchObject({ title: '這張卡讀不到學生', retry: false });
   });
 
+  it('409 到班卡（#1100 #42）：作廢的卡、舊版卡各講各的，都不給重試', () => {
+    const conflict = (code: string) => new HttpErrorResponse({ status: 409, error: { code } });
+    expect(checkinFailure(conflict('CARD_REVOKED'))).toMatchObject({
+      title: '這張卡已經作廢',
+      retry: false,
+    });
+    expect(checkinFailure(conflict('LEGACY_CARD'))).toMatchObject({
+      title: '這是舊版的卡',
+      retry: false,
+    });
+  });
+
   it('403：不能在這裡打卡；401：機台已登出', () => {
     expect(checkinFailure(err(403)).title).toContain('不能在這裡打卡');
     expect(checkinFailure(err(401)).title).toBe('機台已登出');

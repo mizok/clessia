@@ -230,6 +230,8 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
           return chain();
         },
         or: () => chain(),
+        // 有效到班卡的 embed 過濾（#2053）
+        is: () => chain(),
         order: () => chain(),
         range: () => chain(),
         // 查詢是被 `await` 的（不是靠最後一個方法回 Promise），所以替身要是 thenable
@@ -375,7 +377,7 @@ describe('GET /api/students?search= —— 家長電話比對（#1138）', () =>
     const client = {
       from: (table: string) => {
         const b: Record<string, unknown> = {};
-        for (const op of ['select', 'eq', 'in', 'or', 'order', 'range', 'ilike'])
+        for (const op of ['select', 'eq', 'in', 'or', 'is', 'order', 'range', 'ilike'])
           b[op] = (...args: unknown[]) => {
             calls.push({ table, op, args });
             return b;

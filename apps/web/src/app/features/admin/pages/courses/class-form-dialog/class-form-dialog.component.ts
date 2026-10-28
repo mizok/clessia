@@ -29,6 +29,13 @@ import { CampusesService } from '@core/campuses.service';
 import { Staff } from '@core/staff.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { ConflictWarningDialogComponent } from './conflict-warning-dialog/conflict-warning-dialog.component';
+import {
+  ScheduleSplitDialogComponent,
+  type ScheduleSplitDialogData,
+} from './schedule-split-dialog/schedule-split-dialog.component';
+import type { Schedule, SplitScheduleResult } from '@core/classes.service';
+import { taipeiDateString } from '@core/system-clock.service';
+import { effectiveRangeLabel, rangesOverlap } from '@shared/utils/schedule-effective.util';
 
 export interface ScheduleFormEntry {
   /** 前端用的穩定 key（#1641 項 5）：`@for` 用它 track（新增的時段還沒有 id）。不送 API */
@@ -38,6 +45,8 @@ export interface ScheduleFormEntry {
   startTime: string;
   endTime: string;
   teacherId: string | null;
+  /** 既有時段的生效起始日（#1100 #22）；新增的還沒有＝null（API 預設班級開課日） */
+  effectiveFrom: string | null;
   effectiveTo: string | null;
   /** 指定的教室（#1796）；null = 不指定 */
   classroomId: string | null;
@@ -113,6 +122,21 @@ export class ClassFormDialogComponent {
         // 讀不到就只剩「不指定」＋既有時段的那幾間 —— 表單照樣能存
         .subscribe({ next: (res) => this.campusRooms.set(res.data), error: () => undefined });
     }
+    // #1100 #22：列表傳進來的班級只帶「今天有效」的時段（列表的摘要規則），還沒生效的未來段不在裡面。
+    // 表單要列出未來段、重疊檢查也要看得到它，所以編輯時重讀詳情（全部時段）。讀取期間鎖住表單，
+    // 免得使用者先改的時段列被蓋掉；讀失敗就沿用列表那份（未來段不會被刪：存檔只刪表單看得到的）
+    const editingId = this.cls()?.id;
+    if (editingId) {
+      this.loading.set(true);
+      this.classesService.get(editingId).subscribe({
+        next: (res) => {
+          this.cls.set(res.data);
+          this.scheduleEntries.set(this.toEntries(this.liveSchedules()));
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      });
+    }
     // 只列使用中的範本 —— 停用的 API 會擋（停用的價目表不再對外報價）
     if (this.canSetFee) {
       this.feeTemplatesService
@@ -166,19 +190,40 @@ export class ClassFormDialogComponent {
     return start ?? undefined;
   });
 
-  private nextScheduleKey = 0;
-  protected readonly scheduleEntries = signal<ScheduleFormEntry[]>(
-    (this.cls()?.schedules ?? []).map((s) => ({
+  private readonly today = taipeiDateString(Date.now());
+  /**
+   * 表單只管「今天有效＋還沒生效」的時段（#1100 #22）。已經結束的舊段是歷史，不列、
+   * **也不能算進 `handleScheduleUpdates` 的「表單裡沒有＝刪掉」**，不然存一次就把它刪了
+   */
+  private liveSchedules(): Schedule[] {
+    return (this.cls()?.schedules ?? []).filter(
+      (s) => s.effectiveTo === null || s.effectiveTo >= this.today,
+    );
+  }
+  private toEntries(schedules: Schedule[]): ScheduleFormEntry[] {
+    return schedules.map((s) => ({
       key: this.nextScheduleKey++,
       id: s.id,
       weekday: s.weekday,
       startTime: s.startTime.substring(0, 5),
       endTime: s.endTime.substring(0, 5),
       teacherId: s.teacherId,
+      effectiveFrom: s.effectiveFrom,
       effectiveTo: s.effectiveTo,
       classroomId: s.classroomId ?? null,
-    })),
+    }));
+  }
+  private nextScheduleKey = 0;
+  protected readonly scheduleEntries = signal<ScheduleFormEntry[]>(
+    this.toEntries(this.liveSchedules()),
   );
+
+  /** 時段列的「11/1 起」「至 10/31」 */
+  protected rangeLabel(entry: ScheduleFormEntry): string {
+    return entry.effectiveFrom
+      ? effectiveRangeLabel(entry.effectiveFrom, entry.effectiveTo, this.today)
+      : '';
+  }
 
   /**
    * 教室下拉（#1796，A6 courses.html 時段「教室 · 不指定」）：只列這個班分校的教室。
@@ -245,6 +290,7 @@ export class ClassFormDialogComponent {
             startTime: '09:00',
             endTime: '11:00',
             teacherId: null,
+            effectiveFrom: null,
             effectiveTo: null,
             classroomId: null,
           },
@@ -306,6 +352,7 @@ export class ClassFormDialogComponent {
         startTime: e.startTime,
         endTime: e.endTime,
         teacherId: e.teacherId!,
+        effectiveFrom: e.effectiveFrom,
         effectiveTo: e.effectiveTo,
       }));
 
@@ -421,7 +468,7 @@ export class ClassFormDialogComponent {
   }
 
   private handleScheduleUpdates(classId: string): void {
-    const existingSchedules = this.cls()?.schedules ?? [];
+    const existingSchedules = this.liveSchedules();
     const updatedEntries = this.scheduleEntries();
 
     const existingById = new Map(existingSchedules.map((s) => [s.id, s]));
@@ -522,6 +569,8 @@ export class ClassFormDialogComponent {
       for (let j = i + 1; j < entries.length; j++) {
         const right = entries[j];
         if (!right.weekday || left.weekday !== right.weekday) continue;
+        // 「下個月起改週三」之後，同一個時間的舊段與新段前後接續、日期不重疊（#1100 #22）
+        if (!rangesOverlap(left, right)) continue;
 
         const isOverlap = left.startTime < right.endTime && right.startTime < left.endTime;
         if (isOverlap) {
@@ -534,6 +583,45 @@ export class ClassFormDialogComponent {
       }
     }
     return null;
+  }
+
+  /**
+   * 「從某日起改時段」（#1100 #22）。送出後 API 已經寫好了，所以重讀班級、把時段列換成新的；
+   * 表單其他欄位（名稱等）保留，時段列上還沒存的改動會被重讀蓋掉。
+   */
+  protected openSplit(entry: ScheduleFormEntry): void {
+    const classId = this.cls()?.id;
+    const schedule = this.cls()?.schedules?.find((s) => s.id === entry.id);
+    if (!classId || !schedule) return;
+    const data: ScheduleSplitDialogData = {
+      classId,
+      schedule,
+      classroomOptions: this.classroomOptions(),
+      teacherOptions: this.filteredStaffOptions(),
+    };
+    const ref = this.dialogService.open(ScheduleSplitDialogComponent, {
+      width: '520px',
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+      data,
+    });
+    ref?.onClose.subscribe((result: SplitScheduleResult | undefined) => {
+      if (!result) return;
+      this.messageService.add({
+        severity: 'success',
+        summary: '時段已改',
+        detail: result.kept.length
+          ? `有 ${result.kept.length} 堂已有資料的課沒有自動改，請用「批次改時間」處理`
+          : undefined,
+      });
+      this.classesService.get(classId).subscribe({
+        next: (res) => {
+          this.cls.set(res.data);
+          this.scheduleEntries.set(this.toEntries(this.liveSchedules()));
+        },
+      });
+    });
   }
 
   protected cancel(): void {

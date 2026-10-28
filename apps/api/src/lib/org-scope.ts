@@ -20,6 +20,7 @@ export type OrgTable =
   | 'audit_logs'
   | 'billing_periods'
   | 'campuses'
+  | 'checkin_cards'
   | 'class_logs'
   | 'classes'
   | 'classrooms'

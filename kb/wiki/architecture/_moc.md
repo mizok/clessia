@@ -202,6 +202,14 @@ Tags: `architecture`, `parent`, `attendance`, `grades`, `billing`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-data-scope]]
 
+## [[architecture/pwa-oauth-handoff|iOS 主畫面 PWA 的外部登入交接（交接碼）]]
+
+iOS 主畫面 PWA 與 Safari 不共用 cookie，LINE／Google 授權完落在 Safari；裁定交接碼（PWA 持 secret、Safari 完成後標記並登出、PWA 換一次性連結）。未實作。
+
+Tags: `architecture`, `auth`, `pwa`, `line`, `oauth`
+
+Links to: [[architecture/line-oauth-login]]
+
 ## [[architecture/parent-class-logs-read|家長端讀取已發布教務日誌（v1b）]]
 
 家長端第二實例，照 parent-read-endpoints.md 的樣板抄：childDb 兩層防線、複用 admin 的 select/mapper、allowlist 欄位過濾。這支的特殊之處是 class_logs 是班級層級不是學生層級，childDb 現有 API 假設表上有 student_id 欄位，需要擴充一個新方法。等 STOP 批准，teacher-pages 的 v1b 讀取頁與發布按鈕卡在這支上。
@@ -209,6 +217,22 @@ Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-data-sco
 Tags: `architecture`, `parent`, `authorization`, `teaching-log`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]]
+
+## [[architecture/parent-contact-book-sign|家長讀取與簽收個人聯絡簿]]
+
+GET /api/me/contact-book 與 POST /api/me/contact-book/{id}/sign 的範圍與「簽收後有修改」判準為什麼要走 pg 一句 SQL、為什麼管理端 PUT 原文照存不寫。
+
+Tags: `parent`, `contact-book`, `scope`
+
+Links to: [[rules/contact-book-rules]], [[architecture/parent-data-scope]]
+
+## [[architecture/parent-schedule-change-notice|課務異動通知發給該班家長]]
+
+課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
+
+Tags: `architecture`, `notifications`, `schedule-changes`, `parent`
+
+Links to: [[architecture/admin-schedule-change-notice]]
 
 ## [[architecture/parent-data-scope|家長端的資料範圍模型]]
 
@@ -299,7 +323,6 @@ Links to: [[architecture/day-timeline]], [[architecture/design-language]], [[arc
 Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
 Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
-
 
 ## [[architecture/web-push|PWA＋Web Push 推播（設計稿，第一個用途：家長繳費提醒）]]
 

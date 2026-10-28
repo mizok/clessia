@@ -24,7 +24,7 @@ const ROOM_SIBLING = id(302);
 const ROOM_FOREIGN = id(303);
 const SLOT = { weekday: 2, startTime: '14:00', endTime: '15:00' };
 
-function setup(scheduleRoom: string | null = null) {
+function setup(scheduleRoom: string | null = null, insertErrorCode?: string) {
   const db = createMultiOrgDb({
     classes: [{ id: CLASS, org_id: ORG_A, campus_id: CAMPUS_1, name: 'A 班', is_active: true }],
     classrooms: [
@@ -52,7 +52,31 @@ function setup(scheduleRoom: string | null = null) {
     const app = new Hono();
     app.use('*', async (c, next) => {
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-      set('supabase', db.client);
+      // 替身不模擬 DB 約束：要驗約束錯誤怎麼對成 HTTP 時，讓 schedules 的 insert 直接回那個錯誤碼
+      const client = db.client as { from: (t: string) => Record<string, unknown> };
+      set(
+        'supabase',
+        insertErrorCode
+          ? {
+              ...client,
+              from: (t: string) =>
+                t === 'schedules'
+                  ? {
+                      ...client.from(t),
+                      insert: () => ({
+                        select: () => ({
+                          single: () =>
+                            Promise.resolve({
+                              data: null,
+                              error: { code: insertErrorCode, message: 'constraint' },
+                            }),
+                        }),
+                      }),
+                    }
+                  : client.from(t),
+            }
+          : db.client,
+      );
       set('orgId', ORG_A);
       set('userId', 'admin-a');
       set('roles', ['admin']);
@@ -177,5 +201,15 @@ describe('PUT /api/classes/{id}/schedules/{sid} —— 指定教室（#1796）',
     });
     expect(status).toBe(200);
     expect(schedules()[0]).toMatchObject({ start_time: '10:30', classroom_id: ROOM_SIBLING });
+  });
+});
+
+// #1100 #22：唯一鍵換成排除約束後，同時段重疊的錯誤碼是 23P01（不是 23505）——兩個都要是 409
+describe('POST /api/classes/{id}/schedules —— 同時段已存在（#1100 #22）', () => {
+  it.each(['23505', '23P01'])('DB 回 %s → 409 DUPLICATE（不是 400）', async (code) => {
+    const { call } = setup(null, code);
+    const { status, body } = await call('POST', `/${CLASS}/schedules`, SLOT);
+    expect(status).toBe(409);
+    expect(body.code).toBe('DUPLICATE');
   });
 });

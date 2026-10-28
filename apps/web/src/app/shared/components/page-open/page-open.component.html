@@ -11,11 +11,12 @@
   ></div>
   <div [class]="wrapClass()">
     <!-- 返回連結（A6 `back`）：詳情頁用，放在標題上面 -->
+    <!-- appTextSwap：資料回來換字時舊字由左到右淡出、新字淡入（#1895）；一處掛、全站色面句生效 -->
     <ng-content select="[openBack]" />
-    <h1 [class]="titleClass()">
+    <h1 [appTextSwap]="titleSwap()" [class]="titleClass()">
       <ng-content select="[openTitle]" />
     </h1>
-    <p [class]="subClass()">
+    <p appTextSwap [class]="subClass()">
       <ng-content select="[openSub]" />
     </p>
     <ng-content />

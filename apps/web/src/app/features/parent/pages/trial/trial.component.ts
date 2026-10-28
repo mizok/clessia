@@ -31,6 +31,7 @@ import {
   RequestRowComponent,
   type RequestTagTone,
 } from '../../shared/request-row/request-row.component';
+import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
 
 /**
  * 家長端試聽申請（#1727 ④，A6 p-trial，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -149,7 +150,10 @@ export class TrialComponent {
       subject: cs[0].subject ?? cs[0].courseName ?? '其他',
       recommended: cs.some((c) => c.isRecommended),
       slots: cs.flatMap((c) =>
-        c.slots.map((s) => `${c.className} 週${WEEKDAY[s.weekday]} ${s.startTime}–${s.endTime}`),
+        c.slots.map(
+          (s) =>
+            `${c.className} 週${WEEKDAY[s.weekday]} ${s.startTime}–${s.endTime}${effectiveFromSuffix(s.effectiveFrom)}`,
+        ),
       ),
       meta: [
         `${cs.length} 個班`,

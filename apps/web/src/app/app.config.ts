@@ -27,6 +27,7 @@ import { provideSystemClock } from '@core/system-clock.providers';
 import { AuthService } from '@core/auth.service';
 import { handleChunkNavigationError, provideChunkRecovery } from '@core/chunk-recovery.providers';
 import { onRouteViewTransition } from '@core/route-transition';
+import { fixPrimeAutoFocus } from '@core/primeng-autofocus-fix';
 
 registerLocaleData(localeZhTW, 'zh-TW');
 
@@ -157,6 +158,10 @@ const ClessiaPreset = definePreset(Aura, {
     },
   },
 });
+
+// PrimeNG autofocus bug 的補丁（#2004）：放在這裡而不是 main.ts —— app.config.spec 匯入這個檔就會跑到，
+// 拿掉這一行 spec 會紅（main.ts 沒有測試會載入，原本拿掉呼叫測試照綠，審核席 #2008）
+fixPrimeAutoFocus();
 
 export const appConfig: ApplicationConfig = {
   providers: [

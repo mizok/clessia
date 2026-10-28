@@ -111,3 +111,105 @@ describe('GET /api/enrollments 的事件篩選與期間（#1507）', () => {
     expect(ids(res.body)).toEqual(['churned', 'expired', 'joined', 'paused', 'voided', 'withdrew']);
   });
 });
+
+/**
+ * #1100 #30：部分姓名一次篩出多位學生。列表與計數走同一個 `applyListFilters`，
+ * select 要配 `students!inner`（替身不解析 select，所以字串另外看 —— 見 list-query.spec）。
+ */
+describe('GET /api/enrollments 的部分姓名篩選（#1100 #30）', () => {
+  const ids = (body: Record<string, unknown>) =>
+    (body['data'] as { id: string }[]).map((row) => row.id).sort();
+  // 每列不同學生（uuid：studentId 參數要 uuid）
+  const stu = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
+  const named = (id: string, name: string, n: number) =>
+    enrollment(id, {
+      student_id: stu(n),
+      effective_from: '2026-10-02',
+      students: { name, grade: 'J1', schools: null },
+    });
+  const NAMED = [
+    named('wang-1', '王小明', 1),
+    named('wang-2', '王大同', 2),
+    named('lin', '林小王', 3), // 名字中間有「王」也算部分符合
+    named('chen', '陳志明', 4),
+    named('literal', '50%_off', 5),
+    named('other-org-wang', '王外人', 6),
+  ];
+  NAMED[5]!['org_id'] = OTHER;
+
+  async function getNamed(path: string) {
+    const db = createMultiOrgDb({ enrollments: NAMED });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', ORG);
+      set('userId', 'admin-a');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', enrollmentsRoute as unknown as Hono);
+    const res = await app.request(path);
+    return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+  }
+
+  it('打「王」：名字含王的都出來（多位），別 org 的不出來；計數數的是同一批', async () => {
+    const q = encodeURIComponent('王');
+    const list = await getNamed(`/?${PERIOD}&studentName=${q}`);
+    expect(ids(list.body)).toEqual(['lin', 'wang-1', 'wang-2']);
+    const counts = await getNamed(`/event-counts?${PERIOD}&studentName=${q}`);
+    expect((counts.body['data'] as { joined: number }).joined).toBe(3);
+  });
+
+  it('計數的 select 也配 students!inner —— 替身不解析 select，少了它真 DB 不會濾掉別人，要直接看字串', async () => {
+    const db = createMultiOrgDb({ enrollments: NAMED });
+    const selects: string[] = [];
+    const client = db.client as unknown as { from: (t: string) => Record<string, unknown> };
+    const from = client.from.bind(client);
+    client.from = (t: string) => {
+      const q = from(t);
+      const select = (q['select'] as (...a: unknown[]) => unknown).bind(q);
+      q['select'] = (cols: string, ...rest: unknown[]) => {
+        selects.push(cols);
+        return select(cols, ...rest);
+      };
+      return q;
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', ORG);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', enrollmentsRoute as unknown as Hono);
+    await app.request(`/event-counts?${PERIOD}&studentName=${encodeURIComponent('王')}`);
+    await app.request(`/?${PERIOD}&studentName=${encodeURIComponent('王')}`);
+    expect(selects.length).toBeGreaterThan(1);
+    for (const cols of selects) expect(cols).toContain('students!inner(name');
+  });
+
+  it('studentId 與 studentName 同時給：兩個都要成立（姓名篩出多位，id 再收成一位）', async () => {
+    const q = `studentId=${stu(2)}&studentName=${encodeURIComponent('王')}`;
+    const list = await getNamed(`/?${PERIOD}&${q}`);
+    expect(ids(list.body)).toEqual(['wang-2']);
+    const counts = await getNamed(`/event-counts?${PERIOD}&${q}`);
+    expect((counts.body['data'] as { joined: number }).joined).toBe(1);
+  });
+
+  it('% 與 _ 照字面比，不是萬用字元', async () => {
+    const pct = await getNamed(`/?${PERIOD}&studentName=${encodeURIComponent('%')}`);
+    expect(ids(pct.body)).toEqual(['literal']);
+    const under = await getNamed(`/?${PERIOD}&studentName=${encodeURIComponent('_')}`);
+    expect(ids(under.body)).toEqual(['literal']);
+  });
+
+  it('前後空白去掉；空字串 400（不能變成「不篩」偷偷回全部）', async () => {
+    const trimmed = await getNamed(`/?${PERIOD}&studentName=${encodeURIComponent(' 陳 ')}`);
+    expect(ids(trimmed.body)).toEqual(['chen']);
+    expect((await getNamed(`/?${PERIOD}&studentName=%20`)).status).toBe(400);
+  });
+});

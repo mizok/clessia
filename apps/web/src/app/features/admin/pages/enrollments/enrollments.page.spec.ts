@@ -521,6 +521,37 @@ describe('EnrollmentsPage', () => {
       expect(listMock.mock.calls[0][0].studentId).toBeUndefined();
     });
 
+    it('#1100 #30 打字沒選人：等 300ms 用部分姓名查（一次多位）；選到人就改帶 id、不帶名字', async () => {
+      await setup();
+      vi.useFakeTimers();
+      try {
+        listMock.mockClear();
+        component['onStudentChange']('王');
+        component['onStudentChange']('王小');
+        expect(listMock).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(300);
+        expect(listMock).toHaveBeenCalledTimes(1);
+        expect(listMock.mock.calls[0][0]).toMatchObject({ studentName: '王小', page: 1 });
+        expect(component['hasFilter']()).toBe(true);
+
+        listMock.mockClear();
+        component['onStudentChange']({ id: 'stu-9', name: '王小明' } as never);
+        vi.advanceTimersByTime(300);
+        expect(listMock).toHaveBeenCalledTimes(1);
+        expect(listMock.mock.calls[0][0].studentId).toBe('stu-9');
+        expect(listMock.mock.calls[0][0].studentName).toBeUndefined();
+
+        // 清空：只有空白也算清空
+        listMock.mockClear();
+        component['onStudentChange']('  ');
+        vi.advanceTimersByTime(300);
+        expect(listMock.mock.calls.at(-1)![0].studentId).toBeUndefined();
+        expect(listMock.mock.calls.at(-1)![0].studentName).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('打字查學生走學生搜尋，不是前端濾', async () => {
       await setup();
       studentsListMock.mockReturnValue(

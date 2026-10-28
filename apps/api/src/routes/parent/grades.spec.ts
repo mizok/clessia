@@ -57,14 +57,70 @@ const SCHOOL_ROW = {
 
 /** 家長端一次只查單一學生 —— 這組假身用來確認「班級排名」根本沒有管道流進來：
  * 回應形狀裡沒有任何名次或全班分數欄位，因為查詢本身只回這一個學生的資料。 */
+const ORG_ID = 'org-1';
+
+/** 班的時段（#1926）：`fromScopedIds('schedules', 'class_id', …)` 回的列，老師嵌在 `teacher` */
+const SCHEDULES = [
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '林老師', org_id: ORG_ID },
+  },
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '陳老師', org_id: ORG_ID },
+  },
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '林老師', org_id: ORG_ID },
+  },
+  // 考試（9/1）前就結束的時段：那時不是這位老師在教
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: '2026-08-01',
+    teacher: { display_name: '舊老師', org_id: ORG_ID },
+  },
+  // 考試（9/1）後才生效的時段：那時還不是這位老師（#1100 #22 Q3）
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-09-02',
+    effective_to: null,
+    teacher: { display_name: '新老師', org_id: ORG_ID },
+  },
+  // 別的機構的人（同一個 staff 表）不能被帶出來
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '外機構', org_id: 'org-x' },
+  },
+];
+
 function fakeChildDb(
   academyRows: unknown[],
   schoolRows: unknown[],
   academyRecent: number,
   schoolRecent: number,
   periods: unknown[] = [],
+  schedules: { rows: unknown[]; error?: unknown; calls?: unknown[][] } = { rows: SCHEDULES },
 ) {
   return {
+    fromScopedIds: (table: string, column: string, ids: readonly string[]) => {
+      schedules.calls?.push([table, column, [...ids]]);
+      return {
+        select: () =>
+          chainable(() => ({
+            data: schedules.error ? null : schedules.rows,
+            error: schedules.error ?? null,
+          })),
+      };
+    },
     orgRef: (table: string) => ({
       select: () => {
         if (table !== 'billing_periods') throw new Error(`unexpected orgRef(${table})`);
@@ -92,6 +148,7 @@ function appWith(roles: string[], studentScope: readonly string[] | null, childD
     set('roles', roles);
     set('studentScope', studentScope);
     set('childDb', childDb);
+    set('orgId', ORG_ID);
     await next();
   });
   app.route('/', gradesRoute as unknown as Hono);
@@ -157,10 +214,12 @@ describe('GET /api/me/grades', () => {
       description: null,
       className: null,
     });
-    // 回應鍵集合是契約（家長資料面）：這一輪只多 className
+    // 回應鍵集合是契約（家長資料面）：#1314 多 className；#1926 多 teacherName、recordedByName（只有名字）
     expect(Object.keys(body.data[0]).sort()).toEqual(
       [
         'className',
+        'teacherName',
+        'recordedByName',
         'createdAt',
         'description',
         'examDate',
@@ -250,5 +309,117 @@ describe('GET /api/me/grades —— dateFrom/dateTo 兩種成績都篩（#1167�
 
   it('沒填考試日期的段考照建立日篩（跟畫面上顯示的日期一致）', async () => {
     expect(await ids('&dateFrom=2026-09-05&dateTo=2026-09-30')).toEqual({ ids: ['sc3'], total: 1 });
+  });
+});
+
+describe('GET /api/me/grades —— 任課老師、登錄者（#1926）', () => {
+  const ROW_WITH_RECORDER = {
+    ...ACADEMY_ROW,
+    creator: {
+      staff: [
+        { display_name: '王登錄', org_id: ORG_ID },
+        { display_name: '外', org_id: 'org-x' },
+      ],
+    },
+  };
+  const get = async (db: unknown, childId = CHILD_ID) => {
+    const res = await appWith(['parent'], [CHILD_ID, OTHER_CHILD_ID], db).request(
+      `/?childId=${childId}`,
+    );
+    return { res, body: (await res.json()) as { data: Array<Record<string, unknown>> } };
+  };
+
+  it('校內考：這個孩子在籍那幾班、考試當天還有效的時段的老師，去重、頓號接；別機構的人不帶', async () => {
+    const { body } = await get(fakeChildDb([ACADEMY_ROW], [], 0, 0));
+    expect(body.data[0]).toMatchObject({ teacherName: '林老師、陳老師' });
+  });
+
+  it('只拿自己孩子的班查老師：查的是 pluck 出來的班（c-mine），別班（c-other）不查', async () => {
+    const calls: unknown[][] = [];
+    await get(fakeChildDb([ACADEMY_ROW], [], 0, 0, [], { rows: SCHEDULES, calls }));
+    expect(calls).toEqual([['schedules', 'class_id', ['c-mine']]]);
+  });
+
+  it('兄弟姊妹：查另一個孩子時，這個孩子班上的老師不會出現', async () => {
+    const { body } = await get(fakeChildDb([ACADEMY_ROW], [], 0, 0), OTHER_CHILD_ID);
+    expect(body.data[0]).toMatchObject({ teacherName: null });
+  });
+
+  it('段考沒有班 → 老師 null', async () => {
+    const { body } = await get(fakeChildDb([], [SCHOOL_ROW], 0, 0));
+    expect(body.data[0]).toMatchObject({ teacherName: null });
+  });
+
+  it('登錄者：成績表的 created_by 對到同機構的 staff 名字；對不到就 null（不猜）', async () => {
+    const { body } = await get(
+      fakeChildDb([ROW_WITH_RECORDER, { ...ACADEMY_ROW, id: 'sc9' }], [], 0, 0),
+    );
+    const byId = Object.fromEntries(body.data.map((r) => [r['id'], r]));
+    expect(byId['sc1']).toMatchObject({ recordedByName: '王登錄' });
+    expect(byId['sc9']).toMatchObject({ recordedByName: null });
+  });
+
+  it('登錄者是多機構人員：只認本機構那筆（別機構的排前面也不拿）；只有別機構那筆 → null', async () => {
+    const staff = (...rows: Array<{ display_name: string; org_id: string }>) => ({
+      ...ACADEMY_ROW,
+      creator: { staff: rows },
+    });
+    const { body } = await get(
+      fakeChildDb(
+        [
+          {
+            ...staff(
+              { display_name: '別家的人', org_id: 'org-x' },
+              { display_name: '本家的人', org_id: ORG_ID },
+            ),
+            id: 'm1',
+          },
+          { ...staff({ display_name: '別家的人', org_id: 'org-x' }), id: 'm2' },
+        ],
+        [],
+        0,
+        0,
+      ),
+    );
+    const byId = Object.fromEntries(body.data.map((r) => [r['id'], r]));
+    expect(byId['m1']!['recordedByName']).toBe('本家的人');
+    expect(byId['m2']!['recordedByName']).toBeNull();
+    expect(JSON.stringify(body.data)).not.toContain('別家的人');
+  });
+
+  it('對不到登錄者（帳號已刪、不是人員）→ 名字嚴格是 null，退路不回 created_by 的 id', async () => {
+    const CREATOR_ID = 'user-creator-123';
+    const { body } = await get(
+      fakeChildDb(
+        [
+          { ...ACADEMY_ROW, id: 'd1', created_by: CREATOR_ID, creator: null },
+          { ...ACADEMY_ROW, id: 'd2', created_by: CREATOR_ID, creator: { staff: [] } },
+        ],
+        [],
+        0,
+        0,
+      ),
+    );
+    const byId = Object.fromEntries(body.data.map((r) => [r['id'], r]));
+    expect(byId['d1']!['recordedByName']).toBeNull();
+    expect(byId['d2']!['recordedByName']).toBeNull();
+    expect(JSON.stringify(body.data)).not.toContain(CREATOR_ID);
+  });
+
+  it('只回名字：沒有任何老師／登錄者的 id 或聯絡方式', async () => {
+    const { body } = await get(fakeChildDb([ROW_WITH_RECORDER], [], 0, 0));
+    const keys = Object.keys(body.data[0]!);
+    expect(keys.filter((k) => /teacher|record|creator|staff/i.test(k)).sort()).toEqual([
+      'recordedByName',
+      'teacherName',
+    ]);
+    expect(JSON.stringify(body.data[0])).not.toMatch(/org_id|user_id|phone|email/);
+  });
+
+  it('時段查詢失敗 → 500（不折成沒有老師）', async () => {
+    const { res } = await get(
+      fakeChildDb([ACADEMY_ROW], [], 0, 0, [], { rows: [], error: { message: 'boom' } }),
+    );
+    expect(res.status).toBe(500);
   });
 });

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { scheduleOverlaps, scheduleRangeOf } from '../../lib/schedule-effective';
+
 export interface EnrollmentPreconditionInput {
   readonly supabase: SupabaseClient;
   readonly orgId: string;
@@ -31,6 +33,7 @@ interface TargetScheduleRow {
   readonly weekday: number;
   readonly start_time: string;
   readonly end_time: string;
+  readonly effective_from: string;
   readonly effective_to: string | null;
 }
 
@@ -38,6 +41,7 @@ interface ExistingScheduleRow {
   readonly weekday: number;
   readonly start_time: string;
   readonly end_time: string;
+  readonly effective_from: string;
   readonly effective_to: string | null;
 }
 
@@ -89,7 +93,7 @@ export async function checkEnrollmentPreconditions(
 
   const { data: targetSchedules, error: targetSchedulesError } = await supabase
     .from('schedules')
-    .select('weekday, start_time, end_time, effective_to')
+    .select('weekday, start_time, end_time, effective_from, effective_to')
     .eq('class_id', classId);
 
   if (targetSchedulesError) {
@@ -115,7 +119,7 @@ export async function checkEnrollmentPreconditions(
         id,
         name,
         courses(name),
-        schedules(weekday, start_time, end_time, effective_to)
+        schedules(weekday, start_time, end_time, effective_from, effective_to)
       )
     `,
     )
@@ -146,15 +150,22 @@ export async function checkEnrollmentPreconditions(
       continue;
     }
 
+    // 兩筆報名同時在籍的那段期間；兩個時段都要在這段期間裡、而且彼此的生效期間有交集才算撞（#1100 #22：
+    // 原本只看 effective_to，下個月才生效的新時段、已經換掉的舊時段都會被當成現在的課）
+    const windowFrom = maxDate(effectiveFrom, enrollment.effective_from);
+    const windowTo = minDate(effectiveTo, enrollment.effective_to);
+
     for (const existingSchedule of existingClass.schedules) {
-      if (existingSchedule.effective_to && existingSchedule.effective_to < effectiveFrom) {
-        continue;
-      }
+      const existingRange = scheduleRangeOf(existingSchedule as unknown as Record<string, unknown>);
+      if (!scheduleOverlaps(existingRange, windowFrom, windowTo)) continue;
 
       for (const targetSchedule of targetSchedules as TargetScheduleRow[]) {
-        if (targetSchedule.effective_to && targetSchedule.effective_to < effectiveFrom) {
-          continue;
-        }
+        const targetRange = scheduleRangeOf(targetSchedule as unknown as Record<string, unknown>);
+        // 目標時段 ∩ 同時在籍期間，再跟既有時段比
+        const from = maxDate(windowFrom, targetRange.effectiveFrom);
+        const to = minDate(windowTo, targetRange.effectiveTo);
+        if (to !== null && from > to) continue;
+        if (!scheduleOverlaps(existingRange, from, to)) continue;
 
         if (existingSchedule.weekday !== targetSchedule.weekday) {
           continue;
@@ -258,3 +269,8 @@ export async function checkEnrollmentAttendance({
 
   return (count ?? 0) > 0 ? { status: 'has-attendance' } : { status: 'none' };
 }
+
+const maxDate = (a: string, b: string): string => (a > b ? a : b);
+/** null＝不限終點 */
+const minDate = (a: string | null, b: string | null): string | null =>
+  a === null ? b : b === null ? a : a < b ? a : b;

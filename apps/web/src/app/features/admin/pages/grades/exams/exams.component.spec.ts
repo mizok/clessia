@@ -574,6 +574,68 @@ describe('ExamsComponent', () => {
   describe('樂觀刪除（#1641 5b）', () => {
     const ids = () => (component['currentRows']() as Array<{ id: string }>).map((r) => r.id);
     const target = () => component['currentRows']()[1]!;
+
+    it('完成後仍可修改（#1931）：進行中的選單是「標記完成」；完成的沒有「重新開啟」', () => {
+      const labels = (row: object) => {
+        component['selectedRow'].set(row as never);
+        return (component['actionMenuItems']() as Array<{ label?: string }>).map((i) => i.label);
+      };
+      const row = target();
+      expect(labels({ ...row, status: 'active' })).toContain('標記完成');
+      const closed = labels({ ...row, status: 'closed' });
+      expect(closed).not.toContain('重新開啟');
+      expect(closed).not.toContain('標記完成');
+    });
+
+    it('選單的「刪除」上危險色（#1360）', () => {
+      component['selectedRow'].set(target());
+      const items = component['actionMenuItems']() as Array<{ label?: string; danger?: boolean }>;
+      expect(items.find((i) => i.label === '刪除')?.danger).toBe(true);
+    });
+    const spyable = () =>
+      component as unknown as {
+        openConfirmDialog: (h: string, d: unknown, accept: () => void) => void;
+        enterScoreEntry: (r: unknown) => void;
+      };
+
+    it('#1100 #34 有成績：「刪除」照樣能按，說明要先清空、按鈕帶去成績登錄（不打 DELETE）', () => {
+      const row = { ...target(), scoreCount: 3 };
+      component['selectedRow'].set(row);
+      const items = component['actionMenuItems']() as Array<{ label?: string; disabled?: boolean }>;
+      expect(items.find((i) => i.label === '刪除')?.disabled).toBeFalsy();
+
+      const open = vi
+        .spyOn(spyable(), 'openConfirmDialog')
+        .mockImplementation((_h, _d, accept) => accept());
+      const enter = vi.spyOn(spyable(), 'enterScoreEntry').mockImplementation(() => undefined);
+      component['confirmDeleteExam'](row);
+
+      expect(open).toHaveBeenCalledWith(
+        `還不能刪除「${row.name}」`,
+        expect.objectContaining({
+          message: '這場考試已有 3 筆成績。要先到成績登錄把成績清空，才能刪除考試。',
+          acceptLabel: '去成績登錄',
+        }),
+        expect.any(Function),
+      );
+      expect(enter).toHaveBeenCalledWith(row);
+      http.expectNone((req) => req.method === 'DELETE');
+    });
+
+    it('#1100 #34 沒有成績：照 A6 文案確認後刪除', () => {
+      const row = { ...target(), scoreCount: 0 };
+      const open = vi.spyOn(spyable(), 'openConfirmDialog').mockImplementation(() => undefined);
+      component['confirmDeleteExam'](row);
+      expect(open).toHaveBeenCalledWith(
+        `刪除「${row.name}」`,
+        expect.objectContaining({
+          message: '這場考試還沒有成績。刪除後無法復原。',
+          acceptLabel: '刪除',
+        }),
+        expect.any(Function),
+      );
+    });
+
     const deleteReq = () =>
       http.expectOne(
         (req) =>

@@ -76,6 +76,10 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   c.set('userId', session.user.id);
+  // #2027 交接要求 session 晚於交接建立；取不到就不設（complete 會 fail-closed 擋下）
+  const sessionCreatedAt = (session as { session?: { createdAt?: Date | string } }).session
+    ?.createdAt;
+  if (sessionCreatedAt) c.set('sessionCreatedAt', new Date(sessionCreatedAt).toISOString());
   c.set('orgId', orgId);
   // 角色跟著身分資料的狀態走（#1846）：staff 停用就沒有老師／管理員身分，parents 停用就沒有家長身分。
   // 每個請求從快取裡的原始列（含 status）重算，停用最遲在下一次快取刷新（30 秒）生效
@@ -124,7 +128,7 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   });
   c.set('studentScope', studentScope);
   // 家長端 route 只拿得到這個，拿不到原始 supabase（見 lib/child-db.ts）。
-  c.set('childDb', createChildDb(supabase, studentScope, orgId));
+  c.set('childDb', createChildDb(supabase, studentScope, orgId, auth.pool));
 
   // 看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的範圍
   // 限制把關的老師與家長）；空陣列 = 一個分校都沒被指派，什麼都看不到。

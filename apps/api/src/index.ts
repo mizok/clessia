@@ -23,6 +23,7 @@ import billingPeriodsRoute from './routes/billing-periods';
 import gradePromotionsRoute from './routes/grade-promotions';
 import feeTemplatesRoute from './routes/fee-templates';
 import publicCaptchaRoute from './routes/public/captcha';
+import { publicHandoffRoute } from './routes/auth-handoff';
 import publicCatalogRoute from './routes/public/catalog';
 import publicOrgRoute from './routes/public/org';
 import publicApplicationsRoute from './routes/public-applications';
@@ -54,6 +55,7 @@ import orgSettingsRoute from './routes/org-settings';
 import attendanceRoute from './routes/attendance';
 import leavesRoute from './routes/leaves';
 import dailyCheckinsRoute from './routes/daily-checkins';
+import checkinCardsRoute from './routes/checkin-cards';
 import workbenchRoute from './routes/workbench';
 import contactLogsRoute from './routes/contact-logs';
 import teacherSessionChangesRoute from './routes/teacher-session-changes';
@@ -127,6 +129,8 @@ export type Bindings = {
 
 export type Variables = {
   userId: string;
+  /** 這個 session 建立的時間（ISO）。#2027 交接要求 session 晚於交接建立 —— 早就登入著的人點別人傳來的連結不算 */
+  sessionCreatedAt?: string;
   orgId: string;
   /** 每次請求從 user_roles 查出來的角色，不是 session 快照 */
   roles: string[];
@@ -327,6 +331,10 @@ app.route('/api/public/trial-applications', publicTrialApplicationsRoute);
 // **必須在 authMiddleware 之前** —— cron 沒有 session。
 app.route('/api/internal/push', internalPushRoute);
 
+// ── iOS PWA 外部登入交接（#2027）：start／redeem 是 PWA 還沒登入時打的，**必須在 authMiddleware 之前**；
+// complete 要登入，在 `/api/me/auth-handoff`（routes/me.ts）。見 routes/auth-handoff.ts
+app.route('/api/auth-handoff', publicHandoffRoute);
+
 app.use('/api/*', authMiddleware);
 
 // 分校範圍：請求指名了不屬於自己的分校就 403。掛全域而不是各路由自己檢查 ——
@@ -357,7 +365,9 @@ const ADMIN_ONLY = ['admin'];
  *
  * 讀寫用同一個權限是最容易寫、也最容易讓人放棄使用權限的做法。
  */
-type MountPermission = { all: Permission } | { write: Permission | readonly Permission[] };
+type MountPermission =
+  | { all: Permission | readonly Permission[] }
+  | { write: Permission | readonly Permission[] };
 
 /** 只對會改資料的方法套權限。GET / HEAD / OPTIONS 交給角色層。 */
 const requireAdminPermissionOnWrite = (permission: string | readonly string[]) =>
@@ -415,6 +425,11 @@ mount('/api/leaves', leavesRoute, ADMIN_ONLY, { write: 'basic_operations' });
 // （`routes/daily-checkins.ts`）。`basic_operations` 只看管理員（auth.ts「不是管理員就不看權限」）。
 mount('/api/daily-checkins', dailyCheckinsRoute, ['admin', 'kiosk'], {
   write: 'basic_operations',
+});
+// 到班卡（#1100 #42）：重印 basic_operations、新開／補發／作廢 manage_students（route 內再分）。
+// `all` 不是 `write`：GET 回的是卡上的代碼，那本身就是打卡憑證
+mount('/api/checkin-cards', checkinCardsRoute, ADMIN_ONLY, {
+  all: ['basic_operations', 'manage_students'],
 });
 // 作業台是管理端的。老師端的「今天」走 teacher-today-flow 自己的取數 ——
 // 不預開，等它真的需要再說（計畫席 2026-09-03 裁定）。

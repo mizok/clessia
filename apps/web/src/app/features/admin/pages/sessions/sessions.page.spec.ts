@@ -20,7 +20,7 @@ import { CampusContextService } from '@core/campus-context.service';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
-import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { SessionMakeupDialogComponent } from './dialogs/session-makeup-dialog/session-makeup-dialog.component';
 import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
@@ -1373,10 +1373,16 @@ describe('SessionsPage', () => {
     ).openOperationsLog();
 
     expect(dialogOpenSpy).toHaveBeenCalledWith(
-      SessionOperationsLogDialogComponent,
+      AuditLogDialogComponent,
       expect.objectContaining({
-        // `showHeader: false`，標題來自元件模板；這裡只驗開的是哪一支對話框
+        // `showHeader: false`，標題來自元件模板。全站共用那一支，課表帶兩個分頁（#2006）
         showHeader: false,
+        data: {
+          tabs: [
+            expect.objectContaining({ label: '課堂異動', resourceTypes: ['session'] }),
+            expect.objectContaining({ label: '出勤紀錄', resourceTypes: ['attendance'] }),
+          ],
+        },
       }),
     );
   });
@@ -1827,7 +1833,17 @@ describe('SessionsPage', () => {
       fixture.detectChanges();
       expect(badge()).toBeNull();
       expect(trigger().getAttribute('aria-label')).toBe('更多');
-      expect(labels()).toEqual(['全部異動', '進階篩選', '隱藏停課', '操作紀錄']);
+      expect(labels()).toEqual(['全部異動', '進階篩選', '隱藏停課']);
+      // #2006：操作紀錄搬到工具列的時鐘圖示鈕（全站統一），不在「⋯」裡
+      const open = vi.spyOn(
+        c() as unknown as { openOperationsLog: () => void },
+        'openOperationsLog',
+      );
+      open.mockImplementation(() => undefined);
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('app-audit-log-button button')!
+        .click();
+      expect(open).toHaveBeenCalled();
     });
 
     it('門檻 1：未指派 1／未點名 0 與 未指派 0／未點名 1 各自出現；數字是兩者合計', () => {
@@ -2020,6 +2036,72 @@ describe('SessionsPage', () => {
       expect(
         el().querySelector('[data-part="dtabs"]')!.classList.contains('max-wide:order-2'),
       ).toBe(true);
+    });
+  });
+
+  /** #1923：週欄跟週列同一條規則（週日沒課就六欄），另外週日有課一定留（審核席 #1945 的四項） */
+  describe('週檢視的欄（#1923）', () => {
+    type C = {
+      setView: (v: 'day' | 'week') => void;
+      weekLabel: () => string;
+      headline: () => string;
+      picking: { set: (v: boolean) => void };
+      mode: { set: (v: string) => void };
+    };
+    const c = () => component as unknown as C;
+    const el = () => fixture.nativeElement as HTMLElement;
+    const cols = () => Array.from(el().querySelectorAll('section[aria-label^="週"]'));
+    const grid = () => cols()[0]!.parentElement!;
+    const mon = makeSession({ id: 'mon', sessionDate: '2026-04-13', startTime: '17:00' });
+    const sun = makeSession({ id: 'sun', sessionDate: '2026-04-19', startTime: '10:00' });
+
+    async function openWeek(sessions: Session[], sundayHas: boolean) {
+      sessionsServiceMock.list.mockReturnValue(of(makeListResponse(sessions)));
+      sessionsServiceMock.hasSessionsOn.mockReturnValue(of(sundayHas));
+      c().setView('week');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('週日沒課：六欄、週區間字到週六', async () => {
+      await openWeek([mon], false);
+      expect(cols()).toHaveLength(6);
+      expect(grid().classList.contains('grid-cols-6')).toBe(true);
+      expect(grid().classList.contains('grid-cols-7')).toBe(false);
+      expect(c().weekLabel()).toBe('4/13 – 4/18');
+    });
+
+    it('週日有課（週日查詢回 true）：七欄、週區間字到週日', async () => {
+      await openWeek([mon, sun], true);
+      expect(cols()).toHaveLength(7);
+      expect(grid().classList.contains('grid-cols-7')).toBe(true);
+      expect(c().weekLabel()).toBe('4/13 – 4/19');
+    });
+
+    it('週日查詢還是 false（沒回或失敗），但已經拿到週日的課：仍是七欄，色面堂數算進週日那堂', async () => {
+      await openWeek([mon, sun], false);
+      expect(cols()).toHaveLength(7);
+      expect(grid().classList.contains('grid-cols-7')).toBe(true);
+      expect(c().weekLabel()).toBe('4/13 – 4/19');
+      expect(c().headline()).toContain('2 堂課');
+    });
+
+    it('快速選取開著：週檢視與篩選結果（依日期分章）的列都有勾選框', async () => {
+      await openWeek([mon], false);
+      c().picking.set(true);
+      fixture.detectChanges();
+      const pickCells = () =>
+        Array.from(el().querySelectorAll('app-schedule-list input[type="checkbox"]')).map((i) =>
+          i.closest('label')!,
+        );
+      expect(pickCells().length).toBeGreaterThan(0);
+      expect(pickCells().every((l) => l.classList.contains('wide:grid'))).toBe(true);
+
+      c().mode.set('results');
+      fixture.detectChanges();
+      expect(pickCells().length).toBeGreaterThan(0);
+      expect(pickCells().every((l) => l.classList.contains('wide:grid'))).toBe(true);
     });
   });
 

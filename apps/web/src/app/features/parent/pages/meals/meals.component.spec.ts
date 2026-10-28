@@ -118,6 +118,13 @@ describe('MealsComponent（A6 p-meals）', () => {
     expect(colls[0].textContent).toContain('還沒結算 · 月底併入帳單');
     expect(colls[1].querySelector('.coll__m')?.textContent).toContain('80 元 · 1 餐');
     expect(colls[1].textContent).toContain('已併入帳單');
+    // A6 展開後寫「併入 <連結>10 月的帳單</連結>」（#1965），不是「已併入帳單 · 看繳費紀錄」
+    const billed = colls[1].querySelector('.coll__body a');
+    expect(billed?.textContent?.trim()).toBe('10 月的帳單');
+    expect(billed?.getAttribute('href')).toBe('/parent/payments');
+    expect(colls[1].querySelector('.coll__body')?.textContent).not.toContain('看繳費紀錄');
+    // 還沒結算的月份沒有那一行
+    expect(colls[0].querySelector('.coll__body a')).toBeNull();
     expect(colls[1].textContent).toContain('9/10（四）');
     expect(colls[1].textContent).toContain('不收費');
   });
@@ -298,6 +305,42 @@ describe('MealsComponent —— 舊回應不能蓋掉新的（#1834）', () => {
     reply('c1', true, [rec('2026-10-08'), rec('2026-10-09')]); // 晚到
     expect(text()).toContain('1 餐，80 元');
     expect(text()).not.toContain('2 餐，160 元');
+  });
+
+  /**
+   * #1978 後續（計畫席 10-23）：A→B→A，先回第二次 A、B 晚到 —— 色面與期間兩支都不能被 B 蓋掉。
+   * 防護是兩個序號（`thisMonthSeq`／`loadSeq`），不是比對 childId。
+   */
+  it('#1978 A→B→A：B 晚到的本月與期間回應都不蓋掉現在的 A', () => {
+    for (const id of ['c1', 'c2', 'c1']) {
+      activeChildId.set(id);
+      fixture.detectChanges();
+    }
+    const last = (childId: string, thisMonth: boolean) =>
+      pending.filter(
+        (p) => p.params.childId === childId && (p.params.dateFrom === '2026-10-01') === thisMonth,
+      );
+    for (const thisMonth of [true, false]) {
+      const a = last('c1', thisMonth).at(-1)!;
+      a.subject.next({ data: [rec('2026-10-02')], meta: { months: [] } });
+      a.subject.complete();
+    }
+    for (const thisMonth of [true, false]) {
+      const b = last('c2', thisMonth)[0];
+      b.subject.next({
+        data: [rec('2026-08-05'), rec('2026-08-06'), rec('2026-08-07')],
+        meta: { months: [] },
+      });
+      b.subject.complete();
+    }
+    fixture.detectChanges();
+
+    const months = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.coll__t'),
+    ).map((el) => el.textContent?.trim());
+    expect(months).toEqual(['10 月']);
+    expect(text()).toContain('1 餐，80 元');
+    expect(text()).not.toContain('3 餐');
   });
 
   it('K1：期間的舊回應晚到 → 不蓋掉新孩子的紀錄', () => {

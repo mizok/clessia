@@ -3,7 +3,7 @@ title: 聯絡簿管理端頁的設計
 summary: 管理端的聯絡簿是監看不是撰寫：日期區間列表＋未簽收篩選（API 無分頁且 count 是 exact，所以前端篩是誠實的），編輯已存在的一則走同一支 upsert，但不做「挑學生開新的一則」——那是老師端 P3 的工作流。「今天哪些該寫還沒寫」這輪不做，現有 API 做出來會漏班且是 N+1。
 category: architecture
 status: active
-updated: 2026-10-10
+updated: 2026-10-23
 tags: [architecture, admin, contact-book]
 ---
 
@@ -142,3 +142,8 @@ contact-book.page          日期區間 + 學生 autocomplete + 未簽收 toggle
   （日期區間限制了量）。簽收欄只寫時間（`signedAt`→台北 HH:mm）。
 - **還沒有 API 的**：簽收人姓名（`signedBy` 是 `ba_user.id`，要 `signedByName`）、帶班老師名與「提醒老師補寫」
   （`/missing` 不回老師、也沒有提醒 API）、「○○班都寫了」腳註（`/missing` 只回缺的班）。
+- **提醒老師補寫（#1100 #27，計畫席 10-23）**：每班一顆，`POST /api/contact-book/remind { classId, date }`。
+  名單與收件人都由伺服器算（不吃前端的名字）；收件人只有**那天這班實際上課的老師**（`sessions.teacher_id`，
+  代課就是代課老師、停課的堂不算）；去重鍵 `contact_book_reminder:{classId}:{date}`，同班同天一則，
+  按過顯示「今天已提醒」。只進老師的通知中心 —— A6 寫「已用 LINE 提醒」，不接 LINE。
+  不走 `notify()`：那支吞錯回 0，這裡通知就是這次請求要做的事，寫失敗要回 500。

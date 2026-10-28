@@ -5,7 +5,12 @@ import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
-import { ParentSessionsService, type ParentSession } from '@core/parent-sessions.service';
+import {
+  ParentSessionsService,
+  type ParentContactBookEntry,
+  type ParentSession,
+} from '@core/parent-sessions.service';
+import { MessageService } from 'primeng/api';
 import { SystemClockService } from '@core/system-clock.service';
 import { ScheduleComponent } from './schedule.component';
 
@@ -34,6 +39,8 @@ function session(over: Partial<ParentSession>): ParentSession {
     courseName: '國中數學',
     campusId: null,
     campusName: '文山旗艦校',
+    usesContactBook: false,
+    campusPhone: '02-2930-1234',
     classroomName: null,
     teacherName: '游佩珊',
     isSubstitute: false,
@@ -76,6 +83,7 @@ const SESSIONS: ParentSession[] = [
         newDate: null,
         newStartTime: null,
         newEndTime: null,
+        reason: null,
       },
     ],
   }),
@@ -84,6 +92,18 @@ const SESSIONS: ParentSession[] = [
     date: '2026-10-10',
     status: 'cancelled',
     className: '國三國文 A 班',
+    changes: [
+      {
+        changeType: 'cancellation',
+        originalDate: null,
+        originalStartTime: null,
+        originalEndTime: null,
+        newDate: null,
+        newStartTime: null,
+        newEndTime: null,
+        reason: '颱風停課',
+      },
+    ],
   }),
 ];
 
@@ -114,7 +134,48 @@ describe('家長端課表 ScheduleComponent', () => {
     }),
   );
 
+  const entry = (over: Partial<ParentContactBookEntry>): ParentContactBookEntry => ({
+    id: 'e-today',
+    entryDate: TODAY,
+    content: '單字小考 18／20，回家複習 Unit 5',
+    lastEditedByName: '簡志明',
+    updatedAt: '2026-10-08T10:12:00Z',
+    signedAt: null,
+    signedByName: null,
+    editedAfterSign: false,
+    ...over,
+  });
+  const contactBook = vi.fn((..._a: unknown[]) =>
+    of({
+      data: [
+        entry({}),
+        entry({
+          id: 'e-old',
+          entryDate: '2026-10-01',
+          content: '作文初稿完成',
+          signedAt: '2026-10-01T12:00:00Z',
+          signedByName: '王媽媽',
+          updatedAt: '2026-10-01T13:00:00Z',
+          editedAfterSign: true,
+        }),
+      ],
+    }),
+  );
+  const signContactBook = vi.fn((..._a: unknown[]) =>
+    of(
+      entry({
+        signedAt: '2026-10-08T12:15:00Z',
+        signedByName: '王媽媽',
+        updatedAt: '2026-10-08T12:15:00Z',
+      }),
+    ),
+  );
+  const toast = vi.fn();
+
   beforeEach(async () => {
+    contactBook.mockClear();
+    signContactBook.mockClear();
+    toast.mockClear();
     // 每條都從預設實作開始（前面的測試會用 mockImplementation／mockReset 換掉它）
     list.mockReset();
     list.mockImplementation((() => of({ data: SESSIONS })) as never);
@@ -133,7 +194,11 @@ describe('家長端課表 ScheduleComponent', () => {
       imports: [ScheduleComponent],
       providers: [
         provideRouter([]),
-        { provide: ParentSessionsService, useValue: { list, homework } },
+        {
+          provide: ParentSessionsService,
+          useValue: { list, homework, contactBook, signContactBook },
+        },
+        { provide: MessageService, useValue: { add: toast } },
         {
           provide: SystemClockService,
           useValue: { todayTaipei: signal(TODAY), nowEpochMs: signal(NOW) },
@@ -183,6 +248,22 @@ describe('家長端課表 ScheduleComponent', () => {
     const wed = cards().find((c) => c.textContent?.includes('國三自然 B 班'))!;
     expect(wed.textContent).toContain('小考');
     expect(card('off').querySelector('.line-through')).not.toBeNull();
+  });
+
+  it('手機：沒課的日子週名與「沒課」同一行、不畫底線；有課的日子照常（A6 .wk__d--empty，#1967）', () => {
+    const days = Array.from(host().querySelectorAll<HTMLElement>('[data-part="day"]'));
+    const empty = days.filter((d) => d.textContent?.includes('沒課'));
+    const busy = days.filter((d) => d.querySelector('[data-part="session"]'));
+    expect(empty.length).toBeGreaterThan(0);
+    expect(busy.length).toBeGreaterThan(0);
+    for (const d of empty) {
+      expect(d.classList.contains('max-wide:flex')).toBe(true);
+      expect(d.querySelector('h2')!.classList.contains('max-wide:border-0')).toBe(true);
+    }
+    for (const d of busy) {
+      expect(d.classList.contains('max-wide:flex')).toBe(false);
+      expect(d.querySelector('h2')!.classList.contains('max-wide:border-0')).toBe(false);
+    }
   });
 
   it('下一週：只查那一週（週一到週日）；回本週重查本週＋下週、週標籤寫（本週）', () => {
@@ -245,6 +326,61 @@ describe('家長端課表 ScheduleComponent', () => {
     );
   });
 
+  describe('#1100 #26 開聯絡簿的班：當天的聯絡簿＋已閱簽收', () => {
+    function openElemLive() {
+      list.mockImplementation((() =>
+        of({ data: [session({ sessionId: 'live', usesContactBook: true })] })) as never);
+      activeChildId.set('kid-2');
+      fixture.detectChanges();
+      card('live').click();
+      fixture.detectChanges();
+    }
+
+    it('顯示當天那則、不查教務日誌；按「已閱簽收」→ 就地換成已簽收＋toast', () => {
+      homework.mockClear();
+      openElemLive();
+      expect(homework).not.toHaveBeenCalled();
+      expect(contactBook).toHaveBeenCalledWith('kid-2', '2026-06-10', TODAY);
+      expect(host().querySelector('[data-part="homework"]')).toBeNull();
+      const book = () => host().querySelector('[data-part="contact-book"]')!.textContent!;
+      expect(book()).toContain('10/8 的聯絡簿');
+      expect(book()).toContain('單字小考 18／20');
+      expect(book()).toContain('簡志明 · 10/8 18:12 寫');
+
+      const button = host().querySelector<HTMLButtonElement>('[data-part="sign"] button')!;
+      expect(button.textContent).toContain('已閱簽收');
+      button.click();
+      fixture.detectChanges();
+      expect(signContactBook).toHaveBeenCalledWith('e-today');
+      expect(book()).toContain('王媽媽 已簽收 · 10/8 20:15');
+      expect(host().querySelector('[data-part="sign"] button')).toBeNull();
+      expect(toast).toHaveBeenCalledWith({ severity: 'success', summary: '已簽收 10/8 的聯絡簿' });
+    });
+
+    it('之前的聯絡簿：簽收後又改過的寫「有更新」', () => {
+      openElemLive();
+      expect(host().querySelector('[data-part="contact-book-history"]')!.textContent).toContain(
+        '已簽收 · 有更新',
+      );
+    });
+
+    it('簽收失敗：按鈕還在、error toast；讀取失敗不寫「老師還沒有寫」', () => {
+      signContactBook.mockReturnValueOnce(throwError(() => new Error('boom')) as never);
+      openElemLive();
+      host().querySelector<HTMLButtonElement>('[data-part="sign"] button')!.click();
+      fixture.detectChanges();
+      expect(toast).toHaveBeenCalledWith({ severity: 'error', summary: '簽收失敗，請稍後再試' });
+      expect(host().querySelector('[data-part="sign"] button')!.textContent).toContain('已閱簽收');
+
+      contactBook.mockReturnValueOnce(throwError(() => new Error('boom')) as never);
+      card('live').click();
+      fixture.detectChanges();
+      const book = host().querySelector('[data-part="contact-book"]')!.textContent!;
+      expect(book).toContain('聯絡簿讀取失敗');
+      expect(book).not.toContain('老師還沒有寫');
+    });
+  });
+
   it('還沒上的課與停課：不顯示作業區、不去查作業；代課寫原任課老師；停課寫「不用到班」', () => {
     homework.mockClear();
     cards()
@@ -256,8 +392,17 @@ describe('家長端課表 ScheduleComponent', () => {
     expect(host().querySelector('[data-part="changes"]')!.textContent).toContain(
       '本堂由 蕭立恆 老師代課',
     );
+    // #1100 #44：課堂詳情帶分校電話（可撥打）
+    expect(
+      host().querySelector<HTMLAnchorElement>('[data-part="campus-phone"] a')?.getAttribute('href'),
+    ).toBe('tel:02-2930-1234');
+    // 代課沒有原因可顯示（API 只回停課原因，#1100 #46）
+    expect(host().querySelector('[data-part="change-reason"]')).toBeNull();
     card('off').click();
     fixture.detectChanges();
+    expect(host().querySelector('[data-part="change-reason"]')!.textContent).toContain(
+      '原因：颱風停課',
+    );
     expect(host().querySelector('[data-part="attendance"]')!.textContent).toContain(
       '停課，不用到班',
     );

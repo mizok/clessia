@@ -1,7 +1,15 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
+import { editedAfterSign } from '../lib/contact-book-sign';
+import {
+  loadTeachingScope,
+  loadTenure,
+  studentTenure,
+  taughtClassIds,
+  taughtStudentIds,
+  tenureOrFilter,
+} from '../lib/teacher-scope';
 import {
   datesInRange,
   missingContactBookByDate,
@@ -10,8 +18,8 @@ import {
   type SessionOnDate,
 } from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
-import { getCampusScope } from '../lib/campus-scope';
-import { studentWriteScope } from '../lib/campus-write-guard';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { waitUntilFrom } from '../lib/wait-until';
 
 /**
@@ -20,8 +28,8 @@ import { waitUntilFrom } from '../lib/wait-until';
  * 跟教務日誌（班級 × 日期）是**兩個不同的東西**，只是補習班口語裡都叫「聯絡簿」。
  * 設計真相：kb/wiki/rules/contact-book-rules.md
  *
- * 家長簽收端點不在這裡 —— 那是 P4 的家長端工作。欄位（signed_by / signed_at）
- * 已經在 schema 裡，這支只負責把簽收狀態讀出來給老師端看。
+ * 家長簽收在 `routes/parent/contact-book.ts`（#1100 #26）；這支把簽收狀態讀出來給老師端看，
+ * 並標「簽收後有修改」（kb/wiki/architecture/parent-contact-book-sign.md）。
  */
 const app = new OpenAPIHono<AppEnv>();
 
@@ -37,6 +45,8 @@ const ContactBookEntrySchema = z
     signedByName: z.string().nullable(),
     signedAt: z.string().nullable(),
     isSigned: z.boolean(),
+    /** 簽收之後內容又改過（#1100 #26）—— 簽收保留，畫面標「簽收後有修改」 */
+    editedAfterSign: z.boolean(),
   })
   .openapi('ContactBookEntry');
 
@@ -67,6 +77,7 @@ interface ContactBookRow {
   last_edited_by: string | null;
   signed_by: string | null;
   signed_at: string | null;
+  updated_at: string;
   students?: { name: string } | null;
   editor?: { name: string } | null;
   signer?: { name: string } | null;
@@ -85,12 +96,23 @@ export function toContactBookEntryResponse(row: Record<string, unknown>) {
     signedByName: typed.signer?.name ?? null,
     signedAt: typed.signed_at,
     isSigned: Boolean(typed.signed_at),
+    editedAfterSign: editedAfterSign(typed.updated_at, typed.signed_at),
   };
 }
 
 const SELECT =
-  'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, ' +
+  'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, updated_at, ' +
   'students(name), editor:ba_user!last_edited_by(name), signer:ba_user!signed_by(name)';
+
+/**
+ * 分校範圍（#1994）：學生**任一報名**的班在範圍內就算（同學生列表、`studentWriteScope`）。
+ * 條件放在 join 裡、在 DB 端篩 —— 不先撈學生 id 清單再塞進 `.in()`（#1928：上千個 id 會 414）。
+ *
+ * ⚠️ 三層都 `!inner` 才會把條件傳回父列（parent-campus-scope.ts 的 #815 註解）。
+ * embed 與條件**只看同一個 `campusIds`**：不受限時兩個都不加 —— 單獨留著 `!inner` 會把沒有報名的學生也濾掉
+ */
+const SCOPE_EMBED = ', scope_student:students!inner(enrollments!inner(classes!inner(campus_id)))';
+const SCOPE_FILTER = 'scope_student.enrollments.classes.campus_id';
 
 // ── GET /api/contact-book —— 依學生或日期區間列出 ──────────────────────────
 app.openapi(
@@ -132,23 +154,32 @@ app.openapi(
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    // 範圍是空的（一個分校都沒被指派）：什麼都看不到，fail-closed
+    if (campusIds !== null && campusIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0 } }, 200);
+    }
+
     let query = supabase
       .from('contact_book_entries')
-      .select(SELECT, { count: 'exact' })
+      .select(campusIds === null ? SELECT : SELECT + SCOPE_EMBED, { count: 'exact' })
       .eq('org_id', orgId)
       .order('entry_date', { ascending: false });
+    if (campusIds !== null) query = query.in(SCOPE_FILTER, [...campusIds]);
 
     if (studentId) query = query.eq('student_id', studentId);
     if (from) query = query.gte('entry_date', from);
     if (to) query = query.lte('entry_date', to);
 
-    // 老師只看得到自己任課班級的學生
+    // 老師只看得到自己任課班級的學生：現任班的全期、前任班的只限任期內（#2049 R2）
     if (scope.teacherStaffId) {
-      const allowed = await taughtStudentIds(supabase, orgId, scope.teacherStaffId);
-      if (allowed.length === 0) {
+      const tenure = await loadTenure(supabase, orgId, scope.teacherStaffId);
+      const students = await studentTenure(supabase, orgId, tenure);
+      const visible = tenureOrFilter('student_id', 'entry_date', students.current, students.past);
+      if (!visible) {
         return c.json({ data: [], meta: { total: 0 } }, 200);
       }
-      query = query.in('student_id', allowed);
+      query = query.or(visible);
     }
 
     const { data, count, error } = await query;
@@ -214,6 +245,26 @@ app.openapi(
     }
     if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
+
+    // **內容沒變就不寫**（#1100 #26，計畫席 10-23）：upsert 會讓 trigger 跳 `updated_at`，
+    // 老師原文照存一次就讓已簽收的那則變成「簽收後有修改」，標記就沒有意義了。
+    // 家長看得到的只有內容與最後編輯者 —— 原文照存連編輯者也不換（沒有人真的改了什麼）。
+    const { data: existing, error: existingError } = await supabase
+      .from('contact_book_entries')
+      .select(SELECT)
+      .eq('org_id', orgId)
+      .eq('student_id', studentId)
+      .eq('entry_date', entryDate)
+      .maybeSingle();
+    if (existingError) {
+      return c.json({ error: '寫入聯絡簿失敗', code: existingError.code }, 500);
+    }
+    if (existing && (existing as unknown as ContactBookRow).content === content) {
+      return c.json(
+        toContactBookEntryResponse(existing as unknown as Record<string, unknown>),
+        200,
+      );
     }
 
     // 每生每日一則（rules 1）。共編＝覆寫同一列並換掉 last_edited_by，
@@ -324,12 +375,21 @@ app.openapi(
     }
 
     // `classes!inner` + 對嵌套欄位下條件 = 一趟就把「開了聯絡簿的班的在籍學生」撈齊
+    // 分校範圍（#1994）：缺漏名單與統計只算範圍內的學生
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    if (campusIds !== null && campusIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0 } }, 200);
+    }
     let candidateQuery = supabase
       .from('enrollments')
-      .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+      .select(
+        'student_id, class_id, students(name), classes!inner(name, uses_contact_book)' +
+          (campusIds === null ? '' : SCOPE_EMBED),
+      )
       .eq('org_id', orgId)
       .in('status', ['active', 'pending_payment'])
       .eq('classes.uses_contact_book', true);
+    if (campusIds !== null) candidateQuery = candidateQuery.in(SCOPE_FILTER, [...campusIds]);
 
     if (taught) candidateQuery = candidateQuery.in('class_id', taught);
 
@@ -468,12 +528,24 @@ app.openapi(
       }
     }
 
+    // 分校範圍（#1994）：缺漏名單與統計只算範圍內的學生
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    if (campusIds !== null && campusIds.length === 0) {
+      return c.json(
+        { data: dates.map((date) => ({ date, missingCount: 0 })), meta: { total: 0 } },
+        200,
+      );
+    }
     let candidateQuery = supabase
       .from('enrollments')
-      .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+      .select(
+        'student_id, class_id, students(name), classes!inner(name, uses_contact_book)' +
+          (campusIds === null ? '' : SCOPE_EMBED),
+      )
       .eq('org_id', orgId)
       .in('status', ['active', 'pending_payment'])
       .eq('classes.uses_contact_book', true);
+    if (campusIds !== null) candidateQuery = candidateQuery.in(SCOPE_FILTER, [...campusIds]);
 
     if (taught) candidateQuery = candidateQuery.in('class_id', taught);
 
@@ -531,6 +603,203 @@ app.openapi(
 
     return c.json(
       { data: days, meta: { total: days.reduce((sum, day) => sum + day.missingCount, 0) } },
+      200,
+    );
+  },
+);
+
+// ============================================================
+// POST /api/contact-book/remind —— 提醒那堂老師補寫（#1100 #27，計畫席 10-23）
+//
+// - 只給 admin；班級要在分校範圍內（別 org 404、範圍外 403）
+// - 還沒寫的學生由伺服器算（跟 `/missing` 同一支 `missingContactBookStudents`），不吃前端的名單
+// - 收件人＝那天這班**實際上課**的老師（`sessions.teacher_id`，代課就是代課老師；停課的堂不算）
+// - 同一位老師同班同天只一則（去重鍵）—— 重按回 `alreadyReminded`，不洗版
+// ============================================================
+
+const RemindSchema = z
+  .object({
+    classId: DbUuidSchema,
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必須是 YYYY-MM-DD'),
+  })
+  .openapi('ContactBookRemindRequest');
+
+const RemindResponseSchema = z
+  .object({
+    sent: z.number().int().min(0),
+    /** 這幾位老師今天已經為這班這天收過提醒（去重鍵擋下） */
+    alreadyReminded: z.boolean(),
+    teacherNames: z.array(z.string()),
+    missingCount: z.number().int().min(1),
+  })
+  .openapi('ContactBookRemindResponse');
+
+/** 通知內文最多點名幾位；再多寫「等 N 位」 */
+const REMIND_NAME_LIMIT = 5;
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/remind',
+    tags: ['ContactBook'],
+    summary: '提醒那天這班實際上課的老師補寫聯絡簿',
+    request: { body: { content: { 'application/json': { schema: RemindSchema } } } },
+    responses: {
+      200: {
+        description: 'OK（含今天已提醒過）',
+        content: { 'application/json': { schema: RemindResponseSchema } },
+      },
+      403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: '班級不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      409: {
+        description: '這班這天沒有缺的（NOTHING_MISSING）或沒有上課老師（NO_TEACHER）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    if (!(c.get('roles') ?? []).includes('admin')) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { classId, date } = c.req.valid('json');
+
+    const scoped = await classWriteScope(supabase, orgId, getCampusScope(c), classId);
+    if (scoped === 'not-found') return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    if (scoped === 'out-of-scope') {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
+
+    const [
+      { data: candidateRows, error: candidateError },
+      { data: writtenRows, error: writtenError },
+      { data: sessionRows, error: sessionError },
+    ] = await Promise.all([
+      supabase
+        .from('enrollments')
+        .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+        .eq('org_id', orgId)
+        .eq('class_id', classId)
+        .in('status', ['active', 'pending_payment'])
+        .eq('classes.uses_contact_book', true),
+      supabase
+        .from('contact_book_entries')
+        .select('student_id')
+        .eq('org_id', orgId)
+        .eq('entry_date', date),
+      supabase
+        .from('sessions')
+        .select('class_id, status, teacher_id')
+        .eq('org_id', orgId)
+        .eq('class_id', classId)
+        .eq('session_date', date),
+    ]);
+    if (candidateError || writtenError || sessionError) {
+      return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+    }
+
+    const candidates: ContactBookCandidate[] = (
+      (candidateRows ?? []) as unknown as Record<string, unknown>[]
+    ).map((row) => ({
+      studentId: row['student_id'] as string,
+      studentName: (row['students'] as { name?: string } | null)?.name ?? '',
+      classId: row['class_id'] as string,
+      className: (row['classes'] as { name?: string } | null)?.name ?? '',
+    }));
+    const written = new Set(
+      ((writtenRows ?? []) as unknown as Record<string, unknown>[]).map(
+        (row) => row['student_id'] as string,
+      ),
+    );
+    const sessions = ((sessionRows ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+      classId: row['class_id'] as string,
+      status: row['status'] as string,
+      teacherId: (row['teacher_id'] as string | null) ?? null,
+    }));
+    const missing = missingContactBookStudents(candidates, written, sessions);
+    if (missing.length === 0) {
+      return c.json({ error: '這班這天的聯絡簿都寫了', code: 'NOTHING_MISSING' }, 409);
+    }
+
+    const staffIds = [
+      ...new Set(
+        sessions
+          .filter((s) => s.status !== 'cancelled' && s.teacherId)
+          .map((s) => s.teacherId as string),
+      ),
+    ];
+    const { data: staffRows, error: staffError } = staffIds.length
+      ? await supabase
+          .from('staff')
+          .select('user_id, display_name')
+          .eq('org_id', orgId)
+          .eq('status', 'active')
+          .in('id', staffIds)
+      : { data: [], error: null };
+    if (staffError) return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+    const staff = (
+      (staffRows ?? []) as Array<{ user_id: string | null; display_name: string }>
+    ).filter((s): s is { user_id: string; display_name: string } => !!s.user_id);
+    const { data: roleRows, error: roleError } = staff.length
+      ? await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'teacher')
+          .in(
+            'user_id',
+            staff.map((s) => s.user_id),
+          )
+      : { data: [], error: null };
+    if (roleError) return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+    const isTeacher = new Set(
+      ((roleRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id),
+    );
+    const teachers = staff.filter((s) => isTeacher.has(s.user_id));
+    if (teachers.length === 0) {
+      return c.json({ error: '這堂沒有可以通知的上課老師', code: 'NO_TEACHER' }, 409);
+    }
+
+    const className = candidates[0]?.className ?? '';
+    const [, m, d] = date.split('-').map(Number);
+    const names = missing.map((s) => s.studentName);
+    const listed =
+      names.length > REMIND_NAME_LIMIT
+        ? `${names.slice(0, REMIND_NAME_LIMIT).join('、')} 等 ${names.length} 位`
+        : names.join('、');
+    // 不走 `notify()`：那支吞錯回 0（通知是附帶的那種），這裡通知**就是**這次請求要做的事 ——
+    // 寫失敗要回 500，不能說成「今天已提醒過」
+    const { data: inserted, error: insertError } = await supabase
+      .from('notifications')
+      .upsert(
+        teachers.map((t) => ({
+          org_id: orgId,
+          user_id: t.user_id,
+          role: 'teacher',
+          kind: 'contact_book_reminder',
+          dedupe_key: `contact_book_reminder:${classId}:${date}`,
+          payload: {
+            title: '請補寫聯絡簿',
+            body: `${className} ${m}/${d} 還有 ${missing.length} 位沒寫：${listed}`,
+            url: '/teacher/schedule',
+          },
+          push_status: 'skipped',
+          push_error: 'ROLE_PUSH_DISABLED',
+        })),
+        { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true },
+      )
+      .select('id');
+    if (insertError) return c.json({ error: '提醒失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+
+    const sent = (inserted ?? []).length;
+    return c.json(
+      {
+        sent,
+        alreadyReminded: sent === 0,
+        teacherNames: teachers.map((t) => t.display_name),
+        missingCount: missing.length,
+      },
       200,
     );
   },

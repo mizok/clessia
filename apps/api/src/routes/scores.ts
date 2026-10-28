@@ -1,7 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
-import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
+import {
+  canReadOn,
+  loadTeachingScope,
+  loadTenure,
+  taughtStudentIds,
+  type TeachingTenure,
+} from '../lib/teacher-scope';
 import {
   applyCampusFilter,
   campusFilterIds,
@@ -13,6 +19,8 @@ import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-d
 import { isEnrolledOn } from '../lib/session-roster';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
+import { toCsv } from '../lib/csv';
+import { getAuth } from '../lib/get-auth';
 import { isFailingScore } from '../lib/score-threshold';
 import { scorePercent } from '../lib/score-percent';
 import {
@@ -760,6 +768,160 @@ app.openapi(listRoute, async (c) => {
 });
 
 // ============================================================
+// POST /api/scores/export —— 成績匯出 CSV（#1100 #40，A6 grades-student 的匯出面板）
+// ============================================================
+//
+// **匯出就是把資料帶出系統，範圍錯了等於外洩**（保留類）。範圍＝`resolveScoreScope`
+// （老師範圍 ∩ 分校範圍，跟列表同一個判準）∩ 頂欄分校（`campusFilterIds`，撐不大範圍）∩
+// `studentIds`（面板的「照目前的篩選」）。範圍外的學生 id 撈不到，不報錯。
+//
+// **成績本身走 pg pool 的一條 SQL**（計畫席 10-23）：學生最多 3000 位，走 PostgREST 的話 id 進 GET URL
+// （本機實測成績的長 select ＋200 個 uuid 就 414），切批又會撞 Workers 每請求 50 個 subrequest。
+// SQL 用 `= ANY($2::uuid[])` 當參數、一次往返。pool 不在就 500 —— 不給 REST 退路，
+// 直接失敗比給一份不完整的檔案好。超過上限明確回 413，不截斷。
+// 欄位語意對照 `mapAcademyScoreRow`／`mapSchoolScoreRow`：段考沒填考試日退回建立日（UTC 日期，同 split('T')）。
+
+/** 一次匯出的列數上限 */
+const SCORE_EXPORT_ROW_LIMIT = 20000;
+
+const EXPORT_STATUS_LABELS: Record<string, string> = {
+  scored: '正常',
+  absent: '缺考',
+  makeup: '補考',
+};
+
+/**
+ * 開課班／課程：那場校內考掛的班裡、這個學生有報名的那班（報名不分狀態，同篩選；跨班考試取班名排前面的）。
+ * 段考跟班無關 → NULL。`$2` 是 NULL ＝不限學生（不受限的管理員按「全部學生」）
+ */
+export const SCORE_EXPORT_SQL = `
+SELECT * FROM (
+  SELECT st.name AS student_name, k.class_name, e.name AS exam_name, k.course_name,
+         e.exam_date::text AS exam_date, s.score::float8 AS score, s.status::text AS status
+    FROM academy_scores s
+    JOIN academy_exams e ON e.id = s.exam_id AND e.org_id = $1
+    JOIN students st ON st.id = s.student_id
+    LEFT JOIN LATERAL (
+      SELECT c.name AS class_name, co.name AS course_name
+        FROM academy_exam_classes aec
+        JOIN classes c ON c.id = aec.class_id AND c.org_id = $1
+        LEFT JOIN courses co ON co.id = c.course_id
+       WHERE aec.exam_id = s.exam_id
+         AND EXISTS (SELECT 1 FROM enrollments en
+                      WHERE en.class_id = c.id AND en.student_id = s.student_id AND en.org_id = $1)
+       ORDER BY c.name LIMIT 1
+    ) k ON true
+   WHERE ($2::uuid[] IS NULL OR s.student_id = ANY($2::uuid[]))
+  UNION ALL
+  SELECT st.name, NULL, se.label, NULL,
+         COALESCE(se.exam_date, (se.created_at AT TIME ZONE 'UTC')::date)::text,
+         ss.score::float8, ss.status::text
+    FROM school_scores ss
+    JOIN school_exams se ON se.id = ss.school_exam_id AND se.org_id = $1
+    JOIN students st ON st.id = ss.student_id
+   WHERE ($2::uuid[] IS NULL OR ss.student_id = ANY($2::uuid[]))
+) t
+ORDER BY exam_date DESC, student_name
+LIMIT $3
+`;
+
+const exportRoute = createRoute({
+  method: 'post',
+  path: '/export',
+  tags: ['Scores'],
+  summary: '成績匯出 CSV',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            /** 面板「照目前的篩選」的學生；不帶＝全部學生（仍受範圍限制） */
+            studentIds: z.array(DbUuidSchema).max(3000).optional(),
+            /** 頂欄分校；只能縮小範圍 */
+            campusId: DbUuidSchema.optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: { description: 'CSV', content: { 'text/csv': { schema: z.string() } } },
+    400: { description: '參數錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+    413: { description: '筆數超過上限', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: '匯出失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(exportRoute, async (c) => {
+  const orgId = c.get('orgId');
+  const supabase = c.get('supabase');
+  const body = c.req.valid('json');
+
+  const headers = ['學生姓名', '開課班', '考試名稱', '課程', '日期', '分數', '狀態'];
+  const csvResponse = (rows: ReadonlyArray<ReadonlyArray<string | number | null>>) =>
+    c.body(toCsv(headers, rows), 200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="scores-${getCurrentTaipeiDateString()}.csv"`,
+    });
+
+  try {
+    const scope = await resolveScoreScope(supabase, {
+      orgId,
+      userId: c.get('userId'),
+      roles: c.get('roles') ?? [],
+      campusScope: campusFilterIds(getCampusScope(c), body.campusId),
+    });
+    if (scope === 'forbidden') return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+
+    let readable = scope.studentIds;
+    if (body.studentIds) {
+      const asked = new Set(body.studentIds);
+      readable = readable === null ? [...asked] : readable.filter((id) => asked.has(id));
+    }
+    // 範圍內沒有任何學生 → 只有標頭的檔案（「沒有」不是通行證，不能退成不限）
+    if (readable !== null && readable.length === 0) return csvResponse([]);
+
+    const pool = getAuth(c).pool;
+    if (!pool) return c.json({ error: '匯出失敗，請稍後再試', code: 'DB_POOL_UNAVAILABLE' }, 500);
+
+    const { rows } = await pool.query<{
+      student_name: string;
+      class_name: string | null;
+      exam_name: string;
+      course_name: string | null;
+      exam_date: string;
+      score: number | null;
+      status: string;
+    }>(SCORE_EXPORT_SQL, [orgId, readable, SCORE_EXPORT_ROW_LIMIT + 1]);
+    if (rows.length > SCORE_EXPORT_ROW_LIMIT) {
+      return c.json(
+        {
+          error: `筆數超過 ${SCORE_EXPORT_ROW_LIMIT} 筆，請先篩選再匯出`,
+          code: 'TOO_MANY_ROWS',
+        },
+        413,
+      );
+    }
+    return csvResponse(
+      rows.map((r) => [
+        r.student_name,
+        r.class_name,
+        r.exam_name,
+        r.course_name,
+        r.exam_date,
+        r.status === 'scored' ? r.score : null,
+        EXPORT_STATUS_LABELS[r.status] ?? r.status,
+      ]),
+    );
+  } catch (error) {
+    // 範圍解析或 SQL 任一段失敗就整份失敗 —— 不回一份少了一半的檔案
+    console.error('Scores export error:', error);
+    return c.json({ error: '匯出失敗，請稍後再試', code: 'DB_ERROR' }, 500);
+  }
+});
+
+// ============================================================
 // GET /api/scores/students —— 每生聚合（#1115）
 // ============================================================
 //
@@ -1403,6 +1565,9 @@ app.openapi(classExamStatsRoute, async (c) => {
   const { classId, examId } = c.req.valid('param');
 
   const roles = c.get('roles') ?? [];
+  const outOfScope = { error: '這個班不在你的任課範圍', code: 'CLASS_OUT_OF_SCOPE' } as const;
+  /** 前任（#2049 R2）：要等讀到考試日期才知道在不在任期內 */
+  let formerTenure: TeachingTenure | null = null;
   if (!roles.includes('admin')) {
     const scope = await loadTeachingScope(supabase, {
       orgId,
@@ -1412,9 +1577,10 @@ app.openapi(classExamStatsRoute, async (c) => {
     if ('forbidden' in scope || !scope.teacherStaffId) {
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
-    const taught = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
-    if (!taught.includes(classId)) {
-      return c.json({ error: '這個班不在你的任課範圍', code: 'CLASS_OUT_OF_SCOPE' }, 403);
+    const tenure = await loadTenure(supabase, orgId, scope.teacherStaffId);
+    if (!tenure.current.includes(classId)) {
+      if (!tenure.past.has(classId)) return c.json(outOfScope, 403);
+      formerTenure = tenure;
     }
   }
   // 分校範圍（#1250）。不在本 org 的交給下面的 404
@@ -1457,6 +1623,9 @@ app.openapi(classExamStatsRoute, async (c) => {
     : examClassRow.academy_exams;
   if (!exam) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
+  }
+  if (formerTenure && !canReadOn(formerTenure, classId, exam.exam_date ?? null)) {
+    return c.json(outOfScope, 403);
   }
 
   // 名單＝**考試那天**在籍 ∪ 已登錄（#1280，跟考試列表的分母同一個定義，issue #424）。

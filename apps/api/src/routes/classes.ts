@@ -7,11 +7,18 @@ import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { checkTeacherEligibility } from '../lib/teacher-eligibility';
+import {
+  isScheduleCurrentOrUpcoming,
+  isScheduleEffectiveOn,
+  scheduleOverlaps,
+  scheduleRangeOf,
+} from '../lib/schedule-effective';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
 import { classWriteScope, resourceCampusAllowed } from '../lib/campus-write-guard';
 import { deleteClasses, type ClassDeleteOutcome } from '../lib/class-delete';
+import { splitSchedule, type ScheduleSplitOutcome } from '../lib/schedule-split';
 import { getAuth } from '../lib/get-auth';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { countEnrolledOn, type EnrollmentRange } from '../lib/session-roster';
@@ -36,6 +43,8 @@ import {
 // Schemas
 // ============================================================
 
+const DateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必須是 YYYY-MM-DD');
+
 const ScheduleSchema = z
   .object({
     id: DbUuidSchema,
@@ -45,6 +54,8 @@ const ScheduleSchema = z
     endTime: z.string(),
     teacherId: DbUuidSchema.nullable(),
     teacherName: z.string().optional(),
+    /** 從哪天起生效（含，#1100 #22） */
+    effectiveFrom: z.string(),
     effectiveTo: z.string().nullable(),
     /** 指定的教室（#1796）；null = 不指定。教室刪掉時 DB 會把它設回 null */
     classroomId: DbUuidSchema.nullable(),
@@ -177,11 +188,47 @@ const CreateScheduleSchema = z
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     teacherId: DbUuidSchema.nullable().optional(),
+    /** 從哪天起生效（#1100 #22）；新增時沒帶＝班級開課日，班級沒填開課日就是今天（台北） */
+    effectiveFrom: DateOnlySchema.optional(),
     effectiveTo: z.string().nullable().optional(),
     /** 要跟班級同一個分校（#1796）；null = 不指定 */
     classroomId: DbUuidSchema.nullable().optional(),
   })
   .openapi('CreateSchedule');
+
+/** 「從某日起改時段」（#1100 #22）：舊段止於 fromDate − 1、新段起於 fromDate */
+const SplitScheduleSchema = z
+  .object({
+    fromDate: DateOnlySchema,
+    weekday: z.number().int().min(1).max(7),
+    startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    teacherId: DbUuidSchema.nullable(),
+    classroomId: DbUuidSchema.nullable(),
+    /** true＝整段照跑再回滾，只回預覽（受影響的課堂） */
+    dryRun: z.boolean().optional(),
+  })
+  .openapi('SplitSchedule');
+
+const SplitScheduleResultSchema = z
+  .object({
+    dryRun: z.boolean(),
+    /** dryRun 時是 null（那一列已回滾） */
+    newSchedule: ScheduleSchema.nullable(),
+    /** 刪掉、由新時段重產的舊課堂數 */
+    removedCount: z.number().int(),
+    createdCount: z.number().int(),
+    /** 有點名／請假／異動等資料而保留的舊課堂，要行政自己處理（Q2） */
+    kept: z.array(
+      z.object({
+        id: DbUuidSchema,
+        sessionDate: z.string(),
+        startTime: z.string(),
+        reasons: z.array(z.enum(['status', 'attendance', 'schedule_change', 'leave', 'makeup'])),
+      }),
+    ),
+  })
+  .openapi('SplitScheduleResult');
 
 const SessionPreviewSchema = z
   .object({
@@ -280,6 +327,8 @@ const CheckConflictsRequestSchema = z
         startTime: z.string(),
         endTime: z.string(),
         teacherId: DbUuidSchema.nullable(),
+        /** 生效起始日（#1100 #22）；沒帶＝不限起點 */
+        effectiveFrom: z.string().nullable().optional(),
         effectiveTo: z.string().nullable().optional(),
       }),
     ),
@@ -331,6 +380,7 @@ function mapSchedule(row: Record<string, unknown>) {
     endTime: row['end_time'] as string,
     teacherId: (row['teacher_id'] as string | null) ?? null,
     teacherName: (row['staff'] as { display_name: string } | null)?.display_name,
+    effectiveFrom: row['effective_from'] as string,
     effectiveTo: (row['effective_to'] as string | null) ?? null,
     classroomId: (row['classroom_id'] as string | null) ?? null,
     classroomName: (row['classrooms'] as { name: string } | null)?.name ?? null,
@@ -352,6 +402,56 @@ async function classroomProblem(
   if (!room) return { status: 404, error: '教室不存在', code: 'CLASSROOM_NOT_FOUND' };
   if (room['campus_id'] !== classCampusId) {
     return { status: 409, error: '教室不在這個班級的分校', code: 'CLASSROOM_CAMPUS_MISMATCH' };
+  }
+  return null;
+}
+
+/**
+ * #854：排課指定任課老師要驗分校與科目，跟代課同一個判準、同一個錯誤碼。
+ * 改時段（PUT）與「從某日起改時段」（split）共用這一份；呼叫端只在老師真的換了才叫（理由見 PUT）。
+ */
+async function teacherEligibilityProblem(
+  supabase: AppEnv['Variables']['supabase'],
+  orgId: string,
+  classId: string,
+  teacherId: string,
+): Promise<{ status: 400 | 409; error: string; code: string } | null> {
+  const { data: classRow } = await supabase
+    .from('classes')
+    .select('id, campus_id, course_id')
+    .eq('org_id', orgId)
+    .eq('id', classId)
+    .maybeSingle();
+  const { data: courseRow } = await supabase
+    .from('courses')
+    .select('subject_id')
+    .eq('org_id', orgId)
+    .eq('id', (classRow?.['course_id'] as string | undefined) ?? '')
+    .maybeSingle();
+
+  const campusId = classRow?.['campus_id'] as string | undefined;
+  const subjectId = courseRow?.['subject_id'] as string | undefined;
+
+  if (!campusId || !subjectId) {
+    return {
+      status: 409,
+      error: '這個班級缺少分校或科目設定，無法指派老師',
+      code: 'TEACHER_NOT_ELIGIBLE',
+    };
+  }
+
+  const eligibility = await checkTeacherEligibility(supabase, {
+    staffId: teacherId,
+    orgId,
+    campusId,
+    subjectId,
+  });
+
+  if (!eligibility.eligible) {
+    if ('dbError' in eligibility) {
+      return { status: 400, error: eligibility.dbError, code: 'DB_ERROR' };
+    }
+    return { status: 409, error: eligibility.reason, code: 'TEACHER_NOT_ELIGIBLE' };
   }
   return null;
 }
@@ -802,15 +902,24 @@ app.openapi(
         ? rows.length
         : (count ?? 0);
 
+    const listToday = getCurrentTaipeiDateString();
     return c.json({
       data: rows.map((r) => {
         const id = r.id as string;
-        const schedules = (r['schedules'] as unknown[]) || [];
+        const allSchedules = (r['schedules'] as Record<string, unknown>[]) || [];
+        // #1100 #22：列表的時段（摘要、時段數）看「那天」有效的 —— 今天，還沒開課的班看開課日
+        // （不然下個月才開的班會變成「沒有時段」）。老師篩選沒有日期脈絡，照 Q3 看今天有效或未來有效
+        const startDate = (r['start_date'] as string | null) ?? null;
+        const asOf = startDate && startDate > listToday ? startDate : listToday;
+        const schedules = allSchedules.filter((s) =>
+          isScheduleEffectiveOn(scheduleRangeOf(s), asOf),
+        );
         return mapClass(r as Record<string, unknown>, {
           schedules,
           scheduleCount: schedules.length,
-          scheduleTeacherIds: schedules
-            .map((s: any) => s.teacher_id)
+          scheduleTeacherIds: allSchedules
+            .filter((s) => isScheduleCurrentOrUpcoming(scheduleRangeOf(s), listToday))
+            .map((s) => s['teacher_id'] as string | null)
             .filter((tid): tid is string => !!tid),
           hasUpcomingSessions: hasUpcomingSet.has(id),
           hasPastSessions: hasPastSessionsSet.has(id),
@@ -852,6 +961,7 @@ app.openapi(
           },
         },
       },
+      500: { description: '讀取失敗（#1928：不再當成「沒有衝突」回 200）' },
     },
   }),
   async (c) => {
@@ -866,28 +976,20 @@ app.openapi(
 
     const teacherIds = [...new Set(schedulesToCheck.map((s) => s.teacherId as string))];
 
-    // Step 1: 取得此 org 的所有班級 id（確保跨組織隔離）
-    const { data: orgClasses } = await supabase.from('classes').select('id').eq('org_id', orgId);
-    let orgClassIds = (orgClasses || []).map((c) => c.id as string);
-
-    if (excludeClassId) {
-      orgClassIds = orgClassIds.filter((id) => id !== excludeClassId);
-    }
-
-    if (orgClassIds.length === 0) {
-      return c.json({ conflicts: [] }, 200);
-    }
-
-    // Step 2: 查詢這些班級中屬於這些老師的所有時段
-    const { data: existingSchedules, error } = await supabase
+    // 這些老師在本 org 的所有時段。**org 範圍在 join 裡套**（`classes!inner` ＋ `classes.org_id`，#1928）——
+    // 原本先撈整個 org 歷年所有班級 id 再塞回 `.in('class_id', …)`：班一多網址太長 → 414，
+    // 而且那份清單本身也被 max_rows（1000）截斷。老師 id 只有表單上那幾位，`.in` 很短。
+    let query = supabase
       .from('schedules')
-      .select('*, staff(display_name), classes(name, courses(name))')
-      .in('teacher_id', teacherIds)
-      .in('class_id', orgClassIds);
+      .select('*, staff(display_name), classes!inner(org_id, name, courses(name))')
+      .eq('classes.org_id', orgId)
+      .in('teacher_id', teacherIds);
+    if (excludeClassId) query = query.neq('class_id', excludeClassId);
+    const { data: existingSchedules, error } = await query;
 
     if (error) {
       console.error('check-conflicts DB error:', error);
-      return c.json({ conflicts: [] }, 200); // soft-fail
+      return c.json({ error: '讀取時段失敗', code: 'DB_ERROR' }, 500);
     }
 
     type ConflictItem = {
@@ -919,9 +1021,10 @@ app.openapi(
         const eEnd = (existing.end_time as string).substring(0, 5);
         if (sStart >= eEnd || eStart >= sEnd) continue;
 
-        // 日期範圍重疊
+        // 生效期間也要有交集才算衝突（#1100 #22；原本算了 sTo／eTo 卻沒用到，已經結束的舊時段也報衝突）
+        const sFrom = s.effectiveFrom ?? null;
         const sTo = s.effectiveTo ?? null;
-        const eTo = (existing.effective_to as string | null) ?? null;
+        if (!scheduleOverlaps(scheduleRangeOf(existing), sFrom, sTo)) continue;
 
         const clsData = existing.classes as {
           name: string;
@@ -1600,7 +1703,7 @@ app.openapi(
       'classes',
       orgId,
       id,
-      'name, campus_id, courses(name), campuses(name)',
+      'name, campus_id, start_date, courses(name), campuses(name)',
     );
     if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
@@ -1628,6 +1731,11 @@ app.openapi(
         start_time: body.startTime,
         end_time: body.endTime,
         teacher_id: body.teacherId ?? null,
+        // #1100 #22：沒帶＝班級開課日（同 migration 對既有時段的回填），沒開課日＝今天
+        effective_from:
+          body.effectiveFrom ??
+          (cls['start_date'] as string | null) ??
+          getCurrentTaipeiDateString(),
         effective_to: body.effectiveTo ?? null,
         classroom_id: body.classroomId ?? null,
       })
@@ -1635,8 +1743,12 @@ app.openapi(
       .single();
 
     if (error) {
-      if (error.code === '23505') {
+      // 23505：舊的唯一鍵；23P01：#1100 #22 換成的排除約束（同時段生效區間重疊）
+      if (error.code === '23505' || error.code === '23P01') {
         return c.json({ error: '此時段已存在', code: 'DUPLICATE' }, 409);
+      }
+      if (error.code === '23514') {
+        return c.json({ error: '結束日不能早於生效日', code: 'INVALID_RANGE' }, 400);
       }
       return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
     }
@@ -1732,42 +1844,8 @@ app.openapi(
 
     // `null` 是取消指派 —— 沒有人要驗資格
     if (teacherChanged && nextTeacherId) {
-      const { data: classRow } = await supabase
-        .from('classes')
-        .select('id, campus_id, course_id')
-        .eq('org_id', orgId)
-        .eq('id', id)
-        .maybeSingle();
-      const { data: courseRow } = await supabase
-        .from('courses')
-        .select('subject_id')
-        .eq('org_id', orgId)
-        .eq('id', (classRow?.['course_id'] as string | undefined) ?? '')
-        .maybeSingle();
-
-      const campusId = classRow?.['campus_id'] as string | undefined;
-      const subjectId = courseRow?.['subject_id'] as string | undefined;
-
-      if (!campusId || !subjectId) {
-        return c.json(
-          { error: '這個班級缺少分校或科目設定，無法指派老師', code: 'TEACHER_NOT_ELIGIBLE' },
-          409,
-        );
-      }
-
-      const eligibility = await checkTeacherEligibility(supabase, {
-        staffId: nextTeacherId,
-        orgId,
-        campusId,
-        subjectId,
-      });
-
-      if (!eligibility.eligible) {
-        if ('dbError' in eligibility) {
-          return c.json({ error: eligibility.dbError, code: 'DB_ERROR' }, 400);
-        }
-        return c.json({ error: eligibility.reason, code: 'TEACHER_NOT_ELIGIBLE' }, 409);
-      }
+      const problem = await teacherEligibilityProblem(supabase, orgId, id, nextTeacherId);
+      if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
     }
 
     // 教室同老師：**只在真的換了才驗**。前端把既有 classroomId 原封送回，班級後來換了分校的話，
@@ -1790,6 +1868,7 @@ app.openapi(
     if (body.startTime !== undefined) updateData['start_time'] = body.startTime;
     if (body.endTime !== undefined) updateData['end_time'] = body.endTime;
     if (body.teacherId !== undefined) updateData['teacher_id'] = body.teacherId;
+    if (body.effectiveFrom !== undefined) updateData['effective_from'] = body.effectiveFrom;
     if (body.effectiveTo !== undefined) updateData['effective_to'] = body.effectiveTo;
     if (body.classroomId !== undefined) updateData['classroom_id'] = body.classroomId;
 
@@ -1801,11 +1880,183 @@ app.openapi(
       .select('*, staff(display_name), classrooms(name)')
       .single();
 
+    // 改了生效日／時間後跟同時段的另一段重疊（#1100 #22）
+    if (error?.code === '23505' || error?.code === '23P01') {
+      return c.json({ error: '此時段已存在', code: 'DUPLICATE' }, 409);
+    }
+    if (error?.code === '23514') {
+      return c.json({ error: '結束日不能早於生效日', code: 'INVALID_RANGE' }, 400);
+    }
     if (error || !data) {
       return c.json({ error: '時段不存在', code: 'NOT_FOUND' }, 404);
     }
 
     return c.json({ data: mapSchedule(data as Record<string, unknown>) }, 200);
+  },
+);
+
+// POST /api/classes/:id/schedules/:sid/split
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/{id}/schedules/{sid}/split',
+    tags: ['Classes'],
+    summary: '從某日起改時段（舊時段止於前一天、新時段從這天起；dryRun 只預覽）',
+    request: {
+      params: z.object({ id: DbUuidSchema, sid: DbUuidSchema }),
+      body: { content: { 'application/json': { schema: SplitScheduleSchema } } },
+    },
+    responses: {
+      200: {
+        description: '成功（dryRun 時什麼都沒寫）',
+        content: { 'application/json': { schema: z.object({ data: SplitScheduleResultSchema }) } },
+      },
+      400: {
+        description: '生效日早於今天，或不在舊時段的區間內（INVALID_DATE）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      404: {
+        description: '班級或時段不存在（含分校範圍外）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      409: {
+        description:
+          '新時段跟同班同星期同開始時間的另一段重疊（DUPLICATE）；老師資格不符（TEACHER_NOT_ELIGIBLE）；教室不在本分校',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: {
+        description: '交易失敗，整筆已回滾',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const { id, sid } = c.req.valid('param');
+    const body = c.req.valid('json');
+
+    // 過去的課堂不跟著改：今天以前的歷史留在舊時段
+    if (body.fromDate < getCurrentTaipeiDateString()) {
+      return c.json({ error: '生效日不能早於今天', code: 'INVALID_DATE' }, 400);
+    }
+
+    // 交易外的讀取只拿來驗資格與寫稽核；範圍與區間在交易裡重做（pg-pool-writes 規則 4）
+    const { data: existing } = await supabase
+      .from('schedules')
+      .select(
+        'teacher_id, classroom_id, classes!inner(name, campus_id, org_id, courses(name), campuses(name))',
+      )
+      .eq('id', sid)
+      .eq('class_id', id)
+      .eq('classes.org_id', orgId)
+      .maybeSingle();
+    if (!existing) return c.json({ error: '時段不存在', code: 'NOT_FOUND' }, 404);
+    const cls = existing['classes'] as unknown as Record<string, unknown>;
+
+    // 老師、教室：同 PUT，只在真的換了才驗（#854、#1796）
+    if (body.teacherId && body.teacherId !== existing['teacher_id']) {
+      if (!(await findInOrg(supabase, 'staff', orgId, body.teacherId))) {
+        return c.json({ error: '老師不存在', code: 'TEACHER_NOT_FOUND' }, 404);
+      }
+      const problem = await teacherEligibilityProblem(supabase, orgId, id, body.teacherId);
+      if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
+    }
+    if (body.classroomId && body.classroomId !== existing['classroom_id']) {
+      const problem = await classroomProblem(
+        supabase,
+        orgId,
+        (cls['campus_id'] as string | null) ?? null,
+        body.classroomId,
+      );
+      if (problem) return c.json({ error: problem.error, code: problem.code }, problem.status);
+    }
+
+    const pool = getAuth(c).pool;
+    if (!pool) return c.json({ error: '改時段失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+    let result: ScheduleSplitOutcome;
+    try {
+      result = await splitSchedule(pool, {
+        orgId,
+        classId: id,
+        scheduleId: sid,
+        scope: getCampusScope(c),
+        fromDate: body.fromDate,
+        weekday: body.weekday,
+        startTime: body.startTime,
+        endTime: body.endTime,
+        teacherId: body.teacherId,
+        classroomId: body.classroomId,
+        createdBy: userId ?? null,
+        dryRun: body.dryRun ?? false,
+      });
+    } catch (err) {
+      console.error('[classes] split schedule transaction failed:', err);
+      return c.json({ error: '改時段失敗', code: 'DB_ERROR' }, 500);
+    }
+
+    switch (result.status) {
+      case 'not-found':
+        return c.json({ error: '時段不存在', code: 'NOT_FOUND' }, 404);
+      case 'invalid-date':
+        return c.json(
+          {
+            error: `生效日要晚於 ${result.effectiveFrom}${result.effectiveTo ? `、不晚於 ${result.effectiveTo}` : ''}`,
+            code: 'INVALID_DATE',
+          },
+          400,
+        );
+      case 'overlap':
+        return c.json({ error: '這個時段在那段期間已經有了', code: 'DUPLICATE' }, 409);
+    }
+
+    let newSchedule: ReturnType<typeof mapSchedule> | null = null;
+    if (!result.dryRun) {
+      const { data } = await supabase
+        .from('schedules')
+        .select('*, staff(display_name), classrooms(name)')
+        .eq('id', result.newScheduleId)
+        .single();
+      newSchedule = data ? mapSchedule(data as Record<string, unknown>) : null;
+
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'class',
+          resourceId: id,
+          resourceName: classAuditResourceName(cls),
+          action: 'split_schedule',
+          details: {
+            fromScheduleId: sid,
+            toScheduleId: result.newScheduleId,
+            fromDate: body.fromDate,
+            weekday: body.weekday,
+            startTime: body.startTime,
+            endTime: body.endTime,
+            removedSessions: result.removedCount,
+            createdSessions: result.createdCount,
+            keptSessions: result.kept.length,
+          },
+        },
+        waitUntilFrom(c),
+      );
+    }
+
+    return c.json(
+      {
+        data: {
+          dryRun: result.dryRun,
+          newSchedule,
+          removedCount: result.removedCount,
+          createdCount: result.createdCount,
+          kept: result.kept,
+        },
+      },
+      200,
+    );
   },
 );
 

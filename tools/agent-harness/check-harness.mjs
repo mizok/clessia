@@ -11,7 +11,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
@@ -43,10 +43,11 @@ import {
 } from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
-import { usesRawSupabase } from './lib/parent-route-scan.mjs';
+import { usesRawSupabase, usesRawPool } from './lib/parent-route-scan.mjs';
 import { themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
 import { loadTailwind } from './lib/tailwind-classes.mjs';
+import { uncoveredTemplateDirs } from './lib/tailwind-source-coverage.mjs';
 import { touchTargetClassViolations, contrastClassViolations } from './lib/tailwind-a11y.mjs';
 import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
@@ -87,6 +88,9 @@ const TAILWIND_CONTRAST_EXEMPT = {
     'LINE 官方按鈕規範：白字＋#06C755（2.26:1）；按鈕文字粗體並有圖示。**既有的對比債**，1:1 搬家不改外觀（#991 E1 搬自原 SCSS 的 --line-brand，原版 gate 看不到 var 間接）',
   'apps/web/src/app/features/public/pages/login/login.component.html|text-[#06c755]|bg-white':
     '使用者指定的白底綠框 LINE 登入鈕（login 原 SCSS 註解：「使用者要的是白底綠框的輪廓感」）：文字與邊框同為 LINE 品牌綠 #06C755，疊白底只有 2.26:1。這是**既有的對比債**，1:1 搬家不改外觀；要修需要使用者改設計（#991 E1，原 SCSS 版 gate 看不到 var 間接）',
+  // ─ 純裝飾圖示：WCAG 1.4.11 ─
+  'apps/web/src/app/shared/components/empty-state/empty-state.component.html|[&_i]:text-zinc-400|bg-zinc-100':
+    '共用空狀態元件的圖示（i 28px，圓底 zinc-100），標題與說明文字承載資訊 —— 1.4.11 純裝飾豁免。SCSS 時代的同一筆豁免，#1358 搬成 `[&_i]:` 後 A28 看不到而被刪；#1359 讓 A28 讀巢狀變體後補回',
   // ─ gate 把「祖先的底色」當成文字的底色，而實際位置不在祖先上 ─
   'apps/web/src/app/shared/components/day-timeline/day-timeline.component.html|text-band-ink|bg-band-ink':
     '「現在」標籤是 2px 寬 `now` 標記線（bg-band-ink）的子元素，但定位在線**上方** `-top-[15px]`、水平置中，實際疊在橘帶本身（`--band-ink` 疊 band 底色已由 band-contrast gate 守地板 0.78）。gate 只看 DOM 祖先所以誤報 1:1；原 SCSS 版同一結構（#991 Z2）',
@@ -94,8 +98,6 @@ const TAILWIND_CONTRAST_EXEMPT = {
     '班級列右側的 chevron（hover 變 accent-500 並右移 2px）：純裝飾，旁邊必有班級名稱、課程、日期等文字——1.4.11 純裝飾豁免；原 SCSS 即 `--zinc-300`（1.34:1），1:1 搬家不改色（#991 Z9）',
   'apps/web/src/app/shared/components/attendance-roster-panel/attendance-roster-panel.component.html|text-zinc-500|bg-zinc-200':
     '誤報：`text-zinc-500`（`[class.text-zinc-500]="!isLocked(student)"`）與 `bg-zinc-200`（`[class.bg-zinc-200]="isLocked(student)"`）是同一個條件的相反兩面，**永遠不會同時套在同一列**；請假列（鎖定）的副標是 `text-zinc-600` 對 zinc-200 6.44:1。gate 把兩個條件 class 視為「可能同時套上」（#991 Z10）',
-  'apps/web/src/app/shared/components/attendance-roster-panel/attendance-roster-panel.component.html|text-warning-600|bg-zinc-200':
-    '**既有的對比債**：請假列（`--on-leave`，zinc-200 底）裡的警告文字（`__leave-span`「銷假將一併取消到…」、`__mismark`「這位學生已請假，不需點名」，12px）用 `warning-600`，對 zinc-200 只有 4.08:1（< AA 4.5）。原 SCSS 版 gate 看不到跨選擇器的底色（`--on-leave` 在 `__row` 上、文字在子孫），1:1 搬家不改色——搬成 Tailwind 後才第一次被量到。要修需改 token 色階或請假列底色，屬設計決定（#991 Z10）',
 };
 const usedTailwindContrastExempt = new Set();
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
@@ -381,7 +383,14 @@ if (existsSync(apiIndex)) {
   const authAt = source.search(/^app\.use\('\/api\/\*', authMiddleware\)/m);
   for (const match of source.matchAll(/app\.route\('(\/api\/[^']+)'/g)) {
     const path = match[1];
-    if (path.startsWith('/api/public/') || path.startsWith('/api/internal/')) {
+    // **第三個例外：`/api/auth-handoff`（#2027）**。iOS PWA 外部登入交接的 start／redeem 是 PWA 還沒登入時打的，
+    // 門是交接的 secret（只存雜湊、一次性、10 分鐘）。不放 `/api/public/*`：那會被 `PUBLIC_ORG_SLUG` 綁住，
+    // 登入不能依賴招生頁的開關。要登入的 complete 掛在 `/api/me/auth-handoff`。
+    if (
+      path.startsWith('/api/public/') ||
+      path.startsWith('/api/internal/') ||
+      path === '/api/auth-handoff'
+    ) {
       if (authAt === -1 || match.index > authAt) {
         fail(`${path} 不經登入，必須掛在 app.use('/api/*', authMiddleware) 之前`);
       }
@@ -996,6 +1005,17 @@ scanExisting({
 // 本專案不在 main 上工作（AGENTS.md），而寫入當下那一層由 pre-guard 的 c3（whenTracked）擋，
 // 所以缺口是可接受的。拿不到 origin/main 時（淺 clone、離線）只警告不紅燈 ——
 // 環境問題不該偽裝成違憲。
+// **c3 的破例**：只放行使用者明確授權、**內容一字不改**的改名（git 判成 R100），新舊檔名要完全對上。
+// 每一筆都要寫出處。修改、刪除、內容有變的改名照樣紅燈 —— 這張表不是後門。
+const C3_RENAME_EXCEPTIONS = [
+  {
+    from: 'supabase/migrations/20261023033540_schedule_effective_from.sql',
+    to: 'supabase/migrations/20261023034100_schedule_effective_from.sql',
+    // 時間戳比已套到正式 DB 的 034048 早，migrate plan 擋下、main 部署全停；這支從未套到任何共用 DB
+    source: '#2025 使用者 10-23 授權（c3 破例）',
+  },
+];
+
 const migrationsChanged = spawnSync(
   'git',
   [
@@ -1016,6 +1036,12 @@ if (migrationsChanged.status !== 0) {
 } else {
   for (const line of migrationsChanged.stdout.split('\n').filter(Boolean)) {
     const [status, ...paths] = line.split('\t');
+    if (
+      status === 'R100' &&
+      C3_RENAME_EXCEPTIONS.some((e) => e.from === paths[0] && e.to === paths[1])
+    ) {
+      continue;
+    }
     fail(
       `${paths.at(-1)} 是已提交的 migration，本分支卻${status.startsWith('D') ? '刪除' : status.startsWith('R') ? '改名' : '修改'}了它（c3）。` +
         `schema 變更請新增一支 ALTER TABLE migration：npx supabase migration new <description>`,
@@ -1301,6 +1327,12 @@ if (existsSync(FEATURES_DIR)) {
         fail(
           `${rel} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
             `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
+        );
+      }
+      if (usesRawPool(source, rel)) {
+        fail(
+          `${rel} 出現 getAuth( 或 .pool —— 家長端檔案不碰原始 pg 連線，要用 pool 的寫入做成 ` +
+            `childDb 的能力（createChildDb 收 pool），見 kb/wiki/architecture/parent-data-scope.md 第二節`,
         );
       }
     }
@@ -2317,6 +2349,25 @@ function checkTailwindTheme() {
 }
 
 checkTailwindTheme();
+
+// ── A29. 每個有模板的目錄都被 tailwind.css 的 @source 涵蓋（計畫席 10-23）──────────────────
+// source(none)：沒列進 @source 的目錄，class 不會被產生；別頁剛好用過同一個 class 時畫面照樣正常，
+// 本機看不出來。判準在 lib/tailwind-source-coverage.mjs。
+function checkTailwindSourceCoverage() {
+  const app = join(ROOT, 'apps/web/src/app');
+  if (!tailwind || !existsSync(app)) return;
+  recordScope('tailwind-source-coverage', { roots: ['apps/web/src/app'], exts: ['.html', '.ts'] });
+  const files = [...walk(app, '.html'), ...walk(app, '.ts')].map((f) => relative(ROOT, f));
+  const read = (f) => readFileSync(join(ROOT, f), 'utf8');
+  for (const dir of uncoveredTemplateDirs(files, read, tailwind.covers)) {
+    fail(
+      `${dir} 有模板，但沒被 apps/web/src/tailwind.css 的任何一條 @source 涵蓋 —— ` +
+        `它的 class 不會被產生（source(none)）。加一行 @source './${dir.replace('apps/web/src/', '')}';`,
+    );
+  }
+}
+
+checkTailwindSourceCoverage();
 
 // ── A26. cascade layer 順序三處一致（#991 T4）──────────────────────────────────────────
 // tailwind.css、styles.css 的 `@layer …;` 與 PrimeNG 的 cssLayer.order（必須是前綴）。

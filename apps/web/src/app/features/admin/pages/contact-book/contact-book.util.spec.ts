@@ -25,6 +25,7 @@ function entry(overrides: Partial<ContactBookEntry> = {}): ContactBookEntry {
     signedByName: null,
     signedAt: null,
     isSigned: false,
+    editedAfterSign: false,
     ...overrides,
   };
 }

@@ -3,7 +3,7 @@ title: Tailwind 導入評估（c6、PrimeNG 並存、Angular 21 接法、BEM／S
 summary: 使用者 2026-10-02 裁定新 UI 改用 Tailwind、入口頁日後重排、不再延續 BEM＋SCSS。本頁回答導入前要先定的五件事：c6 的 regex 抓不到 h-screen 這類沒有數字的 class（三層補法）、PrimeNG 改用 cssLayer 會讓既有覆寫的勝負翻轉、tokens 有一個語意衝突（--font-medium 是字重不是字體）、Tailwind 4 不搭 Sass 所以入口要獨立成 .css、以及五支解析 SCSS 的 gate 會在 Tailwind 頁面上失明。
 category: architecture
 status: proposed
-updated: 2026-10-03
+updated: 2026-10-23
 tags: [architecture, tailwind, styling, primeng, c6, migration]
 ---
 
@@ -87,6 +87,10 @@ gate A12（`check-harness.mjs` 的 `scanExisting({ clause: 'c6', … })`）**餵
 > 既有 template 有 **90+ 處 PrimeFlex 遺留的死 class**（`w-full` ×90、`mb-2`、`p-4`、`text-2xl`…，SCSS 從沒定義、今天是 no-op），
 > 掃整個 app 會把它們喚醒（實測：產生 33 個 utility，含 `.w-full`、`.container`、`.fixed`）。每支頁面 PR 只把自己的目錄加進 `@source`，
 > 同時刪掉該目錄的 `.scss`；A24 交叉檢查兩邊。
+>
+> **遷移完成後（`.scss` 歸零）反過來守：A29 要求每個有模板的目錄都被某一條 `@source` 涵蓋**（2026-10-23，計畫席）。
+> 新目錄忘了加的話，它的 class 不會被產生；但別頁剛好用過同一個 class 時畫面照樣正常，本機看不出來 ——
+> 10-23 一天踩三次（家長通知頁、骨架元件、操作紀錄入口鈕）。開 A29 時補上 4 個漏網目錄，事先確認它們沒有會被喚醒的死 class。
 
 **本 repo 少了這兩行的後果**：`kb/` 裡任何一份提到 `h-screen` 的文件（例如本頁）都會讓正式 bundle 多出違反 c6 的 CSS，而**沒有任何一道 gate 掃得到**：gate 看的是原始碼，不是產物。
 
@@ -217,14 +221,14 @@ Tailwind 端用 `@theme inline` 引用它。官方說引用其他變數時要用
 **為什麼要先 `--*: initial` 清掉整個預設 theme**（官方用法見 <https://tailwindcss.com/docs/theme>，「Disable default theme globally」）：
 
 | 名稱                             | 本專案（`styles.css`） | Tailwind 4 預設                                                 | 問題                                                                           |
-| -------------------------------- | ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `--font-normal`、`--font-medium` | **字重**（400、500）    | `--font-*` 是**字體家族**命名空間；字重在 `--font-weight-*`     | ⚠️ **語意衝突**：放進 `@theme` 的話，`font-medium` 會被當成 `font-family: 500` |
-| `--text-xs` … `--text-3xl`       | 字級，px                | 同名，也是字級，但 rem 而且值不同；另有 `--text-*--line-height` | 同語意不同值，映射時以本專案為準                                               |
-| `--radius-sm` … `--radius-xl`    | 4／6／8／10px           | 0.25rem／0.375rem／0.5rem／0.75rem                              | 同上（`xl` 不同）                                                              |
-| `--shadow-sm`、`--shadow-md`     | 本專案的值              | 同名不同值                                                      | 同上                                                                           |
-| `--color-white`、`--color-black` | 同語意                  | 同名                                                            | 無衝突                                                                         |
-| `--space-1` … `--space-12`       | 4px 的倍數              | Tailwind 4 用單一 `--spacing` 乘數                              | 設 `--spacing: 4px` 之後，`p-4` 正好等於 `--space-4`，兩邊名字對得上           |
-| `--zinc-*`、`--accent-*` 等色票  | 本專案色票              | Tailwind 自帶一套 `zinc`                                        | 不清掉的話會出現兩套 zinc，`bg-zinc-500` 不是我們的 zinc                       |
+| -------------------------------- | ---------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `--font-normal`、`--font-medium` | **字重**（400、500）   | `--font-*` 是**字體家族**命名空間；字重在 `--font-weight-*`     | ⚠️ **語意衝突**：放進 `@theme` 的話，`font-medium` 會被當成 `font-family: 500` |
+| `--text-xs` … `--text-3xl`       | 字級，px               | 同名，也是字級，但 rem 而且值不同；另有 `--text-*--line-height` | 同語意不同值，映射時以本專案為準                                               |
+| `--radius-sm` … `--radius-xl`    | 4／6／8／10px          | 0.25rem／0.375rem／0.5rem／0.75rem                              | 同上（`xl` 不同）                                                              |
+| `--shadow-sm`、`--shadow-md`     | 本專案的值             | 同名不同值                                                      | 同上                                                                           |
+| `--color-white`、`--color-black` | 同語意                 | 同名                                                            | 無衝突                                                                         |
+| `--space-1` … `--space-12`       | 4px 的倍數             | Tailwind 4 用單一 `--spacing` 乘數                              | 設 `--spacing: 4px` 之後，`p-4` 正好等於 `--space-4`，兩邊名字對得上           |
+| `--zinc-*`、`--accent-*` 等色票  | 本專案色票             | Tailwind 自帶一套 `zinc`                                        | 不清掉的話會出現兩套 zinc，`bg-zinc-500` 不是我們的 zinc                       |
 
 Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.com/docs/theme>，「Generating all CSS variables」），
 所以衝突只在「某個 utility 用到它」時才會出現。**那正是最難查的一種**：今天沒事，某一天有人寫了 `font-medium` 才壞。
@@ -274,7 +278,7 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
 | ------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 依賴          | `tailwindcss`、`@tailwindcss/postcss`、`postcss`（devDependencies）                                    | Angular 的 `ng add tailwindcss` schematic 安裝的就是這三個（`angular-cli/packages/schematics/angular/tailwind/index.ts`）                                                                                               |
 | PostCSS 設定  | **`apps/web/.postcssrc.json`**，內容 `{ "plugins": { "@tailwindcss/postcss": {} } }`                   | 建置器依序在 `[projectRoot, workspaceRoot]` 找 `postcss.config.json`／`.postcssrc.json`（`angular-cli/packages/angular/build/src/builders/application/options.ts:281-282`）。放 project root 優先，不影響 repo 其他東西 |
-| Tailwind 入口 | **新檔 `apps/web/src/tailwind.css`**（純 CSS），加進 `apps/web/project.json` 的 `build.options.styles` | 官方：v4「不是設計來跟 Sass、Less、Stylus 一起用的」（<https://tailwindcss.com/docs/compatibility>）。所以不放進 `styles.css`                                                                                          |
+| Tailwind 入口 | **新檔 `apps/web/src/tailwind.css`**（純 CSS），加進 `apps/web/project.json` 的 `build.options.styles` | 官方：v4「不是設計來跟 Sass、Less、Stylus 一起用的」（<https://tailwindcss.com/docs/compatibility>）。所以不放進 `styles.css`                                                                                           |
 | `ng add`      | **用不了**：本 repo 沒有 `angular.json`（`AGENTS.md`）。照上面三列手動接                               | —                                                                                                                                                                                                                       |
 
 **順序：實際上是 PrimeNG 先定的。** 實測加讀原始碼：PrimeNG 用 `first: true` 把 `layer-order` 那支 `<style>` **插在 `<head>` 的第一個位置**
@@ -324,7 +328,7 @@ layer 順序由第一次出現決定，所以：
 | **入口頁**（`features/public`、`select-role`、登入） | 使用者指定的第一批重排對象                                          |
 | **其餘既有頁**                                       | 碰到大改時才整頁重排。小修照原樣（BEM＋SCSS），**不要半頁換**       |
 | **同一個元件**                                       | **只用一套**。混用時 SCSS（未分層）一律贏過 utility（分層），見 2.2 |
-| **tokens**                                           | 單一來源（`styles.css` 的 `:root`）。Tailwind 端只引用、不另定值   |
+| **tokens**                                           | 單一來源（`styles.css` 的 `:root`）。Tailwind 端只引用、不另定值    |
 
 ### 4.2 退場：文件與 skill
 
@@ -341,16 +345,21 @@ layer 順序由第一次出現決定，所以：
 
 這幾支 gate 解析的是 SCSS（`tools/agent-harness/lib/` 底下）。**頁面改用 Tailwind 之後，樣式活在 template 的 class 字串裡，它們什麼都看不到**，而且輸出還是綠的：
 
-| gate            | 守什麼                               | Tailwind 頁面上                             | 對應的補法（另開單）                                                                          |
-| --------------- | ------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `scss-contrast` | 文字實際疊在哪個底上的對比           | 失明                                        | 解析 class 字串裡的 `text-*`／`bg-*` 配對，對到 token 值算對比                                |
-| `touch-target`  | 自刻可點元素的 44px 下限             | 失明                                        | 可點元素（`button`、`a`、`(click)`）的 class 要有 `min-h-11`、`size-11` 或等值                |
-| `mobile-first`  | 桌機優先（`respond-to`）只准變少     | 失明                                        | Tailwind 本身就是 mobile-first。新規則改成「新程式碼不得用 `max-*:` variant」                 |
-| `orphan-class`  | template 的 class 在 SCSS 有沒有對應 | 不適用                                      | utility 拼錯會**靜靜沒樣式**。實測可行：`candidatesToCss()` 對拼錯的 class 回空（見實測紀錄） |
+| gate            | 守什麼                               | Tailwind 頁面上                            | 對應的補法（另開單）                                                                          |
+| --------------- | ------------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `scss-contrast` | 文字實際疊在哪個底上的對比           | 失明                                       | 解析 class 字串裡的 `text-*`／`bg-*` 配對，對到 token 值算對比                                |
+| `touch-target`  | 自刻可點元素的 44px 下限             | 失明                                       | 可點元素（`button`、`a`、`(click)`）的 class 要有 `min-h-11`、`size-11` 或等值                |
+| `mobile-first`  | 桌機優先（`respond-to`）只准變少     | 失明                                       | Tailwind 本身就是 mobile-first。新規則改成「新程式碼不得用 `max-*:` variant」                 |
+| `orphan-class`  | template 的 class 在 SCSS 有沒有對應 | 不適用                                     | utility 拼錯會**靜靜沒樣式**。實測可行：`candidatesToCss()` 對拼錯的 class 回空（見實測紀錄） |
 | `band-contrast` | token 本身的值                       | **仍有效**：它看 `styles.css`，tokens 不搬 | 不用動                                                                                        |
 
 **判準**：第一頁 Tailwind 上線之前，至少 `touch-target` 與 `scss-contrast` 要有 class 版本。
 否則「gate 全綠」在那一頁上的意思會變成「沒有東西在看」，而輸出看不出來。
+
+> **class 版對比（A28）也有過同一種失明**（#1359）：它原本只讀不帶 `:` 的 class，父元素用巢狀任意變體
+> `[&_i]:text-zinc-400` 替子元素上色時整組看不到。empty-state 的圖示搬成 Tailwind 後，原本的豁免被報「過期」，
+> 但對比根本沒變，只是沒人在量。現在 A28 讀 `[&_x]:`／`[&>x]:`；同元素 modifier 變體 `[&.x]:` 仍然不量，
+> 範圍寫在 `tools/agent-harness/lib/tailwind-a11y.mjs` 檔頭。
 
 ### 4.4 SCSS 退場的終點
 

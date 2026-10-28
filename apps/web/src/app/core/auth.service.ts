@@ -229,10 +229,12 @@ export class AuthService {
    * 回傳非 null 表示**還沒離開這一頁就失敗了** —— 最常見的原因是 API 沒設定
    * `LINE_CLIENT_ID` / `LINE_CLIENT_SECRET`，那時 provider 根本沒掛上。
    */
-  async signInWithLine(): Promise<string | null> {
+  async signInWithLine(handoffCallbackURL?: string): Promise<string | null> {
+    // iOS 主畫面 PWA：授權完會落在 Safari（cookie 不共用），改走交接碼（#2027）——
+    // 登入頁先 `AuthHandoffService.start()`、讓使用者看到配對碼，再帶交接的落地網址進來
     const { error } = await authClient.signIn.social({
       provider: 'line',
-      callbackURL: `${window.location.origin}/select-role`,
+      callbackURL: handoffCallbackURL ?? `${window.location.origin}/select-role`,
       // 失敗時導回登入頁並帶 ?error= —— 不設的話會落在 Better Auth 的預設頁面，
       // 使用者看到一個不屬於這個系統的畫面
       errorCallbackURL: `${window.location.origin}/login`,

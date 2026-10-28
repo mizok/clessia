@@ -20,8 +20,8 @@ import { PERMISSIONS } from './lib/permissions';
 type Role = 'admin' | 'teacher' | 'parent' | 'kiosk';
 interface Expected {
   readonly roles: readonly Role[];
-  /** 讀寫都要（`{ all }`） */
-  readonly all?: string;
+  /** 讀寫都要（`{ all }`）；陣列＝任一即可 */
+  readonly all?: string | readonly string[];
   /** 只擋寫（`{ write }`）；陣列＝任一即可 */
   readonly write?: string | readonly string[];
 }
@@ -48,6 +48,7 @@ const EXPECTED: Record<string, Expected> = {
   '/api/attendance': { roles: STAFF, write: 'basic_operations' },
   '/api/leaves': { roles: ADMIN, write: 'basic_operations' },
   '/api/daily-checkins': { roles: ['admin', 'kiosk'], write: 'basic_operations' },
+  '/api/checkin-cards': { roles: ADMIN, all: ['basic_operations', 'manage_students'] },
   '/api/workbench': { roles: ADMIN },
   '/api/contact-logs': { roles: STAFF, write: ['basic_operations', 'manage_students'] },
   '/api/academy-exams': { roles: STAFF, write: 'basic_operations' },
@@ -85,6 +86,8 @@ const UNMOUNTED = [
   '/api/public/enrollment-applications',
   '/api/public/trial-applications',
   '/api/internal/push',
+  // #2027 iOS PWA 外部登入交接的 start／redeem：PWA 還沒登入時打的，門是 secret（只存雜湊、一次性、10 分鐘）
+  '/api/auth-handoff',
 ];
 
 /**
@@ -223,7 +226,8 @@ describe('mount() 的授權（#1730）', () => {
   describe.each(Object.entries(EXPECTED))('%s', (path, exp) => {
     const allowed = exp.roles[0]!;
     const writePerms = exp.write === undefined ? [] : [exp.write].flat();
-    const needed = exp.all ?? writePerms[0];
+    const allPerms = exp.all === undefined ? [] : [exp.all].flat();
+    const needed = allPerms[0] ?? writePerms[0];
 
     it('缺角色：讀寫都 403', async () => {
       for (const role of ALL_ROLES.filter((r) => !exp.roles.includes(r))) {
@@ -251,13 +255,21 @@ describe('mount() 的授權（#1730）', () => {
 
     if (exp.roles.includes('admin')) {
       // 其他權限都給，只缺要的那一個（`*` 不給）
-      const others = PERMISSIONS.filter((p) => p !== exp.all && !writePerms.includes(p));
+      const others = PERMISSIONS.filter((p) => !allPerms.includes(p) && !writePerms.includes(p));
 
-      if (exp.all) {
-        it(`管理員缺 ${exp.all}：讀寫都 403`, async () => {
+      if (allPerms.length > 0) {
+        it(`管理員缺 ${allPerms.join('／')}：讀寫都 403`, async () => {
           expect(await probe(path, 'GET', ['admin'], others)).toBe(403);
           expect(await probe(path, 'POST', ['admin'], others)).toBe(403);
         });
+        if (allPerms.length > 1) {
+          it('任一個權限就夠（讀寫）', async () => {
+            for (const p of allPerms) {
+              expect(await probe(path, 'GET', ['admin'], [p]), p).not.toBe(403);
+              expect(await probe(path, 'POST', ['admin'], [p]), p).not.toBe(403);
+            }
+          });
+        }
       } else if (writePerms.length > 0) {
         it(`管理員缺 ${writePerms.join('／')}：寫 403、讀照樣不是 403`, async () => {
           expect(await probe(path, 'POST', ['admin'], others)).toBe(403);

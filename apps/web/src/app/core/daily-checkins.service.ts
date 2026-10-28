@@ -44,9 +44,14 @@ export class DailyCheckinsService {
   private readonly base = `${environment.apiUrl}/api/daily-checkins`;
 
   checkIn(input: {
-    studentId: string;
+    /** 跟 `cardCode` 二擇一：名單上選人、或舊版卡（QR＝學生 id） */
+    studentId?: string;
+    /** 到班卡代碼（#1100 #42，`CK1-` 開頭；分組、大小寫後端都收） */
+    cardCode?: string;
     checkinDate: string;
     campusId?: string;
+    /** 到班來源（#1100 #52）：掃碼站帶 `scan`；沒帶後端當 manual（機台帳號後端一律 scan） */
+    source?: 'scan' | 'manual';
   }): Observable<DailyCheckinConfirmation> {
     return this.http.post<DailyCheckinConfirmation>(this.base, input);
   }

@@ -22,6 +22,12 @@ describe('createAuth 的 cookie 接線', () => {
   // `Partitioned` 會打斷 OAuth：state cookie 在「前端發的 XHR」時被設定（分區鍵是前端），
   // 但 callback 是「LINE 導回來的頂層導航」（分區鍵不同），cookie 送不出去 →
   // 每次登入都 state_mismatch。實際踩過。
+  // #2063：state 對不上等「讀到 errorCallbackURL 之前」的失敗，原本丟到 Better Auth 的 /error → 網站首頁
+  it('OAuth 的 API 錯誤導回前端的登入頁（登入頁把 ?error= 翻成人話）', () => {
+    const auth = createAuth({ ...baseEnv, BETTER_AUTH_URL: 'https://demo.clessia.cc' });
+    expect(auth.options.onAPIError?.errorURL).toBe('https://app.example.com/login');
+  });
+
   it('不覆寫 cookie 屬性 —— 同源部署用 Better Auth 的預設就對了', () => {
     const auth = createAuth({ ...baseEnv, BETTER_AUTH_URL: 'https://demo.clessia.cc' });
 

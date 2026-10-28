@@ -38,6 +38,8 @@ describe('ClassFormDialogComponent', () => {
       ),
     };
     classesServiceMock = {
+      // 編輯時表單重讀詳情（#1100 #22）：回傳開表單時給的那份
+      get: vi.fn(() => of({ data: TestBed.inject(DynamicDialogConfig).data.cls })),
       checkScheduleConflicts: vi.fn().mockReturnValue(of({ conflicts: [] })),
       create: vi.fn().mockReturnValue(of({ data: { id: 'class-1' } as any })),
       update: vi.fn().mockReturnValue(of({ data: { id: 'class-1' } as any })),
@@ -254,12 +256,16 @@ describe('ClassFormDialogComponent', () => {
       );
     });
 
-    it('編輯：只換教室也算改了，送 updateSchedule；沒改不送', async () => {
+    // 原本是一條（沒改不送＋只換教室要送），一條裡渲染元件 3 次，高負載時逾時 5s（不穩定測試盤點）。
+    // 拆成兩條、斷言不變，每條只多渲染一次
+    it('編輯：沒改不送 updateSchedule', async () => {
       recreate(existing('room-a', 'A 教室'));
       (component as any).save();
       await fixture.whenStable();
       expect(classesServiceMock.updateSchedule).not.toHaveBeenCalled();
+    });
 
+    it('編輯：只換教室也算改了，送 updateSchedule', async () => {
       recreate(existing('room-a', 'A 教室'));
       (component as any).updateScheduleEntry(0, 'classroomId', null);
       (component as any).save();
@@ -434,5 +440,89 @@ describe('ClassFormDialogComponent', () => {
     fixture.detectChanges();
     expect(rows()).toHaveLength(2);
     expect(rows()[1]).toBe(third);
+  });
+
+  // #1100 #22：同一個時段可以前後接續（舊段止於 X−1、新段起於 X）
+  describe('時段生效區間', () => {
+    const recreate = (cls: Record<string, unknown> | null) => {
+      TestBed.inject(DynamicDialogConfig).data.cls = cls;
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    };
+    const sch = (
+      id: string,
+      weekday: number,
+      effectiveFrom: string,
+      effectiveTo: string | null,
+    ) => ({
+      id,
+      classId: 'class-1',
+      weekday,
+      startTime: '09:00:00',
+      endTime: '11:00:00',
+      teacherId: null,
+      effectiveFrom,
+      effectiveTo,
+      classroomId: null,
+      classroomName: null,
+    });
+    const cls = (schedules: unknown[]) => ({
+      id: 'class-1',
+      name: '舊班',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+      schedules,
+    });
+
+    it('同星期同時間、日期前後接續：不算重疊，存得進去', async () => {
+      recreate(
+        cls([sch('now', 1, '2026-01-01', '2099-01-31'), sch('next', 1, '2099-02-01', null)]),
+      );
+      (component as any).save();
+      await fixture.whenStable();
+      expect((component as any).formValidationMessage()).toBeNull();
+      expect(classesServiceMock.update).toHaveBeenCalled();
+    });
+
+    it('從列表開（只帶今天有效的段）：重讀詳情後列出未來段', async () => {
+      const detail = cls([
+        sch('now', 1, '2026-01-01', '2099-01-31'),
+        sch('next', 1, '2099-02-01', null),
+      ]);
+      (classesServiceMock.get as any).mockReturnValueOnce(of({ data: detail }));
+      recreate(cls([sch('now', 1, '2026-01-01', '2099-01-31')]));
+      expect((component as any).scheduleEntries().map((e: { id: string }) => e.id)).toEqual([
+        'now',
+        'next',
+      ]);
+    });
+
+    // 最容易壞的地方：存檔的「表單裡沒有＝刪掉」不能把已結束的舊段算進去
+    it('存檔不會刪掉已結束的舊段（即使改了其他時段）', async () => {
+      recreate(cls([sch('old', 1, '2026-01-01', '2026-01-31'), sch('now', 3, '2026-02-01', null)]));
+      (component as any).updateScheduleEntry(0, 'startTime', '10:00');
+      (component as any).save();
+      await fixture.whenStable();
+      expect(classesServiceMock.updateSchedule).toHaveBeenCalledWith(
+        'class-1',
+        'now',
+        expect.objectContaining({ startTime: '10:00' }),
+      );
+      expect(classesServiceMock.deleteSchedule).not.toHaveBeenCalled();
+    });
+
+    it('已經結束的舊段不列、存檔也不會把它刪掉；未來的段標「X 起」', async () => {
+      recreate(
+        cls([sch('old', 1, '2026-01-01', '2026-01-31'), sch('next', 3, '2099-02-01', null)]),
+      );
+      const entries = (component as any).scheduleEntries();
+      expect(entries.map((e: { id: string }) => e.id)).toEqual(['next']);
+      expect((component as any).rangeLabel(entries[0])).toBe('2/1 起');
+      (component as any).save();
+      await fixture.whenStable();
+      expect(classesServiceMock.deleteSchedule).not.toHaveBeenCalled();
+    });
   });
 });

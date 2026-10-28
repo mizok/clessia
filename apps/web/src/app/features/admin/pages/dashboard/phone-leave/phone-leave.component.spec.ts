@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError, type Observable } from 'rxjs';
 
 import {
   AttendanceService,
@@ -11,6 +11,7 @@ import { LeaveService } from '@core/leave.service';
 import { StudentsService, type Student } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
 
+import { provideRouter } from '@angular/router';
 import { PhoneLeaveComponent } from './phone-leave.component';
 
 /**
@@ -77,7 +78,6 @@ const record = (overrides: Partial<AttendanceRecord> = {}): AttendanceRecord =>
 interface Internals {
   onQuery(q: string): void;
   pick(s: Student): void;
-  chooseDate(d: string): void;
   submit(): void;
   reset(): void;
   canSubmit(): boolean;
@@ -104,6 +104,7 @@ describe('PhoneLeaveComponent', () => {
         className: '國三英文',
       }),
     ],
+    preset: { id: string; get: () => Observable<{ data: Student }> } | null = null,
   ) {
     studentsList = vi.fn(() => of({ data: [student()], meta: {}, summary: {} }));
     studentDay = vi.fn((_id: string, date: string) => of({ data: { ...preview, date } }));
@@ -113,7 +114,8 @@ describe('PhoneLeaveComponent', () => {
     TestBed.configureTestingModule({
       imports: [PhoneLeaveComponent],
       providers: [
-        { provide: StudentsService, useValue: { list: studentsList } },
+        provideRouter([]),
+        { provide: StudentsService, useValue: { list: studentsList, get: preset?.get } },
         { provide: AttendanceService, useValue: { studentDay, list: attendanceList } },
         { provide: LeaveService, useValue: { create: leaveCreate } },
         { provide: SystemClockService, useValue: { todayTaipei: signal(TODAY) } },
@@ -123,6 +125,7 @@ describe('PhoneLeaveComponent', () => {
     completedCount = 0;
     fixture.componentInstance.completed.subscribe(() => completedCount++);
     c = fixture.componentInstance as unknown as Internals;
+    if (preset) fixture.componentRef.setInput('presetStudentId', preset.id);
     fixture.detectChanges();
   }
 
@@ -191,7 +194,8 @@ describe('PhoneLeaveComponent', () => {
     expect(text()).toContain('已請假（2026-09-30–2026-10-03）');
   });
 
-  it('那天沒課 → 給下一堂的一鍵改日', () => {
+  // #2035（使用者 10-24）：只處理今天 —— 明天、其他日期、換人、下一堂改日都不給，其他日期到請假頁
+  it('只處理今天：沒有明天／其他日期／換人／下一堂改日，有「到請假頁」連結', () => {
     setup(
       day({
         sessions: [],
@@ -201,11 +205,21 @@ describe('PhoneLeaveComponent', () => {
     c.pick(student());
     fixture.detectChanges();
 
-    expect(text()).toContain('沒有課');
-    expect(text()).toContain('2026-10-03');
-
-    c.chooseDate('2026-10-03');
-    expect(studentDay).toHaveBeenLastCalledWith('stu-1', '2026-10-03');
+    expect(text()).toContain('今天沒有課');
+    const buttons = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].map(
+      (b) => b.textContent?.trim() ?? '',
+    );
+    for (const gone of ['明天', '其他日期', '換人', '下一堂']) {
+      expect(
+        buttons.some((t) => t.includes(gone)),
+        gone,
+      ).toBe(false);
+    }
+    expect(text()).not.toContain('2026-10-03');
+    expect(fixture.nativeElement.querySelector('p-datepicker')).toBeNull();
+    const link = (fixture.nativeElement as HTMLElement).querySelector('a[href="/admin/leave"]');
+    expect(link?.textContent).toContain('要請其他日期');
+    expect((c as unknown as { chooseDate?: unknown }).chooseDate).toBeUndefined();
   });
 
   it('送出失敗：錯誤留在原地，選好的人與日期不清空，可以直接重送', () => {
@@ -230,5 +244,46 @@ describe('PhoneLeaveComponent', () => {
 
     expect(text()).not.toContain('已請假');
     expect(c.canSubmit()).toBe(false);
+  });
+
+  /** #2037（使用者 10-24）：彈窗打開先出骨架，不要先出可輸入的搜尋框 */
+  describe('從「該到沒到」預帶學生', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const skeleton = () => el().querySelector('[data-testid="phone-leave-skeleton"]');
+    const search = () => el().querySelector('app-student-autocomplete');
+
+    it('學生還在載：只有骨架，沒有搜尋框；回來後換成學生與今天的課', () => {
+      const res = new Subject<{ data: Student }>();
+      setup(day(), [], { id: 'stu-1', get: () => res });
+
+      expect(skeleton()).not.toBeNull();
+      expect(search()).toBeNull();
+      expect(text()).not.toContain('學生或家長姓名');
+
+      res.next({ data: student() });
+      fixture.detectChanges();
+
+      expect(skeleton()).toBeNull();
+      expect(search()).toBeNull();
+      expect(text()).toContain('王小明');
+      expect(text()).toContain('國三數學 A');
+    });
+
+    it('讀不到學生：退回搜尋框，不卡在骨架', () => {
+      setup(day(), [], { id: 'stu-1', get: () => throwError(() => new Error('500')) });
+
+      expect(skeleton()).toBeNull();
+      expect(search()).not.toBeNull();
+    });
+
+    it('學生到了、今天的課還在載：課列畫骨架', () => {
+      setup(day(), [], { id: 'stu-1', get: () => of({ data: student() }) });
+      studentDay.mockReturnValue(NEVER);
+      c.pick(student());
+      fixture.detectChanges();
+
+      expect(el().querySelector('[aria-label="今天的課載入中"]')).not.toBeNull();
+      expect(text()).not.toContain('國三數學 A');
+    });
   });
 });

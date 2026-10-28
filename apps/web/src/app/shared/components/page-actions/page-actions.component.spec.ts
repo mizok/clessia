@@ -109,14 +109,31 @@ describe('PageActionsComponent', () => {
     expect(labels).toEqual(['登記請假', '收款']);
   });
 
-  it('托盤是浮起的（內縮＋圓角），不是貼邊的橫線', async () => {
+  // jsdom 不跑 Tailwind，斷言 class 是意圖；實際像素由 PR 的 390 實拍證明
+  it('托盤是浮起的（圓角、灰底），不是貼邊的橫線', async () => {
     await setup({ label: '新增人員' });
 
     const dock = host.querySelector('.page-actions__dock') as HTMLElement;
-    // jsdom 不跑 Tailwind，斷言 class 是意圖；實際像素由 PR 的 360 實拍證明
     expect(dock.classList.contains('rounded-lg')).toBe(true);
-    expect(dock.className).toContain('inset-x-3');
+    expect(dock.classList.contains('bg-zinc-100')).toBe(true);
     expect(dock.classList.contains('border-t')).toBe(false);
+  });
+
+  // #2005：「只有一顆，整條白底太長」（使用者 10-23）→ 一顆時只包住按鈕、靠右；兩顆才滿版
+  it('只有一顆：托盤靠右、不拉到左邊（只包住按鈕）', async () => {
+    await setup({ label: '新增學生' });
+
+    const dock = host.querySelector('.page-actions__dock') as HTMLElement;
+    expect(dock.classList.contains('right-3')).toBe(true);
+    expect(dock.classList.contains('left-3')).toBe(false);
+  });
+
+  it('兩顆：托盤左右都拉滿（滿版）', async () => {
+    await setup({ label: '收款' }, { label: '登記請假' });
+
+    const dock = host.querySelector('.page-actions__dock') as HTMLElement;
+    expect(dock.classList.contains('right-3')).toBe(true);
+    expect(dock.classList.contains('left-3')).toBe(true);
   });
 
   it('secondary 在桌機標頭也有一份，且在主要行動前面', async () => {

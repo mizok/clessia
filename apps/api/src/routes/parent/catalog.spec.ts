@@ -262,7 +262,7 @@ describe('GET /api/me/catalog', () => {
         subject: '數學',
         courseDescription: '會考衝刺',
         campusName: '信義校',
-        slots: [{ weekday: 2, startTime: '18:00', endTime: '20:00' }],
+        slots: [{ weekday: 2, startTime: '18:00', endTime: '20:00', effectiveFrom: null }],
         teacherNames: ['王老師'],
         maxStudents: 10,
         remainingSeats: 10,

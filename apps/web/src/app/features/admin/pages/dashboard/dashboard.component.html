@@ -2,7 +2,8 @@
   A6 版（#991、#1314 D）：色面（機構名＋一句話）→ 灰工具列 → 待處理 → 主段 → 灰摺疊列 → 臨時狀況。
   主段：日到班＝「該到沒到，先打給家長」；逐堂點名＝今日課表（A6 只畫了日到班的形狀）。
 -->
-<app-page-open [subLarge]="!!campusName()">
+<!-- 標題是補習班名稱：使用者 10-23 說這一行不要文字替換動畫；副行（今日摘要）照舊播 -->
+<app-page-open [subLarge]="!!campusName()" [titleSwap]="false">
   <ng-container openTitle>
     @if (orgName(); as name) {
       {{ name }}
@@ -72,16 +73,30 @@
 </div>
 
 <div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
-  @if (phoneLeaveOpen()) {
-    <app-phone-leave
-      id="dashboard-phone-leave"
-      [rosterAvailable]="!isDailyCheckin()"
-      [presetStudentId]="phoneLeaveStudentId()"
-      (completed)="loadToday()"
-      (rosterRequested)="openRosterDialog($event)"
-      (closed)="closePhoneLeave()"
-    />
-  }
+  <!--
+    登記請假是彈窗（#2037，使用者 10-24：不要 inline 展開；a6-adoption-rules R5）。原生 <dialog> showModal：
+    手機與桌機都置中、有遮罩、Esc 關（手機寬同 #2031 的登入彈窗），進出場是全站對話框的 scale(0.97)。
+    不用 p-dialog：全站樣式在手機把它變成底部抽屜，跟「手機置中」相反。
+    outline-none：showModal 把焦點放在 <dialog> 本身時 WebKit 會在整個外框畫焦點圈（#2004 同類）；
+    dialog 不是可操作的控制項，裡面的按鈕、輸入各自有焦點圈。
+  -->
+  <dialog
+    #phoneLeaveDialog
+    class="m-auto max-h-[calc(100%-48px)] outline-none w-[calc(100%-32px)] max-w-[560px] overflow-y-auto rounded-xl border-0 bg-transparent p-0 backdrop:bg-[rgb(26_22_20/40%)]"
+    aria-labelledby="phone-leave-title"
+    (close)="closePhoneLeave()"
+  >
+    @if (phoneLeaveOpen()) {
+      <app-phone-leave
+        id="dashboard-phone-leave"
+        [rosterAvailable]="!isDailyCheckin()"
+        [presetStudentId]="phoneLeaveStudentId()"
+        (completed)="loadToday()"
+        (rosterRequested)="openRosterFromPhoneLeave($event)"
+        (closed)="closePhoneLeave()"
+      />
+    }
+  </dialog>
 
   <!--
     待處理＋主段包成一塊、從第一幀就在（#1859 第 4 張）：主段在資料回來前是骨架，回來後換成
@@ -158,6 +173,7 @@
         <section aria-labelledby="dashboard-main-title">
           <div class="border-b border-surface-border pb-3">
             <h2
+              appTextSwap
               id="dashboard-main-title"
               class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
             >
@@ -372,7 +388,7 @@
       <details class="coll" name="dashboard-colls" data-testid="coll-roster">
         <summary class="coll__sum min-h-14 wide:min-h-16">
           <span class="coll__t shrink-0">今天的到班名冊</span>
-          <span class="coll__m">{{ rosterSummary() }}</span>
+          <span appTextSwap class="coll__m">{{ rosterSummary() }}</span>
         </summary>
         <div class="coll__body">
           <!-- 各節包一層：後面還接「今天的課表」連結，不包的話最後一節不是 last-child、底線會畫出來（#1705） -->
@@ -467,7 +483,7 @@
     <details class="coll" name="dashboard-colls" data-testid="coll-leaves">
       <summary class="coll__sum min-h-14 wide:min-h-16">
         <span class="coll__t shrink-0">今天的請假</span>
-        <span class="coll__m">
+        <span appTextSwap class="coll__m">
           @if (leavesFailed()) {
             讀取失敗
           } @else if (todayLeaveList(); as leaves) {
@@ -521,7 +537,7 @@
       <details class="coll" name="dashboard-colls" data-testid="coll-overdue">
         <summary class="coll__sum min-h-14 wide:min-h-16">
           <span class="coll__t shrink-0">逾期帳單</span>
-          <span class="coll__m">
+          <span appTextSwap class="coll__m">
             @if (overdueSummary(); as summary) {
               @if (summary === 'error') {
                 讀取失敗

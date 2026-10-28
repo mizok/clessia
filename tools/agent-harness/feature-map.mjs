@@ -165,8 +165,8 @@ const AREAS = [
     // 讀起來像「管理端沒有出勤功能」，而那不是真的。
     pages: ['admin/sessions', 'admin/checkin', 'teacher/attendance', 'parent/attendance'],
     // workbench 是作業台的聚合端點：今天的課、名單、到班、請假 ——
-    // 它服務的就是這個功能區，不另立一區
-    routes: ['attendance', 'daily-checkins', 'workbench'],
+    // 它服務的就是這個功能區，不另立一區。checkin-cards（#1100 #42）：到班卡，機台打卡的憑證
+    routes: ['attendance', 'daily-checkins', 'workbench', 'checkin-cards'],
     specs: [
       'admin/student-affairs/attendance.md',
       'teacher/attendance.md',
@@ -271,7 +271,7 @@ const AREAS = [
   {
     name: '身分與稽核',
     pages: [],
-    routes: ['audit-logs', 'login-links'],
+    routes: ['audit-logs', 'login-links', 'auth-handoff'],
     specs: ['admin/roles-and-auth.md', 'public/login.md'],
   },
 ];

@@ -6,7 +6,7 @@ import { Popover } from 'primeng/popover';
 import { format } from 'date-fns';
 import { provideRouter } from '@angular/router';
 import { NEVER, Subject, of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { beforeAll, vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { InvoicesService, type Invoice, type InvoiceSummary } from '@core/invoices.service';
@@ -85,7 +85,8 @@ describe('PaymentsPage', () => {
 
   const leaveStreaks = { flags: vi.fn((_ids: readonly string[]) => of({ data: [] as unknown[] })) };
 
-  beforeEach(async () => {
+  /** 重設替身、建 TestBed 與元件、等第一次渲染完 —— beforeEach 與暖機共用 */
+  async function mount() {
     // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
     localStorage.removeItem('clessia.campusContext');
     localStorage.removeItem('clessia.campusContext.single');
@@ -109,7 +110,18 @@ describe('PaymentsPage', () => {
     fixture.componentRef.setInput('page', { label: '繳費紀錄' });
     component = fixture.componentInstance;
     await fixture.whenStable();
+  }
+
+  // 第一次渲染的固定成本（模板程式碼第一次執行、PrimeNG 第一次注入元件樣式）是之後的數倍，
+  // 全算在第一條測試頭上，高負載時逼近 5s 逾時（不穩定測試盤點 B）。先在 beforeAll 渲染一次暖機：
+  // hookTimeout 10s，不算進任何一條的 5s；渲染完就拆掉，不留狀態給測試（替身在 mount 開頭就重設）
+  beforeAll(async () => {
+    await mount();
+    fixture.destroy();
+    TestBed.resetTestingModule();
   });
+
+  beforeEach(mount);
 
   it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
     const ctx = TestBed.inject(CampusContextService);
@@ -1033,7 +1045,7 @@ describe('PaymentsPage', () => {
     });
 
     // #1903：工具列控制項全部同高（tbar-control：手機 44／桌機 40），不再各自寫 h-9／size-11
-    it('工具列：開立帳單＝橘底 13px 粗、高度 tbar-control；匯出／更多動作＝白底框 zinc-300、方鈕 tbar-control-square', () => {
+    it('工具列：開立帳單＝橘底 13px 粗、高度 tbar-control；匯出／操作紀錄＝白底框 zinc-300、方鈕 tbar-control-square', () => {
       const create = Array.from(el().querySelectorAll('button')).find((b) =>
         b.textContent?.includes('開立帳單'),
       )!;
@@ -1047,11 +1059,16 @@ describe('PaymentsPage', () => {
         'wide:inline-flex',
         'hidden',
       );
-      for (const label of ['匯出', '更多動作']) {
+      for (const label of ['匯出', '操作紀錄']) {
         const b = el().querySelector(`button[aria-label="${label}"]`)!;
-        has(b, 'border-zinc-300', 'bg-white', 'tbar-control-square', 'gap-1.5');
+        has(b, 'border-zinc-300', 'bg-white', 'tbar-control-square');
         expect(b.className).not.toMatch(/\b(wide:)?(h|size)-\d/);
       }
+      // #2006：操作紀錄改成共用的時鐘圖示鈕，原本只裝它的「⋯」拿掉
+      expect(
+        el().querySelector('app-audit-log-button button[aria-label="操作紀錄"]'),
+      ).not.toBeNull();
+      expect(el().querySelector('button[aria-label="更多動作"]')).toBeNull();
     });
 
     it('逾期章頭：紅色大字名（手機 32／桌機 44）→「N 張 · 待收」→「NT$ …」兩個 <p>（18px 粗）', async () => {

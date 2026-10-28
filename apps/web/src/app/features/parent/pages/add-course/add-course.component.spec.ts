@@ -3,7 +3,7 @@ import { computed, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Subject, of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
 import {
@@ -453,6 +453,64 @@ describe('AddCourseComponent（家長端加選課程）', () => {
       expect(api.catalog).toHaveBeenCalledTimes(1);
       expect(text()).toContain('這個班已額滿');
       expect(btn(/登記候補/, dialog().querySelector('form')!)).toBeDefined();
+    });
+  });
+
+  // #1983：「符合 N 個」是資料算出來、會隨篩選變的字，換字走 appTextSwap
+  describe('「符合 N 個」換字（#1983）', () => {
+    let animated: HTMLElement[];
+    const stubMotion = (reduce: boolean) => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: reduce && q.includes('reduce') }));
+      animated = [];
+      (HTMLElement.prototype as unknown as { animate: unknown }).animate = function (
+        this: HTMLElement,
+      ) {
+        animated.push(this);
+        return { cancel: vi.fn(), finished: new Promise(() => undefined) };
+      };
+    };
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      delete (HTMLElement.prototype as unknown as { animate?: unknown }).animate;
+    });
+    const search = async (q: string) => {
+      cmp().q.set(q);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      await Promise.resolve(); // MutationObserver 回呼
+      await Promise.resolve(); // 合成一次換字的 microtask
+    };
+    const classes = () => [
+      cls({ classId: 'c-math' }),
+      cls({ classId: 'c-eng', className: 'A 班', subject: '英文', courseName: '國三課程' }),
+      cls({ classId: 'c-eng2', className: 'C 班', subject: '英文', courseName: '國三英文' }),
+    ];
+    const host = () => el().querySelector('span[apptextswap]') as HTMLElement;
+
+    it('值變了會播', async () => {
+      stubMotion(false);
+      await setup({ classes: classes() });
+      await search('英文'); // 符合 2 個：第一次出現，只記不播
+      expect(animated).toHaveLength(0);
+      await search('C 班');
+      expect(host().textContent).toContain('符合 1 個');
+      expect(animated).toContain(host());
+    });
+
+    it('值沒變不播', async () => {
+      stubMotion(false);
+      await setup({ classes: classes() });
+      await search('英文');
+      await search('英'); // 還是 2 個
+      expect(animated).not.toContain(host());
+    });
+
+    it('減少動態不播', async () => {
+      stubMotion(true);
+      await setup({ classes: classes() });
+      await search('英文');
+      await search('C 班');
+      expect(animated).not.toContain(host());
     });
   });
 });

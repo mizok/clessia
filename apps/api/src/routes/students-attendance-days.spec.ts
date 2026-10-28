@@ -207,4 +207,41 @@ describe('GET /students/{id}/attendance-days（#1314 SD2）', () => {
     expect((await request(path, null, 'c-unrelated')).status).toBe(403);
     expect((await request(path, null, 'c-daily')).status).toBe(200);
   });
+
+  // #1100 #51（使用者 10-23 裁定）：老師只看「自己教的班」的到班 ——
+  // 別的班的課連一格都不出現，不是出現了再遮掉（看不到的就是看不到）
+  it('老師只看到自己固定任課班的日子：別的班的課不出現、不進統計', async () => {
+    const res = await request(
+      `/${SID}/attendance-days?from=2026-03-01&to=2026-03-31`,
+      null,
+      'c-daily',
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      days: Array<{ date: string; state: string; sessions?: Array<{ className: string }> }>;
+      summary: { due: number; came: number; absentDates: string[] };
+    };
+    expect(Object.fromEntries(body.days.map((d) => [d.date, d.state]))).toEqual({
+      '2026-03-02': 'came',
+      '2026-03-03': 'on_leave',
+      '2026-03-04': 'cancelled',
+      '2026-03-10': 'future',
+      '2026-03-12': 'future',
+    });
+    // 03-05 出席、03-06 缺席都是英文班（c-sess）的 —— 老師不教那班，統計裡也不能有
+    expect(body.summary).toEqual({ due: 2, came: 1, absentDates: [] });
+    expect(JSON.stringify(body)).not.toContain('英文');
+  });
+
+  it('老師教的是逐堂那班：只看到那班的日子', async () => {
+    const res = await request(
+      `/${SID}/attendance-days?from=2026-03-01&to=2026-03-31`,
+      null,
+      'c-sess',
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { days: Array<{ date: string }> };
+    expect(body.days.map((d) => d.date)).toEqual(['2026-03-05', '2026-03-06']);
+    expect(JSON.stringify(body)).not.toContain('數學');
+  });
 });

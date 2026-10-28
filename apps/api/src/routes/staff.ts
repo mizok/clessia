@@ -17,6 +17,7 @@ import {
 import { DbUuidSchema, NicknameSchema } from '../lib/validation';
 import { findInOrg, inOrg } from '../lib/org-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { loadStaffListViaSql } from '../lib/staff-list-sql';
 import { generatePlaceholderEmail } from './parents';
 
 // ============================================================
@@ -471,6 +472,29 @@ async function countStaffByRole(
   return { admin, teacher, kiosk, inactiveOrArchived };
 }
 
+/**
+ * SQL 那條的章節計數（#1595 P2）：摘要列沒被截斷，直接在記憶體分桶。分法同 `countStaffByRole`
+ * （兼老師的歸管理員、kiosk 只算沒有別的角色的、停用＋封存一桶）—— 兩份由契約逐欄比對
+ */
+function byRoleFromRows(
+  rows: ReadonlyArray<{ user_id: string; status: string }>,
+  roleRows: readonly UserRoleRow[],
+): { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number } {
+  const rolesOf = new Map<string, Set<string>>();
+  for (const r of roleRows)
+    rolesOf.set(r.user_id, (rolesOf.get(r.user_id) ?? new Set()).add(r.role));
+  const out = { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0 };
+  for (const row of rows) {
+    const roles = rolesOf.get(row.user_id) ?? new Set();
+    if (row.status === 'inactive' || row.status === 'archived') out.inactiveOrArchived++;
+    else if (row.status !== 'active') continue;
+    else if (roles.has('admin')) out.admin++;
+    else if (roles.has('teacher')) out.teacher++;
+    else if (roles.has('kiosk')) out.kiosk++;
+  }
+  return out;
+}
+
 async function checkUserIsAdmin(supabase: SupabaseClient, userId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_roles')
@@ -561,12 +585,22 @@ async function loadStaffRelations(
       supabase
         .from('staff_campuses')
         .select('staff_id, campus_id, campuses!inner(id)')
-        .in('staff_id', staffIds),
+        .in('staff_id', staffIds)
+        // 陣列順序固定（#1595 P2：SQL 那條照同樣順序，兩條路才逐欄相同）
+        .order('staff_id')
+        .order('campus_id'),
       supabase
         .from('staff_subjects')
         .select('staff_id, subject_id, subjects(name)')
-        .in('staff_id', staffIds),
-      supabase.from('user_roles').select('user_id, role, permissions').in('user_id', userIds),
+        .in('staff_id', staffIds)
+        .order('staff_id')
+        .order('subject_id'),
+      supabase
+        .from('user_roles')
+        .select('user_id, role, permissions')
+        .in('user_id', userIds)
+        .order('user_id')
+        .order('role'),
       supabase.from('ba_user').select('id, email, phone, emailVerified').in('id', userIds),
     ]);
 
@@ -667,6 +701,72 @@ app.openapi(listRoute, async (c) => {
   // 沒指定分校時也要縮到自己管的那幾間。**人員清單尤其重要** ——
   // 只管 A 校的主任不該看得到 B 校的員工名單與聯絡方式。
   const campusIds = campusFilterIds(campusScope, query.campusId);
+  const emptyResponse = () =>
+    c.json(
+      {
+        data: [],
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
+        meta: { total: 0, page, pageSize, totalPages: 0 },
+      },
+      200,
+    );
+
+  // 先走 SQL（Hyperdrive，一次往返，#1595 P2）；失敗或形狀不對就走下面原本的 builder。
+  // 分校條件在這裡用 campusFilterIds 算好再傳進去 —— 判準只有 lib/campus-scope.ts 一份
+  const pool = c.get('auth')?.pool;
+  const viaSql = pool
+    ? await loadStaffListViaSql(pool, {
+        orgId,
+        campusIds,
+        search: query.search || null,
+        role: query.role ?? null,
+        subjectId: query.subjectId ?? null,
+        status: query.status ?? null,
+        limit: unpaginated ? null : pageSize,
+        offset: unpaginated ? 0 : offset,
+      })
+    : null;
+  if (viaSql) {
+    if (viaSql.emptyByFilter) return emptyResponse();
+    const roleInfoMap = toRoleInfoMap(
+      viaSql.roleRows.filter((r) =>
+        ['admin', 'teacher', 'kiosk'].includes(r.role),
+      ) as UserRoleRow[],
+    );
+    const baUserMap = new Map<string, BaUserInfo>(
+      viaSql.baUserRows.map((u) => [
+        u.id,
+        { email: u.email ?? null, phone: u.phone ?? null, hasLoggedIn: u.emailVerified === true },
+      ]),
+    );
+    const campusMap = toCampusMap(viaSql.campusRows);
+    const subjectMap = toSubjectMap(viaSql.subjectRows as StaffSubjectRow[]);
+    const summaryRoleRows = viaSql.summaryRoleRows as UserRoleRow[];
+    const summary = {
+      ...buildStaffSummary(
+        viaSql.summaryRows,
+        toRoleInfoMap(summaryRoleRows.filter((r) => r.role === 'admin' || r.role === 'teacher')),
+      ),
+      byRole: byRoleFromRows(viaSql.summaryRows, summaryRoleRows),
+    };
+    return c.json(
+      {
+        data: viaSql.rows.map((row) =>
+          mapStaff(row, campusMap, subjectMap, roleInfoMap, baUserMap),
+        ),
+        summary,
+        meta: {
+          total: viaSql.total,
+          page: unpaginated ? 1 : page,
+          pageSize: unpaginated ? viaSql.total : pageSize,
+          totalPages: unpaginated ? 1 : Math.ceil(viaSql.total / pageSize),
+        },
+      },
+      200,
+    );
+  }
+
+  // ── 退路：原本的 query builder（條件跟 lib/staff-list-sql.ts 各一份，由 contract/staff-list.contract.ts 逐欄比對）──
 
   // #949：四個篩選查詢（分校、角色、科目、搜尋）彼此互不相依 —— 同一輪發出去。
   // 線上每一輪都是一段 Worker↔DB 往返，原本依序發最多是五段（角色要先查 ba_user）。
@@ -792,7 +892,8 @@ app.openapi(listRoute, async (c) => {
     dbQuery = dbQuery.in('user_id', filteredUserIdsByRole);
   }
 
-  dbQuery = dbQuery.order('created_at', { ascending: false });
+  // `id` 當末鍵：同時間建立的人（seed、批次匯入）順序才固定，SQL 那條同序（#1595 P2）
+  dbQuery = dbQuery.order('created_at', { ascending: false }).order('id');
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   // summary 不套用 status filter，永遠反映全機構（含封存）的真實總數。
@@ -840,6 +941,8 @@ app.openapi(listRoute, async (c) => {
           .from('user_roles')
           .select('user_id, role, permissions')
           .in('user_id', summaryUserIds)
+          .order('user_id')
+          .order('role')
       : Promise.resolve({ data: [] as UserRoleRow[], error: null }),
   ]);
 

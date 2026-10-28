@@ -34,6 +34,7 @@ function notification(overrides: Partial<AppNotification> = {}): AppNotification
     createdAt: '2026-08-19T02:00:00Z',
     isRead: false,
     link: null,
+    hasChangeDetail: false,
     ...overrides,
   };
 }
@@ -52,6 +53,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
   const notifInboxMock = vi.fn();
   const notifMarkReadMock = vi.fn();
   const notifMarkAllReadMock = vi.fn();
+  const changeDetailMock = vi.fn();
   const badge = { setAnnouncementsUnread: vi.fn(), setNotificationsUnread: vi.fn() };
   const messages = { add: vi.fn() };
 
@@ -64,6 +66,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       notifInboxMock,
       notifMarkReadMock,
       notifMarkAllReadMock,
+      changeDetailMock,
       badge.setAnnouncementsUnread,
       badge.setNotificationsUnread,
       messages.add,
@@ -92,6 +95,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
             inbox: notifInboxMock,
             markRead: notifMarkReadMock,
             markAllRead: notifMarkAllReadMock,
+            changeDetail: changeDetailMock,
           },
         },
         { provide: InboxBadgeService, useValue: badge },
@@ -178,7 +182,9 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     await create();
 
     expect(fixture.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
-    expect(fixture.nativeElement.querySelectorAll('.skeleton-list .skeleton').length).toBeGreaterThan(0);
+    expect(
+      fixture.nativeElement.querySelectorAll('.skeleton-list .skeleton').length,
+    ).toBeGreaterThan(0);
   });
 
   it('兩邊都沒有時：色面句寫「還沒有收到通知。」，本體不重複、不畫保留期限', async () => {
@@ -312,6 +318,94 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       expect(component['openKey']()).toBe('notification:x');
       expect(notifMarkReadMock).toHaveBeenCalledWith('x');
       expect(markReadMock).not.toHaveBeenCalled();
+    });
+
+    describe('#1100 #49 課務異動：展開「原本／改為」＋看課表，不直接導頁', () => {
+      const chg = () =>
+        notification({
+          id: 'c',
+          kind: 'schedule_change',
+          link: '/parent/schedule',
+          hasChangeDetail: true,
+        });
+      const text = () => (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
+
+      it('點了展開（不導頁）、讀原本／改為；調課兩邊都寫，停課改為寫原因、原本劃掉', async () => {
+        await setup([], [chg()]);
+        changeDetailMock.mockReturnValue(
+          of({
+            data: [
+              {
+                sessionId: 's1',
+                className: '國一數學 A 班',
+                changeType: 'reschedule',
+                was: {
+                  date: '2026-10-08',
+                  startTime: '15:30',
+                  endTime: '17:00',
+                  teacherName: '王老師',
+                },
+                now: {
+                  date: '2026-10-09',
+                  startTime: '15:30',
+                  endTime: '17:00',
+                  teacherName: '王老師',
+                },
+                reason: null,
+              },
+              {
+                sessionId: 's2',
+                className: '國一數學 A 班',
+                changeType: 'cancellation',
+                was: {
+                  date: '2026-10-11',
+                  startTime: '15:30',
+                  endTime: '17:00',
+                  teacherName: '王老師',
+                },
+                now: null,
+                reason: '颱風',
+              },
+            ],
+          }),
+        );
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+
+        toggle(items()[0]!);
+        fixture.detectChanges();
+
+        expect(navigate).not.toHaveBeenCalled();
+        expect(changeDetailMock).toHaveBeenCalledWith('c');
+        expect(notifMarkReadMock).toHaveBeenCalledWith('c');
+        const blocks = (fixture.nativeElement as HTMLElement).querySelectorAll(
+          '[data-part="change-detail"]',
+        );
+        expect(blocks).toHaveLength(2);
+        expect(blocks[0]!.textContent!.replace(/\s+/g, ' ')).toContain(
+          '原本 10/8（四）15:30 · 王老師 改為 10/9（五）15:30 · 王老師',
+        );
+        expect(blocks[1]!.textContent!.replace(/\s+/g, ' ')).toContain('改為 停課（颱風）');
+        expect(blocks[1]!.querySelector('dd')!.classList).toContain('line-through');
+        const link = (fixture.nativeElement as HTMLElement).querySelector(
+          'a[href="/parent/schedule"]',
+        );
+        expect(link?.textContent).toContain('看課表');
+      });
+
+      it('讀過就不重讀；讀失敗寫「讀不到」，再展開會重試', async () => {
+        await setup([], [chg()]);
+        changeDetailMock
+          .mockReturnValueOnce(throwError(() => new Error('boom')))
+          .mockReturnValueOnce(of({ data: [] }));
+        toggle(items()[0]!);
+        fixture.detectChanges();
+        expect(text()).toContain('異動內容讀不到');
+        toggle(items()[0]!); // 收起
+        toggle(items()[0]!); // 再展開 → 重試
+        toggle(items()[0]!); // 收起
+        toggle(items()[0]!); // 再展開 → 讀過了，不重讀
+        expect(changeDetailMock).toHaveBeenCalledTimes(2);
+      });
     });
 
     it('通知有 link：點了先標已讀再導過去', async () => {
@@ -458,14 +552,20 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
         ],
         [notification({ id: 'week', createdAt: '2026-08-15T02:00:00Z' })],
       );
-      const chapters = component['chapters']() as { name: string; items: InboxItem[]; unread: number }[];
+      const chapters = component['chapters']() as {
+        name: string;
+        items: InboxItem[];
+        unread: number;
+      }[];
       expect(chapters.map((c) => [c.name, c.items.map((i) => i.id), c.unread])).toEqual([
         ['今天', ['today'], 1],
         ['昨天', ['yday'], 0],
         ['這週', ['week'], 1],
         ['更早', ['old'], 0],
       ]);
-      const sections = (fixture.nativeElement as HTMLElement).querySelectorAll('.announcement-inbox__chapter');
+      const sections = (fixture.nativeElement as HTMLElement).querySelectorAll(
+        '.announcement-inbox__chapter',
+      );
       expect(Array.from(sections).map((x) => x.getAttribute('aria-label'))).toEqual([
         '今天',
         '昨天',
@@ -535,7 +635,10 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       await create();
       markAllRead();
       expect(messages.add).toHaveBeenCalledTimes(1);
-      expect(messages.add).toHaveBeenCalledWith({ severity: 'success', summary: '已把 4 則標為已讀' });
+      expect(messages.add).toHaveBeenCalledWith({
+        severity: 'success',
+        summary: '已把 4 則標為已讀',
+      });
     });
 
     it('全部標為已讀：一邊失敗，照樣 toast 成功那邊標的數；全失敗不 toast', async () => {
@@ -544,7 +647,10 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
       notifMarkAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
       await create();
       markAllRead();
-      expect(messages.add).toHaveBeenCalledWith({ severity: 'success', summary: '已把 1 則標為已讀' });
+      expect(messages.add).toHaveBeenCalledWith({
+        severity: 'success',
+        summary: '已把 1 則標為已讀',
+      });
 
       messages.add.mockReset();
       markAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
@@ -563,6 +669,7 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     ['leave_for_my_class', '請假'],
     ['leave_received', '請假'],
     ['leave_streak', '連續請假'],
+    ['contact_book_reminder', '聯絡簿'],
     ['invoice_overdue', '繳費提醒'],
     ['something_new', '通知'],
   ])('通知 kind %s 的標籤是「%s」', async (kind, label) => {

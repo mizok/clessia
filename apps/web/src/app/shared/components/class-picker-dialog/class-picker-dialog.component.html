@@ -78,13 +78,13 @@
       }
     </div>
     @if (total() > PAGE_SIZE) {
-      <p class="class-picker__total m-0 text-center text-xs text-zinc-500">
+      <p appTextSwap class="class-picker__total m-0 text-center text-xs text-zinc-500">
         共 {{ total() }} 個班級
       </p>
     }
   }
 
-  <div class="class-picker__footer flex justify-end border-t border-t-solid border-t-zinc-100 pt-2">
+  <div class="class-picker__footer flex justify-end border-t border-t-zinc-100 pt-2">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
   </div>
 </div>

@@ -68,19 +68,29 @@ export interface AttendanceTally {
 export function tallyAttendance(
   records: ReadonlyArray<{ eventId: string; status: string }>,
 ): Map<string, AttendanceTally> {
+  return tallyAttendanceCounts(records.map((record) => ({ ...record, count: 1 })));
+}
+
+/**
+ * 同上，但吃「每個 event × 狀態有幾筆」（#1928：在 SQL 裡 `count … group by` 好，不把出勤列撈回來數，
+ * 才不會被 PostgREST 的 1000 列截斷）。**狀態對應只寫在這裡一份**，`tallyAttendance` 也走這支。
+ */
+export function tallyAttendanceCounts(
+  rows: ReadonlyArray<{ eventId: string; status: string; count: number }>,
+): Map<string, AttendanceTally> {
   const tally = new Map<string, AttendanceTally>();
 
-  for (const record of records) {
-    let entry = tally.get(record.eventId);
+  for (const row of rows) {
+    let entry = tally.get(row.eventId);
     if (!entry) {
       entry = { presentCount: 0, onLeaveCount: 0, absentCount: 0 };
-      tally.set(record.eventId, entry);
+      tally.set(row.eventId, entry);
     }
 
     // 未知狀態不計入任何一欄。enum 只有三種，多出來的值是資料問題不是新分類
-    if (record.status === 'present') entry.presentCount += 1;
-    else if (record.status === 'on_leave') entry.onLeaveCount += 1;
-    else if (record.status === 'absent') entry.absentCount += 1;
+    if (row.status === 'present') entry.presentCount += row.count;
+    else if (row.status === 'on_leave') entry.onLeaveCount += row.count;
+    else if (row.status === 'absent') entry.absentCount += row.count;
   }
 
   return tally;

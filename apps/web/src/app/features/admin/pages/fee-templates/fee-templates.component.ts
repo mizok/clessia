@@ -1,3 +1,4 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
 import {
   Component,
   DestroyRef,
@@ -71,6 +72,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
     SkeletonComponent,
     HeightFollowDirective,
     ReloadVeilComponent,
@@ -202,6 +204,7 @@ export class FeeTemplatesComponent implements OnInit {
         : {
             label: '刪除',
             icon: 'pi pi-trash',
+            danger: true,
             command: () => this.confirmDeleteTemplate(target),
           },
     ];
@@ -213,7 +216,12 @@ export class FeeTemplatesComponent implements OnInit {
     return [
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openPeriodDialog(target) },
       { separator: true },
-      { label: '刪除', icon: 'pi pi-trash', command: () => this.confirmDeletePeriod(target) },
+      {
+        label: '刪除',
+        icon: 'pi pi-trash',
+        danger: true,
+        command: () => this.confirmDeletePeriod(target),
+      },
     ];
   });
 

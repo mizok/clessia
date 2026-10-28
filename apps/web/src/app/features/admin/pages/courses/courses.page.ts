@@ -1,3 +1,5 @@
+import { AuditLogButtonComponent } from '@shared/components/audit-log-button/audit-log-button.component';
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
@@ -93,6 +95,8 @@ interface CourseChapter {
   selector: 'app-courses',
   standalone: true,
   imports: [
+    AuditLogButtonComponent,
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     ChapterHeadComponent,
@@ -744,7 +748,7 @@ export class CoursesPage implements OnInit {
         label: hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程',
         icon: 'pi pi-trash',
         disabled: hasClasses,
-        itemClass: 'text-red-500',
+        danger: true,
         command: () => this.confirmDeleteCourse(course),
       },
     ]);
@@ -788,14 +792,13 @@ export class CoursesPage implements OnInit {
       {
         label: cls.isActive ? '停用班級' : '啟用班級',
         icon: cls.isActive ? 'pi pi-ban' : 'pi pi-check-circle',
-        itemClass: cls.isActive ? 'text-orange-500' : 'text-green-500',
         command: () => this.confirmToggleActive(cls),
       },
       {
         label: cls.hasPastSessions ? '已有歷史課堂，無法刪除' : '刪除班級',
         icon: 'pi pi-trash',
         disabled: cls.hasPastSessions,
-        itemClass: 'text-red-500',
+        danger: true,
         command: () => this.confirmDeleteClass(cls),
       },
     ]);

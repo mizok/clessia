@@ -172,13 +172,13 @@ describe('CampusesPage', () => {
 
     const items = (
       component as unknown as {
-        actionMenuItems: () => { label?: string; itemClass?: string; separator?: boolean }[];
+        actionMenuItems: () => { label?: string; danger?: boolean; separator?: boolean }[];
       }
     ).actionMenuItems();
 
     const deleteIndex = items.findIndex((item) => item.label === '刪除分校');
     expect(deleteIndex).toBeGreaterThan(0);
-    expect(items[deleteIndex].itemClass).toBe('text-red-500');
+    expect(items[deleteIndex].danger).toBe(true);
     expect(items[deleteIndex - 1].separator).toBe(true);
   });
 
@@ -418,19 +418,13 @@ describe('CampusesPage', () => {
       ).toBe(true);
     });
 
-    // R2（計畫席 10-21）：手機不拿掉操作紀錄，收進頁首「⋯」
-    it('手機頁首「⋯」裡有操作紀錄，按了開操作紀錄', async () => {
+    // #2006：操作紀錄入口全站統一成工具列的時鐘圖示鈕，手機也在（原本手機收進頁首「⋯」）
+    it('操作紀錄入口是共用的時鐘圖示鈕，按了開操作紀錄；頁首不再有「⋯」', async () => {
       await show([c({ id: 'a' })]);
-      const more = (fixture.nativeElement as HTMLElement).querySelector(
-        'button[aria-label="分校的更多動作"]',
-      );
-      expect(more).not.toBeNull();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('button[aria-label="分校的更多動作"]')).toBeNull();
       const open = vi.spyOn(component, 'openAuditLog').mockImplementation(() => undefined);
-      const items = (
-        component as unknown as { pageMenuItems: { label: string; command: () => void }[] }
-      ).pageMenuItems;
-      expect(items.map((i) => i.label)).toEqual(['操作紀錄']);
-      items[0].command();
+      root.querySelector<HTMLButtonElement>('app-audit-log-button button')!.click();
       expect(open).toHaveBeenCalled();
     });
 

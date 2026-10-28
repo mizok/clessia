@@ -218,15 +218,15 @@ describe('FeeTemplatesComponent', () => {
           toggleShowInactive: () => void;
         };
 
-      it('操作紀錄是純按鈕：白底＋zinc-300 框、方鈕 tbar-control-square（#1903 手機 44／桌機 40）、點了開操作紀錄', () => {
+      it('操作紀錄是全站共用的時鐘圖示鈕（#2006）：白底＋zinc-300 框、方鈕 tbar-control-square（#1903 手機 44／桌機 40）、點了開操作紀錄', () => {
         load(mixed());
-        const b = btn('audit-log-btn');
+        const b = btn('audit-log-button');
         expect(b.tagName).toBe('BUTTON');
         expect([...b.classList]).toEqual(
           expect.arrayContaining(['border-zinc-300', 'bg-white', 'tbar-control-square']),
         );
         expect(b.getAttribute('aria-label')).toBe('操作紀錄');
-        expect(b.querySelector('i')!.className).toContain('pi-history');
+        expect(b.querySelector('i')!.className).toContain('pi-clock');
         const spy = vi.spyOn(component_(), 'openAuditLog').mockImplementation(() => undefined);
         b.click();
         expect(spy).toHaveBeenCalledTimes(1);
@@ -314,6 +314,19 @@ describe('FeeTemplatesComponent', () => {
       expect(inUse.map((i) => i.label)).toContain('停用');
 
       expect(menu(template({ inUseCount: 0 })).map((i) => i.label)).toContain('刪除');
+    });
+
+    it('刪除類項目上危險色（#1360）：價目表、收費期間的「刪除」有 danger', () => {
+      const page = component as unknown as {
+        selectedTemplate: { set: (v: unknown) => void };
+        actionMenuItems: () => { label?: string; danger?: boolean }[];
+        selectedPeriod: { set: (v: unknown) => void };
+        periodMenuItems: () => { label?: string; danger?: boolean }[];
+      };
+      page.selectedTemplate.set(template({ inUseCount: 0 }));
+      expect(page.actionMenuItems().find((i) => i.label === '刪除')?.danger).toBe(true);
+      page.selectedPeriod.set(period());
+      expect(page.periodMenuItems().find((i) => i.label === '刪除')?.danger).toBe(true);
     });
 
     it('F5 重疊期間：列上寫「跟「X」重疊」，不重疊的沒有', () => {

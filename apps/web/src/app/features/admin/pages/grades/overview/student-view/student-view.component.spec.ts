@@ -83,6 +83,66 @@ describe('StudentViewComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  // #1100 #40：匯出成績（A6 工具列下載圖示＋面板）
+  describe('匯出成績', () => {
+    const student = (id: string, schoolId: string) =>
+      ({ id, name: id, grade: 'J1', school: { id: schoolId, name: schoolId } }) as never;
+    const panel = { hide: vi.fn() } as never;
+
+    beforeEach(() => {
+      URL.createObjectURL = vi.fn(() => 'blob:x');
+      URL.revokeObjectURL = vi.fn();
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+      // jsdom 的 Blob 沒有 text()（瀏覽器都有）
+      Blob.prototype.text ??= function (this: Blob) {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.readAsText(this);
+        });
+      };
+      (component as any).rawStudents.set([student('s1', 'sch-a'), student('s2', 'sch-b')]);
+    });
+
+    it('照目前的篩選：帶畫面上的學生（學校篩過的）與頂欄分校；面板寫的人數一致', () => {
+      TestBed.inject(CampusContextService).select('campus-9');
+      (component as any).schoolIdFilter.set('sch-a');
+      expect((component as any).totalStudents()).toBe(1);
+
+      (component as any).exportScores(panel);
+      const req = http.expectOne((r) => r.url.endsWith('/api/scores/export'));
+      expect(req.request.method).toBe('POST');
+      expect(req.request.responseType).toBe('blob');
+      expect(req.request.body).toEqual({ studentIds: ['s1'], campusId: 'campus-9' });
+      req.flush(new Blob(['csv']));
+      expect((component as any).exporting()).toBe(false);
+    });
+
+    it('全部學生：不帶 studentIds（範圍由後端決定）', () => {
+      (component as any).exportRange.set('all');
+      (component as any).exportScores(panel);
+      const req = http.expectOne((r) => r.url.endsWith('/api/scores/export'));
+      expect(req.request.body.studentIds).toBeUndefined();
+      req.flush(new Blob(['csv']));
+    });
+
+    it('超過上限（413）：顯示後端的訊息', async () => {
+      const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+      (component as any).exportScores(panel);
+      http
+        .expectOne((r) => r.url.endsWith('/api/scores/export'))
+        .flush(new Blob([JSON.stringify({ error: '筆數超過 20000 筆，請先篩選再匯出' })]), {
+          status: 413,
+          statusText: 'Payload Too Large',
+        });
+      await vi.waitFor(() => expect(add).toHaveBeenCalled());
+      expect(add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', detail: '筆數超過 20000 筆，請先篩選再匯出' }),
+      );
+      expect((component as any).exporting()).toBe(false);
+    });
+  });
+
   /**
    * **#812：取數失敗時畫面不能說「請嘗試調整篩選條件或搜尋關鍵字」** ——
    * 那是叫使用者去做一件不會有用的事。#809 讓這支的 toast 出得來了，

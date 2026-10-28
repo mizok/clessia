@@ -202,6 +202,74 @@ describe('ResponsiveTableComponent', () => {
     expect(fixture.componentInstance.clickedIds).toEqual(['s1']);
   });
 
+  // #2007：照 A6 `.coll` —— 小箭頭在最右、整列可點（使用者 10-23 截圖：左邊那欄箭頭在手機上太大）
+  describe('展開控制：預設右邊、整列可點（#2007）', () => {
+    const setup = () => {
+      fixture = TestBed.createComponent(HostComponent);
+      fixture.detectChanges();
+      triggerResize(360);
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      const row = host.querySelector('tbody tr[appRtRow]') as HTMLTableRowElement;
+      const button = row.querySelector(
+        'button.responsive-table__expand-button',
+      ) as HTMLButtonElement;
+      const details = () => host.querySelectorAll('tr.responsive-table__detail-row').length;
+      return { host, row, button, details };
+    };
+
+    it('預設展開格在每列與表頭的最後一格', () => {
+      const { host, row } = setup();
+      expect(row.lastElementChild?.classList.contains('responsive-table__expand-cell')).toBe(true);
+      const headRow = host.querySelector('thead tr') as HTMLTableRowElement;
+      expect(headRow.lastElementChild?.classList.contains('responsive-table__expand-header')).toBe(
+        true,
+      );
+    });
+
+    it('點列上任何地方都會展開／收合，aria-expanded 跟著變', () => {
+      const { row, button, details } = setup();
+      expect(row.classList.contains('responsive-table__row--expandable')).toBe(true);
+      (row.querySelector('td[appRtColCell="name"]') as HTMLElement).click();
+      fixture.detectChanges();
+      expect(details()).toBe(1);
+      expect(button.getAttribute('aria-expanded')).toBe('true');
+      (row.querySelector('td[appRtColCell="name"]') as HTMLElement).click();
+      fixture.detectChanges();
+      expect(details()).toBe(0);
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('點展開鈕只切一次（不會被整列的點擊再切回去）', () => {
+      const { button, details } = setup();
+      button.click();
+      fixture.detectChanges();
+      expect(details()).toBe(1);
+    });
+
+    it('點列裡的按鈕不展開：那顆按鈕有自己的動作', () => {
+      const { row, details } = setup();
+      const inner = document.createElement('button');
+      inner.type = 'button';
+      row.querySelector('td[appRtColCell="name"]')!.appendChild(inner);
+      inner.click();
+      fixture.detectChanges();
+      expect(details()).toBe(0);
+    });
+
+    it('欄位都放得下時沒有展開格，列也不可點', () => {
+      fixture = TestBed.createComponent(HostComponent);
+      fixture.detectChanges();
+      triggerResize(1200);
+      fixture.detectChanges();
+      const row = (fixture.nativeElement as HTMLElement).querySelector(
+        'tbody tr[appRtRow]',
+      ) as HTMLTableRowElement;
+      expect(row.querySelector('.responsive-table__expand-cell')).toBeNull();
+      expect(row.classList.contains('responsive-table__row--expandable')).toBe(false);
+    });
+  });
+
   it('keeps only one detail row expanded in accordion mode', () => {
     fixture = TestBed.createComponent(HostComponent);
     fixture.componentInstance.accordionBehavior = 'accordion';

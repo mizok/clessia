@@ -4,7 +4,7 @@ import { Popover } from 'primeng/popover';
 import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { NEVER, type Observable, Subject, of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { beforeAll, vi } from 'vitest';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -86,13 +86,8 @@ describe('CoursesPage', () => {
     ),
   };
 
-  beforeEach(async () => {
-    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
-    localStorage.removeItem('clessia.campusContext');
-    localStorage.removeItem('clessia.campusContext.single');
-    sessionsServiceMock.list.mockClear();
-    confirmationServiceMock.confirm.mockClear();
-
+  /** 建 TestBed 與元件、等第一次渲染完 —— beforeEach 與暖機共用 */
+  async function mount() {
     await TestBed.configureTestingModule({
       imports: [CoursesPage],
       providers: [
@@ -121,6 +116,25 @@ describe('CoursesPage', () => {
     });
     router = TestBed.inject(Router);
     await fixture.whenStable();
+  }
+
+  // 第一次渲染的固定成本（模板程式碼第一次執行、PrimeNG 第一次注入元件樣式）是之後的 3 倍左右，
+  // 全算在第一條測試頭上，高負載時逼近 5s 逾時（不穩定測試盤點 B）。先在 beforeAll 渲染一次暖機：
+  // hookTimeout 10s，不算進任何一條的 5s；渲染完就拆掉，不留狀態給測試
+  beforeAll(async () => {
+    await mount();
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
+
+  beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
+    localStorage.removeItem('clessia.campusContext.single');
+    sessionsServiceMock.list.mockClear();
+    confirmationServiceMock.confirm.mockClear();
+
+    await mount();
   });
 
   it('日常頁：頂欄沒有「全部分校」（#1607）', () => {
@@ -571,6 +585,28 @@ describe('CoursesPage', () => {
       expect(used[1].disabled).toBe(true);
       expect(toggle).toHaveBeenCalledTimes(2);
     });
+
+    it('刪除類項目上危險色（#1360）：刪除課程、刪除班級有 danger；啟用／停用班級沒有', () => {
+      const menu = { toggle: vi.fn() } as never;
+      const page = component as unknown as {
+        openCourseMenu: (e: Event, c: unknown, h: boolean, m: unknown) => void;
+        courseActionMenuItems: () => { label?: string; danger?: boolean }[];
+        openActionMenu: (e: Event, c: unknown, m: unknown) => void;
+        classActionMenuItems: () => { label?: string; danger?: boolean }[];
+      };
+      page.openCourseMenu(new Event('click'), { id: 'c1', isActive: true }, false, menu);
+      expect(page.courseActionMenuItems().find((i) => i.label === '刪除課程')?.danger).toBe(true);
+
+      for (const isActive of [true, false]) {
+        const cls = { id: 'k1', courseId: 'c1', isActive, hasPastSessions: false };
+        page.openActionMenu(new Event('click'), cls, menu);
+        const items = page.classActionMenuItems();
+        expect(items.find((i) => i.label === '刪除班級')?.danger).toBe(true);
+        const toggle = items.find((i) => i.label === (isActive ? '停用班級' : '啟用班級'));
+        expect(toggle).toBeDefined();
+        expect(toggle?.danger).toBeUndefined();
+      }
+    });
   });
 
   describe('#1314 視覺對齊：標題兩行、搜尋無標籤、篩選鈕寫狀態、需介入以班為單位', () => {
@@ -638,10 +674,10 @@ describe('CoursesPage', () => {
       expect(el().querySelector('input[aria-label="搜尋課程或班級"]')).not.toBeNull();
     });
 
-    it('操作紀錄是圖示鈕（文字只給螢幕閱讀器）', () => {
+    it('操作紀錄是全站共用的時鐘圖示鈕（#2006），名稱給螢幕閱讀器', () => {
       setup();
-      const btn = el().querySelector('button[title="操作紀錄"]') as HTMLElement;
-      expect(btn.querySelector('.sr-only')?.textContent).toBe('操作紀錄');
+      const btn = el().querySelector('app-audit-log-button button') as HTMLElement;
+      expect(btn.getAttribute('aria-label')).toBe('操作紀錄');
     });
 
     it('點浮層外面關掉後，「篩選」鈕的 aria-expanded 回到 false（onHide 回寫）', () => {
@@ -673,11 +709,11 @@ describe('CoursesPage', () => {
       expect(
         (component as unknown as { interventionCount: () => number }).interventionCount(),
       ).toBe(2);
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('需介入 2 個班');
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain(
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain('需介入 2 個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain(
         '沒有未來的課堂，家長看不到下一堂。',
       );
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看這幾個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain('只看這幾個班');
     });
 
     it('「只看這幾個班」：課程仍顯示、底下只留需介入的班；再按還原', () => {
@@ -700,7 +736,9 @@ describe('CoursesPage', () => {
         component as unknown as { courseGroups: () => { classes: { id: string }[] }[] }
       ).courseGroups();
       expect(groups.map((g) => g.classes.map((c) => c.id))).toEqual([['a'], ['d']]);
-      expect(norm(el().querySelector('.bg-zinc-100.rounded-lg'))).toContain('只看需介入的 2 個班');
+      expect(norm(el().querySelector('[data-testid="intervention"]'))).toContain(
+        '只看需介入的 2 個班',
+      );
 
       again();
       component['onStatusFilterChange'](null);

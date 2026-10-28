@@ -1,3 +1,4 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import {
@@ -11,7 +12,16 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { EMPTY, Subject, catchError, debounceTime, filter, skip, switchMap } from 'rxjs';
+import {
+  EMPTY,
+  Subject,
+  catchError,
+  debounceTime,
+  filter,
+  firstValueFrom,
+  skip,
+  switchMap,
+} from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -55,7 +65,8 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 
 // Local
 import { StudentFormDialogComponent } from './student-form-dialog.component';
-import { printCheckinCards } from './checkin-cards';
+import { printCheckinCards, printFailureMessage } from './checkin-cards';
+import { CheckinCardsService } from '@core/checkin-cards.service';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
@@ -86,6 +97,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
   selector: 'app-students',
   standalone: true,
   imports: [
+    TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
     PopoverModule,
@@ -140,8 +152,16 @@ export class StudentsPage implements OnInit {
   private readonly orgSettings = inject(OrgSettingsService);
   private readonly campusCtx = inject(CampusContextService);
 
-  /** 到班卡（#1127 B）：發卡是學生管理的事，跟編輯學生同一個門檻 */
-  protected readonly canPrintCards = this.auth.hasPermission('manage_students');
+  private readonly checkinCards = inject(CheckinCardsService);
+
+  /**
+   * 到班卡（#1100 #42，計畫席 10-28）：重印 `basic_operations` 就可以；第一次發卡（新開）要
+   * `manage_students` —— 那由後端判（只有前者的人印到沒卡的學生會被整批擋下並說明）
+   */
+  protected readonly canPrintCards =
+    this.auth.hasPermission('basic_operations') || this.auth.hasPermission('manage_students');
+  /** 新開卡（含批次發卡，#2053）：`manage_students` */
+  private readonly canIssueCards = this.auth.hasPermission('manage_students');
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -176,6 +196,8 @@ export class StudentsPage implements OnInit {
   protected readonly todayFilter = signal<StudentTodayFilter | null>(null);
   /** 學制跟年級不合（#1820 設計稿 §4）：學年升級後要改學校的學生，升級完也找得到 */
   protected readonly schoolMismatch = signal(false);
+  /** 沒有有效到班卡（#2053）：第一次全校發卡時找人用 */
+  protected readonly withoutCard = signal(false);
   protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   /**
@@ -225,6 +247,7 @@ export class StudentsPage implements OnInit {
       today ? this.todayOptions.find((o) => o.value === today)!.label : '',
       status === 'active' ? '' : status === 'inactive' ? '已停用' : '含停用',
       this.schoolMismatch() ? '學制跟年級不合' : '',
+      this.withoutCard() ? '還沒換新卡' : '',
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(' · ') : '全部';
   });
@@ -233,7 +256,8 @@ export class StudentsPage implements OnInit {
       this.selectedGrade() !== null ||
       this.todayFilter() !== null ||
       this.statusFilter() !== 'active' ||
-      this.schoolMismatch(),
+      this.schoolMismatch() ||
+      this.withoutCard(),
   );
   /** 搜尋或任何篩選生效：色面標題改「符合篩選的 N 位」，名冊上方出現「顯示 N 位 · 清除篩選」 */
   protected readonly narrowed = computed(() => this.searchQuery() !== '' || this.hasFilter());
@@ -306,19 +330,23 @@ export class StudentsPage implements OnInit {
 
   /**
    * 頁面層級的「⋯」（A6 沒畫、現況有的收進這裡，計畫席 10-10 裁定）：列印本頁到班卡。
-   * 邏輯照舊（`printCards`），只是入口從工具列的一顆鈕搬進選單。
+   * 批次發卡（#2053）也是這一顆：篩「還沒換新卡」、拉大每頁筆數，再按它 —— 本頁有沒卡的就標出人數
    */
-  protected readonly pageMenuItems = computed<MenuItem[]>(() =>
-    this.canPrintCards && this.students().length > 0
-      ? [
-          {
-            label: '列印本頁到班卡',
-            icon: 'pi pi-qrcode',
-            command: () => this.printCards(this.students()),
-          },
-        ]
-      : [],
-  );
+  protected readonly pageMenuItems = computed<MenuItem[]>(() => {
+    const students = this.students();
+    if (!this.canPrintCards || students.length === 0) return [];
+    const lacking = students.filter((s) => s.hasActiveCard === false).length;
+    return [
+      {
+        label:
+          lacking > 0 && this.canIssueCards
+            ? `本頁發卡並列印（${lacking} 位新卡）`
+            : '列印本頁到班卡',
+        icon: 'pi pi-qrcode',
+        command: () => this.requestPrintCards(students),
+      },
+    ];
+  });
 
   // Action menu
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
@@ -339,7 +367,7 @@ export class StudentsPage implements OnInit {
             {
               label: '列印到班卡',
               icon: 'pi pi-qrcode',
-              command: () => this.printCards([student]),
+              command: () => this.requestPrintCards([student]),
             },
           ]
         : []),
@@ -354,7 +382,7 @@ export class StudentsPage implements OnInit {
         label: student.hasEnrollments ? '已有報名紀錄，無法刪除' : '刪除學生',
         icon: 'pi pi-trash',
         disabled: student.hasEnrollments,
-        styleClass: student.hasEnrollments ? '' : 'text-red-500',
+        danger: true,
         command: () => this.confirmDelete(student),
       },
     ];
@@ -431,6 +459,7 @@ export class StudentsPage implements OnInit {
               isActive: STATUS_TO_IS_ACTIVE[this.statusFilter()],
               today: this.todayFilter() ?? undefined,
               schoolMismatch: this.schoolMismatch() || undefined,
+              withoutCard: this.withoutCard() || undefined,
               campusId: this.campusCtx.id() ?? undefined,
             })
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
@@ -505,6 +534,12 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
+  protected onWithoutCardChange(value: boolean): void {
+    this.withoutCard.set(value);
+    this.currentPage.set(1);
+    this.loadStudents();
+  }
+
   /** 搜尋與所有篩選一起清（只清篩選、搜尋還在，使用者會以為沒清乾淨） */
   protected clearFilters(): void {
     this.searchQuery.set('');
@@ -512,6 +547,7 @@ export class StudentsPage implements OnInit {
     this.todayFilter.set(null);
     this.statusFilter.set('active');
     this.schoolMismatch.set(false);
+    this.withoutCard.set(false);
     this.currentPage.set(1);
     this.loadStudents();
   }
@@ -532,19 +568,62 @@ export class StudentsPage implements OnInit {
    * 篩年級、把每頁筆數拉大再印，不另做勾選。
    * **視窗在點擊同一個 tick 開**（`printCheckinCards` 先開再等 QR），補習班名要先載好，所以 ngOnInit 預載設定。
    */
-  protected printCards(students: readonly Student[]): void {
-    void printCheckinCards(
-      students.map((s) => ({ studentId: s.id, name: s.name })),
-      this.orgSettings.settings()?.name ?? '',
-    ).then((opened) => {
-      if (!opened) {
+  /**
+   * 印卡入口（#2053 批次發卡）：有卡的重印同一張；沒卡的要新開 —— 新開＝發身分憑證，
+   * 要 `manage_students`，而且**先確認**（他們的舊卡會從這一刻起失效）。
+   * 只有重印權限的人：略過沒卡的、照印有卡的，並說明略過了誰（後端也會擋，這裡是不讓人按到必然失敗的鈕）。
+   * 確認框的「確定」是一次點擊，`printCards` 在它的同一個 tick 開視窗（同學生詳情的補發）。
+   */
+  protected requestPrintCards(students: readonly Student[]): void {
+    const lacking = students.filter((s) => s.hasActiveCard === false);
+    if (!this.canIssueCards) {
+      const printable = students.filter((s) => s.hasActiveCard !== false);
+      if (lacking.length > 0) {
         this.messageService.add({
-          severity: 'warn',
-          summary: '無法開啟列印視窗',
-          detail: '瀏覽器擋掉了彈出視窗，請允許本站的彈出視窗後再試',
+          severity: 'info',
+          summary: `略過 ${lacking.length} 位還沒有到班卡的學生`,
+          detail: '第一次發卡要有「學生管理」權限的人來印',
         });
       }
-    });
+      if (printable.length > 0) this.printCards(printable);
+      return;
+    }
+    if (lacking.length === 0) {
+      this.printCards(students);
+      return;
+    }
+    const reprint = students.length - lacking.length;
+    this.openConfirmDialog(
+      '發到班卡',
+      {
+        message:
+          `${lacking.length} 位會發新卡，他們手上的舊卡從現在起不能再打卡` +
+          (reprint > 0 ? `；另外 ${reprint} 位重印原本那張。` : '。'),
+        acceptLabel: `發卡並列印（${students.length} 張）`,
+      },
+      () => this.printCards(students),
+    );
+  }
+
+  private printCards(students: readonly Student[]): void {
+    // 卡的代碼由後端發（有卡重印同一張、沒卡開新的，#1100 #42）
+    const load = async () =>
+      (await firstValueFrom(this.checkinCards.print(students.map((s) => s.id)))).data.map((c) => ({
+        name: c.studentName,
+        code: c.code,
+      }));
+    printCheckinCards(load, this.orgSettings.settings()?.name ?? '').then(
+      (opened) => {
+        if (!opened) {
+          this.messageService.add({
+            severity: 'warn',
+            summary: '無法開啟列印視窗',
+            detail: '瀏覽器擋掉了彈出視窗，請允許本站的彈出視窗後再試',
+          });
+        }
+      },
+      (err: unknown) => this.messageService.add({ severity: 'error', ...printFailureMessage(err) }),
+    );
   }
 
   openEditDialog(student: Student): void {

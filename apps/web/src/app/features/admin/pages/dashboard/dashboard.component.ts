@@ -1,12 +1,15 @@
+import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ValueArriveDirective } from '@shared/directives/value-arrive.directive';
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   inject,
   input,
   signal,
+  viewChild,
   type Signal,
   EnvironmentInjector,
   createEnvironmentInjector,
@@ -112,6 +115,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
 @Component({
   selector: 'app-dashboard',
   imports: [
+    TextSwapDirective,
     HeightFollowDirective,
     SkeletonComponent,
     ValueArriveDirective,
@@ -264,7 +268,7 @@ export class DashboardComponent {
   protected readonly emergencyLinks = [
     { title: '颱風、停電', hint: '整天停課' },
     { title: '老師請假', hint: '整週找人代課' },
-    { title: '班級改時段', hint: '整期一起改' },
+    { title: '班級改時段', hint: '從某天起換時間' },
   ] as const;
 
   // 手機托盤：A6 的「櫃台代刷」比桌機鈕「櫃台代刷到班」短；圖示照稿
@@ -275,20 +279,32 @@ export class DashboardComponent {
     icon: 'pi pi-check',
   };
 
+  /** 登記請假的彈窗（#2037）：原生 <dialog>，從工具列或「該到沒到」的列打開 */
+  private readonly phoneLeaveDialog = viewChild<ElementRef<HTMLDialogElement>>('phoneLeaveDialog');
+
   protected openPhoneLeave(studentId: string | null = null): void {
     this.phoneLeaveStudentId.set(studentId);
     this.phoneLeaveOpen.set(true);
-    // 面板在頁面上方，從列內按時要把它帶進視野
-    queueMicrotask(() =>
-      document
-        .getElementById('dashboard-phone-leave')
-        ?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }),
-    );
+    const dialog = this.phoneLeaveDialog()?.nativeElement;
+    // jsdom 沒有 showModal
+    if (dialog && !dialog.open && typeof dialog.showModal === 'function') dialog.showModal();
   }
 
+  /** 收起鈕、Esc（dialog 的 close 事件）都走這裡 */
   protected closePhoneLeave(): void {
     this.phoneLeaveOpen.set(false);
     this.phoneLeaveStudentId.set(null);
+    const dialog = this.phoneLeaveDialog()?.nativeElement;
+    if (dialog?.open) dialog.close();
+  }
+
+  /**
+   * 結果卡的「點名名單」：先收起登記請假再開點名名單 —— 點名名單是 PrimeNG 的動態對話框（掛在 body），
+   * 原生 modal <dialog> 在 top layer，不收的話會被蓋在底下。
+   */
+  protected openRosterFromPhoneLeave(target: PhoneLeaveRosterRequest): void {
+    this.closePhoneLeave();
+    void this.openRosterDialog(target);
   }
 
   /** 櫃台代刷＝到班打卡站（掃 QR）。登記請假用同一顆托盤鈕，不經這裡 */

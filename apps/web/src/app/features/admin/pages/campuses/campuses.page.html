@@ -17,25 +17,9 @@
     />
   </label>
   <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
-    <!-- 桌機：操作紀錄直接放；手機收進「⋯」（A6 只在桌機畫，R2：稿沒畫的收進⋯、不刪） -->
-    <span class="hidden min-[640.02px]:contents">
-      <p-button
-        label="操作紀錄"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openAuditLog()"
-      />
-    </span>
-    <button
-      type="button"
-      class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 min-[640.02px]:hidden"
-      aria-label="分校的更多動作"
-      (click)="pageMenu.toggle($event)"
-    >
-      <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
-    </button>
+    <!-- 操作紀錄：全站同一顆時鐘圖示鈕，手機也在（#2006；原本桌機文字鈕、手機收進「⋯」） -->
+    <app-audit-log-button (opened)="openAuditLog()" />
   </app-page-actions>
-  <app-popup-menu #pageMenu [model]="pageMenuItems" />
 </div>
 
 @if (!loading() && summary().total > 0) {
@@ -43,7 +27,7 @@
     class="mt-4 mb-0 flex flex-wrap items-center gap-x-4 gap-y-2 text-md text-zinc-600 tabular-nums"
     data-count
   >
-    <span
+    <span appTextSwap
       ><b class="text-zinc-900">{{ summary().total }}</b> 個分校 ·
       <b class="text-zinc-900">{{ activeCampusCount() }}</b> 啟用中 ·
       <b class="text-zinc-900">{{ inactiveCampusCount() }}</b> 已停用</span

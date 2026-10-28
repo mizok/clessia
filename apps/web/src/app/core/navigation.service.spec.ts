@@ -125,6 +125,13 @@ describe('NavigationService —— 頂欄與「更多」', () => {
 
     expect(labels(nav.topItems())).toEqual(['首頁', '到班', '成績', '繳費']);
     expect(groupLabels(nav)).toEqual(['學習狀況', '生活與繳費', '行政服務']);
+    // 照 A6 a6.js 的家長選單：報名申請在試聽申請前面（#2016 #6）
+    expect(labels(nav.moreGroups().find((g) => g.label === '行政服務')!.items)).toEqual([
+      '報名申請',
+      '試聽申請',
+      '加選課程',
+      '續課資訊',
+    ]);
     expect(nav.notificationsRoute()).toBe('/parent/notifications');
   });
 

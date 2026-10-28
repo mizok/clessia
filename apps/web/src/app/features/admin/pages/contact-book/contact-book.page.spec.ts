@@ -29,6 +29,7 @@ const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   signedByName: null,
   signedAt: null,
   isSigned: false,
+  editedAfterSign: false,
   ...overrides,
 });
 
@@ -52,6 +53,7 @@ describe('ContactBookPage', () => {
       of({ data: [] as MissingContactBookStudent[], meta: { total: 0 } }),
     ),
     upsert: vi.fn(),
+    remind: vi.fn(),
   };
   const students = {
     list: vi.fn(() => of({ data: [student()], summary: {}, meta: {} })),
@@ -482,6 +484,62 @@ describe('ContactBookPage', () => {
       expect(write).toHaveBeenCalledWith(expect.objectContaining({ studentId: '1' }));
     });
 
+    describe('#1100 #27 提醒老師補寫', () => {
+      const remindButton = () =>
+        el().querySelector('[data-testid="missing-remind"]') as HTMLButtonElement;
+
+      it('每班一顆；按了送班與日期（不送名單），toast 寫老師、則數、日期，按鈕變「今天已提醒」', async () => {
+        const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+        contactBook.remind
+          .mockReset()
+          .mockReturnValue(
+            of({ sent: 1, alreadyReminded: false, teacherNames: ['林老師'], missingCount: 2 }),
+          );
+        await load([], [miss('1', 'A'), miss('2', 'A'), miss('3', 'B')]);
+        expect(el().querySelectorAll('[data-testid="missing-remind"]').length).toBe(2);
+
+        remindButton().click();
+        fixture.detectChanges();
+
+        expect(contactBook.remind).toHaveBeenCalledWith('A', '2027-03-05');
+        expect(toast).toHaveBeenCalledWith({
+          severity: 'success',
+          summary: '已提醒林老師補寫 2 則（3/5）',
+        });
+        expect(remindButton().textContent).toContain('今天已提醒');
+        remindButton().click();
+        expect(contactBook.remind).toHaveBeenCalledTimes(1);
+      });
+
+      it('今天已提醒過：info toast；409 等錯誤：把伺服器的話說出來、按鈕還能再按', async () => {
+        const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+        contactBook.remind
+          .mockReset()
+          .mockReturnValueOnce(
+            throwError(() => ({
+              error: { error: '這堂沒有可以通知的上課老師', code: 'NO_TEACHER' },
+            })),
+          )
+          .mockReturnValueOnce(
+            of({ sent: 0, alreadyReminded: true, teacherNames: ['林老師'], missingCount: 2 }),
+          );
+        await load([], [miss('1', 'A')]);
+
+        remindButton().click();
+        fixture.detectChanges();
+        expect(toast).toHaveBeenCalledWith({
+          severity: 'error',
+          summary: '這堂沒有可以通知的上課老師',
+        });
+        expect(remindButton().textContent).toContain('提醒老師補寫');
+
+        remindButton().click();
+        fixture.detectChanges();
+        expect(toast).toHaveBeenLastCalledWith({ severity: 'info', summary: '今天已經提醒過了' });
+        expect(remindButton().textContent).toContain('今天已提醒');
+      });
+    });
+
     it('CB2 依日分段，只有最新一天展開，每段寫幾則幾則未簽', async () => {
       await load([
         entry({ id: 'a', entryDate: '2026-08-29', isSigned: true }),
@@ -523,6 +581,18 @@ describe('ContactBookPage', () => {
 
       expect(el().querySelector('[data-testid="signed"]')?.textContent).toContain('20:15');
       expect(el().querySelectorAll('[data-testid="unsigned"]').length).toBe(1);
+    });
+
+    it('#1100 #26 簽收後又改過：簽收照留，旁邊標「簽收後有修改」', async () => {
+      await load([
+        entry({ id: 'a', isSigned: true, signedAt: '2026-08-29T12:15:00Z', editedAfterSign: true }),
+        entry({ id: 'b', isSigned: true, signedAt: '2026-08-29T12:15:00Z' }),
+      ]);
+
+      expect(el().querySelectorAll('[data-testid="signed"]').length).toBe(2);
+      const edited = el().querySelectorAll('[data-testid="edited"]');
+      expect(edited.length).toBe(1);
+      expect(edited[0].textContent).toContain('簽收後有修改');
     });
 
     it('缺漏日期下拉選日期就查那天；選其他日期只出現 datepicker 不查', () => {
