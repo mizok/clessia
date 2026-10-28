@@ -664,6 +664,7 @@ describe('checkEnrollmentPreconditions', () => {
           weekday: 3,
           start_time: '18:00:00',
           end_time: '20:00:00',
+          effective_from: '2026-01-01',
           effective_to: null,
         },
       ],
@@ -684,6 +685,7 @@ describe('checkEnrollmentPreconditions', () => {
                 weekday: 3,
                 start_time: '19:00:00',
                 end_time: '21:00:00',
+                effective_from: '2026-01-01',
                 effective_to: null,
               },
             ],
@@ -724,6 +726,7 @@ describe('checkEnrollmentPreconditions', () => {
           weekday: 3,
           start_time: '18:00:00',
           end_time: '20:00:00',
+          effective_from: '2026-01-01',
           effective_to: null,
         },
       ],
@@ -744,6 +747,7 @@ describe('checkEnrollmentPreconditions', () => {
                 weekday: 3,
                 start_time: '19:00:00',
                 end_time: '21:00:00',
+                effective_from: '2026-01-01',
                 effective_to: null,
               },
             ],
@@ -763,6 +767,80 @@ describe('checkEnrollmentPreconditions', () => {
 
     expect(result.error).toBeNull();
     expect(result.conflicts).toEqual([]);
+  });
+
+  /** #1100 #22：時段有生效期間；只有同時在籍期間裡兩個時段都有效、而且彼此有交集才算撞 */
+  describe('時段生效期間（#1100 #22）', () => {
+    const run = async (
+      target: { effective_from: string; effective_to: string | null },
+      existing: Array<{ start_time: string; effective_from: string; effective_to: string | null }>,
+    ) => {
+      const supabase = createFakeSupabase({
+        classes: [{ id: classId, org_id: orgId, max_students: null }],
+        schedules: [
+          {
+            class_id: classId,
+            weekday: 3,
+            start_time: '18:00:00',
+            end_time: '20:00:00',
+            ...target,
+          },
+        ],
+        enrollments: [
+          {
+            org_id: orgId,
+            class_id: 'class-2',
+            student_id: 'student-1',
+            status: 'active',
+            effective_from: '2026-04-01',
+            effective_to: null,
+            classes: {
+              id: 'class-2',
+              name: 'B 班',
+              courses: { name: '英文' },
+              schedules: existing.map((e) => ({ weekday: 3, end_time: '21:00:00', ...e })),
+            },
+          },
+        ],
+      });
+      return checkEnrollmentPreconditions({
+        supabase: supabase as never,
+        orgId,
+        classId,
+        studentIds: ['student-1'],
+        effectiveFrom: '2026-04-09',
+        effectiveTo: '2026-06-30',
+      });
+    };
+
+    it('目標班的時段 7/1 才生效，報名只到 6/30 → 不撞', async () => {
+      const r = await run({ effective_from: '2026-07-01', effective_to: null }, [
+        { start_time: '19:00:00', effective_from: '2026-01-01', effective_to: null },
+      ]);
+      expect(r.conflicts).toEqual([]);
+    });
+
+    it('既有班 19:00 那段 4/8 就換掉了（新段改 20:30），報名從 4/9 起 → 不撞', async () => {
+      const r = await run({ effective_from: '2026-01-01', effective_to: null }, [
+        { start_time: '19:00:00', effective_from: '2026-01-01', effective_to: '2026-04-08' },
+        { start_time: '20:30:00', effective_from: '2026-04-09', effective_to: null },
+      ]);
+      expect(r.conflicts).toEqual([]);
+    });
+
+    it('既有時段只到 4/30、目標時段 5/1 起：都在同時在籍期間裡，但彼此錯開 → 不撞', async () => {
+      const r = await run({ effective_from: '2026-05-01', effective_to: null }, [
+        { start_time: '19:00:00', effective_from: '2026-01-01', effective_to: '2026-04-30' },
+      ]);
+      expect(r.conflicts).toEqual([]);
+    });
+
+    it('目標時段 5/1 起、既有時段到 5/15 止 → 5/1–5/15 同時有效，撞', async () => {
+      const r = await run({ effective_from: '2026-05-01', effective_to: null }, [
+        { start_time: '19:00:00', effective_from: '2026-01-01', effective_to: '2026-05-15' },
+      ]);
+      expect(r.conflicts.map((c) => c.startTime)).toEqual(['19:00:00']);
+    });
   });
 });
 

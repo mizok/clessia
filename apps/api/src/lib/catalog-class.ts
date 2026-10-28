@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { isScheduleCurrentOrUpcoming, scheduleRangeOf } from './schedule-effective';
 import { DbUuidSchema } from './validation';
 
 /**
@@ -16,7 +17,7 @@ export const catalogClassSelect = (scheduleExtra = '') => `
   id, name, grade_levels, max_students, is_active, end_date, is_recommended,
   courses(id, name, description, is_active, subjects(name)),
   campuses(name, phone, address),
-  schedules(weekday, start_time, end_time, effective_to${scheduleExtra}),
+  schedules(weekday, start_time, end_time, effective_from, effective_to${scheduleExtra}),
   fee_template:fee_templates!default_fee_template_id(amount, billing_mode, is_active)
 `;
 
@@ -30,7 +31,7 @@ export const CatalogClassSchema = z.object({
   subject: z.string().nullable(),
   courseDescription: z.string().nullable(),
   campusName: z.string().nullable(),
-  /** 今天仍有效的每週時段（1=週一 … 7=週日） */
+  /** 今天有效與還沒生效的每週時段（1=週一 … 7=週日；已結束的舊段不列，#1100 #22） */
   slots: z.array(
     z.object({ weekday: z.number().int(), startTime: z.string(), endTime: z.string() }),
   ),
@@ -53,10 +54,13 @@ export const one = (value: unknown): Row | null =>
 export const many = (value: unknown): Row[] =>
   Array.isArray(value) ? value : value ? [value as Row] : [];
 
-/** 今天仍有效的時段，依星期、開始時間排 */
+/**
+ * 今天有效、以及還沒生效的未來時段，依星期、開始時間排（#1100 #22：家長報名下個月的班時要看得到下個月的時間）。
+ * 已經結束的舊段不列。
+ */
 export function liveSchedules(row: Row, today: string): Row[] {
   return many(row['schedules'])
-    .filter((s) => !s['effective_to'] || s['effective_to'] >= today)
+    .filter((s) => isScheduleCurrentOrUpcoming(scheduleRangeOf(s), today))
     .sort((a, b) => a['weekday'] - b['weekday'] || a['start_time'].localeCompare(b['start_time']));
 }
 

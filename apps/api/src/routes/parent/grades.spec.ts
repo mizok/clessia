@@ -61,17 +61,45 @@ const ORG_ID = 'org-1';
 
 /** 班的時段（#1926）：`fromScopedIds('schedules', 'class_id', …)` 回的列，老師嵌在 `teacher` */
 const SCHEDULES = [
-  { class_id: 'c-mine', effective_to: null, teacher: { display_name: '林老師', org_id: ORG_ID } },
-  { class_id: 'c-mine', effective_to: null, teacher: { display_name: '陳老師', org_id: ORG_ID } },
-  { class_id: 'c-mine', effective_to: null, teacher: { display_name: '林老師', org_id: ORG_ID } },
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '林老師', org_id: ORG_ID },
+  },
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '陳老師', org_id: ORG_ID },
+  },
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '林老師', org_id: ORG_ID },
+  },
   // 考試（9/1）前就結束的時段：那時不是這位老師在教
   {
     class_id: 'c-mine',
+    effective_from: '2026-01-01',
     effective_to: '2026-08-01',
     teacher: { display_name: '舊老師', org_id: ORG_ID },
   },
+  // 考試（9/1）後才生效的時段：那時還不是這位老師（#1100 #22 Q3）
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-09-02',
+    effective_to: null,
+    teacher: { display_name: '新老師', org_id: ORG_ID },
+  },
   // 別的機構的人（同一個 staff 表）不能被帶出來
-  { class_id: 'c-mine', effective_to: null, teacher: { display_name: '外機構', org_id: 'org-x' } },
+  {
+    class_id: 'c-mine',
+    effective_from: '2026-01-01',
+    effective_to: null,
+    teacher: { display_name: '外機構', org_id: 'org-x' },
+  },
 ];
 
 function fakeChildDb(
