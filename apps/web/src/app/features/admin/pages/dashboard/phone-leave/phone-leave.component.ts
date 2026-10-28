@@ -10,6 +10,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
@@ -56,6 +57,7 @@ const REASON_CHIPS = ['病假', '事假'] as const;
 @Component({
   selector: 'app-phone-leave',
   imports: [
+    NgTemplateOutlet,
     FormsModule,
     ButtonModule,
     InputTextModule,
@@ -88,12 +90,20 @@ export class PhoneLeaveComponent {
     effect(() => {
       const id = this.presetStudentId();
       if (!id) return;
-      untracked(() =>
+      untracked(() => {
+        this.presetLoading.set(true);
         this.studentsService
           .get(id)
           .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe({ next: (res) => this.pick(res.data) }),
-      );
+          .subscribe({
+            next: (res) => {
+              this.presetLoading.set(false);
+              this.pick(res.data);
+            },
+            // 讀不到就退回搜尋框，不要卡在骨架
+            error: () => this.presetLoading.set(false),
+          });
+      });
     });
   }
 
@@ -105,6 +115,8 @@ export class PhoneLeaveComponent {
 
   protected readonly suggestions = signal<Student[]>([]);
   protected readonly student = signal<Student | null>(null);
+  /** 預帶的學生還在載（#2037）：畫骨架，不畫搜尋框 */
+  protected readonly presetLoading = signal(false);
   protected readonly reason = signal('');
 
   protected readonly preview = signal<StudentDay | 'error' | null>(null);
