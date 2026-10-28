@@ -38,7 +38,7 @@ const actorOf = (c: Context<AppEnv>): CardActor => ({
   scope: getCampusScope(c),
 });
 
-// GET /api/checkin-cards/students/:studentId —— 學生詳情頁：現在的卡
+// GET /api/checkin-cards/students/:studentId —— 學生詳情頁：現在的卡（櫃台補發前看現況）
 app.openapi(
   createRoute({
     method: 'get',
@@ -48,11 +48,13 @@ app.openapi(
     request: { params: StudentParam },
     responses: {
       200: {
-        description: '有效卡（沒有則 null）；`hasAnyCard`＝印過新卡（舊版 UUID 卡已失效）',
+        description:
+          '有效卡（沒有則 null）只回後 4 碼 —— 代碼就是打卡憑證，完整碼只在印卡時出現（計畫席 10-28）；' +
+          '`hasAnyCard`＝印過新卡（舊版 UUID 卡已失效）',
         content: {
           'application/json': {
             schema: z.object({
-              active: z.object({ code: z.string(), issuedAt: z.string() }).nullable(),
+              active: z.object({ last4: z.string(), issuedAt: z.string() }).nullable(),
               hasAnyCard: z.boolean(),
             }),
           },
@@ -85,7 +87,7 @@ app.openapi(
     const active = rows.find((r) => r.revoked_at === null);
     return c.json(
       {
-        active: active ? { code: active.code, issuedAt: active.issued_at } : null,
+        active: active ? { last4: active.code.slice(-4), issuedAt: active.issued_at } : null,
         hasAnyCard: rows.length > 0,
       },
       200,
