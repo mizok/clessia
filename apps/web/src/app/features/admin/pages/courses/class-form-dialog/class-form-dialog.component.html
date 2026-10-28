@@ -245,6 +245,24 @@
                   styleClass="min-w-[110px]"
                 />
               </div>
+              @if (rangeLabel(entry) || (isEditing() && entry.id)) {
+                <div class="flex flex-wrap items-center gap-2 text-sm">
+                  @if (rangeLabel(entry); as label) {
+                    <span class="text-zinc-600 tabular-nums">{{ label }}</span>
+                  }
+                  <!-- #1100 #22：「下個月起改週三」。直接改上面的欄位＝整段一起改；這個是從某天起才換 -->
+                  @if (isEditing() && entry.id) {
+                    <p-button
+                      label="從某日起改時段"
+                      icon="pi pi-calendar"
+                      [text]="true"
+                      size="small"
+                      [disabled]="loading()"
+                      (onClick)="openSplit(entry)"
+                    />
+                  }
+                </div>
+              }
               <!-- teacher selection removed per D4: 老師指派改由行事曆批次操作處理 -->
             </div>
           }

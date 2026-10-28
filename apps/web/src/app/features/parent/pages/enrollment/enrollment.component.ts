@@ -31,6 +31,7 @@ import {
   RequestRowComponent,
   type RequestTagTone,
 } from '../../shared/request-row/request-row.component';
+import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
 
 /**
  * 家長端報名申請（#1727 ③，A6 p-enrollment，設計稿 kb/wiki/specs/parent/applications.md）。
@@ -179,7 +180,10 @@ export class EnrollmentComponent {
   }
 
   protected slotText(c: ParentCatalogClass): string {
-    const slots = c.slots.map((s) => `每週${WEEKDAY[s.weekday]} ${s.startTime}–${s.endTime}`);
+    const slots = c.slots.map(
+      (s) =>
+        `每週${WEEKDAY[s.weekday]} ${s.startTime}–${s.endTime}${effectiveFromSuffix(s.effectiveFrom)}`,
+    );
     return [...slots, ...c.teacherNames].join(' · ');
   }
 

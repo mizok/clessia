@@ -11,6 +11,8 @@ export interface Schedule {
   endTime: string;
   teacherId: string | null;
   teacherName?: string;
+  /** 從哪天起生效（含，#1100 #22） */
+  effectiveFrom: string;
   effectiveTo: string | null;
   /** 指定的教室（#1796）；null = 不指定 */
   classroomId: string | null;
@@ -132,9 +134,35 @@ export interface CreateScheduleInput {
   startTime: string;
   endTime: string;
   teacherId: string | null;
+  /** 新增時沒帶＝班級開課日（沒有就今天） */
+  effectiveFrom?: string;
   effectiveTo?: string | null;
   /** 要跟班級同一個分校（API 不同分校回 409）；null = 不指定 */
   classroomId?: string | null;
+}
+
+/** 「從某日起改時段」（#1100 #22）：舊時段止於 fromDate 前一天、新時段從 fromDate 起 */
+export interface SplitScheduleInput {
+  fromDate: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  teacherId: string | null;
+  classroomId: string | null;
+  /** true＝只預覽，什麼都不寫 */
+  dryRun?: boolean;
+}
+
+export type SplitKeptReason = 'status' | 'attendance' | 'schedule_change' | 'leave' | 'makeup';
+
+export interface SplitScheduleResult {
+  dryRun: boolean;
+  newSchedule: Schedule | null;
+  /** 刪掉、由新時段重產的舊課堂數 */
+  removedCount: number;
+  createdCount: number;
+  /** 有資料而保留的舊課堂，要行政自己用「批次改時間」處理 */
+  kept: Array<{ id: string; sessionDate: string; startTime: string; reasons: SplitKeptReason[] }>;
 }
 
 export interface SessionPreview {
@@ -152,6 +180,8 @@ export interface CheckConflictScheduleInput {
   startTime: string;
   endTime: string;
   teacherId: string | null;
+  /** 生效起始日（#1100 #22）；新增的還沒有＝null（不限起點） */
+  effectiveFrom?: string | null;
   effectiveTo?: string | null;
 }
 
@@ -286,6 +316,17 @@ export class ClassesService {
   ): Observable<{ data: Schedule }> {
     return this.http.put<{ data: Schedule }>(
       `${this.endpoint}/${classId}/schedules/${scheduleId}`,
+      input,
+    );
+  }
+
+  splitSchedule(
+    classId: string,
+    scheduleId: string,
+    input: SplitScheduleInput,
+  ): Observable<{ data: SplitScheduleResult }> {
+    return this.http.post<{ data: SplitScheduleResult }>(
+      `${this.endpoint}/${classId}/schedules/${scheduleId}/split`,
       input,
     );
   }

@@ -439,4 +439,61 @@ describe('ClassFormDialogComponent', () => {
     expect(rows()).toHaveLength(2);
     expect(rows()[1]).toBe(third);
   });
+
+  // #1100 #22：同一個時段可以前後接續（舊段止於 X−1、新段起於 X）
+  describe('時段生效區間', () => {
+    const recreate = (cls: Record<string, unknown> | null) => {
+      TestBed.inject(DynamicDialogConfig).data.cls = cls;
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    };
+    const sch = (
+      id: string,
+      weekday: number,
+      effectiveFrom: string,
+      effectiveTo: string | null,
+    ) => ({
+      id,
+      classId: 'class-1',
+      weekday,
+      startTime: '09:00:00',
+      endTime: '11:00:00',
+      teacherId: null,
+      effectiveFrom,
+      effectiveTo,
+      classroomId: null,
+      classroomName: null,
+    });
+    const cls = (schedules: unknown[]) => ({
+      id: 'class-1',
+      name: '舊班',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+      schedules,
+    });
+
+    it('同星期同時間、日期前後接續：不算重疊，存得進去', async () => {
+      recreate(
+        cls([sch('now', 1, '2026-01-01', '2099-01-31'), sch('next', 1, '2099-02-01', null)]),
+      );
+      (component as any).save();
+      await fixture.whenStable();
+      expect((component as any).formValidationMessage()).toBeNull();
+      expect(classesServiceMock.update).toHaveBeenCalled();
+    });
+
+    it('已經結束的舊段不列、存檔也不會把它刪掉；未來的段標「X 起」', async () => {
+      recreate(
+        cls([sch('old', 1, '2026-01-01', '2026-01-31'), sch('next', 3, '2099-02-01', null)]),
+      );
+      const entries = (component as any).scheduleEntries();
+      expect(entries.map((e: { id: string }) => e.id)).toEqual(['next']);
+      expect((component as any).rangeLabel(entries[0])).toBe('2/1 起');
+      (component as any).save();
+      await fixture.whenStable();
+      expect(classesServiceMock.deleteSchedule).not.toHaveBeenCalled();
+    });
+  });
 });

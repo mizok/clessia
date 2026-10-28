@@ -16,7 +16,9 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ClassesService, Class } from '@core/classes.service';
+import { ClassesService, Class, type Schedule } from '@core/classes.service';
+import { taipeiDateString } from '@core/system-clock.service';
+import { effectiveRangeLabel } from '@shared/utils/schedule-effective.util';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
   EnrollmentsService,
@@ -421,6 +423,23 @@ export class ClassDetailPage implements OnInit {
 
   protected getGradeLabel(grade: string): string {
     return GRADE_LEVEL_LABELS[grade as keyof typeof GRADE_LEVEL_LABELS] ?? grade;
+  }
+
+  private readonly today = taipeiDateString(Date.now());
+  /** 色面「N 個上課時段」算今天有效的（#1100 #22：舊段與新段前後接續，不能兩個都算） */
+  protected readonly activeScheduleCount = computed(
+    () =>
+      (this.cls()?.schedules ?? []).filter(
+        (s) =>
+          s.effectiveFrom <= this.today && (s.effectiveTo === null || s.effectiveTo >= this.today),
+      ).length,
+  );
+  /** 時段列標區間；已結束的段整列淡掉 */
+  protected scheduleRange(s: Schedule): string {
+    return effectiveRangeLabel(s.effectiveFrom, s.effectiveTo, this.today);
+  }
+  protected isScheduleEnded(s: Schedule): boolean {
+    return s.effectiveTo !== null && s.effectiveTo < this.today;
   }
 
   protected getWeekdayLabel(weekday: number): string {
