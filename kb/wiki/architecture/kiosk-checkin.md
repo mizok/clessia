@@ -130,7 +130,7 @@ tags: [architecture, attendance, authorization, kiosk, migration]
   - `POST /print { studentIds }`：有有效卡就**重印同一張**（不換碼），沒有就開卡。批次的分校範圍一句 SQL 判完 ——
     逐位 `studentWriteScope` 每位兩個 subrequest，一頁 20 位就撞 Workers 的 50 上限。
   - `POST /{studentId}/reissue { reason }`：作廢舊卡＋開新卡同一交易；`/revoke { reason }` 只作廢。
-  - `GET /students/{studentId}`：目前的有效卡、印過新卡沒。
+  - `GET /students/{studentId}`：目前的有效卡（**只回後 4 碼**，完整碼只在印卡時出現）、印過新卡沒。
   - 三支寫入都寫稽核（掛 `resourceType: 'student'`，不為卡片另開 CHECK 值）。稽核**不記代碼**（代碼就是憑證）。
 - **權限**（計畫席 10-28）：重印 `basic_operations`；**新開、補發、作廢 `manage_students`**（等於發放／收回身分憑證）。
   只有 `basic_operations` 的人印到沒卡的學生 → 整批 403 `NEEDS_MANAGE_STUDENTS`。上線後第一次全校發卡由有
