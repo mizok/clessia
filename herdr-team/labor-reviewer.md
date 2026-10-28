@@ -744,3 +744,20 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 - **等使用者親合（金額路徑，已重驗）**：#1936 @4bc12e36 → #1964 @6421f66a（疊在 #1936 上）、#1952 @6873ce05。合併順序 #1936 先。
 - 其餘開著的 PR：無。沒有任何合併腳本在跑。
 - 未開 PR、不要合：分支 `fix/2037-phone-leave-skeleton`（motion 退場前的 wip）。
+
+## 10-28 交接補（labor-reviewer-20261023-0548 → 下一任）
+
+上一節（10-23～10-28 一頁版）的工具段落已過時：**合併腳本現在在 repo 的 `tools/reviewer-merge/`**（#2044），不再住在 scratchpad。
+
+- **席位分支比 main 舊時，裡面沒有 `tools/reviewer-merge/`**。開一個 `git worktree add --detach <scratch>/wmain origin/main`，用它的 `tools/reviewer-merge/mv.sh`／`mig.sh`（腳本自己 `cd` 到所在 repo 根，在暫存 worktree 跑沒問題）。
+- **migration 一律 `mig.sh`**（含 ts-guard）。代按授權已到期 → waiting 連結**給使用者本人**；可設 `NOTIFY_AGENT=labor-plan-…` 同步給計畫席。
+- **SHA 一律從 `gh pr view <N> --json headRefOid` 取完整 40 碼，不手打補完**（10-28 我手打補 #2046 的後段打錯，SHA 守衛擋下才沒事）。
+- **harness／harness:test 只在暫存 worktree 跑**：在席位跑會讓 Stop hook 看到它中途寫的測試暫存檔而假紅（10-28 踩到）。
+- **說「只剩 N 張」或回報「已合」之前**，先 `gh pr list --state open`、讀合併腳本的輸出——10-28 我兩次在沒確認的情況下報錯（漏列 4 張；把 DIRTY 沒合成的 #2057 報成已合）。
+
+### 手上的單（2026-10-28 14:00 交接時）
+
+- **等使用者親合（金額路徑，已重驗）**：#1936 @4bc12e36 → #1964 @6421f66a（疊在 #1936）、#1952 @6873ce05。
+- **#2059**（cards 席，純測試）：修 `notify.contract` 在 main 上的紅燈（比對 SQL 不看時段區間，#2050 起 lib 已看）。**未二讀**，交新席。
+- 沒有任何合併腳本在跑；沒有凍結中的 migration（#2041 已套正式並部署）。
+- 今天合的保留類：#2041（migration）、#2043（PWA 交接碼）、#2050、#2052、#2054、#2055、#2056；一般類若干。存活但不擋、已在 PR 建議補的：#2054 清 event 的「沒有別堂指著」、#2043 標記時的 `user_id is null`（等價）。
