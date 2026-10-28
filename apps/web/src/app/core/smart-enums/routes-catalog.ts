@@ -529,21 +529,22 @@ export class RoutesCatalog {
   );
 
   // Group: 行政服務
-  public static readonly PARENT_TRIAL = this.register(
-    'trial',
-    '/parent/trial',
-    '試聽申請',
-    UserType.PARENT,
-    'pi-headphones',
-    true,
-    NavigationGroup.PARENT_SERVICES,
-  );
+  // 選單順序＝註冊順序：報名申請在試聽申請前面（A6 a6.js 家長「行政服務」，#2016 #6）
   public static readonly PARENT_ENROLLMENT = this.register(
     'enrollment',
     '/parent/enrollment',
     '報名申請',
     UserType.PARENT,
     'pi-user-plus',
+    true,
+    NavigationGroup.PARENT_SERVICES,
+  );
+  public static readonly PARENT_TRIAL = this.register(
+    'trial',
+    '/parent/trial',
+    '試聽申請',
+    UserType.PARENT,
+    'pi-headphones',
     true,
     NavigationGroup.PARENT_SERVICES,
   );
