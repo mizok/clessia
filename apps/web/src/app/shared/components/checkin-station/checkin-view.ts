@@ -122,6 +122,23 @@ export function checkinFailure(err: unknown): CheckinFailure {
       retry: true,
     };
   }
+  // 到班卡（#1100 #42）：作廢的卡、被新卡取代的舊卡 —— 講清楚是卡的問題，學生才知道去找櫃台換
+  const code =
+    err instanceof HttpErrorResponse ? (err.error as { code?: string } | null)?.code : null;
+  if (status === 409 && code === 'CARD_REVOKED') {
+    return {
+      title: '這張卡已經作廢',
+      note: '可能是掛失後補發過新卡。請找櫃台補發，櫃台可以先幫你登記到班。',
+      retry: false,
+    };
+  }
+  if (status === 409 && code === 'LEGACY_CARD') {
+    return {
+      title: '這是舊版的卡',
+      note: '你已經有新的到班卡了，請改用新卡。新卡不在身上的話，請找櫃台登記到班。',
+      retry: false,
+    };
+  }
   if (status === 400 || status === 404) {
     return {
       title: '這張卡讀不到學生',

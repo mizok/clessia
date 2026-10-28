@@ -28,6 +28,15 @@ import {
   type EnrollmentStatus,
 } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { AuthService } from '@core/auth.service';
+import { CheckinCardsService } from '@core/checkin-cards.service';
+import { OrgSettingsService } from '@core/org-settings.service';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { firstValueFrom } from 'rxjs';
+import { printCheckinCards } from '../checkin-cards';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
@@ -120,6 +129,10 @@ export class StudentDetailPage implements OnInit {
   private readonly scoresService = inject(ScoresService);
   private readonly leaveService = inject(LeaveService);
   private readonly clock = inject(SystemClockService);
+  private readonly checkinCards = inject(CheckinCardsService);
+  private readonly orgSettings = inject(OrgSettingsService);
+  /** 補發、作廢到班卡＝發放／收回身分憑證（#1100 #42，計畫席 10-28） */
+  protected readonly canManageCards = inject(AuthService).hasPermission('manage_students');
 
   /** 帳單章持有帳單與待收金額；工具列的「收款」與紀錄時間軸讀它，不重打 API */
   protected readonly billing = viewChild(StudentBillingChapterComponent);
@@ -189,6 +202,13 @@ export class StudentDetailPage implements OnInit {
     { label: '編輯資料', icon: 'pi pi-pencil', command: () => this.openEditDialog() },
     ...(this.student()?.isActive
       ? [{ label: '報名新班', icon: 'pi pi-plus', command: () => this.openClassPicker() }]
+      : []),
+    ...(this.canManageCards
+      ? [
+          { separator: true },
+          { label: '補發到班卡', icon: 'pi pi-qrcode', command: () => this.reissueCard() },
+          { label: '作廢到班卡', icon: 'pi pi-ban', command: () => this.revokeCard() },
+        ]
       : []),
   ]);
 
@@ -321,6 +341,75 @@ export class StudentDetailPage implements OnInit {
         }
       });
     }
+  }
+
+  /** 填理由的確認框；按下確定才呼叫 `onAccept(理由)` —— 在那個點擊的同一個 tick（補發要開列印視窗） */
+  private askCardReason(header: string, message: string, onAccept: (reason: string) => void): void {
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header,
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        message,
+        acceptLabel: header,
+        acceptSeverity: 'danger',
+        requireNotes: true,
+        notesPlaceholder: '理由（例如：遺失、卡片損壞、退班）',
+      } satisfies ConfirmDialogData,
+    });
+    ref?.onClose.subscribe((result?: { notes: string } | false) => {
+      if (result) onAccept(result.notes);
+    });
+  }
+
+  /** 補發：舊卡立即作廢＋開新卡，接著直接印新卡 */
+  protected reissueCard(): void {
+    const s = this.student();
+    if (!s) return;
+    if (this.orgSettings.status() === 'unloaded') this.orgSettings.load();
+    this.askCardReason('補發到班卡', `「${s.name}」的舊卡會立即失效，並印一張新卡。`, (reason) => {
+      const load = async () => {
+        const card = await firstValueFrom(this.checkinCards.reissue(s.id, reason));
+        return [{ name: card.studentName, code: card.code }];
+      };
+      printCheckinCards(load, this.orgSettings.settings()?.name ?? '').then(
+        (opened) =>
+          this.notice.set(
+            opened
+              ? { severity: 'success', summary: '已補發', detail: '舊卡已失效，新卡已送去列印' }
+              : {
+                  severity: 'warning',
+                  summary: '無法開啟列印視窗',
+                  detail: '瀏覽器擋掉了彈出視窗，卡還沒補發。請允許本站的彈出視窗後再試',
+                },
+          ),
+        () => this.notice.set({ severity: 'error', summary: '補發失敗', detail: '請稍後再試' }),
+      );
+    });
+  }
+
+  /** 只作廢、不補發（遺失但不再上課、退班） */
+  protected revokeCard(): void {
+    const s = this.student();
+    if (!s) return;
+    this.askCardReason('作廢到班卡', `「${s.name}」的到班卡會立即失效，不補發新卡。`, (reason) =>
+      this.checkinCards.revoke(s.id, reason).subscribe({
+        next: () =>
+          this.notice.set({ severity: 'success', summary: '已作廢', detail: '這張卡不能再打卡了' }),
+        error: (err: { status?: number }) =>
+          this.notice.set(
+            err.status === 409
+              ? {
+                  severity: 'info',
+                  summary: '沒有可作廢的卡',
+                  detail: '這位學生目前沒有有效的到班卡',
+                }
+              : { severity: 'error', summary: '作廢失敗', detail: '請稍後再試' },
+          ),
+      }),
+    );
   }
 
   private loadStudent(id: string): void {

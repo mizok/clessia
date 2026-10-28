@@ -12,7 +12,16 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { EMPTY, Subject, catchError, debounceTime, filter, skip, switchMap } from 'rxjs';
+import {
+  EMPTY,
+  Subject,
+  catchError,
+  debounceTime,
+  filter,
+  firstValueFrom,
+  skip,
+  switchMap,
+} from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -56,7 +65,8 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 
 // Local
 import { StudentFormDialogComponent } from './student-form-dialog.component';
-import { printCheckinCards } from './checkin-cards';
+import { printCheckinCards, printFailureMessage } from './checkin-cards';
+import { CheckinCardsService } from '@core/checkin-cards.service';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ChapterHeadComponent } from '@shared/components/chapter-head/chapter-head.component';
@@ -142,8 +152,14 @@ export class StudentsPage implements OnInit {
   private readonly orgSettings = inject(OrgSettingsService);
   private readonly campusCtx = inject(CampusContextService);
 
-  /** 到班卡（#1127 B）：發卡是學生管理的事，跟編輯學生同一個門檻 */
-  protected readonly canPrintCards = this.auth.hasPermission('manage_students');
+  private readonly checkinCards = inject(CheckinCardsService);
+
+  /**
+   * 到班卡（#1100 #42，計畫席 10-28）：重印 `basic_operations` 就可以；第一次發卡（新開）要
+   * `manage_students` —— 那由後端判（只有前者的人印到沒卡的學生會被整批擋下並說明）
+   */
+  protected readonly canPrintCards =
+    this.auth.hasPermission('basic_operations') || this.auth.hasPermission('manage_students');
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -535,18 +551,24 @@ export class StudentsPage implements OnInit {
    * **視窗在點擊同一個 tick 開**（`printCheckinCards` 先開再等 QR），補習班名要先載好，所以 ngOnInit 預載設定。
    */
   protected printCards(students: readonly Student[]): void {
-    void printCheckinCards(
-      students.map((s) => ({ studentId: s.id, name: s.name })),
-      this.orgSettings.settings()?.name ?? '',
-    ).then((opened) => {
-      if (!opened) {
-        this.messageService.add({
-          severity: 'warn',
-          summary: '無法開啟列印視窗',
-          detail: '瀏覽器擋掉了彈出視窗，請允許本站的彈出視窗後再試',
-        });
-      }
-    });
+    // 卡的代碼由後端發（有卡重印同一張、沒卡開新的，#1100 #42）
+    const load = async () =>
+      (await firstValueFrom(this.checkinCards.print(students.map((s) => s.id)))).data.map((c) => ({
+        name: c.studentName,
+        code: c.code,
+      }));
+    printCheckinCards(load, this.orgSettings.settings()?.name ?? '').then(
+      (opened) => {
+        if (!opened) {
+          this.messageService.add({
+            severity: 'warn',
+            summary: '無法開啟列印視窗',
+            detail: '瀏覽器擋掉了彈出視窗，請允許本站的彈出視窗後再試',
+          });
+        }
+      },
+      (err: unknown) => this.messageService.add({ severity: 'error', ...printFailureMessage(err) }),
+    );
   }
 
   openEditDialog(student: Student): void {

@@ -88,6 +88,19 @@ describe('CheckinStationComponent（#1127）', () => {
     expect((q('checkin-code') as HTMLInputElement).value).toBe('');
   });
 
+  it('新卡（CK1- 開頭，大小寫都算）送 cardCode，不送 studentId（#1100 #42）', async () => {
+    const checkIn = vi.fn(() => of(confirmation));
+    const { type } = await setup(checkIn);
+
+    await type(' ck1-0123-4567-89ab-cdef ');
+
+    expect(checkIn).toHaveBeenCalledWith({
+      cardCode: 'ck1-0123-4567-89ab-cdef',
+      checkinDate: '2026-10-03',
+      source: 'scan',
+    });
+  });
+
   it(`${RESULT_SECONDS} 秒後自動回到掃描；「下一位」立刻回去`, async () => {
     vi.useFakeTimers();
     const { q, type, click, fixture } = await setup(vi.fn(() => of(confirmation)));
