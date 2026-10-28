@@ -99,7 +99,7 @@ describe('GET /api/staff 先走 SQL（#1595 P2）', () => {
     expect(body.summary.teacherCount).toBe(1);
     expect(body.summary.byRole).toEqual({ admin: 0, teacher: 1, kiosk: 0, inactiveOrArchived: 0 });
     expect(query).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0]![0]).toBe(STAFF_LIST_SQL);
+    expect((query.mock.calls[0] as unknown[])[0]).toBe(STAFF_LIST_SQL);
     expect(rest.calls()).toBe(0);
   });
 
