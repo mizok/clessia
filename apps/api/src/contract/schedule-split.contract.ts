@@ -103,7 +103,10 @@ run('從某日起改時段的交易對真 Postgres（#1100 #22）', () => {
       );
       for (const t of [
         'schedule_changes',
+        'leave_request_sessions',
+        'leave_requests',
         'sessions',
+        'students',
         'events',
         'classes',
         'courses',
@@ -213,6 +216,98 @@ run('從某日起改時段的交易對真 Postgres（#1100 #22）', () => {
       ['2030-01-30', r.newScheduleId],
       ['2030-02-04', o.scheduleId],
     ]);
+  });
+
+  // 審核席二讀：每個保留理由各一堂，拿掉任何一個判斷都要紅。
+  // **leave 最要緊**：刪了課堂，`leave_request_sessions` 會跟著 CASCADE 消失 —— 請假綁定不見，
+  // 那張假就從「請這幾堂」變成整天的語意
+  it('保留理由：停課（status）、綁了請假（leave）、被補課指向（makeup）的舊課堂都留著，綁定也在', async () => {
+    const p = await org();
+    const cancelled = await p.session('2030-01-21');
+    await q(`UPDATE sessions SET status = 'cancelled' WHERE id = $1`, [cancelled]);
+
+    const onLeave = await p.session('2030-01-28');
+    const studentId = await one(
+      `INSERT INTO students (org_id, name, grade) VALUES ($1, 'x', 'P5')`,
+      [p.orgId],
+    );
+    const leaveId = await one(
+      `INSERT INTO leave_requests (org_id, student_id, start_date, end_date, submitted_by, submitted_by_role)
+       VALUES ($1, $2, '2030-01-28', '2030-01-28', (SELECT id FROM ba_user LIMIT 1), 'admin')`,
+      [p.orgId, studentId],
+    );
+    await q(
+      `INSERT INTO leave_request_sessions (leave_request_id, session_id, org_id) VALUES ($1, $2, $3)`,
+      [leaveId, onLeave, p.orgId],
+    );
+
+    const madeUp = await p.session('2030-02-04');
+    // 補課那堂不在舊時段上（schedule_id 是 null），只是指著 02-04
+    await q(
+      `INSERT INTO sessions (org_id, class_id, session_date, start_time, end_time, assignment_status, makeup_for_session_id)
+       VALUES ($1, $2, '2030-02-09', '14:00', '15:00', 'unassigned', $3)`,
+      [p.orgId, p.classId, madeUp],
+    );
+
+    const r = await splitSchedule(pool, input(p));
+    expect(r).toMatchObject({ status: 'done', removedCount: 0, createdCount: 0 });
+    if (r.status !== 'done') return;
+    expect(r.kept.map((k) => [k.id, k.reasons])).toEqual([
+      [cancelled, ['status']],
+      [onLeave, ['leave']],
+      [madeUp, ['makeup']],
+    ]);
+    const alive = await q<{ id: string }>(`SELECT id FROM sessions WHERE id = ANY($1::uuid[])`, [
+      [cancelled, onLeave, madeUp],
+    ]);
+    expect(alive).toHaveLength(3);
+    expect(
+      await q(
+        `SELECT 1 FROM leave_request_sessions WHERE leave_request_id = $1 AND session_id = $2`,
+        [leaveId, onLeave],
+      ),
+    ).toHaveLength(1);
+  });
+
+  // 刪 event 的 `attendance_taken_at IS NULL` 在同一個交易裡看似多餘（判成可刪的課堂，它的 event 本來就沒點名），
+  // 但 **events 沒被鎖**：分類之後、刪 event 之前，老師可能剛好按了點名。用第二條連線把那一刻做出來
+  it('分類之後才點名的 event：刪 event 時重新判斷，點過名的不刪', async () => {
+    const p = await org();
+    const sessionId = await p.session('2030-01-21');
+    const eventId = await one(
+      `INSERT INTO events (org_id, event_type, title, event_date) VALUES ($1, 'session', 'x', '2030-01-21')`,
+      [p.orgId],
+    );
+    await q('UPDATE sessions SET event_id = $1 WHERE id = $2', [eventId, sessionId]);
+
+    const teacher = await pool.connect();
+    try {
+      await teacher.query('BEGIN');
+      // 點名進行中：列鎖握著、還沒 COMMIT —— split 分類時讀到的是舊版（沒點名）
+      await teacher.query('UPDATE events SET attendance_taken_at = now() WHERE id = $1', [eventId]);
+      const split = splitSchedule(pool, input(p));
+      // 等 split 卡在 DELETE events（等這把列鎖）再放手
+      for (let i = 0; i < 100; i++) {
+        const [w] = await q<{ n: string }>(
+          `SELECT count(*) n FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND query LIKE 'DELETE FROM events%'`,
+        );
+        if (Number(w!.n) > 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await teacher.query('COMMIT');
+      const r = await split;
+      expect(r).toMatchObject({ status: 'done', removedCount: 1 });
+    } finally {
+      teacher.release();
+    }
+    const [event] = await q<{ attendance_taken_at: Date | null }>(
+      'SELECT attendance_taken_at FROM events WHERE id = $1',
+      [eventId],
+    );
+    // 先斷言那一列還在 —— 被刪掉時 `event` 是 undefined，而 undefined 也「不是 null」
+    expect(event).toBeDefined();
+    expect(event!.attendance_taken_at).not.toBeNull();
   });
 
   it('同班同星期同開始時間、區間重疊：排除約束擋下（直接寫入 23P01；split 回 overlap 且整筆回滾）', async () => {
