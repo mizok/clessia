@@ -84,7 +84,13 @@ export interface ParentCatalogClass {
   courseDescription: string | null;
   campusName: string | null;
   /** 1=週一 … 7=週日 */
-  slots: Array<{ weekday: number; startTime: string; endTime: string }>;
+  slots: Array<{
+    weekday: number;
+    startTime: string;
+    endTime: string;
+    /** 還沒生效的未來時段＝哪天起；已生效＝null（#1100 #22） */
+    effectiveFrom?: string | null;
+  }>;
   maxStudents: number;
   remainingSeats: number;
   fee: { amount: number; billingMode: 'monthly' | 'period' | 'session_pack' } | null;

@@ -1,4 +1,5 @@
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
+import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
 
 /**
  * 公開試聽／報名表單的純邏輯（#1665 PR-4，設計稿 `specs/public/application-forms-a6.md` §1）。
@@ -145,7 +146,13 @@ export interface PublicCatalogClass {
   courseName: string | null;
   subject: string | null;
   campusName: string | null;
-  slots: Array<{ weekday: number; startTime: string; endTime: string }>;
+  slots: Array<{
+    weekday: number;
+    startTime: string;
+    endTime: string;
+    /** 還沒生效的未來時段＝哪天起；已生效＝null（#1100 #22） */
+    effectiveFrom?: string | null;
+  }>;
   remainingSeats: number;
   fee: { amount: number; billingMode: 'monthly' | 'period' | 'session_pack' } | null;
   /** 只有暱稱；沒設暱稱的老師不在這裡（#1665 Q6） */
@@ -167,7 +174,8 @@ const WEEKDAY = ['', '一', '二', '三', '四', '五', '六', '日'];
 export const gradeLabel = (g: string) => GRADE_LEVEL_LABELS[g as GradeLevel] ?? g;
 const slotStart = (s: PublicCatalogClass['slots'][number]) =>
   `週${WEEKDAY[s.weekday]} ${s.startTime}`;
-const slotRange = (s: PublicCatalogClass['slots'][number]) => `${slotStart(s)}–${s.endTime}`;
+const slotRange = (s: PublicCatalogClass['slots'][number]) =>
+  `${slotStart(s)}–${s.endTime}${effectiveFromSuffix(s.effectiveFrom)}`;
 
 export function feeLabel(fee: PublicCatalogClass['fee']): string | null {
   if (!fee) return null;

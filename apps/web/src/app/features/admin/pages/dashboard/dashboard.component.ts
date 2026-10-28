@@ -268,7 +268,7 @@ export class DashboardComponent {
   protected readonly emergencyLinks = [
     { title: '颱風、停電', hint: '整天停課' },
     { title: '老師請假', hint: '整週找人代課' },
-    { title: '班級改時段', hint: '整期一起改' },
+    { title: '班級改時段', hint: '從某天起換時間' },
   ] as const;
 
   // 手機托盤：A6 的「櫃台代刷」比桌機鈕「櫃台代刷到班」短；圖示照稿

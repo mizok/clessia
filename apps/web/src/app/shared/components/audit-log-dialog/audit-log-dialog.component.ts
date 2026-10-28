@@ -47,6 +47,7 @@ const ACTION_MAP: Record<string, ActionConfig> = {
   batch_uncancel_session: { label: '批次恢復課堂' },
   generate_sessions: { label: '建立課堂' },
   add_schedule: { label: '新增時段' },
+  split_schedule: { label: '從某日起改時段' },
   update_schedule: { label: '編輯時段' },
   delete_schedule: { label: '刪除時段' },
   cancel_session: { label: '停課' },

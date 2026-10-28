@@ -58,7 +58,7 @@
       <div>
         <dt class="sr-only">上課時段</dt>
         <dd class="m-0 text-3xl leading-none font-bold tracking-[-0.04em] tabular-nums">
-          {{ c.schedules?.length ?? 0 }}
+          {{ activeScheduleCount() }}
         </dd>
         <p class="m-0 mt-1 text-md" aria-hidden="true">
           個上課時段
@@ -215,12 +215,17 @@
         </h2>
         @for (schedule of c.schedules ?? []; track schedule.id) {
           <div
+            [class.text-zinc-500]="isScheduleEnded(schedule)"
             class="grid min-h-14 grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 border-b border-surface-border wide:grid-cols-[96px_160px_minmax(0,1fr)]"
           >
             <span class="text-lg font-semibold">{{ getWeekdayLabel(schedule.weekday) }}</span>
             <span class="text-md text-zinc-900 tabular-nums"
-              >{{ schedule.startTime.slice(0, 5) }}–{{ schedule.endTime.slice(0, 5) }}</span
-            >
+              >{{ schedule.startTime.slice(0, 5) }}–{{ schedule.endTime.slice(0, 5) }}
+              <!-- #1100 #22：同一個時段可以前後接續，未來的標「X 起」、會結束的標「至 Y」 -->
+              @if (scheduleRange(schedule); as range) {
+                <span class="block text-sm text-zinc-600" data-range>{{ range }}</span>
+              }
+            </span>
             <span class="col-start-2 text-md text-zinc-600 wide:col-start-3 wide:row-start-1"
               >{{ schedule.teacherName ?? '還沒指派老師' }}
               <!-- A6 class.html 時段列：老師下面一行教室（#1796） -->

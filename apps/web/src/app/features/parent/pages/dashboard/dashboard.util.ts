@@ -5,6 +5,7 @@ import type { ParentScoreRecord } from '@core/parent-grades.service';
 import type { ParentClassLog, ParentSession } from '@core/parent-sessions.service';
 import { groupInvoices } from '../payments/payments.util';
 import { sortSessions } from '../schedule/schedule.util';
+import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
 
 /** A6 `.tag` 的五種（色相只編碼嚴重度） */
 export type TagTone = 'quiet' | 'warn' | 'error' | 'ok' | 'live';
@@ -202,7 +203,10 @@ const WEEKDAY = ['', '週一', '週二', '週三', '週四', '週五', '週六',
 /** `週三 18:00–20:00` —— 多個時段用「、」接 */
 export function slotsLabel(c: ParentCatalogClass): string {
   return c.slots
-    .map((s) => `${WEEKDAY[s.weekday]} ${s.startTime.slice(0, 5)}–${s.endTime.slice(0, 5)}`)
+    .map(
+      (s) =>
+        `${WEEKDAY[s.weekday]} ${s.startTime.slice(0, 5)}–${s.endTime.slice(0, 5)}${effectiveFromSuffix(s.effectiveFrom)}`,
+    )
     .join('、');
 }
 
