@@ -79,10 +79,15 @@ const enrollment = (id: string, classId: string, over: Row = {}) => ({
   ...over,
 });
 
-const slot = (weekday: number, effectiveTo: string | null = null) => ({
+const slot = (
+  weekday: number,
+  effectiveTo: string | null = null,
+  effectiveFrom = '2026-09-01',
+) => ({
   weekday,
   start_time: '19:00:00',
   end_time: '21:00:00',
+  effective_from: effectiveFrom,
   effective_to: effectiveTo,
 });
 
@@ -171,6 +176,26 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
         estimatedAmount: 15000,
         estimateSource: 'enrollment',
       },
+    ]);
+  });
+
+  it('時段要跟下期有交集（#1100 #22）：下期中途才生效的新段要列、下期結束後才生效的不列', async () => {
+    const res = await request(
+      fakeChildDb({
+        periods: [PERIOD],
+        enrollments: [enrollment('e-agreed', 'stay', { agreed_amount: 15000 })],
+        classes: [
+          {
+            ...CLASSES[0],
+            // 週二 3/1 起（下期中）、週四 8/1 起（下期 7/31 結束後）
+            schedules: [slot(2, null, '2027-03-01'), slot(4, null, '2027-08-01')],
+          },
+        ],
+      }),
+    );
+    const body = (await res.json()) as { data: { items: Row[] } };
+    expect(body.data.items[0]['schedules']).toEqual([
+      { weekday: 2, startTime: '19:00', endTime: '21:00' },
     ]);
   });
 

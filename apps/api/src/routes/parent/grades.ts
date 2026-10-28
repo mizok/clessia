@@ -8,6 +8,7 @@ import {
   mapSchoolScoreRow,
 } from '../../lib/score-query';
 import { DbUuidSchema } from '../../lib/validation';
+import { isScheduleEffectiveOn, scheduleRangeOf } from '../../lib/schedule-effective';
 
 /**
  * 家長端的成績列表。複用 `routes/scores.ts`（admin）的 select 與 mapper
@@ -104,6 +105,7 @@ function recorderName(row: any, orgId: string): string | null {
 
 type ScheduleRow = {
   class_id: string;
+  effective_from: string;
   effective_to: string | null;
   teacher: { display_name?: string; org_id?: string } | null;
 };
@@ -122,7 +124,8 @@ function academyTeacherName(
       .filter((id: string) => myClassIds.has(id)),
   );
   const names = schedules
-    .filter((s) => classIds.has(s.class_id) && (!s.effective_to || s.effective_to >= examDate))
+    // 考試當天有效的時段（#1100 #22 Q3：有日期脈絡就看那天）
+    .filter((s) => classIds.has(s.class_id) && isScheduleEffectiveOn(scheduleRangeOf(s), examDate))
     .map((s) => [s.teacher].flat()[0])
     .filter((t) => t?.org_id === orgId && !!t.display_name)
     .map((t) => t!.display_name as string);
@@ -222,7 +225,9 @@ app.openapi(
       myClasses.ids.length > 0
         ? await childDb
             .fromScopedIds('schedules', 'class_id', myClasses.ids)
-            .select('class_id, effective_to, teacher:staff!teacher_id ( display_name, org_id )')
+            .select(
+              'class_id, effective_from, effective_to, teacher:staff!teacher_id ( display_name, org_id )',
+            )
         : { data: [], error: null };
     if (schedulesResult.error) {
       return c.json({ error: '讀取成績失敗', code: 'FETCH_GRADES_FAILED' }, 500);

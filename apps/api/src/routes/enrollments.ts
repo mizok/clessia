@@ -33,6 +33,7 @@ import {
 } from '../lib/enrollment-audit';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { isScheduleEffectiveOn, scheduleRangeOf } from '../lib/schedule-effective';
 
 // ============================================================
 // Schemas
@@ -252,8 +253,11 @@ const CopyFromClassResponseSchema = z
 
 export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema> {
   const today = getCurrentTaipeiDateString();
+  // 那天有效的時段（#1100 #22：舊段與「下個月起」的新段不能同時列）。還沒開始讀的報名看它開始那天，
+  // 不然下個月才開課的班會一個時段都沒有
+  const asOf = row.effective_from && row.effective_from > today ? row.effective_from : today;
   const classSchedule = ((row.classes?.schedules ?? []) as any[])
-    .filter((slot) => !slot.effective_to || slot.effective_to >= today)
+    .filter((slot) => isScheduleEffectiveOn(scheduleRangeOf(slot), asOf))
     .map((slot) => ({
       weekday: Number(slot.weekday),
       startTime: String(slot.start_time ?? '').slice(0, 5),
@@ -726,7 +730,7 @@ app.openapi(
  * schedules 給 classSchedule（#1314 SD1）
  */
 const ENROLLMENT_ROW =
-  'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)' as const;
+  'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, status_changed_at, status_reason, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name), schedules(weekday, start_time, end_time, effective_from, effective_to, staff(display_name))), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)' as const;
 
 // PATCH /api/enrollments/:id
 app.openapi(

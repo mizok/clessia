@@ -63,8 +63,20 @@ const seed = (reversed = false) =>
   createMultiOrgDb({
     sessions: reversed ? [...SESSIONS].reverse() : SESSIONS,
     schedules: [
-      { class_id: 'k1', teacher_id: 'st-main', classes: { org_id: A } },
-      { class_id: 'k2', teacher_id: 'st-k2', classes: { org_id: A } },
+      {
+        class_id: 'k1',
+        teacher_id: 'st-main',
+        effective_from: '2000-01-01',
+        effective_to: null,
+        classes: { org_id: A },
+      },
+      {
+        class_id: 'k2',
+        teacher_id: 'st-k2',
+        effective_from: '2000-01-01',
+        effective_to: null,
+        classes: { org_id: A },
+      },
     ],
     staff: [
       { id: 'st-main', user_id: 'u-main', org_id: A, status: 'active' },

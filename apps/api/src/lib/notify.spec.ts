@@ -105,7 +105,13 @@ describe('teachersForSessions（#1693：任課班的老師 ∪ 該堂上課的�
   const db = () =>
     memoryDb({
       sessions: [
-        { id: 'ses-1', org_id: A, class_id: 'k1', teacher_id: 'st-sub' }, // 這堂代課
+        {
+          id: 'ses-1',
+          org_id: A,
+          class_id: 'k1',
+          teacher_id: 'st-sub',
+          session_date: '2026-10-01',
+        }, // 這堂代課
         { id: 'ses-x', org_id: B, class_id: 'k9', teacher_id: 'st-other' },
         // 不一致的資料：別的 org 的課堂，上課老師卻是本 org 的人 —— 只有 sessions 的 org 條件擋得住
         { id: 'ses-cross', org_id: B, class_id: 'k9', teacher_id: 'st-k2' },
@@ -113,7 +119,28 @@ describe('teachersForSessions（#1693：任課班的老師 ∪ 該堂上課的�
         { id: 'ses-odd', org_id: A, class_id: 'k8', teacher_id: null },
       ],
       schedules: [
-        { class_id: 'k1', teacher_id: 'st-main', classes: { org_id: A } },
+        {
+          class_id: 'k1',
+          teacher_id: 'st-main',
+          effective_from: '2000-01-01',
+          effective_to: null,
+          classes: { org_id: A },
+        },
+        // 同一個班換過時段（#1100 #22）：課堂那天（10/1）之前就結束的、之後才生效的，老師都不是那堂的任課老師
+        {
+          class_id: 'k1',
+          teacher_id: 'st-ended',
+          effective_from: '2000-01-01',
+          effective_to: '2000-12-31',
+          classes: { org_id: A },
+        },
+        {
+          class_id: 'k1',
+          teacher_id: 'st-next',
+          effective_from: '2999-01-01',
+          effective_to: null,
+          classes: { org_id: A },
+        },
         { class_id: 'k2', teacher_id: 'st-k2', classes: { org_id: A } }, // 別的班
         { class_id: 'k9', teacher_id: 'st-other', classes: { org_id: B } },
         { class_id: 'k8', teacher_id: 'st-k2', classes: { org_id: B } },
@@ -123,6 +150,8 @@ describe('teachersForSessions（#1693：任課班的老師 ∪ 該堂上課的�
         { id: 'st-sub', user_id: 'u-sub', org_id: A, status: 'active' },
         { id: 'st-k2', user_id: 'u-k2', org_id: A, status: 'active' },
         { id: 'st-old', user_id: 'u-old', org_id: A, status: 'active' },
+        { id: 'st-ended', user_id: 'u-ended', org_id: A, status: 'active' },
+        { id: 'st-next', user_id: 'u-next', org_id: A, status: 'active' },
         { id: 'st-off', user_id: 'u-off', org_id: A, status: 'archived' },
         { id: 'st-admin', user_id: 'u-admin', org_id: A, status: 'active' },
         { id: 'st-other', user_id: 'u-other', org_id: B, status: 'active' },
@@ -132,13 +161,15 @@ describe('teachersForSessions（#1693：任課班的老師 ∪ 該堂上課的�
         { user_id: 'u-sub', role: 'teacher' },
         { user_id: 'u-k2', role: 'teacher' },
         { user_id: 'u-old', role: 'teacher' },
+        { user_id: 'u-ended', role: 'teacher' },
+        { user_id: 'u-next', role: 'teacher' },
         { user_id: 'u-off', role: 'teacher' },
         { user_id: 'u-admin', role: 'admin' },
         { user_id: 'u-other', role: 'teacher' },
       ],
     });
 
-  it('任課老師＋代課的人；別的班的老師、別的 org 的課堂都收不到', async () => {
+  it('任課老師＋代課的人；別的班的老師、別的 org 的課堂、課堂那天不在任的時段老師都收不到', async () => {
     expect((await teachersForSessions(db().client, A, ['ses-1', 'ses-x'])).sort()).toEqual([
       'u-main',
       'u-sub',

@@ -20,6 +20,7 @@ describe('toEnrollmentResponse —— classSchedule／teacherName（#1314 SD1）
           weekday: 5,
           start_time: '19:00:00',
           end_time: '21:00:00',
+          effective_from: '2000-01-01',
           effective_to: null,
           staff: { display_name: '王老師' },
         },
@@ -27,6 +28,7 @@ describe('toEnrollmentResponse —— classSchedule／teacherName（#1314 SD1）
           weekday: 2,
           start_time: '18:30:00',
           end_time: '20:30:00',
+          effective_from: '2000-01-01',
           effective_to: '2999-12-31',
           staff: { display_name: '李老師' },
         },
@@ -34,6 +36,7 @@ describe('toEnrollmentResponse —— classSchedule／teacherName（#1314 SD1）
           weekday: 2,
           start_time: '09:00:00',
           end_time: '10:00:00',
+          effective_from: '2000-01-01',
           effective_to: '2000-01-01',
           staff: { display_name: '舊老師' },
         },
@@ -41,6 +44,7 @@ describe('toEnrollmentResponse —— classSchedule／teacherName（#1314 SD1）
           weekday: 2,
           start_time: '14:00:00',
           end_time: '15:00:00',
+          effective_from: '2000-01-01',
           effective_to: null,
           staff: { display_name: '王老師' },
         },
@@ -63,6 +67,7 @@ describe('toEnrollmentResponse —— classSchedule／teacherName（#1314 SD1）
           weekday: 1,
           start_time: '10:00:00',
           end_time: '11:00:00',
+          effective_from: '2000-01-01',
           effective_to: null,
           staff: null,
         },
@@ -74,5 +79,51 @@ describe('toEnrollmentResponse —— classSchedule／teacherName（#1314 SD1）
     const none = toEnrollmentResponse(row(undefined));
     expect(none.classSchedule).toEqual([]);
     expect(none.teacherName).toBeNull();
+  });
+
+  /** #1100 #22：舊段與「X 起」的新段不能同時列；還沒開始讀的報名看它開始那天 */
+  it('只列「今天」有效的時段；還沒生效的新段不列', () => {
+    const res = toEnrollmentResponse(
+      row([
+        {
+          weekday: 1,
+          start_time: '18:00:00',
+          end_time: '20:00:00',
+          effective_from: '2000-01-01',
+          effective_to: null,
+        },
+        {
+          weekday: 3,
+          start_time: '18:00:00',
+          end_time: '20:00:00',
+          effective_from: '2999-01-01',
+          effective_to: null,
+        },
+      ]),
+    );
+    expect(res.classSchedule.map((s) => s.weekday)).toEqual([1]);
+  });
+
+  it('報名 2999-01-01 才開始：看那天有效的時段（不是今天的，不然下個月才開的班一個時段都沒有）', () => {
+    const res = toEnrollmentResponse({
+      ...row([
+        {
+          weekday: 1,
+          start_time: '18:00:00',
+          end_time: '20:00:00',
+          effective_from: '2000-01-01',
+          effective_to: '2998-12-31',
+        },
+        {
+          weekday: 3,
+          start_time: '18:00:00',
+          end_time: '20:00:00',
+          effective_from: '2999-01-01',
+          effective_to: null,
+        },
+      ]),
+      effective_from: '2999-01-01',
+    });
+    expect(res.classSchedule.map((s) => s.weekday)).toEqual([3]);
   });
 });
