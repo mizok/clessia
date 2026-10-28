@@ -77,10 +77,12 @@
     登記請假是彈窗（#2037，使用者 10-24：不要 inline 展開；a6-adoption-rules R5）。原生 <dialog> showModal：
     手機與桌機都置中、有遮罩、Esc 關（手機寬同 #2031 的登入彈窗），進出場是全站對話框的 scale(0.97)。
     不用 p-dialog：全站樣式在手機把它變成底部抽屜，跟「手機置中」相反。
+    outline-none：showModal 把焦點放在 <dialog> 本身時 WebKit 會在整個外框畫焦點圈（#2004 同類）；
+    dialog 不是可操作的控制項，裡面的按鈕、輸入各自有焦點圈。
   -->
   <dialog
     #phoneLeaveDialog
-    class="m-auto max-h-[calc(100%-48px)] w-[calc(100%-32px)] max-w-[560px] overflow-y-auto rounded-xl border-0 bg-transparent p-0 backdrop:bg-[rgb(26_22_20/40%)]"
+    class="m-auto max-h-[calc(100%-48px)] outline-none w-[calc(100%-32px)] max-w-[560px] overflow-y-auto rounded-xl border-0 bg-transparent p-0 backdrop:bg-[rgb(26_22_20/40%)]"
     aria-labelledby="phone-leave-title"
     (close)="closePhoneLeave()"
   >
