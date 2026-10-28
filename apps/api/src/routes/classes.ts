@@ -7,6 +7,12 @@ import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { checkTeacherEligibility } from '../lib/teacher-eligibility';
+import {
+  isScheduleCurrentOrUpcoming,
+  isScheduleEffectiveOn,
+  scheduleOverlaps,
+  scheduleRangeOf,
+} from '../lib/schedule-effective';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
@@ -280,6 +286,8 @@ const CheckConflictsRequestSchema = z
         startTime: z.string(),
         endTime: z.string(),
         teacherId: DbUuidSchema.nullable(),
+        /** 生效起始日（#1100 #22）；沒帶＝不限起點 */
+        effectiveFrom: z.string().nullable().optional(),
         effectiveTo: z.string().nullable().optional(),
       }),
     ),
@@ -802,15 +810,24 @@ app.openapi(
         ? rows.length
         : (count ?? 0);
 
+    const listToday = getCurrentTaipeiDateString();
     return c.json({
       data: rows.map((r) => {
         const id = r.id as string;
-        const schedules = (r['schedules'] as unknown[]) || [];
+        const allSchedules = (r['schedules'] as Record<string, unknown>[]) || [];
+        // #1100 #22：列表的時段（摘要、時段數）看「那天」有效的 —— 今天，還沒開課的班看開課日
+        // （不然下個月才開的班會變成「沒有時段」）。老師篩選沒有日期脈絡，照 Q3 看今天有效或未來有效
+        const startDate = (r['start_date'] as string | null) ?? null;
+        const asOf = startDate && startDate > listToday ? startDate : listToday;
+        const schedules = allSchedules.filter((s) =>
+          isScheduleEffectiveOn(scheduleRangeOf(s), asOf),
+        );
         return mapClass(r as Record<string, unknown>, {
           schedules,
           scheduleCount: schedules.length,
-          scheduleTeacherIds: schedules
-            .map((s: any) => s.teacher_id)
+          scheduleTeacherIds: allSchedules
+            .filter((s) => isScheduleCurrentOrUpcoming(scheduleRangeOf(s), listToday))
+            .map((s) => s['teacher_id'] as string | null)
             .filter((tid): tid is string => !!tid),
           hasUpcomingSessions: hasUpcomingSet.has(id),
           hasPastSessions: hasPastSessionsSet.has(id),
@@ -912,9 +929,10 @@ app.openapi(
         const eEnd = (existing.end_time as string).substring(0, 5);
         if (sStart >= eEnd || eStart >= sEnd) continue;
 
-        // 日期範圍重疊
+        // 生效期間也要有交集才算衝突（#1100 #22；原本算了 sTo／eTo 卻沒用到，已經結束的舊時段也報衝突）
+        const sFrom = s.effectiveFrom ?? null;
         const sTo = s.effectiveTo ?? null;
-        const eTo = (existing.effective_to as string | null) ?? null;
+        if (!scheduleOverlaps(scheduleRangeOf(existing), sFrom, sTo)) continue;
 
         const clsData = existing.classes as {
           name: string;

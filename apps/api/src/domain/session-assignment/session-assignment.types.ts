@@ -7,6 +7,8 @@ export interface SessionGenerationSchedule {
   readonly endTime: string;
   readonly teacherId: string | null;
   readonly teacherName?: string;
+  /** 時段從哪天起生效（含，#1100 #22） */
+  readonly effectiveFrom: string;
   readonly effectiveTo: string | null;
 }
 

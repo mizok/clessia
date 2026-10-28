@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveCampusScope } from './campus-scope';
 import { hasPermission } from './permissions';
+import { isScheduleEffectiveOn, scheduleRangeOf, type ScheduleRange } from './schedule-effective';
 
 /**
  * 站內通知的寫入與收件人推導（#1693，#1626 改版：「通知是一筆紀錄，推播只是送達管道」）。
@@ -180,12 +181,15 @@ export async function teachersForSessionGroups<K>(
   options: { readonly excludeUserId?: string } = {},
 ): Promise<Map<K, string[]>> {
   const allSessionIds = [...new Set([...groups.values()].flatMap((g) => g.sessionIds))];
-  const sessionById = new Map<string, { class_id: string; teacher_id: string | null }>();
-  const classTeachers = new Map<string, string[]>();
+  const sessionById = new Map<
+    string,
+    { class_id: string; teacher_id: string | null; session_date: string | null }
+  >();
+  const classSchedules = new Map<string, Array<{ teacher_id: string; range: ScheduleRange }>>();
   if (allSessionIds.length > 0) {
     const { data: sessions, error } = await supabase
       .from('sessions')
-      .select('id, class_id, teacher_id')
+      .select('id, class_id, teacher_id, session_date')
       .eq('org_id', orgId)
       .in('id', allSessionIds);
     if (error) throw new Error(`查詢課堂失敗：${error.message}`);
@@ -193,6 +197,7 @@ export async function teachersForSessionGroups<K>(
       id: string;
       class_id: string;
       teacher_id: string | null;
+      session_date: string | null;
     }>) {
       sessionById.set(r.id, r);
     }
@@ -201,13 +206,18 @@ export async function teachersForSessionGroups<K>(
       // schedules 沒有 org_id —— org 的界線走 classes（同 taughtClassIds）
       const { data: schedules, error: schedError } = await supabase
         .from('schedules')
-        .select('class_id, teacher_id, classes!inner(org_id)')
+        .select('class_id, teacher_id, effective_from, effective_to, classes!inner(org_id)')
         .eq('classes.org_id', orgId)
         .in('class_id', classIds);
       if (schedError) throw new Error(`查詢任課老師失敗：${schedError.message}`);
-      for (const s of (schedules ?? []) as Array<{ class_id: string; teacher_id: string | null }>) {
-        if (s.teacher_id) {
-          classTeachers.set(s.class_id, [...(classTeachers.get(s.class_id) ?? []), s.teacher_id]);
+      for (const s of (schedules ?? []) as Array<Record<string, unknown>>) {
+        const teacherId = s['teacher_id'] as string | null;
+        const classId = s['class_id'] as string;
+        if (teacherId) {
+          classSchedules.set(classId, [
+            ...(classSchedules.get(classId) ?? []),
+            { teacher_id: teacherId, range: scheduleRangeOf(s) },
+          ]);
         }
       }
     }
@@ -220,7 +230,12 @@ export async function teachersForSessionGroups<K>(
       const s = sessionById.get(id);
       if (!s) continue;
       if (s.teacher_id) staffIds.add(s.teacher_id);
-      for (const t of classTeachers.get(s.class_id) ?? []) staffIds.add(t);
+      // 那堂課當天有效的時段的老師（#1100 #22 Q3）；課堂還沒排日期就不篩
+      for (const t of classSchedules.get(s.class_id) ?? []) {
+        if (s.session_date === null || isScheduleEffectiveOn(t.range, s.session_date)) {
+          staffIds.add(t.teacher_id);
+        }
+      }
     }
     staffByGroup.set(key, staffIds);
   }

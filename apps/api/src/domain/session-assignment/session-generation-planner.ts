@@ -5,6 +5,7 @@ import {
 } from './session-assignment.types';
 import { deriveAssignmentStatus, validateAssignmentState } from './session-assignment.rules';
 import { normalizeTime, toWeekdayFromDate } from './time-utils';
+import { isScheduleEffectiveOn } from '../../lib/schedule-effective';
 
 function toUtcDate(value: string): Date {
   return new Date(`${value}T00:00:00Z`);
@@ -54,7 +55,8 @@ export function buildSessionGenerationPlan(
 
     for (const schedule of input.schedules) {
       if (schedule.weekday !== weekday) continue;
-      if (schedule.effectiveTo && sessionDate > schedule.effectiveTo) continue;
+      // 生效區間外的日期不產生（#1100 #22：同一個時段可以前後接續，舊段止於 X−1、新段起於 X）
+      if (!isScheduleEffectiveOn(schedule, sessionDate)) continue;
 
       const startTime = normalizeTime(schedule.startTime);
       const endTime = normalizeTime(schedule.endTime);

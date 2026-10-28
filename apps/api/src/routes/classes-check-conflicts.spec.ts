@@ -22,14 +22,23 @@ const CLASS_B = id(102);
 const CLASS_OTHER_ORG = id(201);
 const SLOT = { weekday: 2, startTime: '14:00', endTime: '15:00' };
 
-const schedule = (sid: number, classId: string, orgId: string, name: string) => ({
+const schedule = (
+  sid: number,
+  classId: string,
+  orgId: string,
+  name: string,
+  range: { effective_from: string; effective_to: string | null } = {
+    effective_from: '2026-01-01',
+    effective_to: null,
+  },
+) => ({
   id: id(sid),
   class_id: classId,
   teacher_id: TEACHER,
   weekday: 2,
   start_time: '14:30:00',
   end_time: '15:30:00',
-  effective_to: null,
+  ...range,
   // 替身不做 join：把 embed 的結果直接放在列上（同 PostgREST 回的形狀）
   classes: { org_id: orgId, name, courses: { name: `${name}的課` } },
   staff: { display_name: '王老師' },
@@ -157,5 +166,57 @@ describe('POST /check-conflicts（#1928）', () => {
     expect(select).toMatch(/(^|[\s,])classes!inner\(/);
     expect(seen).toContainEqual(['schedules', 'eq', 'classes.org_id', ORG]);
     expect(seen).toContainEqual(['schedules', 'in', 'teacher_id', [TEACHER]]);
+  });
+
+  /** #1100 #22：生效期間沒有交集就不算衝突（原本算了 sTo／eTo 卻沒用到） */
+  describe('生效期間（#1100 #22）', () => {
+    const seedRange = (range: { effective_from: string; effective_to: string | null }) =>
+      createMultiOrgDb({
+        classes: [{ id: CLASS_A, org_id: ORG, name: 'A 班' }],
+        schedules: [schedule(11, CLASS_A, ORG, 'A 班', range)],
+      });
+    const ids = (res: { body: unknown }) =>
+      (res.body as { conflicts: { conflictingClassId: string }[] }).conflicts.map(
+        (c) => c.conflictingClassId,
+      );
+
+    it('既有時段已經結束（止於 9/30），新時段 10/1 起 → 不算衝突', async () => {
+      const res = await check(
+        seedRange({ effective_from: '2026-01-01', effective_to: '2026-09-30' }),
+        {
+          schedules: [{ ...SLOT, teacherId: TEACHER, effectiveFrom: '2026-10-01' }],
+        },
+      );
+      expect(ids(res)).toEqual([]);
+    });
+
+    it('既有時段 11/1 才開始，新時段 10/31 止 → 不算衝突', async () => {
+      const res = await check(seedRange({ effective_from: '2026-11-01', effective_to: null }), {
+        schedules: [
+          { ...SLOT, teacherId: TEACHER, effectiveFrom: '2026-09-01', effectiveTo: '2026-10-31' },
+        ],
+      });
+      expect(ids(res)).toEqual([]);
+    });
+
+    it('兩段相接的那一天也重疊（兩端都含）→ 算衝突', async () => {
+      const res = await check(
+        seedRange({ effective_from: '2026-01-01', effective_to: '2026-10-01' }),
+        {
+          schedules: [{ ...SLOT, teacherId: TEACHER, effectiveFrom: '2026-10-01' }],
+        },
+      );
+      expect(ids(res)).toEqual([CLASS_A]);
+    });
+
+    it('新時段沒帶生效日（舊版前端）＝不限期間，跟仍有效的既有時段照常比', async () => {
+      const res = await check(
+        seedRange({ effective_from: '2026-01-01', effective_to: '2026-09-30' }),
+        {
+          schedules: [{ ...SLOT, teacherId: TEACHER }],
+        },
+      );
+      expect(ids(res)).toEqual([CLASS_A]);
+    });
   });
 });

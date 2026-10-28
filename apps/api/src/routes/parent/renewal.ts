@@ -4,6 +4,7 @@ import { isChildAllowed } from '../../lib/child-scope';
 import { prorateByDays } from '../../lib/proration';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
+import { scheduleOverlaps, scheduleRangeOf } from '../../lib/schedule-effective';
 
 /**
  * 家長端續課預覽（#1121）：這個孩子下一期會繼續上哪些課、預估多少錢。
@@ -73,7 +74,7 @@ const many = (value: unknown): Row[] =>
 // 寫成 `classes!next_class_id(...)` 會被 PostgREST 讀成**反向**（「誰把我當下一班」，回陣列）——
 // 本機實打抓到的（#1121），替身不會告訴你方向反了。
 const SCHEDULE_SELECT =
-  'schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name, org_id))';
+  'schedules(weekday, start_time, end_time, effective_from, effective_to, teacher:staff!teacher_id(display_name, org_id))';
 export const CLASS_SELECT = `
   id, name, end_date,
   courses(name),
@@ -174,7 +175,10 @@ app.openapi(
 
     const liveInPeriod = (classRow: Row | null) =>
       many(classRow?.['schedules'])
-        .filter((s) => !s['effective_to'] || s['effective_to'] >= nextPeriod.startDate)
+        // 跟「下期」這段期間有交集的時段（#1100 #22：下期才生效的新段要列、下期開始前就換掉的舊段不列）
+        .filter((s) =>
+          scheduleOverlaps(scheduleRangeOf(s), nextPeriod.startDate, nextPeriod.endDate),
+        )
         .sort(
           (a, b) => a['weekday'] - b['weekday'] || a['start_time'].localeCompare(b['start_time']),
         );
