@@ -90,7 +90,7 @@ export class AuthHandoffService {
     try {
       await firstValueFrom(
         this.http.post(
-          `${this.base}/${encodeURIComponent(id)}/complete`,
+          `${environment.apiUrl}/api/me/auth-handoff/${encodeURIComponent(id)}/complete`,
           {},
           { withCredentials: true },
         ),
