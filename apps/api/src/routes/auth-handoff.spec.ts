@@ -182,6 +182,36 @@ describe('POST /{id}/complete（要登入；防交接劫持）', () => {
     expect(db.rows('auth_handoffs')[0]).toMatchObject({ user_id: null, failed_attempts: 5 });
   });
 
+  it('已經錯滿 5 次（DB 記著）→ 就算碼對也 404、不標', async () => {
+    const db = seed([await pending({ failed_attempts: MAX_PAIR_ATTEMPTS })]);
+    expect((await complete(app(db, 'u-parent', AFTER), CODE)).status).toBe(404);
+    expect(db.rows('auth_handoffs')[0]).toMatchObject({ user_id: null });
+  });
+
+  it('**並發**猜錯：10 個同時送，每一個都算次數 —— 只有 4 個拿到 400，其餘 404，次數停在 5', async () => {
+    const db = seed([await pending()]);
+    const a = app(db, 'u-parent', AFTER);
+    const statuses = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => complete(a, String(1000 + i))),
+    ).then((rs) => rs.map((r) => r.status));
+    expect(statuses.filter((x) => x === 400)).toHaveLength(MAX_PAIR_ATTEMPTS - 1);
+    expect(statuses.filter((x) => x === 404)).toHaveLength(10 - (MAX_PAIR_ATTEMPTS - 1));
+    expect(db.rows('auth_handoffs')[0]).toMatchObject({ user_id: null, failed_attempts: 5 });
+    expect((await complete(a, CODE)).status).toBe(404);
+  });
+
+  it('並發裡夾著對的碼：最多猜 5 次 —— 對的碼排在第 6 個以後就拿不到', async () => {
+    const db = seed([await pending()]);
+    const a = app(db, 'u-parent', AFTER);
+    const codes = [...Array.from({ length: 9 }, (_, i) => String(1000 + i)), CODE];
+    const statuses = await Promise.all(codes.map((code) => complete(a, code))).then((rs) =>
+      rs.map((r) => r.status),
+    );
+    expect(statuses.filter((x) => x !== 404).length).toBeLessThanOrEqual(MAX_PAIR_ATTEMPTS);
+    expect(statuses.at(-1)).toBe(404);
+    expect(db.rows('auth_handoffs')[0]).toMatchObject({ user_id: null });
+  });
+
   it('沒帶配對碼或格式不對 → 400（zod），不標', async () => {
     const db = seed([await pending()]);
     const a = app(db, 'u-parent', AFTER);

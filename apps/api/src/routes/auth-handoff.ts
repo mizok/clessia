@@ -255,7 +255,6 @@ handoffCompleteRoute.openapi(
       .eq('id', id)
       .is('user_id', null)
       .gte('expires_at', now)
-      .lt('failed_attempts', MAX_PAIR_ATTEMPTS)
       .maybeSingle();
     if (error) return failed();
     if (!row) return c.json(invalid, 404);
@@ -264,17 +263,40 @@ handoffCompleteRoute.openapi(
     const sessionAt = Date.parse(c.get('sessionCreatedAt') ?? '');
     if (!(sessionAt >= Date.parse(row['created_at'] as string))) return c.json(invalid, 404);
 
-    // 第二道：配對碼。錯了記一次（用讀到的次數當條件：並發時只有一個 +1 成功，不會少算到可以多猜）
-    if ((await pairCodeHash(id, pairCode)) !== row['pair_code_hash']) {
-      const attempts = (row['failed_attempts'] as number) + 1;
-      const { error: bumpError } = await supabase
+    // 第二道：配對碼。**先佔一次機會再比對**（審核席二讀：先比對、錯了才 +1 的話，並發的錯誤猜測
+    // 只有一個 +1 成功、其他照樣回 400，平行送就繞過上限）。每次猜都要用 CAS（eq 讀到的次數）把次數 +1
+    // 佔到一個名額；沒佔到＝別的請求剛佔走，重讀再搶。次數滿了就失效 —— 平行送也最多猜 MAX 次。
+    let seen = row['failed_attempts'] as number;
+    let used: number | null = null;
+    for (let tries = 0; tries < MAX_PAIR_ATTEMPTS * 4 && used === null; tries++) {
+      if (seen >= MAX_PAIR_ATTEMPTS) return c.json(invalid, 404);
+      const { data: claimed, error: claimError } = await supabase
         .from('auth_handoffs')
-        .update({ failed_attempts: attempts })
+        .update({ failed_attempts: seen + 1 })
         .eq('id', id)
-        .eq('failed_attempts', row['failed_attempts'] as number);
-      if (bumpError) return failed();
-      const attemptsLeft = Math.max(0, MAX_PAIR_ATTEMPTS - attempts);
-      if (attemptsLeft === 0) return c.json(invalid, 404);
+        .eq('failed_attempts', seen)
+        .is('user_id', null)
+        .select('failed_attempts');
+      if (claimError) return failed();
+      if ((claimed ?? []).length > 0) {
+        used = seen + 1;
+        break;
+      }
+      const { data: again, error: againError } = await supabase
+        .from('auth_handoffs')
+        .select('failed_attempts')
+        .eq('id', id)
+        .is('user_id', null)
+        .maybeSingle();
+      if (againError) return failed();
+      if (!again) return c.json(invalid, 404);
+      seen = again['failed_attempts'] as number;
+    }
+    if (used === null) return failed();
+
+    if ((await pairCodeHash(id, pairCode)) !== row['pair_code_hash']) {
+      const attemptsLeft = MAX_PAIR_ATTEMPTS - used;
+      if (attemptsLeft <= 0) return c.json(invalid, 404);
       return c.json(
         { error: '號碼不對，請看 App 上顯示的 4 位數', code: 'PAIR_CODE_MISMATCH', attemptsLeft },
         400,
@@ -286,7 +308,6 @@ handoffCompleteRoute.openapi(
       .update({ user_id: c.get('userId'), completed_at: now })
       .eq('id', id)
       .is('user_id', null)
-      .lt('failed_attempts', MAX_PAIR_ATTEMPTS)
       .select('id');
     if (markError) return failed();
     if ((data ?? []).length === 0) return c.json(invalid, 404);
