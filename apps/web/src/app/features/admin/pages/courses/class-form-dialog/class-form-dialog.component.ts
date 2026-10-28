@@ -122,6 +122,21 @@ export class ClassFormDialogComponent {
         // 讀不到就只剩「不指定」＋既有時段的那幾間 —— 表單照樣能存
         .subscribe({ next: (res) => this.campusRooms.set(res.data), error: () => undefined });
     }
+    // #1100 #22：列表傳進來的班級只帶「今天有效」的時段（列表的摘要規則），還沒生效的未來段不在裡面。
+    // 表單要列出未來段、重疊檢查也要看得到它，所以編輯時重讀詳情（全部時段）。讀取期間鎖住表單，
+    // 免得使用者先改的時段列被蓋掉；讀失敗就沿用列表那份（未來段不會被刪：存檔只刪表單看得到的）
+    const editingId = this.cls()?.id;
+    if (editingId) {
+      this.loading.set(true);
+      this.classesService.get(editingId).subscribe({
+        next: (res) => {
+          this.cls.set(res.data);
+          this.scheduleEntries.set(this.toEntries(this.liveSchedules()));
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      });
+    }
     // 只列使用中的範本 —— 停用的 API 會擋（停用的價目表不再對外報價）
     if (this.canSetFee) {
       this.feeTemplatesService

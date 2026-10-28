@@ -38,6 +38,8 @@ describe('ClassFormDialogComponent', () => {
       ),
     };
     classesServiceMock = {
+      // 編輯時表單重讀詳情（#1100 #22）：回傳開表單時給的那份
+      get: vi.fn(() => of({ data: TestBed.inject(DynamicDialogConfig).data.cls })),
       checkScheduleConflicts: vi.fn().mockReturnValue(of({ conflicts: [] })),
       create: vi.fn().mockReturnValue(of({ data: { id: 'class-1' } as any })),
       update: vi.fn().mockReturnValue(of({ data: { id: 'class-1' } as any })),
@@ -482,6 +484,33 @@ describe('ClassFormDialogComponent', () => {
       await fixture.whenStable();
       expect((component as any).formValidationMessage()).toBeNull();
       expect(classesServiceMock.update).toHaveBeenCalled();
+    });
+
+    it('從列表開（只帶今天有效的段）：重讀詳情後列出未來段', async () => {
+      const detail = cls([
+        sch('now', 1, '2026-01-01', '2099-01-31'),
+        sch('next', 1, '2099-02-01', null),
+      ]);
+      (classesServiceMock.get as any).mockReturnValueOnce(of({ data: detail }));
+      recreate(cls([sch('now', 1, '2026-01-01', '2099-01-31')]));
+      expect((component as any).scheduleEntries().map((e: { id: string }) => e.id)).toEqual([
+        'now',
+        'next',
+      ]);
+    });
+
+    // 最容易壞的地方：存檔的「表單裡沒有＝刪掉」不能把已結束的舊段算進去
+    it('存檔不會刪掉已結束的舊段（即使改了其他時段）', async () => {
+      recreate(cls([sch('old', 1, '2026-01-01', '2026-01-31'), sch('now', 3, '2026-02-01', null)]));
+      (component as any).updateScheduleEntry(0, 'startTime', '10:00');
+      (component as any).save();
+      await fixture.whenStable();
+      expect(classesServiceMock.updateSchedule).toHaveBeenCalledWith(
+        'class-1',
+        'now',
+        expect.objectContaining({ startTime: '10:00' }),
+      );
+      expect(classesServiceMock.deleteSchedule).not.toHaveBeenCalled();
     });
 
     it('已經結束的舊段不列、存檔也不會把它刪掉；未來的段標「X 起」', async () => {
