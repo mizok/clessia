@@ -248,6 +248,35 @@ export class AuthService {
   }
 
   /**
+   * **實驗**（#2063，使用者 10-28 裁定做實驗）：iOS 主畫面 App 的 LINE 登入整段留在 App 裡。
+   * 不讓 Better Auth 自動跳轉，拿到 LINE 的授權網址後加上 `disable_auto_login=true`（不跳 LINE App，
+   * 留在網頁登入；LINE 文件建議用它取代舊的 `disable_ios_auto_login`），再由**這個視窗**頂層導航 ——
+   * 發起與回呼若都在 App 這個視窗，state cookie 就在同一個 jar。會不會被 iOS 丟去 Safari、
+   * LINE 網頁登入畫面家長看得懂嗎，都要靠實機。伺服器不用動（LINE provider 不傳額外參數，所以在前端加）。
+   */
+  async signInWithLineInline(): Promise<string | null> {
+    const { data, error } = await authClient.signIn.social({
+      provider: 'line',
+      callbackURL: `${window.location.origin}/select-role`,
+      errorCallbackURL: `${window.location.origin}/login`,
+      disableRedirect: true,
+    });
+    const url = (data as { url?: string } | null)?.url;
+    if (error || !url) {
+      return 'LINE 登入失敗，請稍後再試或聯繫補習班';
+    }
+    const authorize = new URL(url);
+    authorize.searchParams.set('disable_auto_login', 'true');
+    this.navigate(authorize.toString());
+    return null;
+  }
+
+  /** 頂層導航（spec 換掉它） */
+  protected navigate(url: string): void {
+    window.location.assign(url);
+  }
+
+  /**
    * 把目前登入的帳號跟 LINE 綁在一起。之後這個人就能直接用 LINE 登入。
    *
    * 前提是**已經登入** —— 使用者是點一次性連結進來的。

@@ -299,6 +299,7 @@ describe('LoginComponent × 外部登入交接', () => {
     const redeem = vi.fn(async () => results.shift() ?? 'none');
     const start = vi.fn(async () => link);
     const signInWithLine = vi.fn(async () => null);
+    const signInWithLineInline = vi.fn(async () => null);
     const handoff = {
       redeem,
       start,
@@ -312,7 +313,7 @@ describe('LoginComponent × 外部登入交接', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { signInWithLine } },
+        { provide: AuthService, useValue: { signInWithLine, signInWithLineInline } },
         { provide: AuthHandoffService, useValue: handoff },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map() } } },
       ],
@@ -333,7 +334,20 @@ describe('LoginComponent × 外部登入交接', () => {
       ).signInWithLine();
       fixture.detectChanges();
     };
-    return { fixture, redeem, start, signInWithLine, text, code, press, startLinks };
+    const experiment = () =>
+      el.querySelector<HTMLButtonElement>('[data-testid="line-inline-experiment"]');
+    return {
+      fixture,
+      redeem,
+      start,
+      signInWithLine,
+      signInWithLineInline,
+      text,
+      code,
+      press,
+      startLinks,
+      experiment,
+    };
   }
 
   // #2063：PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA，LINE 授權完回到 Safari → state_mismatch。
@@ -389,5 +403,23 @@ describe('LoginComponent × 外部登入交接', () => {
     expect(redeem).toHaveBeenCalledTimes(2);
     expect(code()).toBeUndefined();
     expect(text()).toContain('登入逾時，請再按一次「使用 LINE 登入」');
+  });
+
+  // #2063 實驗：整段留在 App 裡的 LINE 登入。只在主畫面 App 顯示，預設的 LINE 鍵不變
+  it('主畫面 App：多一個實驗入口，按下走 signInWithLineInline，不發起交接', async () => {
+    const { fixture, experiment, signInWithLineInline, start, signInWithLine } = await render(
+      [],
+      true,
+    );
+    experiment()!.click();
+    await fixture.whenStable();
+    expect(signInWithLineInline).toHaveBeenCalledTimes(1);
+    expect(start).not.toHaveBeenCalled();
+    expect(signInWithLine).not.toHaveBeenCalled();
+  });
+
+  it('不是主畫面 App：看不到實驗入口', async () => {
+    const { experiment } = await render([], false);
+    expect(experiment()).toBeNull();
   });
 });
