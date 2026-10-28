@@ -289,4 +289,67 @@ run('帳務作業每位學生一筆交易（#1943）', () => {
       other.release();
     }
   }, 300_000);
+
+  // 交易外看到有待開餐費、交易裡卻被別的 run 先蓋走（#1977）：billStudent 要把剛開的 0 元餐費 item 刪掉。
+  // 把競態釘死：另一筆交易先蓋走這位學生的餐、還沒 COMMIT，run 的蓋章 UPDATE 卡在列鎖上，
+  // 等對方 COMMIT 後重查條件（invoice_item_id is null）不再成立 → 蓋到 0 筆。學費還在，所以帳單會開、不會被 NothingToBill 整筆回滾
+  it('餐記錄在 run 的交易裡被別的交易先蓋走 → 開學費帳單，但不留 0 元餐費 item', async () => {
+    const [target] = await q<{ id: string; student_id: string }>(
+      'select id, student_id from enrollments where org_id = $1 order by id limit 1 offset 20',
+      [ctx.orgId],
+    );
+    await q(
+      `insert into meal_records (org_id, student_id, meal_date, ordered, chargeable, unit_price)
+       select $1, $2, date '2026-06-02' + d, true, true, 65 from generate_series(0, 2) d`,
+      [ctx.orgId, target!.student_id],
+    );
+    const [held] = await q<{ id: string }>(
+      `insert into invoices (org_id, student_id, issued_at, due_date, created_by)
+       values ($1, $2, '2026-06-01', '2026-06-15', $3) returning id`,
+      [ctx.orgId, target!.student_id, ctx.userId],
+    );
+    const other = await pool!.connect();
+    try {
+      await other.query('BEGIN');
+      const { rows } = await other.query(
+        `insert into invoice_items (invoice_id, type, amount, period_month)
+         values ($1, 'meal', 195, '2026-06-01') returning id`,
+        [held!.id],
+      );
+      await other.query(
+        `update meal_records set invoice_item_id = $2
+          where org_id = $1 and student_id = $3 and meal_date between '2026-06-01' and '2026-06-30'`,
+        [ctx.orgId, (rows[0] as { id: string }).id, target!.student_id],
+      );
+
+      let done = false;
+      const pending = runMonth('2026-06').finally(() => (done = true));
+      // 等到 run 卡在蓋章的列鎖上（跑完了就是沒卡到，下面會看到失敗）
+      for (let i = 0; i < 300 && !done; i += 1) {
+        const [w] = await q<{ n: string }>(
+          `select count(*) as n from pg_locks l join pg_stat_activity a on a.pid = l.pid
+            where not l.granted and a.query ilike '%update public.meal_records%'`,
+        );
+        if (Number(w!.n) > 0) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await other.query('COMMIT');
+
+      const june = await pending;
+      expect(june.status).toBe(200);
+      expect(june.body.failedStudents).toEqual([]);
+      expect(june.body.invoicesCreated).toBe(STUDENTS);
+      expect(june.body.mealRecordsSettled).toBe(0); // 三餐是對方蓋的，這次 run 一筆都沒蓋到
+      const meals = await q<{ amount: string }>(
+        `select ii.amount from invoice_items ii join invoices i on i.id = ii.invoice_id
+          where i.org_id = $1 and i.student_id = $2 and ii.type = 'meal' and ii.period_month = '2026-06-01'`,
+        [ctx.orgId, target!.student_id],
+      );
+      expect(meals.map((m) => Number(m.amount))).toEqual([195]); // 只有對方那一筆，沒有 0 元的
+      expect(await ledger('2026-06-01')).toEqual({ dup: 0, tuition: STUDENTS, empty: 0 });
+    } finally {
+      await other.query('ROLLBACK').catch(() => undefined);
+      other.release();
+    }
+  }, 300_000);
 });
