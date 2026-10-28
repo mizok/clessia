@@ -1,7 +1,5 @@
 <div class="roster-panel flex flex-col">
-  <div
-    class="roster-panel__header flex items-start justify-between border-b border-b-solid border-b-zinc-200 p-4"
-  >
+  <div class="roster-panel__header flex items-start justify-between border-b border-b-zinc-200 p-4">
     <div>
       <div class="roster-panel__title text-[1rem] font-semibold text-zinc-900">
         {{ session.className }}
@@ -45,7 +43,7 @@
           只有請假單、紀錄還沒套用的那種列**不掛** `--on-leave`（它本來就能標記）。
         -->
         <div
-          class="roster-panel__row flex items-center justify-between border-b border-b-solid border-b-zinc-100 px-4 py-3"
+          class="roster-panel__row flex items-center justify-between border-b border-b-zinc-100 px-4 py-3"
           [class.roster-panel__row--on-leave]="isLocked(student)"
           [class.bg-zinc-200]="isLocked(student)"
         >
@@ -137,7 +135,7 @@
 
     @if (session.readOnly) {
       <div
-        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-solid border-t-zinc-200 p-4"
+        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-zinc-200 p-4"
       >
         <span class="roster-panel__progress min-w-0 flex-[1_1_10rem] text-xs text-zinc-500"
           >由行政人員點名，這裡只能查看</span
@@ -145,7 +143,7 @@
       </div>
     } @else {
       <div
-        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-solid border-t-zinc-200 p-4"
+        class="roster-panel__footer flex flex-wrap items-center gap-2 border-t border-t-zinc-200 p-4"
       >
         <!--
         進度講在按鈕旁邊。**三種狀態都有話講，所以這一格永遠在** ——

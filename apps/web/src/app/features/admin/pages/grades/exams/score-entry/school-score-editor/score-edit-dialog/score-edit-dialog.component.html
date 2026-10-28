@@ -73,7 +73,7 @@
         <tbody>
           @for (row of rows(); track row.subjectId; let i = $index) {
             <tr
-              class="transition-colors duration-150 ease-out hover:bg-zinc-50 data-dirty:bg-accent-50 data-dirty:hover:bg-accent-100"
+              class="transition-colors duration-150 ease-[var(--arrive)] hover:bg-zinc-50 data-dirty:bg-accent-50 data-dirty:hover:bg-accent-100"
               [attr.data-dirty]="isRowDirty(row) || null"
               [attr.data-score-row]="i"
             >
@@ -134,7 +134,7 @@
       @for (row of rows(); track row.subjectId) {
         <button
           type="button"
-          class="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 border-0 border-b border-zinc-100 bg-white px-4 py-3 text-left transition-colors duration-150 ease-out last:border-b-0 hover:bg-zinc-50 data-dirty:bg-accent-50"
+          class="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 border-0 border-b border-zinc-100 bg-white px-4 py-3 text-left transition-colors duration-150 ease-[var(--arrive)] last:border-b-0 hover:bg-zinc-50 data-dirty:bg-accent-50"
           [attr.data-dirty]="isRowDirty(row) || null"
           (click)="openSubjectSheet(row)"
         >

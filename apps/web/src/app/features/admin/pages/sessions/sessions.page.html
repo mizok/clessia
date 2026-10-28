@@ -276,7 +276,7 @@
       </div>
       @for (ch of resultChapters(); track ch.date) {
         <section class="mt-8 first-of-type:mt-0" [attr.aria-label]="ch.date">
-          <h2 class="m-0 mb-2 text-xl font-bold tracking-tight text-zinc-900 tabular-nums">
+          <h2 class="m-0 mb-2 text-xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums">
             {{ ch.date | date: 'M/d' }} 週{{ weekdayLabel(ch.date) }}
           </h2>
           <app-schedule-list
@@ -319,7 +319,7 @@
               <div class="text-md" [class.text-zinc-600]="!today" [class.font-bold]="today">
                 週{{ weekdayLabel(d.date) }}{{ today ? ' · 今天' : '' }}
               </div>
-              <div class="text-2xl leading-[1.1] font-bold tracking-tight tabular-nums">
+              <div class="text-2xl leading-[1.1] font-bold tracking-[-0.03em] tabular-nums">
                 {{ weekDays()[i] | date: 'M/d' }}
               </div>
               <div class="mt-0.5 text-sm text-zinc-700 tabular-nums">
