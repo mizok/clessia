@@ -34,7 +34,7 @@ import { handoffCallbackURL } from '@core/auth-handoff.service';
         }
         <button
           type="button"
-          class="mt-4 h-12 w-full cursor-pointer rounded-lg border-0 bg-[#06c755] px-4 text-base font-semibold text-white disabled:cursor-progress disabled:opacity-60"
+          class="mt-4 h-12 w-full cursor-pointer rounded-lg border-0 bg-zinc-900 px-4 text-base font-semibold text-white disabled:cursor-progress disabled:opacity-60"
           [disabled]="busy()"
           (click)="go()"
         >
