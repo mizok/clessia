@@ -1,7 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
+import {
+  loadTeachingScope,
+  loadTenure,
+  taughtClassIds,
+  tenureOrFilter,
+} from '../lib/teacher-scope';
 import { getCampusScope } from '../lib/campus-scope';
 import { classWriteScope } from '../lib/campus-write-guard';
 import { logAudit } from '../utils/audit';
@@ -105,12 +110,14 @@ app.openapi(
     if (published === 'true') query = query.not('published_at', 'is', null);
     if (published === 'false') query = query.is('published_at', null);
 
+    // 現任＝整班全期；前任＝只看自己任期內的日誌（#2049 R2）
     if (scope.teacherStaffId) {
-      const allowed = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
-      if (allowed.length === 0) {
+      const tenure = await loadTenure(supabase, orgId, scope.teacherStaffId);
+      const visible = tenureOrFilter('class_id', 'log_date', tenure.current, tenure.past);
+      if (!visible) {
         return c.json({ data: [], meta: { total: 0 } }, 200);
       }
-      query = query.in('class_id', allowed);
+      query = query.or(visible);
     }
 
     const { data, count, error } = await query;

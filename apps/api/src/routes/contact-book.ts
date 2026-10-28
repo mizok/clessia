@@ -2,7 +2,14 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { editedAfterSign } from '../lib/contact-book-sign';
-import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
+import {
+  loadTeachingScope,
+  loadTenure,
+  studentTenure,
+  taughtClassIds,
+  taughtStudentIds,
+  tenureOrFilter,
+} from '../lib/teacher-scope';
 import {
   datesInRange,
   missingContactBookByDate,
@@ -164,13 +171,15 @@ app.openapi(
     if (from) query = query.gte('entry_date', from);
     if (to) query = query.lte('entry_date', to);
 
-    // 老師只看得到自己任課班級的學生
+    // 老師只看得到自己任課班級的學生：現任班的全期、前任班的只限任期內（#2049 R2）
     if (scope.teacherStaffId) {
-      const allowed = await taughtStudentIds(supabase, orgId, scope.teacherStaffId);
-      if (allowed.length === 0) {
+      const tenure = await loadTenure(supabase, orgId, scope.teacherStaffId);
+      const students = await studentTenure(supabase, orgId, tenure);
+      const visible = tenureOrFilter('student_id', 'entry_date', students.current, students.past);
+      if (!visible) {
         return c.json({ data: [], meta: { total: 0 } }, 200);
       }
-      query = query.in('student_id', allowed);
+      query = query.or(visible);
     }
 
     const { data, count, error } = await query;
@@ -252,7 +261,10 @@ app.openapi(
       return c.json({ error: '寫入聯絡簿失敗', code: existingError.code }, 500);
     }
     if (existing && (existing as unknown as ContactBookRow).content === content) {
-      return c.json(toContactBookEntryResponse(existing as unknown as Record<string, unknown>), 200);
+      return c.json(
+        toContactBookEntryResponse(existing as unknown as Record<string, unknown>),
+        200,
+      );
     }
 
     // 每生每日一則（rules 1）。共編＝覆寫同一列並換掉 last_edited_by，
