@@ -22,11 +22,16 @@ vi.mock('../utils/audit', () => ({
   logAudit: (_db: unknown, entry: { action: string; details: unknown }) => audits.push(entry),
 }));
 
+const scope = vi.hoisted(() => ({ result: 'ok' as 'ok' | 'not-found' | 'out-of-scope' }));
+vi.mock('../lib/campus-write-guard', () => ({
+  studentWriteScope: async () => scope.result,
+}));
+
 const { default: route } = await import('./checkin-cards');
 
 const STUDENT = '00000000-0000-4000-8000-0000000000b1';
 
-function createApp(permissions: string[], pool: unknown = {}) {
+function createApp(permissions: string[], pool: unknown = {}, supabase: unknown = {}) {
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -36,7 +41,7 @@ function createApp(permissions: string[], pool: unknown = {}) {
     set('permissions', permissions);
     set('campusScope', null);
     set('auth', { pool });
-    set('supabase', {});
+    set('supabase', supabase);
     await next();
   });
   app.route('/api/checkin-cards', route);
@@ -146,6 +151,48 @@ describe('補發／作廢：manage_students', () => {
     lib.revokeCard.mockResolvedValueOnce({ ok: true, studentName: '甲', revokedCode: 'CK1-OLD' });
     expect((await post(app, `/${STUDENT}/revoke`, { reason: '退班' })).status).toBe(204);
     expect(audits.map((a) => a.action)).toEqual(['revoke_checkin_card']);
+  });
+});
+
+describe('GET /students/:studentId —— 詳情頁的現況（計畫席 10-28：只給後 4 碼）', () => {
+  const cardsTable = (rows: unknown[]) => {
+    const q = {
+      select: () => q,
+      eq: () => q,
+      then: (f: (v: unknown) => unknown) => f({ data: rows, error: null }),
+    };
+    return { from: () => q };
+  };
+  const get = (supabase: unknown) =>
+    createApp(['basic_operations'], {}, supabase).request(`/api/checkin-cards/students/${STUDENT}`);
+
+  it('有效卡只回後 4 碼，完整代碼不出現在回應裡', async () => {
+    const res = await get(
+      cardsTable([
+        {
+          code: 'CK1-AAAAAAAAAAAA0000',
+          issued_at: '2026-10-01T00:00:00Z',
+          revoked_at: '2026-10-02T00:00:00Z',
+        },
+        { code: 'CK1-0123456789ABCDEF', issued_at: '2026-10-02T00:00:00Z', revoked_at: null },
+      ]),
+    );
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    expect(JSON.parse(text)).toEqual({
+      active: { last4: 'CDEF', issuedAt: '2026-10-02T00:00:00Z' },
+      hasAnyCard: true,
+    });
+    expect(text).not.toContain('0123456789ABCDEF');
+  });
+
+  it('沒發過卡：active null、hasAnyCard false；學生不在範圍 403、不存在 404', async () => {
+    expect(await (await get(cardsTable([]))).json()).toEqual({ active: null, hasAnyCard: false });
+    scope.result = 'out-of-scope';
+    expect((await get(cardsTable([]))).status).toBe(403);
+    scope.result = 'not-found';
+    expect((await get(cardsTable([]))).status).toBe(404);
+    scope.result = 'ok';
   });
 });
 

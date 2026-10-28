@@ -130,7 +130,7 @@ tags: [architecture, attendance, authorization, kiosk, migration]
   - `POST /print { studentIds }`：有有效卡就**重印同一張**（不換碼），沒有就開卡。批次的分校範圍一句 SQL 判完 ——
     逐位 `studentWriteScope` 每位兩個 subrequest，一頁 20 位就撞 Workers 的 50 上限。
   - `POST /{studentId}/reissue { reason }`：作廢舊卡＋開新卡同一交易；`/revoke { reason }` 只作廢。
-  - `GET /students/{studentId}`：目前的有效卡、印過新卡沒。
+  - `GET /students/{studentId}`：目前的有效卡（**只回後 4 碼**，完整碼只在印卡時出現）、印過新卡沒。
   - 三支寫入都寫稽核（掛 `resourceType: 'student'`，不為卡片另開 CHECK 值）。稽核**不記代碼**（代碼就是憑證）。
 - **權限**（計畫席 10-28）：重印 `basic_operations`；**新開、補發、作廢 `manage_students`**（等於發放／收回身分憑證）。
   只有 `basic_operations` 的人印到沒卡的學生 → 整批 403 `NEEDS_MANAGE_STUDENTS`。上線後第一次全校發卡由有
@@ -142,6 +142,11 @@ tags: [architecture, attendance, authorization, kiosk, migration]
 - **舊卡過渡**（計畫席 10-23：上線起 30 天）：掃碼（機台或 `source=scan`）帶 `studentId` 時，該生在 `checkin_cards`
   **有任何一列**（含已作廢）就 409 `LEGACY_CARD` —— 一印新卡舊卡即失效。行政在名單上選人（`manual`）不是拿卡，照舊。
   30 天後另開小 PR 拿掉 UUID 掃碼路徑（不用 migration）。
+- **web**：`checkin-station` 依 `CK1-` 前綴分流（`cardCode`／`studentId`），`CARD_REVOKED`／`LEGACY_CARD` 各有文案。
+  印卡（`students/checkin-cards.ts`）收「之後才會有的卡」：**先在點擊的 tick 開視窗，再等 API 發碼**，失敗就關掉空視窗。
+  卡面多印分組代碼。學生列表的印卡入口 `basic_operations` 或 `manage_students` 任一可見（新開由後端擋）；
+  學生詳情頁「⋯」有補發（填理由 → 補發 → 直接印新卡；視窗被擋就不呼叫 API，卡不會換掉）與作廢。
+  「基本資料」顯示現況（`basic_operations` 或 `manage_students`）：末四碼＋發卡日／已作廢尚未補發／尚未發新卡。
 
 ## 拒絕的替代方案
 
