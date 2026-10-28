@@ -161,7 +161,9 @@ export const canReadOn = (t: TeachingTenure, classId: string, date: string | nul
 /**
  * PostgREST `.or()` 的條件：`idColumn` 在 `current` 裡（全期），或是前任的某一段（`dateColumn` 落在任期內）。
  * 回 null＝什麼都看不到，呼叫端回空結果。列表用它而不是撈回來再濾 —— `count` 才會對。
- * ponytail: 前任每段一個 `and(...)`，段數是「卸任的班 × 換手次數」；長到 414 再改走 pg
+ * ponytail: 整串進 URL，長度＝`current` 的 id 數＋前任段數。班級 id 很少；**學生 id（聯絡簿的
+ * `studentTenure.current`）上百位就有 414 風險**（#1928 同一類，原本的 `taughtStudentIds` `.in()` 就有）。
+ * 前任段數是「卸任的班 × 換手次數」。撞到 414 就改走 pg 池：`EXISTS` 子查詢判任期，不把 id 清單放進 URL
  */
 export function tenureOrFilter(
   idColumn: string,
