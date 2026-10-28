@@ -3,7 +3,7 @@ title: 老師端學生名單的設計
 summary: 老師看自己任課班級的學生。同時處理 teacher/attendance 空殼——點名的家是課表，不是另一個選單項目。
 category: architecture
 status: active
-updated: 2026-10-23
+updated: 2026-10-28
 tags: [architecture, teacher-students-view]
 ---
 
@@ -55,6 +55,22 @@ Teacher attendance content coming soon...
   → `null`（今天沒他的課），不是別班那堂的狀態
 
 **縮在母體，不是撈了再遮**：撈全部再從回應裡刪，下一個加欄位的人會忘記刪那一欄。
+
+## 任課判定看日期：現任、前任（#2049）
+
+時段可以前後接續（#22：`effective_from`／`effective_to`，`split` 從某天起換老師），所以「他教這班」要看日期。
+計畫席 10-28 裁定（R2），判準只有一份：`lib/teacher-scope.ts` 的 `loadTenure`／`tenureOn`。
+
+| 身分       | 怎麼判                             | 能做什麼                                                                                   |
+| ---------- | ---------------------------------- | ------------------------------------------------------------------------------------------ |
+| 現任或將任 | 這班有一列今天有效或還沒生效的時段 | 整班、**全部日期**，讀寫都可以 —— 接手的人要看得到前任的日誌、成績、聯絡簿                 |
+| 前任       | 這班只剩已經結束的時段             | **只讀、只限自己任期內的日期**。沒有日期脈絡的（名冊、學生詳情、以學生為單位的成績）看不到 |
+
+- 星期不細分：一班兩個時段分屬兩位老師，兩人都是現任。
+- `taughtClassIds`／`taughtStudentIds` 只回現任：沒有日期的讀取、所有寫入、「還沒寫」這類待辦提示都用它。
+- 有日期的列表用 `tenureOrFilter` 組 PostgREST `.or()`（`count` 才會對）；單筆有日期的用 `canReadOn`。
+- PUT 原地改 `teacher_id` 不留舊列，舊老師本來就全失；要留任期紀錄，換老師走 `split`（#22 寫入面 web 會提示）。
+- 契約 `contract/teacher-tenure.contract.ts` 守：現任看得到換手前後的每一筆；前任只看得到任期內那筆，而且寫入一律 403。
 
 ## API：開 `students` 給 teacher，同時鎖範圍
 
