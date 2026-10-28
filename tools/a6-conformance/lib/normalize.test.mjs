@@ -1509,3 +1509,28 @@ test('#1692：通知中心量預設分頁「收到的」—— 稿的「新」�
   );
   assert.equal(pairs.get(a6Key), appKey);
 });
+
+test('彈出物根（parent 是合成的 pop[id]）貼視窗底時量「距視窗底」：頁高差不算位置差（#2016 #7）', async () => {
+  const { diffParts } = await import('./diff.mjs');
+  const style = { display: 'block', fontSize: '14px', color: 'x', padding: '0px' };
+  const root = (id, box) => ({
+    key: `pop[${id}]>landmark:popover[帳戶]`,
+    parent: `pop[${id}]`,
+    kind: 'landmark',
+    role: 'popover',
+    tpl: '帳戶',
+    text: '帳戶',
+    box,
+    style,
+  });
+  // 稿頁高 2193、抽屜 373 貼底；app 頁高 1697、抽屜 229 貼底（內容隨資料少一段）
+  const rows = diffParts(
+    { parts: [root('acct', [0, 1821, 360, 373])], height: 2193 },
+    { parts: [root('shell-account', [0, 1468, 360, 229])], height: 1697 },
+    { 'pop[acct]>landmark:popover[帳戶]': 'pop[shell-account]>landmark:popover[帳戶]' },
+  );
+  assert.equal(
+    rows.find((r) => r.status === '位置'),
+    undefined,
+  );
+});
