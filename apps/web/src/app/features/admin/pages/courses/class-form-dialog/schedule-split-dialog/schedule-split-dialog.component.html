@@ -58,6 +58,24 @@
     </div>
   </div>
 
+  <label class="flex flex-col gap-1 text-sm text-zinc-700">
+    任課老師
+    <p-select
+      [options]="teacherSelectOptions"
+      [ngModel]="form().teacherId"
+      (ngModelChange)="update('teacherId', $event)"
+      ariaLabel="任課老師"
+      [disabled]="loading()"
+      [appendTo]="'body'"
+      styleClass="w-56"
+    />
+  </label>
+  @if (teacherChanged() && data.schedule.teacherId) {
+    <p class="m-0 text-sm text-zinc-700" data-teacher-change-note>
+      {{ oldTeacherName }}從這天起卸任：之後只看得到這天以前的點名、日誌和成績，而且只能看、不能改。
+    </p>
+  }
+
   @if (invalid(); as message) {
     <p class="m-0 text-sm text-error-700">{{ message }}</p>
   }

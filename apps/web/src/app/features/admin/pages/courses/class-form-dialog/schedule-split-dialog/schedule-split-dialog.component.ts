@@ -19,6 +19,8 @@ export interface ScheduleSplitDialogData {
   classId: string;
   schedule: Schedule;
   classroomOptions: Array<{ label: string; value: string | null }>;
+  /** 能教這班的老師（分校＋科目，同班級表單的篩選）；API 換老師時還會再驗一次（#854） */
+  teacherOptions: Array<{ label: string; value: string }>;
 }
 
 const WEEKDAY = ['', '週一', '週二', '週三', '週四', '週五', '週六', '週日'];
@@ -66,6 +68,7 @@ export class ScheduleSplitDialogComponent {
     startTime: this.old.startTime.slice(0, 5),
     endTime: this.old.endTime.slice(0, 5),
     classroomId: this.old.classroomId,
+    teacherId: this.old.teacherId,
   });
   protected readonly preview = signal<SplitScheduleResult | null>(null);
   protected readonly loading = signal(false);
@@ -76,6 +79,21 @@ export class ScheduleSplitDialogComponent {
     const d = this.form().fromDate;
     return d ? shortDate(addDaysToDateString(d, -1)) : '';
   });
+
+  /**
+   * 換老師一律走這裡（#2049 (e)）：有生效日、留下任期。前任卸任後只看得到 X 以前的資料、而且唯讀；
+   * 直接改原時段的老師（PUT）只用來更正填錯，會讓前任立刻失去整班。
+   */
+  protected readonly teacherSelectOptions = [
+    { label: '還沒指派', value: null as string | null },
+    ...this.data.teacherOptions.map((o) => ({ label: o.label, value: o.value as string | null })),
+    // 舊老師不在可選清單裡（例如後來被移出這個分校）也要顯示得出名字，不然看起來像沒有老師
+    ...(this.old.teacherId && !this.data.teacherOptions.some((o) => o.value === this.old.teacherId)
+      ? [{ label: this.old.teacherName ?? '原任老師', value: this.old.teacherId as string | null }]
+      : []),
+  ];
+  protected readonly teacherChanged = computed(() => this.form().teacherId !== this.old.teacherId);
+  protected readonly oldTeacherName = this.old.teacherName ?? '原任老師';
 
   protected readonly invalid = computed(() => {
     const f = this.form();
@@ -118,8 +136,7 @@ export class ScheduleSplitDialogComponent {
       weekday: f.weekday,
       startTime: f.startTime,
       endTime: f.endTime,
-      // 老師指派由行事曆批次處理（D4），新時段沿用舊時段的老師
-      teacherId: this.old.teacherId,
+      teacherId: f.teacherId,
       classroomId: f.classroomId,
       dryRun,
     };

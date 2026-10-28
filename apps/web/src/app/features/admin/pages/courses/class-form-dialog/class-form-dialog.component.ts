@@ -582,6 +582,7 @@ export class ClassFormDialogComponent {
       classId,
       schedule,
       classroomOptions: this.classroomOptions(),
+      teacherOptions: this.filteredStaffOptions(),
     };
     const ref = this.dialogService.open(ScheduleSplitDialogComponent, {
       width: '520px',
