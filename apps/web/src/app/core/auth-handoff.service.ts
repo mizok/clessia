@@ -10,10 +10,21 @@ const STORAGE_KEY = 'clessia.authHandoff';
 interface StoredHandoff {
   readonly id: string;
   readonly secret: string;
+  /** 顯示給使用者、在 Safari 輸入的 4 位數（防交接劫持） */
+  readonly pairCode: string;
   readonly expiresAt: number;
 }
 
+const callbackFor = (id: string) =>
+  `${window.location.origin}/login/handoff?h=${encodeURIComponent(id)}`;
+
 export type RedeemResult = 'none' | 'pending' | 'redirected' | 'invalid';
+
+/** Safari 頁輸入配對碼的結果；mismatch 帶剩幾次 */
+export type CompleteResult =
+  | { readonly kind: 'done' }
+  | { readonly kind: 'mismatch'; readonly attemptsLeft: number }
+  | { readonly kind: 'failed' };
 
 /**
  * iOS 主畫面 PWA 的外部登入交接（#2027，kb/wiki/architecture/pwa-oauth-handoff.md）。
@@ -38,18 +49,32 @@ export class AuthHandoffService {
   /** 發起：存好 id＋secret，回外部流程要用的 callbackURL（只帶 id） */
   async start(): Promise<string> {
     const res = await firstValueFrom(
-      this.http.post<{ handoffId: string; secret: string; expiresInSeconds: number }>(
-        `${this.base}/start`,
-        {},
-      ),
+      this.http.post<{
+        handoffId: string;
+        secret: string;
+        pairCode: string;
+        expiresInSeconds: number;
+      }>(`${this.base}/start`, {}),
     );
     const stored: StoredHandoff = {
       id: res.handoffId,
       secret: res.secret,
+      pairCode: res.pairCode,
       expiresAt: Date.now() + res.expiresInSeconds * 1000,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    return `${window.location.origin}/login/handoff?h=${encodeURIComponent(res.handoffId)}`;
+    return callbackFor(res.handoffId);
+  }
+
+  /** 進行中交接的落地網址（PWA 被重新載入後沿用同一個交接，不重發新碼）；沒有就 null */
+  pendingCallbackURL(): string | null {
+    const stored = this.read();
+    return stored ? callbackFor(stored.id) : null;
+  }
+
+  /** 進行中交接的配對碼（PWA 顯示給使用者，在 Safari 輸入）；沒有就 null */
+  pendingPairCode(): string | null {
+    return this.read()?.pairCode ?? null;
   }
 
   /**
@@ -83,23 +108,26 @@ export class AuthHandoffService {
   }
 
   /**
-   * Safari 那邊（callback 落地頁）：把交接標成目前登入的人，然後**登出 Safari**（使用者 10-23 裁定 ——
-   * 家長不該在 Safari 也一直是登入狀態）。登出失敗不影響交接。
+   * Safari 那邊（callback 落地頁）：使用者**輸入 App 上的配對碼並按確認**才呼叫（不自動 —— 防交接劫持）。
+   * 完成，或交接已失效，就**登出 Safari**（使用者 10-23 裁定）；碼打錯還能再試，先不登出。
    */
-  async complete(id: string): Promise<boolean> {
+  async complete(id: string, pairCode: string): Promise<CompleteResult> {
     try {
       await firstValueFrom(
         this.http.post(
           `${environment.apiUrl}/api/me/auth-handoff/${encodeURIComponent(id)}/complete`,
-          {},
+          { pairCode },
           { withCredentials: true },
         ),
       );
-      return true;
-    } catch {
-      return false;
-    } finally {
       await this.signOutHere().catch(() => undefined);
+      return { kind: 'done' };
+    } catch (err) {
+      if (err instanceof HttpErrorResponse && err.status === 400 && err.error?.attemptsLeft) {
+        return { kind: 'mismatch', attemptsLeft: err.error.attemptsLeft as number };
+      }
+      await this.signOutHere().catch(() => undefined);
+      return { kind: 'failed' };
     }
   }
 
@@ -118,7 +146,7 @@ export class AuthHandoffService {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const stored = JSON.parse(raw) as StoredHandoff;
-      if (!stored?.id || !stored.secret || stored.expiresAt < Date.now()) {
+      if (!stored?.id || !stored.secret || !stored.pairCode || stored.expiresAt < Date.now()) {
         localStorage.removeItem(STORAGE_KEY);
         return null;
       }

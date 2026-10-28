@@ -31,18 +31,31 @@ describe('AuthHandoffService', () => {
   const store = (over: Record<string, unknown> = {}) =>
     localStorage.setItem(
       KEY,
-      JSON.stringify({ id: 'h1', secret: 's3cret', expiresAt: Date.now() + 60_000, ...over }),
+      JSON.stringify({
+        id: 'h1',
+        secret: 's3cret',
+        pairCode: '0427',
+        expiresAt: Date.now() + 60_000,
+        ...over,
+      }),
     );
 
   it('start：存 id＋secret；回的 callbackURL 只帶 id，沒有 secret', async () => {
     const p = service.start();
     http
       .expectOne({ method: 'POST', url: `${base}/start` })
-      .flush({ handoffId: 'h1', secret: 's3cret', expiresInSeconds: 600 });
+      .flush({ handoffId: 'h1', secret: 's3cret', pairCode: '0427', expiresInSeconds: 600 });
     const url = await p;
     expect(url).toBe(`${window.location.origin}/login/handoff?h=h1`);
     expect(url).not.toContain('s3cret');
-    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({ id: 'h1', secret: 's3cret' });
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({
+      id: 'h1',
+      secret: 's3cret',
+      pairCode: '0427',
+    });
+    expect(service.pendingPairCode()).toBe('0427');
+    // PWA 被重新載入後沿用同一個交接（不重發新碼）
+    expect(service.pendingCallbackURL()).toBe(url);
   });
 
   it('redeem：沒有交接 → none、不打 API；過期的 → none 並清掉', async () => {
@@ -82,22 +95,32 @@ describe('AuthHandoffService', () => {
     expect(go).not.toHaveBeenCalled();
   });
 
-  it('complete：帶 cookie 標記；成功或失敗都登出 Safari', async () => {
-    let p = service.complete('h1');
+  it('complete：帶 cookie 與配對碼；完成 → 登出 Safari', async () => {
+    const p = service.complete('h1', '0427');
     const req = http.expectOne({
       method: 'POST',
       url: `${environment.apiUrl}/api/me/auth-handoff/h1/complete`,
     });
     expect(req.request.withCredentials).toBe(true);
+    expect(req.request.body).toEqual({ pairCode: '0427' });
     req.flush(null, { status: 204, statusText: 'No Content' });
-    expect(await p).toBe(true);
+    expect(await p).toEqual({ kind: 'done' });
     expect(signOut).toHaveBeenCalledTimes(1);
+  });
 
-    p = service.complete('h1');
+  it('complete：號碼不對 → mismatch＋剩幾次，**不登出**（還能再試）；失效 → failed、登出', async () => {
+    let p = service.complete('h1', '9999');
+    http
+      .expectOne(`${environment.apiUrl}/api/me/auth-handoff/h1/complete`)
+      .flush({ code: 'PAIR_CODE_MISMATCH', attemptsLeft: 3 }, { status: 400, statusText: 'x' });
+    expect(await p).toEqual({ kind: 'mismatch', attemptsLeft: 3 });
+    expect(signOut).not.toHaveBeenCalled();
+
+    p = service.complete('h1', '9999');
     http
       .expectOne(`${environment.apiUrl}/api/me/auth-handoff/h1/complete`)
       .flush({}, { status: 404, statusText: 'x' });
-    expect(await p).toBe(false);
-    expect(signOut).toHaveBeenCalledTimes(2);
+    expect(await p).toEqual({ kind: 'failed' });
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

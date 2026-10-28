@@ -4,6 +4,7 @@ import type { AppEnv } from '../index';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { DbUuidSchema } from '../lib/validation';
 import { mintLoginLinkForRequest } from './login-links/mint';
+import { clientIp, hashClientIp } from './public/application-common';
 
 /**
  * iOS 主畫面 PWA 的外部登入交接（#2027，設計 kb/wiki/architecture/pwa-oauth-handoff.md）。
@@ -13,13 +14,26 @@ import { mintLoginLinkForRequest } from './login-links/mint';
  * 2. 外部流程的 callbackURL 只帶 `handoffId`；Safari 登入完成 → `POST /api/me/auth-handoff/{id}/complete`（要登入）標成「是誰」
  * 3. PWA 回前景 → `POST /{id}/redeem { secret }` → 換一條一次性登入連結，在自己的視窗打開
  *
- * 安全性：拿到 handoffId（LINE、瀏覽紀錄）沒有 secret 換不到；10 分鐘＋換過即刪；`complete` 只能由已登入的
- * 本人標（標的就是自己的 userId）；`redeem` 失敗不分原因一律 404 同一句話。
+ * 安全性：拿到 handoffId（LINE、瀏覽紀錄）沒有 secret 換不到；10 分鐘＋換過即刪；`redeem` 失敗不分原因一律 404。
+ *
+ * **防交接劫持**（計畫席讀 diff 擋）：攻擊者自己 start，把 `/login/handoff?h=<他的 id>` 傳給受害者，
+ * 受害者在 Safari 一 complete，攻擊者就用自己的 secret 換到受害者的帳號。所以 `complete` 要兩道：
+ * 1. **session 必須晚於交接建立** —— 早就登入著、點一下別人傳來的連結，不算
+ * 2. **配對碼**（OAuth device flow 的防釣魚做法）：PWA 顯示 4 位數，Safari 頁要使用者輸入相同的碼；
+ *    錯 `MAX_PAIR_ATTEMPTS` 次就失效。從別人傳來的連結進來的人手上沒有那組碼
+ * 外加 `start` 每個來源（IP HMAC）同時進行的上限，防有人灌滿全域上限讓所有人登不了。
  */
 
 export const HANDOFF_TTL_SECONDS = 10 * 60;
 /** 全域同時未過期的交接上限：`start` 是公開端點，沒有這個上限就能被灌爆 */
 export const MAX_PENDING_HANDOFFS = 500;
+/** 每個來源（IP HMAC）同時未過期的交接上限 */
+export const MAX_PENDING_PER_SOURCE = 5;
+/** 配對碼錯幾次就失效 */
+export const MAX_PAIR_ATTEMPTS = 5;
+
+/** 配對碼雜湊綁 id：同一組 4 位數在別的交接上不成立 */
+export const pairCodeHash = (id: string, code: string) => sha256Hex(`${id}:${code}`);
 
 const ErrorSchema = z.object({ error: z.string(), code: z.string() }).openapi('AuthHandoffError');
 const IdParam = z.object({ id: DbUuidSchema });
@@ -56,13 +70,15 @@ publicHandoffRoute.openapi(
               handoffId: DbUuidSchema,
               /** 只留在 PWA；不要放進任何 URL、不要記 log */
               secret: z.string(),
+              /** PWA 顯示給使用者，在 Safari 輸入（不進 URL） */
+              pairCode: z.string(),
               expiresInSeconds: z.number(),
             }),
           },
         },
       },
       429: {
-        description: '同時進行的交接太多',
+        description: '同時進行的交接太多（全域或同一來源）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: { description: '失敗', content: { 'application/json': { schema: ErrorSchema } } },
@@ -85,20 +101,35 @@ publicHandoffRoute.openapi(
       return c.json({ error: '目前登入的人太多，請稍後再試', code: 'HANDOFF_BUSY' }, 429);
     }
 
+    const ip = clientIp(c);
+    const ipHash = ip ? await hashClientIp(ip, c.env.BETTER_AUTH_SECRET) : null;
+    if (ipHash) {
+      const { count: mine, error: mineError } = await supabase
+        .from('auth_handoffs')
+        .select('id', { count: 'exact', head: true })
+        .eq('ip_hash', ipHash)
+        .gte('expires_at', now);
+      if (mineError) return failed();
+      if ((mine ?? 0) >= MAX_PENDING_PER_SOURCE) {
+        return c.json({ error: '登入嘗試太頻繁，請 10 分鐘後再試', code: 'HANDOFF_BUSY' }, 429);
+      }
+    }
+
+    const handoffId = crypto.randomUUID();
     const secret = base64url(crypto.getRandomValues(new Uint8Array(32)));
-    const { data, error } = await supabase
-      .from('auth_handoffs')
-      .insert({
-        secret_hash: await sha256Hex(secret),
-        expires_at: new Date(Date.now() + HANDOFF_TTL_SECONDS * 1000).toISOString(),
-      })
-      .select('id')
-      .single();
-    if (error || !data) return failed();
-    return c.json(
-      { handoffId: data['id'] as string, secret, expiresInSeconds: HANDOFF_TTL_SECONDS },
-      200,
+    const pairCode = String(crypto.getRandomValues(new Uint32Array(1))[0]! % 10000).padStart(
+      4,
+      '0',
     );
+    const { error } = await supabase.from('auth_handoffs').insert({
+      id: handoffId,
+      secret_hash: await sha256Hex(secret),
+      pair_code_hash: await pairCodeHash(handoffId, pairCode),
+      ip_hash: ipHash,
+      expires_at: new Date(Date.now() + HANDOFF_TTL_SECONDS * 1000).toISOString(),
+    });
+    if (error) return failed();
+    return c.json({ handoffId, secret, pairCode, expiresInSeconds: HANDOFF_TTL_SECONDS }, 200);
   },
 );
 
@@ -187,28 +218,77 @@ handoffCompleteRoute.openapi(
     method: 'post',
     path: '/{id}/complete',
     tags: ['AuthHandoff'],
-    summary: 'Safari 那邊登入完成：把這次交接標成目前登入的人',
-    request: { params: IdParam },
+    summary: 'Safari 那邊登入完成：輸入 App 上的配對碼，把這次交接標成目前登入的人',
+    request: {
+      params: IdParam,
+      body: {
+        content: {
+          'application/json': { schema: z.object({ pairCode: z.string().regex(/^\d{4}$/) }) },
+        },
+      },
+    },
     responses: {
       204: { description: '已標記' },
+      400: {
+        description: '配對碼不對（回剩幾次）',
+        content: {
+          'application/json': { schema: ErrorSchema.extend({ attemptsLeft: z.number() }) },
+        },
+      },
       404: {
-        description: '不存在、過期、已被標過',
+        description: '不存在、過期、已被標過、錯太多次、或 session 早於交接建立',
         content: { 'application/json': { schema: ErrorSchema } },
       },
       500: { description: '失敗', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
+    const supabase = c.get('supabase');
     const { id } = c.req.valid('param');
-    const { data, error } = await c
-      .get('supabase')
+    const { pairCode } = c.req.valid('json');
+    const failed = () => c.json({ error: '暫時無法登入，請稍後再試', code: 'HANDOFF_FAILED' }, 500);
+    const now = new Date().toISOString();
+
+    const { data: row, error } = await supabase
       .from('auth_handoffs')
-      .update({ user_id: c.get('userId'), completed_at: new Date().toISOString() })
+      .select('pair_code_hash, failed_attempts, created_at')
       .eq('id', id)
       .is('user_id', null)
-      .gte('expires_at', new Date().toISOString())
+      .gte('expires_at', now)
+      .lt('failed_attempts', MAX_PAIR_ATTEMPTS)
+      .maybeSingle();
+    if (error) return failed();
+    if (!row) return c.json(invalid, 404);
+
+    // 第一道：session 要是這次交接之後才建立的（早就登入著、點別人傳來的連結不算）
+    const sessionAt = Date.parse(c.get('sessionCreatedAt') ?? '');
+    if (!(sessionAt >= Date.parse(row['created_at'] as string))) return c.json(invalid, 404);
+
+    // 第二道：配對碼。錯了記一次（用讀到的次數當條件：並發時只有一個 +1 成功，不會少算到可以多猜）
+    if ((await pairCodeHash(id, pairCode)) !== row['pair_code_hash']) {
+      const attempts = (row['failed_attempts'] as number) + 1;
+      const { error: bumpError } = await supabase
+        .from('auth_handoffs')
+        .update({ failed_attempts: attempts })
+        .eq('id', id)
+        .eq('failed_attempts', row['failed_attempts'] as number);
+      if (bumpError) return failed();
+      const attemptsLeft = Math.max(0, MAX_PAIR_ATTEMPTS - attempts);
+      if (attemptsLeft === 0) return c.json(invalid, 404);
+      return c.json(
+        { error: '號碼不對，請看 App 上顯示的 4 位數', code: 'PAIR_CODE_MISMATCH', attemptsLeft },
+        400,
+      );
+    }
+
+    const { data, error: markError } = await supabase
+      .from('auth_handoffs')
+      .update({ user_id: c.get('userId'), completed_at: now })
+      .eq('id', id)
+      .is('user_id', null)
+      .lt('failed_attempts', MAX_PAIR_ATTEMPTS)
       .select('id');
-    if (error) return c.json({ error: '暫時無法登入，請稍後再試', code: 'HANDOFF_FAILED' }, 500);
+    if (markError) return failed();
     if ((data ?? []).length === 0) return c.json(invalid, 404);
     return c.body(null, 204);
   },

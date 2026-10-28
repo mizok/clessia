@@ -6,8 +6,15 @@
     <!-- #2027 iOS 主畫面 PWA：LINE 登入在 Safari 完成，回到這裡就自動登入 -->
     <app-inline-notice
       severity="info"
-      detail="在 Safari 完成 LINE 登入後，回到這個 App 就會自動登入。"
+      detail="在 Safari 完成 LINE 登入，並輸入下面這組號碼。完成後回到這個 App 就會自動登入。"
     />
+    <p
+      class="mx-0 mb-0 mt-3 text-center text-3xl font-bold tracking-[0.3em] text-zinc-900 tabular-nums"
+      data-testid="handoff-code"
+      aria-label="配對號碼"
+    >
+      {{ handoffCode() }}
+    </p>
   }
   @if (error()) {
     <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
@@ -81,8 +88,15 @@
       <!-- #2027 iOS 主畫面 PWA：LINE 登入在 Safari 完成，回到這裡就自動登入 -->
       <app-inline-notice
         severity="info"
-        detail="在 Safari 完成 LINE 登入後，回到這個 App 就會自動登入。"
+        detail="在 Safari 完成 LINE 登入，並輸入下面這組號碼。完成後回到這個 App 就會自動登入。"
       />
+      <p
+        class="mx-0 mb-0 mt-3 text-center text-3xl font-bold tracking-[0.3em] text-zinc-900 tabular-nums"
+        data-testid="handoff-code"
+        aria-label="配對號碼"
+      >
+        {{ handoffCode() }}
+      </p>
     }
     @if (error()) {
       <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
@@ -110,7 +124,7 @@
       >
         <img class="block size-[18px]" src="assets/brand/line-logo.png" alt="" />
       </span>
-      使用 LINE 登入
+      {{ handoffCode() ? '記下號碼，前往 LINE' : '使用 LINE 登入' }}
     }
   </button>
 </ng-template>

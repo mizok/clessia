@@ -29,6 +29,18 @@ Android（Chrome 的 PWA／WebAPK）與 Chrome 共用 cookie，預期沒事，�
 **安全性**：拿到 `handoffId` 的人（LINE、瀏覽紀錄）沒有 secret 換不到；10 分鐘＋一次性；`complete` 只能由已登入的本人標；`redeem` 失敗一律同一個錯誤；`start`／`redeem` 都限流。
 **通用**：只認「外部流程後 Safari 有 session」，跟 provider 無關 —— Google 登入（#1842）同一套。
 
+## 防交接劫持（10-28 計畫席讀 diff 擋，已加）
+
+第一版 `complete` 只要已登入就能標任何 handoffId，Safari 頁又一打開就自動 complete —— 攻擊者自己 `start`，
+把 `/login/handoff?h=<他的 id>` 傳給受害者，受害者一點，攻擊者用自己的 secret 就換到受害者的帳號。現在：
+
+1. **session 必須晚於交接建立**（`authMiddleware` 把 `session.createdAt` 放進 context）：早就登入著、點別人傳來的連結不算。
+2. **配對碼**（OAuth device flow 的防釣魚做法）：`start` 回 4 位數（DB 存綁 id 的雜湊），PWA **先顯示號碼**、
+   按鈕變「記下號碼，前往 LINE」，再按一次才去 LINE；Safari 頁**不自動完成**，問「把這次登入交給 App？」、
+   要輸入相同的號碼並按確認。錯 5 次失效。號碼打錯不登出 Safari（還能再試），完成或失效才登出。
+3. **每個來源的上限**：`start` 存發起 IP 的 HMAC（同招生表單的 `hashClientIp`，表裡沒有可還原的 IP），
+   同一來源同時未過期最多 5 筆，防有人灌滿全域上限讓所有人 10 分鐘登不了。
+
 ## 拒絕的替代方案
 
 - PWA 內 `window.open` 彈窗＋`postMessage`：iOS standalone 的彈窗也是外部瀏覽器、沒有 `opener`、不共用 cookie。

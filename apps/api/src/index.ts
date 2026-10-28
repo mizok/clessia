@@ -128,6 +128,8 @@ export type Bindings = {
 
 export type Variables = {
   userId: string;
+  /** 這個 session 建立的時間（ISO）。#2027 交接要求 session 晚於交接建立 —— 早就登入著的人點別人傳來的連結不算 */
+  sessionCreatedAt?: string;
   orgId: string;
   /** 每次請求從 user_roles 查出來的角色，不是 session 快照 */
   roles: string[];

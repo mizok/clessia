@@ -291,39 +291,81 @@ describe('LoginComponent 底部面板', () => {
 
 /** #2027 iOS 主畫面 PWA：進頁、回前景都去換交接；還在等就提示回 Safari 完成；失效就請他重按 */
 describe('LoginComponent × 外部登入交接', () => {
-  async function render(results: Array<'none' | 'pending' | 'redirected' | 'invalid'>) {
+  async function render(
+    results: Array<'none' | 'pending' | 'redirected' | 'invalid'>,
+    standalone = false,
+  ) {
     const redeem = vi.fn(async () => results.shift() ?? 'none');
+    const start = vi.fn(async () => 'https://app/login/handoff?h=h1');
+    const signInWithLine = vi.fn(async () => null);
+    const handoff = {
+      redeem,
+      start,
+      isStandalonePwa: () => standalone,
+      pendingPairCode: () => '0427',
+      pendingCallbackURL: () => 'https://app/login/handoff?h=h1',
+    };
     TestBed.configureTestingModule({
       imports: [LoginComponent],
       providers: [
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { signInWithLine: vi.fn() } },
-        { provide: AuthHandoffService, useValue: { redeem } },
+        { provide: AuthService, useValue: { signInWithLine } },
+        { provide: AuthHandoffService, useValue: handoff },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map() } } },
       ],
     });
     const fixture = TestBed.createComponent(LoginComponent);
     await fixture.whenStable();
     fixture.detectChanges();
-    const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
-    return { fixture, redeem, text };
+    const el = fixture.nativeElement as HTMLElement;
+    const text = () => el.textContent ?? '';
+    const code = () => el.querySelector('[data-testid="handoff-code"]')?.textContent?.trim();
+    const press = async () => {
+      await (
+        fixture.componentInstance as unknown as { signInWithLine: () => Promise<void> }
+      ).signInWithLine();
+      fixture.detectChanges();
+    };
+    return { fixture, redeem, start, signInWithLine, text, code, press };
   }
 
-  it('進頁換一次；還在等 → 提示「在 Safari 完成…回到這個 App」', async () => {
-    const { redeem, text } = await render(['pending']);
-    expect(redeem).toHaveBeenCalledTimes(1);
-    expect(text()).toContain('在 Safari 完成 LINE 登入後，回到這個 App 就會自動登入');
+  it('主畫面 PWA：第一次按只發起交接、顯示號碼（還不去 LINE）；第二次按才帶落地網址去 LINE', async () => {
+    const { start, signInWithLine, code, text, press } = await render([], true);
+    await press();
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(signInWithLine).not.toHaveBeenCalled();
+    expect(code()).toBe('0427');
+    expect(text()).toContain('記下號碼，前往 LINE');
+    await press();
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(signInWithLine).toHaveBeenCalledWith('https://app/login/handoff?h=h1');
   });
 
-  it('回到前景再換一次；失效 → 提示重按、等待提示收掉', async () => {
-    const { fixture, redeem, text } = await render(['pending', 'invalid']);
+  it('不是主畫面 PWA：照舊直接去 LINE，不發起交接', async () => {
+    const { start, signInWithLine, press } = await render([], false);
+    await press();
+    expect(start).not.toHaveBeenCalled();
+    expect(signInWithLine).toHaveBeenCalledWith(undefined);
+  });
+
+  it('進頁換一次；還在等 → 顯示同一組號碼，按鈕直接去 LINE（沿用同一個交接、不重發）', async () => {
+    const { redeem, start, signInWithLine, code, press } = await render(['pending'], true);
+    expect(redeem).toHaveBeenCalledTimes(1);
+    expect(code()).toBe('0427');
+    await press();
+    expect(start).not.toHaveBeenCalled();
+    expect(signInWithLine).toHaveBeenCalledWith('https://app/login/handoff?h=h1');
+  });
+
+  it('回到前景再換一次；失效 → 提示重按、號碼收掉', async () => {
+    const { fixture, redeem, text, code } = await render(['pending', 'invalid']);
     document.dispatchEvent(new Event('visibilitychange'));
     await fixture.whenStable();
     fixture.detectChanges();
     expect(redeem).toHaveBeenCalledTimes(2);
-    expect(text()).not.toContain('回到這個 App 就會自動登入');
+    expect(code()).toBeUndefined();
     expect(text()).toContain('登入逾時，請再按一次「使用 LINE 登入」');
   });
 });

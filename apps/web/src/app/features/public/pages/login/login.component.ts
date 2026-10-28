@@ -33,6 +33,10 @@ export class LoginComponent {
 
   /** iOS 主畫面 PWA 已發起 LINE 登入、還在等 Safari 那邊完成（#2027） */
   protected readonly handoffWaiting = signal(false);
+  /** 這次交接的落地網址（已發起、還沒去 LINE） */
+  private handoffCallback: string | null = null;
+  /** 等待中要在 Safari 輸入的配對碼 */
+  protected readonly handoffCode = signal<string | null>(null);
 
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
@@ -78,6 +82,8 @@ export class LoginComponent {
   private async tryHandoff(): Promise<void> {
     const result = await this.handoff.redeem();
     this.handoffWaiting.set(result === 'pending');
+    this.handoffCode.set(result === 'pending' ? this.handoff.pendingPairCode() : null);
+    this.handoffCallback = result === 'pending' ? this.handoff.pendingCallbackURL() : null;
     if (result === 'invalid') this.error.set('登入逾時，請再按一次「使用 LINE 登入」');
   }
 
@@ -99,7 +105,14 @@ export class LoginComponent {
     this.submitting.set(true);
 
     try {
-      const errorMsg = await this.auth.signInWithLine();
+      // #2027 iOS 主畫面 PWA：先發起交接、讓使用者看到配對碼（等一下要在 Safari 輸入），再按一次才去 LINE
+      if (this.handoff.isStandalonePwa() && !this.handoffCallback) {
+        this.handoffCallback = await this.handoff.start();
+        this.handoffCode.set(this.handoff.pendingPairCode());
+        this.handoffWaiting.set(true);
+        return;
+      }
+      const errorMsg = await this.auth.signInWithLine(this.handoffCallback ?? undefined);
       if (errorMsg) {
         this.error.set(errorMsg);
       }
