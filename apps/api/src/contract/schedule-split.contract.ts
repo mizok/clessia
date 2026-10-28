@@ -135,7 +135,17 @@ run('從某日起改時段的交易對真 Postgres（#1100 #22）', () => {
       `INSERT INTO events (org_id, event_type, title, event_date) VALUES ($1, 'session', 'x', '2030-02-04')`,
       [o.orgId],
     );
+    await q('UPDATE events SET attendance_taken_at = now() WHERE id = $1', [eventId]);
     await q('UPDATE sessions SET event_id = $1 WHERE id = $2', [eventId, attended]);
+    // 有 event 但沒點過名（課堂產生時就帶著 event 的情況）：不算有資料，照樣刪掉重產
+    const bare = await one(
+      `INSERT INTO events (org_id, event_type, title, event_date) VALUES ($1, 'session', 'x', '2030-01-21')`,
+      [o.orgId],
+    );
+    await q(
+      `UPDATE sessions SET event_id = $1 WHERE class_id = $2 AND session_date = '2030-01-21'`,
+      [bare, o.classId],
+    );
   });
 
   it('dryRun：回同樣的預覽，但什麼都沒寫', async () => {
