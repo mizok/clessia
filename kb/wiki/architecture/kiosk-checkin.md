@@ -3,7 +3,7 @@ title: 到班掃碼機台：登入後的掃碼頁＋機台身分（kiosk 角色�
 summary: 使用者裁 #1127：掃碼頁搬到登入後、不做免登入端點。機台身分用新角色 kiosk（user_roles 列舉加值），不用「零權限 admin」—— ADMIN_ONLY 的掛載多半只擋寫，零權限 admin 讀得到學生／家長名冊，機台放在門口等於公開名冊。kiosk 綁單一分校（staff_campuses），只掛得進 POST /api/daily-checkins 與掃碼頁要的那幾支窄讀；分校強制取帳號的、不吃 body。帳號由有 manage_staff 的管理員在人員頁建立，用既有的一次性登入連結 QR 在平板上登入。行政人員也可從管理端開同一頁。公開入口拿掉、/qr-checkin 轉登入。
 category: architecture
 status: draft
-updated: 2026-10-03
+updated: 2026-10-28
 tags: [architecture, attendance, authorization, kiosk, migration]
 ---
 
@@ -17,6 +17,7 @@ tags: [architecture, attendance, authorization, kiosk, migration]
 - `/qr-checkin` 是 11 行的空殼（`features/public/pages/qr-checkin`，畫面只有「開發中」）。**掃描器本身從來沒有做過。**
 - `POST /api/daily-checkins` 掛在 `ADMIN_ONLY`＋`write: 'basic_operations'`（`index.ts`），body 吃 `studentId`／`campusId?`／`checkinDate`。
 - 學生**沒有任何 QR 卡**：全 repo 的 QR 只有登入連結（`login-link-dialog`）。規格沒說 QR 裡裝什麼。
+  （10-03 當時的現況；後來 #1127 B 做了到班卡，#1100 #42 再換成可作廢的代碼，見文末兩節。）
 - 登入只有 LINE OAuth＋一次性登入連結（`login-links/mint.ts`，管理端畫 QR）；沒有密碼。
 - 角色列舉 `user_role` = admin / teacher / parent（`20260208165500_refactor_roles.sql`）。
 
@@ -62,7 +63,7 @@ tags: [architecture, attendance, authorization, kiosk, migration]
 這兩件**從來沒有**，而且比上面的授權工作大：
 
 - 學生 QR 裝什麼：我的傾向是**學生 id 本身**（UUID v4，不可猜；被拍照冒打卡的代價是出勤錯一天，人工可改）。
-  要更嚴就要加可撤銷的卡片 token（多一張表、補發流程）。
+  要更嚴就要加可撤銷的卡片 token（多一張表、補發流程）。**#1100 #42 已改走這條**（見「可作廢的到班卡代碼」）。
 - 卡誰發：管理端學生頁「列印到班卡」。
 - 掃描器：相機權限、解碼（要選套件，先查已安裝依賴）、離線錯誤。
 
@@ -117,6 +118,30 @@ tags: [architecture, attendance, authorization, kiosk, migration]
 - 印法照收費單：**開乾淨的新視窗印**、名字只進 `textContent`；**視窗在點擊同一個 tick 開**（QR 非同步產生，等完再開會被擋彈出視窗），
   所以補習班名在頁面 `ngOnInit` 預載。
 - `qrcode` 沒附型別：`apps/web/src/qrcode.d.ts` 只宣告用到的 `create`／`toDataURL`。
+
+## 可作廢的到班卡代碼（#1100 #42）
+
+上一節的 QR＝學生 id **作廢不了**：拍照、遺失的卡永遠有效。改成一張卡一個隨機代碼
+（schema `20261023034347_checkin_cards.sql`；設計與計畫席 10-23／10-28 裁定在 #1100）。
+
+- **代碼**：`CK1-`＋16 位 Crockford base32（80 bit，`crypto.getRandomValues`）。DB 存不分組的正規形式，
+  卡面印 `CK1-XXXX-XXXX-XXXX-XXXX` 可手打；`normalizeCardCode` 收小寫、連字號、I/L→1、O→0。
+- **API**（`routes/checkin-cards.ts`，SQL 在 `lib/checkin-cards.ts`，走 pg 池）：
+  - `POST /print { studentIds }`：有有效卡就**重印同一張**（不換碼），沒有就開卡。批次的分校範圍一句 SQL 判完 ——
+    逐位 `studentWriteScope` 每位兩個 subrequest，一頁 20 位就撞 Workers 的 50 上限。
+  - `POST /{studentId}/reissue { reason }`：作廢舊卡＋開新卡同一交易；`/revoke { reason }` 只作廢。
+  - `GET /students/{studentId}`：目前的有效卡、印過新卡沒。
+  - 三支寫入都寫稽核（掛 `resourceType: 'student'`，不為卡片另開 CHECK 值）。稽核**不記代碼**（代碼就是憑證）。
+- **權限**（計畫席 10-28）：重印 `basic_operations`；**新開、補發、作廢 `manage_students`**（等於發放／收回身分憑證）。
+  只有 `basic_operations` 的人印到沒卡的學生 → 整批 403 `NEEDS_MANAGE_STUDENTS`。上線後第一次全校發卡由有
+  `manage_students` 的管理員做；批次發卡另開單。
+- **一人一張有效卡**：部分唯一索引＋交易裡 `FOR UPDATE` 鎖學生列（同一位的印卡／補發／作廢排隊）。
+  **卡片 org＝學生 org 沒有 DB 約束**，由 `lockStudents` 的 `org_id = $1` 守（契約測試 `checkin-cards.contract.ts`）。
+- **打卡**：`POST /api/daily-checkins` 的 `cardCode` 與 `studentId` 二擇一。代碼查不到 404 `CARD_NOT_FOUND`、
+  作廢 409 `CARD_REVOKED`，查到後接回原本的流程（分校、日期、寫入同一條）。
+- **舊卡過渡**（計畫席 10-23：上線起 30 天）：掃碼（機台或 `source=scan`）帶 `studentId` 時，該生在 `checkin_cards`
+  **有任何一列**（含已作廢）就 409 `LEGACY_CARD` —— 一印新卡舊卡即失效。行政在名單上選人（`manual`）不是拿卡，照舊。
+  30 天後另開小 PR 拿掉 UUID 掃碼路徑（不用 migration）。
 
 ## 拒絕的替代方案
 

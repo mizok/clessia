@@ -152,6 +152,7 @@ const PARAMS: Record<string, string> = {
   '/api/students/{id} id': '{student}',
   '/api/students/{id}/attendance-days id': '{student}',
   '/api/leave-streaks/students/{id} id': '{student}',
+  '/api/checkin-cards/students/{studentId} studentId': '{student}',
   '/api/parents/{id} id': '{parent}',
   '/api/attendance/roster/{eventId} eventId': '{event}',
   '/api/academy-exams/{id} id': '{academyExam}',

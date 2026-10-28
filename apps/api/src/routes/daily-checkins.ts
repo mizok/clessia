@@ -11,6 +11,7 @@ import { resourceCampusAllowed, studentWriteScope } from '../lib/campus-write-gu
 import { DbUuidSchema } from '../lib/validation';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { normalizeCardCode } from '../lib/checkin-cards';
 
 const DailyCheckinSchema = z
   .object({
@@ -47,7 +48,13 @@ const CheckinConfirmationSchema = DailyCheckinSchema.extend({
 
 const CreateDailyCheckinSchema = z
   .object({
-    studentId: DbUuidSchema,
+    /** 跟 `cardCode` 二擇一：行政在名單上選人、或舊版卡（QR＝學生 id） */
+    studentId: DbUuidSchema.optional(),
+    /**
+     * 到班卡代碼（#1100 #42）：`CK1-`＋16 碼，分組的連字號、大小寫都收（卡面可手打）。
+     * 查不到 404、已作廢 409 `CARD_REVOKED`
+     */
+    cardCode: z.string().max(40).optional(),
     campusId: DbUuidSchema.optional(),
     checkinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     /**
@@ -93,6 +100,9 @@ app.openapi(
         description: '打卡紀錄＋確認資訊（學生名、今日課堂）',
         content: { 'application/json': { schema: CheckinConfirmationSchema } },
       },
+      400: { description: 'studentId 與 cardCode 要剛好給一個' },
+      404: { description: '學生不存在／認不得這張卡（CARD_NOT_FOUND）' },
+      409: { description: '卡已作廢（CARD_REVOKED）／舊版卡已被新卡取代（LEGACY_CARD）' },
       500: { description: '伺服器錯誤' },
     },
   }),
@@ -100,7 +110,50 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
-    const body = { ...c.req.valid('json') };
+    const { cardCode, studentId: givenStudentId, ...rest } = c.req.valid('json');
+    if ((cardCode === undefined) === (givenStudentId === undefined)) {
+      return c.json({ error: 'studentId 與 cardCode 要剛好給一個', code: 'BAD_REQUEST' }, 400);
+    }
+    const scanned = isKioskOnly(c.get('roles')) || rest.source === 'scan';
+
+    let studentId: string;
+    if (cardCode !== undefined) {
+      // 到班卡（#1100 #42）：代碼查卡 → 學生，接回下面同一條流程（分校、日期、寫入都一樣）
+      const code = normalizeCardCode(cardCode);
+      const { data: card, error } = code
+        ? await supabase
+            .from('checkin_cards')
+            .select('student_id, revoked_at')
+            .eq('org_id', orgId)
+            .eq('code', code)
+            .maybeSingle()
+        : { data: null, error: null };
+      if (error) return c.json({ error: '讀取到班卡失敗', message: error.message }, 500);
+      if (!card) return c.json({ error: '認不得這張卡', code: 'CARD_NOT_FOUND' }, 404);
+      const row = card as { student_id: string; revoked_at: string | null };
+      if (row.revoked_at) {
+        return c.json({ error: '這張卡已作廢，請找櫃台補發', code: 'CARD_REVOKED' }, 409);
+      }
+      studentId = row.student_id;
+    } else {
+      studentId = givenStudentId!;
+      // 舊版卡的 QR 就是學生 id（過渡期，計畫席 10-23：上線後 30 天另開 PR 關掉）。
+      // **該生一印過新卡，舊卡就失效** —— 否則補發作廢不了拍照、遺失的舊卡。
+      // 只管掃碼：行政在名單上選人（manual）不是拿卡，照舊
+      if (scanned) {
+        const { data: cards, error } = await supabase
+          .from('checkin_cards')
+          .select('id')
+          .eq('org_id', orgId)
+          .eq('student_id', studentId)
+          .limit(1);
+        if (error) return c.json({ error: '讀取到班卡失敗', message: error.message }, 500);
+        if ((cards ?? []).length > 0) {
+          return c.json({ error: '舊版卡片已停用，請用新的到班卡', code: 'LEGACY_CARD' }, 409);
+        }
+      }
+    }
+    const body = { ...rest, studentId };
 
     // #1127：機台的分校是帳號綁的那一個、日期是台北今天。body 給別的就拒絕 ——
     // 默默改掉會讓「機台設定錯了」看起來像打卡成功。
