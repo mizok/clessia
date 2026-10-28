@@ -3,7 +3,6 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService } from '@core/auth.service';
-import { AuthHandoffService } from '@core/auth-handoff.service';
 import { AppVersionService } from '@core/app-version.service';
 
 import { LoginComponent } from './login.component';
@@ -290,23 +289,21 @@ describe('LoginComponent 底部面板', () => {
 });
 
 /** #2027 iOS 主畫面 PWA：進頁、回前景都去換交接；還在等就提示回 Safari 完成；失效就請他重按 */
-describe('LoginComponent × 外部登入交接', () => {
-  async function render(
-    results: Array<'none' | 'pending' | 'redirected' | 'invalid'>,
-    standalone = false,
-    link = 'x-safari-https://app/login/handoff/start?h=h1',
-  ) {
-    const redeem = vi.fn(async () => results.shift() ?? 'none');
-    const start = vi.fn(async () => link);
+/**
+ * #2063（使用者 10-28 iPhone 實測後裁定）：iOS 主畫面 App 的 LINE 登入整段留在 App 裡
+ * （`signInWithLineInline`：不跳 LINE App，發起與回呼同一個視窗）。其他平台照舊。
+ * 原本的號碼交接（#2027）前端整段拿掉了。
+ */
+describe('LoginComponent × iOS 主畫面 App', () => {
+  afterEach(() => {
+    delete (navigator as unknown as Record<string, unknown>)['standalone'];
+  });
+
+  async function pressWith(standalone: boolean) {
+    if (standalone)
+      Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
     const signInWithLine = vi.fn(async () => null);
     const signInWithLineInline = vi.fn(async () => null);
-    const handoff = {
-      redeem,
-      start,
-      isStandalonePwa: () => standalone,
-      pendingPairCode: () => '0427',
-      pendingStartLink: () => link,
-    };
     TestBed.configureTestingModule({
       imports: [LoginComponent],
       providers: [
@@ -314,112 +311,39 @@ describe('LoginComponent × 外部登入交接', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: AuthService, useValue: { signInWithLine, signInWithLineInline } },
-        { provide: AuthHandoffService, useValue: handoff },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map() } } },
       ],
     });
     const fixture = TestBed.createComponent(LoginComponent);
-    await fixture.whenStable();
     fixture.detectChanges();
-    const el = fixture.nativeElement as HTMLElement;
-    const text = () => el.textContent ?? '';
-    const code = () => el.querySelector('[data-testid="handoff-code"]')?.textContent?.trim();
-    const startLinks = () =>
-      [...el.querySelectorAll<HTMLAnchorElement>('[data-testid="handoff-start-link"]')].map((a) =>
-        a.getAttribute('href'),
-      );
-    const press = async () => {
-      await (
-        fixture.componentInstance as unknown as { signInWithLine: () => Promise<void> }
-      ).signInWithLine();
-      fixture.detectChanges();
-    };
-    const experiment = () =>
-      el.querySelector<HTMLButtonElement>('[data-testid="line-inline-experiment"]');
-    return {
-      fixture,
-      redeem,
-      start,
-      signInWithLine,
-      signInWithLineInline,
-      text,
-      code,
-      press,
-      startLinks,
-      experiment,
-    };
+    await (
+      fixture.componentInstance as unknown as { signInWithLine: () => Promise<void> }
+    ).signInWithLine();
+    fixture.detectChanges();
+    return { el: fixture.nativeElement as HTMLElement, signInWithLine, signInWithLineInline };
   }
 
-  // #2063：PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA，LINE 授權完回到 Safari → state_mismatch。
-  // 所以 PWA **永遠不呼叫 signInWithLine**，改給一條到外部瀏覽器發起頁的連結
-  it('主畫面 PWA：按下只發起交接、顯示號碼，LINE 鍵換成到外部瀏覽器發起頁的連結；PWA 自己不去 LINE', async () => {
-    const { fixture, start, signInWithLine, code, text, press, startLinks } = await render(
-      [],
-      true,
-    );
-    await press();
-    expect(start).toHaveBeenCalledTimes(1);
-    expect(signInWithLine).not.toHaveBeenCalled();
-    expect(code()).toBe('0427');
-    expect(text()).toContain('記下號碼，到瀏覽器用 LINE 登入');
-    expect(startLinks()).toContain('x-safari-https://app/login/handoff/start?h=h1');
-    // iOS <17 不認 x-safari-：附一般網址讓使用者自己貼到 Safari
-    const fallback = (fixture.nativeElement as HTMLElement).querySelector(
-      '[data-testid="handoff-fallback"]',
-    );
-    expect(fallback?.textContent).toContain('https://app/login/handoff/start?h=h1');
-    expect(fallback?.textContent).not.toContain('x-safari');
-  });
-
-  it('非 iOS（發起連結是一般網址）：不顯示貼到 Safari 的退路', async () => {
-    const { fixture, press } = await render([], true, 'https://app/login/handoff/start?h=h1');
-    await press();
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="handoff-fallback"]'),
-    ).toBeNull();
-  });
-
-  it('不是主畫面 PWA：照舊直接去 LINE，不發起交接', async () => {
-    const { start, signInWithLine, press } = await render([], false);
-    await press();
-    expect(start).not.toHaveBeenCalled();
-    expect(signInWithLine).toHaveBeenCalledWith();
-  });
-
-  it('進頁換一次；還在等 → 顯示同一組號碼與同一條發起連結（沿用同一個交接、不重發）', async () => {
-    const { redeem, start, signInWithLine, code, startLinks } = await render(['pending'], true);
-    expect(redeem).toHaveBeenCalledTimes(1);
-    expect(code()).toBe('0427');
-    expect(startLinks()).toContain('x-safari-https://app/login/handoff/start?h=h1');
-    expect(start).not.toHaveBeenCalled();
-    expect(signInWithLine).not.toHaveBeenCalled();
-  });
-
-  it('回到前景再換一次；失效 → 提示重按、號碼收掉', async () => {
-    const { fixture, redeem, text, code } = await render(['pending', 'invalid']);
-    document.dispatchEvent(new Event('visibilitychange'));
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(redeem).toHaveBeenCalledTimes(2);
-    expect(code()).toBeUndefined();
-    expect(text()).toContain('登入逾時，請再按一次「使用 LINE 登入」');
-  });
-
-  // #2063 實驗：整段留在 App 裡的 LINE 登入。只在主畫面 App 顯示，預設的 LINE 鍵不變
-  it('主畫面 App：多一個實驗入口，按下走 signInWithLineInline，不發起交接', async () => {
-    const { fixture, experiment, signInWithLineInline, start, signInWithLine } = await render(
-      [],
-      true,
-    );
-    experiment()!.click();
-    await fixture.whenStable();
+  it('iOS 主畫面 App：LINE 鍵走 signInWithLineInline（留在 App 裡）', async () => {
+    const { signInWithLine, signInWithLineInline } = await pressWith(true);
     expect(signInWithLineInline).toHaveBeenCalledTimes(1);
-    expect(start).not.toHaveBeenCalled();
     expect(signInWithLine).not.toHaveBeenCalled();
   });
 
-  it('不是主畫面 App：看不到實驗入口', async () => {
-    const { experiment } = await render([], false);
-    expect(experiment()).toBeNull();
+  it('其他平台（含 Android 的 PWA）：照舊 signInWithLine', async () => {
+    const { signInWithLine, signInWithLineInline } = await pressWith(false);
+    expect(signInWithLine).toHaveBeenCalledTimes(1);
+    expect(signInWithLineInline).not.toHaveBeenCalled();
+  });
+
+  it('沒有號碼交接、也沒有實驗入口的痕跡', async () => {
+    const { el } = await pressWith(true);
+    for (const id of [
+      'handoff-code',
+      'handoff-start-link',
+      'handoff-fallback',
+      'line-inline-experiment',
+    ]) {
+      expect(el.querySelector(`[data-testid="${id}"]`), id).toBeNull();
+    }
   });
 });

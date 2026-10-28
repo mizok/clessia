@@ -202,9 +202,9 @@ Tags: `architecture`, `parent`, `attendance`, `grades`, `billing`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-data-scope]]
 
-## [[architecture/pwa-oauth-handoff|iOS 主畫面 PWA 的外部登入交接（交接碼）]]
+## [[architecture/pwa-oauth-handoff|iOS 主畫面 PWA 的 LINE 登入（現況：留在 App 內；交接碼已被取代）]]
 
-iOS 主畫面 PWA 與 Safari 不共用 cookie，LINE／Google 授權完落在 Safari；裁定交接碼（PWA 持 secret、Safari 完成後標記並登出、PWA 換一次性連結）。未實作。
+iOS 主畫面 App 的 LINE 登入整段留在 App 裡（disable_auto_login，同一個視窗發起與回呼，#2063）；原本的交接碼（#2027）因對家長不直覺被取代，前端已拿掉，後端暫留。
 
 Tags: `architecture`, `auth`, `pwa`, `line`, `oauth`
 
