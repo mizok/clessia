@@ -60,6 +60,8 @@ export class LoginComponent {
    * 這種情況不是「登入失敗」，是「不知道」——訊息跟一般未登入不同，且要給重試。
    */
   protected readonly showRetry = signal(false);
+  /** 實驗入口（#2063）：只在主畫面 App 顯示，預設的 LINE 鍵行為不變 */
+  protected readonly showInlineExperiment = this.handoff.isStandalonePwa();
 
   private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
 
@@ -97,6 +99,21 @@ export class LoginComponent {
     this.handoffCode.set(result === 'pending' ? this.handoff.pendingPairCode() : null);
     this.handoffLink.set(result === 'pending' ? this.handoff.pendingStartLink() : null);
     if (result === 'invalid') this.error.set('登入逾時，請再按一次「使用 LINE 登入」');
+  }
+
+  /** 實驗（#2063）：整段留在 App 裡的 LINE 登入 */
+  protected async signInWithLineInline(): Promise<void> {
+    this.error.set(null);
+    this.submitting.set(true);
+    try {
+      const message = await this.auth.signInWithLineInline();
+      if (message) this.error.set(message);
+    } catch (err) {
+      console.warn('[line-login-inline]', redactedError(err));
+      this.error.set('連不上伺服器，請重新整理頁面後再試');
+    } finally {
+      this.submitting.set(false);
+    }
   }
 
   /** 重新整理讓 AuthService 重跑一次 /api/me —— 通常是後端偶發性的 5xx，重試就好 */
