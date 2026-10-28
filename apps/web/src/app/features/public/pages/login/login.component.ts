@@ -3,7 +3,6 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
-  computed,
   inject,
   signal,
   viewChild,
@@ -12,7 +11,6 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { AppVersionService } from '@core/app-version.service';
 import { AuthService } from '@core/auth.service';
-import { AuthHandoffService } from '@core/auth-handoff.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { oauthErrorFor } from './oauth-error';
 
@@ -30,26 +28,6 @@ export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly version = inject(AppVersionService);
   private readonly route = inject(ActivatedRoute);
-  private readonly handoff = inject(AuthHandoffService);
-
-  /** iOS 主畫面 PWA 已發起 LINE 登入、還在等 Safari 那邊完成（#2027） */
-  protected readonly handoffWaiting = signal(false);
-  /**
-   * 這次交接在外部瀏覽器的發起連結（#2063）。有值時 LINE 鍵換成這條連結：OAuth 要在 Safari 發起，
-   * PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA、回呼落在 Safari，永遠 state_mismatch
-   */
-  protected readonly handoffLink = signal<string | null>(null);
-  /**
-   * iOS 的退路（計畫席 10-28）：`x-safari-https://` 是 iOS 17 起才認的，舊版點了沒反應 ——
-   * 附一般網址讓使用者自己貼到 Safari。非 iOS（連結本來就是一般網址）不顯示
-   */
-  protected readonly handoffFallbackURL = computed(() => {
-    const link = this.handoffLink();
-    return link?.startsWith('x-safari-') ? link.slice('x-safari-'.length) : null;
-  });
-  /** 等待中要在 Safari 輸入的配對碼 */
-  protected readonly handoffCode = signal<string | null>(null);
-
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
   /** 未登記的人需要「怎麼被登記」，不是「再試一次」也不是一條連到空殼頁的連結（#694） */
@@ -60,8 +38,6 @@ export class LoginComponent {
    * 這種情況不是「登入失敗」，是「不知道」——訊息跟一般未登入不同，且要給重試。
    */
   protected readonly showRetry = signal(false);
-  /** 實驗入口（#2063）：只在主畫面 App 顯示，預設的 LINE 鍵行為不變 */
-  protected readonly showInlineExperiment = this.handoff.isStandalonePwa();
 
   private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
 
@@ -79,40 +55,9 @@ export class LoginComponent {
       this.showRegisterHint.set(oauthError.showRegisterHint);
     }
 
-    // #2027：PWA 回到前景（從 Safari 切回來）就去換交接；進頁時也換一次（iOS 可能把 PWA 重新載入）
-    void this.tryHandoff();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void this.tryHandoff();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', onVisible));
-
     if (this.route.snapshot.queryParamMap.get('reason') === 'connection-error') {
       this.error.set('連線異常，請重試。若持續發生請聯繫補習班。');
       this.showRetry.set(true);
-    }
-  }
-
-  private async tryHandoff(): Promise<void> {
-    const result = await this.handoff.redeem();
-    this.handoffWaiting.set(result === 'pending');
-    this.handoffCode.set(result === 'pending' ? this.handoff.pendingPairCode() : null);
-    this.handoffLink.set(result === 'pending' ? this.handoff.pendingStartLink() : null);
-    if (result === 'invalid') this.error.set('登入逾時，請再按一次「使用 LINE 登入」');
-  }
-
-  /** 實驗（#2063）：整段留在 App 裡的 LINE 登入 */
-  protected async signInWithLineInline(): Promise<void> {
-    this.error.set(null);
-    this.submitting.set(true);
-    try {
-      const message = await this.auth.signInWithLineInline();
-      if (message) this.error.set(message);
-    } catch (err) {
-      console.warn('[line-login-inline]', redactedError(err));
-      this.error.set('連不上伺服器，請重新整理頁面後再試');
-    } finally {
-      this.submitting.set(false);
     }
   }
 
@@ -134,15 +79,12 @@ export class LoginComponent {
     this.submitting.set(true);
 
     try {
-      // #2027 iOS 主畫面 PWA：先發起交接、讓使用者看到配對碼（等一下要在 Safari 輸入）。
-      // 接著由使用者點連結到 Safari，**在那裡**發起 LINE 登入（#2063）—— PWA 自己不呼叫 sign-in
-      if (this.handoff.isStandalonePwa()) {
-        this.handoffLink.set(await this.handoff.start());
-        this.handoffCode.set(this.handoff.pendingPairCode());
-        this.handoffWaiting.set(true);
-        return;
-      }
-      const errorMsg = await this.auth.signInWithLine();
+      // iOS 主畫面 App（#2063，使用者 10-28 實測後裁定）：整段留在 App 裡 —— 不跳 LINE App
+      // （`disable_auto_login`），發起與回呼都在這個視窗，state cookie 才在同一個 jar。
+      // 其他平台（含 Android 的 PWA，跟 Chrome 共用 cookie）照舊
+      const errorMsg = isIosHomeScreenApp()
+        ? await this.auth.signInWithLineInline()
+        : await this.auth.signInWithLine();
       if (errorMsg) {
         this.error.set(errorMsg);
       }
@@ -159,6 +101,11 @@ export class LoginComponent {
       this.submitting.set(false);
     }
   }
+}
+
+/** iOS 主畫面 App：`navigator.standalone` 只有 iOS 有 */
+function isIosHomeScreenApp(): boolean {
+  return (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
 /** 只留錯誤名與訊息；網址的 query（OAuth 的 state、token）遮掉，不印進 console（#1718 計畫席） */

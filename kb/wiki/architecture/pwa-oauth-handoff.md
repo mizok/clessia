@@ -1,6 +1,6 @@
 ---
-title: iOS 主畫面 PWA 的外部登入交接（交接碼）
-summary: iOS 主畫面 PWA 與 Safari 不共用 cookie，LINE／Google 授權完會落在 Safari，PWA 仍未登入。使用者 10-23 選交接碼：PWA 持 secret（不進 URL），Safari 完成登入後標記 handoff 並自動登出，PWA 回前景用 secret 換一次性登入連結。已實作。
+title: iOS 主畫面 PWA 的 LINE 登入（現況：留在 App 內；交接碼已被取代）
+summary: 現況（#2063，10-28）：iOS 主畫面 App 的 LINE 登入整段留在 App 裡 —— 前端拿到授權網址加 disable_auto_login=true（不跳 LINE App），由同一個視窗發起與回呼，state cookie 在同一個 jar；其他平台照舊。原本的交接碼（#2027：Safari 輸入 4 位數、回 App 兌換）因使用者判斷對家長不直覺而被取代，前端已拿掉，後端路由與 auth_handoffs 表暫留待移除。
 category: architecture
 tags: [architecture, auth, pwa, line, oauth]
 status: active
@@ -8,7 +8,35 @@ sources: [https://github.com/mizok/clessia/issues/2027]
 updated: 2026-10-28
 ---
 
-# iOS 主畫面 PWA 的外部登入交接（#2027）
+# iOS 主畫面 PWA 的 LINE 登入（#2027 → #2063）
+
+## 現況（10-28，#2063）
+
+- **iOS 主畫面 App**（`navigator.standalone === true`）：LINE 鍵走 `AuthService.signInWithLineInline()`。
+  `signIn.social({ disableRedirect: true })` 拿到授權網址，前端加 `disable_auto_login=true`（不跳 LINE App，
+  留在網頁登入；LINE 文件建議用它取代舊的 `disable_ios_auto_login`），再由**這個視窗**頂層導航。
+  發起與回呼都在 App 這個視窗，Better Auth 的 state cookie 在同一個 jar，回呼通過，session 直接寫進 App。
+  Better Auth 的 LINE provider 不傳額外參數，所以參數在前端加，伺服器不用動。
+- **其他平台（含 Android 的 PWA）**：照舊 `signInWithLine()`，不加參數。Android 的 PWA 跟 Chrome 共用 cookie，
+  不需要「不跳 LINE App」。**Android 待實機確認**。
+- 使用者 10-28 iPhone 實測 #2065（實驗入口）成功後裁定轉正。
+- **已知代價**：關掉 auto login 後，iPhone 上不會自動用 LINE App 的登入狀態，家長要在 LINE 網頁登入。
+  瀏覽器沒有 LINE 的網頁 SSO 時，LINE 文件說會顯示 email＋密碼（或要另一支裝置掃的 QR），
+  沒設過 LINE email／密碼的家長可能過不了。實測的那位過得了；之後若有家長卡在這裡，就要回頭看交接碼或其他做法。
+- `onAPIError.errorURL = <WEB_URL>/login`（#2064 加的）保留：讀到 errorCallbackURL 之前的 OAuth 失敗回登入頁，不丟到首頁。
+
+## 交接碼為什麼被取代
+
+#2027 的交接碼（以下各節是當時的設計紀錄）在 #2064 修到能走完，但流程是：App 顯示號碼 → 到 Safari 用 LINE 登入
+→ 在 Safari 輸入號碼 → 手動切回 App。**使用者判斷這對家長太不直覺**，改試「整段留在 App 裡」並實測成功。
+
+- **前端已拿掉**（#2063 轉正 PR）：登入頁的號碼 UI、`/login/handoff`、`/login/handoff/start`、`AuthHandoffService`。
+- **後端暫留**：`/api/auth-handoff/*`、`/api/me/auth-handoff/*` 路由與 `auth_handoffs` 表還在（加法優先，先上線觀察）。
+  移除路由另開一張；`drop table` 是破壞性操作，要使用者決定。
+
+---
+
+以下是 #2027 交接碼的設計紀錄（**已不是現況**）。
 
 > **狀態：使用者 10-23 裁定方案 A＋Safari 自動登出；10-28 實機確認會跳 Safari；已實作（#2041 schema＋程式 PR）。**
 

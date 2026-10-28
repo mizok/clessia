@@ -68,32 +68,6 @@ export class RoutesCatalog {
     // 登入著的人不該再看到登入頁 —— `guestGuard` 把他導去自己的角色 shell
     'guest-only',
   );
-  public static readonly PUBLIC_LOGIN_HANDOFF = this.register(
-    'login/handoff',
-    '/login/handoff',
-    '登入交接',
-    undefined,
-    'pi-sign-in',
-    false,
-    undefined,
-    undefined,
-    // #2027：iOS 主畫面 PWA 的 LINE 登入在 Safari 完成後落在這裡 —— 那時 Safari 是登入狀態，
-    // 不能用 guest-only（會被導走、標不到交接）；也不能要求登入（沒登入要顯示「沒有完成」）
-    'public',
-  );
-  public static readonly PUBLIC_LOGIN_HANDOFF_START = this.register(
-    'login/handoff/start',
-    '/login/handoff/start',
-    '登入交接（發起）',
-    undefined,
-    'pi-sign-in',
-    false,
-    undefined,
-    undefined,
-    // #2063：PWA 把使用者送到外部瀏覽器的這一頁，**在這個瀏覽器**發起 LINE 登入（state cookie 才對得上回呼）。
-    // 不能 guest-only：Safari 若已登入（之前登過）會被導走；它也不需要登入
-    'public',
-  );
   public static readonly PUBLIC_TRIAL = this.register(
     'trial',
     '/trial',
