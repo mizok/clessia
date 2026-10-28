@@ -143,7 +143,10 @@ export async function splitSchedule(
         makeup: boolean;
       }>(
         `SELECT s.id, s.session_date::text, s.start_time::text, s.status,
-                s.event_id IS NOT NULL AS attendance,
+                -- 有 event 不等於點過名：課堂產生時就可能帶著 event。看點名時間或出勤紀錄
+                EXISTS (SELECT 1 FROM events e WHERE e.id = s.event_id AND e.org_id = $2
+                          AND (e.attendance_taken_at IS NOT NULL
+                               OR EXISTS (SELECT 1 FROM attendance_records a WHERE a.event_id = e.id AND a.org_id = $2))) AS attendance,
                 EXISTS (SELECT 1 FROM schedule_changes x WHERE x.session_id = s.id AND x.org_id = $2) AS schedule_change,
                 EXISTS (SELECT 1 FROM leave_request_sessions x WHERE x.session_id = s.id) AS leave,
                 EXISTS (SELECT 1 FROM sessions x WHERE x.makeup_for_session_id = s.id AND x.org_id = $2) AS makeup
