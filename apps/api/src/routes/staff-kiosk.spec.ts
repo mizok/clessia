@@ -38,6 +38,7 @@ function fakeDb() {
       delete: () => chain(),
       eq: () => chain(),
       in: () => chain(),
+      order: () => chain(),
       maybeSingle: () =>
         Promise.resolve({
           // checkUserIsAdmin 問 user_roles；ba_user 查無同 email；findInOrg 讀回 staff
