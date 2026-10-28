@@ -104,8 +104,11 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
              SELECT teacher_id FROM sessions WHERE id = $2 AND org_id = $1 AND teacher_id IS NOT NULL
              UNION
              SELECT sc.teacher_id FROM schedules sc JOIN classes c ON c.id = sc.class_id
+             JOIN sessions ss ON ss.id = $2 AND ss.org_id = $1 AND ss.class_id = sc.class_id
              WHERE c.org_id = $1 AND sc.teacher_id IS NOT NULL
-               AND sc.class_id = (SELECT class_id FROM sessions WHERE id = $2 AND org_id = $1))`,
+               -- 那堂課當天有效的時段（#1100 #22 Q3）；課堂沒排日期就不篩 —— 跟 lib 同一條規則
+               AND (ss.session_date IS NULL OR (sc.effective_from <= ss.session_date
+                    AND (sc.effective_to IS NULL OR sc.effective_to >= ss.session_date))))`,
           [s.org_id, s.id],
         )
       ).map((r) => r.user_id);
@@ -156,7 +159,10 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
              SELECT teacher_id FROM sessions WHERE id = ANY($2) AND org_id = $1 AND teacher_id IS NOT NULL
              UNION
              SELECT sc.teacher_id FROM schedules sc JOIN classes c ON c.id = sc.class_id
-             WHERE c.org_id = $1 AND sc.class_id = $3 AND sc.teacher_id IS NOT NULL)`,
+             JOIN sessions ss ON ss.id = ANY($2) AND ss.org_id = $1 AND ss.class_id = sc.class_id
+             WHERE c.org_id = $1 AND sc.class_id = $3 AND sc.teacher_id IS NOT NULL
+               AND (ss.session_date IS NULL OR (sc.effective_from <= ss.session_date
+                    AND (sc.effective_to IS NULL OR sc.effective_to >= ss.session_date))))`,
           [orgId, g.sessionIds, classId],
         )
       ).map((r) => r.user_id);

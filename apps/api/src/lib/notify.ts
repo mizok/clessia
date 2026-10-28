@@ -145,8 +145,8 @@ export async function adminsForCampuses(
 /**
  * 這些課堂的老師（user_id）：**任課班的老師（`schedules.teacher_id`）∪ 該堂實際上課的人
  * （`sessions.teacher_id`）∪ 額外指名的 staff**（代課的原老師與新老師、換任課老師的新舊兩位）。
- * 跟 `teacher-session-changes.ts` 的「我的課務異動」同一個定義；任課班不看 `effective_to`，
- * 跟 `taughtClassIds` 一致。
+ * 任課班只算**那堂課當天有效的時段**的老師（#1100 #22 Q3）——
+ * 換過手的班，舊老師收不到換手後的課堂的通知。
  *
  * - 只收本 org、`status = 'active'`、而且有 teacher 角色的人（沒有 teacher 角色的收了也看不到）
  * - `excludeUserId`：做這個異動的人自己不收
