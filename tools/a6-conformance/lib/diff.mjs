@@ -479,6 +479,9 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
     // 沒有參考祖先（彈出物根）且知道兩邊視窗高：手機的底部抽屜貼視窗底，兩邊撐開的視窗高不同，
     // 量「距視窗底」才可比。兩種量法取差小的
     let anchor = '頁面';
+    // 根＝父層不是 part：彈出物根的 parent 是合成的 `pop[id]`，不是 null（#2016 #7：手機帳戶抽屜
+    // 因此一直量「相對頁面」，兩邊頁高差（資料）整個灌進位置差）
+    const isRoot = !a.parent || !mA.has(a.parent);
     // 兩邊都在列裡：直接比「相對所在列」的位置
     if (a.rowRel && b.rowRel) {
       dx = b.rowRel[0] - a.rowRel[0];
@@ -487,7 +490,7 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
     }
     // 沒有可用的參考容器、但不是根（例：main 被排除後的章節）：改量跟「上方最近一個已配對 part」的間距，
     // 不然頂端色面的高度差會灌進每一條位置差
-    if (anchor === '頁面' && !ra && a.parent) {
+    if (anchor === '頁面' && !ra && !isRoot) {
       const rel = (k) => k === ak || ak.startsWith(k + '>') || k.startsWith(ak + '>');
       let best = null;
       for (const [k2, k2b] of pairs) {
@@ -501,7 +504,7 @@ export function diffParts(a6Cap, appCap, mapping = {}, opts = {}, tol = TOL) {
         anchor = `上方「${xa.tpl || xa.role}」`;
       }
     }
-    if (anchor === '頁面' && !ra && !a.parent && a6Cap.height && appCap.height) {
+    if (anchor === '頁面' && !ra && isRoot && a6Cap.height && appCap.height) {
       const fromBottom = appCap.height - (by + bh) - (a6Cap.height - (ay + ah));
       if (Math.abs(fromBottom) < Math.abs(dy)) ((dy = -fromBottom), (anchor = '視窗底'));
     }
