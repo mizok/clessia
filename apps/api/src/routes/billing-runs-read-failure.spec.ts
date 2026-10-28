@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { fakeBillingPool } from '../test-utils/fake-billing-pool';
 import billingRunsRoute from './billing-runs';
 
 /**
@@ -105,6 +106,28 @@ function tableFake(fail: (table: string, ops: string[]) => boolean) {
   return { client, writes };
 }
 
+/** 開帳的 SQL 讀寫（#1943）：寫入經同一個 supabase 替身記進 `writes`；`fail` 認 SQL 片段 */
+function poolFor(client: unknown, fail?: string) {
+  const meal = {
+    student_id: 's1',
+    meal_date: '2026-03-10',
+    ordered: true,
+    chargeable: true,
+    invoice_item_id: null,
+    unit_price: 70,
+  };
+  return fakeBillingPool({
+    rows: (t) =>
+      t === 'meal_records'
+        ? [meal]
+        : t === 'enrollments'
+          ? [{ student_id: 's1', classes: { campus_id: CAMPUS } }]
+          : [],
+    client: client as never,
+    fail: fail ? (sql) => sql.includes(fail) : undefined,
+  });
+}
+
 function appWith(supabase: unknown, scope: string[] | null = null, pool?: unknown) {
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -130,9 +153,12 @@ const post = (app: Hono, path: string, body?: unknown) =>
 const isRead = (ops: string[]) => !ops.includes('insert') && !ops.includes('update');
 
 describe('POST /api/billing-runs：開帳前的每一段讀取失敗 → 5xx、一筆都不寫（#1934）', () => {
+  const run = (fake: ReturnType<typeof tableFake>, fail?: string, scope: string[] | null = null) =>
+    post(appWith(fake.client, scope, poolFor(fake.client, fail)), '/', { periodMonth: '2026-03' });
+
   it('正常劇本會寫（對照組：證明下面的「沒寫」不是因為劇本本來就不寫）', async () => {
     const fake = tableFake(() => false);
-    const res = await post(appWith(fake.client), '/', { periodMonth: '2026-03' });
+    const res = await run(fake);
     expect(res.status).toBe(200);
     expect(fake.writes.length).toBeGreaterThan(0);
   });
@@ -142,50 +168,89 @@ describe('POST /api/billing-runs：開帳前的每一段讀取失敗 → 5xx、�
       '學費候選（enrollments）',
       (t: string, o: string[]) => t === 'enrollments' && !o.includes('is') && !o.includes('in'),
     ],
-    [
-      '學費冪等查詢（invoice_items .in enrollment_id）',
-      (t: string, o: string[]) => t === 'invoice_items' && o.includes('in') && isRead(o),
-    ],
-    [
-      '待開餐費（meal_records）',
-      (t: string, o: string[]) => t === 'meal_records' && !o.includes('in') && isRead(o),
-    ],
     ['帳單期限（organizations）', (t: string) => t === 'organizations'],
-  ] as const)('月 run：%s 讀取失敗', async (_label, fail) => {
+  ] as const)('月 run：%s 讀取失敗（REST）', async (_label, fail) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const fake = tableFake(fail);
-    const res = await post(appWith(fake.client), '/', { periodMonth: '2026-03' });
+    const res = await run(fake);
     expect(res.status).toBe(500);
     expect(((await res.json()) as { code: string }).code).toBe('READ_FAILED');
     expect(fake.writes).toEqual([]);
   });
 
-  it('受限者：餐費學生的分校過濾（enrollments 兩個 .in）讀取失敗', async () => {
+  it.each([
+    ['學費冪等（已開帳的報名）', 'select distinct ii.enrollment_id', null],
+    ['待開餐費的學生', 'select distinct m.student_id', null],
+    ['受限者：餐費學生的分校', 'select distinct e.student_id', [CAMPUS]],
+  ] as const)('%s 讀取失敗（SQL）', async (_label, sql, scope) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const fake = tableFake(
-      (t, o) => t === 'enrollments' && o.filter((x) => x === 'in').length === 2,
-    );
-    const res = await post(appWith(fake.client, [CAMPUS]), '/', { periodMonth: '2026-03' });
+    const fake = tableFake(() => false);
+    const res = await run(fake, sql, scope ? [...scope] : null);
     expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('READ_FAILED');
     expect(fake.writes).toEqual([]);
   });
 
   it('期 run：收費期間讀取失敗 → 500（不是 404，也不是當成不存在）', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const fake = tableFake((t) => t === 'billing_periods');
-    const res = await post(appWith(fake.client), '/', { billingPeriodId: PERIOD });
+    const res = await post(appWith(fake.client, null, poolFor(fake.client)), '/', {
+      billingPeriodId: PERIOD,
+    });
     expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('READ_FAILED');
     expect(fake.writes).toEqual([]);
   });
 
   it('開完帳之後的異常掃描失敗 → 500，訊息說帳單已經開了（重跑是冪等的）', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const fake = tableFake((t, o) => t === 'meal_records' && o.includes('in'));
-    const res = await post(appWith(fake.client), '/', { periodMonth: '2026-03' });
+    const fake = tableFake(() => false);
+    const res = await run(fake, 'select m.invoice_item_id, sum(m.unit_price)');
     expect(res.status).toBe(500);
     const body = (await res.json()) as { code: string; error: string };
     expect(body.code).toBe('SCAN_FAILED_AFTER_RUN');
     expect(body.error).toContain('已開立');
+  });
+});
+
+describe('POST /api/billing-runs：寫入經 pool、每位學生一筆交易（#1943）', () => {
+  it('沒有 pool → 500，不退回沒有交易的寫法、一筆都不寫', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const fake = tableFake(() => false);
+    const res = await post(appWith(fake.client), '/', { periodMonth: '2026-03' });
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { code: string }).code).toBe('POOL_UNAVAILABLE');
+    expect(fake.writes).toEqual([]);
+  });
+
+  it('某位學生的寫入失敗 → 他的交易回滾、整體 200、列在 failedStudents', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const fake = tableFake(() => false);
+    const pool = poolFor(fake.client, "'tuition', t.enrollment_id");
+    const res = await post(appWith(fake.client, null, pool), '/', { periodMonth: '2026-03' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      invoicesCreated: number;
+      failedStudents: Array<{ studentId: string; studentName: string | null; code: string }>;
+    };
+    expect(body.invoicesCreated).toBe(0);
+    expect(body.failedStudents).toEqual([
+      { studentId: 's1', studentName: null, code: 'WRITE_FAILED' },
+    ]);
+    expect(pool.statements).toContain('ROLLBACK');
+    expect(pool.statements).not.toContain('COMMIT');
+  });
+
+  it('全部開成 → failedStudents 是空陣列、每位學生 BEGIN…COMMIT', async () => {
+    const fake = tableFake(() => false);
+    const pool = poolFor(fake.client);
+    const res = await post(appWith(fake.client, null, pool), '/', { periodMonth: '2026-03' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { invoicesCreated: number; failedStudents: unknown[] };
+    expect(body.invoicesCreated).toBe(1);
+    expect(body.failedStudents).toEqual([]);
+    expect(pool.statements.filter((s) => s === 'BEGIN')).toHaveLength(1);
+    expect(pool.statements.filter((s) => s === 'COMMIT')).toHaveLength(1);
   });
 });
 

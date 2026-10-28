@@ -18,6 +18,8 @@ import { getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { INVOICE_SCOPE_EMBED, invoiceInScope } from '../lib/invoice-campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { fetchAllPages } from '../lib/fetch-all-pages';
+import { withTx } from '../lib/pg-tx';
+import { billStudent, NothingToBill } from '../lib/billing-run-write';
 import type { Queryable } from '../lib/identity-sql';
 import {
   alreadyBilledViaSql,
@@ -114,6 +116,42 @@ const AnomalySchema = z
 const EnrollmentWithoutBillingModeSchema = z
   .object({ id: DbUuidSchema, studentId: DbUuidSchema, classId: DbUuidSchema })
   .openapi('EnrollmentWithoutBillingMode');
+
+const FailedStudentSchema = z
+  .object({
+    studentId: DbUuidSchema,
+    /** 讀不到名字時 null（不擋回應） */
+    studentName: z.string().nullable(),
+    code: z.enum(['WRITE_FAILED']),
+  })
+  .openapi('BillingRunFailedStudent');
+
+/** 沒開成的學生補上名字（畫面要列出來）；讀名字失敗不影響回應，名字留 null */
+async function namesOf(
+  db: Queryable,
+  orgId: string,
+  failed: ReadonlyArray<{ studentId: string; code: 'WRITE_FAILED' | string }>,
+): Promise<Array<{ studentId: string; studentName: string | null; code: 'WRITE_FAILED' }>> {
+  if (failed.length === 0) return [];
+  const names = new Map<string, string>();
+  try {
+    const { rows } = await db.query(
+      'select id, name from public.students where org_id = $1::uuid and id = any($2::uuid[])',
+      [orgId, failed.map((f) => f.studentId)],
+    );
+    for (const r of rows as Array<{ id: string; name: string }>) names.set(r.id, r.name);
+  } catch (err) {
+    console.error(
+      '[billing-runs] 讀沒開成學生的名字失敗：',
+      err instanceof Error ? err.message : err,
+    );
+  }
+  return failed.map((f) => ({
+    studentId: f.studentId,
+    studentName: names.get(f.studentId) ?? null,
+    code: 'WRITE_FAILED' as const,
+  }));
+}
 
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
@@ -331,6 +369,11 @@ app.openapi(
                * 跟 `anomalies` 不同：那些是開了但金額不對，這些是**根本不會被開**。
                */
               enrollmentsWithoutBillingMode: z.array(EnrollmentWithoutBillingModeSchema),
+              /**
+               * 沒開成的學生（#1943）：那位學生的寫入整筆回滾、沒有留下任何帳單。**重跑 run 會補開**（冪等）。
+               * 非空時前端要明顯列出，不能只是一個成功 toast
+               */
+              failedStudents: z.array(FailedStudentSchema),
             }),
           },
         },
@@ -352,6 +395,15 @@ app.openapi(
     const userId = c.get('userId');
     const scope = getCampusScope(c);
     const body = c.req.valid('json');
+
+    // 開帳的寫入一律經 pool（每位學生一筆交易，#1943）。pool 不在就 500，**不退回沒有交易的舊寫法**
+    // （kb/wiki/architecture/pg-pool-writes.md 規則 6）—— 那條就是這張要修的 bug
+    const pool = c.get('auth')?.pool;
+    if (!pool) {
+      console.error('[billing-runs] 沒有 pg pool，不開帳');
+      return c.json({ error: '帳務作業暫時無法執行，請稍後再試', code: 'POOL_UNAVAILABLE' }, 500);
+    }
+    const db = pool;
 
     const isMonthRun = Boolean(body.periodMonth);
     let range: { start: string; end: string };
@@ -388,9 +440,6 @@ app.openapi(
     const mealStudents = new Set<string>();
     let dueDays: number;
     try {
-      // pg 有就走 pg（帶一大串 id 的讀取、列數會破千的讀取）；沒有才走 REST（單元測試的精簡 app）
-      const db = c.get('auth')?.pool;
-
       // ── 學費候選 ────────────────────────────────────────────
       // 受限者只挑班在範圍內的報名（空範圍 → `in.()` 零筆，fail-closed）。
       // 撈到底：大校的 active 報名會超過 1000 筆（#1934），少撈的那些這個月就沒開到
@@ -425,31 +474,10 @@ app.openapi(
       let alreadyBilled = new Set<string>();
       if (candidates.length > 0) {
         const enrollmentIds = candidates.map((candidate) => candidate.enrollmentId);
-        if (db) {
-          alreadyBilled = await sqlRead(
-            '已開帳的學費（冪等）',
-            alreadyBilledViaSql(db, { orgId, enrollmentIds, periodMonth, billingPeriodId }),
-          );
-        } else {
-          const billedRows = await mustReadAll('已開帳的學費（冪等）', (from, to) => {
-            const billedQuery = supabase
-              .from('invoice_items')
-              .select('enrollment_id, invoices!inner(voided_at)')
-              .eq('type', 'tuition')
-              .in('enrollment_id', enrollmentIds);
-            return (
-              periodMonth
-                ? billedQuery.eq('period_month', periodMonth)
-                : billedQuery.eq('billing_period_id', billingPeriodId as string)
-            )
-              .order('id')
-              .range(from, to);
-          });
-          for (const row of billedRows) {
-            if ((row['invoices'] as { voided_at?: string | null } | null)?.voided_at) continue;
-            alreadyBilled.add(row['enrollment_id'] as string);
-          }
-        }
+        alreadyBilled = await sqlRead(
+          '已開帳的學費（冪等）',
+          alreadyBilledViaSql(db, { orgId, enrollmentIds, periodMonth, billingPeriodId }),
+        );
       }
 
       plannedTuition = planTuitionItems(candidates, alreadyBilled, range);
@@ -457,51 +485,20 @@ app.openapi(
       // ── 餐費：只有月 run 處理，而且跟著月份走 ─────────────────
       if (isMonthRun) {
         // 一天一列：全校一個月輕鬆破千，所以在 SQL 取 distinct 學生
-        const students = db
-          ? await sqlRead(
-              '待開餐費',
-              unbilledMealStudentsViaSql(db, { orgId, start: range.start, end: range.end }),
-            )
-          : (
-              await mustReadAll('待開餐費', (from, to) =>
-                supabase
-                  .from('meal_records')
-                  .select('student_id')
-                  .eq('org_id', orgId)
-                  .gte('meal_date', range.start)
-                  .lte('meal_date', range.end)
-                  .eq('ordered', true)
-                  .eq('chargeable', true)
-                  .is('invoice_item_id', null)
-                  .order('id')
-                  .range(from, to),
-              )
-            ).map((row) => row['student_id'] as string);
+        const students = await sqlRead(
+          '待開餐費',
+          unbilledMealStudentsViaSql(db, { orgId, start: range.start, end: range.end }),
+        );
         for (const studentId of students) mealStudents.add(studentId);
 
         // 餐費沒有分校（`meal_records` 無 campus_id）—— 受限者只開 `studentInScope` 的學生：
         // 任一報名（不分 status）的班在範圍內，同學生列表 `students.ts` 與單張開單
         if (scope !== null && mealStudents.size > 0) {
           const studentIds = [...mealStudents];
-          const inScope = db
-            ? await sqlRead(
-                '餐費學生的分校',
-                mealStudentsInScopeViaSql(db, { orgId, studentIds, scope }),
-              )
-            : new Set(
-                (
-                  await mustReadAll('餐費學生的分校', (from, to) =>
-                    supabase
-                      .from('enrollments')
-                      .select('student_id, classes!inner(campus_id)')
-                      .eq('org_id', orgId)
-                      .in('student_id', studentIds)
-                      .in('classes.campus_id', [...scope])
-                      .order('id')
-                      .range(from, to),
-                  )
-                ).map((row) => row['student_id'] as string),
-              );
+          const inScope = await sqlRead(
+            '餐費學生的分校',
+            mealStudentsInScopeViaSql(db, { orgId, studentIds, scope }),
+          );
           for (const studentId of mealStudents) {
             if (!inScope.has(studentId)) mealStudents.delete(studentId);
           }
@@ -540,87 +537,44 @@ app.openapi(
       dueDate = addDaysToDateString(issuedAt, dueDays);
     }
 
+    // ── 寫入：每位學生一筆交易（#1943）──────────────────────────
+    // 一位學生失敗只回滾他自己、記下來繼續下一位；已經 COMMIT 的是真的開好了，所以整體回 200，
+    // 沒開成的列在 failedStudents（畫面要明顯列出，重跑會補開，計畫席 10-23）。
+    // 原始錯誤只進 log，不放進回應（可能帶 SQL 細節）
+    const failed: Array<{ studentId: string; code: string }> = [];
     for (const studentId of studentIds) {
-      const { data: invoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert({
-          org_id: orgId,
-          student_id: studentId,
-          issued_at: issuedAt,
-          due_date: dueDate,
-          note: isMonthRun ? `${periodMonth?.slice(0, 7)} 帳務作業` : '期繳帳務作業',
-          created_by: userId,
-        })
-        .select('id')
-        .single();
-
-      if (invoiceError || !invoice) continue;
-      const invoiceId = invoice['id'] as string;
-      invoicesCreated += 1;
-
-      const planned = tuitionByStudent.get(studentId) ?? [];
-      if (planned.length > 0) {
-        await supabase.from('invoice_items').insert(
-          planned.map((item) => ({
-            invoice_id: invoiceId,
-            type: 'tuition',
-            enrollment_id: item.enrollmentId,
-            amount: item.amount,
-            billing_period_id: billingPeriodId,
-            period_month: periodMonth,
-            note: item.note,
-          })),
+      try {
+        const result = await withTx(pool, (tx) =>
+          billStudent(tx, {
+            orgId,
+            userId,
+            studentId,
+            issuedAt,
+            dueDate: dueDate as string,
+            invoiceNote: isMonthRun ? `${periodMonth?.slice(0, 7)} 帳務作業` : '期繳帳務作業',
+            periodMonth,
+            billingPeriodId,
+            range,
+            tuition: tuitionByStudent.get(studentId) ?? [],
+            withMeal: mealStudents.has(studentId),
+            mealNote: `${periodMonth?.slice(0, 7)} 餐費`,
+          }),
         );
-        tuitionItems += planned.length;
+        invoicesCreated += 1;
+        tuitionItems += result.tuitionItems;
+        if (result.mealItem) mealItems += 1;
+        mealRecordsSettled += result.mealRecords;
+      } catch (err) {
+        // 交易裡重查後沒東西可開（別的 run 先開了）：略過，不算失敗
+        if (err instanceof NothingToBill) continue;
+        const code = (err as { code?: string })?.code;
+        console.error(
+          `[billing-runs] 學生 ${studentId} 開帳失敗（已回滾）：${code ?? ''} ${err instanceof Error ? err.message : String(err)}`,
+        );
+        failed.push({ studentId, code: 'WRITE_FAILED' });
       }
-
-      if (!mealStudents.has(studentId)) continue;
-
-      // ── 餐費的三步式 ──────────────────────────────────────
-      // supabase-js 走 HTTP，一次呼叫一個交易，做不到 meal-rules 講的「同一
-      // transaction」。而 FK 逼出順序：先有 item 才能蓋章。
-      //
-      // 所以拆三步，讓失敗落在安全的那邊：死在 2 之後、3 之前 → item 是 0 元但
-      // 餐記錄已蓋章 → **少收，而且 scanMealAnomalies 查得到**。永遠不會重複收，
-      // 因為蓋章才是閘門。
-      //
-      // 1. 開一筆 0 元的餐費 item
-      const { data: mealItem } = await supabase
-        .from('invoice_items')
-        .insert({
-          invoice_id: invoiceId,
-          type: 'meal',
-          amount: 0,
-          period_month: periodMonth,
-          note: `${periodMonth?.slice(0, 7)} 餐費`,
-        })
-        .select('id')
-        .single();
-
-      if (!mealItem) continue;
-      const mealItemId = mealItem['id'] as string;
-      mealItems += 1;
-
-      // 2. 蓋章，並把金額帶回來
-      const { data: stamped } = await supabase
-        .from('meal_records')
-        .update({ invoice_item_id: mealItemId })
-        .eq('org_id', orgId)
-        .eq('student_id', studentId)
-        .gte('meal_date', range.start)
-        .lte('meal_date', range.end)
-        .eq('ordered', true)
-        .eq('chargeable', true)
-        .is('invoice_item_id', null)
-        .select('unit_price');
-
-      const rows = (stamped ?? []) as unknown as Record<string, unknown>[];
-      const total = rows.reduce((sum, row) => sum + Number(row['unit_price']), 0);
-      mealRecordsSettled += rows.length;
-
-      // 3. 回填金額
-      await supabase.from('invoice_items').update({ amount: total }).eq('id', mealItemId);
     }
+    const failedStudents = await namesOf(db, orgId, failed);
 
     // 開帳已經寫完；這裡失敗不能當成「沒有異常」回 200。重跑 run 是冪等的（學費查衍生列、餐費靠蓋章）
     let anomalies: MealItemAnomaly[];
@@ -658,6 +612,7 @@ app.openapi(
           mealItems,
           anomalies: anomalies.length,
           enrollmentsWithoutBillingMode: enrollmentsWithoutBillingMode.length,
+          failedStudents: failedStudents.length,
         },
       },
       waitUntilFrom(c),
@@ -671,6 +626,7 @@ app.openapi(
         mealRecordsSettled,
         anomalies,
         enrollmentsWithoutBillingMode,
+        failedStudents,
       },
       200,
     );

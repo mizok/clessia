@@ -30,6 +30,9 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
  * **`anomalies` 非空就是要人看的東西**（item 金額對不上蓋章的餐記錄總額），
  * 不要在成功訊息裡吞掉它。
  *
+ * **`failedStudents` 非空更急**（#1943）：每位學生一筆交易，失敗的那位這次沒有帳單，其他人照開。
+ * 列在結果最上面、說清楚再按一次會補開 —— 不然看到「開立 N 張」會以為全都開好了。
+ *
  * **期繳開單**（#1293）：原本這裡只送 `periodMonth`，後端的 `billingPeriodId`（期 run）在 UI 上點不到。
  * 儀表板的「待開單」卡片帶 `{ mode: 'period', periodId }` 打開這個 dialog、直接選好那一期。
  */
@@ -67,6 +70,12 @@ export class BillingRunDialogComponent {
   protected readonly running = signal(false);
   protected readonly result = signal<BillingRunResult | null>(null);
 
+  /** 結果頁「再跑一次」：回到同一個表單設定直接重送，補開沒開成的學生 */
+  protected retry(): void {
+    this.result.set(null);
+    this.run();
+  }
+
   constructor() {
     // 期的清單：開始日新到舊（API 的排序），下拉直接用
     this.periodsService.list().subscribe({
@@ -89,6 +98,17 @@ export class BillingRunDialogComponent {
       next: (res) => {
         this.result.set(res);
         this.running.set(false);
+
+        // 沒開成的學生比金額對不上更急：他們這期根本沒有帳單（#1943）
+        if (res.failedStudents.length > 0) {
+          this.messageService.add({
+            severity: 'error',
+            summary: `${label}有 ${res.failedStudents.length} 位學生沒開成`,
+            detail: '其他人已開立；再按一次會補開沒開成的',
+            life: 10000,
+          });
+          return;
+        }
 
         if (res.anomalies.length > 0) {
           this.messageService.add({
