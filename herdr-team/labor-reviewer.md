@@ -712,3 +712,35 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 - **計畫席 10-23 指派：合併 migration 前由審核席的合併腳本重跑一次**（等於合併當下的 A16b）：這張的每一支 migration 時間戳，必須晚於 `origin/main` 最新與正式 DB 最新（最近一次 success 的 migrate run，plan log 的 `REMOTE_VERSIONS`）；不過就停、通知計畫席。實作在本席 scratchpad 的 `mig2.sh`（`ts_guard`），以 #1990（過）與 #1989 舊檔名（擋）驗過正反。
 - **bash 變數後面直接接全形字會被吃成變數名**（`$m）`、`$id：` 展開成空）：送出的訊息變亂碼，herdr 拒收，`send` 的重試迴圈把合併腳本卡住近半小時。一律寫 `${m}`；送訊息改背景，不擋合併。
 - **等待條件別用 `pgrep -f "<自己命令列裡也有的字串>"`**：會比對到自己、永遠等不完（10-23 踩兩次）。改看前一支任務的輸出檔。
+
+## 10-23～10-28 代合（約 75 支，含 4 支 schema migration、1 次 c3 破例改名）學到的，一頁版（labor-reviewer-20261023-0548）
+
+> 10-23 中午起第二審核席 review3 退場、計畫席決定不再補（Weekly 吃緊），**二讀與合併全由本席**。
+
+### 一、工具（本席 scratchpad，換席要自己複製並改 `cd` 路徑）
+
+- `mv.sh <PR> <完整SHA> …`：逐張 `cimg.sh`（等 CI 不 pending、紅就不合、head 釘死）→ 合 → 等 **main verify** 綠才下一張；紅就停。
+- `mig2.sh <PR> <SHA> …`：migration 專用，一次一支：**先 `ts_guard`**（PR 的 migration 時間戳必須晚於 `origin/main` 最新與正式 DB 最新）→ 合 → 抓 migrate run、讀 plan log 的待套檔名 → **背景**送連結給計畫席 → 等 apply＋deploy 都綠才解凍下一支。
+- **一律只留一支在跑**。要插隊：確認排隊那支的輸出檔還是空的（尚未動手）→ `TaskStop` → 重排一支。兩支「等前一支結束」的等待同時存在，前一支一結束它們會同時起跑。
+- 等待條件用「前一支任務的輸出檔出現某行」，**不要** `pgrep -f "<自己命令列也有的字串>"`（會比對到自己、永遠等不完）。不要用 `nohup … &`（脫離任務管理，停不掉、收不到通知）。
+- SHA 一律貼完整 40 碼；不要用「前 8 碼＋即時 head 後段」拼（拼了還是要再核一次，等於沒釘）。
+
+### 二、二讀的固定動作
+
+- **突變全在暫存 worktree**（`git worktree add --detach … pr<N>`，`node_modules` 根與 `apps/api` 兩層 symlink 到本席 worktree）。api 用 `npx vitest run <path>`；**契約**：`eval "$(npx supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY|DB_URL)=')"` 後帶 `CONTRACT_REQUIRED=1` 跑 `vitest.contract.config.mts`；web 只能走 `npx nx test web --include=…`（直接 vitest 解不了別名），多個路徑用**重複 `--include`**，大括號 glob 會找不到檔、輸出全空。
+- **基準先綠**，輸出空白＝這輪無效（編譯錯、找不到檔）——不是「全綠」。`if (false)` 常讓 TS 收窄失敗，改用回傳值類的突變。
+- **反覆抓到的缺口（新 PR 先打這幾個）**：pg 路徑的 `catch` 吞成空結果（只測 REST 退路的 read-failure spec 抓不到，#1952、#1936）；「接線」——lib 寫好但入口沒呼叫、或 middleware 沒把 pool 交給 childDb（#1976、#2008）；家長端讀取失敗回 200＋空清單（#2012）；spec 只斷言整段文字「含有」兩個字，對調照綠（#2013）。
+- **merge main 之後的核對**：逐檔比「對 merge-base 的增刪行」（`grep '^[+-]' | md5`），不要只比 patch-id —— import 併在旁邊會讓 patch-id 變、內容其實一樣（#2014）。**squash 疊 PR**：下層合了上層一定衝突，請作者 merge main，再比「上層自己對下層」的那段（#2012）。
+- **migration**：時間戳要跟**佇列裡先合的每一支**比（#1989 漏比，見上一節）；本機 `BEGIN; …; ROLLBACK;` 乾跑、回滾後確認本機沒留下；`ADD VALUE` 在同一交易用新值會被擋，是預期；檔內有 `DROP CONSTRAINT`／回填時，提醒計畫席「代按授權不含 drop／backfill」，由它問使用者（#1989 使用者明確同意才代按）。
+
+### 三、合併動作
+
+- main 紅先分辨：`build web` 結束碼 139（segfault）、`class-delete.contract` 的 deadlock（#2002 已修）都是重跑即綠；**重跑綠之前一張都不合**，排隊那支也要先停。
+- 說「佇列空了」之前先跑 `gh pr list --state open`（10-23 晚上漏了 4 張沒送到本席的）。
+- 計畫席常 `agent_blocked`：重要訊息用背景迴圈每分鐘重送到 `agent_prompted`。bash 字串裡**變數後面直接接全形字會被吃成變數名**（`$m）`），送出亂碼 → herdr 拒收 → 前台重試迴圈卡住合併。
+
+### 四、手上的單（2026-10-28 交接時）
+
+- **等使用者親合（金額路徑，已重驗）**：#1936 @4bc12e36 → #1964 @6421f66a（疊在 #1936 上）、#1952 @6873ce05。合併順序 #1936 先。
+- 其餘開著的 PR：無。沒有任何合併腳本在跑。
+- 未開 PR、不要合：分支 `fix/2037-phone-leave-skeleton`（motion 退場前的 wip）。
