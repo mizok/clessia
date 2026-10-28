@@ -6,9 +6,12 @@ import QRCode from 'qrcode';
  * 兩個不同的函式庫，這裡用真的（不 mock）走一次「學生 id → QR 矩陣 → 影像 → 解回來」。
  * 鏡頭與 `BarcodeDetector` 測不到（jsdom 沒有），iPad 真機要人工驗；這條守的是格式本身對得上。
  */
-it('學生 id 印成 QR 再用 jsqr 讀回來，字串原樣', () => {
-  const studentId = '8a75bc76-7927-41e3-af0b-e2b019616120';
-  const { modules } = QRCode.create(studentId, { errorCorrectionLevel: 'M' });
+// 舊卡（QR＝學生 id，過渡期）與新卡（#1100 #42 的 `CK1-` 代碼）都要讀得回來
+it.each([
+  ['舊卡：學生 id', '8a75bc76-7927-41e3-af0b-e2b019616120'],
+  ['新卡：到班卡代碼', 'CK1-0123456789ABCDEF'],
+])('%s 印成 QR 再用 jsqr 讀回來，字串原樣', (_label, text) => {
+  const { modules } = QRCode.create(text, { errorCorrectionLevel: 'M' });
   const scale = 6;
   const quiet = 4; // 規格要求的四格白邊
   const side = (modules.size + quiet * 2) * scale;
@@ -25,5 +28,5 @@ it('學生 id 印成 QR 再用 jsqr 讀回來，字串原樣', () => {
     }
   }
 
-  expect(jsQR(data, side, side)?.data).toBe(studentId);
+  expect(jsQR(data, side, side)?.data).toBe(text);
 });

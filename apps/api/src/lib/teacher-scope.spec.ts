@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { loadTeachingScope, resolveTeachingScope, taughtClassIds } from './teacher-scope';
+import {
+  canReadOn,
+  loadTeachingScope,
+  loadTenure,
+  resolveTeachingScope,
+  taughtClassIds,
+  tenureOn,
+  tenureOrFilter,
+} from './teacher-scope';
 
 /**
  * 聯絡簿與教務日誌共用這條規則：管理員不受限，老師只能碰自己固定任課的班。
@@ -113,5 +121,86 @@ describe('loadTeachingScope', () => {
         roles: ['teacher'],
       }),
     ).rejects.toThrow('查詢教職員身分失敗');
+  });
+});
+
+/**
+ * #2049（計畫席 10-28 裁定 R2）：任課判定看日期。
+ * 現任或將任＝整班全期（跟看日期以前一樣，現任什麼都不少）；前任＝只限任期內的日期、沒日期的看不到。
+ */
+describe('任期（#2049 R2）', () => {
+  const TODAY = '2026-10-28';
+  const schedules = (
+    rows: Array<{ class_id: string; effective_from: string; effective_to: string | null }>,
+  ) => {
+    const query = {
+      select: () => query,
+      eq: () => query,
+      then: (f: (v: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(f),
+    };
+    return { from: () => query } as never;
+  };
+
+  it('分類：有一列今天有效或將生效＝現任；只剩已結束的列＝前任（任期是每一段）', async () => {
+    const t = await loadTenure(
+      schedules([
+        { class_id: 'now', effective_from: '2026-01-01', effective_to: null },
+        { class_id: 'soon', effective_from: '2026-12-01', effective_to: null },
+        // split 換掉之後：舊段結束、同班另一段還有效 → 仍是現任
+        { class_id: 'both', effective_from: '2026-01-01', effective_to: '2026-09-30' },
+        { class_id: 'both', effective_from: '2026-10-01', effective_to: null },
+        { class_id: 'gone', effective_from: '2026-01-01', effective_to: '2026-03-31' },
+        { class_id: 'gone', effective_from: '2026-06-01', effective_to: '2026-09-30' },
+        { class_id: 'endsToday', effective_from: '2026-01-01', effective_to: TODAY },
+      ]),
+      'org-1',
+      'staff-1',
+      TODAY,
+    );
+    expect([...t.current].sort()).toEqual(['both', 'endsToday', 'now', 'soon']);
+    expect([...t.past]).toEqual([
+      [
+        'gone',
+        [
+          { from: '2026-01-01', to: '2026-03-31' },
+          { from: '2026-06-01', to: '2026-09-30' },
+        ],
+      ],
+    ]);
+    // 沒有日期的 taughtClassIds 只回現任
+    expect(
+      await taughtClassIds(
+        schedules([{ class_id: 'gone', effective_from: '2026-01-01', effective_to: '2026-03-31' }]),
+        'org-1',
+        'staff-1',
+      ),
+    ).toEqual([]);
+  });
+
+  const t = {
+    current: ['now'],
+    past: new Map([['gone', [{ from: '2026-01-01', to: '2026-03-31' }]]]),
+  };
+
+  it('現任：任何日期、沒有日期都算', () => {
+    for (const date of ['2020-01-01', '2026-02-01', TODAY, null]) {
+      expect(tenureOn(t, 'now', date)).toBe('current');
+    }
+  });
+
+  it('前任：只有任期內（兩端都含）；任期外、沒有日期都看不到', () => {
+    expect(tenureOn(t, 'gone', '2026-01-01')).toBe('past');
+    expect(tenureOn(t, 'gone', '2026-03-31')).toBe('past');
+    expect(tenureOn(t, 'gone', '2026-04-01')).toBe('none');
+    expect(tenureOn(t, 'gone', '2025-12-31')).toBe('none');
+    expect(canReadOn(t, 'gone', null)).toBe(false);
+    expect(canReadOn(t, 'never', '2026-02-01')).toBe(false);
+  });
+
+  it('PostgREST 條件：現任一個 in、前任每段一個 and；什麼都沒有回 null', () => {
+    expect(tenureOrFilter('class_id', 'log_date', t.current, t.past)).toBe(
+      'class_id.in.(now),and(class_id.eq.gone,log_date.gte.2026-01-01,log_date.lte.2026-03-31)',
+    );
+    expect(tenureOrFilter('class_id', 'log_date', [], new Map())).toBeNull();
   });
 });

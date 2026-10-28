@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 
 import type { AppEnv } from '../index';
-import { taughtClassIds } from '../lib/teacher-scope';
+import { loadTenure, tenureOrFilter } from '../lib/teacher-scope';
 import { describeChange, type ChangeLogRow } from './sessions/change-log';
 
 /**
@@ -104,9 +104,10 @@ app.openapi(route, async (c) => {
   if (!staff) return c.json({ error: '不是教職員', code: 'NOT_STAFF' }, 403);
   const staffId = staff['id'] as string;
 
-  const classIds = await taughtClassIds(supabase, orgId, staffId);
-  const mine = [`teacher_id.eq.${staffId}`];
-  if (classIds.length > 0) mine.push(`class_id.in.(${classIds.join(',')})`);
+  // 任課班：現任＝全期、前任＝只限任期內的課堂（#2049 R2）；自己上的課（含代課）照舊都算
+  const tenure = await loadTenure(supabase, orgId, staffId);
+  const taught = tenureOrFilter('class_id', 'session_date', tenure.current, tenure.past);
+  const mine = [`teacher_id.eq.${staffId}`, ...(taught ? [taught] : [])];
   const sessions = await supabase
     .from('sessions')
     .select('id')

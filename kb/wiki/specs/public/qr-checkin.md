@@ -3,7 +3,7 @@ title: QR 到班打卡
 summary: 學生掃碼完成當日到班登記。#1127 起搬到登入後：門口機台用 kiosk 帳號開 /kiosk/checkin，行政開 /admin/checkin；/qr-checkin 轉登入。
 category: spec
 status: active
-updated: 2026-10-03
+updated: 2026-10-28
 tags: [specs, public, qr-checkin]
 ---
 
@@ -21,17 +21,21 @@ tags: [specs, public, qr-checkin]
 
 ## MVP 功能
 
-- QR Code 掃描器（**未做**：學生 QR 卡＋相機掃描器另開一單；目前是卡號欄位，掃碼器的鍵盤輸入也打進這裡）
+- QR Code 掃描器（✅ #1127：相機、掃碼槍、手打卡號三種輸入走同一條）
+- 到班卡（✅ #1100 #42）：卡上是可作廢的代碼 `CK1-XXXX-XXXX-XXXX-XXXX`（QR＋可手打的分組文字）。
+  `CK1-` 開頭送 `cardCode`；舊卡（QR＝學生 id）過渡期仍收，但該生一印過新卡就不收（`LEGACY_CARD`）。
+  作廢的卡 `CARD_REVOKED`。兩種都提示學生找櫃台，不給「再掃一次」。補發／作廢在學生詳情頁的「⋯」
+  （`manage_students`），細節見 [[architecture/kiosk-checkin]]
 - 顯示打卡成功/失敗訊息（✅）
 - 顯示學生姓名確認（✅，POST 回應的 `student.name`）
 - 顯示今日課堂列表（打卡成功後）（✅，`todaySessions`）
 
 ## 資料依賴
 
-| 操作 | 資料表                                 |
-| ---- | -------------------------------------- |
-| 讀取 | `students`, `sessions`, `enrollments`  |
-| 寫入 | `daily_checkins`, `attendance_records` |
+| 操作 | 資料表                                                 |
+| ---- | ------------------------------------------------------ |
+| 讀取 | `students`, `sessions`, `enrollments`, `checkin_cards` |
+| 寫入 | `daily_checkins`, `attendance_records`                 |
 
 ## PRD 參考
 

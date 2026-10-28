@@ -8,7 +8,12 @@ import {
   type ExamEnrollmentRow,
 } from '../lib/academy-exam-roster';
 import { isEnrolledOn } from '../lib/session-roster';
-import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
+import {
+  canReadOn,
+  loadTeachingScope,
+  loadTenure,
+  type TeachingTenure,
+} from '../lib/teacher-scope';
 import { splitScoreMutations } from '../lib/score-mutations';
 import { writeExamScores } from '../lib/exam-scores-write';
 import { getAuth } from '../lib/get-auth';
@@ -368,12 +373,15 @@ async function ensureExamOwnedByOrg(
  * 這個請求的考試範圍。**管理員不受限，老師只碰自己固定任課的班**
  * （`schedules.teacher_id`，不含代課 —— 跟聯絡簿／教務日誌共用 `lib/teacher-scope.ts`）。
  *
- * `taught` 只有老師會用到；管理員拿到空陣列但 `isAdmin` 是 true，兩者要一起看。
+ * `taught` 是**現任或將任**的班 —— 寫入（建立、改、登錄成績）只看它。前任只讀、只限任期內考的
+ * （#2049 R2，`tenure` + 考試日期）。管理員拿到空的但 `isAdmin` 是 true，兩者要一起看。
  */
+type ExamScope = { isAdmin: boolean; taught: string[]; tenure: TeachingTenure };
+
 async function loadExamScope(
   supabase: AppEnv['Variables']['supabase'],
   params: { orgId: string; userId: string; roles: readonly string[] },
-): Promise<{ isAdmin: boolean; taught: string[] } | { forbidden: true }> {
+): Promise<ExamScope | { forbidden: true }> {
   const scope = await loadTeachingScope(supabase, {
     orgId: params.orgId,
     userId: params.userId,
@@ -381,28 +389,35 @@ async function loadExamScope(
   });
   if ('forbidden' in scope) return { forbidden: true };
 
-  return {
-    isAdmin: params.roles.includes('admin'),
-    taught: scope.teacherStaffId
-      ? await taughtClassIds(supabase, params.orgId, scope.teacherStaffId)
-      : [],
-  };
+  const tenure: TeachingTenure = scope.teacherStaffId
+    ? await loadTenure(supabase, params.orgId, scope.teacherStaffId)
+    : { current: [], past: new Map() };
+  return { isAdmin: params.roles.includes('admin'), taught: [...tenure.current], tenure };
 }
 
 /**
- * 這位老師看不看得到這場考試 —— **參加班級裡有沒有自己任課的班**，不看誰建的。
+ * 這位老師碰不碰得到這場考試 —— **參加班級裡有沒有自己任課的班**，不看誰建的。
  * 登錄成績本來就是老師的工作，別人建的考試只要含自己的班就要看得到。
+ * `read`：現任，或前任而考試日在任期內；`write`：只有現任（前任唯讀，#2049 裁定 b）。
  */
 async function examInScope(
   supabase: AppEnv['Variables']['supabase'],
   examId: string,
-  scope: { isAdmin: boolean; taught: string[] },
+  scope: ExamScope,
+  mode: 'read' | 'write',
 ): Promise<boolean> {
   if (scope.isAdmin) return true;
-  if (scope.taught.length === 0) return false;
-
   const classIds = await examClassIds(supabase, examId);
-  return classIds.some((classId) => scope.taught.includes(classId));
+  if (mode === 'write') return classIds.some((classId) => scope.taught.includes(classId));
+  if (scope.tenure.past.size === 0) return classIds.some((id) => scope.taught.includes(id));
+
+  const { data } = await supabase
+    .from('academy_exams')
+    .select('exam_date')
+    .eq('id', examId)
+    .maybeSingle();
+  const examDate = (data as { exam_date?: string } | null)?.exam_date ?? null;
+  return classIds.some((classId) => canReadOn(scope.tenure, classId, examDate));
 }
 
 /** 某場考試目前的參加班級 */
@@ -520,17 +535,29 @@ app.openapi(listRoute, async (c) => {
 
   let classFilteredExamIds: string[] | null = null;
 
-  // 老師只看得到「參加班級裡有自己任課的班」的考試。沒有任何班就回空 —— 不是回全部
+  // 老師只看得到「參加班級裡有自己任課的班」的考試。沒有任何班就回空 —— 不是回全部。
+  // 前任的班只看考試日在任期內的（#2049 R2）
   if (!scope.isAdmin) {
-    if (scope.taught.length === 0) {
+    const reachable = [...scope.taught, ...scope.tenure.past.keys()];
+    if (reachable.length === 0) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
     const { data: taughtExamRows } = await supabase
       .from('academy_exam_classes')
-      .select('exam_id')
-      .in('class_id', scope.taught);
+      .select('exam_id, class_id, academy_exams(exam_date)')
+      .in('class_id', reachable);
     classFilteredExamIds = Array.from(
-      new Set((taughtExamRows ?? []).map((row: { exam_id: string }) => row.exam_id)),
+      new Set(
+        ((taughtExamRows ?? []) as Array<Record<string, unknown>>)
+          .filter((row) =>
+            canReadOn(
+              scope.tenure,
+              row['class_id'] as string,
+              (row['academy_exams'] as { exam_date?: string } | null)?.exam_date ?? null,
+            ),
+          )
+          .map((row) => row['exam_id'] as string),
+      ),
     );
     if (classFilteredExamIds.length === 0) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
@@ -1009,7 +1036,7 @@ app.openapi(getRoute, async (c) => {
   if ('forbidden' in scope) {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  if (!(await examInScope(supabase, id, scope))) {
+  if (!(await examInScope(supabase, id, scope, 'read'))) {
     return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
   }
 
@@ -1600,7 +1627,7 @@ app.openapi(listScoresRoute, async (c) => {
   if ('forbidden' in scope) {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  if (!(await examInScope(supabase, id, scope))) {
+  if (!(await examInScope(supabase, id, scope, 'read'))) {
     return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
   }
 
@@ -1735,7 +1762,7 @@ app.openapi(upsertScoresRoute, async (c) => {
   if ('forbidden' in scope) {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  if (!(await examInScope(supabase, id, scope))) {
+  if (!(await examInScope(supabase, id, scope, 'write'))) {
     return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
   }
 

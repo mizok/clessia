@@ -1,7 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
-import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
+import {
+  canReadOn,
+  loadTeachingScope,
+  loadTenure,
+  taughtStudentIds,
+  type TeachingTenure,
+} from '../lib/teacher-scope';
 import {
   applyCampusFilter,
   campusFilterIds,
@@ -1559,6 +1565,9 @@ app.openapi(classExamStatsRoute, async (c) => {
   const { classId, examId } = c.req.valid('param');
 
   const roles = c.get('roles') ?? [];
+  const outOfScope = { error: '這個班不在你的任課範圍', code: 'CLASS_OUT_OF_SCOPE' } as const;
+  /** 前任（#2049 R2）：要等讀到考試日期才知道在不在任期內 */
+  let formerTenure: TeachingTenure | null = null;
   if (!roles.includes('admin')) {
     const scope = await loadTeachingScope(supabase, {
       orgId,
@@ -1568,9 +1577,10 @@ app.openapi(classExamStatsRoute, async (c) => {
     if ('forbidden' in scope || !scope.teacherStaffId) {
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
-    const taught = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
-    if (!taught.includes(classId)) {
-      return c.json({ error: '這個班不在你的任課範圍', code: 'CLASS_OUT_OF_SCOPE' }, 403);
+    const tenure = await loadTenure(supabase, orgId, scope.teacherStaffId);
+    if (!tenure.current.includes(classId)) {
+      if (!tenure.past.has(classId)) return c.json(outOfScope, 403);
+      formerTenure = tenure;
     }
   }
   // 分校範圍（#1250）。不在本 org 的交給下面的 404
@@ -1613,6 +1623,9 @@ app.openapi(classExamStatsRoute, async (c) => {
     : examClassRow.academy_exams;
   if (!exam) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
+  }
+  if (formerTenure && !canReadOn(formerTenure, classId, exam.exam_date ?? null)) {
+    return c.json(outOfScope, 403);
   }
 
   // 名單＝**考試那天**在籍 ∪ 已登錄（#1280，跟考試列表的分母同一個定義，issue #424）。

@@ -13,9 +13,22 @@ import {
 } from '@shared/components/leave-form-dialog/leave-form-dialog.component';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { AuthService } from '@core/auth.service';
+import { CheckinCardsService } from '@core/checkin-cards.service';
+import { OrgSettingsService } from '@core/org-settings.service';
+import { HttpErrorResponse } from '@angular/common/http';
 
 describe('StudentDetailPage', () => {
   let fixture: ComponentFixture<StudentDetailPage>;
+  /** 到班卡（#1100 #42）：補發／作廢要 manage_students */
+  let permissions = ['manage_students'];
+  const checkinCardsMock = {
+    reissue: vi.fn(),
+    revoke: vi.fn(),
+    get: vi.fn(() =>
+      of({ active: { last4: 'CDEF', issuedAt: '2026-10-02T03:00:00Z' }, hasAnyCard: true }),
+    ),
+  };
 
   const seedStudentId = '61000000-0000-0000-0000-000000000001';
   const paramMap$ = new BehaviorSubject(convertToParamMap({ id: seedStudentId }));
@@ -121,6 +134,19 @@ describe('StudentDetailPage', () => {
         { provide: LeaveService, useValue: leaveServiceMock },
         { provide: DialogService, useValue: { open: dialogOpen } },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        {
+          provide: AuthService,
+          useValue: { hasPermission: (p: string) => permissions.includes(p) },
+        },
+        { provide: CheckinCardsService, useValue: checkinCardsMock },
+        {
+          provide: OrgSettingsService,
+          useValue: {
+            settings: () => ({ name: '示範補習班' }),
+            status: () => 'ready',
+            load: vi.fn(),
+          },
+        },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -591,6 +617,132 @@ describe('StudentDetailPage', () => {
       expect(el.querySelector('app-reload-veil p-skeleton')).toBeNull();
       // 這支 spec 的學生有一筆報名（三年級數學 A）—— 重抓期間它還在
       expect(el.querySelectorAll('[data-testid="enrollment-item"]').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('到班卡補發／作廢（#1100 #42）', () => {
+    type Page = {
+      menuItems: () => Array<{ label?: string }>;
+      reissueCard: () => void;
+      revokeCard: () => void;
+      notice: () => { summary: string } | null;
+      cardText: () => string;
+    };
+    const page = (f = fixture) => f.componentInstance as unknown as Page;
+    /** 確認框：按下確定、填了理由 */
+    const acceptWith = (notes: string) =>
+      dialogOpen.mockReturnValue({ onClose: of({ notes }) } as never);
+
+    afterEach(() => {
+      permissions = ['manage_students'];
+      vi.restoreAllMocks();
+    });
+
+    const statusEl = (f = fixture) =>
+      (f.nativeElement as HTMLElement).querySelector('[data-testid="checkin-card-status"]');
+
+    it('基本資料顯示現況：有效卡只有末四碼與發卡日', () => {
+      expect(checkinCardsMock.get).toHaveBeenCalledWith(seedStudentId);
+      expect(statusEl()?.textContent?.trim()).toBe('末四碼 CDEF · 2026/10/02 發卡');
+    });
+
+    it.each([
+      [{ active: null, hasAnyCard: true }, '已作廢，尚未補發'],
+      [{ active: null, hasAnyCard: false }, '尚未發新卡（舊版卡過渡中）'],
+    ])('沒有有效卡：分得出作廢過與還沒發（%o）', async (res, text) => {
+      checkinCardsMock.get.mockReturnValueOnce(of(res) as never);
+      const other = TestBed.createComponent(StudentDetailPage);
+      other.detectChanges();
+      await other.whenStable();
+      expect(page(other).cardText()).toBe(text);
+    });
+
+    it('讀不到：講讀不到，不假裝沒卡', async () => {
+      checkinCardsMock.get.mockReturnValueOnce(throwError(() => new Error('x')) as never);
+      const other = TestBed.createComponent(StudentDetailPage);
+      other.detectChanges();
+      await other.whenStable();
+      expect(page(other).cardText()).toBe('讀不到到班卡資料');
+    });
+
+    it('沒有 basic_operations 也沒有 manage_students：不顯示、不打 API', async () => {
+      permissions = ['view_reports'];
+      checkinCardsMock.get.mockClear();
+      const other = TestBed.createComponent(StudentDetailPage);
+      other.detectChanges();
+      await other.whenStable();
+      expect(checkinCardsMock.get).not.toHaveBeenCalled();
+      expect(statusEl(other)).toBeNull();
+    });
+
+    it('有 manage_students 才有補發、作廢', () => {
+      expect(
+        page()
+          .menuItems()
+          .map((i) => i.label),
+      ).toEqual(expect.arrayContaining(['補發到班卡', '作廢到班卡']));
+      permissions = ['basic_operations'];
+      const other = TestBed.createComponent(StudentDetailPage);
+      const labels = page(other)
+        .menuItems()
+        .map((i) => i.label);
+      expect(labels).not.toContain('補發到班卡');
+      expect(labels).not.toContain('作廢到班卡');
+    });
+
+    it('補發：帶理由呼叫 API，新卡直接進列印', async () => {
+      const doc = document.implementation.createHTMLDocument('');
+      vi.spyOn(window, 'open').mockReturnValue({
+        document: doc,
+        setTimeout: vi.fn(),
+        close: vi.fn(),
+      } as never);
+      checkinCardsMock.reissue.mockReturnValue(
+        of({
+          studentId: seedStudentId,
+          studentName: '出勤測試學生01',
+          code: 'CK1-0123456789ABCDEF',
+        }),
+      );
+      acceptWith('遺失');
+
+      page().reissueCard();
+      await vi.waitFor(() => expect(page().notice()?.summary).toBe('已補發'));
+      expect(checkinCardsMock.reissue).toHaveBeenCalledWith(seedStudentId, '遺失');
+      expect(doc.body.textContent).toContain('CK1-0123-4567-89AB-CDEF');
+    });
+
+    it('補發時彈出視窗被擋：不呼叫 API（卡沒換），提示允許彈出視窗', async () => {
+      vi.spyOn(window, 'open').mockReturnValue(null);
+      checkinCardsMock.reissue.mockClear();
+      acceptWith('遺失');
+
+      page().reissueCard();
+      await vi.waitFor(() => expect(page().notice()?.summary).toBe('無法開啟列印視窗'));
+      expect(checkinCardsMock.reissue).not.toHaveBeenCalled();
+    });
+
+    it('作廢：成功提示；沒有有效卡（409）講清楚', async () => {
+      acceptWith('退班');
+      checkinCardsMock.revoke.mockReturnValueOnce(of(undefined));
+      checkinCardsMock.get.mockClear();
+      page().revokeCard();
+      expect(checkinCardsMock.revoke).toHaveBeenCalledWith(seedStudentId, '退班');
+      expect(page().notice()?.summary).toBe('已作廢');
+      expect(checkinCardsMock.get).toHaveBeenCalledTimes(1); // 現況重讀
+
+      checkinCardsMock.revoke.mockReturnValueOnce(
+        throwError(() => new HttpErrorResponse({ status: 409 })),
+      );
+      page().revokeCard();
+      expect(page().notice()?.summary).toBe('沒有可作廢的卡');
+    });
+
+    it('確認框按取消：什麼都不做', () => {
+      dialogOpen.mockReturnValue({ onClose: of(false) } as never);
+      checkinCardsMock.revoke.mockClear();
+      page().revokeCard();
+      expect(checkinCardsMock.revoke).not.toHaveBeenCalled();
     });
   });
 });

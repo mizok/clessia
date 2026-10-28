@@ -34,6 +34,8 @@ function createCheckinApp(
     leaves?: Array<Record<string, unknown>>;
     /** 寫完之後讀回的出勤紀錄 */
     records?: Array<{ event_id: string; status: string }>;
+    /** #1100 #42：`checkin_cards` 的列（代碼查卡、舊卡判斷都讀它） */
+    cards?: Array<{ code: string; student_id: string; revoked_at: string | null }>;
   } = {},
 ) {
   const upsertCalls: Array<{ table: string; rows: unknown; options: unknown }> = [];
@@ -51,6 +53,13 @@ function createCheckinApp(
   const supabase = {
     from(table: string) {
       let classIdFilter: readonly string[] | null = null;
+      const eqs: Record<string, unknown> = {};
+      const cardRows = () =>
+        (fixture.cards ?? []).filter(
+          (k) =>
+            (eqs['code'] === undefined || k.code === eqs['code']) &&
+            (eqs['student_id'] === undefined || k.student_id === eqs['student_id']),
+        );
       const query = {
         // `logAudit` 走 `.insert()` —— 替身少了它，稽核就會靜默失敗，
         // 而這個檔的 setup 會把「靜默失敗」變成紅燈（那是對的）。
@@ -72,7 +81,10 @@ function createCheckinApp(
           };
         },
         select: () => query,
-        eq: () => query,
+        eq: (column: string, value: unknown) => {
+          eqs[column] = value;
+          return query;
+        },
         // 受分校限制的人（機台）打卡時，events 會再帶一次 `.in('campus_id', scope)`
         in: (column: string, values: readonly string[]) => {
           if (column === 'class_id') classIdFilter = values;
@@ -87,38 +99,42 @@ function createCheckinApp(
         // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
         maybeSingle: () =>
           Promise.resolve(
-            table === 'daily_checkins'
-              ? { data: checkinRow(fixture.existingCheckedInAt ?? ''), error: null }
-              : table === 'organizations'
-                ? fixture.orgError
-                  ? { data: null, error: { message: 'boom' } }
-                  : { data: { attendance_mode: fixture.mode ?? 'daily_checkin' }, error: null }
-                : table === 'campuses'
-                  ? { data: { attendance_mode: fixture.campusMode ?? null }, error: null }
-                  : {
-                      data: table === 'students' ? { id: 'stu-1', name: '王小明' } : null,
-                      error: null,
-                    },
+            table === 'checkin_cards'
+              ? { data: cardRows()[0] ?? null, error: null }
+              : table === 'daily_checkins'
+                ? { data: checkinRow(fixture.existingCheckedInAt ?? ''), error: null }
+                : table === 'organizations'
+                  ? fixture.orgError
+                    ? { data: null, error: { message: 'boom' } }
+                    : { data: { attendance_mode: fixture.mode ?? 'daily_checkin' }, error: null }
+                  : table === 'campuses'
+                    ? { data: { attendance_mode: fixture.campusMode ?? null }, error: null }
+                    : {
+                        data: table === 'students' ? { id: 'stu-1', name: '王小明' } : null,
+                        error: null,
+                      },
           ),
         then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
           const data =
-            table === 'enrollments'
-              ? (fixture.enrollments ?? [
-                  { class_id: 'class-1', effective_from: '2020-01-01', effective_to: null },
-                ])
-              : table === 'leave_requests'
-                ? (fixture.leaves ?? [])
-                : table === 'attendance_records'
-                  ? (fixture.records ?? [])
-                  : table === 'sessions'
-                    ? (fixture.sessions ?? []).filter(
-                        (row) =>
-                          !classIdFilter || classIdFilter.includes(row['class_id'] as string),
-                      )
-                    : (fixture.events ?? [
-                        { id: 'event-1', sessions: [{ class_id: 'class-1' }] },
-                        { id: 'event-2', sessions: [{ class_id: 'class-1' }] },
-                      ]);
+            table === 'checkin_cards'
+              ? cardRows()
+              : table === 'enrollments'
+                ? (fixture.enrollments ?? [
+                    { class_id: 'class-1', effective_from: '2020-01-01', effective_to: null },
+                  ])
+                : table === 'leave_requests'
+                  ? (fixture.leaves ?? [])
+                  : table === 'attendance_records'
+                    ? (fixture.records ?? [])
+                    : table === 'sessions'
+                      ? (fixture.sessions ?? []).filter(
+                          (row) =>
+                            !classIdFilter || classIdFilter.includes(row['class_id'] as string),
+                        )
+                      : (fixture.events ?? [
+                          { id: 'event-1', sessions: [{ class_id: 'class-1' }] },
+                          { id: 'event-2', sessions: [{ class_id: 'class-1' }] },
+                        ]);
           return Promise.resolve({ data }).then(onfulfilled ?? undefined);
         },
       };
@@ -759,5 +775,77 @@ describe('POST /api/daily-checkins —— 確認資訊（學生名＋今日課�
     const { body } = await post('per_session');
     expect(body.attendanceMode).toBe('per_session');
     expect(body.todaySessions.every((s) => s.attendance === null && !s.onLeave)).toBe(true);
+  });
+});
+
+/**
+ * #1100 #42：可作廢的到班卡。機台掃到 `CK1-` 送 `cardCode`，伺服器查卡換成學生；
+ * 作廢的卡、被新卡取代的舊卡（QR＝學生 id）都不能再打卡 —— 補發要真的讓舊卡失效。
+ */
+describe('POST /api/daily-checkins —— 到班卡代碼（#1100 #42）', () => {
+  const CAMPUS = '00000000-0000-4000-8000-0000000000c1';
+  const STUDENT = '00000000-0000-4000-8000-0000000000b1';
+  const CODE = 'CK1-0123456789ABCDEF';
+  const kiosk = { roles: ['kiosk'], campusScope: [CAMPUS] };
+  async function post(fixture: Parameters<typeof createCheckinApp>[0], body: object) {
+    const { app, upsertCalls } = createCheckinApp(fixture);
+    const res = await app.request('/api/daily-checkins', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ checkinDate: getCurrentTaipeiDateString(), ...body }),
+    });
+    const written = upsertCalls.find((c) => c.table === 'daily_checkins')?.rows as
+      { student_id: string } | undefined;
+    return { status: res.status, body: (await res.json()) as { code?: string }, written };
+  }
+
+  it('有效卡：寫到卡的學生；卡面分組、小寫、手打的 O/I 都認', async () => {
+    const cards = [{ code: CODE, student_id: STUDENT, revoked_at: null }];
+    for (const typed of [CODE, 'ck1-0123-4567-89ab-cdef', 'CK1-O123-4567-89AB-CDEF']) {
+      const out = await post({ ...kiosk, cards }, { cardCode: typed });
+      expect(out.status).toBe(201);
+      expect(out.written?.student_id).toBe(STUDENT);
+    }
+  });
+
+  it('認不得的代碼：404 CARD_NOT_FOUND，沒寫', async () => {
+    const out = await post(kiosk, { cardCode: CODE });
+    expect(out.status).toBe(404);
+    expect(out.body.code).toBe('CARD_NOT_FOUND');
+    expect(out.written).toBeUndefined();
+    expect((await post(kiosk, { cardCode: 'hello' })).status).toBe(404);
+  });
+
+  it('已作廢的卡：409 CARD_REVOKED，沒寫', async () => {
+    const cards = [{ code: CODE, student_id: STUDENT, revoked_at: '2026-10-01T00:00:00Z' }];
+    const out = await post({ ...kiosk, cards }, { cardCode: CODE });
+    expect(out.status).toBe(409);
+    expect(out.body.code).toBe('CARD_REVOKED');
+    expect(out.written).toBeUndefined();
+  });
+
+  it('studentId 與 cardCode 都給或都沒給：400', async () => {
+    expect((await post(kiosk, {})).status).toBe(400);
+    expect((await post(kiosk, { studentId: STUDENT, cardCode: CODE })).status).toBe(400);
+  });
+
+  it('舊卡（QR＝學生 id）：該生印過新卡（含已作廢的）就 409 LEGACY_CARD', async () => {
+    const cards = [{ code: CODE, student_id: STUDENT, revoked_at: '2026-10-01T00:00:00Z' }];
+    const out = await post({ ...kiosk, cards }, { studentId: STUDENT });
+    expect(out.status).toBe(409);
+    expect(out.body.code).toBe('LEGACY_CARD');
+    expect(out.written).toBeUndefined();
+    // 行政的掃碼站（source=scan）也一樣
+    expect((await post({ cards }, { studentId: STUDENT, source: 'scan' })).status).toBe(409);
+  });
+
+  it('舊卡過渡期：該生還沒有任何新卡就照舊放行', async () => {
+    const other = [{ code: CODE, student_id: 'someone-else', revoked_at: null }];
+    expect((await post({ ...kiosk, cards: other }, { studentId: STUDENT })).status).toBe(201);
+  });
+
+  it('行政在名單上選人（manual）不是拿卡：有新卡也照舊打得進', async () => {
+    const cards = [{ code: CODE, student_id: STUDENT, revoked_at: null }];
+    expect((await post({ cards }, { studentId: STUDENT })).status).toBe(201);
   });
 });
