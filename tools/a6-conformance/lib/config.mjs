@@ -1082,6 +1082,9 @@ export const PAGES = {
     app: '/parent/schedule',
     state: PARENT_STATE,
     prep: PARENT_PREP,
+    // 稿的今天（shared/stress.js：2026-10-01 17:40，週四）：不釘的話「今天」底線、哪天有課、
+    // 上課中都隨量測當天跑（#1967）
+    clock: '2026-10-01T17:40:00+08:00',
   },
   'p-grades': {
     a6: 'p-grades.html',

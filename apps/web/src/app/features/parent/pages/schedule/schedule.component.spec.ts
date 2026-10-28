@@ -250,6 +250,22 @@ describe('家長端課表 ScheduleComponent', () => {
     expect(card('off').querySelector('.line-through')).not.toBeNull();
   });
 
+  it('手機：沒課的日子週名與「沒課」同一行、不畫底線；有課的日子照常（A6 .wk__d--empty，#1967）', () => {
+    const days = Array.from(host().querySelectorAll<HTMLElement>('[data-part="day"]'));
+    const empty = days.filter((d) => d.textContent?.includes('沒課'));
+    const busy = days.filter((d) => d.querySelector('[data-part="session"]'));
+    expect(empty.length).toBeGreaterThan(0);
+    expect(busy.length).toBeGreaterThan(0);
+    for (const d of empty) {
+      expect(d.classList.contains('max-wide:flex')).toBe(true);
+      expect(d.querySelector('h2')!.classList.contains('max-wide:border-0')).toBe(true);
+    }
+    for (const d of busy) {
+      expect(d.classList.contains('max-wide:flex')).toBe(false);
+      expect(d.querySelector('h2')!.classList.contains('max-wide:border-0')).toBe(false);
+    }
+  });
+
   it('下一週：只查那一週（週一到週日）；回本週重查本週＋下週、週標籤寫（本週）', () => {
     (host().querySelector('[aria-label="下一週"]') as HTMLButtonElement).click();
     fixture.detectChanges();

@@ -29,7 +29,7 @@
         <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>
       </button>
       <span
-        class="min-w-[9.5em] text-center font-semibold tabular-nums"
+        class="min-w-0 flex-1 text-center font-semibold tabular-nums wide:min-w-[9.5em] wide:flex-none"
         data-part="week-label"
         aria-live="polite"
         >{{ weekLabel() }}{{ isThisWeek() ? '（本週）' : '' }}</span
@@ -44,16 +44,16 @@
       </button>
       <button
         type="button"
-        class="tbar-control inline-flex cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+        class="tbar-control inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold text-zinc-900 hover:border-zinc-400"
         (click)="goThisWeek()"
       >
         回本週
       </button>
-      <label class="flex items-center gap-2 text-md text-zinc-700 wide:ml-auto">
+      <label class="flex w-full items-center gap-2 text-md text-zinc-700 wide:ml-auto wide:w-auto">
         跳到
         <input
           type="date"
-          class="tbar-control rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900"
+          class="tbar-control min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:flex-none"
           data-part="jump"
           (change)="jumpTo($any($event.target).value)"
         />
@@ -83,12 +83,21 @@
         <p class="m-0 text-lg font-bold text-zinc-900">這週沒有課</p>
       </div>
     } @else {
-      <div class="grid grid-cols-1 gap-x-2 gap-y-4 wide:grid-cols-7" data-part="week">
+      <div class="grid grid-cols-1 gap-x-2 gap-y-5 wide:grid-cols-7 wide:gap-y-2" data-part="week">
         @for (date of days(); track $index; let i = $index) {
           @let list = sessionsByDate().get(date) ?? [];
-          <section class="min-w-0" [attr.aria-label]="formatMd(date)" data-part="day">
+          <section
+            class="min-w-0"
+            [class]="
+              list.length === 0 ? 'max-wide:flex max-wide:items-baseline max-wide:gap-3' : ''
+            "
+            [attr.aria-label]="formatMd(date)"
+            data-part="day"
+          >
             <h2
               class="m-0 flex items-baseline gap-2 border-b-2 py-2 tabular-nums"
+              [class.max-wide:border-0]="list.length === 0"
+              [class.max-wide:p-0]="list.length === 0"
               [class.border-zinc-200]="date !== todayDate()"
               [class.border-accent-vivid]="date === todayDate()"
             >
@@ -100,7 +109,7 @@
             @for (s of list; track s.sessionId) {
               <button
                 type="button"
-                class="mt-2 grid min-h-11 w-full cursor-pointer gap-1 rounded-md border bg-white p-3 text-left text-zinc-900 hover:border-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
+                class="mt-2 grid min-h-16 w-full cursor-pointer gap-1 rounded-md border bg-white p-4 text-left leading-normal text-zinc-900 wide:min-h-11 wide:p-3 hover:border-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
                 [class.border-zinc-200]="phase(s) !== 'live'"
                 [class.border-zinc-900]="phase(s) === 'live'"
                 [class.shadow-[inset_0_0_0_1px_var(--zinc-900)]]="phase(s) === 'live'"
@@ -109,13 +118,13 @@
                 (click)="open(s)"
               >
                 <span
-                  class="text-md font-bold tabular-nums"
+                  class="text-base font-bold tabular-nums wide:text-md"
                   [class.text-zinc-600]="phase(s) === 'off'"
                   [class.line-through]="phase(s) === 'off'"
                   >{{ hhmm(s.startTime) }}–{{ hhmm(s.endTime) }}</span
                 >
                 <span
-                  class="text-base leading-snug font-bold"
+                  class="text-base leading-[1.35] font-bold"
                   [class.text-zinc-600]="phase(s) === 'off'"
                   [class.line-through]="phase(s) === 'off'"
                   >{{ s.className }}</span
@@ -130,21 +139,21 @@
                   <span class="flex flex-wrap gap-1">
                     @for (label of changeLabels(s); track label) {
                       <span
-                        class="inline-flex items-center rounded-sm border border-zinc-900 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
+                        class="inline-flex items-center gap-1 rounded-sm border border-zinc-900 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
                         data-part="chip"
                         >{{ label }}</span
                       >
                     }
                     @if (s.examCount > 0) {
                       <span
-                        class="inline-flex items-center rounded-sm border border-zinc-300 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
+                        class="inline-flex items-center gap-1 rounded-sm border border-zinc-300 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
                         data-part="chip"
                         >小考</span
                       >
                     }
                     @if (phase(s) === 'live') {
                       <span
-                        class="inline-flex items-center rounded-sm border border-zinc-900 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
+                        class="inline-flex items-center gap-1 rounded-sm border border-zinc-900 px-1.5 text-xs leading-[18px] font-semibold text-zinc-800"
                         data-part="chip"
                         >上課中</span
                       >
@@ -153,7 +162,7 @@
                 }
               </button>
             } @empty {
-              <p class="m-0 py-3 text-md text-zinc-600">沒課</p>
+              <p class="m-0 py-3 text-md text-zinc-600 max-wide:p-0">沒課</p>
             }
           </section>
         }
