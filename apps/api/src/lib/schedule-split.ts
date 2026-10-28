@@ -134,6 +134,7 @@ export async function splitSchedule(
 
       const { rows: affected } = await db.query<{
         id: string;
+        event_id: string | null;
         session_date: string;
         start_time: string;
         status: string;
@@ -142,7 +143,7 @@ export async function splitSchedule(
         leave: boolean;
         makeup: boolean;
       }>(
-        `SELECT s.id, s.session_date::text, s.start_time::text, s.status,
+        `SELECT s.id, s.event_id, s.session_date::text, s.start_time::text, s.status,
                 -- 有 event 不等於點過名：課堂產生時就可能帶著 event。看點名時間或出勤紀錄
                 EXISTS (SELECT 1 FROM events e WHERE e.id = s.event_id AND e.org_id = $2
                           AND (e.attendance_taken_at IS NOT NULL
@@ -159,6 +160,7 @@ export async function splitSchedule(
 
       const kept: KeptSession[] = [];
       const removable: string[] = [];
+      const removableEvents: string[] = [];
       for (const r of affected) {
         const reasons: KeptReason[] = [];
         if (r.status !== 'scheduled') reasons.push('status');
@@ -170,6 +172,7 @@ export async function splitSchedule(
           kept.push({ id: r.id, sessionDate: r.session_date, startTime: r.start_time, reasons });
         } else {
           removable.push(r.id);
+          if (r.event_id) removableEvents.push(r.event_id);
         }
       }
 
@@ -178,6 +181,17 @@ export async function splitSchedule(
           removable,
           orgId,
         ]);
+        // sessions.event_id 是 SET NULL：刪課堂不會帶走 event，要自己清，不然留下孤兒 event。
+        // 只清沒點過名、沒有出勤紀錄、也沒有別的課堂還指著的
+        if (removableEvents.length > 0) {
+          await db.query(
+            `DELETE FROM events e WHERE e.id = ANY($1::uuid[]) AND e.org_id = $2
+               AND e.attendance_taken_at IS NULL
+               AND NOT EXISTS (SELECT 1 FROM attendance_records a WHERE a.event_id = e.id)
+               AND NOT EXISTS (SELECT 1 FROM sessions x WHERE x.event_id = e.id)`,
+            [removableEvents, orgId],
+          );
+        }
       }
 
       // 重產到舊段最後一堂為止：原本排到哪天，新段就接到哪天；舊段一堂都沒產生過就不替使用者產

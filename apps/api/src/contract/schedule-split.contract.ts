@@ -121,6 +121,7 @@ run('從某日起改時段的交易對真 Postgres（#1100 #22）', () => {
   });
 
   let o: Awaited<ReturnType<typeof org>>;
+  let bareEvent = '';
   beforeAll(async () => {
     o = await org();
     for (const d of ['2030-01-07', '2030-01-14', '2030-01-21']) await o.session(d);
@@ -138,13 +139,13 @@ run('從某日起改時段的交易對真 Postgres（#1100 #22）', () => {
     await q('UPDATE events SET attendance_taken_at = now() WHERE id = $1', [eventId]);
     await q('UPDATE sessions SET event_id = $1 WHERE id = $2', [eventId, attended]);
     // 有 event 但沒點過名（課堂產生時就帶著 event 的情況）：不算有資料，照樣刪掉重產
-    const bare = await one(
+    bareEvent = await one(
       `INSERT INTO events (org_id, event_type, title, event_date) VALUES ($1, 'session', 'x', '2030-01-21')`,
       [o.orgId],
     );
     await q(
       `UPDATE sessions SET event_id = $1 WHERE class_id = $2 AND session_date = '2030-01-21'`,
-      [bare, o.classId],
+      [bareEvent, o.classId],
     );
   });
 
@@ -195,6 +196,15 @@ run('從某日起改時段的交易對真 Postgres（#1100 #22）', () => {
         effective_to: null,
       }),
     ]);
+    // 被刪課堂帶著的 event（沒點名）一起清掉，不留孤兒；點過名的那堂的 event 還在
+    expect(await q('SELECT id FROM events WHERE id = $1', [bareEvent])).toEqual([]);
+    expect(
+      await q(
+        `SELECT e.id FROM events e WHERE e.org_id = $1
+           AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.event_id = e.id)`,
+        [o.orgId],
+      ),
+    ).toEqual([]);
     expect((await sessionsOf(o.classId)).map((s) => [s.session_date, s.schedule_id])).toEqual([
       ['2030-01-07', o.scheduleId],
       ['2030-01-14', o.scheduleId],
