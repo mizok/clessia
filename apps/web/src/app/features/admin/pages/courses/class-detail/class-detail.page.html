@@ -49,14 +49,15 @@
     >
       <div>
         <dt class="sr-only">在籍人數</dt>
-        <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
-          {{ enrollments().length }}<span class="text-lg font-semibold">／{{ c.maxStudents }}</span>
+        <dd class="m-0 text-3xl leading-none font-bold tracking-[-0.04em] tabular-nums">
+          {{ enrollments().length
+          }}<span class="text-lg font-semibold tracking-[-0.01em]">／{{ c.maxStudents }}</span>
         </dd>
         <p class="m-0 mt-1 text-md" aria-hidden="true">在籍人數</p>
       </div>
       <div>
         <dt class="sr-only">上課時段</dt>
-        <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
+        <dd class="m-0 text-3xl leading-none font-bold tracking-[-0.04em] tabular-nums">
           {{ c.schedules?.length ?? 0 }}
         </dd>
         <p class="m-0 mt-1 text-md" aria-hidden="true">
@@ -112,7 +113,7 @@
     @if (tab() === 'roster') {
       <section id="class-panel-roster" role="tabpanel" aria-labelledby="class-tab-roster">
         <div class="flex flex-wrap items-baseline gap-x-3 gap-y-3 border-b border-zinc-900 pb-3">
-          <h2 class="m-0 text-2xl font-bold tracking-tight tabular-nums">
+          <h2 class="m-0 text-2xl font-bold tracking-[-0.025em] tabular-nums">
             {{ enrollments().length }} 位學生
           </h2>
           <span class="text-md text-zinc-600 tabular-nums">上限 {{ c.maxStudents }} 人</span>
@@ -209,7 +210,7 @@
       </section>
     } @else {
       <section id="class-panel-schedule" role="tabpanel" aria-labelledby="class-tab-schedule">
-        <h2 class="m-0 border-b border-zinc-900 pb-3 text-2xl font-bold tracking-tight">
+        <h2 class="m-0 border-b border-zinc-900 pb-3 text-2xl font-bold tracking-[-0.025em]">
           上課時段
         </h2>
         @for (schedule of c.schedules ?? []; track schedule.id) {

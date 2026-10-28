@@ -102,7 +102,7 @@ interface Pick {
       </label>
 
       @if (failures().length > 0) {
-        <div class="rounded-md bg-error-50 p-3" role="alert" data-testid="batch-failures">
+        <div class="rounded-md bg-error-100 p-3" role="alert" data-testid="batch-failures">
           <p class="m-0 mb-1 text-md font-semibold text-error-700">
             {{ lastCreated() > 0 ? '已幫 ' + lastCreated() + ' 位請假；' : '' }}以下
             {{ failures().length }} 位沒有成功：

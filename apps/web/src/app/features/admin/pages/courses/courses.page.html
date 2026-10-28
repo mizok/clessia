@@ -284,7 +284,7 @@
 
                   <!-- 班級（A6 .crs__body）：收合用 grid-template-rows 1fr↔0fr 做高度動畫 -->
                   <div
-                    class="grid transition-[grid-template-rows] duration-250 ease-out"
+                    class="grid transition-[grid-template-rows] duration-250 ease-[var(--arrive)]"
                     [style.grid-template-rows]="collapsed ? '0fr' : '1fr'"
                     [attr.inert]="collapsed ? '' : null"
                   >
