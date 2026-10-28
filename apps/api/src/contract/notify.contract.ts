@@ -16,7 +16,11 @@ import { groupByClass } from '../lib/notify-schedule';
  * （照 identity-sql.contract 的做法）。**只讀 seed** —— user_roles 是全域的（不分 org），
  * 改它會影響別人，所以不造管理員，拿 seed 現有的 13 位（3 位全分校、其餘被指派分校）來對。
  * 寫入那一條自己建 org、測完刪掉。
+ *
+ * **課堂只挑 seed 的 org**：別的契約檔會同時建自己的 org、建完就刪（課堂、換過手的時段）。
+ * 挑「全庫最新」會挑到那些暫時資料，挑完到比對之間被刪掉或改掉，全套平行跑時偶發紅。
  */
+const SEED_ORG = `SELECT id FROM organizations WHERE slug = 'demo'`;
 
 const DB = process.env['DATABASE_URL'];
 const URL = process.env['SUPABASE_URL'];
@@ -91,7 +95,8 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
 
   it('課堂的老師：teachersForSessions 與 SQL 逐筆相同', async () => {
     const sessions = await q<{ id: string; org_id: string }>(
-      `SELECT id, org_id FROM sessions ORDER BY session_date DESC, id LIMIT 30`,
+      `SELECT id, org_id FROM sessions WHERE org_id = (${SEED_ORG})
+        ORDER BY session_date DESC, id LIMIT 30`,
     );
     expect(sessions.length).toBeGreaterThan(0);
     let nonEmpty = 0;
@@ -129,7 +134,8 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
       campus_id: string | null;
     }>(
       `WITH k AS (
-         SELECT s.org_id, s.class_id FROM sessions s GROUP BY s.org_id, s.class_id
+         SELECT s.org_id, s.class_id FROM sessions s WHERE s.org_id = (${SEED_ORG})
+         GROUP BY s.org_id, s.class_id
          HAVING count(*) >= 2 ORDER BY s.org_id, s.class_id LIMIT 2)
        SELECT s.id, s.org_id, s.class_id, c.name, c.campus_id FROM k
        CROSS JOIN LATERAL (SELECT id, org_id, class_id FROM sessions
