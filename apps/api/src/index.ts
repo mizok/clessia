@@ -23,6 +23,7 @@ import billingPeriodsRoute from './routes/billing-periods';
 import gradePromotionsRoute from './routes/grade-promotions';
 import feeTemplatesRoute from './routes/fee-templates';
 import publicCaptchaRoute from './routes/public/captcha';
+import { publicHandoffRoute } from './routes/auth-handoff';
 import publicCatalogRoute from './routes/public/catalog';
 import publicOrgRoute from './routes/public/org';
 import publicApplicationsRoute from './routes/public-applications';
@@ -127,6 +128,8 @@ export type Bindings = {
 
 export type Variables = {
   userId: string;
+  /** 這個 session 建立的時間（ISO）。#2027 交接要求 session 晚於交接建立 —— 早就登入著的人點別人傳來的連結不算 */
+  sessionCreatedAt?: string;
   orgId: string;
   /** 每次請求從 user_roles 查出來的角色，不是 session 快照 */
   roles: string[];
@@ -326,6 +329,10 @@ app.route('/api/public/trial-applications', publicTrialApplicationsRoute);
 // ── 推播排程（#1661）：唯一的門是 CRON_SECRET，見 routes/internal-push.ts ──────────
 // **必須在 authMiddleware 之前** —— cron 沒有 session。
 app.route('/api/internal/push', internalPushRoute);
+
+// ── iOS PWA 外部登入交接（#2027）：start／redeem 是 PWA 還沒登入時打的，**必須在 authMiddleware 之前**；
+// complete 要登入，在 `/api/me/auth-handoff`（routes/me.ts）。見 routes/auth-handoff.ts
+app.route('/api/auth-handoff', publicHandoffRoute);
 
 app.use('/api/*', authMiddleware);
 

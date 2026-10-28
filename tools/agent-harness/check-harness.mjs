@@ -383,7 +383,14 @@ if (existsSync(apiIndex)) {
   const authAt = source.search(/^app\.use\('\/api\/\*', authMiddleware\)/m);
   for (const match of source.matchAll(/app\.route\('(\/api\/[^']+)'/g)) {
     const path = match[1];
-    if (path.startsWith('/api/public/') || path.startsWith('/api/internal/')) {
+    // **第三個例外：`/api/auth-handoff`（#2027）**。iOS PWA 外部登入交接的 start／redeem 是 PWA 還沒登入時打的，
+    // 門是交接的 secret（只存雜湊、一次性、10 分鐘）。不放 `/api/public/*`：那會被 `PUBLIC_ORG_SLUG` 綁住，
+    // 登入不能依賴招生頁的開關。要登入的 complete 掛在 `/api/me/auth-handoff`。
+    if (
+      path.startsWith('/api/public/') ||
+      path.startsWith('/api/internal/') ||
+      path === '/api/auth-handoff'
+    ) {
       if (authAt === -1 || match.index > authAt) {
         fail(`${path} 不經登入，必須掛在 app.use('/api/*', authMiddleware) 之前`);
       }

@@ -76,6 +76,10 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   c.set('userId', session.user.id);
+  // #2027 交接要求 session 晚於交接建立；取不到就不設（complete 會 fail-closed 擋下）
+  const sessionCreatedAt = (session as { session?: { createdAt?: Date | string } }).session
+    ?.createdAt;
+  if (sessionCreatedAt) c.set('sessionCreatedAt', new Date(sessionCreatedAt).toISOString());
   c.set('orgId', orgId);
   // 角色跟著身分資料的狀態走（#1846）：staff 停用就沒有老師／管理員身分，parents 停用就沒有家長身分。
   // 每個請求從快取裡的原始列（含 status）重算，停用最遲在下一次快取刷新（30 秒）生效
