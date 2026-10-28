@@ -305,7 +305,9 @@ run('從某日起改時段的交易對真 Postgres（#1100 #22）', () => {
       'SELECT attendance_taken_at FROM events WHERE id = $1',
       [eventId],
     );
-    expect(event?.attendance_taken_at).not.toBeNull();
+    // 先斷言那一列還在 —— 被刪掉時 `event` 是 undefined，而 undefined 也「不是 null」
+    expect(event).toBeDefined();
+    expect(event!.attendance_taken_at).not.toBeNull();
   });
 
   it('同班同星期同開始時間、區間重疊：排除約束擋下（直接寫入 23P01；split 回 overlap 且整筆回滾）', async () => {
