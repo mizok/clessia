@@ -55,6 +55,7 @@ Android（Chrome 的 PWA／WebAPK）與 Chrome 共用 cookie，預期沒事，�
   之後照原設計：`/login/handoff?h=` 輸入號碼 → PWA 回前景兌換。發起頁只收 id，不帶秘密。
 - **怎麼開到 Safari**：iOS（`navigator.standalone`）用 `x-safari-https://`（iOS 17 起）指名 Safari ——
   一般的 `target=_blank` 可能開在 PWA 內嵌的瀏覽頁，那裡的 jar 跟 Safari 不同。其他平台用一般網址。
+  iOS 17 以前不認 `x-safari-`：連結下方附一行「沒有打開 Safari？複製這個網址貼到 Safari」與一般網址（可選取），非 iOS 不顯示。
   **要靠實機確認**（iPhone、Android 各一次）。
 - **不採用 `skipStateCookieCheck`**（計畫席裁）：會全站拿掉 login CSRF 保護，攻擊者能讓受害者登入成攻擊者的帳號。
 - 另加 `onAPIError.errorURL = <WEB_URL>/login`：讀到 errorCallbackURL 之前的 OAuth 失敗，不再丟到首頁。

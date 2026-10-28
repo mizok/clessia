@@ -294,16 +294,17 @@ describe('LoginComponent × 外部登入交接', () => {
   async function render(
     results: Array<'none' | 'pending' | 'redirected' | 'invalid'>,
     standalone = false,
+    link = 'x-safari-https://app/login/handoff/start?h=h1',
   ) {
     const redeem = vi.fn(async () => results.shift() ?? 'none');
-    const start = vi.fn(async () => 'x-safari-https://app/login/handoff/start?h=h1');
+    const start = vi.fn(async () => link);
     const signInWithLine = vi.fn(async () => null);
     const handoff = {
       redeem,
       start,
       isStandalonePwa: () => standalone,
       pendingPairCode: () => '0427',
-      pendingStartLink: () => 'x-safari-https://app/login/handoff/start?h=h1',
+      pendingStartLink: () => link,
     };
     TestBed.configureTestingModule({
       imports: [LoginComponent],
@@ -338,13 +339,30 @@ describe('LoginComponent × 外部登入交接', () => {
   // #2063：PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA，LINE 授權完回到 Safari → state_mismatch。
   // 所以 PWA **永遠不呼叫 signInWithLine**，改給一條到外部瀏覽器發起頁的連結
   it('主畫面 PWA：按下只發起交接、顯示號碼，LINE 鍵換成到外部瀏覽器發起頁的連結；PWA 自己不去 LINE', async () => {
-    const { start, signInWithLine, code, text, press, startLinks } = await render([], true);
+    const { fixture, start, signInWithLine, code, text, press, startLinks } = await render(
+      [],
+      true,
+    );
     await press();
     expect(start).toHaveBeenCalledTimes(1);
     expect(signInWithLine).not.toHaveBeenCalled();
     expect(code()).toBe('0427');
     expect(text()).toContain('記下號碼，到瀏覽器用 LINE 登入');
     expect(startLinks()).toContain('x-safari-https://app/login/handoff/start?h=h1');
+    // iOS <17 不認 x-safari-：附一般網址讓使用者自己貼到 Safari
+    const fallback = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="handoff-fallback"]',
+    );
+    expect(fallback?.textContent).toContain('https://app/login/handoff/start?h=h1');
+    expect(fallback?.textContent).not.toContain('x-safari');
+  });
+
+  it('非 iOS（發起連結是一般網址）：不顯示貼到 Safari 的退路', async () => {
+    const { fixture, press } = await render([], true, 'https://app/login/handoff/start?h=h1');
+    await press();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="handoff-fallback"]'),
+    ).toBeNull();
   });
 
   it('不是主畫面 PWA：照舊直接去 LINE，不發起交接', async () => {

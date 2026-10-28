@@ -123,6 +123,12 @@
       </span>
       記下號碼，到瀏覽器用 LINE 登入
     </a>
+    @if (handoffFallbackURL(); as url) {
+      <p class="mx-0 mb-0 mt-2 text-xs leading-normal text-zinc-600" data-testid="handoff-fallback">
+        沒有打開 Safari？複製這個網址貼到 Safari：
+        <span class="select-all break-all font-mono text-zinc-800">{{ url }}</span>
+      </p>
+    }
   } @else {
     <button
       type="button"

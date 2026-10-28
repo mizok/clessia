@@ -3,6 +3,7 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
+  computed,
   inject,
   signal,
   viewChild,
@@ -38,6 +39,14 @@ export class LoginComponent {
    * PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA、回呼落在 Safari，永遠 state_mismatch
    */
   protected readonly handoffLink = signal<string | null>(null);
+  /**
+   * iOS 的退路（計畫席 10-28）：`x-safari-https://` 是 iOS 17 起才認的，舊版點了沒反應 ——
+   * 附一般網址讓使用者自己貼到 Safari。非 iOS（連結本來就是一般網址）不顯示
+   */
+  protected readonly handoffFallbackURL = computed(() => {
+    const link = this.handoffLink();
+    return link?.startsWith('x-safari-') ? link.slice('x-safari-'.length) : null;
+  });
   /** 等待中要在 Safari 輸入的配對碼 */
   protected readonly handoffCode = signal<string | null>(null);
 
