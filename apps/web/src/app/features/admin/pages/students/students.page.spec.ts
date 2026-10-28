@@ -471,6 +471,71 @@ describe('StudentsPage', () => {
 
       expect(add).toHaveBeenCalledWith(expect.objectContaining({ summary: '無法開啟列印視窗' }));
     });
+
+    /** #2053 批次發卡：本頁有沒卡的學生 */
+    describe('批次發卡（#2053）', () => {
+      const has = { id: 's1', name: '有卡', isActive: true, hasActiveCard: true } as never;
+      const lack = { id: 's2', name: '沒卡', isActive: true, hasActiveCard: false } as never;
+      const printSpy = () => vi.spyOn(component as any, 'printCards').mockImplementation(() => {});
+      /** 確認框：頁面自帶 DialogService（真的那個），攔它的 `openConfirmDialog`；`accept` 決定按確定或取消 */
+      const confirm = (page: unknown, accept: boolean) => {
+        const seen: Array<{ message: string }> = [];
+        const spy = vi
+          .spyOn(page as any, 'openConfirmDialog')
+          .mockImplementation((...args: unknown[]) => {
+            seen.push(args[1] as { message: string });
+            if (accept) (args[2] as () => void)();
+          });
+        return { seen, spy };
+      };
+
+      it('有 manage_students：先確認（說明舊卡失效、新卡幾位），按確定才印全部', () => {
+        const print = printSpy();
+        const { seen } = confirm(component, true);
+
+        (component as any).requestPrintCards([has, lack]);
+
+        expect(seen[0]!.message).toContain('1 位會發新卡');
+        expect(seen[0]!.message).toContain('舊卡');
+        expect(print).toHaveBeenCalledWith([has, lack]);
+      });
+
+      it('確認框按取消：不印', () => {
+        const print = printSpy();
+        confirm(component, false);
+        (component as any).requestPrintCards([lack]);
+        expect(print).not.toHaveBeenCalled();
+      });
+
+      it('全部都有卡：不必確認，直接重印', () => {
+        const print = printSpy();
+        const { spy } = confirm(component, true);
+        (component as any).requestPrintCards([has]);
+        expect(spy).not.toHaveBeenCalled();
+        expect(print).toHaveBeenCalledWith([has]);
+      });
+
+      it('只有 basic_operations：略過沒卡的、印有卡的，並說明略過幾位', () => {
+        const other = createWith(['basic_operations']) as any;
+        const print = vi.spyOn(other, 'printCards').mockImplementation(() => {});
+        const add = vi.spyOn(TestBed.inject(MessageService), 'add');
+
+        other.requestPrintCards([has, lack]);
+
+        expect(print).toHaveBeenCalledWith([has]);
+        expect(add).toHaveBeenCalledWith(
+          expect.objectContaining({ summary: '略過 1 位還沒有到班卡的學生' }),
+        );
+      });
+
+      it('本頁選單標出要發幾張新卡（只有 manage_students 才這樣標）', () => {
+        (component as any).students.set([has, lack]);
+        expect((component as any).pageMenuItems()[0].label).toBe('本頁發卡並列印（1 位新卡）');
+        const other = createWith(['basic_operations']) as any;
+        other.students.set([has, lack]);
+        expect(other.pageMenuItems()[0].label).toBe('列印本頁到班卡');
+      });
+    });
   });
   /** #1314 SL：依年級分章、名字右邊只用字、篩選面板 */
   describe('A6 名冊（#1314 SL）', () => {
@@ -699,6 +764,19 @@ describe('StudentsPage', () => {
       (component as any).clearFilters();
       vi.advanceTimersByTime(500);
       expect(lastCall()['schoolMismatch']).toBeUndefined();
+    });
+
+    it('還沒換新卡（#2053）：送 withoutCard、寫進篩選摘要，清除篩選一併清', () => {
+      respond([row('a', '王一', 'J3')]);
+
+      (component as any).onWithoutCardChange(true);
+      expect(lastCall()['withoutCard']).toBe(true);
+      expect((component as any).filterSummary()).toContain('還沒換新卡');
+      respond([row('a', '王一', 'J3')]);
+
+      (component as any).clearFilters();
+      vi.advanceTimersByTime(500);
+      expect(lastCall()['withoutCard']).toBeUndefined();
     });
 
     it('沒有符合：寫出搜尋字並給清除篩選', () => {

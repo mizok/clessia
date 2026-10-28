@@ -65,6 +65,8 @@ const StudentSchema = z
      * **只有列表回這欄、只有管理員有值**；老師一律 null —— 家長電話不進老師的學生名單。
      */
     primaryParentPhone: z.string().nullable().optional(),
+    /** 列表才有（#2053）：有有效到班卡 */
+    hasActiveCard: z.boolean().optional(),
     /** 列表才有（#1314 SL2）：見 `deriveEnrollmentState` */
     enrollmentState: z
       .enum(['pending_payment', 'active', 'suspended', 'withdrawal'])
@@ -283,6 +285,9 @@ const GRADE_LEVELS = GradeLevelSchema.options;
 /** 章節順序＝列表順序：高年級在前（A6 名冊，計畫席 10-10 裁） */
 const GRADE_CHAPTERS = [...GRADE_LEVELS].reverse();
 
+/** 有效到班卡的 embed（#2053）：搭配 `.is('active_card.revoked_at', null)` 只留沒作廢的 */
+const ACTIVE_CARD_EMBED = 'active_card:checkin_cards(id)';
+
 function countToday(statuses: Map<string, TodayStatus>) {
   const counts = { any: statuses.size, arrived: 0, not_yet: 0, missing: 0, on_leave: 0 };
   for (const { state } of statuses.values()) counts[state] += 1;
@@ -319,6 +324,11 @@ app.openapi(
         withToday: z.enum(['true', 'false']).optional(),
         /** 學制跟年級不合（#1820 設計稿 §4）：學校的學制跟學生年級的學制不同；未分類的學校不算 */
         schoolMismatch: z.enum(['true']).optional(),
+        /**
+         * 沒有有效到班卡（#2053）：還在用舊卡（QR＝學生 id）、從沒發過卡、或卡被作廢沒補發。
+         * 第一次全校發卡用它找人。條件在 DB 裡（反連接），不把學生 id 撈回來再塞進 URL（#1928）
+         */
+        withoutCard: z.enum(['true']).optional(),
       }),
     },
     responses: {
@@ -344,6 +354,7 @@ app.openapi(
       today: todayFilter,
       withToday,
       schoolMismatch,
+      withoutCard,
     } = c.req.valid('query');
 
     const roles = c.get('roles') ?? [];
@@ -397,10 +408,12 @@ app.openapi(
     let query = supabase
       .from('students')
       .select(
-        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name, user_id)), enrollments(id, status, classes(id, name, campus_id, campuses(name)))`,
+        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name, user_id)), enrollments(id, status, classes(id, name, campus_id, campuses(name))), ${ACTIVE_CARD_EMBED}`,
         { count: 'exact' },
       )
       .eq('org_id', orgId)
+      // embed 只留有效卡 —— 每列的 `hasActiveCard` 與「沒有有效卡」的反連接都靠它
+      .is('active_card.revoked_at', null)
       // 依年級分章（#1314 名冊換形前置）：`grade` 是 enum `grade_level`，Postgres 依列舉序排（P1…S3），
       // 不必 RPC 或 generated column。**高年級在前**（desc，照 A6；同 byGrade 的 GRADE_CHAPTERS）。
       // 章內依姓名，末鍵 id 讓同名翻頁穩定。`grade` 是 NOT NULL，所以不寫 nulls 位置（寫了也觀察不到）
@@ -636,6 +649,7 @@ app.openapi(
       return next as unknown as Q;
     };
     query = withChapterFilters(query);
+    if (withoutCard) query = query.is('active_card', null);
 
     const offset = (page - 1) * pageSize;
     query = query.range(offset, offset + pageSize - 1);
@@ -656,9 +670,27 @@ app.openapi(
     // 不會撞 max_rows 1000 —— 撈學生列回來自己數才會被靜默截斷，同 courses bySubject）。
     // 原本是每級一支 head count，12 支加上列表、在籍數共 14 支，超過 Workers 每請求 6 條連線、排成 3 波。
     // 需要 `pgrst.db_aggregates_enabled`（migration 20261015060000_postgrest_aggregates）。
-    const gradeCountQuery = withChapterFilters(
-      supabase.from('students').select('grade, count()').eq('org_id', orgId),
-    );
+    // 「沒有有效卡」是 embed 的反連接，**PostgREST 的聚合不吃 embed 的過濾**（42703）。這個篩選開著時
+    // 改成每級一支 head count —— 條件仍全在 DB；多 12 個 subrequest，最壞情況的總數由
+    // `students-subrequest-budget.spec.ts` 守在 45 以內（計畫席 10-28 裁定 A，不加 migration）
+    const gradeCountQuery = withoutCard
+      ? Promise.all(
+          GRADE_CHAPTERS.map((level) =>
+            withChapterFilters(
+              supabase
+                .from('students')
+                .select(`id, ${ACTIVE_CARD_EMBED}`, { count: 'exact', head: true })
+                .eq('org_id', orgId)
+                .eq('grade', level)
+                .is('active_card.revoked_at', null)
+                .is('active_card', null),
+            ),
+          ),
+        ).then((results) => ({
+          error: results.find((r) => r.error)?.error ?? null,
+          data: results.map((r, i) => ({ grade: GRADE_CHAPTERS[i]!, count: r.count ?? 0 })),
+        }))
+      : withChapterFilters(supabase.from('students').select('grade, count()').eq('org_id', orgId));
 
     const [{ data, error, count }, { count: activeCount }, gradeCounts] = await Promise.all([
       query,
@@ -761,6 +793,8 @@ app.openapi(
       return {
         ...toStudentResponse(row, parentNames, campusNames, hasEnrollments, classNames),
         primaryParentPhone,
+        /** 有有效到班卡（#2053）。沒有＝要發卡（舊卡、從沒發過、作廢沒補發） */
+        hasActiveCard: ((row['active_card'] as unknown[] | null) ?? []).length > 0,
         // 跟 campusNames 一樣不依分校濾（enrollment-rules 第 8 節）
         enrollmentState: deriveEnrollmentState(enrollmentRows.map((e) => e.status)),
         ...(todayStatuses ? { todayStatus: todayStatuses.get(row['id'] as string) ?? null } : {}),
