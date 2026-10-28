@@ -16,7 +16,8 @@ export interface PrintedCheckinCard {
 }
 
 export interface StudentCheckinCard {
-  active: { code: string; issuedAt: string } | null;
+  /** 只有後 4 碼 —— 代碼就是打卡憑證，完整碼只在印卡時出現 */
+  active: { last4: string; issuedAt: string } | null;
   /** 印過新卡（舊版 QR＝學生 id 的卡已失效） */
   hasAnyCard: boolean;
 }

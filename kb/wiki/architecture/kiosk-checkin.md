@@ -146,6 +146,7 @@ tags: [architecture, attendance, authorization, kiosk, migration]
   印卡（`students/checkin-cards.ts`）收「之後才會有的卡」：**先在點擊的 tick 開視窗，再等 API 發碼**，失敗就關掉空視窗。
   卡面多印分組代碼。學生列表的印卡入口 `basic_operations` 或 `manage_students` 任一可見（新開由後端擋）；
   學生詳情頁「⋯」有補發（填理由 → 補發 → 直接印新卡；視窗被擋就不呼叫 API，卡不會換掉）與作廢。
+  「基本資料」顯示現況（`basic_operations` 或 `manage_students`）：末四碼＋發卡日／已作廢尚未補發／尚未發新卡。
 
 ## 拒絕的替代方案
 

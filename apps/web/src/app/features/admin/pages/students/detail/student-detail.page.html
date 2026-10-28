@@ -488,6 +488,19 @@
                 }
               </dd>
             </div>
+            @if (canSeeCard) {
+              <div class="flex flex-col gap-1">
+                <dt class="text-sm font-semibold text-zinc-600">到班卡</dt>
+                <dd
+                  class="m-0 text-base tabular-nums"
+                  [class.text-zinc-900]="cardActive()"
+                  [class.text-zinc-600]="!cardActive()"
+                  data-testid="checkin-card-status"
+                >
+                  {{ cardText() }}
+                </dd>
+              </div>
+            }
             <div class="flex flex-col gap-1 md:col-span-2">
               <dt class="text-sm font-semibold text-zinc-600">地址</dt>
               <dd
