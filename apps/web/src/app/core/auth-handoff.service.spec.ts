@@ -40,13 +40,14 @@ describe('AuthHandoffService', () => {
       }),
     );
 
-  it('start：存 id＋secret；回的 callbackURL 只帶 id，沒有 secret', async () => {
+  it('start：存 id＋secret；回的是外部瀏覽器的**發起頁**連結（#2063），只帶 id，沒有 secret', async () => {
     const p = service.start();
     http
       .expectOne({ method: 'POST', url: `${base}/start` })
       .flush({ handoffId: 'h1', secret: 's3cret', pairCode: '0427', expiresInSeconds: 600 });
     const url = await p;
-    expect(url).toBe(`${window.location.origin}/login/handoff?h=h1`);
+    // 不是 iOS（測試環境沒有 navigator.standalone）：一般網址
+    expect(url).toBe(`${window.location.origin}/login/handoff/start?h=h1`);
     expect(url).not.toContain('s3cret');
     expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({
       id: 'h1',
@@ -55,7 +56,20 @@ describe('AuthHandoffService', () => {
     });
     expect(service.pendingPairCode()).toBe('0427');
     // PWA 被重新載入後沿用同一個交接（不重發新碼）
-    expect(service.pendingCallbackURL()).toBe(url);
+    expect(service.pendingStartLink()).toBe(url);
+  });
+
+  it('iOS 主畫面 PWA（navigator.standalone）：發起頁用 x-safari-https:// 指名交給 Safari（#2063）', () => {
+    store();
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+    try {
+      expect(service.pendingStartLink()).toBe(
+        `x-safari-${location.protocol.replace(':', '')}://${location.host}/login/handoff/start?h=h1`,
+      );
+      expect(service.pendingStartLink()).toMatch(/^x-safari-https?:\/\//);
+    } finally {
+      delete (navigator as unknown as Record<string, unknown>)['standalone'];
+    }
   });
 
   it('redeem：沒有交接 → none、不打 API；過期的 → none 並清掉', async () => {

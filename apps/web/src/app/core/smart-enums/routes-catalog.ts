@@ -81,6 +81,19 @@ export class RoutesCatalog {
     // 不能用 guest-only（會被導走、標不到交接）；也不能要求登入（沒登入要顯示「沒有完成」）
     'public',
   );
+  public static readonly PUBLIC_LOGIN_HANDOFF_START = this.register(
+    'login/handoff/start',
+    '/login/handoff/start',
+    '登入交接（發起）',
+    undefined,
+    'pi-sign-in',
+    false,
+    undefined,
+    undefined,
+    // #2063：PWA 把使用者送到外部瀏覽器的這一頁，**在這個瀏覽器**發起 LINE 登入（state cookie 才對得上回呼）。
+    // 不能 guest-only：Safari 若已登入（之前登過）會被導走；它也不需要登入
+    'public',
+  );
   public static readonly PUBLIC_TRIAL = this.register(
     'trial',
     '/trial',

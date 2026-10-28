@@ -3,6 +3,7 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
+  computed,
   inject,
   signal,
   viewChild,
@@ -33,8 +34,19 @@ export class LoginComponent {
 
   /** iOS 主畫面 PWA 已發起 LINE 登入、還在等 Safari 那邊完成（#2027） */
   protected readonly handoffWaiting = signal(false);
-  /** 這次交接的落地網址（已發起、還沒去 LINE） */
-  private handoffCallback: string | null = null;
+  /**
+   * 這次交接在外部瀏覽器的發起連結（#2063）。有值時 LINE 鍵換成這條連結：OAuth 要在 Safari 發起，
+   * PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA、回呼落在 Safari，永遠 state_mismatch
+   */
+  protected readonly handoffLink = signal<string | null>(null);
+  /**
+   * iOS 的退路（計畫席 10-28）：`x-safari-https://` 是 iOS 17 起才認的，舊版點了沒反應 ——
+   * 附一般網址讓使用者自己貼到 Safari。非 iOS（連結本來就是一般網址）不顯示
+   */
+  protected readonly handoffFallbackURL = computed(() => {
+    const link = this.handoffLink();
+    return link?.startsWith('x-safari-') ? link.slice('x-safari-'.length) : null;
+  });
   /** 等待中要在 Safari 輸入的配對碼 */
   protected readonly handoffCode = signal<string | null>(null);
 
@@ -83,7 +95,7 @@ export class LoginComponent {
     const result = await this.handoff.redeem();
     this.handoffWaiting.set(result === 'pending');
     this.handoffCode.set(result === 'pending' ? this.handoff.pendingPairCode() : null);
-    this.handoffCallback = result === 'pending' ? this.handoff.pendingCallbackURL() : null;
+    this.handoffLink.set(result === 'pending' ? this.handoff.pendingStartLink() : null);
     if (result === 'invalid') this.error.set('登入逾時，請再按一次「使用 LINE 登入」');
   }
 
@@ -105,14 +117,15 @@ export class LoginComponent {
     this.submitting.set(true);
 
     try {
-      // #2027 iOS 主畫面 PWA：先發起交接、讓使用者看到配對碼（等一下要在 Safari 輸入），再按一次才去 LINE
-      if (this.handoff.isStandalonePwa() && !this.handoffCallback) {
-        this.handoffCallback = await this.handoff.start();
+      // #2027 iOS 主畫面 PWA：先發起交接、讓使用者看到配對碼（等一下要在 Safari 輸入）。
+      // 接著由使用者點連結到 Safari，**在那裡**發起 LINE 登入（#2063）—— PWA 自己不呼叫 sign-in
+      if (this.handoff.isStandalonePwa()) {
+        this.handoffLink.set(await this.handoff.start());
         this.handoffCode.set(this.handoff.pendingPairCode());
         this.handoffWaiting.set(true);
         return;
       }
-      const errorMsg = await this.auth.signInWithLine(this.handoffCallback ?? undefined);
+      const errorMsg = await this.auth.signInWithLine();
       if (errorMsg) {
         this.error.set(errorMsg);
       }

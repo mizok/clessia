@@ -15,8 +15,17 @@ interface StoredHandoff {
   readonly expiresAt: number;
 }
 
-const callbackFor = (id: string) =>
+/** LINE 授權完的落地頁（輸入配對碼）。只帶 id，secret 永遠不進 URL */
+export const handoffCallbackURL = (id: string) =>
   `${window.location.origin}/login/handoff?h=${encodeURIComponent(id)}`;
+
+/**
+ * 外部瀏覽器裡的發起頁（#2063）：OAuth 必須**在回呼會落的那個瀏覽器發起**，state cookie 才對得上 ——
+ * PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA，LINE 授權完卻回到 Safari，Better Auth 判 state_mismatch。
+ * 一樣只帶 id。
+ */
+const startURLFor = (id: string) =>
+  `${window.location.origin}/login/handoff/start?h=${encodeURIComponent(id)}`;
 
 export type RedeemResult = 'none' | 'pending' | 'redirected' | 'invalid';
 
@@ -63,13 +72,26 @@ export class AuthHandoffService {
       expiresAt: Date.now() + res.expiresInSeconds * 1000,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    return callbackFor(res.handoffId);
+    return this.externalStartLink(res.handoffId);
   }
 
-  /** 進行中交接的落地網址（PWA 被重新載入後沿用同一個交接，不重發新碼）；沒有就 null */
-  pendingCallbackURL(): string | null {
+  /** 進行中交接的發起連結（PWA 被重新載入後沿用同一個交接，不重發新碼）；沒有就 null */
+  pendingStartLink(): string | null {
     const stored = this.read();
-    return stored ? callbackFor(stored.id) : null;
+    return stored ? this.externalStartLink(stored.id) : null;
+  }
+
+  /**
+   * 從 PWA 打開外部瀏覽器的連結（#2063）。**要開在 Safari 本身**：使用者實機紀錄是 LINE App 授權完回到 Safari，
+   * 而 iOS 主畫面 PWA 用一般連結（`target=_blank`）開自己網域的頁面時，可能開在 PWA 內嵌的瀏覽頁 ——
+   * 那裡的 cookie 跟 Safari 不同，state 照樣對不上。iOS（`navigator.standalone` 只有 iOS 有）用
+   * `x-safari-https://` 指名交給 Safari（iOS 17 起）；其他平台（Android 的 PWA 跟 Chrome 共用 cookie）用一般網址。
+   * ponytail: 這是依實機行為選的開法，PR 請使用者 iPhone／Android 各走一次確認
+   */
+  private externalStartLink(id: string): string {
+    const url = startURLFor(id);
+    const isIos = (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    return isIos ? url.replace(/^(https?):\/\//, 'x-safari-$1://') : url;
   }
 
   /** 進行中交接的配對碼（PWA 顯示給使用者，在 Safari 輸入）；沒有就 null */

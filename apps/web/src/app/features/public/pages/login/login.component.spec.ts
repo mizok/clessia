@@ -294,16 +294,17 @@ describe('LoginComponent × 外部登入交接', () => {
   async function render(
     results: Array<'none' | 'pending' | 'redirected' | 'invalid'>,
     standalone = false,
+    link = 'x-safari-https://app/login/handoff/start?h=h1',
   ) {
     const redeem = vi.fn(async () => results.shift() ?? 'none');
-    const start = vi.fn(async () => 'https://app/login/handoff?h=h1');
+    const start = vi.fn(async () => link);
     const signInWithLine = vi.fn(async () => null);
     const handoff = {
       redeem,
       start,
       isStandalonePwa: () => standalone,
       pendingPairCode: () => '0427',
-      pendingCallbackURL: () => 'https://app/login/handoff?h=h1',
+      pendingStartLink: () => link,
     };
     TestBed.configureTestingModule({
       imports: [LoginComponent],
@@ -322,41 +323,62 @@ describe('LoginComponent × 外部登入交接', () => {
     const el = fixture.nativeElement as HTMLElement;
     const text = () => el.textContent ?? '';
     const code = () => el.querySelector('[data-testid="handoff-code"]')?.textContent?.trim();
+    const startLinks = () =>
+      [...el.querySelectorAll<HTMLAnchorElement>('[data-testid="handoff-start-link"]')].map((a) =>
+        a.getAttribute('href'),
+      );
     const press = async () => {
       await (
         fixture.componentInstance as unknown as { signInWithLine: () => Promise<void> }
       ).signInWithLine();
       fixture.detectChanges();
     };
-    return { fixture, redeem, start, signInWithLine, text, code, press };
+    return { fixture, redeem, start, signInWithLine, text, code, press, startLinks };
   }
 
-  it('主畫面 PWA：第一次按只發起交接、顯示號碼（還不去 LINE）；第二次按才帶落地網址去 LINE', async () => {
-    const { start, signInWithLine, code, text, press } = await render([], true);
+  // #2063：PWA 自己呼叫 sign-in 的話 state cookie 寫在 PWA，LINE 授權完回到 Safari → state_mismatch。
+  // 所以 PWA **永遠不呼叫 signInWithLine**，改給一條到外部瀏覽器發起頁的連結
+  it('主畫面 PWA：按下只發起交接、顯示號碼，LINE 鍵換成到外部瀏覽器發起頁的連結；PWA 自己不去 LINE', async () => {
+    const { fixture, start, signInWithLine, code, text, press, startLinks } = await render(
+      [],
+      true,
+    );
     await press();
     expect(start).toHaveBeenCalledTimes(1);
     expect(signInWithLine).not.toHaveBeenCalled();
     expect(code()).toBe('0427');
-    expect(text()).toContain('記下號碼，前往 LINE');
+    expect(text()).toContain('記下號碼，到瀏覽器用 LINE 登入');
+    expect(startLinks()).toContain('x-safari-https://app/login/handoff/start?h=h1');
+    // iOS <17 不認 x-safari-：附一般網址讓使用者自己貼到 Safari
+    const fallback = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="handoff-fallback"]',
+    );
+    expect(fallback?.textContent).toContain('https://app/login/handoff/start?h=h1');
+    expect(fallback?.textContent).not.toContain('x-safari');
+  });
+
+  it('非 iOS（發起連結是一般網址）：不顯示貼到 Safari 的退路', async () => {
+    const { fixture, press } = await render([], true, 'https://app/login/handoff/start?h=h1');
     await press();
-    expect(start).toHaveBeenCalledTimes(1);
-    expect(signInWithLine).toHaveBeenCalledWith('https://app/login/handoff?h=h1');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="handoff-fallback"]'),
+    ).toBeNull();
   });
 
   it('不是主畫面 PWA：照舊直接去 LINE，不發起交接', async () => {
     const { start, signInWithLine, press } = await render([], false);
     await press();
     expect(start).not.toHaveBeenCalled();
-    expect(signInWithLine).toHaveBeenCalledWith(undefined);
+    expect(signInWithLine).toHaveBeenCalledWith();
   });
 
-  it('進頁換一次；還在等 → 顯示同一組號碼，按鈕直接去 LINE（沿用同一個交接、不重發）', async () => {
-    const { redeem, start, signInWithLine, code, press } = await render(['pending'], true);
+  it('進頁換一次；還在等 → 顯示同一組號碼與同一條發起連結（沿用同一個交接、不重發）', async () => {
+    const { redeem, start, signInWithLine, code, startLinks } = await render(['pending'], true);
     expect(redeem).toHaveBeenCalledTimes(1);
     expect(code()).toBe('0427');
-    await press();
+    expect(startLinks()).toContain('x-safari-https://app/login/handoff/start?h=h1');
     expect(start).not.toHaveBeenCalled();
-    expect(signInWithLine).toHaveBeenCalledWith('https://app/login/handoff?h=h1');
+    expect(signInWithLine).not.toHaveBeenCalled();
   });
 
   it('回到前景再換一次；失效 → 提示重按、號碼收掉', async () => {
