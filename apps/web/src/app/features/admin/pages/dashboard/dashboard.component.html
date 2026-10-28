@@ -73,20 +73,30 @@
 </div>
 
 <div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
-  @if (phoneLeaveOpen()) {
-    <!-- 開關的進出場同全站彈出物（#2035，motion.md：進 200ms --arrive、出 140ms --leave）；減少動態時不動 -->
-    <app-phone-leave
-      id="dashboard-phone-leave"
-      class="[--pop-from:translateY(-6px)]"
-      animate.enter="animate-[overlay-arrive_200ms_var(--arrive)] motion-reduce:animate-none"
-      animate.leave="animate-[overlay-leave_140ms_var(--leave)_forwards] motion-reduce:animate-none"
-      [rosterAvailable]="!isDailyCheckin()"
-      [presetStudentId]="phoneLeaveStudentId()"
-      (completed)="loadToday()"
-      (rosterRequested)="openRosterDialog($event)"
-      (closed)="closePhoneLeave()"
-    />
-  }
+  <!--
+    登記請假是彈窗（#2037，使用者 10-24：不要 inline 展開；a6-adoption-rules R5）。原生 <dialog> showModal：
+    手機與桌機都置中、有遮罩、Esc 關（手機寬同 #2031 的登入彈窗），進出場是全站對話框的 scale(0.97)。
+    不用 p-dialog：全站樣式在手機把它變成底部抽屜，跟「手機置中」相反。
+    outline-none：showModal 把焦點放在 <dialog> 本身時 WebKit 會在整個外框畫焦點圈（#2004 同類）；
+    dialog 不是可操作的控制項，裡面的按鈕、輸入各自有焦點圈。
+  -->
+  <dialog
+    #phoneLeaveDialog
+    class="m-auto max-h-[calc(100%-48px)] outline-none w-[calc(100%-32px)] max-w-[560px] overflow-y-auto rounded-xl border-0 bg-transparent p-0 backdrop:bg-[rgb(26_22_20/40%)]"
+    aria-labelledby="phone-leave-title"
+    (close)="closePhoneLeave()"
+  >
+    @if (phoneLeaveOpen()) {
+      <app-phone-leave
+        id="dashboard-phone-leave"
+        [rosterAvailable]="!isDailyCheckin()"
+        [presetStudentId]="phoneLeaveStudentId()"
+        (completed)="loadToday()"
+        (rosterRequested)="openRosterFromPhoneLeave($event)"
+        (closed)="closePhoneLeave()"
+      />
+    }
+  </dialog>
 
   <!--
     待處理＋主段包成一塊、從第一幀就在（#1859 第 4 張）：主段在資料回來前是骨架，回來後換成

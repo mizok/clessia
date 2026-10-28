@@ -66,7 +66,29 @@
       </div>
     } @else {
       <!-- ── 1. 找人 ─────────────────────────────────────────────────── -->
-      @if (student(); as picked) {
+      @if (presetLoading()) {
+        <!--
+          從「該到沒到」的列開、學生還沒回來（#2037，使用者 10-24：先出骨架，不要先出可輸入的搜尋框）。
+          形狀同下面「學生名＋今天＋課列」：細條包在同字級、同間距的行裡，資料到的那一下不跳。
+        -->
+        <div
+          class="flex flex-col gap-3"
+          role="status"
+          aria-label="學生資料載入中"
+          data-testid="phone-leave-skeleton"
+        >
+          <div class="flex items-baseline gap-2" aria-hidden="true">
+            <span class="skeleton inline-block h-[1em] w-[4.5em] rounded-sm align-middle"></span>
+            <span
+              class="skeleton inline-block h-[1em] w-[9em] rounded-sm align-middle text-sm"
+            ></span>
+          </div>
+          <p class="m-0 text-sm" aria-hidden="true">
+            <span class="skeleton inline-block h-[1em] w-[16em] rounded-sm align-middle"></span>
+          </p>
+          <ng-container [ngTemplateOutlet]="sessionRowsSkeleton" />
+        </div>
+      } @else if (student(); as picked) {
         <div class="flex flex-wrap items-baseline gap-2">
           <span class="font-semibold text-zinc-900">{{ picked.name }}</span>
           <span class="text-sm text-zinc-600">
@@ -109,6 +131,10 @@
             <p class="m-0 text-sm text-zinc-600">
               讀不到今天的課 —— 仍可登記，送出後會列出實際標成請假的課。
             </p>
+          } @else if (preview() === null) {
+            <div role="status" aria-label="今天的課載入中">
+              <ng-container [ngTemplateOutlet]="sessionRowsSkeleton" />
+            </div>
           } @else if (previewDay(); as day) {
             @if (day.sessions.length === 0) {
               <p class="m-0 text-sm text-zinc-600">{{ student()?.name }} 今天沒有課。</p>
@@ -196,3 +222,18 @@
     }
   </div>
 </section>
+
+<!-- 課列的骨架：同「這天的課」的 li（py-2、底線、時間＋班名） -->
+<ng-template #sessionRowsSkeleton>
+  <ul class="m-0 flex list-none flex-col gap-1 p-0" aria-hidden="true">
+    @for (w of ['5.5em', '4em']; track $index) {
+      <li class="flex items-baseline gap-x-3 border-b border-zinc-100 py-2">
+        <span class="skeleton inline-block h-[1em] w-[6.5em] rounded-sm align-middle"></span>
+        <span
+          class="skeleton inline-block h-[1em] rounded-sm align-middle"
+          [style.width]="w"
+        ></span>
+      </li>
+    }
+  </ul>
+</ng-template>
