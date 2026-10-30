@@ -44,7 +44,7 @@ describe('ParentFormDialogComponent', () => {
     fixture.detectChanges();
 
     expect(parentsServiceMock.create).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('請先輸入姓名');
+    expect(fixture.nativeElement.textContent).toContain('還沒填：姓名');
   });
 
   it('姓名填了但 Email/手機都空時，說出還缺哪個', () => {
@@ -57,7 +57,7 @@ describe('ParentFormDialogComponent', () => {
     fixture.detectChanges();
 
     expect(parentsServiceMock.create).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('Email 與手機號碼至少要填一個');
+    expect(fixture.nativeElement.textContent).toContain('Email 和手機至少填一個');
   });
 
   it('姓名 + 其中一項聯絡方式都有時，正常送出', () => {
@@ -78,7 +78,7 @@ describe('ParentFormDialogComponent', () => {
   // #1008：驗證其實是「姓名必填、Email／手機二擇一」—— 星號只能標姓名。
   it('必填星號只標姓名；Email／手機旁寫「至少填一個」', () => {
     const el = fixture.nativeElement as HTMLElement;
-    const stars = el.querySelectorAll('.form-dialog__required');
+    const stars = el.querySelectorAll('label .text-error-700');
     expect(stars).toHaveLength(1);
     expect(stars[0].closest('label')?.textContent).toContain('姓名');
     expect(el.textContent).toContain('至少填一個');

@@ -419,6 +419,8 @@
     max-height: calc(var(--window-height, 100%) - var(--space-6) * 2) !important;
     max-width: calc(var(--window-width, 100%) - var(--space-4) * 2) !important;
     --p-dialog-content-padding: var(--space-4) !important;
+    /* A6 `.acset { border: 0 }`：只靠陰影跟遮罩分層 */
+    border: 0;
   }
   .p-dialog .p-dialog-header {
     border-bottom: 1px solid var(--zinc-200);
@@ -462,6 +464,10 @@
      上下（最大高度、翻轉、內容變長重算）不在這裡：`<p-popover appFitPopover>`（shared/directives/fit-popover，#1873）。 */
   .p-popover.filter-popover {
     width: 22rem;
+    /* A6 `.pop`：圓角 lg、內距 20 在浮層本身 */
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    --p-popover-content-padding: 0;
     --filter-popover-inset: var(--space-4);
   }
   @media (max-width: 860px) {
@@ -492,59 +498,66 @@
     overflow: visible;
   }
   /* ---- Standard inline header with breadcrumb and close button ---- */
+  /* 照 A6 `.acset__head`（a6.css:445-448）：標題 h2 18px 粗、副標 13px、關閉 40px（手機 44，R3）；沒有分隔線。
+     沒有底色＝透明（#1387；計畫席 10-23 裁維持透明，稿也沒有底色） */
   .dialog-header-inline {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--zinc-100);
-    /* 沒有底色＝透明（#1387）：原本的 `background: var(--zinc-50) / 0.5` 是 SCSS 除法殘留、從沒生效過；
-       計畫席 10-23 裁維持透明，A6 `.acset__head`（a6.css:445）也沒有底色 */
+    padding: var(--space-4) var(--space-4) var(--space-2) var(--space-6);
   }
   .dialog-header-inline__content {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
   }
   .dialog-header-inline__breadcrumb {
     font-size: var(--text-xs);
     font-weight: var(--font-normal);
-    color: var(--zinc-500);
+    color: var(--zinc-600);
     letter-spacing: 0.01em;
     line-height: 1.4;
   }
   .dialog-header-inline__title {
-    font-size: var(--text-lg);
-    font-weight: var(--font-semibold);
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    line-height: 1.5;
     color: var(--zinc-900);
-    line-height: 1.4;
+  }
+  /* A6 `.fdlg__sub` */
+  .dialog-header-inline__sub {
+    margin: 2px 0 0;
+    font-size: var(--text-md);
+    color: var(--zinc-600);
   }
   .dialog-header-inline__close {
-    width: 2rem;
-    height: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border: 0;
     border-radius: var(--radius-md);
-    color: var(--zinc-400);
-    transition: all var(--transition-fast);
-    margin-top: -2px;
-    margin-right: -8px;
+    background: none;
+    color: var(--zinc-700);
+    cursor: pointer;
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast);
   }
   .dialog-header-inline__close:hover {
     background: var(--zinc-100);
     color: var(--zinc-900);
   }
-  .dialog-header-inline__close:active {
-    transform: scale(0.95);
-  }
   .dialog-header-inline__close .pi {
     font-size: 14px;
   }
-  @media (max-width: 640px) {
-    .dialog-header-inline {
-      padding: var(--space-4);
+  @media (min-width: 861px) {
+    .dialog-header-inline__close {
+      width: 40px;
+      height: 40px;
     }
   }
   /* ---- Canonical form dialog pattern ---- */
@@ -650,18 +663,56 @@
     bottom: 0;
     z-index: 1;
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
-    gap: var(--space-3);
-    padding-top: calc(var(--space-4) + var(--space-2));
+    gap: var(--space-2);
+    padding-top: var(--space-3);
     /* A6 `.fdlg__foot` 底部 24px，動作列本身貼著彈窗底（content 底部 padding 歸 0，見下一條） */
     padding-bottom: var(--space-6);
-    border-top: 1px solid var(--zinc-100);
     background: var(--color-white);
+  }
+  /* A6 `.fdlg__why`：必填沒填不鎖死送出鈕，左邊寫還差什麼（#723）；手機自己一行 */
+  .form-dialog__why {
+    margin: 0 auto 0 0;
+    font-size: var(--text-md);
+    color: var(--zinc-600);
+  }
+  @media (max-width: 860px) {
+    .form-dialog__why {
+      flex-basis: 100%;
+    }
   }
   /* sticky 會扣掉捲動容器的 padding：content 底部的 16px 留著，動作列就浮在離底 16px、 */
   /* 底下露出捲動中的內容（#1772，conformance 黏住檢查量到）。底部留白交給動作列自己的 padding-bottom。 */
   .p-dialog .p-dialog-content:has(.form-dialog__footer) {
     padding-bottom: 0;
+  }
+  /* A6 `.acset.fdlg`（a6.css:443-449、746-777）：內距在標題列、表單、動作列自己身上，內容區不另留；
+     寬 520 由開啟端給（`width: '520px'`）。照稿改完的表單加這個 modifier，還沒改的維持舊內距 */
+  @media (min-width: 861px) {
+    .p-dialog:has(.form-dialog--a6) {
+      border-radius: var(--radius-lg);
+    }
+  }
+  .p-dialog .p-dialog-content:has(.form-dialog--a6) {
+    padding: 0;
+  }
+  .form-dialog--a6 {
+    gap: 0;
+  }
+  .form-dialog--a6 .form-dialog__footer {
+    padding: var(--space-3) var(--space-6) var(--space-6);
+    background: inherit;
+  }
+  @media (max-width: 860px) {
+    /* 手機是深灰底部面板（A6 `--gray-sheet` #ebe7e4 ＝ zinc-200），欄位本身仍是白底 */
+    .p-dialog:has(.form-dialog--a6) {
+      background: var(--zinc-200);
+    }
+    .form-dialog--a6 .form-dialog__footer {
+      padding: var(--space-2) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    }
   }
   .form-dialog__empty-note {
     padding: var(--space-4);

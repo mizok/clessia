@@ -33,7 +33,7 @@
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
-            type="text"
+            type="search"
             pInputText
             placeholder="找名字、學校或家長電話"
             aria-label="搜尋學生"
@@ -72,110 +72,116 @@
         }
       </app-page-actions>
     </div>
-
-    <!-- 篩選面板（A6 浮層）：貼在「篩選」鈕下的 Popover，不推動清單；寫法同課程頁 -->
-    <p-popover
-      #filterPopover
-      appFitPopover
-      styleClass="filter-popover"
-      (onShow)="filtersOpen.set(true)"
-      (onHide)="filtersOpen.set(false)"
-    >
-      <div id="students-filters" class="flex flex-col gap-3">
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <span class="w-full text-sm text-zinc-600 wide:w-10">今天</span>
-          @for (opt of todayOptions; track opt.label) {
-            <button
-              type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 enabled:hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
-              [class.border-zinc-900]="todayFilter() === opt.value"
-              [class.font-semibold]="todayFilter() === opt.value"
-              [class.border-transparent]="todayFilter() !== opt.value"
-              [attr.aria-pressed]="todayFilter() === opt.value"
-              [disabled]="todayUnsupported() && opt.value !== null"
-              (click)="onTodayChange(opt.value)"
-            >
-              {{ opt.label }}
-              @if (opt.value !== null && todayCounts(); as counts) {
-                <span class="font-normal text-zinc-600 tabular-nums">{{ counts[opt.value] }}</span>
-              }
-            </button>
-          }
-          @if (todayUnsupported()) {
-            <span class="text-sm text-zinc-600">這個分校是逐堂點名，到班請看課堂</span>
-          }
-        </div>
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <span class="w-full text-sm text-zinc-600 wide:w-10">年級</span>
-          @for (opt of gradeOptions(); track opt.label) {
-            <button
-              type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
-              [class.border-zinc-900]="selectedGrade() === opt.value"
-              [class.font-semibold]="selectedGrade() === opt.value"
-              [class.border-transparent]="selectedGrade() !== opt.value"
-              [attr.aria-pressed]="selectedGrade() === opt.value"
-              (click)="onGradeChange(opt.value)"
-            >
-              {{ opt.label }}
-              <span class="font-normal text-zinc-600 tabular-nums">{{ opt.count }}</span>
-            </button>
-          }
-        </div>
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <span class="w-full text-sm text-zinc-600 wide:w-10">狀態</span>
-          @for (opt of statusOptions; track opt.value) {
-            <button
-              type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
-              [class.border-zinc-900]="statusFilter() === opt.value"
-              [class.font-semibold]="statusFilter() === opt.value"
-              [class.border-transparent]="statusFilter() !== opt.value"
-              [attr.aria-pressed]="statusFilter() === opt.value"
-              (click)="onStatusFilterChange(opt.value)"
-            >
-              {{ opt.label }}
-            </button>
-          }
-        </div>
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <span class="w-full text-sm text-zinc-600 wide:w-10">學校</span>
-          @for (opt of [false, true]; track opt) {
-            <button
-              type="button"
-              class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
-              [class.border-zinc-900]="schoolMismatch() === opt"
-              [class.font-semibold]="schoolMismatch() === opt"
-              [class.border-transparent]="schoolMismatch() !== opt"
-              [attr.aria-pressed]="schoolMismatch() === opt"
-              (click)="onSchoolMismatchChange(opt)"
-            >
-              {{ opt ? '學制跟年級不合' : '全部' }}
-            </button>
-          }
-        </div>
-        @if (canPrintCards) {
-          <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span class="w-full text-sm text-zinc-600 wide:w-10">卡片</span>
-            @for (opt of [false, true]; track opt) {
-              <button
-                type="button"
-                class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
-                [class.border-zinc-900]="withoutCard() === opt"
-                [class.font-semibold]="withoutCard() === opt"
-                [class.border-transparent]="withoutCard() !== opt"
-                [attr.aria-pressed]="withoutCard() === opt"
-                (click)="onWithoutCardChange(opt)"
-              >
-                {{ opt ? '還沒換新卡' : '全部' }}
-              </button>
-            }
-          </div>
-        }
-      </div>
-    </p-popover>
   </div>
 </div>
+
+<!-- 篩選面板（A6 浮層）：貼在「篩選」鈕下的 Popover，不推動清單；寫法同課程頁。
+     浮層掛在 body（白底），放在灰工具列外面，模板結構才跟畫出來的一樣（harness 對比 gate 依祖先底色判） -->
+<p-popover
+  #filterPopover
+  appFitPopover
+  styleClass="filter-popover"
+  (onShow)="filtersOpen.set(true)"
+  (onHide)="filtersOpen.set(false)"
+>
+  <div id="students-filters" class="flex flex-col gap-4">
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <span class="w-full text-sm text-zinc-500">今天</span>
+      @for (opt of todayOptions; track opt.label) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base font-medium text-zinc-600 wide:min-h-0 enabled:hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+          [class.border-zinc-900]="todayFilter() === opt.value"
+          [class.font-semibold]="todayFilter() === opt.value"
+          [class.text-zinc-900]="todayFilter() === opt.value"
+          [class.border-transparent]="todayFilter() !== opt.value"
+          [attr.aria-pressed]="todayFilter() === opt.value"
+          [disabled]="todayUnsupported() && opt.value !== null"
+          (click)="onTodayChange(opt.value)"
+        >
+          {{ opt.label }}
+          @if (opt.value !== null && todayCounts(); as counts) {
+            <span class="font-normal text-zinc-500 tabular-nums">{{ counts[opt.value] }}</span>
+          }
+        </button>
+      }
+      @if (todayUnsupported()) {
+        <span class="text-sm text-zinc-600">這個分校是逐堂點名，到班請看課堂</span>
+      }
+    </div>
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <span class="w-full text-sm text-zinc-500">年級</span>
+      @for (opt of gradeOptions(); track opt.label) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base font-medium text-zinc-600 wide:min-h-0 hover:text-zinc-900"
+          [class.border-zinc-900]="selectedGrade() === opt.value"
+          [class.font-semibold]="selectedGrade() === opt.value"
+          [class.text-zinc-900]="selectedGrade() === opt.value"
+          [class.border-transparent]="selectedGrade() !== opt.value"
+          [attr.aria-pressed]="selectedGrade() === opt.value"
+          (click)="onGradeChange(opt.value)"
+        >
+          {{ opt.label }}
+          <span class="font-normal text-zinc-500 tabular-nums">{{ opt.count }}</span>
+        </button>
+      }
+    </div>
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <span class="w-full text-sm text-zinc-500">狀態</span>
+      @for (opt of statusOptions; track opt.value) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base font-medium text-zinc-600 wide:min-h-0 hover:text-zinc-900"
+          [class.border-zinc-900]="statusFilter() === opt.value"
+          [class.font-semibold]="statusFilter() === opt.value"
+          [class.text-zinc-900]="statusFilter() === opt.value"
+          [class.border-transparent]="statusFilter() !== opt.value"
+          [attr.aria-pressed]="statusFilter() === opt.value"
+          (click)="onStatusFilterChange(opt.value)"
+        >
+          {{ opt.label }}
+        </button>
+      }
+    </div>
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <span class="w-full text-sm text-zinc-500">學校</span>
+      @for (opt of [false, true]; track opt) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base font-medium text-zinc-600 wide:min-h-0 hover:text-zinc-900"
+          [class.border-zinc-900]="schoolMismatch() === opt"
+          [class.font-semibold]="schoolMismatch() === opt"
+          [class.text-zinc-900]="schoolMismatch() === opt"
+          [class.border-transparent]="schoolMismatch() !== opt"
+          [attr.aria-pressed]="schoolMismatch() === opt"
+          (click)="onSchoolMismatchChange(opt)"
+        >
+          {{ opt ? '學制跟年級不合' : '全部' }}
+        </button>
+      }
+    </div>
+    @if (canPrintCards) {
+      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span class="w-full text-sm text-zinc-500">卡片</span>
+        @for (opt of [false, true]; track opt) {
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base font-medium text-zinc-600 wide:min-h-0 hover:text-zinc-900"
+            [class.border-zinc-900]="withoutCard() === opt"
+            [class.font-semibold]="withoutCard() === opt"
+            [class.text-zinc-900]="withoutCard() === opt"
+            [class.border-transparent]="withoutCard() !== opt"
+            [attr.aria-pressed]="withoutCard() === opt"
+            (click)="onWithoutCardChange(opt)"
+          >
+            {{ opt ? '還沒換新卡' : '全部' }}
+          </button>
+        }
+      </div>
+    }
+  </div>
+</p-popover>
 
 <div class="page-wrap flex flex-col gap-4 pt-0 pb-28 wide:pb-32">
   <app-reload-veil [loading]="loading()">
@@ -235,18 +241,18 @@
       <div>
         @for (chapter of chapters(); track chapter.grade + chapter.rows[0].id) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-3 border-b border-zinc-200 py-6 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="gradeLabels[chapter.grade]"
             [attr.data-chapter]="chapter.grade"
           >
             <app-chapter-head
-              class="block pt-6 wide:pt-8"
+              class="block"
               [name]="gradeLabels[chapter.grade]"
               [count]="chapterTally(chapter.grade)"
               unit="位"
             />
             <ul
-              class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1 wide:pt-6"
+              class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1"
             >
               @for (student of chapter.rows; track student.id) {
                 <li
@@ -264,7 +270,7 @@
                       [class.text-zinc-600]="isQuiet(student)"
                       [class.font-medium]="isQuiet(student)"
                     >
-                      <span class="truncate">{{ student.name }}</span>
+                      {{ student.name }}
                       @if (!student.isActive) {
                         <span
                           class="flex-none rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap bg-zinc-100 text-zinc-700"
@@ -287,15 +293,15 @@
                         >
                       }
                     </span>
-                    @if (todayMeta(student); as meta) {
-                      <span
-                        class="flex-none text-sm whitespace-nowrap tabular-nums wide:mt-px wide:block"
-                        [class.text-zinc-600]="!meta.missing"
-                        [class.text-error-700]="meta.missing"
-                        [class.font-semibold]="meta.missing"
-                        >{{ meta.text }}</span
-                      >
-                    }
+                    <!-- A6 `.who__meta`：今天沒課也留著（空的），名字與到班字兩段結構每列一樣 -->
+                    @let meta = todayMeta(student);
+                    <span
+                      class="flex flex-none items-center gap-1.5 text-sm whitespace-nowrap tabular-nums wide:mt-px"
+                      [class.text-zinc-600]="!meta?.missing"
+                      [class.text-error-700]="meta?.missing"
+                      [class.font-semibold]="meta?.missing"
+                      >{{ meta?.text }}</span
+                    >
                   </a>
                   <!-- 現況有、A6 沒畫：編輯／停用／刪除／列印這張到班卡。桌機 hover／focus 才出現，觸控裝置一直在 -->
                   <div
