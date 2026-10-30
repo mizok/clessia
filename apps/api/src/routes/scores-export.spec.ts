@@ -128,7 +128,7 @@ describe('POST /api/scores/export（#1100 #40）', () => {
       '王小明,,第一次段考,,2026-10-01,,缺考',
     ]);
     // 不受限的管理員按「全部學生」→ $2 是 NULL（不限），不是把全 org 的 id 塞進來
-    expect(pg.calls[0]!.params).toEqual(['org-1', null, 20001]);
+    expect(pg.calls[0]!.params).toEqual(['org-1', null, 20001, null]);
   });
 
   // 替身不跑 SQL：這條只是便宜的第一道（regex 帶左邊界 —— 'se.org_id' 不能冒充 'e.org_id'，#1922 二讀）。
