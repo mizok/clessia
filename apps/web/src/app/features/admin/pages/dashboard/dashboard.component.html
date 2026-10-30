@@ -8,7 +8,10 @@
     @if (orgName(); as name) {
       {{ name }}
       @if (campusName(); as campus) {
-        <span class="ml-2 text-base font-semibold text-band-ink-muted wide:text-lg">{{
+        <!-- A6 `.open__branch`：手機另起一行 14px，桌機同行 18px、左距 12 -->
+        <span
+          class="mt-1 block text-base font-semibold text-band-ink-muted wide:mt-0 wide:ml-3 wide:inline-block wide:text-xl"
+          >{{
           campus
         }}</span>
       }
@@ -33,8 +36,9 @@
 <!-- 灰工具列：這頁在講哪一天幾點＋櫃台動作（A6 .tbar；手機＝浮起托盤） -->
 <div class="bg-zinc-100">
   <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 py-3">
-    <p class="m-0 text-base font-semibold text-zinc-900 tabular-nums" data-testid="today-label">
-      {{ todayLabel() }}
+    <!-- A6 `.tbar__txt strong`：手機 13、桌機 14 -->
+    <p class="m-0 text-md text-zinc-900 tabular-nums wide:text-base" data-testid="today-label">
+      <strong class="font-semibold">{{ todayLabel() }}</strong>
     </p>
     @if (canPhoneLeave()) {
       <!--
@@ -53,7 +57,7 @@
       >
         <button
           type="button"
-          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex"
+          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex"
           data-testid="desktop-checkin"
           (click)="openCheckinStation()"
         >
@@ -61,7 +65,7 @@
         </button>
         <button
           type="button"
-          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex"
+          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 min-[640.02px]:inline-flex"
           data-testid="desktop-leave"
           (click)="openPhoneLeave()"
         >
@@ -595,11 +599,14 @@
   </div>
 
   <!-- 臨時狀況（A6 .quick）：三件都從課表頁出發（批次停課、代課、改時段） -->
-  <nav class="flex flex-col gap-1 wide:flex-row wide:items-center wide:gap-6" aria-label="臨時狀況">
-    <span class="text-md font-semibold text-zinc-600">臨時狀況？</span>
+  <nav
+    class="flex flex-col gap-0 border-t border-surface-border pt-4 wide:flex-row wide:flex-wrap wide:items-baseline wide:gap-x-6 wide:gap-y-2"
+    aria-label="臨時狀況"
+  >
+    <span class="pb-1 text-md font-semibold text-zinc-700 wide:pb-0">臨時狀況？</span>
     @for (item of emergencyLinks; track item.title) {
       <a
-        class="flex min-h-12 w-full items-center gap-2 border-b border-surface-border text-base font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-4 wide:inline-flex wide:w-auto wide:border-b-0"
+        class="flex min-h-12 w-full items-center gap-1.5 border-0 border-b border-solid border-surface-border text-base font-semibold text-zinc-900 no-underline wide:inline-flex wide:min-h-0 wide:w-auto wide:border-b-[1.5px] wide:border-zinc-300 wide:pb-px wide:hover:border-zinc-900"
         data-testid="emergency-link"
         [routerLink]="[sessionsRoute]"
       >
