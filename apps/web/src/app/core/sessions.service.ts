@@ -213,6 +213,25 @@ export interface BatchCancelInput {
   readonly dryRun?: boolean;
 }
 
+/** `PATCH /sessions/batch-substitute`（#1110）：逐堂留代課紀錄；dryRun 預設 true */
+export interface BatchSubstituteInput {
+  readonly sessionIds: string[];
+  readonly substituteTeacherId: string;
+  readonly reason?: string;
+  readonly dryRun?: boolean;
+}
+
+/** `PATCH /sessions/batch-reschedule`：`dayOffset` 或 `targetWeekday`（1=週一…7=週日，同一週）二擇一 */
+export interface BatchRescheduleInput {
+  readonly sessionIds: string[];
+  readonly dayOffset?: number;
+  readonly targetWeekday?: number;
+  readonly startTime?: string;
+  readonly endTime?: string;
+  readonly reason?: string;
+  readonly dryRun?: boolean;
+}
+
 export interface BatchSessionConflict {
   readonly sessionId: string;
   readonly sessionDate: string;
@@ -415,5 +434,14 @@ export class SessionsService {
 
   batchUncancel(input: { sessionIds: string[]; dryRun?: boolean }): Observable<BatchActionResult> {
     return this.http.patch<BatchActionResult>(`${this.endpoint}/batch-uncancel`, input);
+  }
+
+  batchSubstitute(input: BatchSubstituteInput): Observable<BatchActionResult> {
+    return this.http.patch<BatchActionResult>(`${this.endpoint}/batch-substitute`, input);
+  }
+
+  /** 回應另帶 `planned`（每堂落點），這裡只用到共同的欄位 */
+  batchReschedule(input: BatchRescheduleInput): Observable<BatchActionResult> {
+    return this.http.patch<BatchActionResult>(`${this.endpoint}/batch-reschedule`, input);
   }
 }

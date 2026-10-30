@@ -16,7 +16,7 @@ import type { BatchActionResult, BatchAssignResult } from '@core/sessions.servic
 import type { Staff } from '@core/staff.service';
 import { SessionsActionsService } from '../../services/sessions-actions.service';
 
-export type MobileBatchMode = 'assign' | 'time' | 'cancel' | 'uncancel';
+export type MobileBatchMode = 'assign' | 'time' | 'cancel' | 'uncancel' | 'move' | 'sub';
 
 export interface MobileBatchDialogData {
   readonly sessionIds: string[];
@@ -54,7 +54,13 @@ export class MobileBatchDialogComponent implements OnInit {
   protected readonly batchTeacherId = signal<string | null>(null);
   protected readonly batchStartTime = signal('09:00');
   protected readonly batchEndTime = signal('11:00');
-  protected readonly batchCancelReason = signal('');
+  protected readonly batchReason = signal('');
+  /** 改到別天：週一…週六（A6 的選項） */
+  protected readonly batchWeekday = signal(1);
+  protected readonly weekdayOptions = [1, 2, 3, 4, 5, 6].map((value) => ({
+    label: `週${'一二三四五六'[value - 1]}`,
+    value,
+  }));
   protected readonly batchPreview = signal<BatchAssignResult | BatchActionResult | null>(null);
   protected readonly batchLoading = signal(false);
 
@@ -93,7 +99,7 @@ export class MobileBatchDialogComponent implements OnInit {
     this.batchMode.set(null);
     this.batchPreview.set(null);
     this.batchTeacherId.set(null);
-    this.batchCancelReason.set('');
+    this.batchReason.set('');
   }
 
   protected runPreview(): void {
@@ -153,7 +159,8 @@ export class MobileBatchDialogComponent implements OnInit {
       teacherId: this.batchTeacherId(),
       startTime: this.batchStartTime(),
       endTime: this.batchEndTime(),
-      cancelReason: this.batchCancelReason(),
+      reason: this.batchReason(),
+      targetWeekday: this.batchWeekday(),
     } as const;
   }
 }
