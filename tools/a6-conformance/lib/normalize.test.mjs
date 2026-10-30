@@ -120,6 +120,21 @@ test('分欄：資料差 → 工具限制 → 已記錄偏離 → 待修', async
     classify([more('公開申請'), more('別的')], DEVIATIONS, 1440).map((x) => x.bucket),
     ['已記錄偏離', '待修'],
   );
+  // 同一層「稿缺一個、app 多一個」會被標成同型段落數不同（請人工對）；已登記成偏離的＝對過了，偏離優先。
+  // 其他工具限制照舊：結構範圍不同的列就算命中偏離也不可比
+  const { LIMITS } = await import('./diff.mjs');
+  assert.deepEqual(
+    classify(
+      [
+        { ...more('公開申請'), limit: LIMITS.count },
+        { ...more('別的'), limit: LIMITS.count },
+        { ...more('公開申請'), limit: LIMITS.scope },
+      ],
+      DEVIATIONS,
+      1440,
+    ).map((x) => x.bucket),
+    ['已記錄偏離', '工具限制', '工具限制'],
+  );
 });
 
 test('工具限制自動標註：結構範圍不同、同型段落數不同、偽元素', async () => {
