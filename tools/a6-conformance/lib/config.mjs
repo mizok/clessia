@@ -1211,7 +1211,7 @@ export const PAGES = {
       ].map((a6) => ({
         status: '位置',
         a6,
-        detail: ' Δy 0（',
+        detail: 'Δy 0（',
         reason: '資料：前面的考試名稱長度、筆數位數不同',
         source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
       })),
@@ -1343,6 +1343,13 @@ export const PAGES = {
     prep: PARENT_PREP,
     popovers: { mexp: 'meals-export' },
     deviations: [
+      // 資料：月份摘要的「N 元 · N 餐」位數比稿長，手機放不下時整段換到第二行（摘要列 flex-wrap）；稿的資料放得下一行
+      {
+        status: '位置',
+        a6: '>landmark:main\\[\\]>row>control:button>text:span~3(>text:b)?$',
+        reason: '資料：月份合計的金額與餐數位數',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
       {
         status: '缺',
         a6: 'landmark:popover\\[匯出餐費\\]>text:span\\[新\\]$',
