@@ -195,7 +195,7 @@ export async function closePop(page, id, opens = {}) {
 
 export async function capture(
   browser,
-  { source, file, url, width, storageState, opens = {}, rowParents = [], prep, clock },
+  { source, file, url, width, storageState, opens = {}, rowParents = [], rowSel, prep, clock },
 ) {
   const { ctx, page, errors } = await openPage(browser, {
     source,
@@ -208,7 +208,7 @@ export async function capture(
   const height = await growViewport(page, width);
   const names = await harvestNames(page, source, ctx);
 
-  const parts = await page.evaluate(extractSource({ names, rowParents }));
+  const parts = await page.evaluate(extractSource({ names, rowParents, rowSel }));
   const shot = await page.screenshot({ fullPage: false });
 
   // 彈出物：每個不同的 popovertarget 點第一顆可見的開啟鈕
@@ -231,7 +231,9 @@ export async function capture(
     const root = await openPop(page, id, opens);
     if (root === undefined) continue; // 開啟鈕這一寬沒有
     popovers[id] = root
-      ? await page.evaluate(extractSource({ names, rowParents, root, prefix: `pop[${id}]` }))
+      ? await page.evaluate(
+          extractSource({ names, rowParents, rowSel, root, prefix: `pop[${id}]` }),
+        )
       : null;
     if (root) popShots[id] = await page.screenshot();
     await closePop(page, id, opens);

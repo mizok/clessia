@@ -124,6 +124,7 @@ export async function probeSticky(browser, o, targets) {
         extractSource({
           names,
           rowParents: o.rowParents,
+          rowSel: o.rowSel,
           root,
           prefix: pop ? `pop[${pop}]` : '',
           tag: true,

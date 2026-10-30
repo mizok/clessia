@@ -40,6 +40,7 @@ export function extractParts(opts) {
     names = [],
     prefix = '',
     rowParents = [],
+    rowSel = '',
     tag = false,
   } = opts ?? {};
   // 稿在這些父層有列（資料多）：app 這邊資料少（1～2 列）也要認成列，兩邊才配得上
@@ -159,9 +160,18 @@ export function extractParts(opts) {
       .filter((k) => !k.includes('--') && !k.startsWith('is-'))
       .sort()
       .join('.');
+  // 欄位組：label[for] 指向自己裡面的欄位（label 沒包住它），或 fieldset。只擋「稿有列、門檻降到 2」那條路：
+  // app 表單裡同簽名的兩個欄位外框（開始日期、備註）被認成列。≥3／≥5 的不擋 —— 成績列裡也有帶 label 的分數框
+  const fieldGroup = (el) =>
+    el.tagName === 'FIELDSET' ||
+    [...el.querySelectorAll('label[for]')].some(
+      (l) => l.control && el.contains(l.control) && !l.contains(l.control),
+    );
   const isRow = (el, c, parentKey = '') => {
     const p = el.parentElement;
     if (!p) return false;
+    // 頁面設定指名的列（`PAGES[頁].rowSel`）：稿把每筆紀錄做成一顆獨立的按鈕（`button.rq`），沒有清單結構
+    if (rowSel && el.matches(rowSel)) return true;
     if (
       (p.tagName === 'UL' ||
         p.tagName === 'OL' ||
@@ -181,7 +191,7 @@ export function extractParts(opts) {
     const same = sibs.every((x) => x.children.length === el.children.length);
     // 稿在這個父層有列（資料多）：app 資料少時門檻降到 2 個（軸列＋一位老師）。單獨一個仍不算 ——
     // 提示只說「這裡該有列」，沒說是哪一個容器，單個容器（工具列、日期條）會被誤認
-    if (hinted.has(noList(parentKey)) && sibs.length >= 2 && same) return true;
+    if (hinted.has(noList(parentKey)) && sibs.length >= 2 && same && !fieldGroup(el)) return true;
     return (
       sibs.length >= 5 ||
       (sibs.length >= 3 && sibs.every((x) => x.children.length === el.children.length))
@@ -235,13 +245,28 @@ export function extractParts(opts) {
   const parts = [];
   const byKey = new Map();
   // 遞迴：ctx = { key, counts（同層 segment 計數）, inRow, rowSeen（這一列已算過的 key）}
+  // 稿的「新」標記（span.new）是設計說明（a6.js ddLabel 也剔掉它）：另記一份不含它的 key（alt）給配對用
+  const noNew = (el) => {
+    let t = '';
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while (w.nextNode())
+      if (!w.currentNode.parentElement?.closest('.new')) t += w.currentNode.textContent;
+    return t;
+  };
   const walk = (el, ctx) => {
     if (SKIP.has(el.tagName) || !visible(el)) return;
-    let c = classify(el);
+    const c0 = classify(el);
+    const row = isRow(el, c0, ctx.key);
     let next = ctx;
-    const row = isRow(el, c, ctx.key);
-    if (row) c = { kind: 'row', role: 'row' };
-    if (c) {
+    if (row) next = emit(el, { kind: 'row', role: 'row' }, true, next);
+    // 整顆是按鈕的列：列裡保留那顆按鈕（app 是 li＞button，兩邊同 key）
+    if (c0 && (!row || c0.kind === 'control')) next = emit(el, c0, false, next);
+    for (const ch of el.children) walk(ch, next);
+    if (el.shadowRoot) for (const ch of el.shadowRoot.children) walk(ch, next);
+  };
+  const emit = (el, c, row, ctx) => {
+    let next = ctx;
+    {
       // landmark／list 只認明寫的名字（aria-label），不然整段內文會進 key
       const named = c.kind === 'landmark' || c.kind === 'list' || c.kind === 'row';
       const raw = (
@@ -264,15 +289,25 @@ export function extractParts(opts) {
       else seg = `${c.kind}:${c.role}[${normText(raw, names)}]`;
       // 同一個 parent 底下同名 segment 加序號；列（row）全部合一
       const sib = (ctx.counts[seg] = (ctx.counts[seg] ?? 0) + 1);
-      const key =
-        c.kind === 'mapped'
-          ? seg
-          : `${ctx.key}>${c.kind === 'row' || sib === 1 ? seg : `${seg}~${sib}`}`;
+      const suffix = (x) => (c.kind === 'row' || sib === 1 ? x : `${x}~${sib}`);
+      const key = c.kind === 'mapped' ? seg : `${ctx.key}>${suffix(seg)}`;
+      const named0 = el.matches('[aria-label],[aria-labelledby]');
+      const segAlt =
+        (c.kind === 'control' || c.kind === 'heading') &&
+        !ctx.inRow &&
+        !named0 &&
+        el.querySelector('.new')
+          ? seg.slice(0, seg.lastIndexOf('[') + 1) +
+            normText(noNew(el).replace(/\s+/g, ' ').trim(), names) +
+            ']'
+          : seg;
+      const alt = ctx.alt || segAlt !== seg ? `${ctx.alt ?? ctx.key}>${suffix(segAlt)}` : undefined;
       if (els && !els.has(key)) els.set(key, el);
       let p = byKey.get(key);
       if (!p) {
         p = {
           key,
+          ...(alt ? { alt } : {}),
           parent: ctx.key || null,
           kind: c.kind === 'mapped' ? 'mapped' : c.kind,
           role: c.role,
@@ -354,6 +389,7 @@ export function extractParts(opts) {
       }
       next = {
         key,
+        alt,
         counts: {},
         inRow: ctx.inRow || row,
         rowSeen: row ? new Set() : ctx.rowSeen,
@@ -361,8 +397,7 @@ export function extractParts(opts) {
       };
       if (row) p.inRows++;
     }
-    for (const ch of el.children) walk(ch, next);
-    if (el.shadowRoot) for (const ch of el.shadowRoot.children) walk(ch, next);
+    return next;
   };
   const rootEl = document.querySelector(rootSel);
   if (rootEl) walk(rootEl, { key: prefix, counts: {}, inRow: false, rowSeen: new Set() });
