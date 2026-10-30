@@ -1006,7 +1006,19 @@ export const PAGES = {
       },
     ],
   },
-  'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
+  'grades-student': {
+    a6: 'grades-student.html',
+    app: '/admin/grades/overview/student',
+    deviations: [
+      // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: '^>control:searchbox\\[搜尋學生姓名\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+    ],
+  },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
   // 黏住的行為檢查才量得到（A6 的 .wc__h／.cg__dh、#save）
   'schedule-week': {

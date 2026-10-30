@@ -142,9 +142,7 @@ const EXEMPT = new Map([
     '/api/scores|classId',
     '成績篩開課班 API 先行（#1115），前端消費端另開，語意見 kb/wiki/specs/admin/student-affairs/grades.md',
   ],
-  ['/api/scores|courseId', '同上'],
   ['/api/scores/students|classId', '每生聚合 API 先行（#1115），同上'],
-  ['/api/scores/students|courseId', '同上'],
   // #1121 家長端續課預覽：API 先行，前端消費端（p-renewal／p-dashboard 續課預告）另開。
   [
     '/api/me/renewal-preview|childId',
