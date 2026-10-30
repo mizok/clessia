@@ -1262,6 +1262,115 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- 收件匣與申請紀錄的展示資料（A6 收尾盤點，#1314 2026-10-30）
+--
+-- conformance 量這幾頁時，量測帳號一筆資料都沒有，稿上的分章與列整片報「缺」，量不到真正的版面差：
+-- (a) 收件匣（通知＋公告）：parent03（家長）、teacher0001（老師）、admin（管理員）各幾則，
+--     時間分散在「今天／昨天／這週／更早」，最新兩則未讀 —— 稿的通知頁按日分章、有「N 則未讀」
+-- (b) 張宇軒（parent03 的孩子）的報名申請與試聽申請，各種狀態各一筆 —— 稿的「紀錄」分頁是一串申請
+-- 通知不送推播（push_status = skipped）；申請只寫在 parent03 的孩子身上，不影響其他家長。
+-- 重跑無害：通知靠 (user_id, dedupe_key) 唯一、公告靠標題、申請靠 note 標記。打卡段仍是最後一段。
+-- ============================================================================
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_admin TEXT := '22222222-2222-2222-2222-222222222222';
+  v_parent TEXT;
+  v_teacher TEXT;
+  v_student UUID;
+  v_class UUID;
+  v_course UUID;
+  v_enrollment UUID;
+  r RECORD;
+BEGIN
+  SELECT id INTO v_parent FROM public.ba_user WHERE email = 'parent03@demo.clessia.app';
+  SELECT id INTO v_teacher FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app';
+
+  -- (a) 通知：(收件人, 角色, 種類, 幾分鐘前, 已讀?, 標題, 內文, 連結)
+  FOR r IN SELECT * FROM (VALUES
+    (v_parent,  'parent',  'invoice_due',          45,    FALSE, '繳費提醒：本月學費 3 天後到期', '張宇軒 本月學費 3,600 元，請在期限前繳費。', '/parent/payments'),
+    (v_parent,  'parent',  'schedule_change',      180,   FALSE, '課務異動：國三數學 A 班改到週五', '下週三的課改到週五 19:00，教室不變。', '/parent/schedule'),
+    (v_parent,  'parent',  'enrollment_approved',  1500,  TRUE,  '報名申請已核准：國二英文 B 班', '請在繳費期限前完成繳費，報名才算完成。', '/parent/enrollment'),
+    (v_parent,  'parent',  'invoice_overdue',      5800,  TRUE,  '帳單已逾期：九月餐費', '九月餐費 1,365 元已過繳費期限。', '/parent/payments'),
+    (v_parent,  'parent',  'enrollment_completed', 17000, TRUE,  '報名完成：數學班 A', '已收到款項，下一堂課見。', '/parent/enrollment'),
+    (v_teacher, 'teacher', 'leave_for_my_class',   60,    FALSE, '請假：國三數學 A 班 張宇軒', '家長幫張宇軒請了今天的假（身體不適）。', '/teacher/schedule'),
+    (v_teacher, 'teacher', 'schedule_change',      200,   FALSE, '課務異動：你下週三的課改到週五', '國三數學 A 班 下週三改到週五 19:00。', '/teacher/schedule'),
+    (v_teacher, 'teacher', 'contact_book_reminder', 1500, TRUE,  '聯絡簿還差 3 則', '昨天的國三數學 A 班還有 3 位學生的聯絡簿沒寫。', '/teacher/schedule'),
+    (v_teacher, 'teacher', 'leave_for_my_class',   7300,  TRUE,  '請假：國二英文 B 班 林品妤', '家長幫林品妤請了週二的假（家庭因素）。', '/teacher/schedule'),
+    (v_admin,   'admin',   'application_received', 30,    FALSE, '新的報名申請：張宇軒 → 國二自然 A 班', '家長 parent03 送出報名申請，等你審核。', '/admin/applications'),
+    (v_admin,   'admin',   'leave_received',       240,   FALSE, '新的請假：張宇軒（今天）', '家長登記了今天的請假，原因：身體不適。', '/admin/leave'),
+    (v_admin,   'admin',   'unbilled_reminder',    1500,  TRUE,  '還有 4 位學生本月沒開單', '本月的帳單還沒開完，記得在月底前開立。', '/admin/billing'),
+    (v_admin,   'admin',   'overdue_digest',       8700,  TRUE,  '逾期帳單摘要：12 張', '上週新增 3 張逾期帳單，合計 12 張未收。', '/admin/payments')
+  ) AS t(uid, role, kind, mins, is_read, title, body, url) LOOP
+    CONTINUE WHEN r.uid IS NULL;
+    INSERT INTO public.notifications (org_id, user_id, role, kind, dedupe_key, payload, created_at, push_status, read_at)
+    VALUES (demo_org_id, r.uid, r.role::public.user_role, r.kind::public.notification_kind,
+            'seed-demo:a6-inbox:' || r.kind || ':' || r.mins,
+            jsonb_build_object('title', r.title, 'body', r.body, 'url', r.url),
+            now() - make_interval(mins => r.mins), 'skipped',
+            CASE WHEN r.is_read THEN now() - make_interval(mins => r.mins - 10) END)
+    ON CONFLICT (user_id, dedupe_key) DO NOTHING;
+  END LOOP;
+
+  -- (a) 公告（全機構）：家長、老師各兩則，一則今天、一則這週之前
+  INSERT INTO public.announcements (org_id, audience, title, body, published_at, created_by)
+  SELECT demo_org_id, a.audience::public.announcement_audience, a.title, a.body,
+         now() - make_interval(mins => a.mins), v_admin
+    FROM (VALUES
+      ('all_parents',  120,   '展示用：週六補習班停課一天', '本週六配合大樓消防檢查停課，補課時間另行通知。'),
+      ('all_parents',  14500, '展示用：期中考週加開自習室', '期中考前兩週，週一到週五 21:00 前自習室開放。'),
+      ('all_teachers', 150,   '展示用：本週五教學會議',     '週五 13:00 在文山旗艦校開教學會議，請準時出席。'),
+      ('all_teachers', 11600, '展示用：成績請在考後三天內登完', '家長端會在登錄後立即看到成績，請盡量在三天內登完。')
+    ) AS a(audience, mins, title, body)
+   WHERE NOT EXISTS (SELECT 1 FROM public.announcements x WHERE x.org_id = demo_org_id AND x.title = a.title);
+
+  -- (b) 張宇軒的報名申請：每種結束狀態一筆＋一筆等審核（申請中的同一班只能一筆，open_uniq）
+  SELECT id INTO v_student FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒' LIMIT 1;
+  IF v_student IS NULL OR v_parent IS NULL THEN RETURN; END IF;
+
+  FOR r IN SELECT * FROM (VALUES
+    ('國二自然 A 班',     'pending',          1440,  NULL::text),
+    ('國二英文 B 班',     'awaiting_payment', 4300,  NULL),
+    ('國小六年級數學班',  'rejected',         10000, '年級不符，建議改報國二的數學班'),
+    ('國三國文 A 班',     'cancelled',        20000, NULL),
+    ('國小五年級英文班',  'expired',          40000, NULL),
+    ('數學班 A',          'completed',        86000, NULL)
+  ) AS t(class_name, status, mins, reject_reason) LOOP
+    SELECT id INTO v_class FROM public.classes WHERE org_id = demo_org_id AND name = r.class_name LIMIT 1;
+    CONTINUE WHEN v_class IS NULL;
+    SELECT id INTO v_enrollment FROM public.enrollments WHERE student_id = v_student AND class_id = v_class LIMIT 1;
+    INSERT INTO public.enrollment_requests (org_id, student_id, class_id, status, preferred_start_date, note,
+                                            reject_reason, enrollment_id, requested_by, created_at, updated_at)
+    SELECT demo_org_id, v_student, v_class, r.status::public.enrollment_request_status,
+           (now() - make_interval(mins => r.mins))::date + 7, '展示用：A6 紀錄分頁', r.reject_reason,
+           CASE WHEN r.status = 'completed' THEN v_enrollment END, v_parent,
+           now() - make_interval(mins => r.mins), now() - make_interval(mins => r.mins)
+    WHERE NOT EXISTS (SELECT 1 FROM public.enrollment_requests
+                       WHERE student_id = v_student AND class_id = v_class AND note = '展示用：A6 紀錄分頁');
+  END LOOP;
+
+  -- (b) 張宇軒的試聽申請：等安排、已安排、已取消、已完成各一筆（以課程為單位）
+  FOR r IN SELECT * FROM (VALUES
+    ('國二自然 A 班',    'pending',   1440,  '週三、週五晚上'),
+    ('國二英文 B 班',    'scheduled', 5000,  '平日晚上都可以'),
+    ('國三國文 A 班',    'cancelled', 26000, NULL::text),
+    ('國小五年級英文班', 'completed', 60000, NULL)
+  ) AS t(class_name, status, mins, preferred) LOOP
+    SELECT course_id INTO v_course FROM public.classes WHERE org_id = demo_org_id AND name = r.class_name LIMIT 1;
+    CONTINUE WHEN v_course IS NULL;
+    INSERT INTO public.trial_requests (org_id, student_id, course_id, status, preferred_times, note, requested_by,
+                                       created_at, updated_at, scheduled_date, scheduled_start_time, scheduled_end_time)
+    SELECT demo_org_id, v_student, v_course, r.status::public.trial_request_status, r.preferred,
+           '展示用：A6 紀錄分頁', v_parent, now() - make_interval(mins => r.mins), now() - make_interval(mins => r.mins),
+           CASE WHEN r.status = 'scheduled' THEN current_date + 1 END,
+           CASE WHEN r.status = 'scheduled' THEN '18:00'::time END,
+           CASE WHEN r.status = 'scheduled' THEN '19:30'::time END
+    WHERE NOT EXISTS (SELECT 1 FROM public.trial_requests
+                       WHERE student_id = v_student AND course_id = v_course AND note = '展示用：A6 紀錄分頁');
+  END LOOP;
+END $$;
+
+-- ============================================================================
 -- 日到班的展示資料：今天的到班打卡（#976）
 --
 -- #976 起組織預設是日到班，儀表板改看「今日到班」—— 而這支原本一筆 `daily_checkins`

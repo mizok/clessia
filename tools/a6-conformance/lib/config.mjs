@@ -127,6 +127,15 @@ export const DEVIATIONS = [
     source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
   },
   {
+    // 手機頂欄一列（稿 ≤860 是兩列）：搜尋鈕跟著上移到第一列、帳戶鈕只剩頭像，位置不同
+    status: '位置',
+    widths: [360],
+    a6: '^>landmark:banner\\[\\]>control:button\\[搜尋\\]$',
+    detail: '^相對「banner」 ',
+    reason: '手機頂欄一列：搜尋鈕在第一列',
+    source: `${rule('R5')}「手機頂欄一列」2026-10-22；#1866`,
+  },
+  {
     // 同一條：老師頂欄導覽的「通知」一起拿掉（同一個功能不留兩個入口）
     status: '缺',
     a6: '>landmark:navigation\\[主要導覽\\]>control:link\\[通知\\]$',
@@ -329,6 +338,62 @@ export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
 const SELECT_FIELD = 'app-select-field（p-select＋pt）對 A6 .dd：結構不同、外觀對齊';
 const SELECT_FIELD_SOURCE =
   'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
+/**
+ * 公開頁（登入、選身分、試聽、報名）的品牌面：補習班名稱當主標，Clessia 退成一行小字併「· 學程管家」
+ * （稿是大字 Clessia、下面一行學程管家）。字標兩顆的文案、尺寸、樣式，以及多出來的「· 學程管家」字。
+ */
+const PUBLIC_BRAND_SOURCE = `${rule('R5')}「公開頁品牌面的字標與補習班名稱」2026-10-22；#1858、#1871`;
+const PUBLIC_BRAND_DEVIATIONS = [
+  ...['文案', '尺寸', '樣式'].map((status) => ({
+    status,
+    a6: '^>landmark:complementary\\[\\]>(control:link\\[Clessia\\]|heading:h2\\[學程管家\\])$',
+    reason: '品牌面：補習班名稱當主標，Clessia 退成一行小字',
+    source: PUBLIC_BRAND_SOURCE,
+  })),
+  {
+    status: '多',
+    app: '^>landmark:complementary\\[\\]>control:link\\[Clessia·學程管家\\]>text:span\\[·學程管家\\]$',
+    reason: '品牌面：「學程管家」併進 Clessia 那一行',
+    source: PUBLIC_BRAND_SOURCE,
+  },
+];
+/**
+ * 老師／家長收件匣（通知＋公告）共用的偏離。內容是 seed-demo 寫的（#1314 10-30），標題、則數是資料差；
+ * 保留期限句、類型標籤是 R5 已裁的。
+ */
+const INBOX_DATA_SOURCE = `${rule('R5')}「收件匣與申請紀錄的量測資料」2026-10-30；#1314`;
+const DAY = '>landmark:region\\[(今天|昨天|這週|更早)\\]';
+const INBOX_DEVIATIONS = [
+  {
+    status: '文案',
+    a6: '>landmark:main\\[\\]>text:p\\[通知保留#天。\\]$',
+    detail: '^「通知保留#天。」→「通知保留#天，公告會一直留著。」$',
+    reason: '保留期限句補「公告會一直留著」：API 只清通知，公告永久保存',
+    source: `${rule('R5')}「老師／家長通知頁底部的保留期限」2026-10-22；#1661`,
+  },
+  {
+    // 時間前面的類型標籤（公告／繳費提醒／報名…）
+    status: '文案',
+    a6: `${DAY}>control:button\\[[^\\]]*\\]>text:span\\[# #\\]$`,
+    detail: '^「# #」→「[^」]+· # #」$',
+    reason: '收件匣列的時間前面保留類型標籤',
+    source: `${rule('R5')}「老師／家長收件匣列上的類型標籤與「全部標為已讀」」2026-10-22；#1683`,
+  },
+  // 單獨一則（不成列）的那天：標題是 seed 的內容
+  ...['文案', '樣式'].map((status) => ({
+    status,
+    a6: `${DAY}>control:button\\[[^\\]]*\\](>text:span\\[[^\\]]*\\])?$`,
+    ...(status === '樣式' ? { detail: '^fontWeight \\d+ → \\d+(；color [^；]+)?$' } : {}),
+    reason: '資料：通知內容與已讀狀態是 seed 寫的（已讀未讀的字重不同）',
+    source: INBOX_DATA_SOURCE,
+  })),
+  {
+    status: '多',
+    app: `${DAY}>control:button\\[[^\\]]*\\]$`,
+    reason: '資料：那一天 seed 的通知比稿多一則',
+    source: INBOX_DATA_SOURCE,
+  },
+];
 const PUBLIC_FORM_DEVIATIONS = [
   {
     status: '缺',
@@ -506,12 +571,23 @@ export const PAGES = {
         reason: 'ARIA 角色依元件行為：手機「登入」打開底部面板，是按鈕',
         source: `${rule('R7')}；#1639`,
       },
+      // 手機登入改成置中彈窗（稿是貼底的底部面板）：寬 calc(100% - 32px)、四角圓角，位置置中
+      ...['位置', '尺寸', '樣式'].map((status) => ({
+        status,
+        pop: 'ps-sheet',
+        widths: [360],
+        a6: '^pop\\[ps-sheet\\]>landmark:popover\\[登入\\]',
+        reason: '手機登入是置中彈窗，不是貼底的底部面板',
+        source: `${rule('R5')}「手機登入：置中彈窗」2026-10-23；#2031`,
+      })),
+      ...PUBLIC_BRAND_DEVIATIONS,
     ],
   },
   'select-role': {
     a6: 'pub-select-role.html',
     app: '/select-role',
     state: path.join(cache, 'state-multi.json'),
+    deviations: PUBLIC_BRAND_DEVIATIONS,
   },
   // 公開表單（#1665 PR-4）：未登入也進得來，用訪客登入態（跟登入頁同一份）。偏離是 10-16 第一次 diff 跑出來的 key
   trial: {
@@ -527,13 +603,14 @@ export const PAGES = {
         source: `${rule('R5')}「公開試聽表單與學生的關係」2026-10-16；#1637 Q1`,
       },
       ...PUBLIC_FORM_DEVIATIONS,
+      ...PUBLIC_BRAND_DEVIATIONS,
     ],
   },
   enrollment: {
     a6: 'pub-enrollment.html',
     app: '/enrollment',
     state: path.join(cache, 'state-guest.json'),
-    deviations: PUBLIC_FORM_DEVIATIONS,
+    deviations: [...PUBLIC_FORM_DEVIATIONS, ...PUBLIC_BRAND_DEVIATIONS],
   },
   student: {
     a6: 'student.html',
@@ -567,7 +644,12 @@ export const PAGES = {
     a6: 'class.html',
     app: '/admin/courses/dc2f0b1a-7e79-4b6e-a61e-8bbac3eec5a6/classes/1deffd57-e069-4d72-98bf-41415ec01967',
   },
-  dashboard: { a6: 'dashboard.html', app: '/admin/dashboard' },
+  dashboard: {
+    a6: 'dashboard.html',
+    app: '/admin/dashboard',
+    // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
+    clock: '2026-10-01T17:40:00+08:00',
+  },
   enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
   leave: { a6: 'leave.html', app: '/admin/leave' },
   // 家長端報名申請（#1727 ③）：家長登入態；預設分頁「新增申請」，申請紀錄是 p-enrollment-records
@@ -670,6 +752,24 @@ export const PAGES = {
     prep: PARENT_PREP,
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
+    // 稿的鈕名帶「新」小標，key 對不上；app 不加小標（下面的偏離）
+    mapping: {
+      '>control:button[幫孩子請假新]': '>landmark:main[]>control:button[幫孩子請假]',
+    },
+    deviations: [
+      ...[
+        {
+          status: '文案',
+          a6: '>control:button\\[幫孩子請假新\\]$',
+          detail: '^「幫孩子請假新」→「幫孩子請假」$',
+        },
+        { status: '缺', a6: '>control:button\\[幫孩子請假新\\]>text:span\\[新\\]$' },
+      ].map((d) => ({
+        ...d,
+        reason: '「幫孩子請假」不加「新」字小標：暫時性標示，沒有拿掉的規則',
+        source: `${rule('R5')}「家長到班頁「幫孩子請假」的「新」字小標」2026-10-22；#1075`,
+      })),
+    ],
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
   settings: { a6: 'settings.html', app: '/admin/settings/general' },
@@ -789,7 +889,8 @@ export const PAGES = {
   },
   scores: {
     a6: 'scores.html',
-    app: '/admin/grades/exams/academy/5bce4763-b20c-4dd5-9f7e-2b7e500e3a22/scores',
+    // seed 的考試（跟 scores-dirty 同一場）；原本的 id 是某一席本機 DB 的，seed 裡沒有（#1314 10-30）
+    app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
   },
   grades: { a6: 'grades.html', app: '/admin/grades/overview' },
   'grades-class': {
@@ -1076,6 +1177,16 @@ export const PAGES = {
     a6: 't-notifications.html',
     app: '/teacher/notifications',
     state: path.join(cache, 'state-teacher.json'),
+    deviations: [
+      ...INBOX_DEVIATIONS,
+      {
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>heading:h1\\[',
+        detail: '^「#則未讀，今天#則新公告。」→「#則未讀，今天#則新通知。」$',
+        reason: '老師收件匣也有通知（請假等），色面句寫「通知」',
+        source: `${rule('R5')}「老師通知頁的色面句」2026-10-22；#1888`,
+      },
+    ],
   },
   'p-schedule': {
     a6: 'p-schedule.html',
@@ -1106,6 +1217,14 @@ export const PAGES = {
         app: '>landmark:main\\[\\]>text:p\\[只顯示最近#筆，共#筆。\\]$',
         reason: '資料：成績筆數超過顯示上限才出現',
         source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968、#1959`,
+      },
+      {
+        // 資料：章名是孩子上的班與任課老師（稿的示範孩子一班一位老師；張宇軒的班有兩位老師、班名不同）
+        status: '文案',
+        a6: '>landmark:main\\[\\]>heading:h2\\[[^\\]]*老師· #場\\](>text:small\\[[^\\]]*\\])?$',
+        detail: '^「[^」]*老師· #場」→「[^」]*老師· #場」$',
+        reason: '資料：孩子上的班與任課老師',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
       },
       {
         status: '缺',
@@ -1246,6 +1365,8 @@ export const PAGES = {
   'p-dashboard': {
     a6: 'p-dashboard.html',
     app: '/parent/dashboard',
+    // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
+    clock: '2026-10-01T17:40:00+08:00',
     state: PARENT_STATE,
     prep: PARENT_PREP,
     deviations: [
@@ -1285,6 +1406,15 @@ export const PAGES = {
     a6: 'p-notifications.html',
     app: '/parent/notifications',
     state: PARENT_STATE,
+    deviations: [
+      ...INBOX_DEVIATIONS,
+      {
+        status: '多',
+        app: '>landmark:main\\[\\]>control:button\\[通知設定：[^\\]]*\\]$',
+        reason: '推播設定收進工具列「通知設定」鈕（舊有新無，稿沒有位置）',
+        source: `${rule('R5')}「家長通知頁「繳費提醒通知」」2026-10-22；#1888`,
+      },
+    ],
   },
   't-students': {
     a6: 't-students.html',

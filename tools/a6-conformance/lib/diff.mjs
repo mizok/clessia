@@ -199,7 +199,9 @@ export function classify(rows, deviations = [], width, site = []) {
   const out = stripped.flatMap((r0) => {
     let r = r0;
     if (r.status === '資料差') return [{ ...r, bucket: '資料差' }];
-    if (r.limit) return [{ ...r, bucket: '工具限制' }];
+    // 「同型段落數不同」是請人工對的意思；已登記成偏離就是對過了，偏離優先（「更多」的通知中心／公開申請，#1314 10-30）
+    if (r.limit && !(r.limit === LIMITS.count && deviations.some((x) => !x.item && hit(r, x))))
+      return [{ ...r, bucket: '工具限制' }];
     const side = r.a6 ? 'a6' : 'app';
     const subOf = (q) => ({
       ...r,
