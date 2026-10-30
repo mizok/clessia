@@ -15,12 +15,9 @@ import app from './index';
 
 const PORT = Number(process.env['PORT'] ?? 8787);
 
-// Hono 在 Node 下不會自動注入 env，靠這層 middleware 補上（Workers 由 runtime 提供）
-app.use('*', async (c, next) => {
-  (c as unknown as { env: NodeJS.ProcessEnv }).env = process.env;
-  await next();
-});
-
-serve({ fetch: app.fetch, port: PORT }, (info) => {
+// Workers 由 runtime 把 env 當 fetch 的第二個參數傳進來；Node 這裡照樣傳 process.env。
+// **不能用 `app.use` 補**：那會排在 index 已經掛好的 auth 與路由之後，auth 先跑就拿不到 env，
+// 每支 API 都 500「沒有資料庫連線來源」（#2100）。server.spec.ts 守
+serve({ fetch: (req) => app.fetch(req, process.env), port: PORT }, (info) => {
   console.log(`Clessia API 在 http://localhost:${info.port} 執行中（Node）`);
 });
