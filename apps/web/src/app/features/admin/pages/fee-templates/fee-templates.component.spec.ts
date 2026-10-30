@@ -193,8 +193,11 @@ describe('FeeTemplatesComponent', () => {
       load(mixed());
       const name = root().querySelector('[data-chapter] .chapter-head__name');
       expect(name?.classList).toContain('text-[28px]');
-      // #1715：A6 `.chap` 手機上內距 24px（章頭上的 pt-6），原本 pt-4 差 8px
-      expect(name!.closest('app-chapter-head')!.classList).toContain('pt-6');
+      // A6 `.chap` 內距畫在章上（手機照 fee-templates.html 覆寫 24／8）
+      const chap = name!.closest('[data-chapter]')!;
+      expect(chap.classList).toContain('pt-6');
+      expect(chap.classList).toContain('pb-2');
+      expect(chap.classList).toContain('wide:py-8');
     });
 
     it('顯示停用方案：停用的排在章內最後、不重新打 API；鈕上寫停用數', () => {

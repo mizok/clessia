@@ -1,6 +1,6 @@
 <button
   type="button"
-  class="filter-chip tbar-control inline-flex cursor-pointer items-center gap-2 rounded-full border border-solid border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 [font-family:inherit] [transition:all_var(--transition-fast)] hover:border-accent-400 hover:bg-accent-50 hover:text-accent-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500 [&.filter-chip--active]:border-accent-400 [&.filter-chip--active]:bg-accent-50 [&.filter-chip--active]:text-accent-700"
+  class="filter-chip tbar-control flex h-9 w-fit cursor-pointer items-center gap-1.5 rounded-full border border-solid border-zinc-300 bg-white px-3 text-md leading-normal font-semibold whitespace-nowrap text-zinc-800 [font-family:inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500 [&.filter-chip--active]:border-zinc-900 [&.filter-chip--active]:text-zinc-900 [&.filter-chip--active]:shadow-[inset_0_0_0_1px_var(--zinc-900)]"
   [class.filter-chip--active]="active()"
   [attr.aria-pressed]="active()"
   (click)="toggle.emit()"

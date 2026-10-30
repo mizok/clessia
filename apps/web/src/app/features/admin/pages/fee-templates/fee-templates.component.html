@@ -25,7 +25,7 @@
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
-            type="text"
+            type="search"
             pInputText
             placeholder="搜尋方案名稱"
             aria-label="搜尋方案名稱"
@@ -54,9 +54,9 @@
   </div>
 </div>
 
-<div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
+<div class="page-wrap flex flex-col gap-12 pt-6 pb-28 wide:pt-8 wide:pb-32">
   <!-- ── 價目表 ───────────────────────────────────────────────────────── -->
-  <section class="flex flex-col" aria-labelledby="h-ft">
+  <section aria-labelledby="h-ft">
     <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-zinc-200 pb-3">
       <h2
         id="h-ft"
@@ -64,7 +64,7 @@
       >
         價目表
       </h2>
-      <span class="text-md text-zinc-600">停用的方案不會出現在報名選單，但歷史報名仍看得懂它</span>
+      <span class="text-md text-zinc-500">停用的方案不會出現在報名選單，但歷史報名仍看得懂它</span>
     </div>
 
     <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b）。骨架換成價目表時高度用滑的，下面的收費期間跟著滑（#1859） -->
@@ -111,18 +111,18 @@
 
           @for (chapter of chapters(); track chapter.mode) {
             <section
-              class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+              class="grid grid-cols-1 gap-2 border-b border-zinc-200 pt-6 pb-2 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
               [attr.aria-label]="chapter.label"
               [attr.data-chapter]="chapter.mode"
             >
               <app-chapter-head
-                class="block pt-6 wide:pt-8"
+                class="block"
                 [name]="chapter.label"
                 [listRow]="true"
                 [count]="chapter.rows.length"
                 unit="種"
               />
-              <div class="wide:pt-2">
+              <div>
                 @for (item of chapter.rows; track item.id) {
                   <div
                     class="vt-row grid grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-x-3 gap-y-1 border-b border-zinc-200 py-3 last:border-b-0 wide:min-h-16 wide:grid-cols-[minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1.1fr)_44px] wide:gap-x-6"
@@ -134,7 +134,6 @@
                       class="col-start-1 min-h-11 min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-lg font-bold underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500 wide:col-auto"
                       [class.text-zinc-900]="item.isActive"
                       [class.text-zinc-600]="!item.isActive"
-                      [attr.aria-label]="item.name + ' 的編輯'"
                       (click)="openTemplateDialog(item)"
                     >
                       {{ item.name }}
@@ -159,14 +158,15 @@
                       inUseLabel(item.inUseCount)
                     }}</span>
                     <div class="col-start-3 row-start-1 wide:col-auto wide:row-auto">
-                      <p-button
-                        icon="pi pi-ellipsis-h"
-                        [rounded]="true"
-                        [text]="true"
-                        severity="secondary"
-                        [ariaLabel]="item.name + ' 的更多動作'"
-                        (onClick)="openTemplateActionMenu($event, item)"
-                      />
+                      <!-- A6 `.more-btn`：40×40、圓角 md（手機 44，R3） -->
+                      <button
+                        type="button"
+                        class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent px-1.5 py-px text-zinc-800 hover:bg-zinc-100 wide:size-10"
+                        [attr.aria-label]="item.name + ' 的更多動作'"
+                        (click)="openTemplateActionMenu($event, item)"
+                      >
+                        <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+                      </button>
                     </div>
                   </div>
                 }
@@ -179,7 +179,7 @@
   </section>
 
   <!-- ── 收費期間 ─────────────────────────────────────────────────────── -->
-  <section class="flex flex-col" aria-labelledby="h-bp">
+  <section aria-labelledby="h-bp">
     <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-zinc-200 pb-3">
       <h2
         id="h-bp"
@@ -187,16 +187,14 @@
       >
         收費期間
       </h2>
-      <span class="text-md text-zinc-600"
-        >期繳用的具名日期區間。期間之間可以重疊 —— 新舊制交接時本來就會</span
-      >
+      <span class="text-md text-zinc-500">期繳用的具名日期區間</span>
       <button
         type="button"
-        class="hidden h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm font-semibold whitespace-nowrap wide:ml-auto wide:inline-flex"
+        class="hidden h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap wide:ml-auto wide:inline-flex"
         data-testid="new-period-btn"
         (click)="openPeriodDialog()"
       >
-        <i class="pi pi-plus text-xs" aria-hidden="true"></i>新增期間
+        <i class="pi pi-plus text-lg" aria-hidden="true"></i>新增期間
       </button>
     </div>
 
@@ -214,21 +212,17 @@
       } @else {
         <app-popup-menu #periodMenu [model]="periodMenuItems()" />
 
-        <div class="mt-2">
+        <div>
           @for (item of periods(); track item.id) {
             <div
               class="vt-row grid grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-1 border-b border-zinc-200 py-3 wide:min-h-[60px] wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_44px] wide:gap-x-6"
               [attr.data-period]="item.id"
               [style.view-transition-name]="'billing-period-' + item.id"
             >
-              <button
-                type="button"
-                class="col-start-1 min-h-11 min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-lg font-bold text-zinc-900 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-500 wide:col-auto"
-                [attr.aria-label]="item.name + ' 的編輯'"
-                (click)="openPeriodDialog(item)"
-              >
-                {{ item.name }}
-              </button>
+              <!-- A6 `.bp__name`：期間名是字，編輯在列尾「⋯」 -->
+              <span class="col-start-1 min-w-0 truncate text-lg font-bold text-zinc-900 wide:col-auto">{{
+                item.name
+              }}</span>
               <span class="col-start-1 text-md text-zinc-800 tabular-nums wide:col-auto">
                 {{ formatRange(item) }}
                 @if (overlapsOf(item); as overlaps) {
@@ -240,18 +234,19 @@
                 }
               </span>
               <span
-                class="col-start-1 text-sm text-zinc-700 tabular-nums wide:col-auto wide:text-md"
+                class="col-start-1 text-md text-zinc-700 tabular-nums wide:col-auto"
                 >{{ periodUsageLabel(item.overlappingEnrollmentCount) }}</span
               >
               <div class="col-start-2 row-start-1 wide:col-auto wide:row-auto">
-                <p-button
-                  icon="pi pi-ellipsis-h"
-                  [rounded]="true"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="item.name + ' 的更多動作'"
-                  (onClick)="openPeriodActionMenu($event, item)"
-                />
+                <!-- A6 `.more-btn`：40×40、圓角 md（手機 44，R3） -->
+                <button
+                  type="button"
+                  class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent px-1.5 py-px text-zinc-800 hover:bg-zinc-100 wide:size-10"
+                  [attr.aria-label]="item.name + ' 的更多動作'"
+                  (click)="openPeriodActionMenu($event, item)"
+                >
+                  <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+                </button>
               </div>
             </div>
           }
