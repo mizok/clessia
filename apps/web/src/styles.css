@@ -462,6 +462,10 @@
      上下（最大高度、翻轉、內容變長重算）不在這裡：`<p-popover appFitPopover>`（shared/directives/fit-popover，#1873）。 */
   .p-popover.filter-popover {
     width: 22rem;
+    /* A6 `.pop`：圓角 lg、內距 20 在浮層本身 */
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    --p-popover-content-padding: 0;
     --filter-popover-inset: var(--space-4);
   }
   @media (max-width: 860px) {
