@@ -46,12 +46,14 @@ describe('StudentViewComponent', () => {
   });
 
   afterEach(() => {
-    const pending = http.match(() => true);
-    pending.forEach((req) => {
-      if (!req.cancelled) {
-        req.flush({ data: [], meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 } });
-      }
-    });
+    // 學生名單回來才發成績摘要（G8）—— 多收幾輪，直到沒有新請求
+    for (let round = 0; round < 3; round++) {
+      http.match(() => true).forEach((req) => {
+        if (!req.cancelled) {
+          req.flush({ data: [], meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 } });
+        }
+      });
+    }
     http.verify();
   });
 
@@ -178,6 +180,11 @@ describe('StudentViewComponent', () => {
       data: [],
       meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
     });
+    // 成績摘要回來之前名單還在載入（列上的數字要一起出現，不先畫「—」再跳）
+    expect((component as any).loadingList()).toBe(true);
+    http
+      .expectOne((req) => req.url.endsWith('/api/scores/students'))
+      .flush({ data: [], meta: { total: 0, page: 1, pageSize: 200 } });
 
     expect((component as any).loadingList()).toBe(false);
   });
@@ -198,7 +205,6 @@ describe('StudentViewComponent', () => {
     reqs.forEach((r) =>
       r.flush({ data: [], meta: { total: 0, page: 1, pageSize: 100, totalPages: 1 } }),
     );
-    http.match(() => true).forEach((r) => r.flush({ data: [], meta: { total: 0 } }));
   });
 
   it('opens score detail dialog when selecting student', () => {
@@ -209,6 +215,62 @@ describe('StudentViewComponent', () => {
     expect(openMock).toHaveBeenCalledTimes(1);
     const [, config] = openMock.mock.calls[0] as [unknown, any];
     expect(config.data.student.id).toBe('s1');
+  });
+
+  it('列上的成績摘要（#1314 G8）：撈齊 scope=all 的每頁，依學生配到列上', () => {
+    fixture.detectChanges();
+    http
+      .expectOne((r) => r.url.includes('/api/students'))
+      .flush({
+        data: [
+          { id: 's1', name: '王小明', grade: 'J1', school: null },
+          { id: 's2', name: '李小華', grade: 'J1', school: null },
+        ],
+        meta: { total: 2, page: 1, pageSize: 100, totalPages: 1 },
+      });
+    const agg = (studentId: string, over: object) => ({
+      studentId,
+      academySum: 130,
+      academyTotalSum: 200,
+      latest: null,
+      deltaVsPrev: null,
+      recentAbsentCount: 0,
+      ...over,
+    });
+    const first = http.expectOne(
+      (r) => r.url.endsWith('/api/scores/students') && r.params.get('page') === '1',
+    );
+    expect(first.request.params.get('scope')).toBe('all');
+    first.flush({ data: [], meta: { total: 201, page: 1, pageSize: 200 } });
+    http
+      .expectOne((r) => r.url.endsWith('/api/scores/students') && r.params.get('page') === '2')
+      .flush({
+        data: [
+          agg('s1', {
+            latest: {
+              score: 41,
+              totalScore: 100,
+              examName: '第三次小考',
+              examDate: '2026-10-01',
+              failing: true,
+            },
+            deltaVsPrev: -7.6,
+            recentAbsentCount: 2,
+          }),
+        ],
+        meta: { total: 201, page: 2, pageSize: 200 },
+      });
+    fixture.detectChanges();
+
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll(
+      '[data-part="student-row"]',
+    );
+    const text = (el: Element) => el.textContent!.replace(/\s+/g, ' ');
+    expect(text(rows[0])).toContain('最近：第三次小考（10/1） · 比上一次 −8 分 · 缺考 2 次');
+    expect(text(rows[0])).toContain('41 不及格');
+    expect(text(rows[0])).toContain('65平均');
+    expect(text(rows[1])).toContain('這段期間沒有成績');
+    expect(text(rows[1])).toContain('—平均');
   });
 
   it('renders paged students rows', () => {

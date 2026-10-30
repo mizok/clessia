@@ -1,7 +1,7 @@
 <!--
   A6 版（#991 grades G5，grades-student.html）：色面（返回成績總覽、N 位學生）→ 灰工具列（搜尋、年級／學校／狀態）
-  → 依年級分章的學生列。計畫席裁 Q7：照 A6 分章，但每列**不放分數欄**（缺批次學生成績摘要 API，#991 後續項）；
-  「課程／開課班／期間」篩選與匯出 CSV 也列後續項。分校跟頂欄（#1138），頁內不再有分校。
+  → 依年級分章的學生列；每列的最近一次、比上一次、缺考、平均來自 `/scores/students?scope=all`（#1314 G8）。
+  分校跟頂欄（#1138），頁內不再有分校。
 -->
 <app-page-open>
   <a
@@ -185,10 +185,15 @@
         </div>
         <div>
           @for (s of chap.students; track s.id) {
+            @let agg = aggregates().get(s.id);
+            @let avg = average(agg);
+            @let last = agg?.latest;
+            <!-- A6 .srow：名字與學校班級 → 最近一次 → 最近分數 → 平均；手機「最近」落到第二行 -->
             <button
               type="button"
-              class="group grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-0 border-b border-surface-border bg-transparent py-4 text-left text-zinc-900 last:border-b-0"
+              class="group grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_64px_64px] items-center gap-x-6 gap-y-2 border-0 border-b border-surface-border bg-transparent py-4 text-left text-zinc-900 last:border-b-0 wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_96px_96px]"
               data-part="student-row"
+              aria-haspopup="dialog"
               (click)="selectStudent(s)"
             >
               <span class="min-w-0">
@@ -196,14 +201,43 @@
                   class="block text-lg font-semibold group-hover:underline group-hover:underline-offset-4"
                   >{{ s.name }}</span
                 >
-                <span class="block text-sm text-zinc-600">
+                <span class="text-sm text-zinc-600">
                   {{ s.school?.name ?? '未填學校' }}
                   @if (s.classNames?.length) {
                     · {{ s.classNames.join('、') }}
                   }
                 </span>
               </span>
-              <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
+              <span
+                class="col-span-full row-start-2 text-sm text-zinc-600 wide:col-span-1 wide:row-start-auto"
+              >
+                @if (agg && last) {
+                  最近：<b class="font-semibold text-zinc-900">{{ last.examName }}</b
+                  >（{{ md(last.examDate) }}）
+                  @if (agg.deltaVsPrev !== null) {
+                    · 比上一次 {{ deltaText(agg.deltaVsPrev) }} 分
+                  }
+                  @if (agg.recentAbsentCount) {
+                    · 缺考 {{ agg.recentAbsentCount }} 次
+                  }
+                } @else {
+                  這段期間沒有成績
+                }
+              </span>
+              <span
+                class="text-right text-xl font-bold tabular-nums"
+                [class.text-error-700]="last?.failing"
+              >
+                {{ last?.score ?? '—' }}
+                @if (last) {
+                  <small class="block text-xs font-medium text-zinc-600">{{
+                    last.failing ? '不及格' : '最近一次'
+                  }}</small>
+                }
+              </span>
+              <span class="text-right text-xl font-bold tabular-nums">
+                {{ avg ?? '—' }}<small class="block text-xs font-medium text-zinc-600">平均</small>
+              </span>
             </button>
           }
         </div>

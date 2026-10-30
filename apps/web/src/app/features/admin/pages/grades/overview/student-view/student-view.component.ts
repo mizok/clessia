@@ -18,7 +18,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
 import { Popover, PopoverModule } from 'primeng/popover';
 import { ButtonModule } from 'primeng/button';
-import { ScoresService } from '@core/scores.service';
+import { ScoresService, type StudentScoreAggregate } from '@core/scores.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { DialogService } from 'primeng/dynamicdialog';
 import { RouterLink } from '@angular/router';
@@ -37,7 +37,18 @@ import {
   type StudentQueryParams,
 } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { EMPTY, Subject, catchError, debounceTime, forkJoin, map, of, skip, switchMap } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  Subject,
+  catchError,
+  debounceTime,
+  forkJoin,
+  map,
+  of,
+  skip,
+  switchMap,
+} from 'rxjs';
 
 import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog/student-score-detail-dialog.component';
 import {
@@ -123,6 +134,8 @@ export class StudentViewComponent implements OnInit {
   protected readonly activeStatusFilter = signal<StudentActiveStatusFilter>('active');
 
   protected readonly rawStudents = signal<Student[]>([]);
+  /** 每生成績摘要（#1314 G8）：`scope=all` 只回有成績的學生，查不到的列寫「沒有成績」 */
+  protected readonly aggregates = signal<ReadonlyMap<string, StudentScoreAggregate>>(new Map());
   protected readonly loadingList = signal(true);
   /**
    * 取數失敗。**不能沿用 `pagedStudents().length === 0`** —— 那一格說
@@ -370,6 +383,9 @@ export class StudentViewComponent implements OnInit {
                 map((responses) => [firstPage, ...responses].flatMap((response) => response.data)),
               );
             }),
+            switchMap((students) =>
+              this.loadAggregates().pipe(map((aggregates) => ({ students, aggregates }))),
+            ),
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
             // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
             // **一次網路錯誤就讓這一頁再也載入不了任何東西**，而畫面上只有一則
@@ -392,10 +408,46 @@ export class StudentViewComponent implements OnInit {
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((students) => {
+      .subscribe(({ students, aggregates }) => {
+        this.aggregates.set(new Map(aggregates.map((a) => [a.studentId, a])));
         this.rawStudents.set(students);
         this.loadingList.set(false);
       });
+  }
+
+  /** 每生摘要撈齊（每頁上限 200） */
+  private loadAggregates(): Observable<StudentScoreAggregate[]> {
+    const fetch = (page: number) =>
+      this.scoresService.studentAggregatesAll({
+        campusId: this.campusId() || undefined,
+        page,
+        pageSize: 200,
+      });
+    return fetch(1).pipe(
+      switchMap((first) => {
+        const pages = Math.ceil(first.meta.total / 200);
+        if (pages <= 1) return of(first.data);
+        return forkJoin(Array.from({ length: pages - 1 }, (_, i) => fetch(i + 2))).pipe(
+          map((rest) => [first, ...rest].flatMap((r) => r.data)),
+        );
+      }),
+    );
+  }
+
+  /** 列尾的「平均」：校內考總得分／總滿分換成 100 分制；沒有校內考成績時是 null */
+  protected average(a: StudentScoreAggregate | undefined): number | null {
+    return a?.academyTotalSum ? Math.round(((a.academySum ?? 0) / a.academyTotalSum) * 100) : null;
+  }
+
+  /** `2026-10-04` → `10/4` */
+  protected md(date: string): string {
+    return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  }
+
+  /** 「比上一次 +5 分」：已是 100 分制的差 */
+  protected deltaText(delta: number): string {
+    const n = Math.round(delta);
+    return `${n > 0 ? '+' : n < 0 ? '−' : '±'}${Math.abs(n)}`;
   }
 
   private buildStudentQueryParams(): StudentQueryParams {
