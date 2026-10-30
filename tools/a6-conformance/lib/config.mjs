@@ -888,6 +888,77 @@ export const PAGES = {
     app: '/admin/dashboard',
     // 稿的今天（shared/data.js：2026-10-01 17:40，週四），同 p-schedule（#1314 10-30）
     clock: '2026-10-01T17:40:00+08:00',
+    deviations: [
+      {
+        // #2057（保留類，已合）：改時段改成「從某天起」，不再是整期一起改
+        status: '文案',
+        a6: '整期一起改\\]$',
+        reason: '產品功能改了：班級改時段是從某天起生效，不是整期一起改',
+        source: 'https://github.com/mizok/clessia/pull/2057（#1100 #22）',
+      },
+      {
+        // 該到沒到：稿 2 位、seed 在稿的今天（10-01 17:40）有 6 位 —— ≥3 才成清單列，兩邊一邊成列一邊不成，列內配不上
+        status: '缺',
+        a6: '>landmark:region\\[該到沒到的#位，先打給家長\\]>[^>]+$',
+        reason: '資料：稿該到沒到 2 位不成清單列，seed 6 位成列',
+        source: 'tools/a6-conformance/README.md（列是資料：≥3 或 ≥5 個同簽名才合成 row）',
+      },
+      {
+        status: '多',
+        app: '>landmark:region\\[該到沒到的#位，先打給家長\\]>row(>.*)?$',
+        reason: '資料：稿該到沒到 2 位不成清單列，seed 6 位成列',
+        source: 'tools/a6-conformance/README.md（列是資料：≥3 或 ≥5 個同簽名才合成 row）',
+      },
+      {
+        // 工具列的「登記請假」：稿頁面上有三顆同名鈕（工具列＋兩列），seed 的列進了清單列，剩下的配對錯開
+        status: '缺',
+        a6: '^>control:button\\[登記請假\\]$',
+        reason: '連帶：該到沒到列數不同（資料），同名的「登記請假」配不上',
+        source: 'tools/a6-conformance/README.md（列是資料）',
+      },
+      {
+        status: '多',
+        app: '>landmark:main\\[\\]>control:button\\[登記請假\\]$',
+        reason: '連帶：該到沒到列數不同（資料），同名的「登記請假」配不上',
+        source: 'tools/a6-conformance/README.md（列是資料）',
+      },
+      {
+        status: '位置',
+        a6: '^>control:button\\[櫃台代刷到班\\]$',
+        detail: '連帶自待修「control:button\\[登記請假\\] 缺」',
+        reason: '連帶：同上',
+        source: 'tools/a6-conformance/README.md（列是資料）',
+      },
+      {
+        // 同 scores-dirty：app 的手機托盤（page-actions，position: fixed）抽不到，截圖底部兩顆都在
+        status: '缺',
+        widths: [360],
+        a6: 'landmark:toolbar\\[主要動作\\]>control:button\\[[^\\]]*\\]$',
+        reason: '工具限制：app 的手機托盤抽不到（截圖底部「櫃台代刷」「登記請假」都在）',
+        source: 'tools/a6-conformance extract.mjs；同 scores-dirty（#1925）',
+      },
+      {
+        // 同一件事的另一面：托盤兩顆鈕跟三條摺疊列被併成同一組「列」，代表樣式取到托盤鈕
+        status: '樣式',
+        widths: [360],
+        app: '^>landmark:main\\[\\]>row>control:button$',
+        reason: '工具限制：手機托盤的鈕跟摺疊列併成同一組列，代表樣式取錯',
+        source: 'tools/a6-conformance extract.mjs isRow；同 scores-dirty（#1925）',
+      },
+      {
+        // 機構名是資料（稿「晨曦文理補習班」、seed「Demo 補習班」），分校小字跟著名字寬度位移
+        status: '文案',
+        a6: 'heading:h1\\[晨曦文理補習班\\{分校\\}\\]$',
+        reason: '資料：機構名',
+        source: 'seed.sql（organizations）',
+      },
+      {
+        status: '位置',
+        a6: 'heading:h1\\[晨曦文理補習班\\{分校\\}\\]>text:span\\[\\{分校\\}\\]$',
+        reason: '資料：機構名寬度不同，旁邊的分校小字跟著位移',
+        source: 'seed.sql（organizations）',
+      },
+    ],
   },
   enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
   leave: { a6: 'leave.html', app: '/admin/leave' },

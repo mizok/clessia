@@ -454,7 +454,7 @@ describe('DashboardComponent（管理端）', () => {
       expect(open.titleSwap()).toBe(false);
     });
 
-    it('跨分校時不挑一個分校寫', async () => {
+    it('跨分校時不挑一個分校寫，照實寫「全部分校」（A6 標題旁一定有分校小字）', async () => {
       await setup({
         mode: 'daily_checkin',
         workbenchExpected: [
@@ -466,8 +466,9 @@ describe('DashboardComponent（管理端）', () => {
       const band = el().querySelector('app-page-open') as HTMLElement;
       expect(band.textContent).not.toContain('甲校');
       expect(band.textContent).not.toContain('乙校');
-      // 沒有分校小字（兩個分校＝門檻＋1）：副行維持一般大小
-      expect(band.querySelector('p')!.classList.contains('wide:text-2xl')).toBe(false);
+      expect(band.textContent).toContain('全部分校');
+      // 有分校小字：副行照 A6 放大
+      expect(band.querySelector('p')!.classList.contains('wide:text-2xl')).toBe(true);
     });
 
     it('機構名還沒載到 → 骨架，不是空白也不是假名字', async () => {
