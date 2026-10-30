@@ -654,6 +654,28 @@ export const PAGES = {
     app: '/admin/courses',
     a6Open: opensOf('courses', 'a6Open'),
     appOpen: opensOf('courses', 'appOpen'),
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 grades-class #1762 那條
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋課程\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),      {
+        // 批次選取（#1226 courses C1 Q3 照留）：現況有、稿沒畫，收進工具列「⋯」—— 同帳單那條
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${rule('R2')}；#1226`,
+      },      {
+        // 課程列：稿是 <details><summary>，summary 裡包「新增班」「⋯」按鈕（summary 是按鈕角色，裡面不能再放按鈕）；
+        // app 是展開鈕＋並排的動作鈕，每門課一個 region（計畫席 10-30 #2078 同意）。結構不同，課程列裡的子項配不上，一起歸這條
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>landmark:region\\[[^\\]]*\\](>.*)?$',
+        reason: '課程列結構依元件行為：展開鈕＋並排動作鈕，不把按鈕包進 summary',
+        source: `${rule('R7')}；https://github.com/mizok/clessia/pull/2078`,
+      },
+    ],
   },
   class: {
     a6: 'class.html',
@@ -1016,7 +1038,19 @@ export const PAGES = {
       },
     ],
   },
-  'grades-student': { a6: 'grades-student.html', app: '/admin/grades/overview/student' },
+  'grades-student': {
+    a6: 'grades-student.html',
+    app: '/admin/grades/overview/student',
+    deviations: [
+      // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: '^>control:searchbox\\[搜尋學生姓名\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+    ],
+  },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
   // 黏住的行為檢查才量得到（A6 的 .wc__h／.cg__dh、#save）
   'schedule-week': {
