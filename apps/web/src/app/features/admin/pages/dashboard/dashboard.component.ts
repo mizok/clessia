@@ -590,7 +590,9 @@ export class DashboardComponent {
         ...(this.workbench()?.expected ?? []).map((s) => s.campusName),
       ].filter((name): name is string => !!name),
     );
-    return names.size === 1 ? [...names][0] : null;
+    // 跨分校：A6 的標題旁一定有分校小字（副行跟著放大），全部分校就照實寫「全部分校」
+    if (names.size === 1) return [...names][0];
+    return this.workbench() ? '全部分校' : null;
   });
 
   /**
