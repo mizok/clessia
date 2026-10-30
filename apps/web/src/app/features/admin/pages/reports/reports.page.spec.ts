@@ -352,7 +352,7 @@ describe('ReportsPage', () => {
       expect(fixture.nativeElement.querySelectorAll('app-page-open br')).toHaveLength(0);
       expect(heroText()).toContain('錢進來多少、還有多少沒收到。'); // 退回預設副行
       expect(q('billed-bar')).toBeNull();
-      expect(q('billed-summary').querySelectorAll('[data-testid="pct"]')).toHaveLength(0);
+      expect(q('billed-summary').textContent).not.toContain('%');
       expect(q('block-outstanding').textContent).toContain('NT$ 0');
     });
 
@@ -428,10 +428,15 @@ describe('ReportsPage', () => {
       const labels = Array.from(bar.querySelectorAll('label')).map((l) => l.textContent!.trim());
       expect(labels.some((t) => t.startsWith('期間'))).toBe(true);
       expect(labels.some((t) => t.startsWith('課程'))).toBe(true);
-      expect(bar.querySelector('p-selectbutton')).not.toBeNull();
-      expect(bar.querySelector('p-selectbutton')!.classList).toContain('col-span-2');
-      expect(bar.querySelector('p-selectbutton')!.classList).toContain('wide:ml-auto');
-      expect(fixture.nativeElement.querySelectorAll('p-selectbutton')).toHaveLength(1);
+      // A6 `.seg`：分段鈕（aria-pressed），跟匯出圖示鈕同在工具列右群組
+      const seg = bar.querySelector('[data-testid="group-by"]') as HTMLElement;
+      expect(seg.getAttribute('role')).toBe('group');
+      expect(seg.parentElement!.classList).toContain('wide:ml-auto');
+      const pressed = Array.from(seg.querySelectorAll('button')).filter(
+        (b) => b.getAttribute('aria-pressed') === 'true',
+      );
+      expect(pressed).toHaveLength(1);
+      expect(bar.querySelector('button[aria-label="匯出"]')).not.toBeNull();
     });
   });
 

@@ -1138,7 +1138,48 @@ export const PAGES = {
       },
     ],
   },
-  reports: { a6: 'reports.html', app: '/admin/reports' },
+  reports: {
+    a6: 'reports.html',
+    app: '/admin/reports',
+    deviations: [
+      {
+        // 稿的期間／分校／課程是 label 包原生 select；app 是 label 包 PrimeNG p-select（combobox＋dropdown 鈕），
+        // 工具把 app 的 label 當成一個 part、稿的沒有。分校不在這列：在頂欄（#1138）
+        status: '多',
+        app: 'landmark:search\\[篩選營收報表\\]>text:label\\[(期間|課程)\\](>.*)?$',
+        reason: '工具限制：p-select 不是原生 select，label 的配對方式不同',
+        source: 'tools/a6-conformance extract.mjs；分校在頂欄 #1138',
+      },
+      {
+        // 表頭第一格、合計那一格的 class 跟同列其他格不同（靠左、無左內距），工具不把它們併進同一組列
+        status: '多',
+        app: '>landmark:main\\[\\]>list>text:(th\\[[^\\]]*\\]|td\\[合計\\])$',
+        reason: '工具限制：同列第一格簽名不同，沒有併成列',
+        source: 'tools/a6-conformance/README.md（列是同層同簽名）',
+      },
+      {
+        // 分組的名稱連結、模糊桶說明（未分類、跨分校帳單）隨資料：稿 19 組有 3 組連分校、1 組有說明，seed 2 組
+        status: '缺',
+        a6: '>row>(control:link|text:span)$',
+        reason: '資料：分組數與哪幾組有連結／說明',
+        source: 'tools/a6-conformance/README.md（列內條件式：可能隨資料）',
+      },
+      {
+        status: '多',
+        app: '>row>(control:link|text:span(~\\d)?)$',
+        reason: '資料：分組數與哪幾組有連結／說明',
+        source: 'tools/a6-conformance/README.md（列內條件式：可能隨資料）',
+      },
+      {
+        // 手機上分組名稱連結撐 44（觸控下限），列的第二行起跟著下移
+        status: '位置',
+        widths: [360],
+        app: '(>row>row|>text:td>text:small)$',
+        reason: '連帶：手機分組名稱連結撐到 44px',
+        source: `${rule('R3')}`,
+      },
+    ],
+  },
   'contact-book': {
     a6: 'contact-book.html',
     app: '/admin/contact-book',

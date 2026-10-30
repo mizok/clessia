@@ -8,7 +8,7 @@ import { skip } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
-import { SelectButtonModule } from 'primeng/selectbutton';
+
 import { MessageService } from 'primeng/api';
 
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -71,7 +71,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     RouterLink,
     ButtonModule,
     SelectModule,
-    SelectButtonModule,
+
     PageOpenComponent,
     EmptyStateComponent,
   ],
