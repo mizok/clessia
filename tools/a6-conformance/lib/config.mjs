@@ -1182,6 +1182,15 @@ export const PAGES = {
     a6: 't-schedule.html',
     app: '/teacher/schedule',
     state: path.join(cache, 'state-teacher.json'),
+    deviations: [
+      {
+        // 拿掉的話 app 的週列會跑到 main 底下、跟稿的課卡搶配對（app 的 main 包住色面與工具列，#1591）
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:navigation\\[本週各日\\]$',
+        reason: '週條是換日、換週的導覽，用 nav landmark（稿是 div）',
+        source: `${rule('R7')}`,
+      },
+    ],
   },
   't-notifications': {
     a6: 't-notifications.html',
