@@ -1,6 +1,6 @@
 import { Component, input, output } from '@angular/core';
 
-export type BatchMode = 'assign' | 'time' | 'cancel' | 'uncancel';
+export type BatchMode = 'assign' | 'time' | 'cancel' | 'uncancel' | 'move' | 'sub';
 
 @Component({
   selector: 'app-session-batch',

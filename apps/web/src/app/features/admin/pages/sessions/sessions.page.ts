@@ -727,6 +727,8 @@ export class SessionsPage implements OnInit {
           uncancel: '取消停課',
           assign: '指派老師',
           time: '調整時間',
+          move: '改到別天',
+          sub: '代課',
         };
         const label = modeLabel[result.mode] ?? '更新';
         const skipReasonMap: Record<string, string> = {
@@ -734,6 +736,8 @@ export class SessionsPage implements OnInit {
           uncancel: '僅停課中的課堂可取消停課',
           assign: '已指派老師的課堂已略過',
           time: '已停課的課堂無法調整時間',
+          move: '已停課、撞堂或日期沒變的課堂已略過',
+          sub: '已停課、未指派或撞堂的課堂已略過',
         };
         const skipReason = skipReasonMap[result.mode] ?? '條件不符';
         const detail =
