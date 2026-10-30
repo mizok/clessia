@@ -898,7 +898,39 @@ export const PAGES = {
     ],
   },
   reports: { a6: 'reports.html', app: '/admin/reports' },
-  'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },
+  'contact-book': {
+    a6: 'contact-book.html',
+    app: '/admin/contact-book',
+    deviations: [
+      // 學生篩選有建議清單（app-student-autocomplete，選了才帶 studentId 查）＝combobox；框畫在 input 上
+      // （共用 p-iconfield＋.clessia-filter-search），稿畫在外層 label.tsearch —— 同 courses #1762 的那條
+      {
+        status: '角色',
+        a6: 'control:searchbox\\[輸入學生姓名篩選\\]$',
+        detail: '^control:searchbox → control:combobox$',
+        reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
+        source: `${rule('R7')}`,
+      },
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[輸入學生姓名篩選\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      {
+        status: '多',
+        app: 'control:combobox\\[(缺漏名單的日期|期間)\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      {
+        status: '多',
+        app: 'control:button\\[dropdown trigger\\](~\\d+)?$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+    ],
+  },
   changes: { a6: 'changes.html', app: '/admin/changes' },
   exams: {
     a6: 'exams.html',
@@ -1232,6 +1264,17 @@ export const PAGES = {
     state: PARENT_STATE,
     prep: PARENT_PREP,
     deviations: [
+      // 資料：「NEW」接在考試名稱後、「筆」接在筆數後 —— 名稱長度與位數不同，往右移的量就是字寬差
+      ...[
+        'control:button>text:span~2>text:span\\[NEW\\]$',
+        'landmark:region\\[這一頁的摘要\\]>text:dd\\[#\\]>text:small\\[筆\\]$',
+      ].map((a6) => ({
+        status: '位置',
+        a6,
+        detail: 'Δy 0（',
+        reason: '資料：前面的考試名稱長度、筆數位數不同',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      })),
       {
         // 資料：最近一次考試的科目（稿英文、量測的張宇軒數學），兩邊同一套句子
         status: '文案',
@@ -1315,6 +1358,13 @@ export const PAGES = {
     // #1924 收尾、#1949 換多孩子帳號重看（10-23）：量的是 parent03 → 張宇軒（26 張待繳，第一頁 20 張、沒有已繳清）。
     // 單孩子帳號時登的「靜態徽章、孩子數、標題句的孩子名字」在多孩子帳號下都不再出現，已刪
     deviations: [
+      // 期限標籤：圓點＋字（app-status-dot），不換稿的 .tag 膠囊（底色、圓角、12px）；圓點佔掉的寬讓字往右
+      ...['位置', '尺寸', '樣式'].map((status) => ({
+        status,
+        a6: 'control:button\\[[^\\]]*\\]>text:span\\[(#天後到期|今天到期|逾期#天|未到期)\\]$',
+        reason: '狀態標籤用圓點＋字，不換稿的膠囊',
+        source: `${rule('R5')}「狀態標籤：圓點，不換 A6 的 .tag 膠囊」2026-10-23`,
+      })),
       {
         // 稿的待繳還沒到期；seed 那張已逾期 → 副句多「，已經過了」（兩邊同一套句子）
         status: '文案',
@@ -1353,6 +1403,13 @@ export const PAGES = {
     prep: PARENT_PREP,
     popovers: { mexp: 'meals-export' },
     deviations: [
+      // 資料：月份摘要的「N 元 · N 餐」位數比稿長，手機放不下時整段換到第二行（摘要列 flex-wrap）；稿的資料放得下一行
+      {
+        status: '位置',
+        a6: '>landmark:main\\[\\]>row>control:button>text:span~3(>text:b)?$',
+        reason: '資料：月份合計的金額與餐數位數',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
       {
         status: '缺',
         a6: 'landmark:popover\\[匯出餐費\\]>text:span\\[新\\]$',
