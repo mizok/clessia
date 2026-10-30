@@ -81,8 +81,9 @@ describe('CourseFormDialogComponent', () => {
     (component as unknown as { save: () => void }).save();
 
     expect(coursesServiceMock.create).not.toHaveBeenCalled();
-    expect(messageServiceMock.add).toHaveBeenCalledWith(
-      expect.objectContaining({ severity: 'warn', summary: '請至少選擇一個適合年級' }),
+    // A6 `.fdlg__why`：不跳 toast，動作列左邊寫還差什麼
+    expect((component as unknown as { missingHint: () => string | null }).missingHint()).toBe(
+      '還沒填：適合年級',
     );
   });
 

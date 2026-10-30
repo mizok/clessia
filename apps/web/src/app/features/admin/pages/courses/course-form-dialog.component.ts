@@ -20,12 +20,14 @@ import {
 } from '@core/courses.service';
 import { Campus } from '@core/campuses.service';
 import { Subject } from '@core/subjects.service';
+import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
 
 @Component({
   selector: 'app-course-form-dialog',
   standalone: true,
   imports: [
     CommonModule,
+    DialogTitleDirective,
     FormsModule,
     ButtonModule,
     InputTextModule,
@@ -82,6 +84,18 @@ export class CourseFormDialogComponent {
   protected readonly subjectOptions = computed(() =>
     this.subjects().map((s) => ({ label: s.name, value: s.id })),
   );
+  /** A6 `.fdlg__why`：「還沒填：科目、課程名稱」；都填了是 null */
+  protected readonly missingHint = computed(() => {
+    const form = this.formData();
+    const missing = [
+      !form.campusId && '分校',
+      !form.subjectId && '科目',
+      !form.name.trim() && '課程名稱',
+      form.gradeLevels.length === 0 && '適合年級',
+    ].filter(Boolean);
+    return missing.length ? `還沒填：${missing.join('、')}` : null;
+  });
+
   protected readonly campusName = computed(() => {
     const cid = this.formData().campusId;
     return this.campuses().find((c) => c.id === cid)?.name ?? '課程管理';
@@ -104,22 +118,8 @@ export class CourseFormDialogComponent {
 
   protected save(): void {
     const form = this.formData();
-    if (!form.campusId) {
-      this.messageService.add({ severity: 'warn', summary: '請選擇分校' });
-      return;
-    }
-    if (!form.name.trim()) {
-      this.messageService.add({ severity: 'warn', summary: '請填寫課程名稱' });
-      return;
-    }
-    if (!form.subjectId) {
-      this.messageService.add({ severity: 'warn', summary: '請選擇科目' });
-      return;
-    }
-    if (form.gradeLevels.length === 0) {
-      this.messageService.add({ severity: 'warn', summary: '請至少選擇一個適合年級' });
-      return;
-    }
+    // A6 `.fdlg`：送出鈕不鎖死，沒填完就停在這裡，動作列左邊那行寫還差什麼
+    if (this.missingHint()) return;
 
     this.loading.set(true);
 

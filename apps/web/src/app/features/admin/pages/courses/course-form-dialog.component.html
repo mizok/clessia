@@ -1,158 +1,166 @@
 <div class="form-dialog">
+  <!-- A6 `.fdlg` 標題列：h2＋副標＋關閉 -->
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__breadcrumb">{{ campusName() }}</span>
-      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯課程' : '新增課程' }}</span>
+      <h2 appDialogTitle class="dialog-header-inline__title">
+        {{ isEditing() ? '編輯課程' : '新增課程' }}
+      </h2>
+      <p class="dialog-header-inline__sub">
+        {{
+          isEditing()
+            ? campusName() + ' · 分校建立後不能改'
+            : '課程是「教什麼」，上課時間在課程底下的班設定'
+        }}
+      </p>
     </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11"
-      (click)="cancel()"
-      aria-label="Close"
-    >
-      <i class="pi pi-times"></i>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="關閉">
+      <i class="pi pi-times" aria-hidden="true"></i>
     </button>
   </div>
-  <!-- Status (edit only) -->
-  @if (isEditing()) {
-    <div class="form-dialog__field form-dialog__field--inline">
-      <label class="form-dialog__label">狀態</label>
-      <div class="form-dialog__switch-row">
-        <p-toggleswitch
-          [ngModel]="formData().isActive"
-          (ngModelChange)="onStatusChange($event)"
-          [disabled]="loading()"
-        />
-        <span class="form-dialog__switch-label">
-          {{ formData().isActive ? '啟用中' : '已停用' }}
-        </span>
+  <form ngNoForm class="flex flex-col gap-2" (submit)="$event.preventDefault(); save()">
+    <!-- Status (edit only) -->
+    @if (isEditing()) {
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">狀態</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="formData().isActive"
+            (ngModelChange)="onStatusChange($event)"
+            [disabled]="loading()"
+          />
+          <span class="form-dialog__switch-label">
+            {{ formData().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
       </div>
-    </div>
-    <p class="-mt-2 mb-0 text-xs leading-[1.6] text-zinc-500">
-      停用後不會刪除課程資料，也無法新增未來課程排程。
-    </p>
-    @if (shouldShowDeactivateMode()) {
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">停用模式</label>
-        <p-select
-          [options]="deactivateModeOptions"
-          optionLabel="label"
-          optionValue="value"
-          [ngModel]="formData().deactivateMode"
-          (ngModelChange)="updateForm('deactivateMode', $event)"
-          [appendTo]="'body'"
-          [disabled]="loading()"
-          class="w-full"
-        />
-      </div>
-      <p class="-mt-2 mb-0 text-xs leading-[1.6] text-warning-600">
-        選擇「停用並停課未來課堂」會將該課程所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
+      <p class="-mt-2 mb-0 text-xs leading-[1.6] text-zinc-500">
+        停用後不會刪除課程資料，也無法新增未來課程排程。
       </p>
+      @if (shouldShowDeactivateMode()) {
+        <div class="form-dialog__field">
+          <label class="form-dialog__label">停用模式</label>
+          <p-select
+            [options]="deactivateModeOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="formData().deactivateMode"
+            (ngModelChange)="updateForm('deactivateMode', $event)"
+            [appendTo]="'body'"
+            [disabled]="loading()"
+            class="w-full"
+          />
+        </div>
+        <p class="-mt-2 mb-0 text-xs leading-[1.6] text-warning-600">
+          選擇「停用並停課未來課堂」會將該課程所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
+        </p>
+      }
     }
-  }
 
-  <!-- Campus -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label"> 所屬分校<span class="form-dialog__required">*</span> </label>
-    <p-select
-      [options]="campusOptions()"
-      [ngModel]="formData().campusId"
-      (ngModelChange)="updateForm('campusId', $event)"
-      placeholder="選擇分校"
-      [disabled]="loading() || isEditing()"
-      [appendTo]="'body'"
-      class="w-full"
-    />
-  </div>
-
-  <!-- Subject -->
-  <div class="form-dialog__field">
-    <div class="form-dialog__label-row">
-      <label class="form-dialog__label"> 科目<span class="form-dialog__required">*</span> </label>
-      <p-button
-        label="管理科目"
-        icon="pi pi-cog"
-        [text]="true"
-        size="small"
-        severity="secondary"
-        (onClick)="openSubjectManager()"
+    <!-- Campus -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        所屬分校<span class="form-dialog__required">*</span>
+      </label>
+      <p-select
+        [options]="campusOptions()"
+        [ngModel]="formData().campusId"
+        (ngModelChange)="updateForm('campusId', $event)"
+        placeholder="選擇分校"
+        [disabled]="loading() || isEditing()"
+        [appendTo]="'body'"
+        class="w-full"
       />
     </div>
-    <p-select
-      [options]="subjectOptions()"
-      [ngModel]="formData().subjectId"
-      (ngModelChange)="updateForm('subjectId', $event)"
-      placeholder="選擇科目"
-      [disabled]="loading()"
-      [appendTo]="'body'"
-      class="w-full"
-    />
-  </div>
 
-  <!-- Name -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label"> 課程名稱<span class="form-dialog__required">*</span> </label>
-    <input
-      type="text"
-      pInputText
-      [ngModel]="formData().name"
-      (ngModelChange)="updateForm('name', $event)"
-      placeholder="例如：國三數學"
-      [disabled]="loading()"
-      class="w-full"
-    />
-  </div>
+    <!-- Subject -->
+    <div class="form-dialog__field">
+      <div class="form-dialog__label-row">
+        <label class="form-dialog__label"> 科目<span class="form-dialog__required">*</span> </label>
+        <p-button
+          label="管理科目"
+          icon="pi pi-cog"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="openSubjectManager()"
+        />
+      </div>
+      <p-select
+        [options]="subjectOptions()"
+        [ngModel]="formData().subjectId"
+        (ngModelChange)="updateForm('subjectId', $event)"
+        placeholder="選擇科目"
+        [disabled]="loading()"
+        [appendTo]="'body'"
+        class="w-full"
+      />
+    </div>
 
-  <!-- Grade Levels -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label">適合年級<span class="form-dialog__required">*</span></label>
-    <p-multiselect
-      [options]="gradeOptions"
-      [ngModel]="formData().gradeLevels"
-      (ngModelChange)="updateForm('gradeLevels', $event)"
-      placeholder="選擇適合年級（至少一項）"
-      selectedItemsLabel="{0} 個適合年級"
-      [disabled]="loading()"
-      [appendTo]="'body'"
-      class="w-full"
-      display="chip"
-    />
-  </div>
+    <!-- Name -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        課程名稱<span class="form-dialog__required">*</span>
+      </label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="formData().name"
+        (ngModelChange)="updateForm('name', $event)"
+        placeholder="例如：國三數學"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
 
-  <!-- Description -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label">簡介</label>
-    <textarea
-      pTextarea
-      [ngModel]="formData().description"
-      (ngModelChange)="updateForm('description', $event)"
-      [rows]="3"
-      placeholder="課程簡短說明（選填）"
-      [disabled]="loading()"
-      class="w-full"
-    ></textarea>
-  </div>
+    <!-- Grade Levels -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">適合年級<span class="form-dialog__required">*</span></label>
+      <p-multiselect
+        [options]="gradeOptions"
+        [ngModel]="formData().gradeLevels"
+        (ngModelChange)="updateForm('gradeLevels', $event)"
+        placeholder="選擇適合年級（至少一項）"
+        selectedItemsLabel="{0} 個適合年級"
+        [disabled]="loading()"
+        [appendTo]="'body'"
+        class="w-full"
+        display="chip"
+      />
+    </div>
 
-  <!-- Footer -->
+    <!-- Description -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">簡介</label>
+      <textarea
+        pTextarea
+        [ngModel]="formData().description"
+        (ngModelChange)="updateForm('description', $event)"
+        [rows]="3"
+        placeholder="課程簡短說明（選填）"
+        [disabled]="loading()"
+        class="w-full"
+      ></textarea>
+    </div>
+  </form>
+
+  <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼（#723） -->
   <div class="form-dialog__footer">
-    <p-button
-      label="取消"
-      [text]="true"
-      severity="secondary"
+    <p class="form-dialog__why" aria-live="polite">{{ missingHint() }}</p>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
       [disabled]="loading()"
-      (onClick)="cancel()"
-    />
-    <p-button
-      [label]="isEditing() ? '儲存' : '建立'"
-      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
-      [loading]="loading()"
-      (onClick)="save()"
-      [disabled]="
-        !formData().name.trim() ||
-        !formData().campusId ||
-        !formData().subjectId ||
-        formData().gradeLevels.length === 0
-      "
-    />
+      (click)="cancel()"
+    >
+      取消
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+      [attr.aria-disabled]="!!missingHint() || loading()"
+      (click)="save()"
+    >
+      {{ loading() ? '儲存中…' : isEditing() ? '儲存' : '建立課程' }}
+    </button>
   </div>
 </div>
