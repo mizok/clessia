@@ -113,10 +113,12 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
     expect(el.textContent).toContain('林媽媽（母）');
     expect(el.textContent).toContain('0922333444');
     (el.querySelector('[data-copy]') as HTMLButtonElement).click();
-    await Promise.resolve();
     expect(writeText).toHaveBeenCalledWith('0922333444');
-    expect(add).toHaveBeenCalledWith(
-      expect.objectContaining({ summary: '已複製 林媽媽 的電話 0922333444' }),
+    // 提示在 writeText 的 then 裡，等它跑完（只等一個 microtask 在負載高時會不穩）
+    await vi.waitFor(() =>
+      expect(add).toHaveBeenCalledWith(
+        expect.objectContaining({ summary: '已複製 林媽媽 的電話 0922333444' }),
+      ),
     );
   });
 
