@@ -1,8 +1,8 @@
 <!--
   A6 批次動作列（#991，schedule.css `.bar`）：勾了課才浮出來、固定在畫面底。
   桌機是墨色浮條（暫時出現的操作才用黑，A5）；手機是深一階的灰面＋頂端 2px 近黑線（10/02 手機黑色減量）。
-  四個動作直接攤開（#1174 G1，A6 bar()）：主動作「停課」橘，其餘描邊；各自開原本的批次 dialog（先預覽再套用）。
-  A6 的「改到別天」「批次代課」沒有 API，不放。
+  動作直接攤開（#1174 G1，A6 bar()）：主動作「停課」橘，其餘描邊；各自開原本的批次 dialog（先預覽再套用）。
+  「改到別天」（batch-reschedule）「批次代課」（batch-substitute）是 #1314 S7 接上的。
   手機不出這條（#1174 G3）：數字與動作都在「快速選取」底部面板裡（A6 第四次修正）。
 -->
 @if (selectedCount() > 0) {
@@ -49,9 +49,23 @@
           <button
             type="button"
             class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            (click)="openBatchSheet.emit('move')"
+          >
+            <i class="pi pi-calendar text-sm" aria-hidden="true"></i>改到別天
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
             (click)="openBatchSheet.emit('assign')"
           >
             <i class="pi pi-user-plus text-sm" aria-hidden="true"></i>指派老師
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            (click)="openBatchSheet.emit('sub')"
+          >
+            <i class="pi pi-sync text-sm" aria-hidden="true"></i>批次代課
           </button>
           @if (hasCancelled()) {
             <button
