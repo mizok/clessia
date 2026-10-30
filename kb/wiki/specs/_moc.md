@@ -302,7 +302,7 @@ Tags: `specs`, `parent`, `trial`
 
 ## [[specs/public/application-forms-a6|公開試聽申請、我要報名表單照 A6（設計稿）]]
 
-設計稿（#1637；全部已裁）：公開試聽／報名表單照 A6；補關係欄、機器人驗證預設 ALTCHA（可切換 Turnstile）、班級公開旗標、所有人員可設暱稱（對外只露任課老師）、申請保存 6 個月（一支 migration），拆四單。
+已實作上線（#1637；#1665 10-22 結案）：公開試聽／報名表單照 A6；補關係欄、機器人驗證預設 ALTCHA（可切換 Turnstile）、班級公開旗標、所有人員可設暱稱（對外只露任課老師）、申請保存 6 個月；保留裁定與不做的項目。
 
 Tags: `specs`, `public`, `trial`, `enrollment`, `a6`, `security`, `privacy`, `migration`
 
