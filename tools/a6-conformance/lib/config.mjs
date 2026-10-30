@@ -892,6 +892,34 @@ export const PAGES = {
     app: '/admin/staff',
     a6Open: opensOf('staff', 'a6Open'),
     appOpen: opensOf('staff', 'appOpen'),
+    // 章名「已停用」跟列裡的狀態字同文案，自動配對會把稿的章名配到列的狀態字
+    mapping: {
+      '>landmark:main[]>landmark:region[已停用]>text:div[已停用]':
+        '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
+    },
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 courses、grades-class
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋人員\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      // 稿是文字鈕「操作紀錄」；全站統一成工具列的時鐘圖示鈕
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:button\\[操作紀錄\\]$',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕',
+        source: '使用者 10-23 裁定 #2006（#2014）',
+      })),
+      {
+        // 新增掃碼機台（#1127）：現況有、稿沒畫，收進頁面「⋯」—— 同帳單、課程那條
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${rule('R2')}；#1127`,
+      },
+    ],
   },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {

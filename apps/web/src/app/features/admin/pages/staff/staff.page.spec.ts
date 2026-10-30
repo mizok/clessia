@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, Subject, of, throwError } from 'rxjs';
@@ -79,6 +80,7 @@ describe('StaffPage', () => {
     await TestBed.configureTestingModule({
       imports: [StaffPage],
       providers: [
+        provideRouter([]),
         {
           provide: StaffService,
           useValue: staffServiceMock,
@@ -254,8 +256,8 @@ describe('StaffPage', () => {
         '[data-chapter] .chapter-head__name',
       );
       expect(name?.classList).toContain('text-[28px]');
-      // #1715：A6 `.chap` 手機上內距 24px（章頭上的 pt-6），原本 pt-4 差 8px
-      expect(name!.closest('app-chapter-head')!.classList).toContain('pt-6');
+      // #1715：A6 `.chap` 手機上內距 24px —— 現在 padding 在章（section）本身，同稿
+      expect(name!.closest('[data-chapter]')!.classList).toContain('pt-6');
     });
 
     it('沒有人的章不顯示（kiosk 章只在有機台時出現）；沒有封存叫「已停用」', () => {
