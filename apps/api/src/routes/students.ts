@@ -87,6 +87,8 @@ const StudentSchema = z
     campusNames: z.array(z.string()),
     /** 在籍班級（老師端用來分組；管理端目前不顯示） */
     classNames: z.array(z.string()),
+    /** 在籍班級的 id 與名稱（列表才有；老師的學生面板用班 id 查「這班」的考試）。範圍同 classNames */
+    classes: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
     hasEnrollments: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -771,37 +773,43 @@ app.openapi(
         }>) ?? [];
       // 刪除守門用，**不濾 status**：退班的報名也是引用，濾掉會放行一次破壞歷史的刪除
       const hasEnrollments = enrollmentRows.length > 0;
+      // 老師只看得到自己教的班的報名：班名、班、分校名都從這份算。他的學生也上別人的班，
+      // 那些班與它們的分校不是他看得到的東西（計畫席 10-30、審核席 #2084 二讀；
+      // contract/students-class-names-scope 守）。管理員 myClassIds 是 null，照舊用全部
+      const visibleRows =
+        myClassIds === null
+          ? enrollmentRows
+          : enrollmentRows.filter((e) => !!e.classes && myClassIds.includes(e.classes.id));
       // **刻意不濾 status**（跟下面的 classNames 相反，不是漏了）——分校歸屬看的是
       // 「這個分校收過他」，退班學生對分校主任是現在進行式的工作對象（退費、回流招生、
       // 家長投訴回查）。而且這條關聯同時是 campusScope 授權走的路，濾掉不是顯示調整
       // 是可見性收縮。理由與已知取捨見 kb/wiki/rules/enrollment-rules.md 第 8 節（#438）
       const campusNames = Array.from(
-        new Set(
-          enrollmentRows.map((e) => e.classes?.campuses?.name).filter((n): n is string => !!n),
-        ),
+        new Set(visibleRows.map((e) => e.classes?.campuses?.name).filter((n): n is string => !!n)),
       );
-      // 只算在籍的班 —— 退班的班名不該出現在老師的分組裡。
-      // 老師只算自己教的班：他的學生也上別人的班，那些班名不是他看得到的東西（計畫席 10-30，
-      // contract/students-class-names-scope 守）。管理員 myClassIds 是 null，照舊
-      const classNames = Array.from(
-        new Set(
-          enrollmentRows
-            .filter((e) => !e.status || ['active', 'pending_payment'].includes(e.status))
-            .filter(
-              (e) => myClassIds === null || (!!e.classes && myClassIds.includes(e.classes.id)),
-            )
-            .map((e) => e.classes?.name)
-            .filter((n): n is string => !!n),
-        ),
+      // 只算在籍的班 —— 退班的班名不該出現在老師的分組裡
+      const inFlight = visibleRows.filter(
+        (e) => !e.status || ['active', 'pending_payment'].includes(e.status),
       );
+      const classes = [
+        ...new Map(
+          inFlight
+            .map((e) => e.classes)
+            .filter((k): k is NonNullable<typeof k> => !!k)
+            .map((k) => [k.id, { id: k.id, name: k.name }] as const),
+        ).values(),
+      ];
+      const classNames = Array.from(new Set(classes.map((k) => k.name)));
 
       return {
         ...toStudentResponse(row, parentNames, campusNames, hasEnrollments, classNames),
+        classes,
         primaryParentPhone,
         /** 有有效到班卡（#2053）。沒有＝要發卡（舊卡、從沒發過、作廢沒補發） */
         hasActiveCard: ((row['active_card'] as unknown[] | null) ?? []).length > 0,
-        // 跟 campusNames 一樣不依分校濾（enrollment-rules 第 8 節）
-        enrollmentState: deriveEnrollmentState(enrollmentRows.map((e) => e.status)),
+        // 跟 campusNames 一樣不依分校濾（enrollment-rules 第 8 節），但老師只算自己教的班：
+        // 別人班的待繳費不是他的事，也不該讓他知道（計畫席 10-30）
+        enrollmentState: deriveEnrollmentState(visibleRows.map((e) => e.status)),
         ...(todayStatuses ? { todayStatus: todayStatuses.get(row['id'] as string) ?? null } : {}),
       };
     });
