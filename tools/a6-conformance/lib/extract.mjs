@@ -167,6 +167,19 @@ export function extractParts(opts) {
     [...el.querySelectorAll('label[for]')].some(
       (l) => l.control && el.contains(l.control) && !l.contains(l.control),
     );
+  // 欄位外框：第一個子元素就是 label[for]、指向自己裡面的欄位（表單的「標籤＋輸入框＋提示」）。
+  // 表單裡三個以上整列欄位常同簽名、同子元素數，會被 ≥3／≥5 那條認成列（#1314 家長表單）。
+  // 成績列的分數框不受影響：列的第一格是學生名，不是 label
+  const fieldFrame = (el) => {
+    const l = el.firstElementChild;
+    return (
+      !!l &&
+      l.tagName === 'LABEL' &&
+      !!l.control &&
+      el.contains(l.control) &&
+      !l.contains(l.control)
+    );
+  };
   const isRow = (el, c, parentKey = '') => {
     const p = el.parentElement;
     if (!p) return false;
@@ -185,6 +198,7 @@ export function extractParts(opts) {
     if (c && c.kind !== 'text') return false;
     const H = 'h1,h2,h3,h4,h5,h6,[role=heading]';
     if (el.querySelector(H)) return false;
+    if (fieldFrame(el)) return false;
     const s = sig(el);
     const sibs = [...p.children].filter((x) => sig(x) === s && !x.querySelector(H));
     // 分組（「今天：全部／已到…」「年級：…」）各組選項數不同；資料列的形狀一樣

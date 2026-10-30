@@ -1,12 +1,18 @@
-import { Component, DestroyRef, inject, signal, computed } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
-import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
-import { TextareaModule } from 'primeng/textarea';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
-import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
 import {
   ParentsService,
   ParentDetail,
@@ -18,14 +24,7 @@ import { StudentsService, type Student } from '@core/students.service';
 @Component({
   selector: 'app-parent-form-dialog',
   standalone: true,
-  imports: [
-    FormsModule,
-    AutoCompleteModule,
-    ButtonModule,
-    InputTextModule,
-    TextareaModule,
-    InlineNoticeComponent,
-  ],
+  imports: [FormsModule, AutoCompleteModule, DialogTitleDirective],
   templateUrl: './parent-form-dialog.component.html',
 })
 export class ParentFormDialogComponent {
@@ -59,6 +58,25 @@ export class ParentFormDialogComponent {
     notes: this.config.data?.parent?.notes ?? '',
   });
 
+  /** A6 `.fdlg__why`：「還沒填：姓名」／「Email 和手機至少填一個」；都填了是 null */
+  protected readonly missingHint = computed(() => {
+    const f = this.formData();
+    if (!f.name.trim()) return '還沒填：姓名';
+    if (!f.email.trim() && !f.phone.trim()) return 'Email 和手機至少填一個';
+    return null;
+  });
+
+  private readonly nameInput = viewChild.required<ElementRef<HTMLInputElement>>('nameInput');
+
+  constructor() {
+    // 稿：桌機聚焦第一個欄位（姓名）、手機不聚焦（不要一開就彈鍵盤）
+    afterNextRender(() => {
+      if (globalThis.matchMedia?.('(min-width: 861px)').matches) {
+        this.nameInput().nativeElement.focus();
+      }
+    });
+  }
+
   protected selectedStudents: Student[] = [];
   protected readonly studentSuggestions = signal<Student[]>([]);
 
@@ -78,6 +96,7 @@ export class ParentFormDialogComponent {
     value: ReturnType<typeof this.formData>[K],
   ): void {
     this.formData.update((f) => ({ ...f, [field]: value }));
+    this.errorMessage.set(null);
     if (field === 'email' || field === 'phone') this.linkCandidate.set(null);
   }
 
@@ -90,16 +109,8 @@ export class ParentFormDialogComponent {
   protected save(linkExistingUserId?: string): void {
     const f = this.formData();
 
-    // 按鈕刻意不 disable——disable 會把「為什麼不行」藏起來，而使用者按下去
-    // 之前完全看不出缺什麼。這裡按得下去，缺什麼就直接說。
-    if (!f.name.trim()) {
-      this.errorMessage.set('請先輸入姓名');
-      return;
-    }
-    if (!f.email.trim() && !f.phone.trim()) {
-      this.errorMessage.set('Email 與手機號碼至少要填一個');
-      return;
-    }
+    // 送出鈕不鎖死（A6 `.fdlg`）：沒填完就停在這裡，動作列左邊那行寫還差什麼
+    if (this.missingHint()) return;
 
     this.errorMessage.set(null);
     this.loading.set(true);
