@@ -7,7 +7,9 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 import { StudentsPage } from './students.page';
 
+/** `classes` 預設從 `classNames` 帶出來，班 id＝班名（測試裡班名不重複） */
 function student(overrides: Partial<Student> = {}): Student {
+  const classNames = overrides.classNames ?? ['數學班 A'];
   return {
     id: 's1',
     orgId: 'org-1',
@@ -21,7 +23,8 @@ function student(overrides: Partial<Student> = {}): Student {
     address: null,
     emergencyContactName: null,
     campusNames: [],
-    classNames: ['數學班 A'],
+    classNames,
+    classes: classNames.map((name) => ({ id: name, name })),
     ...overrides,
   } as Student;
 }
@@ -323,10 +326,49 @@ describe('StudentsPage（老師端）', () => {
       const ul = section.querySelector('ul') as HTMLElement;
       expect(ul.className).toContain('grid-cols-1');
       expect(ul.className).toContain('wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]');
-      const li = section.querySelector('li') as HTMLElement;
-      expect(li.className).toContain('flex');
-      expect(li.className).toContain('wide:block');
-      expect(li.textContent).toContain('國二');
+      // 整列是按鈕（A6 `.who--btn`），版面 class 在按鈕上
+      const row = section.querySelector('li > button') as HTMLElement;
+      expect(row.className).toContain('flex');
+      expect(row.className).toContain('wide:block');
+      expect(row.textContent).toContain('國二');
+    });
+  });
+
+  describe('學生面板（TST1）', () => {
+    it('沒篩選時有說明句；篩選時換成「找到 N 位」', async () => {
+      await setup();
+      expect(fixture.nativeElement.textContent).toContain('點名字看家長電話、最近到班與成績');
+      component['search'].set('陳');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('點名字看家長電話');
+    });
+
+    it('同名的兩個班分成兩章（依班 id 分組，不靠名字）', async () => {
+      await setup([
+        student({ id: 'a', classes: [{ id: 'k1', name: '數學班' }] }),
+        student({ id: 'b', classes: [{ id: 'k2', name: '數學班' }] }),
+      ]);
+      expect(component['groups']().map((g) => g.classId).sort()).toEqual(['k1', 'k2']);
+    });
+
+    it('點名字：開 dialog，帶這位學生與點進來的那一班', async () => {
+      const showModal = vi.fn();
+      HTMLDialogElement.prototype.showModal = showModal;
+      await setup([student({ id: 'a', classes: [{ id: 'k1', name: '數學班 A' }] })]);
+
+      (fixture.nativeElement.querySelector('li > button') as HTMLButtonElement).click();
+      await Promise.resolve();
+      expect(component['panel']()).toMatchObject({
+        student: { id: 'a' },
+        classId: 'k1',
+        className: '數學班 A',
+      });
+      expect(showModal).toHaveBeenCalled();
+    });
+
+    it('未分班的學生不是按鈕（沒有「這班」可看）', async () => {
+      await setup([student({ classNames: [], classes: [] })]);
+      expect(fixture.nativeElement.querySelector('li > button')).toBeNull();
     });
   });
 

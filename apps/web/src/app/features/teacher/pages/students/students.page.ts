@@ -3,10 +3,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, map, mergeMap, of, type Observable } from 'rxjs';
@@ -17,6 +19,8 @@ import { PageOpenComponent } from '@shared/components/page-open/page-open.compon
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
+import { StudentPanelComponent } from './student-panel.component';
+
 /** 列表 API 單頁上限（`students.ts` 的 `max(100)`） */
 const PAGE_SIZE = 100;
 
@@ -24,13 +28,28 @@ const PAGE_SIZE = 100;
 const NO_CLASS = '未分班';
 
 interface ClassGroup {
+  /** 班 id；「未分班」那組是 null */
+  readonly classId: string | null;
   readonly className: string;
   readonly students: Student[];
 }
 
+/** 打開的面板：哪位學生、從哪一班點進來（面板只看「這班」） */
+interface PanelTarget {
+  readonly student: Student;
+  readonly classId: string;
+  readonly className: string;
+}
+
 @Component({
   selector: 'app-students',
-  imports: [TextSwapDirective, SkeletonComponent, SelectFieldComponent, PageOpenComponent],
+  imports: [
+    TextSwapDirective,
+    SkeletonComponent,
+    SelectFieldComponent,
+    PageOpenComponent,
+    StudentPanelComponent,
+  ],
   templateUrl: './students.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -46,41 +65,44 @@ export class StudentsPage {
   protected readonly loadError = signal(false);
   protected readonly students = signal<Student[]>([]);
   protected readonly search = signal('');
+  /** 篩選的班 id（同名班分得開） */
   protected readonly classFilter = signal<string | null>(null);
+  protected readonly panel = signal<PanelTarget | null>(null);
+  private readonly panelDialog = viewChild<ElementRef<HTMLDialogElement>>('panelDialog');
 
-  /** 依班級分組。一個學生可能同時在兩個班，所以會出現在兩組裡 */
+  /** 依班級分組（以班 id 為鍵）。一個學生可能同時在兩個班，所以會出現在兩組裡 */
   protected readonly groups = computed<ClassGroup[]>(() => {
     const term = this.search().trim();
     const selected = this.classFilter();
-    const byClass = new Map<string, Student[]>();
+    const byClass = new Map<string | null, ClassGroup>();
 
     for (const student of this.students()) {
       if (term && !student.name.includes(term)) continue;
 
-      const names = student.classNames.length > 0 ? student.classNames : [NO_CLASS];
-      for (const className of names) {
-        if (selected && className !== selected) continue;
-        byClass.set(className, [...(byClass.get(className) ?? []), student]);
+      const classes = student.classes ?? [];
+      const keys = classes.length > 0 ? classes : [{ id: null, name: NO_CLASS }];
+      for (const { id, name } of keys) {
+        if (selected && id !== selected) continue;
+        const group = byClass.get(id) ?? { classId: id, className: name, students: [] };
+        byClass.set(id, { ...group, students: [...group.students, student] });
       }
     }
 
-    return [...byClass.entries()]
-      .map(([className, students]) => ({ className, students }))
-      .sort((a, b) => a.className.localeCompare(b.className, 'zh-Hant'));
+    return [...byClass.values()].sort((a, b) => a.className.localeCompare(b.className, 'zh-Hant'));
   });
 
   protected readonly classOptions = computed(() => [
     { label: '全部班級', value: null as string | null },
-    ...Array.from(new Set(this.students().flatMap((s) => s.classNames)))
-      .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
-      .map((name) => ({ label: name, value: name as string | null })),
+    ...[...new Map(this.students().flatMap((s) => (s.classes ?? []).map((k) => [k.id, k]))).values()]
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
+      .map((k) => ({ label: k.name, value: k.id as string | null })),
   ]);
 
   protected readonly total = computed(() => this.students().length);
 
   /** 色面數字句的「N 個班」：全部任課班（不隨搜尋／篩選變），不含「未分班」那個備用組 */
   protected readonly classCount = computed(
-    () => new Set(this.students().flatMap((s) => s.classNames)).size,
+    () => new Set(this.students().flatMap((s) => (s.classes ?? []).map((k) => k.id))).size,
   );
 
   protected readonly filtered = computed(
@@ -129,6 +151,23 @@ export class StudentsPage {
       // 翻頁途中資料有增減時，同一人可能落在相鄰兩頁
       map((all) => [...new Map(all.map((s) => [s.id, s])).values()]),
     );
+  }
+
+  /** 點名字開面板（A6 `panel()`）。「未分班」那組沒有班，不開 */
+  protected openPanel(student: Student, group: ClassGroup): void {
+    if (!group.classId) return;
+    this.panel.set({ student, classId: group.classId, className: group.className });
+    // 等 @if 把面板畫進 dialog 再 showModal（焦點才落得到裡面）
+    queueMicrotask(() => this.panelDialog()?.nativeElement.showModal());
+  }
+
+  protected closePanel(): void {
+    this.panelDialog()?.nativeElement.close();
+  }
+
+  /** 點背景（dialog 本身）關掉，同 A6 */
+  protected onPanelBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closePanel();
   }
 
   protected gradeLabel(grade: string): string {

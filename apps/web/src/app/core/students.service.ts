@@ -33,6 +33,8 @@ export interface Student {
   campusNames: string[];
   /** 在籍班級名稱，老師端用來分組 */
   classNames: string[];
+  /** 列表才有：在籍班級的 id 與名稱，範圍同 classNames（老師端依班分章、面板用班 id 查「這班」） */
+  classes?: { id: string; name: string }[];
   hasEnrollments: boolean;
   /** 列表才有（#2053）：有有效到班卡。false＝要發卡 */
   hasActiveCard?: boolean;

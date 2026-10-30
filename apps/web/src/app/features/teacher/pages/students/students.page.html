@@ -1,8 +1,8 @@
 <!--
   A6 版（#1314 老師端學生）：色面（數字句）→ 灰工具列（搜尋、班級）→ 依班分章。
   章＝左欄班名＋人數（桌機 sticky）、右側姓名（桌機 4 欄網格、年級在姓名下；手機單欄列、年級靠右）。
-  稿畫了、這裡沒做的：「點名字看家長電話…」的學生資訊面板（稿標新、要 API）、班的上課時段
-  （列表 API 沒給）、「最近的班排前面」（同上）。
+  整列是按鈕，點了開學生面板（TST1，A6 `panel()`）。
+  稿畫了、這裡沒做的：班的上課時段（列表 API 沒給）、「最近的班排前面」（同上）。
 -->
 <app-page-open>
   <ng-container openTitle>
@@ -55,9 +55,9 @@
   } @else if (total() === 0) {
     <p class="m-0 mt-6 text-muted">目前沒有任課班級的學生。</p>
   } @else {
-    @if (filtered()) {
-      <!-- A6 `.count`：篩選中才有，「找到 N 位」＋清除；N 數不重複的學生（跟色面同一個口徑） -->
-      <p class="m-0 mt-6 flex flex-wrap items-baseline gap-3 text-md text-zinc-600">
+    <!-- A6 `.count`：篩選中是「找到 N 位」＋清除（N 數不重複的學生，跟色面同一個口徑）；沒篩選時是說明句 -->
+    <p class="m-0 mt-6 flex flex-wrap items-baseline gap-3 text-md text-zinc-600">
+      @if (filtered()) {
         <span appTextSwap
           >找到 <strong class="text-zinc-900">{{ foundCount() }}</strong> 位</span
         >
@@ -68,14 +68,16 @@
         >
           清除篩選
         </button>
-      </p>
-    }
+      } @else {
+        <span>點名字看家長電話、最近到班與成績</span>
+      }
+    </p>
     @if (groups().length === 0) {
       <p class="m-0 py-6 text-md leading-relaxed text-zinc-700">
         沒有符合條件的學生。試試只打姓氏，或按「清除篩選」。
       </p>
     } @else {
-      @for (group of groups(); track group.className) {
+      @for (group of groups(); track group.classId) {
         <section
           class="grid grid-cols-1 gap-3 border-0 border-b border-solid border-zinc-200 py-6 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
           [attr.aria-label]="group.className"
@@ -94,13 +96,29 @@
             class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1"
           >
             @for (student of group.students; track student.id) {
-              <li
-                class="flex min-h-12 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-zinc-200 py-1 wide:block wide:min-h-0 wide:border-b-0 wide:py-2"
-              >
-                <span class="block text-lg font-semibold">{{ student.name }}</span>
-                <span class="block shrink-0 text-sm text-zinc-600 wide:mt-px">{{
-                  gradeLabel(student.grade)
-                }}</span>
+              <li class="min-w-0 border-0 border-b border-solid border-zinc-200 wide:border-b-0">
+                <!-- A6 `.who--btn`：整列可點，開這位學生在「這班」的面板；未分班那組沒有班，不是按鈕 -->
+                @if (group.classId) {
+                  <button
+                    type="button"
+                    class="flex min-h-12 w-full min-w-0 cursor-pointer items-center justify-between gap-3 rounded-sm border-0 bg-transparent px-0 py-1 text-left text-inherit [font:inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 wide:block wide:min-h-0 wide:py-2"
+                    (click)="openPanel(student, group)"
+                  >
+                    <span class="block text-lg font-semibold">{{ student.name }}</span>
+                    <span class="block shrink-0 text-sm text-zinc-600 wide:mt-px">{{
+                      gradeLabel(student.grade)
+                    }}</span>
+                  </button>
+                } @else {
+                  <div
+                    class="flex min-h-12 min-w-0 items-center justify-between gap-3 py-1 wide:block wide:min-h-0 wide:py-2"
+                  >
+                    <span class="block text-lg font-semibold">{{ student.name }}</span>
+                    <span class="block shrink-0 text-sm text-zinc-600 wide:mt-px">{{
+                      gradeLabel(student.grade)
+                    }}</span>
+                  </div>
+                }
               </li>
             }
           </ul>
@@ -109,3 +127,25 @@
     }
   }
 </div>
+
+<!--
+  學生面板（TST1）：外框照家長端「幫孩子請假」—— 原生 <dialog> + showModal()（Esc、焦點圈住、關掉後焦點
+  回到名字由瀏覽器做），桌機置中、≤860 底部面板，進出場走 overlay-motion。內容只在打開時存在，每次都是新的。
+-->
+<dialog
+  #panelDialog
+  class="overlay-motion overlay-motion--from-bottom-narrow m-auto max-h-[calc(100%-48px)] min-h-11 w-[min(520px,calc(100%-32px))] flex-col overflow-visible rounded-lg border-0 bg-white p-0 text-zinc-900 shadow-[0_24px_48px_-12px_rgb(26_22_20/36%)] backdrop:bg-zinc-900/40 max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:m-0 max-wide:max-h-[calc(100%-24px)] max-wide:w-full max-wide:max-w-none max-wide:rounded-none max-wide:rounded-t-xl max-wide:bg-zinc-200 open:flex"
+  aria-labelledby="student-panel-title"
+  (click)="onPanelBackdrop($event)"
+  (close)="panel.set(null)"
+>
+  @if (panel(); as p) {
+    <app-student-panel
+      class="min-h-0 flex-1"
+      [student]="p.student"
+      [classId]="p.classId"
+      [className]="p.className"
+      (closed)="closePanel()"
+    />
+  }
+</dialog>
