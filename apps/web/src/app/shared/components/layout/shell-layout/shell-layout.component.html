@@ -174,9 +174,10 @@
                 {{ group.label }}
               </h3>
             }
+            <!-- A6 `.more a`：目前頁不另外加粗（稿沒有目前頁樣式）；aria-current 照留給讀屏 -->
             @for (item of group.items; track item.route) {
               <a
-                class="flex min-h-11 items-center text-base leading-[1.5] font-normal text-zinc-900 no-underline underline-offset-[3px] hover:underline aria-[current=page]:font-semibold wide:block wide:min-h-0 wide:py-1"
+                class="flex min-h-11 items-center text-base leading-[1.5] font-normal text-zinc-900 no-underline underline-offset-[3px] hover:underline wide:block wide:min-h-0 wide:py-1"
                 [routerLink]="item.route"
                 routerLinkActive
                 ariaCurrentWhenActive="page"
