@@ -1051,7 +1051,47 @@ export const PAGES = {
       },
     ],
   },
-  'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
+  'fee-templates': {
+    a6: 'fee-templates.html',
+    app: '/admin/fee-templates',
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋方案名稱\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      {
+        status: '位置',
+        a6: '^>control:button\\[顯示停用方案（#）\\]$',
+        reason: '連帶：搜尋框寬度同上那條（全站同款），右邊的 chip 跟著位移',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      },
+      {
+        // 稿的「N 筆期繳報名在用」連到報名進出；`GET /enrollments` 沒有依價目／收費期間篩的參數
+        status: '缺',
+        a6: '收費期間\\]>row>control:link$',
+        reason: '「N 筆期繳報名在用」連到報名進出：等 API（報名列表沒有依收費期間篩的參數）',
+        source: '#1314 盤點 10-30「等 API」F1b（`GET /enrollments` 加 feeTemplateId；收費期間同一類）',
+      },
+      {
+        // 稿 9 個期間 8 個有重疊說明（列高 83），「還沒有報名用它」那一列沒有（列高 60）；列內位置是相對各自的列量的
+        status: '位置',
+        a6: '收費期間\\]>row>(text:span~3|text:span~2>text:small)$',
+        reason: '資料：稿與 seed 的期間重疊與否、有沒有報名不同，列高跟著不同',
+        source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
+      },
+      {
+        // seed 每種計費模式只有 1 種價目：同章一列不成清單列（工具 ≥3 才認列），列內的名稱、金額、狀態、⋯ 散在章裡；
+        // 稿每章 3 種以上，是列。兩邊列的內容一樣（名稱鈕、金額、啟用中、報名在用、⋯）
+        status: '多',
+        app: 'landmark:region\\[(月繳|期繳|堂數制)\\]>(control:button|text:span)(\\[[^\\]]*\\])?(>text:small\\[[^\\]]*\\])?$',
+        reason: '資料：seed 每章只有一種價目，不成清單列',
+        source: 'tools/a6-conformance/README.md（列是資料：≥3 或 ≥5 個同簽名才合成 row）',
+      },
+    ],
+  },
   notifications: {
     // 預設分頁「收到的」（#1692 起 app 也有）；「發布公告」是 notifications-publish
     a6: 'notifications.html',
