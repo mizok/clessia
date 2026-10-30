@@ -41,28 +41,28 @@
           </button>
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-white/14 wide:bg-transparent wide:text-white wide:hover:border-white"
             (click)="openBatchSheet.emit('time')"
           >
             <i class="pi pi-clock text-sm" aria-hidden="true"></i>改時間（同一天）
           </button>
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-white/14 wide:bg-transparent wide:text-white wide:hover:border-white"
             (click)="openBatchSheet.emit('move')"
           >
             <i class="pi pi-calendar text-sm" aria-hidden="true"></i>改到別天
           </button>
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-white/14 wide:bg-transparent wide:text-white wide:hover:border-white"
             (click)="openBatchSheet.emit('assign')"
           >
             <i class="pi pi-user-plus text-sm" aria-hidden="true"></i>指派老師
           </button>
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-white/14 wide:bg-transparent wide:text-white wide:hover:border-white"
             (click)="openBatchSheet.emit('sub')"
           >
             <i class="pi pi-sync text-sm" aria-hidden="true"></i>批次代課
@@ -70,7 +70,7 @@
           @if (hasCancelled()) {
             <button
               type="button"
-              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-white/14 wide:bg-transparent wide:text-white wide:hover:border-white"
               (click)="openBatchSheet.emit('uncancel')"
             >
               <i class="pi pi-undo text-sm" aria-hidden="true"></i>恢復課堂
