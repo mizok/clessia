@@ -807,8 +807,9 @@ app.openapi(
         primaryParentPhone,
         /** 有有效到班卡（#2053）。沒有＝要發卡（舊卡、從沒發過、作廢沒補發） */
         hasActiveCard: ((row['active_card'] as unknown[] | null) ?? []).length > 0,
-        // 跟 campusNames 一樣不依分校濾（enrollment-rules 第 8 節）
-        enrollmentState: deriveEnrollmentState(enrollmentRows.map((e) => e.status)),
+        // 跟 campusNames 一樣不依分校濾（enrollment-rules 第 8 節），但老師只算自己教的班：
+        // 別人班的待繳費不是他的事，也不該讓他知道（計畫席 10-30）
+        enrollmentState: deriveEnrollmentState(visibleRows.map((e) => e.status)),
         ...(todayStatuses ? { todayStatus: todayStatuses.get(row['id'] as string) ?? null } : {}),
       };
     });

@@ -13,6 +13,7 @@ import { getCurrentTaipeiDateString } from '../lib/taipei-date';
  * `classNames: [K, Y]`，老師學生頁照它分章，於是畫面上多出一章他沒教的班（本機 teacher0004 實測多 4 班）。
  * 守三件事：A 只有 K、B 只有 Y、管理員照舊兩個都有。班名（classNames）、班（classes[]，給學生面板查「這班」）、
  * 分校名（campusNames）三個欄位同一條規則 —— 只縮班名的話，分校名照樣講出他在別校上課（審核席 #2084 二讀）。
+ * 報名狀態（enrollmentState）也是：Y 的報名待繳費，A 的名冊不該因此標「待繳費」（計畫席 10-30）。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -118,11 +119,15 @@ run('老師拿到的班名只有自己教的班（GET /students 的 classNames�
       "insert into students (org_id, name, grade) values ($1, '兩班都上', 'J2')",
       [ctx.orgId],
     );
-    for (const cls of [k, y]) {
+    // Y 那筆待繳費：繳費是 B 那個班的事，A 看到的報名狀態只算 K
+    for (const [cls, status] of [
+      [k, 'active'],
+      [y, 'pending_payment'],
+    ] as const) {
       await q(
         `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
-         values ($1, $2, $3, 'active', 'monthly', 1000, $4)`,
-        [ctx.orgId, cls, fx.student, START],
+         values ($1, $2, $3, $5, 'monthly', 1000, $4)`,
+        [ctx.orgId, cls, fx.student, START, status],
       );
     }
     app = (await import('../index')).default as never;
@@ -146,7 +151,7 @@ run('老師拿到的班名只有自己教的班（GET /students 的 classNames�
     }
   }, 120_000);
 
-  /** 這位學生在回應裡的班名、新的 classes[]（班名）、分校名，都排序過 */
+  /** 這位學生在回應裡的班名、新的 classes[]（班名）、分校名（都排序過）與報名狀態 */
   const seenAs = async (who: 'A' | 'B' | 'admin') => {
     ctx.role = who === 'admin' ? 'admin' : 'teacher';
     ctx.userId = who === 'B' ? fx.userB : fx.userA;
@@ -158,6 +163,7 @@ run('老師拿到的班名只有自己教的班（GET /students 的 classNames�
         classNames: string[];
         classes: Array<{ id: string; name: string }>;
         campusNames: string[];
+        enrollmentState: string | null;
       }>;
     };
     const row = body.data.find((s) => s.id === fx.student)!;
@@ -165,14 +171,16 @@ run('老師拿到的班名只有自己教的班（GET /students 的 classNames�
       classNames: row.classNames.slice().sort(),
       classes: row.classes.map((c) => c.name).sort(),
       campusNames: row.campusNames.slice().sort(),
+      enrollmentState: row.enrollmentState,
     };
   };
 
-  it('老師 A 只看得到自己教的班與它的分校；同一位學生在 B 的班、B 的分校都不出現', async () => {
+  it('老師 A 只看得到自己教的班與它的分校；同一位學生在 B 的班、B 的分校、B 班的待繳費都不出現', async () => {
     expect(await seenAs('A')).toEqual({
       classNames: ['A 教的班'],
       classes: ['A 教的班'],
       campusNames: ['A 的分校'],
+      enrollmentState: 'active',
     });
   });
 
@@ -181,6 +189,7 @@ run('老師拿到的班名只有自己教的班（GET /students 的 classNames�
       classNames: ['B 教的班'],
       classes: ['B 教的班'],
       campusNames: ['B 的分校'],
+      enrollmentState: 'pending_payment',
     });
   });
 
@@ -189,6 +198,7 @@ run('老師拿到的班名只有自己教的班（GET /students 的 classNames�
       classNames: ['A 教的班', 'B 教的班'],
       classes: ['A 教的班', 'B 教的班'],
       campusNames: ['A 的分校', 'B 的分校'],
+      enrollmentState: 'pending_payment',
     });
   });
 });
