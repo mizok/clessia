@@ -208,6 +208,24 @@ export class ScoresService {
     }>(`${this.base}/students`, { params: query });
   }
 
+  /** 一門課程的每生聚合（#1314 G9）：只列這門課開課班裡有成績的學生；不能搭 `campusId` */
+  studentAggregatesByCourse(params: {
+    courseId: string;
+    page?: number;
+    pageSize?: number;
+  }): Observable<{
+    data: StudentScoreAggregate[];
+    meta: { total: number; page: number; pageSize: number };
+  }> {
+    const query: Record<string, string | number> = { courseId: params.courseId };
+    if (params.page !== undefined) query['page'] = params.page;
+    if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
+    return this.http.get<{
+      data: StudentScoreAggregate[];
+      meta: { total: number; page: number; pageSize: number };
+    }>(`${this.base}/students`, { params: query });
+  }
+
   /**
    * 成績匯出 CSV（#1100 #40）。範圍由後端決定（老師範圍 ∩ 分校範圍 ∩ 這裡帶的學生），
    * 帶了範圍外的學生也撈不到。拿 **blob**：後端給 Excel 的 UTF-8 BOM 用 text 解會被吃掉。

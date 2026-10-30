@@ -12,9 +12,13 @@ import {
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { CampusContextService } from '@core/campus-context.service';
+import { CoursesService } from '@core/courses.service';
+import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
 import { PaginatorModule } from 'primeng/paginator';
 import { Popover, PopoverModule } from 'primeng/popover';
 import { ButtonModule } from 'primeng/button';
@@ -51,12 +55,6 @@ import {
 } from 'rxjs';
 
 import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog/student-score-detail-dialog.component';
-import {
-  StudentViewFilterDialogComponent,
-  type FilterOption,
-  type StudentActiveStatusFilter,
-  type StudentViewFilterSnapshot,
-} from './student-view-filter-dialog/student-view-filter-dialog.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
@@ -64,6 +62,13 @@ const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.
   label: GRADE_LEVEL_LABELS[grade],
   value: grade,
 }));
+
+type StudentActiveStatusFilter = 'all' | 'active' | 'inactive';
+
+interface FilterOption<TValue> {
+  readonly label: string;
+  readonly value: TValue;
+}
 
 const STATUS_OPTIONS: Array<FilterOption<StudentActiveStatusFilter>> = [
   { label: '全部', value: 'all' },
@@ -83,8 +88,11 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     PageOpenComponent,
     SelectModule,
     InputTextModule,
+    IconFieldModule,
+    InputIconModule,
     PaginatorModule,
     PopoverModule,
+    FitPopoverDirective,
     ButtonModule,
     EmptyStateComponent,
     LoadFailedComponent,
@@ -97,6 +105,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
 export class StudentViewComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly schoolsService = inject(SchoolsService);
+  private readonly coursesService = inject(CoursesService);
   private readonly dialogService = inject(DialogService);
   private readonly messageService = inject(MessageService);
   private readonly scoresService = inject(ScoresService);
@@ -132,6 +141,11 @@ export class StudentViewComponent implements OnInit {
   protected readonly searchText = signal('');
   protected readonly schoolIdFilter = signal<string | null>(null);
   protected readonly activeStatusFilter = signal<StudentActiveStatusFilter>('active');
+  /** 課程（#1314 G9）：只看這門課開課班裡有成績的學生，列上的摘要也只算這門課 */
+  protected readonly courseIdFilter = signal<string | null>(null);
+  protected readonly courseOptions = signal<Array<FilterOption<string>>>([]);
+  /** 篩選浮層開著與否（鈕的 aria-expanded） */
+  protected readonly filtersOpen = signal(false);
 
   protected readonly rawStudents = signal<Student[]>([]);
   /** 每生成績摘要（#1314 G8）：`scope=all` 只回有成績的學生，查不到的列寫「沒有成績」 */
@@ -155,12 +169,40 @@ export class StudentViewComponent implements OnInit {
     if (schoolId) {
       result = result.filter((student) => student.school?.id === schoolId);
     }
+    if (this.courseIdFilter()) {
+      const inCourse = this.aggregates();
+      result = result.filter((student) => inCourse.has(student.id));
+    }
 
     // 依年級分章（A6，計畫席裁 Q7）：先依年級排好再切頁；同年級內維持 API 回來的順序（sort 是穩定的）
     return [...result].sort(
       (a, b) => GRADE_LEVELS.indexOf(a.grade) - GRADE_LEVELS.indexOf(b.grade),
     );
   });
+
+  /** A6 篩選鈕上的「篩選：國一 · 數學 A」；沒條件是「全部」 */
+  protected readonly filterSummary = computed(() => {
+    const label = <T>(options: ReadonlyArray<FilterOption<T>>, value: T) =>
+      options.find((o) => o.value === value)?.label;
+    const grade = this.gradeFilter();
+    const status = this.activeStatusFilter();
+    const parts = [
+      grade && GRADE_LEVEL_LABELS[grade],
+      this.courseIdFilter() && label(this.courseOptions(), this.courseIdFilter()),
+      this.schoolIdFilter() && label(this.schoolOptions(), this.schoolIdFilter()),
+      status !== 'active' && label(STATUS_OPTIONS, status),
+    ].filter(Boolean);
+    return parts.length ? parts.join(' · ') : '全部';
+  });
+
+  protected readonly hasFilters = computed(
+    () =>
+      !!this.searchText() ||
+      !!this.gradeFilter() ||
+      !!this.courseIdFilter() ||
+      !!this.schoolIdFilter() ||
+      this.activeStatusFilter() !== 'active',
+  );
 
   protected readonly totalStudents = computed(() => this.filteredStudents().length);
 
@@ -185,7 +227,12 @@ export class StudentViewComponent implements OnInit {
     // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
     toObservable(this.campusId)
       .pipe(skip(1), takeUntilDestroyed())
-      .subscribe(() => this.resetAndReload());
+      .subscribe(() => {
+        // 課程是分校的：換分校就清掉
+        this.courseIdFilter.set(null);
+        this.loadCourses();
+        this.resetAndReload();
+      });
     effect(() => {
       const total = this.totalStudents();
       const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -211,6 +258,7 @@ export class StudentViewComponent implements OnInit {
       });
 
     this.loadSchools();
+    this.loadCourses();
     this.loadStudents();
   }
 
@@ -241,34 +289,6 @@ export class StudentViewComponent implements OnInit {
     this.currentPage.set(page);
   }
 
-  protected openMobileFilterDialog(): void {
-    this.dialogService.open(StudentViewFilterDialogComponent, {
-      width: '420px',
-      breakpoints: { '640px': '95%' },
-      modal: true,
-      showHeader: false,
-      appendTo: 'body',
-      contentStyle: {
-        'max-height': 'calc(var(--window-height, 800px) * 0.85)',
-        overflow: 'auto',
-      },
-      data: {
-        initial: this.buildFilterSnapshot(),
-        options: {
-          gradeOptions: this.gradeOptions,
-          schoolOptions: this.schoolOptions(),
-          statusOptions: this.statusOptions,
-        },
-        onClear: () => {
-          this.clearFilters();
-        },
-        onChange: (next: StudentViewFilterSnapshot) => {
-          this.applyFilterSnapshot(next);
-        },
-      },
-    });
-  }
-
   protected selectStudent(student: Student): void {
     this.dialogService.open(StudentScoreDetailDialogComponent, {
       width: '720px',
@@ -288,38 +308,22 @@ export class StudentViewComponent implements OnInit {
     return GRADE_LEVEL_LABELS[grade] ?? grade;
   }
 
-  private buildFilterSnapshot(): StudentViewFilterSnapshot {
-    return {
-      searchText: this.searchText(),
-      grade: this.gradeFilter(),
-      schoolId: this.schoolIdFilter(),
-      status: this.activeStatusFilter(),
-    };
+  protected onCourseChange(courseId: string | null): void {
+    if (this.courseIdFilter() === courseId) return;
+    this.courseIdFilter.set(courseId);
+    this.resetAndReload();
   }
 
-  private applyFilterSnapshot(next: StudentViewFilterSnapshot): void {
-    const shouldReload =
-      this.searchText() !== next.searchText ||
-      this.gradeFilter() !== next.grade ||
-      this.activeStatusFilter() !== next.status;
-
-    this.searchText.set(next.searchText);
-    this.gradeFilter.set(next.grade);
-    this.schoolIdFilter.set(next.schoolId);
-    this.activeStatusFilter.set(next.status);
-
-    this.currentPage.set(1);
-    if (shouldReload) {
-      this.loadStudents();
-    }
-  }
-
-  private clearFilters(): void {
+  protected clearFilters(): void {
     const hadServerFilters =
-      !!this.searchText() || !!this.gradeFilter() || this.activeStatusFilter() !== 'active';
+      !!this.searchText() ||
+      !!this.gradeFilter() ||
+      !!this.courseIdFilter() ||
+      this.activeStatusFilter() !== 'active';
 
     this.searchText.set('');
     this.gradeFilter.set('');
+    this.courseIdFilter.set(null);
     this.schoolIdFilter.set(null);
     this.activeStatusFilter.set('active');
     this.currentPage.set(1);
@@ -349,6 +353,19 @@ export class StudentViewComponent implements OnInit {
         error: () => {
           this.schoolOptionsState.set([]);
         },
+      });
+  }
+
+  private loadCourses(): void {
+    this.coursesService
+      .list({ campusId: this.campusId() || undefined, isActive: true, pageSize: 200 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) =>
+          this.courseOptions.set(
+            res.data.map((course) => ({ label: course.name, value: course.id })),
+          ),
+        error: () => this.courseOptions.set([]),
       });
   }
 
@@ -415,14 +432,17 @@ export class StudentViewComponent implements OnInit {
       });
   }
 
-  /** 每生摘要撈齊（每頁上限 200） */
+  /** 每生摘要撈齊（每頁上限 200）；選了課程就只撈這門課的 */
   private loadAggregates(): Observable<StudentScoreAggregate[]> {
+    const courseId = this.courseIdFilter();
     const fetch = (page: number) =>
-      this.scoresService.studentAggregatesAll({
-        campusId: this.campusId() || undefined,
-        page,
-        pageSize: 200,
-      });
+      courseId
+        ? this.scoresService.studentAggregatesByCourse({ courseId, page, pageSize: 200 })
+        : this.scoresService.studentAggregatesAll({
+            campusId: this.campusId() || undefined,
+            page,
+            pageSize: 200,
+          });
     return fetch(1).pipe(
       switchMap((first) => {
         const pages = Math.ceil(first.meta.total / 200);

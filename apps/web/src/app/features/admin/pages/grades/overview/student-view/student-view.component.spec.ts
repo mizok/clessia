@@ -48,11 +48,13 @@ describe('StudentViewComponent', () => {
   afterEach(() => {
     // 學生名單回來才發成績摘要（G8）—— 多收幾輪，直到沒有新請求
     for (let round = 0; round < 3; round++) {
-      http.match(() => true).forEach((req) => {
-        if (!req.cancelled) {
-          req.flush({ data: [], meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 } });
-        }
-      });
+      http
+        .match(() => true)
+        .forEach((req) => {
+          if (!req.cancelled) {
+            req.flush({ data: [], meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 } });
+          }
+        });
     }
     http.verify();
   });
@@ -271,6 +273,40 @@ describe('StudentViewComponent', () => {
     expect(text(rows[0])).toContain('65平均');
     expect(text(rows[1])).toContain('這段期間沒有成績');
     expect(text(rows[1])).toContain('—平均');
+  });
+
+  it('課程篩選（#1314 G9）：摘要改撈這門課，名單只留這門課有成績的學生；鈕上寫課程名', () => {
+    fixture.detectChanges();
+    http
+      .expectOne((r) => r.url.includes('/api/courses'))
+      .flush({ data: [{ id: 'course-1', name: '國二數學' }], meta: { total: 1 } });
+    const vm = component as any;
+    vm.onCourseChange('course-1');
+
+    // 換課程的那一刻，第一輪（沒課程）的名單請求被 switchMap 取消；回的是新的那一支
+    http
+      .match((r) => r.url.includes('/api/students'))
+      .filter((r) => !r.cancelled)
+      .forEach((r) =>
+        r.flush({
+          data: [
+            { id: 's1', name: '王小明', grade: 'J2', school: null },
+            { id: 's2', name: '李小華', grade: 'J2', school: null },
+          ],
+          meta: { total: 2, page: 1, pageSize: 100, totalPages: 1 },
+        }),
+      );
+    const agg = http.expectOne((r) => r.url.endsWith('/api/scores/students'));
+    expect(agg.request.params.get('courseId')).toBe('course-1');
+    expect(agg.request.params.has('scope')).toBe(false);
+    agg.flush({
+      data: [{ studentId: 's1', latest: null, deltaVsPrev: null, recentAbsentCount: 0 }],
+      meta: { total: 1, page: 1, pageSize: 200 },
+    });
+
+    expect(vm.filteredStudents().map((s: { id: string }) => s.id)).toEqual(['s1']);
+    expect(vm.filterSummary()).toBe('國二數學');
+    expect(vm.hasFilters()).toBe(true);
   });
 
   it('renders paged students rows', () => {
