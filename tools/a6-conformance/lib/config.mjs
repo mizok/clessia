@@ -1071,7 +1071,51 @@ export const PAGES = {
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
-  settings: { a6: 'settings.html', app: '/admin/settings/general' },
+  settings: {
+    a6: 'settings.html',
+    app: '/admin/settings/general',
+    deviations: [
+      {
+        // 稿的出勤紀錄模式是常開的一節（兩張可選的卡）；使用者要求「一般」分頁全部收成可收合的列，
+        // 出勤紀錄模式、誰負責點名在列裡（列數因此多 2，工具算成資料差）
+        status: '缺',
+        a6: '>landmark:main\\[\\]>landmark:region\\[出勤紀錄模式\\](>|$)',
+        reason: '「一般」分頁全部收成可收合的列，出勤紀錄模式在列裡',
+        source: '#1882（使用者 10-22「一般設定也幫我收合」）',
+      },
+      {
+        // 稿與 app 同一個寫法（settings.html:224、settings-shell.page.ts）：全部分校日到班時寫「全部用日到班」
+        status: '文案',
+        a6: '>heading:h1\\[#個分校在營運，#個用日到班。\\]$',
+        reason: '資料：seed 的分校全部用日到班',
+        source: 'settings.html:224 與 settings-shell.page.ts 同一套分支',
+      },
+      {
+        // 繳費提醒時間點可以設好幾個（#1660），摘要全部寫出來，跟稿的「到期前 3 天提醒」對不上文案
+        status: '多',
+        app: '>landmark:main\\[\\]>control:button\\[繳費期限',
+        reason: '現況有、稿沒畫：繳費提醒可設多個時間點，摘要逐一寫出',
+        source: `${rule('R2')}；#1660`,
+      },
+      {
+        // 「繳費」收合列裡現況有、稿沒畫的欄位與區塊：待開單提醒、連續請假可不收費、家長繳費提醒（#1660）、
+        // 家長付款帳戶資訊。已經收在收合列裡，不另外搬
+        status: '多',
+        app: '>landmark:main\\[\\]>(control:button\\[(儲存|到期前|逾期|加入)\\](~\\d+)?|heading:h3\\[(家長繳費提醒|家長付款帳戶資訊)\\]|text:p\\[(在這些時間點|家長在「繳費」頁|到期前#天)|list|control:textbox\\[(天數|家長付款帳戶資訊)\\])',
+        reason: '現況有、稿沒畫：收在「繳費」收合列裡',
+        source: `${rule('R2')}；#1660`,
+      },
+      {
+        // 收合列裡的欄位（報名流程、繳費、學年升級的天數框與說明）：收起時 Chrome 照樣回盒子，app 這邊被量成列內 part；
+        // 稿同樣的欄位沒量到。兩邊都在收合列裡，不是多出來的東西
+        status: '多',
+        app: '>landmark:main\\[\\]>row>(control:textbox|text:small)$',
+        reason: '工具限制：收合列內的欄位，app 收起時仍被量到、稿沒有',
+        source:
+          'tools/a6-conformance/README.md 已知限制「收合的 <details> 沒有盒子，不列」（app 的收合內容仍有盒子，10-30 實測）',
+      },
+    ],
+  },
   // 系統設定的學校分頁（#1314 SE4）
   schools: { a6: 'settings.html#schools', app: '/admin/settings/schools' },
   // 系統設定的科目分頁（#1314 SE5）
@@ -1680,7 +1724,6 @@ export const PAGES = {
       ],
     },
   },
-  settings: { a6: 'settings.html', app: '/admin/settings/general' },
   't-schedule': {
     a6: 't-schedule.html',
     app: '/teacher/schedule',
