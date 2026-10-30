@@ -229,7 +229,7 @@
             {{ sending() ? '送出中…' : '送出試聽申請' }}
           </button>
           <p
-            class="m-0 text-md"
+            class="m-0 text-md max-wide:basis-full"
             [class.text-error-700]="!!sendError()"
             [class.text-zinc-700]="!sendError()"
             aria-live="polite"
