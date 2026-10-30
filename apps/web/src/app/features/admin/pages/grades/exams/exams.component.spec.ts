@@ -114,6 +114,7 @@ describe('ExamsComponent', () => {
     const schoolTodoReq = http.expectOne(`${environment.apiUrl}/api/school-exams/todo-count`);
     // school 沒有分母，所以永遠只有「一筆都沒有」這一級
     schoolTodoReq.flush({ count: 1, none: 1, partial: 0 });
+    flushAllCount();
 
     const schoolsReq = http.expectOne(
       (req) =>
@@ -163,7 +164,15 @@ describe('ExamsComponent', () => {
     fixture.detectChanges();
   });
 
+  /** 「全部 #」的場數查詢（pageSize=1）：跟列表、待辦數分開，這裡統一收掉 */
+  function flushAllCount(total = 37): void {
+    http
+      .match((req) => req.params.get('pageSize') === '1')
+      .forEach((r) => r.flush({ data: [], meta: { total, page: 1, pageSize: 1 } }));
+  }
+
   afterEach(() => {
+    flushAllCount();
     http.verify();
   });
 
@@ -228,7 +237,11 @@ describe('ExamsComponent', () => {
     TestBed.inject(CampusContextService).select('c9');
     fixture.detectChanges();
 
-    const reqs = http.match((req) => req.url.startsWith(`${environment.apiUrl}/api/academy-exams`));
+    const reqs = http.match(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.get('pageSize') !== '1',
+    );
     expect(
       reqs.map((r) => [r.request.params.get('campus_id'), r.request.params.get('page')]),
     ).toEqual([['c9', '1']]);
@@ -238,6 +251,12 @@ describe('ExamsComponent', () => {
   });
 
   it('uses todo=true query when status filter is todo', () => {
+    // 進頁就是待處理（A6）；先切到全部再切回來，看切回來那一支查詢
+    component['setTab']('all');
+    fixture.detectChanges();
+    http
+      .expectOne((req) => req.url.startsWith(`${environment.apiUrl}/api/academy-exams`))
+      .flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: LIST_PAGE_SIZE } });
     component['onStatusChange']('todo');
     fixture.detectChanges();
 
@@ -310,26 +329,33 @@ describe('ExamsComponent', () => {
     expect(buttonByText('只看登到一半的')).toBeFalsy();
   });
 
-  it('「待處理／全部」只是 statusFilter 的預設值（#991 grades Q5）', () => {
-    expect(component['tab']()).toBe('all');
-    component['setTab']('pending');
+  it('「待處理／全部」只是 statusFilter 的預設值（#991 grades Q5）；進頁停在待處理（A6）', () => {
+    expect(component['tab']()).toBe('pending');
+    component['setTab']('all');
     fixture.detectChanges();
     const req = http.expectOne(
       (r) =>
-        r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
-        r.params.get('todo') === 'true',
+        r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !r.params.has('todo'),
     );
     req.flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
-    expect(component['tab']()).toBe('pending');
+    expect(component['tab']()).toBe('all');
   });
 
-  it('clearFilters resets todo back to all', () => {
-    component['onStatusChange']('todo');
+  it('「全部」鈕帶這個考試型態的總場數（pageSize=1 的查詢）', () => {
+    fixture.detectChanges();
+    const all = [...(fixture.nativeElement as HTMLElement).querySelectorAll('nav button')].find(
+      (b) => b.textContent!.trim().startsWith('全部'),
+    );
+    expect(all?.textContent).toContain('37');
+  });
+
+  it('clearFilters 清掉分級、留在待處理分頁', () => {
+    component['onStatusChange']('todo-none');
     fixture.detectChanges();
     const todoReq = http.expectOne(
       (req) =>
         req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
-        req.params.get('todo') === 'true',
+        req.params.get('todoLevel') === 'none',
     );
     todoReq.flush({
       data: [mockAcademyExams[0]],
@@ -341,14 +367,16 @@ describe('ExamsComponent', () => {
 
     const clearReq = http.expectOne(
       (req) =>
-        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !req.params.has('todo'),
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.get('todo') === 'true' &&
+        !req.params.has('todoLevel'),
     );
     clearReq.flush({
       data: mockAcademyExams,
       meta: { total: 2, page: 1, pageSize: LIST_PAGE_SIZE },
     });
 
-    expect(component['statusFilter']()).toBe('all');
+    expect(component['statusFilter']()).toBe('todo');
   });
 
   /**
@@ -363,7 +391,9 @@ describe('ExamsComponent', () => {
 
     const listReq = http.expectOne(
       (req) =>
-        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.has('page'),
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.has('page') &&
+        req.params.get('pageSize') !== '1',
     );
     listReq.error(new ProgressEvent('boom'));
     // 其餘同時發出的請求照樣收掉，免得 verify() 抱怨
@@ -381,6 +411,12 @@ describe('ExamsComponent', () => {
       Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('section[data-chapter]'));
 
     function openPending(rows: unknown[], total = rows.length): void {
+      // 進頁就在待處理：先切到全部再切回來，餵這一次的列
+      component['setTab']('all');
+      fixture.detectChanges();
+      http
+        .expectOne((r) => r.url.startsWith(`${environment.apiUrl}/api/academy-exams`))
+        .flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
       component['setTab']('pending');
       fixture.detectChanges();
       const req = http.expectOne(
@@ -441,16 +477,15 @@ describe('ExamsComponent', () => {
     it('總數超過一頁：章頭標「這一頁」；剛好一頁（20）不標、21 才標', () => {
       openPending([mockAcademyExams[0]], LIST_PAGE_SIZE);
       expect(chapterEls()[0].textContent).not.toContain('這一頁');
-      component['setTab']('all');
-      fixture.detectChanges();
-      http
-        .expectOne(
-          (r) =>
-            r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !r.params.has('todo'),
-        )
-        .flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
       openPending([mockAcademyExams[0]], LIST_PAGE_SIZE + 1);
       expect(chapterEls()[0].textContent).toContain('這一頁');
+    });
+
+    it('待處理是空的：寫「沒有等著登成績的考試」，不是「尚無考試資料」（A6 `.empty`）', () => {
+      openPending([]);
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('沒有等著登成績的考試');
+      expect(text).not.toContain('尚無考試資料');
     });
 
     it('學校考試的待處理沒有「登到一半」：維持扁平列表', () => {
@@ -488,20 +523,12 @@ describe('ExamsComponent', () => {
       expect(component['desktopFilterCount']()).toBe(0);
     });
 
-    it('「待處理」分頁本身不算條件；「全部」分頁選了狀態才算 1；待處理分頁沒有清除篩選鈕', () => {
-      component['setTab']('pending');
-      fixture.detectChanges();
-      http
-        .expectOne(
-          (r) =>
-            r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
-            r.params.get('todo') === 'true',
-        )
-        .flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
-      fixture.detectChanges();
+    it('「待處理」分頁本身不算條件、也沒有篩選（A6 `#ff` 只在全部）；「全部」分頁選了狀態才算 1', () => {
+      // 進頁就在待處理
       expect(component['desktopFilterCount']()).toBe(0);
       const el = fixture.nativeElement as HTMLElement;
-      expect(el.textContent).toContain('篩選：全部');
+      expect(el.textContent).not.toContain('篩選：');
+      expect(el.querySelectorAll('input[type="search"]').length).toBe(0);
       // 工具列那顆；列表上方「N 場符合 · 清除篩選」是另一顆（沿用既有判準），不在這裡
       expect(el.querySelector('[data-toolbar-clear]')).toBeNull();
 
@@ -518,8 +545,19 @@ describe('ExamsComponent', () => {
       expect(el.querySelector('[data-toolbar-clear]')).not.toBeNull();
     });
 
+    /** 篩選只在「全部」分頁（A6 `#ff`）：切過去並收掉那一支查詢 */
+    function goAll(): void {
+      component['setTab']('all');
+      fixture.detectChanges();
+      http
+        .expectOne((r) => r.url.startsWith(`${environment.apiUrl}/api/academy-exams`))
+        .flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
+      fixture.detectChanges();
+    }
+
     // 外點擊關掉浮層時，只有 Popover 的 onHide 會回寫 filtersOpen；少了它鈕會一直是「展開」
     it('浮層 onShow／onHide 回寫篩選鈕的 aria-expanded（外點擊關掉後鈕要回到 false）', () => {
+      goAll();
       const el = fixture.nativeElement as HTMLElement;
       const filterBtn = () =>
         Array.from(el.querySelectorAll('button')).find((b) =>
@@ -547,6 +585,7 @@ describe('ExamsComponent', () => {
     });
 
     it('工具列不再常開一排條件：頁面上只有手機那一個搜尋框，條件在浮層（開了才有）', () => {
+      goAll();
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelectorAll('input[type="search"]').length).toBe(1);
       const filterBtn = Array.from(el.querySelectorAll('button')).find((b) =>

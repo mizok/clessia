@@ -122,7 +122,7 @@ run('成績匯出的 SQL 對真 Postgres（#1100 #40）', () => {
     course_name: string | null;
   };
   const exportRows = async (db: PoolClient, orgId: string, ids: string[] | null) =>
-    (await db.query<Row>(SCORE_EXPORT_SQL, [orgId, ids, 100])).rows;
+    (await db.query<Row>(SCORE_EXPORT_SQL, [orgId, ids, 100, null])).rows;
   const names = (rows: Row[]) => rows.map((r) => `${r.student_name}/${r.exam_name}`).sort();
 
   it('只撈本 org 的成績（校內考與段考都是）', () =>

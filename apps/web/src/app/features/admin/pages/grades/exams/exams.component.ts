@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   effect,
+  untracked,
   OnInit,
   computed,
   inject,
@@ -15,7 +16,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { skip } from 'rxjs';
+import { map, type Observable, skip } from 'rxjs';
 import { CampusContextService } from '@core/campus-context.service';
 import { format, subMonths } from 'date-fns';
 
@@ -261,7 +262,8 @@ export class ExamsComponent implements OnInit {
   protected readonly campusId = this.campusCtx.id;
   protected readonly schoolId = signal<string | null>(null);
   protected readonly subjectId = signal<string | null>(null);
-  protected readonly statusFilter = signal<StatusFilter>('all');
+  /** 進頁停在「待處理」分頁（A6 `st.tab = 'pending'`） */
+  protected readonly statusFilter = signal<StatusFilter>('todo');
   protected readonly searchText = signal('');
   protected readonly timeRange = signal<TimeRange>('all');
 
@@ -321,7 +323,8 @@ export class ExamsComponent implements OnInit {
     () =>
       (this.examType() === 'school' && this.schoolId() !== null) ||
       this.subjectId() !== null ||
-      this.statusFilter() !== 'all' ||
+      // 分頁本身（全部＝all、待處理＝todo）不算篩選；「只看還沒登的」等分級才算
+      (this.statusFilter() !== 'all' && this.statusFilter() !== 'todo') ||
       this.searchText().trim() !== '' ||
       this.timeRange() !== 'all',
   );
@@ -421,6 +424,31 @@ export class ExamsComponent implements OnInit {
     effect(() => {
       const query = this.listQuery();
       this.loadExamRows(query);
+    });
+    // 「全部 #」：這個考試型態（補習班的跟頂欄分校）總共幾場，跟目前在哪個分頁無關
+    effect(() => {
+      const examType = this.examType();
+      const campusId = this.campusId();
+      this.reloadToken();
+      untracked(() => this.loadAllCount(examType, campusId));
+    });
+  }
+
+  /** 「全部」分頁鈕上的場數（A6 `全部 #`）：只要列表 API 的 total，取 1 筆 */
+  protected readonly allCount = signal<number | null>(null);
+
+  private loadAllCount(examType: ExamTypeFilter, campusId: string | null): void {
+    const total$: Observable<number> =
+      examType === 'academy'
+        ? this.academyExamsService
+            .list({ campusId: campusId ?? undefined, page: 1, pageSize: 1 })
+            .pipe(map((res) => res.meta.total))
+        : this.schoolExamsService
+            .list({ page: 1, pageSize: 1 })
+            .pipe(map((res) => res.meta.total));
+    total$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (total) => this.allCount.set(total),
+      error: () => this.allCount.set(null),
     });
   }
 
@@ -674,7 +702,8 @@ export class ExamsComponent implements OnInit {
   protected clearFilters(): void {
     this.schoolId.set(null);
     this.subjectId.set(null);
-    this.statusFilter.set('all');
+    // 清除篩選留在原分頁（A6：只清條件，不換分頁）
+    this.statusFilter.set(this.tab() === 'pending' ? 'todo' : 'all');
     this.searchText.set('');
     this.timeRange.set('all');
     this.currentPage.set(1);
@@ -788,10 +817,6 @@ export class ExamsComponent implements OnInit {
 
   protected openCreateMenu(event: MouseEvent): void {
     this.createExamMenu().toggle(event);
-  }
-
-  protected onRowNameClick(row: ExamRow): void {
-    this.enterScoreEntry(row);
   }
 
   protected enterScoreEntry(row: ExamRow): void {

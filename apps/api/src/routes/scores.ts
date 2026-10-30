@@ -5,6 +5,7 @@ import {
   canReadOn,
   loadTeachingScope,
   loadTenure,
+  taughtClassIds,
   taughtStudentIds,
   type TeachingTenure,
 } from '../lib/teacher-scope';
@@ -257,21 +258,57 @@ const listRoute = createRoute({
 });
 
 /**
- * 老師只讀得到自己固定任課班的學生成績。回 `null` 代表不受限（管理員）。
+ * 老師讀得到的成績：自己固定任課班的學生，**而且校內考只限任課班的考試**。回 `null` 代表不受限（管理員）。
+ *
+ * 只縮學生不夠：他的學生也上別人的班，那些班的校內考不是他看得到的東西（計畫席 10-30，
+ * 契約 `scores-teacher-exam-scope` 守）。讀成績的四支端點（列表、聚合、匯出、摘要）都從這裡拿範圍，
+ * 不各寫一套。學校段考是學生層級、不屬於任何班，不在 `classIds` 的管轄內。
+ *
+ * **回的是班 id 不是考試 id**：考試是任課班歷年全部，塞進 GET URL 會 414（約 200 個 uuid）；
+ * 班數小得多。查詢用 `TAUGHT_EXAM_EMBED` 依班篩。
  *
  * 空陣列跟 `null` 是**不同的意思**：空陣列＝這位老師沒有任何班，該回空結果；
  * `null`＝不必縮限。混在一起的話「沒有班的老師」會看到全校成績。
  */
-async function readableStudentIds(
+async function readableScope(
   supabase: AppEnv['Variables']['supabase'],
   params: { orgId: string; userId: string; roles: readonly string[] },
-): Promise<string[] | null | 'forbidden'> {
+): Promise<{ studentIds: string[]; classIds: string[] } | null | 'forbidden'> {
   if (params.roles.includes('admin')) return null;
 
   const scope = await loadTeachingScope(supabase, params);
   if ('forbidden' in scope || !scope.teacherStaffId) return 'forbidden';
 
-  return taughtStudentIds(supabase, params.orgId, scope.teacherStaffId);
+  const [studentIds, classIds] = await Promise.all([
+    taughtStudentIds(supabase, params.orgId, scope.teacherStaffId),
+    taughtClassIds(supabase, params.orgId, scope.teacherStaffId),
+  ]);
+  return { studentIds, classIds };
+}
+
+/**
+ * 依班篩校內考用的 embed（另取別名，不動 `ACADEMY_SCORE_SELECT` 裡顯示用的班名）。
+ * 搭 `.in(TAUGHT_CLASS_FILTER, 班 id)`：考試掛在任一任課班上就留下。
+ */
+const TAUGHT_EXAM_EMBED =
+  'taught_exam:academy_exams!inner ( taught_class:academy_exam_classes!inner ( class_id ) )';
+const TAUGHT_CLASS_FILTER = 'taught_exam.taught_class.class_id';
+
+/** 掛在這些班上的校內考 id（分頁撈齊） */
+async function examIdsOfClasses(
+  supabase: AppEnv['Variables']['supabase'],
+  classIds: string[],
+): Promise<string[]> {
+  if (classIds.length === 0) return [];
+  const links = await fetchAllRows<{ exam_id: string }>((from, to) =>
+    supabase
+      .from('academy_exam_classes')
+      .select('exam_id')
+      .in('class_id', classIds)
+      .order('exam_id')
+      .range(from, to),
+  );
+  return [...new Set(links.map((r) => r.exam_id))];
 }
 
 /** PostgREST 的 max_rows（1000）會靜默截斷 —— 範圍解析用的清單要分頁撈齊，少一頁就少一批學生 */
@@ -378,11 +415,19 @@ async function resolveScoreScope(
     classId?: string;
     courseId?: string;
   },
-): Promise<'forbidden' | { studentIds: string[] | null; academyExamIds: string[] | null }> {
-  const readable = await readableStudentIds(supabase, params);
+): Promise<
+  | 'forbidden'
+  | {
+      studentIds: string[] | null;
+      academyExamIds: string[] | null;
+      /** 老師的任課班（校內考依班篩，見 `readableScope`）；管理員 null */
+      academyClassIds: string[] | null;
+    }
+> {
+  const readable = await readableScope(supabase, params);
   if (readable === 'forbidden') return 'forbidden';
 
-  let studentIds: string[] | null = readable;
+  let studentIds: string[] | null = readable?.studentIds ?? null;
   const keep = (ids: Iterable<string>) => {
     const allowed = new Set(ids);
     studentIds = studentIds === null ? [...allowed] : studentIds.filter((id) => allowed.has(id));
@@ -402,6 +447,7 @@ async function resolveScoreScope(
     keep(rows.map((r) => r.student_id));
   }
 
+  const academyClassIds = readable?.classIds ?? null;
   let academyExamIds: string[] | null = null;
   if (params.classId || params.courseId) {
     let classIds: string[];
@@ -420,8 +466,10 @@ async function resolveScoreScope(
     } else {
       classIds = [params.classId as string];
     }
+    // 老師帶別人的班 id：那班不在範圍內，校內考這半是空的
+    if (academyClassIds) classIds = classIds.filter((id) => academyClassIds.includes(id));
 
-    const [enrolled, examLinks] = await Promise.all([
+    const [enrolled, classExamIds] = await Promise.all([
       fetchAllRows<{ student_id: string }>((from, to) =>
         supabase
           .from('enrollments')
@@ -431,20 +479,13 @@ async function resolveScoreScope(
           .order('id')
           .range(from, to),
       ),
-      fetchAllRows<{ exam_id: string }>((from, to) =>
-        supabase
-          .from('academy_exam_classes')
-          .select('exam_id')
-          .in('class_id', classIds)
-          .order('exam_id')
-          .range(from, to),
-      ),
+      examIdsOfClasses(supabase, classIds),
     ]);
     keep(enrolled.map((r) => r.student_id));
-    academyExamIds = [...new Set(examLinks.map((r) => r.exam_id))];
+    academyExamIds = classExamIds;
   }
 
-  return { studentIds, academyExamIds };
+  return { studentIds, academyExamIds, academyClassIds };
 }
 
 app.openapi(listRoute, async (c) => {
@@ -479,7 +520,7 @@ app.openapi(listRoute, async (c) => {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
   const readable = scope.studentIds;
-  const academyExamIds = scope.academyExamIds;
+  const { academyExamIds, academyClassIds } = scope;
   // 空陣列 = 範圍內沒有任何學生（沒有班的老師、沒被指派分校的管理員、空的班）。
   // 回空結果而不是不縮限 —— 「沒有」不是通行證
   if (readable !== null && readable.length === 0) {
@@ -495,7 +536,9 @@ app.openapi(listRoute, async (c) => {
       const buildAcademyQuery = () =>
         supabase
           .from('academy_scores')
-          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`)
+          .select(
+            `${ACADEMY_SCORE_SELECT}, students!inner ( name )${academyClassIds ? `, ${TAUGHT_EXAM_EMBED}` : ''}`,
+          )
           .eq('academy_exams.org_id', orgId);
 
       const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
@@ -505,6 +548,9 @@ app.openapi(listRoute, async (c) => {
         }
         if (academyExamIds !== null) {
           next = next.in('exam_id', academyExamIds);
+        }
+        if (academyClassIds !== null) {
+          next = next.in(TAUGHT_CLASS_FILTER, academyClassIds);
         }
         if (studentId) {
           next = next.eq('student_id', studentId);
@@ -774,6 +820,7 @@ app.openapi(listRoute, async (c) => {
 // **匯出就是把資料帶出系統，範圍錯了等於外洩**（保留類）。範圍＝`resolveScoreScope`
 // （老師範圍 ∩ 分校範圍，跟列表同一個判準）∩ 頂欄分校（`campusFilterIds`，撐不大範圍）∩
 // `studentIds`（面板的「照目前的篩選」）。範圍外的學生 id 撈不到，不報錯。
+// 老師的校內考另外只限掛在任課班上的考試（`$4`＝任課班 id，同列表的 `academyClassIds`）；段考不受它管。
 //
 // **成績本身走 pg pool 的一條 SQL**（計畫席 10-23）：學生最多 3000 位，走 PostgREST 的話 id 進 GET URL
 // （本機實測成績的長 select ＋200 個 uuid 就 414），切批又會撞 Workers 每請求 50 個 subrequest。
@@ -812,6 +859,8 @@ SELECT * FROM (
        ORDER BY c.name LIMIT 1
     ) k ON true
    WHERE ($2::uuid[] IS NULL OR s.student_id = ANY($2::uuid[]))
+     AND ($4::uuid[] IS NULL OR EXISTS (SELECT 1 FROM academy_exam_classes x
+                                         WHERE x.exam_id = s.exam_id AND x.class_id = ANY($4::uuid[])))
   UNION ALL
   SELECT st.name, NULL, se.label, NULL,
          COALESCE(se.exam_date, (se.created_at AT TIME ZONE 'UTC')::date)::text,
@@ -893,7 +942,7 @@ app.openapi(exportRoute, async (c) => {
       exam_date: string;
       score: number | null;
       status: string;
-    }>(SCORE_EXPORT_SQL, [orgId, readable, SCORE_EXPORT_ROW_LIMIT + 1]);
+    }>(SCORE_EXPORT_SQL, [orgId, readable, SCORE_EXPORT_ROW_LIMIT + 1, scope.academyClassIds]);
     if (rows.length > SCORE_EXPORT_ROW_LIMIT) {
       return c.json(
         {
@@ -1070,7 +1119,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
   if (scope === 'forbidden') {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  const { studentIds, academyExamIds } = scope;
+  const { studentIds, academyExamIds, academyClassIds } = scope;
   const empty = { data: [], meta: { total: 0, page, pageSize } };
   if (studentIds !== null && studentIds.length === 0) return c.json(empty, 200);
 
@@ -1093,10 +1142,14 @@ app.openapi(studentAggregatesRoute, async (c) => {
     ? run(() => {
         let query = supabase
           .from('academy_scores')
-          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name, grade )`, { count: 'exact' })
+          .select(
+            `${ACADEMY_SCORE_SELECT}, students!inner ( name, grade )${academyClassIds ? `, ${TAUGHT_EXAM_EMBED}` : ''}`,
+            { count: 'exact' },
+          )
           .eq('academy_exams.org_id', orgId);
         if (studentIds !== null) query = query.in('student_id', studentIds);
         if (academyExamIds !== null) query = query.in('exam_id', academyExamIds);
+        if (academyClassIds !== null) query = query.in(TAUGHT_CLASS_FILTER, academyClassIds);
         if (q.studentId) query = query.eq('student_id', q.studentId);
         if (q.subjectId) query = query.eq('academy_exams.subject_id', q.subjectId);
         if (q.dateFrom) query = query.gte('academy_exams.exam_date', q.dateFrom);
@@ -1311,7 +1364,7 @@ app.openapi(studentSummaryRoute, async (c) => {
   const supabase = c.get('supabase');
   const { studentId } = c.req.valid('param');
 
-  const readable = await readableStudentIds(supabase, {
+  const readable = await readableScope(supabase, {
     orgId,
     userId: c.get('userId'),
     roles: c.get('roles') ?? [],
@@ -1319,7 +1372,7 @@ app.openapi(studentSummaryRoute, async (c) => {
   if (readable === 'forbidden') {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  if (readable !== null && !readable.includes(studentId)) {
+  if (readable !== null && !readable.studentIds.includes(studentId)) {
     return c.json({ error: '這位學生不在你的任課班級', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
   }
   // 分校範圍（#1250）：學生任一筆報名在範圍內就算，同 list（#1115）。不在本 org 的交給下面的 404
@@ -1344,13 +1397,17 @@ app.openapi(studentSummaryRoute, async (c) => {
   const studentSchoolId = (student as { school_id: string | null }).school_id ?? null;
 
   const [academyResult, schoolResult] = await Promise.all([
-    supabase
-      .from('academy_scores')
-      .select(
-        'score, status, exam_id, academy_exams!inner(subject_id, org_id, exam_date, total_score, name, subjects(name))',
-      )
-      .eq('student_id', studentId)
-      .eq('academy_exams.org_id', orgId),
+    (() => {
+      const select =
+        'score, status, exam_id, academy_exams!inner(subject_id, org_id, exam_date, total_score, name, subjects(name))';
+      const query = supabase
+        .from('academy_scores')
+        .select(readable ? `${select}, ${TAUGHT_EXAM_EMBED}` : select)
+        .eq('student_id', studentId)
+        .eq('academy_exams.org_id', orgId);
+      // 老師只算任課班的校內考（readableScope，依班篩）
+      return readable ? query.in(TAUGHT_CLASS_FILTER, readable.classIds) : query;
+    })(),
     (() => {
       let query = supabase
         .from('school_scores')
