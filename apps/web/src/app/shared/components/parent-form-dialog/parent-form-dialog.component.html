@@ -1,162 +1,168 @@
-<div class="form-dialog">
+<div class="form-dialog form-dialog--a6">
+  <!-- A6 `.fdlg` 標題列：h2＋副標＋關閉（parents.html parentForm） -->
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">
-        {{ isEditMode() ? '編輯家長資料' : '新增家長' }}
-      </span>
+      <h2 appDialogTitle class="dialog-header-inline__title">
+        {{ isEditMode() ? '編輯家長' : '新增家長' }}
+      </h2>
+      <p class="dialog-header-inline__sub">
+        {{
+          isEditMode()
+            ? '帳號狀態在清單的 ⋯ 裡改'
+            : '建立後會產生一次性登入連結，請家長當場用手機掃'
+        }}
+      </p>
     </div>
     <button
       type="button"
-      class="dialog-header-inline__close size-11"
+      class="dialog-header-inline__close size-11 wide:size-10"
       (click)="cancel()"
       aria-label="關閉"
     >
-      <i class="pi pi-times"></i>
+      <i class="pi pi-times" aria-hidden="true"></i>
     </button>
   </div>
 
-  <!-- 姓名 -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label"> 姓名<span class="form-dialog__required">*</span> </label>
-    <input
-      type="text"
-      pInputText
-      [ngModel]="formData().name"
-      (ngModelChange)="updateForm('name', $event)"
-      placeholder="請輸入家長姓名"
-      [disabled]="loading()"
-      class="w-full"
-    />
-  </div>
-
-  <!-- Email + 手機 -->
-  <div class="form-dialog__row grid grid-cols-[1fr] gap-4 min-[640.02px]:grid-cols-[1fr_1fr]">
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        Email<span class="form-dialog__hint ml-1 text-[0.6875rem] font-normal text-zinc-400"
-          >與手機至少填一個</span
-        >
-      </label>
+  <!-- A6 `.fdlg__body`：姓名整列、Email／手機各半欄；手機一欄 -->
+  <form
+    ngNoForm
+    class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+    (submit)="$event.preventDefault(); save()"
+  >
+    <div class="col-span-full min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="parent-name"
+        >姓名 <span class="text-error-700" aria-hidden="true">*</span></label
+      >
       <input
+        #nameInput
+        id="parent-name"
+        type="text"
+        autocomplete="off"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+        [ngModel]="formData().name"
+        (ngModelChange)="updateForm('name', $event)"
+        [disabled]="loading()"
+      />
+    </div>
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="parent-email">Email</label>
+      <input
+        id="parent-email"
         type="email"
-        pInputText
+        autocomplete="off"
+        placeholder="parent@example.com"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
         [ngModel]="formData().email"
         (ngModelChange)="updateForm('email', $event)"
-        placeholder="parent@example.com"
         [disabled]="loading()"
-        class="w-full"
       />
     </div>
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        手機號碼<span class="form-dialog__hint ml-1 text-[0.6875rem] font-normal text-zinc-400"
-          >與 Email 至少填一個</span
-        >
-      </label>
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="parent-phone">手機</label>
       <input
+        id="parent-phone"
         type="tel"
-        pInputText
+        autocomplete="off"
+        placeholder="0912-345-678"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
         [ngModel]="formData().phone"
         (ngModelChange)="updateForm('phone', $event)"
-        placeholder="0912-345-678"
         [disabled]="loading()"
-        class="w-full"
       />
     </div>
-  </div>
+    <p class="col-span-full -mt-2 mb-0 text-sm text-zinc-600">
+      Email 和手機至少填一個；兩個都不能跟別的帳號重複
+    </p>
 
-  <!-- 關聯學生：只在新增時（編輯的 studentIds 是全量替換，由詳情對話框管） -->
-  @if (!isEditMode()) {
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">關聯學生</label>
-      <p-autocomplete
-        [(ngModel)]="selectedStudents"
-        [suggestions]="studentSuggestions()"
-        (completeMethod)="searchStudents($event)"
-        [multiple]="true"
-        optionLabel="name"
-        placeholder="輸入姓名搜尋學生（可選多位）"
-        [disabled]="loading()"
-        [fluid]="true"
-        appendTo="body"
-      />
-    </div>
-  }
-
-  <!-- 備註 -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label">備註</label>
-    <textarea
-      pTextarea
-      [ngModel]="formData().notes"
-      (ngModelChange)="updateForm('notes', $event)"
-      placeholder="特殊需求、注意事項..."
-      rows="3"
-      [disabled]="loading()"
-      class="w-full"
-    ></textarea>
-  </div>
-
-  @if (errorMessage()) {
-    <app-inline-notice
-      severity="error"
-      [detail]="errorMessage()"
-      (dismissed)="errorMessage.set(null)"
-    />
-  }
-
-  @if (linkCandidate(); as candidate) {
-    <!-- #1844：這組 Email／手機是本機構教職員的帳號 —— 確認後一次設為家長（加角色、建家長資料、綁孩子） -->
-    <div class="parent-form__link flex flex-col gap-3 rounded-md bg-zinc-100 p-4">
-      <p class="m-0 text-base text-zinc-900">
-        這是 <b>{{ candidate.staffName }}</b
-        >（教職員）的帳號，要把他設為家長嗎？
-      </p>
-      <p class="m-0 text-sm text-zinc-700">
-        家長資料會用「{{
-          candidate.staffName
-        }}」這個名字，勾選的孩子會一起綁好。他不用新的登入連結，稍後重新整理就能切換到家長身分。
-      </p>
-      <div class="flex flex-wrap justify-end gap-2">
-        <p-button
-          label="不要"
-          [text]="true"
-          severity="secondary"
+    <!-- 關聯學生：只在新增時（編輯的 studentIds 是全量替換，由詳情對話框管） -->
+    @if (!isEditMode()) {
+      <div class="col-span-full min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="parent-kids"
+          >關聯學生</label
+        >
+        <p-autocomplete
+          inputId="parent-kids"
+          [(ngModel)]="selectedStudents"
+          [suggestions]="studentSuggestions()"
+          (completeMethod)="searchStudents($event)"
+          [multiple]="true"
+          optionLabel="name"
+          placeholder="輸入姓名搜尋，可以選多位"
           [disabled]="loading()"
-          (onClick)="linkCandidate.set(null)"
-        />
-        <p-button
-          label="設為家長"
-          icon="pi pi-user-plus"
-          [loading]="loading()"
-          [disabled]="loading()"
-          (onClick)="confirmLink()"
+          [fluid]="true"
+          appendTo="body"
         />
       </div>
-    </div>
-  } @else if (!isEditMode()) {
-    <app-inline-notice
-      severity="info"
-      detail="建立後會產生一次性登入連結（QR），請家長當場用手機掃描並綁定 LINE"
-      [dismissible]="false"
-    />
-  }
+    }
 
-  <!-- Footer -->
+    <div class="col-span-full min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="parent-notes">備註</label>
+      <input
+        id="parent-notes"
+        type="text"
+        autocomplete="off"
+        placeholder="例如：只接受晚上的電話"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+        [ngModel]="formData().notes"
+        (ngModelChange)="updateForm('notes', $event)"
+        [disabled]="loading()"
+      />
+    </div>
+
+    @if (linkCandidate(); as candidate) {
+      <!-- #1844：這組 Email／手機是本機構教職員的帳號 —— 確認後一次設為家長（加角色、建家長資料、綁孩子） -->
+      <div class="col-span-full flex flex-col gap-3 rounded-md bg-zinc-100 p-4">
+        <p class="m-0 text-base text-zinc-900">
+          這是 <b>{{ candidate.staffName }}</b
+          >（教職員）的帳號，要把他設為家長嗎？
+        </p>
+        <p class="m-0 text-sm text-zinc-700">
+          家長資料會用「{{
+            candidate.staffName
+          }}」這個名字，勾選的孩子會一起綁好。他不用新的登入連結，稍後重新整理就能切換到家長身分。
+        </p>
+        <div class="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+            [disabled]="loading()"
+            (click)="linkCandidate.set(null)"
+          >
+            不要
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+            [attr.aria-disabled]="loading()"
+            (click)="confirmLink()"
+          >
+            設為家長
+          </button>
+        </div>
+      </div>
+    }
+  </form>
+
+  <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼；送出失敗也寫這裡，填的內容不清 -->
   <div class="form-dialog__footer">
-    <p-button
-      label="取消"
-      [text]="true"
-      severity="secondary"
+    <p class="form-dialog__why" [class.text-error-700]="!!errorMessage()" aria-live="polite">
+      {{ errorMessage() ?? missingHint() }}
+    </p>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
       [disabled]="loading()"
-      (onClick)="cancel()"
-    />
-    <p-button
-      [label]="isEditMode() ? '儲存' : '建立家長'"
-      [icon]="loading() ? 'pi pi-spinner pi-spin' : isEditMode() ? 'pi pi-check' : 'pi pi-plus'"
-      [loading]="loading()"
-      [disabled]="loading()"
-      (onClick)="save()"
-    />
+      (click)="cancel()"
+    >
+      取消
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+      [attr.aria-disabled]="!!missingHint() || loading()"
+      (click)="save()"
+    >
+      {{ loading() ? (isEditMode() ? '儲存中…' : '建立中…') : isEditMode() ? '儲存' : '建立家長' }}
+    </button>
   </div>
 </div>
