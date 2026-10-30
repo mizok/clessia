@@ -685,6 +685,31 @@ export const PAGES = {
     app: '/admin/parents',
     a6Open: opensOf('parents', 'a6Open'),
     appOpen: opensOf('parents', 'appOpen'),
+    deviations: [
+      // 新增家長：關聯學生是遠端搜尋的 autocomplete（學生數多，不一次載完整份選項），
+      // 選了的學生是框裡的小標籤清單；稿是 a6.js 的下拉＋框下的小標籤
+      ...[
+        { status: '缺', a6: 'control:button\\[選擇：輸入姓名搜尋，可以選多位\\](>.*)?$' },
+        { status: '多', app: '>list>row$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-parent',
+        reason: '關聯學生用遠端搜尋的 autocomplete（combobox），選了的學生是框裡的標籤清單',
+        source: `${rule('R7')}；同學生篩選的 app-student-autocomplete（聯絡簿那條）`,
+      })),
+      // 手機關閉鈕 44（稿 38）
+      ...[
+        { status: '尺寸', detail: '^寬 38→44$' },
+        { status: '位置', detail: '^相對「新增家長」 Δx -6' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-parent',
+        widths: [360],
+        a6: 'landmark:dialog\\[新增家長\\]>control:button\\[關閉\\]$',
+        reason: '手機關閉鈕 44px（觸控下限）',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      })),
+    ],
   },
   courses: {
     a6: 'courses.html',
