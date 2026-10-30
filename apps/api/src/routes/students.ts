@@ -780,11 +780,16 @@ app.openapi(
           enrollmentRows.map((e) => e.classes?.campuses?.name).filter((n): n is string => !!n),
         ),
       );
-      // 只算在籍的班 —— 退班的班名不該出現在老師的分組裡
+      // 只算在籍的班 —— 退班的班名不該出現在老師的分組裡。
+      // 老師只算自己教的班：他的學生也上別人的班，那些班名不是他看得到的東西（計畫席 10-30，
+      // contract/students-class-names-scope 守）。管理員 myClassIds 是 null，照舊
       const classNames = Array.from(
         new Set(
           enrollmentRows
             .filter((e) => !e.status || ['active', 'pending_payment'].includes(e.status))
+            .filter(
+              (e) => myClassIds === null || (!!e.classes && myClassIds.includes(e.classes.id)),
+            )
             .map((e) => e.classes?.name)
             .filter((n): n is string => !!n),
         ),
