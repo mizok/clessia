@@ -697,6 +697,16 @@ export const PAGES = {
         reason: '關聯學生用遠端搜尋的 autocomplete（combobox），選了的學生是框裡的標籤清單',
         source: `${rule('R7')}；同學生篩選的 app-student-autocomplete（聯絡簿那條）`,
       })),
+      // 稿的提示句（Email 和手機至少填一個…）是 JS 插在 Email 欄後面，手機因此掉到下一列的左半格；
+      // app 照意圖排在 Email、手機兩欄之後 —— 手機與它下面的欄位、提示句都跟著換位置
+      {
+        status: '位置',
+        pop: 'new-parent',
+        a6: 'landmark:form\\[\\]>((text:label|control:textbox)\\[(手機|關聯學生|備註)\\*?\\]|text:p\\[Email和手機至少填一個)',
+        reason: '提示句排在 Email、手機兩欄之後（稿的插入位置讓手機掉到半格）',
+        source:
+          '稿的 JS 插入位置在手機會掉到半格，屬於稿的瑕疵，計畫席 10-30 裁定（parents.html parentForm 的 insertAdjacentHTML）',
+      },
       // 手機關閉鈕 44（稿 38）
       ...[
         { status: '尺寸', detail: '^寬 38→44$' },
