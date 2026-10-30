@@ -1,11 +1,16 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
 import { MultiSelectModule } from 'primeng/multiselect';
-import { DatePickerModule } from 'primeng/datepicker';
-import { TextareaModule } from 'primeng/textarea';
 import { CheckboxModule } from 'primeng/checkbox';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig, DialogService } from 'primeng/dynamicdialog';
@@ -24,6 +29,7 @@ import {
 import { Campus } from '@core/campuses.service';
 import { Subject } from '@core/subjects.service';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
+import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
 
 /**
  * 中文標籤與說明。**只有這張表是手寫的，值的集合不是** ——
@@ -63,12 +69,10 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   standalone: true,
   imports: [
     CommonModule,
+    DialogTitleDirective,
     FormsModule,
     ButtonModule,
-    InputTextModule,
     MultiSelectModule,
-    DatePickerModule,
-    TextareaModule,
     CheckboxModule,
   ],
   templateUrl: './staff-form-dialog.component.html',
@@ -98,9 +102,8 @@ export class StaffFormDialogComponent {
     nickname: this.staff()?.nickname ?? '',
     email: this.staff()?.email ?? '',
     phone: this.staff()?.phone ?? '',
-    birthday: (this.staff()?.birthday
-      ? new Date(this.staff()!.birthday as string)
-      : null) as Date | null,
+    // 原生 <input type="date">（稿 `type: 'date'`）：值就是 YYYY-MM-DD，跟 API 同格式
+    birthday: this.staff()?.birthday ?? '',
     notes: this.staff()?.notes ?? '',
     subjectIds: this.staff()?.subjectIds ?? [],
     campusIds: this.staff()?.campusIds ?? [],
@@ -142,6 +145,31 @@ export class StaffFormDialogComponent {
    */
   protected readonly errors = signal<Record<string, string>>({});
 
+  /** A6 `.fdlg__why`：動作列左邊「還沒填：姓名、Email」；都填了是 null（規則同 validate） */
+  protected readonly missingHint = computed(() => {
+    const f = this.formData();
+    const missing = [
+      !f.displayName.trim() && '姓名',
+      !this.isEditing() && !f.email.trim() && 'Email',
+      !this.isEditing() && !f.phone.trim() && '電話',
+      f.roles.length === 0 && '角色',
+      f.campusIds.length === 0 && '服務分校',
+      f.roles.includes('teacher') && f.subjectIds.length === 0 && '教學科目',
+    ].filter(Boolean);
+    return missing.length ? `還沒填：${missing.join('、')}` : null;
+  });
+
+  private readonly nameInput = viewChild.required<ElementRef<HTMLInputElement>>('nameInput');
+
+  constructor() {
+    // 稿：桌機聚焦第一個欄位（姓名）、手機不聚焦（不要一開就彈鍵盤）
+    afterNextRender(() => {
+      if (globalThis.matchMedia?.('(min-width: 861px)').matches) {
+        this.nameInput().nativeElement.focus();
+      }
+    });
+  }
+
   /**
    * 回傳第一個錯誤的欄位 key，全部通過回 `null`。
    *
@@ -154,6 +182,9 @@ export class StaffFormDialogComponent {
 
     if (!form.displayName.trim()) found['displayName'] = '請填寫姓名';
     if (!this.isEditing() && !form.email.trim()) found['email'] = '請填寫 Email';
+    // A6 staff.html：電話必填（`req: true`）—— 只在新增時。既有人員多半沒填（建立流程原本選填，
+    // seed 99／99 位都沒有），編輯時也擋的話，改個名字就存不了；編輯時改成欄位下的提示
+    if (!this.isEditing() && !form.phone.trim()) found['phone'] = '請填寫電話';
     if (form.campusIds.length === 0) found['campusIds'] = '請選擇服務分校';
     if (form.roles.length === 0) found['roles'] = '請選擇角色';
     // **這個條件本來就跟角色綁**（#663 的 ② 查證後不是「沒有綁」）——
@@ -183,16 +214,9 @@ export class StaffFormDialogComponent {
   protected save(): void {
     const form = this.formData();
     const firstError = this.validate();
-    if (firstError) {
-      // toast 留著當**輔助** —— 有人的視線可能正好在右上。但它不再是唯一訊號，
-      // 所以這裡不需要為了「讓人來得及看到」去延長它的壽命（那是治標）。
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請檢查標示的欄位',
-        detail: this.errors()[firstError],
-      });
-      return;
-    }
+    // 錯誤留在欄位上（紅框＋欄位下的字），動作列左邊也寫還差什麼（A6 `.fdlg__why`）——
+    // 兩個都在按鈕旁邊的視線範圍內，不再靠右上的 toast
+    if (firstError) return;
 
     this.loading.set(true);
 
@@ -201,7 +225,7 @@ export class StaffFormDialogComponent {
       // 空字串＝清掉；API 端同一條 NicknameSchema 也會 trim
       nickname: form.nickname.trim() || null,
       phone: form.phone.trim() || null,
-      birthday: form.birthday ? this.formatDate(form.birthday) : null,
+      birthday: form.birthday || null,
       notes: form.notes.trim() || null,
       subjectIds: form.subjectIds,
       campusIds: form.campusIds,
@@ -331,12 +355,5 @@ export class StaffFormDialogComponent {
         }
       });
     }
-  }
-
-  private formatDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
   }
 }
