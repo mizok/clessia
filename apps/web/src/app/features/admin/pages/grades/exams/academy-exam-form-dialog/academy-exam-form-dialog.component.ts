@@ -147,6 +147,8 @@ export class AcademyExamFormDialogComponent implements OnInit {
 
   protected readonly canSave = computed(() => {
     if (this.isClosed()) return false;
+    // 新增時表單不等班級清單就先畫出來：清單到之前不能送（選的班還沒驗證過是不是啟用中）
+    if (this.loading()) return false;
     const f = this.formData();
     return (
       f.name.trim().length > 0 &&
@@ -172,6 +174,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
   /** A6 `.fdlg__why`：動作列左邊「還沒填：考試名稱、關聯班級」；規則同 canSave，都填了是 null */
   protected readonly missingHint = computed(() => {
     if (this.isClosed()) return null;
+    if (this.loading()) return '班級清單載入中…';
     const f = this.formData();
     const missing = [
       !f.name.trim() && '考試名稱',
