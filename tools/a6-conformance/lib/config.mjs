@@ -1231,6 +1231,25 @@ export const PAGES = {
         reason: '週條是換日、換週的導覽，用 nav landmark（稿是 div）',
         source: `${rule('R7')}`,
       },
+      // 量測帳號 teacher0001 的機構是行政負責點名：統計列第一格換成「本週的課 N 堂」。
+      // 老師負責點名時照稿顯示「N 堂待點名（隨堂）」（schedule.page.html 的 isTeacherLed 分支；
+      // schedule.page.spec.ts「teacher 模式：同一堂課才叫『漏點名』」守著）
+      ...[
+        {
+          status: '文案',
+          a6: '>landmark:region\\[這一頁的摘要\\]>text:dt\\[堂待點名（隨堂）\\]$',
+          detail: '^「堂待點名（隨堂）」→「本週的課」$',
+        },
+        {
+          status: '多',
+          app: '>landmark:region\\[這一頁的摘要\\]>text:dd\\[#\\]>text:small\\[堂\\]$',
+        },
+      ].map((d) => ({
+        ...d,
+        reason:
+          '行政負責點名時老師沒有點名入口，統計列不放待點名、改放本週的課；老師負責點名時照稿',
+        source: 'kb/wiki/rules/attendance-rules.md:60-65（點名責任歸屬，#920）；計畫席 10-30 裁定',
+      })),
     ],
   },
   't-notifications': {
