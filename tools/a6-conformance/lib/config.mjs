@@ -353,6 +353,13 @@ export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
 const SELECT_FIELD = 'app-select-field（p-select＋pt）對 A6 .dd：結構不同、外觀對齊';
 const SELECT_FIELD_SOURCE =
   'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
+/** 工具列的 A6 下拉（app-select-field）換掉 p-select 之後：稿的 .dd 按鈕 ↔ app 的 combobox＋PrimeNG 箭頭鈕 */
+const selectFieldDeviations = (names) =>
+  [
+    { status: '缺', a6: `control:button\\[(${names})：[^\\]]*\\](>text:span\\[[^\\]]*\\])?$` },
+    { status: '多', app: `control:combobox\\[(${names})\\]$` },
+    { status: '多', app: 'control:button\\[dropdown trigger\\](~\\d+)?$' },
+  ].map((d) => ({ ...d, reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE }));
 /**
  * 公開頁（登入、選身分、試聽、報名）的品牌面：補習班名稱當主標，Clessia 退成一行小字併「· 學程管家」
  * （稿是大字 Clessia、下面一行學程管家）。字標兩顆的文案、尺寸、樣式，以及多出來的「· 學程管家」字。
@@ -750,6 +757,8 @@ export const PAGES = {
     app: '/parent/add-course',
     state: PARENT_STATE,
     prep: PARENT_PREP,
+    // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
+    deviations: selectFieldDeviations('科目|星期'),
   },
   // 家長端續課資訊（計畫席 10-22）：只量「沒有即將到來的續課」那一態 —— 本機 seed 沒有未來的繳費期，
   // app 只畫得出這一態；稿的有續課那一態要有下期資料才量得了（偏離見 R5 2026-10-22）
@@ -1439,5 +1448,7 @@ export const PAGES = {
     a6: 't-students.html',
     app: '/teacher/students',
     state: path.join(cache, 'state-teacher.json'),
+    // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
+    deviations: selectFieldDeviations('班級'),
   },
 };
