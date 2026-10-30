@@ -831,6 +831,11 @@ export const PAGES = {
     app: '/admin/staff',
     a6Open: opensOf('staff', 'a6Open'),
     appOpen: opensOf('staff', 'appOpen'),
+    // 章名「已停用」跟列裡的狀態字同文案，自動配對會把稿的章名配到列的狀態字
+    mapping: {
+      '>landmark:main[]>landmark:region[已停用]>text:div[已停用]':
+        '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
+    },
     deviations: [
       // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 courses、grades-class
       ...['尺寸', '樣式', '位置'].map((status) => ({
