@@ -614,7 +614,8 @@ export const PAGES = {
         a6: '>row>control:link$',
         detail: '^fontSize 14px → 16px；fontWeight 400 → 600；lineHeight 21px → 24px$',
         reason: '資料：多數列今天沒課、沒有到班字，名字的字級被併回連結',
-        source: 'tools/a6-conformance/README.md（列內 part 取最常見那種；包一層文字的 span 併回外層控制項）',
+        source:
+          'tools/a6-conformance/README.md（列內 part 取最常見那種；包一層文字的 span 併回外層控制項）',
       },
       {
         // 稿第 2 章有一位暫停（何芷涵）；量測頁第一頁的 seed 學生沒有暫停的。樣式跟待繳費同一組（students.page.html 的 flag）
@@ -1134,6 +1135,32 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // 新增人員：對外暱稱（#1665 Q6）稿沒畫，舊有新無
+      ...[
+        {
+          status: '多',
+          app: 'landmark:form\\[\\]>(control:textbox\\[對外暱稱\\]|text:label\\[對外暱稱\\]|text:p\\[對外的頁面只會顯示暱稱)',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-staff',
+        reason: '人員表單的「對外暱稱」：現況有、稿沒畫，保留',
+        source: `${rule('R2')}；#1665 Q6`,
+      })),
+      // 手機關閉鈕 44（稿 34）：標題欄跟著窄
+      ...[
+        {
+          status: '尺寸',
+          a6: 'landmark:dialog\\[新增人員\\]>(control:button\\[關閉\\]|heading:h2\\[新增人員\\]|text:p\\[建立後會出一次性登入連結[^\\]]*\\])$',
+        },
+        { status: '位置', a6: 'landmark:dialog\\[新增人員\\]>control:button\\[關閉\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-staff',
+        widths: [360],
+        reason: '手機關閉鈕 44px（觸控下限），標題欄因此變窄',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      })),
       // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 courses、grades-class
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -1179,7 +1206,8 @@ export const PAGES = {
         status: '缺',
         a6: '收費期間\\]>row>control:link$',
         reason: '「N 筆期繳報名在用」連到報名進出：等 API（報名列表沒有依收費期間篩的參數）',
-        source: '#1314 盤點 10-30「等 API」F1b（`GET /enrollments` 加 feeTemplateId；收費期間同一類）',
+        source:
+          '#1314 盤點 10-30「等 API」F1b（`GET /enrollments` 加 feeTemplateId；收費期間同一類）',
       },
       {
         // 稿 9 個期間 8 個有重疊說明（列高 83），「還沒有報名用它」那一列沒有（列高 60）；列內位置是相對各自的列量的
@@ -1287,12 +1315,19 @@ export const PAGES = {
     deviations: [
       // 考試列的班名：稿是連到班級頁的連結（`.ex__where a`），app 是字 —— 班級頁要 courseId，列表 API 沒給（等 API）。
       // 稿的班名包在連結裡，`.ex__where` 自己沒有字、不成 part；app 的有字，後面的「# ／# 已登錄」順位跟著錯開一格
-      { status: '缺', a6: '>row>control:link~2$', reason: '班名連班級頁：等 API（列表沒有 courseId）', source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）' },
+      {
+        status: '缺',
+        a6: '>row>control:link~2$',
+        reason: '班名連班級頁：等 API（列表沒有 courseId）',
+        source:
+          '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
+      },
       ...['缺', '多', '位置', '樣式'].map((status) => ({
         status,
         [status === '多' ? 'app' : 'a6']: '>row>text:span~[23](>text:b)?$',
         reason: '連帶：班名不是連結，列內 span 的順位錯開一格',
-        source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
+        source:
+          '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
       })),
       {
         // 稿的「待處理」帶「新」設計標記（工具配對前拿掉），手機上多佔的寬度把考試型態擠到下一行

@@ -78,7 +78,7 @@ describe('StaffFormDialogComponent', () => {
       displayName: '王老師',
       nickname: ' 小王老師 ',
       email: 'teacher@example.com',
-      phone: '',
+      phone: '0912345678',
       birthday: null,
       notes: '',
       campusIds: ['campus-1'],
@@ -125,6 +125,11 @@ describe('StaffFormDialogComponent', () => {
       expect(errs['displayName']).toBeDefined();
       expect(errs['email']).toBeDefined();
       expect(errs['campusIds']).toBeDefined();
+      // A6 staff.html：電話必填；動作列左邊也寫出來
+      expect(errs['phone']).toBeDefined();
+      expect((comp() as unknown as { missingHint: () => string | null }).missingHint()).toContain(
+        '電話',
+      );
     });
 
     /**
@@ -289,6 +294,20 @@ describe('StaffFormDialogComponent —— `*` 全部權限（#1829）', () => {
     expect(boxes.length).toBe(PERMISSIONS.length);
     expect(boxes.every((box) => box.checked)).toBe(true);
     expect(el.querySelector('[data-testid="all-permissions-note"]')).not.toBeNull();
+  });
+
+  it('編輯沒有電話的人員：照樣存得了，電話欄下面提示補上', () => {
+    const { fixture } = setup();
+    const c = fixture.componentInstance as unknown as {
+      updateForm: (field: string, value: unknown) => void;
+      save: () => void;
+    };
+    c.updateForm('phone', '');
+    c.save();
+    fixture.detectChanges();
+
+    expect(update).toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('還沒有電話，建議補上');
   });
 
   it('開了不改直接存，permissions 仍是 ["*"]', () => {
