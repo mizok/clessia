@@ -296,9 +296,10 @@
                 </summary>
                 <div class="coll__body">
                   @for (entry of day.entries; track entry.id) {
+                    <!-- A6 `.ent`：學生｜內容｜編輯者｜簽收四欄，手機兩欄（內容換行到第二列、簽收靠右） -->
                     <button
                       type="button"
-                      class="vt-row grid min-h-11 w-full cursor-pointer grid-cols-1 gap-x-6 gap-y-1 border-b border-surface-border bg-transparent py-3 text-left last:border-b-0 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 wide:grid-cols-[minmax(0,0.9fr)_minmax(0,2.4fr)_minmax(0,0.9fr)_minmax(0,0.9fr)] wide:items-baseline"
+                      class="vt-row -mx-2 grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 border-0 border-b border-solid border-surface-border bg-transparent px-2 py-3 text-left [font:inherit] text-inherit hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 wide:grid-cols-[7rem_minmax(0,1fr)_9.5rem_10rem] wide:gap-x-6 wide:gap-y-1"
                       data-testid="entry"
                       [attr.aria-label]="
                         (entry.studentName ?? '未知學生') + ' ' + entry.entryDate + ' 的聯絡簿'
@@ -306,26 +307,39 @@
                       (click)="openEntry(entry)"
                       [style.view-transition-name]="'entry-' + entry.id"
                     >
-                      <span class="font-bold text-zinc-900">{{
-                        entry.studentName ?? '未知學生'
+                      <span class="font-semibold">{{ entry.studentName ?? '未知學生' }}</span>
+                      <span
+                        class="col-span-full line-clamp-2 min-w-0 text-zinc-800 wide:col-auto wide:block wide:truncate"
+                        >{{ entry.content }}</span
+                      >
+                      <span class="text-sm text-zinc-600 tabular-nums">{{
+                        entry.lastEditedByName ?? '—'
                       }}</span>
-                      <span class="line-clamp-1 text-zinc-700">{{ entry.content }}</span>
-                      <span class="text-sm text-zinc-600">{{ entry.lastEditedByName ?? '—' }}</span>
-                      @if (entry.isSigned) {
-                        <span class="text-sm font-semibold text-success-600" data-testid="signed"
-                          ><i class="pi pi-check mr-1 text-xs" aria-hidden="true"></i
-                          >{{ signedText(entry) }}</span
-                        >
-                        @if (entry.editedAfterSign) {
-                          <span class="text-sm font-semibold text-zinc-700" data-testid="edited"
-                            >簽收後有修改</span
+                      <span
+                        class="col-start-2 row-start-1 justify-self-end text-right text-sm text-zinc-600 tabular-nums wide:col-auto wide:row-auto wide:justify-self-auto wide:text-left"
+                      >
+                        @if (entry.isSigned) {
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full py-0.5 pr-2 text-sm leading-[1.4] font-semibold whitespace-nowrap text-success-600"
+                            data-testid="signed"
+                            ><i class="pi pi-check text-xs" aria-hidden="true"></i
+                            >{{ signedText(entry) }}</span
+                          >
+                          @if (entry.editedAfterSign) {
+                            <span
+                              class="ml-1 inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap text-zinc-700"
+                              data-testid="edited"
+                              >簽收後有修改</span
+                            >
+                          }
+                        } @else {
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap text-zinc-700"
+                            data-testid="unsigned"
+                            >未簽收</span
                           >
                         }
-                      } @else {
-                        <span class="text-sm font-semibold text-zinc-700" data-testid="unsigned"
-                          >未簽收</span
-                        >
-                      }
+                      </span>
                     </button>
                   }
                 </div>
