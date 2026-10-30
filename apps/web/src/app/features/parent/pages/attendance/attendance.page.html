@@ -41,11 +41,16 @@
     <div
       class="page-wrap flex min-h-16 flex-wrap items-center gap-2 py-3 wide:gap-x-4 wide:gap-y-3"
     >
-      <div class="flex flex-[1_1_100%] wide:flex-none" role="group" aria-label="期間">
+      <!-- A6 .seg：框線在外框上，鈕之間只有一條左線；選中的鈕沒有自己的框。鈕高走 tbar-control（同 p-grades） -->
+      <div
+        class="flex flex-[1_1_100%] overflow-hidden rounded-md border border-solid border-zinc-300 bg-white wide:flex-none"
+        role="group"
+        aria-label="期間"
+      >
         @for (opt of rangeOptions; track opt.value) {
           <button
             type="button"
-            class="tbar-control flex-1 cursor-pointer border border-solid border-zinc-300 bg-white px-4 text-md leading-normal text-zinc-900 not-first:-ml-px first:rounded-l-md last:rounded-r-md aria-pressed:border-zinc-900 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:flex-none"
+            class="tbar-control flex-1 cursor-pointer border-0 bg-white px-4 text-md leading-normal text-zinc-900 not-first:border-l not-first:border-solid not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white wide:flex-none"
             [attr.aria-pressed]="rangeMode() === opt.value"
             (click)="onRangeChange(opt.value)"
           >

@@ -17,34 +17,32 @@
 
 <div class="bg-zinc-100">
   <div
-    class="page-wrap flex flex-col items-start gap-3 py-3 wide:flex-row wide:items-center wide:gap-4"
+    class="page-wrap flex flex-col items-start gap-3 py-3 wide:flex-row wide:items-center wide:gap-4 [&_.p-select]:tbar-control"
     role="search"
     aria-label="篩選學生"
   >
-    <div
-      class="clessia-filter-search min-w-full wide:w-[25rem] wide:max-w-[25rem] wide:min-w-0 wide:flex-none"
+    <!-- A6 `.tsearch`：框線畫在 label 上、圖示與輸入框並排，輸入框本身不帶 padding（照 p-add-course） -->
+    <label
+      class="flex h-10 w-full min-w-0 items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-zinc-600 focus-within:border-zinc-900 max-wide:h-11 wide:w-auto wide:flex-[0_1_400px]"
     >
-      <p-iconfield iconPosition="left">
-        <p-inputicon styleClass="pi pi-search" />
-        <input
-          type="search"
-          pInputText
-          placeholder="搜尋姓名"
-          aria-label="搜尋姓名"
-          class="clessia-filter-search-input"
-          [ngModel]="search()"
-          (ngModelChange)="search.set($event)"
-        />
-      </p-iconfield>
-    </div>
-    <p-select
-      class="tbar-control"
+      <i class="pi pi-search" aria-hidden="true"></i>
+      <input
+        type="search"
+        class="min-w-0 flex-1 border-0 bg-transparent px-0.5 py-px text-base text-zinc-900 outline-none [font:inherit]"
+        placeholder="搜尋姓名"
+        aria-label="搜尋姓名"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </label>
+    <!-- A6 客製下拉：「全部班級」是第一個選項 -->
+    <app-select-field
+      class="students-page__class-filter min-w-[9em] max-wide:w-full"
+      label="班級"
+      [hideLabel]="true"
       [options]="classOptions()"
-      [ngModel]="classFilter()"
-      (ngModelChange)="classFilter.set($event)"
-      optionLabel="label"
-      optionValue="value"
-      ariaLabel="班級"
+      [value]="classFilter()"
+      (valueChange)="classFilter.set($event)"
     />
   </div>
 </div>

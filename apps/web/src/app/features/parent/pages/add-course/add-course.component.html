@@ -20,9 +20,11 @@
 
 <app-child-scope-gate>
   <div class="bg-zinc-100">
-    <div class="page-wrap flex flex-wrap items-center gap-3 py-3 wide:min-h-16">
+    <div
+      class="page-wrap flex flex-wrap items-center gap-3 py-3 wide:min-h-16 [&_.p-select]:tbar-control"
+    >
       <label
-        class="flex h-10 min-w-0 flex-[1_1_240px] items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-zinc-600 focus-within:border-zinc-900 max-wide:h-11 max-wide:basis-full wide:w-[350px] wide:flex-none"
+        class="flex h-10 min-w-0 flex-[1_1_240px] items-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-3 text-zinc-600 focus-within:border-zinc-900 max-wide:h-11 max-wide:basis-full wide:w-[400px] wide:flex-none"
       >
         <i class="pi pi-search" aria-hidden="true"></i>
         <input
@@ -34,29 +36,22 @@
           (input)="q.set($any($event.target).value)"
         />
       </label>
-      <p-select
-        class="tbar-control max-wide:flex-[1_1_40%]"
-        styleClass="w-full"
+      <!-- A6 客製下拉（照 p-grades #1959）：「全部科目」「星期不限」是第一個選項，不是清除鈕 -->
+      <app-select-field
+        class="add-course__subject-filter min-w-[9em] max-wide:flex-[1_1_40%]"
+        label="科目"
+        [hideLabel]="true"
         [options]="subjectOptions()"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部科目"
-        ariaLabel="科目"
-        [showClear]="true"
-        [ngModel]="subject()"
-        (ngModelChange)="subject.set($event)"
+        [value]="subject()"
+        (valueChange)="subject.set($event)"
       />
-      <p-select
-        class="tbar-control max-wide:flex-[1_1_40%]"
-        styleClass="w-full"
+      <app-select-field
+        class="add-course__weekday-filter min-w-[9em] max-wide:flex-[1_1_40%]"
+        label="星期"
+        [hideLabel]="true"
         [options]="weekdayOptions"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="星期不限"
-        ariaLabel="星期"
-        [showClear]="true"
-        [ngModel]="weekday()"
-        (ngModelChange)="weekday.set($event)"
+        [value]="weekday()"
+        (valueChange)="weekday.set($event)"
       />
     </div>
   </div>

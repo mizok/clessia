@@ -9,9 +9,7 @@ import {
   type ElementRef,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { SelectModule } from 'primeng/select';
 import { filter, finalize, switchMap } from 'rxjs';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -22,6 +20,7 @@ import {
   type ParentEnrollmentRequest,
 } from '@core/parent-applications.service';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
@@ -54,8 +53,7 @@ const SENT = ['pending', 'awaiting_payment'];
     ChildScopeGateComponent,
     ChildSwitcherComponent,
     RouterLink,
-    FormsModule,
-    SelectModule,
+    SelectFieldComponent,
   ],
   templateUrl: './add-course.component.html',
 })
@@ -75,10 +73,10 @@ export class AddCourseComponent {
   protected readonly subject = signal<string | null>(null);
   protected readonly weekday = signal<number | null>(null);
   // A6 只列週一～六；DB 與管理端開班都有週日（7），補上，不然週日的班篩不出來（R5 2026-10-19）
-  protected readonly weekdayOptions = [1, 2, 3, 4, 5, 6, 7].map((w) => ({
-    label: `週${WEEKDAY[w]}`,
-    value: w,
-  }));
+  protected readonly weekdayOptions = [
+    { label: '星期不限', value: null as number | null },
+    ...[1, 2, 3, 4, 5, 6, 7].map((w) => ({ label: `週${WEEKDAY[w]}`, value: w as number | null })),
+  ];
 
   // ── 詳情／申請對話框 ──
   protected readonly open = signal<ParentCatalogClass | null>(null);
@@ -99,8 +97,9 @@ export class AddCourseComponent {
       .sort((a, b) => Number(b.isRecommended) - Number(a.isRecommended)),
   );
 
-  protected readonly subjectOptions = computed(() =>
-    [
+  protected readonly subjectOptions = computed(() => [
+    { label: '全部科目', value: null as string | null },
+    ...[
       ...new Set(
         this.pool()
           .map((c) => c.subject)
@@ -108,9 +107,9 @@ export class AddCourseComponent {
       ),
     ].map((s) => ({
       label: s,
-      value: s,
+      value: s as string | null,
     })),
-  );
+  ]);
 
   protected readonly filtered = computed(
     () => !!this.q().trim() || !!this.subject() || !!this.weekday(),
