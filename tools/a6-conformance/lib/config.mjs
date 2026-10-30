@@ -661,7 +661,13 @@ export const PAGES = {
         a6: 'control:searchbox\\[搜尋課程\\]$',
         reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
         source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
-      })),
+      })),      {
+        // 批次選取（#1226 courses C1 Q3 照留）：現況有、稿沒畫，收進工具列「⋯」—— 同帳單那條
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${rule('R2')}；#1226`,
+      },
     ],
   },
   class: {
