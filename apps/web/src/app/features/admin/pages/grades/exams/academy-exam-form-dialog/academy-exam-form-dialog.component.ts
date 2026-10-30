@@ -1,7 +1,16 @@
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  OnInit,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
@@ -10,6 +19,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { DatePickerModule } from 'primeng/datepicker';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
 import { forkJoin } from 'rxjs';
 
 import {
@@ -53,8 +63,8 @@ interface FormData {
   selector: 'app-academy-exam-form-dialog',
   standalone: true,
   imports: [
+    DialogTitleDirective,
     FormsModule,
-    ButtonModule,
     InputTextModule,
     InputNumberModule,
     SelectModule,
@@ -146,6 +156,35 @@ export class AcademyExamFormDialogComponent implements OnInit {
       (f.passScore === null || (f.passScore >= 0 && f.passScore <= f.totalScore)) &&
       f.classIds.length > 0
     );
+  });
+
+  private readonly nameInput = viewChild<ElementRef<HTMLInputElement>>('nameInput');
+
+  constructor() {
+    // 稿：桌機聚焦第一個欄位（考試名稱）、手機不聚焦（不要一開就彈鍵盤）；編輯時資料還在載入就不聚焦
+    afterNextRender(() => {
+      if (globalThis.matchMedia?.('(min-width: 861px)').matches) {
+        this.nameInput()?.nativeElement.focus();
+      }
+    });
+  }
+
+  /** A6 `.fdlg__why`：動作列左邊「還沒填：考試名稱、關聯班級」；規則同 canSave，都填了是 null */
+  protected readonly missingHint = computed(() => {
+    if (this.isClosed()) return null;
+    const f = this.formData();
+    const missing = [
+      !f.name.trim() && '考試名稱',
+      !f.subjectId && '科目',
+      !f.examDate && '考試日期',
+      f.classIds.length === 0 && '關聯班級',
+    ].filter(Boolean);
+    if (missing.length) return `還沒填：${missing.join('、')}`;
+    if (!(f.totalScore > 0)) return '滿分要大於 0';
+    if (f.passScore !== null && (f.passScore < 0 || f.passScore > f.totalScore)) {
+      return '及格線要在 0 到滿分之間';
+    }
+    return null;
   });
 
   ngOnInit(): void {

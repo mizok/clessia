@@ -1,216 +1,253 @@
-<div class="form-dialog">
+<div class="form-dialog form-dialog--a6">
+  <!-- A6 `.fdlg` 標題列：h2＋副標＋關閉（exams.html 新增考試／編輯基本資料） -->
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__breadcrumb">補習班考試</span>
-      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯考試' : '新增考試' }}</span>
-      @if (!isEditing()) {
-        <!-- A6 A2.form 的 sub -->
-        <p class="m-0 text-md text-zinc-600">建好之後就可以進去登成績</p>
-      }
+      <h2 appDialogTitle class="dialog-header-inline__title">
+        {{ isEditing() ? '編輯基本資料' : '新增考試' }}
+      </h2>
+      <p class="dialog-header-inline__sub">
+        {{ isEditing() ? formData().name : '建好之後就可以進去登成績' }}
+      </p>
     </div>
     <button
       type="button"
-      class="dialog-header-inline__close size-11"
+      class="dialog-header-inline__close size-11 wide:size-10"
       (click)="cancel()"
       aria-label="關閉"
     >
-      <i class="pi pi-times"></i>
+      <i class="pi pi-times" aria-hidden="true"></i>
     </button>
   </div>
 
-  @if (loading()) {
+  <!-- 編輯要先拿到考試資料才畫表單；新增時表單先出來，只有班級選項晚一點到 -->
+  @if (loading() && isEditing()) {
     <div class="flex items-center justify-center gap-2 p-8 text-sm text-zinc-500">
       <i class="pi pi-spinner pi-spin"></i>
       <span>載入中...</span>
     </div>
   } @else {
-    @if (isClosed()) {
-      <div
-        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-warning-100 text-warning-600"
-      >
-        <i class="pi pi-lock text-md shrink-0 mt-0.5"></i>
-        此考試已結束，欄位無法修改；如需調整請先重新開啟。
-      </div>
-    } @else if (hasScores()) {
-      <div
-        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-accent-50 text-accent-700"
-      >
-        <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
-        已有成績登錄，類型／科目／分校／滿分／關聯班級皆已鎖定以避免資料不一致。
-      </div>
-    } @else if (isEditing()) {
-      <div
-        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-accent-50 text-accent-700"
-      >
-        <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
-        考試建立後，類型／科目／分校／滿分不可修改；如需更改請刪除後重建。
-      </div>
-    }
-
-    <!-- Name -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">考試名稱<span class="form-dialog__required">*</span></label>
-      <input
-        type="text"
-        pInputText
-        [ngModel]="formData().name"
-        (ngModelChange)="updateField('name', $event)"
-        placeholder="例如：段考模擬"
-        [disabled]="lockName()"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Exam Type -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">類型<span class="form-dialog__required">*</span></label>
-      <p-select
-        [options]="examTypeOptions"
-        [ngModel]="formData().examType"
-        (ngModelChange)="updateField('examType', $event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="選擇類型"
-        [disabled]="lockExamType()"
-        [appendTo]="'body'"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Subject -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">科目<span class="form-dialog__required">*</span></label>
-      <p-select
-        [options]="subjectOptions()"
-        [ngModel]="formData().subjectId"
-        (ngModelChange)="onSubjectChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="選擇科目"
-        [disabled]="lockSubject()"
-        [appendTo]="'body'"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Campus -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">分校</label>
-      <p-select
-        [options]="campusOptions()"
-        [ngModel]="formData().campusId"
-        (ngModelChange)="onCampusChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全體分校"
-        [disabled]="lockCampus()"
-        [appendTo]="'body'"
-        class="w-full"
-      />
-      @if (isEditing()) {
-        <span class="mt-1 block text-xs text-zinc-500"
-          >分校不可修改；若要調整範圍請變更關聯班級。</span
+    <!-- A6 `.fdlg__body`：兩欄 grid；手機一欄 -->
+    <form
+      ngNoForm
+      class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+      (submit)="$event.preventDefault(); save()"
+    >
+      @if (isClosed()) {
+        <div
+          class="col-span-full flex items-start gap-2 rounded-md px-4 py-3 text-sm leading-normal bg-warning-100 text-warning-600"
         >
+          <i class="pi pi-lock text-md shrink-0 mt-0.5"></i>
+          此考試已結束，欄位無法修改；如需調整請先重新開啟。
+        </div>
+      } @else if (hasScores()) {
+        <div
+          class="col-span-full flex items-start gap-2 rounded-md px-4 py-3 text-sm leading-normal bg-accent-50 text-accent-700"
+        >
+          <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
+          已有成績登錄，類型／科目／分校／滿分／關聯班級皆已鎖定以避免資料不一致。
+        </div>
+      } @else if (isEditing()) {
+        <div
+          class="col-span-full flex items-start gap-2 rounded-md px-4 py-3 text-sm leading-normal bg-accent-50 text-accent-700"
+        >
+          <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
+          考試建立後，類型／科目／分校／滿分不可修改；如需更改請刪除後重建。
+        </div>
       }
-    </div>
 
-    <!-- Exam Date -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">考試日期<span class="form-dialog__required">*</span></label>
-      <p-datepicker
-        [ngModel]="formData().examDate"
-        (ngModelChange)="updateField('examDate', $event)"
-        dateFormat="yy-mm-dd"
-        placeholder="選擇日期"
-        [disabled]="lockExamDate()"
-        [appendTo]="'body'"
-        [showIcon]="true"
-        styleClass="w-full"
-      />
-    </div>
+      <!-- Name -->
+      <div class="col-span-full min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-name"
+          >考試名稱 <span class="text-error-700" aria-hidden="true">*</span></label
+        >
+        <input
+          id="exam-name"
+          #nameInput
+          type="text"
+          pInputText
+          [ngModel]="formData().name"
+          (ngModelChange)="updateField('name', $event)"
+          placeholder="例如：段考模擬"
+          [disabled]="lockName()"
+          class="w-full"
+        />
+      </div>
 
-    <!-- Total Score -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">滿分<span class="form-dialog__required">*</span></label>
-      <p-inputnumber
-        [ngModel]="formData().totalScore"
-        (ngModelChange)="updateField('totalScore', $event)"
-        [min]="1"
-        [max]="1000"
-        [showButtons]="true"
-        [disabled]="lockTotalScore()"
-        styleClass="w-full"
-      />
-    </div>
+      <!-- Exam Type -->
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-type"
+          >類型 <span class="text-error-700" aria-hidden="true">*</span></label
+        >
+        <p-select
+          inputId="exam-type"
+          [options]="examTypeOptions"
+          [ngModel]="formData().examType"
+          (ngModelChange)="updateField('examType', $event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="選擇類型"
+          [disabled]="lockExamType()"
+          [appendTo]="'body'"
+          class="w-full"
+        />
+      </div>
 
-    <!-- Pass Score -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">及格線</label>
-      <p-inputnumber
-        [ngModel]="formData().passScore"
-        (ngModelChange)="updateField('passScore', $event)"
-        [min]="0"
-        [max]="formData().totalScore"
-        [showButtons]="true"
-        [disabled]="lockPassScore()"
-        styleClass="w-full"
-      />
-      <span class="mt-1 block text-xs text-zinc-500">留空＝總分的 60%</span>
-    </div>
+      <!-- Exam Date -->
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-date"
+          >考試日期 <span class="text-error-700" aria-hidden="true">*</span></label
+        >
+        <p-datepicker
+          inputId="exam-date"
+          [ngModel]="formData().examDate"
+          (ngModelChange)="updateField('examDate', $event)"
+          dateFormat="yy-mm-dd"
+          placeholder="選擇日期"
+          [disabled]="lockExamDate()"
+          [appendTo]="'body'"
+          [showIcon]="true"
+          styleClass="w-full"
+        />
+      </div>
 
-    <!-- Scope Note -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">範圍說明</label>
-      <textarea
-        pTextarea
-        [ngModel]="formData().scopeNote"
-        (ngModelChange)="updateField('scopeNote', $event)"
-        [rows]="3"
-        placeholder="例如：第 3 章 ~ 第 5 章（選填）"
-        [disabled]="lockScopeNote()"
-        class="w-full"
-      ></textarea>
-    </div>
+      <!-- 科目、分校、範圍說明：稿沒畫（舊有新無 R2），API 用來篩班與存考試範圍 -->
+      <!-- Subject -->
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-subject"
+          >科目 <span class="text-error-700" aria-hidden="true">*</span></label
+        >
+        <p-select
+          inputId="exam-subject"
+          [options]="subjectOptions()"
+          [ngModel]="formData().subjectId"
+          (ngModelChange)="onSubjectChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="選擇科目"
+          [disabled]="lockSubject()"
+          [appendTo]="'body'"
+          class="w-full"
+        />
+      </div>
 
-    <!-- Classes -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">關聯班級<span class="form-dialog__required">*</span></label>
-      <p-multiselect
-        [options]="classOptions()"
-        [ngModel]="formData().classIds"
-        (ngModelChange)="updateField('classIds', $event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="選擇班級（至少一項）"
-        selectedItemsLabel="{0} 個班級"
-        [disabled]="lockClasses()"
-        [appendTo]="'body'"
-        display="chip"
-        class="w-full"
-      />
-      @if (classOptions().length === 0) {
-        <span class="mt-1 block text-xs text-zinc-500">
-          {{ formData().campusId ? '此分校目前沒有啟用中的班級' : '沒有可選的班級' }}
-        </span>
-      }
-    </div>
+      <!-- Campus -->
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-campus">分校</label>
+        <p-select
+          inputId="exam-campus"
+          [options]="campusOptions()"
+          [ngModel]="formData().campusId"
+          (ngModelChange)="onCampusChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全體分校"
+          [disabled]="lockCampus()"
+          [appendTo]="'body'"
+          class="w-full"
+        />
+        @if (isEditing()) {
+          <span class="mt-1 block text-xs text-zinc-500"
+            >分校不可修改；若要調整範圍請變更關聯班級。</span
+          >
+        }
+      </div>
 
-    <!-- Footer -->
+      <!-- Classes -->
+      <div class="col-span-full min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-classes"
+          >關聯班級 <span class="text-error-700" aria-hidden="true">*</span></label
+        >
+        <p-multiselect
+          inputId="exam-classes"
+          [options]="classOptions()"
+          [ngModel]="formData().classIds"
+          (ngModelChange)="updateField('classIds', $event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="選擇班級（至少一項）"
+          selectedItemsLabel="{0} 個班級"
+          [disabled]="lockClasses()"
+          [appendTo]="'body'"
+          display="chip"
+          class="w-full"
+        />
+        @if (!loading() && classOptions().length === 0) {
+          <span class="mt-1 block text-xs text-zinc-500">
+            {{ formData().campusId ? '此分校目前沒有啟用中的班級' : '沒有可選的班級' }}
+          </span>
+        }
+      </div>
+
+      <!-- Total Score -->
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-total"
+          >滿分 <span class="text-error-700" aria-hidden="true">*</span></label
+        >
+        <p-inputnumber
+          inputId="exam-total"
+          [ngModel]="formData().totalScore"
+          (ngModelChange)="updateField('totalScore', $event)"
+          [min]="1"
+          [max]="1000"
+          [showButtons]="true"
+          [disabled]="lockTotalScore()"
+          styleClass="w-full"
+        />
+      </div>
+
+      <!-- Pass Score -->
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-pass">及格線</label>
+        <p-inputnumber
+          inputId="exam-pass"
+          [ngModel]="formData().passScore"
+          (ngModelChange)="updateField('passScore', $event)"
+          [min]="0"
+          [max]="formData().totalScore"
+          [showButtons]="true"
+          [disabled]="lockPassScore()"
+          styleClass="w-full"
+        />
+        <span class="mt-1 block text-xs text-zinc-500">留空＝總分的 60%</span>
+      </div>
+
+      <!-- Scope Note -->
+      <div class="col-span-full min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-scope"
+          >範圍說明</label
+        >
+        <textarea
+          id="exam-scope"
+          pTextarea
+          [ngModel]="formData().scopeNote"
+          (ngModelChange)="updateField('scopeNote', $event)"
+          [rows]="3"
+          placeholder="例如：第 3 章 ~ 第 5 章（選填）"
+          [disabled]="lockScopeNote()"
+          class="w-full"
+        ></textarea>
+      </div>
+    </form>
+
+    <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
     <div class="form-dialog__footer">
-      <p-button
-        label="取消"
-        [text]="true"
-        severity="secondary"
+      <p class="form-dialog__why" aria-live="polite">{{ missingHint() }}</p>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
         [disabled]="saving()"
-        (onClick)="cancel()"
-      />
-      <p-button
-        [label]="isEditing() ? '儲存' : '建立考試'"
-        [icon]="saving() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
-        [loading]="saving()"
-        [disabled]="!canSave()"
-        (onClick)="save()"
-      />
+        (click)="cancel()"
+      >
+        取消
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+        [attr.aria-disabled]="!canSave() || saving()"
+        (click)="save()"
+      >
+        {{ saving() ? (isEditing() ? '儲存中…' : '建立中…') : isEditing() ? '儲存' : '建立考試' }}
+      </button>
     </div>
   }
 </div>

@@ -443,9 +443,7 @@ export class ExamsComponent implements OnInit {
         ? this.academyExamsService
             .list({ campusId: campusId ?? undefined, page: 1, pageSize: 1 })
             .pipe(map((res) => res.meta.total))
-        : this.schoolExamsService
-            .list({ page: 1, pageSize: 1 })
-            .pipe(map((res) => res.meta.total));
+        : this.schoolExamsService.list({ page: 1, pageSize: 1 }).pipe(map((res) => res.meta.total));
     total$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (total) => this.allCount.set(total),
       error: () => this.allCount.set(null),
@@ -846,6 +844,8 @@ export class ExamsComponent implements OnInit {
       breakpoints: { '640px': '96%' },
       modal: true,
       showHeader: false,
+      // 表單自己聚焦考試名稱（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
+      focusOnShow: false,
       appendTo: this.overlayContainer || 'body',
       data: { mode, examId },
     });
