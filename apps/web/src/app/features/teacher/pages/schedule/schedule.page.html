@@ -12,7 +12,7 @@
         @if (isTeacherLed()) {
           <div class="m-0 flex flex-col">
             <dt
-              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-base"
+              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md"
             >
               {{ hasDaily() ? '堂待點名（隨堂）' : '堂待點名' }}
             </dt>
@@ -26,14 +26,14 @@
           <!-- 行政負責點名：老師沒有點名入口，把「待點名」當統計是在問責他做不到的事 -->
           <div class="m-0 flex flex-col">
             <dt
-              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-base"
+              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md"
             >
               本週的課
             </dt>
             <dd
               class="m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
             >
-              {{ anchor().total }}<small class="ml-0.5 text-base wide:text-lg">堂</small>
+              {{ anchor().total }}<small class="ml-0.5 text-md wide:text-lg">堂</small>
             </dd>
           </div>
         }
@@ -41,7 +41,7 @@
         @if (!missingFailed()) {
           <div class="m-0 flex flex-col">
             <dt
-              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-base"
+              class="order-2 mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md"
             >
               則聯絡簿還沒寫
             </dt>
@@ -62,6 +62,7 @@
   點一天切換下面那天的清單，換日不靠滑動。每天給老師掃視需要的四件事：星期、日期、幾堂、一顆狀態點。
   今天用 aria-current="date"，選中的那天用 aria-pressed —— 兩件事不要混成同一個屬性。
   選中日＝底線（A6），今天＝標籤尾巴的「· 今天」；狀態點稿沒畫、現況有，保留。
+  照稿不包 nav landmark、不另寫週區間（每天的鈕已經帶 M/d，翻週看得出是哪一週）。
 -->
 @if (loading() || !loadError()) {
   <div class="schedule-page__band bg-zinc-100 py-3">
@@ -71,7 +72,7 @@
           骨架跟真正的週條用同一份 7 欄排法；換週鈕在載入中也保留（它們不依賴這週的資料，
           拿掉會讓骨架的寬度跟真正的週條對不上）。
         -->
-        <nav class="schedule-page__weekbar flex items-center gap-2" aria-label="本週各日">
+        <div class="schedule-page__weekbar flex items-center gap-2">
           <button
             type="button"
             class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
@@ -97,13 +98,9 @@
           >
             <i class="pi pi-chevron-right" aria-hidden="true"></i>
           </button>
-        </nav>
+        </div>
       } @else {
-        <!-- 週區間（副行改成今天的摘要後，搬到週條旁）：翻週時要看得出現在是哪一週 -->
-        <p class="m-0 mb-1 text-right text-[11px] font-medium text-zinc-600 tabular-nums">
-          {{ weekLabel() }}
-        </p>
-        <nav class="schedule-page__weekbar flex items-center gap-2" aria-label="本週各日">
+        <div class="schedule-page__weekbar flex items-center gap-2">
           <button
             type="button"
             class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-default disabled:opacity-50 wide:size-10"
@@ -156,7 +153,7 @@
           >
             <i class="pi pi-chevron-right" aria-hidden="true"></i>
           </button>
-        </nav>
+        </div>
       }
     </div>
   </div>
