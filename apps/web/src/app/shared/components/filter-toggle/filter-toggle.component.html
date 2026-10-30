@@ -1,6 +1,6 @@
 <button
   type="button"
-  class="filter-toggle tbar-control inline-flex max-w-44 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+  class="filter-toggle tbar-control inline-flex max-w-44 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
   [attr.aria-expanded]="open()"
   [attr.aria-controls]="controls()"
   (click)="open.set(!open())"
@@ -13,10 +13,4 @@
       aria-hidden="true"
     ></span>
   }
-  <i
-    class="pi shrink-0 text-xs"
-    [class.pi-chevron-down]="!open()"
-    [class.pi-chevron-up]="open()"
-    aria-hidden="true"
-  ></i>
 </button>

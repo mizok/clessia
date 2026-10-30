@@ -24,35 +24,42 @@
 <div class="bg-zinc-100">
   <div class="page-wrap flex flex-col gap-3 py-3">
     <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
-      <nav class="flex items-center gap-4" aria-label="考試">
+      <!-- A6 `.tabs`：分頁與考試型態同一個 nav -->
+      <nav class="flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="考試">
         <button
           type="button"
-          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-normal font-medium text-zinc-600 hover:text-zinc-900 wide:min-h-0"
           [class.border-zinc-900]="tab() === 'pending'"
+          [class.font-semibold]="tab() === 'pending'"
+          [class.text-zinc-900]="tab() === 'pending'"
           [class.border-transparent]="tab() !== 'pending'"
           [attr.aria-current]="tab() === 'pending' ? 'true' : null"
           (click)="setTab('pending')"
         >
           待處理
-          <span class="text-sm font-normal text-zinc-600 tabular-nums">{{ todoCount() }}</span>
+          <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{ todoCount() }}</span>
         </button>
         <button
           type="button"
-          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-normal font-medium text-zinc-600 hover:text-zinc-900 wide:min-h-0"
           [class.border-zinc-900]="tab() === 'all'"
+          [class.font-semibold]="tab() === 'all'"
+          [class.text-zinc-900]="tab() === 'all'"
           [class.border-transparent]="tab() !== 'all'"
           [attr.aria-current]="tab() === 'all' ? 'true' : null"
           (click)="setTab('all')"
         >
           全部
+          @if (allCount() !== null) {
+            <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{ allCount() }}</span>
+          }
         </button>
-      </nav>
 
       <span class="inline-flex rounded-md bg-zinc-200 p-0.5" role="group" aria-label="考試型態">
         @for (opt of examTypeOptions; track opt.value) {
           <button
             type="button"
-            class="vt-seg min-h-11 cursor-pointer rounded-sm border-0 bg-transparent px-3 text-md font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
+            class="vt-seg min-h-11 cursor-pointer rounded-sm wide:min-h-8 border-0 bg-transparent px-3 text-md leading-normal font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
             [style.view-transition-name]="examType() === opt.value ? 'seg-exam-type' : null"
             [attr.aria-pressed]="examType() === opt.value"
             (click)="onExamTypeChange(opt.value)"
@@ -61,9 +68,12 @@
           </button>
         }
       </span>
+      </nav>
 
       <div class="ml-auto flex items-center gap-2">
-        <!-- 桌機：A6 工具列只有「篩選：全部」鈕，條件收進浮層（手機另有搜尋＋篩選對話框） -->
+        <!-- 桌機：A6 工具列只有「篩選：全部」鈕，條件收進浮層（手機另有搜尋＋篩選對話框）；
+             待處理分頁沒有篩選（A6 `#ff` 只在全部分頁） -->
+        @if (tab() === 'all') {
         <button
           type="button"
           class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
@@ -77,6 +87,7 @@
           <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
           篩選：{{ desktopFilterCount() > 0 ? desktopFilterCount() + ' 項' : '全部' }}
         </button>
+        }
         @if (desktopFilterCount() > 0) {
           <button
             data-toolbar-clear
@@ -93,7 +104,8 @@
       </div>
     </div>
 
-    <!-- 手機：搜尋＋「篩選」（其餘條件收進 exams-filter-dialog） -->
+    <!-- 手機：搜尋＋「篩選」（其餘條件收進 exams-filter-dialog）；只在全部分頁（A6 `#ff`） -->
+    @if (tab() === 'all') {
     <div class="flex items-end gap-2 wide:hidden" role="search" aria-label="篩選考試">
       <label class="flex min-w-0 flex-1 flex-col gap-1">
         <span class="text-sm font-semibold text-zinc-700">考試名稱</span>
@@ -115,6 +127,7 @@
         {{ filterBadge() }}
       </button>
     </div>
+    }
   </div>
 </div>
 
@@ -125,18 +138,19 @@
   -->
   @if (examType() === 'academy' && academyTodoCount() > 0) {
     <div
-      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
+      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 px-4 py-3 text-base"
     >
-      <p class="m-0">
-        <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
+      <!-- A6 `.todo > span`：圖示與兩段字是同一列的 flex 項 -->
+      <span class="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <i class="pi pi-exclamation-circle text-lg" aria-hidden="true"></i>
         <b>{{ academyTodoNone() }} 場</b>進行中的考試一筆成績都還沒登錄 ·
         <b>{{ academyTodoPartial() }} 場</b>登到一半
-      </p>
+      </span>
       <div class="ml-auto flex flex-wrap gap-2">
         @if (statusFilter() === 'todo-none') {
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 wide:h-[30px]"
             (click)="setTab('pending')"
           >
             顯示全部待處理
@@ -144,7 +158,7 @@
         } @else {
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 wide:h-[30px]"
             (click)="onTodoBannerClick('academy', 'none')"
           >
             只看還沒登的
@@ -155,7 +169,7 @@
   }
   @if (examType() === 'school' && schoolTodoCount() > 0) {
     <div
-      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
+      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 px-4 py-3 text-base"
     >
       <p class="m-0">
         <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
@@ -210,6 +224,11 @@
             (onClick)="clearFilters()"
           />
         </app-empty-state>
+      } @else if (tab() === 'pending') {
+        <!-- A6 `.empty`：待處理是空的不是「沒有考試」 -->
+        <p class="m-0 max-w-[56ch] py-6 text-base leading-relaxed text-zinc-700">
+          沒有等著登成績的考試。新的考試日期到了，會出現在這裡。
+        </p>
       } @else {
         <app-empty-state
           icon="pi pi-inbox"
@@ -228,19 +247,19 @@
         <!-- 待處理分頁依進度分章（#1314）：桌機左欄章名＋場數，右邊是考試列 -->
         @for (ch of chs; track ch.key) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-2 border-b border-zinc-200 pt-6 pb-2 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="ch.name"
             [attr.data-chapter]="ch.key"
           >
             <app-chapter-head
-              class="block pt-6 wide:pt-8"
+              class="block"
               [name]="ch.name"
               [listRow]="true"
               [count]="ch.rows.length"
               unit="場"
               [sub]="totalRows() > PAGE_SIZE ? '這一頁' : ''"
             />
-            <ul class="m-0 list-none p-0 wide:pt-4" [attr.aria-label]="ch.name">
+            <ul class="m-0 list-none p-0" [attr.aria-label]="ch.name">
               @for (row of ch.rows; track row.kind + '-' + row.id) {
                 <ng-container
                   [ngTemplateOutlet]="examRow"
@@ -277,19 +296,18 @@
 <ng-template #examRow let-row>
   <li
     [style.view-transition-name]="'exam-' + row.kind + '-' + row.id"
-    class="vt-row grid min-h-18 grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_44px] wide:gap-x-6"
+    class="vt-row grid min-h-18 grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-surface-border py-3 wide:gap-y-1 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_44px] wide:gap-x-6"
   >
     <div class="col-start-1 row-start-1 min-w-0">
-      <button
-        type="button"
-        class="min-h-11 cursor-pointer border-0 bg-transparent p-0 text-left text-lg font-bold hover:underline hover:underline-offset-[3px]"
+      <!-- A6 `.ex__name`：連到成績登錄的連結（手機撐 44，R3） -->
+      <a
+        class="inline-flex min-h-11 items-center text-lg font-bold no-underline hover:underline hover:underline-offset-[3px] wide:inline wide:min-h-0"
         [class.text-zinc-900]="row.status !== 'closed'"
         [class.text-zinc-700]="row.status === 'closed'"
-        (click)="onRowNameClick(row)"
+        [routerLink]="['/admin/grades/exams', row.kind, row.id, 'scores']"
+        >{{ getSchoolDisplayName(row) }}</a
       >
-        {{ getSchoolDisplayName(row) }}
-      </button>
-      <span class="block text-sm text-zinc-600">
+      <span class="mt-0.5 block text-sm text-zinc-600">
         @if (row.kind === 'academy') {
           {{ getAcademyTypeLabel(row.examType) }}
         } @else {
@@ -299,7 +317,8 @@
       </span>
     </div>
 
-    <div class="col-start-1 min-w-0 text-md text-zinc-800 wide:col-start-2 wide:row-start-1">
+    <!-- A6 `.ex__where`（span）：班名＋小字 -->
+    <span class="col-start-1 min-w-0 text-md text-zinc-800 wide:col-start-2 wide:row-start-1">
       <span [attr.title]="row.kind === 'academy' ? row.classTitle : null">{{ row.scope }}</span>
       <small class="mt-0.5 block text-sm text-zinc-600 tabular-nums">
         @if (row.kind === 'academy' && row.classLabel; as classes) {
@@ -313,7 +332,7 @@
         }
         {{ formatDate(row.examDate) }}
       </small>
-    </div>
+    </span>
 
     <!--
             academy 有分母就顯示分母；school **沒有**，所以刻意不寫成裸數字、也不畫進度條（#457）：
@@ -342,7 +361,7 @@
 
     <button
       type="button"
-      class="col-start-2 row-start-1 inline-grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 wide:col-start-4"
+      class="col-start-2 row-start-1 grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 wide:col-start-4 wide:size-10"
       [attr.aria-label]="getSchoolDisplayName(row) + ' 的操作'"
       (click)="openActionMenu($event, row)"
     >

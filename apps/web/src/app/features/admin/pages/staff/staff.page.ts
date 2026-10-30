@@ -8,6 +8,7 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject as RxSubject, catchError, debounceTime, skip, switchMap, tap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
@@ -125,6 +126,7 @@ const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
     ChapterHeadComponent,
     CommonModule,
     FormsModule,
+    RouterLink,
     ButtonModule,
     SelectModule,
     TooltipModule,
@@ -826,8 +828,12 @@ export class StaffPage implements OnInit {
   }
 
   getCampusNames(campusIds: string[]): string {
+    return this.campusNameList(campusIds).join('、');
+  }
+
+  protected campusNameList(campusIds: string[]): string[] {
     const campusMap = new Map(this.campuses().map((c) => [c.id, c.name]));
-    return campusIds.map((id) => campusMap.get(id) || '未知').join('、');
+    return campusIds.map((id) => campusMap.get(id) || '未知');
   }
 
   getRoleLabel(role: StaffRole): string {
