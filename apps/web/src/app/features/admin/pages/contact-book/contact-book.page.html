@@ -1,36 +1,49 @@
 <app-page-open>
   <ng-container openTitle>{{ page().label }}</ng-container>
   <ng-container openSub>
-    看老師寫了什麼、家長簽了沒。撰寫在老師端 —— 這裡可以修正已經寫好的內容。
+    看老師寫了什麼、家長簽了沒。撰寫在老師端 —— 這裡可以補寫、修正。
   </ng-container>
-  <!-- 色面兩個固定數字（A6）：今天還沒寫／這週（週一到今天）家長還沒簽；不隨篩選走 -->
-  <div
-    class="mt-6 flex gap-10 border-0 border-t border-solid border-current pt-4"
+  <!-- 色面兩個固定數字（A6 .open__stats：dt 是標籤、dd 是數字＋「則」，數字在上）：今天還沒寫／這週（週一到今天）家長還沒簽；不隨篩選走 -->
+  <dl
+    class="m-0 mt-5 flex max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-t border-band-rule pt-4 wide:mt-8 wide:gap-x-12 wide:gap-y-5 wide:pt-5"
     data-testid="hero-stats"
   >
-    <p class="m-0" data-testid="hero-missing">
-      <b class="text-[40px] leading-none font-bold tracking-[-0.02em] tabular-nums">{{
-        heroMissingToday() ?? '—'
-      }}</b
-      ><span class="text-md font-semibold"> 則</span>
-      <span class="mt-1 block text-md">今天還沒寫</span>
-    </p>
-    <p class="m-0" data-testid="hero-unsigned">
-      <b class="text-[40px] leading-none font-bold tracking-[-0.02em] tabular-nums">{{
-        heroUnsignedWeek() ?? '—'
-      }}</b
-      ><span class="text-md font-semibold"> 則</span>
-      <span class="mt-1 block text-md">這週家長還沒簽</span>
-    </p>
-  </div>
+    <div class="m-0 flex flex-col" data-testid="hero-missing">
+      <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
+        今天還沒寫
+      </dt>
+      <dd
+        class="order-first m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+      >
+        <span>{{ heroMissingToday() ?? '—' }}</span
+        ><small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">則</small>
+      </dd>
+    </div>
+    <div class="m-0 flex flex-col" data-testid="hero-unsigned">
+      <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
+        這週家長還沒簽
+      </dt>
+      <dd
+        class="order-first m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+      >
+        <span>{{ heroUnsignedWeek() ?? '—' }}</span
+        ><small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg">則</small>
+      </dd>
+    </div>
+  </dl>
 </app-page-open>
 
-<div class="page-wrap flex flex-col gap-10 pt-6 pb-12 wide:pt-8">
+<div class="page-wrap flex flex-col gap-10 pt-6 pb-12 wide:gap-12 wide:pt-8">
   <!-- ── 還沒寫的：一班一列，名字即補寫 ─────────────────────────────── -->
-  <section class="flex flex-col gap-3" aria-labelledby="cb-missing-h">
-    <!-- 標題＋右側日期同一列、垂直置中；下拉不畫上方標籤（A6 contact-book `.sec__head`，#1877）；控制項高度走 tbar-control（#1903） -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h2 id="cb-missing-h" class="m-0 text-xl font-bold tracking-[-0.01em] text-zinc-900">
+  <section aria-labelledby="cb-missing-h">
+    <!-- 章頭（A6 `.sec__head`）：標題＋右側日期同一列、垂直置中、底線；下拉不畫上方標籤（#1877）；控制項高度走 tbar-control（#1903） -->
+    <div
+      class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-surface-border pb-3"
+    >
+      <h2
+        id="cb-missing-h"
+        class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+      >
         還沒寫的
       </h2>
       <div
@@ -57,245 +70,284 @@
       </div>
     </div>
 
-    @if (missingLoading()) {
-      <app-skeleton label="缺漏名單載入中" [count]="3" />
-    } @else if (missingFailed()) {
-      <p class="m-0 text-sm text-zinc-600">
-        缺漏名單讀不到。
-        <p-button label="重試" [text]="true" size="small" (onClick)="loadMissing()" />
-      </p>
-    } @else if (missing().length === 0) {
-      <p class="m-0 flex items-center gap-2 py-3 text-lg text-zinc-700">
-        <i class="pi pi-check-circle text-success-600"></i>
-        這天該寫的都寫了。
-      </p>
-    } @else {
-      <p appTextSwap class="m-0 text-sm text-zinc-600">
-        <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。只有「有課的班」才算 ——
-        當天沒課或停課的班不列入。
-      </p>
-      @for (group of missingGroups(); track group.classId) {
-        <article
-          class="grid grid-cols-1 gap-x-8 gap-y-2 border-b border-surface-border py-4 wide:grid-cols-[minmax(0,1fr)_minmax(0,2.5fr)]"
-          data-testid="missing-class"
-        >
-          <div>
-            <h3 class="m-0 text-xl font-bold tracking-[-0.01em] text-zinc-900">
-              {{ group.className }}
-            </h3>
-            <p class="m-0 mt-0.5 text-md text-zinc-600 tabular-nums">
-              <span class="font-semibold text-error-700" data-testid="missing-left"
-                >還差 {{ group.students.length }} 則</span
-              >
-            </p>
-            <!-- A6 .gap__act：每班一顆；A6 寫「已用 LINE 提醒」—— 不接 LINE，只進老師的通知中心（#1100 #27） -->
-            <button
-              type="button"
-              class="mt-2 inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-medium text-zinc-900 hover:border-zinc-500 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500 aria-disabled:cursor-default aria-disabled:opacity-55"
-              data-testid="missing-remind"
-              [attr.aria-disabled]="reminding() !== null || reminded().has(remindKey(group.classId)) || null"
-              (click)="remindTeacher(group.classId)"
-            >
-              <i class="pi pi-bell text-xs" aria-hidden="true"></i>
-              @if (reminded().has(remindKey(group.classId))) {
-                今天已提醒
-              } @else if (reminding() === remindKey(group.classId)) {
-                送出中…
-              } @else {
-                提醒老師補寫
-              }
-            </button>
-          </div>
-          <div class="flex flex-wrap gap-2" aria-label="還沒寫的學生（按名字補寫）">
-            @for (target of group.students; track target.studentId) {
-              <button
-                type="button"
-                [style.view-transition-name]="'missing-' + group.classId + '-' + target.studentId"
-                class="vt-row inline-flex min-h-11 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-medium text-zinc-900 hover:border-zinc-500 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500"
-                data-testid="missing-write"
-                [attr.aria-label]="'補寫 ' + target.studentName + ' 的聯絡簿'"
-                (click)="writeMissing(target)"
-              >
-                <i class="pi pi-plus text-xs" aria-hidden="true"></i>{{ target.studentName }}
-              </button>
-            }
-          </div>
-        </article>
-      }
-    }
-  </section>
-
-  <!-- ── 這段期間的聯絡簿：依日分段 ─────────────────────────────────── -->
-  <section class="flex flex-col gap-4" aria-labelledby="cb-list-h">
-    <h2 id="cb-list-h" class="m-0 text-xl font-bold tracking-[-0.01em] text-zinc-900">
-      這段期間的聯絡簿
-    </h2>
-
-    <!-- 三個控制項同高、同一條中線、都不畫上方標籤（A6 `.cbtool`，#1877）；高度走 tbar-control：手機 44／桌機 40（#1903） -->
-    <div
-      class="flex flex-wrap items-center gap-3 rounded-lg bg-zinc-100 p-3 wide:gap-4 [&_.p-select]:tbar-control [&_.p-datepicker-input]:tbar-control [&_.p-datepicker-dropdown]:tbar-control"
-      role="search"
-      aria-label="篩選聯絡簿"
-    >
-      <div class="clessia-filter-search w-full wide:w-auto wide:flex-[1_1_240px]">
-        <app-student-autocomplete
-          [value]="student()"
-          (valueChange)="onStudentChange($event)"
-          [suggestions]="studentSuggestions()"
-          (queryChange)="onStudentQuery($event)"
-          placeholder="輸入學生姓名篩選"
-        />
-      </div>
-      <div class="w-40 wide:w-48">
-        <app-select-field
-          label="期間"
-          [hideLabel]="true"
-          [options]="periodOptions"
-          [value]="periodPick()"
-          (valueChange)="onPeriodPick($event)"
-        />
-      </div>
-      @if (periodPick() === customPeriod) {
-        <p-datepicker
-          class="clessia-filter-control clessia-filter-control--date-range w-full wide:w-[300px]"
-          selectionMode="range"
-          dateFormat="yy-mm-dd"
-          [showIcon]="true"
-          [readonlyInput]="true"
-          placeholder="日期區間"
-          [ngModel]="dateRange"
-          (ngModelChange)="onDateRangeChange($event)"
-          ariaLabel="日期區間"
-        />
-      }
-      <button
-        type="button"
-        class="tbar-control inline-flex items-center justify-center rounded-md border border-solid bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50"
-        [class.border-zinc-900]="unsignedOnly()"
-        [class.shadow-[inset_0_0_0_1px_var(--zinc-900)]]="unsignedOnly()"
-        [class.border-zinc-300]="!unsignedOnly()"
-        [attr.aria-pressed]="unsignedOnly()"
-        data-testid="unsigned-only"
-        (click)="toggleUnsignedOnly()"
-      >
-        只看未簽收
-      </button>
-      @if (hasFilters()) {
-        <p-button
-          label="清除篩選"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="clearFilters()"
-        />
-      }
-    </div>
-
-    @if (!loading() && !failed() && summary().total > 0) {
-      <p appTextSwap class="m-0 text-md text-zinc-700 tabular-nums" data-testid="summary">
-        這段期間共 <strong>{{ summary().total }}</strong> 則，
-        <strong class="text-warning-600">{{ summary().unsigned }}</strong>
-        則家長還沒簽收。
-        @if (hasFilters()) {
-          顯示 <strong data-testid="shown">{{ visibleEntries().length }}</strong> 則。
-        }
-      </p>
-    }
-
-    <app-reload-veil [loading]="loading()">
-      <app-skeleton reloadSkeleton label="聯絡簿載入中" [count]="5" />
-      @if (failed()) {
-        <app-empty-state
-          icon="pi pi-exclamation-circle"
-          title="載入失敗"
-          description="沒有讀到聯絡簿資料，可能是連線問題"
-        >
-          <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
-        </app-empty-state>
-      } @else if (visibleEntries().length === 0) {
-        @if (unsignedOnly()) {
-          <app-empty-state
-            icon="pi pi-check-circle"
-            title="都簽收了"
-            description="這段期間的聯絡簿家長都已經簽收"
-          >
-            <p-button
-              label="顯示全部"
-              [text]="true"
-              severity="secondary"
-              (onClick)="toggleUnsignedOnly()"
-            />
-          </app-empty-state>
-        } @else if (selectedStudent()) {
-          <app-empty-state
-            icon="pi pi-search"
-            title="這位學生沒有聯絡簿"
-            [description]="selectedStudent()!.name + ' 在這段期間沒有聯絡簿紀錄'"
-          >
-            <p-button
-              label="清除篩選"
-              [text]="true"
-              severity="secondary"
-              (onClick)="clearFilters()"
-            />
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-book"
-            title="這段期間沒有聯絡簿"
-            description="聯絡簿由帶班老師撰寫，只有開了「使用聯絡簿」的班級才會有"
-          />
-        }
+    <div class="flex flex-col gap-3 pt-3">
+      @if (missingLoading()) {
+        <app-skeleton label="缺漏名單載入中" [count]="3" />
+      } @else if (missingFailed()) {
+        <p class="m-0 text-sm text-zinc-600">
+          缺漏名單讀不到。
+          <p-button label="重試" [text]="true" size="small" (onClick)="loadMissing()" />
+        </p>
+      } @else if (missing().length === 0) {
+        <p class="m-0 flex items-center gap-2 py-3 text-lg text-zinc-700">
+          <i class="pi pi-check-circle text-success-600"></i>
+          這天該寫的都寫了。
+        </p>
       } @else {
-        <!-- A6 `.colls`（#1705 共用樣式）：每天一塊，同一組一次只開一個 -->
-        <div class="colls">
-          @for (day of dayGroups(); track day.date; let i = $index) {
-            <details class="coll" name="contact-book-days" [open]="isDayOpen(i)" data-testid="day">
-              <summary class="coll__sum min-h-14 wide:min-h-16">
-                <span class="coll__t tabular-nums">{{ dayTitle(day.date) }}</span>
-                <span class="coll__m" data-testid="day-meta"
-                  >{{ day.entries.length }} 則 · {{ day.unsigned }} 則未簽收</span
-                >
-              </summary>
-              <div class="coll__body">
-                @for (entry of day.entries; track entry.id) {
+        <p appTextSwap class="m-0 text-sm text-zinc-600">
+          <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。只有「有課的班」才算 ——
+          當天沒課或停課的班不列入。
+        </p>
+        <div>
+          @for (group of missingGroups(); track group.classId) {
+            <!-- A6 `.gap`：班｜名字（按名字補寫）｜提醒鈕三欄，手機一欄 -->
+            <article
+              class="grid grid-cols-1 items-start gap-2 border-b border-surface-border py-4 wide:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] wide:gap-x-8 wide:py-5"
+              data-testid="missing-class"
+            >
+              <div>
+                <h3 class="m-0 text-xl font-bold tracking-[-0.01em] text-zinc-900">
+                  {{ group.className }}
+                </h3>
+                <p class="m-0 mt-0.5 text-md text-zinc-600 tabular-nums">
+                  <span class="font-semibold text-error-700" data-testid="missing-left"
+                    >還差 {{ group.students.length }} 則</span
+                  >
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2" aria-label="還沒寫的學生（按名字補寫）">
+                @for (target of group.students; track target.studentId) {
                   <button
                     type="button"
-                    class="vt-row grid min-h-11 w-full cursor-pointer grid-cols-1 gap-x-6 gap-y-1 border-b border-surface-border bg-transparent py-3 text-left last:border-b-0 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 wide:grid-cols-[minmax(0,0.9fr)_minmax(0,2.4fr)_minmax(0,0.9fr)_minmax(0,0.9fr)] wide:items-baseline"
-                    data-testid="entry"
-                    [attr.aria-label]="
-                      (entry.studentName ?? '未知學生') + ' ' + entry.entryDate + ' 的聯絡簿'
+                    [style.view-transition-name]="
+                      'missing-' + group.classId + '-' + target.studentId
                     "
-                    (click)="openEntry(entry)"
-                    [style.view-transition-name]="'entry-' + entry.id"
+                    class="vt-row inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500 wide:h-8"
+                    data-testid="missing-write"
+                    [attr.aria-label]="'補寫 ' + target.studentName + ' 的聯絡簿'"
+                    (click)="writeMissing(target)"
                   >
-                    <span class="font-bold text-zinc-900">{{
-                      entry.studentName ?? '未知學生'
-                    }}</span>
-                    <span class="line-clamp-1 text-zinc-700">{{ entry.content }}</span>
-                    <span class="text-sm text-zinc-600">{{ entry.lastEditedByName ?? '—' }}</span>
-                    @if (entry.isSigned) {
-                      <span class="text-sm font-semibold text-success-600" data-testid="signed"
-                        ><i class="pi pi-check mr-1 text-xs" aria-hidden="true"></i
-                        >{{ signedText(entry) }}</span
-                      >
-                      @if (entry.editedAfterSign) {
-                        <span class="text-sm font-semibold text-zinc-700" data-testid="edited"
-                          >簽收後有修改</span
-                        >
-                      }
-                    } @else {
-                      <span class="text-sm font-semibold text-zinc-700" data-testid="unsigned"
-                        >未簽收</span
-                      >
-                    }
+                    <i class="pi pi-plus text-xs" aria-hidden="true"></i>{{ target.studentName }}
                   </button>
                 }
               </div>
-            </details>
+              <!-- A6 .gap__act：每班一顆；A6 寫「已用 LINE 提醒」—— 不接 LINE，只進老師的通知中心（#1100 #27） -->
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500 aria-disabled:cursor-default aria-disabled:opacity-55 wide:h-[30px]"
+                  data-testid="missing-remind"
+                  [attr.aria-disabled]="
+                    reminding() !== null || reminded().has(remindKey(group.classId)) || null
+                  "
+                  (click)="remindTeacher(group.classId)"
+                >
+                  <i class="pi pi-bell text-xs" aria-hidden="true"></i>
+                  @if (reminded().has(remindKey(group.classId))) {
+                    今天已提醒
+                  } @else if (reminding() === remindKey(group.classId)) {
+                    送出中…
+                  } @else {
+                    提醒老師補寫
+                  }
+                </button>
+              </div>
+            </article>
           }
         </div>
       }
-    </app-reload-veil>
+    </div>
+  </section>
+
+  <!-- ── 這段期間的聯絡簿：依日分段 ─────────────────────────────────── -->
+  <section aria-labelledby="cb-list-h">
+    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3">
+      <h2
+        id="cb-list-h"
+        class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+      >
+        這段期間的聯絡簿
+      </h2>
+    </div>
+
+    <div class="mt-4 flex flex-col gap-4">
+      <!-- 三個控制項同高、同一條中線、都不畫上方標籤（A6 `.cbtool`，#1877）；高度走 tbar-control：手機 44／桌機 40（#1903） -->
+      <div
+        class="flex flex-wrap items-center gap-2 rounded-lg bg-zinc-100 p-3 [&_.p-select]:tbar-control [&_.p-datepicker-input]:tbar-control [&_.p-datepicker-dropdown]:tbar-control"
+        role="search"
+        aria-label="篩選聯絡簿"
+      >
+        <div class="clessia-filter-search w-full wide:w-auto wide:flex-[0_1_280px]">
+          <app-student-autocomplete
+            [value]="student()"
+            (valueChange)="onStudentChange($event)"
+            [suggestions]="studentSuggestions()"
+            (queryChange)="onStudentQuery($event)"
+            placeholder="輸入學生姓名篩選"
+          />
+        </div>
+        <div class="w-40 wide:w-48">
+          <app-select-field
+            label="期間"
+            [hideLabel]="true"
+            [options]="periodOptions"
+            [value]="periodPick()"
+            (valueChange)="onPeriodPick($event)"
+          />
+        </div>
+        @if (periodPick() === customPeriod) {
+          <p-datepicker
+            class="clessia-filter-control clessia-filter-control--date-range w-full wide:w-[300px]"
+            selectionMode="range"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            [readonlyInput]="true"
+            placeholder="日期區間"
+            [ngModel]="dateRange"
+            (ngModelChange)="onDateRangeChange($event)"
+            ariaLabel="日期區間"
+          />
+        }
+        <button
+          type="button"
+          class="tbar-control inline-flex items-center justify-center gap-1.5 rounded-md border border-solid bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50"
+          [class.border-zinc-900]="unsignedOnly()"
+          [class.shadow-[inset_0_0_0_1px_var(--zinc-900)]]="unsignedOnly()"
+          [class.border-zinc-300]="!unsignedOnly()"
+          [attr.aria-pressed]="unsignedOnly()"
+          data-testid="unsigned-only"
+          (click)="toggleUnsignedOnly()"
+        >
+          只看未簽收
+        </button>
+        @if (hasFilters()) {
+          <p-button
+            label="清除篩選"
+            [text]="true"
+            size="small"
+            severity="secondary"
+            (onClick)="clearFilters()"
+          />
+        }
+      </div>
+
+      @if (!loading() && !failed() && summary().total > 0) {
+        <p appTextSwap class="m-0 text-md text-zinc-700 tabular-nums" data-testid="summary">
+          這段期間共 <strong class="text-zinc-900">{{ summary().total }}</strong> 則，
+          <strong class="text-zinc-900">{{ summary().unsigned }}</strong>
+          則家長還沒簽收。
+          @if (hasFilters()) {
+            顯示
+            <strong class="text-zinc-900" data-testid="shown">{{ visibleEntries().length }}</strong>
+            則。
+          }
+        </p>
+      }
+
+      <app-reload-veil [loading]="loading()">
+        <app-skeleton reloadSkeleton label="聯絡簿載入中" [count]="5" />
+        @if (failed()) {
+          <app-empty-state
+            icon="pi pi-exclamation-circle"
+            title="載入失敗"
+            description="沒有讀到聯絡簿資料，可能是連線問題"
+          >
+            <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
+          </app-empty-state>
+        } @else if (visibleEntries().length === 0) {
+          @if (unsignedOnly()) {
+            <app-empty-state
+              icon="pi pi-check-circle"
+              title="都簽收了"
+              description="這段期間的聯絡簿家長都已經簽收"
+            >
+              <p-button
+                label="顯示全部"
+                [text]="true"
+                severity="secondary"
+                (onClick)="toggleUnsignedOnly()"
+              />
+            </app-empty-state>
+          } @else if (selectedStudent()) {
+            <app-empty-state
+              icon="pi pi-search"
+              title="這位學生沒有聯絡簿"
+              [description]="selectedStudent()!.name + ' 在這段期間沒有聯絡簿紀錄'"
+            >
+              <p-button
+                label="清除篩選"
+                [text]="true"
+                severity="secondary"
+                (onClick)="clearFilters()"
+              />
+            </app-empty-state>
+          } @else {
+            <app-empty-state
+              icon="pi pi-book"
+              title="這段期間沒有聯絡簿"
+              description="聯絡簿由帶班老師撰寫，只有開了「使用聯絡簿」的班級才會有"
+            />
+          }
+        } @else {
+          <!-- A6 `.colls`（#1705 共用樣式）：每天一塊，同一組一次只開一個 -->
+          <div class="colls">
+            @for (day of dayGroups(); track day.date; let i = $index) {
+              <details
+                class="coll"
+                name="contact-book-days"
+                [open]="isDayOpen(i)"
+                data-testid="day"
+              >
+                <summary class="coll__sum min-h-14 wide:min-h-16">
+                  <span class="coll__t tabular-nums">{{ dayTitle(day.date) }}</span>
+                  <span class="coll__m" data-testid="day-meta"
+                    >{{ day.entries.length }} 則 · {{ day.unsigned }} 則未簽收</span
+                  >
+                </summary>
+                <div class="coll__body">
+                  @for (entry of day.entries; track entry.id) {
+                    <!-- A6 `.ent`：學生｜內容｜編輯者｜簽收四欄，手機兩欄（內容換行到第二列、簽收靠右） -->
+                    <button
+                      type="button"
+                      class="vt-row -mx-2 grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 border-0 border-b border-solid border-surface-border bg-transparent px-2 py-3 text-left [font:inherit] text-inherit hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 wide:grid-cols-[7rem_minmax(0,1fr)_9.5rem_10rem] wide:gap-x-6 wide:gap-y-1"
+                      data-testid="entry"
+                      [attr.aria-label]="
+                        (entry.studentName ?? '未知學生') + ' ' + entry.entryDate + ' 的聯絡簿'
+                      "
+                      (click)="openEntry(entry)"
+                      [style.view-transition-name]="'entry-' + entry.id"
+                    >
+                      <span class="font-semibold">{{ entry.studentName ?? '未知學生' }}</span>
+                      <span
+                        class="col-span-full line-clamp-2 min-w-0 text-zinc-800 wide:col-auto wide:block wide:truncate"
+                        >{{ entry.content }}</span
+                      >
+                      <span class="text-sm text-zinc-600 tabular-nums">{{
+                        entry.lastEditedByName ?? '—'
+                      }}</span>
+                      <span
+                        class="col-start-2 row-start-1 justify-self-end text-right text-sm text-zinc-600 tabular-nums wide:col-auto wide:row-auto wide:justify-self-auto wide:text-left"
+                      >
+                        @if (entry.isSigned) {
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full py-0.5 pr-2 text-sm leading-[1.4] font-semibold whitespace-nowrap text-success-600"
+                            data-testid="signed"
+                            ><i class="pi pi-check text-xs" aria-hidden="true"></i
+                            >{{ signedText(entry) }}</span
+                          >
+                          @if (entry.editedAfterSign) {
+                            <span
+                              class="ml-1 inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap text-zinc-700"
+                              data-testid="edited"
+                              >簽收後有修改</span
+                            >
+                          }
+                        } @else {
+                          <span
+                            class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap text-zinc-700"
+                            data-testid="unsigned"
+                            >未簽收</span
+                          >
+                        }
+                      </span>
+                    </button>
+                  }
+                </div>
+              </details>
+            }
+          </div>
+        }
+      </app-reload-veil>
+    </div>
   </section>
 </div>
