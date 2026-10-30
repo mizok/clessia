@@ -1138,6 +1138,33 @@ export const PAGES = {
     app: '/admin/grades/exams',
     a6Open: opensOf('exams', 'a6Open'),
     appOpen: opensOf('exams', 'appOpen'),
+    deviations: [
+      // 考試列的班名：稿是連到班級頁的連結（`.ex__where a`），app 是字 —— 班級頁要 courseId，列表 API 沒給（等 API）。
+      // 稿的班名包在連結裡，`.ex__where` 自己沒有字、不成 part；app 的有字，後面的「# ／# 已登錄」順位跟著錯開一格
+      { status: '缺', a6: '>row>control:link~2$', reason: '班名連班級頁：等 API（列表沒有 courseId）', source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）' },
+      ...['缺', '多', '位置', '樣式'].map((status) => ({
+        status,
+        [status === '多' ? 'app' : 'a6']: '>row>text:span~[23](>text:b)?$',
+        reason: '連帶：班名不是連結，列內 span 的順位錯開一格',
+        source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
+      })),
+      {
+        // 稿的「待處理」帶「新」設計標記（工具配對前拿掉），手機上多佔的寬度把考試型態擠到下一行
+        status: '位置',
+        widths: [360],
+        a6: 'landmark:navigation\\[考試\\]>control:button\\[(補習班考試|學校考試)\\]$',
+        reason: '連帶：稿的「新」設計標記佔寬，手機上考試型態換行；app 沒有那個標記，同一行放得下',
+        source: 'tools/a6-conformance/README.md（「新」標記是設計說明，#2070）',
+      },
+      {
+        // 手機上考試名連結撐 44（觸控下限），列的第一行變高，置中的「⋯」跟著下移
+        status: '位置',
+        widths: [360],
+        a6: '>row>control:button$',
+        reason: '連帶：手機考試名連結撐到 44px',
+        source: `${rule('R3')}`,
+      },
+    ],
   },
   scores: {
     a6: 'scores.html',
