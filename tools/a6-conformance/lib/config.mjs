@@ -552,7 +552,11 @@ export const PAGES = {
     a6: 'schedule.html',
     app: '/admin/sessions',
     prep: {
-      a6: [{ click: { role: 'checkbox', name: '^勾 ' }, settle: 500, widths: [1440] }],
+      // 稿的勾選框 hover 課塊才出現（schedule.css:50-53）
+      a6: [
+        { hover: '.gb', widths: [1440] },
+        { click: { role: 'checkbox', name: '^勾 ' }, settle: 500, widths: [1440] },
+      ],
       app: [{ click: { role: 'checkbox', name: '^勾 ' }, settle: 800, widths: [1440] }],
     },
     deviations: [
