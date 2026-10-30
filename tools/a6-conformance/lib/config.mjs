@@ -550,6 +550,103 @@ export const PAGES = {
     appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
     // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋學生\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      {
+        // 稿寫「這頁沒有主要動作」；新增學生、列印本頁到班卡（工具列「⋯」）是現況有、稿沒畫的
+        status: '多',
+        app: 'landmark:search\\[篩選學生\\]>control:button\\[(新增學生|更多動作)\\]$',
+        reason:
+          '現況有、稿沒畫：「新增學生」留在工具列（手機底部動作列單顆，R5 10-23 #2005），列印到班卡收進「⋯」',
+        source: `${rule('R2')}；${rule('R5')}「手機底部動作列只有一顆時」2026-10-23；#2005`,
+      },
+      {
+        // 「新增學生」「⋯」佔掉工具列右側，搜尋框與「篩選」整組往左
+        status: '位置',
+        a6: '^>control:button\\[篩選：全部\\]$',
+        detail: '連帶自待修「control:button\\[新增學生\\] 多」',
+        reason: '連帶：「新增學生」「⋯」留在工具列',
+        source: rule('R2'),
+      },
+      {
+        // 篩選面板多「狀態」「學校」「卡片」三列（現況有、稿沒畫）；五列同形，工具把它們認成清單列，
+        // 稿的兩列沒成列 —— 稿那邊的列內按鈕就配不上
+        status: '多',
+        pop: 'filt',
+        app: 'landmark:dialog\\[\\]>row(>.*)?$',
+        reason: '現況有、稿沒畫的篩選收進篩選面板（狀態、學校、卡片）；五列同形被認成清單列',
+        source: rule('R2'),
+      },
+      {
+        status: '缺',
+        pop: 'filt',
+        a6: 'landmark:popover\\[\\]>(text:span\\[(今天|年級)\\]|control:button\\[[^\\]]*\\])$',
+        reason: '連帶：篩選面板五列被認成清單列，稿的兩列配不上（app 同樣是今天／年級兩列文字鈕）',
+        source: rule('R2'),
+      },
+      {
+        // PrimeNG Popover（非原生 popover）：浮層根是 role=dialog，有焦點管理、Esc 關
+        status: '角色',
+        pop: 'filt',
+        a6: 'landmark:popover\\[\\]$',
+        detail: '^landmark:popover → landmark:dialog$',
+        reason: '篩選浮層用 PrimeNG Popover，根元素 role=dialog（非原生 popover）',
+        source: rule('R7'),
+      },
+      {
+        // 「篩選」鈕被「新增學生」「⋯」推到左邊，貼著它開的浮層跟著左移
+        status: '位置',
+        pop: 'filt',
+        a6: 'landmark:popover\\[\\]$',
+        reason: '連帶：「新增學生」「⋯」留在工具列，「篩選」鈕與它的浮層往左',
+        source: rule('R2'),
+      },
+      {
+        // 列的代表樣式取最常見的列：seed 今天有課的學生少（國三 8 位裡 1 位），多數列沒有到班字，
+        // 名字那段就成了連結裡唯一的字、被併回連結量（16px／600 是名字的字）。稿多數列有到班字，量的是連結本身
+        status: '樣式',
+        a6: '>row>control:link$',
+        detail: '^fontSize 14px → 16px；fontWeight 400 → 600；lineHeight 21px → 24px$',
+        reason: '資料：多數列今天沒課、沒有到班字，名字的字級被併回連結',
+        source: 'tools/a6-conformance/README.md（列內 part 取最常見那種；包一層文字的 span 併回外層控制項）',
+      },
+      {
+        // 稿第 2 章有一位暫停（何芷涵）；量測頁第一頁的 seed 學生沒有暫停的。樣式跟待繳費同一組（students.page.html 的 flag）
+        status: '缺',
+        a6: '>text:span>text:span\\[暫停\\]$',
+        reason: '資料：量測頁沒有暫停的學生',
+        source: 'tools/a6-conformance/README.md（列內條件式：可能隨資料）',
+      },
+      {
+        // 到班字的代表樣式取最常見的列：量測時刻過了上課時間，seed 今天有課的多半「該到沒到」（紅、600）；稿多半「16:41 到」
+        status: '樣式',
+        a6: '>control:link>text:span~2$',
+        detail: '^fontWeight 400 → 600；color rgb\\(87, 80, 75\\) → rgb\\(185, 28, 28\\)$',
+        reason: '資料：量測時刻今天有課的人多半該到沒到（紅字是稿 `.who--missing` 的樣式）',
+        source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
+      },
+      {
+        // 手機：列尾「⋯」（R2）跟名字連結並排，列要 flex、分隔線畫在列上（稿畫在連結上），到班字往左讓出按鈕寬
+        status: '樣式',
+        app: '(>list>row|>row>control:link|>control:link>text:span~2)$',
+        detail: '(borderBottom|display block → flex|相對所在列 Δx -\\d+、Δy 0)',
+        reason: '連帶：列尾「⋯」與連結並排，分隔線畫在列上',
+        source: rule('R2'),
+      },
+      {
+        status: '位置',
+        app: '(>list>row|>row>control:link|>control:link>text:span~2)$',
+        detail: '(borderBottom|display block → flex|相對所在列 Δx -\\d+、Δy 0)',
+        reason: '連帶：列尾「⋯」與連結並排，分隔線畫在列上',
+        source: rule('R2'),
+      },
+    ],
   },
   schedule: {
     a6: 'schedule.html',
@@ -925,6 +1022,34 @@ export const PAGES = {
     app: '/admin/staff',
     a6Open: opensOf('staff', 'a6Open'),
     appOpen: opensOf('staff', 'appOpen'),
+    // 章名「已停用」跟列裡的狀態字同文案，自動配對會把稿的章名配到列的狀態字
+    mapping: {
+      '>landmark:main[]>landmark:region[已停用]>text:div[已停用]':
+        '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
+    },
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 courses、grades-class
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋人員\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      // 稿是文字鈕「操作紀錄」；全站統一成工具列的時鐘圖示鈕
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:button\\[操作紀錄\\]$',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕',
+        source: '使用者 10-23 裁定 #2006（#2014）',
+      })),
+      {
+        // 新增掃碼機台（#1127）：現況有、稿沒畫，收進頁面「⋯」—— 同帳單、課程那條
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${rule('R2')}；#1127`,
+      },
+    ],
   },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {
@@ -1013,6 +1138,33 @@ export const PAGES = {
     app: '/admin/grades/exams',
     a6Open: opensOf('exams', 'a6Open'),
     appOpen: opensOf('exams', 'appOpen'),
+    deviations: [
+      // 考試列的班名：稿是連到班級頁的連結（`.ex__where a`），app 是字 —— 班級頁要 courseId，列表 API 沒給（等 API）。
+      // 稿的班名包在連結裡，`.ex__where` 自己沒有字、不成 part；app 的有字，後面的「# ／# 已登錄」順位跟著錯開一格
+      { status: '缺', a6: '>row>control:link~2$', reason: '班名連班級頁：等 API（列表沒有 courseId）', source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）' },
+      ...['缺', '多', '位置', '樣式'].map((status) => ({
+        status,
+        [status === '多' ? 'app' : 'a6']: '>row>text:span~[23](>text:b)?$',
+        reason: '連帶：班名不是連結，列內 span 的順位錯開一格',
+        source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
+      })),
+      {
+        // 稿的「待處理」帶「新」設計標記（工具配對前拿掉），手機上多佔的寬度把考試型態擠到下一行
+        status: '位置',
+        widths: [360],
+        a6: 'landmark:navigation\\[考試\\]>control:button\\[(補習班考試|學校考試)\\]$',
+        reason: '連帶：稿的「新」設計標記佔寬，手機上考試型態換行；app 沒有那個標記，同一行放得下',
+        source: 'tools/a6-conformance/README.md（「新」標記是設計說明，#2070）',
+      },
+      {
+        // 手機上考試名連結撐 44（觸控下限），列的第一行變高，置中的「⋯」跟著下移
+        status: '位置',
+        widths: [360],
+        a6: '>row>control:button$',
+        reason: '連帶：手機考試名連結撐到 44px',
+        source: `${rule('R3')}`,
+      },
+    ],
   },
   scores: {
     a6: 'scores.html',
