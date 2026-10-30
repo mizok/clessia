@@ -12,6 +12,7 @@ import { getCurrentTaipeiDateString } from '../lib/taipei-date';
  * 四支讀成績的端點共用同一份「任課班的考試」範圍（`scores.ts` 的 `readableScope`），各守一條：
  * 列表 `GET /scores`、聚合 `GET /scores/students`、匯出 `POST /scores/export`、摘要 `GET /scores/student/{id}/summary`。
  * 管理員是對照組：同樣的請求兩場都看得到（確認斷言不是因為資料沒進去才通過）。
+ * 最後一條守 414：範圍用班篩、不把任課班歷年的考試 id 塞進 URL。
  *
  * 學校段考（school）是學生層級、不屬於任何班，這裡不動也不測。
  */
@@ -238,5 +239,28 @@ run('老師讀成績只看自己任課班的校內考', () => {
       ).data.subjects.find((s) => s.subjectName === '數學')?.academySum;
     expect(await sum('A')).toBe(70);
     expect(await sum('admin')).toBe(160);
+  });
+  // 計畫席 10-30 二讀：老師的範圍若用「考試 id」篩，歷年考試全塞進 GET URL，約 200 個 uuid 就 414。
+  // 改用班篩之後，考試再多 URL 也只帶班 id。**放最後**：這裡加的 300 場會改變上面的總分
+  it('老師的任課班有 300 場考試：列表、聚合、摘要都 200（不因考試 id 進 URL 而 414）', async () => {
+    await q(
+      `with e as (
+         insert into academy_exams (org_id, name, exam_date)
+         select $1, '大量 ' || g, $2::date - g from generate_series(1, 300) g
+         returning id
+       ), l as (
+         insert into academy_exam_classes (exam_id, class_id) select id, $3 from e
+       )
+       insert into academy_scores (exam_id, student_id, score, status)
+       select id, $4, 60, 'scored' from e`,
+      [ctx.orgId, TODAY, fx.k, fx.s1],
+    );
+    for (const path of [
+      `/scores?type=academy&studentId=${fx.s1}&pageSize=3`,
+      `/scores/students?studentId=${fx.s1}`,
+      `/scores/student/${fx.s1}/summary`,
+    ]) {
+      expect((await as('A', path)).status, path).toBe(200);
+    }
   });
 });
