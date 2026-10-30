@@ -126,6 +126,21 @@ export const DEVIATIONS = [
     reason: '通知中心從「更多」移到頂欄鈴鐺',
     source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
   },
+  // 稿的「新」標記（span.new）是設計說明，不是畫面內容（a6.js 的 ddLabel 也剔掉它）。配對時已經拿掉它比
+  // （extract 的 alt，#1314 10-30），剩下的就是「新」那顆小標本身、以及只差一個「新」的文案
+  {
+    status: '缺',
+    a6: '>text:span\\[新\\]$',
+    reason: '稿的「新」標記是設計說明，不是畫面內容',
+    source: '.design-explorations a6.js ddLabel（剔除 .new）',
+  },
+  {
+    status: '文案',
+    a6: '(control:[a-z]+|heading:h\\d)\\[[^\\]]*新\\](~\\d+)?$',
+    detail: '^「(.+)新」→「\\1」$',
+    reason: '稿的「新」標記是設計說明，拿掉之後文案相同',
+    source: '.design-explorations a6.js ddLabel（剔除 .new）',
+  },
   {
     // 手機頂欄一列（稿 ≤860 是兩列）：搜尋鈕跟著上移到第一列、帳戶鈕只剩頭像，位置不同
     status: '位置',
@@ -661,6 +676,8 @@ export const PAGES = {
   // 「申請紀錄」分頁：稿與 app 都認網址 #records
   'p-enrollment-records': {
     a6: 'p-enrollment.html#records',
+    // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
+    rowSel: { a6: 'button.rq' },
     app: '/parent/enrollment#records',
     state: PARENT_STATE,
     deviations: [
@@ -697,6 +714,8 @@ export const PAGES = {
   },
   'p-trial-records': {
     a6: 'p-trial.html#records',
+    // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
+    rowSel: { a6: 'button.rq' },
     app: '/parent/trial#records',
     state: PARENT_STATE,
     deviations: [
@@ -752,24 +771,6 @@ export const PAGES = {
     prep: PARENT_PREP,
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
-    // 稿的鈕名帶「新」小標，key 對不上；app 不加小標（下面的偏離）
-    mapping: {
-      '>control:button[幫孩子請假新]': '>landmark:main[]>control:button[幫孩子請假]',
-    },
-    deviations: [
-      ...[
-        {
-          status: '文案',
-          a6: '>control:button\\[幫孩子請假新\\]$',
-          detail: '^「幫孩子請假新」→「幫孩子請假」$',
-        },
-        { status: '缺', a6: '>control:button\\[幫孩子請假新\\]>text:span\\[新\\]$' },
-      ].map((d) => ({
-        ...d,
-        reason: '「幫孩子請假」不加「新」字小標：暫時性標示，沒有拿掉的規則',
-        source: `${rule('R5')}「家長到班頁「幫孩子請假」的「新」字小標」2026-10-22；#1075`,
-      })),
-    ],
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
   settings: { a6: 'settings.html', app: '/admin/settings/general' },

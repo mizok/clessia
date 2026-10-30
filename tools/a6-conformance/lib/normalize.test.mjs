@@ -1549,3 +1549,25 @@ test('彈出物根（parent 是合成的 pop[id]）貼視窗底時量「距視�
     undefined,
   );
 });
+
+test('配對：稿的「新」標記不擋配對（用 alt 再配一次），「新」本身留成缺', async () => {
+  const { matchParts } = await import('./diff.mjs');
+  const P = (key, alt) => ({
+    key,
+    ...(alt ? { alt } : {}),
+    parent: key.split('>').slice(0, -1).join('>') || null,
+    kind: 'control',
+    role: 'button',
+  });
+  const a6 = [
+    P('>control:button[批次請假新]', '>control:button[批次請假]'),
+    P('>control:button[批次請假新]>text:span[新]', '>control:button[批次請假]>text:span[新]'),
+  ];
+  const app = [P('>landmark:main[]>control:button[批次請假]')];
+  const pairs = matchParts(a6, app);
+  assert.equal(
+    pairs.get('>control:button[批次請假新]'),
+    '>landmark:main[]>control:button[批次請假]',
+  );
+  assert.ok(!pairs.has('>control:button[批次請假新]>text:span[新]'));
+});
