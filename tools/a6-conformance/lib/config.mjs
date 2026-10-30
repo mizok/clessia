@@ -547,6 +547,23 @@ export const PAGES = {
       },
     ],
   },
+  // 課表勾一堂之後的批次動作列（#1314 S7）：列只在勾了課才出現，手機沒有這條（在快速選取面板裡）
+  'schedule-batch': {
+    a6: 'schedule.html',
+    app: '/admin/sessions',
+    prep: {
+      a6: [{ click: { role: 'checkbox', name: '^勾 ' }, settle: 500, widths: [1440] }],
+      app: [{ click: { role: 'checkbox', name: '^勾 ' }, settle: 800, widths: [1440] }],
+    },
+    deviations: [
+      {
+        status: '多',
+        app: 'control:button\\[(上一週|下一週)\\]$',
+        reason: '換週箭頭：收不進「⋯」的入口，保留',
+        source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
+      },
+    ],
+  },
   billing: {
     a6: 'billing.html',
     app: '/admin/payments',
