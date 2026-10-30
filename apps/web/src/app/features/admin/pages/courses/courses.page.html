@@ -177,12 +177,12 @@
         <!-- 依科目分章（#1314 C1，A6 chap--row）：桌機左欄科目名＋張數，右邊是課程列 -->
         @for (chapter of chapters(); track chapter.subjectId + chapter.groups[0].course.id) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-3 border-b border-zinc-200 py-6 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="chapter.subjectName"
             [attr.data-chapter]="chapter.subjectId"
           >
             <app-chapter-head
-              class="block pt-6 wide:pt-8"
+              class="block"
               [name]="chapter.subjectName"
               [count]="chapter.tally"
               unit="門"
