@@ -60,16 +60,18 @@
   <div class="pt-2 wide:pt-6">
     <button
       type="button"
-      class="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent p-0 text-left wide:hidden"
+      class="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-zinc-200 bg-transparent px-0 py-3 text-left wide:hidden"
       data-testid="filter-fold"
       aria-controls="staff-filters"
       [attr.aria-expanded]="filtersOpen()"
       (click)="filtersOpen.set(!filtersOpen())"
     >
-      <span class="text-lg font-semibold text-zinc-900">篩選</span>
-      <span class="ml-auto text-md text-zinc-600 tabular-nums" data-testid="filter-fold-meta">{{
-        filterSummary()
-      }}</span>
+      <span class="text-lg leading-normal font-semibold text-zinc-900">篩選</span>
+      <span
+        class="ml-auto text-md leading-normal text-zinc-600 tabular-nums"
+        data-testid="filter-fold-meta"
+        >{{ filterSummary() }}</span
+      >
       <i
         class="pi pi-chevron-down text-xs text-zinc-900 transition-transform"
         [class.rotate-180]="filtersOpen()"
@@ -173,21 +175,21 @@
         </p>
       }
 
-      <div class="wide:-mt-2">
+      <div>
         @for (chapter of chapters(); track chapter.key) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-2 border-b border-zinc-200 pt-6 pb-2 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="chapter.label"
             [attr.data-chapter]="chapter.key"
           >
             <app-chapter-head
-              class="block pt-6 wide:pt-4"
+              class="block"
               [name]="chapter.label"
               [listRow]="true"
               [count]="chapter.count"
               unit="位"
             />
-            <div class="wide:pt-2">
+            <div>
               @for (staff of chapter.rows; track staff.id) {
                 <div
                   class="vt-row grid grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-zinc-200 py-3 last:border-b-0 wide:min-h-[72px] wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_44px] wide:gap-x-6 wide:gap-y-1"
