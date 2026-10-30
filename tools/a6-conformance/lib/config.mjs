@@ -408,6 +408,15 @@ const INBOX_DEVIATIONS = [
     reason: '資料：那一天 seed 的通知比稿多一則',
     source: INBOX_DATA_SOURCE,
   },
+  // 未讀數包一層 span 給數字變化的動效（稿的 strong 直接是字）：字一樣，工具拆成缺＋多
+  ...[
+    { status: '缺', a6: '>text:strong\\[#則未讀\\]$' },
+    { status: '多', app: '>landmark:main\\[\\]>text:strong\\[則未讀\\]$' },
+  ].map((d) => ({
+    ...d,
+    reason: '未讀數的數字包一層（數字變化：新值從下方淡入，掛在只包數字的元素上）',
+    source: 'kb/wiki/architecture/motion.md:150（數字變化：套到未讀數）',
+  })),
 ];
 const PUBLIC_FORM_DEVIATIONS = [
   {
