@@ -77,6 +77,10 @@ const CreateCourseSchema = z
     subjectId: DbUuidSchema.openapi({ description: '科目 ID' }),
     description: z.string().max(500).nullable().optional().openapi({ description: '課程說明' }),
     gradeLevels: z.array(z.string()).min(1).openapi({ description: '適合年級' }),
+    isActive: z
+      .boolean()
+      .optional()
+      .openapi({ description: '狀態，預設啟用（A6 新增課程表單的啟用／停用）' }),
   })
   .openapi('CreateCourse');
 
@@ -489,6 +493,7 @@ app.openapi(createCourseRoute, async (c) => {
       subject_id: body.subjectId,
       description: body.description || null,
       grade_levels: body.gradeLevels,
+      is_active: body.isActive ?? true,
     })
     .select('*, campuses(name), subjects(name)')
     .single();

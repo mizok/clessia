@@ -1042,9 +1042,11 @@ export class CoursesPage implements OnInit {
 
   protected openCreateCourseDialog(): void {
     const ref = this.dialogService.open(CourseFormDialogComponent, {
-      width: '600px',
+      width: '520px',
       modal: true,
       showHeader: false,
+      // 表單自己聚焦課程名稱（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
+      focusOnShow: false,
       appendTo: this.overlayContainer || 'body',
       data: {
         campuses: this.campuses(),
@@ -1060,9 +1062,11 @@ export class CoursesPage implements OnInit {
 
   protected openEditCourseDialog(course: Course): void {
     const ref = this.dialogService.open(CourseFormDialogComponent, {
-      width: '600px',
+      width: '520px',
       modal: true,
       showHeader: false,
+      // 表單自己聚焦課程名稱（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
+      focusOnShow: false,
       appendTo: this.overlayContainer || 'body',
       data: {
         course,
