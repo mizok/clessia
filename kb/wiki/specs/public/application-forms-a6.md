@@ -1,15 +1,17 @@
 ---
 title: 公開試聽申請、我要報名表單照 A6（設計稿）
-summary: 設計稿（#1637；Q1–Q6、Q5′、Q6′ 已於 10-16 裁定完畢）。後端（public_applications、/api/public/*、honeypot＋Postgres 速率限制）與行政收件頁（/admin/applications）早已上線，缺的是 /trial、/enrollment 兩個前端頁。依裁定加：試聽表單補「與學生關係」（A6 偏離）、機器人驗證預設自架的 ALTCHA、部署可切換成 Turnstile、班級「開放公開報名」旗標、老師暱稱（對外只露暱稱，沒設就不露）、申請保存 6 個月由 pg_cron 刪除；三個 schema 變更合成一支 migration。拆成四支實作單。
+summary: 公開試聽申請、我要報名表單照 A6，已全部實作上線（#1637；實作單 #1665 於 10-22 結案）：/trial、/enrollment 前端頁（#1677）、public_applications 與 /api/public/*、機器人驗證預設自架 ALTCHA 可切 Turnstile（#1669）、班級「開放公開報名」旗標與老師暱稱（#1672）、申請保存 6 個月由 pg_cron 刪除（#1670）、送出後通知管理員（#1711）、行政收件頁照 A6（#1894）。本頁保留裁定（Q1–Q6、Q5′、Q6′、Q4′）與 §7 明列不做的項目。
 category: spec
-status: draft
-updated: 2026-10-23
+status: active
+updated: 2026-10-30
 tags: [specs, public, trial, enrollment, a6, security, privacy, migration]
 ---
 
 # 公開試聽申請、我要報名表單照 A6（設計稿）
 
-> **狀態：設計稿。Q1–Q6（15:04）、Q6 補充（15:09）、Q5′／Q6′（15:25）已全部裁定（#1637 留言）；Q4′（15:38，#1665 留言）改了 Q4 的範圍，沒有待裁題。**
+> **狀態：已實作（10-30 更新）**。#1670、#1669、#1672、#1677 四支實作單與後續 #1711、#1871、#1894、#1907、#1947 都已合，migration 已套上正式；§7 列的不做項目維持不做。以下是當時的設計稿與裁定紀錄。
+>
+> 原狀態：**設計稿。Q1–Q6（15:04）、Q6 補充（15:09）、Q5′／Q6′（15:25）已全部裁定（#1637 留言）；Q4′（15:38，#1665 留言）改了 Q4 的範圍，沒有待裁題。**
 > 實作照 §6 拆單，每一單仍走 `clessia-feature-slice`；migration 屬保留類，正式 DB 由使用者 Approve。
 > 稿：`.design-explorations/973-layout/a6-editorial/pub-trial.html`、`pub-enrollment.html`（以下 `D/`）。
 > A6 全採（[[architecture/a6-adoption-rules]]），偏離逐條列在 §1 與該頁 R5。
