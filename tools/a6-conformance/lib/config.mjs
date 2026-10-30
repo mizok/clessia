@@ -1242,6 +1242,32 @@ export const PAGES = {
           '稿的 .savebar 被只有自己高的 div 框住、捲動時不會動（稿的 bug）；app 確認列有黏是對的，手機 offset 照 app 現狀',
         source: 'https://github.com/mizok/clessia/pull/1761#issuecomment-6309038184（計畫席裁定）',
       },
+      // 說明框後半句「今天請假的 N 位名字下有提示」要名單帶請假旗標（ME1，等 API），沒有就不寫
+      ...['缺', '文案'].map((status) => ({
+        status,
+        a6: status === '缺' ? '>text:b\\[#位\\]$' : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
+        reason: '說明框的請假人數：餐費名單 API 還沒帶請假旗標（等 API）',
+        source: '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標',
+      })),
+      {
+        // 列的代表樣式取最常見的列：seed 今天 18 位裡 17 位未處理、多數沒訂（名字灰、單價框灰底、收費字灰、狀態 600 近黑）；
+        // 稿多數列已確認、有訂。四種樣式稿都有（.ml--off、:disabled、.stt--todo）
+        status: '樣式',
+        a6: '>row>(control:link|text:label~2>control:textbox|text:label~3|text:span)$',
+        detail:
+          '^(color rgb\\(26, 22, 20\\) → rgb\\(87, 80, 75\\)|backgroundColor rgb\\(255, 255, 255\\) → rgb\\(245, 243, 241\\)|color rgb\\(26, 22, 20\\) → rgb\\(120, 111, 105\\)|fontWeight 400 → 600；color rgb\\(61, 55, 51\\) → rgb\\(26, 22, 20\\))(；display inline → inline-flex)?$',
+        reason: '資料：seed 今天多數列未處理、沒訂，代表列是稿的 .ml--off／.stt--todo 那種',
+        source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
+      },
+      {
+        // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
+        status: '位置',
+        widths: [360],
+        a6: '>row>(text:label(~[23])?>control:(checkbox|textbox)|text:span)$',
+        detail: '^相對所在列 Δx 0、Δy \\+(1[0-9]|2[0-9]|3[0-2])',
+        reason: '連帶：手機名字連結 44px 觸控高度，列的第一行變高',
+        source: `${rule('R3')}`,
+      },
     ],
   },
   reports: { a6: 'reports.html', app: '/admin/reports' },
