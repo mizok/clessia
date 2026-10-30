@@ -51,6 +51,7 @@ export interface CreateCourseInput {
   subjectId: string;
   description?: string | null;
   gradeLevels: string[];
+  isActive?: boolean;
 }
 
 export interface UpdateCourseInput {

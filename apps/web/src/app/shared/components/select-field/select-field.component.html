@@ -25,7 +25,7 @@
     (onShow)="alignInContainer()"
     scrollHeight="360px"
     [pt]="pt()"
-    [placeholder]="compact() ? label() + '…' : undefined"
+    [placeholder]="compact() ? label() + '…' : placeholder()"
   >
     <!-- 只在底部面板（≤860px）顯示：手機上看不到觸發鈕旁的標籤，面板要自己說在選什麼 -->
     <ng-template #header>
