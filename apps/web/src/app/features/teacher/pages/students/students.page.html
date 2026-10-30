@@ -96,27 +96,35 @@
             class="m-0 grid list-none grid-cols-1 gap-0 p-0 wide:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] wide:gap-x-6 wide:gap-y-1"
           >
             @for (student of group.students; track student.id) {
-              <li class="min-w-0 border-0 border-b border-solid border-zinc-200 wide:border-b-0">
+              <li class="min-w-0">
                 <!-- A6 `.who--btn`：整列可點，開這位學生在「這班」的面板；未分班那組沒有班，不是按鈕 -->
                 @if (group.classId) {
                   <button
                     type="button"
-                    class="flex min-h-12 w-full min-w-0 cursor-pointer items-center justify-between gap-3 rounded-sm border-0 bg-transparent px-0 py-1 text-left text-inherit [font:inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 wide:block wide:min-h-0 wide:py-2"
+                    class="group flex min-h-12 w-full min-w-0 cursor-pointer items-center justify-between gap-3 border-0 border-b border-solid border-zinc-200 bg-transparent px-0 py-1 text-left text-inherit [font:inherit] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 wide:block wide:min-h-0 wide:border-b-0 wide:py-2"
                     (click)="openPanel(student, group)"
                   >
-                    <span class="block text-lg font-semibold">{{ student.name }}</span>
-                    <span class="block shrink-0 text-sm text-zinc-600 wide:mt-px">{{
-                      gradeLabel(student.grade)
-                    }}</span>
+                    <!-- A6 `.who__name`／`.who__meta`：flex＋gap；滑過名字加底線 -->
+                    <span
+                      class="flex items-center gap-2 text-lg font-semibold group-hover:underline group-hover:decoration-[1.5px] group-hover:underline-offset-4"
+                      >{{ student.name }}</span
+                    >
+                    <span
+                      class="flex shrink-0 items-center gap-1.5 text-sm text-zinc-600 wide:mt-px"
+                      >{{ gradeLabel(student.grade) }}</span
+                    >
                   </button>
                 } @else {
                   <div
-                    class="flex min-h-12 min-w-0 items-center justify-between gap-3 py-1 wide:block wide:min-h-0 wide:py-2"
+                    class="flex min-h-12 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-zinc-200 py-1 wide:block wide:min-h-0 wide:border-b-0 wide:py-2"
                   >
-                    <span class="block text-lg font-semibold">{{ student.name }}</span>
-                    <span class="block shrink-0 text-sm text-zinc-600 wide:mt-px">{{
-                      gradeLabel(student.grade)
+                    <span class="flex items-center gap-2 text-lg font-semibold">{{
+                      student.name
                     }}</span>
+                    <span
+                      class="flex shrink-0 items-center gap-1.5 text-sm text-zinc-600 wide:mt-px"
+                      >{{ gradeLabel(student.grade) }}</span
+                    >
                   </div>
                 }
               </li>
