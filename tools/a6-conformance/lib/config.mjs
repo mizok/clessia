@@ -667,6 +667,13 @@ export const PAGES = {
         app: 'control:button\\[更多動作\\]$',
         reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
         source: `${rule('R2')}；#1226`,
+      },      {
+        // 課程列：稿是 <details><summary>，summary 裡包「新增班」「⋯」按鈕（summary 是按鈕角色，裡面不能再放按鈕）；
+        // app 是展開鈕＋並排的動作鈕，每門課一個 region（計畫席 10-30 #2078 同意）。結構不同，課程列裡的子項配不上，一起歸這條
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>landmark:region\\[[^\\]]*\\](>.*)?$',
+        reason: '課程列結構依元件行為：展開鈕＋並排動作鈕，不把按鈕包進 summary',
+        source: `${rule('R7')}；https://github.com/mizok/clessia/pull/2078`,
       },
     ],
   },
