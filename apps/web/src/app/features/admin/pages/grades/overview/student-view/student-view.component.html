@@ -1,7 +1,7 @@
 <!--
-  A6 版（#991 grades G5，grades-student.html）：色面（返回成績總覽、N 位學生）→ 灰工具列（搜尋、年級／學校／狀態）
-  → 依年級分章的學生列。計畫席裁 Q7：照 A6 分章，但每列**不放分數欄**（缺批次學生成績摘要 API，#991 後續項）；
-  「課程／開課班／期間」篩選與匯出 CSV 也列後續項。分校跟頂欄（#1138），頁內不再有分校。
+  A6 版（#991 grades G5，grades-student.html）：色面（返回成績總覽）→ 灰工具列（搜尋、「篩選：…」浮層
+  ——年級／課程（#1314 G9）／學校／狀態、匯出）→ 依年級分章的學生列；每列的最近一次、比上一次、缺考、平均來自 `/scores/students?scope=all`（#1314 G8）。
+  分校跟頂欄（#1138），頁內不再有分校。
 -->
 <app-page-open>
   <a
@@ -11,141 +11,186 @@
   >
     <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>成績總覽
   </a>
-  <ng-container openTitle>
-    @if (loadingList() || loadFailed()) {
-      學生視角
-    } @else {
-      {{ totalStudents() }} 位學生
-    }
-  </ng-container>
-  <ng-container openSub>點一位學生，看他每一場考試的成績。</ng-container>
+  <ng-container openTitle>學生的成績</ng-container>
+  <ng-container openSub>點一位學生看每一場考試；不及格的分數會寫出來。</ng-container>
 </app-page-open>
 
 <div class="bg-zinc-100">
+  <!-- A6 .tsearch＋「篩選：…」浮層＋匯出圖示（class-view 同款）；手機搜尋滿寬一列，鈕落到下一行右靠 -->
   <div
-    class="page-wrap flex flex-col gap-3 py-3 wide:flex-row wide:items-end wide:gap-4"
+    class="page-wrap clessia-filter-bar flex flex-wrap items-center gap-3 py-3 wide:min-h-16 wide:gap-4"
     role="search"
     aria-label="篩選學生"
   >
-    <label class="flex min-w-0 flex-col gap-1 wide:w-72">
-      <span class="text-sm font-semibold text-zinc-700">搜尋</span>
-      <input
-        pInputText
-        type="search"
-        class="tbar-control w-full"
-        [ngModel]="searchText()"
-        (ngModelChange)="onSearchChange($event)"
-        placeholder="學生姓名"
-      />
-    </label>
-
-    <!-- 桌機：篩選攤開（同 G4 class-view） -->
-    <div class="hidden gap-3 wide:flex wide:items-end" data-part="desktop-filters">
-      <div class="flex min-w-40 flex-col gap-1">
-        <span class="text-sm font-semibold text-zinc-700" id="sv-f-grade">年級</span>
-        <p-select
-          class="tbar-control"
-          [options]="gradeOptions"
-          [ngModel]="gradeFilter()"
-          (ngModelChange)="onGradeChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="全部年級"
-          [showClear]="true"
-          ariaLabelledBy="sv-f-grade"
-          styleClass="w-full"
+    <div
+      class="clessia-filter-search min-w-full wide:w-[25rem] wide:max-w-[25rem] wide:min-w-0 wide:flex-none"
+    >
+      <p-iconfield iconPosition="left">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          type="search"
+          pInputText
+          placeholder="找學生姓名"
+          aria-label="搜尋學生姓名"
+          [ngModel]="searchText()"
+          (ngModelChange)="onSearchChange($event)"
+          class="clessia-filter-search-input"
         />
-      </div>
-      <div class="flex min-w-40 flex-col gap-1">
-        <span class="text-sm font-semibold text-zinc-700" id="sv-f-school">學校</span>
-        <p-select
-          class="tbar-control"
-          [options]="schoolOptions()"
-          [ngModel]="schoolIdFilter()"
-          (ngModelChange)="onSchoolChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="全部學校"
-          [showClear]="true"
-          ariaLabelledBy="sv-f-school"
-          styleClass="w-full"
-        />
-      </div>
-      <div class="flex min-w-32 flex-col gap-1">
-        <span class="text-sm font-semibold text-zinc-700" id="sv-f-status">狀態</span>
-        <p-select
-          class="tbar-control"
-          [options]="statusOptions"
-          [ngModel]="activeStatusFilter()"
-          (ngModelChange)="onActiveStatusChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          ariaLabelledBy="sv-f-status"
-          styleClass="w-full"
-        />
-      </div>
+      </p-iconfield>
     </div>
 
-    <!-- 手機：其餘條件收進篩選對話框 -->
-    <button
-      type="button"
-      class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 self-start rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
-      (click)="openMobileFilterDialog()"
-    >
-      <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
-      篩選
-    </button>
-
-    <!-- 匯出（#1100 #40，A6 工具列下載圖示＋面板，照帳單的匯出） -->
-    <button
-      type="button"
-      class="inline-flex size-11 cursor-pointer items-center justify-center self-start rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto wide:self-end"
-      aria-label="匯出"
-      title="匯出"
-      data-testid="export-toggle"
-      (click)="exportPanel.toggle($event)"
-    >
-      <i class="pi pi-download" aria-hidden="true"></i>
-    </button>
-    <p-popover #exportPanel appendTo="body">
-      <form
-        class="flex w-80 flex-col gap-3"
-        aria-labelledby="sv-export-h"
-        data-testid="export-panel"
-        (submit)="$event.preventDefault(); exportScores(exportPanel)"
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        data-part="filter-btn"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="filtersOpen()"
+        (click)="filterPopover.toggle($event)"
       >
-        <h2 id="sv-export-h" class="m-0 text-base font-semibold text-zinc-900">匯出成績</h2>
-        <fieldset class="m-0 flex flex-col gap-2 border-0 p-0">
-          <legend class="mb-1 p-0 text-sm font-semibold text-zinc-700">範圍</legend>
-          <label class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900">
-            <input
-              type="radio"
-              name="sv-export-range"
-              value="filtered"
-              [checked]="exportRange() === 'filtered'"
-              (change)="exportRange.set('filtered')"
-            />
-            照目前的篩選<span class="text-zinc-600">{{ totalStudents() }} 位</span>
-          </label>
-          <label class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900">
-            <input
-              type="radio"
-              name="sv-export-range"
-              value="all"
-              [checked]="exportRange() === 'all'"
-              (change)="exportRange.set('all')"
-            />
-            全部學生
-          </label>
-        </fieldset>
-        <p class="m-0 text-sm text-zinc-600">
-          欄位：學生姓名、開課班、考試名稱、課程、日期、分數、狀態。格式：CSV。
-        </p>
-        <p-button type="submit" label="匯出" icon="pi pi-download" [loading]="exporting()" />
-      </form>
-    </p-popover>
+        <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
+        篩選：{{ filterSummary() }}
+      </button>
+
+      <!-- 匯出（#1100 #40，A6 工具列下載圖示＋面板，照帳單的匯出） -->
+      <button
+        type="button"
+        class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        aria-label="匯出"
+        title="匯出"
+        data-testid="export-toggle"
+        (click)="exportPanel.toggle($event)"
+      >
+        <i class="pi pi-download" aria-hidden="true"></i>
+      </button>
+      <p-popover #exportPanel appendTo="body">
+        <form
+          class="flex w-80 flex-col gap-3"
+          aria-labelledby="sv-export-h"
+          data-testid="export-panel"
+          (submit)="$event.preventDefault(); exportScores(exportPanel)"
+        >
+          <h2 id="sv-export-h" class="m-0 text-base font-semibold text-zinc-900">匯出成績</h2>
+          <fieldset class="m-0 flex flex-col gap-2 border-0 p-0">
+            <legend class="mb-1 p-0 text-sm font-semibold text-zinc-700">範圍</legend>
+            <label class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900">
+              <input
+                type="radio"
+                name="sv-export-range"
+                value="filtered"
+                [checked]="exportRange() === 'filtered'"
+                (change)="exportRange.set('filtered')"
+              />
+              照目前的篩選<span class="text-zinc-600">{{ totalStudents() }} 位</span>
+            </label>
+            <label class="flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-900">
+              <input
+                type="radio"
+                name="sv-export-range"
+                value="all"
+                [checked]="exportRange() === 'all'"
+                (change)="exportRange.set('all')"
+              />
+              全部學生
+            </label>
+          </fieldset>
+          <p class="m-0 text-sm text-zinc-600">
+            欄位：學生姓名、開課班、考試名稱、課程、日期、分數、狀態。格式：CSV。
+          </p>
+          <p-button type="submit" label="匯出" icon="pi pi-download" [loading]="exporting()" />
+        </form>
+      </p-popover>
+    </div>
   </div>
 </div>
+
+<p-popover
+  #filterPopover
+  appFitPopover
+  styleClass="filter-popover"
+  (onShow)="filtersOpen.set(true)"
+  (onHide)="filtersOpen.set(false)"
+>
+  <div class="grid w-[440px] max-w-full grid-cols-2 gap-x-4 gap-y-3" data-part="filter-pop">
+    <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="sv-f-grade">年級</span>
+      <p-select
+        [options]="gradeOptions"
+        [ngModel]="gradeFilter()"
+        (ngModelChange)="onGradeChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部年級"
+        [showClear]="true"
+        ariaLabelledBy="sv-f-grade"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="sv-f-course">課程</span>
+      <p-select
+        [options]="courseOptions()"
+        [ngModel]="courseIdFilter()"
+        (ngModelChange)="onCourseChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部課程"
+        [showClear]="true"
+        [filter]="courseOptions().length > 8"
+        ariaLabelledBy="sv-f-course"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="sv-f-school">學校</span>
+      <p-select
+        [options]="schoolOptions()"
+        [ngModel]="schoolIdFilter()"
+        (ngModelChange)="onSchoolChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部學校"
+        [showClear]="true"
+        ariaLabelledBy="sv-f-school"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="sv-f-status">狀態</span>
+      <p-select
+        [options]="statusOptions"
+        [ngModel]="activeStatusFilter()"
+        (ngModelChange)="onActiveStatusChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        ariaLabelledBy="sv-f-status"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="col-span-full flex items-center justify-between">
+      @if (hasFilters()) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+          (click)="clearFilters()"
+        >
+          清除篩選
+        </button>
+      }
+      <button
+        type="button"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800"
+        (click)="filterPopover.hide()"
+      >
+        完成
+      </button>
+    </div>
+  </div>
+</p-popover>
 
 <div class="page-wrap pt-2 pb-28 wide:pb-32">
   @if (loadingList()) {
@@ -185,10 +230,15 @@
         </div>
         <div>
           @for (s of chap.students; track s.id) {
+            @let agg = aggregates().get(s.id);
+            @let avg = average(agg);
+            @let last = agg?.latest;
+            <!-- A6 .srow：名字與學校班級 → 最近一次 → 最近分數 → 平均；手機「最近」落到第二行 -->
             <button
               type="button"
-              class="group grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-0 border-b border-surface-border bg-transparent py-4 text-left text-zinc-900 last:border-b-0"
+              class="group grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_64px_64px] items-center gap-x-6 gap-y-2 border-0 border-b border-surface-border bg-transparent py-4 text-left text-zinc-900 last:border-b-0 wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_96px_96px]"
               data-part="student-row"
+              aria-haspopup="dialog"
               (click)="selectStudent(s)"
             >
               <span class="min-w-0">
@@ -196,14 +246,43 @@
                   class="block text-lg font-semibold group-hover:underline group-hover:underline-offset-4"
                   >{{ s.name }}</span
                 >
-                <span class="block text-sm text-zinc-600">
+                <span class="text-sm text-zinc-600">
                   {{ s.school?.name ?? '未填學校' }}
                   @if (s.classNames?.length) {
                     · {{ s.classNames.join('、') }}
                   }
                 </span>
               </span>
-              <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
+              <span
+                class="col-span-full row-start-2 text-sm text-zinc-600 wide:col-span-1 wide:row-start-auto"
+              >
+                @if (agg && last) {
+                  最近：<b class="font-semibold text-zinc-900">{{ last.examName }}</b
+                  >（{{ md(last.examDate) }}）
+                  @if (agg.deltaVsPrev !== null) {
+                    · 比上一次 {{ deltaText(agg.deltaVsPrev) }} 分
+                  }
+                  @if (agg.recentAbsentCount) {
+                    · 缺考 {{ agg.recentAbsentCount }} 次
+                  }
+                } @else {
+                  這段期間沒有成績
+                }
+              </span>
+              <span
+                class="text-right text-xl font-bold tabular-nums"
+                [class.text-error-700]="last?.failing"
+              >
+                {{ last?.score ?? '—' }}
+                @if (last) {
+                  <small class="block text-xs font-medium text-zinc-600">{{
+                    last.failing ? '不及格' : '最近一次'
+                  }}</small>
+                }
+              </span>
+              <span class="text-right text-xl font-bold tabular-nums">
+                {{ avg ?? '—' }}<small class="block text-xs font-medium text-zinc-600">平均</small>
+              </span>
             </button>
           }
         </div>
