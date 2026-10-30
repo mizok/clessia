@@ -345,8 +345,8 @@ describe('ContactBookPage', () => {
         missing: missingOf(6),
         entries: [entry('1', false), entry('2', false), entry('3', true)],
       });
-      expect(q('hero-missing').textContent!.replace(/\s+/g, '')).toContain('6則今天還沒寫');
-      expect(q('hero-unsigned').textContent!.replace(/\s+/g, '')).toContain('2則這週家長還沒簽');
+      expect(q('hero-missing').textContent!.replace(/\s+/g, '')).toContain('今天還沒寫6則');
+      expect(q('hero-unsigned').textContent!.replace(/\s+/g, '')).toContain('這週家長還沒簽2則');
       // 請求：缺漏用今天；列表用「週一到今天」（2027-03-05 是週五 → 3/1）
       expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05');
       expect(contactBook.list.mock.calls.map((c) => [c[0]!.from, c[0]!.to])).toContainEqual([

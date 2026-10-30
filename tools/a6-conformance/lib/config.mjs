@@ -895,7 +895,39 @@ export const PAGES = {
     ],
   },
   reports: { a6: 'reports.html', app: '/admin/reports' },
-  'contact-book': { a6: 'contact-book.html', app: '/admin/contact-book' },
+  'contact-book': {
+    a6: 'contact-book.html',
+    app: '/admin/contact-book',
+    deviations: [
+      // 學生篩選有建議清單（app-student-autocomplete，選了才帶 studentId 查）＝combobox；框畫在 input 上
+      // （共用 p-iconfield＋.clessia-filter-search），稿畫在外層 label.tsearch —— 同 courses #1762 的那條
+      {
+        status: '角色',
+        a6: 'control:searchbox\\[輸入學生姓名篩選\\]$',
+        detail: '^control:searchbox → control:combobox$',
+        reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
+        source: `${rule('R7')}`,
+      },
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[輸入學生姓名篩選\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      {
+        status: '多',
+        app: 'control:combobox\\[(缺漏名單的日期|期間)\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+      {
+        status: '多',
+        app: 'control:button\\[dropdown trigger\\](~\\d+)?$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
+    ],
+  },
   changes: { a6: 'changes.html', app: '/admin/changes' },
   exams: {
     a6: 'exams.html',
