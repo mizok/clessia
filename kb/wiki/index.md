@@ -168,7 +168,7 @@
 - [[specs/parent/renewal]] — 預覽即將自動續課的內容，申請異動。
 - [[specs/parent/schedule]] — 查看孩子的課表和課堂詳情。
 - [[specs/parent/trial]] — 已有帳號的家長為孩子申請試聽其他課程。
-- [[specs/public/application-forms-a6]] — 設計稿（#1637；全部已裁）：公開試聽／報名表單照 A6；補關係欄、機器人驗證預設 ALTCHA（可切換 Turnstile）、班級公開旗標、所有人員可設暱稱（對外只露任課老師）、申請保存 6 個月（一支 migration），拆四單。
+- [[specs/public/application-forms-a6]] — 已實作上線（#1637；#1665 10-22 結案）：公開試聽／報名表單照 A6；補關係欄、機器人驗證預設 ALTCHA（可切換 Turnstile）、班級公開旗標、所有人員可設暱稱（對外只露任課老師）、申請保存 6 個月；保留裁定與不做的項目。
 - [[specs/public/enrollment]] — 新家長為孩子提交報名申請。
 - [[specs/public/login]] — 一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
 - [[specs/public/qr-checkin]] — 學生掃碼完成當日到班登記。
