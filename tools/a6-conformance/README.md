@@ -85,6 +85,12 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
   以及「全部分校」）→ `{分校}`；中文數字月份 →`#`；中文字旁的空白去掉
 - **列是資料**：`ul/ol/tbody` 的子項，以及沒用 `li` 的 div 格線（同層同簽名、無標題，且 ≥5 個、或
   ≥3 個且子元素數相同）合成一個 `row`；列內 part 不帶文案、取聯集並記「幾列有」
+  - **頁面指名的列**（`PAGES[頁].rowSel`，`{ a6?, app? }` 的 CSS）：稿把每筆申請紀錄做成一顆獨立的 `button.rq`、沒有清單結構，
+    指名之後它就是列、列裡保留那顆按鈕（key `row>control:button`，跟 app 的 `li>button` 一樣）。
+    不用「按鈕並排就當列」的通則：週列的日期鈕、選身分的角色鈕也是同形按鈕並排，兩邊段數又不一樣，通則會讓一邊成列一邊不成
+  - **欄位組不算「資料少的日子」的列**：下面那條「稿在這一層有列、app 同層 ≥2 個同形容器也認成列」不套用在
+    `fieldset`、或有 `label[for]` 指向自己裡面欄位的容器（app 報名表的「開始日期」「備註」外框）。
+    ≥3／≥5 的一般門檻照舊 —— 成績列裡也有帶 label 的分數框
 - 列內 part 的幾何與樣式取**最常見的那種**當代表（稿的第一列可能是軸列、第一個課塊可能是「上課中」），
   並記下有幾種樣式變體；兩邊變體數不同時列成工具限制「列內狀態變體」，人工看
 - 列內有底色或框線的短字（徽章：上課中、補課、待繳費）保留文案進 key，不按位置配
@@ -93,11 +99,12 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
   只剩 1 個時認不出來，歸工具限制「資料太少」
 - landmark 與清單只認 `aria-label`，不吃整段內文
 - 同層同名加 `~2`、`~3`；設計稿自帶的翻頁膠囊（`.proto-*`）不算
+- 稿的「新」標記（`span.new`）是設計說明（a6.js 的 ddLabel 也剔掉它）：key 照常帶「新」，另外記一份拿掉它的 `alt` 給配對用
 
 ## 配對（`lib/diff.mjs` 的 `matchParts`）
 
 1. `PAGES[頁].mapping`（A6 key → app key）
-2. 完整 key 相同
+2. 完整 key 相同；再用稿的 `alt`（拿掉「新」）比一次。下面的後綴配對也用 `alt`
 3. key 後綴唯一：由短到長，有歧義就多帶一層祖先；依序比「嚴格」→「同類角色」
    （searchbox／textbox／combobox 同算輸入框）→「只看文案」（章名 A6 是 `div`、app 是 `h2` 也配得上）
    →「拿掉 `list` 那層」（稿的 div 列對 app 的 ul／li 列）。完全不帶文案的短後綴（`text:span`、

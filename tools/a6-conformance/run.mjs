@@ -62,6 +62,7 @@ function side(page, source, w, rowParents = []) {
     prep: cfg.prep?.[source],
     clock: source === 'app' ? cfg.clock : undefined,
     rowParents,
+    rowSel: cfg.rowSel?.[source],
   };
 }
 const grab = (page, source, w, rowParents) => capture(browser, side(page, source, w, rowParents));

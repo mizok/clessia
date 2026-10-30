@@ -29,6 +29,10 @@ export function matchParts(a6, app, mapping = {}) {
     if (a6.some((p) => p.key === ak) && appKeys.has(bk)) take(ak, bk);
   for (const p of a6)
     if (!pairs.has(p.key) && appKeys.has(p.key) && !used.has(p.key)) take(p.key, p.key);
+  // 稿的「新」標記（span.new）是設計說明：拿掉它的 key（extract 的 alt）再配一次，後綴配對也用它
+  const keyOf = (p) => p.alt ?? p.key;
+  for (const p of a6)
+    if (!pairs.has(p.key) && p.alt && appKeys.has(p.alt) && !used.has(p.alt)) take(p.key, p.alt);
 
   // 每一輪的正規化作用在整串 segment 上。最後一輪拿掉 `list`：app 用 ul/li、稿用 div 格線（R7），
   // 同一列在兩邊只差多一層 list
@@ -48,7 +52,7 @@ export function matchParts(a6, app, mapping = {}) {
         const group = (list) => {
           const m = new Map();
           for (const p of list) {
-            const s = norm(segs(p.key));
+            const s = norm(segs(keyOf(p)));
             if (s.length < n) continue;
             // 完全不帶文案的短後綴（「text:span」「control:button>text:span」）是弱證據：
             // 剩下沒配上的 part 很少時它常常「剛好唯一」，配到別的列裡去。要延伸到有文案的段、或整串 key

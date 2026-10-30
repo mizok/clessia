@@ -75,3 +75,75 @@ test('列內 part 記「相對所在列」的位置（代表取自不同列也�
   assert.ok(Array.isArray(btn.rowRel));
   assert.ok(btn.rowRel[1] >= 0 && btn.rowRel[1] < 60);
 });
+
+test('欄位組（label[for] 指向自己裡面的欄位、fieldset）不是列，就算稿在這一層有列', async () => {
+  const page = await browser.newPage();
+  // app 的報名表：兩個同簽名的欄位外框（開始日期、備註），稿在 form 這一層有開課班的列
+  await page.setContent(
+    '<main><form>' +
+      '<div class="f"><label for="d">希望哪天開始上</label><input id="d" type="date"></div>' +
+      '<div class="f"><label for="n">備註</label><input id="n"></div>' +
+      '</form></main>',
+  );
+  const ps = await page.evaluate(
+    extractSource({ rowParents: ['>landmark:main[]>landmark:form[]'] }),
+  );
+  await page.close();
+  assert.ok(!ps.some((p) => p.kind === 'row'));
+  assert.ok(
+    ps.some((p) => p.key === '>landmark:main[]>landmark:form[]>text:label[希望哪天開始上]'),
+  );
+  // 資料列裡有帶 label 的欄位（成績列的分數框）：≥3 個同形照樣是列，欄位組只擋提示門檻那條路
+  const scores = await parts(
+    '<main><div>' +
+      [1, 2, 3]
+        .map(
+          (i) =>
+            `<div class="r"><span>學生${i}</span><label for="s${i}">分數</label><input id="s${i}"></div>`,
+        )
+        .join('') +
+      '</div></main>',
+  );
+  assert.ok(scores.some((p) => p.kind === 'row'));
+  // 一顆一顆選項（label 包住 checkbox）照樣是列：選項不是欄位組
+  const opts = await parts(
+    '<main><div>' +
+      [1, 2, 3, 4, 5]
+        .map((i) => `<label class="o"><input type="checkbox"><span>班 ${i}</span></label>`)
+        .join('') +
+      '</div></main>',
+  );
+  assert.ok(opts.some((p) => p.kind === 'row'));
+});
+
+test('rowSel 指名的列（稿的申請紀錄 button.rq）：列裡保留那顆按鈕，跟 app 的 li＞button 同 key', async () => {
+  const rq = (t) =>
+    `<button class="rq"><span>${t}</span><span>待審核</span><span>9/30 送出</span></button>`;
+  const html = `<main><div>${['國一國文', '國二英文', '國三數學'].map(rq).join('')}</div></main>`;
+  const page = await browser.newPage();
+  await page.setContent(html);
+  const plain = await page.evaluate(extractSource({}));
+  const a6 = await page.evaluate(extractSource({ rowSel: 'button.rq' }));
+  await page.close();
+  // 沒指名：按鈕不當列（按鈕兩三顆並排太常見：週列的日期鈕、選身分的角色鈕）
+  assert.ok(!plain.some((p) => p.key === '>landmark:main[]>row'));
+  const app = await parts(
+    `<main><ul>${['國一國文', '國二英文', '國三數學'].map((t) => `<li>${rq(t)}</li>`).join('')}</ul></main>`,
+  );
+  const tail = (ps) =>
+    ps.filter((p) => p.key.endsWith('>row>control:button')).map((p) => p.key.replace('>list', ''));
+  assert.deepEqual(tail(a6), ['>landmark:main[]>row>control:button']);
+  assert.deepEqual(tail(app), tail(a6));
+  assert.equal(a6.find((p) => p.kind === 'row').inRows, 3);
+});
+
+test('稿的「新」標記（span.new）：另記一份不含「新」的 key 給配對用，原本的 key 不變', async () => {
+  const ps = await parts('<main><button>批次請假<span class="new">新</span></button></main>');
+  const b = ps.find((p) => p.kind === 'control');
+  assert.equal(b.key, '>landmark:main[]>control:button[批次請假新]');
+  assert.equal(b.alt, '>landmark:main[]>control:button[批次請假]');
+  const n = ps.find((p) => p.tpl === '新');
+  assert.equal(n.alt, '>landmark:main[]>control:button[批次請假]>text:span[新]');
+  // 沒有「新」的 part 不記 alt
+  assert.ok(!(await parts('<main><button>批次請假</button></main>')).some((p) => p.alt));
+});
