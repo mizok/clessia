@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, Subject, of, throwError } from 'rxjs';
@@ -79,6 +80,7 @@ describe('StaffPage', () => {
     await TestBed.configureTestingModule({
       imports: [StaffPage],
       providers: [
+        provideRouter([]),
         {
           provide: StaffService,
           useValue: staffServiceMock,

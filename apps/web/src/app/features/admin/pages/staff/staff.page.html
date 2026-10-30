@@ -196,26 +196,36 @@
                   [attr.data-staff]="staff.id"
                   [style.view-transition-name]="'staff-' + staff.id"
                 >
+                  <!-- A6 `.pp`：姓名（點開編輯）＋還沒登入過＋Email｜角色＋權限｜科目＋分校｜狀態＋電話｜⋯ -->
                   <div class="col-start-1 min-w-0 wide:col-auto">
-                    <!-- 姓名＋Email 是同一個點擊目標（一塊 ≥44px），點開編輯 -->
                     <button
                       type="button"
-                      class="group/name flex min-h-11 w-full max-w-full cursor-pointer flex-col justify-center border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-accent-500"
+                      class="min-h-11 cursor-pointer border-0 bg-transparent p-0 text-left text-lg leading-normal font-bold underline-offset-[3px] hover:underline focus-visible:outline-2 focus-visible:outline-accent-500 wide:min-h-0"
+                      [class.text-zinc-900]="staff.status === 'active'"
+                      [class.text-zinc-600]="staff.status !== 'active'"
                       [attr.aria-label]="staff.displayName + ' 的編輯'"
                       (click)="openEdit(staff)"
                     >
-                      <span
-                        class="truncate text-lg font-bold underline-offset-4 group-hover/name:underline"
-                        [class.text-zinc-900]="staff.status === 'active'"
-                        [class.text-zinc-600]="staff.status !== 'active'"
-                        >{{ staff.displayName }}</span
-                      >
-                      <span class="truncate text-sm text-zinc-600">{{ staff.email }}</span>
+                      {{ staff.displayName }}
                     </button>
+                    <!-- #1100 #38（同家長列表）：只標啟用中的人；機台不是人在登入，不標 -->
+                    @if (
+                      staff.hasLoggedIn === false &&
+                      staff.status === 'active' &&
+                      !staff.roles.includes('kiosk')
+                    ) {
+                      <span
+                        class="ml-1 inline-flex h-[22px] items-center rounded-full bg-zinc-100 px-2 text-sm font-semibold whitespace-nowrap text-zinc-800"
+                        >還沒登入過</span
+                      >
+                    }
+                    <span class="mt-0.5 block text-sm [overflow-wrap:anywhere] text-zinc-600">{{
+                      staff.email
+                    }}</span>
                   </div>
 
                   <div
-                    class="col-start-1 flex flex-wrap items-center gap-x-2 gap-y-1 wide:col-auto"
+                    class="col-start-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 wide:col-auto"
                   >
                     @for (role of staff.roles; track role) {
                       @if (role === 'admin') {
@@ -230,21 +240,10 @@
                         >
                       }
                     }
-                    <!-- #1100 #38（同家長列表）：只標啟用中的人；機台不是人在登入，不標 -->
-                    @if (
-                      staff.hasLoggedIn === false &&
-                      staff.status === 'active' &&
-                      !staff.roles.includes('kiosk')
-                    ) {
-                      <span
-                        class="shrink-0 rounded-full border border-solid border-zinc-300 px-2 text-xs leading-5 whitespace-nowrap text-zinc-600"
-                        >還沒登入過</span
-                      >
-                    }
                     @if (staff.roles.includes('admin')) {
                       <button
                         type="button"
-                        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:decoration-current"
+                        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm leading-normal text-zinc-700 underline decoration-zinc-300 underline-offset-[3px] hover:decoration-current wide:inline-block wide:min-h-0"
                         [attr.data-testid]="'permission-count-' + staff.id"
                         (click)="openPermissionList(staff)"
                       >
@@ -263,31 +262,40 @@
                     [class.text-zinc-600]="staff.status !== 'active'"
                   >
                     {{ getSubjectsText(staff) }}
-                    <span class="mt-0.5 block text-sm text-zinc-600">{{
-                      getCampusNames(staff.campusIds)
-                    }}</span>
+                    <!-- 稿的分校是連到分校設定的連結 -->
+                    <small class="mt-0.5 block text-sm text-zinc-600 tabular-nums">
+                      @for (
+                        name of campusNameList(staff.campusIds);
+                        track $index;
+                        let last = $last
+                      ) {
+                        <a
+                          routerLink="/admin/settings/campuses"
+                          class="text-inherit underline decoration-zinc-300 underline-offset-[3px]"
+                          >{{ name }}</a
+                        >{{ last ? '' : '、' }}
+                      }
+                    </small>
                   </div>
 
-                  <div class="col-start-1 min-w-0 wide:col-auto">
-                    <span class="text-md font-semibold">{{
-                      getStaffStatusText(staff.status)
-                    }}</span>
+                  <div class="col-start-1 min-w-0 text-md font-semibold wide:col-auto">
+                    {{ getStaffStatusText(staff.status) }}
                     @if (staff.phone) {
-                      <span class="mt-0.5 block text-sm text-zinc-600 tabular-nums">{{
+                      <small class="mt-0.5 block text-sm font-normal text-zinc-600 tabular-nums">{{
                         staff.phone
-                      }}</span>
+                      }}</small>
                     }
                   </div>
 
                   <div class="col-start-2 row-start-1 wide:col-auto wide:row-auto">
-                    <p-button
-                      icon="pi pi-ellipsis-h"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="secondary"
-                      [ariaLabel]="staff.displayName + ' 的更多動作'"
-                      (onClick)="openActionMenu($event, staff)"
-                    />
+                    <button
+                      type="button"
+                      class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-accent-500 wide:size-10"
+                      [attr.aria-label]="staff.displayName + ' 的更多動作'"
+                      (click)="openActionMenu($event, staff)"
+                    >
+                      <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+                    </button>
                   </div>
                 </div>
               }
