@@ -37,7 +37,7 @@
             pInputText
             class="tbar-control w-full pl-9"
             placeholder="找課程或班級名稱"
-            aria-label="搜尋課程或班級"
+            aria-label="搜尋課程"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
           />
@@ -53,9 +53,6 @@
         <button
           type="button"
           class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-          [attr.aria-label]="
-            activeFilterCount() > 0 ? '篩選（' + activeFilterCount() + ' 個條件）' : '篩選'
-          "
           aria-haspopup="dialog"
           [attr.aria-expanded]="filtersOpen()"
           (click)="onFilterBtnClick($event)"

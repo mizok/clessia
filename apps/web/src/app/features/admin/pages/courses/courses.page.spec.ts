@@ -671,7 +671,7 @@ describe('CoursesPage', () => {
     it('搜尋框沒有可見標籤，但有 aria-label', () => {
       setup();
       expect(el().querySelector('label > span.text-sm.font-semibold')).toBeNull();
-      expect(el().querySelector('input[aria-label="搜尋課程或班級"]')).not.toBeNull();
+      expect(el().querySelector('input[aria-label="搜尋課程"]')).not.toBeNull();
     });
 
     it('操作紀錄是全站共用的時鐘圖示鈕（#2006），名稱給螢幕閱讀器', () => {
@@ -682,7 +682,7 @@ describe('CoursesPage', () => {
 
     it('點浮層外面關掉後，「篩選」鈕的 aria-expanded 回到 false（onHide 回寫）', () => {
       setup();
-      const btn = el().querySelector('button[aria-label^="篩選"]') as HTMLButtonElement;
+      const btn = el().querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
       expect(btn.getAttribute('aria-expanded')).toBe('false');
       btn.click();
       fixture.detectChanges();
@@ -696,7 +696,7 @@ describe('CoursesPage', () => {
 
     it('篩選鈕寫目前狀態：沒條件「全部」；有條件「N 項」', () => {
       setup();
-      const btn = () => norm(el().querySelector('button[aria-label^="篩選"]'));
+      const btn = () => norm(el().querySelector('button[aria-haspopup="dialog"]'));
       expect(btn()).toBe('篩選：全部');
 
       component['selectedSubjectId'].set('s-zh');
@@ -879,9 +879,9 @@ describe('CoursesPage', () => {
 
     it('搜尋框 placeholder 照稿；「篩選」在右群組（page-actions 裡），操作紀錄是時鐘', () => {
       setup();
-      const input = el().querySelector('input[aria-label="搜尋課程或班級"]') as HTMLInputElement;
+      const input = el().querySelector('input[aria-label="搜尋課程"]') as HTMLInputElement;
       expect(input.placeholder).toBe('找課程或班級名稱');
-      expect(el().querySelector('app-page-actions button[aria-label^="篩選"]')).not.toBeNull();
+      expect(el().querySelector('app-page-actions button[aria-haspopup="dialog"]')).not.toBeNull();
       expect(el().querySelector('button[title="操作紀錄"] .pi-clock')).not.toBeNull();
     });
 

@@ -654,6 +654,15 @@ export const PAGES = {
     app: '/admin/courses',
     a6Open: opensOf('courses', 'a6Open'),
     appOpen: opensOf('courses', 'appOpen'),
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 grades-class #1762 那條
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋課程\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+    ],
   },
   class: {
     a6: 'class.html',
