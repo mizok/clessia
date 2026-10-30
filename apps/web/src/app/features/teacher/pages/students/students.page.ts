@@ -9,16 +9,12 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
-import { IconFieldModule } from 'primeng/iconfield';
-import { InputIconModule } from 'primeng/inputicon';
-import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
 import { forkJoin, map, mergeMap, of, type Observable } from 'rxjs';
 
 import { GRADE_LEVEL_LABELS, StudentsService, type Student } from '@core/students.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
 /** 列表 API 單頁上限（`students.ts` 的 `max(100)`） */
@@ -34,16 +30,7 @@ interface ClassGroup {
 
 @Component({
   selector: 'app-students',
-  imports: [
-    TextSwapDirective,
-    SkeletonComponent,
-    FormsModule,
-    IconFieldModule,
-    InputIconModule,
-    InputTextModule,
-    SelectModule,
-    PageOpenComponent,
-  ],
+  imports: [TextSwapDirective, SkeletonComponent, SelectFieldComponent, PageOpenComponent],
   templateUrl: './students.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -190,8 +190,9 @@
                         }
                       </span>
                     </span>
+                    <!-- 稿的 .pd-row__tags 不設 align-items：標籤撐滿分數那一行的高（33px），不是貼基線 -->
                     <span
-                      class="col-start-2 flex flex-wrap items-baseline gap-2 wide:col-start-auto wide:justify-end"
+                      class="col-start-2 flex flex-wrap gap-2 wide:col-start-auto wide:justify-end"
                     >
                       @if (x.score !== null) {
                         <span class="text-2xl font-bold tracking-[-0.02em] tabular-nums"

@@ -353,6 +353,13 @@ export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
 const SELECT_FIELD = 'app-select-field（p-select＋pt）對 A6 .dd：結構不同、外觀對齊';
 const SELECT_FIELD_SOURCE =
   'apps/web/src/app/shared/components/select-field/select-field.component.ts（#991 P1 選項 A）';
+/** 工具列的 A6 下拉（app-select-field）換掉 p-select 之後：稿的 .dd 按鈕 ↔ app 的 combobox＋PrimeNG 箭頭鈕 */
+const selectFieldDeviations = (names) =>
+  [
+    { status: '缺', a6: `control:button\\[(${names})：[^\\]]*\\](>text:span\\[[^\\]]*\\])?$` },
+    { status: '多', app: `control:combobox\\[(${names})\\]$` },
+    { status: '多', app: 'control:button\\[dropdown trigger\\](~\\d+)?$' },
+  ].map((d) => ({ ...d, reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE }));
 /**
  * 公開頁（登入、選身分、試聽、報名）的品牌面：補習班名稱當主標，Clessia 退成一行小字併「· 學程管家」
  * （稿是大字 Clessia、下面一行學程管家）。字標兩顆的文案、尺寸、樣式，以及多出來的「· 學程管家」字。
@@ -408,6 +415,15 @@ const INBOX_DEVIATIONS = [
     reason: '資料：那一天 seed 的通知比稿多一則',
     source: INBOX_DATA_SOURCE,
   },
+  // 未讀數包一層 span 給數字變化的動效（稿的 strong 直接是字）：字一樣，工具拆成缺＋多
+  ...[
+    { status: '缺', a6: '>text:strong\\[#則未讀\\]$' },
+    { status: '多', app: '>landmark:main\\[\\]>text:strong\\[則未讀\\]$' },
+  ].map((d) => ({
+    ...d,
+    reason: '未讀數的數字包一層（數字變化：新值從下方淡入，掛在只包數字的元素上）',
+    source: 'kb/wiki/architecture/motion.md:150（數字變化：套到未讀數）',
+  })),
 ];
 const PUBLIC_FORM_DEVIATIONS = [
   {
@@ -547,6 +563,27 @@ export const PAGES = {
       },
     ],
   },
+  // 課表勾一堂之後的批次動作列（#1314 S7）：列只在勾了課才出現，手機沒有這條（在快速選取面板裡）
+  'schedule-batch': {
+    a6: 'schedule.html',
+    app: '/admin/sessions',
+    prep: {
+      // 稿的勾選框 hover 課塊才出現（schedule.css:50-53）
+      a6: [
+        { hover: '.gb', widths: [1440] },
+        { click: { role: 'checkbox', name: '^勾 ' }, settle: 500, widths: [1440] },
+      ],
+      app: [{ click: { role: 'checkbox', name: '^勾 ' }, settle: 800, widths: [1440] }],
+    },
+    deviations: [
+      {
+        status: '多',
+        app: 'control:button\\[(上一週|下一週)\\]$',
+        reason: '換週箭頭：收不進「⋯」的入口，保留',
+        source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
+      },
+    ],
+  },
   billing: {
     a6: 'billing.html',
     app: '/admin/payments',
@@ -654,6 +691,28 @@ export const PAGES = {
     app: '/admin/courses',
     a6Open: opensOf('courses', 'a6Open'),
     appOpen: opensOf('courses', 'appOpen'),
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 grades-class #1762 那條
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋課程\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),      {
+        // 批次選取（#1226 courses C1 Q3 照留）：現況有、稿沒畫，收進工具列「⋯」—— 同帳單那條
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${rule('R2')}；#1226`,
+      },      {
+        // 課程列：稿是 <details><summary>，summary 裡包「新增班」「⋯」按鈕（summary 是按鈕角色，裡面不能再放按鈕）；
+        // app 是展開鈕＋並排的動作鈕，每門課一個 region（計畫席 10-30 #2078 同意）。結構不同，課程列裡的子項配不上，一起歸這條
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:region\\[[^\\]]*\\]>landmark:region\\[[^\\]]*\\](>.*)?$',
+        reason: '課程列結構依元件行為：展開鈕＋並排動作鈕，不把按鈕包進 summary',
+        source: `${rule('R7')}；https://github.com/mizok/clessia/pull/2078`,
+      },
+    ],
   },
   class: {
     a6: 'class.html',
@@ -741,6 +800,8 @@ export const PAGES = {
     app: '/parent/add-course',
     state: PARENT_STATE,
     prep: PARENT_PREP,
+    // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
+    deviations: selectFieldDeviations('科目|星期'),
   },
   // 家長端續課資訊（計畫席 10-22）：只量「沒有即將到來的續課」那一態 —— 本機 seed 沒有未來的繳費期，
   // app 只畫得出這一態；稿的有續課那一態要有下期資料才量得了（偏離見 R5 2026-10-22）
@@ -831,6 +892,34 @@ export const PAGES = {
     app: '/admin/staff',
     a6Open: opensOf('staff', 'a6Open'),
     appOpen: opensOf('staff', 'appOpen'),
+    // 章名「已停用」跟列裡的狀態字同文案，自動配對會把稿的章名配到列的狀態字
+    mapping: {
+      '>landmark:main[]>landmark:region[已停用]>text:div[已停用]':
+        '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
+    },
+    deviations: [
+      // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 courses、grades-class
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[搜尋人員\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      // 稿是文字鈕「操作紀錄」；全站統一成工具列的時鐘圖示鈕
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:button\\[操作紀錄\\]$',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕',
+        source: '使用者 10-23 裁定 #2006（#2014）',
+      })),
+      {
+        // 新增掃碼機台（#1127）：現況有、稿沒畫，收進頁面「⋯」—— 同帳單、課程那條
+        status: '多',
+        app: 'control:button\\[更多動作\\]$',
+        reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
+        source: `${rule('R2')}；#1127`,
+      },
+    ],
   },
   'fee-templates': { a6: 'fee-templates.html', app: '/admin/fee-templates' },
   notifications: {
@@ -1217,6 +1306,34 @@ export const PAGES = {
     a6: 't-schedule.html',
     app: '/teacher/schedule',
     state: path.join(cache, 'state-teacher.json'),
+    deviations: [
+      {
+        // 拿掉的話 app 的週列會跑到 main 底下、跟稿的課卡搶配對（app 的 main 包住色面與工具列，#1591）
+        status: '多',
+        app: '>landmark:main\\[\\]>landmark:navigation\\[本週各日\\]$',
+        reason: '週條是換日、換週的導覽，用 nav landmark（稿是 div）',
+        source: `${rule('R7')}`,
+      },
+      // 量測帳號 teacher0001 的機構是行政負責點名：統計列第一格換成「本週的課 N 堂」。
+      // 老師負責點名時照稿顯示「N 堂待點名（隨堂）」（schedule.page.html 的 isTeacherLed 分支；
+      // schedule.page.spec.ts「teacher 模式：同一堂課才叫『漏點名』」守著）
+      ...[
+        {
+          status: '文案',
+          a6: '>landmark:region\\[這一頁的摘要\\]>text:dt\\[堂待點名（隨堂）\\]$',
+          detail: '^「堂待點名（隨堂）」→「本週的課」$',
+        },
+        {
+          status: '多',
+          app: '>landmark:region\\[這一頁的摘要\\]>text:dd\\[#\\]>text:small\\[堂\\]$',
+        },
+      ].map((d) => ({
+        ...d,
+        reason:
+          '行政負責點名時老師沒有點名入口，統計列不放待點名、改放本週的課；老師負責點名時照稿',
+        source: 'kb/wiki/rules/attendance-rules.md:60-65（點名責任歸屬，#920）；計畫席 10-30 裁定',
+      })),
+    ],
   },
   't-notifications': {
     a6: 't-notifications.html',
@@ -1490,5 +1607,7 @@ export const PAGES = {
     a6: 't-students.html',
     app: '/teacher/students',
     state: path.join(cache, 'state-teacher.json'),
+    // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
+    deviations: selectFieldDeviations('班級'),
   },
 };

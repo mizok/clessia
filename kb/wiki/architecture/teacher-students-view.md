@@ -53,6 +53,9 @@ Teacher attendance content coming soon...
   格子、統計、下一堂都從縮過的母體算
 - `GET /students` 的今日到班（`todayStatus`）：今天的課只取老師任課的班。他的學生今天只有別班的課
   → `null`（今天沒他的課），不是別班那堂的狀態
+- `GET /students` 的班名（`classNames`）：只留老師任課的班（計畫席 2026-10-30）。原本照學生全部的在籍報名組，
+  老師學生頁又照它分章，他的學生也上別人的班時，畫面多出那些他沒教的班（本機 teacher0004 多 4 班）。
+  `contract/students-class-names-scope.contract.ts` 守；管理員照舊
 
 **縮在母體，不是撈了再遮**：撈全部再從回應裡刪，下一個加欄位的人會忘記刪那一欄。
 

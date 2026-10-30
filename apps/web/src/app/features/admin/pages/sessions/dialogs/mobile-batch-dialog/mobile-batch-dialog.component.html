@@ -12,10 +12,26 @@
       <button
         type="button"
         class="group flex min-h-11 cursor-pointer items-center gap-3 rounded-r-md border border-l-[3px] border-zinc-200 border-l-transparent bg-transparent px-4 py-3 text-md text-zinc-700 [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
+        (click)="selectAction('sub')"
+      >
+        <i class="pi pi-sync text-lg text-accent-600 group-hover:text-accent-500"></i>
+        <span>批次代課</span>
+      </button>
+      <button
+        type="button"
+        class="group flex min-h-11 cursor-pointer items-center gap-3 rounded-r-md border border-l-[3px] border-zinc-200 border-l-transparent bg-transparent px-4 py-3 text-md text-zinc-700 [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
         (click)="selectAction('time')"
       >
         <i class="pi pi-clock text-lg text-accent-600 group-hover:text-accent-500"></i>
         <span>修改時間</span>
+      </button>
+      <button
+        type="button"
+        class="group flex min-h-11 cursor-pointer items-center gap-3 rounded-r-md border border-l-[3px] border-zinc-200 border-l-transparent bg-transparent px-4 py-3 text-md text-zinc-700 [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
+        (click)="selectAction('move')"
+      >
+        <i class="pi pi-calendar text-lg text-accent-600 group-hover:text-accent-500"></i>
+        <span>改到別天</span>
       </button>
       <button
         type="button"
@@ -81,13 +97,87 @@
           />
         </div>
       }
+      @case ('move') {
+        <!-- A6 schedule.js `move`：改到同一週的週幾＋新的時段，逐堂留調課紀錄 -->
+        <h4 class="m-0 text-md font-semibold text-zinc-800">
+          把 {{ selectedCount() }} 堂課改到別天
+        </h4>
+        <div class="flex items-center gap-3">
+          <label class="min-w-10 text-sm font-semibold text-zinc-600" for="batch-move-wd"
+            >改到</label
+          >
+          <p-select
+            inputId="batch-move-wd"
+            [options]="weekdayOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="batchWeekday()"
+            (ngModelChange)="batchWeekday.set($event)"
+            appendTo="body"
+          />
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="min-w-10 text-sm font-semibold text-zinc-600">開始</label>
+          <input
+            pInputText
+            type="time"
+            step="900"
+            [ngModel]="batchStartTime()"
+            (ngModelChange)="batchStartTime.set($event)"
+          />
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="min-w-10 text-sm font-semibold text-zinc-600">結束</label>
+          <input
+            pInputText
+            type="time"
+            step="900"
+            [ngModel]="batchEndTime()"
+            (ngModelChange)="batchEndTime.set($event)"
+          />
+        </div>
+        <input
+          pInputText
+          placeholder="原因（選填）"
+          [ngModel]="batchReason()"
+          (ngModelChange)="batchReason.set($event)"
+          class="w-full"
+        />
+        <p class="m-0 text-sm text-zinc-600">每一堂改到同一週的那一天；會留調課紀錄。</p>
+      }
+      @case ('sub') {
+        <!-- A6 schedule.js `sub`：跟「指派老師」不同，逐堂留代課紀錄（課表寫「代課・原 X」） -->
+        <h4 class="m-0 text-md font-semibold text-zinc-800">
+          幫 {{ selectedCount() }} 堂課找人代課
+        </h4>
+        <p-select
+          [options]="teachers()"
+          optionLabel="displayName"
+          optionValue="id"
+          placeholder="選一位代課老師"
+          [filter]="true"
+          filterBy="displayName"
+          [ngModel]="batchTeacherId()"
+          (ngModelChange)="batchTeacherId.set($event)"
+          appendTo="body"
+          styleClass="w-full"
+        />
+        <input
+          pInputText
+          placeholder="原因（例如：老師請假）"
+          [ngModel]="batchReason()"
+          (ngModelChange)="batchReason.set($event)"
+          class="w-full"
+        />
+        <p class="m-0 text-sm text-zinc-600">會逐堂留代課紀錄，課表上寫「代課・原任課老師」。</p>
+      }
       @case ('cancel') {
         <h4 class="m-0 text-md font-semibold text-zinc-800">停課 {{ selectedCount() }} 堂</h4>
         <input
           pInputText
           placeholder="原因（選填）"
-          [ngModel]="batchCancelReason()"
-          (ngModelChange)="batchCancelReason.set($event)"
+          [ngModel]="batchReason()"
+          (ngModelChange)="batchReason.set($event)"
           class="w-full"
         />
       }
@@ -118,7 +208,10 @@
           label="預覽"
           size="small"
           (onClick)="runPreview()"
-          [disabled]="batchMode() === 'assign' && (!batchTeacherId() || teachers().length === 0)"
+          [disabled]="
+            (batchMode() === 'assign' || batchMode() === 'sub') &&
+            (!batchTeacherId() || teachers().length === 0)
+          "
           [loading]="batchLoading()"
         />
       } @else {

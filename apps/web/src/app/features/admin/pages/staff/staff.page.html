@@ -23,7 +23,7 @@
       <p-iconField iconPosition="left">
         <p-inputIcon styleClass="pi pi-search" />
         <input
-          type="text"
+          type="search"
           pInputText
           placeholder="找姓名或 Email"
           aria-label="搜尋人員"
@@ -60,16 +60,18 @@
   <div class="pt-2 wide:pt-6">
     <button
       type="button"
-      class="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent p-0 text-left wide:hidden"
+      class="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-zinc-200 bg-transparent px-0 py-3 text-left wide:hidden"
       data-testid="filter-fold"
       aria-controls="staff-filters"
       [attr.aria-expanded]="filtersOpen()"
       (click)="filtersOpen.set(!filtersOpen())"
     >
-      <span class="text-lg font-semibold text-zinc-900">篩選</span>
-      <span class="ml-auto text-md text-zinc-600 tabular-nums" data-testid="filter-fold-meta">{{
-        filterSummary()
-      }}</span>
+      <span class="text-lg leading-normal font-semibold text-zinc-900">篩選</span>
+      <span
+        class="ml-auto text-md leading-normal text-zinc-600 tabular-nums"
+        data-testid="filter-fold-meta"
+        >{{ filterSummary() }}</span
+      >
       <i
         class="pi pi-chevron-down text-xs text-zinc-900 transition-transform"
         [class.rotate-180]="filtersOpen()"
@@ -173,47 +175,57 @@
         </p>
       }
 
-      <div class="wide:-mt-2">
+      <div>
         @for (chapter of chapters(); track chapter.key) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-2 border-b border-zinc-200 pt-6 pb-2 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="chapter.label"
             [attr.data-chapter]="chapter.key"
           >
             <app-chapter-head
-              class="block pt-6 wide:pt-4"
+              class="block"
               [name]="chapter.label"
               [listRow]="true"
               [count]="chapter.count"
               unit="位"
             />
-            <div class="wide:pt-2">
+            <div>
               @for (staff of chapter.rows; track staff.id) {
                 <div
                   class="vt-row grid grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-zinc-200 py-3 last:border-b-0 wide:min-h-[72px] wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_44px] wide:gap-x-6 wide:gap-y-1"
                   [attr.data-staff]="staff.id"
                   [style.view-transition-name]="'staff-' + staff.id"
                 >
+                  <!-- A6 `.pp`：姓名（點開編輯）＋還沒登入過＋Email｜角色＋權限｜科目＋分校｜狀態＋電話｜⋯ -->
                   <div class="col-start-1 min-w-0 wide:col-auto">
-                    <!-- 姓名＋Email 是同一個點擊目標（一塊 ≥44px），點開編輯 -->
                     <button
                       type="button"
-                      class="group/name flex min-h-11 w-full max-w-full cursor-pointer flex-col justify-center border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-accent-500"
+                      class="min-h-11 cursor-pointer border-0 bg-transparent p-0 text-left text-lg leading-normal font-bold underline-offset-[3px] hover:underline focus-visible:outline-2 focus-visible:outline-accent-500 wide:min-h-0"
+                      [class.text-zinc-900]="staff.status === 'active'"
+                      [class.text-zinc-600]="staff.status !== 'active'"
                       [attr.aria-label]="staff.displayName + ' 的編輯'"
                       (click)="openEdit(staff)"
                     >
-                      <span
-                        class="truncate text-lg font-bold underline-offset-4 group-hover/name:underline"
-                        [class.text-zinc-900]="staff.status === 'active'"
-                        [class.text-zinc-600]="staff.status !== 'active'"
-                        >{{ staff.displayName }}</span
-                      >
-                      <span class="truncate text-sm text-zinc-600">{{ staff.email }}</span>
+                      {{ staff.displayName }}
                     </button>
+                    <!-- #1100 #38（同家長列表）：只標啟用中的人；機台不是人在登入，不標 -->
+                    @if (
+                      staff.hasLoggedIn === false &&
+                      staff.status === 'active' &&
+                      !staff.roles.includes('kiosk')
+                    ) {
+                      <span
+                        class="ml-1 inline-flex h-[22px] items-center rounded-full bg-zinc-100 px-2 text-sm font-semibold whitespace-nowrap text-zinc-800"
+                        >還沒登入過</span
+                      >
+                    }
+                    <span class="mt-0.5 block text-sm [overflow-wrap:anywhere] text-zinc-600">{{
+                      staff.email
+                    }}</span>
                   </div>
 
                   <div
-                    class="col-start-1 flex flex-wrap items-center gap-x-2 gap-y-1 wide:col-auto"
+                    class="col-start-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 wide:col-auto"
                   >
                     @for (role of staff.roles; track role) {
                       @if (role === 'admin') {
@@ -228,21 +240,10 @@
                         >
                       }
                     }
-                    <!-- #1100 #38（同家長列表）：只標啟用中的人；機台不是人在登入，不標 -->
-                    @if (
-                      staff.hasLoggedIn === false &&
-                      staff.status === 'active' &&
-                      !staff.roles.includes('kiosk')
-                    ) {
-                      <span
-                        class="shrink-0 rounded-full border border-solid border-zinc-300 px-2 text-xs leading-5 whitespace-nowrap text-zinc-600"
-                        >還沒登入過</span
-                      >
-                    }
                     @if (staff.roles.includes('admin')) {
                       <button
                         type="button"
-                        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm text-zinc-700 underline decoration-zinc-300 underline-offset-4 hover:decoration-current"
+                        class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm leading-normal text-zinc-700 underline decoration-zinc-300 underline-offset-[3px] hover:decoration-current wide:inline-block wide:min-h-0"
                         [attr.data-testid]="'permission-count-' + staff.id"
                         (click)="openPermissionList(staff)"
                       >
@@ -261,31 +262,40 @@
                     [class.text-zinc-600]="staff.status !== 'active'"
                   >
                     {{ getSubjectsText(staff) }}
-                    <span class="mt-0.5 block text-sm text-zinc-600">{{
-                      getCampusNames(staff.campusIds)
-                    }}</span>
+                    <!-- 稿的分校是連到分校設定的連結 -->
+                    <small class="mt-0.5 block text-sm text-zinc-600 tabular-nums">
+                      @for (
+                        name of campusNameList(staff.campusIds);
+                        track $index;
+                        let last = $last
+                      ) {
+                        <a
+                          routerLink="/admin/settings/campuses"
+                          class="inline-flex min-h-11 items-center text-inherit underline decoration-zinc-300 underline-offset-[3px] wide:inline wide:min-h-0"
+                          >{{ name }}</a
+                        >{{ last ? '' : '、' }}
+                      }
+                    </small>
                   </div>
 
-                  <div class="col-start-1 min-w-0 wide:col-auto">
-                    <span class="text-md font-semibold">{{
-                      getStaffStatusText(staff.status)
-                    }}</span>
+                  <div class="col-start-1 min-w-0 text-md font-semibold wide:col-auto">
+                    {{ getStaffStatusText(staff.status) }}
                     @if (staff.phone) {
-                      <span class="mt-0.5 block text-sm text-zinc-600 tabular-nums">{{
+                      <small class="mt-0.5 block text-sm font-normal text-zinc-600 tabular-nums">{{
                         staff.phone
-                      }}</span>
+                      }}</small>
                     }
                   </div>
 
                   <div class="col-start-2 row-start-1 wide:col-auto wide:row-auto">
-                    <p-button
-                      icon="pi pi-ellipsis-h"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="secondary"
-                      [ariaLabel]="staff.displayName + ' 的更多動作'"
-                      (onClick)="openActionMenu($event, staff)"
-                    />
+                    <button
+                      type="button"
+                      class="grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-accent-500 wide:size-10"
+                      [attr.aria-label]="staff.displayName + ' 的更多動作'"
+                      (click)="openActionMenu($event, staff)"
+                    >
+                      <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+                    </button>
                   </div>
                 </div>
               }

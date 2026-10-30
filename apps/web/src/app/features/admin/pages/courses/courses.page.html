@@ -37,7 +37,7 @@
             pInputText
             class="tbar-control w-full pl-9"
             placeholder="找課程或班級名稱"
-            aria-label="搜尋課程或班級"
+            aria-label="搜尋課程"
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
           />
@@ -52,10 +52,7 @@
         <!-- A6 右群組：篩選｜（清除篩選）｜操作紀錄（時鐘）｜⋯（批次選取，桌機；手機放在課程列的「⋯」）｜新增課程 -->
         <button
           type="button"
-          class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-          [attr.aria-label]="
-            activeFilterCount() > 0 ? '篩選（' + activeFilterCount() + ' 個條件）' : '篩選'
-          "
+          class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
           aria-haspopup="dialog"
           [attr.aria-expanded]="filtersOpen()"
           (click)="onFilterBtnClick($event)"
@@ -96,19 +93,20 @@
   @if (interventionCount() > 0 || statusFilter() === 'intervention') {
     <div
       data-testid="intervention"
-      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
+      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 px-4 py-3 text-base"
     >
-      <p appTextSwap class="m-0">
+      <span appTextSwap>
         <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
         @if (statusFilter() === 'intervention') {
-          只看需介入的 <b>{{ interventionCount() }}</b> 個班
+          只看需介入的 <strong>{{ interventionCount() }}</strong> 個班
         } @else {
-          <b>需介入 {{ interventionCount() }} 個班</b>：沒有未來的課堂，家長看不到下一堂。
+          <strong>需介入 {{ interventionCount() }} 個班</strong>：沒有未來的課堂，家長看不到下一堂。
         }
-      </p>
+      </span>
+      <!-- A6 .btn--sm：桌機 30，手機 44（R3） -->
       <button
         type="button"
-        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-[30px]"
         (click)="
           statusFilter() === 'intervention' ? onStatusFilterChange(null) : onFilterIntervention()
         "
@@ -179,12 +177,12 @@
         <!-- 依科目分章（#1314 C1，A6 chap--row）：桌機左欄科目名＋張數，右邊是課程列 -->
         @for (chapter of chapters(); track chapter.subjectId + chapter.groups[0].course.id) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-3 border-b border-zinc-200 py-6 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="chapter.subjectName"
             [attr.data-chapter]="chapter.subjectId"
           >
             <app-chapter-head
-              class="block pt-6 wide:pt-8"
+              class="block"
               [name]="chapter.subjectName"
               [count]="chapter.tally"
               unit="門"

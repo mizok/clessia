@@ -76,8 +76,13 @@
               [name]="chapter.name"
               [count]="chapter.items.length"
               [stacked]="true"
-              [unit]="chapter.unread > 0 ? '則 · 未讀 ' + chapter.unread : '則'"
-            />
+              unit="則"
+            >
+              <!-- A6 `.chap__tally span`：「· 未讀 N」是小字補充，不跟則數同字級 -->
+              @if (chapter.unread > 0) {
+                · 未讀 {{ chapter.unread }}
+              }
+            </app-chapter-head>
             <div>
               @for (item of chapter.items; track keyOf(item)) {
                 <!-- A6 `.nt`：未讀＝橘點＋粗體（不用紅，紅留給錯誤與逾期）；一次只開一則 -->
