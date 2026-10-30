@@ -1243,6 +1243,7 @@ DO $$
 DECLARE
   demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
   v_student UUID;
+  v_i INT;
 BEGIN
   -- (b) 還在開課的班掛「國中主科月繳」當目錄參考價（議價照舊在報名上）
   UPDATE public.classes c
@@ -1258,6 +1259,34 @@ BEGIN
       FROM generate_series(date_trunc('month', current_date)::date, current_date, interval '1 day') AS d
      WHERE extract(isodow FROM d) < 6
     ON CONFLICT (student_id, meal_date) DO NOTHING;
+
+    -- (c) 前兩個月各一張已結算的餐費（#1314 10-30）：稿的餐費頁是「這個月還沒結算」＋前幾個月「已併入帳單」，
+    --     原本張宇軒只有本月的，預設「近 3 個月」只剩一個月份區塊，量不到月份之間的版面
+    FOR v_i IN 1..2 LOOP
+      DECLARE
+        v_month DATE := (date_trunc('month', current_date) - make_interval(months => v_i))::date;
+        v_note TEXT := '展示用：' || extract(month FROM v_month) || ' 月餐費';
+        v_inv UUID;
+        v_item UUID;
+      BEGIN
+        INSERT INTO public.invoices (org_id, student_id, issued_at, due_date, note)
+        SELECT demo_org_id, v_student, (v_month + interval '1 month')::date, (v_month + interval '1 month 14 days')::date, v_note
+        WHERE NOT EXISTS (SELECT 1 FROM public.invoices WHERE student_id = v_student AND note = v_note);
+        SELECT id INTO v_inv FROM public.invoices WHERE student_id = v_student AND note = v_note LIMIT 1;
+        INSERT INTO public.invoice_items (invoice_id, type, amount, note)
+        SELECT v_inv, 'meal'::public.invoice_item_type, 65 * 8, v_note
+        WHERE NOT EXISTS (SELECT 1 FROM public.invoice_items WHERE invoice_id = v_inv);
+        SELECT id INTO v_item FROM public.invoice_items WHERE invoice_id = v_inv LIMIT 1;
+        -- 那個月前 8 個平日
+        INSERT INTO public.meal_records (org_id, student_id, meal_date, ordered, chargeable, unit_price, invoice_item_id, note)
+        SELECT demo_org_id, v_student, d::date, TRUE, TRUE, 65, v_item, '展示用：已結算'
+          FROM generate_series(v_month, v_month + interval '20 days', interval '1 day') AS d
+         WHERE extract(isodow FROM d) < 6
+         ORDER BY d
+         LIMIT 8
+        ON CONFLICT (student_id, meal_date) DO NOTHING;
+      END;
+    END LOOP;
   END IF;
 END $$;
 
