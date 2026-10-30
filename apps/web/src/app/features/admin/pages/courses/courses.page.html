@@ -93,19 +93,20 @@
   @if (interventionCount() > 0 || statusFilter() === 'intervention') {
     <div
       data-testid="intervention"
-      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
+      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 px-4 py-3 text-base"
     >
-      <p appTextSwap class="m-0">
+      <span appTextSwap>
         <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
         @if (statusFilter() === 'intervention') {
-          只看需介入的 <b>{{ interventionCount() }}</b> 個班
+          只看需介入的 <strong>{{ interventionCount() }}</strong> 個班
         } @else {
-          <b>需介入 {{ interventionCount() }} 個班</b>：沒有未來的課堂，家長看不到下一堂。
+          <strong>需介入 {{ interventionCount() }} 個班</strong>：沒有未來的課堂，家長看不到下一堂。
         }
-      </p>
+      </span>
+      <!-- A6 .btn--sm：桌機 30，手機 44（R3） -->
       <button
         type="button"
-        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-[30px]"
         (click)="
           statusFilter() === 'intervention' ? onStatusFilterChange(null) : onFilterIntervention()
         "
