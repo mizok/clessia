@@ -57,6 +57,8 @@ export class SelectFieldComponent<T> {
   readonly required = input(false);
   /** 驗證沒過：框換成錯誤色（A6 `.is-bad`） */
   readonly invalid = input(false);
+  /** 沒選時框裡的字（A6 表單的 `ph`，例如「選擇科目」）；compact 時固定寫標籤 */
+  readonly placeholder = input<string>();
   /** 標籤字級：篩選列用 sm（預設）；表單欄位用 md，跟 A6 `.acset__l` 一樣大 */
   readonly labelSize = input<'sm' | 'md'>('sm');
 

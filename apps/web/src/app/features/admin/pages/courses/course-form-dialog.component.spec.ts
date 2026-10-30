@@ -87,6 +87,31 @@ describe('CourseFormDialogComponent', () => {
     );
   });
 
+  it('新增時科目先空著，狀態選「停用」會帶 isActive: false 建立（A6 .fdlg__opt）', () => {
+    const el: HTMLElement = fixture.nativeElement;
+    expect((component as unknown as { missingHint: () => string | null }).missingHint()).toContain(
+      '科目',
+    );
+
+    const off = [...el.querySelectorAll<HTMLLabelElement>('[role=radiogroup] label')].find(
+      (l) => l.textContent?.trim() === '停用',
+    );
+    off!.querySelector('input')!.click();
+    (
+      component as unknown as { formData: { update: (fn: (f: object) => object) => void } }
+    ).formData.update((f) => ({
+      ...f,
+      subjectId: 'subject-1',
+      name: '國文先修班',
+      gradeLevels: ['J1'],
+    }));
+    (component as unknown as { save: () => void }).save();
+
+    expect(coursesServiceMock.create).toHaveBeenCalledWith(
+      expect.objectContaining({ subjectId: 'subject-1', isActive: false }),
+    );
+  });
+
   it('opens subject manager with the overlay container', () => {
     (component as unknown as { openSubjectManager: () => void }).openSubjectManager();
 

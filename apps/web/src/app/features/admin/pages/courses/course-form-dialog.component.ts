@@ -1,12 +1,15 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
-import { ToggleSwitch } from 'primeng/toggleswitch';
-import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
-import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig, DialogService } from 'primeng/dynamicdialog';
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -21,6 +24,7 @@ import {
 import { Campus } from '@core/campuses.service';
 import { Subject } from '@core/subjects.service';
 import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 
 @Component({
   selector: 'app-course-form-dialog',
@@ -29,12 +33,8 @@ import { DialogTitleDirective } from '@shared/directives/dialog-title.directive'
     CommonModule,
     DialogTitleDirective,
     FormsModule,
-    ButtonModule,
-    InputTextModule,
-    ToggleSwitch,
-    SelectModule,
     MultiSelectModule,
-    TextareaModule,
+    SelectFieldComponent,
   ],
   templateUrl: './course-form-dialog.component.html',
 })
@@ -58,7 +58,8 @@ export class CourseFormDialogComponent {
   protected readonly formData = signal({
     campusId: this.course()?.campusId ?? this.campuses()[0]?.id ?? '',
     name: this.course()?.name ?? '',
-    subjectId: this.course()?.subjectId ?? this.subjects()[0]?.id ?? '',
+    // A6：新增時科目先空著（「選擇科目」），不替使用者挑第一個
+    subjectId: this.course()?.subjectId ?? '',
     description: this.course()?.description ?? '',
     isActive: this.course()?.isActive ?? true,
     gradeLevels: this.course()?.gradeLevels ?? [],
@@ -69,6 +70,22 @@ export class CourseFormDialogComponent {
   protected readonly shouldShowDeactivateMode = computed(
     () => this.isEditing() && !!this.course()?.isActive && !this.formData().isActive,
   );
+
+  private readonly nameInput = viewChild.required<ElementRef<HTMLInputElement>>('nameInput');
+
+  constructor() {
+    // 稿：桌機聚焦第一個欄位（課程名稱）、手機不聚焦（不要一開就彈鍵盤）
+    afterNextRender(() => {
+      if (globalThis.matchMedia?.('(min-width: 861px)').matches)
+        this.nameInput().nativeElement.focus();
+    });
+  }
+
+  /** A6 `.fdlg__opt` radio（courses.html:305） */
+  protected readonly statusOptions = [
+    { label: '啟用', value: true },
+    { label: '停用', value: false },
+  ] as const;
 
   protected readonly deactivateModeOptions = [
     { label: '停用課程（保留既有課堂）', value: 'keep_sessions' as const },
@@ -165,6 +182,7 @@ export class CourseFormDialogComponent {
         subjectId: form.subjectId,
         description: form.description.trim() || null,
         gradeLevels: form.gradeLevels,
+        isActive: form.isActive,
       };
 
       this.coursesService.create(input).subscribe({

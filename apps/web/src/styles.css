@@ -500,7 +500,6 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-4);
     padding: var(--space-4) var(--space-4) var(--space-2) var(--space-6);
   }
   .dialog-header-inline__content {
@@ -684,6 +683,32 @@
   /* 底下露出捲動中的內容（#1772，conformance 黏住檢查量到）。底部留白交給動作列自己的 padding-bottom。 */
   .p-dialog .p-dialog-content:has(.form-dialog__footer) {
     padding-bottom: 0;
+  }
+  /* A6 `.acset.fdlg`（a6.css:443-449、746-777）：內距在標題列、表單、動作列自己身上，內容區不另留；
+     寬 520 由開啟端給（`width: '520px'`）。照稿改完的表單加這個 modifier，還沒改的維持舊內距 */
+  @media (min-width: 861px) {
+    .p-dialog:has(.form-dialog--a6) {
+      border-radius: var(--radius-lg);
+    }
+  }
+  .p-dialog .p-dialog-content:has(.form-dialog--a6) {
+    padding: 0;
+  }
+  .form-dialog--a6 {
+    gap: 0;
+  }
+  .form-dialog--a6 .form-dialog__footer {
+    padding: var(--space-3) var(--space-6) var(--space-6);
+    background: inherit;
+  }
+  @media (max-width: 860px) {
+    /* 手機是深灰底部面板（A6 `--gray-sheet` #ebe7e4 ＝ zinc-200），欄位本身仍是白底 */
+    .p-dialog:has(.form-dialog--a6) {
+      background: var(--zinc-200);
+    }
+    .form-dialog--a6 .form-dialog__footer {
+      padding: var(--space-2) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    }
   }
   .form-dialog__empty-note {
     padding: var(--space-4);

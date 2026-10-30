@@ -698,13 +698,15 @@ export const PAGES = {
         a6: 'control:searchbox\\[搜尋課程\\]$',
         reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
         source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
-      })),      {
+      })),
+      {
         // 批次選取（#1226 courses C1 Q3 照留）：現況有、稿沒畫，收進工具列「⋯」—— 同帳單那條
         status: '多',
         app: 'control:button\\[更多動作\\]$',
         reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
         source: `${rule('R2')}；#1226`,
-      },      {
+      },
+      {
         // 課程列：稿是 <details><summary>，summary 裡包「新增班」「⋯」按鈕（summary 是按鈕角色，裡面不能再放按鈕）；
         // app 是展開鈕＋並排的動作鈕，每門課一個 region（計畫席 10-30 #2078 同意）。結構不同，課程列裡的子項配不上，一起歸這條
         status: '多',
@@ -712,6 +714,37 @@ export const PAGES = {
         reason: '課程列結構依元件行為：展開鈕＋並排動作鈕，不把按鈕包進 summary',
         source: `${rule('R7')}；https://github.com/mizok/clessia/pull/2078`,
       },
+      // 新增課程表單：分校、科目是 app-select-field（標籤是 aria-labelledby 指到的 span）
+      ...selectFieldDeviations('(分校|科目)\\*?').map((d) => ({ ...d, pop: 'new-course' })),
+      {
+        status: '角色',
+        pop: 'new-course',
+        a6: 'text:label\\[(分校|科目)\\]$',
+        detail: '^text:label → text:span$',
+        reason: `${SELECT_FIELD}（標籤是 aria-labelledby 指到的 span）`,
+        source: `${SELECT_FIELD_SOURCE}；${rule('R7')}`,
+      },
+      // 手機關閉鈕 44（稿 40）：標題欄窄 4px，副標換成兩行，關閉鈕跟著垂直置中下移
+      ...[
+        { status: '位置', a6: 'landmark:dialog\\[新增課程\\]>control:button\\[關閉\\]$' },
+        { status: '尺寸', a6: 'landmark:dialog\\[新增課程\\]>text:p\\[課程是', detail: '^高 ' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-course',
+        widths: [360],
+        reason: '手機關閉鈕 44px（觸控下限），標題欄因此窄 4px',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      })),
+      // 舊有新無：適合年級（API 必填），「還沒填」那句跟著多一項
+      ...[
+        { status: '多', app: 'text:(span|div)\\[(適合年級|選擇適合年級（至少一項）)\\]$' },
+        { status: '文案', app: 'text:p\\[還沒填：[^\\]]*適合年級\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-course',
+        reason: '課程表單的「適合年級」：現況有、稿沒畫，保留',
+        source: `${rule('R5')}「課程表單的適合年級、管理科目、停用模式」2026-10-30`,
+      })),
     ],
   },
   class: {

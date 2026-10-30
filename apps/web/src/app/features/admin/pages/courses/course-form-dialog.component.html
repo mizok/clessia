@@ -1,4 +1,4 @@
-<div class="form-dialog">
+<div class="form-dialog form-dialog--a6">
   <!-- A6 `.fdlg` 標題列：h2＋副標＋關閉 -->
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
@@ -17,108 +17,74 @@
       <i class="pi pi-times" aria-hidden="true"></i>
     </button>
   </div>
-  <form ngNoForm class="flex flex-col gap-2" (submit)="$event.preventDefault(); save()">
-    <!-- Status (edit only) -->
-    @if (isEditing()) {
-      <div class="form-dialog__field form-dialog__field--inline">
-        <label class="form-dialog__label">狀態</label>
-        <div class="form-dialog__switch-row">
-          <p-toggleswitch
-            [ngModel]="formData().isActive"
-            (ngModelChange)="onStatusChange($event)"
-            [disabled]="loading()"
-          />
-          <span class="form-dialog__switch-label">
-            {{ formData().isActive ? '啟用中' : '已停用' }}
-          </span>
-        </div>
-      </div>
-      <p class="-mt-2 mb-0 text-xs leading-[1.6] text-zinc-500">
-        停用後不會刪除課程資料，也無法新增未來課程排程。
-      </p>
-      @if (shouldShowDeactivateMode()) {
-        <div class="form-dialog__field">
-          <label class="form-dialog__label">停用模式</label>
-          <p-select
-            [options]="deactivateModeOptions"
-            optionLabel="label"
-            optionValue="value"
-            [ngModel]="formData().deactivateMode"
-            (ngModelChange)="updateForm('deactivateMode', $event)"
-            [appendTo]="'body'"
-            [disabled]="loading()"
-            class="w-full"
-          />
-        </div>
-        <p class="-mt-2 mb-0 text-xs leading-[1.6] text-warning-600">
-          選擇「停用並停課未來課堂」會將該課程所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
-        </p>
-      }
-    }
-
-    <!-- Campus -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        所屬分校<span class="form-dialog__required">*</span>
-      </label>
-      <p-select
-        [options]="campusOptions()"
-        [ngModel]="formData().campusId"
-        (ngModelChange)="updateForm('campusId', $event)"
-        placeholder="選擇分校"
-        [disabled]="loading() || isEditing()"
-        [appendTo]="'body'"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Subject -->
-    <div class="form-dialog__field">
-      <div class="form-dialog__label-row">
-        <label class="form-dialog__label"> 科目<span class="form-dialog__required">*</span> </label>
-        <p-button
-          label="管理科目"
-          icon="pi pi-cog"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="openSubjectManager()"
+  <!-- A6 `.fdlg__body`：兩欄 grid，分校／科目各半欄，其餘整列；手機一欄（a6.css:748、772） -->
+  <form
+    ngNoForm
+    class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+    (submit)="$event.preventDefault(); save()"
+  >
+    @if (!isEditing()) {
+      <div class="min-w-0">
+        <app-select-field
+          label="分校"
+          labelSize="md"
+          [required]="true"
+          [options]="campusOptions()"
+          [value]="formData().campusId"
+          (valueChange)="updateForm('campusId', $event ?? '')"
         />
       </div>
-      <p-select
-        [options]="subjectOptions()"
-        [ngModel]="formData().subjectId"
-        (ngModelChange)="updateForm('subjectId', $event)"
+    }
+
+    <div class="min-w-0" [class.col-span-full]="isEditing()">
+      <app-select-field
+        label="科目"
+        labelSize="md"
+        [required]="true"
         placeholder="選擇科目"
-        [disabled]="loading()"
-        [appendTo]="'body'"
-        class="w-full"
+        [options]="subjectOptions()"
+        [value]="formData().subjectId || null"
+        (valueChange)="updateForm('subjectId', $event ?? '')"
       />
+      <!-- 稿沒有（舊有新無 R2）：科目在這裡就地管理，不用離開表單 -->
+      <button
+        type="button"
+        class="mt-1 inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-sm font-semibold text-zinc-700 underline underline-offset-2 hover:text-zinc-900 wide:min-h-0"
+        (click)="openSubjectManager()"
+      >
+        管理科目
+      </button>
     </div>
 
-    <!-- Name -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        課程名稱<span class="form-dialog__required">*</span>
-      </label>
+    <div class="col-span-full min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="course-name"
+        >課程名稱 <span class="text-error-700" aria-hidden="true">*</span></label
+      >
       <input
+        id="course-name"
         type="text"
-        pInputText
+        #nameInput
+        maxlength="50"
+        autocomplete="off"
+        placeholder="例如：國一數學"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
         [ngModel]="formData().name"
         (ngModelChange)="updateForm('name', $event)"
-        placeholder="例如：國三數學"
         [disabled]="loading()"
-        class="w-full"
       />
+      <p class="m-0 mt-1 text-sm text-zinc-600">同一個分校裡不能重名，最多 50 字</p>
     </div>
 
-    <!-- Grade Levels -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">適合年級<span class="form-dialog__required">*</span></label>
+    <!-- 稿沒畫（舊有新無 R2）：API 必填，家長加選課程靠它篩 -->
+    <div class="col-span-full min-w-0">
+      <span class="mb-1 block text-md font-semibold text-zinc-700" id="course-grades"
+        >適合年級 <span class="text-error-700" aria-hidden="true">*</span></span
+      >
       <p-multiselect
         [options]="gradeOptions"
         [ngModel]="formData().gradeLevels"
         (ngModelChange)="updateForm('gradeLevels', $event)"
+        ariaLabelledBy="course-grades"
         placeholder="選擇適合年級（至少一項）"
         selectedItemsLabel="{0} 個適合年級"
         [disabled]="loading()"
@@ -128,19 +94,64 @@
       />
     </div>
 
-    <!-- Description -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">簡介</label>
-      <textarea
-        pTextarea
+    <div class="col-span-full min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="course-desc"
+        >說明（選填）</label
+      >
+      <input
+        id="course-desc"
+        type="text"
+        maxlength="500"
+        autocomplete="off"
+        placeholder="給行政與老師看的備註，最多 500 字"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
         [ngModel]="formData().description"
         (ngModelChange)="updateForm('description', $event)"
-        [rows]="3"
-        placeholder="課程簡短說明（選填）"
         [disabled]="loading()"
-        class="w-full"
-      ></textarea>
+      />
     </div>
+
+    <div class="col-span-full min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" id="course-status">狀態</label>
+      <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
+      <div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="course-status">
+        @for (opt of statusOptions; track opt.label) {
+          <label
+            class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
+          >
+            <input
+              type="radio"
+              name="course-status"
+              class="m-0 accent-zinc-900"
+              [checked]="formData().isActive === opt.value"
+              [disabled]="loading()"
+              (change)="onStatusChange(opt.value)"
+            />{{ opt.label }}
+          </label>
+        }
+      </div>
+      @if (isEditing()) {
+        <p class="m-0 mt-1 text-sm text-zinc-600">
+          停用後不會刪除課程資料，也無法新增未來課程排程。
+        </p>
+      }
+    </div>
+
+    <!-- 稿沒有（舊有新無 R2）：把開著的課停用時，選要不要順便停課未來的課堂 -->
+    @if (shouldShowDeactivateMode()) {
+      <div class="col-span-full min-w-0">
+        <app-select-field
+          label="停用模式"
+          labelSize="md"
+          [options]="deactivateModeOptions"
+          [value]="formData().deactivateMode"
+          (valueChange)="updateForm('deactivateMode', $event ?? 'keep_sessions')"
+        />
+        <p class="m-0 mt-1 text-sm text-warning-600">
+          選擇「停用並停課未來課堂」會將該課程所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
+        </p>
+      </div>
+    }
   </form>
 
   <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼（#723） -->
