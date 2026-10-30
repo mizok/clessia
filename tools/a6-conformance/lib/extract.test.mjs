@@ -114,6 +114,15 @@ test('欄位組（label[for] 指向自己裡面的欄位、fieldset）不是列�
       '</div></main>',
   );
   assert.ok(opts.some((p) => p.kind === 'row'));
+  // 表單的整列欄位（標籤在第一格、指向自己的輸入框）：三個同形照樣不是列（#1314 家長表單）
+  const fields = await parts(
+    '<main><form>' +
+      ['姓名', '關聯學生', '備註']
+        .map((t, i) => `<div class="f"><label for="f${i}">${t}</label><input id="f${i}"></div>`)
+        .join('') +
+      '</form></main>',
+  );
+  assert.ok(!fields.some((p) => p.kind === 'row'));
 });
 
 test('rowSel 指名的列（稿的申請紀錄 button.rq）：列裡保留那顆按鈕，跟 app 的 li＞button 同 key', async () => {
