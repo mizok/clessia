@@ -63,6 +63,35 @@ const ScheduleSchema = z
   })
   .openapi('Schedule');
 
+/** 年級 key（同 `students.grade`、`courses.grade_levels`，見 `lib/grade-promotion.ts` 的 Grade） */
+const GRADE_KEYS = [
+  'P1',
+  'P2',
+  'P3',
+  'P4',
+  'P5',
+  'P6',
+  'J1',
+  'J2',
+  'J3',
+  'S1',
+  'S2',
+  'S3',
+] as const;
+const GradeLevelsSchema = z.array(z.enum(GRADE_KEYS)).max(GRADE_KEYS.length);
+
+/**
+ * 班級的適用年級（#2089）：班級自己有填就用自己的，沒填退回課程的。
+ * `classes.grade_levels` 在 20260225 那次搬到課程之前存的是中文（「國一」），之後沒有寫入路徑 ——
+ * 不是 key 的值一律當沒填，退回課程（那次搬遷就是把班級的年級聯集進課程）
+ */
+function classGradeLevels(own: unknown, course: string[] | undefined): string[] {
+  const keys = (Array.isArray(own) ? own : []).filter((g): g is string =>
+    (GRADE_KEYS as readonly string[]).includes(g as string),
+  );
+  return keys.length ? keys : (course ?? []);
+}
+
 const ClassSchema = z
   .object({
     id: DbUuidSchema,
@@ -75,6 +104,7 @@ const ClassSchema = z
     campusName: z.string().optional(),
     name: z.string(),
     maxStudents: z.number(),
+    /** 班級自己的適用年級；沒填＝課程的（`classGradeLevels`） */
     gradeLevels: z.array(z.string()),
     nextClassId: DbUuidSchema.nullable(),
     isActive: z.boolean(),
@@ -138,6 +168,8 @@ const CreateClassSchema = z
     courseId: DbUuidSchema,
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
+    /** 適用年級（A6 `.grades`）；空陣列＝沿用課程的 */
+    gradeLevels: GradeLevelsSchema.optional(),
     nextClassId: DbUuidSchema.nullable().optional(),
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
@@ -164,6 +196,8 @@ const UpdateClassSchema = z
   .object({
     name: z.string().min(1).max(50).optional(),
     maxStudents: z.number().int().min(1).max(200).optional(),
+    /** 適用年級（A6 `.grades`）；空陣列＝沿用課程的 */
+    gradeLevels: GradeLevelsSchema.optional(),
     nextClassId: DbUuidSchema.nullable().optional(),
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
@@ -527,7 +561,7 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     campusName: (row['campuses'] as { name: string } | null)?.name,
     name: row['name'] as string,
     maxStudents: row['max_students'] as number,
-    gradeLevels: course?.grade_levels ?? [],
+    gradeLevels: classGradeLevels(row['grade_levels'], course?.grade_levels),
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     // 欄位是 NOT NULL DEFAULT false，但舊的 select 可能沒撈到 —— 退回 false 而不是
@@ -1383,6 +1417,7 @@ app.openapi(
         name: body.name,
         max_students: body.maxStudents ?? 20,
         next_class_id: body.nextClassId ?? null,
+        grade_levels: [...new Set(body.gradeLevels ?? [])],
         default_fee_template_id: body.defaultFeeTemplateId ?? null,
         ...(body.isRecommended === undefined ? {} : { is_recommended: body.isRecommended }),
         ...(body.isPublicEnrollment === undefined
@@ -1478,6 +1513,7 @@ app.openapi(
     if (body.name !== undefined) updateData['name'] = body.name;
     if (body.maxStudents !== undefined) updateData['max_students'] = body.maxStudents;
     if (body.nextClassId !== undefined) updateData['next_class_id'] = body.nextClassId;
+    if (body.gradeLevels !== undefined) updateData['grade_levels'] = [...new Set(body.gradeLevels)];
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
     if (body.usesContactBook !== undefined) updateData['uses_contact_book'] = body.usesContactBook;
     if (body.isRecommended !== undefined) updateData['is_recommended'] = body.isRecommended;
