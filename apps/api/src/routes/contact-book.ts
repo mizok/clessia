@@ -124,6 +124,8 @@ app.openapi(
     request: {
       query: z.object({
         studentId: DbUuidSchema.optional(),
+        // 頂欄分校（K4，#1314 盤點）：只能縮小範圍，撐不大（`campusFilterIds` 取交集；越權指名由 campusRequestGuard 403）
+        campusId: DbUuidSchema.optional(),
         from: z
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -143,7 +145,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { studentId, from, to } = c.req.valid('query');
+    const { studentId, campusId, from, to } = c.req.valid('query');
 
     const scope = await loadTeachingScope(supabase, {
       orgId,
@@ -154,7 +156,7 @@ app.openapi(
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 
-    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
     // 範圍是空的（一個分校都沒被指派）：什麼都看不到，fail-closed
     if (campusIds !== null && campusIds.length === 0) {
       return c.json({ data: [], meta: { total: 0 } }, 200);
@@ -340,6 +342,8 @@ app.openapi(
     request: {
       query: z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        // 頂欄分校（K4，#1314 盤點）：只能縮小範圍，撐不大（`campusFilterIds` 取交集；越權指名由 campusRequestGuard 403）
+        campusId: DbUuidSchema.optional(),
       }),
     },
     responses: {
@@ -354,7 +358,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { date } = c.req.valid('query');
+    const { date, campusId } = c.req.valid('query');
 
     const scope = await loadTeachingScope(supabase, {
       orgId,
@@ -376,7 +380,7 @@ app.openapi(
 
     // `classes!inner` + 對嵌套欄位下條件 = 一趟就把「開了聯絡簿的班的在籍學生」撈齊
     // 分校範圍（#1994）：缺漏名單與統計只算範圍內的學生
-    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
     if (campusIds !== null && campusIds.length === 0) {
       return c.json({ data: [], meta: { total: 0 } }, 200);
     }
@@ -478,6 +482,8 @@ app.openapi(
       query: z.object({
         dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        // 頂欄分校（K4，#1314 盤點）：只能縮小範圍，撐不大（`campusFilterIds` 取交集；越權指名由 campusRequestGuard 403）
+        campusId: DbUuidSchema.optional(),
       }),
     },
     responses: {
@@ -493,7 +499,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { dateFrom, dateTo } = c.req.valid('query');
+    const { dateFrom, dateTo, campusId } = c.req.valid('query');
 
     const dates = datesInRange(dateFrom, dateTo);
     if (dates.length === 0) {
@@ -529,7 +535,7 @@ app.openapi(
     }
 
     // 分校範圍（#1994）：缺漏名單與統計只算範圍內的學生
-    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
     if (campusIds !== null && campusIds.length === 0) {
       return c.json(
         { data: dates.map((date) => ({ date, missingCount: 0 })), meta: { total: 0 } },
