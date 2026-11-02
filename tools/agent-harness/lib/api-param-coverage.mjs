@@ -136,13 +136,6 @@ const EXEMPT = new Map([
     '/api/me/catalog|childId',
     '家長端課程目錄 API 先行（#1118），前端消費端另開，見 kb/wiki/architecture/parent-catalog-read.md',
   ],
-  // #1115 成績查詢的開課班／課程篩選與每生聚合：API 先行，前端消費端（/admin/grades 的篩選列與
-  // 「依學生分組」）由前端席另開。前端送出那天 staleExemptions() 會叫。
-  [
-    '/api/scores|classId',
-    '成績篩開課班 API 先行（#1115），前端消費端另開，語意見 kb/wiki/specs/admin/student-affairs/grades.md',
-  ],
-  ['/api/scores/students|classId', '每生聚合 API 先行（#1115），同上'],
   // #1121 家長端續課預覽：API 先行，前端消費端（p-renewal／p-dashboard 續課預告）另開。
   [
     '/api/me/renewal-preview|childId',
