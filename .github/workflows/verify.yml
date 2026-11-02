@@ -57,6 +57,12 @@ concurrency:
   group: verify-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || '' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  # 釘版本，**跟 migrate.yml 同一個數字**（harness 的 supabase-cli-pin 對兩邊）。原本是 latest：
+  # 2026-11-02 新版 CLI 不再接受 config.toml 的 [inbucket]，api-contract 紅、deploy 被 skip。
+  # 升版要另開 PR，verify 與 migrate 一起升。
+  SUPABASE_CLI_VERSION: 2.119.0
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -194,7 +200,7 @@ jobs:
       - uses: supabase/setup-cli@v1
         if: steps.scope.outputs.run == 'true'
         with:
-          version: latest
+          version: ${{ env.SUPABASE_CLI_VERSION }}
 
       # `db start` 而不是 `start`：只要 Postgres（＋ migration／seed 的執行環境），
       # 不需要 Studio / Kong / Realtime 那一整套 —— 少拉幾個 image。
@@ -277,7 +283,7 @@ jobs:
       - uses: supabase/setup-cli@v1
         if: steps.scope.outputs.run == 'true'
         with:
-          version: latest
+          version: ${{ env.SUPABASE_CLI_VERSION }}
 
       # 留 db＋PostgREST＋Kong＋gotrue（`/rest/v1` 經 Kong 進 PostgREST）。
       # 第一版連 gotrue 一起排除，`supabase status` 就只剩 Database、沒有 API 那段 ——
