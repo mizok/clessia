@@ -352,6 +352,17 @@ export const DATA_DEPENDENT = [
   },
 ];
 
+/**
+ * K4：頂欄「切換分校」只在這一頁真的照分校篩資料時才出現（不然頂欄選了 A 分校、頁面還是在看全部）。
+ * 資料本來就整個補習班共用、或只看一個班／學生／考試的頁登記成不適用（#1314 K4 盤點第一節）
+ */
+const noCampusSwitch = (why) => ({
+  status: '缺',
+  a6: '^>landmark:banner\\[\\]>control:button\\[切換分校：[^\\]]*\\]$',
+  reason: `頂欄不放切換分校：${why}`,
+  source: 'https://github.com/mizok/clessia/issues/1314#issuecomment-6572339488（K4 盤點第一節）',
+});
+
 /** 殼層的彈出物：A6 popover id → app popover id（每頁都有）。 */
 export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
 
@@ -717,6 +728,20 @@ export const PAGES = {
         reason: '換週箭頭：收不進「⋯」的入口，保留',
         source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
       },
+      // 「一次勾：」那列（#2140 起桌機勾第一堂就出現）：完成鈕照工具列控制項同高、兩個下拉是 A6 下拉元件
+      {
+        status: '尺寸',
+        a6: '>landmark:main\\[\\]>control:button\\[完成\\]$',
+        detail: '^高 30→40$',
+        reason: '灰帶工具列控制項全部同高：桌機 40',
+        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
+      },
+      {
+        status: '多',
+        app: '>landmark:main\\[\\]>control:combobox\\[(某位老師這週的課|某個班整期的課)\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
     ],
   },
   billing: {
@@ -900,6 +925,7 @@ export const PAGES = {
     // seed-demo 的學生是 gen_random_uuid，reset 一次就換（原本的 e98f234f-… 在 10-31 已經不存在）
     app: '/admin/students/61000000-0000-0000-0000-000000000001',
     deviations: [
+      noCampusSwitch('看的是一個學生，跨分校上課也是同一份檔案'),
       // ── 11-02：改用 seed.sql 的固定學生（出勤測試學生01）之後的資料差 ──
       {
         // 家長沒留電話：「打電話」不顯示（計畫席 11-02：沒電話不顯示）
@@ -1202,6 +1228,7 @@ export const PAGES = {
     // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
     app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
     deviations: [
+      noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {
         status: '文案',
@@ -1502,6 +1529,14 @@ export const PAGES = {
     state: PARENT_STATE,
     deviations: [
       {
+        // 列元件宿主 app-request-row 是 display: contents（版面上按鈕直接當列，同稿 div > button.rq），工具仍把宿主認成一層列
+        status: '多',
+        app: '^>landmark:main\\[\\]>row>row$',
+        reason:
+          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），版面上沒有這一層',
+        source: 'https://github.com/mizok/clessia/pull/2142（request-row 宿主 display: contents）',
+      },
+      {
         // parent03 沒送過申請 → 紀錄分頁是空狀態句
         status: '多',
         app: '>landmark:main\\[\\]>text:p\\[還沒有送過報名申請。\\]$',
@@ -1539,6 +1574,14 @@ export const PAGES = {
     app: '/parent/trial#records',
     state: PARENT_STATE,
     deviations: [
+      {
+        // 列元件宿主 app-request-row 是 display: contents（版面上按鈕直接當列，同稿 div > button.rq），工具仍把宿主認成一層列
+        status: '多',
+        app: '^>landmark:main\\[\\]>row>row$',
+        reason:
+          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），版面上沒有這一層',
+        source: 'https://github.com/mizok/clessia/pull/2142（request-row 宿主 display: contents）',
+      },
       {
         // parent03 沒送過申請 → 紀錄分頁是空狀態句
         status: '多',
@@ -1655,6 +1698,7 @@ export const PAGES = {
     a6: 'settings.html',
     app: '/admin/settings/general',
     deviations: [
+      noCampusSwitch('補習班層級的設定與收費期間，不分校'),
       {
         // 稿的出勤紀錄模式是常開的一節（兩張可選的卡）；使用者要求「一般」分頁全部收成可收合的列，
         // 出勤紀錄模式、誰負責點名在列裡（列數因此多 2，工具算成資料差）
@@ -1694,6 +1738,7 @@ export const PAGES = {
     a6: 'settings.html#schools',
     app: '/admin/settings/schools',
     deviations: [
+      noCampusSwitch('學校名單整個補習班共用'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／students 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -1704,7 +1749,11 @@ export const PAGES = {
     ],
   },
   // 系統設定的科目分頁（#1314 SE5）
-  subjects: { a6: 'settings.html#subjects', app: '/admin/settings/subjects' },
+  subjects: {
+    a6: 'settings.html#subjects',
+    app: '/admin/settings/subjects',
+    deviations: [noCampusSwitch('科目整個補習班共用')],
+  },
   // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由
   campuses: {
     a6: 'settings.html#campuses',
@@ -1725,6 +1774,7 @@ export const PAGES = {
       'campus-form': { click: 'button:has-text("新增分校")', root: 'dialog[open]' },
     },
     deviations: [
+      noCampusSwitch('這頁就是分校清單本身'),
       ...[
         { status: '位置', detail: '^相對' },
         { status: '樣式', detail: 'display' },
@@ -1855,6 +1905,7 @@ export const PAGES = {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
     deviations: [
+      noCampusSwitch('價目表是補習班層級'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -1902,6 +1953,7 @@ export const PAGES = {
       '>control:button[全部標為已讀新]': '>landmark:main[]>control:button[全部標為已讀]',
     },
     deviations: [
+      noCampusSwitch('收件匣是「寄給我的」，不分校'),
       ...NOTIFICATIONS_TABS,
       // 資料：哪一章有未讀、代表列是已讀還是未讀，都看 seed（稿「這週」全讀過、seed 有未讀）
       {
@@ -1931,6 +1983,7 @@ export const PAGES = {
     a6: 'notifications.html#publish',
     app: '/admin/notifications#publish',
     deviations: [
+      noCampusSwitch('發公告的對象分校是頁面自己的選單（可選全部分校），不該被頂欄改掉'),
       ...NOTIFICATIONS_TABS,
       {
         // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
@@ -1974,11 +2027,21 @@ export const PAGES = {
         // 列的代表樣式取最常見的列：seed 今天 18 位裡 17 位未處理、多數沒訂（名字灰、單價框灰底、收費字灰、狀態 600 近黑）；
         // 稿多數列已確認、有訂。四種樣式稿都有（.ml--off、:disabled、.stt--todo）
         status: '樣式',
-        a6: '>row>(control:link|text:label~2>control:textbox|text:label~3|text:span)$',
+        a6: '>row>(control:link|text:label~2>control:textbox|text:label~3|text:span(~2)?)$',
         detail:
           '^(color rgb\\(26, 22, 20\\) → rgb\\(87, 80, 75\\)|backgroundColor rgb\\(255, 255, 255\\) → rgb\\(245, 243, 241\\)|color rgb\\(26, 22, 20\\) → rgb\\(120, 111, 105\\)|fontWeight 400 → 600；color rgb\\(61, 55, 51\\) → rgb\\(26, 22, 20\\))(；display inline → inline-flex)?$',
         reason: '資料：seed 今天多數列未處理、沒訂，代表列是稿的 .ml--off／.stt--todo 那種',
         source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
+      },
+      {
+        // 稿的代表列是「今天請假 · 別訂他的便當」那種兩行列（名字下面多一行），app 的是一般列；請假旗標等 API
+        status: '位置',
+        widths: [1440],
+        a6: '>row>control:link$',
+        detail: '^相對所在列 Δx 0、Δy \\+\\d+（',
+        reason: '資料：代表列取到的變體不同（稿是請假的兩行列，app 是一般列），名字的上下位置跟著不同',
+        source:
+          '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標；tools/a6-conformance/README.md（列內 part 取最常見那種）',
       },
       {
         // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
@@ -2209,6 +2272,7 @@ export const PAGES = {
     a6: 'scores.html',
     // seed 的考試（跟 scores-dirty 同一場）；原本的 id 是某一席本機 DB 的，seed 裡沒有（#1314 10-30）
     app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
+    deviations: [noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋')],
   },
   grades: {
     a6: 'grades.html',
@@ -2406,6 +2470,7 @@ export const PAGES = {
       '>text:p[已登錄·缺考# ·不及格（< #）位]': '>landmark:main[]>text:p[已登錄·缺考# ·不及格位]',
     },
     deviations: [
+      noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋'),
       // ── 設計說明，不是畫面 ──
       {
         status: '缺',
@@ -2774,7 +2839,7 @@ export const PAGES = {
         // 稿同款（p-meals.html:122）：已結算的月份才有「併入 N 月的帳單」；seed 兩個月一個結算一個沒有
         status: '多',
         widths: [360],
-        app: '>landmark:main\\[\\]>row>text:p$',
+        app: '>landmark:main\\[\\]>row>text:p(>control:link)?$',
         reason: '資料：「併入 N 月的帳單」只在已結算的月份出現',
         source: '.design-explorations p-meals.html:122（只在已結算的月份畫）',
       },
