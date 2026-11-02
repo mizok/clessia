@@ -1453,7 +1453,7 @@ test('compare：兩個 compare 同時挑到同一個 port —— 認得出 port 
 
 test('#1692：通知中心量預設分頁「收到的」—— 稿的「新」標記與分頁 44px（R3）算偏離，其餘照舊待修', async () => {
   const { classify, matchParts } = await import('./diff.mjs');
-  const { DEVIATIONS, PAGES } = await import('./config.mjs');
+  const { DEVIATIONS, PAGES, NOTIFICATIONS_TABS } = await import('./config.mjs');
   const n = PAGES.notifications;
   assert.equal(n.a6, 'notifications.html');
   assert.equal(n.app, '/admin/notifications');
@@ -1462,8 +1462,11 @@ test('#1692：通知中心量預設分頁「收到的」—— 稿的「新」�
     n.deviations.some((d) => /form/.test(d.a6 ?? '')),
     false,
   );
-  // 分頁列兩個分頁都有，「新」與 R3 那幾條發布分頁也要掛
-  for (const d of n.deviations) assert.ok(PAGES['notifications-publish'].deviations.includes(d));
+  // 分頁列兩個分頁都有，「新」與 R3 那幾條兩個分頁都要掛（「收到的」另有收件匣自己的資料差，#9）
+  for (const d of NOTIFICATIONS_TABS) {
+    assert.ok(n.deviations.includes(d));
+    assert.ok(PAGES['notifications-publish'].deviations.includes(d));
+  }
 
   const tab = '>landmark:navigation[通知]>control:button[收到的未讀#新]';
   const appTab = '>landmark:main[]>landmark:navigation[通知]>control:button[收到的未讀#]';
