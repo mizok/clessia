@@ -60,6 +60,8 @@ export interface ParentQueryParams {
   status?: ParentStatus;
   /** 沒指定 status 時不含封存（列表頁預設） */
   excludeArchived?: boolean;
+  /** 頂欄分校（K4）：只能縮小範圍，後端取交集 */
+  campusId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -208,6 +210,7 @@ export class ParentsService {
     if (params.search !== undefined) q['search'] = params.search;
     if (params.status !== undefined) q['status'] = params.status;
     if (params.excludeArchived) q['excludeArchived'] = 'true';
+    if (params.campusId) q['campusId'] = params.campusId;
     if (params.page !== undefined) q['page'] = params.page;
     if (params.pageSize !== undefined) q['pageSize'] = params.pageSize;
     return q;

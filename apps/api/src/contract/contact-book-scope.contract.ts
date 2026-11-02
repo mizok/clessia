@@ -205,4 +205,74 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
       data: [{ date: MISSING, missingCount: 0 }],
     });
   });
+
+  // 一個分校都沒被指派（scope=[]）：三支都提前回空（不下 `.in(…, [])`），200 不是 400
+  it('一個分校都沒被指派（scope=[]）：列表、缺漏名單、統計都是空的', async () => {
+    expect(await get<List>(`/api/contact-book?from=${WRITTEN}&to=${WRITTEN}`, 'none')).toEqual({
+      data: [],
+      meta: { total: 0 },
+    });
+    const missing = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'none');
+    expect(missing.data).toEqual([]);
+    expect(missing.meta.total).toBe(0);
+    const summary = await get<Summary>(
+      `/api/contact-book/missing/summary?dateFrom=${MISSING}&dateTo=${MISSING}`,
+      'none',
+    );
+    expect(summary.data.every((d) => d.missingCount === 0)).toBe(true);
+  });
+
+  // K4（#1314 盤點）：頂欄「切換分校」要的 `campusId`。指名只能縮小範圍，撐不大它
+  describe('campusId（頂欄分校）', () => {
+    const status = async (path: string, scope: 'all' | 'c1') => {
+      ctx.campusScope = scope === 'all' ? null : [fx.c1];
+      try {
+        return (await app.request(path, {}, env)).status;
+      } finally {
+        ctx.campusScope = null;
+      }
+    };
+    const paths = () => [
+      `/api/contact-book?from=${WRITTEN}&to=${WRITTEN}`,
+      `/api/contact-book/missing?date=${MISSING}`,
+      `/api/contact-book/missing/summary?dateFrom=${MISSING}&dateTo=${MISSING}`,
+    ];
+
+    it('不受限的管理員指名 C2：列表與缺漏名單只剩 C2 的學生（含跨校的），統計跟著名單', async () => {
+      const list = await get<List>(
+        `/api/contact-book?from=${WRITTEN}&to=${WRITTEN}&campusId=${fx.c2}`,
+        'all',
+      );
+      expect(new Set(list.data.map((r) => r.studentId))).toEqual(new Set([fx.b, fx.ab]));
+      expect(list.meta.total).toBe(2);
+
+      const missing = await get<Missing>(
+        `/api/contact-book/missing?date=${MISSING}&campusId=${fx.c2}`,
+        'all',
+      );
+      const ids = new Set(missing.data.map((r) => r.studentId));
+      expect(ids.has(fx.a)).toBe(false);
+      expect(ids.has(fx.b)).toBe(true);
+
+      const summary = await get<Summary>(
+        `/api/contact-book/missing/summary?dateFrom=${MISSING}&dateTo=${MISSING}&campusId=${fx.c2}`,
+        'all',
+      );
+      expect(summary.data).toEqual([{ date: MISSING, missingCount: missing.meta.total }]);
+    });
+
+    it('受限 C1 指名自己的 C1：跟不帶一樣', async () => {
+      const list = await get<List>(
+        `/api/contact-book?from=${WRITTEN}&to=${WRITTEN}&campusId=${fx.c1}`,
+        'c1',
+      );
+      expect(new Set(list.data.map((r) => r.studentId))).toEqual(new Set([fx.a, fx.ab]));
+    });
+
+    it('受限 C1 指名別校 C2：三支都 403，撐不大範圍', async () => {
+      for (const path of paths()) {
+        expect(await status(`${path}&campusId=${fx.c2}`, 'c1')).toBe(403);
+      }
+    });
+  });
 });

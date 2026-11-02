@@ -45,6 +45,8 @@ export interface ContactBookQueryParams {
   studentId?: string;
   from?: string;
   to?: string;
+  /** 頂欄分校（K4）：只能縮小範圍，後端取交集 */
+  campusId?: string;
 }
 
 export interface ContactBookListResponse {
@@ -93,10 +95,11 @@ export class ContactBookService {
    */
   missing(
     date: string,
+    campusId?: string,
   ): Observable<{ data: MissingContactBookStudent[]; meta: { total: number } }> {
     return this.http.get<{ data: MissingContactBookStudent[]; meta: { total: number } }>(
       `${this.endpoint}/missing`,
-      { params: { date } },
+      { params: { date, ...(campusId ? { campusId } : {}) } },
     );
   }
 
@@ -120,11 +123,14 @@ export class ContactBookService {
   missingSummary(
     dateFrom: string,
     dateTo: string,
+    campusId?: string,
   ): Observable<{ data: { date: string; missingCount: number }[]; meta: { total: number } }> {
     return this.http.get<{
       data: { date: string; missingCount: number }[];
       meta: { total: number };
-    }>(`${this.endpoint}/missing/summary`, { params: { dateFrom, dateTo } });
+    }>(`${this.endpoint}/missing/summary`, {
+      params: { dateFrom, dateTo, ...(campusId ? { campusId } : {}) },
+    });
   }
 
   /**
@@ -146,5 +152,6 @@ function toQuery(params?: ContactBookQueryParams): Record<string, string> {
   if (params.studentId) query['studentId'] = params.studentId;
   if (params.from) query['from'] = params.from;
   if (params.to) query['to'] = params.to;
+  if (params.campusId) query['campusId'] = params.campusId;
   return query;
 }

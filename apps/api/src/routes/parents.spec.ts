@@ -270,23 +270,20 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     expect(listQuery?.orders).toEqual(['status', 'name']);
   });
 
-  it('受限管理員：分校條件下到關聯的三層 embed，家長 id 條件下到 parents', async () => {
+  it('受限管理員：分校條件直接下在 parents 的三層 embed 上，不帶家長 id 清單（K4：id 進 URL 會 414）', async () => {
     const queries = await listParents(['campus-1']);
 
-    // 範圍查詢：條件下在最底層的 `classes.campus_id` —— select 必須三層都是無條件的
-    // `!inner`，否則條件傳不上來、範圍外的關聯整列留著（#815 那個洞）
-    const scopeQuery = queries.find(
-      (q) => q.table === 'parent_student_relations' && q.columns.includes('classes!inner'),
+    // 條件下在最底層的 `classes.campus_id` —— select 必須三層都是 `!inner`，否則條件傳不上來、
+    // 範圍外的家長整列留著（#815 那個洞）
+    const listQuery = queries.find((q) => q.table === 'parents' && !q.head);
+    expect(listQuery?.columns).toContain(
+      'parent_student_relations!inner(students!inner(enrollments!inner(classes!inner(campus_id))))',
     );
-    expect(scopeQuery?.ins).toContainEqual({
-      column: 'students.enrollments.classes.campus_id',
+    expect(listQuery?.ins).toContainEqual({
+      column: 'scope_rel.students.enrollments.classes.campus_id',
       values: ['campus-1'],
     });
-    expect(scopeQuery?.columns).toContain('students!inner(enrollments!inner(classes!inner(');
-
-    // 最後一跳：家長清單真的被那組 id 縮限
-    const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
-    expect(listQuery?.ins.some((call) => call.column === 'id')).toBe(true);
+    expect(listQuery?.ins.some((call) => call.column === 'id')).toBe(false);
   });
 
   it('不受分校限制時三跳都不做（確認上一條不是無腦通過）', async () => {
@@ -294,7 +291,7 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
 
     expect(queries.some((q) => q.columns.includes('classes!inner'))).toBe(false);
     const listQuery = queries.find((q) => q.table === 'parents' && q.columns === '*');
-    expect(listQuery?.ins.some((call) => call.column === 'id')).toBe(false);
+    expect(listQuery?.ins).toEqual([]);
   });
 
   // #1338：上方統計要跟列表同一個範圍，否則受限管理員看到的是全 org 的人數。
@@ -302,7 +299,7 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
   const summaryQueries = (queries: QueryRecord[]) =>
     queries.filter((q) => q.table === 'parents' && q.head === true);
 
-  it('summary：每個狀態一支 head count，受限時都帶家長 id 條件', async () => {
+  it('summary：每個狀態一支 head count，受限時都帶同一個分校條件', async () => {
     const summary = summaryQueries(await listParents(['campus-1']));
 
     expect(summary.map((q) => q.eqs.find((e) => e.column === 'status')?.value).sort()).toEqual([
@@ -310,14 +307,18 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
       'archived',
       'inactive',
     ]);
-    expect(summary.every((q) => q.ins.some((call) => call.column === 'id'))).toBe(true);
+    expect(
+      summary.every((q) =>
+        q.ins.some((call) => call.column === 'scope_rel.students.enrollments.classes.campus_id'),
+      ),
+    ).toBe(true);
   });
 
-  it('summary：不受限時不帶家長 id 條件', async () => {
+  it('summary：不受限時不帶分校條件', async () => {
     const summary = summaryQueries(await listParents(null));
 
     expect(summary).toHaveLength(3);
-    expect(summary.some((q) => q.ins.some((call) => call.column === 'id'))).toBe(false);
+    expect(summary.every((q) => q.ins.length === 0)).toBe(true);
   });
 
   // #1314 PA2：孩子名字要能點進學生檔案 —— 列表帶 id，不只名字

@@ -3,8 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import { requireAdminMiddleware } from '../middleware/auth';
-import { getCampusScope } from '../lib/campus-scope';
-import { isParentWithinScope, resolveScopedParentIds } from '../lib/parent-campus-scope';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import {
+  isParentWithinScope,
+  PARENT_SCOPE_EMBED,
+  PARENT_SCOPE_FILTER,
+  resolveScopedParentIds,
+} from '../lib/parent-campus-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -264,6 +269,8 @@ app.openapi(
         status: ParentStatusSchema.optional(),
         // 沒指定 status 時預設不含封存（列表頁用）；不帶這個參數＝維持原行為（全部）
         excludeArchived: z.enum(['true']).optional(),
+        // 頂欄分校（K4，#1314 盤點）：只能縮小範圍，撐不大（`campusFilterIds` 取交集；越權指名由 campusRequestGuard 403）
+        campusId: DbUuidSchema.optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
       }),
@@ -282,24 +289,31 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { search, status, excludeArchived, page = 1, pageSize = 20 } = c.req.valid('query');
+    const {
+      search,
+      status,
+      excludeArchived,
+      campusId,
+      page = 1,
+      pageSize = 20,
+    } = c.req.valid('query');
     const offset = (page - 1) * pageSize;
 
-    // 分校範圍（#816）。判準與其餘 8 個端點共用同一支函式（#821）——
-    // 在 9 個地方各寫一次就是 9 個會分岔的判準（#815 的形狀）
-    const scopedParentIds = await resolveScopedParentIds(supabase, getCampusScope(c));
+    // 分校範圍（#816）＋頂欄分校（K4）。判準跟其餘 8 個端點同一條（`lib/parent-campus-scope.ts`，#821），
+    // 但列表用 embed 版直接在 parents 上下條件：先撈家長 id 再 `.in('id', …)` 會讓 URL 隨家長數變長而 414。
+    // 空清單也是條件 —— `.in(col, [])` 實測是零筆而不是「沒有條件」（量測紀錄在 `campusFilterIds` 檔頭）
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
+    const scopeEmbed = campusIds === null ? '' : PARENT_SCOPE_EMBED;
 
     let query = supabase
       .from('parents')
-      .select('*', { count: 'exact' })
+      .select('*' + scopeEmbed, { count: 'exact' })
       .eq('org_id', orgId)
       // 先依狀態（enum 宣告序 active→inactive→archived）：前端依狀態分章，翻頁時章才連續（#1314 PA1）
       .order('status')
       .order('name');
 
-    // 空清單也是條件 —— `.in(col, [])` 實測是零筆而不是「沒有條件」
-    // （量測紀錄在 `lib/campus-scope.ts` 的 `campusFilterIds` 檔頭）
-    if (scopedParentIds) query = query.in('id', scopedParentIds);
+    if (campusIds !== null) query = query.in(PARENT_SCOPE_FILTER, [...campusIds]);
 
     if (search) {
       // 搜尋 ba_user email/phone
@@ -347,7 +361,7 @@ app.openapi(
       return c.json({ error: '讀取家長列表失敗', message: error.message }, 500);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
     // 取得本頁家長的 student 關聯（含學生 id 與姓名）。只撈本頁 —— 先撈全 org 家長 id
     // 會被 max_rows（1000）靜默截斷，後面的人孩子數變 0（#1314 PA2）
     const parentIdList = rows.map((r) => r['id'] as string);
@@ -418,10 +432,10 @@ app.openapi(
       (['active', 'inactive', 'archived'] as const).map((s) => {
         let countQuery = supabase
           .from('parents')
-          .select('id', { count: 'exact', head: true })
+          .select('id' + scopeEmbed, { count: 'exact', head: true })
           .eq('org_id', orgId)
           .eq('status', s);
-        if (scopedParentIds) countQuery = countQuery.in('id', scopedParentIds);
+        if (campusIds !== null) countQuery = countQuery.in(PARENT_SCOPE_FILTER, [...campusIds]);
         return countQuery;
       }),
     );
