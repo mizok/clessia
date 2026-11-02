@@ -1,0 +1,8 @@
+[
+  {
+    "file": "apps/api/src/routes/announcements/visibility.ts",
+    "reason": "公告可見範圍的 helper：依呼叫者的分校（viewer.campusIds）篩 —— campus_id 為 null 的公告全員可見、其餘要在呼叫者的分校裡；分校清單由呼叫端算好傳進來，本身就是範圍守門，不是沒接",
+    "evidence": "apps/api/src/routes/announcements/visibility.ts:46-59",
+    "ruling": "計畫席 11-02（#2139）"
+  }
+]
