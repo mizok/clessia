@@ -127,6 +127,44 @@ describe('ClassFormDialogComponent', () => {
     fixture.detectChanges();
   });
 
+  describe('A6 .fdlg 動作列（還沒填不鎖死）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const why = () => el().querySelector('.form-dialog__why')!.textContent!.trim();
+    const submit = () =>
+      [...el().querySelectorAll<HTMLButtonElement>('.form-dialog__footer button')].find(
+        (b) => b.textContent!.trim() === '建立班級',
+      )!;
+
+    it('班名空著：送出鈕不 disabled、只標 aria-disabled，按了寫「還沒填」、不送出', () => {
+      expect(submit().disabled).toBe(false);
+      expect(submit().getAttribute('aria-disabled')).toBe('true');
+      expect(why()).toBe('還沒填：開課班名稱');
+      submit().click();
+      expect(classesServiceMock.create).not.toHaveBeenCalled();
+    });
+
+    it('人數上限清空：寫「人數上限要大於 0」', () => {
+      (component as any).updateForm('name', 'A 班');
+      (component as any).updateForm('maxStudents', null);
+      fixture.detectChanges();
+      expect(why()).toBe('人數上限要大於 0');
+    });
+
+    it('選「停用」、填了日期：建班帶 isActive: false 與 yyyy-MM-dd 字串', () => {
+      (component as any).updateForm('name', 'A 班');
+      fixture.detectChanges();
+      const off = [...el().querySelectorAll<HTMLInputElement>('input[name="class-status"]')][1];
+      off.click();
+      (component as any).startDate.set('2099-01-05');
+      fixture.detectChanges();
+      submit().click();
+      const input = (classesServiceMock.create as any).mock.calls[0][0];
+      expect(input.isActive).toBe(false);
+      expect(input.startDate).toBe('2099-01-05');
+      expect(input.endDate).toBeNull();
+    });
+  });
+
   it('should block save when schedule entries overlap in same weekday', () => {
     (component as any).formData.set({
       name: '測試班級',

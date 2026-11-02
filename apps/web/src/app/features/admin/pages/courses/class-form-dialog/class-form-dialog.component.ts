@@ -1,15 +1,17 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { format } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
-import { DatePickerModule } from 'primeng/datepicker';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
-import { ToggleSwitch } from 'primeng/toggleswitch';
-import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig, DialogService } from 'primeng/dynamicdialog';
 import { AuthService } from '@core/auth.service';
@@ -27,7 +29,8 @@ import {
 import { Course } from '@core/courses.service';
 import { CampusesService } from '@core/campuses.service';
 import { Staff } from '@core/staff.service';
-import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
+import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
 import { ConflictWarningDialogComponent } from './conflict-warning-dialog/conflict-warning-dialog.component';
 import {
   ScheduleSplitDialogComponent,
@@ -59,13 +62,9 @@ export interface ScheduleFormEntry {
     CommonModule,
     FormsModule,
     ButtonModule,
-    DatePickerModule,
-    InputTextModule,
-    InputNumberModule,
     SelectModule,
-    ToggleSwitch,
-    TooltipModule,
-    InlineNoticeComponent,
+    SelectFieldComponent,
+    DialogTitleDirective,
   ],
   // **自己 provide 一份 `DialogService`。** 這支元件本身是被 DynamicDialog 開起來的，
   // 而它又要再開一層（排課衝突警告）。父層 `courses.page` 雖然有 provide，
@@ -113,6 +112,11 @@ export class ClassFormDialogComponent {
   protected readonly isPublicEnrollment = signal(this.cls()?.isPublicEnrollment ?? true);
 
   constructor() {
+    // 稿：桌機聚焦班名、手機不聚焦（不要一開就彈鍵盤）
+    afterNextRender(() => {
+      if (globalThis.matchMedia?.('(min-width: 861px)').matches)
+        this.nameInput().nativeElement.focus();
+    });
     // 用課程的分校就是班級的分校：班級建立時取自課程，之後班級、課程都沒有改分校的 API
     // （UpdateClassSchema／UpdateCourseSchema 都沒有 campus 欄位），兩邊不會分歧
     const campusId = this.course()?.campusId;
@@ -162,35 +166,21 @@ export class ClassFormDialogComponent {
    * 代價是留空的班每次產生課堂都要另外指定範圍 —— 那句話寫在欄位下面，
    * 讓「不限」是選的不是預設踩到的。
    */
-  protected readonly startDate = signal<Date | null>(
-    this.cls()?.startDate ? new Date(this.cls()!.startDate + 'T00:00:00') : null,
-  );
-  protected readonly endDate = signal<Date | null>(
-    this.cls()?.endDate ? new Date(this.cls()!.endDate + 'T00:00:00') : null,
-  );
-  protected readonly startDateMin = computed<Date | undefined>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (this.isEditing()) {
-      // 若原開始日期在過去，允許保留但不能選更早；否則限今天
-      const original = this.cls()?.startDate ? new Date(this.cls()!.startDate + 'T00:00:00') : null;
-      return original && original < today ? original : today;
-    }
-    return today;
-  });
-  protected readonly endDateMin = computed<Date | undefined>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const start = this.startDate();
-    if (this.isEditing()) {
-      // 編輯模式：不允許設定到過去，minDate = max(today, startDate)
-      return start && start > today ? start : today;
-    }
-    // 新增模式：只限制不早於開始日期
-    return start ?? undefined;
-  });
-
+  // 原生 date 欄位（A6 `.acset__in`）：值是 `yyyy-MM-dd`，空字串＝不限
+  protected readonly startDate = signal<string>(this.cls()?.startDate ?? '');
+  protected readonly endDate = signal<string>(this.cls()?.endDate ?? '');
   private readonly today = taipeiDateString(Date.now());
+  /** 原開始日期在過去：允許保留但不能選更早；否則限今天（字串比較，`yyyy-MM-dd` 可直接比） */
+  protected readonly startDateMin = computed(() => {
+    const original = this.cls()?.startDate;
+    return this.isEditing() && original && original < this.today ? original : this.today;
+  });
+  /** 編輯：max(今天, 開始日)；新增：只限不早於開始日 */
+  protected readonly endDateMin = computed(() => {
+    const start = this.startDate();
+    if (this.isEditing()) return start > this.today ? start : this.today;
+    return start;
+  });
   /**
    * 表單只管「今天有效＋還沒生效」的時段（#1100 #22）。已經結束的舊段是歷史，不列、
    * **也不能算進 `handleScheduleUpdates` 的「表單裡沒有＝刪掉」**，不然存一次就把它刪了
@@ -242,11 +232,12 @@ export class ClassFormDialogComponent {
     ];
   });
 
-  protected readonly breadcrumb = computed(() => {
+  /** A6 `.fdlg__sub`：「{分校} · {課程}」 */
+  protected readonly subtitle = computed(() => {
     const c = this.course();
     if (!c) return '';
     const campusName = this.campuses().find((cp) => cp.id === c.campusId)?.name ?? '未知分校';
-    return `${campusName} › ${c.name}`;
+    return `${campusName} · ${c.name}`;
   });
 
   protected readonly weekdayOptions = [
@@ -272,6 +263,22 @@ export class ClassFormDialogComponent {
   // `ConflictWarningDialogComponent` 透過 DynamicDialog 的 data 帶進去，
   // 元件不再需要自己保存那份狀態。
   protected readonly formValidationMessage = signal<string | null>(null);
+  /** A6 `.fdlg__why`：必填沒填不鎖死送出鈕，動作列左邊寫還差什麼（courses.html classDialog 的 check） */
+  protected readonly missingHint = computed(() => {
+    const form = this.formData();
+    if (!form.name.trim()) return '還沒填：開課班名稱';
+    if (!(form.maxStudents > 0)) return '人數上限要大於 0';
+    return null;
+  });
+  protected readonly whyText = computed(() => this.formValidationMessage() ?? this.missingHint());
+
+  /** A6 `.fdlg__opt` radio */
+  protected readonly statusOptions = [
+    { label: '啟用', value: true },
+    { label: '停用', value: false },
+  ] as const;
+
+  private readonly nameInput = viewChild.required<ElementRef<HTMLInputElement>>('nameInput');
 
   protected updateForm(field: keyof ReturnType<typeof this.formData>, value: any): void {
     this.formValidationMessage.set(null);
@@ -316,11 +323,7 @@ export class ClassFormDialogComponent {
 
   protected save(): void {
     this.formValidationMessage.set(null);
-    const form = this.formData();
-    if (!form.name.trim()) {
-      this.formValidationMessage.set('請填寫班級名稱');
-      return;
-    }
+    if (this.missingHint() || this.loading()) return;
 
     const incompleteSchedule = this.scheduleEntries().find((e) => !e.weekday);
     if (incompleteSchedule) {
@@ -419,8 +422,8 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
-        startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
-        endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
+        startDate: this.startDate() || null,
+        endDate: this.endDate() || null,
         isActive: form.isActive,
         isRecommended: this.isRecommended(),
         isPublicEnrollment: this.isPublicEnrollment(),
@@ -445,8 +448,9 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
-        startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
-        endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
+        startDate: this.startDate() || null,
+        endDate: this.endDate() || null,
+        isActive: form.isActive,
         isRecommended: this.isRecommended(),
         isPublicEnrollment: this.isPublicEnrollment(),
         ...this.feeTemplatePatch(),

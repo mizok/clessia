@@ -1,166 +1,150 @@
-<div class="form-dialog">
+<div class="form-dialog form-dialog--a6">
+  <!-- A6 `.fdlg` 標題列：h2＋副標「{分校} · {課程}」＋關閉（courses.html classDialog） -->
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      @if (breadcrumb()) {
-        <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
+      <h2 appDialogTitle class="dialog-header-inline__title">{{ dialogTitle() }}</h2>
+      @if (subtitle()) {
+        <p class="dialog-header-inline__sub">{{ subtitle() }}</p>
       }
-      <span class="dialog-header-inline__title">{{ dialogTitle() }}</span>
     </div>
     <button
       type="button"
-      class="dialog-header-inline__close size-11"
+      class="dialog-header-inline__close size-11 wide:size-10"
       (click)="cancel()"
-      aria-label="Close"
+      aria-label="關閉"
     >
-      <i class="pi pi-times"></i>
+      <i class="pi pi-times" aria-hidden="true"></i>
     </button>
   </div>
 
-  <div class="form-dialog__content">
-    <!-- Status (edit only) -->
-    @if (isEditing()) {
-      <div class="form-dialog__field form-dialog__field--inline">
-        <label class="form-dialog__label">狀態</label>
-        <div class="form-dialog__switch-row">
-          <p-toggleswitch
-            [ngModel]="formData().isActive"
-            (ngModelChange)="updateForm('isActive', $event)"
-            [disabled]="loading()"
-          />
-          <span class="form-dialog__switch-label">
-            {{ formData().isActive ? '啟用中' : '已停用' }}
-          </span>
-        </div>
-      </div>
-    }
-
-    <!-- Name -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        班級名稱<span class="form-dialog__required">*</span>
-      </label>
+  <!-- A6 `.fdlg__body`：兩欄 grid，班名／人數各半欄，其餘整列；手機一欄 -->
+  <form
+    ngNoForm
+    class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+    (submit)="$event.preventDefault(); save()"
+  >
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-name"
+        >開課班名稱 <span class="text-error-700" aria-hidden="true">*</span></label
+      >
       <input
+        id="class-name"
+        #nameInput
         type="text"
-        pInputText
+        maxlength="50"
+        autocomplete="off"
+        [placeholder]="'例如：' + (course()?.name ?? '') + ' A 班'"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
         [ngModel]="formData().name"
         (ngModelChange)="updateForm('name', $event)"
-        placeholder="例如：A 班（週六上午）"
         [disabled]="loading()"
-        class="w-full"
       />
     </div>
 
-    <!-- Max Students -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">人數上限</label>
-      <p-inputnumber
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-cap"
+        >人數上限 <span class="text-error-700" aria-hidden="true">*</span></label
+      >
+      <input
+        id="class-cap"
+        type="number"
+        min="1"
+        max="200"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
         [ngModel]="formData().maxStudents"
         (ngModelChange)="updateForm('maxStudents', $event)"
-        [min]="1"
-        [max]="200"
         [disabled]="loading()"
-        styleClass="w-full"
       />
     </div>
 
-    <!-- 推薦加選（#1118）：家長目錄排最前、畫推薦標籤 -->
-    <div class="form-dialog__field form-dialog__field--inline">
-      <label class="form-dialog__label" for="class-recommended">家長端推薦加選</label>
-      <div class="form-dialog__switch-row">
-        <p-toggleswitch
-          inputId="class-recommended"
+    <!-- A6 `.sw`：「家長端」勾選框 -->
+    <div class="min-w-0">
+      <p class="mb-1 block text-md font-semibold text-zinc-700 m-0">家長端</p>
+      <label
+        class="inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold text-zinc-900"
+      >
+        <input
+          type="checkbox"
+          class="m-0 size-[18px] accent-zinc-900"
           [ngModel]="isRecommended()"
           (ngModelChange)="isRecommended.set($event)"
           [disabled]="loading()"
-        />
-        <span class="form-dialog__switch-label">{{ isRecommended() ? '推薦' : '不推薦' }}</span>
-      </div>
+        />推薦加選，優先顯示在家長首頁
+      </label>
     </div>
 
-    <!-- 開放公開報名（#1665 Q5）：匿名的報名／試聽表單看不看得到這一班 -->
-    <div class="form-dialog__field">
-      <div class="form-dialog__field form-dialog__field--inline">
-        <label class="form-dialog__label" for="class-public-enrollment">開放公開報名</label>
-        <div class="form-dialog__switch-row">
-          <p-toggleswitch
-            inputId="class-public-enrollment"
-            [ngModel]="isPublicEnrollment()"
-            (ngModelChange)="isPublicEnrollment.set($event)"
-            [disabled]="loading()"
-          />
-          <span class="form-dialog__switch-label">{{
-            isPublicEnrollment() ? '開放' : '不公開'
-          }}</span>
-        </div>
-      </div>
-      <p class="form-dialog__hint">
+    <!-- 稿沒畫（舊有新無 R2，#1665 Q5）：匿名的報名／試聽表單看不看得到這一班 -->
+    <div class="min-w-0">
+      <p class="mb-1 block text-md font-semibold text-zinc-700 m-0">公開報名</p>
+      <label
+        class="inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold text-zinc-900"
+      >
+        <input
+          type="checkbox"
+          class="m-0 size-[18px] accent-zinc-900"
+          [ngModel]="isPublicEnrollment()"
+          (ngModelChange)="isPublicEnrollment.set($event)"
+          [disabled]="loading()"
+        />開放公開報名
+      </label>
+      <p class="m-0 mt-1 text-sm text-zinc-600">
         關掉之後，公開的報名、試聽表單看不到這一班；已送來的申請不受影響
       </p>
     </div>
 
-    <!-- 目錄參考價（#1175，要 manage_finance） -->
+    <!-- 稿沒畫（舊有新無 R2，#1175，要 manage_finance；#2089 使用者裁定保留） -->
     @if (canSetFee) {
-      <div class="form-dialog__field">
-        <label class="form-dialog__label" for="class-default-fee">目錄參考價</label>
-        <p-select
-          inputId="class-default-fee"
-          [options]="feeOptions()"
-          [ngModel]="defaultFeeTemplateId()"
-          (ngModelChange)="defaultFeeTemplateId.set($event)"
-          optionLabel="label"
-          optionValue="value"
+      <div class="col-span-full min-w-0">
+        <app-select-field
+          label="目錄參考價"
+          labelSize="md"
           placeholder="未指定"
-          [disabled]="loading()"
-          styleClass="w-full"
-          [appendTo]="'body'"
+          [options]="feeOptions()"
+          [value]="defaultFeeTemplateId()"
+          (valueChange)="defaultFeeTemplateId.set($event)"
         />
+        <p class="m-0 mt-1 text-sm text-zinc-600">
+          家長目錄顯示的參考價；實際收費以報名時選的範本為準。
+        </p>
       </div>
-      <!-- 同日期那段的說明樣式：選填欄位的「代價」講在欄位下面 -->
-      <p class="-mt-2 mb-0 text-xs leading-normal text-zinc-500">
-        家長目錄顯示的參考價；實際收費以報名時選的範本為準。
-      </p>
     }
 
-    <!-- Date Range -->
-    <div class="form-dialog__row flex-col md:flex-row">
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">開始日期</label>
-        <p-datepicker
-          [ngModel]="startDate()"
-          (ngModelChange)="startDate.set($event)"
-          dateFormat="yy-mm-dd"
-          [showIcon]="true"
-          [showClear]="true"
-          placeholder="不限"
-          styleClass="w-full"
-          [appendTo]="'body'"
-          [disabled]="loading()"
-          [minDate]="startDateMin()"
-        />
-      </div>
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">結束日期</label>
-        <p-datepicker
-          [ngModel]="endDate()"
-          (ngModelChange)="endDate.set($event)"
-          dateFormat="yy-mm-dd"
-          [showIcon]="true"
-          [showClear]="true"
-          placeholder="不限"
-          styleClass="w-full"
-          [appendTo]="'body'"
-          [disabled]="loading()"
-          [minDate]="endDateMin()"
-        />
-      </div>
+    <!-- 稿沒畫（舊有新無 R2）：班級的起訖日，選填＝不限期（API 靠 end_date IS NULL 判斷班還在） -->
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-start"
+        >開始日期（選填）</label
+      >
+      <input
+        id="class-start"
+        type="date"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+        [min]="startDateMin()"
+        [ngModel]="startDate()"
+        (ngModelChange)="startDate.set($event ?? '')"
+        [disabled]="loading()"
+      />
+    </div>
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-end"
+        >結束日期（選填）</label
+      >
+      <input
+        id="class-end"
+        type="date"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+        [min]="endDateMin()"
+        [ngModel]="endDate()"
+        (ngModelChange)="endDate.set($event ?? '')"
+        [disabled]="loading()"
+      />
     </div>
     <!-- 日期是選填的，但留空要付的代價在另一個對話框才會顯現 —— 在這裡先講 -->
-    <p class="-mt-2 mb-0 text-xs leading-normal text-zinc-500">
+    <p class="col-span-full -mt-2 mb-0 text-sm text-zinc-600">
       兩邊都填，之後產生課堂會直接沿用這段期間；留空（不限期）則每次產生課堂都要另外指定範圍。
     </p>
 
     <!-- Schedules Section -->
-    <div class="form-dialog__section">
+    <div class="form-dialog__section col-span-full">
       <div class="form-dialog__section-header">
         <span class="form-dialog__section-title">
           <i class="pi pi-clock"></i>
@@ -175,14 +159,6 @@
           [disabled]="loading()"
         />
       </div>
-
-      @if (formValidationMessage()) {
-        <app-inline-notice
-          severity="error"
-          [detail]="formValidationMessage()"
-          [dismissible]="false"
-        />
-      }
 
       @if (scheduleEntries().length === 0) {
         <p class="form-dialog__empty-note">尚未設定上課時間，點擊「新增時段」添加</p>
@@ -269,22 +245,47 @@
         </div>
       }
     </div>
-  </div>
 
+    <!-- A6 `.fdlg__seg`／`.fdlg__opt`：狀態 radio，選中的框加深 -->
+    <div class="col-span-full min-w-0">
+      <p class="mb-1 block text-md font-semibold text-zinc-700 m-0" id="class-status">狀態</p>
+      <div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="class-status">
+        @for (opt of statusOptions; track opt.label) {
+          <label
+            class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
+          >
+            <input
+              type="radio"
+              name="class-status"
+              class="m-0 accent-zinc-900"
+              [checked]="formData().isActive === opt.value"
+              [disabled]="loading()"
+              (change)="updateForm('isActive', opt.value)"
+            />{{ opt.label }}
+          </label>
+        }
+      </div>
+    </div>
+  </form>
+
+  <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
   <div class="form-dialog__footer">
-    <p-button
-      label="取消"
-      [text]="true"
-      severity="secondary"
+    <p class="form-dialog__why" aria-live="polite">{{ whyText() }}</p>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
       [disabled]="loading()"
-      (onClick)="cancel()"
-    />
-    <p-button
-      [label]="isEditing() ? '儲存' : '建立'"
-      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
-      [loading]="loading()"
-      (onClick)="save()"
-      [disabled]="!formData().name.trim()"
-    />
+      (click)="cancel()"
+    >
+      取消
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+      [attr.aria-disabled]="!!missingHint() || loading()"
+      (click)="save()"
+    >
+      {{ loading() ? '儲存中…' : isEditing() ? '儲存' : '建立班級' }}
+    </button>
   </div>
 </div>
