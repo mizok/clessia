@@ -6,6 +6,7 @@ import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { AttendanceService } from '@core/attendance.service';
 import { ContactBookService } from '@core/contact-book.service';
+import { AcademyExamsService } from '@core/academy-exams.service';
 import { SessionsService } from '@core/sessions.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -37,6 +38,7 @@ describe('SchedulePage', () => {
   let fixture: ComponentFixture<SchedulePage>;
   let sessionsSpy: ReturnType<typeof vi.fn>;
   let missingSummarySpy: ReturnType<typeof vi.fn>;
+  let examListSpy: ReturnType<typeof vi.fn>;
 
   async function setup(
     options: {
@@ -52,6 +54,8 @@ describe('SchedulePage', () => {
       selectDate?: string;
       /** 假「現在」的 epoch ms，預設 2027-03-05 12:00（台北） */
       nowMs?: number;
+      /** `GET /academy-exams?todo=true` 回的考試（TS6） */
+      examTodos?: unknown[];
     } = {},
   ) {
     const orgSettings = signal({
@@ -80,6 +84,10 @@ describe('SchedulePage', () => {
           }),
     );
 
+    examListSpy = vi.fn(() =>
+      of({ data: options.examTodos ?? [], meta: { total: 0, page: 1, pageSize: 200 } }),
+    );
+
     const changesSpy = vi.fn(() =>
       options.changesFail
         ? throwError(() => new Error('boom'))
@@ -97,6 +105,7 @@ describe('SchedulePage', () => {
         { provide: AttendanceService, useValue: { sessions: sessionsSpy } },
         { provide: SessionsService, useValue: { listMyChanges: changesSpy } },
         { provide: ContactBookService, useValue: { missingSummary: missingSummarySpy } },
+        { provide: AcademyExamsService, useValue: { list: examListSpy } },
         {
           provide: OrgSettingsService,
           // settings 在真的服務裡是 signal —— mock 成純物件的話，
@@ -507,6 +516,31 @@ describe('SchedulePage', () => {
       expect(fixture.nativeElement.querySelectorAll('.schedule-page__session--next').length).toBe(
         1,
       );
+    });
+
+    // #1314 TS6：稿的「第四次小考成績未登錄」—— 那班那天考的、還沒登完的考試
+    it('成績未登錄：比對班＋考試日，只查到今天（還沒考的不算）；停課的不提', async () => {
+      await setup({
+        sessions: [
+          row({ sessionId: '1', className: '上午班', classId: 'c1' }),
+          row({ sessionId: '2', className: '停課班', classId: 'c2', status: 'cancelled' }),
+          row({ sessionId: '3', className: '別班', classId: 'c3' }),
+        ],
+        examTodos: [
+          { name: '第四次小考', examDate: TODAY, classes: [{ id: 'c1' }, { id: 'c2' }] },
+          { name: '別天的考試', examDate: '2027-03-02', classes: [{ id: 'c3' }] },
+        ],
+      });
+      expect(examListSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ todo: true, dateFrom: MONDAY_THIS_WEEK, dateTo: TODAY }),
+      );
+      const cardText = (name: string) =>
+        [...fixture.nativeElement.querySelectorAll('.schedule-page__session')]
+          .find((el) => (el as HTMLElement).textContent!.includes(name))!
+          .textContent!.replace(/\s+/g, '');
+      expect(cardText('上午班')).toContain('第四次小考成績未登錄');
+      expect(cardText('停課班')).not.toContain('成績未登錄');
+      expect(cardText('別班')).not.toContain('成績未登錄');
     });
 
     // #1314 TS2：橘面標題是開場句，副行是今天的摘要，週區間搬到週條旁

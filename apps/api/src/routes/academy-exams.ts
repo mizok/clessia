@@ -50,8 +50,8 @@ const AcademyExamListItemSchema = z
     subjectId: DbUuidSchema.nullable(),
     subjectName: z.string().nullable(),
     classCount: z.number().int(),
-    /** 參加班級（班名排序）；`classCount` 就是它的長度（#1314 G1） */
-    classes: z.array(z.object({ id: DbUuidSchema, name: z.string() })),
+    /** 參加班級（班名排序）；`classCount` 就是它的長度（#1314 G1）。`courseId` 給列上連班級頁（G1b） */
+    classes: z.array(z.object({ id: DbUuidSchema, name: z.string(), courseId: DbUuidSchema })),
     scoreCount: z.number().int(),
     // 應登錄人數（分母）= **考試日在籍 ∪ 已登錄**。定義與理由見
     // `lib/academy-exam-roster.ts`（issue #424 使用者裁定）。
@@ -283,7 +283,10 @@ interface ExamListRow {
   subjects?: { name: string | null } | Array<{ name: string | null }> | null;
   academy_exam_classes?: Array<{
     class_id: string;
-    classes?: { name: string | null } | Array<{ name: string | null }> | null;
+    classes?:
+      | { name: string | null; course_id: string }
+      | Array<{ name: string | null; course_id: string }>
+      | null;
   }> | null;
   academy_scores?: Array<{ count: number | null }> | null;
 }
@@ -599,7 +602,7 @@ app.openapi(listRoute, async (c) => {
       created_at,
       updated_at,
       subjects(name),
-      academy_exam_classes(class_id, classes(name)),
+      academy_exam_classes(class_id, classes(name, course_id)),
       academy_scores(count)
     `,
       { count: 'exact' },
@@ -722,7 +725,10 @@ app.openapi(listRoute, async (c) => {
   const rows = pageRows.map((row) => {
     const subject = pickRelationFirst(row.subjects);
     const classes = (row.academy_exam_classes ?? [])
-      .map((link) => ({ id: link.class_id, name: pickRelationFirst(link.classes)?.name ?? '' }))
+      .map((link) => {
+        const cls = pickRelationFirst(link.classes);
+        return { id: link.class_id, name: cls?.name ?? '', courseId: cls?.course_id ?? '' };
+      })
       .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
     const scoreCount = row.academy_scores?.[0]?.count ?? 0;
     // 這一頁的每一筆都在 `counts` 裡（它是照 pageRows 或候選集算出來的），

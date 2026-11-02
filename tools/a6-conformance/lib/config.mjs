@@ -2187,22 +2187,16 @@ export const PAGES = {
     a6Open: opensOf('exams', 'a6Open'),
     appOpen: opensOf('exams', 'appOpen'),
     deviations: [
-      // 考試列的班名：稿是連到班級頁的連結（`.ex__where a`），app 是字 —— 班級頁要 courseId，列表 API 沒給（等 API）。
-      // 稿的班名包在連結裡，`.ex__where` 自己沒有字、不成 part；app 的有字，後面的「# ／# 已登錄」順位跟著錯開一格
       {
-        status: '缺',
-        a6: '>row>control:link~2$',
-        reason: '班名連班級頁：等 API（列表沒有 courseId）',
-        source:
-          '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
+        // G1b 之後：手機班名連結撐 44（觸控下限），「# ／# 已登錄」整格（span~2）Δy 跟著 +N 已歸連帶；
+        // 裡面的粗體數字工具只拿它跟「所在列」比、不跟父層比，連帶傳不下來，同一個 Δy 在這裡補上
+        status: '位置',
+        widths: [360],
+        a6: '>row>text:span~2>text:b$',
+        detail: '^相對所在列 Δx 0、Δy \\+\\d+（',
+        reason: '連帶：班名連結手機 44px（觸控下限），已登錄人數那格整組往下',
+        source: `${rule('R3')}；#1314 G1b`,
       },
-      ...['缺', '多', '位置', '樣式'].map((status) => ({
-        status,
-        [status === '多' ? 'app' : 'a6']: '>row>text:span~[23](>text:b)?$',
-        reason: '連帶：班名不是連結，列內 span 的順位錯開一格',
-        source:
-          '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
-      })),
       {
         // 稿的「待處理」帶「新」設計標記（工具配對前拿掉），手機上多佔的寬度把考試型態擠到下一行
         status: '位置',

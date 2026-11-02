@@ -69,6 +69,7 @@ import { usesRawSupabase, usesRawPool } from './lib/parent-route-scan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
+import { cliPinProblems } from './lib/supabase-cli-pin.mjs';
 
 const ROOT = '/repo';
 const guard = (filePath, text) =>
@@ -2578,4 +2579,28 @@ test('A7c：只 import type CampusScope（沒有呼叫）的路由要紅 —— 
     [],
   );
   assert.deepEqual(unscopedCampusFiles([{ file: 'routes/meals.ts', source: called }]), []);
+});
+
+// ── Supabase CLI 釘版（2026-11-02：verify 用 latest，新版拒絕 [inbucket]，deploy 被 skip）────────
+const wf = (name, version, pinned) => ({
+  name,
+  text: `${pinned ? `env:\n  SUPABASE_CLI_VERSION: ${pinned}\n` : ''}jobs:\n  a:\n    steps:\n      - uses: supabase/setup-cli@v1\n        with:\n          version: ${version}\n`,
+});
+const VAR = '${{ env.SUPABASE_CLI_VERSION }}';
+
+test('CLI 釘版：verify 與 migrate 同一個數字、都用變數 → 安靜', () => {
+  assert.deepEqual(cliPinProblems([wf('verify', VAR, '2.119.0'), wf('migrate', VAR, '2.119.0')]), []);
+});
+
+test('CLI 釘版：latest、沒釘、兩邊不同都要紅', () => {
+  assert.equal(cliPinProblems([wf('verify', 'latest', '2.119.0')]).length, 1, 'latest');
+  assert.equal(cliPinProblems([wf('verify', VAR, null)]).length, 1, '沒有 SUPABASE_CLI_VERSION');
+  assert.equal(cliPinProblems([wf('verify', VAR, 'latest')]).length, 1, '變數本身是 latest');
+  const diff = cliPinProblems([wf('verify', VAR, '3.0.0'), wf('migrate', VAR, '2.119.0')]);
+  assert.equal(diff.length, 1);
+  assert.match(diff[0], /不一樣/);
+});
+
+test('CLI 釘版：沒用 setup-cli 的 workflow 不管', () => {
+  assert.deepEqual(cliPinProblems([{ name: 'smoke', text: 'jobs:\n  a:\n    runs-on: x\n' }]), []);
 });
