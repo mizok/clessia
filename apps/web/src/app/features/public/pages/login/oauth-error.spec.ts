@@ -33,3 +33,24 @@ describe('oauthErrorFor', () => {
     expect(result?.showRegisterHint).toBe(false);
   });
 });
+
+// #1842：Google 失敗回來時網址帶 `?provider=google`（errorCallbackURL 加的）；訊息要說 Google，不能說 LINE
+describe('oauthErrorFor 依 provider 換名稱', () => {
+  it('Google 的未登記、取消、其他錯誤都寫 Google', () => {
+    expect(oauthErrorFor('signup_disabled', 'google')?.message).toContain('這個 Google 帳號');
+    expect(oauthErrorFor('access_denied', 'google')?.message).toBe('已取消 Google 登入。');
+    expect(oauthErrorFor('state_mismatch', 'google')?.message).toContain('Google 登入沒有完成');
+  });
+
+  // 舊的回跳網址沒有 provider：維持今天的 LINE 字樣
+  it('沒帶或認不得的 provider 當成 LINE', () => {
+    expect(oauthErrorFor('signup_disabled', null)?.message).toContain('這個 LINE 帳號');
+    expect(oauthErrorFor('signup_disabled', 'facebook')?.message).toContain('這個 LINE 帳號');
+  });
+
+  it('已經綁給別人的帳號：說清楚，不叫人重試', () => {
+    expect(oauthErrorFor('account_already_linked_to_different_user', 'google')?.message).toBe(
+      '這個 Google 帳號已經綁定在別的帳號上了。請改用另一個 Google 帳號，或聯絡補習班。',
+    );
+  });
+});
