@@ -127,6 +127,24 @@ describe('GET /api/scores/overview（#1314 G5）', () => {
     expect(body.exams.avgScore).toBeCloseTo(457 / 7, 6);
   });
 
+  // #2079 (b) 計畫席 11-02 裁定：「近一個月」＝[今天−30, 今天]，**未來排定的考試不算**（還沒考的不是「近一個月考了幾場」）
+  it('窗的上界是今天：明天排定的考試不進場數、也不進最近的考試', async () => {
+    const { body } = await overview('?days=30', {
+      tables: {
+        ...TABLES,
+        academy_exams: [
+          ...TABLES.academy_exams,
+          exam('future', '2027-03-16', [C1]), // 今天 + 1：不算
+          exam('today', '2027-03-15', [C2]), // 今天：算
+        ],
+      },
+    });
+    expect(body.exams.count).toBe(6);
+    const ids = body.recentExams.map((e: { examId: string }) => e.examId);
+    expect(ids).toContain('today');
+    expect(ids).not.toContain('future');
+  });
+
   it('不帶 days 預設 30', async () => {
     const { body } = await overview();
     expect(body.windowDays).toBe(30);
