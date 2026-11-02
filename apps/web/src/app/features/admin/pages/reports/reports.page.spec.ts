@@ -29,6 +29,7 @@ const figures = (overrides: Partial<RevenueResponse['summary']> = {}) => ({
 const response = (overrides: Partial<RevenueResponse> = {}): RevenueResponse => ({
   summary: figures(),
   groups: [],
+  csvColumns: ['日期', '分校', '課程', '金額', '類型', '備註'],
   ...overrides,
 });
 
@@ -143,6 +144,19 @@ describe('ReportsPage', () => {
       fixture.detectChanges();
       expect(scope()).not.toContain('全部課程');
       expect(scope()).toMatch(/ · 國一數學$/);
+    });
+
+    it('浮層的欄位照後端的 csvColumns 列（不手抄，後端多一欄這裡就多一欄）', () => {
+      const columns = () =>
+        (
+          fixture.nativeElement.querySelector('[data-testid="export-columns"]') as HTMLElement
+        ).textContent!.trim();
+      expect(columns()).toBe('日期、分校、課程、金額、類型、備註');
+
+      reports.revenue.mockReturnValue(of(response({ csvColumns: ['日期', '金額'] })));
+      component['load']();
+      fixture.detectChanges();
+      expect(columns()).toBe('日期、金額');
     });
 
     it('浮層裡按「匯出」：下載成功才收起浮層；失敗時留著', async () => {

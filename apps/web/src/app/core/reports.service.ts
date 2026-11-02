@@ -60,6 +60,8 @@ export interface RevenueQueryParams {
 export interface RevenueResponse {
   summary: RevenueFigures;
   groups: RevenueGroup[];
+  /** 匯出明細 CSV 的欄名（後端唯一一份），確認浮層照它列，前端不另存 */
+  csvColumns: string[];
 }
 
 export const REVENUE_GROUP_BY_LABELS: Readonly<Record<RevenueGroupBy, string>> = {
