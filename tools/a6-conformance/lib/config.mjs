@@ -764,7 +764,9 @@ export const PAGES = {
   },
   student: {
     a6: 'student.html',
-    app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee',
+    // 學生 id 用 supabase/seed.sql 寫死的 v_student_id（61000000-…-001「出勤測試學生01」）；
+    // seed-demo 的學生是 gen_random_uuid，reset 一次就換（原本的 e98f234f-… 在 10-31 已經不存在）
+    app: '/admin/students/61000000-0000-0000-0000-000000000001',
     deviations: [
       {
         // 色面上方「學生名冊」返回連結手機 44 高（稿 20），下面的標題、副行、統計整組往下。
@@ -882,7 +884,10 @@ export const PAGES = {
   },
   class: {
     a6: 'class.html',
-    app: '/admin/courses/dc2f0b1a-7e79-4b6e-a61e-8bbac3eec5a6/classes/1deffd57-e069-4d72-98bf-41415ec01967',
+    // 班級 id 用 supabase/seed.sql 寫死的 math_class_id（62000000-…-001「數學班 A」）—— 不用 seed-demo 的班：
+    // 那些是 gen_random_uuid，reset 一次就換，下一個人量到的是「找不到這個班」（10-31 實例）。
+    // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
+    app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
   },
   dashboard: {
     a6: 'dashboard.html',
