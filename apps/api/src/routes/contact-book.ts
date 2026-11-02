@@ -95,12 +95,16 @@ interface ContactBookRow {
   signer?: { name: string } | null;
 }
 
-/** 列上的班名看得到哪些班：`null`＝不限（不受限的管理員）。兩個都有就取交集 */
+/**
+ * 列上的班名看得到哪些班：`null`＝不限（不受限的管理員）。兩個都有就取交集。
+ * `toContactBookEntryResponse` 的這個參數**刻意必填**：預設「不限」是 fail-open，
+ * 新呼叫端忘了傳就會把範圍外的班名露出去 —— 不受限的要明確傳 `ALL_CLASSES`
+ */
 export interface ClassVisibility {
   readonly campusIds: readonly string[] | null;
   readonly classIds: readonly string[] | null;
 }
-const ALL_CLASSES: ClassVisibility = { campusIds: null, classIds: null };
+export const ALL_CLASSES: ClassVisibility = { campusIds: null, classIds: null };
 /** 「報名中」：同缺漏名單的候選（`/missing`） */
 const ENROLLED = new Set(['active', 'pending_payment']);
 
@@ -116,10 +120,7 @@ function classNamesOf(row: ContactBookRow, visible: ClassVisibility): string[] {
   return [...names].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
 }
 
-export function toContactBookEntryResponse(
-  row: Record<string, unknown>,
-  visible: ClassVisibility = ALL_CLASSES,
-) {
+export function toContactBookEntryResponse(row: Record<string, unknown>, visible: ClassVisibility) {
   const typed = row as unknown as ContactBookRow;
   return {
     id: typed.id,

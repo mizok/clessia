@@ -599,7 +599,8 @@ describe('ContactBookPage', () => {
       ]);
 
       const rows = Array.from(el().querySelectorAll<HTMLElement>('[data-testid="entry"]'));
-      const cls = (row: HTMLElement) => row.querySelector<HTMLElement>('[data-testid="entry-class"]');
+      const cls = (row: HTMLElement) =>
+        row.querySelector<HTMLElement>('[data-testid="entry-class"]');
       expect(cls(rows[0])?.textContent?.trim()).toBe('三年甲班');
       expect(cls(rows[0])?.title).toBe('');
       expect(cls(rows[1])?.textContent?.replace(/\s+/g, ' ').trim()).toBe('三年甲班 ＋2');

@@ -62,7 +62,9 @@ describe('ContactBookEntryDialogComponent', () => {
 
   it('沒有班名：不出現班名那一段', async () => {
     await setup(signedEntry);
-    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="entry-classes"]')).toBeNull();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="entry-classes"]'),
+    ).toBeNull();
   });
 
   it('簽收時間不以原始 ISO 時間戳渲染', async () => {

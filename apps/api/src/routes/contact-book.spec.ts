@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 
-import contactBookApp, { toContactBookEntryResponse } from './contact-book';
+import contactBookApp, { ALL_CLASSES, toContactBookEntryResponse } from './contact-book';
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 
 /**
@@ -24,7 +24,7 @@ const ROW = {
 
 describe('toContactBookEntryResponse', () => {
   it('把 snake_case 的 DB 列轉成 camelCase 回應', () => {
-    expect(toContactBookEntryResponse(ROW)).toEqual({
+    expect(toContactBookEntryResponse(ROW, ALL_CLASSES)).toEqual({
       id: 'entry-1',
       studentId: 'student-1',
       studentName: '陳小明',
@@ -44,9 +44,9 @@ describe('toContactBookEntryResponse', () => {
   it('updated_at 晚於 signed_at → editedAfterSign；相等（剛簽收）→ false', () => {
     const at = '2026-08-29T12:00:00.123456+00:00';
     const signedNow = { ...ROW, signed_at: at, updated_at: at };
-    expect(toContactBookEntryResponse(signedNow).editedAfterSign).toBe(false);
+    expect(toContactBookEntryResponse(signedNow, ALL_CLASSES).editedAfterSign).toBe(false);
     const editedLater = { ...signedNow, updated_at: '2026-08-29T12:05:00+00:00' };
-    expect(toContactBookEntryResponse(editedLater).editedAfterSign).toBe(true);
+    expect(toContactBookEntryResponse(editedLater, ALL_CLASSES).editedAfterSign).toBe(true);
   });
 
   /**
@@ -61,7 +61,7 @@ describe('toContactBookEntryResponse', () => {
       signed_at: '2026-08-29T12:00:00Z',
     };
 
-    const result = toContactBookEntryResponse(signed);
+    const result = toContactBookEntryResponse(signed, ALL_CLASSES);
 
     expect(result.isSigned).toBe(true);
     expect(result.signedBy).toBe('user-parent');
@@ -75,7 +75,11 @@ describe('toContactBookEntryResponse', () => {
    * 所以是「這位學生現在在哪些開聯絡簿的班」。
    */
   describe('classNames（#2080-1）', () => {
-    const enr = (name: string, over: Record<string, unknown> = {}, cls: Record<string, unknown> = {}) => ({
+    const enr = (
+      name: string,
+      over: Record<string, unknown> = {},
+      cls: Record<string, unknown> = {},
+    ) => ({
       status: 'active',
       class_id: `class-${name}`,
       classes: { name, campus_id: 'campus-a', uses_contact_book: true, ...cls },
@@ -95,11 +99,17 @@ describe('toContactBookEntryResponse', () => {
         enr('國中數學', {}, { uses_contact_book: false }),
         enr('三年乙班', { class_id: 'class-dup' }),
       ]);
-      expect(toContactBookEntryResponse(row).classNames).toEqual(['三年乙班', '三年甲班']);
+      expect(toContactBookEntryResponse(row, ALL_CLASSES).classNames).toEqual([
+        '三年乙班',
+        '三年甲班',
+      ]);
     });
 
     it('分校範圍：範圍外分校的班不列（跨校學生只露出範圍內的班名）', () => {
-      const row = withEnrollments([enr('A 校的班'), enr('B 校的班', {}, { campus_id: 'campus-b' })]);
+      const row = withEnrollments([
+        enr('A 校的班'),
+        enr('B 校的班', {}, { campus_id: 'campus-b' }),
+      ]);
       const visible = { campusIds: ['campus-a'], classIds: null };
       expect(toContactBookEntryResponse(row, visible).classNames).toEqual(['A 校的班']);
     });
@@ -111,14 +121,16 @@ describe('toContactBookEntryResponse', () => {
     });
 
     it('沒有報名資料（embed 沒帶或缺漏）→ 空陣列', () => {
-      expect(toContactBookEntryResponse({ ...ROW, students: null }).classNames).toEqual([]);
+      expect(
+        toContactBookEntryResponse({ ...ROW, students: null }, ALL_CLASSES).classNames,
+      ).toEqual([]);
     });
   });
 
   it('關聯資料缺漏時給 null，不讓回應塌成 undefined', () => {
     const bare = { ...ROW, students: null, editor: null, signer: null };
 
-    const result = toContactBookEntryResponse(bare);
+    const result = toContactBookEntryResponse(bare, ALL_CLASSES);
 
     expect(result.studentName).toBeNull();
     expect(result.lastEditedByName).toBeNull();
