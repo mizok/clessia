@@ -242,6 +242,39 @@ run('Google 登入對真 Postgres（#1842）', () => {
     expect(await counts()).toEqual(before);
   });
 
+  // 使用者 11-02：LINE 的 idToken 入口也關。LINE 的 verify 端點用替身「驗得過」，擋下來的只能是 disableIdTokenSignIn
+  it('LINE 帶 idToken 走 sign-in/social 被拒，不建帳號', async () => {
+    const lineRows = async () =>
+      (
+        await auth.pool.query<{ users: string; line: string }>(
+          `SELECT (SELECT count(*) FROM ba_user) AS users,
+                  (SELECT count(*) FROM ba_account WHERE "providerId" = 'line') AS line`,
+        )
+      ).rows[0];
+    const before = await lineRows();
+    const sub = `U${randomUUID().replace(/-/g, '')}`;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+        String(input instanceof Request ? input.url : input).startsWith(
+          'https://api.line.me/oauth2/v2.1/verify',
+        )
+          ? Response.json({ aud: 'contract-lid', sub, iss: 'https://access.line.me' })
+          : realFetch(input, init),
+      ),
+    );
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const token = `${b64({ alg: 'HS256' })}.${b64({ sub, aud: 'contract-lid' })}.sig`;
+
+    const res = await browser()('/api/auth/sign-in/social', {
+      body: { provider: 'line', idToken: { token } },
+    });
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_TOKEN' });
+    expect(await lineRows()).toEqual(before);
+  });
+
   it('只綁一個登入方式時不能解除（better-auth 內建，G-3 的前提）', async () => {
     const staff = await newUser();
     const { b } = await signedInAs(staff.email);
