@@ -1428,7 +1428,8 @@ export const PAGES = {
   'p-enrollment-records': {
     a6: 'p-enrollment.html#records',
     // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
-    rowSel: { a6: 'button.rq' },
+    // app 的列也是一顆按鈕（`button[appRequestRow]`，#1314）；筆數少時過不了通則的 ≥3／≥5 門檻，一起指名
+    rowSel: { a6: 'button.rq', app: 'button[data-request]' },
     app: '/parent/enrollment#records',
     state: PARENT_STATE,
     deviations: [
@@ -1466,7 +1467,8 @@ export const PAGES = {
   'p-trial-records': {
     a6: 'p-trial.html#records',
     // 稿的每筆紀錄是一顆獨立的按鈕（button.rq），沒有清單結構；指名成列才跟 app 的清單配得上（#1314 10-30）
-    rowSel: { a6: 'button.rq' },
+    // app 的列也是一顆按鈕（`button[appRequestRow]`，#1314）；筆數少時過不了通則的 ≥3／≥5 門檻，一起指名
+    rowSel: { a6: 'button.rq', app: 'button[data-request]' },
     app: '/parent/trial#records',
     state: PARENT_STATE,
     deviations: [
