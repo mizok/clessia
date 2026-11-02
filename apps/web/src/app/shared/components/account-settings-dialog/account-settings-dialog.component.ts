@@ -8,6 +8,12 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService } from 'primeng/api';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { AuthService } from '@core/auth.service';
+import {
+  AuthProvidersService,
+  PROVIDER_NAMES,
+  type ProviderId,
+  isLineInAppBrowser,
+} from '@core/auth-providers.service';
 import { environment } from '@env/environment';
 import { firstValueFrom } from 'rxjs';
 
@@ -38,6 +44,24 @@ export class AccountSettingsDialogComponent {
     this.auth.roles().some((role) => role === 'admin' || role === 'teacher'),
   );
 
+  // ── 登入方式（#1842 G-3）──────────────────────────────────────────────
+  /** 這個部署掛了哪些（沒設憑證的 provider 不列） */
+  protected readonly providers = inject(AuthProvidersService).providers;
+  protected readonly names = PROVIDER_NAMES;
+  /** Google 一律擋 LINE 內建瀏覽器：那裡不給「綁定 Google」，改一行提示 */
+  protected readonly inLineApp = isLineInAppBrowser();
+  /** 綁了哪些（providerId）；null＝還在讀；讀不到另記 */
+  protected readonly linked = signal<readonly string[] | null>(null);
+  protected readonly linkedLoadFailed = signal(false);
+  protected readonly methodBusy = signal<ProviderId | null>(null);
+  protected readonly methodError = signal<string | null>(null);
+  /**
+   * 使用者 11-02：**綁了兩個以上才給「解除綁定」**，只剩一個寫「至少要留一個登入方式」。
+   * 數的是伺服器回的全部帳號（伺服器擋最後一個也是這樣數），不是畫面上列的那幾個
+   */
+  protected readonly canUnlink = computed(() => (this.linked()?.length ?? 0) >= 2);
+  protected readonly onlyOneLeft = computed(() => this.linked()?.length === 1);
+
   protected displayName = this.auth.profile()?.display_name ?? '';
   protected nickname = '';
   protected email = this.auth.user()?.email ?? '';
@@ -46,6 +70,65 @@ export class AccountSettingsDialogComponent {
 
   constructor() {
     void this.loadMe();
+    void this.loadLinked();
+  }
+
+  private async loadLinked() {
+    try {
+      const linked = await this.auth.linkedProviders();
+      this.linked.set(linked ?? []);
+      this.linkedLoadFailed.set(linked === null);
+    } catch {
+      this.linked.set([]);
+      this.linkedLoadFailed.set(true);
+    }
+  }
+
+  protected isLinked(provider: ProviderId): boolean {
+    return this.linked()?.includes(provider) ?? false;
+  }
+
+  /** 綁定：跟綁定頁同一支，瀏覽器會被導去 LINE／Google，成功回 /select-role */
+  protected async link(provider: ProviderId) {
+    this.methodError.set(null);
+    this.methodBusy.set(provider);
+    try {
+      const msg = await this.auth.linkProvider(provider);
+      if (msg) this.methodError.set(msg);
+    } catch {
+      this.methodError.set(`無法連線到 ${PROVIDER_NAMES[provider]}，請稍後再試`);
+    } finally {
+      this.methodBusy.set(null);
+    }
+  }
+
+  protected confirmUnlink(provider: ProviderId) {
+    const others = (this.linked() ?? [])
+      .filter((p) => p !== provider)
+      .map((p) => PROVIDER_NAMES[p as ProviderId] ?? p)
+      .join('、');
+    this.confirmationService.confirm({
+      key: 'account-settings-confirm',
+      header: `解除 ${PROVIDER_NAMES[provider]} 綁定`,
+      message: `解除之後就不能用 ${PROVIDER_NAMES[provider]} 登入，之後請用 ${others} 登入。`,
+      acceptLabel: '解除綁定',
+      rejectLabel: '取消',
+      accept: () => void this.unlink(provider),
+    });
+  }
+
+  private async unlink(provider: ProviderId) {
+    this.methodError.set(null);
+    this.methodBusy.set(provider);
+    try {
+      const msg = await this.auth.unlinkProvider(provider);
+      if (msg) this.methodError.set(msg);
+    } catch {
+      this.methodError.set(`解除 ${PROVIDER_NAMES[provider]} 綁定失敗，請稍後再試`);
+    } finally {
+      this.methodBusy.set(null);
+      await this.loadLinked();
+    }
   }
 
   private async loadMe() {

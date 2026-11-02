@@ -207,6 +207,68 @@
     </div>
   </div>
 
+  <!-- 登入方式（#1842 G-3）：列這個部署掛了的 provider；綁兩個以上才給解除（使用者 11-02） -->
+  <div
+    class="account-settings__section flex flex-col gap-3 border-b border-b-zinc-100 last:border-b-0"
+  >
+    <p
+      class="account-settings__section-label m-0 text-xs font-semibold tracking-[0.06em] text-zinc-500 uppercase"
+    >
+      登入方式
+    </p>
+    @if (linked() === null) {
+      <p class="m-0 text-sm text-zinc-500">讀取中…</p>
+    } @else {
+      @if (linkedLoadFailed()) {
+        <p class="account-settings__error m-0 text-xs text-error-600">
+          讀不到登入方式，請稍後再試。
+        </p>
+      }
+      <ul class="account-settings__methods m-0 flex list-none flex-col gap-2 p-0">
+        @for (provider of providers(); track provider) {
+          <li class="account-settings__method flex min-h-11 items-center justify-between gap-2">
+            <span class="text-sm text-zinc-900">{{ names[provider] }}</span>
+            @if (isLinked(provider)) {
+              <span class="flex items-center gap-2">
+                <span class="account-settings__linked text-sm text-zinc-500">已綁定</span>
+                @if (canUnlink()) {
+                  <p-button
+                    label="解除綁定"
+                    size="small"
+                    severity="danger"
+                    [text]="true"
+                    [loading]="methodBusy() === provider"
+                    [disabled]="methodBusy() !== null"
+                    (onClick)="confirmUnlink(provider)"
+                  />
+                }
+              </span>
+            } @else if (provider === 'google' && inLineApp) {
+              <span class="account-settings__google-in-line text-xs text-zinc-500"
+                >要綁 Google，請用 Safari 或 Chrome 打開</span
+              >
+            } @else if (!linkedLoadFailed()) {
+              <p-button
+                [label]="'綁定 ' + names[provider]"
+                size="small"
+                [outlined]="true"
+                [loading]="methodBusy() === provider"
+                [disabled]="methodBusy() !== null"
+                (onClick)="link(provider)"
+              />
+            }
+          </li>
+        }
+      </ul>
+      @if (onlyOneLeft()) {
+        <p class="account-settings__desc m-0 text-sm text-zinc-500">至少要留一個登入方式。</p>
+      }
+      @if (methodError()) {
+        <p class="account-settings__error m-0 text-xs text-error-600">{{ methodError() }}</p>
+      }
+    }
+  </div>
+
   @if (!hasParentRole()) {
     <div
       class="account-settings__section flex flex-col gap-3 border-b border-b-zinc-100 last:border-b-0"

@@ -298,6 +298,24 @@ export class AuthService {
     return null;
   }
 
+  /** 這個人綁了哪些登入方式（better-auth `list-accounts`，回 providerId）；讀不到回 null（#1842 G-3） */
+  async linkedProviders(): Promise<string[] | null> {
+    const { data, error } = await authClient.listAccounts();
+    return error || !data ? null : data.map((a) => a.providerId);
+  }
+
+  /**
+   * 解除綁定（better-auth `unlink-account`）。**最後一個由伺服器擋**（`FAILED_TO_UNLINK_LAST_ACCOUNT`，
+   * 契約 `auth-google.contract.ts` 證明過）；帳號設定只在綁了兩個以上時才給按鈕，這裡是第二道。
+   */
+  async unlinkProvider(provider: ProviderId): Promise<string | null> {
+    const { error } = await authClient.unlinkAccount({ providerId: provider });
+    if (!error) return null;
+    return error.code === 'FAILED_TO_UNLINK_LAST_ACCOUNT'
+      ? '至少要留一個登入方式'
+      : `解除 ${PROVIDER_NAMES[provider]} 綁定失敗，請稍後再試`;
+  }
+
   /** 回 router 的結果：`true` 才是真的到了那個 shell（被 guard 擋下或導航取消是 `false`） */
   navigateToRoleShell(role: UserRole): Promise<boolean> {
     this.setActiveRole(role);
