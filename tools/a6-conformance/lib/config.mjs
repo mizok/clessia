@@ -614,7 +614,8 @@ export const PAGES = {
         a6: '>row>control:link$',
         detail: '^fontSize 14px → 16px；fontWeight 400 → 600；lineHeight 21px → 24px$',
         reason: '資料：多數列今天沒課、沒有到班字，名字的字級被併回連結',
-        source: 'tools/a6-conformance/README.md（列內 part 取最常見那種；包一層文字的 span 併回外層控制項）',
+        source:
+          'tools/a6-conformance/README.md（列內 part 取最常見那種；包一層文字的 span 併回外層控制項）',
       },
       {
         // 稿第 2 章有一位暫停（何芷涵）；量測頁第一頁的 seed 學生沒有暫停的。樣式跟待繳費同一組（students.page.html 的 flag）
@@ -1134,6 +1135,32 @@ export const PAGES = {
         '>landmark:main[]>landmark:region[已停用]>heading:h2[已停用]',
     },
     deviations: [
+      // 新增人員：對外暱稱（#1665 Q6）稿沒畫，舊有新無
+      ...[
+        {
+          status: '多',
+          app: 'landmark:form\\[\\]>(control:textbox\\[對外暱稱\\]|text:label\\[對外暱稱\\]|text:p\\[對外的頁面只會顯示暱稱)',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-staff',
+        reason: '人員表單的「對外暱稱」：現況有、稿沒畫，保留',
+        source: `${rule('R2')}；#1665 Q6`,
+      })),
+      // 手機關閉鈕 44（稿 34）：標題欄跟著窄
+      ...[
+        {
+          status: '尺寸',
+          a6: 'landmark:dialog\\[新增人員\\]>(control:button\\[關閉\\]|heading:h2\\[新增人員\\]|text:p\\[建立後會出一次性登入連結[^\\]]*\\])$',
+        },
+        { status: '位置', a6: 'landmark:dialog\\[新增人員\\]>control:button\\[關閉\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-staff',
+        widths: [360],
+        reason: '手機關閉鈕 44px（觸控下限），標題欄因此變窄',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      })),
       // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 courses、grades-class
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -1179,7 +1206,8 @@ export const PAGES = {
         status: '缺',
         a6: '收費期間\\]>row>control:link$',
         reason: '「N 筆期繳報名在用」連到報名進出：等 API（報名列表沒有依收費期間篩的參數）',
-        source: '#1314 盤點 10-30「等 API」F1b（`GET /enrollments` 加 feeTemplateId；收費期間同一類）',
+        source:
+          '#1314 盤點 10-30「等 API」F1b（`GET /enrollments` 加 feeTemplateId；收費期間同一類）',
       },
       {
         // 稿 9 個期間 8 個有重疊說明（列高 83），「還沒有報名用它」那一列沒有（列高 60）；列內位置是相對各自的列量的
@@ -1242,9 +1270,76 @@ export const PAGES = {
           '稿的 .savebar 被只有自己高的 div 框住、捲動時不會動（稿的 bug）；app 確認列有黏是對的，手機 offset 照 app 現狀',
         source: 'https://github.com/mizok/clessia/pull/1761#issuecomment-6309038184（計畫席裁定）',
       },
+      // 說明框後半句「今天請假的 N 位名字下有提示」要名單帶請假旗標（ME1，等 API），沒有就不寫
+      ...['缺', '文案'].map((status) => ({
+        status,
+        a6: status === '缺' ? '>text:b\\[#位\\]$' : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
+        reason: '說明框的請假人數：餐費名單 API 還沒帶請假旗標（等 API）',
+        source: '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標',
+      })),
+      {
+        // 列的代表樣式取最常見的列：seed 今天 18 位裡 17 位未處理、多數沒訂（名字灰、單價框灰底、收費字灰、狀態 600 近黑）；
+        // 稿多數列已確認、有訂。四種樣式稿都有（.ml--off、:disabled、.stt--todo）
+        status: '樣式',
+        a6: '>row>(control:link|text:label~2>control:textbox|text:label~3|text:span)$',
+        detail:
+          '^(color rgb\\(26, 22, 20\\) → rgb\\(87, 80, 75\\)|backgroundColor rgb\\(255, 255, 255\\) → rgb\\(245, 243, 241\\)|color rgb\\(26, 22, 20\\) → rgb\\(120, 111, 105\\)|fontWeight 400 → 600；color rgb\\(61, 55, 51\\) → rgb\\(26, 22, 20\\))(；display inline → inline-flex)?$',
+        reason: '資料：seed 今天多數列未處理、沒訂，代表列是稿的 .ml--off／.stt--todo 那種',
+        source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
+      },
+      {
+        // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
+        status: '位置',
+        widths: [360],
+        a6: '>row>(text:label(~[23])?>control:(checkbox|textbox)|text:span)$',
+        detail: '^相對所在列 Δx 0、Δy \\+(1[0-9]|2[0-9]|3[0-2])',
+        reason: '連帶：手機名字連結 44px 觸控高度，列的第一行變高',
+        source: `${rule('R3')}`,
+      },
     ],
   },
-  reports: { a6: 'reports.html', app: '/admin/reports' },
+  reports: {
+    a6: 'reports.html',
+    app: '/admin/reports',
+    deviations: [
+      {
+        // 稿的期間／分校／課程是 label 包原生 select；app 是 label 包 PrimeNG p-select（combobox＋dropdown 鈕），
+        // 工具把 app 的 label 當成一個 part、稿的沒有。分校不在這列：在頂欄（#1138）
+        status: '多',
+        app: 'landmark:search\\[篩選營收報表\\]>text:label\\[(期間|課程)\\](>.*)?$',
+        reason: '工具限制：p-select 不是原生 select，label 的配對方式不同',
+        source: 'tools/a6-conformance extract.mjs；分校在頂欄 #1138',
+      },
+      {
+        // 表頭第一格、合計那一格的 class 跟同列其他格不同（靠左、無左內距），工具不把它們併進同一組列
+        status: '多',
+        app: '>landmark:main\\[\\]>list>text:(th\\[[^\\]]*\\]|td\\[合計\\])$',
+        reason: '工具限制：同列第一格簽名不同，沒有併成列',
+        source: 'tools/a6-conformance/README.md（列是同層同簽名）',
+      },
+      {
+        // 分組的名稱連結、模糊桶說明（未分類、跨分校帳單）隨資料：稿 19 組有 3 組連分校、1 組有說明，seed 2 組
+        status: '缺',
+        a6: '>row>(control:link|text:span)$',
+        reason: '資料：分組數與哪幾組有連結／說明',
+        source: 'tools/a6-conformance/README.md（列內條件式：可能隨資料）',
+      },
+      {
+        status: '多',
+        app: '>row>(control:link|text:span(~\\d)?)$',
+        reason: '資料：分組數與哪幾組有連結／說明',
+        source: 'tools/a6-conformance/README.md（列內條件式：可能隨資料）',
+      },
+      {
+        // 手機上分組名稱連結撐 44（觸控下限），列的第二行起跟著下移
+        status: '位置',
+        widths: [360],
+        app: '(>row>row|>text:td>text:small)$',
+        reason: '連帶：手機分組名稱連結撐到 44px',
+        source: `${rule('R3')}`,
+      },
+    ],
+  },
   'contact-book': {
     a6: 'contact-book.html',
     app: '/admin/contact-book',
@@ -1287,12 +1382,19 @@ export const PAGES = {
     deviations: [
       // 考試列的班名：稿是連到班級頁的連結（`.ex__where a`），app 是字 —— 班級頁要 courseId，列表 API 沒給（等 API）。
       // 稿的班名包在連結裡，`.ex__where` 自己沒有字、不成 part；app 的有字，後面的「# ／# 已登錄」順位跟著錯開一格
-      { status: '缺', a6: '>row>control:link~2$', reason: '班名連班級頁：等 API（列表沒有 courseId）', source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）' },
+      {
+        status: '缺',
+        a6: '>row>control:link~2$',
+        reason: '班名連班級頁：等 API（列表沒有 courseId）',
+        source:
+          '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
+      },
       ...['缺', '多', '位置', '樣式'].map((status) => ({
         status,
         [status === '多' ? 'app' : 'a6']: '>row>text:span~[23](>text:b)?$',
         reason: '連帶：班名不是連結，列內 span 的順位錯開一格',
-        source: '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
+        source:
+          '#1314 盤點 10-30「等 API」G1b：`GET /academy-exams` 的 classes[] 要帶 courseId 才連得到班級頁（`/admin/courses/:courseId/classes/:classId`）',
       })),
       {
         // 稿的「待處理」帶「新」設計標記（工具配對前拿掉），手機上多佔的寬度把考試型態擠到下一行

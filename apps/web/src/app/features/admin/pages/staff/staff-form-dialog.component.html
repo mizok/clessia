@@ -1,238 +1,281 @@
-<div class="form-dialog">
+<div class="form-dialog form-dialog--a6">
+  <!-- A6 `.fdlg` 標題列：h2＋副標＋關閉（staff.html baseFields） -->
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯人員' : '新增人員' }}</span>
+      <h2 appDialogTitle class="dialog-header-inline__title">
+        {{ isEditing() ? '編輯 ' + staff()!.displayName : '新增人員' }}
+      </h2>
+      <p class="dialog-header-inline__sub">
+        {{
+          isEditing()
+            ? 'Email：' + staff()!.email + '（Email 是產生登入連結的查人鍵，不能改）'
+            : '建立後會出一次性登入連結，交給本人綁定 LINE（不設密碼）'
+        }}
+      </p>
     </div>
     <button
       type="button"
-      class="dialog-header-inline__close size-11"
+      class="dialog-header-inline__close size-11 wide:size-10"
       (click)="cancel()"
-      aria-label="Close"
+      aria-label="關閉"
     >
-      <i class="pi pi-times"></i>
+      <i class="pi pi-times" aria-hidden="true"></i>
     </button>
   </div>
-  <div class="grid grid-cols-1 gap-4 min-[641px]:grid-cols-2">
-    <!-- Name -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label"> 姓名<span class="form-dialog__required">*</span> </label>
+
+  <!-- A6 `.fdlg__body`：兩欄 grid；手機一欄 -->
+  <form
+    ngNoForm
+    class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+    (submit)="$event.preventDefault(); save()"
+  >
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-name"
+        >姓名 <span class="text-error-700" aria-hidden="true">*</span></label
+      >
       <input
+        id="staff-name"
         type="text"
-        pInputText
+        autocomplete="off"
+        placeholder="真實姓名"
+        #nameInput
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg aria-invalid:border-error-700"
+        [attr.aria-invalid]="!!errors()['displayName']"
         [ngModel]="formData().displayName"
         (ngModelChange)="updateForm('displayName', $event)"
-        placeholder="真實姓名"
         [disabled]="loading()"
-        [class.p-invalid]="!!errors()['displayName']"
-        class="w-full"
       />
       @if (errors()['displayName']; as msg) {
-        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
+        <p class="m-0 mt-1 text-sm text-error-700">{{ msg }}</p>
       }
     </div>
+    <!-- Email 只在新增時（編輯時寫在副標，不能改） -->
+    @if (!isEditing()) {
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-email"
+          >Email <span class="text-error-700" aria-hidden="true">*</span></label
+        >
+        <input
+          id="staff-email"
+          type="email"
+          autocomplete="off"
+          placeholder="用來產生登入連結的 Email"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg aria-invalid:border-error-700"
+          [attr.aria-invalid]="!!errors()['email']"
+          [ngModel]="formData().email"
+          (ngModelChange)="updateForm('email', $event)"
+          [disabled]="loading()"
+        />
+        @if (errors()['email']; as msg) {
+          <p class="m-0 mt-1 text-sm text-error-700">{{ msg }}</p>
+        }
+      </div>
+    }
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-phone"
+        >電話
+        @if (!isEditing()) {
+          <span class="text-error-700" aria-hidden="true">*</span>
+        }
+      </label>
+      <input
+        id="staff-phone"
+        type="tel"
+        autocomplete="off"
+        placeholder="手機或市話"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg aria-invalid:border-error-700"
+        [attr.aria-invalid]="!!errors()['phone']"
+        [ngModel]="formData().phone"
+        (ngModelChange)="updateForm('phone', $event)"
+        [disabled]="loading()"
+      />
+      @if (errors()['phone']; as msg) {
+        <p class="m-0 mt-1 text-sm text-error-700">{{ msg }}</p>
+      }
+      @if (isEditing() && !formData().phone.trim()) {
+        <p class="m-0 mt-1 text-sm text-zinc-600">還沒有電話，建議補上</p>
+      }
+    </div>
+    <div class="min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-birthday"
+        >生日</label
+      >
+      <input
+        id="staff-birthday"
+        type="date"
+        autocomplete="off"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+        [ngModel]="formData().birthday"
+        (ngModelChange)="updateForm('birthday', $event)"
+        [disabled]="loading()"
+      />
+    </div>
 
-    <!-- 對外暱稱（#1665 Q6）：所有人員都能設 -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label" for="staff-nickname">對外暱稱</label>
+    <!-- 對外暱稱（#1665 Q6）：稿沒畫（舊有新無 R2），所有人員都能設 -->
+    <div class="col-span-full min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-nickname"
+        >對外暱稱</label
+      >
       <input
         id="staff-nickname"
         type="text"
-        pInputText
+        autocomplete="off"
+        placeholder="例：王老師"
         maxlength="20"
+        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
         [ngModel]="formData().nickname"
         (ngModelChange)="updateForm('nickname', $event)"
-        placeholder="例：王老師"
         [disabled]="loading()"
-        class="w-full"
       />
-      <p class="form-dialog__hint">對外的頁面只會顯示暱稱；不填就不顯示這個人</p>
+      <p class="m-0 mt-1 text-sm text-zinc-600">對外的頁面只會顯示暱稱；不填就不顯示這個人</p>
     </div>
 
-    <!-- Email -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label"> Email<span class="form-dialog__required">*</span> </label>
-      <input
-        type="email"
-        pInputText
-        [ngModel]="formData().email"
-        (ngModelChange)="updateForm('email', $event)"
-        placeholder="用來產生登入連結的 Email"
-        [disabled]="loading() || isEditing()"
-        [class.p-invalid]="!!errors()['email']"
-        class="w-full"
-      />
-      @if (errors()['email']; as msg) {
-        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
-      }
-    </div>
-
-    <!-- Phone -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">電話</label>
-      <input
-        type="tel"
-        pInputText
-        [ngModel]="formData().phone"
-        (ngModelChange)="updateForm('phone', $event)"
-        placeholder="手機或市話"
-        [disabled]="loading()"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Birthday -->
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">生日</label>
-      <p-datepicker
-        [ngModel]="formData().birthday"
-        (ngModelChange)="updateForm('birthday', $event)"
-        [showIcon]="true"
-        placeholder="選擇生日"
-        appendTo="body"
-        [disabled]="loading()"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-  </div>
-
-  <!-- Role Selection -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label">角色<span class="form-dialog__required">*</span></label>
-    <div class="flex flex-wrap gap-4 rounded-md bg-zinc-50 p-3">
-      @for (role of roleOptions; track role.value) {
-        <div class="flex items-center gap-2">
-          <p-checkbox
-            [inputId]="'role_' + role.value"
-            [name]="'role'"
-            [value]="role.value"
-            [ngModel]="formData().roles"
-            (onChange)="toggleRole(role.value, $event.checked)"
-            [disabled]="loading()"
-          />
-          <label [for]="'role_' + role.value" class="ml-2">{{ role.label }}</label>
-        </div>
-      }
-    </div>
-    @if (errors()['roles']; as msg) {
-      <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
-    }
-  </div>
-
-  <!-- Campuses -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label"> 服務分校<span class="form-dialog__required">*</span> </label>
-    <p-multiselect
-      [options]="campusOptions()"
-      [ngModel]="formData().campusIds"
-      (ngModelChange)="updateForm('campusIds', $event)"
-      placeholder="選擇服務分校"
-      [disabled]="loading()"
-      [class.p-invalid]="!!errors()['campusIds']"
-      class="w-full"
-      display="chip"
-    />
-    @if (errors()['campusIds']; as msg) {
-      <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
-    }
-  </div>
-
-  <!-- Subjects (if teacher) -->
-  @if (isTeacherRole()) {
-    <div class="form-dialog__field">
-      <div class="form-dialog__label-row">
-        <label class="form-dialog__label">
-          教學科目<span class="form-dialog__required">*</span>
-        </label>
-        <p-button
-          label="管理科目"
-          icon="pi pi-cog"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="openSubjectManager()"
-        />
-      </div>
-      <p-multiselect
-        [options]="subjectOptions()"
-        [ngModel]="formData().subjectIds"
-        (ngModelChange)="updateForm('subjectIds', $event)"
-        placeholder="選擇教學科目"
-        [disabled]="loading()"
-        [class.p-invalid]="!!errors()['subjectIds']"
-        class="w-full"
-        display="chip"
-      />
-      @if (errors()['subjectIds']; as msg) {
-        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
-      }
-    </div>
-  }
-
-  <!-- Permissions (if admin) -->
-  @if (isAdminRole()) {
-    <div class="form-dialog__field">
-      <label class="form-dialog__label">管理權限</label>
-      @if (hasAllPermissions()) {
-        <p class="m-0 mb-2 text-xs text-zinc-600" data-testid="all-permissions-note">
-          這個帳號擁有全部權限（含日後新增的）。取消任一項會改成逐項指定。
-        </p>
-      }
-      <div class="grid grid-cols-1 gap-3 rounded-md bg-zinc-50 p-3 min-[641px]:grid-cols-2">
-        @for (opt of permissionOptions; track opt.value) {
-          <div
-            class="permission-item flex cursor-pointer items-start gap-3 pointer-coarse:min-h-11"
-          >
+    <!-- 角色、服務分校、教學科目：稿是單選，現況多選 —— ST7 待使用者裁定，選取方式不動 -->
+    <div class="form-dialog__field min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700"
+        >角色 <span class="text-error-700" aria-hidden="true">*</span></label
+      >
+      <div class="flex flex-wrap gap-4 rounded-md bg-zinc-50 p-3">
+        @for (role of roleOptions; track role.value) {
+          <div class="flex items-center gap-2">
             <p-checkbox
-              [binary]="true"
-              [inputId]="'perm_' + opt.value"
-              [ngModel]="hasPermission(opt.value)"
-              (onChange)="togglePermission(opt.value, $event.checked)"
+              [inputId]="'role_' + role.value"
+              [name]="'role'"
+              [value]="role.value"
+              [ngModel]="formData().roles"
+              (onChange)="toggleRole(role.value, $event.checked)"
               [disabled]="loading()"
             />
-            <div class="flex flex-col gap-0.5">
-              <label
-                [for]="'perm_' + opt.value"
-                class="permission-item__label cursor-pointer text-sm font-medium text-zinc-800 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
-              >
-                {{ opt.label }}
-              </label>
-              <p class="permission-item__desc m-0 text-xs text-zinc-500">{{ opt.description }}</p>
-            </div>
+            <label [for]="'role_' + role.value" class="ml-2">{{ role.label }}</label>
           </div>
         }
       </div>
+      @if (errors()['roles']; as msg) {
+        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
+      }
     </div>
-  }
 
-  <!-- Notes -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label">備註</label>
-    <textarea
-      pTextarea
-      [ngModel]="formData().notes"
-      (ngModelChange)="updateForm('notes', $event)"
-      [rows]="3"
-      placeholder="其他備註資訊..."
-      [disabled]="loading()"
-      class="w-full"
-    ></textarea>
-  </div>
+    <!-- Campuses -->
+    <div class="form-dialog__field min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700">
+        服務分校 <span class="text-error-700" aria-hidden="true">*</span></label
+      >
+      <p-multiselect
+        [options]="campusOptions()"
+        [ngModel]="formData().campusIds"
+        (ngModelChange)="updateForm('campusIds', $event)"
+        placeholder="選擇服務分校"
+        [disabled]="loading()"
+        [class.p-invalid]="!!errors()['campusIds']"
+        class="w-full"
+        display="chip"
+      />
+      @if (errors()['campusIds']; as msg) {
+        <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
+      }
+    </div>
 
-  <!-- Footer -->
+    <!-- Subjects (if teacher) -->
+    @if (isTeacherRole()) {
+      <div class="form-dialog__field col-span-full min-w-0">
+        <div class="form-dialog__label-row">
+          <label class="mb-1 block text-md font-semibold text-zinc-700">
+            教學科目 <span class="text-error-700" aria-hidden="true">*</span></label
+          >
+          <p-button
+            label="管理科目"
+            icon="pi pi-cog"
+            [text]="true"
+            size="small"
+            severity="secondary"
+            (onClick)="openSubjectManager()"
+          />
+        </div>
+        <p-multiselect
+          [options]="subjectOptions()"
+          [ngModel]="formData().subjectIds"
+          (ngModelChange)="updateForm('subjectIds', $event)"
+          placeholder="選擇教學科目"
+          [disabled]="loading()"
+          [class.p-invalid]="!!errors()['subjectIds']"
+          class="w-full"
+          display="chip"
+        />
+        @if (errors()['subjectIds']; as msg) {
+          <span class="mt-1 block text-xs text-error-600">{{ msg }}</span>
+        }
+      </div>
+    }
+
+    <!-- Permissions (if admin) -->
+    <!-- 管理權限：稿放在另一個面板（ST2，保留類），這次不動 -->
+    @if (isAdminRole()) {
+      <div class="form-dialog__field col-span-full min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700">管理權限</label>
+        @if (hasAllPermissions()) {
+          <p class="m-0 mb-2 text-xs text-zinc-600" data-testid="all-permissions-note">
+            這個帳號擁有全部權限（含日後新增的）。取消任一項會改成逐項指定。
+          </p>
+        }
+        <div class="grid grid-cols-1 gap-3 rounded-md bg-zinc-50 p-3 min-[641px]:grid-cols-2">
+          @for (opt of permissionOptions; track opt.value) {
+            <div
+              class="permission-item flex cursor-pointer items-start gap-3 pointer-coarse:min-h-11"
+            >
+              <p-checkbox
+                [binary]="true"
+                [inputId]="'perm_' + opt.value"
+                [ngModel]="hasPermission(opt.value)"
+                (onChange)="togglePermission(opt.value, $event.checked)"
+                [disabled]="loading()"
+              />
+              <div class="flex flex-col gap-0.5">
+                <label
+                  [for]="'perm_' + opt.value"
+                  class="permission-item__label cursor-pointer text-sm font-medium text-zinc-800 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+                >
+                  {{ opt.label }}
+                </label>
+                <p class="permission-item__desc m-0 text-xs text-zinc-500">{{ opt.description }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="col-span-full min-w-0">
+      <label class="mb-1 block text-md font-semibold text-zinc-700" for="staff-notes">備註</label>
+      <textarea
+        id="staff-notes"
+        rows="4"
+        class="h-24 w-full resize-y rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 text-base leading-normal text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:text-lg"
+        placeholder="其他備註資訊"
+        [ngModel]="formData().notes"
+        (ngModelChange)="updateForm('notes', $event)"
+        [disabled]="loading()"
+      ></textarea>
+    </div>
+  </form>
+
+  <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
   <div class="form-dialog__footer">
-    <p-button
-      label="取消"
-      [text]="true"
-      severity="secondary"
+    <p class="form-dialog__why" aria-live="polite">{{ missingHint() }}</p>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
       [disabled]="loading()"
-      (onClick)="cancel()"
-    />
-    <p-button
-      [label]="isEditing() ? '儲存' : '建立'"
-      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
-      [loading]="loading()"
-      (onClick)="save()"
-    />
+      (click)="cancel()"
+    >
+      取消
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
+      [attr.aria-disabled]="!!missingHint() || loading()"
+      (click)="save()"
+    >
+      {{ loading() ? (isEditing() ? '儲存中…' : '建立中…') : isEditing() ? '儲存' : '建立' }}
+    </button>
   </div>
 </div>

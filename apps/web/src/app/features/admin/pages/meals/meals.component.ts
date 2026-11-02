@@ -42,10 +42,7 @@ import {
   weekdayLabel,
   type MealDraftRow,
 } from './meals.util';
-import {
-  StatusDotComponent,
-  type StatusTone,
-} from '@shared/components/status/status-dot/status-dot.component';
+import type { StatusTone } from '@shared/components/status/status-dot/status-dot.component';
 import { SystemClockService } from '@core/system-clock.service';
 import { extractErrorMessage } from '@shared/utils/api-error.util';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
@@ -78,7 +75,6 @@ const RANGE_PAGE_SIZE = 50;
   imports: [
     TextSwapDirective,
     SkeletonComponent,
-    StatusDotComponent,
     PageOpenComponent,
     DecimalPipe,
     RouterLink,
@@ -109,7 +105,7 @@ export class MealsComponent implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly MEAL_BATCH_MAX_ROWS = MEAL_BATCH_MAX_ROWS;
-  protected readonly primaryAction: PageAction = { label: '月結', icon: 'pi pi-calculator' };
+  protected readonly primaryAction: PageAction = { label: '月結' };
 
   protected readonly modeOptions = [
     { value: 'day' as const, label: '當日名單' },
@@ -188,7 +184,7 @@ export class MealsComponent implements OnInit {
   /** 當日依班分章；區間依日期分章（A6 `.chap`），章內的列各自寫在模板的兩個 @if 裡 */
   protected readonly classChapters = computed(() => mealChapters(this.rows()));
   protected readonly dayChapters = computed(() => mealDayChapters(this.rows()));
-  protected readonly chapterGrid = 'wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8';
+  protected readonly chapterGrid = 'wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8';
 
   /**
    * 載入當下的快照。確認列只在「改了」或「還有人沒處理」時出現（A6）：

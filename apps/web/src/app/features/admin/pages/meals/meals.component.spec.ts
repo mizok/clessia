@@ -398,14 +398,16 @@ describe('MealsComponent', () => {
         expect(await toneOn('2027-03-06')).toBe('pending');
       });
 
-      it('畫面上那顆點真的帶著對應的 tone class', async () => {
+      it('畫面上的狀態字跟著變（A6 `.stt`：過期寫「未處理（過期）」）', async () => {
         today.set(FAKE_TODAY);
+        const state = () =>
+          (
+            fixture.nativeElement.querySelector('[data-testid="meal-state"]') as HTMLElement
+          ).textContent!.trim();
         await toneOn('2027-03-04');
-        expect(fixture.nativeElement.querySelector('.status-dot--overdue')).not.toBeNull();
-        expect(fixture.nativeElement.querySelector('.status-dot--pending')).toBeNull();
+        expect(state()).toBe('未處理（過期）');
         await toneOn('2027-03-05');
-        expect(fixture.nativeElement.querySelector('.status-dot--pending')).not.toBeNull();
-        expect(fixture.nativeElement.querySelector('.status-dot--overdue')).toBeNull();
+        expect(state()).toBe('未處理');
       });
 
       it('台北時鐘跨過午夜：同一天先是 pending、過了午夜變 overdue', async () => {
@@ -555,7 +557,7 @@ describe('MealsComponent', () => {
       }
     });
 
-    it('摘要列：N 位候選／訂 N 份／要收費 NT$ X（份數）；已結算才多一段', async () => {
+    it('摘要列：N 位候選／訂 N 份／要收費 NT$ X；已結算才多一段（A6 `p.sum`）', async () => {
       await load([
         handled('a', true),
         person('b', { recordId: 'r-b', ordered: true, chargeable: false, unitPrice: 65 }),
@@ -565,14 +567,14 @@ describe('MealsComponent', () => {
       expect(text).toContain('3 位候選');
       expect(text).toContain('訂 2 份');
       expect(text).toContain('要收費 NT$ 65');
-      expect(text).toContain('（1 份）');
+      expect(text).not.toContain('（1 份）');
       expect(text).not.toContain('已結算');
 
       await load([
         handled('a', true),
         person('s', { recordId: 'r-s', ordered: true, settled: true }),
       ]);
-      expect(q('meals-summary').textContent).toContain('1 筆已結算，鎖住不能改');
+      expect(q('meals-summary').textContent).toContain('（1 筆已結算，鎖住不能改）');
     });
 
     it('「全部訂／全部不訂」在摘要列，不在工具列；已結算的不動', async () => {
@@ -917,6 +919,9 @@ describe('MealsComponent', () => {
     });
 
     describe('確認列：有改動或還有人沒處理才出現', () => {
+      // 句子是 p 自己的字，小字（共 N 位…）在同一個 p 裡（A6 `.savebar p`）
+      const lead = () => (q('save-bar-lead').firstChild as Text).textContent!.trim();
+
       it('全部處理過、沒動 → 不出現', async () => {
         await loadDay([handled('a'), handled('b')]);
         expect(q('save-bar')).toBeNull();
@@ -924,17 +929,17 @@ describe('MealsComponent', () => {
 
       it.each([1, 2])('%s 位還沒處理 → 出現，寫「N 位還沒處理」（門檻 ±1）', async (n) => {
         await loadDay([handled('h'), ...Array.from({ length: n }, (_, i) => person(`u${i}`))]);
-        expect(q('save-bar-lead').textContent).toBe(`${n} 位還沒處理`);
+        expect(lead()).toBe(`${n} 位還沒處理`);
       });
 
       it('改 1 位 → 出現「改了 1 位」；改 2 位 → 「改了 2 位」', async () => {
         await loadDay([handled('a'), handled('b'), handled('c')]);
         all('meal-ordered')[0].click();
         fixture.detectChanges();
-        expect(q('save-bar-lead').textContent).toBe('改了 1 位');
+        expect(lead()).toBe('改了 1 位');
         all('meal-ordered')[1].click();
         fixture.detectChanges();
-        expect(q('save-bar-lead').textContent).toBe('改了 2 位');
+        expect(lead()).toBe('改了 2 位');
       });
 
       it('改了又改回原值 → 確認列收起來', async () => {
@@ -953,21 +958,21 @@ describe('MealsComponent', () => {
         fire(all('meal-note')[0], '素食');
         all('meal-chargeable')[0].click();
         fixture.detectChanges();
-        expect(q('save-bar-lead').textContent).toBe('改了 1 位');
+        expect(lead()).toBe('改了 1 位');
       });
 
       it('改了 1 位、另有 2 位沒處理 → 寫「改了 1 位」（改動優先）', async () => {
         await loadDay([handled('a'), person('u1'), person('u2')]);
         all('meal-ordered')[0].click();
         fixture.detectChanges();
-        expect(q('save-bar-lead').textContent).toBe('改了 1 位');
+        expect(lead()).toBe('改了 1 位');
       });
 
       it('「全部不訂」造成的改動也算；已結算的不算', async () => {
         await loadDay([handled('a'), handled('b'), handled('s', { settled: true })]);
         q('bulk-all-off').click();
         fixture.detectChanges();
-        expect(q('save-bar-lead').textContent).toBe('改了 2 位');
+        expect(lead()).toBe('改了 2 位');
       });
 
       it('只有已結算的未處理列 → 不出現（鎖住的不用確認）', async () => {

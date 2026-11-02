@@ -17,15 +17,16 @@
     role="search"
     aria-label="餐費篩選"
   >
-    <nav class="flex gap-4" aria-label="餐費">
+    <!-- A6 `.tabs` ＋ `.tlink`：1.5px 底線、未選 500 zinc-600；桌機不撐 44（同考試頁） -->
+    <nav class="flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="餐費">
       @for (opt of modeOptions; track opt.value) {
         <button
           type="button"
-          class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-2 border-solid bg-transparent px-0 text-base font-semibold"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-normal font-medium text-zinc-600 hover:text-zinc-900 wide:min-h-0"
           [class.border-zinc-900]="mode() === opt.value"
+          [class.font-semibold]="mode() === opt.value"
           [class.text-zinc-900]="mode() === opt.value"
           [class.border-transparent]="mode() !== opt.value"
-          [class.text-zinc-600]="mode() !== opt.value"
           [attr.aria-current]="mode() === opt.value ? 'page' : null"
           [attr.data-testid]="'mode-' + opt.value"
           (click)="switchMode(opt.value)"
@@ -40,7 +41,7 @@
         <input
           #fromInput
           type="date"
-          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:flex-none"
+          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:flex-none"
           aria-label="區間起日"
           data-testid="meals-from"
           [value]="dateFrom()"
@@ -52,7 +53,7 @@
         <input
           #toInput
           type="date"
-          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:flex-none"
+          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:flex-none"
           aria-label="區間迄日"
           data-testid="meals-to"
           [value]="dateTo()"
@@ -74,7 +75,7 @@
         <input
           #dateInput
           type="date"
-          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font:inherit] wide:flex-none"
+          class="tbar-control min-w-0 flex-1 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 wide:flex-none"
           aria-label="名單日期"
           data-testid="meals-date"
           [value]="dateStr()"
@@ -110,16 +111,14 @@
           >要收費
           <b class="text-2xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums"
             >NT$ {{ summary()?.totalAmount ?? 0 | number }}</b
-          >
-          <span class="text-sm text-zinc-600"
-            >（{{ summary()?.chargeableCount ?? 0 }} 筆）</span
           ></span
         >
-        <span class="text-sm text-zinc-600">{{ summary()?.settledCount ?? 0 }} 筆已結算</span>
+        <span>{{ summary()?.settledCount ?? 0 }} 筆已結算</span>
       </p>
     } @else {
-      <div
-        class="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-base text-zinc-700"
+      <!-- A6 `p.sum`：已結算那一段帶括號；整天都結算了就沒有可勾的，批次鈕不出現 -->
+      <p
+        class="m-0 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-base text-zinc-700"
         data-testid="meals-summary"
       >
         <span
@@ -139,33 +138,34 @@
           >要收費
           <b class="text-2xl font-bold tracking-[-0.02em] text-zinc-900 tabular-nums"
             >NT$ {{ totals().amount | number }}</b
-          >
-          <span class="text-sm text-zinc-600">（{{ totals().chargeable }} 份）</span></span
+          ></span
         >
         @if (settledCount() > 0) {
-          <span class="text-sm text-zinc-600">{{ settledCount() }} 筆已結算，鎖住不能改</span>
+          <span>（{{ settledCount() }} 筆已結算，鎖住不能改）</span>
         }
-        <span class="flex gap-2 wide:ml-auto">
-          <button
-            type="button"
-            class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 px-3 text-sm font-semibold whitespace-nowrap wide:h-[30px]"
-            data-testid="bulk-all-on"
-            (click)="setAllOrdered(true)"
-          >
-            全部訂
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer hover:border-zinc-400 hover:bg-zinc-50 px-3 text-sm font-semibold whitespace-nowrap wide:h-[30px]"
-            data-testid="bulk-all-off"
-            (click)="setAllOrdered(false)"
-          >
-            全部不訂
-          </button>
-        </span>
-      </div>
+        @if (settledCount() < rows().length) {
+          <span class="flex gap-2 wide:ml-auto">
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer gap-1.5 hover:border-zinc-400 hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap wide:h-[30px]"
+              data-testid="bulk-all-on"
+              (click)="setAllOrdered(true)"
+            >
+              全部訂
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer gap-1.5 hover:border-zinc-400 hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap wide:h-[30px]"
+              data-testid="bulk-all-off"
+              (click)="setAllOrdered(false)"
+            >
+              全部不訂
+            </button>
+          </span>
+        }
+      </p>
       <p
-        class="m-0 rounded-lg bg-zinc-100 px-4 py-3 text-md text-zinc-700"
+        class="m-0 rounded-lg bg-zinc-100 px-4 py-3 text-md text-zinc-800"
         data-testid="meals-note"
       >
         「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
@@ -206,28 +206,32 @@
     } @else {
       @if (isRange()) {
         <!-- 區間：依日期分章的唯讀列（A6 `.chap` ＋ `.rg`）。沒有班級欄 —— 區間 API 不回班級 -->
-        <div class="border-t border-zinc-900">
+        <div>
           @for (day of dayChapters(); track day.date) {
             <section
-              class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+              class="grid grid-cols-1 gap-2 border-b border-zinc-200 pt-6 pb-2 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
               [attr.aria-label]="monthDay(day.date)"
               data-chapter
             >
               <div
-                class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-6 wide:sticky wide:top-sticky-chapter wide:mt-8 wide:block wide:self-start wide:pt-0"
+                class="flex flex-wrap items-baseline gap-3 wide:sticky wide:top-sticky-chapter wide:block wide:self-start"
                 data-testid="chapter-head"
               >
-                <h2 class="m-0 text-[28px] font-bold tracking-[-0.02em] text-zinc-900 tabular-nums">
+                <h2
+                  class="m-0 text-[28px] leading-none font-bold tracking-[-0.04em] text-zinc-900 tabular-nums"
+                >
                   {{ monthDay(day.date) }}
                 </h2>
-                <p class="m-0 text-lg font-bold tabular-nums wide:mt-3 wide:text-xl">
+                <p
+                  class="m-0 text-base font-bold tracking-[-0.02em] tabular-nums wide:mt-3 wide:text-xl"
+                >
                   {{ chapterOrdered(day.rows)
-                  }}<span class="text-md font-medium text-zinc-600">
+                  }}<span class="text-md font-medium tracking-normal text-zinc-600">
                     份 · {{ weekdayLabel(day.date) }}</span
                   >
                 </p>
               </div>
-              <div class="min-w-0 py-2 wide:pt-6">
+              <div class="min-w-0">
                 @for (row of day.rows; track row.studentId) {
                   <div
                     class="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-surface-border py-3 text-md wide:grid-cols-[minmax(0,1.3fr)_100px_92px_minmax(0,1fr)] wide:gap-x-4 wide:py-2"
@@ -288,37 +292,41 @@
         }
       } @else {
         <!-- 當日：依班級分章，章內是 A6 `.ml` 自訂列（桌機一列六欄、手機堆疊） -->
-        <div class="border-t border-zinc-900">
+        <div>
           @for (table of classChapters(); track table.name) {
             <section
-              class="grid grid-cols-1 border-b border-zinc-900 last:border-b-0"
+              class="grid grid-cols-1 gap-2 border-b border-zinc-200 pt-6 pb-2 wide:py-8"
               [class]="chapterGrid"
               [attr.aria-label]="table.name || '未分班'"
               data-chapter
             >
               <!-- 章頭（A6 `.chap__side`，餐費自己的 24px 變體）：班名＋「訂 N／M」；手機橫排 -->
               <div
-                class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-6 wide:sticky wide:top-sticky-chapter wide:mt-8 wide:block wide:self-start wide:pt-0"
+                class="flex flex-wrap items-baseline gap-3 wide:sticky wide:top-sticky-chapter wide:block wide:self-start"
                 data-testid="chapter-head"
               >
-                <h2 class="m-0 text-2xl font-bold tracking-[-0.02em] text-zinc-900">
+                <h2 class="m-0 text-[24px] leading-none font-bold tracking-[-0.02em] text-zinc-900">
                   {{ table.name || '未分班' }}
                 </h2>
-                <p class="m-0 text-lg font-bold tabular-nums wide:mt-3 wide:text-xl">
+                <p
+                  class="m-0 text-base font-bold tracking-[-0.02em] tabular-nums wide:mt-3 wide:text-xl"
+                >
                   訂 {{ chapterOrdered(table.rows)
-                  }}<span class="text-md font-medium text-zinc-600">／{{ table.rows.length }}</span>
+                  }}<span class="text-md font-medium tracking-normal text-zinc-600"
+                    >／{{ table.rows.length }}</span
+                  >
                 </p>
               </div>
-              <div class="min-w-0 py-2 wide:pt-6">
+              <div class="min-w-0">
                 @for (row of table.rows; track row.studentId) {
                   <div
-                    class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-surface-border py-3 wide:min-h-14 wide:grid-cols-[minmax(0,1.3fr)_92px_120px_92px_minmax(0,1.2fr)_92px] wide:gap-x-4 wide:py-2"
+                    class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-surface-border py-3 wide:min-h-14 wide:grid-cols-[minmax(0,1.3fr)_92px_120px_92px_minmax(0,1.2fr)_92px] wide:gap-x-4 wide:gap-y-2 wide:py-2"
                     data-testid="meal-row"
                   >
                     <div class="col-start-1 row-start-1 min-w-0 wide:col-auto wide:row-auto">
                       <a
                         [routerLink]="'/admin/students/' + row.studentId"
-                        class="inline-flex min-h-11 items-center font-bold no-underline underline-offset-[3px] hover:underline wide:min-h-0"
+                        class="inline-flex min-h-11 items-center font-bold no-underline underline-offset-[3px] hover:underline wide:inline wide:min-h-0"
                         [class.text-zinc-900]="row.ordered"
                         [class.text-zinc-600]="!row.ordered"
                         >{{ row.studentName }}</a
@@ -347,7 +355,7 @@
                         #price
                         type="text"
                         inputmode="numeric"
-                        class="h-11 w-[72px] min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-2 text-right text-base tabular-nums text-zinc-900 [font:inherit] disabled:bg-zinc-100 disabled:text-zinc-600 wide:h-9"
+                        class="h-11 w-[72px] min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-2 text-right text-base tabular-nums text-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-600 wide:h-9"
                         data-testid="meal-price"
                         [value]="row.unitPrice"
                         [disabled]="row.settled || !row.ordered"
@@ -374,29 +382,38 @@
                       type="text"
                       maxlength="200"
                       placeholder="如：素食"
-                      class="col-span-2 h-11 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md text-zinc-900 [font:inherit] disabled:bg-zinc-100 disabled:text-zinc-600 wide:col-span-1 wide:h-9"
+                      class="col-span-2 h-11 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-md text-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-600 wide:col-span-1 wide:h-9"
                       data-testid="meal-note"
                       [value]="row.note"
                       [disabled]="row.settled"
                       (input)="updateRow(row.studentId, 'note', memo.value)"
                       [attr.aria-label]="row.studentName + ' 的備註'"
                     />
-                    <div
-                      class="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-x-2 wide:col-auto wide:row-auto wide:justify-start"
-                    >
-                      @if (row.settled) {
-                        <app-status-dot tone="done">已結算</app-status-dot>
+                    <!-- A6 `.stt`：字，不是點；手機在第一行靠右 -->
+                    @if (row.settled) {
+                      <span
+                        class="col-start-2 row-start-1 text-right text-sm text-zinc-600 wide:col-auto wide:row-auto wide:text-left"
+                        data-testid="meal-state"
+                        >已結算 ·
                         <a
                           routerLink="/admin/payments"
-                          class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline underline-offset-4"
+                          class="inline-flex min-h-11 items-center text-inherit underline wide:inline wide:min-h-0"
                           >要改走帳單</a
-                        >
-                      } @else if (row.recordId === null) {
-                        <app-status-dot [tone]="unhandledTone()">未處理</app-status-dot>
-                      } @else {
-                        <app-status-dot tone="done">已確認</app-status-dot>
-                      }
-                    </div>
+                        ></span
+                      >
+                    } @else if (row.recordId === null) {
+                      <span
+                        class="col-start-2 row-start-1 text-right text-sm font-semibold text-zinc-900 wide:col-auto wide:row-auto wide:text-left"
+                        data-testid="meal-state"
+                        >{{ unhandledTone() === 'overdue' ? '未處理（過期）' : '未處理' }}</span
+                      >
+                    } @else {
+                      <span
+                        class="col-start-2 row-start-1 text-right text-sm text-zinc-700 wide:col-auto wide:row-auto wide:text-left"
+                        data-testid="meal-state"
+                        >已確認</span
+                      >
+                    }
                   </div>
                 }
               </div>
@@ -413,22 +430,26 @@
             aria-label="確認名單"
             data-testid="save-bar"
           >
-            <p class="m-0 mr-auto text-base tabular-nums">
-              <span data-testid="save-bar-lead">{{
-                changed() > 0 ? '改了 ' + changed() + ' 位' : unhandled() + ' 位還沒處理'
-              }}</span>
-              <small class="meals__actions-count block text-sm text-white/70"
+            <!-- A6 `.savebar p`：句子是 p 自己的字、小字在裡面；按鈕照 `.btn--cta`（同成績登錄的儲存列） -->
+            <p class="m-0 mr-auto text-base tabular-nums" data-testid="save-bar-lead">
+              {{ changed() > 0 ? '改了 ' + changed() + ' 位' : unhandled() + ' 位還沒處理' }}
+              <small class="meals__actions-count block text-sm text-[rgb(255_255_255/72%)]"
                 >共 {{ rows().length }} 位 · 訂 {{ totals().ordered }} 份 · 要收費 NT$
                 {{ totals().amount | number }}</small
               >
             </p>
-            <p-button
-              label="確認名單"
-              icon="pi pi-save"
-              [loading]="saving()"
-              [disabled]="overBatchLimit()"
-              (onClick)="save()"
-            />
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-base leading-[1.5] font-semibold text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60 wide:h-9 wide:text-md"
+              [disabled]="saving() || overBatchLimit()"
+              (click)="save()"
+            >
+              @if (saving()) {
+                <i class="pi pi-spinner pi-spin text-sm" aria-hidden="true"></i>確認中…
+              } @else {
+                確認名單
+              }
+            </button>
           </div>
         }
       }

@@ -59,28 +59,43 @@
         (onClick)="clearFilters()"
       />
     }
-    <!-- 分組方式（A6：在工具列右側；分組統計標題旁原本那顆搬過來）。手機獨占一列 -->
-    <p-selectbutton
-      class="col-span-2 wide:col-auto wide:ml-auto"
-      [options]="groupByOptions"
-      optionLabel="label"
-      optionValue="value"
-      [allowEmpty]="false"
-      [ngModel]="groupBy()"
-      (ngModelChange)="onGroupByChange($event)"
-      ariaLabel="分組方式"
-    />
-    <!-- 明細 CSV（一列一筆收款）：照目前的期間、分校、課程 -->
-    <p-button
-      styleClass="w-full wide:w-auto"
-      class="col-span-2 wide:col-auto"
-      label="匯出 CSV"
-      icon="pi pi-download"
-      severity="secondary"
-      [outlined]="true"
-      [loading]="exporting()"
-      (onClick)="exportCsv()"
-    />
+    <!-- 分組方式＋匯出（A6 `.tbar__act`：`.seg`＋下載圖示鈕）。手機獨占一列、兩端對齊 -->
+    <div class="col-span-2 flex items-center justify-between gap-2 wide:col-auto wide:ml-auto">
+      <span
+        class="inline-flex rounded-md bg-zinc-200 p-0.5"
+        role="group"
+        aria-label="分組方式"
+        data-testid="group-by"
+      >
+        @for (opt of groupByOptions; track opt.value) {
+          <button
+            type="button"
+            class="min-h-11 cursor-pointer rounded-sm border-0 bg-transparent px-4 text-md leading-normal font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm wide:min-h-8"
+            [attr.aria-pressed]="groupBy() === opt.value"
+            (click)="onGroupByChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </span>
+      <!-- 明細 CSV（一列一筆收款）：照目前的期間、分校、課程。稿的「匯出明細」確認浮層（標新）沒做，按了直接下載 -->
+      <button
+        type="button"
+        class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-wait disabled:opacity-60"
+        aria-label="匯出"
+        title="匯出 CSV"
+        [disabled]="exporting()"
+        (click)="exportCsv()"
+      >
+        <i
+          class="pi"
+          [class.pi-download]="!exporting()"
+          [class.pi-spinner]="exporting()"
+          [class.pi-spin]="exporting()"
+          aria-hidden="true"
+        ></i>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -107,15 +122,19 @@
       received 看收款日、billed 看開帳日，是不同的集合，不進這條、也不拿來除。
       沒有開帳（billed ≤ 0）時沒有占比：不畫條、百分比不顯示，只留金額。
     -->
-      <section class="flex flex-col gap-3" aria-label="開帳摘要" data-testid="billed-summary">
-        <p class="m-0 text-md font-semibold text-zinc-900">{{ periodName() }}開帳（看開帳日）</p>
-        <p class="m-0 text-[44px] leading-none font-bold tracking-[-0.035em] tabular-nums">
-          <span class="text-lg font-semibold tracking-normal">NT$</span>
-          {{ summary()?.billed ?? 0 | number }}
+      <section aria-labelledby="billed-summary-h" data-testid="billed-summary">
+        <p id="billed-summary-h" class="m-0 text-md font-bold text-zinc-800">
+          {{ periodName() }}開帳（看開帳日）
+        </p>
+        <p
+          class="m-0 mt-1 text-[32px] leading-normal font-bold tracking-[-0.03em] tabular-nums wide:text-[40px]"
+        >
+          <small class="mr-1 text-lg font-semibold tracking-normal">NT$</small
+          >{{ summary()?.billed ?? 0 | number }}
         </p>
         @if (breakdown(); as split) {
           <div
-            class="relative h-2.5 overflow-hidden rounded-full bg-zinc-200"
+            class="relative mt-4 h-3 overflow-hidden rounded-md bg-zinc-200"
             role="img"
             [attr.aria-label]="
               '已收回 ' +
@@ -140,65 +159,66 @@
             ></span>
           </div>
         }
-        <div class="mt-2 grid grid-cols-1 gap-4 wide:grid-cols-3 wide:gap-6">
-          <div
-            class="border-0 border-l-2 border-solid border-zinc-900 pl-3"
+        <!-- A6 `.flow__keys`／`.key`：每塊是一個 p，裡面字、金額、連結直排 -->
+        <div class="mt-4 grid grid-cols-1 gap-4 wide:grid-cols-3">
+          <p
+            class="m-0 flex flex-col gap-0.5 border-0 border-l-[3px] border-solid border-zinc-900 pl-3"
             data-testid="block-collected"
           >
-            <p class="m-0 text-sm text-zinc-600">
-              已收回
+            <span class="text-md text-zinc-700"
+              >已收回
               @if (breakdown(); as split) {
-                <span data-testid="pct"> · {{ split.collectedPct }}%</span>
+                · {{ split.collectedPct }}%
               }
-            </p>
-            <p class="m-0 text-xl font-bold tabular-nums">
+            </span>
+            <span class="text-xl font-bold tabular-nums">
               NT$ {{ breakdown()?.collected ?? 0 | number }}
-            </p>
-          </div>
-          <div
-            class="border-0 border-l-2 border-solid border-zinc-300 pl-3"
+            </span>
+          </p>
+          <p
+            class="m-0 flex flex-col gap-0.5 border-0 border-l-[3px] border-solid border-zinc-300 pl-3"
             data-testid="block-outstanding"
           >
-            <p class="m-0 text-sm text-zinc-600">
-              應收未收
+            <span class="text-md text-zinc-700"
+              >應收未收
               @if (breakdown(); as split) {
-                <span data-testid="pct"> · {{ split.outstandingPct }}%</span>
+                · {{ split.outstandingPct }}%
               }
-            </p>
-            <p class="m-0 text-xl font-bold tabular-nums">
+            </span>
+            <span class="text-xl font-bold tabular-nums">
               NT$ {{ summary()?.outstanding ?? 0 | number }}
-            </p>
+            </span>
             @if (canOpenInvoices) {
               <a
                 routerLink="/admin/payments"
                 [queryParams]="{ due: 'outstanding' }"
-                class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline decoration-zinc-300 underline-offset-4"
+                class="flex min-h-11 items-center text-md font-semibold text-zinc-900 underline decoration-zinc-300 underline-offset-[3px] wide:block wide:min-h-0"
                 >看還沒繳清的帳單</a
               >
             }
-          </div>
-          <div
-            class="border-0 border-l-2 border-solid border-error-700 pl-3"
+          </p>
+          <p
+            class="m-0 flex flex-col gap-0.5 border-0 border-l-[3px] border-solid border-error-700 pl-3"
             data-testid="block-overdue"
           >
-            <p class="m-0 text-sm text-zinc-600">
-              其中逾期
+            <span class="text-md text-zinc-700"
+              >其中逾期
               @if (breakdown(); as split) {
-                <span data-testid="pct"> · {{ split.overduePct }}%</span>
+                · {{ split.overduePct }}%
               }
-            </p>
-            <p class="m-0 text-xl font-bold tabular-nums text-error-700">
+            </span>
+            <span class="text-xl font-bold tabular-nums text-error-700">
               NT$ {{ summary()?.overdueOutstanding ?? 0 | number }}
-            </p>
+            </span>
             @if (canOpenInvoices) {
               <a
                 routerLink="/admin/payments"
                 [queryParams]="{ due: 'overdue' }"
-                class="inline-flex min-h-11 items-center text-sm font-semibold text-zinc-900 underline decoration-zinc-300 underline-offset-4"
+                class="flex min-h-11 items-center text-md font-semibold text-zinc-900 underline decoration-zinc-300 underline-offset-[3px] wide:block wide:min-h-0"
                 >看逾期帳單</a
               >
             }
-          </div>
+          </p>
         </div>
       </section>
       <!--
@@ -208,26 +228,24 @@
       <!-- 區塊間距寫在區塊自己身上：外層的 gap-4 隔著 app-reload-veil 傳不進來（veil 內層是一個 block），
            三塊原本彼此貼住（#1881）。數值照 A6 reports：說明框 margin-top space-6、分組統計 space-12 -->
       <p
-        class="m-0 mt-6 flex items-start gap-3 rounded-lg bg-zinc-100 p-4 text-md leading-relaxed text-zinc-700"
+        class="m-0 mt-6 flex items-start gap-2 rounded-lg bg-zinc-100 px-4 py-3 text-base leading-[1.6] text-zinc-800"
         data-testid="cash-note"
       >
         <i class="pi pi-info-circle mt-1 shrink-0 text-zinc-600" aria-hidden="true"></i>
         <span>
           這段期間實收
-          <b class="font-bold text-zinc-900 tabular-nums"
-            >NT$ {{ summary()?.received ?? 0 | number }}</b
-          >、退款
-          <b class="font-bold text-zinc-900 tabular-nums"
-            >NT$ {{ summary()?.refunded ?? 0 | number }}</b
+          <b class="font-bold tabular-nums">NT$ {{ summary()?.received ?? 0 | number }}</b
+          >、退款 <b class="font-bold tabular-nums">NT$ {{ summary()?.refunded ?? 0 | number }}</b
           >（退款單獨列，沒有從實收扣掉）。實收看收款日，跟上面看開帳日的是不同的一群帳單，兩個數字不能相除當收款率。
         </span>
       </p>
-      <section class="mt-12 flex flex-col gap-4" data-testid="group-stats">
-        <h2
-          class="m-0 border-0 border-b border-solid border-zinc-900 pb-3 text-2xl font-bold tracking-[-0.02em] text-zinc-900"
+      <section class="mt-12" data-testid="group-stats">
+        <!-- A6 `.grp__head`：框線畫在標題列（div），h2 只是字 -->
+        <div
+          class="flex flex-wrap items-center gap-3 border-0 border-b border-solid border-zinc-900 pb-3"
         >
-          分組統計
-        </h2>
+          <h2 class="m-0 text-2xl font-bold text-zinc-900">分組統計</h2>
+        </div>
 
         @if (groups().length === 0) {
           <app-empty-state
@@ -245,11 +263,15 @@
           <table class="w-full border-collapse tabular-nums" data-testid="group-table">
             <thead class="hidden wide:table-header-group">
               <tr>
-                <th class="py-3 pr-2 pl-0 text-left text-sm font-semibold text-zinc-600">
+                <th
+                  class="border-0 border-b border-solid border-zinc-200 py-3 pr-2 pl-0 text-left text-sm font-semibold text-zinc-600"
+                >
                   {{ groupColumnLabel() }}
                 </th>
                 @for (label of figureLabels; track label) {
-                  <th class="px-2 py-3 text-right text-sm font-semibold text-zinc-600">
+                  <th
+                    class="border-0 border-b border-solid border-zinc-200 px-2 py-3 text-right text-sm font-semibold text-zinc-600"
+                  >
                     {{ label }}
                   </th>
                 }
@@ -258,16 +280,16 @@
             <tbody>
               @for (group of sortedGroups(); track group.key) {
                 <tr
-                  class="grid grid-cols-2 gap-x-4 gap-y-1 border-0 border-b border-solid border-zinc-200 py-4 wide:table-row"
+                  class="grid grid-cols-2 gap-x-4 gap-y-1 border-0 border-b border-solid border-zinc-200 py-4 wide:table-row wide:border-b-0 wide:py-0"
                   data-testid="group-row"
                 >
                   <td
-                    class="col-span-full mb-1 block align-top wide:table-cell wide:w-[34%] wide:py-3 wide:pr-2 wide:pl-0"
+                    class="col-span-full mb-1 block border-zinc-200 align-top wide:table-cell wide:w-[34%] wide:border-0 wide:border-b wide:border-solid wide:py-3 wide:pr-2 wide:pl-0"
                   >
                     @if (linkOf(group); as link) {
                       <a
                         [routerLink]="link"
-                        class="inline-flex min-h-11 items-center font-bold text-zinc-900 no-underline underline-offset-[3px] hover:underline"
+                        class="inline-flex min-h-11 items-center font-bold text-zinc-900 no-underline underline-offset-[3px] hover:underline wide:inline wide:min-h-0"
                         >{{ labelOf(group) }}</a
                       >
                     } @else {
@@ -294,37 +316,37 @@
                     }
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                    class="flex justify-between gap-2 border-zinc-200 p-0 wide:table-cell wide:border-0 wide:border-b wide:border-solid wide:px-2 wide:py-3 wide:text-right wide:align-top"
                   >
                     <small class="text-sm text-zinc-600 wide:hidden">實收</small
                     >{{ group.received | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                    class="flex justify-between gap-2 border-zinc-200 p-0 wide:table-cell wide:border-0 wide:border-b wide:border-solid wide:px-2 wide:py-3 wide:text-right wide:align-top"
                     data-testid="cell-refunded"
                   >
                     <small class="text-sm text-zinc-600 wide:hidden">退款</small
                     >{{ group.refunded | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                    class="flex justify-between gap-2 border-zinc-200 p-0 wide:table-cell wide:border-0 wide:border-b wide:border-solid wide:px-2 wide:py-3 wide:text-right wide:align-top"
                   >
                     <small class="text-sm text-zinc-600 wide:hidden">已開帳</small
                     >{{ group.billed | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                    class="flex justify-between gap-2 border-zinc-200 p-0 wide:table-cell wide:border-0 wide:border-b wide:border-solid wide:px-2 wide:py-3 wide:text-right wide:align-top"
                   >
                     <small class="text-sm text-zinc-600 wide:hidden">應收未收</small
                     >{{ group.outstanding | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right wide:align-top"
+                    class="flex justify-between gap-2 border-zinc-200 p-0 wide:table-cell wide:border-0 wide:border-b wide:border-solid wide:px-2 wide:py-3 wide:text-right wide:align-top"
                     data-testid="cell-overdue"
                     [class.text-error-700]="group.overdueOutstanding > 0"
                     [class.font-semibold]="group.overdueOutstanding > 0"
                   >
-                    <small class="text-sm font-normal text-zinc-600 wide:hidden">其中逾期</small
+                    <small class="text-sm text-zinc-600 wide:hidden">其中逾期</small
                     >{{ group.overdueOutstanding | number }}
                   </td>
                 </tr>
@@ -333,43 +355,43 @@
             @if (summary(); as total) {
               <tfoot>
                 <tr
-                  class="grid grid-cols-2 gap-x-4 gap-y-1 border-0 border-t border-solid border-zinc-900 py-4 font-bold wide:table-row"
+                  class="grid grid-cols-2 gap-x-4 gap-y-1 border-0 border-t border-solid border-zinc-900 py-4 font-bold wide:table-row wide:border-t-0 wide:py-0"
                   data-testid="group-total"
                 >
                   <td
-                    class="col-span-full mb-1 block wide:table-cell wide:py-3 wide:pr-2 wide:pl-0"
+                    class="col-span-full mb-1 block border-zinc-900 wide:table-cell wide:border-0 wide:border-t wide:border-solid wide:py-3 wide:pr-2 wide:pl-0"
                   >
                     合計
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                    class="flex justify-between gap-2 border-zinc-900 p-0 wide:table-cell wide:border-0 wide:border-t wide:border-solid wide:px-2 wide:py-3 wide:text-right"
                   >
-                    <small class="text-sm font-normal text-zinc-600 wide:hidden">實收</small
+                    <small class="text-sm text-zinc-600 wide:hidden">實收</small
                     >{{ total.received | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                    class="flex justify-between gap-2 border-zinc-900 p-0 wide:table-cell wide:border-0 wide:border-t wide:border-solid wide:px-2 wide:py-3 wide:text-right"
                   >
-                    <small class="text-sm font-normal text-zinc-600 wide:hidden">退款</small
+                    <small class="text-sm text-zinc-600 wide:hidden">退款</small
                     >{{ total.refunded | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                    class="flex justify-between gap-2 border-zinc-900 p-0 wide:table-cell wide:border-0 wide:border-t wide:border-solid wide:px-2 wide:py-3 wide:text-right"
                   >
-                    <small class="text-sm font-normal text-zinc-600 wide:hidden">已開帳</small
+                    <small class="text-sm text-zinc-600 wide:hidden">已開帳</small
                     >{{ total.billed | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                    class="flex justify-between gap-2 border-zinc-900 p-0 wide:table-cell wide:border-0 wide:border-t wide:border-solid wide:px-2 wide:py-3 wide:text-right"
                   >
-                    <small class="text-sm font-normal text-zinc-600 wide:hidden">應收未收</small
+                    <small class="text-sm text-zinc-600 wide:hidden">應收未收</small
                     >{{ total.outstanding | number }}
                   </td>
                   <td
-                    class="flex justify-between gap-2 p-0 wide:table-cell wide:px-2 wide:py-3 wide:text-right"
+                    class="flex justify-between gap-2 border-zinc-900 p-0 wide:table-cell wide:border-0 wide:border-t wide:border-solid wide:px-2 wide:py-3 wide:text-right"
                     [class.text-error-700]="total.overdueOutstanding > 0"
                   >
-                    <small class="text-sm font-normal text-zinc-600 wide:hidden">其中逾期</small
+                    <small class="text-sm text-zinc-600 wide:hidden">其中逾期</small
                     >{{ total.overdueOutstanding | number }}
                   </td>
                 </tr>
