@@ -3,7 +3,7 @@ import type { AppEnv } from '../index';
 import { summariseMealRecords, type MealAmountRow } from '../lib/meal-summary';
 import { DbUuidSchema } from '../lib/validation';
 import { ID_CHUNK, missingInOrg } from '../lib/org-scope';
-import { getCampusScope, type CampusScope } from '../lib/campus-scope';
+import { campusFilterIds, getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 
@@ -33,8 +33,14 @@ const SCOPE_EMBED = ', scope_student:students!inner(enrollments!inner(classes!in
 const SCOPE_FILTER = 'scope_student.enrollments.classes.campus_id';
 /** 空範圍（一個分校都沒被指派）：`.in()` 給一個不存在的 id，什麼都不中（fail-closed） */
 const NO_ID = '00000000-0000-0000-0000-000000000000';
-const scopeCampusIds = (scope: CampusScope): string[] | null =>
-  scope === null ? null : scope.length > 0 ? [...scope] : [NO_ID];
+/**
+ * 這次查詢要用的分校（`campusFilterIds`：指名只能縮小範圍、撐不大 —— K4 的頂欄分校）。
+ * `null`＝不加條件；空清單換成 [NO_ID]，什麼都不中（fail-closed）
+ */
+const scopeCampusIds = (scope: CampusScope, requested?: string): string[] | null => {
+  const ids = campusFilterIds(scope, requested);
+  return ids === null ? null : ids.length > 0 ? [...ids] : [NO_ID];
+};
 
 const MealRosterRowSchema = z
   .object({
@@ -105,6 +111,8 @@ app.openapi(
         dateFrom: z.string().regex(DATE).optional(),
         dateTo: z.string().regex(DATE).optional(),
         studentId: DbUuidSchema.optional(),
+        // 頂欄分校（K4，#1314 盤點）：只能縮小範圍（交集；越權指名由 campusRequestGuard 403）
+        campusId: DbUuidSchema.optional(),
         page: z.string().optional(),
         pageSize: z.string().optional(),
       }),
@@ -141,7 +149,7 @@ app.openapi(
     const pageSize = Math.min(100, Math.max(1, Number(params.pageSize ?? 100)));
 
     // 分校範圍（#2138）：受限的管理員只看得到範圍內學生的餐費；null＝不受限，不加條件
-    const campusIds = scopeCampusIds(getCampusScope(c));
+    const campusIds = scopeCampusIds(getCampusScope(c), params.campusId);
     const scopeEmbed = campusIds === null ? '' : SCOPE_EMBED;
 
     const { data: org } = await supabase

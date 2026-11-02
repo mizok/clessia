@@ -88,8 +88,10 @@ export class MealsService {
    * **單日模式**：課表候選 + 既有記錄。`recordId === null` 的那些是候選裡還沒處理的。
    * 只有這個模式回得到 `classNames` 與 `mealDefault` —— 也只有這個模式能編輯。
    */
-  roster(date: string): Observable<MealRosterResponse> {
-    return this.http.get<MealRosterResponse>(this.endpoint, { params: { date } });
+  roster(date: string, campusId?: string): Observable<MealRosterResponse> {
+    return this.http.get<MealRosterResponse>(this.endpoint, {
+      params: { date, ...(campusId ? { campusId } : {}) },
+    });
   }
 
   /**
@@ -105,6 +107,8 @@ export class MealsService {
     dateFrom: string;
     dateTo: string;
     studentId?: string;
+    /** 頂欄分校（K4）：只能縮小範圍，後端取交集 */
+    campusId?: string;
     page?: number;
     pageSize?: number;
   }): Observable<MealRosterResponse> {
@@ -113,6 +117,7 @@ export class MealsService {
       dateTo: params.dateTo,
     };
     if (params.studentId) query['studentId'] = params.studentId;
+    if (params.campusId) query['campusId'] = params.campusId;
     if (params.page !== undefined) query['page'] = String(params.page);
     if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);
 

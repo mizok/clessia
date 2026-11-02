@@ -10,6 +10,16 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { SystemClockService, taipeiDateString } from '@core/system-clock.service';
 import { MealsService, type MealBatchRow, type MealRosterRow } from '@core/meals.service';
 import { BillingRunsService } from '@core/billing-runs.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
+
+/** 頂欄分校（K4）：分校定下來才載名單、換分校重載 */
+const campusId = signal<string | null>('campus-1');
+const campusUse = vi.fn();
+const campusProviders = [
+  { provide: CampusContextService, useValue: { id: campusId, use: campusUse } },
+  { provide: ReferenceDataService, useValue: { loadCampuses: vi.fn() } },
+];
 
 import { MealsComponent } from './meals.component';
 import { rosterToDraft } from './meals.util';
@@ -61,6 +71,8 @@ describe('MealsComponent', () => {
     meals.batch.mockReset().mockReturnValue(of({ updated: 0, lockedStudentIds: [] }));
     meals.range.mockReset().mockReturnValue(of(roster([])));
     today.set('2026-10-14');
+    campusId.set('campus-1');
+    campusUse.mockReset();
 
     await TestBed.configureTestingModule({
       imports: [MealsComponent],
@@ -70,6 +82,7 @@ describe('MealsComponent', () => {
         { provide: MealsService, useValue: meals },
         { provide: BillingRunsService, useValue: billingRuns },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        ...campusProviders,
         { provide: SystemClockService, useValue: { todayTaipei: today } },
       ],
     }).compileComponents();
@@ -85,7 +98,7 @@ describe('MealsComponent', () => {
   });
 
   it('進頁就取今天的名單', () => {
-    expect(meals.roster).toHaveBeenCalledWith('2026-10-14');
+    expect(meals.roster).toHaveBeenCalledWith('2026-10-14', 'campus-1');
   });
 
   it('換日期會重新取名單', () => {
@@ -93,7 +106,7 @@ describe('MealsComponent', () => {
 
     component['onDateChange']('2026-08-20');
 
-    expect(meals.roster).toHaveBeenCalledWith('2026-08-20');
+    expect(meals.roster).toHaveBeenCalledWith('2026-08-20', 'campus-1');
   });
 
   it('清掉日期時不查 —— 沒有日期就沒有名單', () => {
@@ -518,7 +531,7 @@ describe('MealsComponent', () => {
       it('改日期 → 用那個字串查（不經 Date，不會偏一天）', () => {
         meals.roster.mockClear();
         change('2026-09-30');
-        expect(meals.roster).toHaveBeenCalledWith('2026-09-30');
+        expect(meals.roster).toHaveBeenCalledWith('2026-09-30', 'campus-1');
         expect(meals.roster).toHaveBeenCalledTimes(1);
       });
 
@@ -547,13 +560,14 @@ describe('MealsComponent', () => {
             { provide: MealsService, useValue: meals },
             { provide: BillingRunsService, useValue: billingRuns },
             { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+            ...campusProviders,
             { provide: SystemClockService, useValue: { todayTaipei: () => taipei(now) } },
           ],
         }).compileComponents();
         const f = TestBed.createComponent(MealsComponent);
         f.componentRef.setInput('page', { label: '餐費管理' });
         await f.whenStable();
-        expect(meals.roster).toHaveBeenCalledWith(expected);
+        expect(meals.roster).toHaveBeenCalledWith(expected, 'campus-1');
       }
     });
 
@@ -1243,6 +1257,26 @@ describe('MealsComponent', () => {
     it('沒帶 billingRun → 不自動開', async () => {
       const open = await create({});
       expect(open).not.toHaveBeenCalled();
+    });
+  });
+
+  // K4（#1314 盤點）：餐費接頂欄分校。API 收 campusId（只能縮小範圍）
+  describe('頂欄分校', () => {
+    it('接上頂欄（use）；單日名單帶目前的分校', () => {
+      expect(campusUse).toHaveBeenCalled();
+      expect(meals.roster).toHaveBeenLastCalledWith('2026-10-14', 'campus-1');
+    });
+
+    it('頂欄換分校就重查；區間模式也帶分校', () => {
+      meals.roster.mockClear();
+      campusId.set('campus-2');
+      TestBed.tick();
+      expect(meals.roster).toHaveBeenLastCalledWith('2026-10-14', 'campus-2');
+
+      (component as unknown as { switchMode: (m: 'day' | 'range') => void }).switchMode('range');
+      expect(meals.range).toHaveBeenLastCalledWith(
+        expect.objectContaining({ campusId: 'campus-2' }),
+      );
     });
   });
 });
