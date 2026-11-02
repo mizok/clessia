@@ -21,8 +21,9 @@
 
   <div class="bg-zinc-100">
     <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16">
-      <p class="announcement-inbox__count m-0 text-base text-zinc-900">
-        <strong>
+      <!-- A6 `.tbar__txt`：桌機 14／手機 13，strong 600。數字另包一層是為了只讓數字進場（value-arrive，motion.md） -->
+      <p class="announcement-inbox__count m-0 text-md text-zinc-900 wide:text-base">
+        <strong class="font-semibold">
           @if (unread() > 0) {
             <span [appValueArrive]="unread()">{{ unread() }}</span> 則未讀
           } @else {
