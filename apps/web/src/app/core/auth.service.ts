@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '@env/environment';
 import { authClient } from './auth-client';
+import { PROVIDER_NAMES, type ProviderId } from './auth-providers.service';
 import { CampusContextService } from './campus-context.service';
 import { PushService } from './push.service';
 
@@ -276,18 +277,20 @@ export class AuthService {
   }
 
   /**
-   * 把目前登入的帳號跟 LINE 綁在一起。之後這個人就能直接用 LINE 登入。
+   * 把目前登入的帳號跟 LINE／Google 綁在一起。之後這個人就能直接用它登入。
    *
    * 前提是**已經登入** —— 使用者是點一次性連結進來的。
+   * 失敗（例如這個帳號已經綁給別人）導回綁定頁並帶 `?error=&provider=`，綁定頁翻成人話。
    */
-  async linkLine(): Promise<string | null> {
+  async linkProvider(provider: ProviderId): Promise<string | null> {
     const { error } = await authClient.linkSocial({
-      provider: 'line',
+      provider,
       callbackURL: `${window.location.origin}/select-role`,
+      errorCallbackURL: `${window.location.origin}/link-line?provider=${provider}`,
     });
 
     if (error) {
-      return '綁定 LINE 失敗，請稍後再試';
+      return `綁定 ${PROVIDER_NAMES[provider]} 失敗，請稍後再試`;
     }
 
     return null;
