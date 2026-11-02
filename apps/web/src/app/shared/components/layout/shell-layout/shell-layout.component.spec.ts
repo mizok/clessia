@@ -148,7 +148,7 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
   });
 
   /** 使用者 11-02：切換成功要提示；toast 出口（app-toast）是 role=status、aria-live=polite */
-  it('切換成功：success toast「已切換為〈身分〉」', async () => {
+  it('切換成功：success toast「已切換到 〈身分〉」（文案照 A6 a6.js:231）', async () => {
     const { el, auth, messages } = await setup(['admin', 'teacher', 'parent'], 'admin');
     const add = vi.spyOn(messages, 'add');
 
@@ -158,7 +158,7 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     await vi.waitFor(() => expect(add).toHaveBeenCalled());
 
     expect(auth.navigateToRoleShell).toHaveBeenCalledWith('parent');
-    expect(add).toHaveBeenCalledWith({ severity: 'success', summary: '已切換為家長' });
+    expect(add).toHaveBeenCalledWith({ severity: 'success', summary: '已切換到 家長' });
   });
 
   it('導航沒成功（被 guard 擋下／取消）：不提示', async () => {

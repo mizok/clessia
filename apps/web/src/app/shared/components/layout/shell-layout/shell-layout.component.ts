@@ -170,7 +170,7 @@ export class ShellLayoutComponent {
     // 只有真的切過去才提示（被擋下的導航不說「已切換」）；toast 出口是 role=status 的 live region
     void this.auth.navigateToRoleShell(role).then((ok) => {
       if (ok)
-        this.messages.add({ severity: 'success', summary: `已切換為${this.roleLabels[role]}` });
+        this.messages.add({ severity: 'success', summary: `已切換到 ${this.roleLabels[role]}` });
     });
   }
 
