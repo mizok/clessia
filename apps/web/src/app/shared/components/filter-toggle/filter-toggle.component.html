@@ -6,7 +6,7 @@
   (click)="open.set(!open())"
 >
   <i class="pi pi-sliders-h shrink-0 text-sm" aria-hidden="true"></i>
-  <span class="filter-toggle__label truncate">篩選：{{ summary() }}</span>
+  <span class="filter-toggle__label truncate">篩選{{ summary() ? '：' + summary() : '' }}</span>
   @if (active()) {
     <span
       class="filter-toggle__dot size-2 shrink-0 rounded-full bg-accent-vivid"
