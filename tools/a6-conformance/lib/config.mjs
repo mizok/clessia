@@ -1926,6 +1926,14 @@ export const PAGES = {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
     deviations: [
+      // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕
+      {
+        status: '多',
+        app: '>landmark:region\\[收費期間\\]>(text:legend\\[用模板建立\\]|text:p\\[照下一個學年[^\\]]*\\]|row>control:radio|row>list>row|control:button\\[(先選一個模板|建立這#個期間|建立中…|這個模板的期間都已經有了)\\])$',
+        reason:
+          '學期與繳費週期搬到費用方案頁；用模板建立改成 radio＋預覽＋送出鈕（一選就建太危險）',
+        source: `${rule('R5')}「學期與繳費週期的位置」「用模板建立期間」2026-11-02（使用者 11-02 裁定）`,
+      },
       noCampusSwitch('價目表是補習班層級'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({

@@ -1,6 +1,6 @@
 <div class="w-full max-w-[380px] max-[860px]:px-6 max-[860px]:py-8">
   <h1 class="m-0 text-2xl font-bold tracking-[-0.02em] text-zinc-900">登入</h1>
-  <p class="mx-0 mb-0 mt-2 text-md leading-[1.75] text-zinc-600">用 LINE 登入，不需要記密碼。</p>
+  <p class="mx-0 mb-0 mt-2 text-md leading-[1.75] text-zinc-600">{{ intro() }}</p>
 
   @if (error()) {
     <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
@@ -16,7 +16,10 @@
   }
 
   <div class="mt-6">
-    <ng-container [ngTemplateOutlet]="lineButton" />
+    <ng-container
+      [ngTemplateOutlet]="providerButtons"
+      [ngTemplateOutletContext]="{ gap: 'mt-3' }"
+    />
   </div>
 
   <!--
@@ -34,7 +37,7 @@
 
   <div class="mt-6 border-t border-zinc-200 pt-4">
     <p class="m-0 text-sm leading-relaxed text-zinc-600">
-      第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。
+      第一次使用？請向補習班索取專屬連結，點開後即可綁定 {{ providerNames() || '登入方式' }}。
     </p>
     <p class="mx-0 mb-0 mt-2 text-xs text-zinc-600">還沒有帳號？請聯絡櫃檯開通。</p>
   </div>
@@ -69,22 +72,53 @@
     </button>
   </div>
   <div class="grid gap-4 px-5 pt-2 pb-8">
-    <p class="m-0 text-base text-zinc-700">用 LINE 登入，不需要記密碼。</p>
+    <p class="m-0 text-base text-zinc-700">{{ intro() }}</p>
     @if (error()) {
       <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
     }
-    <ng-container [ngTemplateOutlet]="lineButton" />
+    <ng-container [ngTemplateOutlet]="providerButtons" [ngTemplateOutletContext]="{ gap: '' }" />
   </div>
 </div>
 
-<ng-template #lineButton>
+<!--
+  依 /api/auth-providers 畫（#1842）：只設 LINE 時只有 LINE 鍵，畫面跟以前一樣；兩個都有時 LINE 在上（家長以 LINE 為主）。
+  gap：表單面是一般排版，第二顆起要自己留距；彈窗本身是 grid gap-4，不用再加。
+-->
+<ng-template #providerButtons let-gap="gap">
+  @for (provider of providers(); track provider) {
+    @if (provider === 'line') {
+      <ng-container
+        [ngTemplateOutlet]="lineButton"
+        [ngTemplateOutletContext]="{ gap: $first ? '' : gap }"
+      />
+    } @else if (provider === 'google') {
+      @if (inLineApp) {
+        <!-- Google 一律擋 LINE 內建瀏覽器（403 disallowed_useragent）：不畫會失敗的鍵，說怎麼辦（使用者 11-02） -->
+        <p
+          class="login__google-in-line m-0 text-sm leading-relaxed text-zinc-600"
+          [class]="$first ? '' : gap"
+        >
+          要用 Google 登入，請用 Safari 或 Chrome 打開這個網頁。
+        </p>
+      } @else {
+        <ng-container
+          [ngTemplateOutlet]="googleButton"
+          [ngTemplateOutletContext]="{ gap: $first ? '' : gap }"
+        />
+      }
+    }
+  }
+</ng-template>
+
+<ng-template #lineButton let-gap="gap">
   <button
     type="button"
+    [class]="gap"
     class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#06c755] bg-white px-4 text-base leading-normal font-semibold text-[#06c755] transition-[color,background,border-color,translate] duration-[120ms] ease-[ease] motion-reduce:duration-[0.01ms] enabled:hover:-translate-y-px enabled:hover:border-[#05b34c] enabled:hover:bg-[rgb(6_199_85/8%)] enabled:hover:text-[#05b34c] enabled:active:translate-y-0 disabled:cursor-progress"
-    [disabled]="submitting()"
-    (click)="signInWithLine()"
+    [disabled]="submitting() !== null"
+    (click)="signIn('line')"
   >
-    @if (submitting()) {
+    @if (submitting() === 'line') {
       <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
       前往 LINE...
     } @else {
@@ -97,6 +131,34 @@
         <img class="block size-[18px]" src="assets/brand/line-logo.png" alt="" />
       </span>
       使用 LINE 登入
+    }
+  </button>
+</ng-template>
+
+<!--
+  Google 品牌規範（Sign in with Google branding guidelines）：白底、#747775 灰框、#1f1f1f 字、官方四色 G、
+  「使用 Google 帳戶登入」。尺寸與圓角跟 LINE 鍵一致，兩顆並排時才是同一組。
+-->
+<ng-template #googleButton let-gap="gap">
+  <button
+    type="button"
+    [class]="gap"
+    class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#747775] bg-white px-4 text-base leading-normal font-semibold text-[#1f1f1f] transition-[background,translate] duration-[120ms] ease-[ease] motion-reduce:duration-[0.01ms] enabled:hover:-translate-y-px enabled:hover:bg-[rgb(31_31_31/4%)] enabled:active:translate-y-0 disabled:cursor-progress"
+    [disabled]="submitting() !== null"
+    (click)="signIn('google')"
+  >
+    @if (submitting() === 'google') {
+      <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+      前往 Google...
+    } @else {
+      <!-- 純裝飾：文字已經說了 Google -->
+      <img
+        class="block size-[18px] shrink-0"
+        src="assets/brand/google-g.svg"
+        alt=""
+        aria-hidden="true"
+      />
+      使用 Google 帳戶登入
     }
   </button>
 </ng-template>
