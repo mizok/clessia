@@ -71,6 +71,10 @@
     "roots": ["apps/web/src"],
     "exts": [".css", ".scss", ".ts"]
   },
+  "supabase-cli-pin": {
+    "roots": [".github/workflows"],
+    "exts": [".yml"]
+  },
   "tailwind-a11y": {
     "roots": [
       "apps/web/src/app/app.component.html",

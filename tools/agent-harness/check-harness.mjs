@@ -14,6 +14,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { cliPinProblems } from './lib/supabase-cli-pin.mjs';
 import { formatGenerated } from './lib/format.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import {
@@ -2449,6 +2450,19 @@ function checkTailwindTheme() {
 }
 
 checkTailwindTheme();
+
+// Supabase CLI 版本：verify 與 migrate 同一個、釘死（2026-11-02 latest 弄壞 api-contract）
+function checkSupabaseCliPin() {
+  const dir = join(ROOT, '.github/workflows');
+  if (!existsSync(dir)) return;
+  recordScope('supabase-cli-pin', { roots: ['.github/workflows'], exts: ['.yml'] });
+  const workflows = readdirSync(dir)
+    .filter((f) => f.endsWith('.yml'))
+    .map((f) => ({ name: `.github/workflows/${f}`, text: readFileSync(join(dir, f), 'utf8') }));
+  for (const problem of cliPinProblems(workflows)) fail(problem);
+}
+
+checkSupabaseCliPin();
 
 // ── A29. 每個有模板的目錄都被 tailwind.css 的 @source 涵蓋（計畫席 10-23）──────────────────
 // source(none)：沒列進 @source 的目錄，class 不會被產生；別頁剛好用過同一個 class 時畫面照樣正常，
