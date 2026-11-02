@@ -1,19 +1,28 @@
 ---
 title: Google 登入的設計（第二個 OAuth provider）
-summary: Google 跟 LINE 走同一套：合成 `<sub>@google.internal` 並標成已驗證、不能建帳號、不能用真 email 對上既有帳號，只能經一次性綁定連結綁上；provider 清單由 API 從環境變數推出，沒設憑證的部署完全看不到 Google 按鈕（c12）。
+summary: Google 跟 LINE 走同一套：合成 `<sub>@google.internal` 並標成已驗證、不能建帳號、不能用真 email 對上既有帳號，只能經一次性綁定連結綁上；provider 清單由 API 從環境變數推出，沒設憑證的部署完全看不到 Google 按鈕（c12）。better-auth 1.5.5 的 idToken 入口不看 disableSignUp，所以 Google 必須 disableIdTokenSignIn。
 category: architecture
-status: draft
+status: active
 tags: [architecture, auth, oauth, google]
 sources: [https://github.com/mizok/clessia/issues/1842]
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-11-02
 ---
 
 # Google 登入的設計（第二個 OAuth provider）
 
 **裁定**：使用者 10-22 選 A（#1842）：Google 回來的身分不用真 email，合成 `<google sub>@google.internal`；不能建新帳號、不能自動對上既有帳號，只能透過一次性綁定連結綁到校方建好的帳號。
 **前提**：[[architecture/line-oauth-login]]（決策二「Google 延後但架構預留」、綁定連結、`allowDifferentEmails` 的安全前提）。
-**狀態**：設計稿，**使用者拿到 Google 憑證前不實作**。
+**狀態**：使用者 11-02 批准（#1842 設計留言＋裁定留言）。G-1（API）實作中；G-2 web、G-3 帳號設定接著做；iPhone 主畫面 App 的退路（G-4）等實機結果再排。
+
+## 11-02 批准時的修正（以本節為準，下面各節與它衝突時看這裡）
+
+- **idToken 入口必須關（G-1 第一個 commit）**：`POST /api/auth/sign-in/social` 帶 `idToken` 的分支（`better-auth/dist/api/routes/sign-in.mjs:84-123`）傳的是 `provider.disableSignUp`，但 `context/create-context.mjs:99-100` 只把 `disableImplicitSignUp` 複製到 provider 上 —— **那條路不看 `disableSignUp`，會建帳號**。Google 發得出 `response_type=id_token`，知道 client id 的人就拿得到 `aud` 是我們的 id_token。Google provider 設 `disableIdTokenSignIn: true`（`google.mjs:66` 直接回 false），`/link-social` 的 idToken 分支同一個函式擋。LINE 同一個入口要 channel secret 才拿得到 id_token、難利用，加固另議（使用者 11-02：先不動）。
+- **env 放哪**：`GOOGLE_CLIENT_ID` 寫進 `wrangler.toml` 的 `[env.production.vars]`，**不是** `--var`（[[architecture/deploying]]：`--var` 下次乾淨部署就沒了）；`GOOGLE_CLIENT_SECRET` 走 `wrangler secret put`。兩個在 `Bindings` 都是選用的。
+- **解除綁定：做**（使用者 11-02）。better-auth 的 `/unlink-account`（`account.mjs:199-224`）本來就擋「只剩一個」（`FAILED_TO_UNLINK_LAST_ACCOUNT`）；建人時不給密碼，所以沒有 `credential` 帳號，計數＝能用的登入方式數。綁兩個以上才出現「解除綁定」，只剩一個寫「至少要留一個登入方式」。
+- **LINE 內建瀏覽器**：Google 一律擋內嵌瀏覽器（403 `disallowed_useragent`），而綁定連結常用 LINE 傳。UA 含 ` Line/` 時 Google 不畫按鈕，改一行「要綁 Google，請用 Safari 或 Chrome 打開這個連結」（使用者 11-02）。
+- **PWA**：Google 登入頁不會被 iOS 交給別的 App，一般流程就是同一個視窗發起與回呼（LINE 要 `disable_auto_login` 才做到，[[architecture/pwa-oauth-handoff]]），所以 Google **不加 iOS 分支**。未知數是 Google 會不會把 iOS 主畫面 App 當內嵌瀏覽器擋掉 → 待實機（步驟 A～E 在 #1842 設計留言）。**Google 實機驗完前先不要移除 `/api/auth-handoff`**，它是退路之一。
+- **錯誤訊息分 provider**：`errorCallbackURL` 帶 `?provider=google`（better-auth 的 `redirectOnError` 在已有 `?` 時用 `&` 接 `error`），登入頁依它換名稱；沒帶視為 LINE。
 
 ## 查過的事實（better-auth 1.5.5，`apps/api/node_modules`）
 
@@ -34,7 +43,7 @@ LINE 那頁的教訓是「寫了『實作前先確認』卻沒人確認」，所
 
 | #   | 位置                                                     | LINE 現在                                                                          | Google 怎麼做                                                                                                                                                                                                                                                                                                                                          |
 | --- | -------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | `AuthBindings`（:8-18）、`index.ts` 的 `Bindings`（:91） | `LINE_CLIENT_ID`、`LINE_CLIENT_SECRET`                                             | 加 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`。`bootstrap-org.ts:55`、`login-link.ts:39` 組 env 的地方一起補（它們目前帶 LINE 的空值）                                                                                                                                                                                                                 |
+| 1   | `AuthBindings`（:8-18）、`index.ts` 的 `Bindings`（:91） | `LINE_CLIENT_ID`、`LINE_CLIENT_SECRET`                                             | 加**選用的** `GOOGLE_CLIENT_ID?`、`GOOGLE_CLIENT_SECRET?`（選用，所以 `bootstrap-org.ts`、`login-link.ts` 與既有 spec 的 env 不用補）                                                                                                                                                                                                                  |
 | 2   | profile 對應（`lineProfileToUser`，:44-72）              | LINE 有 email 就用真的（不宣稱已驗證），沒有才合成 `<sub>@line.internal`、標已驗證 | 新增 `googleProfileToUser`：**一律合成** `<sub>@google.internal`、`emailVerified: true`，**不論 Google 有沒有給 email、給的有沒有驗證都不用**。沒有 `sub` 就丟錯，不合成出 `undefined@google.internal`（同 LINE :55-59 的理由：UNIQUE 撞號＝第二個人登入變成第一個人）。標已驗證的理由同 LINE :61-71：不標，`link-social` 會在 `callback.mjs:103` 被擋 |
 | 3   | `socialProvidersFromEnv`（:74-96）                       | 兩個變數都有才掛 `line`；`disableSignUp: true`；`mapProfileToUser`                 | 同一張 map 加 `google`：兩個變數都有才掛；`disableSignUp: true`；`mapProfileToUser: googleProfileToUser`；**`disableDefaultScope: true` 加 `scope: ['openid']`**（只拿 `sub`，不拿 email 與姓名：本來就用不到，也不會把它們存進 `ba_account.idToken`）；`prompt: 'select_account'`（櫃台共用電腦上已登入別人的 Google 帳號時，讓使用者自己選）         |
 | 4   | `accountLinking`（:173-188）                             | `allowDifferentEmails: true`，註解只講 `@line.internal`                            | **加 `disableImplicitLinking: true`**：合成 email 已經讓隱式綁定對不上任何人，這行是第二道牆，萬一哪天有人拿掉合成也守得住。明確綁定不受影響（`callback.mjs:102-135` 不看它）。註解改成「合成的 email 有 `@line.internal`／`@google.internal` 命名空間」                                                                                               |
@@ -50,12 +59,12 @@ LINE 那頁的教訓是「寫了『實作前先確認』卻沒人確認」，所
 
 前端只有一份**外觀表**：`id → { 名稱, 圖示, 按鈕樣式 }`（LINE 綠、Google 白底灰框照 Google 品牌規範）。**要顯示哪幾顆一律看 `/api/auth-providers` 回什麼**；外觀表裡有、API 沒回的不畫，API 回了、外觀表裡沒有的也不畫（不猜樣式）。
 
-| 地方                                                 | 現在                                                                   | 改成                                                                                                                                                                                                                 |
-| ---------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core/auth.service.ts`                               | `signInWithLine()`、`linkLine()` 寫死 `provider: 'line'`（:233、:255） | `signInWith(provider)`、`linkProvider(provider)`；錯誤訊息從外觀表取名稱（「Google 登入失敗…」）。新增 `providers` signal，app 啟動或登入頁進來時讀一次                                                              |
-| 登入頁 `public/pages/login`                          | 一顆 LINE 鍵、「用 LINE 登入」字樣                                     | 依清單畫按鈕。只有 LINE 時畫面跟現在一樣；兩個都有時兩顆並排（手機直排）；說明文字改成不點名 provider（「用 LINE 或 Google 登入，不需要記密碼」由清單組字）                                                          |
-| 綁定頁 `public/pages/link-line`                      | 「綁定 LINE」一顆鍵                                                    | 依清單每個 provider 一顆「綁定 ○○」。**路由維持 `/link-line`**：已經印出去、傳出去的綁定連結都導到這個路徑，改名會讓舊連結落空；只改頁面內容與標題（「綁定登入方式」）                                               |
-| 帳號設定 `shared/components/account-settings-dialog` | **目前沒有登入方式這一段**（新 UI）                                    | 新增「登入方式」：依清單列每個 provider，已綁定的寫「已綁定」，沒綁的給「綁定」鍵（走同一支 `linkProvider`）。已綁定狀態用 better-auth 的 `listAccounts`。**解除綁定不做**：解掉最後一個就登不進來，那要另外設計防呆 |
+| 地方                                                 | 現在                                                                   | 改成                                                                                                                                                                                                                                  |
+| ---------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/auth.service.ts`                               | `signInWithLine()`、`linkLine()` 寫死 `provider: 'line'`（:233、:255） | `signInWith(provider)`、`linkProvider(provider)`；錯誤訊息從外觀表取名稱（「Google 登入失敗…」）。新增 `providers` signal，app 啟動或登入頁進來時讀一次                                                                               |
+| 登入頁 `public/pages/login`                          | 一顆 LINE 鍵、「用 LINE 登入」字樣                                     | 依清單畫按鈕。只有 LINE 時畫面跟現在一樣；兩個都有時兩顆並排（手機直排）；說明文字改成不點名 provider（「用 LINE 或 Google 登入，不需要記密碼」由清單組字）                                                                           |
+| 綁定頁 `public/pages/link-line`                      | 「綁定 LINE」一顆鍵                                                    | 依清單每個 provider 一顆「綁定 ○○」。**路由維持 `/link-line`**：已經印出去、傳出去的綁定連結都導到這個路徑，改名會讓舊連結落空；只改頁面內容與標題（「綁定登入方式」）                                                                |
+| 帳號設定 `shared/components/account-settings-dialog` | **目前沒有登入方式這一段**（新 UI）                                    | 新增「登入方式」：依清單列每個 provider，已綁定的寫「已綁定」，沒綁的給「綁定」鍵（走同一支 `linkProvider`）。已綁定狀態用 better-auth 的 `listAccounts`。綁兩個以上才有「解除綁定」（better-auth 內建擋最後一個，見上方 11-02 修正） |
 
 ## 三、沒設 Google 憑證的部署：完全看不到 Google（c12）
 
@@ -77,7 +86,7 @@ LINE 那頁的教訓是「寫了『實作前先確認』卻沒人確認」，所
    - 「已授權的重新導向 URI」填 **`https://<API 網域>/api/auth/callback/google`**，必須跟 `BETTER_AUTH_URL` 完全一致（協定、網域、沒有結尾斜線）
    - 本機開發另加 `http://localhost:8787/api/auth/callback/google`，或另開一個開發用的用戶端
 4. 拿到的兩個值：
-   - 用戶端 ID 不是機密：`--var GOOGLE_CLIENT_ID:<值>`（跟 `LINE_CLIENT_ID` 一樣，**乾淨重新部署會被洗掉**，見 `deploying.md:40-41`、`:64`）
+   - 用戶端 ID 不是機密：寫進 `apps/api/wrangler.toml` 的 `[env.production.vars]`（`GOOGLE_CLIENT_ID`，跟 `LINE_CLIENT_ID` 放一起；**不要用 `--var`**，乾淨重新部署會被洗掉）
    - 用戶端密鑰：`npx wrangler secret put GOOGLE_CLIENT_SECRET --env production`
 5. 部署後打開登入頁，確認出現 Google 鍵；再用一次性連結登入，在綁定頁綁 Google，登出後用 Google 登入一次。
 
@@ -123,6 +132,5 @@ Google 的 token 端點用 fetch 替身回一個自己簽的 `id_token`（`getUs
 
 ## 不做
 
-- 解除綁定（要先設計「最後一個登入方式不能解」的防呆）
 - 用 Google 建帳號、Google Workspace 網域自動放行（`hd`）
 - 其他 provider（Apple、Facebook）：架構容得下，但沒有需求

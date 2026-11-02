@@ -164,6 +164,14 @@ Tags: `architecture`, `harness`, `gate`, `ci`
 
 Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]]
 
+## [[architecture/google-oauth-login|Google 登入的設計（第二個 OAuth provider）]]
+
+Google 跟 LINE 走同一套：合成 `<sub>@google.internal` 並標成已驗證、不能建帳號、不能用真 email 對上既有帳號，只能經一次性綁定連結綁上；provider 清單由 API 從環境變數推出，沒設憑證的部署完全看不到 Google 按鈕（c12）。better-auth 1.5.5 的 idToken 入口不看 disableSignUp，所以 Google 必須 disableIdTokenSignIn。
+
+Tags: `architecture`, `auth`, `oauth`, `google`
+
+Links to: [[architecture/line-oauth-login]], [[architecture/deploying]], [[architecture/pwa-oauth-handoff]]
+
 ## [[architecture/line-oauth-login|LINE 登入的設計]]
 
 密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
