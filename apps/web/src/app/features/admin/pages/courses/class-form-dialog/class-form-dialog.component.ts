@@ -10,8 +10,6 @@ import {
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
-import { SelectModule } from 'primeng/select';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig, DialogService } from 'primeng/dynamicdialog';
 import { AuthService } from '@core/auth.service';
@@ -58,14 +56,7 @@ export interface ScheduleFormEntry {
 @Component({
   selector: 'app-class-form-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ButtonModule,
-    SelectModule,
-    SelectFieldComponent,
-    DialogTitleDirective,
-  ],
+  imports: [CommonModule, FormsModule, SelectFieldComponent, DialogTitleDirective],
   // **自己 provide 一份 `DialogService`。** 這支元件本身是被 DynamicDialog 開起來的，
   // 而它又要再開一層（排課衝突警告）。父層 `courses.page` 雖然有 provide，
   // 但「dialog 內的元件解不解析得到父元件層的 provider」取決於 PrimeNG 的
@@ -204,13 +195,27 @@ export class ClassFormDialogComponent {
     }));
   }
   private nextScheduleKey = 0;
+  // A6：新增班級一開就有一筆時段（週一 19:00–20:30、從今天起）
   protected readonly scheduleEntries = signal<ScheduleFormEntry[]>(
-    this.toEntries(this.liveSchedules()),
+    this.cls()
+      ? this.toEntries(this.liveSchedules())
+      : [
+          {
+            key: this.nextScheduleKey++,
+            weekday: 1,
+            startTime: '19:00',
+            endTime: '20:30',
+            teacherId: null,
+            effectiveFrom: this.today,
+            effectiveTo: null,
+            classroomId: null,
+          },
+        ],
   );
 
   /** 時段列的「11/1 起」「至 10/31」 */
   protected rangeLabel(entry: ScheduleFormEntry): string {
-    return entry.effectiveFrom
+    return entry.id && entry.effectiveFrom
       ? effectiveRangeLabel(entry.effectiveFrom, entry.effectiveTo, this.today)
       : '';
   }
@@ -259,18 +264,51 @@ export class ClassFormDialogComponent {
       .map((s) => ({ label: s.displayName, value: s.id }));
   });
 
-  // `pendingConflicts` / `conflictDialogVisible` 已移除 —— 衝突清單改由
-  // `ConflictWarningDialogComponent` 透過 DynamicDialog 的 data 帶進去，
-  // 元件不再需要自己保存那份狀態。
-  protected readonly formValidationMessage = signal<string | null>(null);
-  /** A6 `.fdlg__why`：必填沒填不鎖死送出鈕，動作列左邊寫還差什麼（courses.html classDialog 的 check） */
-  protected readonly missingHint = computed(() => {
+  /**
+   * A6 classDialog 的 check（courses.html）：每次輸入都重算，第一個問題寫在動作列左邊（`.fdlg__why`），
+   * 送出鈕只標 aria-disabled、不鎖死。`bad` 是要框紅的時段（A6 `.slot.is-bad`）
+   */
+  private readonly issue = computed((): { msg: string; bad: number[] } | null => {
     const form = this.formData();
-    if (!form.name.trim()) return '還沒填：開課班名稱';
-    if (!(form.maxStudents > 0)) return '人數上限要大於 0';
+    if (!form.name.trim()) return { msg: '還沒填：開課班名稱', bad: [] };
+    if (!(form.maxStudents > 0)) return { msg: '人數上限要大於 0', bad: [] };
+    const entries = this.scheduleEntries();
+    const bad = entries.findIndex(
+      (e) => !e.weekday || !e.startTime || !e.endTime || e.endTime <= e.startTime,
+    );
+    if (bad >= 0) {
+      return { msg: `第 ${bad + 1} 筆時段的結束要晚於開始`, bad: [bad] };
+    }
+    const overlap = this.findLocalScheduleOverlap(entries);
+    if (overlap) {
+      return {
+        msg: `時段重疊：第 ${overlap.firstEntryNo} 筆與第 ${overlap.secondEntryNo} 筆在${this.getWeekdayLabel(overlap.weekday)}重疊`,
+        bad: [overlap.firstEntryNo - 1, overlap.secondEntryNo - 1],
+      };
+    }
     return null;
   });
-  protected readonly whyText = computed(() => this.formValidationMessage() ?? this.missingHint());
+  protected readonly formValidationMessage = computed(() => this.issue()?.msg ?? null);
+  protected isBadSlot(index: number): boolean {
+    return this.issue()?.bad.includes(index) ?? false;
+  }
+  /** 刪到只剩一筆時再按：A6 寫「至少要有一個時段」 */
+  private readonly deleteBlocked = signal(false);
+  /**
+   * 時段老師是**選填**（計畫席 11-02，R5）：D4 以來時段本來就可以沒有老師，必選會讓還沒有該科老師的
+   * 分校建不了班。不擋送出，只在動作列提示（A6 是「還沒選老師」擋送出）
+   */
+  protected readonly noTeacherHint = computed(() => {
+    const nos = this.scheduleEntries()
+      .map((e, i) => (e.teacherId ? 0 : i + 1))
+      .filter(Boolean);
+    return nos.length ? `第 ${nos.join('、')} 筆時段還沒排老師，可以之後再排` : null;
+  });
+  protected readonly whyText = computed(() =>
+    this.deleteBlocked()
+      ? '至少要有一個時段'
+      : (this.formValidationMessage() ?? this.noTeacherHint()),
+  );
 
   /** A6 `.fdlg__opt` radio */
   protected readonly statusOptions = [
@@ -278,26 +316,46 @@ export class ClassFormDialogComponent {
     { label: '停用', value: false },
   ] as const;
 
+  /**
+   * 下一階班級（A6「沒有（不設升班路徑）」＋其他還在開的班）：同分校、不含自己。
+   * `classes` 是課程頁那份「不分頁、不含歷史班」的清單
+   */
+  protected readonly nextClassOptions = computed(() => {
+    const campusId = this.course()?.campusId;
+    const selfId = this.cls()?.id;
+    const list = ((this.config.data?.classes ?? []) as Class[]).filter(
+      (c) => c.campusId === campusId && c.id !== selfId,
+    );
+    return [
+      { label: '沒有（不設升班路徑）', value: null as string | null },
+      ...list.map((c) => ({
+        label: c.courseName ? `${c.courseName} · ${c.name}` : c.name,
+        value: c.id as string | null,
+      })),
+    ];
+  });
+
   private readonly nameInput = viewChild.required<ElementRef<HTMLInputElement>>('nameInput');
 
   protected updateForm(field: keyof ReturnType<typeof this.formData>, value: any): void {
-    this.formValidationMessage.set(null);
     this.formData.update((f) => ({ ...f, [field]: value }));
   }
 
+  /** A6：新的一筆沿用上一筆的星期與老師，時間空著、生效日從今天起 */
   protected addScheduleEntry(): void {
-    this.formValidationMessage.set(null);
+    this.deleteBlocked.set(false);
+    const last = this.scheduleEntries().at(-1);
     this.viewTransition(
       () =>
         this.scheduleEntries.update((list) => [
           ...list,
           {
             key: this.nextScheduleKey++,
-            weekday: 1,
-            startTime: '09:00',
-            endTime: '11:00',
-            teacherId: null,
-            effectiveFrom: null,
+            weekday: last?.weekday ?? 1,
+            startTime: '',
+            endTime: '',
+            teacherId: last?.teacherId ?? null,
+            effectiveFrom: this.today,
             effectiveTo: null,
             classroomId: null,
           },
@@ -307,7 +365,10 @@ export class ClassFormDialogComponent {
   }
 
   protected removeScheduleEntry(index: number): void {
-    this.formValidationMessage.set(null);
+    if (this.scheduleEntries().length < 2) {
+      this.deleteBlocked.set(true);
+      return;
+    }
     this.viewTransition(
       () => this.scheduleEntries.update((list) => list.filter((_, i) => i !== index)),
       { rows: true },
@@ -315,37 +376,21 @@ export class ClassFormDialogComponent {
   }
 
   protected updateScheduleEntry(index: number, field: keyof ScheduleFormEntry, value: any): void {
-    this.formValidationMessage.set(null);
+    this.deleteBlocked.set(false);
+    // 原生 date 清空是 ''；生效日的「不限／預設」是 null（rangesOverlap、API 都認 null）
+    if (value === '' && (field === 'effectiveFrom' || field === 'effectiveTo')) value = null;
     this.scheduleEntries.update((list) =>
       list.map((entry, i) => (i === index ? { ...entry, [field]: value } : entry)),
     );
   }
 
+  /** 既有時段的老師是唯讀，只顯示名字 */
+  protected teacherNameOf(entry: ScheduleFormEntry): string {
+    return this.cls()?.schedules?.find((s) => s.id === entry.id)?.teacherName ?? '還沒排老師';
+  }
+
   protected save(): void {
-    this.formValidationMessage.set(null);
-    if (this.missingHint() || this.loading()) return;
-
-    const incompleteSchedule = this.scheduleEntries().find((e) => !e.weekday);
-    if (incompleteSchedule) {
-      this.formValidationMessage.set('時段資料不完整：請確認每個時段都已設定上課星期');
-      return;
-    }
-
-    const invalidTime = this.scheduleEntries().find(
-      (entry) => !entry.startTime || !entry.endTime || entry.startTime >= entry.endTime,
-    );
-    if (invalidTime) {
-      this.formValidationMessage.set('時段資料不合法：請確認每個時段的開始時間早於結束時間');
-      return;
-    }
-
-    const overlap = this.findLocalScheduleOverlap(this.scheduleEntries());
-    if (overlap) {
-      this.formValidationMessage.set(
-        `時段重疊：第 ${overlap.firstEntryNo} 筆與第 ${overlap.secondEntryNo} 筆在${this.getWeekdayLabel(overlap.weekday)}時段重疊`,
-      );
-      return;
-    }
+    if (this.issue() || this.loading()) return;
 
     // Conflict check for NEW schedules (only when teacherId is set)
     const toCheck: CheckConflictScheduleInput[] = this.scheduleEntries()
@@ -488,7 +533,7 @@ export class ClassFormDialogComponent {
         e.startTime !== orig.startTime.substring(0, 5) ||
         e.endTime !== orig.endTime.substring(0, 5) ||
         e.teacherId !== orig.teacherId ||
-        e.effectiveTo !== orig.effectiveTo ||
+        (e.effectiveTo || null) !== orig.effectiveTo ||
         e.classroomId !== (orig.classroomId ?? null)
       );
     });
@@ -503,7 +548,7 @@ export class ClassFormDialogComponent {
           startTime: e.startTime,
           endTime: e.endTime,
           teacherId: e.teacherId,
-          effectiveTo: e.effectiveTo,
+          effectiveTo: e.effectiveTo || null,
           classroomId: e.classroomId,
         })
         .toPromise(),
@@ -545,7 +590,8 @@ export class ClassFormDialogComponent {
       startTime: entry.startTime,
       endTime: entry.endTime,
       teacherId: entry.teacherId,
-      effectiveTo: entry.effectiveTo,
+      ...(entry.effectiveFrom ? { effectiveFrom: entry.effectiveFrom } : {}),
+      effectiveTo: entry.effectiveTo || null,
       classroomId: entry.classroomId,
     };
     this.classesService.addSchedule(classId, input).subscribe({

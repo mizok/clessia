@@ -29,8 +29,9 @@ while [ $# -ge 2 ]; do
   node "$D/ts-guard.mjs" --main "$main_max" --prod "$prod_max" $(gh pr view "$p" --json files -q '.files[].path') \
     || { notify "審核席：#${p} 的 migration 時間戳沒過 ts-guard，停下不合。"; exit 1; }
   out=$(bash "$D/cimg.sh" "$p" "$S"); echo "$out"
-  m=$(echo "$out" | grep -o 'merge=[0-9a-f]*' | cut -d= -f2)
-  [ -n "$m" ] || { echo "#${p} 沒合成，停"; exit 1; }
+  # 合沒合以 GitHub 的 state 為準，不靠 cimg 的輸出字樣（11-02）
+  [ "$(gh pr view "${p}" --json state -q .state)" = MERGED ] || { echo "#${p} 沒合成，停"; exit 1; }
+  m=$(gh pr view "${p}" --json mergeCommit -q .mergeCommit.oid)
   echo "#${p} 已合 ${m} → 凍結"
   until r=$(gh run list --workflow migrate.yml -L 5 --json databaseId,headSha,status,url -q "[.[]|select(.headSha|startswith(\"${m}\"))][0]|\"\(.databaseId) \(.status) \(.url)\"") \
         && [ -n "$r" ] && [ "$r" != "null" ] && { [ "$(echo "$r" | cut -d' ' -f2)" = waiting ] || [ "$(echo "$r" | cut -d' ' -f2)" = completed ]; }; do sleep 30; done

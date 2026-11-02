@@ -18,11 +18,7 @@
   </div>
 
   <!-- A6 `.fdlg__body`：兩欄 grid，班名／人數各半欄，其餘整列；手機一欄 -->
-  <form
-    ngNoForm
-    class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
-    (submit)="$event.preventDefault(); save()"
-  >
+  <div class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4">
     <div class="min-w-0">
       <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-name"
         >開課班名稱 <span class="text-error-700" aria-hidden="true">*</span></label
@@ -57,9 +53,20 @@
       />
     </div>
 
+    <!-- A6「下一階班級」：升班路徑（API 收 nextClassId） -->
+    <div class="min-w-0">
+      <app-select-field
+        label="下一階班級"
+        labelSize="md"
+        [options]="nextClassOptions()"
+        [value]="formData().nextClassId"
+        (valueChange)="updateForm('nextClassId', $event)"
+      />
+    </div>
+
     <!-- A6 `.sw`：「家長端」勾選框 -->
     <div class="min-w-0">
-      <p class="mb-1 block text-md font-semibold text-zinc-700 m-0">家長端</p>
+      <p class="mt-0 mb-1 block text-md font-semibold text-zinc-700">家長端</p>
       <label
         class="inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold text-zinc-900"
       >
@@ -73,182 +80,152 @@
       </label>
     </div>
 
-    <!-- 稿沒畫（舊有新無 R2，#1665 Q5）：匿名的報名／試聽表單看不看得到這一班 -->
-    <div class="min-w-0">
-      <p class="mb-1 block text-md font-semibold text-zinc-700 m-0">公開報名</p>
-      <label
-        class="inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold text-zinc-900"
-      >
-        <input
-          type="checkbox"
-          class="m-0 size-[18px] accent-zinc-900"
-          [ngModel]="isPublicEnrollment()"
-          (ngModelChange)="isPublicEnrollment.set($event)"
-          [disabled]="loading()"
-        />開放公開報名
-      </label>
-      <p class="m-0 mt-1 text-sm text-zinc-600">
-        關掉之後，公開的報名、試聽表單看不到這一班；已送來的申請不受影響
+    <!-- A6 `.slot`：上課時段（courses.html slotHtml）。手機兩欄、「第 N 筆」與刪除鈕同一列。 -->
+    <div class="col-span-full min-w-0">
+      <p class="mt-0 mb-1 block text-md font-semibold text-zinc-700">
+        上課時段 <span class="text-error-700" aria-hidden="true">*</span>
       </p>
-    </div>
-
-    <!-- 稿沒畫（舊有新無 R2，#1175，要 manage_finance；#2089 使用者裁定保留） -->
-    @if (canSetFee) {
-      <div class="col-span-full min-w-0">
-        <app-select-field
-          label="目錄參考價"
-          labelSize="md"
-          placeholder="未指定"
-          [options]="feeOptions()"
-          [value]="defaultFeeTemplateId()"
-          (valueChange)="defaultFeeTemplateId.set($event)"
-        />
-        <p class="m-0 mt-1 text-sm text-zinc-600">
-          家長目錄顯示的參考價；實際收費以報名時選的範本為準。
-        </p>
-      </div>
-    }
-
-    <!-- 稿沒畫（舊有新無 R2）：班級的起訖日，選填＝不限期（API 靠 end_date IS NULL 判斷班還在） -->
-    <div class="min-w-0">
-      <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-start"
-        >開始日期（選填）</label
-      >
-      <input
-        id="class-start"
-        type="date"
-        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
-        [min]="startDateMin()"
-        [ngModel]="startDate()"
-        (ngModelChange)="startDate.set($event ?? '')"
-        [disabled]="loading()"
-      />
-    </div>
-    <div class="min-w-0">
-      <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-end"
-        >結束日期（選填）</label
-      >
-      <input
-        id="class-end"
-        type="date"
-        class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
-        [min]="endDateMin()"
-        [ngModel]="endDate()"
-        (ngModelChange)="endDate.set($event ?? '')"
-        [disabled]="loading()"
-      />
-    </div>
-    <!-- 日期是選填的，但留空要付的代價在另一個對話框才會顯現 —— 在這裡先講 -->
-    <p class="col-span-full -mt-2 mb-0 text-sm text-zinc-600">
-      兩邊都填，之後產生課堂會直接沿用這段期間；留空（不限期）則每次產生課堂都要另外指定範圍。
-    </p>
-
-    <!-- Schedules Section -->
-    <div class="form-dialog__section col-span-full">
-      <div class="form-dialog__section-header">
-        <span class="form-dialog__section-title">
-          <i class="pi pi-clock"></i>
-          上課時間
-        </span>
-        <p-button
-          label="新增時段"
-          icon="pi pi-plus"
-          [text]="true"
-          size="small"
-          (onClick)="addScheduleEntry()"
-          [disabled]="loading()"
-        />
-      </div>
-
-      @if (scheduleEntries().length === 0) {
-        <p class="form-dialog__empty-note">尚未設定上課時間，點擊「新增時段」添加</p>
-      } @else {
-        <div class="flex flex-col gap-3 p-4">
-          @for (entry of scheduleEntries(); track entry.key) {
-            <div
-              [style.view-transition-name]="'schedule-entry-' + entry.key"
-              class="vt-row relative flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3"
+      <div class="flex flex-col gap-2">
+        @for (entry of scheduleEntries(); track entry.key; let i = $index) {
+          <div
+            [style.view-transition-name]="'schedule-entry-' + entry.key"
+            class="vt-row grid grid-cols-[1fr_1fr_1fr_1.4fr_auto] items-end gap-2 rounded-md bg-zinc-50 p-3 shadow-[inset_0_0_0_1px_var(--zinc-200)] max-wide:grid-cols-2"
+            [style.box-shadow]="isBadSlot(i) ? 'inset 0 0 0 1.5px var(--error-700)' : null"
+          >
+            <p
+              class="col-span-full m-0 text-sm font-bold text-zinc-700 max-wide:col-span-1 max-wide:self-center"
             >
-              <!-- 看得到的圓是 24px，可點範圍是 44px（A27）。白色圖示疊 zinc-400 只有 2.60，zinc-500 過 3:1 -->
-              <button
-                type="button"
-                class="group absolute top-0 right-0 flex size-11 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center border-0 bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-40"
-                (click)="removeScheduleEntry($index)"
+              第 {{ i + 1 }} 筆時段
+            </p>
+            <app-select-field
+              label="星期"
+              [options]="weekdayOptions"
+              [value]="entry.weekday"
+              (valueChange)="updateScheduleEntry(i, 'weekday', $event)"
+            />
+            <label class="grid min-w-0 gap-1 text-sm font-semibold text-zinc-700"
+              >開始
+              <input
+                type="time"
+                class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                [ngModel]="entry.startTime"
+                (ngModelChange)="updateScheduleEntry(i, 'startTime', $event)"
                 [disabled]="loading()"
-                aria-label="移除時段"
-              >
-                <span
-                  class="flex size-6 items-center justify-center rounded-full bg-zinc-500 text-white [transition:background_var(--transition-fast)] group-hover:bg-zinc-600"
+              />
+            </label>
+            <label class="grid min-w-0 gap-1 text-sm font-semibold text-zinc-700"
+              >結束
+              <input
+                type="time"
+                class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                [ngModel]="entry.endTime"
+                (ngModelChange)="updateScheduleEntry(i, 'endTime', $event)"
+                [disabled]="loading()"
+              />
+            </label>
+            <!-- 時段老師（#2089 使用者裁定）：新增時可選；既有時段唯讀，換老師走有生效日的「從某日起」 -->
+            @if (entry.id) {
+              <label class="grid min-w-0 gap-1 text-sm font-semibold text-zinc-700"
+                >任課老師
+                <select
+                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-zinc-100 px-3 text-base text-zinc-600 [font-family:inherit] disabled:cursor-not-allowed pointer-coarse:min-h-11"
+                  disabled
                 >
-                  <i class="pi pi-times text-[10px]"></i>
-                </span>
-              </button>
-              <div class="flex flex-wrap items-center gap-2">
-                <p-select
-                  [options]="weekdayOptions"
-                  [ngModel]="entry.weekday"
-                  (ngModelChange)="updateScheduleEntry($index, 'weekday', $event)"
-                  placeholder="星期"
-                  [disabled]="loading()"
-                  [appendTo]="'body'"
-                  styleClass="min-w-[90px]"
-                />
+                  <option>{{ teacherNameOf(entry) }}</option>
+                </select>
+              </label>
+            } @else {
+              <app-select-field
+                label="任課老師"
+                placeholder="還沒排老師"
+                [options]="filteredStaffOptions()"
+                [value]="entry.teacherId"
+                (valueChange)="updateScheduleEntry(i, 'teacherId', $event)"
+              />
+            }
+            <button
+              type="button"
+              class="grid size-11 cursor-pointer place-items-center self-end rounded-md border-0 bg-transparent p-0 text-zinc-700 hover:bg-zinc-200 max-wide:col-start-2 max-wide:row-start-1 max-wide:justify-self-end wide:size-10"
+              [attr.aria-label]="'刪除第 ' + (i + 1) + ' 筆時段'"
+              [attr.aria-disabled]="scheduleEntries().length < 2"
+              [disabled]="loading()"
+              (click)="removeScheduleEntry(i)"
+            >
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+            <div
+              class="col-[1/-2] grid grid-cols-3 gap-2 max-wide:col-span-full max-wide:grid-cols-1"
+            >
+              <!-- #1796：教室（不指定／這個分校的教室） -->
+              <app-select-field
+                label="教室"
+                [options]="classroomOptions()"
+                [value]="entry.classroomId"
+                (valueChange)="updateScheduleEntry(i, 'classroomId', $event)"
+              />
+              <!-- 既有時段的起始日不在這裡改：從某天起換時段／老師走「從某日起」，已產生的課堂才會跟著處理 -->
+              <label class="grid min-w-0 gap-1 text-sm font-semibold text-zinc-700"
+                >生效起始日
                 <input
-                  type="time"
-                  class="h-9 w-28 cursor-pointer rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 [transition:border-color_var(--transition-fast)] hover:border-accent-400 focus:border-accent-500 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.15)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400 pointer-coarse:min-h-11"
-                  [ngModel]="entry.startTime"
-                  (ngModelChange)="updateScheduleEntry($index, 'startTime', $event)"
-                  [disabled]="loading()"
+                  type="date"
+                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                  [ngModel]="entry.effectiveFrom ?? ''"
+                  (ngModelChange)="updateScheduleEntry(i, 'effectiveFrom', $event)"
+                  [disabled]="loading() || !!entry.id"
                 />
-                <!-- 文字字元不是裝飾，走 4.5:1：zinc-400 只有 2.47，zinc-500 過關 -->
-                <span class="text-sm text-zinc-500">—</span>
+              </label>
+              <label class="grid min-w-0 gap-1 text-sm font-semibold text-zinc-700"
+                >生效結束日（選填）
                 <input
-                  type="time"
-                  class="h-9 w-28 cursor-pointer rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 [transition:border-color_var(--transition-fast)] hover:border-accent-400 focus:border-accent-500 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.15)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400 pointer-coarse:min-h-11"
-                  [ngModel]="entry.endTime"
-                  (ngModelChange)="updateScheduleEntry($index, 'endTime', $event)"
+                  type="date"
+                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                  [min]="entry.effectiveFrom ?? ''"
+                  [ngModel]="entry.effectiveTo ?? ''"
+                  (ngModelChange)="updateScheduleEntry(i, 'effectiveTo', $event)"
                   [disabled]="loading()"
                 />
-                <!-- #1796：A6 courses.html 時段的「教室」（不指定／這個分校的教室） -->
-                <p-select
-                  [options]="classroomOptions()"
-                  [ngModel]="entry.classroomId"
-                  (ngModelChange)="updateScheduleEntry($index, 'classroomId', $event)"
-                  placeholder="不指定"
-                  ariaLabel="教室"
-                  [disabled]="loading()"
-                  [appendTo]="'body'"
-                  styleClass="min-w-[110px]"
-                />
-              </div>
-              @if (rangeLabel(entry) || (isEditing() && entry.id)) {
-                <div class="flex flex-wrap items-center gap-2 text-sm">
-                  @if (rangeLabel(entry); as label) {
-                    <span class="text-zinc-600 tabular-nums">{{ label }}</span>
-                  }
-                  <!-- #1100 #22：「下個月起改週三」。直接改上面的欄位＝整段一起改；這個是從某天起才換 -->
-                  @if (isEditing() && entry.id) {
-                    <p-button
-                      label="從某日起改時段"
-                      icon="pi pi-calendar"
-                      [text]="true"
-                      size="small"
-                      [disabled]="loading()"
-                      (onClick)="openSplit(entry)"
-                    />
-                  }
-                </div>
-              }
-              <!-- teacher selection removed per D4: 老師指派改由行事曆批次操作處理 -->
+              </label>
             </div>
-          }
-        </div>
-      }
+            <!-- 稿沒畫（R2，#1100 #22）：既有時段「從某天起」換老師／改時段 -->
+            @if (isEditing() && entry.id) {
+              <div class="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                @if (rangeLabel(entry); as label) {
+                  <span class="text-zinc-600 tabular-nums">{{ label }}</span>
+                }
+                <button
+                  type="button"
+                  class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm font-semibold text-zinc-700 underline underline-offset-2 hover:text-zinc-900 disabled:cursor-not-allowed wide:min-h-0"
+                  [disabled]="loading()"
+                  (click)="openSplit(entry)"
+                >
+                  換老師
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm font-semibold text-zinc-700 underline underline-offset-2 hover:text-zinc-900 disabled:cursor-not-allowed wide:min-h-0"
+                  [disabled]="loading()"
+                  (click)="openSplit(entry)"
+                >
+                  從某日起改時段
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+      <button
+        type="button"
+        class="mt-2 inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-8"
+        [disabled]="loading()"
+        (click)="addScheduleEntry()"
+      >
+        <i class="pi pi-plus" aria-hidden="true"></i>新增時段
+      </button>
     </div>
 
     <!-- A6 `.fdlg__seg`／`.fdlg__opt`：狀態 radio，選中的框加深 -->
     <div class="col-span-full min-w-0">
-      <p class="mb-1 block text-md font-semibold text-zinc-700 m-0" id="class-status">狀態</p>
+      <p class="mt-0 mb-1 block text-md font-semibold text-zinc-700" id="class-status">狀態</p>
       <div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="class-status">
         @for (opt of statusOptions; track opt.label) {
           <label
@@ -266,7 +243,80 @@
         }
       </div>
     </div>
-  </form>
+
+    <!-- 稿沒畫的欄位（舊有新無 R2）收在同一個整列區塊：頂層欄位外框的結構跟稿一樣 -->
+    <div class="col-span-full grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1">
+      <!-- 稿沒畫（舊有新無 R2，#1665 Q5）：匿名的報名／試聽表單看不看得到這一班 -->
+      <div class="min-w-0">
+        <p class="mt-0 mb-1 block text-md font-semibold text-zinc-700">公開報名</p>
+        <label
+          class="inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold text-zinc-900"
+        >
+          <input
+            type="checkbox"
+            class="m-0 size-[18px] accent-zinc-900"
+            [ngModel]="isPublicEnrollment()"
+            (ngModelChange)="isPublicEnrollment.set($event)"
+            [disabled]="loading()"
+          />開放公開報名
+        </label>
+        <p class="m-0 mt-1 text-sm text-zinc-600">
+          關掉之後，公開的報名、試聽表單看不到這一班；已送來的申請不受影響
+        </p>
+      </div>
+
+      <!-- 稿沒畫（舊有新無 R2，#1175，要 manage_finance；#2089 使用者裁定保留） -->
+      @if (canSetFee) {
+        <div class="col-span-full min-w-0">
+          <app-select-field
+            label="目錄參考價"
+            labelSize="md"
+            placeholder="未指定"
+            [options]="feeOptions()"
+            [value]="defaultFeeTemplateId()"
+            (valueChange)="defaultFeeTemplateId.set($event)"
+          />
+          <p class="m-0 mt-1 text-sm text-zinc-600">
+            家長目錄顯示的參考價；實際收費以報名時選的範本為準。
+          </p>
+        </div>
+      }
+
+      <!-- 稿沒畫（舊有新無 R2）：班級的起訖日，選填＝不限期（API 靠 end_date IS NULL 判斷班還在） -->
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-start"
+          >開始日期（選填）</label
+        >
+        <input
+          id="class-start"
+          type="date"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+          [min]="startDateMin()"
+          [ngModel]="startDate()"
+          (ngModelChange)="startDate.set($event ?? '')"
+          [disabled]="loading()"
+        />
+      </div>
+      <div class="min-w-0">
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="class-end"
+          >結束日期（選填）</label
+        >
+        <input
+          id="class-end"
+          type="date"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+          [min]="endDateMin()"
+          [ngModel]="endDate()"
+          (ngModelChange)="endDate.set($event ?? '')"
+          [disabled]="loading()"
+        />
+      </div>
+      <!-- 日期是選填的，但留空要付的代價在另一個對話框才會顯現 —— 在這裡先講 -->
+      <p class="col-span-full -mt-2 mb-0 text-sm text-zinc-600">
+        兩邊都填，之後產生課堂會直接沿用這段期間；留空（不限期）則每次產生課堂都要另外指定範圍。
+      </p>
+    </div>
+  </div>
 
   <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
   <div class="form-dialog__footer">
@@ -282,7 +332,7 @@
     <button
       type="button"
       class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 aria-disabled:opacity-55 wide:h-9"
-      [attr.aria-disabled]="!!missingHint() || loading()"
+      [attr.aria-disabled]="!!formValidationMessage() || loading()"
       (click)="save()"
     >
       {{ loading() ? '儲存中…' : isEditing() ? '儲存' : '建立班級' }}
