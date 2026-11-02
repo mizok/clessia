@@ -1102,11 +1102,23 @@ export const PAGES = {
         { status: '文案', a6: 'control:button\\[教室：[^\\]]*\\]$', app: 'dropdown trigger' },
         { status: '多', app: 'control:combobox\\[(下一階班級|教室|星期|任課老師)\\]$' },
         // 稿的標籤是 label 包住 .dd 按鈕（名稱帶隱藏的必填 *）；app-select-field 的標籤是 span，稿的 label 只能依位置配到別的欄位
-        ...['缺', '文案', '位置'].map((status) => ({
+        ...['缺', '文案', '位置', '樣式'].map((status) => ({
           status,
           a6: 'text:label\\[(下一階班級|星期|任課老師|教室)\\](>control:button\\[[^\\]]*\\])?$',
         })),
+        // 對面那一半：app-select-field 的標籤 span（字級照稿：下一階班級 13、時段裡 12，都是 600 zinc-700）
+        { status: '多', app: 'landmark:dialog\\[新增班級\\]>text:span\\[(下一階班級|星期|任課老師|教室)\\]$' },
       ].map((d) => ({ ...d, pop: 'new-class', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      {
+        // 必填星號照稿畫在標籤後，但全站慣例是 aria-hidden（讀屏不念，必填由底部「還沒填：…」說）；
+        // 工具不抽 aria-hidden 的元素，所以量成「缺」
+        status: '缺',
+        pop: 'new-class',
+        a6: 'text:(label|p)\\[(開課班名稱|人數上限|上課時段)\\]>text:span\\[\\*\\]$',
+        reason: '必填星號有畫，但 aria-hidden（讀屏不念，必填由「還沒填：…」說），工具量不到',
+        source:
+          'apps/web/src/app/shared/components/select-field/select-field.component.ts:56（全站表單同款星號）；tools/a6-conformance/lib/extract.mjs:93',
+      },
       // 時段老師選填（計畫席 11-02）：沒選時下拉的提示字是「還沒排老師」（稿「選一位老師」）
       {
         status: '文案',
