@@ -143,6 +143,8 @@ const CreateClassSchema = z
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
     isRecommended: z.boolean().optional(),
     isPublicEnrollment: z.boolean().optional(),
+    /** A6 新增班級表單有「狀態」（啟用／停用）；不給就用 DB 的 default true */
+    isActive: z.boolean().optional(),
     // 不給就用 DB 的 default false（現況全是紙本）
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -1387,6 +1389,7 @@ app.openapi(
           ? {}
           : { is_public_enrollment: body.isPublicEnrollment }),
         ...(body.usesContactBook === undefined ? {} : { uses_contact_book: body.usesContactBook }),
+        ...(body.isActive === undefined ? {} : { is_active: body.isActive }),
         start_date: body.startDate ?? null,
         end_date: body.endDate ?? null,
         updated_by: userId,

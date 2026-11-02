@@ -1153,9 +1153,12 @@ export class CoursesPage implements OnInit {
   protected openCreateClassDialog(courseId: string): void {
     const course = this.courses().find((c) => c.id === courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
-      width: '600px',
+      // A6 `.cdlg`：760（時段列四欄並排）
+      width: '760px',
       modal: true,
       showHeader: false,
+      // 表單自己聚焦班名（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
+      focusOnShow: false,
       appendTo: this.overlayContainer || 'body',
       data: {
         course,
@@ -1173,9 +1176,12 @@ export class CoursesPage implements OnInit {
   protected openEditClassDialog(cls: Class): void {
     const course = this.courses().find((c) => c.id === cls.courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
-      width: '600px',
+      // A6 `.cdlg`：760（時段列四欄並排）
+      width: '760px',
       modal: true,
       showHeader: false,
+      // 表單自己聚焦班名（桌機）；PrimeNG 預設會聚焦第一個可聚焦元素＝關閉鈕
+      focusOnShow: false,
       appendTo: this.overlayContainer || 'body',
       data: {
         cls,
