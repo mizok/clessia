@@ -1,9 +1,12 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AcademyExamsService, type AcademyExam } from '@core/academy-exams.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { ScoresService, type ScoresOverview } from '@core/scores.service';
 import { OverviewComponent } from './overview.component';
 
@@ -12,6 +15,9 @@ describe('OverviewComponent（#991 grades G3）', () => {
     ({ id, name: `小考 ${id}`, examDate: '2026-10-01', scoreCount, expectedCount }) as AcademyExam;
   const list = vi.fn();
   const overview = vi.fn();
+  const studentAggregatesAll = vi.fn();
+  const campusId = signal<string | null>('campus-1');
+  const use = vi.fn();
   const summary = (over: Partial<ScoresOverview> = {}): ScoresOverview => ({
     windowDays: 30,
     exams: { count: 7, pendingCount: 1, avgScore: 72.6 },
@@ -29,13 +35,9 @@ describe('OverviewComponent（#991 grades G3）', () => {
       providers: [
         provideRouter([]),
         { provide: AcademyExamsService, useValue: { list } },
-        {
-          provide: ScoresService,
-          useValue: {
-            overview,
-            studentAggregatesAll: () => of({ data: [], meta: { total: 42, page: 1, pageSize: 1 } }),
-          },
-        },
+        { provide: ScoresService, useValue: { overview, studentAggregatesAll } },
+        { provide: CampusContextService, useValue: { id: campusId, use } },
+        { provide: ReferenceDataService, useValue: { loadCampuses: vi.fn() } },
       ],
     });
     const fixture = TestBed.createComponent(OverviewComponent);
@@ -46,6 +48,11 @@ describe('OverviewComponent（#991 grades G3）', () => {
   beforeEach(() => {
     list.mockReset();
     overview.mockReset().mockReturnValue(of(summary()));
+    studentAggregatesAll
+      .mockReset()
+      .mockReturnValue(of({ data: [], meta: { total: 42, page: 1, pageSize: 1 } }));
+    campusId.set('campus-1');
+    use.mockReset();
   });
 
   it('標題用近 30 天的場數與還沒登完的場數；清單寫還差幾人', () => {
@@ -54,7 +61,7 @@ describe('OverviewComponent（#991 grades G3）', () => {
     );
     const host = render();
 
-    expect(overview).toHaveBeenCalledWith({ days: 30 });
+    expect(overview).toHaveBeenCalledWith({ days: 30, campusId: 'campus-1' });
     expect(host.querySelector('h1')!.textContent!.replace(/\s+/g, '')).toBe(
       '近一個月7場考試，1場還沒登錄完。',
     );
@@ -132,5 +139,29 @@ describe('OverviewComponent（#991 grades G3）', () => {
     expect(text).toContain('1 場 · 近 30 天');
     expect(text).toContain('10/1（四） · 不及格 0 人 · 還差 3 人');
     expect(host.querySelector('a[aria-label="看成績 國二數學 A 第三次小考"]')).not.toBeNull();
+  });
+
+  // K4（#1314 盤點）：總覽接頂欄分校 —— 三支 API 都收分校，子頁「班級」「學生」早就接了
+  describe('頂欄分校', () => {
+    beforeEach(() => list.mockReturnValue(of({ data: [], meta: { total: 0 } })));
+
+    it('接上頂欄（use），三支查詢都帶目前的分校', () => {
+      render();
+      expect(use).toHaveBeenCalled();
+      expect(overview).toHaveBeenLastCalledWith({ days: 30, campusId: 'campus-1' });
+      expect(studentAggregatesAll).toHaveBeenLastCalledWith({ pageSize: 1, campusId: 'campus-1' });
+      expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ campusId: 'campus-1' }));
+    });
+
+    it('頂欄換分校就重查；分校還沒定下來時不查', () => {
+      campusId.set(null);
+      render();
+      expect(overview).not.toHaveBeenCalled();
+
+      campusId.set('campus-2');
+      TestBed.tick();
+      expect(overview).toHaveBeenLastCalledWith({ days: 30, campusId: 'campus-2' });
+      expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ campusId: 'campus-2' }));
+    });
   });
 });
