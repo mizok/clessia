@@ -409,6 +409,21 @@ describe('ParentsPage', () => {
       expect(heads).toEqual(['啟用中 6 位', '停用 3 位']);
     });
 
+    // A6 parents.html:167-169：停用／封存的家長名字變淡（600→500、zinc-600），名字旁加狀態小標
+    it('停用的家長：名字變淡、旁邊有「停用」小標；啟用中的沒有', () => {
+      const host = load();
+      const nameOf = (id: string) =>
+        host.querySelector(`[data-parent="${id}"] [data-part="name"]`) as HTMLElement;
+      const quiet = nameOf('i1');
+      expect(quiet.classList).toContain('font-medium');
+      expect(quiet.classList).toContain('text-zinc-600');
+      expect(quiet.querySelector('[data-part="status-flag"]')?.textContent?.trim()).toBe('停用');
+
+      const active = nameOf('a1');
+      expect(active.classList).toContain('font-semibold');
+      expect(active.querySelector('[data-part="status-flag"]')).toBeNull();
+    });
+
     it('搜尋中章名不帶人數（summary 不受搜尋影響），改顯示 meta.total', () => {
       type('王');
       vi.advanceTimersByTime(300);
