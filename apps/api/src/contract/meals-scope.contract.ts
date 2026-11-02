@@ -253,6 +253,24 @@ run('餐費的分校範圍（#2138）', () => {
     expect(await priceOf(fx.b)).toBe(70);
   });
 
+  // K4（#1314 盤點）：頂欄分校的 `campusId`。只能縮小範圍，撐不大
+  it('campusId：不受限指名 C2 只剩 C2（含跨校的）；受限 C1 指名自己＝不帶；指名別校 403', async () => {
+    const range = `/api/meals?dateFrom=${DAY}&dateTo=${DAY}`;
+    const day = `/api/meals?date=${DAY}`;
+
+    const pickRange = await get('all', `${range}&campusId=${fx.c2}`);
+    expect(ids(pickRange)).toEqual(new Set([fx.b, fx.ab]));
+    expect(pickRange.meta.total).toBe(2);
+    const pickDay = await get('all', `${day}&campusId=${fx.c2}`);
+    expect(ids(pickDay)).toEqual(new Set([fx.b, fx.ab]));
+
+    const own = await get('c1', `${range}&campusId=${fx.c1}`);
+    expect(ids(own)).toEqual(new Set([fx.a, fx.ab]));
+
+    expect((await as('c1', `${range}&campusId=${fx.c2}`)).status).toBe(403);
+    expect((await as('c1', `${day}&campusId=${fx.c2}`)).status).toBe(403);
+  });
+
   // #1928 型（計畫席 11-02）：範圍不能靠「先撈學生 id 再 `.in()` 回去」—— 幾百個 uuid 進 GET URL 會 414，
   // 撈報名名單也會被 max_rows 截斷。C1 再多 300 位學生，受限的照樣 200、筆數完整
   it('分校有 300 位學生：受限 C1 的區間與單日查詢都是 200、筆數正確', async () => {

@@ -100,6 +100,7 @@ describe('GET /api/session-packs —— 停課的課堂不扣堂數', () => {
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
+      context.set('campusScope', null); // 不受限的管理員（#2147 的分校範圍另由契約守）
       await next();
     });
     app.route('/api/session-packs', sessionPacksApp);

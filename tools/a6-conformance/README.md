@@ -65,8 +65,12 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 - ref 是分支名時，origin 與本機挑新的那顆（本機有未推的 commit 就用本機）；兩邊分叉就報錯，請直接給 sha
 - 那個 ref 的 `package-lock.json` 跟本 repo 工作目錄的一樣 → 借用本 repo 的 `node_modules`；不一樣 → 在臨時
   worktree 裡 `npm ci`（log：`~/.cache/clessia-a6-conformance/install-*.log`）
-- 冷編譯可能要幾分鐘（上限 600 秒）。編譯錯誤（`✘ [ERROR]`）會馬上停、報 log 路徑，不量 vite 的錯誤畫面；
-  起不來或編譯失敗時 worktree 留著供查，看完自己刪（`git worktree remove --force <路徑>`）
+- 冷編譯可能要幾分鐘（上限 600 秒）。編譯錯誤（`✘ [ERROR]`）會馬上停、報 log 路徑，不量 vite 的錯誤畫面
+- **不管成功、失敗、崩潰或被中斷，都會收掉自己起的 web 與 worktree**（#1962）：`finally` 之外再掛行程的 `exit`
+  事件（沒人接的 rejection 也會觸發），SIGINT／SIGTERM／SIGHUP 轉成 exit。log 在 worktree 外，收掉照樣查得到
+- 啟動時順手清 `wt/` 底下**超過 1 小時、而且建立它的 compare 已經不在**的舊 worktree（連同它當時起的 server），
+  只動 `wt/`，不碰席位的 `.worktrees/labor-*`。殺 server 前先確認記下的 pid 那一組裡有行程的 cwd 就在那個
+  worktree、而且是記下 pid 之後才啟動的；對不上（pid 已被別人重用）就只移 worktree、不送訊號（#2146）
 - web 的 log：`~/.cache/clessia-a6-conformance/serve-<worktree>-<port>.log`
 
 輸出在 `A6_OUT/compare/<頁>-<base>-<head>.md`：

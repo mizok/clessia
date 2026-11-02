@@ -208,6 +208,8 @@ const BRANCHES: Record<string, string[]> = {
   '/api/contact-book/missing': ['campusId={campus}'],
   '/api/contact-book/missing/summary': ['campusId={campus}'],
   '/api/parents': ['campusId={campus}', 'campusId={campus}&search=王&excludeArchived=true'],
+  // 頂欄分校（K4，#1314 盤點）：餐費的分校條件走 embed（#2138）
+  '/api/meals': ['campusId={campus}'],
   // 成績總覽（#1314 G5）：academy_exams 的巢狀 embed＋分校篩選＋分頁撈齊
   '/api/scores/overview': ['days=30', 'days=365&campusId={campus}'],
   // 全部學生的成績聚合（#1314 G8）：scope=all 走分頁撈齊＋分校交集

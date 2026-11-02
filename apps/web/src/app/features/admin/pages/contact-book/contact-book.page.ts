@@ -1,10 +1,10 @@
 import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
-import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
-import { Subject, catchError, map, of, switchMap } from 'rxjs';
+import { Subject, catchError, filter, map, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -21,6 +21,8 @@ import {
 } from '@core/contact-book.service';
 import { StudentsService, type Student } from '@core/students.service';
 import { SystemClockService } from '@core/system-clock.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
@@ -79,7 +81,7 @@ const DEFAULT_RANGE_DAYS = 7;
   providers: [DialogService],
   templateUrl: './contact-book.page.html',
 })
-export class ContactBookPage implements OnInit {
+export class ContactBookPage {
   readonly page = input.required<RouteObj>();
 
   private readonly service = inject(ContactBookService);
@@ -94,6 +96,11 @@ export class ContactBookPage implements OnInit {
    * 伺服器認知的那一段錯開**，而使用者看到的只是「這幾天好像少了一筆」（#467 同族）。
    */
   private readonly systemClock = inject(SystemClockService);
+  private readonly campusCtx = inject(CampusContextService);
+  /** 頂欄分校（K4）：三支 API 收 campusId，只能縮小範圍 */
+  private get campusId(): string | undefined {
+    return this.campusCtx.id() ?? undefined;
+  }
   /** 頁內模式切換的同文件 VT（#1641 項 4） */
   private readonly viewTransition = injectViewTransition();
   /** 這一輪重抓是補寫造成的 —— 回應套上時列表帶名字 */
@@ -163,21 +170,15 @@ export class ContactBookPage implements OnInit {
   protected readonly heroMissingToday = signal<number | null>(null);
   protected readonly heroUnsignedWeek = signal<number | null>(null);
 
-  ngOnInit(): void {
-    this.load();
-    this.loadMissing();
-    this.loadHero();
-  }
-
   // ponytail: 「這週還沒簽」是前端數整週 list，受 PostgREST 1000 列上限；
   // 升級路徑＝API 直接回未簽數（count），前端不再撈整週。
   protected loadHero(): void {
     const today = this.today;
-    this.service.missing(today).subscribe({
+    this.service.missing(today, this.campusId).subscribe({
       next: (res) => this.heroMissingToday.set(res.data.length),
       error: () => this.heroMissingToday.set(null),
     });
-    this.service.list({ from: weekStart(today), to: today }).subscribe({
+    this.service.list({ from: weekStart(today), to: today, campusId: this.campusId }).subscribe({
       next: (res) => this.heroUnsignedWeek.set(res.data.filter((entry) => !entry.isSigned).length),
       error: () => this.heroUnsignedWeek.set(null),
     });
@@ -216,6 +217,17 @@ export class ContactBookPage implements OnInit {
         );
         this.reloadRows = false;
       });
+
+    // 頂欄分校（K4，#1314 盤點）：分校定下來（頂欄選的或預設那間）才載，頂欄換了三樣都重載（同成績總覽 #2143）
+    this.campusCtx.use();
+    inject(ReferenceDataService).loadCampuses();
+    toObservable(this.campusCtx.id)
+      .pipe(filter(Boolean), takeUntilDestroyed())
+      .subscribe(() => {
+        this.load();
+        this.loadMissing();
+        this.loadHero();
+      });
   }
 
   /** `rows`：補寫造成的重抓，新的那一則淡入（換條件不帶） */
@@ -226,7 +238,12 @@ export class ContactBookPage implements OnInit {
 
     const [from, to] = rangeToStrings(this.dateRange, this.today);
 
-    this.listRequest$.next({ studentId: this.selectedStudent()?.id, from, to });
+    this.listRequest$.next({
+      studentId: this.selectedStudent()?.id,
+      from,
+      to,
+      campusId: this.campusId,
+    });
   }
 
   /** 提醒過的「班:日期」—— 按過就顯示「今天已提醒」（#1100 #27） */
@@ -272,7 +289,7 @@ export class ContactBookPage implements OnInit {
     this.missingLoading.set(true);
     this.missingFailed.set(false);
 
-    this.service.missing(format(this.missingDate, 'yyyy-MM-dd')).subscribe({
+    this.service.missing(format(this.missingDate, 'yyyy-MM-dd'), this.campusId).subscribe({
       next: (res) => {
         this.missing.set(res.data);
         this.missingLoading.set(false);

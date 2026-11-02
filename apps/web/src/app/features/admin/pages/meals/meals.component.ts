@@ -1,10 +1,10 @@
 import { TextSwapDirective } from '@shared/directives/text-swap.directive';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subject, catchError, of, switchMap } from 'rxjs';
+import { Subject, catchError, filter, of, switchMap } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
@@ -44,6 +44,8 @@ import {
 } from './meals.util';
 import type { StatusTone } from '@shared/components/status/status-dot/status-dot.component';
 import { SystemClockService } from '@core/system-clock.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { extractErrorMessage } from '@shared/utils/api-error.util';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
@@ -98,6 +100,7 @@ export class MealsComponent implements OnInit {
   readonly periodId = input<string | undefined>();
 
   private readonly clock = inject(SystemClockService);
+  private readonly campusCtx = inject(CampusContextService);
   private readonly service = inject(MealsService);
   private readonly studentsService = inject(StudentsService);
   private readonly messageService = inject(MessageService);
@@ -227,13 +230,21 @@ export class MealsComponent implements OnInit {
         this.summary.set(res.meta);
         this.loading.set(false);
       });
+
+    // 頂欄分校（K4，#1314 盤點）：分校定下來（頂欄選的或預設那間）才載，頂欄換了重載（同成績總覽）。
+    // ponytail: 換分校跟換日期一樣不攔未儲存的勾選 —— 兩者都會丟掉草稿；要攔的話一起加
+    this.campusCtx.use();
+    inject(ReferenceDataService).loadCampuses();
+    toObservable(this.campusCtx.id)
+      .pipe(filter(Boolean), takeUntilDestroyed())
+      .subscribe(() => this.load());
   }
 
   ngOnInit(): void {
     if (this.billingRun() === 'period') {
       this.openBillingRun({ mode: 'period', periodId: this.periodId() });
     }
-    this.load();
+    // 第一次載入由頂欄分校觸發（constructor）
   }
 
   private get overlayContainer(): HTMLElement | null {
@@ -248,6 +259,7 @@ export class MealsComponent implements OnInit {
     this.loading.set(true);
     this.failed.set(false);
 
+    const campusId = this.campusCtx.id() ?? undefined;
     let request;
     if (this.isRange()) {
       const range = { dateFrom: this.dateFrom(), dateTo: this.dateTo() };
@@ -256,12 +268,13 @@ export class MealsComponent implements OnInit {
       request = this.service.range({
         ...range,
         studentId: this.selectedStudent()?.id,
+        campusId,
         page: this.currentPage(),
         pageSize: RANGE_PAGE_SIZE,
       });
     } else {
       this.queriedRange.set(null);
-      request = this.service.roster(this.dateString);
+      request = this.service.roster(this.dateString, campusId);
     }
 
     this.loadRequest$.next(request);

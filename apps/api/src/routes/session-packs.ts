@@ -12,6 +12,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import type { Queryable } from '../lib/identity-sql';
 import { attendanceStatusesViaSql } from '../lib/session-pack-sql';
+import { getCampusScope, type CampusScope } from '../lib/campus-scope';
 
 /**
  * 堂數包：買 N 堂慢慢上完。
@@ -77,6 +78,15 @@ interface EnrollmentSessionSummary {
  * 原本每支只拿 `data`，堂數包讀不到時剩餘變負數（像該追補買），出勤讀不到時已扣 0（剩餘＝已購）。
  */
 type ReadFailure = { error: 'READ_FAILED'; step: string; message: string };
+/**
+ * 分校範圍（#2147）：**這筆報名的班在範圍內**，跟報名列表（`classes!inner` 依分校篩）同一條判準。
+ * 跟 #2141 餐費同寫法：用 embed 依分校篩，不先撈範圍內的 id；空範圍（一個分校都沒被指派）`.in()` 給一個
+ * 不存在的 id，什麼都不中（fail-closed）。範圍外跟不存在同一個回應（404）。
+ */
+const NO_ID = '00000000-0000-0000-0000-000000000000';
+const scopeCampusIds = (scope: CampusScope): string[] | null =>
+  scope === null ? null : scope.length > 0 ? [...scope] : [NO_ID];
+
 const readFailed = (step: string, err: { message?: string }): ReadFailure => ({
   error: 'READ_FAILED',
   step,
@@ -88,13 +98,20 @@ async function summariseEnrollment(
   enrollmentId: string,
   orgId: string,
   db: Queryable | undefined,
+  campusIds: string[] | null,
 ): Promise<{ error: 'NOT_FOUND' } | ReadFailure | EnrollmentSessionSummary> {
-  const { data: enrollment, error: enrollmentError } = await supabase
+  // 不受限（null）時 select 與條件都跟原本一樣；受限時班改 inner join、依分校篩（class_id NOT NULL，不會少列）
+  let enrollmentQuery = supabase
     .from('enrollments')
-    .select('id, class_id, student_id, classes(leave_deducts_session)')
+    .select(
+      campusIds === null
+        ? 'id, class_id, student_id, classes(leave_deducts_session)'
+        : 'id, class_id, student_id, classes!inner(leave_deducts_session, campus_id)',
+    )
     .eq('id', enrollmentId)
-    .eq('org_id', orgId)
-    .maybeSingle();
+    .eq('org_id', orgId);
+  if (campusIds) enrollmentQuery = enrollmentQuery.in('classes.campus_id', campusIds);
+  const { data: enrollment, error: enrollmentError } = await enrollmentQuery.maybeSingle();
 
   // 讀不到 ≠ 不存在
   if (enrollmentError) return readFailed('報名', enrollmentError);
@@ -228,7 +245,13 @@ app.openapi(
     const orgId = c.get('orgId');
     const { enrollmentId } = c.req.valid('query');
 
-    const result = await summariseEnrollment(supabase, enrollmentId, orgId, c.get('auth')?.pool);
+    const result = await summariseEnrollment(
+      supabase,
+      enrollmentId,
+      orgId,
+      c.get('auth')?.pool,
+      scopeCampusIds(getCampusScope(c)),
+    );
 
     if ('error' in result) {
       if (result.error === 'READ_FAILED') {
@@ -294,12 +317,15 @@ app.openapi(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
-    const { data: enrollment } = await supabase
+    // 分校範圍（#2147）：範圍外的報名跟不存在一樣
+    const campusIds = scopeCampusIds(getCampusScope(c));
+    let enrollmentQuery = supabase
       .from('enrollments')
-      .select('id')
+      .select(campusIds === null ? 'id' : 'id, classes!inner(campus_id)')
       .eq('id', body.enrollmentId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+      .eq('org_id', orgId);
+    if (campusIds) enrollmentQuery = enrollmentQuery.in('classes.campus_id', campusIds);
+    const { data: enrollment } = await enrollmentQuery.maybeSingle();
 
     if (!enrollment) {
       return c.json({ error: '報名不存在', code: 'NOT_FOUND' }, 404);
@@ -365,12 +391,15 @@ app.openapi(
     const userId = c.get('userId');
     const { id } = c.req.valid('param');
 
-    const { data: existing } = await supabase
+    // 分校範圍（#2147）：這包所屬報名的班在範圍內才刪得到；範圍外跟不存在一樣
+    const campusIds = scopeCampusIds(getCampusScope(c));
+    let existingQuery = supabase
       .from('session_packs')
-      .select('id')
+      .select(campusIds === null ? 'id' : 'id, enrollments!inner(classes!inner(campus_id))')
       .eq('id', id)
-      .eq('org_id', orgId)
-      .maybeSingle();
+      .eq('org_id', orgId);
+    if (campusIds) existingQuery = existingQuery.in('enrollments.classes.campus_id', campusIds);
+    const { data: existing } = await existingQuery.maybeSingle();
 
     if (!existing) {
       return c.json({ error: '堂數記錄不存在', code: 'NOT_FOUND' }, 404);
