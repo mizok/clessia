@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { of } from 'rxjs';
+import { of, NEVER } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AcademyExamsService } from '@core/academy-exams.service';
@@ -102,6 +102,31 @@ describe('AcademyExamFormDialogComponent', () => {
     expect(component['canSave']()).toBe(false);
     component['save']();
     expect(academyExamsServiceMock.create).not.toHaveBeenCalled();
+  });
+
+  // 新增時表單先畫出來、班級清單晚到：清單到之前送不出去，動作列寫在載入，班級下拉有自己的載入狀態
+  it('新增時班級清單還沒到：不能送出，動作列寫「班級清單載入中…」', async () => {
+    classesServiceMock.list.mockReturnValueOnce(NEVER as never);
+    await createComponent({ data: { mode: 'create' } });
+    (component as unknown as { formData: { set: (v: unknown) => void } }).formData.set({
+      name: '模擬考',
+      examType: 'mock_exam',
+      subjectId: 's1',
+      campusId: 'c1',
+      examDate: new Date('2026-04-20'),
+      totalScore: 100,
+      passScore: 70,
+      scopeNote: '',
+      classIds: ['cls-1'],
+    });
+    fixture.detectChanges();
+
+    expect(component['canSave']()).toBe(false);
+    component['save']();
+    expect(academyExamsServiceMock.create).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('班級清單載入中…');
+    // 表單沒有被「載入中」整張蓋住：考試名稱欄已經可以填
+    expect(fixture.nativeElement.querySelector('#exam-name')).not.toBeNull();
   });
 
   it('allows save when required fields are filled', async () => {
