@@ -880,6 +880,11 @@ export const PAGES = {
         },
         { status: '文案', a6: 'control:button\\[教室：[^\\]]*\\]$', app: 'dropdown trigger' },
         { status: '多', app: 'control:combobox\\[(下一階班級|教室|星期|任課老師)\\]$' },
+        // 稿的標籤是 label 包住 .dd 按鈕（名稱帶隱藏的必填 *）；app-select-field 的標籤是 span，稿的 label 只能依位置配到別的欄位
+        ...['缺', '文案', '位置'].map((status) => ({
+          status,
+          a6: 'text:label\\[(下一階班級|星期|任課老師|教室)\\](>control:button\\[[^\\]]*\\])?$',
+        })),
       ].map((d) => ({ ...d, pop: 'new-class', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
       // 時段老師選填（計畫席 11-02）：沒選時下拉的提示字是「還沒排老師」（稿「選一位老師」）
       {

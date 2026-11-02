@@ -80,13 +80,12 @@
       </label>
     </div>
 
-    <!-- A6 `.slot`：上課時段（courses.html slotHtml）。手機兩欄、「第 N 筆」與刪除鈕同一列。
-         外框用 flex 排（新增時段鈕靠左）：跟下面「狀態」的外框不同形，conformance 才不會把兩個整列外框認成清單列 -->
-    <div class="col-span-full flex min-w-0 flex-col items-start">
+    <!-- A6 `.slot`：上課時段（courses.html slotHtml）。手機兩欄、「第 N 筆」與刪除鈕同一列。 -->
+    <div class="col-span-full min-w-0">
       <p class="mt-0 mb-1 block text-md font-semibold text-zinc-700">
         上課時段 <span class="text-error-700" aria-hidden="true">*</span>
       </p>
-      <div class="flex flex-col gap-2 self-stretch">
+      <div class="flex flex-col gap-2">
         @for (entry of scheduleEntries(); track entry.key; let i = $index) {
           <div
             [style.view-transition-name]="'schedule-entry-' + entry.key"
@@ -108,7 +107,7 @@
               >開始
               <input
                 type="time"
-                class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-2 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
                 [ngModel]="entry.startTime"
                 (ngModelChange)="updateScheduleEntry(i, 'startTime', $event)"
                 [disabled]="loading()"
@@ -118,7 +117,7 @@
               >結束
               <input
                 type="time"
-                class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-2 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
                 [ngModel]="entry.endTime"
                 (ngModelChange)="updateScheduleEntry(i, 'endTime', $event)"
                 [disabled]="loading()"
@@ -129,7 +128,7 @@
               <label class="grid min-w-0 gap-1 text-sm font-semibold text-zinc-700"
                 >任課老師
                 <select
-                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-zinc-100 px-2 text-base text-zinc-600 [font-family:inherit] disabled:cursor-not-allowed pointer-coarse:min-h-11"
+                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-zinc-100 px-3 text-base text-zinc-600 [font-family:inherit] disabled:cursor-not-allowed pointer-coarse:min-h-11"
                   disabled
                 >
                   <option>{{ teacherNameOf(entry) }}</option>
@@ -146,7 +145,7 @@
             }
             <button
               type="button"
-              class="flex size-11 cursor-pointer items-center justify-center self-end rounded-md border-0 bg-transparent p-0 text-zinc-700 hover:bg-zinc-200 max-wide:col-start-2 max-wide:row-start-1 max-wide:justify-self-end wide:size-10"
+              class="grid size-11 cursor-pointer place-items-center self-end rounded-md border-0 bg-transparent p-0 text-zinc-700 hover:bg-zinc-200 max-wide:col-start-2 max-wide:row-start-1 max-wide:justify-self-end wide:size-10"
               [attr.aria-label]="'刪除第 ' + (i + 1) + ' 筆時段'"
               [attr.aria-disabled]="scheduleEntries().length < 2"
               [disabled]="loading()"
@@ -169,7 +168,7 @@
                 >生效起始日
                 <input
                   type="date"
-                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-2 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
                   [ngModel]="entry.effectiveFrom ?? ''"
                   (ngModelChange)="updateScheduleEntry(i, 'effectiveFrom', $event)"
                   [disabled]="loading() || !!entry.id"
@@ -179,7 +178,7 @@
                 >生效結束日（選填）
                 <input
                   type="date"
-                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-2 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                  class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
                   [min]="entry.effectiveFrom ?? ''"
                   [ngModel]="entry.effectiveTo ?? ''"
                   (ngModelChange)="updateScheduleEntry(i, 'effectiveTo', $event)"
