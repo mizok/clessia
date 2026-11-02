@@ -19,22 +19,25 @@ import {
  * 480px，用 `wide:`（視窗 ≥861px）會把它排成左 208px 的兩欄而擠爆。
  */
 const WIDE = {
-  chapter: 'wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-5',
+  // A6 `.chap`：桌機上下 32；changes.html 手機覆寫成 24 0 8
+  chapter: 'pb-2 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8',
   chapterHead: 'wide:sticky wide:top-sticky-chapter wide:block wide:self-start',
-  day: 'wide:text-[44px]',
+  // changes.html 手機覆寫 `.chap__big` 成 28px；抽屜沿用 a6.css 的 32px
+  day: 'text-[28px] wide:text-[44px]',
   dayMeta: 'wide:mt-0.5',
   count: 'wide:mt-3 wide:text-xl',
   // 時間｜班名＋標籤｜說明｜原因與操作者｜看這堂（批次列最後一格是「看是哪 N 堂」）
-  row: 'wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
+  // 手機（changes.html）：時間一欄 48px，其餘疊在第二欄
+  row: 'max-wide:grid-cols-[48px_minmax(0,1fr)] max-wide:gap-x-3 max-wide:gap-y-0.5 max-wide:[&>:nth-child(n+3)]:col-start-2 wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
   summary:
-    'wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
+    'max-wide:grid-cols-[48px_minmax(0,1fr)] max-wide:gap-x-3 max-wide:gap-y-0.5 max-wide:[&>:nth-child(n+3)]:col-start-2 wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
   // 該堂沒有開始時間時占住時間欄，讓同章其他列對得齊
-  timeGap: 'hidden wide:block',
+  timeGap: 'block',
 } as const;
 const NARROW = {
   chapter: '',
   chapterHead: '',
-  day: '',
+  day: 'text-[32px]',
   dayMeta: '',
   count: '',
   row: '',
