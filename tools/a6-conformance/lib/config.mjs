@@ -1107,7 +1107,10 @@ export const PAGES = {
           a6: 'text:label\\[(下一階班級|星期|任課老師|教室)\\](>control:button\\[[^\\]]*\\])?$',
         })),
         // 對面那一半：app-select-field 的標籤 span（字級照稿：下一階班級 13、時段裡 12，都是 600 zinc-700）
-        { status: '多', app: 'landmark:dialog\\[新增班級\\]>text:span\\[(下一階班級|星期|任課老師|教室)\\]$' },
+        {
+          status: '多',
+          app: 'landmark:dialog\\[新增班級\\]>text:span\\[(下一階班級|星期|任課老師|教室)\\]$',
+        },
       ].map((d) => ({ ...d, pop: 'new-class', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
       {
         // 必填星號照稿畫在標籤後，但全站慣例是 aria-hidden（讀屏不念，必填由底部「還沒填：…」說）；
