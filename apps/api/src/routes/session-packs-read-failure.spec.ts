@@ -61,6 +61,7 @@ function appWith(failTable: string | null, pool?: { query: (...a: unknown[]) => 
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
     set('supabase', supabase);
     set('orgId', 'org-1');
+    set('campusScope', null); // 不受限的管理員（#2147 的分校範圍另由契約守）
     if (pool) set('auth', { pool });
     await next();
   });
