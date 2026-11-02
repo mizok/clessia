@@ -14,6 +14,7 @@
     [options]="$any(options())"
     [ngModel]="value()"
     (ngModelChange)="value.set($event)"
+    [disabled]="disabled()"
     optionLabel="label"
     optionValue="value"
     [checkmark]="true"

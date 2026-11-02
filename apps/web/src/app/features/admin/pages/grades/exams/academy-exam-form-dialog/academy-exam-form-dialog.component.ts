@@ -11,12 +11,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { forkJoin } from 'rxjs';
 
 import {
@@ -63,8 +63,8 @@ interface FormData {
   standalone: true,
   imports: [
     DialogTitleDirective,
+    SelectFieldComponent,
     FormsModule,
-    SelectModule,
     MultiSelectModule,
     TextareaModule,
   ],
@@ -177,12 +177,12 @@ export class AcademyExamFormDialogComponent implements OnInit {
       !f.name.trim() && '考試名稱',
       !f.subjectId && '科目',
       !f.examDate && '考試日期',
-      f.classIds.length === 0 && '關聯班級',
+      f.classIds.length === 0 && '參加的開課班',
     ].filter(Boolean);
     if (missing.length) return `還沒填：${missing.join('、')}`;
     if (f.totalScore === null || !(f.totalScore > 0)) return '滿分要大於 0';
     if (f.passScore !== null && f.passScore > f.totalScore) {
-      return '及格線要在 0 到滿分之間';
+      return '及格分數要在 0 到滿分之間';
     }
     return null;
   });
