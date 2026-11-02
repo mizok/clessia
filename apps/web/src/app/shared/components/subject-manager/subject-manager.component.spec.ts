@@ -248,6 +248,20 @@ describe('SubjectManagerComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('尚未輸入科目名稱');
   });
 
+  // A6：「新增」鈕不灰掉；空著按 → 提示＋游標回到輸入框（settings.html data-add-subj）
+  it('名稱留空時「新增」鈕仍可按，按了提示並聚焦輸入框', () => {
+    const host: HTMLElement = fixture.nativeElement;
+    const btn = [...host.querySelectorAll('button')].find((b) => b.textContent?.includes('新增'));
+    expect(btn?.disabled).toBe(false);
+
+    btn!.click();
+    fixture.detectChanges();
+
+    expect(subjectsServiceMock.create).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('尚未輸入科目名稱');
+    expect(document.activeElement).toBe(host.querySelector('input[placeholder="新增科目名稱"]'));
+  });
+
   it('新增成功後顯示成功提示，而不是靜默把新列加到清單底部', () => {
     subjectsServiceMock.create.mockReturnValue(
       of({ data: { id: 'subject-2', name: '英文', sortOrder: 1 } }),

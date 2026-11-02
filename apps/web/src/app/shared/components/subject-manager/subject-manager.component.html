@@ -40,7 +40,7 @@
       @for (subject of subjects(); track subject.id) {
         <div
           [style.view-transition-name]="'subject-' + subject.id"
-          class="subject-manager__row vt-row flex min-h-[68px] cursor-default items-center gap-2 border-0 border-b border-solid border-zinc-200 py-3"
+          class="subject-manager__row vt-row grid min-h-[68px] cursor-default grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-0 border-b border-solid border-zinc-200 py-3 wide:gap-x-5"
         >
           @if (editingId() === subject.id) {
             <!-- Inline edit mode -->
@@ -53,30 +53,32 @@
               [disabled]="saving()"
               autofocus
             />
-            <p-button
-              icon="pi pi-check"
-              [rounded]="true"
-              [text]="true"
-              severity="success"
-              size="small"
-              [loading]="saving()"
-              (onClick)="confirmRename()"
-              pTooltip="確認"
-              ariaLabel="確認改名"
-              tooltipPosition="top"
-            />
-            <p-button
-              icon="pi pi-times"
-              [rounded]="true"
-              [text]="true"
-              severity="secondary"
-              size="small"
-              [disabled]="saving()"
-              (onClick)="cancelEdit()"
-              pTooltip="取消"
-              ariaLabel="取消改名"
-              tooltipPosition="top"
-            />
+            <div class="flex gap-1">
+              <p-button
+                icon="pi pi-check"
+                [rounded]="true"
+                [text]="true"
+                severity="success"
+                size="small"
+                [loading]="saving()"
+                (onClick)="confirmRename()"
+                pTooltip="確認"
+                ariaLabel="確認改名"
+                tooltipPosition="top"
+              />
+              <p-button
+                icon="pi pi-times"
+                [rounded]="true"
+                [text]="true"
+                severity="secondary"
+                size="small"
+                [disabled]="saving()"
+                (onClick)="cancelEdit()"
+                pTooltip="取消"
+                ariaLabel="取消改名"
+                tooltipPosition="top"
+              />
+            </div>
           } @else {
             <!-- Display mode -->
             <div class="subject-manager__name-stack flex min-w-0 flex-1 flex-col gap-0.5">
@@ -127,12 +129,15 @@
         </p>
       }
 
-      <!-- Add new -->
+      <!-- Add new：A6 `.addrow`（輸入框 `.acset__in` 40 高、zinc-300 框；鈕是 `.btn` 白底框 13px／600、0 16px）。
+           手機高度 44（A27／R3）。鈕不灰掉：空著按會提示並聚焦輸入框（A6 data-add-subj） -->
       <div class="subject-manager__add mt-5 flex max-w-[520px] items-center gap-2">
         <input
+          #newNameInput
           pInputText
-          class="subject-manager__input flex-1 text-[0.9375rem]"
+          class="subject-manager__input h-11 min-w-0 flex-1 border-zinc-300 px-3 py-0 text-lg wide:h-10 wide:text-base"
           placeholder="新增科目名稱"
+          aria-label="新增科目名稱"
           [ngModel]="newSubjectName()"
           (ngModelChange)="newSubjectName.set($event)"
           (keydown)="onNewNameKeydown($event)"
@@ -141,9 +146,10 @@
         <p-button
           icon="pi pi-plus"
           label="新增"
-          size="small"
+          severity="secondary"
+          [outlined]="true"
+          styleClass="h-11 gap-1.5 border-zinc-300 bg-white px-4 py-0 text-md leading-normal text-zinc-900 wide:h-9 [&_.p-button-label]:font-semibold"
           [loading]="saving()"
-          [disabled]="!newSubjectName().trim()"
           (onClick)="addSubject()"
         />
       </div>
