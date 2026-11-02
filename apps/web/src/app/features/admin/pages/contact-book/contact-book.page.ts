@@ -37,6 +37,7 @@ import {
   groupMissingByClass,
   missingDayOptions,
   OTHER_DAY,
+  editedCellText,
   signedCellText,
   signedSummary,
   CUSTOM_PERIOD,
@@ -369,6 +370,10 @@ export class ContactBookPage {
 
   protected dayTitle(date: string): string {
     return dayLabel(date, this.today);
+  }
+
+  protected editedText(entry: ContactBookEntry): string {
+    return editedCellText(entry);
   }
 
   protected signedText(entry: ContactBookEntry): string {

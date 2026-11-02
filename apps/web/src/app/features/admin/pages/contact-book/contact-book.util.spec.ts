@@ -8,6 +8,7 @@ import {
   signedSummary,
   signedTimeText,
   signedCellText,
+  editedCellText,
   PERIOD_OPTIONS,
   CUSTOM_PERIOD,
 } from './contact-book.util';
@@ -21,6 +22,7 @@ function entry(overrides: Partial<ContactBookEntry> = {}): ContactBookEntry {
     entryDate: '2026-08-29',
     content: '今天上課很專心。',
     lastEditedByName: '王老師',
+    teacherEditedAt: null,
     signedBy: null,
     signedByName: null,
     signedAt: null,
@@ -211,6 +213,19 @@ describe('signedCellText（C2）', () => {
   it('時間解析不了不留多餘空白', () => {
     expect(signedCellText({ ...base, signedByName: '林太太', signedAt: null })).toBe('林太太 簽');
     expect(signedCellText({ ...base, signedByName: null, signedAt: null })).toBe('已簽收');
+  });
+});
+
+describe('editedCellText（#2080-3）', () => {
+  it('「編輯者 HH:mm 編輯」（台北時間，A6 `.ent__ed`）', () => {
+    expect(editedCellText(entry({ teacherEditedAt: '2026-08-29T08:52:00Z' }))).toBe(
+      '王老師 16:52 編輯',
+    );
+  });
+
+  it('舊資料沒有時間：「編輯者 編輯」；沒有編輯者：「—」', () => {
+    expect(editedCellText(entry())).toBe('王老師 編輯');
+    expect(editedCellText(entry({ lastEditedByName: null }))).toBe('—');
   });
 });
 

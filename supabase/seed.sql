@@ -1453,19 +1453,21 @@ BEGIN
     s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
 
     INSERT INTO public.contact_book_entries
-      (org_id, student_id, entry_date, content, last_edited_by, signed_by, signed_at)
+      (org_id, student_id, entry_date, content, last_edited_by, signed_by, signed_at,
+       teacher_edited_at)
     VALUES
       (
         demo_org_id, s_id, CURRENT_DATE - 1,
         format('今天上課專心，數學小考 %s 分。回家記得複習第三章。', 70 + i * 5),
         math_teacher_user_id,
         CASE WHEN i = 1 THEN demo_admin_id::text ELSE NULL END,
-        CASE WHEN i = 1 THEN NOW() - INTERVAL '6 hours' ELSE NULL END
+        CASE WHEN i = 1 THEN NOW() - INTERVAL '6 hours' ELSE NULL END,
+        NOW() - INTERVAL '1 day'
       ),
       (
         demo_org_id, s_id, CURRENT_DATE,
         '上課狀況良好，作業都有完成。',
-        math_teacher_user_id, NULL, NULL
+        math_teacher_user_id, NULL, NULL, NOW() - INTERVAL '1 hour'
       )
     ON CONFLICT (student_id, entry_date) DO NOTHING;
   END LOOP;
