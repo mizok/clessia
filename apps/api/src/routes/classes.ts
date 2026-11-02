@@ -4,6 +4,7 @@ import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
+import { GRADE_KEYS, classGradeLevels } from '../lib/class-grade-levels';
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { checkTeacherEligibility } from '../lib/teacher-eligibility';
@@ -63,34 +64,7 @@ const ScheduleSchema = z
   })
   .openapi('Schedule');
 
-/** 年級 key（同 `students.grade`、`courses.grade_levels`，見 `lib/grade-promotion.ts` 的 Grade） */
-const GRADE_KEYS = [
-  'P1',
-  'P2',
-  'P3',
-  'P4',
-  'P5',
-  'P6',
-  'J1',
-  'J2',
-  'J3',
-  'S1',
-  'S2',
-  'S3',
-] as const;
 const GradeLevelsSchema = z.array(z.enum(GRADE_KEYS)).max(GRADE_KEYS.length);
-
-/**
- * 班級的適用年級（#2089）：班級自己有填就用自己的，沒填退回課程的。
- * `classes.grade_levels` 在 20260225 那次搬到課程之前存的是中文（「國一」），之後沒有寫入路徑 ——
- * 不是 key 的值一律當沒填，退回課程（那次搬遷就是把班級的年級聯集進課程）
- */
-function classGradeLevels(own: unknown, course: string[] | undefined): string[] {
-  const keys = (Array.isArray(own) ? own : []).filter((g): g is string =>
-    (GRADE_KEYS as readonly string[]).includes(g as string),
-  );
-  return keys.length ? keys : (course ?? []);
-}
 
 const ClassSchema = z
   .object({
