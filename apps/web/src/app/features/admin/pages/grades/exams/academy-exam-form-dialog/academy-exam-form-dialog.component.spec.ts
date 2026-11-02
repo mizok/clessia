@@ -1,3 +1,4 @@
+import { taipeiDateString } from '@core/system-clock.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -113,7 +114,7 @@ describe('AcademyExamFormDialogComponent', () => {
       examType: 'mock_exam',
       subjectId: 's1',
       campusId: 'c1',
-      examDate: new Date('2026-04-20'),
+      examDate: '2026-04-20',
       totalScore: 100,
       passScore: 70,
       scopeNote: '',
@@ -136,7 +137,7 @@ describe('AcademyExamFormDialogComponent', () => {
       examType: 'mock_exam',
       subjectId: 's1',
       campusId: 'c1',
-      examDate: new Date('2026-04-20'),
+      examDate: '2026-04-20',
       totalScore: 100,
       passScore: 70,
       scopeNote: '第一章',
@@ -165,7 +166,7 @@ describe('AcademyExamFormDialogComponent', () => {
       examType: 'mock_exam',
       subjectId: 's1',
       campusId: 'c1',
-      examDate: new Date('2026-04-20'),
+      examDate: '2026-04-20',
       totalScore: 100,
       passScore: 101,
       scopeNote: '',
@@ -181,13 +182,61 @@ describe('AcademyExamFormDialogComponent', () => {
       examType: 'mock_exam',
       subjectId: 's1',
       campusId: 'c1',
-      examDate: new Date('2026-04-20'),
+      examDate: '2026-04-20',
       totalScore: 100,
       passScore: null,
       scopeNote: '',
       classIds: ['cls-1'],
     });
     expect(component['canSave']()).toBe(true);
+  });
+
+  // A6 `money` 欄：滿分／及格線是文字框（數字鍵盤），不是 p-inputnumber；考試日期是原生 date
+  it('分數文字框只收數字、清空＝null；日期是原生 date，直接存 yyyy-MM-dd', async () => {
+    await createComponent({ data: { mode: 'create' } });
+    const el = fixture.nativeElement as HTMLElement;
+    const type = (sel: string, value: string) => {
+      const input = el.querySelector<HTMLInputElement>(sel)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    expect(el.querySelector<HTMLInputElement>('#exam-date')!.type).toBe('date');
+    // 稿：新增時考試日期預設今天（台北）
+    expect(
+      (component as unknown as { formData: () => { examDate: string } }).formData().examDate,
+    ).toBe(taipeiDateString(Date.now()));
+    expect(el.querySelector<HTMLInputElement>('#exam-total')!.inputMode).toBe('numeric');
+
+    type('#exam-date', '2026-05-01');
+    type('#exam-total', '1a2０0');
+    type('#exam-pass', '');
+    const f = (component as unknown as { formData: () => Record<string, unknown> }).formData();
+    expect(f['examDate']).toBe('2026-05-01');
+    expect(f['totalScore']).toBe(120);
+    expect(f['passScore']).toBeNull();
+
+    type('#exam-total', '');
+    fixture.detectChanges();
+    expect(component['canSave']()).toBe(false);
+  });
+
+  // 二讀 #2120：打「8a」時值是 8，畫面也要是 8（model 沒變時 ngModel 不會回寫輸入框）
+  it('分數框打了非數字：畫面跟送出的值一致', async () => {
+    await createComponent({ data: { mode: 'create' } });
+    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+      '#exam-pass',
+    )!;
+    for (const value of ['8', '8a']) {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+    }
+    expect(input.value).toBe('8');
+    expect(
+      (component as unknown as { formData: () => { passScore: number | null } }).formData()
+        .passScore,
+    ).toBe(8);
   });
 
   it('locks identity fields whenever in edit mode (no scores)', async () => {

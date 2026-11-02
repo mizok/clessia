@@ -44,14 +44,14 @@
           class="col-span-full flex items-start gap-2 rounded-md px-4 py-3 text-sm leading-normal bg-accent-50 text-accent-700"
         >
           <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
-          已有成績登錄，類型／科目／分校／滿分／關聯班級皆已鎖定以避免資料不一致。
+          已有成績登錄，類別／科目／分校／滿分／參加的開課班皆已鎖定以避免資料不一致。
         </div>
       } @else if (isEditing()) {
         <div
           class="col-span-full flex items-start gap-2 rounded-md px-4 py-3 text-sm leading-normal bg-accent-50 text-accent-700"
         >
           <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
-          考試建立後，類型／科目／分校／滿分不可修改；如需更改請刪除後重建。
+          考試建立後，類別／科目／分校／滿分不可修改；如需更改請刪除後重建。
         </div>
       }
 
@@ -64,31 +64,24 @@
           id="exam-name"
           #nameInput
           type="text"
-          pInputText
+          autocomplete="off"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
           [ngModel]="formData().name"
           (ngModelChange)="updateField('name', $event)"
-          placeholder="例如：段考模擬"
+          placeholder="例如：第五次小考"
           [disabled]="lockName()"
-          class="w-full"
         />
       </div>
 
-      <!-- Exam Type -->
+      <!-- Exam Type：A6 `.dd` 下拉 -->
       <div class="min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-type"
-          >類型 <span class="text-error-700" aria-hidden="true">*</span></label
-        >
-        <p-select
-          inputId="exam-type"
+        <app-select-field
+          label="類別"
+          labelSize="md"
           [options]="examTypeOptions"
-          [ngModel]="formData().examType"
-          (ngModelChange)="updateField('examType', $event)"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="選擇類型"
+          [value]="formData().examType"
+          (valueChange)="$event && updateField('examType', $event)"
           [disabled]="lockExamType()"
-          [appendTo]="'body'"
-          class="w-full"
         />
       </div>
 
@@ -97,65 +90,52 @@
         <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-date"
           >考試日期 <span class="text-error-700" aria-hidden="true">*</span></label
         >
-        <p-datepicker
-          inputId="exam-date"
+        <input
+          id="exam-date"
+          type="date"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
           [ngModel]="formData().examDate"
-          (ngModelChange)="updateField('examDate', $event)"
-          dateFormat="yy-mm-dd"
-          placeholder="選擇日期"
+          (ngModelChange)="updateField('examDate', $event ?? '')"
           [disabled]="lockExamDate()"
-          [appendTo]="'body'"
-          [showIcon]="true"
-          styleClass="w-full"
         />
       </div>
 
       <!-- 科目、分校、範圍說明：稿沒畫（舊有新無 R2），API 用來篩班與存考試範圍 -->
       <!-- Subject -->
       <div class="min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-subject"
-          >科目 <span class="text-error-700" aria-hidden="true">*</span></label
-        >
-        <p-select
-          inputId="exam-subject"
-          [options]="subjectOptions()"
-          [ngModel]="formData().subjectId"
-          (ngModelChange)="onSubjectChange($event)"
-          optionLabel="label"
-          optionValue="value"
+        <app-select-field
+          label="科目"
+          labelSize="md"
+          [required]="true"
           placeholder="選擇科目"
+          [options]="subjectOptions()"
+          [value]="formData().subjectId"
+          (valueChange)="onSubjectChange($event)"
           [disabled]="lockSubject()"
-          [appendTo]="'body'"
-          class="w-full"
         />
       </div>
 
       <!-- Campus -->
       <div class="min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-campus">分校</label>
-        <p-select
-          inputId="exam-campus"
+        <app-select-field
+          label="分校"
+          labelSize="md"
           [options]="campusOptions()"
-          [ngModel]="formData().campusId"
-          (ngModelChange)="onCampusChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="全體分校"
+          [value]="formData().campusId"
+          (valueChange)="onCampusChange($event)"
           [disabled]="lockCampus()"
-          [appendTo]="'body'"
-          class="w-full"
         />
         @if (isEditing()) {
           <span class="mt-1 block text-xs text-zinc-500"
-            >分校不可修改；若要調整範圍請變更關聯班級。</span
+            >分校不可修改；若要調整範圍請變更參加的開課班。</span
           >
         }
       </div>
 
-      <!-- Classes -->
+      <!-- Classes：稿是單選「選一個班」；應然是多選（exams.html:74），API 收 classIds[] -->
       <div class="col-span-full min-w-0">
         <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-classes"
-          >關聯班級 <span class="text-error-700" aria-hidden="true">*</span></label
+          >參加的開課班 <span class="text-error-700" aria-hidden="true">*</span></label
         >
         <p-multiselect
           inputId="exam-classes"
@@ -181,33 +161,36 @@
 
       <!-- Total Score -->
       <div class="min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-total"
-          >滿分 <span class="text-error-700" aria-hidden="true">*</span></label
-        >
-        <p-inputnumber
-          inputId="exam-total"
-          [ngModel]="formData().totalScore"
-          (ngModelChange)="updateField('totalScore', $event)"
-          [min]="1"
-          [max]="1000"
-          [showButtons]="true"
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-total">滿分</label>
+        <!-- A6 `money` 欄：文字框＋數字鍵盤；稿的「NT$」前綴是共用欄型帶過來的，分數不加 -->
+        <input
+          id="exam-total"
+          type="text"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="off"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+          [value]="formData().totalScore ?? ''"
+          (input)="onScoreInput('totalScore', $any($event.target))"
           [disabled]="lockTotalScore()"
-          styleClass="w-full"
         />
       </div>
 
       <!-- Pass Score -->
       <div class="min-w-0">
-        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-pass">及格線</label>
-        <p-inputnumber
-          inputId="exam-pass"
-          [ngModel]="formData().passScore"
-          (ngModelChange)="updateField('passScore', $event)"
-          [min]="0"
-          [max]="formData().totalScore"
-          [showButtons]="true"
+        <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-pass"
+          >及格分數</label
+        >
+        <input
+          id="exam-pass"
+          type="text"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="off"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
+          [value]="formData().passScore ?? ''"
+          (input)="onScoreInput('passScore', $any($event.target))"
           [disabled]="lockPassScore()"
-          styleClass="w-full"
         />
         <span class="mt-1 block text-xs text-zinc-500">留空＝總分的 60%</span>
       </div>

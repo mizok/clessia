@@ -1829,6 +1829,58 @@ export const PAGES = {
         reason: '連帶：手機考試名連結撐到 44px',
         source: `${rule('R3')}`,
       },
+      // 新增考試：類別／科目／分校是 app-select-field（稿 .dd 的標籤是 label、app 是 span，三個欄位外框被認成一列）
+      ...[
+        { status: '缺', a6: 'landmark:form\\[\\]>control:button\\[選擇：小考\\]$' },
+        {
+          status: '多',
+          app: 'landmark:form\\[\\]>row(>(text:span|control:combobox|control:button))?$',
+        },
+        ...['文案', '位置'].map((status) => ({
+          status,
+          a6: 'landmark:form\\[\\]>text:label\\[類別\\]$',
+        })),
+      ].map((d) => ({ ...d, pop: 'new-exam', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 參加的開課班多選（稿單選「選一個班」）；科目、分校、範圍說明、及格分數的「留空＝總分的 60%」保留（R2）
+      ...[
+        { status: '缺', a6: 'landmark:form\\[\\]>control:button\\[選擇：選一個班\\]$' },
+        { status: '多', app: 'landmark:form\\[\\]>text:div\\[選擇班級（至少一項）\\]$' },
+        {
+          status: '多',
+          app: 'landmark:form\\[\\]>(text:span\\[留空＝總分的#%\\]|control:textbox\\[範圍說明\\])$',
+        },
+        {
+          status: '文案',
+          a6: 'text:p\\[還沒填：',
+          app: 'text:p\\[還沒填：考試名稱、科目、參加的開課班\\]$',
+        },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-exam',
+        reason: '新增考試：開課班多選（應然）；科目、分校、範圍說明稿沒畫，保留（R2）',
+        source: `${rule('R5')}「新增考試的開課班多選與保留欄位」2026-11-02（A6 exams.html:74 自己寫應然是「參加範圍（多選開課班）」、稿先畫成單選；計畫席 11-02 確認）`,
+      })),
+      // 手機一欄：稿沒畫的科目、分校各佔一列，後面的欄位整段下移（桌機兩欄並排，連帶得起來）
+      {
+        status: '位置',
+        widths: [360],
+        pop: 'new-exam',
+        a6: 'landmark:form\\[\\]>text:label\\[(參加的開課班|滿分|及格分數)\\]$',
+        detail: 'Δx 0、Δy \\+1[5-7]\\d',
+        reason: '連帶：手機上科目、分校（R2 保留）各佔一列',
+        source: `${rule('R5')}「新增考試的開課班多選與保留欄位」2026-11-02`,
+      },
+      // 滿分／及格分數：稿用共用的 money 欄型（前面一個「NT$」，輸入框因此是 flex 子項），分數不加 NT$
+      ...[
+        { status: '位置', detail: 'Δx -3[5-9]' },
+        { status: '樣式', detail: '^display block → inline-block$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'new-exam',
+        a6: 'landmark:form\\[\\]>control:textbox\\[(滿分|及格分數)\\]$',
+        reason: '分數欄不加稿 money 欄型的「NT$」前綴',
+        source: `${rule('R5')}「新增考試的開課班多選與保留欄位」2026-11-02（A6 exams.html:74 自己寫應然是「參加範圍（多選開課班）」、稿先畫成單選；計畫席 11-02 確認）`,
+      })),
     ],
   },
   scores: {
