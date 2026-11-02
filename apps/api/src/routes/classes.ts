@@ -4,6 +4,7 @@ import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
+import { GRADE_KEYS, classGradeLevels } from '../lib/class-grade-levels';
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { checkTeacherEligibility } from '../lib/teacher-eligibility';
@@ -63,6 +64,8 @@ const ScheduleSchema = z
   })
   .openapi('Schedule');
 
+const GradeLevelsSchema = z.array(z.enum(GRADE_KEYS)).max(GRADE_KEYS.length);
+
 const ClassSchema = z
   .object({
     id: DbUuidSchema,
@@ -75,6 +78,7 @@ const ClassSchema = z
     campusName: z.string().optional(),
     name: z.string(),
     maxStudents: z.number(),
+    /** 班級自己的適用年級；沒填＝課程的（`classGradeLevels`） */
     gradeLevels: z.array(z.string()),
     nextClassId: DbUuidSchema.nullable(),
     isActive: z.boolean(),
@@ -138,6 +142,8 @@ const CreateClassSchema = z
     courseId: DbUuidSchema,
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
+    /** 適用年級（A6 `.grades`）；空陣列＝沿用課程的 */
+    gradeLevels: GradeLevelsSchema.optional(),
     nextClassId: DbUuidSchema.nullable().optional(),
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
@@ -164,6 +170,8 @@ const UpdateClassSchema = z
   .object({
     name: z.string().min(1).max(50).optional(),
     maxStudents: z.number().int().min(1).max(200).optional(),
+    /** 適用年級（A6 `.grades`）；空陣列＝沿用課程的 */
+    gradeLevels: GradeLevelsSchema.optional(),
     nextClassId: DbUuidSchema.nullable().optional(),
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
@@ -527,7 +535,7 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     campusName: (row['campuses'] as { name: string } | null)?.name,
     name: row['name'] as string,
     maxStudents: row['max_students'] as number,
-    gradeLevels: course?.grade_levels ?? [],
+    gradeLevels: classGradeLevels(row['grade_levels'], course?.grade_levels),
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     // 欄位是 NOT NULL DEFAULT false，但舊的 select 可能沒撈到 —— 退回 false 而不是
@@ -1383,6 +1391,7 @@ app.openapi(
         name: body.name,
         max_students: body.maxStudents ?? 20,
         next_class_id: body.nextClassId ?? null,
+        grade_levels: [...new Set(body.gradeLevels ?? [])],
         default_fee_template_id: body.defaultFeeTemplateId ?? null,
         ...(body.isRecommended === undefined ? {} : { is_recommended: body.isRecommended }),
         ...(body.isPublicEnrollment === undefined
@@ -1478,6 +1487,7 @@ app.openapi(
     if (body.name !== undefined) updateData['name'] = body.name;
     if (body.maxStudents !== undefined) updateData['max_students'] = body.maxStudents;
     if (body.nextClassId !== undefined) updateData['next_class_id'] = body.nextClassId;
+    if (body.gradeLevels !== undefined) updateData['grade_levels'] = [...new Set(body.gradeLevels)];
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
     if (body.usesContactBook !== undefined) updateData['uses_contact_book'] = body.usesContactBook;
     if (body.isRecommended !== undefined) updateData['is_recommended'] = body.isRecommended;

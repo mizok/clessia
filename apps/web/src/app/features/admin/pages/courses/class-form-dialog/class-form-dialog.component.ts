@@ -36,6 +36,7 @@ import {
 } from './schedule-split-dialog/schedule-split-dialog.component';
 import type { Schedule, SplitScheduleResult } from '@core/classes.service';
 import { taipeiDateString } from '@core/system-clock.service';
+import { GRADE_LEVELS, GRADE_LEVEL_LABELS } from '@core/students.service';
 import { effectiveRangeLabel, rangesOverlap } from '@shared/utils/schedule-effective.util';
 
 export interface ScheduleFormEntry {
@@ -99,6 +100,19 @@ export class ClassFormDialogComponent {
   protected readonly feeOptions = computed(() => feeTemplateOptions(this.feeTemplates()));
   /** 家長端「推薦加選」（#1118）：目錄排最前、卡片畫推薦標籤 */
   protected readonly isRecommended = signal(this.cls()?.isRecommended ?? false);
+  /** 適用年級（#2089）：班級沒填時 API 回的是課程的，新增時也先帶課程的 */
+  protected readonly gradeLevels = signal<string[]>(
+    this.cls()?.gradeLevels ?? this.course()?.gradeLevels ?? [],
+  );
+  protected readonly gradeOptions = GRADE_LEVELS.map((g) => ({
+    value: g as string,
+    label: GRADE_LEVEL_LABELS[g],
+  }));
+  protected toggleGrade(grade: string, checked: boolean): void {
+    this.gradeLevels.update((list) =>
+      GRADE_LEVELS.filter((g) => (g === grade ? checked : list.includes(g))),
+    );
+  }
   /** #1665 Q5′：新班預設開放，跟 DB 預設一致 */
   protected readonly isPublicEnrollment = signal(this.cls()?.isPublicEnrollment ?? true);
 
@@ -279,6 +293,33 @@ export class ClassFormDialogComponent {
     if (bad >= 0) {
       return { msg: `第 ${bad + 1} 筆時段的結束要晚於開始`, bad: [bad] };
     }
+    // 日期下限（#2110／#2115 二讀）：原本只有 `[min]` 提示、手打或貼上的值擋不住。沒改的原值不擋（歷史班照樣能編輯）
+    const start = this.startDate();
+    if (start && start !== (this.cls()?.startDate ?? '') && start < this.startDateMin()) {
+      return { msg: `開始日期不能早於 ${this.startDateMin()}`, bad: [] };
+    }
+    const end = this.endDate();
+    if (end && end !== (this.cls()?.endDate ?? '') && end < this.endDateMin()) {
+      return {
+        msg:
+          start && end < start
+            ? '結束日期不能早於開始日期'
+            : `結束日期不能早於 ${this.endDateMin()}`,
+        bad: [],
+      };
+    }
+    const early = entries.findIndex(
+      (e) => !e.id && start && e.effectiveFrom && e.effectiveFrom < start,
+    );
+    if (early >= 0) {
+      return { msg: `第 ${early + 1} 筆時段的生效起始日不能早於班級開始日期`, bad: [early] };
+    }
+    const range = entries.findIndex(
+      (e) => e.effectiveFrom && e.effectiveTo && e.effectiveTo < e.effectiveFrom,
+    );
+    if (range >= 0) {
+      return { msg: `第 ${range + 1} 筆時段的生效結束日不能早於起始日`, bad: [range] };
+    }
     const overlap = this.findLocalScheduleOverlap(entries);
     if (overlap) {
       return {
@@ -361,6 +402,17 @@ export class ClassFormDialogComponent {
           },
         ]),
       { rows: true },
+    );
+  }
+
+  /** 班級開始日往後調：還沒存的時段若從更早開始，跟著帶到開始日（API 的預設也是班級開課日） */
+  protected onStartDateChange(value: string): void {
+    this.startDate.set(value);
+    if (!value) return;
+    this.scheduleEntries.update((list) =>
+      list.map((e) =>
+        !e.id && e.effectiveFrom && e.effectiveFrom < value ? { ...e, effectiveFrom: value } : e,
+      ),
     );
   }
 
@@ -467,6 +519,7 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
+        gradeLevels: this.gradeLevels(),
         startDate: this.startDate() || null,
         endDate: this.endDate() || null,
         isActive: form.isActive,
@@ -493,6 +546,7 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
+        gradeLevels: this.gradeLevels(),
         startDate: this.startDate() || null,
         endDate: this.endDate() || null,
         isActive: form.isActive,

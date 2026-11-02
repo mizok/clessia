@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../index';
+import { classGradeLevels } from '../../lib/class-grade-levels';
 import { isChildAllowed } from '../../lib/child-scope';
 import { countEnrolledOn, type EnrollmentRange } from '../../lib/session-roster';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
@@ -126,7 +127,11 @@ app.openapi(
 
     const data = classes
       .map((row) => {
-        const gradeLevels = (row['grade_levels'] ?? []) as string[];
+        // 班有設用班的、沒設用課程的、兩個都沒設＝不限（計畫席 11-02，同管理端 `classGradeLevels`）
+        const gradeLevels = classGradeLevels(
+          row['grade_levels'],
+          (one(row['courses'])?.['grade_levels'] as string[] | undefined) ?? undefined,
+        );
         return {
           ...toCatalogClass(row, counts.get(row['id']) ?? 0, today),
           teacherNames: [

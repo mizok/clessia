@@ -82,10 +82,10 @@ function enrollment(student: string, classId: string, extra: Record<string, unkn
 /** `extra`：逐班覆寫欄位（`db.rows()` 回的是複本，改它不會進替身） */
 function seed(extra: Record<string, Record<string, unknown>> = {}) {
   return createMultiOrgDb({
-    students: [{ id: CHILD, org_id: ORG, grade: 'junior_2' }],
+    students: [{ id: CHILD, org_id: ORG, grade: 'J2' }],
     classes: [
-      cls(CLS_MATH, { grade_levels: ['junior_2', 'junior_3'], ...extra[CLS_MATH] }),
-      cls(CLS_ENG, { grade_levels: ['senior_1'], max_students: 2, ...extra[CLS_ENG] }),
+      cls(CLS_MATH, { grade_levels: ['J2', 'J3'], ...extra[CLS_MATH] }),
+      cls(CLS_ENG, { grade_levels: ['S1'], max_students: 2, ...extra[CLS_ENG] }),
       cls(CLS_ENROLLED),
       cls(CLS_INACTIVE, { is_active: false }),
       cls(CLS_ENDED, { end_date: '2026-09-30' }),
@@ -256,7 +256,7 @@ describe('GET /api/me/catalog', () => {
       expect(math).toEqual({
         classId: CLS_MATH,
         className: '班 11',
-        gradeLevels: ['junior_2', 'junior_3'],
+        gradeLevels: ['J2', 'J3'],
         courseId: 'course-1',
         courseName: '國中數學',
         subject: '數學',
@@ -286,6 +286,50 @@ describe('GET /api/me/catalog', () => {
       const byId = new Map(body.data.map((c: { classId: string }) => [c.classId, c]));
       expect((byId.get(CLS_ENG) as { matchesGrade: boolean }).matchesGrade).toBe(false);
       expect((byId.get(CLS_OLD) as { matchesGrade: boolean }).matchesGrade).toBe(true);
+    });
+
+    // 計畫席 11-02：班有設用班的；班沒設用課程的；兩個都沒設才算不限（同管理端 classGradeLevels）
+    it('matchesGrade：班有設用班的、班沒設用課程的、兩個都沒設＝不限', async () => {
+      const course = (grade_levels: string[]) => ({
+        courses: { id: 'course-1', name: '國中數學', subjects: { name: '數學' }, grade_levels },
+      });
+      const { body } = await get(
+        appWith(
+          seed({
+            // 班設了國三（孩子國二）：課程有國二也不算 —— 班的優先
+            [CLS_MATH]: { grade_levels: ['J3'], ...course(['J2']) },
+            // 班沒設、課程是高一 → 不符；班沒設、課程也沒設 → 不限
+            [CLS_ENG]: { grade_levels: [], ...course(['S1']) },
+            [CLS_OLD]: { grade_levels: [], ...course([]) },
+          }),
+        ),
+      );
+      const match = (id: string) =>
+        (body.data.find((c: { classId: string }) => c.classId === id) as { matchesGrade: boolean })
+          .matchesGrade;
+      expect(match(CLS_MATH)).toBe(false);
+      expect(match(CLS_ENG)).toBe(false);
+      expect(match(CLS_OLD)).toBe(true);
+    });
+
+    it('matchesGrade：班沒設、課程有孩子的年級 → 符合', async () => {
+      const { body } = await get(
+        appWith(
+          seed({
+            [CLS_MATH]: {
+              grade_levels: [],
+              courses: {
+                id: 'course-1',
+                name: '國中數學',
+                subjects: { name: '數學' },
+                grade_levels: ['J2'],
+              },
+            },
+          }),
+        ),
+      );
+      const math = body.data.find((c: { classId: string }) => c.classId === CLS_MATH);
+      expect(math.matchesGrade).toBe(true);
     });
 
     /**

@@ -15,7 +15,7 @@ import { DbUuidSchema } from './validation';
 /** 兩邊都要的欄位。老師名只有家長目錄要，所以 `schedules` 的 teacher 由呼叫端決定要不要接 */
 export const catalogClassSelect = (scheduleExtra = '') => `
   id, name, grade_levels, max_students, is_active, end_date, is_recommended,
-  courses(id, name, description, is_active, subjects(name)),
+  courses(id, name, description, is_active, grade_levels, subjects(name)),
   campuses(name, phone, address),
   schedules(weekday, start_time, end_time, effective_from, effective_to${scheduleExtra}),
   fee_template:fee_templates!default_fee_template_id(amount, billing_mode, is_active)
