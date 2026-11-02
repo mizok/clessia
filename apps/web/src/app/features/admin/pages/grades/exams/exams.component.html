@@ -37,7 +37,9 @@
           (click)="setTab('pending')"
         >
           待處理
-          <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{ todoCount() }}</span>
+          <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{
+            todoCount()
+          }}</span>
         </button>
         <button
           type="button"
@@ -51,42 +53,44 @@
         >
           全部
           @if (allCount() !== null) {
-            <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{ allCount() }}</span>
+            <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{
+              allCount()
+            }}</span>
           }
         </button>
 
-      <span class="inline-flex rounded-md bg-zinc-200 p-0.5" role="group" aria-label="考試型態">
-        @for (opt of examTypeOptions; track opt.value) {
-          <button
-            type="button"
-            class="vt-seg min-h-11 cursor-pointer rounded-sm wide:min-h-8 border-0 bg-transparent px-3 text-md leading-normal font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
-            [style.view-transition-name]="examType() === opt.value ? 'seg-exam-type' : null"
-            [attr.aria-pressed]="examType() === opt.value"
-            (click)="onExamTypeChange(opt.value)"
-          >
-            {{ opt.label }}
-          </button>
-        }
-      </span>
+        <span class="inline-flex rounded-md bg-zinc-200 p-0.5" role="group" aria-label="考試型態">
+          @for (opt of examTypeOptions; track opt.value) {
+            <button
+              type="button"
+              class="vt-seg min-h-11 cursor-pointer rounded-sm wide:min-h-8 border-0 bg-transparent px-3 text-md leading-normal font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
+              [style.view-transition-name]="examType() === opt.value ? 'seg-exam-type' : null"
+              [attr.aria-pressed]="examType() === opt.value"
+              (click)="onExamTypeChange(opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          }
+        </span>
       </nav>
 
       <div class="ml-auto flex items-center gap-2">
         <!-- 桌機：A6 工具列只有「篩選：全部」鈕，條件收進浮層（手機另有搜尋＋篩選對話框）；
              待處理分頁沒有篩選（A6 `#ff` 只在全部分頁） -->
         @if (tab() === 'all') {
-        <button
-          type="button"
-          class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
-          [attr.aria-label]="
-            desktopFilterCount() > 0 ? '篩選（' + desktopFilterCount() + ' 個條件）' : '篩選'
-          "
-          aria-haspopup="dialog"
-          [attr.aria-expanded]="filtersOpen()"
-          (click)="onFilterBtnClick($event)"
-        >
-          <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
-          篩選：{{ desktopFilterCount() > 0 ? desktopFilterCount() + ' 項' : '全部' }}
-        </button>
+          <button
+            type="button"
+            class="tbar-control hidden cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
+            [attr.aria-label]="
+              desktopFilterCount() > 0 ? '篩選（' + desktopFilterCount() + ' 個條件）' : '篩選'
+            "
+            aria-haspopup="dialog"
+            [attr.aria-expanded]="filtersOpen()"
+            (click)="onFilterBtnClick($event)"
+          >
+            <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
+            篩選：{{ desktopFilterCount() > 0 ? desktopFilterCount() + ' 項' : '全部' }}
+          </button>
         }
         @if (desktopFilterCount() > 0) {
           <button
@@ -106,27 +110,27 @@
 
     <!-- 手機：搜尋＋「篩選」（其餘條件收進 exams-filter-dialog）；只在全部分頁（A6 `#ff`） -->
     @if (tab() === 'all') {
-    <div class="flex items-end gap-2 wide:hidden" role="search" aria-label="篩選考試">
-      <label class="flex min-w-0 flex-1 flex-col gap-1">
-        <span class="text-sm font-semibold text-zinc-700">考試名稱</span>
-        <input
-          type="search"
-          pInputText
-          class="tbar-control w-full"
-          placeholder="搜尋考試名稱"
-          [ngModel]="searchText()"
-          (ngModelChange)="onSearchChange($event)"
-        />
-      </label>
-      <button
-        type="button"
-        class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-        (click)="openFilterDialog()"
-      >
-        <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
-        {{ filterBadge() }}
-      </button>
-    </div>
+      <div class="flex items-end gap-2 wide:hidden" role="search" aria-label="篩選考試">
+        <label class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="text-sm font-semibold text-zinc-700">考試名稱</span>
+          <input
+            type="search"
+            pInputText
+            class="tbar-control w-full"
+            placeholder="搜尋考試名稱"
+            [ngModel]="searchText()"
+            (ngModelChange)="onSearchChange($event)"
+          />
+        </label>
+        <button
+          type="button"
+          class="tbar-control inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          (click)="openFilterDialog()"
+        >
+          <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
+          {{ filterBadge() }}
+        </button>
+      </div>
     }
   </div>
 </div>
@@ -281,11 +285,12 @@
       }
 
       @if (totalRows() > PAGE_SIZE) {
-        <p-paginator
-          [first]="(currentPage() - 1) * PAGE_SIZE"
-          [rows]="PAGE_SIZE"
-          [totalRecords]="totalRows()"
-          (onPageChange)="onPage({ page: $event.page ?? 0 })"
+        <app-pager
+          class="mt-6"
+          [total]="totalRows()"
+          [pageSize]="PAGE_SIZE"
+          [page]="currentPage()"
+          (pageChange)="onPage($event)"
         />
       }
     }
