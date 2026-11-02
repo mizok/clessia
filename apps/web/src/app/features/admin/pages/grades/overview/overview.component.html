@@ -18,24 +18,28 @@
 
 <div class="bg-zinc-100">
   <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-    <p class="m-0 text-base text-zinc-800"><strong>成績總覽</strong> · 用學生或班級來看</p>
-    <nav class="flex flex-wrap gap-2 wide:ml-auto" aria-label="成績總覽">
+    <!-- A6 `.tbar__txt`：zinc-700、手機 13／桌機 14；strong 是 zinc-900 半粗 -->
+    <p class="m-0 text-md text-zinc-700 wide:text-base">
+      <strong class="font-semibold text-zinc-900">成績總覽</strong> · 用學生或班級來看
+    </p>
+    <!-- A6 `.tbar__act`：一般的 div（不是 nav）；「考試管理」只在桌機（only-d） -->
+    <div class="ml-auto flex flex-wrap gap-2">
       <a
-        class="tbar-control inline-flex items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
+        class="tbar-control inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
         routerLink="/admin/grades/overview/student"
         >學生視角</a
       >
       <a
-        class="tbar-control inline-flex items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
+        class="tbar-control inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
         routerLink="/admin/grades/overview/class"
         >班級視角</a
       >
       <a
-        class="tbar-control inline-flex items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
+        class="tbar-control hidden items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
         routerLink="/admin/grades/exams"
         >考試管理</a
       >
-    </nav>
+    </div>
   </div>
 </div>
 
@@ -46,37 +50,44 @@
     <app-load-failed description="沒有讀到考試資料，可能是連線問題" (retry)="load()" />
   } @else {
     <section aria-labelledby="grades-pending-title">
-      <h2 id="grades-pending-title" class="m-0 mb-2 text-xl font-bold text-zinc-900">
-        @if (pendingCount() > 0) {
-          還沒登錄完的 {{ pendingCount() }} 場
-        } @else {
-          成績都登錄完了
-        }
-      </h2>
+      <!-- A6 `.sec__head`／`.sec__title`：同下面「學生」「班級」兩章的章頭 -->
+      <div class="border-b border-surface-border pb-3">
+        <h2
+          id="grades-pending-title"
+          class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+        >
+          @if (pendingCount() > 0) {
+            還沒登錄完的 {{ pendingCount() }} 場
+          } @else {
+            成績都登錄完了
+          }
+        </h2>
+      </div>
       @if (pendingCount() === 0) {
-        <p class="m-0 text-base text-zinc-700">考完的補習班考試都已經登錄成績。</p>
+        <p class="m-0 py-4 text-base text-zinc-700">考完的補習班考試都已經登錄成績。</p>
       } @else {
-        <ul class="m-0 list-none border-t border-zinc-900 p-0">
+        <!-- A6 `.gr`：桌機一列四欄（名字、說明、人數、動作）；手機兩行，說明在名字下、動作在人數下 -->
+        <ul class="m-0 list-none p-0">
           @for (exam of pending(); track exam.id) {
             <li
-              class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1fr)_auto_auto]"
+              class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-surface-border py-4 wide:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_auto_auto] wide:gap-x-6 wide:gap-y-2"
             >
-              <div class="min-w-0">
-                <a
-                  class="inline-flex min-h-11 items-center text-lg font-bold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
-                  [routerLink]="['/admin/grades/exams', 'academy', exam.id, 'scores']"
-                  >{{ exam.name }}</a
-                >
-                <span class="block text-sm text-zinc-600 tabular-nums">
-                  {{ exam.examDate }} 考 · 已登錄 {{ exam.scoreCount }}／{{ exam.expectedCount }}
-                </span>
-              </div>
-              <span class="text-right text-2xl leading-none font-bold tabular-nums">
+              <a
+                class="flex min-h-11 items-center text-lg font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-4 wide:block wide:min-h-0"
+                [routerLink]="['/admin/grades/exams', 'academy', exam.id, 'scores']"
+                >{{ exam.name }}</a
+              >
+              <span class="row-start-2 text-md text-zinc-600 tabular-nums wide:row-start-auto">
+                {{ exam.examDate }} 考 · 已登錄 {{ exam.scoreCount }}／{{ exam.expectedCount }}
+              </span>
+              <span
+                class="col-start-2 row-start-1 text-right text-xl font-bold tabular-nums wide:col-start-auto wide:row-start-auto"
+              >
                 {{ missing(exam)
-                }}<small class="ml-1 text-sm font-normal text-zinc-600">人還沒登錄</small>
+                }}<small class="ml-0.5 text-md font-medium text-zinc-600">人還沒登錄</small>
               </span>
               <a
-                class="col-span-2 inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:col-span-1"
+                class="col-start-2 row-start-2 inline-flex h-11 items-center justify-center gap-1.5 justify-self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:col-start-auto wide:row-start-auto wide:h-9"
                 [routerLink]="['/admin/grades/exams', 'academy', exam.id, 'scores']"
                 [attr.aria-label]="'去登錄 ' + exam.name"
                 >去登錄</a

@@ -2041,7 +2041,21 @@ export const PAGES = {
     // seed 的考試（跟 scores-dirty 同一場）；原本的 id 是某一席本機 DB 的，seed 裡沒有（#1314 10-30）
     app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
   },
-  grades: { a6: 'grades.html', app: '/admin/grades/overview' },
+  grades: {
+    a6: 'grades.html',
+    app: '/admin/grades/overview',
+    deviations: [
+      {
+        // 「還沒登錄完」列：手機名字連結撐到 44px（稿 27），同一行的人數（含 small）跟著置中下移
+        status: '位置',
+        widths: [360],
+        a6: '>row>text:span~2(>text:small)?$',
+        detail: '^相對所在列 Δx -?\\d、Δy \\+(8|9|10)（',
+        reason: '連帶：手機名字連結 44px（觸控下限），同列的人數垂直置中跟著下移',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      },
+    ],
+  },
   'grades-class': {
     a6: 'grades-class.html',
     app: '/admin/grades/overview/class',
