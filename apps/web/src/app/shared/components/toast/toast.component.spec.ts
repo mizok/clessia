@@ -11,6 +11,8 @@ describe('ToastComponent（#1615）', () => {
   let messages: MessageService;
   const el = () => fixture.nativeElement as HTMLElement;
   const toasts = () => [...el().querySelectorAll<HTMLElement>('.toast')];
+  const pop = () => el().querySelector<HTMLElement>('[popover]')!;
+  const live = () => el().querySelector<HTMLElement>('[data-testid="toast-live"]');
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -146,15 +148,42 @@ describe('ToastComponent（#1615）', () => {
     expect(toasts()).toHaveLength(2);
   });
 
-  it('外框是 role=status 的 live region', () => {
-    expect(el().getAttribute('role')).toBe('status');
-    expect(el().getAttribute('aria-live')).toBe('polite');
+  /**
+   * #2187：live region 不能放在 popover 上 —— popover 關著是 display:none（不在無障礙樹），
+   * 每則又先 hide 再 show，VoiceOver 會把「剛冒出來就有字」的 region 當初始內容不念。
+   */
+  it('live region 常駐：還沒有任何 toast 時就在，而且不在 popover 裡', () => {
+    expect(live()).not.toBeNull();
+    expect(live()!.getAttribute('role')).toBe('status');
+    expect(live()!.getAttribute('aria-live')).toBe('polite');
+    expect(pop().contains(live())).toBe(false);
+    expect(pop().hasAttribute('role')).toBe(false);
+    expect(pop().hasAttribute('aria-live')).toBe(false);
+  });
+
+  it('live region 跟著換字：新的一則加一段，同一個 region 節點不換', () => {
+    const region = live();
+    add({ severity: 'success', summary: '已儲存', detail: '出勤模式已更新' });
+    expect(live()).toBe(region);
+    expect(live()!.textContent).toContain('已儲存，出勤模式已更新');
+
+    // 同樣的字再來一次也要是新的一段，報讀器才會再念
+    add({ severity: 'success', summary: '已儲存', detail: '出勤模式已更新' });
+    expect(live()!.querySelectorAll('p')).toHaveLength(2);
+  });
+
+  it('toast 離開後 live region 裡那段也拿掉（不會越積越多）', () => {
+    add({ severity: 'success', summary: 'a' });
+    vi.advanceTimersByTime(4000 + 200);
+    fixture.detectChanges();
+    expect(live()!.querySelectorAll('p')).toHaveLength(0);
+    expect(live()).not.toBeNull();
   });
 
   // A6 a6.js:298：手機底部有動作列時浮在它上面 12px
   it('頁面有底部動作列（data-toast-dock）：浮在它上面 12px；沒有就離底 16px', () => {
     add({ severity: 'success', summary: 'a' });
-    expect(el().style.bottom).toBe('16px');
+    expect(pop().style.bottom).toBe('16px');
 
     const dock = document.createElement('div');
     dock.setAttribute('data-toast-dock', '');
@@ -164,7 +193,7 @@ describe('ToastComponent（#1615）', () => {
       top: window.innerHeight - 64,
     } as DOMRect);
     add({ severity: 'success', summary: 'b' });
-    expect(el().style.bottom).toBe('76px');
+    expect(pop().style.bottom).toBe('76px');
     dock.remove();
   });
 });
