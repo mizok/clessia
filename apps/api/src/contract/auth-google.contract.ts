@@ -30,8 +30,8 @@ run('Google 登入對真 Postgres（#1842）', () => {
       BETTER_AUTH_URL: API,
       WEB_URL: WEB,
       ALLOWED_ORIGINS: '',
-      LINE_CLIENT_ID: '',
-      LINE_CLIENT_SECRET: '',
+      LINE_CLIENT_ID: 'contract-lid',
+      LINE_CLIENT_SECRET: 'contract-lsecret',
       GOOGLE_CLIENT_ID: 'contract-gid',
       GOOGLE_CLIENT_SECRET: 'contract-gsecret',
     },
@@ -40,8 +40,14 @@ run('Google 登入對真 Postgres（#1842）', () => {
   const users: string[] = [];
   const realFetch = globalThis.fetch;
 
-  /** Google 的 token 端點回這個人的 id_token；其他網址照常走（理論上不會有） */
-  function googleReturns(claims: Record<string, unknown>) {
+  const TOKEN_ENDPOINT = {
+    google: 'https://oauth2.googleapis.com/token',
+    line: 'https://api.line.me/oauth2/v2.1/token',
+  } as const;
+  type Provider = keyof typeof TOKEN_ENDPOINT;
+
+  /** provider 的 token 端點回這個人的 id_token；其他網址照常走（理論上不會有） */
+  function providerReturns(provider: Provider, claims: Record<string, unknown>) {
     const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
     const idToken = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({
       iss: 'https://accounts.google.com',
@@ -51,9 +57,7 @@ run('Google 登入對真 Postgres（#1842）', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
-        String(input instanceof Request ? input.url : input).startsWith(
-          'https://oauth2.googleapis.com/token',
-        )
+        String(input instanceof Request ? input.url : input).startsWith(TOKEN_ENDPOINT[provider])
           ? Response.json({
               access_token: 'at',
               id_token: idToken,
@@ -92,8 +96,9 @@ run('Google 登入對真 Postgres（#1842）', () => {
   }
   type Browser = ReturnType<typeof browser>;
 
-  /** 走完「跳去 Google 再跳回來」：回 callback 最後導去的網址 */
-  async function viaGoogle(
+  /** 走完「跳去 provider 再跳回來」：回 callback 最後導去的網址 */
+  async function via(
+    provider: Provider,
     b: Browser,
     path: '/api/auth/sign-in/social' | '/api/auth/link-social',
     sub: string,
@@ -101,17 +106,24 @@ run('Google 登入對真 Postgres（#1842）', () => {
   ) {
     const start = await b(path, {
       body: {
-        provider: 'google',
+        provider,
         callbackURL: `${WEB}/select-role`,
-        errorCallbackURL: `${WEB}/login?provider=google`,
+        errorCallbackURL: `${WEB}/login?provider=${provider}`,
       },
     });
     const { url } = (await start.json()) as { url: string };
     const state = new URL(url).searchParams.get('state');
-    googleReturns({ sub, ...extra });
-    const back = await b(`/api/auth/callback/google?code=c&state=${state}`);
+    providerReturns(provider, { sub, ...extra });
+    const back = await b(`/api/auth/callback/${provider}?code=c&state=${state}`);
     return back.headers.get('location') ?? '';
   }
+
+  const viaGoogle = (
+    b: Browser,
+    path: '/api/auth/sign-in/social' | '/api/auth/link-social',
+    sub: string,
+    extra: Record<string, unknown> = {},
+  ) => via('google', b, path, sub, extra);
 
   const sessionUser = async (b: Browser) =>
     ((await (await b('/api/auth/get-session')).json()) as { user?: { id: string } } | null)?.user
@@ -239,5 +251,19 @@ run('Google 登入對真 Postgres（#1842）', () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: 'FAILED_TO_UNLINK_LAST_ACCOUNT' });
+  });
+
+  // disableImplicitLinking 是全域設定，LINE 也吃到。它只在「找到同 email、但**沒綁**這個 provider」時才擋
+  // （`oauth2/link-account.mjs:19-28` 的 `if (!linkedAccount)`）；LINE 現有使用者都是經綁定連結綁好的帳號，
+  // 走的是 linkedAccount 那條，不受影響。
+  it('已綁 LINE 的人照常用 LINE 登入（全域 disableImplicitLinking 不影響既有綁定）', async () => {
+    const parent = await newUser();
+    const sub = `U${randomUUID().replace(/-/g, '')}`;
+    const { b } = await signedInAs(parent.email);
+    expect(await via('line', b, '/api/auth/link-social', sub)).toBe(`${WEB}/select-role`);
+
+    const fresh = browser();
+    expect(await via('line', fresh, '/api/auth/sign-in/social', sub)).toBe(`${WEB}/select-role`);
+    expect(await sessionUser(fresh)).toBe(parent.id);
   });
 });
