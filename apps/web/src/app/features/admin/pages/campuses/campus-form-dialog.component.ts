@@ -107,8 +107,9 @@ type Mode = '' | 'per_session' | 'daily_checkin';
             />
           </div>
           <div class="min-w-0">
-            <span class="mb-1 block text-md font-semibold text-zinc-700" id="campus-status-label"
-              >狀態</span
+            <!-- 稿是 label（同其他欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來 -->
+            <label class="mb-1 block text-md font-semibold text-zinc-700" id="campus-status-label"
+              >狀態</label
             >
             <!-- A6 .fdlg__seg／.fdlg__opt：radio 包成框，選中的框加深 -->
             <div
