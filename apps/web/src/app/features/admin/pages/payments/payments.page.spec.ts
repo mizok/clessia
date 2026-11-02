@@ -1101,7 +1101,7 @@ describe('PaymentsPage', () => {
       );
     });
 
-    it('列：<li> 自己是 grid（手機 2 欄／桌機 [1fr 260 120 auto]）；DOM 順序＝姓名、狀態、金額、動作', async () => {
+    it('列：<li> 自己是 grid（手機 2 欄／桌機 [1fr 1fr 120 auto]，同稿 .row）；DOM 順序＝姓名、狀態、金額、動作', async () => {
       await render();
       const li = el().querySelector('section[aria-label="逾期"] li')!;
       has(
@@ -1111,7 +1111,7 @@ describe('PaymentsPage', () => {
         'gap-x-3',
         'wide:gap-x-4',
         'wide:gap-y-4',
-        'wide:grid-cols-[minmax(0,1fr)_260px_120px_auto]',
+        'wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_auto]',
       );
       const kids = Array.from(li.children);
       expect(kids).toHaveLength(4);
