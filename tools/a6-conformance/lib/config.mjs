@@ -1215,7 +1215,100 @@ export const PAGES = {
       },
     ],
   },
-  enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
+  enrollments: {
+    a6: 'enrollments.html',
+    app: '/admin/enrollments',
+    deviations: [
+      // 期間、開課班、事件、狀態：稿是原生 select（a6.js 換成 .dd 按鈕），app 是 p-select（combobox＋箭頭鈕）
+      ...selectFieldDeviations('期間|開課班|事件|狀態'),
+      ...[
+        { status: '缺', a6: '>control:button\\[近#天：近#天\\](>text:span\\[[^\\]]*\\])?$' },
+        { status: '缺', a6: '>landmark:search\\[\\]>row>(text:span|control:button>text:span)$' },
+        ...['位置', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:search\\[\\]>row>control:button$',
+        })),
+        { status: '多', app: '>landmark:search\\[篩選報名紀錄\\]>row>control:combobox$' },
+      ].map((d) => ({ ...d, reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 學生篩選有建議清單（app-student-autocomplete）＝combobox，同 contact-book
+      ...[
+        { status: '缺', a6: '>landmark:search\\[\\]>control:searchbox\\[學生新\\]$' },
+        { status: '多', app: '>landmark:search\\[篩選報名紀錄\\]>control:combobox\\[輸入姓名\\]$' },
+      ].map((d) => ({
+        ...d,
+        reason: 'ARIA 角色依元件行為：有建議清單的搜尋是 combobox',
+        source: `${rule('R7')}`,
+      })),
+      {
+        status: '文案',
+        a6: '>landmark:main\\[\\]>landmark:search\\[\\]$',
+        reason: '語意結構依內容：篩選區是有名字的 search landmark',
+        source: `${rule('R7', '，#1590')}`,
+      },
+      // EN1（列的 ⋯：編輯／終止報名）、EN2（直接報名）已裁照 A6，是保留類，要使用者親合，另開單
+      ...[
+        { status: '缺', a6: '>landmark:main\\[\\]>row>control:button$' },
+        { status: '位置', a6: '>landmark:main\\[\\]>row>text:span\\[退班\\]$' },
+        { status: '缺', a6: '>control:button\\[直接報名新\\]$' },
+        { status: '缺', a6: '>landmark:toolbar\\[主要動作\\]>control:button\\[直接報名\\]$' },
+      ].map((d) => ({
+        ...d,
+        reason: 'EN1／EN2 保留類未做：列尾 ⋯（稿多一欄 40px）與「直接報名」',
+        source: '#1314 盤點 issuecomment-6513520494（EN1／EN2 已裁照 A6、保留類）',
+      })),
+      // seed 近 30 天只有一筆退班：沒有新報名／暫停的 pill、不滿一頁，工具把稿的 pill 配到別的 span
+      { status: '缺', a6: '>landmark:main\\[\\]>landmark:navigation\\[分頁\\](>.*)?$' },
+      ...['位置', '樣式'].map((status) => ({
+        status,
+        a6: '>landmark:main\\[\\]>row>text:span\\[(新報名|暫停)\\]$',
+      })),
+    ]
+      .map((d) =>
+        d.reason
+          ? d
+          : {
+              ...d,
+              reason: '資料：seed 近 30 天只有一筆退班',
+              source: 'supabase/seed-demo.sql（報名事件日期）',
+            },
+      )
+      .concat([
+        // 退班的註記（辦理退班／到期結束）：稿只有一種退班 pill，app 多一行分開兩者；列內 span 序號跟著錯開
+        ...['位置', '樣式'].map((status) => ({
+          status,
+          a6: '>landmark:main\\[\\]>row>(text:span~3|text:div)$',
+          reason: '現況有、稿沒畫：退班註記一行（辦理退班／到期結束），列內 span 序號錯開',
+          source: `${rule('R2')}；enrollments.page.html event-note`,
+        })),
+        {
+          status: '多',
+          app: '>landmark:region\\[這一頁的摘要\\]>text:p\\[這段期間的報名進出。此頁唯讀，要調整報名狀態請點進班級。\\]$',
+          reason: '現況有、稿沒畫：產品副標「此頁唯讀，要調整報名狀態請點進班級」',
+          source: `${rule('R2')}；enrollments.html notes「產品現況」欄`,
+        },
+        {
+          status: '多',
+          app: '>heading:h1\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+          reason:
+            '工具限制：標題文字包一個 span 當 spec 掛點（data-testid=hero-title），文字與稿相同',
+          source: 'enrollments.page.spec.ts hero-title',
+        },
+        {
+          status: '文案',
+          a6: '>landmark:main\\[\\]>text:p\\[共筆·新報名# ·退班# ·暫停# ·作廢#\\]$',
+          reason:
+            '工具限制：事件數各包一個 span（spec 掛點 event-count），工具把它們當列抽走，文字與稿相同',
+          source: 'enrollments.page.spec.ts event-count',
+        },
+        {
+          status: '多',
+          app: '>landmark:main\\[\\]>(text:p\\[共筆\\]>row|list>row>text:div>text:span)$',
+          reason:
+            '工具限制：事件數、經手人那一行各包 span（spec 掛點 event-count／handler-text），稿是純文字與 <br>',
+          source: 'enrollments.page.spec.ts event-count、handler-text',
+        },
+      ]),
+  },
   leave: {
     a6: 'leave.html',
     app: '/admin/leave',

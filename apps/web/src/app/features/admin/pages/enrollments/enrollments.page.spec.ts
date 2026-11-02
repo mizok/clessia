@@ -631,6 +631,16 @@ describe('EnrollmentsPage', () => {
       expect(link.getAttribute('href')).toBe('/admin/students/stu-1');
     });
 
+    it('班名是連到班級詳情的連結（A6 .ev__cls），點它不會再觸發整列導頁', async () => {
+      await setup();
+
+      const link = q('class-link') as HTMLAnchorElement;
+      expect(link.textContent?.trim()).toBe('國二數學 A');
+      expect(link.getAttribute('href')).toBe('/admin/courses/course-1/classes/class-1');
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      expect(navigateMock).not.toHaveBeenCalled();
+    });
+
     it('分頁：上一頁／下一頁與「第 x／y 頁」；第一頁沒有上一頁', async () => {
       await setup([enrollment()], 45);
 
