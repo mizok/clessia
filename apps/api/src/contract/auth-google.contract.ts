@@ -253,6 +253,40 @@ run('Google 登入對真 Postgres（#1842）', () => {
     expect(await res.json()).toMatchObject({ code: 'FAILED_TO_UNLINK_LAST_ACCOUNT' });
   });
 
+  // G-3（使用者 11-02：綁兩個以上才給解除）：伺服器端擋最後一個，前端只是不畫按鈕
+  it('綁 LINE＋Google：能解掉一個、剩下的照常登入；解最後一個被擋', async () => {
+    const staff = await newUser();
+    const lineSub = `U${randomUUID().replace(/-/g, '')}`;
+    const googleSub = randomUUID();
+    const { b } = await signedInAs(staff.email);
+    await via('line', b, '/api/auth/link-social', lineSub);
+    await viaGoogle(b, '/api/auth/link-social', googleSub);
+    const providersOf = async () =>
+      ((await (await b('/api/auth/list-accounts')).json()) as { providerId: string }[])
+        .map((a) => a.providerId)
+        .sort();
+    expect(await providersOf()).toEqual(['google', 'line']);
+
+    const unlinkGoogle = await b('/api/auth/unlink-account', { body: { providerId: 'google' } });
+    expect(unlinkGoogle.status).toBe(200);
+    expect(await providersOf()).toEqual(['line']);
+
+    // 解掉的 Google 不能再登入（帳號不存在、也不能建）；LINE 照常登入同一個人
+    expect(await viaGoogle(browser(), '/api/auth/sign-in/social', googleSub)).toContain(
+      'error=signup_disabled',
+    );
+    const fresh = browser();
+    expect(await via('line', fresh, '/api/auth/sign-in/social', lineSub)).toBe(
+      `${WEB}/select-role`,
+    );
+    expect(await sessionUser(fresh)).toBe(staff.id);
+
+    const unlinkLast = await b('/api/auth/unlink-account', { body: { providerId: 'line' } });
+    expect(unlinkLast.status).toBe(400);
+    expect(await unlinkLast.json()).toMatchObject({ code: 'FAILED_TO_UNLINK_LAST_ACCOUNT' });
+    expect(await providersOf()).toEqual(['line']);
+  });
+
   // disableImplicitLinking 是全域設定，LINE 也吃到。它只在「找到同 email、但**沒綁**這個 provider」時才擋
   // （`oauth2/link-account.mjs:19-28` 的 `if (!linkedAccount)`）；LINE 現有使用者都是經綁定連結綁好的帳號，
   // 走的是 linkedAccount 那條，不受影響。
