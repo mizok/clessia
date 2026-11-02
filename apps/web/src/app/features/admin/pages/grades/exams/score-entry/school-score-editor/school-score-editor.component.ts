@@ -20,7 +20,7 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { PaginatorModule } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -76,7 +76,7 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: SchoolExamStudentSta
     InputIconModule,
     SelectModule,
     SelectButtonModule,
-    PaginatorModule,
+    PagerComponent,
   ],
   providers: [DialogService],
   templateUrl: './school-score-editor.component.html',
@@ -190,8 +190,9 @@ export class SchoolScoreEditorComponent implements OnInit {
     this.loadStudents();
   }
 
-  protected onPageChange(event: { page?: number }): void {
-    this.page.set((event.page ?? 0) + 1);
+  /** 頁碼從 1 起算（app-pager） */
+  protected onPageChange(page: number): void {
+    this.page.set(page);
     this.loadStudents();
   }
 
