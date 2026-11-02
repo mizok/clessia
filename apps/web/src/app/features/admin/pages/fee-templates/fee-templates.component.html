@@ -230,9 +230,10 @@
               [style.view-transition-name]="'billing-period-' + item.id"
             >
               <!-- A6 `.bp__name`：期間名是字，編輯在列尾「⋯」 -->
-              <span class="col-start-1 min-w-0 truncate text-lg font-bold text-zinc-900 wide:col-auto">{{
-                item.name
-              }}</span>
+              <span
+                class="col-start-1 min-w-0 truncate text-lg font-bold text-zinc-900 wide:col-auto"
+                >{{ item.name }}</span
+              >
               <span class="col-start-1 text-md text-zinc-800 tabular-nums wide:col-auto">
                 {{ formatRange(item) }}
                 @if (overlapsOf(item); as overlaps) {
@@ -243,10 +244,9 @@
                   }
                 }
               </span>
-              <span
-                class="col-start-1 text-md text-zinc-700 tabular-nums wide:col-auto"
-                >{{ periodUsageLabel(item.overlappingEnrollmentCount) }}</span
-              >
+              <span class="col-start-1 text-md text-zinc-700 tabular-nums wide:col-auto">{{
+                periodUsageLabel(item.overlappingEnrollmentCount)
+              }}</span>
               <div class="col-start-2 row-start-1 wide:col-auto wide:row-auto">
                 <!-- A6 `.more-btn`：40×40、圓角 md（手機 44，R3） -->
                 <button
@@ -263,5 +263,64 @@
         </div>
       }
     </app-reload-veil>
+
+    <!--
+      用模板建立（#1100 #35③）。使用者 11-02：從系統設定搬來；A6 是一選就建的 select，
+      太危險 → radio 列出模板＋每個的預覽，按「建立這 N 個期間」才送出（R5）
+    -->
+    <fieldset
+      class="m-0 mt-6 flex min-w-0 flex-col gap-2 border-0 p-0"
+      data-testid="period-template"
+    >
+      <legend class="mb-1 p-0 text-lg font-bold text-zinc-900">用模板建立</legend>
+      <p class="m-0 mb-1 text-md text-zinc-600">照下一個學年一次建好一組期間，日期之後可以再改。</p>
+      @for (t of templatePreviews(); track t.value) {
+        <label
+          class="flex cursor-pointer items-start gap-3 rounded-md border border-solid border-zinc-300 bg-white px-4 py-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-default"
+          [attr.data-template]="t.value"
+        >
+          <input
+            type="radio"
+            name="period-template"
+            class="m-0 mt-1 accent-zinc-900"
+            [checked]="periodTemplatePick() === t.value"
+            [disabled]="creatingFromTemplate()"
+            (change)="periodTemplatePick.set(t.value)"
+          />
+          <span class="flex min-w-0 flex-col gap-1">
+            <span class="text-base font-semibold text-zinc-900">{{ t.label }}</span>
+            <ul class="m-0 list-none p-0 text-sm text-zinc-600 tabular-nums">
+              @for (row of t.rows; track row.name) {
+                <li>
+                  {{ row.name }}　{{ formatRange(row) }}
+                  @if (row.exists) {
+                    <span class="text-zinc-500">（已經有了，會略過）</span>
+                  }
+                </li>
+              }
+            </ul>
+          </span>
+        </label>
+      }
+      <div>
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white enabled:hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 wide:min-h-9"
+          data-testid="create-from-template"
+          [disabled]="templateTodoCount() === 0 || creatingFromTemplate()"
+          (click)="createFromTemplate()"
+        >
+          @if (creatingFromTemplate()) {
+            建立中…
+          } @else if (!periodTemplatePick()) {
+            先選一個模板
+          } @else if (templateTodoCount() === 0) {
+            這個模板的期間都已經有了
+          } @else {
+            建立這 {{ templateTodoCount() }} 個期間
+          }
+        </button>
+      </div>
+    </fieldset>
   </section>
 </div>
