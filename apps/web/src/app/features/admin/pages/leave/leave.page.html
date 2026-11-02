@@ -17,18 +17,16 @@
 </app-page-open>
 
 <div class="bg-zinc-100">
-  <div
-    class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16"
-    role="toolbar"
-    aria-label="請假"
-  >
-    <nav class="flex items-center gap-4" aria-label="請假分頁">
+  <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3 wide:min-h-16">
+    <!-- A6 `.tabs`＋`.tlink`：nav 就叫「請假」（外層不另包 toolbar 角色，沒有方向鍵移動）；1.5px 底線、桌機不撐 44 -->
+    <nav class="flex items-center gap-4" aria-label="請假">
       <button
         type="button"
-        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-normal font-medium text-zinc-600 hover:text-zinc-900 wide:min-h-0"
         data-testid="tab-pending"
         [class.border-zinc-900]="tab() === 'pending'"
         [class.font-semibold]="tab() === 'pending'"
+        [class.text-zinc-900]="tab() === 'pending'"
         [class.border-transparent]="tab() !== 'pending'"
         [attr.aria-current]="tab() === 'pending' ? 'page' : null"
         [style.view-transition-name]="tab() === 'pending' ? 'seg-leave-tab' : null"
@@ -36,15 +34,18 @@
       >
         待處理
         @if (pendingCount() !== null) {
-          <span class="text-sm font-normal text-zinc-600 tabular-nums">{{ pendingCount() }}</span>
+          <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{
+            pendingCount()
+          }}</span>
         }
       </button>
       <button
         type="button"
-        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1.5 border-0 border-b-2 border-solid bg-transparent px-0 text-base text-zinc-700 hover:text-zinc-900"
+        class="vt-seg inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-normal font-medium text-zinc-600 hover:text-zinc-900 wide:min-h-0"
         data-testid="tab-all"
         [class.border-zinc-900]="tab() === 'all'"
         [class.font-semibold]="tab() === 'all'"
+        [class.text-zinc-900]="tab() === 'all'"
         [class.border-transparent]="tab() !== 'all'"
         [attr.aria-current]="tab() === 'all' ? 'page' : null"
         [style.view-transition-name]="tab() === 'all' ? 'seg-leave-tab' : null"
@@ -52,23 +53,23 @@
       >
         全部
         @if (allCount() !== null) {
-          <span class="text-sm font-normal text-zinc-600 tabular-nums">{{ allCount() }}</span>
+          <span class="text-sm leading-normal font-normal text-zinc-600 tabular-nums">{{
+            allCount()
+          }}</span>
         }
       </button>
     </nav>
 
     <div class="wide:ml-auto">
-      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+      <!-- A6：桌機工具列「操作紀錄、批次請假、登記請假」；手機底部列「批次請假＋登記請假」兩顆 ——
+           批次請假走 page-actions 的 secondary，手機才會進托盤（#1100 #32；標「新」照稿，產品裡不標） -->
+      <app-page-actions
+        [primary]="primaryAction"
+        [secondary]="batchAction"
+        (primaryClick)="openCreateDialog()"
+        (secondaryClick)="openBatchDialog()"
+      >
         <app-audit-log-button (opened)="openAuditLog()" />
-        <!-- #1100 #32：A6 工具列的「批次請假」（標「新」照稿，產品裡不標） -->
-        <button
-          type="button"
-          class="tbar-control inline-flex cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
-          data-testid="batch-leave"
-          (click)="openBatchDialog()"
-        >
-          批次請假
-        </button>
       </app-page-actions>
     </div>
   </div>
