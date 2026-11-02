@@ -210,7 +210,7 @@
           <div class="col-span-2 row-start-2 min-w-0 wide:col-span-1 wide:row-start-auto">
             <!-- A6 `.ev__cls`：班名自己是連結（整列也進班級；點名字不重複觸發列的導頁） -->
             <a
-              class="text-md font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+              class="inline-flex min-h-11 items-center text-md font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px] wide:inline wide:min-h-0"
               data-testid="class-link"
               [routerLink]="classRoute(row)"
               (click)="$event.stopPropagation()"
