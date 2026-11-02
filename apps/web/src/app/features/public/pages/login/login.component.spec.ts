@@ -2,7 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { AuthService } from '@core/auth.service';
+import { AuthProvidersService } from '@core/auth-providers.service';
 import { AppVersionService } from '@core/app-version.service';
 
 import { LoginComponent } from './login.component';
@@ -14,7 +16,7 @@ function setupWithQueryParams(params: [string, string][]) {
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
-      { provide: AuthService, useValue: { signInWithLine: vi.fn(() => Promise.resolve(null)) } },
+      { provide: AuthService, useValue: { signInWith: vi.fn(() => Promise.resolve(null)) } },
       {
         provide: ActivatedRoute,
         useValue: { snapshot: { queryParamMap: new Map(params) } },
@@ -46,14 +48,14 @@ function setupWithQueryError(errorCode: string) {
 }
 
 interface Harness {
-  signInWithLine: () => Promise<string | null>;
-  submitting: () => boolean;
+  signIn: (provider: 'line' | 'google') => Promise<string | null>;
+  submitting: () => string | null;
   error: () => string | null;
 }
 
 function setup(signInResult: string | null | Error) {
   const auth = {
-    signInWithLine: vi.fn(() =>
+    signInWith: vi.fn(() =>
       signInResult instanceof Error ? Promise.reject(signInResult) : Promise.resolve(signInResult),
     ),
   };
@@ -81,27 +83,27 @@ describe('LoginComponent', () => {
   it('按下按鈕會把使用者交給 LINE', async () => {
     const { auth, c } = setup(null);
 
-    await c.signInWithLine();
+    await c.signIn('line');
 
-    expect(auth.signInWithLine).toHaveBeenCalled();
+    expect(auth.signInWith).toHaveBeenCalledWith('line');
   });
 
   // 導向 LINE 期間畫面要有回應，否則使用者會連按好幾次
   it('進行中會鎖住按鈕', async () => {
     const { c } = setup(null);
-    const pending = c.signInWithLine();
+    const pending = c.signIn('line');
 
-    expect(c.submitting()).toBe(true);
+    expect(c.submitting()).toBe('line');
     await pending;
   });
 
   it('失敗時顯示訊息並解鎖', async () => {
     const { c } = setup('LINE 登入失敗');
 
-    await c.signInWithLine();
+    await c.signIn('line');
 
     expect(c.error()).toBe('LINE 登入失敗');
-    expect(c.submitting()).toBe(false);
+    expect(c.submitting()).toBeNull();
   });
 
   // #1718：失敗的是我們的 API（連線層），不是 LINE；而使用者實際上是重新整理之後就好了
@@ -109,7 +111,7 @@ describe('LoginComponent', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { c } = setup(new TypeError('Failed to fetch'));
 
-    await c.signInWithLine();
+    await c.signIn('line');
 
     expect(c.error()).toBe('連不上伺服器，請重新整理頁面後再試');
     expect(c.error()).not.toContain('LINE');
@@ -124,7 +126,7 @@ describe('LoginComponent', () => {
       new Error('boom at https://api.x/api/auth/sign-in/social?state=abc&token=SECRET more'),
     );
 
-    await c.signInWithLine();
+    await c.signIn('line');
 
     const logged = warn.mock.calls.flat().join(' ');
     expect(logged).not.toContain('SECRET');
@@ -139,11 +141,11 @@ describe('LoginComponent', () => {
       new TypeError('Failed to fetch dynamically imported module: https://x/chunk-A.js'),
     );
 
-    await c.signInWithLine();
+    await c.signIn('line');
 
     expect(TestBed.inject(AppVersionService).isStale()).toBe(true);
     expect(c.error()).toBeNull();
-    expect(c.submitting()).toBe(false);
+    expect(c.submitting()).toBeNull();
     vi.restoreAllMocks();
   });
 
@@ -151,9 +153,9 @@ describe('LoginComponent', () => {
   it('丟例外時也要解鎖，不能卡在登入中', async () => {
     const { c } = setup(new Error('network down'));
 
-    await c.signInWithLine();
+    await c.signIn('line');
 
-    expect(c.submitting()).toBe(false);
+    expect(c.submitting()).toBeNull();
     expect(c.error()).toBeTruthy();
   });
 });
@@ -225,14 +227,14 @@ describe('LoginComponent 底部面板', () => {
   afterEach(() => document.getElementById('login-sheet')?.remove());
 
   async function setupInsideInertMain() {
-    const signInWithLine = vi.fn(() => Promise.resolve(null));
+    const signInWith = vi.fn(() => Promise.resolve(null));
     TestBed.configureTestingModule({
       imports: [LoginComponent],
       providers: [
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { signInWithLine } },
+        { provide: AuthService, useValue: { signInWith } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map() } } },
       ],
     });
@@ -244,7 +246,7 @@ describe('LoginComponent 底部面板', () => {
     const lineBtn = [...sheet.querySelectorAll('button')].find((b) =>
       b.textContent?.includes('使用 LINE 登入'),
     )!;
-    return { fixture, sheet, lineBtn, signInWithLine };
+    return { fixture, sheet, lineBtn, signInWith };
   }
 
   it('面板不在任何 inert 祖先底下', async () => {
@@ -253,12 +255,12 @@ describe('LoginComponent 底部面板', () => {
     expect(sheet.closest('[inert]')).toBeNull();
   });
 
-  it('面板裡的 LINE 鍵走同一個 signInWithLine', async () => {
-    const { lineBtn, signInWithLine } = await setupInsideInertMain();
+  it('面板裡的 LINE 鍵走同一個 signIn', async () => {
+    const { lineBtn, signInWith } = await setupInsideInertMain();
 
     lineBtn.click();
 
-    expect(signInWithLine).toHaveBeenCalledOnce();
+    expect(signInWith).toHaveBeenCalledExactlyOnceWith('line');
   });
 
   // #2031（使用者 10-23，a6-adoption-rules R5）：手機登入是置中彈窗，不是 A6 的底部面板
@@ -299,10 +301,10 @@ describe('LoginComponent × iOS 主畫面 App', () => {
     delete (navigator as unknown as Record<string, unknown>)['standalone'];
   });
 
-  async function pressWith(standalone: boolean) {
+  async function pressWith(standalone: boolean, provider: 'line' | 'google' = 'line') {
     if (standalone)
       Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
-    const signInWithLine = vi.fn(async () => null);
+    const signInWith = vi.fn(async () => null);
     const signInWithLineInline = vi.fn(async () => null);
     TestBed.configureTestingModule({
       imports: [LoginComponent],
@@ -310,28 +312,35 @@ describe('LoginComponent × iOS 主畫面 App', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { signInWithLine, signInWithLineInline } },
+        { provide: AuthService, useValue: { signInWith, signInWithLineInline } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map() } } },
       ],
     });
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
-    await (
-      fixture.componentInstance as unknown as { signInWithLine: () => Promise<void> }
-    ).signInWithLine();
+    await (fixture.componentInstance as unknown as { signIn: (p: string) => Promise<void> }).signIn(
+      provider,
+    );
     fixture.detectChanges();
-    return { el: fixture.nativeElement as HTMLElement, signInWithLine, signInWithLineInline };
+    return { el: fixture.nativeElement as HTMLElement, signInWith, signInWithLineInline };
   }
 
   it('iOS 主畫面 App：LINE 鍵走 signInWithLineInline（留在 App 裡）', async () => {
-    const { signInWithLine, signInWithLineInline } = await pressWith(true);
+    const { signInWith, signInWithLineInline } = await pressWith(true);
     expect(signInWithLineInline).toHaveBeenCalledTimes(1);
-    expect(signInWithLine).not.toHaveBeenCalled();
+    expect(signInWith).not.toHaveBeenCalled();
   });
 
-  it('其他平台（含 Android 的 PWA）：照舊 signInWithLine', async () => {
-    const { signInWithLine, signInWithLineInline } = await pressWith(false);
-    expect(signInWithLine).toHaveBeenCalledTimes(1);
+  it('其他平台（含 Android 的 PWA）：照舊 signInWith', async () => {
+    const { signInWith, signInWithLineInline } = await pressWith(false);
+    expect(signInWith).toHaveBeenCalledExactlyOnceWith('line');
+    expect(signInWithLineInline).not.toHaveBeenCalled();
+  });
+
+  // #1842：Google 不會被 iOS 交給別的 App，一般流程就是同一個視窗；disable_auto_login 是 LINE 的參數
+  it('iOS 主畫面 App 的 Google：走一般 signInWith，不走 LINE 的 inline', async () => {
+    const { signInWith, signInWithLineInline } = await pressWith(true, 'google');
+    expect(signInWith).toHaveBeenCalledExactlyOnceWith('google');
     expect(signInWithLineInline).not.toHaveBeenCalled();
   });
 
@@ -345,5 +354,90 @@ describe('LoginComponent × iOS 主畫面 App', () => {
     ]) {
       expect(el.querySelector(`[data-testid="${id}"]`), id).toBeNull();
     }
+  });
+});
+
+/** #1842：要畫哪幾顆由 /api/auth-providers 決定；這裡直接給清單 */
+describe('LoginComponent × 登入方式清單', () => {
+  afterEach(() => {
+    document.getElementById('login-sheet')?.remove();
+    vi.unstubAllGlobals();
+  });
+
+  function render(providers: ('line' | 'google')[], query: [string, string][] = []) {
+    const signInWith = vi.fn(async () => null);
+    TestBed.configureTestingModule({
+      imports: [LoginComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: { signInWith } },
+        { provide: AuthProvidersService, useValue: { providers: signal(providers) } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map(query) } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LoginComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const buttons = () =>
+      [...el.querySelectorAll('button')].map((b) => b.textContent?.trim()).filter(Boolean);
+    return { el, buttons, signInWith, text: () => el.textContent ?? '' };
+  }
+
+  it('只有 LINE：只有 LINE 鍵、字樣跟以前一樣', () => {
+    const { buttons, text } = render(['line']);
+    expect(buttons()).toEqual(['使用 LINE 登入']);
+    expect(text()).toContain('用 LINE 登入，不需要記密碼。');
+    expect(text()).toContain('點開後即可綁定 LINE。');
+    expect(text()).not.toContain('Google');
+  });
+
+  it('兩個都有：LINE 在上、Google 在下，字樣不點名漏掉的', async () => {
+    const { buttons, text, el, signInWith } = render(['line', 'google']);
+    expect(buttons()).toEqual(['使用 LINE 登入', '使用 Google 帳戶登入']);
+    expect(text()).toContain('用 LINE 或 Google 登入，不需要記密碼。');
+    expect(text()).toContain('點開後即可綁定 LINE 或 Google。');
+
+    [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Google'))!.click();
+    expect(signInWith).toHaveBeenCalledWith('google');
+  });
+
+  it('手機彈窗裡也是兩顆', () => {
+    render(['line', 'google']);
+    const sheet = document.getElementById('login-sheet')!;
+    const labels = [...sheet.querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(labels).toContain('使用 Google 帳戶登入');
+    expect(labels).toContain('使用 LINE 登入');
+  });
+
+  it('清單是空的：沒有登入鍵，說清楚找誰', () => {
+    const { buttons, text } = render([]);
+    expect(buttons().filter((b) => b?.includes('登入') && b !== '登入')).toEqual([]);
+    expect(text()).toContain('這個部署還沒有設定登入方式，請聯絡系統管理員。');
+  });
+
+  // Google 一律擋 LINE 內建瀏覽器（403 disallowed_useragent）—— 使用者 11-02：不畫按鈕，改一行提示
+  it('LINE 內建瀏覽器：Google 是一行提示、不是按鈕；LINE 鍵照常', () => {
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      userAgent: 'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile/15E148 Safari Line/14.17.0',
+    });
+    const { buttons, el } = render(['line', 'google']);
+    expect(buttons()).toEqual(['使用 LINE 登入']);
+    expect(el.querySelector('.login__google-in-line')?.textContent).toContain(
+      '要用 Google 登入，請用 Safari 或 Chrome 打開這個網頁。',
+    );
+  });
+
+  it('Google 失敗回來（?provider=google）：訊息寫 Google', () => {
+    const { text } = render(
+      ['line', 'google'],
+      [
+        ['error', 'signup_disabled'],
+        ['provider', 'google'],
+      ],
+    );
+    expect(text()).toContain('這個 Google 帳號還沒有被登記');
   });
 });
