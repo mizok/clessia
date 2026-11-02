@@ -77,6 +77,8 @@ describe('POST /api/meals/batch —— 稽核（#901）', () => {
       set('orgId', ORG);
       set('userId', 'u1');
       set('roles', ['admin']);
+      // 全分校管理員（分校範圍另由 contract/meals-scope.contract.ts 對真的 PostgREST 守，#2138）
+      set('campusScope', null);
       await next();
     });
     app.route('/', mealsRoute as unknown as Hono);
