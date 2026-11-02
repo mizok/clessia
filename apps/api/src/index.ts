@@ -94,6 +94,13 @@ export type Bindings = {
   /** LINE Login channel secret —— 走 wrangler secret put */
   LINE_CLIENT_SECRET: string;
   /**
+   * Google OAuth 用戶端 ID（#1842）—— 非機密，寫進 wrangler.toml 的 `[env.production.vars]`。
+   * **選用**：沒設（或沒設 secret）就不掛 Google，登入頁看不到它（c12，每個部署自己申請）
+   */
+  GOOGLE_CLIENT_ID?: string;
+  /** Google OAuth 用戶端密鑰 —— 走 wrangler secret put；選用，同上 */
+  GOOGLE_CLIENT_SECRET?: string;
+  /**
    * 公開頁（報名、試聽、課程目錄）屬於哪個 org 的 slug（#1125）。c12 下一部署一客戶；
    * **沒設＝公開端點一律 404 `PUBLIC_DISABLED`**（見 `lib/public-org.ts`）。
    */
