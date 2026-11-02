@@ -154,6 +154,7 @@
               @for (parent of chapter.rows; track parent.id) {
                 <!-- A6 `.prow`：列本身就是三欄 grid（名字｜孩子｜⋯） -->
                 <li
+                  [attr.data-parent]="parent.id"
                   class="vt-row grid min-h-[46px] grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 border-b border-zinc-200 py-3 last:border-b-0 wide:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] wide:items-center wide:gap-x-6 wide:gap-y-2"
                   [style.view-transition-name]="'parent-' + parent.id"
                 >
@@ -165,10 +166,28 @@
                       [attr.aria-label]="parent.name + ' 的詳情'"
                       (click)="openDetailDialog(parent)"
                     >
+                      <!-- A6 `.prow--quiet`（parents.html:32-35、167-169）：停用／封存的名字變淡，名字旁加狀態小標 -->
+                      @let quiet = parent.status !== 'active';
                       <span
-                        class="flex items-center gap-2 text-lg leading-normal font-semibold text-zinc-900 underline-offset-4 group-hover/name:underline"
-                        >{{ parent.name }}</span
-                      >
+                        data-part="name"
+                        class="flex items-center gap-2 text-lg leading-normal underline-offset-4 group-hover/name:underline"
+                        [class]="
+                          quiet ? 'font-medium text-zinc-600' : 'font-semibold text-zinc-900'
+                        "
+                        >{{ parent.name }}
+                        @if (quiet) {
+                          <span
+                            data-part="status-flag"
+                            class="shrink-0 rounded-full px-1.5 text-xs leading-[18px] font-semibold whitespace-nowrap text-zinc-700"
+                            [class]="
+                              parent.status === 'archived'
+                                ? 'shadow-[inset_0_0_0_1px_var(--zinc-300)]'
+                                : 'bg-zinc-100'
+                            "
+                            >{{ parent.status === 'archived' ? '已封存' : '停用' }}</span
+                          >
+                        }
+                      </span>
                       <span class="flex min-w-0 items-center gap-2">
                         @if (identOf(parent); as ident) {
                           <span class="truncate text-sm leading-normal text-zinc-600">{{
