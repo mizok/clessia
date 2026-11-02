@@ -11,12 +11,9 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { TextareaModule } from 'primeng/textarea';
-import { DatePickerModule } from 'primeng/datepicker';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
@@ -52,8 +49,10 @@ interface FormData {
   examType: AcademyExamType;
   subjectId: string | null;
   campusId: string | null;
-  examDate: Date | null;
-  totalScore: number;
+  /** 原生 `type=date` 的值：`yyyy-MM-dd`，沒填是空字串 */
+  examDate: string;
+  /** 文字框只收數字（smallint）；清空是 null */
+  totalScore: number | null;
   passScore: number | null;
   scopeNote: string;
   classIds: string[];
@@ -65,12 +64,9 @@ interface FormData {
   imports: [
     DialogTitleDirective,
     FormsModule,
-    InputTextModule,
-    InputNumberModule,
     SelectModule,
     MultiSelectModule,
     TextareaModule,
-    DatePickerModule,
   ],
   templateUrl: './academy-exam-form-dialog.component.html',
 })
@@ -120,7 +116,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
     examType: 'quiz',
     subjectId: null,
     campusId: null,
-    examDate: null,
+    examDate: '',
     totalScore: 100,
     passScore: null,
     scopeNote: '',
@@ -154,6 +150,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
       f.name.trim().length > 0 &&
       !!f.subjectId &&
       !!f.examDate &&
+      f.totalScore !== null &&
       f.totalScore > 0 &&
       (f.passScore === null || (f.passScore >= 0 && f.passScore <= f.totalScore)) &&
       f.classIds.length > 0
@@ -183,8 +180,8 @@ export class AcademyExamFormDialogComponent implements OnInit {
       f.classIds.length === 0 && '關聯班級',
     ].filter(Boolean);
     if (missing.length) return `還沒填：${missing.join('、')}`;
-    if (!(f.totalScore > 0)) return '滿分要大於 0';
-    if (f.passScore !== null && (f.passScore < 0 || f.passScore > f.totalScore)) {
+    if (f.totalScore === null || !(f.totalScore > 0)) return '滿分要大於 0';
+    if (f.passScore !== null && f.passScore > f.totalScore) {
       return '及格線要在 0 到滿分之間';
     }
     return null;
@@ -217,7 +214,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
               examType: d.examType,
               subjectId: d.subjectId,
               campusId: d.campusId,
-              examDate: d.examDate ? new Date(d.examDate) : null,
+              examDate: d.examDate?.slice(0, 10) ?? '',
               totalScore: d.totalScore,
               passScore: d.passScore,
               scopeNote: d.scopeNote ?? '',
@@ -284,8 +281,9 @@ export class AcademyExamFormDialogComponent implements OnInit {
   protected save(): void {
     if (!this.canSave() || this.saving()) return;
     const f = this.formData();
-    const examDate = this.toIsoDate(f.examDate);
-    if (!examDate) return;
+    const examDate = f.examDate;
+    const totalScore = f.totalScore;
+    if (!examDate || totalScore === null) return;
 
     this.saving.set(true);
 
@@ -295,7 +293,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
       if (!this.lockExamType()) input.examType = f.examType;
       if (!this.lockSubject()) input.subjectId = f.subjectId;
       if (!this.lockExamDate()) input.examDate = examDate;
-      if (!this.lockTotalScore()) input.totalScore = f.totalScore;
+      if (!this.lockTotalScore()) input.totalScore = totalScore;
       if (!this.lockPassScore()) input.passScore = f.passScore;
       if (!this.lockScopeNote()) input.scopeNote = f.scopeNote.trim() || null;
       if (!this.lockClasses()) input.classIds = f.classIds;
@@ -337,7 +335,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
       subjectId: f.subjectId,
       campusId: f.campusId,
       examDate,
-      totalScore: f.totalScore,
+      totalScore,
       passScore: f.passScore,
       scopeNote: f.scopeNote.trim() || null,
       classIds: f.classIds,
@@ -370,11 +368,9 @@ export class AcademyExamFormDialogComponent implements OnInit {
     this.ref.close();
   }
 
-  private toIsoDate(date: Date | null): string | null {
-    if (!date) return null;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+  /** 分數文字框：A6 `money` 欄（`inputmode=numeric`），非數字字元直接拿掉；清空＝null */
+  protected toScore(value: string): number | null {
+    const digits = value.replace(/\D/g, '');
+    return digits ? Number(digits) : null;
   }
 }

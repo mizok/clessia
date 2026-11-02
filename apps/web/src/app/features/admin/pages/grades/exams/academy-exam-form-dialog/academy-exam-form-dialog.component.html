@@ -64,12 +64,12 @@
           id="exam-name"
           #nameInput
           type="text"
-          pInputText
+          autocomplete="off"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
           [ngModel]="formData().name"
           (ngModelChange)="updateField('name', $event)"
-          placeholder="例如：段考模擬"
+          placeholder="例如：第五次小考"
           [disabled]="lockName()"
-          class="w-full"
         />
       </div>
 
@@ -97,16 +97,13 @@
         <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-date"
           >考試日期 <span class="text-error-700" aria-hidden="true">*</span></label
         >
-        <p-datepicker
-          inputId="exam-date"
+        <input
+          id="exam-date"
+          type="date"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
           [ngModel]="formData().examDate"
-          (ngModelChange)="updateField('examDate', $event)"
-          dateFormat="yy-mm-dd"
-          placeholder="選擇日期"
+          (ngModelChange)="updateField('examDate', $event ?? '')"
           [disabled]="lockExamDate()"
-          [appendTo]="'body'"
-          [showIcon]="true"
-          styleClass="w-full"
         />
       </div>
 
@@ -184,30 +181,33 @@
         <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-total"
           >滿分 <span class="text-error-700" aria-hidden="true">*</span></label
         >
-        <p-inputnumber
-          inputId="exam-total"
+        <!-- A6 `money` 欄：文字框＋數字鍵盤；稿的「NT$」前綴是共用欄型帶過來的，分數不加 -->
+        <input
+          id="exam-total"
+          type="text"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="off"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
           [ngModel]="formData().totalScore"
-          (ngModelChange)="updateField('totalScore', $event)"
-          [min]="1"
-          [max]="1000"
-          [showButtons]="true"
+          (ngModelChange)="updateField('totalScore', toScore($event))"
           [disabled]="lockTotalScore()"
-          styleClass="w-full"
         />
       </div>
 
       <!-- Pass Score -->
       <div class="min-w-0">
         <label class="mb-1 block text-md font-semibold text-zinc-700" for="exam-pass">及格線</label>
-        <p-inputnumber
-          inputId="exam-pass"
+        <input
+          id="exam-pass"
+          type="text"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="off"
+          class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
           [ngModel]="formData().passScore"
-          (ngModelChange)="updateField('passScore', $event)"
-          [min]="0"
-          [max]="formData().totalScore"
-          [showButtons]="true"
+          (ngModelChange)="updateField('passScore', toScore($event))"
           [disabled]="lockPassScore()"
-          styleClass="w-full"
         />
         <span class="mt-1 block text-xs text-zinc-500">留空＝總分的 60%</span>
       </div>
