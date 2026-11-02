@@ -607,13 +607,17 @@ describe('ClassFormDialogComponent', () => {
     it('自訂時全部取消勾選：下面寫「全部不勾就會改回沿用課程（目前是：國一、國二）」，存檔送 []', () => {
       editing(['J3']);
       const hint = () => el().querySelector('[data-testid="grades-empty-hint"]');
-      expect(hint()).toBeNull();
+      // live region 常駐（先在、後換字），報讀器才會念
+      const region = hint();
+      expect(region?.getAttribute('aria-live')).toBe('polite');
+      expect(region?.textContent?.trim()).toBe('');
       const box = [...el().querySelectorAll('[aria-labelledby="class-grades-label"] input')].find(
         (b) => (b as HTMLInputElement).checked,
       ) as HTMLInputElement;
       box.checked = false;
       box.dispatchEvent(new Event('change'));
       fixture.detectChanges();
+      expect(hint()).toBe(region);
       expect(hint()?.textContent?.trim()).toBe('全部不勾就會改回沿用課程（目前是：國一、國二）');
       (component as any).save();
       expect(sent()).toEqual([]);
