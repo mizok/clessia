@@ -835,13 +835,13 @@ G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保
 
 ### 一、手上的單（2026-11-02 23:50）
 
-**合併鏈在跑（背景一支）**：（11-03 00:10 重排）`mv.sh` 依序合 #2189 → #2191 → #2192 → **`mig.sh` 合 #2184（schema migration，合了就凍結）**。接手先 `ps -A -o pid=,command= | grep -E 'mv\.sh|cimg|steward-merge|mig\.sh'` 看它還在不在、跑到哪。全部都已二讀、釘好 SHA：
+**合併鏈在跑（背景一支）**：（#2189 已合 `e6af7895`；之後重排）等 `e6af7895` 的 verify 綠 → `mv.sh` 依序合 #2191 → #2192 → #2194 → **`mig.sh` 合 #2184（schema migration，合了就凍結）**。接手先 `ps -A -o pid=,command= | grep -E 'mv\.sh|cimg|steward-merge|mig\.sh'` 看它還在不在、跑到哪。全部都已二讀、釘好 SHA：
 
 | PR    | 審過的 SHA（完整）                         | 備註                                                          |
 | ----- | ------------------------------------------ | ------------------------------------------------------------- |
-| #2189 | `74a6336a6ba08ed609d294dfdd0e2e117bf44c51` | 保留類：認證設定（GOOGLE_CLIENT_ID 進 wrangler.toml）         |
 | #2191 | `19bf9c4c8ab3dec124b09e1b1cd9365c3b2fff34` | 拿掉 sync-feature-map（分支保護前置）                         |
 | #2192 | `766e9c5a0b8372a56c267787ce67e4ebb5d66262` | toast live region 常駐                                        |
+| #2194 | `a9aa5a5dfdad6dbee1f8425fe7ca1e1b074575ab` | 學期／繳費週期搬到費用方案頁（API 只改 409 文案）             |
 | #2184 | `2319f361a047f656231be7495619941cc803a11e` | **schema migration，使用者 Approve**；mig.sh 會送連結給計畫席 |
 
 **等別人的**：
