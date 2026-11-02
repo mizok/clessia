@@ -43,7 +43,8 @@ export function periodsFromTemplate(
 ): CreateBillingPeriodInput[] {
   const year = nextAcademicYear(today);
   const roc = year - 1911;
-  const date = (md: string) => (md.startsWith('+') ? `${year + 1}-${md.slice(1)}` : `${year}-${md}`);
+  const date = (md: string) =>
+    md.startsWith('+') ? `${year + 1}-${md.slice(1)}` : `${year}-${md}`;
   return SHAPES[key].map(([name, from, to]) => ({
     name: `${roc} ${name}`,
     startDate: date(from),

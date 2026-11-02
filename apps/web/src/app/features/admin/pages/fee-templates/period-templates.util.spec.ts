@@ -20,7 +20,12 @@ describe('學期模板（#1100 #35③）', () => {
 
   it('學期＋寒暑假：四段首尾相接、不重疊', () => {
     const list = periodsFromTemplate('terms-and-breaks', '2026-10-23');
-    expect(list.map((p) => p.name)).toEqual(['116 上學期', '116 寒假班', '116 下學期', '116 暑期班']);
+    expect(list.map((p) => p.name)).toEqual([
+      '116 上學期',
+      '116 寒假班',
+      '116 下學期',
+      '116 暑期班',
+    ]);
     expect(list[0]).toEqual({ name: '116 上學期', startDate: '2027-09-01', endDate: '2028-01-20' });
     expect(list[3]).toEqual({ name: '116 暑期班', startDate: '2028-07-01', endDate: '2028-08-31' });
     for (let i = 1; i < list.length; i++) {
