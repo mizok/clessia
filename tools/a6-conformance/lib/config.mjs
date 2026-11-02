@@ -2380,6 +2380,14 @@ export const PAGES = {
         reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
         source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
       })),
+      // 篩選浮層：PrimeNG Popover 的根固定宣告 role=dialog，稿是原生 popover
+      {
+        status: '角色',
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]$',
+        reason: 'PrimeNG Popover 固定宣告 role=dialog，跟稿的原生 popover 只差在語意',
+        source: `${rule('R5')}「成績學生頁篩選浮層的根角色」2026-11-02`,
+      },
       // 篩選浮層的六個下拉是 app-select-field（稿 .dd 是 label 裡的按鈕；app 是欄位外框＋combobox＋箭頭鈕）
       ...[
         { status: '缺', a6: '(^|>)landmark:popover\\[\\]>row>control:button>text:span$' },
