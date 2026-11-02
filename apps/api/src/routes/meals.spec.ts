@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import mealsRoute from './meals';
+import mealsRoute, { studentsOnLeave } from './meals';
 
 /**
  * **#901：餐費批次登錄零稽核。** `meals.ts` 全檔 `logAudit` 0 次，
@@ -139,5 +139,49 @@ describe('POST /api/meals/batch —— 稽核（#901）', () => {
     ]);
 
     expect(auditRowsIn(inserts)).toEqual([]);
+  });
+});
+
+/**
+ * ME1（#1314）：餐費單日名單的「今天有請假」。**按日判斷**（計畫席 11-02）：當天只要有任何一張假蓋到就算，
+ * 半天假、只綁一堂的假都算 —— 同日到班（`today-attendance.ts`），`leaveCoversSession` 拿整天去比。
+ * 這只是提示，勾選不會自動改（A6「請假只提示行政別訂，不自動改」）。
+ */
+describe('studentsOnLeave（ME1）', () => {
+  const DAY = '2026-09-01';
+  const leave = (studentId: string, over: Record<string, unknown> = {}) => ({
+    student_id: studentId,
+    start_date: DAY,
+    end_date: DAY,
+    start_time: null,
+    end_time: null,
+    leave_request_sessions: [],
+    ...over,
+  });
+
+  it('整天、半天、跨日涵蓋當天、綁定當天某一堂的都算', () => {
+    const rows = [
+      leave('whole'),
+      leave('half', { start_time: '14:00', end_time: '15:00' }),
+      leave('span', { start_date: '2026-08-30', end_date: '2026-09-03' }),
+      leave('bound', {
+        start_date: '2026-08-30',
+        end_date: '2026-09-03',
+        leave_request_sessions: [{ session_id: 's1', sessions: { session_date: DAY } }],
+      }),
+    ];
+    expect([...studentsOnLeave(rows, DAY)].sort()).toEqual(['bound', 'half', 'span', 'whole']);
+  });
+
+  it('只綁別天的堂、或日期不含當天的不算', () => {
+    const rows = [
+      leave('other-bound', {
+        start_date: '2026-08-30',
+        end_date: '2026-09-03',
+        leave_request_sessions: [{ session_id: 's2', sessions: { session_date: '2026-09-02' } }],
+      }),
+      leave('yesterday', { start_date: '2026-08-31', end_date: '2026-08-31' }),
+    ];
+    expect(studentsOnLeave(rows, DAY).size).toBe(0);
   });
 });
