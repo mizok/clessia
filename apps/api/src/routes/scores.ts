@@ -1081,14 +1081,7 @@ app.openapi(studentAggregatesRoute, async (c) => {
   const all = q.scope === 'all';
   if (all) {
     const extra = (
-      [
-        'classId',
-        'courseId',
-        'studentId',
-        'type',
-        'subjectId',
-        'search',
-      ] as const
+      ['classId', 'courseId', 'studentId', 'type', 'subjectId', 'search'] as const
     ).filter((key) => q[key] !== undefined);
     if (extra.length > 0) {
       return c.json(
