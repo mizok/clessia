@@ -31,7 +31,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { PopoverModule, type Popover } from 'primeng/popover';
 import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService } from 'primeng/api';
@@ -151,7 +151,7 @@ const emptyChapter = (): ChapterState => ({
     ButtonModule,
     SelectModule,
     SelectButtonModule,
-    PaginatorModule,
+    PagerComponent,
     PageActionsComponent,
     PageOpenComponent,
     EmptyStateComponent,
@@ -521,18 +521,14 @@ export class PaymentsPage implements OnInit {
   }
 
   /** 逾期章的分頁（章節模式下 `invoices()` 就是逾期那張清單） */
-  protected onChapterPage(event: PaginatorState): void {
-    this.pageIndex.set(Math.floor((event.first ?? 0) / PAGE_SIZE) + 1);
+  protected onChapterPage(page: number): void {
+    this.pageIndex.set(page);
     this.load();
   }
 
-  protected onChapterPageOf(key: ChapterKey, event: PaginatorState): void {
-    this.patchChapter(key, { page: Math.floor((event.first ?? 0) / PAGE_SIZE) + 1 });
+  protected onChapterPageOf(key: ChapterKey, page: number): void {
+    this.patchChapter(key, { page });
     this.loadChapter(key);
-  }
-
-  protected chapterFirst(state: ChapterState): number {
-    return (state.page - 1) * PAGE_SIZE;
   }
 
   /**

@@ -251,13 +251,13 @@
               }
             </ul>
             @if (totalRecords() > PAGE_SIZE) {
-              <p-paginator
-                [first]="pagination().first"
-                [rows]="PAGE_SIZE"
-                [totalRecords]="totalRecords()"
-                [showCurrentPageReport]="true"
-                currentPageReportTemplate="第 {currentPage} / {totalPages} 頁，共 {totalRecords} 張"
-                (onPageChange)="onChapterPage($event)"
+              <app-pager
+                class="mt-6"
+                [total]="totalRecords()"
+                [pageSize]="PAGE_SIZE"
+                [page]="pageIndex()"
+                unit="張"
+                (pageChange)="onChapterPage($event)"
               />
             }
           }
@@ -382,11 +382,12 @@
                       }
                     </ul>
                     @if (chapter.state.total > PAGE_SIZE) {
-                      <p-paginator
-                        [first]="chapterFirst(chapter.state)"
-                        [rows]="PAGE_SIZE"
-                        [totalRecords]="chapter.state.total"
-                        (onPageChange)="onChapterPageOf(chapter.key, $event)"
+                      <app-pager
+                        class="mt-6"
+                        [total]="chapter.state.total"
+                        [pageSize]="PAGE_SIZE"
+                        [page]="chapter.state.page"
+                        (pageChange)="onChapterPageOf(chapter.key, $event)"
                       />
                     }
                   }

@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-10-16
+updated: 2026-11-02
 ---
 
 # 部署
@@ -48,6 +48,8 @@ npx wrangler secret put SUPABASE_SECRET_KEY --env production
 npx wrangler secret put BETTER_AUTH_SECRET --env production
 npx wrangler secret put DATABASE_URL --env production
 npx wrangler secret put LINE_CLIENT_SECRET --env production
+# 選用（#1842）：要開 Google 登入才設
+npx wrangler secret put GOOGLE_CLIENT_SECRET --env production
 ```
 
 非機密的部署值用 `--var` 在部署時傳（不寫進 `wrangler.toml`，每個客戶不同）：
@@ -64,6 +66,17 @@ npx wrangler deploy --env production \
 > ⚠️ **忘記帶 `LINE_CLIENT_ID` 就沒有人能登入。** `socialProvidersFromEnv` 少一個變數
 > 就整個不設定 provider，登入頁的 LINE 按鈕會**靜默失效**，而且沒有任何錯誤指向設定缺失。
 > 唯一的退路是 `npm run login-link`。
+
+**Google 登入是選用的**（#1842）：`GOOGLE_CLIENT_ID` 寫進 `[env.production.vars]`（非機密，理由同上），
+`GOOGLE_CLIENT_SECRET` 走 `npx wrangler secret put GOOGLE_CLIENT_SECRET --env production`。
+兩個都沒設就不掛 Google，`GET /api/auth-providers` 不回它，登入頁就不畫 Google 鍵 —— 這是預期行為，不是故障。
+Google Cloud 那一端怎麼申請（重新導向 URI 是 `https://<你的網域>/api/auth/callback/google`、
+只要 `openid`、發布成正式版）見 [[architecture/google-oauth-login]]。
+
+> **本站（demo.clessia.cc）**：`GOOGLE_CLIENT_ID` 2026-11-02 已寫進 `wrangler.toml`（使用者提供）；
+> `GOOGLE_CLIENT_SECRET` 由使用者自己 `wrangler secret put`。**只有 ID、沒有密鑰時不會出 Google 鍵**
+> （`socialProvidersFromEnv` 兩個都要），所以部署後沒看到鍵，先確認密鑰設了沒。
+> 設好之後：登入頁出現 Google 鍵 → 用一次性連結登入、在綁定頁綁 Google → 登出後用 Google 登入一次。
 
 本機開發放 `apps/api/.dev.vars`（已 gitignore）。
 

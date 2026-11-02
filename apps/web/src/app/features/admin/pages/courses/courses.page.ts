@@ -35,7 +35,6 @@ import { PopoverModule } from 'primeng/popover';
 import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import type { Popover } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
-import { PaginatorModule } from 'primeng/paginator';
 
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 
@@ -71,6 +70,7 @@ import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confir
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { CoursesFilterStateService } from './courses-filter-state.service';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import {
   PageActionsComponent,
   type PageAction,
@@ -115,7 +115,7 @@ interface CourseChapter {
     ToggleSwitchModule,
     PopoverModule,
     FitPopoverDirective,
-    PaginatorModule,
+    PagerComponent,
     TooltipModule,
     RouterModule,
     EmptyStateComponent,

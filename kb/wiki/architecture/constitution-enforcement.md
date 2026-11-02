@@ -3,7 +3,7 @@ title: 憲法強制機制索引
 summary: 每條 clause 用什麼機制守、在哪一層擋、目前接上了沒有。改機制不算修法。
 category: architecture
 status: active
-updated: 2026-10-23
+updated: 2026-11-02
 tags: [architecture, constitution-enforcement]
 ---
 
@@ -237,38 +237,37 @@ migration」**，修改一定是相對某個基準的差異。所以 A16 比的�
 拿不到 `origin/main` 時（淺 clone、離線）只警告不紅燈 —— 環境問題不該偽裝成違憲。
 CI 的 `actions/checkout` 已經是 `fetch-depth: 0`。
 
-### 現況表的強制點是那個 job，不是紅燈
+### 現況表過期只警告，由下一張 PR 補
 
 `feature-map.mjs` 的**現況表過期**在任何環境都只是 ⚠️ 警告（exit 0）——
-本機、CI 的 feature branch、**CI 的 main 都一樣**。重生由 `verify.yml` 的
-`sync-feature-map` job 做：main push 且 verify 綠之後跑 `harness:write`，
-有 diff 就補一支 `[skip ci]` 的 bot commit，零 diff 跳過。
+本機、CI 的 feature branch、**CI 的 main 都一樣**。CI 上它另外把警告寫進 job summary，
+看 main 那顆綠燈就知道表過期；**補表的是下一張 PR**：作者順手 `npm run harness:write`。
 
 > **理由**：現況表是從**整個 repo 的磁碟狀態**推導的，所以任何兩支並行分支只要各自新增了
 > 頁面或 route，就會各自重生出不同的表，然後在 main 上撞成衝突 —— 2026-08-29 一天內
 > #66 / #68 / #71 三連撞。撞的不是任何人的實質改動，是一張**可以重新生成**的表。
 
-**曾經有一道「main 上表過期就紅」的雙保險，已經移除 —— 它是個死結。**
+**2026-11-02 之前有自動重生**：`verify.yml` 的 `sync-feature-map` job 在 main 上跑
+`harness:write`，有 diff 就用 `contents: write` 的 GITHUB_TOKEN 直接 push 一支 bot commit
+（歷來 18 支，全部只改 `roadmap.md` 的數字格）。main 要開「只能經 PR 合併」的保護，
+機器人直接 push 會被擋，所以拿掉了；self-test 守住 `verify.yml` 不再出現 `contents: write`。
 
-讓 verify 紅的正是 `sync-feature-map` 要修的那件事，而那個 job 掛著 `needs: verify`：
-**能修表的 job 只在表沒壞時才跑**，main 於是自己好不了。2026-08-30 #82 接上餐費頁之後
-真的卡住，要人工代打 2 行才解堵（`5be7927`）。
+評估過但否決的兩條（labor-20261102-2213 提案，計畫席 11-02 裁 A）：
 
-評估過但否決的兩條備選：
+| 備選                              | 為什麼不行                                                                                                                                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR 必須帶重生好的表（過期改紅燈） | 並行 PR 一直撞同一張表；兩張都把同一格 3→4 時 git 不報衝突，main 照樣錯而且紅，之後每張以 main 為底的 PR 一起紅 —— 下面那個死結換樣子回來。根治要再開「branch 須最新」保護，成本高 |
+| 機器人改開 PR                     | GITHUB_TOKEN 開的 PR 不觸發 workflow，必要的 check 永遠不跑、合不進去；要另管 PAT／GitHub App 憑證                                                                                 |
 
-| 備選                                  | 為什麼不行                                                                                                              |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `if: always()` / 拿掉 `needs: verify` | 會在**真的壞掉**的 main 上疊自動 commit，正是當初加 `needs` 要避免的                                                    |
-| 讓 sync job 排在 verify 之前          | 首次 run 仍然顯示紅，而 bot commit 帶 `[skip ci]` 不觸發重跑 —— main 最後一筆狀態還是紅（`5be7927` 推上去之後就是這樣） |
-
-覆蓋沒有因此變薄：job 重生失敗（push 撞車之類）會讓**自己**紅，一樣看得見。
-少掉的只是那道搶在自動修復前面把它擋掉的紅燈。
+**「main 上表過期就紅」不能加回來 —— 它曾經是個死結。** 當時修表的 job 掛著 `needs: verify`，
+讓 verify 紅的正是它要修的那件事：**能修表的 job 只在表沒壞時才跑**。2026-08-30 #82 接上
+餐費頁之後真的卡住，要人工代打 2 行才解堵（`5be7927`）。現在連自動修都沒有，紅燈只會更難解。
 
 **「有東西沒被功能區認領」維持到處紅**（同一支腳本的另一組檢查）——
-那是藍圖不完整，`sync-feature-map` 修不了，必須有人去改 `AREAS`。
+那是藍圖不完整，重生修不了，必須有人去改 `AREAS`。
 
-self-test 守兩件事：過期在三種環境（分支 / main / 本機）**都不紅**（有人把 main 紅燈加回來
-就是把死結加回來，症狀是 main 卡紅而不是報錯），以及 orphan 檢查仍然無條件 `exit 1`。
+self-test 守四件事：過期在三種環境（分支 / main / 本機）**都不紅**、過期時寫進 job summary、
+orphan 檢查仍然無條件 `exit 1`、`verify.yml` 沒有 `contents: write`。
 
 ## KB 的健康度：不是 gate，是 skill
 
@@ -285,10 +284,9 @@ self-test 守兩件事：過期在三種環境（分支 / main / 本機）**都�
 
 規範本身在 [`kb/schema.md`](../../schema.md)。
 
-> **main 上的 `sync-feature-map` job 刻意不涵蓋 `kb/` 的索引。** 它只重生現況表與 skill 清單
-> —— `kb/wiki/index.md` 與各分類的 `_moc.md` 由 kb-wiki skill 生成，而 skill 住在使用者的
-> 家目錄、不在版控裡（CI 上根本沒有它）。分工是：**生成器在 repo 裡的 → CI 自動跑；
-> 生成器在人的機器上的 → 計畫席在部署窗口手動跑 `/kb-wiki map`。**
+> **CI 不重生 `kb/` 的索引。** `kb/wiki/index.md` 與各分類的 `_moc.md` 由 kb-wiki skill 生成，
+> 而 skill 住在使用者的家目錄、不在版控裡（CI 上根本沒有它）—— 計畫席在部署窗口手動跑
+> `/kb-wiki map`。（現況表與 skill 清單也不由 CI 重生了，見上一節：PR 自己帶。）
 
 > ⚠️ **這意味著 KB 沒有任何機器把關會在 commit 時擋你。** 這是刻意的取捨：KB 的內容
 > 正確性是語意判斷，確定性 gate 假裝做得到只會給人虛假的安全感。代價是**要靠人記得跑**

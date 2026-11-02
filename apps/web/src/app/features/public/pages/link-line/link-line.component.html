@@ -1,35 +1,71 @@
 <div class="m-auto w-full max-w-[480px] py-4">
   <header class="mb-6">
     <p class="mx-0 mb-2 mt-0 text-sm font-semibold tracking-[0.04em] text-zinc-600">最後一步</p>
-    <h1 class="mx-0 mb-2 mt-0 text-2xl font-bold leading-tight text-zinc-900">綁定 LINE</h1>
+    <h1 class="mx-0 mb-2 mt-0 text-2xl font-bold leading-tight text-zinc-900">{{ title() }}</h1>
   </header>
 
   <p class="mt-2 text-sm leading-relaxed text-zinc-500">
-    綁定之後，以後用 LINE 就能直接登入，不必再向補習班索取連結。
+    綁定之後，以後用 {{ providerNames() }} 就能直接登入，不必再向補習班索取連結。
   </p>
 
   @if (error()) {
     <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
   }
 
-  <button
-    type="button"
-    class="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border-0 bg-[#06c755] text-md font-semibold text-white transition-[background] duration-[120ms] ease-[ease] enabled:hover:bg-[#05b34c] disabled:cursor-progress"
-    [disabled]="submitting()"
-    (click)="linkLine()"
-  >
-    @if (submitting()) {
-      <i class="pi pi-spinner pi-spin"></i>
-      前往 LINE...
-    } @else {
-      綁定 LINE 帳號
+  @for (provider of providers(); track provider) {
+    @if (provider === 'line') {
+      <button
+        type="button"
+        class="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border-0 bg-[#06c755] text-md font-semibold text-white transition-[background] duration-[120ms] ease-[ease] enabled:hover:bg-[#05b34c] disabled:cursor-progress"
+        [disabled]="submitting() !== null"
+        (click)="link('line')"
+      >
+        @if (submitting() === 'line') {
+          <i class="pi pi-spinner pi-spin"></i>
+          前往 LINE...
+        } @else {
+          綁定 LINE 帳號
+        }
+      </button>
+    } @else if (provider === 'google') {
+      @if (inLineApp) {
+        <!--
+            一次性連結已經在 LINE 裡兌換掉了，同一條連結拿去 Safari 開不會再登入 ——
+            所以不是「打開這個連結」，是「先綁 LINE，或請補習班重發、改用 Safari／Chrome 開」
+          -->
+        <p class="link-line__google-in-line mt-4 mb-0 text-sm leading-relaxed text-zinc-600">
+          在 LINE 裡沒辦法綁 Google。要用 Google 的話，請向補習班重新索取連結，並用 Safari 或 Chrome
+          打開。
+        </p>
+      } @else {
+        <!-- Google 品牌規範：白底、#747775 灰框、#1f1f1f 字、官方四色 G -->
+        <button
+          type="button"
+          class="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-[#747775] bg-white text-md font-semibold text-[#1f1f1f] transition-[background] duration-[120ms] ease-[ease] enabled:hover:bg-[rgb(31_31_31/4%)] disabled:cursor-progress"
+          [disabled]="submitting() !== null"
+          (click)="link('google')"
+        >
+          @if (submitting() === 'google') {
+            <i class="pi pi-spinner pi-spin"></i>
+            前往 Google...
+          } @else {
+            <img
+              class="block size-[18px] shrink-0"
+              src="assets/brand/google-g.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            綁定 Google 帳號
+          }
+        </button>
+      }
     }
-  </button>
+  }
 
   <button
     type="button"
     class="mt-3 min-h-11 w-full cursor-pointer border-0 bg-transparent p-2 text-sm text-zinc-500 enabled:hover:text-zinc-800"
-    [disabled]="submitting()"
+    [disabled]="submitting() !== null"
     (click)="skip()"
   >
     稍後再說

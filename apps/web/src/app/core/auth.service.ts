@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '@env/environment';
 import { authClient } from './auth-client';
+import { PROVIDER_NAMES, type ProviderId } from './auth-providers.service';
 import { CampusContextService } from './campus-context.service';
 import { PushService } from './push.service';
 
@@ -224,23 +225,25 @@ export class AuthService {
   }
 
   /**
-   * 把使用者交給 LINE。成功的話瀏覽器會被導走，這個 Promise 不會 resolve 到有意義的東西。
+   * 把使用者交給 LINE／Google。成功的話瀏覽器會被導走，這個 Promise 不會 resolve 到有意義的東西。
    *
-   * 回傳非 null 表示**還沒離開這一頁就失敗了** —— 最常見的原因是 API 沒設定
-   * `LINE_CLIENT_ID` / `LINE_CLIENT_SECRET`，那時 provider 根本沒掛上。
+   * 回傳非 null 表示**還沒離開這一頁就失敗了** —— 最常見的原因是 API 沒設定那個 provider 的
+   * client id／secret，那時 provider 根本沒掛上。
+   *
+   * Google 在 iOS 主畫面 App 也走這裡：Google 登入頁不會被 iOS 交給別的 App，一般流程本來就是
+   * 同一個視窗發起與回呼（#1842）。只有 LINE 要 `signInWithLineInline`（#2063）。
    */
-  async signInWithLine(): Promise<string | null> {
-    // iOS 主畫面 App 不走這裡，走 `signInWithLineInline`（#2063）
+  async signInWith(provider: ProviderId): Promise<string | null> {
     const { error } = await authClient.signIn.social({
-      provider: 'line',
+      provider,
       callbackURL: `${window.location.origin}/select-role`,
       // 失敗時導回登入頁並帶 ?error= —— 不設的話會落在 Better Auth 的預設頁面，
-      // 使用者看到一個不屬於這個系統的畫面
-      errorCallbackURL: `${window.location.origin}/login`,
+      // 使用者看到一個不屬於這個系統的畫面。`provider=` 讓登入頁說對是哪一家（#1842）
+      errorCallbackURL: `${window.location.origin}/login?provider=${provider}`,
     });
 
     if (error) {
-      return 'LINE 登入失敗，請稍後再試或聯繫補習班';
+      return `${PROVIDER_NAMES[provider]} 登入失敗，請稍後再試或聯繫補習班`;
     }
 
     return null;
@@ -257,7 +260,7 @@ export class AuthService {
     const { data, error } = await authClient.signIn.social({
       provider: 'line',
       callbackURL: `${window.location.origin}/select-role`,
-      errorCallbackURL: `${window.location.origin}/login`,
+      errorCallbackURL: `${window.location.origin}/login?provider=line`,
       disableRedirect: true,
     });
     const url = (data as { url?: string } | null)?.url;
@@ -276,26 +279,47 @@ export class AuthService {
   }
 
   /**
-   * 把目前登入的帳號跟 LINE 綁在一起。之後這個人就能直接用 LINE 登入。
+   * 把目前登入的帳號跟 LINE／Google 綁在一起。之後這個人就能直接用它登入。
    *
    * 前提是**已經登入** —— 使用者是點一次性連結進來的。
+   * 失敗（例如這個帳號已經綁給別人）導回綁定頁並帶 `?error=&provider=`，綁定頁翻成人話。
    */
-  async linkLine(): Promise<string | null> {
+  async linkProvider(provider: ProviderId): Promise<string | null> {
     const { error } = await authClient.linkSocial({
-      provider: 'line',
+      provider,
       callbackURL: `${window.location.origin}/select-role`,
+      errorCallbackURL: `${window.location.origin}/link-line?provider=${provider}`,
     });
 
     if (error) {
-      return '綁定 LINE 失敗，請稍後再試';
+      return `綁定 ${PROVIDER_NAMES[provider]} 失敗，請稍後再試`;
     }
 
     return null;
   }
 
-  navigateToRoleShell(role: UserRole) {
+  /** 這個人綁了哪些登入方式（better-auth `list-accounts`，回 providerId）；讀不到回 null（#1842 G-3） */
+  async linkedProviders(): Promise<string[] | null> {
+    const { data, error } = await authClient.listAccounts();
+    return error || !data ? null : data.map((a) => a.providerId);
+  }
+
+  /**
+   * 解除綁定（better-auth `unlink-account`）。**最後一個由伺服器擋**（`FAILED_TO_UNLINK_LAST_ACCOUNT`，
+   * 契約 `auth-google.contract.ts` 證明過）；帳號設定只在綁了兩個以上時才給按鈕，這裡是第二道。
+   */
+  async unlinkProvider(provider: ProviderId): Promise<string | null> {
+    const { error } = await authClient.unlinkAccount({ providerId: provider });
+    if (!error) return null;
+    return error.code === 'FAILED_TO_UNLINK_LAST_ACCOUNT'
+      ? '至少要留一個登入方式'
+      : `解除 ${PROVIDER_NAMES[provider]} 綁定失敗，請稍後再試`;
+  }
+
+  /** 回 router 的結果：`true` 才是真的到了那個 shell（被 guard 擋下或導航取消是 `false`） */
+  navigateToRoleShell(role: UserRole): Promise<boolean> {
     this.setActiveRole(role);
-    this.router.navigate([this.shellMap[role]]);
+    return this.router.navigate([this.shellMap[role]]);
   }
 
   async signOut() {

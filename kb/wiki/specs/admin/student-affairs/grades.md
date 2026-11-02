@@ -61,6 +61,12 @@ tags: [specs, admin, student-affairs, grades]
   計分／缺考／補考筆數、最新考試日），依姓名筆畫排序。**必帶 `classId`／`courseId`／`studentId` 其一**
   （否則 400 `SCOPE_REQUIRED`）；符合的成績超過一次撈得完的量（1000）時回 400 `TOO_MANY_ROWS`，
   不回被截斷的數字。
+- **`scope=all`**（#1314 G8）：全部學生、分頁撈齊；只准搭 `campusId`、期間（`dateFrom`／`dateTo`，#2079(c)）與分頁。
+  期間兩條路都套：校內考在查詢裡篩 `academy_exams.exam_date`，段考撈回來後依 `examDate`（沒填考試日退回建立日）篩。
+- **學生視角的期間**（#2079(c)，A6 grades-student）：近 1 個月／近 3 個月（**預設**）／近半年／全部，
+  天數照稿（30／92／183），送 `dateFrom`＝今天（台北）往前 N 天、不送 `dateTo`。列上的最近一次、比上一次、
+  平均、**缺考次數都只算這段期間**（缺考看 `absentCount`，不看固定 30 天的 `recentAbsentCount`）；
+  期間內沒有成績的學生寫「這段期間沒有成績」。開課班的下拉只列所選課程底下的班。
 
 ## 成績總覽的「近一個月」口徑（#2079 (b)，計畫席 2026-11-02 裁定）
 

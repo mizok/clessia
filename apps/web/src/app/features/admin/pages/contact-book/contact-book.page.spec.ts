@@ -34,6 +34,7 @@ const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   studentName: '陳小明',
   entryDate: '2026-08-29',
   content: '今天上課很專心。',
+  teacherEditedAt: null,
   lastEditedByName: '王老師',
   signedBy: null,
   signedByName: null,
@@ -596,6 +597,14 @@ describe('ContactBookPage', () => {
 
       expect(el().querySelector('[data-testid="signed"]')?.textContent).toContain('20:15');
       expect(el().querySelectorAll('[data-testid="unsigned"]').length).toBe(1);
+    });
+
+    it('#2080-3 編輯者欄寫老師最後編輯的台北時間（A6「游佩珊 16:52 編輯」）', async () => {
+      await load([entry({ id: 'a', teacherEditedAt: '2026-08-29T08:52:00Z' })]);
+
+      expect(el().querySelector('[data-testid="entry"]')?.textContent).toContain(
+        '王老師 16:52 編輯',
+      );
     });
 
     it('#1100 #26 簽收後又改過：簽收照留，旁邊標「簽收後有修改」', async () => {

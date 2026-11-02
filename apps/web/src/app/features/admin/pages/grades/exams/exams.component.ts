@@ -24,7 +24,7 @@ import { format, subMonths } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { PaginatorModule } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import { PopoverModule } from 'primeng/popover';
 import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 import type { Popover } from 'primeng/popover';
@@ -182,7 +182,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     ButtonModule,
     InputTextModule,
     SelectModule,
-    PaginatorModule,
+    PagerComponent,
     PopoverModule,
     FitPopoverDirective,
     NgTemplateOutlet,
@@ -752,8 +752,9 @@ export class ExamsComponent implements OnInit {
       });
   }
 
-  protected onPage(event: { page: number }): void {
-    this.currentPage.set(event.page + 1);
+  /** 頁碼從 1 起算（app-pager） */
+  protected onPage(page: number): void {
+    this.currentPage.set(page);
   }
 
   private resolveDateFrom(range: TimeRange): string | undefined {

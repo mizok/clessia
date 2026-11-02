@@ -17,7 +17,7 @@ import { CampusFormDialogComponent } from './campus-form-dialog.component';
 import { ClassroomsDialogComponent } from './classrooms-dialog.component';
 
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 
 // Services
 import {
@@ -60,7 +60,7 @@ const MODE: Record<AttendanceMode, string> = { per_session: '隨堂點名', dail
     ButtonModule,
     EmptyStateComponent,
     PopupMenuComponent,
-    PaginatorModule,
+    PagerComponent,
     LoadFailedComponent,
     ClassroomsDialogComponent,
     CampusFormDialogComponent,
@@ -163,10 +163,6 @@ export class CampusesPage implements OnInit {
     this.actionMenu().toggle(event);
   }
 
-  protected readonly pagination = computed(() => ({
-    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-  }));
-
   /** 機構預設的出勤模式：分校的 `attendanceMode` 是 null 時沿用它 */
   private readonly orgSettings = inject(OrgSettingsService);
 
@@ -267,8 +263,9 @@ export class CampusesPage implements OnInit {
     this.searchInput.next(value);
   }
 
-  protected onPage(event: PaginatorState): void {
-    this.currentPage.set((event.page ?? 0) + 1);
+  /** 頁碼從 1 起算（app-pager） */
+  protected onPage(page: number): void {
+    this.currentPage.set(page);
     this.loadCampuses();
   }
 

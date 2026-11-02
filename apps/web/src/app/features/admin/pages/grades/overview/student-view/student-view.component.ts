@@ -13,17 +13,18 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { CampusContextService } from '@core/campus-context.service';
 import { CoursesService } from '@core/courses.service';
+import { ClassesService } from '@core/classes.service';
 import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 
-import { SelectModule } from 'primeng/select';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { PaginatorModule } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import { Popover, PopoverModule } from 'primeng/popover';
 import { ButtonModule } from 'primeng/button';
 import { ScoresService, type StudentScoreAggregate } from '@core/scores.service';
-import { SystemClockService } from '@core/system-clock.service';
+import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 import { DialogService } from 'primeng/dynamicdialog';
 import { RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
@@ -58,10 +59,11 @@ import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
-const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((grade) => ({
-  label: GRADE_LEVEL_LABELS[grade],
-  value: grade,
-}));
+/** A6 `.ff` 的下拉第一項就是「全部…」（沒有清除鈕），選它＝不篩 */
+const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel | null }> = [
+  { label: '全部年級', value: null },
+  ...GRADE_LEVELS.map((grade) => ({ label: GRADE_LEVEL_LABELS[grade], value: grade })),
+];
 
 type StudentActiveStatusFilter = 'all' | 'active' | 'inactive';
 
@@ -70,11 +72,29 @@ interface FilterOption<TValue> {
   readonly value: TValue;
 }
 
+const withAll = (label: string, options: ReadonlyArray<FilterOption<string>>) => [
+  { label, value: null as string | null },
+  ...options,
+];
+
 const STATUS_OPTIONS: Array<FilterOption<StudentActiveStatusFilter>> = [
   { label: '全部', value: 'all' },
   { label: '啟用', value: 'active' },
   { label: '停用', value: 'inactive' },
 ];
+
+/** 期間（A6 grades-student 的 PERIOD；天數照稿）。預設近 3 個月 */
+type PeriodFilter = 'm1' | 'm3' | 'h' | 'all';
+const PERIODS: Record<PeriodFilter, { label: string; days: number | null }> = {
+  m1: { label: '近 1 個月', days: 30 },
+  m3: { label: '近 3 個月', days: 92 },
+  h: { label: '近半年', days: 183 },
+  all: { label: '全部', days: null },
+};
+const PERIOD_OPTIONS: Array<FilterOption<PeriodFilter>> = (
+  Object.keys(PERIODS) as PeriodFilter[]
+).map((value) => ({ label: PERIODS[value].label, value }));
+const DEFAULT_PERIOD: PeriodFilter = 'm3';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 
@@ -86,11 +106,11 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     FormsModule,
     RouterLink,
     PageOpenComponent,
-    SelectModule,
+    SelectFieldComponent,
     InputTextModule,
     IconFieldModule,
     InputIconModule,
-    PaginatorModule,
+    PagerComponent,
     PopoverModule,
     FitPopoverDirective,
     ButtonModule,
@@ -106,6 +126,7 @@ export class StudentViewComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly schoolsService = inject(SchoolsService);
   private readonly coursesService = inject(CoursesService);
+  private readonly classesService = inject(ClassesService);
   private readonly dialogService = inject(DialogService);
   private readonly messageService = inject(MessageService);
   private readonly scoresService = inject(ScoresService);
@@ -132,6 +153,7 @@ export class StudentViewComponent implements OnInit {
 
   protected readonly gradeOptions = GRADE_OPTIONS;
   protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly periodOptions = PERIOD_OPTIONS;
   protected readonly pageSize = PAGE_SIZE;
 
   /** 分校跟頂欄走（#1138）：頁內與手機篩選的分校下拉拿掉；`''` = 全部分校 */
@@ -144,6 +166,23 @@ export class StudentViewComponent implements OnInit {
   /** 課程（#1314 G9）：只看這門課開課班裡有成績的學生，列上的摘要也只算這門課 */
   protected readonly courseIdFilter = signal<string | null>(null);
   protected readonly courseOptions = signal<Array<FilterOption<string>>>([]);
+  /** 開課班（#2079(c)）：只看這一班裡有成績的學生；選了課程就只列那門課的班 */
+  protected readonly classIdFilter = signal<string | null>(null);
+  private readonly classes = signal<ReadonlyArray<{ id: string; name: string; courseId: string }>>(
+    [],
+  );
+  protected readonly classOptions = computed<Array<FilterOption<string>>>(() => {
+    const courseId = this.courseIdFilter();
+    return this.classes()
+      .filter((c) => !courseId || c.courseId === courseId)
+      .map((c) => ({ label: c.name, value: c.id }));
+  });
+  protected readonly courseSelectOptions = computed(() =>
+    withAll('全部課程', this.courseOptions()),
+  );
+  protected readonly classSelectOptions = computed(() => withAll('全部班級', this.classOptions()));
+  /** 期間（#2079(c)）：列上的最近一次、比上一次、缺考、平均都只算這段期間 */
+  protected readonly periodFilter = signal<PeriodFilter>(DEFAULT_PERIOD);
   /** 篩選浮層開著與否（鈕的 aria-expanded） */
   protected readonly filtersOpen = signal(false);
 
@@ -161,6 +200,9 @@ export class StudentViewComponent implements OnInit {
   protected readonly schoolOptionsState = signal<Array<FilterOption<string>>>([]);
 
   protected readonly schoolOptions = computed(() => this.schoolOptionsState());
+  protected readonly schoolSelectOptions = computed(() =>
+    withAll('全部學校', this.schoolOptions()),
+  );
 
   protected readonly filteredStudents = computed<Student[]>(() => {
     const schoolId = this.schoolIdFilter();
@@ -169,7 +211,7 @@ export class StudentViewComponent implements OnInit {
     if (schoolId) {
       result = result.filter((student) => student.school?.id === schoolId);
     }
-    if (this.courseIdFilter()) {
+    if (this.courseIdFilter() || this.classIdFilter()) {
       const inCourse = this.aggregates();
       result = result.filter((student) => inCourse.has(student.id));
     }
@@ -189,6 +231,7 @@ export class StudentViewComponent implements OnInit {
     const parts = [
       grade && GRADE_LEVEL_LABELS[grade],
       this.courseIdFilter() && label(this.courseOptions(), this.courseIdFilter()),
+      this.classIdFilter() && label(this.classOptions(), this.classIdFilter()),
       this.schoolIdFilter() && label(this.schoolOptions(), this.schoolIdFilter()),
       status !== 'active' && label(STATUS_OPTIONS, status),
     ].filter(Boolean);
@@ -200,7 +243,9 @@ export class StudentViewComponent implements OnInit {
       !!this.searchText() ||
       !!this.gradeFilter() ||
       !!this.courseIdFilter() ||
+      !!this.classIdFilter() ||
       !!this.schoolIdFilter() ||
+      this.periodFilter() !== DEFAULT_PERIOD ||
       this.activeStatusFilter() !== 'active',
   );
 
@@ -228,9 +273,11 @@ export class StudentViewComponent implements OnInit {
     toObservable(this.campusId)
       .pipe(skip(1), takeUntilDestroyed())
       .subscribe(() => {
-        // 課程是分校的：換分校就清掉
+        // 課程與開課班是分校的：換分校就清掉
         this.courseIdFilter.set(null);
+        this.classIdFilter.set(null);
         this.loadCourses();
+        this.loadClasses();
         this.resetAndReload();
       });
     effect(() => {
@@ -259,6 +306,7 @@ export class StudentViewComponent implements OnInit {
 
     this.loadSchools();
     this.loadCourses();
+    this.loadClasses();
     this.loadStudents();
   }
 
@@ -311,6 +359,24 @@ export class StudentViewComponent implements OnInit {
   protected onCourseChange(courseId: string | null): void {
     if (this.courseIdFilter() === courseId) return;
     this.courseIdFilter.set(courseId);
+    // 選的班不屬於新的課程就清掉（班的下拉只列這門課的班）
+    const classId = this.classIdFilter();
+    if (classId && !this.classOptions().some((o) => o.value === classId)) {
+      this.classIdFilter.set(null);
+    }
+    this.resetAndReload();
+  }
+
+  protected onClassChange(classId: string | null): void {
+    if (this.classIdFilter() === classId) return;
+    this.classIdFilter.set(classId);
+    this.resetAndReload();
+  }
+
+  protected onPeriodChange(period: PeriodFilter | null): void {
+    const next = period ?? DEFAULT_PERIOD;
+    if (this.periodFilter() === next) return;
+    this.periodFilter.set(next);
     this.resetAndReload();
   }
 
@@ -319,11 +385,15 @@ export class StudentViewComponent implements OnInit {
       !!this.searchText() ||
       !!this.gradeFilter() ||
       !!this.courseIdFilter() ||
+      !!this.classIdFilter() ||
+      this.periodFilter() !== DEFAULT_PERIOD ||
       this.activeStatusFilter() !== 'active';
 
     this.searchText.set('');
     this.gradeFilter.set('');
     this.courseIdFilter.set(null);
+    this.classIdFilter.set(null);
+    this.periodFilter.set(DEFAULT_PERIOD);
     this.schoolIdFilter.set(null);
     this.activeStatusFilter.set('active');
     this.currentPage.set(1);
@@ -366,6 +436,17 @@ export class StudentViewComponent implements OnInit {
             res.data.map((course) => ({ label: course.name, value: course.id })),
           ),
         error: () => this.courseOptions.set([]),
+      });
+  }
+
+  private loadClasses(): void {
+    this.classesService
+      .list({ campusId: this.campusId() || undefined, isActive: true, pageSize: 0 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) =>
+          this.classes.set(res.data.map((c) => ({ id: c.id, name: c.name, courseId: c.courseId }))),
+        error: () => this.classes.set([]),
       });
   }
 
@@ -432,14 +513,25 @@ export class StudentViewComponent implements OnInit {
       });
   }
 
-  /** 每生摘要撈齊（每頁上限 200）；選了課程就只撈這門課的 */
+  /** 每生摘要撈齊（每頁上限 200）；選了課程／開課班就只撈那裡面的；都只算這段期間 */
   private loadAggregates(): Observable<StudentScoreAggregate[]> {
-    const courseId = this.courseIdFilter();
+    const courseId = this.courseIdFilter() ?? undefined;
+    const classId = this.classIdFilter() ?? undefined;
+    const days = PERIODS[this.periodFilter()].days;
+    const dateFrom =
+      days === null ? undefined : addDaysToDateString(this.systemClock.todayTaipei(), -days);
     const fetch = (page: number) =>
-      courseId
-        ? this.scoresService.studentAggregatesByCourse({ courseId, page, pageSize: 200 })
+      courseId || classId
+        ? this.scoresService.studentAggregatesIn({
+            courseId,
+            classId,
+            dateFrom,
+            page,
+            pageSize: 200,
+          })
         : this.scoresService.studentAggregatesAll({
             campusId: this.campusId() || undefined,
+            dateFrom,
             page,
             pageSize: 200,
           });

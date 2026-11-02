@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MessageService, type ToastMessageOptions } from 'primeng/api';
 
@@ -51,77 +59,87 @@ interface Clock {
  * **不用 `p-toast`**：root component 不加 PrimeNG UI 依賴（見 `app.component.ts`），
  * 而且它的版型、數量上限、暫停都要拆掉重做。這裡只吃 `MessageService` 的兩個 observable。
  *
- * **蓋得過對話框**：外框是 `popover="manual"`，每則新訊息都重新 `showPopover()`，
+ * **蓋得過對話框**：看得見的那層是 `popover="manual"`，每則新訊息都重新 `showPopover()`，
  * 才會排在最後打開的那層之上（A6 同一招）。
+ *
+ * **報讀器念的是另一塊**（#2187）：popover 關著是 `display: none`、不在無障礙樹裡，而且每則訊息
+ * 都先 hide 再 show —— live region 剛冒出來就帶內容，VoiceOver 常當成初始內容不念。所以 live region
+ * 是常駐的 `sr-only` 區塊，不跟 popover 開關，只加減裡面的段落（新的一則＝新的一段，同字也會念）。
  */
 @Component({
   selector: 'app-toast',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: {
-    class:
-      'toasts pointer-events-none fixed z-[25000] m-0 flex w-max max-w-[calc(100%-32px)] -translate-x-1/2 flex-col items-center gap-2 overflow-visible border-0 bg-transparent p-0 [inset:auto_auto_16px_50%]',
-    role: 'status',
-    'aria-live': 'polite',
-    popover: 'manual',
-  },
   template: `
-    @for (t of items(); track t.id) {
-      <div
-        class="toast pointer-events-auto flex min-h-11 items-center gap-2 rounded-lg border border-zinc-300 bg-zinc-200 pl-4 text-base font-medium text-zinc-900 shadow-[0_14px_32px_-12px_rgb(26_22_20/38%),0_2px_6px_-2px_rgb(26_22_20/12%)] transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-3 starting:opacity-0 data-leaving:translate-y-1.5 data-leaving:opacity-0 data-leaving:duration-[140ms] data-leaving:ease-[cubic-bezier(0.4,0,1,1)] motion-reduce:transition-none"
-        [class.pr-4]="!hasAction(t)"
-        [class.pr-2]="hasAction(t)"
-        [class.py-2]="!!t.detail"
-        [class.toast--leaving]="t.leaving"
-        [attr.data-leaving]="t.leaving ? '' : null"
-        (pointerenter)="hold(t.id)"
-        (pointerleave)="run(t.id)"
-        (focusin)="hold(t.id)"
-        (focusout)="run(t.id)"
-      >
-        <svg
-          class="shrink-0"
-          [class]="'toast__icon toast__icon--' + t.kind + ' ' + iconColor[t.kind]"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+    <div class="toasts__live sr-only" role="status" aria-live="polite" data-testid="toast-live">
+      @for (t of announced(); track t.id) {
+        <p>{{ t.title }}{{ t.detail ? '，' + t.detail : '' }}</p>
+      }
+    </div>
+    <div
+      #pop
+      class="toasts pointer-events-none fixed z-[25000] m-0 flex w-max max-w-[calc(100%-32px)] -translate-x-1/2 flex-col items-center gap-2 overflow-visible border-0 bg-transparent p-0 [inset:auto_auto_16px_50%]"
+      popover="manual"
+    >
+      @for (t of items(); track t.id) {
+        <div
+          class="toast pointer-events-auto flex min-h-11 items-center gap-2 rounded-lg border border-zinc-300 bg-zinc-200 pl-4 text-base font-medium text-zinc-900 shadow-[0_14px_32px_-12px_rgb(26_22_20/38%),0_2px_6px_-2px_rgb(26_22_20/12%)] transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-3 starting:opacity-0 data-leaving:translate-y-1.5 data-leaving:opacity-0 data-leaving:duration-[140ms] data-leaving:ease-[cubic-bezier(0.4,0,1,1)] motion-reduce:transition-none"
+          [class.pr-4]="!hasAction(t)"
+          [class.pr-2]="hasAction(t)"
+          [class.py-2]="!!t.detail"
+          [class.toast--leaving]="t.leaving"
+          [attr.data-leaving]="t.leaving ? '' : null"
+          (pointerenter)="hold(t.id)"
+          (pointerleave)="run(t.id)"
+          (focusin)="hold(t.id)"
+          (focusout)="run(t.id)"
         >
-          @if (t.kind === 'warn' || t.kind === 'info') {
-            <circle cx="8" cy="8" r="6.2" />
-          }
-          <path [attr.d]="iconPath[t.kind]" />
-        </svg>
-        <span class="flex min-w-0 flex-col">
-          <span class="toast__title">{{ t.title }}</span>
-          @if (t.detail) {
-            <span class="toast__detail text-md font-normal text-zinc-600">{{ t.detail }}</span>
-          }
-        </span>
-        @if (hasAction(t)) {
-          <button
-            class="toast__action min-h-11 shrink-0 wide:h-8 wide:min-h-0 cursor-pointer rounded-md border-0 bg-transparent px-3 font-bold text-zinc-900 underline underline-offset-3 hover:bg-zinc-300 focus-visible:bg-zinc-300 focus-visible:outline-none"
-            type="button"
-            (click)="act(t)"
+          <svg
+            class="shrink-0"
+            [class]="'toast__icon toast__icon--' + t.kind + ' ' + iconColor[t.kind]"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
           >
-            {{ t.undo ? '復原' : '關閉' }}
-          </button>
-        }
-      </div>
-    }
+            @if (t.kind === 'warn' || t.kind === 'info') {
+              <circle cx="8" cy="8" r="6.2" />
+            }
+            <path [attr.d]="iconPath[t.kind]" />
+          </svg>
+          <span class="flex min-w-0 flex-col">
+            <span class="toast__title">{{ t.title }}</span>
+            @if (t.detail) {
+              <span class="toast__detail text-md font-normal text-zinc-600">{{ t.detail }}</span>
+            }
+          </span>
+          @if (hasAction(t)) {
+            <button
+              class="toast__action min-h-11 shrink-0 wide:h-8 wide:min-h-0 cursor-pointer rounded-md border-0 bg-transparent px-3 font-bold text-zinc-900 underline underline-offset-3 hover:bg-zinc-300 focus-visible:bg-zinc-300 focus-visible:outline-none"
+              type="button"
+              (click)="act(t)"
+            >
+              {{ t.undo ? '復原' : '關閉' }}
+            </button>
+          }
+        </div>
+      }
+    </div>
   `,
 })
 export class ToastComponent {
   private readonly messages = inject(MessageService);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private readonly pop = viewChild.required<ElementRef<HTMLElement>>('pop');
   private readonly clocks = new Map<number, Clock>();
   private nextId = 0;
 
   protected readonly items = signal<Item[]>([]);
+  /** live region 的內容：還沒走的那幾則（離場中的不算，免得念完又像是新的） */
+  protected readonly announced = computed(() => this.items().filter((t) => !t.leaving));
   protected readonly iconPath = ICON_PATH;
   protected readonly iconColor: Record<Kind, string> = {
     success: 'text-success-600',
@@ -171,13 +189,14 @@ export class ToastComponent {
 
   /** 重新放進頂層（蓋過最後打開的對話框）；底部有動作列時浮在它上面 12px（A6 a6.js:296-300） */
   private place(): void {
-    if (this.host.matches?.(':popover-open')) this.host.hidePopover?.();
-    this.host.showPopover?.();
+    const host = this.pop().nativeElement;
+    if (host.matches?.(':popover-open')) host.hidePopover?.();
+    host.showPopover?.();
     const docks = [...document.querySelectorAll<HTMLElement>('[data-toast-dock]')].filter(
       (d) => d.getClientRects().length > 0,
     );
     const top = Math.min(window.innerHeight, ...docks.map((d) => d.getBoundingClientRect().top));
-    this.host.style.bottom = `${Math.max(16, window.innerHeight - top + 12)}px`;
+    host.style.bottom = `${Math.max(16, window.innerHeight - top + 12)}px`;
   }
 
   protected run(id: number): void {

@@ -15,6 +15,8 @@ export type AuthBindings = Pick<
   | 'ALLOWED_ORIGINS'
   | 'LINE_CLIENT_ID'
   | 'LINE_CLIENT_SECRET'
+  | 'GOOGLE_CLIENT_ID'
+  | 'GOOGLE_CLIENT_SECRET'
 >;
 
 /**
@@ -71,9 +73,32 @@ export function lineProfileToUser(profile: { sub?: string; userId?: string; emai
   return { email: `${lineUserId}@line.internal`, emailVerified: true };
 }
 
+/**
+ * Google 的 profile（解開的 id_token）→ Better Auth 的 user 欄位（#1842，使用者 10-22 裁 A）。
+ *
+ * **一律合成 `<sub>@google.internal`，Google 給的 email 不管有沒有驗證都不用。**
+ * Google 的 `email_verified` 幾乎都是 true；用真 email 的話，`ba_user.email` 剛好是他 Gmail 的員工
+ * 第一次按「用 Google 登入」就會被 better-auth 的隱式綁定直接登入（`oauth2/link-account.mjs`），
+ * 完全跳過校方背書的綁定連結。合成的命名空間也讓 `allowDifferentEmails` 的安全前提照樣成立。
+ * 標成已驗證的理由同 `lineProfileToUser`：不標的話 link-social 會被擋。
+ */
+export function googleProfileToUser(profile: {
+  sub?: string;
+  email?: string;
+  email_verified?: boolean;
+}): { email: string; emailVerified: boolean } {
+  if (!profile.sub) {
+    // 同 LINE：合成出 `undefined@google.internal` 會讓兩個人撞成同一個帳號
+    throw new Error('Google profile 沒有 sub，無法合成識別用的 email');
+  }
+  return { email: `${profile.sub}@google.internal`, emailVerified: true };
+}
+
 export function socialProvidersFromEnv(env: {
   LINE_CLIENT_ID?: string;
   LINE_CLIENT_SECRET?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
 }): Record<string, Record<string, unknown>> {
   const providers: Record<string, Record<string, unknown>> = {};
 
@@ -89,6 +114,30 @@ export function socialProvidersFromEnv(env: {
       disableSignUp: true,
       // LINE 不給 email，而 better-auth 的 callback 硬性要求它
       mapProfileToUser: lineProfileToUser,
+      // idToken 入口（`POST /sign-in/social` 帶 idToken）不看 disableSignUp —— 理由見下面 Google 那段。
+      // LINE 要 channel secret 才換得到 id_token，難利用；但我們只用 code flow，入口沒有用途（使用者 11-02：關）
+      disableIdTokenSignIn: true,
+    };
+  }
+
+  // c12：憑證由每個部署自己向 Google Cloud 申請；沒設就不掛，登入頁就看不到 Google
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    providers['google'] = {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      disableSignUp: true,
+      mapProfileToUser: googleProfileToUser,
+      // 只拿 sub：email 與姓名本來就不用，少要就不會存進 ba_account.idToken，同意畫面也不必送審
+      disableDefaultScope: true,
+      scope: ['openid'],
+      // 櫃台共用電腦上可能已經登入別人的 Google，讓使用者自己選
+      prompt: 'select_account',
+      // **必要，不是加固。** better-auth 1.5.5 的 idToken 入口（`POST /sign-in/social` 帶 idToken）
+      // 不看 disableSignUp：它讀 `provider.disableSignUp`，但 `create-context.mjs` 只把
+      // `disableImplicitSignUp` 複製到 provider 上 —— 所以那條路會建帳號。Google 發得出
+      // `response_type=id_token`，知道 client id 的人就拿得到 aud 是我們的 id_token。
+      // 我們只用「跳去 Google 再跳回來」的 code flow，用不到它。/link-social 的 idToken 分支同一個函式擋。
+      disableIdTokenSignIn: true,
     };
   }
 
@@ -140,7 +189,9 @@ export function createAuth(
       }),
     // OAuth 在讀到我們的 errorCallbackURL 之前就失敗時（state 對不上等，#2063），Better Auth 預設丟到
     // `{baseURL}/error` —— 那會再轉到網站首頁，使用者不知道發生什麼事。改丟回登入頁，`?error=` 由登入頁翻成人話
-    onAPIError: allowedOrigins(env)[0] ? { errorURL: `${allowedOrigins(env)[0]}/login` } : undefined,
+    onAPIError: allowedOrigins(env)[0]
+      ? { errorURL: `${allowedOrigins(env)[0]}/login` }
+      : undefined,
     // **關掉密碼登入**。scrypt 超過 Workers 的 10ms CPU 上限，登入間歇性 503，
     // 而且任何安全的密碼雜湊都會超過 —— 快到能塞進 10ms 的雜湊等於沒有保護。
     // 見 kb/wiki/architecture/line-oauth-login.md
@@ -182,12 +233,16 @@ export function createAuth(
         // 型別註解警告這可能導致帳號被奪取。**在這個設定下不適用**：
         // - 它只影響**明確綁定**（account.mjs:149 / callback.mjs:107），那條路要求
         //   呼叫者已經登入；真正危險的自動綁定在 link-account.mjs，那裡不看這個選項
-        // - 合成的 email 有 `@line.internal` 命名空間，**不可能撞到真人的 email**
+        // - 合成的 email 有 `@line.internal`／`@google.internal` 命名空間，**不可能撞到真人的 email**
         // - `disableSignUp: true` 讓登入不會建新帳號、也不會自動接上
         //
         // ⚠️ 哪天拿掉 email 的合成（例如 LINE 給了 email 權限、改用真的），
         // 上面第二點就不成立，這個選項要跟著重新評估。
         allowDifferentEmails: true,
+        // 第二道牆（#1842）：「找到同 email、沒綁這個 provider 的人就自動綁上並登入」整條關掉
+        // （`oauth2/link-account.mjs`）。合成 email 已經讓它對不上真人；這行守的是哪天有人拿掉合成。
+        // 明確綁定（link-social 的 callback）不看這個選項，綁定連結照常可用。
+        disableImplicitLinking: true,
       },
     },
     verification: {

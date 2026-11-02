@@ -219,11 +219,12 @@
       </ul>
 
       @if (filteredScores().length > scorePageSize) {
-        <p-paginator
-          [rows]="scorePageSize"
-          [totalRecords]="filteredScores().length"
-          [first]="scorePage() * scorePageSize"
-          (onPageChange)="onScorePageChange($event)"
+        <app-pager
+          class="mt-4"
+          [total]="filteredScores().length"
+          [pageSize]="scorePageSize"
+          [page]="scorePage() + 1"
+          (pageChange)="onScorePageChange($event)"
         />
       }
     }
