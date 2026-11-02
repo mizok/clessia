@@ -230,12 +230,16 @@ export function createAuth(
         // 型別註解警告這可能導致帳號被奪取。**在這個設定下不適用**：
         // - 它只影響**明確綁定**（account.mjs:149 / callback.mjs:107），那條路要求
         //   呼叫者已經登入；真正危險的自動綁定在 link-account.mjs，那裡不看這個選項
-        // - 合成的 email 有 `@line.internal` 命名空間，**不可能撞到真人的 email**
+        // - 合成的 email 有 `@line.internal`／`@google.internal` 命名空間，**不可能撞到真人的 email**
         // - `disableSignUp: true` 讓登入不會建新帳號、也不會自動接上
         //
         // ⚠️ 哪天拿掉 email 的合成（例如 LINE 給了 email 權限、改用真的），
         // 上面第二點就不成立，這個選項要跟著重新評估。
         allowDifferentEmails: true,
+        // 第二道牆（#1842）：「找到同 email、沒綁這個 provider 的人就自動綁上並登入」整條關掉
+        // （`oauth2/link-account.mjs`）。合成 email 已經讓它對不上真人；這行守的是哪天有人拿掉合成。
+        // 明確綁定（link-social 的 callback）不看這個選項，綁定連結照常可用。
+        disableImplicitLinking: true,
       },
     },
     verification: {

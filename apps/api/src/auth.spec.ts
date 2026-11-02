@@ -239,10 +239,25 @@ describe('createAuth 允許不同 email 的帳號綁定', () => {
     expect(options.account?.accountLinking?.allowDifferentEmails).toBe(true);
   });
 
+  // 第二道牆（#1842）：合成 email 已經讓隱式綁定對不上任何真人；哪天有人拿掉合成，
+  // 「email 相同就自動綁上並登入」也不會發生。明確綁定（link-social）不看這個選項。
+  it('關掉隱式綁定、不信任任何 provider 給的 email', () => {
+    const auth = createAuth({ ...env, GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gs' });
+    const options = auth.options as unknown as {
+      account?: {
+        accountLinking?: { disableImplicitLinking?: boolean; trustedProviders?: string[] };
+      };
+    };
+
+    expect(options.account?.accountLinking?.disableImplicitLinking).toBe(true);
+    expect(options.account?.accountLinking?.trustedProviders ?? []).toEqual([]);
+  });
+
   // 這個選項的安全性**建立在合成的 email 有命名空間之上**。
   // 哪天有人把 @line.internal 拿掉、改用真的 email，帳號被奪取的風險就成真了。
   it('合成的 email 有專屬命名空間 —— 這是上面那個選項安全的前提', () => {
     expect(lineProfileToUser({ sub: 'U123' }).email).toMatch(/@line\.internal$/);
+    expect(googleProfileToUser({ sub: '42' }).email).toMatch(/@google\.internal$/);
   });
 });
 
