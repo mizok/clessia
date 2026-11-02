@@ -962,7 +962,55 @@ export const PAGES = {
     ],
   },
   enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
-  leave: { a6: 'leave.html', app: '/admin/leave' },
+  leave: {
+    a6: 'leave.html',
+    app: '/admin/leave',
+    deviations: [
+      {
+        // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
+        // 本機 seed 的請假是 reset 當天起算，「待處理」分頁今天以後沒有，app 顯示空狀態
+        status: '缺',
+        a6: '>landmark:main\\[\\]>landmark:region\\[(今天|明天|#)\\](~\\d+)?(>|$)',
+        reason: '資料：seed 今天以後沒有請假，沒有日期章',
+        source: 'leave.html D(n) 相對日期；supabase/seed-demo.sql 請假是 reset 日起算',
+      },
+      {
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[今天和之後都沒有請假。\\]$',
+        reason: '資料：seed 今天以後沒有請假，顯示空狀態',
+        source: 'leave.html D(n) 相對日期；supabase/seed-demo.sql 請假是 reset 日起算',
+      },
+      {
+        // 空狀態下說明「目前只看哪個分校」（#1138）；稿有資料、沒畫空狀態
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[目前只看\\{分校\\}，換分校在頂欄。\\]$',
+        reason: '現況有、稿沒畫：空狀態的分校範圍提示',
+        source: `${rule('R2')}；#1138`,
+      },
+      // 稿的「新」小標（設計說明）在鈕裡；app 的鈕只有 label span，工具把它配到「新」上
+      ...['文案', '位置', '樣式'].map((status) => ({
+        status,
+        a6: 'control:button\\[批次請假新\\]>text:span\\[新\\]$',
+        reason: '工具限制：稿的「新」標記是設計說明，app 鈕的 label span 被配到它身上',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
+      })),
+      // 稿是文字鈕「操作紀錄」；全站統一成工具列的時鐘圖示鈕
+      {
+        status: '樣式',
+        a6: 'control:button\\[操作紀錄\\]$',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕',
+        source: '使用者 10-23 裁定 #2006（#2014）',
+      },
+      {
+        // 稿的操作紀錄只在桌機（only-d）；手機保留同一顆時鐘鈕
+        status: '多',
+        widths: [360],
+        app: '>landmark:main\\[\\]>control:button\\[操作紀錄\\]$',
+        reason: '手機的操作紀錄：稿沒畫，保留',
+        source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
+      },
+    ],
+  },
   // 家長端報名申請（#1727 ③）：家長登入態；預設分頁「新增申請」，申請紀錄是 p-enrollment-records
   'p-enrollment': {
     a6: 'p-enrollment.html',
@@ -1273,7 +1321,10 @@ export const PAGES = {
       // 說明框後半句「今天請假的 N 位名字下有提示」要名單帶請假旗標（ME1，等 API），沒有就不寫
       ...['缺', '文案'].map((status) => ({
         status,
-        a6: status === '缺' ? '>text:b\\[#位\\]$' : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
+        a6:
+          status === '缺'
+            ? '>text:b\\[#位\\]$'
+            : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
         reason: '說明框的請假人數：餐費名單 API 還沒帶請假旗標（等 API）',
         source: '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標',
       })),
