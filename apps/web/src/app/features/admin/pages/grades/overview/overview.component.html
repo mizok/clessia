@@ -160,11 +160,15 @@
             </h2>
             <span class="text-md text-zinc-600">最近一次考試，班平均最低的三個班</span>
           </div>
-          <!-- ponytail: API 的列沒帶 courseId，連不到班級頁（稿連 class.html）；先連那場考試的成績 -->
+          <!-- 稿連 class.html：連班級頁（#2079 (a)）；舊回應沒有 courseId 時退回那場考試的成績 -->
           @for (c of ov.lowestClasses; track c.classId) {
             <a
               class="group flex min-h-11 items-baseline justify-between gap-3 border-b border-surface-border py-3 text-zinc-900 no-underline"
-              [routerLink]="['/admin/grades/exams', 'academy', c.examId, 'scores']"
+              [routerLink]="
+                c.courseId
+                  ? ['/admin/courses', c.courseId, 'classes', c.classId]
+                  : ['/admin/grades/exams', 'academy', c.examId, 'scores']
+              "
             >
               <span>
                 <span class="font-semibold group-hover:underline group-hover:underline-offset-4">{{

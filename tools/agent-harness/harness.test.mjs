@@ -53,6 +53,7 @@ import {
   sendsParam,
   servicePrefixes,
   staleExemptions,
+  staleBlindSpots,
   stripComments,
 } from './lib/api-param-coverage.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
@@ -1836,6 +1837,30 @@ test('註解裡提到參數名不算前端有送 —— 否則豁免會被誤判
   );
 });
 
+test('已知盲點：同檔別的方法送了同名參數時 gate 看不到，帳上這筆要安靜（#2079 d）', () => {
+  // `/api/x` 的 list 沒送 courseId，但同檔另一個方法（`/api/x/students`）送了 —— gate 判成「有送」
+  const services = [
+    {
+      source: `const base = '/api/x';
+      list() { return http.get(base, { params: { page } }); }
+      byCourse() { const query = { courseId }; return http.get(base + '/students', { params: query }); }`,
+    },
+  ];
+  const api = { '/api/x': ['courseId'], '/api/x/students': ['courseId'] };
+  assert.deepEqual(staleBlindSpots(api, services, new Map([['/api/x|courseId', 'why']])), []);
+});
+
+test('已知盲點：gate 自己看得到了、或端點不再收它，就過期', () => {
+  const services = [{ source: `const url = '/api/x'; q = q.set('other', a);` }];
+  const blind = new Map([['/api/x|courseId', 'why']]);
+  // 檔裡沒人送 courseId → gate 自己會報 → 帳上這筆多餘
+  assert.deepEqual(staleBlindSpots({ '/api/x': ['courseId'] }, services, blind), [
+    '/api/x|courseId',
+  ]);
+  // 端點不收 courseId 了
+  assert.deepEqual(staleBlindSpots({ '/api/x': ['other'] }, services, blind), ['/api/x|courseId']);
+});
+
 test('sendsParam 認得四種組 query 的寫法', () => {
   assert.equal(sendsParam(`p = p.set('dateFrom', x);`, 'dateFrom'), true, 'HttpParams .set()');
   assert.equal(sendsParam(`query['status'] = params.status;`, 'status'), true, 'Record 賦值');
@@ -2038,6 +2063,22 @@ test('A27 紅：可點元素沒有基底的 44px 下限（含 @if 裡、只在 l
   );
 });
 
+// Angular 21 的 @switch 是 SwitchBlock.groups[].children（舊版是 cases）。walker 只認 cases 時
+// 全 repo 每個 @switch 裡的元素都沒被檢查（#2035 查到）。@case 與 @default 都要走到
+test('A27 紅：@switch 的 @case／@default 裡也檢查', () => {
+  const v = touchTargetClassViolations(
+    `@switch (k) {
+       @case ('a') { <button class="text-md">a</button> }
+       @case ('b') @case ('c') { <a routerLink="/x" class="h-10">b</a> }
+       @default { <div (click)="f()" class="h-8">c</div> }
+     }`,
+  );
+  assert.deepEqual(
+    v.map((x) => x.tag),
+    ['button', 'a', 'div'],
+  );
+});
+
 test('A27 綠：min-h-11／size-11／h-[44px]；不可點的元素不管', () => {
   const v = touchTargetClassViolations(
     `<button class="min-h-11">a</button><a href="/x" class="size-11">b</a>
@@ -2070,6 +2111,15 @@ test('A28 紅：文字色從祖先繼承、底色從祖先找，條件 class 也
   assert.equal(v.length, 2);
   assert.equal(v[0].fg, 'text-zinc-400');
   assert.equal(v[1].bg, 'bg-[#1a1614]');
+});
+
+test('A28 紅：@switch 裡的文字，底色從 @switch 外的祖先找', () => {
+  const v = contrastClassViolations(
+    `<section class="bg-zinc-100">@switch (k) { @case ('a') { <p class="text-zinc-400">淡字</p> } }</section>`,
+    COLORS,
+  );
+  assert.equal(v.length, 1);
+  assert.equal(v[0].bg, 'bg-zinc-100');
 });
 
 test('A28 綠：對比夠、找不到底色不判、font-size 的 text-* 不是顏色', () => {

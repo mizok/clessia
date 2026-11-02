@@ -761,3 +761,68 @@ for (const ch of out.slice(j, i)) { if (ch === '{') depth++; else if (ch === '}'
 - **#2059**（cards 席，純測試）：修 `notify.contract` 在 main 上的紅燈（比對 SQL 不看時段區間，#2050 起 lib 已看）。**未二讀**，交新席。
 - 沒有任何合併腳本在跑；沒有凍結中的 migration（#2041 已套正式並部署）。
 - 今天合的保留類：#2041（migration）、#2043（PWA 交接碼）、#2050、#2052、#2054、#2055、#2056；一般類若干。存活但不擋、已在 PR 建議補的：#2054 清 event 的「沒有別堂指著」、#2043 標記時的 `user_id is null`（等價）。
+
+## 11-02 交接（labor-reviewer-20261028-1415 → 下一任，Ctx 85% 輪替）
+
+10-29～11-02 二讀＋代合約 90 支（#2069～#2165），含保留類：授權面 #2141／#2145／#2148／#2150／#2166，認證 #2165，以及 CI 急件 #2158。
+
+### 一、手上的單（2026-11-02 21:30 交接時）
+
+**佇列（二讀已過、CI 綠就合，依序，一次一張、每張等 main verify 綠）**——SHA 都是完整 40 碼，從 `gh pr view <N> --json headRefOid` 取：
+
+| PR    | 類別                              | 審過的 SHA                                 | 備註                                                                     |
+| ----- | --------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------ |
+| #2166 | 保留類：授權面（計畫席已讀 diff） | `4fb015c82c2411ba85dc8c6ade4415a320f912f4` | #2079(c)。原審 `6706e52f`，`4fb015c8` 只是 prettier 收行（已讀、已改釘） |
+| #2170 | 工具＋前端                        | `233840dab2a84cd113466133a48c03843b345936` | harness walker 認 `@switch` 的 `groups`                                  |
+| #2171 | 一般                              | `62043991d903b76c1d8db11f20b9bb792a9cf514` | 開站畫面 B                                                               |
+| #2172 | 只動 kb                           | `098033f90a7435926958230bba23629bb9eb5b68` | R5 待裁 5 件                                                             |
+
+**#2165（G-1A，保留類：認證）已合 `9453d176`；交接時 main verify 還在跑，接手先查。** 已通知 2035 開 G-1B。
+
+**疊單（保留類：認證，計畫席已讀 diff，本席內容已二讀）**——順序 **#2165（已合）→ #2169 → G-1B（2035 還沒開）→ #2167 → #2168**。每張都要等作者 **merge main、把 base 改成 main** 後，讀那顆 merge commit（比三點 diff 對原審內容，`diff <(git diff origin/main...$NEW) <(git diff $(git merge-base origin/main $OLD) $OLD)`）再改釘：
+
+| PR    | 內容二讀時的 head                          | base（現在）                   |
+| ----- | ------------------------------------------ | ------------------------------ |
+| #2169 | `f55da343fac756353da7a62bd173b8142d77dd78` | `feat/1842-g1a-google-api`     |
+| #2167 | `33d581cee3cc263db3462cd8d1836d45b429bace` | `feat/1842-g1a-google-api`     |
+| #2168 | `b7b9a5f48ee9e691ef98d29b3db3ba23800cfd6a` | `feat/1842-g2a-providers-link` |
+
+G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保留類，要計畫席讀 diff 的紀錄）。
+
+**沒有任何合併腳本在跑**（交接前已停掉並收乾淨）。
+
+### 二、還沒處理的非阻擋建議（都已留在各 PR 的二讀留言）
+
+- **#2171** 開站畫面：第一次導覽是 `NavigationError`（lazy chunk 失敗）時沒有 `NavigationEnd`，splash（z-index 2147483000）會一直蓋著停在「載入中」。建議 filter 也收 `NavigationError`。
+- **#2172**：R5 新增 5 列沒對齊欄寬，`prettier --check` 不過（另 1 列是 #2161 留下的）。CI 不查，下一個碰這檔的人會順帶重排。
+- **#2165**：全域 `disableImplicitLinking`（第二道牆）沒有自己的測試——拿掉它契約仍 8/8。建議 G-1B 補「真 email＋同 email 的 ba_user → Google 登入被擋」。
+- **#2156**：`courseId` 拿不到時給 `''`，schema 卻是 `DbUuidSchema`（走不到，型別不誠實）。
+- **#2160**：換週沒用 switchMap，舊週回應可能晚到覆蓋（key 帶日期，不會顯示錯的，最多暫時空）。
+- **#2141**：POST /meals/batch 的範圍查詢錯誤回 `400 DB_ERROR`，跟同路由其他錯誤寫法不一。
+- **#2148／#2149**：不受限管理員進餐費、聯絡簿、家長頁時預設只看一間分校（K4 設計，行為變更）。
+- **#2128**：家長頁手機沒有「匯入」入口（照 A6 `only-d`）——**等計畫席／使用者裁**。
+- **#2132**：`subject-manager` 也用在人員表單的科目對話框，PR 本文漏寫。
+- **#2155／#2164**（charter）：#2155 第 6 條把 `git grep` 沒結果歸因錯（真因是 BRE 的 `|`）；#2164 第 5 條「別用 git checkout 還原突變」要補前提（乾淨的暫存 worktree 用 `git checkout` 才最可靠）。
+- **#2079** 已記：`sendsParam` 第 ③ 條把方法參數的型別註記 `params: { courseId: string }` 當成「有送」（見下第四節），歸修法 1。
+- 前任留下、本輪沒動：#2054 清 event 的「沒有別堂指著」、#2043 標記時的 `user_id is null`。
+
+### 三、合併腳本
+
+- **用 repo 的 `tools/reviewer-merge/mv.sh`**（#2116 起：cimg 沒合成就 exit 1；mv／mig 以 `gh pr view --json state` 是 `MERGED` 為準）。本席這輪多數時間用的是自己在 scratchpad 寫的 `mvq.sh`，**它不跟 repo 走，不要沿用**。
+- 插隊／追加：只在「後面那支還在等前一支（還沒開始合）」時 `TaskStop` 重排。**要停一條正在跑的鏈**：先確認沒有 `steward-merge.sh` 子程序，殺 `cimg.sh`（bash 在等子程序時會延後處理 SIGTERM，殺父程序不會立刻停）；`mv.sh` 接著查到 state 不是 MERGED 就自己停。之後再收掉留下的 `$(…)` 孤兒子 shell（ppid=1）。11-02 這樣停時 #2165 已經送出合併、正好合完，#2166 沒被碰到。
+- 抓鏈的 PID 用 `ps -A -o pid=,command= | awk '$2=="/bin/bash" && $3 ~ /mv\.sh$/ && $4=="<第一張>"'`。`grep 'mv.sh$'` 會因為命令列後面還有參數而對不上；`grep 'mv.sh 2116'` 會比對到等待腳本自己的 zsh。
+
+### 四、這輪學到的坑
+
+1. **`cimg.sh` 拒合時 exit 0**（已修 #2116）：自己寫的接力腳本把 exit 0 當成「合了」，去等一個空的 merge SHA。**任何接力都以 PR state 為準。**
+2. **bash `$var` 後面直接接全形字**（`（state=$st）`）會把中文字的位元組吃進變數名 → unbound variable。一律 `${var}`。（10-23 也記過一次，這輪又踩到。）
+3. **`sendsParam` 的型別盲點**：第 ③ 條 `/params:\s*\{([^}]*)\}/` 原本要抓 `http.get(url, { params: { x } })`，但方法簽名 `foo(params: { courseId: string })` 長得一樣。做 api-param 相關的突變時，只改送出那一行**不會紅**，要整檔改名 gate 才看得到。已記 #2079。
+4. **perl 突變的引號**：`perl -0pi -e "s/…/\$1  ['/api/x|role', 'x'],\n/"` 裡的 `role'` 被當成舊式套件分隔符，替換沒套上。**每個突變套完都要 `git diff --quiet -- <檔>` 確認真的改到**，而且確認改進去的是你要的字（不是空字串——`EXEMPT` 沒 export，我從模組取 key 取到 `''`，那輪也作廢）。
+5. **突變之間一律 `git checkout -- <檔>` 還原，不要 cp 備份**（#2141：備份寫到 /tmp、還原讀另一個路徑，cp 失敗被吞，突變疊在一起，第一輪全作廢）。前提是在**乾淨的暫存 worktree** 做。
+6. **暫存 worktree 根目錄和 `apps/api` 都要 `npm ci`**：只裝根目錄時 harness 在 `api-param-probe` 就崩，基準 exit 1 → 所有突變的「紅」都沒意義；`harness.test` 也會多 5 條紅。
+7. **zsh 不分詞**：`C="a.ts b.ts"; vitest run $C` 在 zsh 是一個不存在的路徑 → 輸出空白。**空白不是綠**；多檔的突變腳本寫成 bash 檔再跑。
+8. **本機 supabase CLI 已是 3.0.0**：還沒併到 #2158（`[local_smtp]`）的 worktree 跑 `npx supabase status` 會失敗、拿不到 DB_URL → 契約全 skip／psql 連不上，**看起來像 DB 掛了，其實容器都在**。merge main 就好，不要重啟。
+9. **CI 的 latest 是定時炸彈**：#2156 那時 main 紅在 `supabase start`，原因是 setup-cli `latest` 拒收 `[inbucket]`。#2158 已釘 2.119.0，harness `supabase-cli-pin` 擋。
+10. **例外帳本「只降不升」要在測試裡釘集合**（#2153、#2154）：只有「不觸發就紅」擋不住新增。`KNOWN_BLIND`（#2162）不用釘，因為它從不被拿來略過失敗。
+11. **共用常數一改 `/i`，另一條 gate 也跟著放寬**（#2154 第一版）：用型別名稱 `CampusScope` 就過關。gate 要認**呼叫**、剝註解。
+12. **squash 後 merge main 會把同一段合成兩份**（#2154 的 A7c 續整塊）：讀 merge commit 時 grep 一次關鍵區塊的次數。

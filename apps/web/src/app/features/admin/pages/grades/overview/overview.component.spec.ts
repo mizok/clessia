@@ -101,6 +101,7 @@ describe('OverviewComponent（#991 grades G3）', () => {
             {
               classId: 'c1',
               className: '國二數學 A',
+              courseId: 'k1',
               examId: 'e1',
               examName: '第三次小考',
               examDate: '2026-10-01',
@@ -135,6 +136,10 @@ describe('OverviewComponent（#991 grades G3）', () => {
     expect(text).toContain('看全部 42 位學生的成績');
     expect(text).toContain('第三次小考 · 不及格 5 人 · 缺考 1');
     expect(text).toContain('平均 58 分');
+    // 班級列連班級頁（稿連 class.html，#2079 (a)）
+    expect(host.querySelector('a[href="/admin/courses/k1/classes/c1"]')!.textContent).toContain(
+      '平均 58 分',
+    );
     expect(text).toContain('看全部 9 個班的考試統計');
     expect(text).toContain('1 場 · 近 30 天');
     expect(text).toContain('10/1（四） · 不及格 0 人 · 還差 3 人');
