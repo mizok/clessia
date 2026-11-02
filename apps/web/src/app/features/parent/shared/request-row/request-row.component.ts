@@ -23,35 +23,33 @@ export interface RequestMetaPart {
   readonly strong?: boolean;
 }
 
-/**
- * 宿主就是那顆按鈕（`<button appRequestRow>`）：A6 的列是 `div > button.rq`，
- * 多包一層元素的話列的結構跟稿不同（#1314 conformance 把外層當列、按鈕變成列裡的東西）。
- */
 @Component({
-  selector: 'button[appRequestRow]',
+  selector: 'app-request-row',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: {
-    type: 'button',
-    class:
-      'group grid min-h-16 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 border-0 border-b border-solid border-zinc-200 bg-transparent px-0 py-3 text-left [font:inherit] text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900',
-    '[attr.data-request]': 'id()',
-    '(click)': 'open.emit()',
-  },
+  // 宿主不佔版面：A6 是 `div > button.rq`，按鈕直接當列（#1314）
+  host: { class: 'contents' },
   template: `
-    <span class="text-lg leading-6 font-semibold underline-offset-4 group-hover:underline">{{
-      title()
-    }}</span>
-    <span class="row-span-2 flex items-center gap-2">
-      <span
-        [class]="
-          'inline-flex items-center gap-1 rounded-full py-0.5 text-sm leading-[1.4] whitespace-nowrap ' +
-          toneClass()
-        "
-        >{{ tag() }}</span
-      >
-    </span>
-    <!-- prettier-ignore -->
-    <span class="text-md leading-normal text-zinc-600 tabular-nums">@for (p of pieces(); track $index) {@if (p.strong) {<b>{{ p.text }}</b>} @else {<ng-container>{{ p.text }}</ng-container>}}</span>
+    <button
+      type="button"
+      class="group grid min-h-16 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 border-0 border-b border-solid border-zinc-200 bg-transparent px-0 py-3 text-left [font:inherit] text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
+      [attr.data-request]="id()"
+      (click)="open.emit()"
+    >
+      <span class="text-lg leading-6 font-semibold underline-offset-4 group-hover:underline">{{
+        title()
+      }}</span>
+      <span class="row-span-2 flex items-center gap-2">
+        <span
+          [class]="
+            'inline-flex items-center gap-1 rounded-full py-0.5 text-sm leading-[1.4] whitespace-nowrap ' +
+            toneClass()
+          "
+          >{{ tag() }}</span
+        >
+      </span>
+      <!-- prettier-ignore -->
+      <span class="text-md leading-normal text-zinc-600 tabular-nums">@for (p of pieces(); track $index) {@if (p.strong) {<b>{{ p.text }}</b>} @else {<ng-container>{{ p.text }}</ng-container>}}</span>
+    </button>
   `,
 })
 export class RequestRowComponent {

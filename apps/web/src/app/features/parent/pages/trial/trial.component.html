@@ -241,15 +241,14 @@
     } @else {
       <div class="mt-6">
         @for (r of sorted(); track r.id) {
-          <button
-            appRequestRow
+          <app-request-row
             [id]="r.id"
             [title]="r.courseName ?? '—'"
             [tag]="status[r.status][0]"
             [tone]="status[r.status][1]"
             [meta]="meta(r)"
             (open)="openDetail(r)"
-          ></button>
+          />
         } @empty {
           <p class="m-0 text-md text-zinc-600">還沒有送過試聽申請。</p>
         }
