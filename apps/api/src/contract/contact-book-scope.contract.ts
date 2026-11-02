@@ -162,7 +162,10 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
       ctx.campusScope = null;
     }
   };
-  type List = { data: Array<{ studentId: string; content: string }>; meta: { total: number } };
+  type List = {
+    data: Array<{ studentId: string; content: string; classNames: string[] }>;
+    meta: { total: number };
+  };
   type Missing = { data: Array<{ studentId: string }>; meta: { total: number } };
   type Summary = { data: Array<{ date: string; missingCount: number }> };
 
@@ -178,6 +181,28 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
 
     const none = await get<List>(path, 'none');
     expect(none).toEqual({ data: [], meta: { total: 0 } });
+  });
+
+  // #2080-1：班名的 embed（students → enrollments → classes，不帶 !inner）跟 SCOPE_EMBED 是兩條別名，
+  // 互不干擾：範圍照樣縮學生、班名另外只列範圍內的班
+  it('列表的班名：只列範圍內的班；跨校學生在受限 C1 下只露出 C1 的班名', async () => {
+    const path = `/api/contact-book?from=${WRITTEN}&to=${WRITTEN}`;
+    const names = (list: List) =>
+      Object.fromEntries(list.data.map((r) => [r.studentId, r.classNames]));
+
+    expect(names(await get<List>(path, 'all'))).toEqual({
+      [fx.a]: ['班 c1'],
+      [fx.b]: ['班 c2'],
+      [fx.ab]: ['班 c1', '班 c2'],
+    });
+
+    const c1 = await get<List>(path, 'c1');
+    expect(c1.meta.total).toBe(2);
+    expect(names(c1)).toEqual({ [fx.a]: ['班 c1'], [fx.ab]: ['班 c1'] });
+    expect(JSON.stringify(c1)).not.toContain('班 c2');
+
+    const c2 = await get<List>(`${path}&campusId=${fx.c2}`, 'all');
+    expect(names(c2)).toEqual({ [fx.b]: ['班 c2'], [fx.ab]: ['班 c2'] });
   });
 
   it('缺漏名單：受限 C1 的名單裡沒有只在 C2 的學生', async () => {

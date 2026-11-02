@@ -36,6 +36,7 @@ describe('toContactBookEntryResponse', () => {
       signedAt: null,
       isSigned: false,
       editedAfterSign: false,
+      classNames: [],
     });
   });
 
@@ -66,6 +67,52 @@ describe('toContactBookEntryResponse', () => {
     expect(result.signedBy).toBe('user-parent');
     expect(result.signedByName).toBe('林太太');
     expect(result.signedAt).toBe('2026-08-29T12:00:00Z');
+  });
+
+  /**
+   * #2080-1 列的班名（計畫席 11-02 裁定）：報名中（active／pending_payment）、班級開了聯絡簿、
+   * 在範圍內（分校範圍；老師只看現任的班），依班名排序。一則聯絡簿屬於學生不屬於班（rules §1），
+   * 所以是「這位學生現在在哪些開聯絡簿的班」。
+   */
+  describe('classNames（#2080-1）', () => {
+    const enr = (name: string, over: Record<string, unknown> = {}, cls: Record<string, unknown> = {}) => ({
+      status: 'active',
+      class_id: `class-${name}`,
+      classes: { name, campus_id: 'campus-a', uses_contact_book: true, ...cls },
+      ...over,
+    });
+    const withEnrollments = (enrollments: unknown[]) => ({
+      ...ROW,
+      students: { name: '陳小明', enrollments },
+    });
+
+    it('只算報名中、開了聯絡簿的班；依班名排序、不重複', () => {
+      const row = withEnrollments([
+        enr('三年乙班'),
+        enr('三年甲班', { status: 'pending_payment' }),
+        enr('已退的班', { status: 'withdrawal' }),
+        enr('暫停的班', { status: 'suspended' }),
+        enr('國中數學', {}, { uses_contact_book: false }),
+        enr('三年乙班', { class_id: 'class-dup' }),
+      ]);
+      expect(toContactBookEntryResponse(row).classNames).toEqual(['三年乙班', '三年甲班']);
+    });
+
+    it('分校範圍：範圍外分校的班不列（跨校學生只露出範圍內的班名）', () => {
+      const row = withEnrollments([enr('A 校的班'), enr('B 校的班', {}, { campus_id: 'campus-b' })]);
+      const visible = { campusIds: ['campus-a'], classIds: null };
+      expect(toContactBookEntryResponse(row, visible).classNames).toEqual(['A 校的班']);
+    });
+
+    it('老師：只列自己現任的班', () => {
+      const row = withEnrollments([enr('我的班'), enr('別人的班')]);
+      const visible = { campusIds: null, classIds: ['class-我的班'] };
+      expect(toContactBookEntryResponse(row, visible).classNames).toEqual(['我的班']);
+    });
+
+    it('沒有報名資料（embed 沒帶或缺漏）→ 空陣列', () => {
+      expect(toContactBookEntryResponse({ ...ROW, students: null }).classNames).toEqual([]);
+    });
   });
 
   it('關聯資料缺漏時給 null，不讓回應塌成 undefined', () => {

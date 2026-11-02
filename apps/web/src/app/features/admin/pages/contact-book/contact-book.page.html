@@ -302,12 +302,32 @@
                       class="vt-row -mx-2 grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 border-0 border-b border-solid border-surface-border bg-transparent px-2 py-3 text-left [font:inherit] text-inherit hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 wide:grid-cols-[7rem_minmax(0,1fr)_9.5rem_10rem] wide:gap-x-6 wide:gap-y-1"
                       data-testid="entry"
                       [attr.aria-label]="
-                        (entry.studentName ?? '未知學生') + ' ' + entry.entryDate + ' 的聯絡簿'
+                        (entry.studentName ?? '未知學生') +
+                        (entry.classNames.length ? '（' + entry.classNames.join('、') + '）' : '') +
+                        ' ' +
+                        entry.entryDate +
+                        ' 的聯絡簿'
                       "
                       (click)="openEntry(entry)"
                       [style.view-transition-name]="'entry-' + entry.id"
                     >
-                      <span class="font-semibold">{{ entry.studentName ?? '未知學生' }}</span>
+                      <!-- A6 `.ent__who`：名字下一行班名小字（#2080-1）；跨班寫第一個＋N，滑過（title）或點開對話框看全部 -->
+                      <span class="font-semibold"
+                        >{{ entry.studentName ?? '未知學生' }}
+                        @if (entry.classNames.length) {
+                          <small
+                            class="block text-sm font-medium text-zinc-600"
+                            data-testid="entry-class"
+                            [attr.title]="
+                              entry.classNames.length > 1 ? entry.classNames.join('、') : null
+                            "
+                            >{{ entry.classNames[0] }}
+                            @if (entry.classNames.length > 1) {
+                              ＋{{ entry.classNames.length - 1 }}
+                            }
+                          </small>
+                        }
+                      </span>
                       <span
                         class="col-span-full line-clamp-2 min-w-0 text-zinc-800 wide:col-auto wide:block wide:truncate"
                         >{{ entry.content }}</span

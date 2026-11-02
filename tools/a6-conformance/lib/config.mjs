@@ -2170,20 +2170,13 @@ export const PAGES = {
         reason: SELECT_FIELD,
         source: SELECT_FIELD_SOURCE,
       },
-      // 列的班名（學生名下面那行小字）等 API：列高 64→48，後面各列整排上移
       {
-        status: '缺',
-        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span>text:small$',
-        reason: '列的班名：等 API（列表沒回班名）',
-        source: 'https://github.com/mizok/clessia/issues/2080',
-      },
-      {
-        // Δy：少了班名那一行；Δx ±8：展開內容外圍的灰框 4→12px，欄位跟著內縮
+        // Δx ±8：展開內容外圍的灰框 4→12px，欄位（含學生名下的班名小字，#2080-1）跟著內縮
         status: '位置',
-        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span(~\\d+)?$',
-        detail: '^相對所在列 Δx [-+]8、Δy -\\d+（',
-        reason: '連帶：列少了班名一行（等 API）；欄位因灰框加寬內縮 8px',
-        source: `https://github.com/mizok/clessia/issues/2080；${rule('R5')}「摺疊摘要列（\`.coll\`）展開內容外圍的灰框」2026-10-22；#1853`,
+        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span(~\\d+)?(>text:small)?$',
+        detail: '^相對所在列 Δx [-+]8、Δy -?\\d+（',
+        reason: '連帶：欄位因灰框加寬內縮 8px',
+        source: `${rule('R5')}「摺疊摘要列（\`.coll\`）展開內容外圍的灰框」2026-10-22；#1853`,
       },
       // 代表列取最常見的變體：稿的示範多是「已簽收」（綠字、不帶底），seed 多是「未簽收」（灰底小標）。
       // 兩種變體都照稿（稿上 button~3 的「未簽收」配上了、樣式一致）；手機上小標寬不同，學生名那欄跟著不同寬

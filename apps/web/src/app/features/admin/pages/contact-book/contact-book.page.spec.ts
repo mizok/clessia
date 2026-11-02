@@ -40,6 +40,7 @@ const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   signedAt: null,
   isSigned: false,
   editedAfterSign: false,
+  classNames: [],
   ...overrides,
 });
 
@@ -319,6 +320,7 @@ describe('ContactBookPage', () => {
         signedByName: null,
         signedAt: signed ? '2027-03-04T12:00:00Z' : null,
         isSigned: signed,
+        classNames: [],
       }) as unknown as ContactBookEntry;
     const missingOf = (n: number): MissingContactBookStudent[] =>
       Array.from({ length: n }, (_, i) => ({
@@ -586,6 +588,24 @@ describe('ContactBookPage', () => {
         new Set(['contact-book-days']),
       );
       expect(el().querySelector('[data-testid="shown"]')?.textContent).toBe('2');
+    });
+
+    // #2080-1（A6 `.ent__who small`）：學生名下一行班名；跨班時第一個＋「＋N」，滑過看得到全部
+    it('列的班名：一班寫班名；跨班寫第一個＋N，title 與可及名稱帶全部班名；沒有班不出那一行', async () => {
+      await load([
+        entry({ id: 'a', classNames: ['三年甲班'] }),
+        entry({ id: 'b', classNames: ['三年甲班', '作文班', '英文班'] }),
+        entry({ id: 'c', classNames: [] }),
+      ]);
+
+      const rows = Array.from(el().querySelectorAll<HTMLElement>('[data-testid="entry"]'));
+      const cls = (row: HTMLElement) => row.querySelector<HTMLElement>('[data-testid="entry-class"]');
+      expect(cls(rows[0])?.textContent?.trim()).toBe('三年甲班');
+      expect(cls(rows[0])?.title).toBe('');
+      expect(cls(rows[1])?.textContent?.replace(/\s+/g, ' ').trim()).toBe('三年甲班 ＋2');
+      expect(cls(rows[1])?.title).toBe('三年甲班、作文班、英文班');
+      expect(rows[1].getAttribute('aria-label')).toContain('三年甲班、作文班、英文班');
+      expect(cls(rows[2])).toBeNull();
     });
 
     it('簽收欄寫台北時間，沒簽的寫未簽收', async () => {

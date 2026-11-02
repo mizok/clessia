@@ -47,6 +47,11 @@ const ContactBookEntrySchema = z
     isSigned: z.boolean(),
     /** 簽收之後內容又改過（#1100 #26）—— 簽收保留，畫面標「簽收後有修改」 */
     editedAfterSign: z.boolean(),
+    /**
+     * 學生現在所在、開了聯絡簿的班（#2080-1）：報名中、`uses_contact_book`、在範圍內
+     * （分校範圍；老師只看現任的班），依班名排序。一則聯絡簿屬於學生不屬於班（rules §1）
+     */
+    classNames: z.array(z.string()),
   })
   .openapi('ContactBookEntry');
 
@@ -78,12 +83,43 @@ interface ContactBookRow {
   signed_by: string | null;
   signed_at: string | null;
   updated_at: string;
-  students?: { name: string } | null;
+  students?: {
+    name: string;
+    enrollments?: Array<{
+      status: string;
+      class_id: string;
+      classes: { name: string; campus_id: string; uses_contact_book: boolean } | null;
+    }> | null;
+  } | null;
   editor?: { name: string } | null;
   signer?: { name: string } | null;
 }
 
-export function toContactBookEntryResponse(row: Record<string, unknown>) {
+/** 列上的班名看得到哪些班：`null`＝不限（不受限的管理員）。兩個都有就取交集 */
+export interface ClassVisibility {
+  readonly campusIds: readonly string[] | null;
+  readonly classIds: readonly string[] | null;
+}
+const ALL_CLASSES: ClassVisibility = { campusIds: null, classIds: null };
+/** 「報名中」：同缺漏名單的候選（`/missing`） */
+const ENROLLED = new Set(['active', 'pending_payment']);
+
+function classNamesOf(row: ContactBookRow, visible: ClassVisibility): string[] {
+  const names = new Set<string>();
+  for (const e of row.students?.enrollments ?? []) {
+    const cls = e.classes;
+    if (!cls?.uses_contact_book || !ENROLLED.has(e.status)) continue;
+    if (visible.campusIds && !visible.campusIds.includes(cls.campus_id)) continue;
+    if (visible.classIds && !visible.classIds.includes(e.class_id)) continue;
+    names.add(cls.name);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+}
+
+export function toContactBookEntryResponse(
+  row: Record<string, unknown>,
+  visible: ClassVisibility = ALL_CLASSES,
+) {
   const typed = row as unknown as ContactBookRow;
   return {
     id: typed.id,
@@ -97,12 +133,14 @@ export function toContactBookEntryResponse(row: Record<string, unknown>) {
     signedAt: typed.signed_at,
     isSigned: Boolean(typed.signed_at),
     editedAfterSign: editedAfterSign(typed.updated_at, typed.signed_at),
+    classNames: classNamesOf(typed, visible),
   };
 }
 
 const SELECT =
   'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, updated_at, ' +
-  'students(name), editor:ba_user!last_edited_by(name), signer:ba_user!signed_by(name)';
+  'students(name, enrollments(status, class_id, classes(name, campus_id, uses_contact_book))), ' +
+  'editor:ba_user!last_edited_by(name), signer:ba_user!signed_by(name)';
 
 /**
  * 分校範圍（#1994）：學生**任一報名**的班在範圍內就算（同學生列表、`studentWriteScope`）。
@@ -173,9 +211,13 @@ app.openapi(
     if (from) query = query.gte('entry_date', from);
     if (to) query = query.lte('entry_date', to);
 
+    // 列上的班名（#2080-1）：只列範圍內的班；老師另限現任的班
+    let classIds: readonly string[] | null = null;
+
     // 老師只看得到自己任課班級的學生：現任班的全期、前任班的只限任期內（#2049 R2）
     if (scope.teacherStaffId) {
       const tenure = await loadTenure(supabase, orgId, scope.teacherStaffId);
+      classIds = tenure.current;
       const students = await studentTenure(supabase, orgId, tenure);
       const visible = tenureOrFilter('student_id', 'entry_date', students.current, students.past);
       if (!visible) {
@@ -190,7 +232,10 @@ app.openapi(
     return c.json(
       {
         data: (data ?? []).map((row) =>
-          toContactBookEntryResponse(row as unknown as Record<string, unknown>),
+          toContactBookEntryResponse(row as unknown as Record<string, unknown>, {
+            campusIds,
+            classIds,
+          }),
         ),
         meta: { total: count ?? 0 },
       },
@@ -240,6 +285,13 @@ app.openapi(
         return c.json({ error: '這位學生不在你的任課班級', code: 'FORBIDDEN' }, 403);
       }
     }
+    // 回應的班名（#2080-1）同列表：分校範圍內；老師只列現任的班
+    const visible: ClassVisibility = {
+      campusIds: getCampusScope(c),
+      classIds: scope.teacherStaffId
+        ? await taughtClassIds(supabase, orgId, scope.teacherStaffId)
+        : null,
+    };
     // 老師由任課範圍把關（上面）；受限的管理員由分校（#966）
     const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), studentId);
     if (scoped === 'not-found') {
@@ -264,7 +316,7 @@ app.openapi(
     }
     if (existing && (existing as unknown as ContactBookRow).content === content) {
       return c.json(
-        toContactBookEntryResponse(existing as unknown as Record<string, unknown>),
+        toContactBookEntryResponse(existing as unknown as Record<string, unknown>, visible),
         200,
       );
     }
@@ -290,7 +342,10 @@ app.openapi(
       return c.json({ error: '寫入聯絡簿失敗', code: error?.code }, 500);
     }
 
-    const response = toContactBookEntryResponse(data as unknown as Record<string, unknown>);
+    const response = toContactBookEntryResponse(
+      data as unknown as Record<string, unknown>,
+      visible,
+    );
 
     logAudit(
       supabase,

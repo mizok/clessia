@@ -31,6 +31,11 @@ export interface ContactBookEntry {
   isSigned: boolean;
   /** 簽收之後內容又改過（#1100 #26）：簽收保留，畫面標「簽收後有修改」 */
   editedAfterSign: boolean;
+  /**
+   * 學生現在所在、開了聯絡簿的班（#2080-1）：報名中、在範圍內（老師只看現任的班），依班名排序。
+   * 一則聯絡簿屬於學生不屬於班（rules §1），所以可能不只一個
+   */
+  classNames: string[];
 }
 
 export interface ContactBookRemindResult {
