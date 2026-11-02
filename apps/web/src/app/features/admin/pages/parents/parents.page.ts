@@ -12,10 +12,18 @@ import {
   input,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import {
+  EMPTY,
+  Subject,
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  filter,
+  switchMap,
+} from 'rxjs';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
@@ -36,6 +44,8 @@ import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 
 // Services
 import { ParentsService, Parent, ParentStatus, PARENT_STATUS_LABELS } from '@core/parents.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -102,6 +112,20 @@ export class ParentsPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly campusCtx = inject(CampusContextService);
+
+  constructor() {
+    // 頂欄分校（K4，#1314 盤點）：分校定下來（頂欄選的或預設那間）才載，頂欄換了回第 1 頁重載（同成績總覽 #2143）。
+    // 管線（setupLoadPipeline）在 ngOnInit 接上；toObservable 第一次發出是在 effect 裡，晚於 ngOnInit
+    this.campusCtx.use();
+    inject(ReferenceDataService).loadCampuses();
+    toObservable(this.campusCtx.id)
+      .pipe(filter(Boolean), takeUntilDestroyed())
+      .subscribe(() => {
+        this.currentPage.set(1);
+        this.loadParents();
+      });
+  }
   /** 重抓的資料平滑換上；增刪改造成的重抓帶 rows，那一列淡入或淡出（#1641 5b） */
   private readonly viewTransition = injectViewTransition();
   private readonly optimisticRemove = injectOptimisticRemove();
@@ -244,7 +268,7 @@ export class ParentsPage implements OnInit {
         this.currentPage.set(1);
         this.loadParents();
       });
-    this.loadParents();
+    // 第一次載入由頂欄分校觸發（constructor）
   }
 
   /**
@@ -271,6 +295,7 @@ export class ParentsPage implements OnInit {
               search: this.searchQuery() || undefined,
               status: this.selectedStatus() ?? undefined,
               excludeArchived: this.selectedStatus() === null,
+              campusId: this.campusCtx.id() ?? undefined,
               page: this.currentPage(),
               pageSize: this.PAGE_SIZE,
             })
