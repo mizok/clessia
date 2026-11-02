@@ -217,11 +217,12 @@ export const DEVIATIONS = [
     source: hardRule('A28'),
   },
   {
-    // R3 連帶：手機 44px 的可點元素用 flex 垂直置中，取代稿的上下 padding
+    // R3 連帶：手機 44px 的可點元素用 flex 垂直置中，取代稿的上下 padding。
+    // inline-block 是 <button> 的 UA 預設（句中的「個資使用聲明」鈕，#2035 @switch 補檢）
     status: '樣式',
     kind: 'control',
     widths: [360],
-    detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline) → (inline-)?flex$',
+    detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline|inline-block) → (inline-)?flex$',
     reason: '手機 44px 觸控高度用 flex 置中（取代稿的上下 padding）',
     source: `${rule('R3')}`,
   },

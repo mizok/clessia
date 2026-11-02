@@ -2063,6 +2063,22 @@ test('A27 紅：可點元素沒有基底的 44px 下限（含 @if 裡、只在 l
   );
 });
 
+// Angular 21 的 @switch 是 SwitchBlock.groups[].children（舊版是 cases）。walker 只認 cases 時
+// 全 repo 每個 @switch 裡的元素都沒被檢查（#2035 查到）。@case 與 @default 都要走到
+test('A27 紅：@switch 的 @case／@default 裡也檢查', () => {
+  const v = touchTargetClassViolations(
+    `@switch (k) {
+       @case ('a') { <button class="text-md">a</button> }
+       @case ('b') @case ('c') { <a routerLink="/x" class="h-10">b</a> }
+       @default { <div (click)="f()" class="h-8">c</div> }
+     }`,
+  );
+  assert.deepEqual(
+    v.map((x) => x.tag),
+    ['button', 'a', 'div'],
+  );
+});
+
 test('A27 綠：min-h-11／size-11／h-[44px]；不可點的元素不管', () => {
   const v = touchTargetClassViolations(
     `<button class="min-h-11">a</button><a href="/x" class="size-11">b</a>
@@ -2095,6 +2111,15 @@ test('A28 紅：文字色從祖先繼承、底色從祖先找，條件 class 也
   assert.equal(v.length, 2);
   assert.equal(v[0].fg, 'text-zinc-400');
   assert.equal(v[1].bg, 'bg-[#1a1614]');
+});
+
+test('A28 紅：@switch 裡的文字，底色從 @switch 外的祖先找', () => {
+  const v = contrastClassViolations(
+    `<section class="bg-zinc-100">@switch (k) { @case ('a') { <p class="text-zinc-400">淡字</p> } }</section>`,
+    COLORS,
+  );
+  assert.equal(v.length, 1);
+  assert.equal(v[0].bg, 'bg-zinc-100');
 });
 
 test('A28 綠：對比夠、找不到底色不判、font-size 的 text-* 不是顏色', () => {
