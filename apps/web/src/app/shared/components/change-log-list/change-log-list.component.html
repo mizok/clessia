@@ -51,7 +51,7 @@
               <ng-container [ngTemplateOutlet]="why" [ngTemplateOutletContext]="{ $implicit: e }" />
               @if (!compact() && e.sessionDate) {
                 <a
-                  class="inline-flex h-11 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:h-8"
+                  class="inline-flex h-11 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold whitespace-nowrap text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:h-8"
                   [routerLink]="sessionsPath"
                   [queryParams]="{ focusDate: e.sessionDate, focusSession: e.sessionId }"
                 >
