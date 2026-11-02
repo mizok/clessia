@@ -222,7 +222,8 @@ export const DEVIATIONS = [
     status: '樣式',
     kind: 'control',
     widths: [360],
-    detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline|inline-block) → (inline-)?flex$',
+    detail:
+      '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline|inline-block) → (inline-)?flex$',
     reason: '手機 44px 觸控高度用 flex 置中（取代稿的上下 padding）',
     source: `${rule('R3')}`,
   },
@@ -2379,6 +2380,16 @@ export const PAGES = {
         reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
         source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
       })),
+      // 篩選浮層的六個下拉是 app-select-field（稿 .dd 是 label 裡的按鈕；app 是欄位外框＋combobox＋箭頭鈕）
+      ...[
+        { status: '缺', a6: '(^|>)landmark:popover\\[\\]>row>control:button>text:span$' },
+        ...['位置', '樣式'].map((status) => ({
+          status,
+          a6: '(^|>)landmark:popover\\[\\]>row>control:button$',
+        })),
+        { status: '樣式', a6: '(^|>)landmark:popover\\[\\]>row$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[\\]>row>control:combobox$' },
+      ].map((d) => ({ ...d, pop: 'filt', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
     ],
   },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，

@@ -16,7 +16,7 @@ import { CoursesService } from '@core/courses.service';
 import { ClassesService } from '@core/classes.service';
 import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
 
-import { SelectModule } from 'primeng/select';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -59,10 +59,11 @@ import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 
-const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((grade) => ({
-  label: GRADE_LEVEL_LABELS[grade],
-  value: grade,
-}));
+/** A6 `.ff` 的下拉第一項就是「全部…」（沒有清除鈕），選它＝不篩 */
+const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel | null }> = [
+  { label: '全部年級', value: null },
+  ...GRADE_LEVELS.map((grade) => ({ label: GRADE_LEVEL_LABELS[grade], value: grade })),
+];
 
 type StudentActiveStatusFilter = 'all' | 'active' | 'inactive';
 
@@ -70,6 +71,11 @@ interface FilterOption<TValue> {
   readonly label: string;
   readonly value: TValue;
 }
+
+const withAll = (label: string, options: ReadonlyArray<FilterOption<string>>) => [
+  { label, value: null as string | null },
+  ...options,
+];
 
 const STATUS_OPTIONS: Array<FilterOption<StudentActiveStatusFilter>> = [
   { label: '全部', value: 'all' },
@@ -100,7 +106,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     FormsModule,
     RouterLink,
     PageOpenComponent,
-    SelectModule,
+    SelectFieldComponent,
     InputTextModule,
     IconFieldModule,
     InputIconModule,
@@ -171,6 +177,10 @@ export class StudentViewComponent implements OnInit {
       .filter((c) => !courseId || c.courseId === courseId)
       .map((c) => ({ label: c.name, value: c.id }));
   });
+  protected readonly courseSelectOptions = computed(() =>
+    withAll('全部課程', this.courseOptions()),
+  );
+  protected readonly classSelectOptions = computed(() => withAll('全部班級', this.classOptions()));
   /** 期間（#2079(c)）：列上的最近一次、比上一次、缺考、平均都只算這段期間 */
   protected readonly periodFilter = signal<PeriodFilter>(DEFAULT_PERIOD);
   /** 篩選浮層開著與否（鈕的 aria-expanded） */
@@ -190,6 +200,9 @@ export class StudentViewComponent implements OnInit {
   protected readonly schoolOptionsState = signal<Array<FilterOption<string>>>([]);
 
   protected readonly schoolOptions = computed(() => this.schoolOptionsState());
+  protected readonly schoolSelectOptions = computed(() =>
+    withAll('全部學校', this.schoolOptions()),
+  );
 
   protected readonly filteredStudents = computed<Student[]>(() => {
     const schoolId = this.schoolIdFilter();

@@ -111,95 +111,50 @@
   (onShow)="filtersOpen.set(true)"
   (onHide)="filtersOpen.set(false)"
 >
+  <!-- A6 `.ff`：兩欄格線，每格「標籤＋.dd 下拉」；下拉用全站對齊 .dd 的 app-select-field，第一項是「全部…」 -->
   <div class="grid w-[440px] max-w-full grid-cols-2 gap-x-4 gap-y-3" data-part="filter-pop">
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-grade">年級</span>
-      <p-select
-        [options]="gradeOptions"
-        [ngModel]="gradeFilter()"
-        (ngModelChange)="onGradeChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部年級"
-        [showClear]="true"
-        ariaLabelledBy="sv-f-grade"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-course">課程</span>
-      <p-select
-        [options]="courseOptions()"
-        [ngModel]="courseIdFilter()"
-        (ngModelChange)="onCourseChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部課程"
-        [showClear]="true"
-        [filter]="courseOptions().length > 8"
-        ariaLabelledBy="sv-f-course"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-class">開課班</span>
-      <p-select
-        [options]="classOptions()"
-        [ngModel]="classIdFilter()"
-        (ngModelChange)="onClassChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部班級"
-        [showClear]="true"
-        [filter]="classOptions().length > 8"
-        ariaLabelledBy="sv-f-class"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-period">期間</span>
-      <p-select
-        [options]="periodOptions"
-        [ngModel]="periodFilter()"
-        (ngModelChange)="onPeriodChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        ariaLabelledBy="sv-f-period"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-school">學校</span>
-      <p-select
-        [options]="schoolOptions()"
-        [ngModel]="schoolIdFilter()"
-        (ngModelChange)="onSchoolChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部學校"
-        [showClear]="true"
-        ariaLabelledBy="sv-f-school"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-status">狀態</span>
-      <p-select
-        [options]="statusOptions"
-        [ngModel]="activeStatusFilter()"
-        (ngModelChange)="onActiveStatusChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        ariaLabelledBy="sv-f-status"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
+    <app-select-field
+      label="年級"
+      labelSize="md"
+      [options]="gradeOptions"
+      [value]="gradeFilter() || null"
+      (valueChange)="onGradeChange($event)"
+    />
+    <app-select-field
+      label="課程"
+      labelSize="md"
+      [options]="courseSelectOptions()"
+      [value]="courseIdFilter()"
+      (valueChange)="onCourseChange($event)"
+    />
+    <app-select-field
+      label="開課班"
+      labelSize="md"
+      [options]="classSelectOptions()"
+      [value]="classIdFilter()"
+      (valueChange)="onClassChange($event)"
+    />
+    <app-select-field
+      label="期間"
+      labelSize="md"
+      [options]="periodOptions"
+      [value]="periodFilter()"
+      (valueChange)="onPeriodChange($event)"
+    />
+    <app-select-field
+      label="學校"
+      labelSize="md"
+      [options]="schoolSelectOptions()"
+      [value]="schoolIdFilter()"
+      (valueChange)="onSchoolChange($event)"
+    />
+    <app-select-field
+      label="狀態"
+      labelSize="md"
+      [options]="statusOptions"
+      [value]="activeStatusFilter()"
+      (valueChange)="onActiveStatusChange($event)"
+    />
     <div class="col-span-full flex items-center justify-between">
       @if (hasFilters()) {
         <button
