@@ -868,6 +868,21 @@ export const PAGES = {
         reason: '手機關閉鈕 44px（觸控下限），標題欄因此窄 4px',
         source: `${rule('R3')}；${hardRule('A27')}`,
       })),
+      // 新增班級表單（#2089）：下一階班級、時段的星期／任課老師／教室是 app-select-field
+      ...selectFieldDeviations('下一階班級|星期|任課老師|教室').map((d) => ({ ...d, pop: 'new-class' })),
+      ...[
+        { status: '缺', a6: 'control:button\\[(下一階班級|教室)：[^\\]]*\\]>text:span\\[[^\\]]*\\]$' },
+        { status: '文案', a6: 'control:button\\[教室：[^\\]]*\\]$', app: 'dropdown trigger' },
+        { status: '多', app: 'control:combobox\\[(下一階班級|教室|星期|任課老師)\\]$' },
+      ].map((d) => ({ ...d, pop: 'new-class', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 新增班級表單：稿沒畫、照 R2 保留的欄位（公開報名、目錄參考價、班級起訖日），收在同一個整列區塊
+      {
+        status: '多',
+        pop: 'new-class',
+        app: 'landmark:dialog\\[新增班級\\]>(text:p\\[(公開報名|關掉之後|家長目錄顯示|兩邊都填)[^\\]]*\\]|text:label\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|control:(checkbox|textbox)\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|text:span\\[目錄參考價\\]|control:combobox\\[目錄參考價\\])$',
+        reason: '班級表單的公開報名、目錄參考價、起訖日：現況有、稿沒畫，保留',
+        source: `${rule('R2')}；目錄參考價 https://github.com/mizok/clessia/issues/2089#issuecomment-6517351682`,
+      },
       // 舊有新無：適合年級（API 必填），「還沒填」那句跟著多一項
       ...[
         { status: '多', app: 'text:(span|div)\\[(適合年級|選擇適合年級（至少一項）)\\]$' },

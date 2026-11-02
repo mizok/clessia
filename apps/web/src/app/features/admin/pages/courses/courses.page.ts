@@ -1164,6 +1164,8 @@ export class CoursesPage implements OnInit {
         course,
         staff: this.staff(),
         campuses: this.campuses(),
+        // 下一階班級的選項（不分頁、不含歷史班）
+        classes: this.classes(),
       },
     });
 
@@ -1188,6 +1190,8 @@ export class CoursesPage implements OnInit {
         course,
         staff: this.staff(),
         campuses: this.campuses(),
+        // 下一階班級的選項（不分頁、不含歷史班）
+        classes: this.classes(),
       },
     });
 
