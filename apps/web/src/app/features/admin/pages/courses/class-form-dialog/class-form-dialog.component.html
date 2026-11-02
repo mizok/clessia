@@ -53,6 +53,28 @@
       />
     </div>
 
+    <!-- A6 `.grades`：適用年級勾選框包成框（#2089）；沒勾＝沿用課程的年級 -->
+    <div class="col-span-full min-w-0">
+      <p id="class-grades-label" class="mt-0 mb-1 block text-md font-semibold text-zinc-700">
+        適用年級
+      </p>
+      <div class="flex flex-wrap gap-2" role="group" aria-labelledby="class-grades-label">
+        @for (g of gradeOptions; track g.value) {
+          <label
+            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:shadow-[inset_0_0_0_1px_var(--zinc-900)] wide:h-9"
+          >
+            <input
+              type="checkbox"
+              class="m-0 accent-zinc-900"
+              [checked]="gradeLevels().includes(g.value)"
+              (change)="toggleGrade(g.value, $any($event.target).checked)"
+              [disabled]="loading()"
+            />{{ g.label }}
+          </label>
+        }
+      </div>
+    </div>
+
     <!-- A6「下一階班級」：升班路徑（API 收 nextClassId） -->
     <div class="min-w-0">
       <app-select-field

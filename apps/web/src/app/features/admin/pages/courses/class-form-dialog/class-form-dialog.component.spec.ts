@@ -541,6 +541,26 @@ describe('ClassFormDialogComponent', () => {
   });
 
   // #1100 #22：同一個時段可以前後接續（舊段止於 X−1、新段起於 X）
+  // #2089 適用年級：A6 `.grades` 12 個勾選框；送出照年級順序
+  it('適用年級：勾國二再勾國一，送出 gradeLevels 照年級順序', () => {
+    const boxes = [
+      ...fixture.nativeElement.querySelectorAll('[aria-labelledby="class-grades-label"] input'),
+    ] as HTMLInputElement[];
+    expect(boxes).toHaveLength(12);
+    for (const i of [7, 6]) {
+      boxes[i].checked = true;
+      boxes[i].dispatchEvent(new Event('change'));
+    }
+    (component as any).formData.set({
+      name: '測試班級',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+    });
+    (component as any).save();
+    expect((classesServiceMock.create as any).mock.calls[0][0].gradeLevels).toEqual(['J1', 'J2']);
+  });
+
   describe('時段生效區間', () => {
     const recreate = (cls: Record<string, unknown> | null) => {
       TestBed.inject(DynamicDialogConfig).data.cls = cls;
