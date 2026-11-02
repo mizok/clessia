@@ -1955,9 +1955,9 @@ export const PAGES = {
       },
       {
         // seed 每種計費模式只有 1 種價目：同章一列不成清單列（工具 ≥3 才認列），列內的名稱、金額、狀態、⋯ 散在章裡；
-        // 稿每章 3 種以上，是列。兩邊列的內容一樣（名稱鈕、金額、啟用中、報名在用、⋯）
+        // 稿每章 3 種以上，是列。兩邊列的內容一樣（名稱鈕、金額、啟用中、報名在用（有人用時是連結，F1b）、⋯）
         status: '多',
-        app: 'landmark:region\\[(月繳|期繳|堂數制)\\]>(control:button|text:span)(\\[[^\\]]*\\])?(>text:small\\[[^\\]]*\\])?$',
+        app: 'landmark:region\\[(月繳|期繳|堂數制)\\]>(control:button|control:link|text:span)(\\[[^\\]]*\\])?(>text:small\\[[^\\]]*\\])?$',
         reason: '資料：seed 每章只有一種價目，不成清單列',
         source: 'tools/a6-conformance/README.md（列是資料：≥3 或 ≥5 個同簽名才合成 row）',
       },
