@@ -1,4 +1,13 @@
-import { Component, inject, output, signal, OnDestroy, OnInit } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  inject,
+  output,
+  signal,
+  viewChild,
+  OnDestroy,
+  OnInit,
+} from '@angular/core';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -61,6 +70,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
   protected readonly editingId = signal<string | null>(null);
   protected readonly editingName = signal('');
   protected readonly newSubjectName = signal('');
+  private readonly newNameInput = viewChild<ElementRef<HTMLInputElement>>('newNameInput');
   protected readonly saving = signal(false);
   protected readonly notice = signal<SubjectManagerNotice | null>(null);
   protected readonly isDialog = signal(!!this.ref);
@@ -222,6 +232,8 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
   protected addSubject(): void {
     const name = this.newSubjectName().trim();
     if (!name) {
+      // A6：鈕不灰掉，空著按就把游標送回輸入框
+      this.newNameInput()?.nativeElement.focus();
       this.showNotice({
         severity: 'warning',
         summary: '尚未輸入科目名稱',
