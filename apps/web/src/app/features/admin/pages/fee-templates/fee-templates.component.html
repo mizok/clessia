@@ -154,9 +154,19 @@
                       [class.text-zinc-600]="!item.isActive"
                       >{{ item.isActive ? '啟用中' : '已停用 · 不出現在報名選單' }}</span
                     >
-                    <span class="col-span-3 text-sm text-zinc-700 wide:col-auto wide:text-md">{{
-                      inUseLabel(item.inUseCount)
-                    }}</span>
+                    <!-- 稿 `.ft__use a`：有人在用就連到報名進出、只看用這個方案的（#1314 F1b） -->
+                    <span class="col-span-3 text-sm text-zinc-700 wide:col-auto wide:text-md">
+                      @if (item.inUseCount > 0) {
+                        <a
+                          class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline decoration-zinc-300 underline-offset-[3px] hover:decoration-zinc-900 wide:inline wide:min-h-0"
+                          routerLink="/admin/enrollments"
+                          [queryParams]="{ feeTemplateId: item.id }"
+                          >{{ inUseLabel(item.inUseCount) }}</a
+                        >
+                      } @else {
+                        {{ inUseLabel(item.inUseCount) }}
+                      }
+                    </span>
                     <div class="col-start-3 row-start-1 wide:col-auto wide:row-auto">
                       <!-- A6 `.more-btn`：40×40、圓角 md（手機 44，R3） -->
                       <button

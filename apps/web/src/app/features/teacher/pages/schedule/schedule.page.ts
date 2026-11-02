@@ -28,6 +28,7 @@ import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { SessionsService } from '@core/sessions.service';
 import { ContactBookService } from '@core/contact-book.service';
+import { AcademyExamsService } from '@core/academy-exams.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { SelectedIndicatorDirective } from '@shared/directives/selected-indicator.directive';
 import {
@@ -122,6 +123,7 @@ export class SchedulePage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly contactBookService = inject(ContactBookService);
+  private readonly academyExamsService = inject(AcademyExamsService);
   private readonly sessionsService = inject(SessionsService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
@@ -186,6 +188,13 @@ export class SchedulePage implements OnInit {
 
   /** 聯絡簿待辦彙總查失敗了 —— 課表照常顯示，但要講出來（見上方註解） */
   protected readonly missingFailed = signal(false);
+
+  /**
+   * 成績還沒登完的考試，`班 id|考試日` → 考試名（#1314 TS6，稿的「第四次小考成績未登錄」）。
+   * 範圍由後端套老師任課（`GET /academy-exams` 的 todo）；只查到今天 —— 還沒考的不算「未登錄」。
+   * ponytail: 查失敗就當沒有（只是少一行提示，課堂列與點名照常）；要講出來再比照 `missingFailed`
+   */
+  private readonly examTodos = signal<ReadonlyMap<string, readonly string[]>>(new Map());
 
   /**
    * 課表本身查失敗了。
@@ -382,6 +391,26 @@ export class SchedulePage implements OnInit {
       },
     });
 
+    this.examTodos.set(new Map());
+    const examTo = dateTo < this.todayStr ? dateTo : this.todayStr;
+    if (dateFrom <= examTo) {
+      this.academyExamsService
+        .list({ todo: true, dateFrom, dateTo: examTo, pageSize: 200 })
+        .subscribe({
+          next: (res) => {
+            const map = new Map<string, string[]>();
+            for (const exam of res.data) {
+              for (const cls of exam.classes) {
+                const key = `${cls.id}|${exam.examDate}`;
+                map.set(key, [...(map.get(key) ?? []), exam.name]);
+              }
+            }
+            this.examTodos.set(map);
+          },
+          error: () => undefined,
+        });
+    }
+
     this.changesFailed.set(false);
     this.sessionsService.listMyChanges(dateFrom, dateTo).subscribe({
       next: (res) => this.changeEntries.set(res.data),
@@ -499,6 +528,12 @@ export class SchedulePage implements OnInit {
     ref?.onClose.subscribe((marked?: boolean) => {
       if (marked) this.loadSessions();
     });
+  }
+
+  /** 這堂課那天考的、成績還沒登完的考試名（停課的不提） */
+  protected examTodosOf(session: EventSessionSummary): readonly string[] {
+    if (session.status === 'cancelled') return [];
+    return this.examTodos().get(`${session.classId}|${session.eventDate}`) ?? [];
   }
 
   /** 這一天有幾個學生的聯絡簿還沒寫；0 或未知都不顯示徽章 */

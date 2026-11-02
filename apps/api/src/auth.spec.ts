@@ -366,3 +366,38 @@ describe('Google 的 idToken 登入入口被關掉（#1842）', () => {
     ).rejects.toMatchObject({ body: { code: 'INVALID_TOKEN' } });
   });
 });
+
+// 使用者 11-02：LINE 的 idToken 入口也關。理由同 Google（better-auth 1.5.5 那條路不看 disableSignUp）；
+// LINE 要 channel secret 才換得到 id_token，難利用，但入口本身沒有用途，關掉比留著好。
+describe('LINE 的 idToken 登入入口被關掉', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('provider 設定帶 disableIdTokenSignIn', () => {
+    expect(
+      socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: 'secret' })['line'],
+    ).toMatchObject({ disableIdTokenSignIn: true });
+  });
+
+  // LINE 的 verifyIdToken 打 LINE 的 verify 端點；替身讓它「驗得過」，證明擋下來的是這個旗標
+  it('POST /sign-in/social 帶 idToken → INVALID_TOKEN，走不到建帳號那一步', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ aud: 'cid', sub: 'U123', iss: 'https://access.line.me' })),
+    );
+    const auth = createAuth({
+      DATABASE_URL: 'postgres://user:pass@127.0.0.1:1/db',
+      BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
+      BETTER_AUTH_URL: 'https://demo.clessia.cc',
+      WEB_URL: 'https://demo.clessia.cc',
+      ALLOWED_ORIGINS: '',
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'secret',
+    });
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const token = `${b64({ alg: 'HS256' })}.${b64({ sub: 'U123', aud: 'cid' })}.sig`;
+
+    await expect(
+      auth.api.signInSocial({ body: { provider: 'line', idToken: { token } } }),
+    ).rejects.toMatchObject({ body: { code: 'INVALID_TOKEN' } });
+  });
+});

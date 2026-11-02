@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, Subject, of, throwError } from 'rxjs';
@@ -72,6 +73,7 @@ describe('FeeTemplatesComponent', () => {
         { provide: FeeTemplatesService, useValue: feeTemplates },
         { provide: BillingPeriodsService, useValue: billingPeriods },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        provideRouter([]),
       ],
     }).compileComponents();
 
@@ -168,6 +170,16 @@ describe('FeeTemplatesComponent', () => {
       [...root().querySelectorAll(`[data-chapter="${mode}"] [data-template]`)].map((el) =>
         el.querySelector('button')!.textContent!.trim(),
       );
+
+    it('「N 筆報名在用」連到報名進出、只看這個方案；沒人用的是字（#1314 F1b）', () => {
+      load(mixed());
+      const link = root().querySelector<HTMLAnchorElement>(
+        '[data-chapter="period"] a[href*="feeTemplateId"]',
+      );
+      expect(link!.textContent!.trim()).toBe('3 筆報名在用');
+      expect(link!.getAttribute('href')).toBe('/admin/enrollments?feeTemplateId=d');
+      expect(root().querySelector('[data-chapter="monthly"] a[href*="feeTemplateId"]')).toBeNull();
+    });
 
     it('色面數字句含停用的數字：N 種價目、M 種開放報名', () => {
       load(mixed());

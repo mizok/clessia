@@ -11,13 +11,13 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { endOfMonth, format, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
 import { SelectModule } from 'primeng/select';
 
 import { Subject, catchError, debounceTime, map, of, skip, switchMap } from 'rxjs';
 import { ClassesService, type Class } from '@core/classes.service';
-import { BILLING_MODE_LABELS } from '@core/fee-templates.service';
+import { BILLING_MODE_LABELS, FeeTemplatesService } from '@core/fee-templates.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { CampusContextService } from '@core/campus-context.service';
 import { SystemClockService } from '@core/system-clock.service';
@@ -103,6 +103,7 @@ export class EnrollmentsPage {
   private readonly router = inject(Router);
   private readonly studentsService = inject(StudentsService);
   private readonly classesService = inject(ClassesService);
+  private readonly feeTemplatesService = inject(FeeTemplatesService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly EVENT_LABELS = EVENT_LABELS;
@@ -122,7 +123,16 @@ export class EnrollmentsPage {
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
 
-  protected readonly month = signal(LAST_30);
+  /**
+   * 費用方案（#1314 F1b）：只從費用方案頁「N 筆報名在用」帶 `?feeTemplateId=` 進來，頁內沒有它的選單。
+   * 帶進來時期間改「全部」—— 「N 筆在用」數的是所有時候的報名，留著「近 30 天」點過來會對不上
+   */
+  private readonly feeTemplateId = signal<string | null>(
+    inject(ActivatedRoute).snapshot.queryParamMap.get('feeTemplateId'),
+  );
+  private readonly feeTemplateName = signal<string | null>(null);
+
+  protected readonly month = signal(this.feeTemplateId() ? ALL_MONTHS : LAST_30);
   protected readonly status = signal<EnrollmentStatus | null>(null);
   /** 事件篩選（#1507）：期間內發生過這件事的列。跟「狀態」不同 —— 狀態是現在的狀態 */
   protected readonly event = signal<EnrollmentEventKind | null>(null);
@@ -237,6 +247,7 @@ export class EnrollmentsPage {
   /** 「篩選」鈕上的摘要：開了哪些（期間不算，它在工具列上看得到） */
   protected readonly filterSummary = computed(() => {
     const parts: string[] = [];
+    if (this.feeTemplateId()) parts.push(this.feeTemplateName() ?? '指定費用方案');
     const classId = this.classId();
     if (classId)
       parts.push(this.classOptions().find((o) => o.value === classId)?.label ?? '指定班級');
@@ -251,6 +262,7 @@ export class EnrollmentsPage {
       this.studentId() !== null ||
       this.studentName() !== null ||
       this.classId() !== null ||
+      this.feeTemplateId() !== null ||
       this.event() !== null ||
       this.status() !== null,
   );
@@ -281,6 +293,19 @@ export class EnrollmentsPage {
         // 班級清單掛了只是少一個篩選，不擋整頁
         error: () => undefined,
       });
+
+    const feeTemplateId = this.feeTemplateId();
+    if (feeTemplateId) {
+      this.feeTemplatesService
+        .list()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) =>
+            this.feeTemplateName.set(res.data.find((t) => t.id === feeTemplateId)?.name ?? null),
+          // 名稱查不到只是摘要寫「指定費用方案」，篩選照常
+          error: () => undefined,
+        });
+    }
 
     this.studentName$.pipe(debounceTime(300), takeUntilDestroyed()).subscribe((name) => {
       if (name === this.studentName()) return;
@@ -375,6 +400,11 @@ export class EnrollmentsPage {
     this.studentName.set(null);
     this.studentName$.next(null);
     this.classId.set(null);
+    if (this.feeTemplateId()) {
+      this.feeTemplateId.set(null);
+      // 網址上的也拿掉，重新整理才不會又篩回去
+      this.router.navigate([], { queryParams: { feeTemplateId: null }, replaceUrl: true });
+    }
     this.event.set(null);
     this.status.set(null);
     this.resetToFirstPage();
@@ -426,6 +456,7 @@ export class EnrollmentsPage {
       studentId: this.studentId() ?? undefined,
       studentName: this.studentName() ?? undefined,
       classId: this.classId() ?? undefined,
+      feeTemplateId: this.feeTemplateId() ?? undefined,
       campusId: this.campusId() ?? undefined,
     };
   }

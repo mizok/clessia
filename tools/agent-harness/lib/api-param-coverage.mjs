@@ -350,6 +350,42 @@ export function staleExemptions(apiParams, services, exempt = EXEMPT) {
   return [...exempt.keys()].filter((key) => !gaps.has(key)).sort();
 }
 
+/**
+ * **gate 看不到的已知落差**（#2079 d）—— 前端真的沒送，但 `sendsParam` 以 service 檔為單位比對，
+ * 同一支檔案的**別的方法**送了同名參數，就被當成這支端點也送了。
+ *
+ * 不能放進 `EXEMPT`：`staleExemptions` 也用同一個判準，會說「沒有落差」把那筆判成過期。
+ * 所以另記一本，每輪 harness 都印出來（落差被記著，而不是靜靜消失）。
+ *
+ * **可否證**：gate 自己看得到這個落差（`sendsParam` 為假）、或端點不再收這個參數，這筆就過期。
+ * 根治是讓 gate 依端點配對 query key（#2079 修法 1），做了之後這本應該歸零。
+ */
+export const KNOWN_BLIND = new Map([
+  [
+    '/api/scores|courseId',
+    '列表 `list()` 沒送 courseId；同檔的 `studentAggregatesByCourse()`（`/scores/students`）送了，gate 誤判（#2077 撤豁免時漏掉，#2079 d）',
+  ],
+]);
+
+/** `KNOWN_BLIND` 裡已經不成立的：gate 自己看得到了，或端點不再收這個參數 */
+export function staleBlindSpots(apiParams, services, blind = KNOWN_BLIND) {
+  const seen = new Set();
+  const gaps = new Set();
+  for (const { source } of services) {
+    const code = stripComments(source);
+    const prefixes = servicePrefixes(source);
+    if (prefixes.length === 0) continue;
+    for (const [path, params] of Object.entries(apiParams)) {
+      if (!prefixes.some((prefix) => matchesPrefix(path, prefix))) continue;
+      for (const name of params) {
+        seen.add(`${path}|${name}`);
+        if (!sendsParam(code, name)) gaps.add(`${path}|${name}`);
+      }
+    }
+  }
+  return [...blind.keys()].filter((key) => !seen.has(key) || gaps.has(key)).sort();
+}
+
 export function partitionServices(services) {
   const http = [];
   const nonHttp = [];

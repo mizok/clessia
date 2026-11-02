@@ -1,5 +1,6 @@
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { AuthService, type UserRole } from '@core/auth.service';
 import { InboxBadgeService } from '@core/inbox-badge.service';
@@ -47,6 +48,7 @@ export class ShellLayoutComponent {
   protected readonly campus = inject(CampusContextService);
   protected readonly badge = inject(InboxBadgeService);
   private readonly dialogService = inject(DialogService);
+  private readonly messages = inject(MessageService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly roleLabels: Record<UserRole, string> = {
@@ -70,9 +72,9 @@ export class ShellLayoutComponent {
   protected readonly avatarInitial = computed(
     () => Array.from(this.displayName().trim())[0]?.toUpperCase() ?? '?',
   );
-  /** 帳戶浮層裡點得到的身分 —— 目前這個不列，點自己沒有意義 */
-  protected readonly otherRoles = computed(() =>
-    this.auth.roles().filter((role) => role !== this.auth.activeRole()),
+  /** 多身分才出「切換身分」那一組；目前的那個也列、打勾標「使用中」（使用者 11-02） */
+  protected readonly hasOtherRoles = computed(() =>
+    this.auth.roles().some((role) => role !== this.auth.activeRole()),
   );
 
   /** 鈴鐺角標：超過 99 寫 99+ */
@@ -163,8 +165,13 @@ export class ShellLayoutComponent {
 
   /** 就地切換身分：零導航、零動態載入（`/select-role` 是登入後的初選，另一個場景） */
   protected switchRole(role: UserRole) {
+    if (role === this.auth.activeRole()) return;
     this.hide('shell-account');
-    this.auth.navigateToRoleShell(role);
+    // 只有真的切過去才提示（被擋下的導航不說「已切換」）；toast 出口是 role=status 的 live region
+    void this.auth.navigateToRoleShell(role).then((ok) => {
+      if (ok)
+        this.messages.add({ severity: 'success', summary: `已切換到 ${this.roleLabels[role]}` });
+    });
   }
 
   protected openAccountSettings() {

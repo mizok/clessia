@@ -1026,7 +1026,7 @@ const studentAggregatesRoute = createRoute({
     query: z.object({
       /**
        * 全部學生（#1314 G8）：可見範圍同 `/students` 列表（分校範圍 ∩ `campusId`；老師只看任課學生）。
-       * 只准搭 `campusId` 與分頁
+       * 只准搭 `campusId`、期間（`dateFrom`／`dateTo`，#2079(c)）與分頁
        */
       scope: z.enum(['all']).optional(),
       /** 排序：預設依姓名；`grade`＝年級（P1→S3）再依姓名（#1314 G8，A6 依年級分章） */
@@ -1081,21 +1081,12 @@ app.openapi(studentAggregatesRoute, async (c) => {
   const all = q.scope === 'all';
   if (all) {
     const extra = (
-      [
-        'classId',
-        'courseId',
-        'studentId',
-        'type',
-        'subjectId',
-        'dateFrom',
-        'dateTo',
-        'search',
-      ] as const
+      ['classId', 'courseId', 'studentId', 'type', 'subjectId', 'search'] as const
     ).filter((key) => q[key] !== undefined);
     if (extra.length > 0) {
       return c.json(
         {
-          error: `scope=all 只能搭配 campusId 與分頁（多了 ${extra.join('、')}）`,
+          error: `scope=all 只能搭配 campusId、期間與分頁（多了 ${extra.join('、')}）`,
           code: 'SCOPE_ALL_PARAMS',
         },
         400,
@@ -1840,7 +1831,12 @@ const overviewRoute = createRoute({
               ),
               failingTotal: z.number().int(),
               lowestClasses: z.array(
-                ExamRowSchema.extend({ classId: z.string(), className: z.string() }),
+                ExamRowSchema.extend({
+                  classId: z.string(),
+                  className: z.string(),
+                  /** 連班級頁用（#2079 (a)） */
+                  courseId: z.string(),
+                }),
               ),
               totalClasses: z.number().int(),
               recentExams: z.array(
@@ -1870,7 +1866,7 @@ app.openapi(overviewRoute, async (c) => {
 
   try {
     const examSelect: string =
-      'id, name, exam_date, total_score, pass_score, academy_exam_classes(class_id, classes(name))';
+      'id, name, exam_date, total_score, pass_score, academy_exam_classes(class_id, classes(name, course_id))';
     const examRows = await fetchAllRows<Record<string, any>>((from, to) =>
       applyCampusFilter(
         supabase
@@ -1895,6 +1891,7 @@ app.openapi(overviewRoute, async (c) => {
       classes: ((r['academy_exam_classes'] ?? []) as any[]).map((l) => ({
         classId: l.class_id as string,
         className: (l.classes?.name as string) ?? '',
+        courseId: (l.classes?.course_id as string) ?? '',
       })),
     }));
     const examIds = exams.map((e) => e.id);

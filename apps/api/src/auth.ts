@@ -114,6 +114,9 @@ export function socialProvidersFromEnv(env: {
       disableSignUp: true,
       // LINE 不給 email，而 better-auth 的 callback 硬性要求它
       mapProfileToUser: lineProfileToUser,
+      // idToken 入口（`POST /sign-in/social` 帶 idToken）不看 disableSignUp —— 理由見下面 Google 那段。
+      // LINE 要 channel secret 才換得到 id_token，難利用；但我們只用 code flow，入口沒有用途（使用者 11-02：關）
+      disableIdTokenSignIn: true,
     };
   }
 

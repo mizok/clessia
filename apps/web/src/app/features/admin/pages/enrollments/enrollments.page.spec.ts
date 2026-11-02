@@ -1,7 +1,8 @@
 import { signal } from '@angular/core';
 import { format, subDays } from 'date-fns';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
+import { FeeTemplatesService } from '@core/fee-templates.service';
 import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -70,6 +71,7 @@ describe('EnrollmentsPage', () => {
   const navigateMock = vi.fn();
   const studentsListMock = vi.fn();
   const classesListMock = vi.fn();
+  const feeTemplatesListMock = vi.fn(() => of({ data: [{ id: 'ft-1', name: '國中月繳' }] }));
 
   const q = (id: string) =>
     (fixture.nativeElement as HTMLElement).querySelector(
@@ -81,7 +83,11 @@ describe('EnrollmentsPage', () => {
     ),
   ];
 
-  async function setup(data: Enrollment[] = [enrollment()], total = data.length) {
+  async function setup(
+    data: Enrollment[] = [enrollment()],
+    total = data.length,
+    queryParams: Record<string, string> = {},
+  ) {
     listMock.mockReset();
     studentsListMock.mockReset();
     classesListMock.mockReset();
@@ -97,6 +103,7 @@ describe('EnrollmentsPage', () => {
     localStorage.removeItem('clessia.campusContext');
     localStorage.removeItem('clessia.campusContext.single');
     navigateMock.mockReset();
+    feeTemplatesListMock.mockClear();
 
     listMock.mockReturnValue(of({ data, meta: { total, page: 1, pageSize: 20, totalPages: 1 } }));
     countsMock.mockReset();
@@ -110,11 +117,13 @@ describe('EnrollmentsPage', () => {
         { provide: ClassesService, useValue: { list: classesListMock } },
         { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: clockMock },
+        { provide: FeeTemplatesService, useValue: { list: feeTemplatesListMock } },
         provideRouter([]),
       ],
     }).compileComponents();
 
     vi.spyOn(TestBed.inject(Router), 'navigate').mockImplementation(navigateMock);
+    TestBed.inject(ActivatedRoute).snapshot.queryParams = queryParams;
     fixture = TestBed.createComponent(EnrollmentsPage);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('page', RoutesCatalog.ADMIN_ENROLLMENTS);
@@ -827,6 +836,36 @@ describe('EnrollmentsPage', () => {
       slow.next({ data: { joined: 9, left: 9, paused: 0, voided: 0 } });
 
       expect(component['counts']()).toEqual({ joined: 2, left: 0, paused: 7, voided: 0 });
+    });
+  });
+
+  describe('從費用方案「N 筆報名在用」進來（#1314 F1b）', () => {
+    it('帶 feeTemplateId 篩、期間改全部（「N 筆在用」不分時候）；摘要寫方案名，計數同一批', async () => {
+      await setup([enrollment()], 1, { feeTemplateId: 'ft-1' });
+      const params = listMock.mock.calls.at(-1)![0];
+      expect(params.feeTemplateId).toBe('ft-1');
+      expect(params.from).toBeUndefined();
+      expect(countsMock.mock.calls.at(-1)![0].feeTemplateId).toBe('ft-1');
+      expect(component['filterSummary']()).toBe('國中月繳');
+    });
+
+    it('清除篩選：方案也拿掉，網址上的參數一起清', async () => {
+      await setup([enrollment()], 1, { feeTemplateId: 'ft-1' });
+      fixture.detectChanges();
+      q('clear-filters')!.click();
+      expect(listMock.mock.calls.at(-1)![0].feeTemplateId).toBeUndefined();
+      expect(navigateMock).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({ queryParams: { feeTemplateId: null } }),
+      );
+    });
+
+    it('沒帶參數：不篩方案，期間維持近 30 天', async () => {
+      await setup();
+      const params = listMock.mock.calls.at(-1)![0];
+      expect(params.feeTemplateId).toBeUndefined();
+      expect(params.from).toBeDefined();
+      expect(feeTemplatesListMock).not.toHaveBeenCalled();
     });
   });
 });

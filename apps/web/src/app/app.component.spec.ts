@@ -48,4 +48,38 @@ describe('App', () => {
     await router.navigateByUrl('/b');
     expect(check).toHaveBeenCalledTimes(2);
   });
+
+  // 開站畫面靠 CSS :has() 退場；App 等淡出跑完（transitionend）才把節點拿掉，
+  // 不支援 :has() 的瀏覽器沒有 transition，靠逾時收掉。只看第一次導覽
+  describe('index.html 的開站畫面', () => {
+    let splash: HTMLDivElement;
+    beforeEach(() => {
+      vi.useFakeTimers();
+      splash = document.createElement('div');
+      splash.className = 'app-splash';
+      document.body.append(splash);
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      splash.remove();
+    });
+
+    it('淡出跑完（transitionend）才移除，不在導覽結束當下抽掉', async () => {
+      TestBed.createComponent(App);
+      await TestBed.inject(Router).navigateByUrl('/a');
+      expect(splash.isConnected).toBe(true);
+
+      splash.dispatchEvent(new Event('transitionend'));
+      expect(splash.isConnected).toBe(false);
+    });
+
+    it('沒有 transition（不支援 :has()）：逾時收掉', async () => {
+      TestBed.createComponent(App);
+      await TestBed.inject(Router).navigateByUrl('/a');
+      vi.advanceTimersByTime(799);
+      expect(splash.isConnected).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(splash.isConnected).toBe(false);
+    });
+  });
 });
