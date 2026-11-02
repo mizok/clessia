@@ -13,7 +13,7 @@ import { skip } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns';
-import { PaginatorModule } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 
 import { CampusContextService } from '@core/campus-context.service';
 import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
@@ -54,7 +54,7 @@ const UNFILTERABLE_CHANGE_TYPES = new Set(['creation', 'makeup']);
     CampusScopeNoteComponent,
     ChangeLogListComponent,
     RouterLink,
-    PaginatorModule,
+    PagerComponent,
     SearchFieldComponent,
     SelectFieldComponent,
     PageOpenComponent,
@@ -117,7 +117,6 @@ export class ChangesComponent {
   });
 
   protected readonly pageSize = PAGE_SIZE;
-  protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
 
   constructor() {
     this.campusCtx.use();

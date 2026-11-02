@@ -110,6 +110,27 @@ describe('ChangesComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('停課');
   });
 
+  // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+  it('超過一頁：精簡版分頁器，按下一頁帶 page: 2 重查', async () => {
+    await setup();
+    listChangesMock.mockReturnValue(
+      of({ data: [entry()], meta: { total: 25, page: 1, pageSize: 20 } }),
+    );
+    component['onChangeTypeChange']('substitute');
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('p-paginator')).toBeNull();
+    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+      `第 1／${Math.ceil(25 / component['pageSize'])} 頁`,
+    );
+    listChangesMock.mockClear();
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+      .find((b) => b.textContent?.includes('下一頁'))!
+      .click();
+    expect(listChangesMock.mock.calls.at(-1)?.[0].page).toBe(2);
+  });
+
   it('切換異動類型會重新查詢並回到第一頁', async () => {
     await setup();
     component['onPageChange'](3);
