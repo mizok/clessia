@@ -55,6 +55,8 @@ describe('PaymentsPage', () => {
 
   afterEach(() => {
     document.body.querySelectorAll('.p-drawer').forEach((n) => n.remove());
+    // navigator.clipboard 是借來的：測試裡 defineProperty 蓋上去，這裡拿掉，同一個 worker 後面的 spec 才寫得進去
+    Reflect.deleteProperty(navigator, 'clipboard');
   });
 
   function createComponent(

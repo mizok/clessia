@@ -64,6 +64,11 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
   const list = vi.fn();
   const add = vi.fn();
 
+  afterEach(() => {
+    // navigator.clipboard 是借來的：測試裡 defineProperty 蓋上去，這裡拿掉，同一個 worker 後面的 spec 才寫得進去
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
   function setup(
     opts: {
       days?: Day[];
@@ -107,7 +112,7 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
 
   it('家長：主要家長的姓名、關係、電話；複製電話會寫入剪貼簿並提示', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const el = setup();
 
     expect(el.textContent).toContain('林媽媽（母）');
@@ -137,7 +142,9 @@ describe('StudentPanelComponent（老師的學生面板，TST1）', () => {
       ],
     });
 
-    const cells = [...el.querySelectorAll('[data-day]')].map((c) => c.textContent!.replace(/\s+/g, ''));
+    const cells = [...el.querySelectorAll('[data-day]')].map((c) =>
+      c.textContent!.replace(/\s+/g, ''),
+    );
     expect(el.textContent).toContain('這班最近 5 堂');
     expect(cells).toEqual(['10/5沒到', '10/8請假', '10/15到', '10/19到', '10/22到']);
   });
