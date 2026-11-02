@@ -70,9 +70,9 @@ export class ShellLayoutComponent {
   protected readonly avatarInitial = computed(
     () => Array.from(this.displayName().trim())[0]?.toUpperCase() ?? '?',
   );
-  /** 帳戶浮層裡點得到的身分 —— 目前這個不列，點自己沒有意義 */
-  protected readonly otherRoles = computed(() =>
-    this.auth.roles().filter((role) => role !== this.auth.activeRole()),
+  /** 多身分才出「切換身分」那一組；目前的那個也列、打勾標「使用中」（使用者 11-02） */
+  protected readonly hasOtherRoles = computed(() =>
+    this.auth.roles().some((role) => role !== this.auth.activeRole()),
   );
 
   /** 鈴鐺角標：超過 99 寫 99+ */
@@ -163,6 +163,7 @@ export class ShellLayoutComponent {
 
   /** 就地切換身分：零導航、零動態載入（`/select-role` 是登入後的初選，另一個場景） */
   protected switchRole(role: UserRole) {
+    if (role === this.auth.activeRole()) return;
     this.hide('shell-account');
     this.auth.navigateToRoleShell(role);
   }
