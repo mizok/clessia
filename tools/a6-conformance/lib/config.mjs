@@ -1308,6 +1308,51 @@ export const PAGES = {
         reason: '手機的操作紀錄：稿沒畫，收進頁首「⋯」',
         source: `${rule('R2')}；#1755 計畫席 10-21`,
       },
+      {
+        // 稿與 app 同一套分支（settings.html:224、settings-shell.page.ts）：全部分校日到班時寫「全部用日到班」
+        status: '文案',
+        a6: '>heading:h1\\[#個分校在營運，#個用日到班。\\]$',
+        reason: '資料：seed 的分校全部用日到班',
+        source: 'settings.html:224 與 settings-shell.page.ts 同一套分支',
+      },
+      // 稿是文字鈕「操作紀錄」；全站統一成工具列的時鐘圖示鈕（手機也保留）
+      {
+        status: '樣式',
+        a6: 'control:button\\[操作紀錄\\]$',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕',
+        source: '使用者 10-23 裁定 #2006（#2014）',
+      },
+      {
+        status: '多',
+        widths: [360],
+        app: '>landmark:main\\[\\]>control:button\\[操作紀錄\\]$',
+        reason: '手機的操作紀錄：稿沒畫，保留',
+        source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
+      },
+      // 教室對話框：seed 沒有任何教室（seed.sql／seed-demo.sql 都沒有 INSERT classrooms），app 是空狀態；
+      // 對話框置中，內容較矮，位置跟著不同
+      ...[
+        { status: '文案', a6: 'landmark:dialog\\[教室：\\{分校\\}\\]>text:p\\[A教室（#人）\\]$' },
+        { status: '位置', a6: '^pop\\[rooms\\]>landmark:dialog\\[教室：\\{分校\\}\\]$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'rooms',
+        reason: '資料：seed 沒有教室，對話框是空狀態',
+        source: 'supabase/seed.sql、seed-demo.sql 沒有 classrooms',
+      })),
+      // 分校表單的出勤紀錄模式：app-select-field（p-select）對稿的 .dd；說明字跟著包在欄位那一格裡
+      ...[
+        {
+          status: '缺',
+          a6: '>landmark:form\\[\\]>(control:button\\[選擇：日到班\\](>.*)?|text:p\\[預設跟著「一般」的設定\\])$',
+        },
+        { status: '多', app: '>row>(control:combobox|control:button|text:p|text:span)$' },
+      ].map((d) => ({
+        ...d,
+        pop: 'campus-form',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      })),
     ],
   },
   staff: {
