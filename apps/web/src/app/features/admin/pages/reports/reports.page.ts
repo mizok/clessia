@@ -85,6 +85,7 @@ export class ReportsPage implements OnInit {
 
   protected readonly summary = signal<RevenueFigures | null>(null);
   protected readonly groups = signal<RevenueGroup[]>([]);
+  protected readonly csvColumns = signal<string[]>([]);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
   protected readonly exporting = signal(false);
@@ -190,6 +191,7 @@ export class ReportsPage implements OnInit {
           this.viewTransition(() => {
             this.summary.set(res.summary);
             this.groups.set(res.groups);
+            this.csvColumns.set(res.csvColumns);
             this.loading.set(false);
           });
         },

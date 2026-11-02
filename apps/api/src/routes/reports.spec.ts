@@ -75,6 +75,7 @@ function fakeSupabase(invoices: ReturnType<typeof invoiceRow>[]) {
       eq: () => chain(),
       gte: () => chain(),
       lte: () => chain(),
+      order: () => chain(),
       then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
         resolve({ data: rows, error: null }),
     });
@@ -346,5 +347,21 @@ describe('GET /api/reports/revenue.csv —— 備註的公式注入被跳脫（#
     expect(res.status).toBe(200);
     const [, row] = (await res.text()).replace(/^﻿/, '').split('\r\n');
     expect(row).toBe(`2026-09-05,中正分校,數學,1200,實收,"'=HYPERLINK(""http://x"")"`);
+  });
+});
+
+describe('GET /api/reports/revenue —— csvColumns 就是 CSV 的表頭', () => {
+  it('前端確認浮層列的欄位跟實際匯出的 CSV 表頭一字不差', async () => {
+    const app = appWith([], null);
+    const json = (await (
+      await app.request('/revenue?dateFrom=2026-09-01&dateTo=2026-09-30')
+    ).json()) as { csvColumns: string[] };
+    const csv = await (
+      await app.request('/revenue.csv?dateFrom=2026-09-01&dateTo=2026-09-30')
+    ).text();
+    const [header] = csv.replace(/^\uFEFF/, '').split('\r\n');
+
+    expect(json.csvColumns).toContain('備註');
+    expect(header).toBe(json.csvColumns.join(','));
   });
 });

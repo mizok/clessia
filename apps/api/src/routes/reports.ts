@@ -35,6 +35,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CROSS_CAMPUS = '（跨分校）';
 const CROSS_COURSE = '（跨課程）';
 const UNCLASSIFIED = '（未分類）';
+/** 營收明細 CSV 的欄名。**唯一一份**：CSV 表頭用它，也由 `/revenue` 的 `csvColumns` 帶給前端確認浮層 */
+const REVENUE_CSV_COLUMNS = ['日期', '分校', '課程', '金額', '類型', '備註'] as const;
 
 const FiguresSchema = z.object({
   received: z.number(),
@@ -142,6 +144,8 @@ app.openapi(
             schema: z.object({
               summary: FiguresSchema,
               groups: z.array(FiguresSchema.extend({ key: z.string() })),
+              // 匯出明細 CSV 的欄名：前端確認浮層照這份列欄位，不另存一份
+              csvColumns: z.array(z.string()),
             }),
           },
         },
@@ -216,7 +220,10 @@ app.openapi(
       });
     }
 
-    return c.json(aggregateRevenue({ payments, invoices, today }), 200);
+    return c.json(
+      { ...aggregateRevenue({ payments, invoices, today }), csvColumns: [...REVENUE_CSV_COLUMNS] },
+      200,
+    );
   },
 );
 
@@ -298,7 +305,7 @@ app.openapi(
       );
     }
 
-    const csv = toCsv(['日期', '分校', '課程', '金額', '類型', '備註'], rows);
+    const csv = toCsv([...REVENUE_CSV_COLUMNS], rows);
 
     return c.body(csv, 200, {
       'Content-Type': 'text/csv; charset=utf-8',
