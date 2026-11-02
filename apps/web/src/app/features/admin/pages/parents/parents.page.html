@@ -162,17 +162,17 @@
                     <!-- 姓名＋Email 是同一個點擊目標（一塊 ≥44px），點開詳情 -->
                     <button
                       type="button"
-                      class="group/name flex min-h-11 w-full max-w-full cursor-pointer flex-col justify-center border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-accent-500"
+                      class="group/name block min-h-11 w-full max-w-full cursor-pointer border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-accent-500"
                       [attr.aria-label]="parent.name + ' 的詳情'"
                       (click)="openDetailDialog(parent)"
                     >
                       <span
-                        class="truncate text-base font-semibold text-zinc-900 underline-offset-4 group-hover/name:underline"
+                        class="flex items-center gap-2 text-lg leading-normal font-semibold text-zinc-900 underline-offset-4 group-hover/name:underline"
                         >{{ parent.name }}</span
                       >
                       <span class="flex min-w-0 items-center gap-2">
                         @if (identOf(parent); as ident) {
-                          <span class="truncate text-sm text-zinc-600">{{ ident }}</span>
+                          <span class="truncate text-sm leading-normal text-zinc-600">{{ ident }}</span>
                         } @else {
                           <span class="text-md text-zinc-500">—</span>
                         }
