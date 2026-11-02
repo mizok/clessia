@@ -1534,9 +1534,9 @@ export const PAGES = {
       {
         // 列元件宿主 app-request-row 是 display: contents（版面上按鈕直接當列，同稿 div > button.rq），工具仍把宿主認成一層列
         status: '多',
-        app: '^>landmark:main\\[\\]>row>row$',
+        app: '^>landmark:main\\[\\]>row>row(>.*)?$',
         reason:
-          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），版面上沒有這一層',
+          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），裡面的按鈕因此配不上；版面上沒有這一層',
         source: 'https://github.com/mizok/clessia/pull/2142（request-row 宿主 display: contents）',
       },
       {
@@ -1581,9 +1581,9 @@ export const PAGES = {
       {
         // 列元件宿主 app-request-row 是 display: contents（版面上按鈕直接當列，同稿 div > button.rq），工具仍把宿主認成一層列
         status: '多',
-        app: '^>landmark:main\\[\\]>row>row$',
+        app: '^>landmark:main\\[\\]>row>row(>.*)?$',
         reason:
-          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），版面上沒有這一層',
+          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），裡面的按鈕因此配不上；版面上沒有這一層',
         source: 'https://github.com/mizok/clessia/pull/2142（request-row 宿主 display: contents）',
       },
       {
@@ -2043,7 +2043,8 @@ export const PAGES = {
         widths: [1440],
         a6: '>row>control:link$',
         detail: '^相對所在列 Δx 0、Δy \\+\\d+（',
-        reason: '資料：代表列取到的變體不同（稿是請假的兩行列，app 是一般列），名字的上下位置跟著不同',
+        reason:
+          '資料：代表列取到的變體不同（稿是請假的兩行列，app 是一般列），名字的上下位置跟著不同',
         source:
           '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標；tools/a6-conformance/README.md（列內 part 取最常見那種）',
       },
@@ -2947,7 +2948,8 @@ export const PAGES = {
         a6: '>text:p\\[#\\]>text:span\\[人\\]$',
         detail: '^相對「#」 Δx -\\d+、Δy 0（',
         reason: '資料：班級人數位數不同（稿兩位數、seed 多是一位數），「人」跟著左移',
-        source: 'tools/a6-conformance/README.md:83（文案模板：數字 → #；位數不同造成的位移，工具不扣）',
+        source:
+          'tools/a6-conformance/README.md:83（文案模板：數字 → #；位數不同造成的位移，工具不扣）',
       },
     ],
   },
