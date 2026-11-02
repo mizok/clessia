@@ -191,6 +191,22 @@ run('Google 登入對真 Postgres（#1842）', () => {
     expect(await counts()).toEqual(before);
   });
 
+  // 第二道牆 disableImplicitLinking 自己的測試（#2165 二讀建議）：合成 email 讓真 email 那條永遠對不上，
+  // 所以要測它就得讓 email 真的對上 —— ba_user 裡已經有人的 email 剛好就是 `<sub>@google.internal`、
+  // 但沒有綁這個 Google 帳號。拿掉 disableImplicitLinking 的話，這裡會被「同 email 自動綁上並登入」。
+  it('email 對上但沒綁（隱式綁定）：不登入、不建 ba_account', async () => {
+    const sub = randomUUID();
+    await newUser(`${sub}@google.internal`);
+    const before = await counts();
+    const b = browser();
+
+    const location = await viaGoogle(b, '/api/auth/sign-in/social', sub);
+
+    expect(location).toContain('error=account_not_linked');
+    expect(await sessionUser(b)).toBeUndefined();
+    expect(await counts()).toEqual(before);
+  });
+
   it('綁定連結 → 綁 Google → 換個瀏覽器用 Google 登入 → 登進同一個人', async () => {
     const staff = await newUser();
     const sub = randomUUID();
