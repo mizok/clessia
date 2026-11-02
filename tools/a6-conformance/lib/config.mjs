@@ -540,7 +540,7 @@ const PUBLIC_FORM_DEVIATIONS = [
 ];
 
 /** 通知中心兩個分頁共用的分頁列（#1692）：稿的「新」標記、分頁 44px（R3） */
-const NOTIFICATIONS_TABS = [
+export const NOTIFICATIONS_TABS = [
   {
     // 稿上的「新」是設計說明（這個分頁、這顆鈕是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
     status: '缺',
