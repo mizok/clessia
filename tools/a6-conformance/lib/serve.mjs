@@ -111,8 +111,8 @@ export function track(fn) {
 }
 
 /** 只動工具自己的 wt/ 底下（不碰席位的 .worktrees/labor-*）；git 認不得的就直接刪目錄 */
-function removeWorktree(dir) {
-  if (path.dirname(dir) !== WT) throw new Error(`不是 compare 的暫存 worktree：${dir}`);
+function removeWorktree(dir, wt = WT) {
+  if (path.dirname(dir) !== wt) throw new Error(`不是 compare 的暫存 worktree：${dir}`);
   try {
     git(repo, 'worktree', 'remove', '--force', dir);
   } catch {
@@ -149,22 +149,64 @@ const pidAlive = (pid) => {
     return e.code === 'EPERM';
   }
 };
-/** 清掉崩潰留下的：先殺它當時起的 server（建立它的 compare 已經不在，沒人會收），再移 worktree */
-export function sweepStale() {
-  if (!fs.existsSync(WT)) return;
+const sh = (cmd, args) => {
+  try {
+    return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return '';
+  }
+};
+const groupMembers = (pgid) =>
+  sh('ps', ['-A', '-o', 'pid=,pgid='])
+    .split('\n')
+    .map((l) => l.trim().split(/\s+/).map(Number))
+    .filter(([, g]) => g === pgid)
+    .map(([pid]) => pid);
+const cwdOf = (pid) =>
+  sh('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'])
+    .split('\n')
+    .find((l) => l.startsWith('n'))
+    ?.slice(1) ?? null;
+const startOf = (pid) => Date.parse(sh('ps', ['-o', 'lstart=', '-p', String(pid)]).trim());
+
+/**
+ * 記下的 pid 那一組還是當時在這個 worktree 裡起的嗎（#2146）。行程早就結束的話 pid／pgid 可能已經被重用
+ * （別席的 wrangler 迴圈、vitest 的 process group），直接 kill(-pid) 會打掉別人的東西。
+ * 成立條件：那一組裡至少一個行程的 cwd 在這個 worktree 裡，而且是記下 pid（`sinceMs`）之後才啟動的。
+ */
+export function ownsGroup(
+  pgid,
+  dir,
+  sinceMs,
+  { members = groupMembers, cwd = cwdOf, start = startOf } = {},
+) {
+  return members(pgid).some((pid) => {
+    const at = cwd(pid);
+    return (
+      at != null && (at === dir || at.startsWith(dir + path.sep)) && start(pid) >= sinceMs - 60_000
+    );
+  });
+}
+
+/**
+ * 清掉崩潰留下的：先殺它當時起的 server（建立它的 compare 已經不在，沒人會收），再移 worktree。
+ * 對不上（pid 已經是別人的）就只移 worktree、不送訊號。
+ */
+export function sweepStale({ wt = WT, kill = killGroup, owns = ownsGroup } = {}) {
+  if (!fs.existsSync(wt)) return;
   const entries = fs
-    .readdirSync(WT, { withFileTypes: true })
+    .readdirSync(wt, { withFileTypes: true })
     .filter((d) => d.isDirectory())
-    .map((d) => ({ name: d.name, mtimeMs: fs.statSync(path.join(WT, d.name)).mtimeMs }));
+    .map((d) => ({ name: d.name, mtimeMs: fs.statSync(path.join(wt, d.name)).mtimeMs }));
   for (const name of staleWorktrees(entries, { alive: pidAlive })) {
-    const dir = path.join(WT, name);
-    try {
-      const pid = Number(fs.readFileSync(path.join(dir, SERVER_PID), 'utf8'));
-      if (pid) killGroup(pid);
-    } catch {
-      /* 沒起到 server 就崩的 */
+    const dir = path.join(wt, name);
+    const pidFile = path.join(dir, SERVER_PID);
+    if (fs.existsSync(pidFile)) {
+      const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+      if (pid && owns(pid, fs.realpathSync(dir), fs.statSync(pidFile).mtimeMs)) kill(pid);
+      else if (pid) console.warn(`  ${name}：記下的 server pid ${pid} 已經不是它的，不送訊號`);
     }
-    removeWorktree(dir);
+    removeWorktree(dir, wt);
     console.warn(`  清掉舊的暫存 worktree：${name}`);
   }
   git(repo, 'worktree', 'prune');

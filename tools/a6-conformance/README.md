@@ -69,7 +69,8 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 - **不管成功、失敗、崩潰或被中斷，都會收掉自己起的 web 與 worktree**（#1962）：`finally` 之外再掛行程的 `exit`
   事件（沒人接的 rejection 也會觸發），SIGINT／SIGTERM／SIGHUP 轉成 exit。log 在 worktree 外，收掉照樣查得到
 - 啟動時順手清 `wt/` 底下**超過 1 小時、而且建立它的 compare 已經不在**的舊 worktree（連同它當時起的 server），
-  只動 `wt/`，不碰席位的 `.worktrees/labor-*`
+  只動 `wt/`，不碰席位的 `.worktrees/labor-*`。殺 server 前先確認記下的 pid 那一組裡有行程的 cwd 就在那個
+  worktree、而且是記下 pid 之後才啟動的；對不上（pid 已被別人重用）就只移 worktree、不送訊號（#2146）
 - web 的 log：`~/.cache/clessia-a6-conformance/serve-<worktree>-<port>.log`
 
 輸出在 `A6_OUT/compare/<頁>-<base>-<head>.md`：

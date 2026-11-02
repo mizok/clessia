@@ -1454,6 +1454,64 @@ test('compare：啟動時清的舊 worktree —— 超過 1 小時、而且建�
   assert.deepEqual(staleWorktrees(entries, { now, alive }), ['bbbb2222-222-abc123', 'dddd4444']);
 });
 
+test('compare：清舊 worktree 前先確認記下的 server pid 還是它的 —— 對不上（pid 被重用）就不送訊號（#2146）', async () => {
+  const { spawn } = await import('node:child_process');
+  const os = await import('node:os');
+  const fsm = await import('node:fs');
+  const { ownsGroup, sweepStale } = await import('./serve.mjs');
+  const tmp = fsm.realpathSync(fsm.mkdtempSync(`${os.tmpdir()}/a6-2146-`));
+  const wt = `${tmp}/wt`;
+  const stale = `${wt}/aaaa1111-999999-abc123`; // 999999：建立它的 compare 已經不在
+  fsm.mkdirSync(stale, { recursive: true });
+  const other = `${tmp}/someone-else`; // 別席的行程：cwd 不在這個 worktree
+  fsm.mkdirSync(other);
+  const live = (cwd) =>
+    spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      cwd,
+      detached: true,
+      stdio: 'ignore',
+    });
+  const mine = live(stale);
+  const theirs = live(other);
+  try {
+    await new Promise((r) => setTimeout(r, 300));
+    const since = Date.now() - 5_000;
+    assert.equal(ownsGroup(mine.pid, stale, since), true);
+    assert.equal(ownsGroup(theirs.pid, stale, since), false, 'cwd 不在這個 worktree');
+    assert.equal(
+      ownsGroup(mine.pid, stale, Date.now() + 120_000),
+      false,
+      '記下 pid 之前就在跑的不算',
+    );
+
+    // 記下的 pid 已經被別人用了：只移 worktree，不送訊號
+    fsm.writeFileSync(`${stale}/.a6-server-pid`, String(theirs.pid));
+    const old = new Date(Date.now() - 3 * 3600_000);
+    fsm.utimesSync(stale, old, old);
+    const killed = [];
+    sweepStale({ wt, kill: (pid) => killed.push(pid) });
+    assert.deepEqual(killed, []);
+    assert.equal(fsm.existsSync(stale), false);
+    assert.equal(fsm.existsSync(other), true);
+
+    // 對照組：真的是它起的 → 送
+    fsm.mkdirSync(stale);
+    const own = live(stale);
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      fsm.writeFileSync(`${stale}/.a6-server-pid`, String(own.pid));
+      fsm.utimesSync(stale, old, old);
+      sweepStale({ wt, kill: (pid) => killed.push(pid) });
+      assert.deepEqual(killed, [own.pid]);
+    } finally {
+      process.kill(-own.pid, 'SIGTERM');
+    }
+  } finally {
+    for (const c of [mine, theirs]) process.kill(-c.pid, 'SIGTERM');
+    fsm.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('compare：中途崩潰或被中斷也會收掉自己起的 server 與 worktree（finally 跑不到的情況，#1962）', async () => {
   const { spawn } = await import('node:child_process');
   const os = await import('node:os');
