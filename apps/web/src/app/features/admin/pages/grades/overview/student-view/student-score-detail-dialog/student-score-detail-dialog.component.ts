@@ -17,7 +17,7 @@ import { subMonths } from 'date-fns';
 
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
-import { PaginatorModule } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import { SelectModule } from 'primeng/select';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -66,7 +66,7 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
     RouterLink,
     EmptyStateComponent,
     JdenticonAvatarComponent,
-    PaginatorModule,
+    PagerComponent,
     SelectModule,
     TooltipModule,
   ],
@@ -190,8 +190,9 @@ export class StudentScoreDetailDialogComponent implements OnInit {
     this.ref.close();
   }
 
-  protected onScorePageChange(event: { page?: number }): void {
-    this.scorePage.set(event.page ?? 0);
+  /** app-pager 的頁碼從 1 起算；scorePage 從 0 起算 */
+  protected onScorePageChange(page: number): void {
+    this.scorePage.set(page - 1);
   }
 
   protected onTypeChange(value: TypeFilter | null): void {
