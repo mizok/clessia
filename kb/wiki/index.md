@@ -1,20 +1,19 @@
 # Clessia Wiki — Index
 
-> Auto-maintained by `kb:map`. Last updated: 2026-10-21
+> Auto-maintained by `kb:map`. Last updated: 2026-11-03
 
 ---
 
 ## Overview (2)
-
 - [[overview]] — 本文件整理 PRD 第 1-5 章，說明專案背景、系統目標、核心名詞與角色邊界，作為各流程與功能規格的共同語意基準。
 - [[roadmap]] — 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 
-## Architecture (57)
-
+## Architecture (62)
 - [[architecture/a6-adoption-rules]] — A6 設計稿全採；現況有、稿沒畫的功能收進「⋯」或篩選而不刪；可點元素基底 44px；對齊以 conformance 工具報告為準，偏離逐條要有出處。
 - [[architecture/admin-contact-book-page]] — 管理端的聯絡簿是監看不是撰寫：日期區間列表＋未簽收篩選（API 無分頁且 count 是 exact，所以前端篩是誠實的），編輯已存在的一則走同一支 upsert，但不做「挑學生開新的一則」——那是老師端 P3 的工作流。「今天哪些該寫還沒寫」這輪不做，現有 API 做出來會漏班且是 N+1。
 - [[architecture/admin-dashboard-v1]] — 把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
 - [[architecture/admin-payments-page]] — 把 /admin/payments 空殼接上 /api/invoices：狀態由後端推導直接呈現、篩選只做 API 真的支援的兩項（欠繳與單一學生）而不在前端偽造狀態篩選、meta.total 在非 overdue 路徑不可信所以分頁改用「當頁滿即有下一頁」、詳情走 dialog、收款/退費/催繳/手動開帳共用同一個 dialog、列印用 @media print 切區塊。
+- [[architecture/admin-schedule-change-notice]] — 課務異動除了任課老師，也寫一則站內通知給範圍涵蓋該班分校的管理員；不需要 migration，收件人推導沿用 adminsForCampuses，同一個入口函式涵蓋所有寫入路徑。
 - [[architecture/admin-todo-alerts]] — 把管理端六頁的告警拉齊成「一句話+必定帶篩選的入口+落地篩選對得上告警數字」。核心決定：同頁情境延用既有的「單一資料源 computed」模式（多數頁已經是），跨頁情境（儀表板→課堂管理）改用「共用 query 組裝函式」+ 契約測試釘住；新增共用元件 app-todo-banner 統一視覺（順帶解掉 courses 徽章的 affordance 問題——藥丸+hover-only 可點暗示讓它讀成狀態標籤）；GET /api/sessions 補 attendanceTaken 參數。
 - [[architecture/amending-the-constitution]] — 憲法只能由人修改，agent 被兩條 deny 規則擋住（含 worktree 路徑）。曾經有過的 `tools/amend-constitution.mjs` 因為過度建造已移除——護欄留在 harness 層（A9 斷言 deny 目標存在）。
 - [[architecture/announcements]] — 管理員發布、老師收件匣、已讀狀態。取代 LINE 群組通知的第一步，不接外部服務。
@@ -48,16 +47,16 @@
 - [[architecture/parent-attendance-grades-billing-pages]] — 家長端 03 片。三頁共用 #344 的 child-switcher，資料走 #351 三支 childId 必填端點。逐項核對 kb specs 與 design-web 構圖跟 #351 實際契約的落差（4 態出勤/日到班時間/每筆 NEW 標籤/課程篩選/已取消分組都對不上），提出降級方案待批准。
 - [[architecture/parent-catalog-read]] — GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：分校 A 全機構、年級只標記；推薦改人工標記 `classes.is_recommended`、排最前（#1118）；費用後來改 B（#1175）：班級掛預設範本，回 `fee`（參考價，停用範本回 null）。
 - [[architecture/parent-class-logs-read]] — 家長端第二實例，照 parent-read-endpoints.md 的樣板抄：childDb 兩層防線、複用 admin 的 select/mapper、allowlist 欄位過濾。這支的特殊之處是 class_logs 是班級層級不是學生層級，childDb 現有 API 假設表上有 student_id 欄位，需要擴充一個新方法。等 STOP 批准，teacher-pages 的 v1b 讀取頁與發布按鈕卡在這支上。
-- [[architecture/pwa-oauth-handoff]] — iOS 主畫面 App 的 LINE 登入整段留在 App 裡（disable_auto_login，同一個視窗發起與回呼，#2063）；原本的交接碼（#2027）因對家長不直覺被取代，前端已拿掉，後端暫留。
 - [[architecture/parent-contact-book-sign]] — GET /api/me/contact-book 與 POST /api/me/contact-book/{id}/sign 的範圍與「簽收後有修改」判準為什麼要走 pg 一句 SQL、為什麼管理端 PUT 原文照存不寫。
-- [[architecture/parent-schedule-change-notice]] — 課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
 - [[architecture/parent-data-scope]] — 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。
 - [[architecture/parent-grades-period-filter]] — GET /api/me/grades 的 meta 多回機構的期清單（billing_periods，經 childDb.orgRef 白名單讀），前端用考試日期落在期的 start_date～end_date 判歸屬，取代「近1月／3月／半年」按鈕。預設＝含今天的期（重疊取起始日最晚的），沒有期涵蓋今天就預設全部；沒有任何期涵蓋的考試歸「未分期」。段考的 academic_year／semester 只顯示不當篩選鍵。不加欄位、不動 schema。
 - [[architecture/parent-read-endpoints]] — 家長端 P4 主體的 API 側設計。三支 GET-only 端點複用既有 admin 查詢邏輯（attendance.ts / scores.ts / invoices.ts 的 select 常數與 mapper），走 childDb + 顯式 childId 查詢參數（403 不回空），欄位過濾表逐支列出，錨點聚合數字放進各自 meta 不另開 dashboard 端點。等 STOP 批准。
+- [[architecture/parent-schedule-change-notice]] — 課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
 - [[architecture/parent-sessions-read]] — GET /api/me/sessions —— 給 p-schedule／p-dashboard 今日課／p-attendance 用。範圍走 childDb：pluck 孩子的 enrollments 得班級 ScopedIds，fromScopedIds 查 sessions，再用 countEnrolledOn 把在籍區間外的堂濾掉（同 class-logs 的轉班防線）。回老師（代課露實際老師＋原任課老師）、分校、小考數、課務異動（不帶原因）、停課照回、這個孩子那堂的出勤。日期窗必填、上限 42 天。pluck 改成必填 studentId（scope 含兄弟姊妹）。admin 的 summariseSessions 吃原始 supabase，不能複用，只複用純函式。
 - [[architecture/payment-info]] — organizations.payment_info（機構預設）＋ campuses.payment_info（分校覆寫，null＝沿用），形狀照 attendance_mode（#1112）。管理端系統設定與分校表單各一個多行欄位，改它要 manage_finance（改帳號＝改錢流向）。家長帳單列表 meta.paymentInfo 回這個孩子在籍分校的生效值（去重，多分校就多筆），沒有在籍分校退機構預設，全空時前端顯示原本的「請洽行政人員」。不做每張帳單各自判分校（帳單沒有分校欄，餐費／調整列沒有報名）。
 - [[architecture/permission-vocabulary-single-source]] — manage_org_settings 授不出來的根因是詞彙表有四份、三份在前端手抄；比較三種收斂做法，選出「前端自己有編譯期保證 + gate 守跨 app 一致」這條。
 - [[architecture/pg-pool-writes]] — PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
+- [[architecture/pwa-oauth-handoff]] — iOS 主畫面 App 的 LINE 登入整段留在 App 裡（disable_auto_login，同一個視窗發起與回呼，#2063）；原本的交接碼（#2027）因對家長不直覺被取代，前端已拿掉，後端暫留。
 - [[architecture/role-authorization]] — 掛載的 route 曾經只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
 - [[architecture/score-deletion]] — 登錄過成績的考試刪不掉、成績沒有任何刪除路徑，是三道關卡疊出來的功能缺口。修法是讓「清空分數後儲存」在後端走 delete 而不是把欄位設成 null，三道關卡一次解開；status 為 absent/makeup 的 null 是有意義的狀態，不在此列。
 - [[architecture/session-makeup]] — 停課的課堂可以被另一堂課補回來。連結存在 sessions.makeup_for_session_id 這個自我參照 FK 上，只為可解釋性——計費完全不需要它，因為補課那堂本來就會扣、停掉的那堂本來就不扣。
@@ -74,21 +73,21 @@
 - [[architecture/web-push]] — 設計稿（#1626，8 題 10-16 全部裁定，仍是 draft —— 實作第一步量 CPU）。手寫最小 service worker（只處理 push／notificationclick，不攔 fetch、不快取）＋ manifest，不用 @angular/service-worker，不碰 #1611 的 immutable 快取。加密與 VAPID 自寫在 WebCrypto 上（RFC 8291／8292，用 RFC 測試向量驗），Workers 與 Node 共用。提醒時間點是機構設定 organizations.invoice_reminder_offsets（預設到期前 3 天、當天、逾期 1、7 天，最多 6 個，manage_finance），去重鍵含時間點。第一版只開家長，但偏好與發送紀錄帶 role，之後開給老師／行政不改 schema。Cron 台北 09:00–11:00 每 10 分鐘送一小批 —— 免費方案每次 Cron 只有 10ms CPU、50 個 subrequest，K 先量再定。實作拆成 #1657–#1663。
 
 ## Flows (4)
-
 - [[flows/attendance]] — 本文件整理 PRD 6.4-6.5，並補充 4.16 的模式定義，說明「日到班（Check-in）」如何轉成課堂出勤（Attendance），以及管理員如何補登與補請假。
 - [[flows/enrollment]] — 本文件整理 PRD 6.3（並對齊 4.17 的來源/狀態定義），描述報名申請到繳費完成的完整作業流，涵蓋公開報名、家長端報名、加選、續課加選與管理員快速流程。
 - [[flows/renewal]] — 本文件整理 PRD 6.10，定義預告制自動續課（Pre-Notification Auto-Renewal）的時間軸、角色動作與例外處理。
 - [[flows/trial]] — 本文件整理 PRD 6.2，定義試聽申請從提交、安排、試聽到跟進的完整流程。此流程與報名申請流程獨立，但可在資料層建立來源關聯。
 
-## Lessons (26)
-
+## Lessons (33)
 - [[lessons/a-field-is-a-snapshot-not-a-path]] — 看到 published_at 有值就推論「發布流程走過」——實際上那筆是 seed 用 SQL 直接塞的，而發布端點連通知邏輯都還沒寫。同一個形狀在三個席上各出現過一次。
 - [[lessons/agent-workflow-guide]] — 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
+- [[lessons/auto-merge-duplicates-a-block]] — 疊單的下一張 merge main 時，git 自動合併可能把上一張已經 squash 進 main 的那段程式再貼一次——沒有衝突、merge-tree 不報、spec 照綠；對策是看 diff --stat 的檔案與行數，再 grep 關鍵宣告的次數。
 - [[lessons/awakened-tests-bite]] — 把 @Input/@ViewChild 換成 functional API 這種「機械」重構，讓一段從來沒真正執行過的程式碼第一次跑起來，連帶暴露六支靠「那行沒跑到」才綠的 spec 與一顆 node 解析條件的地雷。
 - [[lessons/backlog-legacy]] — 2026-02～03 的功能開發清單與技術債紀錄。歷史文件 —— 其中「忘記密碼」整節已於 2026-08 作廢（系統改用 LINE OAuth）。
 - [[lessons/better-auth-session-delegation]] — adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。教訓是 session 一律委派官方 API —— 當時委派給 signInEmail / signInUsername，2026-08 密碼登入移除後改為委派 magic-link 與 social provider，原則不變。
 - [[lessons/bottom-sheet-meets-mobile-viewport]] — 兩個獨立的缺口都打在同一個位置——釘底面板最下面那排按鈕。一個是 --window-height 用 innerHeight 且只聽 window:resize（iOS 工具列收合發的是 visualViewport.resize），一個是全 repo 沒有任何 env(safe-area-inset-*)。兩者都未經真機確認。
 - [[lessons/broken-looks-identical-to-normal]] — 2026-09-05～06 挖出同一族缺陷的 16 個實例（M8 稽核 13 個 + teacher-pages 補 1 個 + 兩個時區/驗證同族案例，另附兩則查證方法本身的盲點）——程式碼的語意或邏輯是對的，但渲染結果、觸發條件或視覺回饋錯了，而且錯的方式讓它看起來像對的。判準：「它壞了我們會知道嗎？」
+- [[lessons/conformance-against-an-empty-draft]] — 新席位 worktree 只複製了 A6 稿的 a6-editorial/、漏了它引用的 ../shared/，稿的 script 全掛、A6 側抽到 0 個 part，compare 卻照樣 exit 0、出表，數字作廢（#2195、#2196）；對策是量完先看 a6-d.json 的 part 數。
 - [[lessons/doc-code-drift-2026-08]] — 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
 - [[lessons/docker-disk-exhaustion]] — 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用，改用 PureMac；含它被 Homebrew CLT 檢查誤擋時的取用方式）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
 - [[lessons/empty-array-hides-loading]] — signal 初始 [] 或 computed 把 null 壓成 [] 之後，畫面就無法區分「還不知道」與「確定沒有」—— 而失敗態通常有人想到，載入態沒有。含一個已知但暫不修的實例（ReferenceDataService → 批次面板的老師名單）。
@@ -105,18 +104,19 @@
 - [[lessons/new-field-branches-are-born-untested]] — 接上 API 新回的欄位、加一個判斷分支之後，989 支測試裡有 986 支照樣全綠 —— 因為舊 fixture 沒有那個欄位，全部走 null 落進舊路徑。全綠在這種改動裡是警訊，不是好消息。
 - [[lessons/rls-backstop-drift]] — 業務表該一律啟用 RLS 當 fail-closed 後盾，但 30 張裡有 16 張沒開——早期的都有、後期新增的都沒有，而沒有任何東西會提醒。
 - [[lessons/root-component-pins-the-bundle]] — 一個只有多重角色使用者看得到的角色選擇 dialog，把 PrimeNG 整棵 dialog 依賴樹釘在初始 bundle 上，佔 756 kB 中的 140 kB。順帶記錄 angular.json 其實不生效這個會再踩一次的坑。
+- [[lessons/shared-git-config-push-default]] — 所有席位 worktree 共用同一份 .git/config；有席位為了推到不同名的上游下了 push.default=upstream，另一席從 origin/main 開的分支追蹤 main，裸 git push 就把 charter 直接推上 main（0c0652ed）。對策是不准改共用 git config、開分支加 --no-track、推送寫全。
 - [[lessons/silent-tool-failures]] — 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。
+- [[lessons/stale-fulltest-lock]] — 全套測試、整組契約、conformance compare 共用一把 mkdir 目錄鎖；持有者在 mkdir 之後、掛上 trap 之前死掉，或機器重開，鎖就永遠留著。對策是鎖裡寫 pid、等的人看到 pid 已死就接手，trap 要包含 INT、TERM、HUP。
 - [[lessons/status-table-blind-spot]] — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 - [[lessons/submit-busy-flag-finalize]] — 送出鈕的 busy 旗標（sending／saving）在 next 跟 error 各寫一次 set(false)，漏一邊就永遠卡在「送出中」，而 submit() 開頭的守門又擋住重送。2026-10 審核席在 #1673、#1738、#1740、#1741、#1748 連抓五次突變全綠。寫法用 finalize；spec 斷言「失敗 → 按鈕可以再按、再按真的有送」。
 - [[lessons/template-handler-false-prevents-default]] — (click)="$event.target === dialog && close()" 點在 dialog 裡面時整句是 false，Angular 把 false 當成 preventDefault —— 對話框裡的 radio 點不下去。DOM 事件的 handler 要嘛呼叫方法、要嘛確保不回 false。
+- [[lessons/unpinned-ci-tool-version]] — verify.yml 的 supabase/setup-cli 用 version latest，Supabase CLI 3.0.0 拒收 config.toml 的 [inbucket]，main 的 verify 紅、deploy 被 skip，而 migrate.yml 早就釘在 2.119.0（#2158）；對策是三處 setup-cli 釘同一個版本變數，加 harness 檢查。
 - [[lessons/workers-fanout-costs-before-the-db]] — 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。
 
 ## Patterns (1)
-
 - [[patterns/tables-use-responsive-table]] — 表格破版的正解是 responsive-table(欄位收合),不是 overflow 捲動;列印版面與臨時止血除外。
 
 ## Rules (8)
-
 - [[rules/attendance-rules]] — 本文件整理 PRD 8.3-8.4，定義出勤模式、系統推算邏輯、人工修改權限與請假處理規則，作為到班/點名模組的核心行為準則。
 - [[rules/billing-rules]] — 內部人訪談定案的金流業務規則：三種計費模式（月繳/期繳/堂數制）、金額永遠可人工覆寫（不做折扣引擎）、插班退班共用比例試算、帳單與收款一對多、欠繳只做可見性不做強制。
 - [[rules/boolean-controls]] — checkbox（表格列的布林事實／集合選取）、toggle switch（表單裡單一實體的設定欄位）、filter chip（頁面層級的檢視篩選）——依「值活在哪個結構裡」挑控制項，不是憑手感。三處既有落差已修：餐費「收費」toggle 改 checkbox 對齊同列的「訂餐」；費用方案「顯示停用方案」、聯絡簿「只看未簽收」從只換文字的按鈕改成視覺會跟著狀態走的 app-filter-chip。
@@ -126,17 +126,17 @@
 - [[rules/session-status-rules]] — sessions.status 目前只有 scheduled 與 cancelled 會被寫入，completed 沒有任何寫入路徑；這一頁記錄哪些程式碼依賴這個現況、誰會在 completed 第一次被寫入的那天改變行為，以及刪除守門為什麼用 OR 而不是替換條件。
 - [[rules/teaching-log-rules]] — 訪談最大發現：各科老師的教務日誌（教學紀錄+作業安排）現靠紙本拍照進 LINE 相簿、行政再轉貼到年級群組，粒度錯誤導致沒修課的學生也收到作業；系統應以班級名冊為粒度，日誌發布即自動送達該班家長端＋推播。
 
-## Specs (117)
-
+## Specs (120)
 - [[specs/admin/academic/calendar]] — 統一行事曆介面，管理員可瀏覽課堂並直接處理停課、代課、調課。
 - [[specs/admin/academic/classes]] — 管理開課班，設定上課時間，產生課堂。
 - [[specs/admin/academic/courses]] — /admin/courses 的課程列表 —— 管理員瀏覽與維護課程，是開課班（classes）的上層分類。
 - [[specs/admin/calendar]] — 以日曆視圖查看全校課堂，快速進入課堂詳情。
 - [[specs/admin/dashboard]] — 管理員首頁，六張卡各回答一個問題並跳到功能的家；經營區用 view_reports 蓋住。
+- [[specs/admin/enrollment/application-reminders]] — 申請超過 N 天沒處理、試聽後 N 天還沒報名，提醒分校範圍內有 manage_students 的管理員；天數是機構設定。
 - [[specs/admin/enrollment/approve-request]] — 設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
-- [[specs/admin/enrollment/payment-activation]] — 設計稿（#1778，已裁 2026-10-21；保留類、改既有記收款路徑 → 合併由使用者決定）。核准後報名是 pending_payment、申請是 awaiting_payment，原本沒有任何路徑把它們往前推，而月結只對 active 開單。已裁：記收款同一個交易裡，第一筆收款（含定金）就把這張帳單上的 pending_payment 報名轉 active；帳單繳清時把連到它們的 awaiting_payment 申請轉 completed，並發站內＋推播通知家長（新 notification_kind enrollment_completed，migration 獨立 PR）。退費、作廢不倒轉；行政手動轉 active 也一併完成申請；多報名的帳單照帳單算。記收款路由改走 withTx（順便關掉退費先查淨額再寫的競態）。
 - [[specs/admin/enrollment/enrollment]] — 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 - [[specs/admin/enrollment/enrollment-requests]] — 審核家長提交的報名申請。
+- [[specs/admin/enrollment/payment-activation]] — 設計稿（#1778，已裁 2026-10-21；保留類、改既有記收款路徑 → 合併由使用者決定）。核准後報名是 pending_payment、申請是 awaiting_payment，原本沒有任何路徑把它們往前推，而月結只對 active 開單。已裁：記收款同一個交易裡，第一筆收款（含定金）就把這張帳單上的 pending_payment 報名轉 active；帳單繳清時把連到它們的 awaiting_payment 申請轉 completed，並發站內＋推播通知家長（新 notification_kind enrollment_completed，migration 獨立 PR）。退費、作廢不倒轉；行政手動轉 active 也一併完成申請；多報名的帳單照帳單算。記收款路由改走 withTx（順便關掉退費先查淨額再寫的競態）。
 - [[specs/admin/enrollment/renewals]] — 查看續課狀態、處理異動申請。
 - [[specs/admin/enrollment/trials]] — 管理試聽申請、安排試聽、跟進結果。
 - [[specs/admin/finance/fee-templates]] — 價目表是 org 層的定價（三種計費模式、只給定價不給折扣、停用不刪除），與機構自訂的收費期間同頁管理。折扣引擎與班級層級生效期間已於 2026-08-29 訪談否定。
@@ -153,6 +153,7 @@
 - [[specs/admin/student-affairs/students]] — 查詢、新增與編輯學生基本資料。學生資料有兩種來源： - 公開報名：家長透過報名頁填寫，繳費完成後自動建立 - 管理員手動新增：管理員直接在後台建立，適用於內部人員子女入學、現場報名等情境
 - [[specs/admin/system/campus-classrooms]] — 設計稿（#1314 SE3，保留類、要 migration；10-21 已裁）。照 A6 settings.html#campuses：分校 ⋮ 的「教室」對話框（列出教室、新增：名稱、容納人數、設備選填）、列上「N 間教室／還沒有教室」、分校表單加狀態與出勤模式。schema 只缺教室：新表 classrooms（分校底下，名稱分校內唯一、容量選填、設備選填）。帳戶**已存在**（campuses.payment_info，#1073 使用者裁一個多行欄位）—— A6 畫成「收款銀行＋帳號」兩欄，使用者裁不拆、維持一欄，登記 A6 偏離（舊有新無：多帳戶、LINE Pay、現金時段會寫不進去）。狀態、出勤模式 API 早已收，只差表單。A6 在班級時段也用教室（class.html、courses.html），同一支 migration 先加 schedules.classroom_id（可空、SET NULL）、UI 另開單（計畫席裁）。
 - [[specs/admin/system/campuses]] — 管理分校資訊與教室。
+- [[specs/admin/system/grade-promotion]] — 新學年把在讀學生的年級一次往上升（含預覽、高三畢業停用、30 天內可復原），設定在「一般」分頁的學年升級段。
 - [[specs/admin/system/settings]] — 全域系統參數設定。
 - [[specs/admin/system/staff]] — 管理管理員、老師帳號。
 - [[specs/BRAINSTORM_PROMPT]] — 你是一位資深的教育科技架構師與產品經理，專精於補習班（課後輔導）ERP 系統的設計。 你的目標是分析「Clessia」(學程管家) 目前的系統設計，並提出一套完整的 functional specification (功能規格) 結構。
@@ -248,9 +249,7 @@
 - [[specs/teacher/students]] — 查看自己任課班級的學生名單。
 
 ## Sources (1)
-
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-
-**Total: 215 pages**
+**Total: 230 pages**
