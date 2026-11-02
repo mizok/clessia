@@ -72,7 +72,7 @@
       @if (activeChild()) {
         <button
           type="button"
-          class="tbar-control attendance__leave inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto"
+          class="tbar-control attendance__leave inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto"
           (click)="openLeave()"
         >
           <i class="pi pi-calendar-minus" aria-hidden="true"></i>幫孩子請假
@@ -269,7 +269,6 @@
       <app-leave-form-dialog
         [student]="{ id: child.id, name: child.name }"
         [create]="createLeave"
-        [appendTo]="leaveDialog"
         (closed)="onLeaveClosed($event)"
       />
     </div>
