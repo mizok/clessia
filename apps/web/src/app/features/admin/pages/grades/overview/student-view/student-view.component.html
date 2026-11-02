@@ -1,6 +1,6 @@
 <!--
   A6 版（#991 grades G5，grades-student.html）：色面（返回成績總覽）→ 灰工具列（搜尋、「篩選：…」浮層
-  ——年級／課程（#1314 G9）／學校／狀態、匯出）→ 依年級分章的學生列；每列的最近一次、比上一次、缺考、平均來自 `/scores/students?scope=all`（#1314 G8）。
+  ——年級／課程（#1314 G9）／開課班／期間（#2079(c)，預設近 3 個月）／學校／狀態、匯出）→ 依年級分章的學生列；每列的最近一次、比上一次、缺考、平均來自 `/scores/students?scope=all`（#1314 G8）。
   分校跟頂欄（#1138），頁內不再有分校。
 -->
 <app-page-open>
@@ -144,6 +144,35 @@
       />
     </div>
     <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="sv-f-class">開課班</span>
+      <p-select
+        [options]="classOptions()"
+        [ngModel]="classIdFilter()"
+        (ngModelChange)="onClassChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部班級"
+        [showClear]="true"
+        [filter]="classOptions().length > 8"
+        ariaLabelledBy="sv-f-class"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="flex min-w-0 flex-col gap-1">
+      <span class="text-md font-semibold text-zinc-700" id="sv-f-period">期間</span>
+      <p-select
+        [options]="periodOptions"
+        [ngModel]="periodFilter()"
+        (ngModelChange)="onPeriodChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        ariaLabelledBy="sv-f-period"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+    <div class="flex min-w-0 flex-col gap-1">
       <span class="text-md font-semibold text-zinc-700" id="sv-f-school">學校</span>
       <p-select
         [options]="schoolOptions()"
@@ -262,8 +291,8 @@
                   @if (agg.deltaVsPrev !== null) {
                     · 比上一次 {{ deltaText(agg.deltaVsPrev) }} 分
                   }
-                  @if (agg.recentAbsentCount) {
-                    · 缺考 {{ agg.recentAbsentCount }} 次
+                  @if (agg.absentCount) {
+                    · 缺考 {{ agg.absentCount }} 次
                   }
                 } @else {
                   這段期間沒有成績

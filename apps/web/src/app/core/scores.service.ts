@@ -187,10 +187,12 @@ export class ScoresService {
 
   /**
    * 全部學生的每生聚合（#1314 G8，`scope=all`）。可見範圍同 `/students` 列表；
-   * 只能搭 `campusId` 與分頁（帶別的參數 API 回 400）。只列有成績的學生
+   * 只能搭 `campusId`、期間（#2079(c)）與分頁（帶別的參數 API 回 400）。只列期間內有成績的學生
    */
   studentAggregatesAll(params?: {
     campusId?: string;
+    /** 期間起日（含），`yyyy-MM-dd`；不帶＝不限 */
+    dateFrom?: string;
     /** `grade`＝年級（P1→S3）再依姓名；預設依姓名 */
     sort?: 'name' | 'grade';
     page?: number;
@@ -201,6 +203,7 @@ export class ScoresService {
   }> {
     const query: Record<string, string | number> = { scope: 'all' };
     if (params?.campusId) query['campusId'] = params.campusId;
+    if (params?.dateFrom) query['dateFrom'] = params.dateFrom;
     if (params?.sort) query['sort'] = params.sort;
     if (params?.page !== undefined) query['page'] = params.page;
     if (params?.pageSize !== undefined) query['pageSize'] = params.pageSize;
@@ -210,16 +213,25 @@ export class ScoresService {
     }>(`${this.base}/students`, { params: query });
   }
 
-  /** 一門課程的每生聚合（#1314 G9）：只列這門課開課班裡有成績的學生；不能搭 `campusId` */
-  studentAggregatesByCourse(params: {
-    courseId: string;
+  /**
+   * 一門課程（#1314 G9）或一個開課班（#2079(c)）的每生聚合：只列那裡面期間內有成績的學生；
+   * 兩個都帶＝那門課底下的那一班。不能搭 `campusId`
+   */
+  studentAggregatesIn(params: {
+    courseId?: string;
+    classId?: string;
+    /** 期間起日（含），`yyyy-MM-dd`；不帶＝不限 */
+    dateFrom?: string;
     page?: number;
     pageSize?: number;
   }): Observable<{
     data: StudentScoreAggregate[];
     meta: { total: number; page: number; pageSize: number };
   }> {
-    const query: Record<string, string | number> = { courseId: params.courseId };
+    const query: Record<string, string | number> = {};
+    if (params.courseId) query['courseId'] = params.courseId;
+    if (params.classId) query['classId'] = params.classId;
+    if (params.dateFrom) query['dateFrom'] = params.dateFrom;
     if (params.page !== undefined) query['page'] = params.page;
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
     return this.http.get<{

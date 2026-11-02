@@ -157,13 +157,42 @@ describe('GET /api/scores/students?scope=all（#1314 G8）', () => {
     'studentId=00000000-0000-0000-0000-0000000000e1',
     'type=academy',
     'subjectId=00000000-0000-0000-0000-0000000000f1',
-    'dateFrom=2027-01-01',
-    'dateTo=2027-12-31',
     'search=王',
   ])('scope=all 搭 %s → 400 SCOPE_ALL_PARAMS', async (extra) => {
     const { status, code } = await get(`?scope=all&${extra}`);
     expect(status).toBe(400);
     expect(code).toBe('SCOPE_ALL_PARAMS');
+  });
+
+  // #2079(c) 學生頁的「期間」：scope=all 准帶 dateFrom／dateTo，兩條路（校內考在 DB、段考在 inRange）都要套
+  describe('scope=all 搭期間（#2079(c)）', () => {
+    const later = (s: ReturnType<typeof schoolScore>) => ({
+      ...s,
+      school_exams: { ...s.school_exams, exam_date: '2027-05-01' },
+    });
+    const tables = {
+      ...BASE,
+      academy_scores: [academy(1, 's1', '80')], // 2027-03-01
+      school_scores: [later(schoolScore('b1', 's2', '88', ORG))], // 2027-05-01
+    };
+
+    it('dateFrom：校內考早於起日的不算', async () => {
+      expect((await get('?scope=all&dateFrom=2027-04-01', { tables })).ids).toEqual(['s2']);
+    });
+
+    it('dateTo：段考晚於迄日的不算', async () => {
+      expect((await get('?scope=all&dateTo=2027-04-01', { tables })).ids).toEqual(['s1']);
+    });
+
+    it('起迄含當天', async () => {
+      const { ids } = await get('?scope=all&dateFrom=2027-03-01&dateTo=2027-05-01', { tables });
+      expect(ids).toEqual(['s1', 's2']);
+    });
+
+    it('期間與分校範圍取交集（受限 [A]：B 校學生的段考在期間內也不進）', async () => {
+      const { ids } = await get('?scope=all&dateFrom=2027-01-01', { tables, scope: [CA] });
+      expect(ids).toEqual(['s1']);
+    });
   });
 
   it('campusId 沒搭 scope=all → 400（不默默忽略）', async () => {

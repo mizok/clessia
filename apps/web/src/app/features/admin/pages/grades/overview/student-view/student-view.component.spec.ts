@@ -8,6 +8,7 @@ import { MessageService } from 'primeng/api';
 import { vi } from 'vitest';
 
 import { CampusContextService } from '@core/campus-context.service';
+import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 
 import { StudentViewComponent } from './student-view.component';
 
@@ -257,7 +258,9 @@ describe('StudentViewComponent', () => {
               failing: true,
             },
             deltaVsPrev: -7.6,
-            recentAbsentCount: 2,
+            // 缺考是「這段期間」的（A6 recsOf(period)）：看 absentCount，不看固定 30 天的 recentAbsentCount
+            absentCount: 2,
+            recentAbsentCount: 0,
           }),
         ],
         meta: { total: 201, page: 2, pageSize: 200 },
@@ -307,6 +310,95 @@ describe('StudentViewComponent', () => {
     expect(vm.filteredStudents().map((s: { id: string }) => s.id)).toEqual(['s1']);
     expect(vm.filterSummary()).toBe('國二數學');
     expect(vm.hasFilters()).toBe(true);
+  });
+
+  // #2079(c)：期間（A6 預設近 3 個月）與開課班
+  describe('期間與開課班（#2079(c)）', () => {
+    const flushStudents = (ids: string[]) =>
+      http
+        .match((r) => r.url.includes('/api/students'))
+        .filter((r) => !r.cancelled)
+        .forEach((r) =>
+          r.flush({
+            data: ids.map((id) => ({ id, name: id, grade: 'J2', school: null })),
+            meta: { total: ids.length, page: 1, pageSize: 100, totalPages: 1 },
+          }),
+        );
+    const aggReq = () => http.expectOne((r) => r.url.endsWith('/api/scores/students'));
+    const today = () => TestBed.inject(SystemClockService).todayTaipei();
+
+    it('預設近 3 個月：scope=all 帶 dateFrom＝今天往前 92 天；不算「有篩選」', () => {
+      fixture.detectChanges();
+      flushStudents([]);
+      const req = aggReq();
+      expect(req.request.params.get('scope')).toBe('all');
+      expect(req.request.params.get('dateFrom')).toBe(addDaysToDateString(today(), -92));
+      expect((component as any).hasFilters()).toBe(false);
+    });
+
+    it('改「全部」：不帶 dateFrom、算有篩選；清除篩選回到近 3 個月', () => {
+      const vm = component as any;
+      fixture.detectChanges();
+      flushStudents([]);
+      aggReq().flush({ data: [], meta: { total: 0, page: 1, pageSize: 200 } });
+
+      vm.onPeriodChange('all');
+      flushStudents([]);
+      const req = aggReq();
+      expect(req.request.params.has('dateFrom')).toBe(false);
+      req.flush({ data: [], meta: { total: 0, page: 1, pageSize: 200 } });
+      expect(vm.hasFilters()).toBe(true);
+
+      vm.clearFilters();
+      flushStudents([]);
+      expect(aggReq().request.params.get('dateFrom')).toBe(addDaysToDateString(today(), -92));
+      expect(vm.periodFilter()).toBe('m3');
+    });
+
+    it('開課班：摘要改撈這一班（帶期間），名單只留這班有成績的學生；鈕上寫班名', () => {
+      const vm = component as any;
+      fixture.detectChanges();
+      http
+        .expectOne((r) => r.url.includes('/api/classes'))
+        .flush({
+          data: [
+            { id: 'class-1', name: '國二數學 A', courseId: 'course-1' },
+            { id: 'class-2', name: '國二英文 A', courseId: 'course-2' },
+          ],
+          meta: { total: 2 },
+        });
+      vm.onClassChange('class-1');
+      flushStudents(['s1', 's2']);
+      const req = aggReq();
+      expect(req.request.params.get('classId')).toBe('class-1');
+      expect(req.request.params.has('scope')).toBe(false);
+      expect(req.request.params.get('dateFrom')).toBe(addDaysToDateString(today(), -92));
+      req.flush({
+        data: [{ studentId: 's1', latest: null, deltaVsPrev: null, absentCount: 0 }],
+        meta: { total: 1, page: 1, pageSize: 200 },
+      });
+
+      expect(vm.filteredStudents().map((s: { id: string }) => s.id)).toEqual(['s1']);
+      expect(vm.filterSummary()).toBe('國二數學 A');
+    });
+
+    it('先選課程：開課班只列這門課的班；換到別門課，原本選的班清掉', () => {
+      const vm = component as any;
+      fixture.detectChanges();
+      http
+        .expectOne((r) => r.url.includes('/api/classes'))
+        .flush({
+          data: [
+            { id: 'class-1', name: '國二數學 A', courseId: 'course-1' },
+            { id: 'class-2', name: '國二英文 A', courseId: 'course-2' },
+          ],
+          meta: { total: 2 },
+        });
+      vm.onClassChange('class-1');
+      vm.onCourseChange('course-2');
+      expect(vm.classOptions().map((o: { value: string }) => o.value)).toEqual(['class-2']);
+      expect(vm.classIdFilter()).toBeNull();
+    });
   });
 
   it('renders paged students rows', () => {

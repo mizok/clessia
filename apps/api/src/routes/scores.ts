@@ -1026,7 +1026,7 @@ const studentAggregatesRoute = createRoute({
     query: z.object({
       /**
        * 全部學生（#1314 G8）：可見範圍同 `/students` 列表（分校範圍 ∩ `campusId`；老師只看任課學生）。
-       * 只准搭 `campusId` 與分頁
+       * 只准搭 `campusId`、期間（`dateFrom`／`dateTo`，#2079(c)）與分頁
        */
       scope: z.enum(['all']).optional(),
       /** 排序：預設依姓名；`grade`＝年級（P1→S3）再依姓名（#1314 G8，A6 依年級分章） */
@@ -1087,15 +1087,13 @@ app.openapi(studentAggregatesRoute, async (c) => {
         'studentId',
         'type',
         'subjectId',
-        'dateFrom',
-        'dateTo',
         'search',
       ] as const
     ).filter((key) => q[key] !== undefined);
     if (extra.length > 0) {
       return c.json(
         {
-          error: `scope=all 只能搭配 campusId 與分頁（多了 ${extra.join('、')}）`,
+          error: `scope=all 只能搭配 campusId、期間與分頁（多了 ${extra.join('、')}）`,
           code: 'SCOPE_ALL_PARAMS',
         },
         400,
