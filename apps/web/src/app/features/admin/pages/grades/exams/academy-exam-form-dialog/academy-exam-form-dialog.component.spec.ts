@@ -220,6 +220,25 @@ describe('AcademyExamFormDialogComponent', () => {
     expect(component['canSave']()).toBe(false);
   });
 
+  // 二讀 #2120：打「8a」時值是 8，畫面也要是 8（model 沒變時 ngModel 不會回寫輸入框）
+  it('分數框打了非數字：畫面跟送出的值一致', async () => {
+    await createComponent({ data: { mode: 'create' } });
+    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+      '#exam-pass',
+    )!;
+    for (const value of ['8', '8a']) {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+    }
+    expect(input.value).toBe('8');
+    expect(
+      (component as unknown as { formData: () => { passScore: number | null } }).formData()
+        .passScore,
+    ).toBe(8);
+  });
+
   it('locks identity fields whenever in edit mode (no scores)', async () => {
     academyExamsServiceMock.get.mockReturnValueOnce(
       of({

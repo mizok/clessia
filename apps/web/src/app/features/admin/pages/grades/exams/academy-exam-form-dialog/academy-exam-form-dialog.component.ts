@@ -370,9 +370,13 @@ export class AcademyExamFormDialogComponent implements OnInit {
     this.ref.close();
   }
 
-  /** 分數文字框：A6 `money` 欄（`inputmode=numeric`），非數字字元直接拿掉；清空＝null */
-  protected toScore(value: string): number | null {
-    const digits = value.replace(/\D/g, '');
-    return digits ? Number(digits) : null;
+  /**
+   * 分數文字框：A6 `money` 欄（`inputmode=numeric`），非數字字元直接拿掉；清空＝null。
+   * 輸入框也寫回整理後的值 —— 打「8a」時 model 還是 8、沒變，ngModel 不會回寫，畫面會留著「8a」（#2120 二讀）
+   */
+  protected onScoreInput(field: 'totalScore' | 'passScore', el: HTMLInputElement): void {
+    const digits = el.value.replace(/\D/g, '');
+    if (el.value !== digits) el.value = digits;
+    this.updateField(field, digits ? Number(digits) : null);
   }
 }
