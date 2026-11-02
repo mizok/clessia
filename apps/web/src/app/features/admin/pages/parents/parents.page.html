@@ -139,18 +139,19 @@
       <div>
         @for (chapter of chapters(); track chapter.status + chapter.rows[0].id) {
           <section
-            class="grid grid-cols-1 border-b border-zinc-200 last:border-b-0 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8"
+            class="grid grid-cols-1 gap-3 border-b border-surface-border py-6 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-8 wide:py-8"
             [attr.aria-label]="chapterLabels[chapter.status]"
             [attr.data-chapter]="chapter.status"
           >
+            <!-- A6 `.chap`：章自己帶上下 32（手機 24）、章間細線（最後一章也有） -->
             <app-chapter-head
-              class="block pt-6 wide:pt-8"
+              class="block"
               [stacked]="true"
               [name]="chapterLabels[chapter.status]"
               [count]="chapterTally(chapter.status)"
               unit="位"
             />
-            <ul class="m-0 list-none p-0 wide:pt-3">
+            <ul class="m-0 list-none p-0">
               @for (parent of chapter.rows; track parent.id) {
                 <li
                   class="vt-row border-b border-zinc-200 last:border-b-0"
