@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-10-22
+updated: 2026-11-02
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -167,6 +167,26 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 3. **`ensureAttendanceSessionEvents` 會寫入**（補建出勤事件），所以範圍不能只靠讀取端
    過濾 —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event
 
+### 2026-11-02 補：A7c 看不到「經由學生才連到分校」的路由（#2138）
+
+`meals.ts` 一路沒接分校範圍：只被指派 A 分校的管理員（有 `manage_finance`）讀得到、也改得到全機構的餐費。
+**A7c 沒擋，因為它只檢查原始碼裡出現 `campus_id`／`campusId` 的路由** —— 餐費屬於學生，分校要經過
+`students → enrollments → classes.campus_id` 才推得出來，`meals.ts` 字面上一個 `campus_id` 都沒有，於是
+不在 gate 的掃描範圍裡。「碰得到分校資料」跟「字面上提到分校」是兩件事。
+
+判準照學生列表與帳單（`studentInScope`）：學生任一報名的班在範圍內＝範圍內。讀（區間、單日、金額摘要）只回範圍內
+學生；單日候選名單的班限範圍內分校（兩校都上的學生才不會帶出別校班名）；批次寫入有任何範圍外學生 → 整批 404。
+守在 `contract/meals-scope.contract.ts`。
+
+**做法要用 embed 依分校篩（`scope_student:students!inner(enrollments!inner(classes!inner(campus_id)))`，同
+`contact-book.ts`），不要「先撈範圍內學生 id 再 `.in('student_id', …)` 回去」**：一個分校幾百位學生，id 進 GET URL
+約 200 個就 414（受限的管理員整頁打不開）；撈報名名單又會被 max_rows 1000 靜默截斷（#1928 型，計畫席 11-02 二讀）。
+URL 裡只該有分校 id。body 帶一批學生 id 的寫入，只查那一批、分段（`lib/org-scope.ts` 的 `ID_CHUNK`）——
+`missingInOrg` 原本一次帶全部，餐費一次存 300 位學生就 414，同一張一併改成分段。
+
+**下一支同形狀的路由**（以學生、家長為主體、自己不存 `campus_id` 的表）A7c 一樣看不到 —— 新增這種路由時
+要自己接 `getCampusScope`，並寫一支契約測試。
+
 ### 2026-10-01 補：範圍可以從「發給別人」那一側逃出去（#966 A 批）
 
 上面守的都是「呼叫者自己碰得到什麼」。**另一側是呼叫者能發出什麼**：
@@ -187,11 +207,11 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 出勤、請假、打卡、教務日誌、聯絡簿這一批改走 `lib/campus-write-guard.ts`，判準刻意跟讀取面同一份
 （寫得到的 = 看得到的）：
 
-| 資源 | 分校從哪來 | 判準 |
-| --- | --- | --- |
-| 學生 | 報名 → `classes.campus_id`（任何狀態） | 任一筆在範圍內就算（同 `GET /api/leaves`、家長範圍，#816） |
-| 課堂 | `events.campus_id` | 在範圍內；**null 視為範圍外**（讀取面的 `.in()` 也看不到它） |
-| 班級 | `classes.campus_id` | 在範圍內 |
+| 資源 | 分校從哪來                             | 判準                                                         |
+| ---- | -------------------------------------- | ------------------------------------------------------------ |
+| 學生 | 報名 → `classes.campus_id`（任何狀態） | 任一筆在範圍內就算（同 `GET /api/leaves`、家長範圍，#816）   |
+| 課堂 | `events.campus_id`                     | 在範圍內；**null 視為範圍外**（讀取面的 `.in()` 也看不到它） |
+| 班級 | `classes.campus_id`                    | 在範圍內                                                     |
 
 `scope === null`（不受限的管理員、老師、家長）不查分校，**但仍驗 org**（#966 B6）：原本 null 直接放行，
 而 daily-checkins／contact-book／class-logs 的 upsert 衝突鍵不含 `org_id`，不受限的管理員拿別 org 的 id
@@ -203,7 +223,7 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 
 **課表（`sessions`）的寫入**（#1109／#1110／#1221，2026-10-03）：分校取 `classes.campus_id`
 （跟列表過濾同一欄，不是 `events.campus_id` —— 未來的堂還沒有 event）。單堂（cancel／substitute／
-reschedule、加開）不在範圍 → 403；**批次（batch-*）任一堂不在範圍 → 整批 403，dryRun 也擋**
+reschedule、加開）不在範圍 → 403；**批次（batch-\*）任一堂不在範圍 → 整批 403，dryRun 也擋**
 （計畫席裁：受限管理員畫面上看不到別校的課，送進來就是 bug 或試探，當成「不符資格」跳過會混進 skipped 裡）。
 批次共用 `routes/sessions.ts` 的 `batchOutOfCampusScope`。
 
@@ -422,10 +442,10 @@ fail-closed 的授權一旦打開，**沒有資料的人看到的是空白不是
 
 兩個快取，兩個上限。**改任一個上限都是改政策，不是調效能參數。**
 
-| 撤銷什麼 | 最長延遲 | 誰造成的 | 守在哪 |
-| --- | --- | --- | --- |
-| 登出、踢 session、ban（session 本身失效） | **5 分鐘** | Better Auth session cookie cache（`apps/api/src/auth.ts` 的 `cookieCache.maxAge`） | Better Auth 行為，無 spec |
-| 角色、細部權限、帳號停用、分校指派、家長關聯 | **30 秒** | `authMiddleware` 身分三查的 per-isolate 快取（`apps/api/src/lib/identity-cache.ts`） | `middleware/auth.spec.ts`「撤銷最遲 30 秒生效」，上限寫死在 spec |
+| 撤銷什麼                                     | 最長延遲   | 誰造成的                                                                             | 守在哪                                                           |
+| -------------------------------------------- | ---------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| 登出、踢 session、ban（session 本身失效）    | **5 分鐘** | Better Auth session cookie cache（`apps/api/src/auth.ts` 的 `cookieCache.maxAge`）   | Better Auth 行為，無 spec                                        |
+| 角色、細部權限、帳號停用、分校指派、家長關聯 | **30 秒**  | `authMiddleware` 身分三查的 per-isolate 快取（`apps/api/src/lib/identity-cache.ts`） | `middleware/auth.spec.ts`「撤銷最遲 30 秒生效」，上限寫死在 spec |
 
 - 30 秒快取**寫入點不主動清除**（計畫席 10-15 裁定）：管理員改自己的權限，畫面最多 30 秒仍舊。
 - **唯一例外：改自己的 `/api/me` 寫入**（`PATCH /api/me`，#1631）成功後清掉**這個使用者在當下 isolate** 的快取（`invalidateIdentity`）。原因是寫入那個請求經過 middleware 時剛存進**舊**身分，前端立刻讀回就一定撞到（改名後標題列還是舊名）。寫入失敗不清。守在 `routes/me-identity-cache.spec.ts`。原本的 `POST /api/me/activate-parent` 與前端的 `AuthService.adoptRoles` 已隨 #1844 移除；家長頁把教職員設為家長時也會順手清一下，但那是別人的身分，最遲 30 秒才生效。

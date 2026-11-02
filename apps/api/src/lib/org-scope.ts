@@ -92,6 +92,9 @@ export async function findInOrg(
   return (data as Record<string, unknown> | null) ?? null;
 }
 
+/** 一次查詢最多帶幾個 id（GET URL 長度；約 200 個 uuid 就 414） */
+export const ID_CHUNK = 100;
+
 /**
  * 一批 id 裡**不屬於本 org**（含不存在）的那些 —— body 指名一批外部 id 時用（#966 B4）。
  * 回空陣列 = 全部在 org 內。查詢失敗丟例外，理由同 `findInOrg`。
@@ -103,14 +106,18 @@ export async function missingInOrg(
   ids: readonly string[],
 ): Promise<string[]> {
   const unique = [...new Set(ids)];
-  // 直接 `.eq('org_id')` 而不是 `inOrg(…)`：`.in()` 之後的 builder 交給 inOrg 的泛型推導會撞 TS2589
   if (unique.length === 0) return [];
-  const { data, error } = await supabase
-    .from(table)
-    .select('id')
-    .eq('org_id', orgId)
-    .in('id', unique);
-  if (error) throw new Error(`missingInOrg(${table}) failed: ${error.message}`);
-  const found = new Set(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
+  const found = new Set<string>();
+  // 分段：id 進 GET URL，一次 200 個左右的 uuid 就 414（#2138：餐費一次存 300 位學生整批 500）
+  for (let i = 0; i < unique.length; i += ID_CHUNK) {
+    // 直接 `.eq('org_id')` 而不是 `inOrg(…)`：`.in()` 之後的 builder 交給 inOrg 的泛型推導會撞 TS2589
+    const { data, error } = await supabase
+      .from(table)
+      .select('id')
+      .eq('org_id', orgId)
+      .in('id', unique.slice(i, i + ID_CHUNK));
+    if (error) throw new Error(`missingInOrg(${table}) failed: ${error.message}`);
+    for (const row of (data ?? []) as Array<{ id: string }>) found.add(row.id);
+  }
   return unique.filter((id) => !found.has(id));
 }
