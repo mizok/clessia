@@ -212,7 +212,7 @@
           <textarea
             id="trial-note"
             rows="3"
-            class="w-full rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 text-base [font:inherit] focus:border-zinc-900 focus:outline-none"
+            class="min-h-24 w-full resize-y rounded-md border border-solid border-zinc-300 bg-white px-3 py-2 text-base leading-normal [font:inherit] focus:border-zinc-900 focus:outline-none"
             placeholder="例如：孩子目前的程度、想了解的地方"
             [value]="note()"
             (input)="note.set($any($event.target).value)"
