@@ -329,12 +329,14 @@ describe('ResponsiveTableComponent', () => {
     expect(hostElement.querySelector('app-pager nav')).toBeFalsy();
   });
 
+  // rows 要大於 1：rows 是 1 時 first 跟 page 的值一樣，「first 忘了乘 rows」會照綠；
+  // 而 payments.page 只讀 event.first（二讀 #2198 突變 T1）
   it('emits page event when paginator changes page', () => {
     fixture = TestBed.createComponent(HostComponent);
     fixture.componentInstance.pagination = {
       first: 0,
-      rows: 1,
-      totalRecords: 10,
+      rows: 10,
+      totalRecords: 100,
     };
     fixture.detectChanges();
 
@@ -349,8 +351,8 @@ describe('ResponsiveTableComponent', () => {
 
     const [event] = fixture.componentInstance.pageEvents;
     expect(event).toBeTruthy();
-    expect(event?.first).toBe(1);
-    expect(event?.rows).toBe(1);
+    expect(event?.first).toBe(10);
+    expect(event?.rows).toBe(10);
     expect(event?.page).toBe(1);
     expect(event?.pageCount).toBe(10);
   });
