@@ -34,7 +34,6 @@ import { ariaIconButtonViolations } from './lib/aria-icon-button.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
-import { adminMounts, unscopedStudentRoutes } from './lib/student-campus-scope.mjs';
 import {
   adminMounts,
   allMounts,
@@ -702,63 +701,6 @@ function stripComments(source, marker) {
     if (!flaggedSet.has(e.file))
       fail(
         `campus-scope-file-exceptions.json 的 ${e.file} 已經不觸發了（接上了範圍、不再碰 campus_id、或沒有掛載串到它）—— ` +
-          `從帳本刪掉（只降不升）`,
-      );
-  }
-}
-
-// ── A7c（續）. 經由學生才連到分校的 ADMIN 路由也要接分校範圍（clause c1，#2139）──────────────────
-// 上面那條只看字面有 campus_id 的檔。以學生為主體、自己不存 campus_id 的路由（分校要經 students →
-// enrollments → classes.campus_id 才推得出來）完全不在範圍裡 —— #2138 的餐費、#2147 的堂數帳都是這樣漏的，
-// 受限分校的管理員讀寫得到全機構的資料，gate 一直是綠的。
-//
-// 觸發：index.ts 裡角色含 admin 的掛載，那支路由（目錄型是整個目錄）碰 `student_id` 或 `.from('students')`，
-// 全檔卻沒有分校範圍的識別字。確實不需要的列在例外帳本（理由＋path:line＋裁定），**只降不升**：
-// 新冒出來的直接紅；帳本上的不再觸發也紅（逼帳本跟著縮，不留沒人敢刪的條目）。
-{
-  const STUDENT_SCOPE_EXCEPTIONS = join(
-    ROOT,
-    'tools/agent-harness/student-campus-scope-exceptions.json',
-  );
-  const apiSrcDir = join(ROOT, 'apps/api/src');
-  const sourceOf = (spec) => {
-    const base = join(apiSrcDir, spec);
-    if (existsSync(`${base}.ts`)) return readFileSync(`${base}.ts`, 'utf8');
-    if (existsSync(base) && statSync(base).isDirectory())
-      return walk(base, '.ts')
-        .filter((f) => !f.endsWith('.spec.ts'))
-        .map((f) => readFileSync(f, 'utf8'))
-        .join('\n');
-    return null;
-  };
-  const exceptions = existsSync(STUDENT_SCOPE_EXCEPTIONS)
-    ? JSON.parse(readFileSync(STUDENT_SCOPE_EXCEPTIONS, 'utf8'))
-    : [];
-  const excepted = new Set(exceptions.map((e) => e.route));
-  const flagged = unscopedStudentRoutes(
-    adminMounts(readFileSync(join(apiSrcDir, 'index.ts'), 'utf8')),
-    sourceOf,
-  );
-  for (const { path, spec } of flagged) {
-    if (excepted.has(path)) continue;
-    fail(
-      `${path}（${spec.replace('./', 'apps/api/src/')}）碰學生（student_id／students）、掛在 ADMIN 底下，` +
-        `卻沒有接分校範圍 —— 受限分校的管理員會讀寫得到全機構的資料。接 getCampusScope（做法見 ` +
-        `kb/wiki/architecture/authorization-scope.md「A7c 看不到『經由學生才連到分校』的路由」，#2141 餐費），` +
-        `並寫一支契約測試。確實不需要的，列進 student-campus-scope-exceptions.json（理由＋path:line＋裁定）`,
-    );
-  }
-  const flaggedPaths = new Set(flagged.map((r) => r.path));
-  for (const e of exceptions) {
-    if (!e.reason || !e.evidence || !e.ruling)
-      fail(`student-campus-scope-exceptions.json 的 ${e.route} 少了 reason／evidence／ruling`);
-    else if (!existsSync(join(ROOT, e.evidence.replace(/:\d+(-\d+)?$/, ''))))
-      fail(
-        `student-campus-scope-exceptions.json 的 ${e.route}：evidence 指的檔不存在（${e.evidence}）`,
-      );
-    if (!flaggedPaths.has(e.route))
-      fail(
-        `student-campus-scope-exceptions.json 的 ${e.route} 已經不觸發了（接上了分校範圍、或不再碰學生）—— ` +
           `從帳本刪掉（只降不升）`,
       );
   }

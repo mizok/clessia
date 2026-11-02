@@ -2467,7 +2467,7 @@ test('A7c 續：例外帳本每條都有理由、出處、裁定，而且還在�
 });
 
 // ── A7c 原本那條：從掛載出發、每個檔自己看（#2139 計畫席 11-02）──────────────────────────────
-test('A7c：每個檔自己看 —— 碰 campus_id 卻沒接範圍的子檔要紅；範圍識別字不分大小寫；家長範圍算有接', () => {
+test('A7c：每個檔自己看 —— 碰 campus_id 卻沒接範圍的子檔要紅；範圍 helper 的呼叫、家長範圍的使用算有接', () => {
   const files = [
     {
       file: 'routes/me.ts',
@@ -2485,7 +2485,7 @@ test('A7c：每個檔自己看 —— 碰 campus_id 卻沒接範圍的子檔要�
     },
     {
       file: 'routes/students/read-scope.ts',
-      source: "(scope: CampusScope) => q.eq('campus_id', x)",
+      source: "(scope: CampusScope) => studentInScope(db, scope, id) && q.eq('campus_id', x)",
     },
     { file: 'routes/login-links/scope.ts', source: 'resolveCampusScope(input); row.campus_id' },
     { file: 'routes/no-campus.ts', source: "q.eq('name', x)" },
@@ -2540,4 +2540,39 @@ test('A7c：檔案例外帳本每條都有理由、出處、裁定', () => {
     ['apps/api/src/routes/announcements/visibility.ts'],
     '例外帳本多了或少了一條：加例外要有計畫席裁定，並同步更新這個斷言',
   );
+});
+
+// 審核席擋下 #2154 的那個洞：識別字改成不分大小寫、兩條 gate 共用之後，型別名稱 `CampusScope` 也被當成「有接範圍」——
+// 漏洞版的 meals.ts 只要多一行 `import type { CampusScope }` 就放行。認的是**呼叫**，不是名字出現過
+test('A7c：只 import type CampusScope（沒有呼叫）的路由要紅 —— 兩條 gate 都一樣', () => {
+  const typeOnly = [
+    "import type { CampusScope } from '../lib/campus-scope';",
+    "supabase.from('meal_records').eq('student_id', id).eq('campus_id', x);",
+  ].join('\n');
+  const mounts = [{ path: '/api/meals', spec: './routes/meals' }];
+  assert.deepEqual(
+    unscopedStudentRoutes(mounts, () => typeOnly).map((r) => r.path),
+    ['/api/meals'],
+  );
+  assert.deepEqual(unscopedCampusFiles([{ file: 'routes/meals.ts', source: typeOnly }]), [
+    'routes/meals.ts',
+  ]);
+  // 只是提到名字也不算：註解、變數名、字串
+  for (const mention of [
+    '// TODO: getCampusScope',
+    'const campusScope = null;',
+    "logger.info('childDb')",
+  ])
+    assert.deepEqual(
+      unscopedCampusFiles([{ file: 'routes/x.ts', source: `${mention}\nq.eq('campus_id', x)` }]),
+      ['routes/x.ts'],
+      mention,
+    );
+  // 對照組：真的呼叫才算
+  const called = `${typeOnly}\nconst scope = getCampusScope(c);`;
+  assert.deepEqual(
+    unscopedStudentRoutes(mounts, () => called),
+    [],
+  );
+  assert.deepEqual(unscopedCampusFiles([{ file: 'routes/meals.ts', source: called }]), []);
 });

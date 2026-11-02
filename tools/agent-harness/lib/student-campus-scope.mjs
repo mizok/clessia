@@ -5,16 +5,26 @@
 // #2138 的 meals.ts 就是這樣一路綠燈、受限分校的管理員讀得到全機構的餐費。
 
 /**
- * 判斷「有接分校範圍」的識別字。**不分大小寫**（#2139 計畫席 11-02）：範圍 helper 收的是 `CampusScope` 型別、
- * 呼叫 `resolveCampusScope`，只認小寫開頭的 `campusScope` 會把 helper 本身當成沒接（#515 也栽在識別字大小寫）
+ * 「有接分校範圍」認的是**呼叫**，不是名字出現過（#2154 審核席擋下）：識別字比對的話，型別 import
+ * `import type { CampusScope }`、註解、變數名都會被當成有接 —— 漏洞版的 meals.ts 多一行型別 import 就放行。
+ * 比對前先剝掉註解（`stripComments`）。範圍 helper 也算（`resolveCampusScope(`、`studentInScope(` 等：
+ * students/read-scope.ts、login-links/scope.ts 本身就在做範圍判斷）。
  */
-export const SCOPE_IDENTIFIERS = /campusFilterIds|campusScope|getCampusScope/i;
+export const CAMPUS_SCOPE_CALLS =
+  /\b(?:getCampusScope|campusFilterIds|applyCampusFilter|resolveCampusScope|isCampusAllowed|campusIdsWithinScope|studentInScope|filtersCampus)\s*\(|\.get\(\s*['"]campusScope['"]\s*\)/;
 /**
- * 家長的範圍守門：家長沒有「分校範圍」，範圍是自己的孩子（`childDb`、`isChildAllowed`，
- * kb/wiki/architecture/parent-data-scope.md）。**只用在 A7c 原本那條（碰 campus_id）**；ADMIN＋碰學生那條不吃它 ——
- * 一支 ANY_ROLE 路由的家長分支用 childDb，不代表管理員分支有接分校範圍（notifications 因此仍列在例外帳本）
+ * 家長的範圍守門：家長沒有「分校範圍」，範圍是自己的孩子（kb/wiki/architecture/parent-data-scope.md）。
+ * 一樣認使用：`isChildAllowed(`、`childDb.from(…)` 這類查詢、`c.get('childDb')`。
+ * **只用在 A7c 原本那條（碰 campus_id）**；ADMIN＋碰學生那條不吃它 —— 一支 ANY_ROLE 路由的家長分支用 childDb，
+ * 不代表管理員分支有接分校範圍（notifications 因此仍列在例外帳本）
  */
-export const PARENT_SCOPE_IDENTIFIERS = /\bchildDb\b|\bisChildAllowed\b/;
+export const PARENT_SCOPE_CALLS =
+  /\bisChildAllowed\s*\(|\bchildDb\s*\.\s*\w+\s*\(|\.get\(\s*['"]childDb['"]\s*\)/;
+/** 剝掉 `//` 與 `/* … *\/` 註解（不剝字串：`c.get('campusScope')` 的參數就是字串） */
+export const stripComments = (source) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
+const callsCampusScope = (source) => CAMPUS_SCOPE_CALLS.test(stripComments(source));
+const callsParentScope = (source) => PARENT_SCOPE_CALLS.test(stripComments(source));
 /** 碰分校：A7c 原本那條的觸發 */
 export const TOUCHES_CAMPUS = /campus_id|campusId/;
 /** 碰學生：`student_id` 欄位，或直接查 students 表 */
@@ -78,9 +88,7 @@ export function unscopedCampusFiles(files) {
   return files
     .filter(
       ({ source }) =>
-        TOUCHES_CAMPUS.test(source) &&
-        !SCOPE_IDENTIFIERS.test(source) &&
-        !PARENT_SCOPE_IDENTIFIERS.test(source),
+        TOUCHES_CAMPUS.test(source) && !callsCampusScope(source) && !callsParentScope(source),
     )
     .map(({ file }) => file);
 }
@@ -94,7 +102,7 @@ export function unscopedStudentRoutes(mounts, sourceOf) {
   for (const { path, spec } of mounts) {
     const source = sourceOf(spec);
     if (source == null) continue;
-    if (TOUCHES_STUDENTS.test(source) && !SCOPE_IDENTIFIERS.test(source)) out.push({ path, spec });
+    if (TOUCHES_STUDENTS.test(source) && !callsCampusScope(source)) out.push({ path, spec });
   }
   return out;
 }
