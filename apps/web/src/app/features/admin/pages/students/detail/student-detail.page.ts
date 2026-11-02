@@ -207,7 +207,7 @@ export class StudentDetailPage implements OnInit {
   });
 
   /** 有待收款：次要「登記請假」＋主要「收款 NT$ N」；沒有待收：「登記請假」自己當主要 */
-  protected readonly leaveAction: PageAction = { label: '登記請假' };
+  protected readonly leaveAction: PageAction = { label: '登記請假', icon: 'pi pi-calendar-minus' };
   protected readonly primaryAction = computed<PageAction>(() =>
     this.outstandingTotal() > 0
       ? { label: `收款 NT$ ${this.outstandingTotal().toLocaleString('en-US')}` }

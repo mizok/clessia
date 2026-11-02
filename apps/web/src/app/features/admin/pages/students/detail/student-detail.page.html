@@ -92,7 +92,7 @@
         @if (situation().today) {
           <strong class="font-semibold text-zinc-900">{{ situation().today }}</strong>
           @if (situation().next) {
-            · {{ situation().next }}
+            · 下一堂 <strong class="font-semibold text-zinc-900">{{ situation().next }}</strong>
           }
         }
       </p>
@@ -105,11 +105,11 @@
         />
         <button
           type="button"
-          class="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
           aria-label="更多動作"
           (click)="moreMenu.toggle($event)"
         >
-          <i class="pi pi-ellipsis-h text-sm" aria-hidden="true"></i>
+          <i class="pi pi-ellipsis-h text-base" aria-hidden="true"></i>
         </button>
       </div>
     </div>
@@ -188,7 +188,9 @@
 
     <!-- 這學期的課：時段與老師讀報名列的 classSchedule／teacherName（#1452）。狀態字只在不是「在學」時寫 -->
     <section aria-labelledby="sd-classes">
-      <div class="border-b border-surface-border pb-3">
+      <div
+        class="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-surface-border pb-3"
+      >
         <h2
           id="sd-classes"
           class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
@@ -271,7 +273,7 @@
           到班
         </h2>
         <span
-          class="text-md text-zinc-700"
+          class="text-md text-zinc-500 tabular-nums"
           data-testid="absent-line"
           [attr.title]="absentTitleText()"
           >{{ absentSummary() }}</span

@@ -48,7 +48,7 @@ describe('situationLine', () => {
           nextSession: { date: '2026-10-10', startTime: '15:00:00', className: 'A' },
         }),
       ),
-    ).toEqual({ today: '今天 15:30 有課', next: '下一堂 10/10（六） 15:00' });
+    ).toEqual({ today: '今天 15:30 有課', next: '10/10（六） 15:00' });
   });
   it('沒課、沒下一堂 → 只有今天那句', () => {
     expect(situationLine(att())).toEqual({ today: '今天沒有他的課', next: '' });
