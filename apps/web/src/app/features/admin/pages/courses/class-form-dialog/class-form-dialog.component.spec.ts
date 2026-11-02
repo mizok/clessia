@@ -604,6 +604,21 @@ describe('ClassFormDialogComponent', () => {
       expect(sent()).toEqual(['J1', 'J2']);
     });
 
+    it('自訂時全部取消勾選：下面寫「全部不勾就會改回沿用課程（目前是：國一、國二）」，存檔送 []', () => {
+      editing(['J3']);
+      const hint = () => el().querySelector('[data-testid="grades-empty-hint"]');
+      expect(hint()).toBeNull();
+      const box = [...el().querySelectorAll('[aria-labelledby="class-grades-label"] input')].find(
+        (b) => (b as HTMLInputElement).checked,
+      ) as HTMLInputElement;
+      box.checked = false;
+      box.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      expect(hint()?.textContent?.trim()).toBe('全部不勾就會改回沿用課程（目前是：國一、國二）');
+      (component as any).save();
+      expect(sent()).toEqual([]);
+    });
+
     it('按「自訂」從課程的年級開始勾；按「改回沿用課程」又送 []', () => {
       editing([]);
       (el().querySelector('[data-testid="grades-custom"]') as HTMLButtonElement).click();
