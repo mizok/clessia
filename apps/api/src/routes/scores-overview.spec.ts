@@ -33,7 +33,10 @@ const exam = (
   exam_date: examDate,
   total_score: 100,
   pass_score: null,
-  academy_exam_classes: classes.map(([class_id, name]) => ({ class_id, classes: { name } })),
+  academy_exam_classes: classes.map(([class_id, name]) => ({
+    class_id,
+    classes: { name, course_id: `課-${class_id}` },
+  })),
   ...over,
 });
 const score = (examId: string, studentId: string, value: string | null, status = 'scored') => ({
@@ -156,7 +159,7 @@ describe('GET /api/scores/overview（#1314 G5）', () => {
     ]);
   });
 
-  it('班平均最低：每班最近一場有成績的（沒登的那場跳過），依得分率升冪', async () => {
+  it('班平均最低：每班最近一場有成績的（沒登的那場跳過），依得分率升冪；帶 courseId 連班級頁（#2079 a）', async () => {
     const { body } = await overview();
     expect(body.totalClasses).toBe(2);
     expect(body.lowestClasses).toEqual([
@@ -164,6 +167,7 @@ describe('GET /api/scores/overview（#1314 G5）', () => {
       expect.objectContaining({
         classId: 'c1',
         className: '一班',
+        courseId: '課-c1',
         examId: 'ea1',
         totalScore: 100,
         avgScore: 69.5,

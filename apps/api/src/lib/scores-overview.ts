@@ -19,8 +19,8 @@ export interface OverviewExam {
   examDate: string;
   totalScore: number;
   passScore: number | null;
-  /** `academy_exam_classes(class_id, classes(name))` */
-  classes: Array<{ classId: string; className: string }>;
+  /** `academy_exam_classes(class_id, classes(name, course_id))` */
+  classes: Array<{ classId: string; className: string; courseId: string }>;
 }
 
 export interface OverviewScore {
@@ -120,6 +120,7 @@ export function buildScoresOverview(input: {
 
   // ── 每班最近一場（同 G6 判準）──
   const classNames = new Map(exams.flatMap((e) => e.classes.map((c) => [c.classId, c.className])));
+  const courseIds = new Map(exams.flatMap((e) => e.classes.map((c) => [c.classId, c.courseId])));
   const classIds = [...classNames.keys()];
   const latestByClass = buildLatestExams({
     classIds,
@@ -163,6 +164,7 @@ export function buildScoresOverview(input: {
     .map(({ classId, latest }) => ({
       classId,
       className: classNames.get(classId) ?? '',
+      courseId: courseIds.get(classId) ?? '',
       examId: latest.examId,
       examName: latest.name,
       examDate: latest.examDate,
