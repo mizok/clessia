@@ -23,6 +23,18 @@ import { campusFilterIds, type CampusScope } from './campus-scope';
  * 兩處各自推論同一件事，在某個輸入上分岔。
  */
 
+/**
+ * 同一條判準的 **embed 版**，給列表直接在 `parents` 上下條件（K4，#1314 盤點）：
+ * `select('*' + PARENT_SCOPE_EMBED)` 配 `.in(PARENT_SCOPE_FILTER, 分校)`。
+ *
+ * 列表**不要**先用 {@link resolveScopedParentIds} 撈出家長 id 再 `.in('id', …)` 回去：一個分校幾百位家長，
+ * id 進 GET URL 約 200 個就 414（#1928 型，計畫席 11-02）。這裡的 URL 只有分校 id。
+ * 三跳、三層 `!inner` 跟下面那支同一條路徑 —— 改一邊要改兩邊。
+ */
+export const PARENT_SCOPE_EMBED =
+  ', scope_rel:parent_student_relations!inner(students!inner(enrollments!inner(classes!inner(campus_id))))';
+export const PARENT_SCOPE_FILTER = 'scope_rel.students.enrollments.classes.campus_id';
+
 /** ponytail: O(範圍內關聯列) 每次呼叫；量大時升級成 RPC／view（migration） */
 const PAGE = 1000;
 

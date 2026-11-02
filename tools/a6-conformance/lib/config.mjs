@@ -276,6 +276,23 @@ export const DEVIATIONS = [
     reason: '現況有、稿沒畫：收進「更多」選單，不刪',
     source: `${rule('R2')}`,
   },
+  {
+    // 置中的對話框：彈出物根沒有已配對的祖先，量「距頁頂」與「距視窗底」取差小的；兩邊頁面長度不同（清單長短），
+    // 量到的就是頁長差，不是對話框位置差。前例 parents 的 new-parent（稿 98 位家長）
+    status: '位置',
+    widths: [1440],
+    a6: 'landmark:dialog\\[[^\\]]*\\]$',
+    detail: '^相對(視窗底|頁面) Δx 0、',
+    reason: '工具限制：兩邊頁面長度不同，置中對話框的位置量法失真',
+    source: 'tools/a6-conformance/README.md（彈出物根：距頁頂與距視窗底取差小的）',
+  },
+  {
+    // 系統設定各分頁共用色面句（settings.html:224 與 settings-shell.page.ts 同一套分支）：全部分校日到班時寫「全部用日到班」
+    status: '文案',
+    a6: '>heading:h1\\[#個分校在營運，#個用日到班。\\]$',
+    reason: '資料：seed 的分校全部用日到班',
+    source: 'settings.html:224 與 settings-shell.page.ts 同一套分支',
+  },
 ];
 
 /**
@@ -334,6 +351,17 @@ export const DATA_DEPENDENT = [
       '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `otherRoles().length > 0`）',
   },
 ];
+
+/**
+ * K4：頂欄「切換分校」只在這一頁真的照分校篩資料時才出現（不然頂欄選了 A 分校、頁面還是在看全部）。
+ * 資料本來就整個補習班共用、或只看一個班／學生／考試的頁登記成不適用（#1314 K4 盤點第一節）
+ */
+const noCampusSwitch = (why) => ({
+  status: '缺',
+  a6: '^>landmark:banner\\[\\]>control:button\\[切換分校：[^\\]]*\\]$',
+  reason: `頂欄不放切換分校：${why}`,
+  source: 'https://github.com/mizok/clessia/issues/1314#issuecomment-6572339488（K4 盤點第一節）',
+});
 
 /** 殼層的彈出物：A6 popover id → app popover id（每頁都有）。 */
 export const SHELL_POPOVERS = { more: 'shell-more', acct: 'shell-account' };
@@ -424,6 +452,26 @@ const INBOX_DEVIATIONS = [
     reason: '未讀數的數字包一層（數字變化：新值從下方淡入，掛在只包數字的元素上）',
     source: 'kb/wiki/architecture/motion.md:150（數字變化：套到未讀數）',
   })),
+  {
+    status: '多',
+    app: '>landmark:main\\[\\]>text:strong\\[則未讀\\]>text:span\\[#\\]$',
+    reason: '未讀數的數字包一層（數字變化：新值從下方淡入，掛在只包數字的元素上）',
+    source: 'kb/wiki/architecture/motion.md:150（數字變化：套到未讀數）',
+  },
+  // 資料：哪一章有未讀、代表列是已讀還是未讀，都看 seed
+  {
+    status: '多',
+    app: `${DAY}>text:p\\[#則\\]>text:span\\[·未讀#\\]$`,
+    reason: '資料：那一章有沒有未讀（「· 未讀 N」稿同款，只在有未讀的章出現）',
+    source: INBOX_DATA_SOURCE,
+  },
+  {
+    status: '樣式',
+    a6: `${DAY}>row>control:button>text:span$`,
+    detail: '^fontWeight \\d+ → \\d+(；color [^；]+)?$',
+    reason: '資料：代表列已讀／未讀不同（未讀是粗體深字），兩種都照稿',
+    source: INBOX_DATA_SOURCE,
+  },
 ];
 const PUBLIC_FORM_DEVIATIONS = [
   {
@@ -492,7 +540,7 @@ const PUBLIC_FORM_DEVIATIONS = [
 ];
 
 /** 通知中心兩個分頁共用的分頁列（#1692）：稿的「新」標記、分頁 44px（R3） */
-const NOTIFICATIONS_TABS = [
+export const NOTIFICATIONS_TABS = [
   {
     // 稿上的「新」是設計說明（這個分頁、這顆鈕是新加的），不是畫面內容；同 a6.js ddLabel 剔掉 .new
     status: '缺',
@@ -680,6 +728,20 @@ export const PAGES = {
         reason: '換週箭頭：收不進「⋯」的入口，保留',
         source: `${rule('R2', ' 例外')}；#1314 comment 6163635319`,
       },
+      // 「一次勾：」那列（#2140 起桌機勾第一堂就出現）：完成鈕照工具列控制項同高、兩個下拉是 A6 下拉元件
+      {
+        status: '尺寸',
+        a6: '>landmark:main\\[\\]>control:button\\[完成\\]$',
+        detail: '^高 30→40$',
+        reason: '灰帶工具列控制項全部同高：桌機 40',
+        source: `${rule('R5')}「灰帶工具列控制項高度」2026-10-23；#1903`,
+      },
+      {
+        status: '多',
+        app: '>landmark:main\\[\\]>control:combobox\\[(某位老師這週的課|某個班整期的課)\\]$',
+        reason: SELECT_FIELD,
+        source: SELECT_FIELD_SOURCE,
+      },
     ],
   },
   billing: {
@@ -841,6 +903,14 @@ export const PAGES = {
         reason: '試聽表單補「與學生的關係」（使用者指定的 A6 偏離）',
         source: `${rule('R5')}「公開試聽表單與學生的關係」2026-10-16；#1637 Q1`,
       },
+      {
+        // 公開表單的課程選項是資料（同 DATA_DEPENDENT 那條）：seed 的組數與項目比稿多，最後那組的列整段往下
+        status: '位置',
+        a6: '>landmark:region\\[想試聽的課程可以選好幾個\\]>row$',
+        detail: '^相對「想試聽的課程可以選好幾個」 Δx 0、Δy \\+',
+        reason: '資料：試聽課程的選項（稿的示範課程與 seed 的開課班不同），上面的組多，列往下',
+        source: '#1665（公開表單的選項是資料）；tools/a6-conformance/lib/config.mjs DATA_DEPENDENT',
+      },
       ...PUBLIC_FORM_DEVIATIONS,
       ...PUBLIC_BRAND_DEVIATIONS,
     ],
@@ -857,6 +927,7 @@ export const PAGES = {
     // seed-demo 的學生是 gen_random_uuid，reset 一次就換（原本的 e98f234f-… 在 10-31 已經不存在）
     app: '/admin/students/61000000-0000-0000-0000-000000000001',
     deviations: [
+      noCampusSwitch('看的是一個學生，跨分校上課也是同一份檔案'),
       // ── 11-02：改用 seed.sql 的固定學生（出勤測試學生01）之後的資料差 ──
       {
         // 家長沒留電話：「打電話」不顯示（計畫席 11-02：沒電話不顯示）
@@ -1136,7 +1207,7 @@ export const PAGES = {
       {
         status: '多',
         pop: 'new-class',
-        app: 'landmark:dialog\\[新增班級\\]>(text:p\\[(公開報名|關掉之後|家長目錄顯示|兩邊都填)[^\\]]*\\]|text:label\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|control:(checkbox|textbox)\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|text:span\\[目錄參考價\\]|control:combobox\\[目錄參考價\\])$',
+        app: 'landmark:dialog\\[新增班級\\]>(text:p\\[(公開報名|關掉之後|家長目錄顯示|兩邊都填)[^\\]]*\\]|text:label\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|control:(checkbox|textbox)\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|text:span\\[目錄參考價\\]|control:combobox\\[目錄參考價\\]|text:label\\[開放公開報名\\]>control:checkbox\\[開放公開報名\\])$',
         reason: '班級表單的公開報名、目錄參考價、起訖日：現況有、稿沒畫，保留',
         source: `${rule('R2')}；目錄參考價 https://github.com/mizok/clessia/issues/2089#issuecomment-6517351682`,
       },
@@ -1159,6 +1230,7 @@ export const PAGES = {
     // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
     app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
     deviations: [
+      noCampusSwitch('一個班只屬於一間分校，頂欄切到別的分校會跟頁面矛盾'),
       // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
       {
         status: '文案',
@@ -1200,9 +1272,9 @@ export const PAGES = {
           'class.html `.sec__head .btn { margin-left: auto }` 與 `.sec__tools { gap: var(--space-2) }`',
       },
       {
-        // 每個年級包一個 span 當 spec 掛點（data-part=grade），文字與稿相同
+        // 每個年級包一個 span 當 spec 掛點（data-part=grade），文字與稿相同；課程有 ≥3 個年級時同形 span 被認成一列
         status: '多',
-        app: '>text:p\\[[^\\]]*適合年級\\]>text:span\\[[^\\]]+\\]$',
+        app: '>text:p\\[[^\\]]*適合年級\\]>(text:span\\[[^\\]]+\\]|row)$',
         reason: '工具限制：副標的年級各包一個 span（spec 掛點 data-part=grade），文字與稿相同',
         source: 'class-detail.page.spec.ts data-part=grade',
       },
@@ -1440,6 +1512,15 @@ export const PAGES = {
     a6: 'p-enrollment.html',
     app: '/parent/enrollment',
     state: PARENT_STATE,
+    deviations: [
+      {
+        // 開課班依科目分組：稿的示範課有理化、作文，seed 的公開開課班沒有
+        status: '缺',
+        a6: '>landmark:form\\[\\]>heading:h3\\[(理化|作文)\\]$',
+        reason: '資料：seed 的公開開課班沒有理化、作文',
+        source: 'https://github.com/mizok/clessia/issues/1314#issuecomment-6515298532',
+      },
+    ],
   },
   // 「申請紀錄」分頁：稿與 app 都認網址 #records
   'p-enrollment-records': {
@@ -1450,6 +1531,14 @@ export const PAGES = {
     app: '/parent/enrollment#records',
     state: PARENT_STATE,
     deviations: [
+      {
+        // 列元件宿主 app-request-row 是 display: contents（版面上按鈕直接當列，同稿 div > button.rq），工具仍把宿主認成一層列
+        status: '多',
+        app: '^>landmark:main\\[\\]>row>row(>.*)?$',
+        reason:
+          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），裡面的按鈕因此配不上；版面上沒有這一層',
+        source: 'https://github.com/mizok/clessia/pull/2142（request-row 宿主 display: contents）',
+      },
       {
         // parent03 沒送過申請 → 紀錄分頁是空狀態句
         status: '多',
@@ -1489,6 +1578,14 @@ export const PAGES = {
     app: '/parent/trial#records',
     state: PARENT_STATE,
     deviations: [
+      {
+        // 列元件宿主 app-request-row 是 display: contents（版面上按鈕直接當列，同稿 div > button.rq），工具仍把宿主認成一層列
+        status: '多',
+        app: '^>landmark:main\\[\\]>row>row(>.*)?$',
+        reason:
+          '工具限制：display: contents 的列元件宿主被認成一層列（多包一層），裡面的按鈕因此配不上；版面上沒有這一層',
+        source: 'https://github.com/mizok/clessia/pull/2142（request-row 宿主 display: contents）',
+      },
       {
         // parent03 沒送過申請 → 紀錄分頁是空狀態句
         status: '多',
@@ -1581,6 +1678,23 @@ export const PAGES = {
         source:
           'apps/web/src/app/shared/components/leave-form-dialog/leave-form-dialog.component.ts:42（LEAVE_DIALOG_CONTENT_STYLE）；#1695',
       },
+      {
+        // 稿把開始／結束時間標必填；app 選填，沒填＝整天請假
+        status: '文案',
+        pop: 'leave',
+        a6: '>landmark:form\\[\\]>control:textbox\\[(開始|結束)時間\\*\\]$',
+        detail: '^「(開始|結束)時間\\*」→「\\1時間」$',
+        reason: '請假的開始／結束時間選填：沒填是整天請假',
+        source: '計畫席 11-02：null＝全天，管理端也是選填，API 收 null；必填會擋掉全天請假',
+      },
+      {
+        // 稿的今天（10/1）孩子 16:42 到班；量測當天張宇軒還沒到班
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>heading:h1\\[\\{名\\}今天#到班。\\]$',
+        detail: '→「\\{名\\}今天還沒到班。」$',
+        reason: '資料：量測當天孩子還沒到班',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
     ],
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
@@ -1588,6 +1702,7 @@ export const PAGES = {
     a6: 'settings.html',
     app: '/admin/settings/general',
     deviations: [
+      noCampusSwitch('補習班層級的設定與收費期間，不分校'),
       {
         // 稿的出勤紀錄模式是常開的一節（兩張可選的卡）；使用者要求「一般」分頁全部收成可收合的列，
         // 出勤紀錄模式、誰負責點名在列裡（列數因此多 2，工具算成資料差）
@@ -1595,13 +1710,6 @@ export const PAGES = {
         a6: '>landmark:main\\[\\]>landmark:region\\[出勤紀錄模式\\](>|$)',
         reason: '「一般」分頁全部收成可收合的列，出勤紀錄模式在列裡',
         source: '#1882（使用者 10-22「一般設定也幫我收合」）',
-      },
-      {
-        // 稿與 app 同一個寫法（settings.html:224、settings-shell.page.ts）：全部分校日到班時寫「全部用日到班」
-        status: '文案',
-        a6: '>heading:h1\\[#個分校在營運，#個用日到班。\\]$',
-        reason: '資料：seed 的分校全部用日到班',
-        source: 'settings.html:224 與 settings-shell.page.ts 同一套分支',
       },
       {
         // 繳費提醒時間點可以設好幾個（#1660），摘要全部寫出來，跟稿的「到期前 3 天提醒」對不上文案
@@ -1630,9 +1738,26 @@ export const PAGES = {
     ],
   },
   // 系統設定的學校分頁（#1314 SE4）
-  schools: { a6: 'settings.html#schools', app: '/admin/settings/schools' },
+  schools: {
+    a6: 'settings.html#schools',
+    app: '/admin/settings/schools',
+    deviations: [
+      noCampusSwitch('學校名單整個補習班共用'),
+      // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／students 那條
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: 'control:searchbox\\[找學校\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+    ],
+  },
   // 系統設定的科目分頁（#1314 SE5）
-  subjects: { a6: 'settings.html#subjects', app: '/admin/settings/subjects' },
+  subjects: {
+    a6: 'settings.html#subjects',
+    app: '/admin/settings/subjects',
+    deviations: [noCampusSwitch('科目整個補習班共用')],
+  },
   // 系統設定的分校分頁（#1314 SE 插單）：稿與 app 都認 hash／子路由
   campuses: {
     a6: 'settings.html#campuses',
@@ -1653,6 +1778,7 @@ export const PAGES = {
       'campus-form': { click: 'button:has-text("新增分校")', root: 'dialog[open]' },
     },
     deviations: [
+      noCampusSwitch('這頁就是分校清單本身'),
       ...[
         { status: '位置', detail: '^相對' },
         { status: '樣式', detail: 'display' },
@@ -1678,13 +1804,6 @@ export const PAGES = {
         app: 'control:button\\[分校的更多動作\\]$',
         reason: '手機的操作紀錄：稿沒畫，收進頁首「⋯」',
         source: `${rule('R2')}；#1755 計畫席 10-21`,
-      },
-      {
-        // 稿與 app 同一套分支（settings.html:224、settings-shell.page.ts）：全部分校日到班時寫「全部用日到班」
-        status: '文案',
-        a6: '>heading:h1\\[#個分校在營運，#個用日到班。\\]$',
-        reason: '資料：seed 的分校全部用日到班',
-        source: 'settings.html:224 與 settings-shell.page.ts 同一套分支',
       },
       // 稿是文字鈕「操作紀錄」；全站統一成工具列的時鐘圖示鈕（手機也保留）
       {
@@ -1790,6 +1909,7 @@ export const PAGES = {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
     deviations: [
+      noCampusSwitch('價目表是補習班層級'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
         status,
@@ -1836,13 +1956,38 @@ export const PAGES = {
     mapping: {
       '>control:button[全部標為已讀新]': '>landmark:main[]>control:button[全部標為已讀]',
     },
-    deviations: NOTIFICATIONS_TABS,
+    deviations: [
+      noCampusSwitch('收件匣是「寄給我的」，不分校'),
+      ...NOTIFICATIONS_TABS,
+      // 資料：哪一章有未讀、代表列是已讀還是未讀，都看 seed（稿「這週」全讀過、seed 有未讀）
+      {
+        status: '文案',
+        a6: '>landmark:region\\[(今天|昨天|這週|更早)\\]>text:p\\[#則\\]$',
+        detail: '^「#則」→「#則·未讀#」$',
+        reason: '資料：那一章有沒有未讀（「· 未讀 N」稿同款，只在有未讀的章出現）',
+        source: INBOX_DATA_SOURCE,
+      },
+      {
+        status: '樣式',
+        a6: '>landmark:region\\[(今天|昨天|這週|更早)\\]>row>control:button>text:span(~\\d+)?$',
+        detail: '^fontWeight \\d+ → \\d+(；color [^；]+)?$',
+        reason: '資料：代表列已讀／未讀不同（未讀是粗體深字），兩種都照稿',
+        source: INBOX_DATA_SOURCE,
+      },
+      {
+        status: '多',
+        app: '>landmark:region\\[(今天|昨天|這週|更早)\\]>control:button\\[逾期帳單逾期帳單摘要：[^\\]]*\\]$',
+        reason: '現況有、稿沒畫：每日逾期帳單摘要通知（管理員收）',
+        source: `${rule('R2')}；#1693（overdue_digest）`,
+      },
+    ],
   },
   'notifications-publish': {
     // 「發布公告」分頁：稿與 app 都認網址 #publish
     a6: 'notifications.html#publish',
     app: '/admin/notifications#publish',
     deviations: [
+      noCampusSwitch('發公告的對象分校是頁面自己的選單（可選全部分校），不該被頂欄改掉'),
       ...NOTIFICATIONS_TABS,
       {
         // #1689：發布表單改成彈窗，頁面只放已發布列表 —— 稿的頁內表單（缺）與 app 工具列的入口（多）是同一件事
@@ -1886,11 +2031,22 @@ export const PAGES = {
         // 列的代表樣式取最常見的列：seed 今天 18 位裡 17 位未處理、多數沒訂（名字灰、單價框灰底、收費字灰、狀態 600 近黑）；
         // 稿多數列已確認、有訂。四種樣式稿都有（.ml--off、:disabled、.stt--todo）
         status: '樣式',
-        a6: '>row>(control:link|text:label~2>control:textbox|text:label~3|text:span)$',
+        a6: '>row>(control:link|text:label~2>control:textbox|text:label~3|text:span(~2)?)$',
         detail:
           '^(color rgb\\(26, 22, 20\\) → rgb\\(87, 80, 75\\)|backgroundColor rgb\\(255, 255, 255\\) → rgb\\(245, 243, 241\\)|color rgb\\(26, 22, 20\\) → rgb\\(120, 111, 105\\)|fontWeight 400 → 600；color rgb\\(61, 55, 51\\) → rgb\\(26, 22, 20\\))(；display inline → inline-flex)?$',
         reason: '資料：seed 今天多數列未處理、沒訂，代表列是稿的 .ml--off／.stt--todo 那種',
         source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
+      },
+      {
+        // 稿的代表列是「今天請假 · 別訂他的便當」那種兩行列（名字下面多一行），app 的是一般列；請假旗標等 API
+        status: '位置',
+        widths: [1440],
+        a6: '>row>control:link$',
+        detail: '^相對所在列 Δx 0、Δy \\+\\d+（',
+        reason:
+          '資料：代表列取到的變體不同（稿是請假的兩行列，app 是一般列），名字的上下位置跟著不同',
+        source:
+          '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標；tools/a6-conformance/README.md（列內 part 取最常見那種）',
       },
       {
         // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
@@ -1999,6 +2155,29 @@ export const PAGES = {
         reason: SELECT_FIELD,
         source: SELECT_FIELD_SOURCE,
       },
+      // 列的班名（學生名下面那行小字）等 API：列高 64→48，後面各列整排上移
+      {
+        status: '缺',
+        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span>text:small$',
+        reason: '列的班名：等 API（列表沒回班名）',
+        source: 'https://github.com/mizok/clessia/issues/2080',
+      },
+      {
+        // Δy：少了班名那一行；Δx ±8：展開內容外圍的灰框 4→12px，欄位跟著內縮
+        status: '位置',
+        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span(~\\d+)?$',
+        detail: '^相對所在列 Δx [-+]8、Δy -\\d+（',
+        reason: '連帶：列少了班名一行（等 API）；欄位因灰框加寬內縮 8px',
+        source: `https://github.com/mizok/clessia/issues/2080；${rule('R5')}「摺疊摘要列（\`.coll\`）展開內容外圍的灰框」2026-10-22；#1853`,
+      },
+      // 代表列取最常見的變體：稿的示範多是「已簽收」（綠字、不帶底），seed 多是「未簽收」（灰底小標）。
+      // 兩種變體都照稿（稿上 button~3 的「未簽收」配上了、樣式一致）；手機上小標寬不同，學生名那欄跟著不同寬
+      ...['樣式', '位置'].map((status) => ({
+        status,
+        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button~4>text:span~4$',
+        reason: '資料：代表列取到的變體不同（稿是已簽收，seed 是未簽收），兩種變體都照稿',
+        source: 'tools/a6-conformance/README.md:96（列內 part 取最常見的那種當代表）',
+      })),
     ],
   },
   changes: { a6: 'changes.html', app: '/admin/changes' },
@@ -2098,6 +2277,7 @@ export const PAGES = {
     a6: 'scores.html',
     // seed 的考試（跟 scores-dirty 同一場）；原本的 id 是某一席本機 DB 的，seed 裡沒有（#1314 10-30）
     app: '/admin/grades/exams/academy/70000000-0000-0000-0000-000000000003/scores',
+    deviations: [noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋')],
   },
   grades: {
     a6: 'grades.html',
@@ -2264,6 +2444,20 @@ export const PAGES = {
         reason: '工具限制：跑馬燈的資料由伺服器以真實日期篩選，clock 對不到稿的 10/1',
         source: '#1923；tools/a6-conformance/lib/capture.mjs clock',
       },
+      {
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>heading:h1\\[這週#堂課，#堂有異動。\\]$',
+        detail: '→「這週#堂課，沒有異動。」$',
+        reason: '資料差：seed 那週沒有異動',
+        source: '#1923（本機 seed 2026-09-28 那週）',
+      },
+      {
+        // 課表（日）稿有、週視圖稿沒畫；app 兩種檢視同一個工具列，時鐘鈕都在
+        status: '多',
+        app: '>landmark:main\\[\\]>control:button\\[操作紀錄\\]$',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕：週視圖稿沒畫，保留',
+        source: `${rule('R2')}；使用者 10-23 裁定 #2006（#2014）`,
+      },
     ],
     prep: {
       a6: [{ click: '[data-view="week"]', settle: 800 }],
@@ -2281,6 +2475,7 @@ export const PAGES = {
       '>text:p[已登錄·缺考# ·不及格（< #）位]': '>landmark:main[]>text:p[已登錄·缺考# ·不及格位]',
     },
     deviations: [
+      noCampusSwitch('看的是一場考試；班可能跨分校，誰能看由後端權限擋'),
       // ── 設計說明，不是畫面 ──
       {
         status: '缺',
@@ -2645,6 +2840,14 @@ export const PAGES = {
         reason: '明細列少了餐別、備註兩欄：API 沒有這兩項資料',
         source: 'apps/api/src/routes/parent/meals.ts（#1117 欄位 allowlist）',
       })),
+      {
+        // 稿同款（p-meals.html:122）：已結算的月份才有「併入 N 月的帳單」；seed 兩個月一個結算一個沒有
+        status: '多',
+        widths: [360],
+        app: '>landmark:main\\[\\]>row>text:p(>control:link)?$',
+        reason: '資料：「併入 N 月的帳單」只在已結算的月份出現',
+        source: '.design-explorations p-meals.html:122（只在已結算的月份畫）',
+      },
     ],
   },
   'p-dashboard': {
@@ -2685,6 +2888,37 @@ export const PAGES = {
           '續課預告條這次不做：沒有自動開單日，算不出出現窗口（計畫席 10-22 裁定，使用者已裁定自動續課先不做）',
         source: 'kb/wiki/flows/renewal.md:21-31（T 的定義）',
       })),
+      // 資料：量測當天（稿的今天 10/1）張宇軒沒課 —— 色面句寫「今天沒有課」、「今天的課」那章寫「接下來的課」
+      {
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>heading:h1\\[\\{名\\}#到班了。\\]$',
+        detail: '→「\\{名\\}今天沒有課。」$',
+        reason: '資料：量測當天有沒有課',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
+      {
+        status: '位置',
+        widths: [360],
+        a6: '>landmark:region\\[今天的課新\\]>text:span\\[#堂\\]$',
+        reason: '資料：量測當天沒課，那一章是「接下來的課」，章頭的堂數跟著不同位置',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
+      // 資料：可加選的課（稿第二張是國三國文，seed 的是第一張）、代表的成績列（seed 那筆不及格、有老師評語）
+      {
+        status: '位置',
+        widths: [1440],
+        a6: '>landmark:region\\[可以加選的課新\\]>control:button\\[[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        reason: '資料：可加選的課與順序不同，同名的課卡落在不同欄',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
+      {
+        status: '位置',
+        widths: [360],
+        a6: '>row>control:link>text:span\\[新成績\\]$',
+        reason:
+          '資料：代表的成績列在 seed 是不及格、有老師評語，「新成績」排在「不及格」後面、評語下面',
+        source: `${rule('R5')}「家長頁量測帳號換 parent03」2026-10-23；#1968`,
+      },
     ],
   },
   'p-notifications': {
@@ -2706,6 +2940,17 @@ export const PAGES = {
     app: '/teacher/students',
     state: path.join(cache, 'state-teacher.json'),
     // 篩選換成 A6 下拉（app-select-field），結構不同、外觀對齊 —— 同 p-grades
-    deviations: selectFieldDeviations('班級'),
+    deviations: [
+      ...selectFieldDeviations('班級'),
+      {
+        // 稿的班 17～26 人（兩位數），seed 的班 1～10 人：數字變窄，「人」跟著左移
+        status: '位置',
+        a6: '>text:p\\[#\\]>text:span\\[人\\]$',
+        detail: '^相對「#」 Δx -\\d+、Δy 0（',
+        reason: '資料：班級人數位數不同（稿兩位數、seed 多是一位數），「人」跟著左移',
+        source:
+          'tools/a6-conformance/README.md:83（文案模板：數字 → #；位數不同造成的位移，工具不扣）',
+      },
+    ],
   },
 };
