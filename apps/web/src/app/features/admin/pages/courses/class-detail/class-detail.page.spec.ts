@@ -167,6 +167,24 @@ describe('ClassDetailPage', () => {
     expect(rooms).toEqual(['教室 A 教室', '沒有指定教室']);
   });
 
+  it('分頁照 A6 .tabs：nav「班級內容」裡的按鈕，aria-current 標目前那頁；名冊章以章名當名字', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const nav = el.querySelector('nav[aria-label="班級內容"]')!;
+    const current = () =>
+      [...nav.querySelectorAll('button')]
+        .filter((b) => b.getAttribute('aria-current') === 'true')
+        .map((b) => b.textContent!.trim());
+    expect(current()).toEqual(['學生名單']);
+    expect(el.querySelector('[role="tablist"]')).toBeNull();
+    const section = el.querySelector('section[aria-labelledby="class-roster-h"]')!;
+    expect(section.querySelector('h2#class-roster-h')).not.toBeNull();
+
+    (nav.querySelector('[data-tab="schedule"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(current()).toEqual(['課表']);
+    expect(el.querySelector('h2#class-schedule-h')).not.toBeNull();
+  });
+
   it('shows grade chips in the hero summary block', () => {
     // A6 換版（#991 courses C2）：年級寫在色面副標裡，掛點是 data-part=grade
     const gradeChip = fixture.nativeElement.querySelector('[data-part=grade]');

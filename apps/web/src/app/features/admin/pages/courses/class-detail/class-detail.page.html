@@ -16,8 +16,9 @@
   <ng-container openTitle>
     @if (cls(); as c) {
       {{ c.name }}
+      <!-- A6 class.html `.open__title .tag`：1.5px 內框線（band-rule）、13px／600 -->
       <span
-        class="ml-2.5 inline-block rounded-full border-[1.5px] border-band-ink px-2 align-middle text-sm leading-6 font-bold tracking-normal text-band-ink"
+        class="ml-3 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 align-middle text-md leading-[1.4] font-semibold tracking-normal whitespace-nowrap text-band-ink shadow-[inset_0_0_0_1.5px_var(--band-rule)]"
         >{{ c.isActive ? '開班中' : '已停班' }}</span
       >
     } @else if (loading()) {
@@ -44,28 +45,35 @@
     }
   </ng-container>
   @if (cls(); as c) {
+    <!-- A6 `.open__stats`：dt 是標籤、dd 是數字（數字在上），同 contact-book -->
     <dl
-      class="m-0 mt-6 flex flex-wrap gap-x-12 gap-y-3 border-t border-band-rule pt-5 text-band-ink"
+      class="m-0 mt-5 flex max-w-[760px] flex-wrap gap-x-6 gap-y-4 border-t border-band-rule pt-4 text-band-ink wide:mt-8 wide:gap-x-12 wide:gap-y-5 wide:pt-5"
     >
-      <div>
-        <dt class="sr-only">在籍人數</dt>
-        <dd class="m-0 text-3xl leading-none font-bold tracking-[-0.04em] tabular-nums">
-          {{ enrollments().length
-          }}<span class="text-lg font-semibold tracking-[-0.01em]">／{{ c.maxStudents }}</span>
+      <div class="m-0 flex flex-col">
+        <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
+          在籍人數
+        </dt>
+        <dd
+          class="order-first m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+        >
+          <span>{{ enrollments().length }}</span
+          ><small class="ml-0.5 text-md font-bold tracking-[-0.01em] wide:text-lg"
+            >／{{ c.maxStudents }}</small
+          >
         </dd>
-        <p class="m-0 mt-1 text-md" aria-hidden="true">在籍人數</p>
       </div>
-      <div>
-        <dt class="sr-only">上課時段</dt>
-        <dd class="m-0 text-3xl leading-none font-bold tracking-[-0.04em] tabular-nums">
-          {{ activeScheduleCount() }}
-        </dd>
-        <p class="m-0 mt-1 text-md" aria-hidden="true">
+      <div class="m-0 flex flex-col">
+        <dt class="mt-1 text-sm font-medium text-band-ink-muted wide:mt-2 wide:text-md">
           個上課時段
           @if (c.startDate || c.endDate) {
             · {{ c.startDate ?? '不限' }} ～ {{ c.endDate ?? '不限' }}
           }
-        </p>
+        </dt>
+        <dd
+          class="order-first m-0 text-[28px] leading-none font-bold tracking-[-0.04em] tabular-nums wide:text-[40px]"
+        >
+          <span>{{ activeScheduleCount() }}</span>
+        </dd>
       </div>
     </dl>
   }
@@ -76,44 +84,49 @@
     <app-load-failed description="沒有讀到這個班的資料，可能是連線問題" (retry)="loadClass()" />
   </div>
 } @else if (cls(); as c) {
+  <!-- A6 `.tbar`＋`.tabs`／`.tlink`（同餐費頁）：分頁是 nav 裡的按鈕、aria-current 標目前那頁 -->
   <div class="bg-zinc-100">
-    <div class="page-wrap flex gap-6" role="tablist" aria-label="班級內容">
-      <button
-        type="button"
-        role="tab"
-        id="class-tab-roster"
-        aria-controls="class-panel-roster"
-        class="min-h-14 cursor-pointer border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
-        [class.border-zinc-900]="tab() === 'roster'"
-        [class.border-transparent]="tab() !== 'roster'"
-        [class.text-zinc-700]="tab() !== 'roster'"
-        [attr.aria-selected]="tab() === 'roster'"
-        (click)="tab.set('roster')"
-      >
-        學生名單
-      </button>
-      <button
-        type="button"
-        role="tab"
-        id="class-tab-schedule"
-        aria-controls="class-panel-schedule"
-        class="min-h-14 cursor-pointer border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
-        [class.border-zinc-900]="tab() === 'schedule'"
-        [class.border-transparent]="tab() !== 'schedule'"
-        [class.text-zinc-700]="tab() !== 'schedule'"
-        [attr.aria-selected]="tab() === 'schedule'"
-        (click)="tab.set('schedule')"
-      >
-        課表
-      </button>
+    <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-3 py-3">
+      <nav class="flex flex-wrap items-center gap-5" aria-label="班級內容">
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-normal font-medium text-zinc-600 hover:text-zinc-900 wide:min-h-10"
+          [class.border-zinc-900]="tab() === 'roster'"
+          [class.font-semibold]="tab() === 'roster'"
+          [class.text-zinc-900]="tab() === 'roster'"
+          [class.border-transparent]="tab() !== 'roster'"
+          [attr.aria-current]="tab() === 'roster' ? 'true' : null"
+          data-tab="roster"
+          (click)="tab.set('roster')"
+        >
+          學生名單
+        </button>
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base leading-normal font-medium text-zinc-600 hover:text-zinc-900 wide:min-h-10"
+          [class.border-zinc-900]="tab() === 'schedule'"
+          [class.font-semibold]="tab() === 'schedule'"
+          [class.text-zinc-900]="tab() === 'schedule'"
+          [class.border-transparent]="tab() !== 'schedule'"
+          [attr.aria-current]="tab() === 'schedule' ? 'true' : null"
+          data-tab="schedule"
+          (click)="tab.set('schedule')"
+        >
+          課表
+        </button>
+      </nav>
     </div>
   </div>
 
   <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
     @if (tab() === 'roster') {
-      <section id="class-panel-roster" role="tabpanel" aria-labelledby="class-tab-roster">
-        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-3 border-b border-zinc-900 pb-3">
-          <h2 class="m-0 text-2xl font-bold tracking-[-0.025em] tabular-nums">
+      <section aria-labelledby="class-roster-h">
+        <!-- A6 `.sec__head`：28px 章名、上限、右側三顆鈕（桌機 36 高、手機 44） -->
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-zinc-900 pb-3">
+          <h2
+            id="class-roster-h"
+            class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] tabular-nums wide:text-3xl"
+          >
             {{ enrollments().length }} 位學生
           </h2>
           <span class="text-md text-zinc-600 tabular-nums">上限 {{ c.maxStudents }} 人</span>
@@ -121,24 +134,24 @@
             <div class="flex w-full flex-wrap gap-2 wide:ml-auto wide:w-auto">
               <button
                 type="button"
-                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-accent-vivid bg-accent-vivid px-4 text-base leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 wide:h-9 wide:text-md"
                 (click)="openStudentPicker()"
               >
-                <i class="pi pi-user-plus text-sm" aria-hidden="true"></i>加入學生
+                <i class="pi pi-plus text-base" aria-hidden="true"></i>加入學生
               </button>
               <button
                 type="button"
-                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
                 (click)="openCopyRoster()"
               >
-                <i class="pi pi-copy text-sm" aria-hidden="true"></i>複製名單
+                複製名單
               </button>
               <button
                 type="button"
-                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+                class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9"
                 (click)="openRosterImport()"
               >
-                <i class="pi pi-file-excel text-sm" aria-hidden="true"></i>Excel 匯入
+                Excel 匯入
               </button>
             </div>
           }
@@ -209,8 +222,11 @@
         </app-reload-veil>
       </section>
     } @else {
-      <section id="class-panel-schedule" role="tabpanel" aria-labelledby="class-tab-schedule">
-        <h2 class="m-0 border-b border-zinc-900 pb-3 text-2xl font-bold tracking-[-0.025em]">
+      <section aria-labelledby="class-schedule-h">
+        <h2
+          id="class-schedule-h"
+          class="m-0 border-b border-zinc-900 pb-3 text-2xl leading-tight font-bold tracking-[-0.025em] wide:text-3xl"
+        >
           上課時段
         </h2>
         @for (schedule of c.schedules ?? []; track schedule.id) {

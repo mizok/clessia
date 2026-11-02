@@ -196,3 +196,22 @@ describe('PUT /api/classes/:id —— isPublicEnrollment（#1665）', () => {
     expect(db.rows('classes')[0]!['is_public_enrollment']).toBe(false);
   });
 });
+
+/** A6 新增班級表單有「狀態」：建班時可以直接建成停用；不帶就不寫（DB 預設 true） */
+describe('POST /api/classes —— isActive', () => {
+  it('帶 false：建成停用；不帶：不寫這個欄位', async () => {
+    const db = seed();
+    const off = await call(
+      db,
+      'POST',
+      '/',
+      { courseId: COURSE_A, name: '停用班', isActive: false },
+      ['manage_courses'],
+    );
+    expect(off.status).toBe(201);
+    expect(db.rows('classes').find((r) => r['name'] === '停用班')?.['is_active']).toBe(false);
+
+    await call(db, 'POST', '/', { courseId: COURSE_A, name: '預設班' }, ['manage_courses']);
+    expect(db.rows('classes').find((r) => r['name'] === '預設班')).not.toHaveProperty('is_active');
+  });
+});

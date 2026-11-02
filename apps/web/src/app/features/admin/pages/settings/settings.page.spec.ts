@@ -326,7 +326,10 @@ describe('SettingsPage', () => {
     const summaryText = (title: string) => {
       const el = summaryOf(title);
       return el
-        ? [...el.children].map((c) => c.textContent?.replace(/\s+/g, ' ').trim()).join(' ')
+        ? [...el.children]
+            .map((c) => c.textContent?.replace(/\s+/g, ' ').trim())
+            .filter(Boolean) // 箭頭是 summary 的子項（A6 `.coll__sum::after`），沒有字
+            .join(' ')
         : undefined;
     };
 
@@ -596,6 +599,7 @@ describe('SettingsPage', () => {
     const byChild = (el: Element) =>
       Array.from(el.children)
         .map((c) => c.textContent?.replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
         .join(' ');
     const summaries = () =>
       Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('summary')).map(byChild);

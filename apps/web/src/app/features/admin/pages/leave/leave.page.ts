@@ -73,6 +73,7 @@ export class LeavePage implements OnInit {
   /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
    *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
   protected readonly primaryAction: PageAction = { label: '登記請假', icon: 'pi pi-plus' };
+  protected readonly batchAction: PageAction = { label: '批次請假' };
 
   readonly page = input.required<RouteObj>();
 

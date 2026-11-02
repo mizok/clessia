@@ -110,6 +110,8 @@ export interface CreateClassInput {
   defaultFeeTemplateId?: string | null;
   isRecommended?: boolean;
   isPublicEnrollment?: boolean;
+  /** 不給＝DB 預設啟用 */
+  isActive?: boolean;
   startDate?: string | null;
   endDate?: string | null;
 }

@@ -16,6 +16,7 @@ NOTIFY_AGENT=labor-plan-20261008-1357 tools/reviewer-merge/mig.sh 2041 <完整SH
 ```
 
 - SHA 一律貼**完整 40 碼**、是二讀時看的那一顆。
+- `cimg.sh` 只要有一張沒合成（CI 紅、head 變了、合不成）就 **exit 1**；`mv.sh`／`mig.sh` 以 `gh pr view --json state` 是 `MERGED` 為準才往下走。自己寫接力腳本時也要這樣判斷，**不要把 exit 0 或輸出字樣當成「合了」**（11-02：CI 紅時 exit 0，接力腳本去等空的 merge SHA）。
 - **同一時間只留一支在跑**；要插隊先停掉還沒動手的那支再重排。
 - 背景跑時，等待條件看前一支的輸出，不要 `pgrep -f "<自己命令列也有的字串>"`（會比對到自己）。
 - `ts-guard` 的自我測試在 `tools/agent-harness/reviewer-ts-guard.test.mjs`（`npm run harness:test`）。
