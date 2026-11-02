@@ -47,12 +47,13 @@ LOGIN_EMAIL=owner@example.com npm run login-link
 
 ## 開站之前要先有的東西
 
-|                                | 誰做   | 備註                                                                                                                                                                                          |
-| ------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase 專案 + 推 migration   | 人     |                                                                                                                                                                                               |
-| Cloudflare Worker / Pages 部署 | 人     | 見 [[architecture/deploying]]                                                                                                                                                                 |
-| 四個 secret                    | 人     | `DATABASE_URL`、`BETTER_AUTH_SECRET`、`SUPABASE_SECRET_KEY`、`LINE_CLIENT_SECRET`                                                                                                             |
-| **LINE Developers channel**    | **人** | 每個部署自己申請。拿到 Channel ID（非機密，`--var LINE_CLIENT_ID`）與 Channel secret（`wrangler secret put`），並在 LINE 後台把 Callback URL 設成 `https://<你的網域>/api/auth/callback/line` |
+|                                 | 誰做   | 備註                                                                                                                                                                                                                                                               |
+| ------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Supabase 專案 + 推 migration    | 人     |                                                                                                                                                                                                                                                                    |
+| Cloudflare Worker / Pages 部署  | 人     | 見 [[architecture/deploying]]                                                                                                                                                                                                                                      |
+| 四個 secret                     | 人     | `DATABASE_URL`、`BETTER_AUTH_SECRET`、`SUPABASE_SECRET_KEY`、`LINE_CLIENT_SECRET`                                                                                                                                                                                  |
+| **LINE Developers channel**     | **人** | 每個部署自己申請。拿到 Channel ID（非機密，`--var LINE_CLIENT_ID`）與 Channel secret（`wrangler secret put`），並在 LINE 後台把 Callback URL 設成 `https://<你的網域>/api/auth/callback/line`                                                                      |
+| Google OAuth 用戶端（**選用**） | 人     | 每個部署自己申請（#1842）。用戶端 ID 寫進 `[env.production.vars]` 的 `GOOGLE_CLIENT_ID`，密鑰 `wrangler secret put GOOGLE_CLIENT_SECRET`；重新導向 URI `https://<你的網域>/api/auth/callback/google`。沒設就沒有 Google 鍵，見 [[architecture/google-oauth-login]] |
 
 **沒有 LINE channel 就沒有人能登入** —— `socialProvidersFromEnv` 少一個變數就整個不設定，
 登入頁的按鈕會靜默失效。

@@ -65,6 +65,12 @@ npx wrangler deploy --env production \
 > 就整個不設定 provider，登入頁的 LINE 按鈕會**靜默失效**，而且沒有任何錯誤指向設定缺失。
 > 唯一的退路是 `npm run login-link`。
 
+**Google 登入是選用的**（#1842）：`GOOGLE_CLIENT_ID` 寫進 `[env.production.vars]`（非機密，理由同上），
+`GOOGLE_CLIENT_SECRET` 走 `npx wrangler secret put GOOGLE_CLIENT_SECRET --env production`。
+兩個都沒設就不掛 Google，`GET /api/auth-providers` 不回它，登入頁就不畫 Google 鍵 —— 這是預期行為，不是故障。
+Google Cloud 那一端怎麼申請（重新導向 URI 是 `https://<你的網域>/api/auth/callback/google`、
+只要 `openid`、發布成正式版）見 [[architecture/google-oauth-login]]。
+
 本機開發放 `apps/api/.dev.vars`（已 gitignore）。
 
 > 2026-08 之前 `wrangler.toml` 直接寫了這三個值，其中 `DATABASE_URL` 含 `postgres:postgres`
