@@ -458,12 +458,13 @@ describe('ParentsPage', () => {
 
     it('孩子名字連到學生檔案；列表沒帶 students 時退回純文字', () => {
       const el = load();
+      // A6 `.prow__kids a`：年級接在連結裡（王柏翰 · 小五）
       const links = [...el.querySelectorAll('a[href]')].map((a) => [
-        a.textContent?.trim(),
+        a.textContent?.replace(/\s+/g, ' ').trim(),
         a.getAttribute('href'),
       ]);
       expect(links).toEqual([
-        ['小明', '/admin/students/s1'],
+        ['小明 · 小五', '/admin/students/s1'],
         ['小華', '/admin/students/s2'],
       ]);
       expect(el.textContent).toContain('小美');
@@ -473,7 +474,7 @@ describe('ParentsPage', () => {
     it('孩子名旁顯示中文年級；沒有年級的只有名字', () => {
       const el = load();
       const li = el.querySelector('section[data-chapter] li') as HTMLElement;
-      // 年級是名字旁獨立的灰字（視覺上的空白由 gap 排，不靠文字空格）
+      // 年級是連結裡的灰字
       const grades = [...li.querySelectorAll('span.text-zinc-500')].map((e) =>
         e.textContent?.trim(),
       );
