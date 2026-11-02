@@ -13,7 +13,7 @@ import {
 import { ReloadVeilComponent } from '@shared/components/reload-veil/reload-veil.component';
 import { injectOptimisticRemove } from '@shared/utils/optimistic-remove.util';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY, Subject, catchError, switchMap } from 'rxjs';
+import { EMPTY, Subject, catchError, concat, defer, switchMap, tap, toArray } from 'rxjs';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -57,6 +57,12 @@ import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/b
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
 import { inUseLabel, periodUsageLabel, overlappingNames, amountUnit } from './fee-templates.util';
 import { injectViewTransition } from '@shared/utils/view-transition.util';
+import { SystemClockService } from '@core/system-clock.service';
+import {
+  PERIOD_TEMPLATES,
+  periodsFromTemplate,
+  type PeriodTemplateKey,
+} from './period-templates.util';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
 import { HeightFollowDirective } from '@shared/directives/height-follow.directive';
 
@@ -101,6 +107,7 @@ export class FeeTemplatesComponent implements OnInit {
   private readonly feeTemplatesService = inject(FeeTemplatesService);
   private readonly billingPeriodsService = inject(BillingPeriodsService);
   private readonly messageService = inject(MessageService);
+  private readonly clock = inject(SystemClockService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
@@ -170,12 +177,35 @@ export class FeeTemplatesComponent implements OnInit {
 
   protected readonly periods = signal<BillingPeriodListItem[]>([]);
 
+  /**
+   * 用模板建立（#1100 #35③；使用者 11-02 從系統設定搬來、改成 radio＋送出鈕，R5）。
+   * 每個模板預覽會照「下一個學年」建出哪幾個期間；同名的已經有了，標出來、送出時略過。
+   */
+  protected readonly templatePreviews = computed(() => {
+    const today = this.clock.todayTaipei();
+    const existing = new Set(this.periods().map((p) => p.name));
+    return PERIOD_TEMPLATES.map((t) => ({
+      ...t,
+      rows: periodsFromTemplate(t.value, today).map((p) => ({
+        ...p,
+        exists: existing.has(p.name),
+      })),
+    }));
+  });
+  protected readonly periodTemplatePick = signal<PeriodTemplateKey | null>(null);
+  protected readonly creatingFromTemplate = signal(false);
+  /** 送出鈕上的 N：選中的模板裡還沒有的那幾個 */
+  protected readonly templateTodoCount = computed(() => {
+    const pick = this.templatePreviews().find((t) => t.value === this.periodTemplatePick());
+    return pick ? pick.rows.filter((r) => !r.exists).length : 0;
+  });
+
   /** 這段期間跟哪些期間重疊（F5）。由已載入的列表算，不擋、不多一次請求 */
   protected overlapsOf(period: BillingPeriodListItem): string[] {
     return overlappingNames(period, this.periods());
   }
 
-  protected formatRange(period: BillingPeriod): string {
+  protected formatRange(period: Pick<BillingPeriod, 'startDate' | 'endDate'>): string {
     return `${period.startDate.replaceAll('-', '/')} — ${period.endDate.replaceAll('-', '/')}`;
   }
   protected readonly periodsLoading = signal(true);
@@ -410,6 +440,57 @@ export class FeeTemplatesComponent implements OnInit {
   }
 
   // ── 收費期間 ──────────────────────────────────────────────────────────────
+
+  /**
+   * 一筆一筆建，中途失敗就停並說清楚建了幾個 —— 不能讓人以為整組都沒建、再按一次又建一份。
+   * 同名的略過（同 org 不得同名，開帳時行政用名字認期間）。
+   */
+  protected createFromTemplate(): void {
+    const key = this.periodTemplatePick();
+    if (!key || this.creatingFromTemplate()) return;
+    const preview = this.templatePreviews().find((t) => t.value === key)!;
+    const todo = preview.rows.filter((r) => !r.exists);
+    if (todo.length === 0) return;
+    const skipped = preview.rows.length - todo.length;
+    let created = 0;
+    const done = () => {
+      this.creatingFromTemplate.set(false);
+      this.loadPeriods({ quiet: true, rows: true });
+    };
+    this.creatingFromTemplate.set(true);
+    concat(
+      ...todo.map(({ name, startDate, endDate }) =>
+        defer(() => this.billingPeriodsService.create({ name, startDate, endDate })),
+      ),
+    )
+      .pipe(
+        tap(() => created++),
+        toArray(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: `已建立 ${created} 個期間，日期可以再改`,
+            detail: skipped ? `略過 ${skipped} 個同名的` : undefined,
+          });
+          this.periodTemplatePick.set(null);
+          done();
+        },
+        error: (err: { error?: { error?: string } }) => {
+          const reason = err.error?.error || '請稍後再試';
+          this.messageService.add({
+            severity: 'error',
+            summary: '建立失敗',
+            detail: created
+              ? `${reason}。已經建好 ${created} 個，請看清單再決定要不要重試`
+              : reason,
+          });
+          done();
+        },
+      });
+  }
 
   /** 同 `loadTemplates` 的 `quiet`／`rows`（#1641 5b） */
   protected loadPeriods({
