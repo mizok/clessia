@@ -34,7 +34,13 @@ import { ariaIconButtonViolations } from './lib/aria-icon-button.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
-import { adminMounts, unscopedStudentRoutes } from './lib/student-campus-scope.mjs';
+import {
+  adminMounts,
+  allMounts,
+  relativeImports,
+  unscopedCampusFiles,
+  unscopedStudentRoutes,
+} from './lib/student-campus-scope.mjs';
 import {
   collectApiParams,
   findMissing,
@@ -639,28 +645,64 @@ function stripComments(source, marker) {
 // 升級的理由：覆蓋率一旦完整，下一個洞就不會是「還沒做完」而是「新路由忘了接」——
 // 而那種洞是靜默的（查詢正常回應，只是回了不該看的資料）。漸進期用提醒是對的，
 // 完成之後還留在提醒就等於把門開著。
+//
+// **從掛載出發、每個檔自己看**（#2139 計畫席 11-02）：原本只掃 `routes/` 第一層，`routes/parent/`、
+// `routes/students/` 這類子目錄等於沒人守。現在從 index.ts 的每個掛載（mount 與 app.route）沿相對 import 把
+// routes/ 底下的檔串起來，逐檔判斷 —— 整串一起看太鬆（me.ts 一處提到範圍，底下家長子路由就全過）。
+// 有分校範圍的識別字（不分大小寫）或家長範圍（childDb／isChildAllowed）就算有接；確實不需要的列例外帳本。
 {
-  const routesDir = join(ROOT, 'apps/api/src/routes');
-  const pending = [];
-  for (const name of readdirSync(routesDir)) {
-    if (!name.endsWith('.ts') || name.endsWith('.spec.ts')) continue;
-    const source = readFileSync(join(routesDir, name), 'utf8');
-    if (!/campus_id|campusId/.test(source)) continue;
-    // ⚠️ **`getCampusScope` 要明著列出來，不能靠 `campusScope` 這個 substring** ——
-    // 大小寫不同（`getCampusScope` 裡是 `CampusScope`），所以 #515 把 20 個讀取點
-    // 從 `c.get('campusScope')` 遷到 `getCampusScope(c)` 之後，這道 gate 當場對
-    // 五支路由紅了。**它辨識「有沒有接分校過濾」靠的是識別字，而識別字被改名了。**
-    // 這一族在本 repo 記過（識別字在兩個載體之間對不上）；這次是 harness 自己攔下的。
-    if (/campusFilterIds|campusScope|getCampusScope/.test(source)) continue;
-    pending.push(name);
+  const apiSrcDir = join(ROOT, 'apps/api/src');
+  const routesDir = join(apiSrcDir, 'routes');
+  const CAMPUS_FILE_EXCEPTIONS = join(
+    ROOT,
+    'tools/agent-harness/campus-scope-file-exceptions.json',
+  );
+  const resolveTs = (from, spec) => {
+    const base = join(dirname(from), spec);
+    for (const candidate of [`${base}.ts`, join(base, 'index.ts')])
+      if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+    return null;
+  };
+  const indexFile = join(apiSrcDir, 'index.ts');
+  const seen = new Map();
+  const stack = allMounts(readFileSync(indexFile, 'utf8'))
+    .map(({ spec }) => resolveTs(indexFile, spec))
+    .filter(Boolean);
+  while (stack.length > 0) {
+    const file = stack.pop();
+    if (seen.has(file)) continue;
+    const source = readFileSync(file, 'utf8');
+    seen.set(file, source);
+    for (const spec of relativeImports(source)) {
+      const next = resolveTs(file, spec);
+      if (next && next.startsWith(routesDir + '/') && !next.endsWith('.spec.ts')) stack.push(next);
+    }
   }
-  for (const name of pending) {
+  const files = [...seen].map(([file, source]) => ({ file: relative(ROOT, file), source }));
+  const exceptions = existsSync(CAMPUS_FILE_EXCEPTIONS)
+    ? JSON.parse(readFileSync(CAMPUS_FILE_EXCEPTIONS, 'utf8'))
+    : [];
+  const excepted = new Set(exceptions.map((e) => e.file));
+  const flagged = unscopedCampusFiles(files);
+  for (const file of flagged) {
+    if (excepted.has(file)) continue;
     fail(
-      `routes/${name} 碰 campus_id 但沒有接分校預設過濾 —— ` +
+      `${file} 碰 campus_id 但沒有接分校預設過濾 —— ` +
         `用 lib/campus-scope.ts 的 applyCampusFilter / campusFilterIds。` +
         `沒指定分校時要縮到呼叫者的 campusScope，不是回全部` +
-        `（見 kb/wiki/architecture/authorization-scope.md 洞 5）`,
+        `（見 kb/wiki/architecture/authorization-scope.md 洞 5）。` +
+        `確實不需要的，列進 campus-scope-file-exceptions.json（理由＋path:line＋裁定）`,
     );
+  }
+  const flaggedSet = new Set(flagged);
+  for (const e of exceptions) {
+    if (!e.reason || !e.evidence || !e.ruling)
+      fail(`campus-scope-file-exceptions.json 的 ${e.file} 少了 reason／evidence／ruling`);
+    if (!flaggedSet.has(e.file))
+      fail(
+        `campus-scope-file-exceptions.json 的 ${e.file} 已經不觸發了（接上了範圍、不再碰 campus_id、或沒有掛載串到它）—— ` +
+          `從帳本刪掉（只降不升）`,
+      );
   }
 }
 

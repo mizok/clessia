@@ -26,7 +26,13 @@ import { preflightVerdict } from './lib/preflight-verdict.mjs';
 import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
-import { adminMounts, unscopedStudentRoutes } from './lib/student-campus-scope.mjs';
+import {
+  adminMounts,
+  allMounts,
+  relativeImports,
+  unscopedCampusFiles,
+  unscopedStudentRoutes,
+} from './lib/student-campus-scope.mjs';
 import { rootVariables, themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { uncoveredTemplateDirs } from './lib/tailwind-source-coverage.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
@@ -2458,4 +2464,118 @@ test('A7c 續：例外帳本每條都有理由、出處、裁定，而且還在�
     ['/api/notifications', '/api/schools'],
     '例外帳本多了或少了一條：加例外要有計畫席裁定，並同步更新這個斷言',
   );
+});
+
+// ── A7c 原本那條：從掛載出發、每個檔自己看（#2139 計畫席 11-02）──────────────────────────────
+test('A7c：每個檔自己看 —— 碰 campus_id 卻沒接範圍的子檔要紅；範圍 helper 的呼叫、家長範圍的使用算有接', () => {
+  const files = [
+    {
+      file: 'routes/me.ts',
+      source: "const scope = getCampusScope(c); import x from './parent/a';",
+    },
+    // 整串（me.ts）有接範圍，這支子檔自己沒有 —— 整串一起看會漏掉它
+    { file: 'routes/parent/a.ts', source: "q.select('classes(campus_id)')" },
+    {
+      file: 'routes/parent/b.ts',
+      source: "if (!isChildAllowed(scope, id)) …; q.select('campus_id')",
+    },
+    {
+      file: 'routes/parent/c.ts',
+      source: "childDb.from('enrollments').select('classes(campus_id)')",
+    },
+    {
+      file: 'routes/students/read-scope.ts',
+      source: "(scope: CampusScope) => studentInScope(db, scope, id) && q.eq('campus_id', x)",
+    },
+    { file: 'routes/login-links/scope.ts', source: 'resolveCampusScope(input); row.campus_id' },
+    { file: 'routes/no-campus.ts', source: "q.eq('name', x)" },
+  ];
+  assert.deepEqual(unscopedCampusFiles(files), ['routes/parent/a.ts']);
+});
+
+test('A7c：家長範圍（childDb）只算在 A7c 原本那條；ADMIN＋碰學生那條不吃它', () => {
+  const mounts = [{ path: '/api/notifications', spec: './routes/notifications' }];
+  const source = "childDb.from('enrollments', 'student_id')";
+  assert.deepEqual(
+    unscopedStudentRoutes(mounts, () => source).map((r) => r.path),
+    ['/api/notifications'],
+    '家長分支用 childDb 不代表管理員分支有接分校範圍',
+  );
+});
+
+test('A7c：所有掛載都是起點（mount 不分角色、app.route 也算），相對 import 都認得', () => {
+  const index = [
+    "import aRoute from './routes/a';",
+    "import { bRoute } from './routes/public/b';",
+    "import cRoute from './routes/c';",
+    "mount('/api/a', aRoute, ['teacher']);",
+    "app.route('/api/public/b', bRoute);",
+  ].join('\n');
+  assert.deepEqual(allMounts(index), [
+    { path: '/api/a', spec: './routes/a' },
+    { path: '/api/public/b', spec: './routes/public/b' },
+  ]);
+  assert.deepEqual(
+    relativeImports(
+      "import x from './parent/x';\nimport { y } from '../lib/y';\nimport z from 'zod';",
+    ),
+    ['./parent/x', '../lib/y'],
+  );
+});
+
+test('A7c：檔案例外帳本每條都有理由、出處、裁定', () => {
+  const ledger = JSON.parse(
+    readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), 'campus-scope-file-exceptions.json'),
+      'utf8',
+    ),
+  );
+  for (const e of ledger) {
+    assert.ok(e.file && e.reason && e.evidence && e.ruling, JSON.stringify(e));
+    assert.match(e.evidence, /^apps\/api\/src\/routes\/.+\.ts:\d+(-\d+)?$/);
+  }
+  // 同 A7c 續那份帳本：釘死集合，新增例外一定得改到這一行（計畫席 11-02）
+  assert.deepEqual(
+    ledger.map((e) => e.file).sort(),
+    [
+      'apps/api/src/routes/announcements/visibility.ts',
+      'apps/api/src/routes/enrollments/list-query.ts',
+    ],
+    '例外帳本多了或少了一條：加例外要有計畫席裁定，並同步更新這個斷言',
+  );
+});
+
+// 審核席擋下 #2154 的那個洞：識別字改成不分大小寫、兩條 gate 共用之後，型別名稱 `CampusScope` 也被當成「有接範圍」——
+// 漏洞版的 meals.ts 只要多一行 `import type { CampusScope }` 就放行。認的是**呼叫**，不是名字出現過
+test('A7c：只 import type CampusScope（沒有呼叫）的路由要紅 —— 兩條 gate 都一樣', () => {
+  const typeOnly = [
+    "import type { CampusScope } from '../lib/campus-scope';",
+    "supabase.from('meal_records').eq('student_id', id).eq('campus_id', x);",
+  ].join('\n');
+  const mounts = [{ path: '/api/meals', spec: './routes/meals' }];
+  assert.deepEqual(
+    unscopedStudentRoutes(mounts, () => typeOnly).map((r) => r.path),
+    ['/api/meals'],
+  );
+  assert.deepEqual(unscopedCampusFiles([{ file: 'routes/meals.ts', source: typeOnly }]), [
+    'routes/meals.ts',
+  ]);
+  // 只是提到名字也不算：註解、變數名、字串
+  for (const mention of [
+    '// TODO: getCampusScope',
+    'const campusScope = null;',
+    "logger.info('childDb')",
+  ])
+    assert.deepEqual(
+      unscopedCampusFiles([{ file: 'routes/x.ts', source: `${mention}\nq.eq('campus_id', x)` }]),
+      ['routes/x.ts'],
+      mention,
+    );
+  // 對照組：真的呼叫才算
+  const called = `${typeOnly}\nconst scope = getCampusScope(c);`;
+  assert.deepEqual(
+    unscopedStudentRoutes(mounts, () => called),
+    [],
+  );
+  assert.deepEqual(unscopedCampusFiles([{ file: 'routes/meals.ts', source: called }]), []);
 });
