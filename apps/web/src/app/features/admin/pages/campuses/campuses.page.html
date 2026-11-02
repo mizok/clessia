@@ -112,11 +112,12 @@
         </div>
       }
       @if (total() > PAGE_SIZE) {
-        <p-paginator
-          [first]="pagination().first"
-          [rows]="PAGE_SIZE"
-          [totalRecords]="total()"
-          (onPageChange)="onPage($event)"
+        <app-pager
+          class="mt-6"
+          [total]="total()"
+          [pageSize]="PAGE_SIZE"
+          [page]="currentPage()"
+          (pageChange)="onPage($event)"
         />
       }
     }

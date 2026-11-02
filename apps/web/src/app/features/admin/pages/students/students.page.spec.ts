@@ -151,7 +151,7 @@ describe('StudentsPage', () => {
     });
 
     it('換分校：回第一頁、帶新的 campusId 重查；日常頁沒有全部分校（#1607）', () => {
-      (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 2 });
+      (component as unknown as { onPage: (p: number) => void }).onPage(3);
       expect(pending.at(-1)?.params.page).toBe(3);
 
       selectCampus('campus-1');
@@ -696,7 +696,7 @@ describe('StudentsPage', () => {
 
     it('翻到第 2 頁 today 回 null 不算「不支援」，也不清掉人數', () => {
       respond([row('a', '王一', 'J3')]);
-      (component as any).onPage({ page: 1 });
+      (component as any).onPage(2);
       respond([row('b', '李二', 'J3')], { today: null }, 2);
 
       expect((component as any).todayUnsupported()).toBe(false);
@@ -712,7 +712,7 @@ describe('StudentsPage', () => {
       const loaded = title();
       expect(loaded).not.toBe('學生');
 
-      (component as any).onPage({ page: 1 });
+      (component as any).onPage(2);
       expect((component as any).loading()).toBe(true);
       expect(title()).toBe(loaded);
       respond([row('b', '李二', 'J3')], {}, 2);
@@ -721,13 +721,35 @@ describe('StudentsPage', () => {
       expect(title()).toBe((component as any).page().label);
     });
 
+    // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+    it('超過一頁：精簡版分頁器寫每頁人數，按下一頁帶 page: 2 重抓', () => {
+      const pageSize = (component as unknown as { PAGE_SIZE: number }).PAGE_SIZE;
+      const subject = pending.at(-1)!.subject;
+      subject.next({
+        data: [row('a', '王一', 'J3')],
+        meta: { total: pageSize + 1, page: 1, pageSize, totalPages: 2 },
+        summary: { total: pageSize + 1, activeCount: pageSize + 1, byGrade: [], today: null },
+      } as unknown as StudentListResponse);
+      subject.complete();
+      fixture.detectChanges();
+
+      expect(root().querySelector('p-paginator')).toBeNull();
+      expect(root().querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+        `第 1／2 頁 · 每頁 ${pageSize} 位`,
+      );
+      Array.from(root().querySelectorAll<HTMLButtonElement>('app-pager button'))
+        .find((b) => b.textContent?.includes('下一頁'))!
+        .click();
+      expect(lastCall()).toMatchObject({ page: 2 });
+    });
+
     it('翻頁重抓失敗：標題退回頁名，不留著像是成功的舊數字（第二審核席 #1864）', () => {
       const title = () => {
         fixture.detectChanges();
         return (fixture.nativeElement as HTMLElement).querySelector('h1')!.textContent!.trim();
       };
       respond([row('a', '王一', 'J3')]);
-      (component as any).onPage({ page: 1 });
+      (component as any).onPage(2);
       pending.at(-1)!.subject.error(new Error('boom'));
       expect((component as any).loadFailed()).toBe(true);
       expect(title()).toBe((component as any).page().label);
