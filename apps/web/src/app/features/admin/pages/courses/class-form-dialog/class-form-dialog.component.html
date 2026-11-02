@@ -191,6 +191,7 @@
                 <input
                   type="date"
                   class="h-9 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-600 pointer-coarse:min-h-11"
+                  [min]="startDate()"
                   [ngModel]="entry.effectiveFrom ?? ''"
                   (ngModelChange)="updateScheduleEntry(i, 'effectiveFrom', $event)"
                   [disabled]="loading() || !!entry.id"
@@ -315,7 +316,7 @@
           class="h-10 w-full rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 max-wide:h-11 max-wide:text-lg"
           [min]="startDateMin()"
           [ngModel]="startDate()"
-          (ngModelChange)="startDate.set($event ?? '')"
+          (ngModelChange)="onStartDateChange($event ?? '')"
           [disabled]="loading()"
         />
       </div>

@@ -158,7 +158,7 @@ describe('ClassFormDialogComponent', () => {
       fixture.detectChanges();
       const off = [...el().querySelectorAll<HTMLInputElement>('input[name="class-status"]')][1];
       off.click();
-      (component as any).startDate.set('2099-01-05');
+      (component as any).onStartDateChange('2099-01-05');
       fixture.detectChanges();
       submit().click();
       const input = (classesServiceMock.create as any).mock.calls[0][0];
@@ -559,6 +559,60 @@ describe('ClassFormDialogComponent', () => {
     });
     (component as any).save();
     expect((classesServiceMock.create as any).mock.calls[0][0].gradeLevels).toEqual(['J1', 'J2']);
+  });
+
+  // #2110／#2115 二讀：日期下限原本只有 [min] 提示
+  describe('日期下限', () => {
+    const msg = () => (component as any).formValidationMessage();
+    beforeEach(() =>
+      (component as any).formData.set({
+        name: '測試班級',
+        maxStudents: 20,
+        nextClassId: null,
+        isActive: true,
+      }),
+    );
+
+    it('開始日往後調：新時段的生效起始日跟著帶過去，不報錯', () => {
+      (component as any).onStartDateChange('2099-03-01');
+      expect((component as any).scheduleEntries()[0].effectiveFrom).toBe('2099-03-01');
+      expect(msg()).toBeNull();
+    });
+
+    it('開始日早於今天、結束日早於開始日、時段結束早於起始：各自擋下', () => {
+      (component as any).onStartDateChange('2000-01-01');
+      expect(msg()).toContain('開始日期不能早於');
+      (component as any).onStartDateChange('2099-03-01');
+      (component as any).endDate.set('2099-02-01');
+      expect(msg()).toBe('結束日期不能早於開始日期');
+      (component as any).endDate.set('');
+      (component as any).updateScheduleEntry(0, 'effectiveTo', '2099-02-01');
+      expect(msg()).toBe('第 1 筆時段的生效結束日不能早於起始日');
+      (component as any).updateScheduleEntry(0, 'effectiveTo', '');
+      (component as any).updateScheduleEntry(0, 'effectiveFrom', '2099-02-01');
+      expect(msg()).toBe('第 1 筆時段的生效起始日不能早於班級開始日期');
+      (component as any).save();
+      expect(classesServiceMock.create).not.toHaveBeenCalled();
+    });
+
+    it('編輯已結束的班：沒改的過去日期不擋', () => {
+      TestBed.inject(DynamicDialogConfig).data.cls = {
+        id: 'class-1',
+        name: '舊班',
+        maxStudents: 20,
+        nextClassId: null,
+        isActive: true,
+        startDate: '2025-01-01',
+        endDate: '2025-06-30',
+        gradeLevels: ['J1'],
+        schedules: [],
+      };
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+      expect(msg()).toBeNull();
+      expect((component as any).gradeLevels()).toEqual(['J1']);
+    });
   });
 
   describe('時段生效區間', () => {
