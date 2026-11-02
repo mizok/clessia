@@ -128,6 +128,42 @@ describe('ReportsPage', () => {
       click.mockRestore();
     });
 
+    it('匯出鈕先開確認浮層（A6 .xp），範圍寫目前的期間 · 分校 · 課程', () => {
+      const btn = fixture.nativeElement.querySelector('button[aria-label="匯出"]') as HTMLElement;
+      expect(btn.getAttribute('popovertarget')).toBe('reports-export');
+      const scope = () =>
+        (
+          fixture.nativeElement.querySelector('[data-testid="export-scope"]') as HTMLElement
+        ).textContent!.trim();
+      expect(scope()).toMatch(/ · 全部分校 · 全部課程$/);
+
+      TestBed.inject(CampusContextService).select('campus-1');
+      component['courses'].set([{ id: 'course-1', name: '國一數學' } as never]);
+      component['onCourseChange']('course-1');
+      fixture.detectChanges();
+      expect(scope()).not.toContain('全部課程');
+      expect(scope()).toMatch(/ · 國一數學$/);
+    });
+
+    it('浮層裡按「匯出」：下載成功才收起浮層；失敗時留著', async () => {
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => undefined);
+      URL.createObjectURL = vi.fn(() => 'blob:x');
+      URL.revokeObjectURL = vi.fn();
+      const popover = { hidePopover: vi.fn() } as unknown as HTMLElement;
+
+      component['exportCsv'](popover);
+      expect(popover.hidePopover).toHaveBeenCalledTimes(1);
+
+      const failing = { hidePopover: vi.fn() } as unknown as HTMLElement;
+      reports.revenueCsv.mockReturnValueOnce(throwError(() => ({ status: 500 })));
+      component['exportCsv'](failing);
+      await vi.waitFor(() => expect(component['exporting']()).toBe(false));
+      expect(failing.hidePopover).not.toHaveBeenCalled();
+      click.mockRestore();
+    });
+
     it('筆數超過上限（413）→ 顯示後端的「請縮小日期範圍」', async () => {
       toast.add.mockClear();
       // jsdom 的 Blob 沒有 text()（瀏覽器都有）—— 補上

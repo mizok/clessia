@@ -27,6 +27,8 @@ export interface ScoreRecord {
 
 export interface ScoreListParams {
   studentId?: string;
+  /** 只看這個開課班的校內考（老師的學生面板查「這班」） */
+  classId?: string;
   type?: ScoreRecordType;
   subjectId?: string;
   dateFrom?: string;
@@ -240,6 +242,7 @@ export class ScoresService {
 
     const query: Record<string, string | number | boolean> = {};
     if (params.studentId !== undefined) query['studentId'] = params.studentId;
+    if (params.classId !== undefined) query['classId'] = params.classId;
     if (params.type !== undefined) query['type'] = params.type;
     if (params.subjectId !== undefined) query['subjectId'] = params.subjectId;
     if (params.dateFrom !== undefined) query['dateFrom'] = params.dateFrom;

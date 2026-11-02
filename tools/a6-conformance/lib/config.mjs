@@ -991,7 +991,55 @@ export const PAGES = {
     ],
   },
   enrollments: { a6: 'enrollments.html', app: '/admin/enrollments' },
-  leave: { a6: 'leave.html', app: '/admin/leave' },
+  leave: {
+    a6: 'leave.html',
+    app: '/admin/leave',
+    deviations: [
+      {
+        // 稿的請假用今天起算的相對日期（leave.html D(n)），所以永遠有今天、明天的章；
+        // 本機 seed 的請假是 reset 當天起算，「待處理」分頁今天以後沒有，app 顯示空狀態
+        status: '缺',
+        a6: '>landmark:main\\[\\]>landmark:region\\[(今天|明天|#)\\](~\\d+)?(>|$)',
+        reason: '資料：seed 今天以後沒有請假，沒有日期章',
+        source: 'leave.html D(n) 相對日期；supabase/seed-demo.sql 請假是 reset 日起算',
+      },
+      {
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[今天和之後都沒有請假。\\]$',
+        reason: '資料：seed 今天以後沒有請假，顯示空狀態',
+        source: 'leave.html D(n) 相對日期；supabase/seed-demo.sql 請假是 reset 日起算',
+      },
+      {
+        // 空狀態下說明「目前只看哪個分校」（#1138）；稿有資料、沒畫空狀態
+        status: '多',
+        app: '>landmark:main\\[\\]>text:p\\[目前只看\\{分校\\}，換分校在頂欄。\\]$',
+        reason: '現況有、稿沒畫：空狀態的分校範圍提示',
+        source: `${rule('R2')}；#1138`,
+      },
+      // 稿的「新」小標（設計說明）在鈕裡；app 的鈕只有 label span，工具把它配到「新」上
+      ...['文案', '位置', '樣式'].map((status) => ({
+        status,
+        a6: 'control:button\\[批次請假新\\]>text:span\\[新\\]$',
+        reason: '工具限制：稿的「新」標記是設計說明，app 鈕的 label span 被配到它身上',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
+      })),
+      // 稿是文字鈕「操作紀錄」；全站統一成工具列的時鐘圖示鈕
+      {
+        status: '樣式',
+        a6: 'control:button\\[操作紀錄\\]$',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕',
+        source: '使用者 10-23 裁定 #2006（#2014）',
+      },
+      {
+        // 稿的操作紀錄只在桌機（only-d）；手機保留同一顆時鐘鈕
+        status: '多',
+        widths: [360],
+        app: '>landmark:main\\[\\]>control:button\\[操作紀錄\\]$',
+        reason: '手機的操作紀錄：稿沒畫，保留',
+        source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
+      },
+    ],
+  },
   // 家長端報名申請（#1727 ③）：家長登入態；預設分頁「新增申請」，申請紀錄是 p-enrollment-records
   'p-enrollment': {
     a6: 'p-enrollment.html',
@@ -1100,7 +1148,51 @@ export const PAGES = {
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
-  settings: { a6: 'settings.html', app: '/admin/settings/general' },
+  settings: {
+    a6: 'settings.html',
+    app: '/admin/settings/general',
+    deviations: [
+      {
+        // 稿的出勤紀錄模式是常開的一節（兩張可選的卡）；使用者要求「一般」分頁全部收成可收合的列，
+        // 出勤紀錄模式、誰負責點名在列裡（列數因此多 2，工具算成資料差）
+        status: '缺',
+        a6: '>landmark:main\\[\\]>landmark:region\\[出勤紀錄模式\\](>|$)',
+        reason: '「一般」分頁全部收成可收合的列，出勤紀錄模式在列裡',
+        source: '#1882（使用者 10-22「一般設定也幫我收合」）',
+      },
+      {
+        // 稿與 app 同一個寫法（settings.html:224、settings-shell.page.ts）：全部分校日到班時寫「全部用日到班」
+        status: '文案',
+        a6: '>heading:h1\\[#個分校在營運，#個用日到班。\\]$',
+        reason: '資料：seed 的分校全部用日到班',
+        source: 'settings.html:224 與 settings-shell.page.ts 同一套分支',
+      },
+      {
+        // 繳費提醒時間點可以設好幾個（#1660），摘要全部寫出來，跟稿的「到期前 3 天提醒」對不上文案
+        status: '多',
+        app: '>landmark:main\\[\\]>control:button\\[繳費期限',
+        reason: '現況有、稿沒畫：繳費提醒可設多個時間點，摘要逐一寫出',
+        source: `${rule('R2')}；#1660`,
+      },
+      {
+        // 「繳費」收合列裡現況有、稿沒畫的欄位與區塊：待開單提醒、連續請假可不收費、家長繳費提醒（#1660）、
+        // 家長付款帳戶資訊。已經收在收合列裡，不另外搬
+        status: '多',
+        app: '>landmark:main\\[\\]>(control:button\\[(儲存|到期前|逾期|加入)\\](~\\d+)?|heading:h3\\[(家長繳費提醒|家長付款帳戶資訊)\\]|text:p\\[(在這些時間點|家長在「繳費」頁|到期前#天)|list|control:textbox\\[(天數|家長付款帳戶資訊)\\])',
+        reason: '現況有、稿沒畫：收在「繳費」收合列裡',
+        source: `${rule('R2')}；#1660`,
+      },
+      {
+        // 收合列裡的欄位（報名流程、繳費、學年升級的天數框與說明）：收起時 Chrome 照樣回盒子，app 這邊被量成列內 part；
+        // 稿同樣的欄位沒量到。兩邊都在收合列裡，不是多出來的東西
+        status: '多',
+        app: '>landmark:main\\[\\]>row>(control:textbox|text:small)$',
+        reason: '工具限制：收合列內的欄位，app 收起時仍被量到、稿沒有',
+        source:
+          'tools/a6-conformance/README.md 已知限制「收合的 <details> 沒有盒子，不列」（app 的收合內容仍有盒子，10-30 實測）',
+      },
+    ],
+  },
   // 系統設定的學校分頁（#1314 SE4）
   schools: { a6: 'settings.html#schools', app: '/admin/settings/schools' },
   // 系統設定的科目分頁（#1314 SE5）
@@ -1333,7 +1425,30 @@ export const PAGES = {
   reports: {
     a6: 'reports.html',
     app: '/admin/reports',
+    // 匯出明細確認浮層（稿 `rexp`、app 原生 popover `reports-export`）
+    popovers: { rexp: 'reports-export' },
     deviations: [
+      {
+        // 浮層貼著匯出鈕下緣往下開（同稿的 toggle 定位）：鈕在頁上的 Δy 是資料（色面句行數），
+        // 再加工具列控制項同高 40（稿 36）
+        status: '位置',
+        pop: 'rexp',
+        widths: [1440],
+        a6: '^pop\\[rexp\\]>landmark:popover\\[匯出明細\\]$',
+        detail: '^相對頁面 Δx 0、Δy \\+(1[0-9]|20)',
+        reason: '連帶：浮層定位在匯出鈕下緣，鈕的位置差（資料＋工具列控制項 40 高）帶過來',
+        source: '工具列控制項同高 #1903（使用者 10-23 裁定）；README「列是資料」',
+      },
+      {
+        // 手機關閉鈕是 44×44 的圓鈕（稿 36）：R3 的全站條目只管高度，方鈕的寬跟著變
+        status: '尺寸',
+        pop: 'rexp',
+        widths: [360],
+        a6: '>control:button\\[關閉\\]$',
+        detail: '^寬 36→44$',
+        reason: '可點元素基底 44px：圖示圓鈕寬高一起撐到 44',
+        source: `${rule('R3')}`,
+      },
       {
         // 稿的期間／分校／課程是 label 包原生 select；app 是 label 包 PrimeNG p-select（combobox＋dropdown 鈕），
         // 工具把 app 的 label 當成一個 part、稿的沒有。分校不在這列：在頂欄（#1138）
@@ -1738,7 +1853,6 @@ export const PAGES = {
       ],
     },
   },
-  settings: { a6: 'settings.html', app: '/admin/settings/general' },
   't-schedule': {
     a6: 't-schedule.html',
     app: '/teacher/schedule',
