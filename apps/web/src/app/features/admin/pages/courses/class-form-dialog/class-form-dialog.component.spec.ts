@@ -565,9 +565,9 @@ describe('ClassFormDialogComponent', () => {
 
   // #2122 之後：班級自己沒存年級＝沿用課程。表單不能拿合併值當初值，否則編輯一次就把沿用的班存成副本
   describe('適用年級沿用課程', () => {
-    const editing = (own: string[]) => {
+    const editing = (own: string[], courseGrades = ['J1', 'J2']) => {
       const data = TestBed.inject(DynamicDialogConfig).data;
-      data.course = { ...data.course, gradeLevels: ['J1', 'J2'] };
+      data.course = { ...data.course, gradeLevels: courseGrades };
       data.cls = {
         id: 'class-1',
         name: '國一數學 A',
@@ -576,7 +576,7 @@ describe('ClassFormDialogComponent', () => {
         isActive: true,
         startDate: null,
         endDate: null,
-        gradeLevels: own.length ? own : ['J1', 'J2'],
+        gradeLevels: own.length ? own : courseGrades,
         ownGradeLevels: own,
         schedules: [],
       };
@@ -621,6 +621,20 @@ describe('ClassFormDialogComponent', () => {
       expect(hint()?.textContent?.trim()).toBe('全部不勾就會改回沿用課程（目前是：國一、國二）');
       (component as any).save();
       expect(sent()).toEqual([]);
+    });
+
+    // #2135 邊角：課程沒設年級時，按「自訂」一進來就是全部不勾 —— 提示要寫進「按之前就在」的 live region，
+    // 跟著 @else 一起插進 DOM 的 aria-live 有些報讀器不念
+    it('課程沒設年級時按「自訂」：提示的 live region 按之前就在，按下後同一個元素換上文字', () => {
+      editing([], []);
+      const hint = () => el().querySelector('[data-testid="grades-empty-hint"]');
+      const region = hint();
+      expect(region?.getAttribute('aria-live')).toBe('polite');
+      expect(region?.textContent?.trim()).toBe('');
+      (el().querySelector('[data-testid="grades-custom"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(hint()).toBe(region);
+      expect(hint()?.textContent?.trim()).toBe('全部不勾就會改回沿用課程（目前是：不限年級）');
     });
 
     it('按「自訂」從課程的年級開始勾；按「改回沿用課程」又送 []', () => {
