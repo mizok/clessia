@@ -3,7 +3,7 @@ title: 人員管理
 summary: 管理管理員、老師帳號。
 category: spec
 status: active
-updated: 2026-10-22
+updated: 2026-11-02
 tags: [specs, admin, system, staff]
 ---
 
@@ -28,6 +28,10 @@ tags: [specs, admin, system, staff]
 - 篩選：姓名搜尋、角色、服務分校
 - 每筆顯示：姓名、角色標籤、服務分校、電話、帳號狀態
 - 點擊進入編輯
+- **「還沒登入過」**：列上姓名旁的小標＝`hasLoggedIn` 為否；色面副行接「 · N 位還沒登入過」（#1314 ST6，0 位不寫）＝
+  `summary.neverLoggedInCount`。兩者同一個判準：來源 `ba_user."emailVerified"`（只讀，c2），查不到 ba_user 當登入過。
+  計數口徑照 A6（`live.filter(invited)`）：**未封存**（啟用＋停用都算）、不是掃碼機台；走與列表同一組篩選（分校範圍、搜尋、角色、科目），不受狀態篩選影響。
+  SQL 主路徑與 builder 退路共用 `neverLoggedInFromRows`，由 `contract/staff-list.contract.ts` 逐欄比對
 
 ### 新增/編輯人員 Popup
 

@@ -37,7 +37,7 @@ const SQL_RESULT: StaffListSqlResult = {
   subjectRows: [],
   roleRows: [{ user_id: USER, role: 'teacher', permissions: [] }],
   baUserRows: [{ id: USER, email: 't@example.test', phone: null, emailVerified: true }],
-  summaryRows: [{ user_id: USER, status: 'active' }],
+  summaryRows: [{ user_id: USER, status: 'active', emailVerified: true }],
   summaryRoleRows: [{ user_id: USER, role: 'teacher', permissions: [] }],
 };
 
@@ -101,6 +101,22 @@ describe('GET /api/staff 先走 SQL（#1595 P2）', () => {
     expect(query).toHaveBeenCalledTimes(1);
     expect((query.mock.calls[0] as unknown[])[0]).toBe(STAFF_LIST_SQL);
     expect(rest.calls()).toBe(0);
+  });
+
+  // ST6：還沒登入過的人數也從摘要列算（SQL 摘要列帶 ba_user."emailVerified"）
+  it('summary.neverLoggedInCount：摘要列 emailVerified=false 的算進去', async () => {
+    const result = {
+      ...SQL_RESULT,
+      summaryRows: [
+        { user_id: USER, status: 'active', emailVerified: false },
+        { user_id: 'u-2', status: 'active', emailVerified: true },
+      ],
+    };
+    const query = vi.fn(async () => ({ rows: [{ result }] }));
+    const body = (await (await appWith({ query }).app.request('/')).json()) as {
+      summary: { neverLoggedInCount: number };
+    };
+    expect(body.summary.neverLoggedInCount).toBe(1);
   });
 
   it('SQL 拋錯：改走 builder，照樣回 200，記一行 [staff-sql]', async () => {
