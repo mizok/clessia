@@ -165,9 +165,10 @@
           清除篩選
         </button>
       }
+      <!-- A6 `.btn.btn--sm`（白底次要鈕，桌機 30px；手機 44px R3） -->
       <button
         type="button"
-        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800"
+        class="ml-auto inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 active:bg-zinc-100 wide:h-[30px] wide:min-h-0"
         (click)="filterPopover.hide()"
       >
         完成

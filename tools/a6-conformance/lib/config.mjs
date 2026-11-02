@@ -2390,6 +2390,15 @@ export const PAGES = {
         { status: '樣式', a6: '(^|>)landmark:popover\\[\\]>row$' },
         { status: '多', app: '(^|>)landmark:dialog\\[\\]>row>control:combobox$' },
       ].map((d) => ({ ...d, pop: 'filt', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 完成鈕的上下位置：稿每列多一行「新」小標（設計說明）、多一欄分校（列數 7→6 是資料差），浮層高 419→311
+      {
+        status: '位置',
+        pop: 'filt',
+        widths: [1440],
+        a6: '(^|>)landmark:popover\\[\\]>control:button\\[完成\\]$',
+        reason: '連帶：稿的「新」小標各佔一行、欄位多一個分校，浮層比 app 高；完成鈕貼底跟著差',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）；列數差見同頁資料差',
+      },
     ],
   },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
