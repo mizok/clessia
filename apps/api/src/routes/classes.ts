@@ -4,7 +4,7 @@ import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
-import { GRADE_KEYS, classGradeLevels } from '../lib/class-grade-levels';
+import { GRADE_KEYS, classGradeLevels, ownClassGradeLevels } from '../lib/class-grade-levels';
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { checkTeacherEligibility } from '../lib/teacher-eligibility';
@@ -78,8 +78,10 @@ const ClassSchema = z
     campusName: z.string().optional(),
     name: z.string(),
     maxStudents: z.number(),
-    /** 班級自己的適用年級；沒填＝課程的（`classGradeLevels`） */
+    /** 適用年級的合併值：班級自己有填就用自己的，沒填＝課程的（`classGradeLevels`）。列表、家長端看這個 */
     gradeLevels: z.array(z.string()),
+    /** 班級自己存的年級；空＝沿用課程。只給班級表單分辨「沿用」用 */
+    ownGradeLevels: z.array(z.string()),
     nextClassId: DbUuidSchema.nullable(),
     isActive: z.boolean(),
     /** 國小／國中模式的開關（kb/wiki/rules/contact-book-rules.md 規則 2）。
@@ -536,6 +538,7 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     name: row['name'] as string,
     maxStudents: row['max_students'] as number,
     gradeLevels: classGradeLevels(row['grade_levels'], course?.grade_levels),
+    ownGradeLevels: ownClassGradeLevels(row['grade_levels']),
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     // 欄位是 NOT NULL DEFAULT false，但舊的 select 可能沒撈到 —— 退回 false 而不是

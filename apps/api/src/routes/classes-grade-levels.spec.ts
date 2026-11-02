@@ -29,6 +29,14 @@ describe('mapClass —— gradeLevels', () => {
     expect(mapClass(row(null)).gradeLevels).toEqual(['J1', 'J2']);
     expect(mapClass(row(['國一'])).gradeLevels).toEqual(['J1', 'J2']);
   });
+
+  // 表單要分辨「沿用課程」和「自己存了跟課程一樣的」—— 合併值兩者長得一樣
+  it('ownGradeLevels 是班級自己存的：沿用＝空；自己存了跟課程一樣的照樣回自己那份', () => {
+    expect(mapClass(row([])).ownGradeLevels).toEqual([]);
+    expect(mapClass(row(['國一'])).ownGradeLevels).toEqual([]);
+    expect(mapClass(row(['J1', 'J2'])).ownGradeLevels).toEqual(['J1', 'J2']);
+    expect(mapClass(row(['J1', 'J2'])).gradeLevels).toEqual(['J1', 'J2']);
+  });
 });
 
 function call(db: ReturnType<typeof createMultiOrgDb>, body: unknown) {
