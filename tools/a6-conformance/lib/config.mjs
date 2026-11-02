@@ -2369,6 +2369,8 @@ export const PAGES = {
   'grades-student': {
     a6: 'grades-student.html',
     app: '/admin/grades/overview/student',
+    // app 的篩選是 PrimeNG Popover（同 grades-class）；#2079(c) 開課班／期間要打開才量得到
+    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
     deviations: [
       // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
       ...['尺寸', '樣式', '位置'].map((status) => ({
