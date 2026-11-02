@@ -764,7 +764,9 @@ export const PAGES = {
   },
   student: {
     a6: 'student.html',
-    app: '/admin/students/e98f234f-b706-4209-8478-b2e5fda043ee',
+    // 學生 id 用 supabase/seed.sql 寫死的 v_student_id（61000000-…-001「出勤測試學生01」）；
+    // seed-demo 的學生是 gen_random_uuid，reset 一次就換（原本的 e98f234f-… 在 10-31 已經不存在）
+    app: '/admin/students/61000000-0000-0000-0000-000000000001',
     deviations: [
       {
         // 色面上方「學生名冊」返回連結手機 44 高（稿 20），下面的標題、副行、統計整組往下。
@@ -882,7 +884,65 @@ export const PAGES = {
   },
   class: {
     a6: 'class.html',
-    app: '/admin/courses/dc2f0b1a-7e79-4b6e-a61e-8bbac3eec5a6/classes/1deffd57-e069-4d72-98bf-41415ec01967',
+    // 班級 id 用 supabase/seed.sql 寫死的 math_class_id（62000000-…-001「數學班 A」）—— 不用 seed-demo 的班：
+    // 那些是 gen_random_uuid，reset 一次就換，下一個人量到的是「找不到這個班」（10-31 實例）。
+    // 課程 id seed.sql 也是隨機的；網址的 courseId 段頁面沒讀（class-detail.page.ts resolvedCourseId 沒有讀者），放佔位字串
+    app: '/admin/courses/seed-course/classes/62000000-0000-0000-0000-000000000001',
+    deviations: [
+      // 量的是 seed.sql 的「數學班 A」，稿是「國三數學A班」：班名不同，狀態標跟著位移
+      {
+        status: '文案',
+        a6: 'heading:h1\\[國三數學A班開班中\\]$',
+        reason: '資料：班名（seed.sql 固定 id 的班是「數學班 A」）',
+        source: 'supabase/seed.sql math_class_id',
+      },
+      {
+        status: '位置',
+        a6: 'heading:h1\\[國三數學A班開班中\\]>text:span\\[開班中\\]$',
+        detail: '^相對「國三數學A班開班中」 Δx -\\d+、Δy [-+]?[0-2]（app − A6）$',
+        reason: '資料：班名較短，狀態標跟著左移',
+        source: 'supabase/seed.sql math_class_id',
+      },
+      {
+        // 副標：課程名不同（seed 的課），年級在子 span 裡（見下一條），所以 p 本身的字只剩「適合年級」
+        status: '文案',
+        a6: '>text:p\\[國三數學· \\{分校\\} ·適合年級國三\\]$',
+        reason: '資料：課程名（seed.sql 的數學課）；年級在子 span 裡',
+        source: 'supabase/seed.sql math_course_id',
+      },
+      {
+        // 上課時段的標籤後面帶上課期間（起訖日）：現況有、稿沒畫，保留
+        status: '文案',
+        a6: '>landmark:region\\[這一頁的摘要\\]>text:dt\\[個上課時段\\]$',
+        detail: '^「個上課時段」→「個上課時段· [^」]+」$',
+        reason: '現況有、稿沒畫：上課時段後面寫上課期間',
+        source: `${rule('R2')}`,
+      },
+      {
+        // 稿的 `.sec__head .btn { margin-left: auto }`（給只有一顆鈕的章頭用）也套到 .sec__tools 裡的三顆鈕，
+        // 手機一列放得下時，自動邊距把鈕撐開（間距 13～14、第一顆內縮 6）；app 照 .sec__tools 的 gap 8 靠左
+        status: '位置',
+        widths: [360],
+        a6: '>landmark:region\\[#位學生\\]>control:button\\[(複製名單|Excel匯入)\\]$',
+        detail: '^相對「#位學生」 Δx -(1[0-9]|2[0-4])、Δy [-+]?[0-2]',
+        reason: '稿的 bug：章頭單顆鈕的 margin-left:auto 也套到工具組裡的鈕，手機上鈕被撐開',
+        source: 'class.html `.sec__head .btn { margin-left: auto }` 與 `.sec__tools { gap: var(--space-2) }`',
+      },
+      {
+        // 每個年級包一個 span 當 spec 掛點（data-part=grade），文字與稿相同
+        status: '多',
+        app: '>text:p\\[[^\\]]*適合年級\\]>text:span\\[[^\\]]+\\]$',
+        reason: '工具限制：副標的年級各包一個 span（spec 掛點 data-part=grade），文字與稿相同',
+        source: 'class-detail.page.spec.ts data-part=grade',
+      },
+      {
+        // 名單裡名字沒有數字的列（張宇軒、聯絡簿缺漏示範生）簽名跟「出勤測試學生#」那組不同，沒併進資料差
+        status: '多',
+        app: '>landmark:region\\[#位學生\\]>control:button\\[[^\\]#]+：看學生檔案\\](>|$)',
+        reason: '資料：seed 的名單列，名字沒有數字的那幾列另成一組',
+        source: 'tools/a6-conformance/README.md（列是同層同簽名）',
+      },
+    ],
   },
   dashboard: {
     a6: 'dashboard.html',
