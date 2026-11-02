@@ -2399,6 +2399,14 @@ export const PAGES = {
         reason: '連帶：稿的「新」小標各佔一行、欄位多一個分校，浮層比 app 高；完成鈕貼底跟著差',
         source: '.design-explorations a6.js ddLabel（剔除 .new）；列數差見同頁資料差',
       },
+      // 稿的「新」標記是設計說明；app 欄位標籤的 span 被配到它身上（同批次請假）
+      ...['位置', '樣式'].map((status) => ({
+        status,
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]>row>text:span\\[新\\]$',
+        reason: '工具限制：稿的「新」標記是設計說明，app 欄位標籤的 span 被配到它身上',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
+      })),
     ],
   },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
