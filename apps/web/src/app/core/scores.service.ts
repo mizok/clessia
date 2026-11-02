@@ -126,7 +126,8 @@ export interface ScoresOverview {
   }>;
   failingTotal: number;
   /** 每班最近一場，依得分率升冪前 3 */
-  lowestClasses: Array<OverviewExamRow & { classId: string; className: string }>;
+  /** `courseId` 給列連班級頁（#2079 (a)） */
+  lowestClasses: Array<OverviewExamRow & { classId: string; className: string; courseId: string }>;
   totalClasses: number;
   /** 一場一列（多班名以「、」接），考試日降冪上限 50 */
   recentExams: Array<OverviewExamRow & { className: string; missingCount: number }>;

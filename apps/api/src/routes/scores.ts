@@ -1840,7 +1840,12 @@ const overviewRoute = createRoute({
               ),
               failingTotal: z.number().int(),
               lowestClasses: z.array(
-                ExamRowSchema.extend({ classId: z.string(), className: z.string() }),
+                ExamRowSchema.extend({
+                  classId: z.string(),
+                  className: z.string(),
+                  /** 連班級頁用（#2079 (a)） */
+                  courseId: z.string(),
+                }),
               ),
               totalClasses: z.number().int(),
               recentExams: z.array(
@@ -1870,7 +1875,7 @@ app.openapi(overviewRoute, async (c) => {
 
   try {
     const examSelect: string =
-      'id, name, exam_date, total_score, pass_score, academy_exam_classes(class_id, classes(name))';
+      'id, name, exam_date, total_score, pass_score, academy_exam_classes(class_id, classes(name, course_id))';
     const examRows = await fetchAllRows<Record<string, any>>((from, to) =>
       applyCampusFilter(
         supabase
@@ -1895,6 +1900,7 @@ app.openapi(overviewRoute, async (c) => {
       classes: ((r['academy_exam_classes'] ?? []) as any[]).map((l) => ({
         classId: l.class_id as string,
         className: (l.classes?.name as string) ?? '',
+        courseId: (l.classes?.course_id as string) ?? '',
       })),
     }));
     const examIds = exams.map((e) => e.id);
