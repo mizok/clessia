@@ -60,8 +60,8 @@ export class GenerateSessionsDialogComponent {
   protected readonly excludeDates = signal<Date[]>([]);
   protected readonly previewSessions = signal<SessionPreview[]>([]);
   protected readonly previewPaginationFirst = signal(0);
-  protected readonly previewPaginationRows = signal(10);
-  protected readonly previewPaginationRowsPerPageOptions = [10, 20, 50];
+  /** 固定每頁筆數：預覽不是要翻找的資料，「每頁筆數」選單拿掉（#1314 Z 批，R5） */
+  private readonly previewPaginationRows = 10;
   protected readonly isMobile = this.browserStateService.isMobile;
   protected readonly classStartDate = computed(() => {
     const d = this.cls()?.startDate;
@@ -83,18 +83,14 @@ export class GenerateSessionsDialogComponent {
   );
   protected readonly paginatedPreviewSessions = computed(() => {
     const first = this.previewPaginationFirst();
-    const rows = this.previewPaginationRows();
+    const rows = this.previewPaginationRows;
     return this.previewSessions().slice(first, first + rows);
   });
   protected readonly previewPagination = computed<ResponsiveTablePaginationConfig>(() => ({
     first: this.previewPaginationFirst(),
-    rows: this.previewPaginationRows(),
+    rows: this.previewPaginationRows,
     totalRecords: this.previewSessions().length,
-    rowsPerPageOptions: this.isMobile() ? undefined : this.previewPaginationRowsPerPageOptions,
-    showCurrentPageReport: true,
-    currentPageReportTemplate: this.isMobile()
-      ? '第 {currentPage} / {totalPages} 頁'
-      : '顯示 {first} - {last}，共 {totalRecords} 筆',
+    unit: '堂',
   }));
 
   protected readonly breadcrumb = computed(() => {
@@ -194,7 +190,6 @@ export class GenerateSessionsDialogComponent {
 
   protected onPreviewPaginationChange(event: ResponsiveTablePageEvent): void {
     this.previewPaginationFirst.set(event.first);
-    this.previewPaginationRows.set(event.rows);
   }
 
   protected getWeekdayLabel(weekday: number): string {
