@@ -1160,6 +1160,30 @@ describe('CoursesPage', () => {
       expect(chapterHeads()).toEqual(['國文 8 門', '數學 5 門']);
     });
 
+    // #1314 Z 批：換成 A6 自家的數字版分頁器（courses 是 A6 唯一畫了數字頁碼的頁）
+    it('超過一頁：數字版分頁器，點頁碼換頁', () => {
+      const many = Array.from({ length: 20 }, (_, i) => course(`c${i}`, `課${i}`, 's-zh', '國文'));
+      coursesServiceMock.list.mockReturnValueOnce(
+        of({
+          data: many,
+          meta: { total: 45, page: 1, pageSize: 20, totalPages: 3 },
+          summary: { bySubject: [] },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('p-paginator')).toBeNull();
+      const page2 = el.querySelector<HTMLButtonElement>(
+        'app-pager button[aria-label="第 2 頁，共 3 頁"]',
+      );
+      expect(page2).not.toBeNull();
+      page2!.click();
+      expect((component as unknown as { currentPage: () => number }).currentPage()).toBe(2);
+    });
+
     it('summary 沒有這一科的數字就只寫科目名，不編數字', () => {
       load([course('c1', '國一國文', 's-zh', '國文')], []);
       expect(chapterHeads()).toEqual(['國文']);
