@@ -97,7 +97,7 @@ permissions:
 # ponytail: 靠 PK＋單一 transaction 兜底，不另做序列化；CLI 哪天改成分開寫 history，改用 GitHub API tie-break
 
 env:
-  # 釘版本：正式 DB 的寫入不跟 latest。升版要另開 PR、看 changelog 的 db push 段落。
+  # 釘版本：正式 DB 的寫入不跟 latest。升版要另開 PR、看 changelog 的 db push 段落；**verify.yml 同一個數字**（harness 對兩邊）。
   SUPABASE_CLI_VERSION: 2.119.0
   # 要套的那一顆。入口條件（下面 remote 的 if）保證它是本 repo main 上的 push 或 main 上的 dispatch
   # dispatch 帶 deployed_sha 時套的就是**部署的那顆**，不是 dispatch 當下 main 的 HEAD（後者可能含
