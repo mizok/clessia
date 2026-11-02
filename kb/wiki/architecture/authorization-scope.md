@@ -174,9 +174,15 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 `students → enrollments → classes.campus_id` 才推得出來，`meals.ts` 字面上一個 `campus_id` 都沒有，於是
 不在 gate 的掃描範圍裡。「碰得到分校資料」跟「字面上提到分校」是兩件事。
 
-修法照學生列表（`students.ts` 的 `scopedStudentIds`）與帳單（`studentInScope`）同一條判準：學生任一報名的班
-在範圍內＝範圍內。讀（區間、單日、金額摘要）只回範圍內學生；單日候選名單的班限範圍內分校（兩校都上的學生
-才不會帶出別校班名）；批次寫入有任何範圍外學生 → 整批 404。守在 `contract/meals-scope.contract.ts`。
+判準照學生列表與帳單（`studentInScope`）：學生任一報名的班在範圍內＝範圍內。讀（區間、單日、金額摘要）只回範圍內
+學生；單日候選名單的班限範圍內分校（兩校都上的學生才不會帶出別校班名）；批次寫入有任何範圍外學生 → 整批 404。
+守在 `contract/meals-scope.contract.ts`。
+
+**做法要用 embed 依分校篩（`scope_student:students!inner(enrollments!inner(classes!inner(campus_id)))`，同
+`contact-book.ts`），不要「先撈範圍內學生 id 再 `.in('student_id', …)` 回去」**：一個分校幾百位學生，id 進 GET URL
+約 200 個就 414（受限的管理員整頁打不開）；撈報名名單又會被 max_rows 1000 靜默截斷（#1928 型，計畫席 11-02 二讀）。
+URL 裡只該有分校 id。body 帶一批學生 id 的寫入，只查那一批、分段（`lib/org-scope.ts` 的 `ID_CHUNK`）——
+`missingInOrg` 原本一次帶全部，餐費一次存 300 位學生就 414，同一張一併改成分段。
 
 **下一支同形狀的路由**（以學生、家長為主體、自己不存 `campus_id` 的表）A7c 一樣看不到 —— 新增這種路由時
 要自己接 `getCampusScope`，並寫一支契約測試。

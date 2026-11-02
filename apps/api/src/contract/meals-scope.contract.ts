@@ -66,7 +66,7 @@ run('餐費的分校範圍（#2138）', () => {
   const q = async <T>(text: string, values: unknown[] = []) =>
     (await pool!.query(text, values)).rows as T[];
   const DAY = '2026-09-01';
-  const fx = { c1: '', c2: '', a: '', b: '', ab: '' };
+  const fx = { c1: '', c2: '', k1: '', a: '', b: '', ab: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -124,6 +124,7 @@ run('餐費的分校範圍（#2138）', () => {
       );
       return s!.id;
     };
+    fx.k1 = klass['c1']!;
     fx.a = await student('只在一校', [klass['c1']!]);
     fx.b = await student('只在二校', [klass['c2']!]);
     fx.ab = await student('兩校都有', [klass['c1']!, klass['c2']!]);
@@ -250,5 +251,50 @@ run('餐費的分校範圍（#2138）', () => {
     const res = await batch('all', fx.b, 70);
     expect(res.status).toBe(200);
     expect(await priceOf(fx.b)).toBe(70);
+  });
+
+  // #1928 型（計畫席 11-02）：範圍不能靠「先撈學生 id 再 `.in()` 回去」—— 幾百個 uuid 進 GET URL 會 414，
+  // 撈報名名單也會被 max_rows 截斷。C1 再多 300 位學生，受限的照樣 200、筆數完整
+  it('分校有 300 位學生：受限 C1 的區間與單日查詢都是 200、筆數正確', async () => {
+    await q(
+      `with s as (
+         insert into students (org_id, name, grade)
+         select $1, '大量 ' || g, 'P5' from generate_series(1, 300) g
+         returning id
+       ), e as (
+         insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+         select $1, $2, id, 'active', 'monthly', 1000, '2026-01-01' from s
+       )
+       insert into meal_records (org_id, student_id, meal_date, ordered, chargeable, unit_price)
+       select $1, id, $3, true, true, 80 from s`,
+      [ctx.orgId, fx.k1, DAY],
+    );
+
+    const range = await get('c1', `/api/meals?dateFrom=${DAY}&dateTo=${DAY}`);
+    // a、ab ＋ 300；區間模式一頁 100 筆，總數看摘要
+    expect(range.meta.total).toBe(302);
+    expect(range.data).toHaveLength(100);
+    expect(ids(range).has(fx.b)).toBe(false);
+
+    const day = await get('c1', `/api/meals?date=${DAY}`);
+    expect(day.data).toHaveLength(302);
+    expect(day.meta.total).toBe(302);
+    expect(ids(day).has(fx.b)).toBe(false);
+
+    // 寫入：一批 300 位範圍內的（分段確認範圍，不會 414）
+    const many = await q<{ id: string }>(
+      "select id from students where org_id = $1 and name like '大量 %' order by name",
+      [ctx.orgId],
+    );
+    const res = await as('c1', '/api/meals/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: DAY,
+        rows: many.map((s) => ({ studentId: s.id, ordered: false })),
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { updated: number }).updated).toBe(300);
   });
 });

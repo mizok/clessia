@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
-import { findInOrg, inOrg, missingInOrg } from './org-scope';
+import { findInOrg, ID_CHUNK, inOrg, missingInOrg } from './org-scope';
 
 const ORG_A = '00000000-0000-0000-0000-00000000000a';
 const ORG_B = '00000000-0000-0000-0000-00000000000b';
@@ -66,6 +66,16 @@ describe('missingInOrg', () => {
     ).toEqual(['sub-b', 'nope']);
     expect(await missingInOrg(supabase, 'subjects', ORG_A, ['sub-a'])).toEqual([]);
     expect(await missingInOrg(supabase, 'subjects', ORG_A, [])).toEqual([]);
+  });
+
+  it('id 很多時分段查（#2138：一次 300 個 uuid 進 URL 會 414），結果照樣合併', async () => {
+    const supabase = seeded().client as SupabaseClient;
+    const from = vi.spyOn(supabase, 'from');
+    const ghosts = Array.from({ length: 250 }, (_, i) => `ghost-${i}`);
+
+    // sub-a 放最後：落在第三段也要被認出來
+    expect(await missingInOrg(supabase, 'subjects', ORG_A, [...ghosts, 'sub-a'])).toEqual(ghosts);
+    expect(from).toHaveBeenCalledTimes(Math.ceil(251 / ID_CHUNK));
   });
 });
 

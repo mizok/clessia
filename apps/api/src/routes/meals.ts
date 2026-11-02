@@ -1,9 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { summariseMealRecords, type MealAmountRow } from '../lib/meal-summary';
 import { DbUuidSchema } from '../lib/validation';
-import { missingInOrg } from '../lib/org-scope';
+import { ID_CHUNK, missingInOrg } from '../lib/org-scope';
 import { getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -22,35 +21,20 @@ import { waitUntilFrom } from '../lib/wait-until';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** `.in()` 的空集合：同 `students.ts` 的寫法，用一個不存在的 id */
-const NO_ID = '00000000-0000-0000-0000-000000000000';
-
 /**
- * 分校範圍內的學生（#2138）：**任一報名的班在範圍內**，跟學生列表（`students.ts` 的
- * `scopedStudentIds`）與帳單（`lib/invoice-campus-scope.ts` 的 `studentInScope`）同一條判準 ——
+ * 分校範圍（#2138）：**學生任一報名的班在範圍內**，跟學生列表與帳單（`studentInScope`）同一條判準 ——
  * 同一個學生在學生頁看得到、在餐費看不到（或反過來）就是兩條授權。
  *
- * `null`＝不受分校限制（全分校管理員），呼叫端完全不加條件；`[]`＝什麼都看不到（fail-closed）。
+ * 用 embed 依分校篩（同 `contact-book.ts` 的 `SCOPE_EMBED`），**不先把範圍內學生撈出來再 `.in()` 回去**：
+ * 一個分校幾百位學生，id 塞進 GET URL 會 414；撈報名名單也會被 max_rows（1000）靜默截斷（#1928 型，計畫席 11-02）。
+ * URL 裡只有分校 id（幾個）。
  */
-async function scopedStudentIds(
-  supabase: SupabaseClient,
-  orgId: string,
-  scope: CampusScope,
-): Promise<{ ids: string[] | null } | { error: string }> {
-  if (scope === null) return { ids: null };
-  if (scope.length === 0) return { ids: [] };
-  const { data, error } = await supabase
-    .from('enrollments')
-    .select('student_id, classes!inner(campus_id)')
-    .eq('org_id', orgId)
-    .in('classes.campus_id', [...scope]);
-  if (error) return { error: error.message };
-  return {
-    ids: Array.from(
-      new Set(((data ?? []) as Array<{ student_id: string }>).map((row) => row.student_id)),
-    ),
-  };
-}
+const SCOPE_EMBED = ', scope_student:students!inner(enrollments!inner(classes!inner(campus_id)))';
+const SCOPE_FILTER = 'scope_student.enrollments.classes.campus_id';
+/** 空範圍（一個分校都沒被指派）：`.in()` 給一個不存在的 id，什麼都不中（fail-closed） */
+const NO_ID = '00000000-0000-0000-0000-000000000000';
+const scopeCampusIds = (scope: CampusScope): string[] | null =>
+  scope === null ? null : scope.length > 0 ? [...scope] : [NO_ID];
 
 const MealRosterRowSchema = z
   .object({
@@ -156,11 +140,9 @@ app.openapi(
     const page = Math.max(1, Number(params.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(params.pageSize ?? 100)));
 
-    // 分校範圍（#2138）：受限的管理員只看得到範圍內學生的餐費
-    const scope = getCampusScope(c);
-    const scoped = await scopedStudentIds(supabase, orgId, scope);
-    if ('error' in scoped) return c.json({ error: scoped.error, code: 'DB_ERROR' }, 400);
-    const inScope = scoped.ids && (scoped.ids.length > 0 ? scoped.ids : [NO_ID]);
+    // 分校範圍（#2138）：受限的管理員只看得到範圍內學生的餐費；null＝不受限，不加條件
+    const campusIds = scopeCampusIds(getCampusScope(c));
+    const scopeEmbed = campusIds === null ? '' : SCOPE_EMBED;
 
     const { data: org } = await supabase
       .from('organizations')
@@ -174,22 +156,22 @@ app.openapi(
     // 整段的統計：只取算得到金額的三個欄位，不撈明細
     let summaryQuery = supabase
       .from('meal_records')
-      .select('ordered, chargeable, unit_price, invoice_item_id')
+      .select('ordered, chargeable, unit_price, invoice_item_id' + scopeEmbed)
       .eq('org_id', orgId)
       .gte('meal_date', from)
       .lte('meal_date', to);
     if (params.studentId) summaryQuery = summaryQuery.eq('student_id', params.studentId);
-    if (inScope) summaryQuery = summaryQuery.in('student_id', inScope);
+    if (campusIds) summaryQuery = summaryQuery.in(SCOPE_FILTER, campusIds);
 
     // 明細
     let recordQuery = supabase
       .from('meal_records')
-      .select('*, students(name)')
+      .select('*, students(name)' + scopeEmbed)
       .eq('org_id', orgId)
       .gte('meal_date', from)
       .lte('meal_date', to);
     if (params.studentId) recordQuery = recordQuery.eq('student_id', params.studentId);
-    if (inScope) recordQuery = recordQuery.in('student_id', inScope);
+    if (campusIds) recordQuery = recordQuery.in(SCOPE_FILTER, campusIds);
     if (rangeMode) recordQuery = recordQuery.range((page - 1) * pageSize, page * pageSize - 1);
 
     const [{ data: summaryRows }, { data: recordRows }] = await Promise.all([
@@ -258,7 +240,7 @@ app.openapi(
       .select('class_id, classes!inner(campus_id)')
       .eq('org_id', orgId)
       .eq('session_date', from);
-    if (scope !== null) sessionQuery = sessionQuery.in('classes.campus_id', [...scope, NO_ID]);
+    if (campusIds) sessionQuery = sessionQuery.in('classes.campus_id', campusIds);
     const { data: sessionRows } = await sessionQuery;
 
     const classIds = Array.from(
@@ -397,11 +379,25 @@ app.openapi(
       return c.json({ error: '學生不存在', code: 'STUDENT_NOT_FOUND' }, 404);
     }
 
-    // 分校範圍（#2138）：範圍外的學生跟不存在一樣，整批拒絕（同上：不部分成功）
-    const scoped = await scopedStudentIds(supabase, orgId, getCampusScope(c));
-    if ('error' in scoped) return c.json({ error: scoped.error, code: 'DB_ERROR' }, 400);
-    if (scoped.ids && rows.some((row) => !scoped.ids!.includes(row.studentId))) {
-      return c.json({ error: '學生不存在', code: 'STUDENT_NOT_FOUND' }, 404);
+    // 分校範圍（#2138）：範圍外的學生跟不存在一樣，整批拒絕（同上：不部分成功）。
+    // 只查這一批學生（依分校 embed 篩），不撈整個分校的名單
+    const campusIds = scopeCampusIds(getCampusScope(c));
+    if (campusIds) {
+      const unique = [...new Set(rows.map((row) => row.studentId))];
+      const inScope = new Set<string>();
+      for (let i = 0; i < unique.length; i += ID_CHUNK) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('id, enrollments!inner(classes!inner(campus_id))')
+          .eq('org_id', orgId)
+          .in('id', unique.slice(i, i + ID_CHUNK))
+          .in('enrollments.classes.campus_id', campusIds);
+        if (error) return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+        for (const row of (data ?? []) as Array<{ id: string }>) inScope.add(row.id);
+      }
+      if (inScope.size < unique.length) {
+        return c.json({ error: '學生不存在', code: 'STUDENT_NOT_FOUND' }, 404);
+      }
     }
 
     const { data: org } = await supabase
