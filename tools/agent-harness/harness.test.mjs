@@ -2457,6 +2457,13 @@ test('A7c 續：例外帳本每條都有理由、出處、裁定，而且還在�
     assert.ok(e.route && e.reason && e.evidence && e.ruling, JSON.stringify(e));
     assert.match(e.evidence, /^apps\/api\/src\/routes\/.+\.ts:\d+(-\d+)?$/);
   }
+  // **新增例外一定得改到這一行**（計畫席 11-02）：帳本的「只降不升」gate 只擋得住「刪少了」，擋不住「加一條」——
+  // 漏洞版的 meals 自己往帳本加一條就過了。釘死集合之後，加例外就要改這個測試，審查一眼看得到
+  assert.deepEqual(
+    ledger.map((e) => e.route).sort(),
+    ['/api/notifications', '/api/schools'],
+    '例外帳本多了或少了一條：加例外要有計畫席裁定，並同步更新這個斷言',
+  );
 });
 
 // ── A7c 原本那條：從掛載出發、每個檔自己看（#2139 計畫席 11-02）──────────────────────────────
