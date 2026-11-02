@@ -52,7 +52,7 @@ export function situationLine(att: StudentAttendanceDays | null): {
   const start = att.today?.startTime ? hhmm(att.today.startTime) : '';
   const today = att.today ? `今天${start ? ' ' + start : ''} 有課` : '今天沒有他的課';
   const next = att.nextSession
-    ? `下一堂 ${dateWithWeekday(att.nextSession.date)}${
+    ? `${dateWithWeekday(att.nextSession.date)}${
         att.nextSession.startTime ? ' ' + hhmm(att.nextSession.startTime) : ''
       }`
     : '';

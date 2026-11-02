@@ -855,6 +855,78 @@ export const PAGES = {
     // seed-demo 的學生是 gen_random_uuid，reset 一次就換（原本的 e98f234f-… 在 10-31 已經不存在）
     app: '/admin/students/61000000-0000-0000-0000-000000000001',
     deviations: [
+      // ── 11-02：改用 seed.sql 的固定學生（出勤測試學生01）之後的資料差 ──
+      {
+        // 家長沒留電話：「打電話」不顯示（計畫席 11-02：沒電話不顯示）
+        status: '缺',
+        a6: '>landmark:region\\[這一頁的摘要\\]>control:button\\[打電話\\]$',
+        reason: '資料：seed 這位的家長沒留電話，「打電話」不顯示',
+        source: 'supabase/seed.sql 家長沒有電話；計畫席 11-02',
+      },
+      {
+        status: '缺',
+        a6: '>landmark:region\\[這一頁的摘要\\]>control:button\\[傳LINE\\]$',
+        reason: '「傳 LINE」不做：產品不接 LINE Messaging API',
+        source: 'kb/wiki/architecture/a6-adoption-rules.md:108（R5 2026-10-14）',
+      },
+      ...[
+        {
+          status: '文案',
+          a6: '>landmark:region\\[這一頁的摘要\\]>(heading:h1\\[\\{名\\}\\]|text:p\\[小五·興隆國小·國小五年級英文班\\])$',
+        },
+        { status: '文案', a6: '>text:p\\[·下一堂\\]>text:strong\\[[^\\]]+\\]$' },
+        {
+          status: '位置',
+          a6: '>landmark:region\\[這一頁的摘要\\]>text:dd\\[#\\]~2>text:small\\[分\\]$',
+        },
+        { status: '尺寸', a6: '>landmark:region\\[這一頁的摘要\\]>text:dt\\[最近一次考試\\]$' },
+        { status: '樣式', a6: '>landmark:region\\[到班\\]>list>row$' },
+      ].map((d) => ({
+        ...d,
+        reason:
+          '資料：seed 的學生（名字、學校、班、今天有課、分數 98.47、到班多數是沒到）跟稿的示範生不同',
+        source: 'supabase/seed.sql v_student_id 61000000-…-001',
+      })),
+      {
+        // 沒到超過 3 天只列最近 3 天＋「等 N 天」，完整日期放 title（這位沒到 10 天）
+        status: '文案',
+        a6: '>landmark:region\\[到班\\]>text:span\\[沒到#天：#\\]$',
+        reason: '資料：seed 這位沒到超過 3 天，app 縮成最近 3 天＋等 N 天（完整日期在 title）',
+        source: 'student-detail.util.ts absentLine／absentTitle',
+      },
+      {
+        // 這學期的課：整列是 role=button＋Enter／Space（#722 鍵盤操作），班名、時段是列裡的字，
+        // 不是稿的 h3＋p
+        status: '缺',
+        a6: '>landmark:region\\[這學期的課\\]>(heading:h3\\[[^\\]]+\\]|text:p\\[[^\\]]+\\])$',
+        reason: '這學期的課整列是可點的按鈕（#722 鍵盤操作），班名不是獨立的 h3',
+        source: '#722；student-detail.page.spec.ts「#722 在籍班級列的鍵盤操作」',
+      },
+      {
+        status: '多',
+        app: '>landmark:region\\[這學期的課\\]>list>row(>|$)',
+        reason: '這學期的課整列是可點的按鈕（#722 鍵盤操作），班名不是獨立的 h3',
+        source: '#722；student-detail.page.spec.ts「#722 在籍班級列的鍵盤操作」',
+      },
+      {
+        // 稿的摺疊列只有成績、帳單、紀錄；app 另有家長、基本資料（現況有、稿沒畫）
+        status: '多',
+        app: '>landmark:main\\[\\]>control:button\\[(家長|基本資料)[^\\]]*\\](>|$)',
+        reason: '現況有、稿沒畫：家長、基本資料兩條摺疊列',
+        source: `${rule('R2')}`,
+      },
+      // 手機托盤（page-actions，position: fixed）：同 scores-dirty、checkin
+      ...['缺', '樣式'].map((status) => ({
+        status,
+        widths: [360],
+        ...(status === '缺'
+          ? { a6: 'landmark:toolbar\\[主要動作\\]>control:button\\[[^\\]]*\\]$' }
+          : { app: '^>landmark:main\\[\\]>row(>control:button(>text:span)?)?$' }),
+        reason:
+          '工具限制：app 的手機托盤（page-actions，position: fixed）被認成「列」、拿掉了鈕名，' +
+          '配不上稿的托盤，反而跟稿的手機摺疊列錯配（截圖底部托盤兩顆鈕都在）',
+        source: 'tools/a6-conformance extract.mjs isRow；#1925',
+      })),
       {
         // 色面上方「學生名冊」返回連結手機 44 高（稿 20），下面的標題、副行、統計整組往下。
         // 標題行高對齊稿（#1925：手機 1.2）之前，標題比稿矮 8.8px 剛好抵掉一部分，統計才沒被量出來
@@ -1047,7 +1119,8 @@ export const PAGES = {
         a6: '>landmark:region\\[#位學生\\]>control:button\\[(複製名單|Excel匯入)\\]$',
         detail: '^相對「#位學生」 Δx -(1[0-9]|2[0-4])、Δy [-+]?[0-2]',
         reason: '稿的 bug：章頭單顆鈕的 margin-left:auto 也套到工具組裡的鈕，手機上鈕被撐開',
-        source: 'class.html `.sec__head .btn { margin-left: auto }` 與 `.sec__tools { gap: var(--space-2) }`',
+        source:
+          'class.html `.sec__head .btn { margin-left: auto }` 與 `.sec__tools { gap: var(--space-2) }`',
       },
       {
         // 每個年級包一個 span 當 spec 掛點（data-part=grade），文字與稿相同
