@@ -208,9 +208,14 @@
             }}</span>
           </div>
           <div class="col-span-2 row-start-2 min-w-0 wide:col-span-1 wide:row-start-auto">
-            <span class="block text-md font-semibold text-zinc-900">{{
-              row.enrollment.className
-            }}</span>
+            <!-- A6 `.ev__cls`：班名自己是連結（整列也進班級；點名字不重複觸發列的導頁） -->
+            <a
+              class="text-md font-semibold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+              data-testid="class-link"
+              [routerLink]="classRoute(row)"
+              (click)="$event.stopPropagation()"
+              >{{ row.enrollment.className }}</a
+            >
             <span
               class="block text-sm font-medium text-zinc-600 tabular-nums"
               data-testid="period-text"

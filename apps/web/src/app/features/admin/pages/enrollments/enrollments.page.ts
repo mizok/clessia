@@ -404,13 +404,12 @@ export class EnrollmentsPage {
     return RoutesCatalog.ADMIN_STUDENT_DETAIL.absolutePath.replace(':id', id);
   }
 
+  protected classRoute(row: EnrollmentRow): string[] {
+    return ['/admin/courses', row.enrollment.courseId, 'classes', row.enrollment.classId];
+  }
+
   protected openClass(row: EnrollmentRow): void {
-    this.router.navigate([
-      '/admin/courses',
-      row.enrollment.courseId,
-      'classes',
-      row.enrollment.classId,
-    ]);
+    this.router.navigate(this.classRoute(row));
   }
 
   private loadList(): void {
