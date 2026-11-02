@@ -20,7 +20,7 @@ import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { PaginatorModule } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import { Popover, PopoverModule } from 'primeng/popover';
 import { ButtonModule } from 'primeng/button';
 import { ScoresService, type StudentScoreAggregate } from '@core/scores.service';
@@ -104,7 +104,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     InputTextModule,
     IconFieldModule,
     InputIconModule,
-    PaginatorModule,
+    PagerComponent,
     PopoverModule,
     FitPopoverDirective,
     ButtonModule,

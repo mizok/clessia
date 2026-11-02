@@ -320,13 +320,12 @@
 
     @if (totalStudents() > pageSize) {
       <div class="mt-6">
-        <p-paginator
-          [first]="(currentPage() - 1) * pageSize"
-          [rows]="pageSize"
-          [totalRecords]="totalStudents()"
-          [showCurrentPageReport]="true"
-          currentPageReportTemplate="顯示 {first} - {last}，共 {totalRecords} 位學生"
-          (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+        <app-pager
+          [total]="totalStudents()"
+          [pageSize]="pageSize"
+          [page]="currentPage()"
+          unit="位"
+          (pageChange)="onPageChange($event)"
         />
       </div>
     }

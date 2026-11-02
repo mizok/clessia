@@ -88,6 +88,28 @@ describe('StudentViewComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  // #1314 Z 批：A6 grades-student 的精簡分頁器（靠右「第 x／y 頁 · 每頁 N 位」＋上一頁／下一頁）
+  it('超過一頁：精簡版分頁器寫每頁人數，下一頁換頁', () => {
+    const students = Array.from(
+      { length: (component as any).pageSize + 5 },
+      (_, i) => ({ id: `s${i}`, name: `s${i}`, grade: 'J1', school: null }) as never,
+    );
+    fixture.detectChanges(); // 第一次 render 會觸發載入（loadingList=true），之後再塞資料
+    (component as any).rawStudents.set(students);
+    (component as any).loadingList.set(false);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('p-paginator')).toBeNull();
+    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+      `第 1／2 頁 · 每頁 ${(component as any).pageSize} 位`,
+    );
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+      .find((b) => b.textContent?.includes('下一頁'))!
+      .click();
+    expect((component as any).currentPage()).toBe(2);
+  });
+
   // #1100 #40：匯出成績（A6 工具列下載圖示＋面板）
   describe('匯出成績', () => {
     const student = (id: string, schoolId: string) =>
