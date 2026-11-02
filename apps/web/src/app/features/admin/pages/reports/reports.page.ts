@@ -226,8 +226,36 @@ export class ReportsPage implements OnInit {
     this.load();
   }
 
-  /** 匯出明細 CSV（spec「依篩選條件匯出」）：期間、頂欄分校、課程照目前的篩選 */
-  protected exportCsv(): void {
+  /** 匯出浮層的「範圍」（A6 `rexp-scope`）：期間 · 分校 · 課程，跟畫面上的篩選同一組 */
+  protected readonly exportScope = computed(() =>
+    [
+      this.periodOptions.find((o) => o.value === this.period())?.label ?? '',
+      this.campusCtx.name() ?? '全部分校',
+      this.courseOptions().find((o) => o.value === this.courseId())?.label ?? '全部課程',
+    ].join(' · '),
+  );
+
+  /** A6：桌機貼著匯出鈕右緣往下開；手機是底部面板（CSS 管）。同家長餐費的匯出浮層 */
+  protected placeExport(event: Event, trigger: HTMLElement): void {
+    const popover = event.target as HTMLElement;
+    if ((event as ToggleEvent).newState !== 'open') return;
+    if (matchMedia('(max-width: 860px)').matches) {
+      popover.removeAttribute('style');
+      return;
+    }
+    const box = trigger.getBoundingClientRect();
+    Object.assign(popover.style, {
+      position: 'fixed',
+      left: `${Math.max(16, box.right - popover.offsetWidth)}px`,
+      top: `${box.bottom + 8}px`,
+    });
+  }
+
+  /**
+   * 匯出明細 CSV（spec「依篩選條件匯出」）：期間、頂欄分校、課程照目前的篩選。
+   * 從確認浮層按「匯出」：下載完才收起浮層；失敗時浮層留著、出錯誤提示
+   */
+  protected exportCsv(popover?: HTMLElement): void {
     if (this.exporting()) return;
     this.exporting.set(true);
     const { from, to } = this.periodOptions.find((o) => o.value === this.period())!;
@@ -247,6 +275,7 @@ export class ReportsPage implements OnInit {
           a.click();
           URL.revokeObjectURL(url);
           this.exporting.set(false);
+          popover?.hidePopover();
         },
         error: async (err: { error?: unknown }) => {
           // 413（筆數超過上限）的本體是 JSON blob，帶「請縮小日期範圍」

@@ -1273,7 +1273,10 @@ export const PAGES = {
       // 說明框後半句「今天請假的 N 位名字下有提示」要名單帶請假旗標（ME1，等 API），沒有就不寫
       ...['缺', '文案'].map((status) => ({
         status,
-        a6: status === '缺' ? '>text:b\\[#位\\]$' : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
+        a6:
+          status === '缺'
+            ? '>text:b\\[#位\\]$'
+            : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
         reason: '說明框的請假人數：餐費名單 API 還沒帶請假旗標（等 API）',
         source: '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標',
       })),
@@ -1301,7 +1304,30 @@ export const PAGES = {
   reports: {
     a6: 'reports.html',
     app: '/admin/reports',
+    // 匯出明細確認浮層（稿 `rexp`、app 原生 popover `reports-export`）
+    popovers: { rexp: 'reports-export' },
     deviations: [
+      {
+        // 浮層貼著匯出鈕下緣往下開（同稿的 toggle 定位）：鈕在頁上的 Δy 是資料（色面句行數），
+        // 再加工具列控制項同高 40（稿 36）
+        status: '位置',
+        pop: 'rexp',
+        widths: [1440],
+        a6: '^pop\\[rexp\\]>landmark:popover\\[匯出明細\\]$',
+        detail: '^相對頁面 Δx 0、Δy \\+(1[0-9]|20)',
+        reason: '連帶：浮層定位在匯出鈕下緣，鈕的位置差（資料＋工具列控制項 40 高）帶過來',
+        source: '工具列控制項同高 #1903（使用者 10-23 裁定）；README「列是資料」',
+      },
+      {
+        // 手機關閉鈕是 44×44 的圓鈕（稿 36）：R3 的全站條目只管高度，方鈕的寬跟著變
+        status: '尺寸',
+        pop: 'rexp',
+        widths: [360],
+        a6: '>control:button\\[關閉\\]$',
+        detail: '^寬 36→44$',
+        reason: '可點元素基底 44px：圖示圓鈕寬高一起撐到 44',
+        source: `${rule('R3')}`,
+      },
       {
         // 稿的期間／分校／課程是 label 包原生 select；app 是 label 包 PrimeNG p-select（combobox＋dropdown 鈕），
         // 工具把 app 的 label 當成一個 part、稿的沒有。分校不在這列：在頂欄（#1138）

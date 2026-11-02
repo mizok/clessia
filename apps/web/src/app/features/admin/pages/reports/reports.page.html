@@ -78,22 +78,77 @@
           </button>
         }
       </span>
-      <!-- 明細 CSV（一列一筆收款）：照目前的期間、分校、課程。稿的「匯出明細」確認浮層（標新）沒做，按了直接下載 -->
+      <!-- 明細 CSV（一列一筆收款）：先開「匯出明細」確認浮層（A6 `.xp`），寫清楚範圍、欄位、格式 -->
+      <button
+        #exportTrigger
+        type="button"
+        class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        popovertarget="reports-export"
+        aria-label="匯出"
+        title="匯出"
+      >
+        <i class="pi pi-download" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 匯出明細（A6 `.xp`）：原生 popover，掛在灰工具列外面（白底）。桌機貼著匯出鈕往下開，手機是底部面板。
+     同家長餐費的匯出浮層 -->
+<div
+  #exportPopover
+  id="reports-export"
+  popover
+  class="m-0 w-[340px] rounded-lg border border-surface-border bg-white p-0 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] max-wide:fixed max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:overflow-y-auto max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:bg-zinc-200 max-wide:backdrop:bg-zinc-900/40"
+  aria-labelledby="reports-export-title"
+  (toggle)="placeExport($event, exportTrigger)"
+>
+  <div class="flex items-center gap-2 pt-4 pr-3 pb-2 pl-5">
+    <h2 id="reports-export-title" class="m-0 text-lg font-bold">匯出明細</h2>
+    <button
+      type="button"
+      class="ml-auto grid size-11 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-zinc-700 hover:bg-zinc-100 wide:size-9"
+      popovertarget="reports-export"
+      popovertargetaction="hide"
+      aria-label="關閉"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="grid gap-4 px-5 pt-2 pb-5 max-wide:pb-8">
+    <div class="grid gap-2">
+      <span class="text-md font-bold tracking-[0.04em] text-zinc-800">範圍</span>
+      <span class="text-base" data-testid="export-scope">{{ exportScope() }}</span>
+    </div>
+    <div class="grid gap-2">
+      <span class="text-md font-bold tracking-[0.04em] text-zinc-800">欄位</span>
+      <span class="text-base">日期、分校、課程、金額、類型（實收／退款）</span>
+    </div>
+    <div class="grid gap-2">
+      <span class="text-md font-bold tracking-[0.04em] text-zinc-800">格式</span>
+      <span class="text-base">CSV</span>
+    </div>
+    <div class="flex justify-end gap-2">
       <button
         type="button"
-        class="tbar-control-square inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-wait disabled:opacity-60"
-        aria-label="匯出"
-        title="匯出 CSV"
-        [disabled]="exporting()"
-        (click)="exportCsv()"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:bg-zinc-50 max-wide:flex-1 wide:h-9"
+        popovertarget="reports-export"
+        popovertargetaction="hide"
       >
-        <i
-          class="pi"
-          [class.pi-download]="!exporting()"
-          [class.pi-spinner]="exporting()"
-          [class.pi-spin]="exporting()"
-          aria-hidden="true"
-        ></i>
+        取消
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent-vivid bg-accent-vivid px-4 text-md leading-[1.5] font-semibold text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2 disabled:cursor-wait disabled:opacity-60 max-wide:flex-1 wide:h-9"
+        data-testid="export-go"
+        [disabled]="exporting()"
+        (click)="exportCsv(exportPopover)"
+      >
+        @if (exporting()) {
+          <i class="pi pi-spinner pi-spin text-sm" aria-hidden="true"></i>匯出中…
+        } @else {
+          匯出
+        }
       </button>
     </div>
   </div>
