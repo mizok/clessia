@@ -2388,6 +2388,41 @@ export const PAGES = {
         reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
         source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
       })),
+      // 篩選浮層：PrimeNG Popover 的根固定宣告 role=dialog，稿是原生 popover
+      {
+        status: '角色',
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]$',
+        reason: 'PrimeNG Popover 固定宣告 role=dialog，跟稿的原生 popover 只差在語意',
+        source: `${rule('R5')}「成績學生頁篩選浮層的根角色」2026-11-02`,
+      },
+      // 篩選浮層的六個下拉是 app-select-field（稿 .dd 是 label 裡的按鈕；app 是欄位外框＋combobox＋箭頭鈕）
+      ...[
+        { status: '缺', a6: '(^|>)landmark:popover\\[\\]>row>control:button>text:span$' },
+        ...['位置', '樣式'].map((status) => ({
+          status,
+          a6: '(^|>)landmark:popover\\[\\]>row>control:button$',
+        })),
+        { status: '樣式', a6: '(^|>)landmark:popover\\[\\]>row$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[\\]>row>control:combobox$' },
+      ].map((d) => ({ ...d, pop: 'filt', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 完成鈕的上下位置：稿每列多一行「新」小標（設計說明）、多一欄分校（列數 7→6 是資料差），浮層高 419→311
+      {
+        status: '位置',
+        pop: 'filt',
+        widths: [1440],
+        a6: '(^|>)landmark:popover\\[\\]>control:button\\[完成\\]$',
+        reason: '連帶：稿的「新」小標各佔一行、欄位多一個分校，浮層比 app 高；完成鈕貼底跟著差',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）；列數差見同頁資料差',
+      },
+      // 稿的「新」標記是設計說明；app 欄位標籤的 span 被配到它身上（同批次請假）
+      ...['位置', '樣式'].map((status) => ({
+        status,
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]>row>text:span\\[新\\]$',
+        reason: '工具限制：稿的「新」標記是設計說明，app 欄位標籤的 span 被配到它身上',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
+      })),
     ],
   },
   // `prep`：量之前先在兩邊做的步驟（步驟格式同 scenarios.mjs）。週視圖與儲存列都要操作後才出現，
