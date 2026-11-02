@@ -40,10 +40,8 @@ export interface ResponsiveTablePaginationConfig {
   readonly first: number;
   readonly rows: number;
   readonly totalRecords: number;
-  readonly rowsPerPageOptions?: readonly number[];
-  readonly showCurrentPageReport?: boolean;
-  readonly currentPageReportTemplate?: string;
-  readonly alwaysShow?: boolean;
+  /** 精簡版分頁器的「· 每頁 N 筆」：給了單位才寫 */
+  readonly unit?: string;
 }
 
 export interface ResponsiveTablePageEvent {

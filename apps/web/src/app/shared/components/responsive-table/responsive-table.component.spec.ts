@@ -304,8 +304,20 @@ describe('ResponsiveTableComponent', () => {
     fixture.detectChanges();
 
     const hostElement = fixture.nativeElement as HTMLElement;
-    const paginator = hostElement.querySelector('.p-paginator');
-    expect(paginator).toBeTruthy();
+    // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+    expect(hostElement.querySelector('p-paginator')).toBeNull();
+    expect(hostElement.querySelector('app-pager nav')).toBeTruthy();
+  });
+
+  it('first 換算成頁碼給分頁器；給了 unit 才寫每頁筆數', () => {
+    fixture = TestBed.createComponent(HostComponent);
+    fixture.componentInstance.pagination = { first: 20, rows: 10, totalRecords: 25, unit: '堂' };
+    fixture.detectChanges();
+
+    const status = (fixture.nativeElement as HTMLElement).querySelector(
+      'app-pager [data-part="status"]',
+    );
+    expect(status?.textContent?.trim()).toBe('第 3／3 頁 · 每頁 10 堂');
   });
 
   it('does not render paginator when pagination config is null', () => {
@@ -314,8 +326,7 @@ describe('ResponsiveTableComponent', () => {
     fixture.detectChanges();
 
     const hostElement = fixture.nativeElement as HTMLElement;
-    const paginator = hostElement.querySelector('.p-paginator');
-    expect(paginator).toBeFalsy();
+    expect(hostElement.querySelector('app-pager nav')).toBeFalsy();
   });
 
   it('emits page event when paginator changes page', () => {
@@ -328,7 +339,9 @@ describe('ResponsiveTableComponent', () => {
     fixture.detectChanges();
 
     const hostElement = fixture.nativeElement as HTMLElement;
-    const nextButton = hostElement.querySelector('.p-paginator-next') as HTMLButtonElement | null;
+    const nextButton = Array.from(
+      hostElement.querySelectorAll<HTMLButtonElement>('app-pager button'),
+    ).find((b) => b.textContent?.includes('下一頁'));
     expect(nextButton).toBeTruthy();
 
     nextButton?.click();
@@ -365,7 +378,9 @@ describe('ResponsiveTableComponent', () => {
     fixture.detectChanges();
     expect(hostElement.querySelectorAll('tr.responsive-table__detail-row').length).toBe(1);
 
-    const nextButton = hostElement.querySelector('.p-paginator-next') as HTMLButtonElement | null;
+    const nextButton = Array.from(
+      hostElement.querySelectorAll<HTMLButtonElement>('app-pager button'),
+    ).find((b) => b.textContent?.includes('下一頁'));
     expect(nextButton).toBeTruthy();
     nextButton?.click();
     fixture.detectChanges();

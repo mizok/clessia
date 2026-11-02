@@ -15,18 +15,12 @@
   @if (shouldShowPaginator()) {
     <div class="responsive-table__paginator">
       @if (effectivePagination(); as pagination) {
-        <p-paginator
-          [first]="pagination.first"
-          [rows]="pagination.rows"
-          [totalRecords]="pagination.totalRecords"
-          [rowsPerPageOptions]="pagination.rowsPerPageOptions"
-          [showCurrentPageReport]="pagination.showCurrentPageReport"
-          [currentPageReportTemplate]="pagination.currentPageReportTemplate"
-          [showPageLinks]="!isCompactPaginator()"
-          [showFirstLastIcon]="!isCompactPaginator()"
-          [alwaysShow]="pagination.alwaysShow"
-          [appendTo]="'body'"
-          (onPageChange)="handlePageChange($event)"
+        <app-pager
+          [total]="pagination.totalRecords"
+          [pageSize]="pagination.rows"
+          [page]="pagination.page"
+          [unit]="pagination.unit"
+          (pageChange)="handlePageChange($event)"
         />
       }
     </div>
