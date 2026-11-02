@@ -544,6 +544,20 @@ describe('SessionsPage', () => {
       // 甘特順序：林老師那列（a, b）在上、王老師（c）在下 —— 中間的 b 一起勾
       expect([...c.selectedIds()].sort()).toEqual(['a', 'b', 'c']);
     });
+
+    // A6 schedule.js toggle()：桌機勾第一堂就進批次模式，「一次勾：」那列跟著出現；手機不進（在面板裡）
+    it.each([
+      [false, true],
+      [true, false],
+    ])('桌機勾一堂就進批次模式（手機=%s → picking=%s）', (narrow, expected) => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: narrow && q.includes('860') }));
+      const c = component as unknown as C & { picking: () => boolean };
+      c.sessions.set([ses('a')]);
+      expect(c.picking()).toBe(false);
+      c.toggleSelect({ id: 'a', shiftKey: false });
+      expect(c.picking()).toBe(expected);
+      vi.unstubAllGlobals();
+    });
   });
 
   describe('頂欄分校（#1138 H2）', () => {

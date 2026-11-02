@@ -1254,6 +1254,9 @@ export class SessionsPage implements OnInit {
     this.selectedIds.set(pickRange(this.selectedIds(), this.pickOrder(), last, req.id));
     this.lastPicked = req.id;
     this.pickLabel.set('逐堂勾選');
+    // A6 toggle()（schedule.js:831）：桌機勾了就進批次模式，「一次勾：」那列跟著出現；手機的在面板裡
+    const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 860px)').matches;
+    if (this.selectedIds().size && !this.picking() && !narrow) this.picking.set(true);
   }
 
   protected readonly dayIso = computed(() => format(this.day(), 'yyyy-MM-dd'));
