@@ -28,6 +28,7 @@ import {
 } from '@core/academy-exams.service';
 import { ClassesService, type Class } from '@core/classes.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { taipeiDateString } from '@core/system-clock.service';
 
 export interface AcademyExamFormDialogData {
   readonly mode: 'create' | 'edit';
@@ -116,7 +117,8 @@ export class AcademyExamFormDialogComponent implements OnInit {
     examType: 'quiz',
     subjectId: null,
     campusId: null,
-    examDate: '',
+    // 稿：考試日期預設今天（exams.html examFields `x.date || T`）
+    examDate: taipeiDateString(Date.now()),
     totalScore: 100,
     passScore: null,
     scopeNote: '',

@@ -1,3 +1,4 @@
+import { taipeiDateString } from '@core/system-clock.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -200,6 +201,10 @@ describe('AcademyExamFormDialogComponent', () => {
       input.dispatchEvent(new Event('input'));
     };
     expect(el.querySelector<HTMLInputElement>('#exam-date')!.type).toBe('date');
+    // 稿：新增時考試日期預設今天（台北）
+    expect(
+      (component as unknown as { formData: () => { examDate: string } }).formData().examDate,
+    ).toBe(taipeiDateString(Date.now()));
     expect(el.querySelector<HTMLInputElement>('#exam-total')!.inputMode).toBe('numeric');
 
     type('#exam-date', '2026-05-01');
