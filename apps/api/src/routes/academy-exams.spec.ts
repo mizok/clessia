@@ -230,7 +230,7 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
                     .filter((row) => row.exam_id === exam.id)
                     .map((row) => ({
                       class_id: row.class_id,
-                      classes: { name: `班-${row.class_id}` },
+                      classes: { name: `班-${row.class_id}`, course_id: `課-${row.class_id}` },
                     })),
                   academy_scores: [
                     { count: fixture.scores.filter((row) => row.exam_id === exam.id).length },
@@ -416,7 +416,7 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
     expect(byId.get('exam-empty')).toMatchObject({ scoreCount: 0, expectedCount: 2 });
   });
 
-  it('列表每一筆帶參加班級 `classes[{id,name}]`（班名排序），`classCount` 是它的長度（#1314 G1）', async () => {
+  it('列表每一筆帶參加班級 `classes[{id,name,courseId}]`（班名排序），`classCount` 是它的長度（#1314 G1／G1b）', async () => {
     const { list } = createListApp({
       ...BASE,
       activeExams: [...BASE.activeExams, { id: 'exam-none', exam_date: '2026-04-10' }],
@@ -428,14 +428,14 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
     expect(byId.get('exam-done')).toMatchObject({
       classCount: 2,
       classes: [
-        { id: 'c-a-extra', name: '班-c-a-extra' },
-        { id: 'c-done', name: '班-c-done' },
+        { id: 'c-a-extra', name: '班-c-a-extra', courseId: '課-c-a-extra' },
+        { id: 'c-done', name: '班-c-done', courseId: '課-c-done' },
       ],
     });
     expect(byId.get('exam-none')).toMatchObject({ classCount: 0, classes: [] });
     expect(byId.get('exam-empty')).toMatchObject({
       classCount: 1,
-      classes: [{ id: 'c-empty', name: '班-c-empty' }],
+      classes: [{ id: 'c-empty', name: '班-c-empty', courseId: '課-c-empty' }],
     });
   });
 

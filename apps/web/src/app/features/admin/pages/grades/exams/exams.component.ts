@@ -72,7 +72,7 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
-import { academyScope } from './exam-class-label.util';
+import { academyScope, type ExamClassLink } from './exam-class-label.util';
 import {
   PageActionsComponent,
   type PageAction,
@@ -106,6 +106,9 @@ export interface AcademyExamRow {
   readonly classLabel: string | null;
   /** 完整班名清單（班名被收成「等 N 個班」時看得到全部） */
   readonly classTitle: string | null;
+  /** 班名一個個拆開（≤3），有 courseId 的連班級頁（#1314 G1b）；`classMore` 是「 等 N 個班」或空字串 */
+  readonly classLinks: readonly ExamClassLink[];
+  readonly classMore: string;
   readonly campusId: string | null;
   readonly subjectId: string | null;
   readonly scoreCount: number;

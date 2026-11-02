@@ -1,6 +1,15 @@
 export interface ExamClassRef {
   id: string;
   name: string;
+  /** 有它才連得到班級頁（#1314 G1b）；舊回應沒有 */
+  courseId?: string;
+}
+
+/** 列上看得到的一個班名，帶得到班級頁就是連結（#1314 G1b） */
+export interface ExamClassLink {
+  readonly id: string;
+  readonly name: string;
+  readonly link: readonly string[] | null;
 }
 
 /** 超過幾個班就收成「等 N 個班」—— 列表一列放不下十個班名 */
@@ -41,12 +50,22 @@ export function academyScope(exam: ScopeSource): {
   scope: string;
   classLabel: string | null;
   classTitle: string | null;
+  classLinks: readonly ExamClassLink[];
+  classMore: string;
 } {
   const note = exam.scopeNote?.trim();
-  const named = examClassLabel(exam.classes ?? []);
+  const classes = exam.classes ?? [];
+  const named = examClassLabel(classes);
   return {
     scope: note || named?.label || `${exam.classCount} 個班`,
     classLabel: note && named ? named.label : null,
     classTitle: named?.title ?? null,
+    // 班名那段拆成一個個連結（稿 `.ex__where a` 連班級頁，#1314 G1b）；收起來的部分照 `examClassLabel`
+    classLinks: classes.slice(0, MAX_NAMES).map((c) => ({
+      id: c.id,
+      name: c.name,
+      link: c.courseId ? ['/admin/courses', c.courseId, 'classes', c.id] : null,
+    })),
+    classMore: classes.length > MAX_NAMES ? ` 等 ${classes.length} 個班` : '',
   };
 }

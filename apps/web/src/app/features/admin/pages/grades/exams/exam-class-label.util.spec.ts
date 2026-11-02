@@ -30,7 +30,7 @@ describe('academyScope（#1314 G1）', () => {
   const base = { scopeNote: null, classCount: 2 };
 
   it('沒有 scopeNote：主字就是班名，小字不重複', () => {
-    expect(academyScope({ ...base, classes: cls('甲', '乙') })).toEqual({
+    expect(academyScope({ ...base, classes: cls('甲', '乙') })).toMatchObject({
       scope: '甲、乙',
       classLabel: null,
       classTitle: '甲、乙',
@@ -38,7 +38,7 @@ describe('academyScope（#1314 G1）', () => {
   });
 
   it('有 scopeNote：主字維持範圍說明，班名補在小字，空白 scopeNote 當沒有', () => {
-    expect(academyScope({ ...base, scopeNote: '第一章', classes: cls('甲', '乙') })).toEqual({
+    expect(academyScope({ ...base, scopeNote: '第一章', classes: cls('甲', '乙') })).toMatchObject({
       scope: '第一章',
       classLabel: '甲、乙',
       classTitle: '甲、乙',
@@ -47,11 +47,39 @@ describe('academyScope（#1314 G1）', () => {
   });
 
   it('沒有班名資料（舊回應或 0 個班）退回「N 個班」', () => {
-    expect(academyScope({ ...base })).toEqual({
+    expect(academyScope({ ...base })).toMatchObject({
       scope: '2 個班',
       classLabel: null,
       classTitle: null,
     });
     expect(academyScope({ ...base, classes: [] }).scope).toBe('2 個班');
+  });
+});
+
+describe('academyScope 的班名連結（#1314 G1b）', () => {
+  const base = { scopeNote: null, classCount: 1 };
+
+  it('有 courseId 的班連到班級頁，沒有的（舊回應）是字', () => {
+    const { classLinks, classMore } = academyScope({
+      ...base,
+      classes: [
+        { id: 'k1', name: '甲', courseId: 'c1' },
+        { id: 'k2', name: '乙' },
+      ],
+    });
+    expect(classLinks).toEqual([
+      { id: 'k1', name: '甲', link: ['/admin/courses', 'c1', 'classes', 'k1'] },
+      { id: 'k2', name: '乙', link: null },
+    ]);
+    expect(classMore).toBe('');
+  });
+
+  it('超過 3 個班只拆前 3 個，其餘照 label 收成「等 N 個班」', () => {
+    const { classLinks, classMore } = academyScope({
+      ...base,
+      classes: cls('甲', '乙', '丙', '丁', '戊'),
+    });
+    expect(classLinks.map((c) => c.name)).toEqual(['甲', '乙', '丙']);
+    expect(classMore).toBe(' 等 5 個班');
   });
 });
