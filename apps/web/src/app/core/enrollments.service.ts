@@ -111,6 +111,8 @@ export interface EnrollmentFilterParams {
   studentName?: string;
   campusId?: string;
   status?: EnrollmentStatus;
+  /** 用這個費用方案的報名（#1314 F1b） */
+  feeTemplateId?: string;
   /** 期間內「發生過事情」：新報名、退班（含到期結束）、暫停、作廢 */
   from?: string;
   to?: string;
@@ -268,6 +270,7 @@ export class EnrollmentsService {
     if (params.studentName) query.set('studentName', params.studentName);
     if (params.campusId) query.set('campusId', params.campusId);
     if (params.status) query.set('status', params.status);
+    if (params.feeTemplateId) query.set('feeTemplateId', params.feeTemplateId);
     if (params.from) query.set('from', params.from);
     if (params.to) query.set('to', params.to);
     return query;
