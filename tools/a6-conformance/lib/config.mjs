@@ -698,6 +698,93 @@ export const PAGES = {
         reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
         source: `${rule('R2')}`,
       },
+      // 本月 seed 還沒開單（billed＝0）：色面那句不報百分比、沒有已收長條（payments.page.ts bandTitle）
+      ...[
+        { status: '缺', a6: '>landmark:region\\[這一頁的摘要\\]>text:span\\[(已收|還差)\\](>|$)' },
+        {
+          status: '文案',
+          a6: '>landmark:region\\[這一頁的摘要\\]>heading:h1\\[#月應收NT\\$ #，已收#%。\\]$',
+        },
+      ].map((d) => ({
+        ...d,
+        reason: '資料：本月還沒開單（應收 0），不報已收百分比、不畫長條',
+        source: 'payments.page.ts bandTitle／receivedPct（billed ≤ 0 不報）',
+      })),
+      {
+        status: '位置',
+        a6: '>landmark:region\\[逾期\\]>text:p\\[#張\\]>text:span\\[·待收\\]$',
+        detail: '^相對「#張」 Δx \\+(1[0-9]|2[0-4])、Δy 0',
+        reason: '資料：逾期張數位數不同（稿 9、seed 兩位數），「· 待收」跟著右移',
+        source: 'tools/a6-conformance/README.md:83（文案模板：數字 → #；位數不同造成的位移，工具不扣）',
+      },
+      // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 staff、courses
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: '^>control:searchbox\\[搜尋帳單\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      {
+        // 稿用「逾期攤開、其他收合」取代狀態篩選；app 另有課程／分校／月份等篩選（舊有新無）
+        status: '多',
+        app: '>landmark:search\\[帳單搜尋與篩選\\]>control:button\\[篩選：全部\\](>|$)',
+        reason: '現況有、稿沒畫：帳單的篩選面板，保留',
+        source: `${rule('R2')}`,
+      },
+      {
+        status: '多',
+        app: '>landmark:search\\[帳單搜尋與篩選\\]>control:button\\[操作紀錄\\](>|$)',
+        reason: '全站「操作紀錄」入口統一成工具列的時鐘圖示鈕',
+        source: '使用者 10-23 裁定 #2006（#2014）',
+      },
+      {
+        // 工具列多了篩選、操作紀錄，右側的開立帳單、匯出跟著位移
+        status: '位置',
+        a6: '^>control:button\\[(開立帳單|匯出)\\]$',
+        reason: '連帶：工具列多了篩選與操作紀錄鈕',
+        source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
+      },
+      // 手機托盤：稿是「開立帳單（白）＋全部提醒（CTA）」；全部提醒要 LINE 推播，不接 LINE Messaging API，
+      // 托盤只剩開立帳單，它就是主要動作（CTA 色）
+      ...[
+        {
+          status: '缺',
+          a6: '>landmark:toolbar\\[主要動作\\]>control:button\\[全部提醒（#）\\](>|$)',
+        },
+        { status: '位置', a6: '>landmark:toolbar\\[主要動作\\]>control:button\\[開立帳單\\]$' },
+        { status: '樣式', a6: '>landmark:toolbar\\[主要動作\\]>control:button\\[開立帳單\\]$' },
+      ].map((d) => ({
+        ...d,
+        widths: [360],
+        reason: '「全部提醒」要 LINE 推播（不接 LINE Messaging API），托盤只剩開立帳單、當主要動作',
+        source: 'kb/wiki/architecture/a6-adoption-rules.md:108（R5 2026-10-14：不接 LINE Messaging API）',
+      })),
+      // 稿列的第二格下面有一行「還沒提醒／M/D 提醒過」（row__sub），要上次提醒日；app 沒有這份資料，
+      // 工具把稿的 row__sub 配到 app 的金額格
+      ...['位置', '樣式'].map((status) => ({
+        status,
+        a6: '>landmark:region\\[逾期\\]>row>text:div$',
+        reason: '等 API：列的上次提醒日（稿 row__sub「還沒提醒」）；工具把它配到 app 的金額格',
+        source: 'payments.page.html 檔頭「沒有上次提醒日」',
+      })),
+      {
+        // app 列尾是「收款＋⋯」兩顆（作廢、列印收費單收在 ⋯，#1420），比稿的一顆寬，第二格跟著右移
+        status: '位置',
+        widths: [1440],
+        a6: '>landmark:region\\[逾期\\]>row>text:span~2$',
+        detail: '^相對所在列 Δx \\+([0-9]|[12][0-9]|3[0-2])、Δy [-+]?[0-6]',
+        reason: '連帶：列尾動作多一顆「⋯」，第二格較窄',
+        source: `${rule('R2')}；#1420`,
+      },
+      {
+        // 列裡的鈕在 flex 容器（invoice-actions）裡、名字旁的年級在 flex 格裡：子元素 display 被 blockify，畫面一樣
+        status: '樣式',
+        a6: '>landmark:region\\[逾期\\]>row>(control:button|text:span)$',
+        detail: '^display (inline-flex → flex|inline → block)$',
+        reason:
+          '工具限制：flex 子元素的 display 被瀏覽器 blockify（inline-flex→flex、inline→block），外觀相同',
+        source: 'CSS Display 3「blockification」',
+      },
     ],
   },
   // 以下只登稿檔 ↔ 路由（#1314 多出功能盤點，10-15）；偏離與情境之後各頁對齊時再補。

@@ -215,7 +215,7 @@
     } @else if (chapterMode()) {
       <!-- 逾期章：永遠攤開（A6）。這張清單就是 `overdue=true` 的第 N 頁 -->
       <section
-        class="grid grid-cols-1 gap-y-3 border-0 border-b border-solid border-zinc-200 py-6 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8 wide:gap-y-8 wide:py-8"
+        class="grid grid-cols-1 gap-x-3 gap-y-3 border-0 border-b border-solid border-zinc-200 py-6 wide:grid-cols-[13rem_minmax(0,1fr)] wide:gap-x-8 wide:gap-y-8 wide:py-8"
         aria-label="逾期"
       >
         <!-- A6 章頭：名字（紅、大字）→「9 張 · 待收」→「NT$ …」兩行 18px 粗 → 全部提醒（桌機） -->
@@ -273,7 +273,7 @@
       <ng-template #chapterRow let-invoice let-vt="vt">
         <li
           [style.view-transition-name]="vt + invoice.id"
-          class="vt-row grid min-h-[46px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-0 border-b border-solid border-zinc-200 py-3 last:border-b-0 wide:grid-cols-[minmax(0,1fr)_260px_120px_auto] wide:gap-x-4 wide:gap-y-4"
+          class="vt-row grid min-h-[46px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-0 border-b border-solid border-zinc-200 py-3 last:border-b-0 wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_auto] wide:gap-x-4 wide:gap-y-4"
         >
           <div class="flex min-w-0 items-center wide:block">
             <a
