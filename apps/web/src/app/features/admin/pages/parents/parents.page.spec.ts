@@ -10,7 +10,14 @@ import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 
 import { ParentsService, type ParentListResponse } from '@core/parents.service';
 
+import { signal } from '@angular/core';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { ParentsPage } from './parents.page';
+
+/** 頂欄分校（K4）：分校定下來才載、換分校重載 */
+const campusId = signal<string | null>('campus-1');
+const campusUse = vi.fn();
 
 describe('ParentsPage', () => {
   let component: ParentsPage;
@@ -63,6 +70,8 @@ describe('ParentsPage', () => {
   beforeEach(async () => {
     pending.length = 0;
     parentsServiceMock.list.mockClear();
+    campusId.set('campus-1');
+    campusUse.mockReset();
 
     await TestBed.configureTestingModule({
       imports: [ParentsPage],
@@ -70,6 +79,8 @@ describe('ParentsPage', () => {
         provideRouter([]),
         // 這支 spec 原本**沒有任何 service mock**，於是元件打真的 HTTP。
         { provide: ParentsService, useValue: parentsServiceMock },
+        { provide: CampusContextService, useValue: { id: campusId, use: campusUse } },
+        { provide: ReferenceDataService, useValue: { loadCampuses: vi.fn() } },
         { provide: MessageService, useValue: { add: vi.fn() } },
         { provide: DialogService, useValue: { open: vi.fn(() => ({ onClose: of(null) })) } },
       ],
@@ -632,5 +643,26 @@ describe('ParentsPage', () => {
     expect(add).toHaveBeenCalledWith(
       expect.objectContaining({ severity: 'error', detail: '帳號已封存，無法再次操作' }),
     );
+  });
+
+  // K4（#1314 盤點）：家長列表接頂欄分校。API 收 campusId（只能縮小範圍，#2145）
+  describe('頂欄分校', () => {
+    it('接上頂欄（use），查詢帶目前的分校', () => {
+      expect(campusUse).toHaveBeenCalled();
+      expect(parentsServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ campusId: 'campus-1' }),
+      );
+    });
+
+    it('頂欄換分校：回第 1 頁、帶新分校重查', () => {
+      (component as unknown as { currentPage: { set: (n: number) => void } }).currentPage.set(3);
+      parentsServiceMock.list.mockClear();
+      campusId.set('campus-2');
+      TestBed.tick();
+      expect(parentsServiceMock.list).toHaveBeenCalledTimes(1);
+      expect(parentsServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ campusId: 'campus-2', page: 1 }),
+      );
+    });
   });
 });

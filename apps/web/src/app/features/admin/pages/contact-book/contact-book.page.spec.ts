@@ -16,7 +16,17 @@ import {
 } from '@core/contact-book.service';
 import { StudentsService, type Student } from '@core/students.service';
 
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { ContactBookPage } from './contact-book.page';
+
+/** 頂欄分校（K4）：分校定下來才載、換分校重載 */
+const campusId = signal<string | null>('campus-1');
+const campusUse = vi.fn();
+const campusProviders = [
+  { provide: CampusContextService, useValue: { id: campusId, use: campusUse } },
+  { provide: ReferenceDataService, useValue: { loadCampuses: vi.fn() } },
+];
 
 const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   id: 'e1',
@@ -64,12 +74,15 @@ describe('ContactBookPage', () => {
     contactBook.missing.mockReset().mockReturnValue(of({ data: [], meta: { total: 0 } }));
     students.list.mockReset().mockReturnValue(of({ data: [student()], summary: {}, meta: {} }));
     today.set('2027-03-05');
+    campusId.set('campus-1');
+    campusUse.mockReset();
 
     await TestBed.configureTestingModule({
       imports: [ContactBookPage],
       providers: [
         MessageService,
         { provide: ContactBookService, useValue: contactBook },
+        ...campusProviders,
         { provide: StudentsService, useValue: students },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
         { provide: SystemClockService, useValue: { todayTaipei: today } },
@@ -97,6 +110,7 @@ describe('ContactBookPage', () => {
       providers: [
         MessageService,
         { provide: ContactBookService, useValue: contactBook },
+        ...campusProviders,
         { provide: StudentsService, useValue: students },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
       ],
@@ -236,6 +250,7 @@ describe('ContactBookPage', () => {
     it('進頁就查缺漏名單', () => {
       expect(contactBook.missing).toHaveBeenCalledWith(
         expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        'campus-1',
       );
     });
 
@@ -246,7 +261,7 @@ describe('ContactBookPage', () => {
 
       component['onMissingDateChange'](new Date('2026-08-20T00:00:00'));
 
-      expect(contactBook.missing).toHaveBeenCalledWith('2026-08-20');
+      expect(contactBook.missing).toHaveBeenCalledWith('2026-08-20', 'campus-1');
       expect(contactBook.list).not.toHaveBeenCalled();
     });
 
@@ -311,7 +326,7 @@ describe('ContactBookPage', () => {
         studentName: `缺${i}`,
         classes: [{ classId: 'c', className: '班' }],
       }));
-    /** 重新建立元件：hero 的兩支請求在 ngOnInit 打 */
+    /** 重新建立元件：hero 的兩支請求在建立後、頂欄分校定下來時打 */
     const boot = async (opts: {
       missing?: MissingContactBookStudent[];
       entries?: ContactBookEntry[];
@@ -348,7 +363,7 @@ describe('ContactBookPage', () => {
       expect(q('hero-missing').textContent!.replace(/\s+/g, '')).toContain('今天還沒寫6則');
       expect(q('hero-unsigned').textContent!.replace(/\s+/g, '')).toContain('這週家長還沒簽2則');
       // 請求：缺漏用今天；列表用「週一到今天」（2027-03-05 是週五 → 3/1）
-      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05');
+      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05', 'campus-1');
       expect(contactBook.list.mock.calls.map((c) => [c[0]!.from, c[0]!.to])).toContainEqual([
         '2027-03-01',
         '2027-03-05',
@@ -403,7 +418,7 @@ describe('ContactBookPage', () => {
       today.set('2027-03-06');
       contactBook.missing.mockClear();
       component['loadHero']();
-      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-06');
+      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-06', 'campus-1');
     });
 
     // #1877：跟同列的搜尋框、期間下拉同高；#1903 起高度走全站的 tbar-control（手機 44／桌機 40）。按下照 A6 `.toggle` 多一圈內框線
@@ -599,7 +614,7 @@ describe('ContactBookPage', () => {
       contactBook.missing.mockClear();
 
       component['onMissingPick']('2026-08-27');
-      expect(contactBook.missing).toHaveBeenCalledWith('2026-08-27');
+      expect(contactBook.missing).toHaveBeenCalledWith('2026-08-27', 'campus-1');
 
       contactBook.missing.mockClear();
       component['onMissingPick']('other');
@@ -752,6 +767,7 @@ describe('ContactBookPage', () => {
         providers: [
           MessageService,
           { provide: ContactBookService, useValue: contactBook },
+          ...campusProviders,
           { provide: StudentsService, useValue: students },
           { provide: OverlayContainerService, useValue: { getContainer: () => null } },
         ],
@@ -792,6 +808,7 @@ describe('ContactBookPage', () => {
         providers: [
           MessageService,
           { provide: ContactBookService, useValue: contactBook },
+          ...campusProviders,
           { provide: StudentsService, useValue: students },
           { provide: OverlayContainerService, useValue: { getContainer: () => null } },
           { provide: SystemClockService, useValue: { todayTaipei: today } },
@@ -817,7 +834,7 @@ describe('ContactBookPage', () => {
 
       closed.next({ id: 'e1', studentId: 'stu-9' });
       // 色面的今天缺漏人數（用「今天」）＋這週未簽（週一到今天）各重打一次
-      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05');
+      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05', 'campus-1');
       expect(contactBook.list.mock.calls.map((c) => [c[0]!.from, c[0]!.to])).toContainEqual([
         '2027-03-01',
         '2027-03-05',
@@ -839,5 +856,29 @@ describe('ContactBookPage', () => {
     expect(el.querySelector('.reload-veil--stale')).not.toBeNull();
     expect(el.querySelector('.skeleton-list')).toBeNull();
     expect(el.querySelectorAll('[data-testid="entry"]').length).toBe(1);
+  });
+
+  // K4（#1314 盤點）：聯絡簿接頂欄分校。三支 API 收 campusId（只能縮小範圍，#2145）
+  describe('頂欄分校', () => {
+    it('接上頂欄（use）；列表、缺漏名單、色面兩個數字都帶目前的分校', () => {
+      expect(campusUse).toHaveBeenCalled();
+      expect(contactBook.missing).toHaveBeenCalledWith('2027-03-05', 'campus-1');
+      const lists = contactBook.list.mock.calls.map(([params]) => params);
+      expect(lists.length).toBeGreaterThanOrEqual(2); // 下面的列表＋色面的「這週」
+      expect(lists.every((params) => params?.campusId === 'campus-1')).toBe(true);
+    });
+
+    it('頂欄換分校：列表、缺漏名單、色面都重查', () => {
+      contactBook.list.mockClear();
+      contactBook.missing.mockClear();
+      campusId.set('campus-2');
+      TestBed.tick();
+      expect(contactBook.list).toHaveBeenCalledWith(
+        expect.objectContaining({ campusId: 'campus-2' }),
+      );
+      expect(contactBook.missing).toHaveBeenCalledWith(expect.any(String), 'campus-2');
+      // 缺漏名單一次（下面那章）＋色面「今天還沒寫」一次
+      expect(contactBook.missing).toHaveBeenCalledTimes(2);
+    });
   });
 });
