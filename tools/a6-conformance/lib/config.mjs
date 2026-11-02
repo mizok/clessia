@@ -831,6 +831,14 @@ export const PAGES = {
         reason: '連帶：工具列多了篩選與操作紀錄鈕',
         source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
       },
+      // 桌機逾期章頭的「全部提醒」：同一顆、同一個理由（要 LINE 推播）。原本跟 p-paginator 的按鈕
+      // 一起被歸成「同型段落數不同」的工具限制，分頁器換成 app-pager（自己是 navigation）後才浮出來（#1314 Z 批）
+      {
+        status: '缺',
+        a6: '>landmark:region\\[逾期\\]>control:button\\[全部提醒（#）\\](>|$)',
+        reason: '「全部提醒」要 LINE 推播（不接 LINE Messaging API）',
+        source: `${rule('R5')}「學生檔案『傳 LINE』」2026-10-14：不接 LINE Messaging API`,
+      },
       // 手機托盤：稿是「開立帳單（白）＋全部提醒（CTA）」；全部提醒要 LINE 推播，不接 LINE Messaging API，
       // 托盤只剩開立帳單，它就是主要動作（CTA 色）
       ...[
@@ -844,8 +852,7 @@ export const PAGES = {
         ...d,
         widths: [360],
         reason: '「全部提醒」要 LINE 推播（不接 LINE Messaging API），托盤只剩開立帳單、當主要動作',
-        source:
-          'kb/wiki/architecture/a6-adoption-rules.md:108（R5 2026-10-14：不接 LINE Messaging API）',
+        source: `${rule('R5')}「學生檔案『傳 LINE』」2026-10-14：不接 LINE Messaging API`,
       })),
       // 稿列的第二格下面有一行「還沒提醒／M/D 提醒過」（row__sub），要上次提醒日；app 沒有這份資料，
       // 工具把稿的 row__sub 配到 app 的金額格
@@ -964,7 +971,7 @@ export const PAGES = {
         status: '缺',
         a6: '>landmark:region\\[這一頁的摘要\\]>control:button\\[傳LINE\\]$',
         reason: '「傳 LINE」不做：產品不接 LINE Messaging API',
-        source: 'kb/wiki/architecture/a6-adoption-rules.md:108（R5 2026-10-14）',
+        source: `${rule('R5')}「學生檔案『傳 LINE』」2026-10-14`,
       },
       ...[
         {

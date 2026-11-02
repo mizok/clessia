@@ -113,11 +113,12 @@
     <app-change-log-list [entries]="entries()" [today]="todayStr" />
 
     @if (total() > pageSize) {
-      <p-paginator
-        [first]="first()"
-        [rows]="pageSize"
-        [totalRecords]="total()"
-        (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+      <app-pager
+        class="mt-6"
+        [total]="total()"
+        [pageSize]="pageSize"
+        [page]="currentPage()"
+        (pageChange)="onPageChange($event)"
       />
     }
   }
