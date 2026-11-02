@@ -22,7 +22,8 @@ const WIDE = {
   // A6 `.chap`：桌機上下 32；changes.html 手機覆寫成 24 0 8
   chapter: 'pb-2 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8',
   chapterHead: 'wide:sticky wide:top-sticky-chapter wide:block wide:self-start',
-  day: 'wide:text-[44px]',
+  // changes.html 手機覆寫 `.chap__big` 成 28px；抽屜沿用 a6.css 的 32px
+  day: 'text-[28px] wide:text-[44px]',
   dayMeta: 'wide:mt-0.5',
   count: 'wide:mt-3 wide:text-xl',
   // 時間｜班名＋標籤｜說明｜原因與操作者｜看這堂（批次列最後一格是「看是哪 N 堂」）
@@ -35,7 +36,7 @@ const WIDE = {
 const NARROW = {
   chapter: '',
   chapterHead: '',
-  day: '',
+  day: 'text-[32px]',
   dayMeta: '',
   count: '',
   row: '',
