@@ -125,6 +125,9 @@ describe('ClassFormDialogComponent', () => {
     fixture = TestBed.createComponent(ClassFormDialogComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+    // A6：新增班級一開就有一筆時段 —— 建班的測試先替它選好老師（老師選填，這只是讓情境接近實際）
+    if (!(component as any).isEditing())
+      (component as any).updateScheduleEntry(0, 'teacherId', 't-1');
   });
 
   describe('A6 .fdlg 動作列（還沒填不鎖死）', () => {
@@ -165,6 +168,62 @@ describe('ClassFormDialogComponent', () => {
     });
   });
 
+  describe('A6 .slot 時段列（#2089）', () => {
+    const c = () => component as any;
+
+    // 計畫席 11-02（R5）：時段老師選填 —— D4 以來時段可以沒有老師，必選會擋住還沒有該科老師的分校建班
+    it('時段沒選老師：照樣送出，動作列提示「第 N 筆時段還沒排老師」', () => {
+      c().updateForm('name', 'A 班');
+      c().updateScheduleEntry(0, 'teacherId', null);
+      expect(c().formValidationMessage()).toBeNull();
+      expect(c().whyText()).toBe('第 1 筆時段還沒排老師，可以之後再排');
+      c().save();
+      expect(classesServiceMock.create).toHaveBeenCalled();
+    });
+
+    it('只剩一筆時按刪除：不刪，寫「至少要有一個時段」', () => {
+      c().removeScheduleEntry(0);
+      expect(c().scheduleEntries()).toHaveLength(1);
+      expect(c().whyText()).toBe('至少要有一個時段');
+    });
+
+    it('新增時段沿用上一筆的星期與老師、時間空著；生效日送出', async () => {
+      c().updateForm('name', 'A 班');
+      c().updateScheduleEntry(0, 'weekday', 3);
+      c().addScheduleEntry();
+      const added = c().scheduleEntries()[1];
+      expect([added.weekday, added.teacherId, added.startTime]).toEqual([3, 't-1', '']);
+      expect(c().formValidationMessage()).toBe('第 2 筆時段的結束要晚於開始');
+      c().updateScheduleEntry(1, 'startTime', '14:00');
+      c().updateScheduleEntry(1, 'endTime', '15:00');
+      c().updateScheduleEntry(1, 'effectiveFrom', '2099-02-01');
+      c().updateScheduleEntry(1, 'effectiveTo', '');
+      c().save();
+      await fixture.whenStable();
+      const sent = (classesServiceMock.addSchedule as any).mock.calls.map((x: any[]) => x[1]);
+      expect(sent[1]).toEqual(
+        expect.objectContaining({
+          effectiveFrom: '2099-02-01',
+          effectiveTo: null,
+          teacherId: 't-1',
+        }),
+      );
+    });
+
+    it('下一階班級：「沒有」＋同分校的其他班，不含自己', () => {
+      TestBed.inject(DynamicDialogConfig).data.classes = [
+        { id: 'k1', campusId: 'campus-1', courseName: '國一數學', name: 'A 班' },
+        { id: 'k2', campusId: 'campus-2', courseName: '國一數學', name: 'B 班' },
+      ];
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      expect(fixture.componentInstance['nextClassOptions']().map((o: any) => o.label)).toEqual([
+        '沒有（不設升班路徑）',
+        '國一數學 · A 班',
+      ]);
+      TestBed.inject(DynamicDialogConfig).data.classes = undefined;
+    });
+  });
+
   it('should block save when schedule entries overlap in same weekday', () => {
     (component as any).formData.set({
       name: '測試班級',
@@ -173,8 +232,8 @@ describe('ClassFormDialogComponent', () => {
       isActive: true,
     });
     (component as any).scheduleEntries.set([
-      { weekday: 1, startTime: '09:00', endTime: '11:00', teacherId: null, effectiveTo: null },
-      { weekday: 1, startTime: '10:00', endTime: '12:00', teacherId: null, effectiveTo: null },
+      { weekday: 1, startTime: '09:00', endTime: '11:00', teacherId: 't-1', effectiveTo: null },
+      { weekday: 1, startTime: '10:00', endTime: '12:00', teacherId: 't-1', effectiveTo: null },
     ]);
 
     (component as any).save();
@@ -284,7 +343,7 @@ describe('ClassFormDialogComponent', () => {
         nextClassId: null,
         isActive: true,
       });
-      (component as any).addScheduleEntry();
+      // 一開就有的那一筆（beforeEach 已選老師）
       (component as any).updateScheduleEntry(0, 'classroomId', 'room-b');
       (component as any).save();
       await fixture.whenStable();
@@ -334,7 +393,7 @@ describe('ClassFormDialogComponent', () => {
       isActive: true,
     });
     (component as any).scheduleEntries.set([
-      { weekday: 1, startTime: '09:00', endTime: '11:00', teacherId: null, effectiveTo: null },
+      { weekday: 1, startTime: '09:00', endTime: '11:00', teacherId: 't-1', effectiveTo: null },
     ]);
 
     (component as any).save();
@@ -355,6 +414,7 @@ describe('ClassFormDialogComponent', () => {
       fixture = TestBed.createComponent(ClassFormDialogComponent);
       component = fixture.componentInstance;
       fixture.detectChanges();
+      if (!cls) (component as any).updateScheduleEntry(0, 'teacherId', 't-1');
     };
     const fill = () =>
       (component as any).formData.set({
@@ -466,7 +526,7 @@ describe('ClassFormDialogComponent', () => {
       addScheduleEntry: () => void;
       removeScheduleEntry: (i: number) => void;
     };
-    c.addScheduleEntry();
+    // 一開就有一筆，再加兩筆＝3 筆
     c.addScheduleEntry();
     c.addScheduleEntry();
     fixture.detectChanges();

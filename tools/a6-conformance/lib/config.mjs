@@ -870,6 +870,40 @@ export const PAGES = {
         reason: '手機關閉鈕 44px（觸控下限），標題欄因此窄 4px',
         source: `${rule('R3')}；${hardRule('A27')}`,
       })),
+      // 新增班級表單（#2089）：下一階班級、時段的星期／任課老師／教室是 app-select-field
+      ...selectFieldDeviations('下一階班級|星期|任課老師|教室').map((d) => ({
+        ...d,
+        pop: 'new-class',
+      })),
+      ...[
+        {
+          status: '缺',
+          a6: 'control:button\\[(下一階班級|教室)：[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        },
+        { status: '文案', a6: 'control:button\\[教室：[^\\]]*\\]$', app: 'dropdown trigger' },
+        { status: '多', app: 'control:combobox\\[(下一階班級|教室|星期|任課老師)\\]$' },
+        // 稿的標籤是 label 包住 .dd 按鈕（名稱帶隱藏的必填 *）；app-select-field 的標籤是 span，稿的 label 只能依位置配到別的欄位
+        ...['缺', '文案', '位置'].map((status) => ({
+          status,
+          a6: 'text:label\\[(下一階班級|星期|任課老師|教室)\\](>control:button\\[[^\\]]*\\])?$',
+        })),
+      ].map((d) => ({ ...d, pop: 'new-class', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 時段老師選填（計畫席 11-02）：沒選時下拉的提示字是「還沒排老師」（稿「選一位老師」）
+      {
+        status: '文案',
+        pop: 'new-class',
+        a6: 'control:button\\[任課老師：選一位老師\\]',
+        reason: '時段老師選填：沒選時寫「還沒排老師」',
+        source: `${rule('R5')}「班級表單的時段老師選填」2026-11-02（計畫席 11-02：D4 時段可無老師，必填會擋建班）`,
+      },
+      // 新增班級表單：稿沒畫、照 R2 保留的欄位（公開報名、目錄參考價、班級起訖日），收在同一個整列區塊
+      {
+        status: '多',
+        pop: 'new-class',
+        app: 'landmark:dialog\\[新增班級\\]>(text:p\\[(公開報名|關掉之後|家長目錄顯示|兩邊都填)[^\\]]*\\]|text:label\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|control:(checkbox|textbox)\\[(開放公開報名|開始日期（選填）|結束日期（選填）)\\]|text:span\\[目錄參考價\\]|control:combobox\\[目錄參考價\\])$',
+        reason: '班級表單的公開報名、目錄參考價、起訖日：現況有、稿沒畫，保留',
+        source: `${rule('R2')}；目錄參考價 https://github.com/mizok/clessia/issues/2089#issuecomment-6517351682`,
+      },
       // 舊有新無：適合年級（API 必填），「還沒填」那句跟著多一項
       ...[
         { status: '多', app: 'text:(span|div)\\[(適合年級|選擇適合年級（至少一項）)\\]$' },
