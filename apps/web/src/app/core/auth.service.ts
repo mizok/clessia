@@ -225,23 +225,25 @@ export class AuthService {
   }
 
   /**
-   * 把使用者交給 LINE。成功的話瀏覽器會被導走，這個 Promise 不會 resolve 到有意義的東西。
+   * 把使用者交給 LINE／Google。成功的話瀏覽器會被導走，這個 Promise 不會 resolve 到有意義的東西。
    *
-   * 回傳非 null 表示**還沒離開這一頁就失敗了** —— 最常見的原因是 API 沒設定
-   * `LINE_CLIENT_ID` / `LINE_CLIENT_SECRET`，那時 provider 根本沒掛上。
+   * 回傳非 null 表示**還沒離開這一頁就失敗了** —— 最常見的原因是 API 沒設定那個 provider 的
+   * client id／secret，那時 provider 根本沒掛上。
+   *
+   * Google 在 iOS 主畫面 App 也走這裡：Google 登入頁不會被 iOS 交給別的 App，一般流程本來就是
+   * 同一個視窗發起與回呼（#1842）。只有 LINE 要 `signInWithLineInline`（#2063）。
    */
-  async signInWithLine(): Promise<string | null> {
-    // iOS 主畫面 App 不走這裡，走 `signInWithLineInline`（#2063）
+  async signInWith(provider: ProviderId): Promise<string | null> {
     const { error } = await authClient.signIn.social({
-      provider: 'line',
+      provider,
       callbackURL: `${window.location.origin}/select-role`,
       // 失敗時導回登入頁並帶 ?error= —— 不設的話會落在 Better Auth 的預設頁面，
-      // 使用者看到一個不屬於這個系統的畫面
-      errorCallbackURL: `${window.location.origin}/login`,
+      // 使用者看到一個不屬於這個系統的畫面。`provider=` 讓登入頁說對是哪一家（#1842）
+      errorCallbackURL: `${window.location.origin}/login?provider=${provider}`,
     });
 
     if (error) {
-      return 'LINE 登入失敗，請稍後再試或聯繫補習班';
+      return `${PROVIDER_NAMES[provider]} 登入失敗，請稍後再試或聯繫補習班`;
     }
 
     return null;
@@ -258,7 +260,7 @@ export class AuthService {
     const { data, error } = await authClient.signIn.social({
       provider: 'line',
       callbackURL: `${window.location.origin}/select-role`,
-      errorCallbackURL: `${window.location.origin}/login`,
+      errorCallbackURL: `${window.location.origin}/login?provider=line`,
       disableRedirect: true,
     });
     const url = (data as { url?: string } | null)?.url;
