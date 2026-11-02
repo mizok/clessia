@@ -126,6 +126,22 @@ export const DEVIATIONS = [
     reason: '通知中心從「更多」移到頂欄鈴鐺',
     source: `${rule('R5')}「頂欄通知鈴鐺」2026-10-16；#1683`,
   },
+  // R5 2026-11-02：切換身分列出全部身分，目前的打勾標「使用中」（A6 只列其他身分）。
+  // 多了一列 → 其他身分的列往下推、文案配錯位、目前那列字重 600
+  ...['文案', '位置', '樣式'].map((status) => ({
+    status,
+    pop: 'acct',
+    a6: '>landmark:popover\\[帳戶\\]>.*control:button\\[(管理員|任課老師|家長)\\]$',
+    reason: '切換身分也列目前身分：多一列，其他身分的位置、文案配對與字重連帶不同',
+    source: `${rule('R5')}「帳戶選單『切換身分』列出全部身分」2026-11-02`,
+  })),
+  {
+    status: '多',
+    pop: 'acct',
+    app: '>control:button\\[[^\\]]*使用中\\]>text:span\\[使用中\\]$',
+    reason: '切換身分的目前身分標「使用中」（A6 沒有）',
+    source: `${rule('R5')}「帳戶選單『切換身分』列出全部身分」2026-11-02`,
+  },
   // 稿的「新」標記（span.new）是設計說明，不是畫面內容（a6.js 的 ddLabel 也剔掉它）。配對時已經拿掉它比
   // （extract 的 alt，#1314 10-30），剩下的就是「新」那顆小標本身、以及只差一個「新」的文案
   {
@@ -347,8 +363,7 @@ export const DATA_DEPENDENT = [
   },
   {
     a6: '^pop\\[acct\\]>.*(text:p\\[切換身分\\]|control:button\\[(管理員|任課老師|家長)\\])',
-    reason:
-      '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `otherRoles().length > 0`）',
+    reason: '「切換身分」只在多身分帳號出現；稿的示範使用者有 3 個身分（app `hasOtherRoles()`）',
   },
 ];
 
@@ -1940,9 +1955,9 @@ export const PAGES = {
       },
       {
         // seed 每種計費模式只有 1 種價目：同章一列不成清單列（工具 ≥3 才認列），列內的名稱、金額、狀態、⋯ 散在章裡；
-        // 稿每章 3 種以上，是列。兩邊列的內容一樣（名稱鈕、金額、啟用中、報名在用、⋯）
+        // 稿每章 3 種以上，是列。兩邊列的內容一樣（名稱鈕、金額、啟用中、報名在用（有人用時是連結，F1b）、⋯）
         status: '多',
-        app: 'landmark:region\\[(月繳|期繳|堂數制)\\]>(control:button|text:span)(\\[[^\\]]*\\])?(>text:small\\[[^\\]]*\\])?$',
+        app: 'landmark:region\\[(月繳|期繳|堂數制)\\]>(control:button|control:link|text:span)(\\[[^\\]]*\\])?(>text:small\\[[^\\]]*\\])?$',
         reason: '資料：seed 每章只有一種價目，不成清單列',
         source: 'tools/a6-conformance/README.md（列是資料：≥3 或 ≥5 個同簽名才合成 row）',
       },

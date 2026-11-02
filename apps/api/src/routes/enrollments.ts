@@ -364,6 +364,8 @@ const ListFilterQuerySchema = z.object({
   studentName: z.string().trim().min(1).max(50).optional(),
   campusId: DbUuidSchema.optional(),
   status: EnrollmentStatusSchema.optional(),
+  /** 用這個費用方案的報名（#1314 F1b：費用方案頁「N 筆報名在用」連過來）；只篩 id，不碰計費 */
+  feeTemplateId: DbUuidSchema.optional(),
   // 期間內「發生過事情」：新報名、退班（含到期結束）、暫停、作廢，判準見 list-query.ts
   from: z.string().date().optional(),
   to: z.string().date().optional(),
@@ -377,6 +379,7 @@ interface ListFilters {
   readonly studentId?: string;
   readonly studentName?: string;
   readonly status?: string;
+  readonly feeTemplateId?: string;
 }
 
 function applyListFilters<
@@ -393,6 +396,7 @@ function applyListFilters<
   if (filters.studentName) q = q.ilike('students.name', studentNamePattern(filters.studentName));
   q = applyCampusFilter(q, 'classes.campus_id', filters.campusScope, filters.campusId);
   if (filters.status) q = q.eq('status', filters.status);
+  if (filters.feeTemplateId) q = q.eq('fee_template_id', filters.feeTemplateId);
   return q;
 }
 
@@ -440,6 +444,7 @@ app.openapi(
       studentName,
       campusId,
       status,
+      feeTemplateId,
       from,
       to,
       event,
@@ -469,6 +474,7 @@ app.openapi(
       studentId,
       studentName,
       status,
+      feeTemplateId,
     });
 
     // `true` 的過濾由 select 裡的 `!inner` 完成；`false` 要再下這一條

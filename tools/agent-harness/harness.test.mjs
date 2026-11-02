@@ -53,6 +53,7 @@ import {
   sendsParam,
   servicePrefixes,
   staleExemptions,
+  staleBlindSpots,
   stripComments,
 } from './lib/api-param-coverage.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
@@ -1834,6 +1835,30 @@ test('註解裡提到參數名不算前端有送 —— 否則豁免會被誤判
     staleExemptions({ '/api/x': ['dateFrom'] }, services, new Map([['/api/x|dateFrom', 'why']])),
     [],
   );
+});
+
+test('已知盲點：同檔別的方法送了同名參數時 gate 看不到，帳上這筆要安靜（#2079 d）', () => {
+  // `/api/x` 的 list 沒送 courseId，但同檔另一個方法（`/api/x/students`）送了 —— gate 判成「有送」
+  const services = [
+    {
+      source: `const base = '/api/x';
+      list() { return http.get(base, { params: { page } }); }
+      byCourse() { const query = { courseId }; return http.get(base + '/students', { params: query }); }`,
+    },
+  ];
+  const api = { '/api/x': ['courseId'], '/api/x/students': ['courseId'] };
+  assert.deepEqual(staleBlindSpots(api, services, new Map([['/api/x|courseId', 'why']])), []);
+});
+
+test('已知盲點：gate 自己看得到了、或端點不再收它，就過期', () => {
+  const services = [{ source: `const url = '/api/x'; q = q.set('other', a);` }];
+  const blind = new Map([['/api/x|courseId', 'why']]);
+  // 檔裡沒人送 courseId → gate 自己會報 → 帳上這筆多餘
+  assert.deepEqual(staleBlindSpots({ '/api/x': ['courseId'] }, services, blind), [
+    '/api/x|courseId',
+  ]);
+  // 端點不收 courseId 了
+  assert.deepEqual(staleBlindSpots({ '/api/x': ['other'] }, services, blind), ['/api/x|courseId']);
 });
 
 test('sendsParam 認得四種組 query 的寫法', () => {

@@ -213,3 +213,29 @@ describe('GET /api/enrollments 的部分姓名篩選（#1100 #30）', () => {
     expect((await getNamed(`/?${PERIOD}&studentName=%20`)).status).toBe(400);
   });
 });
+
+describe('GET /api/enrollments 的費用方案篩選（#1314 F1b）', () => {
+  const FT = '00000000-0000-0000-0000-0000000000f1';
+  const ids = (body: Record<string, unknown>) =>
+    (body['data'] as { id: string }[]).map((row) => row.id).sort();
+
+  it('只留用這個方案的報名（不分期間與狀態）；計數數的是同一批', async () => {
+    const seed = SEED as Record<string, unknown>[];
+    seed[0]!['fee_template_id'] = FT; // joined
+    seed[1]!['fee_template_id'] = FT; // withdrew
+    seed[7]!['fee_template_id'] = FT; // other-org：別 org 的不出來
+    try {
+      const list = await get(`/?feeTemplateId=${FT}`);
+      expect(list.status).toBe(200);
+      expect(ids(list.body)).toEqual(['joined', 'withdrew']);
+      const counts = await get(`/event-counts?${PERIOD}&feeTemplateId=${FT}`);
+      expect(counts.body['data']).toEqual({ joined: 1, left: 1, paused: 0, voided: 0 });
+    } finally {
+      for (const i of [0, 1, 7]) delete seed[i]!['fee_template_id'];
+    }
+  });
+
+  it('不是 uuid → 400（不能變成「不篩」偷偷回全部）', async () => {
+    expect((await get('/?feeTemplateId=abc')).status).toBe(400);
+  });
+});
