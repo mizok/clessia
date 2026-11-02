@@ -160,11 +160,11 @@ export class ParentsPage implements OnInit {
     { label: PARENT_STATUS_LABELS.archived, value: 'archived' as ParentStatus },
   ];
 
-  /** 手機的「篩選：全部」面板開合與摘要（#1314 ③）：搜尋框之外只有狀態一項 */
+  /** 「篩選」面板開合與摘要（#1314 ③）：搜尋框之外只有狀態一項；沒條件時鈕只寫「篩選」（A6 #fmeta） */
   protected readonly filtersOpen = signal(false);
   protected readonly filterSummary = computed(() => {
     const status = this.selectedStatus();
-    return status === null ? '全部' : PARENT_STATUS_LABELS[status];
+    return status === null ? '' : PARENT_STATUS_LABELS[status];
   });
 
   protected readonly activeCount = computed(() => this.summary().activeCount);

@@ -451,19 +451,23 @@ describe('ParentsPage', () => {
       const el = load();
       const input = el.querySelector('input[aria-label="搜尋家長"]') as HTMLInputElement;
       expect(input.placeholder).toBe('找姓名、Email 或手機');
-      expect(
-        el.querySelector('button[aria-label="匯入家長"]')?.classList.contains('p-button-outlined'),
-      ).toBe(true);
+      // A6 `.btn only-d`：可及名稱就是「匯入」，手機不顯示
+      const imp = [...el.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === '匯入',
+      ) as HTMLButtonElement;
+      expect(imp.classList.contains('p-button-outlined')).toBe(true);
+      expect(imp.closest('p-button')?.classList.contains('max-wide:hidden')).toBe(true);
     });
 
     it('孩子名字連到學生檔案；列表沒帶 students 時退回純文字', () => {
       const el = load();
+      // A6 `.prow__kids a`：年級接在連結裡（王柏翰 · 小五）
       const links = [...el.querySelectorAll('a[href]')].map((a) => [
-        a.textContent?.trim(),
+        a.textContent?.replace(/\s+/g, ' ').trim(),
         a.getAttribute('href'),
       ]);
       expect(links).toEqual([
-        ['小明', '/admin/students/s1'],
+        ['小明 · 小五', '/admin/students/s1'],
         ['小華', '/admin/students/s2'],
       ]);
       expect(el.textContent).toContain('小美');
@@ -473,7 +477,7 @@ describe('ParentsPage', () => {
     it('孩子名旁顯示中文年級；沒有年級的只有名字', () => {
       const el = load();
       const li = el.querySelector('section[data-chapter] li') as HTMLElement;
-      // 年級是名字旁獨立的灰字（視覺上的空白由 gap 排，不靠文字空格）
+      // 年級是連結裡的灰字
       const grades = [...li.querySelectorAll('span.text-zinc-500')].map((e) =>
         e.textContent?.trim(),
       );
@@ -576,9 +580,9 @@ describe('ParentsPage', () => {
     // 面板是 Popover（A6 浮層）：沒打開時內容不在 DOM，打開後掛在 body 上
     const panel = () => document.body.querySelector('#parents-filters') as HTMLElement | null;
 
-    it('預設收合（面板不在 DOM）、鈕寫「篩選：全部」，點開後浮層出現', () => {
+    it('預設收合（面板不在 DOM）、鈕只寫「篩選」（A6 #fmeta），點開後浮層出現', () => {
       fixture.detectChanges();
-      expect(toggle().textContent).toContain('篩選：全部');
+      expect(toggle().textContent?.trim()).toBe('篩選');
       expect(panel()).toBeNull();
       expect(toggle().getAttribute('aria-controls')).toBe('parents-filters');
 

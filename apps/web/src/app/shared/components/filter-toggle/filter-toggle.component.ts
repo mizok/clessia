@@ -23,7 +23,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
   host: { '[class]': 'hostClass()' },
 })
 export class FilterToggleComponent {
-  /** 目前生效的條件摘要；沒有條件就是「全部」 */
+  /** 目前生效的條件摘要；沒有條件就是「全部」。給空字串＝鈕只寫「篩選」（A6 parents 的 #fmeta） */
   readonly summary = input('全部');
   /** 是否有條件生效（鈕上多一個點，收起時也看得出有東西在濾） */
   readonly active = input(false);

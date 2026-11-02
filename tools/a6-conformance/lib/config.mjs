@@ -945,6 +945,66 @@ export const PAGES = {
     a6Open: opensOf('parents', 'a6Open'),
     appOpen: opensOf('parents', 'appOpen'),
     deviations: [
+      // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 students／courses 那條
+      ...['尺寸', '樣式', '位置'].map((status) => ({
+        status,
+        a6: '^>control:searchbox\\[搜尋家長\\]$',
+        reason: '頁面搜尋框的框畫在 input 上（全站同款），稿畫在外層 label',
+        source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      {
+        status: '位置',
+        a6: '^>control:button\\[(篩選|匯入)\\]$',
+        reason: '連帶：頁面搜尋框全站同款，寬度不同，「篩選」「匯入」跟著位移',
+        source: '全站共用 .clessia-filter-search（p-iconfield）',
+      },
+      // 稿 98 位家長、13 位「還沒登入過」；seed 一頁 20 位，有人帶 3～4 個孩子、有人沒有孩子
+      {
+        status: '缺',
+        a6: '>list>row>control:button>text:span~2>text:span\\[還沒登入過\\]$',
+        reason: '資料：seed 這一頁沒有「啟用中但還沒登入過」的家長',
+        source: 'supabase/seed-demo.sql（家長帳號）',
+      },
+      {
+        status: '多',
+        app: '>list>row>(control:link~[34]|text:span)$',
+        reason: '資料：每位家長的孩子數（第 3、4 個孩子、沒有孩子）',
+        source: 'supabase/seed-demo.sql（家長與關聯學生）',
+      },
+      // 手機孩子連結、「顯示」撐 44（觸控下限），內距與 display 跟著不同
+      {
+        status: '樣式',
+        widths: [360],
+        a6: '>list>row>control:link(~2)?$',
+        detail: '^padding 0px → 12px 0px$',
+        reason: '手機可點元素撐到 44px',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      },
+      {
+        status: '樣式',
+        widths: [360],
+        a6: '>control:button\\[顯示\\]$',
+        detail: '^display inline-block → inline-flex$',
+        reason: '手機可點元素撐到 44px',
+        source: `${rule('R3')}；${hardRule('A27')}`,
+      },
+      {
+        // PrimeNG 純圖示鈕沒有 gap（只有一個圖示，畫面一樣）
+        status: '樣式',
+        a6: '>list>row>control:button~2$',
+        detail: '^rowGap 6px → 0px；columnGap 6px → 0px$',
+        reason: '工具限制：⋯ 只有一個圖示，gap 不影響畫面',
+        source: 'parents.html .prow__more 繼承 .btn 的 gap；app 是 p-button 純圖示',
+      },
+      {
+        // 稿 98 位家長、頁面很長，置中對話框量成「相對視窗底」差 2800px
+        status: '位置',
+        pop: 'new-parent',
+        widths: [1440],
+        a6: 'landmark:dialog\\[新增家長\\]$',
+        reason: '工具限制：兩邊清單長度不同，置中對話框的位置量法失真',
+        source: 'tools/a6-conformance/README.md（彈出物根：距頁頂與距視窗底取差小的）',
+      },
       // 新增家長：關聯學生是遠端搜尋的 autocomplete（學生數多，不一次載完整份選項），
       // 選了的學生是框裡的小標籤清單；稿是 a6.js 的下拉＋框下的小標籤
       ...[

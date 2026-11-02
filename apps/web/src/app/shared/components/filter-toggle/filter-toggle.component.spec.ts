@@ -15,6 +15,12 @@ describe('FilterToggleComponent', () => {
     host = fixture.nativeElement as HTMLElement;
   });
 
+  it('摘要給空字串時只寫「篩選」（A6 parents #fmeta）', () => {
+    fixture.componentRef.setInput('summary', '');
+    fixture.detectChanges();
+    expect(button().textContent?.trim()).toBe('篩選');
+  });
+
   it('預設寫「篩選：全部」，有條件時寫條件摘要', () => {
     expect(button().textContent).toContain('篩選：全部');
 
