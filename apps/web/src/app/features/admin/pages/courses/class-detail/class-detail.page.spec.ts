@@ -8,6 +8,8 @@ import { ClassDetailPage } from './class-detail.page';
 import { ClassesService } from '@core/classes.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { CoursesService } from '@core/courses.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 
 describe('ClassDetailPage', () => {
   let fixture: ComponentFixture<ClassDetailPage>;
@@ -47,6 +49,10 @@ describe('ClassDetailPage', () => {
     updateStatus: vi.fn(),
     delete: vi.fn(),
   };
+  const coursesServiceMock = {
+    get: vi.fn(() => of({ data: { id: seedCourseId, campusId: 'campus-1' } })),
+  };
+  const messageAdd = vi.fn();
 
   beforeEach(async () => {
     classesServiceMock.get.mockClear();
@@ -63,7 +69,17 @@ describe('ClassDetailPage', () => {
         provideRouter([]),
         { provide: ClassesService, useValue: classesServiceMock },
         { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
-        { provide: MessageService, useValue: { add: vi.fn() } },
+        { provide: MessageService, useValue: { add: messageAdd } },
+        { provide: CoursesService, useValue: coursesServiceMock },
+        {
+          provide: ReferenceDataService,
+          useValue: {
+            loadCampuses: vi.fn(),
+            loadTeachers: vi.fn(),
+            campuses: () => [],
+            teachers: () => [],
+          },
+        },
         { provide: DialogService, useValue: { open: vi.fn() } },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
         {
@@ -84,6 +100,36 @@ describe('ClassDetailPage', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
     await fixture.whenStable();
+  });
+
+  describe('工具列（A6 class.html .tbar__act）：產生課堂＋⋮', () => {
+    it('⋮ 有編輯班級、停用班級、課堂管理（同課程列表班級 ⋮ 的動作，換位置）', () => {
+      const items = (component as any).classMenuItems() as Array<{ label: string }>;
+      expect(items.map((i) => i.label)).toEqual(['編輯班級', '停用班級', '課堂管理']);
+    });
+
+    it('停用的班：產生課堂是 aria-disabled，按了說明要先恢復開班；⋮ 改成「恢復開班」', () => {
+      (component as any).cls.update((c: Record<string, unknown>) => ({ ...c, isActive: false }));
+      fixture.detectChanges();
+      const btn = fixture.nativeElement.querySelector(
+        '[data-testid="generate-sessions"]',
+      ) as HTMLButtonElement;
+      expect(btn.getAttribute('aria-disabled')).toBe('true');
+      messageAdd.mockClear();
+      btn.click();
+      expect(messageAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'warn', summary: '無法產生課堂' }),
+      );
+      const items = (component as any).classMenuItems() as Array<{ label: string }>;
+      expect(items[1].label).toBe('恢復開班');
+    });
+
+    it('編輯班級：點了才抓課程與班級清單（表單要課程、下一階班級）', () => {
+      (classesServiceMock as any).list = vi.fn(() => of({ data: [] }));
+      (component as any).openEditClass();
+      expect(coursesServiceMock.get).toHaveBeenCalledWith(seedCourseId);
+      expect((classesServiceMock as any).list).toHaveBeenCalledWith({ pageSize: 0 });
+    });
   });
 
   it('loads class and enrollments from route params even without component input binding', () => {
