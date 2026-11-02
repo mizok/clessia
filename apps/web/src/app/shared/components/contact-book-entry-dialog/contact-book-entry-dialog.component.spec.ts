@@ -19,6 +19,7 @@ describe('ContactBookEntryDialogComponent', () => {
     studentName: '王小明',
     entryDate: '2026-08-29',
     content: '今天有練到直式除法。',
+    teacherEditedAt: null,
     lastEditedByName: '陳老師',
     signedBy: 'user-1',
     signedByName: '林太太',
