@@ -337,6 +337,25 @@ describe('LeaveFormDialogComponent 嵌入（家長端）', () => {
     expect([c.endTime.getHours(), c.endTime.getMinutes()]).toEqual([21, 0]);
   });
 
+  it('日期、時間是原生 date／time 欄（A6 forms.leave）：顯示 yyyy-MM-dd／HH:mm，改了寫回表單', async () => {
+    const create = vi.fn(() => of({}));
+    const { f, c } = await setup(create);
+    const el = f.nativeElement as HTMLElement;
+    const start = el.querySelector('#leave-startTime') as HTMLInputElement;
+    expect(start.type).toBe('time');
+    expect(start.value).toBe('17:00');
+    const end = el.querySelector('#leave-endDate') as HTMLInputElement;
+    expect(end.type).toBe('date');
+    end.value = '2099-10-20';
+    end.dispatchEvent(new Event('input'));
+    start.value = '';
+    start.dispatchEvent(new Event('input'));
+    c.submit();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ endDate: '2099-10-20', startTime: null, endTime: '21:00' }),
+    );
+  });
+
   it('送出走給的 create（不走管理端 API），成功由 closed 帶回', async () => {
     const create = vi.fn(() => of({ data: { id: 'leave-9' } }));
     const { c, closed } = await setup(create);

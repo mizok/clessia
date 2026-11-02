@@ -1,7 +1,15 @@
-import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DatePickerModule } from 'primeng/datepicker';
-import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import type { Observable } from 'rxjs';
@@ -53,13 +61,7 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
 @Component({
   selector: 'app-leave-form-dialog',
   standalone: true,
-  imports: [
-    FormsModule,
-    DatePickerModule,
-    InputTextModule,
-    SelectModule,
-    StudentAutocompleteComponent,
-  ],
+  imports: [FormsModule, SelectModule, StudentAutocompleteComponent],
   template: `
     <div class="flex flex-col gap-5 py-2">
       <!-- 嵌入（家長端）時學生寫在外框的副標，這裡不出學生欄（A6 forms.leave） -->
@@ -118,38 +120,39 @@ export const LEAVE_DIALOG_CONTENT_STYLE: Record<string, string> = {
         (submit)="$event.preventDefault()"
       >
         @for (f of dateFields; track f.key) {
-          <div class="flex min-w-0 flex-col gap-1">
-            <label class="text-md font-semibold text-zinc-700" [attr.for]="'leave-' + f.key"
+          <!-- A6 .acset__f／.acset__l：標籤是 block＋下距 4，欄位是一般的 inline-block（不包 flex） -->
+          <div class="min-w-0">
+            <label
+              class="mb-1 block text-md font-semibold text-zinc-700"
+              [attr.for]="'leave-' + f.key"
               >{{ f.label }}
               @if (f.required) {
                 <span class="text-error-700" aria-hidden="true">*</span>
               }
             </label>
-            <p-datepicker
-              [inputId]="'leave-' + f.key"
-              [ngModel]="this[f.key]"
-              (ngModelChange)="this[f.key] = $event"
-              [placeholder]="f.label"
-              [timeOnly]="f.time"
-              [hourFormat]="'24'"
-              dateFormat="yy-mm-dd"
-              [minDate]="f.key === 'endDate' ? (startDate ?? undefined) : undefined"
-              styleClass="w-full"
-              [appendTo]="appendTo()"
+            <!-- A6 forms.leave：原生 date／time 欄（.acset__in），手機 44 高、字 16 -->
+            <input
+              [id]="'leave-' + f.key"
+              [type]="f.time ? 'time' : 'date'"
+              class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
+              [value]="toInput(this[f.key], f.time)"
+              [min]="f.key === 'endDate' ? toInput(startDate, false) : ''"
+              (input)="this[f.key] = fromInput($any($event.target).value, f.time)"
             />
           </div>
         }
-        <div class="flex min-w-0 flex-col gap-1 wide:col-span-2">
-          <label class="text-md font-semibold text-zinc-700" for="leave-reason">原因（選填）</label>
+        <div class="min-w-0 wide:col-span-2">
+          <label class="mb-1 block text-md font-semibold text-zinc-700" for="leave-reason"
+            >原因（選填）</label
+          >
           <!-- A6 是單行文字欄 -->
           <input
             id="leave-reason"
             type="text"
-            pInputText
             [(ngModel)]="reason"
             placeholder="請假原因"
             autocomplete="off"
-            class="w-full"
+            class="h-10 w-full min-w-0 rounded-md border border-solid border-zinc-300 bg-white px-3 text-base text-zinc-900 [font-family:inherit] hover:border-zinc-500 focus:border-zinc-900 focus:shadow-[0_0_0_3px_rgb(26_22_20/14%)] focus:outline-none max-wide:h-11 max-wide:text-lg"
           />
         </div>
       </form>
@@ -209,8 +212,6 @@ export class LeaveFormDialogComponent implements OnInit {
   readonly student = input<{ id: string; name: string } | null>(null);
   /** 嵌入用：送出走哪支 API（家長端是 `/api/me/leaves`）；沒給就是管理端的 `LeaveService.create` */
   readonly create = input<((body: CreateLeaveInput) => Observable<unknown>) | null>(null);
-  /** 嵌入在原生 `<dialog>`（top layer）裡時，日期面板要掛在 dialog 上，掛到 body 會被蓋住 */
-  readonly appendTo = input<HTMLElement | 'body'>('body');
   /** 嵌入用：送出成功帶回建立的假、取消帶 null（DialogService 開的走 `dialogRef.close`） */
   readonly closed = output<unknown>();
 
@@ -256,6 +257,16 @@ export class LeaveFormDialogComponent implements OnInit {
     ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
   ];
 
+  constructor() {
+    // 嵌入（家長端）時桌機聚焦第一欄、手機不聚焦（不要一開就彈鍵盤）—— A6 form()（a6.js:383）。
+    // 不用 [autofocus]：家長頁的 showModal 比表單先跑，那時還沒有欄位。管理端的 DynamicDialog 不走這條
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    afterNextRender(() => {
+      if (this.student() && globalThis.matchMedia?.('(min-width: 861px)').matches)
+        host.querySelector<HTMLInputElement>('#leave-startDate')?.focus();
+    });
+  }
+
   ngOnInit(): void {
     const leave = this.editing;
     if (leave) {
@@ -273,6 +284,16 @@ export class LeaveFormDialogComponent implements OnInit {
     }
     if (this.presetStudent()) return;
     this.refData.loadCampuses();
+  }
+
+  /** 原生 date／time 欄的字串（`yyyy-MM-dd`／`HH:mm`）↔ 表單裡的 Date */
+  protected toInput(value: Date | null, time: boolean): string {
+    return value ? format(value, time ? 'HH:mm' : 'yyyy-MM-dd') : '';
+  }
+
+  protected fromInput(value: string, time: boolean): Date | null {
+    if (!value) return null;
+    return time ? toTimeDate(value) : parseISO(value);
   }
 
   protected onFilterChange(): void {

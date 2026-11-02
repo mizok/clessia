@@ -1524,6 +1524,45 @@ export const PAGES = {
     prep: PARENT_PREP,
     a6Open: { leave: { click: '#leave', root: 'dialog.fdlg' } },
     appOpen: { leave: { click: 'button:has-text("幫孩子請假")', root: 'dialog[open]' } },
+    deviations: [
+      {
+        // 代表列取最常見的變體：稿的示範期間多是「今日無課」的日子（padding 12、日期 14/600 zinc-700、手機 flex）、
+        // 堂多是請假／還沒上（600 zinc-600）；seed 多是有課的日子（16、16/700）、「到了」（700 zinc-900）。
+        // 兩種變體 app 都照稿（attendance.page.html 的 day--empty 與 rec 狀態色）
+        status: '樣式',
+        a6: '>landmark:main\\[\\]>row(>text:span|>control:button~2>text:span)?$',
+        reason:
+          '資料：代表列取到的變體不同（稿多是沒課的日子與請假的堂，seed 多是有課、到了），兩種變體都照稿',
+        source: 'tools/a6-conformance/README.md:96（列內 part 取最常見的那種當代表）',
+      },
+      {
+        // 一天有 ≥3 堂時，同形的堂被認成一組列（稿的示範一天最多 2 堂）
+        status: '多',
+        app: '>landmark:main\\[\\]>row>row(>.*)?$',
+        reason: '資料：一天 ≥3 堂時工具把堂認成列，稿一天最多 2 堂',
+        source: 'tools/a6-conformance/README.md:86（同層同簽名 ≥3 個合成列）',
+      },
+      // 請假表單是共用元件（管理端在 p-dialog-content 裡）：左右與上方的留白在家長頁 <dialog> 的捲動容器上，
+      // form 本身不帶 padding；dialog 是 flex 直排（標題列＋捲動區，送出列黏在捲動區底）
+      {
+        status: '樣式',
+        pop: 'leave',
+        a6: '>landmark:dialog\\[登記請假\\](>landmark:form\\[\\])?$',
+        detail: '^(padding [\\d.]+px [\\d.]+px [\\d.]+px → 0px|display block → flex)$',
+        reason: '共用請假表單：留白在外框的捲動容器、dialog 是標題列＋捲動區的 flex 直排',
+        source:
+          'apps/web/src/app/shared/components/leave-form-dialog/leave-form-dialog.component.ts:42（LEAVE_DIALOG_CONTENT_STYLE）；#1695',
+      },
+      {
+        status: '位置',
+        pop: 'leave',
+        a6: '>landmark:form\\[\\]>(text:label|control:textbox)\\[[^\\]]*\\]$',
+        detail: '^相對「form」 Δx -(1[5-7]|2[3-5])、Δy -[6-9]（',
+        reason: '連帶：共用請假表單的留白在外框，不在 form 上',
+        source:
+          'apps/web/src/app/shared/components/leave-form-dialog/leave-form-dialog.component.ts:42（LEAVE_DIALOG_CONTENT_STYLE）；#1695',
+      },
+    ],
   },
   // 系統設定「一般」分頁（殼照 A6，#1755 計畫席另開）：稿預設落在一般，app /admin/settings 也是
   settings: {
