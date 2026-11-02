@@ -13,6 +13,7 @@ import { ParentsService, type ParentListResponse } from '@core/parents.service';
 import { signal } from '@angular/core';
 import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { ParentsPage } from './parents.page';
 
 /** 頂欄分校（K4）：分校定下來才載、換分校重載 */
@@ -585,16 +586,22 @@ describe('ParentsPage', () => {
 
     it('超過一頁才出現頁尾分頁器；翻頁會帶新的 page 重新取數', () => {
       let el = load(resp(5));
-      expect(el.querySelector('p-paginator')).toBeNull();
+      expect(el.querySelector('app-pager nav')).toBeNull();
 
       component['loadParents']();
       pending.at(-1)!.subject.next(resp(45));
       fixture.detectChanges();
       el = fixture.nativeElement as HTMLElement;
-      expect(el.querySelector('p-paginator')).not.toBeNull();
+      // #1314 Z 批：A6 精簡版分頁器，不再是 PrimeNG 的 p-paginator
+      expect(el.querySelector('p-paginator')).toBeNull();
+      expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+        `第 1／${Math.ceil(45 / LIST_PAGE_SIZE)} 頁 · 每頁 ${LIST_PAGE_SIZE} 位`,
+      );
 
       const before = parentsServiceMock.list.mock.calls.length;
-      (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 1 });
+      Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+        .find((b) => b.textContent?.includes('下一頁'))!
+        .click();
       expect(parentsServiceMock.list.mock.calls.length).toBe(before + 1);
       expect(parentsServiceMock.list.mock.calls.at(-1)?.[0]).toMatchObject({ page: 2 });
     });

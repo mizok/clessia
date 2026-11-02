@@ -38,7 +38,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 
 // Responsive Table
 
@@ -82,7 +82,7 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     PopoverModule,
     FitPopoverDirective,
     ChapterHeadComponent,
-    PaginatorModule,
+    PagerComponent,
     FilterToggleComponent,
     PageActionsComponent,
     PageOpenComponent,
@@ -253,11 +253,6 @@ export class ParentsPage implements OnInit {
     this.actionMenu().toggle(event);
   }
 
-  /** 頁尾分頁器的起點（`p-paginator` 用「第幾筆」不是「第幾頁」） */
-  protected readonly pageFirst = computed(() =>
-    Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-  );
-
   ngOnInit(): void {
     this.setupLoadPipeline();
 
@@ -341,8 +336,9 @@ export class ParentsPage implements OnInit {
     this.loadParents();
   }
 
-  protected onPage(event: PaginatorState): void {
-    this.currentPage.set((event.page ?? 0) + 1);
+  /** 頁碼從 1 起算（app-pager） */
+  protected onPage(page: number): void {
+    this.currentPage.set(page);
     this.loadParents();
   }
 
