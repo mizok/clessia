@@ -715,7 +715,7 @@ export const PAGES = {
         a6: '>landmark:region\\[逾期\\]>text:p\\[#張\\]>text:span\\[·待收\\]$',
         detail: '^相對「#張」 Δx \\+(1[0-9]|2[0-4])、Δy 0',
         reason: '資料：逾期張數位數不同（稿 9、seed 兩位數），「· 待收」跟著右移',
-        source: 'tools/a6-conformance/README.md（數字隨資料）',
+        source: 'tools/a6-conformance/README.md:83（文案模板：數字 → #；位數不同造成的位移，工具不扣）',
       },
       // 頁面搜尋框：框畫在 input 上（共用 p-iconfield），稿畫在外層 label.tsearch —— 同 staff、courses
       ...['尺寸', '樣式', '位置'].map((status) => ({
@@ -757,7 +757,7 @@ export const PAGES = {
         ...d,
         widths: [360],
         reason: '「全部提醒」要 LINE 推播（不接 LINE Messaging API），托盤只剩開立帳單、當主要動作',
-        source: '使用者決定：不接 LINE Messaging API（太燒錢）',
+        source: 'kb/wiki/architecture/a6-adoption-rules.md:108（R5 2026-10-14：不接 LINE Messaging API）',
       })),
       // 稿列的第二格下面有一行「還沒提醒／M/D 提醒過」（row__sub），要上次提醒日；app 沒有這份資料，
       // 工具把稿的 row__sub 配到 app 的金額格
