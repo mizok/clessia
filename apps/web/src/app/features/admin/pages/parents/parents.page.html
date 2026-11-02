@@ -194,17 +194,15 @@
                     @if (parent.studentCount > 0) {
                       @if (parent.students; as kids) {
                         @for (kid of kids; track kid.id) {
-                          <!-- A6 `.prow__kids a`：年級接在連結裡（· 國二），深色字＋淡底線 -->
+                          <!-- A6 `.prow__kids a`：年級接在連結裡（· 國二），深色字＋淡底線；手機 inline-block 撐 44（inline-flex 會吃掉名字後的空格） -->
                           <a
                             [routerLink]="['/admin/students', kid.id]"
-                            class="inline-flex min-h-11 items-center text-md text-zinc-900 underline decoration-zinc-300 underline-offset-[3px] hover:decoration-zinc-900 focus-visible:outline-2 focus-visible:outline-accent-500 wide:inline wide:min-h-0"
-                            ><span
-                              >{{ kid.name }}
-                              @if (gradeLabel(kid.grade); as grade) {
-                                <span class="text-zinc-500">&#32;· {{ grade }}</span>
-                              }
-                            </span></a
-                          >
+                            class="inline-block min-h-11 py-3 text-md leading-5 text-zinc-900 underline decoration-zinc-300 underline-offset-[3px] hover:decoration-zinc-900 focus-visible:outline-2 focus-visible:outline-accent-500 wide:inline wide:min-h-0 wide:py-0 wide:leading-normal"
+                            >{{ kid.name }}
+                            @if (gradeLabel(kid.grade); as grade) {
+                              <span class="text-zinc-500">&#32;· {{ grade }}</span>
+                            }
+                          </a>
                         }
                       } @else {
                         @for (name of parent.studentNames; track name) {
