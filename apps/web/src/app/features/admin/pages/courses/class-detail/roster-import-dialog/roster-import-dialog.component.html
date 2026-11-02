@@ -9,7 +9,7 @@
         </p>
 
         <a
-          class="inline-flex items-center gap-2 self-start text-sm text-accent-600 no-underline hover:underline"
+          class="inline-flex min-h-11 items-center gap-2 self-start text-sm text-accent-600 no-underline hover:underline"
           href="/assets/templates/roster-import-template.xlsx"
           download
         >
@@ -27,9 +27,9 @@
           (dragleave)="onDragLeave($event)"
           (drop)="onDrop($event)"
         >
-          <i class="pi pi-file-excel text-2xl text-zinc-400"></i>
+          <i class="pi pi-file-excel text-2xl text-zinc-500"></i>
           <span class="text-sm font-semibold text-zinc-700">把檔案拖進來，或點擊選擇</span>
-          <span class="text-xs text-zinc-500">支援 .xlsx 與 .csv</span>
+          <span class="text-xs text-zinc-600">支援 .xlsx 與 .csv</span>
           <input type="file" accept=".xlsx,.xls,.csv" hidden (change)="onFileChange($event)" />
         </label>
 

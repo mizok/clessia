@@ -53,13 +53,13 @@
       <p class="mt-5 mb-0 rounded-md bg-zinc-100 px-4 py-3 text-base text-zinc-800">
         @if (kind() === 'trial') {
           已經想好要上哪一班？可以直接<a
-            class="font-semibold text-zinc-900 underline-offset-[3px]"
+            class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline-offset-[3px] wide:inline wide:min-h-0"
             [routerLink]="enrollmentPath"
             >填報名表</a
           >。
         } @else {
           若想先試聽再決定，請填寫<a
-            class="font-semibold text-zinc-900 underline-offset-[3px]"
+            class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline-offset-[3px] wide:inline wide:min-h-0"
             [routerLink]="trialPath"
             >試聽申請表單</a
           >。
@@ -484,7 +484,7 @@
             <span
               >我同意補習班依<button
                 type="button"
-                class="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[length:inherit] leading-[inherit] text-zinc-900 underline underline-offset-[3px]"
+                class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-[inherit] text-[length:inherit] leading-[inherit] text-zinc-900 underline underline-offset-[3px] wide:inline-block wide:min-h-0"
                 (click)="$event.preventDefault(); openPrivacy()"
               >
                 個資使用聲明</button
@@ -635,7 +635,7 @@
               <li>試聽當天直接到 {{ campusText(d.campuses) }} 找櫃台。</li>
               <li>
                 試聽後想報名，可以<a
-                  class="font-semibold text-zinc-900 underline-offset-[3px]"
+                  class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline-offset-[3px] wide:inline wide:min-h-0"
                   [routerLink]="enrollmentPath"
                   >填報名表</a
                 >，或請櫃台幫你登記。
@@ -695,7 +695,7 @@
         </div>
         <p class="mt-6 mb-0 text-md text-zinc-600">
           已經是我們的家長？<a
-            class="font-semibold text-zinc-900 underline-offset-[3px]"
+            class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline-offset-[3px] wide:inline wide:min-h-0"
             [routerLink]="loginPath"
             >用 LINE 登入</a
           >，{{ kind() === 'trial' ? '在家長端申請比較快' : '在家長端報名可以看審核進度' }}。
