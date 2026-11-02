@@ -26,6 +26,7 @@ import { preflightVerdict } from './lib/preflight-verdict.mjs';
 import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
+import { adminMounts, unscopedStudentRoutes } from './lib/student-campus-scope.mjs';
 import { rootVariables, themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { uncoveredTemplateDirs } from './lib/tailwind-source-coverage.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
@@ -2394,5 +2395,60 @@ test('A29 紅：新增一個沒被 @source 涵蓋的元件目錄', () => {
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── A7c（續）：經由學生才連到分校的 ADMIN 路由（#2139）──────────────────────────────────
+// #2138（餐費）、#2147（堂數帳）都是「碰學生、ADMIN 掛載、全檔沒有分校範圍」，原本那條只看字面 campus_id 的
+// A7c 看不到。這裡守的是觸發條件本身：條件寫壞（角色認錯、識別字改名）的話症狀是靜默放行。
+test('A7c 續：碰 student_id、ADMIN 掛載、沒有 getCampusScope 的路由要紅；接了範圍、非 admin 掛載的不紅', () => {
+  const index = [
+    "import mealsRoute from './routes/meals';",
+    "import packsRoute from './routes/packs';",
+    "import scopedRoute from './routes/scoped';",
+    "import teacherRoute from './routes/teacher-only';",
+    "import { dirRoute } from './routes/dir';",
+    "import anyRoute from './routes/any';",
+    'const ANY_ROLE = [];',
+    "mount('/api/meals', mealsRoute, ADMIN_ONLY, { all: 'manage_finance' });",
+    "mount('/api/packs', packsRoute, ['admin', 'teacher']);",
+    "mount('/api/scoped', scopedRoute, ADMIN_ONLY);",
+    "mount('/api/teacher-only', teacherRoute, ['teacher']);",
+    "mount('/api/dir', dirRoute, ADMIN_ONLY);",
+    "mount('/api/any', anyRoute, ANY_ROLE);",
+  ].join('\n');
+  const sources = {
+    './routes/meals': "supabase.from('meal_records').eq('student_id', id)",
+    './routes/packs': "supabase.from('students').select('id')",
+    './routes/scoped': "const scope = getCampusScope(c); q.eq('student_id', id)",
+    './routes/teacher-only': "q.eq('student_id', id)",
+    './routes/dir': "q.eq('student_id', id)", // 目錄型：sourceOf 串起來的整個目錄
+    './routes/any': "childDb.from('enrollments', 'student_id')",
+  };
+  const mounts = adminMounts(index);
+  assert.deepEqual(
+    mounts.map((m) => m.path),
+    ['/api/meals', '/api/packs', '/api/scoped', '/api/dir', '/api/any'],
+    '角色含 admin 的掛載（ADMIN_ONLY、ANY_ROLE、陣列字面）都要認得；純老師的不算',
+  );
+  const flagged = unscopedStudentRoutes(mounts, (spec) => sources[spec] ?? null).map((r) => r.path);
+  assert.deepEqual(flagged, ['/api/meals', '/api/packs', '/api/dir', '/api/any']);
+  // 找不到原始碼（import 了不存在的檔）就跳過，不當成沒接範圍
+  assert.deepEqual(
+    unscopedStudentRoutes([{ path: '/api/x', spec: './routes/x' }], () => null),
+    [],
+  );
+});
+
+test('A7c 續：例外帳本每條都有理由、出處、裁定，而且還在觸發（只降不升）', () => {
+  const ledger = JSON.parse(
+    readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), 'student-campus-scope-exceptions.json'),
+      'utf8',
+    ),
+  );
+  for (const e of ledger) {
+    assert.ok(e.route && e.reason && e.evidence && e.ruling, JSON.stringify(e));
+    assert.match(e.evidence, /^apps\/api\/src\/routes\/.+\.ts:\d+(-\d+)?$/);
   }
 });

@@ -1,0 +1,14 @@
+[
+  {
+    "route": "/api/schools",
+    "reason": "只在刪除學校前數還有沒有學生（存在檢查、不回資料）；學校整個補習班共用，數全機構才對 —— 只數自己分校會把別分校還在用的學校刪掉",
+    "evidence": "apps/api/src/routes/schools.ts:308-311",
+    "ruling": "計畫席 11-02（#2139）"
+  },
+  {
+    "route": "/api/notifications",
+    "reason": "碰 student_id 的是家長分支：childDb 依 studentScope（自己的孩子）撈；管理員的收件匣是寄給我的，不分校",
+    "evidence": "apps/api/src/routes/notifications.ts:291-297",
+    "ruling": "計畫席 11-02（#2139）"
+  }
+]
