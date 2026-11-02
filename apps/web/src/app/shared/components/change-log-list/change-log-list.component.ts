@@ -27,11 +27,12 @@ const WIDE = {
   dayMeta: 'wide:mt-0.5',
   count: 'wide:mt-3 wide:text-xl',
   // 時間｜班名＋標籤｜說明｜原因與操作者｜看這堂（批次列最後一格是「看是哪 N 堂」）
-  row: 'wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
+  // 手機（changes.html）：時間一欄 48px，其餘疊在第二欄
+  row: 'max-wide:grid-cols-[48px_minmax(0,1fr)] max-wide:gap-x-3 max-wide:gap-y-0.5 max-wide:[&>:nth-child(n+3)]:col-start-2 wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
   summary:
-    'wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
+    'max-wide:grid-cols-[48px_minmax(0,1fr)] max-wide:gap-x-3 max-wide:gap-y-0.5 max-wide:[&>:nth-child(n+3)]:col-start-2 wide:grid-cols-[3rem_minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline',
   // 該堂沒有開始時間時占住時間欄，讓同章其他列對得齊
-  timeGap: 'hidden wide:block',
+  timeGap: 'block',
 } as const;
 const NARROW = {
   chapter: '',

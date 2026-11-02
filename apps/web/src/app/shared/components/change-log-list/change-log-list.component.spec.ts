@@ -83,7 +83,7 @@ describe('ChangeLogListComponent', () => {
         entry({ id: 'c' }),
       ]);
       expect(timeOf(el)).toEqual(['09:05']);
-      expect(el.querySelectorAll('span[aria-hidden="true"].wide\\:block').length).toBe(2);
+      expect(el.querySelectorAll('span[aria-hidden="true"].block').length).toBe(2);
     });
 
     it('批次列的時間用該批第一筆', () => {
@@ -122,6 +122,8 @@ describe('ChangeLogListComponent', () => {
     it('寬版格位有時間欄；窄容器不套 wide 版面、占位也不會在桌機長出來', () => {
       const wide = render([entry({ sessionStartTime: '17:00' })]);
       expect(wide.innerHTML).toContain('wide:grid-cols-[3rem_');
+      // 手機（A6 changes.html `.ch`）：時間 48px 一欄，其餘疊第二欄
+      expect(wide.innerHTML).toContain('max-wide:grid-cols-[48px_');
       const narrow = render([entry()], true);
       expect(narrow.innerHTML).not.toContain('wide:grid-cols-[3rem_');
       expect(narrow.querySelector('span[aria-hidden="true"]')?.className).toBe('hidden');
