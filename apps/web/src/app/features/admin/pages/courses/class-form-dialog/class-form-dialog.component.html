@@ -53,26 +53,56 @@
       />
     </div>
 
-    <!-- A6 `.grades`：適用年級勾選框包成框（#2089）；沒勾＝沿用課程的年級 -->
+    <!--
+      A6 `.grades`：適用年級勾選框包成框（#2089）。班級沒自己存＝沿用課程：只寫「沿用課程：…」，
+      按「自訂」才展開勾選（不然編輯一次就把沿用的班存成副本）
+    -->
     <div class="col-span-full min-w-0">
       <p id="class-grades-label" class="mt-0 mb-1 block text-md font-semibold text-zinc-700">
         適用年級
       </p>
-      <div class="flex flex-wrap gap-2" role="group" aria-labelledby="class-grades-label">
-        @for (g of gradeOptions; track g.value) {
-          <label
-            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:shadow-[inset_0_0_0_1px_var(--zinc-900)] wide:h-9"
+      @if (!customGrades()) {
+        <p
+          class="m-0 flex flex-wrap items-center gap-x-3 text-md text-zinc-700"
+          data-testid="grades-inherit"
+        >
+          沿用課程：{{ courseGradesText() }}
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px] wide:min-h-9"
+            data-testid="grades-custom"
+            [disabled]="loading()"
+            (click)="startCustomGrades()"
           >
-            <input
-              type="checkbox"
-              class="m-0 accent-zinc-900"
-              [checked]="gradeLevels().includes(g.value)"
-              (change)="toggleGrade(g.value, $any($event.target).checked)"
-              [disabled]="loading()"
-            />{{ g.label }}
-          </label>
-        }
-      </div>
+            自訂
+          </button>
+        </p>
+      } @else {
+        <div class="flex flex-wrap gap-2" role="group" aria-labelledby="class-grades-label">
+          @for (g of gradeOptions; track g.value) {
+            <label
+              class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:shadow-[inset_0_0_0_1px_var(--zinc-900)] wide:h-9"
+            >
+              <input
+                type="checkbox"
+                class="m-0 accent-zinc-900"
+                [checked]="gradeLevels().includes(g.value)"
+                (change)="toggleGrade(g.value, $any($event.target).checked)"
+                [disabled]="loading()"
+              />{{ g.label }}
+            </label>
+          }
+        </div>
+        <button
+          type="button"
+          class="mt-1 inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px] wide:min-h-9"
+          data-testid="grades-inherit-reset"
+          [disabled]="loading()"
+          (click)="useCourseGrades()"
+        >
+          改回沿用課程（{{ courseGradesText() }}）
+        </button>
+      }
     </div>
 
     <!-- A6「下一階班級」：升班路徑（API 收 nextClassId） -->

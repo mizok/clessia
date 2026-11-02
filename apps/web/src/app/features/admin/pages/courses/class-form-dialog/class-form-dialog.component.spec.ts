@@ -542,7 +542,9 @@ describe('ClassFormDialogComponent', () => {
 
   // #1100 #22：同一個時段可以前後接續（舊段止於 X−1、新段起於 X）
   // #2089 適用年級：A6 `.grades` 12 個勾選框；送出照年級順序
-  it('適用年級：勾國二再勾國一，送出 gradeLevels 照年級順序', () => {
+  it('適用年級：按「自訂」後勾國二再勾國一，送出 gradeLevels 照年級順序', () => {
+    fixture.nativeElement.querySelector('[data-testid="grades-custom"]').click();
+    fixture.detectChanges();
     const boxes = [
       ...fixture.nativeElement.querySelectorAll('[aria-labelledby="class-grades-label"] input'),
     ] as HTMLInputElement[];
@@ -559,6 +561,59 @@ describe('ClassFormDialogComponent', () => {
     });
     (component as any).save();
     expect((classesServiceMock.create as any).mock.calls[0][0].gradeLevels).toEqual(['J1', 'J2']);
+  });
+
+  // #2122 之後：班級自己沒存年級＝沿用課程。表單不能拿合併值當初值，否則編輯一次就把沿用的班存成副本
+  describe('適用年級沿用課程', () => {
+    const editing = (own: string[]) => {
+      const data = TestBed.inject(DynamicDialogConfig).data;
+      data.course = { ...data.course, gradeLevels: ['J1', 'J2'] };
+      data.cls = {
+        id: 'class-1',
+        name: '國一數學 A',
+        maxStudents: 20,
+        nextClassId: null,
+        isActive: true,
+        startDate: null,
+        endDate: null,
+        gradeLevels: own.length ? own : ['J1', 'J2'],
+        ownGradeLevels: own,
+        schedules: [],
+      };
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    };
+    const el = () => fixture.nativeElement as HTMLElement;
+    const sent = () => (classesServiceMock.update as any).mock.calls[0][1].gradeLevels;
+
+    it('沿用中的班：只寫「沿用課程：國一、國二」不畫勾選框；不碰年級就存檔，送出 []', () => {
+      editing([]);
+      expect(el().querySelector('[data-testid="grades-inherit"]')?.textContent).toContain(
+        '沿用課程：國一、國二',
+      );
+      expect(el().querySelectorAll('[aria-labelledby="class-grades-label"] input')).toHaveLength(0);
+      (component as any).save();
+      expect(sent()).toEqual([]);
+    });
+
+    it('自己存了跟課程一樣的年級：照樣是自己那份，存檔後不變成沿用', () => {
+      editing(['J1', 'J2']);
+      expect(el().querySelector('[data-testid="grades-inherit"]')).toBeNull();
+      (component as any).save();
+      expect(sent()).toEqual(['J1', 'J2']);
+    });
+
+    it('按「自訂」從課程的年級開始勾；按「改回沿用課程」又送 []', () => {
+      editing([]);
+      (el().querySelector('[data-testid="grades-custom"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect((component as any).gradeLevels()).toEqual(['J1', 'J2']);
+      (el().querySelector('[data-testid="grades-inherit-reset"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      (component as any).save();
+      expect(sent()).toEqual([]);
+    });
   });
 
   // #2110／#2115 二讀：日期下限原本只有 [min] 提示
