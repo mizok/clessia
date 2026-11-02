@@ -65,7 +65,14 @@ export interface ContactBookListResponse {
 export interface MissingContactBookStudent {
   studentId: string;
   studentName: string;
-  classes: Array<{ classId: string; className: string }>;
+  classes: Array<{
+    classId: string;
+    className: string;
+    /** 那天這班的上課老師（#2080-2，`sessions.teacher_id`；沒有班級層級的帶班老師）。還沒排是空陣列 */
+    teacherNames: string[];
+    /** 這天這班該寫的人數（A6「還差 N 則／M」的 M） */
+    studentCount: number;
+  }>;
 }
 
 export interface UpsertContactBookEntryInput {

@@ -99,10 +99,14 @@
                 <h3 class="m-0 text-xl font-bold tracking-[-0.01em] text-zinc-900">
                   {{ group.className }}
                 </h3>
-                <p class="m-0 mt-0.5 text-md text-zinc-600 tabular-nums">
+                <!-- A6 .gap__meta「X 老師 · 還差 N 則／M」：寫「上課老師」（當天那堂課的老師，#2080-2，R5） -->
+                <p class="m-0 mt-0.5 text-md text-zinc-600 tabular-nums" data-testid="missing-meta">
+                  @if (group.teacherNames.length) {
+                    上課老師 {{ group.teacherNames.join('、') }} ·
+                  }
                   <span class="font-semibold text-error-700" data-testid="missing-left"
                     >還差 {{ group.students.length }} 則</span
-                  >
+                  >／{{ group.studentCount }}
                 </p>
               </div>
               <div class="flex flex-wrap gap-2" aria-label="還沒寫的學生（按名字補寫）">

@@ -66,7 +66,7 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
     (await pool!.query(text, values)).rows as T[];
   const WRITTEN = '2026-09-01';
   const MISSING = '2026-09-02';
-  const fx = { c1: '', c2: '', a: '', b: '', ab: '' };
+  const fx = { c1: '', c2: '', a: '', b: '', ab: '', c1Class: '', c2Class: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -128,9 +128,21 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
       );
       return s!.id;
     };
+    fx.c1Class = klass['c1']!;
+    fx.c2Class = klass['c2']!;
     fx.a = await student('只在一校', [klass['c1']!]);
     fx.b = await student('只在二校', [klass['c2']!]);
     fx.ab = await student('兩校都有', [klass['c1']!, klass['c2']!]);
+    // #2080-2：c1 那天的課排給一位上課老師（c2 那堂沒排）
+    const [teacher] = await q<{ id: string }>(
+      "insert into staff (org_id, user_id, display_name) values ($1, $2, '游佩珊') returning id",
+      [ctx.orgId, ctx.userId],
+    );
+    await q(
+      `update sessions set teacher_id = $1, assignment_status = 'assigned'
+       where org_id = $2 and class_id = $3 and session_date = $4`,
+      [teacher!.id, ctx.orgId, klass['c1'], MISSING],
+    );
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -139,6 +151,7 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
     for (const sql of [
       'delete from contact_book_entries where org_id = $1',
       'delete from sessions where org_id = $1',
+      'delete from staff where org_id = $1',
       'delete from enrollments where org_id = $1',
       'delete from students where org_id = $1',
       'delete from classes where org_id = $1',
@@ -163,7 +176,13 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
     }
   };
   type List = { data: Array<{ studentId: string; content: string }>; meta: { total: number } };
-  type Missing = { data: Array<{ studentId: string }>; meta: { total: number } };
+  type Missing = {
+    data: Array<{
+      studentId: string;
+      classes: Array<{ classId: string; teacherNames: string[]; studentCount: number }>;
+    }>;
+    meta: { total: number };
+  };
   type Summary = { data: Array<{ date: string; missingCount: number }> };
 
   it('列表：受限 C1 只看得到 C1 學生（含跨校的）的聯絡簿，別校的內容不出現', async () => {
@@ -192,6 +211,18 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
     expect(ids.has(fx.ab)).toBe(true);
 
     expect((await get<Missing>(path, 'none')).data).toEqual([]);
+  });
+
+  // #2080-2：每班的上課老師（sessions.teacher_id → 本 org 的 staff）與該寫人數（範圍內的候選）
+  it('缺漏名單每班帶上課老師與人數：c1 有排老師、c2 沒排；人數是範圍內在這班的人', async () => {
+    const all = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'all');
+    const byClass = new Map(all.data.flatMap((r) => r.classes).map((k) => [k.classId, k]));
+    expect(byClass.get(fx.c1Class)).toMatchObject({ teacherNames: ['游佩珊'], studentCount: 2 });
+    expect(byClass.get(fx.c2Class)).toMatchObject({ teacherNames: [], studentCount: 2 });
+
+    const c1 = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'c1');
+    const c1Classes = c1.data.flatMap((r) => r.classes);
+    expect(c1Classes.find((k) => k.classId === fx.c1Class)).toMatchObject({ studentCount: 2 });
   });
 
   it('缺漏統計：受限 C1 的數字等於它自己的缺漏名單，不含只在 C2 的學生', async () => {

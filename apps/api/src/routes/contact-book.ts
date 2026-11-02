@@ -14,6 +14,7 @@ import {
   datesInRange,
   missingContactBookByDate,
   missingContactBookStudents,
+  withClassDetails,
   type ContactBookCandidate,
   type SessionOnDate,
 } from '../lib/contact-book-missing';
@@ -326,7 +327,19 @@ const MissingResponseSchema = z
         studentId: DbUuidSchema,
         studentName: z.string(),
         /** 脈絡：這個學生在哪些開了聯絡簿的班。要寫的仍然只有一則 */
-        classes: z.array(z.object({ classId: DbUuidSchema, className: z.string() })),
+        classes: z.array(
+          z.object({
+            classId: DbUuidSchema,
+            className: z.string(),
+            /**
+             * 那天這班的上課老師（#2080-2）：沒停課那幾堂的 `sessions.teacher_id`（代課就是代課老師，同 `/remind`）。
+             * 系統沒有班級層級的帶班老師，畫面寫「上課老師」。還沒排老師是空陣列
+             */
+            teacherNames: z.array(z.string()),
+            /** 這天這班該寫的人數（範圍內在籍的候選，已寫的也算；A6「還差 N 則／M」的 M） */
+            studentCount: z.number().int().nonnegative(),
+          }),
+        ),
       }),
     ),
     meta: z.object({ total: z.number() }),
@@ -411,7 +424,7 @@ app.openapi(
       // 「今天該寫」綁的是「這個班今天有課」—— 停課與非上課日不列入
       supabase
         .from('sessions')
-        .select('class_id, status')
+        .select('class_id, status, teacher_id')
         .eq('org_id', orgId)
         .eq('session_date', date),
     ]);
@@ -436,12 +449,43 @@ app.openapi(
     );
 
     const sessionsOnDate = ((sessionRows ?? []) as unknown as Record<string, unknown>[]).map(
-      (row) => ({ classId: row['class_id'] as string, status: row['status'] as string }),
+      (row) => ({
+        classId: row['class_id'] as string,
+        status: row['status'] as string,
+        teacherId: (row['teacher_id'] as string | null) ?? null,
+      }),
     );
 
     const missing = missingContactBookStudents(candidates, written, sessionsOnDate);
 
-    return c.json({ data: missing, meta: { total: missing.length } }, 200);
+    // 上課老師的姓名（#2080-2）：只查缺漏名單上那幾班、沒停課那幾堂的老師；staff 帶 org 條件（c1）
+    const missingClassIds = new Set(missing.flatMap((m) => m.classes.map((cls) => cls.classId)));
+    const teacherIds = [
+      ...new Set(
+        sessionsOnDate
+          .filter((s) => missingClassIds.has(s.classId) && s.status !== 'cancelled' && s.teacherId)
+          .map((s) => s.teacherId as string),
+      ),
+    ];
+    const { data: staffRows, error: staffError } = teacherIds.length
+      ? await supabase
+          .from('staff')
+          .select('id, display_name')
+          .eq('org_id', orgId)
+          .in('id', teacherIds)
+      : { data: [], error: null };
+    if (staffError) {
+      return c.json({ error: '讀取聯絡簿缺漏名單失敗', code: 'DB_ERROR' }, 500);
+    }
+    const staffNameById = new Map(
+      ((staffRows ?? []) as Array<{ id: string; display_name: string }>).map((s) => [
+        s.id,
+        s.display_name,
+      ]),
+    );
+    const data = withClassDetails(missing, candidates, sessionsOnDate, staffNameById);
+
+    return c.json({ data, meta: { total: data.length } }, 200);
   },
 );
 

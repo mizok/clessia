@@ -243,7 +243,7 @@ describe('ContactBookPage', () => {
     ): MissingContactBookStudent => ({
       studentId: 'stu-1',
       studentName: '陳小明',
-      classes: [{ classId: 'c1', className: '三年級數學' }],
+      classes: [{ classId: 'c1', className: '三年級數學', teacherNames: [], studentCount: 1 }],
       ...overrides,
     });
 
@@ -324,7 +324,7 @@ describe('ContactBookPage', () => {
       Array.from({ length: n }, (_, i) => ({
         studentId: `m${i}`,
         studentName: `缺${i}`,
-        classes: [{ classId: 'c', className: '班' }],
+        classes: [{ classId: 'c', className: '班', teacherNames: [], studentCount: 1 }],
       }));
     /** 重新建立元件：hero 的兩支請求在建立後、頂欄分校定下來時打 */
     const boot = async (opts: {
@@ -463,7 +463,12 @@ describe('ContactBookPage', () => {
     const miss = (id: string, ...classes: string[]): MissingContactBookStudent => ({
       studentId: id,
       studentName: `學生${id}`,
-      classes: classes.map((c) => ({ classId: c, className: `班${c}` })),
+      classes: classes.map((c) => ({
+        classId: c,
+        className: `班${c}`,
+        teacherNames: [],
+        studentCount: 0,
+      })),
     });
     const el = () => fixture.nativeElement as HTMLElement;
 
@@ -488,6 +493,33 @@ describe('ContactBookPage', () => {
         rows.map((r) => r.querySelector('[data-testid="missing-left"]')?.textContent?.trim()),
       ).toEqual(['還差 2 則', '還差 1 則']);
       expect(rows[0].querySelectorAll('[data-testid="missing-write"]').length).toBe(2);
+    });
+
+    // #2080-2（A6 `.gap__meta`「游佩珊 老師 · 還差 4 則／17」）：寫「上課老師」—— 系統沒有帶班老師，
+    // 是那天那堂課的老師（計畫席 11-02）。沒排老師就不寫那一段；分母是這班這天該寫的人數
+    it('CB1 每班寫上課老師與該寫人數：「上課老師 X、Y · 還差 N 則／M」，沒排老師不寫老師', async () => {
+      const withDetail = (
+        id: string,
+        classId: string,
+        teacherNames: string[],
+        studentCount: number,
+      ) => ({
+        studentId: id,
+        studentName: `學生${id}`,
+        classes: [{ classId, className: `班${classId}`, teacherNames, studentCount }],
+      });
+      await load(
+        [],
+        [
+          withDetail('1', 'A', ['林老師', '游佩珊'], 17),
+          withDetail('2', 'A', ['林老師', '游佩珊'], 17),
+          withDetail('3', 'B', [], 5),
+        ],
+      );
+      const metas = Array.from(el().querySelectorAll('[data-testid="missing-meta"]')).map((m) =>
+        m.textContent?.replace(/\s+/g, ' ').trim(),
+      );
+      expect(metas).toEqual(['上課老師 林老師、游佩珊 · 還差 2 則／17', '還差 1 則／5']);
     });
 
     it('CB1 按學生名字就是補寫該生', async () => {
