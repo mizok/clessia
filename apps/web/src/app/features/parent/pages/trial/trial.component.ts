@@ -29,6 +29,7 @@ import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-sco
 import {
   REQUEST_TAG_CLASS,
   RequestRowComponent,
+  type RequestMetaPart,
   type RequestTagTone,
 } from '../../shared/request-row/request-row.component';
 import { effectiveFromSuffix } from '@shared/utils/schedule-effective.util';
@@ -265,14 +266,22 @@ export class TrialComponent {
   }
 
   // ── 紀錄與詳情 ──
-  protected meta(r: ParentTrialRequest): string {
-    const when =
+  /** 排好的試聽日期加粗（A6 `.rq__m b`） */
+  protected meta(r: ParentTrialRequest): RequestMetaPart[] {
+    const when: RequestMetaPart | null =
       r.status === 'scheduled'
         ? r.scheduledDate
-          ? [this.mdw(r.scheduledDate), r.scheduledStartTime, '試聽'].filter(Boolean).join(' ')
-          : '補習班會跟你聯絡時間'
+          ? {
+              text: [this.mdw(r.scheduledDate), r.scheduledStartTime, '試聽']
+                .filter(Boolean)
+                .join(' '),
+              strong: true,
+            }
+          : { text: '補習班會跟你聯絡時間' }
         : null;
-    return [r.studentName ?? '', when, `${this.md(r.createdAt)} 送出`].filter(Boolean).join(' · ');
+    return [{ text: r.studentName ?? '' }, when, { text: `${this.md(r.createdAt)} 送出` }].filter(
+      (p): p is RequestMetaPart => !!p && !!p.text,
+    );
   }
 
   /** `10/21（三） 18:30–20:00`，時間沒填就只寫日期 */

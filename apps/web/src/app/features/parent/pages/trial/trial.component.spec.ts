@@ -440,6 +440,10 @@ describe('TrialComponent（家長端試聽申請）', () => {
       expect(rows[1].textContent).toContain('林子晴 · 10/21（三） 18:30 試聽 · 10/10 送出');
       expect(rows[0].textContent).toContain('補習班會跟你聯絡時間');
       expect(rows[2].textContent).not.toContain('試聽 ·');
+      // A6 `.rq__m b`：只有排好的日期加粗；列本身就是按鈕（div > button，#1314）
+      expect(rows[1].querySelector('b')?.textContent).toBe('10/21（三） 18:30 試聽');
+      expect(rows[0].querySelector('b')).toBeNull();
+      expect(rows.every((r) => r.tagName === 'BUTTON')).toBe(true);
     });
 
     it('詳情（已安排有日期）：試聽安排、方便時段、分校電話＋複製；沒有取消鈕', async () => {
