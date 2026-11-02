@@ -123,6 +123,34 @@ test('欄位組（label[for] 指向自己裡面的欄位、fieldset）不是列�
       '</form></main>',
   );
   assert.ok(!fields.some((p) => p.kind === 'row'));
+  // 包住自己欄位的 label 兩兩並排（班級表單時段的「開始／結束」、狀態的「啟用／停用」）：稿在這一層有列
+  // （年級勾選框）時也不算 —— 提示門檻只降給容器，不降給單一欄位。≥5 個同形（勾選框本身）照樣是列，見上面 opts
+  const page2 = await browser.newPage();
+  await page2.setContent(
+    '<main><form>' +
+      '<label class="t">開始<input type="time"></label><label class="t">結束<input type="time"></label>' +
+      '<label class="o"><input type="radio" name="s">啟用</label><label class="o"><input type="radio" name="s">停用</label>' +
+      '<div class="sf"><span id="w">星期</span><span role="combobox" aria-labelledby="w" tabindex="0">週一</span></div>' +
+      '<div class="sf"><span id="t">任課老師</span><span role="combobox" aria-labelledby="t" tabindex="0">還沒排老師</span></div>' +
+      '</form></main>',
+  );
+  const pairs = await page2.evaluate(
+    extractSource({ rowParents: ['>landmark:main[]>landmark:form[]'] }),
+  );
+  await page2.close();
+  assert.ok(!pairs.some((p) => p.kind === 'row'));
+  // 資料少的成績列（學生名＋一個分數框）：稿在這一層有列時，兩列照樣是列
+  const page3 = await browser.newPage();
+  await page3.setContent(
+    '<main><form>' +
+      [1, 2].map((i) => `<div class="r"><span>學生${i}</span><input></div>`).join('') +
+      '</form></main>',
+  );
+  const few = await page3.evaluate(
+    extractSource({ rowParents: ['>landmark:main[]>landmark:form[]'] }),
+  );
+  await page3.close();
+  assert.ok(few.some((p) => p.kind === 'row'));
 });
 
 test('rowSel 指名的列（稿的申請紀錄 button.rq）：列裡保留那顆按鈕，跟 app 的 li＞button 同 key', async () => {

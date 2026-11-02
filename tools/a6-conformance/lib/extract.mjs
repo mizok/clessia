@@ -205,7 +205,22 @@ export function extractParts(opts) {
     const same = sibs.every((x) => x.children.length === el.children.length);
     // 稿在這個父層有列（資料多）：app 資料少時門檻降到 2 個（軸列＋一位老師）。單獨一個仍不算 ——
     // 提示只說「這裡該有列」，沒說是哪一個容器，單個容器（工具列、日期條）會被誤認
-    if (hinted.has(noList(parentKey)) && sibs.length >= 2 && same && !fieldGroup(el)) return true;
+    // 單一欄位不是容器，提示門檻不降給它（#2089 班級表單）：
+    // - 包住輸入框的 label（時段「開始／結束」、狀態 radio）
+    // - 標籤＋下拉的外框：下拉用 aria-labelledby 指向外框裡的標籤（app-select-field）
+    // - 跟欄位本身同層同簽名的標籤字（app-select-field 的標籤 span 與 combobox span）
+    // 資料少的成績列（學生名＋分數框，沒有指向列內的標籤）照樣是列
+    const FIELD = 'input:not([type=hidden]),select,textarea,[role=combobox]';
+    const labelledInside = (f) =>
+      (f.getAttribute('aria-labelledby') ?? '')
+        .split(/\s+/)
+        .some((id) => id && el.querySelector(`[id="${id}"]`));
+    const ownField =
+      (el.tagName === 'LABEL' && !!el.control && el.contains(el.control)) ||
+      [...el.querySelectorAll(FIELD)].some(labelledInside) ||
+      sibs.some((x) => x !== el && x.matches(FIELD));
+    if (hinted.has(noList(parentKey)) && sibs.length >= 2 && same && !fieldGroup(el) && !ownField)
+      return true;
     return (
       sibs.length >= 5 ||
       (sibs.length >= 3 && sibs.every((x) => x.children.length === el.children.length))
