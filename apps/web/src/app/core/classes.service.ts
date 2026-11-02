@@ -45,7 +45,10 @@ export interface Class {
     failCount: number;
     absentCount: number;
   } | null;
+  /** 適用年級的合併值（班級沒填＝課程的）；列表、家長端看這個 */
   gradeLevels: string[];
+  /** 班級自己存的年級，空＝沿用課程（#2089）；只給班級表單分辨「沿用」用 */
+  ownGradeLevels?: string[];
   nextClassId: string | null;
   isActive: boolean;
   /**

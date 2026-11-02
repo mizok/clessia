@@ -21,8 +21,16 @@ export const GRADE_KEYS = [
  * 不是 key 的值一律當沒填，退回課程（那次搬遷就是把班級的年級聯集進課程）
  */
 export function classGradeLevels(own: unknown, course: string[] | undefined): string[] {
-  const keys = (Array.isArray(own) ? own : []).filter((g): g is string =>
+  const keys = ownClassGradeLevels(own);
+  return keys.length ? keys : (course ?? []);
+}
+
+/**
+ * 班級**自己存的**年級（不退回課程）：空＝沿用課程。給班級表單分辨「沿用」與「自己存了跟課程一樣的」——
+ * 只看合併值分不出來，編輯一次就會把沿用的班存成副本（#2122 之後的修正）
+ */
+export function ownClassGradeLevels(own: unknown): string[] {
+  return (Array.isArray(own) ? own : []).filter((g): g is string =>
     (GRADE_KEYS as readonly string[]).includes(g as string),
   );
-  return keys.length ? keys : (course ?? []);
 }

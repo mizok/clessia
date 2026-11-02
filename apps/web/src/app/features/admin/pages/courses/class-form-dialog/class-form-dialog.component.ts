@@ -100,10 +100,33 @@ export class ClassFormDialogComponent {
   protected readonly feeOptions = computed(() => feeTemplateOptions(this.feeTemplates()));
   /** 家長端「推薦加選」（#1118）：目錄排最前、卡片畫推薦標籤 */
   protected readonly isRecommended = signal(this.cls()?.isRecommended ?? false);
-  /** 適用年級（#2089）：班級沒填時 API 回的是課程的，新增時也先帶課程的 */
-  protected readonly gradeLevels = signal<string[]>(
-    this.cls()?.gradeLevels ?? this.course()?.gradeLevels ?? [],
-  );
+  /**
+   * 適用年級（#2089）：班級自己存的（`ownGradeLevels`）是空的＝沿用課程，表單只寫「沿用課程：…」、
+   * 送出 []；按「自訂」才展開勾選。不能拿合併值 `gradeLevels` 當初值 —— 那樣編輯一次就把沿用的班
+   * 存成課程年級的副本，之後改課程年級這個班不會跟著動。
+   * 舊 API 沒帶 `ownGradeLevels` 時當作自己存的（照舊送回，不改資料）
+   */
+  private readonly ownGrades: string[] =
+    this.cls()?.ownGradeLevels ?? this.cls()?.gradeLevels ?? [];
+  protected readonly customGrades = signal(this.ownGrades.length > 0);
+  protected readonly gradeLevels = signal<string[]>(this.ownGrades);
+  /** 沿用時顯示的課程年級（中文，照年級順序）；課程沒設＝不限 */
+  protected readonly courseGradesText = computed(() => {
+    const course = this.course()?.gradeLevels ?? [];
+    const labels = GRADE_LEVELS.filter((g) => course.includes(g)).map((g) => GRADE_LEVEL_LABELS[g]);
+    return labels.length ? labels.join('、') : '不限年級';
+  });
+  /** 按「自訂」：從課程的年級開始勾 */
+  protected startCustomGrades(): void {
+    this.gradeLevels.set(
+      GRADE_LEVELS.filter((g) => (this.course()?.gradeLevels ?? []).includes(g)),
+    );
+    this.customGrades.set(true);
+  }
+  protected useCourseGrades(): void {
+    this.customGrades.set(false);
+    this.gradeLevels.set([]);
+  }
   protected readonly gradeOptions = GRADE_LEVELS.map((g) => ({
     value: g as string,
     label: GRADE_LEVEL_LABELS[g],
@@ -519,7 +542,7 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
-        gradeLevels: this.gradeLevels(),
+        gradeLevels: this.customGrades() ? this.gradeLevels() : [],
         startDate: this.startDate() || null,
         endDate: this.endDate() || null,
         isActive: form.isActive,
@@ -546,7 +569,7 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
-        gradeLevels: this.gradeLevels(),
+        gradeLevels: this.customGrades() ? this.gradeLevels() : [],
         startDate: this.startDate() || null,
         endDate: this.endDate() || null,
         isActive: form.isActive,
