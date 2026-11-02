@@ -451,9 +451,12 @@ describe('ParentsPage', () => {
       const el = load();
       const input = el.querySelector('input[aria-label="搜尋家長"]') as HTMLInputElement;
       expect(input.placeholder).toBe('找姓名、Email 或手機');
-      expect(
-        el.querySelector('button[aria-label="匯入家長"]')?.classList.contains('p-button-outlined'),
-      ).toBe(true);
+      // A6 `.btn only-d`：可及名稱就是「匯入」，手機不顯示
+      const imp = [...el.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === '匯入',
+      ) as HTMLButtonElement;
+      expect(imp.classList.contains('p-button-outlined')).toBe(true);
+      expect(imp.closest('p-button')?.classList.contains('max-wide:hidden')).toBe(true);
     });
 
     it('孩子名字連到學生檔案；列表沒帶 students 時退回純文字', () => {

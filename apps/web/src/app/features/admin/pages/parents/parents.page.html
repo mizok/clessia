@@ -56,13 +56,13 @@
         [primary]="primaryAction"
         (primaryClick)="openCreateDialog()"
       >
+        <!-- A6 `.btn only-d`：匯入只在桌機（手機的底部動作列只有「新增家長」） -->
         <p-button
+          class="max-wide:hidden"
           label="匯入"
           icon="pi pi-upload"
           severity="secondary"
           [outlined]="true"
-          ariaLabel="匯入家長"
-          styleClass="[&_.p-button-label]:hidden wide:[&_.p-button-label]:inline"
           (onClick)="openImportDialog()"
         />
       </app-page-actions>
