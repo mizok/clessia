@@ -125,7 +125,7 @@ describe('ClassFormDialogComponent', () => {
     fixture = TestBed.createComponent(ClassFormDialogComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
-    // A6：新增班級一開就有一筆時段，而新時段要選老師 —— 建班的測試都先替它選好
+    // A6：新增班級一開就有一筆時段 —— 建班的測試先替它選好老師（老師選填，這只是讓情境接近實際）
     if (!(component as any).isEditing())
       (component as any).updateScheduleEntry(0, 'teacherId', 't-1');
   });
@@ -171,13 +171,14 @@ describe('ClassFormDialogComponent', () => {
   describe('A6 .slot 時段列（#2089）', () => {
     const c = () => component as any;
 
-    it('新增的時段沒選老師：寫「第 N 筆時段還沒選老師」、框紅、不送出', () => {
+    // 計畫席 11-02（R5）：時段老師選填 —— D4 以來時段可以沒有老師，必選會擋住還沒有該科老師的分校建班
+    it('時段沒選老師：照樣送出，動作列提示「第 N 筆時段還沒排老師」', () => {
       c().updateForm('name', 'A 班');
       c().updateScheduleEntry(0, 'teacherId', null);
+      expect(c().formValidationMessage()).toBeNull();
+      expect(c().whyText()).toBe('第 1 筆時段還沒排老師，可以之後再排');
       c().save();
-      expect(c().formValidationMessage()).toBe('第 1 筆時段還沒選老師');
-      expect(c().isBadSlot(0)).toBe(true);
-      expect(classesServiceMock.create).not.toHaveBeenCalled();
+      expect(classesServiceMock.create).toHaveBeenCalled();
     });
 
     it('只剩一筆時按刪除：不刪，寫「至少要有一個時段」', () => {

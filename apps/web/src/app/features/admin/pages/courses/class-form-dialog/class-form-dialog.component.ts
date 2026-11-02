@@ -274,21 +274,10 @@ export class ClassFormDialogComponent {
     if (!(form.maxStudents > 0)) return { msg: '人數上限要大於 0', bad: [] };
     const entries = this.scheduleEntries();
     const bad = entries.findIndex(
-      (e) =>
-        !e.weekday ||
-        // 時段老師（#2089 使用者裁定照 A6）：新增的時段要選；既有時段是唯讀（換老師走「從某日起」）
-        (!e.id && !e.teacherId) ||
-        !e.startTime ||
-        !e.endTime ||
-        e.endTime <= e.startTime,
+      (e) => !e.weekday || !e.startTime || !e.endTime || e.endTime <= e.startTime,
     );
     if (bad >= 0) {
-      const e = entries[bad];
-      const msg =
-        !e.id && !e.teacherId
-          ? `第 ${bad + 1} 筆時段還沒選老師`
-          : `第 ${bad + 1} 筆時段的結束要晚於開始`;
-      return { msg, bad: [bad] };
+      return { msg: `第 ${bad + 1} 筆時段的結束要晚於開始`, bad: [bad] };
     }
     const overlap = this.findLocalScheduleOverlap(entries);
     if (overlap) {
@@ -305,8 +294,20 @@ export class ClassFormDialogComponent {
   }
   /** 刪到只剩一筆時再按：A6 寫「至少要有一個時段」 */
   private readonly deleteBlocked = signal(false);
+  /**
+   * 時段老師是**選填**（計畫席 11-02，R5）：D4 以來時段本來就可以沒有老師，必選會讓還沒有該科老師的
+   * 分校建不了班。不擋送出，只在動作列提示（A6 是「還沒選老師」擋送出）
+   */
+  protected readonly noTeacherHint = computed(() => {
+    const nos = this.scheduleEntries()
+      .map((e, i) => (e.teacherId ? 0 : i + 1))
+      .filter(Boolean);
+    return nos.length ? `第 ${nos.join('、')} 筆時段還沒排老師，可以之後再排` : null;
+  });
   protected readonly whyText = computed(() =>
-    this.deleteBlocked() ? '至少要有一個時段' : this.formValidationMessage(),
+    this.deleteBlocked()
+      ? '至少要有一個時段'
+      : (this.formValidationMessage() ?? this.noTeacherHint()),
   );
 
   /** A6 `.fdlg__opt` radio */
@@ -385,7 +386,7 @@ export class ClassFormDialogComponent {
 
   /** 既有時段的老師是唯讀，只顯示名字 */
   protected teacherNameOf(entry: ScheduleFormEntry): string {
-    return this.cls()?.schedules?.find((s) => s.id === entry.id)?.teacherName ?? '未指定';
+    return this.cls()?.schedules?.find((s) => s.id === entry.id)?.teacherName ?? '還沒排老師';
   }
 
   protected save(): void {

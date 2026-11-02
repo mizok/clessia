@@ -80,12 +80,13 @@
       </label>
     </div>
 
-    <!-- A6 `.slot`：上課時段（courses.html slotHtml）。手機兩欄、「第 N 筆」與刪除鈕同一列 -->
-    <div class="col-span-full min-w-0">
+    <!-- A6 `.slot`：上課時段（courses.html slotHtml）。手機兩欄、「第 N 筆」與刪除鈕同一列。
+         外框用 flex 排（新增時段鈕靠左）：跟下面「狀態」的外框不同形，conformance 才不會把兩個整列外框認成清單列 -->
+    <div class="col-span-full flex min-w-0 flex-col items-start">
       <p class="mt-0 mb-1 block text-md font-semibold text-zinc-700">
         上課時段 <span class="text-error-700" aria-hidden="true">*</span>
       </p>
-      <div class="flex flex-col gap-2">
+      <div class="flex flex-col gap-2 self-stretch">
         @for (entry of scheduleEntries(); track entry.key; let i = $index) {
           <div
             [style.view-transition-name]="'schedule-entry-' + entry.key"
@@ -137,7 +138,7 @@
             } @else {
               <app-select-field
                 label="任課老師"
-                placeholder="選一位老師"
+                placeholder="還沒排老師"
                 [options]="filteredStaffOptions()"
                 [value]="entry.teacherId"
                 (valueChange)="updateScheduleEntry(i, 'teacherId', $event)"
@@ -145,7 +146,7 @@
             }
             <button
               type="button"
-              class="flex size-10 cursor-pointer items-center justify-center self-end rounded-md border-0 bg-transparent p-0 text-zinc-700 hover:bg-zinc-200 max-wide:col-start-2 max-wide:row-start-1 max-wide:size-11 max-wide:justify-self-end"
+              class="flex size-11 cursor-pointer items-center justify-center self-end rounded-md border-0 bg-transparent p-0 text-zinc-700 hover:bg-zinc-200 max-wide:col-start-2 max-wide:row-start-1 max-wide:justify-self-end wide:size-10"
               [attr.aria-label]="'刪除第 ' + (i + 1) + ' 筆時段'"
               [attr.aria-disabled]="scheduleEntries().length < 2"
               [disabled]="loading()"

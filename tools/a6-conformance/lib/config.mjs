@@ -869,12 +869,26 @@ export const PAGES = {
         source: `${rule('R3')}；${hardRule('A27')}`,
       })),
       // 新增班級表單（#2089）：下一階班級、時段的星期／任課老師／教室是 app-select-field
-      ...selectFieldDeviations('下一階班級|星期|任課老師|教室').map((d) => ({ ...d, pop: 'new-class' })),
+      ...selectFieldDeviations('下一階班級|星期|任課老師|教室').map((d) => ({
+        ...d,
+        pop: 'new-class',
+      })),
       ...[
-        { status: '缺', a6: 'control:button\\[(下一階班級|教室)：[^\\]]*\\]>text:span\\[[^\\]]*\\]$' },
+        {
+          status: '缺',
+          a6: 'control:button\\[(下一階班級|教室)：[^\\]]*\\]>text:span\\[[^\\]]*\\]$',
+        },
         { status: '文案', a6: 'control:button\\[教室：[^\\]]*\\]$', app: 'dropdown trigger' },
         { status: '多', app: 'control:combobox\\[(下一階班級|教室|星期|任課老師)\\]$' },
       ].map((d) => ({ ...d, pop: 'new-class', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 時段老師選填（計畫席 11-02）：沒選時下拉的提示字是「還沒排老師」（稿「選一位老師」）
+      {
+        status: '文案',
+        pop: 'new-class',
+        a6: 'control:button\\[任課老師：選一位老師\\]',
+        reason: '時段老師選填：沒選時寫「還沒排老師」',
+        source: `${rule('R5')}「班級表單的時段老師選填」2026-11-02（計畫席 11-02：D4 時段可無老師，必填會擋建班）`,
+      },
       // 新增班級表單：稿沒畫、照 R2 保留的欄位（公開報名、目錄參考價、班級起訖日），收在同一個整列區塊
       {
         status: '多',
@@ -1288,7 +1302,10 @@ export const PAGES = {
       // 說明框後半句「今天請假的 N 位名字下有提示」要名單帶請假旗標（ME1，等 API），沒有就不寫
       ...['缺', '文案'].map((status) => ({
         status,
-        a6: status === '缺' ? '>text:b\\[#位\\]$' : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
+        a6:
+          status === '缺'
+            ? '>text:b\\[#位\\]$'
+            : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
         reason: '說明框的請假人數：餐費名單 API 還沒帶請假旗標（等 API）',
         source: '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標',
       })),
