@@ -184,6 +184,17 @@ run('家長列表的分校範圍與 campusId（K4）', () => {
     expect(none.summary.total).toBe(0);
   });
 
+  // 一個分校都沒被指派：`campusFilterIds` 回 []，條件是 `.in(PARENT_SCOPE_FILTER, [])` → `in.()`。
+  // 本機 PostgREST 實測（11-02）：embed 路徑上的 `in.()` 是 200、零筆（不加條件時 28 筆），不是 400、也不是不篩
+  it('一個分校都沒被指派（scope=[]）：列表空、摘要各狀態 0、200 不是 400', async () => {
+    const res = await as('none', '/api/parents?pageSize=100');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as List;
+    expect(body.data).toEqual([]);
+    expect(body.meta.total).toBe(0);
+    expect(body.summary).toMatchObject({ total: 0, activeCount: 0 });
+  });
+
   it('不受限的管理員指名 C2：列表與摘要都只剩 C2 的家長', async () => {
     const c2 = await get('all', `/api/parents?pageSize=100&campusId=${fx.c2}`);
     expect(ids(c2)).toEqual(new Set([fx.pb, fx.pab]));
