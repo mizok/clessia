@@ -222,7 +222,8 @@ export const DEVIATIONS = [
     status: '樣式',
     kind: 'control',
     widths: [360],
-    detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline|inline-block) → (inline-)?flex$',
+    detail:
+      '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline|inline-block) → (inline-)?flex$',
     reason: '手機 44px 觸控高度用 flex 置中（取代稿的上下 padding）',
     source: `${rule('R3')}`,
   },
@@ -1925,6 +1926,14 @@ export const PAGES = {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
     deviations: [
+      // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕
+      {
+        status: '多',
+        app: '>landmark:region\\[收費期間\\]>(text:legend\\[用模板建立\\]|text:p\\[照下一個學年[^\\]]*\\]|row>control:radio|row>list>row|control:button\\[(先選一個模板|建立這#個期間|建立中…|這個模板的期間都已經有了)\\])$',
+        reason:
+          '學期與繳費週期搬到費用方案頁；用模板建立改成 radio＋預覽＋送出鈕（一選就建太危險）',
+        source: `${rule('R5')}「學期與繳費週期的位置」「用模板建立期間」2026-11-02（使用者 11-02 裁定）`,
+      },
       noCampusSwitch('價目表是補習班層級'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
@@ -2378,6 +2387,41 @@ export const PAGES = {
         a6: '^>control:searchbox\\[搜尋學生姓名\\]$',
         reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
         source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      // 篩選浮層：PrimeNG Popover 的根固定宣告 role=dialog，稿是原生 popover
+      {
+        status: '角色',
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]$',
+        reason: 'PrimeNG Popover 固定宣告 role=dialog，跟稿的原生 popover 只差在語意',
+        source: `${rule('R5')}「成績學生頁篩選浮層的根角色」2026-11-02`,
+      },
+      // 篩選浮層的六個下拉是 app-select-field（稿 .dd 是 label 裡的按鈕；app 是欄位外框＋combobox＋箭頭鈕）
+      ...[
+        { status: '缺', a6: '(^|>)landmark:popover\\[\\]>row>control:button>text:span$' },
+        ...['位置', '樣式'].map((status) => ({
+          status,
+          a6: '(^|>)landmark:popover\\[\\]>row>control:button$',
+        })),
+        { status: '樣式', a6: '(^|>)landmark:popover\\[\\]>row$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[\\]>row>control:combobox$' },
+      ].map((d) => ({ ...d, pop: 'filt', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 完成鈕的上下位置：稿每列多一行「新」小標（設計說明）、多一欄分校（列數 7→6 是資料差），浮層高 419→311
+      {
+        status: '位置',
+        pop: 'filt',
+        widths: [1440],
+        a6: '(^|>)landmark:popover\\[\\]>control:button\\[完成\\]$',
+        reason: '連帶：稿的「新」小標各佔一行、欄位多一個分校，浮層比 app 高；完成鈕貼底跟著差',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）；列數差見同頁資料差',
+      },
+      // 稿的「新」標記是設計說明；app 欄位標籤的 span 被配到它身上（同批次請假）
+      ...['位置', '樣式'].map((status) => ({
+        status,
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]>row>text:span\\[新\\]$',
+        reason: '工具限制：稿的「新」標記是設計說明，app 欄位標籤的 span 被配到它身上',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
       })),
     ],
   },

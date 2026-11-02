@@ -3,7 +3,7 @@ title: 家長讀取與簽收個人聯絡簿
 summary: GET /api/me/contact-book 與 POST /api/me/contact-book/{id}/sign 的範圍與「簽收後有修改」判準為什麼要走 pg 一句 SQL、為什麼管理端 PUT 原文照存不寫。
 category: architecture
 status: active
-updated: 2026-10-23
+updated: 2026-11-02
 tags: [parent, contact-book, scope]
 ---
 
@@ -39,9 +39,17 @@ SQL 放在 `child-db.ts` 而不是路由：家長端路由拿不到原始 client
 
 ## 其他會動到 `updated_at` 的路徑（盤點 2026-10-23）
 
-| 路徑 | 會不會誤標 |
-| --- | --- |
-| `PUT /api/contact-book`（唯一的應用層寫入） | 內容沒變已不寫；內容改了 → 正確標記 |
-| 家長簽收 | 兩欄相等，不標 |
+| 路徑                                                                  | 會不會誤標                                                             |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `PUT /api/contact-book`（唯一的應用層寫入）                           | 內容沒變已不寫；內容改了 → 正確標記                                    |
+| 家長簽收                                                              | 兩欄相等，不標                                                         |
 | `last_edited_by`／`signed_by` 的 `ON DELETE SET NULL`（刪 `ba_user`） | **會**：FK 動作也是 UPDATE，trigger 照跳。刪帳號是罕見的管理動作，接受 |
-| 行政代簽、批次操作 | 不存在（全 repo 沒有其他寫入 `contact_book_entries` 的路徑） |
+| 行政代簽、批次操作                                                    | 不存在（全 repo 沒有其他寫入 `contact_book_entries` 的路徑）           |
+
+## 「最後編輯時間」不用 `updated_at`（#2080-3，2026-11-02）
+
+列表的「游佩珊 16:52 編輯」要的是**老師**最後改內容的時間，但上表的每一條都會跳 `updated_at`
+（簽收最常見）。所以另立 `teacher_edited_at`（使用者 11-02 裁定 (a)）：只有 `PUT /api/contact-book`
+在內容真的變了時寫，簽收與 FK 的 `SET NULL` 都不動它。舊資料由 after-deploy backfill 補：
+`updated_at > signed_at`（或沒簽）就是老師改的時間，否則最後一次 UPDATE 是簽收，退回 `created_at`。
+`editedAfterSign` 仍用 `updated_at > signed_at`，沒有改判準。

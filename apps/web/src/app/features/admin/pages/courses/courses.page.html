@@ -332,20 +332,13 @@
       </div>
 
       @if (total() > PAGE_SIZE && statusFilter() !== 'intervention') {
-        <div class="mt-8 flex justify-center">
-          <p-paginator
-            [first]="(currentPage() - 1) * PAGE_SIZE"
-            [rows]="PAGE_SIZE"
-            [totalRecords]="total()"
-            [showCurrentPageReport]="true"
-            [currentPageReportTemplate]="
-              isMobile()
-                ? '第 {currentPage} / {totalPages} 頁'
-                : '顯示 {first} - {last}，共 {totalRecords} 筆課程'
-            "
-            [showPageLinks]="!isMobile()"
-            [showFirstLastIcon]="!isMobile()"
-            (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+        <div class="mt-8">
+          <app-pager
+            variant="numbered"
+            [total]="total()"
+            [pageSize]="PAGE_SIZE"
+            [page]="currentPage()"
+            (pageChange)="onPageChange($event)"
           />
         </div>
       }
