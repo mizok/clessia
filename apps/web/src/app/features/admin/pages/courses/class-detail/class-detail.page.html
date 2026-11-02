@@ -3,7 +3,7 @@
 <!--
   A6 版（#991 courses C2，class.html）：色面（返回、班名＋開班中、課程·分校·適合年級、在籍／上限、時段數）
   → 灰工具列（學生名單｜課表）→ 名冊（序號、姓名＋狀態、學校·年級、加入日、⋯）。
-  換版不換資料：A6 工具列的「產生課堂」「⋯（班級操作）」這頁本來沒有（在課程列表的班級選單裡），不在這支加。
+  工具列右側「產生課堂」「⋮（編輯班級、停用、課堂管理）」開的是課程列表同一組對話框（#1314，換位置不換行為）。
 -->
 <app-page-open>
   <a
@@ -86,7 +86,7 @@
 } @else if (cls(); as c) {
   <!-- A6 `.tbar`＋`.tabs`／`.tlink`（同餐費頁）：分頁是 nav 裡的按鈕、aria-current 標目前那頁 -->
   <div class="bg-zinc-100">
-    <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-3 py-3">
+    <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-3 gap-y-3 py-3 wide:gap-x-4">
       <nav class="flex flex-wrap items-center gap-5" aria-label="班級內容">
         <button
           type="button"
@@ -115,8 +115,30 @@
           課表
         </button>
       </nav>
+      <!-- A6 `.tbar__act`：產生課堂（班級沒在開時 aria-disabled，按了說明原因）＋ ⋮（編輯班級、停用、課堂管理） -->
+      <div class="flex flex-wrap items-center gap-2 wide:ml-auto">
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 text-md leading-normal font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 aria-disabled:cursor-not-allowed aria-disabled:text-zinc-500 wide:h-9"
+          [attr.aria-disabled]="c.isActive ? null : 'true'"
+          data-testid="generate-sessions"
+          (click)="openGenerate()"
+        >
+          產生課堂
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-11 w-12 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:h-9 wide:w-10"
+          aria-label="更多動作"
+          aria-haspopup="menu"
+          (click)="classMenu.toggle($event)"
+        >
+          <i class="pi pi-ellipsis-v text-base" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
   </div>
+  <app-popup-menu #classMenu [model]="classMenuItems()" />
 
   <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
     @if (tab() === 'roster') {

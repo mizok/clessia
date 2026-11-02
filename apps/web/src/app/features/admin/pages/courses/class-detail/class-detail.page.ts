@@ -16,6 +16,9 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
+import { forkJoin } from 'rxjs';
+import { CoursesService } from '@core/courses.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { ClassesService, Class, type Schedule } from '@core/classes.service';
 import { taipeiDateString } from '@core/system-clock.service';
 import { effectiveRangeLabel } from '@shared/utils/schedule-effective.util';
@@ -40,6 +43,9 @@ import { RosterImportDialogComponent } from './roster-import-dialog/roster-impor
 import { EnrollmentBillingDialogComponent } from './enrollment-billing-dialog/enrollment-billing-dialog.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SkeletonComponent } from '@shared/components/skeleton/skeleton.component';
+import { ClassFormDialogComponent } from '../class-form-dialog/class-form-dialog.component';
+import { GenerateSessionsDialogComponent } from '../generate-sessions-dialog/generate-sessions-dialog.component';
+import { DeactivateClassDialogComponent } from '../deactivate-class-dialog/deactivate-class-dialog.component';
 
 @Component({
   selector: 'app-class-detail',
@@ -57,6 +63,8 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
 })
 export class ClassDetailPage implements OnInit {
   private readonly classesService = inject(ClassesService);
+  private readonly coursesService = inject(CoursesService);
+  private readonly refData = inject(ReferenceDataService);
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
@@ -151,6 +159,148 @@ export class ClassDetailPage implements OnInit {
   ngOnInit(): void {
     this.loadClass();
     this.loadEnrollments();
+  }
+
+  /**
+   * A6 工具列的「⋮」（class.html `#kacts`）：編輯班級、停用／恢復開班、課堂管理。
+   * 三個動作本來在課程列表的班級 ⋮ 裡，這裡開的是同一支對話框（換位置，不換行為）。
+   */
+  protected readonly classMenuItems = computed<MenuItem[]>(() => {
+    const c = this.cls();
+    if (!c) return [];
+    return [
+      { label: '編輯班級', icon: 'pi pi-pencil', command: () => this.openEditClass() },
+      {
+        label: c.isActive ? '停用班級' : '恢復開班',
+        icon: c.isActive ? 'pi pi-ban' : 'pi pi-check-circle',
+        command: () => this.toggleActive(),
+      },
+      { label: '課堂管理', icon: 'pi pi-list', command: () => this.openSessions() },
+    ];
+  });
+
+  /** 編輯班級：表單要課程、老師、分校、其他班（下一階班級）—— 點了才抓，不拖慢進頁 */
+  protected openEditClass(): void {
+    const cls = this.cls();
+    if (!cls) return;
+    this.refData.loadCampuses();
+    this.refData.loadTeachers();
+    forkJoin([this.coursesService.get(cls.courseId), this.classesService.list({ pageSize: 0 })])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ([course, classes]) => {
+          const ref = this.dialogService.open(ClassFormDialogComponent, {
+            // 同課程列表：A6 `.cdlg` 760、表單自己聚焦班名
+            width: '760px',
+            modal: true,
+            showHeader: false,
+            focusOnShow: false,
+            appendTo: this.overlayContainer || 'body',
+            data: {
+              cls,
+              course: course.data,
+              staff: this.refData.teachers(),
+              campuses: this.refData.campuses(),
+              classes: classes.data,
+            },
+          });
+          ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+            if (result) this.loadClass();
+          });
+        },
+        error: () =>
+          this.messageService.add({
+            severity: 'error',
+            summary: '打不開編輯',
+            detail: '讀不到課程資料，請稍後再試',
+          }),
+      });
+  }
+
+  /** 產生課堂（A6 工具列）：班級沒在開時鈕是 aria-disabled，按了說明原因（同稿） */
+  protected openGenerate(): void {
+    const cls = this.cls();
+    if (!cls) return;
+    if (!cls.isActive) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: '無法產生課堂',
+        detail: '班級沒有在開，先「恢復開班」',
+      });
+      return;
+    }
+    const ref = this.dialogService.open(GenerateSessionsDialogComponent, {
+      width: '600px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { cls },
+    });
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      if (result?.action === 'navigate-sessions') {
+        this.router.navigate(['/admin/sessions'], {
+          queryParams: {
+            classId: result.classId,
+            campusId: result.campusId,
+            courseId: result.courseId,
+            from: result.from,
+            to: result.to,
+          },
+        });
+      }
+    });
+  }
+
+  private toggleActive(): void {
+    const cls = this.cls();
+    if (!cls) return;
+    if (cls.isActive) {
+      const ref = this.dialogService.open(DeactivateClassDialogComponent, {
+        width: '500px',
+        modal: true,
+        showHeader: false,
+        appendTo: this.overlayContainer || 'body',
+        data: { cls },
+      });
+      ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+        if (result) this.loadClass();
+      });
+      return;
+    }
+    this.openConfirmDialog(
+      '確認恢復開班',
+      {
+        message: `確定要恢復「${cls.name}」嗎？`,
+        acceptLabel: '恢復開班',
+        rejectLabel: '取消',
+        acceptSeverity: 'success',
+      },
+      () =>
+        this.classesService.toggleActive(cls.id).subscribe({
+          next: () => {
+            this.loadClass();
+            this.messageService.add({
+              severity: 'success',
+              summary: '已恢復開班',
+              detail: `「${cls.name}」恢復開班`,
+            });
+          },
+          error: (err) =>
+            this.messageService.add({
+              severity: 'error',
+              summary: '恢復失敗',
+              detail: err.error?.error || '請稍後再試',
+            }),
+        }),
+    );
+  }
+
+  private openSessions(): void {
+    const cls = this.cls();
+    if (!cls) return;
+    this.router.navigate(['/admin/sessions'], {
+      queryParams: { classId: cls.id, campusId: cls.campusId, courseId: cls.courseId },
+    });
   }
 
   protected loadClass(): void {
