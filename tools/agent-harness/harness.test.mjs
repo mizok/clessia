@@ -2537,7 +2537,10 @@ test('A7c：檔案例外帳本每條都有理由、出處、裁定', () => {
   // 同 A7c 續那份帳本：釘死集合，新增例外一定得改到這一行（計畫席 11-02）
   assert.deepEqual(
     ledger.map((e) => e.file).sort(),
-    ['apps/api/src/routes/announcements/visibility.ts'],
+    [
+      'apps/api/src/routes/announcements/visibility.ts',
+      'apps/api/src/routes/enrollments/list-query.ts',
+    ],
     '例外帳本多了或少了一條：加例外要有計畫席裁定，並同步更新這個斷言',
   );
 });
