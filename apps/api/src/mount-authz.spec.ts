@@ -109,6 +109,7 @@ const OUTSIDE_MOUNTS = [
   'GET /openapi.json',
   'GET /docs',
   'GET /api/system-time', // 註冊在 authMiddleware 之前，刻意公開
+  'GET /api/auth-providers', // #1842 登入頁要的 provider 清單，同上
   // Better Auth：兩次 app.on(['POST', 'GET'], '/api/auth/*')
   'GET /api/auth/*',
   'GET /api/auth/*',

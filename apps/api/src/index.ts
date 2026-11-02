@@ -15,6 +15,7 @@ import type { CampusScope } from './lib/campus-scope';
 import type { StudentScope } from './lib/child-scope';
 import type { ChildDb } from './lib/child-db';
 import type { Auth, MagicLinkPayload } from './auth';
+import { socialProvidersFromEnv } from './auth';
 import { authPoolCleanup, getAuth } from './lib/get-auth';
 import internalPushRoute from './routes/internal-push';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
@@ -274,6 +275,13 @@ app.openapi(
   },
 );
 
+// 登入頁在登入前就要知道這個部署掛了哪些 provider（#1842：清單不寫死；c12：沒設憑證就不畫）。
+// 跟 createAuth 用同一支函式推出來（c11），只回 id。註冊在 authMiddleware 之前，所以是公開的；
+// 不放 `/api/public/*`（那組綁 PUBLIC_ORG_SLUG，登入不能依賴招生頁的開關），也不放 `/api/auth/*`（better-auth 的）
+app.get('/api/auth-providers', (c) =>
+  c.json({ providers: Object.keys(socialProvidersFromEnv(c.env)) }),
+);
+
 // ============================================================
 // OpenAPI Documentation
 // ============================================================
@@ -373,8 +381,7 @@ const ADMIN_ONLY = ['admin'];
  * 讀寫用同一個權限是最容易寫、也最容易讓人放棄使用權限的做法。
  */
 type MountPermission =
-  | { all: Permission | readonly Permission[] }
-  | { write: Permission | readonly Permission[] };
+  { all: Permission | readonly Permission[] } | { write: Permission | readonly Permission[] };
 
 /** 只對會改資料的方法套權限。GET / HEAD / OPTIONS 交給角色層。 */
 const requireAdminPermissionOnWrite = (permission: string | readonly string[]) =>
