@@ -283,13 +283,20 @@
             type="radio"
             name="period-template"
             class="m-0 mt-1 accent-zinc-900"
+            [attr.aria-labelledby]="'tpl-' + t.value"
+            [attr.aria-describedby]="'tpl-' + t.value + '-preview'"
             [checked]="periodTemplatePick() === t.value"
             [disabled]="creatingFromTemplate()"
             (change)="periodTemplatePick.set(t.value)"
           />
           <span class="flex min-w-0 flex-col gap-1">
-            <span class="text-base font-semibold text-zinc-900">{{ t.label }}</span>
-            <ul class="m-0 list-none p-0 text-sm text-zinc-600 tabular-nums">
+            <span class="text-base font-semibold text-zinc-900" [id]="'tpl-' + t.value">{{
+              t.label
+            }}</span>
+            <ul
+              class="m-0 list-none p-0 text-sm text-zinc-600 tabular-nums"
+              [id]="'tpl-' + t.value + '-preview'"
+            >
               @for (row of t.rows; track row.name) {
                 <li>
                   {{ row.name }}　{{ formatRange(row) }}
