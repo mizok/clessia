@@ -293,9 +293,10 @@ export class AuthService {
     return null;
   }
 
-  navigateToRoleShell(role: UserRole) {
+  /** 回 router 的結果：`true` 才是真的到了那個 shell（被 guard 擋下或導航取消是 `false`） */
+  navigateToRoleShell(role: UserRole): Promise<boolean> {
     this.setActiveRole(role);
-    this.router.navigate([this.shellMap[role]]);
+    return this.router.navigate([this.shellMap[role]]);
   }
 
   async signOut() {
