@@ -60,11 +60,17 @@ export async function openPage(
     reducedMotion: 'reduce',
   });
   if (source === 'app' && API_URL !== BUILT_API)
-    await ctx.route(BUILT_API + '/**', async (route) =>
-      route.fulfill({
-        response: await route.fetch({ url: route.request().url().replace(BUILT_API, API_URL) }),
-      }),
-    );
+    // 轉發失敗（API 卡住、route.fetch 逾時）就讓這一個請求失敗：handler 裡丟出去沒人接，Node 會直接結束整個
+    // 行程，compare 的 finally 跑不到、臨時 web 與 worktree 都留著（#1962）。請求失敗由頁面那邊照常報錯
+    await ctx.route(BUILT_API + '/**', async (route) => {
+      try {
+        await route.fulfill({
+          response: await route.fetch({ url: route.request().url().replace(BUILT_API, API_URL) }),
+        });
+      } catch {
+        await route.abort('failed').catch(() => {});
+      }
+    });
   // app 的「今天」對齊稿的（config 的 `clock`）：稿把日期寫死（例：課表 stress.js 的 2026-10-01 17:40），
   // app 照真實日期，週檢視就差成「今天」換了一欄、底色互換 —— 那是日期不是設計。
   // app 有兩個時鐘，兩個都要對齊：SystemClockService 認 /api/system-time（後註冊的 route 先比對），

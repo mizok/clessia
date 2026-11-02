@@ -73,15 +73,120 @@ export const lockMatches = (
 ) => git(repo, 'show', `${sha}:package-lock.json`) === shared.trim();
 
 const CACHE = path.join(os.homedir(), '.cache/clessia-a6-conformance');
+const WT = path.join(CACHE, 'wt');
 /** 每次執行一個 worktree（10-16：同 sha 的兩個 compare 共用時，先收尾的把另一個的 worktree 移掉）。 */
 export const wtDir = (sha) =>
-  path.join(CACHE, 'wt', `${sha}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`);
+  path.join(WT, `${sha}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`);
+
+/**
+ * 這次行程起的東西（server、worktree）的收尾。run.mjs 的 finally 照收，但 finally 跑不到的情況也要收（#1962）：
+ * route handler 裡沒人接的 rejection（route.fetch 逾時）會讓 Node 直接結束行程、被 SIGINT／SIGTERM 中斷。
+ * `exit` 事件在這些情況都會觸發，只能做同步的事 —— 殺 process group、git worktree remove 都是同步的。
+ */
+const cleanups = new Set();
+let hooked = false;
+export function track(fn) {
+  cleanups.add(fn);
+  if (!hooked) {
+    hooked = true;
+    process.on('exit', () => {
+      for (const f of cleanups) {
+        try {
+          f();
+        } catch {
+          /* 收一個失敗不擋其他的 */
+        }
+      }
+      cleanups.clear();
+    });
+    // 訊號預設直接結束、不發 exit 事件：轉成 exit（128＋訊號號碼，跟 shell 的慣例一樣）
+    for (const [sig, code] of [
+      ['SIGINT', 130],
+      ['SIGTERM', 143],
+      ['SIGHUP', 129],
+    ])
+      process.once(sig, () => process.exit(code));
+  }
+  return () => cleanups.delete(fn);
+}
+
+/** 只動工具自己的 wt/ 底下（不碰席位的 .worktrees/labor-*）；git 認不得的就直接刪目錄 */
+function removeWorktree(dir) {
+  if (path.dirname(dir) !== WT) throw new Error(`不是 compare 的暫存 worktree：${dir}`);
+  try {
+    git(repo, 'worktree', 'remove', '--force', dir);
+  } catch {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+const SERVER_PID = '.a6-server-pid';
+const killGroup = (pid) => {
+  try {
+    process.kill(-pid, 'SIGTERM');
+  } catch {
+    /* 已經停了 */
+  }
+};
+
+/**
+ * 啟動時清的舊 worktree：超過 maxAgeMs，而且建立它的 compare（目錄名 `<sha>-<pid>-<亂數>` 的 pid）已經不在。
+ * 10-16 前的舊命名（只有 sha）沒有 pid 可查，只看年紀。不是 worktree 目錄名的（其他檔案）不碰。
+ */
+export function staleWorktrees(entries, { now = Date.now(), maxAgeMs = 3600_000, alive }) {
+  return entries
+    .filter(({ name, mtimeMs }) => {
+      const m = /^[0-9a-f]{7,40}(?:-(\d+)-[0-9a-f]+)?$/.exec(name);
+      if (!m || now - mtimeMs <= maxAgeMs) return false;
+      return !m[1] || !alive(Number(m[1]));
+    })
+    .map((e) => e.name);
+}
+const pidAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+};
+/** 清掉崩潰留下的：先殺它當時起的 server（建立它的 compare 已經不在，沒人會收），再移 worktree */
+export function sweepStale() {
+  if (!fs.existsSync(WT)) return;
+  const entries = fs
+    .readdirSync(WT, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => ({ name: d.name, mtimeMs: fs.statSync(path.join(WT, d.name)).mtimeMs }));
+  for (const name of staleWorktrees(entries, { alive: pidAlive })) {
+    const dir = path.join(WT, name);
+    try {
+      const pid = Number(fs.readFileSync(path.join(dir, SERVER_PID), 'utf8'));
+      if (pid) killGroup(pid);
+    } catch {
+      /* 沒起到 server 就崩的 */
+    }
+    removeWorktree(dir);
+    console.warn(`  清掉舊的暫存 worktree：${name}`);
+  }
+  git(repo, 'worktree', 'prune');
+}
+let swept = false;
 
 // 新 worktree 沒有 nx／esbuild 快取，冷編譯實測超過 300 秒（10-15）；給 600 秒
 export async function startWeb(ref, { timeoutMs = 600_000 } = {}) {
+  if (!swept) {
+    swept = true;
+    sweepStale();
+  }
   const sha = resolveRef(ref);
   const dir = wtDir(sha);
   git(repo, 'worktree', 'add', '-q', '--detach', dir, sha);
+  let child;
+  const kill = () => child && killGroup(child.pid);
+  // 從這裡起不管怎麼結束都要收：server 整組殺、worktree 移掉
+  const untrack = track(() => {
+    kill();
+    removeWorktree(dir);
+  });
   const nm = path.join(dir, 'node_modules');
   if (lockMatches(sha)) fs.symlinkSync(path.join(repo, 'node_modules'), nm);
   else {
@@ -96,7 +201,7 @@ export async function startWeb(ref, { timeoutMs = 600_000 } = {}) {
       stdio: ['ignore', ifd, ifd],
     });
   }
-  let port, log, child;
+  let port, log;
   const spawnWeb = async (from) => {
     port = await freePort(from);
     // log 放在 worktree 外：失敗時 worktree 會被收掉，log 要留著查。檔名帶這次的 worktree，同時跑不互蓋
@@ -108,30 +213,26 @@ export async function startWeb(ref, { timeoutMs = 600_000 } = {}) {
       stdio: ['ignore', fd, fd],
       env: { ...process.env, NX_DAEMON: 'false' },
     });
+    // 崩潰留下的 worktree 下次啟動時清，要知道當時起的 server 是哪一組
+    fs.writeFileSync(path.join(dir, SERVER_PID), String(child.pid));
   };
-  const kill = () => {
-    try {
-      process.kill(-child.pid, 'SIGTERM');
-    } catch {
-      /* 已經停了 */
-    }
-  };
-  await spawnWeb(4310);
-  const stop = async ({ keep = false } = {}) => {
+  const stop = async () => {
     kill();
     await new Promise((r) => setTimeout(r, 1500));
-    if (keep) return;
-    try {
-      git(repo, 'worktree', 'remove', '--force', dir);
-    } catch {
-      /* 移不掉就留著；只會是自己這次的 */
-    }
+    removeWorktree(dir);
+    untrack();
   };
+  try {
+    await spawnWeb(4310);
+  } catch (e) {
+    await stop();
+    throw e;
+  }
   const t0 = Date.now();
   for (;;) {
     if (Date.now() - t0 > timeoutMs) {
-      await stop({ keep: true });
-      throw new Error(`${ref}（${sha}）的 web 起不來，log：${log}（worktree 留在 ${dir} 供查）`);
+      await stop();
+      throw new Error(`${ref}（${sha}）的 web 起不來，log：${log}`);
     }
     const url = `http://localhost:${port}`;
     const ok = await fetch(url)
@@ -139,8 +240,8 @@ export async function startWeb(ref, { timeoutMs = 600_000 } = {}) {
       .catch(() => false);
     const text = fs.readFileSync(log, 'utf8');
     if (buildFailed(text)) {
-      await stop({ keep: true });
-      throw new Error(`${ref}（${sha}）的 web 編譯失敗，log：${log}（worktree 留在 ${dir} 供查）`);
+      await stop();
+      throw new Error(`${ref}（${sha}）的 web 編譯失敗，log：${log}`);
     }
     if (portTaken(text)) {
       kill();

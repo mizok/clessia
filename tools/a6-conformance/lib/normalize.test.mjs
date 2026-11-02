@@ -1438,6 +1438,59 @@ test('compare：每次執行一個獨立的 worktree（同 sha 同時兩個 comp
   assert.match(a, new RegExp(`/wt/357c3303-${process.pid}-[0-9a-f]+$`));
 });
 
+test('compare：啟動時清的舊 worktree —— 超過 1 小時、而且建立它的 compare 已經不在（#1962）', async () => {
+  const { staleWorktrees } = await import('./serve.mjs');
+  const now = Date.parse('2026-11-02T18:00:00+08:00');
+  const h = 3600_000;
+  const alive = (pid) => pid === 111;
+  const entries = [
+    { name: 'aaaa1111-111-abc123', mtimeMs: now - 3 * h }, // 舊，但 compare 還在跑（量很久）→ 留
+    { name: 'bbbb2222-222-abc123', mtimeMs: now - 3 * h }, // 舊、compare 不在 → 清
+    { name: 'cccc3333-333-abc123', mtimeMs: now - 10 * 60_000 }, // 剛建、compare 不在（可能剛崩）→ 還不到 1 小時，留
+    { name: 'dddd4444', mtimeMs: now - 30 * h }, // 10-16 前的舊命名（沒有 pid）：只看年紀 → 清
+    { name: 'eeee5555', mtimeMs: now - 10 * 60_000 }, // 舊命名但很新 → 留
+    { name: 'ffff6666-666-abc123.server', mtimeMs: now - 3 * h }, // 不是 worktree 目錄名 → 不碰
+  ];
+  assert.deepEqual(staleWorktrees(entries, { now, alive }), ['bbbb2222-222-abc123', 'dddd4444']);
+});
+
+test('compare：中途崩潰或被中斷也會收掉自己起的 server 與 worktree（finally 跑不到的情況，#1962）', async () => {
+  const { spawn } = await import('node:child_process');
+  const os = await import('node:os');
+  const fsm = await import('node:fs');
+  const serve = new URL('./serve.mjs', import.meta.url).href;
+  const run = (body, onSpawn) =>
+    new Promise((resolve) => {
+      const marker = `${fsm.mkdtempSync(`${os.tmpdir()}/a6-1962-`)}/cleaned`;
+      const child = spawn(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `import fs from 'node:fs'; import { track } from ${JSON.stringify(serve)};
+           track(() => fs.writeFileSync(${JSON.stringify(marker)}, 'x'));
+           console.log('ready'); ${body}`,
+        ],
+        { stdio: ['ignore', 'pipe', 'ignore'] },
+      );
+      child.stdout.once('data', () => onSpawn?.(child));
+      child.on('exit', (code, signal) =>
+        resolve({ code, signal, cleaned: fsm.existsSync(marker) }),
+      );
+    });
+  // route.fetch 逾時那種：沒人接的 rejection，Node 直接結束行程
+  const crash = await run(`Promise.reject(new Error('boom'));`);
+  assert.equal(crash.cleaned, true);
+  assert.notEqual(crash.code, 0);
+  // 被 kill（Ctrl-C、席位退場收行程）
+  const killed = await run(`setInterval(() => {}, 1000);`, (c) => c.kill('SIGTERM'));
+  assert.equal(killed.cleaned, true);
+  // 正常結束（stop 已經收過的就不再重收）也照樣跑
+  const ok = await run(``);
+  assert.equal(ok.cleaned, true);
+  assert.equal(ok.code, 0);
+});
+
 test('compare：兩個 compare 同時挑到同一個 port —— 認得出 port 被占（換 port 重起），ready 要是自己的 port', async () => {
   const { portTaken, isReady } = await import('./serve.mjs');
   assert.equal(
