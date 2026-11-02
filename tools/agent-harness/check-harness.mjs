@@ -48,6 +48,8 @@ import {
   findOrphanEndpoints,
   loadServices,
   staleExemptions,
+  staleBlindSpots,
+  KNOWN_BLIND,
 } from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -2052,6 +2054,17 @@ function checkApiParamCoverage() {
       `API 參數豁免過期：\`${key}\` 已經沒有對應的落差了（前端有送了）—— ` +
         `把 api-param-coverage.mjs 的 EXEMPT 裡那一筆刪掉（豁免歸零是整筆移除，不是改字）`,
     );
+  }
+
+  // gate 看不到的已知落差（#2079 d）：每輪都講出來；gate 自己看得到了就要從帳上拿掉
+  for (const key of staleBlindSpots(apiParams, services)) {
+    fail(
+      `API 參數「已知盲點」過期：\`${key}\` gate 已經自己看得到（或端點不再收它）—— ` +
+        `把 api-param-coverage.mjs 的 KNOWN_BLIND 裡那一筆刪掉`,
+    );
+  }
+  for (const [key, why] of KNOWN_BLIND) {
+    warnings.push(`API 參數已知盲點（gate 認不出的落差）：\`${key}\` —— ${why}`);
   }
 
   // 對應不上的端點要可見 —— 跳過等於「gate 說沒問題，但它根本沒去看那裡」

@@ -242,8 +242,10 @@
   </div>
 
   <!-- 切換身分：黑細框、透明底（使用者 10-22，#1856；A6 是灰底卡片，R5 偏離）。
-       透明底之後底色就是浮層本身（桌機白、手機抽屜 zinc-200），選項 hover 跟著各深一階 -->
-  @if (otherRoles().length > 0) {
+       透明底之後底色就是浮層本身（桌機白、手機抽屜 zinc-200），選項 hover 跟著各深一階。
+       全部身分都列，目前的打勾標「使用中」（使用者 11-02，R5；A6 只列其他身分）。
+       不用 disabled：disabled 鈕跳過 Tab，報讀器聽不到目前是哪個；改 aria-current＋aria-disabled -->
+  @if (hasOtherRoles()) {
     <div
       class="mt-1 rounded-md border border-solid border-zinc-900 bg-transparent px-1.5 py-2"
       role="group"
@@ -255,13 +257,26 @@
       >
         切換身分
       </p>
-      @for (r of otherRoles(); track r) {
+      @for (r of auth.roles(); track r) {
+        @let current = r === auth.activeRole();
         <button
-          class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-sm border-0 bg-transparent px-1.5 text-left text-base leading-[1.5] font-medium text-zinc-900 hover:bg-zinc-100 max-wide:min-h-12 max-wide:text-[16px] max-wide:hover:bg-zinc-300 wide:min-h-10"
+          class="flex min-h-11 w-full items-center gap-3 rounded-sm border-0 bg-transparent px-1.5 text-left text-base leading-[1.5] text-zinc-900 max-wide:min-h-12 max-wide:text-[16px] wide:min-h-10"
+          [class]="
+            current
+              ? 'cursor-default font-semibold'
+              : 'cursor-pointer font-medium hover:bg-zinc-100 max-wide:hover:bg-zinc-300'
+          "
           type="button"
+          [attr.aria-current]="current ? 'true' : null"
+          [attr.aria-disabled]="current ? 'true' : null"
           (click)="switchRole(r)"
         >
           <i class="pi {{ roleIcons[r] }}" aria-hidden="true"></i>{{ roleLabels[r] }}
+          @if (current) {
+            <span class="ml-auto inline-flex items-center gap-1 text-md font-medium text-zinc-600"
+              ><i class="pi pi-check text-sm" aria-hidden="true"></i>使用中</span
+            >
+          }
         </button>
       }
     </div>

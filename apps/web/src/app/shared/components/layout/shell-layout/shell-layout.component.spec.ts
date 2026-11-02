@@ -137,10 +137,30 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
   /** #34 的教訓：切個身分不該走一趟 `/select-role`。現在入口在帳戶浮層，就地切換。 */
   it('帳戶浮層列出「其他」身分，點了交給 auth.navigateToRoleShell', async () => {
     const { el, auth } = await setup(['admin', 'teacher', 'parent'], 'admin');
+    const others = switchItems(el).filter((b) => !b.hasAttribute('aria-current'));
 
-    expect(switchItems(el).map((b) => b.textContent?.trim())).toEqual(['任課老師', '家長']);
-    switchItems(el)[0].click();
+    expect(others.map((b) => b.textContent?.trim())).toEqual(['任課老師', '家長']);
+    others[0].click();
     expect(auth.navigateToRoleShell).toHaveBeenCalledWith('teacher');
+  });
+
+  /** 使用者 11-02：列出全部身分，目前的打勾標「使用中」、不能按；報讀器要念得到（不能只靠 disabled） */
+  it('目前身分也列出來：aria-current、標「使用中」、點了不切換', async () => {
+    const { el, auth } = await setup(['admin', 'teacher', 'parent'], 'teacher');
+    const items = switchItems(el);
+
+    expect(items).toHaveLength(3);
+    const current = items.filter((b) => b.getAttribute('aria-current') === 'true');
+    expect(current).toHaveLength(1);
+    expect(current[0].textContent).toContain('任課老師');
+    expect(current[0].textContent).toContain('使用中');
+    expect(current[0].querySelector('.pi-check')).not.toBeNull();
+    // 不用 disabled：disabled 鈕跳過 Tab，報讀器逐項巡覽時聽不到「目前是哪個」
+    expect(current[0].disabled).toBe(false);
+    expect(current[0].getAttribute('aria-disabled')).toBe('true');
+
+    current[0].click();
+    expect(auth.navigateToRoleShell).not.toHaveBeenCalled();
   });
 
   it('單一身分：沒有「切換身分」那一組', async () => {
@@ -494,7 +514,12 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
       has(pop.querySelector('p.font-bold'), 'max-wide:text-[18px]');
       has(pop.querySelectorAll('p')[1], 'font-normal');
       const items = Array.from(pop.querySelectorAll('button'));
-      expect(items.map((b) => b.textContent?.trim())).toEqual(['任課老師', '帳號設定', '登出']);
+      expect(items.map((b) => b.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+        '管理員 使用中',
+        '任課老師',
+        '帳號設定',
+        '登出',
+      ]);
       for (const b of items) {
         has(
           b,
