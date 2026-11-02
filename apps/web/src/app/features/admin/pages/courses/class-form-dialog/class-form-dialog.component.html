@@ -93,16 +93,20 @@
             </label>
           }
         </div>
-        <!-- 資料模型裡「空」就是沿用：全部不勾的話存檔就會改回沿用，要讓人看得到 -->
-        @if (gradeLevels().length === 0) {
-          <p
-            class="mt-1 mb-0 text-sm text-zinc-600"
-            data-testid="grades-empty-hint"
-            aria-live="polite"
-          >
+        <!--
+          資料模型裡「空」就是沿用：全部不勾的話存檔就會改回沿用，要讓人看得到。
+          live region 常駐、只換文字：跟文字一起插進 DOM 的 aria-live 有些報讀器不念
+        -->
+        <p
+          class="mb-0 text-sm text-zinc-600"
+          [class.mt-1]="gradeLevels().length === 0"
+          data-testid="grades-empty-hint"
+          aria-live="polite"
+        >
+          @if (gradeLevels().length === 0) {
             全部不勾就會改回沿用課程（目前是：{{ courseGradesText() }}）
-          </p>
-        }
+          }
+        </p>
         <button
           type="button"
           class="mt-1 inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-[3px] wide:min-h-9"
