@@ -23,6 +23,8 @@ export interface ContactBookEntry {
   content: string;
   /** 共編只記最後編輯者，不做分段作者（rules 3） */
   lastEditedByName: string | null;
+  /** 老師／管理員最後改內容的時間（#2080-3）；家長簽收不動它。舊資料未回填為 null */
+  teacherEditedAt: string | null;
   signedBy: string | null;
   /** 簽收者姓名（`signedBy` 是 ba_user id，畫面要顯示的是這個）；未簽或對不到使用者為 null */
   signedByName: string | null;

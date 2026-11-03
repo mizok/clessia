@@ -128,6 +128,29 @@ describe('SchoolScoreEditorComponent', () => {
     );
   });
 
+  // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+  it('超過一頁：精簡版分頁器，按下一頁帶 page: 2 重抓', () => {
+    schoolExamsServiceMock.getStudents.mockReturnValueOnce(
+      of({ data: mockStudents, meta: { total: 51, page: 1, pageSize: 50 } }),
+    );
+    component['loadStudents']();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('p-paginator')).toBeNull();
+    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+      '第 1／2 頁',
+    );
+    schoolExamsServiceMock.getStudents.mockClear();
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+      .find((b) => b.textContent?.includes('下一頁'))!
+      .click();
+    expect(schoolExamsServiceMock.getStudents).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({ page: 2 }),
+    );
+  });
+
   it('renders student list', () => {
     const host = fixture.nativeElement as HTMLElement;
     const rows = host.querySelectorAll('[data-part=row]');

@@ -118,13 +118,13 @@
       </ul>
 
       @if (total() > pageSize) {
-        <p-paginator
-          [first]="(page() - 1) * pageSize"
-          [rows]="pageSize"
-          [totalRecords]="total()"
-          [showCurrentPageReport]="true"
-          currentPageReportTemplate="共 {totalRecords} 筆"
-          (onPageChange)="onPage($event)"
+        <app-pager
+          class="mt-4"
+          [total]="total()"
+          [pageSize]="pageSize"
+          [page]="page()"
+          unit="筆"
+          (pageChange)="onPage($event)"
         />
       }
     }

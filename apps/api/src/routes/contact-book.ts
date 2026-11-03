@@ -41,6 +41,8 @@ const ContactBookEntrySchema = z
     entryDate: z.string(),
     content: z.string(),
     lastEditedByName: z.string().nullable(),
+    /** 老師／管理員最後改內容的時間（#2080-3）；家長簽收不動它。舊資料未回填前為 null */
+    teacherEditedAt: z.string().nullable(),
     signedBy: z.string().nullable(),
     signedByName: z.string().nullable(),
     signedAt: z.string().nullable(),
@@ -83,6 +85,7 @@ interface ContactBookRow {
   signed_by: string | null;
   signed_at: string | null;
   updated_at: string;
+  teacher_edited_at: string | null;
   students?: {
     name: string;
     enrollments?: Array<{
@@ -129,6 +132,7 @@ export function toContactBookEntryResponse(row: Record<string, unknown>, visible
     entryDate: typed.entry_date,
     content: typed.content,
     lastEditedByName: typed.editor?.name ?? null,
+    teacherEditedAt: typed.teacher_edited_at ?? null,
     signedBy: typed.signed_by,
     signedByName: typed.signer?.name ?? null,
     signedAt: typed.signed_at,
@@ -139,7 +143,7 @@ export function toContactBookEntryResponse(row: Record<string, unknown>, visible
 }
 
 const SELECT =
-  'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, updated_at, ' +
+  'id, student_id, entry_date, content, last_edited_by, signed_by, signed_at, updated_at, teacher_edited_at, ' +
   'students(name, enrollments(status, class_id, classes(name, campus_id, uses_contact_book))), ' +
   'editor:ba_user!last_edited_by(name), signer:ba_user!signed_by(name)';
 
@@ -333,6 +337,7 @@ app.openapi(
           entry_date: entryDate,
           content,
           last_edited_by: userId,
+          teacher_edited_at: new Date().toISOString(),
         },
         { onConflict: 'student_id,entry_date' },
       )

@@ -1,5 +1,6 @@
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { AuthService, type UserRole } from '@core/auth.service';
 import { InboxBadgeService } from '@core/inbox-badge.service';
@@ -47,6 +48,7 @@ export class ShellLayoutComponent {
   protected readonly campus = inject(CampusContextService);
   protected readonly badge = inject(InboxBadgeService);
   private readonly dialogService = inject(DialogService);
+  private readonly messages = inject(MessageService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly roleLabels: Record<UserRole, string> = {
@@ -165,7 +167,11 @@ export class ShellLayoutComponent {
   protected switchRole(role: UserRole) {
     if (role === this.auth.activeRole()) return;
     this.hide('shell-account');
-    this.auth.navigateToRoleShell(role);
+    // 只有真的切過去才提示（被擋下的導航不說「已切換」）；toast 出口是 role=status 的 live region
+    void this.auth.navigateToRoleShell(role).then((ok) => {
+      if (ok)
+        this.messages.add({ severity: 'success', summary: `已切換到 ${this.roleLabels[role]}` });
+    });
   }
 
   protected openAccountSettings() {

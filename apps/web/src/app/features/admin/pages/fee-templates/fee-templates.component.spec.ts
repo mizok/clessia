@@ -4,7 +4,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
+import { signal } from '@angular/core';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { SystemClockService } from '@core/system-clock.service';
 import {
   FeeTemplatesService,
   type FeeTemplate,
@@ -65,6 +67,7 @@ describe('FeeTemplatesComponent', () => {
     feeTemplates.delete.mockReset().mockReturnValue(of({ success: true }));
     feeTemplates.update.mockReset().mockReturnValue(of({ data: template() }));
     billingPeriods.list.mockReset().mockReturnValue(of({ data: [] }));
+    billingPeriods.create.mockReset();
 
     await TestBed.configureTestingModule({
       imports: [FeeTemplatesComponent],
@@ -73,6 +76,8 @@ describe('FeeTemplatesComponent', () => {
         { provide: FeeTemplatesService, useValue: feeTemplates },
         { provide: BillingPeriodsService, useValue: billingPeriods },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        // 模板預覽照「下一個學年」算：10/23 → 116 學年（2027-09 起）
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-10-23') } },
         provideRouter([]),
       ],
     }).compileComponents();
@@ -378,5 +383,109 @@ describe('FeeTemplatesComponent', () => {
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('載入失敗');
+  });
+
+  /**
+   * 用模板建立（#1100 #35③）：使用者 11-02 從系統設定搬來，而且「一選就建太危險」——
+   * radio 選模板（附預覽）、按「建立這 N 個期間」才送（R5）。
+   */
+  describe('用模板建立（使用者 11-02）', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const radio = (key: string) =>
+      el().querySelector<HTMLInputElement>(`[data-template="${key}"] input[type="radio"]`)!;
+    const submit = () =>
+      el().querySelector<HTMLButtonElement>('[data-testid="create-from-template"]')!;
+    const choose = (key: string) => {
+      radio(key).click();
+      fixture.detectChanges();
+    };
+    const boot = async (existing: BillingPeriodListItem[] = []) => {
+      billingPeriods.list.mockReturnValue(of({ data: existing }));
+      internals().periods.set(existing);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('三個模板各附預覽：建出哪幾個期間、哪幾天（照下一個學年）', async () => {
+      await boot();
+      const preview = el().querySelector('[data-template="two-terms"]')!.textContent!;
+      expect(preview).toContain('傳統二學期制');
+      expect(preview).toContain('116 上學期');
+      expect(preview).toContain('2027/09/01 — 2028/01/31');
+      expect(preview).toContain('116 下學期');
+      expect(el().querySelectorAll('[data-template]')).toHaveLength(3);
+    });
+
+    it('選了不會建；沒選時送出鈕不能按，選了才寫「建立這 N 個期間」', async () => {
+      await boot();
+      expect(submit().disabled).toBe(true);
+      choose('terms-and-breaks');
+      expect(billingPeriods.create).not.toHaveBeenCalled();
+      expect(submit().disabled).toBe(false);
+      expect(submit().textContent).toContain('建立這 4 個期間');
+    });
+
+    it('按下才照順序建；同名的略過並在預覽標出來；建中鈕停用寫「建立中…」；成功提示建了幾個', async () => {
+      await boot([
+        period({ id: 'p1', name: '116 上學期', startDate: '2027-09-01', endDate: '2028-01-31' }),
+      ]);
+      const pending = new Subject<{ data: BillingPeriod }>();
+      billingPeriods.create.mockReturnValue(pending);
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      choose('two-terms');
+      expect(el().querySelector('[data-template="two-terms"]')!.textContent).toContain(
+        '已經有了，會略過',
+      );
+      expect(submit().textContent).toContain('建立這 1 個期間');
+
+      submit().click();
+      fixture.detectChanges();
+      expect(billingPeriods.create.mock.calls.map((c) => c[0])).toEqual([
+        { name: '116 下學期', startDate: '2028-02-01', endDate: '2028-06-30' },
+      ]);
+      expect(submit().disabled).toBe(true);
+      expect(submit().textContent).toContain('建立中…');
+
+      pending.next({ data: period({ id: 'n' }) });
+      pending.complete();
+      fixture.detectChanges();
+      expect(toast).toHaveBeenCalledWith({
+        severity: 'success',
+        summary: '已建立 1 個期間，日期可以再改',
+        detail: '略過 1 個同名的',
+      });
+    });
+
+    it('建到一半失敗：停下、提示原因與已建幾個、重讀清單', async () => {
+      await boot();
+      billingPeriods.create
+        .mockReturnValueOnce(of({ data: period({ id: 'a' }) }))
+        .mockReturnValueOnce(throwError(() => ({ error: { error: '名稱重複' } })));
+      const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
+      billingPeriods.list.mockClear();
+      choose('terms-and-breaks');
+      submit().click();
+      fixture.detectChanges();
+
+      expect(billingPeriods.create).toHaveBeenCalledTimes(2);
+      expect(toast).toHaveBeenCalledWith({
+        severity: 'error',
+        summary: '建立失敗',
+        detail: '名稱重複。已經建好 1 個，請看清單再決定要不要重試',
+      });
+      expect(billingPeriods.list).toHaveBeenCalledTimes(1);
+      expect(submit().textContent).not.toContain('建立中…');
+    });
+
+    it('模板的期間都已經有了：鈕停用並說明，不送', async () => {
+      await boot([
+        period({ id: 'p1', name: '116 上學期＋暑假' }),
+        period({ id: 'p2', name: '116 下學期＋寒假' }),
+      ]);
+      choose('terms-with-breaks');
+      expect(submit().disabled).toBe(true);
+      expect(submit().textContent).toContain('這個模板的期間都已經有了');
+    });
   });
 });

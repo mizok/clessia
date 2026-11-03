@@ -223,8 +223,31 @@ describe('ExamsComponent', () => {
     expect(component['currentRows']()[0].kind).toBe('school');
   });
 
+  // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+  it('超過一頁：精簡版分頁器，按下一頁打 page=2', () => {
+    component['total'].set(LIST_PAGE_SIZE + 1);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('p-paginator')).toBeNull();
+    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+      '第 1／2 頁',
+    );
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+      .find((b) => b.textContent?.includes('下一頁'))!
+      .click();
+    fixture.detectChanges();
+    http
+      .expectOne(
+        (req) =>
+          req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+          req.params.get('page') === '2',
+      )
+      .flush({ data: [], meta: { total: 0, page: 2, pageSize: LIST_PAGE_SIZE } });
+  });
+
   it('分校跟頂欄走：換分校只發一支校內考查詢，帶 campusId、回第一頁（#1138）', () => {
-    component['onPage']({ page: 1 } as never);
+    component['onPage'](2);
     fixture.detectChanges();
     http
       .expectOne(
@@ -334,8 +357,7 @@ describe('ExamsComponent', () => {
     component['setTab']('all');
     fixture.detectChanges();
     const req = http.expectOne(
-      (r) =>
-        r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !r.params.has('todo'),
+      (r) => r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !r.params.has('todo'),
     );
     req.flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
     expect(component['tab']()).toBe('all');

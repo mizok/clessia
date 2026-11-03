@@ -438,8 +438,8 @@ describe('CampusesPage', () => {
       expect(orgLoad).toHaveBeenCalledTimes(1);
     });
 
-    // 審核席 C3／C4：paginator 剛好一頁不出現、多一筆才出現；翻頁頁碼是 page + 1
-    it('剛好一頁不出 paginator；多一筆才出；翻到第 2 頁打 page: 2', async () => {
+    // 審核席 C3／C4：分頁器剛好一頁不出現、多一筆才出現；#1314 Z 批換成 A6 精簡版 app-pager
+    it('剛好一頁不出分頁器；多一筆才出；按下一頁打 page: 2', async () => {
       const many = (n: number) =>
         Array.from({ length: Math.min(n, LIST_PAGE_SIZE) }, (_, i) => c({ id: 'p' + i }));
       const page = async (total: number) => {
@@ -461,11 +461,17 @@ describe('CampusesPage', () => {
         fixture.detectChanges();
         await fixture.whenStable();
         fixture.detectChanges();
-        return (fixture.nativeElement as HTMLElement).querySelector('p-paginator');
+        return fixture.nativeElement as HTMLElement;
       };
-      expect(await page(LIST_PAGE_SIZE)).toBeNull();
-      expect(await page(LIST_PAGE_SIZE + 1)).not.toBeNull();
-      (component as unknown as { onPage: (e: { page: number }) => void }).onPage({ page: 1 });
+      expect((await page(LIST_PAGE_SIZE)).querySelector('app-pager nav')).toBeNull();
+      const el = await page(LIST_PAGE_SIZE + 1);
+      expect(el.querySelector('p-paginator')).toBeNull();
+      expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+        '第 1／2 頁',
+      );
+      Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+        .find((b) => b.textContent?.includes('下一頁'))!
+        .click();
       expect(campusesServiceMock.list).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2 }),
       );

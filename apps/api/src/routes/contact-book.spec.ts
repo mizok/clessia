@@ -17,6 +17,7 @@ const ROW = {
   signed_by: null,
   signed_at: null,
   updated_at: '2026-08-29T10:00:00Z',
+  teacher_edited_at: '2026-08-29T09:30:00Z',
   students: { name: '陳小明' },
   editor: { name: '林老師' },
   signer: null,
@@ -31,6 +32,7 @@ describe('toContactBookEntryResponse', () => {
       entryDate: '2026-08-29',
       content: '今天上課很專心，數學小考 95 分。',
       lastEditedByName: '林老師',
+      teacherEditedAt: '2026-08-29T09:30:00Z',
       signedBy: null,
       signedByName: null,
       signedAt: null,
@@ -320,6 +322,8 @@ describe('PUT /api/contact-book 內容沒變不寫', () => {
     expect(res.status).toBe(200);
     expect(writes).toEqual([]);
     expect(db.rows('contact_book_entries')[0]).toMatchObject({ last_edited_by: 'teacher-a' });
+    // 沒人改內容 → 「老師最後編輯」也不能跳（#2080-3）
+    expect(db.rows('contact_book_entries')[0]['teacher_edited_at']).toBeUndefined();
   });
 
   it('內容改了：照寫（防過度擋）', async () => {
@@ -330,5 +334,14 @@ describe('PUT /api/contact-book 內容沒變不寫', () => {
       content: '改過的內容',
       last_edited_by: 'admin-b',
     });
+  });
+
+  it('內容改了：寫 teacher_edited_at，並回給前端（#2080-3）', async () => {
+    const { db, put } = setup();
+    const before = Date.now();
+    const body = (await (await put('改過的內容')).json()) as { teacherEditedAt: string | null };
+    const written = db.rows('contact_book_entries')[0]['teacher_edited_at'] as string;
+    expect(Date.parse(written)).toBeGreaterThanOrEqual(before);
+    expect(body.teacherEditedAt).toBe(written);
   });
 });

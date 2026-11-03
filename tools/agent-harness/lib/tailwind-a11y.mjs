@@ -32,7 +32,9 @@ function walkElements(nodes, visit, ancestors = []) {
     const isEl = n.constructor.name === 'Element';
     if (isEl) visit(n, ancestors);
     const next = isEl ? [...ancestors, n] : ancestors;
-    for (const key of ['children', 'branches', 'cases']) {
+    // @if → branches；@switch → groups（Angular 21 的 SwitchBlock.groups[].children；
+    // 舊版是 cases，只認 cases 時全 repo 的 @switch 都沒被檢查，#2035）。各分支自己再帶 children
+    for (const key of ['children', 'branches', 'groups']) {
       if (Array.isArray(n[key])) walkElements(n[key], visit, next);
     }
     if (n.empty?.children) walkElements(n.empty.children, visit, next);

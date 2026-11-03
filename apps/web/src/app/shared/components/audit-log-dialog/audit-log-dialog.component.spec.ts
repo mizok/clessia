@@ -73,6 +73,23 @@ describe('AuditLogDialogComponent', () => {
    * **#812：取數失敗時不能說「尚無操作紀錄」。**
    * 量到的實例是 44 筆紀錄的對話框在失敗時渲染成空 —— 而唯一的訊號是「沒有」。
    */
+  // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+  it('超過一頁：精簡版分頁器寫每頁筆數，按下一頁帶 page: 2 重打', async () => {
+    auditLogsServiceMock.list.mockReturnValue(of({ data: logs, meta: { total: 25 } }));
+    await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('p-paginator')).toBeNull();
+    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+      '第 1／3 頁 · 每頁 10 筆',
+    );
+
+    auditLogsServiceMock.list.mockClear();
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+      .find((b) => b.textContent?.includes('下一頁'))!
+      .click();
+    expect(auditLogsServiceMock.list).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }));
+  });
+
   it('取數失敗時渲染「載入失敗」，不說「尚無操作紀錄」', async () => {
     auditLogsServiceMock.list.mockReturnValue(throwError(() => new Error('boom')));
 

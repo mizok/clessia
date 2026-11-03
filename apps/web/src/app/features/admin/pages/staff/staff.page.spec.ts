@@ -37,6 +37,7 @@ describe('StaffPage', () => {
         inactiveCount: number;
         archivedCount: number;
         multiRoleCount: number;
+        neverLoggedInCount: number;
         byRole: { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number };
       };
     }>,
@@ -51,6 +52,7 @@ describe('StaffPage', () => {
       inactiveCount: 0,
       archivedCount: 0,
       multiRoleCount: 0,
+      neverLoggedInCount: 0,
       byRole: { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0 },
     },
     ...overrides,
@@ -193,6 +195,7 @@ describe('StaffPage', () => {
               activeCount: 0,
               inactiveCount: 0,
               archivedCount: 0,
+              neverLoggedInCount: 0,
               byRole: { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0, ...byRole },
               ...over,
             },
@@ -288,6 +291,24 @@ describe('StaffPage', () => {
       );
       expect(sub()).toContain('7 位管理員 · 121 位老師');
       expect(sub()).not.toContain('身兼兩者');
+    });
+
+    // ST6（A6 staff.html：`inv ? ' · N 位還沒登入過' : ''`）
+    it('開場副行：有人還沒登入過時接「 · N 位還沒登入過」，0 位不寫', () => {
+      const sub = () => (fixture.nativeElement as HTMLElement).textContent!;
+      show(
+        [person('t', {})],
+        { teacher: 1 },
+        { adminCount: 7, teacherCount: 121, multiRoleCount: 2, neverLoggedInCount: 3 },
+      );
+      expect(sub()).toContain('7 位管理員 · 121 位老師（2 位身兼兩者） · 3 位還沒登入過');
+
+      show(
+        [person('t', {})],
+        { teacher: 1 },
+        { adminCount: 7, teacherCount: 121, multiRoleCount: 0, neverLoggedInCount: 0 },
+      );
+      expect(sub()).not.toContain('位還沒登入過');
     });
   });
 

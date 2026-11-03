@@ -204,3 +204,44 @@ describe('POST /api/login-links 的准入', () => {
     expect(response.status).toBe(401);
   });
 });
+
+// #1842：登入頁在**登入前**就要知道這個部署掛了哪些 provider（provider 清單不寫死，c12 沒設就不畫）。
+// 值跟 createAuth 用同一支 socialProvidersFromEnv 推出來，不另寫清單（c11）。
+describe('GET /api/auth-providers', () => {
+  const providersOf = async (env: Record<string, string>) => {
+    const response = await app.request('http://localhost/api/auth-providers', {}, env);
+    return { status: response.status, text: await response.text() };
+  };
+
+  it('不需登入，回有設定的那幾個', async () => {
+    const both = await providersOf({
+      ...testEnv,
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'line-secret',
+      GOOGLE_CLIENT_ID: 'gid',
+      GOOGLE_CLIENT_SECRET: 'google-secret',
+    });
+    expect(both.status).toBe(200);
+    expect(JSON.parse(both.text)).toEqual({ providers: ['line', 'google'] });
+
+    const lineOnly = await providersOf({
+      ...testEnv,
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'line-secret',
+    });
+    expect(JSON.parse(lineOnly.text)).toEqual({ providers: ['line'] });
+
+    expect(JSON.parse((await providersOf(testEnv)).text)).toEqual({ providers: [] });
+  });
+
+  it('只回 id，不帶任何憑證', async () => {
+    const { text } = await providersOf({
+      ...testEnv,
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'line-secret',
+      GOOGLE_CLIENT_ID: 'gid',
+      GOOGLE_CLIENT_SECRET: 'google-secret',
+    });
+    expect(text).not.toMatch(/cid|gid|secret/i);
+  });
+});
