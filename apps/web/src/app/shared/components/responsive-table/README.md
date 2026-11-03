@@ -5,7 +5,7 @@
 - 依容器寬度做欄位 collapse
 - 自動插入展開控制欄（第一欄或最後一欄）
 - 自動產生 detail row 顯示被 collapse 欄位
-- 內建 PrimeNG paginator UI（外層控制狀態）
+- 內建分頁器（共用的 A6 精簡版 `app-pager`，#1314 Z 批；外層控制狀態）
 
 ## Usage
 
@@ -52,7 +52,7 @@
 
 ## Outputs
 
-- `page`: `ResponsiveTablePageEvent`（由 `p-paginator` 的 `onPageChange` 轉發）
+- `page`: `ResponsiveTablePageEvent`（`app-pager` 發的是 1 起算頁碼，元件轉成 `{ first, rows, page（0 起算）, pageCount }`，沿用 PrimeNG 時代的契約）
 
 ## Pagination Contract
 
@@ -61,16 +61,13 @@ interface ResponsiveTablePaginationConfig {
   first: number;
   rows: number;
   totalRecords: number;
-  rowsPerPageOptions?: readonly number[];
-  showCurrentPageReport?: boolean;
-  currentPageReportTemplate?: string;
-  alwaysShow?: boolean;
+  unit?: string; // 精簡版的「· 每頁 N <unit>」，不給就不寫
 }
 ```
 
-- `pagination = null` 時不渲染 paginator。
+- `pagination = null`、或只有一頁時不渲染分頁器。
 - 元件不做資料切片，僅渲染分頁 UI 並透過 `page` 事件回傳新頁狀態。
-- 未提供 `rowsPerPageOptions` 時，不顯示每頁筆數下拉選單。
+- 沒有「每頁筆數」選單（A6 的分頁器沒有；產生課堂預覽原本有，已拿掉，R5）。
 
 ## Directives
 

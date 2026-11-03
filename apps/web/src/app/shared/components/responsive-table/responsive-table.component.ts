@@ -17,7 +17,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import type {
   ResponsiveTableAccordionBehavior,
   ResponsiveTableBodyState,
@@ -31,7 +31,7 @@ import { RESPONSIVE_TABLE } from './responsive-table.token';
 
 @Component({
   selector: 'app-responsive-table',
-  imports: [NgTemplateOutlet, PaginatorModule],
+  imports: [NgTemplateOutlet, PagerComponent],
   providers: [
     {
       provide: RESPONSIVE_TABLE,
@@ -43,11 +43,6 @@ import { RESPONSIVE_TABLE } from './responsive-table.token';
   encapsulation: ViewEncapsulation.None,
 })
 export class ResponsiveTableComponent {
-  private static readonly defaultCurrentPageReportTemplate =
-    '顯示 {first} - {last}，共 {totalRecords} 筆';
-  private static readonly defaultMobileCurrentPageReportTemplate =
-    '第 {currentPage} / {totalPages} 頁';
-
   private readonly destroyRef = inject(DestroyRef);
   private readonly renderer = inject(Renderer2);
   protected readonly templateInjector = inject(Injector);
@@ -92,38 +87,29 @@ export class ResponsiveTableComponent {
   protected readonly bodyContext = {
     state: this.bodyState,
   };
+  /** #1314 Z 批：A6 精簡版分頁器 app-pager（頁碼從 1 起算）；對外仍收 `first`／`rows`、發 0 起算的 page */
   protected readonly effectivePagination = computed(() => {
     const pagination = this.pagination();
     if (!pagination) {
       return null;
     }
-    const isCompactPaginator = this.isCompactPaginator();
-
+    const rows = Math.max(pagination.rows, 1);
+    const totalRecords = Math.max(pagination.totalRecords, 0);
     return {
-      first: Math.max(pagination.first, 0),
-      rows: Math.max(pagination.rows, 1),
-      totalRecords: Math.max(pagination.totalRecords, 0),
-      rowsPerPageOptions: isCompactPaginator
-        ? undefined
-        : pagination.rowsPerPageOptions
-          ? [...pagination.rowsPerPageOptions]
-          : undefined,
-      showCurrentPageReport: pagination.showCurrentPageReport ?? true,
-      currentPageReportTemplate: isCompactPaginator
-        ? ResponsiveTableComponent.defaultMobileCurrentPageReportTemplate
-        : (pagination.currentPageReportTemplate ??
-          ResponsiveTableComponent.defaultCurrentPageReportTemplate),
-      alwaysShow: pagination.alwaysShow ?? false,
+      rows,
+      totalRecords,
+      page: Math.floor(Math.max(pagination.first, 0) / rows) + 1,
+      pageCount: Math.max(1, Math.ceil(totalRecords / rows)),
+      unit: pagination.unit,
     };
   });
-  protected readonly isCompactPaginator = computed(() => this.containerWidth() <= 768);
   protected readonly shouldShowPaginator = computed(() => {
     const pagination = this.effectivePagination();
     if (!pagination) {
       return false;
     }
 
-    return pagination.alwaysShow || pagination.totalRecords > pagination.rows;
+    return pagination.totalRecords > pagination.rows;
   });
 
   private resizeObserver?: ResizeObserver;
@@ -246,16 +232,19 @@ export class ResponsiveTableComponent {
     return this.expandControlPosition();
   }
 
-  protected handlePageChange(event: PaginatorState): void {
+  /** app-pager 發 1 起算的頁碼；轉回 PrimeNG 時代的事件契約（page 從 0 起算），呼叫端不用改 */
+  protected handlePageChange(page: number): void {
+    const pagination = this.effectivePagination();
+    if (!pagination) return;
     if (this.expandedRowIds().size > 0) {
       this.expandedRowIds.set(new Set());
     }
 
     this.page.emit({
-      first: event.first ?? 0,
-      rows: event.rows ?? 0,
-      page: event.page ?? 0,
-      pageCount: event.pageCount ?? 0,
+      first: (page - 1) * pagination.rows,
+      rows: pagination.rows,
+      page: page - 1,
+      pageCount: pagination.pageCount,
     });
   }
 

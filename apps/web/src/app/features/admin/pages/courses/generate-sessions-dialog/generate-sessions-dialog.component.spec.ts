@@ -96,6 +96,41 @@ describe('GenerateSessionsDialogComponent', () => {
     expect(fixture.nativeElement.querySelector('app-responsive-table')).not.toBeNull();
   });
 
+  // #1314 Z 批：預覽的分頁器換成 A6 精簡版；「每頁筆數」選單拿掉、固定每頁 10 堂（R5）
+  it('預覽超過一頁：精簡版分頁器、沒有每頁筆數選單，按下一頁換到第 2 頁', () => {
+    const c = component as unknown as {
+      previewSessions: { set: (v: unknown[]) => void };
+      paginatedPreviewSessions: () => unknown[];
+      previewPagination: () => { rows: number };
+    };
+    c.previewSessions.set(
+      Array.from({ length: 12 }, (_, i) => ({
+        sessionDate: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        startTime: '18:00:00',
+        endTime: '20:00:00',
+        teacherId: 'teacher-1',
+        teacherName: '張老師',
+        weekday: 1,
+        exists: false,
+      })),
+    );
+    (component as unknown as { step: { set: (v: string) => void } }).step.set('preview');
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('p-paginator')).toBeNull();
+    expect(el.querySelector('app-responsive-table p-select')).toBeNull();
+    expect(c.previewPagination().rows).toBe(10);
+    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+      '第 1／2 頁 · 每頁 10 堂',
+    );
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+      .find((b) => b.textContent?.includes('下一頁'))!
+      .click();
+    fixture.detectChanges();
+    expect(c.paginatedPreviewSessions()).toHaveLength(2);
+  });
+
   it('closes with refresh after generation result when user dismisses the dialog', () => {
     (
       component as unknown as {

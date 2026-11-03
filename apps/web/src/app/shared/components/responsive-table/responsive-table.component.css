@@ -218,13 +218,8 @@
   }
   .responsive-table__paginator {
     border-top: 1px solid var(--zinc-100);
-    background: var(--zinc-50);
-  }
-  .responsive-table__paginator .p-paginator {
-    border: 0;
-    border-radius: 0;
     padding: var(--space-3) var(--space-4);
-    background: transparent;
+    background: var(--zinc-50);
   }
   @media (prefers-reduced-motion: reduce) {
     .responsive-table__row,
@@ -255,17 +250,6 @@
     .responsive-table__detail-item {
       grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
       gap: var(--space-3);
-    }
-  }
-  @container responsive-table (max-width: 768px) {
-    .responsive-table__paginator .p-paginator {
-      justify-content: center;
-      gap: var(--space-2);
-    }
-    .responsive-table__paginator .p-paginator-current {
-      margin-left: 0;
-      font-size: var(--text-sm);
-      color: var(--zinc-500);
     }
   }
   @media (pointer: coarse) {

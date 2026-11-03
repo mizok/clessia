@@ -304,8 +304,20 @@ describe('ResponsiveTableComponent', () => {
     fixture.detectChanges();
 
     const hostElement = fixture.nativeElement as HTMLElement;
-    const paginator = hostElement.querySelector('.p-paginator');
-    expect(paginator).toBeTruthy();
+    // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+    expect(hostElement.querySelector('p-paginator')).toBeNull();
+    expect(hostElement.querySelector('app-pager nav')).toBeTruthy();
+  });
+
+  it('first 換算成頁碼給分頁器；給了 unit 才寫每頁筆數', () => {
+    fixture = TestBed.createComponent(HostComponent);
+    fixture.componentInstance.pagination = { first: 20, rows: 10, totalRecords: 25, unit: '堂' };
+    fixture.detectChanges();
+
+    const status = (fixture.nativeElement as HTMLElement).querySelector(
+      'app-pager [data-part="status"]',
+    );
+    expect(status?.textContent?.trim()).toBe('第 3／3 頁 · 每頁 10 堂');
   });
 
   it('does not render paginator when pagination config is null', () => {
@@ -314,21 +326,24 @@ describe('ResponsiveTableComponent', () => {
     fixture.detectChanges();
 
     const hostElement = fixture.nativeElement as HTMLElement;
-    const paginator = hostElement.querySelector('.p-paginator');
-    expect(paginator).toBeFalsy();
+    expect(hostElement.querySelector('app-pager nav')).toBeFalsy();
   });
 
+  // rows 要大於 1：rows 是 1 時 first 跟 page 的值一樣，「first 忘了乘 rows」會照綠；
+  // 而 payments.page 只讀 event.first（二讀 #2198 突變 T1）
   it('emits page event when paginator changes page', () => {
     fixture = TestBed.createComponent(HostComponent);
     fixture.componentInstance.pagination = {
       first: 0,
-      rows: 1,
-      totalRecords: 10,
+      rows: 10,
+      totalRecords: 100,
     };
     fixture.detectChanges();
 
     const hostElement = fixture.nativeElement as HTMLElement;
-    const nextButton = hostElement.querySelector('.p-paginator-next') as HTMLButtonElement | null;
+    const nextButton = Array.from(
+      hostElement.querySelectorAll<HTMLButtonElement>('app-pager button'),
+    ).find((b) => b.textContent?.includes('下一頁'));
     expect(nextButton).toBeTruthy();
 
     nextButton?.click();
@@ -336,8 +351,8 @@ describe('ResponsiveTableComponent', () => {
 
     const [event] = fixture.componentInstance.pageEvents;
     expect(event).toBeTruthy();
-    expect(event?.first).toBe(1);
-    expect(event?.rows).toBe(1);
+    expect(event?.first).toBe(10);
+    expect(event?.rows).toBe(10);
     expect(event?.page).toBe(1);
     expect(event?.pageCount).toBe(10);
   });
@@ -365,7 +380,9 @@ describe('ResponsiveTableComponent', () => {
     fixture.detectChanges();
     expect(hostElement.querySelectorAll('tr.responsive-table__detail-row').length).toBe(1);
 
-    const nextButton = hostElement.querySelector('.p-paginator-next') as HTMLButtonElement | null;
+    const nextButton = Array.from(
+      hostElement.querySelectorAll<HTMLButtonElement>('app-pager button'),
+    ).find((b) => b.textContent?.includes('下一頁'));
     expect(nextButton).toBeTruthy();
     nextButton?.click();
     fixture.detectChanges();
