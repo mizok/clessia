@@ -84,15 +84,17 @@ describe('StudentAutocompleteComponent', () => {
       expect(picked.at(-1)).toMatchObject({ id: 's1' });
     });
 
-    // jsdom 不載全域樣式：直接讀 styles.css 守「≤860 時 .p-overlay 排進版面、清單不內捲」
-    it('styles.css：≤860 內嵌版的 .p-overlay 是 static、清單沒有 200px 上限', () => {
+    // jsdom 不載全域樣式：直接讀 styles.css 守「內嵌版的 .p-overlay 排進版面、清單不內捲」，而且不分寬度
+    it('styles.css：內嵌版的 .p-overlay 是 static、清單沒有 200px 上限（不包在 media query 裡）', () => {
       const css = readFileSync(join(resolve(process.cwd(), 'apps/web/src'), 'styles.css'), 'utf8');
       const block = css.match(
-        /@media \(max-width: 860px\) \{\s*\.student-autocomplete--inline \.p-overlay \{([^}]*)\}\s*\.student-autocomplete--inline \.p-autocomplete-list-container \{([^}]*)\}/,
+        /\n {2}\.student-autocomplete--inline \.p-overlay \{([^}]*)\}\s*\.student-autocomplete--inline \.p-autocomplete-list-container \{([^}]*)\}/,
       );
       expect(block).not.toBeNull();
       expect(block![1]).toMatch(/position:\s*static !important/);
       expect(block![2]).toMatch(/max-height:\s*none !important/);
+      // 桌機浮動也會超出對話框底邊（計畫席 11-03）：不能再包回只在手機生效的 media query
+      expect(css).not.toMatch(/@media[^{]*\{\s*\.student-autocomplete--inline/);
     });
   });
 

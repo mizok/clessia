@@ -376,20 +376,19 @@
   .p-inputnumber-input {
     min-width: 0;
   }
-  /* 學生候選清單的內嵌版（#2205，app-student-autocomplete [inline]）：≤860 不浮動，排進版面接在輸入框下方，
-     把下面的欄位往下推、由外層對話框捲動。PrimeNG 用 inline style 寫 .p-overlay 的座標，所以要 !important
-     （同全站對話框抽屜蓋 PrimeNG inline style 的做法）。清單自己的 200px 內捲拿掉，免得捲動裡再套一層捲動 */
-  @media (max-width: 860px) {
-    .student-autocomplete--inline .p-overlay {
-      position: static !important;
-      top: auto !important;
-      left: auto !important;
-      min-width: 0 !important;
-      transform: none !important;
-    }
-    .student-autocomplete--inline .p-autocomplete-list-container {
-      max-height: none !important;
-    }
+  /* 學生候選清單的內嵌版（#2205，app-student-autocomplete [inline]）：不分寬度都不浮動，排進版面接在輸入框下方，
+     把下面的欄位往下推、由外層對話框捲動（桌機浮動也一樣會超出對話框底邊，計畫席 11-03 裁定一條路徑）。
+     PrimeNG 用 inline style 寫 .p-overlay 的座標，所以要 !important（同全站對話框抽屜蓋 PrimeNG inline style 的做法）。
+     清單自己的 200px 內捲拿掉，免得捲動裡再套一層捲動 */
+  .student-autocomplete--inline .p-overlay {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    min-width: 0 !important;
+    transform: none !important;
+  }
+  .student-autocomplete--inline .p-autocomplete-list-container {
+    max-height: none !important;
   }
   /* Toast：全站唯一出口 app-toast（#1615），樣式在元件裡，這裡不再覆寫 PrimeNG 的 .p-toast */
   /* =============================================================================

@@ -27,10 +27,10 @@ export class StudentAutocompleteComponent {
   /** 候選清單掛在哪（預設不變）。放進 dialog／drawer 時傳 'body'，否則清單會被裁掉或蓋住 */
   readonly appendTo = input<string | undefined>(undefined);
   /**
-   * 手機（≤860）把候選清單排進版面、接在輸入框下方（#2205，使用者 11-03 裁定）：給放在原生
+   * 把候選清單排進版面、接在輸入框下方（#2205，使用者 11-03 裁定；不分寬度，計畫席 11-03）：給放在原生
    * `showModal()` 對話框裡的使用處 —— top layer 裡 `appendTo: 'body'` 會被蓋住，浮動又被對話框的捲動外框裁掉。
    * 清單維持掛在自己旁邊（appendTo self），樣式在 styles.css 的 `.student-autocomplete--inline`；
-   * 捲動對話框時不自動收起（PrimeNG 預設任何可捲動祖先一捲就收）。桌機照舊浮動
+   * 捲動對話框時不自動收起（PrimeNG 預設任何可捲動祖先一捲就收）
    */
   readonly inline = input(false);
 
