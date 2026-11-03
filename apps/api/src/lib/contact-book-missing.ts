@@ -71,6 +71,48 @@ export function missingContactBookStudents(
   );
 }
 
+export interface MissingClassDetail {
+  classId: string;
+  className: string;
+  /** 那天這班沒停課那幾堂的上課老師（`sessions.teacher_id`，代課就是代課老師），去重、依姓名排序 */
+  teacherNames: string[];
+  /** 這天這班該寫的人數（範圍內的候選，已寫的也算） */
+  studentCount: number;
+}
+
+/**
+ * 缺漏名單每班補上**上課老師**與**該寫人數**（#2080-2，A6「游佩珊 老師 · 還差 4 則／17」）。
+ * 系統沒有班級層級的帶班老師（`schedules.teacher_id` 已棄用），所以用當天那堂課的老師 —— 同 `/remind`
+ * （計畫席 11-02：標題寫「上課老師」）。`staffNameById` 只放本 org 的 staff，對不到的老師不列
+ */
+export function withClassDetails(
+  missing: MissingContactBookStudent[],
+  candidates: ReadonlyArray<ContactBookCandidate>,
+  sessionsOnDate: ReadonlyArray<SessionOnDate & { teacherId: string | null }>,
+  staffNameById: ReadonlyMap<string, string>,
+): Array<Omit<MissingContactBookStudent, 'classes'> & { classes: MissingClassDetail[] }> {
+  const studentsOf = new Map<string, Set<string>>();
+  for (const c of candidates) {
+    studentsOf.set(c.classId, (studentsOf.get(c.classId) ?? new Set()).add(c.studentId));
+  }
+  const teachersOf = new Map<string, Set<string>>();
+  for (const s of sessionsOnDate) {
+    const name = s.teacherId ? staffNameById.get(s.teacherId) : undefined;
+    if (s.status === 'cancelled' || !name) continue;
+    teachersOf.set(s.classId, (teachersOf.get(s.classId) ?? new Set()).add(name));
+  }
+  return missing.map((student) => ({
+    ...student,
+    classes: student.classes.map((cls) => ({
+      ...cls,
+      teacherNames: [...(teachersOf.get(cls.classId) ?? [])].sort((a, b) =>
+        a.localeCompare(b, 'zh-Hant'),
+      ),
+      studentCount: studentsOf.get(cls.classId)?.size ?? 0,
+    })),
+  }));
+}
+
 /**
  * 區間內的每一天（含頭尾）。`from` 晚於 `to` 就是空陣列。
  *

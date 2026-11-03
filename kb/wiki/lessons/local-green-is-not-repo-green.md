@@ -68,3 +68,6 @@ npx nx run-many -t typecheck && npx nx run-many -t test
 
 還有一種更安靜的假綠：[[lessons/merged-does-not-mean-main]] —— PR 頁面顯示
 MERGED、CI 全綠，但那份工作合進的是一條死分支，`main` 上根本沒有它。
+
+還有一種跟任何 commit 都無關的變紅：[[lessons/unpinned-ci-tool-version]] —— CI 工具寫 `version: latest`，
+上游一升版，main 就紅、deploy 被 skip。

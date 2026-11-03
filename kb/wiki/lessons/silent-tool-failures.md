@@ -437,3 +437,5 @@ return route.fulfill({ body: JSON.stringify({ ...cur, ...req.postDataJSON() }) }
   從沒被真正跑過，跟假替身那件同源
 - [[lessons/local-green-is-not-repo-green]] —— 綠燈的範圍比你以為的窄
 - [[lessons/line-number-citations-rot]] —— 證據本身會過期
+- [[lessons/auto-merge-duplicates-a-block]] —— git 自動合併把同一段貼兩份，0 衝突、spec 照綠（2026-11-02）
+- [[lessons/conformance-against-an-empty-draft]] —— compare 拿空稿比，照樣 exit 0、出一張像樣的表（2026-11-03）
