@@ -244,16 +244,39 @@ export function sendsParam(code, name) {
   if (new RegExp(`\\.(?:set|append)\\(\\s*['"\`]${n}['"\`]`).test(code)) return true;
   // ② Record 物件：`query['x'] = …` / `query.x = …`
   if (new RegExp(`\\[\\s*['"\`]${n}['"\`]\\s*\\]\\s*=`).test(code)) return true;
-  // ③ 傳給 http client 的物件字面值：`{ params: { x } }` / `{ params: { x: … } }`
+  // 只認「鍵」：`{ cid: params.courseId }` 送的是 cid，值裡的 courseId 不算（#2079 (d)）
+  const hasKey = (body) => new RegExp(`(?:^|[,{])\\s*['"\`]?${n}['"\`]?\\s*(?:[:,]|$)`).test(body);
+  // ③ 傳給 http client 的物件字面值：`{ params: { x } }` / `{ params: { x: … } }`。
+  //    **方法簽名的型別註記長得一模一樣**（`list(params: { x: string })`）—— 那是型別，不是送出。
+  //    往回找最近一個沒配對的括號：是 `(` 就是參數列，跳過；是 `{` 才是物件字面值（#2079 (d)）
   for (const block of code.matchAll(/params:\s*\{([^}]*)\}/g)) {
-    if (new RegExp(`\\b${n}\\b`).test(block[1])) return true;
+    if (enclosingBracket(code, block.index) === '(') continue;
+    if (hasKey(block[1])) return true;
   }
   // ④ 先組成一個 query 物件再傳：`const params: Record<string, string> = { from, to }`
   //    reports 與 classes 都是這樣寫的，而它跟 ③ 是同一件事的不同語法
   for (const block of code.matchAll(/(?:const|let)\s+(?:params|query)\b[^=]*=\s*\{([^}]*)\}/g)) {
-    if (new RegExp(`\\b${n}\\b`).test(block[1])) return true;
+    if (hasKey(block[1])) return true;
   }
   return false;
+}
+
+/**
+ * `index` 之前最近一個還沒關上的括號（`(`、`[`、`{`），沒有就回 null。
+ * ponytail: 不理會字串與註解裡的括號；service 檔的 `params:` 前面不會有，真的誤判再補
+ */
+function enclosingBracket(code, index) {
+  const close = { ')': '(', ']': '[', '}': '{' };
+  const stack = [];
+  for (let i = index - 1; i >= 0; i--) {
+    const c = code[i];
+    if (c in close) stack.push(close[c]);
+    else if (c === '(' || c === '[' || c === '{') {
+      if (stack.length === 0) return c;
+      stack.pop();
+    }
+  }
+  return null;
 }
 
 export function stripComments(source) {
