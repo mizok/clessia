@@ -109,3 +109,8 @@ updated: 2026-09-04
 長壽 domain 席(配 charter,「session 會死,席位不死」)優於 per-task 蜂群 ——
 廣度任務給既有席加工單,比開新席便宜,而且知識會沉澱回 charter。
 合併授權、疊 PR 鐵律、通用協定見 README;本頁不複述(c11)。
+
+## See Also
+
+- [[lessons/stale-fulltest-lock]] —— 全套測試鎖被沒人持有的過期鎖擋住；鎖裡寫 pid、trap 含 INT TERM HUP
+- [[lessons/shared-git-config-push-default]] —— 所有席位共用 `.git/config`，一席改 push.default，另一席的 charter 直推上 main

@@ -1,6 +1,6 @@
 # Specs — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-10-21
+> Auto-maintained by `kb:map`. Last updated: 2026-11-03
 
 ---
 
@@ -36,6 +36,12 @@ Tags: `specs`, `admin`, `dashboard`
 
 Links to: [[architecture/admin-dashboard-v1]]
 
+## [[specs/admin/enrollment/application-reminders|報名審核時效與試聽跟進提醒]]
+
+申請超過 N 天沒處理、試聽後 N 天還沒報名，提醒分校範圍內有 manage_students 的管理員；天數是機構設定。
+
+Tags: `specs`, `admin`, `enrollment`, `trial`, `notifications`
+
 ## [[specs/admin/enrollment/approve-request|核准家長的報名申請（開繳費單、建報名、轉待付款；設計稿）]]
 
 設計稿（#1726，保留類、金額路徑，待裁）。管理員在 /admin/applications 核准家長 App 送的報名申請：一個對話框選計費模式與價目表、看首期試算（可改，改了要寫原因）、繳費期限；送出後在**一個 pg 交易**（withTx，repo 不引入 RPC）裡鎖班、重數名額、建 pending_payment 的報名、開一張帳單一列學費明細（填好月份／期別，月結不會重開）、申請轉 awaiting_payment 並寫 enrollment_id。候補可核准但名額照數、額滿 409 不給硬塞。帳單不加欄位，靠 enrollment_requests.enrollment_id → invoice_items → invoices 連回；家長端申請詳情走 childDb 讀這張帳單與班級分校的帳戶。家長通知沿用既有 invoice_due 提醒、核准當下另發一則要加 enum（待裁）。A6 沒畫管理端核准；家長端待付款詳情照 A6 p-enrollment 全採。
@@ -43,12 +49,6 @@ Links to: [[architecture/admin-dashboard-v1]]
 Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `invoices`, `parent`, `design`
 
 Links to: [[rules/enrollment-rules]], [[rules/billing-rules]], [[specs/parent/applications]], [[architecture/pg-pool-writes]], [[architecture/pg-pool-writes]], [[architecture/a6-adoption-rules]], [[architecture/a6-adoption-rules]]
-
-## [[specs/admin/enrollment/payment-activation|收款後報名轉正式、申請轉完成（設計稿）]]
-
-設計稿（#1778，已裁 2026-10-21；保留類、改既有記收款路徑 → 合併由使用者決定）。核准後報名是 pending_payment、申請是 awaiting_payment，原本沒有任何路徑把它們往前推，而月結只對 active 開單。已裁：記收款同一個交易裡，第一筆收款（含定金）就把這張帳單上的 pending_payment 報名轉 active；帳單繳清時把連到它們的 awaiting_payment 申請轉 completed，並發站內＋推播通知家長（新 notification_kind enrollment_completed，migration 獨立 PR）。退費、作廢不倒轉；行政手動轉 active 也一併完成申請；多報名的帳單照帳單算。記收款路由改走 withTx（順便關掉退費先查淨額再寫的競態）。
-
-Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `payments`, `design`
 
 ## [[specs/admin/enrollment/enrollment|學生報名]]
 
@@ -65,6 +65,14 @@ Links to: [[architecture/enrollment-admin-view]], [[rules/enrollment-rules]], [[
 Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`
 
 Links to: [[flows/enrollment|報名申請流程]], [[rules/enrollment-rules|報名與繳費規則]]
+
+## [[specs/admin/enrollment/payment-activation|收款後報名轉正式、申請轉完成（設計稿）]]
+
+設計稿（#1778，已裁 2026-10-21；保留類、改既有記收款路徑 → 合併由使用者決定）。核准後報名是 pending_payment、申請是 awaiting_payment，原本沒有任何路徑把它們往前推，而月結只對 active 開單。已裁：記收款同一個交易裡，第一筆收款（含定金）就把這張帳單上的 pending_payment 報名轉 active；帳單繳清時把連到它們的 awaiting_payment 申請轉 completed，並發站內＋推播通知家長（新 notification_kind enrollment_completed，migration 獨立 PR）。退費、作廢不倒轉；行政手動轉 active 也一併完成申請；多報名的帳單照帳單算。記收款路由改走 withTx（順便關掉退費先查淨額再寫的競態）。
+
+Tags: `specs`, `admin`, `enrollment`, `enrollment-requests`, `billing`, `payments`, `notifications`, `design`
+
+Links to: [[specs/admin/enrollment/approve-request]], [[rules/enrollment-rules]], [[rules/billing-rules]], [[rules/billing-rules]], [[rules/enrollment-rules]], [[rules/billing-rules]], [[architecture/pg-pool-writes]], [[rules/enrollment-rules]], [[flows/enrollment]]
 
 ## [[specs/admin/enrollment/renewals|續課管理]]
 
@@ -136,7 +144,7 @@ Links to: [[a6-adoption-rules]]
 
 Tags: `specs`, `admin`, `roles-and-auth`
 
-Links to: [[architecture/line-oauth-login]]
+Links to: [[architecture/line-oauth-login]], [[specs/admin/student-affairs/parents]], [[specs/admin/student-affairs/parents]]
 
 ## [[specs/admin/student-affairs/attendance|出勤紀錄]]
 
@@ -166,7 +174,7 @@ Links to: [[rules/attendance-rules]], [[rules/attendance-rules]], [[rules/attend
 
 Tags: `specs`, `admin`, `student-affairs`, `parents`
 
-Links to: [[architecture/line-oauth-login]], [[architecture/line-oauth-login]], [[flows/enrollment|報名申請流程]], [[rules/enrollment-rules|報名與繳費規則]]
+Links to: [[specs/admin/roles-and-auth]], [[architecture/pg-pool-writes]], [[architecture/line-oauth-login]], [[architecture/line-oauth-login]], [[flows/enrollment|報名申請流程]], [[rules/enrollment-rules|報名與繳費規則]]
 
 ## [[specs/admin/student-affairs/students|學生資料]]
 
@@ -190,7 +198,13 @@ Links to: [[architecture/deploying]], [[specs/admin/system/campuses]], [[archite
 
 Tags: `specs`, `admin`, `system`, `campuses`
 
-Links to: [[architecture/payment-info]]
+Links to: [[architecture/a6-adoption-rules]], [[architecture/payment-info]], [[specs/admin/system/campus-classrooms]]
+
+## [[specs/admin/system/grade-promotion|學年升級]]
+
+新學年把在讀學生的年級一次往上升（含預覽、高三畢業停用、30 天內可復原），設定在「一般」分頁的學年升級段。
+
+Tags: `specs`, `admin`, `system`, `students`, `grade`
 
 ## [[specs/admin/system/settings|系統設定]]
 
@@ -238,6 +252,8 @@ Tags: `specs`, `parent`, `attendance`
 
 Tags: `specs`, `parent`, `dashboard`
 
+Links to: [[specs/parent/schedule]]
+
 ## [[specs/parent/enrollment|報名申請（家長）]]
 
 已有帳號的家長為孩子加報課程、查看申請狀態。
@@ -258,7 +274,7 @@ Links to: [[architecture/parent-grades-period-filter]]
 
 Tags: `specs`, `parent`, `attendance`, `leave`, `design`
 
-Links to: [[rules/attendance-rules]], [[architecture/parent-data-scope]], [[specs/admin/finance/leave-streak-waiver]], [[specs/admin/finance/leave-streak-waiver]]
+Links to: [[rules/attendance-rules]], [[architecture/parent-data-scope]], [[specs/admin/finance/leave-streak-waiver]], [[architecture/parent-sessions-read]], [[specs/admin/finance/leave-streak-waiver]]
 
 ## [[specs/parent/meals|餐費紀錄]]
 
@@ -330,7 +346,7 @@ Links to: [[architecture/line-oauth-login]], [[architecture/login-experience]], 
 
 Tags: `specs`, `public`, `qr-checkin`
 
-Links to: [[architecture/kiosk-checkin]]
+Links to: [[architecture/kiosk-checkin]], [[architecture/kiosk-checkin]]
 
 ## [[specs/public/trial|試聽申請表單]]
 
@@ -352,7 +368,7 @@ Tags: `specs`, `README`
 
 Tags: `sitemap`, `_shared`, `parent`, `teacher`
 
-Links to: [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/audit-log-dialog]]
+Links to: [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/teacher/notifications]], [[architecture/a6-adoption-rules]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/parent/notifications]], [[specs/sitemap/teacher/notifications]], [[specs/sitemap/_shared/subject-manager]], [[specs/sitemap/_shared/audit-log-dialog]]
 
 ## [[specs/sitemap/_shared/attendance-roster-panel|點名面板（子頁面，多頁共用）]]
 
@@ -362,13 +378,13 @@ Tags: `sitemap`, `_shared`, `admin`, `teacher`
 
 Links to: [[specs/sitemap/admin/dashboard]], [[specs/sitemap/admin/sessions]], [[specs/sitemap/teacher/schedule]], [[specs/sitemap/admin/attendance]], [[specs/sitemap/_shared/audit-log-dialog]], [[specs/sitemap/_shared/subject-manager]]
 
-## [[specs/sitemap/_shared/audit-log-dialog|操作紀錄對話框（子頁面，6 頁共用）]]
+## [[specs/sitemap/_shared/audit-log-dialog|操作紀錄對話框（子頁面，7 頁共用）]]
 
 AuditLogDialogComponent 的 UI 地圖：唯讀操作紀錄表，由呼叫端指定要看哪些資源類型。
 
 Tags: `sitemap`, `_shared`, `admin`
 
-Links to: [[specs/sitemap/admin/attendance]], [[specs/sitemap/admin/sessions]]
+Links to: [[specs/sitemap/admin/attendance]]
 
 ## [[specs/sitemap/_shared/confirm-dialog|確認對話框（子頁面，8 頁共用）]]
 
@@ -408,7 +424,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]]
 
 Tags: `sitemap`, `_shared`, `public`, `rwd`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/public/login]]
+Links to: [[specs/sitemap/_shared/shell-layout]], [[architecture/a6-adoption-rules]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/public/login]]
 
 ## [[specs/sitemap/_shared/shell-layout|外框（ShellLayout，admin / teacher / parent 共用）]]
 
@@ -694,7 +710,7 @@ Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/parent/index]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher]], [[specs/sitemap/parent/attendance]]
+Links to: [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/parent/enrollment|報名申請（/parent/enrollment）]]
 
@@ -726,7 +742,7 @@ Links to: [[specs/sitemap/parent/dashboard]], [[specs/sitemap/parent/dashboard]]
 
 Tags: `sitemap`, `parent`
 
-Links to: [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/_shared/parent-child-switcher|孩子切換器]], [[specs/sitemap/_shared/shell-layout]], [[specs/sitemap/parent/attendance]]
+Links to: [[specs/sitemap/_shared/shell-layout]]
 
 ## [[specs/sitemap/parent/notifications|通知中心（/parent/notifications）]]
 
@@ -907,3 +923,4 @@ Links to: [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-t
 Tags: `specs`, `teacher`, `students`
 
 Links to: [[specs/teacher/attendance]]
+

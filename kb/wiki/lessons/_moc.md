@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-13
+> Auto-maintained by `kb:map`. Last updated: 2026-11-03
 
 ---
 
@@ -17,6 +17,14 @@ Links to: [[lessons/new-field-branches-are-born-untested]], [[lessons/bottom-she
 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
 
 Tags: `lessons`, `agent-workflow-guide`
+
+## [[lessons/auto-merge-duplicates-a-block|疊單 merge main，git 把同一段複製成兩份]]
+
+疊單的下一張 merge main 時，git 自動合併可能把上一張已經 squash 進 main 的那段程式再貼一次——沒有衝突、merge-tree 不報、spec 照綠；對策是看 diff --stat 的檔案與行數，再 grep 關鍵宣告的次數。
+
+Tags: `lessons`, `git`, `merge`, `stacked-pr`, `silent-failure`
+
+Links to: [[lessons/silent-tool-failures]], [[lessons/local-green-is-not-repo-green]], [[lessons/merged-does-not-mean-main]]
 
 ## [[lessons/awakened-tests-bite|修寫法時被喚醒的舊測試，比新測試更會咬人]]
 
@@ -58,6 +66,14 @@ Tags: `lessons`, `silent-failure`, `visual-parity`, `m8-audit`
 
 Links to: [[lessons/silent-tool-failures]], [[lessons/empty-array-hides-loading]], [[lessons/status-table-blind-spot]], [[lessons/new-field-branches-are-born-untested]], [[lessons/rls-backstop-drift]], [[lessons/menu-entry-without-a-route]]
 
+## [[lessons/conformance-against-an-empty-draft|conformance 拿空稿比對，照樣出一張像樣的表]]
+
+新席位 worktree 只複製了 A6 稿的 a6-editorial/、漏了它引用的 ../shared/，稿的 script 全掛、A6 側抽到 0 個 part，compare 卻照樣 exit 0、出表，數字作廢（#2195、#2196）；對策是量完先看 a6-d.json 的 part 數。
+
+Tags: `lessons`, `a6`, `conformance`, `silent-failure`, `verification`
+
+Links to: [[lessons/silent-tool-failures]], [[lessons/broken-looks-identical-to-normal]]
+
 ## [[lessons/doc-code-drift-2026-08|2026-08 文件與程式碼漂移稽核]]
 
 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
@@ -98,6 +114,8 @@ Tags: `lessons`, `herdr`, `worktree`, `runbook`, `agent-ops`
 
 Tags: `lessons`, `herdr`, `orchestration`, `agent-team`
 
+Links to: [[lessons/stale-fulltest-lock]], [[lessons/shared-git-config-push-default]]
+
 ## [[lessons/lazy-chunk-is-not-lazy-if-statically-required|拆成 lazy chunk 不等於延後下載]]
 
 xlsx 早就是獨立的 lazy chunk，但被兩個頁面靜態 import，所以打開那兩頁一定會抓它的 96 kB。真正的分界不是「有沒有拆成 chunk」，是「有沒有人靜態指到它」。
@@ -120,7 +138,7 @@ Links to: [[lessons/menu-entry-without-a-route]], [[lessons/rls-backstop-drift]]
 
 Tags: `lessons`, `local-green-is-not-repo-green`
 
-Links to: [[lessons/awakened-tests-bite]], [[lessons/merged-does-not-mean-main]]
+Links to: [[lessons/awakened-tests-bite]], [[lessons/merged-does-not-mean-main]], [[lessons/unpinned-ci-tool-version]]
 
 ## [[lessons/local-manual-verification|本機實機驗證怎麼進得去]]
 
@@ -144,6 +162,14 @@ Tags: `lessons`, `merged-does-not-mean-main`, `git`, `ci`
 
 Links to: [[lessons/local-green-is-not-repo-green]], [[lessons/awakened-tests-bite]]
 
+## [[lessons/messageservice-instance-per-component|MessageService 是每個元件一個實例，toast 的出口跟著注入層走]]
+
+元件宣告 `providers: [MessageService]` 就拿到自己的實例，而 `<p-toast>` 訂閱的是注入它的那一層 —— 兩者不同層時，`messageService.add()` 的每一則都沒有訂閱者，畫面上零訊號而原始碼看起來完全正確（#809，四支元件）。附從原始碼查到的兩條注入鏈事實，供將來要把出口收斂成一處時當依據。
+
+Tags: `lessons`, `angular`, `primeng`, `dependency-injection`, `silent-failure`
+
+Links to: [[lessons/broken-looks-identical-to-normal]]
+
 ## [[lessons/new-field-branches-are-born-untested|加了新欄位的分支，天生就沒被測到]]
 
 接上 API 新回的欄位、加一個判斷分支之後，989 支測試裡有 986 支照樣全綠 —— 因為舊 fixture 沒有那個欄位，全部走 null 落進舊路徑。全綠在這種改動裡是警訊，不是好消息。
@@ -166,13 +192,29 @@ Tags: `lessons`, `bundle-size`, `angular`, `primeng`, `nx`
 
 Links to: [[lessons/menu-entry-without-a-route]]
 
+## [[lessons/shared-git-config-push-default|改共用的 git config，別席的 git push 直接推上 main]]
+
+所有席位 worktree 共用同一份 .git/config；有席位為了推到不同名的上游下了 push.default=upstream，另一席從 origin/main 開的分支追蹤 main，裸 git push 就把 charter 直接推上 main（0c0652ed）。對策是不准改共用 git config、開分支加 --no-track、推送寫全。
+
+Tags: `lessons`, `git`, `herdr`, `worktree`, `config`
+
+Links to: [[lessons/herdr-seat-worktree-workspace]], [[lessons/herdr-team-orchestration]], [[lessons/merged-does-not-mean-main]]
+
 ## [[lessons/silent-tool-failures|工具靜默地不做你以為它在做的事]]
 
 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。
 
 Tags: `lessons`, `silent-failure`, `tooling`, `verification`
 
-Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/local-manual-verification]], [[lessons/silent-tool-failures]], [[lessons/local-manual-verification]], [[lessons/broken-looks-identical-to-normal]], [[lessons/merged-does-not-mean-main]], [[lessons/new-field-branches-are-born-untested]], [[lessons/local-green-is-not-repo-green]], [[lessons/line-number-citations-rot]]
+Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/local-manual-verification]], [[lessons/silent-tool-failures]], [[lessons/local-manual-verification]], [[lessons/broken-looks-identical-to-normal]], [[lessons/merged-does-not-mean-main]], [[lessons/new-field-branches-are-born-untested]], [[lessons/local-green-is-not-repo-green]], [[lessons/line-number-citations-rot]], [[lessons/auto-merge-duplicates-a-block]], [[lessons/conformance-against-an-empty-draft]]
+
+## [[lessons/stale-fulltest-lock|全套測試鎖：沒有人持有的鎖會一直擋著]]
+
+全套測試、整組契約、conformance compare 共用一把 mkdir 目錄鎖；持有者在 mkdir 之後、掛上 trap 之前死掉，或機器重開，鎖就永遠留著。對策是鎖裡寫 pid、等的人看到 pid 已死就接手，trap 要包含 INT、TERM、HUP。
+
+Tags: `lessons`, `concurrency`, `lock`, `herdr`, `testing`
+
+Links to: [[lessons/herdr-team-orchestration]], [[lessons/silent-tool-failures]]
 
 ## [[lessons/status-table-blind-spot|現況表只掃了三分之一的系統]]
 
@@ -191,6 +233,14 @@ Tags: `lessons`, `forms`, `rxjs`, `testing`, `mutation`
 (click)="$event.target === dialog && close()" 點在 dialog 裡面時整句是 false，Angular 把 false 當成 preventDefault —— 對話框裡的 radio 點不下去。DOM 事件的 handler 要嘛呼叫方法、要嘛確保不回 false。
 
 Tags: `lessons`, `angular`, `template`, `events`, `dialog`
+
+## [[lessons/unpinned-ci-tool-version|CI 工具用 version latest，上游一升版 main 就紅]]
+
+verify.yml 的 supabase/setup-cli 用 version latest，Supabase CLI 3.0.0 拒收 config.toml 的 [inbucket]，main 的 verify 紅、deploy 被 skip，而 migrate.yml 早就釘在 2.119.0（#2158）；對策是三處 setup-cli 釘同一個版本變數，加 harness 檢查。
+
+Tags: `lessons`, `ci`, `supabase`, `version-pinning`, `deploy`
+
+Links to: [[lessons/local-green-is-not-repo-green]], [[architecture/deploying]]
 
 ## [[lessons/workers-fanout-costs-before-the-db|並行 fan-out 在碰到資料庫之前就已經變慢了]]
 

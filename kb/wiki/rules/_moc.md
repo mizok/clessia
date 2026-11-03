@@ -1,6 +1,6 @@
 # Rules — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-13
+> Auto-maintained by `kb:map`. Last updated: 2026-11-03
 
 ---
 
@@ -10,13 +10,15 @@
 
 Tags: `rules`, `attendance-rules`
 
+Links to: [[architecture/leave-session-binding]], [[rules/billing-rules]]
+
 ## [[rules/billing-rules|計費與收款規則]]
 
 內部人訪談定案的金流業務規則：三種計費模式（月繳/期繳/堂數制）、金額永遠可人工覆寫（不做折扣引擎）、插班退班共用比例試算、帳單與收款一對多、欠繳只做可見性不做強制。
 
 Tags: `rules`, `billing`, `payments`, `invoices`
 
-Links to: [[summaries/interview-insider-2026-08-29]], [[rules/meal-rules]], [[rules/enrollment-rules]]
+Links to: [[summaries/interview-insider-2026-08-29]], [[rules/attendance-rules]], [[specs/admin/finance/leave-streak-waiver]], [[rules/meal-rules]], [[rules/enrollment-rules]]
 
 ## [[rules/boolean-controls|布林控制項三分法]]
 
@@ -40,7 +42,7 @@ Links to: [[summaries/interview-insider-2026-08-29]], [[roadmap]], [[rules/teach
 
 Tags: `rules`, `enrollment-rules`
 
-Links to: [[rules/billing-rules]], [[rules/billing-rules]]
+Links to: [[rules/billing-rules]], [[specs/admin/enrollment/approve-request]], [[specs/admin/enrollment/payment-activation]], [[rules/billing-rules]]
 
 ## [[rules/meal-rules|餐費規則]]
 

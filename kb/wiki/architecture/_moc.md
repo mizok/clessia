@@ -1,8 +1,16 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-13
+> Auto-maintained by `kb:map`. Last updated: 2026-11-03
 
 ---
+
+## [[architecture/a6-adoption-rules|A6 採用規則（使用者裁定與刻意偏離的出處）]]
+
+A6 設計稿全採；現況有、稿沒畫的功能收進「⋯」或篩選而不刪；可點元素基底 44px；對齊以 conformance 工具報告為準，偏離逐條要有出處。
+
+Tags: `architecture`, `design-system`, `a6`, `conformance`
+
+Links to: [[constitution-enforcement]], [[architecture/a6-adoption-rules#R2]], [[architecture/a6-adoption-rules#R2]], [[specs/parent/attendance]], [[rules/enrollment-rules]], [[specs/public/application-forms-a6]], [[specs/public/application-forms-a6]], [[specs/parent/renewal]]
 
 ## [[architecture/admin-contact-book-page|聯絡簿管理端頁的設計]]
 
@@ -27,6 +35,12 @@ Links to: [[architecture/teacher-students-view]]
 Tags: `architecture`, `admin`, `finance`, `payments`, `invoices`
 
 Links to: [[specs/admin/finance/payments]], [[rules/billing-rules]], [[architecture/teacher-students-view]]
+
+## [[architecture/admin-schedule-change-notice|課務異動通知發給管理員（依分校範圍）]]
+
+課務異動除了任課老師，也寫一則站內通知給範圍涵蓋該班分校的管理員；不需要 migration，收件人推導沿用 adminsForCampuses，同一個入口函式涵蓋所有寫入路徑。
+
+Tags: `architecture`, `notifications`, `schedule-changes`, `campus-scope`
 
 ## [[architecture/admin-todo-alerts|管理端待辦告警系統一（設計草案，待計畫席 STOP gate 批准）]]
 
@@ -58,14 +72,6 @@ Tags: `architecture`, `auth`, `workers`, `database`
 
 Links to: [[architecture/line-oauth-login]]
 
-## [[architecture/pg-pool-writes|經過 pg 連線池寫入]]
-
-PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
-
-Tags: `architecture`, `database`, `transaction`, `authorization`
-
-Links to: [[architecture/auth-pool-lifecycle]]
-
 ## [[architecture/authorization-scope|授權範圍 —— 分校、職務、細部權限]]
 
 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
@@ -86,7 +92,13 @@ Links to: [[architecture/constitution-enforcement]], [[architecture/constitution
 
 Tags: `architecture`, `deployment`, `bootstrap`, `onboarding`
 
-Links to: [[architecture/constitution|c12]], [[architecture/line-oauth-login]], [[architecture/deploying]]
+Links to: [[architecture/constitution|c12]], [[architecture/line-oauth-login]], [[architecture/deploying]], [[architecture/google-oauth-login]]
+
+## [[architecture/campus-context|頂欄分校：日常頁一次一間，報表才有「全部分校」]]
+
+管理端頂欄的分校下拉（CampusContextService）是偏好不是權限；日常頁沒有「全部分校」、預設自己被指派的分校，儀表板／營收報表／人員管理保留全部。
+
+Tags: `architecture`, `campus`, `admin`, `topbar`
 
 ## [[architecture/change-log-view|課務異動紀錄的設計]]
 
@@ -97,6 +109,8 @@ Tags: `architecture`, `change-log-view`
 ## [[architecture/chunk-load-recovery|部署後舊分頁的 chunk 載入失敗復原]]
 
 舊 index 要不到新 chunk 時，導覽失敗自動重載一次、預載失敗顯示提示條；以及為什麼偵測不能靠 ChunkLoadError 或 404。
+
+Tags: `architecture`, `resilience`
 
 ## [[architecture/constitution|Clessia 架構憲法]]
 
@@ -118,9 +132,13 @@ Links to: [[architecture/constitution|`constitution`]], [[architecture/gate-map|
 
 修 #426——CardValue 的 null/'error' 原本渲染成跟真數字同量級的粗體文字，改用既有的 .p-skeleton 動畫取代純文字，錯誤態改用小圖示+短字降級處理，兩者都不能被誤讀成資料本身。
 
+Tags: `architecture`, `ux`, `loading`, `dashboard`
+
 ## [[architecture/date-display-conventions|日期顯示的四種形式，各自回答不同的問題]]
 
 M4 詞彙統一（#425）查證結論——日期不統一成一種格式，而是「完整日期 / 短日期 / 帶星期 / 稽核時間戳」四種各有情境；分隔符一律連字號，斜線是 outlier。
+
+Tags: `architecture`, `ux`, `date`
 
 ## [[architecture/day-timeline|一日時間軸元件（day-timeline）]]
 
@@ -134,13 +152,15 @@ Links to: [[architecture/design-language]], [[lessons/awakened-tests-bite]]
 
 M4 詞彙統一（#425）查證結論——停用（可逆）與封存（不可逆）是兩個不同的動作，用字差異忠實反映各自的狀態模型，不該合併成一個字。計畫席裁定：兩個字都留著。
 
+Tags: `architecture`, `lifecycle`
+
 ## [[architecture/deploying|部署]]
 
 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能做、以及為什麼 API 必須能在 Node 底下跑。
 
 Tags: `architecture`, `deployment`, `cloudflare`, `supabase`
 
-Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]], [[architecture/auth-pool-lifecycle]], [[architecture/bootstrapping-a-deployment]]
+Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]], [[architecture/google-oauth-login]], [[architecture/web-push]], [[architecture/auth-pool-lifecycle]], [[architecture/bootstrapping-a-deployment]]
 
 ## [[architecture/design-language|視覺語言（方向 D：暖橘流場）]]
 
@@ -172,17 +192,37 @@ Tags: `architecture`, `auth`, `oauth`, `google`
 
 Links to: [[architecture/line-oauth-login]], [[architecture/deploying]], [[architecture/pwa-oauth-handoff]]
 
+## [[architecture/kiosk-checkin|到班掃碼機台：登入後的掃碼頁＋機台身分（kiosk 角色）]]
+
+使用者裁 #1127：掃碼頁搬到登入後、不做免登入端點。機台身分用新角色 kiosk（user_roles 列舉加值），不用「零權限 admin」—— ADMIN_ONLY 的掛載多半只擋寫，零權限 admin 讀得到學生／家長名冊，機台放在門口等於公開名冊。kiosk 綁單一分校（staff_campuses），只掛得進 POST /api/daily-checkins 與掃碼頁要的那幾支窄讀；分校強制取帳號的、不吃 body。帳號由有 manage_staff 的管理員在人員頁建立，用既有的一次性登入連結 QR 在平板上登入。行政人員也可從管理端開同一頁。公開入口拿掉、/qr-checkin 轉登入。
+
+Tags: `architecture`, `attendance`, `authorization`, `kiosk`, `migration`
+
+## [[architecture/leave-session-binding|請假綁定堂次（leave_request_sessions）]]
+
+請假單可以綁定「勾選的課堂」（規格 specs/admin/student-affairs/leave.md 多選課堂）。新增關聯表 leave_request_sessions（帶 org_id、PK (leave_request_id, session_id)、cascade）；沒有綁定列的假沿用舊語意（整天／單日時間窗），所以既有資料與 seed 不用遷移。判斷核心仍是 leaveCoversSession，加一條「有綁定就只比 id」。寫入面 create／update 收 sessionIds、server 驗在籍與非停課；update 以堂次 diff 做 revert／apply。cancel-leave、日到班 onLeave、報名回補、重疊 409 的新語意已由計畫席裁定（2026-10-03）。
+
+Tags: `architecture`, `attendance`, `leave`, `migration`
+
 ## [[architecture/line-oauth-login|LINE 登入的設計]]
 
 密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
 
 Tags: `architecture`, `auth`, `oauth`, `line`, `cloudflare`
 
-Links to: [[lessons/better-auth-session-delegation]], [[architecture/deploying]], [[specs/admin/roles-and-auth]]
+Links to: [[lessons/better-auth-session-delegation]], [[architecture/deploying]], [[specs/admin/roles-and-auth]], [[architecture/google-oauth-login]], [[architecture/pwa-oauth-handoff]]
 
 ## [[architecture/list-loading-skeleton-batch|十個檔案的載入態跳版問題 —— 統一做法]]
 
 #508——#426 掃到但根因不同的 10 個檔案，逐檔分類後發現「整塊被文字取代」與「沒有骨架尺寸／會跳版」在這批檔案裡是同一件事，分三類統一做法，全部重用既有 .p-skeleton／.skeleton-list，不新增第三種配方。
+
+Tags: `architecture`, `ux`, `loading`
+
+## [[architecture/load-failed-state|取數失敗要有自己的畫面狀態]]
+
+「失敗」與「成功但沒有資料」在 catchError 回 EMPTY 之後狀態完全相同，於是頁面渲染成「尚未有資料」還附上新增按鈕；修法是一支共用的失敗狀態元件 + 每頁一個 failed 訊號，而不是動 #689 的管線修法。
+
+Tags: `error-state`, `empty-state`, `ux`, `c11`
 
 ## [[architecture/login-experience|登入體驗與角色選擇的設計]]
 
@@ -191,6 +231,14 @@ Links to: [[lessons/better-auth-session-delegation]], [[architecture/deploying]]
 Tags: `architecture`, `login`, `select-role`, `ux`
 
 Links to: [[specs/public/login]]
+
+## [[architecture/motion|全站動態規則（設計稿：換頁方向、頁內切換、列表補位、數字變化）]]
+
+設計稿（#1635，未批准）。2026-10-16 在本機實跑盤點：頁內的狀態變化（換週、換日、日／週、篩選切換、tab）全部是瞬間替換；換頁只有內容區淡入淡出，而且沒有處理「減少動態」。提案：換頁依網址深度給方向（往深從右進、返回從左、同層只淡入淡出）；低頻的模式切換用同文件 view transition；連點型控制項（換週箭頭）不能用 VT —— 實測 VT 動畫期間的第二下點擊會被吞掉（規格：期間點擊一律打到 document element），改成內容層的 animate.enter；新增／刪除列照 A6 的 row-new，補位只在刪除時用 VT。曲線沿用 #1634 的 --arrive／--leave，不另訂。
+
+Tags: `architecture`, `motion`, `view-transition`, `a6`, `accessibility`, `performance`
+
+Links to: [[architecture/a6-adoption-rules]]
 
 ## [[architecture/no-division-scoping|刻意不設計「學部」這一層]]
 
@@ -202,6 +250,8 @@ Tags: `architecture`, `no-division-scoping`
 
 M4 詞彙統一（#425）查證結論——「—」/「未填寫」/「無關聯 X」對應三種不同語意（唯讀顯示欄位空值/可編輯欄位未填/關聯不存在），不該合併成一種寫法。
 
+Tags: `architecture`, `ux`, `empty-value`
+
 ## [[architecture/parent-attendance-grades-billing-pages|家長端三頁前端設計 —— 出缺席／成績／繳費]]
 
 家長端 03 片。三頁共用 #344 的 child-switcher，資料走 #351 三支 childId 必填端點。逐項核對 kb specs 與 design-web 構圖跟 #351 實際契約的落差（4 態出勤/日到班時間/每筆 NEW 標籤/課程篩選/已取消分組都對不上），提出降級方案待批准。
@@ -210,13 +260,13 @@ Tags: `architecture`, `parent`, `attendance`, `grades`, `billing`
 
 Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-data-scope]]
 
-## [[architecture/pwa-oauth-handoff|iOS 主畫面 PWA 的 LINE 登入（現況：留在 App 內；交接碼已被取代）]]
+## [[architecture/parent-catalog-read|家長端課程／開課班目錄（加選、試聽、首頁推薦的共用 API）]]
 
-iOS 主畫面 App 的 LINE 登入整段留在 App 裡（disable_auto_login，同一個視窗發起與回呼，#2063）；原本的交接碼（#2027）因對家長不直覺被取代，前端已拿掉，後端暫留。
+GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：分校 A 全機構、年級只標記；推薦改人工標記 `classes.is_recommended`、排最前（#1118）；費用後來改 B（#1175）：班級掛預設範本，回 `fee`（參考價，停用範本回 null）。
 
-Tags: `architecture`, `auth`, `pwa`, `line`, `oauth`
+Tags: `architecture`, `parent`, `authorization`, `catalog`, `enrollment`
 
-Links to: [[architecture/line-oauth-login]]
+Links to: [[architecture/parent-data-scope]], [[architecture/parent-read-endpoints]]
 
 ## [[architecture/parent-class-logs-read|家長端讀取已發布教務日誌（v1b）]]
 
@@ -234,19 +284,17 @@ Tags: `parent`, `contact-book`, `scope`
 
 Links to: [[rules/contact-book-rules]], [[architecture/parent-data-scope]]
 
-## [[architecture/parent-schedule-change-notice|課務異動通知發給該班家長]]
-
-課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
-
-Tags: `architecture`, `notifications`, `schedule-changes`, `parent`
-
-Links to: [[architecture/admin-schedule-change-notice]]
-
 ## [[architecture/parent-data-scope|家長端的資料範圍模型]]
 
 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。
 
 Tags: `architecture`, `parent`, `authorization`, `security`
+
+## [[architecture/parent-grades-period-filter|家長成績的學期篩選＝機構的「期」（billing_periods）]]
+
+GET /api/me/grades 的 meta 多回機構的期清單（billing_periods，經 childDb.orgRef 白名單讀），前端用考試日期落在期的 start_date～end_date 判歸屬，取代「近1月／3月／半年」按鈕。預設＝含今天的期（重疊取起始日最晚的），沒有期涵蓋今天就預設全部；沒有任何期涵蓋的考試歸「未分期」。段考的 academic_year／semester 只顯示不當篩選鍵。不加欄位、不動 schema。
+
+Tags: `architecture`, `parent`, `grades`, `billing-periods`
 
 ## [[architecture/parent-read-endpoints|家長端三支讀取端點（出缺席／成績／繳費）]]
 
@@ -256,6 +304,50 @@ Tags: `architecture`, `parent`, `authorization`, `attendance`, `grades`, `billin
 
 Links to: [[architecture/parent-data-scope]], [[roadmap]]
 
+## [[architecture/parent-schedule-change-notice|課務異動通知發給該班家長]]
+
+課務異動存檔時，接在 notifyScheduleChange 後面多寫一批 role=parent 的個人通知；一批一班一位家長一則，v1 不推播；用班級 id 查在籍（背景工作裡 pg pool 已關）。
+
+Tags: `architecture`, `notifications`, `schedule-changes`, `parent`
+
+Links to: [[architecture/admin-schedule-change-notice]]
+
+## [[architecture/parent-sessions-read|家長端讀取孩子的課堂（課表三頁的共用 API）]]
+
+GET /api/me/sessions —— 給 p-schedule／p-dashboard 今日課／p-attendance 用。範圍走 childDb：pluck 孩子的 enrollments 得班級 ScopedIds，fromScopedIds 查 sessions，再用 countEnrolledOn 把在籍區間外的堂濾掉（同 class-logs 的轉班防線）。回老師（代課露實際老師＋原任課老師）、分校、小考數、課務異動（不帶原因）、停課照回、這個孩子那堂的出勤。日期窗必填、上限 42 天。pluck 改成必填 studentId（scope 含兄弟姊妹）。admin 的 summariseSessions 吃原始 supabase，不能複用，只複用純函式。
+
+Tags: `architecture`, `parent`, `authorization`, `sessions`, `schedule`
+
+Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-class-logs-read]], [[architecture/parent-read-endpoints]], [[architecture/parent-data-scope]], [[specs/parent/leave]]
+
+## [[architecture/payment-info|補習班帳戶資訊（payment_info）：機構預設＋分校覆寫]]
+
+organizations.payment_info（機構預設）＋ campuses.payment_info（分校覆寫，null＝沿用），形狀照 attendance_mode（#1112）。管理端系統設定與分校表單各一個多行欄位，改它要 manage_finance（改帳號＝改錢流向）。家長帳單列表 meta.paymentInfo 回這個孩子在籍分校的生效值（去重，多分校就多筆），沒有在籍分校退機構預設，全空時前端顯示原本的「請洽行政人員」。不做每張帳單各自判分校（帳單沒有分校欄，餐費／調整列沒有報名）。
+
+Tags: `architecture`, `billing`, `parent`, `settings`, `migration`
+
+## [[architecture/permission-vocabulary-single-source|細部權限詞彙表的單一來源]]
+
+manage_org_settings 授不出來的根因是詞彙表有四份、三份在前端手抄；比較三種收斂做法，選出「前端自己有編譯期保證 + gate 守跨 app 一致」這條。
+
+Tags: `permissions`, `authorization`, `c11`
+
+## [[architecture/pg-pool-writes|經過 pg 連線池寫入]]
+
+PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
+
+Tags: `architecture`, `database`, `transaction`, `authorization`
+
+Links to: [[architecture/auth-pool-lifecycle]]
+
+## [[architecture/pwa-oauth-handoff|iOS 主畫面 PWA 的 LINE 登入（現況：留在 App 內；交接碼已被取代）]]
+
+iOS 主畫面 App 的 LINE 登入整段留在 App 裡（disable_auto_login，同一個視窗發起與回呼，#2063）；原本的交接碼（#2027）因對家長不直覺被取代，前端已拿掉，後端暫留。
+
+Tags: `architecture`, `auth`, `pwa`, `line`, `oauth`
+
+Links to: [[architecture/line-oauth-login]]
+
 ## [[architecture/role-authorization|角色授權的設計]]
 
 掛載的 route 曾經只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
@@ -264,11 +356,23 @@ Tags: `architecture`, `role-authorization`
 
 Links to: [[architecture/teacher-students-view]]
 
+## [[architecture/score-deletion|成績的刪除路徑 —— 清空分數後儲存就是刪除那一列]]
+
+登錄過成績的考試刪不掉、成績沒有任何刪除路徑，是三道關卡疊出來的功能缺口。修法是讓「清空分數後儲存」在後端走 delete 而不是把欄位設成 null，三道關卡一次解開；status 為 absent/makeup 的 null 是有意義的狀態，不在此列。
+
+Tags: `architecture`, `grades`, `scores`, `deletion`, `audit`
+
 ## [[architecture/session-makeup|補課（課堂標記「補的是哪一堂停課」）]]
 
 停課的課堂可以被另一堂課補回來。連結存在 sessions.makeup_for_session_id 這個自我參照 FK 上，只為可解釋性——計費完全不需要它，因為補課那堂本來就會扣、停掉的那堂本來就不扣。
 
 Tags: `architecture`, `sessions`, `makeup`, `billing-adjacent`
+
+## [[architecture/tailwind-adoption|Tailwind 導入評估（c6、PrimeNG 並存、Angular 21 接法、BEM／SCSS 退場）]]
+
+使用者 2026-10-02 裁定新 UI 改用 Tailwind、入口頁日後重排、不再延續 BEM＋SCSS。本頁回答導入前要先定的五件事：c6 的 regex 抓不到 h-screen 這類沒有數字的 class（三層補法）、PrimeNG 改用 cssLayer 會讓既有覆寫的勝負翻轉、tokens 有一個語意衝突（--font-medium 是字重不是字體）、Tailwind 4 不搭 Sass 所以入口要獨立成 .css、以及五支解析 SCSS 的 gate 會在 Tailwind 頁面上失明。
+
+Tags: `architecture`, `tailwind`, `styling`, `primeng`, `c6`, `migration`
 
 ## [[architecture/teacher-class-log|教務日誌（老師端寫入）]]
 
@@ -324,6 +428,12 @@ Tags: `architecture`, `day-timeline`, `dashboard`, `accessibility`, `direction-d
 
 Links to: [[architecture/day-timeline]], [[architecture/design-language]], [[architecture/day-timeline]], [[lessons/awakened-tests-bite]]
 
+## [[architecture/toast|Toast：全站唯一出口 app-toast]]
+
+所有 MessageService.add() 都送到 App 掛的 <app-toast>（A6 版型）；元件不得自己 provide MessageService 或掛 p-toast，底部動作列要標 data-toast-dock。
+
+Tags: `architecture`, `toast`, `a6`, `feedback`
+
 ## [[architecture/vendor-relationship|供應商關係與它推導出的架構約束]]
 
 賣一套系統、客戶自付基礎設施、收維護費。客戶必須隨時能帶著資料離開 —— 這條原則否決了多租戶，也否決了任何 vendor lock-in。
@@ -336,14 +446,7 @@ Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]]
 
 設計稿（#1626，8 題 10-16 全部裁定，仍是 draft —— 實作第一步量 CPU）。手寫最小 service worker（只處理 push／notificationclick，不攔 fetch、不快取）＋ manifest，不用 @angular/service-worker，不碰 #1611 的 immutable 快取。加密與 VAPID 自寫在 WebCrypto 上（RFC 8291／8292，用 RFC 測試向量驗），Workers 與 Node 共用。提醒時間點是機構設定 organizations.invoice_reminder_offsets（預設到期前 3 天、當天、逾期 1、7 天，最多 6 個，manage_finance），去重鍵含時間點。第一版只開家長，但偏好與發送紀錄帶 role，之後開給老師／行政不改 schema。Cron 台北 09:00–11:00 每 10 分鐘送一小批 —— 免費方案每次 Cron 只有 10ms CPU、50 個 subrequest，K 先量再定。實作拆成 #1657–#1663。
 
-Tags: `architecture`, `pwa`, `push`, `parent`, `billing`, `cron`, `c12`
+Tags: `architecture`, `pwa`, `push`, `parent`, `billing`, `cron`, `settings`, `c12`
 
-Links to: [[architecture/deploying]], [[architecture/chunk-load-recovery]], [[architecture/announcements]], [[architecture/deploying]], [[architecture/line-oauth-login]]
+Links to: [[architecture/deploying]], [[architecture/chunk-load-recovery]], [[architecture/announcements]], [[architecture/deploying]], [[architecture/pg-pool-writes]], [[architecture/line-oauth-login]], [[specs/admin/system/settings]]
 
-## [[architecture/motion|全站動態規則（設計稿：換頁方向、頁內切換、列表補位、數字變化）]]
-
-設計稿（#1635，未批准）。2026-10-16 在本機實跑盤點：頁內的狀態變化（換週、換日、日／週、篩選切換、tab）全部是瞬間替換；換頁只有內容區淡入淡出，而且沒有處理「減少動態」。提案：換頁依網址深度給方向（往深從右進、返回從左、同層只淡入淡出）；低頻的模式切換用同文件 view transition；連點型控制項（換週箭頭）不能用 VT —— 實測 VT 動畫期間的第二下點擊會被吞掉（規格：期間點擊一律打到 document element），改成內容層的 animate.enter；新增／刪除列照 A6 的 row-new，補位只在刪除時用 VT。曲線沿用 #1634 的 --arrive／--leave，不另訂。
-
-Tags: `architecture`, `motion`, `view-transition`, `a6`, `accessibility`, `performance`
-
-Links to: [[architecture/a6-adoption-rules]]
