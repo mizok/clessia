@@ -66,7 +66,7 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
     (await pool!.query(text, values)).rows as T[];
   const WRITTEN = '2026-09-01';
   const MISSING = '2026-09-02';
-  const fx = { c1: '', c2: '', a: '', b: '', ab: '', c1Class: '', c2Class: '' };
+  const fx = { c1: '', c2: '', a: '', b: '', ab: '', q: '', c1Class: '', c2Class: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -143,6 +143,38 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
        where org_id = $2 and class_id = $3 and session_date = $4`,
       [teacher!.id, ctx.orgId, klass['c1'], MISSING],
     );
+    // 二讀（#2180）：c2 那堂也排一位老師 —— 受限 C1 不能看到這個名字
+    const [other] = await q<{ user_id: string }>(
+      'select user_id from user_roles where user_id <> $1 order by user_id limit 1',
+      [ctx.userId],
+    );
+    const [teacher2] = await q<{ id: string }>(
+      "insert into staff (org_id, user_id, display_name) values ($1, $2, '二校老師') returning id",
+      [ctx.orgId, other!.user_id],
+    );
+    await q(
+      `update sessions set teacher_id = $1, assignment_status = 'assigned'
+       where org_id = $2 and class_id = $3 and session_date = $4`,
+      [teacher2!.id, ctx.orgId, klass['c2'], MISSING],
+    );
+    // 「C1 有報名、但那班當天沒課；當天有課的只有 C2 那班」的學生（不寫聯絡簿，不影響列表那幾條）
+    const [campus1Quiet] = await q<{ id: string }>(
+      `insert into classes (org_id, campus_id, course_id, name, uses_contact_book)
+       select org_id, campus_id, course_id, '班 c1 今天沒課', true from classes where id = $1 returning id`,
+      [klass['c1']],
+    );
+    const [qs] = await q<{ id: string }>(
+      "insert into students (org_id, name, grade) values ($1, '一校沒課二校有課', 'P5') returning id",
+      [ctx.orgId],
+    );
+    fx.q = qs!.id;
+    for (const k of [campus1Quiet!.id, klass['c2']!]) {
+      await q(
+        `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+         values ($1, $2, $3, 'active', 'monthly', 1000, '2026-01-01')`,
+        [ctx.orgId, k, fx.q],
+      );
+    }
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -214,15 +246,33 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
   });
 
   // #2080-2：每班的上課老師（sessions.teacher_id → 本 org 的 staff）與該寫人數（範圍內的候選）
-  it('缺漏名單每班帶上課老師與人數：c1 有排老師、c2 沒排；人數是範圍內在這班的人', async () => {
+  it('缺漏名單每班帶上課老師與人數：人數是範圍內在這班的人', async () => {
     const all = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'all');
     const byClass = new Map(all.data.flatMap((r) => r.classes).map((k) => [k.classId, k]));
     expect(byClass.get(fx.c1Class)).toMatchObject({ teacherNames: ['游佩珊'], studentCount: 2 });
-    expect(byClass.get(fx.c2Class)).toMatchObject({ teacherNames: [], studentCount: 2 });
+    expect(byClass.get(fx.c2Class)).toMatchObject({ teacherNames: ['二校老師'], studentCount: 3 });
 
     const c1 = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'c1');
     const c1Classes = c1.data.flatMap((r) => r.classes);
     expect(c1Classes.find((k) => k.classId === fx.c1Class)).toMatchObject({ studentCount: 2 });
+  });
+
+  // 二讀（#2180）：範圍看的是「這筆報名的班」的分校，不是「學生任一報名在範圍內」——
+  // 否則跨校學生在別校那班的班名、上課老師、人數都會跟著露出去（班名在 main 上原本就會漏）
+  it('缺漏名單（受限 C1）：跨校學生只露出 C1 的班，別校的班名與上課老師都不出現', async () => {
+    const c1 = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'c1');
+    const ab = c1.data.find((r) => r.studentId === fx.ab)!;
+    expect(ab.classes.map((k) => k.classId)).toEqual([fx.c1Class]);
+    expect(c1.data.flatMap((r) => r.classes).some((k) => k.classId === fx.c2Class)).toBe(false);
+    expect(JSON.stringify(c1)).not.toContain('班 c2');
+    expect(JSON.stringify(c1)).not.toContain('二校老師');
+  });
+
+  it('缺漏名單（受限 C1）：C1 那班當天沒課、只有 C2 那班有課的學生，不算進 C1 的缺漏', async () => {
+    const all = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'all');
+    expect(all.data.map((r) => r.studentId)).toContain(fx.q);
+    const c1 = await get<Missing>(`/api/contact-book/missing?date=${MISSING}`, 'c1');
+    expect(c1.data.map((r) => r.studentId)).not.toContain(fx.q);
   });
 
   it('缺漏統計：受限 C1 的數字等於它自己的缺漏名單，不含只在 C2 的學生', async () => {

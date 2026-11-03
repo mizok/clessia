@@ -400,13 +400,15 @@ app.openapi(
     let candidateQuery = supabase
       .from('enrollments')
       .select(
-        'student_id, class_id, students(name), classes!inner(name, uses_contact_book)' +
-          (campusIds === null ? '' : SCOPE_EMBED),
+        'student_id, class_id, students(name), classes!inner(name, uses_contact_book, campus_id)',
       )
       .eq('org_id', orgId)
       .in('status', ['active', 'pending_payment'])
       .eq('classes.uses_contact_book', true);
-    if (campusIds !== null) candidateQuery = candidateQuery.in(SCOPE_FILTER, [...campusIds]);
+    // 分校範圍看「這筆報名的班」在哪個分校（#2180 二讀），跟列表的班名（#2080-1 classNamesOf）同一個判準。
+    // 不能用 SCOPE_FILTER（學生任一報名在範圍內）：候選是一筆一筆報名，那樣跨校學生在別校那班的
+    // 報名也會成為候選 —— 別校的班名、上課老師、人數都跟著露出去，別校那班有課也會算進這邊的缺漏
+    if (campusIds !== null) candidateQuery = candidateQuery.in('classes.campus_id', [...campusIds]);
 
     if (taught) candidateQuery = candidateQuery.in('class_id', taught);
 
@@ -589,13 +591,15 @@ app.openapi(
     let candidateQuery = supabase
       .from('enrollments')
       .select(
-        'student_id, class_id, students(name), classes!inner(name, uses_contact_book)' +
-          (campusIds === null ? '' : SCOPE_EMBED),
+        'student_id, class_id, students(name), classes!inner(name, uses_contact_book, campus_id)',
       )
       .eq('org_id', orgId)
       .in('status', ['active', 'pending_payment'])
       .eq('classes.uses_contact_book', true);
-    if (campusIds !== null) candidateQuery = candidateQuery.in(SCOPE_FILTER, [...campusIds]);
+    // 分校範圍看「這筆報名的班」在哪個分校（#2180 二讀），跟列表的班名（#2080-1 classNamesOf）同一個判準。
+    // 不能用 SCOPE_FILTER（學生任一報名在範圍內）：候選是一筆一筆報名，那樣跨校學生在別校那班的
+    // 報名也會成為候選 —— 別校的班名、上課老師、人數都跟著露出去，別校那班有課也會算進這邊的缺漏
+    if (campusIds !== null) candidateQuery = candidateQuery.in('classes.campus_id', [...campusIds]);
 
     if (taught) candidateQuery = candidateQuery.in('class_id', taught);
 
