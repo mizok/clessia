@@ -10,6 +10,8 @@
   [inputStyle]="{ width: '100%' }"
   [forceSelection]="forceSelection()"
   [appendTo]="appendTo()"
+  [styleClass]="inline() ? 'student-autocomplete--inline' : ''"
+  [overlayOptions]="inline() ? inlineOverlay : {}"
   class="student-autocomplete block w-full"
 >
   <ng-template pTemplate="item" let-student>
