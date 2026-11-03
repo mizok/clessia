@@ -163,7 +163,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 硬性規則（constitution-enforcement.md 的 A 條）用 `hardRule('A28')` 當 `source`：條號手寫、行號執行時查，查不到就報錯。
 `item`（regex）：只拆樣式列裡的那一項（A28 的對比色），同列其他樣式差照算。
 
-欄位：`status`（必填）、`detail`／`a6`／`app`／`host`（regex；host＝元件宿主，例如 `p-paginator`）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
+欄位：`status`（必填）、`detail`／`a6`／`app`／`host`（regex；host＝元件宿主，例如 `app-pager`）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
 包裝層本身是偏離時（R7 的 search landmark），裡面真正多出／缺少的最上層東西各自拆列、各自歸欄。
 缺／多的容器若裡面某一顆命中，會拆成自己一列歸偏離，容器本身仍是待修。
 
@@ -231,7 +231,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 - 開著的浮層數變化、有沒有捲動
 - 原生 `popovertarget` 的開啟鈕：瀏覽器不寫 `aria-expanded` 屬性，工具依目標是否 `:popover-open` 補上，兩邊才可比
 - 只給螢幕閱讀器的文字（1px／clip，例如篩選結果的 live region）不比，報告另列「螢幕閱讀器」；第二層也排除它
-- PrimeNG 分頁器的出現／消失不比（第二層已報 app 多分頁器）
+- 分頁器（`app-pager`）的頁碼狀態「第 x／y 頁」不比（隨資料變）
 - 焦點：只在情境宣告 `checkFocus` 時比。稿多半用 `innerHTML` 重畫，點完按鈕焦點掉回 body 是原型的副作用
 
 ## 已知限制

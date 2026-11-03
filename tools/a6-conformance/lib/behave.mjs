@@ -110,8 +110,8 @@ export function delta({ before, after }) {
  * 名單變化等）。回傳差異描述的陣列，空的＝一致。
  */
 // 純數字（計數徽章、分頁碼）一律是資料；
-// 第二層已經報過的 app 獨有元件（PrimeNG 分頁器），第三層不重複報它的出現／消失
-const ALWAYS_IGNORE = ['^#$', ' Page$', '^第# / #頁'];
+// 分頁器的頁碼狀態（app-pager 的「第 x／y 頁」）隨資料變，第三層不報它的出現／消失
+const ALWAYS_IGNORE = ['^#$', '^第 ?# ?[／/] ?# ?頁'];
 const head = (xs, n = 8) =>
   xs.slice(0, n).join('」「') + (xs.length > n ? `」…共 ${xs.length} 項` : '」');
 
