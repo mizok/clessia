@@ -1904,6 +1904,29 @@ test('sendsParam 不把註解裡的名字當成有支援', () => {
   assert.equal(sendsParam(stripComments(source), 'status'), false);
 });
 
+// #2079 (d) 修法 1：方法簽名的型別註記 `params: { x: string }` 跟 `{ params: { x } }` 長得一樣，
+// 第 ③ 條曾把它當成「有送」—— #2162 突變把真正送 courseId 的那行改名，gate 照綠（審核席 11-02）
+test('sendsParam 不把方法參數的型別註記當成有送', () => {
+  const typeOnly = [
+    '  studentAggregatesByCourse(params: {',
+    '    courseId: string;',
+    '    page?: number;',
+    '  }) {',
+    '    return this.http.get(url, { params: { cid: params.courseId } });',
+    '  }',
+  ].join('\n');
+  assert.equal(sendsParam(typeOnly, 'courseId'), false, '只有型別註記、實際送的是 cid');
+  assert.equal(sendsParam(typeOnly, 'cid'), true, '真的傳進 http client 的照認');
+  // 參數列的第二個參數、箭頭函式也一樣是型別
+  assert.equal(sendsParam(`list(id: string, params: { status?: string }) {}`, 'status'), false);
+  assert.equal(sendsParam(`const f = (params: { status: string }) => g();`, 'status'), false);
+  // 物件字面值裡 params 前面有別的鍵（逗號在前）仍然算送
+  assert.equal(
+    sendsParam(`this.http.get(url, { withCredentials: true, params: { status } });`, 'status'),
+    true,
+  );
+});
+
 test('sendsParam 對純粹出現在別處的名字保持否定', () => {
   assert.equal(sendsParam(`interface Q { status?: InvoiceStatus }`, 'status'), false);
 });
