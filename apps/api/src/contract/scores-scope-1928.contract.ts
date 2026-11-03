@@ -253,6 +253,24 @@ run('#1928 成績讀取的範圍在 DB 端篩（GET /scores、/scores/students�
     expect(c1.meta.total).toBe(0);
   });
 
+  // 計畫席讀 diff 時要求：搜尋（embed 上的 ilike）跟範圍（另一條 !inner）一起生效，不是其中一個蓋掉另一個
+  it('受限 C1 的管理員搜尋：C1 學生名、C1 考試名有結果；二校考試名只剩範圍內的跨校學生', async () => {
+    // 學生名：只有那一位（校內考＋段考各一筆）
+    const name = await list('c1', `/scores?search=${encodeURIComponent(`大分校生 ${BIG}`)}`);
+    expect(name.meta.total).toBe(2);
+    expect(new Set(name.data.map((r) => r.studentName))).toEqual(new Set([`大分校生 ${BIG}`]));
+    // 考試名：一校小考是 C1 那 261 位
+    const exam = await list('c1', `/scores?search=${encodeURIComponent('一校小考')}`);
+    expect(exam.meta.total).toBe(IN_C1);
+    // 二校小考：不受限有 ab、b 兩筆；受限 C1 只剩 ab（b 不在範圍）
+    expect(
+      (await list('admin', `/scores?search=${encodeURIComponent('二校小考')}`)).meta.total,
+    ).toBe(2);
+    const other = await list('c1', `/scores?search=${encodeURIComponent('二校小考')}`);
+    expect(other.meta.total).toBe(1);
+    expect(other.data.map((r) => r.studentId)).toEqual([fx.ab]);
+  });
+
   it('老師（只教 C1 那班）：學生數破 250 也照樣 200；校內考只有任課班那場、段考是任課班的學生', async () => {
     expect(await total('teacher', 'academy')).toBe(IN_C1);
     expect(await total('teacher', 'school')).toBe(IN_C1);
