@@ -7,6 +7,10 @@
       <p class="entry-dialog__meta m-0 text-xs text-zinc-500">
         {{ entryDate() }}
         @if (entry(); as existing) {
+          <!-- 全部班名（#2080-1）：列上跨班只寫第一個＋N，點開在這裡看全部 -->
+          @if (existing.classNames.length) {
+            · <span data-testid="entry-classes">{{ existing.classNames.join('、') }}</span>
+          }
           @if (existing.lastEditedByName) {
             · 最後由 {{ existing.lastEditedByName }} 編輯
           }

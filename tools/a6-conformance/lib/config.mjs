@@ -2070,15 +2070,15 @@ export const PAGES = {
           '稿的 .savebar 被只有自己高的 div 框住、捲動時不會動（稿的 bug）；app 確認列有黏是對的，手機 offset 照 app 現狀',
         source: 'https://github.com/mizok/clessia/pull/1761#issuecomment-6309038184（計畫席裁定）',
       },
-      // 說明框後半句「今天請假的 N 位名字下有提示」要名單帶請假旗標（ME1，等 API），沒有就不寫
+      // 說明框後半句「今天有請假的 N 位名字下有提示」（ME1 接上之後才有）：今天沒有人請假時不寫
       ...['缺', '文案'].map((status) => ({
         status,
         a6:
           status === '缺'
             ? '>text:b\\[#位\\]$'
             : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
-        reason: '說明框的請假人數：餐費名單 API 還沒帶請假旗標（等 API）',
-        source: '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標',
+        reason: '資料：本機 seed 今天在量測分校的候選沒有人請假，說明框不接請假人數那半句',
+        source: '#1314 ME1（名單帶 onLeave）；本機 seed 2026-11-02 文山旗艦校候選 8 位、請假 0 位',
       })),
       {
         // 列的代表樣式取最常見的列：seed 今天 18 位裡 17 位未處理、多數沒訂（名字灰、單價框灰底、收費字灰、狀態 600 近黑）；
@@ -2091,7 +2091,7 @@ export const PAGES = {
         source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
       },
       {
-        // 稿的代表列是「今天請假 · 別訂他的便當」那種兩行列（名字下面多一行），app 的是一般列；請假旗標等 API
+        // 稿的代表列是「今天請假 · 別訂他的便當」那種兩行列（名字下面多一行），app 的是一般列（seed 今天沒有請假的候選）
         status: '位置',
         widths: [1440],
         a6: '>row>control:link$',
@@ -2099,7 +2099,7 @@ export const PAGES = {
         reason:
           '資料：代表列取到的變體不同（稿是請假的兩行列，app 是一般列），名字的上下位置跟著不同',
         source:
-          '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標；tools/a6-conformance/README.md（列內 part 取最常見那種）',
+          '#1314 ME1；本機 seed 今天候選沒有人請假；tools/a6-conformance/README.md（列內 part 取最常見那種）',
       },
       {
         // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
@@ -2208,20 +2208,13 @@ export const PAGES = {
         reason: SELECT_FIELD,
         source: SELECT_FIELD_SOURCE,
       },
-      // 列的班名（學生名下面那行小字）等 API：列高 64→48，後面各列整排上移
       {
-        status: '缺',
-        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span>text:small$',
-        reason: '列的班名：等 API（列表沒回班名）',
-        source: 'https://github.com/mizok/clessia/issues/2080',
-      },
-      {
-        // Δy：少了班名那一行；Δx ±8：展開內容外圍的灰框 4→12px，欄位跟著內縮
+        // Δx ±8：展開內容外圍的灰框 4→12px，欄位（含學生名下的班名小字，#2080-1）跟著內縮
         status: '位置',
-        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span(~\\d+)?$',
-        detail: '^相對所在列 Δx [-+]8、Δy -\\d+（',
-        reason: '連帶：列少了班名一行（等 API）；欄位因灰框加寬內縮 8px',
-        source: `https://github.com/mizok/clessia/issues/2080；${rule('R5')}「摺疊摘要列（\`.coll\`）展開內容外圍的灰框」2026-10-22；#1853`,
+        a6: '>landmark:region\\[這段期間的聯絡簿\\]>row>control:button(~\\d+)?>text:span(~\\d+)?(>text:small)?$',
+        detail: '^相對所在列 Δx [-+]8、Δy -?\\d+（',
+        reason: '連帶：欄位因灰框加寬內縮 8px',
+        source: `${rule('R5')}「摺疊摘要列（\`.coll\`）展開內容外圍的灰框」2026-10-22；#1853`,
       },
       // 代表列取最常見的變體：稿的示範多是「已簽收」（綠字、不帶底），seed 多是「未簽收」（灰底小標）。
       // 兩種變體都照稿（稿上 button~3 的「未簽收」配上了、樣式一致）；手機上小標寬不同，學生名那欄跟著不同寬

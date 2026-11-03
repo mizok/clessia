@@ -198,6 +198,14 @@ export class MealsComponent implements OnInit {
   protected readonly unhandled = computed(() => unhandledCount(this.rows()));
   protected readonly showSaveBar = computed(() => this.changed() > 0 || this.unhandled() > 0);
   protected readonly settledCount = computed(() => this.rows().filter((r) => r.settled).length);
+  /** 請假提示只對「今天」說（A6 `st.date === T`）：別天寫「今天有請假」說不通 */
+  protected readonly showLeaveHint = computed(
+    () => !this.isRange() && this.dateStr() === this.clock.todayTaipei(),
+  );
+  /** 說明框後半句的人數（ME1） */
+  protected readonly onLeaveCount = computed(() =>
+    this.showLeaveHint() ? this.rows().filter((r) => r.onLeave).length : 0,
+  );
   /** 超過後端上限就擋在送出之前 —— 靜靜截斷會讓一部分學生沒有記錄 */
   protected readonly overBatchLimit = computed(
     () => draftToBatchRows(this.rows()).length > MEAL_BATCH_MAX_ROWS,
