@@ -1094,21 +1094,56 @@ describe('CoursesPage', () => {
       ).toBe('週三 17:00–18:30 · 劉語涵、週五 18:00–19:00');
     });
 
-    it('手機的篩選也是貼在鈕下的 Popover（不再是抽屜）', () => {
+    // #2206：桌機浮層／手機抽屜由 app-filter-panel 自己依寬度切，頁面只叫它 toggle
+    it('「篩選」鈕交給 app-filter-panel 開合', () => {
       setup();
-      vi.spyOn(component as unknown as { isMobile: () => boolean }, 'isMobile').mockReturnValue(
-        true,
-      );
       const toggle = vi.fn();
       vi.spyOn(
-        component as unknown as { filterPopoverRef: () => unknown },
-        'filterPopoverRef',
+        component as unknown as { filterPanelRef: () => unknown },
+        'filterPanelRef',
       ).mockReturnValue({ toggle });
       (component as unknown as { onFilterBtnClick: (e: Event) => void }).onFilterBtnClick(
         new Event('click'),
       );
       expect(toggle).toHaveBeenCalledTimes(1);
-      expect(el().querySelector('p-drawer')).toBeNull();
+    });
+
+    it('手機已套用條件 chip：科目、狀態、日期區間各一顆，點 × 只拿掉那一項', () => {
+      setup();
+      const c = component as unknown as Record<string, any>;
+      refDataMock.subjects.set([{ id: 's-zh', name: '國文' }]);
+      c['onSubjectChange']('s-zh');
+      c['onStatusFilterChange'](false);
+      c['historicalDateFrom'].set(new Date(2026, 0, 5));
+      fixture.detectChanges();
+      const chips = () =>
+        [...el().querySelectorAll('app-active-filters button')].map((b) =>
+          b.getAttribute('aria-label'),
+        );
+      expect(chips()).toEqual(['移除篩選：國文', '移除篩選：已停用', '移除篩選：2026-01-05～']);
+
+      el().querySelector<HTMLButtonElement>('[aria-label="移除篩選：已停用"]')!.click();
+      fixture.detectChanges();
+      expect(c['statusFilter']()).toBeNull();
+      expect(c['selectedSubjectId']()).toBe('s-zh');
+      expect(chips()).toEqual(['移除篩選：國文', '移除篩選：2026-01-05～']);
+      refDataMock.subjects.set([]);
+    });
+
+    // 計畫席 11-03 裁定（#2206）：面板裡的清除只清條件，搜尋框在面板外不動；工具列的「清除篩選」照舊全清
+    it('面板的清除只清條件、留著搜尋；工具列的清除篩選連搜尋一起清', () => {
+      setup();
+      const c = component as unknown as Record<string, any>;
+      c['searchQuery'].set('國文');
+      c['onStatusFilterChange'](false);
+      c['clearPanelFilters']();
+      expect(c['statusFilter']()).toBeNull();
+      expect(c['searchQuery']()).toBe('國文');
+
+      c['onStatusFilterChange'](false);
+      c['clearFilters']();
+      expect(c['statusFilter']()).toBeNull();
+      expect(c['searchQuery']()).toBe('');
     });
   });
 
