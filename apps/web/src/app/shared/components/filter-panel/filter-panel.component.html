@@ -1,0 +1,46 @@
+@if (narrow()) {
+  <p-dialog
+    [visible]="drawerOpen()"
+    (visibleChange)="setDrawer($event)"
+    [modal]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="false"
+    [blockScroll]="true"
+  >
+    <ng-template #header>
+      <div class="flex w-full items-center gap-2">
+        <h2 id="filter-panel-title" class="m-0 text-lg font-bold text-zinc-900">篩選</h2>
+        @if (hasFilters()) {
+          <button
+            type="button"
+            class="ml-auto min-h-11 cursor-pointer border-0 bg-transparent px-2 text-md font-semibold text-zinc-700 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-accent-500"
+            (click)="cleared.emit()"
+          >
+            清除
+          </button>
+        }
+      </div>
+    </ng-template>
+    <ng-container [ngTemplateOutlet]="content()" />
+    <ng-template #footer>
+      <button
+        type="button"
+        class="min-h-11 w-full cursor-pointer rounded-md border-0 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+        (click)="setDrawer(false)"
+      >
+        完成
+      </button>
+    </ng-template>
+  </p-dialog>
+} @else {
+  <p-popover
+    appFitPopover
+    styleClass="filter-popover"
+    (onShow)="openChange.emit(true)"
+    (onHide)="openChange.emit(false)"
+  >
+    <ng-container [ngTemplateOutlet]="content()" />
+  </p-popover>
+}
