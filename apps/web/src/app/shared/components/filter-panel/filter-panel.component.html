@@ -1,0 +1,50 @@
+@if (narrow()) {
+  <!-- closable 保留：PrimeNG 只在 closeOnEscape && closable 時接 Esc（而且會看疊層，裡面的下拉開著時
+       Esc 先關下拉）；右上角的 × 用樣式藏起來，關閉靠「完成」、遮罩、Esc（#2208 二讀） -->
+  <p-dialog
+    header="篩選"
+    styleClass="[&_.p-dialog-close-button]:hidden"
+    [visible]="drawerOpen()"
+    (visibleChange)="setDrawer($event)"
+    [modal]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [blockScroll]="true"
+  >
+    <!-- 標題的 id 用 p-dialog 產生的那個，dialog 的 aria-labelledby 才指得到（報讀器念「篩選」） -->
+    <ng-template #header let-labelId="ariaLabelledBy">
+      <div class="flex w-full items-center gap-2">
+        <h2 [id]="labelId" class="m-0 text-lg font-bold text-zinc-900">篩選</h2>
+        @if (hasFilters()) {
+          <button
+            type="button"
+            class="ml-auto min-h-11 cursor-pointer border-0 bg-transparent px-2 text-md font-semibold text-zinc-700 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-accent-500"
+            (click)="cleared.emit()"
+          >
+            清除
+          </button>
+        }
+      </div>
+    </ng-template>
+    <ng-container [ngTemplateOutlet]="content()" />
+    <ng-template #footer>
+      <button
+        type="button"
+        class="min-h-11 w-full cursor-pointer rounded-md border-0 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+        (click)="setDrawer(false)"
+      >
+        完成
+      </button>
+    </ng-template>
+  </p-dialog>
+} @else {
+  <p-popover
+    appFitPopover
+    styleClass="filter-popover"
+    (onShow)="openChange.emit(true)"
+    (onHide)="openChange.emit(false)"
+  >
+    <ng-container [ngTemplateOutlet]="content()" />
+  </p-popover>
+}
