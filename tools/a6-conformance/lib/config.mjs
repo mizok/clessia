@@ -618,8 +618,8 @@ export const PAGES = {
   students: {
     a6: 'students.html',
     app: '/admin/students',
-    // app 的篩選是 PrimeNG Popover（不是原生 popover）：點哪顆、內容根在哪
-    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
+    // app 的篩選是 app-filter-panel：桌機 PrimeNG Popover、≤860 貼底抽屜 p-dialog（#2206）
+    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover, .p-dialog' } },
     // 第三層：年級名單隨資料（稿是國一～小五，demo 是高一～國三）
     behaveIgnore: ['^[高國小][一二三四五六]#?$'],
     deviations: [
@@ -651,7 +651,8 @@ export const PAGES = {
         // 稿的兩列沒成列 —— 稿那邊的列內按鈕就配不上
         status: '多',
         pop: 'filt',
-        app: 'landmark:dialog\\[\\]>row(>.*)?$',
+        // 手機抽屜有可及名稱「篩選」（#2208 二讀），桌機浮層沒有
+        app: 'landmark:dialog\\[(篩選)?\\]>row(>.*)?$',
         reason: '現況有、稿沒畫的篩選收進篩選面板（狀態、學校、卡片）；五列同形被認成清單列',
         source: rule('R2'),
       },
@@ -670,6 +671,39 @@ export const PAGES = {
         detail: '^landmark:popover → landmark:dialog$',
         reason: '篩選浮層用 PrimeNG Popover，根元素 role=dialog（非原生 popover）',
         source: rule('R7'),
+      },
+      // #2206：≤860 篩選改成貼底抽屜（全站 p-dialog 手機樣式，#1776），稿手機是內縮 16px 的浮層
+      {
+        status: '樣式',
+        widths: [360],
+        pop: 'filt',
+        a6: 'landmark:popover\\[\\]$',
+        reason: '手機篩選是貼底抽屜（全站 p-dialog 手機樣式），不是稿那種四邊有框的浮層',
+        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
+      },
+      {
+        status: '多',
+        widths: [360],
+        pop: 'filt',
+        app: 'landmark:dialog\\[篩選\\]>heading:h2\\[篩選\\]$',
+        reason: '手機篩選抽屜的標題「篩選」（稿的浮層沒有標題）',
+        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
+      },
+      {
+        status: '多',
+        widths: [360],
+        pop: 'filt',
+        app: 'landmark:dialog\\[篩選\\]>control:button\\[完成\\]$',
+        reason: '手機篩選抽屜底部的「完成」（只關閉；稿的浮層點外面關）',
+        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
+      },
+      {
+        status: '文案',
+        widths: [360],
+        pop: 'filt',
+        a6: 'landmark:popover\\[\\]$',
+        reason: '手機篩選抽屜以標題「篩選」為可及名稱（aria-labelledby），稿的浮層沒有名稱',
+        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2208 二讀`,
       },
       {
         // 「篩選」鈕被「新增學生」「⋯」推到左邊，貼著它開的浮層跟著左移
