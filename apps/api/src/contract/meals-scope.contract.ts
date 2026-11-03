@@ -28,10 +28,12 @@ const run = URL && KEY && DB ? describe : describe.skip;
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
 
-const ctx: { orgId: string; userId: string; campusScope: string[] | null } = {
+const ctx: { orgId: string; userId: string; campusScope: string[] | null; failLeave: boolean } = {
   orgId: '',
   userId: '',
   campusScope: null,
+  // #2199：讀 leave_requests 失敗的情境 —— 把那張表換成不存在的名字，真的從 PostgREST 拿到錯誤
+  failLeave: false,
 };
 
 vi.mock('../middleware/auth', async (importOriginal) => {
@@ -45,7 +47,21 @@ vi.mock('../middleware/auth', async (importOriginal) => {
         SUPABASE_SECRET_KEY: KEY!,
       } as never);
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-      set('supabase', supabase);
+      set(
+        'supabase',
+        new Proxy(supabase, {
+          get(target, prop) {
+            if (prop === 'from') {
+              return (table: string) =>
+                target.from(
+                  ctx.failLeave && table === 'leave_requests' ? 'contract_no_such_table' : table,
+                );
+            }
+            const value = Reflect.get(target, prop) as unknown;
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        }),
+      );
       set('orgId', ctx.orgId);
       set('userId', ctx.userId);
       set('roles', ['admin']);
@@ -244,6 +260,35 @@ run('餐費的分校範圍（#2138）', () => {
       [fx.b]: false,
       [fx.ab]: false,
     });
+  });
+
+  // #2199（ME1 二讀存活的突變）：讀不到假 ≠ 沒人請假 —— 名單照樣給，onLeave 是 null（不知道），記一行 log
+  it('單日名單讀 leave_requests 失敗：照樣 200、每列 onLeave 都是 null、console.error 記一行', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    ctx.failLeave = true;
+    try {
+      const res = await as('all', `/api/meals?date=${DAY}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: Array<{ onLeave: boolean | null }> };
+      expect(body.data.length).toBe(3);
+      expect(body.data.every((r) => r.onLeave === null)).toBe(true);
+      expect(
+        log.mock.calls.filter((c) => String(c[0]).includes('[meals] 讀取當天請假失敗')),
+      ).toHaveLength(1);
+    } finally {
+      ctx.failLeave = false;
+      log.mockRestore();
+    }
+  });
+
+  it('區間查詢（dateFrom／dateTo）：每列 onLeave 都是 null（只有單日名單判斷請假）', async () => {
+    const res = await as('all', `/api/meals?dateFrom=${DAY}&dateTo=${DAY}`);
+    const body = (await res.json()) as {
+      data: Array<{ studentId: string; onLeave: boolean | null }>;
+    };
+    // fx.a 那天有假 —— 區間模式照樣不判斷
+    expect(body.data.map((r) => r.studentId)).toContain(fx.a);
+    expect(body.data.every((r) => r.onLeave === null)).toBe(true);
   });
 
   it('批次寫入：受限 C1 寫範圍外的學生整批 404、對方的記錄不變；範圍內照常', async () => {

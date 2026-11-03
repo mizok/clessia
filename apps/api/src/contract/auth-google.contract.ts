@@ -149,10 +149,20 @@ run('Google 登入對真 Postgres（#1842）', () => {
     return { b, link };
   }
 
+  /**
+   * 「沒有建帳號」的證據：**只數這個 suite 的流程建得出來的帳號**，不數 `ba_user` 全表（#2213）——
+   * CI 的契約檔並行跑，別支契約建人（例如 staff-list 用 `createUser` 建 fixture）會讓全表筆數在前後之間變動，
+   * 這條就時序性地紅。流程若誤建帳號，email 只可能是本 suite 自己的 `c1842-` 前綴（真 email 那條傳的就是它），
+   * 或 provider 合成的 `<sub>@google.internal`／`<sub>@line.internal`；這兩個命名空間全 repo 只有這支契約會碰到，
+   * `google` 的 ba_account 也是。
+   */
   const counts = async () =>
     (
       await auth.pool.query<{ users: string; accounts: string }>(
-        `SELECT (SELECT count(*) FROM ba_user) AS users,
+        `SELECT (SELECT count(*) FROM ba_user
+                  WHERE email LIKE 'c1842-%'
+                     OR email LIKE '%@google.internal'
+                     OR email LIKE '%@line.internal') AS users,
                 (SELECT count(*) FROM ba_account WHERE "providerId" = 'google') AS accounts`,
       )
     ).rows[0];
