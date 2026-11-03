@@ -154,13 +154,18 @@ function createAcademyExamsQuery(state: ScoresState) {
 }
 
 function createAcademyScoresQuery(state: ScoresState) {
-  const filters: Array<{ type: 'eq' | 'in'; col: string; value: unknown }> = [];
+  const filters: Array<{ type: 'eq' | 'in' | 'ilike'; col: string; value: unknown }> = [];
   const query = {
     select() {
       return query;
     },
     eq(col: string, value: unknown) {
       filters.push({ type: 'eq', col, value });
+      return query;
+    },
+    // #1928：搜尋直接下在成績查詢的 embed 上（students.name／academy_exams.name）
+    ilike(col: string, value: unknown) {
+      filters.push({ type: 'ilike', col, value });
       return query;
     },
     in(col: string, value: unknown[]) {
@@ -189,6 +194,16 @@ function createAcademyScoresQuery(state: ScoresState) {
             if (f.col === 'academy_exams.org_id') {
               const exam = state.academy_exams.find((e) => e.id === score.exam_id);
               return exam?.org_id === f.value;
+            }
+            if (f.type === 'ilike') {
+              const keyword = String(f.value).replace(/%/g, '').toLowerCase();
+              const text =
+                f.col === 'students.name'
+                  ? state.students.find((s) => s.id === score.student_id)?.name
+                  : state.academy_exams.find((e) => e.id === score.exam_id)?.name;
+              return String(text ?? '')
+                .toLowerCase()
+                .includes(keyword);
             }
             if (f.type === 'eq') return (score as Record<string, unknown>)[f.col] === f.value;
             return (f.value as unknown[]).includes((score as Record<string, unknown>)[f.col]);
@@ -229,6 +244,9 @@ function createEmptySchoolScoresQuery() {
       return this;
     },
     eq() {
+      return this;
+    },
+    ilike() {
       return this;
     },
     order() {
