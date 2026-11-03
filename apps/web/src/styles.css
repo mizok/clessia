@@ -1740,20 +1740,6 @@
     color: var(--zinc-500);
   }
   @media (max-width: 768px) {
-    .p-paginator .p-paginator-pages,
-    .p-paginator .p-paginator-first,
-    .p-paginator .p-paginator-last,
-    .p-paginator .p-paginator-rpp-dropdown,
-    .p-paginator .p-paginator-jtp-dropdown,
-    .p-paginator .p-paginator-jtp-input {
-      display: none !important;
-    }
-    .p-paginator .p-paginator-current {
-      margin-left: 0;
-      white-space: nowrap;
-      font-size: var(--text-sm);
-      color: var(--zinc-500);
-    }
     .session-op-form__row {
       flex-direction: column;
       gap: var(--space-3);
