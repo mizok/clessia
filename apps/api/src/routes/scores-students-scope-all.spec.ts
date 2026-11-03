@@ -7,7 +7,9 @@ import scoresRoute from './scores';
 /**
  * `GET /api/scores/students?scope=all`（#1314 G8，保留類）。
  * 可見範圍＝`campusFilterIds(受限範圍, campusId)` 底下任一報名（不分狀態）在那些校的學生 —— 同 `/students` 列表。
- * `multi-org-db` 不解析 select，列直接帶 embed 形狀。
+ * `multi-org-db` 不解析 select，列直接帶 embed 形狀。#1928 起範圍是成績列上的 embed 條件
+ * （`scope_campus`／`scope_class`／`class_exam`），所以成績列帶上學生的報名形狀（`scopeOf`），
+ * 替身照路徑求值（中途遇陣列攤平，同 PostgREST `!inner` 的「任一筆子列符合」）。
  */
 
 const ORG = 'org-a';
@@ -25,6 +27,15 @@ const enr = (studentId: string, campusId: string, over: Record<string, unknown> 
   classes: { campus_id: campusId },
   ...over,
 });
+/** 學生的報名：s3 兩校都有（B 那筆是退班），sx 是別 org 的學生 */
+const ENROLLED: Record<string, string[]> = { s1: [CA], s2: [CB], s3: [CA, CB], sx: [CA], sy: [] };
+const scopeOf = (studentId: string) => {
+  const enrollments = (ENROLLED[studentId] ?? []).map((campus_id) => ({
+    class_id: C1,
+    classes: { campus_id },
+  }));
+  return { scope_campus: { enrollments }, scope_class: { enrollments } };
+};
 const examOf = (org: string) => ({
   name: '小考',
   exam_date: '2027-03-01',
@@ -44,7 +55,9 @@ const academy = (n: number, studentId: string, score: string, org = ORG) => ({
   status: 'scored',
   created_at: '2027-03-01T00:00:00Z',
   academy_exams: examOf(org),
+  class_exam: { class_link: [{ class_id: C1 }] },
   students: { name: `學生 ${studentId}` },
+  ...scopeOf(studentId),
 });
 
 const schoolScore = (id: string, studentId: string, score: string, org: string) => ({
@@ -63,6 +76,7 @@ const schoolScore = (id: string, studentId: string, score: string, org: string) 
   },
   subjects: { name: '數學' },
   students: { name: `學生 ${studentId}` },
+  ...scopeOf(studentId),
 });
 
 const BASE = {
