@@ -106,6 +106,7 @@
           [suggestions]="suggestions()"
           [showContact]="true"
           [forceSelection]="true"
+          [inline]="true"
           placeholder="例如：王小明、王媽媽"
           (queryChange)="onQuery($event)"
           (valueChange)="pick($any($event)?.id ? $any($event) : null)"
