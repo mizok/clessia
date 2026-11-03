@@ -376,6 +376,41 @@ describe('PaymentsPage', () => {
     );
   });
 
+  // 計畫席 11-03 裁定（#2206）：面板裡的清除（桌機浮層、手機抽屜標題列）只清條件，搜尋框在面板外不動；
+  // 頁面上「沒有符合…」那顆清除篩選照舊連搜尋一起清（上一條）
+  it('面板的清除只清欠繳與狀態，搜尋留著', () => {
+    component['setDueFilter']('overdue');
+    component['onStatusChange']('unpaid');
+    component['searchQuery'].set('陳');
+    invoices.list.mockClear();
+
+    component['clearPanelFilters']();
+
+    expect(component['overdueOnly']()).toBe(false);
+    expect(component['statusFilter']()).toBeNull();
+    expect(component['searchQuery']()).toBe('陳');
+    expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ search: '陳' }));
+  });
+
+  it('手機已套用條件 chip：催繳與狀態各一顆，點催繳那顆只拿掉催繳', () => {
+    component['setDueFilter']('overdue');
+    component['onStatusChange']('unpaid');
+    fixture.detectChanges();
+    const chips = () =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('app-active-filters button')].map(
+        (b) => b.getAttribute('aria-label'),
+      );
+    expect(chips().length).toBe(2);
+
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('app-active-filters button')!
+      .click();
+    fixture.detectChanges();
+    expect(component['dueFilter']()).toBe('all');
+    expect(component['statusFilter']()).toBe('unpaid');
+    expect(chips().length).toBe(1);
+  });
+
   describe('狀態顏色', () => {
     it('繳清是綠的', () => {
       expect(component['statusTone'](invoice({ status: 'paid' }))).toBe('done');
