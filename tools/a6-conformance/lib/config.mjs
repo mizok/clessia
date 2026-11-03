@@ -651,7 +651,8 @@ export const PAGES = {
         // 稿的兩列沒成列 —— 稿那邊的列內按鈕就配不上
         status: '多',
         pop: 'filt',
-        app: 'landmark:dialog\\[\\]>row(>.*)?$',
+        // 手機抽屜有可及名稱「篩選」（#2208 二讀），桌機浮層沒有
+        app: 'landmark:dialog\\[(篩選)?\\]>row(>.*)?$',
         reason: '現況有、稿沒畫的篩選收進篩選面板（狀態、學校、卡片）；五列同形被認成清單列',
         source: rule('R2'),
       },
@@ -684,9 +685,25 @@ export const PAGES = {
         status: '多',
         widths: [360],
         pop: 'filt',
-        app: 'landmark:dialog\\[\\]>heading:h2\\[篩選\\]$',
+        app: 'landmark:dialog\\[篩選\\]>heading:h2\\[篩選\\]$',
         reason: '手機篩選抽屜的標題「篩選」（稿的浮層沒有標題）',
         source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
+      },
+      {
+        status: '多',
+        widths: [360],
+        pop: 'filt',
+        app: 'landmark:dialog\\[篩選\\]>control:button\\[完成\\]$',
+        reason: '手機篩選抽屜底部的「完成」（只關閉；稿的浮層點外面關）',
+        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
+      },
+      {
+        status: '文案',
+        widths: [360],
+        pop: 'filt',
+        a6: 'landmark:popover\\[\\]$',
+        reason: '手機篩選抽屜以標題「篩選」為可及名稱（aria-labelledby），稿的浮層沒有名稱',
+        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2208 二讀`,
       },
       {
         // 「篩選」鈕被「新增學生」「⋯」推到左邊，貼著它開的浮層跟著左移
