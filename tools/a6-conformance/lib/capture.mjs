@@ -92,7 +92,9 @@ export async function openPage(
     });
   const page = await ctx.newPage();
   const errors = [];
+  const failed = []; // 載入失敗的檔（稿漏了 ../shared/ 時 script 全掛，#2212）
   page.on('pageerror', (e) => errors.push(e.message));
+  page.on('requestfailed', (r) => failed.push(r.url()));
   await page.goto(url, { waitUntil: source === 'app' ? 'networkidle' : 'load' });
   if (source === 'app' && new URL(page.url()).pathname !== new URL(url).pathname)
     throw new Error(
@@ -101,7 +103,20 @@ export async function openPage(
   await page.waitForTimeout(1200);
   // 量之前先操作（config 的 `prep`）：切到週視圖、改一格分數讓儲存列出現。`widths` 限定只在某些寬度做
   for (const st of prep) if (!st.widths || st.widths.includes(width)) await step(page, st);
-  return { ctx, page, errors };
+  return { ctx, page, errors, failed };
+}
+
+/**
+ * 稿那一側是空的就不准往下比（#2212）：0 個 part 照樣出表、照樣「沒有新增待修」，11-02 #2195／#2196
+ * 就貼了這種假數字。最常見的成因是只複製了 a6-editorial/、漏了它引用的 ../shared/。
+ */
+export function assertDraftLoaded({ parts, file, failed = [] }) {
+  if (parts.length) return;
+  throw new Error(
+    `A6 稿 ${path.join(A6_DIR, file)} 抽到 0 個 part：稿的 script 多半沒載入。` +
+      `A6 稿目錄（${path.dirname(A6_DIR)}）要整個複製，../shared/ 有沒有一起複製？` +
+      (failed.length ? `\n  載入失敗：\n    ${failed.join('\n    ')}` : ''),
+  );
 }
 
 /**
@@ -203,7 +218,7 @@ export async function capture(
   browser,
   { source, file, url, width, storageState, opens = {}, rowParents = [], rowSel, prep, clock },
 ) {
-  const { ctx, page, errors } = await openPage(browser, {
+  const { ctx, page, errors, failed } = await openPage(browser, {
     source,
     url,
     width,
@@ -215,6 +230,15 @@ export async function capture(
   const names = await harvestNames(page, source, ctx);
 
   const parts = await page.evaluate(extractSource({ names, rowParents, rowSel }));
+  if (source === 'a6') {
+    if (failed.length) console.warn(`  ⚠ A6 ${file} ${width} 載入失敗：`, failed);
+    try {
+      assertDraftLoaded({ parts, file, failed });
+    } catch (e) {
+      await ctx.close();
+      throw e;
+    }
+  }
   const shot = await page.screenshot({ fullPage: false });
 
   // 彈出物：每個不同的 popovertarget 點第一顆可見的開啟鈕

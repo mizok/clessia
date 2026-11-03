@@ -43,6 +43,8 @@ npm test --prefix tools/a6-conformance                   # spec
 | `A6_OUT`     | `~/.cache/clessia-a6-conformance/out`              | 輸出                                                               |
 
 app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，不會拿登入頁去比。
+A6 側抽到 0 個 part（多半是只複製了 `a6-editorial/`、漏了 `../shared/`，稿的 script 全掛）也直接報錯，
+並列出載入失敗的檔（#2212）；有 part 但有檔載入失敗時只印警告。
 
 頁面對照（稿檔 ↔ 路由、非原生彈出物怎麼打開、手動配對）在 `lib/config.mjs` 的 `PAGES`。
 非原生彈出物（`a6Open`／`appOpen`）：`click` 可給陣列依序點（app 的「新增考試」先開選單再選補習班）；
