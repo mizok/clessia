@@ -49,12 +49,6 @@ export class LoginComponent {
       .map((p) => PROVIDER_NAMES[p])
       .join(' 或 '),
   );
-  /** 清單是空的（兩個都沒設）：不留一個空白的登入頁，說清楚找誰 */
-  protected readonly intro = computed(() =>
-    this.providerNames()
-      ? `用 ${this.providerNames()} 登入，不需要記密碼。`
-      : '這個部署還沒有設定登入方式，請聯絡系統管理員。',
-  );
   /** 未登記的人需要「怎麼被登記」，不是「再試一次」也不是一條連到空殼頁的連結（#694） */
   protected readonly showRegisterHint = signal(false);
   /**

@@ -388,7 +388,8 @@ describe('LoginComponent × 登入方式清單', () => {
   it('只有 LINE：只有 LINE 鍵、字樣跟以前一樣', () => {
     const { buttons, text } = render(['line']);
     expect(buttons()).toEqual(['使用 LINE 登入']);
-    expect(text()).toContain('用 LINE 登入，不需要記密碼。');
+    // 「用 LINE 登入，不需要記密碼。」拿掉（使用者 11-03，R5）
+    expect(text()).not.toContain('不需要記密碼');
     expect(text()).toContain('點開後即可綁定 LINE。');
     expect(text()).not.toContain('Google');
   });
@@ -396,7 +397,7 @@ describe('LoginComponent × 登入方式清單', () => {
   it('兩個都有：LINE 在上、Google 在下，字樣不點名漏掉的', async () => {
     const { buttons, text, el, signInWith } = render(['line', 'google']);
     expect(buttons()).toEqual(['使用 LINE 登入', '使用 Google 帳戶登入']);
-    expect(text()).toContain('用 LINE 或 Google 登入，不需要記密碼。');
+    expect(text()).not.toContain('不需要記密碼');
     expect(text()).toContain('點開後即可綁定 LINE 或 Google。');
 
     [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Google'))!.click();
