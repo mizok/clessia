@@ -46,7 +46,7 @@
         data-part="filter-btn"
         aria-haspopup="dialog"
         [attr.aria-expanded]="filtersOpen()"
-        (click)="filterPopover.toggle($event)"
+        (click)="filterPanel.toggle($event)"
       >
         <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
         篩選：{{ filterSummary() }}
@@ -101,81 +101,91 @@
         </form>
       </p-popover>
     </div>
+    <!-- 已套用的條件（#2206：只在手機），點 × 拿掉 -->
+    <app-active-filters
+      class="w-full wide:hidden"
+      [filters]="activeFilters()"
+      (removed)="removeFilter($event)"
+    />
   </div>
 </div>
 
-<p-popover
-  #filterPopover
-  appFitPopover
-  styleClass="filter-popover"
-  (onShow)="filtersOpen.set(true)"
-  (onHide)="filtersOpen.set(false)"
+<!-- 篩選：桌機是貼在「篩選」鈕下的浮層（A6），手機是貼底抽屜（#2206）。app-select-field 預設 appendTo body -->
+<app-filter-panel
+  #filterPanel
+  [hasFilters]="activeFilters().length > 0"
+  (cleared)="clearPanelFilters()"
+  (openChange)="filtersOpen.set($event)"
 >
-  <!-- A6 `.ff`：兩欄格線，每格「標籤＋.dd 下拉」；下拉用全站對齊 .dd 的 app-select-field，第一項是「全部…」 -->
-  <div class="grid w-[440px] max-w-full grid-cols-2 gap-x-4 gap-y-3" data-part="filter-pop">
-    <app-select-field
-      label="年級"
-      labelSize="md"
-      [options]="gradeOptions"
-      [value]="gradeFilter() || null"
-      (valueChange)="onGradeChange($event)"
-    />
-    <app-select-field
-      label="課程"
-      labelSize="md"
-      [options]="courseSelectOptions()"
-      [value]="courseIdFilter()"
-      (valueChange)="onCourseChange($event)"
-    />
-    <app-select-field
-      label="開課班"
-      labelSize="md"
-      [options]="classSelectOptions()"
-      [value]="classIdFilter()"
-      (valueChange)="onClassChange($event)"
-    />
-    <app-select-field
-      label="期間"
-      labelSize="md"
-      [options]="periodOptions"
-      [value]="periodFilter()"
-      (valueChange)="onPeriodChange($event)"
-    />
-    <app-select-field
-      label="學校"
-      labelSize="md"
-      [options]="schoolSelectOptions()"
-      [value]="schoolIdFilter()"
-      (valueChange)="onSchoolChange($event)"
-    />
-    <app-select-field
-      label="狀態"
-      labelSize="md"
-      [options]="statusOptions"
-      [value]="activeStatusFilter()"
-      (valueChange)="onActiveStatusChange($event)"
-    />
-    <div class="col-span-full flex items-center justify-between">
-      @if (hasFilters()) {
+  <ng-template>
+    <!-- A6 `.ff`：兩欄格線，每格「標籤＋.dd 下拉」；下拉用全站對齊 .dd 的 app-select-field，第一項是「全部…」 -->
+    <div class="grid w-[440px] max-w-full grid-cols-2 gap-x-4 gap-y-3" data-part="filter-pop">
+      <app-select-field
+        label="年級"
+        labelSize="md"
+        [options]="gradeOptions"
+        [value]="gradeFilter() || null"
+        (valueChange)="onGradeChange($event)"
+      />
+      <app-select-field
+        label="課程"
+        labelSize="md"
+        [options]="courseSelectOptions()"
+        [value]="courseIdFilter()"
+        (valueChange)="onCourseChange($event)"
+      />
+      <app-select-field
+        label="開課班"
+        labelSize="md"
+        [options]="classSelectOptions()"
+        [value]="classIdFilter()"
+        (valueChange)="onClassChange($event)"
+      />
+      <app-select-field
+        label="期間"
+        labelSize="md"
+        [options]="periodOptions"
+        [value]="periodFilter()"
+        (valueChange)="onPeriodChange($event)"
+      />
+      <app-select-field
+        label="學校"
+        labelSize="md"
+        [options]="schoolSelectOptions()"
+        [value]="schoolIdFilter()"
+        (valueChange)="onSchoolChange($event)"
+      />
+      <app-select-field
+        label="狀態"
+        labelSize="md"
+        [options]="statusOptions"
+        [value]="activeStatusFilter()"
+        (valueChange)="onActiveStatusChange($event)"
+      />
+      <!-- 桌機浮層才有這一列；手機抽屜的標題列／底部已自帶「清除」「完成」（#2206）。
+         清除只清條件、不清搜尋（搜尋框在面板外，計畫席 11-03 裁定） -->
+      <div class="col-span-full flex items-center justify-between max-wide:hidden">
+        @if (activeFilters().length > 0) {
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+            (click)="clearPanelFilters()"
+          >
+            清除篩選
+          </button>
+        }
+        <!-- A6 `.btn.btn--sm`（白底次要鈕，桌機 30px；手機 44px R3） -->
         <button
           type="button"
-          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
-          (click)="clearFilters()"
+          class="ml-auto inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 active:bg-zinc-100 wide:h-[30px] wide:min-h-0"
+          (click)="filterPanel.hide()"
         >
-          清除篩選
+          完成
         </button>
-      }
-      <!-- A6 `.btn.btn--sm`（白底次要鈕，桌機 30px；手機 44px R3） -->
-      <button
-        type="button"
-        class="ml-auto inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 active:bg-zinc-100 wide:h-[30px] wide:min-h-0"
-        (click)="filterPopover.hide()"
-      >
-        完成
-      </button>
+      </div>
     </div>
-  </div>
-</p-popover>
+  </ng-template>
+</app-filter-panel>
 
 <div class="page-wrap pt-2 pb-28 wide:pb-32">
   @if (loadingList()) {

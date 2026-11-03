@@ -14,7 +14,11 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { CampusContextService } from '@core/campus-context.service';
 import { CoursesService } from '@core/courses.service';
 import { ClassesService } from '@core/classes.service';
-import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
+import {
+  ActiveFiltersComponent,
+  type ActiveFilter,
+} from '@shared/components/active-filters/active-filters.component';
 
 import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import { InputTextModule } from 'primeng/inputtext';
@@ -112,7 +116,8 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     InputIconModule,
     PagerComponent,
     PopoverModule,
-    FitPopoverDirective,
+    FilterPanelComponent,
+    ActiveFiltersComponent,
     ButtonModule,
     EmptyStateComponent,
     LoadFailedComponent,
@@ -237,6 +242,36 @@ export class StudentViewComponent implements OnInit {
     ].filter(Boolean);
     return parts.length ? parts.join(' · ') : '全部';
   });
+
+  /** 手機的已套用條件 chip（#2206）：面板裡的六項，有改過預設的一項一顆；搜尋不算 */
+  protected readonly activeFilters = computed<ActiveFilter[]>(() => {
+    const label = <T>(options: ReadonlyArray<FilterOption<T>>, value: T) =>
+      options.find((o) => o.value === value)?.label;
+    const list: ActiveFilter[] = [];
+    const grade = this.gradeFilter();
+    if (grade) list.push({ key: 'grade', label: GRADE_LEVEL_LABELS[grade] });
+    const course = this.courseIdFilter();
+    if (course) list.push({ key: 'course', label: label(this.courseOptions(), course) ?? '課程' });
+    const cls = this.classIdFilter();
+    if (cls) list.push({ key: 'class', label: label(this.classOptions(), cls) ?? '開課班' });
+    const period = this.periodFilter();
+    if (period !== DEFAULT_PERIOD) list.push({ key: 'period', label: PERIODS[period].label });
+    const school = this.schoolIdFilter();
+    if (school) list.push({ key: 'school', label: label(this.schoolOptions(), school) ?? '學校' });
+    const status = this.activeStatusFilter();
+    if (status !== 'active')
+      list.push({ key: 'status', label: label(STATUS_OPTIONS, status) ?? '狀態' });
+    return list;
+  });
+
+  protected removeFilter(key: string): void {
+    if (key === 'grade') this.onGradeChange(null);
+    else if (key === 'course') this.onCourseChange(null);
+    else if (key === 'class') this.onClassChange(null);
+    else if (key === 'period') this.onPeriodChange(null);
+    else if (key === 'school') this.onSchoolChange(null);
+    else if (key === 'status') this.onActiveStatusChange(null);
+  }
 
   protected readonly hasFilters = computed(
     () =>
@@ -380,16 +415,26 @@ export class StudentViewComponent implements OnInit {
     this.resetAndReload();
   }
 
+  /** 頁面上的清除篩選：搜尋與條件一起清 */
   protected clearFilters(): void {
+    const hadSearch = !!this.searchText();
+    this.searchText.set('');
+    this.clearPanelFilters(hadSearch);
+  }
+
+  /**
+   * 面板裡的清除（桌機浮層、手機抽屜）只清條件、不清搜尋（計畫席 11-03 裁定，#2206）：搜尋框在面板外。
+   * `reload`：呼叫端已知要重抓（清掉了搜尋）
+   */
+  protected clearPanelFilters(reload = false): void {
     const hadServerFilters =
-      !!this.searchText() ||
+      reload ||
       !!this.gradeFilter() ||
       !!this.courseIdFilter() ||
       !!this.classIdFilter() ||
       this.periodFilter() !== DEFAULT_PERIOD ||
       this.activeStatusFilter() !== 'active';
 
-    this.searchText.set('');
     this.gradeFilter.set('');
     this.courseIdFilter.set(null);
     this.classIdFilter.set(null);
