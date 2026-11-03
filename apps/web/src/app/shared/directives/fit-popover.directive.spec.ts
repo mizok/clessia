@@ -242,7 +242,8 @@ describe('filter-popover 掛載點（#1873）', () => {
         .filter((t) => t.includes('styleClass="filter-popover"'))
         .map((t) => ({ f: f.path.slice(APP_DIR.length + 1), t })),
     );
-    expect(tags.length).toBeGreaterThanOrEqual(6);
+    // 至少有共用 app-filter-panel 與考試頁兩處（#2206 之後各頁都經過 app-filter-panel），掃不到代表 regex 壞了
+    expect(tags.length).toBeGreaterThanOrEqual(2);
     expect(tags.filter(({ t }) => !/\bappFitPopover\b/.test(t)).map(({ f }) => f)).toEqual([]);
   });
 
@@ -255,10 +256,6 @@ describe('filter-popover 掛載點（#1873）', () => {
       'features/admin/pages/grades/exams/exams.component.html',
     ];
     const TODO_2206 = [
-      'features/admin/pages/students/students.page.html',
-      'features/admin/pages/courses/courses.page.html',
-      'features/admin/pages/parents/parents.page.html',
-      'features/admin/pages/payments/payments.page.html',
       'features/admin/pages/grades/overview/class-view/class-view.component.html',
       'features/admin/pages/grades/overview/student-view/student-view.component.html',
     ];

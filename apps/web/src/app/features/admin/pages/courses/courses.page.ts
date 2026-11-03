@@ -31,9 +31,11 @@ import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
-import { PopoverModule } from 'primeng/popover';
-import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
-import type { Popover } from 'primeng/popover';
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
+import {
+  ActiveFiltersComponent,
+  type ActiveFilter,
+} from '@shared/components/active-filters/active-filters.component';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
@@ -113,8 +115,8 @@ interface CourseChapter {
     MultiSelectModule,
     DatePickerModule,
     ToggleSwitchModule,
-    PopoverModule,
-    FitPopoverDirective,
+    FilterPanelComponent,
+    ActiveFiltersComponent,
     PagerComponent,
     TooltipModule,
     RouterModule,
@@ -255,8 +257,8 @@ export class CoursesPage implements OnInit {
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly statusFilter = signal<boolean | 'intervention' | null>(null);
   // ---- Filter Panel ----
-  protected readonly filterPopoverRef = viewChild<Popover>('filterPopover');
-  /** 篩選浮層開著與否（鈕的 aria-expanded）；外點擊關掉由 Popover 的 onHide 回寫 */
+  protected readonly filterPanelRef = viewChild(FilterPanelComponent);
+  /** 篩選面板開著與否（鈕的 aria-expanded）；外點擊關掉由 app-filter-panel 的 openChange 回寫 */
   protected readonly filtersOpen = signal(false);
 
   protected readonly activeFilterCount = computed(() => {
@@ -268,6 +270,49 @@ export class CoursesPage implements OnInit {
     if (this.historicalDateFrom() || this.historicalDateTo()) count++;
     return count;
   });
+
+  /** 手機的已套用條件 chip（#2206）：跟 activeFilterCount 同一組，一項一顆 */
+  protected readonly activeFilters = computed<ActiveFilter[]>(() => {
+    const list: ActiveFilter[] = [];
+    const subjectId = this.selectedSubjectId();
+    if (subjectId) {
+      const label = this.subjectOptions().find((o) => o.value === subjectId)?.label ?? '科目';
+      list.push({ key: 'subject', label });
+    }
+    const teacherIds = this.selectedTeacherIds();
+    if (teacherIds.length === 1) {
+      const name = this.staff().find((t) => t.id === teacherIds[0])?.displayName;
+      list.push({ key: 'teacher', label: name ?? '1 位老師' });
+    } else if (teacherIds.length > 1) {
+      list.push({ key: 'teacher', label: `${teacherIds.length} 位老師` });
+    }
+    const status = this.statusFilter();
+    if (status !== null) {
+      list.push({
+        key: 'status',
+        label: this.statusOptions.find((o) => o.value === status)?.label ?? '狀態',
+      });
+    }
+    if (this.showHistorical()) list.push({ key: 'historical', label: '含歷史班級' });
+    const from = this.historicalDateFrom();
+    const to = this.historicalDateTo();
+    if (from || to) {
+      const fmt = (d: Date | null) => (d ? format(d, 'yyyy-MM-dd') : '');
+      list.push({ key: 'range', label: `${fmt(from)}～${fmt(to)}` });
+    }
+    return list;
+  });
+
+  protected removeFilter(key: string): void {
+    if (key === 'subject') this.onSubjectChange(null);
+    else if (key === 'teacher') this.onTeacherChange([]);
+    else if (key === 'status') this.onStatusFilterChange(null);
+    else if (key === 'historical') this.onToggleHistorical(false);
+    else if (key === 'range') {
+      this.historicalDateFrom.set(null);
+      this.onHistoricalDateToChange(null);
+    }
+  }
 
   // ---- Computed options ----
   protected readonly activeCampuses = computed(() => this.campuses().filter((c) => c.isActive));
@@ -820,13 +865,18 @@ export class CoursesPage implements OnInit {
     this.loadCourses();
   }
 
+  /** 工具列與空狀態的「清除篩選」：搜尋與條件一起清 */
   protected clearFilters(): void {
-    // 關閉篩選面板
-    this.filterPopoverRef()?.hide();
+    this.filterPanelRef()?.hide();
+    this.searchQuery.set('');
+    this.clearPanelFilters();
+  }
+
+  /** 面板裡的清除（桌機浮層、手機抽屜標題列）只清條件、不清搜尋（計畫席 11-03 裁定，#2206）：搜尋框在面板外 */
+  protected clearPanelFilters(): void {
     if (this.showHistorical()) {
       this.onToggleHistorical(false);
     }
-    this.searchQuery.set('');
     this.selectedSubjectId.set(null);
     this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);
@@ -837,7 +887,7 @@ export class CoursesPage implements OnInit {
   }
 
   protected onFilterBtnClick(event: Event): void {
-    this.filterPopoverRef()?.toggle(event);
+    this.filterPanelRef()?.toggle(event);
   }
 
   protected isCourseCollapsed(courseId: string): boolean {

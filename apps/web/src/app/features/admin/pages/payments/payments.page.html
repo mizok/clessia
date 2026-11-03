@@ -79,7 +79,7 @@
         [active]="panelFilterSummary() !== '全部'"
         [always]="true"
         [open]="filtersOpen()"
-        (click)="filterPopover.toggle($event)"
+        (click)="filterPanel.toggle($event)"
         controls="payments-filters"
       />
       <app-page-actions
@@ -143,51 +143,61 @@
         </form>
       </p-popover>
     </div>
-    <!-- 篩選面板（A6 浮層）：貼在「篩選」鈕下的 Popover，不推動清單；寫法同課程頁 -->
-    <p-popover
-      #filterPopover
-      appFitPopover
-      styleClass="filter-popover"
-      (onShow)="filtersOpen.set(true)"
-      (onHide)="filtersOpen.set(false)"
+    <!-- 已套用的條件（#2206：只在手機），點 × 拿掉 -->
+    <app-active-filters
+      class="w-full wide:hidden"
+      [filters]="activeFilters()"
+      (removed)="removeFilter($event)"
+    />
+    <!-- 篩選面板：桌機是貼在「篩選」鈕下的浮層，手機是貼底抽屜（#2206） -->
+    <app-filter-panel
+      #filterPanel
+      [hasFilters]="activeFilters().length > 0"
+      (cleared)="clearPanelFilters()"
+      (openChange)="filtersOpen.set($event)"
     >
-      <div id="payments-filters" class="flex flex-col gap-3">
-        <p-select
-          [options]="statusOptions"
-          optionLabel="label"
-          optionValue="value"
-          [ngModel]="statusFilter()"
-          (ngModelChange)="onStatusChange($event)"
-          ariaLabel="帳單狀態"
-          appendTo="body"
-          [fluid]="true"
-        />
-        <!--
+      <ng-template>
+        <div id="payments-filters" class="flex flex-col gap-3">
+          <p-select
+            [options]="statusOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="onStatusChange($event)"
+            ariaLabel="帳單狀態"
+            appendTo="body"
+            [fluid]="true"
+          />
+          <!--
       催繳三選一（#639）。**不要改回兩態切換** —— 舊的那顆寫「只看欠繳」而做的是
       「逾期且未繳清」，照它催繳會漏掉還沒到期的未繳（驗收：逾期 9、未繳未逾期 8）。
       三個是同一個母體的子集，所以是單選不是三個開關。
     -->
-        <p-selectButton
-          [options]="dueFilterOptions"
-          [ngModel]="dueFilter()"
-          (ngModelChange)="setDueFilter($event)"
-          optionLabel="label"
-          optionValue="value"
-          [allowEmpty]="false"
-          size="small"
-          ariaLabel="催繳篩選"
-        />
-        @if (hasFilters()) {
-          <p-button
-            label="清除篩選"
-            [text]="true"
+          <p-selectButton
+            [options]="dueFilterOptions"
+            [ngModel]="dueFilter()"
+            (ngModelChange)="setDueFilter($event)"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
             size="small"
-            severity="secondary"
-            (onClick)="clearFilters()"
+            ariaLabel="催繳篩選"
           />
-        }
-      </div>
-    </p-popover>
+          <!-- 手機抽屜的標題列已有「清除」，這顆只在桌機浮層；兩者都只清條件、不清搜尋
+               （搜尋框在面板外，計畫席 11-03 裁定，#2206） -->
+          @if (activeFilters().length > 0) {
+            <p-button
+              class="max-wide:hidden"
+              label="清除篩選"
+              [text]="true"
+              size="small"
+              severity="secondary"
+              (onClick)="clearPanelFilters()"
+            />
+          }
+        </div>
+      </ng-template>
+    </app-filter-panel>
   </div>
 </div>
 
