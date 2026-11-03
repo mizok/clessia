@@ -1,6 +1,11 @@
 <div class="w-full max-w-[380px] max-[860px]:px-6 max-[860px]:py-8">
   <h1 class="m-0 text-2xl font-bold tracking-[-0.02em] text-zinc-900">登入</h1>
-  <p class="mx-0 mb-0 mt-2 text-md leading-[1.75] text-zinc-600">{{ intro() }}</p>
+  <!-- 「用 LINE 登入，不需要記密碼。」拿掉（使用者 11-03，R5）；清單是空的時仍要說清楚找誰，不留空白的登入頁（#1842） -->
+  @if (!providerNames()) {
+    <p class="mx-0 mb-0 mt-2 text-md leading-[1.75] text-zinc-600">
+      這個部署還沒有設定登入方式，請聯絡系統管理員。
+    </p>
+  }
 
   @if (error()) {
     <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
@@ -72,7 +77,9 @@
     </button>
   </div>
   <div class="grid gap-4 px-5 pt-2 pb-8">
-    <p class="m-0 text-base text-zinc-700">{{ intro() }}</p>
+    @if (!providerNames()) {
+      <p class="m-0 text-base text-zinc-700">這個部署還沒有設定登入方式，請聯絡系統管理員。</p>
+    }
     @if (error()) {
       <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
     }

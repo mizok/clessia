@@ -69,6 +69,34 @@ describe('FilterPanelComponent（#2206）', () => {
     expect(host.opens).toEqual([true]);
   });
 
+  it('≤860：抽屜的可及名稱是「篩選」（aria-labelledby 指到標題），沒有右上角 ×', async () => {
+    const { fixture, trigger } = mount(true);
+    trigger().click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const dialog = document.querySelector('[role=dialog]') as HTMLElement;
+    const labelId = dialog.getAttribute('aria-labelledby');
+    expect(labelId).toBeTruthy();
+    expect(document.getElementById(labelId!)?.textContent?.trim()).toBe('篩選');
+    const close = document.querySelector<HTMLElement>('.p-dialog-close-button');
+    // × 在 DOM 裡（closable 才有 Esc），但被 styleClass 藏起來
+    expect(close === null || dialog.className.includes('[&_.p-dialog-close-button]:hidden')).toBe(
+      true,
+    );
+  });
+
+  it('≤860：按 Esc 關閉抽屜，發 openChange(false)', async () => {
+    const { fixture, host, trigger } = mount(true);
+    trigger().click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(host.opens).toEqual([true, false]);
+  });
+
   it('≤860：沒有條件時不出「清除」；有條件時出，點了發 cleared', async () => {
     const { fixture, host, trigger } = mount(true);
     trigger().click();
