@@ -254,6 +254,10 @@ const listRoute = createRoute({
         },
       },
     },
+    500: {
+      description: '讀取失敗（範圍查詢不吞錯，#1928）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -293,23 +297,6 @@ async function readableScope(
 const TAUGHT_EXAM_EMBED =
   'taught_exam:academy_exams!inner ( taught_class:academy_exam_classes!inner ( class_id ) )';
 const TAUGHT_CLASS_FILTER = 'taught_exam.taught_class.class_id';
-
-/** 掛在這些班上的校內考 id（分頁撈齊） */
-async function examIdsOfClasses(
-  supabase: AppEnv['Variables']['supabase'],
-  classIds: string[],
-): Promise<string[]> {
-  if (classIds.length === 0) return [];
-  const links = await fetchAllRows<{ exam_id: string }>((from, to) =>
-    supabase
-      .from('academy_exam_classes')
-      .select('exam_id')
-      .in('class_id', classIds)
-      .order('exam_id')
-      .range(from, to),
-  );
-  return [...new Set(links.map((r) => r.exam_id))];
-}
 
 /** PostgREST 的 max_rows（1000）會靜默截斷 —— 範圍解析用的清單要分頁撈齊，少一頁就少一批學生 */
 /**
@@ -396,14 +383,12 @@ function fetchAllOrError(
 }
 
 /**
- * 成績讀取的範圍（#1115）：**可讀學生 = 老師範圍 ∩ 分校範圍 ∩ 班級／課程篩選**，
- * 加上班級篩選時「校內考必須掛在那些班」的考試清單。`null` = 不限。
+ * **匯出用**的成績範圍（#1115）：可讀學生 id ＝ 老師範圍 ∩ 分校範圍。`null` = 不限。
+ * 分校：學生**任何一筆報名**的班級在範圍內就算（同 `studentWriteScope`、`GET /api/leaves`、#816）。
  *
- * - 分校：學生**任何一筆報名**的班級在範圍內就算（同 `studentWriteScope`、`GET /api/leaves`、#816）
- * - 班級：報名不分狀態 —— 成績是當時考的，退班了不該看不到（同 `taughtStudentIds`）
- *
- * ponytail: 學生 id 清單進 GET URL；分校內學生上千時改成 embed
- * `students!inner(enrollments!inner(classes!inner(campus_id)))` 在 DB 端篩
+ * 只給 `POST /scores/export` 用：它走 pg pool，id 清單是 SQL 參數（`= ANY($2::uuid[])`）、不進 URL。
+ * 走 PostgREST 的讀取（GET /scores、/scores/students）**不要**用這支 —— 清單進 GET URL 會 414，
+ * 改用 `resolveScoreFilter`（範圍條件放進 embed，#1928）。
  */
 async function resolveScoreScope(
   supabase: AppEnv['Variables']['supabase'],
@@ -412,14 +397,11 @@ async function resolveScoreScope(
     userId: string;
     roles: readonly string[];
     campusScope: CampusScope;
-    classId?: string;
-    courseId?: string;
   },
 ): Promise<
   | 'forbidden'
   | {
       studentIds: string[] | null;
-      academyExamIds: string[] | null;
       /** 老師的任課班（校內考依班篩，見 `readableScope`）；管理員 null */
       academyClassIds: string[] | null;
     }
@@ -428,11 +410,6 @@ async function resolveScoreScope(
   if (readable === 'forbidden') return 'forbidden';
 
   let studentIds: string[] | null = readable?.studentIds ?? null;
-  const keep = (ids: Iterable<string>) => {
-    const allowed = new Set(ids);
-    studentIds = studentIds === null ? [...allowed] : studentIds.filter((id) => allowed.has(id));
-  };
-
   if (params.campusScope !== null) {
     const campusIds = [...params.campusScope];
     const rows = await fetchAllRows<{ student_id: string }>((from, to) =>
@@ -444,13 +421,52 @@ async function resolveScoreScope(
         .order('id')
         .range(from, to),
     );
-    keep(rows.map((r) => r.student_id));
+    const allowed = new Set(rows.map((r) => r.student_id));
+    studentIds = studentIds === null ? [...allowed] : studentIds.filter((id) => allowed.has(id));
   }
 
-  const academyClassIds = readable?.classIds ?? null;
-  let academyExamIds: string[] | null = null;
+  return { studentIds, academyClassIds: readable?.classIds ?? null };
+}
+
+/**
+ * #1928：**讀成績的範圍在 DB 端篩**（GET /scores、/scores/students）。同 `resolveScoreScope` 的判準
+ * （老師範圍 ∩ 分校範圍 ∩ 班級／課程篩選），但**不撈範圍內學生 id 清單**：清單進 GET URL，
+ * 一個分校兩三百位學生就 414；這裡只帶分校 id、班 id 這種小清單，條件放進 embed 的 `!inner`。
+ * 匯出走 pg pool（id 是 SQL 參數、不進 URL），照舊用 `resolveScoreScope`。
+ *
+ * - `campusIds`：學生**任一筆報名**的班在這些分校（#1115）
+ * - `taughtClassIds`：老師現任或將任的班 —— 學生在其中任一班（任何報名狀態，同 `taughtStudentIds`）；
+ *   校內考另外只限掛在這些班上的（`TAUGHT_EXAM_EMBED`）。管理員 null
+ * - `classIds`：班級／課程篩選（老師帶別人的班 id 會先被濾掉）—— 學生在其中任一班，校內考掛在其中任一班
+ *
+ * 任一個是空陣列＝範圍內什麼都沒有（`scopeIsEmpty`），呼叫端回空結果 —— 「沒有」不是通行證。
+ */
+interface ScoreScopeFilter {
+  campusIds: string[] | null;
+  taughtClassIds: string[] | null;
+  classIds: string[] | null;
+}
+
+async function resolveScoreFilter(
+  supabase: AppEnv['Variables']['supabase'],
+  params: {
+    orgId: string;
+    userId: string;
+    roles: readonly string[];
+    campusScope: CampusScope;
+    classId?: string;
+    courseId?: string;
+  },
+): Promise<'forbidden' | ScoreScopeFilter> {
+  let taught: string[] | null = null;
+  if (!params.roles.includes('admin')) {
+    const scope = await loadTeachingScope(supabase, params);
+    if ('forbidden' in scope || !scope.teacherStaffId) return 'forbidden';
+    taught = await taughtClassIds(supabase, params.orgId, scope.teacherStaffId);
+  }
+
+  let classIds: string[] | null = null;
   if (params.classId || params.courseId) {
-    let classIds: string[];
     if (params.courseId) {
       const courseClasses = await fetchAllRows<{ id: string }>((from, to) =>
         supabase
@@ -466,26 +482,55 @@ async function resolveScoreScope(
     } else {
       classIds = [params.classId as string];
     }
-    // 老師帶別人的班 id：那班不在範圍內，校內考這半是空的
-    if (academyClassIds) classIds = classIds.filter((id) => academyClassIds.includes(id));
-
-    const [enrolled, classExamIds] = await Promise.all([
-      fetchAllRows<{ student_id: string }>((from, to) =>
-        supabase
-          .from('enrollments')
-          .select('student_id')
-          .eq('org_id', params.orgId)
-          .in('class_id', classIds)
-          .order('id')
-          .range(from, to),
-      ),
-      examIdsOfClasses(supabase, classIds),
-    ]);
-    keep(enrolled.map((r) => r.student_id));
-    academyExamIds = classExamIds;
+    // 老師帶別人的班 id：那班不在範圍內
+    if (taught) classIds = classIds.filter((id) => taught.includes(id));
   }
 
-  return { studentIds, academyExamIds, academyClassIds };
+  return {
+    campusIds: params.campusScope === null ? null : [...params.campusScope],
+    taughtClassIds: taught,
+    classIds,
+  };
+}
+
+const scopeIsEmpty = (f: ScoreScopeFilter) =>
+  [f.campusIds, f.taughtClassIds, f.classIds].some((ids) => ids !== null && ids.length === 0);
+
+/**
+ * 範圍要的 embed（另取別名，跟顯示用的 `students ( name )` 分開）：同一張 students 各接一條
+ * `!inner`，三個條件各自成立（學生在 C1 有報名、**且**在老師的某班有報名，不必是同一筆）。
+ */
+function scopeSelect(f: ScoreScopeFilter, kind: 'academy' | 'school'): string {
+  const parts: string[] = [];
+  if (f.campusIds)
+    parts.push('scope_campus:students!inner ( enrollments!inner ( classes!inner ( campus_id ) ) )');
+  if (f.taughtClassIds)
+    parts.push('scope_taught:students!inner ( enrollments!inner ( class_id ) )');
+  if (f.classIds) parts.push('scope_class:students!inner ( enrollments!inner ( class_id ) )');
+  if (kind === 'academy') {
+    if (f.taughtClassIds) parts.push(TAUGHT_EXAM_EMBED);
+    if (f.classIds)
+      parts.push(
+        'class_exam:academy_exams!inner ( class_link:academy_exam_classes!inner ( class_id ) )',
+      );
+  }
+  return parts.map((p) => `, ${p}`).join('');
+}
+
+function applyScope<Q extends { in: (column: string, values: readonly string[]) => Q }>(
+  query: Q,
+  f: ScoreScopeFilter,
+  kind: 'academy' | 'school',
+): Q {
+  let next = query;
+  if (f.campusIds) next = next.in('scope_campus.enrollments.classes.campus_id', f.campusIds);
+  if (f.taughtClassIds) next = next.in('scope_taught.enrollments.class_id', f.taughtClassIds);
+  if (f.classIds) next = next.in('scope_class.enrollments.class_id', f.classIds);
+  if (kind === 'academy') {
+    if (f.taughtClassIds) next = next.in(TAUGHT_CLASS_FILTER, f.taughtClassIds);
+    if (f.classIds) next = next.in('class_exam.class_link.class_id', f.classIds);
+  }
+  return next;
 }
 
 app.openapi(listRoute, async (c) => {
@@ -507,8 +552,8 @@ app.openapi(listRoute, async (c) => {
   const searchKeyword = search?.trim() ? `%${search.trim()}%` : null;
   const offset = (page - 1) * pageSize;
 
-  // 老師範圍 ∩ 分校範圍 ∩ 班級／課程篩選（#1115）
-  const scope = await resolveScoreScope(supabase, {
+  // 老師範圍 ∩ 分校範圍 ∩ 班級／課程篩選（#1115），條件在 DB 端（#1928）
+  const scope = await resolveScoreFilter(supabase, {
     orgId,
     userId: c.get('userId'),
     roles: c.get('roles') ?? [],
@@ -519,11 +564,8 @@ app.openapi(listRoute, async (c) => {
   if (scope === 'forbidden') {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  const readable = scope.studentIds;
-  const { academyExamIds, academyClassIds } = scope;
-  // 空陣列 = 範圍內沒有任何學生（沒有班的老師、沒被指派分校的管理員、空的班）。
-  // 回空結果而不是不縮限 —— 「沒有」不是通行證
-  if (readable !== null && readable.length === 0) {
+  // 範圍內沒有任何學生（沒有班的老師、沒被指派分校的管理員、空的班）：回空結果而不是不縮限
+  if (scopeIsEmpty(scope)) {
     return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
   }
 
@@ -531,27 +573,18 @@ app.openapi(listRoute, async (c) => {
     const results: ScoreRecord[] = [];
 
     // Fetch academy scores (unless type is explicitly 'school')
-    // 篩了班但那些班沒掛任何校內考 → 校內考這半是空的（段考照學生篩，照常查）
-    if ((!type || type === 'academy') && (academyExamIds === null || academyExamIds.length > 0)) {
+    // 篩了班但那些班沒掛任何校內考 → `class_exam` 的 !inner 讓校內考這半自然是空的（段考照學生篩，照常查）
+    if (!type || type === 'academy') {
       const buildAcademyQuery = () =>
         supabase
           .from('academy_scores')
           .select(
-            `${ACADEMY_SCORE_SELECT}, students!inner ( name )${academyClassIds ? `, ${TAUGHT_EXAM_EMBED}` : ''}`,
+            `${ACADEMY_SCORE_SELECT}, students!inner ( name )${scopeSelect(scope, 'academy')}`,
           )
           .eq('academy_exams.org_id', orgId);
 
       const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
-        let next = query;
-        if (readable !== null) {
-          next = next.in('student_id', readable);
-        }
-        if (academyExamIds !== null) {
-          next = next.in('exam_id', academyExamIds);
-        }
-        if (academyClassIds !== null) {
-          next = next.in(TAUGHT_CLASS_FILTER, academyClassIds);
-        }
+        let next = applyScope(query, scope, 'academy');
         if (studentId) {
           next = next.eq('student_id', studentId);
         }
@@ -571,62 +604,27 @@ app.openapi(listRoute, async (c) => {
       let academyError: { message: string } | null = null;
 
       if (searchKeyword) {
-        const [studentResult, examResult] = await Promise.all([
-          supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
-          (() => {
-            let query = supabase
-              .from('academy_exams')
-              .select('id')
-              .eq('org_id', orgId)
-              .ilike('name', searchKeyword);
-            if (subjectId) query = query.eq('subject_id', subjectId);
-            if (dateFrom) query = query.gte('exam_date', dateFrom);
-            if (dateTo) query = query.lte('exam_date', dateTo);
-            return query;
-          })(),
-        ]);
-
-        if (studentResult.error || examResult.error) {
-          academyError = {
-            message: studentResult.error?.message ?? examResult.error?.message ?? 'DB_ERROR',
-          };
-        } else {
-          const matchedStudentIds = (studentResult.data ?? []).map((row) => row.id);
-          const matchedExamIds = (examResult.data ?? []).map((row) => row.id);
-
-          const candidateQueries: any[] = [];
-          if (matchedStudentIds.length > 0) {
-            candidateQueries.push(() =>
+        // 搜學生名或考試名（#1928）：直接在 embed 上 ilike，不先撈命中的 id 清單再 `.in()` 回去
+        const order = { referencedTable: 'academy_exams', ascending: false } as const;
+        const queryResults = await Promise.all(
+          [
+            () =>
               applyAcademyFilters(buildAcademyQuery())
-                .in('student_id', matchedStudentIds)
-                .order('exam_date', {
-                  referencedTable: 'academy_exams',
-                  ascending: false,
-                }),
-            );
-          }
-          if (matchedExamIds.length > 0) {
-            candidateQueries.push(() =>
+                .ilike('students.name', searchKeyword)
+                .order('exam_date', order),
+            () =>
               applyAcademyFilters(buildAcademyQuery())
-                .in('exam_id', matchedExamIds)
-                .order('exam_date', {
-                  referencedTable: 'academy_exams',
-                  ascending: false,
-                }),
-            );
+                .ilike('academy_exams.name', searchKeyword)
+                .order('exam_date', order),
+          ].map(fetchAllOrError),
+        );
+        for (const result of queryResults) {
+          if (result.error) {
+            academyError = { message: result.error.message };
+            break;
           }
-
-          if (candidateQueries.length > 0) {
-            const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
-            for (const result of queryResults) {
-              if (result.error) {
-                academyError = { message: result.error.message };
-                break;
-              }
-              for (const row of result.data ?? []) {
-                academyRowMap.set(row.id, row);
-              }
-            }
+          for (const row of result.data ?? []) {
+            academyRowMap.set(row.id, row);
           }
         }
       } else {
@@ -647,8 +645,10 @@ app.openapi(listRoute, async (c) => {
 
       const academyRows = Array.from(academyRowMap.values());
 
+      // 不吞錯（#1928 裁定）：校內考這半讀失敗就整支 500，不能少一半照回 200
       if (academyError) {
         console.error('Academy scores query error:', academyError);
+        return c.json({ error: '讀取成績失敗，請稍後再試', code: 'DB_ERROR' }, 500);
       } else {
         for (const row of academyRows ?? []) {
           const student = row.students as any;
@@ -666,14 +666,11 @@ app.openapi(listRoute, async (c) => {
       const buildSchoolQuery = () =>
         supabase
           .from('school_scores')
-          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`)
+          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )${scopeSelect(scope, 'school')}`)
           .eq('school_exams.org_id', orgId);
 
       const applySchoolFilters = (query: ReturnType<typeof buildSchoolQuery>) => {
-        let next = query;
-        if (readable !== null) {
-          next = next.in('student_id', readable);
-        }
+        let next = applyScope(query, scope, 'school');
         if (studentId) {
           next = next.eq('student_id', studentId);
         }
@@ -687,56 +684,27 @@ app.openapi(listRoute, async (c) => {
       let schoolError: { message: string } | null = null;
 
       if (searchKeyword) {
-        const [studentResult, examResult] = await Promise.all([
-          supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
-          supabase
-            .from('school_exams')
-            .select('id')
-            .eq('org_id', orgId)
-            .ilike('label', searchKeyword),
-        ]);
-
-        if (studentResult.error || examResult.error) {
-          schoolError = {
-            message: studentResult.error?.message ?? examResult.error?.message ?? 'DB_ERROR',
-          };
-        } else {
-          const matchedStudentIds = (studentResult.data ?? []).map((row) => row.id);
-          const matchedExamIds = (examResult.data ?? []).map((row) => row.id);
-          const candidateQueries: any[] = [];
-
-          if (matchedStudentIds.length > 0) {
-            candidateQueries.push(() =>
+        // 同校內考：在 embed 上 ilike（#1928）
+        const order = { referencedTable: 'school_exams', ascending: false } as const;
+        const queryResults = await Promise.all(
+          [
+            () =>
               applySchoolFilters(buildSchoolQuery())
-                .in('student_id', matchedStudentIds)
-                .order('created_at', {
-                  referencedTable: 'school_exams',
-                  ascending: false,
-                }),
-            );
-          }
-          if (matchedExamIds.length > 0) {
-            candidateQueries.push(() =>
+                .ilike('students.name', searchKeyword)
+                .order('created_at', order),
+            () =>
               applySchoolFilters(buildSchoolQuery())
-                .in('school_exam_id', matchedExamIds)
-                .order('created_at', {
-                  referencedTable: 'school_exams',
-                  ascending: false,
-                }),
-            );
+                .ilike('school_exams.label', searchKeyword)
+                .order('created_at', order),
+          ].map(fetchAllOrError),
+        );
+        for (const result of queryResults) {
+          if (result.error) {
+            schoolError = { message: result.error.message };
+            break;
           }
-
-          if (candidateQueries.length > 0) {
-            const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
-            for (const result of queryResults) {
-              if (result.error) {
-                schoolError = { message: result.error.message };
-                break;
-              }
-              for (const row of result.data ?? []) {
-                schoolRowMap.set(row.id, row);
-              }
-            }
+          for (const row of result.data ?? []) {
+            schoolRowMap.set(row.id, row);
           }
         }
       } else {
@@ -759,6 +727,7 @@ app.openapi(listRoute, async (c) => {
 
       if (schoolError) {
         console.error('School scores query error:', schoolError);
+        return c.json({ error: '讀取成績失敗，請稍後再試', code: 'DB_ERROR' }, 500);
       } else {
         for (const row of schoolRows ?? []) {
           const student = row.students as any;
@@ -809,7 +778,7 @@ app.openapi(listRoute, async (c) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : '查詢失敗';
     console.error('Scores query error:', error);
-    return c.json({ error: message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: message, code: 'DB_ERROR' }, 500);
   }
 });
 
@@ -1098,7 +1067,8 @@ app.openapi(studentAggregatesRoute, async (c) => {
     return c.json({ error: '請先選開課班、課程或學生', code: 'SCOPE_REQUIRED' }, 400);
   }
 
-  const scope = await resolveScoreScope(supabase, {
+  // 條件在 DB 端（#1928），同 GET /scores
+  const scope = await resolveScoreFilter(supabase, {
     orgId,
     userId: c.get('userId'),
     roles: c.get('roles') ?? [],
@@ -1110,11 +1080,10 @@ app.openapi(studentAggregatesRoute, async (c) => {
   if (scope === 'forbidden') {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  const { studentIds, academyExamIds, academyClassIds } = scope;
   const empty = { data: [], meta: { total: 0, page, pageSize } };
-  if (studentIds !== null && studentIds.length === 0) return c.json(empty, 200);
+  if (scopeIsEmpty(scope)) return c.json(empty, 200);
 
-  const wantAcademy = (!q.type || q.type === 'academy') && (academyExamIds?.length ?? 1) > 0;
+  const wantAcademy = !q.type || q.type === 'academy';
   const wantSchool = !q.type || q.type === 'school';
 
   // scope=all：全機構的成績必破 max_rows，改成分頁撈齊；其餘照舊一次撈、超量回 TOO_MANY_ROWS
@@ -1134,13 +1103,11 @@ app.openapi(studentAggregatesRoute, async (c) => {
         let query = supabase
           .from('academy_scores')
           .select(
-            `${ACADEMY_SCORE_SELECT}, students!inner ( name, grade )${academyClassIds ? `, ${TAUGHT_EXAM_EMBED}` : ''}`,
+            `${ACADEMY_SCORE_SELECT}, students!inner ( name, grade )${scopeSelect(scope, 'academy')}`,
             { count: 'exact' },
           )
           .eq('academy_exams.org_id', orgId);
-        if (studentIds !== null) query = query.in('student_id', studentIds);
-        if (academyExamIds !== null) query = query.in('exam_id', academyExamIds);
-        if (academyClassIds !== null) query = query.in(TAUGHT_CLASS_FILTER, academyClassIds);
+        query = applyScope(query, scope, 'academy');
         if (q.studentId) query = query.eq('student_id', q.studentId);
         if (q.subjectId) query = query.eq('academy_exams.subject_id', q.subjectId);
         if (q.dateFrom) query = query.gte('academy_exams.exam_date', q.dateFrom);
@@ -1152,9 +1119,12 @@ app.openapi(studentAggregatesRoute, async (c) => {
     ? run(() => {
         let query = supabase
           .from('school_scores')
-          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name, grade )`, { count: 'exact' })
+          .select(
+            `${SCHOOL_SCORE_SELECT}, students!inner ( name, grade )${scopeSelect(scope, 'school')}`,
+            { count: 'exact' },
+          )
           .eq('school_exams.org_id', orgId);
-        if (studentIds !== null) query = query.in('student_id', studentIds);
+        query = applyScope(query, scope, 'school');
         if (q.studentId) query = query.eq('student_id', q.studentId);
         if (q.subjectId) query = query.eq('subject_id', q.subjectId);
         return query;

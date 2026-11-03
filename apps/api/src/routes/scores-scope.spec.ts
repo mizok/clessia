@@ -7,7 +7,11 @@ import scoresApp from './scores';
  * `GET /api/scores` 的分校範圍＋班級／課程篩選，與 `GET /api/scores/students` 每生聚合（#1115）。
  *
  * 替身記下每支查詢的條件，回傳依表名＋條件決定。**替身不實作 `in`／`eq`** ——
- * 範圍是否套上只能斷言「成績查詢帶了哪份學生／考試清單」；真的過濾要本機實打。
+ * 範圍是否套上只能斷言「成績查詢帶了哪些 embed 條件」；真的過濾在本機 PostgREST 打
+ * （`contract/scores-scope-1928.contract.ts`：受限管理員、老師、不受限各一條，fixture 260＋位學生）。
+ *
+ * #1928 起成績查詢**不再帶學生 id 清單**：範圍放進 embed 的 `!inner`（`scope_campus`／`scope_taught`／
+ * `scope_class`），只帶分校 id、班 id 這種小清單 —— 下面斷言的就是這些條件，以及「沒有 `student_id` 清單」。
  */
 interface Op {
   readonly name: string;
@@ -76,6 +80,9 @@ const isCampusEnrollments = (q: RecordedQuery) =>
   q.ops.some((op) => op.name === 'in' && op.args[0] === 'classes.campus_id');
 const isClassEnrollments = (q: RecordedQuery) =>
   q.table === 'enrollments' && q.ops.some((op) => op.name === 'in' && op.args[0] === 'class_id');
+const CAMPUS_FILTER = 'scope_campus.enrollments.classes.campus_id';
+const CLASS_FILTER = 'scope_class.enrollments.class_id';
+const CLASS_EXAM_FILTER = 'class_exam.class_link.class_id';
 
 interface Fixture {
   campusStudents?: string[];
@@ -119,11 +126,14 @@ describe('GET /api/scores —— 分校範圍（#1115）', () => {
     ]);
     const res = await app.request('/api/scores');
     expect(res.status).toBe(200);
-    const campusQuery = queries.find(isCampusEnrollments)!;
-    expect(inArg(campusQuery, 'classes.campus_id')).toEqual(['campus-1']);
+    // #1928：不先撈範圍內學生（那份清單進 URL 就 414），分校條件直接掛在成績查詢的 embed 上
+    expect(queries.some(isCampusEnrollments)).toBe(false);
     const scores = scoreQueries(queries);
     expect(scores.map((q) => q.table).sort()).toEqual(['academy_scores', 'school_scores']);
-    for (const q of scores) expect(inArg(q, 'student_id')).toEqual(['s1', 's2']);
+    for (const q of scores) {
+      expect(inArg(q, CAMPUS_FILTER)).toEqual(['campus-1']);
+      expect(inArg(q, 'student_id')).toBeUndefined();
+    }
   });
 
   it('沒被指派分校（空陣列）→ 空結果，不查成績', async () => {
@@ -154,10 +164,16 @@ describe('GET /api/scores —— classId／courseId（#1115）', () => {
     await app.request(`/api/scores?classId=${CLASS}`);
     const academy = queries.find((q) => q.table === 'academy_scores')!;
     const school = queries.find((q) => q.table === 'school_scores')!;
-    expect(inArg(academy, 'exam_id')).toEqual(['e1', 'e2']);
-    expect(inArg(academy, 'student_id')).toEqual(['s2']);
-    expect(inArg(school, 'student_id')).toEqual(['s2']);
-    expect(inArg(school, 'exam_id')).toBeUndefined();
+    // 兩邊都：學生在這班 ∧ 學生在範圍內（各自一條 embed，不必是同一筆報名）
+    for (const q of [academy, school]) {
+      expect(inArg(q, CLASS_FILTER)).toEqual([CLASS]);
+      expect(inArg(q, CAMPUS_FILTER)).toEqual(['campus-1']);
+      expect(inArg(q, 'student_id')).toBeUndefined();
+      expect(inArg(q, 'exam_id')).toBeUndefined();
+    }
+    // 校內考另外要掛在這班；段考是學生層級，沒有這條
+    expect(inArg(academy, CLASS_EXAM_FILTER)).toEqual([CLASS]);
+    expect(inArg(school, CLASS_EXAM_FILTER)).toBeUndefined();
   });
 
   it('courseId 展開成它的開課班', async () => {
@@ -174,19 +190,28 @@ describe('GET /api/scores —— classId／courseId（#1115）', () => {
         COURSE,
       ),
     ).toBe(true);
-    expect(inArg(queries.find(isClassEnrollments)!, 'class_id')).toEqual(['c1', 'c2']);
+    const academy = queries.find((q) => q.table === 'academy_scores')!;
+    expect(inArg(academy, CLASS_FILTER)).toEqual(['c1', 'c2']);
+    expect(inArg(academy, CLASS_EXAM_FILTER)).toEqual(['c1', 'c2']);
     expect(
       inArg(
-        queries.find((q) => q.table === 'academy_exam_classes')!,
-        'class_id',
+        queries.find((q) => q.table === 'school_scores')!,
+        CLASS_FILTER,
       ),
     ).toEqual(['c1', 'c2']);
   });
 
-  it('班上沒掛任何校內考 → 不查校內考，段考照查', async () => {
-    const { app, queries } = createApp(resolver({ classStudents: ['s1'], examLinks: [] }), null);
+  // #1928：不先查「這些班掛了哪些考試」—— 班上沒掛任何校內考時，class_exam 的 !inner 讓校內考自然是空的
+  it('篩班時不先撈考試或學生清單：條件都在成績查詢的 embed 上', async () => {
+    const { app, queries } = createApp(resolver({}), null);
     await app.request(`/api/scores?classId=${CLASS}`);
-    expect(scoreQueries(queries).map((q) => q.table)).toEqual(['school_scores']);
+    expect(queries.some((q) => q.table === 'academy_exam_classes')).toBe(false);
+    expect(queries.some(isClassEnrollments)).toBe(false);
+    expect(
+      scoreQueries(queries)
+        .map((q) => q.table)
+        .sort(),
+    ).toEqual(['academy_scores', 'school_scores']);
   });
 });
 
@@ -340,7 +365,13 @@ describe('GET /api/scores/students —— 每生聚合（#1115）', () => {
       ['campus-1'],
     );
     await app.request(`/api/scores/students?studentId=${STUDENT}&classId=${CLASS}`);
-    for (const q of scoreQueries(queries)) expect(inArg(q, 'student_id')).toEqual(['u1']);
+    for (const q of scoreQueries(queries)) {
+      expect(inArg(q, CAMPUS_FILTER)).toEqual(['campus-1']);
+      expect(inArg(q, CLASS_FILTER)).toEqual([CLASS]);
+      // studentId 是使用者指名的那一位（eq），不是範圍展開的清單
+      expect(inArg(q, 'student_id')).toBeUndefined();
+      expect(has(q, 'eq', 'student_id', STUDENT)).toBe(true);
+    }
   });
 });
 
