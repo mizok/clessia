@@ -255,7 +255,6 @@ describe('filter-popover 掛載點（#1873）', () => {
       'features/admin/pages/grades/exams/exams.component.html',
     ];
     const TODO_2206 = [
-      'features/admin/pages/students/students.page.html',
       'features/admin/pages/courses/courses.page.html',
       'features/admin/pages/parents/parents.page.html',
       'features/admin/pages/payments/payments.page.html',
