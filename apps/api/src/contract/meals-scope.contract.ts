@@ -128,6 +128,17 @@ run('餐費的分校範圍（#2138）', () => {
     fx.a = await student('只在一校', [klass['c1']!]);
     fx.b = await student('只在二校', [klass['c2']!]);
     fx.ab = await student('兩校都有', [klass['c1']!, klass['c2']!]);
+    // ME1：a 當天下午請半天（有起訖時間的單日假，按日判斷也算）；b 的假在前一天，不算
+    for (const [sid, date, from, to] of [
+      [fx.a, DAY, '14:00', '15:00'],
+      [fx.b, '2026-08-31', null, null],
+    ] as const) {
+      await q(
+        `insert into leave_requests (org_id, student_id, start_date, end_date, start_time, end_time, submitted_by, submitted_by_role)
+         values ($1, $2, $3, $3, $4, $5, $6, 'admin')`,
+        [ctx.orgId, sid, date, from, to, ctx.userId],
+      );
+    }
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -135,6 +146,7 @@ run('餐費的分校範圍（#2138）', () => {
     if (!ctx.orgId) return;
     for (const sql of [
       'delete from meal_records where org_id = $1',
+      'delete from leave_requests where org_id = $1',
       'delete from sessions where org_id = $1',
       'delete from enrollments where org_id = $1',
       'delete from students where org_id = $1',
@@ -219,6 +231,19 @@ run('餐費的分校範圍（#2138）', () => {
     expect(c1.meta).toMatchObject({ total: 2, totalAmount: 160 });
 
     expect((await get('none', path)).data).toEqual([]);
+  });
+
+  // ME1（#1314）：單日名單的「今天有請假」—— 按日判斷（計畫席 11-02），半天假也算；別天的假不算
+  it('單日名單的 onLeave：當天有假蓋到的學生為 true（含半天假），別天的假不算', async () => {
+    const res = await as('all', `/api/meals?date=${DAY}`);
+    const body = (await res.json()) as {
+      data: Array<{ studentId: string; onLeave: boolean | null }>;
+    };
+    expect(Object.fromEntries(body.data.map((r) => [r.studentId, r.onLeave]))).toEqual({
+      [fx.a]: true,
+      [fx.b]: false,
+      [fx.ab]: false,
+    });
   });
 
   it('批次寫入：受限 C1 寫範圍外的學生整批 404、對方的記錄不變；範圍內照常', async () => {
