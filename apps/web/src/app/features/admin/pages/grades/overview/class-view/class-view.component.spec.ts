@@ -373,7 +373,9 @@ describe('ClassViewComponent', () => {
     component['todoMap'].set({ cl1: { count: 0, examId: null } });
     fixture.detectChanges();
 
-    expect((fixture.nativeElement as HTMLElement).querySelector('[data-part=todo-chip]')).toBeNull();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-part=todo-chip]'),
+    ).toBeNull();
   });
 
   it('班級列：N 人在班、最近一場（M/D）· 不及格 · 缺考、右側平均（#1762 ②）', () => {
@@ -392,8 +394,7 @@ describe('ClassViewComponent', () => {
       }),
     ]);
 
-    const text = (sel: string) =>
-      host.querySelector(sel)?.textContent?.replace(/\s+/g, ' ').trim();
+    const text = (sel: string) => host.querySelector(sel)?.textContent?.replace(/\s+/g, ' ').trim();
     expect(text('[data-part=class-meta]')).toBe('國一 · 17 人在班 · 上限 20 人 · 台北校');
     expect(text('[data-part=class-last]')).toBe('最近：第三次小考（10/5） · 不及格 4 人 · 缺考 1');
     expect(text('[data-part=class-avg]')).toBe('72.5 平均');
@@ -546,6 +547,43 @@ describe('ClassViewComponent', () => {
     component['subjectIdFilter'].set('sub-1');
     fixture.detectChanges();
     expect(clearIn()).toBe(true);
+  });
+
+  // 計畫席 11-03 裁定（#2206）：面板裡的清除只清年級與科目；搜尋框與「待登錄」都在面板外，不動
+  it('浮層的「清除篩選」只清年級與科目，搜尋與待登錄留著', () => {
+    const host = renderRows([cls()]);
+    component['searchText'].set('A班');
+    component['todoMap'].set({ cl1: { count: 1, examId: 'e1' } });
+    component['todoOnly'].set(true);
+    component['selectedGrades'].set(['J1']);
+    component['subjectIdFilter'].set('sub-1');
+    fixture.detectChanges();
+    const pop = openFilterPop(host)!;
+    [...pop.querySelectorAll('button')].find((b) => b.textContent?.trim() === '清除篩選')!.click();
+    fixture.detectChanges();
+
+    expect(component['selectedGrades']()).toEqual([]);
+    expect(component['subjectIdFilter']()).toBeNull();
+    expect(component['searchText']()).toBe('A班');
+    expect(component['todoOnly']()).toBe(true);
+  });
+
+  it('手機已套用條件 chip：年級一個一顆、科目一顆，點 × 只拿掉那一項', () => {
+    const host = renderRows([cls()]);
+    TestBed.inject(ReferenceDataService).subjects.set([{ id: 'sub-1', name: '數學' }] as any);
+    component['selectedGrades'].set(['J1', 'J2']);
+    component['subjectIdFilter'].set('sub-1');
+    fixture.detectChanges();
+    const chips = () =>
+      [...host.querySelectorAll('app-active-filters button')].map((b) =>
+        b.getAttribute('aria-label'),
+      );
+    expect(chips()).toEqual(['移除篩選：國一', '移除篩選：國二', '移除篩選：數學']);
+
+    host.querySelector<HTMLButtonElement>('[aria-label="移除篩選：國一"]')!.click();
+    fixture.detectChanges();
+    expect(component['selectedGrades']()).toEqual(['J2']);
+    expect(chips()).toEqual(['移除篩選：國二', '移除篩選：數學']);
   });
 
   /** 一班的 fixture；`over` 蓋過預設欄位 */

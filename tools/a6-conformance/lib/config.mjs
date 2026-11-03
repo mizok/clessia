@@ -2433,8 +2433,8 @@ export const PAGES = {
   'grades-student': {
     a6: 'grades-student.html',
     app: '/admin/grades/overview/student',
-    // app 的篩選是 PrimeNG Popover（同 grades-class）；#2079(c) 開課班／期間要打開才量得到
-    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
+    // app 的篩選是 app-filter-panel：桌機 PrimeNG Popover、≤860 貼底抽屜 p-dialog（#2206）；#2079(c) 開課班／期間要打開才量得到
+    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover, .p-dialog' } },
     deviations: [
       // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
       ...['尺寸', '樣式', '位置'].map((status) => ({
@@ -2459,7 +2459,8 @@ export const PAGES = {
           a6: '(^|>)landmark:popover\\[\\]>row>control:button$',
         })),
         { status: '樣式', a6: '(^|>)landmark:popover\\[\\]>row$' },
-        { status: '多', app: '(^|>)landmark:dialog\\[\\]>row>control:combobox$' },
+        // 手機抽屜有可及名稱「篩選」（#2208 二讀），桌機浮層沒有
+        { status: '多', app: '(^|>)landmark:dialog\\[(篩選)?\\]>row>control:combobox$' },
       ].map((d) => ({ ...d, pop: 'filt', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
       // 完成鈕的上下位置：稿每列多一行「新」小標（設計說明）、多一欄分校（列數 7→6 是資料差），浮層高 419→311
       {
@@ -2470,6 +2471,26 @@ export const PAGES = {
         reason: '連帶：稿的「新」小標各佔一行、欄位多一個分校，浮層比 app 高；完成鈕貼底跟著差',
         source: '.design-explorations a6.js ddLabel（剔除 .new）；列數差見同頁資料差',
       },
+      // #2206：≤860 篩選改成貼底抽屜（全站 p-dialog 手機樣式，#1776）：根貼底、無框、以標題「篩選」為名，
+      // 多一個標題列；「完成」是抽屜底部滿寬的主要鈕（稿是浮層右下的小鈕）
+      ...[
+        { status: '文案', a6: '(^|>)landmark:popover\\[\\]$' },
+        { status: '位置', a6: '(^|>)landmark:popover\\[\\]$' },
+        { status: '樣式', a6: '(^|>)landmark:popover\\[\\]$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[篩選\\]>heading:h2\\[篩選\\]$' },
+        { status: '位置', a6: '(^|>)landmark:popover\\[\\]>row$' },
+        ...['位置', '尺寸', '樣式'].map((status) => ({
+          status,
+          a6: '(^|>)landmark:popover\\[\\]>control:button\\[完成\\]$',
+        })),
+      ].map((d) => ({
+        ...d,
+        pop: 'filt',
+        widths: [360],
+        reason:
+          '手機篩選是貼底抽屜（全站 p-dialog 手機樣式）：標題列「篩選」、底部滿寬「完成」，不是稿的浮層',
+        source: `${rule('R5')}「手機的篩選面板：貼底抽屜」2026-11-03；#2206 issuecomment-6593157592`,
+      })),
       // 稿的「新」標記是設計說明；app 欄位標籤的 span 被配到它身上（同批次請假）
       ...['位置', '樣式'].map((status) => ({
         status,

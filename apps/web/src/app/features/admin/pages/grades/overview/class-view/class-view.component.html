@@ -67,75 +67,84 @@
         data-part="filter-btn"
         aria-haspopup="dialog"
         [attr.aria-expanded]="filtersOpen()"
-        (click)="filterPopover.toggle($event)"
+        (click)="filterPanel.toggle($event)"
       >
         <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
         篩選：{{ filterSummary() }}
       </button>
     </div>
+    <!-- 已套用的條件（#2206：只在手機），點 × 拿掉 -->
+    <app-active-filters
+      class="w-full wide:hidden"
+      [filters]="activeFilters()"
+      (removed)="removeFilter($event)"
+    />
   </div>
 </div>
 
-<!-- A6 .pop：貼在「篩選」鈕下（exams 頁同款）。分校只在頂欄選（#1607），所以沒有那一欄 -->
-<p-popover
-  #filterPopover
-  appFitPopover
-  styleClass="filter-popover"
-  (onShow)="filtersOpen.set(true)"
-  (onHide)="filtersOpen.set(false)"
+<!-- A6 .pop：桌機貼在「篩選」鈕下（exams 頁同款），手機是貼底抽屜（#2206）。分校只在頂欄選（#1607），所以沒有那一欄 -->
+<app-filter-panel
+  #filterPanel
+  [hasFilters]="hasFilters()"
+  (cleared)="clearPanelFilters()"
+  (openChange)="filtersOpen.set($event)"
 >
-  <div class="flex w-[260px] max-w-full flex-col gap-3" data-part="filter-pop">
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="cv-f-grade">年級</span>
-      <p-multiselect
-        [options]="gradeOptions"
-        [ngModel]="selectedGrades()"
-        (ngModelChange)="onGradeFilterChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部年級"
-        [showClear]="true"
-        [maxSelectedLabels]="2"
-        ariaLabelledBy="cv-f-grade"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="cv-f-subject">科目</span>
-      <p-select
-        [options]="subjectOptions()"
-        [ngModel]="subjectIdFilter()"
-        (ngModelChange)="onSubjectFilterChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部科目"
-        [showClear]="true"
-        ariaLabelledBy="cv-f-subject"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex items-center justify-between">
-      @if (hasFilters()) {
+  <ng-template>
+    <div class="flex w-[260px] max-w-full flex-col gap-3" data-part="filter-pop">
+      <div class="flex min-w-0 flex-col gap-1">
+        <span class="text-md font-semibold text-zinc-700" id="cv-f-grade">年級</span>
+        <p-multiselect
+          [options]="gradeOptions"
+          [ngModel]="selectedGrades()"
+          (ngModelChange)="onGradeFilterChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部年級"
+          [showClear]="true"
+          [maxSelectedLabels]="2"
+          ariaLabelledBy="cv-f-grade"
+          styleClass="w-full"
+          [appendTo]="'body'"
+        />
+      </div>
+      <div class="flex min-w-0 flex-col gap-1">
+        <span class="text-md font-semibold text-zinc-700" id="cv-f-subject">科目</span>
+        <p-select
+          [options]="subjectOptions()"
+          [ngModel]="subjectIdFilter()"
+          (ngModelChange)="onSubjectFilterChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部科目"
+          [showClear]="true"
+          ariaLabelledBy="cv-f-subject"
+          styleClass="w-full"
+          [appendTo]="'body'"
+        />
+      </div>
+      <!-- 桌機浮層才有這一列；手機抽屜的標題列／底部已自帶「清除」「完成」（#2206）。
+         清除只清條件、不清搜尋與待登錄（兩者都在面板外，計畫席 11-03 裁定） -->
+      <div class="flex items-center justify-between max-wide:hidden">
+        @if (hasFilters()) {
+          <button
+            type="button"
+            class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
+            (click)="clearPanelFilters()"
+          >
+            清除篩選
+          </button>
+        }
         <button
           type="button"
-          class="inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-md font-semibold text-zinc-900 underline underline-offset-4"
-          (click)="clearFilters()"
+          class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800"
+          (click)="filterPanel.hide()"
         >
-          清除篩選
+          完成
         </button>
-      }
-      <button
-        type="button"
-        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800"
-        (click)="filterPopover.hide()"
-      >
-        完成
-      </button>
+      </div>
     </div>
-  </div>
-</p-popover>
+  </ng-template>
+</app-filter-panel>
 
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
   @if (!campusId()) {
