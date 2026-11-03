@@ -256,7 +256,6 @@ describe('filter-popover 掛載點（#1873）', () => {
       'features/admin/pages/grades/exams/exams.component.html',
     ];
     const TODO_2206 = [
-      'features/admin/pages/grades/overview/class-view/class-view.component.html',
       'features/admin/pages/grades/overview/student-view/student-view.component.html',
     ];
     const raw = HTMLS.filter((f) => f.text.includes('styleClass="filter-popover"')).map((f) =>
