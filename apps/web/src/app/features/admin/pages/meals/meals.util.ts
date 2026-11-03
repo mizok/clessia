@@ -28,6 +28,8 @@ export interface MealDraftRow {
   recordId: string | null;
   /** 已結算 —— 鎖住不給改（規則 2） */
   settled: boolean;
+  /** 這天有請假（ME1）：只是提示。後端回 `null`（不知道）當作沒有，不畫提示 */
+  onLeave: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ export function rosterToDraft(rows: MealRosterRow[], defaultUnitPrice: number): 
     note: row.note ?? '',
     recordId: row.recordId,
     settled: row.settled,
+    onLeave: row.onLeave === true,
   }));
 }
 

@@ -6,6 +6,12 @@ import { ID_CHUNK, missingInOrg } from '../lib/org-scope';
 import { campusFilterIds, getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
+import { fetchAllPages } from '../lib/fetch-all-pages';
+import {
+  LEAVE_WINDOW_COLUMNS,
+  leaveCoversSession,
+  toLeaveWindow,
+} from '../lib/leave-covers-session';
 
 /**
  * 餐務：每日名單。
@@ -20,6 +26,22 @@ import { waitUntilFrom } from '../lib/wait-until';
  */
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 這天被假蓋到的學生（ME1）。按日：`leaveCoversSession` 拿整天（`sessionId: null`）去比，同日到班
+ * （`today-attendance.ts`）—— 綁定型的假當天有任一綁定堂就算、單日半天假也算
+ */
+export function studentsOnLeave(
+  leaveRows: ReadonlyArray<Record<string, unknown>>,
+  date: string,
+): Set<string> {
+  const day = { sessionId: null, date, startTime: null, endTime: null };
+  return new Set(
+    leaveRows
+      .filter((row) => leaveCoversSession(toLeaveWindow(row), day))
+      .map((row) => row['student_id'] as string),
+  );
+}
 
 /**
  * 分校範圍（#2138）：**學生任一報名的班在範圍內**，跟學生列表與帳單（`studentInScope`）同一條判準 ——
@@ -63,6 +85,12 @@ const MealRosterRowSchema = z
     note: z.string().nullable(),
     /** 已結算的記錄鎖住，要改走帳單作廢或下期 adjustment（規則 2） */
     settled: z.boolean(),
+    /**
+     * 這天有請假（#1314 ME1）：**按日判斷**，當天有任何一張假蓋到就算（含半天假、只綁一堂的假，計畫席 11-02）。
+     * 只是提示 —— 半天假的學生可能照樣來吃飯，勾選不自動改（A6）。單日名單才有；區間模式 `null`；
+     * 讀請假失敗也是 `null`（不知道，不宣稱「沒請假」）
+     */
+    onLeave: z.boolean().nullable(),
   })
   .openapi('MealRosterRow');
 
@@ -216,6 +244,7 @@ app.openapi(
             ...record,
             classNames: [],
             mealDefault: false,
+            onLeave: null,
           })),
           defaultUnitPrice,
           meta: { ...summary, page, pageSize },
@@ -293,6 +322,29 @@ app.openapi(
       }
     }
 
+    // ME1：這天的假。一次撈全 org 當天有效的（一天通常幾十張，分頁撈齊防 max_rows），
+    // 下面只對候選看 —— 候選已套過分校範圍，名單外的假不會出現在回應裡。不分段 `.in()` 候選（URL 414、subrequest 數）
+    let onLeave: Set<string> | null = null;
+    if (candidates.size > 0) {
+      const { rows: leaveRows, error: leaveError } = await fetchAllPages((rangeFrom, rangeTo) =>
+        supabase
+          .from('leave_requests')
+          .select(`id, student_id, ${LEAVE_WINDOW_COLUMNS}`)
+          .eq('org_id', orgId)
+          .lte('start_date', from)
+          .gte('end_date', from)
+          .order('id')
+          .range(rangeFrom, rangeTo),
+      );
+      if (leaveError) {
+        console.error(
+          `[meals] 讀取當天請假失敗，onLeave 回 null：${String((leaveError as { message?: string }).message ?? leaveError)}`,
+        );
+      } else {
+        onLeave = studentsOnLeave(leaveRows, from);
+      }
+    }
+
     const byStudent = new Map(records.map((record) => [record.studentId, record]));
 
     const roster = Array.from(candidates.values())
@@ -308,6 +360,7 @@ app.openapi(
           unitPrice: record ? record.unitPrice : null,
           note: record?.note ?? null,
           settled: record?.settled ?? false,
+          onLeave: onLeave ? onLeave.has(candidate.studentId) : null,
         };
       });
 

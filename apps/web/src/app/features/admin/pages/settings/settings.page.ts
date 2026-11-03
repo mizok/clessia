@@ -12,7 +12,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
 import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
-import { BillingPeriodsService, type BillingPeriodListItem } from '@core/billing-periods.service';
 import {
   OrgSettingsService,
   type AttendanceMode,
@@ -32,14 +31,6 @@ import {
   type GradePromotionRevertResult,
 } from '@core/grade-promotions.service';
 import { GradePromotionDialogComponent } from './grade-promotion-dialog/grade-promotion-dialog.component';
-import { SystemClockService } from '@core/system-clock.service';
-import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
-import { concat, defer, toArray } from 'rxjs';
-import {
-  PERIOD_TEMPLATES,
-  periodsFromTemplate,
-  type PeriodTemplateKey,
-} from './period-templates.util';
 
 @Component({
   selector: 'app-settings',
@@ -53,7 +44,6 @@ import {
     InputNumberModule,
     InputTextModule,
     LoadFailedComponent,
-    SelectFieldComponent,
     RouterLink,
     DatePipe,
   ],
@@ -65,12 +55,10 @@ export class SettingsPage implements OnInit {
 
   private readonly orgSettingsService = inject(OrgSettingsService);
   private readonly messageService = inject(MessageService);
-  private readonly billingPeriodsService = inject(BillingPeriodsService);
   private readonly gradePromotions = inject(GradePromotionsService);
   private readonly dialogService = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly auth = inject(AuthService);
-  private readonly clock = inject(SystemClockService);
 
   /**
    * 學年升級（#1820）。升級日與提醒天數是機構設定（寫入門檻 `manage_org_settings`，同出勤模式）；
@@ -128,22 +116,11 @@ export class SettingsPage implements OnInit {
    */
   protected invoiceDueDaysValue = 14;
 
-  /**
-   * 學期與繳費週期（#1314 SE2a，A6「學期與繳費週期」段）。這裡**只列**，增刪改在費用方案頁 ——
-   * 那裡已經有表單與刪除規則（被帳單明細引用的不能刪），不在兩個地方各做一份。
-   * `null`＝還沒讀到；讀失敗另外記，不能讓「沒有週期」的空態冒出來
-   */
-  protected readonly periods = signal<BillingPeriodListItem[] | null>(null);
-  protected readonly periodsFailed = signal(false);
-  protected readonly feeTemplatesPath = RoutesCatalog.ADMIN_FEE_TEMPLATES.absolutePath;
-  /** 用模板建立（#1100 #35③，A6「用模板建立」）：選了直接建、日期之後到費用方案頁改 */
-  protected readonly periodTemplates = PERIOD_TEMPLATES;
-  protected readonly periodTemplatePick = signal<PeriodTemplateKey | null>(null);
-  protected readonly creatingFromTemplate = signal(false);
+  /** 學期與繳費週期 2026-11-02 起整段搬到費用方案頁（使用者裁定），這裡不再列 */
 
   /**
    * 有財務權限 —— API 只把財務欄位回給有 `manage_finance` 的人（沒有時是 key 不存在，不是 0）。
-   * 「繳費」與「週期」兩段都跟著它
+   * 「繳費」段跟著它
    */
   protected readonly hasFinance = computed(() => {
     const s = this.settings();
@@ -230,8 +207,6 @@ export class SettingsPage implements OnInit {
         this.trialFollowupDaysValue = s.trialFollowupDays;
         this.loading.set(false);
         if (this.canPromote()) this.loadPromotionHistory();
-        // 週期是財務資料（API 要 manage_finance）：回應帶了財務欄位才讀，否則整段不畫
-        if (this.hasFinance()) this.loadPeriods();
       },
       // **不發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast + 留著的錯誤畫面
       // 是兩個互相矛盾的訊號（#788 的裁定，照 /admin/parents 的形狀）。
@@ -375,63 +350,6 @@ export class SettingsPage implements OnInit {
           summary: '錯誤',
           detail: '儲存失敗，請稍後再試',
         });
-      },
-    });
-  }
-
-  /**
-   * 同名的略過（同 org 不得同名，開帳時行政用名字認期間）；一筆一筆建，中途失敗就停，
-   * 說清楚建了幾個 —— 不能讓人以為整組都沒建、再按一次又建一份
-   */
-  protected createFromTemplate(key: PeriodTemplateKey | null): void {
-    this.periodTemplatePick.set(key);
-    if (!key || this.creatingFromTemplate()) return;
-    const label = PERIOD_TEMPLATES.find((t) => t.value === key)!.label;
-    const existing = new Set((this.periods() ?? []).map((p) => p.name));
-    const all = periodsFromTemplate(key, this.clock.todayTaipei());
-    const todo = all.filter((p) => !existing.has(p.name));
-    const skipped = all.length - todo.length;
-    const done = () => {
-      this.creatingFromTemplate.set(false);
-      this.periodTemplatePick.set(null);
-      this.loadPeriods();
-    };
-    if (todo.length === 0) {
-      this.messageService.add({ severity: 'info', summary: `「${label}」的週期都已經有了` });
-      done();
-      return;
-    }
-    this.creatingFromTemplate.set(true);
-    concat(...todo.map((p) => defer(() => this.billingPeriodsService.create(p))))
-      .pipe(toArray(), takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (rows) => {
-          this.messageService.add({
-            severity: 'success',
-            summary: `已用「${label}」建立 ${rows.length} 個週期，日期可以再改`,
-            detail: skipped ? `略過 ${skipped} 個同名的` : undefined,
-          });
-          done();
-        },
-        error: () => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '建立失敗',
-            detail: '有一部分可能已經建好了，請看下面的週期清單再決定要不要重試',
-          });
-          done();
-        },
-      });
-  }
-
-  protected loadPeriods(): void {
-    this.periodsFailed.set(false);
-    this.billingPeriodsService.list().subscribe({
-      next: (res) =>
-        this.periods.set([...res.data].sort((a, b) => b.startDate.localeCompare(a.startDate))),
-      error: () => {
-        this.periods.set(null);
-        this.periodsFailed.set(true);
       },
     });
   }

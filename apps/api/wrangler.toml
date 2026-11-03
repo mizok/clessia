@@ -77,7 +77,7 @@ name = "clessia-api-production"
 # ⚠️ 這裡必須列出**全部**非機密設定 —— wrangler 的 env 不繼承頂層 vars，而用 `--var`
 # 跟著部署指令給的值**只活在那一次部署**：下一個人裸跑 `wrangler deploy` 就會把它們
 # 全部丟掉（2026-08-29 就這樣把正式站的 LINE 登入弄斷了 —— PROVIDER_NOT_FOUND）。
-# 機密（DATABASE_URL 等四個）走 `wrangler secret put`，跨部署保留，不在這裡。
+# 機密（DATABASE_URL 等四個，加上選用的 GOOGLE_CLIENT_SECRET）走 `wrangler secret put`，跨部署保留，不在這裡。
 ENVIRONMENT = "production"
 PLACEHOLDER_EMAIL_DOMAIN = "phone.internal"
 WEB_URL = "https://demo.clessia.cc"
@@ -85,6 +85,9 @@ BETTER_AUTH_URL = "https://demo.clessia.cc"
 ALLOWED_ORIGINS = ""
 SUPABASE_URL = "https://hjzfitxusqvpllpjtkkf.supabase.co"
 LINE_CLIENT_ID = "2011235423"
+# Google 登入（#1842，選用）：用戶端 ID 不是機密；密鑰 GOOGLE_CLIENT_SECRET 走 `wrangler secret put`。
+# 兩個都設了才掛 Google（socialProvidersFromEnv），只設這一個不會出 Google 鍵。
+GOOGLE_CLIENT_ID = "431302528123-2epjvjr9d84vv2irqu8j43j5dmhmf677.apps.googleusercontent.com"
 # 推播（#1661）：拿到 VAPID 金鑰後在這裡補兩行（非機密），私鑰與 CRON_SECRET 走 `wrangler secret put`。
 # 步驟見 kb/wiki/architecture/deploying.md「推播」一節。
 # VAPID_PUBLIC_KEY = "<generate-vapid-keys.ts 印出的公鑰>"

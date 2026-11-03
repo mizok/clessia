@@ -465,6 +465,45 @@ describe('PaymentsPage', () => {
       expect(component['chapterList']().map((c) => c.key)).toEqual(['dueSoon', 'notDue', 'paid']);
     });
 
+    // #1314 Z 批：章裡的分頁器換成 A6 精簡版 app-pager，不再是 PrimeNG 的 p-paginator
+    const pagerNext = (root: Element) =>
+      Array.from(root.querySelectorAll<HTMLButtonElement>('app-pager button')).find((b) =>
+        b.textContent?.includes('下一頁'),
+      )!;
+
+    it('逾期章超過一頁：精簡版分頁器寫每頁張數，按下一頁帶 page: 2 重抓', async () => {
+      invoices.list.mockReturnValue(of(listResponse([invoice()], 45)));
+      component['load']();
+      await render();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('p-paginator')).toBeNull();
+      expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+        '第 1／3 頁 · 每頁 20 張',
+      );
+
+      invoices.list.mockClear();
+      pagerNext(el).click();
+      expect(component['pageIndex']()).toBe(2);
+      expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }));
+    });
+
+    it('展開的章超過一頁：章裡的分頁器按下一頁，只重抓那一章的第 2 頁', async () => {
+      await render();
+      invoices.list.mockReturnValue(of(listResponse([invoice()], 25)));
+      component['onChapterToggle']('dueSoon', true);
+      await render();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('p-paginator')).toBeNull();
+
+      invoices.list.mockClear();
+      pagerNext(el).click();
+      await render();
+      expect(component['chapters']().dueSoon.page).toBe(2);
+      expect(invoices.list).toHaveBeenCalledWith(
+        expect.objectContaining({ dueState: 'dueSoon', page: 2 }),
+      );
+    });
+
     it('章名的天數讀 summary.dueSoon.days，不是前端寫死的 7', async () => {
       invoices.summary.mockReturnValue(
         of(summary({ dueSoon: { count: 2, outstanding: 6000, days: 10 } })),

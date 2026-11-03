@@ -73,6 +73,8 @@ interface StaffSummary {
   activeCount: number;
   inactiveCount: number;
   archivedCount: number;
+  /** ST6：還沒登入過的人數（API 已排除封存與掃碼機台） */
+  neverLoggedInCount: number;
   byRole: { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number };
 }
 
@@ -205,6 +207,7 @@ export class StaffPage implements OnInit {
     activeCount: 0,
     inactiveCount: 0,
     archivedCount: 0,
+    neverLoggedInCount: 0,
     byRole: { admin: 0, teacher: 0, kiosk: 0, inactiveOrArchived: 0 },
   });
 
@@ -307,11 +310,12 @@ export class StaffPage implements OnInit {
     () => this.summary().total - this.summary().archivedCount,
   );
 
-  /** 開場副行：N 位管理員 · N 位老師（N 位身兼兩者） */
+  /** 開場副行：N 位管理員 · N 位老師（N 位身兼兩者） · N 位還沒登入過（ST6；0 位不寫，同 A6） */
   protected readonly openSub = computed(() => {
     const s = this.summary();
     const both = s.multiRoleCount > 0 ? `（${s.multiRoleCount} 位身兼兩者）` : '';
-    return `${s.adminCount} 位管理員 · ${s.teacherCount} 位老師${both}`;
+    const invited = s.neverLoggedInCount > 0 ? ` · ${s.neverLoggedInCount} 位還沒登入過` : '';
+    return `${s.adminCount} 位管理員 · ${s.teacherCount} 位老師${both}${invited}`;
   });
 
   // Action menu

@@ -92,6 +92,10 @@ const StaffListResponseSchema = z
       activeCount: z.number(),
       inactiveCount: z.number(),
       archivedCount: z.number(),
+      neverLoggedInCount: z.number().int().openapi({
+        description:
+          '還沒登入過的人數（#1314 ST6，色面「N 位還沒登入過」）：未封存、不是掃碼機台、`ba_user."emailVerified"` 為否；判準同列上的 hasLoggedIn（查不到 ba_user 不算）',
+      }),
       byRole: z
         .object({
           admin: z.number().int(),
@@ -473,6 +477,21 @@ async function countStaffByRole(
 }
 
 /**
+ * 還沒登入過的人數（#1314 ST6）：A6 `live.filter((p) => p.invited)` —— 未封存（啟用＋停用）、
+ * 不是掃碼機台、`emailVerified === false`。查不到 ba_user（null）同列上的小標當登入過，不算。
+ * 兩條路（SQL、builder 退路）都用這一份；兩者由 `contract/staff-list.contract.ts` 逐欄比對
+ */
+export function neverLoggedInFromRows(
+  rows: ReadonlyArray<{ user_id: string; status: string; emailVerified: boolean | null }>,
+  roleRows: readonly UserRoleRow[],
+): number {
+  const kiosks = new Set(roleRows.filter((r) => r.role === 'kiosk').map((r) => r.user_id));
+  return rows.filter(
+    (r) => r.status !== 'archived' && !kiosks.has(r.user_id) && r.emailVerified === false,
+  ).length;
+}
+
+/**
  * SQL 那條的章節計數（#1595 P2）：摘要列沒被截斷，直接在記憶體分桶。分法同 `countStaffByRole`
  * （兼老師的歸管理員、kiosk 只算沒有別的角色的、停用＋封存一桶）—— 兩份由契約逐欄比對
  */
@@ -705,7 +724,7 @@ app.openapi(listRoute, async (c) => {
     c.json(
       {
         data: [],
-        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE, neverLoggedInCount: 0 },
         meta: { total: 0, page, pageSize, totalPages: 0 },
       },
       200,
@@ -748,6 +767,7 @@ app.openapi(listRoute, async (c) => {
         toRoleInfoMap(summaryRoleRows.filter((r) => r.role === 'admin' || r.role === 'teacher')),
       ),
       byRole: byRoleFromRows(viaSql.summaryRows, summaryRoleRows),
+      neverLoggedInCount: neverLoggedInFromRows(viaSql.summaryRows, summaryRoleRows),
     };
     return c.json(
       {
@@ -820,7 +840,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
-        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE, neverLoggedInCount: 0 },
         meta: {
           total: 0,
           page,
@@ -836,7 +856,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
-        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE, neverLoggedInCount: 0 },
         meta: {
           total: 0,
           page,
@@ -852,7 +872,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
-        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE },
+        summary: { ...emptyStaffSummary(), byRole: EMPTY_BY_ROLE, neverLoggedInCount: 0 },
         meta: {
           total: 0,
           page,
@@ -934,17 +954,25 @@ app.openapi(listRoute, async (c) => {
     new Set(((summaryRows || []) as Array<{ user_id: string }>).map((row) => row.user_id)),
   );
 
-  const [{ campusMap, subjectMap, roleInfoMap, baUserMap }, summaryRoleResult] = await Promise.all([
-    loadStaffRelations(supabase, staffRows),
-    summaryUserIds.length > 0
-      ? supabase
-          .from('user_roles')
-          .select('user_id, role, permissions')
-          .in('user_id', summaryUserIds)
-          .order('user_id')
-          .order('role')
-      : Promise.resolve({ data: [] as UserRoleRow[], error: null }),
-  ]);
+  const [{ campusMap, subjectMap, roleInfoMap, baUserMap }, summaryRoleResult, summaryBaResult] =
+    await Promise.all([
+      loadStaffRelations(supabase, staffRows),
+      summaryUserIds.length > 0
+        ? supabase
+            .from('user_roles')
+            .select('user_id, role, permissions')
+            .in('user_id', summaryUserIds)
+            .order('user_id')
+            .order('role')
+        : Promise.resolve({ data: [] as UserRoleRow[], error: null }),
+      // ST6「還沒登入過」計數：摘要那份名單的 emailVerified（只讀 ba_*，c2）
+      summaryUserIds.length > 0
+        ? supabase.from('ba_user').select('id, emailVerified').in('id', summaryUserIds)
+        : Promise.resolve({
+            data: [] as Array<{ id: string; emailVerified: boolean }>,
+            error: null,
+          }),
+    ]);
 
   const staffList = staffRows.map((row) =>
     mapStaff(row, campusMap, subjectMap, roleInfoMap, baUserMap),
@@ -953,6 +981,9 @@ app.openapi(listRoute, async (c) => {
 
   if (summaryRoleResult.error) {
     return c.json({ error: summaryRoleResult.error.message, code: 'DB_ERROR' }, 400);
+  }
+  if (summaryBaResult.error) {
+    return c.json({ error: summaryBaResult.error.message, code: 'DB_ERROR' }, 400);
   }
   const summaryRoleInfoMap = toRoleInfoMap(
     ((summaryRoleResult.data || []) as UserRoleRow[]).filter(
@@ -966,7 +997,19 @@ app.openapi(listRoute, async (c) => {
     // 數不出來是伺服器的事，不是請求錯 —— 同 courses 的 bySubject
     return c.json({ error: byRole.error, code: 'DB_ERROR' }, 500);
   }
-  const summary = { ...buildStaffSummary(typedSummaryRows, summaryRoleInfoMap), byRole };
+  const verifiedOf = new Map(
+    ((summaryBaResult.data ?? []) as Array<{ id: string; emailVerified: boolean | null }>).map(
+      (u) => [u.id, u.emailVerified],
+    ),
+  );
+  const summary = {
+    ...buildStaffSummary(typedSummaryRows, summaryRoleInfoMap),
+    byRole,
+    neverLoggedInCount: neverLoggedInFromRows(
+      typedSummaryRows.map((r) => ({ ...r, emailVerified: verifiedOf.get(r.user_id) ?? null })),
+      (summaryRoleResult.data ?? []) as UserRoleRow[],
+    ),
+  };
 
   return c.json(
     {

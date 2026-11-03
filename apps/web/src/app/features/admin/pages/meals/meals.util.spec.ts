@@ -26,6 +26,7 @@ function row(overrides: Partial<MealRosterRow> = {}): MealRosterRow {
     chargeable: null,
     unitPrice: null,
     settled: false,
+    onLeave: null,
     ...overrides,
   };
 }
@@ -203,6 +204,15 @@ describe('rosterToDraft —— 備註與班級', () => {
   });
 
   // 區間模式後端刻意回空陣列（沒有「候選」的概念）—— 不要顯示成空白格
+  // ME1：後端 null（區間模式、讀不到請假）當作沒有 —— 不畫提示，不宣稱有請假
+  it('onLeave：true 才是 true；false、null 都是 false', () => {
+    const drafts = rosterToDraft(
+      [row({ onLeave: true }), row({ onLeave: false }), row({ onLeave: null })],
+      60,
+    );
+    expect(drafts.map((d) => d.onLeave)).toEqual([true, false, false]);
+  });
+
   it('沒有班級時給一個破折號，不是空字串', () => {
     const [draft] = rosterToDraft([row({ classNames: [] })], 60);
 

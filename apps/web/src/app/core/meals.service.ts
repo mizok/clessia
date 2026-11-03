@@ -34,6 +34,11 @@ export interface MealRosterRow {
   note: string | null;
   /** 已結算（蓋了 `invoice_item_id`）。要改得走帳單作廢或下期 adjustment（規則 2） */
   settled: boolean;
+  /**
+   * 這天有請假（#1314 ME1）：按日判斷，當天有任何一張假蓋到就算（含半天假）。只是提示，不自動改勾選。
+   * 區間模式、或後端讀不到請假時是 `null`
+   */
+  onLeave: boolean | null;
 }
 
 /**

@@ -222,7 +222,8 @@ export const DEVIATIONS = [
     status: '樣式',
     kind: 'control',
     widths: [360],
-    detail: '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline|inline-block) → (inline-)?flex$',
+    detail:
+      '^(padding [\\d.]+px( [\\d.]+px)* → 0px；)?display (block|inline|inline-block) → (inline-)?flex$',
     reason: '手機 44px 觸控高度用 flex 置中（取代稿的上下 padding）',
     source: `${rule('R3')}`,
   },
@@ -277,6 +278,13 @@ export const DEVIATIONS = [
     host: '^p-paginator$',
     reason: '分頁器：伺服器分頁，沒有它看不到後面的資料，收不進「⋯」',
     source: `${rule('R2', ' 例外')}；#1314 comment 6182400702`,
+  },
+  {
+    // #1314 Z 批：p-paginator 換成共用 app-pager；稿沒畫分頁器的列表用精簡版（R5 2026-11-02）
+    status: '多',
+    host: '^app-pager$',
+    reason: '分頁器：伺服器分頁，稿沒畫分頁器的列表用 A6 精簡版（第 x／y 頁＋上一頁／下一頁）',
+    source: `${rule('R5')}「分頁器：稿沒畫分頁器的列表」2026-11-02；${rule('R2', ' 例外')}`,
   },
   {
     // 列尾「⋯」：每一列的列動作（全站都是這個形，#1593 起改成全站通用）
@@ -823,6 +831,14 @@ export const PAGES = {
         reason: '連帶：工具列多了篩選與操作紀錄鈕',
         source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
       },
+      // 桌機逾期章頭的「全部提醒」：同一顆、同一個理由（要 LINE 推播）。原本跟 p-paginator 的按鈕
+      // 一起被歸成「同型段落數不同」的工具限制，分頁器換成 app-pager（自己是 navigation）後才浮出來（#1314 Z 批）
+      {
+        status: '缺',
+        a6: '>landmark:region\\[逾期\\]>control:button\\[全部提醒（#）\\](>|$)',
+        reason: '「全部提醒」要 LINE 推播（不接 LINE Messaging API）',
+        source: `${rule('R5')}「學生檔案『傳 LINE』」2026-10-14：不接 LINE Messaging API`,
+      },
       // 手機托盤：稿是「開立帳單（白）＋全部提醒（CTA）」；全部提醒要 LINE 推播，不接 LINE Messaging API，
       // 托盤只剩開立帳單，它就是主要動作（CTA 色）
       ...[
@@ -836,8 +852,7 @@ export const PAGES = {
         ...d,
         widths: [360],
         reason: '「全部提醒」要 LINE 推播（不接 LINE Messaging API），托盤只剩開立帳單、當主要動作',
-        source:
-          'kb/wiki/architecture/a6-adoption-rules.md:108（R5 2026-10-14：不接 LINE Messaging API）',
+        source: `${rule('R5')}「學生檔案『傳 LINE』」2026-10-14：不接 LINE Messaging API`,
       })),
       // 稿列的第二格下面有一行「還沒提醒／M/D 提醒過」（row__sub），要上次提醒日；app 沒有這份資料，
       // 工具把稿的 row__sub 配到 app 的金額格
@@ -956,7 +971,7 @@ export const PAGES = {
         status: '缺',
         a6: '>landmark:region\\[這一頁的摘要\\]>control:button\\[傳LINE\\]$',
         reason: '「傳 LINE」不做：產品不接 LINE Messaging API',
-        source: 'kb/wiki/architecture/a6-adoption-rules.md:108（R5 2026-10-14）',
+        source: `${rule('R5')}「學生檔案『傳 LINE』」2026-10-14`,
       },
       ...[
         {
@@ -1925,6 +1940,14 @@ export const PAGES = {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
     deviations: [
+      // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕
+      {
+        status: '多',
+        app: '>landmark:region\\[收費期間\\]>(text:legend\\[用模板建立\\]|text:p\\[照下一個學年[^\\]]*\\]|row>control:radio|row>list>row|control:button\\[(先選一個模板|建立這#個期間|建立中…|這個模板的期間都已經有了)\\])$',
+        reason:
+          '學期與繳費週期搬到費用方案頁；用模板建立改成 radio＋預覽＋送出鈕（一選就建太危險）',
+        source: `${rule('R5')}「學期與繳費週期的位置」「用模板建立期間」2026-11-02（使用者 11-02 裁定）`,
+      },
       noCampusSwitch('價目表是補習班層級'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
       ...['尺寸', '樣式', '位置'].map((status) => ({
@@ -2033,15 +2056,15 @@ export const PAGES = {
           '稿的 .savebar 被只有自己高的 div 框住、捲動時不會動（稿的 bug）；app 確認列有黏是對的，手機 offset 照 app 現狀',
         source: 'https://github.com/mizok/clessia/pull/1761#issuecomment-6309038184（計畫席裁定）',
       },
-      // 說明框後半句「今天請假的 N 位名字下有提示」要名單帶請假旗標（ME1，等 API），沒有就不寫
+      // 說明框後半句「今天有請假的 N 位名字下有提示」（ME1 接上之後才有）：今天沒有人請假時不寫
       ...['缺', '文案'].map((status) => ({
         status,
         a6:
           status === '缺'
             ? '>text:b\\[#位\\]$'
             : '>landmark:main\\[\\]>text:p\\[「收不收費」是人工判斷',
-        reason: '說明框的請假人數：餐費名單 API 還沒帶請假旗標（等 API）',
-        source: '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標',
+        reason: '資料：本機 seed 今天在量測分校的候選沒有人請假，說明框不接請假人數那半句',
+        source: '#1314 ME1（名單帶 onLeave）；本機 seed 2026-11-02 文山旗艦校候選 8 位、請假 0 位',
       })),
       {
         // 列的代表樣式取最常見的列：seed 今天 18 位裡 17 位未處理、多數沒訂（名字灰、單價框灰底、收費字灰、狀態 600 近黑）；
@@ -2054,7 +2077,7 @@ export const PAGES = {
         source: 'tools/a6-conformance/README.md（列內 part 取最常見那種）',
       },
       {
-        // 稿的代表列是「今天請假 · 別訂他的便當」那種兩行列（名字下面多一行），app 的是一般列；請假旗標等 API
+        // 稿的代表列是「今天請假 · 別訂他的便當」那種兩行列（名字下面多一行），app 的是一般列（seed 今天沒有請假的候選）
         status: '位置',
         widths: [1440],
         a6: '>row>control:link$',
@@ -2062,7 +2085,7 @@ export const PAGES = {
         reason:
           '資料：代表列取到的變體不同（稿是請假的兩行列，app 是一般列），名字的上下位置跟著不同',
         source:
-          '#1314 盤點 10-30「等 API」ME1：餐費名單帶請假旗標；tools/a6-conformance/README.md（列內 part 取最常見那種）',
+          '#1314 ME1；本機 seed 今天候選沒有人請假；tools/a6-conformance/README.md（列內 part 取最常見那種）',
       },
       {
         // R3 連帶：手機名字連結撐到 44px（稿是行內字，約 21），同列第一行變高，下面的勾選、單價、狀態字整排往下
@@ -2369,6 +2392,8 @@ export const PAGES = {
   'grades-student': {
     a6: 'grades-student.html',
     app: '/admin/grades/overview/student',
+    // app 的篩選是 PrimeNG Popover（同 grades-class）；#2079(c) 開課班／期間要打開才量得到
+    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover' } },
     deviations: [
       // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
       ...['尺寸', '樣式', '位置'].map((status) => ({
@@ -2376,6 +2401,41 @@ export const PAGES = {
         a6: '^>control:searchbox\\[搜尋學生姓名\\]$',
         reason: '頁面搜尋框的框畫在 input 上（全站共用 p-iconfield），稿畫在外層 label',
         source: '全站共用 .clessia-filter-search（p-iconfield）；高度 #1903（使用者 10-23 裁定）',
+      })),
+      // 篩選浮層：PrimeNG Popover 的根固定宣告 role=dialog，稿是原生 popover
+      {
+        status: '角色',
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]$',
+        reason: 'PrimeNG Popover 固定宣告 role=dialog，跟稿的原生 popover 只差在語意',
+        source: `${rule('R5')}「成績學生頁篩選浮層的根角色」2026-11-02`,
+      },
+      // 篩選浮層的六個下拉是 app-select-field（稿 .dd 是 label 裡的按鈕；app 是欄位外框＋combobox＋箭頭鈕）
+      ...[
+        { status: '缺', a6: '(^|>)landmark:popover\\[\\]>row>control:button>text:span$' },
+        ...['位置', '樣式'].map((status) => ({
+          status,
+          a6: '(^|>)landmark:popover\\[\\]>row>control:button$',
+        })),
+        { status: '樣式', a6: '(^|>)landmark:popover\\[\\]>row$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[\\]>row>control:combobox$' },
+      ].map((d) => ({ ...d, pop: 'filt', reason: SELECT_FIELD, source: SELECT_FIELD_SOURCE })),
+      // 完成鈕的上下位置：稿每列多一行「新」小標（設計說明）、多一欄分校（列數 7→6 是資料差），浮層高 419→311
+      {
+        status: '位置',
+        pop: 'filt',
+        widths: [1440],
+        a6: '(^|>)landmark:popover\\[\\]>control:button\\[完成\\]$',
+        reason: '連帶：稿的「新」小標各佔一行、欄位多一個分校，浮層比 app 高；完成鈕貼底跟著差',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）；列數差見同頁資料差',
+      },
+      // 稿的「新」標記是設計說明；app 欄位標籤的 span 被配到它身上（同批次請假）
+      ...['位置', '樣式'].map((status) => ({
+        status,
+        pop: 'filt',
+        a6: '(^|>)landmark:popover\\[\\]>row>text:span\\[新\\]$',
+        reason: '工具限制：稿的「新」標記是設計說明，app 欄位標籤的 span 被配到它身上',
+        source: '.design-explorations a6.js ddLabel（剔除 .new）',
       })),
     ],
   },
