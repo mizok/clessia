@@ -85,12 +85,24 @@ describe('classifyToday', () => {
 });
 
 const ORG = 'org-a';
+/**
+ * 學生列帶上範圍 embed 的形狀（#1928：老師範圍是學生列上的 `scope_taught.class_id`／`.status`，
+ * 替身照路徑求值）—— 由下面 seed 的報名推出來，免得兩份資料各寫一次
+ */
+const TAUGHT_ROWS: Record<string, string[]> = {
+  's-arrived': ['c-am'],
+  's-missing': ['c-am'],
+  's-leave': ['c-am'],
+  's-notyet': ['c-pm', 'c-tue'],
+  's-none': ['c-off'],
+};
 const student = (id: string, grade = 'J1') => ({
   id,
   org_id: ORG,
   name: id,
   grade,
   is_active: true,
+  scope_taught: (TAUGHT_ROWS[id] ?? []).map((class_id) => ({ class_id, status: 'active' })),
 });
 const enrollment = (studentId: string, classId: string) => ({
   org_id: ORG,
