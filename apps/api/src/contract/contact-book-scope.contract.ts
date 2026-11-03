@@ -27,10 +27,11 @@ const run = URL && KEY && DB ? describe : describe.skip;
 const pool = DB ? new Pool({ connectionString: DB }) : null;
 afterAll(() => pool?.end());
 
-const ctx: { orgId: string; userId: string; campusScope: string[] | null } = {
+const ctx: { orgId: string; userId: string; campusScope: string[] | null; roles: string[] } = {
   orgId: '',
   userId: '',
   campusScope: null,
+  roles: ['admin'],
 };
 
 vi.mock('../middleware/auth', async (importOriginal) => {
@@ -47,9 +48,9 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('supabase', supabase);
       set('orgId', ctx.orgId);
       set('userId', ctx.userId);
-      set('roles', ['admin']);
+      set('roles', ctx.roles);
       set('permissions', [...PERMISSIONS]);
-      set('activeRole', 'admin');
+      set('activeRole', ctx.roles[0]);
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.campusScope);
@@ -66,13 +67,21 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
     (await pool!.query(text, values)).rows as T[];
   const WRITTEN = '2026-09-01';
   const MISSING = '2026-09-02';
-  const fx = { c1: '', c2: '', a: '', b: '', ab: '' };
+  const fx = { c1: '', c2: '', a: '', b: '', ab: '', adminUser: '', teacherUser: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
       "select r.user_id from user_roles r where r.role = 'admin' limit 1",
     );
     ctx.userId = admin!.user_id;
+    fx.adminUser = admin!.user_id;
+    // #2080-1：老師身分（只任教 C1 的班）—— 借 seed 裡一位有 teacher 角色、但不是管理員的使用者
+    const [teacher] = await q<{ user_id: string }>(
+      `select r.user_id from user_roles r where r.role = 'teacher'
+         and not exists (select 1 from user_roles a where a.user_id = r.user_id and a.role = 'admin')
+       order by r.user_id limit 1`,
+    );
+    fx.teacherUser = teacher!.user_id;
     ctx.orgId = (
       await q<{ id: string }>(
         "insert into organizations (name) values ('#1994 契約：聯絡簿分校範圍') returning id",
@@ -128,6 +137,15 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
       );
       return s!.id;
     };
+    const [staff] = await q<{ id: string }>(
+      "insert into staff (org_id, user_id, display_name) values ($1, $2, '一校老師') returning id",
+      [ctx.orgId, fx.teacherUser],
+    );
+    await q(
+      `insert into schedules (class_id, weekday, start_time, end_time, teacher_id, effective_from, effective_to)
+       values ($1, 1, '18:00', '19:00', $2, '2026-01-01', null)`,
+      [klass['c1']!, staff!.id],
+    );
     fx.a = await student('只在一校', [klass['c1']!]);
     fx.b = await student('只在二校', [klass['c2']!]);
     fx.ab = await student('兩校都有', [klass['c1']!, klass['c2']!]);
@@ -140,6 +158,8 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
       'delete from contact_book_entries where org_id = $1',
       'delete from sessions where org_id = $1',
       'delete from enrollments where org_id = $1',
+      'delete from schedules where class_id in (select id from classes where org_id = $1)',
+      'delete from staff where org_id = $1',
       'delete from students where org_id = $1',
       'delete from classes where org_id = $1',
       'delete from courses where org_id = $1',
@@ -162,7 +182,10 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
       ctx.campusScope = null;
     }
   };
-  type List = { data: Array<{ studentId: string; content: string }>; meta: { total: number } };
+  type List = {
+    data: Array<{ studentId: string; content: string; classNames: string[] }>;
+    meta: { total: number };
+  };
   type Missing = { data: Array<{ studentId: string }>; meta: { total: number } };
   type Summary = { data: Array<{ date: string; missingCount: number }> };
 
@@ -178,6 +201,28 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
 
     const none = await get<List>(path, 'none');
     expect(none).toEqual({ data: [], meta: { total: 0 } });
+  });
+
+  // #2080-1：班名的 embed（students → enrollments → classes，不帶 !inner）跟 SCOPE_EMBED 是兩條別名，
+  // 互不干擾：範圍照樣縮學生、班名另外只列範圍內的班
+  it('列表的班名：只列範圍內的班；跨校學生在受限 C1 下只露出 C1 的班名', async () => {
+    const path = `/api/contact-book?from=${WRITTEN}&to=${WRITTEN}`;
+    const names = (list: List) =>
+      Object.fromEntries(list.data.map((r) => [r.studentId, r.classNames]));
+
+    expect(names(await get<List>(path, 'all'))).toEqual({
+      [fx.a]: ['班 c1'],
+      [fx.b]: ['班 c2'],
+      [fx.ab]: ['班 c1', '班 c2'],
+    });
+
+    const c1 = await get<List>(path, 'c1');
+    expect(c1.meta.total).toBe(2);
+    expect(names(c1)).toEqual({ [fx.a]: ['班 c1'], [fx.ab]: ['班 c1'] });
+    expect(JSON.stringify(c1)).not.toContain('班 c2');
+
+    const c2 = await get<List>(`${path}&campusId=${fx.c2}`, 'all');
+    expect(names(c2)).toEqual({ [fx.b]: ['班 c2'], [fx.ab]: ['班 c2'] });
   });
 
   it('缺漏名單：受限 C1 的名單裡沒有只在 C2 的學生', async () => {
@@ -220,6 +265,59 @@ run('聯絡簿三支 GET 的分校範圍（#1994）', () => {
       'none',
     );
     expect(summary.data.every((d) => d.missingCount === 0)).toBe(true);
+  });
+
+  // ── #2080-1 接線：班名的範圍有沒有真的從呼叫端傳進去（二讀突變 M2～M4）─────────────────
+  const asTeacher = async <T>(run: () => Promise<T>) => {
+    ctx.userId = fx.teacherUser;
+    ctx.roles = ['teacher'];
+    try {
+      return await run();
+    } finally {
+      ctx.userId = fx.adminUser;
+      ctx.roles = ['admin'];
+    }
+  };
+  const put = async (scope: 'all' | 'c1', studentId: string, date: string) => {
+    ctx.campusScope = scope === 'all' ? null : [fx.c1];
+    try {
+      const res = await app.request(
+        '/api/contact-book',
+        {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ studentId, entryDate: date, content: `PUT ${scope} ${date}` }),
+        },
+        env,
+      );
+      expect(res.status).toBe(200);
+      return (await res.json()) as { studentId: string; classNames: string[] };
+    } finally {
+      ctx.campusScope = null;
+    }
+  };
+
+  // M2：老師只看得到自己現任的班 —— 同一位學生還上別位老師的班（C2），列表不能帶出那個班名
+  it('列表的班名（老師）：跨班的學生只列老師現任的那班', async () => {
+    const list = await asTeacher(() =>
+      get<List>(`/api/contact-book?from=${WRITTEN}&to=${WRITTEN}`, 'all'),
+    );
+    const names = Object.fromEntries(list.data.map((r) => [r.studentId, r.classNames]));
+    expect(names[fx.ab]).toEqual(['班 c1']);
+    expect(JSON.stringify(list)).not.toContain('班 c2');
+  });
+
+  // M3：PUT 的回應同樣帶班名 —— 受限 C1 的管理員寫跨校學生，回應只露出 C1 的班名
+  it('PUT 回應的班名（受限 C1 的管理員）：跨校學生只露出 C1 的班名', async () => {
+    const res = await put('c1', fx.ab, '2026-09-03');
+    expect(res.studentId).toBe(fx.ab);
+    expect(res.classNames).toEqual(['班 c1']);
+  });
+
+  // M4：老師寫跨班的學生，回應只露出老師現任的班名
+  it('PUT 回應的班名（老師）：跨班的學生只露出老師現任的那班', async () => {
+    const res = await asTeacher(() => put('all', fx.ab, '2026-09-04'));
+    expect(res.classNames).toEqual(['班 c1']);
   });
 
   // K4（#1314 盤點）：頂欄「切換分校」要的 `campusId`。指名只能縮小範圍，撐不大它
