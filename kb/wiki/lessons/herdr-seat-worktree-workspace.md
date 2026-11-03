@@ -41,12 +41,12 @@ herdr 側邊欄的樹**照 git worktree 分組**，不是照 workspace label：
 
 所以：
 
-| 做法                                                           | 結果                                                                    |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `workspace create --cwd <repo 根>`                             | 席位浮在樹外，跟專案沒有關係                                            |
+| 做法 | 結果 |
+| --- | --- |
+| `workspace create --cwd <repo 根>` | 席位浮在樹外，跟專案沒有關係 |
 | `workspace create --cwd .worktrees/design-web --label labor-1` | **label 是 labor-1，樹上卻顯示 design-web** —— 因為顯示的是 worktree 名 |
-| `tab create --workspace <計畫席>`                              | 整個掛在計畫席底下，變成它的第二個分頁                                  |
-| **`worktree create`**                                          | ✅ worktree 與 workspace 一次建好，名字一致                             |
+| `tab create --workspace <計畫席>` | 整個掛在計畫席底下，變成它的第二個分頁 |
+| **`worktree create`** | ✅ worktree 與 workspace 一次建好，名字一致 |
 
 ## 2026-09-12 我連錯三次的過程
 
