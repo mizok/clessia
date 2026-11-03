@@ -39,6 +39,10 @@ export function signedSummary(entries: ContactBookEntry[]): {
 export interface MissingClassGroup {
   classId: string;
   className: string;
+  /** 上課老師（#2080-2）：取自該班第一位學生的 `classes[0]`，同一班每位學生帶的都一樣 */
+  teacherNames: string[];
+  /** 這天這班該寫的人數 */
+  studentCount: number;
   students: MissingContactBookStudent[];
 }
 
@@ -51,7 +55,12 @@ export function groupMissingByClass(list: MissingContactBookStudent[]): MissingC
   const groups = new Map<string, MissingClassGroup>();
 
   for (const student of list) {
-    const cls = student.classes[0] ?? { classId: '', className: '未分班' };
+    const cls = student.classes[0] ?? {
+      classId: '',
+      className: '未分班',
+      teacherNames: [],
+      studentCount: 0,
+    };
     const group = groups.get(cls.classId) ?? { ...cls, students: [] };
     group.students.push(student);
     groups.set(cls.classId, group);

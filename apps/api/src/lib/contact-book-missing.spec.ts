@@ -4,6 +4,7 @@ import {
   datesInRange,
   missingContactBookByDate,
   missingContactBookStudents,
+  withClassDetails,
   type ContactBookCandidate,
 } from './contact-book-missing';
 
@@ -207,5 +208,65 @@ describe('missingContactBookByDate', () => {
       { date: '2026-04-06', missingCount: 0 },
       { date: '2026-04-07', missingCount: 2 },
     ]);
+  });
+});
+
+/**
+ * #2080-2（A6「游佩珊 老師 · 還差 4 則／17」）：每班帶**上課老師**與**這天該寫的人數**。
+ * 上課老師＝那天這班沒停課那幾堂的 `sessions.teacher_id`（代課就是代課老師，同 `/remind`；計畫席 11-02
+ * 裁定，標題寫「上課老師」不寫「帶班老師」—— 系統沒有班級層級的帶班老師）。人數＝範圍內在這班的候選
+ * （該寫的；已寫的也算在分母裡）
+ */
+describe('withClassDetails（#2080-2）', () => {
+  const cand = (studentId: string, classId: string) => ({
+    studentId,
+    studentName: studentId,
+    classId,
+    className: `班${classId}`,
+  });
+  const candidates = [
+    cand('a', 'k1'),
+    cand('b', 'k1'),
+    cand('c', 'k1'),
+    cand('a', 'k2'),
+    cand('d', 'k2'),
+  ];
+  const sessions = [
+    { classId: 'k1', status: 'scheduled', teacherId: 't-yu' },
+    { classId: 'k1', status: 'completed', teacherId: 't-lin' }, // 同一天兩堂、兩位老師
+    { classId: 'k1', status: 'scheduled', teacherId: 't-yu' }, // 同一位不重複
+    { classId: 'k2', status: 'cancelled', teacherId: 't-chen' }, // 停課那堂的老師不算
+    { classId: 'k2', status: 'scheduled', teacherId: null }, // 還沒排老師
+  ];
+  const names = new Map([
+    ['t-yu', '游佩珊'],
+    ['t-lin', '林老師'],
+    ['t-chen', '陳老師'],
+  ]);
+
+  it('每班帶上課老師（去重、排序、不含停課那堂）與這天該寫的人數', () => {
+    const missing = [
+      {
+        studentId: 'a',
+        studentName: 'a',
+        classes: [
+          { classId: 'k1', className: '班k1' },
+          { classId: 'k2', className: '班k2' },
+        ],
+      },
+    ];
+    const [row] = withClassDetails(missing, candidates, sessions, names);
+    expect(row!.classes).toEqual([
+      { classId: 'k1', className: '班k1', teacherNames: ['林老師', '游佩珊'], studentCount: 3 },
+      { classId: 'k2', className: '班k2', teacherNames: [], studentCount: 2 },
+    ]);
+  });
+
+  it('對不到姓名的老師（不在本 org 的 staff）不列', () => {
+    const missing = [
+      { studentId: 'b', studentName: 'b', classes: [{ classId: 'k1', className: '班k1' }] },
+    ];
+    const [row] = withClassDetails(missing, candidates, sessions, new Map([['t-lin', '林老師']]));
+    expect(row!.classes[0]!.teacherNames).toEqual(['林老師']);
   });
 });

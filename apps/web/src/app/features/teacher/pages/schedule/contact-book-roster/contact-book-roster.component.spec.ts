@@ -10,7 +10,11 @@ import { ContactBookRosterComponent } from './contact-book-roster.component';
 const INPUT = { classId: 'c1', className: '一年級勤班', entryDate: '2026-09-05' };
 
 function missing(id: string, name: string, classId = 'c1') {
-  return { studentId: id, studentName: name, classes: [{ classId, className: '一年級勤班' }] };
+  return {
+    studentId: id,
+    studentName: name,
+    classes: [{ classId, className: '一年級勤班', teacherNames: [], studentCount: 0 }],
+  };
 }
 
 describe('ContactBookRosterComponent', () => {

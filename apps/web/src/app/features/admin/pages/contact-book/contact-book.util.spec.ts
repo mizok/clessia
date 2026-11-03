@@ -100,7 +100,12 @@ describe('groupMissingByClass', () => {
   const stu = (id: string, ...classes: string[]) => ({
     studentId: id,
     studentName: id,
-    classes: classes.map((c) => ({ classId: c, className: `班${c}` })),
+    classes: classes.map((c) => ({
+      classId: c,
+      className: `班${c}`,
+      teacherNames: [],
+      studentCount: 0,
+    })),
   });
 
   it('一班一組，同生跨兩班只歸第一個班', () => {
