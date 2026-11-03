@@ -165,6 +165,14 @@ export const PERIOD_OPTIONS: ReadonlyArray<{ label: string; value: string }> = [
   { label: '自訂區間…', value: CUSTOM_PERIOD },
 ];
 
+/** 編輯者欄文字：「游佩珊 16:52 編輯」（A6 `.ent__ed`）；沒有編輯者＝「—」 */
+export function editedCellText(entry: ContactBookEntry): string {
+  if (!entry.lastEditedByName) return '—';
+  return [entry.lastEditedByName, signedTimeText(entry.teacherEditedAt), '編輯']
+    .filter(Boolean)
+    .join(' ');
+}
+
 /** 簽收欄文字：有姓名＝「林太太 20:06 簽」（A6）；沒有姓名退回「已簽收 20:06」 */
 export function signedCellText(entry: ContactBookEntry): string {
   const time = signedTimeText(entry.signedAt);

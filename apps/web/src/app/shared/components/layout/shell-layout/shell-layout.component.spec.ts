@@ -6,6 +6,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { providePrimeNG } from 'primeng/config';
+import { MessageService } from 'primeng/api';
 
 import { AuthService, type UserRole } from '@core/auth.service';
 import { InboxBadgeService } from '@core/inbox-badge.service';
@@ -28,7 +29,7 @@ function stubAuth(roles: UserRole[], activeRole: UserRole | null) {
     user: signal({ id: 'u1', email: 'a@example.com' }),
     permissions: signal<string[]>(['*']),
     hasPermission: () => true,
-    navigateToRoleShell: vi.fn(),
+    navigateToRoleShell: vi.fn().mockResolvedValue(true),
     signOut: vi.fn(),
   };
 }
@@ -67,13 +68,15 @@ async function setup(
         },
       },
       { provide: InboxBadgeService, useValue: badge },
+      MessageService,
     ],
   });
   const fixture = TestBed.createComponent(ShellLayoutComponent);
   fixture.detectChanges();
   await fixture.whenStable();
   fixture.detectChanges();
-  return { fixture, auth, badge, el: fixture.nativeElement as HTMLElement };
+  const messages = TestBed.inject(MessageService);
+  return { fixture, auth, badge, messages, el: fixture.nativeElement as HTMLElement };
 }
 
 const switchItems = (el: HTMLElement) =>
@@ -142,6 +145,47 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     expect(others.map((b) => b.textContent?.trim())).toEqual(['任課老師', '家長']);
     others[0].click();
     expect(auth.navigateToRoleShell).toHaveBeenCalledWith('teacher');
+  });
+
+  /** 使用者 11-02：切換成功要提示；toast 出口（app-toast）是 role=status、aria-live=polite */
+  it('切換成功：success toast「已切換到 〈身分〉」（文案照 A6 a6.js:231）', async () => {
+    const { el, auth, messages } = await setup(['admin', 'teacher', 'parent'], 'admin');
+    const add = vi.spyOn(messages, 'add');
+
+    switchItems(el)
+      .find((b) => b.textContent?.includes('家長'))!
+      .click();
+    await vi.waitFor(() => expect(add).toHaveBeenCalled());
+
+    expect(auth.navigateToRoleShell).toHaveBeenCalledWith('parent');
+    expect(add).toHaveBeenCalledWith({ severity: 'success', summary: '已切換到 家長' });
+  });
+
+  it('導航沒成功（被 guard 擋下／取消）：不提示', async () => {
+    const { el, auth, messages } = await setup(['admin', 'teacher'], 'admin');
+    auth.navigateToRoleShell.mockResolvedValue(false);
+    const add = vi.spyOn(messages, 'add');
+
+    switchItems(el)
+      .find((b) => b.textContent?.includes('任課老師'))!
+      .click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(auth.navigateToRoleShell).toHaveBeenCalledWith('teacher');
+    expect(add).not.toHaveBeenCalled();
+  });
+
+  it('點目前的身分：不切也不提示', async () => {
+    const { el, messages } = await setup(['admin', 'teacher'], 'admin');
+    const add = vi.spyOn(messages, 'add');
+
+    switchItems(el)
+      .find((b) => b.getAttribute('aria-current') === 'true')!
+      .click();
+    await Promise.resolve();
+
+    expect(add).not.toHaveBeenCalled();
   });
 
   /** 使用者 11-02：列出全部身分，目前的打勾標「使用中」、不能按；報讀器要念得到（不能只靠 disabled） */

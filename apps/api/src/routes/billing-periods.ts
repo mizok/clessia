@@ -521,9 +521,12 @@ app.openapi(
       .eq('org_id', orgId);
 
     if (error) {
-      // 23503 = FK 違反。帳單開始引用期間之後（P2）會走到這裡
+      // 23503 = FK 違反。唯一引用期間的是帳單明細（invoice_items.billing_period_id, RESTRICT）
       if (error.code === '23503') {
-        return c.json({ error: '這個期間已被使用，無法刪除', code: 'IN_USE' }, 409);
+        return c.json(
+          { error: '已經有帳單用到這個期間，不能刪除。要停用請改它的日期或名稱', code: 'IN_USE' },
+          409,
+        );
       }
       return c.json({ error: error.message, code: 'DB_ERROR' }, 409);
     }

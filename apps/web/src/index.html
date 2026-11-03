@@ -61,17 +61,6 @@
         rel="stylesheet"
       />
     </noscript>
-    <!--
-    開站畫面。Angular bootstrap 之後會把 <app-root> 的內容整個換掉，所以這段只活到
-    第一次 render 為止 —— 刻意是純 HTML/CSS 零依賴，它要在任何 JS 下載完成之前就看得見。
-
-    色值是字面量而不是 var(--zinc-100) 之類：index.html 讀不到 styles.css 的 token。
-    在這裡重新宣告一次同名變數，讓「跟 token 一致」這件事至少有個對照點 —— 值變了要兩邊都改。
-    底色必須跟 body 的 --zinc-100 一樣，否則 Angular 接手的那一刻會閃一下。
-
-    這裡只放第一屏會用到的東西。index.html 是每次載入都要下載的東西，塞大了就是拿
-    白畫面換閃爍。
-  -->
     <style>
       /*
        * #991 T4：PrimeNG overlay 在 runtime 逐一掃 document.styleSheets 找 `-anchor-gutter`，
@@ -82,87 +71,204 @@
       :root {
         --p-anchor-gutter: 2px;
       }
-      .app-splash {
-        --app-splash-surface: #f4f4f5; /* zinc-100，與 body 同底 */
-        --app-splash-ink: #18181b; /* zinc-900 */
-        --app-splash-accent: #ff6a3d; /* accent-vivid */
+    </style>
+    <!--
+    開站畫面（#2161 之後，使用者 11-02 選 B「留白細流」）。純 inline CSS＋SVG、零 JS、零字型 ——
+    它要在任何下載完成之前就畫得出來（index-splash.spec 守：沒有外部資源、gzip 4KB 內；c6 由 harness 掃）。
 
+    - 線是主視覺同一張流場：flow-field.component.ts 的同一組 ψ 係數（t=200）離線積分出的流線，
+      整數座標、相對指令；取樣點當控制點、中點當端點的二次樣條（接點平滑）。
+      座標別再減半：手機放大後取整誤差看得出線在抖。每條線上一段亮線沿流向等速前進（linear —— 是流動，不是 UI 位移）
+    - 放在 <app-root> **外面**：Angular 第一次 render 不會換掉它。第一個路由元件掛到 router-outlet
+      後面時，`body:has(…)` 成立、純 CSS 淡出（lazy chunk、guard 等 /api/me 的空檔它還在，不會空白一閃）。
+      app-toast 也是 outlet 的兄弟，所以排除它。App 在第一次 NavigationEnd 後再把節點移掉當保險（app.component.ts）
+    - 底色 = body 的 --zinc-100。styles.css 是 inlineCritical 非同步載的，token 不一定已經在，所以帶 fallback，
+      值由 spec 比對 styles.css（以前寫死 #f4f4f5，token 改成 #f5f3f1 之後就漂了，接手時閃一下）
+    - color-scheme 固定 light：app 沒有深色模式，跟系統變深會在接手時黑→白一閃
+    - 進場 0.12s 後才淡入：快網路在那之前就接手的人什麼都看不到（底色同 body，不閃）。
+      退場 0.16s 加速離開；兩者是不同元素的 opacity，就緒在任何時刻到都從當下值淡出
+  -->
+    <style id="app-splash-style">
+      .app-splash {
         position: fixed;
         inset: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 24px;
-        background-color: var(--app-splash-surface);
-        font-family:
-          'Inter',
-          'Noto Sans TC',
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
+        z-index: 2147483000;
+        overflow: hidden;
+        color-scheme: light;
+        background-color: var(--zinc-100, #f5f3f1);
+        color: #1a1614; /* zinc-900 */
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans TC', sans-serif;
+        transition:
+          opacity 0.16s cubic-bezier(0.4, 0, 1, 1),
+          visibility 0s linear 0.16s;
       }
-
+      body:has(app-root router-outlet + :not(app-toast)) .app-splash {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      .app-splash__field {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        fill: none;
+        stroke-linecap: round;
+        /* 線寬是 viewBox 單位（1440 寬），桌機約等於 px、手機（slice 後約 ×0.94）略細。
+           不用 vector-effect：寫在 <defs> 的 path 上，經 <use> 引用時不生效 */
+        /* 中央留白給字標（百分比，不用 viewport 單位） */
+        -webkit-mask-image: radial-gradient(closest-side, transparent 16%, #000 62%);
+        mask-image: radial-gradient(closest-side, transparent 16%, #000 62%);
+        animation: app-splash-in 0.32s cubic-bezier(0.23, 1, 0.32, 1) 0.12s both;
+      }
+      .app-splash__base {
+        stroke: rgb(26 22 20 / 9%);
+        stroke-width: 1;
+      }
+      .app-splash__flow {
+        stroke: rgb(26 22 20 / 42%);
+        stroke-width: 1.4;
+      }
+      .app-splash__flow use {
+        stroke-dasharray: 16 84;
+        animation: app-splash-flow 4.2s linear infinite;
+      }
+      .app-splash__flow use:nth-child(3n + 1) {
+        animation-duration: 3.3s;
+        animation-delay: -1.1s;
+      }
+      .app-splash__flow use:nth-child(3n + 2) {
+        animation-duration: 5.4s;
+        animation-delay: -2.7s;
+      }
+      /* 每四條一條品牌橘（accent-vivid） */
+      .app-splash__flow use:nth-child(4n) {
+        animation-delay: -3.6s;
+        stroke: #ff6a3d;
+        stroke-width: 2;
+        stroke-dasharray: 22 78;
+      }
       .app-splash__brand {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
         margin: 0;
-        color: var(--app-splash-ink);
-        font-size: 28px;
-        font-weight: 700;
-        letter-spacing: 0.12em;
+        text-align: center;
+        font-size: 32px;
+        font-weight: 800;
+        line-height: 1;
+        animation: app-splash-in 0.32s cubic-bezier(0.23, 1, 0.32, 1) 0.12s both;
       }
-
-      .app-splash__dots {
-        display: flex;
-        gap: 8px;
+      .app-splash__sub {
+        display: block;
+        margin-top: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.24em;
+        opacity: 0.8;
       }
-
-      .app-splash__dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 9999px;
-        background-color: var(--app-splash-accent);
-        animation: app-splash-pulse 1.2s ease-in-out infinite;
+      .app-splash__rm {
+        display: none;
       }
-
-      .app-splash__dot:nth-child(2) {
-        animation-delay: 0.16s;
-      }
-
-      .app-splash__dot:nth-child(3) {
-        animation-delay: 0.32s;
-      }
-
-      @keyframes app-splash-pulse {
-        0%,
-        80%,
-        100% {
-          opacity: 0.25;
+      /* 手機：畫面小、線少，桌機的淡度看起來像紋理不像動畫 —— 對比與亮線粗細拉高（使用者 11-02） */
+      @media (max-width: 768px) {
+        .app-splash__field {
+          -webkit-mask-image: radial-gradient(closest-side, transparent 22%, #000 58%);
+          mask-image: radial-gradient(closest-side, transparent 22%, #000 58%);
         }
-        40% {
-          opacity: 1;
+        .app-splash__base {
+          stroke: rgb(26 22 20 / 16%);
+          stroke-width: 1.6;
+        }
+        .app-splash__flow {
+          stroke: rgb(26 22 20 / 64%);
+          stroke-width: 2.6;
+        }
+        .app-splash__flow use {
+          stroke-dasharray: 20 80;
+        }
+        .app-splash__flow use:nth-child(4n) {
+          stroke-width: 3.4;
+          stroke-dasharray: 26 74;
         }
       }
-
-      /* 動畫是唯一的「還在跑」訊號，所以不是關掉而是換成靜態的中間狀態 —— 三個點還在，
-       只是不動。 */
+      @keyframes app-splash-flow {
+        from {
+          stroke-dashoffset: 100;
+        }
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes app-splash-in {
+        from {
+          opacity: 0;
+        }
+      }
+      /* 減少動態：亮線不畫，淡線加深成一張成形的靜態場（同 flow-field 的 reduced 路徑）；
+         「還在跑」的訊號由文字接手 —— 動畫拿掉了，資訊不能跟著拿掉 */
       @media (prefers-reduced-motion: reduce) {
-        .app-splash__dot {
+        .app-splash__flow {
+          display: none;
+        }
+        .app-splash__base {
+          stroke: rgb(26 22 20 / 24%);
+        }
+        .app-splash__field,
+        .app-splash__brand {
           animation: none;
-          opacity: 0.55;
+        }
+        .app-splash__rm {
+          display: block;
+          margin-top: 20px;
+          font-size: 14px;
+          font-weight: 500;
         }
       }
     </style>
   </head>
   <body>
-    <app-root>
-      <div class="app-splash">
-        <p class="app-splash__brand">CLESSIA</p>
-        <div class="app-splash__dots" role="status" aria-label="載入中">
-          <span class="app-splash__dot"></span>
-          <span class="app-splash__dot"></span>
-          <span class="app-splash__dot"></span>
-        </div>
-      </div>
-    </app-root>
+    <app-root></app-root>
+    <div class="app-splash" role="status" aria-label="載入中">
+      <!-- 生成資料：一條流線一行，不給 prettier 展開（產生方式見 <head> 的開站畫面註解） -->
+      <!-- prettier-ignore -->
+      <svg class="app-splash__field" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <path id="l0" pathLength="100" d="M449 41q1 16 1 24-1 8-2 16-2 7-4 15-2 8-5 16-3 7-6 14-4 7-8 14-4 7-8 14-5 6-9 13-5 6-10 12-5 6-10 13-6 6-11 12-6 5-11 11-6 6-11 12-6 5-12 10-6 5-12 11-6 5-12 10-7 5-13 10-6 5-12 10-7 4-13 9-7 4-14 9-7 4-14 8-7 4-14 8-7 4-14 8-7 3-14 7-8 3-15 6-8 2-15 5-8 2-16 4-8 1-16 2-8 1-16 1-8 0-15 0-8-1-16-2-8-2-15-4-8-3-15-6-8-3-15-6-8-4-14-8-7-4-14-8-7-5-13-10-6-5-12-10-6-5-12-10-6-6-11-12-6-6-11-12"/>
+          <path id="l1" pathLength="100" d="M1239 368q-13-10-19-15-6-5-12-10-7-5-13-10-6-5-12-10-7-5-13-10-6-5-12-9-7-5-13-10-7-5-13-10-6-5-12-10-7-5-13-10-6-5-12-10-7-5-13-10-6-5-12-10-6-6-12-11-7-5-13-10-6-5-12-10-6-5-12-10-7-6-13-11-6-5-12-10-6-6-12-11-6-5-11-10-6-6-12-11-6-6-11-11-6-6-11-12-6-6-11-12-6-6-11-12-5-7-9-13-5-7-8-14-4-7-6-14-3-8-4-16-1-8 0-16 1-8 3-15 2-8 6-15 4-7 8-14"/>
+          <path id="l2" pathLength="100" d="M745 421q-16 2-23 4-8 2-15 5-8 3-15 7-7 4-13 9-6 5-12 11-6 5-10 12-5 6-8 13-4 7-6 15-2 8-2 16 0 8 1 16 1 8 4 15 3 7 8 14 4 7 10 13 6 5 13 10 6 4 14 7 7 3 15 5 7 2 15 3 8 0 16 0 8-1 16-2 8-2 16-4 7-3 14-6 7-4 14-8 7-5 13-10 6-5 12-10 5-6 10-12 5-7 9-14 4-7 7-14 2-8 3-16 1-8 0-16-1-8-3-15-3-8-7-15-4-7-9-13-6-6-12-10-7-5-14-9-7-4-14-6-8-3-16-4-8-2-16-2-8-1-16 0-8 0-15 2-8 1-16 4-8 2-15 5"/>
+          <path id="l3" pathLength="100" d="M680 253q-15 7-22 10-7 3-14 7-7 4-14 8-7 4-14 8-7 4-13 9-7 4-13 9-7 4-13 9-7 5-13 10-6 5-12 10-7 5-12 11-6 5-12 11-6 5-11 11-6 6-11 12-5 6-10 12-5 6-10 13-5 6-9 13-5 7-9 14-4 6-7 14-4 7-7 14-4 7-6 15-3 7-5 15-2 8-3 16-1 8-1 16-1 8 0 16 0 8 1 16 1 8 3 16 1 7 4 15 2 8 5 15 3 7 6 15 3 7 7 14 4 7 8 14 4 7 9 14 4 6 9 13 4 6 9 13 5 6 10 13 5 6 10 12 5 6 11 12 5 6 11 12 5 5 11 11 5 5 11 11 6 5 12 10"/>
+          <path id="l4" pathLength="100" d="M315 642q8 14 13 21 4 6 8 13 4 7 9 14 4 6 9 13 4 7 9 14 4 6 9 13 4 6 8 13 4 7 9 14 4 6 8 13 4 7 8 14 4 7 8 14 3 7 7 14 3 7 6 15 3 7 6 15 3 7 5 15 2 8 4 16 2 7 3 15 0 8 0 16 0 8 0 16"/>
+          <path id="l5" pathLength="100" d="M202 342q-14 6-22 9-8 2-15 4-8 1-16 2-8 1-16 2-8 0-16-1-8-1-16-2-8-2-15-4-8-2-15-5-8-3-15-7-7-4-14-8-7-4-13-8-7-5-13-10-7-5-13-10-6-5-12-10-6-6-11-11-6-6-11-12"/>
+          <path id="l6" pathLength="100" d="M847 744q13-9 20-14 6-5 12-10 6-5 12-10 6-5 13-10 6-5 12-10 6-6 12-11 6-6 12-11 5-5 11-11 6-6 12-11 5-6 11-11 5-6 11-12 5-6 11-12 5-6 10-12 5-7 10-13 4-7 9-13 4-7 9-13 4-7 8-14 3-7 7-14 3-8 6-15 3-8 5-15 2-8 3-16 1-8 1-16 0-8-1-16-1-8-2-16-2-8-5-15-3-8-6-15-4-7-8-14-4-7-8-13-5-7-10-13-5-7-10-13-5-6-10-11-6-6-12-11-6-6-12-11-6-6-12-11-7-5-13-9-6-5-13-9-7-5-13-9-7-5-14-9-7-4-14-8-7-4-14-7-7-4-14-7"/>
+          <path id="l7" pathLength="100" d="M551 76q-5 16-8 23-3 7-6 14-4 7-8 14-4 7-8 14-5 6-10 13-5 6-10 13-5 6-10 12-5 6-10 12-6 6-11 12-5 6-10 12-6 6-11 12-6 5-12 11-6 5-11 11-6 6-12 12-6 5-11 11-6 5-12 11-6 5-11 11-6 5-12 11-6 5-12 11-6 5-12 11-6 5-11 10-6 5-12 11-6 5-12 11-6 5-12 11-6 5-11 11-6 5-12 11-6 5-12 11-6 5-11 11-6 5-11 11-6 5-11 11-6 6-11 12-6 6-11 12-5 6-10 13-5 6-9 13-4 7-6 15-3 7-4 15-1 8 0 16 1 7 4 15 2 7 6 15 4 7 8 14 4 6 9 13"/>
+          <path id="l8" pathLength="100" d="M313 662q9 13 14 20 4 6 9 13 4 7 9 14 4 6 9 13 4 6 8 13 4 7 9 14 4 6 8 13 4 7 8 14 4 7 8 14 4 7 8 14 3 7 7 15 3 7 6 15 3 7 5 15 2 7 4 15 2 7 4 15 1 8 1 16 0 8 0 16 0 8-1 16"/>
+          <path id="l9" pathLength="100" d="M853 499q0-16-1-24-2-8-5-15-4-7-9-13-5-7-10-12-6-6-13-10-7-4-14-7-8-4-15-6-8-2-16-3-8-1-16-1-8 0-16 1-8 0-15 2-8 2-15 5-8 2-15 6-8 3-14 8-7 4-13 9-6 5-11 11-6 6-11 13-5 6-8 13-4 7-6 15-3 8-4 16-1 7 0 15 0 8 2 16 2 8 6 15 3 7 8 14 4 6 10 12 5 6 12 11 6 4 13 8 7 3 15 6 8 3 16 4 7 1 15 2 8 0 16 0 8-1 16-3 8-2 16-4 7-3 14-6 7-3 14-7 7-4 14-9 6-5 12-10 6-6 12-11 5-6 10-12 4-7 8-14 4-7 7-14"/>
+          <path id="l10" pathLength="100" d="M689 211q-14 6-21 10-8 3-15 7-7 3-14 7-7 4-14 8-7 4-13 9-7 4-14 9-7 4-13 9-6 4-12 9-7 5-13 10-7 5-13 10-6 5-12 11-6 5-12 11-6 5-12 11-6 5-11 11-6 5-11 11-6 5-11 11-6 6-11 13-5 6-10 12-5 6-9 13-5 6-9 13-5 7-9 14-4 6-7 14-4 7-7 14-4 7-6 15-3 8-5 16-2 7-3 15-1 8-1 16-1 8 0 16 0 8 1 16 1 8 3 16 1 7 3 15 2 8 5 16 3 7 6 14 3 7 7 15 3 7 7 14 4 7 8 14 4 6 9 13 4 7 9 14 4 6 9 13 4 6 9 13 5 6 10 13"/>
+          <path id="l11" pathLength="100" d="M443 717q9 13 14 20 5 6 10 13 4 6 9 13 4 6 9 13 5 6 10 13 4 6 9 13 4 6 8 13 4 7 9 14 4 6 8 13 3 7 7 15 3 7 6 15 3 7 6 15 2 7 4 15 1 8 1 16"/>
+          <path id="l12" pathLength="100" d="M17 174q-8-14-11-21-4-8-6-15-3-8-4-16-2-8-2-16 0-8 1-15 0-8 2-16 1-8 4-15 2-8 6-15 3-8 7-15 4-7 9-13 4-6 10-12 5-7 11-12 5-6 11-11 6-5 13-10"/>
+          <path id="l13" pathLength="100" d="M829 642q14-9 21-14 6-5 12-10 6-5 12-10 6-6 12-11 5-6 10-12 5-6 10-12 5-7 10-13 4-7 8-14 3-7 7-14 3-8 5-15 2-8 4-16 1-8 2-16 0-8-1-16-1-8-3-16-2-8-5-15-3-7-7-14-4-7-8-13-5-7-10-13-6-6-12-11-6-6-12-11-6-5-13-9-7-4-14-8-7-4-14-7-7-4-14-6-8-3-16-5-8-2-16-3-8-2-16-3-8-1-16-1-8 0-16 1-8 0-15 1-8 1-16 3-8 1-15 4-8 2-15 5-8 2-15 6-8 3-15 7-7 3-14 8-7 4-13 9-7 4-13 9-6 5-12 11-6 5-11 11-6 5-11 11"/>
+          <path id="l14" pathLength="100" d="M1277 470q5-15 4-23-1-8-4-15-3-8-7-14-5-7-10-13-6-6-11-11-6-6-12-11-6-6-12-11-6-6-12-11-6-6-12-11-6-5-12-10-6-5-12-10-6-6-12-11-7-5-13-10-6-5-12-10-6-5-12-10-7-5-13-10-6-5-12-10-7-5-13-10-6-6-12-11-7-5-13-10-6-5-12-10-6-5-12-10-7-5-13-10-6-5-12-10-6-5-12-10-7-6-13-11-6-5-12-10-6-6-12-11-6-5-12-10-6-6-12-11-6-6-11-11-6-6-11-11-6-6-11-12-6-6-11-12-5-6-10-12-5-7-9-14-4-7-6-14-3-8-3-16-1-8 0-16 1-8 5-15 3-8 7-14"/>
+          <path id="l15" pathLength="100" d="M140 550q11 11 17 17 5 5 11 11 5 6 11 12 5 5 11 11 5 6 11 12 5 6 11 12 5 6 10 12 5 6 11 12 5 6 10 12 5 6 11 12 5 6 10 12 5 6 10 13 5 6 10 12 5 6 10 13 4 6 9 13 4 6 9 13 4 7 9 14 4 6 8 13 4 7 8 14 4 7 8 14 3 7 6 15 3 7 6 15 2 7 4 15 2 8 4 16 1 7 2 15 1 8 1 16 0 8-1 16-1 8-3 16"/>
+          <path id="l16" pathLength="100" d="M1381 288q-15 5-23 6-8 1-16 2-8 0-16 0-8 0-16 0-8-1-16-2-8-2-15-4-8-2-15-5-8-3-15-5-8-3-15-6-8-4-15-7-7-4-14-8-7-4-14-8-7-4-13-8-7-5-14-9-7-5-13-9-7-5-13-10-6-5-12-10-7-5-13-10-6-5-12-10-6-5-12-10-6-6-12-11-6-6-11-12-6-6-11-12-5-6-10-12-6-6-10-12-5-7-9-14-5-7-8-14-4-7-7-14-3-8-5-15-2-8-2-16-1-8-1-16 0-8 2-16 1-8 4-15 3-8 7-15 3-7 7-14"/>
+          <path id="l17" pathLength="100" d="M1298 17q15 6 22 10 6 4 12 10 6 5 11 12 4 6 7 14 2 8 2 16-1 8-4 15-3 7-8 13-6 5-13 9-7 4-15 6-8 1-16 1-8 0-16-1-8-2-15-4-8-3-15-7-7-4-13-9-6-5-11-11-6-6-9-13-4-7-5-15-2-8-1-16 1-8 5-15 4-7 10-12 5-6 12-9 7-4 15-6 8-2 16-2 8-1 16 0 7 1 15 4 8 2 15 5 7 3 14 8 7 4 13 10 5 5 10 12 5 6 9 13 3 7 4 15 1 8 0 16-1 8-4 15-4 7-9 13-6 6-13 10-7 4-14 7-8 2-16 3-8 1-15 1-8-1-16-2-8-2-15-4-8-3-15-7"/>
+          <path id="l18" pathLength="100" d="M1033 727q12-11 18-16 5-6 11-11 6-6 12-11 6-6 12-11 6-5 12-10 6-6 12-11 6-6 12-11 6-5 12-10 6-5 12-10 6-6 12-11 6-5 13-10 6-5 12-10 6-5 12-10 6-5 13-10 6-5 13-10 6-5 12-10 6-5 13-9 6-5 13-10 6-5 13-9 6-5 13-9 7-4 14-8 7-4 15-7 7-3 15-5 7-2 15-2 8-1 16 0 8 1 16 4 7 2 14 6 7 3 14 7 7 4 14 9 7 4 14 8 6 4 13 9 6 4 13 9 7 5 14 10"/>
+          <path id="l19" pathLength="100" d="M1367 258q-16 3-24 4-8 1-16 2-8 0-16 0-8-1-15-2-8-2-16-3-8-2-15-4-8-3-15-5-8-3-15-6-8-3-15-6-7-4-14-8-8-4-14-8-7-4-14-8-7-5-13-9-7-5-13-10-7-5-13-10-6-5-12-10-6-5-12-10-6-6-12-11-6-6-11-12-5-6-10-12-6-6-10-12-5-7-9-14-4-7-8-14-4-7-6-14-3-8-5-15-2-8-3-16-1-8 0-16 0-8 2-16 1-8 4-15 3-8 7-15 3-7 7-14"/>
+          <path id="l20" pathLength="100" d="M240 720q11 11 16 18 5 6 10 12 5 6 10 13 4 6 9 13 4 7 8 14 4 7 8 14 3 7 6 15 3 7 6 15 3 7 5 15 2 7 3 15 1 8 2 16 0 8 0 16 0 8-1 16-2 8-4 16"/>
+          <path id="l21" pathLength="100" d="M621 230q-13 8-19 13-7 4-13 9-7 5-13 10-7 4-13 9-7 5-13 10-6 5-12 11-6 5-12 10-6 5-12 11-6 5-12 11-6 5-11 11-6 5-11 11-6 6-11 12-6 6-11 12-5 6-10 12-5 6-10 13-5 6-9 13-5 6-9 13-5 7-9 14-4 7-7 14-4 7-7 15-3 7-5 15-2 7-4 15-2 8-3 16-1 8-1 16 0 8 1 16 0 8 2 16 1 7 3 15 1 8 4 16 2 7 5 15 3 7 7 15 3 7 7 14 3 7 7 14 4 7 8 14 4 7 9 14 4 6 8 13 4 6 9 13 5 6 10 13 4 6 9 13 4 6 9 13 5 6 10 13 5 6 10 12"/>
+          <path id="l22" pathLength="100" d="M506 787q10 13 15 20 4 6 9 13 4 6 9 13 4 6 8 13 4 7 8 14 4 7 7 15 3 7 6 15 2 7 4 15 2 8 2 16"/>
+          <path id="l23" pathLength="100" d="M2 600q12-11 18-16 5-6 11-11 6-6 12-11 5-6 11-12 5-6 10-12 5-7 9-14 3-7 3-15 0-8-3-15-4-8-8-14-4-7-9-13-5-6-10-12-6-7-11-13-5-6-10-12-5-6-10-12-6-6-11-12-6-6-11-12-5-6-10-12-6-6-11-12"/>
+          <path id="l24" pathLength="100" d="M1370 495q15 6 22 10 7 3 14 7 7 4 14 9 6 4 13 8 6 4 13 9 7 5 14 10 6 4 12 9"/>
+          <path id="l25" pathLength="100" d="M978 458q-3-15-6-22-3-8-6-15-4-8-8-14-4-7-9-13-5-7-10-13-6-6-11-11-6-6-12-11-6-5-12-9-7-5-14-9-7-5-14-9-7-4-14-7-7-3-14-6-8-3-16-5-8-3-15-5-8-2-16-3-8-2-16-2-8-1-16-1-8 0-16 0-8 0-16 1-8 1-15 3-8 1-16 3-8 2-15 5-8 2-15 5-8 3-15 7-7 3-14 7-8 4-14 8-7 4-13 9-7 4-13 9-7 5-13 10-7 5-12 11-6 5-11 11-6 5-11 11-6 6-11 13-5 6-9 13-5 6-9 13-4 7-7 14-4 7-6 15-3 7-5 15-2 8-3 16-2 8-2 16-1 8 0 16"/>
+        </defs>
+        <g class="app-splash__base"><use href="#l0"/><use href="#l1"/><use href="#l2"/><use href="#l3"/><use href="#l4"/><use href="#l5"/><use href="#l6"/><use href="#l7"/><use href="#l8"/><use href="#l9"/><use href="#l10"/><use href="#l11"/><use href="#l12"/><use href="#l13"/><use href="#l14"/><use href="#l15"/><use href="#l16"/><use href="#l17"/><use href="#l18"/><use href="#l19"/><use href="#l20"/><use href="#l21"/><use href="#l22"/><use href="#l23"/><use href="#l24"/><use href="#l25"/></g>
+        <g class="app-splash__flow"><use href="#l0"/><use href="#l1"/><use href="#l2"/><use href="#l3"/><use href="#l4"/><use href="#l5"/><use href="#l6"/><use href="#l7"/><use href="#l8"/><use href="#l9"/><use href="#l10"/><use href="#l11"/><use href="#l12"/><use href="#l13"/><use href="#l14"/><use href="#l15"/><use href="#l16"/><use href="#l17"/><use href="#l18"/><use href="#l19"/><use href="#l20"/><use href="#l21"/><use href="#l22"/><use href="#l23"/><use href="#l24"/><use href="#l25"/></g>
+      </svg>
+      <p class="app-splash__brand" aria-hidden="true">
+        Clessia<span class="app-splash__sub">學程管家</span
+        ><span class="app-splash__sub app-splash__rm">載入中…</span>
+      </p>
+    </div>
   </body>
 </html>

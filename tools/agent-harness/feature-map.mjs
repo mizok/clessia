@@ -545,18 +545,24 @@ async function main() {
   } else if (normalize(source.slice(from + START.length, to)) !== normalize(body)) {
     // **表過期在哪裡都只是警告，main 也不例外。**
     //
-    // 一度是「分支警告、main 紅燈」的雙層。那道紅燈原意是雙保險，實際上是個死結：
-    // `verify.yml` 的 `sync-feature-map`（會重生並補 commit 的那個 job）掛著 `needs: verify`，
-    // 而讓 verify 紅的正是這一行 —— **能修表的 job 只在表沒壞時才跑**，main 於是自己好不了。
-    // 2026-08-30 #82 接上餐費頁之後真的發生了，要人工代打 2 行才解堵（5be7927）。
+    // 一度是「分支警告、main 紅燈」的雙層，那是死結：當時修表的是 main 上的 `sync-feature-map`
+    // job（重生後機器人直接 push），它掛著 `needs: verify`，而讓 verify 紅的正是這一行 ——
+    // **能修表的 job 只在表沒壞時才跑**（2026-08-30 #82，5be7927 人工代打解堵）。
     //
-    // 現在強制點只有一個：那個 job。它重生失敗（push 撞車之類）會讓自己紅，
-    // 所以覆蓋沒有變薄 —— 少的只是那道搶在自動修復前面把它擋掉的紅燈。
+    // 那個 job 在 2026-11-02 拿掉了（main 要開「只能經 PR 合併」的保護，機器人不能再直接 push）。
+    // 現在沒有自動重生：過期就由下一張 PR 順手 `npm run harness:write` 補上。
+    // 所以這裡更不能轉紅 —— 轉紅＝每張以 main 為底的 PR 一起紅，直到有人開修表 PR。
+    // 在 CI 上把警告寫進 job summary，看 main 那顆綠燈就看得到表過期。
     //
     // 上面的 `failures`（磁碟上有東西沒被任何功能區認領）**維持到處紅**：
-    // 那個 job 修不了，必須有人去改 AREAS。
-    console.warn('⚠ kb/wiki/roadmap.md 的功能區現況表過期 —— main 的 verify workflow 會自動重生。');
-    console.warn('  想現在就對齊：npm run harness:write（但這會讓你跟其他並行分支撞在同一張表上）');
+    // 那是藍圖不完整，重生修不了，必須有人去改 AREAS。
+    const msg = 'kb/wiki/roadmap.md 的功能區現況表過期 —— 下一張 PR 請順手跑 npm run harness:write';
+    console.warn(`⚠ ${msg}`);
+    console.warn('  （刻意只警告：並行分支各自重生會撞同一張表，見 constitution-enforcement.md）');
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      const { appendFileSync } = await import('node:fs');
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, `> ⚠️ ${msg}\n`);
+    }
   } else {
     console.log(`✓ 功能區現況表同步（${AREAS.length} 個功能區）`);
   }

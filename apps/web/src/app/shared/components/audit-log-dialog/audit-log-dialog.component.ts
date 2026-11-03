@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 import { TabsModule } from 'primeng/tabs';
 import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
@@ -79,7 +79,7 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
     SkeletonComponent,
     DataChipComponent,
     DatePipe,
-    PaginatorModule,
+    PagerComponent,
     TabsModule,
     LoadFailedComponent,
   ],
@@ -159,8 +159,9 @@ export class AuditLogDialogComponent {
     this.loadPage();
   }
 
-  protected onPage(event: PaginatorState): void {
-    this.page.set((event.page ?? 0) + 1);
+  /** 頁碼從 1 起算（app-pager） */
+  protected onPage(page: number): void {
+    this.page.set(page);
     this.loadPage();
   }
 

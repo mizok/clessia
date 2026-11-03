@@ -1,6 +1,6 @@
 <!--
   A6 版（#991 grades G5，grades-student.html）：色面（返回成績總覽）→ 灰工具列（搜尋、「篩選：…」浮層
-  ——年級／課程（#1314 G9）／學校／狀態、匯出）→ 依年級分章的學生列；每列的最近一次、比上一次、缺考、平均來自 `/scores/students?scope=all`（#1314 G8）。
+  ——年級／課程（#1314 G9）／開課班／期間（#2079(c)，預設近 3 個月）／學校／狀態、匯出）→ 依年級分章的學生列；每列的最近一次、比上一次、缺考、平均來自 `/scores/students?scope=all`（#1314 G8）。
   分校跟頂欄（#1138），頁內不再有分校。
 -->
 <app-page-open>
@@ -111,66 +111,50 @@
   (onShow)="filtersOpen.set(true)"
   (onHide)="filtersOpen.set(false)"
 >
+  <!-- A6 `.ff`：兩欄格線，每格「標籤＋.dd 下拉」；下拉用全站對齊 .dd 的 app-select-field，第一項是「全部…」 -->
   <div class="grid w-[440px] max-w-full grid-cols-2 gap-x-4 gap-y-3" data-part="filter-pop">
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-grade">年級</span>
-      <p-select
-        [options]="gradeOptions"
-        [ngModel]="gradeFilter()"
-        (ngModelChange)="onGradeChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部年級"
-        [showClear]="true"
-        ariaLabelledBy="sv-f-grade"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-course">課程</span>
-      <p-select
-        [options]="courseOptions()"
-        [ngModel]="courseIdFilter()"
-        (ngModelChange)="onCourseChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部課程"
-        [showClear]="true"
-        [filter]="courseOptions().length > 8"
-        ariaLabelledBy="sv-f-course"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-school">學校</span>
-      <p-select
-        [options]="schoolOptions()"
-        [ngModel]="schoolIdFilter()"
-        (ngModelChange)="onSchoolChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部學校"
-        [showClear]="true"
-        ariaLabelledBy="sv-f-school"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="flex min-w-0 flex-col gap-1">
-      <span class="text-md font-semibold text-zinc-700" id="sv-f-status">狀態</span>
-      <p-select
-        [options]="statusOptions"
-        [ngModel]="activeStatusFilter()"
-        (ngModelChange)="onActiveStatusChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        ariaLabelledBy="sv-f-status"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
+    <app-select-field
+      label="年級"
+      labelSize="md"
+      [options]="gradeOptions"
+      [value]="gradeFilter() || null"
+      (valueChange)="onGradeChange($event)"
+    />
+    <app-select-field
+      label="課程"
+      labelSize="md"
+      [options]="courseSelectOptions()"
+      [value]="courseIdFilter()"
+      (valueChange)="onCourseChange($event)"
+    />
+    <app-select-field
+      label="開課班"
+      labelSize="md"
+      [options]="classSelectOptions()"
+      [value]="classIdFilter()"
+      (valueChange)="onClassChange($event)"
+    />
+    <app-select-field
+      label="期間"
+      labelSize="md"
+      [options]="periodOptions"
+      [value]="periodFilter()"
+      (valueChange)="onPeriodChange($event)"
+    />
+    <app-select-field
+      label="學校"
+      labelSize="md"
+      [options]="schoolSelectOptions()"
+      [value]="schoolIdFilter()"
+      (valueChange)="onSchoolChange($event)"
+    />
+    <app-select-field
+      label="狀態"
+      labelSize="md"
+      [options]="statusOptions"
+      [value]="activeStatusFilter()"
+      (valueChange)="onActiveStatusChange($event)"
+    />
     <div class="col-span-full flex items-center justify-between">
       @if (hasFilters()) {
         <button
@@ -181,9 +165,10 @@
           清除篩選
         </button>
       }
+      <!-- A6 `.btn.btn--sm`（白底次要鈕，桌機 30px；手機 44px R3） -->
       <button
         type="button"
-        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white hover:bg-zinc-800"
+        class="ml-auto inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 active:bg-zinc-100 wide:h-[30px] wide:min-h-0"
         (click)="filterPopover.hide()"
       >
         完成
@@ -262,8 +247,8 @@
                   @if (agg.deltaVsPrev !== null) {
                     · 比上一次 {{ deltaText(agg.deltaVsPrev) }} 分
                   }
-                  @if (agg.recentAbsentCount) {
-                    · 缺考 {{ agg.recentAbsentCount }} 次
+                  @if (agg.absentCount) {
+                    · 缺考 {{ agg.absentCount }} 次
                   }
                 } @else {
                   這段期間沒有成績
@@ -291,13 +276,12 @@
 
     @if (totalStudents() > pageSize) {
       <div class="mt-6">
-        <p-paginator
-          [first]="(currentPage() - 1) * pageSize"
-          [rows]="pageSize"
-          [totalRecords]="totalStudents()"
-          [showCurrentPageReport]="true"
-          currentPageReportTemplate="顯示 {first} - {last}，共 {totalRecords} 位學生"
-          (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+        <app-pager
+          [total]="totalStudents()"
+          [pageSize]="pageSize"
+          [page]="currentPage()"
+          unit="位"
+          (pageChange)="onPageChange($event)"
         />
       </div>
     }

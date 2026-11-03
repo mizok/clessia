@@ -1,7 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, DOCUMENT, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { filter } from 'rxjs';
+import { filter, take } from 'rxjs';
 import { WindowSizeDirective } from '@shared/directives/window-size.directive';
 import { AppVersionService } from '@core/app-version.service';
 import { ToastComponent } from '@shared/components/toast/toast.component';
@@ -34,5 +34,25 @@ export class App {
         takeUntilDestroyed(),
       )
       .subscribe(() => void this.version.checkForNewVersion());
+
+    // 開站畫面（index.html）靠 CSS :has() 在第一個路由元件掛上時自己淡出；這裡等淡出跑完
+    // （transitionend）再把節點拿掉，不讓它一直留在 DOM 裡。不能用固定延遲：NavigationEnd 到
+    // 畫面 render 的間隔不固定（guard 導去 /login 時更長），實測 200／300ms 都會在淡出尾巴抽掉。
+    // 逾時是給不支援 :has() 的舊瀏覽器（Safari < 15.4）：那裡沒有 transition，到時直接收
+    const doc = inject(DOCUMENT);
+    inject(Router)
+      .events.pipe(
+        filter((e) => e instanceof NavigationEnd),
+        take(1),
+      )
+      .subscribe(() => {
+        const splash = doc.querySelector('.app-splash');
+        if (!splash) return;
+        splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+        setTimeout(() => splash.remove(), SPLASH_FALLBACK_MS);
+      });
   }
 }
+
+/** 不支援 :has() 時，第一次導覽結束後多久收掉開站畫面 */
+const SPLASH_FALLBACK_MS = 800;

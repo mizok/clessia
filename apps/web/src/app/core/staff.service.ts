@@ -85,6 +85,10 @@ export interface StaffListResponse {
     activeCount: number;
     inactiveCount: number;
     archivedCount: number;
+    /**
+     * 還沒登入過的人數（#1314 ST6）：未封存、不是掃碼機台、沒成功登入過。判準同列上的 `hasLoggedIn`
+     */
+    neverLoggedInCount: number;
     /** 依角色分章的四桶（#1314 ST1）：互斥、和＝total、走與列表同一組篩選 */
     byRole: { admin: number; teacher: number; kiosk: number; inactiveOrArchived: number };
   };

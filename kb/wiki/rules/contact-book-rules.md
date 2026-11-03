@@ -3,7 +3,7 @@ title: 聯絡簿規則
 summary: 個人聯絡簿是「國小模式」：每生每日唯一一則自由文字、班級層級開關、老師共編、家長按鈕簽收且老師看得到已讀。國中沒有個人聯絡簿 —— 那邊的「聯絡簿」其實是教務日誌，見 teaching-log-rules。
 category: rule
 status: active
-updated: 2026-10-23
+updated: 2026-11-02
 tags: [rules, contact-book, parent]
 ---
 
@@ -28,6 +28,10 @@ tags: [rules, contact-book, parent]
 
 - unique (student, date)。內容是**自由文字**：該生今天上課狀況的敘述，**不分課堂科目** —— 紙本現實就沒有科目維度。
 - 一天上多個班也是同一篇。
+- **列上顯示的班名**（#2080-1，計畫席 2026-11-02 裁定）：一則不屬於某一班，所以列的是「這位學生現在在哪些班」——
+  報名中（`active`／`pending_payment`）、班級 `uses_contact_book` 開著、而且**在看的人範圍內**的班
+  （分校範圍；老師只列自己現任的班），依班名排序。**不看 `entry_date` 當天在不在籍**。
+  跨兩班以上時列上寫第一個班名＋「＋N」，滑過（title）或點開對話框看得到全部 —— 不能只寫第一個、把其他班藏起來。
 
 ## 2. 班級層級 opt-in
 

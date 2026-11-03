@@ -255,13 +255,13 @@
       </div>
 
       @if (total() > PAGE_SIZE) {
-        <p-paginator
-          [first]="pageFirst()"
-          [rows]="PAGE_SIZE"
-          [totalRecords]="total()"
-          [showCurrentPageReport]="true"
-          currentPageReportTemplate="第 {currentPage} / {totalPages} 頁，共 {totalRecords} 位"
-          (onPageChange)="onPage($event)"
+        <app-pager
+          class="mt-6"
+          [total]="total()"
+          [pageSize]="PAGE_SIZE"
+          [page]="currentPage()"
+          unit="位"
+          (pageChange)="onPage($event)"
         />
       }
 

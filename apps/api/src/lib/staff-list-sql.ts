@@ -51,8 +51,8 @@ export interface StaffListSqlResult {
     phone: string | null;
     emailVerified: boolean | null;
   }>;
-  /** 摘要用（不套 status） */
-  readonly summaryRows: Array<{ user_id: string; status: string }>;
+  /** 摘要用（不套 status）。`emailVerified` 給「還沒登入過」計數（ST6）；查不到 ba_user 是 null */
+  readonly summaryRows: Array<{ user_id: string; status: string; emailVerified: boolean | null }>;
   readonly summaryRoleRows: Array<{ user_id: string; role: string; permissions: unknown }>;
 }
 
@@ -127,7 +127,9 @@ select json_build_object(
     from public.ba_user u where u.id in (select user_id from page)
   ), '[]'::json),
   'summaryRows', coalesce((
-    select json_agg(json_build_object('user_id', b.user_id, 'status', b.status)) from base b
+    select json_agg(json_build_object('user_id', b.user_id, 'status', b.status,
+      'emailVerified', u."emailVerified"))
+    from base b left join public.ba_user u on u.id = b.user_id
   ), '[]'::json),
   'summaryRoleRows', coalesce((
     select json_agg(json_build_object('user_id', ur.user_id, 'role', ur.role, 'permissions', ur.permissions)

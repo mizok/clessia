@@ -19,12 +19,14 @@ describe('ContactBookEntryDialogComponent', () => {
     studentName: '王小明',
     entryDate: '2026-08-29',
     content: '今天有練到直式除法。',
+    teacherEditedAt: null,
     lastEditedByName: '陳老師',
     signedBy: 'user-1',
     signedByName: '林太太',
     signedAt: '2026-08-29T12:00:00Z',
     isSigned: true,
     editedAfterSign: false,
+    classNames: [],
   };
 
   const setup = async (entry: ContactBookEntry) => {
@@ -52,6 +54,20 @@ describe('ContactBookEntryDialogComponent', () => {
    * 斷言盯的是「**不出現 ISO 的 T 與 Z**」而不是某一個特定格式字串 ——
    * 要換成別的顯示格式請一起改下面那條正面斷言，但不要讓這條變成零。
    */
+  // #2080-1：列上跨班只寫第一個＋N，點開在對話框看得到全部班名；沒有班不寫那一段
+  it('全部班名寫在日期後面；沒有班就不出現', async () => {
+    await setup({ ...signedEntry, classNames: ['三年甲班', '作文班'] });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="entry-classes"]')?.textContent).toBe('三年甲班、作文班');
+  });
+
+  it('沒有班名：不出現班名那一段', async () => {
+    await setup(signedEntry);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="entry-classes"]'),
+    ).toBeNull();
+  });
+
   it('簽收時間不以原始 ISO 時間戳渲染', async () => {
     const text = await setup(signedEntry);
 

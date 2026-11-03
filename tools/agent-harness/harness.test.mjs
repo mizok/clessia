@@ -983,12 +983,13 @@ function withStaleRoadmap(env = {}) {
 }
 
 // **這條守的是一個死結不要復活。** 一度是「分支警告、main 紅燈」，而讓 main 紅的正是這一行；
-// 但會重生表的 `sync-feature-map` job 掛著 `needs: verify`，於是能修的人只在沒壞時才來
-// —— main 自己好不了，2026-08-30 真的卡住過（5be7927 人工代打解堵）。
-// 有人把 main 的紅燈加回來 = 把死結加回來，症狀是 main 卡紅而不是報錯，所以要測。
+// 當時會重生表的 `sync-feature-map` job 掛著 `needs: verify`，於是能修的人只在沒壞時才來
+// —— main 自己好不了，2026-08-30 真的卡住過（5be7927 人工代打解堵）。那個 job 2026-11-02 拿掉了
+// （main 分支保護），現在連自動修都沒有：main 轉紅＝每張以 main 為底的 PR 一起紅，更不能加回來。
 test('現況表過期在哪個環境都只警告，main 也不例外', () => {
   for (const ref of ['refs/heads/feat/whatever', 'refs/heads/main', undefined]) {
-    const run = withStaleRoadmap(ref ? { GITHUB_REF: ref } : {});
+    // 清掉 GITHUB_STEP_SUMMARY：CI 上跑 self-test 時不要把假的「過期」寫進真的 summary
+    const run = withStaleRoadmap({ GITHUB_STEP_SUMMARY: '', ...(ref ? { GITHUB_REF: ref } : {}) });
     assert.equal(run.status, 0, `${ref ?? '(本機)'} 不該紅：\n${run.stderr}`);
     assert.match(run.stderr, /現況表過期/);
   }
@@ -1004,8 +1005,7 @@ test('「有東西沒被功能區認領」維持紅燈 —— 那個 job 修不�
   );
 });
 
-// 自動重生的 job 靠「零 diff 就不 commit」避免每次 main push 都疊一支 bot commit。
-// 那個判斷的前提是 --write 冪等 —— 不冪等的話 main 會被無限追加 commit。
+// --write 要冪等：PR 作者重跑一次不該再出 diff，否則每張 PR 都會帶一份假的「表過期」改動。
 test('--write 冪等：第二次不再改動檔案', () => {
   const roadmap = join(dirname(fileURLToPath(import.meta.url)), '../../kb/wiki/roadmap.md');
   const original = readFileSync(roadmap, 'utf8');
@@ -1014,10 +1014,34 @@ test('--write 冪等：第二次不再改動檔案', () => {
     spawnSync(process.execPath, [script, '--write'], { encoding: 'utf8' });
     const first = readFileSync(roadmap, 'utf8');
     spawnSync(process.execPath, [script, '--write'], { encoding: 'utf8' });
-    assert.equal(readFileSync(roadmap, 'utf8'), first, '--write 不冪等 → main 會被無限追加 commit');
+    assert.equal(readFileSync(roadmap, 'utf8'), first, '--write 不冪等 → 每次重生都出 diff');
   } finally {
     writeFileSync(roadmap, original);
   }
+});
+
+// 過期時把警告寫進 CI 的 job summary：沒有自動重生之後，這是 main 上唯一看得見的訊號
+test('現況表過期：有 GITHUB_STEP_SUMMARY 時寫進 job summary', () => {
+  const summary = join(mkdtempSync(join(tmpdir(), 'fm-summary-')), 'summary.md');
+  writeFileSync(summary, '');
+  const run = withStaleRoadmap({ GITHUB_STEP_SUMMARY: summary });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(readFileSync(summary, 'utf8'), /現況表過期[\s\S]*harness:write/);
+});
+
+// main 要開「只能經 PR 合併」的保護（2026-11-02）：verify 不能再有會直接 push 的 job。
+// 2026-11-02 之前的 `sync-feature-map` 就是用 `contents: write` 的 GITHUB_TOKEN 直接 push 到 main
+// 重生現況表 —— 分支保護一開，它會被擋、main 紅。要自動改 main 的東西一律走 PR。
+test('verify.yml 沒有 contents: write 的 job（main 不靠機器人直接 push）', () => {
+  const workflow = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../.github/workflows/verify.yml'),
+    'utf8',
+  );
+  const lines = workflow
+    .split('\n')
+    .map((l) => l.replace(/#.*/, ''))
+    .filter((l) => /\bcontents\s*:\s*write\b/.test(l));
+  assert.deepEqual(lines, [], 'verify.yml 不得宣告 contents: write');
 });
 
 // ── hook-only clause 的存量那一半（A13–A16）──────────────────────────────────────────
@@ -2063,6 +2087,22 @@ test('A27 紅：可點元素沒有基底的 44px 下限（含 @if 裡、只在 l
   );
 });
 
+// Angular 21 的 @switch 是 SwitchBlock.groups[].children（舊版是 cases）。walker 只認 cases 時
+// 全 repo 每個 @switch 裡的元素都沒被檢查（#2035 查到）。@case 與 @default 都要走到
+test('A27 紅：@switch 的 @case／@default 裡也檢查', () => {
+  const v = touchTargetClassViolations(
+    `@switch (k) {
+       @case ('a') { <button class="text-md">a</button> }
+       @case ('b') @case ('c') { <a routerLink="/x" class="h-10">b</a> }
+       @default { <div (click)="f()" class="h-8">c</div> }
+     }`,
+  );
+  assert.deepEqual(
+    v.map((x) => x.tag),
+    ['button', 'a', 'div'],
+  );
+});
+
 test('A27 綠：min-h-11／size-11／h-[44px]；不可點的元素不管', () => {
   const v = touchTargetClassViolations(
     `<button class="min-h-11">a</button><a href="/x" class="size-11">b</a>
@@ -2095,6 +2135,15 @@ test('A28 紅：文字色從祖先繼承、底色從祖先找，條件 class 也
   assert.equal(v.length, 2);
   assert.equal(v[0].fg, 'text-zinc-400');
   assert.equal(v[1].bg, 'bg-[#1a1614]');
+});
+
+test('A28 紅：@switch 裡的文字，底色從 @switch 外的祖先找', () => {
+  const v = contrastClassViolations(
+    `<section class="bg-zinc-100">@switch (k) { @case ('a') { <p class="text-zinc-400">淡字</p> } }</section>`,
+    COLORS,
+  );
+  assert.equal(v.length, 1);
+  assert.equal(v[0].bg, 'bg-zinc-100');
 });
 
 test('A28 綠：對比夠、找不到底色不判、font-size 的 text-* 不是顏色', () => {
@@ -2614,7 +2663,10 @@ const wf = (name, version, pinned) => ({
 const VAR = '${{ env.SUPABASE_CLI_VERSION }}';
 
 test('CLI 釘版：verify 與 migrate 同一個數字、都用變數 → 安靜', () => {
-  assert.deepEqual(cliPinProblems([wf('verify', VAR, '2.119.0'), wf('migrate', VAR, '2.119.0')]), []);
+  assert.deepEqual(
+    cliPinProblems([wf('verify', VAR, '2.119.0'), wf('migrate', VAR, '2.119.0')]),
+    [],
+  );
 });
 
 test('CLI 釘版：latest、沒釘、兩邊不同都要紅', () => {

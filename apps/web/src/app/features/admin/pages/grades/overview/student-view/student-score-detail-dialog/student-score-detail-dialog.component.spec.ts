@@ -150,6 +150,41 @@ describe('StudentScoreDetailDialogComponent', () => {
   });
 
   // #1314 G10：只有 1 人考的場次，「第 1 名／1 人」沒有資訊量，不寫名次
+  // #1314 Z 批：A6 精簡版分頁器（app-pager），不再是 PrimeNG 的 p-paginator
+  it('超過一頁：精簡版分頁器，按下一頁換到第 2 頁的紀錄', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = Array.from({ length: 12 }, (_, i) => ({
+      id: `r${i}`,
+      studentId: 's1',
+      studentName: '王小明',
+      subjectName: '數學',
+      totalScore: 100,
+      status: 'scored',
+      type: 'school',
+      examId: `e${i}`,
+      examName: `第 ${i + 1} 次`,
+      examDate: today,
+      score: 80,
+      classAvg: null,
+      rank: null,
+      classSize: null,
+    }));
+    (component as unknown as { scores: { set: (v: unknown) => void } }).scores.set(rows);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('p-paginator')).toBeNull();
+    expect(el.querySelector('app-pager [data-part="status"]')?.textContent?.trim()).toBe(
+      '第 1／2 頁',
+    );
+    expect(el.querySelectorAll('[data-part="record"]')).toHaveLength(10);
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-pager button'))
+      .find((b) => b.textContent?.includes('下一頁'))!
+      .click();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('[data-part="record"]')).toHaveLength(2);
+  });
+
   it('classSize 為 1 時只寫班平均，不顯示名次；2 人以上才顯示', () => {
     const base = {
       studentId: 's1',

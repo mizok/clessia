@@ -23,6 +23,8 @@ export interface ContactBookEntry {
   content: string;
   /** 共編只記最後編輯者，不做分段作者（rules 3） */
   lastEditedByName: string | null;
+  /** 老師／管理員最後改內容的時間（#2080-3）；家長簽收不動它。舊資料未回填為 null */
+  teacherEditedAt: string | null;
   signedBy: string | null;
   /** 簽收者姓名（`signedBy` 是 ba_user id，畫面要顯示的是這個）；未簽或對不到使用者為 null */
   signedByName: string | null;
@@ -31,6 +33,11 @@ export interface ContactBookEntry {
   isSigned: boolean;
   /** 簽收之後內容又改過（#1100 #26）：簽收保留，畫面標「簽收後有修改」 */
   editedAfterSign: boolean;
+  /**
+   * 學生現在所在、開了聯絡簿的班（#2080-1）：報名中、在範圍內（老師只看現任的班），依班名排序。
+   * 一則聯絡簿屬於學生不屬於班（rules §1），所以可能不只一個
+   */
+  classNames: string[];
 }
 
 export interface ContactBookRemindResult {

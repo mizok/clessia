@@ -41,7 +41,7 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { PagerComponent } from '@shared/components/pager/pager.component';
 
 // Services
 import {
@@ -107,7 +107,7 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
     ChapterHeadComponent,
     FilterToggleComponent,
     RouterLink,
-    PaginatorModule,
+    PagerComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
@@ -230,11 +230,6 @@ export class StudentsPage implements OnInit {
 
   // Computed
   readonly activeStudentCount = computed(() => this.summary().activeCount);
-
-  /** 頁尾分頁器的起點（`p-paginator` 用「第幾筆」不是「第幾頁」） */
-  protected readonly pageFirst = computed(() =>
-    Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-  );
 
   /** 手機的「篩選：全部」面板開合與摘要；桌機也渲染（A6 的篩選鈕） */
   protected readonly filtersOpen = signal(false);
@@ -552,8 +547,9 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
-  protected onPage(event: PaginatorState): void {
-    this.currentPage.set((event.page ?? 0) + 1);
+  /** 頁碼從 1 起算（app-pager） */
+  protected onPage(page: number): void {
+    this.currentPage.set(page);
     this.loadStudents({ keepTitle: true });
   }
 

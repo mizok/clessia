@@ -86,4 +86,52 @@ describe('GET /api/staff —— hasLoggedIn（#1100 #38）', () => {
       columns: 'id, email, phone, emailVerified',
     });
   });
+
+  // ST6（#1314）：色面的「N 位還沒登入過」—— builder 退路也要算，判準同列上的小標（查不到 ba_user 不算）
+  it('builder 退路：summary.neverLoggedInCount 只算 emailVerified=false 的（ORPHAN 不算）', async () => {
+    const supabase = fakeSupabase();
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', supabase);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', staffRoute.default as unknown as Hono);
+    const { summary } = (await (await app.request('/')).json()) as {
+      summary: { neverLoggedInCount: number };
+    };
+    expect(summary.neverLoggedInCount).toBe(1);
+  });
+});
+
+/**
+ * ST6 計數規則（A6 staff.html：`live.filter((p) => p.invited)`）：未封存（啟用＋停用）、不是掃碼機台、
+ * `emailVerified === false`。查不到 ba_user（null）同列上的小標當登入過，不算
+ */
+describe('neverLoggedInFromRows（ST6）', () => {
+  const row = (user_id: string, status: string, emailVerified: boolean | null) => ({
+    user_id,
+    status,
+    emailVerified,
+  });
+  it('未封存且沒登入過才算；封存、機台、登入過、查不到 ba_user 都不算', () => {
+    const rows = [
+      row('a', 'active', false),
+      row('b', 'inactive', false),
+      row('c', 'archived', false),
+      row('k', 'active', false),
+      row('d', 'active', true),
+      row('e', 'active', null),
+    ];
+    const roles = [
+      { user_id: 'a', role: 'teacher', permissions: [] },
+      { user_id: 'k', role: 'kiosk', permissions: [] },
+    ];
+    expect(staffRoute.neverLoggedInFromRows(rows, roles as never)).toBe(2);
+  });
 });

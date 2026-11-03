@@ -91,11 +91,12 @@
   </div>
 
   @if (totalStudents() > pageSize) {
-    <p-paginator
-      [rows]="pageSize"
-      [totalRecords]="totalStudents()"
-      [first]="(page() - 1) * pageSize"
-      (onPageChange)="onPageChange($event)"
+    <app-pager
+      class="mt-4"
+      [total]="totalStudents()"
+      [pageSize]="pageSize"
+      [page]="page()"
+      (pageChange)="onPageChange($event)"
     />
   }
 }

@@ -1,0 +1,126 @@
+@if (pages() > 1) {
+  @if (variant() === 'numbered') {
+    <!-- A6 courses：.pager button 36px（≤860 是 44px）、透明框、目前頁黑框粗體、到頭淡字 -->
+    <nav class="flex flex-wrap items-center justify-center gap-1 tabular-nums" aria-label="分頁">
+      <button
+        class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md border border-solid border-transparent bg-transparent px-2 font-[inherit] text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-accent-500 aria-disabled:cursor-default aria-disabled:text-zinc-400 aria-disabled:hover:bg-transparent wide:min-h-9 wide:min-w-9"
+        type="button"
+        aria-label="上一頁"
+        [attr.aria-disabled]="page() === 1 ? 'true' : null"
+        (click)="go(page() - 1)"
+      >
+        <svg
+          class="shrink-0"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M13 8H3M7 4L3 8l4 4" />
+        </svg>
+      </button>
+      @for (slot of slots(); track $index) {
+        @if (slot === null) {
+          <span
+            class="inline-flex min-w-6 justify-center text-zinc-500"
+            data-part="gap"
+            aria-hidden="true"
+            >…</span
+          >
+        } @else {
+          <button
+            class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md border border-solid border-transparent bg-transparent px-2 font-[inherit] text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-accent-500 aria-[current=true]:border-zinc-900 aria-[current=true]:font-bold wide:min-h-9 wide:min-w-9"
+            type="button"
+            [attr.aria-label]="'第 ' + slot + ' 頁，共 ' + pages() + ' 頁'"
+            [attr.aria-current]="slot === page() ? 'true' : null"
+            (click)="go(slot)"
+          >
+            {{ slot }}
+          </button>
+        }
+      }
+      <button
+        class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md border border-solid border-transparent bg-transparent px-2 font-[inherit] text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-accent-500 aria-disabled:cursor-default aria-disabled:text-zinc-400 aria-disabled:hover:bg-transparent wide:min-h-9 wide:min-w-9"
+        type="button"
+        aria-label="下一頁"
+        [attr.aria-disabled]="page() === pages() ? 'true' : null"
+        (click)="go(page() + 1)"
+      >
+        <svg
+          class="shrink-0"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 8h10M9 4l4 4-4 4" />
+        </svg>
+      </button>
+    </nav>
+  } @else {
+    <!-- A6 grades-student／meals：靠右、text-md zinc-700、.btn.btn--sm（12px 字、12px 內距、30px 高；手機只有高度改 44px，R3）、到頭半透明。
+         箭頭是 A6 a6.js 的 16px icon.left／right -->
+    <nav
+      class="flex flex-wrap items-center justify-end gap-2 text-md text-zinc-700 tabular-nums"
+      aria-label="分頁"
+    >
+      <span data-part="status" aria-live="polite"
+        >第 {{ page() }}／{{ pages() }} 頁{{
+          unit() ? ' · 每頁 ' + pageSize() + ' ' + unit() : ''
+        }}</span
+      >
+      <button
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 font-[inherit] text-sm leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:border-zinc-300 aria-disabled:hover:bg-white wide:h-[30px]"
+        type="button"
+        [attr.aria-disabled]="page() === 1 ? 'true' : null"
+        (click)="go(page() - 1)"
+      >
+        <svg
+          class="shrink-0"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M13 8H3M7 4L3 8l4 4" /></svg
+        >上一頁
+      </button>
+      <button
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-3 font-[inherit] text-sm leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-accent-500 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:border-zinc-300 aria-disabled:hover:bg-white wide:h-[30px]"
+        type="button"
+        [attr.aria-disabled]="page() === pages() ? 'true' : null"
+        (click)="go(page() + 1)"
+      >
+        下一頁<svg
+          class="shrink-0"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 8h10M9 4l4 4-4 4" />
+        </svg>
+      </button>
+    </nav>
+  }
+}
