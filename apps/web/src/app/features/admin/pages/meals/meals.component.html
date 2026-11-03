@@ -169,6 +169,10 @@
         data-testid="meals-note"
       >
         「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
+        @if (onLeaveCount() > 0) {
+          今天有請假的
+          <b class="font-semibold">{{ onLeaveCount() }} 位</b>名字下有提示，訂不訂照你勾的。
+        }
       </p>
     }
   }
@@ -331,6 +335,14 @@
                         [class.text-zinc-600]="!row.ordered"
                         >{{ row.studentName }}</a
                       >
+                      <!-- ME1（A6 .ml__who 的 tag--quiet）：只是提醒，半天假的學生可能照樣來吃飯 —— 字不下結論（R5） -->
+                      @if (showLeaveHint() && row.onLeave) {
+                        <span
+                          class="ml-2 inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-sm leading-[1.4] font-semibold whitespace-nowrap text-zinc-700"
+                          data-testid="meal-on-leave"
+                          >今天有請假</span
+                        >
+                      }
                       @if (row.classLabel !== row.chapter) {
                         <span class="block text-sm text-zinc-500">{{ row.classLabel }}</span>
                       }

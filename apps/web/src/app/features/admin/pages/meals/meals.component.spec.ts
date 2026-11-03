@@ -36,6 +36,7 @@ const row = (overrides?: Partial<MealRosterRow>): MealRosterRow => ({
   chargeable: null,
   unitPrice: null,
   settled: false,
+  onLeave: false,
   ...overrides,
 });
 
@@ -615,6 +616,36 @@ describe('MealsComponent', () => {
       expect(bar.className).toContain('sticky');
       expect(bar.textContent).not.toContain('人工判斷');
       expect(bar.textContent).toContain('共 1 位');
+    });
+
+    // ME1（A6 meals.html：名字下的請假提示＋說明框後半句，只在今天）。字寫「今天有請假」不寫「今天請假」：
+    // 按日判斷，半天假的學生可能照樣來吃飯 —— 是提醒不是結論（計畫席 11-02，R5）
+    it('今天：有請假的列名字下寫「今天有請假」，說明框接人數；沒請假、讀不到（null）的不寫', async () => {
+      await load([
+        person('a', { onLeave: true }),
+        person('b', { onLeave: true }),
+        person('c', { onLeave: false }),
+        person('d', { onLeave: null }),
+      ]);
+      const tags = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="meal-on-leave"]'),
+      );
+      expect(tags.map((t) => t.textContent?.trim())).toEqual(['今天有請假', '今天有請假']);
+      expect(q('meals-note').textContent?.replace(/\s+/g, '')).toContain(
+        '今天有請假的2位名字下有提示，訂不訂照你勾的。',
+      );
+    });
+
+    it('今天沒有人請假：說明框不接後半句', async () => {
+      await load([person('a'), person('b')]);
+      expect(q('meals-note').textContent).not.toContain('有請假');
+    });
+
+    it('不是今天：不顯示請假提示（「今天有請假」只對今天說得通）', async () => {
+      component['dateStr'].set('2026-10-13');
+      await load([person('a', { onLeave: true, mealDate: '2026-10-13' })]);
+      expect(q('meal-on-leave')).toBeNull();
+      expect(q('meals-note').textContent).not.toContain('有請假');
     });
 
     it('區間模式的摘要列不放批次鈕與說明', async () => {
