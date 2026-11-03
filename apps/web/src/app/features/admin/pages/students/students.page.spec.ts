@@ -17,6 +17,7 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { CheckinCardsService } from '@core/checkin-cards.service';
 import { HttpErrorResponse } from '@angular/common/http';
 
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
 import { StudentsPage } from './students.page';
 
 /** 到班卡（#1100 #42）：basic_operations 或 manage_students 任一；既有測試不看這個，預設給 */
@@ -799,6 +800,25 @@ describe('StudentsPage', () => {
       type('王');
       vi.advanceTimersByTime(300);
       expect(lastCall()['search']).toBe('王');
+    });
+
+    // 計畫席 11-03 裁定（#2206 ①b）：搜尋框在抽屜外，抽屜的「清除」不能無聲清掉它
+    it('抽屜的「清除」只清篩選條件，搜尋框留著', () => {
+      respond([row('a', '王一', 'J3')]);
+      type('王');
+      vi.advanceTimersByTime(300);
+      respond([row('a', '王一', 'J3')]);
+      (component as any).onGradeChange('J3');
+      respond([row('a', '王一', 'J3')]);
+
+      fixture.debugElement
+        .query(By.directive(FilterPanelComponent))
+        .componentInstance.cleared.emit();
+      vi.advanceTimersByTime(500);
+
+      expect((component as any).searchQuery()).toBe('王');
+      expect((component as any).selectedGrade()).toBeNull();
+      expect(lastCall()).toMatchObject({ search: '王', grade: undefined, isActive: true });
     });
 
     it('學制跟年級不合（#1820）：送 schoolMismatch、寫進篩選摘要，清除篩選一併清', () => {

@@ -562,9 +562,17 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
-  /** 搜尋與所有篩選一起清（只清篩選、搜尋還在，使用者會以為沒清乾淨） */
+  /** 頁面上的「清除篩選」：搜尋與所有篩選一起清（只清篩選、搜尋還在，使用者會以為沒清乾淨） */
   protected clearFilters(): void {
     this.searchQuery.set('');
+    this.clearPanelFilters();
+  }
+
+  /**
+   * 抽屜的「清除」只清篩選條件、不清搜尋框（計畫席 11-03 裁定，#2206 ①b）：
+   * 搜尋框在抽屜外，在抽屜裡按清除卻把外面打的字無聲清掉，會讓人困惑
+   */
+  protected clearPanelFilters(): void {
     this.selectedGrade.set(null);
     this.todayFilter.set(null);
     this.statusFilter.set('active');

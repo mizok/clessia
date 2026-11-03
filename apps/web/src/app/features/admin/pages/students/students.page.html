@@ -86,7 +86,7 @@
 <app-filter-panel
   #filterPanel
   [hasFilters]="hasFilter()"
-  (cleared)="clearFilters()"
+  (cleared)="clearPanelFilters()"
   (openChange)="filtersOpen.set($event)"
 >
   <ng-template>
