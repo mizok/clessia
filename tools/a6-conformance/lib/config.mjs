@@ -1394,6 +1394,16 @@ export const PAGES = {
         source: 'https://github.com/mizok/clessia/pull/2057（#1100 #22）',
       },
       {
+        // 該到沒到（#2264）：單一分校只剩 1 位，他的家長沒留電話 →「打給家長」不顯示（spec），右邊的「登記請假」
+        // 往左補上那顆的寬＋間距（168＋8）。工具的連帶只算到 168，差 gap 的 8 不夠，所以在這裡登記
+        status: '位置',
+        widths: [360],
+        app: '>landmark:region\\[該到沒到的#位，先打給家長\\]>control:button\\[登記請假\\]$',
+        detail: 'Δx -17\\d',
+        reason: '資料：這位的家長沒留電話，「打給家長」不顯示，「登記請假」往左補位',
+        source: 'kb/wiki/specs/admin/dashboard.md:55（沒有家長電話就不給「打電話」）；計畫席 11-02',
+      },
+      {
         // 該到沒到：稿 2 位、seed 在稿的今天（10-01 17:40）有 6 位 —— ≥3 才成清單列，兩邊一邊成列一邊不成，列內配不上
         status: '缺',
         a6: '>landmark:region\\[該到沒到的#位，先打給家長\\]>[^>]+$',
