@@ -198,14 +198,28 @@
         收費期間
       </h2>
       <span class="text-md text-zinc-500">期繳用的具名日期區間</span>
-      <button
-        type="button"
-        class="hidden h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap wide:ml-auto wide:inline-flex"
-        data-testid="new-period-btn"
-        (click)="openPeriodDialog()"
-      >
-        <i class="pi pi-plus text-lg" aria-hidden="true"></i>新增期間
-      </button>
+      <!-- 用模板建立（#2235）：一年用一次，收成一顆鈕開彈窗；手機也要有（新增期間在手機走底部托盤）。
+           兩顆包在同一個 items-center 裡：外層是 items-baseline（對齊標題），兩顆內容不同（一顆有圖示）會差幾 px -->
+      <div class="ml-auto flex items-center gap-2">
+        @if (periods().length > 0) {
+          <button
+            type="button"
+            class="inline-flex h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap"
+            data-testid="open-period-template"
+            (click)="openPeriodTemplateDialog()"
+          >
+            用模板建立
+          </button>
+        }
+        <button
+          type="button"
+          class="hidden h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap wide:inline-flex"
+          data-testid="new-period-btn"
+          (click)="openPeriodDialog()"
+        >
+          <i class="pi pi-plus text-lg" aria-hidden="true"></i>新增期間
+        </button>
+      </div>
     </div>
 
     <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
@@ -217,7 +231,17 @@
           title="尚未建立收費期間"
           description="一年兩期或照學期制都可以 —— 期間由你自己定義"
         >
-          <p-button label="新增期間" icon="pi pi-plus" (onClick)="openPeriodDialog()" />
+          <div class="flex flex-wrap justify-center gap-2">
+            <p-button label="新增期間" icon="pi pi-plus" (onClick)="openPeriodDialog()" />
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-4 text-md leading-normal font-semibold whitespace-nowrap"
+              data-testid="open-period-template"
+              (click)="openPeriodTemplateDialog()"
+            >
+              用模板建立
+            </button>
+          </div>
         </app-empty-state>
       } @else {
         <app-popup-menu #periodMenu [model]="periodMenuItems()" />
@@ -265,51 +289,72 @@
     </app-reload-veil>
 
     <!--
-      用模板建立（#1100 #35③）。使用者 11-02：從系統設定搬來；A6 是一選就建的 select，
-      太危險 → radio 列出模板＋每個的預覽，按「建立這 N 個期間」才送出（R5）
+      用模板建立（#1100 #35③；#2235 使用者 11-04 收進彈窗）。使用者 11-02：從系統設定搬來；A6 是一選就建的 select，
+      太危險 → radio 列出模板＋每個的預覽，按「建立這 N 個期間」才送出（R5）。手機自動是貼底抽屜（#1776）
     -->
-    <fieldset
-      class="m-0 mt-6 flex min-w-0 flex-col gap-2 border-0 p-0"
-      data-testid="period-template"
+    <p-dialog
+      [visible]="periodTemplateDialogOpen()"
+      (visibleChange)="setPeriodTemplateDialog($event)"
+      [modal]="true"
+      [dismissableMask]="true"
+      [draggable]="false"
+      [resizable]="false"
+      [blockScroll]="true"
+      [style]="{ width: 'min(36rem, calc(100% - 2rem))' }"
     >
-      <legend class="mb-1 p-0 text-lg font-bold text-zinc-900">用模板建立</legend>
-      <p class="m-0 mb-1 text-md text-zinc-600">照下一個學年一次建好一組期間，日期之後可以再改。</p>
-      @for (t of templatePreviews(); track t.value) {
-        <label
-          class="flex cursor-pointer items-start gap-3 rounded-md border border-solid border-zinc-300 bg-white px-4 py-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-default"
-          [attr.data-template]="t.value"
+      <!-- 標題 id 用 p-dialog 產生的那個，aria-labelledby 才指得到（同 #2208 二讀） -->
+      <ng-template #header let-labelId="ariaLabelledBy">
+        <h2 [id]="labelId" class="m-0 text-lg font-bold text-zinc-900">用模板建立</h2>
+      </ng-template>
+      <fieldset class="m-0 flex min-w-0 flex-col gap-2 border-0 p-0" data-testid="period-template">
+        <legend class="sr-only">選一個模板</legend>
+        <p class="m-0 mb-1 text-md text-zinc-600">
+          照下一個學年一次建好一組期間，日期之後可以再改。
+        </p>
+        @for (t of templatePreviews(); track t.value) {
+          <label
+            class="flex cursor-pointer items-start gap-3 rounded-md border border-solid border-zinc-300 bg-white px-4 py-3 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset has-disabled:cursor-default"
+            [attr.data-template]="t.value"
+          >
+            <input
+              type="radio"
+              name="period-template"
+              class="m-0 mt-1 accent-zinc-900"
+              [attr.aria-labelledby]="'tpl-' + t.value"
+              [attr.aria-describedby]="'tpl-' + t.value + '-preview'"
+              [checked]="periodTemplatePick() === t.value"
+              [disabled]="creatingFromTemplate()"
+              (change)="periodTemplatePick.set(t.value)"
+            />
+            <span class="flex min-w-0 flex-col gap-1">
+              <span class="text-base font-semibold text-zinc-900" [id]="'tpl-' + t.value">{{
+                t.label
+              }}</span>
+              <ul
+                class="m-0 list-none p-0 text-sm text-zinc-600 tabular-nums"
+                [id]="'tpl-' + t.value + '-preview'"
+              >
+                @for (row of t.rows; track row.name) {
+                  <li>
+                    {{ row.name }}　{{ formatRange(row) }}
+                    @if (row.exists) {
+                      <span class="text-zinc-500">（已經有了，會略過）</span>
+                    }
+                  </li>
+                }
+              </ul>
+            </span>
+          </label>
+        }
+      </fieldset>
+      <ng-template #footer>
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 enabled:hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 wide:min-h-9"
+          (click)="setPeriodTemplateDialog(false)"
         >
-          <input
-            type="radio"
-            name="period-template"
-            class="m-0 mt-1 accent-zinc-900"
-            [attr.aria-labelledby]="'tpl-' + t.value"
-            [attr.aria-describedby]="'tpl-' + t.value + '-preview'"
-            [checked]="periodTemplatePick() === t.value"
-            [disabled]="creatingFromTemplate()"
-            (change)="periodTemplatePick.set(t.value)"
-          />
-          <span class="flex min-w-0 flex-col gap-1">
-            <span class="text-base font-semibold text-zinc-900" [id]="'tpl-' + t.value">{{
-              t.label
-            }}</span>
-            <ul
-              class="m-0 list-none p-0 text-sm text-zinc-600 tabular-nums"
-              [id]="'tpl-' + t.value + '-preview'"
-            >
-              @for (row of t.rows; track row.name) {
-                <li>
-                  {{ row.name }}　{{ formatRange(row) }}
-                  @if (row.exists) {
-                    <span class="text-zinc-500">（已經有了，會略過）</span>
-                  }
-                </li>
-              }
-            </ul>
-          </span>
-        </label>
-      }
-      <div>
+          取消
+        </button>
         <button
           type="button"
           class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md border border-solid border-zinc-900 bg-zinc-900 px-4 text-md font-semibold text-white enabled:hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 wide:min-h-9"
@@ -327,7 +372,7 @@
             建立這 {{ templateTodoCount() }} 個期間
           }
         </button>
-      </div>
-    </fieldset>
+      </ng-template>
+    </p-dialog>
   </section>
 </div>
