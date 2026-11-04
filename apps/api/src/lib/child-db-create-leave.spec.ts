@@ -24,6 +24,7 @@ describe('childDb.createLeave', () => {
       window,
       reason: null,
       userId: 'u1',
+      attendanceEventIds: [],
     });
     expect(out).toEqual({ kind: 'out-of-scope' });
     expect(pool.connect).not.toHaveBeenCalled();
@@ -38,6 +39,7 @@ describe('childDb.createLeave', () => {
       window,
       reason: null,
       userId: 'u1',
+      attendanceEventIds: [],
     });
     expect(out).toEqual({ kind: 'out-of-scope' });
     expect(pool.connect).not.toHaveBeenCalled();
@@ -51,6 +53,7 @@ describe('childDb.createLeave', () => {
       window,
       reason: null,
       userId: 'u1',
+      attendanceEventIds: [],
     });
     expect(out).toEqual({ kind: 'failed' });
   });

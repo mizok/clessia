@@ -375,6 +375,7 @@ describe('authMiddleware 的 studentScope', () => {
             },
             reason: null,
             userId: 'user-1',
+            attendanceEventIds: [],
           }),
         ),
       );

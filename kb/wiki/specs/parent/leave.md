@@ -3,7 +3,7 @@ title: 幫孩子請假（家長端，設計稿）
 summary: 家長在到班紀錄頁替自己的孩子請假，照 A6 p-attendance 的「幫孩子請假」：共用請假表單（日期＋時間區間、原因選填），送出即生效、範圍內的課就地變「請假」。後端新增 /api/me/leaves，用 childScope 與在籍判斷授權，跟管理端共用建立請假的核心（並掛上 #1732 的連續請假偵測）；送出成功後通知分校的管理員（新 enum leave_received）與任課老師。Q1–Q6 已於 10-17 全部照建議裁定，設計稿已批准。
 category: spec
 status: accepted
-updated: 2026-10-23
+updated: 2026-11-04
 tags: [specs, parent, attendance, leave, design]
 sources: [https://github.com/mizok/clessia/issues/1695]
 ---
@@ -87,6 +87,9 @@ Body：`{ studentId, startDate, endDate, startTime, endTime, reason? }`。家長
 4. **組織**：`org_id` 用 context 的 orgId，不吃 body。
 5. 寫入一律經過 `childDb`（A19）：`leave_requests`、`attendance_records` 都有 `student_id`，可以走 scoped 的 insert／upsert。
    `childDb` 新增 `upsert`，範圍檢查照 `insertMany`：**任何一列的學生不在 scope 就整批不送**（計畫席 10-17 (A)）。家長端不寫 `leave_request_sessions`（不勾堂次），所以不需要替這張沒有 `student_id` 的表開例外。
+   **假單與出勤 on_leave 同一筆交易**（#2244，#2237 同形狀）：「要改哪幾堂」在交易外算好（只改沒紀錄或缺席的堂），
+   交給 `childDb.createLeave` 的 `attendanceEventIds`，由它在取鎖、查重疊、寫假單的同一筆交易裡用 `writeLeaveAttendance` 寫。
+   出勤寫失敗整筆回滾、回 500，假不會留下；原本 COMMIT 之後才 upsert、而且不看 error，寫失敗照樣回 201。
 
 ### 跟管理端共用建立請假的核心
 
