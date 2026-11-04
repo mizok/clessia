@@ -222,13 +222,14 @@ app.openapi(listRoute, async (c) => {
     );
   };
 
-  // 先走 SQL（Hyperdrive，一次往返，#1595 P2）；失敗或形狀不對就走下面原本的 builder。
+  // 有 pool 就走 SQL（Hyperdrive，一次往返，#1595 P2）；失敗或形狀不對 → 500，不退回 builder（#2230 (c)）。
   // 分校條件在這裡用 campusFilterIds 算好再傳進去 —— 判準只有 lib/campus-scope.ts 一份。
   // 班數只吃範圍、不吃指定分校（跟 builder 的 applyCampusFilter(…, scope, undefined) 同一個行為）
   // auth middleware 已經用 getAuth 把它放進 context；這裡只讀、不建（沒有就走 builder，例：單元測試的精簡 app）
   const pool = c.get('auth')?.pool;
-  const viaSql = pool
-    ? await loadCourseListViaSql(pool, {
+  if (pool)
+    return respond(
+      await loadCourseListViaSql(pool, {
         orgId: c.get('orgId'),
         courseCampusIds: campusFilterIds(getCampusScope(c), query.campusId),
         classCampusIds: campusFilterIds(getCampusScope(c), undefined),
@@ -238,11 +239,10 @@ app.openapi(listRoute, async (c) => {
         limit: unpaginated ? null : pageSize,
         offset: unpaginated ? 0 : offset,
         today,
-      })
-    : null;
-  if (viaSql) return respond(viaSql);
+      }),
+    );
 
-  // ── 退路：原本的 query builder（條件跟 lib/course-list-sql.ts 各一份，由 contract/course-list.contract.ts 逐欄比對）──
+  // ── 沒有 pool 才走：原本的 query builder（條件跟 lib/course-list-sql.ts 各一份，由 contract/course-list.contract.ts 逐欄比對）──
   let dbQuery = supabase
     .from('courses')
     // `sort_order` 必須在 embed 的 select 裡：PostgREST 對 `order=subjects(sort_order)` 只認選了的欄，

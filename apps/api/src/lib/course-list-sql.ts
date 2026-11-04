@@ -14,8 +14,8 @@ import type { Queryable } from './identity-sql';
  * **兩組分校 id**（行為照舊，#1595 裁定 3）：課程列表與章節計數吃「範圍 ∩ 指定分校」，
  * 每門課的班數只吃「範圍」，不吃指定分校。
  *
- * **退路**：任何失敗（拋錯、Hyperdrive 超量、結果形狀不對）都回 `null`，呼叫端改走原本的
- * query builder（`routes/courses.ts`）。兩條路的條件各一份，由 `contract/course-list.contract.ts`
+ * **不退回**：任何失敗（拋錯、Hyperdrive 超量、結果形狀不對）都丟例外 → 500（#2230 (c)）。
+ * 沒有 pool 時才走 query builder（`routes/courses.ts`）。兩條路的條件各一份，由 `contract/course-list.contract.ts`
  * 在各種分校範圍與篩選下逐欄比對。**絕不用猜的值**：形狀不對時不回 0。
  *
  * 結果整包在 Postgres 裡組成 JSON：時間欄位的格式跟 PostgREST 回的一樣（`pg` 直接回的是 Date 物件）。
@@ -118,11 +118,14 @@ select json_build_object(
 
 const isCount = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
 
-/** 一次往返拿完列表、總數、班數、章節計數。失敗或形狀不對回 `null`（呼叫端走 builder） */
+/**
+ * 一次往返拿完列表、總數、班數、章節計數。失敗或形狀不對**丟例外**（→ 500），不退回 builder
+ * （#2230 (c)：退回只會把 SQL 的問題藏成會 414 的慢路徑；同 staff 的 #2275）
+ */
 export async function loadCourseListViaSql(
   db: Queryable,
   p: CourseListParams,
-): Promise<CourseListResult | null> {
+): Promise<CourseListResult> {
   try {
     const { rows } = await db.query(COURSE_LIST_SQL, [
       p.orgId,
@@ -157,15 +160,12 @@ export async function loadCourseListViaSql(
         const n = s as Record<string, unknown> | null;
         return n !== null && typeof n['subjectId'] === 'string' && isCount(n['count']);
       });
-    if (!ok) {
-      console.error('[courses-sql] /api/courses 結果形狀不對，改走 REST');
-      return null;
-    }
+    if (!ok) throw new Error('[courses-sql] /api/courses 結果形狀不對');
     return result as unknown as CourseListResult;
   } catch (err) {
     console.error(
-      `[courses-sql] /api/courses 查詢失敗，改走 REST：${(err as { code?: string })?.code ?? 'unknown'}`,
+      `[courses-sql] /api/courses 查詢失敗：${(err as { code?: string })?.code ?? 'unknown'}`,
     );
-    return null;
+    throw err;
   }
 }
