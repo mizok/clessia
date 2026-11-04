@@ -70,9 +70,14 @@ run('站內通知的收件人推導對真 DB（#1693）', () => {
     ).map((r) => r.user_id);
 
   it('每個分校：adminsForCampuses 與 SQL 逐筆相同（含 manage_finance 版）；有被指派分校的管理員才有鑑別力', async () => {
+    // **只掃 seed 的 org**（同 #2059 對課堂的處理）：別的契約檔會同時建自己的 org，用 seed 裡 id 最小的
+    // 管理員（`role = 'admin' order by user_id limit 1`）建 staff、測完就刪。掃全庫會掃到那些暫時的 org，
+    // 而它在「lib 查一次、SQL 再查一次」之間被刪掉 → 兩邊對不上（main 1e916379 的 CI 紅；本機用
+    // 「一直建 org＋staff 再刪」的壓力法重現得出來）
     const campuses = await q<{ id: string; org_id: string }>(
       `SELECT c.id, c.org_id FROM campuses c
-       WHERE EXISTS (SELECT 1 FROM staff s WHERE s.org_id = c.org_id)`,
+       WHERE c.org_id = (${SEED_ORG})
+         AND EXISTS (SELECT 1 FROM staff s WHERE s.org_id = c.org_id)`,
     );
     expect(campuses.length).toBeGreaterThan(1); // 至少兩個分校，「別的分校收不到」才驗得到
     let discriminating = 0;
