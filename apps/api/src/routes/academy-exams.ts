@@ -21,6 +21,7 @@ import { loadDisplayName } from '../lib/display-name';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import { fetchAllPages } from '../lib/fetch-all-pages';
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
 const AcademyExamTypeSchema = z
@@ -459,6 +460,33 @@ async function ensureClassesInOrg(
   return (data ?? []).length === dedupedClassIds.length;
 }
 
+/**
+ * 範圍內全部 active 考試（todo-count、todo-by-class 的候選）。撈齊，不被 max_rows（1000）截斷（#2228）
+ */
+async function loadActiveExams(
+  supabase: AppEnv['Variables']['supabase'],
+  orgId: string,
+  campusScope: ReturnType<typeof getCampusScope>,
+  campusId: string | undefined,
+): Promise<{ exams: Array<{ id: string; examDate: string }>; error: unknown }> {
+  const { rows, error } = await fetchAllPages((from, to) => {
+    let query = supabase
+      .from('academy_exams')
+      .select('id, exam_date')
+      .eq('org_id', orgId)
+      .eq('status', 'active');
+    query = applyCampusFilter(query, 'campus_id', campusScope, campusId);
+    return query.order('id').range(from, to);
+  });
+  return {
+    exams: (rows as Array<{ id: string; exam_date: string }>).map((row) => ({
+      id: row.id,
+      examDate: row.exam_date,
+    })),
+    error,
+  };
+}
+
 const listRoute = createRoute({
   method: 'get',
   path: '/',
@@ -634,41 +662,45 @@ app.openapi(listRoute, async (c) => {
   // todo 模式會先為所有候選考試算一次分母，那份結果涵蓋分頁後的這一頁，
   // 不需要再算第二次
   let expectedCounts: Map<string, number> | null = null;
+  const from = (page - 1) * pageSize;
+  let todoPage: { ids: string[]; total: number } | null = null;
 
   if (todo) {
-    let todoIdQuery = supabase
-      .from('academy_exams')
-      // 分母要用每場自己的考試日算，所以這裡得把 `exam_date` 一起帶回來
-      .select('id, exam_date')
-      .eq('org_id', orgId)
-      .eq('status', 'active');
-    if (search?.trim()) {
-      todoIdQuery = todoIdQuery.ilike('name', `%${search.trim()}%`);
-    }
-    if (campusId) {
-      todoIdQuery = todoIdQuery.eq('campus_id', campusId);
-    }
-    if (subjectId) {
-      todoIdQuery = todoIdQuery.eq('subject_id', subjectId);
-    }
-    if (dateFrom) {
-      todoIdQuery = todoIdQuery.gte('exam_date', dateFrom);
-    }
-    if (dateTo) {
-      todoIdQuery = todoIdQuery.lte('exam_date', dateTo);
-    }
-    if (classFilteredExamIds) {
-      todoIdQuery = todoIdQuery.in('id', classFilteredExamIds);
-    }
-
-    const { data: activeRows, error: todoQueryError } = await todoIdQuery.order('exam_date', {
-      ascending: isDateAsc,
-      nullsFirst: false,
+    // 候選＝範圍內全部 active 考試。**分校範圍跟主查詢同一條 `applyCampusFilter`**（#2228）——
+    // 原本只套 `campus_id` 參數，受限管理員的候選集是全 org，靠主查詢收回來；分頁改在這裡切之後
+    // 不收就會漏。撈齊（fetchAllPages），不被 max_rows 截斷
+    const candidates = await fetchAllPages((rangeFrom, rangeTo) => {
+      let todoIdQuery = supabase
+        .from('academy_exams')
+        // 分母要用每場自己的考試日算，所以這裡得把 `exam_date` 一起帶回來
+        .select('id, exam_date')
+        .eq('org_id', orgId)
+        .eq('status', 'active');
+      if (search?.trim()) {
+        todoIdQuery = todoIdQuery.ilike('name', `%${search.trim()}%`);
+      }
+      todoIdQuery = applyCampusFilter(todoIdQuery, 'campus_id', getCampusScope(c), campusId);
+      if (subjectId) {
+        todoIdQuery = todoIdQuery.eq('subject_id', subjectId);
+      }
+      if (dateFrom) {
+        todoIdQuery = todoIdQuery.gte('exam_date', dateFrom);
+      }
+      if (dateTo) {
+        todoIdQuery = todoIdQuery.lte('exam_date', dateTo);
+      }
+      if (classFilteredExamIds) {
+        todoIdQuery = todoIdQuery.in('id', classFilteredExamIds);
+      }
+      return todoIdQuery
+        .order('exam_date', { ascending: isDateAsc })
+        .order('id', { ascending: isDateAsc })
+        .range(rangeFrom, rangeTo);
     });
-    if (todoQueryError) {
-      return c.json({ error: todoQueryError.message, code: 'DB_ERROR' }, 400);
+    if (candidates.error) {
+      return c.json({ error: (candidates.error as Error).message, code: 'DB_ERROR' }, 400);
     }
-    const activeExams = ((activeRows ?? []) as Array<{ id: string; exam_date: string }>).map(
+    const activeExams = (candidates.rows as Array<{ id: string; exam_date: string }>).map(
       (row) => ({ id: row.id, examDate: row.exam_date }),
     );
     if (activeExams.length === 0) {
@@ -676,10 +708,7 @@ app.openapi(listRoute, async (c) => {
     }
 
     // N（已登錄）與 M（分母）同一支 loader 撈 —— #949 前這裡另查一次 `academy_scores`，是重複的
-    const examCounts = await loadAcademyExamCounts(supabase, orgId, activeExams);
-    if (examCounts.scoresError) {
-      return c.json({ error: examCounts.scoresError, code: 'DB_ERROR' }, 400);
-    }
+    const examCounts = await loadAcademyExamCounts(getAuth(c).pool, orgId, activeExams);
     const recordedByExam = examCounts.recorded;
     expectedCounts = examCounts.expected;
 
@@ -694,16 +723,18 @@ app.openapi(listRoute, async (c) => {
       })
       .map((exam) => exam.id);
 
-    if (todoExamIds.length === 0) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    // 待辦集合是 JS 算出來的，embed 表達不了 —— 在這裡照候選的排序切頁，主查詢只 `.in()` 本頁
+    // （≤ pageSize 200，有界）。原本把全部待辦 id 塞進同一條 URL，一多就 414（#2228）
+    todoPage = { ids: todoExamIds.slice(from, from + pageSize), total: todoExamIds.length };
+    if (todoPage.ids.length === 0) {
+      return c.json({ data: [], meta: { total: todoPage.total, page, pageSize } }, 200);
     }
-    query = query.in('id', todoExamIds);
+    query = query.in('id', todoPage.ids);
+  } else {
+    query = query.range(from, from + pageSize - 1);
   }
 
-  const from = (page - 1) * pageSize;
-  query = query
-    .range(from, from + pageSize - 1)
-    .order('exam_date', { ascending: isDateAsc, nullsFirst: false });
+  query = query.order('exam_date', { ascending: isDateAsc, nullsFirst: false });
 
   const { data, error, count } = await query;
 
@@ -711,12 +742,16 @@ app.openapi(listRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  const pageRows = (data ?? []) as ExamListRow[];
+  const fetched = (data ?? []) as ExamListRow[];
+  // todo 模式照切頁時的順序排回去（同一天的考試，主查詢的排序不保證跟候選一樣）
+  const pageRows = todoPage
+    ? todoPage.ids.flatMap((id) => fetched.filter((row) => row.id === id))
+    : fetched;
   const counts =
     expectedCounts ??
     (
       await loadAcademyExamCounts(
-        supabase,
+        getAuth(c).pool,
         orgId,
         pageRows.map((row) => ({ id: row.id, examDate: row.exam_date })),
       )
@@ -760,7 +795,7 @@ app.openapi(listRoute, async (c) => {
     {
       data: rows,
       meta: {
-        total: count ?? 0,
+        total: todoPage ? todoPage.total : (count ?? 0),
         page,
         pageSize,
       },
@@ -811,35 +846,21 @@ app.openapi(todoCountRoute, async (c) => {
   // **分校範圍要跟列表一致。** 橫幅原本數的是全機構，而列表套 `applyCampusFilter`
   // —— 被指派單一分校的管理員因此會看到「有 5 場尚未登錄」然後點進去只有 2 場。
   // 這跟這支工單要修的「告警數字跟落地頁對不上」是同一族，順手收掉。
-  let activeQuery = supabase
-    .from('academy_exams')
-    .select('id, exam_date')
-    .eq('org_id', orgId)
-    .eq('status', 'active');
-  activeQuery = applyCampusFilter(activeQuery, 'campus_id', getCampusScope(c), undefined);
-
-  const { data: activeRows, error: activeRowsError } = await activeQuery;
-
-  if (activeRowsError) {
-    return c.json({ error: activeRowsError.message, code: 'DB_ERROR' }, 400);
+  const active = await loadActiveExams(supabase, orgId, getCampusScope(c), undefined);
+  if (active.error) {
+    return c.json({ error: (active.error as Error).message, code: 'DB_ERROR' }, 400);
   }
-
-  const activeExams = ((activeRows ?? []) as Array<{ id: string; exam_date: string }>).map(
-    (row) => ({ id: row.id, examDate: row.exam_date }),
-  );
+  const activeExams = active.exams;
   if (activeExams.length === 0) {
     return c.json({ count: 0, none: 0, partial: 0 }, 200);
   }
 
   // N（已登錄）與 M（分母）同一支 loader 撈 —— #949 前這裡另查一次 `academy_scores`，是重複的
-  const {
-    expected: expectedCounts,
-    recorded: recordedByExam,
-    scoresError,
-  } = await loadAcademyExamCounts(supabase, orgId, activeExams);
-  if (scoresError) {
-    return c.json({ error: scoresError, code: 'DB_ERROR' }, 400);
-  }
+  const { expected: expectedCounts, recorded: recordedByExam } = await loadAcademyExamCounts(
+    getAuth(c).pool,
+    orgId,
+    activeExams,
+  );
 
   // **跟列表的 `todo` 過濾走同一支 `classifyAcademyExamTodo`** ——
   // 判定各寫一份的話，「告警說 3 場、點進去篩出 8 場」是遲早的事
@@ -919,53 +940,29 @@ app.openapi(todoByClassRoute, async (c) => {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
 
-  let activeQuery = supabase
-    .from('academy_exams')
-    .select('id, exam_date')
-    .eq('org_id', orgId)
-    .eq('status', 'active');
-  activeQuery = applyCampusFilter(activeQuery, 'campus_id', getCampusScope(c), campusId);
-  const { data: activeRows, error: activeError } = await activeQuery;
-  if (activeError) {
-    return c.json({ error: activeError.message, code: 'DB_ERROR' }, 400);
+  const active = await loadActiveExams(supabase, orgId, getCampusScope(c), campusId);
+  if (active.error) {
+    return c.json({ error: (active.error as Error).message, code: 'DB_ERROR' }, 400);
   }
-  const activeExams = ((activeRows ?? []) as Array<{ id: string; exam_date: string }>).map(
-    (row) => ({ id: row.id, examDate: row.exam_date }),
-  );
-  if (activeExams.length === 0) {
+  if (active.exams.length === 0) {
     return c.json({ data: [] }, 200);
   }
 
-  const { data: linkRows, error: linkError } = await supabase
-    .from('academy_exam_classes')
-    .select('exam_id, class_id')
-    .in(
-      'exam_id',
-      activeExams.map((exam) => exam.id),
-    );
-  if (linkError) {
-    return c.json({ error: linkError.message, code: 'DB_ERROR' }, 400);
-  }
-  const classesByExam = new Map<string, string[]>();
-  for (const row of (linkRows ?? []) as Array<{ exam_id: string; class_id: string }>) {
-    // 沒有任課班的老師在這裡就被濾成空 —— 回空，不是回全部
-    if (!scope.isAdmin && !scope.taught.includes(row.class_id)) continue;
-    classesByExam.set(row.exam_id, [...(classesByExam.get(row.exam_id) ?? []), row.class_id]);
-  }
-  // 老師：沒有自己班的考試不算分母（也不必替它撈名單）
-  const candidates = activeExams.filter((exam) => classesByExam.has(exam.id));
-  if (candidates.length === 0) {
-    return c.json({ data: [] }, 200);
-  }
-
-  const { expected, recorded, scoresError } = await loadAcademyExamCounts(
-    supabase,
+  // 參加班跟 N／M 同一支 loader 撈（#2228）—— 原本這裡另發一支 `academy_exam_classes .in(exam_id)`，
+  // 全部 active 考試的 id 塞進 URL，跟 loader 裡那支是同一份資料
+  const { expected, recorded, classesByExam: allClassesByExam } = await loadAcademyExamCounts(
+    getAuth(c).pool,
     orgId,
-    candidates,
+    active.exams,
   );
-  if (scoresError) {
-    return c.json({ error: scoresError, code: 'DB_ERROR' }, 400);
+  const classesByExam = new Map<string, string[]>();
+  for (const [examId, classIds] of allClassesByExam) {
+    // 沒有任課班的老師在這裡就被濾成空 —— 回空，不是回全部
+    const visible = scope.isAdmin ? classIds : classIds.filter((id) => scope.taught.includes(id));
+    if (visible.length > 0) classesByExam.set(examId, visible);
   }
+  // 老師：沒有自己班的考試不算
+  const candidates = active.exams.filter((exam) => classesByExam.has(exam.id));
 
   // 由早到晚，同一天照 id —— 第一個碰到的就是該班「最早那場」（徽章連過去的登錄頁）
   const todoExams = candidates

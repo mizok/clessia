@@ -144,6 +144,51 @@ describe('buildAcademyScoreRows', () => {
  * 全都在這一層 —— 而少撈 `exam_date` 的後果是**每一場的分母都變成 0，於是告警
  * 靜靜地永遠是空的**（charter：驗證要打到出錯的那一層）。
  */
+type PoolRow = Record<string, unknown>;
+
+/**
+ * `loadAcademyExamCounts` 走 pg（#2228）的替身：照 SQL 打的是哪張表分派，**真的照參數過濾**
+ * （`org_id` 經考試、`exam_id = any($2)`、報名排除 `void`）—— 只回整張表的話，
+ * 範圍下錯也會綠。真 SQL 由 `contract/academy-exam-todo-2228.contract.ts` 對本機 DB 守。
+ */
+function fakeCountsPool(tables: {
+  exams: PoolRow[];
+  examClasses: PoolRow[];
+  enrollments: PoolRow[];
+  scores: PoolRow[];
+  scoresError?: string;
+}) {
+  return {
+    query: async (text: string, values: unknown[]) => {
+      const [orgId, examIds] = values as [string, string[]];
+      const inOrg = (examId: unknown) =>
+        examIds.includes(examId as string) &&
+        tables.exams.some(
+          (exam) => exam['id'] === examId && (exam['org_id'] ?? orgId) === orgId,
+        );
+      const links = tables.examClasses.filter((row) => inOrg(row['exam_id']));
+      if (text.includes('from public.academy_scores')) {
+        if (tables.scoresError) throw new Error(tables.scoresError);
+        return { rows: tables.scores.filter((row) => inOrg(row['exam_id'])) };
+      }
+      if (text.includes('from public.enrollments')) {
+        const classIds = tables.examClasses
+          .filter((row) => examIds.includes(row['exam_id'] as string))
+          .map((row) => row['class_id']);
+        return {
+          rows: tables.enrollments.filter(
+            (row) =>
+              (row['org_id'] ?? orgId) === orgId &&
+              row['status'] !== 'void' &&
+              classIds.includes(row['class_id']),
+          ),
+        };
+      }
+      return { rows: links };
+    },
+  };
+}
+
 describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級）', () => {
   interface Fixture {
     activeExams: Array<{ id: string; exam_date: string }>;
@@ -266,6 +311,15 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
       context.set('campusScope', campusScope);
+      context.set('auth', {
+        pool: fakeCountsPool({
+          exams: fixture.activeExams,
+          examClasses: fixture.examClasses,
+          enrollments: fixture.enrollments,
+          scores: fixture.scores,
+          scoresError: fixture.scoresError,
+        }),
+      });
       await next();
     });
     app.route('/api/academy-exams', academyExamsApp);
@@ -277,7 +331,9 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       } as never);
       return {
         response,
-        body: (await response.json()) as { data: Array<Record<string, unknown>> },
+        body: (await response.json().catch(() => null)) as {
+          data: Array<Record<string, unknown>>;
+        },
       };
     }
 
@@ -286,7 +342,10 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
         waitUntil: () => undefined,
         passThroughOnException: () => undefined,
       } as never);
-      return { response, body: (await response.json()) as Record<string, unknown> };
+      return {
+        response,
+        body: (await response.json().catch(() => null)) as Record<string, unknown>,
+      };
     }
 
     return { list, todoCount, todoIds: () => todoIdFilter, inCalls };
@@ -336,11 +395,12 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
    * loader 對分母那兩支查詢的錯誤是吞掉的 —— **成績那支不能照吞**：N 變 0 的話每場都被判成
    * 「一筆都沒登」，待辦數灌水，而畫面看起來完全正常。
    */
-  it('成績查詢失敗 → todo 列表與 todo-count 都回 400，不是把每場判成待辦', async () => {
+  it('成績查詢失敗 → todo 列表、非 todo 列表、todo-count 都回 500，不是把每場判成待辦（#2228）', async () => {
     const { list, todoCount } = createListApp({ ...BASE, scoresError: 'boom' });
 
-    expect((await list('todo=true')).response.status).toBe(400);
-    expect((await todoCount()).response.status).toBe(400);
+    expect((await list('todo=true')).response.status).toBe(500);
+    expect((await list('')).response.status).toBe(500);
+    expect((await todoCount()).response.status).toBe(500);
   });
 
   it('todo-count 的數字跟 todo 列表同一套判定（一場一半、一場全空）', async () => {
@@ -522,6 +582,9 @@ describe('GET /api/academy-exams/todo-by-class —— 每班待登錄一次帶�
             filters.push((row) => values.includes(row[col]));
             return query;
           },
+          // 候選 active 考試走 fetchAllPages（#2228）：排序／切頁對這個量級是 no-op
+          order: () => query,
+          range: () => query,
           maybeSingle: () => Promise.resolve({ data: run()[0] ?? null, error: null }),
           then: (onfulfilled?: (value: unknown) => unknown) =>
             Promise.resolve({ data: run(), error: null }).then(onfulfilled),
@@ -538,6 +601,14 @@ describe('GET /api/academy-exams/todo-by-class —— 每班待登錄一次帶�
       context.set('userId', ctx.userId ?? 'user-admin');
       context.set('roles', ctx.roles);
       context.set('campusScope', ctx.campusScope ?? null);
+      context.set('auth', {
+        pool: fakeCountsPool({
+          exams: tables.academy_exams,
+          examClasses: tables.academy_exam_classes,
+          enrollments: tables.enrollments,
+          scores: tables.academy_scores,
+        }),
+      });
       await next();
     });
     app.route('/api/academy-exams', academyExamsApp);
