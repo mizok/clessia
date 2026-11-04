@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Queryable } from './identity-sql';
 import { isEnrolledOn } from './session-roster';
 
 /**
@@ -104,64 +104,79 @@ export interface AcademyExamCounts {
   expected: Map<string, number>;
   /** 分子 N：已登錄筆數。`academy_scores` 有 `UNIQUE (exam_id, student_id)`，所以筆數就是人數 */
   recorded: Map<string, number>;
-  /**
-   * 成績查詢失敗時的訊息。**呼叫端必須把它當成錯誤回出去** —— 吞掉的話 N 會變成 0，
-   * 每一場都被判成「一筆都沒登」，待辦橫幅跟著灌水。（分母那兩支查詢的錯誤維持原本的吞法。）
-   */
-  scoresError: string | null;
+  /** 每場考試的參加班（todo-by-class 用，不必再查一次 `academy_exam_classes`） */
+  classesByExam: Map<string, string[]>;
 }
 
 /**
- * 撈齊三份資料再交給上面的純函式。**三支批次查詢，不是每場考試各發一次** ——
- * 延遲 ≈ 每請求的固定成本 × 一頁打幾支，減次數比減單次划算。
+ * 撈齊三份原料再交給上面的純函式，走 pg（#2228，同 #2226 的乙′）。
  *
- * #949：成績只需要考試 id，跟班級對照同一輪發；只有報名要等班級對照（兩輪，原本三輪）。
- * 已登錄數 N 也從同一份成績算 —— 呼叫端原本各自再查一次 `academy_scores`，是重複的。
+ * 原本是三支 PostgREST `.in()`（考試×班、成績的 `exam_id`，報名的 `class_id`）：todo-count／todo
+ * 把分校範圍內**全部** active 考試餵進來，一多就 414；成績與報名又沒分頁，被 max_rows（1000）截斷，
+ * 考試×班與報名的錯誤還被吞掉 —— N 少算、M 變 0，待辦數字靜默錯。
+ *
+ * `exams` 是呼叫端已經照分校／老師範圍授權過的集合，這裡只拿它當參數，`org_id` 只是防呆、
+ * **不寫分校條件**。分母口徑仍由 `buildAcademyExamExpectedCounts`＋`isEnrolledOn` 一份規則決定
+ * （不在 SQL 重寫「考試日在籍」）；SQL 只回原料。三支同一輪平行發。失敗丟例外（路由回 500）。
  */
 export async function loadAcademyExamCounts(
-  supabase: SupabaseClient,
+  db: Queryable,
   orgId: string,
   exams: ReadonlyArray<{ id: string; examDate: string }>,
 ): Promise<AcademyExamCounts> {
-  if (exams.length === 0) return { expected: new Map(), recorded: new Map(), scoresError: null };
+  if (exams.length === 0) {
+    return { expected: new Map(), recorded: new Map(), classesByExam: new Map() };
+  }
 
-  const examIds = exams.map((exam) => exam.id);
-
-  const [{ data: examClasses }, { data: scores, error: scoresError }] = await Promise.all([
-    supabase.from('academy_exam_classes').select('exam_id, class_id').in('exam_id', examIds),
-    supabase.from('academy_scores').select('exam_id, student_id').in('exam_id', examIds),
+  const params = [orgId, exams.map((exam) => exam.id)];
+  const [links, scores, enrollments] = await Promise.all([
+    db.query(
+      `select aec.exam_id, aec.class_id
+         from public.academy_exam_classes aec
+         join public.academy_exams ae on ae.id = aec.exam_id
+        where ae.org_id = $1::uuid and aec.exam_id = any($2::uuid[])`,
+      params,
+    ),
+    db.query(
+      `select s.exam_id, s.student_id
+         from public.academy_scores s
+         join public.academy_exams ae on ae.id = s.exam_id
+        where ae.org_id = $1::uuid and s.exam_id = any($2::uuid[])`,
+      params,
+    ),
+    db.query(
+      // **排除 `void`，保留 `withdrawal`**：作廢的報名是「這筆不算數」，
+      // 退班的是「他真的來過然後走了」——後者在考試日還在籍就該算進分母。
+      // 其餘（`pending_payment` / `suspended`）都是真的在這個班上，由日期區間決定。
+      // 日期轉 text：pg 預設把 date 解成 JS Date，`isEnrolledOn` 比的是 'YYYY-MM-DD' 字串
+      `select e.class_id, e.student_id,
+              e.effective_from::text as effective_from, e.effective_to::text as effective_to
+         from public.enrollments e
+        where e.org_id = $1::uuid and e.status <> 'void'
+          and e.class_id in (
+            select aec.class_id from public.academy_exam_classes aec where aec.exam_id = any($2::uuid[]))`,
+      params,
+    ),
   ]);
 
-  const classIds = Array.from(
-    new Set(((examClasses ?? []) as Array<{ class_id: string }>).map((row) => row.class_id)),
-  );
-
-  const { data: enrollments } =
-    classIds.length === 0
-      ? { data: [] }
-      : await supabase
-          .from('enrollments')
-          .select('class_id, student_id, effective_from, effective_to')
-          .eq('org_id', orgId)
-          // **排除 `void`，保留 `withdrawal`**：作廢的報名是「這筆不算數」，
-          // 退班的是「他真的來過然後走了」——後者在考試日還在籍就該算進分母。
-          // 其餘（`pending_payment` / `suspended`）都是真的在這個班上，由日期區間決定。
-          .neq('status', 'void')
-          .in('class_id', classIds);
-
-  const scoreRows = (scores ?? []) as Array<{ exam_id: string; student_id: string }>;
+  const examClasses = links.rows as Array<{ exam_id: string; class_id: string }>;
+  const scoreRows = scores.rows as Array<{ exam_id: string; student_id: string }>;
   const recorded = new Map<string, number>();
   for (const row of scoreRows) recorded.set(row.exam_id, (recorded.get(row.exam_id) ?? 0) + 1);
+  const classesByExam = new Map<string, string[]>();
+  for (const row of examClasses) {
+    classesByExam.set(row.exam_id, [...(classesByExam.get(row.exam_id) ?? []), row.class_id]);
+  }
 
   return {
     expected: buildAcademyExamExpectedCounts({
       exams,
-      examClasses: (examClasses ?? []) as Array<{ exam_id: string; class_id: string }>,
-      enrollments: (enrollments ?? []) as ExamEnrollmentRow[],
+      examClasses,
+      enrollments: enrollments.rows as ExamEnrollmentRow[],
       scores: scoreRows,
     }),
     recorded,
-    scoresError: scoresError?.message ?? null,
+    classesByExam,
   };
 }
 

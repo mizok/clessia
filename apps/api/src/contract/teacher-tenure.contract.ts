@@ -51,6 +51,14 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', null);
+      // 校內考列表的 N／M 走 pg（#2228）
+      set('auth', {
+        pool: {
+          query: pool!.query.bind(pool),
+          connect: pool!.connect.bind(pool),
+          end: async () => {},
+        },
+      });
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
