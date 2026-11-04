@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import classesRoute from './classes';
+import { restBackedClassWritePool } from '../test-utils/rest-backed-class-write-pool';
 
 /**
  * **班級與排課的寫入要以 `org_id` 定位（c1，#966 B2）。**
@@ -51,6 +52,7 @@ function call(db: Db, method: string, path: string, body?: unknown) {
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
     set('supabase', db.client);
+    set('auth', { pool: restBackedClassWritePool(db.client as never) });
     set('orgId', ORG_A);
     set('userId', 'admin-a');
     set('roles', ['admin']);
