@@ -760,7 +760,7 @@ app.openapi(
     // #2226：課堂與在籍統計在 DB 端一支 SQL 數好（`lib/class-list-stats.ts`）。原本 4 支 `.in(classIds)`
     // 撈逐堂原始列回來數：`pageSize=0` 班一多就 414、逐堂列被 max_rows 截斷，錯誤還被吞成 0
     let stats: Map<string, ClassListStats> = new Map();
-    let latestExamMap: Map<string, LatestExam | null> | null = null;
+    let latestExamMap: Map<string, LatestExam | null> = new Map();
     if (classIds.length > 0) {
       const pool = getAuth(c).pool;
       if (!pool) return c.json({ error: '讀取班級失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
@@ -768,7 +768,7 @@ app.openapi(
         // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
         [stats, latestExamMap] = await Promise.all([
           loadClassListStats(pool, c.get('orgId'), classIds, getCurrentTaipeiDateString()),
-          loadLatestExams(supabase, c.get('orgId'), classIds),
+          loadLatestExams(pool, c.get('orgId'), classIds),
         ]);
       } catch (err) {
         console.error('[classes] 列表統計失敗:', err instanceof Error ? err.message : err);
@@ -802,7 +802,7 @@ app.openapi(
             .map((s) => s['teacher_id'] as string | null)
             .filter((tid): tid is string => !!tid),
           ...(stats.get(id) ?? EMPTY_STATS),
-          latestExam: latestExamMap ? (latestExamMap.get(id) ?? null) : undefined,
+          latestExam: latestExamMap.get(id) ?? null,
         });
       }),
       meta: {

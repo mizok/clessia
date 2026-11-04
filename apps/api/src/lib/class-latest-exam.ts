@@ -1,5 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchAllPages } from './fetch-all-pages';
+import type { Queryable } from './identity-sql';
 import { isFailingScore } from './score-threshold';
 
 /**
@@ -111,59 +110,59 @@ export function buildLatestExams(input: {
   return result;
 }
 
-/** 三支批次查詢（不是每班一支）。任一支失敗回 null —— 呼叫端不回這欄，不把「查不到」說成「沒考」 */
+/**
+ * 三支批次查詢（不是每班一支），走 pg（#2240，同 #2226 的乙′）。
+ *
+ * 原本是三層 PostgREST `.in()`（links、enrollments 的 `class_id`，scores 的 `exam_id`）：`GET /classes`
+ * `pageSize=0` 班一多就 414，而任一支失敗都回 `null` → 路由整欄不回 `latestExam`、照樣 200。
+ * `classIds` 是列表已授權過的集合，這裡只拿它當參數，`org_id` 只是防呆。挑哪一場、怎麼算平均仍由
+ * `buildLatestExams` 一份規則決定，SQL 只回它要的原料（形狀同原本 REST）。失敗丟例外（路由回 500）。
+ */
 export async function loadLatestExams(
-  supabase: SupabaseClient,
+  db: Queryable,
   orgId: string,
   classIds: readonly string[],
-): Promise<Map<string, LatestExam | null> | null> {
+): Promise<Map<string, LatestExam | null>> {
   if (classIds.length === 0) return new Map();
-  const linkSelect: string =
-    'class_id, exam_id, academy_exams!inner(id, name, exam_date, total_score, pass_score, org_id, academy_scores(count))';
   const [links, enrollments] = await Promise.all([
-    fetchAllPages((from, to) =>
-      supabase
-        .from('academy_exam_classes')
-        .select(linkSelect)
-        .in('class_id', classIds)
-        .eq('academy_exams.org_id', orgId)
-        .order('exam_id')
-        .order('class_id')
-        .range(from, to),
+    db.query(
+      `select coalesce(json_agg(json_build_object(
+          'class_id', aec.class_id, 'exam_id', aec.exam_id,
+          'academy_exams', json_build_object(
+            'id', ae.id, 'name', ae.name, 'exam_date', ae.exam_date,
+            'total_score', ae.total_score, 'pass_score', ae.pass_score,
+            'academy_scores', json_build_array(json_build_object('count',
+              (select count(*) from public.academy_scores s where s.exam_id = ae.id)))))), '[]'::json) as result
+         from public.academy_exam_classes aec
+         join public.academy_exams ae on ae.id = aec.exam_id
+        where ae.org_id = $1::uuid and aec.class_id = any($2::uuid[])`,
+      [orgId, [...classIds]],
     ),
-    fetchAllPages((from, to) =>
-      supabase
-        .from('enrollments')
-        .select('id, class_id, student_id')
-        .eq('org_id', orgId)
-        .neq('status', 'void')
-        .in('class_id', classIds)
-        .order('id')
-        .range(from, to),
+    db.query(
+      `select class_id, student_id from public.enrollments
+        where org_id = $1::uuid and status <> 'void' and class_id = any($2::uuid[])`,
+      [orgId, [...classIds]],
     ),
   ]);
-  if (links.error || enrollments.error) return null;
+  const linkRows = ((links.rows[0] as { result?: Row[] } | undefined)?.result ?? []) as Row[];
 
-  const firstPass = buildLatestExams({ classIds, links: links.rows, scores: [], enrollments: [] });
+  const firstPass = buildLatestExams({ classIds, links: linkRows, scores: [], enrollments: [] });
   const examIds = [...new Set([...firstPass.values()].flatMap((e) => (e ? [e.examId] : [])))];
   const scores =
     examIds.length === 0
-      ? { rows: [], error: null }
-      : await fetchAllPages((from, to) =>
-          supabase
-            // org 範圍是傳遞來的：examIds 只來自上面 org 過濾過的 links，改 examIds 來源時要補 org 條件
-            .from('academy_scores')
-            .select('id, exam_id, student_id, score, status')
-            .in('exam_id', examIds)
-            .order('id')
-            .range(from, to),
+      ? { rows: [] }
+      : await db.query(
+          `select s.exam_id, s.student_id, s.score, s.status
+             from public.academy_scores s
+             join public.academy_exams ae on ae.id = s.exam_id
+            where ae.org_id = $1::uuid and s.exam_id = any($2::uuid[])`,
+          [orgId, examIds],
         );
-  if (scores.error) return null;
 
   return buildLatestExams({
     classIds,
-    links: links.rows,
-    scores: scores.rows,
-    enrollments: enrollments.rows,
+    links: linkRows,
+    scores: scores.rows as Row[],
+    enrollments: enrollments.rows as Row[],
   });
 }
