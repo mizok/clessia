@@ -381,7 +381,13 @@ async function ensureExamOwnedByOrg(
  * `taught` 是**現任或將任**的班 —— 寫入（建立、改、登錄成績）只看它。前任只讀、只限任期內考的
  * （#2049 R2，`tenure` + 考試日期）。管理員拿到空的但 `isAdmin` 是 true，兩者要一起看。
  */
-type ExamScope = { isAdmin: boolean; taught: string[]; tenure: TeachingTenure };
+type ExamScope = {
+  isAdmin: boolean;
+  taught: string[];
+  tenure: TeachingTenure;
+  /** 老師身分的 staff id（列表的 scope embed 用）；不是老師＝null */
+  staffId: string | null;
+};
 
 async function loadExamScope(
   supabase: AppEnv['Variables']['supabase'],
@@ -397,7 +403,12 @@ async function loadExamScope(
   const tenure: TeachingTenure = scope.teacherStaffId
     ? await loadTenure(supabase, params.orgId, scope.teacherStaffId)
     : { current: [], past: new Map() };
-  return { isAdmin: params.roles.includes('admin'), taught: [...tenure.current], tenure };
+  return {
+    isAdmin: params.roles.includes('admin'),
+    taught: [...tenure.current],
+    tenure,
+    staffId: scope.teacherStaffId ?? null,
+  };
 }
 
 /**
@@ -565,54 +576,42 @@ app.openapi(listRoute, async (c) => {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
 
-  let classFilteredExamIds: string[] | null = null;
-
   // 老師只看得到「參加班級裡有自己任課的班」的考試。沒有任何班就回空 —— 不是回全部。
   // 前任的班只看考試日在任期內的（#2049 R2）
-  if (!scope.isAdmin) {
-    const reachable = [...scope.taught, ...scope.tenure.past.keys()];
-    if (reachable.length === 0) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
-    }
-    const { data: taughtExamRows } = await supabase
-      .from('academy_exam_classes')
-      .select('exam_id, class_id, academy_exams(exam_date)')
-      .in('class_id', reachable);
-    classFilteredExamIds = Array.from(
-      new Set(
-        ((taughtExamRows ?? []) as Array<Record<string, unknown>>)
-          .filter((row) =>
-            canReadOn(
-              scope.tenure,
-              row['class_id'] as string,
-              (row['academy_exams'] as { exam_date?: string } | null)?.exam_date ?? null,
-            ),
-          )
-          .map((row) => row['exam_id'] as string),
-      ),
-    );
-    if (classFilteredExamIds.length === 0) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
-    }
+  const teacher = scope.isAdmin ? null : scope;
+  if (
+    teacher &&
+    (!teacher.staffId || (teacher.taught.length === 0 && teacher.tenure.past.size === 0))
+  ) {
+    return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
   }
 
-  if (classId) {
-    const { data: classExamRows, error: classExamError } = await supabase
-      .from('academy_exam_classes')
-      .select('exam_id')
-      .eq('class_id', classId);
-    if (classExamError) {
-      return c.json({ error: classExamError.message, code: 'DB_ERROR' }, 400);
-    }
-    const byClass = (classExamRows ?? []).map((row: { exam_id: string }) => row.exam_id);
-    // 老師已經有一份範圍清單時取**交集**，不是覆蓋 —— 覆蓋等於用 class_id 參數繞過範圍
-    classFilteredExamIds = classFilteredExamIds
-      ? classFilteredExamIds.filter((id) => byClass.includes(id))
-      : byClass;
-    if (classFilteredExamIds.length === 0) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
-    }
-  }
+  // `class_id` 參數走 embed、在 DB 端篩（#2229）——原本先撈該班考試 id 再 `.in('id', …)`。
+  // 另一個別名，跟老師的 `scope` embed 互不縮小：語意同原本「跟任課範圍取交集」
+  const classEmbed = classId ? ', cls:academy_exam_classes!inner(class_id)' : '';
+  /** 列表條件（候選與主查詢共用同一份，不各寫一次） */
+  const applyListFilters = <
+    Q extends {
+      ilike(column: string, pattern: string): Q;
+      eq(column: string, value: string): Q;
+      gte(column: string, value: string): Q;
+      lte(column: string, value: string): Q;
+      in(column: string, values: string[]): Q;
+    },
+  >(
+    q: Q,
+  ): Q => {
+    let next = q;
+    if (search?.trim()) next = next.ilike('name', `%${search.trim()}%`);
+    if (todo) next = next.eq('status', 'active');
+    else if (status) next = next.eq('status', status);
+    next = applyCampusFilter(next, 'campus_id', getCampusScope(c), campusId);
+    if (subjectId) next = next.eq('subject_id', subjectId);
+    if (dateFrom) next = next.gte('exam_date', dateFrom);
+    if (dateTo) next = next.lte('exam_date', dateTo);
+    if (classId) next = next.eq('cls.class_id', classId);
+    return next;
+  };
 
   let query = supabase
     .from('academy_exams')
@@ -632,11 +631,12 @@ app.openapi(listRoute, async (c) => {
       updated_at,
       subjects(name),
       academy_exam_classes(class_id, classes(name, course_id)),
-      academy_scores(count)
+      academy_scores(count)${classEmbed}
     `,
       { count: 'exact' },
     )
     .eq('org_id', orgId);
+  query = applyListFilters(query);
   const pageQuery = (ids: string[]) =>
     supabase
       .from('academy_exams')
@@ -662,62 +662,32 @@ app.openapi(listRoute, async (c) => {
       .eq('org_id', orgId)
       .in('id', ids);
 
-  if (search?.trim()) {
-    query = query.ilike('name', `%${search.trim()}%`);
-  }
-  if (todo) {
-    query = query.eq('status', 'active');
-  } else if (status) {
-    query = query.eq('status', status);
-  }
-  query = applyCampusFilter(query, 'campus_id', getCampusScope(c), campusId);
-  if (subjectId) {
-    query = query.eq('subject_id', subjectId);
-  }
-  if (dateFrom) {
-    query = query.gte('exam_date', dateFrom);
-  }
-  if (dateTo) {
-    query = query.lte('exam_date', dateTo);
-  }
-  if (classFilteredExamIds) {
-    query = query.in('id', classFilteredExamIds);
-  }
-
   // todo 模式會先為所有候選考試算一次分母，那份結果涵蓋分頁後的這一頁，
   // 不需要再算第二次
   let expectedCounts: Map<string, number> | null = null;
   const from = (page - 1) * pageSize;
-  let todoPage: { ids: string[]; total: number } | null = null;
+  let jsPage: { ids: string[]; total: number } | null = null;
 
-  if (todo) {
-    // 候選＝範圍內全部 active 考試。**分校範圍跟主查詢同一條 `applyCampusFilter`**（#2228）——
-    // 原本只套 `campus_id` 參數，受限管理員的候選集是全 org，靠主查詢收回來；分頁改在這裡切之後
-    // 不收就會漏。撈齊（fetchAllPages），不被 max_rows 截斷
+  // 候選＋JS 切頁：todo（待辦是 JS 判的，#2228）與老師（前任任期窗口是 JS 判的，#2229）。
+  // 其餘（管理員、非 todo）維持 DB 分頁
+  if (todo || teacher) {
+    // 老師範圍放進 embed：這場考試裡**這位老師排過課的班**，在 DB 端篩，不帶任何 id 清單（#2229）。
+    // 原本先撈「現任＋歷任班的歷年考試 id」再 `.in('id', …)` 塞回來 —— 隨年資累積必 414，
+    // 而那支前置查詢不看 error，失敗時老師看到空列表
+    const scopeEmbed = teacher
+      ? ', scope:academy_exam_classes!inner(class_id, classes!inner(schedules!inner(teacher_id)))'
+      : '';
+    // 候選撈齊（fetchAllPages），不被 max_rows 截斷；分校範圍跟主查詢同一份 `applyListFilters`
     const candidates = await fetchAllPages((rangeFrom, rangeTo) => {
-      let todoIdQuery = supabase
+      let candidateQuery = supabase
         .from('academy_exams')
-        // 分母要用每場自己的考試日算，所以這裡得把 `exam_date` 一起帶回來
-        .select('id, exam_date')
-        .eq('org_id', orgId)
-        .eq('status', 'active');
-      if (search?.trim()) {
-        todoIdQuery = todoIdQuery.ilike('name', `%${search.trim()}%`);
+        // 分母要用每場自己的考試日算，任期窗口也是 —— `exam_date` 一起帶回來
+        .select(`id, exam_date${scopeEmbed}${classEmbed}`)
+        .eq('org_id', orgId);
+      if (teacher) {
+        candidateQuery = candidateQuery.eq('scope.classes.schedules.teacher_id', teacher.staffId!);
       }
-      todoIdQuery = applyCampusFilter(todoIdQuery, 'campus_id', getCampusScope(c), campusId);
-      if (subjectId) {
-        todoIdQuery = todoIdQuery.eq('subject_id', subjectId);
-      }
-      if (dateFrom) {
-        todoIdQuery = todoIdQuery.gte('exam_date', dateFrom);
-      }
-      if (dateTo) {
-        todoIdQuery = todoIdQuery.lte('exam_date', dateTo);
-      }
-      if (classFilteredExamIds) {
-        todoIdQuery = todoIdQuery.in('id', classFilteredExamIds);
-      }
-      return todoIdQuery
+      return applyListFilters(candidateQuery)
         .order('exam_date', { ascending: isDateAsc })
         .order('id', { ascending: isDateAsc })
         .range(rangeFrom, rangeTo);
@@ -725,45 +695,49 @@ app.openapi(listRoute, async (c) => {
     if (candidates.error) {
       return c.json({ error: (candidates.error as Error).message, code: 'DB_ERROR' }, 400);
     }
-    const activeExams = (candidates.rows as Array<{ id: string; exam_date: string }>).map(
-      (row) => ({ id: row.id, examDate: row.exam_date }),
+    type CandidateRow = { id: string; exam_date: string; scope?: Array<{ class_id: string }> };
+    // 任期窗口（考試日落在那一班的任期內）是跨表的日期比較，embed 表達不了 ——
+    // 在這裡用既有 `canReadOn` 濾候選列，規則只有 `teacher-scope.ts` 一份
+    const visible = (candidates.rows as CandidateRow[]).filter(
+      (row) =>
+        !teacher ||
+        (row.scope ?? []).some((link) => canReadOn(teacher.tenure, link.class_id, row.exam_date)),
     );
-    if (activeExams.length === 0) {
-      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    const candidateExams = visible.map((row) => ({ id: row.id, examDate: row.exam_date }));
+
+    let pageSource = candidateExams.map((exam) => exam.id);
+    if (todo) {
+      // N（已登錄）與 M（分母）同一支 loader 撈 —— #949 前這裡另查一次 `academy_scores`，是重複的
+      const examCounts = await loadAcademyExamCounts(getAuth(c).pool, orgId, candidateExams);
+      const recordedByExam = examCounts.recorded;
+      expectedCounts = examCounts.expected;
+      pageSource = candidateExams
+        .filter((exam) => {
+          const level = classifyAcademyExamTodo(
+            recordedByExam.get(exam.id) ?? 0,
+            expectedCounts?.get(exam.id) ?? 0,
+          );
+          if (level === null) return false;
+          return todoLevel === undefined || level === todoLevel;
+        })
+        .map((exam) => exam.id);
     }
 
-    // N（已登錄）與 M（分母）同一支 loader 撈 —— #949 前這裡另查一次 `academy_scores`，是重複的
-    const examCounts = await loadAcademyExamCounts(getAuth(c).pool, orgId, activeExams);
-    const recordedByExam = examCounts.recorded;
-    expectedCounts = examCounts.expected;
-
-    const todoExamIds = activeExams
-      .filter((exam) => {
-        const level = classifyAcademyExamTodo(
-          recordedByExam.get(exam.id) ?? 0,
-          expectedCounts?.get(exam.id) ?? 0,
-        );
-        if (level === null) return false;
-        return todoLevel === undefined || level === todoLevel;
-      })
-      .map((exam) => exam.id);
-
-    // 待辦集合是 JS 算出來的，embed 表達不了 —— 在這裡照候選的排序切頁，主查詢只 `.in()` 本頁
-    // （下面切 ID_CHUNK 一批）。原本把全部待辦 id 塞進同一條 URL，一多就 414（#2228）
-    todoPage = { ids: todoExamIds.slice(from, from + pageSize), total: todoExamIds.length };
-    if (todoPage.ids.length === 0) {
-      return c.json({ data: [], meta: { total: todoPage.total, page, pageSize } }, 200);
+    // 在這裡照候選的排序切頁，主查詢只取本頁（下面切 ID_CHUNK 一批）
+    jsPage = { ids: pageSource.slice(from, from + pageSize), total: pageSource.length };
+    if (jsPage.ids.length === 0) {
+      return c.json({ data: [], meta: { total: jsPage.total, page, pageSize } }, 200);
     }
   }
 
   let fetched: ExamListRow[];
   let count: number | null = null;
-  if (todoPage) {
+  if (jsPage) {
     // 本頁 id 切 ID_CHUNK（100）一批。**「≤ pageSize 200 就有界」不成立**：200 個 uuid（~7.4KB）加上
     // 這條長 select 就 414（#2262 契約實測 URI too long）。最多 2 支，任一失敗整支回錯，不回半頁
     const batches = await Promise.all(
-      Array.from({ length: Math.ceil(todoPage.ids.length / ID_CHUNK) }, (_, i) =>
-        pageQuery(todoPage!.ids.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK)),
+      Array.from({ length: Math.ceil(jsPage.ids.length / ID_CHUNK) }, (_, i) =>
+        pageQuery(jsPage!.ids.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK)),
       ),
     );
     const failed = batches.find((batch) => batch.error);
@@ -778,12 +752,12 @@ app.openapi(listRoute, async (c) => {
     if (result.error) {
       return c.json({ error: result.error.message, code: 'DB_ERROR' }, 400);
     }
-    fetched = (result.data ?? []) as ExamListRow[];
+    fetched = (result.data ?? []) as unknown as ExamListRow[];
     count = result.count;
   }
   // todo 模式照切頁時的順序排回去（同一天的考試，主查詢的排序不保證跟候選一樣）
-  const pageRows = todoPage
-    ? todoPage.ids.flatMap((id) => fetched.filter((row) => row.id === id))
+  const pageRows = jsPage
+    ? jsPage.ids.flatMap((id) => fetched.filter((row) => row.id === id))
     : fetched;
   const counts =
     expectedCounts ??
@@ -833,7 +807,7 @@ app.openapi(listRoute, async (c) => {
     {
       data: rows,
       meta: {
-        total: todoPage ? todoPage.total : (count ?? 0),
+        total: jsPage ? jsPage.total : (count ?? 0),
         page,
         pageSize,
       },
