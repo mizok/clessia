@@ -174,15 +174,14 @@ export async function loadStaffListViaSql(
       isArrayOf(r['baUserRows'], 'id') &&
       isArrayOf(r['summaryRows'], 'user_id') &&
       isArrayOf(r['summaryRoleRows'], 'user_id');
-    if (!ok) {
-      console.error('[staff-sql] /api/staff 結果形狀不對，改走 REST');
-      return null;
-    }
+    // **失敗不退回 builder**（#2230 ③，計畫席裁定 c）：builder 那條在多分校＋角色篩選時 414、
+    // 關聯查詢吞錯（分校／科目／角色欄空白）。同 workbench #2227「沒有池就回 500，不退回」
+    if (!ok) throw new Error('[staff-sql] /api/staff 結果形狀不對');
     return r as unknown as StaffListSqlResult;
   } catch (err) {
     console.error(
-      `[staff-sql] /api/staff 查詢失敗，改走 REST：${(err as { code?: string })?.code ?? 'unknown'}`,
+      `[staff-sql] /api/staff 查詢失敗：${(err as { code?: string })?.code ?? 'unknown'}`,
     );
-    return null;
+    throw err;
   }
 }

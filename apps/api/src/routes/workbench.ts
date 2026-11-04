@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Queryable } from '../lib/identity-sql';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { DbUuidSchema } from '../lib/validation';
 
@@ -29,88 +30,72 @@ import { loadDailyAttendance } from '../lib/today-attendance';
  */
 /**
  * 每個學生的主要家長（#1314 D1）。`is_primary` 優先，沒標的取第一位；電話住 `ba_user`（讀 ba_* 合法，c2 只禁寫）。
- * 家長用 `parents!inner` 限本 org —— 關聯表沒有 org_id。
+ *
+ * 走 pg（#2230 ③）：學生名單是 `loadDailyAttendance` 在 JS 算出來的「該到沒到」，embed 沒辦法從這個集合出發，
+ * 只能帶 id —— 原本兩支 PostgREST `.in()`（學生 id、帳號 id），人一多就 414，而且**兩支都不看 error**，
+ * 失敗時列上直接沒有家長電話。`= any($2)` 不進 URL；家長限本 org（`p.org_id = $1`，關聯表沒有 org_id）。
+ * 失敗丟例外（路由回 500）。
  */
 async function primaryParentByStudent(
-  supabase: SupabaseClient,
+  db: Queryable,
   orgId: string,
   studentIds: string[],
 ): Promise<Map<string, { name: string; relation: string | null; phone: string | null }>> {
-  const { data: relationRows } = await supabase
-    .from('parent_student_relations')
-    .select('student_id, relation, is_primary, parents!inner(name, user_id, org_id)')
-    .in('student_id', studentIds)
-    .eq('parents.org_id', orgId);
-
-  const picked = new Map<
-    string,
-    { name: string; relation: string | null; userId: string | null }
-  >();
-  const primaryFirst = ((relationRows ?? []) as unknown as Array<Record<string, unknown>>).sort(
-    (a, b) => Number(Boolean(b['is_primary'])) - Number(Boolean(a['is_primary'])),
+  const { rows } = await db.query(
+    `select r.student_id, r.relation, r.is_primary, p.name, u.phone
+       from public.parent_student_relations r
+       join public.parents p on p.id = r.parent_id and p.org_id = $1::uuid
+       left join public.ba_user u on u.id = p.user_id
+      where r.student_id = any($2::uuid[])`,
+    [orgId, studentIds],
   );
+  const picked = new Map<string, { name: string; relation: string | null; phone: string | null }>();
+  const primaryFirst = (
+    rows as Array<{
+      student_id: string;
+      relation: string | null;
+      is_primary: boolean | null;
+      name: string | null;
+      phone: string | null;
+    }>
+  ).sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)));
   for (const row of primaryFirst) {
-    const studentId = row['student_id'] as string;
-    if (picked.has(studentId)) continue;
-    const parent = row['parents'] as { name?: string; user_id?: string | null } | null;
-    picked.set(studentId, {
-      name: parent?.name ?? '',
-      relation: (row['relation'] as string | null) ?? null,
-      userId: parent?.user_id ?? null,
+    if (picked.has(row.student_id)) continue;
+    picked.set(row.student_id, {
+      name: row.name ?? '',
+      relation: row.relation ?? null,
+      phone: row.phone ?? null,
     });
   }
-
-  const userIds = [...new Set([...picked.values()].flatMap((p) => (p.userId ? [p.userId] : [])))];
-  const phoneByUser = new Map<string, string | null>();
-  if (userIds.length > 0) {
-    const { data: users } = await supabase.from('ba_user').select('id, phone').in('id', userIds);
-    for (const user of (users ?? []) as Array<{ id: string; phone: string | null }>) {
-      phoneByUser.set(user.id, user.phone ?? null);
-    }
-  }
-
-  return new Map(
-    [...picked].map(([studentId, p]) => [
-      studentId,
-      {
-        name: p.name,
-        relation: p.relation,
-        phone: p.userId ? (phoneByUser.get(p.userId) ?? null) : null,
-      },
-    ]),
-  );
+  return picked;
 }
 
 /**
  * 每個學生在 `date`（台北日）最近一筆聯絡（#1314 D2）。只看這一天 —— 儀表板問的是「今天打過了沒」，
- * 歷史在學生檔案（`GET /contact-logs`）。新到舊撈、每人取第一筆。
+ * 歷史在學生檔案（`GET /contact-logs`）。走 pg 的理由同 `primaryParentByStudent`（原本也不看 error）。
+ * `created_at` 用 `to_json` 轉字串：跟 PostgREST 回的 ISO 格式一樣，pg 預設會解成 JS Date。
  */
 export async function lastContactByStudent(
-  supabase: SupabaseClient,
+  db: Queryable,
   orgId: string,
   studentIds: string[],
   date: string,
 ): Promise<Map<string, { at: string; channel: 'phone' | 'line' | 'other' }>> {
-  const { data } = await supabase
-    .from('contact_logs')
-    .select('student_id, channel, created_at')
-    .eq('org_id', orgId)
-    .in('student_id', studentIds)
-    .gte('created_at', `${date}T00:00:00+08:00`)
-    .lt('created_at', `${addDaysToDateString(date, 1)}T00:00:00+08:00`)
-    .order('created_at', { ascending: false });
-
-  const latest = new Map<string, { at: string; channel: 'phone' | 'line' | 'other' }>();
-  for (const row of (data ?? []) as Array<{
-    student_id: string;
-    channel: 'phone' | 'line' | 'other';
-    created_at: string;
-  }>) {
-    if (!latest.has(row.student_id)) {
-      latest.set(row.student_id, { at: row.created_at, channel: row.channel });
-    }
-  }
-  return latest;
+  const { rows } = await db.query(
+    `select distinct on (c.student_id) c.student_id, c.channel,
+            to_json(c.created_at) #>> '{}' as created_at
+       from public.contact_logs c
+      where c.org_id = $1::uuid
+        and c.student_id = any($2::uuid[])
+        and c.created_at >= $3::timestamptz and c.created_at < $4::timestamptz
+      order by c.student_id, c.created_at desc`,
+    [orgId, studentIds, `${date}T00:00:00+08:00`, `${addDaysToDateString(date, 1)}T00:00:00+08:00`],
+  );
+  return new Map(
+    (
+      rows as Array<{ student_id: string; channel: 'phone' | 'line' | 'other'; created_at: string }>
+    ).map((row) => [row.student_id, { at: row.created_at, channel: row.channel }]),
+  );
 }
 
 const app = new OpenAPIHono<AppEnv>();
@@ -305,8 +290,8 @@ app.openapi(
     const [primaryParents, lastContacts] =
       expectedIds.length > 0
         ? await Promise.all([
-            primaryParentByStudent(supabase, orgId, expectedIds),
-            lastContactByStudent(supabase, orgId, expectedIds, targetDate),
+            primaryParentByStudent(pool, orgId, expectedIds),
+            lastContactByStudent(pool, orgId, expectedIds, targetDate),
           ])
         : [new Map(), new Map()];
     const expected = daily.expected.map((student) => ({

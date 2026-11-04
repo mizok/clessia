@@ -79,6 +79,50 @@ export function restBackedSummaryPool(client: SupabaseLike) {
         }),
       );
     }
+    // 工作台（`routes/workbench.ts`，#2230 ③）：主要家長＋電話、今日最近聯絡。翻成改寫前的 REST 鏈
+    if (sql.includes('from public.parent_student_relations r')) {
+      const [orgId, studentIds] = params as [string, string[]];
+      const rels = await settle(
+        from('parent_student_relations')['select']!(
+          'student_id, relation, is_primary, parents!inner(name, user_id, org_id)',
+        )['in']!('student_id', studentIds)['eq']!('parents.org_id', orgId),
+      );
+      const userIds = rels.flatMap((r) => {
+        const p = r['parents'] as Row | null;
+        return p?.['user_id'] ? [p['user_id'] as string] : [];
+      });
+      const users =
+        userIds.length === 0
+          ? []
+          : await settle(from('ba_user')['select']!('id, phone')['in']!('id', userIds));
+      const phone = new Map(users.map((u) => [u['id'], u['phone'] ?? null]));
+      return {
+        rows: rels.map((r) => {
+          const p = (r['parents'] as Row | null) ?? {};
+          return {
+            student_id: r['student_id'],
+            relation: r['relation'] ?? null,
+            is_primary: r['is_primary'] ?? null,
+            name: p['name'] ?? null,
+            phone: p['user_id'] ? (phone.get(p['user_id']) ?? null) : null,
+          };
+        }),
+      };
+    }
+    if (sql.includes('from public.contact_logs c')) {
+      const [orgId, studentIds, from_, to] = params as [string, string[], string, string];
+      const logs = await settle(
+        from('contact_logs')['select']!('student_id, channel, created_at')['eq']!('org_id', orgId)[
+          'in'
+        ]!('student_id', studentIds)['gte']!('created_at', from_)['lt']!('created_at', to)[
+          'order'
+        ]!('created_at', { ascending: false }),
+      );
+      const seen = new Set<unknown>();
+      return {
+        rows: logs.filter((r) => !seen.has(r['student_id']) && seen.add(r['student_id'])),
+      };
+    }
     throw new Error(`fake pool：認不得的語句：${sql.trim().slice(0, 80)}`);
   };
 

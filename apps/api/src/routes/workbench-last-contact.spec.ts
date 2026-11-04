@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { lastContactByStudent } from './workbench';
 
 /**
@@ -27,8 +28,9 @@ describe('lastContactByStudent', () => {
       ],
     });
 
+    // 走 pg（#2230 ③）：替身把那句 SQL 翻成同一條 REST 鏈；SQL 語意由 contract/pg-reads-2230 守
     const result = await lastContactByStudent(
-      db.client as never,
+      restBackedSummaryPool(db.client as never),
       'org-a',
       ['s1', 's2', 's3'],
       '2026-03-10',
