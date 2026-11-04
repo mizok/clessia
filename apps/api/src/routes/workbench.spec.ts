@@ -23,6 +23,7 @@ function createWorkbenchApp(fixture: {
 }) {
   const queried: string[] = [];
   const inCalls: Array<{ table: string; column: string; values: string[] }> = [];
+  const neqCalls: Array<{ table: string; column: string; value: unknown }> = [];
 
   const supabase = {
     from(table: string) {
@@ -35,6 +36,10 @@ function createWorkbenchApp(fixture: {
         // 這是 charter 那條「替身分不出對錯時，改測送出去的查詢長什麼樣」。
         in: (column: string, values: readonly string[]) => {
           inCalls.push({ table, column, values: [...values] });
+          return query;
+        },
+        neq: (column: string, value: unknown) => {
+          neqCalls.push({ table, column, value });
           return query;
         },
         lte: () => query,
@@ -88,7 +93,7 @@ function createWorkbenchApp(fixture: {
   });
   app.route('/api/workbench', workbenchApp);
 
-  return { app, queried, inCalls };
+  return { app, queried, inCalls, neqCalls };
 }
 
 const sessionRow = (overrides: Record<string, unknown> = {}) => ({
@@ -201,7 +206,7 @@ describe('GET /api/workbench/today', () => {
 
   // #1314 SL1（計畫席 10-10 裁）：當天停課的班不讓學生「應到」；同一天另一班有課的照樣應到
   it('停課的班的學生不在 expected（另一班有課的仍在）', async () => {
-    const { app, inCalls } = createWorkbenchApp({
+    const { app, neqCalls } = createWorkbenchApp({
       mode: 'daily_checkin',
       sessions: [
         sessionRow(),
@@ -225,12 +230,12 @@ describe('GET /api/workbench/today', () => {
     });
     await app.request('/api/workbench/today?date=2026-04-06');
 
-    // 替身回固定 fixture、不照 in 過濾 —— 所以測送出去的條件：撈在籍名單時停課的班不在 class_id 裡
-    // 第一支是 summariseSessions 算每堂在籍人數（停課堂照算，那是課堂卡片的數字）；最後一支是應到名單
-    const classIdCalls = inCalls.filter(
-      (call) => call.table === 'enrollments' && call.column === 'class_id',
-    );
-    expect(classIdCalls.at(-1)?.values).toEqual(['class-1']);
+    // 替身回固定 fixture、不照條件過濾 —— 所以測送出去的條件：應到名單用 embed 排除停課的課（#2227）
+    expect(neqCalls).toContainEqual({
+      table: 'enrollments',
+      column: 'classes.sessions.status',
+      value: 'cancelled',
+    });
   });
 
   // #1314 D1：is_primary 優先（不論列序）；沒有家長 → null；家長沒帳號 → phone null

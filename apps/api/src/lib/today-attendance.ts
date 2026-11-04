@@ -83,39 +83,59 @@ export function toTodaySession(row: Row): TodaySession {
 }
 
 /**
- * 今天有課的班的在籍學生、打卡、請假。`sessions` 由呼叫端撈（已套分校範圍）。
+ * 呼叫端撈 `sessions` 時套的範圍條件，在籍名單照同一組條件在 DB 端篩（#2227）。
+ * `null`＝不篩；`classIds` 只給老師（他教的班，量小）。
+ */
+export interface DailyAttendanceScope {
+  readonly campusIds: readonly string[] | null;
+  readonly classIds: readonly string[] | null;
+}
+
+/**
+ * 今天有課的班的在籍學生、打卡、請假。`sessions` 由呼叫端撈（已套 `scope`），用來帶出第一堂課與分校。
  */
 export async function loadDailyAttendance(
   supabase: SupabaseClient,
   orgId: string,
   date: string,
   sessions: readonly TodaySession[],
+  scope: DailyAttendanceScope,
 ): Promise<DailyAttendance> {
   // 停課的課不算 —— 只剩停課那堂的學生今天不必來（同一天另一個班有課的照樣應到）。
   // 2026-10-10 前作業台把停課班的學生也列進「應到」，晨間看板會叫行政去追不用來的人
   const held = sessions.filter((session) => session.status !== 'cancelled');
-  const classIds = Array.from(new Set(held.map((session) => session.classId).filter(Boolean)));
-  if (classIds.length === 0) return { expected: [], arrived: [], onLeave: [] };
+  if (held.length === 0) return { expected: [], arrived: [], onLeave: [] };
 
   // 在籍條件**與點名名單同源**（`status = 'active'` + 生效區間涵蓋當天）——
   // #178 已經在 daily-checkins.ts 建立這個先例，照抄不另立一份。
   // 兩邊條件不一致會生出「有出勤紀錄但名單上沒這個人」的鬼影。
   // **翻到底**（#1928）：今天應到的人、今天的打卡都可能超過 PostgREST 的 max_rows（1000）——
   // 一次撈會被靜默截斷，被截掉的人不在應到名單、或顯示成「該到沒到」。翻頁每頁一個 subrequest，
-  // 應到 3000 人也只要 3 頁；`.in('class_id')` 是今天有課的班（一天頂多幾十個），不會太長。
+  // 應到 3000 人也只要 3 頁。
+  // **「今天有課（沒停課）的班」放在 embed 的 `!inner` 裡、在 DB 端篩**（#2227，#1928 A#7）：原本把今天有課的班 id
+  // `.in()` 回 enrollments，大機構一天上百班就 414（整頁 500）。範圍條件跟呼叫端撈 `sessions` 的同一組
   const [enrollments, checkins] = await Promise.all([
-    fetchAllPages((from, to) =>
-      supabase
+    fetchAllPages((from, to) => {
+      let query = supabase
         .from('enrollments')
-        .select('id, student_id, class_id, students(name, grade)')
+        .select(
+          'id, student_id, class_id, students(name, grade), classes!inner(sessions!inner(session_date, status))',
+        )
         .eq('org_id', orgId)
         .eq('status', 'active')
-        .in('class_id', classIds)
+        .eq('classes.sessions.session_date', date)
+        .neq('classes.sessions.status', 'cancelled')
         .lte('effective_from', date)
-        .or(`effective_to.is.null,effective_to.gte.${date}`)
-        .order('id')
-        .range(from, to),
-    ),
+        .or(`effective_to.is.null,effective_to.gte.${date}`);
+      if (scope.campusIds) query = query.in('classes.campus_id', [...scope.campusIds]);
+      if (scope.classIds) {
+        query = query.in(
+          'class_id',
+          scope.classIds.length > 0 ? [...scope.classIds] : ['00000000-0000-0000-0000-000000000000'],
+        );
+      }
+      return query.order('id').range(from, to);
+    }),
     fetchAllPages((from, to) =>
       supabase
         .from('daily_checkins')

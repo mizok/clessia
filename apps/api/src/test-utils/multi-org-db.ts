@@ -263,7 +263,8 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       neq(column: string, value: unknown) {
-        filters.push((row) => row[column] !== value);
+        // 巢狀欄位同 `in`：任一筆子列不等於就留（`classes.sessions.status` 這種 `!inner` 條件，#2227）
+        filters.push((row) => fieldValues(row, column).some((v) => v !== value));
         return proxy;
       },
       in(column: string, values: readonly unknown[]) {

@@ -290,7 +290,10 @@ app.openapi(
     // 判準在 `lib/today-attendance.ts`（學生名冊的「今日到班」也走它，#1314 SL1）
     const daily =
       mode === 'daily_checkin'
-        ? await loadDailyAttendance(supabase, orgId, targetDate, sessions)
+        ? await loadDailyAttendance(supabase, orgId, targetDate, sessions, {
+            campusIds,
+            classIds: null,
+          })
         : { expected: [], arrived: [], onLeave: [] };
 
     // 主要家長（#1314 D1）：該到沒到的列直接撥
