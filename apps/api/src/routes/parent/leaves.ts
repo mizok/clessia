@@ -191,24 +191,10 @@ app.openapi(
       return c.json({ error: '這段時間的課都已經點成出席了', code: 'ALL_ATTENDED' }, 400);
     }
 
-    // 4. 取鎖 → 查重疊（判準同管理端）→ 寫入，同一筆交易；跟管理端同一把鎖（#1970）
-    const created = await childDb.createLeave({
-      studentId,
-      window,
-      reason: body.reason ?? null,
-      userId,
-    });
-    if (created.kind === 'out-of-scope') {
-      return c.json({ error: '不是你的孩子', code: 'NOT_YOUR_CHILD' }, 403);
-    }
-    if (created.kind === 'overlap') {
-      return c.json({ error: '這段時間已經請過假了', code: 'LEAVE_OVERLAP' }, 409);
-    }
-    if (created.kind === 'failed') return failed();
-    const leave = created.leave;
-
-    // 5. 可以改的、有 event 的堂寫成 on_leave（沒 event 的堂是懶生成，讀取時由 leaveCoversSession 推導，同管理端）
-    const upserts = buildLeaveAttendanceUpserts({
+    // 4. 可以改的、有 event 的堂要寫成 on_leave —— 在交易外算好（只讀），寫入跟假單同一筆交易（#2244，
+    //    #2237 同形狀：原本 COMMIT 之後才 upsert 且不看 error，寫失敗照樣 201）。
+    //    沒 event 的堂是懶生成，讀取時由 leaveCoversSession 推導，同管理端
+    const attendanceEventIds = buildLeaveAttendanceUpserts({
       orgId,
       studentId,
       recordedBy: userId,
@@ -224,10 +210,24 @@ app.openapi(
           },
         })),
       enrollments,
+    }).map((u) => u.event_id);
+
+    // 5. 取鎖 → 查重疊（判準同管理端）→ 寫假單 → 寫出勤，同一筆交易；跟管理端同一把鎖（#1970）
+    const created = await childDb.createLeave({
+      studentId,
+      window,
+      reason: body.reason ?? null,
+      userId,
+      attendanceEventIds,
     });
-    if (upserts.length > 0) {
-      await childDb.from('attendance_records', 'student_id').upsert(upserts, 'student_id,event_id');
+    if (created.kind === 'out-of-scope') {
+      return c.json({ error: '不是你的孩子', code: 'NOT_YOUR_CHILD' }, 403);
     }
+    if (created.kind === 'overlap') {
+      return c.json({ error: '這段時間已經請過假了', code: 'LEAVE_OVERLAP' }, 409);
+    }
+    if (created.kind === 'failed') return failed();
+    const leave = created.leave;
 
     // 6. 稽核（計畫席 10-17）：補請把缺席改成請假、沒有人核對，事後要查得到改了幾堂、幾堂是補請、略過幾堂已點名的。
     //    「開始時間已過」用台北時間比（session 的日期與時間都是台北的牆上時間）

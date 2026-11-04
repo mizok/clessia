@@ -31,7 +31,7 @@ function write(key: string, id: string | null): void {
  * 記在 localStorage 只是便利（讀寫都包 try/catch）。
  *
  * **「全部分校」只有報表頁有**（#1607，使用者 10-15 裁定）：日常頁（名冊、課表、帳單…）一次只看
- * 一間；儀表板、營收報表、人員管理宣告 `use({ allowAll: true })` 保留全部。日常頁遇到 `null`
+ * 一間；營收報表、人員管理宣告 `use({ allowAll: true })` 保留全部（儀表板 #2259 起是日常頁）。日常頁遇到 `null`
  * 不改掉它（回報表還是全部），而是顯示 {@link fallback}。
  *
  * 頂欄**只在有頁面接上時**才出現下拉 —— 不然使用者會看到「頂欄選了 A、這頁還是 B」。

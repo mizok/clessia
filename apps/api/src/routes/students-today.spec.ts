@@ -122,7 +122,32 @@ const session = (classId: string, start: string, campusId = 'campus-1') => ({
   classes: { name: classId, campus_id: campusId, campuses: { name: '本校' } },
 });
 
+// 在籍名單用 embed `classes!inner(sessions!inner(...))` 篩今天有課的班（#2227）；替身只照種子裡已有的巢狀物件篩，
+// 所以把每個班今天的課堂與分校補進 enrollments 的 `classes`
+const withClassSessions = (
+  enrollments: Array<Record<string, unknown>>,
+  sessions: Array<Record<string, unknown>>,
+) =>
+  enrollments.map((e) => {
+    const mine = sessions.filter((s) => s['class_id'] === e['class_id']);
+    const campusId =
+      (mine[0]?.['classes'] as { campus_id?: string } | undefined)?.campus_id ?? 'campus-1';
+    return {
+      ...e,
+      classes: {
+        campus_id: campusId,
+        sessions: mine.map((s) => ({ session_date: s['session_date'], status: s['status'] })),
+      },
+    };
+  });
+
 function seed(mode: 'daily_checkin' | 'per_session' = 'daily_checkin') {
+  const sessions = [
+    session('c-am', '09:00'),
+    session('c-pm', '15:00', 'campus-2'),
+    // 停課：s-none 只有這堂 → 今天不必來（A6 排除，計畫席 10-10 裁）
+    { ...session('c-off', '08:00'), status: 'cancelled' },
+  ];
   return createMultiOrgDb({
     organizations: [{ id: ORG, attendance_mode: mode }],
     campuses: [],
@@ -133,21 +158,19 @@ function seed(mode: 'daily_checkin' | 'per_session' = 'daily_checkin') {
       student('s-leave'),
       student('s-none'),
     ],
-    sessions: [
-      session('c-am', '09:00'),
-      session('c-pm', '15:00', 'campus-2'),
-      // 停課：s-none 只有這堂 → 今天不必來（A6 排除，計畫席 10-10 裁）
-      { ...session('c-off', '08:00'), status: 'cancelled' },
-    ],
-    enrollments: [
-      enrollment('s-arrived', 'c-am'),
-      enrollment('s-missing', 'c-am'),
-      enrollment('s-leave', 'c-am'),
-      enrollment('s-notyet', 'c-pm'),
-      enrollment('s-none', 'c-off'),
-      // s-notyet 也上老師的 c-tue（今天沒課）—— 老師的學生，但今天只有別班 c-pm 的課（#1100 #51）
-      enrollment('s-notyet', 'c-tue'),
-    ],
+    sessions,
+    enrollments: withClassSessions(
+      [
+        enrollment('s-arrived', 'c-am'),
+        enrollment('s-missing', 'c-am'),
+        enrollment('s-leave', 'c-am'),
+        enrollment('s-notyet', 'c-pm'),
+        enrollment('s-none', 'c-off'),
+        // s-notyet 也上老師的 c-tue（今天沒課）—— 老師的學生，但今天只有別班 c-pm 的課（#1100 #51）
+        enrollment('s-notyet', 'c-tue'),
+      ],
+      sessions,
+    ),
     daily_checkins: [
       {
         id: 'k1',

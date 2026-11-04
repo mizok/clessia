@@ -2472,7 +2472,8 @@ function checkSupabaseCliPin() {
   const workflows = readdirSync(dir)
     .filter((f) => f.endsWith('.yml'))
     .map((f) => ({ name: `.github/workflows/${f}`, text: readFileSync(join(dir, f), 'utf8') }));
-  for (const problem of cliPinProblems(workflows)) fail(problem);
+  const packageJson = readFileSync(join(ROOT, 'package.json'), 'utf8');
+  for (const problem of cliPinProblems(workflows, packageJson)) fail(problem);
 }
 
 checkSupabaseCliPin();

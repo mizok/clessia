@@ -32,7 +32,7 @@ function fake(results: Partial<Record<string, Result>>, calls: string[] = []) {
     from(table: string) {
       const q: Record<string, unknown> = {};
       let range: [number, number] | null = null;
-      for (const m of ['select', 'eq', 'in', 'lte', 'gte', 'or', 'order'])
+      for (const m of ['select', 'eq', 'neq', 'in', 'lte', 'gte', 'or', 'order'])
         q[m] = (col: unknown) => (calls.push(`${table}.${m}(${String(col)})`), q);
       // 照 PostgREST 切頁（max_rows 1000）：沒下 range 也最多回 1000 列
       q['range'] = (from: number, to: number) => ((range = [from, to]), q);
@@ -51,6 +51,8 @@ const ENROLLED = ok([
   { student_id: 'stu-1', class_id: 'class-1', students: { name: '小明', grade: 'J1' } },
   { student_id: 'stu-2', class_id: 'class-1', students: { name: '小華', grade: 'J1' } },
 ]);
+
+const NO_SCOPE = { campusIds: null, classIds: null };
 
 describe('loadDailyAttendance（#1928）', () => {
   it('正常：應到、到了、請假各自讀到', async () => {
@@ -75,6 +77,7 @@ describe('loadDailyAttendance（#1928）', () => {
       'org-1',
       DATE,
       SESSIONS,
+      NO_SCOPE,
     );
     expect(res.expected.map((s) => s.studentId).sort()).toEqual(['stu-1', 'stu-2']);
     expect(res.arrived.map((a) => a.studentId)).toEqual(['stu-1']);
@@ -86,7 +89,7 @@ describe('loadDailyAttendance（#1928）', () => {
     ['打卡（daily_checkins）', { enrollments: ENROLLED, daily_checkins: boom }],
     ['請假（leave_requests）', { enrollments: ENROLLED, leave_requests: boom }],
   ])('%s讀取失敗 → 丟例外，不是當成空的', async (_name, results) => {
-    await expect(loadDailyAttendance(fake(results), 'org-1', DATE, SESSIONS)).rejects.toThrow();
+    await expect(loadDailyAttendance(fake(results), 'org-1', DATE, SESSIONS, NO_SCOPE)).rejects.toThrow();
   });
 
   it('請假不把應到學生 id 塞進 .in（會 414）；名單外的人的假不列', async () => {
@@ -108,6 +111,7 @@ describe('loadDailyAttendance（#1928）', () => {
       'org-1',
       DATE,
       SESSIONS,
+      NO_SCOPE,
     );
     expect(calls).not.toContain('leave_requests.in(student_id)');
     expect(res.onLeave.map((l) => l.studentId)).toEqual(['stu-2']);
@@ -134,6 +138,7 @@ describe('loadDailyAttendance（#1928）', () => {
       'org-1',
       DATE,
       SESSIONS,
+      NO_SCOPE,
     );
     expect(res.expected).toHaveLength(2500);
     expect(res.arrived).toHaveLength(1200);

@@ -21,7 +21,7 @@
 - [[architecture/authorization-scope]] — 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 - [[architecture/better-auth-self-vs-admin]] — 使用者更新 API 只服務「本人改自己」；「管理員代改」屬 admin plugin，而它要求角色真相住在 ba_user.role——跟本專案「角色住 user_roles、一人多角色、權限存 jsonb」不相容。想接 admin plugin 之前先讀這頁。
 - [[architecture/bootstrapping-a-deployment]] — 建立組織與第一個管理員的唯一路徑。零 demo 資料，走 Better Auth 建帳號，冪等。
-- [[architecture/campus-context]] — 管理端頂欄的分校下拉（CampusContextService）是偏好不是權限；日常頁沒有「全部分校」、預設自己被指派的分校，儀表板／營收報表／人員管理保留全部。
+- [[architecture/campus-context]] — 管理端頂欄的分校下拉（CampusContextService）是偏好不是權限；日常頁沒有「全部分校」、預設自己被指派的分校，營收報表／人員管理保留全部（儀表板 #2259 起是日常頁）。
 - [[architecture/change-log-view]] — M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。
 - [[architecture/chunk-load-recovery]] — 舊 index 要不到新 chunk 時，導覽失敗自動重載一次、預載失敗顯示提示條；以及為什麼偵測不能靠 ChunkLoadError 或 404。
 - [[architecture/constitution]] — 具約束力的架構不變量。只陳述「什麼構成違反」，不含強制機制。

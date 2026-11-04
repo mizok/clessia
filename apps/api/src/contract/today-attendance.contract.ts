@@ -72,6 +72,12 @@ run('日到班：應到很多人時的請假、在籍、打卡（#1928）', () =
       "insert into classes (org_id, campus_id, course_id, name) values ($1, $2, $3, '今天沒課') returning id",
       [orgId, campus, course],
     );
+    // 「今天有課」由 DB 裡當天的課堂決定（#2227：在籍名單用 embed 篩，不再吃呼叫端給的班 id）
+    await q(
+      `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
+       values ($1, $2, $3, '16:00', '17:00', 'scheduled', 'unassigned')`,
+      [orgId, todayClass, DATE],
+    );
     await q(
       `with s as (
          insert into students (org_id, name, grade)
@@ -128,6 +134,7 @@ run('日到班：應到很多人時的請假、在籍、打卡（#1928）', () =
           status: 'scheduled',
         },
       ],
+      { campusIds: null, classIds: null },
     );
 
   let small: Seeded;
@@ -149,6 +156,7 @@ run('日到班：應到很多人時的請假、在籍、打卡（#1928）', () =
         'leave_requests',
         'enrollments',
         'students',
+        'sessions',
         'classes',
         'courses',
         'subjects',

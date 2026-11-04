@@ -185,3 +185,44 @@ describe('studentsOnLeave（ME1）', () => {
     expect(studentsOnLeave(rows, DAY).size).toBe(0);
   });
 });
+
+describe('GET /api/meals 單日 —— 候選讀不到要失敗（#2227）', () => {
+  // 原本當天有課的班與在籍兩支讀取都不看 error：讀失敗時候選靜默變空、回 200，畫面看起來像「那天沒人」
+  it('在籍（enrollments）讀取失敗 → 500，不回空候選', async () => {
+    const supabase = {
+      from(table: string) {
+        const proxy: Record<string, unknown> = new Proxy(
+          {},
+          {
+            get(_t, prop: string) {
+              if (prop === 'then')
+                return (ok: (v: unknown) => unknown) =>
+                  ok(
+                    table === 'enrollments'
+                      ? { data: null, error: { message: 'boom' } }
+                      : { data: [], error: null, count: 0 },
+                  );
+              if (prop === 'maybeSingle' || prop === 'single')
+                return () => Promise.resolve({ data: null, error: null });
+              return () => proxy;
+            },
+          },
+        );
+        return proxy;
+      },
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', supabase);
+      set('orgId', 'org-1');
+      set('userId', 'u1');
+      set('roles', ['admin']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', mealsRoute as unknown as Hono);
+    const res = await app.request('/?date=2026-06-01');
+    expect(res.status).toBe(500);
+  });
+});

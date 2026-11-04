@@ -283,6 +283,12 @@ describe('取消請假的邊界（#1910 二讀）', () => {
       set('userId', 'user-1');
       set('roles', ['admin']);
       set('campusScope', null);
+      // DELETE 的寫入走 pg 交易（#2237）；這裡只驗撤銷的讀取範圍，寫入照單全收
+      set('auth', {
+        pool: {
+          connect: async () => ({ query: async () => ({ rows: [] }), release: () => undefined }),
+        },
+      });
       await next();
     });
     app.route('/', leavesApp);
