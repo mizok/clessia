@@ -85,6 +85,12 @@
         }
       </app-page-actions>
     </div>
+    <!-- 已套用的條件（#2206：只在手機），點 × 拿掉 -->
+    <app-active-filters
+      class="w-full wide:hidden"
+      [filters]="activeFilters()"
+      (removed)="removeFilter($event)"
+    />
   </div>
 </div>
 
@@ -406,118 +412,120 @@
   </div>
 }
 
-<!-- 篩選面板：桌機手機都是貼在「篩選」鈕下的 Popover（A6） -->
-<p-popover
-  #filterPopover
-  appFitPopover
-  styleClass="filter-popover"
-  (onShow)="filtersOpen.set(true)"
-  (onHide)="filtersOpen.set(false)"
+<!-- 篩選面板：桌機是貼在「篩選」鈕下的浮層（A6），手機是貼底抽屜（#2206）。
+     裡面的下拉與日期一律 appendTo body：抽屜內容會捲動，掛在自己旁邊會被裁、一捲就收起來 -->
+<app-filter-panel
+  #filterPanel
+  [hasFilters]="activeFilterCount() > 0"
+  (cleared)="clearPanelFilters()"
+  (openChange)="filtersOpen.set($event)"
 >
-  <ng-container [ngTemplateOutlet]="filterContent" />
-</p-popover>
-
-<!-- 共用篩選內容 -->
-<ng-template #filterContent>
-  <div class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1">
-      <span class="text-sm font-semibold text-zinc-700">科目</span>
-      <p-select
-        [options]="subjectOptions()"
-        [ngModel]="selectedSubjectId()"
-        (ngModelChange)="onSubjectChange($event)"
-        placeholder="全部科目"
-        [showClear]="true"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-
-    <!-- appendTo body：panel 在 popover/drawer 內部，overlay 要掛在 body 層才能超出 panel 範圍 -->
-    <div class="flex flex-col gap-1">
-      <span class="text-sm font-semibold text-zinc-700">老師</span>
-      <p-multiselect
-        [options]="filteredStaffOptions()"
-        [ngModel]="selectedTeacherIds()"
-        (ngModelChange)="onTeacherChange($event)"
-        placeholder="全部老師"
-        selectedItemsLabel="{0} 位老師"
-        [filter]="true"
-        filterBy="label"
-        filterPlaceholder="搜尋老師..."
-        styleClass="w-full"
-        [appendTo]="'body'"
-        [virtualScroll]="true"
-        [virtualScrollItemSize]="38"
-      >
-        <ng-template #item let-option>
-          <div class="flex min-w-0 flex-col">
-            <span class="truncate">{{ option.label }}</span>
-            @if (option.subjectNames?.length > 0) {
-              <span class="truncate text-sm text-zinc-600">{{
-                option.subjectNames.join('、')
-              }}</span>
-            }
-          </div>
-        </ng-template>
-      </p-multiselect>
-    </div>
-
-    <div class="flex flex-col gap-1">
-      <span class="text-sm font-semibold text-zinc-700">狀態</span>
-      <p-select
-        [options]="statusOptions"
-        [ngModel]="statusFilter()"
-        (ngModelChange)="onStatusFilterChange($event)"
-        placeholder="全部狀態"
-        styleClass="w-full"
-        [appendTo]="'body'"
-      />
-    </div>
-
-    <div class="flex flex-col gap-2">
-      <span class="text-sm font-semibold text-zinc-700">歷史班級</span>
-      <label class="flex cursor-pointer items-center gap-2 text-md text-zinc-900">
-        <p-toggleswitch [ngModel]="showHistorical()" (ngModelChange)="onToggleHistorical($event)" />
-        含歷史班級
-      </label>
-      <div class="flex flex-wrap items-center gap-2">
-        <p-datepicker
-          [ngModel]="historicalDateFrom()"
-          (ngModelChange)="onHistoricalDateFromChange($event)"
-          dateFormat="yy-mm-dd"
-          [showIcon]="true"
-          placeholder="開始日期"
+  <ng-template>
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700">科目</span>
+        <p-select
+          [options]="subjectOptions()"
+          [ngModel]="selectedSubjectId()"
+          (ngModelChange)="onSubjectChange($event)"
+          placeholder="全部科目"
+          [showClear]="true"
+          styleClass="w-full"
           [appendTo]="'body'"
         />
-        <p-datepicker
-          [ngModel]="historicalDateTo()"
-          (ngModelChange)="onHistoricalDateToChange($event)"
-          dateFormat="yy-mm-dd"
-          [showIcon]="true"
-          placeholder="結束日期"
+      </div>
+
+      <!-- appendTo body：panel 在 popover/drawer 內部，overlay 要掛在 body 層才能超出 panel 範圍 -->
+      <div class="flex flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700">老師</span>
+        <p-multiselect
+          [options]="filteredStaffOptions()"
+          [ngModel]="selectedTeacherIds()"
+          (ngModelChange)="onTeacherChange($event)"
+          placeholder="全部老師"
+          selectedItemsLabel="{0} 位老師"
+          [filter]="true"
+          filterBy="label"
+          filterPlaceholder="搜尋老師..."
+          styleClass="w-full"
+          [appendTo]="'body'"
+          [virtualScroll]="true"
+          [virtualScrollItemSize]="38"
+        >
+          <ng-template #item let-option>
+            <div class="flex min-w-0 flex-col">
+              <span class="truncate">{{ option.label }}</span>
+              @if (option.subjectNames?.length > 0) {
+                <span class="truncate text-sm text-zinc-600">{{
+                  option.subjectNames.join('、')
+                }}</span>
+              }
+            </div>
+          </ng-template>
+        </p-multiselect>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700">狀態</span>
+        <p-select
+          [options]="statusOptions"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="onStatusFilterChange($event)"
+          placeholder="全部狀態"
+          styleClass="w-full"
           [appendTo]="'body'"
         />
-        @if (loadingHistorical()) {
-          <i class="pi pi-spin pi-spinner text-zinc-600" aria-label="載入歷史班級中"></i>
-        }
       </div>
-    </div>
 
-    @if (activeFilterCount() > 0) {
-      <div class="flex justify-end border-t border-zinc-200 pt-3">
-        <p-button
-          label="清除篩選"
-          icon="pi pi-filter-slash"
-          [text]="true"
-          severity="secondary"
-          size="small"
-          (onClick)="clearFilters()"
-        />
+      <div class="flex flex-col gap-2">
+        <span class="text-sm font-semibold text-zinc-700">歷史班級</span>
+        <label class="flex cursor-pointer items-center gap-2 text-md text-zinc-900">
+          <p-toggleswitch
+            [ngModel]="showHistorical()"
+            (ngModelChange)="onToggleHistorical($event)"
+          />
+          含歷史班級
+        </label>
+        <div class="flex flex-wrap items-center gap-2">
+          <p-datepicker
+            [ngModel]="historicalDateFrom()"
+            (ngModelChange)="onHistoricalDateFromChange($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="開始日期"
+            [appendTo]="'body'"
+          />
+          <p-datepicker
+            [ngModel]="historicalDateTo()"
+            (ngModelChange)="onHistoricalDateToChange($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="結束日期"
+            [appendTo]="'body'"
+          />
+          @if (loadingHistorical()) {
+            <i class="pi pi-spin pi-spinner text-zinc-600" aria-label="載入歷史班級中"></i>
+          }
+        </div>
       </div>
-    }
-  </div>
-</ng-template>
+
+      <!-- 手機抽屜的標題列已有「清除」，這顆只在桌機浮層；兩者都只清條件、不清搜尋
+         （搜尋框在面板外，計畫席 11-03 裁定，#2206） -->
+      @if (activeFilterCount() > 0) {
+        <div class="flex justify-end border-t border-zinc-200 pt-3 max-wide:hidden">
+          <p-button
+            label="清除篩選"
+            icon="pi pi-filter-slash"
+            [text]="true"
+            severity="secondary"
+            size="small"
+            (onClick)="clearPanelFilters()"
+          />
+        </div>
+      }
+    </div>
+  </ng-template>
+</app-filter-panel>
 
 <!-- Class Action Menu -->
 <app-popup-menu #actionMenu [model]="classActionMenuItems()" />

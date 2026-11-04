@@ -2,6 +2,7 @@ import { writeFileSync, readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { createAuth } from '../auth';
 import { createChildDb } from '../lib/child-db';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
@@ -105,6 +106,25 @@ run('GET /api/staff：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', () 
   let subject = '';
   let otherOrg = '';
   let otherStaff = '';
+  /**
+   * #2199（ST6 二讀存活的突變）：本機 seed 的人員全是 `emailVerified = t`，「還沒登入過」兩條路都是 0，
+   * 一起錯也照樣一致。補三位從沒登入過的：一般（算）、封存（不算）、只有機台身分（不算）。
+   * 帳號一律經 better-auth 的 API 建、刪，不直寫 ba_*（c2）
+   */
+  const auth = createAuth(
+    {
+      DATABASE_URL: DB ?? '',
+      BETTER_AUTH_SECRET: 'contract-secret-at-least-32-characters-long',
+      BETTER_AUTH_URL: 'http://localhost:8787',
+      WEB_URL: 'http://localhost:4200',
+      ALLOWED_ORIGINS: '',
+      LINE_CLIENT_ID: '',
+      LINE_CLIENT_SECRET: '',
+    } as never,
+    () => undefined,
+  );
+  const invited: Array<{ userId: string; staffId: string }> = [];
+  let inviteOrg = '';
   const q = async <T>(text: string, values: unknown[] = []) =>
     (await pool!.query(text, values)).rows as T[];
 
@@ -145,6 +165,7 @@ run('GET /api/staff：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', () 
   }, 120_000);
 
   afterAll(async () => {
+    await auth.pool.end();
     if (!otherOrg) return;
     await q('delete from staff_campuses where staff_id = $1', [otherStaff]);
     await q('delete from staff_subjects where staff_id = $1', [otherStaff]);
@@ -268,6 +289,56 @@ run('GET /api/staff：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', () 
     expect(status).toBe(200);
     expect(body.meta['total']).toBe(n!.total);
     expect((body.summary['byRole'] as Record<string, number>)['teacher']).toBe(n!.active);
+  });
+
+  // #2199：「還沒登入過」要對一次具體數字 —— 兩條路一起錯（例：SQL 摘要把 emailVerified 讀成 true）也會紅
+  it('「還沒登入過」人數等於直接數 DB，而且不是 0（兩條路都是）', async () => {
+    // 在這條裡才建、測完就刪：`user_roles` 不分 org，多出來的老師／機台會讓全域的角色 id 清單變長，
+    // 前面那條矩陣的 builder 退路就有別題跟著撞 URL 上限（#1928）
+    const demoOrg = ctx.orgId;
+    try {
+      [{ id: inviteOrg }] = (await q<{ id: string }>(
+        "insert into organizations (name) values ('#2199 契約：還沒登入過') returning id",
+      )) as [{ id: string }];
+      for (const [name, role, status] of [
+        ['#2199 還沒登入的老師', 'teacher', 'active'],
+        ['#2199 還沒登入但封存', 'teacher', 'archived'],
+        ['#2199 還沒登入的機台', 'kiosk', 'active'],
+      ] as const) {
+        const { user } = (await auth.api.createUser({
+          body: { email: `c2199-${crypto.randomUUID()}@phone.internal`, name },
+        })) as { user: { id: string } };
+        await q('insert into user_roles (user_id, role) values ($1, $2)', [user.id, role]);
+        const [staff] = await q<{ id: string }>(
+          'insert into staff (org_id, user_id, display_name, status) values ($1, $2, $3, $4) returning id',
+          [inviteOrg, user.id, name, status],
+        );
+        invited.push({ userId: user.id, staffId: staff!.id });
+      }
+      ctx.orgId = inviteOrg;
+      const [n] = await q<{ n: number }>(
+        `select count(*)::int n from staff s join ba_user u on u.id = s.user_id
+        where s.org_id = $1 and s.status <> 'archived' and u."emailVerified" = false
+          and not exists (select 1 from user_roles k where k.user_id = s.user_id and k.role = 'kiosk')`,
+        [inviteOrg],
+      );
+      // 三位裡只有「一般」那位算：封存的、只有機台身分的不算
+      expect(n!.n).toBe(1);
+      for (const usePool of [true, false]) {
+        const { status, body } = await hit('/api/staff?pageSize=0', usePool);
+        expect(status).toBe(200);
+        expect(body.summary['neverLoggedInCount']).toBe(n!.n);
+      }
+    } finally {
+      ctx.orgId = demoOrg;
+      const authCtx = await auth.$context;
+      for (const { userId, staffId } of invited) {
+        await q('delete from staff where id = $1', [staffId]);
+        await q('delete from user_roles where user_id = $1', [userId]);
+        await authCtx.internalAdapter.deleteUser(userId);
+      }
+      if (inviteOrg) await q('delete from organizations where id = $1', [inviteOrg]);
+    }
   });
 
   it('有資料可比（不是兩邊都空）：不受限時有人、有分校、有科目、章節分得開', async () => {

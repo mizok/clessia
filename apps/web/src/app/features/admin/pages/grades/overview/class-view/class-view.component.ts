@@ -19,8 +19,11 @@ import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { DialogService } from 'primeng/dynamicdialog';
-import { PopoverModule } from 'primeng/popover';
-import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
+import {
+  ActiveFiltersComponent,
+  type ActiveFilter,
+} from '@shared/components/active-filters/active-filters.component';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
@@ -70,8 +73,8 @@ interface CourseGroup {
     InputTextModule,
     IconFieldModule,
     InputIconModule,
-    PopoverModule,
-    FitPopoverDirective,
+    FilterPanelComponent,
+    ActiveFiltersComponent,
     EmptyStateComponent,
     PageOpenComponent,
     RouterLink,
@@ -107,7 +110,7 @@ export class ClassViewComponent implements OnInit {
   protected readonly selectedGrades = signal<GradeLevel[]>([]);
   protected readonly subjectIdFilter = signal<string | null>(null);
   protected readonly todoOnly = signal(false);
-  /** 篩選浮層開著與否（鈕的 aria-expanded）；外點擊關掉由 Popover 的 onHide 回寫 */
+  /** 篩選面板開著與否（鈕的 aria-expanded）；外點擊關掉由 app-filter-panel 的 openChange 回寫 */
   protected readonly filtersOpen = signal(false);
 
   protected readonly courseGroups = signal<CourseGroup[]>([]);
@@ -152,6 +155,25 @@ export class ClassViewComponent implements OnInit {
   protected readonly hasFilters = computed(
     () => this.selectedGrades().length > 0 || !!this.subjectIdFilter(),
   );
+
+  /** 手機的已套用條件 chip（#2206）：年級一個一顆、科目一顆（跟 filterSummary 同一組） */
+  protected readonly activeFilters = computed<ActiveFilter[]>(() => {
+    const list: ActiveFilter[] = this.selectedGrades().map((grade) => ({
+      key: `grade:${grade}`,
+      label: GRADE_LEVEL_LABELS[grade],
+    }));
+    const subjectId = this.subjectIdFilter();
+    if (subjectId) {
+      const label = this.subjectOptions().find((o) => o.value === subjectId)?.label ?? '科目';
+      list.push({ key: 'subject', label });
+    }
+    return list;
+  });
+
+  protected removeFilter(key: string): void {
+    if (key === 'subject') this.subjectIdFilter.set(null);
+    else this.selectedGrades.update((grades) => grades.filter((g) => `grade:${g}` !== key));
+  }
 
   /** A6 的「顯示 N 個班（共 M）」：搜尋、篩選、待登錄任一有開就出現 */
   protected readonly narrowed = computed(
@@ -220,11 +242,17 @@ export class ClassViewComponent implements OnInit {
     this.todoOnly.update((value) => !value);
   }
 
+  /** 「顯示 N 個班」旁的清除篩選：搜尋、條件、待登錄全部還原 */
   protected clearFilters(): void {
     this.searchText.set('');
+    this.todoOnly.set(false);
+    this.clearPanelFilters();
+  }
+
+  /** 面板裡的清除（桌機浮層、手機抽屜）只清年級與科目（計畫席 11-03 裁定，#2206）：搜尋與待登錄在面板外 */
+  protected clearPanelFilters(): void {
     this.selectedGrades.set([]);
     this.subjectIdFilter.set(null);
-    this.todoOnly.set(false);
   }
 
   protected getTodoExamCount(classId: string): number {

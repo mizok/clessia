@@ -27,8 +27,11 @@ import {
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { PopoverModule } from 'primeng/popover';
-import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
+import {
+  ActiveFiltersComponent,
+  type ActiveFilter,
+} from '@shared/components/active-filters/active-filters.component';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -79,8 +82,8 @@ import { SkeletonComponent } from '@shared/components/skeleton/skeleton.componen
     TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
-    PopoverModule,
-    FitPopoverDirective,
+    FilterPanelComponent,
+    ActiveFiltersComponent,
     ChapterHeadComponent,
     PagerComponent,
     FilterToggleComponent,
@@ -189,6 +192,11 @@ export class ParentsPage implements OnInit {
   protected readonly filterSummary = computed(() => {
     const status = this.selectedStatus();
     return status === null ? '' : PARENT_STATUS_LABELS[status];
+  });
+  /** 手機的已套用條件 chip（#2206）：只有狀態一項 */
+  protected readonly activeFilters = computed<ActiveFilter[]>(() => {
+    const status = this.filterSummary();
+    return status ? [{ key: 'status', label: status }] : [];
   });
 
   protected readonly activeCount = computed(() => this.summary().activeCount);

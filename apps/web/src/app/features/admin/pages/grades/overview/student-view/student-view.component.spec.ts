@@ -377,6 +377,32 @@ describe('StudentViewComponent', () => {
       expect(vm.periodFilter()).toBe('m3');
     });
 
+    // 計畫席 11-03 裁定（#2206）：面板的清除只清條件，搜尋框在面板外不動
+    it('面板的清除：期間回近 3 個月並重抓，搜尋字留著；chip 寫「全部」、點 × 也回預設', () => {
+      const vm = component as any;
+      fixture.detectChanges();
+      flushStudents([]);
+      aggReq().flush({ data: [], meta: { total: 0, page: 1, pageSize: 200 } });
+
+      vm.onPeriodChange('all');
+      flushStudents([]);
+      aggReq().flush({ data: [], meta: { total: 0, page: 1, pageSize: 200 } });
+      fixture.detectChanges();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(
+        [...host.querySelectorAll('app-active-filters button')].map((b) =>
+          b.getAttribute('aria-label'),
+        ),
+      ).toEqual(['移除篩選：全部']);
+
+      vm.searchText.set('王');
+      vm.clearPanelFilters();
+      flushStudents([]);
+      expect(aggReq().request.params.get('dateFrom')).toBe(addDaysToDateString(today(), -92));
+      expect(vm.searchText()).toBe('王');
+      expect(vm.periodFilter()).toBe('m3');
+    });
+
     it('開課班：摘要改撈這一班（帶期間），名單只留這班有成績的學生；鈕上寫班名', () => {
       const vm = component as any;
       fixture.detectChanges();

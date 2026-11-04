@@ -242,31 +242,20 @@ describe('filter-popover 掛載點（#1873）', () => {
         .filter((t) => t.includes('styleClass="filter-popover"'))
         .map((t) => ({ f: f.path.slice(APP_DIR.length + 1), t })),
     );
-    expect(tags.length).toBeGreaterThanOrEqual(6);
+    // 至少有共用 app-filter-panel 與考試頁兩處（#2206 之後各頁都經過 app-filter-panel），掃不到代表 regex 壞了
+    expect(tags.length).toBeGreaterThanOrEqual(2);
     expect(tags.filter(({ t }) => !/\bappFitPopover\b/.test(t)).map(({ f }) => f)).toEqual([]);
   });
 
-  // #2206：列表頁的篩選改用 app-filter-panel（桌機浮層、手機貼底抽屜）。直接寫 filter-popover 的
-  // 只剩共用元件本身與考試頁（手機另有 exams-filter-dialog，使用者 11-03 裁定不動）；
-  // TODO_2206 是還沒換的頁，②③ 換完就刪掉，清單只會變短
+  // #2206：列表頁的篩選一律用 app-filter-panel（桌機浮層、手機貼底抽屜）。直接寫 filter-popover 的
+  // 只有共用元件本身與考試頁（手機另有 exams-filter-dialog，使用者 11-03 裁定不動）
   it('篩選浮層只透過 app-filter-panel 用（考試頁除外）', () => {
-    const ALLOWED = [
-      'shared/components/filter-panel/filter-panel.component.html',
-      'features/admin/pages/grades/exams/exams.component.html',
-    ];
-    const TODO_2206 = [
-      'features/admin/pages/students/students.page.html',
-      'features/admin/pages/courses/courses.page.html',
-      'features/admin/pages/parents/parents.page.html',
-      'features/admin/pages/payments/payments.page.html',
-      'features/admin/pages/grades/overview/class-view/class-view.component.html',
-      'features/admin/pages/grades/overview/student-view/student-view.component.html',
-    ];
     const raw = HTMLS.filter((f) => f.text.includes('styleClass="filter-popover"')).map((f) =>
       f.path.slice(APP_DIR.length + 1),
     );
-    expect(raw.filter((p) => !ALLOWED.includes(p) && !TODO_2206.includes(p))).toEqual([]);
-    // 換完的頁從 TODO 拿掉：還留在清單裡卻已經不用 filter-popover，代表清單過期
-    expect(TODO_2206.filter((p) => !raw.includes(p))).toEqual([]);
+    expect(raw.sort()).toEqual([
+      'features/admin/pages/grades/exams/exams.component.html',
+      'shared/components/filter-panel/filter-panel.component.html',
+    ]);
   });
 });

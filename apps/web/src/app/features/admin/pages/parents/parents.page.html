@@ -47,7 +47,7 @@
         [summary]="filterSummary()"
         [active]="selectedStatus() !== null"
         [open]="filtersOpen()"
-        (click)="filterPopover.toggle($event)"
+        (click)="filterPanel.toggle($event)"
         [always]="true"
         controls="parents-filters"
       />
@@ -66,30 +66,37 @@
         />
       </app-page-actions>
     </div>
+    <!-- 已套用的條件（#2206：只在手機），點 × 拿掉 -->
+    <app-active-filters
+      class="w-full wide:hidden"
+      [filters]="activeFilters()"
+      (removed)="onStatusChange(null)"
+    />
 
-    <!-- 篩選面板（A6 浮層）：貼在「篩選」鈕下的 Popover，不推動清單；寫法同課程頁 -->
-    <p-popover
-      #filterPopover
-      appFitPopover
-      styleClass="filter-popover"
-      (onShow)="filtersOpen.set(true)"
-      (onHide)="filtersOpen.set(false)"
+    <!-- 篩選面板：桌機是貼在「篩選」鈕下的浮層（A6），手機是貼底抽屜（#2206） -->
+    <app-filter-panel
+      #filterPanel
+      [hasFilters]="selectedStatus() !== null"
+      (cleared)="onStatusChange(null)"
+      (openChange)="filtersOpen.set($event)"
     >
-      <div id="parents-filters" class="flex flex-col gap-3">
-        <p-select
-          [options]="statusOptions"
-          [ngModel]="selectedStatus()"
-          (ngModelChange)="onStatusChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          size="small"
-          placeholder="啟用＋停用（不含封存）"
-          [fluid]="true"
-          styleClass="clessia-filter-control"
-          appendTo="body"
-        />
-      </div>
-    </p-popover>
+      <ng-template>
+        <div id="parents-filters" class="flex flex-col gap-3">
+          <p-select
+            [options]="statusOptions"
+            [ngModel]="selectedStatus()"
+            (ngModelChange)="onStatusChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            size="small"
+            placeholder="啟用＋停用（不含封存）"
+            [fluid]="true"
+            styleClass="clessia-filter-control"
+            appendTo="body"
+          />
+        </div>
+      </ng-template>
+    </app-filter-panel>
   </div>
 </div>
 

@@ -30,7 +30,11 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { PopoverModule, type Popover } from 'primeng/popover';
-import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
+import {
+  ActiveFiltersComponent,
+  type ActiveFilter,
+} from '@shared/components/active-filters/active-filters.component';
 import { PagerComponent } from '@shared/components/pager/pager.component';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -159,7 +163,8 @@ const emptyChapter = (): ChapterState => ({
     InputIconModule,
     InputTextModule,
     PopoverModule,
-    FitPopoverDirective,
+    FilterPanelComponent,
+    ActiveFiltersComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
@@ -328,6 +333,21 @@ export class PaymentsPage implements OnInit {
     if (status !== null) parts.push(INVOICE_STATUS_LABELS[status]);
     return parts.length > 0 ? parts.join('、') : '全部';
   });
+
+  /** 手機的已套用條件 chip（#2206）：跟 panelFilterSummary 同一組（催繳、狀態），搜尋不算 */
+  protected readonly activeFilters = computed<ActiveFilter[]>(() => {
+    const list: ActiveFilter[] = [];
+    const due = this.dueFilterOptions.find((o) => o.value === this.dueFilter());
+    if (this.dueFilter() !== 'all' && due) list.push({ key: 'due', label: due.label });
+    const status = this.statusFilter();
+    if (status !== null) list.push({ key: 'status', label: INVOICE_STATUS_LABELS[status] });
+    return list;
+  });
+
+  protected removeFilter(key: string): void {
+    if (key === 'due') this.setDueFilter('all');
+    else this.onStatusChange(null);
+  }
 
   protected readonly hasFilters = computed(
     () => this.dueFilter() !== 'all' || this.statusFilter() !== null || this.searchQuery() !== '',
@@ -827,9 +847,14 @@ export class PaymentsPage implements OnInit {
   }
 
   protected clearFilters(): void {
+    this.searchQuery.set('');
+    this.clearPanelFilters();
+  }
+
+  /** 抽屜的「清除」只清篩選條件、不清搜尋框（計畫席 11-03 裁定，#2206）：搜尋框在抽屜外 */
+  protected clearPanelFilters(): void {
     this.dueFilter.set('all');
     this.statusFilter.set(null);
-    this.searchQuery.set('');
     this.reload();
   }
 

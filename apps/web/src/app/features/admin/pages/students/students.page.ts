@@ -28,8 +28,11 @@ import { Router, RouterLink } from '@angular/router';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { PopoverModule } from 'primeng/popover';
-import { FitPopoverDirective } from '@shared/directives/fit-popover.directive';
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
+import {
+  ActiveFiltersComponent,
+  type ActiveFilter,
+} from '@shared/components/active-filters/active-filters.component';
 import { MessageService } from 'primeng/api';
 import { AuthService } from '@core/auth.service';
 import { CampusContextService } from '@core/campus-context.service';
@@ -100,8 +103,8 @@ const taipeiTime = (iso: string): string => TAIPEI_TIME.format(new Date(iso));
     TextSwapDirective,
     SkeletonComponent,
     ReloadVeilComponent,
-    PopoverModule,
-    FitPopoverDirective,
+    FilterPanelComponent,
+    ActiveFiltersComponent,
     PageActionsComponent,
     PageOpenComponent,
     ChapterHeadComponent,
@@ -254,6 +257,30 @@ export class StudentsPage implements OnInit {
       this.schoolMismatch() ||
       this.withoutCard(),
   );
+  /** 手機的已套用條件 chip（#2206）：跟 filterSummary 同一組條件，一顆一個 */
+  protected readonly activeFilters = computed<ActiveFilter[]>(() => {
+    const grade = this.selectedGrade();
+    const today = this.todayFilter();
+    const status = this.statusFilter();
+    const list: ActiveFilter[] = [];
+    if (today)
+      list.push({ key: 'today', label: this.todayOptions.find((o) => o.value === today)!.label });
+    if (grade) list.push({ key: 'grade', label: GRADE_LEVEL_LABELS[grade] });
+    if (status !== 'active')
+      list.push({ key: 'status', label: status === 'inactive' ? '已停用' : '含停用' });
+    if (this.schoolMismatch()) list.push({ key: 'school', label: '學制跟年級不合' });
+    if (this.withoutCard()) list.push({ key: 'card', label: '還沒換新卡' });
+    return list;
+  });
+
+  protected removeFilter(key: string): void {
+    if (key === 'today') this.onTodayChange(null);
+    else if (key === 'grade') this.onGradeChange(null);
+    else if (key === 'status') this.onStatusFilterChange('active');
+    else if (key === 'school') this.onSchoolMismatchChange(false);
+    else if (key === 'card') this.onWithoutCardChange(false);
+  }
+
   /** 搜尋或任何篩選生效：色面標題改「符合篩選的 N 位」，名冊上方出現「顯示 N 位 · 清除篩選」 */
   protected readonly narrowed = computed(() => this.searchQuery() !== '' || this.hasFilter());
 
@@ -535,9 +562,17 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
-  /** 搜尋與所有篩選一起清（只清篩選、搜尋還在，使用者會以為沒清乾淨） */
+  /** 頁面上的「清除篩選」：搜尋與所有篩選一起清（只清篩選、搜尋還在，使用者會以為沒清乾淨） */
   protected clearFilters(): void {
     this.searchQuery.set('');
+    this.clearPanelFilters();
+  }
+
+  /**
+   * 抽屜的「清除」只清篩選條件、不清搜尋框（計畫席 11-03 裁定，#2206 ①b）：
+   * 搜尋框在抽屜外，在抽屜裡按清除卻把外面打的字無聲清掉，會讓人困惑
+   */
+  protected clearPanelFilters(): void {
     this.selectedGrade.set(null);
     this.todayFilter.set(null);
     this.statusFilter.set('active');

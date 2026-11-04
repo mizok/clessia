@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Popover } from 'primeng/popover';
+import { FilterPanelComponent } from '@shared/components/filter-panel/filter-panel.component';
 import { HttpErrorResponse } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
@@ -642,6 +643,37 @@ describe('ParentsPage', () => {
       (component as unknown as { onStatusChange: (s: string) => void }).onStatusChange('inactive');
       fixture.detectChanges();
       expect(toggle().textContent).toContain('篩選：停用');
+    });
+
+    // #2206：手機的已套用條件 chip；抽屜的「清除」只清狀態，搜尋框不動
+    it('選了狀態出一顆 chip，點 × 回到預設並重抓；抽屜的「清除」不清搜尋', () => {
+      const chips = () =>
+        [...el().querySelectorAll('app-active-filters button')].map((b) =>
+          b.getAttribute('aria-label'),
+        );
+      fixture.detectChanges();
+      expect(el().querySelector('app-active-filters ul')).toBeNull();
+
+      (component as unknown as { onStatusChange: (s: string) => void }).onStatusChange('inactive');
+      fixture.detectChanges();
+      expect(chips()).toEqual(['移除篩選：停用']);
+      el().querySelector<HTMLButtonElement>('[aria-label="移除篩選：停用"]')!.click();
+      fixture.detectChanges();
+      expect(chips()).toEqual([]);
+      expect(parentsServiceMock.list.mock.calls.at(-1)![0]).toMatchObject({
+        status: undefined,
+        excludeArchived: true,
+      });
+
+      (component as unknown as { searchQuery: { set: (v: string) => void } }).searchQuery.set('王');
+      (component as unknown as { onStatusChange: (s: string) => void }).onStatusChange('archived');
+      fixture.debugElement
+        .query(By.directive(FilterPanelComponent))
+        .componentInstance.cleared.emit();
+      expect((component as unknown as { searchQuery: () => string }).searchQuery()).toBe('王');
+      expect(
+        (component as unknown as { selectedStatus: () => unknown }).selectedStatus(),
+      ).toBeNull();
     });
   });
 
