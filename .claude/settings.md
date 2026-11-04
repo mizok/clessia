@@ -47,6 +47,9 @@
 - 無 matcher；`.claude/hooks/stop-verify.sh`（timeout 600s）
 - **做什麼**：工作樹有任何改動（含未追蹤檔案）時，依序跑
   `npm run harness` 與 `npx nx affected -t test --base=main`。
+  **只改 `.claude/` 底下的不算**（#2253）：agent 設定不是產品碼，改它弄不壞測試。db-reset 席刻意保留
+  `M .claude/settings.json`，原本每輪（含純回報）都跑全套 affected，跟持鎖席搶資源、隨機假紅。
+  自測在 `tools/agent-harness/stop-verify.test.mjs`。
   紅燈 **exit 2** 擋住收工，stderr 尾巴成為 Claude 的下一條指令。
 - **測試採基線比對**：測試輸出交給 `tools/agent-harness/test-gate.mjs`，只有**這一輪新弄壞的**
   spec 才擋收工；`tools/agent-harness/test-baseline.json` 裡的既有紅燈只印警告。
