@@ -361,6 +361,7 @@ export class CoursesPage implements OnInit {
     const subjectId = this.selectedSubjectId();
     const teacherIds = this.selectedTeacherIds();
     const isActive = this.statusFilter();
+    const interventionIds = new Set(this.interventionClasses().map((cl) => cl.id));
 
     // statusFilter 語意：
     //   false（已停用）      → 只顯示停用課程，班級不額外過濾
@@ -374,7 +375,8 @@ export class CoursesPage implements OnInit {
       .filter((c) => {
         if (effectiveActive === false && c.isActive) return false;
         if (effectiveActive !== false && !c.isActive) return false;
-        if (campusId && c.campusId !== campusId) return false;
+        // 需介入：分校看班的（下面 interventionIds），不看課程的 —— 跟計數同一個來源（#2234）
+        if (campusId && isActive !== 'intervention' && c.campusId !== campusId) return false;
         if (subjectId && c.subjectId !== subjectId) return false;
         return true;
       })
@@ -395,7 +397,7 @@ export class CoursesPage implements OnInit {
             if (search && !courseMatchesSearch && !cl.name.toLowerCase().includes(search))
               return false;
             // 需介入（A6 以班為單位）：課程仍顯示，底下只列需介入的班
-            if (isActive === 'intervention' && !classNeedsIntervention(cl)) return false;
+            if (isActive === 'intervention' && !interventionIds.has(cl.id)) return false;
             return true;
           }),
         };
@@ -449,7 +451,9 @@ export class CoursesPage implements OnInit {
   // **數全部的班（`allClasses` 是不分頁拿全部的那份），不是只數目前這一頁載入的課程底下的班** ——
   // 課程列表是分頁的，只數這一頁會讓「需介入 1 個班」按下去變成 2 個班（實機抓到的）。
   // 已知停用的課程（在這一頁裡看得到的）底下的班不算；不在這一頁的課程沒有活動狀態可查，照班本身算。
-  protected readonly interventionCount = computed(() => {
+  // 計數與「只看這幾個班」的清單**共用這一份**（#2234）：分校看班的，不看課程的；歷史班不算
+  // （清單在需介入時本來就不列歷史班）。兩邊各寫一份條件時，seed 裡「班與課程不同分校」的班數得到、列不出來
+  protected readonly interventionClasses = computed(() => {
     const campusId = this.selectedCampusId();
     const inactiveCourseIds = new Set(
       this.courses()
@@ -460,9 +464,11 @@ export class CoursesPage implements OnInit {
       (cl) =>
         (!campusId || cl.campusId === campusId) &&
         !inactiveCourseIds.has(cl.courseId) &&
+        !this.isHistorical(cl) &&
         classNeedsIntervention(cl),
-    ).length;
+    );
   });
+  protected readonly interventionCount = computed(() => this.interventionClasses().length);
 
   /** 色面：這間分校（或全部）正在開的班數（`classes()` 是不分頁拿全部的那份） */
   protected readonly openClassCount = computed(() => {
@@ -629,7 +635,11 @@ export class CoursesPage implements OnInit {
           this.coursesService
             .list({
               search: this.searchQuery() || undefined,
-              campusId: this.selectedCampusId() || undefined,
+              // 需介入：班的分校決定（interventionClasses），課程不先用分校篩掉（#2234）
+              campusId:
+                this.statusFilter() === 'intervention'
+                  ? undefined
+                  : this.selectedCampusId() || undefined,
               subjectId: this.selectedSubjectId() || undefined,
               isActive:
                 this.statusFilter() === 'intervention' || this.statusFilter() === null
