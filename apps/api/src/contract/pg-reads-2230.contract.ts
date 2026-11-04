@@ -85,9 +85,11 @@ run('#2230 ③ 到班數與工作台家長走 pg', () => {
         "select user_id from user_roles where role = 'admin' order by user_id limit 1",
       )
     )[0]!.user_id;
-    // 有電話的帳號優先（電話那欄才有鑑別力）；`ba_user.id` 跟 ctx.userId 不同即可
+    // 家長帳號用 seed 的管理員：**不能挑「全庫任一個 ba_user」**—— 平行跑時會挑到別的契約檔剛建、
+    // 等一下要刪的暫時帳號（auth-google 因此撞 parents_user_id_fkey）。`parents.user_id` 必填、不寫 ba_*（c2）
     const [account] = await q<{ id: string; phone: string | null }>(
-      'select id, phone from ba_user order by (phone is null), id limit 1',
+      'select id, phone from ba_user where id = $1',
+      [ctx.userId],
     );
     fx.parentPhone = account!.phone;
     ctx.orgId = await one("insert into organizations (name) values ('#2230 契約：pg 讀取')", []);
@@ -194,7 +196,7 @@ run('#2230 ③ 到班數與工作台家長走 pg', () => {
       'delete from contact_logs where org_id = $1',
       'delete from daily_checkins where org_id = $1',
       'delete from attendance_records where org_id = $1',
-      'delete from attendance_events where org_id = $1',
+      'delete from events where org_id = $1',
       'delete from parent_student_relations where parent_id in (select id from parents where org_id = $1)',
       'delete from parents where org_id = $1',
       'delete from enrollments where org_id = $1',
