@@ -2,7 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Pool } from 'pg';
 import { resolveAttendanceMode } from './attendance-mode';
 import type { StudentScope } from './child-scope';
-import { findConflictingLeaveViaSql, insertLeave, lockStudentLeaves } from './leave-write';
+import {
+  findConflictingLeaveViaSql,
+  insertLeave,
+  lockStudentLeaves,
+  writeLeaveAttendance,
+} from './leave-write';
 import type { LeaveWindow } from './leave-covers-session';
 import { notifyLeaveStreaks } from './leave-streak';
 import { withTx } from './pg-tx';
@@ -328,6 +333,9 @@ export function createChildDb(
      * 家長請假的寫入（#1970）：**跟管理端同一把鎖**（`lockStudentLeaves`，鍵＝org＋學生）、同一支重疊判準，
      * 一筆交易裡「取鎖 → 查重疊 → 寫假單」—— 家長連點、或家長和行政同時請同一段，只會有一張。
      *
+     * **出勤連動也在這筆交易裡**（#2244，#2237 同形狀）：`attendanceEventIds` 由 route 在交易外算好（只改沒紀錄或缺席的堂），
+     * 這裡用 `writeLeaveAttendance` 寫 on_leave；寫失敗整筆回滾、回 `failed`，不會「假在、出勤沒蓋到」。
+     *
      * 為什麼是 childDb 的能力、不是 route 自己拿 pool：pool 是沒綁 scope 的原始連線，
      * 給了家長端 route 就繞過了「拿不到錯的工具」（parent-data-scope.md 第二節）。這裡先驗孩子在 scope 內才動手。
      */
@@ -336,6 +344,7 @@ export function createChildDb(
       window: LeaveWindow;
       reason: string | null;
       userId: string;
+      attendanceEventIds: readonly string[];
     }): Promise<
       | { kind: 'created'; leave: Record<string, unknown> }
       | { kind: 'overlap' }
@@ -353,7 +362,14 @@ export function createChildDb(
           if (await findConflictingLeaveViaSql(tx, orgId, input.studentId, input.window)) {
             return { kind: 'overlap' as const };
           }
-          const leave = await insertLeave(tx, { orgId, ...input, role: 'parent' });
+          const { attendanceEventIds, ...leaveInput } = input;
+          const leave = await insertLeave(tx, { orgId, ...leaveInput, role: 'parent' });
+          await writeLeaveAttendance(tx, {
+            orgId,
+            studentId: input.studentId,
+            recordedBy: input.userId,
+            eventIds: attendanceEventIds,
+          });
           return { kind: 'created' as const, leave };
         });
       } catch (err) {
