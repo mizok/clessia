@@ -561,7 +561,7 @@ export class DashboardComponent {
   private readonly crossCampusOverdue = signal<number | null>(null);
   /**
    * 財務卡下方「另有 N 張跨校帳單不在此分校統計內」的 N；**不該畫時是 `null`**：
-   * 頂欄沒選分校（全部分校就是全部，沒有「不在此分校」）、欄位缺、N = 0。
+   * 還沒有分校可選（儀表板 #2259 起沒有「全部分校」，只剩這種 null）、欄位缺、N = 0。
    */
   protected readonly crossCampusNote = computed(() => {
     const count = this.crossCampusOverdue();
@@ -741,7 +741,8 @@ export class DashboardComponent {
     // **整頁跟頂欄分校（#1314 DB-campus）**：每張卡一條 `bind`——分校一換先把那張卡清成
     // 「還不知道」（舊數字配新分校是最糟的騙法），再用 `switchMap` 查；連換兩次時先送出的慢回應
     // 會被丟掉，不會蓋掉後送出的。選「全部」＝不帶 `campusId`。
-    this.campusCtx.use({ allowAll: true }); // 報表類：保留全部分校（#1607）
+    // 日常頁（#2259，使用者 11-04）：今天在這間校區要做的事，選全部會把各校名單混在一起；跨校彙總看營收報表
+    this.campusCtx.use();
 
     // ① Hero＋作業台主體：**一支取代兩支**（今日課表 + 點名模式）。
     // 形狀的判斷本來就該只有一份，在伺服器。日到班模式下這一支還順便帶回
