@@ -44,6 +44,14 @@ run('時段指定教室對真 PostgREST（#1796）', () => {
       set('roles', ['admin']);
       set('permissions', ['*']);
       set('campusScope', null);
+      // GET /classes 的列表統計走 pg pool（#2226）—— 給真的池，不然 getAuth 掉進 createAuth(undefined) → 500
+      set('auth', {
+        pool: {
+          query: pool.query.bind(pool),
+          connect: pool.connect.bind(pool),
+          end: async () => undefined,
+        },
+      });
       await next();
     });
     app.route('/', classesRoute as unknown as Hono);
