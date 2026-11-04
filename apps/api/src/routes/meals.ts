@@ -159,6 +159,7 @@ app.openapi(
         },
       },
       400: { description: '參數錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -271,34 +272,34 @@ app.openapi(
     //
     // 分校範圍（#2138）：候選只從範圍內分校的班來 —— 用班的分校而不是學生範圍，
     // 兩校都上的學生才不會帶出別校的班名（`classNames`）
-    let sessionQuery = supabase
-      .from('sessions')
-      // class_id NOT NULL，inner join 對不受限的管理員不會少列
-      .select('class_id, classes!inner(campus_id)')
-      .eq('org_id', orgId)
-      .eq('session_date', from);
-    if (campusIds) sessionQuery = sessionQuery.in('classes.campus_id', campusIds);
-    const { data: sessionRows } = await sessionQuery;
-
-    const classIds = Array.from(
-      new Set(
-        (sessionRows ?? []).map((row) => (row as Record<string, unknown>)['class_id'] as string),
-      ),
-    );
+    //
+    // #2227（#1928 A#7）：「那天有課的班」放在 embed 的 `!inner` 裡、在 DB 端篩，不再先撈班 id
+    // 再 `.in()` 回 enrollments —— 班一多就 414，而兩支的錯誤都沒看，候選靜默變空、回 200。
+    // 在籍列可能破千（max_rows 1000），翻頁撈齊
+    const enrollmentResult = await fetchAllPages((rangeFrom, rangeTo) => {
+      let query = supabase
+        .from('enrollments')
+        .select(
+          'id, student_id, students(name, meal_default), classes!inner(name, campus_id, sessions!inner(session_date))',
+        )
+        .eq('org_id', orgId)
+        .eq('status', 'active')
+        .eq('classes.sessions.session_date', from);
+      if (campusIds) query = query.in('classes.campus_id', campusIds);
+      return query.order('id').range(rangeFrom, rangeTo);
+    });
+    if (enrollmentResult.error) {
+      console.error('[meals] 讀取當天有課的在籍學生失敗:', enrollmentResult.error);
+      return c.json({ error: '讀取訂餐候選失敗' }, 500);
+    }
 
     const candidates = new Map<
       string,
       { studentId: string; studentName: string; mealDefault: boolean; classNames: string[] }
     >();
 
-    if (classIds.length > 0) {
-      const { data: enrollmentRows } = await supabase
-        .from('enrollments')
-        .select('student_id, students(name, meal_default), classes(name)')
-        .eq('org_id', orgId)
-        .eq('status', 'active')
-        .in('class_id', classIds);
-
+    {
+      const enrollmentRows = enrollmentResult.rows;
       for (const row of (enrollmentRows ?? []) as unknown as Record<string, unknown>[]) {
         const studentId = row['student_id'] as string;
         const student = row['students'] as { name?: string; meal_default?: boolean } | null;

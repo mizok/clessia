@@ -570,6 +570,7 @@ app.openapi(
           orgId,
           date,
           ((sessionRows ?? []) as unknown as Array<Record<string, unknown>>).map(toTodaySession),
+          { campusIds, classIds: myClassIds },
         );
         const todayStatuses = classifyToday(daily, date);
         // 老師只數得到自己的學生
