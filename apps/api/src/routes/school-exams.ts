@@ -6,6 +6,7 @@ import { canManageOrgExam } from '../lib/exam-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { fetchAllPages } from '../lib/fetch-all-pages';
 import { splitScoreMutations } from '../lib/score-mutations';
 import { writeExamScores } from '../lib/exam-scores-write';
 import { getAuth } from '../lib/get-auth';
@@ -709,55 +710,11 @@ app.openapi(getRoute, async (c) => {
   const subject = pickRelationFirst(schoolExam.subjects);
   const schoolName = school?.name ?? '';
 
-  let studentIdFilter: string[] | null = null;
-
-  if (campusId || grade) {
-    let studentQuery = supabase
-      .from('students')
-      .select('id')
-      .eq('org_id', orgId)
-      .eq('is_active', true);
-
-    if (grade) {
-      studentQuery = studentQuery.eq('grade', grade);
-    }
-
-    const campusIds = campusFilterIds(getCampusScope(c), campusId);
-    if (campusIds) {
-      const { data: enrollmentRows } = await supabase
-        .from('enrollments')
-        .select('student_id, classes!inner(campus_id)')
-        .in('classes.campus_id', [...campusIds]);
-
-      const campusStudentIds = Array.from(
-        new Set(
-          ((enrollmentRows ?? []) as Array<{ student_id: string | null }>)
-            .map((row) => row.student_id)
-            .filter((sid): sid is string => !!sid),
-        ),
-      );
-
-      if (campusStudentIds.length === 0) {
-        studentIdFilter = [];
-      } else {
-        studentQuery = studentQuery.in('id', campusStudentIds);
-      }
-    }
-
-    if (studentIdFilter === null) {
-      const { data: studentRows } = await studentQuery;
-      studentIdFilter = (studentRows ?? []).map((r) => (r as { id: string }).id);
-    }
-  }
-
-  let scoreQuery = supabase
-    .from('school_scores')
-    .select('student_id, subject_id, score, subjects(id, name)')
-    .eq('school_exam_id', id);
-
-  if (studentIdFilter !== null && studentIdFilter.length > 0) {
-    scoreQuery = scoreQuery.in('student_id', studentIdFilter);
-  } else if (studentIdFilter !== null && studentIdFilter.length === 0) {
+  // 分校範圍（#1928）：**一律套**（原本只有帶 campusId 或 grade 才套，受限管理員不帶篩選就拿到整個 org 的平均），
+  // 條件放進 embed 的 `!inner` 在 DB 端篩 —— 不先撈範圍內學生 id 再塞進 URL（兩三百位就 414）。
+  // 學生「任一筆報名」的班在範圍內就算、不分報名狀態（同 routes/students.ts、enrollment-rules 第 8 節）
+  const campusIds = campusFilterIds(getCampusScope(c), campusId);
+  if (campusIds !== null && campusIds.length === 0) {
     return c.json(
       {
         data: {
@@ -781,11 +738,30 @@ app.openapi(getRoute, async (c) => {
       200,
     );
   }
-
-  const { data: scoreRows, error: scoreError } = await scoreQuery;
+  // 帶了 campusId 或 grade 的篩選只算在籍學生（行為同原本）
+  const filtered = Boolean(campusId || grade);
+  const { rows: scoreRows, error: scoreError } = await fetchAllPages((from, to) => {
+    let query = supabase
+      .from('school_scores')
+      .select(
+        'id, student_id, subject_id, score, subjects(id, name)' +
+          (filtered ? ', filt:students!inner(grade, is_active)' : '') +
+          (campusIds
+            ? ', scope_campus:students!inner(enrollments!inner(classes!inner(campus_id)))'
+            : ''),
+      )
+      .eq('school_exam_id', id);
+    if (filtered) query = query.eq('filt.is_active', true);
+    if (grade) query = query.eq('filt.grade', grade);
+    if (campusIds) query = query.in('scope_campus.enrollments.classes.campus_id', [...campusIds]);
+    return query.order('id').range(from, to);
+  });
 
   if (scoreError) {
-    return c.json({ error: scoreError.message, code: 'DB_ERROR' }, 400);
+    return c.json(
+      { error: (scoreError as { message?: string }).message ?? '查詢失敗', code: 'DB_ERROR' },
+      400,
+    );
   }
 
   const summaryMap = new Map<
@@ -793,7 +769,11 @@ app.openapi(getRoute, async (c) => {
     { subjectId: string; subjectName: string; scores: number[]; rowCount: number }
   >();
 
-  for (const row of scoreRows ?? []) {
+  for (const row of scoreRows as unknown as Array<{
+    subject_id: string;
+    score: number | null;
+    subjects: { id: string; name: string } | Array<{ id: string; name: string }> | null;
+  }>) {
     const subject = pickRelationFirst(row.subjects);
     const subjectId = row.subject_id;
     const subjectName = subject?.name ?? '';
@@ -1848,62 +1828,41 @@ app.openapi(studentsRoute, async (c) => {
     .select('id', { count: 'exact', head: true })
     .eq('org_id', orgId);
 
-  let studentsQuery = supabase
-    .from('students')
-    .select('id, name, grade, is_active, enrollments(id, classes(campus_id, campuses(name)))')
-    .eq('org_id', orgId)
-    .eq('is_active', true)
-    .eq('school_id', schoolExam.school_id)
-    .order('name');
-
-  if (grade) {
-    studentsQuery = studentsQuery.eq('grade', grade);
-  }
-  if (search) {
-    studentsQuery = studentsQuery.ilike('name', `%${search}%`);
-  }
-
+  // 分校範圍（#1928）：條件放進 embed 的 `!inner` 在 DB 端篩，不先撈範圍內學生 id 再 `.in()` 回去（兩三百位就 414）。
   // 同 routes/students.ts：**不濾 enrollment status**，這條同時是 campusScope 授權的路
   // （kb/wiki/rules/enrollment-rules.md 第 8 節）
   const campusIds = campusFilterIds(getCampusScope(c), campusId);
-  if (campusIds) {
-    const { data: enrollmentRows, error: enrollmentError } = await supabase
-      .from('enrollments')
-      .select('student_id, classes!inner(campus_id)')
-      .in('classes.campus_id', [...campusIds]);
-
-    if (enrollmentError) {
-      return c.json({ error: enrollmentError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    const campusStudentIds = Array.from(
-      new Set(
-        ((enrollmentRows ?? []) as Array<{ student_id: string | null }>)
-          .map((row) => row.student_id)
-          .filter((studentId): studentId is string => !!studentId),
-      ),
-    );
-
-    if (campusStudentIds.length === 0) {
-      return c.json(
-        {
-          data: [],
-          meta: { total: 0, page, pageSize },
-        },
-        200,
-      );
-    }
-
-    studentsQuery = studentsQuery.in('id', campusStudentIds);
+  if (campusIds !== null && campusIds.length === 0) {
+    return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
   }
-
-  const { data: studentsData, error: studentsError } = await studentsQuery;
+  // 這場的成績直接掛在學生底下（embed 上的條件只篩子列），不再拿整校學生的 id 另查 —— 那份清單也會 414。
+  // 分頁撈齊：一所學校在籍的學生可能過千（max_rows 1000 會靜默截斷）
+  const { rows: studentsData, error: studentsError } = await fetchAllPages((from, to) => {
+    let query = supabase
+      .from('students')
+      .select(
+        'id, name, grade, is_active, enrollments(id, classes(campus_id, campuses(name))), ' +
+          'school_scores(status, updated_at, school_exam_id)' +
+          (campusIds ? ', scope_campus:enrollments!inner(classes!inner(campus_id))' : ''),
+      )
+      .eq('org_id', orgId)
+      .eq('is_active', true)
+      .eq('school_id', schoolExam.school_id)
+      .eq('school_scores.school_exam_id', id);
+    if (grade) query = query.eq('grade', grade);
+    if (search) query = query.ilike('name', `%${search}%`);
+    if (campusIds) query = query.in('scope_campus.classes.campus_id', [...campusIds]);
+    return query.order('name').order('id').range(from, to);
+  });
 
   if (studentsError) {
-    return c.json({ error: studentsError.message, code: 'DB_ERROR' }, 400);
+    return c.json(
+      { error: (studentsError as { message?: string }).message ?? '查詢失敗', code: 'DB_ERROR' },
+      400,
+    );
   }
 
-  const studentRows = (studentsData ?? []) as unknown as Array<{
+  const studentRows = studentsData as unknown as Array<{
     id: string;
     name: string | null;
     grade: string | null;
@@ -1912,11 +1871,13 @@ app.openapi(studentsRoute, async (c) => {
       id: string;
       classes: { campus_id: string | null; campuses: { name: string } | null } | null;
     }> | null;
+    school_scores?: Array<{
+      status: 'scored' | 'absent' | 'makeup';
+      updated_at: string;
+    }> | null;
   }>;
 
-  const studentIds = studentRows.map((row) => row.id);
-
-  if (studentIds.length === 0) {
+  if (studentRows.length === 0) {
     return c.json(
       {
         data: [],
@@ -1926,15 +1887,9 @@ app.openapi(studentsRoute, async (c) => {
     );
   }
 
-  const { data: scoreRows, error: scoreError } = await supabase
-    .from('school_scores')
-    .select('student_id, status, updated_at')
-    .eq('school_exam_id', id)
-    .in('student_id', studentIds);
-
-  if (scoreError) {
-    return c.json({ error: scoreError.message, code: 'DB_ERROR' }, 400);
-  }
+  const scoreRows = studentRows.flatMap((row) =>
+    (row.school_scores ?? []).map((score) => ({ student_id: row.id, ...score })),
+  );
 
   const aggregated = new Map<
     string,
