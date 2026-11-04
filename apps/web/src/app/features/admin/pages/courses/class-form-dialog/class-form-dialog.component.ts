@@ -165,8 +165,12 @@ export class ClassFormDialogComponent {
           this.cls.set(res.data);
           this.scheduleEntries.set(this.toEntries(this.liveSchedules()));
           this.loading.set(false);
+          this.startRetime();
         },
-        error: () => this.loading.set(false),
+        error: () => {
+          this.loading.set(false);
+          this.startRetime();
+        },
       });
     }
     // 只列使用中的範本 —— 停用的 API 會擋（停用的價目表不再對外報價）
@@ -749,6 +753,17 @@ export class ClassFormDialogComponent {
         },
       });
     });
+  }
+
+  /** 從儀表板「班級改時段」進來（#2246）：多個時段時表單上方那一句 */
+  protected readonly retimeHint = signal(false);
+
+  /** 只有一個時段就直接開它的「從某日起改時段」；多個時段不替人挑，停在表單說要選哪個 */
+  private startRetime(): void {
+    if (!this.config.data?.retime) return;
+    const entries = this.scheduleEntries().filter((e) => e.id);
+    if (entries.length === 1) this.openSplit(entries[0]);
+    else this.retimeHint.set(true);
   }
 
   protected cancel(): void {
