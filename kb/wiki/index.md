@@ -1,6 +1,6 @@
 # Clessia Wiki — Index
 
-> Auto-maintained by `kb:map`. Last updated: 2026-11-03
+> Auto-maintained by `kb:map`. Last updated: 2026-11-04
 
 ---
 
@@ -78,12 +78,13 @@
 - [[flows/renewal]] — 本文件整理 PRD 6.10，定義預告制自動續課（Pre-Notification Auto-Renewal）的時間軸、角色動作與例外處理。
 - [[flows/trial]] — 本文件整理 PRD 6.2，定義試聽申請從提交、安排、試聽到跟進的完整流程。此流程與報名申請流程獨立，但可在資料層建立來源關聯。
 
-## Lessons (33)
+## Lessons (34)
 - [[lessons/a-field-is-a-snapshot-not-a-path]] — 看到 published_at 有值就推論「發布流程走過」——實際上那筆是 seed 用 SQL 直接塞的，而發布端點連通知邏輯都還沒寫。同一個形狀在三個席上各出現過一次。
 - [[lessons/agent-workflow-guide]] — 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
 - [[lessons/auto-merge-duplicates-a-block]] — 疊單的下一張 merge main 時，git 自動合併可能把上一張已經 squash 進 main 的那段程式再貼一次——沒有衝突、merge-tree 不報、spec 照綠；對策是看 diff --stat 的檔案與行數，再 grep 關鍵宣告的次數。
 - [[lessons/awakened-tests-bite]] — 把 @Input/@ViewChild 換成 functional API 這種「機械」重構，讓一段從來沒真正執行過的程式碼第一次跑起來，連帶暴露六支靠「那行沒跑到」才綠的 spec 與一顆 node 解析條件的地雷。
 - [[lessons/backlog-legacy]] — 2026-02～03 的功能開發清單與技術債紀錄。歷史文件 —— 其中「忘記密碼」整節已於 2026-08 作廢（系統改用 LINE OAuth）。
+- [[lessons/bashpid-empty-on-macos-bash]] — 全套測試鎖裡要寫持有者的 pid，有一支流傳的 verify.sh 在 `( … )` 子殼裡用 `echo $BASHPID`。macOS 內建 /bin/bash 是 3.2，沒有 $BASHPID —— 不報錯、展開成空字串，鎖照拿、測試照跑，只有 pid 檔是空的；持有者一旦死掉，等的人的接手條件 `[ -n "$p" ]` 永遠不成立。要拿子殼的 pid 用 `$(exec sh -c 'echo $PPID')`，或在外層行程活得比鎖久時直接用 `$$`；寫完先 `cat` 一次 pid 檔。
 - [[lessons/better-auth-session-delegation]] — adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。教訓是 session 一律委派官方 API —— 當時委派給 signInEmail / signInUsername，2026-08 密碼登入移除後改為委派 magic-link 與 social provider，原則不變。
 - [[lessons/bottom-sheet-meets-mobile-viewport]] — 兩個獨立的缺口都打在同一個位置——釘底面板最下面那排按鈕。一個是 --window-height 用 innerHeight 且只聽 window:resize（iOS 工具列收合發的是 visualViewport.resize），一個是全 repo 沒有任何 env(safe-area-inset-*)。兩者都未經真機確認。
 - [[lessons/broken-looks-identical-to-normal]] — 2026-09-05～06 挖出同一族缺陷的 16 個實例（M8 稽核 13 個 + teacher-pages 補 1 個 + 兩個時區/驗證同族案例，另附兩則查證方法本身的盲點）——程式碼的語意或邏輯是對的，但渲染結果、觸發條件或視覺回饋錯了，而且錯的方式讓它看起來像對的。判準：「它壞了我們會知道嗎？」
@@ -252,4 +253,4 @@
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-**Total: 230 pages**
+**Total: 231 pages**

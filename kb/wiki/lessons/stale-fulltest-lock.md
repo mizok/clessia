@@ -4,7 +4,7 @@ summary: 全套測試、整組契約、conformance compare 共用一把 mkdir �
 category: lessons
 tags: [lessons, concurrency, lock, herdr, testing]
 status: active
-updated: 2026-11-03
+updated: 2026-11-04
 ---
 
 # 全套測試鎖：沒有人持有的鎖會一直擋著
@@ -53,8 +53,10 @@ trap 'rm -f $L/pid; rmdir $L' EXIT INT TERM HUP
 - 剩下的空窗（mkdir 成功、pid 還沒寫進去就被砍）：pid 檔不存在時等的人不會接手，仍要人工確認後清。
   這個窗口只有一行指令那麼長，已經比原本小很多；真的遇到時先確認沒有席位在跑再清。
 - 單檔 spec（`--include`）、單支契約、typecheck、harness 不用拿鎖。
+- **鎖包在 `( … )` 子殼裡時不要寫 `$BASHPID`**：macOS 的 `/bin/bash` 是 3.2，沒有這個變數，pid 檔會是空的、死掉的持有者沒人能接手。見 [[lessons/bashpid-empty-on-macos-bash]]。
 
 ## See Also
 
+- [[lessons/bashpid-empty-on-macos-bash]]
 - [[lessons/herdr-team-orchestration]]
 - [[lessons/silent-tool-failures]]
