@@ -773,7 +773,10 @@ BEGIN
   WHERE NOT EXISTS (SELECT 1 FROM public.subjects WHERE org_id = demo_org_id AND name = '示範可刪科目');
 
   -- ── 8. 沒有任何課堂的班級（admin/courses 的「刪除班級」才啟用）──────────
-  SELECT id INTO v_course_id FROM public.courses WHERE org_id = demo_org_id ORDER BY created_at LIMIT 1;
+  -- 課程要挑同一個分校的：班的分校跟課程一致（API 建班沿用課程分校，classes.ts）；
+  -- 原本挑 org 的第一門課，造出「班在 A 校、課程在 B 校」的班，課程頁數得到、列不出來（#2234）
+  SELECT id INTO v_course_id FROM public.courses
+  WHERE org_id = demo_org_id AND campus_id = v_campus_id ORDER BY created_at LIMIT 1;
   IF v_course_id IS NOT NULL AND v_campus_id IS NOT NULL THEN
     INSERT INTO public.classes (org_id, campus_id, course_id, name, max_students, is_active, start_date)
     SELECT demo_org_id, v_campus_id, v_course_id, '示範空班（無課堂）', 10, TRUE, CURRENT_DATE + 30
