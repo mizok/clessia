@@ -34,6 +34,42 @@ interface Failures {
   readonly failingWrites?: readonly string[];
 }
 
+/**
+ * `annotateArrivals` 的報名與打卡走 pg（#2230 ③）。這個替身照 SQL 的條件**真的過濾**同一份 rows
+ * （org、`status = 'active'`、班 id、日期區間、打卡只限這些班在籍過的學生）——
+ * 列上沒填的欄位當作符合（多數 fixture 只填要測的那幾欄）。`failing` 指名的表丟例外。
+ * SQL 本身的語意由 `contract/session-arrivals-2230.contract.ts` 對真 Postgres 守。
+ */
+function arrivalsPool(rows: Rows, failing: readonly string[] = []) {
+  const has = (r: Record<string, unknown>, c: string, ok: (v: unknown) => boolean) =>
+    !(c in r) || ok(r[c]);
+  return {
+    query: async (sql: string, values: unknown[]) => {
+      const [orgId, classIds, from, to] = values as [string, string[], string?, string?];
+      const enrolled = (rows['enrollments'] ?? []).filter(
+        (r) =>
+          has(r, 'org_id', (v) => v === orgId) &&
+          has(r, 'status', (v) => v === 'active') &&
+          has(r, 'class_id', (v) => classIds.includes(v as string)),
+      );
+      if (sql.includes('from public.daily_checkins')) {
+        if (failing.includes('daily_checkins')) throw new Error('daily_checkins 讀取失敗');
+        const students = new Set(enrolled.map((r) => r['student_id']));
+        return {
+          rows: (rows['daily_checkins'] ?? []).filter(
+            (r) =>
+              has(r, 'org_id', (v) => v === orgId) &&
+              has(r, 'checkin_date', (v) => (v as string) >= from! && (v as string) <= to!) &&
+              students.has(r['student_id']),
+          ),
+        };
+      }
+      if (failing.includes('enrollments')) throw new Error('enrollments 讀取失敗');
+      return { rows: enrolled };
+    },
+  };
+}
+
 function fakeDb(rows: Rows, failures: Failures | readonly string[] = {}) {
   const f: Failures = Array.isArray(failures) ? { failing: failures } : (failures as Failures);
   const failing = f.failing ?? [];
@@ -91,7 +127,7 @@ function fakeDb(rows: Rows, failures: Failures | readonly string[] = {}) {
     });
     return builder;
   };
-  return { from: (table: string) => make(table), writes };
+  return { from: (table: string) => make(table), writes, pool: arrivalsPool(rows, failing) };
 }
 
 async function call(
@@ -421,6 +457,10 @@ describe('GET /roster/{eventId} —— 分校範圍與到班時間', () => {
   });
 });
 
+/** 自訂的假 db（只換掉一張表的那種）沒有 pool：給一個空的，它在用到 pool 之前就該回錯 */
+const poolOf = (db: unknown) =>
+  (db as { pool?: ReturnType<typeof arrivalsPool> }).pool ?? arrivalsPool({});
+
 describe('annotateArrivals —— 課堂列表的模式與到班數', () => {
   const session = (over: Record<string, unknown> = {}) => ({
     classId: CLASS,
@@ -446,7 +486,10 @@ describe('annotateArrivals —— 課堂列表的模式與到班數', () => {
         { student_id: 's2', checkin_date: '2026-04-05', campus_id: A },
       ],
     });
-    const r = await annotateArrivals(db as never, ORG, [session(), session({ campusId: B })]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [
+      session(),
+      session({ campusId: B }),
+    ]);
     expect(r.error).toBeNull();
     expect(r.data?.[0]).toMatchObject({ attendanceMode: 'daily_checkin', checkedInCount: 1 });
     // B 沒設定 → 機構預設隨堂
@@ -466,7 +509,7 @@ describe('annotateArrivals —— 課堂列表的模式與到班數', () => {
             }
           : fakeDb({}).from(table),
     };
-    const r = await annotateArrivals(db as never, ORG, [session()]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [session()]);
     expect(r.error).toEqual({ message: 'boom' });
   });
 });
@@ -566,7 +609,7 @@ function filteringDb(rows: Rows, failing: readonly string[] = []) {
     };
     return q;
   };
-  return { from: make };
+  return { from: make, pool: arrivalsPool(rows, failing) };
 }
 
 describe('annotateArrivals —— 查詢條件與計數', () => {
@@ -603,7 +646,7 @@ describe('annotateArrivals —— 查詢條件與計數', () => {
       enrollments: [enr('s1'), enr('s1', CLASS, { effective_from: '2026-02-01' })],
       daily_checkins: [chk('s1')],
     });
-    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [sess()]);
     expect(r.data?.[0]?.checkedInCount).toBe(1);
   });
 
@@ -613,7 +656,7 @@ describe('annotateArrivals —— 查詢條件與計數', () => {
       enrollments: [enr('s1'), enr('s2', C2)],
       daily_checkins: [chk('s1'), chk('s2')],
     });
-    const r = await annotateArrivals(db as never, ORG, [sess(), sess({ classId: C2 })]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [sess(), sess({ classId: C2 })]);
     expect(r.data?.map((s) => s.checkedInCount)).toEqual([1, 1]);
   });
 
@@ -624,7 +667,10 @@ describe('annotateArrivals —— 查詢條件與計數', () => {
       enrollments: [enr('s1')],
       daily_checkins: [chk('s1', TODAY), chk('s1', LATER)],
     });
-    const r = await annotateArrivals(db as never, ORG, [sess(), sess({ eventDate: LATER })]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [
+      sess(),
+      sess({ eventDate: LATER }),
+    ]);
     expect(r.data?.map((s) => s.checkedInCount)).toEqual([1, 1]);
   });
 
@@ -634,19 +680,19 @@ describe('annotateArrivals —— 查詢條件與計數', () => {
       enrollments: [enr('s1'), enr('s2', CLASS, { status: 'withdrawn' })],
       daily_checkins: [chk('s1'), chk('s2')],
     });
-    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [sess()]);
     expect(r.data?.[0]?.checkedInCount).toBe(1);
   });
 
   it('讀報名失敗 → 回錯誤，不退回 null 照常回', async () => {
     const db = filteringDb({ ...base, enrollments: [enr('s1')] }, ['enrollments']);
-    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [sess()]);
     expect(r.error).not.toBeNull();
   });
 
   it('讀到班打卡失敗 → 回錯誤，不退回 null 照常回', async () => {
     const db = filteringDb({ ...base, enrollments: [enr('s1')] }, ['daily_checkins']);
-    const r = await annotateArrivals(db as never, ORG, [sess()]);
+    const r = await annotateArrivals(db as never, poolOf(db), ORG, [sess()]);
     expect(r.error).not.toBeNull();
   });
 });

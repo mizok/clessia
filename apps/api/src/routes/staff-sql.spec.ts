@@ -119,7 +119,7 @@ describe('GET /api/staff 先走 SQL（#1595 P2）', () => {
     expect(body.summary.neverLoggedInCount).toBe(1);
   });
 
-  it('SQL 拋錯：改走 builder，照樣回 200，記一行 [staff-sql]', async () => {
+  it('SQL 拋錯 → 500，不退回 builder（#2230 ③：builder 會 414、吞錯），記一行 [staff-sql]', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { app, rest } = appWith({
       query: async () => {
@@ -127,8 +127,8 @@ describe('GET /api/staff 先走 SQL（#1595 P2）', () => {
       },
     });
     const res = await app.request('/');
-    expect(res.status).toBe(200);
-    expect(rest.calls()).toBeGreaterThan(0);
+    expect(res.status).toBe(500);
+    expect(rest.calls()).toBe(0);
     expect(log.mock.calls.some((c) => String(c[0]).includes('[staff-sql]'))).toBe(true);
   });
 
