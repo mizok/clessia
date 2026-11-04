@@ -1988,13 +1988,14 @@ export const PAGES = {
     a6: 'fee-templates.html',
     app: '/admin/fee-templates',
     deviations: [
-      // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕
+      // 用模板建立：A6 放在系統設定、是一選就建的 select；使用者 11-02 搬到這裡、改成 radio＋預覽＋送出鈕，
+      // 11-04 收進彈窗（#2235），頁面上只剩開彈窗的那顆鈕（列表空時在空狀態裡）
       {
         status: '多',
-        app: '>landmark:region\\[收費期間\\]>(text:legend\\[用模板建立\\]|text:p\\[照下一個學年[^\\]]*\\]|row>control:radio|row>list>row|control:button\\[(先選一個模板|建立這#個期間|建立中…|這個模板的期間都已經有了)\\])$',
+        app: '>landmark:region\\[收費期間\\]>(.*>)?control:button\\[用模板建立\\]$',
         reason:
-          '學期與繳費週期搬到費用方案頁；用模板建立改成 radio＋預覽＋送出鈕（一選就建太危險）',
-        source: `${rule('R5')}「學期與繳費週期的位置」「用模板建立期間」2026-11-02（使用者 11-02 裁定）`,
+          '學期與繳費週期搬到費用方案頁；用模板建立收成一顆鈕開彈窗（一年用一次，不常駐佔版面）',
+        source: `${rule('R5')}「學期與繳費週期的位置」「用模板建立期間」2026-11-02、「用模板建立期間：收進彈窗」2026-11-04（使用者裁定，#2235）`,
       },
       noCampusSwitch('價目表是補習班層級'),
       // 頁面搜尋框：框畫在 input 上，稿畫在外層 label.tsearch —— 同 courses／grades-class 那條
