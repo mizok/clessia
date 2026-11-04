@@ -305,7 +305,19 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
               table === 'events'
                 ? [{ id: 'ev-untaken' }]
                 : table === 'attendance_records'
-                  ? [{ id: 'rec-1' }]
+                  ? // revert 從學生的 on_leave 紀錄出發、帶 events embed（#2231）
+                    [
+                      {
+                        id: 'rec-1',
+                        events: {
+                          id: 'ev-untaken',
+                          event_date: leaveDates?.start ?? '2026-04-01',
+                          start_time: null,
+                          end_time: null,
+                          sessions: [],
+                        },
+                      },
+                    ]
                   : [];
             return Promise.resolve({ data }).then(onfulfilled ?? undefined);
           },
@@ -424,7 +436,7 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
     );
 
     // 那天有人真的看過名單、做過判斷；假被刪掉不代表可以回頭改寫別人做完的事
-    expect(filters).toContainEqual(['events.is.attendance_taken_at', null]);
+    expect(filters).toContainEqual(['attendance_records.is.events.attendance_taken_at', null]);
   });
 });
 
@@ -747,6 +759,8 @@ describe('PATCH /api/leaves/:id', () => {
       reason: string | null;
     }>;
     otherLeaves?: Array<{ id: string; start_date: string; end_date: string }>;
+    /** 這張表的讀（或 `upsert`）回錯 —— #2231：出勤同步失敗要讓請求失敗 */
+    fail?: 'events' | 'attendance_records' | 'upsert';
   }) {
     const leave = {
       id: LEAVE_ID,
@@ -809,7 +823,9 @@ describe('PATCH /api/leaves/:id', () => {
           upsert: (payload: unknown) => {
             record.op = 'upsert';
             record.payload = payload;
-            return Promise.resolve({ error: null });
+            return Promise.resolve({
+              error: options?.fail === 'upsert' ? { message: 'boom' } : null,
+            });
           },
           insert: (payload: Record<string, unknown>) => {
             record.op = 'insert';
@@ -847,14 +863,40 @@ describe('PATCH /api/leaves/:id', () => {
                 return true;
               });
             } else if (table === 'events') {
+              // apply 的在籍條件放在 embed 裡（#2231）：課堂帶著這位學生在那班的報名
               data = [
-                { id: 'ev-1', event_date: record.gte?.[1] as string, sessions: { class_id: 'c1' } },
+                {
+                  id: 'ev-1',
+                  event_date: record.gte?.[1] as string,
+                  sessions: {
+                    class_id: 'c1',
+                    classes: {
+                      enrollments: [
+                        { class_id: 'c1', effective_from: '2020-01-01', effective_to: null },
+                      ],
+                    },
+                  },
+                },
               ];
-            } else if (table === 'enrollments') {
-              data = [{ class_id: 'c1', effective_from: '2020-01-01', effective_to: null }];
             } else if (table === 'attendance_records') {
-              data = [{ id: 'rec-1' }];
+              // revert 從學生的 on_leave 紀錄出發、帶 events embed（#2231）
+              data = [
+                {
+                  id: 'rec-1',
+                  events: {
+                    id: 'ev-1',
+                    event_date: record.gte?.[1] as string,
+                    start_time: null,
+                    end_time: null,
+                    sessions: [],
+                  },
+                },
+              ];
             }
+            if (options?.fail === table && record.op === 'select')
+              return Promise.resolve({ data: null, error: { message: 'boom' } } as never).then(
+                onfulfilled ?? undefined,
+              );
             return Promise.resolve({ data }).then(onfulfilled ?? undefined);
           },
         };
@@ -874,6 +916,7 @@ describe('PATCH /api/leaves/:id', () => {
       context.set('roles', ['admin']);
       await next();
     });
+    app.onError((_err, c) => c.json({ error: 'Internal Server Error' }, 500));
     app.route('/api/leaves', leavesApp);
 
     async function patch(body: Record<string, unknown>) {
@@ -899,14 +942,18 @@ describe('PATCH /api/leaves/:id', () => {
 
     expect(res.status).toBe(200);
 
-    const eventQueries = queries.filter((q) => q.table === 'events');
-    expect(eventQueries).toHaveLength(1);
+    expect(queries.some((q) => q.table === 'events')).toBe(false);
+    // 撤銷從這位學生的 on_leave 出發（#2231），事件條件在 embed 裡
+    const reads = queries.filter((q) => q.table === 'attendance_records' && q.op === 'select');
+    expect(reads).toHaveLength(1);
+    expect(reads[0]?.eqs).toContainEqual(['student_id', 'stu-1']);
+    expect(reads[0]?.eqs).toContainEqual(['status', 'on_leave']);
     // 撤銷的範圍是 4/6~4/10（被砍掉那一段），**不是整張假的 4/1~4/10** ——
     // 對整段撤銷會把還留著的日子一起清掉
-    expect(eventQueries[0]?.gte).toEqual(['event_date', '2026-04-06']);
-    expect(eventQueries[0]?.lte).toEqual(['event_date', '2026-04-10']);
+    expect(reads[0]?.gte).toEqual(['events.event_date', '2026-04-06']);
+    expect(reads[0]?.lte).toEqual(['events.event_date', '2026-04-10']);
     // 那天有人真的看過名單、做過判斷；改短一張假不代表可以回頭改寫別人做完的事
-    expect(eventQueries[0]?.isNull).toContain('attendance_taken_at');
+    expect(reads[0]?.isNull).toContain('events.attendance_taken_at');
 
     expect(queries.some((q) => q.table === 'attendance_records' && q.op === 'delete')).toBe(true);
     // 縮短不會產生新的 on_leave
@@ -926,10 +973,25 @@ describe('PATCH /api/leaves/:id', () => {
     // 新增段走的是「建立請假」那條路：找 session 事件，**不**濾 attendance_taken_at
     // （補請假覆蓋既有紀錄是刻意的，見 #145）
     expect(eventQueries[0]?.eqs).toContainEqual(['event_type', 'session']);
+    // 只撈這位學生在籍班的課堂（#2231）：不是全 org 的班再 .in() 回 enrollments
+    expect(eventQueries[0]?.eqs).toContainEqual([
+      'sessions.classes.enrollments.student_id',
+      'stu-1',
+    ]);
     expect(eventQueries[0]?.isNull).not.toContain('attendance_taken_at');
 
     expect(queries.some((q) => q.table === 'attendance_records' && q.op === 'upsert')).toBe(true);
     expect(queries.some((q) => q.table === 'attendance_records' && q.op === 'delete')).toBe(false);
+  });
+
+  // #2231：出勤同步讀不到或寫不進去，原本吞成「同步 0 筆」回 200 —— 假改了、出勤沒跟上，沒有人知道
+  it.each([
+    ['延長、讀課堂失敗', 'events', '2026-04-14'],
+    ['延長、寫 on_leave 失敗', 'upsert', '2026-04-14'],
+    ['縮短、讀 on_leave 失敗', 'attendance_records', '2026-04-05'],
+  ] as const)('%s → 500，不回成功', async (_label, fail, endDate) => {
+    const { patch } = createPatchApp({ fail });
+    expect((await patch({ endDate })).status).toBe(500);
   });
 
   it('重疊檢查排除自己 —— 否則每一次編輯都會跟自己撞成 409', async () => {

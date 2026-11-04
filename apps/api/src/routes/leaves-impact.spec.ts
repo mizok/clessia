@@ -307,13 +307,22 @@ describe('取消請假的邊界（#1910 二讀）', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('DELETE truncate（進行中、沒綁定）：撤銷的 events 查詢是 today ～ 迄日', async () => {
+  it('DELETE truncate（進行中、沒綁定）：撤銷的出勤查詢是 today ～ 迄日', async () => {
     const { app, calls, env } = routeApp(leaveRow(), []);
     const res = await app.request(`/${LEAVE}?mode=truncate`, { method: 'DELETE' }, undefined, env);
     expect(res.status).toBe(204);
-    const ev = calls.filter((c) => c.table === 'events');
-    expect(ev).toContainEqual({ table: 'events', op: 'gte', args: ['event_date', TODAY] });
-    expect(ev).toContainEqual({ table: 'events', op: 'lte', args: ['event_date', '2026-10-25'] });
+    // 撤銷從學生的 on_leave 出發、事件條件在 embed 裡（#2231）
+    const rec = calls.filter((c) => c.table === 'attendance_records');
+    expect(rec).toContainEqual({
+      table: 'attendance_records',
+      op: 'gte',
+      args: ['events.event_date', TODAY],
+    });
+    expect(rec).toContainEqual({
+      table: 'attendance_records',
+      op: 'lte',
+      args: ['events.event_date', '2026-10-25'],
+    });
   });
 
   it('預覽：綁定型只算綁定的那堂 —— 同一天別堂（別張假寫的）on_leave 不算', async () => {
