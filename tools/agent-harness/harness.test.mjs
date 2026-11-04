@@ -2701,6 +2701,25 @@ test('CLI 釘版：latest、沒釘、兩邊不同都要紅', () => {
   assert.match(diff[0], /不一樣/);
 });
 
+const pkg = (version) =>
+  JSON.stringify({ devDependencies: version === undefined ? {} : { supabase: version } });
+
+test('CLI 釘版（#2252）：package.json 的 supabase 跟 workflow 同一個 x.y.z → 安靜', () => {
+  assert.deepEqual(
+    cliPinProblems([wf('verify', VAR, '2.119.0'), wf('migrate', VAR, '2.119.0')], pkg('2.119.0')),
+    [],
+  );
+});
+
+test('CLI 釘版（#2252）：package.json 沒宣告、帶 ^、版本不同都要紅', () => {
+  const both = [wf('verify', VAR, '2.119.0'), wf('migrate', VAR, '2.119.0')];
+  assert.match(cliPinProblems(both, pkg(undefined)).join(), /package\.json.*沒寫/, '沒宣告');
+  assert.equal(cliPinProblems(both, pkg('^2.119.0')).length, 1, '帶 ^');
+  const diff = cliPinProblems(both, pkg('3.0.0'));
+  assert.equal(diff.length, 1);
+  assert.match(diff[0], /package\.json=3\.0\.0/);
+});
+
 test('CLI 釘版：沒用 setup-cli 的 workflow 不管', () => {
   assert.deepEqual(cliPinProblems([{ name: 'smoke', text: 'jobs:\n  a:\n    runs-on: x\n' }]), []);
 });
