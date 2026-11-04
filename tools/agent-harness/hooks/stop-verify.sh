@@ -7,6 +7,8 @@
 #   - stop_hook_active   anti-live-lock guard (mandatory); at most one forced fix round.
 #   - clean tree         pure Q&A turns are never gated.
 #   - already committed  work committed mid-turn leaves a clean tree and passes ungated.
+#   - .claude/ only      agent 設定不是產品碼，改它弄不壞測試（#2253：db-reset 席刻意保留的 settings.json
+#                        讓它每輪都跑全套 affected，跟持鎖席搶資源、隨機假紅）。
 set -uo pipefail
 
 # hooks/ → agent-harness/ → tools/ → repo root
@@ -16,7 +18,7 @@ cd "$root" || exit 0
 payload=$(cat)
 case "$payload" in *'"stop_hook_active":true'*) exit 0 ;; esac
 
-[ -z "$(git status --porcelain)" ] && exit 0
+[ -z "$(git status --porcelain -- . ':(exclude).claude')" ] && exit 0
 
 fail() {
   echo "$1" >&2
