@@ -493,20 +493,20 @@ test('多出功能歸組：分頁器整組、選項組依標籤命名、工具�
       [1050, 10, 100, 40],
     ),
     P(
-      '>landmark:main[]>control:button[First Page]',
+      '>landmark:main[]>control:button[上一頁]',
       'control',
       'button',
-      'First Page',
+      '上一頁',
       [600, 900, 40, 40],
-      { host: 'p-paginator' },
+      { host: 'app-pager' },
     ),
     P(
-      '>landmark:main[]>control:button[Next Page]',
+      '>landmark:main[]>control:button[下一頁]',
       'control',
       'button',
-      'Next Page',
+      '下一頁',
       [650, 900, 40, 40],
-      { host: 'p-paginator' },
+      { host: 'app-pager' },
     ),
     P('pop[filt]>landmark:dialog[]', 'landmark', 'dialog', '', [0, 0, 300, 300]),
     P('pop[filt]>landmark:dialog[]>text:span[狀態]', 'text', 'span', '狀態', [10, 200, 30, 20]),
@@ -531,8 +531,8 @@ test('多出功能歸組：分頁器整組、選項組依標籤命名、工具�
       detail: '含 2 個子 part',
       inner: parts.slice(2, 4).map((p) => ({ key: p.key, kind: p.kind, tpl: p.tpl })),
     }),
-    row('>landmark:main[]>control:button[First Page]'),
-    row('>landmark:main[]>control:button[Next Page]'),
+    row('>landmark:main[]>control:button[上一頁]'),
+    row('>landmark:main[]>control:button[下一頁]'),
     ...['狀態', '在籍', '已停用'].map((t) =>
       row(parts.find((p) => p.tpl === t).key, { pop: 'filt' }),
     ),
@@ -692,9 +692,9 @@ test('帳單 gate：全站項收成一條、分頁器依宿主、search 包裝�
     {
       status: '多',
       kind: 'control',
-      host: 'p-paginator',
+      host: 'app-pager',
       a6: null,
-      app: '>main>control:button[Next Page]',
+      app: '>main>control:button[下一頁]',
       detail: '',
     },
     {
@@ -739,7 +739,7 @@ test('帳單 gate：全站項收成一條、分頁器依宿主、search 包裝�
     out.filter((r) => r.status === '樣式').map((r) => r.detail),
     ['color rgb(1, 1, 1) → rgb(2, 2, 2)'],
   );
-  assert.equal(out.find((r) => r.host === 'p-paginator').bucket, '已記錄偏離');
+  assert.equal(out.find((r) => r.host === 'app-pager').bucket, '已記錄偏離');
   // search 包裝層是 R7 偏離；裡面的「篩選：全部」沒有出處 → 待修，「⋯」命中 R2 → 偏離
   assert.equal(
     out.find((r) => r.app?.endsWith('landmark:search[帳單搜尋與篩選]')).bucket,

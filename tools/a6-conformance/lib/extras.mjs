@@ -27,7 +27,7 @@ export function skipReason(r, part, byKey = new Map()) {
 export function presentation(part, inner = []) {
   if (!part) return '—';
   const each = part.inRows > 0 ? '每一列都有的' : '';
-  if (part.host === 'p-paginator' || inner.some((q) => / Page$/.test(q.tpl))) return '分頁器';
+  if (part.host === 'app-pager' || inner.some((q) => q.host === 'app-pager')) return '分頁器';
   if (part.kind === 'control') {
     const r =
       {
@@ -131,7 +131,7 @@ export function collectExtras(pages) {
       // 只有分頁器、或組裡有文字標籤的選項組（「狀態：在籍／已停用／全部」）才合併；
       // 工具列上相鄰的不同按鈕（「⋯」與「新增學生」）是不同功能，拆回單項
       const isGroup = (g) =>
-        g.some((c) => c.part && (c.part.host === 'p-paginator' || / Page$/.test(c.part.tpl))) ||
+        g.some((c) => c.part?.host === 'app-pager') ||
         (g.length > 1 && g.some((c) => c.part?.kind === 'text' && !c.part.tpl.includes('#')));
       const singles = groups.flatMap((g) => (isGroup(g) ? [g] : g.map((c) => [c])));
       // 同一個父層、同樣呈現的單項 ≥3 個 ＝ 一份資料清單（班級的學生列、聯絡簿每則、課程卡）。
@@ -159,7 +159,7 @@ export function collectExtras(pages) {
         const ps = g.map((c) => c.part).filter(Boolean);
         const lead = g[0].part;
         const r = g[0].r;
-        const pager = ps.some((p) => p.host === 'p-paginator' || / Page$/.test(p.tpl));
+        const pager = ps.some((p) => p.host === 'app-pager');
         const label = ps.find((p) => p.kind === 'text' && !p.tpl.includes('#'))?.tpl;
         const opts = ps.filter((p) => p !== ps.find((x) => x.tpl === label)).map(plainName);
         if (g.list) {

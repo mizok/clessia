@@ -273,14 +273,8 @@ export const DEVIATIONS = [
     source: `${rule('R7', ' 反向，#1590')}`,
   },
   {
-    // D3：伺服器分頁的分頁器，收不進「⋯」
-    status: '多',
-    host: '^p-paginator$',
-    reason: '分頁器：伺服器分頁，沒有它看不到後面的資料，收不進「⋯」',
-    source: `${rule('R2', ' 例外')}；#1314 comment 6182400702`,
-  },
-  {
-    // #1314 Z 批：p-paginator 換成共用 app-pager；稿沒畫分頁器的列表用精簡版（R5 2026-11-02）
+    // D3：伺服器分頁的分頁器，收不進「⋯」（#1314 comment 6182400702）。Z 批起全站是共用 app-pager；
+    // 稿沒畫分頁器的列表用精簡版（R5 2026-11-02）
     status: '多',
     host: '^app-pager$',
     reason: '分頁器：伺服器分頁，稿沒畫分頁器的列表用 A6 精簡版（第 x／y 頁＋上一頁／下一頁）',
@@ -865,8 +859,8 @@ export const PAGES = {
         reason: '連帶：工具列多了篩選與操作紀錄鈕',
         source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
       },
-      // 桌機逾期章頭的「全部提醒」：同一顆、同一個理由（要 LINE 推播）。原本跟 p-paginator 的按鈕
-      // 一起被歸成「同型段落數不同」的工具限制，分頁器換成 app-pager（自己是 navigation）後才浮出來（#1314 Z 批）
+      // 桌機逾期章頭的「全部提醒」：同一顆、同一個理由（要 LINE 推播）。分頁器換成 app-pager
+      // （自己是 navigation）後才浮出來（#1314 Z 批）
       {
         status: '缺',
         a6: '>landmark:region\\[逾期\\]>control:button\\[全部提醒（#）\\](>|$)',
