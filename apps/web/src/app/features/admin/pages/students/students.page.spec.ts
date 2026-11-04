@@ -400,6 +400,15 @@ describe('StudentsPage', () => {
       return other.componentInstance;
     };
 
+    it('卡片篩選三個選項（全部／還沒換新卡／今天發的卡）只給有卡片權限的人（#2267）', () => {
+      const labels = (page: StudentsPage) =>
+        ((page as any).cardFilterOptions() as Array<{ label: string }>).map((o) => o.label);
+      const all = ['全部', '還沒換新卡', '今天發的卡'];
+      expect(labels(createWith(['manage_students']))).toEqual(all);
+      expect(labels(createWith(['basic_operations']))).toEqual(all);
+      expect(labels(createWith(['view_reports']))).toEqual([]);
+    });
+
     it('刪除學生上危險色（#1360）', () => {
       (component as any).selectedStudent.set(student);
       const items = (component as any).actionMenuItems() as Array<{
@@ -838,7 +847,7 @@ describe('StudentsPage', () => {
     it('還沒換新卡（#2053）：送 withoutCard、寫進篩選摘要，清除篩選一併清', () => {
       respond([row('a', '王一', 'J3')]);
 
-      (component as any).onWithoutCardChange(true);
+      (component as any).onCardFilterChange('without');
       expect(lastCall()['withoutCard']).toBe(true);
       expect((component as any).filterSummary()).toContain('還沒換新卡');
       respond([row('a', '王一', 'J3')]);
@@ -846,6 +855,27 @@ describe('StudentsPage', () => {
       (component as any).clearFilters();
       vi.advanceTimersByTime(500);
       expect(lastCall()['withoutCard']).toBeUndefined();
+    });
+
+    // #2267：發卡 COMMIT 後列印被關掉／印失敗，那批人已不在「還沒換新卡」裡 —— 用這個找回來重印
+    it('今天發的卡（#2267）：送 cardIssuedToday、跟還沒換新卡互斥；摘要與 chip；清除一併清', () => {
+      respond([row('a', '王一', 'J3')]);
+
+      (component as any).onCardFilterChange('today');
+      expect(lastCall()['cardIssuedToday']).toBe(true);
+      expect(lastCall()['withoutCard']).toBeUndefined();
+      expect((component as any).filterSummary()).toContain('今天發的卡');
+      expect((component as any).activeFilters()).toContainEqual({ key: 'card', label: '今天發的卡' });
+      respond([row('a', '王一', 'J3')]);
+
+      (component as any).onCardFilterChange('without');
+      expect(lastCall()['withoutCard']).toBe(true);
+      expect(lastCall()['cardIssuedToday']).toBeUndefined();
+      respond([row('a', '王一', 'J3')]);
+
+      (component as any).removeFilter('card');
+      expect(lastCall()['withoutCard']).toBeUndefined();
+      expect(lastCall()['cardIssuedToday']).toBeUndefined();
     });
 
     it('沒有符合：寫出搜尋字並給清除篩選', () => {

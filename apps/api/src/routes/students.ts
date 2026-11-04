@@ -13,7 +13,7 @@ import { getAuth } from '../lib/get-auth';
 import { isParentWithinScope } from '../lib/parent-campus-scope';
 import { withTx } from '../lib/pg-tx';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
-import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { schoolMismatchClause, type SchoolLevel } from '../lib/grade-promotion';
 import {
   TODAY_SESSION_SELECT,
@@ -332,6 +332,11 @@ app.openapi(
          * 第一次全校發卡用它找人。條件在 DB 裡（反連接），不把學生 id 撈回來再塞進 URL（#1928）
          */
         withoutCard: z.enum(['true']).optional(),
+        /**
+         * 今天（台北）發的有效卡（#2267）：發卡交易 COMMIT 後列印視窗被關掉、印失敗時，那批人已經不在
+         * 「沒有有效卡」裡，用這個找回來重印。條件同樣在 DB（`active_card` embed 的發卡時間＋非空）
+         */
+        cardIssuedToday: z.enum(['true']).optional(),
       }),
     },
     responses: {
@@ -358,6 +363,7 @@ app.openapi(
       withToday,
       schoolMismatch,
       withoutCard,
+      cardIssuedToday,
     } = c.req.valid('query');
 
     const roles = c.get('roles') ?? [];
@@ -648,8 +654,24 @@ app.openapi(
       }
       return next as unknown as Q;
     };
-    query = withChapterFilters(query);
-    if (withoutCard) query = query.is('active_card', null);
+    /**
+     * 卡片條件（#2053、#2267），列表與年級章節的 HEAD count **共用這一份**。`active_card` embed 已經只留
+     * 沒作廢的卡；「今天發的」再把 embed 限在台北今天發的、並要求 embed 非空（不是 `!inner`：每列的
+     * `hasActiveCard` 也靠這個 embed，其餘篩選下不能把沒卡的人濾掉）
+     */
+    const cardDay = getCurrentTaipeiDateString();
+    const withCardFilter = <Q>(q: Q): Q => {
+      let next = q as unknown as typeof query;
+      if (withoutCard) next = next.is('active_card', null);
+      if (cardIssuedToday) {
+        next = next
+          .gte('active_card.issued_at', `${cardDay}T00:00:00+08:00`)
+          .lt('active_card.issued_at', `${addDaysToDateString(cardDay, 1)}T00:00:00+08:00`)
+          .not('active_card', 'is', null);
+      }
+      return next as unknown as Q;
+    };
+    query = withCardFilter(withChapterFilters(query));
 
     const offset = (page - 1) * pageSize;
     query = query.range(offset, offset + pageSize - 1);
@@ -683,7 +705,7 @@ app.openapi(
     // 範圍在 embed 上（#1928）時同樣不能用聚合：PostgREST 會連 embed 的內容一起 group by（本機實測同一年級拆成多列），
     // 一樣改成每級一支 head count。最壞情況仍是「沒有有效卡」那條，預算不變
     const gradeCountQuery =
-      withoutCard || scopeEmbed
+      withoutCard || cardIssuedToday || scopeEmbed
         ? Promise.all(
             GRADE_CHAPTERS.map((level) => {
               let head = supabase
@@ -692,8 +714,7 @@ app.openapi(
                 .eq('org_id', orgId)
                 .eq('grade', level)
                 .is('active_card.revoked_at', null);
-              if (withoutCard) head = head.is('active_card', null);
-              return withChapterFilters(head);
+              return withCardFilter(withChapterFilters(head));
             }),
           ).then((results) => ({
             error: results.find((r) => r.error)?.error ?? null,
