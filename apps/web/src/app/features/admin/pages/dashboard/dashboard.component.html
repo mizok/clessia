@@ -10,7 +10,7 @@
       @if (campusName(); as campus) {
         <!-- A6 `.open__branch`：手機另起一行 14px，桌機同行 18px、左距 12 -->
         <span
-          class="mt-1 block text-base font-semibold text-band-ink-muted wide:mt-0 wide:ml-3 wide:inline-block wide:text-xl"
+          class="mt-1 block text-base font-semibold tracking-normal text-band-ink-muted wide:mt-0 wide:ml-3 wide:inline-block wide:text-xl"
           >{{ campus }}</span
         >
       }
@@ -60,7 +60,7 @@
           data-testid="desktop-checkin"
           (click)="openCheckinStation()"
         >
-          <i class="pi pi-check text-sm" aria-hidden="true"></i>櫃台代刷到班
+          <i class="pi pi-check text-lg" aria-hidden="true"></i>櫃台代刷到班
         </button>
         <button
           type="button"
@@ -68,7 +68,7 @@
           data-testid="desktop-leave"
           (click)="openPhoneLeave()"
         >
-          <i class="pi pi-file-edit text-sm" aria-hidden="true"></i>登記請假
+          <i class="pi pi-file-edit text-lg" aria-hidden="true"></i>登記請假
         </button>
       </app-page-actions>
     }
@@ -265,29 +265,29 @@
                 } @else if (row.parent?.phone; as phone) {
                   <!-- 撥號交給 tel: 連結；點下去同時記一筆聯絡（D2）。記不成功列不會變，並出現提示 -->
                   <a
-                    class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent bg-accent-vivid px-4 text-md font-semibold whitespace-nowrap text-zinc-900 no-underline hover:bg-accent-vivid-2"
+                    class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-transparent bg-accent-vivid px-4 text-base font-semibold whitespace-nowrap text-zinc-900 no-underline hover:bg-accent-vivid-2 wide:h-9 wide:text-md"
                     data-testid="call-action"
                     [href]="'tel:' + phone"
                     [attr.aria-disabled]="boardBusy() !== null"
                     (click)="recordCall(row.student)"
                   >
-                    <i class="pi pi-phone text-sm" aria-hidden="true"></i>
+                    <i class="pi pi-phone text-lg" aria-hidden="true"></i>
                     <span class="hidden wide:inline">打電話</span>
                     <span class="wide:hidden">打給{{ parentLabel(row.parent) }}</span>
                   </a>
                 }
                 <button
                   type="button"
-                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9"
+                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-base leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 wide:text-md"
                   data-testid="leave-action"
                   [disabled]="!canPhoneLeave()"
                   (click)="openPhoneLeave(row.student.studentId)"
                 >
-                  <i class="pi pi-file-edit text-sm" aria-hidden="true"></i>登記請假
+                  <i class="pi pi-file-edit text-lg" aria-hidden="true"></i>登記請假
                 </button>
                 <button
                   type="button"
-                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-base leading-[1.5] font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 wide:text-md"
                   data-testid="board-action"
                   [disabled]="boardBusy() !== null"
                   (click)="checkIn(row.student)"
