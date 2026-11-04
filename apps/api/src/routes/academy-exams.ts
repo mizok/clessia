@@ -22,6 +22,7 @@ import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import { fetchAllPages } from '../lib/fetch-all-pages';
+import { ID_CHUNK } from '../lib/org-scope';
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
 const AcademyExamTypeSchema = z
@@ -636,6 +637,30 @@ app.openapi(listRoute, async (c) => {
       { count: 'exact' },
     )
     .eq('org_id', orgId);
+  const pageQuery = (ids: string[]) =>
+    supabase
+      .from('academy_exams')
+      .select(
+        `
+        id,
+        name,
+        exam_type,
+        status,
+        exam_date,
+        total_score,
+        pass_score,
+        scope_note,
+        campus_id,
+        subject_id,
+        created_at,
+        updated_at,
+        subjects(name),
+        academy_exam_classes(class_id, classes(name, course_id)),
+        academy_scores(count)
+      `,
+      )
+      .eq('org_id', orgId)
+      .in('id', ids);
 
   if (search?.trim()) {
     query = query.ilike('name', `%${search.trim()}%`);
@@ -724,25 +749,38 @@ app.openapi(listRoute, async (c) => {
       .map((exam) => exam.id);
 
     // 待辦集合是 JS 算出來的，embed 表達不了 —— 在這裡照候選的排序切頁，主查詢只 `.in()` 本頁
-    // （≤ pageSize 200，有界）。原本把全部待辦 id 塞進同一條 URL，一多就 414（#2228）
+    // （下面切 ID_CHUNK 一批）。原本把全部待辦 id 塞進同一條 URL，一多就 414（#2228）
     todoPage = { ids: todoExamIds.slice(from, from + pageSize), total: todoExamIds.length };
     if (todoPage.ids.length === 0) {
       return c.json({ data: [], meta: { total: todoPage.total, page, pageSize } }, 200);
     }
-    query = query.in('id', todoPage.ids);
+  }
+
+  let fetched: ExamListRow[];
+  let count: number | null = null;
+  if (todoPage) {
+    // 本頁 id 切 ID_CHUNK（100）一批。**「≤ pageSize 200 就有界」不成立**：200 個 uuid（~7.4KB）加上
+    // 這條長 select 就 414（#2262 契約實測 URI too long）。最多 2 支，任一失敗整支回錯，不回半頁
+    const batches = await Promise.all(
+      Array.from({ length: Math.ceil(todoPage.ids.length / ID_CHUNK) }, (_, i) =>
+        pageQuery(todoPage!.ids.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK)),
+      ),
+    );
+    const failed = batches.find((batch) => batch.error);
+    if (failed?.error) {
+      return c.json({ error: failed.error.message, code: 'DB_ERROR' }, 400);
+    }
+    fetched = batches.flatMap((batch) => (batch.data ?? []) as ExamListRow[]);
   } else {
-    query = query.range(from, from + pageSize - 1);
+    const result = await query
+      .range(from, from + pageSize - 1)
+      .order('exam_date', { ascending: isDateAsc, nullsFirst: false });
+    if (result.error) {
+      return c.json({ error: result.error.message, code: 'DB_ERROR' }, 400);
+    }
+    fetched = (result.data ?? []) as ExamListRow[];
+    count = result.count;
   }
-
-  query = query.order('exam_date', { ascending: isDateAsc, nullsFirst: false });
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-  }
-
-  const fetched = (data ?? []) as ExamListRow[];
   // todo 模式照切頁時的順序排回去（同一天的考試，主查詢的排序不保證跟候選一樣）
   const pageRows = todoPage
     ? todoPage.ids.flatMap((id) => fetched.filter((row) => row.id === id))
@@ -950,11 +988,11 @@ app.openapi(todoByClassRoute, async (c) => {
 
   // 參加班跟 N／M 同一支 loader 撈（#2228）—— 原本這裡另發一支 `academy_exam_classes .in(exam_id)`，
   // 全部 active 考試的 id 塞進 URL，跟 loader 裡那支是同一份資料
-  const { expected, recorded, classesByExam: allClassesByExam } = await loadAcademyExamCounts(
-    getAuth(c).pool,
-    orgId,
-    active.exams,
-  );
+  const {
+    expected,
+    recorded,
+    classesByExam: allClassesByExam,
+  } = await loadAcademyExamCounts(getAuth(c).pool, orgId, active.exams);
   const classesByExam = new Map<string, string[]>();
   for (const [examId, classIds] of allClassesByExam) {
     // 沒有任課班的老師在這裡就被濾成空 —— 回空，不是回全部

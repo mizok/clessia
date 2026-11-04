@@ -64,6 +64,8 @@ vi.mock('../middleware/auth', async (importOriginal) => {
 });
 
 const FILLER = 300;
+/** 二校另有 MANY 場一筆都沒登的 —— 待登錄 id 整批塞進同一條 URL 的寫法會 414（審核席突變 ④） */
+const MANY = 260;
 const SEATS = 4;
 
 run('#2228 校內考待登錄 N／M（todo-count、todo、todo-by-class）', () => {
@@ -182,6 +184,19 @@ run('#2228 校內考待登錄 N／M（todo-count、todo、todo-by-class）', () 
       small[0],
     ]);
     fx.other = await exam(c2, '二校沒登', '2029-06-03', otherClass);
+    // 比上面幾場都舊（2028），所以新到舊排序下接在它們後面
+    const many = (
+      await q<{ id: string }>(
+        `insert into academy_exams (org_id, campus_id, name, subject_id, exam_date, status)
+         select $1, $2, '二校沒登 ' || n, $3, date '2028-12-31' - n, 'active'
+           from generate_series(1, ${MANY}) n returning id`,
+        [ctx.orgId, c2, subject],
+      )
+    ).map((r) => r.id);
+    await q(
+      'insert into academy_exam_classes (exam_id, class_id) select e, $2 from unnest($1::uuid[]) e',
+      [many, otherClass],
+    );
     app = (await import('../index')).default as never;
   }, 180_000);
 
@@ -218,8 +233,12 @@ run('#2228 校內考待登錄 N／M（todo-count、todo、todo-by-class）', () 
   type Counts = { count: number; none: number; partial: number };
   type List = { data: Array<{ id: string; expectedCount: number }>; meta: { total: number } };
 
-  it(`todo-count：${FILLER + 3} 場 active、成績 ${FILLER * SEATS} 筆，只有真的沒登完的算`, async () => {
-    expect(await json<Counts>('admin', '/todo-count')).toEqual({ count: 3, none: 2, partial: 1 });
+  it(`todo-count：${FILLER + MANY + 3} 場 active、成績 ${FILLER * SEATS} 筆，只有真的沒登完的算`, async () => {
+    expect(await json<Counts>('admin', '/todo-count')).toEqual({
+      count: MANY + 3,
+      none: MANY + 2,
+      partial: 1,
+    });
   });
 
   it('受限 C1：二校那場不算', async () => {
@@ -227,13 +246,19 @@ run('#2228 校內考待登錄 N／M（todo-count、todo、todo-by-class）', () 
   });
 
   it('列表 todo：total 跟 todo-count 對得上、分頁照考試日新到舊', async () => {
-    const p1 = await json<List>('admin', '?todo=true&pageSize=2');
-    expect(p1.meta.total).toBe(3);
-    expect(p1.data.map((r) => r.id)).toEqual([fx.other, fx.partial]);
-    const p2 = await json<List>('admin', '?todo=true&pageSize=2&page=2');
-    expect(p2.data.map((r) => r.id)).toEqual([fx.none]);
+    // 待登錄 MANY＋3 場：舊寫法把全部待登錄 id 塞進主查詢的 URL → 414
+    const p1 = await json<List>('admin', '?todo=true&pageSize=200');
+    expect(p1.meta.total).toBe(MANY + 3);
+    expect(p1.data).toHaveLength(200);
+    expect(p1.data.slice(0, 3).map((r) => r.id)).toEqual([fx.other, fx.partial, fx.none]);
     // 小班 3 人＋退班當天（結束當天還算在籍）；作廢的、隔天才轉入的不算
-    expect(p2.data[0]?.expectedCount).toBe(4);
+    expect(p1.data[2]?.expectedCount).toBe(4);
+    const p2 = await json<List>('admin', '?todo=true&pageSize=200&page=2');
+    expect(p2.meta.total).toBe(MANY + 3);
+    expect(p2.data).toHaveLength(MANY + 3 - 200);
+    // 第 2 頁接得上：不重複、兩頁合起來就是全部待登錄
+    const seen = new Set([...p1.data, ...p2.data].map((r) => r.id));
+    expect(seen.size).toBe(MANY + 3);
   });
 
   it('列表 todo 受限 C1：候選集也收在範圍內（todoLevel 也一樣）', async () => {
