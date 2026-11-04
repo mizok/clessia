@@ -254,6 +254,10 @@ async function insertParentRole(
   return { error: error ? { message: error.message } : null };
 }
 
+/** 家長列表的搜尋 embed（#2230 ②）：孩子用 `!inner` 讓沒命中的關聯列消失，`rel` 才會是空的 */
+const SEARCH_EMBED =
+  ', rel:parent_student_relations(students!inner(name)), account:ba_user(email, phone)';
+
 const app = new OpenAPIHono<AppEnv>();
 
 // GET /api/parents
@@ -307,7 +311,8 @@ app.openapi(
 
     let query = supabase
       .from('parents')
-      .select('*' + scopeEmbed, { count: 'exact' })
+      // `rel`／`account` 只當搜尋條件用（回應由 toParentResponse 逐欄取，不會帶出去）
+      .select('*' + scopeEmbed + (search ? SEARCH_EMBED : ''), { count: 'exact' })
       .eq('org_id', orgId)
       // 先依狀態（enum 宣告序 active→inactive→archived）：前端依狀態分章，翻頁時章才連續（#1314 PA1）
       .order('status')
@@ -316,36 +321,14 @@ app.openapi(
     if (campusIds !== null) query = query.in(PARENT_SCOPE_FILTER, [...campusIds]);
 
     if (search) {
-      // 搜尋 ba_user email/phone
-      const { data: baMatches } = await supabase
-        .from('ba_user')
-        .select('id')
-        .or(`email.ilike.%${search}%,phone.ilike.%${search}%`);
-      const matchingUserIds = (baMatches ?? []).map((u: { id: string }) => u.id);
-
-      // 搜尋學生姓名 → 找到對應的 parent_id
-      const { data: studentMatches } = await supabase
-        .from('students')
-        .select('id')
-        .eq('org_id', orgId)
-        .ilike('name', `%${search}%`);
-      const matchingStudentIds = (studentMatches ?? []).map((s: { id: string }) => s.id);
-      let parentIdsFromStudents: string[] = [];
-      if (matchingStudentIds.length > 0) {
-        const { data: relMatches } = await supabase
-          .from('parent_student_relations')
-          .select('parent_id')
-          .in('student_id', matchingStudentIds);
-        parentIdsFromStudents = [
-          ...new Set((relMatches ?? []).map((r: { parent_id: string }) => r.parent_id)),
-        ];
-      }
-
-      const orParts: string[] = [`name.ilike.%${search}%`];
-      if (matchingUserIds.length > 0) orParts.push(`user_id.in.(${matchingUserIds.join(',')})`);
-      if (parentIdsFromStudents.length > 0)
-        orParts.push(`id.in.(${parentIdsFromStudents.join(',')})`);
-      query = query.or(orParts.join(','));
+      // 三種命中（家長姓名、帳號 email／電話、孩子姓名）在 DB 端一條查詢篩（#2230 ②）：
+      // 帳號與孩子各用一個 embed，embed 裡下條件，root 的 or 用「embed 不為空」表示有命中。
+      // 原本先撈命中的 user id 與家長 id 再 `user_id.in.(…)`／`id.in.(…)` 塞進同一條 URL ——
+      // 帳號那支**沒有 org 條件**（撈全平台命中的帳號），三支前置查詢的錯誤也都被吞
+      query = query
+        .ilike('rel.students.name', `%${search}%`)
+        .or(`email.ilike.%${search}%,phone.ilike.%${search}%`, { referencedTable: 'account' })
+        .or(`name.ilike.%${search}%,rel.not.is.null,account.not.is.null`);
     }
     if (status) {
       query = query.eq('status', status);
