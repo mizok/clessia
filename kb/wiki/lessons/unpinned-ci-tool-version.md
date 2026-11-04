@@ -4,7 +4,7 @@ summary: verify.yml 的 supabase/setup-cli 用 version latest，Supabase CLI 3.0
 category: lessons
 tags: [lessons, ci, supabase, version-pinning, deploy]
 status: active
-updated: 2026-11-03
+updated: 2026-11-04
 ---
 
 # CI 工具用 version latest，上游一升版 main 就紅
@@ -31,14 +31,18 @@ CI 驗證用的 CLI 跟正式 DB 實際套 migration 用的 CLI，本來就不�
 - `latest` 讀起來像「最新、最好」，實際意思是「每次跑的版本可能不一樣」。
 - 兩支 workflow 一支釘版、一支 latest，**看單一支檔案都合理**；要把兩支並排看才看得出「驗證的不是正式用的那一版」。
 - 本機的 `npx supabase` 也可能是另一版（這次本機是 3.0.0），本機跑得過不代表 CI 跑得過，反過來也一樣。
+  11-04 就真的撞上：repo 沒宣告 `supabase`，`npx` 抓 npm 最新的 3.0.0，不認 `[local_smtp]`，本機 `db reset` 失敗（#2252）。
 
 ## 以後怎麼做
 
 - **CI 裡的工具一律釘確切版本**（`x.y.z`），不用 `latest`、也不用只釘大版號。
 - **同一個工具在多支 workflow 出現時，用同一個變數**，讓「驗證用的版本＝正式用的版本」由結構保證。
   Supabase CLI 現在是三處 setup-cli 都讀 `SUPABASE_CLI_VERSION`。
+- **本機也釘**（#2252）：root `package.json` 的 `devDependencies.supabase` 寫同一個 `x.y.z`，`npm ci` 之後
+  `npx supabase` 落在 `node_modules/.bin`，跟 CI 同一版。
 - **用 gate 守**：harness 的 `supabase-cli-pin`（`tools/agent-harness/lib/supabase-cli-pin.mjs`）檢查每個 setup-cli
-  都用這個變數、值是 `x.y.z`、各 workflow 同值。改回 `latest` 的突變會紅。
+  都用這個變數、值是 `x.y.z`、各 workflow 同值，**而且 `package.json` 的 `supabase` 也是同一個數字**。
+  改回 `latest`、`package.json` 沒宣告或帶 `^`、版本不同，都會紅。
 - 升版是一張刻意的 PR：改變數、跑一次 CI，跟其他改動分開。
 - main 突然紅、而最近的 commit 都跟它無關時，先懷疑「外部東西換版了」：CI log 裡印出來的工具版本跟上一次綠的那輪比一下。
 
