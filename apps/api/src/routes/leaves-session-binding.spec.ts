@@ -68,10 +68,35 @@ function event(eid: string, s: ReturnType<typeof session>, extra: object = {}) {
     start_time: s.start_time,
     end_time: s.end_time,
     attendance_taken_at: null,
-    sessions: { id: s.id, class_id: s.class_id, status: s.status },
+    sessions: {
+      id: s.id,
+      class_id: s.class_id,
+      status: s.status,
+      // apply 的在籍條件放在 `classes!inner(enrollments!inner(…))` 裡（#2231）
+      classes: { enrollments: ENROLLMENTS.filter((e) => e.class_id === s.class_id) },
+    },
     ...extra,
   };
 }
+
+const ENROLLMENTS = [
+  {
+    org_id: ORG,
+    student_id: STU,
+    class_id: CLS,
+    status: 'active',
+    effective_from: '2026-01-01',
+    effective_to: null,
+  },
+  {
+    org_id: ORG,
+    student_id: STU,
+    class_id: CLS_LATE,
+    status: 'active',
+    effective_from: '2026-10-10',
+    effective_to: null,
+  },
+];
 
 function seed(
   extra: Record<string, Record<string, unknown>[]> = {},
@@ -83,24 +108,7 @@ function seed(
   const late = session(S_LATE, '2026-10-06', '18', '20', { class_id: CLS_LATE });
   return createMultiOrgDb({
     students: [{ id: STU, org_id: ORG, name: '王小明' }],
-    enrollments: [
-      {
-        org_id: ORG,
-        student_id: STU,
-        class_id: CLS,
-        status: 'active',
-        effective_from: '2026-01-01',
-        effective_to: null,
-      },
-      {
-        org_id: ORG,
-        student_id: STU,
-        class_id: CLS_LATE,
-        status: 'active',
-        effective_from: '2026-10-10',
-        effective_to: null,
-      },
-    ],
+    enrollments: ENROLLMENTS,
     sessions: [
       am,
       pm,
@@ -174,8 +182,57 @@ function withLeaveEmbed(db: ReturnType<typeof createMultiOrgDb>) {
   const client = db.client as { from: (t: string) => unknown };
   return {
     from: (table: string) =>
-      table === 'leave_requests' ? wrap(client.from(table)) : client.from(table),
+      table === 'leave_requests'
+        ? wrap(client.from(table))
+        : table === 'attendance_records'
+          ? withEventsEmbed(client.from(table))
+          : client.from(table),
   };
+
+  /**
+   * #2231：撤銷從學生的 on_leave 出發、`events!inner(…)` 帶事件、`events.*` 的條件在 embed 上。
+   * 替身的紀錄是路由自己 upsert 的、沒有 `events`：`events.*` 條件留在這裡，結果補上 events 後再篩
+   */
+  function withEventsEmbed(b: any): any {
+    const conds: Array<(r: Row) => boolean> = [];
+    const pick = (r: Row, col: string) =>
+      (r['events'] as Row | undefined)?.[col.slice('events.'.length)];
+    const ops: Record<string, (v: unknown, x: unknown) => boolean> = {
+      eq: (v, x) => v === x,
+      is: (v, x) => (v ?? null) === x,
+      gte: (v, x) => v != null && String(v) >= String(x),
+      lte: (v, x) => v != null && String(v) <= String(x),
+    };
+    const proxy = (t: any): any =>
+      new Proxy(t, {
+        get(target, prop) {
+          if (prop === 'then')
+            return (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) =>
+              target.then((r: { data: unknown }) => {
+                if (conds.length === 0 || !Array.isArray(r.data)) return ok(r);
+                const events = db.rows('events');
+                const data = (r.data as Row[])
+                  .map((row) => ({
+                    ...row,
+                    events: events.find((e) => e['id'] === row['event_id']),
+                  }))
+                  .filter((row) => row['events'] && conds.every((c) => c(row)));
+                return ok({ ...r, data });
+              }, ko);
+          const value = target[prop];
+          if (typeof value !== 'function') return value;
+          return (...args: unknown[]) => {
+            const [col, x] = args as [string, unknown];
+            if (typeof prop === 'string' && prop in ops && String(col).startsWith('events.')) {
+              conds.push((r) => ops[prop]!(pick(r, col), x));
+              return proxy(target);
+            }
+            return proxy(value.apply(target, args));
+          };
+        },
+      });
+    return proxy(b);
+  }
 }
 
 function appWith(

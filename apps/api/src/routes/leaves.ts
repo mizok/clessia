@@ -295,66 +295,57 @@ async function applyLeaveAttendance(
 ): Promise<{ readonly synced: number; readonly sessionIds: string[] }> {
   const { supabase, orgId, studentId, recordedBy, from, to } = input;
 
-  const { data: rawEvents } = await supabase
+  // #2231：只撈**這位學生在籍班**的課堂 —— 在籍條件放在 embed 的 `!inner` 裡、在 DB 端篩。
+  // 原本撈假期間**全 org** 有課的事件、再把那些班 id `.in()` 回 enrollments：大 org 會 414，
+  // 而錯誤被吞成「沒有在籍的班」，這張假的出勤就靜默漏寫 on_leave、回 201。
+  const { data: rawEvents, error: eventsError } = await supabase
     .from('events')
     // `status` 是給 `isCancelledSession` 排除停課用的 —— 少撈它不會報錯，
     // 只會讓那道過濾靜靜地什麼都不做。理由見 `lib/cancelled-session.ts`。
-    .select('id, event_date, start_time, end_time, sessions!inner(id, class_id, status)')
+    .select(
+      'id, event_date, start_time, end_time, sessions!inner(id, class_id, status, classes!inner(enrollments!inner(class_id, effective_from, effective_to)))',
+    )
     .eq('org_id', orgId)
     .eq('event_type', 'session')
+    .eq('sessions.classes.enrollments.student_id', studentId)
+    .eq('sessions.classes.enrollments.status', 'active')
     .gte('event_date', from)
     .lte('event_date', to);
+  // 不吞：請假已經建了，出勤沒寫就要讓請求失敗，不能回「成功、蓋到 0 堂」
+  if (eventsError) throw new Error(`讀請假蓋到的課堂失敗：${eventsError.message}`);
 
   // 這張假蓋不蓋得到那堂 —— 跟 roster 推導同一支判斷（綁定堂次、單日時間窗）。
   // #1114 之前這裡完全不看時間：roster 說只蓋下午那堂，紀錄卻把整天都寫成請假。
   const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
     coversEvent(input.window, ev),
-  );
+  ) as LeaveAttendanceEventRow[];
   if (events.length === 0) return { synced: 0, sessionIds: [] };
 
-  const classIds = Array.from(
-    new Set(
-      (events as LeaveAttendanceEventRow[])
-        .flatMap((eventRow) =>
-          Array.isArray(eventRow.sessions)
-            ? eventRow.sessions.map((sessionRow) => sessionRow.class_id)
-            : eventRow.sessions?.class_id
-              ? [eventRow.sessions.class_id]
-              : [],
-        )
-        .filter((classId): classId is string => !!classId),
+  // 生效區間（那天在不在班）仍由 `buildLeaveAttendanceUpserts` 判，跟其他路徑同一支
+  type Embedded = { classes?: { enrollments?: LeaveAttendanceEnrollmentRow[] } };
+  const enrollments = events.flatMap((ev) =>
+    toSessionRows(ev.sessions as Embedded | Embedded[] | null).flatMap(
+      (s) => s.classes?.enrollments ?? [],
     ),
   );
-
-  const { data: enrollments } =
-    classIds.length === 0
-      ? { data: [] }
-      : await supabase
-          .from('enrollments')
-          .select('class_id, effective_from, effective_to')
-          .eq('org_id', orgId)
-          .eq('student_id', studentId)
-          .eq('status', 'active')
-          .in('class_id', classIds)
-          .lte('effective_from', to)
-          .or(`effective_to.is.null,effective_to.gte.${from}`);
 
   const attendanceUpserts = buildLeaveAttendanceUpserts({
     orgId,
     studentId,
     recordedBy,
-    events: (events ?? []) as LeaveAttendanceEventRow[],
-    enrollments: (enrollments ?? []) as LeaveAttendanceEnrollmentRow[],
+    events,
+    enrollments,
   });
 
   if (attendanceUpserts.length === 0) return { synced: 0, sessionIds: [] };
 
-  await supabase
+  const { error: upsertError } = await supabase
     .from('attendance_records')
     .upsert(attendanceUpserts, { onConflict: 'student_id,event_id' });
+  if (upsertError) throw new Error(`寫入請假出勤失敗：${upsertError.message}`);
 
   const covered = new Set(attendanceUpserts.map((u) => u.event_id));
-  const sessionIds = (events as LeaveAttendanceEventRow[])
+  const sessionIds = events
     .filter((ev) => covered.has(ev.id))
     .flatMap((ev) => toSessionRows(ev.sessions).flatMap((r) => (r.id ? [r.id] : [])));
   return { synced: attendanceUpserts.length, sessionIds };
@@ -376,30 +367,34 @@ async function applyLeaveAttendance(
 async function revertLeaveAttendance(input: LeaveAttendanceRangeInput): Promise<number> {
   const { supabase, orgId, studentId, from, to } = input;
 
-  const { data: rawEvents } = await supabase
-    .from('events')
-    .select('id, event_date, start_time, end_time, sessions(id)')
+  // #2231：從**這位學生的 on_leave 紀錄**出發、事件條件放在 embed 裡 —— 原本撈區間內全 org
+  // 還沒點名的事件、把整串 event id `.in()` 進 delete 的 URL，大 org 會 414，錯誤被吞，假撤了 on_leave 卻還在
+  const { data: rawRecords, error: readError } = await supabase
+    .from('attendance_records')
+    .select('id, events!inner(id, event_date, start_time, end_time, sessions(id))')
     .eq('org_id', orgId)
-    .is('attendance_taken_at', null)
-    .gte('event_date', from)
-    .lte('event_date', to);
+    .eq('student_id', studentId)
+    .eq('status', 'on_leave')
+    .is('events.attendance_taken_at', null)
+    .gte('events.event_date', from)
+    .lte('events.event_date', to);
+  if (readError) throw new Error(`讀請假出勤失敗：${readError.message}`);
 
   // 跟 apply 對稱：只回這張假蓋得到的堂。綁定型不能把同日別堂（別張假寫的）on_leave 一起帶走
-  const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
-    coversEvent(input.window, ev),
-  );
-  if (events.length === 0) return 0;
+  const ids = ((rawRecords ?? []) as Array<Record<string, any>>)
+    .filter((r) => coversEvent(input.window, r['events']))
+    .map((r) => r['id'] as string);
+  if (ids.length === 0) return 0;
 
-  const { data: removed } = await inOrg(
+  // ids 只有這位學生這段區間的 on_leave，量小
+  const { data: removed, error: deleteError } = await inOrg(
     supabase.from('attendance_records').delete().eq('student_id', studentId),
     orgId,
   )
     .eq('status', 'on_leave')
-    .in(
-      'event_id',
-      events.map((e) => e['id'] as string),
-    )
+    .in('id', ids)
     .select('id');
+  if (deleteError) throw new Error(`撤銷請假出勤失敗：${deleteError.message}`);
 
   // 回傳**真的刪掉幾筆**，不是「區間裡有幾個 event」——
   // 後者本來就跟這個學生無關，寫進稽核只會誤導
