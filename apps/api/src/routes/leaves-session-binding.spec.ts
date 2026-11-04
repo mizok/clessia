@@ -628,6 +628,42 @@ describe('POST /api/leaves —— 取鎖、查重疊、寫入同一筆交易（#
     expect(order).toEqual(['BEGIN', 'lock', 'overlap', 'insert', 'bind', 'attendance', 'COMMIT']);
   });
 
+  // #2237：DELETE 也在同一筆交易裡改假與撤出勤，跟其他寫入路徑一樣先取這位學生的鎖
+  it.each(['full', 'truncate'] as const)(
+    'DELETE（mode=%s）：先取鎖，再改假、撤出勤 —— 都在 BEGIN 與 COMMIT 之間',
+    async (mode) => {
+      const db = seed();
+      const created = await post(appWith(db), { sessionIds: [S_AM, S_D2] });
+      const leaveId = ((await created.json()) as { id: string }).id;
+
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-07T04:00:00Z')); // 台北 10/07：truncate 走 truncate-bound
+      const pool = restBackedLeavePool(withLeaveEmbed(db));
+      const res = await appWith(db, { pool }).request(`/api/leaves/${leaveId}?mode=${mode}`, {
+        method: 'DELETE',
+      });
+      vi.useRealTimers();
+      expect(res.status).toBe(204);
+      const order = pool.statements.map((s) =>
+        s.includes('BEGIN')
+          ? 'BEGIN'
+          : s.includes('COMMIT')
+            ? 'COMMIT'
+            : s.includes('pg_advisory_xact_lock')
+              ? 'lock'
+              : s.includes('delete from public.attendance_records')
+                ? 'attendance'
+                : 'leave',
+      );
+      expect(order[0]).toBe('BEGIN');
+      expect(order[1]).toBe('lock');
+      expect(order.at(-2)).toBe('attendance');
+      expect(order.at(-1)).toBe('COMMIT');
+      expect(order.slice(2, -2).length).toBeGreaterThan(0);
+      expect(order.slice(2, -2).every((s) => s === 'leave')).toBe(true);
+    },
+  );
+
   it('綁定寫不上 → 整筆 ROLLBACK、500（不會留一張整天語意的假）', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const db = seed();

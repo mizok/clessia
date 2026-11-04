@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createChildDb } from '../lib/child-db';
+import { deleteLeaveAttendance } from '../lib/leave-write';
 import { PERMISSIONS } from '../lib/permissions';
 import { createServiceClientFromEnv } from '../lib/supabase';
 
@@ -213,6 +214,24 @@ run('#2237 請假與出勤連動同一筆交易（POST／DELETE /leaves）', () 
 
     expect((await del()).status).toBe(204);
     expect(await leaves()).toEqual([]);
+    expect(await onLeave()).toEqual([]);
+  });
+  it('撤出勤：算完之後那堂被點了名 → deleteLeaveAttendance 回 0、紀錄還在（交易裡再判一次）', async () => {
+    await q('delete from attendance_records where org_id = $1', [ctx.orgId]);
+    await q('delete from leave_requests where org_id = $1', [ctx.orgId]);
+    expect((await post()).status).toBe(201);
+    const [rec] = await q<{ id: string; event_id: string }>(
+      "select id, event_id from attendance_records where org_id = $1 and student_id = $2 and status = 'on_leave'",
+      [ctx.orgId, fx.student],
+    );
+    // 「算」已經拿到這筆 id；之後、寫之前，老師點了名
+    await q('update events set attendance_taken_at = now() where id = $1', [rec!.event_id]);
+    expect(await deleteLeaveAttendance(pool!, ctx.orgId, fx.student, [rec!.id])).toBe(0);
+    expect(await onLeave()).toHaveLength(1);
+
+    // 對照：還沒點名就刪得掉 —— 不是永遠回 0
+    await q('update events set attendance_taken_at = null where id = $1', [rec!.event_id]);
+    expect(await deleteLeaveAttendance(pool!, ctx.orgId, fx.student, [rec!.id])).toBe(1);
     expect(await onLeave()).toEqual([]);
   });
 });
