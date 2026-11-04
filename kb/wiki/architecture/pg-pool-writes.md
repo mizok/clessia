@@ -3,7 +3,7 @@ title: 經過 pg 連線池寫入
 summary: PostgREST 一次請求一個交易，要「全有或全無」的多步寫入只能走 auth.pool 的交易（repo 不引入 RPC）。規則：只在多步寫入必須原子時用；用 withTx 包；只用參數化 SQL 且每句帶 org_id；範圍判斷在交易裡用 FOR UPDATE 重做；23503 → 409、其他 → 500；池不在就 500，不退回沒有交易的舊寫法。第一個用的是刪班級（#1652）。
 category: architecture
 status: active
-updated: 2026-10-28
+updated: 2026-11-04
 tags: [architecture, database, transaction, authorization]
 ---
 
@@ -35,6 +35,10 @@ Better Auth 每個請求本來就建一個 `pg` 池（`getAuth(c).pool`，正式
    那一句本身就是交易，改走池只是多一套寫法。
    **第二個正當理由是 subrequest 額度**（#1661 推播排程）：免費方案一次 Cron 只有 50 個 subrequest，
    supabase-js 走 HTTP、每句都算一個；pg 走 Hyperdrive 不算。這種情況用池讀寫，但未必需要交易。
+   **使用者勾的 id 清單也算**（#2232 課堂批次）：`.update().in('id', 勾到的 id)` 整串在 URL，~200 個就 414；
+   分段送會讓寫入失去原子性（前幾段改了、後面失敗，已改的沒有流水，重試又被當「已改過」略過）。
+   查詢可以分段（`lib/in-chunks.ts`），寫入改走池 `id = any($2::uuid[])`＋流水同一筆交易（`lib/session-batch-write.ts`）。
+   範圍清單不適用這條 —— 那個照 #1928 改成 embed `!inner`。
 2. **用 `withTx(pool, fn)` 包**（`apps/api/src/lib/pg-tx.ts`）：BEGIN → fn → COMMIT；
    fn 丟例外就 ROLLBACK 後原樣丟出；ROLLBACK 也失敗（連線壞了）就 `release(err)`
    讓池丟掉那條連線。不要自己手寫 BEGIN／COMMIT。
