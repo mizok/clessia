@@ -22,6 +22,7 @@ import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import { fetchAllPages } from '../lib/fetch-all-pages';
+import { ID_CHUNK } from '../lib/org-scope';
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
 const AcademyExamTypeSchema = z
@@ -636,6 +637,30 @@ app.openapi(listRoute, async (c) => {
     )
     .eq('org_id', orgId);
   query = applyListFilters(query);
+  const pageQuery = (ids: string[]) =>
+    supabase
+      .from('academy_exams')
+      .select(
+        `
+        id,
+        name,
+        exam_type,
+        status,
+        exam_date,
+        total_score,
+        pass_score,
+        scope_note,
+        campus_id,
+        subject_id,
+        created_at,
+        updated_at,
+        subjects(name),
+        academy_exam_classes(class_id, classes(name, course_id)),
+        academy_scores(count)
+      `,
+      )
+      .eq('org_id', orgId)
+      .in('id', ids);
 
   // todo 模式會先為所有候選考試算一次分母，那份結果涵蓋分頁後的這一頁，
   // 不需要再算第二次
@@ -698,25 +723,38 @@ app.openapi(listRoute, async (c) => {
         .map((exam) => exam.id);
     }
 
-    // 在這裡照候選的排序切頁，主查詢只 `.in()` 本頁（≤ pageSize 200，有界）
+    // 在這裡照候選的排序切頁，主查詢只取本頁（下面切 ID_CHUNK 一批）
     jsPage = { ids: pageSource.slice(from, from + pageSize), total: pageSource.length };
     if (jsPage.ids.length === 0) {
       return c.json({ data: [], meta: { total: jsPage.total, page, pageSize } }, 200);
     }
-    query = query.in('id', jsPage.ids);
+  }
+
+  let fetched: ExamListRow[];
+  let count: number | null = null;
+  if (jsPage) {
+    // 本頁 id 切 ID_CHUNK（100）一批。**「≤ pageSize 200 就有界」不成立**：200 個 uuid（~7.4KB）加上
+    // 這條長 select 就 414（#2262 契約實測 URI too long）。最多 2 支，任一失敗整支回錯，不回半頁
+    const batches = await Promise.all(
+      Array.from({ length: Math.ceil(jsPage.ids.length / ID_CHUNK) }, (_, i) =>
+        pageQuery(jsPage!.ids.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK)),
+      ),
+    );
+    const failed = batches.find((batch) => batch.error);
+    if (failed?.error) {
+      return c.json({ error: failed.error.message, code: 'DB_ERROR' }, 400);
+    }
+    fetched = batches.flatMap((batch) => (batch.data ?? []) as ExamListRow[]);
   } else {
-    query = query.range(from, from + pageSize - 1);
+    const result = await query
+      .range(from, from + pageSize - 1)
+      .order('exam_date', { ascending: isDateAsc, nullsFirst: false });
+    if (result.error) {
+      return c.json({ error: result.error.message, code: 'DB_ERROR' }, 400);
+    }
+    fetched = (result.data ?? []) as unknown as ExamListRow[];
+    count = result.count;
   }
-
-  query = query.order('exam_date', { ascending: isDateAsc, nullsFirst: false });
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-  }
-
-  const fetched = (data ?? []) as unknown as ExamListRow[];
   // todo 模式照切頁時的順序排回去（同一天的考試，主查詢的排序不保證跟候選一樣）
   const pageRows = jsPage
     ? jsPage.ids.flatMap((id) => fetched.filter((row) => row.id === id))
