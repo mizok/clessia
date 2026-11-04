@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 
 import coursesApp from './courses';
+import { restBackedClassWritePool } from '../test-utils/rest-backed-class-write-pool';
 
 // #1693：課務異動通知的接線（收件人與內容由 notify-schedule.spec 守）
 vi.mock('../lib/notify-schedule', () => ({
@@ -71,6 +72,7 @@ function createApp() {
   app.use('/api/*', async (c, next) => {
     const ctx = c as unknown as { set: (k: string, v: unknown) => void };
     ctx.set('supabase', supabase);
+    ctx.set('auth', { pool: restBackedClassWritePool(supabase) });
     ctx.set('orgId', 'org-1');
     ctx.set('userId', 'user-1');
     ctx.set('roles', ['admin']);

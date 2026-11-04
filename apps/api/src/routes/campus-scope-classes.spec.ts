@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import classesRoute from './classes';
+import { restBackedClassWritePool } from '../test-utils/rest-backed-class-write-pool';
 
 /**
  * **班級寫入的分校範圍（#1797）**：只管分校 1 的管理員，改不到分校 2 的班 ——
@@ -96,7 +97,8 @@ function realisticErrors(db: Db, opts: { failCampusRead?: boolean } = {}) {
     if (t !== 'classes') return q;
     const select = (q['select'] as (...a: unknown[]) => Record<string, unknown>).bind(q);
     q['select'] = (cols: string, ...rest: unknown[]) => {
-      if (opts.failCampusRead && cols === 'campus_id') {
+      // `id, campus_id`：batch-set-active 改走 pool 交易後（#2230 ①），替身 pool 翻成這條 select
+      if (opts.failCampusRead && (cols === 'campus_id' || cols === 'id, campus_id')) {
         return failing({ data: null, error: { message: 'boom' } }) as Record<string, unknown>;
       }
       const chain = select(cols, ...rest);
@@ -126,6 +128,7 @@ async function call(
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
     set('supabase', db.client);
+    set('auth', { pool: restBackedClassWritePool(db.client as never) });
     set('orgId', ORG);
     set('userId', 'admin-1');
     set('roles', ['admin']);
