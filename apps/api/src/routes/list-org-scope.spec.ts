@@ -99,6 +99,8 @@ async function list(route: Hono, path = '/') {
     set('roles', ['admin']);
     set('permissions', ['*']);
     set('campusScope', null); // 不受限 —— 洞就在這條路上
+    // GET /classes 的統計走 pg pool（#2226，真 DB 契約守）；這裡守的是主查詢的 org 範圍
+    set('auth', { pool: { query: async () => ({ rows: [] }) } });
     await next();
   });
   app.route('/', route);

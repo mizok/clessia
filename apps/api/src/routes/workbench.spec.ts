@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 import workbenchApp from './workbench';
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 
 /**
  * 作業台聚合端點。**驗收的核心是「形狀由 API 決定」** ——
@@ -80,6 +81,7 @@ function createWorkbenchApp(fixture: {
   app.use('/api/*', async (c, next) => {
     const context = c as unknown as { set: (key: string, value: unknown) => void };
     context.set('supabase', supabase);
+    context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
     context.set('orgId', 'org-1');
     context.set('userId', 'user-1');
     context.set('roles', ['admin']);

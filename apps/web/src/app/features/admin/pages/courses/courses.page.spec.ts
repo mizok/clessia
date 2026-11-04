@@ -750,6 +750,44 @@ describe('CoursesPage', () => {
       expect(all.map((g) => g.classes.length)).toEqual([2, 2]);
     });
 
+    // #2234：計數與「只看這幾個班」的清單共用同一組班（看班的分校）。seed-demo 曾造出「班在
+    // 分校 1、課程在分校 2」的班：計數看班、清單看課程 → 數 1 列 0。正式流程建班會沿用課程分校，
+    // 但課程分校日後可改就會重現 —— 來源只能有一個
+    it('數到 N 個班，「只看這幾個班」就列出 N 個班（班的分校跟課程不同也一樣，#2234）', () => {
+      TestBed.inject(CampusContextService).select('campus-1');
+      const other = { ...course('c9', '別校的課'), campusId: 'campus-2' };
+      coursesServiceMock.list.mockReturnValue(
+        of({
+          data: [course('c1', '國一國文'), other],
+          meta: { total: 2, page: 1, pageSize: 20, totalPages: 1 },
+          summary: { bySubject: [] },
+        }),
+      );
+      (component as unknown as { loadCourses: () => void }).loadCourses();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      (component as unknown as { classes: { set: (v: unknown[]) => void } }).classes.set([
+        klass('a', 'c1', { scheduleCount: 0 }),
+        klass('b', 'c1'),
+        klass('x', 'c9', { scheduleCount: 0 }), // 班在 campus-1，課程在 campus-2
+      ]);
+      fixture.detectChanges();
+      const count = (
+        component as unknown as { interventionCount: () => number }
+      ).interventionCount();
+
+      component['onFilterIntervention']();
+      if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+      fixture.detectChanges();
+      const listed = (
+        component as unknown as { courseGroups: () => { classes: { id: string }[] }[] }
+      )
+        .courseGroups()
+        .flatMap((g) => g.classes.map((c) => c.id));
+
+      expect(count).toBe(2);
+      expect(listed.sort()).toEqual(['a', 'x']);
+    });
+
     // 回歸（#1431 起就有的 bug，demo 資料幾乎全是國文所以看不出來）：每一章的右側清單
     // 原本迴圈的是**全部**課程群組，於是兩個科目就把每門課各列兩次
     it('不同科目各歸各章：每章底下只有自己科目的課程，不會每章都列全部', () => {

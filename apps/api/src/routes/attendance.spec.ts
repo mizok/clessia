@@ -10,6 +10,7 @@ import {
 import { toAttendanceResponse } from '../lib/attendance-query';
 import { ensureAttendanceSessionEvents } from '../lib/attendance-session-events';
 import attendanceApp from './attendance';
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 
 describe('toAttendanceResponse', () => {
   it('maps DB row to camelCase response', () => {
@@ -733,6 +734,7 @@ function createAttendanceTestApp(
   app.use('/api/attendance/*', async (c, next) => {
     const context = c as unknown as { set: (key: string, value: unknown) => void };
     context.set('supabase', supabase);
+    context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
     context.set('orgId', 'org-1');
     context.set('userId', 'user-1');
     context.set('roles', ['admin']);
@@ -1336,6 +1338,7 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', roles);
@@ -1499,6 +1502,7 @@ describe('PATCH /api/attendance/batch —— 未標記且有生效請假的學�
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['teacher']);
@@ -1662,6 +1666,7 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
@@ -1970,6 +1975,7 @@ describe('GET /api/attendance/roster/{eventId} —— 老師只能讀自己課�
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', roles);
@@ -2057,6 +2063,7 @@ describe('POST /api/attendance/roster/{eventId}/cancel-leave', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', options.roles);
@@ -2210,6 +2217,7 @@ describe('GET /api/attendance/sessions?attendanceTaken', () => {
     app.use('/api/*', async (c, next) => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
+      context.set('auth', { pool: restBackedSummaryPool(supabase) } as never);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
