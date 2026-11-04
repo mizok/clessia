@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveCampusScope } from './campus-scope';
+import { ID_CHUNK } from './org-scope';
 import { hasPermission } from './permissions';
 import { isScheduleEffectiveOn, scheduleRangeOf, type ScheduleRange } from './schedule-effective';
 
@@ -187,12 +188,19 @@ export async function teachersForSessionGroups<K>(
   >();
   const classSchedules = new Map<string, Array<{ teacher_id: string; range: ScheduleRange }>>();
   if (allSessionIds.length > 0) {
-    const { data: sessions, error } = await supabase
-      .from('sessions')
-      .select('id, class_id, teacher_id, session_date')
-      .eq('org_id', orgId)
-      .in('id', allSessionIds);
-    if (error) throw new Error(`查詢課堂失敗：${error.message}`);
+    // 切 ID_CHUNK 一批，理由同 `notify-schedule.ts` 的 groupByClass（背景跑、池已關，不能走 pg）
+    const batches = await Promise.all(
+      Array.from({ length: Math.ceil(allSessionIds.length / ID_CHUNK) }, (_, i) =>
+        supabase
+          .from('sessions')
+          .select('id, class_id, teacher_id, session_date')
+          .eq('org_id', orgId)
+          .in('id', allSessionIds.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK)),
+      ),
+    );
+    const failed = batches.find((batch) => batch.error);
+    if (failed?.error) throw new Error(`查詢課堂失敗：${failed.error.message}`);
+    const sessions = batches.flatMap((batch) => batch.data ?? []);
     for (const r of (sessions ?? []) as Array<{
       id: string;
       class_id: string;

@@ -62,17 +62,11 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.campusScope);
-      // builder 模式：pool 的 query 一律失敗 —— 走的是正式的退路（SQL 拋錯 → builder）
-      set('auth', {
-        pool: {
-          query: ctx.usePool
-            ? pool!.query.bind(pool)
-            : async () => {
-                throw Object.assign(new Error('contract：強制走 builder'), { code: 'CONTRACT' });
-              },
-          end: async () => undefined,
-        },
-      });
+      // builder 模式：不給 pool。SQL 失敗已經不退回 builder（#2230 ③，回 500），
+      // builder 只剩「沒有 pool」這條路（單元測試的環境）
+      if (ctx.usePool) {
+        set('auth', { pool: { query: pool!.query.bind(pool), end: async () => undefined } });
+      }
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
@@ -270,7 +264,6 @@ run('GET /api/staff：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', () 
     // PostgREST 回 414、supabase-js 給空訊息 → 500（#1928 同一類）。改前就是這樣；SQL 這條沒有 URL。
     // 依 seed 而定 —— seed 改了這張清單跟著改，差異本身就是有用的訊號
     expect(builderBroken).toEqual(['many|none|role=teacher']);
-    expect(fallbackLogs(log)).toBeGreaterThan(0); // builder 模式真的走了退路
   });
 
   it('builder 撞 URL 上限的那題：SQL 的總數與章節等於直接數 DB', async () => {

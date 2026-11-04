@@ -8,6 +8,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import { approveEnrollmentRequest } from '../lib/enrollment-approve';
 import { notifyEnrollmentApproved } from '../lib/notify-events';
 import { getAuth } from '../lib/get-auth';
+import { fetchAllPages } from '../lib/fetch-all-pages';
 import { hasPermission } from '../lib/permissions';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { checkEnrollmentPreconditions } from './enrollments/validation';
@@ -43,13 +44,20 @@ const GROUPS = {
 /** 拒絕只收這兩個：`awaiting_payment` 已經開了帳單，拒絕會留下一張沒人處理的帳單 */
 const REJECTABLE = ['pending', 'waitlist'];
 
+/**
+ * 送申請的家長：電話取 `ba_user`、名字取本 org 的 `parents`（同一個帳號可能在別的 org 也是家長，
+ * 由 `contactOf` 挑本 org 那筆）。`requested_by` 有 FK 指向 `ba_user`，直接 embed（#2230 ②）——
+ * 原本另外撈齊 user id 再兩支 `.in()`，錯誤被吞、聯絡資訊整欄變 null。`ba_*` 可讀不可寫（c2）
+ */
+const REQUESTER = `requester:ba_user!requested_by(phone, parents(name, org_id))`;
+
 export const SELECT = {
   enrollment: `id, status, preferred_start_date, note, reject_reason, requested_by, created_at,
     student_id, class_id, billing_mode, students(name),
-    classes(name, campus_id, default_fee_template_id, campuses(name))`,
+    classes(name, campus_id, default_fee_template_id, campuses(name)), ${REQUESTER}`,
   trial: `id, status, preferred_times, note, requested_by, created_at,
     scheduled_date, scheduled_start_time, scheduled_end_time,
-    student_id, students(name), courses(name, campus_id, campuses(name))`,
+    student_id, students(name), courses(name, campus_id, campuses(name)), ${REQUESTER}`,
 } as const;
 const TABLE = { enrollment: 'enrollment_requests', trial: 'trial_requests' } as const;
 type Kind = keyof typeof TABLE;
@@ -111,7 +119,18 @@ interface Contact {
   phone: string | null;
 }
 
-function toResponse(kind: Kind, row: Row, contacts: Map<string, Contact>) {
+function contactOf(row: Row, orgId: string): Contact {
+  const user = one(row['requester']);
+  const parent = ((user?.['parents'] as Row[] | null | undefined) ?? []).find(
+    (p) => p['org_id'] === orgId,
+  );
+  return {
+    name: (parent?.['name'] as string | undefined) ?? null,
+    phone: (user?.['phone'] as string | null | undefined) ?? null,
+  };
+}
+
+function toResponse(kind: Kind, row: Row, orgId: string) {
   const target = targetOf(kind, row);
   return {
     id: row['id'] as string,
@@ -122,7 +141,7 @@ function toResponse(kind: Kind, row: Row, contacts: Map<string, Contact>) {
       id: row['student_id'] as string,
       name: (one(row['students'])?.['name'] as string | undefined) ?? '',
     },
-    parent: contacts.get(row['requested_by'] as string) ?? { name: null, phone: null },
+    parent: contactOf(row, orgId),
     target: {
       name: (target?.['name'] as string | undefined) ?? '',
       campusName: (one(target?.['campuses'])?.['name'] as string | undefined) ?? null,
@@ -145,33 +164,6 @@ function toResponse(kind: Kind, row: Row, contacts: Map<string, Contact>) {
 /** DB 的 time 是 `HH:MM:SS`，回 `HH:MM`（同 routes/parent/trial-requests.ts） */
 const hhmm = (t: unknown) => (typeof t === 'string' ? t.slice(0, 5) : null);
 const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-
-/**
- * 送申請的家長：名字取本 org 的 `parents`（同一個帳號可能在別的 org 也是家長），電話取 `ba_user`
- * （`parents` 沒有電話欄；`ba_*` 可讀不可寫，c2）。同 routes/parents.ts 的做法。
- */
-async function contactsOf(
-  supabase: AppEnv['Variables']['supabase'],
-  orgId: string,
-  userIds: string[],
-): Promise<Map<string, Contact>> {
-  const map = new Map<string, Contact>();
-  if (userIds.length === 0) return map;
-  const [parents, users] = await Promise.all([
-    supabase.from('parents').select('user_id, name').eq('org_id', orgId).in('user_id', userIds),
-    supabase.from('ba_user').select('id, phone').in('id', userIds),
-  ]);
-  const phone = new Map(
-    ((users.data ?? []) as Row[]).map((u) => [u['id'] as string, (u['phone'] as string) ?? null]),
-  );
-  const name = new Map(
-    ((parents.data ?? []) as Row[]).map((p) => [p['user_id'] as string, p['name'] as string]),
-  );
-  for (const userId of userIds) {
-    map.set(userId, { name: name.get(userId) ?? null, phone: phone.get(userId) ?? null });
-  }
-  return map;
-}
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -209,23 +201,25 @@ app.openapi(
         const statuses = GROUPS[group][k] as readonly string[];
         if (statuses.length === 0) return { k, rows: [] as Row[], error: null };
         // 直接 `.eq('org_id')` 不經 `inOrg`：embed 的 builder 交給 inOrg 會撞 TS2589（同 public-applications）
-        const { data, error } = await supabase
-          .from(TABLE[k])
-          .select(SELECT[k])
-          .eq('org_id', orgId)
-          .in('status', [...statuses]);
-        return { k, rows: ((data ?? []) as Row[]).filter((r) => visible(k, r, scope)), error };
+        // 撈齊（#2230 ②）：done／cancelled 是歷史累積，一次撈會被 max_rows（1000）截斷
+        const { rows, error } = await fetchAllPages((from, to) =>
+          supabase
+            .from(TABLE[k])
+            .select(SELECT[k])
+            .eq('org_id', orgId)
+            .in('status', [...statuses])
+            .order('id')
+            .range(from, to),
+        );
+        return { k, rows: (rows as Row[]).filter((r) => visible(k, r, scope)), error };
       }),
     );
     if (results.some((r) => r.error)) {
       return c.json({ error: '讀取家長申請失敗', code: 'FETCH_FAILED' }, 500);
     }
 
-    const contacts = await contactsOf(supabase, orgId, [
-      ...new Set(results.flatMap((r) => r.rows.map((row) => row['requested_by'] as string))),
-    ]);
     const data = results
-      .flatMap((r) => r.rows.map((row) => toResponse(r.k, row, contacts)))
+      .flatMap((r) => r.rows.map((row) => toResponse(r.k, row, orgId)))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return c.json({ data }, 200);
   },
@@ -338,7 +332,6 @@ app.openapi(
     }
 
     const after = { ...prev, ...patch };
-    const contacts = await contactsOf(supabase, orgId, [prev['requested_by'] as string]);
     logAudit(
       supabase,
       {
@@ -364,7 +357,7 @@ app.openapi(
       waitUntilFrom(c),
     );
 
-    return c.json({ data: toResponse(kind, after, contacts) }, 200);
+    return c.json({ data: toResponse(kind, after, orgId) }, 200);
   },
 );
 

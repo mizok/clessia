@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import type { AppEnv } from '../index';
 import { getAuth } from '../lib/get-auth';
+import { fetchAllPages } from '../lib/fetch-all-pages';
 import { getCampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
@@ -123,12 +124,20 @@ app.openapi(
     const academicYear = academicYearOf(getCurrentTaipeiDateString());
     const fail = () => c.json({ error: '讀取學年升級預覽失敗', code: 'FETCH_FAILED' }, 500);
 
+    // 在學學生撈齊（#2230 ②）：原本一次撈、沒分頁 → max_rows 1000 截斷，學生多的 org 預覽靜默漏人。
+    // 在讀班名直接 embed（`enrollments.status=active` 只濾 embed 的列，不濾學生），不再撈高三 id
+    // 回頭 `.in('student_id', …)`。ponytail: embed 對每位學生都帶班名，只有高三用得到；量級是學生×班
     const [students, existing] = await Promise.all([
-      supabase
-        .from('students')
-        .select('id, name, grade, schools(name, level)')
-        .eq('org_id', orgId)
-        .eq('is_active', true),
+      fetchAllPages((from, to) =>
+        supabase
+          .from('students')
+          .select('id, name, grade, schools(name, level), enrollments(status, classes(name))')
+          .eq('org_id', orgId)
+          .eq('is_active', true)
+          .eq('enrollments.status', 'active')
+          .order('id')
+          .range(from, to),
+      ),
       supabase
         .from('grade_promotions')
         .select('id')
@@ -138,24 +147,14 @@ app.openapi(
     ]);
     if (students.error || existing.error) return fail();
 
-    const rows = (students.data ?? []) as Row[];
-    const seniorIds = rows.filter((r) => r['grade'] === 'S3').map((r) => r['id'] as string);
-    const enrollments =
-      seniorIds.length === 0
-        ? { data: [] as Row[], error: null }
-        : await supabase
-            .from('enrollments')
-            .select('student_id, classes(name)')
-            .eq('org_id', orgId)
-            .eq('status', 'active')
-            .in('student_id', seniorIds);
-    if (enrollments.error) return fail();
-
+    const rows = students.rows as Row[];
     const classNamesOf = new Map<string, string[]>();
-    for (const e of (enrollments.data ?? []) as Row[]) {
-      const id = e['student_id'] as string;
-      const name = (one(e['classes'])?.['name'] as string | undefined) ?? '';
-      classNamesOf.set(id, [...(classNamesOf.get(id) ?? []), name]);
+    for (const r of rows) {
+      if (r['grade'] !== 'S3') continue;
+      const names = ((r['enrollments'] as Row[] | null) ?? []).map(
+        (e) => (one(e['classes'])?.['name'] as string | undefined) ?? '',
+      );
+      if (names.length > 0) classNamesOf.set(r['id'] as string, names);
     }
 
     const plan = promotionPlan(

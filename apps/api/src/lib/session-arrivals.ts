@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveAttendanceModes, type AttendanceMode } from './attendance-mode';
+import type { Queryable } from './identity-sql';
 import { isEnrolledOn } from './session-roster';
 
 /**
@@ -31,9 +32,14 @@ interface ArrivalSession {
  * 卡片與名單要同一個來源。
  *
  * 只對日到班的列多查（兩支批次，不隨課堂數成長）；全是隨堂的頁面只多一輪模式查詢。
+ *
+ * 報名與打卡走 pg（#2230 ③，同 #2226 的乙′）：原本兩支 PostgREST `.in()`（班 id、學生 id），
+ * 一頁課堂多（`endedOnly` 一頁最多 1000 堂）就 414，而且都沒分頁、被 max_rows 1000 截斷，到班數靜默少算。
+ * SQL 只回原料，「誰算到班」仍由下面的 JS 判定一份。`classIds` 來自呼叫端已授權的課堂，`org_id` 只當防呆。
  */
 export async function annotateArrivals<T extends ArrivalSession>(
   supabase: SupabaseClient,
+  db: Queryable,
   orgId: string,
   sessions: readonly T[],
 ): Promise<
@@ -57,32 +63,40 @@ export async function annotateArrivals<T extends ArrivalSession>(
 
   const classIds = [...new Set(daily.map((s) => s.classId))];
   const dates = daily.map((s) => s.eventDate).sort();
-  const { data: enrollmentRows, error: enrollmentError } = await supabase
-    .from('enrollments')
-    .select('student_id, class_id, effective_from, effective_to')
-    .eq('org_id', orgId)
-    .eq('status', 'active')
-    .in('class_id', classIds);
-  if (enrollmentError) return { data: null, error: { message: enrollmentError.message } };
-
-  const enrollments = (enrollmentRows ?? []) as Array<{
+  let enrollments: Array<{
     student_id: string;
     class_id: string;
     effective_from: string;
     effective_to: string | null;
   }>;
-  const studentIds = [...new Set(enrollments.map((e) => e.student_id))];
-  const { data: checkinRows, error: checkinError } =
-    studentIds.length === 0
-      ? { data: [], error: null }
-      : await supabase
-          .from('daily_checkins')
-          .select('student_id, checkin_date, campus_id')
-          .eq('org_id', orgId)
-          .in('student_id', studentIds)
-          .gte('checkin_date', dates[0])
-          .lte('checkin_date', dates[dates.length - 1]);
-  if (checkinError) return { data: null, error: { message: checkinError.message } };
+  let checkinRows: unknown[];
+  try {
+    const params = [orgId, classIds, dates[0], dates[dates.length - 1]];
+    const [enrollmentResult, checkinResult] = await Promise.all([
+      db.query(
+        `select e.student_id, e.class_id,
+                e.effective_from::text as effective_from, e.effective_to::text as effective_to
+           from public.enrollments e
+          where e.org_id = $1::uuid and e.status = 'active' and e.class_id = any($2::uuid[])`,
+        params.slice(0, 2),
+      ),
+      // 打卡只撈「這些班在籍過的學生」—— 同一個條件用子查詢，不等上一支回來再帶學生 id
+      db.query(
+        `select d.student_id, d.checkin_date::text as checkin_date, d.campus_id
+           from public.daily_checkins d
+          where d.org_id = $1::uuid
+            and d.checkin_date between $3::date and $4::date
+            and d.student_id in (
+              select e.student_id from public.enrollments e
+               where e.org_id = $1::uuid and e.status = 'active' and e.class_id = any($2::uuid[]))`,
+        params,
+      ),
+    ]);
+    enrollments = enrollmentResult.rows as typeof enrollments;
+    checkinRows = checkinResult.rows;
+  } catch (err) {
+    return { data: null, error: { message: err instanceof Error ? err.message : String(err) } };
+  }
 
   const checkins = (checkinRows ?? []) as Array<{
     student_id: string;

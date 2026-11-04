@@ -1143,6 +1143,7 @@ app.openapi(
     if (!pool) return c.json({ error: '查詢課堂失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
     const annotated = await annotateArrivals(
       supabase,
+      pool,
       orgId,
       await summariseSessions(pool, orgId, sessions),
     );

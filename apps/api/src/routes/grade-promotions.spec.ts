@@ -190,9 +190,15 @@ describe('GET /preview', () => {
       rows: {
         students: [
           { id: 's1', name: '甲', grade: 'J3', schools: { name: '明湖國中', level: 'junior' } },
-          { id: 's2', name: '乙', grade: 'S3', schools: null },
+          // 在讀班名是學生查詢上的 embed（#2230 ②）
+          {
+            id: 's2',
+            name: '乙',
+            grade: 'S3',
+            schools: null,
+            enrollments: [{ status: 'active', classes: { name: '高三數學' } }],
+          },
         ],
-        enrollments: [{ student_id: 's2', classes: { name: '高三數學' } }],
         grade_promotions: [{ id: 'old' }],
       },
     });
@@ -209,8 +215,15 @@ describe('GET /preview', () => {
 
 describe('GET /preview —— 查詢條件與讀取失敗（二讀突變 H7–H11）', () => {
   const ROWS: Rows = {
-    students: [{ id: 's2', name: '乙', grade: 'S3', schools: null }],
-    enrollments: [{ student_id: 's2', classes: { name: '高三數學' } }],
+    students: [
+      {
+        id: 's2',
+        name: '乙',
+        grade: 'S3',
+        schools: null,
+        enrollments: [{ status: 'active', classes: { name: '高三數學' } }],
+      },
+    ],
     grade_promotions: [],
   };
   const has = (
@@ -238,14 +251,15 @@ describe('GET /preview —— 查詢條件與讀取失敗（二讀突變 H7–H1
 
   it('高三的在籍報名只看 active（退班的不算）', async () => {
     const r = await call('GET', '/preview', { rows: ROWS });
-    expect(has(r.calls, 'enrollments', 'eq', ['status', 'active'])).toBe(true);
-    expect(has(r.calls, 'enrollments', 'eq', ['org_id', ORG])).toBe(true);
+    // embed 上的條件（#2230 ②）；org 由學生查詢的 `org_id` 帶，embed 不另下
+    expect(has(r.calls, 'students', 'eq', ['enrollments.status', 'active'])).toBe(true);
+    expect(has(r.calls, 'students', 'eq', ['org_id', ORG])).toBe(true);
   });
 
   it.each([
-    ['enrollments', '讀報名失敗不能當成「沒有在籍報名」'],
     ['grade_promotions', '讀「已升過」失敗不能當成「還沒升過」（按鈕會亮）'],
-    ['students', '讀學生失敗'],
+    // 報名改成學生查詢上的 embed（#2230 ②），讀報名失敗就是讀學生失敗
+    ['students', '讀學生（含在讀報名）失敗'],
   ])('%s 讀取失敗 → 500 FETCH_FAILED（%s）', async (table) => {
     const r = await call('GET', '/preview', { rows: ROWS, errors: { [table]: 'boom' } });
     expect(r.status).toBe(500);

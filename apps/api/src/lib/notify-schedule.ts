@@ -12,6 +12,7 @@ import {
 import { fetchAllPages } from './fetch-all-pages';
 import { isEnrolledOn } from './session-roster';
 import { waitUntilFrom } from './wait-until';
+import { ID_CHUNK } from './org-scope';
 
 /**
  * 課務異動 → 任課老師的站內通知（#1693 `schedule_change`）。
@@ -66,15 +67,22 @@ export async function groupByClass(
   orgId: string,
   rows: readonly Omit<ScheduleChangeNoticeRow, 'change_type' | 'batch_id'>[],
 ): Promise<Map<string, ScheduleChangeClassGroup>> {
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('id, class_id, session_date, classes(name, campus_id)')
-    .eq('org_id', orgId)
-    .in(
-      'id',
-      rows.map((r) => r.session_id),
-    );
-  if (error) throw new Error(error.message);
+  // 課堂 id 切 ID_CHUNK 一批（#2230 ①）：整門課停用一次上千堂，一條 URL 會 414、這裡只記 log、
+  // 通知整批沒發。**不能改走 pg 池**：這支在 waitUntil 背景跑，請求結束時池已經 end()
+  // （`lib/get-auth.ts`）。ponytail: 每 100 堂一支 subrequest，上千堂的停用吃十幾支
+  const ids = [...new Set(rows.map((r) => r.session_id))];
+  const batches = await Promise.all(
+    Array.from({ length: Math.ceil(ids.length / ID_CHUNK) }, (_, i) =>
+      supabase
+        .from('sessions')
+        .select('id, class_id, session_date, classes(name, campus_id)')
+        .eq('org_id', orgId)
+        .in('id', ids.slice(i * ID_CHUNK, (i + 1) * ID_CHUNK)),
+    ),
+  );
+  const failed = batches.find((batch) => batch.error);
+  if (failed?.error) throw new Error(failed.error.message);
+  const data = batches.flatMap((batch) => batch.data ?? []);
 
   const byClass = new Map<string, ScheduleChangeClassGroup>();
   const rowBySession = new Map(rows.map((r) => [r.session_id, r]));

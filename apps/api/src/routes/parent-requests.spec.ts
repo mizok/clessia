@@ -17,6 +17,18 @@ const CAMPUS_A = 'campus-a';
 const CAMPUS_B = 'campus-b';
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 
+/**
+ * 送申請的家長：`requested_by` → `ba_user` 的 embed（#2230 ②）。同一個帳號在別的 org 也是家長 ——
+ * 名字要拿本 org 的那筆（`contactOf`），別 org 的名字不能漏出來
+ */
+const REQUESTER = {
+  phone: '0912000111',
+  parents: [
+    { name: '別家的名字', org_id: ORG_B },
+    { name: '林媽媽', org_id: ORG },
+  ],
+};
+
 const enrollment = (n: number, extra: Record<string, unknown> = {}) => ({
   id: id(n),
   org_id: ORG,
@@ -29,6 +41,7 @@ const enrollment = (n: number, extra: Record<string, unknown> = {}) => ({
   requested_by: 'user-parent-1',
   created_at: `2026-10-0${n % 9}T00:00:00Z`,
   students: { name: '林小華' },
+  requester: REQUESTER,
   billing_mode: 'monthly',
   classes: {
     name: '國二數學 A',
@@ -53,6 +66,7 @@ const trial = (n: number, extra: Record<string, unknown> = {}) => ({
   requested_by: 'user-parent-1',
   created_at: `2026-10-0${n % 9}T00:00:00Z`,
   students: { name: '林小華' },
+  requester: REQUESTER,
   courses: { name: '國小英文', campus_id: CAMPUS_B, campuses: { name: '大安分校' } },
   ...extra,
 });

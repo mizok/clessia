@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { loadDisplayName } from '../lib/display-name';
 import { waitUntilFrom } from '../lib/wait-until';
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
+import { cancelCourseFutureSessions } from '../lib/course-cancel-sessions';
+import { getAuth } from '../lib/get-auth';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
 import {
@@ -600,92 +602,31 @@ app.openapi(updateRoute, async (c) => {
 
   let cancelledFutureSessions = 0;
   if (shouldCancelFutureSessions) {
-    const { data: classRows, error: classRowsError } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('org_id', orgId)
-      .eq('course_id', id);
+    const today = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Taipei',
+    }).format(new Date());
+    // 取消與流水一句 SQL 在 DB 端做完（#2230 ①）：不撈課堂 id 清單、不手動 rollback
+    const batchId = crypto.randomUUID();
+    const sessionIds = await cancelCourseFutureSessions(getAuth(c).pool, {
+      orgId,
+      courseId: id,
+      today,
+      batchId,
+      actorName: await loadDisplayName(supabase, orgId, userId),
+    });
 
-    if (classRowsError) {
-      return c.json({ error: classRowsError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    const classIds = (classRows ?? [])
-      .map((row) => row['id'] as string | undefined)
-      .filter((classId): classId is string => !!classId);
-
-    if (classIds.length > 0) {
-      const today = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Asia/Taipei',
-      }).format(new Date());
-
-      // 查出要取消的課堂 IDs
-      const { data: targetSessions, error: fetchError } = await supabase
-        .from('sessions')
-        .select('id')
-        .eq('org_id', orgId)
-        .in('class_id', classIds)
-        .gte('session_date', today)
-        .neq('status', 'completed');
-
-      if (fetchError) {
-        return c.json({ error: fetchError.message, code: 'DB_ERROR' }, 400);
-      }
-
-      const sessionIds = (targetSessions ?? []).map((r) => r['id'] as string);
-
-      if (sessionIds.length > 0) {
-        // 軟刪除：更新狀態為 cancelled
-        const { error: updateError } = await inOrg(
-          supabase.from('sessions').update({ status: 'cancelled' }).in('id', sessionIds),
-          orgId,
-        );
-
-        if (updateError) {
-          return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
-        }
-
-        // 取得操作者名稱
-        const actorName = await loadDisplayName(supabase, orgId, userId);
-
-        // 為每堂課建立 schedule_change 紀錄（整門課一次停用 = 一批，#1195；同班級停用）
-        const batchId = crypto.randomUUID();
-        const changeRecords = sessionIds.map((sessionId) => ({
-          org_id: orgId,
+    if (sessionIds.length > 0) {
+      // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
+      await queueScheduleChangeNotice(
+        c,
+        sessionIds.map((sessionId) => ({
           session_id: sessionId,
-          operation_source: 'batch',
+          change_type: 'cancellation' as const,
           batch_id: batchId,
-          change_type: 'cancellation',
-          reason: '課程停用',
-          created_by_name: actorName,
-        }));
-
-        const { error: insertError } = await supabase
-          .from('schedule_changes')
-          .insert(changeRecords);
-
-        if (insertError) {
-          // Rollback sessions
-          await inOrg(
-            supabase.from('sessions').update({ status: 'scheduled' }).in('id', sessionIds),
-            orgId,
-          );
-          return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
-        }
-
-        // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
-        await queueScheduleChangeNotice(
-          c,
-          sessionIds.map((sessionId) => ({
-            session_id: sessionId,
-            change_type: 'cancellation' as const,
-            batch_id: batchId,
-          })),
-        );
-
-        cancelledFutureSessions = sessionIds.length;
-      }
+        })),
+      );
     }
+    cancelledFutureSessions = sessionIds.length;
   }
 
   const { data, error } = await inOrg(

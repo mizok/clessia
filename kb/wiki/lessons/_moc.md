@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-11-03
+> Auto-maintained by `kb:map`. Last updated: 2026-11-04
 
 ---
 
@@ -41,6 +41,14 @@ Links to: [[lessons/local-green-is-not-repo-green]], [[lessons/generated-tables-
 Tags: `lessons`, `backlog-legacy`
 
 Links to: [[architecture/line-oauth-login]]
+
+## [[lessons/bashpid-empty-on-macos-bash|$BASHPID 在 macOS 的 bash 3.2 是空的：鎖裡寫進空 pid，死掉的持有者沒人能接手]]
+
+全套測試鎖裡要寫持有者的 pid，有一支流傳的 verify.sh 在 `( … )` 子殼裡用 `echo $BASHPID`。macOS 內建 /bin/bash 是 3.2，沒有 $BASHPID —— 不報錯、展開成空字串，鎖照拿、測試照跑，只有 pid 檔是空的；持有者一旦死掉，等的人的接手條件 `[ -n "$p" ]` 永遠不成立。要拿子殼的 pid 用 `$(exec sh -c 'echo $PPID')`，或在外層行程活得比鎖久時直接用 `$$`；寫完先 `cat` 一次 pid 檔。
+
+Tags: `lessons`, `concurrency`, `lock`, `bash`, `macos`, `silent-failure`
+
+Links to: [[lessons/stale-fulltest-lock]], [[lessons/stale-fulltest-lock]], [[lessons/stale-fulltest-lock]], [[lessons/silent-tool-failures]]
 
 ## [[lessons/better-auth-session-delegation|Better Auth 的 session 一律委派官方 API，不要手刻]]
 
@@ -214,7 +222,7 @@ Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/local-manual-v
 
 Tags: `lessons`, `concurrency`, `lock`, `herdr`, `testing`
 
-Links to: [[lessons/herdr-team-orchestration]], [[lessons/silent-tool-failures]]
+Links to: [[lessons/bashpid-empty-on-macos-bash]], [[lessons/bashpid-empty-on-macos-bash]], [[lessons/herdr-team-orchestration]], [[lessons/silent-tool-failures]]
 
 ## [[lessons/status-table-blind-spot|現況表只掃了三分之一的系統]]
 

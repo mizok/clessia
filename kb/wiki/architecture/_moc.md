@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-11-03
+> Auto-maintained by `kb:map`. Last updated: 2026-11-04
 
 ---
 

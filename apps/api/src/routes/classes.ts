@@ -6,7 +6,7 @@ import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { GRADE_KEYS, classGradeLevels, ownClassGradeLevels } from '../lib/class-grade-levels';
 import { DbUuidSchema } from '../lib/validation';
-import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
+import { findInOrg, inOrg } from '../lib/org-scope';
 import { checkTeacherEligibility } from '../lib/teacher-eligibility';
 import {
   isScheduleCurrentOrUpcoming,
@@ -29,6 +29,7 @@ import type {
 } from '../domain/session-assignment/session-assignment.types';
 import { waitUntilFrom } from '../lib/wait-until';
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
+import { batchSetClassesActive } from '../lib/class-batch-active';
 import { hasPermission } from '../lib/permissions';
 import { loadLatestExams, type LatestExam } from '../lib/class-latest-exam';
 import { loadClassListStats, type ClassListStats } from '../lib/class-list-stats';
@@ -936,7 +937,8 @@ app.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({ ids: z.array(DbUuidSchema), isActive: z.boolean() }),
+            // 上限 200（#2230 裁定）：前端一次勾選的量級；走 pg 之後不會 414，上限是擋濫用
+            schema: z.object({ ids: z.array(DbUuidSchema).max(200), isActive: z.boolean() }),
           },
         },
       },
@@ -963,30 +965,21 @@ app.openapi(
     const { ids, isActive } = c.req.valid('json');
     if (ids.length === 0) return c.json({ updated: 0 }, 200);
 
-    // 任何一個 id 不屬於本 org → 整批 404，不略過（c1，#966 B2）
-    if ((await missingInOrg(supabase, 'classes', orgId, ids)).length > 0) {
+    // 本 org／分校範圍的判斷與更新同一筆交易（#2230 ①，`lib/class-batch-active.ts`）：
+    // 任何一個 id 不屬於本 org → 整批 404（c1，#966 B2）；不在分校範圍 → 整批 403（#1797）
+    const result = await batchSetClassesActive(getAuth(c).pool, {
+      orgId,
+      ids,
+      isActive,
+      userId,
+      campusScope: getCampusScope(c),
+    });
+    if (result.status === 'not-found') {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
-    // 任何一個不在分校範圍 → 整批 403，不略過（#1797；id 在 body 裡，路徑中介層看不到）
-    const scope = getCampusScope(c);
-    if (scope !== null) {
-      const { data: rows, error: scopeError } = await supabase
-        .from('classes')
-        .select('campus_id')
-        .eq('org_id', orgId)
-        .in('id', ids);
-      if (scopeError) throw new Error(`batch-set-active scope failed: ${scopeError.message}`);
-      if ((rows ?? []).some((r) => !scope.includes(r['campus_id'] as string))) {
-        return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
-      }
+    if (result.status === 'forbidden') {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
-
-    const { data, error } = await inOrg(
-      supabase.from('classes').update({ is_active: isActive, updated_by: userId }).in('id', ids),
-      orgId,
-    ).select('id');
-
-    if (error) return c.json({ updated: 0 }, 200);
 
     logAudit(
       supabase,
@@ -1000,7 +993,7 @@ app.openapi(
       waitUntilFrom(c),
     );
 
-    return c.json({ updated: data?.length ?? 0 }, 200);
+    return c.json({ updated: result.updatedIds.length }, 200);
   },
 );
 
