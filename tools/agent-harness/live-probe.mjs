@@ -4,12 +4,12 @@
  *
  *   API_URL=https://… PROBE_COOKIE='__Secure-better-auth.session_token=…' node tools/agent-harness/live-probe.mjs
  *
- * 寫 `result=ok|skipped|auth|broken` 到 $GITHUB_OUTPUT；結束碼一律 0，紅不紅、回不回滾由 workflow 判。
+ * 寫 `result=ok|skipped|auth|broken|unknown` 到 $GITHUB_OUTPUT；結束碼一律 0，紅不紅、回不回滾由 workflow 判。
  * 沒設 PROBE_COOKIE（自架、還沒建探針帳號）→ skipped＋notice，不紅燈（c12）。
  */
 import { appendFileSync } from 'node:fs';
 
-import { PROBE_PATHS, classifyProbe } from './lib/live-probe.mjs';
+import { PROBE_PATHS, RETRIES, RETRY_INTERVAL_MS, classifyProbe } from './lib/live-probe.mjs';
 
 const out = (line) =>
   process.env.GITHUB_OUTPUT && appendFileSync(process.env.GITHUB_OUTPUT, `${line}\n`);
@@ -40,12 +40,14 @@ async function status(path) {
   }
 }
 
-// 剛部署完的 Worker 偶爾第一下不穩：不是 200 的再打一次（隔 10 秒），用第二次的結果判
+// 剛部署完的 Worker 偶爾第一下不穩：不是 200 的再打 RETRIES 次、每次隔 RETRY_INTERVAL_MS，用最後一次定案
 async function settled(path) {
-  const first = await status(path);
-  if (first === 200) return first;
-  await new Promise((r) => setTimeout(r, 10_000));
-  return status(path);
+  let s = await status(path);
+  for (let i = 0; i < RETRIES && s !== 200; i++) {
+    await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
+    s = await status(path);
+  }
+  return s;
 }
 
 const me = await settled('/api/me');
@@ -57,6 +59,11 @@ out(`result=${kind}`);
 summary(`### 帶身分的列表探針：${kind}`);
 for (const r of [{ path: '/api/me', status: me }, ...lists])
   summary(`- \`${r.path}\` → ${r.status || '打不通'}`);
+if (kind === 'unknown') {
+  summary(
+    '> 只有打不通（逾時、DNS、連線錯）：多半是 runner 的網路，**不回滾**。重跑這個 job 確認。',
+  );
+}
 if (kind === 'auth') {
   summary(
     '> 401／403 是探針憑證的問題（cookie 過期、帳號停用、權限不足），**不回滾**。換 PROBE_COOKIE 的方法見 #1435 的 PR 描述。',

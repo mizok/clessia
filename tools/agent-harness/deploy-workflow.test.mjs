@@ -133,11 +133,11 @@ test('回滾只在 result == broken；auth（401／403 憑證問題）只紅燈'
   assert.match(job, /wrangler rollback --env production -y -m /);
 });
 
-test('探針沒設 secret 不紅：腳本 skipped，紅燈 step 只認 broken／auth', () => {
+test('探針沒設 secret 不紅：腳本 skipped，紅燈 step 只認 broken／auth／unknown', () => {
   const job = all['probe-api'];
   assert.match(job, /PROBE_COOKIE: \$\{\{ secrets\.PROBE_COOKIE \}\}/);
   assert.match(
     job,
-    /- if: steps\.probe\.outputs\.result == 'broken' \|\| steps\.probe\.outputs\.result == 'auth'\s*\n\s+run: \|[\s\S]*exit 1/,
+    /- if: steps\.probe\.outputs\.result == 'broken' \|\| steps\.probe\.outputs\.result == 'auth' \|\| steps\.probe\.outputs\.result == 'unknown'\s*\n\s+run: \|[\s\S]*exit 1/,
   );
 });

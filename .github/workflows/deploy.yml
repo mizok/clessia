@@ -30,9 +30,9 @@
 # 不要現場修」是人的判斷（Worker：`wrangler rollback --env production`；Pages：dashboard）。
 #
 # **唯一的例外是 probe-api（#1435，計畫席 11-04 裁「紅就回滾」）**：api 部署成功、而帶身分的列表探針
-# 判定這次部署把列表弄壞（身分 200、列表不是 200）→ 自動 `wrangler rollback` api。只回滾 api：
-# Pages 沒有命令列回滾，web 照舊由人判斷。探針憑證壞了（401／403）只紅燈、不回滾，
-# 判斷規則在 tools/agent-harness/lib/live-probe.mjs。
+# 判定這次部署把列表或中介層弄壞（伺服器真的回了錯）→ 自動 `wrangler rollback` api。只回滾 api：
+# Pages 沒有命令列回滾，web 照舊由人判斷。探針憑證壞了（401／403）、打不通（runner 網路）只紅燈、
+# 不回滾，判斷規則在 tools/agent-harness/lib/live-probe.mjs。
 #
 # ## 開關：repo variable `DEPLOY_ENABLED`（預設關）
 #
@@ -357,7 +357,7 @@ jobs:
           PROBE_COOKIE: ${{ secrets.PROBE_COOKIE }}
         run: node tools/agent-harness/live-probe.mjs
 
-      # 只有 broken 才回滾：身分沒問題、列表卻壞了 = 這次部署的問題。auth（憑證）不回滾
+      # 只有 broken 才回滾：伺服器真的回了錯 = 這次部署的問題。auth（憑證）、unknown（打不通）不回滾
       - if: steps.probe.outputs.result == 'broken'
         run: npm ci
 
@@ -371,7 +371,8 @@ jobs:
           npx wrangler rollback --env production -y -m "probe-api：${{ needs.plan.outputs.target }} 部署後列表探針失敗（#1435）"
           echo "### ⚠️ 列表探針失敗，**api 已自動回滾**到上一版（web 沒動，前後端可能不一致）" >> "$GITHUB_STEP_SUMMARY"
 
-      - if: steps.probe.outputs.result == 'broken' || steps.probe.outputs.result == 'auth'
+      # auth（憑證）與 unknown（打不通，runner 網路）都只紅燈、不回滾
+      - if: steps.probe.outputs.result == 'broken' || steps.probe.outputs.result == 'auth' || steps.probe.outputs.result == 'unknown'
         run: |
           echo "列表探針：${{ steps.probe.outputs.result }}（細節見 summary）"
           exit 1
