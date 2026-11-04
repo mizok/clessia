@@ -9,7 +9,8 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  *
  * 原本 `loadLatestExams` 用三層 PostgREST `.in()`（links、enrollments 的 `class_id`，scores 的 `exam_id`）：
  * `GET /classes?pageSize=0` 班一多就 414，任一支失敗回 null → 路由整欄不回 `latestExam`、照樣 200。
- * fixture：BIG 個班都綁同一場考試，每班 1 個學生、分數 = 班號（另有一場較舊的考試綁第一班）。
+ * fixture：BIG 個班都綁同一場考試，每班 1 個學生、分數 = 班號（另有一場較舊的考試綁第一班）；
+ * 第一班另有作廢報名（不算）與退班（照算）的學生各一位。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -130,6 +131,21 @@ run('#2240 班級列表的最新考試在 DB 端撈（GET /classes）', () => {
       [ctx.orgId, fx.exam],
     );
     for (const c of classes) fx.scoreByClass.set(c.id, c.n);
+    // 第一班另兩位（審核席二讀）：作廢報名的分數不進平均（100 分，算進去平均就不是 2）；
+    // 退班的照算（3 分）—— 同 academy-exam-roster 排除 void、保留退班。第一班 = (1 + 3) / 2
+    await q(
+      `with st as (
+         insert into students (org_id, name, grade)
+         values ($1, 'void', 'J1'), ($1, 'withdrawal', 'J1') returning id, name),
+       en as (
+         insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
+         select $1, $2, st.id, st.name::enrollment_status, 'monthly', 1000, '2027-01-01' from st
+         returning student_id, status)
+       insert into academy_scores (exam_id, student_id, score, status)
+       select $3, en.student_id, case en.status when 'void' then 100 else 3 end, 'scored' from en`,
+      [ctx.orgId, fx.first, fx.exam],
+    );
+    fx.scoreByClass.set(fx.first, 2);
     app = (await import('../index')).default as never;
   }, 300_000);
 
