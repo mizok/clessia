@@ -172,6 +172,34 @@ describe('rate limit', () => {
     }
   });
 
+  // #1950：計數要限本 org。拿掉 `.eq('org_id')` 是「更嚴」（跨 org 一起算、多擋），不會外洩，
+  // 但多 org 部署時 A 補習班的申請會吃掉 B 補習班的額度 —— 原本沒有任何 spec 守這條
+  it('別的 org 的申請不算進本 org 的額度：同 Email 兩邊各 2 筆、同來源別 org 5 筆，本 org 照常 201', async () => {
+    const OTHER = '00000000-0000-0000-0000-00000000000b';
+    const hash = await hashClientIp(IP, SECRET);
+    const email = 'same@example.test';
+    const db = seed([
+      // 本 org 2 筆同 Email（上限 3，第 3 筆該過）
+      { parent_email: email },
+      { parent_email: email },
+      // 別 org：同 Email 2 筆＋同來源 5 筆 —— 跨 org 一起算的話 Email 4 筆、來源 5 筆都會擋
+      { org_id: OTHER, parent_email: email },
+      { org_id: OTHER, parent_email: email },
+      ...Array.from({ length: 5 }, (_, i) => ({
+        org_id: OTHER,
+        client_ip_hash: hash,
+        parent_phone: `09100000${10 + i}`,
+      })),
+    ]);
+    const body = enrollmentBody({
+      parent: { name: '王媽媽', email, relation: 'mother' },
+    });
+
+    const { res } = await post(db, body);
+    expect(res.status).toBe(201);
+    expect(written(db)).toHaveLength(1);
+  });
+
   it('寫入時存的是 IP 的 HMAC，不是原始 IP', async () => {
     const db = seed();
     await post(db, enrollmentBody());
