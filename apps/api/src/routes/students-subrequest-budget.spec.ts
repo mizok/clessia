@@ -117,6 +117,17 @@ describe('GET /api/students 的 subrequest 預算（Workers 上限 50，#2053）
     expect((await queriesFor(`${WORST}&withoutCard=true`)) - (await queriesFor(WORST))).toBe(0);
   });
 
+  // #2267「今天發的卡」走同一條路（embed 上的條件 → 12 支 head count），不另加查詢
+  it('開著「今天發的卡」跟「沒有有效卡」同價', async () => {
+    const unscoped = 'search=0912&schoolMismatch=true';
+    expect(await queriesFor(`${unscoped}&cardIssuedToday=true`, null)).toBe(
+      await queriesFor(`${unscoped}&withoutCard=true`, null),
+    );
+    expect(await queriesFor(`${WORST}&cardIssuedToday=true`)).toBe(
+      await queriesFor(`${WORST}&withoutCard=true`),
+    );
+  });
+
   it('最壞情況（受限管理員＋數字搜尋＋學制不合＋沒有有效卡＋今日到班）≤ 45 次查詢', async () => {
     const n = await queriesFor(`${WORST}&withoutCard=true`);
     // 真的走完了：12 支年級 head count 加上列表、在籍數、搜尋、範圍、今日到班 —— 不是半路回的低數字
