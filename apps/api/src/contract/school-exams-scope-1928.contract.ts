@@ -67,7 +67,7 @@ run('#1928 學校段考的分校範圍在 DB 端篩（GET /school-exams/{id}、/
     (await pool!.query(text, values)).rows as T[];
   const one = async (sql: string, values: unknown[]) =>
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
-  const fx = { c1: '', c2: '', exam: '', ab: '', b: '' };
+  const fx = { c1: '', c2: '', exam: '', ab: '', b: '', school: '', subject: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -79,10 +79,11 @@ run('#1928 學校段考的分校範圍在 DB 端篩（GET /school-exams/{id}、/
       ctx.orgId,
       '國文',
     ]);
-    const school = await one('insert into schools (org_id, name) values ($1, $2)', [
+    const school = (fx.school = await one('insert into schools (org_id, name) values ($1, $2)', [
       ctx.orgId,
       '#1928 國中',
-    ]);
+    ]));
+    fx.subject = subject;
     const klass: Record<string, string> = {};
     for (const key of ['c1', 'c2'] as const) {
       fx[key] = await one('insert into campuses (org_id, name) values ($1, $2)', [ctx.orgId, key]);
@@ -161,7 +162,15 @@ run('#1928 學校段考的分校範圍在 DB 端篩（GET /school-exams/{id}、/
     }
   };
   type Detail = { data: { summary: { totalRecordedCount: number } } };
-  type Students = { data: Array<{ studentId: string }>; meta: { total: number } };
+  type Students = {
+    data: Array<{
+      studentId: string;
+      scoreCount: number;
+      hasScored: boolean;
+      lastUpdatedAt: string | null;
+    }>;
+    meta: { total: number };
+  };
   const IN_C1 = BIG + 1;
   const recorded = (d: Detail) => d.data.summary.totalRecordedCount;
 
@@ -186,5 +195,50 @@ run('#1928 學校段考的分校範圍在 DB 端篩（GET /school-exams/{id}、/
     expect((await as<Students>('all', `/students?campusId=${fx.c2}&pageSize=1`)).meta.total).toBe(
       2,
     );
+  });
+
+  // 審核席二讀突變 ③：成績掛在學生底下時，`.eq('school_scores.school_exam_id', id)` 是唯一把 embed 限在「這一場」
+  // 的條件 —— 拿掉的話每位學生帶出所有場次的成績，只在別場有分數的學生會被當成這場已登錄。
+  // 在這條裡才建、測完就刪，不動上面幾條的筆數
+  it('GET /{id}/students：只在另一場段考有成績的學生，這場是未登錄（不拿別場的狀態與時間）', async () => {
+    const created: { student?: string; exam?: string } = {};
+    try {
+      created.student = await one(
+        "insert into students (org_id, name, grade, school_id) values ($1, '只考另一場', 'J2', $2)",
+        [ctx.orgId, fx.school],
+      );
+      created.exam = await one(
+        `insert into school_exams (org_id, academic_year, semester, exam_type, label, exam_date, school_id)
+         values ($1, 115, 2, 'term_exam', '#1928 另一場', $2, $3)`,
+        [ctx.orgId, getCurrentTaipeiDateString(), fx.school],
+      );
+      await q(
+        `insert into school_scores (school_exam_id, student_id, subject_id, score, status)
+         values ($1, $2, $3, 90, 'scored')`,
+        [created.exam, created.student, fx.subject],
+      );
+      const body = await as<Students>(
+        'all',
+        `/students?search=${encodeURIComponent('只考另一場')}`,
+      );
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]).toMatchObject({
+        studentId: created.student,
+        scoreCount: 0,
+        hasScored: false,
+        lastUpdatedAt: null,
+      });
+      const pending = await as<Students>(
+        'all',
+        `/students?status=pending&search=${encodeURIComponent('只考另一場')}`,
+      );
+      expect(pending.data.map((r) => r.studentId)).toEqual([created.student]);
+    } finally {
+      if (created.exam) {
+        await q('delete from school_scores where school_exam_id = $1', [created.exam]);
+        await q('delete from school_exams where id = $1', [created.exam]);
+      }
+      if (created.student) await q('delete from students where id = $1', [created.student]);
+    }
   });
 });
