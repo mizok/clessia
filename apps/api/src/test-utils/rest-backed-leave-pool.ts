@@ -112,6 +112,39 @@ export function restBackedLeavePool(client: SupabaseLike): RestBackedLeavePool {
       }
       return { rows: data ? [{ row: data }] : [] };
     }
+    if (sql.includes('insert into public.attendance_records')) {
+      const [orgId, studentId, recordedBy, eventIds] = params as [string, string, string, string[]];
+      await settle(
+        from('attendance_records')['upsert']!(
+          eventIds.map((eventId) => ({
+            org_id: orgId,
+            student_id: studentId,
+            event_id: eventId,
+            status: 'on_leave',
+            recorded_by: recordedBy,
+            recorded_by_role: 'system',
+          })),
+          { onConflict: 'student_id,event_id' },
+        ),
+      );
+      return { rows: [] };
+    }
+    if (sql.includes('delete from public.attendance_records')) {
+      // ponytail: 「還沒點名」那道 exists 翻不成 REST，交給契約驗
+      const [orgId, studentId, ids] = params as [string, string, string[]];
+      const data = await settle(
+        from('attendance_records')['delete']!()['eq']!('org_id', orgId)['eq']!(
+          'student_id',
+          studentId,
+        )['eq']!('status', 'on_leave')['in']!('id', ids)['select']!('id'),
+      );
+      return { rows: (data ?? []) as unknown[] };
+    }
+    if (sql.includes('delete from public.leave_requests')) {
+      const [orgId, leaveId] = params as [string, string];
+      await settle(from('leave_requests')['delete']!()['eq']!('id', leaveId)['eq']!('org_id', orgId));
+      return { rows: [] };
+    }
     throw new Error(`fake pool：認不得的語句：${sql.trim().slice(0, 80)}`);
   };
 
