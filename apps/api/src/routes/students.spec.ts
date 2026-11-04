@@ -303,17 +303,22 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
    * **這裡斷言的是那支查詢的形狀** —— 替身回的是固定 fixture，條件下對下錯回一樣的東西。
    */
   describe('GET /api/students —— 受限管理員的分校範圍要下到查詢上', () => {
-    it('帶著他管的分校去撈 enrollments，欄位是 classes.campus_id', async () => {
+    // #1928：不再先撈範圍內學生 id（那份清單進 URL 會 414），分校條件直接下在學生查詢的 embed 上
+    it('帶著他管的分校下在學生查詢的 embed 上，欄位是 scope_campus.classes.campus_id', async () => {
       await listStudents(['campus-1']);
 
-      expect(inCalls).toContainEqual({ column: 'classes.campus_id', values: ['campus-1'] });
+      expect(inCalls).toContainEqual({
+        column: 'scope_campus.classes.campus_id',
+        values: ['campus-1'],
+      });
+      expect(inCalls.some((call) => call.column === 'id')).toBe(false);
     });
 
     it('不受分校限制時不下這個條件（確認上一條不是無腦通過）', async () => {
       inCalls.length = 0;
       await listStudents(null);
 
-      expect(inCalls.some((call) => call.column === 'classes.campus_id')).toBe(false);
+      expect(inCalls.some((call) => call.column === 'scope_campus.classes.campus_id')).toBe(false);
     });
   });
 
@@ -328,22 +333,26 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
    * 洩漏的是計數不是紀錄，但它跟第 1 節同一族 —— 「有一處算了 scope，另一處自己推論」。
    */
   describe('GET /api/students —— activeCount 也要套分校範圍（#815）', () => {
-    it('受限管理員的 activeCount 那支 count 查詢有下 id 條件', async () => {
+    it('受限管理員的 activeCount 那支 count 查詢有下分校範圍（#1928 起是 embed 條件）', async () => {
       queries.length = 0;
       await listStudents(['campus-1']);
 
       const countQuery = queries.find((q) => q.head);
       expect(countQuery).toBeDefined();
-      expect(countQuery?.ins.some((call) => call.column === 'id')).toBe(true);
+      expect(countQuery?.ins.some((call) => call.column === 'scope_campus.classes.campus_id')).toBe(
+        true,
+      );
     });
 
-    it('不受分校限制時那支 count 不下 id 條件（確認上一條不是無腦通過）', async () => {
+    it('不受分校限制時那支 count 不下範圍條件（確認上一條不是無腦通過）', async () => {
       queries.length = 0;
       await listStudents(null);
 
       const countQuery = queries.find((q) => q.head);
       expect(countQuery).toBeDefined();
-      expect(countQuery?.ins.some((call) => call.column === 'id')).toBe(false);
+      expect(countQuery?.ins.some((call) => call.column === 'scope_campus.classes.campus_id')).toBe(
+        false,
+      );
     });
   });
 });

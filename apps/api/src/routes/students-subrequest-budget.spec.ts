@@ -86,7 +86,7 @@ function countingSupabase() {
   };
 }
 
-async function queriesFor(query: string) {
+async function queriesFor(query: string, campusScope: string[] | null = [CAMPUS]) {
   const db = countingSupabase();
   const app = new Hono();
   app.use('*', async (c, next) => {
@@ -95,7 +95,7 @@ async function queriesFor(query: string) {
     set('orgId', ORG);
     set('userId', 'user-1');
     set('roles', ['admin']);
-    set('campusScope', [CAMPUS]);
+    set('campusScope', campusScope);
     await next();
   });
   app.route('/', studentsApp as unknown as Hono);
@@ -107,8 +107,14 @@ async function queriesFor(query: string) {
 const WORST = `search=0912&schoolMismatch=true&campusId=${CAMPUS}`;
 
 describe('GET /api/students 的 subrequest 預算（Workers 上限 50，#2053）', () => {
+  // 不受範圍限制時：開著「沒有有效卡」＝年級章節從 1 支聚合換成 12 支 head count（多 11 支）。
+  // 受範圍限制（WORST 帶 campusId）時兩邊都是 12 支 head count —— 聚合不吃 embed 上的範圍條件（#1928）
   it('開著「沒有有效卡」＝年級章節從 1 支聚合換成 12 支 head count（多 11 支）', async () => {
-    expect((await queriesFor(`${WORST}&withoutCard=true`)) - (await queriesFor(WORST))).toBe(11);
+    const unscoped = 'search=0912&schoolMismatch=true';
+    expect(
+      (await queriesFor(`${unscoped}&withoutCard=true`, null)) - (await queriesFor(unscoped, null)),
+    ).toBe(11);
+    expect((await queriesFor(`${WORST}&withoutCard=true`)) - (await queriesFor(WORST))).toBe(0);
   });
 
   it('最壞情況（受限管理員＋數字搜尋＋學制不合＋沒有有效卡＋今日到班）≤ 45 次查詢', async () => {
