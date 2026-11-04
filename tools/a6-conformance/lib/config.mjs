@@ -273,14 +273,8 @@ export const DEVIATIONS = [
     source: `${rule('R7', ' 反向，#1590')}`,
   },
   {
-    // D3：伺服器分頁的分頁器，收不進「⋯」
-    status: '多',
-    host: '^p-paginator$',
-    reason: '分頁器：伺服器分頁，沒有它看不到後面的資料，收不進「⋯」',
-    source: `${rule('R2', ' 例外')}；#1314 comment 6182400702`,
-  },
-  {
-    // #1314 Z 批：p-paginator 換成共用 app-pager；稿沒畫分頁器的列表用精簡版（R5 2026-11-02）
+    // D3：伺服器分頁的分頁器，收不進「⋯」（#1314 comment 6182400702）。Z 批起全站是共用 app-pager；
+    // 稿沒畫分頁器的列表用精簡版（R5 2026-11-02）
     status: '多',
     host: '^app-pager$',
     reason: '分頁器：伺服器分頁，稿沒畫分頁器的列表用 A6 精簡版（第 x／y 頁＋上一頁／下一頁）',
@@ -597,10 +591,30 @@ const formOpen = (a6Click, appClick) => ({
   a6Open: { root: 'dialog[open]', click: a6Click },
   appOpen: { root: '.p-dialog:has(.form-dialog)', click: appClick },
 });
+/**
+ * 稿用 JS 開的唯讀／兩步對話框（#2210）：稿 `dialog.acset`（showModal），app 是 DialogService 的 `.p-dialog`，
+ * 用裡面的元件宿主區分。量完按 Escape（兩邊都吃）。
+ */
+const dlgOpen = (a6Click, appClick, host) => ({
+  a6Open: { root: 'dialog[open]', click: a6Click },
+  appOpen: { root: `.p-dialog:has(${host})`, click: appClick },
+});
 const FORM_DIALOGS = {
   courses: {
     'new-course': formOpen('[data-newc]', 'button:has-text("新增課程")'),
     'new-class': formOpen('[data-newk]', 'button:has-text("新增班")'),
+    // 操作紀錄（工具列時鐘鈕）、產生課堂（「無未來排程」班的標籤鈕）。那些班收在合起來的課程裡，
+    // 先按「需介入」列的「只看這幾個班」攤開（兩邊同一顆）；放最後，篩選狀態不影響前面的彈出物
+    log: dlgOpen('[data-log]', 'button[aria-label="操作紀錄"]', 'app-audit-log-dialog'),
+    gen: dlgOpen(
+      ['[data-attn]', '[data-gen]'],
+      ['[data-testid="intervention"] button', '[data-part="generate"]'],
+      'app-generate-sessions-dialog',
+    ),
+  },
+  // 學生成績明細（點學生列）
+  'grades-student': {
+    detail: dlgOpen('[data-sid]', '[data-part="student-row"]', 'app-student-score-detail-dialog'),
   },
   staff: { 'new-staff': formOpen('[data-new]', 'button:has-text("新增人員")') },
   parents: { 'new-parent': formOpen('[data-new]', 'button:has-text("新增家長")') },
@@ -865,8 +879,8 @@ export const PAGES = {
         reason: '連帶：工具列多了篩選與操作紀錄鈕',
         source: `${rule('R2')}；使用者 10-23 裁定 #2006`,
       },
-      // 桌機逾期章頭的「全部提醒」：同一顆、同一個理由（要 LINE 推播）。原本跟 p-paginator 的按鈕
-      // 一起被歸成「同型段落數不同」的工具限制，分頁器換成 app-pager（自己是 navigation）後才浮出來（#1314 Z 批）
+      // 桌機逾期章頭的「全部提醒」：同一顆、同一個理由（要 LINE 推播）。分頁器換成 app-pager
+      // （自己是 navigation）後才浮出來（#1314 Z 批）
       {
         status: '缺',
         a6: '>landmark:region\\[逾期\\]>control:button\\[全部提醒（#）\\](>|$)',
@@ -2433,8 +2447,12 @@ export const PAGES = {
   'grades-student': {
     a6: 'grades-student.html',
     app: '/admin/grades/overview/student',
+    a6Open: opensOf('grades-student', 'a6Open'),
     // app 的篩選是 app-filter-panel：桌機 PrimeNG Popover、≤860 貼底抽屜 p-dialog（#2206）；#2079(c) 開課班／期間要打開才量得到
-    appOpen: { filt: { click: 'button:has-text("篩選：")', root: '.p-popover, .p-dialog' } },
+    appOpen: {
+      filt: { click: 'button:has-text("篩選：")', root: '.p-popover, .p-dialog' },
+      ...opensOf('grades-student', 'appOpen'),
+    },
     deviations: [
       // 同 grades-class：工具列換成全站共用的搜尋框之後（#1314 G9），量到的是 input 不是外層 label
       ...['尺寸', '樣式', '位置'].map((status) => ({

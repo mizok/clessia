@@ -8,6 +8,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { fetchAllPages } from '../lib/fetch-all-pages';
 import { getAuth } from '../lib/get-auth';
 import { isParentWithinScope } from '../lib/parent-campus-scope';
 import { withTx } from '../lib/pg-tx';
@@ -392,25 +393,49 @@ app.openapi(
       if (classIds.length === 0) {
         taughtStudentIds = [];
       } else {
-        const { data: enrolledRows, error: enrolledError } = await supabase
-          .from('enrollments')
-          .select('student_id')
-          .eq('org_id', orgId)
-          .in('class_id', classIds)
-          .in('status', ['active', 'pending_payment']);
-        if (enrolledError) {
-          return c.json({ error: '讀取在籍學生失敗', message: enrolledError.message }, 500);
-        }
-        taughtStudentIds = Array.from(
-          new Set((enrolledRows ?? []).map((r) => r['student_id'] as string)),
+        // 只在記憶體裡用（今日到班濾掉別人的學生、沒有學生就提早回空）—— 列表本身的老師範圍在 DB 端篩（#1928，
+        // 見 `scopeEmbed`），這份清單不進 URL。分頁撈齊，免得 max_rows 1000 靜默截斷
+        const { rows: enrolledRows, error: enrolledError } = await fetchAllPages((from, to) =>
+          supabase
+            .from('enrollments')
+            .select('student_id')
+            .eq('org_id', orgId)
+            .in('class_id', classIds)
+            .in('status', ['active', 'pending_payment'])
+            .order('id')
+            .range(from, to),
         );
+        if (enrolledError) {
+          return c.json(
+            {
+              error: '讀取在籍學生失敗',
+              message: (enrolledError as { message?: string }).message ?? '',
+            },
+            500,
+          );
+        }
+        taughtStudentIds = Array.from(new Set(enrolledRows.map((r) => r['student_id'] as string)));
       }
     }
+
+    // 沒指定分校時也要縮到自己管的那幾間 —— `campusFilterIds` 回 null 才是「不限」
+    // 這支查詢**不濾 enrollment status**（enrollment-rules 第 8 節）：分校主任要看得到
+    // 自家剛退班的學生。改這裡等於改授權可見性，不是改篩選
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
+    /**
+     * 範圍（#1928）：條件放進 embed 的 `!inner` 在 DB 端篩，**不先撈範圍內學生 id 再 `.in('id', …)`**
+     * （兩三百位就 414，整頁 500）。分校＝任一筆報名的班在範圍內（不分狀態）；老師＝在他任課班有
+     * 在籍（active／pending_payment）的報名 —— 同一個 alias 上的兩個條件落在同一筆報名，同原本。
+     * 列表、在籍數、章節計數**共用同一份**（#815：算兩次就會分岔一次）
+     */
+    const scopeEmbed =
+      (campusIds ? ', scope_campus:enrollments!inner(classes!inner(campus_id))' : '') +
+      (myClassIds ? ', scope_taught:enrollments!inner(class_id, status)' : '');
 
     let query = supabase
       .from('students')
       .select(
-        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name, user_id)), enrollments(id, status, classes(id, name, campus_id, campuses(name))), ${ACTIVE_CARD_EMBED}`,
+        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name, user_id)), enrollments(id, status, classes(id, name, campus_id, campuses(name))), ${ACTIVE_CARD_EMBED}${scopeEmbed}`,
         { count: 'exact' },
       )
       .eq('org_id', orgId)
@@ -509,38 +534,6 @@ app.openapi(
     if (grade) {
       query = query.eq('grade', grade);
     }
-    // 沒指定分校時也要縮到自己管的那幾間 —— `campusFilterIds` 回 null 才是「不限」
-    // 這支查詢**不濾 enrollment status**（enrollment-rules 第 8 節）：分校主任要看得到
-    // 自家剛退班的學生。改這裡等於改授權可見性，不是改篩選
-    const campusIds = campusFilterIds(getCampusScope(c), campusId);
-    /**
-     * 這個人看得到哪些學生 id。`null` = 不受分校限制。
-     *
-     * **下面的 `activeCount` 要用同一個集合**（#815 第 2 節）——
-     * 它原本只濾 `org_id`，於是只被指派一個分校的管理員在儀表板看到
-     * 「在籍學生 69」而他自己的學生頁說 0。
-     * 讓第二處自己再算一次就是同一個 bug 的第二個實例：**算兩次就會分岔一次。**
-     */
-    let scopedStudentIds: string[] | null = null;
-    if (campusIds) {
-      const { data: enrollmentRows } = await supabase
-        .from('enrollments')
-        .select('student_id, classes!inner(campus_id)')
-        .in('classes.campus_id', [...campusIds]);
-
-      const campusStudentIds = Array.from(
-        new Set(
-          ((enrollmentRows ?? []) as Array<{ student_id: string | null }>)
-            .map((row) => row.student_id)
-            .filter((id): id is string => !!id),
-        ),
-      );
-
-      // 該分校無學生時用一個不存在的 id 表示空集合 —— `.in('id', [])` 也是零筆，
-      // 但保留既有寫法，不趁機改語意
-      scopedStudentIds =
-        campusStudentIds.length > 0 ? campusStudentIds : ['00000000-0000-0000-0000-000000000000'];
-    }
 
     // ── 今日到班（#1314 SL1）──────────────────────────────────
     // 判準在 `lib/today-attendance.ts`，跟作業台同一份。只在帶 `today`、或第一頁（且沒說
@@ -637,9 +630,13 @@ app.openapi(
     // grade 不在裡面：章節要列出其他年級。兩個 `in('id')` 在 PostgREST 是 AND（交集）
     const withChapterFilters = <Q>(q: Q): Q => {
       let next = q as unknown as StudentFilterable;
-      if (taughtStudentIds !== null) next = next.in('id', taughtStudentIds);
+      if (myClassIds) {
+        next = next
+          .in('scope_taught.class_id', myClassIds)
+          .in('scope_taught.status', ['active', 'pending_payment']);
+      }
       if (searchClause) next = next.or(searchClause);
-      if (scopedStudentIds) next = next.in('id', scopedStudentIds);
+      if (campusIds) next = next.in('scope_campus.classes.campus_id', [...campusIds]);
       if (isActive !== undefined) next = next.eq('is_active', isActive);
       if (todayIds) next = next.in('id', todayIds);
       if (schoolMismatch) {
@@ -662,10 +659,17 @@ app.openapi(
     // 而他自己的學生頁說 0。用主清單算好的 `scopedStudentIds`，不另外再算一次。
     let activeCountQuery = supabase
       .from('students')
-      .select('*', { count: 'exact', head: true })
+      .select(`id${scopeEmbed}`, { count: 'exact', head: true })
       .eq('org_id', orgId)
       .eq('is_active', true);
-    if (scopedStudentIds) activeCountQuery = activeCountQuery.in('id', scopedStudentIds);
+    if (myClassIds) {
+      activeCountQuery = activeCountQuery
+        .in('scope_taught.class_id', myClassIds)
+        .in('scope_taught.status', ['active', 'pending_payment']);
+    }
+    if (campusIds) {
+      activeCountQuery = activeCountQuery.in('scope_campus.classes.campus_id', [...campusIds]);
+    }
 
     // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去。
     // 讓 DB 用 GROUP BY 數（PostgREST 聚合，#1595 P3b-B）：一支查詢、每個年級一列（最多 13 列，
@@ -675,24 +679,28 @@ app.openapi(
     // 「沒有有效卡」是 embed 的反連接，**PostgREST 的聚合不吃 embed 的過濾**（42703）。這個篩選開著時
     // 改成每級一支 head count —— 條件仍全在 DB；多 12 個 subrequest，最壞情況的總數由
     // `students-subrequest-budget.spec.ts` 守在 45 以內（計畫席 10-28 裁定 A，不加 migration）
-    const gradeCountQuery = withoutCard
-      ? Promise.all(
-          GRADE_CHAPTERS.map((level) =>
-            withChapterFilters(
-              supabase
+    // 範圍在 embed 上（#1928）時同樣不能用聚合：PostgREST 會連 embed 的內容一起 group by（本機實測同一年級拆成多列），
+    // 一樣改成每級一支 head count。最壞情況仍是「沒有有效卡」那條，預算不變
+    const gradeCountQuery =
+      withoutCard || scopeEmbed
+        ? Promise.all(
+            GRADE_CHAPTERS.map((level) => {
+              let head = supabase
                 .from('students')
-                .select(`id, ${ACTIVE_CARD_EMBED}`, { count: 'exact', head: true })
+                .select(`id, ${ACTIVE_CARD_EMBED}${scopeEmbed}`, { count: 'exact', head: true })
                 .eq('org_id', orgId)
                 .eq('grade', level)
-                .is('active_card.revoked_at', null)
-                .is('active_card', null),
-            ),
-          ),
-        ).then((results) => ({
-          error: results.find((r) => r.error)?.error ?? null,
-          data: results.map((r, i) => ({ grade: GRADE_CHAPTERS[i]!, count: r.count ?? 0 })),
-        }))
-      : withChapterFilters(supabase.from('students').select('grade, count()').eq('org_id', orgId));
+                .is('active_card.revoked_at', null);
+              if (withoutCard) head = head.is('active_card', null);
+              return withChapterFilters(head);
+            }),
+          ).then((results) => ({
+            error: results.find((r) => r.error)?.error ?? null,
+            data: results.map((r, i) => ({ grade: GRADE_CHAPTERS[i]!, count: r.count ?? 0 })),
+          }))
+        : withChapterFilters(
+            supabase.from('students').select('grade, count()').eq('org_id', orgId),
+          );
 
     const [{ data, error, count }, { count: activeCount }, gradeCounts] = await Promise.all([
       query,
@@ -723,7 +731,7 @@ app.openapi(
       count: countByGrade.get(level) ?? 0,
     }));
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
     const total = count ?? 0;
 
     type Relation = {

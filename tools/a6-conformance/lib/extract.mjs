@@ -386,7 +386,7 @@ export function extractParts(opts) {
                   : [],
               ),
           ),
-          // 最近的元件宿主（Angular／PrimeNG 的自訂元素，例如 p-paginator）：偏離規則與盤點用
+          // 最近的元件宿主（Angular／PrimeNG 的自訂元素，例如 app-pager）：偏離規則與盤點用
           host: (() => {
             for (let x = el; x; x = x.parentElement)
               if (x.tagName.includes('-')) return x.tagName.toLowerCase();

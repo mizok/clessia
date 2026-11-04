@@ -27,7 +27,11 @@ function seed(extraStudents: Array<Record<string, unknown>> = []) {
   return createMultiOrgDb({
     students: [
       ...extraStudents,
-      student('s-j1a', 'J1', { school_id: 'sch-jg' }),
+      // #1928：分校範圍是學生列上的 embed 條件（`scope_campus.classes.campus_id`），替身照路徑求值
+      student('s-j1a', 'J1', {
+        school_id: 'sch-jg',
+        scope_campus: [{ classes: { campus_id: 'campus-1' } }],
+      }),
       student('s-j1b', 'J1'),
       student('s-j2', 'J2', { school_id: 'sch-jg' }),
       student('s-j3-off', 'J3', { is_active: false }),

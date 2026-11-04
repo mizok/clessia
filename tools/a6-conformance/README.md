@@ -43,6 +43,8 @@ npm test --prefix tools/a6-conformance                   # spec
 | `A6_OUT`     | `~/.cache/clessia-a6-conformance/out`              | 輸出                                                               |
 
 app 被導離目標路由（登入態失效、API 沒在跑）會直接報錯，不會拿登入頁去比。
+A6 側抽到 0 個 part（多半是只複製了 `a6-editorial/`、漏了 `../shared/`，稿的 script 全掛）也直接報錯，
+並列出載入失敗的檔（#2212）；有 part 但有檔載入失敗時只印警告。
 
 頁面對照（稿檔 ↔ 路由、非原生彈出物怎麼打開、手動配對）在 `lib/config.mjs` 的 `PAGES`。
 非原生彈出物（`a6Open`／`appOpen`）：`click` 可給陣列依序點（app 的「新增考試」先開選單再選補習班）；
@@ -163,7 +165,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 硬性規則（constitution-enforcement.md 的 A 條）用 `hardRule('A28')` 當 `source`：條號手寫、行號執行時查，查不到就報錯。
 `item`（regex）：只拆樣式列裡的那一項（A28 的對比色），同列其他樣式差照算。
 
-欄位：`status`（必填）、`detail`／`a6`／`app`／`host`（regex；host＝元件宿主，例如 `p-paginator`）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
+欄位：`status`（必填）、`detail`／`a6`／`app`／`host`（regex；host＝元件宿主，例如 `app-pager`）、`kind`、`pop`（哪個彈出物）、`widths`（只在這些寬度生效）。
 包裝層本身是偏離時（R7 的 search landmark），裡面真正多出／缺少的最上層東西各自拆列、各自歸欄。
 缺／多的容器若裡面某一顆命中，會拆成自己一列歸偏離，容器本身仍是待修。
 
@@ -231,7 +233,7 @@ node tools/a6-conformance/run.mjs compare billing schedule --base main --head <P
 - 開著的浮層數變化、有沒有捲動
 - 原生 `popovertarget` 的開啟鈕：瀏覽器不寫 `aria-expanded` 屬性，工具依目標是否 `:popover-open` 補上，兩邊才可比
 - 只給螢幕閱讀器的文字（1px／clip，例如篩選結果的 live region）不比，報告另列「螢幕閱讀器」；第二層也排除它
-- PrimeNG 分頁器的出現／消失不比（第二層已報 app 多分頁器）
+- 分頁器（`app-pager`）的頁碼狀態「第 x／y 頁」不比（隨資料變）
 - 焦點：只在情境宣告 `checkFocus` 時比。稿多半用 `innerHTML` 重畫，點完按鈕焦點掉回 body 是原型的副作用
 
 ## 已知限制
