@@ -1,13 +1,52 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import { createMultiOrgDb, withMaxRows } from '../test-utils/multi-org-db';
+import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import classesRoute from './classes';
 
 /**
  * `GET /classes` 每列 `latestExam`（#1314 G6）。判準在 `lib/class-latest-exam.ts`。
  * `multi-org-db` 不解析 select，`academy_exam_classes` 列直接帶 embed 形狀。
+ *
+ * 讀取走 pg（#2240）：`examPool` 照那三句 SQL 的條件（org、`= any`、排除作廢報名）從同一份 fixture 回列，
+ * 所以這裡驗的是挑哪一場、怎麼算（`buildLatestExams`）。SQL 語意與 >200 班的 414 由
+ * `contract/class-latest-exam-2240.contract.ts` 對真 DB 守。
  */
+
+type Rows = Record<string, Array<Record<string, unknown>>>;
+const examPool = (t: Rows) => ({
+  query: async (sql: string, params: unknown[]) => {
+    const [org, ids] = params as [string, string[]];
+    const links = t['academy_exam_classes'] ?? [];
+    const examOrg = (examId: unknown) =>
+      (links.find((l) => l['exam_id'] === examId)?.['academy_exams'] as Record<string, unknown>)?.[
+        'org_id'
+      ];
+    if (sql.includes('from public.academy_exam_classes aec')) {
+      const result = links.filter(
+        (l) => ids.includes(l['class_id'] as string) && examOrg(l['exam_id']) === org,
+      );
+      return { rows: [{ result }] };
+    }
+    if (sql.includes('from public.enrollments')) {
+      return {
+        rows: (t['enrollments'] ?? []).filter(
+          (e) =>
+            e['org_id'] === org && e['status'] !== 'void' && ids.includes(e['class_id'] as string),
+        ),
+      };
+    }
+    if (sql.includes('from public.academy_scores s')) {
+      return {
+        rows: (t['academy_scores'] ?? []).filter(
+          (s) => ids.includes(s['exam_id'] as string) && examOrg(s['exam_id']) === org,
+        ),
+      };
+    }
+    // 課堂與在籍統計（#2226，真 DB 契約守）；這裡的主題不是它
+    return { rows: [] };
+  },
+});
 
 const ORG = 'org-a';
 const OTHER = 'org-b';
@@ -92,18 +131,17 @@ const BASE = {
   ],
 };
 
-async function list(tables: Record<string, Array<Record<string, unknown>>>, maxRows?: number) {
+async function list(tables: Rows) {
   const db = createMultiOrgDb(tables);
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-    set('supabase', maxRows ? withMaxRows(db.client, maxRows) : db.client);
+    set('supabase', db.client);
     set('orgId', ORG);
     set('userId', 'u1');
     set('roles', ['admin']);
     set('campusScope', null);
-    // 課堂與在籍統計走 pg pool（#2226，真 DB 契約守）；這裡的主題不是它
-    set('auth', { pool: { query: async () => ({ rows: [] }) } });
+    set('auth', { pool: examPool(tables) });
     await next();
   });
   app.route('/', classesRoute as unknown as Hono);
@@ -155,22 +193,5 @@ describe('GET /classes —— latestExam（#1314 G6）', () => {
       academy_scores: [score('e6', 's1', null, 'absent')],
     });
     expect(rows['c1']).toMatchObject({ avgScore: null, failCount: 0, absentCount: 1 });
-  });
-
-  // 陷阱：PostgREST 撈列只回前 1000 列、不報錯 —— 最新那場排在第 1001 列
-  it('考試連結破千：第 1001 筆的最新考試也挑得到', async () => {
-    const old = Array.from({ length: 1000 }, (_, i) =>
-      link('c1', exam(`a${String(i).padStart(4, '0')}`, '2026-01-01', 1)),
-    );
-    const newest = exam('z-latest', '2027-05-01', 1);
-    const rows = await list(
-      {
-        ...BASE,
-        academy_exam_classes: [...old, link('c1', newest)],
-        academy_scores: [score('z-latest', 's1', '88')],
-      },
-      1000,
-    );
-    expect(rows['c1']).toMatchObject({ examId: 'z-latest', avgScore: 88 });
   });
 });
