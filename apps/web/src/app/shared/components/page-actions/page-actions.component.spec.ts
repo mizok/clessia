@@ -327,4 +327,17 @@ describe('PageActionsComponent', () => {
       '[&_.p-button]:tbar-control',
     );
   });
+
+  // #2224：頁面投影進來的 icon-only 鈕（students、staff 工具列的「⋯」）也吃到 px-4／gap-1.5 ——
+  // 40 寬的方鈕扣掉 32px 內距，圖示被擠偏 3px。icon-only 另給方鈕、內距 0（多一個 class 才穩贏 px-4）
+  it('標頭裡的 icon-only p-button 是方鈕、不吃 px-4／gap（#2224）', async () => {
+    await setup({ label: '新增課程' });
+    const cls = host.querySelector('.page-actions__header')!.classList;
+    for (const c of [
+      '[&_.p-button.p-button-icon-only]:tbar-control-square',
+      '[&_.p-button.p-button-icon-only]:px-0',
+      '[&_.p-button.p-button-icon-only]:gap-0',
+    ])
+      expect(cls).toContain(c);
+  });
 });
