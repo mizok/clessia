@@ -24,6 +24,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
+import { Dialog } from 'primeng/dialog';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -97,6 +98,7 @@ import { HeightFollowDirective } from '@shared/directives/height-follow.directiv
     LoadFailedComponent,
     PopupMenuComponent,
     FilterChipComponent,
+    Dialog,
   ],
   providers: [DialogService],
   templateUrl: './fee-templates.component.html',
@@ -194,6 +196,18 @@ export class FeeTemplatesComponent implements OnInit {
   });
   protected readonly periodTemplatePick = signal<PeriodTemplateKey | null>(null);
   protected readonly creatingFromTemplate = signal(false);
+  /** 用模板建立的彈窗（#2235）；建立中不讓關，免得以為停了 */
+  protected readonly periodTemplateDialogOpen = signal(false);
+
+  protected openPeriodTemplateDialog(): void {
+    this.periodTemplatePick.set(null);
+    this.periodTemplateDialogOpen.set(true);
+  }
+
+  protected setPeriodTemplateDialog(open: boolean): void {
+    if (!open && this.creatingFromTemplate()) return;
+    this.periodTemplateDialogOpen.set(open);
+  }
   /** 送出鈕上的 N：選中的模板裡還沒有的那幾個 */
   protected readonly templateTodoCount = computed(() => {
     const pick = this.templatePreviews().find((t) => t.value === this.periodTemplatePick());
@@ -477,6 +491,7 @@ export class FeeTemplatesComponent implements OnInit {
           });
           this.periodTemplatePick.set(null);
           done();
+          this.periodTemplateDialogOpen.set(false);
         },
         error: (err: { error?: { error?: string } }) => {
           const reason = err.error?.error || '請稍後再試';

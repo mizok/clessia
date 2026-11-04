@@ -392,29 +392,65 @@ describe('FeeTemplatesComponent', () => {
   describe('用模板建立（使用者 11-02）', () => {
     const el = () => fixture.nativeElement as HTMLElement;
     const radio = (key: string) =>
-      el().querySelector<HTMLInputElement>(`[data-template="${key}"] input[type="radio"]`)!;
+      document.querySelector<HTMLInputElement>(`[data-template="${key}"] input[type="radio"]`)!;
     const submit = () =>
-      el().querySelector<HTMLButtonElement>('[data-testid="create-from-template"]')!;
+      document.querySelector<HTMLButtonElement>('[data-testid="create-from-template"]')!;
     const choose = (key: string) => {
       radio(key).click();
       fixture.detectChanges();
     };
-    const boot = async (existing: BillingPeriodListItem[] = []) => {
+    const openers = () => [
+      ...el().querySelectorAll<HTMLButtonElement>('[data-testid="open-period-template"]'),
+    ];
+    const dialogOpen = () => !!document.querySelector('[data-testid="period-template"]');
+    const load = async (existing: BillingPeriodListItem[]) => {
       billingPeriods.list.mockReturnValue(of({ data: existing }));
       internals().periods.set(existing);
       fixture.detectChanges();
       await fixture.whenStable();
       fixture.detectChanges();
     };
+    // 使用者 11-04（#2235）：卡片收進彈窗，先按「用模板建立」才看得到
+    const boot = async (existing: BillingPeriodListItem[] = []) => {
+      await load(existing);
+      openers()[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('頁面只留一顆「用模板建立」：卡片收在彈窗裡，按了才出現（#2235）', async () => {
+      await load([period({ id: 'p1' })]);
+      expect(dialogOpen()).toBe(false);
+      expect(openers()).toHaveLength(1);
+      expect(openers()[0].textContent).toContain('用模板建立');
+      openers()[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(dialogOpen()).toBe(true);
+      const dlg = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      const labelled = dlg.getAttribute('aria-labelledby')!;
+      expect(document.getElementById(labelled)?.textContent?.trim()).toBe('用模板建立');
+      expect(dlg.querySelectorAll('[data-template]')).toHaveLength(3);
+    });
+
+    it('列表是空的：空狀態也放同一顆鈕（第一次設定的人找得到，#2235）', async () => {
+      await load([]);
+      expect(openers().length).toBeGreaterThanOrEqual(1);
+      expect(
+        el().querySelector('app-empty-state [data-testid="open-period-template"]'),
+      ).not.toBeNull();
+    });
 
     it('三個模板各附預覽：建出哪幾個期間、哪幾天（照下一個學年）', async () => {
       await boot();
-      const preview = el().querySelector('[data-template="two-terms"]')!.textContent!;
+      const preview = document.querySelector('[data-template="two-terms"]')!.textContent!;
       expect(preview).toContain('傳統二學期制');
       expect(preview).toContain('116 上學期');
       expect(preview).toContain('2027/09/01 — 2028/01/31');
       expect(preview).toContain('116 下學期');
-      expect(el().querySelectorAll('[data-template]')).toHaveLength(3);
+      expect(document.querySelectorAll('[data-template]')).toHaveLength(3);
     });
 
     it('選了不會建；沒選時送出鈕不能按，選了才寫「建立這 N 個期間」', async () => {
@@ -434,7 +470,7 @@ describe('FeeTemplatesComponent', () => {
       billingPeriods.create.mockReturnValue(pending);
       const toast = vi.spyOn(TestBed.inject(MessageService), 'add');
       choose('two-terms');
-      expect(el().querySelector('[data-template="two-terms"]')!.textContent).toContain(
+      expect(document.querySelector('[data-template="two-terms"]')!.textContent).toContain(
         '已經有了，會略過',
       );
       expect(submit().textContent).toContain('建立這 1 個期間');
@@ -455,6 +491,9 @@ describe('FeeTemplatesComponent', () => {
         summary: '已建立 1 個期間，日期可以再改',
         detail: '略過 1 個同名的',
       });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(dialogOpen()).toBe(false);
     });
 
     it('建到一半失敗：停下、提示原因與已建幾個、重讀清單', async () => {
@@ -476,6 +515,8 @@ describe('FeeTemplatesComponent', () => {
       });
       expect(billingPeriods.list).toHaveBeenCalledTimes(1);
       expect(submit().textContent).not.toContain('建立中…');
+      // 失敗留在彈窗裡：清單已重讀，預覽會標出建好的那幾個（#2235）
+      expect(dialogOpen()).toBe(true);
     });
 
     it('模板的期間都已經有了：鈕停用並說明，不送', async () => {
