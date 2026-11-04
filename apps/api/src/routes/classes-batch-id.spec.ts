@@ -46,6 +46,10 @@ function createApp(status = 'scheduled') {
         (op.name === 'in' && op.args[0] === 'session_date') ||
         (op.name === 'eq' && op.args[0] === 'teacher_id'),
     );
+    // cancel-future-sessions（#2232）：條件 update 回傳改到的 id
+    if (q.table === 'sessions' && has('update') && has('select')) {
+      return { data: [S1, S2].map((id) => ({ id })) };
+    }
     if (q.table === 'sessions' && !has('update') && !byDate) {
       return {
         data: [S1, S2].map((id) => ({
@@ -139,6 +143,19 @@ describe('POST /api/classes/{id}/cancel-future-sessions —— 寫稽核（#1336
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ cancelled: 2 });
+    // #2232：用條件更新（班、今天起、不含已完成），不先撈 id 再 `.in('id', …)` —— 長期班會 414
+    const update = queries.find(
+      (q) => q.table === 'sessions' && q.ops.some((op) => op.name === 'update'),
+    )!;
+    expect(update.ops.map((op) => [op.name, op.args[0]])).toEqual(
+      expect.arrayContaining([
+        ['eq', 'org_id'],
+        ['eq', 'class_id'],
+        ['gte', 'session_date'],
+        ['neq', 'status'],
+      ]),
+    );
+    expect(update.ops.some((op) => op.name === 'in')).toBe(false);
     // logAudit 是 fire-and-forget（先查操作者名稱再寫），等它跑完
     await new Promise((r) => setTimeout(r, 0));
 
