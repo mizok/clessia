@@ -170,18 +170,18 @@
       @if (canPrintCards) {
         <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <span class="w-full text-sm text-zinc-500">卡片</span>
-          @for (opt of [false, true]; track opt) {
+          @for (opt of cardFilterOptions(); track opt.label) {
             <button
               type="button"
               class="inline-flex min-h-11 cursor-pointer items-center border-0 border-b-[1.5px] border-solid bg-transparent px-0 py-0.5 text-base font-medium text-zinc-600 wide:min-h-0 hover:text-zinc-900"
-              [class.border-zinc-900]="withoutCard() === opt"
-              [class.font-semibold]="withoutCard() === opt"
-              [class.text-zinc-900]="withoutCard() === opt"
-              [class.border-transparent]="withoutCard() !== opt"
-              [attr.aria-pressed]="withoutCard() === opt"
-              (click)="onWithoutCardChange(opt)"
+              [class.border-zinc-900]="cardFilter() === opt.value"
+              [class.font-semibold]="cardFilter() === opt.value"
+              [class.text-zinc-900]="cardFilter() === opt.value"
+              [class.border-transparent]="cardFilter() !== opt.value"
+              [attr.aria-pressed]="cardFilter() === opt.value"
+              (click)="onCardFilterChange(opt.value)"
             >
-              {{ opt ? '還沒換新卡' : '全部' }}
+              {{ opt.label }}
             </button>
           }
         </div>

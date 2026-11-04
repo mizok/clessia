@@ -163,6 +163,20 @@ export class StudentsPage implements OnInit {
    */
   protected readonly canPrintCards =
     this.auth.hasPermission('basic_operations') || this.auth.hasPermission('manage_students');
+  /** 卡片篩選的選項：有卡片權限才有（A6 沒畫，R5） */
+  protected readonly cardFilterOptions = computed(() =>
+    this.canPrintCards
+      ? [
+          { value: null, label: '全部' },
+          { value: 'without' as const, label: '還沒換新卡' },
+          { value: 'today' as const, label: '今天發的卡' },
+        ]
+      : [],
+  );
+  private cardFilterLabel(): string {
+    const v = this.cardFilter();
+    return v ? this.cardFilterOptions().find((o) => o.value === v)!.label : '';
+  }
   /** 新開卡（含批次發卡，#2053）：`manage_students` */
   private readonly canIssueCards = this.auth.hasPermission('manage_students');
 
@@ -199,8 +213,11 @@ export class StudentsPage implements OnInit {
   protected readonly todayFilter = signal<StudentTodayFilter | null>(null);
   /** 學制跟年級不合（#1820 設計稿 §4）：學年升級後要改學校的學生，升級完也找得到 */
   protected readonly schoolMismatch = signal(false);
-  /** 沒有有效到班卡（#2053）：第一次全校發卡時找人用 */
-  protected readonly withoutCard = signal(false);
+  /**
+   * 卡片篩選（三選一）：`without`＝沒有有效到班卡（#2053，第一次全校發卡時找人）；
+   * `today`＝今天發的卡（#2267，發卡後列印被關掉或印失敗，找回那批重印）
+   */
+  protected readonly cardFilter = signal<'without' | 'today' | null>(null);
   protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   /**
@@ -245,7 +262,7 @@ export class StudentsPage implements OnInit {
       today ? this.todayOptions.find((o) => o.value === today)!.label : '',
       status === 'active' ? '' : status === 'inactive' ? '已停用' : '含停用',
       this.schoolMismatch() ? '學制跟年級不合' : '',
-      this.withoutCard() ? '還沒換新卡' : '',
+      this.cardFilterLabel(),
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(' · ') : '全部';
   });
@@ -255,7 +272,7 @@ export class StudentsPage implements OnInit {
       this.todayFilter() !== null ||
       this.statusFilter() !== 'active' ||
       this.schoolMismatch() ||
-      this.withoutCard(),
+      this.cardFilter() !== null,
   );
   /** 手機的已套用條件 chip（#2206）：跟 filterSummary 同一組條件，一顆一個 */
   protected readonly activeFilters = computed<ActiveFilter[]>(() => {
@@ -269,7 +286,7 @@ export class StudentsPage implements OnInit {
     if (status !== 'active')
       list.push({ key: 'status', label: status === 'inactive' ? '已停用' : '含停用' });
     if (this.schoolMismatch()) list.push({ key: 'school', label: '學制跟年級不合' });
-    if (this.withoutCard()) list.push({ key: 'card', label: '還沒換新卡' });
+    if (this.cardFilter()) list.push({ key: 'card', label: this.cardFilterLabel() });
     return list;
   });
 
@@ -278,7 +295,7 @@ export class StudentsPage implements OnInit {
     else if (key === 'grade') this.onGradeChange(null);
     else if (key === 'status') this.onStatusFilterChange('active');
     else if (key === 'school') this.onSchoolMismatchChange(false);
-    else if (key === 'card') this.onWithoutCardChange(false);
+    else if (key === 'card') this.onCardFilterChange(null);
   }
 
   /** 搜尋或任何篩選生效：色面標題改「符合篩選的 N 位」，名冊上方出現「顯示 N 位 · 清除篩選」 */
@@ -481,7 +498,8 @@ export class StudentsPage implements OnInit {
               isActive: STATUS_TO_IS_ACTIVE[this.statusFilter()],
               today: this.todayFilter() ?? undefined,
               schoolMismatch: this.schoolMismatch() || undefined,
-              withoutCard: this.withoutCard() || undefined,
+              withoutCard: this.cardFilter() === 'without' || undefined,
+              cardIssuedToday: this.cardFilter() === 'today' || undefined,
               campusId: this.campusCtx.id() ?? undefined,
             })
             // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
@@ -556,8 +574,8 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
-  protected onWithoutCardChange(value: boolean): void {
-    this.withoutCard.set(value);
+  protected onCardFilterChange(value: 'without' | 'today' | null): void {
+    this.cardFilter.set(value);
     this.currentPage.set(1);
     this.loadStudents();
   }
@@ -577,7 +595,7 @@ export class StudentsPage implements OnInit {
     this.todayFilter.set(null);
     this.statusFilter.set('active');
     this.schoolMismatch.set(false);
-    this.withoutCard.set(false);
+    this.cardFilter.set(null);
     this.currentPage.set(1);
     this.loadStudents();
   }

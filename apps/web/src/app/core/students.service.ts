@@ -108,6 +108,8 @@ export interface StudentQueryParams {
   schoolMismatch?: boolean;
   /** 沒有有效到班卡（#2053）：舊卡、從沒發過、作廢沒補發 */
   withoutCard?: boolean;
+  /** 今天（台北）發的有效卡（#2267） */
+  cardIssuedToday?: boolean;
 }
 
 export interface UpdateStudentInput {
@@ -220,6 +222,7 @@ export class StudentsService {
     if (params.withToday !== undefined) q['withToday'] = params.withToday;
     if (params.schoolMismatch) q['schoolMismatch'] = 'true';
     if (params.withoutCard) q['withoutCard'] = 'true';
+    if (params.cardIssuedToday) q['cardIssuedToday'] = 'true';
     return q;
   }
 }

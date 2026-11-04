@@ -3,7 +3,7 @@ title: 到班掃碼機台：登入後的掃碼頁＋機台身分（kiosk 角色�
 summary: 使用者裁 #1127：掃碼頁搬到登入後、不做免登入端點。機台身分用新角色 kiosk（user_roles 列舉加值），不用「零權限 admin」—— ADMIN_ONLY 的掛載多半只擋寫，零權限 admin 讀得到學生／家長名冊，機台放在門口等於公開名冊。kiosk 綁單一分校（staff_campuses），只掛得進 POST /api/daily-checkins 與掃碼頁要的那幾支窄讀；分校強制取帳號的、不吃 body。帳號由有 manage_staff 的管理員在人員頁建立，用既有的一次性登入連結 QR 在平板上登入。行政人員也可從管理端開同一頁。公開入口拿掉、/qr-checkin 轉登入。
 category: architecture
 status: draft
-updated: 2026-10-28
+updated: 2026-11-04
 tags: [architecture, attendance, authorization, kiosk, migration]
 ---
 
@@ -151,6 +151,9 @@ tags: [architecture, attendance, authorization, kiosk, migration]
   拉大每頁筆數，按「⋯ → 本頁發卡並列印（N 位新卡）」。要新開時先確認（舊卡從此失效）；只有 `basic_operations`
   的人略過沒卡的、只重印有卡的。篩選是 embed 反連接，條件全在 DB；PostgREST 聚合不吃 embed 過濾，所以這個篩選開著時
   年級章節改成每級一支 HEAD count（+12 subrequest，最壞情況 26，`students-subrequest-budget.spec.ts` 守 ≤45）。
+- **發了沒印成**（#2267）：發卡交易 COMMIT 後才開列印視窗；被關掉或印失敗時，篩「卡片：今天發的卡」
+  （`cardIssuedToday=true`：`active_card` 限台北今天發、且非空，跟「還沒換新卡」同一個 embed、同一份章節計數條件），
+  再按「⋯ → 列印本頁到班卡」重印（重印不換碼，`basic_operations` 也可以）。不做「一次發全部」：上線第一天才遇到，逐頁按可接受。
 
 ## 拒絕的替代方案
 
