@@ -889,7 +889,7 @@ describe('DashboardComponent（管理端）', () => {
     });
   });
 
-  describe('摺疊列與臨時狀況', () => {
+  describe('摺疊列', () => {
     it('今天的請假：每筆有來源與原因', async () => {
       await setup({
         leaves: [
@@ -939,18 +939,14 @@ describe('DashboardComponent（管理端）', () => {
       expect(q('coll-overdue')).toBeNull();
     });
 
-    it('臨時狀況三個入口都連到課表頁', async () => {
+    // 使用者 11-04（#2242）：三個入口都只連到課表頁、沒有各自的流程（整週代課、從某天起換時段都沒有）
+    // → 先拿掉；做出真的流程之後再以帶參數的捷徑放回
+    it('不放「臨時狀況？」那一排（#2242）', async () => {
       await setup();
 
-      const links = qa('emergency-link');
-      expect(links.map((l) => l.textContent!.replace(/\s+/g, ' ').trim())).toEqual([
-        expect.stringContaining('颱風、停電'),
-        expect.stringContaining('老師請假'),
-        expect.stringContaining('班級改時段'),
-      ]);
-      for (const link of links) {
-        expect(link.getAttribute('href')).toBe(RoutesCatalog.ADMIN_SESSIONS.absolutePath);
-      }
+      expect(qa('emergency-link')).toHaveLength(0);
+      expect(el().querySelector('nav[aria-label="臨時狀況"]')).toBeNull();
+      expect(el().textContent).not.toContain('臨時狀況');
     });
   });
 
