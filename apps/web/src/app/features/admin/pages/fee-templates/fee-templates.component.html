@@ -198,25 +198,28 @@
         收費期間
       </h2>
       <span class="text-md text-zinc-500">期繳用的具名日期區間</span>
-      <!-- 用模板建立（#2235）：一年用一次，收成一顆鈕開彈窗；手機也要有（新增期間在手機走底部托盤） -->
-      @if (periods().length > 0) {
+      <!-- 用模板建立（#2235）：一年用一次，收成一顆鈕開彈窗；手機也要有（新增期間在手機走底部托盤）。
+           兩顆包在同一個 items-center 裡：外層是 items-baseline（對齊標題），兩顆內容不同（一顆有圖示）會差幾 px -->
+      <div class="ml-auto flex items-center gap-2">
+        @if (periods().length > 0) {
+          <button
+            type="button"
+            class="inline-flex h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap"
+            data-testid="open-period-template"
+            (click)="openPeriodTemplateDialog()"
+          >
+            用模板建立
+          </button>
+        }
         <button
           type="button"
-          class="ml-auto inline-flex h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap"
-          data-testid="open-period-template"
-          (click)="openPeriodTemplateDialog()"
+          class="hidden h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap wide:inline-flex"
+          data-testid="new-period-btn"
+          (click)="openPeriodDialog()"
         >
-          用模板建立
+          <i class="pi pi-plus text-lg" aria-hidden="true"></i>新增期間
         </button>
-      }
-      <button
-        type="button"
-        class="hidden h-11 wide:h-[30px] items-center justify-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white text-zinc-900 cursor-pointer enabled:hover:border-zinc-400 enabled:hover:bg-zinc-50 px-3 text-sm leading-normal font-semibold whitespace-nowrap wide:inline-flex"
-        data-testid="new-period-btn"
-        (click)="openPeriodDialog()"
-      >
-        <i class="pi pi-plus text-lg" aria-hidden="true"></i>新增期間
-      </button>
+      </div>
     </div>
 
     <!-- 第一次才是骨架；之後重抓保留舊內容並變淡（#1641 5b） -->
