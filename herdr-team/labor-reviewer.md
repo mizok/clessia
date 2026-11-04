@@ -865,3 +865,33 @@ G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保
 5. **merge-tree 先試算**：鏈卡在 DIRTY 時，剩下的幾張先 `git merge-tree --write-tree origin/main <SHA>` 確認沒衝突再重排，有衝突的那張抽出來。
 6. **zsh 的坑又踩兩個**：`$N:apps/…` 的 `:a` 被當成修飾字（寫 `"${N}:apps/…"`）；`echo =====` 被當成 `=` 展開。
 7. **突變要打「繞法」**：#2191 的 `contents: write` 檢查，`contents: "write"`、`write-all` 都繞得過。新的 gate 斷言除了「拿掉會紅」，也試一兩種同義寫法。
+
+## 11-04 交接（labor-reviewer-20261102-2151 → 下一任，Ctx 近 80% 輪替）
+
+> 上一節（11-02 晚間交接）寫完之後本席沒有退場，又做了一天半。那一節的「手上的單」已經全部過期，以這一節為準。計畫席是 **labor-plan-20261103-0852**（回報、提問都 `herdr agent prompt` 給它）。
+
+11-02 23:50～11-04 09:58 又二讀＋代合約 40 支：#2176～#2181、#2185、#2188～#2192、#2194～#2198、#2200～#2204、#2207～#2209、#2213～#2218、#2220、#2217（#1928 第 2 張）等，每張合後 main verify 都綠。#2184 與 #2185 的正式 migrate 由使用者 Approve（#2185 是 dispatch 回填，apply 前 push 觸發的那次只 plan、apply skipped，**不要把 completed success 讀成已套**）。
+
+### 一、手上的單（2026-11-04 09:58）
+
+**合併鏈在跑（背景一支）**：等 #2217（`cfc46aff`）的 main verify 綠 → 回報計畫席「#2219 可以轉 base」→ `mv.sh` 依序合 **#2221**（`521567d01e6b484901519189aceaf7b7b9e1b9e7`，2213 的交接 charter）→ **#2222**（`ed610f8f7c112a9e02595074c43858bef546f86a`，A6 側 0 part 報錯）。接手先 `ps -A -o pid=,command= | grep -E 'mv\.sh|cimg|steward-merge|mig\.sh'`。
+
+| PR    | 等什麼                                                                                                                                                                                                                                                                                |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #2223 | 內容二讀過（@`7414053d`，tools 75 pass）。**等作者在描述補「前後對照」再合**（計畫席交代）；SHA 不變就不用重讀，直接 `mv.sh`                                                                                                                                                          |
+| #2219 | #1928 第 3 張（students，保留類：授權範圍）。draft，疊在 #2217 上；#2217 合了作者轉 base main。計畫席指定的突變：① 拿掉 `scope_campus`（受限 C1 看到 C2 → 紅）② `scope_taught` 的 status 條件拿掉（老師看到退班生 → 紅）③ 年級章節受範圍時改回聚合（同年級拆多列 → 紅）。三依據齊了合 |
+
+**本機共用 DB**：`ba_user` 有 8 筆 `@google.internal`／`@line.internal`／`c1842-` 的殘留（本席與別席跑認證突變時「誤建帳號」建出來的，`afterAll` 只刪 `newUser` 建的）。不影響測試（`counts()` 比前後）。要清就用 better-auth 的 `internalAdapter.deleteUser` 寫拋棄式腳本交使用者跑，**不直寫 `ba_*`**（c2）。
+
+### 二、這一天半學到的
+
+1. **插隊重排：先看 ps，不是先看輸出檔**。`cimg.sh` 或 `steward-merge.sh` 在跑＝可能正在合，**等它消失**（`until ! ps … | grep -q 'cimg\.sh <PR>'`）再 `TaskStop`。只剩 `mv.sh`（在等 verify）或只剩外層 zsh（還沒進 mv.sh）才安全。重排時第一步先等上一張的 main verify（`mv.sh` 自己不查）。
+2. **絕對不要在前景指令裡用 `&` 起合併鏈**（11-03 本席犯過一次）：會脫離任務管理、ppid=1、TaskStop 停不掉、沒有完成通知。發現了先確認沒有 `steward-merge` 子程序，再 `kill` 子程序→父程序，確認 PR 沒合，再用 `run_in_background` 重排。
+3. **R5 表（`a6-adoption-rules.md`）是全 repo 最常衝突、也最常被自動合併複製的地方**。merge commit 只比「除了 R5 之外有沒有差」會漏：`c1e961e9`（#2201）把 #2179 的列合成兩份。**固定動作**：欄寬正規化後跟 main 比增列數（`sed -E "s/ +\|/|/g; s/\| +/|/g; s/-{3,}/---/g"` 後 `diff`），再 `grep "^| 20" | sort | uniq -d` 必須 0。
+4. **契約要守的是「範圍條件」，就要有一條會被那個條件影響的 fixture**。這輪三次都是同一型：#2177（seed 全 `emailVerified=true`，兩條路 0＝0）、#2217（只有一場考試，拿掉 `school_exam_id` 照綠）、#2198（`rows: 1` 時 `first`＝`page`）。看到「逐欄相同」「比較兩條路」的契約，先查 fixture 讓那個值不是平凡值。
+5. **契約檔在 CI 是並行跑的**：數 `ba_user` 全表的斷言會被別支建人的契約打到（#2213 的 auth-google 129→131）。本機一支一支跑抓不到；有疑慮就把兩支契約放在同一個 `vitest run` 裡並行跑 3 次。
+6. **共用元件的 a11y 先看 PrimeNG 原始碼**：`p-dialog` 的 Esc 要 `closeOnEscape && closable`（`[closable]="false"` 會連 Esc 一起關）；自訂 `#header` 時 `aria-labelledby` 的 id 要從 template context 拿（`let-labelId="ariaLabelledBy"`）。`node_modules/primeng/fesm2022/primeng-dialog.mjs` 直接 grep。
+7. **Tailwind 任意變體／自訂變體一律編譯確認**（`npx @tailwindcss/cli -i apps/web/src/tailwind.css`＋`grep -F`＋負控）：spec 只看 class 字串時，CSS 沒產生也照綠（#2208 的 `[&_.p-dialog-close-button]:hidden`、#2216 的 `max-wide:hidden` 都驗過有產生）。
+8. **session 重啟或機器重開後 scratchpad 會被清空**：暫存 worktree 與突變腳本都要重建（`git worktree list` 會自己清掉不存在的路徑）。突變腳本的固定骨架：基準不綠就中止、每個突變 `git diff --quiet` 確認有改到、`git checkout --` 還原；兩處字面相同的改動用「第幾處」替換。
+9. **after-deploy backfill**：push 觸發的 migrate 只 plan、`apply skipped`；`completed success` 不等於已套。回報前先 `gh run view <id> --json jobs` 看 apply 那個 job。
+10. **「誰合的」看 `mergedAt` 的間隔**：本席每張之間隔約 8 分鐘（等 verify）；幾秒內連續合的是別席。`mv.sh` 看到已經 MERGED 也會印 `MERGED`，那行不代表是本席合的。
