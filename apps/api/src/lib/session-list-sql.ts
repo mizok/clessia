@@ -1,7 +1,8 @@
 import type { Queryable } from './identity-sql';
 
 /**
- * `GET /api/sessions` 主查詢之後的三支補充讀取，改走 pg（#1928）。
+ * `GET /api/sessions` 主查詢之後的三支補充讀取，改走 pg（#1928）。課堂摘要（`lib/session-summary.ts`，
+ * 作業台與 `/attendance/sessions`）的出勤、在籍、考試數也走這裡（#2227）。
  *
  * 課表月檢視一次撈 500 堂（前端 `FETCH_LIMIT`），原本把這 500 個 session／event id 塞進 `.in()`：
  * - 網址太長 → 414：異動那支整頁回 400；出勤那支錯誤沒檢查 → 出勤數靜默 0
@@ -84,6 +85,31 @@ export async function enrollmentRangesViaSql(
     [orgId, classIds],
   );
   return expectArray(rows, '在籍區間');
+}
+
+/**
+ * 這些班在 `[from, to]` 內的考試（班 × 考試日各一列），給 `countExamsBySession` 數（#2227）。
+ * 口徑同原本的 REST：不看 `status`（理由見 `lib/session-exams.ts`）。
+ */
+export async function examDatesViaSql(
+  db: Queryable,
+  orgId: string,
+  classIds: readonly string[],
+  from: string,
+  to: string,
+): Promise<Array<{ class_id: string; exam_date: string }>> {
+  if (classIds.length === 0) return [];
+  const { rows } = await db.query(
+    `select coalesce(json_agg(json_build_object(
+        'class_id', aec.class_id, 'exam_date', ae.exam_date)), '[]'::json) as result
+       from public.academy_exam_classes aec
+       join public.academy_exams ae on ae.id = aec.exam_id
+      where ae.org_id = $1::uuid
+        and aec.class_id = any($2::uuid[])
+        and ae.exam_date between $3::date and $4::date`,
+    [orgId, classIds, from, to],
+  );
+  return expectArray(rows, '考試') as Array<{ class_id: string; exam_date: string }>;
 }
 
 function expectArray(rows: unknown[], what: string): Record<string, unknown>[] {

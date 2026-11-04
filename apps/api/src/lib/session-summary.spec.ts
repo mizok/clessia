@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { restBackedSummaryPool } from '../test-utils/rest-backed-summary-pool';
 import { summariseSessions } from './session-summary';
 
 /**
@@ -40,7 +41,7 @@ describe('summariseSessions 的 usesContactBook 映射', () => {
       },
     ];
 
-    const [result] = await summariseSessions(fakeSupabase(), 'org-1', sessions);
+    const [result] = await summariseSessions(restBackedSummaryPool(fakeSupabase()), 'org-1', sessions);
 
     expect(result.usesContactBook).toBe(true);
   });
@@ -63,7 +64,7 @@ describe('summariseSessions 的 usesContactBook 映射', () => {
       },
     ];
 
-    const [result] = await summariseSessions(fakeSupabase(), 'org-1', sessions);
+    const [result] = await summariseSessions(restBackedSummaryPool(fakeSupabase()), 'org-1', sessions);
 
     expect(result.usesContactBook).toBe(false);
   });

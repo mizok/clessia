@@ -266,7 +266,10 @@ app.openapi(
       return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
     }
 
-    const sessions = await summariseSessions(supabase, orgId, sessionRows);
+    // 摘要的計數走 pg（#2227）；沒有池就回 500，不退回會 414／截斷的 `.in()` 寫法
+    const pool = c.get('auth')?.pool;
+    if (!pool) return c.json({ error: '查詢課堂失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+    const sessions = await summariseSessions(pool, orgId, sessionRows);
 
     // ── 逐堂點名模式 ────────────────────────────────────────
     //

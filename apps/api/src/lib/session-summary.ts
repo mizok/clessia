@@ -1,6 +1,10 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from './session-roster';
+import type { Queryable } from './identity-sql';
+import {
+  attendanceCountsViaSql,
+  enrollmentRangesViaSql,
+  examDatesViaSql,
+} from './session-list-sql';
+import { countEnrolledOn, tallyAttendanceCounts, type EnrollmentRange } from './session-roster';
 import { countExamsBySession, sessionExamKey } from './session-exams';
 import { isSubstituteSession } from './session-substitute';
 
@@ -91,9 +95,15 @@ export interface SessionSummary {
  * 把 `SESSION_SUMMARY_SELECT` 撈回來的列，補上出勤統計、在籍人數與考試數。
  *
  * **三支批次查詢，不隨課堂數成長**（原本是每堂各兩支，見 #111）。
+ *
+ * **走 pg，不走 PostgREST**（#2227，#1928 A#7，同 #2226 的乙′）：作業台一次是當天範圍內**全部**課堂、
+ * `/attendance/sessions` 的 `endedOnly` 是一整個候選集合 —— 原本把這些 event／class id 塞進 `.in()`，
+ * 課堂一多就 414；出勤列（堂數 × 人數）動輒破千被 max_rows 1000 **靜默截斷**；錯誤又沒看，全部吞成 0。
+ * 課堂列表本身（授權、分校範圍）照舊在呼叫端走 PostgREST，這裡只拿已授權的 id 當參數，`org_id` 只是防呆。
+ * 出勤在 SQL 裡 `count … group by`；失敗丟例外（呼叫端由全域 onError 回 500）。
  */
 export async function summariseSessions(
-  supabase: SupabaseClient,
+  db: Queryable,
   orgId: string,
   sessions: unknown[] | null,
 ): Promise<SessionSummary[]> {
@@ -129,55 +139,23 @@ export async function summariseSessions(
     .filter((date): date is string => Boolean(date))
     .sort();
 
-  const [{ data: attendanceRows }, { data: enrollmentRows }, { data: examRows }] =
-    await Promise.all([
-      eventIds.length > 0
-        ? supabase
-            .from('attendance_records')
-            .select('event_id, status')
-            .eq('org_id', orgId)
-            .in('event_id', eventIds)
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      rosterClassIds.length > 0
-        ? supabase
-            .from('enrollments')
-            .select('class_id, effective_from, effective_to')
-            .eq('org_id', orgId)
-            .eq('status', 'active')
-            .in('class_id', rosterClassIds)
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      rosterClassIds.length > 0 && sessionDates.length > 0
-        ? supabase
-            .from('academy_exam_classes')
-            .select('class_id, academy_exams!inner(exam_date, org_id)')
-            .eq('academy_exams.org_id', orgId)
-            .in('class_id', rosterClassIds)
-            .gte('academy_exams.exam_date', sessionDates[0])
-            .lte('academy_exams.exam_date', sessionDates[sessionDates.length - 1])
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-    ]);
+  const [attendanceCounts, enrollmentRows, examRows] = await Promise.all([
+    attendanceCountsViaSql(db, orgId, eventIds),
+    enrollmentRangesViaSql(db, orgId, rosterClassIds),
+    sessionDates.length > 0
+      ? examDatesViaSql(
+          db,
+          orgId,
+          rosterClassIds,
+          sessionDates[0]!,
+          sessionDates[sessionDates.length - 1]!,
+        )
+      : Promise.resolve([]),
+  ]);
 
-  const examCounts = countExamsBySession(
-    ((examRows ?? []) as Array<Record<string, unknown>>).map((row) => {
-      const exam = Array.isArray(row['academy_exams'])
-        ? row['academy_exams'][0]
-        : (row['academy_exams'] as { exam_date?: string } | null);
-      return {
-        class_id: (row['class_id'] as string) ?? '',
-        exam_date: exam?.exam_date ?? '',
-      };
-    }),
-  );
-
-  const tally = tallyAttendance(
-    ((attendanceRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
-      eventId: row['event_id'] as string,
-      status: row['status'] as string,
-    })),
-  );
-  const enrollmentRanges: EnrollmentRange[] = (
-    (enrollmentRows ?? []) as Array<Record<string, unknown>>
-  ).map((row) => ({
+  const examCounts = countExamsBySession(examRows);
+  const tally = tallyAttendanceCounts(attendanceCounts);
+  const enrollmentRanges: EnrollmentRange[] = enrollmentRows.map((row) => ({
     classId: row['class_id'] as string,
     effectiveFrom: row['effective_from'] as string,
     effectiveTo: (row['effective_to'] as string | null) ?? null,
