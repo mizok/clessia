@@ -304,11 +304,27 @@ describe('DashboardComponent（管理端）', () => {
   }
 
   // 「已經上完」整個是伺服器算的（`endedOnly`）——前端只讀 meta.total，不再自己合併
-  it('報表類：頂欄保留「全部分校」（#1607）', async () => {
+  // 使用者 11-04（#2259）：儀表板是「今天在這間校區要做的事」，選全部會把三校名單混在一起、
+  // 櫃台代刷不知道幫哪間刷 —— 改成日常頁，跨校彙總留給營收報表
+  it('日常頁：頂欄沒有「全部分校」（#2259）', async () => {
     await setup();
     const ctx = TestBed.inject(CampusContextService);
     expect(ctx.inUse()).toBe(true);
-    expect(ctx.allowAll()).toBe(true);
+    expect(ctx.allowAll()).toBe(false);
+  });
+
+  it('報表選了「全部」再進儀表板：看上次那一間、整頁帶它查；「全部」不被改掉（#2259）', async () => {
+    // 營收報表上選了全部分校（STORAGE_KEY 拿掉）；上次選過的單一分校是 campus-2
+    localStorage.removeItem('clessia.campusContext');
+    localStorage.setItem('clessia.campusContext.single', 'campus-2');
+    try {
+      await setup();
+      expect(TestBed.inject(CampusContextService).id()).toBe('campus-2');
+      expect(workbenchMock.mock.calls.at(-1)?.[0]).toEqual({ campusId: 'campus-2' });
+      expect(localStorage.getItem('clessia.campusContext')).toBeNull();
+    } finally {
+      localStorage.removeItem('clessia.campusContext.single');
+    }
   });
 
   it('未點名數整個來自伺服器的 meta.total，前端不重算', async () => {
@@ -1149,7 +1165,7 @@ describe('DashboardComponent（管理端）', () => {
       localStorage.removeItem('clessia.campusContext.single');
     });
 
-    it('預設（全部分校）六支都不帶 campusId，頁面接上頂欄（出現下拉）', async () => {
+    it('還沒有分校可選（清單空、沒選過）：六支都不帶 campusId，頁面接上頂欄（出現下拉）', async () => {
       await setup({ permissions: FIN });
       expect(campusCtx().inUse()).toBe(true);
       expect(lastArg(sessionsMock).campusId).toBeUndefined();
@@ -1160,7 +1176,7 @@ describe('DashboardComponent（管理端）', () => {
       expect(lastArg(invoiceListMock).campusId).toBeUndefined();
     });
 
-    it('選了分校：六支都改帶那間；改回全部又不帶', async () => {
+    it('選了分校：六支都改帶那間；在報表改回全部，儀表板仍帶上次那間（#2259）', async () => {
       await setup({ permissions: FIN });
       campusCtx().select('campus-1');
       fixture.detectChanges();
@@ -1173,8 +1189,8 @@ describe('DashboardComponent（管理端）', () => {
 
       campusCtx().select(null);
       fixture.detectChanges();
-      expect(lastArg(sessionsMock).campusId).toBeUndefined();
-      expect(lastArg(summaryMock)).toEqual({ campusId: undefined });
+      expect(lastArg(sessionsMock).campusId).toBe('campus-1');
+      expect(lastArg(summaryMock)).toEqual({ campusId: 'campus-1' });
     });
 
     it('沒有 manage_finance 的人換分校：財務三支仍不查', async () => {
@@ -1224,7 +1240,7 @@ describe('DashboardComponent（管理端）', () => {
     describe('跨校帳單一行（階段②）', () => {
       const note = () => q('cross-campus-note');
       /** 選分校＋讓 summary 回 `crossCampusOverdue` */
-      async function open(cross: { count: number } | undefined, selected = true) {
+      async function open(cross: { count: number } | undefined) {
         await setup({ permissions: FIN, overdue: { count: 2, amount: 900 } });
         summaryMock.mockReturnValue(
           of({
@@ -1232,13 +1248,7 @@ describe('DashboardComponent（管理端）', () => {
             ...(cross ? { crossCampusOverdue: cross } : {}),
           }),
         );
-        campusCtx().select(selected ? 'campus-1' : null);
-        // 選「全部」時 id 沒變（null→null）不會重查，直接用 refresh 觸發同一支查詢
-        if (!selected) {
-          campusCtx().select('campus-1');
-          fixture.detectChanges();
-          campusCtx().select(null);
-        }
+        campusCtx().select('campus-1');
         fixture.detectChanges();
       }
 
@@ -1255,11 +1265,6 @@ describe('DashboardComponent（管理端）', () => {
 
       it('API 沒給欄位（尚未部署）不畫，不是畫 0', async () => {
         await open(undefined);
-        expect(note()).toBeNull();
-      });
-
-      it('頂欄是「全部分校」：就算 API 回了 3 也不畫（沒有「不在此分校」）', async () => {
-        await open({ count: 3 }, false);
         expect(note()).toBeNull();
       });
 

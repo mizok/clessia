@@ -96,7 +96,7 @@ Links to: [[architecture/constitution|c12]], [[architecture/line-oauth-login]], 
 
 ## [[architecture/campus-context|頂欄分校：日常頁一次一間，報表才有「全部分校」]]
 
-管理端頂欄的分校下拉（CampusContextService）是偏好不是權限；日常頁沒有「全部分校」、預設自己被指派的分校，儀表板／營收報表／人員管理保留全部。
+管理端頂欄的分校下拉（CampusContextService）是偏好不是權限；日常頁沒有「全部分校」、預設自己被指派的分校，營收報表／人員管理保留全部（儀表板 #2259 起是日常頁）。
 
 Tags: `architecture`, `campus`, `admin`, `topbar`
 
