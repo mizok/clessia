@@ -620,9 +620,12 @@ describe('POST /api/leaves —— 取鎖、查重疊、寫入同一筆交易（#
                 ? 'insert'
                 : s.includes('insert into public.leave_request_sessions')
                   ? 'bind'
-                  : s,
+                  : s.includes('insert into public.attendance_records')
+                    ? 'attendance'
+                    : s,
     );
-    expect(order).toEqual(['BEGIN', 'lock', 'overlap', 'insert', 'bind', 'COMMIT']);
+    // 出勤也在同一筆交易裡（#2237）
+    expect(order).toEqual(['BEGIN', 'lock', 'overlap', 'insert', 'bind', 'attendance', 'COMMIT']);
   });
 
   it('綁定寫不上 → 整筆 ROLLBACK、500（不會留一張整天語意的假）', async () => {

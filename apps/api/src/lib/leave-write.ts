@@ -12,8 +12,12 @@ import { leavesConflict, toLeaveWindow, type LeaveWindow } from './leave-covers-
  * `daterange &&` 表達不了，硬上會擋掉合法的請假。
  *
  * 鎖是 `pg_advisory_xact_lock`，鍵＝org＋學生：同一個學生的請假排隊，別的學生不受影響；交易結束自動放。
- * **只有會讓假變多、變寬的路徑要取鎖**（POST、PATCH 改區間、改綁定）。截短、銷假、退班同步只會讓假變少，
- * 造不出新的重疊。出勤連動、通知、稽核在 COMMIT 之後做（交易裡不做對外 I/O，pg-pool-writes 規則）。
+ * 管理端的寫入路徑（POST、PATCH、DELETE）都取鎖 —— 截短、銷假造不出新的重疊，但它們也在同一筆交易裡
+ * 改出勤（#2237），排隊才不會跟同一個學生的另一張假交錯寫 on_leave。
+ *
+ * **出勤連動的寫入也在這筆交易裡**（#2237）：原本 COMMIT 之後才同步，同步失敗回 500 但假已經在，
+ * 重送撞 409、出勤永遠沒蓋到。「蓋到哪幾堂」在交易**外**用 PostgREST 算（只讀），交易裡只執行
+ * `writeLeaveAttendance`／`deleteLeaveAttendance`。通知、稽核仍在 COMMIT 之後（交易裡不做對外 I/O）。
  */
 
 export async function lockStudentLeaves(
@@ -185,4 +189,56 @@ export async function updateLeave(
     values,
   );
   return (rows[0] as { row: Record<string, unknown> } | undefined)?.row ?? null;
+}
+
+/**
+ * 把這張假蓋到的課堂寫成 `on_leave`（#2237，跟請假同一筆交易）。`eventIds` 由呼叫端在交易外算好
+ * （`routes/leaves.ts` 的 `planLeaveAttendance`）。覆蓋既有紀錄是業務規則允許的，理由見那支的註解。
+ */
+export async function writeLeaveAttendance(
+  db: Queryable,
+  p: { orgId: string; studentId: string; recordedBy: string; eventIds: readonly string[] },
+): Promise<void> {
+  if (p.eventIds.length === 0) return;
+  await db.query(
+    `insert into public.attendance_records
+       (org_id, event_id, student_id, status, recorded_by, recorded_by_role)
+     select $1::uuid, e, $2::uuid, 'on_leave', $3, 'system' from unnest($4::uuid[]) e
+     on conflict (event_id, student_id) do update
+       set status = excluded.status, recorded_by = excluded.recorded_by,
+           recorded_by_role = excluded.recorded_by_role
+       where public.attendance_records.org_id = $1::uuid`,
+    [p.orgId, p.studentId, p.recordedBy, [...p.eventIds]],
+  );
+}
+
+/**
+ * 撤銷這張假寫下的 `on_leave`（#2237，跟請假同一筆交易），回傳真的刪掉幾筆。`recordIds` 在交易外算好；
+ * 「還沒點名」在這裡再判一次 —— 算完到寫之間有人點了名的話，那一筆維持不動。
+ */
+export async function deleteLeaveAttendance(
+  db: Queryable,
+  orgId: string,
+  studentId: string,
+  recordIds: readonly string[],
+): Promise<number> {
+  if (recordIds.length === 0) return 0;
+  const { rows } = await db.query(
+    `delete from public.attendance_records r
+      where r.org_id = $1::uuid and r.student_id = $2::uuid and r.status = 'on_leave'
+        and r.id = any($3::uuid[])
+        and exists (select 1 from public.events e
+                     where e.id = r.event_id and e.org_id = $1::uuid and e.attendance_taken_at is null)
+     returning r.id`,
+    [orgId, studentId, [...recordIds]],
+  );
+  return rows.length;
+}
+
+/** 整張刪掉（綁定列 ON DELETE CASCADE） */
+export async function deleteLeave(db: Queryable, orgId: string, leaveId: string): Promise<void> {
+  await db.query(`delete from public.leave_requests where org_id = $1::uuid and id = $2::uuid`, [
+    orgId,
+    leaveId,
+  ]);
 }

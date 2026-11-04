@@ -15,15 +15,17 @@ import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { studentWriteScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
-import { inOrg } from '../lib/org-scope';
 import { withTx } from '../lib/pg-tx';
 import {
   bindSessions,
+  deleteLeave,
+  deleteLeaveAttendance,
   findConflictingLeaveViaSql,
   insertLeave,
   lockStudentLeaves,
   unbindSessions,
   updateLeave,
+  writeLeaveAttendance,
 } from '../lib/leave-write';
 import {
   LEAVE_SESSIONS_EMBED,
@@ -228,7 +230,7 @@ type ResolvedSessions =
 
 /**
  * 驗勾選的堂次（#1114）：屬於本 org（c1）、不是停課、學生那天在籍。任一不合就指名那一堂。
- * 在籍的判準跟 `applyLeaveAttendance` 同一組（`status = active` ＋ 生效區間）。
+ * 在籍的判準跟 `planLeaveAttendance` 同一組（`status = active` ＋ 生效區間）。
  */
 async function resolveBoundSessions(
   supabase: SupabaseClient,
@@ -279,20 +281,21 @@ const OVERLAP = (hit: { start_date: string; end_date: string }) => ({
 });
 
 /**
- * 把 `[from, to]` 內、該學生實際有報名的課堂寫成 `on_leave`，回傳真的寫了幾筆。
+ * 算出 `[from, to]` 內、該學生實際有報名的課堂（要寫成 `on_leave` 的 event id）。**只讀**：
+ * 寫入在請假那筆交易裡由 `writeLeaveAttendance` 做（#2237 —— 原本這裡直接 upsert，失敗時假已經 COMMIT）。
  *
  * **刻意不濾 `attendance_taken_at`**：補請假覆蓋既有紀錄是業務規則允許的
  * （請假也是人工判斷，只是不同的人 —— 見 `kb/wiki/rules/attendance-rules.md`
- * 第 6 節與 #145）。跟下面 `revertLeaveAttendance` 的不對稱是刻意的：
+ * 第 6 節與 #145）。跟下面 `planLeaveRevert` 的不對稱是刻意的：
  * **新增一張假是新的人工判斷，撤銷一張假不該回頭改寫別人已經做完的事。**
  *
  * 建立請假與編輯後「新增的日子」共用這一支 —— 兩條路徑各寫一份的話，
  * 「哪些課堂算數」的規則會在兩個地方各自漂移。`sessionIds` 是蓋到的那幾堂，
  * 老師的請假通知（#1693）用同一份答案，不另算一次。
  */
-async function applyLeaveAttendance(
+async function planLeaveAttendance(
   input: LeaveAttendanceRangeInput & { readonly recordedBy: string },
-): Promise<{ readonly synced: number; readonly sessionIds: string[] }> {
+): Promise<{ readonly eventIds: string[]; readonly sessionIds: string[] }> {
   const { supabase, orgId, studentId, recordedBy, from, to } = input;
 
   // #2231：只撈**這位學生在籍班**的課堂 —— 在籍條件放在 embed 的 `!inner` 裡、在 DB 端篩。
@@ -311,7 +314,7 @@ async function applyLeaveAttendance(
     .eq('sessions.classes.enrollments.status', 'active')
     .gte('event_date', from)
     .lte('event_date', to);
-  // 不吞：請假已經建了，出勤沒寫就要讓請求失敗，不能回「成功、蓋到 0 堂」
+  // 不吞：讀不到就不能回「成功、蓋到 0 堂」
   if (eventsError) throw new Error(`讀請假蓋到的課堂失敗：${eventsError.message}`);
 
   // 這張假蓋不蓋得到那堂 —— 跟 roster 推導同一支判斷（綁定堂次、單日時間窗）。
@@ -319,7 +322,7 @@ async function applyLeaveAttendance(
   const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
     coversEvent(input.window, ev),
   ) as LeaveAttendanceEventRow[];
-  if (events.length === 0) return { synced: 0, sessionIds: [] };
+  if (events.length === 0) return { eventIds: [], sessionIds: [] };
 
   // 生效區間（那天在不在班）仍由 `buildLeaveAttendanceUpserts` 判，跟其他路徑同一支
   type Embedded = { classes?: { enrollments?: LeaveAttendanceEnrollmentRow[] } };
@@ -337,23 +340,16 @@ async function applyLeaveAttendance(
     enrollments,
   });
 
-  if (attendanceUpserts.length === 0) return { synced: 0, sessionIds: [] };
-
-  const { error: upsertError } = await supabase
-    .from('attendance_records')
-    .upsert(attendanceUpserts, { onConflict: 'student_id,event_id' });
-  if (upsertError) throw new Error(`寫入請假出勤失敗：${upsertError.message}`);
-
   const covered = new Set(attendanceUpserts.map((u) => u.event_id));
   const sessionIds = events
     .filter((ev) => covered.has(ev.id))
     .flatMap((ev) => toSessionRows(ev.sessions).flatMap((r) => (r.id ? [r.id] : [])));
-  return { synced: attendanceUpserts.length, sessionIds };
+  return { eventIds: [...covered], sessionIds };
 }
 
 /**
- * 把 `[from, to]` 內因為這張假而寫下的 `on_leave` 紀錄**刪掉**，
- * 讓那幾天回到「還沒點名」。回傳真的刪掉幾筆。
+ * 算出 `[from, to]` 內因為這張假而寫下、要**刪掉**的 `on_leave` 紀錄 id，
+ * 讓那幾天回到「還沒點名」。**只讀**：刪除在請假那筆交易裡由 `deleteLeaveAttendance` 做（#2237）。
  *
  * **原本是改成 `absent`，那是錯的**：管理員撤掉一段假，那幾天的學生就全被記成缺席，
  * 而根本沒有人點過那些名。「沒有紀錄」與「缺席」是兩件事（見 #145、#169）——
@@ -364,7 +360,7 @@ async function applyLeaveAttendance(
  *
  * 刪除請假與編輯後「被砍掉的日子」共用這一支。
  */
-async function revertLeaveAttendance(input: LeaveAttendanceRangeInput): Promise<number> {
+async function planLeaveRevert(input: LeaveAttendanceRangeInput): Promise<string[]> {
   const { supabase, orgId, studentId, from, to } = input;
 
   // #2231：從**這位學生的 on_leave 紀錄**出發、事件條件放在 embed 裡 —— 原本撈區間內全 org
@@ -381,24 +377,9 @@ async function revertLeaveAttendance(input: LeaveAttendanceRangeInput): Promise<
   if (readError) throw new Error(`讀請假出勤失敗：${readError.message}`);
 
   // 跟 apply 對稱：只回這張假蓋得到的堂。綁定型不能把同日別堂（別張假寫的）on_leave 一起帶走
-  const ids = ((rawRecords ?? []) as Array<Record<string, any>>)
+  return ((rawRecords ?? []) as Array<Record<string, any>>)
     .filter((r) => coversEvent(input.window, r['events']))
     .map((r) => r['id'] as string);
-  if (ids.length === 0) return 0;
-
-  // ids 只有這位學生這段區間的 on_leave，量小
-  const { data: removed, error: deleteError } = await inOrg(
-    supabase.from('attendance_records').delete().eq('student_id', studentId),
-    orgId,
-  )
-    .eq('status', 'on_leave')
-    .in('id', ids)
-    .select('id');
-  if (deleteError) throw new Error(`撤銷請假出勤失敗：${deleteError.message}`);
-
-  // 回傳**真的刪掉幾筆**，不是「區間裡有幾個 event」——
-  // 後者本來就跟這個學生無關，寫進稽核只會誤導
-  return ((removed ?? []) as unknown[]).length;
 }
 
 /**
@@ -435,7 +416,7 @@ export function cancelPlan(
 
 /**
  * 取消前的影響（#1100 #33，`GET /leaves/:id/impact`）：這張假蓋到的堂裡，這個學生的 `on_leave`
- * —— 還沒點名的那些會被刪掉（回到「還沒點名」），已點名的維持不動。判準同 `revertLeaveAttendance`。
+ * —— 還沒點名的那些會被刪掉（回到「還沒點名」），已點名的維持不動。判準同 `planLeaveRevert`。
  * 只算**已經存在**的出勤事件：事件是懶生成的，還沒生成的那幾堂本來就沒有紀錄可動。
  */
 async function leaveAttendanceImpact(
@@ -583,18 +564,48 @@ async function updateBoundSessions(
   const removed = prevWindow.boundSessions.filter((b) => !nextIds.has(b.sessionId));
   const added = nextWindow.boundSessions.filter((b) => !prevIds.has(b.sessionId));
 
-  // 取鎖 → 查重疊 → 改區間與綁定，同一筆交易（#1957）
   const pool = c.get('auth')?.pool;
   if (!pool) {
     console.error('[leaves] 沒有 pg pool，不改綁定');
     return c.json(POOL_UNAVAILABLE, 500);
   }
+
+  // 出勤要撤哪幾筆、要蓋哪幾堂：交易外算（只讀），寫在下面那筆交易裡（#2237）
+  const revertWindow = prevBound ? boundWindow(removed) : prevWindow;
+  const applyWindow = prevBound ? boundWindow(added) : nextWindow;
+  const revertIds =
+    !prevBound || removed.length > 0
+      ? await planLeaveRevert({
+          supabase,
+          orgId,
+          studentId,
+          from: revertWindow.startDate,
+          to: revertWindow.endDate,
+          window: revertWindow,
+        })
+      : [];
+  const applied =
+    applyWindow.boundSessions.length > 0
+      ? await planLeaveAttendance({
+          supabase,
+          orgId,
+          studentId,
+          recordedBy: userId,
+          from: applyWindow.startDate,
+          to: applyWindow.endDate,
+          window: applyWindow,
+        })
+      : { eventIds: [], sessionIds: [] };
+  const syncedCount = applied.eventIds.length;
+
+  // 取鎖 → 查重疊 → 改區間與綁定 → 撤／寫出勤，同一筆交易（#1957、#2237）
   let updated: Record<string, unknown> | null;
+  let revertedCount = 0;
   try {
     const out = await withTx(pool, async (tx) => {
       await lockStudentLeaves(tx, orgId, studentId);
       const overlap = await findConflictingLeaveViaSql(tx, orgId, studentId, nextWindow, id);
-      if (overlap) return { overlap, row: null };
+      if (overlap) return { overlap, row: null, reverted: 0 };
       const row = await updateLeave(tx, orgId, id, {
         start_date: nextWindow.startDate,
         end_date: nextWindow.endDate,
@@ -602,7 +613,7 @@ async function updateBoundSessions(
         end_time: null,
         ...(input.reason !== undefined ? { reason: input.reason } : {}),
       });
-      if (!row) return { overlap: null, row: null };
+      if (!row) return { overlap: null, row: null, reverted: 0 };
       await unbindSessions(
         tx,
         orgId,
@@ -615,10 +626,19 @@ async function updateBoundSessions(
         id,
         added.map((b) => b.sessionId),
       );
-      return { overlap: null, row };
+      // 先撤後寫：撤掉的堂若又被新綁定蓋到，最後留下的是 on_leave
+      const reverted = await deleteLeaveAttendance(tx, orgId, studentId, revertIds);
+      await writeLeaveAttendance(tx, {
+        orgId,
+        studentId,
+        recordedBy: userId,
+        eventIds: applied.eventIds,
+      });
+      return { overlap: null, row, reverted };
     });
     if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
     updated = out.row;
+    revertedCount = out.reverted;
   } catch (err) {
     console.error('[leaves] 改綁定失敗（已回滾）:', err instanceof Error ? err.message : err);
     return c.json({ error: '更新請假失敗', code: 'WRITE_FAILED' }, 500);
@@ -627,32 +647,6 @@ async function updateBoundSessions(
     return c.json({ error: '更新請假失敗', message: '找不到請假紀錄' }, 500);
   }
 
-  const revertWindow = prevBound ? boundWindow(removed) : prevWindow;
-  const applyWindow = prevBound ? boundWindow(added) : nextWindow;
-  const revertedCount =
-    !prevBound || removed.length > 0
-      ? await revertLeaveAttendance({
-          supabase,
-          orgId,
-          studentId,
-          from: revertWindow.startDate,
-          to: revertWindow.endDate,
-          window: revertWindow,
-        })
-      : 0;
-  const applied =
-    applyWindow.boundSessions.length > 0
-      ? await applyLeaveAttendance({
-          supabase,
-          orgId,
-          studentId,
-          recordedBy: userId,
-          from: applyWindow.startDate,
-          to: applyWindow.endDate,
-          window: applyWindow,
-        })
-      : { synced: 0, sessionIds: [] };
-  const syncedCount = applied.synced;
   // 只通知新增的堂：原本就綁定的，`applyWindow` 已經只有新增那幾堂；原本是日期區間型的，
   // 舊區間裡的日子老師之前已經收過，只通知區間外的
   // ponytail: 舊的是單日時間窗型時，同日原本沒蓋到的堂也會被當成收過；要精準就改用 coversEvent 比對
@@ -919,41 +913,14 @@ app.openapi(
       window = boundWindow(resolved.sessions);
     }
 
-    // 1～2. 取鎖 → 查重疊（判準 `leavesConflict`）→ 建立請假與綁定堂次，同一筆交易（#1957）。
-    // 兩支 REST 各自一個交易的話，同時進來的兩個請求都查到「沒有重疊」而兩張都寫進去
     const pool = c.get('auth')?.pool;
     if (!pool) {
       console.error('[leaves] 沒有 pg pool，不建請假');
       return c.json(POOL_UNAVAILABLE, 500);
     }
-    let leave: { id: string } & Record<string, unknown>;
-    try {
-      const out = await withTx(pool, async (tx) => {
-        await lockStudentLeaves(tx, orgId, body.studentId);
-        const overlap = await findConflictingLeaveViaSql(tx, orgId, body.studentId, window);
-        if (overlap) return { overlap, leave: null };
-        return {
-          overlap: null,
-          leave: (await insertLeave(tx, {
-            orgId,
-            studentId: body.studentId,
-            window,
-            reason: body.reason ?? null,
-            userId,
-            role: 'admin',
-          })) as { id: string } & Record<string, unknown>,
-        };
-      });
-      if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
-      leave = out.leave!;
-    } catch (err) {
-      // 綁定寫不上也在這裡：整筆回滾，不會留一張沒有綁定列（＝整天語意）的假
-      console.error('[leaves] 新增請假失敗（已回滾）:', err instanceof Error ? err.message : err);
-      return c.json({ error: '新增請假失敗', code: 'WRITE_FAILED' }, 500);
-    }
 
-    // 3. 自動更新這張假蓋得到、且該學生實際有報名的 attendance_records → on_leave
-    const { synced: syncedCount, sessionIds: coveredSessionIds } = await applyLeaveAttendance({
+    // 1. 算這張假蓋得到、且該學生實際有報名的課堂（只讀，交易外）
+    const covered = await planLeaveAttendance({
       supabase,
       orgId,
       studentId: body.studentId,
@@ -962,6 +929,41 @@ app.openapi(
       to: window.endDate,
       window,
     });
+    const syncedCount = covered.eventIds.length;
+    const coveredSessionIds = covered.sessionIds;
+
+    // 2～3. 取鎖 → 查重疊（判準 `leavesConflict`）→ 建立請假與綁定堂次 → 出勤寫成 on_leave，同一筆交易
+    // （#1957、#2237）。兩支 REST 各自一個交易的話，同時進來的兩個請求都查到「沒有重疊」而兩張都寫進去；
+    // 出勤在交易外寫的話，寫失敗時假已經在，重送撞 409
+    let leave: { id: string } & Record<string, unknown>;
+    try {
+      const out = await withTx(pool, async (tx) => {
+        await lockStudentLeaves(tx, orgId, body.studentId);
+        const overlap = await findConflictingLeaveViaSql(tx, orgId, body.studentId, window);
+        if (overlap) return { overlap, leave: null };
+        const created = (await insertLeave(tx, {
+          orgId,
+          studentId: body.studentId,
+          window,
+          reason: body.reason ?? null,
+          userId,
+          role: 'admin',
+        })) as { id: string } & Record<string, unknown>;
+        await writeLeaveAttendance(tx, {
+          orgId,
+          studentId: body.studentId,
+          recordedBy: userId,
+          eventIds: covered.eventIds,
+        });
+        return { overlap: null, leave: created };
+      });
+      if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
+      leave = out.leave!;
+    } catch (err) {
+      // 綁定或出勤寫不上也在這裡：整筆回滾，不會留一張沒有綁定列（＝整天語意）、或出勤沒蓋到的假
+      console.error('[leaves] 新增請假失敗（已回滾）:', err instanceof Error ? err.message : err);
+      return c.json({ error: '新增請假失敗', code: 'WRITE_FAILED' }, 500);
+    }
 
     if (syncedCount > 0) {
       logAudit(
@@ -1161,24 +1163,73 @@ app.openapi(
       boundSessions: [],
     };
 
+    // 只同步真的變動的那幾段。整段撤銷再整段寫回去的話，沒有變的日子會先被刪掉
+    // `on_leave` 再補回來 —— 而「刪」只碰得到還沒點名的、「補」卻會覆蓋已點名的，
+    // 同一天的紀錄會在一次編輯裡莫名換一個作者
+    const { removed, added } = rangeChanged
+      ? diffLeaveDateRanges(previous, next)
+      : { removed: [], added: [] };
     let updated: Record<string, unknown> | null;
+    let revertedCount = 0;
+    let syncedCount = 0;
+    const addedSessionIds: string[] = [];
     if (rangeChanged) {
-      // 區間變了才可能撞到別張：取鎖 → 查重疊（排除自己 —— 少了 excludeId 每次編輯都跟自己撞成 409）
-      // → 改，同一筆交易（#1957）
       const pool = c.get('auth')?.pool;
       if (!pool) {
         console.error('[leaves] 沒有 pg pool，不改請假區間');
         return c.json(POOL_UNAVAILABLE, 500);
       }
+      // 出勤要撤／要蓋的：交易外算（只讀），寫在下面那筆交易裡（#2237）
+      const revertIds: string[] = [];
+      for (const range of removed) {
+        revertIds.push(
+          ...(await planLeaveRevert({
+            supabase,
+            orgId,
+            studentId,
+            from: range.startDate,
+            to: range.endDate,
+            window: prevWindow,
+          })),
+        );
+      }
+      const addedEventIds: string[] = [];
+      for (const range of added) {
+        const applied = await planLeaveAttendance({
+          supabase,
+          orgId,
+          studentId,
+          recordedBy: userId,
+          from: range.startDate,
+          to: range.endDate,
+          window: nextWindow,
+        });
+        addedEventIds.push(...applied.eventIds);
+        addedSessionIds.push(...applied.sessionIds);
+      }
+      syncedCount = addedEventIds.length;
+
+      // 區間變了才可能撞到別張：取鎖 → 查重疊（排除自己 —— 少了 excludeId 每次編輯都跟自己撞成 409）
+      // → 改 → 撤／寫出勤，同一筆交易（#1957、#2237）
       try {
         const out = await withTx(pool, async (tx) => {
           await lockStudentLeaves(tx, orgId, studentId);
           const overlap = await findConflictingLeaveViaSql(tx, orgId, studentId, nextWindow, id);
-          if (overlap) return { overlap, row: null };
-          return { overlap: null, row: await updateLeave(tx, orgId, id, updates) };
+          if (overlap) return { overlap, row: null, reverted: 0 };
+          const row = await updateLeave(tx, orgId, id, updates);
+          if (!row) return { overlap: null, row: null, reverted: 0 };
+          const reverted = await deleteLeaveAttendance(tx, orgId, studentId, revertIds);
+          await writeLeaveAttendance(tx, {
+            orgId,
+            studentId,
+            recordedBy: userId,
+            eventIds: addedEventIds,
+          });
+          return { overlap: null, row, reverted };
         });
         if (out.overlap) return c.json(OVERLAP(out.overlap), 409);
         updated = out.row;
+        revertedCount = out.reverted;
       } catch (err) {
         console.error(
           '[leaves] 改請假區間失敗（已回滾）:',
@@ -1205,39 +1256,7 @@ app.openapi(
 
     const studentName = (existing as any).students?.name ?? '';
 
-    // 只同步真的變動的那幾段。整段撤銷再整段寫回去的話，沒有變的日子會先被刪掉
-    // `on_leave` 再補回來 —— 而「刪」只碰得到還沒點名的、「補」卻會覆蓋已點名的，
-    // 同一天的紀錄會在一次編輯裡莫名換一個作者
     if (rangeChanged) {
-      const { removed, added } = diffLeaveDateRanges(previous, next);
-
-      let revertedCount = 0;
-      for (const range of removed) {
-        revertedCount += await revertLeaveAttendance({
-          supabase,
-          orgId,
-          studentId,
-          from: range.startDate,
-          to: range.endDate,
-          window: prevWindow,
-        });
-      }
-
-      let syncedCount = 0;
-      const addedSessionIds: string[] = [];
-      for (const range of added) {
-        const applied = await applyLeaveAttendance({
-          supabase,
-          orgId,
-          studentId,
-          recordedBy: userId,
-          from: range.startDate,
-          to: range.endDate,
-          window: nextWindow,
-        });
-        syncedCount += applied.synced;
-        addedSessionIds.push(...applied.sessionIds);
-      }
       await queueLeaveNotice(c, id, studentName, addedSessionIds);
       // 只有變長才可能接出新的段；改短不重發（設計稿 §3）
       if (added.length > 0) await queueLeaveStreakCheck(c, studentId, nextWindow);
@@ -1444,41 +1463,52 @@ app.openapi(
     const endDate = (leave as any).end_date as string;
 
     const window = toLeaveWindow(leave as Record<string, unknown>);
-    const revertAttendance = (from: string, to: string, w: LeaveWindow = window) =>
-      revertLeaveAttendance({
-        supabase,
-        orgId,
-        studentId: (leave as any).student_id as string,
-        from,
-        to,
-        window: w,
-      });
-
+    const studentId = (leave as any).student_id as string;
     const plan = cancelPlan(mode, window, today);
 
-    // 綁定型的截斷（#1114）：拆掉今天起的綁定列、區間收到剩下的最後一堂；一堂都不剩就走整張刪除
+    const pool = c.get('auth')?.pool;
+    if (!pool) {
+      console.error('[leaves] 沒有 pg pool，不刪請假');
+      return c.json(POOL_UNAVAILABLE, 500);
+    }
+    // 要撤的 on_leave：交易外算（只讀）；改假與撤出勤同一筆交易（#2237）——
+    // 原本分開寫，撤出勤失敗時假已經刪了，那幾天的 on_leave 就沒有人收得回來
+    const revertIds = await planLeaveRevert({
+      supabase,
+      orgId,
+      studentId,
+      from: plan.kind === 'truncate-bound' ? plan.revert.startDate : plan.from,
+      to: plan.kind === 'truncate-bound' ? plan.revert.endDate : plan.to,
+      window: plan.revert,
+    });
+    const yesterday = addDaysToDateString(today, -1);
+    let revertedCount: number;
+    try {
+      revertedCount = await withTx(pool, async (tx) => {
+        await lockStudentLeaves(tx, orgId, studentId);
+        if (plan.kind === 'truncate-bound') {
+          // 綁定型的截斷（#1114）：拆掉今天起的綁定列、區間收到剩下的最後一堂；一堂都不剩就走整張刪除
+          await unbindSessions(
+            tx,
+            orgId,
+            id,
+            plan.revert.boundSessions.map((b) => b.sessionId),
+          );
+          await updateLeave(tx, orgId, id, { end_date: boundWindow(plan.kept).endDate });
+        } else if (plan.kind === 'truncate') {
+          // 截斷到昨天（見下方 truncate 的註解）。昨天跟 today 同一支算出來，不是另一個 UTC 算法 —— 兩個必須一致
+          await updateLeave(tx, orgId, id, { end_date: yesterday });
+        } else {
+          await deleteLeave(tx, orgId, id);
+        }
+        return deleteLeaveAttendance(tx, orgId, studentId, revertIds);
+      });
+    } catch (err) {
+      console.error('[leaves] 刪除請假失敗（已回滾）:', err instanceof Error ? err.message : err);
+      return c.json({ error: '刪除請假失敗', code: 'WRITE_FAILED' }, 500);
+    }
+
     if (plan.kind === 'truncate-bound') {
-      const dropped = plan.revert.boundSessions;
-      const keptBound = plan.kept;
-      await inOrg(
-        supabase
-          .from('leave_request_sessions')
-          .delete()
-          .eq('leave_request_id', id)
-          .in(
-            'session_id',
-            dropped.map((b) => b.sessionId),
-          ),
-        orgId,
-      );
-      await inOrg(
-        supabase
-          .from('leave_requests')
-          .update({ end_date: boundWindow(keptBound).endDate })
-          .eq('id', id),
-        orgId,
-      );
-      await revertAttendance(plan.revert.startDate, plan.revert.endDate, plan.revert);
       return new Response(null, { status: 204 });
     }
 
@@ -1486,16 +1516,6 @@ app.openapi(
     // **起始日＝今天時沒有過去可保留**（#1207）：改成昨天會留下 start > end 的倒置列，
     // 所以落到下面的整張刪除（同綁定型「一堂都不剩」那條）。
     if (plan.kind === 'truncate') {
-      // 同一支 today 算出來的昨天，不是另一個 UTC 算法 —— 兩個必須一致，
-      // 否則會出現「今天用台北算、昨天用 UTC 算」的組合，比全錯更難 debug。
-      const yesterday = addDaysToDateString(today, -1);
-      await supabase
-        .from('leave_requests')
-        .update({ end_date: yesterday })
-        .eq('id', id)
-        .eq('org_id', orgId);
-      const revertedCount = await revertAttendance(plan.from, plan.to);
-
       logAudit(
         supabase,
         {
@@ -1538,9 +1558,6 @@ app.openapi(
     }
 
     // 其他情況（full 模式、未開始、已結束）：完整刪除
-    await supabase.from('leave_requests').delete().eq('id', id).eq('org_id', orgId);
-    const revertedCount = await revertAttendance(plan.from, plan.to);
-
     logAudit(
       supabase,
       {
