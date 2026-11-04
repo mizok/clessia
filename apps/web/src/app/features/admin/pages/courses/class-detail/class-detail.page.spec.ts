@@ -53,6 +53,7 @@ describe('ClassDetailPage', () => {
     get: vi.fn(() => of({ data: { id: seedCourseId, campusId: 'campus-1' } })),
   };
   const messageAdd = vi.fn();
+  let routeQuery: Record<string, string> = {};
 
   beforeEach(async () => {
     classesServiceMock.get.mockClear();
@@ -86,6 +87,9 @@ describe('ClassDetailPage', () => {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
+              get queryParams() {
+                return routeQuery;
+              },
               paramMap: {
                 get: (key: string) =>
                   key === 'classId' ? seedClassId : key === 'courseId' ? seedCourseId : null,
@@ -100,6 +104,42 @@ describe('ClassDetailPage', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
     await fixture.whenStable();
+  });
+
+  /** 儀表板「班級改時段」第三跳（#2246）：`?retime=1` 進來自動開編輯班級，參數消費一次就拿掉 */
+  describe('?retime=1（#2246）', () => {
+    afterEach(() => {
+      routeQuery = {};
+      vi.restoreAllMocks();
+    });
+    const create = () => {
+      (classesServiceMock as any).list = vi.fn(() => of({ data: [] }));
+      // 元件自己 provide DialogService（遮蔽 TestBed 的 mock），所以 spy 在 prototype 上
+      const open = vi
+        .spyOn(DialogService.prototype, 'open')
+        .mockReturnValue({ onClose: of(undefined) } as never);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      const f = TestBed.createComponent(ClassDetailPage);
+      f.detectChanges();
+      return { open, navigate };
+    };
+
+    it('班級載完就開編輯班級（帶 retime），並把 retime 從網址拿掉', () => {
+      routeQuery = { retime: '1' };
+      const { open, navigate } = create();
+      expect(open).toHaveBeenCalledTimes(1);
+      expect((open.mock.calls[0][1] as { data: unknown }).data).toEqual(expect.objectContaining({ retime: true }));
+      expect(navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({ queryParams: { retime: null }, replaceUrl: true }),
+      );
+    });
+
+    it('沒帶 retime：不自動開、不動網址', () => {
+      const { open, navigate } = create();
+      expect(open).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
   });
 
   describe('工具列（A6 class.html .tbar__act）：產生課堂＋⋮', () => {

@@ -889,7 +889,7 @@ describe('DashboardComponent（管理端）', () => {
     });
   });
 
-  describe('摺疊列', () => {
+  describe('摺疊列與臨時狀況', () => {
     it('今天的請假：每筆有來源與原因', async () => {
       await setup({
         leaves: [
@@ -939,14 +939,21 @@ describe('DashboardComponent（管理端）', () => {
       expect(q('coll-overdue')).toBeNull();
     });
 
-    // 使用者 11-04（#2242）：三個入口都只連到課表頁、沒有各自的流程（整週代課、從某天起換時段都沒有）
-    // → 先拿掉；做出真的流程之後再以帶參數的捷徑放回
-    it('不放「臨時狀況？」那一排（#2242）', async () => {
+    // #2242 拿掉、#2246 以直達捷徑放回：每顆帶 ?quick= 直達對應工具，不是只把人丟到課表頁
+    it('臨時狀況三個入口：都到課表頁，各帶自己的 quick', async () => {
       await setup();
 
-      expect(qa('emergency-link')).toHaveLength(0);
-      expect(el().querySelector('nav[aria-label="臨時狀況"]')).toBeNull();
-      expect(el().textContent).not.toContain('臨時狀況');
+      const links = qa('emergency-link');
+      expect(links.map((l) => l.textContent!.replace(/\s+/g, ' ').trim())).toEqual([
+        '颱風、停電 整天停課',
+        '老師請假 整週找人代課',
+        '班級改時段 從某天起換時間',
+      ]);
+      expect(links.map((l) => l.getAttribute('href'))).toEqual(
+        ['cancel-day', 'sub-week', 'retime'].map(
+          (q) => `${RoutesCatalog.ADMIN_SESSIONS.absolutePath}?quick=${q}`,
+        ),
+      );
     });
   });
 

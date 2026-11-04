@@ -264,6 +264,16 @@ export class DashboardComponent {
   /** 從「該到沒到」那一列開的：預帶那位學生 */
   protected readonly phoneLeaveStudentId = signal<string | null>(null);
 
+  /**
+   * A6 的「臨時狀況？」三個入口（#2246）：各帶 `quick` 直達課表頁的工具（`sessions.page.ts` 的
+   * `applyIncomingQuick`）—— 停課＝勾今天整天開批次停課；代課＝選老師就開批次代課；改時段＝選班到班級表單
+   */
+  protected readonly emergencyLinks = [
+    { title: '颱風、停電', hint: '整天停課', quick: 'cancel-day' },
+    { title: '老師請假', hint: '整週找人代課', quick: 'sub-week' },
+    { title: '班級改時段', hint: '從某天起換時間', quick: 'retime' },
+  ] as const;
+
   // 手機托盤：A6 的「櫃台代刷」比桌機鈕「櫃台代刷到班」短；圖示照稿
   protected readonly leavePrimary = { label: '登記請假', icon: 'pi pi-file-edit' };
   protected readonly leaveSecondary = {

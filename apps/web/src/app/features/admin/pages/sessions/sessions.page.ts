@@ -646,6 +646,7 @@ export class SessionsPage implements OnInit {
     this.campusCtx.use();
     this.watchChangesFragment();
     this.openPendingMenuSession();
+    this.runPendingCancelDay();
     // 第一次（ngOnInit 之後的第一輪變更偵測）就是初次載入；之後是頂欄換了分校
     let first = true;
     toObservable(this.campusCtx.id)
@@ -663,6 +664,7 @@ export class SessionsPage implements OnInit {
   ngOnInit(): void {
     this.applyIncomingAttendanceFilter();
     this.applyIncomingFocus();
+    this.applyIncomingQuick();
     this.loadFilters();
     this.loadStudents();
   }
@@ -1045,6 +1047,54 @@ export class SessionsPage implements OnInit {
     this.pendingMenuSession.set(focus.sessionId);
   }
 
+  // ── 儀表板「臨時狀況？」的捷徑（#2246）──────────────────────────────────────
+  /** `?quick=sub-week`／`retime` 帶進來、還沒做完的那一步：選了老師就開代課；選了班就去改時段 */
+  private pendingQuick: 'sub' | 'retime' | null = null;
+  /** `?quick=cancel-day`：等課表載完才勾今天（跟 `pendingMenuSession` 同一個等法） */
+  private readonly pendingCancelDay = signal(false);
+
+  private applyIncomingQuick(): void {
+    const quick = this.route.snapshot.queryParams['quick'];
+    if (quick !== 'cancel-day' && quick !== 'sub-week' && quick !== 'retime') return;
+    // 消費一次就從網址拿掉：重新整理、返回不會再開一次
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { quick: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    if (quick === 'cancel-day') {
+      this.pendingCancelDay.set(true);
+      return;
+    }
+    if (quick === 'sub-week') this.mode.set('week');
+    this.pendingQuick = quick === 'sub-week' ? 'sub' : 'retime';
+    // 「一次勾：」桌機是工具列下那一列，手機在快速選取面板裡
+    const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 860px)').matches;
+    if (narrow) this.sheetOpen.set(true);
+    else this.picking.set(true);
+  }
+
+  private runPendingCancelDay(): void {
+    effect(() => {
+      if (!this.pendingCancelDay() || this.loading() || !this.loadedOnce()) return;
+      untracked(() => {
+        this.pendingCancelDay.set(false);
+        const today = format(this.now(), 'yyyy-MM-dd');
+        if (!this.displayedSessions().some((s) => s.sessionDate === today)) {
+          this.messageService.add({
+            severity: 'info',
+            summary: '今天沒有課',
+            detail: '不用停課；要停別天的課，先換到那天再勾「整天」',
+          });
+          return;
+        }
+        this.pickDay(today);
+        this.openBatchSheet('cancel');
+      });
+    });
+  }
+
   protected clearFilters(): void {
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
@@ -1315,11 +1365,29 @@ export class SessionsPage implements OnInit {
         to: format(sunday, 'yyyy-MM-dd'),
       },
       `${name}這週（今天起）`,
+      // 從儀表板「老師請假」進來：勾到課就直接開代課（手機先收面板，原生 modal 會蓋住對話框）；
+      // 這位老師這週沒課就留著捷徑，讓人換一位
+      this.pendingQuick === 'sub'
+        ? () => {
+            this.pendingQuick = null;
+            this.onSheetAct('sub');
+          }
+        : undefined,
     );
   }
 
   /** 某個班整期的課（今天起、不含停課，A6 `selectClass`） */
   protected pickClass(classId: string): void {
+    // 從儀表板「班級改時段」進來：改的是班的時段規則（#2057），不是勾課 → 到班級詳情開編輯
+    const cls = this.classes().find((c) => c.id === classId);
+    if (this.pendingQuick === 'retime' && cls) {
+      this.pendingQuick = null;
+      this.sheetOpen.set(false);
+      void this.router.navigate(['/admin/courses', cls.courseId, 'classes', classId], {
+        queryParams: { retime: 1 },
+      });
+      return;
+    }
     const name = this.classes().find((c) => c.id === classId)?.name ?? '這個班';
     this.fetchPicks(
       { classIds: [classId], from: format(this.now(), 'yyyy-MM-dd') },
@@ -1327,7 +1395,7 @@ export class SessionsPage implements OnInit {
     );
   }
 
-  private fetchPicks(params: SessionQueryParams, label: string): void {
+  private fetchPicks(params: SessionQueryParams, label: string, then?: () => void): void {
     this.sessionsService
       .list({
         ...params,
@@ -1338,7 +1406,10 @@ export class SessionsPage implements OnInit {
         pageSize: FETCH_LIMIT,
       })
       .subscribe({
-        next: (res) => this.pickAll(res.data, label),
+        next: (res) => {
+          this.pickAll(res.data, label);
+          if (then && res.data.length) then();
+        },
         error: () =>
           this.messageService.add({
             severity: 'error',
