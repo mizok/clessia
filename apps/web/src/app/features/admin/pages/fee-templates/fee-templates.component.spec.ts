@@ -519,6 +519,30 @@ describe('FeeTemplatesComponent', () => {
       expect(dialogOpen()).toBe(true);
     });
 
+    // #2238 二讀：p-dialog 的 close() 先改內部 visible 再發 visibleChange —— 擋 signal 擋不住關，
+    // 只會讓 signal 停在 true、之後再也打不開。所以建立中照樣可以關，請求照跑完
+    it('建立中關掉彈窗、建立失敗之後，再按「用模板建立」要打得開（#2238）', async () => {
+      await boot();
+      const pending = new Subject<{ data: BillingPeriod }>();
+      billingPeriods.create.mockReturnValue(pending);
+      choose('two-terms');
+      submit().click();
+      fixture.detectChanges();
+      document.querySelector<HTMLButtonElement>('.p-dialog-close-button')!.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(dialogOpen()).toBe(false);
+
+      pending.error({ error: { error: '名稱重複' } });
+      fixture.detectChanges();
+      openers()[0].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(dialogOpen()).toBe(true);
+    });
+
     it('模板的期間都已經有了：鈕停用並說明，不送', async () => {
       await boot([
         period({ id: 'p1', name: '116 上學期＋暑假' }),

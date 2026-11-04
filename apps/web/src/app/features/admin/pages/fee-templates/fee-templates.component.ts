@@ -196,7 +196,11 @@ export class FeeTemplatesComponent implements OnInit {
   });
   protected readonly periodTemplatePick = signal<PeriodTemplateKey | null>(null);
   protected readonly creatingFromTemplate = signal(false);
-  /** 用模板建立的彈窗（#2235）；建立中不讓關，免得以為停了 */
+  /**
+   * 用模板建立的彈窗（#2235）。建立中**不擋關閉**（#2238 二讀）：p-dialog 的 close() 先改內部 visible
+   * 再發 visibleChange，擋 signal 擋不住關、只會讓 signal 停在 true 之後再也打不開。
+   * 關了請求照跑完，成功／失敗 toast 照出；建立中主鈕寫「建立中…」就夠了
+   */
   protected readonly periodTemplateDialogOpen = signal(false);
 
   protected openPeriodTemplateDialog(): void {
@@ -205,7 +209,6 @@ export class FeeTemplatesComponent implements OnInit {
   }
 
   protected setPeriodTemplateDialog(open: boolean): void {
-    if (!open && this.creatingFromTemplate()) return;
     this.periodTemplateDialogOpen.set(open);
   }
   /** 送出鈕上的 N：選中的模板裡還沒有的那幾個 */
