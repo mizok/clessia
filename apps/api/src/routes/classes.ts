@@ -22,8 +22,6 @@ import { deleteClasses, type ClassDeleteOutcome } from '../lib/class-delete';
 import { splitSchedule, type ScheduleSplitOutcome } from '../lib/schedule-split';
 import { getAuth } from '../lib/get-auth';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
-import { countEnrolledOn, type EnrollmentRange } from '../lib/session-roster';
-import { checkClassesPastSessions } from '../lib/class-past-sessions';
 import type {
   BatchAssignMode,
   BatchAssignPlanOutput,
@@ -33,6 +31,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
 import { hasPermission } from '../lib/permissions';
 import { loadLatestExams, type LatestExam } from '../lib/class-latest-exam';
+import { loadClassListStats, type ClassListStats } from '../lib/class-list-stats';
 import {
   normalizeTime,
   toMinutes,
@@ -102,7 +101,7 @@ const ClassSchema = z
     upcomingUnassignedCount: z.number().optional(),
     upcomingClassConflictCount: z.number().optional(),
     upcomingTeacherConflictCount: z.number().optional(),
-    /** 列表才有：今天在籍的人數（`countEnrolledOn`，跟點名／課堂名單同一份規則）；A6「17／24 人」 */
+    /** 列表才有：今天在籍的人數（`lib/class-list-stats.ts`，口徑同 `countEnrolledOn`）；A6「17／24 人」 */
     enrolledCount: z.number().int().optional(),
     /** 列表才有：最近一場有成績的校內考（#1314 G6，`lib/class-latest-exam.ts`）；沒考過＝null，查詢失敗＝不回 */
     latestExam: z
@@ -641,6 +640,16 @@ interface BatchSessionConflictItem {
 
 const app = new OpenAPIHono<AppEnv>();
 
+const EMPTY_STATS: ClassListStats = {
+  hasUpcomingSessions: false,
+  hasPastSessions: false,
+  upcomingCancelledCount: 0,
+  upcomingUnassignedCount: 0,
+  upcomingClassConflictCount: 0,
+  upcomingTeacherConflictCount: 0,
+  enrolledCount: 0,
+};
+
 /**
  * **寫入面的分校範圍（#1797）**：路徑帶班級 id 的寫入（改班、停用、刪除、時段 CRUD、產生／批次改課堂…）
  * 一律先比班級的分校 —— 只管 A 校的管理員改不到 B 校的班。讀取面早就套了 `applyCampusFilter`，
@@ -683,6 +692,7 @@ app.openapi(
         description: '成功',
         content: { 'application/json': { schema: ClassListResponseSchema } },
       },
+      500: { description: '讀取統計失敗（#2226：不再吞成 0／空）' },
     },
   }),
   async (c) => {
@@ -691,7 +701,8 @@ app.openapi(
     const page = Math.max(parseInt(query.page || '1'), 1);
     const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize) : 50;
     const unpaginated = rawPageSize === 0;
-    const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
+    // 上限 200（#2226，同其他列表）；`pageSize=0` 是「全部」，照舊
+    const pageSize = unpaginated ? 0 : Math.min(Math.max(rawPageSize, 1), 200);
     const offset = (page - 1) * pageSize;
 
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
@@ -746,166 +757,22 @@ app.openapi(
 
     const classIds = rows.map((r) => r.id as string);
 
-    // Batch-fetch schedule counts & teacher IDs for this page
-    const scheduleCountMap: Record<string, number> = {};
-    const scheduleTeacherMap: Record<string, string[]> = {};
-    const hasUpcomingSet = new Set<string>();
-    // TODO: 待老師點名功能完成後，改為查 status='completed'
-    const hasPastSessionsSet = new Set<string>();
-    const upcomingCancelledCountMap: Record<string, number> = {};
-    const upcomingUnassignedCountMap: Record<string, number> = {};
-    const upcomingClassConflictCountMap: Record<string, number> = {};
-    const upcomingTeacherConflictCountMap: Record<string, number> = {};
-    const enrolledCountMap: Record<string, number> = {};
+    // #2226：課堂與在籍統計在 DB 端一支 SQL 數好（`lib/class-list-stats.ts`）。原本 4 支 `.in(classIds)`
+    // 撈逐堂原始列回來數：`pageSize=0` 班一多就 414、逐堂列被 max_rows 截斷，錯誤還被吞成 0
+    let stats: Map<string, ClassListStats> = new Map();
     let latestExamMap: Map<string, LatestExam | null> | null = null;
-
     if (classIds.length > 0) {
-      // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。這個變數同時餵給下面
-      // 兩支「即將到來」查詢（477 行附近與 upcomingCancelledResult），不要各自
-      // 重算一次，免得兩處又各自漂移一次。
-      const today = getCurrentTaipeiDateString();
-      // #949：三支都只依賴 classIds，彼此互不相依 —— 同一輪發出去
-      // （原本依序發四支，第四支是下面註解說的 any-sessions，已刪）。
-      const [
-        sessionsResult,
-        pastSessionsCheck,
-        upcomingCancelledResult,
-        enrollmentsResult,
-        latestExams,
-      ] = await Promise.all([
-        supabase
-          .from('sessions')
-          .select('id, class_id, session_date, start_time, end_time, teacher_id')
-          .in('class_id', classIds)
-          .gte('session_date', today)
-          .eq('status', 'scheduled'),
-        // TODO: 待老師點名功能完成後，改為查 status='completed'
-        // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
-        // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
-        checkClassesPastSessions(supabase, classIds),
-        supabase
-          .from('sessions')
-          .select('class_id')
-          .in('class_id', classIds)
-          .gte('session_date', today)
-          .eq('status', 'cancelled'),
-        // 在籍人數（A6「17／24 人」）：只撈本頁班級的在籍報名，在記憶體裡用 `countEnrolledOn`
-        // 數 —— 跟課堂名單、點名同一份「某天在不在籍」的規則（`lib/session-roster.ts`）
-        supabase
-          .from('enrollments')
-          .select('class_id, effective_from, effective_to')
-          .in('class_id', classIds)
-          .eq('status', 'active')
-          .eq('org_id', c.get('orgId')),
-        loadLatestExams(supabase, c.get('orgId'), classIds),
-      ]);
-      latestExamMap = latestExams;
-
-      const enrollmentRanges: EnrollmentRange[] = (
-        (enrollmentsResult.data ?? []) as Array<Record<string, unknown>>
-      ).map((r) => ({
-        classId: r['class_id'] as string,
-        effectiveFrom: r['effective_from'] as string,
-        effectiveTo: (r['effective_to'] as string | null) ?? null,
-      }));
-      // 查詢失敗就不回人數（前端退回「上限 N 人」）—— 回 0 會把「查不到」說成「沒有人」
-      if (!enrollmentsResult.error) {
-        for (const id of classIds) {
-          enrolledCountMap[id] = countEnrolledOn(enrollmentRanges, id, today);
-        }
-      }
-
-      for (const s of sessionsResult.data || []) {
-        const classId = s.class_id as string;
-        hasUpcomingSet.add(classId);
-        if (!s.teacher_id) {
-          upcomingUnassignedCountMap[classId] = (upcomingUnassignedCountMap[classId] ?? 0) + 1;
-        }
-      }
-
-      const upcomingSessions =
-        (sessionsResult.data as Array<{
-          id: string;
-          class_id: string;
-          session_date: string;
-          start_time: string;
-          end_time: string;
-          teacher_id: string | null;
-        }> | null) ?? [];
-
-      const classDateBuckets = new Map<string, typeof upcomingSessions>();
-      for (const session of upcomingSessions) {
-        const bucketKey = `${session.class_id}|${session.session_date}`;
-        const bucket = classDateBuckets.get(bucketKey) ?? [];
-        bucket.push(session);
-        classDateBuckets.set(bucketKey, bucket);
-      }
-
-      for (const sessions of classDateBuckets.values()) {
-        sessions.sort((a, b) => toMinutes(a.start_time) - toMinutes(b.start_time));
-        for (let i = 0; i < sessions.length; i++) {
-          for (let j = i + 1; j < sessions.length; j++) {
-            if (
-              isTimeOverlap(
-                normalizeTime(sessions[i].start_time),
-                normalizeTime(sessions[i].end_time),
-                normalizeTime(sessions[j].start_time),
-                normalizeTime(sessions[j].end_time),
-              )
-            ) {
-              const classId = sessions[i].class_id;
-              upcomingClassConflictCountMap[classId] =
-                (upcomingClassConflictCountMap[classId] ?? 0) + 1;
-            } else {
-              break;
-            }
-          }
-        }
-      }
-
-      const teacherDateBuckets = new Map<string, typeof upcomingSessions>();
-      for (const session of upcomingSessions) {
-        if (!session.teacher_id) continue;
-        const bucketKey = `${session.teacher_id}|${session.session_date}`;
-        const bucket = teacherDateBuckets.get(bucketKey) ?? [];
-        bucket.push(session);
-        teacherDateBuckets.set(bucketKey, bucket);
-      }
-
-      for (const sessions of teacherDateBuckets.values()) {
-        sessions.sort((a, b) => toMinutes(a.start_time) - toMinutes(b.start_time));
-        for (let i = 0; i < sessions.length; i++) {
-          for (let j = i + 1; j < sessions.length; j++) {
-            if (
-              isTimeOverlap(
-                normalizeTime(sessions[i].start_time),
-                normalizeTime(sessions[i].end_time),
-                normalizeTime(sessions[j].start_time),
-                normalizeTime(sessions[j].end_time),
-              )
-            ) {
-              const classIdA = sessions[i].class_id;
-              const classIdB = sessions[j].class_id;
-              upcomingTeacherConflictCountMap[classIdA] =
-                (upcomingTeacherConflictCountMap[classIdA] ?? 0) + 1;
-              upcomingTeacherConflictCountMap[classIdB] =
-                (upcomingTeacherConflictCountMap[classIdB] ?? 0) + 1;
-            } else {
-              break;
-            }
-          }
-        }
-      }
-
-      if (pastSessionsCheck.status === 'ok') {
-        for (const classId of pastSessionsCheck.classIdsWithPastSessions) {
-          hasPastSessionsSet.add(classId);
-        }
-      }
-
-      for (const s of upcomingCancelledResult.data || []) {
-        const classId = s.class_id as string;
-        upcomingCancelledCountMap[classId] = (upcomingCancelledCountMap[classId] ?? 0) + 1;
+      const pool = getAuth(c).pool;
+      if (!pool) return c.json({ error: '讀取班級失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+      try {
+        // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
+        [stats, latestExamMap] = await Promise.all([
+          loadClassListStats(pool, c.get('orgId'), classIds, getCurrentTaipeiDateString()),
+          loadLatestExams(supabase, c.get('orgId'), classIds),
+        ]);
+      } catch (err) {
+        console.error('[classes] 列表統計失敗:', err instanceof Error ? err.message : err);
+        return c.json({ error: '讀取班級失敗', code: 'STATS_FAILED' }, 500);
       }
     }
 
@@ -934,13 +801,7 @@ app.openapi(
             .filter((s) => isScheduleCurrentOrUpcoming(scheduleRangeOf(s), listToday))
             .map((s) => s['teacher_id'] as string | null)
             .filter((tid): tid is string => !!tid),
-          hasUpcomingSessions: hasUpcomingSet.has(id),
-          hasPastSessions: hasPastSessionsSet.has(id),
-          upcomingCancelledCount: upcomingCancelledCountMap[id] ?? 0,
-          upcomingUnassignedCount: upcomingUnassignedCountMap[id] ?? 0,
-          upcomingClassConflictCount: upcomingClassConflictCountMap[id] ?? 0,
-          upcomingTeacherConflictCount: upcomingTeacherConflictCountMap[id] ?? 0,
-          enrolledCount: enrolledCountMap[id],
+          ...(stats.get(id) ?? EMPTY_STATS),
           latestExam: latestExamMap ? (latestExamMap.get(id) ?? null) : undefined,
         });
       }),

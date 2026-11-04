@@ -3,7 +3,7 @@ title: 課堂狀態（sessions.status）規則
 summary: sessions.status 目前只有 scheduled 與 cancelled 會被寫入，completed 沒有任何寫入路徑；這一頁記錄哪些程式碼依賴這個現況、誰會在 completed 第一次被寫入的那天改變行為，以及刪除守門為什麼用 OR 而不是替換條件。
 category: rule
 status: active
-updated: 2026-09-13
+updated: 2026-11-04
 tags: [rules, sessions, attendance, classes]
 ---
 
@@ -110,15 +110,18 @@ API 側對應的預設值在 `routes/attendance.ts:1002` 與 `routes/sessions.ts
 
 ## 刪除守門為什麼是 `OR`，不是替換（#762）
 
-`lib/class-past-sessions.ts` 的 `checkClassesPastSessions()` 是「這個班有沒有歷史
-課堂」的**唯一定義**，三個呼叫端共用（列表顯示、批次刪除守門、單筆刪除守門）。
+「這個班有沒有歷史課堂」現在有兩處 SQL，**條件逐字相同**：`lib/class-delete.ts`
+（刪除守門，單筆與批次）與 `lib/class-list-stats.ts`（列表顯示，#2226）。原本的
+`lib/class-past-sessions.ts`（PostgREST 版、三處共用）在刪除守門搬進交易、列表改成一支
+SQL 之後沒有呼叫端，已刪。**改其中一處時，另一處要一起改。**
 
 | 條件 | 漏掉什麼 |
 | --- | --- |
 | 只有 `session_date < 今天` | **今天稍早已上完並點過名的課** —— 那個班今天一整天被視為沒有歷史課堂，可以被刪掉，報名與出勤紀錄跟著級聯 |
 | 只有 `status = 'completed'` | **過去日期但從沒點名的課** —— 因為沒有寫入路徑，這等於把「所有歷史課堂」全部放行。那是「本來擋著的變成不擋」，比上一格危險，而且那正是最可能有排課錯誤、最需要保留證據的班 |
 
-所以是 `session_date.lt.<台北今天>,status.eq.completed` 包在同一個 `.or()` 裡。
+所以是 `session_date < <台北今天> OR status = 'completed'`（原本 PostgREST 版是
+`session_date.lt.<台北今天>,status.eq.completed` 包在同一個 `.or()` 裡）。
 
 **兩半的效力各自實測過**（2026-09-13，本機 PostgREST，唯讀）：把日期門檻挪到
 `2026-07-01` 模擬「日期不夠舊但已點名」的課，全庫 `date < 門檻` 是 **2** 筆、
@@ -126,9 +129,8 @@ API 側對應的預設值在 `routes/attendance.ts:1002` 與 `routes/sessions.ts
 （證明 `or=` 不會退化成「回全部」），班級條件改成不存在的 uuid 回 **0**
 （證明 `class_id` 與 `or=` 是 AND 不是 OR）。
 
-⚠️ **`class-past-sessions.spec.ts` 的替身不求值** —— 它釘的是查詢條件的逐字形狀，
-擋得住「條件被改錯／被拿掉」，擋不住「PostgREST 對這個字串的解讀跟我們以為的不同」。
-後者靠上面那組實測，不靠測試。
+上面那組實測是 PostgREST 版當時做的；兩支 SQL 版由真 DB 的契約守
+（`class-delete.contract.ts`、`class-list-stats-2226.contract.ts`）。
 
 ## 開始寫 `completed` 那天要做的事
 
@@ -141,7 +143,7 @@ API 側對應的預設值在 `routes/attendance.ts:1002` 與 `routes/sessions.ts
 
 ## 相關
 
-- `lib/class-past-sessions.ts` —— 唯一定義，檔頭寫了為什麼收斂成一份
+- `lib/class-delete.ts`、`lib/class-list-stats.ts` —— 「有歷史課堂」的兩處 SQL（條件相同）
 - `lib/session-end-time.ts` / `session-time.util.ts` —— 「時間過了」的現成判定
 - `domain/session-assignment/session-operation-guard.ts` —— 等 `completed` 的守衛
 - issue #488（影響半徑報告）、#762（`OR` 修法）

@@ -53,6 +53,8 @@ async function list(classes: unknown[]) {
     set('userId', 'u1');
     set('roles', ['admin']);
     set('campusScope', null);
+    // 課堂與在籍統計走 pg pool（#2226，真 DB 契約守）；這裡的主題不是它
+    set('auth', { pool: { query: async () => ({ rows: [] }) } });
     await next();
   });
   app.route('/', classesRoute as unknown as Hono);
