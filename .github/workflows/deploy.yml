@@ -3,7 +3,7 @@
 # 原本 api 是使用者親跑 `wrangler deploy --env production`、web 是 reviewer 本機 `wrangler pages deploy`，
 # 部署常因為使用者不在而延遲好幾個小時。
 #
-# ## 觸發鏈：verify → migrate → **deploy** → verify-live
+# ## 觸發鏈：verify → migrate → **deploy** → verify-live → probe-api
 #
 # **接在 migrate 的 completed 後面，不是 verify** —— 這是「套完才部署」的結構保證：
 # migrate 對每一顆 verify 綠的 main commit 都跑，差集 0 的話 plan 綠燈就結束；有待套的話
@@ -26,8 +26,13 @@
 # ## 不半套、不回退（計畫席裁）
 #
 # api 先、web 後（web 可能呼叫新端點）。api 失敗 → web 不跑、紅燈。api 成功 web 失敗 → 紅燈，
-# summary 第一行寫「api 已部署、web 沒部署」。**不自動回退** —— deploying.md「出事就回退，
+# summary 第一行寫「api 已部署、web 沒部署」。**部署本身失敗不自動回退** —— deploying.md「出事就回退，
 # 不要現場修」是人的判斷（Worker：`wrangler rollback --env production`；Pages：dashboard）。
+#
+# **唯一的例外是 probe-api（#1435，計畫席 11-04 裁「紅就回滾」）**：api 部署成功、而帶身分的列表探針
+# 判定這次部署把列表弄壞（身分 200、列表不是 200）→ 自動 `wrangler rollback` api。只回滾 api：
+# Pages 沒有命令列回滾，web 照舊由人判斷。探針憑證壞了（401／403）只紅燈、不回滾，
+# 判斷規則在 tools/agent-harness/lib/live-probe.mjs。
 #
 # ## 開關：repo variable `DEPLOY_ENABLED`（預設關）
 #
@@ -327,3 +332,46 @@ jobs:
       - run: node tools/agent-harness/smoke.mjs
         env:
           SMOKE_BASE_URL: ${{ env.SITE_URL }}
+
+  # ── 帶 secret：登入後的列表探針，紅就回滾 api（#1435）──────────────────────────
+  # verify-live 只打未登入的端點，401 擋在查詢之前 —— #1423（select 沒選 order 用的欄位）上線回 400，
+  # 部署照樣全綠。這裡用唯讀探針帳號的 session cookie（environment secret `PROBE_COOKIE`）打列表。
+  # 沒設 secret → 略過＋notice，不紅（c12：自架的 repo 沒有探針帳號）。
+  probe-api:
+    needs: [plan, deploy-api, verify-live]
+    if: always() && needs.deploy-api.outputs.deployed == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - id: probe
+        env:
+          PROBE_COOKIE: ${{ secrets.PROBE_COOKIE }}
+        run: node tools/agent-harness/live-probe.mjs
+
+      # 只有 broken 才回滾：身分沒問題、列表卻壞了 = 這次部署的問題。auth（憑證）不回滾
+      - if: steps.probe.outputs.result == 'broken'
+        run: npm ci
+
+      - if: steps.probe.outputs.result == 'broken'
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler rollback --env production -y -m "probe-api：${{ needs.plan.outputs.target }} 部署後列表探針失敗（#1435）"
+          echo "### ⚠️ 列表探針失敗，**api 已自動回滾**到上一版（web 沒動，前後端可能不一致）" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: steps.probe.outputs.result == 'broken' || steps.probe.outputs.result == 'auth'
+        run: |
+          echo "列表探針：${{ steps.probe.outputs.result }}（細節見 summary）"
+          exit 1

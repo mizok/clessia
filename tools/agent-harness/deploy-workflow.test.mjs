@@ -30,8 +30,14 @@ function jobs() {
 
 const all = jobs();
 
-test('四個 job 都在：plan → deploy-api → deploy-web → verify-live', () => {
-  assert.deepEqual(Object.keys(all), ['plan', 'deploy-api', 'deploy-web', 'verify-live']);
+test('五個 job 都在：plan → deploy-api → deploy-web → verify-live → probe-api', () => {
+  assert.deepEqual(Object.keys(all), [
+    'plan',
+    'deploy-api',
+    'deploy-web',
+    'verify-live',
+    'probe-api',
+  ]);
 });
 
 // 接在 verify 後面的話，「套完才部署」就要靠 poll migrate —— 接在 migrate 後面是結構保證
@@ -70,8 +76,8 @@ test('api 先 web 後；api 失敗 web 不跑', () => {
   );
 });
 
-test('帶 secret 的只有兩個 deploy job，而且都在 production environment', () => {
-  for (const name of ['deploy-api', 'deploy-web']) {
+test('帶 secret 的只有兩個 deploy job 與 probe-api，而且都在 production environment', () => {
+  for (const name of ['deploy-api', 'deploy-web', 'probe-api']) {
     assert.match(all[name], /environment: production/, name);
   }
   for (const name of ['plan', 'verify-live']) {
@@ -109,4 +115,29 @@ test('真的部署的兩個 step 都要 DEPLOY_ENABLED == true', () => {
       name,
     );
   }
+});
+
+// #1435：帶身分的列表探針，紅就回滾 api。最要緊的是**憑證壞掉不能觸發回滾**
+test('probe-api 只在 api 真的部署了才跑', () => {
+  assert.match(
+    all['probe-api'],
+    /if: always\(\) && needs\.deploy-api\.outputs\.deployed == 'true'/,
+  );
+});
+
+test('回滾只在 result == broken；auth（401／403 憑證問題）只紅燈', () => {
+  const job = all['probe-api'];
+  const rollback = job.slice(0, job.indexOf('wrangler rollback'));
+  const lastIf = rollback.slice(rollback.lastIndexOf('- if:'));
+  assert.match(lastIf, /^- if: steps\.probe\.outputs\.result == 'broken'\s*\n/);
+  assert.match(job, /wrangler rollback --env production -y -m /);
+});
+
+test('探針沒設 secret 不紅：腳本 skipped，紅燈 step 只認 broken／auth', () => {
+  const job = all['probe-api'];
+  assert.match(job, /PROBE_COOKIE: \$\{\{ secrets\.PROBE_COOKIE \}\}/);
+  assert.match(
+    job,
+    /- if: steps\.probe\.outputs\.result == 'broken' \|\| steps\.probe\.outputs\.result == 'auth'\s*\n\s+run: \|[\s\S]*exit 1/,
+  );
 });
