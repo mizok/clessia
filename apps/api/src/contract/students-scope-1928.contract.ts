@@ -11,6 +11,8 @@ import { createServiceClientFromEnv } from '../lib/supabase';
  * 原本 GET /students 先撈範圍內的學生 id —— 受限管理員：分校範圍內所有報名過的（前置查詢沒分頁、沒看 error）；
  * 老師：任課班在籍的 —— 再 `.in('id', …)` 塞進 URL，兩三百位就 414，整頁 500；在籍數那支還把錯誤吞成 0。
  * fixture：C1 那班 260＋1 位（一位跨校 ab）、C2 一位只在二校 b；老師只教 C1 那班。
+ * 另一位 w：C1 那班已退班（withdrawal）、C2 那班在籍 —— 老師看不到（任課的條件是「同一筆報名」的班＋在籍狀態），
+ * 受限 C1 的管理員看得到（分校範圍是任一報名、不分狀態，enrollment-rules 第 8 節）。
  */
 
 const URL = process.env['SUPABASE_URL'];
@@ -65,7 +67,7 @@ run('#1928 學生列表的範圍在 DB 端篩（GET /students）', () => {
     (await pool!.query(text, values)).rows as T[];
   const one = async (sql: string, values: unknown[]) =>
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
-  const fx = { ab: '', b: '' };
+  const fx = { ab: '', b: '', w: '' };
 
   beforeAll(async () => {
     const [admin] = await q<{ user_id: string }>(
@@ -108,11 +110,11 @@ run('#1928 學生列表的範圍在 DB 端篩（GET /students）', () => {
        values ($1, 1, '18:00', '19:00', $2, '2026-01-01')`,
       [klass['c1'], staff],
     );
-    const enroll = (studentIds: string[], classId: string) =>
+    const enroll = (studentIds: string[], classId: string, status = 'active') =>
       q(
         `insert into enrollments (org_id, class_id, student_id, status, billing_mode, agreed_amount, effective_from)
-         select $1, $2, unnest($3::uuid[]), 'active', 'monthly', 1000, '2026-01-01'`,
-        [ctx.orgId, classId, studentIds],
+         select $1, $2, unnest($3::uuid[]), $4::enrollment_status, 'monthly', 1000, '2026-01-01'`,
+        [ctx.orgId, classId, studentIds, status],
       );
     const big = (
       await q<{ id: string }>(
@@ -127,8 +129,12 @@ run('#1928 學生列表的範圍在 DB 端篩（GET /students）', () => {
     fx.b = await one("insert into students (org_id, name, grade) values ($1, '只在二校', 'J1')", [
       ctx.orgId,
     ]);
+    fx.w = await one("insert into students (org_id, name, grade) values ($1, '一校退班', 'S1')", [
+      ctx.orgId,
+    ]);
     await enroll([...big, fx.ab], klass['c1']!);
-    await enroll([fx.ab, fx.b], klass['c2']!);
+    await enroll([fx.w], klass['c1']!, 'withdrawal');
+    await enroll([fx.ab, fx.b, fx.w], klass['c2']!);
     app = (await import('../index')).default as never;
   }, 120_000);
 
@@ -172,25 +178,30 @@ run('#1928 學生列表的範圍在 DB 端篩（GET /students）', () => {
     Object.fromEntries(b.summary.byGrade.filter((g) => g.count > 0).map((g) => [g.grade, g.count]));
   const IN_C1 = BIG + 1;
 
-  it('不受限的管理員：262 位，章節 J2 260、J3 1、J1 1', async () => {
+  it('不受限的管理員：263 位，章節 J2 260、J3 1、J1 1、S1 1', async () => {
     const b = await list('admin');
-    expect(b.summary.total).toBe(IN_C1 + 1);
-    expect(b.summary.activeCount).toBe(IN_C1 + 1);
-    expect(grades(b)).toEqual({ J2: BIG, J3: 1, J1: 1 });
+    expect(b.summary.total).toBe(IN_C1 + 2);
+    expect(b.summary.activeCount).toBe(IN_C1 + 2);
+    expect(grades(b)).toEqual({ J2: BIG, J3: 1, J1: 1, S1: 1 });
   });
 
-  it('受限 C1 的管理員：破 250 也照樣 200；總數、在籍數、章節都是 C1 的 261 位', async () => {
+  it('受限 C1 的管理員：破 250 也照樣 200；總數、在籍數、章節都是 C1 的 262 位（含 C1 已退班的 w）', async () => {
     const b = await list('c1');
-    expect(b.summary.total).toBe(IN_C1);
-    expect(b.summary.activeCount).toBe(IN_C1);
-    expect(grades(b)).toEqual({ J2: BIG, J3: 1 });
+    expect(b.summary.total).toBe(IN_C1 + 1);
+    expect(b.summary.activeCount).toBe(IN_C1 + 1);
+    expect(grades(b)).toEqual({ J2: BIG, J3: 1, S1: 1 });
+    expect((await list('c1', `&search=${encodeURIComponent('一校退班')}`)).summary.total).toBe(1);
     expect((await list('c1', `&search=${encodeURIComponent('只在二校')}`)).summary.total).toBe(0);
   });
 
-  it('老師（只教 C1 那班）：破 250 也照樣 200；只有任課班的 261 位', async () => {
+  it('老師（只教 C1 那班）：破 250 也照樣 200；只有任課班在籍的 261 位（C1 退班、C2 在籍的 w 不算）', async () => {
     const b = await list('teacher');
     expect(b.summary.total).toBe(IN_C1);
+    expect(b.summary.activeCount).toBe(IN_C1);
     expect(grades(b)).toEqual({ J2: BIG, J3: 1 });
+    expect((await list('teacher', `&search=${encodeURIComponent('一校退班')}`)).summary.total).toBe(
+      0,
+    );
     expect((await list('teacher', `&search=${encodeURIComponent('只在二校')}`)).summary.total).toBe(
       0,
     );
