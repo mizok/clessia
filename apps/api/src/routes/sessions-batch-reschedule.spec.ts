@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { restBackedSessionBatchPool } from '../test-utils/rest-backed-session-batch-pool';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
@@ -105,10 +106,13 @@ function createApp(f: Fixture = {}, campusScope: string[] | null = null) {
       return query;
     },
   };
+  const pool = restBackedSessionBatchPool(supabase);
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
     const ctx = c as unknown as { set: (k: string, v: unknown) => void };
     ctx.set('supabase', supabase);
+    // 課堂批次的寫入走池（#2232）：替身把 SQL 翻回同一個 supabase 替身的 REST 呼叫
+    ctx.set('auth', { pool });
     ctx.set('orgId', 'org-1');
     ctx.set('userId', 'user-1');
     ctx.set('roles', ['admin']);
@@ -116,7 +120,7 @@ function createApp(f: Fixture = {}, campusScope: string[] | null = null) {
     await next();
   });
   app.route('/api/sessions', sessionsApp);
-  return { app, queries };
+  return { app, queries, pool };
 }
 
 const patch = (app: Hono, b: unknown) =>
@@ -329,26 +333,23 @@ describe('PATCH /api/sessions/batch-reschedule（#1111）', () => {
     expect(queued).toHaveBeenCalledWith(expect.anything(), arg(insert, 'insert'));
   });
 
-  it('流水寫失敗 → 全部照原落點搬回，500 RESCHEDULE_LOG_FAILED', async () => {
-    const { app, queries } = createApp({
+  // #2232：搬移與流水同一筆交易 —— 失敗整筆回滾，不再逐組搬回
+  it('流水寫失敗 → 整筆回滾（ROLLBACK、不發搬回），500 RESCHEDULE_UPDATE_FAILED、不通知', async () => {
+    const { app, queries, pool } = createApp({
       sessions: [session(1), session(2, { session_date: '2026-10-28' })],
       logError: { message: 'boom' },
     });
     const res = await patch(app, { sessionIds: [id(1), id(2)], dayOffset: 1, dryRun: false });
     expect(res.status).toBe(500);
-    expect(((await res.json()) as { code: string }).code).toBe('RESCHEDULE_LOG_FAILED');
+    expect(((await res.json()) as { code: string }).code).toBe('RESCHEDULE_UPDATE_FAILED');
     expect(queued).not.toHaveBeenCalled();
-    const reverts = sessionUpdates(queries)
-      .slice(2)
-      .map((q) => [arg(q, 'update'), arg(q, 'in', 1)]);
-    expect(reverts).toEqual([
-      [{ session_date: '2026-10-21', start_time: '09:00', end_time: '11:00' }, [id(1)]],
-      [{ session_date: '2026-10-28', start_time: '09:00', end_time: '11:00' }, [id(2)]],
-    ]);
+    expect(pool.statements).toContain('ROLLBACK');
+    expect(pool.statements).not.toContain('COMMIT');
+    expect(sessionUpdates(queries)).toHaveLength(2); // 兩組搬移，沒有搬回
   });
 
-  it('update 中途撞唯一鍵 → 只把已搬的搬回，409 CLASS_CONFLICT，不寫流水', async () => {
-    const { app, queries } = createApp({
+  it('update 中途撞唯一鍵 → 整筆回滾，409 CLASS_CONFLICT，不寫流水', async () => {
+    const { app, queries, pool } = createApp({
       sessions: [session(1), session(2, { session_date: '2026-10-28' })],
       updateErrorAt: 2,
       updateError: { code: '23505', message: 'dup' },
@@ -356,13 +357,9 @@ describe('PATCH /api/sessions/batch-reschedule（#1111）', () => {
     const res = await patch(app, { sessionIds: [id(1), id(2)], dayOffset: 1, dryRun: false });
     expect(res.status).toBe(409);
     expect(((await res.json()) as { code: string }).code).toBe('CLASS_CONFLICT');
-    const updates = sessionUpdates(queries).map((q) => [arg(q, 'update'), arg(q, 'in', 1)]);
-    // 由晚到早：先搬 id(2)（落點 10/29）成功，再搬 id(1) 撞鍵 → 只把 id(2) 搬回 10/28
-    expect(updates[2]).toEqual([
-      { session_date: '2026-10-28', start_time: '09:00', end_time: '11:00' },
-      [id(2)],
-    ]);
-    expect(updates).toHaveLength(3);
+    expect(pool.statements).toContain('ROLLBACK');
+    // 由晚到早：先搬 id(2) 成功、再搬 id(1) 撞鍵 → 停在第二句，回滾（不再逐組搬回）
+    expect(sessionUpdates(queries)).toHaveLength(2);
     expect(queries.filter((q) => q.table === 'schedule_changes')).toHaveLength(0);
   });
 

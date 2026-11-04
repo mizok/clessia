@@ -21,6 +21,9 @@ import {
 } from '../domain/session-assignment/session-operation-guard';
 import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-time-planner';
 import { toWeekdayFromString } from '../domain/session-assignment/time-utils';
+import { inChunks } from '../lib/in-chunks';
+import { writeSessionBatch } from '../lib/session-batch-write';
+import type { Context } from 'hono';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
@@ -838,6 +841,35 @@ export function buildBatchSessionChangeInserts(input: BatchSessionChangeInsertIn
 // ============================================================
 
 const app = new OpenAPIHono<AppEnv>();
+
+/**
+ * 課堂批次的寫入（#2232）：改課堂＋流水同一筆交易、id 不進 URL（`lib/session-batch-write.ts`）。
+ * 成功回 `null`；失敗回要送出的回應 —— 池不在 500（不退回非交易的舊寫法，pg-pool-writes 規則 6）、
+ * `23505` 同班同時段撞堂 409、其他 500。整筆已回滾，不用補償。
+ */
+async function runSessionBatchWrite(
+  c: Context<AppEnv>,
+  orgId: string,
+  write: Parameters<typeof writeSessionBatch>[2],
+  label: string,
+  failCode = 'WRITE_FAILED',
+): Promise<Response | null> {
+  const pool = c.get('auth')?.pool;
+  if (!pool) return c.json({ error: '資料庫連線不可用', code: 'POOL_UNAVAILABLE' }, 500);
+  try {
+    await writeSessionBatch(pool, orgId, write);
+    return null;
+  } catch (err) {
+    console.error(
+      `[sessions/${label}] 寫入失敗（已回滾）:`,
+      err instanceof Error ? err.message : err,
+    );
+    if ((err as { code?: string }).code === '23505') {
+      return c.json({ error: '同班級於此時段已有課堂', code: 'CLASS_CONFLICT' }, 409);
+    }
+    return c.json({ error: '批次寫入失敗', code: failCode }, 500);
+  }
+}
 
 /**
  * `endedOnly` 撈候選集合時的上限 —— 跟 `attendance.ts` 的
@@ -2689,6 +2721,14 @@ const batchAssignTeacherRoute = createRoute({
         },
       },
     },
+    409: {
+      description: '同班同時段撞堂（整批已回滾，#2232）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: {
+      description: '寫入失敗（整批已回滾）／資料庫連線不可用',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -2701,13 +2741,15 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
   const includeAssigned = body.includeAssigned ?? false;
   const dryRun = body.dryRun ?? false;
 
-  const { data: sessionRows, error: sessionRowsError } = await supabase
-    .from('sessions')
-    .select(
-      'id, class_id, session_date, start_time, end_time, status, assignment_status, teacher_id',
-    )
-    .eq('org_id', orgId)
-    .in('id', uniqueSessionIds);
+  const { data: sessionRows, error: sessionRowsError } = await inChunks(uniqueSessionIds, (part) =>
+    supabase
+      .from('sessions')
+      .select(
+        'id, class_id, session_date, start_time, end_time, status, assignment_status, teacher_id',
+      )
+      .eq('org_id', orgId)
+      .in('id', part),
+  );
 
   if (sessionRowsError) {
     return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
@@ -2986,15 +3028,18 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
   }
 
   if (!dryRun && updatedIds.length > 0) {
-    const { error: updateError } = await supabase
-      .from('sessions')
-      .update({ teacher_id: body.teacherId, assignment_status: 'assigned' })
-      .eq('org_id', orgId)
-      .in('id', updatedIds);
-
-    if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
-    }
+    // 這支不寫流水（#1100 §2）；寫入走池、id 不進 URL（#2232）
+    const failed = await runSessionBatchWrite(
+      c,
+      orgId,
+      {
+        updates: [
+          { ids: updatedIds, set: { teacher_id: body.teacherId, assignment_status: 'assigned' } },
+        ],
+      },
+      'batch-assign-teacher',
+    );
+    if (failed) return failed as never; // 409／500，見 runSessionBatchWrite
   }
 
   if (!dryRun) {
@@ -3051,8 +3096,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
 // 跟 batch-assign-teacher 不同：那支是「換人不留紀錄」（#1100 §2，語意不動），
 // 這支是代課 —— 原老師留在 `schedule_changes`（逐堂一筆 substitute），課表才寫得出「代課・原 X」。
 //
-// 非交易，順序同 makeup／加開單堂（#1109 裁）：① 改 teacher_id → ② 寫流水 →
-// 流水失敗就把每堂的老師改回原老師（照原老師分組，一組一次 update）。
+// 改 teacher_id 與寫流水同一筆交易（#2232，走池、id 不進 URL）；原本是非交易＋流水失敗就補償改回原老師。
 const BatchSubstituteBodySchema = BatchSessionTargetSchema.extend({
   substituteTeacherId: DbUuidSchema,
   reason: z.string().max(500).optional(),
@@ -3094,11 +3138,13 @@ app.openapi(batchSubstituteRoute, async (c) => {
   const dryRun = body.dryRun ?? true;
   const substituteId = body.substituteTeacherId;
 
-  const { data: sessionRows, error: sessionRowsError } = await supabase
-    .from('sessions')
-    .select('id, class_id, session_date, start_time, end_time, status, teacher_id')
-    .eq('org_id', orgId)
-    .in('id', uniqueSessionIds);
+  const { data: sessionRows, error: sessionRowsError } = await inChunks(uniqueSessionIds, (part) =>
+    supabase
+      .from('sessions')
+      .select('id, class_id, session_date, start_time, end_time, status, teacher_id')
+      .eq('org_id', orgId)
+      .in('id', part),
+  );
   if (sessionRowsError) {
     return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
   }
@@ -3277,17 +3323,7 @@ app.openapi(batchSubstituteRoute, async (c) => {
       ]),
     );
 
-    // ① 改老師
-    const { error: updateError } = await supabase
-      .from('sessions')
-      .update({ teacher_id: substituteId, assignment_status: 'assigned' })
-      .eq('org_id', orgId)
-      .in('id', processableIds);
-    if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    // ② 逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195）
+    // 改老師＋逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195），同一筆交易（#2232）
     const batchId = crypto.randomUUID();
     const changeRows = processable.map((s) => ({
       org_id: orgId,
@@ -3301,28 +3337,18 @@ app.openapi(batchSubstituteRoute, async (c) => {
       operation_source: 'batch' as const,
       batch_id: batchId,
     }));
-    const { error: logError } = await supabase.from('schedule_changes').insert(changeRows);
-    if (logError) {
-      // 補償：照原老師分組改回去
-      const reverts = await Promise.all(
-        originalTeacherIds.map((teacherId) =>
-          supabase
-            .from('sessions')
-            .update({ teacher_id: teacherId })
-            .eq('org_id', orgId)
-            .in(
-              'id',
-              processable.filter((s) => s.teacher_id === teacherId).map((s) => s.id),
-            ),
-        ),
-      );
-      const revertFailed = reverts.some((r) => r.error);
-      console.error(
-        '[sessions/batch-substitute] 流水寫入失敗' +
-          (revertFailed ? '，而且補償也失敗 —— 老師已換、流水沒有' : '，已補償'),
-      );
-      return c.json({ error: '批次代課失敗', code: 'SUBSTITUTE_LOG_FAILED' }, 500);
-    }
+    const failed = await runSessionBatchWrite(
+      c,
+      orgId,
+      {
+        updates: [
+          { ids: processableIds, set: { teacher_id: substituteId, assignment_status: 'assigned' } },
+        ],
+        changes: changeRows,
+      },
+      'batch-substitute',
+    );
+    if (failed) return failed as never; // 409／500，見 runSessionBatchWrite
 
     // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
     await queueScheduleChangeNotice(c, changeRows);
@@ -3393,6 +3419,14 @@ const batchUpdateTimeRoute = createRoute({
         },
       },
     },
+    409: {
+      description: '同班同時段撞堂（整批已回滾，#2232）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: {
+      description: '寫入失敗（整批已回滾）／資料庫連線不可用',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -3410,13 +3444,15 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
     return c.json({ error: '開始時間需早於結束時間', code: 'INVALID_TIME_RANGE' }, 400);
   }
 
-  const { data: sessionRows, error: sessionRowsError } = await supabase
-    .from('sessions')
-    .select(
-      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
-    )
-    .eq('org_id', orgId)
-    .in('id', uniqueSessionIds);
+  const { data: sessionRows, error: sessionRowsError } = await inChunks(uniqueSessionIds, (part) =>
+    supabase
+      .from('sessions')
+      .select(
+        'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+      )
+      .eq('org_id', orgId)
+      .in('id', part),
+  );
 
   if (sessionRowsError) {
     return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
@@ -3544,16 +3580,6 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
   const skipped = conflicts.length + missingCount;
 
   if (!dryRun && updated > 0) {
-    const { error: updateError } = await supabase
-      .from('sessions')
-      .update({ start_time: newStartTime, end_time: newEndTime })
-      .eq('org_id', orgId)
-      .in('id', processableIds);
-
-    if (updateError) {
-      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
-    }
-
     const actorName = await loadDisplayName(supabase, orgId, userId);
 
     const changes = buildBatchSessionChangeInserts({
@@ -3578,11 +3604,17 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
       newEndTime,
     });
 
-    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(changes);
-
-    if (insertChangeError) {
-      return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
-    }
+    // 改時間＋流水同一筆交易（#2232）
+    const failed = await runSessionBatchWrite(
+      c,
+      orgId,
+      {
+        updates: [{ ids: processableIds, set: { start_time: newStartTime, end_time: newEndTime } }],
+        changes,
+      },
+      'batch-update-time',
+    );
+    if (failed) return failed as never; // 409／500，見 runSessionBatchWrite
 
     // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
     await queueScheduleChangeNotice(c, changes);
@@ -3718,13 +3750,15 @@ app.openapi(batchRescheduleRoute, async (c) => {
     return c.json({ error: '開始時間需早於結束時間', code: 'INVALID_TIME_RANGE' }, 400);
   }
 
-  const { data: sessionRows, error: sessionRowsError } = await supabase
-    .from('sessions')
-    .select(
-      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
-    )
-    .eq('org_id', orgId)
-    .in('id', uniqueSessionIds);
+  const { data: sessionRows, error: sessionRowsError } = await inChunks(uniqueSessionIds, (part) =>
+    supabase
+      .from('sessions')
+      .select(
+        'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+      )
+      .eq('org_id', orgId)
+      .in('id', part),
+  );
   if (sessionRowsError) {
     return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
   }
@@ -3879,34 +3913,16 @@ app.openapi(batchRescheduleRoute, async (c) => {
     };
     const slotKey = (date: string, start: string, end: string) =>
       `${date}|${normalizeTime(start)}|${normalizeTime(end)}`;
-    const updateGroup = (key: string, ids: string[]) => {
-      const [session_date, start_time, end_time] = key.split('|');
-      return supabase
-        .from('sessions')
-        .update({ session_date, start_time, end_time })
-        .eq('org_id', orgId)
-        .in('id', ids);
-    };
-    // 搬回：只搬已經搬走的那些，照原落點分組
-    const moveBack = async (movedIds: ReadonlySet<string>) => {
-      const originals = new Map<string, string[]>();
-      for (const t of processable.filter((p) => movedIds.has(p.id))) {
-        const k = slotKey(t.session_date, t.start_time, t.end_time);
-        originals.set(k, [...(originals.get(k) ?? []), t.id]);
-      }
-      const results = await Promise.all([...originals].map(([key, ids]) => updateGroup(key, ids)));
-      return results.every((r) => !r.error);
-    };
 
-    // ① 分組搬（循序：中途失敗時知道搬到哪）。
+    // ① 分組搬，同一筆交易裡依序執行（#2232；原本逐組 REST、失敗就逐組搬回）。
     //
     // **順序是設計的一部分**（二讀抓到的）：sessions 有 UNIQUE (class_id, session_date, start_time)，
-    // 而 UPDATE 是逐組發的。整期往後挪一天時，若先搬 A（10/21→10/22）而 B 還在 10/22，就撞唯一鍵 →
-    // 整批搬回 409 —— dryRun 說可以、實寫偶發失敗，取決於 processable 剛好是什麼順序。
+    // 而 UPDATE 是逐組發的、每一句當下就檢查唯一鍵。整期往後挪一天時，若先搬 A（10/21→10/22）而 B 還在
+    // 10/22，就撞唯一鍵 → 整批回滾 409 —— dryRun 說可以、實寫偶發失敗，取決於 processable 剛好是什麼順序。
     // 所以照落點排：**往後挪由晚到早、往前挪由早到晚**，鏈上的下一個位置一定先空出來。
     // 互擋的鏈只會出現在 dayOffset（全批同方向）；targetWeekday 的落點在同一週內，
     // 同班同時段兩堂落到同一天會被 planner 判 class_conflict，鏈接不起來 —— 照早到晚即可。
-    // ponytail: 兩堂互換位置（A→B 的位置、B→A 的位置）這種環排不出順序，會撞唯一鍵 409、全部搬回
+    // ponytail: 兩堂互換位置（A→B 的位置、B→A 的位置）這種環排不出順序，會撞唯一鍵 409、整批回滾
     const groups = [
       ...groupBy((t) => {
         const l = landing.get(t.id)!;
@@ -3914,22 +3930,8 @@ app.openapi(batchRescheduleRoute, async (c) => {
       }),
     ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     if ((body.dayOffset ?? 0) > 0) groups.reverse();
-    const moved = new Set<string>();
-    for (const [key, ids] of groups) {
-      const { error } = await updateGroup(key, ids);
-      if (error) {
-        const reverted = await moveBack(moved);
-        console.error(
-          '[sessions/batch-reschedule] 搬移中途失敗' + (reverted ? '，已搬回' : '，而且搬回也失敗'),
-        );
-        return error.code === '23505'
-          ? c.json({ error: '同班級於此時段已有課堂', code: 'CLASS_CONFLICT' }, 409)
-          : c.json({ error: '批次調課失敗', code: 'RESCHEDULE_UPDATE_FAILED' }, 500);
-      }
-      ids.forEach((id) => moved.add(id));
-    }
 
-    // ② 逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195）
+    // ② 逐堂寫流水（同一次呼叫共用一顆 batch_id，#1195），跟搬移同一筆交易
     const batchId = crypto.randomUUID();
     const actorName = await loadDisplayName(supabase, orgId, userId);
     const changeRows = processable.map((t) => {
@@ -3950,15 +3952,20 @@ app.openapi(batchRescheduleRoute, async (c) => {
         batch_id: batchId,
       };
     });
-    const { error: logError } = await supabase.from('schedule_changes').insert(changeRows);
-    if (logError) {
-      const reverted = await moveBack(moved);
-      console.error(
-        '[sessions/batch-reschedule] 流水寫入失敗' +
-          (reverted ? '，已搬回' : '，而且搬回也失敗 —— 課堂已搬、流水沒有'),
-      );
-      return c.json({ error: '批次調課失敗', code: 'RESCHEDULE_LOG_FAILED' }, 500);
-    }
+    const failed = await runSessionBatchWrite(
+      c,
+      orgId,
+      {
+        updates: groups.map(([key, ids]) => {
+          const [session_date, start_time, end_time] = key.split('|');
+          return { ids, set: { session_date, start_time, end_time } };
+        }),
+        changes: changeRows,
+      },
+      'batch-reschedule',
+      'RESCHEDULE_UPDATE_FAILED',
+    );
+    if (failed) return failed as never; // 409／500，見 runSessionBatchWrite
 
     // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
     await queueScheduleChangeNotice(c, changeRows);
@@ -4031,6 +4038,14 @@ const batchCancelRoute = createRoute({
         },
       },
     },
+    409: {
+      description: '同班同時段撞堂（整批已回滾，#2232）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: {
+      description: '寫入失敗（整批已回滾）／資料庫連線不可用',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -4042,13 +4057,15 @@ app.openapi(batchCancelRoute, async (c) => {
   const uniqueSessionIds = [...new Set(body.sessionIds)];
   const dryRun = body.dryRun ?? true;
 
-  const { data: sessionRows, error: sessionRowsError } = await supabase
-    .from('sessions')
-    .select(
-      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
-    )
-    .eq('org_id', orgId)
-    .in('id', uniqueSessionIds);
+  const { data: sessionRows, error: sessionRowsError } = await inChunks(uniqueSessionIds, (part) =>
+    supabase
+      .from('sessions')
+      .select(
+        'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+      )
+      .eq('org_id', orgId)
+      .in('id', part),
+  );
 
   if (sessionRowsError) {
     return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
@@ -4112,16 +4129,6 @@ app.openapi(batchCancelRoute, async (c) => {
   const skipped = conflicts.length + missingCount;
 
   if (!dryRun && updated > 0) {
-    const { error: cancelError } = await supabase
-      .from('sessions')
-      .update({ status: 'cancelled' })
-      .eq('org_id', orgId)
-      .in('id', processableIds);
-
-    if (cancelError) {
-      return c.json({ error: cancelError.message, code: 'DB_ERROR' }, 400);
-    }
-
     const actorName = await loadDisplayName(supabase, orgId, userId);
 
     const changeRows = buildBatchSessionChangeInserts({
@@ -4144,11 +4151,14 @@ app.openapi(batchCancelRoute, async (c) => {
         })),
       reason: body.reason ?? null,
     });
-    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(changeRows);
-
-    if (insertChangeError) {
-      return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
-    }
+    // 停課＋流水同一筆交易（#2232）
+    const failed = await runSessionBatchWrite(
+      c,
+      orgId,
+      { updates: [{ ids: processableIds, set: { status: 'cancelled' } }], changes: changeRows },
+      'batch-cancel',
+    );
+    if (failed) return failed as never; // 409／500，見 runSessionBatchWrite
 
     // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
     await queueScheduleChangeNotice(c, changeRows);
@@ -4220,6 +4230,14 @@ const batchUncancelRoute = createRoute({
         },
       },
     },
+    409: {
+      description: '同班同時段撞堂（整批已回滾，#2232）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: {
+      description: '寫入失敗（整批已回滾）／資料庫連線不可用',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -4231,13 +4249,15 @@ app.openapi(batchUncancelRoute, async (c) => {
   const uniqueSessionIds = [...new Set(body.sessionIds)];
   const dryRun = body.dryRun ?? true;
 
-  const { data: sessionRows, error: sessionRowsError } = await supabase
-    .from('sessions')
-    .select(
-      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
-    )
-    .eq('org_id', orgId)
-    .in('id', uniqueSessionIds);
+  const { data: sessionRows, error: sessionRowsError } = await inChunks(uniqueSessionIds, (part) =>
+    supabase
+      .from('sessions')
+      .select(
+        'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+      )
+      .eq('org_id', orgId)
+      .in('id', part),
+  );
 
   if (sessionRowsError) {
     return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
@@ -4498,32 +4518,6 @@ app.openapi(batchUncancelRoute, async (c) => {
       .filter((s) => s.teacher_id && !activeTeacherIds.has(s.teacher_id))
       .map((s) => s.id);
 
-    // 老師有效的課堂：恢復並保留 teacher_id
-    if (validTeacherSessionIds.length > 0) {
-      const { error: reopenError } = await supabase
-        .from('sessions')
-        .update({ status: 'scheduled' })
-        .eq('org_id', orgId)
-        .in('id', validTeacherSessionIds);
-
-      if (reopenError) {
-        return c.json({ error: reopenError.message, code: 'DB_ERROR' }, 400);
-      }
-    }
-
-    // 老師已封存的課堂：恢復但清空 teacher_id，設為 unassigned
-    if (invalidTeacherSessionIds.length > 0) {
-      const { error: reopenUnassignedError } = await supabase
-        .from('sessions')
-        .update({ status: 'scheduled', assignment_status: 'unassigned', teacher_id: null })
-        .eq('org_id', orgId)
-        .in('id', invalidTeacherSessionIds);
-
-      if (reopenUnassignedError) {
-        return c.json({ error: reopenUnassignedError.message, code: 'DB_ERROR' }, 400);
-      }
-    }
-
     const actorName = await loadDisplayName(supabase, orgId, userId);
 
     const changeRows = buildBatchSessionChangeInserts({
@@ -4545,11 +4539,23 @@ app.openapi(batchUncancelRoute, async (c) => {
           teacherName: null,
         })),
     });
-    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(changeRows);
-
-    if (insertChangeError) {
-      return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
-    }
+    // 兩組恢復（老師有效的保留 teacher_id；老師已封存的清空、設 unassigned）＋流水，同一筆交易（#2232）
+    const failed = await runSessionBatchWrite(
+      c,
+      orgId,
+      {
+        updates: [
+          { ids: validTeacherSessionIds, set: { status: 'scheduled' } },
+          {
+            ids: invalidTeacherSessionIds,
+            set: { status: 'scheduled', assignment_status: 'unassigned', teacher_id: null },
+          },
+        ],
+        changes: changeRows,
+      },
+      'batch-uncancel',
+    );
+    if (failed) return failed as never; // 409／500，見 runSessionBatchWrite
 
     // #1693：通知任課老師（業務與流水都寫成功之後；背景跑、失敗只記 log）
     await queueScheduleChangeNotice(c, changeRows);

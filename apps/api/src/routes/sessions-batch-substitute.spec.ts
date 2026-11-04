@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { restBackedSessionBatchPool } from '../test-utils/rest-backed-session-batch-pool';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
@@ -62,10 +63,13 @@ function createApp(resolve: Resolver, campusScope: string[] | null = null) {
       return query;
     },
   };
+  const pool = restBackedSessionBatchPool(supabase);
   const app = new Hono();
   app.use('/api/*', async (c, next) => {
     const ctx = c as unknown as { set: (k: string, v: unknown) => void };
     ctx.set('supabase', supabase);
+    // 課堂批次的寫入走池（#2232）：替身把 SQL 翻回同一個 supabase 替身的 REST 呼叫
+    ctx.set('auth', { pool });
     ctx.set('orgId', 'org-1');
     ctx.set('userId', 'user-1');
     ctx.set('roles', ['admin']);
@@ -73,7 +77,7 @@ function createApp(resolve: Resolver, campusScope: string[] | null = null) {
     await next();
   });
   app.route('/api/sessions', sessionsApp);
-  return { app, queries };
+  return { app, queries, pool };
 }
 
 const SUB = '99999999-9999-4999-8999-999999999999';
@@ -295,8 +299,9 @@ describe('PATCH /api/sessions/batch-substitute（#1110）', () => {
     expect(ids[0]).not.toBe(ids[1]);
   });
 
-  it('流水寫失敗 → 照原老師分組改回去，回 500', async () => {
-    const { app, queries } = createApp(
+  // #2232：改老師與流水同一筆交易 —— 流水失敗整筆回滾，不再逐組補償改回
+  it('流水寫失敗 → 整筆回滾（ROLLBACK、不發補償更新），回 500、不通知', async () => {
+    const { app, queries, pool } = createApp(
       resolver({
         sessions: [session(1), session(2, { teacher_id: T2 }), session(3)],
         logError: { message: 'boom' },
@@ -308,17 +313,12 @@ describe('PATCH /api/sessions/batch-substitute（#1110）', () => {
       dryRun: false,
     });
     expect(res.status).toBe(500);
-    expect(((await res.json()) as { code: string }).code).toBe('SUBSTITUTE_LOG_FAILED');
+    expect(((await res.json()) as { code: string }).code).toBe('WRITE_FAILED');
     expect(queued).not.toHaveBeenCalled();
-
-    const reverts = queries
-      .filter((q) => q.table === 'sessions' && has(q, 'update'))
-      .slice(1)
-      .map((q) => [arg(q, 'update'), arg(q, 'in', 1)]);
-    expect(reverts).toEqual([
-      [{ teacher_id: T1 }, [id(1), id(3)]],
-      [{ teacher_id: T2 }, [id(2)]],
-    ]);
+    expect(pool.statements).toContain('ROLLBACK');
+    expect(pool.statements).not.toContain('COMMIT');
+    // 只有那一句改老師（在交易裡），沒有補償的 update
+    expect(queries.filter((q) => q.table === 'sessions' && has(q, 'update'))).toHaveLength(1);
   });
 });
 

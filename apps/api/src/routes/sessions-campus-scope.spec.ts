@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { restBackedSessionBatchPool } from '../test-utils/rest-backed-session-batch-pool';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queueScheduleChangeNotice } from '../lib/notify-schedule';
@@ -70,6 +71,8 @@ function createApp(classCampus: string, campusScope: string[] | null, status = '
   app.use('/api/*', async (c, next) => {
     const ctx = c as unknown as { set: (k: string, v: unknown) => void };
     ctx.set('supabase', supabase);
+    // 課堂批次的寫入走池（#2232）：替身把 SQL 翻回同一個 supabase 替身的 REST 呼叫
+    ctx.set('auth', { pool: restBackedSessionBatchPool(supabase) });
     ctx.set('orgId', 'org-1');
     ctx.set('userId', 'user-1');
     ctx.set('roles', ['admin']);

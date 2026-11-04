@@ -281,8 +281,10 @@ const BatchAssignConflictSchema = z.object({
   conflictWithSessionId: DbUuidSchema,
 });
 
+// 上限 100（#2232）：再多 `.in('id', …)` 的 URL 就放不下（#1928 實測 ~200 個 uuid 就 414）。
+// 這幾支 web 沒有呼叫端（課表走 `/sessions/batch-*`，那邊分段送），所以只擋、不分段
 const BatchSessionTargetSchema = z.object({
-  sessionIds: z.array(DbUuidSchema).min(1).max(1000),
+  sessionIds: z.array(DbUuidSchema).min(1).max(100),
   dryRun: z.boolean().optional(),
 });
 
@@ -3442,32 +3444,24 @@ app.openapi(
     // 已經上過的課堂一併抓進來取消（軟刪除，保留 schedule_change，但語意錯）。
     const today = getCurrentTaipeiDateString();
 
-    // 查出要取消的課堂 IDs
-    const { data: targetSessions, error: fetchError } = await supabase
+    // 條件 update，一條 SQL（#2232）：原本先撈出 id 再 `.update().in('id', 全部)`，長期班未來的課
+    // 超過 ~200 堂就 414（URL 放不下）。改成用同一組條件直接更新、回傳改到的 id 給流水與通知用
+    const { data: updatedRows, error: updateError } = await supabase
       .from('sessions')
-      .select('id')
+      .update({ status: 'cancelled' })
       .eq('org_id', orgId)
       .eq('class_id', id)
       .gte('session_date', today)
-      .neq('status', 'completed');
+      .neq('status', 'completed')
+      .select('id');
 
-    if (fetchError) {
-      return c.json({ error: fetchError.message, code: 'DB_ERROR' }, 400);
+    if (updateError) {
+      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
     }
 
-    const sessionIds = (targetSessions ?? []).map((r) => r['id'] as string);
+    const sessionIds = (updatedRows ?? []).map((r) => r['id'] as string);
 
     if (sessionIds.length > 0) {
-      // 軟刪除：更新狀態為 cancelled
-      const { error: updateError } = await inOrg(
-        supabase.from('sessions').update({ status: 'cancelled' }).in('id', sessionIds),
-        orgId,
-      );
-
-      if (updateError) {
-        return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
-      }
-
       // 取得操作者名稱
       const actorName = await loadDisplayName(supabase, orgId, userId);
 
