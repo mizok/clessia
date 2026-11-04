@@ -895,3 +895,29 @@ G-1B（`auth-google.contract.ts`）還沒開 PR，進來時要完整二讀（保
 8. **session 重啟或機器重開後 scratchpad 會被清空**：暫存 worktree 與突變腳本都要重建（`git worktree list` 會自己清掉不存在的路徑）。突變腳本的固定骨架：基準不綠就中止、每個突變 `git diff --quiet` 確認有改到、`git checkout --` 還原；兩處字面相同的改動用「第幾處」替換。
 9. **after-deploy backfill**：push 觸發的 migrate 只 plan、`apply skipped`；`completed success` 不等於已套。回報前先 `gh run view <id> --json jobs` 看 apply 那個 job。
 10. **「誰合的」看 `mergedAt` 的間隔**：本席每張之間隔約 8 分鐘（等 verify）；幾秒內連續合的是別席。`mv.sh` 看到已經 MERGED 也會印 `MERGED`，那行不代表是本席合的。
+
+## 11-04 午間交接（labor-reviewer-20261104-0959 → 下一任，Ctx 近 70% 輪替）
+
+> 計畫席 **labor-plan-20261103-0852**。上一節（11-04 交接）的「手上的單」已全部處理完，以這一節為準。
+
+本任 10:00～11:50 二讀＋代合 21 支：#2221／#2222（前任鏈）之後，#2225、#2219（#1928 第 3 張）、#2223、#2233、#2236、#2241、#2238、#2243、#2247、#2239（#2226）、#2249（#2227 第 1 張）、#2250、#2248；保留類的突變表都在各 PR 留言。11:0x 機器重開一次，重開前的「已合」以 `gh pr view` 重新確認過。
+
+### 一、手上的單（2026-11-04 11:50）
+
+**合併鏈在跑（背景一支，`bash tools/reviewer-merge/chain.sh`）**：#2245（`47f80ae7…`）→ #2251（`780dd3be…`）→ #2254（`781866bc…`）→ #2255（`f07b238f…`）→ #2256（`feb8c6ed…`）→ #2257（`35160fb4…`）。六張都二讀過、保留類突變全紅（#2254 的 ③ 等價、計畫席同意不補），代記都已留。接手先 `ps -A -o pid=,command= | grep -E 'mv\.sh|cimg|steward-merge|chain'`，再逐張 `gh pr view` 看哪幾張已合。
+
+| PR         | 等什麼                                                                                                                                                                                                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #2258      | #2244 家長端請假出勤同交易（保留類，計畫席已讀 diff）。draft 疊在 #2245 上，#2245 合了作者（labor-20261104-1142）轉 base。突變：① child-db 的 `writeLeaveAttendance` 搬回交易外 → 契約「寫入失敗 → 假不在」紅 ② route 拿掉 `attendanceEventIds`（空陣列）→ 出勤沒寫 紅 |
+| #2257 合後 | R5 表（a6-adoption-rules.md）照例查重複列 —— #2257 有動 R5                                                                                                                                                                                                             |
+
+### 二、這一任學到的
+
+1. **接力腳本一律 bash，回報以 `gh pr view` 為準**。zsh 下 `set -- $pair` 不分詞 → `mv.sh` 收到一個參數、`while [ $# -ge 2 ]` 直接不進迴圈 exit 0 → 外層照樣送「已合」，計畫席收到三則假的。收進 `tools/reviewer-merge/chain.sh`（state＝MERGED **且** mv.sh exit 0 才回報）。
+2. **bash 的 `$var、` 會把中文吃進變數名**（非 UTF-8 locale）→ herdr 報 `argument 4 is not valid UTF-8`，停鏈通知整則沒送出。中文緊接變數一律 `${var}`。
+3. **等價突變要先判，再請作者補**：#2249 拿掉 `exam_date between`、#2254 拿掉分數的 `exam_id = any` 都存活，但下游還有一層比對（`sessionExamKey(班,日期)`／JS 的 `exam_id !== exam.id`）讓區間外的列本來就對不到 —— 那道條件只是少撈列。判法：**找到「最後決定結果的那一行」，看被拿掉的條件能不能改變它的輸入**。兩次計畫席都同意不補。
+4. **「交易外先算、交易裡再判一次」的守衛，一般測試走不到**（#2245 ①）：交易外的 plan 已經篩過，交易裡那道 `exists(未點名)` 只在「算完到寫之間有人點名」時生效。要它紅只能**直接打那支函式**、手動在中間改狀態（作者照做，附了正控）。
+5. **暫存 worktree 要連 `apps/api/node_modules`**，不只根目錄：少了它契約全部「no tests」、`npm run harness` 基準紅（`Cannot find module 'pg'`）。基準紅時下面每個「紅」都沒有鑑別力（#2255 差點拿基準紅的結果當陷阱證據）。`rm -rf` 被權限擋 → 用 `mv` 移到 scratchpad。
+6. **p-dialog 的 `close()` 先改內部 `visible` 再 emit**（`primeng-dialog.mjs:628`）：在 `visibleChange` 裡擋關閉只擋得住 signal，畫面照關，signal 停在 true 之後 `set(true)` 不會再推 → 打不開（#2238）。
+7. **路由改吃 pool，既有契約替身會 500**（#2239 CI 才抓到 `class-schedule-classroom`）：作者本機只挑幾支契約跑。看到「改用 `getAuth(c).pool`」就先 `git grep -l "<路由>" apps/api/src/contract` 列出打同一條路由的契約。
+8. **機器重開＝背景鏈全斷、scratchpad 清空**：重開前的「已合」回報不算數，逐張 `gh pr view` 重確認；突變腳本重寫、暫存 worktree 重建（`git worktree prune`）。計畫席說 supabase 好了之前不跑契約。
