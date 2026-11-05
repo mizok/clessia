@@ -1,24 +1,9 @@
-<div class="form-dialog form-dialog--a6">
-  <!-- A6 `.fdlg` 標題列：h2＋副標＋關閉（exams.html 新增考試／編輯基本資料） -->
-  <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content">
-      <h2 appDialogTitle class="dialog-header-inline__title">
-        {{ isEditing() ? '編輯基本資料' : '新增考試' }}
-      </h2>
-      <p class="dialog-header-inline__sub">
-        {{ isEditing() ? formData().name : '建好之後就可以進去登成績' }}
-      </p>
-    </div>
-    <button
-      type="button"
-      class="dialog-header-inline__close size-11 wide:size-10"
-      (click)="cancel()"
-      aria-label="關閉"
-    >
-      <i class="pi pi-times" aria-hidden="true"></i>
-    </button>
-  </div>
-
+<!-- 共用殼（#2290）：A6 `.fdlg` 標題列 h2＋副標＋關閉（exams.html 新增考試／編輯基本資料）、sticky 底部列 -->
+<app-dialog-frame
+  [title]="isEditing() ? '編輯基本資料' : '新增考試'"
+  [sub]="isEditing() ? formData().name : '建好之後就可以進去登成績'"
+  (closed)="cancel()"
+>
   <!-- 編輯要先拿到考試資料才畫表單；新增時表單先出來，只有班級選項晚一點到 -->
   @if (loading() && isEditing()) {
     <div class="flex items-center justify-center gap-2 p-8 text-sm text-zinc-500">
@@ -29,7 +14,7 @@
     <!-- A6 `.fdlg__body`：兩欄 grid；手機一欄 -->
     <form
       ngNoForm
-      class="grid grid-cols-2 gap-x-3 gap-y-4 px-6 pt-2 pb-6 max-wide:grid-cols-1 max-wide:px-4"
+      class="grid grid-cols-2 gap-x-3 gap-y-4 max-wide:grid-cols-1"
       (submit)="$event.preventDefault(); save()"
     >
       @if (isClosed()) {
@@ -212,9 +197,11 @@
         ></textarea>
       </div>
     </form>
-
-    <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
-    <div class="form-dialog__footer">
+  }
+  <!-- A6 `.fdlg__foot`：必填沒填不鎖死送出鈕，左邊寫還差什麼 -->
+  <!-- 投影只吃最上層節點：底部列放外層，編輯中的考試資料還沒到時不畫（同表單） -->
+  <ng-container dialogFoot>
+    @if (!(loading() && isEditing())) {
       <p class="form-dialog__why" aria-live="polite">{{ missingHint() }}</p>
       <button
         type="button"
@@ -232,6 +219,6 @@
       >
         {{ saving() ? (isEditing() ? '儲存中…' : '建立中…') : isEditing() ? '儲存' : '建立考試' }}
       </button>
-    </div>
-  }
-</div>
+    }
+  </ng-container>
+</app-dialog-frame>

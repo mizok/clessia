@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -72,6 +73,7 @@ interface SummaryStats {
   selector: 'app-score-entry',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     SkeletonComponent,
     PageOpenComponent,
     RouterLink,

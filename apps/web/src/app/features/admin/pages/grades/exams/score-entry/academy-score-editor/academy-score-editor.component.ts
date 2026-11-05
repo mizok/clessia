@@ -1,3 +1,4 @@
+import { DialogFrameComponent } from '@shared/components/dialog-frame/dialog-frame.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -65,6 +66,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
   selector: 'app-academy-score-editor',
   standalone: true,
   imports: [
+    DialogFrameComponent,
     FormsModule,
     RouterLink,
     InputNumberModule,
