@@ -1834,7 +1834,7 @@ export const PAGES = {
           status: '缺',
           a6: '>landmark:dialog\\[登記請假\\]>text:p\\[(要請假的課|先選學生，這裡會列出他那天的課。)\\]$',
         },
-        { status: '多', app: '>landmark:dialog\\[登記請假\\]>row$' },
+        { status: '多', app: '>landmark:dialog\\[登記請假\\]>row(>.*)?$' },
       ].map((d) => ({
         ...d,
         pop: 'new-leave',
