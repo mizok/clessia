@@ -10,7 +10,6 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { subMonths } from 'date-fns';
@@ -18,11 +17,14 @@ import { subMonths } from 'date-fns';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
 import { PagerComponent } from '@shared/components/pager/pager.component';
-import { SelectModule } from 'primeng/select';
 import { TooltipModule } from 'primeng/tooltip';
 
+import { DialogTitleDirective } from '@shared/directives/dialog-title.directive';
+import {
+  SelectFieldComponent,
+  type SelectFieldOption,
+} from '@shared/components/select-field/select-field.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
 import {
   ScoresService,
   type ScoreRecord,
@@ -35,19 +37,15 @@ import { isFailingScore } from '@shared/utils/score-threshold.util';
 type TypeFilter = 'all' | ScoreRecordType;
 type TimeRange = 'all' | '1m' | '3m' | '6m';
 
-interface SubjectOption {
-  readonly label: string;
-  readonly value: string;
-}
-
 interface StudentScoreDetailDialogData {
   readonly student: Student;
 }
 
-const TYPE_OPTIONS: Array<{ label: string; value: TypeFilter }> = [
-  { label: '全部', value: 'all' },
+// 文案照 A6 grades-student.html detail()
+const TYPE_OPTIONS: SelectFieldOption<TypeFilter>[] = [
+  { label: '全部考試', value: 'all' },
   { label: '補習班考試', value: 'academy' },
-  { label: '學校考試', value: 'school' },
+  { label: '學校段考', value: 'school' },
 ];
 
 const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
@@ -62,12 +60,11 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
   standalone: true,
   imports: [
     TextSwapDirective,
-    FormsModule,
     RouterLink,
     EmptyStateComponent,
-    JdenticonAvatarComponent,
     PagerComponent,
-    SelectModule,
+    SelectFieldComponent,
+    DialogTitleDirective,
     TooltipModule,
   ],
   templateUrl: './student-score-detail-dialog.component.html',
@@ -91,19 +88,21 @@ export class StudentScoreDetailDialogComponent implements OnInit {
   protected readonly loadingScores = signal(false);
   protected readonly loadingSummary = signal(false);
   protected readonly typeFilter = signal<TypeFilter>('all');
-  protected readonly timeRange = signal<TimeRange>('all');
+  // 預設近 3 個月：同成績總覽的期間篩選（#2079(c)／#2166）；稿是「全部」，登偏離
+  protected readonly timeRange = signal<TimeRange>('3m');
   protected readonly subjectFilter = signal<string | null>(null);
   protected readonly scorePage = signal(0);
   protected readonly scorePageSize = 10;
 
-  protected readonly subjectOptions = computed<SubjectOption[]>(() => {
+  protected readonly subjectOptions = computed<SelectFieldOption<string | null>[]>(() => {
     const names = new Set<string>();
     for (const score of this.scores()) {
       if (score.subjectName) names.add(score.subjectName);
     }
-    return Array.from(names)
+    const list = Array.from(names)
       .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
       .map((name) => ({ label: name, value: name }));
+    return [{ label: '全部科目', value: null }, ...list];
   });
 
   protected readonly filteredScores = computed(() => {
@@ -205,6 +204,12 @@ export class StudentScoreDetailDialogComponent implements OnInit {
 
   protected onTimeRangeChange(value: TimeRange | null): void {
     this.timeRange.set(value ?? 'all');
+  }
+
+  /** A6 `.fdlg__sub`：「年級 · 學校」，沒有學校就只寫年級 */
+  protected subtitle(s: Student): string {
+    const school = s.school?.shortName || s.school?.name;
+    return school ? `${this.formatGrade(s.grade)} · ${school}` : this.formatGrade(s.grade);
   }
 
   protected formatGrade(grade: GradeLevel): string {

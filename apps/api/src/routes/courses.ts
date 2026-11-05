@@ -274,7 +274,7 @@ app.openapi(listRoute, async (c) => {
   const { data, count, error } = await dbQuery;
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   const pageCourses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
@@ -471,6 +471,7 @@ const createCourseRoute = createRoute({
         },
       },
     },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -504,7 +505,7 @@ app.openapi(createCourseRoute, async (c) => {
     if (error.code === '23505') {
       return c.json({ error: '此分校已有同名課程', code: 'DUPLICATE' }, 409);
     }
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(

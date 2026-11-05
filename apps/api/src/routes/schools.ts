@@ -91,6 +91,7 @@ const listRoute = createRoute({
   responses: {
     200: { description: 'OK', content: { 'application/json': { schema: ListResponseSchema } } },
     400: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -112,7 +113,7 @@ app.openapi(listRoute, async (c) => {
   if (isActiveFilter !== null) query = query.eq('is_active', isActiveFilter);
 
   const { data, error, count } = await query;
-  if (error) return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  if (error) return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
 
   const rows = ((data ?? []) as SchoolWithCountRow[]).map((row) => ({
     id: row.id,
@@ -141,6 +142,7 @@ const createRouteDef = createRoute({
     },
     409: { description: '名稱重複', content: { 'application/json': { schema: ErrorSchema } } },
     400: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -164,7 +166,7 @@ app.openapi(createRouteDef, async (c) => {
 
   if (error) {
     if (error.code === '23505') return c.json({ error: '學校名稱重複', code: 'DUPLICATE' }, 409);
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
 
   logAudit(
@@ -224,6 +226,7 @@ const updateRouteDef = createRoute({
     404: { description: '找不到', content: { 'application/json': { schema: ErrorSchema } } },
     409: { description: '名稱重複', content: { 'application/json': { schema: ErrorSchema } } },
     400: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -261,7 +264,7 @@ app.openapi(updateRouteDef, async (c) => {
   if (error) {
     if (error.code === 'PGRST116') return c.json({ error: '找不到學校', code: 'NOT_FOUND' }, 404);
     if (error.code === '23505') return c.json({ error: '學校名稱重複', code: 'DUPLICATE' }, 409);
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
   if (!data) return c.json({ error: '找不到學校', code: 'NOT_FOUND' }, 404);
 
@@ -296,6 +299,7 @@ const deleteRouteDef = createRoute({
     404: { description: '找不到', content: { 'application/json': { schema: ErrorSchema } } },
     409: { description: '仍有學生關聯', content: { 'application/json': { schema: ErrorSchema } } },
     400: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: 'DB 錯誤', content: { 'application/json': { schema: ErrorSchema } } },
   },
 });
 
@@ -310,7 +314,7 @@ app.openapi(deleteRouteDef, async (c) => {
     .select('id', { count: 'exact', head: true })
     .eq('school_id', id);
 
-  if (studentCountError) return c.json({ error: studentCountError.message, code: 'DB_ERROR' }, 400);
+  if (studentCountError) return c.json({ error: studentCountError.message, code: 'DB_ERROR' }, 500);
   if ((studentCount ?? 0) > 0) {
     return c.json({ error: '此學校仍有學生關聯，無法刪除', code: 'CONSTRAINT' }, 409);
   }
@@ -321,7 +325,7 @@ app.openapi(deleteRouteDef, async (c) => {
     .eq('school_id', id);
 
   if (schoolExamCountError)
-    return c.json({ error: schoolExamCountError.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: schoolExamCountError.message, code: 'DB_ERROR' }, 500);
   if ((schoolExamCount ?? 0) > 0) {
     return c.json({ error: '此學校仍有學校考試事件，無法刪除', code: 'CONSTRAINT' }, 409);
   }
@@ -338,7 +342,7 @@ app.openapi(deleteRouteDef, async (c) => {
 
   if (error) {
     if (error.code === 'PGRST116') return c.json({ error: '找不到學校', code: 'NOT_FOUND' }, 404);
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
   }
   if (!data) return c.json({ error: '找不到學校', code: 'NOT_FOUND' }, 404);
 

@@ -285,6 +285,19 @@ describe('AcademyScoreEditorComponent', () => {
       expect(setScore(null).length).toBe(0);
     });
 
+    // #2289：手機列的「⚠」與分數放在同一個不換行的 flex 容器（jsdom 沒有版面，幾何在 PR 的 360 對照量）
+    it('手機列：圖示與分數在同一個不折行的容器裡', () => {
+      setScore(42);
+      const score = fixture.nativeElement.querySelector(
+        '[data-part=mobile-row] [data-part=mobile-score]',
+      ) as HTMLElement;
+      expect(score.querySelector('[data-part=fail-icon]')).not.toBeNull();
+      expect(score.textContent).toContain('42');
+      expect([...score.classList]).toEqual(
+        expect.arrayContaining(['inline-flex', 'items-center', 'whitespace-nowrap', 'shrink-0']),
+      );
+    });
+
     it('0 分會出現 —— 那是一個真的分數', () => {
       expect(setScore(0).length).toBeGreaterThan(0);
     });
