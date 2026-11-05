@@ -4,6 +4,7 @@ import {
   ROUTE_DIR_ATTR,
   onRouteViewTransition,
   routeDirection,
+  samePage,
   urlDepth,
 } from './route-transition';
 
@@ -83,6 +84,29 @@ describe('onRouteViewTransition', () => {
     await second.transition.finished;
     await Promise.resolve();
     expect(document.documentElement.hasAttribute(ROUTE_DIR_ATTR)).toBe(false);
+  });
+
+  // #2292：開「全部異動」面板只加 #changes —— 換頁 VT 會把面板凍成快照、內容再淡進來
+  it('只改 hash（路徑、query 都一樣）：跳過 transition、不寫方向', () => {
+    stubReducedMotion(false);
+    const from = snap(['admin'], ['sessions']);
+    const to = snap(['admin'], ['sessions']);
+    const t = info(from, to);
+    onRouteViewTransition(t.info);
+    expect(t.transition.skipTransition).toHaveBeenCalled();
+    expect(document.documentElement.hasAttribute(ROUTE_DIR_ATTR)).toBe(false);
+  });
+
+  it('同路徑但 query 不同、或路徑不同：照常走換頁（只有 hash 才跳過）', () => {
+    stubReducedMotion(false);
+    expect(samePage(snap(['admin'], ['sessions']), snap(['admin'], ['students']))).toBe(false);
+    const a = { ...snap(['admin'], ['sessions']), queryParams: { week: '1' } };
+    const b = { ...snap(['admin'], ['sessions']), queryParams: { week: '2' } };
+    expect(samePage(a as never, b as never)).toBe(false);
+    expect(samePage(null, snap(['admin']))).toBe(false);
+    const t = info(snap(['admin'], ['sessions']), snap(['admin'], ['students']));
+    onRouteViewTransition(t.info);
+    expect(t.transition.skipTransition).not.toHaveBeenCalled();
   });
 
   it('減少動態：跳過 transition、不寫方向', () => {
