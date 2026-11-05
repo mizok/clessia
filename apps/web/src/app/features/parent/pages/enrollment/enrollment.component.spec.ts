@@ -466,6 +466,22 @@ describe('EnrollmentComponent（家長端報名申請）', () => {
       expect(dialog.querySelector('a[href="/parent/payments"]')).not.toBeNull();
     });
 
+    it('詳情：共用殼的 h2 是可及名稱；能取消的才有底部動作列（#2290）', async () => {
+      await setup({ requests: records, fragment: 'records' });
+      el().querySelector<HTMLButtonElement>('[data-request="r-pend"]')!.click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      const dialog = el().querySelector('dialog')!;
+      const h2 = dialog.querySelector('h2')!;
+      expect(h2.textContent?.trim()).toBe('申請詳情');
+      expect(dialog.getAttribute('aria-labelledby')).toBe(h2.id);
+      expect(dialog.querySelector('.form-dialog__footer')!.textContent).toContain('取消這筆申請');
+      (fixture.componentInstance as any).closeDetail();
+      el().querySelector<HTMLButtonElement>('[data-request="r-rej"]')!.click();
+      fixture.detectChanges();
+      expect(dialog.querySelector('.form-dialog__footer button')).toBeNull();
+    });
+
     it('取消失敗：錯誤 toast、詳情不關、按鈕可以再按且真的再送', async () => {
       await setup({ requests: records, fragment: 'records' });
       api.cancelEnrollmentRequest.mockReturnValue(
