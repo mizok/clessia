@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { Component, computed, inject, signal } from '@angular/core';
 import { finalize, firstValueFrom } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
@@ -70,7 +71,14 @@ interface ParsedRow {
 @Component({
   selector: 'app-parent-import-dialog',
   standalone: true,
-  imports: [CommonModule, ButtonModule, TableModule, TagModule, ProgressSpinnerModule],
+  imports: [
+    CommonModule,
+    ButtonModule,
+    TableModule,
+    TagModule,
+    ProgressSpinnerModule,
+    InlineNoticeComponent,
+  ],
   templateUrl: './parent-import-dialog.component.html',
 })
 export class ParentImportDialogComponent {
@@ -135,7 +143,20 @@ export class ParentImportDialogComponent {
     this.processFile(file);
   }
 
+  /**
+   * 跟系統既有家長的衝突預檢沒做成（#2232）。原本失敗被吞成「沒有衝突」：預覽不標同名家長、
+   * 已存在的學生，畫面卻看不出少了這一步。現在照樣讓人看預覽，但上方明說、可以重新檢查
+   */
+  protected readonly dbCheckFailed = signal(false);
+  private lastFile: File | null = null;
+
+  /** 重新跑一次（從同一個檔案重新解析＋預檢） */
+  protected async recheck(): Promise<void> {
+    if (this.lastFile) await this.processFile(this.lastFile);
+  }
+
   private async processFile(file: File): Promise<void> {
+    this.lastFile = file;
     try {
       const sheetRows = await this.parseExcelFile(file);
       const parsedRows = this.parseRows(sheetRows);
@@ -151,12 +172,12 @@ export class ParentImportDialogComponent {
         studentName: row.studentName || undefined,
       }));
 
-      const dbResult: BatchCheckResponse =
+      const checked: BatchCheckResponse | null =
         checkRows.length > 0
-          ? await firstValueFrom(this.parentsService.batchCheck(checkRows)).catch(
-              (): BatchCheckResponse => ({ warnings: [], errors: [] }),
-            )
+          ? await firstValueFrom(this.parentsService.batchCheck(checkRows)).catch(() => null)
           : { warnings: [], errors: [] };
+      this.dbCheckFailed.set(checked === null);
+      const dbResult: BatchCheckResponse = checked ?? { warnings: [], errors: [] };
 
       for (const w of dbResult.warnings) {
         const mappedRowIndex = checkableRows[w.rowIndex]?.originalIndex;

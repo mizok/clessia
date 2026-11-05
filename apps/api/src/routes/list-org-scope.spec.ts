@@ -89,7 +89,7 @@ function seed() {
   });
 }
 
-async function list(route: Hono, path = '/') {
+async function list(route: Hono, { withPool = true } = {}) {
   const app = new Hono();
   app.use('*', async (c, next) => {
     const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
@@ -100,11 +100,13 @@ async function list(route: Hono, path = '/') {
     set('permissions', ['*']);
     set('campusScope', null); // 不受限 —— 洞就在這條路上
     // GET /classes 的統計走 pg pool（#2226，真 DB 契約守）；這裡守的是主查詢的 org 範圍
-    set('auth', { pool: { query: async () => ({ rows: [] }) } });
+    // courses 不給 pool：有 pool 就只走 SQL、失敗回 500（#2282），這裡守的是 builder 那條；
+    // SQL 那條的 org 範圍由 contract/course-list.contract.ts 的 org B 守
+    if (withPool) set('auth', { pool: { query: async () => ({ rows: [] }) } });
     await next();
   });
   app.route('/', route);
-  const res = await app.request(path);
+  const res = await app.request('/');
   return { status: res.status, body: (await res.json()) as any };
 }
 
@@ -112,7 +114,7 @@ const names = (body: any) => body.data.map((row: { name: string }) => row.name);
 
 describe('列表主查詢只回本 org（#1398）', () => {
   it('GET /courses', async () => {
-    const { status, body } = await list(coursesApp as unknown as Hono);
+    const { status, body } = await list(coursesApp as unknown as Hono, { withPool: false });
     expect(status).toBe(200);
     expect(names(body)).toEqual(['本 org 課']);
     expect(body.meta.total).toBe(1);

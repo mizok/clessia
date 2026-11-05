@@ -149,6 +149,26 @@ describe('ParentImportDialogComponent', () => {
     expect(rows.length).toBe(1);
   });
 
+  // #2232：預檢失敗原本被吞成「沒有衝突」—— 重複檢查無聲消失、照樣匯入。現在要明說，並能重新檢查
+  it('衝突預檢失敗：預覽上方明說沒檢查到重複，按「重新檢查」再查一次、成功就收起', async () => {
+    parentsServiceMock.batchCheck.mockReturnValueOnce(throwError(() => new Error('boom')));
+    const file = xlsxFile([
+      ...HEADER,
+      ['王大明', '0912345678', '', '', '王小明', '國一', '測試國中', '', ''],
+    ]);
+    await parse(file);
+    fixture.detectChanges();
+    const notice = () =>
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="db-check-failed"]');
+    expect(notice()?.textContent).toContain('沒檢查到跟系統裡既有的家長是否重複');
+
+    parentsServiceMock.batchCheck.mockClear();
+    await (component as never as { recheck(): Promise<void> }).recheck();
+    fixture.detectChanges();
+    expect(parentsServiceMock.batchCheck).toHaveBeenCalledTimes(1);
+    expect(notice()).toBeNull();
+  });
+
   /**
    * #1007：匯入成功之後，家長列表要在**匯入當下**就刷新 —— 不能等使用者按「完成」。
    * 對話框右上的 X 是 PrimeNG 內建的，以 `undefined` 關閉、不經過 `onDone()`，

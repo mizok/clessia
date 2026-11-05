@@ -6,7 +6,8 @@ import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import coursesApp from './courses';
 
 /**
- * `GET /api/courses` 先走 SQL、失敗才走 builder（#1595 P2）。這裡守**接線與退路**；
+ * `GET /api/courses` 有 pool 就走 SQL、失敗回 500 不退回（#1595 P2、#2230 (c)）；沒有 pool 才走 builder。
+ * 這裡守**接線**；
  * 兩條路結果逐欄相同由 `contract/course-list.contract.ts` 對真 DB 驗。
  */
 
@@ -77,7 +78,13 @@ async function list(
   });
   app.route('/', coursesApp);
   const res = await app.request(path);
-  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+  const text = await res.text();
+  // 500 時 Hono 回純文字，不是 JSON
+  return {
+    status: res.status,
+    text,
+    body: (res.ok ? JSON.parse(text) : {}) as Record<string, unknown>,
+  };
 }
 
 const names = (body: Record<string, unknown>) =>
@@ -96,14 +103,14 @@ describe('GET /api/courses 先走 SQL（#1595 P2）', () => {
     expect(body['meta']).toEqual({ total: 1, page: 1, pageSize: 20, totalPages: 1 });
   });
 
-  it('SQL 拋錯：改走 builder，照樣回 200，記一行 [courses-sql]', async () => {
+  it('SQL 拋錯 → 500，不退回 builder（#2230 (c)：退回只會把 SQL 的問題藏起來），記一行 [courses-sql]', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const pool = {
       query: vi.fn().mockRejectedValue(Object.assign(new Error('x'), { code: '53300' })),
     };
-    const { status, body } = await list('/', { pool });
-    expect(status).toBe(200);
-    expect(names(body)).toEqual(['builder 回的課']);
+    const { status, text } = await list('/', { pool });
+    expect(status).toBe(500);
+    expect(text).not.toContain('builder 回的課');
     expect(log).toHaveBeenCalledWith(expect.stringContaining('[courses-sql]'));
   });
 
@@ -113,12 +120,13 @@ describe('GET /api/courses 先走 SQL（#1595 P2）', () => {
     ['rows 不是陣列', [{ result: { ...SQL_RESULT, rows: null } }]],
     ['班數少了 ended', [{ result: { ...SQL_RESULT, classCounts: { [COURSE]: { active: 2 } } } }]],
     ['章節少了 count', [{ result: { ...SQL_RESULT, bySubject: [{ subjectId: MATH }] } }]],
-  ])('SQL 結果形狀不對（%s）：不用猜的值，改走 builder', async (_label, rows) => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  ])('SQL 結果形狀不對（%s）：不用猜的值、也不退回 builder → 500', async (_label, rows) => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const pool = { query: vi.fn().mockResolvedValue({ rows }) };
-    const { status, body } = await list('/', { pool });
-    expect(status).toBe(200);
-    expect(names(body)).toEqual(['builder 回的課']);
+    const { status, text } = await list('/', { pool });
+    expect(status).toBe(500);
+    expect(text).not.toContain('builder 回的課');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('[courses-sql]'));
   });
 
   it('沒有 pool（沒經過 auth middleware 的精簡 app）：走 builder', async () => {

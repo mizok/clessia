@@ -109,6 +109,8 @@ describe('StudentScoreDetailDialogComponent', () => {
       totalScore: 100,
       status: 'scored',
     };
+    // 固定日期的資料：關掉預設的近 3 個月，免得過幾個月後被篩掉（#670）
+    (component as unknown as { timeRange: { set: (v: string) => void } }).timeRange.set('all');
     (component as unknown as { scores: { set: (v: unknown) => void } }).scores.set([
       {
         ...base,
@@ -197,6 +199,8 @@ describe('StudentScoreDetailDialogComponent', () => {
       score: 80,
       classAvg: 80,
     };
+    // 固定日期的資料：關掉預設的近 3 個月，免得過幾個月後被篩掉（#670）
+    (component as unknown as { timeRange: { set: (v: string) => void } }).timeRange.set('all');
     (component as unknown as { scores: { set: (v: unknown) => void } }).scores.set([
       { ...base, id: 'solo', examId: 'e1', examName: '一人考', rank: 1, classSize: 1 },
       { ...base, id: 'pair', examId: 'e2', examName: '兩人考', rank: 2, classSize: 2 },
@@ -208,5 +212,61 @@ describe('StudentScoreDetailDialogComponent', () => {
     expect(rows[0].textContent).toContain('班平均 80');
     expect(rows[0].textContent).not.toContain('名');
     expect(rows[1].textContent).toContain('第 2 名／2 人');
+  });
+  // #1314 成績明細歸零：標題是 h2（appDialogTitle 掛對話框可及名稱），副標「年級 · 學校」
+  it('標題是 h2「{名} 的成績」，副標寫年級', () => {
+    fixture.detectChanges();
+    const h2 = (fixture.nativeElement as HTMLElement).querySelector('h2');
+    expect(h2?.textContent?.trim()).toBe('王小明 的成績');
+    expect(h2?.id).toMatch(/^dialog-title-/);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.dialog-header-inline__sub')
+        ?.textContent,
+    ).toContain('國一');
+  });
+
+  // #2291：手機標頭上方的綠色格狀圖示是舊版的 jdenticon 頭像（稿沒有）；標頭只留 h2、副標、關閉鈕
+  it('標頭只有 h2、副標與關閉鈕 —— 沒有頭像', () => {
+    fixture.detectChanges();
+    const head = (fixture.nativeElement as HTMLElement).querySelector('.dialog-header-inline')!;
+    expect(head.querySelector('app-jdenticon-avatar, svg, img, canvas')).toBeNull();
+    const parts = [...head.querySelectorAll('h2, p, button')].map((e) => e.tagName);
+    expect(parts).toEqual(['H2', 'P', 'BUTTON']);
+    expect(head.querySelector('button')?.getAttribute('aria-label')).toBe('關閉');
+  });
+
+  // #2079(c)／#2166：預設期間跟成績總覽一樣是近 3 個月
+  it('預設只列近 3 個月，按「全部」才列出更早的', () => {
+    const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+    const row = (id: string, examDate: string) => ({
+      id,
+      studentId: 's1',
+      studentName: '王小明',
+      subjectName: '數學',
+      totalScore: 100,
+      status: 'scored',
+      type: 'school',
+      examId: id,
+      examName: id,
+      examDate,
+      score: 80,
+      classAvg: null,
+      rank: null,
+      classSize: null,
+    });
+    (component as unknown as { scores: { set: (v: unknown) => void } }).scores.set([
+      row('recent', daysAgo(30)),
+      row('old', daysAgo(150)),
+    ]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('[data-part="record"]')).toHaveLength(1);
+    const all = Array.from(
+      el.querySelectorAll<HTMLButtonElement>('[aria-label="期間"] button'),
+    ).find((b) => b.textContent?.trim() === '全部')!;
+    expect(all.getAttribute('aria-pressed')).toBe('false');
+    all.click();
+    fixture.detectChanges();
+    expect(el.querySelectorAll('[data-part="record"]')).toHaveLength(2);
   });
 });

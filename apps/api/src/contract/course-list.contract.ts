@@ -9,7 +9,7 @@ import { createServiceClientFromEnv } from '../lib/supabase';
 /**
  * **`GET /api/courses` 的兩條路對真 DB 逐欄相同**（#1595 P2，計畫席 10-23 裁定 B）。
  *
- * SQL（`lib/course-list-sql.ts`，Hyperdrive 主路徑）與 query builder（退路）各寫一份條件。
+ * SQL（`lib/course-list-sql.ts`，Hyperdrive 主路徑）與 query builder（沒有 pool 時）各寫一份條件。
  * 兩份會分岔（#1314 SL3），所以這支把同一組請求各打一次：有 pool → SQL、沒有 pool → builder，
  * 回應要**完全相同**。涵蓋分校範圍（不受限／一間／多間／沒指派）× 指定分校（無／範圍內／範圍外）
  * × 篩選與分頁。
@@ -59,18 +59,12 @@ vi.mock('../middleware/auth', async (importOriginal) => {
       set('studentScope', null);
       set('childDb', createChildDb(supabase as never, null, ctx.orgId));
       set('campusScope', ctx.campusScope);
-      // builder 模式：pool 的 query 一律失敗 —— 走的是正式的退路（SQL 拋錯 → builder），不是另一條測試專用的路。
+      // builder 模式：不設 auth。SQL 失敗已經不退回 builder（#2230 (c)，回 500），builder 只剩
+      // 「沒有 pool」這條路。不能設 `{ pool: undefined }`：authPoolCleanup 會呼叫它的 `.end()`。
       // `end` 是 no-op：authPoolCleanup 每個請求都會呼叫它，而這裡所有請求共用同一個 pool
-      set('auth', {
-        pool: {
-          query: ctx.usePool
-            ? pool!.query.bind(pool)
-            : async () => {
-                throw Object.assign(new Error('contract：強制走 builder'), { code: 'CONTRACT' });
-              },
-          end: async () => undefined,
-        },
-      });
+      if (ctx.usePool) {
+        set('auth', { pool: { query: pool!.query.bind(pool), end: async () => undefined } });
+      }
       set('selfRows', { staff: null, parent: null, assignedCampusIds: [] });
       await next();
     }),
@@ -193,7 +187,7 @@ run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', (
     return { status: res.status, body: (await res.json()) as CoursesBody };
   };
 
-  it('每種分校範圍 × 指定分校 × 篩選：兩條路回應完全相同，SQL 沒有退回 builder', async () => {
+  it('每種分校範圍 × 指定分校 × 篩選：兩條路回應完全相同，SQL 沒有失敗', async () => {
     const log = vi.spyOn(console, 'error');
     const scopes: Record<string, string[] | null> = {
       all: null,
@@ -226,8 +220,8 @@ run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', (
           const url = `/api/courses${qs ? `?${qs}` : ''}`;
           const before = fallbackLogs(log);
           const viaSql = await hit(url, true);
-          // SQL 那次不能退回 builder，否則下面的比對就是 builder 對 builder
-          if (fallbackLogs(log) !== before) diffs.push(`${sk}|${rk}|${f}：SQL 退回了 builder`);
+          // SQL 那次不能失敗（失敗會 500、記一行 [courses-sql]）
+          if (fallbackLogs(log) !== before) diffs.push(`${sk}|${rk}|${f}：SQL 失敗`);
           const viaBuilder = await hit(url, false);
           compared += 1;
           if (JSON.stringify(viaSql) !== JSON.stringify(viaBuilder)) diffs.push(`${sk}|${rk}|${f}`);
@@ -238,8 +232,6 @@ run('GET /api/courses：SQL 與 builder 對真 DB 逐欄相同（#1595 P2）', (
     ctx.campusScope = null;
     expect(compared).toBe(96);
     expect(diffs).toEqual([]);
-    // builder 模式真的走了退路（每次 SQL 拋錯都記一行）—— 證明比對的是兩條不同的路
-    expect(fallbackLogs(log)).toBeGreaterThan(0);
   });
 
   it('有資料可比（不是兩邊都空）：不受限時有課、有班數、有章節', async () => {
