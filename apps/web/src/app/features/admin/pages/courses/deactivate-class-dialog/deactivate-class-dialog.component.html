@@ -1,6 +1,7 @@
 <!-- 共用殼（#2290）。內容照 A6 class.html:249-256（A2.form）：一個「停用方式」radio＋單一送出（#2361） -->
 <app-dialog-frame [title]="'停用「' + (cls()?.name ?? '') + '」'" [sub]="sub()" (closed)="cancel()">
-  <div class="min-w-0">
+  <!-- 稿的 A2.form 把欄位包在 form 裡；送出鈕在殼的底部列，用 form 屬性指回（dialog-frame.md） -->
+  <form id="deactivate-form" class="min-w-0" (submit)="$event.preventDefault(); submit()">
     <!-- 稿是 label（A2.form 的 radio 欄位）；radiogroup 沒有單一控制項可以 for，靠 aria-labelledby 指回來（同分校表單） -->
     <label class="mb-1 block text-md font-semibold text-zinc-700" id="deactivate-mode-label"
       >停用方式</label
@@ -9,7 +10,7 @@
     <div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="deactivate-mode-label">
       @for (opt of modes; track opt.value) {
         <label
-          class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
+          class="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-zinc-300 bg-white px-4 font-semibold text-zinc-900 has-checked:border-zinc-900 has-checked:ring-1 has-checked:ring-zinc-900 has-checked:ring-inset max-wide:h-11"
         >
           <input
             type="radio"
@@ -26,7 +27,7 @@
     <p class="m-0 mt-1 text-sm text-zinc-600" data-testid="deactivate-hint">
       停用並停課未來課堂：未來、還沒開始的課都改成停課，已上過的課保留。僅停用班級：已排的課照常上，之後不能再排新的課。
     </p>
-  </div>
+  </form>
 
   <ng-container dialogFoot>
     <button
@@ -38,11 +39,11 @@
       取消
     </button>
     <button
-      type="button"
+      type="submit"
+      form="deactivate-form"
       class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-solid px-4 text-md leading-normal font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 wide:h-9 border-accent-vivid bg-accent-vivid text-zinc-900 hover:border-accent-vivid-2 hover:bg-accent-vivid-2"
       data-testid="deactivate-submit"
       [disabled]="loading()"
-      (click)="submit()"
     >
       {{ loading() ? '停用中…' : '停用班級' }}
     </button>
