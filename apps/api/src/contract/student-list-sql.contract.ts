@@ -117,6 +117,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     (await q<{ id: string }>(`${sql} returning id`, values))[0]!.id;
   const campus: Record<'c1' | 'c2', string> = { c1: '', c2: '' };
   let otherOrg = '';
+  /** 別 org 的分校（逐堂點名）：指定它當 campusId 時，模式不能讀到它的設定 */
+  let campusOther = '';
   const otherIds: string[] = [];
   const parentUsers: string[] = [];
 
@@ -168,9 +170,11 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       [klass['c2'], staff],
     );
     // 別 org 的班，時段卻掛本 org 這位老師（FK 不擋）：任課班要經 classes.org_id 收，同 loadTenure
-    const campusB = await one("insert into campuses (org_id, name) values ($1, '別 org 分校')", [
-      otherOrg,
-    ]);
+    const campusB = await one(
+      "insert into campuses (org_id, name, attendance_mode) values ($1, '別 org 分校', 'per_session')",
+      [otherOrg],
+    );
+    campusOther = campusB;
     const subjectB = await one("insert into subjects (org_id, name) values ($1, '數學')", [
       otherOrg,
     ]);
@@ -321,11 +325,25 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
     await q("update organizations set attendance_mode = 'daily_checkin' where id = $1", [
       ctx.orgId,
     ]);
+    // 一校那班今天的課堂掛一個活動，活動的開始時間（23:00）蓋過課堂的 00:00 —— 到課時間從活動取
+    const event = await one(
+      `insert into events (org_id, event_type, title, campus_id, event_date, start_time, end_time)
+       values ($1, 'session', '今日活動', $2, $3, '23:00', '23:30')`,
+      [ctx.orgId, campus.c1, today],
+    );
+    await q(
+      `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status, event_id)
+       values ($1, $2, $3, '00:00', '00:30', 'scheduled', 'unassigned', $4)`,
+      [ctx.orgId, klass['c1'], today, event],
+    );
+    // 別 org 的課堂掛在一校那班（FK 不擋），時間 12:00：課堂少了 org 條件，到課時間就會被它改掉
     await q(
       `insert into sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status)
-       values ($1, $2, $3, '00:00', '00:30', 'scheduled', 'unassigned')`,
-      [ctx.orgId, klass['c1'], today],
+       values ($1, $2, $3, '12:00', '12:30', 'scheduled', 'unassigned')`,
+      [otherOrg, klass['c1'], today],
     );
+    // 二校設成逐堂點名（機構是日到班）：指定二校時沒有今日到班
+    await q("update campuses set attendance_mode = 'per_session' where id = $1", [campus.c2]);
     await q(
       'insert into daily_checkins (org_id, student_id, checkin_date, checked_in_at) values ($1, $2, $3, now())',
       [ctx.orgId, s.a, today],
@@ -361,7 +379,9 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         'delete from parents where org_id = $1',
         'delete from checkin_cards where org_id = $1',
         'delete from daily_checkins where org_id = $1',
+        'delete from sessions where class_id in (select id from classes where org_id = $1)',
         'delete from sessions where org_id = $1',
+        'delete from events where org_id = $1',
         // 別 org 的報名會掛在本 org 的學生上（老師 2 的 fixture），連同一起刪
         'delete from enrollments where org_id = $1 or student_id in (select id from students where org_id = $1)',
         'delete from students where org_id = $1',
@@ -517,7 +537,8 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
         .map((r) => r.name)
         .sort();
     expect(await names('today=arrived')).toEqual(['甲']);
-    expect((await names('today=missing')).length).toBeGreaterThan(3);
+    // 到課時間取活動的 23:00（不是課堂的 00:00）→ 沒打卡的是「還沒到時間」
+    expect((await names('today=not_yet')).length).toBeGreaterThan(3);
     expect(await names(`search=${PHONE}03`)).toEqual(['乙']);
     expect(await names(`search=${encodeURIComponent('甲媽')}`)).toEqual(['甲']);
     expect(await names(`search=${encodeURIComponent('名冊國中')}`)).toEqual(['甲', '甲']);
@@ -603,6 +624,22 @@ run('GET /api/students：SQL 與 builder 對真 DB 逐欄相同（#1595 P2 ② �
       ctx.teacherUser = main;
       ctx.teacher = false;
     }
+  });
+
+  it('點名模式：指定分校看分校設定（二校逐堂點名 → 沒有今日到班），別 org 的分校設定讀不到', async () => {
+    const today = async (qs: string) =>
+      ((await hit(`/api/students?${qs}`, true)).body['summary'] as { today: unknown } | undefined)
+        ?.today;
+    expect(await today(`campusId=${campus.c1}`)).not.toBeNull();
+    expect(await today(`campusId=${campus.c2}`)).toBeNull();
+    // 別 org 的分校：當成機構預設（日到班）算 —— 名單是空的，但今日到班有算（不是 null）
+    expect(await today(`campusId=${campusOther}`)).toEqual({
+      any: 0,
+      arrived: 0,
+      not_yet: 0,
+      missing: 0,
+      on_leave: 0,
+    });
   });
 
   it('第一頁（含今日到班）也不碰 REST：受限管理員、老師（舊碼：模式＋課堂 2–3 支）', async () => {
