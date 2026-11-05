@@ -86,7 +86,7 @@
             }
           </span>
         </div>
-        <p class="form-dialog__hint">對外的頁面只會顯示暱稱；不填就不顯示你</p>
+        <p class="form-dialog__hint">公開課程目錄顯示你的暱稱，沒填就顯示本名</p>
         @if (fieldError()?.field === 'nickname') {
           <p class="account-settings__error m-0 text-xs text-error-600">{{ fieldError()!.msg }}</p>
         }
