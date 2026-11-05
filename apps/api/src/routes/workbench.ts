@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Queryable } from '../lib/identity-sql';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { DbUuidSchema } from '../lib/validation';
@@ -6,9 +5,9 @@ import { DbUuidSchema } from '../lib/validation';
 import type { AppEnv } from '../index';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
-import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
-import { resolveAttendanceMode } from '../lib/attendance-mode';
+import { summariseSessions } from '../lib/session-summary';
 import { loadDailyAttendance } from '../lib/today-attendance';
+import { loadWorkbenchTodayBase } from '../lib/workbench-today-sql';
 
 /**
  * 作業台的聚合端點。**一支取代四支。**
@@ -218,7 +217,6 @@ app.openapi(
     },
   }),
   async (c) => {
-    const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { date, campusId } = c.req.valid('query');
 
@@ -228,32 +226,21 @@ app.openapi(
     // 帶了的話 `campusRequestGuard` 已經在 middleware 驗過，這支不用自己擋。
     const campusIds = campusFilterIds(getCampusScope(c), campusId);
 
-    let sessionsQuery = supabase
-      .from('sessions')
-      .select(SESSION_SUMMARY_SELECT)
-      .eq('org_id', orgId)
-      .eq('session_date', targetDate)
-      .order('start_time', { ascending: true });
-
-    if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', campusIds);
-
-    // #949：點名模式只在撈完課堂之後才用到，兩支互不相依 —— 同一輪發出去。
+    // #949：點名模式只在撈完課堂之後才用到，兩者互不相依 —— 同一支 SQL 一起拿（#1595 P2 ①，原本 2–3 支 REST）。
     // #1112：模式是分校層級，而這支一次只回一個 mode —— 看的是單一分校（帶了 campusId，
     // 或只管一個分校）就用那個分校的；看多校時沿用機構預設。
     // ponytail: 多校混用不同模式時多校總覽只顯示機構預設的形狀，要逐校分流再改回應形狀
-    const singleCampus = campusId ?? (campusIds?.length === 1 ? campusIds[0] : null);
-    const [{ mode: resolvedMode }, { data: sessionRows, error: sessionsError }] = await Promise.all(
-      [resolveAttendanceMode(supabase, orgId, singleCampus), sessionsQuery],
-    );
+    const singleCampus = campusId ?? (campusIds?.length === 1 ? campusIds[0]! : null);
 
-    const mode = resolvedMode ?? 'per_session';
-    if (sessionsError) {
-      return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
-    }
-
-    // 摘要的計數走 pg（#2227）；沒有池就回 500，不退回會 414／截斷的 `.in()` 寫法
+    // 整支走 pg；沒有池就回 500，不退回會 414／截斷的 REST 寫法（#2227、#2230 (c)）
     const pool = c.get('auth')?.pool;
     if (!pool) return c.json({ error: '查詢課堂失敗', code: 'DB_POOL_UNAVAILABLE' }, 500);
+    const { mode, sessions: sessionRows } = await loadWorkbenchTodayBase(pool, {
+      orgId,
+      date: targetDate,
+      campusIds,
+      singleCampus,
+    });
     const sessions = await summariseSessions(pool, orgId, sessionRows);
 
     // ── 逐堂點名模式 ────────────────────────────────────────
@@ -278,7 +265,7 @@ app.openapi(
     // 判準在 `lib/today-attendance.ts`（學生名冊的「今日到班」也走它，#1314 SL1）
     const daily =
       mode === 'daily_checkin'
-        ? await loadDailyAttendance(supabase, orgId, targetDate, sessions, {
+        ? await loadDailyAttendance(pool, orgId, targetDate, sessions, {
             campusIds,
             classIds: null,
           })

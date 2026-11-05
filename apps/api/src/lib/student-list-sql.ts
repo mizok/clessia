@@ -184,6 +184,48 @@ select json_build_object(
 ) as result
 `;
 
+/** `STUDENT_LIST_SQL` 的參數陣列（順序見上面的註解） */
+export const studentListArgs = (p: StudentListParams): unknown[] => [
+  p.orgId,
+  p.campusIds,
+  p.classIds,
+  p.grade,
+  p.isActive,
+  p.schoolMismatch,
+  p.withoutCard,
+  p.cardIssuedToday,
+  p.cardDayStart,
+  p.cardDayEnd,
+  p.limit,
+  p.offset,
+  p.withPhone,
+  p.search,
+  p.searchRelated,
+  p.searchPhone,
+  p.todayIds,
+];
+
+/** 反過來：測試替身把 `STUDENT_LIST_SQL` 的參數交給 builder 版用 */
+export const studentListParamsFromArgs = (v: readonly unknown[]): StudentListParams => ({
+  orgId: v[0] as string,
+  campusIds: v[1] as string[] | null,
+  classIds: v[2] as string[] | null,
+  grade: v[3] as string | null,
+  isActive: v[4] as boolean | null,
+  schoolMismatch: v[5] as boolean,
+  withoutCard: v[6] as boolean,
+  cardIssuedToday: v[7] as boolean,
+  cardDayStart: v[8] as string,
+  cardDayEnd: v[9] as string,
+  limit: v[10] as number,
+  offset: v[11] as number,
+  withPhone: v[12] as boolean,
+  search: v[13] as string | null,
+  searchRelated: v[14] as boolean,
+  searchPhone: v[15] as boolean,
+  todayIds: v[16] as string[] | null,
+});
+
 const isCount = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
 
 /** 一次往返拿完列表、總數、在籍數、章節計數、本頁主要家長電話。失敗或形狀不對**丟例外**（→ 500） */
@@ -192,25 +234,7 @@ export async function loadStudentListViaSql(
   p: StudentListParams,
 ): Promise<StudentListResult> {
   try {
-    const { rows } = await db.query(STUDENT_LIST_SQL, [
-      p.orgId,
-      p.campusIds,
-      p.classIds,
-      p.grade,
-      p.isActive,
-      p.schoolMismatch,
-      p.withoutCard,
-      p.cardIssuedToday,
-      p.cardDayStart,
-      p.cardDayEnd,
-      p.limit,
-      p.offset,
-      p.withPhone,
-      p.search,
-      p.searchRelated,
-      p.searchPhone,
-      p.todayIds,
-    ]);
+    const { rows } = await db.query(STUDENT_LIST_SQL, studentListArgs(p));
     const result = (rows[0] as { result?: unknown } | undefined)?.result as
       Record<string, unknown> | undefined;
     const byGrade = result?.['byGrade'] as Record<string, unknown> | undefined;
