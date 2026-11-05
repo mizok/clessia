@@ -1438,8 +1438,8 @@ export class SessionsPage implements OnInit {
    */
   protected openMakeup(session: Session): void {
     const ref = this.dialogService.open(SessionMakeupDialogComponent, {
-      header: '指定補課',
-      width: '420px',
+      width: 'var(--dlg-w-md)',
+      showHeader: false,
       modal: true,
       appendTo: this.overlayContainer ?? 'body',
       data: { session },
