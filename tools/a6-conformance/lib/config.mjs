@@ -1226,6 +1226,19 @@ export const PAGES = {
         reason: '工具列「⋯」：現況有、稿沒畫的動作收進「⋯」',
         source: `${rule('R2')}；#1226`,
       },
+      // 操作紀錄彈窗：本機 seed 沒有課程的操作紀錄 → app 是空狀態「尚無操作紀錄」（稿也有這句，只是示範資料有 11 筆）
+      ...[
+        { status: '缺', a6: '(^|>)landmark:dialog\\[操作紀錄\\]>list$' },
+        { status: '多', app: '(^|>)landmark:dialog\\[操作紀錄\\]>text:p\\[尚無操作紀錄\\]$' },
+        // 彈窗高度隨紀錄筆數（置中的彈窗頂端跟著動）
+        { status: '位置', a6: '^pop\\[log\\]>landmark:dialog\\[操作紀錄\\]$', detail: 'Δx 0、' },
+      ].map((d) => ({
+        ...d,
+        pop: 'log',
+        reason: '資料：本機沒有課程的操作紀錄，彈窗是空狀態',
+        source:
+          'courses.html logDialog（LOG 空時同樣寫「尚無操作紀錄」）；#1314 issuecomment-6625976591',
+      })),
       {
         // 課程列：稿是 <details><summary>，summary 裡包「新增班」「⋯」按鈕（summary 是按鈕角色，裡面不能再放按鈕）；
         // app 是展開鈕＋並排的動作鈕，每門課一個 region（計畫席 10-30 #2078 同意）。結構不同，課程列裡的子項配不上，一起歸這條

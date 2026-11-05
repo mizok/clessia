@@ -267,7 +267,7 @@ describe('LeavePage', () => {
 
     // 同 attendance.page.spec：`showHeader: false` 讓 `header` 永遠不渲染（#448）
     expect(dialogServiceMock.open).toHaveBeenCalledWith(AuditLogDialogComponent, {
-      width: '800px',
+      width: '520px',
       modal: true,
       showHeader: false,
       appendTo: 'body',
